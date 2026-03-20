@@ -20,6 +20,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -27,8 +28,6 @@ import (
 
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
-
-const tableName = "test_schema_ff.ff_cutover_test"
 
 // TestExportFromTargetStartupFailureAndCutoverResume verifies that live migration cutover
 // is only marked as complete once `export-data-from-target` starts up properly, and that
@@ -56,6 +55,7 @@ const tableName = "test_schema_ff.ff_cutover_test"
 //   - Go failpoint in `cmd/exportDataFromTarget.go` at `exportFromTargetStartupError`,
 //     triggered via GO_FAILPOINTS env var passed through import data's post-cutover exec.
 func TestExportFromTargetStartupFailureAndCutoverResume(t *testing.T) {
+	tableName := "test_schema_ff.ff_cutover_test"
 	ctx := context.Background()
 
 	createSchemaSQL := []string{
@@ -71,9 +71,9 @@ func TestExportFromTargetStartupFailureAndCutoverResume(t *testing.T) {
 	}
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:        ContainerConfig{Type: "postgresql", ForLive: true},
-		TargetDB:        ContainerConfig{Type: "yugabytedb"},
-		SourceReplicaDB: ContainerConfig{Type: "postgresql"},
+		SourceDB:        ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
+		TargetDB:        ContainerConfig{Type: "yugabytedb", DatabaseName: "yugabyte"},
+		SourceReplicaDB: ContainerConfig{Type: "postgresql", DatabaseName: "postgres"},
 		SchemaNames:     []string{"test_schema_ff"},
 		SchemaSQL:       createSchemaSQL,
 		SourceReplicaSetupSchemaSQL: createSchemaSQL,
@@ -81,155 +81,92 @@ func TestExportFromTargetStartupFailureAndCutoverResume(t *testing.T) {
 			`INSERT INTO test_schema_ff.ff_cutover_test (name, value)
 			SELECT 'initial_' || i, i * 10 FROM generate_series(1, 20) i;`,
 		},
+		SourceDeltaSQL: []string{
+			`INSERT INTO test_schema_ff.ff_cutover_test (name, value)
+			SELECT 'cdc_forward_' || i, 1000 + i FROM generate_series(1, 5) i;`,
+		},
+		TargetDeltaSQL: []string{
+			`INSERT INTO test_schema_ff.ff_cutover_test (name, value)
+			SELECT 'cdc_fallforward_' || i, 2000 + i FROM generate_series(1, 5) i;`,
+		},
 		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema_ff CASCADE;"},
 	})
 	defer lm.Cleanup()
 	require.NoError(t, lm.SetupContainers(ctx))
 	require.NoError(t, lm.SetupSchema())
 
-	exportDir = lm.GetExportDir()
-	pgSourceContainer := lm.GetSourceContainer()
-	ybTargetContainer := lm.GetTargetContainer()
-	pgSourceReplicaContainer := lm.GetSourceReplicaContainer()
-
 	// --- Step 1: Start export data from PG source (snapshot-and-changes, async) ---
 
-	testutils.LogTest(t, "Starting export data from PG source (snapshot-and-changes)...")
-	waitForExportInit := func() {
-		time.Sleep(5 * time.Second)
-	}
-	exportRunner := testutils.NewVoyagerCommandRunner(pgSourceContainer, "export data", []string{
-		"--export-dir", exportDir,
-		"--export-type", "snapshot-and-changes",
-		"--source-db-schema", "test_schema_ff",
-		"--disable-pb", "true",
-		"--yes",
-	}, waitForExportInit, true)
-	err := exportRunner.Run()
+	err := lm.StartExportData(true, nil)
 	require.NoError(t, err, "Failed to start export data")
-	defer exportRunner.Kill()
 
 	// --- Step 2: Start import data to YB target (async, with failpoint env) ---
 
-	testutils.LogTest(t, "Starting import data to YB target (with failpoint env for export-from-target)...")
 	failpointEnv := testutils.GetFailpointEnvVar(
 		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/exportFromTargetStartupError=1*return()",
 	)
-	waitForImportInit := func() {
-		time.Sleep(5 * time.Second)
-	}
-	importRunner := testutils.NewVoyagerCommandRunner(ybTargetContainer, "import data", []string{
-		"--export-dir", exportDir,
-		"--disable-pb", "true",
-		"--yes",
-	}, waitForImportInit, true).WithEnv(failpointEnv)
-	err = importRunner.Run()
+	err = lm.StartImportDataWithEnv(true, nil, []string{failpointEnv})
 	require.NoError(t, err, "Failed to start import data")
 
-	// --- Wait for snapshot to be imported to YB target (20 rows) ---
+	// --- Wait for snapshot, then forward CDC ---
 
-	testutils.LogTest(t, "Waiting for snapshot import to YB target (20 rows)...")
-	snapshotDone := waitForRowCount(t, ybTargetContainer, tableName, 20, 120*time.Second, 3*time.Second)
-	require.True(t, snapshotDone, "Snapshot import to YB target should complete (20 rows)")
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		reportTableName(tableName): 20,
+	}, 120)
+	require.NoError(t, err, "snapshot phase did not complete")
 
-	// --- Forward CDC: Insert 5 rows on PG source, wait for them on YB target ---
+	lm.ExecuteSourceDelta()
 
-	testutils.LogTest(t, "Inserting 5 CDC rows on PG source...")
-	pgSourceContainer.ExecuteSqls(
-		`INSERT INTO test_schema_ff.ff_cutover_test (name, value)
-		SELECT 'cdc_forward_' || i, 1000 + i FROM generate_series(1, 5) i;`,
-	)
-
-	testutils.LogTest(t, "Waiting for forward CDC streaming to YB target (25 rows)...")
-	forwardCDCDone := waitForRowCount(t, ybTargetContainer, tableName, 25, 60*time.Second, 3*time.Second)
-	require.True(t, forwardCDCDone, "Forward CDC rows should appear on YB target")
-	testutils.LogTest(t, "Forward CDC streaming verified: 25 rows on YB target")
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		reportTableName(tableName): {Inserts: 5},
+	}, 60, 3)
+	require.NoError(t, err, "forward streaming did not complete")
 
 	// --- Step 3: Start import data to source-replica (sets FallForwardEnabled) ---
 
-	testutils.LogTest(t, "Starting import data to source-replica (sets FallForwardEnabled)...")
 	err = lm.StartImportDataToSourceReplica(true, nil)
 	require.NoError(t, err, "Failed to start import data to source-replica")
 
-	testutils.LogTest(t, "Waiting for FallForwardEnabled to be set in metaDB...")
-	ffEnabled := waitForFallForwardEnabled(t, exportDir, 60*time.Second, 2*time.Second)
-	require.True(t, ffEnabled, "FallForwardEnabled should be set by import-to-source-replica")
-	testutils.LogTest(t, "FallForwardEnabled is now true")
-
-	testutils.LogTest(t, "Waiting for TargetDBConf to be set in metaDB by import...")
-	tdbConfSet := waitForTargetDBConfInMetaDB(t, exportDir, 120*time.Second, 3*time.Second)
-	require.True(t, tdbConfSet, "TargetDBConf should be set by import data")
+	err = lm.WaitForFallForwardEnabled(60)
+	require.NoError(t, err, "FallForwardEnabled should be set by import-to-source-replica")
 
 	// --- Step 4: Initiate cutover to target ---
 
-	testutils.LogTest(t, "Initiating cutover to target...")
-	initiateCutoverToTarget(t, exportDir)
-	testutils.LogTest(t, "Cutover initiated")
+	require.NoError(t, lm.InitiateCutoverToTarget(false, nil), "Failed to initiate cutover")
 
 	// Export detects cutover and shuts down gracefully (exit code 0).
-	testutils.LogTest(t, "Waiting for export process to exit after cutover...")
-	exportExitErr := exportRunner.Wait()
-	require.NoError(t, exportExitErr, "Export should exit cleanly after processing cutover")
+	require.NoError(t, lm.WaitForExportDataExit(), "Export should exit cleanly after processing cutover")
 
 	// Import processes cutover, then exec's into export-data-from-target.
 	// The exec'd process inherits GO_FAILPOINTS and crashes before setting the flag.
-	testutils.LogTest(t, "Waiting for import→export-from-target to crash via failpoint...")
-	_, importExitErr := waitForProcessExitOrKill(importRunner, exportDir, 180*time.Second)
-	require.Error(t, importExitErr, "Export-from-target should exit with error due to failpoint")
-
-	time.Sleep(3 * time.Second)
+	failMarkerPath := filepath.Join(lm.GetExportDir(), "logs", "failpoint-export-from-target-startup.log")
+	err = lm.WaitForImportFailpointAndProcessCrash(t, failMarkerPath, 120*time.Second, 60*time.Second)
+	require.NoError(t, err, "Export-from-target should crash via failpoint")
 
 	// --- Step 5: Verify cutover is NOT complete ---
 
-	testutils.LogTest(t, "Verifying cutover is NOT complete after failed export-from-target startup...")
-	verifyCutoverIsNotComplete(t, exportDir)
+	require.NoError(t, lm.AssertCutoverIsNotComplete())
 
 	// --- Step 6: Resume export-data-from-target WITHOUT failpoint ---
 
-	testutils.LogTest(t, "Starting export-data-from-target manually (no failpoint)...")
-	ybConfig := ybTargetContainer.GetConfig()
-	exportFromTargetRunner := testutils.NewVoyagerCommandRunner(nil, "export data from target", []string{
-		"--export-dir", exportDir,
-		"--target-ssl-mode", "disable",
-		"--disable-pb", "true",
-		"--yes",
-	}, nil, true).WithEnv(fmt.Sprintf("TARGET_DB_PASSWORD=%s", ybConfig.Password))
-
-	err = exportFromTargetRunner.Run()
+	ybConfig := lm.GetTargetContainer().GetConfig()
+	lm.WithEnv(fmt.Sprintf("TARGET_DB_PASSWORD=%s", ybConfig.Password))
+	err = lm.StartExportDataFromTarget(true, nil)
 	require.NoError(t, err, "Failed to start resumed export-data-from-target")
-	defer exportFromTargetRunner.Kill()
 
 	// --- Step 7: Wait for export-from-target to start and set the flag ---
 
-	testutils.LogTest(t, "Waiting for ExportFromTargetFallForwardStarted to become true...")
-	started := waitForExportFromTargetStarted(t, exportDir, 120*time.Second, 3*time.Second)
-	require.True(t, started, "ExportFromTargetFallForwardStarted should become true after successful startup")
+	err = lm.WaitForExportFromTargetStarted(120)
+	require.NoError(t, err, "ExportFromTargetFallForwardStarted should become true after successful startup")
 
 	// --- Step 8: Verify cutover IS complete ---
 
-	testutils.LogTest(t, "Verifying cutover IS complete after successful export-from-target startup...")
-	verifyCutoverIsComplete(t, exportDir)
+	require.NoError(t, lm.AssertCutoverIsComplete())
 
 	// --- Step 9: Fall-forward CDC: Insert 5 rows on YB target, verify on source-replica ---
 
-	testutils.LogTest(t, "Inserting 5 CDC rows on YB target (post-cutover, fall-forward streaming)...")
-	ybTargetContainer.ExecuteSqls(
-		`INSERT INTO test_schema_ff.ff_cutover_test (name, value)
-		SELECT 'cdc_fallforward_' || i, 2000 + i FROM generate_series(1, 5) i;`,
-	)
+	lm.ExecuteTargetDelta()
 
-	// YB target should now have 30 rows (20 snapshot + 5 forward CDC + 5 fall-forward)
-	testutils.LogTestf(t, "YB target row count: %d", queryRowCount(t, ybTargetContainer, tableName))
-
-	// Wait for the 5 fall-forward CDC rows to appear on source-replica.
-	// Source-replica gets: 20 snapshot + 5 forward CDC (from initial export) + 5 fall-forward.
-	// But the snapshot rows on source-replica come from the PG source export, so it should have
-	// at least the 5 fall-forward rows beyond what it already had.
-	testutils.LogTest(t, "Waiting for fall-forward CDC rows to appear on PG source-replica...")
-	ffCDCDone := waitForRowCount(t, pgSourceReplicaContainer, tableName, 30, 120*time.Second, 3*time.Second)
-	require.True(t, ffCDCDone, "Fall-forward CDC rows should appear on PG source-replica (30 rows)")
-	testutils.LogTestf(t, "Source-replica row count: %d", queryRowCount(t, pgSourceReplicaContainer, tableName))
-
-	testutils.LogTest(t, "Test passed: cutover is only COMPLETED once export-data-from-target starts properly, "+
-		"and fall-forward CDC streaming works end-to-end")
+	err = lm.WaitForFallForwardStreamingComplete([]string{tableName}, 120, 3)
+	require.NoError(t, err, "fall-forward streaming did not complete")
 }

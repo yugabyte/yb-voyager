@@ -485,6 +485,13 @@ func (lm *LiveMigrationTest) StopExportDataFromTarget() error {
 	return nil
 }
 
+func (lm *LiveMigrationTest) WaitForExportDataExit() error {
+	if lm.exportCmd == nil {
+		return goerrors.Errorf("export command not started")
+	}
+	return lm.exportCmd.Wait()
+}
+
 // KillDebezium force-kills the Debezium Java process for the given exporter role.
 // Debezium runs as a separate child Java process and can outlive the `yb-voyager` parent if
 // the parent is SIGKILLed. Cleanup() calls this automatically for SOURCE_DB_EXPORTER_ROLE.
@@ -843,6 +850,35 @@ func (lm *LiveMigrationTest) WaitForFallbackStreamingComplete(expectedChanges ma
 	return nil
 }
 
+func (lm *LiveMigrationTest) WaitForFallForwardStreamingComplete(tables []string, streamingTimeout time.Duration, streamingSleep time.Duration) error {
+	fmt.Printf("Waiting for fall-forward streaming complete\n")
+
+	ok := utils.RetryWorkWithTimeout(streamingSleep, streamingTimeout, func() bool {
+		allMatch := true
+		err := lm.WithTargetConn(func(targetConn *sql.DB) error {
+			return lm.WithSourceReplicaConn(func(replicaConn *sql.DB) error {
+				for _, table := range tables {
+					if err := testutils.CompareRowCount(lm.ctx, targetConn, replicaConn, table); err != nil {
+						allMatch = false
+						return nil
+					}
+				}
+				return nil
+			})
+		})
+		if err != nil {
+			return false
+		}
+		return allMatch
+	})
+
+	if !ok {
+		return goerrors.Errorf("fall-forward streaming did not complete within %v seconds", streamingTimeout)
+	}
+	fmt.Printf("Fall-forward streaming complete\n")
+	return nil
+}
+
 // WaitForCutoverComplete waits until cutover is done
 func (lm *LiveMigrationTest) WaitForCutoverComplete(iterationNumber int, cutoverTimeout time.Duration) error {
 	fmt.Printf("Waiting for cutover complete\n")
@@ -891,6 +927,66 @@ func (lm *LiveMigrationTest) WaitForCutoverSourceComplete(iterationNumber int, c
 	fmt.Printf("Cutover to source complete\n")
 	lm.exportCmd = lm.importToSourceCmd
 	lm.importCmd = lm.exportFromTargetCmd
+	return nil
+}
+
+func (lm *LiveMigrationTest) WaitForFallForwardEnabled(timeout time.Duration) error {
+	fmt.Printf("Waiting for fall-forward enabled\n")
+	if err := lm.InitMetaDB(); err != nil {
+		return goerrors.Errorf("failed to initialize meta db: %w", err)
+	}
+	ok := utils.RetryWorkWithTimeout(1, timeout, func() bool {
+		msr, err := lm.metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			return false
+		}
+		return msr.FallForwardEnabled
+	})
+	if !ok {
+		return goerrors.Errorf("fall-forward was not enabled within %v seconds", timeout)
+	}
+	fmt.Printf("Fall-forward enabled\n")
+	return nil
+}
+
+func (lm *LiveMigrationTest) WaitForExportFromTargetStarted(timeout time.Duration) error {
+	fmt.Printf("Waiting for export from target started\n")
+	if err := lm.InitMetaDB(); err != nil {
+		return goerrors.Errorf("failed to initialize meta db: %w", err)
+	}
+	ok := utils.RetryWorkWithTimeout(1, timeout, func() bool {
+		msr, err := lm.metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			return false
+		}
+		return msr.ExportFromTargetFallForwardStarted || msr.ExportFromTargetFallBackStarted
+	})
+	if !ok {
+		return goerrors.Errorf("export from target did not start within %v seconds", timeout)
+	}
+	fmt.Printf("Export from target started\n")
+	return nil
+}
+
+func (lm *LiveMigrationTest) AssertCutoverIsComplete() error {
+	if err := lm.InitMetaDB(); err != nil {
+		return goerrors.Errorf("failed to initialize meta db: %w", err)
+	}
+	status := lm.getCutoverStatus(0)
+	if status != COMPLETED {
+		return goerrors.Errorf("expected cutover status COMPLETED, got %q", status)
+	}
+	return nil
+}
+
+func (lm *LiveMigrationTest) AssertCutoverIsNotComplete() error {
+	if err := lm.InitMetaDB(); err != nil {
+		return goerrors.Errorf("failed to initialize meta db: %w", err)
+	}
+	status := lm.getCutoverStatus(0)
+	if status == COMPLETED {
+		return goerrors.Errorf("expected cutover status to NOT be COMPLETED, but it was")
+	}
 	return nil
 }
 
@@ -1011,6 +1107,18 @@ func (lm *LiveMigrationTest) WithTargetConn(fn func(*sql.DB) error) error {
 	conn, err := lm.targetContainer.GetConnectionWithDB(lm.config.TargetDB.DatabaseName)
 	if err != nil {
 		return goerrors.Errorf("failed to get target connection: %w", err)
+	}
+	defer conn.Close()
+	return fn(conn)
+}
+
+func (lm *LiveMigrationTest) WithSourceReplicaConn(fn func(*sql.DB) error) error {
+	if lm.sourceReplicaContainer == nil {
+		return goerrors.Errorf("source-replica container not configured")
+	}
+	conn, err := lm.sourceReplicaContainer.GetConnectionWithDB(lm.config.SourceReplicaDB.DatabaseName)
+	if err != nil {
+		return goerrors.Errorf("failed to get source-replica connection: %w", err)
 	}
 	defer conn.Close()
 	return fn(conn)
@@ -1196,6 +1304,9 @@ func (lm *LiveMigrationTest) GetDataMigrationReport() (*DataMigrationReport, err
 		}
 		if lm.targetContainer != nil {
 			reportArgs = append(reportArgs, "--target-db-password", lm.targetContainer.GetConfig().Password)
+		}
+		if lm.sourceReplicaContainer != nil {
+			reportArgs = append(reportArgs, "--source-replica-db-password", lm.sourceReplicaContainer.GetConfig().Password)
 		}
 		err := testutils.NewVoyagerCommandRunner(nil, "get data-migration-report", reportArgs, nil, true).Run()
 		if err != nil {
