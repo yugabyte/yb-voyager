@@ -107,8 +107,8 @@ func (b *BytemanHelper) WaitForInjection(pattern string, timeout time.Duration) 
 }
 
 // VerifyInjection checks if a Byteman injection occurred by searching Debezium logs.
-// It looks for the given regex pattern in the most recent Debezium log file.
-// Returns true if the pattern is found, false otherwise.
+// It searches ALL debezium-*.log files in the export directory (source exporter,
+// target exporter, etc.) and returns true if the pattern is found in any of them.
 func (b *BytemanHelper) VerifyInjection(pattern string) (bool, error) {
 	logPattern := filepath.Join(b.exportDir, "logs", "debezium-*.log")
 	matches, err := filepath.Glob(logPattern)
@@ -116,18 +116,20 @@ func (b *BytemanHelper) VerifyInjection(pattern string) (bool, error) {
 		return false, goerrors.Errorf("debezium log not found in %s", logPattern)
 	}
 
-	// Use the first match (usually there's only one)
-	content, err := os.ReadFile(matches[0])
-	if err != nil {
-		return false, fmt.Errorf("failed to read log file %s: %w", matches[0], err)
+	for _, logFile := range matches {
+		content, err := os.ReadFile(logFile)
+		if err != nil {
+			continue
+		}
+		matched, err := regexp.MatchString(pattern, string(content))
+		if err != nil {
+			return false, fmt.Errorf("invalid regex pattern '%s': %w", pattern, err)
+		}
+		if matched {
+			return true, nil
+		}
 	}
-
-	matched, err := regexp.MatchString(pattern, string(content))
-	if err != nil {
-		return false, fmt.Errorf("invalid regex pattern '%s': %w", pattern, err)
-	}
-
-	return matched, nil
+	return false, nil
 }
 
 //
