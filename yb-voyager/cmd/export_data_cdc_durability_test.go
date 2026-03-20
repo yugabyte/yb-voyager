@@ -185,7 +185,7 @@ func TestCDCBatchFailureBeforeHandleBatchComplete(t *testing.T) {
 	ctx := context.Background()
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true},
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
 		SchemaNames: []string{"test_schema_before_batch_complete"},
 		SchemaSQL: []string{
 			"DROP SCHEMA IF EXISTS test_schema_before_batch_complete CASCADE;",
@@ -203,14 +203,17 @@ func TestCDCBatchFailureBeforeHandleBatchComplete(t *testing.T) {
 			`INSERT INTO test_schema_before_batch_complete.cdc_before_batch_complete_test (name, value, payload)
 			SELECT 'snapshot_' || i, i * 10, repeat('s', 20000) FROM generate_series(1, 50) i;`,
 		},
+		SourceDeltaSQL: []string{
+			`INSERT INTO test_schema_before_batch_complete.cdc_before_batch_complete_test (name, value, payload)
+			SELECT 'batch1_' || i, 100 + i, repeat('x', 2000) FROM generate_series(1, 20) i;`,
+		},
 		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema_before_batch_complete CASCADE;"},
 	})
 	defer lm.Cleanup()
 	require.NoError(t, lm.SetupContainers(ctx))
 	require.NoError(t, lm.SetupSchema())
 
-	exportDir = lm.GetExportDir()
-	postgresContainer := lm.GetSourceContainer()
+	exportDir := lm.GetExportDir()
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper")
@@ -222,90 +225,37 @@ func TestCDCBatchFailureBeforeHandleBatchComplete(t *testing.T) {
 	)
 	require.NoError(t, bytemanHelper.WriteRules(), "Failed to write Byteman rules")
 
-	cdcEventsGenerated := make(chan bool, 1)
-	generateCDCEvents := func() {
-		if err := waitForStreamingMode(exportDir, 90*time.Second, 2*time.Second); err != nil {
-			testutils.LogTestf(t, "Failed to reach streaming mode: %v", err)
-			return
-		}
-		postgresContainer.ExecuteSqls(
-			`INSERT INTO test_schema_before_batch_complete.cdc_before_batch_complete_test (name, value, payload)
-			SELECT 'batch1_' || i, 100 + i, repeat('x', 2000) FROM generate_series(1, 20) i;`,
-		)
-		time.Sleep(3 * time.Second)
-		cdcEventsGenerated <- true
-	}
-
-	exportRunner := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", exportDir,
-		"--export-type", "snapshot-and-changes",
-		"--source-db-schema", "test_schema_before_batch_complete",
-		"--disable-pb", "true",
-		"--yes",
-	}, generateCDCEvents, true).WithEnv(bytemanHelper.GetEnv()...)
-
-	err = exportRunner.Run()
+	// Run 1: export with Byteman injection at before-handle-batch-complete
+	err = lm.StartExportDataWithEnv(true, nil, bytemanHelper.GetEnv())
 	require.NoError(t, err, "Failed to start export")
+
+	time.Sleep(10 * time.Second)
+
+	lm.ExecuteSourceDelta()
 
 	matched, err := bytemanHelper.WaitForInjection(">>> BYTEMAN: fail_before_handle_batch_complete", 90*time.Second)
 	require.NoError(t, err, "Should be able to read debezium logs for handleBatchComplete failure")
 	require.True(t, matched, "Byteman failure should be injected before handleBatchComplete")
 
-	select {
-	case <-cdcEventsGenerated:
-	case <-time.After(60 * time.Second):
-		require.Fail(t, "CDC event generation timed out")
-	}
+	err = lm.WaitForExportDataExit()
+	require.Error(t, err, "Export should exit with error after failure")
 
-	_, waitErr := waitForProcessExitOrKill(exportRunner, exportDir, 60*time.Second)
-	require.Error(t, waitErr, "Export should exit with error after failure")
-
-	eventCountAfterFailure, err := countEventsInQueueSegments(exportDir)
-	require.NoError(t, err, "Should be able to count events after failure")
-	testutils.LogTestf(t, "Queue count after failure: %d", eventCountAfterFailure)
 	_, _ = verifyNoEventIDDuplicatesAfterFailure(t, exportDir)
 
-	lm.RemoveExportLockfile()
-
-	insertAfterResume := make(chan bool, 1)
-	generateAfterResumeEvents := func() {
-		if err := waitForStreamingMode(exportDir, 90*time.Second, 2*time.Second); err != nil {
-			testutils.LogTestf(t, "Failed to reach streaming mode after resume: %v", err)
-			return
-		}
-		postgresContainer.ExecuteSqls(
-			`INSERT INTO test_schema_before_batch_complete.cdc_before_batch_complete_test (name, value, payload)
-			SELECT 'resume_' || i, 200 + i, repeat('y', 2000) FROM generate_series(1, 10) i;`,
-		)
-		insertAfterResume <- true
-	}
-
-	exportRunnerResume := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", exportDir,
-		"--export-type", "snapshot-and-changes",
-		"--source-db-schema", "test_schema_before_batch_complete",
-		"--disable-pb", "true",
-		"--yes",
-	}, generateAfterResumeEvents, true)
-
-	err = exportRunnerResume.Run()
+	// Run 2: resume export and insert 10 more events
+	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "Failed to start export resume")
 
-	select {
-	case <-insertAfterResume:
-	case <-time.After(60 * time.Second):
-		require.Fail(t, "Post-resume CDC event generation timed out")
-	}
+	time.Sleep(10 * time.Second)
 
-	waitForCDCEventCount(t, exportDir, 30, 60*time.Second, 2*time.Second)
-	eventCountAfterResume, err := countEventsInQueueSegments(exportDir)
-	require.NoError(t, err, "Should be able to count events after resume")
-	require.Equal(t, 30, eventCountAfterResume, "Expected 30 CDC events after resume")
+	lm.ExecuteOnSource(
+		`INSERT INTO test_schema_before_batch_complete.cdc_before_batch_complete_test (name, value, payload)
+		SELECT 'resume_' || i, 200 + i, repeat('y', 2000) FROM generate_series(1, 10) i;`,
+	)
+
+	finalEventCount := lm.WaitForCDCEventCount(t, 30, 120*time.Second, 5*time.Second)
+	require.Equal(t, 30, finalEventCount, "Expected 30 CDC events after resume")
 	verifyNoEventIDDuplicates(t, exportDir)
-
-	_ = exportRunnerResume.Kill()
-	_ = killDebeziumForExportDir(exportDir)
-	lm.RemoveExportLockfile()
 }
 
 // TestCDCQueueWriteFailureAndResume verifies that live migration `export data` can resume after
@@ -335,7 +285,7 @@ func TestCDCQueueWriteFailureAndResume(t *testing.T) {
 	ctx := context.Background()
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true},
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
 		SchemaNames: []string{"test_schema_queue_write"},
 		SchemaSQL: []string{
 			"DROP SCHEMA IF EXISTS test_schema_queue_write CASCADE;",
@@ -353,14 +303,17 @@ func TestCDCQueueWriteFailureAndResume(t *testing.T) {
 			`INSERT INTO test_schema_queue_write.cdc_queue_write_test (name, value, payload)
 			SELECT 'snapshot_' || i, i * 10, repeat('s', 20000) FROM generate_series(1, 50) i;`,
 		},
+		SourceDeltaSQL: []string{
+			`INSERT INTO test_schema_queue_write.cdc_queue_write_test (name, value, payload)
+			SELECT 'batch1_' || i, 100 + i, repeat('q', 20000) FROM generate_series(1, 40) i;`,
+		},
 		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema_queue_write CASCADE;"},
 	})
 	defer lm.Cleanup()
 	require.NoError(t, lm.SetupContainers(ctx))
 	require.NoError(t, lm.SetupSchema())
 
-	exportDir = lm.GetExportDir()
-	postgresContainer := lm.GetSourceContainer()
+	exportDir := lm.GetExportDir()
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper")
@@ -372,82 +325,28 @@ func TestCDCQueueWriteFailureAndResume(t *testing.T) {
 	)
 	require.NoError(t, bytemanHelper.WriteRules(), "Failed to write Byteman rules")
 
-	cdcEventsGenerated := make(chan bool, 1)
-	generateCDCEvents := func() {
-		if err := waitForStreamingMode(exportDir, 90*time.Second, 2*time.Second); err != nil {
-			testutils.LogTestf(t, "Failed to reach streaming mode: %v", err)
-			return
-		}
-		postgresContainer.ExecuteSqls(
-			`INSERT INTO test_schema_queue_write.cdc_queue_write_test (name, value, payload)
-			SELECT 'batch1_' || i, 100 + i, repeat('q', 20000) FROM generate_series(1, 40) i;`,
-		)
-		time.Sleep(3 * time.Second)
-		cdcEventsGenerated <- true
-	}
-
-	exportRunner := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", exportDir,
-		"--export-type", "snapshot-and-changes",
-		"--source-db-schema", "test_schema_queue_write",
-		"--disable-pb", "true",
-		"--yes",
-	}, generateCDCEvents, true).WithEnv(bytemanHelper.GetEnv()...)
-
-	err = exportRunner.Run()
+	// Run 1: export with Byteman injection at before-write-record (25th event)
+	err = lm.StartExportDataWithEnv(true, nil, bytemanHelper.GetEnv())
 	require.NoError(t, err, "Failed to start export")
+
+	time.Sleep(10 * time.Second)
+
+	lm.ExecuteSourceDelta()
 
 	matched, err := bytemanHelper.WaitForInjection(">>> BYTEMAN: fail_queue_write", 90*time.Second)
 	require.NoError(t, err, "Should be able to read debezium logs for queue write failure")
 	require.True(t, matched, "Byteman queue write failure should be injected")
 
-	select {
-	case <-cdcEventsGenerated:
-	case <-time.After(60 * time.Second):
-		require.Fail(t, "CDC event generation timed out")
-	}
+	err = lm.WaitForExportDataExit()
+	require.Error(t, err, "Export should exit with error after queue write failure")
 
-	_, waitErr := waitForProcessExitOrKill(exportRunner, exportDir, 60*time.Second)
-	require.Error(t, waitErr, "Export should exit with error after queue write failure")
-
-	eventCountAfterFailure, err := countEventsInQueueSegments(exportDir)
-	require.NoError(t, err, "Should be able to count events after failure")
-	testutils.LogTestf(t, "Queue count after failure: %d", eventCountAfterFailure)
-
-	lm.RemoveExportLockfile()
-
-	exportRunnerResume := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", exportDir,
-		"--export-type", "snapshot-and-changes",
-		"--source-db-schema", "test_schema_queue_write",
-		"--disable-pb", "true",
-		"--yes",
-	}, nil, true)
-
-	err = exportRunnerResume.Run()
+	// Run 2: resume export — all 40 events should be recovered
+	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "Failed to start export resume")
 
-	eventCountAfterResumeStart, err := countEventsInQueueSegments(exportDir)
-	require.NoError(t, err, "Should be able to count events after resume start")
-	testutils.LogTestf(t, "Queue count after resume start: %d", eventCountAfterResumeStart)
-	truncationMatched, err := waitForTruncationLog(exportDir, 60*time.Second)
-	require.NoError(t, err, "Should be able to read debezium logs for truncation")
-	if truncationMatched {
-		testutils.LogTestf(t, "✓ Observed queue segment truncation on resume")
-	} else {
-		testutils.LogTestf(t, "ℹ No truncation log observed on resume")
-	}
-
-	waitForCDCEventCount(t, exportDir, 40, 120*time.Second, 5*time.Second)
-	eventCountAfterResume, err := countEventsInQueueSegments(exportDir)
-	require.NoError(t, err, "Should be able to count events after resume")
-	require.Equal(t, 40, eventCountAfterResume, "Expected 40 CDC events after resume")
+	lm.WaitForCDCEventCount(t, 40, 120*time.Second, 5*time.Second)
 	assertEventCountDoesNotExceed(t, exportDir, 40, 15*time.Second, 2*time.Second)
 	verifyNoEventIDDuplicates(t, exportDir)
-
-	_ = exportRunnerResume.Kill()
-	_ = killDebeziumForExportDir(exportDir)
-	lm.RemoveExportLockfile()
 }
 
 // TestCDCRotationMidBatchClosesSegment verifies that live migration `export data` properly
@@ -475,7 +374,7 @@ func TestCDCRotationMidBatchClosesSegment(t *testing.T) {
 	ctx := context.Background()
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true},
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
 		SchemaNames: []string{"test_schema_rotation"},
 		SchemaSQL: []string{
 			"DROP SCHEMA IF EXISTS test_schema_rotation CASCADE;",
@@ -493,14 +392,17 @@ func TestCDCRotationMidBatchClosesSegment(t *testing.T) {
 			`INSERT INTO test_schema_rotation.cdc_rotation_test (name, value, payload)
 			SELECT 'snapshot_' || i, i * 10, repeat('s', 20000) FROM generate_series(1, 50) i;`,
 		},
+		SourceDeltaSQL: []string{
+			`INSERT INTO test_schema_rotation.cdc_rotation_test (name, value, payload)
+			SELECT 'batch1_' || i, 100 + i, repeat('r', 5000) FROM generate_series(1, 30) i;`,
+		},
 		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema_rotation CASCADE;"},
 	})
 	defer lm.Cleanup()
 	require.NoError(t, lm.SetupContainers(ctx))
 	require.NoError(t, lm.SetupSchema())
 
-	exportDir = lm.GetExportDir()
-	postgresContainer := lm.GetSourceContainer()
+	exportDir := lm.GetExportDir()
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper")
@@ -512,75 +414,35 @@ func TestCDCRotationMidBatchClosesSegment(t *testing.T) {
 	)
 	require.NoError(t, bytemanHelper.WriteRules(), "Failed to write Byteman rules")
 
-	cdcEventsGenerated := make(chan bool, 1)
-	generateCDCEvents := func() {
-		if err := waitForStreamingMode(exportDir, 90*time.Second, 2*time.Second); err != nil {
-			testutils.LogTestf(t, "Failed to reach streaming mode: %v", err)
-			return
-		}
-		postgresContainer.ExecuteSqls(
-			`INSERT INTO test_schema_rotation.cdc_rotation_test (name, value, payload)
-			SELECT 'batch1_' || i, 100 + i, repeat('r', 5000) FROM generate_series(1, 30) i;`,
-		)
-		time.Sleep(3 * time.Second)
-		cdcEventsGenerated <- true
-	}
-
 	envVars := append(bytemanHelper.GetEnv(), "QUEUE_SEGMENT_MAX_BYTES=8192")
-	exportRunner := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", exportDir,
-		"--export-type", "snapshot-and-changes",
-		"--source-db-schema", "test_schema_rotation",
-		"--disable-pb", "true",
-		"--yes",
-	}, generateCDCEvents, true).WithEnv(envVars...)
-
-	err = exportRunner.Run()
+	err = lm.StartExportDataWithEnv(true, nil, envVars)
 	require.NoError(t, err, "Failed to start export")
+
+	time.Sleep(10 * time.Second)
+
+	lm.ExecuteSourceDelta()
 
 	matched, err := bytemanHelper.WaitForInjection(">>> BYTEMAN: fail_before_handle_batch_complete_rotation", 90*time.Second)
 	require.NoError(t, err, "Should be able to read debezium logs for handleBatchComplete failure")
 	require.True(t, matched, "Byteman failure should be injected before handleBatchComplete")
 
-	select {
-	case <-cdcEventsGenerated:
-	case <-time.After(60 * time.Second):
-		require.Fail(t, "CDC event generation timed out")
-	}
-
 	// Kill immediately after injection to avoid graceful shutdown that could sync segments.
-	_ = exportRunner.Kill()
-	_ = killDebeziumForExportDir(exportDir)
+	_ = lm.exportCmd.Kill()
+	lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
 
 	segmentFiles, err := listQueueSegmentFiles(exportDir)
 	require.NoError(t, err, "Failed to list queue segment files")
 	require.GreaterOrEqual(t, len(segmentFiles), 2, "Expected multiple queue segments after rotation")
-	testutils.LogTestf(t, "Queue segment files after failure: %v", segmentFiles)
 
-	lowestSegmentPath := ""
-	lowestSegmentNum := int64(-1)
-	latestSegmentPath := ""
-	latestSegmentNum := int64(-1)
-	for _, segmentPath := range segmentFiles {
-		segmentNum, err := parseQueueSegmentNum(segmentPath)
-		require.NoError(t, err, "Failed to parse queue segment number")
-		if lowestSegmentNum == -1 || segmentNum < lowestSegmentNum {
-			lowestSegmentNum = segmentNum
-			lowestSegmentPath = segmentPath
-		}
-		if segmentNum > latestSegmentNum {
-			latestSegmentNum = segmentNum
-			latestSegmentPath = segmentPath
-		}
-	}
+	lowestSegmentPath, _, highestSegmentNum, err := findSegmentNumRange(segmentFiles)
+	require.NoError(t, err, "Failed to parse queue segment numbers")
 	require.NotEmpty(t, lowestSegmentPath, "Expected to identify lowest queue segment")
-	require.NotEmpty(t, latestSegmentPath, "Expected to identify latest queue segment")
 
 	closed, err := isQueueSegmentClosed(lowestSegmentPath)
 	require.NoError(t, err, "Failed to check queue segment EOF marker")
 	require.True(t, closed, "First rotated queue segment should be closed with EOF marker")
 
-	require.GreaterOrEqual(t, latestSegmentNum, int64(1), "Expected latest segment to be >= 1 after rotation")
+	require.GreaterOrEqual(t, highestSegmentNum, int64(1), "Expected latest segment to be >= 1 after rotation")
 }
 
 // TestCDCQueueSegmentTruncationOnResume verifies that live migration `export data` correctly

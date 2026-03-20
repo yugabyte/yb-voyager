@@ -436,6 +436,25 @@ func parseQueueSegmentNum(filePath string) (int64, error) {
 	return segmentNum, nil
 }
 
+func findSegmentNumRange(segmentFiles []string) (lowestPath string, lowestNum, highestNum int64, err error) {
+	lowestNum = -1
+	highestNum = -1
+	for _, path := range segmentFiles {
+		num, parseErr := parseQueueSegmentNum(path)
+		if parseErr != nil {
+			return "", -1, -1, parseErr
+		}
+		if lowestNum == -1 || num < lowestNum {
+			lowestNum = num
+			lowestPath = path
+		}
+		if num > highestNum {
+			highestNum = num
+		}
+	}
+	return lowestPath, lowestNum, highestNum, nil
+}
+
 func isQueueSegmentClosed(filePath string) (bool, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
