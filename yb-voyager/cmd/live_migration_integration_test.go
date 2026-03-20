@@ -3521,7 +3521,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterations(t *testing.T) {
 			err = lm.InitiateCutoverToSource(nil)
 			testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-			err = lm.WaitForCutoverSourceComplete(i-1, 100)
+			err = lm.WaitForCutoverSourceComplete(i, 100)
 			testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 		}
 		fmt.Printf("\n✅ Iteration %d completed successfully!\n", i)
