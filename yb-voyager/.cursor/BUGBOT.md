@@ -40,7 +40,7 @@
 ## Flag and Config Handling
 
 - When adding a new flag to a command, check whether it needs to be propagated to related commands (e.g., `export-data` flags may need to reach `import-data-to-source`).
-- When adding a new flag, ensure that it is supported by config-file, CLI both, and added to the CLI templates.
+- When adding a new flag, ensure that it is supported by config-file, CLI both, and added to the config file templates. (yb-voyager/config-templates)
 
 ## Idempotency
 

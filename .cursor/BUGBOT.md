@@ -41,10 +41,11 @@ Sequence handling varies significantly across code paths:
 
 ## Upgrade and Backward Compatibility
 
-Users may upgrade voyager mid-migration. Serialized state must remain compatible:
+Users may upgrade voyager mid-migration. Serialized state must remain compatible, to the best of your ability.:
 
 - Changing JSON struct tags or removing fields from serialized structs (MSR, assessment report, callhome payloads) can be a breaking change.
 - Adding columns to the assessmentDB (SQLite) schema can break older voyager versions that query the new schema. Use defensive queries or `ADD COLUMN IF NOT EXISTS`.
+- If it is too complicated to support backward-compatibility, then notify that the subsequent release will need to be marked as a breaking release.
 - When changing callhome or YugabyteD payload structs, increment the payload version constant.
 
 ## Case-Sensitive Identifiers
