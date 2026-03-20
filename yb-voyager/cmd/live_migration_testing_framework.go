@@ -206,6 +206,8 @@ func (lm *LiveMigrationTest) Cleanup() {
 	}
 
 	lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
+	lm.KillDebezium(TARGET_DB_EXPORTER_FF_ROLE)
+	lm.KillDebezium(TARGET_DB_EXPORTER_FB_ROLE)
 
 	// Execute cleanup SQL on all containers
 	if lm.sourceContainer != nil {
@@ -490,6 +492,16 @@ func (lm *LiveMigrationTest) WaitForExportDataExit() error {
 		return goerrors.Errorf("export command not started")
 	}
 	return lm.exportCmd.Wait()
+}
+
+// WaitForImportDataExit waits for the import data process to exit.
+// This is useful when import has exec'd into export-data-from-target and
+// you need to detect the crash of the exec'd process.
+func (lm *LiveMigrationTest) WaitForImportDataExit() error {
+	if lm.importCmd == nil {
+		return goerrors.Errorf("import command not started")
+	}
+	return lm.importCmd.Wait()
 }
 
 // KillDebezium force-kills the Debezium Java process for the given exporter role.
