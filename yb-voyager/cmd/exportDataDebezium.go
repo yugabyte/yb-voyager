@@ -36,6 +36,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/exportdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
@@ -239,31 +240,7 @@ func generateOrGetStreamIDForYugabyteCDCClient(config *dbzm.Config) error {
 }
 
 func fetchOrRetrieveColToSeqMap(msr *metadb.MigrationStatusRecord, tableList []sqlname.NameTuple) (map[string]string, error) {
-	var storedColToSeqMap map[string]string
-	//fetching the stored one in the MSR
-	switch exporterRole {
-	case SOURCE_DB_EXPORTER_ROLE:
-		storedColToSeqMap = msr.SourceColumnToSequenceMapping
-	case TARGET_DB_EXPORTER_FB_ROLE, TARGET_DB_EXPORTER_FF_ROLE:
-		storedColToSeqMap = msr.TargetColumnToSequenceMapping
-	}
-	if storedColToSeqMap != nil && !bool(startClean) {
-		return storedColToSeqMap, nil
-	}
-	colToSeqMap := source.DB().GetColumnToSequenceMap(tableList)
-	//Storing this col-to-sequence mapping in the MSR as we want to avoid going to db in subsequent runs
-	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		switch exporterRole {
-		case SOURCE_DB_EXPORTER_ROLE:
-			record.SourceColumnToSequenceMapping = colToSeqMap
-		case TARGET_DB_EXPORTER_FB_ROLE, TARGET_DB_EXPORTER_FF_ROLE:
-			record.TargetColumnToSequenceMapping = colToSeqMap
-		}
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error in updating migration status record: %w", err)
-	}
-	return colToSeqMap, nil
+	return exportdata.FetchOrRetrieveColToSeqMap(metaDB, source.DB(), exporterRole, bool(startClean), msr, tableList)
 }
 
 // returns qualified column name to sequence name mapping for debezium

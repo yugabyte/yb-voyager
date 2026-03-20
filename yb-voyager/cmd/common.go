@@ -32,7 +32,6 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
 	_ "github.com/godror/godror"
@@ -52,6 +51,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/exportdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -68,6 +68,9 @@ import (
 const (
 	ANONYMISATION_SALT_SIZE = 16 // Size of salt in bytes, can be adjusted as needed
 )
+
+type ExportSnapshotStatus = exportdata.ExportSnapshotStatus
+type TableExportStatus = exportdata.TableExportStatus
 
 var (
 	metaDB                 *metadb.MetaDB
@@ -91,111 +94,11 @@ func PrintElapsedDuration() {
 }
 
 func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
-	var requiredMap map[string]string
-
-	// TODO: handle the case if table name has double quotes/case sensitive
-
-	sortedKeys := utils.GetSortedKeys(tablesProgressMetadata)
-	if source.DBType == "postgresql" {
-		requiredMap = getMappingForTableNameVsTableFileName(filepath.Join(exportDir, "data"), false)
-		for _, key := range sortedKeys {
-			tableName := tablesProgressMetadata[key].TableName
-			fullTableName := tableName.ForKey()
-			table := tableName.ForMinOutput()
-			if _, ok := requiredMap[fullTableName]; ok { // checking if toc/dump has data file for table
-				tablesProgressMetadata[key].InProgressFilePath = filepath.Join(exportDir, "data", requiredMap[fullTableName])
-				tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", table+"_data.sql")
-			} else {
-				log.Infof("deleting an entry %q from tablesProgressMetadata: ", key)
-				delete(tablesProgressMetadata, key)
-			}
-		}
-	} else if source.DBType == "oracle" || source.DBType == "mysql" {
-		for _, key := range sortedKeys {
-			_, tname := tablesProgressMetadata[key].TableName.ForCatalogQuery()
-			targetTableName := tname
-			tablesProgressMetadata[key].InProgressFilePath = filepath.Join(exportDir, "data", "tmp_"+targetTableName+"_data.sql")
-			tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", targetTableName+"_data.sql")
-		}
-	}
-
-	logMsg := "After updating data file paths, TablesProgressMetadata:"
-	for _, key := range sortedKeys {
-		logMsg += fmt.Sprintf("%+v\n", tablesProgressMetadata[key])
-	}
-	log.Info(logMsg)
+	exportdata.UpdateFilePaths(source, exportDir, tablesProgressMetadata)
 }
 
-func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[string]string {
-	tocTextFilePath := filepath.Join(dataDirPath, "toc.txt")
-	if noWait && !utils.FileOrFolderExists(tocTextFilePath) { // to avoid infine wait for export data status command
-		return nil
-	}
-	for !utils.FileOrFolderExists(tocTextFilePath) {
-		time.Sleep(time.Second * 1)
-	}
-
-	pgRestorePath, binaryCheckIssue, err := srcdb.GetAbsPathOfPGCommandAboveVersion("pg_restore", source.DBVersion)
-	if err != nil {
-		utils.ErrExit("could not get absolute path of pg_restore command: %s", err)
-	} else if binaryCheckIssue != "" {
-		utils.ErrExit("could not get absolute path of pg_restore command: %s", binaryCheckIssue)
-	}
-	pgRestoreCmd := exec.Command(pgRestorePath, "-l", dataDirPath)
-	stdOut, err := pgRestoreCmd.Output()
-	log.Infof("cmd: %s", pgRestoreCmd.String())
-	log.Infof("output: %s", string(stdOut))
-	if err != nil {
-		utils.ErrExit("couldn't parse the TOC file to collect the tablenames for data files: %v", err)
-	}
-
-	tableNameVsFileNameMap := make(map[string]string)
-	var sequencesPostData strings.Builder
-
-	lines := strings.Split(string(stdOut), "\n")
-	for _, line := range lines {
-		// example of line: 3725; 0 16594 TABLE DATA public categories ds2
-		parts := strings.Split(line, " ")
-
-		if len(parts) < 8 { // those lines don't contain table/sequences related info
-			continue
-		} else if parts[3] == "TABLE" && parts[4] == "DATA" {
-			fileName := strings.Trim(parts[0], ";") + ".dat"
-			schemaName := parts[5]
-			tableName := parts[6]
-			if nameContainsCapitalLetter(tableName) || sqlname.IsReservedKeywordPG(tableName) {
-				// Surround the table name with double quotes.
-				tableName = fmt.Sprintf("\"%s\"", tableName)
-			}
-			fullTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
-			table, err := namereg.NameReg.LookupTableName(fullTableName)
-			if err != nil {
-				utils.ErrExit("lookup table in name registry: %q: %v", fullTableName, err)
-			}
-			tableNameVsFileNameMap[table.ForKey()] = fileName
-		}
-	}
-
-	tocTextFileDataBytes, err := os.ReadFile(tocTextFilePath)
-	if err != nil {
-		utils.ErrExit("Failed to read file: %q: %v", tocTextFilePath, err)
-	}
-
-	tocTextFileData := strings.Split(string(tocTextFileDataBytes), "\n")
-	numLines := len(tocTextFileData)
-	setvalRegex := regexp.MustCompile("(?i)SELECT.*setval")
-
-	for i := 0; i < numLines; i++ {
-		if setvalRegex.MatchString(tocTextFileData[i]) {
-			sequencesPostData.WriteString(tocTextFileData[i])
-			sequencesPostData.WriteString("\n")
-		}
-	}
-
-	//extracted SQL for setval() and put it into a postexport.sql file
-	os.WriteFile(filepath.Join(dataDirPath, "postdata.sql"), []byte(sequencesPostData.String()), 0644)
-	return tableNameVsFileNameMap
-}
+// getMappingForTableNameVsTableFileName is no longer used in cmd directly.
+// The logic has moved to exportdata package. Keeping for any remaining callers.
 
 func UpdateTableApproxRowCount(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	utils.PrintAndLogf("calculating approx num of rows to export for each table...")
@@ -230,143 +133,16 @@ func GetTableRowCount(filePath string) map[string]int64 {
 	return tableRowCountMap
 }
 
-func getExportedRowCountSnapshot(exportDir string) map[string]int64 {
-	tableRowCount := map[string]int64{}
-	for _, fileEntry := range datafile.OpenDescriptor(exportDir).DataFileList {
-		tableRowCount[fileEntry.TableName] += fileEntry.RowCount
-	}
-	return tableRowCount
-}
-
 func getLeafPartitionsFromRootTable() map[string][]string {
-	leafPartitions := make(map[string][]string)
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("get migration status record: %v", err)
-	}
-	if msr.SourceDBConf.DBType != POSTGRESQL {
-		return leafPartitions
-	}
-	tables := msr.TableListExportedFromSource
-	for leaf, root := range msr.SourceRenameTablesMap {
-		//Using the SQLName here to avoid creating the NameTuples manually for leafTable case as in a case partition names changes on target
-		//NameRegistry won't be able to figure out the map of source->target tuples.
-		leafTable := sqlname.NewSourceNameFromQualifiedName(getQuotedFromUnquoted(leaf))
-		rootTable := sqlname.NewSourceNameFromQualifiedName(getQuotedFromUnquoted(root))
-		leaf = leafTable.Qualified.MinQuoted
-		if leafTable.SchemaName.MinQuoted == "public" {
-			leaf = leafTable.ObjectName.MinQuoted
-		}
-		root = rootTable.Qualified.MinQuoted
-		if !lo.Contains(tables, root) {
-			continue
-		}
-		//Adding a Qualified.MinQuoted to key and values which is similar to NameTuple.ForOutput();
-		leafPartitions[root] = append(leafPartitions[root], leaf)
-	}
-
-	return leafPartitions
-}
-
-func getQuotedFromUnquoted(t string) string {
-	//To preserve case sensitiveness in the Unquoted
-	parts := strings.Split(t, ".")
-	s, t := parts[0], parts[1]
-	return fmt.Sprintf(`"%s"."%s"`, s, t)
+	return exportdata.GetLeafPartitionsFromRootTable(metaDB)
 }
 
 func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
-	fmt.Printf("snapshot export report\n")
-	uitable := uitable.New()
-
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("error getting migration status record: %v", err)
-	}
-	leafPartitions := getLeafPartitionsFromRootTable()
-	if !snapshotViaDebezium {
-		exportedRowCount := getExportedRowCountSnapshot(exportDir)
-		if len(source.Schemas) > 0 {
-			addHeader(uitable, "SCHEMA", "TABLE", "ROW COUNT")
-		} else {
-			addHeader(uitable, "DATABASE", "TABLE", "ROW COUNT")
-		}
-		keys := lo.Keys(exportedRowCount)
-		sort.Slice(keys, func(i, j int) bool {
-			return exportedRowCount[keys[i]] > exportedRowCount[keys[j]]
-		})
-
-		for _, key := range keys {
-			table, err := namereg.NameReg.LookupTableName(key)
-			if err != nil {
-				utils.ErrExit("lookup table in name registry: %q: %v", key, err)
-			}
-			displayTableName := table.CurrentName.Unqualified.MinQuoted
-			//Using the ForOutput() as a key for leafPartitions map as we are populating the map in that way.
-			partitions := leafPartitions[table.ForOutput()]
-			if source.DBType == POSTGRESQL && partitions != nil && msr.IsExportTableListSet {
-				partitions := strings.Join(partitions, ", ")
-				displayTableName = fmt.Sprintf("%s (%s)", table.CurrentName.Unqualified.MinQuoted, partitions)
-			}
-			schema := table.SourceName.SchemaName.MinQuoted
-			uitable.AddRow(schema, displayTableName, exportedRowCount[key])
-		}
-		if len(keys) > 0 {
-			fmt.Print("\n")
-			fmt.Println(uitable)
-			fmt.Print("\n")
-		}
-		return
-	}
-
-	exportStatus, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
-	if err != nil {
-		utils.ErrExit("failed to read export status during data export snapshot-and-changes report display: %v", err)
-	}
-	for i, tableStatus := range exportStatus.Tables {
-		if i == 0 {
-			if tableStatus.SchemaName != "" {
-				addHeader(uitable, "SCHEMA", "TABLE", "ROW COUNT")
-			} else {
-				addHeader(uitable, "DATABASE", "TABLE", "ROW COUNT")
-			}
-		}
-		table, err := namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", tableStatus.SchemaName, tableStatus.TableName))
-		if err != nil {
-			utils.ErrExit("lookup table  in name registry : %q: %v", tableStatus.TableName, err)
-		}
-		displayTableName := table.CurrentName.Unqualified.MinQuoted
-		partitions := leafPartitions[table.ForOutput()]
-		if source.DBType == POSTGRESQL && partitions != nil {
-			partitions := strings.Join(partitions, ", ")
-			displayTableName = fmt.Sprintf("%s (%s)", table.CurrentName.Unqualified.MinQuoted, partitions)
-		}
-		schema := table.CurrentName.SchemaName.MinQuoted
-		uitable.AddRow(schema, displayTableName, tableStatus.ExportedRowCountSnapshot)
-
-	}
-	fmt.Print("\n")
-	fmt.Println(uitable)
-	fmt.Print("\n")
+	exportdata.DisplayExportedRowCountSnapshot(metaDB, &source, exportDir, snapshotViaDebezium)
 }
 
 func renameDatafileDescriptor(exportDir string) {
-	datafileDescriptor := datafile.OpenDescriptor(exportDir)
-	log.Infof("Parsed DataFileDescriptor: %v", spew.Sdump(datafileDescriptor))
-	for _, fileEntry := range datafileDescriptor.DataFileList {
-		renamedTable, isRenamed := renameTableIfRequired(fileEntry.TableName)
-		if isRenamed {
-			fileEntry.TableName = renamedTable
-		}
-	}
-	for k, v := range datafileDescriptor.TableNameToExportedColumns {
-		renamedTable, isRenamed := renameTableIfRequired(k)
-		if isRenamed {
-			datafileDescriptor.TableNameToExportedColumns[renamedTable] = v
-			delete(datafileDescriptor.TableNameToExportedColumns, k)
-		}
-	}
-	datafileDescriptor.Save()
+	exportdata.RenameDatafileDescriptor(metaDB, &source, exportDir)
 }
 
 func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFileTask, errorHandler importdata.ImportDataErrorHandler) {
@@ -931,15 +707,7 @@ func hideExportFlagsInFallForwardOrBackCmds(cmd *cobra.Command) {
 }
 
 func GetDefaultPGSchema(schema []sqlname.Identifier) (string, bool) {
-	// second return value is true if public is not included in the schema
-	// which indicates that the no default schema
-	if len(schema) == 1 {
-		return schema[0].MinQuoted, false
-	} else if lo.ContainsBy(schema, func(s sqlname.Identifier) bool { return s.MinQuoted == "public" }) {
-		return "public", false
-	} else {
-		return "", true
-	}
+	return exportdata.GetDefaultPGSchema(schema)
 }
 
 func CleanupChildProcesses() {
@@ -1036,88 +804,15 @@ func initBaseTargetEvent(bev *cp.BaseEvent, eventType string) {
 }
 
 func renameTableIfRequired(table string) (string, bool) {
-	// required to rename the table name from leaf to root partition in case of pg_dump
-	// to be load data in target using via root table
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("Failed to get migration status record: %s", err)
-	}
-
-	if msr == nil || msr.SourceDBConf == nil { // this shouldn't hit in migration flow, adding just to avoid nil pointer dereference error
-		return table, false
-	}
-
-	sourceDBType = msr.SourceDBConf.DBType
-	sourceDBTypeInMigration := msr.SourceDBConf.DBType
-	schema := msr.SourceDBConf.Schemas
-	sqlname.SourceDBType = source.DBType
-	if source.DBType != POSTGRESQL && source.DBType != YUGABYTEDB {
-		return table, false
-	}
-	if source.DBType == POSTGRESQL && msr.SourceRenameTablesMap == nil ||
-		source.DBType == YUGABYTEDB && msr.TargetRenameTablesMap == nil {
-		return table, false
-	}
-	if sourceDBTypeInMigration != POSTGRESQL && source.DBType == YUGABYTEDB {
-		schema = source.Schemas
-	}
-	renameTablesMap := msr.SourceRenameTablesMap
-	if source.DBType == YUGABYTEDB {
-		renameTablesMap = msr.TargetRenameTablesMap
-	}
-	defaultSchema, noDefaultSchema := GetDefaultPGSchema(schema)
-	if noDefaultSchema && len(strings.Split(table, ".")) <= 1 {
-		utils.ErrExit("no default schema found to qualify table: %s", table)
-	}
-	tableName := sqlname.NewSourceNameFromMaybeQualifiedName(table, defaultSchema)
-	fromTable := tableName.Qualified.Unquoted
-
-	if renameTablesMap[fromTable] != "" {
-		tableTup, err := namereg.NameReg.LookupTableName(renameTablesMap[fromTable])
-		if err != nil {
-			utils.ErrExit("lookup failed for the table:  %s", renameTablesMap[fromTable])
-		}
-
-		return tableTup.ForMinOutput(), true
-	}
-	return table, false
+	return exportdata.RenameTableIfRequired(metaDB, &source, table)
 }
 
-// TODO: ideally original function renameTableIfRequired should be made to return NameTuple instead of string
-// but that will require a lot of changes in the codebase. So, keeping this function as a wrapper to do same but return Tuple
 func getRenamedTableTuple(table sqlname.NameTuple) (sqlname.NameTuple, bool) {
-	renamedTable, isRenamed := renameTableIfRequired(table.ForKey())
-	// no need to lookup the same table
-	if !isRenamed {
-		return table, false
-	}
-
-	tableTuple, err := namereg.NameReg.LookupTableName(renamedTable)
-	if err != nil {
-		utils.ErrExit("lookup table %s in name registry : %v", renamedTable, err)
-	}
-	return tableTuple, isRenamed
+	return exportdata.GetRenamedTableTuple(metaDB, &source, table)
 }
 
 func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*utils.StructMap[sqlname.NameTuple, int64], *utils.StructMap[sqlname.NameTuple, []string], error) {
-	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, int64]()
-	snapshotStatusMap := utils.NewStructMap[sqlname.NameTuple, []string]()
-
-	for _, tableStatus := range exportSnapshotStatus.Tables {
-		//using LookupTableNameAndIgnoreIfTargetNotFound in case if the export status is run after import data in which case
-		// if there is some table not present in target this should work
-		nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tableStatus.TableName)
-		if err != nil {
-			return nil, nil, goerrors.Errorf("lookup table [%s] from name registry: %v", tableStatus.TableName, err)
-		}
-		existingSnapshotRows, _ := snapshotRowsMap.Get(nt)
-		snapshotRowsMap.Put(nt, existingSnapshotRows+tableStatus.ExportedRowCountSnapshot)
-		existingStatuses, _ := snapshotStatusMap.Get(nt)
-		existingStatuses = append(existingStatuses, tableStatus.Status)
-		snapshotStatusMap.Put(nt, existingStatuses)
-	}
-
-	return snapshotRowsMap, snapshotStatusMap, nil
+	return exportdata.GetExportedSnapshotRowsMap(exportSnapshotStatus)
 }
 
 func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple, errorHandler importdata.ImportDataErrorHandler) (*utils.StructMap[sqlname.NameTuple, RowCountPair], error) {
@@ -1235,28 +930,7 @@ func getImportedSizeMap() (*utils.StructMap[sqlname.NameTuple, int64], error) { 
 }
 
 func storeTableListInMSR(tableList []sqlname.NameTuple) error {
-	minQuotedTableList := lo.Uniq(lo.Map(tableList, func(table sqlname.NameTuple, _ int) string {
-		// Store list of tables in MSR with root table in case of partitions
-		renamedTable, isRenamed := renameTableIfRequired(table.ForOutput())
-		if isRenamed {
-			tuple, err := namereg.NameReg.LookupTableName(renamedTable)
-			if err != nil {
-				return fmt.Sprintf("lookup table %s in name registry : %v", renamedTable, err)
-			}
-			return tuple.ForOutput()
-		}
-		return renamedTable
-	}))
-	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		record.TableListExportedFromSource = minQuotedTableList
-		record.SourceExportedTableListWithLeafPartitions = lo.Map(tableList, func(t sqlname.NameTuple, _ int) string {
-			return t.ForOutput()
-		})
-	})
-	if err != nil {
-		return goerrors.Errorf("update migration status record: %v", err)
-	}
-	return nil
+	return exportdata.StoreTableListInMSR(metaDB, &source, tableList)
 }
 
 // =====================================================================

@@ -45,6 +45,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/exportdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
@@ -472,6 +473,11 @@ func packAndSendExportDataPayload(status string, errorMsg error) {
 	}
 }
 
+func useNewExportDataPackage() bool {
+	return os.Getenv("YB_VOYAGER_REFACTORED_EXPORT") == "1" &&
+		exportdata.IsSupported(exportType, source.DBType, exporterRole, useDebezium)
+}
+
 func exportData() bool {
 	err := source.DB().Connect()
 	if err != nil {
@@ -625,6 +631,32 @@ func exportData() bool {
 	}
 
 	//finalTableList is with leaf partitions and root tables after this in the whole export flow to make all the catalog queries work fine
+
+	if useNewExportDataPackage() {
+		exportPhase = dbzm.MODE_SNAPSHOT
+		ectx := &exportdata.ExportContext{
+			ExportDir:           exportDir,
+			ExportType:          exportType,
+			ExporterRole:        exporterRole,
+			MigrationUUID:       migrationUUID,
+			StartClean:          bool(startClean),
+			DisablePb:           bool(disablePb),
+			UseDebezium:         useDebezium,
+			Source:               &source,
+			SourceDB:            source.DB(),
+			MetaDB:              metaDB,
+			ControlPlane:        controlPlane,
+			FinalTableList:      finalTableList,
+			TablesColumnList:    tablesColumnList,
+			PartitionsToRootMap: partitionsToRootTableMap,
+			LeafPartitions:      leafPartitions,
+		}
+		if err := exportdata.Run(ctx, ectx); err != nil {
+			log.Errorf("export data (new package): %v", err)
+			return false
+		}
+		return true
+	}
 
 	if changeStreamingIsEnabled(exportType) || useDebezium {
 		exportPhase = dbzm.MODE_SNAPSHOT
@@ -2086,30 +2118,7 @@ func createSnapshotExportCompletedEvent() cp.SnapshotExportCompletedEvent {
 }
 
 func createUpdateExportedRowCountEventList(tableNames []string) []*cp.UpdateExportedRowCountEvent {
-
-	result := []*cp.UpdateExportedRowCountEvent{}
-	var schemaName, tableName2 string
-
-	for _, tableName := range tableNames {
-		tableMetadata := tablesProgressMetadata[tableName]
-		schemaName, tableName2 = tableMetadata.TableName.ForKeyTableSchema()
-		tableMetrics := cp.UpdateExportedRowCountEvent{
-			BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
-				BaseEvent: cp.BaseEvent{
-					EventType:     "EXPORT DATA",
-					MigrationUUID: migrationUUID,
-					SchemaNames:   []string{schemaName},
-				},
-				TableName:         tableName2,
-				Status:            cp.EXPORT_OR_IMPORT_DATA_STATUS_INT_TO_STR[tableMetadata.Status],
-				TotalRowCount:     tableMetadata.CountTotalRows,
-				CompletedRowCount: tableMetadata.CountLiveRows,
-			},
-		}
-		result = append(result, &tableMetrics)
-	}
-
-	return result
+	return exportdata.CreateUpdateExportedRowCountEventList(tableNames, tablesProgressMetadata, migrationUUID)
 }
 
 func saveTableToUniqueKeyColumnsMapInMetaDB(tableList []sqlname.NameTuple, leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) {
