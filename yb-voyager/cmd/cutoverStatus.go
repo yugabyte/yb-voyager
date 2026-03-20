@@ -60,12 +60,12 @@ var cutoverStatusCmd = &cobra.Command{
 		fmt.Println()
 
 		if !msr.IsParentMigration() || msr.LatestIterationNumber == 0 {
-			rows := collectCutoverStatusRows()
+			rows := collectCutoverStatusRows(exportDir)
 			renderCutoverStatusTable(rows)
 			return
 		}
 
-		iterationToRows := collectCutoverStatusRowsForAllIterations()
+		iterationToRows := collectCutoverStatusRowsForAllIterations(exportDir)
 		for i := 0; i <= msr.LatestIterationNumber; i++ {
 			if msr.LatestIterationNumber == i {
 				utils.PrintAndLogfPhase("\nIteration %d (current):", i)
@@ -79,7 +79,7 @@ var cutoverStatusCmd = &cobra.Command{
 }
 
 // collect cutover status rows for all iterations
-func collectCutoverStatusRowsForAllIterations() map[int][]cutoverStatusRow {
+func collectCutoverStatusRowsForAllIterations(exportDir string) map[int][]cutoverStatusRow {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("error getting migration status record: %s", err)
@@ -90,7 +90,7 @@ func collectCutoverStatusRowsForAllIterations() map[int][]cutoverStatusRow {
 	iterationToRows := make(map[int][]cutoverStatusRow)
 
 	//collect cutover status rows for parent migration
-	rows := collectCutoverStatusRows()
+	rows := collectCutoverStatusRows(exportDir)
 	iterationToRows[0] = rows
 
 	currExportDir := exportDir
@@ -109,7 +109,7 @@ func collectCutoverStatusRowsForAllIterations() map[int][]cutoverStatusRow {
 		}
 		exportDir = iterationExportDir
 		metaDB = iterationMetaDB
-		rows := collectCutoverStatusRows()
+		rows := collectCutoverStatusRows(exportDir)
 		iterationToRows[i] = rows
 	}
 	return iterationToRows
@@ -121,7 +121,7 @@ func init() {
 	registerConfigFileFlag(cutoverStatusCmd)
 }
 
-func collectCutoverStatusRows() []cutoverStatusRow {
+func collectCutoverStatusRows(exportDir string) []cutoverStatusRow {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("error getting migration status record: %s", err)

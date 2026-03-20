@@ -217,6 +217,7 @@ func (lm *LiveMigrationTest) StartExportData(async bool, extraArgs map[string]st
 		"--source-db-name", lm.config.SourceDB.DatabaseName,
 		"--disable-pb", "true",
 		"--export-type", SNAPSHOT_AND_CHANGES,
+		"--parallel-jobs", "1",
 		"--yes",
 	}
 	for key, value := range extraArgs {
@@ -589,7 +590,7 @@ func (lm *LiveMigrationTest) WaitForFallbackStreamingComplete(expectedChanges ma
 }
 
 // WaitForCutoverComplete waits until cutover is done
-func (lm *LiveMigrationTest) WaitForCutoverComplete(cutoverTimeout time.Duration) error {
+func (lm *LiveMigrationTest) WaitForCutoverComplete(iterationNumber int, cutoverTimeout time.Duration) error {
 	fmt.Printf("Waiting for cutover complete\n")
 
 	// Initialize metaDB if not already done
@@ -601,7 +602,7 @@ func (lm *LiveMigrationTest) WaitForCutoverComplete(cutoverTimeout time.Duration
 	}
 
 	ok := utils.RetryWorkWithTimeout(1, cutoverTimeout, func() bool {
-		return lm.getCutoverStatus() == COMPLETED
+		return lm.getCutoverStatus(iterationNumber) == COMPLETED
 	})
 
 	if !ok {
@@ -612,7 +613,7 @@ func (lm *LiveMigrationTest) WaitForCutoverComplete(cutoverTimeout time.Duration
 }
 
 // WaitForCutoverSourceComplete waits until cutover to source is done
-func (lm *LiveMigrationTest) WaitForCutoverSourceComplete(cutoverTimeout time.Duration) error {
+func (lm *LiveMigrationTest) WaitForCutoverSourceComplete(iterationNumber int, cutoverTimeout time.Duration) error {
 	fmt.Printf("Waiting for cutover to source complete\n")
 
 	// Initialize metaDB if not already done
@@ -624,7 +625,7 @@ func (lm *LiveMigrationTest) WaitForCutoverSourceComplete(cutoverTimeout time.Du
 	}
 
 	ok := utils.RetryWorkWithTimeout(1, cutoverTimeout, func() bool {
-		return lm.getCutoverToSourceStatus() == COMPLETED
+		return lm.getCutoverToSourceStatus(iterationNumber) == COMPLETED
 	})
 
 	if !ok {
@@ -860,57 +861,38 @@ func (lm *LiveMigrationTest) streamingPhaseCompleted(changesCount map[string]Cha
 }
 
 // getCutoverStatus gets the current cutover status
-func (lm *LiveMigrationTest) getCutoverStatus() string {
+func (lm *LiveMigrationTest) getCutoverStatus(iterationNumber int) string {
 	if lm.metaDB == nil {
 		return ""
 	}
-
-	msr, err := lm.metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		testutils.FatalIfError(lm.t, err, "failed to get migration status record")
+	metaDB = lm.metaDB
+	if iterationNumber == 0 {
+		return getCutoverStatus()
 	}
 
-	//Update the global metaDB for running getCutoverStatus code
-	if msr.LatestIterationNumber > 0 {
-		iterationsExportDir := msr.GetIterationsDir(lm.exportDir)
-		iterationExportDir := GetIterationExportDir(iterationsExportDir, msr.LatestIterationNumber)
-
-		iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
-		if err != nil {
-			testutils.FatalIfError(lm.t, err, "failed to get iteration meta db")
-		}
-		metaDB = iterationMetaDB
-	} else {
-		metaDB = lm.metaDB
+	iterationCutoverMap := collectCutoverStatusRowsForAllIterations(lm.exportDir)
+	rows := iterationCutoverMap[iterationNumber]
+	if len(rows) < 1 {
+		return NOT_INITIATED
 	}
-
-	return getCutoverStatus()
+	return rows[0].Status
 }
 
 // getCutoverToSourceStatus gets the current cutover to source status
-func (lm *LiveMigrationTest) getCutoverToSourceStatus() string {
+func (lm *LiveMigrationTest) getCutoverToSourceStatus(iterationNumber int) string {
 	if lm.metaDB == nil {
 		return ""
 	}
-
-	msr, err := lm.metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		testutils.FatalIfError(lm.t, err, "failed to get migration status record")
+	if iterationNumber == 0 {
+		return getCutoverToSourceStatus(lm.exportDir)
 	}
 
-	// Update the global metaDB for running getCutoverStatus code
-	if msr.LatestIterationNumber > 1 {
-		iterationsExportDir := msr.GetIterationsDir(lm.exportDir)
-		iterationExportDir := GetIterationExportDir(iterationsExportDir, msr.LatestIterationNumber-1)
-		iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
-		if err != nil {
-			testutils.FatalIfError(lm.t, err, "failed to get iteration meta db")
-		}
-		metaDB = iterationMetaDB
-	} else {
-		metaDB = lm.metaDB
+	iterationCutoverMap := collectCutoverStatusRowsForAllIterations(lm.exportDir)
+	rows := iterationCutoverMap[iterationNumber]
+	if len(rows) < 2 {
+		return NOT_INITIATED
 	}
-	return getCutoverToSourceStatus(lm.exportDir)
+	return rows[1].Status
 }
 
 type DataMigrationReport struct {

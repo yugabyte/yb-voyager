@@ -582,7 +582,7 @@ func getIterationDataMigrationReport(iterationExportDir string) ([]*rowData, err
 	if iterationMsr.TargetDBConf != nil {
 		iterationMsr.TargetDBConf.Password = targetDBPassword
 	}
-	if iterationMsr.FallbackEnabled {
+	if iterationMsr.FallbackEnabled && iterationMsr.SourceDBAsTargetConf != nil {
 		iterationMsr.SourceDBAsTargetConf.Password = sourceDbPassword
 	}
 	migrationUUID = uuid.MustParse(iterationMsr.MigrationUUID)
