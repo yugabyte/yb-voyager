@@ -441,14 +441,6 @@ func Execute() {
 
 func init() {
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
-
-	// NOTE: callhome.ReadEnvSendDiagnostics() is intentionally NOT called here.
-	// Go executes init() functions in alphabetical order of filenames within a package.
-	// Other command files (e.g. segmentCleanupCommand.go) call registerCommonGlobalFlags()
-	// -> BoolVar() in their own init(), which unconditionally sets SendDiagnostics = true.
-	// Any file alphabetically after root.go would overwrite the env var value set here.
-	// Instead, we read the env var in PersistentPreRun (above), after all init()s and
-	// flag parsing have completed.
 }
 
 var globalFlags = []string{}
