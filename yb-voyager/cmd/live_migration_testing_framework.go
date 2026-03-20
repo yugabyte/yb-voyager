@@ -1185,20 +1185,11 @@ func (lm *LiveMigrationTest) GetDataMigrationReport() (*DataMigrationReport, err
 			return nil, goerrors.Errorf("failed to initialize meta db: %w", err)
 		}
 	}
-	msr, err := lm.metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		return nil, goerrors.Errorf("failed to get migration status record: %w", err)
-	}
-	currExportDir := lm.exportDir
-	if msr.LatestIterationNumber > 0 {
-		iterationExportDir := GetIterationExportDir(msr.GetIterationsDir(lm.exportDir), msr.LatestIterationNumber)
-		currExportDir = iterationExportDir
-	}
 
 	maxRetry := 5
 	for {
 		err := testutils.NewVoyagerCommandRunner(nil, "get data-migration-report", []string{
-			"--export-dir", currExportDir,
+			"--export-dir", lm.exportDir,
 			"--output-format", "json",
 			"--source-db-password", lm.sourceContainer.GetConfig().Password,
 			"--target-db-password", lm.targetContainer.GetConfig().Password,
@@ -1207,7 +1198,7 @@ func (lm *LiveMigrationTest) GetDataMigrationReport() (*DataMigrationReport, err
 			return nil, goerrors.Errorf("get data-migration-report command failed: %w", err)
 		}
 
-		reportFilePath := filepath.Join(currExportDir, "reports", "data-migration-report.json")
+		reportFilePath := filepath.Join(lm.exportDir, "reports", "data-migration-report.json")
 		if !utils.FileOrFolderExists(reportFilePath) {
 			maxRetry--
 			if maxRetry <= 0 {

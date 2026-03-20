@@ -739,7 +739,7 @@ func retrieveMigrationUUID() error {
 	}
 
 	migrationUUID = uuid.MustParse(msr.MigrationUUID)
-	utils.PrintAndLogf("migrationID: %s", migrationUUID)
+	utils.PrintAndLogfInfo("migrationID: %s", utils.Path.Sprint(migrationUUID))
 	return nil
 }
 
@@ -1613,7 +1613,6 @@ func parseObjectNamesToPayload(objectNames string, objectType string, dbType str
 	}
 	return objects
 }
-
 
 // RowCountPair holds imported and errored row counts for a table.
 type RowCountPair struct {
