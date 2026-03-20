@@ -159,10 +159,10 @@ func renderCutoverStatusTable(rows []cutoverStatusRow) {
 	table := uitable.New()
 	table.Separator = " | "
 
-	addHeader(table, "DIRECTION", "STATUS", "INITIATED TIME")
+	addHeader(table, "CUTOVER DIRECTION", "STATUS", "REQUESTED AT")
 	table.AddRow()
 	for _, row := range rows {
-		table.AddRow(row.Direction, colorizeStatus(row.Status), row.InitiatedTime.Format(time.RFC3339))
+		table.AddRow(row.Direction, colorizeStatus(row.Status), row.InitiatedTime.Format(time.DateTime))
 	}
 	fmt.Println(table)
 	fmt.Println()
