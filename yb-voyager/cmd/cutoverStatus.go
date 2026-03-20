@@ -162,7 +162,11 @@ func renderCutoverStatusTable(rows []cutoverStatusRow) {
 	addHeader(table, "CUTOVER DIRECTION", "STATUS", "REQUESTED AT")
 	table.AddRow()
 	for _, row := range rows {
-		table.AddRow(row.Direction, colorizeStatus(row.Status), row.InitiatedTime.Format(time.DateTime))
+		requestedAt := "-"
+		if row.Status != NOT_INITIATED {
+			requestedAt = row.InitiatedTime.UTC().Format(time.DateTime + " UTC")
+		}
+		table.AddRow(row.Direction, colorizeStatus(row.Status), requestedAt)
 	}
 	fmt.Println(table)
 	fmt.Println()
