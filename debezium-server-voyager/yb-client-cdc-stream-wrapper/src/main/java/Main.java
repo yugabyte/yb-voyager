@@ -86,15 +86,19 @@ public class Main {
                 Set<String> namespaceTableIds = new HashSet<>();
                 ListTablesResponse tablesResp = client.getTablesList();
                 for (TableInfo tableInfo : tablesResp.getTableInfoList()) {
-                    if (tableInfo.getNamespace().getId().toStringUtf8().equals(namespaceID)) {
-                        namespaceTableIds.add(tableInfo.getId().toStringUtf8());
+                    String tableNamespaceId = tableInfo.getNamespace().getId().toStringUtf8();
+                    String tableId = tableInfo.getId().toStringUtf8();
+                    if (!tableNamespaceId.isEmpty() && !tableId.isEmpty() && namespaceID.equals(tableNamespaceId)) {
+                        namespaceTableIds.add(tableId);
                     }
                 }
 
                 int count = 0;
                 for (CDCStreamInfo stream : cdcStreamsResponse.getStreams()) {
-                    if (namespaceID.equals(stream.getNamespaceId())
-                            || stream.getTableIds().stream().anyMatch(namespaceTableIds::contains)) {
+                    String streamNamespaceId = stream.getNamespaceId();
+                    if (!streamNamespaceId.isEmpty() && namespaceID.equals(streamNamespaceId)) {
+                        count++;
+                    } else if (stream.getTableIds().stream().anyMatch(namespaceTableIds::contains)) {
                         count++;
                     }
                 }
