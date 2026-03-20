@@ -64,12 +64,13 @@ var cutoverStatusCmd = &cobra.Command{
 		}
 
 		iterationToRows := collectCutoverStatusRowsForAllIterations()
-		for i, rows := range iterationToRows {
+		for i := 0; i <= msr.LatestIterationNumber; i++ {
 			if msr.LatestIterationNumber == i {
 				utils.PrintAndLogfPhase("\nIteration %d (current):", i)
 			} else {
 				utils.PrintAndLogfPhase("\nIteration %d:", i)
 			}
+			rows := iterationToRows[i]
 			renderCutoverStatusTable(rows)
 		}
 	},
