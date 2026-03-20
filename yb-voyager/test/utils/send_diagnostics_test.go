@@ -30,6 +30,7 @@ func TestSupportsSendDiagnosticsFlag(t *testing.T) {
 		{"import data file", true},
 		{"finalize-schema-post-data-import", true},
 		{"segment-cleanup", true},
+		{"assess-migration-bulk", true},
 
 		// Commands that should NOT have the flag
 		// Cutover commands don't call registerCommonGlobalFlags and reject --send-diagnostics

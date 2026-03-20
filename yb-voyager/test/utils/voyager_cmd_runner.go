@@ -110,6 +110,7 @@ var commandsSupportingSendDiagnostics = map[string]bool{
 	"end migration":                      true,
 	"archive changes":                    true,
 	"segment-cleanup":                    true,
+	"assess-migration-bulk":              true,
 }
 
 // supportsSendDiagnosticsFlag checks if the given command supports the --send-diagnostics flag.
