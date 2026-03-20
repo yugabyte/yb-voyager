@@ -79,9 +79,7 @@ var rootCmd = &cobra.Command{
 Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like setting up source/target, migration workflow etc.`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		if !cmd.Flags().Changed("send-diagnostics") {
-			callhome.ReadEnvSendDiagnostics()
-		}
+		sendDiagnosticsSetByCLI := cmd.Flags().Changed("send-diagnostics")
 
 		// Initialize the config file (also loads control plane config)
 		envVarsAlreadyExported, err := initConfig(cmd)
@@ -89,6 +87,13 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			// not using utils.ErrExit as logging is not initialized yet
 			fmt.Printf("ERROR: Failed to initialize config: %v\n", err)
 			atexit.Exit(1)
+		}
+
+		// Read the env var after initConfig so it takes precedence over config file values
+		// (bindCobraFlagsToViper sets the flag from config, which overwrites the BoolVar pointer).
+		// We skip this only when the CLI flag was explicitly passed (CLI > ENV > Config > Default).
+		if !sendDiagnosticsSetByCLI {
+			callhome.ReadEnvSendDiagnostics()
 		}
 
 		currentCommand = cmd.CommandPath()
