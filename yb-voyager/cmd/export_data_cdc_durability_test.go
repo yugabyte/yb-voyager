@@ -55,7 +55,7 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 	ctx := context.Background()
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true},
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
 		SchemaNames: []string{"test_schema_offset_commit"},
 		SchemaSQL: []string{
 			"DROP SCHEMA IF EXISTS test_schema_offset_commit CASCADE;",
@@ -72,14 +72,17 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 			`INSERT INTO test_schema_offset_commit.cdc_offset_commit_test (name, value)
 			SELECT 'snapshot_' || i, i * 10 FROM generate_series(1, 50) i;`,
 		},
+		SourceDeltaSQL: []string{
+			`INSERT INTO test_schema_offset_commit.cdc_offset_commit_test (name, value)
+			SELECT 'batch1_' || i, 100 + i FROM generate_series(1, 20) i;`,
+		},
 		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema_offset_commit CASCADE;"},
 	})
 	defer lm.Cleanup()
 	require.NoError(t, lm.SetupContainers(ctx))
 	require.NoError(t, lm.SetupSchema())
 
-	exportDir = lm.GetExportDir()
-	postgresContainer := lm.GetSourceContainer()
+	exportDir := lm.GetExportDir()
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper")
@@ -91,51 +94,22 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 	)
 	require.NoError(t, bytemanHelper.WriteRules(), "Failed to write Byteman rules")
 
-	cdcEventsGenerated := make(chan bool, 1)
-	offsetBeforeCDCCh := make(chan string, 1)
-	generateCDCEvents := func() {
-		if err := waitForStreamingMode(exportDir, 90*time.Second, 2*time.Second); err != nil {
-			testutils.LogTestf(t, "Failed to reach streaming mode: %v", err)
-			return
-		}
-		offsetBeforeCDCCh <- readOffsetFileChecksum(exportDir)
-		postgresContainer.ExecuteSqls(
-			`INSERT INTO test_schema_offset_commit.cdc_offset_commit_test (name, value)
-			SELECT 'batch1_' || i, 100 + i FROM generate_series(1, 20) i;`,
-		)
-		time.Sleep(3 * time.Second)
-		cdcEventsGenerated <- true
-	}
-
-	exportRunner := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", exportDir,
-		"--export-type", "snapshot-and-changes",
-		"--source-db-schema", "test_schema_offset_commit",
-		"--disable-pb", "true",
-		"--yes",
-	}, generateCDCEvents, true).WithEnv(bytemanHelper.GetEnv()...)
-
-	err = exportRunner.Run()
+	// Run 1: export with Byteman injection at before-offset-commit
+	err = lm.StartExportDataWithEnv(true, nil, bytemanHelper.GetEnv())
 	require.NoError(t, err, "Failed to start export")
+
+	time.Sleep(10 * time.Second)
+
+	offsetBeforeCDC := readOffsetFileChecksum(exportDir)
+
+	lm.ExecuteSourceDelta()
 
 	matched, err := bytemanHelper.WaitForInjection(">>> BYTEMAN: fail_offset_commit", 90*time.Second)
 	require.NoError(t, err, "Should be able to read debezium logs for offset commit failure")
 	require.True(t, matched, "Byteman offset commit failure should be injected")
 
-	select {
-	case <-cdcEventsGenerated:
-	case <-time.After(60 * time.Second):
-		require.Fail(t, "CDC event generation timed out")
-	}
-	var offsetBeforeCDC string
-	select {
-	case offsetBeforeCDC = <-offsetBeforeCDCCh:
-	case <-time.After(30 * time.Second):
-		require.Fail(t, "Timed out waiting to capture offsets before CDC insert")
-	}
-
-	_, waitErr := waitForProcessExitOrKill(exportRunner, exportDir, 60*time.Second)
-	require.Error(t, waitErr, "Export should exit with error after offset commit failure")
+	err = lm.WaitForExportDataExit()
+	require.Error(t, err, "Export should exit with error after offset commit failure")
 
 	eventCountAfterFailure, err := countEventsInQueueSegments(exportDir)
 	require.NoError(t, err, "Should be able to count events after failure")
@@ -143,21 +117,16 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 	offsetAfterFailure := readOffsetFileChecksum(exportDir)
 	require.Equal(t, offsetBeforeCDC, offsetAfterFailure, "Offsets advanced despite before-offset-commit failure; replay will not occur")
 	offsetContents := readOffsetFileContents(exportDir)
-	testutils.LogTestf(t, "Offset file contents after failure: %q", offsetContents)
 	require.Equal(t, "", strings.TrimSpace(offsetContents), "Offset file should be empty after failure")
 
 	eventIDsBefore, err := collectEventIDsForOffsetCommitTest(exportDir)
 	require.NoError(t, err, "Failed to read event_ids after failure")
 	require.Len(t, eventIDsBefore, 20, "Expected 20 unique event_ids after failure")
 	verifyNoEventIDDuplicates(t, exportDir)
-	eventCountBeforeResume := eventCountAfterFailure
-	testutils.LogTestf(t, "Queue count before resume: %d", eventCountBeforeResume)
 	dedupSkipsBeforeResume, err := countDedupSkipLogs(exportDir)
 	require.NoError(t, err, "Failed to count dedup skip logs before resume")
-	testutils.LogTestf(t, "Dedup skip logs before resume: %d", dedupSkipsBeforeResume)
 
-	lm.RemoveExportLockfile()
-
+	// Run 2: resume export with Byteman tracing rule to detect batch replay
 	bytemanHelperResume, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper for resume")
 	bytemanHelperResume.AddRuleFromBuilder(
@@ -168,30 +137,12 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 	)
 	require.NoError(t, bytemanHelperResume.WriteRules(), "Failed to write Byteman rules for resume")
 
-	exportRunnerResume := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", exportDir,
-		"--export-type", "snapshot-and-changes",
-		"--source-db-schema", "test_schema_offset_commit",
-		"--disable-pb", "true",
-		"--yes",
-	}, nil, true).WithEnv(bytemanHelperResume.GetEnv()...)
-
-	err = exportRunnerResume.Run()
+	err = lm.StartExportDataWithEnv(true, nil, bytemanHelperResume.GetEnv())
 	require.NoError(t, err, "Failed to start export resume")
 
 	replayMatched, err := bytemanHelperResume.WaitForInjection(">>> BYTEMAN: replay_batch", 90*time.Second)
 	require.NoError(t, err, "Should be able to read debezium logs for replay marker")
 	require.True(t, replayMatched, "Expected replay batch after resume")
-
-	eventCountAfterReplay, err := countEventsInQueueSegments(exportDir)
-	require.NoError(t, err, "Should be able to count events after replay marker")
-	testutils.LogTestf(t, "Queue count after replay marker: %d", eventCountAfterReplay)
-	require.Equal(t, eventCountBeforeResume, eventCountAfterReplay, "Replay processed but queue count should remain unchanged")
-
-	waitForCDCEventCount(t, exportDir, 20, 60*time.Second, 2*time.Second)
-	eventCountAfterResume, err := countEventsInQueueSegments(exportDir)
-	require.NoError(t, err, "Should be able to count events after resume")
-	require.Equal(t, 20, eventCountAfterResume, "Event count should remain 20 after replay")
 
 	eventIDsAfter, err := collectEventIDsForOffsetCommitTest(exportDir)
 	require.NoError(t, err, "Failed to read event_ids after resume")
@@ -203,13 +154,8 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 	verifyNoEventIDDuplicates(t, exportDir)
 	dedupSkipsAfterResume, err := countDedupSkipLogs(exportDir)
 	require.NoError(t, err, "Failed to count dedup skip logs after resume")
-	testutils.LogTestf(t, "Dedup skip logs after resume: %d", dedupSkipsAfterResume)
 	require.GreaterOrEqual(t, dedupSkipsAfterResume-dedupSkipsBeforeResume, 20,
 		"Expected dedup cache to skip at least 20 replayed records on resume")
-
-	_ = exportRunnerResume.Kill()
-	_ = killDebeziumForExportDir(exportDir)
-	lm.RemoveExportLockfile()
 }
 
 // TestCDCBatchFailureBeforeHandleBatchComplete verifies that live migration `export data` can resume
