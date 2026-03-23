@@ -66,7 +66,7 @@ var cutoverStatusCmd = &cobra.Command{
 			return
 		}
 
-		iterationToRows := collectCutoverStatusRowsForAllIterations(exportDir)
+		iterationToRows := collectCutoverStatusRowsForAllIterations(exportDir, metaDB)
 		for i := 0; i <= msr.LatestIterationNumber; i++ {
 			if msr.LatestIterationNumber == i {
 				utils.PrintAndLogfPhase("\nIteration %d (current):", i)
@@ -80,7 +80,7 @@ var cutoverStatusCmd = &cobra.Command{
 }
 
 // collect cutover status rows for all iterations
-func collectCutoverStatusRowsForAllIterations(exportDir string) map[int][]cutoverStatusRow {
+func collectCutoverStatusRowsForAllIterations(exportDir string, metaDB *metadb.MetaDB) map[int][]cutoverStatusRow {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("error getting migration status record: %s", err)

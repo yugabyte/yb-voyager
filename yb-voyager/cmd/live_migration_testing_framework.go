@@ -868,7 +868,7 @@ func (lm *LiveMigrationTest) getCutoverStatus(iterationNumber int) string {
 		return getCutoverStatus(lm.metaDB)
 	}
 
-	iterationCutoverMap := collectCutoverStatusRowsForAllIterations(lm.exportDir)
+	iterationCutoverMap := collectCutoverStatusRowsForAllIterations(lm.exportDir, lm.metaDB)
 	rows := iterationCutoverMap[iterationNumber]
 	if len(rows) < 1 {
 		return NOT_INITIATED
@@ -885,7 +885,7 @@ func (lm *LiveMigrationTest) getCutoverToSourceStatus(iterationNumber int) strin
 		return getCutoverToSourceStatus(lm.exportDir, lm.metaDB)
 	}
 
-	iterationCutoverMap := collectCutoverStatusRowsForAllIterations(lm.exportDir)
+	iterationCutoverMap := collectCutoverStatusRowsForAllIterations(lm.exportDir, lm.metaDB)
 	rows := iterationCutoverMap[iterationNumber]
 	if len(rows) < 2 {
 		return NOT_INITIATED
