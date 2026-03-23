@@ -77,7 +77,7 @@ var endMigrationCmd = &cobra.Command{
 		}()
 		for i := 1; i <= msr.LatestIterationNumber; i++ {
 			utils.PrintAndLogfInfo("Ending migration for iteration %d", i)
-			iterationExportDir := GetIterationExportDir(msr.GetIterationsDir(exportDir), i)
+			iterationExportDir := GetIterationExportDir(msr.GetIterationsDir(currExportDir), i)
 			if !utils.FileOrFolderExists(iterationExportDir) {
 				continue
 			}
@@ -85,8 +85,8 @@ var endMigrationCmd = &cobra.Command{
 			if err != nil {
 				utils.ErrExit("failed to create iteration meta db: %w", err)
 			}
-			if backupDir != "" {
-				backupDir = filepath.Join(backupDir, "live-data-migration-iterations", fmt.Sprintf("live-data-migration-iteration-%d", i))
+			if currBackupDir != "" {
+				backupDir = filepath.Join(currBackupDir, "live-data-migration-iterations", fmt.Sprintf("live-data-migration-iteration-%d", i))
 				err = os.MkdirAll(backupDir, 0755)
 				if err != nil {
 					utils.ErrExit("creating backup directory: %w", err)
