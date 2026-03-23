@@ -84,13 +84,19 @@ public class Main {
                 String namespaceID = namespaceInfoResponse.getNamespaceId();
 
                 Set<String> namespaceTableIds = new HashSet<>();
-                ListTablesResponse tablesResp = client.getTablesList();
-                for (TableInfo tableInfo : tablesResp.getTableInfoList()) {
-                    String tableNamespaceId = tableInfo.getNamespace().getId().toStringUtf8();
-                    String tableId = tableInfo.getId().toStringUtf8();
-                    if (!tableNamespaceId.isEmpty() && !tableId.isEmpty() && namespaceID.equals(tableNamespaceId)) {
-                        namespaceTableIds.add(tableId);
+                try {
+                    ListTablesResponse tablesResp = client.getTablesList();
+                    for (TableInfo tableInfo : tablesResp.getTableInfoList()) {
+                        String tableNamespaceId = tableInfo.getNamespace().getId().toStringUtf8();
+                        String tableId = tableInfo.getId().toStringUtf8();
+                        if (!tableNamespaceId.isEmpty() && !tableId.isEmpty() && namespaceID.equals(tableNamespaceId)) {
+                            namespaceTableIds.add(tableId);
+                        }
                     }
+                } catch (Exception ex) {
+                    throw new RuntimeException(
+                        String.format("Error fetching tables list for namespace: %s. Error: %s",
+                            parameters.dbName, ex.getMessage()), ex);
                 }
 
                 int count = 0;
