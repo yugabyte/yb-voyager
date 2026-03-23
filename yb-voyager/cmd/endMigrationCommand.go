@@ -76,7 +76,7 @@ var endMigrationCmd = &cobra.Command{
 			exportDir = currExportDir
 		}()
 		for i := 1; i <= msr.LatestIterationNumber; i++ {
-			utils.PrintAndLogfInfo("Ending migration for iteration %d", i)
+			utils.PrintAndLogfInfo("\nEnding migration for iteration %d\n", i)
 			iterationExportDir := GetIterationExportDir(msr.GetIterationsDir(currExportDir), i)
 			if !utils.FileOrFolderExists(iterationExportDir) {
 				continue
@@ -100,7 +100,7 @@ var endMigrationCmd = &cobra.Command{
 		backupDir = currBackupDir
 		exportDir = currExportDir
 		endMigrationCommandFn(cmd, args, false)
-		utils.PrintAndLogf("Ended migration successfully for all iterations")
+		utils.PrintAndLogfSuccess("\nEnded migration successfully for all iterations\n")
 	},
 }
 
@@ -127,7 +127,7 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string, isIteration bool) 
 	checkIfEndCommandCanBePerformed(msr)
 
 	// backing up the state from the export directory
-	err = saveMigrationReportsFn(msr)
+	err = saveMigrationReportsFn(msr, isIteration)
 	if err != nil {
 		utils.ErrExit("saving migration reports: %w", err)
 	}
@@ -312,7 +312,7 @@ func backupDataFilesFn() {
 	}
 }
 
-func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) error {
+func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord, isIteration bool) error {
 	if !saveMigrationReports {
 		return nil
 	}
@@ -328,8 +328,12 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) error {
 	if err != nil {
 		return fmt.Errorf("saving schema optimization report: %w", err)
 	}
+	if isIteration {
+		saveDataMigrationReport(msr, true)
+		return nil
+	}
 	if streamChangesMode {
-		saveDataMigrationReport(msr)
+		saveDataMigrationReport(msr, false)
 	} else { // snapshot case
 		if msr.SnapshotMechanism != "" {
 			saveDataExportReport()
@@ -430,7 +434,7 @@ func saveSchemaAnalysisReport() {
 	}
 }
 
-func saveDataMigrationReport(msr *metadb.MigrationStatusRecord) {
+func saveDataMigrationReport(msr *metadb.MigrationStatusRecord, includeIterations bool) {
 	dataMigrationReportPath := filepath.Join(backupDir, "reports", "data_migration_report.json")
 	if utils.FileOrFolderExists(dataMigrationReportPath) {
 		utils.PrintAndLogf("data migration report is already present at %q", dataMigrationReportPath)
@@ -445,7 +449,15 @@ func saveDataMigrationReport(msr *metadb.MigrationStatusRecord) {
 		fmt.Sprintf("SOURCE_DB_PASSWORD=%s", sourceDBPassword),
 	}
 
-	strCmd := fmt.Sprintf("yb-voyager get data-migration-report --export-dir %s --log-level %s --output-format json", exportDir, config.LogLevel)
+	parentExportDir := exportDir
+	if includeIterations {
+		parentExportDir = msr.GetParentExportDir(exportDir)
+	}
+
+	strCmd := fmt.Sprintf("yb-voyager get data-migration-report --export-dir %s --log-level %s --output-format json", parentExportDir, config.LogLevel)
+	if includeIterations {
+		strCmd += " --include-detailed-iterations-stats true"
+	}
 	liveMigrationReportCmd := exec.Command("bash", "-c", strCmd)
 	liveMigrationReportCmd.Env = append(os.Environ(), passwordsEnvVars...)
 
