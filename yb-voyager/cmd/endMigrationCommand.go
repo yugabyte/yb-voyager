@@ -76,7 +76,7 @@ var endMigrationCmd = &cobra.Command{
 			exportDir = currExportDir
 		}()
 		for i := 1; i <= msr.LatestIterationNumber; i++ {
-			utils.PrintAndLogfInfo("ending migration for iteration %d", i)
+			utils.PrintAndLogfInfo("Ending migration for iteration %d", i)
 			iterationExportDir := GetIterationExportDir(msr.GetIterationsDir(exportDir), i)
 			if !utils.FileOrFolderExists(iterationExportDir) {
 				continue
@@ -94,16 +94,17 @@ var endMigrationCmd = &cobra.Command{
 			}
 			metaDB = iterationMetaDB
 			exportDir = iterationExportDir
-			endMigrationCommandFn(cmd, args)
+			endMigrationCommandFn(cmd, args, true)
 		}
 		metaDB = currMetaDB
 		backupDir = currBackupDir
 		exportDir = currExportDir
-		endMigrationCommandFn(cmd, args)
+		endMigrationCommandFn(cmd, args, false)
+		utils.PrintAndLogf("Ended migration successfully for all iterations")
 	},
 }
 
-func endMigrationCommandFn(cmd *cobra.Command, args []string) {
+func endMigrationCommandFn(cmd *cobra.Command, args []string, isIteration bool) {
 	if utils.AskPrompt("Migration can't be resumed or continued after this.", "Are you sure you want to end the migration") {
 		log.Info("ending the migration")
 	} else {
@@ -130,8 +131,10 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("saving migration reports: %w", err)
 	}
-	backupSchemaFilesFn()
-	backupDataFilesFn()
+	if !isIteration {
+		backupSchemaFilesFn()
+		backupDataFilesFn()
+	}
 
 	// cleaning only the migration state wherever and  whatever required
 	cleanupSourceDB(msr)
