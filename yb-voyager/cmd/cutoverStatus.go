@@ -41,6 +41,7 @@ type cutoverStatusRow struct {
 	Direction   string
 	Status      string
 	RequestedAt time.Time
+	//TODO: Add completed at
 }
 
 var cutoverStatusCmd = &cobra.Command{
@@ -60,7 +61,7 @@ var cutoverStatusCmd = &cobra.Command{
 		fmt.Println()
 
 		if !msr.IsParentMigration() || msr.LatestIterationNumber == 0 {
-			rows := collectCutoverStatusRows(exportDir)
+			rows := collectCutoverStatusRows(exportDir, metaDB)
 			renderCutoverStatusTable(rows)
 			return
 		}
@@ -90,26 +91,17 @@ func collectCutoverStatusRowsForAllIterations(exportDir string) map[int][]cutove
 	iterationToRows := make(map[int][]cutoverStatusRow)
 
 	//collect cutover status rows for parent migration
-	rows := collectCutoverStatusRows(exportDir)
+	rows := collectCutoverStatusRows(exportDir, metaDB)
 	iterationToRows[0] = rows
 
-	currExportDir := exportDir
-	currMetaDB := metaDB
-	defer func() {
-		exportDir = currExportDir
-		metaDB = currMetaDB
-	}()
-
 	for i := 1; i <= msr.LatestIterationNumber; i++ {
-		iterationsDir := msr.GetIterationsDir(currExportDir)
+		iterationsDir := msr.GetIterationsDir(exportDir)
 		iterationExportDir := GetIterationExportDir(iterationsDir, i)
 		iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
 		if err != nil {
 			utils.ErrExit("error getting iteration meta db: %s", err)
 		}
-		exportDir = iterationExportDir
-		metaDB = iterationMetaDB
-		rows := collectCutoverStatusRows(exportDir)
+		rows := collectCutoverStatusRows(iterationExportDir, iterationMetaDB)
 		iterationToRows[i] = rows
 	}
 	return iterationToRows
@@ -121,7 +113,7 @@ func init() {
 	registerConfigFileFlag(cutoverStatusCmd)
 }
 
-func collectCutoverStatusRows(exportDir string) []cutoverStatusRow {
+func collectCutoverStatusRows(exportDir string, metaDB *metadb.MetaDB) []cutoverStatusRow {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("error getting migration status record: %s", err)
@@ -129,7 +121,7 @@ func collectCutoverStatusRows(exportDir string) []cutoverStatusRow {
 
 	var rows []cutoverStatusRow
 
-	toTargetStatus := getCutoverStatus()
+	toTargetStatus := getCutoverStatus(metaDB)
 	rows = append(rows, cutoverStatusRow{
 		Direction:   DIRECTION_SOURCE_TO_TARGET,
 		Status:      toTargetStatus,
@@ -137,7 +129,7 @@ func collectCutoverStatusRows(exportDir string) []cutoverStatusRow {
 	})
 
 	if msr.FallbackEnabled {
-		toSourceStatus := getCutoverToSourceStatus(exportDir)
+		toSourceStatus := getCutoverToSourceStatus(exportDir, metaDB)
 		rows = append(rows, cutoverStatusRow{
 			Direction:   DIRECTION_TARGET_TO_SOURCE,
 			Status:      toSourceStatus,
@@ -146,7 +138,7 @@ func collectCutoverStatusRows(exportDir string) []cutoverStatusRow {
 	}
 
 	if msr.FallForwardEnabled {
-		toSRStatus := getCutoverToSourceReplicaStatus()
+		toSRStatus := getCutoverToSourceReplicaStatus(metaDB)
 		rows = append(rows, cutoverStatusRow{
 			Direction:   DIRECTION_TARGET_TO_SOURCE_REPLICA,
 			Status:      toSRStatus,

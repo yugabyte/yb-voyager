@@ -864,9 +864,8 @@ func (lm *LiveMigrationTest) getCutoverStatus(iterationNumber int) string {
 	if lm.metaDB == nil {
 		return ""
 	}
-	metaDB = lm.metaDB
 	if iterationNumber == 0 {
-		return getCutoverStatus()
+		return getCutoverStatus(lm.metaDB)
 	}
 
 	iterationCutoverMap := collectCutoverStatusRowsForAllIterations(lm.exportDir)
@@ -882,9 +881,8 @@ func (lm *LiveMigrationTest) getCutoverToSourceStatus(iterationNumber int) strin
 	if lm.metaDB == nil {
 		return ""
 	}
-	metaDB = lm.metaDB
 	if iterationNumber == 0 {
-		return getCutoverToSourceStatus(lm.exportDir)
+		return getCutoverToSourceStatus(lm.exportDir, lm.metaDB)
 	}
 
 	iterationCutoverMap := collectCutoverStatusRowsForAllIterations(lm.exportDir)
