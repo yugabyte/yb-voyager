@@ -166,6 +166,10 @@ type MetaDB struct {
 	db *sql.DB
 }
 
+func (m *MetaDB) DB() *sql.DB {
+	return m.db
+}
+
 func NewMetaDB(exportDir string) (*MetaDB, error) {
 	db, err := sql.Open("sqlite3", fmt.Sprintf("%s%s", GetMetaDBPath(exportDir), SQLITE_OPTIONS))
 	if err != nil {
