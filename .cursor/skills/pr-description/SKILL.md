@@ -15,44 +15,35 @@ Descriptions summarize the **entire PR diff as a whole** — not individual comm
 
 ## PR Description Template
 
-All PR descriptions MUST follow this exact template structure:
+Use the project's PR template file at `.github/PULL_REQUEST_TEMPLATE` as the base
+structure for every PR description. Read that file each time to get the latest
+section headings and reference tables — if the template is updated in the future,
+your descriptions will automatically stay in sync.
 
-```markdown
-### Describe the changes in this pull request
+### Section-by-section filling guidance
 
-<Concise summary of what the PR does and why. Focus on the overall intent,
-not a commit-by-commit breakdown. 3-8 sentences covering the problem, approach,
-and key design decisions.>
+When populating the template, follow these instructions for each section:
 
-### Describe if there are any user-facing changes
+- **Describe the changes in this pull request** — Write a concise summary of what
+  the PR does and why (3-8 sentences). Focus on the overall intent, the problem
+  being solved, the approach taken, and key design decisions. Do NOT give a
+  commit-by-commit breakdown.
 
-<Answer these questions if relevant:
-1. Were there any changes to the command line?
-2. Were there any changes to the configuration?
-3. Has the installation process changed?
-4. Were there any changes to the reports?
-If none, write "No user-facing changes.">
+- **Describe if there are any user-facing changes** — Answer the questions listed
+  in the template's HTML comments (command line, configuration, installation,
+  reports). If none apply, write "No user-facing changes."
 
-### How was this pull request tested?
+- **How was this pull request tested?** — Be specific: mention whether existing
+  tests cover the changes, any new unit tests added, manual testing done, and
+  whether integration tests are needed. Cite actual test names or commands where
+  possible.
 
-<Mention:
-- Whether existing tests cover the changes
-- Any new unit tests added
-- Any manual testing done
-- Whether integration tests are needed>
+- **Does your PR have changes in callhome/yugabyted payloads?** — Answer Yes/No.
+  If yes, confirm the payload version was incremented.
 
-### Does your PR have changes in callhome/yugabyted payloads? If so, is the payload version incremented?
-
-<Answer Yes/No. If yes, confirm version was incremented.>
-
-### Does your PR have changes to on-disk structures that can cause upgrade issues?
-
-<Answer Yes/No. If yes, list which on-disk structures are affected from this list:
-MetaDB, Name registry json, Data File Descriptor Json, Export Snapshot Status Json,
-Callhome Json, Export Status Json, YugabyteD Tables, TargetDB Metadata Tables,
-Schema Dump, AssessmentDB, Migration Assessment Report Json, Import Data State,
-Export and import data queue, Data .sql files of tables>
-```
+- **Does your PR have changes to on-disk structures that can cause upgrade issues?**
+  — Answer Yes/No. If yes, list which on-disk structures are affected, using the
+  reference table at the bottom of the template.
 
 ## Workflow: Create a PR
 
