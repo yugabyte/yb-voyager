@@ -144,12 +144,12 @@ func injectDuringInitializeNextIteration() {
 // setting NextIterationInitialized = true. Tests verify that partial iteration
 // state is handled correctly: setUpNextIterationMSR is fully idempotent.
 func injectDuringSetUpNextIterationMSR() {
-	if val, _err_ := failpoint.Eval(_curpkg_("duringSetUpNextIterationMSR")); _err_ == nil {
+	failpoint.Inject("duringSetUpNextIterationMSR", func(val failpoint.Value) {
 		if val != nil {
 			writeFailpointMarker("failpoint-during-set-up-next-iteration-msr.log")
 			utils.ErrExit("failpoint: crash during setting up next iteration MSR")
 		}
-	}
+	})
 }
 
 // injectAfterInitializeNextIteration crashes import-to-source after
@@ -165,7 +165,6 @@ func injectAfterInitializeNextIteration() {
 		}
 	})
 }
-
 
 // injectCutoverToTargetExporterPostMarkProcessed crashes export-from-source after
 // it marks CutoverProcessedBySourceExporter, but before it chains to
