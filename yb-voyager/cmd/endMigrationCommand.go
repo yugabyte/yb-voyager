@@ -59,7 +59,48 @@ var endMigrationCmd = &cobra.Command{
 
 	},
 
-	Run: endMigrationCommandFn,
+	Run: func(cmd *cobra.Command, args []string) {
+		msr, err := metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			utils.ErrExit("failed to get migration status record: %w", err)
+		}
+		if msr.LatestIterationNumber == 0 {
+			return
+		}
+		currMetaDB := metaDB
+		currBackupDir := backupDir
+		currExportDir := exportDir
+		defer func() {
+			metaDB = currMetaDB
+			backupDir = currBackupDir
+			exportDir = currExportDir
+		}()
+		for i := 1; i <= msr.LatestIterationNumber; i++ {
+			utils.PrintAndLogfInfo("ending migration for iteration %d", i)
+			iterationExportDir := GetIterationExportDir(msr.GetIterationsDir(exportDir), i)
+			if !utils.FileOrFolderExists(iterationExportDir) {
+				continue
+			}
+			iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
+			if err != nil {
+				utils.ErrExit("failed to create iteration meta db: %w", err)
+			}
+			if backupDir != "" {
+				backupDir = filepath.Join(backupDir, "live-data-migration-iterations", fmt.Sprintf("live-data-migration-iteration-%d", i))
+				err = os.MkdirAll(backupDir, 0755)
+				if err != nil {
+					utils.ErrExit("creating backup directory: %w", err)
+				}
+			}
+			metaDB = iterationMetaDB
+			exportDir = iterationExportDir
+			endMigrationCommandFn(cmd, args)
+		}
+		metaDB = currMetaDB
+		backupDir = currBackupDir
+		exportDir = currExportDir
+		endMigrationCommandFn(cmd, args)
+	},
 }
 
 func endMigrationCommandFn(cmd *cobra.Command, args []string) {
