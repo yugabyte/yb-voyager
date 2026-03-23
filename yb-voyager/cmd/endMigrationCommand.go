@@ -32,7 +32,6 @@ var (
 	saveMigrationReports    utils.BoolStr
 	backupLogFiles          utils.BoolStr
 	backupDir               string
-	targetDBPassword        string
 	sourceReplicaDBPassword string
 	sourceDBPassword        string
 	streamChangesMode       bool
@@ -893,6 +892,11 @@ func stopVoyagerCommands(msr *metadb.MigrationStatusRecord, lockFiles []*lockfil
 		stopDataExportCommand(exportDataFromSourceLockFile)
 		stopDataExportCommand(exportDataFromTargetLockFile)
 		stopVoyagerCommand(archiveChangesLockFile, syscall.SIGUSR1)
+	}
+
+	if msr.SegmentCleanupRunning {
+		segmentCleanupLockFile := getLockFileForCommand(lockFiles, "segmentcleanup")
+		stopVoyagerCommand(segmentCleanupLockFile, syscall.SIGUSR2)
 	}
 
 	for _, lockFile := range lockFiles {

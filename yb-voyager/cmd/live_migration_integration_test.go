@@ -161,7 +161,7 @@ FROM generate_series(1, 5);`,
 	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
-	err = lm.WaitForCutoverComplete(50)
+	err = lm.WaitForCutoverComplete(0, 50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	//validate sequence restoration
@@ -388,7 +388,7 @@ func TestLiveMigrationWithEventsOnSamePkOrdered(t *testing.T) {
 	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
-	err = lm.WaitForCutoverComplete(50)
+	err = lm.WaitForCutoverComplete(0, 50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
 
@@ -522,7 +522,7 @@ func TestLiveMigrationWithEventsOnSamePkOrderedFallback(t *testing.T) {
 	err = lm.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
-	err = lm.WaitForCutoverComplete(50)
+	err = lm.WaitForCutoverComplete(0, 50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	// Execute ordering-sensitive delta SQL on target (YugabyteDB)
@@ -601,7 +601,7 @@ func TestLiveMigrationWithEventsOnSamePkOrderedFallback(t *testing.T) {
 	err = lm.InitiateCutoverToSource(nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-	err = lm.WaitForCutoverSourceComplete(100)
+	err = lm.WaitForCutoverSourceComplete(0, 100)
 	testutils.FatalIfError(t, err, "failed to wait for cutover to source complete")
 }
 
@@ -705,7 +705,7 @@ FROM generate_series(1, 5);`,
 	err = lm.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
-	err = lm.WaitForCutoverComplete(50)
+	err = lm.WaitForCutoverComplete(0, 50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	err = lm.ExecuteTargetDelta()
@@ -727,7 +727,7 @@ FROM generate_series(1, 5);`,
 	err = lm.InitiateCutoverToSource(nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-	err = lm.WaitForCutoverSourceComplete(100)
+	err = lm.WaitForCutoverSourceComplete(0, 100)
 	testutils.FatalIfError(t, err, "failed to wait for cutover to source complete")
 
 	//validate sequence restoration
@@ -870,7 +870,7 @@ FROM generate_series(1, 15);`,
 	err = lm.ResumeImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to resume import data")
 
-	err = lm.WaitForCutoverComplete(30)
+	err = lm.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	//Check if ids from 36-45 are present in target this is to verify the sequence serial col is restored properly till last value
@@ -978,7 +978,7 @@ FROM generate_series(1, 15);`,
 	err = lm.ResumeImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to resume import data")
 
-	err = lm.WaitForCutoverComplete(30)
+	err = lm.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	err = lm.WithTargetConn(func(target *sql.DB) error {
@@ -1122,7 +1122,7 @@ FROM generate_series(1, 10);`,
 	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
-	err = lm.WaitForCutoverComplete(30)
+	err = lm.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 }
@@ -1264,7 +1264,7 @@ FROM generate_series(1, 20) as i;`,
 	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
-	err = lm.WaitForCutoverComplete(30)
+	err = lm.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 }
@@ -1405,7 +1405,7 @@ FROM generate_series(1, 20) as i;`,
 	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
-	err = lm.WaitForCutoverComplete(30)
+	err = lm.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 }
@@ -1557,7 +1557,7 @@ func TestLiveMigrationWithUniqueKeyConflictWithUniqueIndexOnlyOnLeafPartitions(t
 	err = liveMigrationTest.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
-	err = liveMigrationTest.WaitForCutoverComplete(30)
+	err = liveMigrationTest.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 }
@@ -1700,7 +1700,7 @@ FROM generate_series(1, 20) as i;`,
 	err = liveMigrationTest.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
-	err = liveMigrationTest.WaitForCutoverComplete(30)
+	err = liveMigrationTest.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 }
@@ -1864,7 +1864,7 @@ END $$;`,
 	err = liveMigrationTest.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
-	err = liveMigrationTest.WaitForCutoverComplete(50)
+	err = liveMigrationTest.WaitForCutoverComplete(0, 50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 }
@@ -1967,7 +1967,7 @@ $$ LANGUAGE plpgsql;`,
 	err = liveMigrationTest.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
-	err = liveMigrationTest.WaitForCutoverComplete(50)
+	err = liveMigrationTest.WaitForCutoverComplete(0, 50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	err = liveMigrationTest.ExecuteTargetDelta()
@@ -1988,7 +1988,7 @@ $$ LANGUAGE plpgsql;`,
 	err = liveMigrationTest.InitiateCutoverToSource(nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-	err = liveMigrationTest.WaitForCutoverSourceComplete(150)
+	err = liveMigrationTest.WaitForCutoverSourceComplete(0, 150)
 	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 
 }
@@ -2303,7 +2303,7 @@ END $$;
 	err = liveMigrationTest.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
-	err = liveMigrationTest.WaitForCutoverComplete(50)
+	err = liveMigrationTest.WaitForCutoverComplete(0, 50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	err = liveMigrationTest.ExecuteTargetDelta()
@@ -2324,7 +2324,7 @@ END $$;
 	err = liveMigrationTest.InitiateCutoverToSource(nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-	err = liveMigrationTest.WaitForCutoverSourceComplete(150)
+	err = liveMigrationTest.WaitForCutoverSourceComplete(0, 150)
 	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 }
 
@@ -2486,7 +2486,7 @@ END $$;
 	err = liveMigrationTest.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
-	err = liveMigrationTest.WaitForCutoverComplete(50)
+	err = liveMigrationTest.WaitForCutoverComplete(0, 50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	err = liveMigrationTest.ExecuteTargetDelta()
@@ -2507,7 +2507,7 @@ END $$;
 	err = liveMigrationTest.InitiateCutoverToSource(nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-	err = liveMigrationTest.WaitForCutoverSourceComplete(150)
+	err = liveMigrationTest.WaitForCutoverSourceComplete(0, 150)
 	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 
 }
@@ -2620,7 +2620,7 @@ VALUES (INTERVAL '7 years', INTERVAL '120 days', INTERVAL '15 hours', INTERVAL '
 	err = lm.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
-	err = lm.WaitForCutoverComplete(50)
+	err = lm.WaitForCutoverComplete(0, 50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	// Execute target delta (fallback streaming: YB→PG)
@@ -2648,7 +2648,7 @@ VALUES (INTERVAL '7 years', INTERVAL '120 days', INTERVAL '15 hours', INTERVAL '
 	err = lm.InitiateCutoverToSource(nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-	err = lm.WaitForCutoverSourceComplete(100)
+	err = lm.WaitForCutoverSourceComplete(0, 100)
 	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 
 }
@@ -2872,7 +2872,7 @@ END $$;`,
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
 	// Wait for cutover to complete
-	err = liveMigrationTest.WaitForCutoverComplete(50)
+	err = liveMigrationTest.WaitForCutoverComplete(0, 50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	fmt.Printf("\n✅ Forward streaming completed successfully!\n")
@@ -3019,7 +3019,7 @@ FROM generate_series(1, 5);`,
 	err = lm.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
-	err = lm.WaitForCutoverComplete(50)
+	err = lm.WaitForCutoverComplete(0, 50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	err = lm.ExecuteTargetDelta()
@@ -3041,7 +3041,7 @@ FROM generate_series(1, 5);`,
 	err = lm.InitiateCutoverToSource(nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-	err = lm.WaitForCutoverSourceComplete(100)
+	err = lm.WaitForCutoverSourceComplete(0, 100)
 	testutils.FatalIfError(t, err, "failed to wait for cutover to source complete")
 
 	//validate sequence restoration
@@ -3188,7 +3188,7 @@ FROM generate_series(1, 5);`,
 	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
 
 	// Wait for cutover to complete and validate
-	err = lm.WaitForCutoverComplete(50)
+	err = lm.WaitForCutoverComplete(0, 50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	msr, err = lm.metaDB.GetMigrationStatusRecord()
@@ -3223,7 +3223,7 @@ FROM generate_series(1, 5);`,
 	err = lm.InitiateCutoverToSource(nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-	err = lm.WaitForCutoverSourceComplete(100)
+	err = lm.WaitForCutoverSourceComplete(0, 100)
 	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 
 	// YB replication slot should be ended
@@ -3325,7 +3325,7 @@ func TestLiveMigrationChangesOnlyFromPGToYB(t *testing.T) {
 	err = lm.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
-	err = lm.WaitForCutoverComplete(50)
+	err = lm.WaitForCutoverComplete(0, 50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	err = lm.ExecuteTargetDelta()
@@ -3346,7 +3346,7 @@ func TestLiveMigrationChangesOnlyFromPGToYB(t *testing.T) {
 	err = lm.InitiateCutoverToSource(nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-	err = lm.WaitForCutoverSourceComplete(100)
+	err = lm.WaitForCutoverSourceComplete(0, 100)
 	testutils.FatalIfError(t, err, "failed to wait for cutover to source complete")
 
 	err = lm.WithSourceConn(func(source *sql.DB) error {
@@ -3451,7 +3451,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterations(t *testing.T) {
 	err = lm.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
-	err = lm.WaitForCutoverComplete(50)
+	err = lm.WaitForCutoverComplete(0, 50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	err = lm.ExecuteTargetDelta()
@@ -3477,7 +3477,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterations(t *testing.T) {
 		err = lm.WaitForNextIterationInitialized(100, i-1)
 		testutils.FatalIfError(t, err, "failed to wait for next iteration initialized")
 
-		err = lm.WaitForCutoverSourceComplete(100)
+		err = lm.WaitForCutoverSourceComplete(i-1, 100)
 		testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 
 		err = lm.ExecuteSourceDelta()
@@ -3499,7 +3499,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterations(t *testing.T) {
 		err = lm.InitiateCutoverToTarget(true, nil)
 		testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
-		err = lm.WaitForCutoverComplete(50)
+		err = lm.WaitForCutoverComplete(i, 50)
 		testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 		err = lm.ExecuteTargetDelta()
@@ -3521,7 +3521,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterations(t *testing.T) {
 			err = lm.InitiateCutoverToSource(nil)
 			testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-			err = lm.WaitForCutoverSourceComplete(100)
+			err = lm.WaitForCutoverSourceComplete(i, 100)
 			testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 		}
 		fmt.Printf("\n✅ Iteration %d completed successfully!\n", i)

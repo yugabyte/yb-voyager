@@ -32,7 +32,7 @@ var (
 )
 
 var segmentCleanupCmd = &cobra.Command{
-	Use:   "segment-cleanup",
+	Use:   "segmentcleanup",
 	Short: "Clean up processed CDC event queue segments",
 	Long: fmt.Sprintf(`Manage the lifecycle of processed CDC event segments during live migration.
 
@@ -55,7 +55,7 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("error getting migration status record: %v", err)
 	}
 	if msr == nil {
-		utils.ErrExit("migration status record not found; ensure export has been initiated before running segment-cleanup")
+		utils.ErrExit("migration status record not found; ensure export has been initiated before running segmentcleanup")
 	}
 	if !msr.ExportDataSourceDebeziumStarted {
 		utils.ErrExit("the streaming phase of export data has not started yet — this command can only be run after streaming begins")
@@ -63,7 +63,13 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 
 	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.ArchivingEnabled = true
+		record.SegmentCleanupRunning = true
 	})
+	defer func() {
+		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+			record.SegmentCleanupRunning = false
+		})
+	}()
 
 	cfg := segmentcleanup.Config{
 		Policy:                 cleanupPolicy,

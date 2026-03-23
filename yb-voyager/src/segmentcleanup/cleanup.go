@@ -16,7 +16,6 @@ limitations under the License.
 package segmentcleanup
 
 import (
-	"fmt"
 	"os"
 	"time"
 
@@ -78,20 +77,6 @@ func (sc *SegmentCleaner) Run() error {
 	}
 }
 
-func (sc *SegmentCleaner) getImportCount() (int, error) {
-	msr, err := sc.metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		return 0, goerrors.Errorf("get migration status record: %v", err)
-	}
-	if msr == nil {
-		return 0, goerrors.Errorf("migration status record not found")
-	}
-	if msr.FallForwardEnabled {
-		return 2, nil
-	}
-	return 1, nil
-}
-
 func (sc *SegmentCleaner) isFSUtilizationExceeded() bool {
 	if sc.stop {
 		return true
@@ -116,12 +101,7 @@ func (sc *SegmentCleaner) runDeletePolicy() error {
 			continue
 		}
 
-		importCount, err := sc.getImportCount()
-		if err != nil {
-			return fmt.Errorf("get import count: %w", err)
-		}
-
-		segments, err := sc.metaDB.GetProcessedSegments(importCount)
+		segments, err := sc.metaDB.GetProcessedQueueSegments()
 		if err != nil {
 			return goerrors.Errorf("get processed segments: %v", err)
 		}

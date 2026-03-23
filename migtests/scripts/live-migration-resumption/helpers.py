@@ -180,21 +180,21 @@ def exporter_streaming(export_dir: str) -> bool:
 
 
 def get_cutover_status(export_dir: str, mode: str = "target") -> str:
-    mode_to_key = {
-        "target": "cutover to target status",
-        "source": "cutover to source status",
-        "source-replica": "cutover to source-replica status",
+    mode_to_direction = {
+        "target": "source → target",
+        "source": "target → source",
+        "source-replica": "target → source-replica",
     }
-    key = mode_to_key[mode]
+    direction = mode_to_direction[mode]
 
     cmd = ["yb-voyager", "cutover", "status", "--export-dir", export_dir]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
         for line in proc.stdout.splitlines():
-            if key in line:
-                parts = line.split(":", 1)
-                if len(parts) == 2:
-                    return parts[1].strip()
+            if direction in line:
+                cols = [c.strip() for c in line.split("|")]
+                if len(cols) >= 2:
+                    return cols[1]
         return ""
     except Exception:
         return ""
