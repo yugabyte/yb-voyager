@@ -3626,7 +3626,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterationsWithFailureScenariosDuri
 	err = lm.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
-	err = lm.WaitForCutoverComplete(50)
+	err = lm.WaitForCutoverComplete(0,50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	err = lm.ExecuteTargetDelta()
@@ -3657,7 +3657,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterationsWithFailureScenariosDuri
 	err = lm.WaitForNextIterationInitialized(100, 0)
 	testutils.FatalIfError(t, err, "failed to wait for next iteration initialized")
 
-	err = lm.WaitForCutoverSourceComplete(100)
+	err = lm.WaitForCutoverSourceComplete(0, 100)
 	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 
 	err = lm.ExecuteSourceDelta()
@@ -3679,7 +3679,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterationsWithFailureScenariosDuri
 	err = lm.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
-	err = lm.WaitForCutoverComplete(50)
+	err = lm.WaitForCutoverComplete(1,50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	err = lm.ExecuteTargetDelta()
@@ -3712,7 +3712,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterationsWithFailureScenariosDuri
 	err = lm.WaitForNextIterationInitialized(100, 1)
 	testutils.FatalIfError(t, err, "failed to wait for next iteration initialized")
 
-	err = lm.WaitForCutoverSourceComplete(100)
+	err = lm.WaitForCutoverSourceComplete(1, 100)
 	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 
 	err = lm.ExecuteSourceDelta()
@@ -3734,7 +3734,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterationsWithFailureScenariosDuri
 	err = lm.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
-	err = lm.WaitForCutoverComplete(50)
+	err = lm.WaitForCutoverComplete(2,50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	err = lm.ExecuteTargetDelta()
@@ -3765,6 +3765,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterationsWithFailureScenariosDuri
 	})
 	testutils.FatalIfError(t, err, "failed to drop sequence")
 
+	//3rd iteration
 	err = lm.InitiateCutoverToSource(map[string]string{
 		"--restart-data-migration-source-target": "true",
 	})
@@ -3796,7 +3797,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterationsWithFailureScenariosDuri
 	err = lm.WaitForNextIterationInitialized(100, 2)
 	testutils.FatalIfError(t, err, "failed to wait for next iteration initialized")
 
-	err = lm.WaitForCutoverSourceComplete(100)
+	err = lm.WaitForCutoverSourceComplete(2,100)
 	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 
 	err = lm.ExecuteSourceDelta()
@@ -3818,7 +3819,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterationsWithFailureScenariosDuri
 	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
-	err = lm.WaitForCutoverComplete(50)
+	err = lm.WaitForCutoverComplete(3, 50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 }
@@ -3965,7 +3966,7 @@ func TestLiveMigrationWithFallbackWithIterationsTableList(t *testing.T) {
 	err = lm.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
-	err = lm.WaitForCutoverComplete(50)
+	err = lm.WaitForCutoverComplete(0, 50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	err = lm.ExecuteTargetDelta()
@@ -3997,7 +3998,7 @@ func TestLiveMigrationWithFallbackWithIterationsTableList(t *testing.T) {
 	err = lm.WaitForNextIterationInitialized(100, 0)
 	testutils.FatalIfError(t, err, "failed to wait for next iteration initialized")
 
-	err = lm.WaitForCutoverSourceComplete(100)
+	err = lm.WaitForCutoverSourceComplete(0, 100)
 	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 
 	err = lm.StopExportData()
@@ -4038,7 +4039,7 @@ func TestLiveMigrationWithFallbackWithIterationsTableList(t *testing.T) {
 	err = lm.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
-	err = lm.WaitForCutoverComplete(50)
+	err = lm.WaitForCutoverComplete(1, 50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	err = lm.ExecuteTargetDelta()
@@ -4065,7 +4066,7 @@ func TestLiveMigrationWithFallbackWithIterationsTableList(t *testing.T) {
 	err = lm.InitiateCutoverToSource(nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-	err = lm.WaitForCutoverSourceComplete(100)
+	err = lm.WaitForCutoverSourceComplete(1, 100)
 	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 
 }

@@ -121,7 +121,7 @@ func setupToFallbackStreaming(t *testing.T, lm *LiveMigrationTest) {
 	err = lm.InitiateCutoverToTarget(true, nil)
 	require.NoError(t, err, "failed to initiate cutover to target")
 
-	err = lm.WaitForCutoverComplete(120)
+	err = lm.WaitForCutoverComplete(0, 120)
 	require.NoError(t, err, "cutover to target did not complete")
 
 	err = lm.ExecuteTargetDelta()
@@ -153,7 +153,7 @@ func verifyNewIterationForward(t *testing.T, lm *LiveMigrationTest) {
 	err = lm.InitiateCutoverToTarget(false, nil)
 	require.NoError(t, err, "failed to initiate final cutover to target")
 
-	err = lm.WaitForCutoverComplete(120)
+	err = lm.WaitForCutoverComplete(1, 120)
 	require.NoError(t, err, "final cutover to target did not complete")
 }
 
@@ -266,7 +266,7 @@ func TestCutoverToTargetResumption_ExporterCrashAfterDebeziumComplete(t *testing
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to resume export data")
 
-	err = lm.WaitForCutoverComplete(180)
+	err = lm.WaitForCutoverComplete(0, 180)
 	require.NoError(t, err, "cutover-to-target did not complete after resume")
 
 	verifyFallbackAfterCutoverToTarget(t, lm)
@@ -313,7 +313,7 @@ func TestCutoverToTargetResumption_ExporterCrashAfterDeletingReplicationSlot(t *
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to resume export data")
 
-	err = lm.WaitForCutoverComplete(180)
+	err = lm.WaitForCutoverComplete(0, 180)
 	require.NoError(t, err, "cutover-to-target did not complete after resume")
 
 	verifyFallbackAfterCutoverToTarget(t, lm)
@@ -365,7 +365,7 @@ func TestCutoverToTargetResumption_ExporterCrashAfterMarkProcessed(t *testing.T)
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to resume export data")
 
-	err = lm.WaitForCutoverComplete(180)
+	err = lm.WaitForCutoverComplete(0, 180)
 	require.NoError(t, err, "cutover-to-target did not complete after resume")
 
 	verifyFallbackAfterCutoverToTarget(t, lm)
@@ -414,7 +414,7 @@ func TestCutoverToTargetResumption_ImporterCrashBeforeMarkProcessed(t *testing.T
 	err = lm.StartImportData(true, nil)
 	require.NoError(t, err, "failed to resume import data")
 
-	err = lm.WaitForCutoverComplete(180)
+	err = lm.WaitForCutoverComplete0, (180)
 	require.NoError(t, err, "cutover-to-target did not complete after resume")
 
 	verifyFallbackAfterCutoverToTarget(t, lm)
@@ -468,7 +468,7 @@ func TestCutoverToTargetResumption_ImporterCrashAfterMarkProcessed(t *testing.T)
 	err = lm.StartImportData(true, nil)
 	require.NoError(t, err, "failed to resume import data")
 
-	err = lm.WaitForCutoverComplete(180)
+	err = lm.WaitForCutoverComplete(0, 180)
 	require.NoError(t, err, "cutover-to-target did not complete after resume")
 
 	verifyFallbackAfterCutoverToTarget(t, lm)
@@ -533,7 +533,7 @@ func TestCutoverToSourceResumption_ImporterCrashBeforeMarkProcessed(t *testing.T
 	err = lm.WaitForNextIterationInitialized(120, 0)
 	require.NoError(t, err, "next iteration was not initialized")
 
-	err = lm.WaitForCutoverSourceComplete(180)
+	err = lm.WaitForCutoverSourceComplete(0,180)
 	require.NoError(t, err, "cutover-to-source did not complete")
 
 	verifyNewIterationForward(t, lm)
@@ -593,7 +593,7 @@ func TestCutoverToSourceResumption_ImporterCrashAfterMarkProcessed(t *testing.T)
 	err = lm.WaitForNextIterationInitialized(120, 0)
 	require.NoError(t, err, "next iteration was not initialized")
 
-	err = lm.WaitForCutoverSourceComplete(180)
+	err = lm.WaitForCutoverSourceComplete(0,180)
 	require.NoError(t, err, "cutover-to-source did not complete")
 
 	verifyNewIterationForward(t, lm)
@@ -650,7 +650,7 @@ func TestCutoverToSourceResumption_ImporterCrashDuringInitNextIteration(t *testi
 	err = lm.WaitForNextIterationInitialized(120, 0)
 	require.NoError(t, err, "next iteration was not initialized after resume")
 
-	err = lm.WaitForCutoverSourceComplete(180)
+	err = lm.WaitForCutoverSourceComplete(0,180)
 	require.NoError(t, err, "cutover-to-source did not complete after resume")
 
 	verifyNewIterationForward(t, lm)
@@ -707,7 +707,7 @@ func TestCutoverToSourceResumption_ImporterCrashAfterInitNextIteration(t *testin
 	err = lm.WaitForNextIterationInitialized(120, 0)
 	require.NoError(t, err, "next iteration was not initialized after resume")
 
-	err = lm.WaitForCutoverSourceComplete(180)
+	err = lm.WaitForCutoverSourceComplete(0,180)
 	require.NoError(t, err, "cutover-to-source did not complete after resume")
 
 	verifyNewIterationForward(t, lm)
@@ -760,7 +760,7 @@ func TestCutoverToSourceResumption_ImporterCrashBeforeInitNextIteration(t *testi
 	err = lm.WaitForNextIterationInitialized(120, 0)
 	require.NoError(t, err, "next iteration was not initialized after resume")
 
-	err = lm.WaitForCutoverSourceComplete(180)
+	err = lm.WaitForCutoverSourceComplete(0,180)
 	require.NoError(t, err, "cutover-to-source did not complete after resume")
 
 	verifyNewIterationForward(t, lm)
@@ -810,7 +810,7 @@ func TestCutoverToSourceResumption_ImporterCrashDuringSetUpNextIterationMSR(t *t
 	err = lm.WaitForNextIterationInitialized(120, 0)
 	require.NoError(t, err, "next iteration was not initialized after resume")
 
-	err = lm.WaitForCutoverSourceComplete(180)
+	err = lm.WaitForCutoverSourceComplete(0,180)
 	require.NoError(t, err, "cutover-to-source did not complete after resume")
 
 	verifyNewIterationForward(t, lm)
@@ -879,7 +879,7 @@ func TestCutoverToSourceResumption_ExporterCrashAfterMarkProcessed(t *testing.T)
 	err = lm.StartExportDataFromTarget(true, nil)
 	require.NoError(t, err, "failed to resume export-from-target")
 
-	err = lm.WaitForCutoverSourceComplete(180)
+	err = lm.WaitForCutoverSourceComplete(0,180)
 	require.NoError(t, err, "cutover-to-source did not complete after resume")
 
 	verifyNewIterationForward(t, lm)
@@ -927,7 +927,7 @@ func TestCutoverToSourceResumption_ExporterCrashAfterDeletingReplicationSlotAndP
 	err = lm.StartExportDataFromTarget(true, nil)
 	require.NoError(t, err, "failed to resume export-from-target")
 
-	err = lm.WaitForCutoverSourceComplete(180)
+	err = lm.WaitForCutoverSourceComplete(0,180)
 	require.NoError(t, err, "cutover-to-source did not complete after resume")
 
 	verifyNewIterationForward(t, lm)
@@ -975,7 +975,7 @@ func TestCutoverToSourceResumption_ExporterCrashAfterCompletingDebezium(t *testi
 	err = lm.StartExportDataFromTarget(true, nil)
 	require.NoError(t, err, "failed to resume export-from-target")
 
-	err = lm.WaitForCutoverSourceComplete(180)
+	err = lm.WaitForCutoverSourceComplete(0,180)
 	require.NoError(t, err, "cutover-to-source did not complete after resume")
 
 	verifyNewIterationForward(t, lm)
