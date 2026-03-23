@@ -519,7 +519,7 @@ func backupLogFilesFn() {
 		utils.ErrExit("creating logs directory for backup: %w", err)
 	}
 
-	_, err := os.ReadDir(filepath.Join(exportDir, "logs"))
+	_, err = os.ReadDir(filepath.Join(exportDir, "logs"))
 	if err != nil {
 		if !os.IsNotExist(err) {
 			utils.ErrExit("reading logs directory: %w", err)
