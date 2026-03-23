@@ -519,6 +519,14 @@ func backupLogFilesFn() {
 		utils.ErrExit("creating logs directory for backup: %w", err)
 	}
 
+	logFiles, err := os.ReadDir(filepath.Join(exportDir, "logs"))
+	if err != nil {
+		utils.ErrExit("reading logs directory: %w", err)
+	}
+	if len(logFiles) == 0 {
+		utils.PrintAndLogf("no log files to backup")
+		return
+	}
 	utils.PrintAndLogf("backing up log files")
 	cmdStr := fmt.Sprintf("mv %s/logs/*.log %s", exportDir, backupLogDir)
 	cmd := exec.Command("bash", "-c", cmdStr)
