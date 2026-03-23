@@ -414,7 +414,7 @@ func TestCutoverToTargetResumption_ImporterCrashBeforeMarkProcessed(t *testing.T
 	err = lm.StartImportData(true, nil)
 	require.NoError(t, err, "failed to resume import data")
 
-	err = lm.WaitForCutoverComplete0, (180)
+	err = lm.WaitForCutoverComplete(0, 180)
 	require.NoError(t, err, "cutover-to-target did not complete after resume")
 
 	verifyFallbackAfterCutoverToTarget(t, lm)
