@@ -894,6 +894,11 @@ func stopVoyagerCommands(msr *metadb.MigrationStatusRecord, lockFiles []*lockfil
 		stopVoyagerCommand(archiveChangesLockFile, syscall.SIGUSR1)
 	}
 
+	if msr.SegmentCleanupRunning {
+		segmentCleanupLockFile := getLockFileForCommand(lockFiles, "segmentcleanup")
+		stopVoyagerCommand(segmentCleanupLockFile, syscall.SIGUSR2)
+	}
+
 	for _, lockFile := range lockFiles {
 		stopVoyagerCommand(lockFile, syscall.SIGUSR2)
 	}
