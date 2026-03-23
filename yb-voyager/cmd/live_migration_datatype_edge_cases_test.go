@@ -3758,7 +3758,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
-	err = lm.WaitForCutoverComplete(60)
+	err = lm.WaitForCutoverComplete(0, 60)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`}, "id")
@@ -3876,7 +3876,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	err = lm.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
-	err = lm.WaitForCutoverComplete(90)
+	err = lm.WaitForCutoverComplete(0,90)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	err = lm.ExecuteTargetDelta()
@@ -3954,7 +3954,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	err = lm.InitiateCutoverToSource(nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-	err = lm.WaitForCutoverSourceComplete(150)
+	err = lm.WaitForCutoverSourceComplete(0,150)
 	testutils.FatalIfError(t, err, "failed to wait for cutover to source complete")
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`}, "id")
