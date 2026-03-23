@@ -97,8 +97,18 @@ var endMigrationCmd = &cobra.Command{
 		metaDB = currMetaDB
 		backupDir = currBackupDir
 		exportDir = currExportDir
+		isIteratativeWorkflow := msr.LatestIterationNumber > 0
+		if isIteratativeWorkflow {
+			utils.PrintAndLogfInfo("\nEnding migration for iteration 0")
+		} else {
+			utils.PrintAndLogfInfo("\nEnding migration")
+		}
 		endMigrationCommandFn(cmd, args, false)
-		utils.PrintAndLogfSuccess("\nEnded migration successfully for all iterations\n")
+		if isIteratativeWorkflow {
+			utils.PrintAndLogfSuccess("\nEnded migration successfully for all iterations")
+		} else {
+			utils.PrintAndLogfSuccess("\nEnded migration successfully")
+		}
 	},
 }
 
