@@ -141,3 +141,17 @@ func NewObjectReader(object string) (io.ReadCloser, error) {
 	}
 	return bucket.NewReader(context.Background(), keyName, nil)
 }
+
+func NewObjectReaderAt(object string, offset int64) (io.ReadCloser, error) {
+	createClientIfNotExists()
+	bucketName, keyName, err := splitObjectPath(object)
+	if err != nil {
+		return nil, err
+	}
+	bucket, err := s3blob.OpenBucketV2(context.Background(), client, bucketName, nil)
+	if err != nil {
+		return nil, fmt.Errorf("open bucket: %w", err)
+	}
+	// length -1 means read from offset to end of object
+	return bucket.NewRangeReader(context.Background(), keyName, offset, -1, nil)
+}
