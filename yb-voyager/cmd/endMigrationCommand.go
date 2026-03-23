@@ -64,9 +64,7 @@ var endMigrationCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("failed to get migration status record: %w", err)
 		}
-		if msr.LatestIterationNumber == 0 {
-			return
-		}
+		saveDataMigrationReportForIterationsFn(msr, msr.LatestIterationNumber > 0)
 		currMetaDB := metaDB
 		currBackupDir := backupDir
 		currExportDir := exportDir
@@ -127,7 +125,7 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string, isIteration bool) 
 	checkIfEndCommandCanBePerformed(msr)
 
 	// backing up the state from the export directory
-	err = saveMigrationReportsFn(msr, isIteration)
+	err = saveMigrationReportsFn(msr)
 	if err != nil {
 		utils.ErrExit("saving migration reports: %w", err)
 	}
@@ -312,7 +310,21 @@ func backupDataFilesFn() {
 	}
 }
 
-func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord, isIteration bool) error {
+func saveDataMigrationReportForIterationsFn(msr *metadb.MigrationStatusRecord, isIteration bool) error {
+	if !bool(saveMigrationReports) || !isIteration {
+		return nil
+	}
+
+	err := os.MkdirAll(filepath.Join(backupDir, "reports"), 0755)
+	if err != nil {
+		return fmt.Errorf("creating reports directory for backup: %w", err)
+	}
+
+	saveDataMigrationReport(msr, isIteration)
+	return nil
+}
+
+func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) error {
 	if !saveMigrationReports {
 		return nil
 	}
@@ -327,10 +339,6 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord, isIteration bool)
 	err = saveSchemaOptimizationReport()
 	if err != nil {
 		return fmt.Errorf("saving schema optimization report: %w", err)
-	}
-	if isIteration {
-		saveDataMigrationReport(msr, true)
-		return nil
 	}
 	if streamChangesMode {
 		saveDataMigrationReport(msr, false)
