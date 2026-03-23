@@ -205,7 +205,7 @@ func (lm *LiveMigrationTest) Cleanup() {
 
 // StartExportData starts export data command
 func (lm *LiveMigrationTest) StartExportData(async bool, extraArgs map[string]string) error {
-	return lm.startExportData(async, extraArgs, SNAPSHOT_AND_CHANGES)
+	return lm.startExportData(async, extraArgs, SNAPSHOT_AND_CHANGES, nil)
 }
 
 func (lm *LiveMigrationTest) startExportData(async bool, extraArgs map[string]string, exportType string, env []string) error {
@@ -248,7 +248,7 @@ func (lm *LiveMigrationTest) startExportData(async bool, extraArgs map[string]st
 }
 
 func (lm *LiveMigrationTest) StartExportDataChangesOnly(async bool, extraArgs map[string]string) error {
-	return lm.startExportData(async, extraArgs, CHANGES_ONLY)
+	return lm.startExportData(async, extraArgs, CHANGES_ONLY, nil)
 }
 
 // StartExportDataWithEnv starts export data with additional environment variables.
