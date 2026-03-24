@@ -514,17 +514,16 @@ func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (path
 }
 
 // GetAllSequences returns all the sequence names in the database for the given schema list
-func (pg *PostgreSQL) GetAllSequencesLastValues() (*utils.StructMap[sqlname.ObjectName, int64], error) {
-	schemaList := sqlname.ExtractIdentifiersUnquoted(pg.source.Schemas)
-	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
+func (pg *PostgreSQL) GetSequencesLastValues(sequencesList []sqlname.NameTuple) (*utils.StructMap[sqlname.ObjectName, int64], error) {
+	sequenceQueryList := sqlname.JoinNameTuplesUnquoted(sequencesList, "','")
 	result := utils.NewStructMap[sqlname.ObjectName, int64]()
-	query := fmt.Sprintf(`SELECT schemaname, sequencename, COALESCE(last_value, 0) as last_value FROM pg_sequences where schemaname IN (%s);`, querySchemaList)
+	query := fmt.Sprintf(`SELECT schemaname, sequencename, COALESCE(last_value, 0) as last_value FROM pg_sequences where (schemaname || '.' || sequencename) IN ('%s');`, sequenceQueryList)
 	rows, err := pg.db.Query(query)
 	if err != nil {
 		if strings.Contains(err.Error(), "does not exist") {
 			//For PG version before 10 as identity columns are also introduced in PG 10 so using information_schema.sequences but it will not return the last value for the sequences
 			//will not work on PG <=10
-			query = fmt.Sprintf(`SELECT sequence_schema, sequence_name, 0 as last_value FROM information_schema.sequences where sequence_schema IN (%s);`, querySchemaList)
+			query = fmt.Sprintf(`SELECT sequence_schema, sequence_name, 0 as last_value FROM information_schema.sequences where (sequence_schema || '.' || sequence_name) IN ('%s');`, sequenceQueryList)
 			rows, err = pg.db.Query(query)
 			if err != nil {
 				return nil, fmt.Errorf("error in querying(%q) source database for sequence last values: %w", query, err)
