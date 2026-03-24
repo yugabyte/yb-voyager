@@ -40,11 +40,7 @@ const (
 	UNIQUE_VIOLATION_RECOMMENDATION_MESSAGE	  = "Duplicate key conflict (SQLSTATE 23505): one or more rows in the import file conflict with existing rows in the target table.\n" +
 		"To resolve, try one of the following:\n" +
 		"  1. Truncate and re-import: restart with --start-clean true --truncate-tables true to clear target tables before importing.\n" +
-		"  2. Ignore conflicts on primary key: use --on-primary-key-conflict IGNORE to silently skip rows whose primary key already exists (import data file only).\n" +
-		"If importing directly via ysqlsh COPY rather than yb-voyager:\n" +
-		"  3. Skip already-imported rows: use COPY ... SKIP <n> to skip already-committed rows and avoid re-importing duplicates.\n" +
-		"  4. Overwrite conflicting rows: use COPY ... REPLACE to upsert rows that match on primary/unique key.\n" +
-		"     Caveat: REPLACE is not supported on tables with more than one unique constraint or with secondary indexes."
+		"  2. Ignore conflicts on primary key: use --on-primary-key-conflict IGNORE to silently skip rows whose primary key already exists."
 )
 
 type ImportDataErrorHandler interface {
