@@ -1113,7 +1113,27 @@ func getSequenceInitialValues() (*utils.StructMap[sqlname.NameTuple, int64], err
 
 func getSequenceInitialValuesFromDB() (*utils.StructMap[sqlname.NameTuple, int64], error) {
 	result := utils.NewStructMap[sqlname.NameTuple, int64]()
-	sequenceLastValueMap, err := source.DB().GetAllSequencesLastValues()
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return nil, fmt.Errorf("get migration status record: %w", err)
+	}
+	var sequences []string
+	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+		sequences = lo.Uniq(lo.Values(msr.SourceColumnToSequenceMapping))
+	} else if isTargetDBExporter(exporterRole) {
+		sequences = lo.Uniq(lo.Values(msr.TargetColumnToSequenceMapping))
+	}
+
+	var sequencesList []sqlname.NameTuple
+	for _, sequence := range sequences {
+		sequenceTuple, err := namereg.NameReg.LookupTableName(sequence)
+		if err != nil {
+			return nil, fmt.Errorf("lookup for sequence name %s: %w", sequence, err)
+		}
+		sequencesList = append(sequencesList, sequenceTuple)
+	}
+
+	sequenceLastValueMap, err := source.DB().GetSequencesLastValues(sequencesList)
 	if err != nil {
 		return nil, fmt.Errorf("get all sequences last values from DB: %w", err)
 	}

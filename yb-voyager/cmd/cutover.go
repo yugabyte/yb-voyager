@@ -209,6 +209,10 @@ func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, iterationNo int, current
 		record.SourceExportedTableListWithLeafPartitions = currentMSR.SourceExportedTableListWithLeafPartitions
 		record.SourceRenameTablesMap = currentMSR.SourceRenameTablesMap
 		record.TargetRenameTablesMap = currentMSR.TargetRenameTablesMap
+
+		//sequence mapping is required for the next iteration to restore sequences
+		record.SourceColumnToSequenceMapping = currentMSR.SourceColumnToSequenceMapping
+		record.TargetColumnToSequenceMapping = currentMSR.TargetColumnToSequenceMapping
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update iteration migration status record: %w", err)
