@@ -4063,10 +4063,7 @@ func TestLiveMigrationWithFallbackWithIterationsTableList(t *testing.T) {
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`, `"test_schema"."test_live_2"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
-	err = lm.InitiateCutoverToSource(nil)
-	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
-
-	err = lm.WaitForCutoverSourceComplete(1, 100)
-	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
+	err = lm.EndMigration(nil, true)
+	testutils.FatalIfError(t, err, "failed to end migration")
 
 }

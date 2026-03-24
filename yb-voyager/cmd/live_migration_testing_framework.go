@@ -47,6 +47,7 @@ It only supports for the normal live migration workflow and live migration workf
 type LiveMigrationTest struct {
 	config              *TestConfig
 	exportDir           string
+	backupDir           string
 	sourceContainer     testcontainers.TestContainer
 	targetContainer     testcontainers.TestContainer
 	exportCmd           *testutils.VoyagerCommandRunner
@@ -693,6 +694,47 @@ func (lm *LiveMigrationTest) GetExportCommandFromTargetStderr() string {
 		return ""
 	}
 	return lm.exportFromTargetCmd.Stderr()
+}
+
+func (lm *LiveMigrationTest) EndMigration(extraArgs map[string]string, withBackup bool) error {
+	fmt.Printf("Ending migration\n")
+	if withBackup {
+		lm.backupDir = testutils.CreateBackupDir(lm.t)
+		defer testutils.RemoveTempExportDir(lm.backupDir)
+	}
+
+	args := []string{
+		"--export-dir", lm.exportDir,
+		"--yes",
+	}
+	if withBackup {
+		args = append(args, "--backup-dir", lm.backupDir)
+		args = append(args, "--backup-schema-files", "true")
+		args = append(args, "--backup-data-files", "true")
+		args = append(args, "--backup-log-files", "true")
+		args = append(args, "--save-migration-reports", "true")
+	} else {
+		args = append(args, "--backup-schema-files", "false")
+		args = append(args, "--backup-data-files", "false")
+		args = append(args, "--backup-log-files", "false")
+		args = append(args, "--save-migration-reports", "false")
+	}
+
+	// Add extra args
+	for key, value := range extraArgs {
+		args = append(args, key, value)
+	}
+
+	cutoverCmd := testutils.NewVoyagerCommandRunner(nil, "end migration", args, nil, false).WithEnv(
+		fmt.Sprintf("SOURCE_DB_PASSWORD=%s", lm.sourceContainer.GetConfig().Password),
+		fmt.Sprintf("TARGET_DB_PASSWORD=%s", lm.targetContainer.GetConfig().Password),
+	)
+	err := cutoverCmd.Run()
+	if err != nil {
+		return goerrors.Errorf("failed to initiate cutover: %w", err)
+	}
+	fmt.Printf("Migration ended\n")
+	return nil
 }
 
 // ============================================================
