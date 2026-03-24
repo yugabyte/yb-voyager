@@ -783,7 +783,7 @@ func initPGLiveMigrationAndExportSnapshotIfRequired(ctx context.Context, cancel 
 	}
 
 	// Setting up sequence values for debezium to start tracking from..
-	sequenceValueMap, err := getSequenceInitialValues()
+	sequenceValueMap, err := getSequenceInitialValues(finalTableList)
 	if err != nil {
 		utils.ErrExit("get sequence initial values: %w", err)
 	}
@@ -1063,7 +1063,7 @@ func createAndStoreReplicationSlotAndPublication(finalTableList []sqlname.NameTu
 	}
 	return res.SnapshotName, nil
 }
-func getSequenceInitialValues() (*utils.StructMap[sqlname.NameTuple, int64], error) {
+func getSequenceInitialValues(finalTableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, int64], error) {
 	if exportType == CHANGES_ONLY {
 		/*
 			In changes_only case, we need to get the sequence initial values from the DB as we don't export the snapshot.
@@ -1074,7 +1074,7 @@ func getSequenceInitialValues() (*utils.StructMap[sqlname.NameTuple, int64], err
 			and on debezium we need to maintain the maximum value of sequence to be restored on target
 			so debezium should maintain 110 instead of 103 last value of seq1 for which it needs to know the initial value on DB.
 		*/
-		return getSequenceInitialValuesFromDB()
+		return getSequenceInitialValuesFromDB(finalTableList)
 	}
 	result := utils.NewStructMap[sqlname.NameTuple, int64]()
 	path := filepath.Join(exportDir, "data", "postdata.sql")
@@ -1121,17 +1121,27 @@ func getSequenceInitialValues() (*utils.StructMap[sqlname.NameTuple, int64], err
 	return result, nil
 }
 
-func getSequenceInitialValuesFromDB() (*utils.StructMap[sqlname.NameTuple, int64], error) {
+func getSequenceInitialValuesFromDB(finalTableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, int64], error) {
 	result := utils.NewStructMap[sqlname.NameTuple, int64]()
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		return nil, fmt.Errorf("get migration status record: %w", err)
 	}
 	var sequences []string
-	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
-		sequences = lo.Uniq(lo.Values(msr.SourceColumnToSequenceMapping))
-	} else if isTargetDBExporter(exporterRole) {
-		sequences = lo.Uniq(lo.Values(msr.TargetColumnToSequenceMapping))
+	if msr.IsParentMigration() {
+		//If its a parent migration and changes only, we need to get the sequences list from DB as per table list
+		columnToSequenceMap, err := fetchOrRetrieveColToSeqMap(msr, finalTableList)
+		if err != nil {
+			return nil, fmt.Errorf("fetch or retrieve column to sequence map: %w", err)
+		}
+		sequences = lo.Uniq(lo.Values(columnToSequenceMap))
+	} else {
+		//If its a iteration migration, we need to get the sequences list from MSR
+		if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+			sequences = lo.Uniq(lo.Values(msr.SourceColumnToSequenceMapping))
+		} else if isTargetDBExporter(exporterRole) {
+			sequences = lo.Uniq(lo.Values(msr.TargetColumnToSequenceMapping))
+		}
 	}
 
 	var sequencesList []sqlname.NameTuple
