@@ -236,7 +236,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 		// in the first batch which is never finalized, so zero rows reach the target.
 		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/importSnapshotTransformError=20*off->return(true)",
 	)
-	failMarkerPath := filepath.Join(lm.GetExportDir(), "failpoints", "failpoint-import-snapshot-transform-error.log")
+	failMarkerPath := filepath.Join(lm.GetCurrentExportDir(), "failpoints", "failpoint-import-snapshot-transform-error.log")
 
 	t.Log("Starting import with snapshot transform failpoint...")
 	err = lm.StartImportDataWithEnv(true, map[string]string{
@@ -246,7 +246,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	}, []string{
 		failpointEnv,
 		"YB_VOYAGER_COPY_MAX_RETRY_COUNT=1",
-		"YB_VOYAGER_FAILPOINT_MARKER_DIR=" + filepath.Join(lm.GetExportDir(), "failpoints"),
+		"YB_VOYAGER_FAILPOINT_MARKER_DIR=" + filepath.Join(lm.GetCurrentExportDir(), "failpoints"),
 	})
 	require.NoError(t, err, "failed to start import with failpoint")
 
@@ -258,7 +258,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	// --- Phase 2: Verify crash artifacts ---
 	// Batch production writes temp batch files under import_data_state before a batch is finalized.
 	// For a transform failure mid-production, we expect at least one `tmp::<N>` file.
-	stateRoot := filepath.Join(lm.GetExportDir(), "metainfo", "import_data_state")
+	stateRoot := filepath.Join(lm.GetCurrentExportDir(), "metainfo", "import_data_state")
 	tmpFiles := []string{}
 	err = filepath.WalkDir(stateRoot, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {

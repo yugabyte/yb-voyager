@@ -151,15 +151,15 @@ func handleCutoverAlreadyProcessedForImportData() {
 	}
 	switch importerRole {
 	case TARGET_DB_IMPORTER_ROLE:
-		if getCutoverStatus() == COMPLETED {
+		if getCutoverStatus(metaDB) == COMPLETED {
 			utils.ErrExit("cutover to target already processed, exiting...")
 		}
 	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
-		if getCutoverToSourceReplicaStatus() == COMPLETED {
+		if getCutoverToSourceReplicaStatus(metaDB) == COMPLETED {
 			utils.ErrExit("cutover to source-replica already processed, exiting...")
 		}
 	case SOURCE_DB_IMPORTER_ROLE:
-		if getCutoverToSourceStatus(exportDir) == COMPLETED {
+		if getCutoverToSourceStatus(exportDir, metaDB) == COMPLETED {
 			utils.ErrExit("cutover to source already processed, exiting...")
 		}
 	}
@@ -293,10 +293,14 @@ func startExportDataFromSourceOnNextIteration() {
 		return
 	}
 
+	injectBeforeInitializeNextIteration()
+
 	err = initializeNextIteration()
 	if err != nil {
 		utils.ErrExit("failed to initialize next iteration: %w", err)
 	}
+
+	injectAfterInitializeNextIteration()
 
 	//Start export from source on next iteration
 
@@ -1148,9 +1152,24 @@ func postCutoverProcessing(importTableList []sqlname.NameTuple) error {
 	}
 
 	utils.PrintAndLogf("Completed streaming all relevant changes to %s", tconf.TargetDBType)
+
+	switch importerRole {
+	case TARGET_DB_IMPORTER_ROLE:
+		injectCutoverToTargetImporterPreMarkProcessed()
+	case SOURCE_DB_IMPORTER_ROLE:
+		injectCutoverToSourceImporterPreMarkProcessed()
+	}
+
 	err = markCutoverProcessed(importerRole)
 	if err != nil {
 		return goerrors.Errorf("failed to mark cutover as processed: %s", err)
+	}
+
+	if importerRole == SOURCE_DB_IMPORTER_ROLE {
+		injectCutoverToSourceImporterPostMarkProcessed()
+	}
+	if importerRole == TARGET_DB_IMPORTER_ROLE {
+		injectCutoverToTargetImporterPostMarkProcessed()
 	}
 
 	//Waiting for the cutover of the export data from target to mark the cutover as processed for the importer role

@@ -215,7 +215,7 @@ main() {
 	cutover_to_target
 
 	for ((i = 0; i < 10; i++)); do
-    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to target status" | cut -d ':'  -f 2 | tr -d '[:blank:]')" != "COMPLETED" ]; then
+    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "source → target" | awk -F'|' '{print $2}' | tr -d '[:blank:]')" != "COMPLETED" ]; then
         echo "Waiting for cutover to be COMPLETED..."
         sleep 20
         if [ "$i" -eq 9 ]; then

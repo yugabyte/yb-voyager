@@ -513,11 +513,24 @@ func (m *MetaDB) GetSegmentsToBeArchived(importCount int) ([]utils.Segment, erro
 	return segmentsToBeArchived, nil
 }
 
-// GetProcessedSegments returns segments that all required importers have finished
+// GetProcessedQueueSegments returns segments that all required importers have finished
 // processing and that have not yet been deleted, regardless of archive status.
-func (m *MetaDB) GetProcessedSegments(importCount int) ([]utils.Segment, error) {
+func (m *MetaDB) GetProcessedQueueSegments() ([]utils.Segment, error) {
+	msr, err := m.GetMigrationStatusRecord()
+	if err != nil {
+		return nil, goerrors.Errorf("get migration status record: %v", err)
+	}
+	if msr == nil {
+		return nil, goerrors.Errorf("migration status record not found")
+	}
+
+	importCount := 1
+	if msr.FallForwardEnabled {
+		importCount = 2
+	}
+
 	predicate := fmt.Sprintf(`((exporter_role == 'source_db_exporter' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer = %d)) OR
-	(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer = 1)))
+	(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_source_replica_db_importer + imported_by_source_db_importer = 1)))
 	AND deleted = 0`, importCount)
 	segments, err := m.querySegments(predicate)
 	if err != nil {

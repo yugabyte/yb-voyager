@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -93,24 +94,24 @@ func NewVoyagerCommandRunner(container testcontainers.TestContainer, cmdName str
 // commands that support it -- passing it to commands like cutover, status, or get data-migration-report
 // would cause Cobra to fail with "unknown flag".
 var commandsSupportingSendDiagnostics = map[string]bool{
-	"export schema":                      true,
-	"export data":                        true,
-	"export data from source":            true,
-	"export data from target":            true,
-	"import schema":                      true,
-	"import data":                        true,
-	"import data to target":              true,
-	"import data to source":              true,
-	"import data to source-replica":      true,
-	"import data file":                   true,
-	"analyze-schema":                     true,
-	"assess-migration":                   true,
-	"finalize-schema-post-data-import":   true,
-	"compare-performance":                true,
-	"end migration":                      true,
-	"archive changes":                    true,
-	"segment-cleanup":                    true,
-	"assess-migration-bulk":              true,
+	"export schema":                    true,
+	"export data":                      true,
+	"export data from source":          true,
+	"export data from target":          true,
+	"import schema":                    true,
+	"import data":                      true,
+	"import data to target":            true,
+	"import data to source":            true,
+	"import data to source-replica":    true,
+	"import data file":                 true,
+	"analyze-schema":                   true,
+	"assess-migration":                 true,
+	"finalize-schema-post-data-import": true,
+	"compare-performance":              true,
+	"end migration":                    true,
+	"archive changes":                  true,
+	"segmentcleanup":                   true,
+	"assess-migration-bulk":            true,
 }
 
 // supportsSendDiagnosticsFlag checks if the given command supports the --send-diagnostics flag.
@@ -259,6 +260,42 @@ func (v *VoyagerCommandRunner) Kill() error {
 	}
 
 	v.exitCode = ExitCodeFailure // setting failure code for unsuccessful execution
+	return nil
+}
+
+func (v *VoyagerCommandRunner) GracefulStop(timeoutSeconds int) error {
+	if v.Cmd == nil {
+		return fmt.Errorf("command for %s not built yet", v.CmdName)
+	}
+	if v.Cmd.Process == nil {
+		return fmt.Errorf("process for command %s is not available", v.CmdName)
+	}
+
+	log.Debugf("sending SIGTERM to command: %s (pid=%d)", v.Cmd.String(), v.Cmd.Process.Pid)
+	err := v.Cmd.Process.Signal(syscall.SIGTERM)
+	if err != nil {
+		return fmt.Errorf("failed to send SIGTERM to command: %w", err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- v.Cmd.Wait()
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			log.Debugf("command %s exited with error (expected after SIGTERM): %v", v.CmdName, err)
+		}
+	case <-time.After(time.Duration(timeoutSeconds) * time.Second):
+		log.Debugf("command %s did not exit within %ds after SIGTERM, sending SIGKILL", v.CmdName, timeoutSeconds)
+		if killErr := v.Cmd.Process.Kill(); killErr != nil {
+			return fmt.Errorf("failed to SIGKILL command after timeout: %w", killErr)
+		}
+		<-done
+	}
+
+	v.exitCode = ExitCodeFailure
 	return nil
 }
 
