@@ -1,0 +1,20 @@
+{"stage": "create_source_and_target_dbs", "start_ts": "2026-03-20T13:58:37.759523Z", "end_ts": "2026-03-20T13:58:43.361524Z", "status": "OK"}
+{"stage": "create_source_schema", "start_ts": "2026-03-20T13:58:43.361810Z", "end_ts": "2026-03-20T13:58:43.460215Z", "status": "OK"}
+{"stage": "create_cutover_table", "start_ts": "2026-03-20T13:58:43.460395Z", "end_ts": "2026-03-20T13:58:43.508511Z", "status": "OK"}
+{"stage": "grant_source_permissions", "start_ts": "2026-03-20T13:58:43.508684Z", "end_ts": "2026-03-20T13:58:43.586842Z", "status": "OK"}
+{"stage": "export_schema_from_source", "start_ts": "2026-03-20T13:58:43.587077Z", "end_ts": "2026-03-20T13:58:45.369044Z", "status": "OK"}
+{"stage": "import_schema_on_target", "start_ts": "2026-03-20T13:58:45.369216Z", "end_ts": "2026-03-20T13:58:50.435716Z", "status": "OK"}
+{"stage": "start_event_generator", "start_ts": "2026-03-20T13:58:50.435932Z", "end_ts": "2026-03-20T13:58:50.437965Z", "status": "OK"}
+{"stage": "load_snapshot", "start_ts": "2026-03-20T13:58:50.438103Z", "end_ts": "2026-03-20T13:59:00.448001Z", "status": "OK"}
+{"stage": "start_exporter", "start_ts": "2026-03-20T13:59:00.448219Z", "end_ts": "2026-03-20T13:59:02.451020Z", "status": "OK"}
+{"stage": "start_importer", "start_ts": "2026-03-20T13:59:02.451242Z", "end_ts": "2026-03-20T13:59:04.452940Z", "status": "OK"}
+{"stage": "wait_exporter_streaming", "start_ts": "2026-03-20T13:59:04.453143Z", "end_ts": "2026-03-20T13:59:14.459966Z", "status": "OK"}
+{"stage": "small_sleep_for_some_events_to_be_generated", "start_ts": "2026-03-20T13:59:14.460150Z", "end_ts": "2026-03-20T13:59:24.470208Z", "status": "OK"}
+{"stage": "stop_event_generator", "start_ts": "2026-03-20T13:59:24.470535Z", "end_ts": "2026-03-20T13:59:24.477963Z", "status": "OK"}
+{"stage": "insert_backlog_marker", "start_ts": "2026-03-20T13:59:24.478185Z", "end_ts": "2026-03-20T13:59:24.540547Z", "status": "OK"}
+{"stage": "wait_backlog_zero", "start_ts": "2026-03-20T13:59:24.540779Z", "end_ts": "2026-03-20T13:59:29.562307Z", "status": "OK"}
+{"stage": "cutover_to_target", "start_ts": "2026-03-20T13:59:29.562499Z", "end_ts": "2026-03-20T13:59:29.623684Z", "status": "OK"}
+{"stage": "wait_cutover_to_target_completed", "start_ts": "2026-03-20T13:59:29.623864Z", "end_ts": "2026-03-20T13:59:39.770902Z", "status": "OK"}
+{"stage": "stop_forward_exporter", "start_ts": "2026-03-20T13:59:39.771139Z", "end_ts": "2026-03-20T13:59:39.789157Z", "status": "OK"}
+{"stage": "stop_forward_importer", "start_ts": "2026-03-20T13:59:39.789350Z", "end_ts": "2026-03-20T13:59:40.955570Z", "status": "OK"}
+{"stage": "start_fallback_exporter_from_target", "start_ts": "2026-03-20T13:59:40.955754Z", "end_ts": "2026-03-20T13:59:42.958584Z", "status": "FAILED", "error": "Command failed to start: yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir --send-diagnostics false --target-db-password yugabyte\nExit: 1\nSTDERR:\n\n"}

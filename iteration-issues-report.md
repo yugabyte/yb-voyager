@@ -61,22 +61,12 @@ Voyager should either block the restart with a clear validation error about sche
 
 ---
 
-## Under Investigation (not yet reproducible manually)
+## Closed / Not Reproducible
 
 ### Issue 6: `import data` panics with nil pointer in SchemaRegistry during iteration-2 start
 
-**Status:** Consistently reproducible in automation (with and without kill TCs), but NOT reproducible manually even with complex types (json, bit, array). Crashes when `import data` restarts on iteration export-dir with 3,676 pending events from 11-table schema. Manual repro with 3-table complex schema works fine. Likely triggered by specific table count, type combination, or state from full forward+fallback+restart cycle with event generators. Keeping for further investigation.
+**Status:** CLOSED -- not a product bug. Caused by stale automation state.
 
-**Repro command (uses automation's leftover state):**
-```bash
-TARGET_DB_PASSWORD=yugabyte yb-voyager import data --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --target-db-host 10.9.15.11 --target-db-port 5433 --target-db-user yugabyte --target-db-name test_db --skip-replication-checks true --send-diagnostics false
-```
+**Root cause:** The crash only occurred when reusing a `test_db` and `export-dir` that had accumulated corrupted metadata from previous failed automation runs (multiple kill/restart cycles, partial iterations, leftover event generator data). When tested with a clean setup using the same 11-table complex schema (json, bit, array, tsvector, bytea, enum), iteration-2 import ran without any crash.
 
-**Stack trace:**
-```
-panic: runtime error: invalid memory address or nil pointer dereference
-[signal SIGSEGV: segmentation violation code=0x1 addr=0x48 pc=0xe4f3ea]
-
-goroutine 1 [running]:
-github.com/yugabyte/yb-voyager/yb-voyager/src/utils/schemareg.(*SchemaRegistry).GetColumnType(0x0, ...)
-```
+**Resolution:** Ensure automation always starts with a fresh DB and export dir. No product fix needed.

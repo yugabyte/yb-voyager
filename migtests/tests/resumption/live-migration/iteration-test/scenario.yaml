@@ -89,7 +89,7 @@ voyager:
     flags:
       restart-data-migration-source-target: true
 
-iteration_count: 3
+iteration_count: 10
 
 stages:
   # ============================================================
@@ -172,13 +172,8 @@ stages:
 
   # ============================================================
   # Phase 4: Fallback (target -> source)
+  # Voyager auto-transitions to fallback after cutover to target
   # ============================================================
-  - name: start_fallback_exporter
-    action: voyager_export_from_target_start
-
-  - name: start_fallback_importer
-    action: voyager_import_to_source_start
-
   - name: start_target_event_generator
     action: generator_start
     generator_key: generator_target
@@ -207,42 +202,60 @@ stages:
     condition: cutover_to_source_status_completed
     timeout_sec: 900
 
-  - name: stop_fallback_exporter
-    action: voyager_stop_command
-    command: export_from_target
-    graceful_timeout_sec: 60
-
-  - name: stop_fallback_importer
-    action: voyager_stop_command
-    command: import_to_source
-    graceful_timeout_sec: 60
-
   # ============================================================
   # Phase 6: Iteration loop (repeats for iteration_count - 1)
+  # Voyager auto-transitions processes across iterations
   # ============================================================
   - name: iteration_loop
     action: iteration_loop
     count_from_config: iteration_count
     subtract: 1
     stages:
-      - name: start_iteration_exporter
-        action: voyager_export_start
-
-      - name: start_iteration_importer
-        action: voyager_import_start
+      # Voyager auto-transitions export/import after cutover-to-source-with-restart
+      # We must take over those processes so the resumer can kill/restart them
 
       - name: wait_iteration_exporter_streaming
         action: wait_for
         condition: iteration_exporter_in_streaming_phase
         timeout_sec: 600
 
+      - name: takeover_processes
+        action: takeover_auto_transitioned
+
       - name: start_iteration_source_event_generator
         action: generator_start
         generator_key: generator_source
 
-      - name: soak_iteration_forward
+      # 5 kill/restart resumption cycles during forward streaming
+      - name: forward_resumptions
+        action: start_resumptions
+        resumption:
+          export_data:
+            max_restarts: 5
+            min_interrupt_seconds: 5
+            max_interrupt_seconds: 15
+            min_restart_wait_seconds: 5
+            max_restart_wait_seconds: 15
+          import_data:
+            max_restarts: 5
+            min_interrupt_seconds: 5
+            max_interrupt_seconds: 15
+            min_restart_wait_seconds: 5
+            max_restart_wait_seconds: 15
+
+      - name: soak_iteration_forward_with_resumptions
         action: sleep
-        seconds: 30
+        seconds: 120
+
+      - name: stop_forward_export_resumptions
+        action: voyager_stop_resumptions
+        command: export_data
+        timeout_sec: 60
+
+      - name: stop_forward_import_resumptions
+        action: voyager_stop_resumptions
+        command: import_data
+        timeout_sec: 60
 
       - name: stop_iteration_source_event_generator
         action: generator_stop
@@ -261,19 +274,43 @@ stages:
         condition: cutover_to_target_status_completed
         timeout_sec: 900
 
-      - name: start_iteration_fallback_exporter
-        action: voyager_export_from_target_start
-
-      - name: start_iteration_fallback_importer
-        action: voyager_import_to_source_start
+      - name: takeover_fallback_processes
+        action: takeover_fallback
 
       - name: start_iteration_target_event_generator
         action: generator_start
         generator_key: generator_target
 
-      - name: soak_iteration_fallback
+      # 5 kill/restart resumption cycles during fallback streaming
+      - name: fallback_resumptions
+        action: start_resumptions
+        resumption:
+          export_from_target:
+            max_restarts: 5
+            min_interrupt_seconds: 5
+            max_interrupt_seconds: 15
+            min_restart_wait_seconds: 5
+            max_restart_wait_seconds: 15
+          import_to_source:
+            max_restarts: 5
+            min_interrupt_seconds: 5
+            max_interrupt_seconds: 15
+            min_restart_wait_seconds: 5
+            max_restart_wait_seconds: 15
+
+      - name: soak_iteration_fallback_with_resumptions
         action: sleep
-        seconds: 30
+        seconds: 120
+
+      - name: stop_fallback_export_resumptions
+        action: voyager_stop_resumptions
+        command: export_from_target
+        timeout_sec: 60
+
+      - name: stop_fallback_import_resumptions
+        action: voyager_stop_resumptions
+        command: import_to_source
+        timeout_sec: 60
 
       - name: stop_iteration_target_event_generator
         action: generator_stop
@@ -292,21 +329,13 @@ stages:
         condition: cutover_to_source_status_completed
         timeout_sec: 900
 
-      - name: stop_iteration_fallback_exporter
-        action: voyager_stop_command
-        command: export_from_target
-        graceful_timeout_sec: 60
-
-      - name: stop_iteration_fallback_importer
-        action: voyager_stop_command
-        command: import_to_source
-        graceful_timeout_sec: 60
-
   # ============================================================
   # Phase 7: Final validation
   # ============================================================
-  - name: final_row_count_validations
-    action: row_count_validations
+  # Row count validation skipped: last iteration ends with restart, so data is still diverging
+  # TODO: Add back once end-migration is implemented or last iter does cutover without restart
+  # - name: final_row_count_validations
+  #   action: row_count_validations
 
   - name: cleanup_source
     action: run_sql

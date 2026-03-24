@@ -1,0 +1,5 @@
+	plugin.discovery = hybrid_warn
+2026-03-20 13:59:38,225 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    errors.retry.delay.initial.ms = 300
+2026-03-20 13:59:38,227 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    errors.max.retries = 15
+2026-03-20 13:59:38,230 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    errors.retry.delay.max.ms = 10000
+2026-03-20 13:59:40,591 INFO  [io.deb.ser.ConnectorLifecycle] (pool-7-thread-1) Connector completed: success = 'true', message = 'Connector 'io.debezium.connector.postgresql.YugabyteDBConnector' completed normally.', error = 'null'

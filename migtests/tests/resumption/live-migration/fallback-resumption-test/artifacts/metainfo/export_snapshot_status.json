@@ -1,0 +1,64 @@
+{
+  "tables": {
+    "\"public\".\"cutover_table\"": {
+      "table_name": "\"public\".\"cutover_table\"",
+      "file_name": "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/data/cutover_table_data.sql",
+      "status": "DONE",
+      "exported_row_count_snapshot": 0
+    },
+    "\"public\".\"datatypes1\"": {
+      "table_name": "\"public\".\"datatypes1\"",
+      "file_name": "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/data/datatypes1_data.sql",
+      "status": "DONE",
+      "exported_row_count_snapshot": 601
+    },
+    "\"public\".\"datatypes2\"": {
+      "table_name": "\"public\".\"datatypes2\"",
+      "file_name": "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/data/datatypes2_data.sql",
+      "status": "DONE",
+      "exported_row_count_snapshot": 583
+    },
+    "\"public\".\"datetime_type\"": {
+      "table_name": "\"public\".\"datetime_type\"",
+      "file_name": "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/data/datetime_type_data.sql",
+      "status": "DONE",
+      "exported_row_count_snapshot": 647
+    },
+    "\"public\".\"datetime_type2\"": {
+      "table_name": "\"public\".\"datetime_type2\"",
+      "file_name": "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/data/datetime_type2_data.sql",
+      "status": "DONE",
+      "exported_row_count_snapshot": 629
+    },
+    "\"public\".\"decimal_types\"": {
+      "table_name": "\"public\".\"decimal_types\"",
+      "file_name": "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/data/decimal_types_data.sql",
+      "status": "DONE",
+      "exported_row_count_snapshot": 547
+    },
+    "\"public\".\"null_and_default\"": {
+      "table_name": "\"public\".\"null_and_default\"",
+      "file_name": "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/data/null_and_default_data.sql",
+      "status": "DONE",
+      "exported_row_count_snapshot": 591
+    },
+    "\"public\".\"num_types\"": {
+      "table_name": "\"public\".\"num_types\"",
+      "file_name": "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/data/num_types_data.sql",
+      "status": "DONE",
+      "exported_row_count_snapshot": 662
+    },
+    "\"public\".\"test_table\"": {
+      "table_name": "\"public\".\"test_table\"",
+      "file_name": "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/data/test_table_data.sql",
+      "status": "DONE",
+      "exported_row_count_snapshot": 637
+    },
+    "\"public\".\"tsvector_table\"": {
+      "table_name": "\"public\".\"tsvector_table\"",
+      "file_name": "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/data/tsvector_table_data.sql",
+      "status": "DONE",
+      "exported_row_count_snapshot": 586
+    }
+  }
+}

@@ -1,0 +1,4 @@
+2026-03-24 07:16:08.521510 INFO import.go:571 passed value for --on-primary-key-conflict: ERROR-POLICY
+2026-03-24 07:16:08.564910 WARN yugabytedb.go:1442 Error while running query COPY yb_voyager_cores(num_cores) FROM PROGRAM 'grep processor /proc/cpuinfo|wc -l'; on host [postgresql://ybvoyager:xxxxx@127.0.0.1:5432/test_db?sslmode=prefer]: ERROR: permission denied to COPY to or from an external program (SQLSTATE 42501)
+2026-03-24 07:16:08.590490 WARN yugabytedb.go:1442 Error while running query COPY yb_voyager_cores(num_cores) FROM PROGRAM 'grep processor /proc/cpuinfo|wc -l'; on host [postgresql://ybvoyager:xxxxx@127.0.0.1:5432/test_db?sslmode=prefer]: ERROR: permission denied to COPY to or from an external program (SQLSTATE 42501)
+2026-03-24 07:16:08.590571 WARN postgres.go:240 error fetching cores, using default parallelism of 8: ERROR: permission denied to COPY to or from an external program (SQLSTATE 42501)

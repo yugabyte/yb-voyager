@@ -1,0 +1,274 @@
+2026-03-20 13:59:33.771453 INFO logging.go:74 Logging initialised.
+2026-03-20 13:59:33.771663 INFO logging.go:76 Args: [yb-voyager export data from target --log-level info --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir --disable-pb=true --send-diagnostics=false --yes]
+2026-03-20 13:59:33.771830 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-20 13:59:33.773186 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:33.773457 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-20 13:59:33.773569 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-20 13:59:33.773771 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:33.773954 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:33.774064 INFO logging.go:74 Logging initialised.
+2026-03-20 13:59:33.774107 INFO logging.go:76 Args: [yb-voyager export data from target --log-level info --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir --disable-pb=true --send-diagnostics=false --yes]
+2026-03-20 13:59:33.774194 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-20 13:59:33.774217 INFO root.go:152 Start time: 2026-03-20 13:59:33.774207565 +0000 UTC m=+0.034664696
+
+2026-03-20 13:59:33.774666 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:33.774840 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-20 13:59:33.774961 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-20 13:59:33.775149 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:33.775299 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:33.775323 INFO root.go:526 'control-plane-type' not set. Setting cp to NoopControlPlane.
+2026-03-20 13:59:33.775339 INFO root.go:198 Environment variable 'TARGET_DB_PASSWORD' already set with value '********'
+
+2026-03-20 13:59:33.775482 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:33.775619 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:33.775641 INFO common.go:464 Creating a project directory if not exists...
+2026-03-20 13:59:33.791146 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:33.791334 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-20 13:59:33.791423 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-20 13:59:33.791610 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:33.791756 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:33.791785 INFO logging.go:86 migrationID: efaacadb-4e42-458c-b7eb-3d1bdc471ce2
+
+2026-03-20 13:59:33.791945 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:33.791990 WARN logging.go:89 
+Important: The following limitations apply to live migration with fall back:
+
+
+2026-03-20 13:59:33.792006 WARN logging.go:89   1. SAVEPOINT statements within transactions on the target database are not supported during live migration with fall back enabled. Transactions rolling back to some SAVEPOINT may cause data inconsistency between the databases. This is fixed in YugabyteDB version 2025.2.2.0 and later.
+
+2026-03-20 13:59:33.792020 WARN logging.go:89   2. Workloads with read-committed isolation level are not fully supported. It is recommended to use repeatable-read or serializable isolation levels for the duration of the migration. This is fixed in YugabyteDB version 2025.2.2.0 and later.
+
+2026-03-20 13:59:33.792033 WARN logging.go:89   3. Rows larger than 4MB in target database can cause consistency issues during live migration with fall back enabled. Refer to this tech advisory for more information https://docs.yugabyte.com/stable/releases/techadvisories/ta-29060/
+
+2026-03-20 13:59:33.792054 INFO logging.go:183 
+
+2026-03-20 13:59:33.792071 INFO logging.go:175 export of data for source type as 'yugabytedb'
+2026-03-20 13:59:33.792241 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:33.792460 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:33.913956 INFO utils.go:783 Found strings at /usr/bin/strings
+2026-03-20 13:59:33.976704 INFO yugabytedb.go:448 Total Database size of YugabyteDB sourceDB: 0
+2026-03-20 13:59:33.977154 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:33.977204 INFO exportData.go:1692 clearing migration state if required: false
+2026-03-20 13:59:33.977358 INFO logging.go:175 Continuing streaming from where we left off...
+2026-03-20 13:59:33.977407 INFO namereg.go:80 Initializing name registry with params - {/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/metainfo/name_registry.json target_db_exporter_fb yugabytedb [public] test_db 0xc0006166c0 [] <nil>}
+2026-03-20 13:59:33.977444 INFO namereg.go:93 initialising name registry: /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/metainfo/name_registry.json
+2026-03-20 13:59:33.977585 INFO namereg.go:142 no name registry update required: mode "target_db_exporter_fb"
+2026-03-20 13:59:33.987311 INFO exportData.go:1811 Source database charset: "UTF8"
+2026-03-20 13:59:33.987622 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:33.987922 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:33.987948 INFO exportData.go:1364 retrieving first run list and partitions root map
+2026-03-20 13:59:33.987967 INFO exportData.go:1316 stored table list from meta db - [public.test_table public.num_types public.decimal_types public.datatypes1 public.cutover_table public.datetime_type public.datetime_type2 public.datatypes2 public.null_and_default public.tsvector_table]
+2026-03-20 13:59:34.067084 INFO exportData.go:1179 applying filter for include list of tables and adding leaf tables - public.test_table,public.num_types,public.decimal_types,public.datatypes1,public.cutover_table,public.datetime_type,public.datetime_type2,public.datatypes2,public.null_and_default,public.tsvector_table
+2026-03-20 13:59:34.080848 INFO exportData.go:1188 filtered include list of tables and added leaf tables - [public.test_table public.num_types public.decimal_types public.datatypes1 public.cutover_table public.datetime_type public.datetime_type2 public.datatypes2 public.null_and_default public.tsvector_table]
+2026-03-20 13:59:34.100244 INFO exportData.go:833 All required permissions are present for the source database.
+2026-03-20 13:59:34.124507 INFO exportData.go:1923 initial all tables table list for data export: [public.test_table public.num_types public.decimal_types public.datatypes1 public.cutover_table public.datetime_type public.datetime_type2 public.datatypes2 public.null_and_default public.tsvector_table]
+2026-03-20 13:59:34.124554 INFO exportData.go:1927 finalizing table list by filtering empty tables and unsupported tables/columns
+2026-03-20 13:59:34.186028 INFO exportData.go:1960 final table list after filtering empty tables and unsupported tables/columns - [public.test_table public.num_types public.decimal_types public.datatypes1 public.cutover_table public.datetime_type public.datetime_type2 public.datatypes2 public.null_and_default public.tsvector_table]
+2026-03-20 13:59:34.186324 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:34.192877 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:34.193065 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:34.193216 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:34.193356 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:34.193503 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:34.193633 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:34.193766 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:34.193908 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:34.194049 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:34.194184 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:34.194314 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:34.194342 INFO logging.go:175 table list for data export: [public.test_table public.num_types public.decimal_types public.datatypes1 public.cutover_table public.datetime_type public.datetime_type2 public.datatypes2 public.null_and_default public.tsvector_table]
+2026-03-20 13:59:34.194478 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:34.194498 INFO yugabytedb.go:128 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.test_table'::regclass' approx row count of table "[CurrentName=(test_table) SourceName=(test_table) TargetName=(test_table)]"
+2026-03-20 13:59:34.209379 INFO yugabytedb.go:134 Table "[CurrentName=(test_table) SourceName=(test_table) TargetName=(test_table)]" has approx {1623 true} rows.
+2026-03-20 13:59:34.209435 INFO yugabytedb.go:128 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.num_types'::regclass' approx row count of table "[CurrentName=(num_types) SourceName=(num_types) TargetName=(num_types)]"
+2026-03-20 13:59:34.210138 INFO yugabytedb.go:134 Table "[CurrentName=(num_types) SourceName=(num_types) TargetName=(num_types)]" has approx {1966 true} rows.
+2026-03-20 13:59:34.210188 INFO yugabytedb.go:128 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.decimal_types'::regclass' approx row count of table "[CurrentName=(decimal_types) SourceName=(decimal_types) TargetName=(decimal_types)]"
+2026-03-20 13:59:34.210824 INFO yugabytedb.go:134 Table "[CurrentName=(decimal_types) SourceName=(decimal_types) TargetName=(decimal_types)]" has approx {1772 true} rows.
+2026-03-20 13:59:34.210860 INFO yugabytedb.go:128 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.datatypes1'::regclass' approx row count of table "[CurrentName=(datatypes1) SourceName=(datatypes1) TargetName=(datatypes1)]"
+2026-03-20 13:59:34.211524 INFO yugabytedb.go:134 Table "[CurrentName=(datatypes1) SourceName=(datatypes1) TargetName=(datatypes1)]" has approx {1772 true} rows.
+2026-03-20 13:59:34.211556 INFO yugabytedb.go:128 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.cutover_table'::regclass' approx row count of table "[CurrentName=(cutover_table) SourceName=(cutover_table) TargetName=(cutover_table)]"
+2026-03-20 13:59:34.212197 INFO yugabytedb.go:134 Table "[CurrentName=(cutover_table) SourceName=(cutover_table) TargetName=(cutover_table)]" has approx {-1 true} rows.
+2026-03-20 13:59:34.212226 INFO yugabytedb.go:128 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.datetime_type'::regclass' approx row count of table "[CurrentName=(datetime_type) SourceName=(datetime_type) TargetName=(datetime_type)]"
+2026-03-20 13:59:34.212896 INFO yugabytedb.go:134 Table "[CurrentName=(datetime_type) SourceName=(datetime_type) TargetName=(datetime_type)]" has approx {1864 true} rows.
+2026-03-20 13:59:34.212937 INFO yugabytedb.go:128 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.datetime_type2'::regclass' approx row count of table "[CurrentName=(datetime_type2) SourceName=(datetime_type2) TargetName=(datetime_type2)]"
+2026-03-20 13:59:34.213681 INFO yugabytedb.go:134 Table "[CurrentName=(datetime_type2) SourceName=(datetime_type2) TargetName=(datetime_type2)]" has approx {1921 true} rows.
+2026-03-20 13:59:34.213718 INFO yugabytedb.go:128 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.datatypes2'::regclass' approx row count of table "[CurrentName=(datatypes2) SourceName=(datatypes2) TargetName=(datatypes2)]"
+2026-03-20 13:59:34.214363 INFO yugabytedb.go:134 Table "[CurrentName=(datatypes2) SourceName=(datatypes2) TargetName=(datatypes2)]" has approx {1780 true} rows.
+2026-03-20 13:59:34.214398 INFO yugabytedb.go:128 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.null_and_default'::regclass' approx row count of table "[CurrentName=(null_and_default) SourceName=(null_and_default) TargetName=(null_and_default)]"
+2026-03-20 13:59:34.215028 INFO yugabytedb.go:134 Table "[CurrentName=(null_and_default) SourceName=(null_and_default) TargetName=(null_and_default)]" has approx {1831 true} rows.
+2026-03-20 13:59:34.215064 INFO yugabytedb.go:128 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.tsvector_table'::regclass' approx row count of table "[CurrentName=(tsvector_table) SourceName=(tsvector_table) TargetName=(tsvector_table)]"
+2026-03-20 13:59:34.215691 INFO yugabytedb.go:134 Table "[CurrentName=(tsvector_table) SourceName=(tsvector_table) TargetName=(tsvector_table)]" has approx {1852 true} rows.
+2026-03-20 13:59:34.215984 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:34.255338 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:34.262323 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:34.262584 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:34.262859 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:34.263085 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:34.263256 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:34.263409 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:34.263555 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:34.441513 INFO yugabytedb.go:1212 created publication with stmt CREATE PUBLICATION voyager_dbz_publication_efaacadb_4e42_458c_b7eb_3d1bdc471ce2 FOR TABLE "public"."test_table","public"."num_types","public"."decimal_types","public"."datatypes1","public"."cutover_table","public"."datetime_type","public"."datetime_type2","public"."datatypes2","public"."null_and_default","public"."tsvector_table";
+2026-03-20 13:59:34.451803 INFO yugabytedb.go:1151 creating replication slot voyager_efaacadb_4e42_458c_b7eb_3d1bdc471ce2
+2026-03-20 13:59:35.184604 INFO logging.go:183 Created replication slot 'voyager_efaacadb_4e42_458c_b7eb_3d1bdc471ce2' on source YugabyteDB database. Be sure to run either 'initiate cutover to source', 'initiate cutover to source-replica' or 'end migration' command after completing/aborting this migration to drop the replication slot. This is important to avoid filling up disk space.
+2026-03-20 13:59:35.185015 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:35.192210 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:35.192266 INFO yugabytedb.go:1050 getting unique key columns for tables: [[CurrentName=(test_table) SourceName=(test_table) TargetName=(test_table)] [CurrentName=(num_types) SourceName=(num_types) TargetName=(num_types)] [CurrentName=(decimal_types) SourceName=(decimal_types) TargetName=(decimal_types)] [CurrentName=(datatypes1) SourceName=(datatypes1) TargetName=(datatypes1)] [CurrentName=(cutover_table) SourceName=(cutover_table) TargetName=(cutover_table)] [CurrentName=(datetime_type) SourceName=(datetime_type) TargetName=(datetime_type)] [CurrentName=(datetime_type2) SourceName=(datetime_type2) TargetName=(datetime_type2)] [CurrentName=(datatypes2) SourceName=(datatypes2) TargetName=(datatypes2)] [CurrentName=(null_and_default) SourceName=(null_and_default) TargetName=(null_and_default)] [CurrentName=(tsvector_table) SourceName=(tsvector_table) TargetName=(tsvector_table)]]
+2026-03-20 13:59:35.192305 INFO yugabytedb.go:1064 query to get unique key columns: 
+WITH unique_constraints AS (
+	-- Retrieve columns with unique constraints
+    SELECT
+        tc.table_schema,
+        tc.table_name,
+        kcu.column_name
+    FROM
+        information_schema.table_constraints tc
+    JOIN
+        information_schema.key_column_usage kcu
+        ON tc.constraint_name = kcu.constraint_name
+        AND tc.table_schema = kcu.table_schema
+        AND tc.table_name = kcu.table_name
+    WHERE
+        tc.constraint_type = 'UNIQUE'
+        AND tc.table_schema = ANY('{public}')
+        AND tc.table_name = ANY('{test_table,num_types,decimal_types,datatypes1,cutover_table,datetime_type,datetime_type2,datatypes2,null_and_default,tsvector_table}')
+),
+unique_indexes AS (
+	-- Retrieve columns with unique indexes (excluding primary keys)
+    SELECT
+        n.nspname AS table_schema,
+        t.relname AS table_name,
+        a.attname AS column_name
+    FROM
+        pg_index ix
+	-- Join to get table and schema information from the index
+    JOIN
+        pg_class t ON t.oid = ix.indrelid
+    JOIN
+        pg_namespace n ON n.oid = t.relnamespace
+	-- Join to get column information
+    JOIN
+        pg_attribute a ON a.attrelid = t.oid 
+		AND a.attnum = ANY(ix.indkey)  -- Match indexed columns
+	 -- Left join to ensure we exclude primary keys by checking associated constraints
+    LEFT JOIN
+        pg_constraint c ON ix.indexrelid = c.conindid AND c.contype = 'p'
+    WHERE
+        ix.indisunique = TRUE
+		AND c.contype IS NULL -- Ensure it's not a primary key
+        AND n.nspname = ANY('{public}')
+        AND t.relname = ANY('{test_table,num_types,decimal_types,datatypes1,cutover_table,datetime_type,datetime_type2,datatypes2,null_and_default,tsvector_table}')
+)
+-- UNION will remove duplicate rows between unique constraints and unique indexes
+SELECT table_schema, table_name, column_name FROM unique_constraints
+UNION
+SELECT table_schema, table_name, column_name FROM unique_indexes;
+
+2026-03-20 13:59:35.263235 INFO yugabytedb.go:1099 unique key columns for tables: &{map[] map[]}
+2026-03-20 13:59:35.263312 INFO exportData.go:2158 updating metaDB with table to unique key columns map: &{map[] map[]}
+2026-03-20 13:59:35.263460 INFO metadataDB.go:299 No json object found for key: table_to_unique_key_columns_key_target_db_exporter_fb
+2026-03-20 13:59:35.263499 INFO metadataDB.go:274 Inserting json object for key: table_to_unique_key_columns_key_target_db_exporter_fb
+2026-03-20 13:59:35.269698 INFO config.go:313 QUEUE_SEGMENT_MAX_BYTES not set, defaulting to 1GB
+2026-03-20 13:59:35.269940 INFO config.go:324 using port number 39803 for quarkus http server
+2026-03-20 13:59:35.270084 INFO dbzm.go:120 starting debezium...
+2026-03-20 13:59:35.270112 INFO dbzm.go:128 Setting TNS_ADMIN=
+2026-03-20 13:59:35.270129 INFO dbzm.go:133 Setting oracle wallet location=
+2026-03-20 13:59:35.270375 INFO dbzm.go:146 Debezium started successfully with pid = 2824375
+2026-03-20 13:59:35.270735 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:35.277704 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:35.277981 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:35.284356 INFO logging.go:86 streaming changes to a local queue file...
+
+2026-03-20 13:59:39.789490 INFO logging.go:175 
+Received signal terminated. Exiting...
+2026-03-20 13:59:39.789573 INFO dbzm.go:202 Stopping debezium...
+2026-03-20 13:59:40.936342 ERROR dbzm.go:153 Debezium exited with: waitid: no child processes
+2026-03-20 13:59:40.937118 INFO dbzm.go:222 Stopped debezium.
+2026-03-20 13:59:40.940171 INFO common.go:86 End time: 2026-03-20 13:59:40.940148833 +0000 UTC m=+7.200605972
+
+2026-03-20 13:59:40.940205 INFO common.go:88 Time taken: 7.165986814s (7.17 seconds)
+
+2026-03-20 13:59:41.007925 INFO logging.go:74 Logging initialised.
+2026-03-20 13:59:41.008039 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-20 13:59:41.008105 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-20 13:59:41.009148 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:41.009439 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-20 13:59:41.009557 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-20 13:59:41.009774 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:41.009966 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:41.010160 INFO logging.go:74 Logging initialised.
+2026-03-20 13:59:41.010222 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-20 13:59:41.010345 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-20 13:59:41.010374 INFO root.go:152 Start time: 2026-03-20 13:59:41.01036765 +0000 UTC m=+0.051612763
+
+2026-03-20 13:59:41.010864 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:41.011064 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-20 13:59:41.011178 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-20 13:59:41.011385 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:41.011578 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:41.011630 INFO root.go:526 'control-plane-type' not set. Setting cp to NoopControlPlane.
+2026-03-20 13:59:41.011795 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:41.011984 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:41.012015 INFO common.go:464 Creating a project directory if not exists...
+2026-03-20 13:59:41.028793 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:41.029073 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-20 13:59:41.029190 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-20 13:59:41.029475 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:41.029712 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:41.029739 INFO logging.go:86 migrationID: efaacadb-4e42-458c-b7eb-3d1bdc471ce2
+
+2026-03-20 13:59:41.030150 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:41.030241 WARN logging.go:89 
+Important: The following limitations apply to live migration with fall back:
+
+
+2026-03-20 13:59:41.030268 WARN logging.go:89   1. SAVEPOINT statements within transactions on the target database are not supported during live migration with fall back enabled. Transactions rolling back to some SAVEPOINT may cause data inconsistency between the databases. This is fixed in YugabyteDB version 2025.2.2.0 and later.
+
+2026-03-20 13:59:41.030292 WARN logging.go:89   2. Workloads with read-committed isolation level are not fully supported. It is recommended to use repeatable-read or serializable isolation levels for the duration of the migration. This is fixed in YugabyteDB version 2025.2.2.0 and later.
+
+2026-03-20 13:59:41.030313 WARN logging.go:89   3. Rows larger than 4MB in target database can cause consistency issues during live migration with fall back enabled. Refer to this tech advisory for more information https://docs.yugabyte.com/stable/releases/techadvisories/ta-29060/
+
+2026-03-20 13:59:41.030333 INFO logging.go:183 
+
+2026-03-20 13:59:41.030350 INFO logging.go:175 export of data for source type as 'yugabytedb'
+2026-03-20 13:59:41.030617 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:41.030935 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:41.047872 INFO utils.go:783 Found strings at /usr/bin/strings
+2026-03-20 13:59:41.108270 INFO yugabytedb.go:448 Total Database size of YugabyteDB sourceDB: 0
+2026-03-20 13:59:41.108612 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:41.108649 INFO exportData.go:1692 clearing migration state if required: false
+2026-03-20 13:59:41.108749 INFO logging.go:175 Continuing streaming from where we left off...
+2026-03-20 13:59:41.108775 INFO namereg.go:80 Initializing name registry with params - {/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/metainfo/name_registry.json target_db_exporter_fb yugabytedb [public] test_db 0xc000e37c60 [] <nil>}
+2026-03-20 13:59:41.108797 INFO namereg.go:93 initialising name registry: /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/metainfo/name_registry.json
+2026-03-20 13:59:41.108880 INFO namereg.go:142 no name registry update required: mode "target_db_exporter_fb"
+2026-03-20 13:59:41.117868 INFO exportData.go:1811 Source database charset: "UTF8"
+2026-03-20 13:59:41.118225 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:41.118540 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:41.118565 INFO exportData.go:1364 retrieving first run list and partitions root map
+2026-03-20 13:59:41.118582 INFO exportData.go:1316 stored table list from meta db - [public.test_table public.num_types public.decimal_types public.datatypes1 public.cutover_table public.datetime_type public.datetime_type2 public.datatypes2 public.null_and_default public.tsvector_table]
+2026-03-20 13:59:41.158600 INFO exportData.go:1179 applying filter for include list of tables and adding leaf tables - public.test_table,public.num_types,public.decimal_types,public.datatypes1,public.cutover_table,public.datetime_type,public.datetime_type2,public.datatypes2,public.null_and_default,public.tsvector_table
+2026-03-20 13:59:41.199372 INFO exportData.go:1188 filtered include list of tables and added leaf tables - [public.test_table public.num_types public.decimal_types public.datatypes1 public.cutover_table public.datetime_type public.datetime_type2 public.datatypes2 public.null_and_default public.tsvector_table]
+2026-03-20 13:59:41.219624 INFO logging.go:175 
+ERROR: Current replication slots: 10; Max allowed replication slots: 10
+
+2026-03-20 13:59:41.219686 ERROR logging.go:37 
+
+2026-03-20 13:59:41.222819 INFO common.go:86 End time: 2026-03-20 13:59:41.222811924 +0000 UTC m=+0.264057028
+
+2026-03-20 13:59:41.222869 INFO common.go:88 Time taken: 212.490365ms (0.21 seconds)
+

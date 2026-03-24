@@ -1,0 +1,6 @@
+{"ts": "2026-03-03T11:35:58.008494Z", "command": "import_data", "event": "scheduled_interrupt", "message": "attempt 1/3: interrupting after 45s", "attempt": 1, "max_restarts": 3, "interrupt_delay_sec": 45}
+{"ts": "2026-03-03T11:36:08.018541Z", "command": "export_data", "event": "scheduled_interrupt", "message": "attempt 1/3: interrupting after 52s", "attempt": 1, "max_restarts": 3, "interrupt_delay_sec": 52}
+{"ts": "2026-03-03T11:36:24.031064Z", "command": "export_data", "event": "stop_before_interrupt", "message": "stop requested before interrupt; exiting resumer"}
+{"ts": "2026-03-03T11:36:24.031342Z", "command": "export_data", "event": "stopped", "message": "resumptions stopped"}
+{"ts": "2026-03-03T11:36:24.038148Z", "command": "import_data", "event": "stop_before_interrupt", "message": "stop requested before interrupt; exiting resumer"}
+{"ts": "2026-03-03T11:36:24.038347Z", "command": "import_data", "event": "stopped", "message": "resumptions stopped"}

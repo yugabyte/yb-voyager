@@ -265,6 +265,18 @@ def assert_iteration_number_action(stage: Dict[str, Any], ctx: Any) -> None:
     H.assert_iteration_number(ctx.cfg["export_dir"], expected)
 
 
+@action("takeover_auto_transitioned")
+def takeover_action(_stage, ctx: Any) -> None:
+    """Kill voyager's auto-transitioned processes and start fresh ones we control."""
+    H.takeover_auto_transitioned_processes(ctx)
+
+
+@action("takeover_fallback")
+def takeover_fallback_action(_stage, ctx: Any) -> None:
+    """Kill voyager's auto-transitioned fallback processes and start fresh ones."""
+    H.takeover_fallback_processes(ctx)
+
+
 @action("iteration_loop")
 def iteration_loop_action(stage: Dict[str, Any], ctx: Any) -> None:
     """Repeat a block of sub-stages N times for iteration testing."""

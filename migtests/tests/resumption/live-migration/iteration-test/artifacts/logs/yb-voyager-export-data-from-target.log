@@ -1,0 +1,993 @@
+2026-03-24 07:16:10.360024 INFO logging.go:74 Logging initialised.
+2026-03-24 07:16:10.360209 INFO logging.go:76 Args: [yb-voyager export data from target --log-level info --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --disable-pb=true --send-diagnostics=false --yes]
+2026-03-24 07:16:10.360307 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:16:10.361386 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.361733 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:16:10.361921 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:16:10.362204 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.362793 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.362976 INFO logging.go:74 Logging initialised.
+2026-03-24 07:16:10.363085 INFO logging.go:76 Args: [yb-voyager export data from target --log-level info --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --disable-pb=true --send-diagnostics=false --yes]
+2026-03-24 07:16:10.363231 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:16:10.363431 INFO root.go:152 Start time: 2026-03-24 07:16:10.36342047 +0000 UTC m=+0.039606098
+
+2026-03-24 07:16:10.364117 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.364396 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:16:10.364526 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:16:10.364901 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.365341 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.365385 INFO root.go:526 'control-plane-type' not set. Setting cp to NoopControlPlane.
+2026-03-24 07:16:10.365426 INFO root.go:198 Environment variable 'TARGET_DB_PASSWORD' already set with value '********'
+
+2026-03-24 07:16:10.365456 INFO root.go:198 Environment variable 'SOURCE_DB_PASSWORD' already set with value '********'
+
+2026-03-24 07:16:10.365736 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.366005 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.366041 INFO common.go:464 Creating a project directory if not exists...
+2026-03-24 07:16:10.383199 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.383414 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:16:10.383496 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:16:10.383669 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.383810 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.383834 INFO logging.go:86 migrationID: f3cb65fa-b427-4d5e-a76d-3568e6b12aaf
+
+2026-03-24 07:16:10.384000 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.384057 WARN logging.go:89 
+Important: The following limitations apply to live migration with fall back:
+
+
+2026-03-24 07:16:10.384085 WARN logging.go:89   1. SAVEPOINT statements within transactions on the target database are not supported during live migration with fall back enabled. Transactions rolling back to some SAVEPOINT may cause data inconsistency between the databases. This is fixed in YugabyteDB version 2025.2.2.0 and later.
+
+2026-03-24 07:16:10.384108 WARN logging.go:89   2. Workloads with read-committed isolation level are not fully supported. It is recommended to use repeatable-read or serializable isolation levels for the duration of the migration. This is fixed in YugabyteDB version 2025.2.2.0 and later.
+
+2026-03-24 07:16:10.384140 WARN logging.go:89   3. Rows larger than 4MB in target database can cause consistency issues during live migration with fall back enabled. Refer to this tech advisory for more information https://docs.yugabyte.com/stable/releases/techadvisories/ta-29060/
+
+2026-03-24 07:16:10.384169 INFO logging.go:183 
+
+2026-03-24 07:16:10.384183 INFO logging.go:175 export of data for source type as 'yugabytedb'
+2026-03-24 07:16:10.384373 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.384615 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.517224 INFO utils.go:783 Found strings at /usr/bin/strings
+2026-03-24 07:16:10.588389 INFO yugabytedb.go:448 Total Database size of YugabyteDB sourceDB: 0
+2026-03-24 07:16:10.588708 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.588747 INFO exportData.go:1692 clearing migration state if required: false
+2026-03-24 07:16:10.588869 INFO logging.go:175 Continuing streaming from where we left off...
+2026-03-24 07:16:10.588915 INFO namereg.go:80 Initializing name registry with params - {/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir/metainfo/name_registry.json target_db_exporter_fb yugabytedb [public] test_db 0xc000cccbc0 [] <nil>}
+2026-03-24 07:16:10.588947 INFO namereg.go:93 initialising name registry: /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir/metainfo/name_registry.json
+2026-03-24 07:16:10.589040 INFO namereg.go:142 no name registry update required: mode "target_db_exporter_fb"
+2026-03-24 07:16:10.598927 INFO exportData.go:1811 Source database charset: "UTF8"
+2026-03-24 07:16:10.599231 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.599521 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.599547 INFO exportData.go:1364 retrieving first run list and partitions root map
+2026-03-24 07:16:10.599567 INFO exportData.go:1316 stored table list from meta db - [public.test_table public.num_types public.decimal_types public.datatypes1 public.datetime_type public.datetime_type2 public.datatypes2 public.null_and_default public.tsvector_table public.empty_iteration_table public.identity_test public.cutover_table]
+2026-03-24 07:16:10.699263 INFO exportData.go:1179 applying filter for include list of tables and adding leaf tables - public.test_table,public.num_types,public.decimal_types,public.datatypes1,public.datetime_type,public.datetime_type2,public.datatypes2,public.null_and_default,public.tsvector_table,public.empty_iteration_table,public.identity_test,public.cutover_table
+2026-03-24 07:16:10.717958 INFO exportData.go:1188 filtered include list of tables and added leaf tables - [public.test_table public.num_types public.decimal_types public.datatypes1 public.datetime_type public.datetime_type2 public.datatypes2 public.null_and_default public.tsvector_table public.empty_iteration_table public.identity_test public.cutover_table]
+2026-03-24 07:16:10.753048 INFO exportData.go:833 All required permissions are present for the source database.
+2026-03-24 07:16:10.780140 INFO exportData.go:1923 initial all tables table list for data export: [public.test_table public.num_types public.decimal_types public.datatypes1 public.datetime_type public.datetime_type2 public.datatypes2 public.null_and_default public.tsvector_table public.empty_iteration_table public.identity_test public.cutover_table]
+2026-03-24 07:16:10.780214 INFO exportData.go:1927 finalizing table list by filtering empty tables and unsupported tables/columns
+2026-03-24 07:16:10.847582 INFO exportData.go:1960 final table list after filtering empty tables and unsupported tables/columns - [public.test_table public.num_types public.decimal_types public.datatypes1 public.datetime_type public.datetime_type2 public.datatypes2 public.null_and_default public.tsvector_table public.empty_iteration_table public.identity_test public.cutover_table]
+2026-03-24 07:16:10.848072 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.855589 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.855789 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.855976 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.856139 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.856285 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.856424 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.856571 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.856712 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.856865 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.857042 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.857202 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.857345 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.857493 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.857521 INFO logging.go:175 table list for data export: [public.test_table public.num_types public.decimal_types public.datatypes1 public.datetime_type public.datetime_type2 public.datatypes2 public.null_and_default public.tsvector_table public.empty_iteration_table public.identity_test public.cutover_table]
+2026-03-24 07:16:10.857657 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.857677 INFO yugabytedb.go:128 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.test_table'::regclass' approx row count of table "[CurrentName=(test_table) SourceName=(test_table) TargetName=(test_table)]"
+2026-03-24 07:16:10.874784 INFO yugabytedb.go:134 Table "[CurrentName=(test_table) SourceName=(test_table) TargetName=(test_table)]" has approx {3250 true} rows.
+2026-03-24 07:16:10.874845 INFO yugabytedb.go:128 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.num_types'::regclass' approx row count of table "[CurrentName=(num_types) SourceName=(num_types) TargetName=(num_types)]"
+2026-03-24 07:16:10.875629 INFO yugabytedb.go:134 Table "[CurrentName=(num_types) SourceName=(num_types) TargetName=(num_types)]" has approx {3258 true} rows.
+2026-03-24 07:16:10.875669 INFO yugabytedb.go:128 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.decimal_types'::regclass' approx row count of table "[CurrentName=(decimal_types) SourceName=(decimal_types) TargetName=(decimal_types)]"
+2026-03-24 07:16:10.876402 INFO yugabytedb.go:134 Table "[CurrentName=(decimal_types) SourceName=(decimal_types) TargetName=(decimal_types)]" has approx {3283 true} rows.
+2026-03-24 07:16:10.876438 INFO yugabytedb.go:128 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.datatypes1'::regclass' approx row count of table "[CurrentName=(datatypes1) SourceName=(datatypes1) TargetName=(datatypes1)]"
+2026-03-24 07:16:10.877126 INFO yugabytedb.go:134 Table "[CurrentName=(datatypes1) SourceName=(datatypes1) TargetName=(datatypes1)]" has approx {3437 true} rows.
+2026-03-24 07:16:10.877158 INFO yugabytedb.go:128 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.datetime_type'::regclass' approx row count of table "[CurrentName=(datetime_type) SourceName=(datetime_type) TargetName=(datetime_type)]"
+2026-03-24 07:16:10.877858 INFO yugabytedb.go:134 Table "[CurrentName=(datetime_type) SourceName=(datetime_type) TargetName=(datetime_type)]" has approx {3234 true} rows.
+2026-03-24 07:16:10.877905 INFO yugabytedb.go:128 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.datetime_type2'::regclass' approx row count of table "[CurrentName=(datetime_type2) SourceName=(datetime_type2) TargetName=(datetime_type2)]"
+2026-03-24 07:16:10.878630 INFO yugabytedb.go:134 Table "[CurrentName=(datetime_type2) SourceName=(datetime_type2) TargetName=(datetime_type2)]" has approx {3403 true} rows.
+2026-03-24 07:16:10.878666 INFO yugabytedb.go:128 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.datatypes2'::regclass' approx row count of table "[CurrentName=(datatypes2) SourceName=(datatypes2) TargetName=(datatypes2)]"
+2026-03-24 07:16:10.879401 INFO yugabytedb.go:134 Table "[CurrentName=(datatypes2) SourceName=(datatypes2) TargetName=(datatypes2)]" has approx {3235 true} rows.
+2026-03-24 07:16:10.879432 INFO yugabytedb.go:128 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.null_and_default'::regclass' approx row count of table "[CurrentName=(null_and_default) SourceName=(null_and_default) TargetName=(null_and_default)]"
+2026-03-24 07:16:10.880165 INFO yugabytedb.go:134 Table "[CurrentName=(null_and_default) SourceName=(null_and_default) TargetName=(null_and_default)]" has approx {3368 true} rows.
+2026-03-24 07:16:10.880199 INFO yugabytedb.go:128 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.tsvector_table'::regclass' approx row count of table "[CurrentName=(tsvector_table) SourceName=(tsvector_table) TargetName=(tsvector_table)]"
+2026-03-24 07:16:10.880900 INFO yugabytedb.go:134 Table "[CurrentName=(tsvector_table) SourceName=(tsvector_table) TargetName=(tsvector_table)]" has approx {-1 true} rows.
+2026-03-24 07:16:10.880935 INFO yugabytedb.go:128 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.empty_iteration_table'::regclass' approx row count of table "[CurrentName=(empty_iteration_table) SourceName=(empty_iteration_table) TargetName=(empty_iteration_table)]"
+2026-03-24 07:16:10.881647 INFO yugabytedb.go:134 Table "[CurrentName=(empty_iteration_table) SourceName=(empty_iteration_table) TargetName=(empty_iteration_table)]" has approx {-1 true} rows.
+2026-03-24 07:16:10.881676 INFO yugabytedb.go:128 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.identity_test'::regclass' approx row count of table "[CurrentName=(identity_test) SourceName=(identity_test) TargetName=(identity_test)]"
+2026-03-24 07:16:10.882397 INFO yugabytedb.go:134 Table "[CurrentName=(identity_test) SourceName=(identity_test) TargetName=(identity_test)]" has approx {-1 true} rows.
+2026-03-24 07:16:10.882440 INFO yugabytedb.go:128 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.cutover_table'::regclass' approx row count of table "[CurrentName=(cutover_table) SourceName=(cutover_table) TargetName=(cutover_table)]"
+2026-03-24 07:16:10.883190 INFO yugabytedb.go:134 Table "[CurrentName=(cutover_table) SourceName=(cutover_table) TargetName=(cutover_table)]" has approx {-1 true} rows.
+2026-03-24 07:16:10.883460 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.921350 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.928173 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.928371 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.928545 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.928736 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.928926 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.929112 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.929285 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.929469 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:10.929641 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:11.122501 INFO yugabytedb.go:1212 created publication with stmt CREATE PUBLICATION voyager_dbz_publication_f3cb65fa_b427_4d5e_a76d_3568e6b12aaf FOR TABLE "public"."test_table","public"."num_types","public"."decimal_types","public"."datatypes1","public"."datetime_type","public"."datetime_type2","public"."datatypes2","public"."null_and_default","public"."tsvector_table","public"."empty_iteration_table","public"."identity_test","public"."cutover_table";
+2026-03-24 07:16:11.138094 INFO yugabytedb.go:1151 creating replication slot voyager_f3cb65fa_b427_4d5e_a76d_3568e6b12aaf
+2026-03-24 07:16:11.895985 INFO logging.go:183 Created replication slot 'voyager_f3cb65fa_b427_4d5e_a76d_3568e6b12aaf' on source YugabyteDB database. Be sure to run either 'initiate cutover to source', 'initiate cutover to source-replica' or 'end migration' command after completing/aborting this migration to drop the replication slot. This is important to avoid filling up disk space.
+2026-03-24 07:16:11.896363 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:11.902976 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:11.903050 INFO yugabytedb.go:1050 getting unique key columns for tables: [[CurrentName=(test_table) SourceName=(test_table) TargetName=(test_table)] [CurrentName=(num_types) SourceName=(num_types) TargetName=(num_types)] [CurrentName=(decimal_types) SourceName=(decimal_types) TargetName=(decimal_types)] [CurrentName=(datatypes1) SourceName=(datatypes1) TargetName=(datatypes1)] [CurrentName=(datetime_type) SourceName=(datetime_type) TargetName=(datetime_type)] [CurrentName=(datetime_type2) SourceName=(datetime_type2) TargetName=(datetime_type2)] [CurrentName=(datatypes2) SourceName=(datatypes2) TargetName=(datatypes2)] [CurrentName=(null_and_default) SourceName=(null_and_default) TargetName=(null_and_default)] [CurrentName=(tsvector_table) SourceName=(tsvector_table) TargetName=(tsvector_table)] [CurrentName=(empty_iteration_table) SourceName=(empty_iteration_table) TargetName=(empty_iteration_table)] [CurrentName=(identity_test) SourceName=(identity_test) TargetName=(identity_test)] [CurrentName=(cutover_table) SourceName=(cutover_table) TargetName=(cutover_table)]]
+2026-03-24 07:16:11.903093 INFO yugabytedb.go:1064 query to get unique key columns: 
+WITH unique_constraints AS (
+	-- Retrieve columns with unique constraints
+    SELECT
+        tc.table_schema,
+        tc.table_name,
+        kcu.column_name
+    FROM
+        information_schema.table_constraints tc
+    JOIN
+        information_schema.key_column_usage kcu
+        ON tc.constraint_name = kcu.constraint_name
+        AND tc.table_schema = kcu.table_schema
+        AND tc.table_name = kcu.table_name
+    WHERE
+        tc.constraint_type = 'UNIQUE'
+        AND tc.table_schema = ANY('{public}')
+        AND tc.table_name = ANY('{test_table,num_types,decimal_types,datatypes1,datetime_type,datetime_type2,datatypes2,null_and_default,tsvector_table,empty_iteration_table,identity_test,cutover_table}')
+),
+unique_indexes AS (
+	-- Retrieve columns with unique indexes (excluding primary keys)
+    SELECT
+        n.nspname AS table_schema,
+        t.relname AS table_name,
+        a.attname AS column_name
+    FROM
+        pg_index ix
+	-- Join to get table and schema information from the index
+    JOIN
+        pg_class t ON t.oid = ix.indrelid
+    JOIN
+        pg_namespace n ON n.oid = t.relnamespace
+	-- Join to get column information
+    JOIN
+        pg_attribute a ON a.attrelid = t.oid 
+		AND a.attnum = ANY(ix.indkey)  -- Match indexed columns
+	 -- Left join to ensure we exclude primary keys by checking associated constraints
+    LEFT JOIN
+        pg_constraint c ON ix.indexrelid = c.conindid AND c.contype = 'p'
+    WHERE
+        ix.indisunique = TRUE
+		AND c.contype IS NULL -- Ensure it's not a primary key
+        AND n.nspname = ANY('{public}')
+        AND t.relname = ANY('{test_table,num_types,decimal_types,datatypes1,datetime_type,datetime_type2,datatypes2,null_and_default,tsvector_table,empty_iteration_table,identity_test,cutover_table}')
+)
+-- UNION will remove duplicate rows between unique constraints and unique indexes
+SELECT table_schema, table_name, column_name FROM unique_constraints
+UNION
+SELECT table_schema, table_name, column_name FROM unique_indexes;
+
+2026-03-24 07:16:11.974621 INFO yugabytedb.go:1099 unique key columns for tables: &{map[] map[]}
+2026-03-24 07:16:11.974690 INFO exportData.go:2158 updating metaDB with table to unique key columns map: &{map[] map[]}
+2026-03-24 07:16:11.974841 INFO metadataDB.go:299 No json object found for key: table_to_unique_key_columns_key_target_db_exporter_fb
+2026-03-24 07:16:11.974876 INFO metadataDB.go:274 Inserting json object for key: table_to_unique_key_columns_key_target_db_exporter_fb
+2026-03-24 07:16:11.981216 INFO config.go:313 QUEUE_SEGMENT_MAX_BYTES not set, defaulting to 1GB
+2026-03-24 07:16:11.981479 INFO config.go:324 using port number 34965 for quarkus http server
+2026-03-24 07:16:11.981664 INFO dbzm.go:120 starting debezium...
+2026-03-24 07:16:11.981700 INFO dbzm.go:128 Setting TNS_ADMIN=
+2026-03-24 07:16:11.981725 INFO dbzm.go:133 Setting oracle wallet location=
+2026-03-24 07:16:11.982012 INFO dbzm.go:146 Debezium started successfully with pid = 3466404
+2026-03-24 07:16:11.982318 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:11.989148 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:11.989428 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:16:11.995793 INFO logging.go:86 streaming changes to a local queue file...
+
+2026-03-24 07:17:47.640533 INFO exportDataDebezium.go:457 Debezium exited normally.
+2026-03-24 07:17:47.640951 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:17:47.647336 INFO logging.go:86 Processing cutover initiate request...
+
+2026-03-24 07:17:47.647387 INFO exportData.go:638 live migration complete, proceeding to cutover
+2026-03-24 07:17:47.647726 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:17:47.647763 INFO endMigrationCommand.go:660 deleting yb replication slot: voyager_f3cb65fa_b427_4d5e_a76d_3568e6b12aaf
+2026-03-24 07:17:47.664800 INFO yugabytedb.go:1170 dropping replication slot: voyager_f3cb65fa_b427_4d5e_a76d_3568e6b12aaf
+2026-03-24 07:17:47.683031 INFO yugabytedb.go:1183 waiting for 60 seconds before dropping replication slot...
+2026-03-24 07:18:47.707803 INFO endMigrationCommand.go:668 deleting yb publication: voyager_dbz_publication_f3cb65fa_b427_4d5e_a76d_3568e6b12aaf
+2026-03-24 07:18:47.707872 INFO yugabytedb.go:1217 dropping publication: voyager_dbz_publication_f3cb65fa_b427_4d5e_a76d_3568e6b12aaf
+2026-03-24 07:18:47.969858 INFO yugabytedb.go:1219 drop publication result: {0xc000d9e000 0}
+2026-03-24 07:18:47.970271 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:18:47.976599 INFO logging.go:183 
+Run the following command to get the current report of the migration:
+yb-voyager get data-migration-report --export-dir "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir"
+
+2026-03-24 07:18:47.976996 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:18:47.977139 INFO exportData.go:192 Export of data completed.
+2026-03-24 07:18:47.977399 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:18:47.977430 INFO logging.go:86 
+Waiting for next iteration to be initialized...
+
+2026-03-24 07:18:47.977700 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:18:49.978336 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:18:49.978561 INFO logging.go:95 
+Starting import data to target on iteration 1 at /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir/live-data-migration-iterations/live-data-migration-iteration-1/export-dir.
+
+2026-03-24 07:18:49.978614 INFO logging.go:175 Starting import data to target with command:
+ TARGET_DB_PASSWORD=*** yb-voyager import data to target --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --disable-pb=true --send-diagnostics=false --log-level info --target-db-name test_db --target-db-user ybvoyager
+2026-03-24 07:21:39.353863 INFO logging.go:74 Logging initialised.
+2026-03-24 07:21:39.354684 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:21:39.354767 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:21:39.355730 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:21:39.355999 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:21:39.356131 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:21:39.356357 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:21:39.356539 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:21:39.356958 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:21:39.356986 INFO logging.go:86 Data migration iteration: 1
+
+2026-03-24 07:22:08.389965 INFO logging.go:74 Logging initialised.
+2026-03-24 07:22:08.390104 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:22:08.390214 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:22:08.391433 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:22:08.391764 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:22:08.392049 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:22:08.392613 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:22:08.392903 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:22:08.393962 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:22:08.393991 INFO logging.go:86 Data migration iteration: 1
+
+2026-03-24 07:22:29.313370 INFO logging.go:74 Logging initialised.
+2026-03-24 07:22:29.313573 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:22:29.313719 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:22:29.315360 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:22:29.315706 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:22:29.315844 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:22:29.316162 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:22:29.316502 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:22:29.317029 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:22:29.317059 INFO logging.go:86 Data migration iteration: 1
+
+2026-03-24 07:22:51.499135 INFO logging.go:74 Logging initialised.
+2026-03-24 07:22:51.499243 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:22:51.499294 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:22:51.500398 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:22:51.500695 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:22:51.500843 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:22:51.501134 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:22:51.501390 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:22:51.502005 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:22:51.503025 INFO logging.go:86 Data migration iteration: 1
+
+2026-03-24 07:23:25.516910 INFO logging.go:74 Logging initialised.
+2026-03-24 07:23:25.517037 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:23:25.517138 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:23:25.518484 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:23:25.519227 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:23:25.519398 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:23:25.519788 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:23:25.520139 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:23:25.520863 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:23:25.521265 INFO logging.go:86 Data migration iteration: 1
+
+2026-03-24 07:23:48.551881 INFO logging.go:74 Logging initialised.
+2026-03-24 07:23:48.552052 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:23:48.552144 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:23:48.553365 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:23:48.554207 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:23:48.554563 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:23:48.555205 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:23:48.555734 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:23:48.556458 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:23:48.556507 INFO logging.go:86 Data migration iteration: 1
+
+2026-03-24 07:24:30.617016 INFO logging.go:74 Logging initialised.
+2026-03-24 07:24:30.617170 INFO logging.go:76 Args: [yb-voyager export data from target --log-level info --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --disable-pb=true --send-diagnostics=false --yes]
+2026-03-24 07:24:30.617281 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:24:30.618670 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:24:30.619752 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:24:30.619932 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:24:30.620201 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:24:30.620441 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:24:30.620956 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:24:30.620987 INFO logging.go:86 Data migration iteration: 1
+
+2026-03-24 07:27:03.099140 INFO logging.go:74 Logging initialised.
+2026-03-24 07:27:03.099285 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:27:03.099381 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:27:03.100469 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:27:03.103109 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:27:03.103458 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:27:03.104014 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:27:03.104662 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:27:03.105325 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:27:03.105361 INFO logging.go:86 Data migration iteration: 1
+
+2026-03-24 07:27:41.122047 INFO logging.go:74 Logging initialised.
+2026-03-24 07:27:41.122193 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:27:41.122298 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:27:41.123675 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:27:41.124297 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:27:41.124432 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:27:41.124716 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:27:41.124983 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:27:41.125705 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:27:41.127149 INFO logging.go:86 Data migration iteration: 1
+
+2026-03-24 07:28:07.148565 INFO logging.go:74 Logging initialised.
+2026-03-24 07:28:07.148717 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:28:07.148843 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:28:07.150198 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:28:07.150578 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:28:07.150749 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:28:07.151288 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:28:07.151639 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:28:07.152201 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:28:07.152237 INFO logging.go:86 Data migration iteration: 1
+
+2026-03-24 07:28:29.159401 INFO logging.go:74 Logging initialised.
+2026-03-24 07:28:29.159556 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:28:29.159719 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:28:29.161870 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:28:29.162541 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:28:29.162693 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:28:29.162993 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:28:29.163271 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:28:29.163723 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:28:29.163768 INFO logging.go:86 Data migration iteration: 1
+
+2026-03-24 07:28:51.180503 INFO logging.go:74 Logging initialised.
+2026-03-24 07:28:51.180656 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:28:51.180748 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:28:51.182135 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:28:51.182462 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:28:51.182596 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:28:51.182806 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:28:51.183292 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:28:51.183822 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:28:51.183985 INFO logging.go:86 Data migration iteration: 1
+
+2026-03-24 07:29:13.235033 INFO logging.go:74 Logging initialised.
+2026-03-24 07:29:13.235184 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:29:13.235274 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:29:13.236951 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:29:13.237386 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:29:13.237553 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:29:13.237934 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:29:13.238406 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:29:13.239293 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:29:13.239330 INFO logging.go:86 Data migration iteration: 1
+
+2026-03-24 07:32:27.701018 INFO logging.go:74 Logging initialised.
+2026-03-24 07:32:27.701133 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:32:27.701194 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:32:27.702163 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:32:27.702417 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:32:27.702537 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:32:27.702754 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:32:27.702944 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:32:27.703364 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:32:27.703392 INFO logging.go:86 Data migration iteration: 2
+
+2026-03-24 07:33:01.738219 INFO logging.go:74 Logging initialised.
+2026-03-24 07:33:01.738364 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:33:01.738457 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:33:01.739509 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:33:01.739791 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:33:01.739981 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:33:01.740206 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:33:01.740465 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:33:01.741289 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:33:01.741328 INFO logging.go:86 Data migration iteration: 2
+
+2026-03-24 07:33:27.764464 INFO logging.go:74 Logging initialised.
+2026-03-24 07:33:27.765203 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:33:27.765321 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:33:27.766871 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:33:27.767488 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:33:27.767710 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:33:27.768265 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:33:27.768556 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:33:27.769488 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:33:27.769525 INFO logging.go:86 Data migration iteration: 2
+
+2026-03-24 07:33:49.937461 INFO logging.go:74 Logging initialised.
+2026-03-24 07:33:49.937652 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:33:49.937947 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:33:49.939358 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:33:49.939681 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:33:49.939836 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:33:49.940360 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:33:49.940826 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:33:49.941487 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:33:49.941524 INFO logging.go:86 Data migration iteration: 2
+
+2026-03-24 07:34:20.961820 INFO logging.go:74 Logging initialised.
+2026-03-24 07:34:20.961969 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:34:20.962067 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:34:20.963141 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:34:20.963445 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:34:20.963570 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:34:20.963848 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:34:20.964310 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:34:20.964838 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:34:20.964865 INFO logging.go:86 Data migration iteration: 2
+
+2026-03-24 07:34:37.010320 INFO logging.go:74 Logging initialised.
+2026-03-24 07:34:37.010476 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:34:37.010590 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:34:37.012021 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:34:37.012378 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:34:37.012560 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:34:37.012858 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:34:37.016114 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:34:37.016651 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:34:37.016680 INFO logging.go:86 Data migration iteration: 2
+
+2026-03-24 07:37:51.485392 INFO logging.go:74 Logging initialised.
+2026-03-24 07:37:51.485552 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:37:51.485653 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:37:51.486651 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:37:51.486956 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:37:51.487100 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:37:51.487329 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:37:51.487504 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:37:51.488045 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:37:51.488071 INFO logging.go:86 Data migration iteration: 2
+
+2026-03-24 07:38:15.527679 INFO logging.go:74 Logging initialised.
+2026-03-24 07:38:15.527956 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:38:15.528014 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:38:15.528990 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:38:15.529232 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:38:15.529327 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:38:15.529530 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:38:15.529696 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:38:15.530366 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:38:15.530399 INFO logging.go:86 Data migration iteration: 2
+
+2026-03-24 07:38:36.563997 INFO logging.go:74 Logging initialised.
+2026-03-24 07:38:36.564120 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:38:36.564224 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:38:36.565559 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:38:36.565949 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:38:36.566113 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:38:36.566420 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:38:36.566723 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:38:36.567322 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:38:36.567367 INFO logging.go:86 Data migration iteration: 2
+
+2026-03-24 07:39:00.607430 INFO logging.go:74 Logging initialised.
+2026-03-24 07:39:00.607597 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:39:00.607747 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:39:00.609268 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:39:00.610163 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:39:00.610909 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:39:00.611148 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:39:00.611327 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:39:00.611824 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:39:00.612563 INFO logging.go:86 Data migration iteration: 2
+
+2026-03-24 07:39:28.632313 INFO logging.go:74 Logging initialised.
+2026-03-24 07:39:28.632460 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:39:28.632587 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:39:28.633809 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:39:28.634103 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:39:28.634232 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:39:28.634497 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:39:28.634722 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:39:28.635251 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:39:28.635286 INFO logging.go:86 Data migration iteration: 2
+
+2026-03-24 07:39:50.654396 INFO logging.go:74 Logging initialised.
+2026-03-24 07:39:50.654516 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:39:50.654573 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:39:50.655611 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:39:50.655841 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:39:50.656039 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:39:50.656293 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:39:50.656468 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:39:50.656911 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:39:50.656939 INFO logging.go:86 Data migration iteration: 2
+
+2026-03-24 07:43:13.107987 INFO logging.go:74 Logging initialised.
+2026-03-24 07:43:13.108121 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:43:13.108217 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:43:13.109304 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:43:13.109638 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:43:13.109795 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:43:13.110065 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:43:13.110299 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:43:13.110756 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:43:13.110782 INFO logging.go:86 Data migration iteration: 3
+
+2026-03-24 07:43:42.803327 INFO logging.go:74 Logging initialised.
+2026-03-24 07:43:42.803706 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:43:42.803821 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:43:42.805211 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:43:42.805604 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:43:42.805744 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:43:42.806068 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:43:42.807316 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:43:42.807961 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:43:42.808000 INFO logging.go:86 Data migration iteration: 3
+
+2026-03-24 07:44:02.829876 INFO logging.go:74 Logging initialised.
+2026-03-24 07:44:02.830023 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:44:02.830088 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:44:02.833435 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:44:02.833907 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:44:02.834091 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:44:02.834397 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:44:02.834624 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:44:02.835202 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:44:02.835350 INFO logging.go:86 Data migration iteration: 3
+
+2026-03-24 07:44:29.744068 INFO logging.go:74 Logging initialised.
+2026-03-24 07:44:29.744198 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:44:29.744293 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:44:29.745581 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:44:29.745988 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:44:29.746160 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:44:29.746470 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:44:29.746749 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:44:29.747398 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:44:29.747440 INFO logging.go:86 Data migration iteration: 3
+
+2026-03-24 07:44:58.369238 INFO logging.go:74 Logging initialised.
+2026-03-24 07:44:58.369430 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:44:58.369568 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:44:58.373909 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:44:58.374304 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:44:58.374443 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:44:58.374719 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:44:58.374972 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:44:58.375710 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:44:58.375742 INFO logging.go:86 Data migration iteration: 3
+
+2026-03-24 07:45:22.402346 INFO logging.go:74 Logging initialised.
+2026-03-24 07:45:22.402533 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:45:22.402633 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:45:22.404063 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:45:22.404409 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:45:22.404541 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:45:22.404843 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:45:22.405374 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:45:22.406289 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:45:22.406505 INFO logging.go:86 Data migration iteration: 3
+
+2026-03-24 07:48:36.889535 INFO logging.go:74 Logging initialised.
+2026-03-24 07:48:36.889661 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:48:36.889748 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:48:36.890859 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:48:36.891118 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:48:36.891230 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:48:36.891443 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:48:36.891623 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:48:36.892100 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:48:36.892128 INFO logging.go:86 Data migration iteration: 3
+
+2026-03-24 07:49:12.958419 INFO logging.go:74 Logging initialised.
+2026-03-24 07:49:12.958788 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:49:12.958921 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:49:12.960534 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:49:12.961037 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:49:12.961218 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:49:12.961690 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:49:12.962027 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:49:12.962677 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:49:12.962720 INFO logging.go:86 Data migration iteration: 3
+
+2026-03-24 07:49:31.941601 INFO logging.go:74 Logging initialised.
+2026-03-24 07:49:31.941748 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:49:31.941873 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:49:31.943163 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:49:31.943497 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:49:31.943714 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:49:31.944139 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:49:31.944430 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:49:31.945017 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:49:31.945060 INFO logging.go:86 Data migration iteration: 3
+
+2026-03-24 07:49:56.968083 INFO logging.go:74 Logging initialised.
+2026-03-24 07:49:56.968400 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:49:56.968511 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:49:56.969593 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:49:56.969927 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:49:56.970055 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:49:56.970340 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:49:56.970587 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:49:56.971349 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:49:56.971400 INFO logging.go:86 Data migration iteration: 3
+
+2026-03-24 07:50:21.968864 INFO logging.go:74 Logging initialised.
+2026-03-24 07:50:21.969019 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:50:21.969127 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:50:21.970150 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:50:21.970469 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:50:21.970612 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:50:21.970862 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:50:21.971125 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:50:21.971599 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:50:21.971629 INFO logging.go:86 Data migration iteration: 3
+
+2026-03-24 07:50:35.992390 INFO logging.go:74 Logging initialised.
+2026-03-24 07:50:35.992513 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:50:35.992603 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:50:35.993730 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:50:35.994015 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:50:35.994163 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:50:35.994394 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:50:35.994561 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:50:35.995027 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:50:35.995062 INFO logging.go:86 Data migration iteration: 3
+
+2026-03-24 07:54:03.163929 INFO logging.go:74 Logging initialised.
+2026-03-24 07:54:03.164060 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:54:03.164163 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:54:03.165236 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:54:03.165570 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:54:03.165702 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:54:03.165994 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:54:03.166230 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:54:03.166692 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:54:03.166721 INFO logging.go:86 Data migration iteration: 4
+
+2026-03-24 07:54:34.199556 INFO logging.go:74 Logging initialised.
+2026-03-24 07:54:34.199707 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:54:34.199810 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:54:34.201546 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:54:34.201944 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:54:34.202093 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:54:34.202401 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:54:34.202770 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:54:34.203415 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:54:34.203453 INFO logging.go:86 Data migration iteration: 4
+
+2026-03-24 07:54:56.220108 INFO logging.go:74 Logging initialised.
+2026-03-24 07:54:56.220255 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:54:56.220370 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:54:56.221436 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:54:56.221743 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:54:56.221882 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:54:56.222142 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:54:56.222367 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:54:56.222843 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:54:56.222877 INFO logging.go:86 Data migration iteration: 4
+
+2026-03-24 07:55:24.141152 INFO logging.go:74 Logging initialised.
+2026-03-24 07:55:24.141321 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:55:24.141436 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:55:24.142805 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:55:24.143515 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:55:24.143701 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:55:24.144094 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:55:24.144430 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:55:24.144940 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:55:24.144967 INFO logging.go:86 Data migration iteration: 4
+
+2026-03-24 07:55:49.064725 INFO logging.go:74 Logging initialised.
+2026-03-24 07:55:49.064872 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:55:49.065055 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:55:49.067114 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:55:49.067472 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:55:49.067630 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:55:49.067959 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:55:49.068208 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:55:49.068715 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:55:49.068745 INFO logging.go:86 Data migration iteration: 4
+
+2026-03-24 07:56:13.111576 INFO logging.go:74 Logging initialised.
+2026-03-24 07:56:13.111725 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:56:13.111871 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:56:13.114114 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:56:13.114537 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:56:13.114682 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:56:13.114993 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:56:13.115255 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:56:13.115869 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:56:13.116418 INFO logging.go:86 Data migration iteration: 4
+
+2026-03-24 07:59:27.593089 INFO logging.go:74 Logging initialised.
+2026-03-24 07:59:27.593262 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:59:27.593380 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:59:27.594524 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:59:27.594814 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:59:27.594966 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:59:27.595239 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:59:27.595485 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:59:27.595996 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:59:27.596026 INFO logging.go:86 Data migration iteration: 4
+
+2026-03-24 07:59:59.640334 INFO logging.go:74 Logging initialised.
+2026-03-24 07:59:59.640496 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 07:59:59.640603 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:59:59.642750 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:59:59.643486 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:59:59.643960 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:59:59.644547 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:59:59.644829 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:59:59.645626 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:59:59.645667 INFO logging.go:86 Data migration iteration: 4
+
+2026-03-24 08:00:21.647278 INFO logging.go:74 Logging initialised.
+2026-03-24 08:00:21.647446 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 08:00:21.647536 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 08:00:21.649071 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 08:00:21.651145 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 08:00:21.652410 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 08:00:21.652768 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 08:00:21.653103 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 08:00:21.653718 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 08:00:21.653769 INFO logging.go:86 Data migration iteration: 4
+
+2026-03-24 08:00:46.652085 INFO logging.go:74 Logging initialised.
+2026-03-24 08:00:46.652211 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 08:00:46.652295 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 08:00:46.653466 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 08:00:46.653805 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 08:00:46.653971 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 08:00:46.654247 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 08:00:46.654454 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 08:00:46.655345 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 08:00:46.655405 INFO logging.go:86 Data migration iteration: 4
+
+2026-03-24 08:01:05.677991 INFO logging.go:74 Logging initialised.
+2026-03-24 08:01:05.678369 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 08:01:05.679016 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 08:01:05.681131 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 08:01:05.681743 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 08:01:05.682172 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 08:01:05.682727 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 08:01:05.683052 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 08:01:05.683716 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 08:01:05.683754 INFO logging.go:86 Data migration iteration: 4
+
+2026-03-24 08:01:23.682406 INFO logging.go:74 Logging initialised.
+2026-03-24 08:01:23.682583 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 08:01:23.682677 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 08:01:23.684081 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 08:01:23.684432 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 08:01:23.684591 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 08:01:23.684917 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 08:01:23.685177 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 08:01:23.685693 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 08:01:23.685727 INFO logging.go:86 Data migration iteration: 4
+
+2026-03-24 08:04:51.866844 INFO logging.go:74 Logging initialised.
+2026-03-24 08:04:51.867629 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 08:04:51.867707 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 08:04:51.868773 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 08:04:51.869069 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 08:04:51.869207 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 08:04:51.869479 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 08:04:51.869661 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 08:04:51.870117 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 08:04:51.870148 INFO logging.go:86 Data migration iteration: 5
+
+2026-03-24 08:05:15.688586 INFO logging.go:74 Logging initialised.
+2026-03-24 08:05:15.688692 INFO logging.go:76 Args: [yb-voyager export data from target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --target-db-password XXX]
+2026-03-24 08:05:15.688760 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 08:05:15.689770 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 08:05:15.690075 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 08:05:15.690243 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 08:05:15.690467 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 08:05:15.690662 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 08:05:15.691154 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 08:05:15.691196 INFO logging.go:86 Data migration iteration: 5
+

@@ -1,0 +1,62 @@
+{
+  "SourceDBType": "postgresql",
+  "SourceDBSchemaNames": [
+    "public"
+  ],
+  "DefaultSourceDBSchemaName": "public",
+  "SourceDBTableNames": {
+    "public": [
+      "test_table",
+      "num_types",
+      "decimal_types",
+      "datatypes1",
+      "cutover_table",
+      "datetime_type",
+      "datetime_type2",
+      "datatypes2",
+      "null_and_default",
+      "tsvector_table"
+    ]
+  },
+  "YBSchemaNames": [
+    "public"
+  ],
+  "DefaultYBSchemaName": "public",
+  "YBTableNames": {
+    "public": [
+      "cutover_table",
+      "datatypes1",
+      "datatypes2",
+      "datetime_type",
+      "datetime_type2",
+      "decimal_types",
+      "null_and_default",
+      "num_types",
+      "test_table",
+      "tsvector_table"
+    ]
+  },
+  "DefaultSourceReplicaDBSchemaName": "",
+  "SourceDBSequenceNames": {
+    "public": [
+      "num_types_id_seq",
+      "datatypes1_id_seq",
+      "datetime_type_id_seq",
+      "datetime_type2_id_seq",
+      "datatypes2_id_seq",
+      "tsvector_table_id_seq",
+      "cutover_table_id_seq"
+    ]
+  },
+  "YBSequenceNames": {
+    "public": [
+      "cutover_table_id_seq",
+      "datatypes1_id_seq",
+      "datatypes2_id_seq",
+      "datetime_type2_id_seq",
+      "datetime_type_id_seq",
+      "num_types_id_seq",
+      "tsvector_table_id_seq"
+    ]
+  }
+}

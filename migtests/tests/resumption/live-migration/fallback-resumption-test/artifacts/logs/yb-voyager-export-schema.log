@@ -1,0 +1,154 @@
+2026-03-20 13:58:43.635125 INFO logging.go:74 Logging initialised.
+2026-03-20 13:58:43.635318 INFO logging.go:76 Args: [yb-voyager export schema --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir --send-diagnostics false --source-db-type postgresql --source-db-host 127.0.0.1 --source-db-port 5432 --source-db-user ybvoyager --source-db-password XXX --source-db-name test_db --source-db-schema public]
+2026-03-20 13:58:43.635382 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-20 13:58:43.635399 INFO root.go:152 Start time: 2026-03-20 13:58:43.635394164 +0000 UTC m=+0.045143468
+
+2026-03-20 13:58:43.635442 INFO root.go:526 'control-plane-type' not set. Setting cp to NoopControlPlane.
+2026-03-20 13:58:43.635469 INFO utils.go:153 get schema object list for "postgresql"
+2026-03-20 13:58:43.635516 INFO common.go:464 Creating a project directory if not exists...
+2026-03-20 13:58:43.678166 INFO metadataDB.go:136 Executed query on meta db - CREATE TABLE queue_segment_meta 
+      (segment_no INTEGER PRIMARY KEY, 
+       file_path TEXT, size_committed INTEGER, 
+	   total_events INTEGER,
+	   exporter_role TEXT,
+       imported_by_target_db_importer INTEGER DEFAULT 0, 
+       imported_by_source_replica_db_importer INTEGER DEFAULT 0, 
+       imported_by_source_db_importer INTEGER DEFAULT 0, 
+       archived INTEGER DEFAULT 0,
+	   deleted INTEGER DEFAULT 0,
+	   archive_location TEXT);
+2026-03-20 13:58:43.684475 INFO metadataDB.go:136 Executed query on meta db - CREATE TABLE exported_events_stats (
+			run_id TEXT, 
+			exporter_role TEXT,
+			timestamp INTEGER, 
+			num_total INTEGER, 
+			num_inserts INTEGER, 
+			num_updates INTEGER, 
+			num_deletes INTEGER, 
+			PRIMARY KEY(run_id, exporter_role, timestamp) );
+2026-03-20 13:58:43.690679 INFO metadataDB.go:136 Executed query on meta db - CREATE TABLE exported_events_stats_per_table (
+			exporter_role TEXT,
+			schema_name TEXT, 
+			table_name TEXT, 
+			num_total INTEGER, 
+			num_inserts INTEGER, 
+			num_updates INTEGER, 
+			num_deletes INTEGER, 
+			PRIMARY KEY(exporter_role, schema_name, table_name) );
+2026-03-20 13:58:43.696742 INFO metadataDB.go:136 Executed query on meta db - CREATE TABLE json_objects (
+			key TEXT PRIMARY KEY,
+			json_text TEXT);
+2026-03-20 13:58:43.697096 INFO metadataDB.go:299 No json object found for key: migration_status
+2026-03-20 13:58:43.697927 INFO metadataDB.go:274 Inserting json object for key: migration_status
+2026-03-20 13:58:43.704335 INFO metadataDB.go:299 No json object found for key: import_data_status
+2026-03-20 13:58:43.704400 INFO metadataDB.go:274 Inserting json object for key: import_data_status
+2026-03-20 13:58:43.710620 INFO metadataDB.go:299 No json object found for key: import_data_file_status
+2026-03-20 13:58:43.710672 INFO metadataDB.go:274 Inserting json object for key: import_data_file_status
+2026-03-20 13:58:43.716878 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:43.717060 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:43.723293 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:43.723327 INFO logging.go:86 migrationID: efaacadb-4e42-458c-b7eb-3d1bdc471ce2
+
+2026-03-20 13:58:43.733434 INFO exportSchema.go:122 checking source DB version
+2026-03-20 13:58:43.821004 INFO utils.go:783 Found strings at /usr/bin/strings
+2026-03-20 13:58:43.822336 INFO exportData.go:1811 Source database charset: "UTF8"
+2026-03-20 13:58:43.824743 INFO postgres.go:643 Total size of all PG sourceDB schemas ('public'): 262144
+2026-03-20 13:58:43.825099 INFO logging.go:175 postgresql version: 17.8 (Ubuntu 17.8-1.pgdg22.04+1)
+
+2026-03-20 13:58:43.828480 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:43.828603 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:43.828645 INFO logging.go:95 
+Assessing migration before exporting schema...
+
+2026-03-20 13:58:45.147028 INFO logging.go:83 Migration assessment completed successfully.
+
+2026-03-20 13:58:45.147092 INFO logging.go:95 
+Export of schema for source type as 'postgresql'
+
+2026-03-20 13:58:45.176492 INFO pg_dump.go:62 Using base pg_dump arguments file: /etc/yb-voyager/pg_dump-args.ini
+2026-03-20 13:58:45.176718 INFO pg_dump_extract_schema.go:54 Running command: /usr/bin/pg_dump 'postgresql://ybvoyager@127.0.0.1:5432/test_db'  --schema-only --schema='public' --extension="*" --file=/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/temp/schema.sql --no-comments --no-owner --no-privileges --no-tablespaces --load-via-partition-root
+2026-03-20 13:58:45.263868 INFO pg_dump_extract_schema.go:152 begun parsing the schema file "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/temp/schema.sql"
+2026-03-20 13:58:45.264209 INFO utils.go:137 get schema object list for "postgresql"
+2026-03-20 13:58:45.264298 INFO pg_dump_extract_schema.go:229 creating schema objects file for "TYPE" at "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/types/type.sql"
+2026-03-20 13:58:45.264398 INFO pg_dump_extract_schema.go:229 creating schema objects file for "SEQUENCE" at "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/sequences/sequence.sql"
+2026-03-20 13:58:45.264470 INFO pg_dump_extract_schema.go:229 creating schema objects file for "TABLE" at "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/tables/table.sql"
+2026-03-20 13:58:45.264535 INFO pg_dump_extract_schema.go:229 creating schema objects file for "SCHEMA" at "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/schemas/schema.sql"
+2026-03-20 13:58:45.264599 INFO pg_dump_extract_schema.go:248 schema file "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/temp/schema.sql" parsed successfully.
+2026-03-20 13:58:45.264631 INFO postgres.go:407 Export of schema completed.
+2026-03-20 13:58:45.348983 INFO exportSchema.go:424 updating indexes info in metaDB
+2026-03-20 13:58:45.349046 INFO logging.go:95 
+Applying schema modifications...
+
+2026-03-20 13:58:45.349282 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:45.353011 INFO transformer.go:124 alterTableCmdType: AT_ReplicaIdentity
+2026-03-20 13:58:45.353055 INFO transformer.go:124 alterTableCmdType: AT_ReplicaIdentity
+2026-03-20 13:58:45.353071 INFO transformer.go:124 alterTableCmdType: AT_ReplicaIdentity
+2026-03-20 13:58:45.353084 INFO transformer.go:124 alterTableCmdType: AT_ReplicaIdentity
+2026-03-20 13:58:45.353097 INFO transformer.go:124 alterTableCmdType: AT_ReplicaIdentity
+2026-03-20 13:58:45.353111 INFO transformer.go:124 alterTableCmdType: AT_ReplicaIdentity
+2026-03-20 13:58:45.353128 INFO transformer.go:124 alterTableCmdType: AT_ReplicaIdentity
+2026-03-20 13:58:45.353141 INFO transformer.go:124 alterTableCmdType: AT_ReplicaIdentity
+2026-03-20 13:58:45.353153 INFO transformer.go:124 alterTableCmdType: AT_ReplicaIdentity
+2026-03-20 13:58:45.353165 INFO transformer.go:124 alterTableCmdType: AT_ReplicaIdentity
+2026-03-20 13:58:45.353176 INFO transformer.go:124 alterTableCmdType: AT_ColumnDefault
+2026-03-20 13:58:45.353188 INFO transformer.go:124 alterTableCmdType: AT_ColumnDefault
+2026-03-20 13:58:45.353199 INFO transformer.go:124 alterTableCmdType: AT_ColumnDefault
+2026-03-20 13:58:45.353211 INFO transformer.go:124 alterTableCmdType: AT_ColumnDefault
+2026-03-20 13:58:45.353222 INFO transformer.go:124 alterTableCmdType: AT_ColumnDefault
+2026-03-20 13:58:45.353236 INFO transformer.go:124 alterTableCmdType: AT_ColumnDefault
+2026-03-20 13:58:45.353248 INFO transformer.go:124 alterTableCmdType: AT_ColumnDefault
+2026-03-20 13:58:45.353260 INFO transformer.go:124 alterTableCmdType: AT_AddConstraint
+2026-03-20 13:58:45.353285 INFO transformer.go:149 merging constraint CONSTR_PRIMARY into CREATE TABLE for object public.cutover_table
+2026-03-20 13:58:45.353300 INFO transformer.go:124 alterTableCmdType: AT_AddConstraint
+2026-03-20 13:58:45.353312 INFO transformer.go:149 merging constraint CONSTR_PRIMARY into CREATE TABLE for object public.datatypes1
+2026-03-20 13:58:45.353332 INFO transformer.go:124 alterTableCmdType: AT_AddConstraint
+2026-03-20 13:58:45.353343 INFO transformer.go:149 merging constraint CONSTR_PRIMARY into CREATE TABLE for object public.datatypes2
+2026-03-20 13:58:45.353357 INFO transformer.go:124 alterTableCmdType: AT_AddConstraint
+2026-03-20 13:58:45.353368 INFO transformer.go:149 merging constraint CONSTR_PRIMARY into CREATE TABLE for object public.datetime_type2
+2026-03-20 13:58:45.353382 INFO transformer.go:124 alterTableCmdType: AT_AddConstraint
+2026-03-20 13:58:45.353405 INFO transformer.go:149 merging constraint CONSTR_PRIMARY into CREATE TABLE for object public.datetime_type
+2026-03-20 13:58:45.353420 INFO transformer.go:124 alterTableCmdType: AT_AddConstraint
+2026-03-20 13:58:45.353431 INFO transformer.go:149 merging constraint CONSTR_PRIMARY into CREATE TABLE for object public.decimal_types
+2026-03-20 13:58:45.353445 INFO transformer.go:124 alterTableCmdType: AT_AddConstraint
+2026-03-20 13:58:45.353464 INFO transformer.go:149 merging constraint CONSTR_PRIMARY into CREATE TABLE for object public.null_and_default
+2026-03-20 13:58:45.353478 INFO transformer.go:124 alterTableCmdType: AT_AddConstraint
+2026-03-20 13:58:45.353490 INFO transformer.go:149 merging constraint CONSTR_PRIMARY into CREATE TABLE for object public.num_types
+2026-03-20 13:58:45.353503 INFO transformer.go:124 alterTableCmdType: AT_AddConstraint
+2026-03-20 13:58:45.353515 INFO transformer.go:149 merging constraint CONSTR_PRIMARY into CREATE TABLE for object public.test_table
+2026-03-20 13:58:45.353529 INFO transformer.go:124 alterTableCmdType: AT_AddConstraint
+2026-03-20 13:58:45.353541 INFO transformer.go:149 merging constraint CONSTR_PRIMARY into CREATE TABLE for object public.tsvector_table
+2026-03-20 13:58:45.353554 INFO transformer.go:244 adding hash splitting on for pk constraints to the schema
+2026-03-20 13:58:45.354430 INFO exportSchema.go:783 Schema modifications are applied to TABLE DDLs and the original DDLs are backed up to /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/tables/backup_table.sql
+2026-03-20 13:58:45.354453 INFO logging.go:86 
+Merged Primary Key and Check constraint definitions into CREATE TABLE statements of the exported tables for improving the import schema performance.
+
+2026-03-20 13:58:45.354489 INFO exportSchema.go:804 INDEX file doesn't exists, skipping index file transformations
+2026-03-20 13:58:45.354511 INFO exportSchemaOptimizationReport.go:466 writing changes report to file: /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/reports/schema_optimization_report.html
+2026-03-20 13:58:45.354929 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:45.355391 INFO logging.go:86 
+Schema optimization changes
+
+
+2026-03-20 13:58:45.355425 INFO logging.go:183 1. Colocation Recommendations - Not Applied
+2. Primary Key Constraints to be hash-sharded - Applied
+3. Primary Key Constraints on the timestamp or date as first column to be range-sharded - Applied
+4. Unique Key Constraints to be range-sharded - Applied
+
+2026-03-20 13:58:45.355444 INFO logging.go:175 Refer to the detailed report for more information: /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/reports/schema_optimization_report.html
+
+2026-03-20 13:58:45.355465 INFO logging.go:83 
+Exported schema files created under directory: /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema
+
+
+2026-03-20 13:58:45.355493 INFO logging.go:86 Original TABLE DDLs are backed up at: /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/tables/backup_table.sql
+
+2026-03-20 13:58:45.355674 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:45.355912 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:45.366175 INFO common.go:86 End time: 2026-03-20 13:58:45.366162044 +0000 UTC m=+1.775911351
+
+2026-03-20 13:58:45.366228 INFO common.go:88 Time taken: 1.730820685s (1.73 seconds)
+

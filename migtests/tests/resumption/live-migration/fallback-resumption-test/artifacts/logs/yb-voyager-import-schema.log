@@ -1,0 +1,346 @@
+2026-03-20 13:58:45.414010 INFO logging.go:74 Logging initialised.
+2026-03-20 13:58:45.414200 INFO logging.go:76 Args: [yb-voyager import schema --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir --send-diagnostics false --target-db-host 10.9.15.11 --target-db-port 5433 --target-db-user yugabyte --target-db-password XXX --target-db-name test_db --start-clean true]
+2026-03-20 13:58:45.414315 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-20 13:58:45.414365 INFO root.go:152 Start time: 2026-03-20 13:58:45.414329653 +0000 UTC m=+0.042095904
+
+2026-03-20 13:58:45.415937 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:45.416218 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-20 13:58:45.416311 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-20 13:58:45.416448 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:45.416547 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:45.416568 INFO root.go:526 'control-plane-type' not set. Setting cp to NoopControlPlane.
+2026-03-20 13:58:45.416654 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:45.416747 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:45.416764 INFO logging.go:86 migrationID: efaacadb-4e42-458c-b7eb-3d1bdc471ce2
+
+2026-03-20 13:58:45.416903 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:45.588875 INFO importSchema.go:138 The target database has the required permissions for importing schema.
+2026-03-20 13:58:45.616910 INFO logging.go:175 YugabyteDB version: 15.12-YB-2025.2.1.0-b0
+
+2026-03-20 13:58:45.617178 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:45.617219 INFO utils.go:137 get schema object list for "postgresql"
+2026-03-20 13:58:45.617234 INFO analyzeSchema.go:1039 initializing report summary map
+2026-03-20 13:58:45.617264 INFO analyzeSchema.go:889 Reading SCHEMA DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/schemas/schema.sql
+2026-03-20 13:58:45.617619 INFO analyzeSchema.go:889 Reading COLLATION DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/collations/collation.sql
+2026-03-20 13:58:45.617653 INFO analyzeSchema.go:889 Reading EXTENSION DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/extensions/extension.sql
+2026-03-20 13:58:45.617669 INFO analyzeSchema.go:889 Reading TYPE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/types/type.sql
+2026-03-20 13:58:45.618165 INFO analyzeSchema.go:889 Reading DOMAIN DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/domains/domain.sql
+2026-03-20 13:58:45.618202 INFO analyzeSchema.go:889 Reading SEQUENCE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/sequences/sequence.sql
+2026-03-20 13:58:45.618822 INFO analyzeSchema.go:889 Reading TABLE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/tables/table.sql
+2026-03-20 13:58:45.619813 INFO analyzeSchema.go:889 Reading INDEX DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/tables/INDEXES_table.sql
+2026-03-20 13:58:45.619845 INFO analyzeSchema.go:889 Reading PARTITION_INDEX DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/partitions/PARTITION_INDEXES_partition.sql
+2026-03-20 13:58:45.619874 INFO analyzeSchema.go:889 Reading FTS_INDEX DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/tables/FTS_INDEXES_table.sql
+2026-03-20 13:58:45.619912 INFO analyzeSchema.go:889 Reading FUNCTION DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/functions/function.sql
+2026-03-20 13:58:45.619935 INFO analyzeSchema.go:889 Reading AGGREGATE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/aggregates/aggregate.sql
+2026-03-20 13:58:45.619949 INFO analyzeSchema.go:889 Reading PROCEDURE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/procedures/procedure.sql
+2026-03-20 13:58:45.619971 INFO analyzeSchema.go:889 Reading VIEW DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/views/view.sql
+2026-03-20 13:58:45.619986 INFO analyzeSchema.go:889 Reading TRIGGER DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/triggers/trigger.sql
+2026-03-20 13:58:45.620000 INFO analyzeSchema.go:889 Reading MVIEW DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/mviews/mview.sql
+2026-03-20 13:58:45.620022 INFO analyzeSchema.go:889 Reading RULE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/rules/rule.sql
+2026-03-20 13:58:45.620038 INFO analyzeSchema.go:889 Reading COMMENT DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/comments/comment.sql
+2026-03-20 13:58:45.620059 INFO analyzeSchema.go:889 Reading CONVERSION DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/conversions/conversion.sql
+2026-03-20 13:58:45.620083 INFO analyzeSchema.go:889 Reading FOREIGN TABLE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/tables/foreign_table.sql
+2026-03-20 13:58:45.620095 INFO analyzeSchema.go:889 Reading POLICY DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/policies/policy.sql
+2026-03-20 13:58:45.620110 INFO analyzeSchema.go:889 Reading OPERATOR DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/operators/operator.sql
+2026-03-20 13:58:45.620197 INFO metadataDB.go:299 No json object found for key: source_indexes_info_key
+2026-03-20 13:58:45.620231 INFO logging.go:175 schemas to be present in target database "test_db": public
+
+2026-03-20 13:58:45.631568 INFO importSchema.go:572 check if schema {"\"public\"" "public" "public"} exists: fetchedSchema: "public", err: %!s(<nil>)
+2026-03-20 13:58:45.631613 INFO logging.go:175 dropping schema 'public' in target database
+2026-03-20 13:58:45.710353 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:45.710412 INFO utils.go:137 get schema object list for "postgresql"
+2026-03-20 13:58:45.710431 INFO analyzeSchema.go:1039 initializing report summary map
+2026-03-20 13:58:45.710466 INFO analyzeSchema.go:889 Reading SCHEMA DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/schemas/schema.sql
+2026-03-20 13:58:45.711278 INFO analyzeSchema.go:332 checking SQL statements using parser for object type SCHEMA in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/schemas/schema.sql
+2026-03-20 13:58:45.714160 INFO analyzeSchema.go:889 Reading COLLATION DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/collations/collation.sql
+2026-03-20 13:58:45.715102 INFO analyzeSchema.go:889 Reading EXTENSION DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/extensions/extension.sql
+2026-03-20 13:58:45.715130 INFO analyzeSchema.go:889 Reading TYPE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/types/type.sql
+2026-03-20 13:58:45.716069 INFO analyzeSchema.go:332 checking SQL statements using parser for object type TYPE in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/types/type.sql
+2026-03-20 13:58:45.717000 INFO analyzeSchema.go:889 Reading DOMAIN DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/domains/domain.sql
+2026-03-20 13:58:45.717040 INFO analyzeSchema.go:889 Reading SEQUENCE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/sequences/sequence.sql
+2026-03-20 13:58:45.719515 INFO analyzeSchema.go:332 checking SQL statements using parser for object type SEQUENCE in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/sequences/sequence.sql
+2026-03-20 13:58:45.721273 INFO analyzeSchema.go:889 Reading TABLE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/tables/table.sql
+2026-03-20 13:58:45.726691 INFO analyzeSchema.go:332 checking SQL statements using parser for object type TABLE in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/tables/table.sql
+2026-03-20 13:58:45.728786 INFO parser_issue_detector.go:582 No object usage stats found for table: public.null_and_default
+2026-03-20 13:58:45.728828 INFO parser_issue_detector.go:582 No object usage stats found for table: public.test_table
+2026-03-20 13:58:45.728841 INFO parser_issue_detector.go:582 No object usage stats found for table: public.datatypes1
+2026-03-20 13:58:45.728852 INFO parser_issue_detector.go:582 No object usage stats found for table: public.datatypes2
+2026-03-20 13:58:45.728863 INFO parser_issue_detector.go:582 No object usage stats found for table: public.decimal_types
+2026-03-20 13:58:45.728873 INFO parser_issue_detector.go:582 No object usage stats found for table: public.num_types
+2026-03-20 13:58:45.728883 INFO parser_issue_detector.go:582 No object usage stats found for table: public.tsvector_table
+2026-03-20 13:58:45.728909 INFO parser_issue_detector.go:582 No object usage stats found for table: public.cutover_table
+2026-03-20 13:58:45.728919 INFO parser_issue_detector.go:582 No object usage stats found for table: public.datetime_type
+2026-03-20 13:58:45.728936 INFO parser_issue_detector.go:582 No object usage stats found for table: public.datetime_type2
+2026-03-20 13:58:45.741491 INFO analyzeSchema.go:889 Reading INDEX DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/tables/INDEXES_table.sql
+2026-03-20 13:58:45.741534 INFO analyzeSchema.go:889 Reading PARTITION_INDEX DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/partitions/PARTITION_INDEXES_partition.sql
+2026-03-20 13:58:45.741549 INFO analyzeSchema.go:889 Reading FTS_INDEX DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/tables/FTS_INDEXES_table.sql
+2026-03-20 13:58:45.741563 INFO analyzeSchema.go:889 Reading FUNCTION DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/functions/function.sql
+2026-03-20 13:58:45.741582 INFO analyzeSchema.go:889 Reading AGGREGATE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/aggregates/aggregate.sql
+2026-03-20 13:58:45.741595 INFO analyzeSchema.go:889 Reading PROCEDURE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/procedures/procedure.sql
+2026-03-20 13:58:45.741606 INFO analyzeSchema.go:889 Reading VIEW DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/views/view.sql
+2026-03-20 13:58:45.741618 INFO analyzeSchema.go:889 Reading TRIGGER DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/triggers/trigger.sql
+2026-03-20 13:58:45.741630 INFO analyzeSchema.go:889 Reading MVIEW DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/mviews/mview.sql
+2026-03-20 13:58:45.741645 INFO analyzeSchema.go:889 Reading RULE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/rules/rule.sql
+2026-03-20 13:58:45.741660 INFO analyzeSchema.go:889 Reading COMMENT DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/comments/comment.sql
+2026-03-20 13:58:45.741672 INFO analyzeSchema.go:889 Reading CONVERSION DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/conversions/conversion.sql
+2026-03-20 13:58:45.741684 INFO analyzeSchema.go:889 Reading FOREIGN TABLE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/tables/foreign_table.sql
+2026-03-20 13:58:45.741695 INFO analyzeSchema.go:889 Reading POLICY DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/policies/policy.sql
+2026-03-20 13:58:45.741715 INFO analyzeSchema.go:889 Reading OPERATOR DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/operators/operator.sql
+2026-03-20 13:58:45.741803 INFO metadataDB.go:299 No json object found for key: source_indexes_info_key
+2026-03-20 13:58:45.742110 INFO utils.go:137 get schema object list for "postgresql"
+2026-03-20 13:58:45.742132 INFO importSchema.go:197 list of schema objects to import: [SCHEMA COLLATION EXTENSION TYPE DOMAIN SEQUENCE TABLE INDEX FUNCTION AGGREGATE PROCEDURE VIEW TRIGGER MVIEW RULE COMMENT CONVERSION FOREIGN TABLE POLICY OPERATOR UNIQUE INDEX]
+2026-03-20 13:58:45.742153 INFO importSchemaYugabyteDB.go:123 Execute SQL file "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/schemas/schema.sql" on target "10.9.15.11"
+2026-03-20 13:58:45.742165 INFO analyzeSchema.go:889 Reading SCHEMA DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/schemas/schema.sql
+2026-03-20 13:58:45.862944 INFO importSchemaYugabyteDB.go:198 Skipping session variable: SET TRANSACTION_TIMEOUT = 0; 
+2026-03-20 13:58:45.862995 INFO importSchemaYugabyteDB.go:156 Skipping DDL: SET transaction_timeout = 0; 
+2026-03-20 13:58:45.863088 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+SELECT pg_catalog.set_config('search_path', '', false);
+
+2026-03-20 13:58:45.863106 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:45.869056 INFO importSchemaYugabyteDB.go:198 Skipping session variable: SET CLIENT_MIN_MESSAGES = WARNING; 
+2026-03-20 13:58:45.869102 INFO importSchemaYugabyteDB.go:156 Skipping DDL: SET client_min_messages = warning; 
+2026-03-20 13:58:45.869160 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+CREATE SCHEMA public;
+
+2026-03-20 13:58:45.869175 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:45.937331 INFO importSchemaYugabyteDB.go:123 Execute SQL file "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/types/type.sql" on target "10.9.15.11"
+2026-03-20 13:58:45.937403 INFO analyzeSchema.go:889 Reading TYPE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/types/type.sql
+2026-03-20 13:58:46.065696 INFO importSchemaYugabyteDB.go:198 Skipping session variable: SET TRANSACTION_TIMEOUT = 0; 
+2026-03-20 13:58:46.065746 INFO importSchemaYugabyteDB.go:156 Skipping DDL: SET transaction_timeout = 0; 
+2026-03-20 13:58:46.065878 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+SELECT pg_catalog.set_config('search_path', '', false);
+
+2026-03-20 13:58:46.065918 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:46.070427 INFO importSchemaYugabyteDB.go:198 Skipping session variable: SET CLIENT_MIN_MESSAGES = WARNING; 
+2026-03-20 13:58:46.070469 INFO importSchemaYugabyteDB.go:156 Skipping DDL: SET client_min_messages = warning; 
+2026-03-20 13:58:46.070561 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+CREATE TYPE public.week AS ENUM (
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri',
+    'Sat',
+    'Sun'
+);
+
+2026-03-20 13:58:46.070581 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:46.166434 INFO importSchemaYugabyteDB.go:123 Execute SQL file "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/sequences/sequence.sql" on target "10.9.15.11"
+2026-03-20 13:58:46.166481 INFO analyzeSchema.go:889 Reading SEQUENCE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/sequences/sequence.sql
+2026-03-20 13:58:46.293067 INFO importSchemaYugabyteDB.go:198 Skipping session variable: SET TRANSACTION_TIMEOUT = 0; 
+2026-03-20 13:58:46.293132 INFO importSchemaYugabyteDB.go:156 Skipping DDL: SET transaction_timeout = 0; 
+2026-03-20 13:58:46.293283 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+SELECT pg_catalog.set_config('search_path', '', false);
+
+2026-03-20 13:58:46.293309 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:46.299425 INFO importSchemaYugabyteDB.go:198 Skipping session variable: SET CLIENT_MIN_MESSAGES = WARNING; 
+2026-03-20 13:58:46.299476 INFO importSchemaYugabyteDB.go:156 Skipping DDL: SET client_min_messages = warning; 
+2026-03-20 13:58:46.299614 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+CREATE SEQUENCE public.cutover_table_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+2026-03-20 13:58:46.299637 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:46.398459 INFO utils.go:504 notice for "CREATE SEQUENCE public.cutover_table_id_seq     AS integer     START WITH 1      ...": NOTICE: overriding cache option with cache flag or previous cache value
+2026-03-20 13:58:46.398619 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+CREATE SEQUENCE public.datatypes1_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+2026-03-20 13:58:46.398637 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:46.416500 INFO utils.go:504 notice for "CREATE SEQUENCE public.datatypes1_id_seq     AS integer     START WITH 1     INC ...": NOTICE: overriding cache option with cache flag or previous cache value
+2026-03-20 13:58:46.416678 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+CREATE SEQUENCE public.datatypes2_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+2026-03-20 13:58:46.416697 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:46.435008 INFO utils.go:504 notice for "CREATE SEQUENCE public.datatypes2_id_seq     AS integer     START WITH 1     INC ...": NOTICE: overriding cache option with cache flag or previous cache value
+2026-03-20 13:58:46.435158 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+CREATE SEQUENCE public.datetime_type2_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+2026-03-20 13:58:46.435174 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:46.453518 INFO utils.go:504 notice for "CREATE SEQUENCE public.datetime_type2_id_seq     AS integer     START WITH 1     ...": NOTICE: overriding cache option with cache flag or previous cache value
+2026-03-20 13:58:46.453668 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+CREATE SEQUENCE public.datetime_type_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+2026-03-20 13:58:46.453685 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:46.471089 INFO utils.go:504 notice for "CREATE SEQUENCE public.datetime_type_id_seq     AS integer     START WITH 1      ...": NOTICE: overriding cache option with cache flag or previous cache value
+2026-03-20 13:58:46.471235 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+CREATE SEQUENCE public.num_types_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+2026-03-20 13:58:46.471253 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:46.489679 INFO utils.go:504 notice for "CREATE SEQUENCE public.num_types_id_seq     AS integer     START WITH 1     INCR ...": NOTICE: overriding cache option with cache flag or previous cache value
+2026-03-20 13:58:46.489819 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+CREATE SEQUENCE public.tsvector_table_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+2026-03-20 13:58:46.489836 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:46.507747 INFO utils.go:504 notice for "CREATE SEQUENCE public.tsvector_table_id_seq     AS integer     START WITH 1     ...": NOTICE: overriding cache option with cache flag or previous cache value
+2026-03-20 13:58:46.507847 INFO importSchemaYugabyteDB.go:123 Execute SQL file "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/tables/table.sql" on target "10.9.15.11"
+2026-03-20 13:58:46.507864 INFO analyzeSchema.go:889 Reading TABLE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/tables/table.sql
+2026-03-20 13:58:46.525818 INFO importSchemaYugabyteDB.go:198 Skipping session variable: SET TRANSACTION_TIMEOUT TO 0; 
+2026-03-20 13:58:46.525865 INFO importSchemaYugabyteDB.go:156 Skipping DDL: SET transaction_timeout TO 0; 
+2026-03-20 13:58:46.526007 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+SELECT pg_catalog.set_config('search_path', '', false);
+
+2026-03-20 13:58:46.526023 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:46.530053 INFO importSchemaYugabyteDB.go:198 Skipping session variable: SET CLIENT_MIN_MESSAGES TO WARNING; 
+2026-03-20 13:58:46.530091 INFO importSchemaYugabyteDB.go:156 Skipping DDL: SET client_min_messages TO warning; 
+2026-03-20 13:58:46.530235 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+CREATE TABLE public.cutover_table (id int NOT NULL, status text, CONSTRAINT cutover_table_pkey PRIMARY KEY (id));
+
+2026-03-20 13:58:46.530255 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:46.834018 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+CREATE TABLE public.datatypes1 (id int NOT NULL, bool_type boolean, char_type1 char(1), varchar_type varchar(100), byte_type bytea, enum_type public.week, CONSTRAINT datatypes1_pkey PRIMARY KEY (id));
+
+2026-03-20 13:58:46.834067 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:47.080673 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+CREATE TABLE public.datatypes2 (id int NOT NULL, v1 pg_catalog.json, v2 pg_catalog.bit(10), v3 int[], v5 pg_catalog.varbit, CONSTRAINT datatypes2_pkey PRIMARY KEY (id));
+
+2026-03-20 13:58:47.080722 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:47.364910 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+CREATE TABLE public.datetime_type (id int NOT NULL, v1 date, v2 time, v3 timestamp, v4 timestamp DEFAULT current_timestamp(0), CONSTRAINT datetime_type_pkey PRIMARY KEY (id));
+
+2026-03-20 13:58:47.364961 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:47.585774 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+CREATE TABLE public.datetime_type2 (id int NOT NULL, v1 timestamp, CONSTRAINT datetime_type2_pkey PRIMARY KEY (id));
+
+2026-03-20 13:58:47.585823 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:47.815405 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+CREATE TABLE public.decimal_types (id int NOT NULL, n1 numeric(108, 9), n2 numeric(19, 2), CONSTRAINT decimal_types_pkey PRIMARY KEY (id));
+
+2026-03-20 13:58:47.815451 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:48.031450 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+CREATE TABLE public.null_and_default (id int NOT NULL, b boolean DEFAULT false, i int DEFAULT 10, val varchar DEFAULT ('testdefault'::varchar), CONSTRAINT null_and_default_pkey PRIMARY KEY (id));
+
+2026-03-20 13:58:48.031500 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:48.254665 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+CREATE TABLE public.num_types (id int NOT NULL, v1 smallint, v2 int, v3 bigint, v4 numeric(6, 3), v6 money, CONSTRAINT num_types_pkey PRIMARY KEY (id));
+
+2026-03-20 13:58:48.254712 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:48.493596 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+CREATE TABLE public.test_table (id int NOT NULL, name varchar(255), CONSTRAINT test_table_pkey PRIMARY KEY (id));
+
+2026-03-20 13:58:48.493644 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:48.716936 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+CREATE TABLE public.tsvector_table (id int NOT NULL, title text, content text, title_tsv tsvector, content_tsv tsvector, CONSTRAINT tsvector_table_pkey PRIMARY KEY (id));
+
+2026-03-20 13:58:48.716987 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:48.923248 INFO importSchemaYugabyteDB.go:156 Skipping DDL: ALTER TABLE ONLY public.cutover_table REPLICA IDENTITY FULL ; 
+2026-03-20 13:58:48.923299 INFO importSchemaYugabyteDB.go:156 Skipping DDL: ALTER TABLE ONLY public.datatypes1 REPLICA IDENTITY FULL ; 
+2026-03-20 13:58:48.923319 INFO importSchemaYugabyteDB.go:156 Skipping DDL: ALTER TABLE ONLY public.datatypes2 REPLICA IDENTITY FULL ; 
+2026-03-20 13:58:48.923344 INFO importSchemaYugabyteDB.go:156 Skipping DDL: ALTER TABLE ONLY public.datetime_type REPLICA IDENTITY FULL ; 
+2026-03-20 13:58:48.923363 INFO importSchemaYugabyteDB.go:156 Skipping DDL: ALTER TABLE ONLY public.datetime_type2 REPLICA IDENTITY FULL ; 
+2026-03-20 13:58:48.923374 INFO importSchemaYugabyteDB.go:156 Skipping DDL: ALTER TABLE ONLY public.decimal_types REPLICA IDENTITY FULL ; 
+2026-03-20 13:58:48.923390 INFO importSchemaYugabyteDB.go:156 Skipping DDL: ALTER TABLE ONLY public.null_and_default REPLICA IDENTITY FULL ; 
+2026-03-20 13:58:48.923414 INFO importSchemaYugabyteDB.go:156 Skipping DDL: ALTER TABLE ONLY public.num_types REPLICA IDENTITY FULL ; 
+2026-03-20 13:58:48.923429 INFO importSchemaYugabyteDB.go:156 Skipping DDL: ALTER TABLE ONLY public.test_table REPLICA IDENTITY FULL ; 
+2026-03-20 13:58:48.923440 INFO importSchemaYugabyteDB.go:156 Skipping DDL: ALTER TABLE ONLY public.tsvector_table REPLICA IDENTITY FULL ; 
+2026-03-20 13:58:48.923539 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+ALTER TABLE ONLY public.cutover_table ALTER COLUMN id SET DEFAULT nextval('public.cutover_table_id_seq'::regclass);
+
+2026-03-20 13:58:48.923562 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:49.087469 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+ALTER TABLE ONLY public.datatypes1 ALTER COLUMN id SET DEFAULT nextval('public.datatypes1_id_seq'::regclass);
+
+2026-03-20 13:58:49.087518 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:49.237978 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+ALTER TABLE ONLY public.datatypes2 ALTER COLUMN id SET DEFAULT nextval('public.datatypes2_id_seq'::regclass);
+
+2026-03-20 13:58:49.238027 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:49.385609 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+ALTER TABLE ONLY public.datetime_type ALTER COLUMN id SET DEFAULT nextval('public.datetime_type_id_seq'::regclass);
+
+2026-03-20 13:58:49.385657 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:49.539280 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+ALTER TABLE ONLY public.datetime_type2 ALTER COLUMN id SET DEFAULT nextval('public.datetime_type2_id_seq'::regclass);
+
+2026-03-20 13:58:49.539327 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:49.665009 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+ALTER TABLE ONLY public.num_types ALTER COLUMN id SET DEFAULT nextval('public.num_types_id_seq'::regclass);
+
+2026-03-20 13:58:49.665062 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:49.826533 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+ALTER TABLE ONLY public.tsvector_table ALTER COLUMN id SET DEFAULT nextval('public.tsvector_table_id_seq'::regclass);
+
+2026-03-20 13:58:49.826583 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:49.933226 INFO importSchemaYugabyteDB.go:123 Execute SQL file "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/sequences/sequence.sql" on target "10.9.15.11"
+2026-03-20 13:58:49.933273 INFO analyzeSchema.go:889 Reading SEQUENCE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/sequences/sequence.sql
+2026-03-20 13:58:50.055300 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+ALTER SEQUENCE public.cutover_table_id_seq OWNED BY public.cutover_table.id;
+
+2026-03-20 13:58:50.055351 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:50.128766 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+ALTER SEQUENCE public.datatypes1_id_seq OWNED BY public.datatypes1.id;
+
+2026-03-20 13:58:50.128823 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:50.168628 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+ALTER SEQUENCE public.datatypes2_id_seq OWNED BY public.datatypes2.id;
+
+2026-03-20 13:58:50.168676 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:50.196590 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+ALTER SEQUENCE public.datetime_type2_id_seq OWNED BY public.datetime_type2.id;
+
+2026-03-20 13:58:50.196636 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:50.223464 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+ALTER SEQUENCE public.datetime_type_id_seq OWNED BY public.datetime_type.id;
+
+2026-03-20 13:58:50.223512 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:50.250460 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+ALTER SEQUENCE public.num_types_id_seq OWNED BY public.num_types.id;
+
+2026-03-20 13:58:50.250504 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:50.277400 INFO importSchemaYugabyteDB.go:226 On 10.9.15.11 run query:
+ALTER SEQUENCE public.tsvector_table_id_seq OWNED BY public.tsvector_table.id;
+
+2026-03-20 13:58:50.277448 INFO importSchemaYugabyteDB.go:228 Applying session variables on the connection for this statement
+2026-03-20 13:58:50.303920 INFO importSchemaYugabyteDB.go:123 Execute SQL file "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/tables/table.sql" on target "10.9.15.11"
+2026-03-20 13:58:50.303972 INFO analyzeSchema.go:889 Reading TABLE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/schema/tables/table.sql
+2026-03-20 13:58:50.429265 INFO importSchema.go:254 Schema import is complete.
+2026-03-20 13:58:50.429336 INFO importSchema.go:407 no failed sql statements to dump
+2026-03-20 13:58:50.429358 INFO logging.go:175 
+NOTE: Materialized Views are not populated by default. To populate them, pass --refresh-mviews while executing `finalize-schema-post-data-import`.
+2026-03-20 13:58:50.432998 INFO common.go:86 End time: 2026-03-20 13:58:50.432984595 +0000 UTC m=+5.060750861
+
+2026-03-20 13:58:50.433050 INFO common.go:88 Time taken: 5.018706304s (5.02 seconds)
+

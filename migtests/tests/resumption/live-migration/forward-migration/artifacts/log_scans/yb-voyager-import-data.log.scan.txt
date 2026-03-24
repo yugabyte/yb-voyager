@@ -1,0 +1,27 @@
+2026-03-03 11:35:56.064062 INFO import.go:571 passed value for --on-primary-key-conflict: ERROR-POLICY
+ ContinueOnError: (utils.BoolStr) false,
+ OnPrimaryKeyConflictAction: (string) (len=12) "ERROR-POLICY",
+ ContinueOnError: (utils.BoolStr) false,
+ OnPrimaryKeyConflictAction: (string) (len=12) "ERROR-POLICY",
+ PKConflictAction: (string) (len=12) "ERROR-POLICY",
+ PKConflictAction: (string) (len=12) "ERROR-POLICY",
+ PKConflictAction: (string) (len=12) "ERROR-POLICY",
+ PKConflictAction: (string) (len=12) "ERROR-POLICY",
+2026-03-03 11:36:05.182735 INFO importDataState.go:154 get file import state: file "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/forward-migration/export-dir/data/test_table_data.sql", table "[CurrentName=(test_table) SourceName=(test_table) TargetName=(test_table)]": interruptedCount=1, doneCount=0, errorCount=0, batchGenerationCompleted=true
+2026-03-03 11:36:05.283504 INFO importDataState.go:154 get file import state: file "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/forward-migration/export-dir/data/num_types_data.sql", table "[CurrentName=(num_types) SourceName=(num_types) TargetName=(num_types)]": interruptedCount=0, doneCount=1, errorCount=0, batchGenerationCompleted=true
+ PKConflictAction: (string) (len=12) "ERROR-POLICY",
+2026-03-03 11:36:05.341988 INFO importDataState.go:154 get file import state: file "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/forward-migration/export-dir/data/datetime_type2_data.sql", table "[CurrentName=(datetime_type2) SourceName=(datetime_type2) TargetName=(datetime_type2)]": interruptedCount=0, doneCount=1, errorCount=0, batchGenerationCompleted=true
+ PKConflictAction: (string) (len=12) "ERROR-POLICY",
+2026-03-03 11:36:05.408788 INFO importDataState.go:154 get file import state: file "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/forward-migration/export-dir/data/test_table_data.sql", table "[CurrentName=(test_table) SourceName=(test_table) TargetName=(test_table)]": interruptedCount=0, doneCount=1, errorCount=0, batchGenerationCompleted=true
+ PKConflictAction: (string) (len=12) "ERROR-POLICY",
+2026-03-03 11:36:05.502740 INFO importDataState.go:154 get file import state: file "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/forward-migration/export-dir/data/datatypes1_data.sql", table "[CurrentName=(datatypes1) SourceName=(datatypes1) TargetName=(datatypes1)]": interruptedCount=0, doneCount=1, errorCount=0, batchGenerationCompleted=true
+ PKConflictAction: (string) (len=12) "ERROR-POLICY",
+2026-03-03 11:36:05.584277 INFO importDataState.go:154 get file import state: file "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/forward-migration/export-dir/data/datetime_type_data.sql", table "[CurrentName=(datetime_type) SourceName=(datetime_type) TargetName=(datetime_type)]": interruptedCount=0, doneCount=1, errorCount=0, batchGenerationCompleted=true
+ PKConflictAction: (string) (len=12) "ERROR-POLICY",
+2026-03-03 11:36:05.665243 INFO importDataState.go:154 get file import state: file "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/forward-migration/export-dir/data/null_and_default_data.sql", table "[CurrentName=(null_and_default) SourceName=(null_and_default) TargetName=(null_and_default)]": interruptedCount=0, doneCount=1, errorCount=0, batchGenerationCompleted=true
+2026-03-03 11:36:05.665479 INFO importDataState.go:154 get file import state: file "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/forward-migration/export-dir/data/tsvector_table_data.sql", table "[CurrentName=(tsvector_table) SourceName=(tsvector_table) TargetName=(tsvector_table)]": interruptedCount=0, doneCount=1, errorCount=0, batchGenerationCompleted=true
+2026-03-03 11:36:05.665597 INFO importDataState.go:154 get file import state: file "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/forward-migration/export-dir/data/decimal_types_data.sql", table "[CurrentName=(decimal_types) SourceName=(decimal_types) TargetName=(decimal_types)]": interruptedCount=1, doneCount=0, errorCount=0, batchGenerationCompleted=true
+2026-03-03 11:36:05.766501 INFO importDataState.go:154 get file import state: file "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/forward-migration/export-dir/data/decimal_types_data.sql", table "[CurrentName=(decimal_types) SourceName=(decimal_types) TargetName=(decimal_types)]": interruptedCount=0, doneCount=1, errorCount=0, batchGenerationCompleted=true
+2026-03-03 11:36:05.766761 INFO importDataState.go:154 get file import state: file "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/forward-migration/export-dir/data/datatypes2_data.sql", table "[CurrentName=(datatypes2) SourceName=(datatypes2) TargetName=(datatypes2)]": interruptedCount=0, doneCount=1, errorCount=0, batchGenerationCompleted=true
+  Error: (string) ""
+  Error: (string) ""

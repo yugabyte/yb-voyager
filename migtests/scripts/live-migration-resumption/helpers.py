@@ -619,6 +619,83 @@ def build_import_to_source_replica_cmd(cfg: Dict[str, Any]) -> list[str]:
     return ["yb-voyager", "import", "data", "to", "source-replica", "--yes"] + to_kv_flags(merged)
 
 
+def _kill_all_voyager_for_export_dir(export_dir: str) -> None:
+    """Aggressively kill all yb-voyager processes using this export-dir."""
+    for sig in ["-TERM", "-9"]:
+        try:
+            result = subprocess.run(
+                ["pgrep", "-f", f"yb-voyager.*{export_dir}"],
+                capture_output=True, text=True, timeout=10,
+            )
+            pids = [p.strip() for p in result.stdout.strip().split("\n") if p.strip()]
+            if pids:
+                log(f"  killing PIDs {pids} with {sig}")
+                subprocess.run(["kill", sig] + pids, capture_output=True, timeout=10)
+        except Exception:
+            pass
+        time.sleep(2)
+
+    # Remove voyager lock files (.lck) that prevent restart
+    for search_dir in [export_dir, latest_iteration_export_dir(export_dir)]:
+        try:
+            for f in os.listdir(search_dir):
+                if f.endswith("Lockfile.lck"):
+                    lock_path = os.path.join(search_dir, f)
+                    os.remove(lock_path)
+                    log(f"  removed lock: {lock_path}")
+        except OSError:
+            pass
+
+    # Final check -- make sure nothing is left
+    try:
+        result = subprocess.run(
+            ["pgrep", "-f", f"yb-voyager.*{export_dir}"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.stdout.strip():
+            log(f"  WARNING: processes still alive: {result.stdout.strip()}")
+            subprocess.run(["kill", "-9"] + result.stdout.strip().split(), capture_output=True, timeout=5)
+            time.sleep(2)
+    except Exception:
+        pass
+
+
+def takeover_auto_transitioned_processes(ctx: Context) -> None:
+    """Kill voyager's auto-transitioned export/import processes and start fresh ones
+    that the orchestrator controls (needed for resumption kill/restart cycles)."""
+    export_dir = ctx.cfg["export_dir"]
+    log("takeover: killing auto-transitioned voyager processes")
+    _kill_all_voyager_for_export_dir(export_dir)
+
+    log("takeover: starting fresh export_data")
+    ctx.processes["export_data"] = start_command_by_name("export_data", ctx)
+
+    log("takeover: starting fresh import_data")
+    ctx.processes["import_data"] = start_command_by_name("import_data", ctx)
+
+    log("takeover: fresh processes registered, waiting for streaming")
+    ok = poll_until(300, 5, lambda: iteration_exporter_streaming(export_dir))
+    if not ok:
+        raise TimeoutError("takeover: exporter did not reach streaming after restart")
+    log("takeover: exporter streaming, ready for resumptions")
+
+
+def takeover_fallback_processes(ctx: Context) -> None:
+    """Kill voyager's auto-transitioned fallback processes and start fresh ones."""
+    export_dir = ctx.cfg["export_dir"]
+    log("takeover_fallback: killing auto-transitioned voyager processes")
+    _kill_all_voyager_for_export_dir(export_dir)
+
+    log("takeover_fallback: starting fresh export_from_target")
+    ctx.processes["export_from_target"] = start_command_by_name("export_from_target", ctx)
+
+    log("takeover_fallback: starting fresh import_to_source")
+    ctx.processes["import_to_source"] = start_command_by_name("import_to_source", ctx)
+
+    log("takeover_fallback: fresh fallback processes registered")
+    time.sleep(5)
+
+
 def start_command_by_name(name: str, ctx: Context) -> subprocess.Popen:
     mapping: Dict[str, Callable[[], subprocess.Popen]] = {
         "export_data": lambda: spawn(build_export_data_cmd(ctx.cfg), ctx.env),

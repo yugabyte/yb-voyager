@@ -1,0 +1,8 @@
+2026-03-20 13:58:45.869056 INFO importSchemaYugabyteDB.go:198 Skipping session variable: SET CLIENT_MIN_MESSAGES = WARNING;
+2026-03-20 13:58:45.869102 INFO importSchemaYugabyteDB.go:156 Skipping DDL: SET client_min_messages = warning;
+2026-03-20 13:58:46.070427 INFO importSchemaYugabyteDB.go:198 Skipping session variable: SET CLIENT_MIN_MESSAGES = WARNING;
+2026-03-20 13:58:46.070469 INFO importSchemaYugabyteDB.go:156 Skipping DDL: SET client_min_messages = warning;
+2026-03-20 13:58:46.299425 INFO importSchemaYugabyteDB.go:198 Skipping session variable: SET CLIENT_MIN_MESSAGES = WARNING;
+2026-03-20 13:58:46.299476 INFO importSchemaYugabyteDB.go:156 Skipping DDL: SET client_min_messages = warning;
+2026-03-20 13:58:46.530053 INFO importSchemaYugabyteDB.go:198 Skipping session variable: SET CLIENT_MIN_MESSAGES TO WARNING;
+2026-03-20 13:58:46.530091 INFO importSchemaYugabyteDB.go:156 Skipping DDL: SET client_min_messages TO warning;

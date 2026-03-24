@@ -1,0 +1,15 @@
+2026-03-24 07:18:50.029684 INFO logging.go:74 Logging initialised.
+2026-03-24 07:18:50.029922 INFO logging.go:76 Args: [yb-voyager import data to target --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir --disable-pb=true --send-diagnostics=false --log-level info --target-db-name test_db --target-db-user ybvoyager]
+2026-03-24 07:18:50.030043 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-24 07:18:50.031552 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:18:50.032270 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-24 07:18:50.032630 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-24 07:18:50.033182 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:18:50.033694 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:18:50.035375 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-24 07:18:50.035452 INFO logging.go:86 Data migration iteration: 1
+

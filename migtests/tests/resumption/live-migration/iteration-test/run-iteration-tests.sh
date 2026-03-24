@@ -10,7 +10,7 @@ if [ -f "$SCRIPT_DIR/.env" ]; then
     set +a
 fi
 
-ORCHESTRATOR="$SCRIPT_DIR/../../scripts/live-migration-resumption/orchestrator.py"
+ORCHESTRATOR="$SCRIPT_DIR/../../../../scripts/live-migration-resumption/orchestrator.py"
 SCENARIO="$SCRIPT_DIR/scenario.yaml"
 
 echo "=== Running iteration tests ==="

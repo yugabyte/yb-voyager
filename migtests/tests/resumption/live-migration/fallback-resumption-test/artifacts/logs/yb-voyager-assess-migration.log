@@ -1,0 +1,396 @@
+2026-03-20 13:58:43.859393 INFO logging.go:74 Logging initialised.
+2026-03-20 13:58:43.859553 INFO logging.go:76 Args: [/usr/local/bin/yb-voyager assess-migration --send-diagnostics false --source-db-host 127.0.0.1 --source-db-name test_db --source-db-port 5432 --source-db-schema public --source-db-type postgresql --source-db-user ybvoyager --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir --yes=true --invoked-by-export-schema true --iops-capture-interval 0 --yes]
+2026-03-20 13:58:43.859657 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-20 13:58:43.859692 INFO root.go:152 Start time: 2026-03-20 13:58:43.859680246 +0000 UTC m=+0.028402630
+
+2026-03-20 13:58:43.860587 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:43.860828 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-20 13:58:43.867492 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-20 13:58:43.873665 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:43.873762 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:43.873788 INFO root.go:526 'control-plane-type' not set. Setting cp to NoopControlPlane.
+2026-03-20 13:58:43.873805 INFO root.go:198 Environment variable 'SOURCE_DB_PASSWORD' already set with value '********'
+
+2026-03-20 13:58:43.873825 INFO common.go:464 Creating a project directory if not exists...
+2026-03-20 13:58:43.889024 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:43.889174 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-20 13:58:43.889281 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-20 13:58:43.889382 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:43.889466 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:43.889482 INFO logging.go:86 migrationID: efaacadb-4e42-458c-b7eb-3d1bdc471ce2
+
+2026-03-20 13:58:43.889720 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:43.889744 INFO logging.go:175 Assessing for migration to target YugabyteDB version 2025.2.2.0
+
+2026-03-20 13:58:43.897907 INFO assessMigrationCommand.go:255 checking source DB version
+2026-03-20 13:58:43.986569 INFO utils.go:783 Found strings at /usr/bin/strings
+2026-03-20 13:58:43.989350 INFO postgres.go:643 Total size of all PG sourceDB schemas ('public'): 262144
+2026-03-20 13:58:43.989748 INFO logging.go:175 Checking for read replicas...
+2026-03-20 13:58:43.991998 INFO logging.go:86 No read replicas detected. Proceeding with single-node assessment.
+
+2026-03-20 13:58:43.992445 INFO logging.go:86 
+Checking permissions on database...
+
+2026-03-20 13:58:43.997854 INFO logging.go:95 
+=== Permission Check Results ===
+
+2026-03-20 13:58:43.997907 WARN logging.go:89   ⚠ Schemas without ANALYZE: [public] (some optimizations may not be detected)
+
+2026-03-20 13:58:43.997941 WARN logging.go:89   ⚠ pg_stat_statements extension is not installed on source DB, required for detecting Unsupported Query Constructs
+
+2026-03-20 13:58:43.997967 INFO logging.go:175 
+
+2026-03-20 13:58:43.998002 INFO assessmentDB.go:86 initializing assessment db at /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/dbs/assessment.db
+2026-03-20 13:58:44.072195 INFO utils.go:153 get schema object list for "postgresql"
+2026-03-20 13:58:44.072245 INFO common.go:464 Creating a project directory if not exists...
+2026-03-20 13:58:44.101855 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:44.102101 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-20 13:58:44.102216 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-20 13:58:44.102358 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:44.102402 INFO logging.go:175 
+gathering metadata and stats from 'postgresql' source database...
+
+2026-03-20 13:58:44.102440 INFO gather.go:380 found the gather assessment metadata script at: /etc/yb-voyager/gather-assessment-metadata/postgresql/yb-voyager-pg-gather-assessment-metadata.sh
+2026-03-20 13:58:44.102464 INFO logging.go:86 
+Collecting metadata from source database...
+
+2026-03-20 13:58:44.102505 INFO gather.go:390 running script: /etc/yb-voyager/gather-assessment-metadata/postgresql/yb-voyager-pg-gather-assessment-metadata.sh postgresql://ybvoyager@127.0.0.1:5432/test_db public /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata false 0 true primary true
+2026-03-20 13:58:44.106717 INFO gather.go:421 [stdout of script]: sleep interval for calculating iops: 0 seconds
+2026-03-20 13:58:44.170652 INFO gather.go:421 [stdout of script]: Assessment metadata collection started for 'public' schema(s)
+2026-03-20 13:58:44.176710 INFO gather.go:421 [stdout of script]: Collecting column statistics...
+2026-03-20 13:58:44.248967 INFO gather.go:421 [stdout of script]: Collecting db queries summary...
+2026-03-20 13:58:44.253028 INFO gather.go:421 [stdout of script]: Skipping db queries summary: pg_stat_statements extension is not enabled
+2026-03-20 13:58:44.258973 INFO gather.go:421 [stdout of script]: Collecting index to table mapping...
+2026-03-20 13:58:44.326189 INFO gather.go:421 [stdout of script]: Collecting object_type_mapping...
+2026-03-20 13:58:44.382626 INFO gather.go:421 [stdout of script]: Collecting redundant indexes...
+2026-03-20 13:58:44.449840 INFO gather.go:421 [stdout of script]: Collecting table columns count...
+2026-03-20 13:58:44.505115 INFO gather.go:421 [stdout of script]: Collecting table columns data types...
+2026-03-20 13:58:44.565595 INFO gather.go:421 [stdout of script]: Collecting table index iops...
+2026-03-20 13:58:44.682498 INFO gather.go:421 [stdout of script]: Collecting table index sizes...
+2026-03-20 13:58:44.738487 INFO gather.go:421 [stdout of script]: Collecting table index usage stats...
+2026-03-20 13:58:44.796954 INFO gather.go:421 [stdout of script]: Collecting table row counts...
+2026-03-20 13:58:44.882692 INFO gather.go:421 [stdout of script]: Collecting schema information...
+2026-03-20 13:58:44.971424 INFO gather.go:421 [stdout of script]: Assessment metadata collection completed
+2026-03-20 13:58:44.974052 INFO logging.go:83 Successfully completed metadata collection
+
+2026-03-20 13:58:44.974100 INFO logging.go:175 gathered assessment metadata files at '/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata'
+2026-03-20 13:58:44.974123 INFO assessMigrationCommand.go:625 set 'schemaDir' as: /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema
+2026-03-20 13:58:44.974137 INFO utils.go:153 get schema object list for "postgresql"
+2026-03-20 13:58:44.974182 INFO common.go:464 Creating a project directory if not exists...
+2026-03-20 13:58:45.005628 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:45.005822 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-20 13:58:45.005950 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-20 13:58:45.006099 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:45.006133 INFO postgres.go:394 directly parsing the '/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/schema.sql' file
+2026-03-20 13:58:45.006162 INFO pg_dump_extract_schema.go:152 begun parsing the schema file "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/schema.sql"
+2026-03-20 13:58:45.006431 INFO utils.go:137 get schema object list for "postgresql"
+2026-03-20 13:58:45.006528 INFO pg_dump_extract_schema.go:229 creating schema objects file for "TABLE" at "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/tables/table.sql"
+2026-03-20 13:58:45.006640 INFO pg_dump_extract_schema.go:229 creating schema objects file for "SCHEMA" at "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/schemas/schema.sql"
+2026-03-20 13:58:45.006717 INFO pg_dump_extract_schema.go:229 creating schema objects file for "SEQUENCE" at "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/sequences/sequence.sql"
+2026-03-20 13:58:45.006808 INFO pg_dump_extract_schema.go:229 creating schema objects file for "TYPE" at "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/types/type.sql"
+2026-03-20 13:58:45.006879 INFO pg_dump_extract_schema.go:248 schema file "/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/schema.sql" parsed successfully.
+2026-03-20 13:58:45.007158 INFO assessMigrationCommand.go:653 Found 11 CSV files across 1 node(s) for population into assessment DB
+2026-03-20 13:58:45.007639 INFO assessMigrationCommand.go:678 populating metadata from file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/node-primary/column_statistics.csv into table column_statistics
+2026-03-20 13:58:45.007766 WARN assessmentDB.go:254 error while rollback the BulkInsert txn: sql: transaction has already been committed or rolled back
+2026-03-20 13:58:45.007794 INFO assessMigrationCommand.go:684 populated metadata from file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/node-primary/column_statistics.csv into table column_statistics
+2026-03-20 13:58:45.007853 INFO assessMigrationCommand.go:678 populating metadata from file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/node-primary/index-to-table-mapping.csv into table index_to_table_mapping
+2026-03-20 13:58:45.014711 WARN assessmentDB.go:254 error while rollback the BulkInsert txn: sql: transaction has already been committed or rolled back
+2026-03-20 13:58:45.014757 INFO assessMigrationCommand.go:684 populated metadata from file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/node-primary/index-to-table-mapping.csv into table index_to_table_mapping
+2026-03-20 13:58:45.014846 INFO assessMigrationCommand.go:678 populating metadata from file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/node-primary/object-type-mapping.csv into table object_type_mapping
+2026-03-20 13:58:45.021205 WARN assessmentDB.go:254 error while rollback the BulkInsert txn: sql: transaction has already been committed or rolled back
+2026-03-20 13:58:45.021232 INFO assessMigrationCommand.go:684 populated metadata from file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/node-primary/object-type-mapping.csv into table object_type_mapping
+2026-03-20 13:58:45.021296 INFO assessMigrationCommand.go:678 populating metadata from file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/node-primary/redundant-indexes.csv into table redundant_indexes
+2026-03-20 13:58:45.021377 WARN assessmentDB.go:254 error while rollback the BulkInsert txn: sql: transaction has already been committed or rolled back
+2026-03-20 13:58:45.021404 INFO assessMigrationCommand.go:684 populated metadata from file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/node-primary/redundant-indexes.csv into table redundant_indexes
+2026-03-20 13:58:45.021454 INFO assessMigrationCommand.go:678 populating metadata from file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/node-primary/table-columns-count.csv into table table_columns_count
+2026-03-20 13:58:45.027660 WARN assessmentDB.go:254 error while rollback the BulkInsert txn: sql: transaction has already been committed or rolled back
+2026-03-20 13:58:45.027685 INFO assessMigrationCommand.go:684 populated metadata from file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/node-primary/table-columns-count.csv into table table_columns_count
+2026-03-20 13:58:45.027741 INFO assessMigrationCommand.go:678 populating metadata from file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/node-primary/table-columns-data-types.csv into table table_columns_data_types
+2026-03-20 13:58:45.033925 WARN assessmentDB.go:254 error while rollback the BulkInsert txn: sql: transaction has already been committed or rolled back
+2026-03-20 13:58:45.033951 INFO assessMigrationCommand.go:684 populated metadata from file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/node-primary/table-columns-data-types.csv into table table_columns_data_types
+2026-03-20 13:58:45.034008 INFO assessMigrationCommand.go:678 populating metadata from file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/node-primary/table-index-iops-final.csv into table table_index_iops
+2026-03-20 13:58:45.040076 WARN assessmentDB.go:254 error while rollback the BulkInsert txn: sql: transaction has already been committed or rolled back
+2026-03-20 13:58:45.040104 INFO assessMigrationCommand.go:684 populated metadata from file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/node-primary/table-index-iops-final.csv into table table_index_iops
+2026-03-20 13:58:45.040161 INFO assessMigrationCommand.go:678 populating metadata from file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/node-primary/table-index-iops-initial.csv into table table_index_iops
+2026-03-20 13:58:45.046420 WARN assessmentDB.go:254 error while rollback the BulkInsert txn: sql: transaction has already been committed or rolled back
+2026-03-20 13:58:45.046445 INFO assessMigrationCommand.go:684 populated metadata from file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/node-primary/table-index-iops-initial.csv into table table_index_iops
+2026-03-20 13:58:45.046502 INFO assessMigrationCommand.go:678 populating metadata from file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/node-primary/table-index-sizes.csv into table table_index_sizes
+2026-03-20 13:58:45.052729 WARN assessmentDB.go:254 error while rollback the BulkInsert txn: sql: transaction has already been committed or rolled back
+2026-03-20 13:58:45.052758 INFO assessMigrationCommand.go:684 populated metadata from file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/node-primary/table-index-sizes.csv into table table_index_sizes
+2026-03-20 13:58:45.052819 INFO assessMigrationCommand.go:678 populating metadata from file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/node-primary/table-index-usage-stats.csv into table table_index_usage_stats
+2026-03-20 13:58:45.058933 WARN assessmentDB.go:254 error while rollback the BulkInsert txn: sql: transaction has already been committed or rolled back
+2026-03-20 13:58:45.058971 INFO assessMigrationCommand.go:684 populated metadata from file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/node-primary/table-index-usage-stats.csv into table table_index_usage_stats
+2026-03-20 13:58:45.059048 INFO assessMigrationCommand.go:678 populating metadata from file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/node-primary/table-row-counts.csv into table table_row_counts
+2026-03-20 13:58:45.065196 WARN assessmentDB.go:254 error while rollback the BulkInsert txn: sql: transaction has already been committed or rolled back
+2026-03-20 13:58:45.065227 INFO assessMigrationCommand.go:684 populated metadata from file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/node-primary/table-row-counts.csv into table table_row_counts
+2026-03-20 13:58:45.065266 INFO assessmentDB.go:390 executing query for populating migration assessment stats- INSERT INTO table_index_stats (schema_name, object_name, row_count, column_count, reads_per_second, writes_per_second, is_index, object_type, parent_table_name, size_in_bytes)
+	SELECT 
+		trc.schema_name,
+		trc.table_name AS object_name,
+		trc.row_count,
+		tcc.column_count,
+		NULL AS reads_per_second,
+		NULL as writes_per_second,
+		0 AS is_index,
+		otm.object_type,
+		NULL AS parent_table_name,
+		tis.size_in_bytes
+	FROM table_row_counts trc
+	LEFT JOIN table_index_iops tii ON trc.schema_name = tii.schema_name AND trc.table_name = tii.object_name and tii.measurement_type='initial' AND tii.source_node = 'primary'
+	LEFT JOIN table_index_sizes tis ON trc.schema_name = tis.schema_name AND trc.table_name = tis.object_name AND tis.source_node = 'primary'
+	LEFT JOIN table_columns_count tcc ON trc.schema_name = tcc.schema_name AND trc.table_name = tcc.object_name AND tcc.source_node = 'primary'
+	LEFT JOIN object_type_mapping otm ON trc.schema_name = otm.schema_name AND trc.table_name = otm.object_name AND otm.source_node = 'primary'
+	WHERE trc.source_node = 'primary' AND otm.object_type NOT IN ('partitioned table', 'partitioned index');
+2026-03-20 13:58:45.071601 INFO assessmentDB.go:390 executing query for populating migration assessment stats- INSERT INTO table_index_stats (schema_name, object_name, row_count, column_count, reads_per_second, writes_per_second, is_index, object_type, parent_table_name, size_in_bytes)
+	SELECT 
+		itm.index_schema AS schema_name,
+		itm.index_name AS object_name,
+		NULL AS row_count,
+		tcc.column_count,
+		NULL AS reads_per_second,
+		NULL as writes_per_second,
+		1 AS is_index,
+		otm.object_type,
+		itm.table_schema || '.' || itm.table_name AS parent_table_name,
+		tis.size_in_bytes
+	FROM index_to_table_mapping itm
+	LEFT JOIN table_index_iops tii ON itm.index_schema = tii.schema_name AND itm.index_name = tii.object_name and tii.measurement_type='initial' AND tii.source_node = 'primary'
+	LEFT JOIN table_index_sizes tis ON itm.index_schema = tis.schema_name AND itm.index_name = tis.object_name AND tis.source_node = 'primary'
+	LEFT JOIN table_columns_count tcc ON itm.index_schema = tcc.schema_name AND itm.index_name = tcc.object_name AND tcc.source_node = 'primary'
+	LEFT JOIN object_type_mapping otm ON itm.index_schema = otm.schema_name AND itm.index_name = otm.object_name AND otm.source_node = 'primary'
+	WHERE itm.source_node = 'primary' AND otm.object_type NOT IN ('partitioned table', 'partitioned index');
+2026-03-20 13:58:45.077784 INFO assessmentDB.go:390 executing query for populating migration assessment stats- CREATE TEMP TABLE read_write_rates AS
+	SELECT
+		initial.schema_name,
+		initial.object_name,
+		initial.object_type,
+		-- Sum reads across ALL nodes (primary + replicas)
+		(SUM(final.seq_reads) - SUM(initial.seq_reads)) / 1 AS seq_reads_per_second, -- iops capture interval(default: 120)
+		-- Take writes from PRIMARY only
+		(SUM(CASE WHEN final.source_node = 'primary' THEN final.row_writes ELSE 0 END) - 
+		 SUM(CASE WHEN initial.source_node = 'primary' THEN initial.row_writes ELSE 0 END)) / 1 AS row_writes_per_second
+	FROM
+		table_index_iops AS initial
+	JOIN
+		table_index_iops AS final ON initial.schema_name = final.schema_name
+									AND initial.object_name = final.object_name
+									AND initial.source_node = final.source_node -- Match snapshots from same node (primary↔primary, replica1↔replica1, etc.)
+									AND final.measurement_type = 'final'
+	WHERE
+		initial.measurement_type = 'initial'
+	GROUP BY initial.schema_name, initial.object_name, initial.object_type; -- Collapse multi-node data into single row per object
+2026-03-20 13:58:45.078099 INFO assessmentDB.go:390 executing query for populating migration assessment stats- UPDATE table_index_stats
+	SET
+		reads_per_second = (SELECT seq_reads_per_second
+							FROM read_write_rates
+							WHERE read_write_rates.schema_name = table_index_stats.schema_name
+								AND read_write_rates.object_name = table_index_stats.object_name),
+		writes_per_second = (SELECT row_writes_per_second
+								FROM read_write_rates
+									WHERE read_write_rates.schema_name = table_index_stats.schema_name
+									AND read_write_rates.object_name = table_index_stats.object_name)
+	WHERE EXISTS (
+		SELECT 1
+		FROM read_write_rates
+		WHERE read_write_rates.schema_name = table_index_stats.schema_name
+			AND read_write_rates.object_name = table_index_stats.object_name
+	);
+2026-03-20 13:58:45.084371 INFO assessmentDB.go:400 fetching all stats info from "table_index_stats" table
+2026-03-20 13:58:45.084532 INFO assessMigrationCommand.go:523 running assessment for migration from 'postgresql' to YugabyteDB
+2026-03-20 13:58:45.084550 INFO sizing.go:167 loading metadata files for sharding assessment
+2026-03-20 13:58:45.084964 INFO sizing.go:1739 fetching redundant indexes from "redundant_indexes" table
+2026-03-20 13:58:45.085397 INFO sizing.go:197 Experiment data yb version id used for sizing assessment: 2
+
+2026-03-20 13:58:45.085656 INFO sizing.go:375 vCPU: 16 & cores required: 48 gives nodes required: 3
+
+2026-03-20 13:58:45.085679 INFO sizing.go:375 vCPU: 8 & cores required: 24 gives nodes required: 3
+
+2026-03-20 13:58:45.085691 INFO sizing.go:375 vCPU: 4 & cores required: 12 gives nodes required: 3
+
+2026-03-20 13:58:45.085704 INFO sizing.go:375 vCPU: 16 & cores required: 48 gives nodes required: 3
+
+2026-03-20 13:58:45.085714 INFO sizing.go:375 vCPU: 8 & cores required: 24 gives nodes required: 3
+
+2026-03-20 13:58:45.085723 INFO sizing.go:375 vCPU: 4 & cores required: 12 gives nodes required: 3
+
+2026-03-20 13:58:45.085735 INFO sizing.go:472 Selected all-sharded strategy: same nodes (3), preferring all-sharded strategy
+2026-03-20 13:58:45.085977 INFO assessMigrationCommand.go:535 Recommendation: colocated tables: []
+2026-03-20 13:58:45.086000 INFO assessMigrationCommand.go:536 Recommendation: sharded tables: [public.cutover_table public.datatypes1 public.datatypes2 public.datetime_type public.datetime_type2 public.decimal_types public.null_and_default public.num_types public.test_table public.tsvector_table]
+2026-03-20 13:58:45.086015 INFO assessMigrationCommand.go:537 Recommendation: Cluster size: Num Nodes: 3.000000, vCPU per instance: 4, Memory per instance: 16, Estimated Import Time: 0.000000 minutes, Estimated Import Time Without Redundant Indexes: 0.000000 minutes
+2026-03-20 13:58:45.086027 INFO logging.go:175 Generating assessment report...
+2026-03-20 13:58:45.086085 INFO utils.go:137 get schema object list for "postgresql"
+2026-03-20 13:58:45.086100 INFO analyzeSchema.go:1039 initializing report summary map
+2026-03-20 13:58:45.086130 INFO analyzeSchema.go:889 Reading SCHEMA DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/schemas/schema.sql
+2026-03-20 13:58:45.086772 INFO analyzeSchema.go:332 checking SQL statements using parser for object type SCHEMA in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/schemas/schema.sql
+2026-03-20 13:58:45.089492 INFO analyzeSchema.go:889 Reading COLLATION DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/collations/collation.sql
+2026-03-20 13:58:45.089533 INFO analyzeSchema.go:889 Reading EXTENSION DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/extensions/extension.sql
+2026-03-20 13:58:45.089554 INFO analyzeSchema.go:889 Reading TYPE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/types/type.sql
+2026-03-20 13:58:45.090478 INFO analyzeSchema.go:332 checking SQL statements using parser for object type TYPE in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/types/type.sql
+2026-03-20 13:58:45.091374 INFO analyzeSchema.go:889 Reading DOMAIN DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/domains/domain.sql
+2026-03-20 13:58:45.091412 INFO analyzeSchema.go:889 Reading SEQUENCE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/sequences/sequence.sql
+2026-03-20 13:58:45.093899 INFO analyzeSchema.go:332 checking SQL statements using parser for object type SEQUENCE in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/sequences/sequence.sql
+2026-03-20 13:58:45.095674 INFO analyzeSchema.go:889 Reading TABLE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/tables/table.sql
+2026-03-20 13:58:45.104428 INFO analyzeSchema.go:332 checking SQL statements using parser for object type TABLE in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/tables/table.sql
+2026-03-20 13:58:45.125165 INFO analyzeSchema.go:889 Reading INDEX DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/tables/INDEXES_table.sql
+2026-03-20 13:58:45.125219 INFO analyzeSchema.go:889 Reading PARTITION_INDEX DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/partitions/PARTITION_INDEXES_partition.sql
+2026-03-20 13:58:45.125237 INFO analyzeSchema.go:889 Reading FTS_INDEX DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/tables/FTS_INDEXES_table.sql
+2026-03-20 13:58:45.125253 INFO analyzeSchema.go:889 Reading FUNCTION DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/functions/function.sql
+2026-03-20 13:58:45.125269 INFO analyzeSchema.go:889 Reading AGGREGATE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/aggregates/aggregate.sql
+2026-03-20 13:58:45.125293 INFO analyzeSchema.go:889 Reading PROCEDURE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/procedures/procedure.sql
+2026-03-20 13:58:45.125312 INFO analyzeSchema.go:889 Reading VIEW DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/views/view.sql
+2026-03-20 13:58:45.125336 INFO analyzeSchema.go:889 Reading TRIGGER DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/triggers/trigger.sql
+2026-03-20 13:58:45.125351 INFO analyzeSchema.go:889 Reading MVIEW DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/mviews/mview.sql
+2026-03-20 13:58:45.125367 INFO analyzeSchema.go:889 Reading RULE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/rules/rule.sql
+2026-03-20 13:58:45.125386 INFO analyzeSchema.go:889 Reading COMMENT DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/comments/comment.sql
+2026-03-20 13:58:45.125411 INFO analyzeSchema.go:889 Reading CONVERSION DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/conversions/conversion.sql
+2026-03-20 13:58:45.125426 INFO analyzeSchema.go:889 Reading FOREIGN TABLE DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/tables/foreign_table.sql
+2026-03-20 13:58:45.125440 INFO analyzeSchema.go:889 Reading POLICY DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/policies/policy.sql
+2026-03-20 13:58:45.125456 INFO analyzeSchema.go:889 Reading OPERATOR DDLs in file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/metadata/schema/operators/operator.sql
+2026-03-20 13:58:45.125548 INFO metadataDB.go:299 No json object found for key: source_indexes_info_key
+2026-03-20 13:58:45.125579 INFO assessMigrationCommand.go:1015 fetching unsupported features for PG...
+2026-03-20 13:58:45.125592 INFO assessMigrationCommand.go:954 filtering issues for feature: GIST indexes
+2026-03-20 13:58:45.125609 INFO assessMigrationCommand.go:954 filtering issues for feature: BRIN indexes
+2026-03-20 13:58:45.125619 INFO assessMigrationCommand.go:954 filtering issues for feature: SPGIST indexes
+2026-03-20 13:58:45.125628 INFO assessMigrationCommand.go:954 filtering issues for feature: Constraint triggers
+2026-03-20 13:58:45.125637 INFO assessMigrationCommand.go:954 filtering issues for feature: Inherited tables
+2026-03-20 13:58:45.125646 INFO assessMigrationCommand.go:954 filtering issues for feature: Tables with stored generated columns
+2026-03-20 13:58:45.125655 INFO assessMigrationCommand.go:954 filtering issues for feature: Conversion objects
+2026-03-20 13:58:45.125664 INFO assessMigrationCommand.go:954 filtering issues for feature: Gin indexes on multi-columns
+2026-03-20 13:58:45.125674 INFO assessMigrationCommand.go:954 filtering issues for feature: Setting attribute=value on column
+2026-03-20 13:58:45.125684 INFO assessMigrationCommand.go:954 filtering issues for feature: Disabling rule on table
+2026-03-20 13:58:45.125693 INFO assessMigrationCommand.go:954 filtering issues for feature: Clustering table on index
+2026-03-20 13:58:45.125708 INFO assessMigrationCommand.go:954 filtering issues for feature: Storage parameters in DDLs
+2026-03-20 13:58:45.125716 INFO assessMigrationCommand.go:954 filtering issues for feature: Extensions
+2026-03-20 13:58:45.125725 INFO assessMigrationCommand.go:954 filtering issues for feature: Exclusion constraints
+2026-03-20 13:58:45.125733 INFO assessMigrationCommand.go:954 filtering issues for feature: Deferrable constraints
+2026-03-20 13:58:45.125741 INFO assessMigrationCommand.go:954 filtering issues for feature: View with check option
+2026-03-20 13:58:45.125754 INFO assessMigrationCommand.go:1100 fetching unsupported features for Index on complex datatypes...
+2026-03-20 13:58:45.125764 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with citext datatype
+2026-03-20 13:58:45.125773 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with tsvector datatype
+2026-03-20 13:58:45.125797 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with tsquery datatype
+2026-03-20 13:58:45.125807 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with jsonb datatype
+2026-03-20 13:58:45.125815 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with inet datatype
+2026-03-20 13:58:45.125825 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with json datatype
+2026-03-20 13:58:45.125833 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with macaddr datatype
+2026-03-20 13:58:45.125842 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with macaddr8 datatype
+2026-03-20 13:58:45.125850 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with cidr datatype
+2026-03-20 13:58:45.125861 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with bit datatype
+2026-03-20 13:58:45.125869 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with varbit datatype
+2026-03-20 13:58:45.125878 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with daterange datatype
+2026-03-20 13:58:45.125905 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with tsrange datatype
+2026-03-20 13:58:45.125914 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with tstzrange datatype
+2026-03-20 13:58:45.125923 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with numrange datatype
+2026-03-20 13:58:45.125932 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with int4range datatype
+2026-03-20 13:58:45.125943 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with int8range datatype
+2026-03-20 13:58:45.125951 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with interval datatype
+2026-03-20 13:58:45.125961 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with circle datatype
+2026-03-20 13:58:45.125970 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with box datatype
+2026-03-20 13:58:45.125978 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with line datatype
+2026-03-20 13:58:45.125987 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with lseg datatype
+2026-03-20 13:58:45.126000 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with point datatype
+2026-03-20 13:58:45.126008 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with pg_lsn datatype
+2026-03-20 13:58:45.126017 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with path datatype
+2026-03-20 13:58:45.126026 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with polygon datatype
+2026-03-20 13:58:45.126034 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with txid_snapshot datatype
+2026-03-20 13:58:45.126043 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with array datatype
+2026-03-20 13:58:45.126052 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with user defined datatype
+2026-03-20 13:58:45.126062 INFO assessMigrationCommand.go:1086 fetching unsupported features for PK/UK on complex datatypes...
+2026-03-20 13:58:45.126073 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with citext datatype
+2026-03-20 13:58:45.126087 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with tsvector datatype
+2026-03-20 13:58:45.126095 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with tsquery datatype
+2026-03-20 13:58:45.126104 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with jsonb datatype
+2026-03-20 13:58:45.126113 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with inet datatype
+2026-03-20 13:58:45.126122 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with json datatype
+2026-03-20 13:58:45.126130 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with macaddr datatype
+2026-03-20 13:58:45.126143 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with macaddr8 datatype
+2026-03-20 13:58:45.126152 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with cidr datatype
+2026-03-20 13:58:45.126164 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with bit datatype
+2026-03-20 13:58:45.126172 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with varbit datatype
+2026-03-20 13:58:45.126181 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with daterange datatype
+2026-03-20 13:58:45.126190 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with tsrange datatype
+2026-03-20 13:58:45.126199 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with tstzrange datatype
+2026-03-20 13:58:45.126207 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with numrange datatype
+2026-03-20 13:58:45.126216 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with int4range datatype
+2026-03-20 13:58:45.126224 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with int8range datatype
+2026-03-20 13:58:45.126234 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with interval datatype
+2026-03-20 13:58:45.126243 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with circle datatype
+2026-03-20 13:58:45.126251 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with box datatype
+2026-03-20 13:58:45.126259 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with line datatype
+2026-03-20 13:58:45.126267 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with lseg datatype
+2026-03-20 13:58:45.126276 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with point datatype
+2026-03-20 13:58:45.126284 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with pg_lsn datatype
+2026-03-20 13:58:45.126292 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with path datatype
+2026-03-20 13:58:45.126301 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with polygon datatype
+2026-03-20 13:58:45.126309 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with txid_snapshot datatype
+2026-03-20 13:58:45.126317 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with array datatype
+2026-03-20 13:58:45.126326 INFO assessMigrationCommand.go:954 filtering issues for feature: Primary/Unique key on column with user defined datatype
+2026-03-20 13:58:45.126337 INFO assessMigrationCommand.go:954 filtering issues for feature: Unlogged tables
+2026-03-20 13:58:45.126345 INFO assessMigrationCommand.go:954 filtering issues for feature: REFERENCING clause for triggers
+2026-03-20 13:58:45.126354 INFO assessMigrationCommand.go:954 filtering issues for feature: BEFORE ROW triggers on Partitioned tables
+2026-03-20 13:58:45.126362 INFO assessMigrationCommand.go:954 filtering issues for feature: Advisory Locks
+2026-03-20 13:58:45.126370 INFO assessMigrationCommand.go:954 filtering issues for feature: XML Functions
+2026-03-20 13:58:45.126378 INFO assessMigrationCommand.go:954 filtering issues for feature: System Columns
+2026-03-20 13:58:45.126386 INFO assessMigrationCommand.go:954 filtering issues for feature: System Columns
+2026-03-20 13:58:45.126395 INFO assessMigrationCommand.go:954 filtering issues for feature: System Columns
+2026-03-20 13:58:45.126403 INFO assessMigrationCommand.go:954 filtering issues for feature: System Columns
+2026-03-20 13:58:45.126411 INFO assessMigrationCommand.go:954 filtering issues for feature: System Columns
+2026-03-20 13:58:45.126419 INFO assessMigrationCommand.go:954 filtering issues for feature: Large Object Functions
+2026-03-20 13:58:45.126427 INFO assessMigrationCommand.go:954 filtering issues for feature: Regex Functions
+2026-03-20 13:58:45.126435 INFO assessMigrationCommand.go:954 filtering issues for feature: FETCH .. WITH TIES Clause
+2026-03-20 13:58:45.126443 INFO assessMigrationCommand.go:954 filtering issues for feature: Json Query Functions
+2026-03-20 13:58:45.126451 INFO assessMigrationCommand.go:954 filtering issues for feature: Json Constructor Functions
+2026-03-20 13:58:45.126459 INFO assessMigrationCommand.go:954 filtering issues for feature: ANY_VALUE() aggregate Function
+2026-03-20 13:58:45.126468 INFO assessMigrationCommand.go:954 filtering issues for feature: Range aggregate Functions
+2026-03-20 13:58:45.126476 INFO assessMigrationCommand.go:954 filtering issues for feature: Security Invoker Views
+2026-03-20 13:58:45.126484 INFO assessMigrationCommand.go:954 filtering issues for feature: Deterministic attribute in collation
+2026-03-20 13:58:45.126493 INFO assessMigrationCommand.go:954 filtering issues for feature: Non-Deterministic collations
+2026-03-20 13:58:45.126501 INFO assessMigrationCommand.go:954 filtering issues for feature: Unique Nulls Not Distinct
+2026-03-20 13:58:45.126509 INFO assessMigrationCommand.go:954 filtering issues for feature: Jsonb Subscripting
+2026-03-20 13:58:45.126521 INFO assessMigrationCommand.go:954 filtering issues for feature: Foreign key constraint references partitioned table
+2026-03-20 13:58:45.126528 INFO assessMigrationCommand.go:954 filtering issues for feature: Json Type Predicate
+2026-03-20 13:58:45.126536 INFO assessMigrationCommand.go:954 filtering issues for feature: SQL Body in function
+2026-03-20 13:58:45.126544 INFO assessMigrationCommand.go:954 filtering issues for feature: CTE with MATERIALIZE clause
+2026-03-20 13:58:45.126552 INFO assessMigrationCommand.go:954 filtering issues for feature: Non-decimal integer literal
+2026-03-20 13:58:45.126560 INFO assessMigrationCommand.go:954 filtering issues for feature: COMPRESSION clause in table for TOASTing
+2026-03-20 13:58:45.126568 INFO assessMigrationCommand.go:954 filtering issues for feature: Hotspots with indexes on date as first column
+2026-03-20 13:58:45.126577 INFO assessMigrationCommand.go:954 filtering issues for feature: Hotspots with indexes on timestamp as first column
+2026-03-20 13:58:45.126585 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on low-cardinality column
+2026-03-20 13:58:45.126593 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with high percentage of a particular value
+2026-03-20 13:58:45.126601 INFO assessMigrationCommand.go:954 filtering issues for feature: Index on column with a high percentage of NULL values
+2026-03-20 13:58:45.126610 INFO assessMigrationCommand.go:954 filtering issues for feature: Hotspots with primary/unique key constraint on date as first column
+2026-03-20 13:58:45.126620 INFO assessMigrationCommand.go:954 filtering issues for feature: Hotspots with primary/unique key constraint on timestamp as first column
+2026-03-20 13:58:45.126629 INFO assessMigrationCommand.go:954 filtering issues for feature: Foreign key datatype mismatch
+2026-03-20 13:58:45.126637 INFO assessMigrationCommand.go:954 filtering issues for feature: Missing index on foreign key columns
+2026-03-20 13:58:45.126646 INFO assessMigrationCommand.go:954 filtering issues for feature: Missing primary key for table when unique and not null columns exist
+2026-03-20 13:58:45.126769 INFO assessMigrationCommand.go:1287 queries info not present in the assessment metadata for detecting unsupported query constructs
+2026-03-20 13:58:45.126942 INFO assessMigrationCommand.go:1613 add migration caveats to assessment report
+2026-03-20 13:58:45.126960 INFO assessMigrationCommand.go:954 filtering issues for feature: Alter partitioned tables to add Primary Key
+2026-03-20 13:58:45.126976 INFO assessMigrationCommand.go:954 filtering issues for feature: Foreign tables
+2026-03-20 13:58:45.126986 INFO assessMigrationCommand.go:954 filtering issues for feature: Policies
+2026-03-20 13:58:45.126996 INFO migration_complexity.go:53 calculating migration complexity for postgresql...
+2026-03-20 13:58:45.127007 INFO migration_complexity.go:81 issue counts: level-1=0, level-2=0, level-3=0
+
+2026-03-20 13:58:45.127022 INFO migration_complexity.go:88 complexities according to each level: [LOW LOW LOW]
+2026-03-20 13:58:45.127037 INFO assessMigrationCommand.go:740 migration complexity: "LOW" and explanation: "Found 0 Level 1 issue(s) and 0 Level 2 issue(s), resulting in LOW migration complexity"
+2026-03-20 13:58:45.127048 INFO assessmentDB.go:400 fetching all stats info from "table_index_stats" table
+2026-03-20 13:58:45.127179 INFO assessMigrationCommand.go:1571 adding notes to assessment report
+2026-03-20 13:58:45.127196 INFO assessMigrationCommand.go:1738 writing assessment report to file: /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/reports/migration_assessment_report.json
+2026-03-20 13:58:45.127557 INFO logging.go:175 generated JSON assessment report at: /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/reports/migration_assessment_report.json
+2026-03-20 13:58:45.127582 INFO assessMigrationCommand.go:1816 writing assessment report to file: /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/reports/migration_assessment_report.html
+2026-03-20 13:58:45.127614 INFO assessMigrationCommand.go:1829 creating template for assessment report...
+2026-03-20 13:58:45.128068 INFO assessMigrationCommand.go:1850 execute template for assessment report...
+2026-03-20 13:58:45.128571 INFO logging.go:175 generated HTML assessment report at: /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir/assessment/reports/migration_assessment_report.html
+2026-03-20 13:58:45.128594 INFO assessMigrationCommand.go:348 number of assessment issues detected: 0
+
+2026-03-20 13:58:45.128614 INFO logging.go:183 Migration assessment completed successfully.
+2026-03-20 13:58:45.129020 INFO yugabyted_event_builder.go:129 assess migration payload send to yugabyted: {"PayloadVersion":"1.8","VoyagerVersion":"main","TargetDBVersion":"2025.2.2.0","MigrationComplexity":"LOW","MigrationComplexityExplanation":"Found 0 Level 1 issue(s) and 0 Level 2 issue(s), resulting in LOW migration complexity","SchemaSummary":{"Description":"Objects that will be created on the target YugabyteDB.","DbName":"test_db","SchemaNames":[],"DbVersion":"17.8 (Ubuntu 17.8-1.pgdg22.04+1)","DatabaseObjects":[{"ObjectType":"SCHEMA","TotalCount":1,"InvalidCount":0,"ObjectNames":"public"},{"ObjectType":"TYPE","TotalCount":1,"InvalidCount":0,"ObjectNames":"public.week"},{"ObjectType":"SEQUENCE","TotalCount":7,"InvalidCount":0,"ObjectNames":"public.cutover_table_id_seq, public.datatypes1_id_seq, public.datatypes2_id_seq, public.datetime_type2_id_seq, public.datetime_type_id_seq, public.num_types_id_seq, public.tsvector_table_id_seq"},{"ObjectType":"TABLE","TotalCount":10,"InvalidCount":0,"ObjectNames":"public.cutover_table, public.datatypes1, public.datatypes2, public.datetime_type, public.datetime_type2, public.decimal_types, public.null_and_default, public.num_types, public.test_table, public.tsvector_table"}]},"ParsedSchemaSummary":{"Description":"Objects that will be created on the target YugabyteDB.","DbName":"test_db","SchemaNames":[],"DbVersion":"17.8 (Ubuntu 17.8-1.pgdg22.04+1)","DatabaseObjects":[{"ObjectType":"SCHEMA","TotalCount":1,"InvalidCount":0,"Objects":[{"ObjectName":"public"}]},{"ObjectType":"TYPE","TotalCount":1,"InvalidCount":0,"Objects":[{"ObjectName":"week","SchemaName":"public"}]},{"ObjectType":"SEQUENCE","TotalCount":7,"InvalidCount":0,"Objects":[{"ObjectName":"cutover_table_id_seq","SchemaName":"public"},{"ObjectName":"datatypes1_id_seq","SchemaName":"public"},{"ObjectName":"datatypes2_id_seq","SchemaName":"public"},{"ObjectName":"datetime_type2_id_seq","SchemaName":"public"},{"ObjectName":"datetime_type_id_seq","SchemaName":"public"},{"ObjectName":"num_types_id_seq","SchemaName":"public"},{"ObjectName":"tsvector_table_id_seq","SchemaName":"public"}]},{"ObjectType":"TABLE","TotalCount":10,"InvalidCount":0,"Objects":[{"ObjectName":"cutover_table","SchemaName":"public"},{"ObjectName":"datatypes1","SchemaName":"public"},{"ObjectName":"datatypes2","SchemaName":"public"},{"ObjectName":"datetime_type","SchemaName":"public"},{"ObjectName":"datetime_type2","SchemaName":"public"},{"ObjectName":"decimal_types","SchemaName":"public"},{"ObjectName":"null_and_default","SchemaName":"public"},{"ObjectName":"num_types","SchemaName":"public"},{"ObjectName":"test_table","SchemaName":"public"},{"ObjectName":"tsvector_table","SchemaName":"public"}]}]},"AssessmentIssues":null,"SourceSizeDetails":{"TotalDBSize":262144,"TotalTableSize":0,"TotalIndexSize":81920,"TotalTableRowCount":0},"TargetRecommendations":{"TotalColocatedSize":0,"TotalShardedSize":0},"ConversionIssues":[],"Sizing":{"SizingRecommendation":{"ColocatedTables":null,"ColocatedReasoning":"Recommended instance type with 4 vCPU and 16 GiB memory could fit 10 objects (10 tables/materialized views and 0 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.","ShardedTables":["public.cutover_table","public.datatypes1","public.datatypes2","public.datetime_type","public.datetime_type2","public.decimal_types","public.null_and_default","public.num_types","public.test_table","public.tsvector_table"],"NumNodes":3,"VCPUsPerInstance":4,"MemoryPerInstance":16,"OptimalSelectConnectionsPerNode":10,"OptimalInsertConnectionsPerNode":12,"EstimatedTimeInMinForImport":0,"EstimatedTimeInMinForImportWithoutRedundantIndexes":0},"FailureReasoning":""},"TableIndexStats":[{"SchemaName":"public","ObjectName":"cutover_table","RowCount":0,"ColumnCount":2,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":false,"ObjectType":"table","ParentTableName":null,"SizeInBytes":0},{"SchemaName":"public","ObjectName":"cutover_table_pkey","RowCount":null,"ColumnCount":1,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":true,"ObjectType":"primary key","ParentTableName":"public.cutover_table","SizeInBytes":8192},{"SchemaName":"public","ObjectName":"datatypes1","RowCount":0,"ColumnCount":6,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":false,"ObjectType":"table","ParentTableName":null,"SizeInBytes":0},{"SchemaName":"public","ObjectName":"datatypes1_pkey","RowCount":null,"ColumnCount":1,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":true,"ObjectType":"primary key","ParentTableName":"public.datatypes1","SizeInBytes":8192},{"SchemaName":"public","ObjectName":"datatypes2","RowCount":0,"ColumnCount":5,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":false,"ObjectType":"table","ParentTableName":null,"SizeInBytes":0},{"SchemaName":"public","ObjectName":"datatypes2_pkey","RowCount":null,"ColumnCount":1,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":true,"ObjectType":"primary key","ParentTableName":"public.datatypes2","SizeInBytes":8192},{"SchemaName":"public","ObjectName":"datetime_type","RowCount":0,"ColumnCount":5,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":false,"ObjectType":"table","ParentTableName":null,"SizeInBytes":0},{"SchemaName":"public","ObjectName":"datetime_type2","RowCount":0,"ColumnCount":2,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":false,"ObjectType":"table","ParentTableName":null,"SizeInBytes":0},{"SchemaName":"public","ObjectName":"datetime_type2_pkey","RowCount":null,"ColumnCount":1,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":true,"ObjectType":"primary key","ParentTableName":"public.datetime_type2","SizeInBytes":8192},{"SchemaName":"public","ObjectName":"datetime_type_pkey","RowCount":null,"ColumnCount":1,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":true,"ObjectType":"primary key","ParentTableName":"public.datetime_type","SizeInBytes":8192},{"SchemaName":"public","ObjectName":"decimal_types","RowCount":0,"ColumnCount":3,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":false,"ObjectType":"table","ParentTableName":null,"SizeInBytes":0},{"SchemaName":"public","ObjectName":"decimal_types_pkey","RowCount":null,"ColumnCount":1,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":true,"ObjectType":"primary key","ParentTableName":"public.decimal_types","SizeInBytes":8192},{"SchemaName":"public","ObjectName":"null_and_default","RowCount":0,"ColumnCount":4,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":false,"ObjectType":"table","ParentTableName":null,"SizeInBytes":0},{"SchemaName":"public","ObjectName":"null_and_default_pkey","RowCount":null,"ColumnCount":1,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":true,"ObjectType":"primary key","ParentTableName":"public.null_and_default","SizeInBytes":8192},{"SchemaName":"public","ObjectName":"num_types","RowCount":0,"ColumnCount":6,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":false,"ObjectType":"table","ParentTableName":null,"SizeInBytes":0},{"SchemaName":"public","ObjectName":"num_types_pkey","RowCount":null,"ColumnCount":1,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":true,"ObjectType":"primary key","ParentTableName":"public.num_types","SizeInBytes":8192},{"SchemaName":"public","ObjectName":"test_table","RowCount":0,"ColumnCount":2,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":false,"ObjectType":"table","ParentTableName":null,"SizeInBytes":0},{"SchemaName":"public","ObjectName":"test_table_pkey","RowCount":null,"ColumnCount":1,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":true,"ObjectType":"primary key","ParentTableName":"public.test_table","SizeInBytes":8192},{"SchemaName":"public","ObjectName":"tsvector_table","RowCount":0,"ColumnCount":5,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":false,"ObjectType":"table","ParentTableName":null,"SizeInBytes":0},{"SchemaName":"public","ObjectName":"tsvector_table_pkey","RowCount":null,"ColumnCount":1,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":true,"ObjectType":"primary key","ParentTableName":"public.tsvector_table","SizeInBytes":8192}],"GeneralNotes":["Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official \u003ca class=\"highlight-link\" target=\"_blank\" href=\"https://docs.yugabyte.com/preview/releases/ybdb-releases/\"\u003erelease notes\u003c/a\u003e for detailed information and usage guidelines.","\u003ca class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\"\u003eLimitations in assessment\u003c/a\u003e"],"ColocatedShardedNotes":null,"SizingNotes":["Import data time estimates exclude redundant indexes since they are automatically removed during export schema phase."],"AssessmentJsonReport":{"VoyagerVersion":"main","TargetDBVersion":"2025.2.2.0","MigrationComplexity":"LOW","SchemaSummary":{"Description":"Objects that will be created on the target YugabyteDB.","DbName":"test_db","SchemaNames":[],"DbVersion":"17.8 (Ubuntu 17.8-1.pgdg22.04+1)","DatabaseObjects":[{"ObjectType":"SCHEMA","TotalCount":1,"InvalidCount":0,"ObjectNames":"public"},{"ObjectType":"TYPE","TotalCount":1,"InvalidCount":0,"ObjectNames":"public.week"},{"ObjectType":"SEQUENCE","TotalCount":7,"InvalidCount":0,"ObjectNames":"public.cutover_table_id_seq, public.datatypes1_id_seq, public.datatypes2_id_seq, public.datetime_type2_id_seq, public.datetime_type_id_seq, public.num_types_id_seq, public.tsvector_table_id_seq"},{"ObjectType":"TABLE","TotalCount":10,"InvalidCount":0,"ObjectNames":"public.cutover_table, public.datatypes1, public.datatypes2, public.datetime_type, public.datetime_type2, public.decimal_types, public.null_and_default, public.num_types, public.test_table, public.tsvector_table"}]},"Sizing":{"SizingRecommendation":{"ColocatedTables":null,"ColocatedReasoning":"Recommended instance type with 4 vCPU and 16 GiB memory could fit 10 objects (10 tables/materialized views and 0 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.","ShardedTables":["public.cutover_table","public.datatypes1","public.datatypes2","public.datetime_type","public.datetime_type2","public.decimal_types","public.null_and_default","public.num_types","public.test_table","public.tsvector_table"],"NumNodes":3,"VCPUsPerInstance":4,"MemoryPerInstance":16,"OptimalSelectConnectionsPerNode":10,"OptimalInsertConnectionsPerNode":12,"EstimatedTimeInMinForImport":0,"EstimatedTimeInMinForImportWithoutRedundantIndexes":0},"FailureReasoning":""},"TableIndexStats":[{"SchemaName":"public","ObjectName":"cutover_table","RowCount":0,"ColumnCount":2,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":false,"ObjectType":"table","ParentTableName":null,"SizeInBytes":0},{"SchemaName":"public","ObjectName":"cutover_table_pkey","RowCount":null,"ColumnCount":1,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":true,"ObjectType":"primary key","ParentTableName":"public.cutover_table","SizeInBytes":8192},{"SchemaName":"public","ObjectName":"datatypes1","RowCount":0,"ColumnCount":6,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":false,"ObjectType":"table","ParentTableName":null,"SizeInBytes":0},{"SchemaName":"public","ObjectName":"datatypes1_pkey","RowCount":null,"ColumnCount":1,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":true,"ObjectType":"primary key","ParentTableName":"public.datatypes1","SizeInBytes":8192},{"SchemaName":"public","ObjectName":"datatypes2","RowCount":0,"ColumnCount":5,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":false,"ObjectType":"table","ParentTableName":null,"SizeInBytes":0},{"SchemaName":"public","ObjectName":"datatypes2_pkey","RowCount":null,"ColumnCount":1,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":true,"ObjectType":"primary key","ParentTableName":"public.datatypes2","SizeInBytes":8192},{"SchemaName":"public","ObjectName":"datetime_type","RowCount":0,"ColumnCount":5,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":false,"ObjectType":"table","ParentTableName":null,"SizeInBytes":0},{"SchemaName":"public","ObjectName":"datetime_type2","RowCount":0,"ColumnCount":2,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":false,"ObjectType":"table","ParentTableName":null,"SizeInBytes":0},{"SchemaName":"public","ObjectName":"datetime_type2_pkey","RowCount":null,"ColumnCount":1,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":true,"ObjectType":"primary key","ParentTableName":"public.datetime_type2","SizeInBytes":8192},{"SchemaName":"public","ObjectName":"datetime_type_pkey","RowCount":null,"ColumnCount":1,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":true,"ObjectType":"primary key","ParentTableName":"public.datetime_type","SizeInBytes":8192},{"SchemaName":"public","ObjectName":"decimal_types","RowCount":0,"ColumnCount":3,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":false,"ObjectType":"table","ParentTableName":null,"SizeInBytes":0},{"SchemaName":"public","ObjectName":"decimal_types_pkey","RowCount":null,"ColumnCount":1,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":true,"ObjectType":"primary key","ParentTableName":"public.decimal_types","SizeInBytes":8192},{"SchemaName":"public","ObjectName":"null_and_default","RowCount":0,"ColumnCount":4,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":false,"ObjectType":"table","ParentTableName":null,"SizeInBytes":0},{"SchemaName":"public","ObjectName":"null_and_default_pkey","RowCount":null,"ColumnCount":1,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":true,"ObjectType":"primary key","ParentTableName":"public.null_and_default","SizeInBytes":8192},{"SchemaName":"public","ObjectName":"num_types","RowCount":0,"ColumnCount":6,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":false,"ObjectType":"table","ParentTableName":null,"SizeInBytes":0},{"SchemaName":"public","ObjectName":"num_types_pkey","RowCount":null,"ColumnCount":1,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":true,"ObjectType":"primary key","ParentTableName":"public.num_types","SizeInBytes":8192},{"SchemaName":"public","ObjectName":"test_table","RowCount":0,"ColumnCount":2,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":false,"ObjectType":"table","ParentTableName":null,"SizeInBytes":0},{"SchemaName":"public","ObjectName":"test_table_pkey","RowCount":null,"ColumnCount":1,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":true,"ObjectType":"primary key","ParentTableName":"public.test_table","SizeInBytes":8192},{"SchemaName":"public","ObjectName":"tsvector_table","RowCount":0,"ColumnCount":5,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":false,"ObjectType":"table","ParentTableName":null,"SizeInBytes":0},{"SchemaName":"public","ObjectName":"tsvector_table_pkey","RowCount":null,"ColumnCount":1,"ReadsPerSecond":0,"WritesPerSecond":0,"IsIndex":true,"ObjectType":"primary key","ParentTableName":"public.tsvector_table","SizeInBytes":8192}],"Notes":["Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official \u003ca class=\"highlight-link\" target=\"_blank\" href=\"https://docs.yugabyte.com/preview/releases/ybdb-releases/\"\u003erelease notes\u003c/a\u003e for detailed information and usage guidelines.","\u003ca class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\"\u003eLimitations in assessment\u003c/a\u003e","Import data time estimates exclude redundant indexes since they are automatically removed during export schema phase."],"UnsupportedDataTypes":null,"UnsupportedDataTypesDesc":"Data types of the source database that are not supported on the target YugabyteDB.","UnsupportedFeatures":null,"UnsupportedFeaturesDesc":"Features of the source database that are not supported on the target YugabyteDB.","UnsupportedQueryConstructs":null,"UnsupportedPlPgSqlObjects":null,"MigrationCaveats":null},"Notes":["Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official \u003ca class=\"highlight-link\" target=\"_blank\" href=\"https://docs.yugabyte.com/preview/releases/ybdb-releases/\"\u003erelease notes\u003c/a\u003e for detailed information and usage guidelines.","\u003ca class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\"\u003eLimitations in assessment\u003c/a\u003e","Import data time estimates exclude redundant indexes since they are automatically removed during export schema phase."]}
+2026-03-20 13:58:45.129209 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:45.135928 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:58:45.144549 INFO common.go:86 End time: 2026-03-20 13:58:45.144542932 +0000 UTC m=+1.313265318
+
+2026-03-20 13:58:45.144586 INFO common.go:88 Time taken: 1.284897044s (1.28 seconds)
+

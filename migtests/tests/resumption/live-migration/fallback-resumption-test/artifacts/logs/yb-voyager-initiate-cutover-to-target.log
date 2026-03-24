@@ -1,0 +1,37 @@
+2026-03-20 13:59:29.608045 INFO logging.go:74 Logging initialised.
+2026-03-20 13:59:29.608275 INFO logging.go:76 Args: [yb-voyager initiate cutover to target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir --prepare-for-fall-back true]
+2026-03-20 13:59:29.608369 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-20 13:59:29.609308 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:29.609576 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-20 13:59:29.609699 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-20 13:59:29.609867 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:29.610012 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:29.610117 INFO logging.go:74 Logging initialised.
+2026-03-20 13:59:29.610170 INFO logging.go:76 Args: [yb-voyager initiate cutover to target --yes --export-dir /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/fallback-resumption-test/export-dir --prepare-for-fall-back true]
+2026-03-20 13:59:29.610237 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=9077b2bbf006cee8d3a63473b29a3e683e80773e
+LAST_COMMIT_DATE=2026-03-20T10:17:43Z
+
+2026-03-20 13:59:29.610274 INFO root.go:152 Start time: 2026-03-20 13:59:29.61025933 +0000 UTC m=+0.044669347
+
+2026-03-20 13:59:29.610760 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:29.610942 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-20 13:59:29.611064 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-20 13:59:29.611231 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:29.611367 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:29.611398 INFO root.go:526 'control-plane-type' not set. Setting cp to NoopControlPlane.
+2026-03-20 13:59:29.611776 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:29.611798 INFO cutoverToTargetCmd.go:146 Migration workflow opted is live migration with fall-back.
+2026-03-20 13:59:29.611828 INFO logging.go:183 Using YB Logical Replication connector for export data from target
+2026-03-20 13:59:29.611983 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:29.612141 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-20 13:59:29.618662 INFO logging.go:175 cutover to target initiated, wait for it to complete
+2026-03-20 13:59:29.621589 INFO common.go:86 End time: 2026-03-20 13:59:29.621584082 +0000 UTC m=+0.055994114
+
+2026-03-20 13:59:29.621628 INFO common.go:88 Time taken: 11.357026ms (0.01 seconds)
+

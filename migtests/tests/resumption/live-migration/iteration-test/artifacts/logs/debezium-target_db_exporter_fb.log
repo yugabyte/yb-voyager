@@ -1,0 +1,421 @@
+Found sufficient java version = 18
+       __       __                 _                 
+  ____/ /___   / /_   ___  ____   (_)__  __ ____ ___ 
+ / __  // _ \ / __ \ / _ \/_  /  / // / / // __ `__ \
+/ /_/ //  __// /_/ //  __/ / /_ / // /_/ // / / / / /
+\__,_/ \___//_.___/ \___/ /___//_/ \__,_//_/ /_/ /_/ 
+                                                     
+
+
+                       Powered by Quarkus 3.2.3.Final
+2026-03-24 07:16:13,416 INFO  [io.deb.ser.BaseChangeConsumer] (main) Using 'io.debezium.server.BaseChangeConsumer$$Lambda$240/0x0000000800ea56e0@15d0849' stream name mapper
+2026-03-24 07:16:13,419 INFO  [io.deb.ser.ybe.YbExporterConsumer] (main) connect() called: dataDir = /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir/data
+2026-03-24 07:16:13,420 INFO  [io.deb.ser.ybe.YbExporterConsumer] (main) Acquired lock file: /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir/.debezium_target_db_exporter_fb.lck for PID: %s
+2026-03-24 07:16:13,447 INFO  [io.deb.ser.ybe.ExportStatus] (main) Loaded export status info from disk = {"mode":"STREAMING","tables":[],"source_type":"postgresql","sequences":{"\"public\".\"datatypes1_id_seq\"":199669349,"\"public\".\"num_types_id_seq\"":199763012,"\"public\".\"tsvector_table_id_seq\"":0,"\"public\".\"datetime_type2_id_seq\"":199944430,"\"public\".\"datetime_type_id_seq\"":199986904,"\"public\".\"identity_test_id_seq\"":20,"\"public\".\"datatypes2_id_seq\"":199671133,"\"public\".\"empty_iteration_table_id_seq\"":0,"\"public\".\"cutover_table_id_seq\"":1}}
+2026-03-24 07:16:13,765 INFO  [io.deb.ser.ybe.ExportStatus] (main) Connected to metadata db at /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir/metainfo/meta.db
+2026-03-24 07:16:13,788 INFO  [io.deb.ser.ybe.QueueSegment] (main) Opened queue segment /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/queue/segment.0.ndjson; byteCount=11801181, committedSize=11801181
+2026-03-24 07:16:13,789 INFO  [io.deb.ser.ybe.EventQueue] (main) Recovered from queue segment-/home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/queue/segment.0.ndjson with byte count=11801181
+2026-03-24 07:16:13,862 INFO  [io.deb.ser.ybe.EventQueue] (main) advancing sequence number to 36343
+2026-03-24 07:16:13,863 INFO  [io.deb.ser.ybe.EventQueue] (main) checking for if current queue segment is closed
+2026-03-24 07:16:13,897 INFO  [io.deb.ser.ybe.EventQueue] (main) current queue segment is closed.rotating
+2026-03-24 07:16:13,936 INFO  [io.deb.ser.ybe.QueueSegment] (main) Queue segment 0 at path /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/queue/segment.0.ndjson is already closed
+2026-03-24 07:16:13,936 INFO  [io.deb.ser.ybe.EventQueue] (main) rotating queue segment to #1
+2026-03-24 07:16:13,946 INFO  [io.deb.ser.ybe.QueueSegment] (main) Opened queue segment /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/queue/segment.1.ndjson; byteCount=0, committedSize=0
+2026-03-24 07:16:14,238 INFO  [io.deb.ser.ybe.EventQueue] (main) Recovered 36341 events into event cache
+2026-03-24 07:16:14,255 INFO  [org.apa.kaf.con.jso.JsonConverterConfig] (main) JsonConverterConfig values: 
+	converter.type = value
+	decimal.format = BASE64
+	replace.null.with.default = true
+	schemas.cache.size = 1000
+	schemas.enable = false
+
+2026-03-24 07:16:14,257 INFO  [org.apa.kaf.con.jso.JsonConverterConfig] (main) JsonConverterConfig values: 
+	converter.type = value
+	decimal.format = BASE64
+	replace.null.with.default = true
+	schemas.cache.size = 1000
+	schemas.enable = false
+
+2026-03-24 07:16:14,258 INFO  [io.deb.ser.DebeziumServer] (main) Consumer 'io.debezium.server.ybexporter.YbExporterConsumer2x' instantiated
+2026-03-24 07:16:14,258 INFO  [io.deb.ser.ybe.YbExporterConsumer] (Thread-6) XXX Started flush thread.
+2026-03-24 07:16:14,319 INFO  [org.apa.kaf.con.jso.JsonConverterConfig] (main) JsonConverterConfig values: 
+	converter.type = key
+	decimal.format = BASE64
+	replace.null.with.default = true
+	schemas.cache.size = 1000
+	schemas.enable = false
+
+2026-03-24 07:16:14,319 INFO  [org.apa.kaf.con.jso.JsonConverterConfig] (main) JsonConverterConfig values: 
+	converter.type = value
+	decimal.format = BASE64
+	replace.null.with.default = true
+	schemas.cache.size = 1000
+	schemas.enable = false
+
+2026-03-24 07:16:14,338 INFO  [io.deb.emb.EmbeddedEngine$EmbeddedConfig] (main) EmbeddedConfig values: 
+	access.control.allow.methods = 
+	access.control.allow.origin = 
+	admin.listeners = null
+	auto.include.jmx.reporter = true
+	bootstrap.servers = [localhost:9092]
+	client.dns.lookup = use_all_dns_ips
+	config.providers = []
+	connector.client.config.override.policy = All
+	header.converter = class org.apache.kafka.connect.storage.SimpleHeaderConverter
+	key.converter = class org.apache.kafka.connect.json.JsonConverter
+	listeners = [http://:8083]
+	metric.reporters = []
+	metrics.num.samples = 2
+	metrics.recording.level = INFO
+	metrics.sample.window.ms = 30000
+	offset.flush.interval.ms = 0
+	offset.flush.timeout.ms = 5000
+	offset.storage.file.filename = /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/offsets.target_db_exporter_fb.dat
+	offset.storage.partitions = null
+	offset.storage.replication.factor = null
+	offset.storage.topic = 
+	plugin.discovery = hybrid_warn
+	plugin.path = null
+	response.http.headers.config = 
+	rest.advertised.host.name = null
+	rest.advertised.listener = null
+	rest.advertised.port = null
+	rest.extension.classes = []
+	ssl.cipher.suites = null
+	ssl.client.auth = none
+	ssl.enabled.protocols = [TLSv1.2, TLSv1.3]
+	ssl.endpoint.identification.algorithm = https
+	ssl.engine.factory.class = null
+	ssl.key.password = null
+	ssl.keymanager.algorithm = SunX509
+	ssl.keystore.certificate.chain = null
+	ssl.keystore.key = null
+	ssl.keystore.location = null
+	ssl.keystore.password = null
+	ssl.keystore.type = JKS
+	ssl.protocol = TLSv1.3
+	ssl.provider = null
+	ssl.secure.random.implementation = null
+	ssl.trustmanager.algorithm = PKIX
+	ssl.truststore.certificates = null
+	ssl.truststore.location = null
+	ssl.truststore.password = null
+	ssl.truststore.type = JKS
+	task.shutdown.graceful.timeout.ms = 5000
+	topic.creation.enable = true
+	topic.tracking.allow.reset = true
+	topic.tracking.enable = true
+	value.converter = class org.apache.kafka.connect.json.JsonConverter
+
+2026-03-24 07:16:14,340 INFO  [io.deb.ser.DebeziumServer] (main) Engine executor started
+2026-03-24 07:16:14,421 INFO  [io.deb.con.CommonConnectorConfig] (pool-7-thread-1) Loading the custom source info struct maker plugin: io.debezium.connector.postgresql.PostgresSourceInfoStructMaker
+2026-03-24 07:16:14,453 INFO  [io.quarkus] (main) debezium-server-voyager-dist 2.5.2.Final on JVM (powered by Quarkus 3.2.3.Final) started in 2.267s. Listening on: http://0.0.0.0:34965
+2026-03-24 07:16:14,454 INFO  [io.quarkus] (main) Profile prod activated. 
+2026-03-24 07:16:14,456 INFO  [io.quarkus] (main) Installed features: [cdi, kubernetes-client, resteasy-jackson, smallrye-context-propagation, smallrye-health, vertx]
+2026-03-24 07:16:14,677 INFO  [io.deb.con.pos.YugabyteDBConnector] (pool-7-thread-1) Successfully tested connection for jdbc:yugabytedb://10.9.15.11:5433/test_db?load-balance=true with user 'ybvoyager'
+2026-03-24 07:16:14,731 ERROR [io.deb.con.pos.YugabyteDBConnector] (pool-7-thread-1) Postgres roles LOGIN and REPLICATION are not assigned to user: ybvoyager
+2026-03-24 07:16:14,733 INFO  [io.deb.jdb.JdbcConnection] (pool-8-thread-1) Connection gracefully closed
+2026-03-24 07:16:14,740 INFO  [org.apa.kaf.con.jso.JsonConverterConfig] (pool-7-thread-1) JsonConverterConfig values: 
+	converter.type = key
+	decimal.format = BASE64
+	replace.null.with.default = true
+	schemas.cache.size = 1000
+	schemas.enable = false
+
+2026-03-24 07:16:14,741 INFO  [org.apa.kaf.con.sto.FileOffsetBackingStore] (pool-7-thread-1) Starting FileOffsetBackingStore with file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/offsets.target_db_exporter_fb.dat
+2026-03-24 07:16:14,744 INFO  [io.deb.con.CommonConnectorConfig] (pool-7-thread-1) Loading the custom source info struct maker plugin: io.debezium.connector.postgresql.PostgresSourceInfoStructMaker
+2026-03-24 07:16:14,757 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1) Starting PostgresConnectorTask with configuration:
+2026-03-24 07:16:14,759 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    connector.class = io.debezium.connector.postgresql.YugabyteDBConnector
+2026-03-24 07:16:14,759 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    publication.name = voyager_dbz_publication_f3cb65fa_b427_4d5e_a76d_3568e6b12aaf
+2026-03-24 07:16:14,759 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    schema.include.list = public
+2026-03-24 07:16:14,759 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    offset.storage.ybexporter.run.id = 2026-03-24 07:16:10.85767161 +0000 UTC m=+0.533857238
+2026-03-24 07:16:14,759 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    database.sslmode = prefer
+2026-03-24 07:16:14,759 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    database.sslcert = 
+2026-03-24 07:16:14,759 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    converters = postgres_source_converter
+2026-03-24 07:16:14,759 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    interval.handling.mode = string
+2026-03-24 07:16:14,760 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    errors.retry.delay.initial.ms = 300
+2026-03-24 07:16:14,760 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    key.converter = org.apache.kafka.connect.json.JsonConverter
+2026-03-24 07:16:14,760 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    offset.storage.ybexporter.metadata.db.path = /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir/metainfo/meta.db
+2026-03-24 07:16:14,760 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    database.dbname = test_db
+2026-03-24 07:16:14,760 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    database.user = ybvoyager
+2026-03-24 07:16:14,760 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    datatype.propagate.source.type = .*BOX.*,.*LINE.*,.*LSEG.*,.*PATH.*,.*POLYGON.*,.*CIRCLE.*,.*DATE.*,.*INTERVAL.*,.*CHAR.*,.*TIMESTAMP.*,.*LONG.*
+2026-03-24 07:16:14,760 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    database.sslkey = 
+2026-03-24 07:16:14,760 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    header.converter.key = connect
+2026-03-24 07:16:14,760 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    offset.storage = org.apache.kafka.connect.storage.FileOffsetBackingStore
+2026-03-24 07:16:14,760 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    column.include.list = public.datatypes1.*,public.datetime_type2.*,public.null_and_default.*,public.tsvector_table.*,public.identity_test.*,public.cutover_table.*,public.num_types.*,public.datetime_type.*,public.datatypes2.*,public.empty_iteration_table.*,public.test_table.*,public.decimal_types.*
+2026-03-24 07:16:14,760 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    schema.history.internal.ybexporter.exportDir = /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir
+2026-03-24 07:16:14,760 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    plugin.name = yboutput
+2026-03-24 07:16:14,760 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    postgres_source_converter.type = io.debezium.server.ybexporter.PostgresToYbValueConverter
+2026-03-24 07:16:14,760 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    errors.max.retries = 15
+2026-03-24 07:16:14,760 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    schema.history.internal.ybexporter.queueSegmentMaxBytes = 1073741824
+2026-03-24 07:16:14,761 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    offset.storage.ybexporter.dataDir = /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir/data
+2026-03-24 07:16:14,761 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    database.password = ********
+2026-03-24 07:16:14,761 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    name = ybexporter
+2026-03-24 07:16:14,761 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    database.sslrootcert = 
+2026-03-24 07:16:14,761 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    topic.naming.strategy = io.debezium.server.ybexporter.DummyTopicNamingStrategy
+2026-03-24 07:16:14,761 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    snapshot.mode = never
+2026-03-24 07:16:14,761 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    slot.name = voyager_f3cb65fa_b427_4d5e_a76d_3568e6b12aaf
+2026-03-24 07:16:14,761 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    tasks.max = 1
+2026-03-24 07:16:14,761 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    hstore.handling.mode = map
+2026-03-24 07:16:14,761 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    offset.storage.ybexporter.sequence.max.map = 
+2026-03-24 07:16:14,761 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    tombstones.on.delete = false
+2026-03-24 07:16:14,761 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    topic.prefix = yb-voyager
+2026-03-24 07:16:14,761 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    decimal.handling.mode = string
+2026-03-24 07:16:14,761 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    offset.storage.file.filename = /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/offsets.target_db_exporter_fb.dat
+2026-03-24 07:16:14,762 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    schema.history.internal.ybexporter.sequence.max.map = 
+2026-03-24 07:16:14,762 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    schema.history.internal.ybexporter.dataDir = /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir/data
+2026-03-24 07:16:14,762 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    schema.history.internal.ybexporter.exporter.role = target_db_exporter_fb
+2026-03-24 07:16:14,762 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    value.converter = org.apache.kafka.connect.json.JsonConverter
+2026-03-24 07:16:14,762 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    transaction.ordering = true
+2026-03-24 07:16:14,762 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    offset.storage.ybexporter.column_sequence.map = public.identity_test.id:"public"."identity_test_id_seq",public.num_types.id:"public"."num_types_id_seq",public.tsvector_table.id:"public"."tsvector_table_id_seq",public.cutover_table.id:"public"."cutover_table_id_seq",public.datetime_type2.id:"public"."datetime_type2_id_seq",public.datatypes1.id:"public"."datatypes1_id_seq",public.datatypes2.id:"public"."datatypes2_id_seq",public.datetime_type.id:"public"."datetime_type_id_seq",public.empty_iteration_table.id:"public"."empty_iteration_table_id_seq"
+2026-03-24 07:16:14,762 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    header.converter.value = connect
+2026-03-24 07:16:14,762 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    grpc.connector.enabled = false
+2026-03-24 07:16:14,762 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    key.converter.value = connect
+2026-03-24 07:16:14,763 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    schema.history.internal.ybexporter.tables.rename = 
+2026-03-24 07:16:14,763 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    database.server.name = yb-voyager
+2026-03-24 07:16:14,763 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    offset.flush.timeout.ms = 5000
+2026-03-24 07:16:14,763 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    errors.retry.delay.max.ms = 10000
+2026-03-24 07:16:14,763 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    TEST.override.transaction.ordering.deprecation = true
+2026-03-24 07:16:14,763 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    offset.storage.ybexporter.exportDir = /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir
+2026-03-24 07:16:14,764 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    offset.storage.ybexporter.exporter.role = target_db_exporter_fb
+2026-03-24 07:16:14,764 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    value.converter.value = connect
+2026-03-24 07:16:14,764 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    database.port = 5433
+2026-03-24 07:16:14,764 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    offset.flush.interval.ms = 0
+2026-03-24 07:16:14,764 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    include.unknown.datatypes = true
+2026-03-24 07:16:14,764 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    schema.history.internal.ybexporter.column_sequence.map = public.identity_test.id:"public"."identity_test_id_seq",public.num_types.id:"public"."num_types_id_seq",public.tsvector_table.id:"public"."tsvector_table_id_seq",public.cutover_table.id:"public"."cutover_table_id_seq",public.datetime_type2.id:"public"."datetime_type2_id_seq",public.datatypes1.id:"public"."datatypes1_id_seq",public.datatypes2.id:"public"."datatypes2_id_seq",public.datetime_type.id:"public"."datetime_type_id_seq",public.empty_iteration_table.id:"public"."empty_iteration_table_id_seq"
+2026-03-24 07:16:14,764 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    schema.history.internal.ybexporter.metadata.db.path = /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir/metainfo/meta.db
+2026-03-24 07:16:14,764 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    offset.storage.ybexporter.queueSegmentMaxBytes = 1073741824
+2026-03-24 07:16:14,765 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    database.hostname = 10.9.15.11
+2026-03-24 07:16:14,765 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    task.id = 0
+2026-03-24 07:16:14,765 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    table.include.list = public.test_table,public.num_types,public.decimal_types,public.datatypes1,public.datetime_type,public.datetime_type2,public.datatypes2,public.null_and_default,public.tsvector_table,public.empty_iteration_table,public.identity_test,public.cutover_table
+2026-03-24 07:16:14,765 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    value.converter.key = connect
+2026-03-24 07:16:14,765 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    offset.storage.ybexporter.tables.rename = 
+2026-03-24 07:16:14,765 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    schema.history.internal.ybexporter.run.id = 2026-03-24 07:16:10.85767161 +0000 UTC m=+0.533857238
+2026-03-24 07:16:14,765 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    key.converter.key = connect
+2026-03-24 07:16:14,766 INFO  [io.deb.con.CommonConnectorConfig] (pool-7-thread-1) Loading the custom source info struct maker plugin: io.debezium.connector.postgresql.PostgresSourceInfoStructMaker
+2026-03-24 07:16:14,769 INFO  [io.deb.con.CommonConnectorConfig] (pool-7-thread-1) Loading the custom topic naming strategy plugin: io.debezium.server.ybexporter.DummyTopicNamingStrategy
+2026-03-24 07:16:14,790 INFO  [io.deb.jdb.JdbcConnection] (pool-9-thread-1) Connection gracefully closed
+2026-03-24 07:16:15,291 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1) No previous offsets found
+2026-03-24 07:16:15,761 INFO  [io.deb.con.pos.PostgresConnectorTask] (pool-7-thread-1) user 'ybvoyager' connected to database 'test_db' on PostgreSQL 15.12-YB-2025.2.1.0-b0 on x86_64-pc-linux-gnu, compiled by clang version 19.1.0 (https://github.com/yugabyte/llvm-project.git a2a6b655e14e7fa1fcf1011a6cb29cb8575249c0), 64-bit with roles:
+	role 'pg_read_all_settings' [superuser: false, replication: false, inherit: true, create role: false, create db: false, can log in: false]
+	role 'ybvoyager' [superuser: true, replication: false, inherit: true, create role: false, create db: false, can log in: true]
+	role 'pg_stat_scan_tables' [superuser: false, replication: false, inherit: true, create role: false, create db: false, can log in: false]
+	role 'pg_checkpoint' [superuser: false, replication: false, inherit: true, create role: false, create db: false, can log in: false]
+	role 'pg_database_owner' [superuser: false, replication: false, inherit: true, create role: false, create db: false, can log in: false]
+	role 'pg_write_server_files' [superuser: false, replication: false, inherit: true, create role: false, create db: false, can log in: false]
+	role 'yb_extension' [superuser: false, replication: false, inherit: true, create role: false, create db: false, can log in: false]
+	role 'yb_fdw' [superuser: false, replication: false, inherit: true, create role: false, create db: false, can log in: false]
+	role 'yb_db_admin' [superuser: false, replication: false, inherit: false, create role: false, create db: false, can log in: false]
+	role 'yugabyte' [superuser: true, replication: true, inherit: true, create role: true, create db: true, can log in: true]
+	role 'pg_read_all_data' [superuser: false, replication: false, inherit: true, create role: false, create db: false, can log in: false]
+	role 'pg_write_all_data' [superuser: false, replication: false, inherit: true, create role: false, create db: false, can log in: false]
+	role 'pg_monitor' [superuser: false, replication: false, inherit: true, create role: false, create db: false, can log in: false]
+	role 'pg_read_server_files' [superuser: false, replication: false, inherit: true, create role: false, create db: false, can log in: false]
+	role 'pg_execute_server_program' [superuser: false, replication: false, inherit: true, create role: false, create db: false, can log in: false]
+	role 'postgres' [superuser: true, replication: true, inherit: true, create role: true, create db: true, can log in: true]
+	role 'pg_read_all_stats' [superuser: false, replication: false, inherit: true, create role: false, create db: false, can log in: false]
+	role 'pg_signal_backend' [superuser: false, replication: false, inherit: true, create role: false, create db: false, can log in: false]
+2026-03-24 07:16:15,810 INFO  [io.deb.con.pos.con.PostgresConnection] (pool-7-thread-1) Obtained valid replication slot ReplicationSlot [active=true, latestFlushedLsn=LSN{2}, catalogXmin=1]
+2026-03-24 07:16:15,811 INFO  [io.deb.con.pos.PostgresConnectorTask] (pool-7-thread-1) No previous offset found
+2026-03-24 07:16:15,811 INFO  [io.deb.con.pos.sna.NeverSnapshotter] (pool-7-thread-1) Snapshots are not allowed as per configuration, starting streaming logical changes only
+2026-03-24 07:16:15,830 INFO  [io.deb.uti.Threads] (pool-7-thread-1) Requested thread factory for connector YugabyteDBConnector, id = yb-voyager named = SignalProcessor
+2026-03-24 07:16:15,847 INFO  [io.deb.uti.Threads] (pool-7-thread-1) Requested thread factory for connector YugabyteDBConnector, id = yb-voyager named = change-event-source-coordinator
+2026-03-24 07:16:15,847 INFO  [io.deb.uti.Threads] (pool-7-thread-1) Requested thread factory for connector YugabyteDBConnector, id = yb-voyager named = blocking-snapshot
+2026-03-24 07:16:15,855 INFO  [io.deb.uti.Threads] (pool-7-thread-1) Creating thread debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator
+2026-03-24 07:16:15,859 INFO  [io.deb.pip.ChangeEventSourceCoordinator] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Metrics registered
+2026-03-24 07:16:15,860 INFO  [io.deb.pip.ChangeEventSourceCoordinator] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Context created
+2026-03-24 07:16:15,867 INFO  [io.deb.con.pos.PostgresSnapshotChangeEventSource] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) According to the connector configuration no snapshot will be executed
+2026-03-24 07:16:15,871 INFO  [io.deb.pip.ChangeEventSourceCoordinator] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Snapshot ended with SnapshotResult [status=SKIPPED, offset=null]
+2026-03-24 07:16:15,871 INFO  [io.deb.con.pos.PostgresChangeEventSourceCoordinator] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Transitioning to streaming
+2026-03-24 07:16:15,874 INFO  [io.deb.pip.ChangeEventSourceCoordinator] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Connected metrics set to 'true'
+2026-03-24 07:16:15,876 INFO  [io.deb.con.pos.PostgresOffsetContext] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Creating initial offset context
+2026-03-24 07:16:15,881 INFO  [io.deb.con.pos.PostgresOffsetContext] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Read xlogStart at 'LSN{22562576}' from transaction '2'
+2026-03-24 07:16:16,288 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) REPLICA IDENTITY for 'public.null_and_default' is 'CHANGE'; UPDATE events will contain values only for changed columns
+2026-03-24 07:16:16,291 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) REPLICA IDENTITY for 'public.cutover_table' is 'CHANGE'; UPDATE events will contain values only for changed columns
+2026-03-24 07:16:16,293 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) REPLICA IDENTITY for 'public.datatypes1' is 'CHANGE'; UPDATE events will contain values only for changed columns
+2026-03-24 07:16:16,296 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) REPLICA IDENTITY for 'public.datetime_type' is 'CHANGE'; UPDATE events will contain values only for changed columns
+2026-03-24 07:16:16,298 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) REPLICA IDENTITY for 'public.test_table' is 'CHANGE'; UPDATE events will contain values only for changed columns
+2026-03-24 07:16:16,301 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) REPLICA IDENTITY for 'public.datetime_type2' is 'CHANGE'; UPDATE events will contain values only for changed columns
+2026-03-24 07:16:16,303 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) REPLICA IDENTITY for 'public.tsvector_table' is 'CHANGE'; UPDATE events will contain values only for changed columns
+2026-03-24 07:16:16,306 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) REPLICA IDENTITY for 'public.num_types' is 'CHANGE'; UPDATE events will contain values only for changed columns
+2026-03-24 07:16:16,308 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) REPLICA IDENTITY for 'public.datatypes2' is 'CHANGE'; UPDATE events will contain values only for changed columns
+2026-03-24 07:16:16,311 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) REPLICA IDENTITY for 'public.identity_test' is 'CHANGE'; UPDATE events will contain values only for changed columns
+2026-03-24 07:16:16,313 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) REPLICA IDENTITY for 'public.empty_iteration_table' is 'CHANGE'; UPDATE events will contain values only for changed columns
+2026-03-24 07:16:16,317 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) REPLICA IDENTITY for 'public.decimal_types' is 'CHANGE'; UPDATE events will contain values only for changed columns
+2026-03-24 07:16:16,327 INFO  [io.deb.ser.ybe.PostgresToYbValueConverter] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Configuring stringify converter for column: b, type: bool, JDBC type: -7
+2026-03-24 07:16:16,335 INFO  [io.deb.ser.ybe.PostgresToYbValueConverter] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Configuring stringify converter for column: bool_type, type: bool, JDBC type: -7
+2026-03-24 07:16:16,347 INFO  [io.deb.ser.ybe.PostgresToYbValueConverter] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Configuring stringify converter for column: title_tsv, type: tsvector, JDBC type: 1111
+2026-03-24 07:16:16,347 INFO  [io.deb.ser.ybe.PostgresToYbValueConverter] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Configuring stringify converter for column: content_tsv, type: tsvector, JDBC type: 1111
+2026-03-24 07:16:16,356 INFO  [io.deb.ser.ybe.PostgresToYbValueConverter] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Configuring stringify converter for column: v2, type: bit, JDBC type: -7
+2026-03-24 07:16:16,358 INFO  [io.deb.ser.ybe.PostgresToYbValueConverter] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Configuring stringify converter for column: v3, type: _int4, JDBC type: 2003
+2026-03-24 07:16:16,358 INFO  [io.deb.ser.ybe.PostgresToYbValueConverter] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Configuring stringify converter for column: v5, type: varbit, JDBC type: 1111
+2026-03-24 07:16:16,382 INFO  [io.deb.pip.sig.SignalProcessor] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) SignalProcessor started. Scheduling it every 5000ms
+2026-03-24 07:16:16,382 INFO  [io.deb.uti.Threads] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Creating thread debezium-yugabytedbconnector-yb-voyager-SignalProcessor
+2026-03-24 07:16:16,383 INFO  [io.deb.pip.ChangeEventSourceCoordinator] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Starting streaming
+2026-03-24 07:16:16,418 INFO  [io.deb.con.pos.PostgresStreamingChangeEventSource] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) PID for replication connection: 3466564 on node 10.9.15.11
+2026-03-24 07:16:16,418 INFO  [io.deb.con.pos.PostgresStreamingChangeEventSource] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) No previous LSN found in Kafka, streaming from the latest xlogpos or flushed LSN...
+2026-03-24 07:16:16,419 INFO  [io.deb.con.pos.con.WalPositionLocator] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) WAL position will not be searched
+2026-03-24 07:16:16,419 INFO  [io.deb.con.pos.con.PostgresReplicationConnection] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Initializing PgOutput logical decoder publication
+2026-03-24 07:16:16,604 INFO  [io.deb.con.pos.con.PostgresConnection] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Obtained valid replication slot ReplicationSlot [active=true, latestFlushedLsn=LSN{2}, catalogXmin=1]
+2026-03-24 07:16:16,605 INFO  [io.deb.jdb.JdbcConnection] (pool-10-thread-1) Connection gracefully closed
+2026-03-24 07:16:16,654 INFO  [io.deb.uti.Threads] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Requested thread factory for connector YugabyteDBConnector, id = yb-voyager named = keep-alive
+2026-03-24 07:16:16,655 INFO  [io.deb.uti.Threads] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Creating thread debezium-yugabytedbconnector-yb-voyager-keep-alive
+2026-03-24 07:16:16,908 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) REPLICA IDENTITY for 'public.null_and_default' is 'CHANGE'; UPDATE events will contain values only for changed columns
+2026-03-24 07:16:16,911 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) REPLICA IDENTITY for 'public.cutover_table' is 'CHANGE'; UPDATE events will contain values only for changed columns
+2026-03-24 07:16:16,912 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) REPLICA IDENTITY for 'public.datatypes1' is 'CHANGE'; UPDATE events will contain values only for changed columns
+2026-03-24 07:16:16,915 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) REPLICA IDENTITY for 'public.datetime_type' is 'CHANGE'; UPDATE events will contain values only for changed columns
+2026-03-24 07:16:16,917 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) REPLICA IDENTITY for 'public.test_table' is 'CHANGE'; UPDATE events will contain values only for changed columns
+2026-03-24 07:16:16,919 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) REPLICA IDENTITY for 'public.datetime_type2' is 'CHANGE'; UPDATE events will contain values only for changed columns
+2026-03-24 07:16:16,921 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) REPLICA IDENTITY for 'public.tsvector_table' is 'CHANGE'; UPDATE events will contain values only for changed columns
+2026-03-24 07:16:16,923 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) REPLICA IDENTITY for 'public.num_types' is 'CHANGE'; UPDATE events will contain values only for changed columns
+2026-03-24 07:16:16,925 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) REPLICA IDENTITY for 'public.datatypes2' is 'CHANGE'; UPDATE events will contain values only for changed columns
+2026-03-24 07:16:16,927 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) REPLICA IDENTITY for 'public.identity_test' is 'CHANGE'; UPDATE events will contain values only for changed columns
+2026-03-24 07:16:16,929 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) REPLICA IDENTITY for 'public.empty_iteration_table' is 'CHANGE'; UPDATE events will contain values only for changed columns
+2026-03-24 07:16:16,931 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) REPLICA IDENTITY for 'public.decimal_types' is 'CHANGE'; UPDATE events will contain values only for changed columns
+2026-03-24 07:16:16,932 INFO  [io.deb.ser.ybe.PostgresToYbValueConverter] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Configuring stringify converter for column: b, type: bool, JDBC type: -7
+2026-03-24 07:16:16,934 INFO  [io.deb.ser.ybe.PostgresToYbValueConverter] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Configuring stringify converter for column: bool_type, type: bool, JDBC type: -7
+2026-03-24 07:16:16,938 INFO  [io.deb.ser.ybe.PostgresToYbValueConverter] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Configuring stringify converter for column: title_tsv, type: tsvector, JDBC type: 1111
+2026-03-24 07:16:16,938 INFO  [io.deb.ser.ybe.PostgresToYbValueConverter] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Configuring stringify converter for column: content_tsv, type: tsvector, JDBC type: 1111
+2026-03-24 07:16:16,940 INFO  [io.deb.ser.ybe.PostgresToYbValueConverter] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Configuring stringify converter for column: v2, type: bit, JDBC type: -7
+2026-03-24 07:16:16,941 INFO  [io.deb.ser.ybe.PostgresToYbValueConverter] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Configuring stringify converter for column: v3, type: _int4, JDBC type: 2003
+2026-03-24 07:16:16,941 INFO  [io.deb.ser.ybe.PostgresToYbValueConverter] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Configuring stringify converter for column: v5, type: varbit, JDBC type: 1111
+2026-03-24 07:16:16,944 INFO  [io.deb.con.pos.PostgresStreamingChangeEventSource] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Processing messages
+2026-03-24 07:16:22,668 INFO  [io.deb.ser.ybe.PostgresToYbValueConverter] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Configuring stringify converter for column: b, type: bool, JDBC type: -7
+2026-03-24 07:16:22,669 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Replica identity being stored for table public.null_and_default is CHANGE
+2026-03-24 07:16:22,720 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Replica identity being stored for table public.datetime_type2 is CHANGE
+2026-03-24 07:16:22,759 INFO  [io.deb.ser.ybe.PostgresToYbValueConverter] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Configuring stringify converter for column: v2, type: bit, JDBC type: -7
+2026-03-24 07:16:22,759 INFO  [io.deb.ser.ybe.PostgresToYbValueConverter] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Configuring stringify converter for column: v3, type: _int4, JDBC type: 2003
+2026-03-24 07:16:22,759 INFO  [io.deb.ser.ybe.PostgresToYbValueConverter] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Configuring stringify converter for column: v5, type: varbit, JDBC type: 1111
+2026-03-24 07:16:22,760 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Replica identity being stored for table public.datatypes2 is CHANGE
+2026-03-24 07:16:22,796 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Replica identity being stored for table public.decimal_types is CHANGE
+2026-03-24 07:16:22,826 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Replica identity being stored for table public.datetime_type is CHANGE
+2026-03-24 07:16:22,863 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Replica identity being stored for table public.test_table is CHANGE
+2026-03-24 07:16:22,872 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1) 80 records sent during previous 00:00:08.118, last recorded offset of {server=yb-voyager_0_voyager_f3cb65fa_b427_4d5e_a76d_3568e6b12aaf} partition is {transaction_id=null, lsn_proc=122, messageType=UPDATE, lsn_commit=120, lsn=122, txId=22, ts_usec=1774336581994554}
+2026-03-24 07:16:22,874 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 80 records
+2026-03-24 07:16:22,936 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Replica identity being stored for table public.num_types is CHANGE
+2026-03-24 07:16:23,034 INFO  [io.deb.ser.ybe.PostgresToYbValueConverter] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Configuring stringify converter for column: bool_type, type: bool, JDBC type: -7
+2026-03-24 07:16:23,035 INFO  [io.deb.con.pos.PostgresSchema] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Replica identity being stored for table public.datatypes1 is CHANGE
+2026-03-24 07:16:23,493 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 711 records
+2026-03-24 07:16:24,068 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 394 records
+2026-03-24 07:16:24,598 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 462 records
+2026-03-24 07:16:25,137 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 242 records
+2026-03-24 07:16:25,665 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 500 records
+2026-03-24 07:16:26,212 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 379 records
+2026-03-24 07:16:26,748 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 468 records
+2026-03-24 07:16:27,286 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 257 records
+2026-03-24 07:16:27,815 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 429 records
+2026-03-24 07:16:28,345 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 309 records
+2026-03-24 07:16:28,883 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 290 records
+2026-03-24 07:16:29,409 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 295 records
+2026-03-24 07:16:29,932 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1) 5155 records sent during previous 00:00:07.06, last recorded offset of {server=yb-voyager_0_voyager_f3cb65fa_b427_4d5e_a76d_3568e6b12aaf} partition is {transaction_id=null, lsn_proc=7533, messageType=INSERT, lsn_commit=7527, lsn=7533, txId=1150, ts_usec=1774336589743223}
+2026-03-24 07:16:29,932 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 419 records
+2026-03-24 07:16:30,453 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 424 records
+2026-03-24 07:16:30,986 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 273 records
+2026-03-24 07:16:31,517 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 313 records
+2026-03-24 07:16:32,040 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 297 records
+2026-03-24 07:16:32,569 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 329 records
+2026-03-24 07:16:33,092 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 361 records
+2026-03-24 07:16:33,625 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 425 records
+2026-03-24 07:16:34,155 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 305 records
+2026-03-24 07:16:34,685 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 254 records
+2026-03-24 07:16:35,213 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 335 records
+2026-03-24 07:16:35,736 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 325 records
+2026-03-24 07:16:36,257 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 293 records
+2026-03-24 07:16:36,779 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 408 records
+2026-03-24 07:16:37,302 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 266 records
+2026-03-24 07:16:37,829 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 283 records
+2026-03-24 07:16:38,349 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 400 records
+2026-03-24 07:16:38,872 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 337 records
+2026-03-24 07:16:39,391 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 470 records
+2026-03-24 07:16:39,917 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 372 records
+2026-03-24 07:16:40,446 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 305 records
+2026-03-24 07:16:40,968 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 416 records
+2026-03-24 07:16:41,492 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 291 records
+2026-03-24 07:16:42,010 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 443 records
+2026-03-24 07:16:42,532 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 377 records
+2026-03-24 07:16:43,053 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 295 records
+2026-03-24 07:16:43,575 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 206 records
+2026-03-24 07:16:44,098 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 394 records
+2026-03-24 07:16:44,619 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 370 records
+2026-03-24 07:16:45,138 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 385 records
+2026-03-24 07:16:45,665 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 322 records
+2026-03-24 07:16:46,185 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 390 records
+2026-03-24 07:16:46,708 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 358 records
+2026-03-24 07:16:47,228 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 304 records
+2026-03-24 07:16:47,747 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 289 records
+2026-03-24 07:16:48,265 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 293 records
+2026-03-24 07:16:48,786 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 282 records
+2026-03-24 07:16:49,308 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 286 records
+2026-03-24 07:16:49,832 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1) 12747 records sent during previous 00:00:19.9, last recorded offset of {server=yb-voyager_0_voyager_f3cb65fa_b427_4d5e_a76d_3568e6b12aaf} partition is {transaction_id=null, lsn_proc=25638, messageType=DELETE, lsn_commit=25635, lsn=25638, txId=3829, ts_usec=1774336609510026}
+2026-03-24 07:16:49,832 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 271 records
+2026-03-24 07:16:50,356 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 375 records
+2026-03-24 07:16:50,881 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 259 records
+2026-03-24 07:16:51,401 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 347 records
+2026-03-24 07:16:51,922 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 369 records
+2026-03-24 07:16:52,442 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 361 records
+2026-03-24 07:16:52,963 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 247 records
+2026-03-24 07:16:53,482 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 313 records
+2026-03-24 07:16:54,003 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 331 records
+2026-03-24 07:16:54,540 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 331 records
+2026-03-24 07:16:55,053 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 345 records
+2026-03-24 07:16:55,567 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 122 records
+2026-03-24 07:16:56,584 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 230 records
+2026-03-24 07:16:57,102 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 322 records
+2026-03-24 07:16:57,623 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 354 records
+2026-03-24 07:16:58,145 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 301 records
+2026-03-24 07:16:58,663 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 419 records
+2026-03-24 07:16:59,184 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 299 records
+2026-03-24 07:16:59,705 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 348 records
+2026-03-24 07:17:00,225 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 300 records
+2026-03-24 07:17:00,745 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 312 records
+2026-03-24 07:17:01,269 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 280 records
+2026-03-24 07:17:01,800 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 197 records
+2026-03-24 07:17:02,321 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 224 records
+2026-03-24 07:17:02,840 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 349 records
+2026-03-24 07:17:03,362 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 291 records
+2026-03-24 07:17:03,881 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 365 records
+2026-03-24 07:17:04,403 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 374 records
+2026-03-24 07:17:04,926 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 302 records
+2026-03-24 07:17:05,451 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 329 records
+2026-03-24 07:17:05,981 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 265 records
+2026-03-24 07:17:06,498 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 354 records
+2026-03-24 07:17:07,022 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 372 records
+2026-03-24 07:17:07,547 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 174 records
+2026-03-24 07:17:08,096 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 251 records
+2026-03-24 07:17:08,614 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 227 records
+2026-03-24 07:17:09,131 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 460 records
+2026-03-24 07:17:09,654 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 394 records
+2026-03-24 07:17:10,174 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 373 records
+2026-03-24 07:17:10,694 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 278 records
+2026-03-24 07:17:11,213 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 290 records
+2026-03-24 07:17:11,734 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 400 records
+2026-03-24 07:17:12,257 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 322 records
+2026-03-24 07:17:12,777 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 315 records
+2026-03-24 07:17:13,298 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 241 records
+2026-03-24 07:17:13,822 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 277 records
+2026-03-24 07:17:14,340 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 205 records
+2026-03-24 07:17:14,858 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 283 records
+2026-03-24 07:17:15,377 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 282 records
+2026-03-24 07:17:15,898 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 311 records
+2026-03-24 07:17:16,420 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 294 records
+2026-03-24 07:17:16,948 INFO  [io.deb.ser.ybe.YbExporterConsumer] (pool-7-thread-1) Processing batch with 37 records
+2026-03-24 07:17:46,518 INFO  [io.deb.ser.ybe.YbExporterConsumer] (Thread-6) Observed cutover.source trigger present in metadb. Cutting over...
+2026-03-24 07:17:46,538 INFO  [io.deb.ser.ybe.QueueSegment] (Thread-6) Closing queue file /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/queue/segment.1.ndjson
+2026-03-24 07:17:46,551 INFO  [io.deb.ser.ybe.YbExporterConsumer] (Thread-6) Wrote cutover.source record to event queue
+2026-03-24 07:17:46,552 INFO  [io.deb.ser.ybe.YbExporterConsumer] (Thread-6) cutover.source processing complete. Exiting...
+2026-03-24 07:17:46,553 INFO  [io.deb.ser.ybe.YbExporterConsumer] (Thread-5) Released lock file: /home/ubuntu/voyager/yb-voyager/migtests/tests/resumption/live-migration/iteration-test/export-dir/.debezium_target_db_exporter_fb.lck
+2026-03-24 07:17:46,562 INFO  [io.deb.ser.DebeziumServer] (Shutdown thread) Received request to stop the engine
+2026-03-24 07:17:46,562 INFO  [io.deb.emb.EmbeddedEngine] (Shutdown thread) Stopping the embedded engine
+2026-03-24 07:17:46,562 INFO  [io.deb.emb.EmbeddedEngine] (Shutdown thread) Waiting for PT5M for connector to stop
+2026-03-24 07:17:47,024 INFO  [io.deb.emb.EmbeddedEngine] (pool-7-thread-1) Stopping the task and engine
+2026-03-24 07:17:47,024 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1) Stopping down connector
+2026-03-24 07:17:47,131 INFO  [io.deb.pip.ChangeEventSourceCoordinator] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Finished streaming
+2026-03-24 07:17:47,131 INFO  [io.deb.pip.ChangeEventSourceCoordinator] (debezium-yugabytedbconnector-yb-voyager-change-event-source-coordinator) Connected metrics set to 'false'
+2026-03-24 07:17:47,132 INFO  [io.deb.pip.sig.SignalProcessor] (pool-7-thread-1) SignalProcessor stopped
+2026-03-24 07:17:47,132 INFO  [io.deb.ser.DefaultServiceRegistry] (pool-7-thread-1) Debezium ServiceRegistry stopped.
+2026-03-24 07:17:47,133 INFO  [io.deb.jdb.JdbcConnection] (pool-11-thread-1) Connection gracefully closed
+2026-03-24 07:17:47,134 INFO  [io.deb.jdb.JdbcConnection] (pool-12-thread-1) Connection gracefully closed
+2026-03-24 07:17:47,135 INFO  [io.deb.jdb.JdbcConnection] (pool-13-thread-1) Connection gracefully closed
+2026-03-24 07:17:47,136 INFO  [org.apa.kaf.con.sto.FileOffsetBackingStore] (pool-7-thread-1) Stopped FileOffsetBackingStore
+2026-03-24 07:17:47,136 INFO  [io.deb.ser.ConnectorLifecycle] (pool-7-thread-1) Connector completed: success = 'true', message = 'Connector 'io.debezium.connector.postgresql.YugabyteDBConnector' completed normally.', error = 'null'
+2026-03-24 07:17:47,153 INFO  [io.quarkus] (Shutdown thread) debezium-server-voyager-dist stopped in 0.600s
