@@ -2,6 +2,7 @@ package testutils
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -55,6 +56,8 @@ type VoyagerCommandRunner struct {
 
 	// additional environment variables for testing
 	testEnvVars []string
+
+	stopChan chan error
 }
 
 // WithEnv adds custom environment variables to the command.
@@ -226,13 +229,11 @@ func (v *VoyagerCommandRunner) Run() error {
 	}
 	//In case the command is asynchronous, we need to wait for the command to finish but asynchronously
 	//and prevents the zombie process from being left behind.
-	//As we issue signal to stop the command, it will exit but wihout wait the process metadata is not updated so if we are checking if the 
+	//As we issue signal to stop the command, it will exit but wihout wait the process metadata is not updated so if we are checking if the
 	//command stopped properly or not, we won't be able to know (e.g. in end-migration command).
+	v.stopChan = make(chan error, 1)
 	go func() {
-		err := v.Wait()
-		if err != nil {
-			log.Errorf("command %s failed: %v", v.CmdName, err)
-		}
+		v.stopChan <- v.Wait()
 	}()
 	return nil
 }
@@ -287,22 +288,17 @@ func (v *VoyagerCommandRunner) GracefulStop(timeoutSeconds int) error {
 		return fmt.Errorf("failed to send SIGTERM to command: %w", err)
 	}
 
-	done := make(chan error, 1)
-	go func() {
-		done <- v.Cmd.Wait()
-	}()
-
 	select {
-	case err := <-done:
+	case err := <-v.stopChan:
 		if err != nil {
 			log.Debugf("command %s exited with error (expected after SIGTERM): %v", v.CmdName, err)
 		}
 	case <-time.After(time.Duration(timeoutSeconds) * time.Second):
 		log.Debugf("command %s did not exit within %ds after SIGTERM, sending SIGKILL", v.CmdName, timeoutSeconds)
-		if killErr := v.Cmd.Process.Kill(); killErr != nil {
+		if killErr := v.Cmd.Process.Kill(); killErr != nil && !errors.Is(killErr, os.ErrProcessDone) {
 			return fmt.Errorf("failed to SIGKILL command after timeout: %w", killErr)
 		}
-		<-done
+		<-v.stopChan
 	}
 
 	v.exitCode = ExitCodeFailure
