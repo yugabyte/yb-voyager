@@ -554,17 +554,9 @@ func TestImportCDCRetryableDbErrorThenSucceed(t *testing.T) {
 	t.Log("Verified retryable batch failpoint marker was written")
 
 	// The key property: importer should NOT exit; it should retry and keep running.
-	exitedEarly := make(chan error, 1)
-	go func() {
-		exitedEarly <- lm.GetImportRunner().Wait()
-	}()
-	select {
-	case waitErr := <-exitedEarly:
-		require.Failf(t, "Import exited unexpectedly after retryable failure",
-			"err=%v\nstderr=%s", waitErr, lm.GetImportCommandStderr())
-	case <-time.After(3 * time.Second):
-		// still running as expected
-	}
+	time.Sleep(3 * time.Second)
+	require.False(t, lm.GetImportRunner().IsStopped(),
+		"Import exited unexpectedly after retryable failure; stderr=%s", lm.GetImportCommandStderr())
 
 	// --- Phase 3: Verify target matches source (no resume needed) ---
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
@@ -675,17 +667,9 @@ func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 	t.Log("Verified retryable-after-commit failpoint marker was written")
 
 	// Import should NOT exit; it should retry in-process and continue.
-	exitedEarly := make(chan error, 1)
-	go func() {
-		exitedEarly <- lm.GetImportRunner().Wait()
-	}()
-	select {
-	case waitErr := <-exitedEarly:
-		require.Failf(t, "Import exited unexpectedly after retryable-after-commit failure",
-			"err=%v\nstderr=%s", waitErr, lm.GetImportCommandStderr())
-	case <-time.After(3 * time.Second):
-		// still running as expected
-	}
+	time.Sleep(3 * time.Second)
+	require.False(t, lm.GetImportRunner().IsStopped(),
+		"Import exited unexpectedly after retryable-after-commit failure; stderr=%s", lm.GetImportCommandStderr())
 
 	// --- Phase 3: Verify CDC catches up and target matches source (no resume needed) ---
 	// Verify via data-migration-report that all exported CDC events are imported.

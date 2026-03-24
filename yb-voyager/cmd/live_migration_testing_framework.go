@@ -469,17 +469,10 @@ func (lm *LiveMigrationTest) StopImportData() error {
 	if lm.importCmd == nil {
 		return goerrors.Errorf("import command not started")
 	}
-	//Stopping import command
-	if err := lm.importCmd.Kill(); err != nil {
-		return goerrors.Errorf("killing the import data process errored: %w", err)
-	}
-	err := lm.importCmd.Wait()
+	err = lm.importCmd.GracefulStop(20)
 	if err != nil {
-		lm.t.Logf("Async import run exited with error (expected): %v", err)
-	} else {
-		lm.t.Logf("Async import run completed unexpectedly")
+		return goerrors.Errorf("failed to stop import data: %w", err)
 	}
-
 	fmt.Printf("Import data stopped\n")
 	return nil
 }
@@ -489,15 +482,11 @@ func (lm *LiveMigrationTest) StopImportDataToSource() error {
 	if lm.importToSourceCmd == nil {
 		return goerrors.Errorf("import to source command not started")
 	}
-	if err := lm.importToSourceCmd.Kill(); err != nil {
-		return goerrors.Errorf("killing the import data to source process errored: %w", err)
-	}
-	err := lm.importToSourceCmd.Wait()
+	err := lm.importToSourceCmd.GracefulStop(20)
 	if err != nil {
-		lm.t.Logf("Async import to source run exited with error (expected): %v", err)
-	} else {
-		lm.t.Logf("Async import to source run completed unexpectedly")
+		return goerrors.Errorf("failed to stop import data to source: %w", err)
 	}
+	fmt.Printf("Import data to source stopped\n")
 	return nil
 }
 
