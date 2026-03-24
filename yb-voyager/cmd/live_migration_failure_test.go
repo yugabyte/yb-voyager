@@ -138,12 +138,12 @@ func setupToFallbackStreaming(t *testing.T, lm *LiveMigrationTest) {
 
 // verifyNewIterationForward runs the new iteration through forward migration
 // and a final cutover-to-target to confirm the overall migration completed.
-func verifyNewIterationForward(t *testing.T, lm *LiveMigrationTest) {
+func verifyNewIterationForward(t *testing.T, lm *LiveMigrationTest, newInserts int64) {
 	err := lm.ExecuteSourceDelta()
 	require.NoError(t, err, "failed to execute source delta on new iteration")
 
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		tableName: {Inserts: deltaInserts + 5},
+		tableName: {Inserts: deltaInserts + newInserts},
 	}, 60, 1)
 	require.NoError(t, err, "forward streaming did not complete on new iteration")
 
@@ -533,10 +533,10 @@ func TestCutoverToSourceResumption_ImporterCrashBeforeMarkProcessed(t *testing.T
 	err = lm.WaitForNextIterationInitialized(120, 0)
 	require.NoError(t, err, "next iteration was not initialized")
 
-	err = lm.WaitForCutoverSourceComplete(0,180)
+	err = lm.WaitForCutoverSourceComplete(0, 180)
 	require.NoError(t, err, "cutover-to-source did not complete")
 
-	verifyNewIterationForward(t, lm)
+	verifyNewIterationForward(t, lm, 5)
 	t.Log("TestCutoverToSourceResumption_ImporterCrashBeforeMarkProcessed passed")
 }
 
@@ -593,10 +593,10 @@ func TestCutoverToSourceResumption_ImporterCrashAfterMarkProcessed(t *testing.T)
 	err = lm.WaitForNextIterationInitialized(120, 0)
 	require.NoError(t, err, "next iteration was not initialized")
 
-	err = lm.WaitForCutoverSourceComplete(0,180)
+	err = lm.WaitForCutoverSourceComplete(0, 180)
 	require.NoError(t, err, "cutover-to-source did not complete")
 
-	verifyNewIterationForward(t, lm)
+	verifyNewIterationForward(t, lm, 5)
 	t.Log("TestCutoverToSourceResumption_ImporterCrashAfterMarkProcessed passed")
 }
 
@@ -650,10 +650,10 @@ func TestCutoverToSourceResumption_ImporterCrashDuringInitNextIteration(t *testi
 	err = lm.WaitForNextIterationInitialized(120, 0)
 	require.NoError(t, err, "next iteration was not initialized after resume")
 
-	err = lm.WaitForCutoverSourceComplete(0,180)
+	err = lm.WaitForCutoverSourceComplete(0, 180)
 	require.NoError(t, err, "cutover-to-source did not complete after resume")
 
-	verifyNewIterationForward(t, lm)
+	verifyNewIterationForward(t, lm, 5)
 	t.Log("TestCutoverToSourceResumption_ImporterCrashDuringInitNextIteration passed")
 }
 
@@ -707,10 +707,10 @@ func TestCutoverToSourceResumption_ImporterCrashAfterInitNextIteration(t *testin
 	err = lm.WaitForNextIterationInitialized(120, 0)
 	require.NoError(t, err, "next iteration was not initialized after resume")
 
-	err = lm.WaitForCutoverSourceComplete(0,180)
+	err = lm.WaitForCutoverSourceComplete(0, 180)
 	require.NoError(t, err, "cutover-to-source did not complete after resume")
 
-	verifyNewIterationForward(t, lm)
+	verifyNewIterationForward(t, lm, 5)
 	t.Log("TestCutoverToSourceResumption_ImporterCrashAfterInitNextIteration passed")
 }
 
@@ -760,10 +760,10 @@ func TestCutoverToSourceResumption_ImporterCrashBeforeInitNextIteration(t *testi
 	err = lm.WaitForNextIterationInitialized(120, 0)
 	require.NoError(t, err, "next iteration was not initialized after resume")
 
-	err = lm.WaitForCutoverSourceComplete(0,180)
+	err = lm.WaitForCutoverSourceComplete(0, 180)
 	require.NoError(t, err, "cutover-to-source did not complete after resume")
 
-	verifyNewIterationForward(t, lm)
+	verifyNewIterationForward(t, lm, 5)
 	t.Log("TestCutoverToSourceResumption_ImporterCrashBeforeInitNextIteration passed")
 }
 
@@ -810,10 +810,10 @@ func TestCutoverToSourceResumption_ImporterCrashDuringSetUpNextIterationMSR(t *t
 	err = lm.WaitForNextIterationInitialized(120, 0)
 	require.NoError(t, err, "next iteration was not initialized after resume")
 
-	err = lm.WaitForCutoverSourceComplete(0,180)
+	err = lm.WaitForCutoverSourceComplete(0, 180)
 	require.NoError(t, err, "cutover-to-source did not complete after resume")
 
-	verifyNewIterationForward(t, lm)
+	verifyNewIterationForward(t, lm, 5)
 	t.Log("TestCutoverToSourceResumption_ImporterCrashDuringSetUpNextIterationMSR passed")
 }
 
@@ -879,10 +879,10 @@ func TestCutoverToSourceResumption_ExporterCrashAfterMarkProcessed(t *testing.T)
 	err = lm.StartExportDataFromTarget(true, nil)
 	require.NoError(t, err, "failed to resume export-from-target")
 
-	err = lm.WaitForCutoverSourceComplete(0,180)
+	err = lm.WaitForCutoverSourceComplete(0, 180)
 	require.NoError(t, err, "cutover-to-source did not complete after resume")
 
-	verifyNewIterationForward(t, lm)
+	verifyNewIterationForward(t, lm, 5)
 	t.Log("TestCutoverToSourceResumption_ExporterCrashAfterMarkProcessed passed")
 }
 
@@ -927,10 +927,10 @@ func TestCutoverToSourceResumption_ExporterCrashAfterDeletingReplicationSlotAndP
 	err = lm.StartExportDataFromTarget(true, nil)
 	require.NoError(t, err, "failed to resume export-from-target")
 
-	err = lm.WaitForCutoverSourceComplete(0,180)
+	err = lm.WaitForCutoverSourceComplete(0, 180)
 	require.NoError(t, err, "cutover-to-source did not complete after resume")
 
-	verifyNewIterationForward(t, lm)
+	verifyNewIterationForward(t, lm, 5)
 	t.Log("TestCutoverToSourceResumption_ExporterCrashAfterDeletingReplicationSlotAndPublication passed")
 }
 
@@ -975,9 +975,9 @@ func TestCutoverToSourceResumption_ExporterCrashAfterCompletingDebezium(t *testi
 	err = lm.StartExportDataFromTarget(true, nil)
 	require.NoError(t, err, "failed to resume export-from-target")
 
-	err = lm.WaitForCutoverSourceComplete(0,180)
+	err = lm.WaitForCutoverSourceComplete(0, 180)
 	require.NoError(t, err, "cutover-to-source did not complete after resume")
 
-	verifyNewIterationForward(t, lm)
+	verifyNewIterationForward(t, lm, 5)
 	t.Log("TestCutoverToSourceResumption_ExporterCrashAfterCompletingDebezium passed")
 }
