@@ -172,7 +172,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("failed to get migration status record: %w", err)
 	}
 
-	if msr.IsParentMigration() {
+	if msr.IsParentMigration() && exportType == CHANGES_ONLY {
 		utils.ErrExit("Error --export-type 'changes-only' is not supported for parent migration")
 	}
 	if useDebezium && !changeStreamingIsEnabled(exportType) {
