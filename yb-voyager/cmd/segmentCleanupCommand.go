@@ -16,8 +16,10 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -77,9 +79,27 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 		FSUtilizationThreshold: cleanupUtilizationThreshold,
 	}
 
+	ctx, cancel := context.WithCancel(cmd.Context())
+	defer cancel()
 	cleaner := segmentcleanup.NewSegmentCleaner(cfg, metaDB)
+	go waitForCommandFinishTrigger(cleaner, ctx)
 	if err := cleaner.Run(); err != nil {
 		utils.ErrExit("segment cleanup failed: %v", err)
+	}
+}
+
+func waitForCommandFinishTrigger(cleaner *segmentcleanup.SegmentCleaner, ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			if StopArchiverSignal {
+				cleaner.SignalStop()
+				return
+			}
+			time.Sleep(2 * time.Second)
+		}
 	}
 }
 
