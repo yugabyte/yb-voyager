@@ -28,6 +28,7 @@ import (
 
 var (
 	cleanupPolicy               string
+	cleanupArchiveDir           string
 	cleanupUtilizationThreshold int
 )
 
@@ -39,11 +40,12 @@ var segmentCleanupCmd = &cobra.Command{
 Supported policies (--policy):
   delete  (default) — delete processed segments once fs utilization exceeds the threshold.
   retain  — keep all segments on disk; emit warnings if the threshold is exceeded.
+  archive — copy processed segments to --archive-dir, then delete the originals.
 
 Policies: %s`, strings.Join(segmentcleanup.ValidPolicyNames, ", ")),
 
 	PreRun: func(cmd *cobra.Command, args []string) {
-		validateSegmentCleanupFlags()
+		validateSegmentCleanupFlags(cmd)
 	},
 
 	Run: segmentCleanupCommandFn,
@@ -74,6 +76,7 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 	cfg := segmentcleanup.Config{
 		Policy:                 cleanupPolicy,
 		ExportDir:              exportDir,
+		ArchiveDir:             cleanupArchiveDir,
 		FSUtilizationThreshold: cleanupUtilizationThreshold,
 	}
 
@@ -90,12 +93,27 @@ func init() {
 	segmentCleanupCmd.Flags().StringVar(&cleanupPolicy, "policy", segmentcleanup.PolicyDelete,
 		fmt.Sprintf("cleanup policy for processed segments (%s)", strings.Join(segmentcleanup.ValidPolicyNames, ", ")))
 
+	segmentCleanupCmd.Flags().StringVar(&cleanupArchiveDir, "archive-dir", "",
+		"directory to archive processed segments to (required when --policy=archive)")
+
 	segmentCleanupCmd.Flags().IntVar(&cleanupUtilizationThreshold, "fs-utilization-threshold", 70,
 		"disk utilization percentage above which cleanup actions are triggered")
 }
 
-func validateSegmentCleanupFlags() {
+func validateSegmentCleanupFlags(cmd *cobra.Command) {
 	if !segmentcleanup.IsValidPolicy(cleanupPolicy) {
 		utils.ErrExit("invalid --policy %q: must be one of %s", cleanupPolicy, strings.Join(segmentcleanup.ValidPolicyNames, ", "))
+	}
+	if cleanupPolicy == segmentcleanup.PolicyArchive && cleanupArchiveDir == "" {
+		utils.ErrExit("--archive-dir is required when --policy=archive")
+	}
+	if cleanupPolicy != segmentcleanup.PolicyArchive && cleanupArchiveDir != "" {
+		utils.ErrExit("--archive-dir can only be used with --policy=archive")
+	}
+	if cleanupArchiveDir != "" && !utils.FileOrFolderExists(cleanupArchiveDir) {
+		utils.ErrExit("archive directory %q does not exist", cleanupArchiveDir)
+	}
+	if cleanupPolicy == segmentcleanup.PolicyArchive && cmd.Flags().Changed("fs-utilization-threshold") {
+		utils.ErrExit("--fs-utilization-threshold cannot be used with --policy=archive")
 	}
 }

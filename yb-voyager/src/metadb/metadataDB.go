@@ -633,6 +633,15 @@ func (m *MetaDB) UpdateSegmentArchiveLocation(segmentNum int, archiveLocation st
 	return nil
 }
 
+func (m *MetaDB) ArchiveAndDeleteSegment(segmentNum int, archiveLocation string) error {
+	queryParams := fmt.Sprintf(`archived = 1, archive_location = '%s', deleted = 1`, archiveLocation)
+	err := m.updateSegment(segmentNum, queryParams)
+	if err != nil {
+		return goerrors.Errorf("archive and delete segment %d in metaDB: %v", segmentNum, err)
+	}
+	return nil
+}
+
 func checkRowsAffected(result sql.Result, expectedRows int) error {
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
