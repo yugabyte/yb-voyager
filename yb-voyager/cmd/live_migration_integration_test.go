@@ -3626,7 +3626,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterationsWithFailureScenariosDuri
 	err = lm.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
-	err = lm.WaitForCutoverComplete(0,50)
+	err = lm.WaitForCutoverComplete(0, 50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	err = lm.ExecuteTargetDelta()
@@ -3679,7 +3679,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterationsWithFailureScenariosDuri
 	err = lm.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
-	err = lm.WaitForCutoverComplete(1,50)
+	err = lm.WaitForCutoverComplete(1, 50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	err = lm.ExecuteTargetDelta()
@@ -3734,7 +3734,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterationsWithFailureScenariosDuri
 	err = lm.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
-	err = lm.WaitForCutoverComplete(2,50)
+	err = lm.WaitForCutoverComplete(2, 50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	err = lm.ExecuteTargetDelta()
@@ -3797,7 +3797,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterationsWithFailureScenariosDuri
 	err = lm.WaitForNextIterationInitialized(100, 2)
 	testutils.FatalIfError(t, err, "failed to wait for next iteration initialized")
 
-	err = lm.WaitForCutoverSourceComplete(2,100)
+	err = lm.WaitForCutoverSourceComplete(2, 100)
 	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 
 	err = lm.ExecuteSourceDelta()
@@ -4062,6 +4062,12 @@ func TestLiveMigrationWithFallbackWithIterationsTableList(t *testing.T) {
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`, `"test_schema"."test_live_2"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToSource(nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+
+	err = lm.WaitForCutoverSourceComplete(1, 100)
+	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 
 	err = lm.EndMigration(nil, true)
 	testutils.FatalIfError(t, err, "failed to end migration")
