@@ -160,6 +160,16 @@ func startFurtherCommandsAfterCurrentExportData() {
 	startNextIterationImportDataToTarget()
 }
 
+func exportTypeIsNotSupported(msr *metadb.MigrationStatusRecord, exportType string) bool {
+	if exportType != CHANGES_ONLY {
+		return false
+	}
+	if exporterRole != SOURCE_DB_EXPORTER_ROLE {
+		return false
+	}
+	return msr.IsParentMigration()
+}
+
 func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	metaDB = CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	err := retrieveMigrationUUID()
@@ -172,7 +182,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("failed to get migration status record: %w", err)
 	}
 
-	if msr.IsParentMigration() && exportType == CHANGES_ONLY {
+	if exportTypeIsNotSupported(msr, exportType) {
 		utils.ErrExit("Error --export-type 'changes-only' is not supported for parent migration")
 	}
 	if useDebezium && !changeStreamingIsEnabled(exportType) {
