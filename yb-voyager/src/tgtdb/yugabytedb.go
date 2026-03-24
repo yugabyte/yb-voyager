@@ -372,10 +372,7 @@ func IsUniqueViolationError(err error) bool {
 		return false
 	}
 	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-		return true
-	}
-	return strings.Contains(err.Error(), VIOLATES_UNIQUE_CONSTRAINT_ERROR)
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
 // IsPgErrorCodeNonRetryable checks if an error is a data integrity or constraint violation or syntax error
