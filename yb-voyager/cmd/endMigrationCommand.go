@@ -63,7 +63,21 @@ var endMigrationCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("failed to get migration status record: %w", err)
 		}
-		saveDataMigrationReportForAllIterationsFn(msr, msr.LatestIterationNumber > 0)
+
+		if msr.IsParentMigration() && msr.LatestIterationNumber == 0 {
+			//If normal migration flow
+			endMigrationCommandFn(cmd, args, false)
+			return
+		}
+		if msr.IsIteration() {
+			//If its an iteration like end migration on specific iteration do the cleanup of that iteration
+			endMigrationCommandFn(cmd, args, true)
+			return
+		}
+
+		//if parent with iterations 
+		//backup the data migration report with detailed report for all iterations
+		saveDataMigrationReportForAllIterationsFn(msr)
 		currMetaDB := metaDB
 		currBackupDir := backupDir
 		currExportDir := exportDir
@@ -111,6 +125,7 @@ var endMigrationCmd = &cobra.Command{
 	},
 }
 
+// TODO: do not use global variables
 func endMigrationCommandFn(cmd *cobra.Command, args []string, isIteration bool) {
 	if utils.AskPrompt("Migration can't be resumed or continued after this.", "Are you sure you want to end the migration") {
 		log.Info("ending the migration")
@@ -319,8 +334,8 @@ func backupDataFilesFn() {
 	}
 }
 
-func saveDataMigrationReportForAllIterationsFn(msr *metadb.MigrationStatusRecord, isIteration bool) error {
-	if !bool(saveMigrationReports) || !isIteration {
+func saveDataMigrationReportForAllIterationsFn(msr *metadb.MigrationStatusRecord) error {
+	if !bool(saveMigrationReports) {
 		return nil
 	}
 
@@ -329,7 +344,7 @@ func saveDataMigrationReportForAllIterationsFn(msr *metadb.MigrationStatusRecord
 		return fmt.Errorf("creating reports directory for backup: %w", err)
 	}
 
-	saveDataMigrationReport(msr, isIteration)
+	saveDataMigrationReport(msr, true)
 	return nil
 }
 
