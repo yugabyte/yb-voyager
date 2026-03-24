@@ -238,6 +238,14 @@ func (v *VoyagerCommandRunner) Run() error {
 	return nil
 }
 
+func (v *VoyagerCommandRunner) IsStopped() bool {
+	select {
+	case <-v.stopChan:
+		return true
+	default:
+		return false
+	}
+}
 func (v *VoyagerCommandRunner) Wait() error {
 	err := v.Cmd.Wait()
 	if err != nil {

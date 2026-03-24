@@ -103,24 +103,6 @@ func WaitForFailpointMarker(path string, timeout, pollInterval time.Duration) (b
 	return strings.Contains(string(data), "hit"), nil
 }
 
-// WaitForProcessExitOrKill waits for a VoyagerCommandRunner to exit naturally.
-// If it doesn't exit within the timeout, it sends SIGKILL and returns (true, nil).
-// On natural exit it returns (false, err) where err is the process exit error.
-func WaitForProcessExitOrKill(runner *VoyagerCommandRunner, timeout time.Duration) (bool, error) {
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- runner.Wait()
-	}()
-
-	select {
-	case err := <-errCh:
-		return false, err
-	case <-time.After(timeout):
-		_ = runner.Kill()
-		return true, nil
-	}
-}
-
 // WaitForFailpointAndProcessCrash waits for a failpoint marker file to appear,
 // then waits for the given process to exit with an error. Returns an error if
 // the marker doesn't appear (failpoints not enabled) or if the process exits
@@ -139,9 +121,18 @@ func WaitForFailpointAndProcessCrash(t *testing.T, runner *VoyagerCommandRunner,
 	}
 
 	t.Log("Failpoint marker detected; waiting for process to exit with error...")
-	_, waitErr := WaitForProcessExitOrKill(runner, exitTimeout)
-	if waitErr == nil {
-		return fmt.Errorf("process exited without error after failpoint %s — expected a failure", markerPath)
+	deadline := time.Now().Add(exitTimeout)
+	for {
+		if time.Now().After(deadline) {
+			_ = runner.Kill()
+			return fmt.Errorf("process did not exit after %s — expected a crash", exitTimeout)
+		}
+		if runner.IsStopped() {
+			if runner.ExitCode() == ExitCodeSuccess {
+				return fmt.Errorf("process exited cleanly after failpoint %s — expected a crash", markerPath)
+			}
+			return nil
+		}
+		time.Sleep(1 * time.Second)
 	}
-	return nil
 }
