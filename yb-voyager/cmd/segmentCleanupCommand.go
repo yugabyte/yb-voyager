@@ -92,7 +92,6 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 }
 
 func workflowEnded() bool {
-	fmt.Println("StopArchiverSignal", StopArchiverSignal)
 	if StopArchiverSignal {
 		//End migration command triggered archive changes to stop
 		return true
