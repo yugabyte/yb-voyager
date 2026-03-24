@@ -244,14 +244,18 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	}
 	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
 	if err != nil {
+		msg := importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE
+		if tgtdb.IsUniqueViolationError(err) {
+			msg = importdata.UNIQUE_VIOLATION_RECOMMENDATION_MESSAGE
+		}
 		if fti.errorHandler.ShouldAbort() {
 			var ibe errs.ImportBatchError
 			if errors.As(err, &ibe) {
 				// If the error is an ImportBatchError, we abort directly because the string
 				// representation of the error is already formatted with all the details.
-				utils.ErrExit("%w\n%s", err, color.YellowString(importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE))
+				utils.ErrExit("%w\n%s", err, color.YellowString(msg))
 			}
-			utils.ErrExit("import batch: %q into %s: %w\n%s", batch.FilePath, batch.TableNameTup.ForOutput(), err, color.YellowString(importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE))
+			utils.ErrExit("import batch: %q into %s: %w\n%s", batch.FilePath, batch.TableNameTup.ForOutput(), err, color.YellowString(msg))
 		}
 
 		// Handle the error
