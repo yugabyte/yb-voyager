@@ -3990,6 +3990,21 @@ func TestLiveMigrationWithFallbackWithIterationsTableList(t *testing.T) {
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`, `"test_schema"."test_live_2"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
+	//Adding new table with sequence to verify that this is not considered anywhere during the migration
+	err = lm.WithSourceConn(func(source *sql.DB) error {
+		_, err := source.Exec(`CREATE TABLE test_schema.test_live_4 (
+				id SERIAL PRIMARY KEY,
+				name TEXT,
+				email TEXT,
+				description TEXT
+			);`)
+		if err != nil {
+			return fmt.Errorf("failed to drop sequence: %w", err)
+		}
+		return nil
+	})
+	testutils.FatalIfError(t, err, "failed to drop sequence")
+
 	err = lm.InitiateCutoverToSource(map[string]string{
 		"--restart-data-migration-source-target": "true",
 	})
