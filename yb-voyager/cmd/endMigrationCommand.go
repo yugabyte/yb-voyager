@@ -814,11 +814,23 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 	}
 	if len(matches) > 0 {
 		var lockFiles []*lockfile.Lockfile
+		var segmentCleanupLockFile *lockfile.Lockfile
 		for _, match := range matches {
 			lockFile := lockfile.NewLockfile(match)
-			if lockFile.IsPIDActive() && lockFile.GetCmdName() != "end migration" {
-				lockFiles = append(lockFiles, lockFile)
+			if lockFile.IsPIDActive() {
+				switch lockFile.GetCmdName() {
+					case "end migration":
+						continue
+					case "segmentcleanup":
+						segmentCleanupLockFile = lockFile
+					default:
+						lockFiles = append(lockFiles, lockFile)
+				}
 			}
+		}
+		//Need to keep the segment cleanup lock file at the end of the list to avoid stopping it prematurely
+		if segmentCleanupLockFile != nil {
+			lockFiles = append(lockFiles, segmentCleanupLockFile)
 		}
 		if len(lockFiles) > 0 {
 			cmds := getCommandNamesFromLockFiles(lockFiles)
@@ -894,13 +906,16 @@ func stopVoyagerCommands(msr *metadb.MigrationStatusRecord, lockFiles []*lockfil
 		stopVoyagerCommand(archiveChangesLockFile, syscall.SIGUSR1)
 	}
 
-	if msr.SegmentCleanupRunning {
-		segmentCleanupLockFile := getLockFileForCommand(lockFiles, "segmentcleanup")
-		stopVoyagerCommand(segmentCleanupLockFile, syscall.SIGUSR2)
+	for _, lockFile := range lockFiles {
+		if lockFile.GetCmdName() == "segmentcleanup" {
+			continue
+		}
+		stopVoyagerCommand(lockFile, syscall.SIGUSR2)
 	}
 
-	for _, lockFile := range lockFiles {
-		stopVoyagerCommand(lockFile, syscall.SIGUSR2)
+	if msr.SegmentCleanupRunning {
+		segmentCleanupLockFile := getLockFileForCommand(lockFiles, "segmentcleanup")
+		stopVoyagerCommand(segmentCleanupLockFile, syscall.SIGUSR1)
 	}
 }
 

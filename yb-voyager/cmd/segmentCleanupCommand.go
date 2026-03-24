@@ -81,20 +81,45 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 
 	ctx, cancel := context.WithCancel(cmd.Context())
 	defer cancel()
+
 	cleaner := segmentcleanup.NewSegmentCleaner(cfg, metaDB)
-	go waitForCommandFinishTrigger(cleaner, ctx)
+	
+	go waitForWorkflowEnd(cleaner, ctx)
+
 	if err := cleaner.Run(); err != nil {
 		utils.ErrExit("segment cleanup failed: %v", err)
 	}
 }
 
-func waitForCommandFinishTrigger(cleaner *segmentcleanup.SegmentCleaner, ctx context.Context) {
+func workflowEnded() bool {
+	fmt.Println("StopArchiverSignal", StopArchiverSignal)
+	if StopArchiverSignal {
+		//End migration command triggered archive changes to stop
+		return true
+	}
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("error getting migration status record: %v", err)
+	}
+	switch true {
+		case msr.FallbackEnabled:
+			return getCutoverToSourceStatus(exportDir, metaDB) == COMPLETED
+		case msr.FallForwardEnabled:
+			return getCutoverToSourceReplicaStatus(metaDB) == COMPLETED
+		default:
+			return getCutoverStatus(metaDB) == COMPLETED
+	}
+	return false
+}
+
+func waitForWorkflowEnd(cleaner *segmentcleanup.SegmentCleaner, ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		default:
-			if StopArchiverSignal {
+			if workflowEnded() {
+				utils.PrintAndLogfSuccess("\nArchived all the changes.")
 				cleaner.SignalStop()
 				return
 			}
