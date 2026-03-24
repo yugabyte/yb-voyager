@@ -13,15 +13,43 @@ from datetime import datetime
 import json
 import sys
 import yaml
+import re
+import sqlite3
 
 
 # -------------------------
 # Config / Context helpers
 # -------------------------
 
+def _expand_env_in_value(val: Any) -> Any:
+    """Recursively expand ${VAR:-default} and ${VAR} patterns in strings,
+    with type coercion for numeric values."""
+    if isinstance(val, str):
+        def _replace(m):
+            var_name = m.group(1)
+            default = m.group(2)
+            return os.environ.get(var_name, default if default is not None else "")
+        expanded = re.sub(r'\$\{([^}:]+)(?::-(.*?))?\}', _replace, val)
+        if expanded != val:
+            try:
+                return int(expanded)
+            except ValueError:
+                try:
+                    return float(expanded)
+                except ValueError:
+                    pass
+        return expanded
+    elif isinstance(val, dict):
+        return {k: _expand_env_in_value(v) for k, v in val.items()}
+    elif isinstance(val, list):
+        return [_expand_env_in_value(item) for item in val]
+    return val
+
+
 def load_config(path: str) -> Dict[str, Any]:
     with open(path, "r") as f:
-        return yaml.safe_load(f)
+        raw = yaml.safe_load(f)
+    return _expand_env_in_value(raw)
 
 
 def merge_env(base: Dict[str, str], override: Dict[str, str] | None) -> Dict[str, str]:
@@ -226,6 +254,102 @@ def backlog_marker_present(export_dir: str) -> bool:
         return False
 
 
+def _check_backlog_marker_in_dir(export_dir: str) -> bool:
+    queue_dir = os.path.join(export_dir, "data", "queue")
+    try:
+        names = [n for n in os.listdir(queue_dir) if n.startswith("segment.") and n.endswith(".ndjson")]
+        if not names:
+            return False
+        latest = max(names, key=lambda n: int(n.split(".")[1]))
+        path = os.path.join(queue_dir, latest)
+        if os.path.getsize(path) == 0:
+            return False
+        last: str | None = None
+        with open(path, "r") as f:
+            for line in f:
+                s = line.strip()
+                if s:
+                    last = s
+        return last is not None and ("cutover_table" in last) and ("Last event before cutover" in last)
+    except OSError:
+        return False
+
+
+def latest_iteration_export_dir(base_export_dir: str) -> str:
+    """Return the export-dir of the latest iteration, or base_export_dir if no iterations exist."""
+    iterations_dir = os.path.join(base_export_dir, "live-data-migration-iterations")
+    if not os.path.isdir(iterations_dir):
+        return base_export_dir
+    dirs = [d for d in os.listdir(iterations_dir) if d.startswith("live-data-migration-iteration-")]
+    if not dirs:
+        return base_export_dir
+    latest = max(dirs, key=lambda d: int(d.split("-")[-1]))
+    return os.path.join(iterations_dir, latest, "export-dir")
+
+
+def iteration_exporter_streaming(base_export_dir: str) -> bool:
+    """Check if the iteration exporter is in streaming phase.
+    For changes-only exports, also check export_status.json for STREAMING mode."""
+    iter_dir = latest_iteration_export_dir(base_export_dir)
+    if exporter_streaming(iter_dir):
+        return True
+    status_file = os.path.join(iter_dir, "data", "export_status.json")
+    try:
+        if os.path.isfile(status_file):
+            with open(status_file, "r") as f:
+                status = json.load(f)
+            return status.get("mode", "").upper() == "STREAMING"
+    except (OSError, json.JSONDecodeError):
+        pass
+    return False
+
+
+def backlog_marker_imported(ctx, target_role: str = "target") -> bool:
+    """Check if the backlog marker row exists in the destination database's cutover_table."""
+    try:
+        db_cfg = ctx.cfg[target_role]
+        conn = psycopg2.connect(
+            host=str(db_cfg["host"]),
+            port=int(db_cfg["port"]),
+            dbname=str(db_cfg["database"]),
+            user=str(db_cfg.get("admin", {}).get("user", db_cfg["user"])),
+            password=str(db_cfg.get("admin", {}).get("password", db_cfg["password"])),
+        )
+        conn.autocommit = True
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM public.cutover_table WHERE status = 'Last event before cutover'")
+        count = cur.fetchone()[0]
+        cur.close()
+        conn.close()
+        return count > 0
+    except Exception as e:
+        log(f"backlog_marker_imported check failed: {e}")
+        return False
+
+
+def get_iteration_number_from_metadb(base_export_dir: str) -> int:
+    """Read the current iteration number from meta.db."""
+    meta_db = os.path.join(base_export_dir, "metainfo", "meta.db")
+    if not os.path.isfile(meta_db):
+        return 0
+    try:
+        conn = sqlite3.connect(meta_db)
+        cur = conn.cursor()
+        cur.execute("SELECT value FROM migration_status_record WHERE key = 'iteration_number'")
+        row = cur.fetchone()
+        conn.close()
+        return int(row[0]) if row else 0
+    except Exception:
+        return 0
+
+
+def assert_iteration_number(base_export_dir: str, expected: int) -> None:
+    actual = get_iteration_number_from_metadb(base_export_dir)
+    if actual != expected:
+        raise AssertionError(f"Expected iteration number {expected}, got {actual}")
+    log(f"Iteration number assertion passed: {actual}")
+
+
 # -------------------------
 # Process utilities
 # -------------------------
@@ -421,9 +545,12 @@ def build_export_data_cmd(cfg: Dict[str, Any]) -> list[str]:
     voyager_flags = _get_voyager_flags(cfg, "export_data")
     base = _base_common_flags(cfg)
     base.update(_source_conn_flags(cfg))
-    # Live migration default
-    base["export-type"] = "snapshot-and-changes"
-    # data command defaults
+    export_dir = base.get("export-dir", "")
+    iterations_dir = os.path.join(export_dir, "live-data-migration-iterations")
+    if os.path.isdir(iterations_dir):
+        base["export-type"] = "changes-only"
+    else:
+        base["export-type"] = "snapshot-and-changes"
     base["disable-pb"] = True
     merged = _merge_flags(base, voyager_flags)
     return ["yb-voyager", "export", "data", "--yes"] + to_kv_flags(merged)
@@ -439,6 +566,15 @@ def build_import_data_cmd(cfg: Dict[str, Any]) -> list[str]:
     base["disable-pb"] = True
     merged = _merge_flags(base, voyager_flags)
     return ["yb-voyager", "import", "data", "--yes"] + to_kv_flags(merged)
+
+
+def build_finalize_schema_cmd(cfg: Dict[str, Any]) -> list[str]:
+    """Build yb-voyager finalize-schema-post-data-import command."""
+    voyager_flags = _get_voyager_flags(cfg, "finalize_schema")
+    base = _base_common_flags(cfg)
+    base.update(_target_conn_flags(cfg))
+    merged = _merge_flags(base, voyager_flags)
+    return ["yb-voyager", "finalize-schema-post-data-import", "--yes"] + to_kv_flags(merged)
 
 
 def build_export_from_target_cmd(cfg: Dict[str, Any]) -> list[str]:
@@ -976,6 +1112,12 @@ def _reset_database(db_cfg: Dict[str, Any], *, admin_db_name: str, role: str) ->
     port = str(db_cfg["port"])
     admin_user = str(admin["user"])
 
+    terminate_cmd = [
+        "psql", "-h", host, "-p", port, "-U", admin_user,
+        "-d", admin_db_name, "-v", "ON_ERROR_STOP=1",
+        "-c", f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{dbname}' AND pid <> pg_backend_pid()",
+    ]
+
     drop_cmd = [
         "psql", "-h", host, "-p", port, "-U", admin_user,
         "-d", admin_db_name, "-v", "ON_ERROR_STOP=1",
@@ -987,6 +1129,12 @@ def _reset_database(db_cfg: Dict[str, Any], *, admin_db_name: str, role: str) ->
         "-d", admin_db_name, "-v", "ON_ERROR_STOP=1",
         "-c", f'CREATE DATABASE "{dbname}"',
     ]
+
+    log(f"[db-reset:{role}] terminating active connections to '{dbname}'")
+    try:
+        run_checked(terminate_cmd, env, description=f"reset_database:{role}:terminate")
+    except Exception:
+        pass
 
     log(f"[db-reset:{role}] dropping database '{dbname}'")
     run_checked(drop_cmd, env, description=f"reset_database:{role}:drop")

@@ -114,9 +114,21 @@ _WAIT_FOR_CONDITIONS: Dict[str, Dict[str, Any]] = {
         "interval": 5,
         "predicate": lambda ctx: H.exporter_streaming(ctx.cfg["export_dir"]),
     },
+    "iteration_exporter_in_streaming_phase": {
+        "interval": 5,
+        "predicate": lambda ctx: H.iteration_exporter_streaming(ctx.cfg["export_dir"]),
+    },
     "remaining_events_eq_0": {
         "interval": 5,
         "predicate": lambda ctx: H.backlog_marker_present(ctx.cfg["export_dir"]),
+    },
+    "marker_imported_on_target": {
+        "interval": 5,
+        "predicate": lambda ctx: H.backlog_marker_imported(ctx, "target"),
+    },
+    "marker_imported_on_source": {
+        "interval": 5,
+        "predicate": lambda ctx: H.backlog_marker_imported(ctx, "source"),
     },
     "cutover_to_target_status_completed": {
         "interval": 10,
@@ -239,6 +251,60 @@ def grant_source_permissions_action(stage: Dict[str, Any], ctx: Any) -> None:
     """
     fallback = int(stage.get("is_live_migration_fall_back", 0))
     H.grant_postgres_live_migration_permissions(ctx, is_live_migration_fall_back=fallback)
+
+
+@action("voyager_finalize_schema_start")
+def finalize_schema_start_action(_stage, ctx: Any) -> None:
+    cmd = H.build_finalize_schema_cmd(ctx.cfg)
+    H.run_checked(cmd, ctx.env, description="finalize_schema")
+
+
+@action("assert_iteration_number")
+def assert_iteration_number_action(stage: Dict[str, Any], ctx: Any) -> None:
+    expected = int(stage["expected"])
+    H.assert_iteration_number(ctx.cfg["export_dir"], expected)
+
+
+@action("iteration_loop")
+def iteration_loop_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Repeat a block of sub-stages N times for iteration testing."""
+    count_key = stage.get("count_from_config")
+    count = int(ctx.cfg.get(count_key, 1)) if count_key else int(stage.get("count", 1))
+    subtract = int(stage.get("subtract", 0))
+    count = max(0, count - subtract)
+
+    sub_stages = stage.get("stages", [])
+    for i in range(count):
+        H.log(f"=== iteration_loop pass {i+1}/{count} ===")
+        for sub in sub_stages:
+            if _stage_is_skipped(sub):
+                H.log(f"  [skip] {sub.get('name', '<unnamed>')}")
+                continue
+            sub_name = f"loop[{i+1}].{sub.get('name', '<unnamed>')}"
+            H.log_stage_start(sub_name)
+            start_ts = H._ts()
+            try:
+                get_action(sub["action"])(sub, ctx)
+                end_ts = H._ts()
+                H.append_stage_summary(ctx.cfg["artifacts_dir"], sub_name, start_ts, end_ts, status="OK")
+                H.log_stage_end(sub_name, status="OK")
+            except Exception as e:
+                end_ts = H._ts()
+                H.append_stage_summary(ctx.cfg["artifacts_dir"], sub_name, start_ts, end_ts, status="FAILED", error=str(e))
+                H.log_stage_end(sub_name, status=f"FAILED: {e}")
+                raise
+
+
+def _stage_is_skipped(stage: Dict[str, Any]) -> bool:
+    enabled = stage.get("enabled")
+    if enabled is None:
+        return False
+    if isinstance(enabled, bool):
+        return not enabled
+    if isinstance(enabled, str):
+        expanded = os.path.expandvars(enabled)
+        return expanded.lower() in ("false", "0", "no", "")
+    return not bool(enabled)
 
 
 # -------------------------

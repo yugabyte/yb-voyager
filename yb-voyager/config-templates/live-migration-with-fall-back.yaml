@@ -7,7 +7,7 @@
 ### *********** Basic Configuration ************
 ### Export directory is the workspace used to keep the exported schema, data, state, and logs
 ### Required
-export-dir: /home/ubuntu/iter-bug-repro
+export-dir: /tmp/iter-manual-test
 
 ### Log level for yb-voyager 
 ### Accepted values - (trace, debug, info, warn, error, fatal, panic) 
@@ -49,7 +49,7 @@ source:
   db-port: 5432    
 
   ### Source database name to be migrated to YugabyteDB                                       
-  db-name: live_test_pg_iterations
+  db-name: iter_manual
 
   ### Source schema name to export 
   ### Note - This is valid for only Oracle and PostgreSQL source databases.
@@ -127,7 +127,7 @@ target:
   db-port: 5433  
 
   ### Name of the database on the target YugabyteDB server on which import needs to be done                                    
-  db-name: debug
+  db-name: iter_manual
 
   ### Target schema name in YugabyteDB (Note: works only for source as Oracle, in case of PostgreSQL you can ALTER schema name post import)                                    
   # db-schema: public      
