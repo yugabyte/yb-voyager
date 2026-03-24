@@ -108,7 +108,6 @@ func workflowEnded() bool {
 		default:
 			return getCutoverStatus(metaDB) == COMPLETED
 	}
-	return false
 }
 
 func waitForWorkflowEnd(cleaner *segmentcleanup.SegmentCleaner, ctx context.Context) {
