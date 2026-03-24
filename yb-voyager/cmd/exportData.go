@@ -167,18 +167,20 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get migration status record: %w", err)
+	}
+
+	if msr.IsParentMigration() {
+		utils.ErrExit("Error --export-type 'changes-only' is not supported for parent migration")
+	}
 	if useDebezium && !changeStreamingIsEnabled(exportType) {
 		utils.PrintAndLogf("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
 	}
 	printLiveMigrationLimitations()
 	utils.PrintAndLogf("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
-
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("failed to get migration status record: %w", err)
-	}
-
 	setSourceDetailsForChangesOnly(msr)
 
 	handleCutoverAlreadyProcessedForExportData()

@@ -389,16 +389,9 @@ func validateExportTypeFlag() {
 	if exportType != CHANGES_ONLY {
 		return
 	}
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("error getting migration status record: %v", err)
-	}
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 		if source.DBType != POSTGRESQL {
 			utils.ErrExit("Error --export-type 'changes-only' is not supported for %s", source.DBType)
-		}
-		if msr.IsParentMigration() {
-			utils.ErrExit("Error --export-type 'changes-only' is not supported for parent migration")
 		}
 	} else if bool(startClean) {
 		utils.ErrExit("start-clean flag is not supported for changes-only export type")
