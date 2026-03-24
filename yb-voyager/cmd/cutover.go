@@ -59,6 +59,13 @@ func init() {
 }
 
 func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector bool) error {
+
+	if dbRole == "source" || dbRole == "source-replica" {
+		if getCutoverStatus(metaDB) != COMPLETED {
+			return goerrors.Errorf("cutover to target must be completed before initiating cutover to %s", dbRole)
+		}
+	}
+
 	userFacingActionMsg := fmt.Sprintf("cutover to %s", dbRole)
 	if !utils.AskPrompt(fmt.Sprintf("Are you sure you want to initiate %s? (y/n)", userFacingActionMsg)) {
 		utils.PrintAndLogf("Aborting %s", userFacingActionMsg)
@@ -173,7 +180,7 @@ func initializeNextIteration() error {
 	if err != nil {
 		return fmt.Errorf("failed to copy name registry file: %w", err)
 	}
-	
+
 	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.NextIterationInitialized = true
 	})
