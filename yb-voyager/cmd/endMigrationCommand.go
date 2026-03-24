@@ -66,16 +66,20 @@ var endMigrationCmd = &cobra.Command{
 
 		if msr.IsParentMigration() && msr.LatestIterationNumber == 0 {
 			//If normal migration flow
+			utils.PrintAndLogfInfo("\nEnding migration")
 			endMigrationCommandFn(cmd, args, false)
+			utils.PrintAndLogfSuccess("\nEnded migration successfully")
 			return
 		}
 		if msr.IsIteration() {
 			//If its an iteration like end migration on specific iteration do the cleanup of that iteration
+			utils.PrintAndLogfInfo("\nEnding migration")
 			endMigrationCommandFn(cmd, args, true)
+			utils.PrintAndLogfSuccess("\nEnded migration successfully")
 			return
 		}
 
-		//if parent with iterations 
+		//if parent with iterations
 		//backup the data migration report with detailed report for all iterations
 		saveDataMigrationReportForAllIterationsFn(msr)
 		currMetaDB := metaDB
@@ -110,18 +114,10 @@ var endMigrationCmd = &cobra.Command{
 		metaDB = currMetaDB
 		backupDir = currBackupDir
 		exportDir = currExportDir
-		isIterativeWorkflow := msr.LatestIterationNumber > 0
-		if isIterativeWorkflow {
-			utils.PrintAndLogfInfo("\nEnding migration for iteration 0")
-		} else {
-			utils.PrintAndLogfInfo("\nEnding migration")
-		}
+		utils.PrintAndLogfInfo("\nEnding migration for iteration 0")
 		endMigrationCommandFn(cmd, args, false)
-		if isIterativeWorkflow {
-			utils.PrintAndLogfSuccess("\nEnded migration successfully for all iterations")
-		} else {
-			utils.PrintAndLogfSuccess("\nEnded migration successfully")
-		}
+		utils.PrintAndLogfSuccess("\nEnded migration successfully for all iterations")
+
 	},
 }
 
