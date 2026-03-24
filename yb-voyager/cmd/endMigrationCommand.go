@@ -64,7 +64,7 @@ var endMigrationCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("failed to get migration status record: %w", err)
 		}
-		saveDataMigrationReportForIterationsFn(msr, msr.LatestIterationNumber > 0)
+		saveDataMigrationReportForAllIterationsFn(msr, msr.LatestIterationNumber > 0)
 		currMetaDB := metaDB
 		currBackupDir := backupDir
 		currExportDir := exportDir
@@ -77,7 +77,7 @@ var endMigrationCmd = &cobra.Command{
 			utils.PrintAndLogfInfo("\nEnding migration for iteration %d\n", i)
 			iterationExportDir := GetIterationExportDir(msr.GetIterationsDir(currExportDir), i)
 			if !utils.FileOrFolderExists(iterationExportDir) {
-				continue
+				utils.ErrExit("iteration export directory %q does not exist", iterationExportDir)
 			}
 			iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
 			if err != nil {
@@ -97,14 +97,14 @@ var endMigrationCmd = &cobra.Command{
 		metaDB = currMetaDB
 		backupDir = currBackupDir
 		exportDir = currExportDir
-		isIteratativeWorkflow := msr.LatestIterationNumber > 0
-		if isIteratativeWorkflow {
+		isIterativeWorkflow := msr.LatestIterationNumber > 0
+		if isIterativeWorkflow {
 			utils.PrintAndLogfInfo("\nEnding migration for iteration 0")
 		} else {
 			utils.PrintAndLogfInfo("\nEnding migration")
 		}
 		endMigrationCommandFn(cmd, args, false)
-		if isIteratativeWorkflow {
+		if isIterativeWorkflow {
 			utils.PrintAndLogfSuccess("\nEnded migration successfully for all iterations")
 		} else {
 			utils.PrintAndLogfSuccess("\nEnded migration successfully")
@@ -320,7 +320,7 @@ func backupDataFilesFn() {
 	}
 }
 
-func saveDataMigrationReportForIterationsFn(msr *metadb.MigrationStatusRecord, isIteration bool) error {
+func saveDataMigrationReportForAllIterationsFn(msr *metadb.MigrationStatusRecord, isIteration bool) error {
 	if !bool(saveMigrationReports) || !isIteration {
 		return nil
 	}
