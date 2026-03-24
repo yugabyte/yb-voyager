@@ -20,6 +20,7 @@ package cmd
 import (
 	"bufio"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
@@ -31,8 +32,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"database/sql"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
@@ -113,7 +112,6 @@ func TestImportCDCTransformFailureAndResume(t *testing.T) {
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
 
-
 	failpointEnv := testutils.GetFailpointEnvVar(
 		// Skip the first 250 transform calls (let them succeed), then trigger a
 		// transform failure on the 251st call. 250 is chosen to be large enough
@@ -137,7 +135,7 @@ func TestImportCDCTransformFailureAndResume(t *testing.T) {
 	lm.ExecuteSourceDelta()
 
 	// --- Phase 2: Wait for failpoint to fire and import to crash ---
-	failMarkerPath := filepath.Join(lm.GetExportDir(), "failpoints", "failpoint-import-cdc-transform.log")
+	failMarkerPath := filepath.Join(lm.GetCurrentExportDir(), "failpoints", "failpoint-import-cdc-transform.log")
 	err = lm.WaitForImportFailpointAndProcessCrash(t, failMarkerPath, 120*time.Second, 60*time.Second)
 	require.NoError(t, err, "Import should crash after CDC transform failpoint")
 
@@ -146,7 +144,7 @@ func TestImportCDCTransformFailureAndResume(t *testing.T) {
 	require.NoError(t, err, "Failed to read migration UUID")
 	require.NotEmpty(t, migrationUUIDStr)
 
-	maxQueuedVsn, err := maxVsnInQueueSegments(lm.GetExportDir())
+	maxQueuedVsn, err := maxVsnInQueueSegments(lm.GetCurrentExportDir())
 	require.NoError(t, err, "Failed to compute max queued vsn from queue segments")
 	t.Logf("Max queued vsn in CDC segments: %d", maxQueuedVsn)
 
@@ -250,7 +248,6 @@ func TestImportCDCDbErrorAndResume(t *testing.T) {
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
 
-
 	failpointEnv := testutils.GetFailpointEnvVar(
 		// Skip the first 100 batch-commit calls (let them succeed), then inject a
 		// DB error on the 101st. 100 is chosen so `last_applied_vsn > 0` is
@@ -277,7 +274,7 @@ func TestImportCDCDbErrorAndResume(t *testing.T) {
 	lm.ExecuteSourceDelta()
 
 	// --- Phase 2: Wait for failpoint to fire and import to crash ---
-	failMarkerPath := filepath.Join(lm.GetExportDir(), "failpoints", "failpoint-import-cdc-non-retryable-batch-db-error.log")
+	failMarkerPath := filepath.Join(lm.GetCurrentExportDir(), "failpoints", "failpoint-import-cdc-non-retryable-batch-db-error.log")
 	err = lm.WaitForImportFailpointAndProcessCrash(t, failMarkerPath, 120*time.Second, 60*time.Second)
 	require.NoError(t, err, "Import should crash after CDC DB-error failpoint")
 
@@ -286,7 +283,7 @@ func TestImportCDCDbErrorAndResume(t *testing.T) {
 	require.NoError(t, err, "Failed to read migration UUID")
 	require.NotEmpty(t, migrationUUIDStr)
 
-	maxQueuedVsn, err := maxVsnInQueueSegments(lm.GetExportDir())
+	maxQueuedVsn, err := maxVsnInQueueSegments(lm.GetCurrentExportDir())
 	require.NoError(t, err, "Failed to compute max queued vsn from queue segments")
 	t.Logf("Max queued vsn in CDC segments: %d", maxQueuedVsn)
 
@@ -382,7 +379,6 @@ func TestImportCDCEventExecutionFailureAndResume(t *testing.T) {
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
 
-
 	failpointEnv := testutils.GetFailpointEnvVar(
 		// Skip the first 50 event-execution attempts (let them succeed), then
 		// inject a non-retryable DB error on the 51st attempt.
@@ -392,7 +388,7 @@ func TestImportCDCEventExecutionFailureAndResume(t *testing.T) {
 		"--max-retries-streaming": "1",
 	}, []string{
 		failpointEnv,
-		fmt.Sprintf("YB_VOYAGER_FAILPOINT_MARKER_DIR=%s", filepath.Join(lm.GetExportDir(), "failpoints")),
+		fmt.Sprintf("YB_VOYAGER_FAILPOINT_MARKER_DIR=%s", filepath.Join(lm.GetCurrentExportDir(), "failpoints")),
 		"NUM_EVENT_CHANNELS=1",
 		"MAX_EVENTS_PER_BATCH=10",
 		"MAX_INTERVAL_BETWEEN_BATCHES=1",
@@ -409,7 +405,7 @@ func TestImportCDCEventExecutionFailureAndResume(t *testing.T) {
 	lm.ExecuteSourceDelta()
 
 	// --- Phase 2: Wait for failpoint to fire and import to crash ---
-	failMarkerPath := filepath.Join(lm.GetExportDir(), "failpoints", "failpoint-import-cdc-exec-event-error.log")
+	failMarkerPath := filepath.Join(lm.GetCurrentExportDir(), "failpoints", "failpoint-import-cdc-exec-event-error.log")
 	err = lm.WaitForImportFailpointAndProcessCrash(t, failMarkerPath, 120*time.Second, 60*time.Second)
 	require.NoError(t, err, "Import should crash after CDC exec-event failpoint")
 	require.Contains(t, lm.GetImportCommandStderr(), "failpoint", "Expected failpoint mention in import stderr")
@@ -419,7 +415,7 @@ func TestImportCDCEventExecutionFailureAndResume(t *testing.T) {
 	require.NoError(t, err, "Failed to read migration UUID")
 	require.NotEmpty(t, migrationUUIDStr)
 
-	maxQueuedVsn, err := maxVsnInQueueSegments(lm.GetExportDir())
+	maxQueuedVsn, err := maxVsnInQueueSegments(lm.GetCurrentExportDir())
 	require.NoError(t, err, "Failed to compute max queued vsn from queue segments")
 	t.Logf("Max queued vsn in CDC segments: %d", maxQueuedVsn)
 
@@ -523,7 +519,6 @@ func TestImportCDCRetryableDbErrorThenSucceed(t *testing.T) {
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
 
-
 	failpointEnv := testutils.GetFailpointEnvVar(
 		// Inject a retryable error on the very first batch execution, then disable
 		// the failpoint (1*return = fire once). The importer should retry in-process
@@ -532,7 +527,7 @@ func TestImportCDCRetryableDbErrorThenSucceed(t *testing.T) {
 	)
 	err = lm.StartImportDataWithEnv(true, nil, []string{
 		failpointEnv,
-		fmt.Sprintf("YB_VOYAGER_FAILPOINT_MARKER_DIR=%s", filepath.Join(lm.GetExportDir(), "failpoints")),
+		fmt.Sprintf("YB_VOYAGER_FAILPOINT_MARKER_DIR=%s", filepath.Join(lm.GetCurrentExportDir(), "failpoints")),
 		"YB_VOYAGER_MAX_SLEEP_SECOND=0",
 		"NUM_EVENT_CHANNELS=1",
 		"MAX_EVENTS_PER_BATCH=10",
@@ -551,7 +546,7 @@ func TestImportCDCRetryableDbErrorThenSucceed(t *testing.T) {
 	lm.ExecuteSourceDelta()
 
 	// --- Phase 2: Wait for failpoint marker and verify import stays alive (retries in-process) ---
-	failMarkerPath := filepath.Join(lm.GetExportDir(), "failpoints", "failpoint-import-cdc-retryable-exec-batch-error.log")
+	failMarkerPath := filepath.Join(lm.GetCurrentExportDir(), "failpoints", "failpoint-import-cdc-retryable-exec-batch-error.log")
 	t.Logf("Waiting for failpoint marker: %s", failMarkerPath)
 	matched, err := testutils.WaitForFailpointMarker(failMarkerPath, 120*time.Second, 2*time.Second)
 	require.NoError(t, err, "Should be able to read retryable batch failure marker")
@@ -644,7 +639,6 @@ func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
 
-
 	failpointEnv := testutils.GetFailpointEnvVar(
 		// Inject a retryable error on the very first batch execution *after* the
 		// batch has already been committed (simulates e.g. RPC timeout on commit).
@@ -654,7 +648,7 @@ func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 	)
 	err = lm.StartImportDataWithEnv(true, nil, []string{
 		failpointEnv,
-		fmt.Sprintf("YB_VOYAGER_FAILPOINT_MARKER_DIR=%s", filepath.Join(lm.GetExportDir(), "failpoints")),
+		fmt.Sprintf("YB_VOYAGER_FAILPOINT_MARKER_DIR=%s", filepath.Join(lm.GetCurrentExportDir(), "failpoints")),
 		"YB_VOYAGER_MAX_SLEEP_SECOND=0",
 		"NUM_EVENT_CHANNELS=1",
 		"MAX_EVENTS_PER_BATCH=1",
@@ -673,7 +667,7 @@ func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 	lm.ExecuteSourceDelta()
 
 	// --- Phase 2: Wait for failpoint marker and verify import stays alive (retries in-process) ---
-	failMarkerPath := filepath.Join(lm.GetExportDir(), "failpoints", "failpoint-import-cdc-retryable-after-commit-error.log")
+	failMarkerPath := filepath.Join(lm.GetCurrentExportDir(), "failpoints", "failpoint-import-cdc-retryable-after-commit-error.log")
 	t.Logf("Waiting for failpoint marker: %s", failMarkerPath)
 	matched, err := testutils.WaitForFailpointMarker(failMarkerPath, 120*time.Second, 2*time.Second)
 	require.NoError(t, err, "Should be able to read retryable-after-commit marker")
@@ -778,7 +772,6 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
 
-
 	failpointEnv := testutils.GetFailpointEnvVar(
 		// Skip the first 100 batch-commit calls across all channels (let them
 		// succeed), then inject a DB error on the 101st. 100 is large enough that
@@ -858,7 +851,7 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 		"DELETE FROM %s WHERE id IN (%s);", tableName, strings.Join(deleteIDs, ",")))
 
 	// --- Phase 2: Wait for failpoint to fire and import to crash ---
-	failMarkerPath := filepath.Join(lm.GetExportDir(), "failpoints", "failpoint-import-cdc-non-retryable-batch-db-error.log")
+	failMarkerPath := filepath.Join(lm.GetCurrentExportDir(), "failpoints", "failpoint-import-cdc-non-retryable-batch-db-error.log")
 	err = lm.WaitForImportFailpointAndProcessCrash(t, failMarkerPath, 120*time.Second, 60*time.Second)
 	require.NoError(t, err, "Import should crash after multi-channel batch failure failpoint")
 
@@ -867,7 +860,7 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 	require.NoError(t, err, "Failed to read migration UUID")
 	require.NotEmpty(t, migrationUUIDStr)
 
-	maxQueuedVsn, err := maxVsnInQueueSegments(lm.GetExportDir())
+	maxQueuedVsn, err := maxVsnInQueueSegments(lm.GetCurrentExportDir())
 	require.NoError(t, err, "Failed to compute max queued vsn from queue segments")
 	t.Logf("Max queued vsn in CDC segments: %d", maxQueuedVsn)
 

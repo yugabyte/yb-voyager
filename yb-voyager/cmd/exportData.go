@@ -662,10 +662,19 @@ func exportData() bool {
 				deletePGReplicationSlotAndPublication(msr, &source)
 			}
 
+			injectAfterDeletingReplicationSlotAndPublication()
+
 			// mark cutover processed only after cleanup like deleting replication slot and yb cdc stream id
 			err = markCutoverProcessed(exporterRole)
 			if err != nil {
 				utils.ErrExit("failed to create trigger file after data export: %w", err)
+			}
+
+			if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
+				injectCutoverToSourceExporterPostMarkProcessed()
+			}
+			if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+				injectCutoverToTargetExporterPostMarkProcessed()
 			}
 
 			updateCallhomeExportPhase()
@@ -720,6 +729,7 @@ func startDebeziumAsPerExportTypeIfRequired(ctx context.Context, cancel context.
 	if err != nil {
 		return fmt.Errorf("failed to update cutover detected flag: %w", err)
 	}
+	injectAfterCompletingDebezium()
 	return nil
 }
 
