@@ -224,6 +224,16 @@ func (v *VoyagerCommandRunner) Run() error {
 	if !v.isAsync {
 		return v.Wait()
 	}
+	//In case the command is asynchronous, we need to wait for the command to finish but asynchronously
+	//and prevents the zombie process from being left behind.
+	//As we issue signal to stop the command, it will exit but wihout wait the process metadata is not updated so if we are checking if the 
+	//command stopped properly or not, we won't be able to know (e.g. in end-migration command).
+	go func() {
+		err := v.Wait()
+		if err != nil {
+			log.Errorf("command %s failed: %v", v.CmdName, err)
+		}
+	}()
 	return nil
 }
 
