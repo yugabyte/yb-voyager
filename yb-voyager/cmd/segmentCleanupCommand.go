@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/tebeka/atexit"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/segmentcleanup"
@@ -67,11 +68,15 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 		record.ArchivingEnabled = true
 		record.SegmentCleanupRunning = true
 	})
-	defer func() {
+	resetSegmentCleanupRunning := func() {
 		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			record.SegmentCleanupRunning = false
 		})
-	}()
+	}
+	defer resetSegmentCleanupRunning()
+	// Also register as an atexit handler so the flag is cleared when
+	// utils.ErrExit calls atexit.Exit, which bypasses Go defers.
+	atexit.Register(resetSegmentCleanupRunning)
 
 	cfg := segmentcleanup.Config{
 		Policy:                 cleanupPolicy,
