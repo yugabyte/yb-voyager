@@ -531,7 +531,7 @@ func (m *MetaDB) GetProcessedQueueSegments() ([]utils.Segment, error) {
 
 	predicate := fmt.Sprintf(`((exporter_role == 'source_db_exporter' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer = %d)) OR
 	(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_source_replica_db_importer + imported_by_source_db_importer = 1)))
-	AND deleted = 0`, importCount)
+	AND archived = 0 AND deleted = 0`, importCount)
 	segments, err := m.querySegments(predicate)
 	if err != nil {
 		return nil, goerrors.Errorf("fetch processed segments: %v", err)
