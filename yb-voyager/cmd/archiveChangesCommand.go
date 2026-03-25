@@ -24,7 +24,6 @@ import (
 	"time"
 
 	goerrors "github.com/go-errors/errors"
-
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -163,17 +162,13 @@ func (d *EventSegmentDeleter) Run() error {
 		if !d.isFSUtilisationExceeded() {
 			continue
 		}
-		importCount, err := d.getImportCount()
-		if err != nil {
-			return fmt.Errorf("get number of importers for deleter: %w", err)
-		}
 		segmentsToBeDeleted, err := metaDB.GetSegmentsToBeDeleted()
 		if err != nil {
 			return goerrors.Errorf("get segments to be deleted: %v", err)
 		}
 
 		if StopArchiverSignal && len(segmentsToBeDeleted) == 0 {
-			pendingSegments, err := metaDB.GetPendingSegments(importCount)
+			pendingSegments, err := metaDB.GetPendingSegments()
 			if err != nil {
 				return goerrors.Errorf("stop archiver signal to deleter: %v", err)
 			}
@@ -270,7 +265,7 @@ func (m *EventSegmentCopier) Run() error {
 		}
 
 		if StopArchiverSignal && len(segmentsToArchive) == 0 {
-			pendingSegments, err := metaDB.GetPendingSegments(importCount)
+			pendingSegments, err := metaDB.GetPendingSegments()
 			if err != nil {
 				return goerrors.Errorf("stop archiver signal to copier: %v", err)
 			}
