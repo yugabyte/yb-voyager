@@ -235,7 +235,7 @@ main() {
 	cutover_to_target 
 
 	for ((i = 0; i < 20; i++)); do
-    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to target status" | cut -d ':'  -f 2 | tr -d '[:blank:]')" != "COMPLETED" ]; then
+    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "source → target" | awk -F'|' '{print $2}' | tr -d '[:blank:]')" != "COMPLETED" ]; then
         echo "Waiting for cutover to be COMPLETED..."
         sleep 20
         if [ "$i" -eq 19 ]; then
@@ -278,7 +278,7 @@ main() {
 	fi
 
 	for ((i = 0; i < 15; i++)); do
-    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to source status" | cut -d ':'  -f 2 | tr -d '[:blank:]')"  != "COMPLETED" ]; then
+		if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "target → source" | grep -v "source-replica" | awk -F'|' '{print $2}' | tr -d '[:blank:]')"  != "COMPLETED" ]; then
         echo "Waiting for switchover to be COMPLETED..."
         sleep 20
         if [ "$i" -eq 14 ]; then

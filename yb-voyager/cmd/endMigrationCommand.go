@@ -32,7 +32,6 @@ var (
 	saveMigrationReports    utils.BoolStr
 	backupLogFiles          utils.BoolStr
 	backupDir               string
-	targetDBPassword        string
 	sourceReplicaDBPassword string
 	sourceDBPassword        string
 	streamChangesMode       bool
@@ -59,10 +58,71 @@ var endMigrationCmd = &cobra.Command{
 
 	},
 
-	Run: endMigrationCommandFn,
+	Run: func(cmd *cobra.Command, args []string) {
+		msr, err := metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			utils.ErrExit("failed to get migration status record: %w", err)
+		}
+
+		if msr.IsParentMigration() && msr.LatestIterationNumber == 0 {
+			//If normal migration flow
+			utils.PrintAndLogfInfo("\nEnding migration")
+			endMigrationCommandFn(cmd, args, false)
+			utils.PrintAndLogfSuccess("\nEnded migration successfully")
+			return
+		}
+		if msr.IsIteration() {
+			//If its an iteration like end migration on specific iteration do the cleanup of that iteration
+			utils.PrintAndLogfInfo("\nEnding migration")
+			endMigrationCommandFn(cmd, args, true)
+			utils.PrintAndLogfSuccess("\nEnded migration successfully")
+			return
+		}
+
+		//if parent with iterations
+		//backup the data migration report with detailed report for all iterations
+		saveDataMigrationReportForAllIterationsFn(msr)
+		currMetaDB := metaDB
+		currBackupDir := backupDir
+		currExportDir := exportDir
+		defer func() {
+			metaDB = currMetaDB
+			backupDir = currBackupDir
+			exportDir = currExportDir
+		}()
+		for i := 1; i <= msr.LatestIterationNumber; i++ {
+			utils.PrintAndLogfInfo("\nEnding migration for iteration %d\n", i)
+			iterationExportDir := GetIterationExportDir(msr.GetIterationsDir(currExportDir), i)
+			if !utils.FileOrFolderExists(iterationExportDir) {
+				utils.ErrExit("iteration export directory %q does not exist", iterationExportDir)
+			}
+			iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
+			if err != nil {
+				utils.ErrExit("failed to create iteration meta db: %w", err)
+			}
+			if currBackupDir != "" {
+				backupDir = filepath.Join(currBackupDir, "live-data-migration-iterations", fmt.Sprintf("live-data-migration-iteration-%d", i))
+				err = os.MkdirAll(backupDir, 0755)
+				if err != nil {
+					utils.ErrExit("creating backup directory: %w", err)
+				}
+			}
+			metaDB = iterationMetaDB
+			exportDir = iterationExportDir
+			endMigrationCommandFn(cmd, args, true)
+		}
+		metaDB = currMetaDB
+		backupDir = currBackupDir
+		exportDir = currExportDir
+		utils.PrintAndLogfInfo("\nEnding migration for iteration 0")
+		endMigrationCommandFn(cmd, args, false)
+		utils.PrintAndLogfSuccess("\nEnded migration successfully for all iterations")
+
+	},
 }
 
-func endMigrationCommandFn(cmd *cobra.Command, args []string) {
+// TODO: do not use global variables
+func endMigrationCommandFn(cmd *cobra.Command, args []string, isIteration bool) {
 	if utils.AskPrompt("Migration can't be resumed or continued after this.", "Are you sure you want to end the migration") {
 		log.Info("ending the migration")
 	} else {
@@ -89,8 +149,10 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("saving migration reports: %w", err)
 	}
-	backupSchemaFilesFn()
-	backupDataFilesFn()
+	if !isIteration {
+		backupSchemaFilesFn()
+		backupDataFilesFn()
+	}
 
 	// cleaning only the migration state wherever and  whatever required
 	cleanupSourceDB(msr)
@@ -268,6 +330,20 @@ func backupDataFilesFn() {
 	}
 }
 
+func saveDataMigrationReportForAllIterationsFn(msr *metadb.MigrationStatusRecord) error {
+	if !bool(saveMigrationReports) {
+		return nil
+	}
+
+	err := os.MkdirAll(filepath.Join(backupDir, "reports"), 0755)
+	if err != nil {
+		return fmt.Errorf("creating reports directory for backup: %w", err)
+	}
+
+	saveDataMigrationReport(msr, true)
+	return nil
+}
+
 func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) error {
 	if !saveMigrationReports {
 		return nil
@@ -285,7 +361,7 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) error {
 		return fmt.Errorf("saving schema optimization report: %w", err)
 	}
 	if streamChangesMode {
-		saveDataMigrationReport(msr)
+		saveDataMigrationReport(msr, false)
 	} else { // snapshot case
 		if msr.SnapshotMechanism != "" {
 			saveDataExportReport()
@@ -386,7 +462,7 @@ func saveSchemaAnalysisReport() {
 	}
 }
 
-func saveDataMigrationReport(msr *metadb.MigrationStatusRecord) {
+func saveDataMigrationReport(msr *metadb.MigrationStatusRecord, includeIterations bool) {
 	dataMigrationReportPath := filepath.Join(backupDir, "reports", "data_migration_report.json")
 	if utils.FileOrFolderExists(dataMigrationReportPath) {
 		utils.PrintAndLogf("data migration report is already present at %q", dataMigrationReportPath)
@@ -401,7 +477,15 @@ func saveDataMigrationReport(msr *metadb.MigrationStatusRecord) {
 		fmt.Sprintf("SOURCE_DB_PASSWORD=%s", sourceDBPassword),
 	}
 
-	strCmd := fmt.Sprintf("yb-voyager get data-migration-report --export-dir %s --log-level %s --output-format json", exportDir, config.LogLevel)
+	parentExportDir := exportDir
+	if includeIterations {
+		parentExportDir = msr.GetParentExportDir(exportDir)
+	}
+
+	strCmd := fmt.Sprintf("yb-voyager get data-migration-report --export-dir %s --log-level %s --output-format json", parentExportDir, config.LogLevel)
+	if includeIterations {
+		strCmd += " --include-detailed-iterations-stats true"
+	}
 	liveMigrationReportCmd := exec.Command("bash", "-c", strCmd)
 	liveMigrationReportCmd.Env = append(os.Environ(), passwordsEnvVars...)
 
@@ -473,6 +557,15 @@ func backupLogFilesFn() {
 	err := os.MkdirAll(backupLogDir, 0755)
 	if err != nil {
 		utils.ErrExit("creating logs directory for backup: %w", err)
+	}
+
+	_, err = os.ReadDir(filepath.Join(exportDir, "logs"))
+	if err != nil {
+		if !os.IsNotExist(err) {
+			utils.ErrExit("reading logs directory: %w", err)
+		} else {
+			return
+		}
 	}
 
 	utils.PrintAndLogf("backing up log files")
@@ -893,6 +986,11 @@ func stopVoyagerCommands(msr *metadb.MigrationStatusRecord, lockFiles []*lockfil
 		stopDataExportCommand(exportDataFromSourceLockFile)
 		stopDataExportCommand(exportDataFromTargetLockFile)
 		stopVoyagerCommand(archiveChangesLockFile, syscall.SIGUSR1)
+	}
+
+	if msr.SegmentCleanupRunning {
+		segmentCleanupLockFile := getLockFileForCommand(lockFiles, "segmentcleanup")
+		stopVoyagerCommand(segmentCleanupLockFile, syscall.SIGUSR2)
 	}
 
 	for _, lockFile := range lockFiles {

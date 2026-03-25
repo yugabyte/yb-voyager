@@ -16,8 +16,8 @@ limitations under the License.
 package segmentcleanup
 
 import (
-	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	goerrors "github.com/go-errors/errors"
@@ -28,11 +28,12 @@ import (
 )
 
 const (
-	PolicyDelete = "delete"
-	PolicyRetain = "retain"
+	PolicyDelete  = "delete"
+	PolicyRetain  = "retain"
+	PolicyArchive = "archive"
 )
 
-var ValidPolicyNames = []string{PolicyDelete, PolicyRetain}
+var ValidPolicyNames = []string{PolicyDelete, PolicyRetain, PolicyArchive}
 
 func IsValidPolicy(policy string) bool {
 	for _, v := range ValidPolicyNames {
@@ -46,6 +47,7 @@ func IsValidPolicy(policy string) bool {
 type Config struct {
 	Policy                 string
 	ExportDir              string
+	ArchiveDir             string
 	FSUtilizationThreshold int
 }
 
@@ -73,23 +75,11 @@ func (sc *SegmentCleaner) Run() error {
 		return sc.runDeletePolicy()
 	case PolicyRetain:
 		return sc.runRetainPolicy()
+	case PolicyArchive:
+		return sc.runArchivePolicy()
 	default:
 		return goerrors.Errorf("unsupported cleanup policy: %s", sc.config.Policy)
 	}
-}
-
-func (sc *SegmentCleaner) getImportCount() (int, error) {
-	msr, err := sc.metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		return 0, goerrors.Errorf("get migration status record: %v", err)
-	}
-	if msr == nil {
-		return 0, goerrors.Errorf("migration status record not found")
-	}
-	if msr.FallForwardEnabled {
-		return 2, nil
-	}
-	return 1, nil
 }
 
 func (sc *SegmentCleaner) isFSUtilizationExceeded() bool {
@@ -116,12 +106,7 @@ func (sc *SegmentCleaner) runDeletePolicy() error {
 			continue
 		}
 
-		importCount, err := sc.getImportCount()
-		if err != nil {
-			return fmt.Errorf("get import count: %w", err)
-		}
-
-		segments, err := sc.metaDB.GetProcessedSegments(importCount)
+		segments, err := sc.metaDB.GetProcessedQueueSegments()
 		if err != nil {
 			return goerrors.Errorf("get processed segments: %v", err)
 		}
@@ -180,3 +165,64 @@ func (sc *SegmentCleaner) runRetainPolicy() error {
 	return nil
 }
 
+// --- archive policy ---
+
+func (sc *SegmentCleaner) runArchivePolicy() error {
+	if sc.config.ArchiveDir == "" {
+		return goerrors.Errorf("archive policy requires --archive-dir to be specified")
+	}
+	utils.PrintAndLogf("segment cleanup running with policy=archive, archive-dir=%s\n",
+		sc.config.ArchiveDir)
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		segments, err := sc.metaDB.GetProcessedQueueSegments()
+		if err != nil {
+			return goerrors.Errorf("get processed segments: %v", err)
+		}
+
+		if sc.stop && len(segments) == 0 {
+			log.Infof("all processed segments archived and deleted, cleanup complete")
+			return nil
+		}
+
+		for _, seg := range segments {
+			if err := sc.archiveAndDeleteSegment(seg); err != nil {
+				return goerrors.Errorf("archive segment %s: %v", seg.FilePath, err)
+			}
+		}
+	}
+	return nil
+}
+
+func (sc *SegmentCleaner) archiveAndDeleteSegment(seg utils.Segment) error {
+	archivePath := filepath.Join(sc.config.ArchiveDir, filepath.Base(seg.FilePath))
+
+	if utils.FileOrFolderExists(seg.FilePath) {
+		if utils.FileOrFolderExists(archivePath) {
+			if err := os.Remove(archivePath); err != nil {
+				return goerrors.Errorf("remove existing archive file %s: %v", archivePath, err)
+			}
+			log.Infof("removed existing archive file %s before re-archiving", archivePath)
+		}
+		if err := utils.CopyFile(seg.FilePath, archivePath); err != nil {
+			return goerrors.Errorf("copy segment to archive: %v", err)
+		}
+		if err := os.Remove(seg.FilePath); err != nil {
+			return goerrors.Errorf("remove segment file %s after archiving: %v", seg.FilePath, err)
+		}
+	} else if !utils.FileOrFolderExists(archivePath) {
+		// The segment file is missing from both the export dir and the archive dir.
+		// This should not happen under normal operation; treat it as a fatal error
+		// rather than silently marking the segment as archived in the metaDB.
+		return goerrors.Errorf("segment %d file missing: not found at source path %s or archive path %s",
+			seg.Num, seg.FilePath, archivePath)
+	}
+
+	if err := sc.metaDB.ArchiveAndDeleteSegment(seg.Num, archivePath); err != nil {
+		return goerrors.Errorf("archive and delete segment %d: %v", seg.Num, err)
+	}
+	utils.PrintAndLogf("segment file %s archived to %s and deleted", seg.FilePath, archivePath)
+	return nil
+}

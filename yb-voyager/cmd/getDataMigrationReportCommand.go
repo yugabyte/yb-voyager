@@ -433,7 +433,7 @@ func printReport(forIteration bool, statsPerTable map[string][]*rowData, msr *me
 
 	if !bool(includeDetailedIterationsStats) && msr.LatestIterationNumber > 0 {
 		//If detailed report is not enabled, and there are iterations, print the info to see the detailed report
-		utils.PrintAndLogfInfo("To see the detailed report with all the iterations, run the command with the --all-iterations true flag.\n\n")
+		utils.PrintAndLogfInfo("To see the detailed report with all the iterations, run the command with the --include-detailed-iterations-stats true flag.\n\n")
 	}
 
 }
@@ -527,7 +527,7 @@ func groupByTableNameAndCalculateCumulativeRowCount(reportData []*rowData) []*ro
 	}
 	tableNames := lo.Keys(reportDataMap)
 	slices.Sort(tableNames)
-	
+
 	reportData = make([]*rowData, 0)
 	for _, tableName := range tableNames {
 		var finalRowCountSrc int64 = 0
@@ -582,7 +582,7 @@ func getIterationDataMigrationReport(iterationExportDir string) ([]*rowData, err
 	if iterationMsr.TargetDBConf != nil {
 		iterationMsr.TargetDBConf.Password = targetDBPassword
 	}
-	if iterationMsr.FallbackEnabled {
+	if iterationMsr.FallbackEnabled && iterationMsr.SourceDBAsTargetConf != nil {
 		iterationMsr.SourceDBAsTargetConf.Password = sourceDbPassword
 	}
 	migrationUUID = uuid.MustParse(iterationMsr.MigrationUUID)

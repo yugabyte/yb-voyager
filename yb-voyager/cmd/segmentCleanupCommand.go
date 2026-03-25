@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/tebeka/atexit"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/segmentcleanup"
@@ -28,22 +29,24 @@ import (
 
 var (
 	cleanupPolicy               string
+	cleanupArchiveDir           string
 	cleanupUtilizationThreshold int
 )
 
 var segmentCleanupCmd = &cobra.Command{
-	Use:   "segment-cleanup",
+	Use:   "segmentcleanup",
 	Short: "Clean up processed CDC event queue segments",
 	Long: fmt.Sprintf(`Manage the lifecycle of processed CDC event segments during live migration.
 
 Supported policies (--policy):
   delete  (default) — delete processed segments once fs utilization exceeds the threshold.
   retain  — keep all segments on disk; emit warnings if the threshold is exceeded.
+  archive — copy processed segments to --archive-dir, then delete the originals.
 
 Policies: %s`, strings.Join(segmentcleanup.ValidPolicyNames, ", ")),
 
 	PreRun: func(cmd *cobra.Command, args []string) {
-		validateSegmentCleanupFlags()
+		validateSegmentCleanupFlags(cmd)
 	},
 
 	Run: segmentCleanupCommandFn,
@@ -55,7 +58,7 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("error getting migration status record: %v", err)
 	}
 	if msr == nil {
-		utils.ErrExit("migration status record not found; ensure export has been initiated before running segment-cleanup")
+		utils.ErrExit("migration status record not found; ensure export has been initiated before running segmentcleanup")
 	}
 	if !msr.ExportDataSourceDebeziumStarted {
 		utils.ErrExit("the streaming phase of export data has not started yet — this command can only be run after streaming begins")
@@ -63,11 +66,22 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 
 	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.ArchivingEnabled = true
+		record.SegmentCleanupRunning = true
 	})
+	resetSegmentCleanupRunning := func() {
+		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+			record.SegmentCleanupRunning = false
+		})
+	}
+	defer resetSegmentCleanupRunning()
+	// Also register as an atexit handler so the flag is cleared when
+	// utils.ErrExit calls atexit.Exit, which bypasses Go defers.
+	atexit.Register(resetSegmentCleanupRunning)
 
 	cfg := segmentcleanup.Config{
 		Policy:                 cleanupPolicy,
 		ExportDir:              exportDir,
+		ArchiveDir:             cleanupArchiveDir,
 		FSUtilizationThreshold: cleanupUtilizationThreshold,
 	}
 
@@ -84,12 +98,27 @@ func init() {
 	segmentCleanupCmd.Flags().StringVar(&cleanupPolicy, "policy", segmentcleanup.PolicyDelete,
 		fmt.Sprintf("cleanup policy for processed segments (%s)", strings.Join(segmentcleanup.ValidPolicyNames, ", ")))
 
+	segmentCleanupCmd.Flags().StringVar(&cleanupArchiveDir, "archive-dir", "",
+		"directory to archive processed segments to (required when --policy=archive)")
+
 	segmentCleanupCmd.Flags().IntVar(&cleanupUtilizationThreshold, "fs-utilization-threshold", 70,
 		"disk utilization percentage above which cleanup actions are triggered")
 }
 
-func validateSegmentCleanupFlags() {
+func validateSegmentCleanupFlags(cmd *cobra.Command) {
 	if !segmentcleanup.IsValidPolicy(cleanupPolicy) {
 		utils.ErrExit("invalid --policy %q: must be one of %s", cleanupPolicy, strings.Join(segmentcleanup.ValidPolicyNames, ", "))
+	}
+	if cleanupPolicy == segmentcleanup.PolicyArchive && cleanupArchiveDir == "" {
+		utils.ErrExit("--archive-dir is required when --policy=archive")
+	}
+	if cleanupPolicy != segmentcleanup.PolicyArchive && cleanupArchiveDir != "" {
+		utils.ErrExit("--archive-dir can only be used with --policy=archive")
+	}
+	if cleanupArchiveDir != "" && !utils.FileOrFolderExists(cleanupArchiveDir) {
+		utils.ErrExit("archive directory %q does not exist", cleanupArchiveDir)
+	}
+	if cleanupPolicy == segmentcleanup.PolicyArchive && cmd.Flags().Changed("fs-utilization-threshold") {
+		utils.ErrExit("--fs-utilization-threshold cannot be used with --policy=archive")
 	}
 }

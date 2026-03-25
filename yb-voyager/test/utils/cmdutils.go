@@ -83,6 +83,15 @@ func RunVoyagerCommand(container testcontainers.TestContainer,
 
 	// Append connection arguments to provided command arguments.
 	cmdArgs = append(connectionArgs, cmdArgs...)
+
+	// Add --send-diagnostics=false explicitly for commands that support it.
+	// This is an extra safety measure in addition to setting the YB_VOYAGER_SEND_DIAGNOSTICS
+	// environment variable, ensuring diagnostics are disabled even if the env var is not
+	// properly inherited by subprocesses.
+	if supportsSendDiagnosticsFlag(cmdName) {
+		cmdArgs = append(cmdArgs, "--send-diagnostics", "false")
+	}
+
 	cmdStr := fmt.Sprintf("yb-voyager %s %s", cmdName, strings.Join(cmdArgs, " "))
 	cmd := exec.Command("/bin/bash", "-c", cmdStr)
 	fmt.Printf("Running command: %s\n", cmdStr)

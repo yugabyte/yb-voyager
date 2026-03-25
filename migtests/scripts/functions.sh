@@ -556,7 +556,8 @@ archive_changes() {
     mkdir ${ARCHIVE_DIR}
     yb-voyager archive changes --move-to ${ARCHIVE_DIR} \
         --export-dir ${EXPORT_DIR} \
-        --fs-utilization-threshold 0
+        --fs-utilization-threshold 0 \
+        --send-diagnostics=false
 }
 
 end_migration() {
@@ -578,7 +579,7 @@ end_migration() {
     yb-voyager end migration --export-dir ${EXPORT_DIR} \
         --backup-dir ${BACKUP_DIR} --backup-schema-files true \
         --backup-data-files true --backup-log-files true \
-        --save-migration-reports true "$@" || {
+        --save-migration-reports true --send-diagnostics=false "$@" || {
             cat ${EXPORT_DIR}/logs/yb-voyager-end-migration.log
             exit 1
         }
