@@ -97,6 +97,34 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 	if err := cleaner.Run(); err != nil {
 		utils.ErrExit("segment cleanup failed: %v", err)
 	}
+
+	msr, err = metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("error getting migration status record: %v", err)
+	}
+	if msr.IsParentMigration() {
+		printNextIterationExportDirIfRequired(msr)
+	} else {
+		parentMetaDB, err := metaDB.GetParentMetaDB()
+		if err != nil {
+			utils.ErrExit("error getting parent meta db: %v", err)
+		}
+		parentMSR, err := parentMetaDB.GetMigrationStatusRecord()
+		if err != nil {
+			utils.ErrExit("error getting parent migration status record: %v", err)
+		}
+		printNextIterationExportDirIfRequired(parentMSR)
+	}
+}
+
+func printNextIterationExportDirIfRequired(msr *metadb.MigrationStatusRecord) {
+	if msr.LatestIterationNumber == 0 {
+		return
+	}
+	iterationsExportDir := msr.GetIterationsDir(exportDir)
+	iterationExportDir := GetIterationExportDir(iterationsExportDir, msr.LatestIterationNumber)
+	utils.PrintAndLogfInfo("\n Start Archiving changes for iteration %d by running the following command on export-dir %s", msr.LatestIterationNumber, iterationExportDir)
+
 }
 
 func workflowEnded() bool {
