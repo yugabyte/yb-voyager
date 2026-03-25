@@ -469,7 +469,7 @@ func (lm *LiveMigrationTest) StopImportData() error {
 	if lm.importCmd == nil {
 		return goerrors.Errorf("import command not started")
 	}
-	err = lm.importCmd.GracefulStop(20)
+	err := lm.importCmd.GracefulStop(20)
 	if err != nil {
 		return goerrors.Errorf("failed to stop import data: %w", err)
 	}
