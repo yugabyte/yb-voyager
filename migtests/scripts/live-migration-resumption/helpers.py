@@ -760,28 +760,80 @@ def resolve_generator_config(gen_cfg: Dict[str, Any] | None, test_root: str | No
     return fallback_path
 
 
-def start_generator(final_cfg_path: str, env: Dict[str, str]) -> subprocess.Popen:
+def start_generator(final_cfg_path: str, env: Dict[str, str], artifacts_dir: str | None = None) -> subprocess.Popen:
     helper_dir = os.path.dirname(__file__)
     generator_dir = os.path.abspath(os.path.join(helper_dir, "..", "event-generator"))
     generator_main = os.path.join(generator_dir, "generator.py")
     log(f"starting generator with --config {final_cfg_path}")
-    return subprocess.Popen(
+
+    log_file = None
+    if artifacts_dir:
+        os.makedirs(artifacts_dir, exist_ok=True)
+        log_path = os.path.join(artifacts_dir, "event-generator.log")
+        log_file = open(log_path, "a")
+
+    proc = subprocess.Popen(
         [sys.executable, generator_main, "--config", final_cfg_path],
         env=env,
-        stdout=subprocess.DEVNULL,
+        stdout=log_file or subprocess.DEVNULL,
+        stderr=subprocess.STDOUT if log_file else subprocess.DEVNULL,
         text=True,
         cwd=generator_dir,
     )
+    proc._gen_log_file = log_file  # type: ignore[attr-defined]
+    return proc
 
 
 def start_generator_from_context(ctx: Context, config_key: str = "generator") -> subprocess.Popen:
     gen_cfg = ctx.cfg.get(config_key)
     final_cfg_path = resolve_generator_config(gen_cfg, ctx.test_root)
-    return start_generator(final_cfg_path, ctx.env)
+    artifacts_dir = ctx.cfg.get("artifacts_dir")
+    return start_generator(final_cfg_path, ctx.env, artifacts_dir)
 
 
-def stop_generator(proc: subprocess.Popen | None, graceful_timeout_sec: int) -> None:
+def stop_generator(proc: subprocess.Popen | None, graceful_timeout_sec: int) -> Dict[str, int]:
+    """Stop the generator and return parsed event stats (if available)."""
     kill(proc, timeout_sec=graceful_timeout_sec)
+    stats: Dict[str, int] = {}
+    if proc is None:
+        return stats
+    log_file = getattr(proc, "_gen_log_file", None)
+    if log_file:
+        try:
+            log_file.close()
+        except Exception:
+            pass
+        try:
+            log_path = log_file.name
+            stats = _parse_generator_summary(log_path)
+            if stats:
+                log(f"event-gen stats: {stats}")
+        except Exception as e:
+            log(f"warning: could not parse event-gen summary: {e}")
+    return stats
+
+
+def _parse_generator_summary(log_path: str) -> Dict[str, int]:
+    """Parse the last EVENT_GEN_SUMMARY line from the generator log."""
+    import re
+    stats: Dict[str, int] = {}
+    last_summary = ""
+    with open(log_path, "r") as f:
+        for line in f:
+            if "EVENT_GEN_SUMMARY:" in line:
+                last_summary = line
+    if not last_summary:
+        return stats
+    for key in ("total_ops", "errors"):
+        m = re.search(rf"{key}=(\d+)", last_summary)
+        if m:
+            stats[key] = int(m.group(1))
+    for key in ("INSERT", "UPDATE", "DELETE"):
+        m = re.search(rf"{key}=(\d+)\((\d+) rows\)", last_summary)
+        if m:
+            stats[f"{key}_ops"] = int(m.group(1))
+            stats[f"{key}_rows"] = int(m.group(2))
+    return stats
 
 
 # -------------------------
@@ -1498,6 +1550,14 @@ def run_row_count_validations(
                 json.dump(record, f)
             if record["status"] == "mismatch":
                 mismatches.append(record)
+
+    log(f"row count validation: {len(tables)} tables checked, {len(mismatches)} mismatches")
+    for table in tables:
+        rec_path = os.path.join(out_dir, f"{table}.json")
+        if os.path.isfile(rec_path):
+            with open(rec_path) as f:
+                rec = json.load(f)
+                log(f"  {rec['table']:30s}  source={rec['source_count']:>8,}  target={rec['target_count']:>8,}  {rec['status']}")
 
     if mismatches:
         summary_path = os.path.join(out_dir, "row_count_mismatches.json")

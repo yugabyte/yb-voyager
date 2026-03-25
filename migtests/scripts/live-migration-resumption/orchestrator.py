@@ -66,7 +66,11 @@ def generator_start_action(stage: Dict[str, Any], ctx: Any) -> None:
 def generator_stop_action(stage: Dict[str, Any], ctx: Any) -> None:
     key = stage.get("generator_key", "generator")
     timeout = int(stage.get("graceful_timeout_sec", 60))
-    H.stop_generator(ctx.processes.pop(key, None), timeout)
+    stats = H.stop_generator(ctx.processes.pop(key, None), timeout)
+    if stats:
+        if not hasattr(ctx, "last_gen_stats"):
+            ctx.last_gen_stats = {}
+        ctx.last_gen_stats[key] = stats
 
 
 @action("voyager_export_start")
@@ -295,6 +299,33 @@ def _count_injections(sub_stages: list) -> int:
     return total
 
 
+def _count_resumption_events(ctx: Any, event_type: str) -> int:
+    """Count resumption events of a given type from the ndjson log."""
+    import json as _json
+    path = os.path.join(ctx.cfg.get("artifacts_dir", ""), "resumption_events.ndjson")
+    if not os.path.isfile(path):
+        return 0
+    count = 0
+    with open(path, "r") as f:
+        for line in f:
+            try:
+                rec = _json.loads(line)
+                if rec.get("event") == event_type:
+                    count += 1
+            except Exception:
+                pass
+    return count
+
+
+def _append_ndjson(artifacts_dir: str, filename: str, record: dict) -> None:
+    """Append a JSON record to an ndjson file in the artifacts directory."""
+    import json as _json
+    os.makedirs(artifacts_dir, exist_ok=True)
+    path = os.path.join(artifacts_dir, filename)
+    with open(path, "a") as f:
+        f.write(_json.dumps(record) + "\n")
+
+
 @action("iteration_loop")
 def iteration_loop_action(stage: Dict[str, Any], ctx: Any) -> None:
     """Repeat a block of sub-stages N times for iteration testing."""
@@ -305,11 +336,24 @@ def iteration_loop_action(stage: Dict[str, Any], ctx: Any) -> None:
 
     sub_stages = stage.get("stages", [])
     import time as _time
+    loop_start = _time.monotonic()
+    total_kills = 0
+    total_restarts = 0
+
     for i in range(count):
         iter_start = _time.monotonic()
+        total_elapsed = iter_start - loop_start
+        total_mins, total_secs = divmod(int(total_elapsed), 60)
+        total_hrs, total_mins = divmod(total_mins, 60)
         H.log(f"\n{'='*60}")
         H.log(f"  ITERATION {i+1} / {count}  |  injections: {_count_injections(sub_stages)}")
+        H.log(f"  elapsed: {total_hrs}h {total_mins}m {total_secs}s  |  kills so far: {total_kills}  |  restarts: {total_restarts}")
         H.log(f"{'='*60}")
+
+        iter_kills_before = _count_resumption_events(ctx, "killed")
+        iter_restarts_before = _count_resumption_events(ctx, "restart_success")
+        if hasattr(ctx, "last_gen_stats"):
+            ctx.last_gen_stats.clear()
 
         for sub in sub_stages:
             if _stage_is_skipped(sub):
@@ -328,9 +372,55 @@ def iteration_loop_action(stage: Dict[str, Any], ctx: Any) -> None:
                 H.append_stage_summary(ctx.cfg["artifacts_dir"], sub_name, start_ts, end_ts, status="FAILED", error=str(e))
                 H.log_stage_end(sub_name, status=f"FAILED: {e}")
                 raise
+
         elapsed = _time.monotonic() - iter_start
         mins, secs = divmod(int(elapsed), 60)
-        H.log(f"  ITERATION {i+1} / {count} completed in {mins}m {secs}s")
+        iter_kills = _count_resumption_events(ctx, "killed") - iter_kills_before
+        iter_restarts = _count_resumption_events(ctx, "restart_success") - iter_restarts_before
+        total_kills += iter_kills
+        total_restarts += iter_restarts
+
+        gen_stats = getattr(ctx, "last_gen_stats", {})
+        gen_summary = ""
+        for key, st in gen_stats.items():
+            if st:
+                gen_summary += (f"  events: {st.get('total_ops', '?')} ops "
+                                f"(I={st.get('INSERT_ops', 0)} U={st.get('UPDATE_ops', 0)} D={st.get('DELETE_ops', 0)})")
+
+        iter_summary = {
+            "stage": f"iteration_summary[{i+1}]",
+            "iteration": i + 1,
+            "duration_sec": round(elapsed, 1),
+            "kills": iter_kills,
+            "restarts": iter_restarts,
+        }
+        if gen_stats:
+            for key, st in gen_stats.items():
+                iter_summary["event_gen"] = st
+        H.append_stage_summary(
+            ctx.cfg["artifacts_dir"],
+            iter_summary["stage"],
+            H._ts(), H._ts(),
+            status="OK",
+        )
+        _append_ndjson(ctx.cfg["artifacts_dir"], "iteration_metrics.ndjson", iter_summary)
+
+        H.log(f"  ITERATION {i+1} / {count} completed in {mins}m {secs}s  |  kills: {iter_kills}  restarts: {iter_restarts}{gen_summary}")
+
+    total_elapsed = _time.monotonic() - loop_start
+    hrs, rem = divmod(int(total_elapsed), 3600)
+    mins, secs = divmod(rem, 60)
+    run_summary = {
+        "stage": "iteration_loop_summary",
+        "total_iterations": count,
+        "total_duration_sec": round(total_elapsed, 1),
+        "total_kills": total_kills,
+        "total_restarts": total_restarts,
+    }
+    _append_ndjson(ctx.cfg["artifacts_dir"], "iteration_metrics.ndjson", run_summary)
+    H.log(f"\n{'='*60}")
+    H.log(f"  ALL {count} ITERATIONS COMPLETE  |  {hrs}h {mins}m {secs}s  |  kills: {total_kills}  restarts: {total_restarts}")
+    H.log(f"{'='*60}")
 
 
 def _stage_is_skipped(stage: Dict[str, Any]) -> bool:
