@@ -38,13 +38,15 @@ func TestPPrintDefinitionNested(t *testing.T) {
 		Steps: []StepDefinitionNode{
 			{Step: StepDefinition{Name: "assess"}},
 			{
-				Step: StepDefinition{Name: "schema-migrate", SubWorkflowName: "schema-migrate-flow"},
-				ChildWorkflow: &WorkflowDefinitionTree{
-					Definition: WorkflowDefinition{Name: "schema-migrate-flow"},
-					Steps: []StepDefinitionNode{
-						{Step: StepDefinition{Name: "export-schema"}},
-						{Step: StepDefinition{Name: "analyze-schema"}},
-						{Step: StepDefinition{Name: "import-schema"}},
+				Step: StepDefinition{Name: "schema-migrate", SubWorkflowOptions: []string{"schema-migrate-flow"}},
+				ChildWorkflows: []WorkflowDefinitionTree{
+					{
+						Definition: WorkflowDefinition{Name: "schema-migrate-flow"},
+						Steps: []StepDefinitionNode{
+							{Step: StepDefinition{Name: "export-schema"}},
+							{Step: StepDefinition{Name: "analyze-schema"}},
+							{Step: StepDefinition{Name: "import-schema"}},
+						},
 					},
 				},
 			},
@@ -298,6 +300,116 @@ func TestPPrintReportWithMultipleChildInstances(t *testing.T) {
 		"│       ├── [✓] analyze-schema",
 		"│       └── [✓] import-schema",
 		"└── [·] data-migrate",
+	}, "\n")
+	if got != expected {
+		t.Errorf("PPrint mismatch.\nExpected:\n%s\n\nGot:\n%s", expected, got)
+	}
+}
+
+// --- Multi-Option Definition Tree PPrint ---
+
+func TestPPrintDefinitionMultiOption(t *testing.T) {
+	tree := WorkflowDefinitionTree{
+		Definition: WorkflowDefinition{Name: "migration"},
+		Steps: []StepDefinitionNode{
+			{Step: StepDefinition{Name: "assess"}},
+			{
+				Step: StepDefinition{Name: "data-migrate", SubWorkflowOptions: []string{"data-offline", "data-live"}},
+				ChildWorkflows: []WorkflowDefinitionTree{
+					{
+						Definition: WorkflowDefinition{Name: "data-offline"},
+						Steps: []StepDefinitionNode{
+							{Step: StepDefinition{Name: "export-data"}},
+							{Step: StepDefinition{Name: "import-data"}},
+						},
+					},
+					{
+						Definition: WorkflowDefinition{Name: "data-live"},
+						Steps: []StepDefinitionNode{
+							{Step: StepDefinition{Name: "export-data"}},
+							{Step: StepDefinition{Name: "import-data"}},
+							{Step: StepDefinition{Name: "initiate-cutover"}},
+						},
+					},
+				},
+			},
+			{Step: StepDefinition{Name: "end"}},
+		},
+	}
+	expected := strings.Join([]string{
+		"Workflow: migration",
+		"├── assess",
+		"├── data-migrate",
+		"│   ├── (option) Workflow: data-offline",
+		"│   │   ├── export-data",
+		"│   │   └── import-data",
+		"│   └── (option) Workflow: data-live",
+		"│       ├── export-data",
+		"│       ├── import-data",
+		"│       └── initiate-cutover",
+		"└── end",
+	}, "\n")
+	got := tree.PPrint()
+	if got != expected {
+		t.Errorf("PPrint mismatch.\nExpected:\n%s\n\nGot:\n%s", expected, got)
+	}
+}
+
+func TestPPrintDefinitionMultiOptionViaEngine(t *testing.T) {
+	engine := setupTestEngine(t)
+	registerMultiOptionWorkflows(t, engine)
+
+	tree, err := engine.GetWorkflowTree("multi-migration")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := tree.PPrint()
+
+	expected := strings.Join([]string{
+		"Workflow: multi-migration",
+		"├── assess",
+		"├── data-migrate",
+		"│   ├── (option) Workflow: data-offline",
+		"│   │   ├── export-data",
+		"│   │   └── import-data",
+		"│   └── (option) Workflow: data-live",
+		"│       ├── export-data",
+		"│       ├── import-data",
+		"│       └── initiate-cutover",
+		"└── end",
+	}, "\n")
+	if got != expected {
+		t.Errorf("PPrint mismatch.\nExpected:\n%s\n\nGot:\n%s", expected, got)
+	}
+}
+
+func TestPPrintReportMultiOptionChosenChild(t *testing.T) {
+	engine := setupTestEngine(t)
+	registerMultiOptionWorkflows(t, engine)
+	ctx := context.Background()
+
+	parentUUID, _ := engine.StartWorkflow(ctx, "multi-migration")
+	engine.StartStep(ctx, parentUUID, "assess")
+	engine.CompleteStep(ctx, parentUUID, "assess")
+	engine.StartStep(ctx, parentUUID, "data-migrate")
+
+	childUUID, _ := engine.StartChildWorkflow(ctx, parentUUID, "data-live")
+	engine.StartStep(ctx, childUUID, "export-data")
+	engine.CompleteStep(ctx, childUUID, "export-data")
+	engine.StartStep(ctx, childUUID, "import-data")
+
+	report, _ := engine.GetStatus(ctx, parentUUID)
+	got := report.PPrint()
+
+	expected := strings.Join([]string{
+		"Workflow: multi-migration [running]",
+		"├── [✓] assess",
+		"├── [▶] data-migrate",
+		"│   └── Workflow: data-live [running]",
+		"│       ├── [✓] export-data",
+		"│       ├── [▶] import-data",
+		"│       └── [·] initiate-cutover",
+		"└── [·] end",
 	}, "\n")
 	if got != expected {
 		t.Errorf("PPrint mismatch.\nExpected:\n%s\n\nGot:\n%s", expected, got)

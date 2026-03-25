@@ -3,8 +3,8 @@ package workflow
 import "fmt"
 
 type StepDefinition struct {
-	Name            string
-	SubWorkflowName string // non-empty means this step spawns a child workflow
+	Name               string
+	SubWorkflowOptions []string // any of these child workflows may be spawned at runtime
 }
 
 type WorkflowDefinition struct {
@@ -13,15 +13,15 @@ type WorkflowDefinition struct {
 }
 
 // WorkflowDefinitionTree is the recursive expansion of a WorkflowDefinition,
-// resolving SubWorkflowName references into nested trees.
+// resolving SubWorkflowOptions references into nested trees.
 type WorkflowDefinitionTree struct {
 	Definition WorkflowDefinition
 	Steps      []StepDefinitionNode
 }
 
 type StepDefinitionNode struct {
-	Step          StepDefinition
-	ChildWorkflow *WorkflowDefinitionTree // nil when no sub-workflow
+	Step           StepDefinition
+	ChildWorkflows []WorkflowDefinitionTree // one per SubWorkflowOption
 }
 
 type workflowRegistry struct {
@@ -61,13 +61,13 @@ func (r *workflowRegistry) getTree(name string) (WorkflowDefinitionTree, error) 
 	tree := WorkflowDefinitionTree{Definition: def}
 	for _, step := range def.Steps {
 		node := StepDefinitionNode{Step: step}
-		if step.SubWorkflowName != "" {
-			childTree, err := r.getTree(step.SubWorkflowName)
+		for _, opt := range step.SubWorkflowOptions {
+			childTree, err := r.getTree(opt)
 			if err != nil {
 				return WorkflowDefinitionTree{}, fmt.Errorf(
-					"step %q references sub-workflow %q: %w", step.Name, step.SubWorkflowName, err)
+					"step %q references sub-workflow %q: %w", step.Name, opt, err)
 			}
-			node.ChildWorkflow = &childTree
+			node.ChildWorkflows = append(node.ChildWorkflows, childTree)
 		}
 		tree.Steps = append(tree.Steps, node)
 	}

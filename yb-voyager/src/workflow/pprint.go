@@ -68,8 +68,13 @@ func defTreeToNode(t WorkflowDefinitionTree) treeNode {
 	root := treeNode{label: "Workflow: " + t.Definition.Name}
 	for _, step := range t.Steps {
 		stepNode := treeNode{label: step.Step.Name}
-		if step.ChildWorkflow != nil {
-			stepNode.children = append(stepNode.children, defTreeToNode(*step.ChildWorkflow))
+		isOption := len(step.ChildWorkflows) > 1
+		for _, child := range step.ChildWorkflows {
+			childNode := defTreeToNode(child)
+			if isOption {
+				childNode.label = "(option) " + childNode.label
+			}
+			stepNode.children = append(stepNode.children, childNode)
 		}
 		root.children = append(root.children, stepNode)
 	}

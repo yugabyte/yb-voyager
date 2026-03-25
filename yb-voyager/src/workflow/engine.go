@@ -56,7 +56,7 @@ func (e *WorkflowEngine) RegisterWorkflow(def WorkflowDefinition) error {
 }
 
 // GetWorkflowTree returns the full recursive definition tree for a workflow,
-// resolving all SubWorkflowName references.
+// resolving all SubWorkflowOptions references.
 func (e *WorkflowEngine) GetWorkflowTree(workflowName string) (WorkflowDefinitionTree, error) {
 	return e.registry.getTree(workflowName)
 }
@@ -80,7 +80,7 @@ func (e *WorkflowEngine) StartWorkflow(ctx context.Context, workflowName string)
 
 // StartChildWorkflow creates a child workflow instance linked to a parent.
 // The parent step is auto-derived by finding the step in the parent's
-// definition whose SubWorkflowName matches workflowName.
+// definition whose SubWorkflowOptions contains workflowName.
 // Multiple child instances per parent step are allowed (e.g., retries).
 func (e *WorkflowEngine) StartChildWorkflow(ctx context.Context, parentUUID, workflowName string) (string, error) {
 	parentInst, err := e.store.GetInstance(ctx, parentUUID)
@@ -94,13 +94,18 @@ func (e *WorkflowEngine) StartChildWorkflow(ctx context.Context, parentUUID, wor
 
 	parentStepName := ""
 	for _, step := range parentDef.Steps {
-		if step.SubWorkflowName == workflowName {
-			parentStepName = step.Name
+		for _, opt := range step.SubWorkflowOptions {
+			if opt == workflowName {
+				parentStepName = step.Name
+				break
+			}
+		}
+		if parentStepName != "" {
 			break
 		}
 	}
 	if parentStepName == "" {
-		return "", fmt.Errorf("no step in workflow %q has SubWorkflowName %q", parentDef.Name, workflowName)
+		return "", fmt.Errorf("no step in workflow %q lists %q in SubWorkflowOptions", parentDef.Name, workflowName)
 	}
 
 	childDef, err := e.registry.get(workflowName)
@@ -246,7 +251,7 @@ func (e *WorkflowEngine) SkipStep(ctx context.Context, workflowUUID, stepName st
 }
 
 // GetStatus builds a recursive status report for a workflow, including all
-// child workflow instances for steps with SubWorkflowName.
+// child workflow instances for steps with SubWorkflowOptions.
 func (e *WorkflowEngine) GetStatus(ctx context.Context, workflowUUID string) (WorkflowReport, error) {
 	inst, def, err := e.getInstanceAndDef(ctx, workflowUUID)
 	if err != nil {
@@ -278,7 +283,7 @@ func (e *WorkflowEngine) GetStatus(ctx context.Context, workflowUUID string) (Wo
 			sr.Status = StepStatusPending
 		}
 
-		if stepDef.SubWorkflowName != "" {
+		if len(stepDef.SubWorkflowOptions) > 0 {
 			children, err := e.store.GetChildInstances(ctx, workflowUUID, stepDef.Name)
 			if err != nil {
 				return WorkflowReport{}, err

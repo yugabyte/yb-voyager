@@ -32,7 +32,7 @@ func registerMigrationWorkflows(t *testing.T, engine *WorkflowEngine) {
 		Name: "migration",
 		Steps: []StepDefinition{
 			{Name: "assess"},
-			{Name: "schema-migrate", SubWorkflowName: "schema-migrate-flow"},
+			{Name: "schema-migrate", SubWorkflowOptions: []string{"schema-migrate-flow"}},
 			{Name: "data-migrate"},
 		},
 	})
@@ -100,20 +100,20 @@ func TestGetWorkflowTree(t *testing.T) {
 	if len(tree.Steps) != 3 {
 		t.Fatalf("expected 3 steps, got %d", len(tree.Steps))
 	}
-	if tree.Steps[0].ChildWorkflow != nil {
-		t.Error("assess should not have a child workflow")
+	if len(tree.Steps[0].ChildWorkflows) != 0 {
+		t.Error("assess should not have child workflows")
 	}
-	if tree.Steps[1].ChildWorkflow == nil {
-		t.Fatal("schema-migrate should have a child workflow")
+	if len(tree.Steps[1].ChildWorkflows) != 1 {
+		t.Fatalf("schema-migrate should have 1 child workflow, got %d", len(tree.Steps[1].ChildWorkflows))
 	}
-	if tree.Steps[1].ChildWorkflow.Definition.Name != "schema-migrate-flow" {
-		t.Errorf("child workflow name mismatch: got %q", tree.Steps[1].ChildWorkflow.Definition.Name)
+	if tree.Steps[1].ChildWorkflows[0].Definition.Name != "schema-migrate-flow" {
+		t.Errorf("child workflow name mismatch: got %q", tree.Steps[1].ChildWorkflows[0].Definition.Name)
 	}
-	if len(tree.Steps[1].ChildWorkflow.Steps) != 3 {
-		t.Errorf("expected 3 child steps, got %d", len(tree.Steps[1].ChildWorkflow.Steps))
+	if len(tree.Steps[1].ChildWorkflows[0].Steps) != 3 {
+		t.Errorf("expected 3 child steps, got %d", len(tree.Steps[1].ChildWorkflows[0].Steps))
 	}
-	if tree.Steps[2].ChildWorkflow != nil {
-		t.Error("data-migrate should not have a child workflow")
+	if len(tree.Steps[2].ChildWorkflows) != 0 {
+		t.Error("data-migrate should not have child workflows")
 	}
 }
 
@@ -122,7 +122,7 @@ func TestGetWorkflowTreeUnregisteredChild(t *testing.T) {
 	err := engine.RegisterWorkflow(WorkflowDefinition{
 		Name: "broken",
 		Steps: []StepDefinition{
-			{Name: "step-a", SubWorkflowName: "nonexistent"},
+			{Name: "step-a", SubWorkflowOptions: []string{"nonexistent"}},
 		},
 	})
 	if err != nil {
@@ -509,11 +509,10 @@ func TestChildWorkflowNoMatchingStep(t *testing.T) {
 	ctx := context.Background()
 
 	uuid, _ := engine.StartWorkflow(ctx, "migration")
-	// "schema-migrate-flow" is a valid workflow but "migration" has no step
-	// with SubWorkflowName="migration" itself
+	// "migration" is not listed in any step's SubWorkflowOptions
 	_, err := engine.StartChildWorkflow(ctx, uuid, "migration")
 	if err == nil {
-		t.Fatal("expected error for no matching SubWorkflowName")
+		t.Fatal("expected error for no matching SubWorkflowOptions")
 	}
 }
 
@@ -681,5 +680,167 @@ func TestGetNextPendingStepReturnsFailed(t *testing.T) {
 	next, ok, _ := engine.GetNextPendingStep(ctx, uuid)
 	if !ok || next != "a" {
 		t.Errorf("expected failed step 'a' as next, got %q (ok=%v)", next, ok)
+	}
+}
+
+// --- Multi-Option Child Workflows ---
+
+func registerMultiOptionWorkflows(t *testing.T, engine *WorkflowEngine) {
+	t.Helper()
+	if err := engine.RegisterWorkflow(WorkflowDefinition{
+		Name: "multi-migration",
+		Steps: []StepDefinition{
+			{Name: "assess"},
+			{Name: "data-migrate", SubWorkflowOptions: []string{"data-offline", "data-live"}},
+			{Name: "end"},
+		},
+	}); err != nil {
+		t.Fatalf("RegisterWorkflow (multi-migration) failed: %v", err)
+	}
+	if err := engine.RegisterWorkflow(WorkflowDefinition{
+		Name: "data-offline",
+		Steps: []StepDefinition{
+			{Name: "export-data"},
+			{Name: "import-data"},
+		},
+	}); err != nil {
+		t.Fatalf("RegisterWorkflow (data-offline) failed: %v", err)
+	}
+	if err := engine.RegisterWorkflow(WorkflowDefinition{
+		Name: "data-live",
+		Steps: []StepDefinition{
+			{Name: "export-data"},
+			{Name: "import-data"},
+			{Name: "initiate-cutover"},
+		},
+	}); err != nil {
+		t.Fatalf("RegisterWorkflow (data-live) failed: %v", err)
+	}
+}
+
+func TestGetWorkflowTreeMultiOption(t *testing.T) {
+	engine := setupTestEngine(t)
+	registerMultiOptionWorkflows(t, engine)
+
+	tree, err := engine.GetWorkflowTree("multi-migration")
+	if err != nil {
+		t.Fatalf("GetWorkflowTree failed: %v", err)
+	}
+	if len(tree.Steps) != 3 {
+		t.Fatalf("expected 3 steps, got %d", len(tree.Steps))
+	}
+	if len(tree.Steps[0].ChildWorkflows) != 0 {
+		t.Error("assess should have no child workflows")
+	}
+	if len(tree.Steps[1].ChildWorkflows) != 2 {
+		t.Fatalf("data-migrate should have 2 child workflows, got %d", len(tree.Steps[1].ChildWorkflows))
+	}
+	if tree.Steps[1].ChildWorkflows[0].Definition.Name != "data-offline" {
+		t.Errorf("first option should be data-offline, got %q", tree.Steps[1].ChildWorkflows[0].Definition.Name)
+	}
+	if tree.Steps[1].ChildWorkflows[1].Definition.Name != "data-live" {
+		t.Errorf("second option should be data-live, got %q", tree.Steps[1].ChildWorkflows[1].Definition.Name)
+	}
+	if len(tree.Steps[1].ChildWorkflows[1].Steps) != 3 {
+		t.Errorf("data-live should have 3 steps, got %d", len(tree.Steps[1].ChildWorkflows[1].Steps))
+	}
+	if len(tree.Steps[2].ChildWorkflows) != 0 {
+		t.Error("end should have no child workflows")
+	}
+}
+
+func TestStartChildWorkflowMultiOptionFirst(t *testing.T) {
+	engine := setupTestEngine(t)
+	registerMultiOptionWorkflows(t, engine)
+	ctx := context.Background()
+
+	parentUUID, _ := engine.StartWorkflow(ctx, "multi-migration")
+	engine.StartStep(ctx, parentUUID, "data-migrate")
+
+	childUUID, err := engine.StartChildWorkflow(ctx, parentUUID, "data-offline")
+	if err != nil {
+		t.Fatalf("StartChildWorkflow (data-offline) failed: %v", err)
+	}
+
+	for _, s := range []string{"export-data", "import-data"} {
+		engine.StartStep(ctx, childUUID, s)
+		engine.CompleteStep(ctx, childUUID, s)
+	}
+
+	childReport, _ := engine.GetStatus(ctx, childUUID)
+	if childReport.Status != WorkflowStatusCompleted {
+		t.Errorf("data-offline child should be completed, got %q", childReport.Status)
+	}
+	if childReport.WorkflowName != "data-offline" {
+		t.Errorf("child workflow name should be data-offline, got %q", childReport.WorkflowName)
+	}
+}
+
+func TestStartChildWorkflowMultiOptionSecond(t *testing.T) {
+	engine := setupTestEngine(t)
+	registerMultiOptionWorkflows(t, engine)
+	ctx := context.Background()
+
+	parentUUID, _ := engine.StartWorkflow(ctx, "multi-migration")
+	engine.StartStep(ctx, parentUUID, "data-migrate")
+
+	childUUID, err := engine.StartChildWorkflow(ctx, parentUUID, "data-live")
+	if err != nil {
+		t.Fatalf("StartChildWorkflow (data-live) failed: %v", err)
+	}
+
+	for _, s := range []string{"export-data", "import-data", "initiate-cutover"} {
+		engine.StartStep(ctx, childUUID, s)
+		engine.CompleteStep(ctx, childUUID, s)
+	}
+
+	childReport, _ := engine.GetStatus(ctx, childUUID)
+	if childReport.Status != WorkflowStatusCompleted {
+		t.Errorf("data-live child should be completed, got %q", childReport.Status)
+	}
+	if childReport.WorkflowName != "data-live" {
+		t.Errorf("child workflow name should be data-live, got %q", childReport.WorkflowName)
+	}
+}
+
+func TestStartChildWorkflowMultiOptionInvalid(t *testing.T) {
+	engine := setupTestEngine(t)
+	registerMultiOptionWorkflows(t, engine)
+	ctx := context.Background()
+
+	parentUUID, _ := engine.StartWorkflow(ctx, "multi-migration")
+	_, err := engine.StartChildWorkflow(ctx, parentUUID, "nonexistent-option")
+	if err == nil {
+		t.Fatal("expected error for workflow not in any SubWorkflowOptions")
+	}
+}
+
+func TestMultiOptionStatusShowsChosenChild(t *testing.T) {
+	engine := setupTestEngine(t)
+	registerMultiOptionWorkflows(t, engine)
+	ctx := context.Background()
+
+	parentUUID, _ := engine.StartWorkflow(ctx, "multi-migration")
+	engine.StartStep(ctx, parentUUID, "assess")
+	engine.CompleteStep(ctx, parentUUID, "assess")
+	engine.StartStep(ctx, parentUUID, "data-migrate")
+
+	childUUID, _ := engine.StartChildWorkflow(ctx, parentUUID, "data-live")
+	engine.StartStep(ctx, childUUID, "export-data")
+
+	report, err := engine.GetStatus(ctx, parentUUID)
+	if err != nil {
+		t.Fatalf("GetStatus failed: %v", err)
+	}
+
+	dataMigrateStep := report.Steps[1]
+	if len(dataMigrateStep.ChildReports) != 1 {
+		t.Fatalf("expected 1 child report, got %d", len(dataMigrateStep.ChildReports))
+	}
+	if dataMigrateStep.ChildReports[0].WorkflowName != "data-live" {
+		t.Errorf("child should be data-live, got %q", dataMigrateStep.ChildReports[0].WorkflowName)
+	}
+	if dataMigrateStep.ChildReports[0].Steps[0].Status != StepStatusRunning {
+		t.Errorf("export-data should be running, got %q", dataMigrateStep.ChildReports[0].Steps[0].Status)
 	}
 }
