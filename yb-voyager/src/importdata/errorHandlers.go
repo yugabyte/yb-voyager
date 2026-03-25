@@ -41,9 +41,7 @@ const (
 
 var RecommendationByPgCode = map[string]string{
 	"23505": "Import failed due to duplicate key conflict (SQLSTATE 23505): one or more rows in the import file conflict with existing rows in the target table.\n" +
-		"To resolve, try one of the following:\n" +
-		"  1. Truncate and re-import: restart with --start-clean true --truncate-tables true to clear target tables before importing.\n" +
-		"  2. Ignore conflicts on primary key: use --on-primary-key-conflict IGNORE to silently skip rows whose primary key already exists.",
+		"To resolve, truncate and re-import: restart with --start-clean true --truncate-tables true to clear target tables before importing.",
 }
 
 type ImportDataErrorHandler interface {
