@@ -470,28 +470,28 @@ import-data-to-target:
 # Archive Changes
 # ---------------------------------------------------------
 
-### The archive changes command handles old CDC events that have already been applied to the destination database.
-### These events are kept in the local export directory until disk usage exceeds a threshold (default: 70%).
-### When the threshold is crossed, the command either archives the applied changes to another directory or deletes them.
-### This helps manage disk space usage during live migration.
+### The archive changes command manages the lifecycle of processed CDC event segments during live migration.
+### Once changes from the local queue are applied to the target DB, the processed segments can be deleted,
+### retained, or archived to another directory.
 
 ### Uncomment the respective parameters when you want to configure additional archive changes options.
 archive-changes:
 
-  ### Delete the imported changes without archiving them.
-  ### Note that: the changes are deleted from the export-dir only after disk utilisation exceeds 70%. 
-  ### Accepted values (true, false, yes, no, 0, 1)
-  ### Default - false
-  delete-changes-without-archiving: false
+  ### Cleanup policy for processed segments.
+  ### Required
+  ### Accepted values:
+  ###   delete  — delete processed segments once fs utilization exceeds the threshold.
+  ###   archive — copy processed segments to --archive-dir, then delete the originals.
+  policy: delete
 
-  ### Path to the directory where the imported change events are to be moved to. 
-  ### Note that, the changes are deleted from the export-dir only after the disk utilisation exceeds 70%.
-  ### Required if delete-changes-without-archiving is set to false.
-  move-to: <path-to-archive-dir>
+  ### Directory to archive processed segments to.
+  ### Required when policy is set to 'archive'.
+  # archive-dir: <path-to-archive-dir>
 
-  ### Disk utilization threshold in percentage
+  ### Disk utilization percentage above which cleanup actions are triggered.
+  ### Used with policy 'delete' and 'retain'.
   ### Default - 70
-  # fs-utilization-threshold: 70 
+  # fs-utilization-threshold: 70
 
   ### Log level for the command
   ### Note: This overrides the global log-level parameter for this command only.
