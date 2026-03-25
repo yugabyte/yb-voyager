@@ -89,7 +89,7 @@ voyager:
     flags:
       restart-data-migration-source-target: true
 
-iteration_count: 2
+iteration_count: 50
 
 stages:
   # ============================================================
@@ -148,7 +148,7 @@ stages:
 
   - name: soak_forward_streaming
     action: sleep
-    seconds: 15
+    seconds: 30
 
   - name: stop_source_event_generator
     action: generator_stop
@@ -184,7 +184,7 @@ stages:
   # ============================================================
   - name: soak_fallback_streaming
     action: sleep
-    seconds: 15
+    seconds: 30
 
   # ============================================================
   # Phase 5: Cutover to source with restart (starts iteration loop)
@@ -221,20 +221,20 @@ stages:
         action: generator_start
         generator_key: generator_source
 
-      # 2 kill/restart cycles during forward streaming (quick verify)
+      # 3 kill/restart cycles during forward streaming (export_data only)
       - name: forward_resumptions
         action: start_resumptions
         resumption:
           export_data:
-            max_restarts: 2
+            max_restarts: 3
             min_interrupt_seconds: 5
-            max_interrupt_seconds: 10
+            max_interrupt_seconds: 15
             min_restart_wait_seconds: 5
-            max_restart_wait_seconds: 10
+            max_restart_wait_seconds: 15
 
       - name: soak_iteration_forward_with_resumptions
         action: sleep
-        seconds: 45
+        seconds: 60
 
       - name: stop_forward_export_resumptions
         action: voyager_stop_resumptions
@@ -248,7 +248,7 @@ stages:
 
       - name: drain_iteration_forward_events
         action: sleep
-        seconds: 15
+        seconds: 30
 
       - name: iteration_cutover_to_target
         action: cutover_to_target
@@ -261,20 +261,26 @@ stages:
       - name: takeover_fallback_processes
         action: takeover_fallback
 
-      # 1 kill/restart cycle during fallback streaming (quick verify)
+      # 2 kill/restart cycles during fallback streaming (1 each)
       - name: fallback_resumptions
         action: start_resumptions
         resumption:
           export_from_target:
             max_restarts: 1
             min_interrupt_seconds: 5
-            max_interrupt_seconds: 10
+            max_interrupt_seconds: 15
             min_restart_wait_seconds: 5
-            max_restart_wait_seconds: 10
+            max_restart_wait_seconds: 15
+          import_to_source:
+            max_restarts: 1
+            min_interrupt_seconds: 5
+            max_interrupt_seconds: 15
+            min_restart_wait_seconds: 5
+            max_restart_wait_seconds: 15
 
       - name: soak_iteration_fallback_with_resumptions
         action: sleep
-        seconds: 30
+        seconds: 45
 
       - name: stop_fallback_export_resumptions
         action: voyager_stop_resumptions
@@ -288,7 +294,7 @@ stages:
 
       - name: drain_iteration_fallback_events
         action: sleep
-        seconds: 15
+        seconds: 30
 
       - name: iteration_cutover_to_source_with_restart
         action: cutover_to_source
