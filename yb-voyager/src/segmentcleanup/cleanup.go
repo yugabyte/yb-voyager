@@ -96,7 +96,7 @@ func (sc *SegmentCleaner) isFSUtilizationExceeded() bool {
 // --- delete policy ---
 
 func (sc *SegmentCleaner) runDeletePolicy() error {
-	utils.PrintAndLogf("segment cleanup running with policy=delete, fs-utilization-threshold=%d%%\n",
+	utils.PrintAndLogfInfo("Starting archive changes with delete policy after disk utilization exceeds %d%%",
 		sc.config.FSUtilizationThreshold)
 
 	ticker := time.NewTicker(5 * time.Second)
@@ -155,7 +155,7 @@ func (sc *SegmentCleaner) deleteSegment(seg utils.Segment) error {
 // --- retain policy ---
 
 func (sc *SegmentCleaner) runRetainPolicy() error {
-	utils.PrintAndLogf("segment cleanup running with policy=retain — processed segments will not be deleted\n")
+	utils.PrintAndLogfInfo("Starting archive changes with retain policy — processed segments will not be deleted")
 
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
@@ -182,13 +182,16 @@ func (sc *SegmentCleaner) runArchivePolicy() error {
 	if sc.config.ArchiveDir == "" {
 		return goerrors.Errorf("archive policy requires --archive-dir to be specified")
 	}
-	utils.PrintAndLogf("segment cleanup running with policy=archive, archive-dir=%s\n",
+	utils.PrintAndLogfInfo("Starting archive changes with archive policy to %s",
 		sc.config.ArchiveDir)
 
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
 		n, err := sc.ArchiveProcessedSegments()
+		//Both of these segment checks needs to be done probably in single call to the metaDB
+		//as there could be potential window where segment is processed after GetProcessedQueueSegments and during GetPendingSegments
+		//that is not accounted in any of these
 		if err != nil {
 			return err
 		}

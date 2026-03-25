@@ -16,8 +16,10 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/tebeka/atexit"
@@ -85,9 +87,89 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 		FSUtilizationThreshold: cleanupUtilizationThreshold,
 	}
 
+	ctx, cancel := context.WithCancel(cmd.Context())
+	defer cancel()
+
 	cleaner := segmentcleanup.NewSegmentCleaner(cfg, metaDB)
+
+	go waitForWorkflowEnd(cleaner, ctx)
+
 	if err := cleaner.Run(); err != nil {
 		utils.ErrExit("segment cleanup failed: %v", err)
+	}
+	printNextIterationExportDirIfRequired()
+}
+
+func printNextIterationExportDirIfRequired() {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("error getting migration status record: %v", err)
+	}
+	printMsg := func(msr *metadb.MigrationStatusRecord, baseExportDir string) {
+		if msr.LatestIterationNumber == 0 {
+			return
+		}
+		iterationsExportDir := msr.GetIterationsDir(baseExportDir)
+		iterationExportDir := GetIterationExportDir(iterationsExportDir, msr.LatestIterationNumber)
+		utils.PrintAndLogfInfo("\nStart Archiving changes for iteration %d by running the following command on export-dir '%s'", msr.LatestIterationNumber, utils.Path.Sprint(iterationExportDir))
+	}
+	if msr.IsParentMigration() {
+		//if its a parent migration, then print the message for the next iteration
+		printMsg(msr, exportDir)
+	} else {
+		//if its an iteration, then check if there are more iterations to archive
+		parentMetaDB, err := metaDB.GetParentMetaDB()
+		if err != nil {
+			utils.ErrExit("error getting parent meta db: %v", err)
+		}
+		parentMSR, err := parentMetaDB.GetMigrationStatusRecord()
+		if err != nil {
+			utils.ErrExit("error getting parent migration status record: %v", err)
+		}
+		if parentMSR.LatestIterationNumber <= msr.IterationNo {
+			return
+		}
+		//if there are more iterations than the current iteration, then only print the message for the next iteration
+		printMsg(parentMSR, msr.ParentExportDir)
+	}
+}
+
+func workflowEnded() bool {
+	if StopArchiverSignal {
+		//End migration command triggered archive changes to stop
+		return true
+	}
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("error getting migration status record: %v", err)
+	}
+	if getCutoverStatus(metaDB) != COMPLETED {
+		return false
+	}
+	//if cutover to target is completed, then check as per the workflow fallback/fallforward status
+	switch true {
+	case msr.FallbackEnabled:
+		return getCutoverToSourceStatus(exportDir, metaDB) == COMPLETED
+	case msr.FallForwardEnabled:
+		return getCutoverToSourceReplicaStatus(metaDB) == COMPLETED
+	}
+	//if cutover to target is completed and fallback/fallforward is not opted, then return true
+	return true
+}
+
+func waitForWorkflowEnd(cleaner *segmentcleanup.SegmentCleaner, ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			if workflowEnded() {
+				utils.PrintAndLogfSuccess("\nArchived all the changes.")
+				cleaner.SignalStop()
+				return
+			}
+			time.Sleep(2 * time.Second)
+		}
 	}
 }
 
