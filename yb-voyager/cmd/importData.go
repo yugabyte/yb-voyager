@@ -371,6 +371,8 @@ func startExportDataFromSourceOnNextIteration() {
 	env := os.Environ()
 	env = slices.Insert(env, 0, "SOURCE_DB_PASSWORD="+tconf.Password)
 
+	metaDB.Close()
+
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
 		utils.ErrExit("failed to run yb-voyager export data from source: %w\n Please re-run with command :\n%s", execErr, cmdStr)
@@ -562,6 +564,8 @@ func startExportDataFromTargetIfRequired() {
 	}
 	env := os.Environ()
 	env = slices.Insert(env, 0, "TARGET_DB_PASSWORD="+tconf.Password)
+
+	metaDB.Close()
 
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {

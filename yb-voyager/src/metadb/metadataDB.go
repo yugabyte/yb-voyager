@@ -684,3 +684,7 @@ func (m *MetaDB) ParentMetadataDB() (*MetaDB, error) {
 	}
 	return NewMetaDB(msr.ParentExportDir)
 }
+
+func (m *MetaDB) Close() error {
+	return m.db.Close()
+}
