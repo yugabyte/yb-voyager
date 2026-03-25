@@ -7,17 +7,17 @@ import (
 	"time"
 )
 
-var _ WorkflowStore = (*SQLiteWorkflowStore)(nil)
+var _ workflowStore = (*sqliteWorkflowStore)(nil)
 
-type SQLiteWorkflowStore struct {
+type sqliteWorkflowStore struct {
 	db *sql.DB
 }
 
-func NewSQLiteWorkflowStore(db *sql.DB) *SQLiteWorkflowStore {
-	return &SQLiteWorkflowStore{db: db}
+func newSQLiteWorkflowStore(db *sql.DB) *sqliteWorkflowStore {
+	return &sqliteWorkflowStore{db: db}
 }
 
-func (s *SQLiteWorkflowStore) EnsureTables(ctx context.Context) error {
+func (s *sqliteWorkflowStore) EnsureTables(ctx context.Context) error {
 	stmts := []string{
 		`CREATE TABLE IF NOT EXISTS workflow_instances (
 			uuid                  TEXT PRIMARY KEY,
@@ -46,7 +46,7 @@ func (s *SQLiteWorkflowStore) EnsureTables(ctx context.Context) error {
 	return nil
 }
 
-func (s *SQLiteWorkflowStore) CreateInstance(ctx context.Context, inst *WorkflowInstance) error {
+func (s *sqliteWorkflowStore) CreateInstance(ctx context.Context, inst workflowInstance) error {
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO workflow_instances
 			(uuid, definition_name, status, parent_workflow_uuid, parent_step_name, created_at, updated_at)
@@ -65,22 +65,22 @@ func (s *SQLiteWorkflowStore) CreateInstance(ctx context.Context, inst *Workflow
 	return nil
 }
 
-func (s *SQLiteWorkflowStore) GetInstance(ctx context.Context, uuid string) (*WorkflowInstance, error) {
+func (s *sqliteWorkflowStore) GetInstance(ctx context.Context, uuid string) (workflowInstance, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT uuid, definition_name, status, parent_workflow_uuid, parent_step_name, created_at, updated_at
 		FROM workflow_instances WHERE uuid = ?`, uuid)
 
 	inst, err := scanWorkflowInstance(row)
 	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("workflow instance %q not found", uuid)
+		return workflowInstance{}, fmt.Errorf("workflow instance %q not found", uuid)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to get workflow instance: %w", err)
+		return workflowInstance{}, fmt.Errorf("failed to get workflow instance: %w", err)
 	}
 	return inst, nil
 }
 
-func (s *SQLiteWorkflowStore) UpdateInstanceStatus(ctx context.Context, uuid string, status WorkflowStatus) error {
+func (s *sqliteWorkflowStore) UpdateInstanceStatus(ctx context.Context, uuid string, status WorkflowStatus) error {
 	result, err := s.db.ExecContext(ctx,
 		`UPDATE workflow_instances SET status = ?, updated_at = ? WHERE uuid = ?`,
 		string(status), time.Now().Unix(), uuid)
@@ -97,7 +97,7 @@ func (s *SQLiteWorkflowStore) UpdateInstanceStatus(ctx context.Context, uuid str
 	return nil
 }
 
-func (s *SQLiteWorkflowStore) GetChildInstances(ctx context.Context, parentUUID string, stepName string) ([]*WorkflowInstance, error) {
+func (s *sqliteWorkflowStore) GetChildInstances(ctx context.Context, parentUUID string, stepName string) ([]workflowInstance, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT uuid, definition_name, status, parent_workflow_uuid, parent_step_name, created_at, updated_at
 		FROM workflow_instances
@@ -108,7 +108,7 @@ func (s *SQLiteWorkflowStore) GetChildInstances(ctx context.Context, parentUUID 
 	}
 	defer rows.Close()
 
-	var instances []*WorkflowInstance
+	var instances []workflowInstance
 	for rows.Next() {
 		inst, err := scanWorkflowInstanceFromRows(rows)
 		if err != nil {
@@ -122,7 +122,7 @@ func (s *SQLiteWorkflowStore) GetChildInstances(ctx context.Context, parentUUID 
 	return instances, nil
 }
 
-func (s *SQLiteWorkflowStore) SetStepState(ctx context.Context, state *StepState) error {
+func (s *sqliteWorkflowStore) SetStepState(ctx context.Context, state stepState) error {
 	_, err := s.db.ExecContext(ctx,
 		`INSERT OR REPLACE INTO workflow_step_states
 			(workflow_uuid, step_name, status, started_at, completed_at, error)
@@ -140,7 +140,7 @@ func (s *SQLiteWorkflowStore) SetStepState(ctx context.Context, state *StepState
 	return nil
 }
 
-func (s *SQLiteWorkflowStore) GetStepStates(ctx context.Context, workflowUUID string) ([]StepState, error) {
+func (s *sqliteWorkflowStore) GetStepStates(ctx context.Context, workflowUUID string) ([]stepState, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT workflow_uuid, step_name, status, started_at, completed_at, error
 		FROM workflow_step_states WHERE workflow_uuid = ?`, workflowUUID)
@@ -149,13 +149,13 @@ func (s *SQLiteWorkflowStore) GetStepStates(ctx context.Context, workflowUUID st
 	}
 	defer rows.Close()
 
-	var states []StepState
+	var states []stepState
 	for rows.Next() {
 		state, err := scanStepState(rows)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan step state: %w", err)
 		}
-		states = append(states, *state)
+		states = append(states, state)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating step states: %w", err)
@@ -163,40 +163,40 @@ func (s *SQLiteWorkflowStore) GetStepStates(ctx context.Context, workflowUUID st
 	return states, nil
 }
 
-func (s *SQLiteWorkflowStore) GetStepState(ctx context.Context, workflowUUID string, stepName string) (*StepState, error) {
+func (s *sqliteWorkflowStore) GetStepState(ctx context.Context, workflowUUID string, stepName string) (stepState, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT workflow_uuid, step_name, status, started_at, completed_at, error
 		FROM workflow_step_states WHERE workflow_uuid = ? AND step_name = ?`,
 		workflowUUID, stepName)
 
-	var state StepState
+	var state stepState
 	var startedAt, completedAt sql.NullInt64
 	var errStr sql.NullString
 	err := row.Scan(&state.WorkflowUUID, &state.StepName, &state.Status, &startedAt, &completedAt, &errStr)
 	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("step state for workflow %q step %q not found", workflowUUID, stepName)
+		return stepState{}, fmt.Errorf("step state for workflow %q step %q not found", workflowUUID, stepName)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to get step state: %w", err)
+		return stepState{}, fmt.Errorf("failed to get step state: %w", err)
 	}
 	state.StartedAt = timeFromNullInt(startedAt)
 	state.CompletedAt = timeFromNullInt(completedAt)
 	if errStr.Valid {
 		state.Error = errStr.String
 	}
-	return &state, nil
+	return state, nil
 }
 
 // --- helpers ---
 
-func scanWorkflowInstance(row *sql.Row) (*WorkflowInstance, error) {
-	var inst WorkflowInstance
+func scanWorkflowInstance(row *sql.Row) (workflowInstance, error) {
+	var inst workflowInstance
 	var parentUUID, parentStep sql.NullString
 	var createdAt, updatedAt int64
 	err := row.Scan(&inst.UUID, &inst.DefinitionName, &inst.Status,
 		&parentUUID, &parentStep, &createdAt, &updatedAt)
 	if err != nil {
-		return nil, err
+		return workflowInstance{}, err
 	}
 	if parentUUID.Valid {
 		inst.ParentWorkflowUUID = parentUUID.String
@@ -206,17 +206,17 @@ func scanWorkflowInstance(row *sql.Row) (*WorkflowInstance, error) {
 	}
 	inst.CreatedAt = time.Unix(createdAt, 0)
 	inst.UpdatedAt = time.Unix(updatedAt, 0)
-	return &inst, nil
+	return inst, nil
 }
 
-func scanWorkflowInstanceFromRows(rows *sql.Rows) (*WorkflowInstance, error) {
-	var inst WorkflowInstance
+func scanWorkflowInstanceFromRows(rows *sql.Rows) (workflowInstance, error) {
+	var inst workflowInstance
 	var parentUUID, parentStep sql.NullString
 	var createdAt, updatedAt int64
 	err := rows.Scan(&inst.UUID, &inst.DefinitionName, &inst.Status,
 		&parentUUID, &parentStep, &createdAt, &updatedAt)
 	if err != nil {
-		return nil, err
+		return workflowInstance{}, err
 	}
 	if parentUUID.Valid {
 		inst.ParentWorkflowUUID = parentUUID.String
@@ -226,24 +226,24 @@ func scanWorkflowInstanceFromRows(rows *sql.Rows) (*WorkflowInstance, error) {
 	}
 	inst.CreatedAt = time.Unix(createdAt, 0)
 	inst.UpdatedAt = time.Unix(updatedAt, 0)
-	return &inst, nil
+	return inst, nil
 }
 
-func scanStepState(rows *sql.Rows) (*StepState, error) {
-	var state StepState
+func scanStepState(rows *sql.Rows) (stepState, error) {
+	var state stepState
 	var startedAt, completedAt sql.NullInt64
 	var errStr sql.NullString
 	err := rows.Scan(&state.WorkflowUUID, &state.StepName, &state.Status,
 		&startedAt, &completedAt, &errStr)
 	if err != nil {
-		return nil, err
+		return stepState{}, err
 	}
 	state.StartedAt = timeFromNullInt(startedAt)
 	state.CompletedAt = timeFromNullInt(completedAt)
 	if errStr.Valid {
 		state.Error = errStr.String
 	}
-	return &state, nil
+	return state, nil
 }
 
 func nullableString(s string) sql.NullString {

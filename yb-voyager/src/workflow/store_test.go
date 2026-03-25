@@ -11,7 +11,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-func setupTestStore(t *testing.T) *SQLiteWorkflowStore {
+func setupTestStore(t *testing.T) *sqliteWorkflowStore {
 	t.Helper()
 	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
@@ -19,7 +19,7 @@ func setupTestStore(t *testing.T) *SQLiteWorkflowStore {
 	}
 	t.Cleanup(func() { db.Close() })
 
-	store := NewSQLiteWorkflowStore(db)
+	store := newSQLiteWorkflowStore(db)
 	if err := store.EnsureTables(context.Background()); err != nil {
 		t.Fatalf("failed to ensure tables: %v", err)
 	}
@@ -38,7 +38,7 @@ func TestCreateAndGetInstance(t *testing.T) {
 	store := setupTestStore(t)
 	ctx := context.Background()
 
-	inst := NewWorkflowInstance("import-data")
+	inst := newWorkflowInstance("import-data")
 	if err := store.CreateInstance(ctx, inst); err != nil {
 		t.Fatalf("CreateInstance failed: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestUpdateInstanceStatus(t *testing.T) {
 	store := setupTestStore(t)
 	ctx := context.Background()
 
-	inst := NewWorkflowInstance("export-data")
+	inst := newWorkflowInstance("export-data")
 	if err := store.CreateInstance(ctx, inst); err != nil {
 		t.Fatalf("CreateInstance failed: %v", err)
 	}
@@ -111,16 +111,16 @@ func TestChildInstances(t *testing.T) {
 	store := setupTestStore(t)
 	ctx := context.Background()
 
-	parent := NewWorkflowInstance("migration")
+	parent := newWorkflowInstance("migration")
 	if err := store.CreateInstance(ctx, parent); err != nil {
 		t.Fatalf("CreateInstance (parent) failed: %v", err)
 	}
 
-	child1 := NewChildWorkflowInstance("schema-migrate", parent.UUID, "schema-migrate-step")
-	child2 := NewChildWorkflowInstance("schema-migrate", parent.UUID, "schema-migrate-step")
-	otherChild := NewChildWorkflowInstance("data-migrate", parent.UUID, "data-migrate-step")
+	child1 := newChildWorkflowInstance("schema-migrate", parent.UUID, "schema-migrate-step")
+	child2 := newChildWorkflowInstance("schema-migrate", parent.UUID, "schema-migrate-step")
+	otherChild := newChildWorkflowInstance("data-migrate", parent.UUID, "data-migrate-step")
 
-	for _, c := range []*WorkflowInstance{child1, child2, otherChild} {
+	for _, c := range []workflowInstance{child1, child2, otherChild} {
 		if err := store.CreateInstance(ctx, c); err != nil {
 			t.Fatalf("CreateInstance (child) failed: %v", err)
 		}
@@ -163,13 +163,13 @@ func TestSetAndGetStepState(t *testing.T) {
 	store := setupTestStore(t)
 	ctx := context.Background()
 
-	inst := NewWorkflowInstance("import-data")
+	inst := newWorkflowInstance("import-data")
 	if err := store.CreateInstance(ctx, inst); err != nil {
 		t.Fatalf("CreateInstance failed: %v", err)
 	}
 
 	now := time.Now()
-	state := &StepState{
+	state := stepState{
 		WorkflowUUID: inst.UUID,
 		StepName:     "import-snapshot",
 		Status:       StepStatusRunning,
@@ -201,13 +201,13 @@ func TestSetStepStateUpsert(t *testing.T) {
 	store := setupTestStore(t)
 	ctx := context.Background()
 
-	inst := NewWorkflowInstance("import-data")
+	inst := newWorkflowInstance("import-data")
 	if err := store.CreateInstance(ctx, inst); err != nil {
 		t.Fatalf("CreateInstance failed: %v", err)
 	}
 
 	now := time.Now()
-	state := &StepState{
+	state := stepState{
 		WorkflowUUID: inst.UUID,
 		StepName:     "import-snapshot",
 		Status:       StepStatusRunning,
@@ -240,14 +240,14 @@ func TestGetStepStates(t *testing.T) {
 	store := setupTestStore(t)
 	ctx := context.Background()
 
-	inst := NewWorkflowInstance("import-data")
+	inst := newWorkflowInstance("import-data")
 	if err := store.CreateInstance(ctx, inst); err != nil {
 		t.Fatalf("CreateInstance failed: %v", err)
 	}
 
 	steps := []string{"import-snapshot", "stream-changes", "cutover-processing"}
 	for _, name := range steps {
-		state := &StepState{
+		state := stepState{
 			WorkflowUUID: inst.UUID,
 			StepName:     name,
 			Status:       StepStatusPending,
@@ -280,13 +280,13 @@ func TestStepStateWithError(t *testing.T) {
 	store := setupTestStore(t)
 	ctx := context.Background()
 
-	inst := NewWorkflowInstance("import-data")
+	inst := newWorkflowInstance("import-data")
 	if err := store.CreateInstance(ctx, inst); err != nil {
 		t.Fatalf("CreateInstance failed: %v", err)
 	}
 
 	now := time.Now()
-	state := &StepState{
+	state := stepState{
 		WorkflowUUID: inst.UUID,
 		StepName:     "stream-changes",
 		Status:       StepStatusFailed,

@@ -25,7 +25,7 @@ const (
 	StepStatusSkipped   StepStatus = "skipped"
 )
 
-type WorkflowInstance struct {
+type workflowInstance struct {
 	UUID               string
 	DefinitionName     string
 	Status             WorkflowStatus
@@ -35,7 +35,7 @@ type WorkflowInstance struct {
 	UpdatedAt          time.Time
 }
 
-type StepState struct {
+type stepState struct {
 	WorkflowUUID string
 	StepName     string
 	Status       StepStatus
@@ -44,9 +44,9 @@ type StepState struct {
 	Error        string
 }
 
-func NewWorkflowInstance(definitionName string) *WorkflowInstance {
+func newWorkflowInstance(definitionName string) workflowInstance {
 	now := time.Now()
-	return &WorkflowInstance{
+	return workflowInstance{
 		UUID:           uuid.New().String(),
 		DefinitionName: definitionName,
 		Status:         WorkflowStatusPending,
@@ -55,8 +55,8 @@ func NewWorkflowInstance(definitionName string) *WorkflowInstance {
 	}
 }
 
-func NewChildWorkflowInstance(definitionName, parentWorkflowUUID, parentStepName string) *WorkflowInstance {
-	inst := NewWorkflowInstance(definitionName)
+func newChildWorkflowInstance(definitionName, parentWorkflowUUID, parentStepName string) workflowInstance {
+	inst := newWorkflowInstance(definitionName)
 	inst.ParentWorkflowUUID = parentWorkflowUUID
 	inst.ParentStepName = parentStepName
 	return inst

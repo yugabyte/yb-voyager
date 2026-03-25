@@ -5,7 +5,6 @@ import "fmt"
 type StepDefinition struct {
 	Name            string
 	SubWorkflowName string // non-empty means this step spawns a child workflow
-	// DependsOn    []string // reserved for future DAG support
 }
 
 type WorkflowDefinition struct {
@@ -13,17 +12,29 @@ type WorkflowDefinition struct {
 	Steps []StepDefinition
 }
 
-type WorkflowRegistry struct {
-	definitions map[string]*WorkflowDefinition
+// WorkflowDefinitionTree is the recursive expansion of a WorkflowDefinition,
+// resolving SubWorkflowName references into nested trees.
+type WorkflowDefinitionTree struct {
+	Definition WorkflowDefinition
+	Steps      []StepDefinitionNode
 }
 
-func NewWorkflowRegistry() *WorkflowRegistry {
-	return &WorkflowRegistry{
-		definitions: make(map[string]*WorkflowDefinition),
+type StepDefinitionNode struct {
+	Step          StepDefinition
+	ChildWorkflow *WorkflowDefinitionTree // nil when no sub-workflow
+}
+
+type workflowRegistry struct {
+	definitions map[string]WorkflowDefinition
+}
+
+func newWorkflowRegistry() workflowRegistry {
+	return workflowRegistry{
+		definitions: make(map[string]WorkflowDefinition),
 	}
 }
 
-func (r *WorkflowRegistry) Register(def *WorkflowDefinition) error {
+func (r *workflowRegistry) register(def WorkflowDefinition) error {
 	if def.Name == "" {
 		return fmt.Errorf("workflow definition name cannot be empty")
 	}
@@ -34,18 +45,31 @@ func (r *WorkflowRegistry) Register(def *WorkflowDefinition) error {
 	return nil
 }
 
-func (r *WorkflowRegistry) Get(name string) (*WorkflowDefinition, error) {
+func (r *workflowRegistry) get(name string) (WorkflowDefinition, error) {
 	def, ok := r.definitions[name]
 	if !ok {
-		return nil, fmt.Errorf("workflow definition %q not found", name)
+		return WorkflowDefinition{}, fmt.Errorf("workflow definition %q not found", name)
 	}
 	return def, nil
 }
 
-func (r *WorkflowRegistry) List() []*WorkflowDefinition {
-	result := make([]*WorkflowDefinition, 0, len(r.definitions))
-	for _, def := range r.definitions {
-		result = append(result, def)
+func (r *workflowRegistry) getTree(name string) (WorkflowDefinitionTree, error) {
+	def, err := r.get(name)
+	if err != nil {
+		return WorkflowDefinitionTree{}, err
 	}
-	return result
+	tree := WorkflowDefinitionTree{Definition: def}
+	for _, step := range def.Steps {
+		node := StepDefinitionNode{Step: step}
+		if step.SubWorkflowName != "" {
+			childTree, err := r.getTree(step.SubWorkflowName)
+			if err != nil {
+				return WorkflowDefinitionTree{}, fmt.Errorf(
+					"step %q references sub-workflow %q: %w", step.Name, step.SubWorkflowName, err)
+			}
+			node.ChildWorkflow = &childTree
+		}
+		tree.Steps = append(tree.Steps, node)
+	}
+	return tree, nil
 }
