@@ -120,8 +120,9 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 	})
 	require.NoError(t, err, "failed to start import with failpoint")
 
+	failMarkerPath := filepath.Join(lm.GetCurrentExportDir(), "failpoints", "failpoint-import-snapshot-commit-error.log")
 	t.Log("Waiting for import to crash due to snapshot commit failpoint...")
-	_, waitErr := testutils.WaitForProcessExitOrKill(lm.GetImportRunner(), 120*time.Second)
+	waitErr := testutils.WaitForFailpointAndProcessCrash(t, lm.GetImportRunner(), failMarkerPath, 120*time.Second, 120*time.Second)
 	require.Error(t, waitErr, "Expected import to exit with error after snapshot commit failpoint")
 	require.Contains(t, lm.GetImportCommandStderr(), "failpoint", "Expected failpoint mention in import stderr")
 

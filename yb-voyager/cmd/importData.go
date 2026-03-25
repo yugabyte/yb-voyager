@@ -548,6 +548,12 @@ func startExportDataFromTargetIfRequired() {
 
 	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
+	msg := "Starting fallback flow from target to source"
+	if msr.IterationNo > 0 {
+		msg += fmt.Sprintf(" on iteration %d", msr.IterationNo)
+	}
+	utils.PrintfInfo("\n%s\n", msg)
+
 	utils.PrintAndLogf("Starting export data from target with command:\n %s", color.GreenString(cmdStr))
 
 	binary, lookErr := exec.LookPath(os.Args[0])

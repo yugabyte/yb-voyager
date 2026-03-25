@@ -531,7 +531,7 @@ func (m *MetaDB) GetProcessedQueueSegments() ([]utils.Segment, error) {
 
 	predicate := fmt.Sprintf(`((exporter_role == 'source_db_exporter' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer = %d)) OR
 	(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_source_replica_db_importer + imported_by_source_db_importer = 1)))
-	AND deleted = 0`, importCount)
+	AND archived = 0 AND deleted = 0`, importCount)
 	segments, err := m.querySegments(predicate)
 	if err != nil {
 		return nil, goerrors.Errorf("fetch processed segments: %v", err)
@@ -629,6 +629,15 @@ func (m *MetaDB) UpdateSegmentArchiveLocation(segmentNum int, archiveLocation st
 	err := m.updateSegment(segmentNum, queryParams)
 	if err != nil {
 		return goerrors.Errorf("mark segment archived in metaDB for segment %d: %v", segmentNum, err)
+	}
+	return nil
+}
+
+func (m *MetaDB) ArchiveAndDeleteSegment(segmentNum int, archiveLocation string) error {
+	queryParams := fmt.Sprintf(`archived = 1, archive_location = '%s', deleted = 1`, archiveLocation)
+	err := m.updateSegment(segmentNum, queryParams)
+	if err != nil {
+		return goerrors.Errorf("archive and delete segment %d in metaDB: %v", segmentNum, err)
 	}
 	return nil
 }

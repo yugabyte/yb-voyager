@@ -160,6 +160,16 @@ func startFurtherCommandsAfterCurrentExportData() {
 	startNextIterationImportDataToTarget()
 }
 
+func exportTypeIsNotSupported(msr *metadb.MigrationStatusRecord, exportType string) bool {
+	if exportType != CHANGES_ONLY {
+		return false
+	}
+	if exporterRole != SOURCE_DB_EXPORTER_ROLE {
+		return false
+	}
+	return msr.IsParentMigration()
+}
+
 func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	metaDB = CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	err := retrieveMigrationUUID()
@@ -167,18 +177,20 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get migration status record: %w", err)
+	}
+
+	if exportTypeIsNotSupported(msr, exportType) {
+		utils.ErrExit("Error --export-type 'changes-only' is not supported for parent migration")
+	}
 	if useDebezium && !changeStreamingIsEnabled(exportType) {
 		utils.PrintAndLogf("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
 	}
 	printLiveMigrationLimitations()
 	utils.PrintAndLogf("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
-
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("failed to get migration status record: %w", err)
-	}
-
 	setSourceDetailsForChangesOnly(msr)
 
 	handleCutoverAlreadyProcessedForExportData()
@@ -1123,7 +1135,29 @@ func getSequenceInitialValues() (*utils.StructMap[sqlname.NameTuple, int64], err
 
 func getSequenceInitialValuesFromDB() (*utils.StructMap[sqlname.NameTuple, int64], error) {
 	result := utils.NewStructMap[sqlname.NameTuple, int64]()
-	sequenceLastValueMap, err := source.DB().GetAllSequencesLastValues()
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return nil, fmt.Errorf("get migration status record: %w", err)
+	}
+	var sequences []string
+
+	//If its a iteration migration, we need to get the sequences list from MSR
+	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+		sequences = lo.Uniq(lo.Values(msr.SourceColumnToSequenceMapping))
+	} else if isTargetDBExporter(exporterRole) {
+		sequences = lo.Uniq(lo.Values(msr.TargetColumnToSequenceMapping))
+	}
+
+	var sequencesList []sqlname.NameTuple
+	for _, sequence := range sequences {
+		sequenceTuple, err := namereg.NameReg.LookupTableName(sequence)
+		if err != nil {
+			return nil, fmt.Errorf("lookup for sequence name %s: %w", sequence, err)
+		}
+		sequencesList = append(sequencesList, sequenceTuple)
+	}
+
+	sequenceLastValueMap, err := source.DB().GetSequencesLastValues(sequencesList)
 	if err != nil {
 		return nil, fmt.Errorf("get all sequences last values from DB: %w", err)
 	}
@@ -1872,6 +1906,12 @@ func startFallBackSetupIfRequired() {
 	arguments := generateGlobalExportImportArguments()
 	cmd = append(cmd, arguments...)
 	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
+
+	msg := "Starting fallback flow from target to source"
+	if msr.IterationNo > 0 {
+		msg += fmt.Sprintf(" on iteration %d", msr.IterationNo)
+	}
+	utils.PrintfInfo("\n%s\n", msg)
 
 	utils.PrintAndLogf("Starting import data to source with command:\n %s", color.GreenString(cmdStr))
 
