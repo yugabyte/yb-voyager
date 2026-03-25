@@ -105,7 +105,9 @@ func (sc *SegmentCleaner) runDeletePolicy() error {
 		if !sc.isFSUtilizationExceeded() {
 			continue
 		}
-
+		//Both of these segment checks needs to be done probably in single call to the metaDB
+		//as there could be potential window where segment is processed after GetProcessedQueueSegments and during GetPendingSegments
+		//that is not accounted in any of these
 		segments, err := sc.metaDB.GetProcessedQueueSegments()
 		if err != nil {
 			return goerrors.Errorf("get processed segments: %v", err)
@@ -182,6 +184,9 @@ func (sc *SegmentCleaner) runArchivePolicy() error {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
+		//Both of these segment checks needs to be done probably in single call to the metaDB
+		//as there could be potential window where segment is processed after GetProcessedQueueSegments and during GetPendingSegments
+		//that is not accounted in any of these
 		segments, err := sc.metaDB.GetProcessedQueueSegments()
 		if err != nil {
 			return goerrors.Errorf("get processed segments: %v", err)

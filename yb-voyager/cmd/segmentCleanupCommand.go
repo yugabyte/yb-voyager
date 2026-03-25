@@ -97,13 +97,24 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 	if err := cleaner.Run(); err != nil {
 		utils.ErrExit("segment cleanup failed: %v", err)
 	}
+	printNextIterationExportDirIfRequired()
+}
 
-	msr, err = metaDB.GetMigrationStatusRecord()
+func printNextIterationExportDirIfRequired() {
+	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("error getting migration status record: %v", err)
 	}
+	printMsg := func(msr *metadb.MigrationStatusRecord, baseExportDir string) {
+		if msr.LatestIterationNumber == 0 {
+			return
+		}
+		iterationsExportDir := msr.GetIterationsDir(baseExportDir)
+		iterationExportDir := GetIterationExportDir(iterationsExportDir, msr.LatestIterationNumber)
+		utils.PrintAndLogfInfo("\nStart Archiving changes for iteration %d by running the following command on export-dir '%s'", msr.LatestIterationNumber, utils.Path.Sprint(iterationExportDir))
+	}
 	if msr.IsParentMigration() {
-		printNextIterationExportDirIfRequired(msr, exportDir)
+		printMsg(msr, exportDir)
 	} else {
 		parentMetaDB, err := metaDB.GetParentMetaDB()
 		if err != nil {
@@ -113,17 +124,8 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 		if err != nil {
 			utils.ErrExit("error getting parent migration status record: %v", err)
 		}
-		printNextIterationExportDirIfRequired(parentMSR, msr.ParentExportDir)
+		printMsg(parentMSR, msr.ParentExportDir)
 	}
-}
-
-func printNextIterationExportDirIfRequired(msr *metadb.MigrationStatusRecord, baseExportDir string) {
-	if msr.LatestIterationNumber == 0 {
-		return
-	}
-	iterationsExportDir := msr.GetIterationsDir(baseExportDir)
-	iterationExportDir := GetIterationExportDir(iterationsExportDir, msr.LatestIterationNumber)
-	utils.PrintAndLogfInfo("\nStart Archiving changes for iteration %d by running the following command on export-dir '%s'", msr.LatestIterationNumber, utils.Path.Sprint(iterationExportDir))
 
 }
 
@@ -146,7 +148,8 @@ func workflowEnded() bool {
 	case msr.FallForwardEnabled:
 		return getCutoverToSourceReplicaStatus(metaDB) == COMPLETED
 	}
-	return false
+	//if cutover to target is completed and fallback/fallforward is not opted, then return true
+	return true
 }
 
 func waitForWorkflowEnd(cleaner *segmentcleanup.SegmentCleaner, ctx context.Context) {
