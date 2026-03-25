@@ -106,26 +106,37 @@ func (sc *SegmentCleaner) runDeletePolicy() error {
 			continue
 		}
 
-		segments, err := sc.metaDB.GetProcessedQueueSegments()
+		n, err := sc.DeleteProcessedSegments()
 		if err != nil {
-			return goerrors.Errorf("get processed segments: %v", err)
+			return err
 		}
 
-		if sc.stop && len(segments) == 0 {
+		if sc.stop && n == 0 {
 			log.Infof("all processed segments deleted, cleanup complete")
 			return nil
 		}
-
-		for _, seg := range segments {
-			if err := sc.deleteSegment(seg); err != nil {
-				return goerrors.Errorf("delete segment %s: %v", seg.FilePath, err)
-			}
-			if !sc.isFSUtilizationExceeded() {
-				break
-			}
-		}
 	}
 	return nil
+}
+
+// DeleteProcessedSegments performs one iteration of the delete-policy cleanup:
+// fetch processed queue segments and delete each one. Between deletions it
+// rechecks FS utilization and stops early when utilization drops below threshold.
+// Returns the number of processed segments found.
+func (sc *SegmentCleaner) DeleteProcessedSegments() (int, error) {
+	segments, err := sc.metaDB.GetProcessedQueueSegments()
+	if err != nil {
+		return 0, goerrors.Errorf("get processed segments: %v", err)
+	}
+	for _, seg := range segments {
+		if err := sc.deleteSegment(seg); err != nil {
+			return len(segments), goerrors.Errorf("delete segment %s: %v", seg.FilePath, err)
+		}
+		if !sc.isFSUtilizationExceeded() {
+			break
+		}
+	}
+	return len(segments), nil
 }
 
 func (sc *SegmentCleaner) deleteSegment(seg utils.Segment) error {
@@ -177,23 +188,33 @@ func (sc *SegmentCleaner) runArchivePolicy() error {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
-		segments, err := sc.metaDB.GetProcessedQueueSegments()
+		n, err := sc.ArchiveProcessedSegments()
 		if err != nil {
-			return goerrors.Errorf("get processed segments: %v", err)
+			return err
 		}
 
-		if sc.stop && len(segments) == 0 {
+		if sc.stop && n == 0 {
 			log.Infof("all processed segments archived and deleted, cleanup complete")
 			return nil
 		}
-
-		for _, seg := range segments {
-			if err := sc.archiveAndDeleteSegment(seg); err != nil {
-				return goerrors.Errorf("archive segment %s: %v", seg.FilePath, err)
-			}
-		}
 	}
 	return nil
+}
+
+// ArchiveProcessedSegments performs one iteration of the archive-policy cleanup:
+// fetch processed queue segments, copy each to the archive directory, then delete.
+// Returns the number of processed segments found.
+func (sc *SegmentCleaner) ArchiveProcessedSegments() (int, error) {
+	segments, err := sc.metaDB.GetProcessedQueueSegments()
+	if err != nil {
+		return 0, goerrors.Errorf("get processed segments: %v", err)
+	}
+	for _, seg := range segments {
+		if err := sc.archiveAndDeleteSegment(seg); err != nil {
+			return len(segments), goerrors.Errorf("archive segment %s: %v", seg.FilePath, err)
+		}
+	}
+	return len(segments), nil
 }
 
 func (sc *SegmentCleaner) archiveAndDeleteSegment(seg utils.Segment) error {

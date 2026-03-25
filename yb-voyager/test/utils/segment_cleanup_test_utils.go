@@ -97,6 +97,7 @@ func QueryAllSegments(t *testing.T, exportDir string) []SegmentRow {
 			&r.Deleted, &r.Archived))
 		result = append(result, r)
 	}
+	require.NoError(t, rows.Err())
 	return result
 }
 
