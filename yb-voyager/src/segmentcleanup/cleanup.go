@@ -110,8 +110,11 @@ func (sc *SegmentCleaner) runDeletePolicy() error {
 		if err != nil {
 			return err
 		}
-
-		if sc.stop && n == 0 {
+		pendingSegments, err := sc.metaDB.GetPendingSegments()
+		if err != nil {
+			return goerrors.Errorf("get pending segments: %v", err)
+		}
+		if sc.stop && (n == 0 && len(pendingSegments) == 0) {
 			log.Infof("all processed segments deleted, cleanup complete")
 			return nil
 		}
@@ -195,8 +198,12 @@ func (sc *SegmentCleaner) runArchivePolicy() error {
 		if err != nil {
 			return err
 		}
+		pendingSegments, err := sc.metaDB.GetPendingSegments()
+		if err != nil {
+			return goerrors.Errorf("get pending segments: %v", err)
+		}
 
-		if sc.stop && n == 0 {
+		if sc.stop && (n == 0 && len(pendingSegments) == 0) {
 			log.Infof("all processed segments archived and deleted, cleanup complete")
 			return nil
 		}
