@@ -137,6 +137,8 @@ if ENABLE_INDEX_CREATE_DROP:
 
 iteration_iter = itertools.count(1) if NUM_ITERATIONS == -1 else range(1, NUM_ITERATIONS + 1)
 
+stats = {"INSERT": 0, "UPDATE": 0, "DELETE": 0, "errors": 0, "insert_rows": 0, "update_rows": 0, "delete_rows": 0}
+
 try:
     for i in iteration_iter:
         # Choose a random table
@@ -163,8 +165,8 @@ try:
 
                 success = execute_with_retry(run_once, rebuild, conn.rollback, max_retries=INSERT_MAX_RETRIES)
                 if success:
-                    # Placeholder: hook for future stats reporting (e.g., counting successful INSERT batches)
-                    pass
+                    stats["INSERT"] += 1
+                    stats["insert_rows"] += INSERT_ROWS
             
             elif operation == "UPDATE":
                 for _ in range(UPDATE_MAX_RETRIES):
@@ -199,7 +201,9 @@ try:
                     try:
                         cursor.execute(query_to_run, full_params)
                         conn.commit()
-                        break  # Break out of the loop if the update is successful
+                        stats["UPDATE"] += 1
+                        stats["update_rows"] += UPDATE_ROWS
+                        break
                     except Exception as e:
                         conn.rollback()
 
@@ -214,7 +218,8 @@ try:
                 )
                 query_to_run = f"DELETE FROM {table_name} WHERE {where_clause}"
                 cursor.execute(query_to_run, sampling_params)
-
+                stats["DELETE"] += 1
+                stats["delete_rows"] += DELETE_ROWS
                 conn.commit()
 
             if WAIT_AFTER_OPERATIONS and i % WAIT_AFTER_OPERATIONS == 0 and i != 0:
@@ -228,25 +233,28 @@ try:
             conn.commit()
 
         except psycopg2.Error as e:
+            stats["errors"] += 1
             print(f"An error occurred: {e}")
             if "current transaction is aborted" in str(e):
                 print("Transaction aborted. Commands ignored until the end of the transaction block.")
-            # Rollback the transaction to avoid leaving it in an inconsistent state
             conn.rollback()
 
 except KeyboardInterrupt:
     print("Received KeyboardInterrupt. Stopping generator...")
 finally:
-    # Stop index operations thread if it's running
     if ENABLE_INDEX_CREATE_DROP and stop_index_thread is not None and index_thread is not None:
         print("Stopping index operations thread...")
         stop_index_thread.set()
         index_thread.join(timeout=5)
     
-    # Commit changes outside the loop for UPDATE and DELETE operations
     try:
         conn.commit()
     finally:
-        # Close the connection
         conn.close()
+        total_ops = stats["INSERT"] + stats["UPDATE"] + stats["DELETE"]
+        print(f"EVENT_GEN_SUMMARY: total_ops={total_ops} "
+              f"INSERT={stats['INSERT']}({stats['insert_rows']} rows) "
+              f"UPDATE={stats['UPDATE']}({stats['update_rows']} rows) "
+              f"DELETE={stats['DELETE']}({stats['delete_rows']} rows) "
+              f"errors={stats['errors']}")
         print("Program Complete")
