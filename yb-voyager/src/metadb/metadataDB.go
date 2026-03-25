@@ -549,9 +549,21 @@ func (m *MetaDB) GetSegmentsToBeDeleted() ([]utils.Segment, error) {
 	return segmentsToBeDeleted, nil
 }
 
-func (m *MetaDB) GetPendingSegments(importCount int) ([]utils.Segment, error) {
+func (m *MetaDB) GetPendingSegments() ([]utils.Segment, error) {
+	msr, err := m.GetMigrationStatusRecord()
+	if err != nil {
+		return nil, goerrors.Errorf("get migration status record: %v", err)
+	}
+	if msr == nil {
+		return nil, goerrors.Errorf("migration status record not found")
+	}
+
+	importCount := 1
+	if msr.FallForwardEnabled {
+		importCount = 2
+	}
 	predicate := fmt.Sprintf(`(exporter_role == 'source_db_exporter' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer < %d)) OR
-		(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer < 1))`, importCount)
+		(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_source_replica_db_importer + imported_by_source_db_importer < 1))`, importCount)
 	segments, err := m.querySegments(predicate)
 	if err != nil {
 		return nil, goerrors.Errorf("fetch pending segments: %v", err)

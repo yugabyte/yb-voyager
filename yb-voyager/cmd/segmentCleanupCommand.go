@@ -91,7 +91,7 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 	defer cancel()
 
 	cleaner := segmentcleanup.NewSegmentCleaner(cfg, metaDB)
-	
+
 	go waitForWorkflowEnd(cleaner, ctx)
 
 	if err := cleaner.Run(); err != nil {
@@ -108,14 +108,17 @@ func workflowEnded() bool {
 	if err != nil {
 		utils.ErrExit("error getting migration status record: %v", err)
 	}
-	switch true {
-		case msr.FallbackEnabled:
-			return getCutoverToSourceStatus(exportDir, metaDB) == COMPLETED
-		case msr.FallForwardEnabled:
-			return getCutoverToSourceReplicaStatus(metaDB) == COMPLETED
-		default:
-			return getCutoverStatus(metaDB) == COMPLETED
+	if getCutoverStatus(metaDB) != COMPLETED {
+		return false
 	}
+	//if cutover to target is completed, then check as per the workflow fallback/fallforward status
+	switch true {
+	case msr.FallbackEnabled:
+		return getCutoverToSourceStatus(exportDir, metaDB) == COMPLETED
+	case msr.FallForwardEnabled:
+		return getCutoverToSourceReplicaStatus(metaDB) == COMPLETED
+	}
+	return false
 }
 
 func waitForWorkflowEnd(cleaner *segmentcleanup.SegmentCleaner, ctx context.Context) {

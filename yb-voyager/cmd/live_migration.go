@@ -309,9 +309,6 @@ func streamChangesFromSegment(
 			return err
 		}
 
-		if ProcessShutdownRequested {
-			break
-		}
 		if event == nil && segment.IsProcessed() {
 			break
 		}
