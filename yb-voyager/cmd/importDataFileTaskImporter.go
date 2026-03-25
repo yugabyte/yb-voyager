@@ -245,8 +245,8 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
 	if err != nil {
 		msg := importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE
-		if tgtdb.IsUniqueViolationError(err) {
-			msg = importdata.UNIQUE_VIOLATION_RECOMMENDATION_MESSAGE
+		if rec, ok := importdata.RecommendationByPgCode[tgtdb.GetPgErrorCode(err)]; ok {
+			msg = rec
 		}
 		if fti.errorHandler.ShouldAbort() {
 			var ibe errs.ImportBatchError

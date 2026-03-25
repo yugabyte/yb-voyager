@@ -367,12 +367,12 @@ var NonRetryCopyErrors = []string{
 	UNSUPPORTED_XML_FEATURE,
 }
 
-func IsUniqueViolationError(err error) bool {
-	if err == nil {
-		return false
-	}
+func GetPgErrorCode(err error) string {
 	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+	if errors.As(err, &pgErr) {
+		return pgErr.Code
+	}
+	return ""
 }
 
 // IsPgErrorCodeNonRetryable checks if an error is a data integrity or constraint violation or syntax error
