@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"time"
 
@@ -144,6 +145,15 @@ func (fti *FileTaskImporter) TableHasPrimaryKey() bool {
 	return len(fti.importBatchArgsProto.PrimaryKeyColumns) > 0
 }
 
+func (fti *FileTaskImporter) recommendationForBatchError(ibe errs.ImportBatchError) string {
+	switch {
+	case slices.Contains(fti.importBatchArgsProto.PKConstraintNames, ibe.DBSpecificContext["constraint_name"]):
+		return importdata.PK_VIOLATION_RECOMMENDATION_MESSAGE
+	default:
+		return importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE
+	}
+}
+
 func (fti *FileTaskImporter) IsNextBatchAvailable() bool {
 	return fti.batchProducer.IsNextBatchAvailable()
 }
@@ -245,12 +255,13 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
 	if err != nil {
 		msg := importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE
-		if rec, ok := importdata.RecommendationByPgCode[tgtdb.GetPgErrorCode(err)]; ok {
-			msg = rec
+		var ibe errs.ImportBatchError
+		isImportBatchError := errors.As(err, &ibe)
+		if isImportBatchError {
+			msg = fti.recommendationForBatchError(ibe)
 		}
 		if fti.errorHandler.ShouldAbort() {
-			var ibe errs.ImportBatchError
-			if errors.As(err, &ibe) {
+			if isImportBatchError {
 				// If the error is an ImportBatchError, we abort directly because the string
 				// representation of the error is already formatted with all the details.
 				utils.ErrExit("%w\n%s", err, color.YellowString(msg))

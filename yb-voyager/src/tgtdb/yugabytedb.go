@@ -367,14 +367,6 @@ var NonRetryCopyErrors = []string{
 	UNSUPPORTED_XML_FEATURE,
 }
 
-func GetPgErrorCode(err error) string {
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		return pgErr.Code
-	}
-	return ""
-}
-
 // IsPgErrorCodeNonRetryable checks if an error is a data integrity or constraint violation or syntax error
 // by examining the SQLSTATE code.
 //
@@ -981,6 +973,13 @@ func newImportBatchErrorPgYb(underlyingErr error, batch Batch, flow string, step
 		if pgerr.Where != "" {
 			dbContext["where"] = pgerr.Where
 		}
+		constraintName := pgerr.ConstraintName
+		if constraintName == "" {
+			constraintName = extractConstraintNameFromMessage(pgerr.Message)
+		}
+		if constraintName != "" {
+			dbContext["constraint_name"] = constraintName
+		}
 	}
 
 	return errs.NewImportBatchError(
@@ -990,6 +989,23 @@ func newImportBatchErrorPgYb(underlyingErr error, batch Batch, flow string, step
 		flow,
 		step,
 		dbContext)
+}
+
+// YugabyteDB does not populate PgError.ConstraintName, so we fall back to this.
+// Example messages:
+//
+//	duplicate key value violates unique constraint "test_pk_pkey"
+//	insert or update on table "child_tbl" violates foreign key constraint "child_tbl_parent_id_fkey"
+func extractConstraintNameFromMessage(msg string) string {
+	_, after, found := strings.Cut(msg, `constraint "`)
+	if !found {
+		return ""
+	}
+	name, _, found := strings.Cut(after, `"`)
+	if !found {
+		return ""
+	}
+	return name
 }
 
 func (yb *TargetYugabyteDB) GetListOfTableAttributes(nt sqlname.NameTuple) ([]string, error) {
