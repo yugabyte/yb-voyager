@@ -123,7 +123,7 @@ func printNextIterationExportDirIfRequired(msr *metadb.MigrationStatusRecord) {
 	}
 	iterationsExportDir := msr.GetIterationsDir(exportDir)
 	iterationExportDir := GetIterationExportDir(iterationsExportDir, msr.LatestIterationNumber)
-	utils.PrintAndLogfInfo("\n Start Archiving changes for iteration %d by running the following command on export-dir %s", msr.LatestIterationNumber, iterationExportDir)
+	utils.PrintAndLogfInfo("\nStart Archiving changes for iteration %d by running the following command on export-dir '%s'", msr.LatestIterationNumber, utils.Path.Sprint(iterationExportDir))
 
 }
 
