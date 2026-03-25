@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"slices"
 	"strconv"
 	"time"
 
@@ -146,8 +145,8 @@ func (fti *FileTaskImporter) TableHasPrimaryKey() bool {
 }
 
 func (fti *FileTaskImporter) recommendationForBatchError(ibe errs.ImportBatchError) string {
-	switch {
-	case slices.Contains(fti.importBatchArgsProto.PKConstraintNames, ibe.DBSpecificContext["constraint_name"]):
+	switch ibe.ErrorType() {
+	case errs.ERROR_TYPE_PK_VIOLATION:
 		return importdata.PK_VIOLATION_RECOMMENDATION_MESSAGE
 	default:
 		return importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE
