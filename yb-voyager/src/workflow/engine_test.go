@@ -461,7 +461,6 @@ func TestChildWorkflow(t *testing.T) {
 	ctx := context.Background()
 
 	parentUUID, _ := engine.StartWorkflow(ctx, "migration")
-	engine.StartStep(ctx, parentUUID, "schema-migrate")
 
 	childUUID, err := engine.StartChildWorkflow(ctx, parentUUID, "schema-migrate-flow")
 	if err != nil {
@@ -469,6 +468,12 @@ func TestChildWorkflow(t *testing.T) {
 	}
 	if childUUID == "" {
 		t.Fatal("expected non-empty child UUID")
+	}
+
+	// Parent step should be auto-started
+	parentReport, _ := engine.GetStatus(ctx, parentUUID)
+	if parentReport.Steps[1].Status != StepStatusRunning {
+		t.Errorf("schema-migrate should be auto-started to running, got %q", parentReport.Steps[1].Status)
 	}
 
 	// Complete all child steps
@@ -483,12 +488,10 @@ func TestChildWorkflow(t *testing.T) {
 		t.Errorf("child workflow should be completed, got %q", childReport.Status)
 	}
 
-	// Parent step is still running; complete it
-	engine.CompleteStep(ctx, parentUUID, "schema-migrate")
-
-	parentReport, _ := engine.GetStatus(ctx, parentUUID)
+	// Parent step should be auto-completed
+	parentReport, _ = engine.GetStatus(ctx, parentUUID)
 	if parentReport.Steps[1].Status != StepStatusCompleted {
-		t.Errorf("schema-migrate should be completed, got %q", parentReport.Steps[1].Status)
+		t.Errorf("schema-migrate should be auto-completed, got %q", parentReport.Steps[1].Status)
 	}
 }
 
@@ -522,27 +525,35 @@ func TestMultipleChildInstances(t *testing.T) {
 	ctx := context.Background()
 
 	parentUUID, _ := engine.StartWorkflow(ctx, "migration")
-	engine.StartStep(ctx, parentUUID, "schema-migrate")
 
 	// First child attempt: fails
 	child1UUID, _ := engine.StartChildWorkflow(ctx, parentUUID, "schema-migrate-flow")
 	engine.StartStep(ctx, child1UUID, "export-schema")
 	engine.FailStep(ctx, child1UUID, "export-schema", errors.New("network error"))
 
-	// Second child attempt: succeeds
+	// Parent step should be auto-failed
+	report, _ := engine.GetStatus(ctx, parentUUID)
+	if report.Steps[1].Status != StepStatusFailed {
+		t.Errorf("schema-migrate should be auto-failed, got %q", report.Steps[1].Status)
+	}
+
+	// Second child attempt: succeeds (parent step goes failed -> running)
 	child2UUID, _ := engine.StartChildWorkflow(ctx, parentUUID, "schema-migrate-flow")
 	for _, step := range []string{"export-schema", "analyze-schema", "import-schema"} {
 		engine.StartStep(ctx, child2UUID, step)
 		engine.CompleteStep(ctx, child2UUID, step)
 	}
 
-	// GetStatus should show both child instances
+	// Parent step should be auto-completed
 	report, err := engine.GetStatus(ctx, parentUUID)
 	if err != nil {
 		t.Fatalf("GetStatus failed: %v", err)
 	}
 
 	schemaMigrateStep := report.Steps[1]
+	if schemaMigrateStep.Status != StepStatusCompleted {
+		t.Errorf("schema-migrate should be auto-completed, got %q", schemaMigrateStep.Status)
+	}
 	if len(schemaMigrateStep.ChildReports) != 2 {
 		t.Fatalf("expected 2 child reports, got %d", len(schemaMigrateStep.ChildReports))
 	}
@@ -551,6 +562,242 @@ func TestMultipleChildInstances(t *testing.T) {
 	}
 	if schemaMigrateStep.ChildReports[1].Status != WorkflowStatusCompleted {
 		t.Errorf("second child should be completed, got %q", schemaMigrateStep.ChildReports[1].Status)
+	}
+}
+
+// --- Implicit Parent Step Management ---
+
+func TestStartChildWorkflowAutoStartsParentStep(t *testing.T) {
+	engine := setupTestEngine(t)
+	registerMigrationWorkflows(t, engine)
+	ctx := context.Background()
+
+	parentUUID, _ := engine.StartWorkflow(ctx, "migration")
+
+	// Parent step should be pending before starting child
+	report, _ := engine.GetStatus(ctx, parentUUID)
+	if report.Steps[1].Status != StepStatusPending {
+		t.Fatalf("schema-migrate should be pending, got %q", report.Steps[1].Status)
+	}
+	if report.Status != WorkflowStatusPending {
+		t.Fatalf("workflow should be pending, got %q", report.Status)
+	}
+
+	_, err := engine.StartChildWorkflow(ctx, parentUUID, "schema-migrate-flow")
+	if err != nil {
+		t.Fatalf("StartChildWorkflow failed: %v", err)
+	}
+
+	report, _ = engine.GetStatus(ctx, parentUUID)
+	if report.Steps[1].Status != StepStatusRunning {
+		t.Errorf("schema-migrate should be auto-started to running, got %q", report.Steps[1].Status)
+	}
+	if report.Steps[1].StartedAt == nil {
+		t.Error("schema-migrate StartedAt should be set")
+	}
+	if report.Status != WorkflowStatusRunning {
+		t.Errorf("workflow should be running, got %q", report.Status)
+	}
+}
+
+func TestChildCompletionAutoCompletesParentStep(t *testing.T) {
+	engine := setupTestEngine(t)
+	err := engine.RegisterWorkflow(WorkflowDefinition{
+		Name: "parent",
+		Steps: []StepDefinition{
+			{Name: "child-step", SubWorkflowOptions: []string{"child-flow"}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = engine.RegisterWorkflow(WorkflowDefinition{
+		Name:  "child-flow",
+		Steps: []StepDefinition{{Name: "a"}, {Name: "b"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+
+	parentUUID, _ := engine.StartWorkflow(ctx, "parent")
+	childUUID, _ := engine.StartChildWorkflow(ctx, parentUUID, "child-flow")
+
+	engine.StartStep(ctx, childUUID, "a")
+	engine.CompleteStep(ctx, childUUID, "a")
+	engine.StartStep(ctx, childUUID, "b")
+	engine.CompleteStep(ctx, childUUID, "b")
+
+	// Parent step and workflow should both auto-complete
+	report, _ := engine.GetStatus(ctx, parentUUID)
+	if report.Steps[0].Status != StepStatusCompleted {
+		t.Errorf("parent step should be auto-completed, got %q", report.Steps[0].Status)
+	}
+	if report.Steps[0].CompletedAt == nil {
+		t.Error("parent step CompletedAt should be set")
+	}
+	if report.Status != WorkflowStatusCompleted {
+		t.Errorf("parent workflow should be auto-completed, got %q", report.Status)
+	}
+}
+
+func TestChildFailureAutoFailsParentStep(t *testing.T) {
+	engine := setupTestEngine(t)
+	err := engine.RegisterWorkflow(WorkflowDefinition{
+		Name: "parent",
+		Steps: []StepDefinition{
+			{Name: "child-step", SubWorkflowOptions: []string{"child-flow"}},
+			{Name: "next-step"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = engine.RegisterWorkflow(WorkflowDefinition{
+		Name:  "child-flow",
+		Steps: []StepDefinition{{Name: "a"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+
+	parentUUID, _ := engine.StartWorkflow(ctx, "parent")
+	childUUID, _ := engine.StartChildWorkflow(ctx, parentUUID, "child-flow")
+
+	engine.StartStep(ctx, childUUID, "a")
+	engine.FailStep(ctx, childUUID, "a", errors.New("something broke"))
+
+	report, _ := engine.GetStatus(ctx, parentUUID)
+	if report.Steps[0].Status != StepStatusFailed {
+		t.Errorf("parent step should be auto-failed, got %q", report.Steps[0].Status)
+	}
+	if report.Steps[0].Error != "child workflow failed" {
+		t.Errorf("parent step error should be 'child workflow failed', got %q", report.Steps[0].Error)
+	}
+	if report.Status != WorkflowStatusFailed {
+		t.Errorf("parent workflow should be failed, got %q", report.Status)
+	}
+}
+
+func TestOnlyOneActiveChildPerStep(t *testing.T) {
+	engine := setupTestEngine(t)
+	registerMigrationWorkflows(t, engine)
+	ctx := context.Background()
+
+	parentUUID, _ := engine.StartWorkflow(ctx, "migration")
+	childUUID, _ := engine.StartChildWorkflow(ctx, parentUUID, "schema-migrate-flow")
+	engine.StartStep(ctx, childUUID, "export-schema")
+
+	// Try to start another child while one is running — should fail
+	_, err := engine.StartChildWorkflow(ctx, parentUUID, "schema-migrate-flow")
+	if err == nil {
+		t.Fatal("expected error when starting second child while one is active")
+	}
+}
+
+func TestRetryChildAfterFailure(t *testing.T) {
+	engine := setupTestEngine(t)
+	registerMultiOptionWorkflows(t, engine)
+	ctx := context.Background()
+
+	parentUUID, _ := engine.StartWorkflow(ctx, "multi-migration")
+
+	// Start data-offline, it fails
+	child1UUID, _ := engine.StartChildWorkflow(ctx, parentUUID, "data-offline")
+	engine.StartStep(ctx, child1UUID, "export-data")
+	engine.FailStep(ctx, child1UUID, "export-data", errors.New("disk full"))
+
+	report, _ := engine.GetStatus(ctx, parentUUID)
+	if report.Steps[1].Status != StepStatusFailed {
+		t.Fatalf("data-migrate should be auto-failed, got %q", report.Steps[1].Status)
+	}
+	if report.Status != WorkflowStatusFailed {
+		t.Fatalf("workflow should be failed, got %q", report.Status)
+	}
+
+	// Retry with a different option
+	child2UUID, err := engine.StartChildWorkflow(ctx, parentUUID, "data-live")
+	if err != nil {
+		t.Fatalf("retry with different option should succeed: %v", err)
+	}
+
+	report, _ = engine.GetStatus(ctx, parentUUID)
+	if report.Steps[1].Status != StepStatusRunning {
+		t.Errorf("data-migrate should be running again, got %q", report.Steps[1].Status)
+	}
+	if report.Status != WorkflowStatusRunning {
+		t.Errorf("workflow should be running again, got %q", report.Status)
+	}
+
+	// Complete the retry
+	for _, s := range []string{"export-data", "import-data", "initiate-cutover"} {
+		engine.StartStep(ctx, child2UUID, s)
+		engine.CompleteStep(ctx, child2UUID, s)
+	}
+
+	report, _ = engine.GetStatus(ctx, parentUUID)
+	if report.Steps[1].Status != StepStatusCompleted {
+		t.Errorf("data-migrate should be auto-completed, got %q", report.Steps[1].Status)
+	}
+}
+
+func TestDeepNestingPropagation(t *testing.T) {
+	engine := setupTestEngine(t)
+	err := engine.RegisterWorkflow(WorkflowDefinition{
+		Name: "grandparent",
+		Steps: []StepDefinition{
+			{Name: "phase", SubWorkflowOptions: []string{"parent-wf"}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = engine.RegisterWorkflow(WorkflowDefinition{
+		Name: "parent-wf",
+		Steps: []StepDefinition{
+			{Name: "sub-phase", SubWorkflowOptions: []string{"child-wf"}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = engine.RegisterWorkflow(WorkflowDefinition{
+		Name:  "child-wf",
+		Steps: []StepDefinition{{Name: "leaf"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+
+	gpUUID, _ := engine.StartWorkflow(ctx, "grandparent")
+	parentUUID, _ := engine.StartChildWorkflow(ctx, gpUUID, "parent-wf")
+	childUUID, _ := engine.StartChildWorkflow(ctx, parentUUID, "child-wf")
+
+	engine.StartStep(ctx, childUUID, "leaf")
+	engine.CompleteStep(ctx, childUUID, "leaf")
+
+	// All three levels should be completed
+	childReport, _ := engine.GetStatus(ctx, childUUID)
+	if childReport.Status != WorkflowStatusCompleted {
+		t.Errorf("child-wf should be completed, got %q", childReport.Status)
+	}
+
+	parentReport, _ := engine.GetStatus(ctx, parentUUID)
+	if parentReport.Status != WorkflowStatusCompleted {
+		t.Errorf("parent-wf should be completed, got %q", parentReport.Status)
+	}
+	if parentReport.Steps[0].Status != StepStatusCompleted {
+		t.Errorf("sub-phase should be auto-completed, got %q", parentReport.Steps[0].Status)
+	}
+
+	gpReport, _ := engine.GetStatus(ctx, gpUUID)
+	if gpReport.Status != WorkflowStatusCompleted {
+		t.Errorf("grandparent should be completed, got %q", gpReport.Status)
+	}
+	if gpReport.Steps[0].Status != StepStatusCompleted {
+		t.Errorf("phase should be auto-completed, got %q", gpReport.Steps[0].Status)
 	}
 }
 
@@ -567,8 +814,7 @@ func TestRecursiveStatus(t *testing.T) {
 	engine.StartStep(ctx, parentUUID, "assess")
 	engine.CompleteStep(ctx, parentUUID, "assess")
 
-	// Start schema-migrate with a child workflow
-	engine.StartStep(ctx, parentUUID, "schema-migrate")
+	// Start schema-migrate via child workflow (auto-starts parent step)
 	childUUID, _ := engine.StartChildWorkflow(ctx, parentUUID, "schema-migrate-flow")
 	engine.StartStep(ctx, childUUID, "export-schema")
 	engine.CompleteStep(ctx, childUUID, "export-schema")
@@ -755,7 +1001,6 @@ func TestStartChildWorkflowMultiOptionFirst(t *testing.T) {
 	ctx := context.Background()
 
 	parentUUID, _ := engine.StartWorkflow(ctx, "multi-migration")
-	engine.StartStep(ctx, parentUUID, "data-migrate")
 
 	childUUID, err := engine.StartChildWorkflow(ctx, parentUUID, "data-offline")
 	if err != nil {
@@ -782,7 +1027,6 @@ func TestStartChildWorkflowMultiOptionSecond(t *testing.T) {
 	ctx := context.Background()
 
 	parentUUID, _ := engine.StartWorkflow(ctx, "multi-migration")
-	engine.StartStep(ctx, parentUUID, "data-migrate")
 
 	childUUID, err := engine.StartChildWorkflow(ctx, parentUUID, "data-live")
 	if err != nil {
@@ -823,7 +1067,6 @@ func TestMultiOptionStatusShowsChosenChild(t *testing.T) {
 	parentUUID, _ := engine.StartWorkflow(ctx, "multi-migration")
 	engine.StartStep(ctx, parentUUID, "assess")
 	engine.CompleteStep(ctx, parentUUID, "assess")
-	engine.StartStep(ctx, parentUUID, "data-migrate")
 
 	childUUID, _ := engine.StartChildWorkflow(ctx, parentUUID, "data-live")
 	engine.StartStep(ctx, childUUID, "export-data")

@@ -81,7 +81,12 @@ func (e *WorkflowEngine) StartWorkflow(ctx context.Context, workflowName string)
 // StartChildWorkflow creates a child workflow instance linked to a parent.
 // The parent step is auto-derived by finding the step in the parent's
 // definition whose SubWorkflowOptions contains workflowName.
-// Multiple child instances per parent step are allowed (e.g., retries).
+//
+// Only one active (pending/running) child is allowed per parent step at a
+// time. Starting a child automatically transitions the parent step to
+// running (if it was pending or failed) and transitions the parent workflow
+// to running as well. When the child completes or fails, the parent step
+// and workflow are updated automatically.
 func (e *WorkflowEngine) StartChildWorkflow(ctx context.Context, parentUUID, workflowName string) (string, error) {
 	parentInst, err := e.store.GetInstance(ctx, parentUUID)
 	if err != nil {
@@ -108,6 +113,24 @@ func (e *WorkflowEngine) StartChildWorkflow(ctx context.Context, parentUUID, wor
 		return "", fmt.Errorf("no step in workflow %q lists %q in SubWorkflowOptions", parentDef.Name, workflowName)
 	}
 
+	parentStepState, err := e.store.GetStepState(ctx, parentUUID, parentStepName)
+	if err != nil {
+		return "", fmt.Errorf("parent step state: %w", err)
+	}
+	if parentStepState.Status == StepStatusCompleted || parentStepState.Status == StepStatusSkipped {
+		return "", fmt.Errorf("cannot start child workflow: parent step %q is %q", parentStepName, parentStepState.Status)
+	}
+
+	children, err := e.store.GetChildInstances(ctx, parentUUID, parentStepName)
+	if err != nil {
+		return "", fmt.Errorf("checking existing children: %w", err)
+	}
+	for _, child := range children {
+		if child.Status == WorkflowStatusPending || child.Status == WorkflowStatusRunning {
+			return "", fmt.Errorf("step %q already has an active child workflow %q", parentStepName, child.UUID)
+		}
+	}
+
 	childDef, err := e.registry.get(workflowName)
 	if err != nil {
 		return "", err
@@ -120,6 +143,23 @@ func (e *WorkflowEngine) StartChildWorkflow(ctx context.Context, parentUUID, wor
 	if err := e.initStepStates(ctx, inst.UUID, childDef); err != nil {
 		return "", err
 	}
+
+	if parentStepState.Status == StepStatusPending || parentStepState.Status == StepStatusFailed {
+		now := time.Now()
+		parentStepState.Status = StepStatusRunning
+		parentStepState.StartedAt = &now
+		parentStepState.CompletedAt = nil
+		parentStepState.Error = ""
+		if err := e.store.SetStepState(ctx, parentStepState); err != nil {
+			return "", err
+		}
+	}
+	if parentInst.Status == WorkflowStatusPending || parentInst.Status == WorkflowStatusFailed {
+		if err := e.store.UpdateInstanceStatus(ctx, parentUUID, WorkflowStatusRunning); err != nil {
+			return "", err
+		}
+	}
+
 	return inst.UUID, nil
 }
 
@@ -218,7 +258,10 @@ func (e *WorkflowEngine) FailStep(ctx context.Context, workflowUUID, stepName st
 		return err
 	}
 
-	return e.store.UpdateInstanceStatus(ctx, workflowUUID, WorkflowStatusFailed)
+	if err := e.store.UpdateInstanceStatus(ctx, workflowUUID, WorkflowStatusFailed); err != nil {
+		return err
+	}
+	return e.propagateChildFailure(ctx, workflowUUID)
 }
 
 // SkipStep marks a step as skipped. The step must be in pending status.
@@ -376,7 +419,56 @@ func (e *WorkflowEngine) maybeCompleteWorkflow(ctx context.Context, workflowUUID
 			return nil
 		}
 	}
-	return e.store.UpdateInstanceStatus(ctx, workflowUUID, WorkflowStatusCompleted)
+	if err := e.store.UpdateInstanceStatus(ctx, workflowUUID, WorkflowStatusCompleted); err != nil {
+		return err
+	}
+	return e.propagateChildCompletion(ctx, workflowUUID)
+}
+
+func (e *WorkflowEngine) propagateChildCompletion(ctx context.Context, childUUID string) error {
+	inst, err := e.store.GetInstance(ctx, childUUID)
+	if err != nil {
+		return err
+	}
+	if inst.ParentWorkflowUUID == "" {
+		return nil
+	}
+	parentStep, err := e.store.GetStepState(ctx, inst.ParentWorkflowUUID, inst.ParentStepName)
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	parentStep.Status = StepStatusCompleted
+	parentStep.CompletedAt = &now
+	if err := e.store.SetStepState(ctx, parentStep); err != nil {
+		return err
+	}
+	return e.maybeCompleteWorkflow(ctx, inst.ParentWorkflowUUID)
+}
+
+func (e *WorkflowEngine) propagateChildFailure(ctx context.Context, workflowUUID string) error {
+	inst, err := e.store.GetInstance(ctx, workflowUUID)
+	if err != nil {
+		return err
+	}
+	if inst.ParentWorkflowUUID == "" {
+		return nil
+	}
+	parentStep, err := e.store.GetStepState(ctx, inst.ParentWorkflowUUID, inst.ParentStepName)
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	parentStep.Status = StepStatusFailed
+	parentStep.CompletedAt = &now
+	parentStep.Error = "child workflow failed"
+	if err := e.store.SetStepState(ctx, parentStep); err != nil {
+		return err
+	}
+	if err := e.store.UpdateInstanceStatus(ctx, inst.ParentWorkflowUUID, WorkflowStatusFailed); err != nil {
+		return err
+	}
+	return e.propagateChildFailure(ctx, inst.ParentWorkflowUUID)
 }
 
 func validateStepExists(def WorkflowDefinition, stepName string) error {

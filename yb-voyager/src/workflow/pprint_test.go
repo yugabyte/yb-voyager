@@ -236,7 +236,6 @@ func TestPPrintReportWithChildWorkflow(t *testing.T) {
 	parentUUID, _ := engine.StartWorkflow(ctx, "migration")
 	engine.StartStep(ctx, parentUUID, "assess")
 	engine.CompleteStep(ctx, parentUUID, "assess")
-	engine.StartStep(ctx, parentUUID, "schema-migrate")
 
 	childUUID, _ := engine.StartChildWorkflow(ctx, parentUUID, "schema-migrate-flow")
 	engine.StartStep(ctx, childUUID, "export-schema")
@@ -269,20 +268,18 @@ func TestPPrintReportWithMultipleChildInstances(t *testing.T) {
 	parentUUID, _ := engine.StartWorkflow(ctx, "migration")
 	engine.StartStep(ctx, parentUUID, "assess")
 	engine.CompleteStep(ctx, parentUUID, "assess")
-	engine.StartStep(ctx, parentUUID, "schema-migrate")
 
-	// First attempt: fails
+	// First attempt: fails (parent step auto-starts, then auto-fails)
 	child1, _ := engine.StartChildWorkflow(ctx, parentUUID, "schema-migrate-flow")
 	engine.StartStep(ctx, child1, "export-schema")
 	engine.FailStep(ctx, child1, "export-schema", errors.New("network error"))
 
-	// Second attempt: succeeds
+	// Second attempt: succeeds (parent step auto-restarts, then auto-completes)
 	child2, _ := engine.StartChildWorkflow(ctx, parentUUID, "schema-migrate-flow")
 	for _, s := range []string{"export-schema", "analyze-schema", "import-schema"} {
 		engine.StartStep(ctx, child2, s)
 		engine.CompleteStep(ctx, child2, s)
 	}
-	engine.CompleteStep(ctx, parentUUID, "schema-migrate")
 
 	report, _ := engine.GetStatus(ctx, parentUUID)
 	got := report.PPrint()
@@ -391,7 +388,6 @@ func TestPPrintReportMultiOptionChosenChild(t *testing.T) {
 	parentUUID, _ := engine.StartWorkflow(ctx, "multi-migration")
 	engine.StartStep(ctx, parentUUID, "assess")
 	engine.CompleteStep(ctx, parentUUID, "assess")
-	engine.StartStep(ctx, parentUUID, "data-migrate")
 
 	childUUID, _ := engine.StartChildWorkflow(ctx, parentUUID, "data-live")
 	engine.StartStep(ctx, childUUID, "export-data")
