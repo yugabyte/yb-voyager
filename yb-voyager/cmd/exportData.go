@@ -337,8 +337,6 @@ func startNextIterationImportDataToTarget() {
 	env := os.Environ()
 	env = slices.Insert(env, 0, "TARGET_DB_PASSWORD="+source.Password)
 
-	metaDB.Close()
-
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
 		utils.ErrExit("failed to run yb-voyager import data to target: %w\n Please re-run with command :\n%s", execErr, cmdStr)
@@ -1923,8 +1921,6 @@ func startFallBackSetupIfRequired() {
 	}
 	env := os.Environ()
 	env = slices.Insert(env, 0, "SOURCE_DB_PASSWORD="+source.Password)
-
-	metaDB.Close()
 
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {

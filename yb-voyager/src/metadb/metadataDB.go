@@ -171,7 +171,6 @@ func NewMetaDB(exportDir string) (*MetaDB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error while opening meta db :%w", err)
 	}
-	db.SetMaxOpenConns(1)
 	return &MetaDB{db: db}, nil
 }
 
@@ -684,8 +683,4 @@ func (m *MetaDB) ParentMetadataDB() (*MetaDB, error) {
 		return nil, goerrors.Errorf("parent export dir not found")
 	}
 	return NewMetaDB(msr.ParentExportDir)
-}
-
-func (m *MetaDB) Close() error {
-	return m.db.Close()
 }
