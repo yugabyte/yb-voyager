@@ -114,8 +114,10 @@ func printNextIterationExportDirIfRequired() {
 		utils.PrintAndLogfInfo("\nStart Archiving changes for iteration %d by running the following command on export-dir '%s'", msr.LatestIterationNumber, utils.Path.Sprint(iterationExportDir))
 	}
 	if msr.IsParentMigration() {
+		//if its a parent migration, then print the message for the next iteration
 		printMsg(msr, exportDir)
 	} else {
+		//if its an iteration, then check if there are more iterations to archive
 		parentMetaDB, err := metaDB.GetParentMetaDB()
 		if err != nil {
 			utils.ErrExit("error getting parent meta db: %v", err)
@@ -124,9 +126,12 @@ func printNextIterationExportDirIfRequired() {
 		if err != nil {
 			utils.ErrExit("error getting parent migration status record: %v", err)
 		}
+		if parentMSR.LatestIterationNumber <= msr.IterationNo {
+			return
+		}
+		//if there are more iterations than the current iteration, then only print the message for the next iteration
 		printMsg(parentMSR, msr.ParentExportDir)
 	}
-
 }
 
 func workflowEnded() bool {
