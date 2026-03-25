@@ -97,6 +97,7 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 	if err := cleaner.Run(); err != nil {
 		utils.ErrExit("segment cleanup failed: %v", err)
 	}
+	utils.PrintAndLogfSuccess("\nArchived all the changes.")
 	printNextIterationExportDirIfRequired()
 }
 
@@ -164,11 +165,10 @@ func waitForWorkflowEnd(cleaner *segmentcleanup.SegmentCleaner, ctx context.Cont
 			return
 		default:
 			if workflowEnded() {
-				utils.PrintAndLogfSuccess("\nArchived all the changes.")
 				cleaner.SignalStop()
 				return
 			}
-			time.Sleep(2 * time.Second)
+			time.Sleep(5 * time.Second)
 		}
 	}
 }
