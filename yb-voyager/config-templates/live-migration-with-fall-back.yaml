@@ -622,6 +622,16 @@ import-data-to-source:
   # max-retries-streaming: 15      
 
 # ---------------------------------------------------------
+# initiate cutover to source configuration
+# ---------------------------------------------------------
+initiate-cutover-to-source:
+  ### Restart source to target live data migration iteration. Not applicable for fall-forward workflow.
+  ### Accepted values (true, false, yes, no, 1, 0)
+  ### Default - false
+  restart-data-migration-source-target: false
+
+
+# ---------------------------------------------------------
 # End Migration Configuration
 # ---------------------------------------------------------
 

@@ -43,5 +43,4 @@ func init() {
 	BoolVar(cutoverToSourceCmd.Flags(), &restartSourceToTargetNextIteration, "restart-data-migration-source-target", false,
 		"restart source to target live data migration iteration. Not applicable for fall-forward workflow.")
 	
-	cutoverToSourceCmd.Flags().MarkHidden("restart-data-migration-source-target")
 }
