@@ -171,6 +171,7 @@ func NewMetaDB(exportDir string) (*MetaDB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error while opening meta db :%w", err)
 	}
+	db.SetMaxOpenConns(1)
 	return &MetaDB{db: db}, nil
 }
 
