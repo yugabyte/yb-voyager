@@ -231,27 +231,15 @@ def get_cutover_status(export_dir: str, mode: str = "target") -> str:
 def backlog_marker_present(export_dir: str) -> bool:
     """
     Return True when the latest queue segment contains the marker insert for cutover_table.
-    Looks for "cutover_table" and the literal "Last event before cutover" in the last non-empty line.
+    Checks both the base export-dir and the latest iteration export-dir (after iterations,
+    the active queue moves to the iteration-specific directory).
     """
-    queue_dir = os.path.join(export_dir, "data", "queue")
-    try:
-        names = [n for n in os.listdir(queue_dir) if n.startswith("segment.") and n.endswith(".ndjson")]
-        if not names:
-            return False
-        # segment.N.ndjson -> pick max N
-        latest = max(names, key=lambda n: int(n.split(".")[1]))
-        path = os.path.join(queue_dir, latest)
-        if os.path.getsize(path) == 0:
-            return False
-        last: str | None = None
-        with open(path, "r") as f:
-            for line in f:
-                s = line.strip()
-                if s:
-                    last = s
-        return last is not None and ("cutover_table" in last) and ("Last event before cutover" in last)
-    except OSError:
-        return False
+    if _check_backlog_marker_in_dir(export_dir):
+        return True
+    iter_dir = latest_iteration_export_dir(export_dir)
+    if iter_dir != export_dir:
+        return _check_backlog_marker_in_dir(iter_dir)
+    return False
 
 
 def _check_backlog_marker_in_dir(export_dir: str) -> bool:
@@ -533,8 +521,11 @@ def export_schema(cfg: Dict[str, Any], env: Dict[str, str]) -> None:
     run_checked(cmd, env, description="export_schema")
 
 
-def initiate_cutover(cfg: Dict[str, Any], env: Dict[str, str], direction: str) -> None:
+def initiate_cutover(cfg: Dict[str, Any], env: Dict[str, str], direction: str, *, flag_overrides: Dict[str, Any] | None = None) -> None:
     voyager_flags = _get_voyager_flags(cfg, f"cutover_to_{direction}")
+    if flag_overrides is not None:
+        voyager_flags = dict(voyager_flags)
+        voyager_flags.update(flag_overrides)
     base = {"export-dir": cfg["export_dir"],}
     merged = _merge_flags(base, voyager_flags)
     cmd = ["yb-voyager", "initiate", "cutover", "to", direction, "--yes"] + to_kv_flags(merged)
@@ -575,6 +566,36 @@ def build_finalize_schema_cmd(cfg: Dict[str, Any]) -> list[str]:
     base.update(_target_conn_flags(cfg))
     merged = _merge_flags(base, voyager_flags)
     return ["yb-voyager", "finalize-schema-post-data-import", "--yes"] + to_kv_flags(merged)
+
+
+def build_end_migration_cmd(cfg: Dict[str, Any]) -> list[str]:
+    """Build yb-voyager end migration command."""
+    voyager_flags = _get_voyager_flags(cfg, "end_migration")
+    base = _base_common_flags(cfg)
+    backup_dir = os.path.join(cfg["export_dir"], "backup-dir")
+    os.makedirs(backup_dir, exist_ok=True)
+    base["backup-dir"] = backup_dir
+    base["backup-schema-files"] = True
+    base["backup-data-files"] = True
+    base["backup-log-files"] = True
+    base["save-migration-reports"] = True
+    merged = _merge_flags(base, voyager_flags)
+    return ["yb-voyager", "end", "migration", "--yes"] + to_kv_flags(merged)
+
+
+def end_migration(cfg: Dict[str, Any], env: Dict[str, str]) -> None:
+    src = cfg.get("source", {})
+    tgt = cfg.get("target", {})
+    run_env = dict(env)
+    if src.get("password"):
+        run_env["SOURCE_DB_PASSWORD"] = str(src["password"])
+    if tgt.get("password"):
+        run_env["TARGET_DB_PASSWORD"] = str(tgt["password"])
+    src_rep = cfg.get("source_replica", {})
+    if src_rep.get("password"):
+        run_env["SOURCE_REPLICA_DB_PASSWORD"] = str(src_rep["password"])
+    cmd = build_end_migration_cmd(cfg)
+    run_checked(cmd, run_env, description="end_migration")
 
 
 def build_export_from_target_cmd(cfg: Dict[str, Any]) -> list[str]:
@@ -1393,6 +1414,7 @@ def run_segment_hash_validations(
     ctx: Context,
     left_side: str = "source",
     right_side: str = "target",
+    exclude_tables: List[str] | None = None,
 ) -> None:
     """End-to-end segment-hash validation: compute, compare, and persist artifacts.
 
@@ -1405,6 +1427,8 @@ def run_segment_hash_validations(
 
     # 2) Compare in-memory
     all_segments, mismatches = compare_segment_hashes(ctx, left_side, right_side)
+    if exclude_tables:
+        mismatches = [m for m in mismatches if m.get("table_name") not in exclude_tables]
 
     # 3) Persist artifacts
     base_dir = os.path.join(ctx.artifacts_dir, "validation", "hash_segments")
@@ -1435,11 +1459,20 @@ def run_row_count_validations(
     ctx: Context,
     left_role: str = "source",
     right_role: str = "target",
+    mode: str = "exact",
+    exclude_tables: List[str] | None = None,
 ) -> None:
-    """Compare row counts between two roles (default: source and target) using direct SQL."""
+    """Compare row counts between two roles using direct SQL.
+
+    mode:
+        "exact"  – left_count must equal right_count (default)
+        "gte"    – right_count must be >= left_count (no data loss from left)
+    """
     cfg = ctx.cfg
     schema = cfg["source"]["schema"]
     tables = list_source_tables(cfg)
+    if exclude_tables:
+        tables = [t for t in tables if t not in exclude_tables]
     out_dir = os.path.join(ctx.artifacts_dir, "validation", "row_counts")
     os.makedirs(out_dir, exist_ok=True)
     mismatches = []
@@ -1449,21 +1482,23 @@ def run_row_count_validations(
             left_count = _fetch_table_count(left_conn, schema, table)
             right_count = _fetch_table_count(right_conn, schema, table)
 
+            if mode == "gte":
+                ok = right_count >= left_count
+            else:
+                ok = left_count == right_count
+
             record = {
                 "table": table,
-                # Field names kept for backward-compatibility; values come from left/right roles.
                 "source_count": left_count,
                 "target_count": right_count,
-                "status": "success" if left_count == right_count else "mismatch",
+                "status": "success" if ok else "mismatch",
             }
 
-            # Write per-table result
             with open(os.path.join(out_dir, f"{table}.json"), "w") as f:
                 json.dump(record, f)
             if record["status"] == "mismatch":
                 mismatches.append(record)
 
-    # If any mismatches, write summary + raise error
     if mismatches:
         summary_path = os.path.join(out_dir, "row_count_mismatches.json")
         with open(summary_path, "w") as f:

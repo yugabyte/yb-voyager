@@ -163,26 +163,28 @@ def wait_for_action(stage: Dict[str, Any], ctx: Any) -> None:
 
 
 @action("cutover_to_target")
-def cutover_to_target_action(_stage, ctx: Any) -> None:
-    H.initiate_cutover(ctx.cfg, ctx.env, "target")
+def cutover_to_target_action(stage: Dict[str, Any], ctx: Any) -> None:
+    H.initiate_cutover(ctx.cfg, ctx.env, "target", flag_overrides=stage.get("flags"))
 
 
 @action("cutover_to_source")
-def cutover_to_source_action(_stage, ctx: Any) -> None:
-    H.initiate_cutover(ctx.cfg, ctx.env, "source")
+def cutover_to_source_action(stage: Dict[str, Any], ctx: Any) -> None:
+    H.initiate_cutover(ctx.cfg, ctx.env, "source", flag_overrides=stage.get("flags"))
 
 
 @action("cutover_to_source_replica")
-def cutover_to_source_replica_action(_stage, ctx: Any) -> None:
+def cutover_to_source_replica_action(stage: Dict[str, Any], ctx: Any) -> None:
     """Initiate cutover back to the source-replica database."""
-    H.initiate_cutover(ctx.cfg, ctx.env, "source-replica")
+    H.initiate_cutover(ctx.cfg, ctx.env, "source-replica", flag_overrides=stage.get("flags"))
 
 
 @action("row_count_validations")
 def row_count_validations_action(stage: Dict[str, Any], ctx: Any) -> None:
     left_role = stage.get("left_role", "source")
     right_role = stage.get("right_role", "target")
-    H.run_row_count_validations(ctx, left_role, right_role)
+    mode = stage.get("mode", "exact")
+    exclude_tables = stage.get("exclude_tables")
+    H.run_row_count_validations(ctx, left_role, right_role, mode=mode, exclude_tables=exclude_tables)
 
 
 @action("row_hash_validations")
@@ -194,10 +196,12 @@ def row_hash_validations_action(stage: Dict[str, Any], ctx: Any) -> None:
     left_role = stage.get("left_role", "source")
     right_role = stage.get("right_role", "target")
 
+    exclude_tables = stage.get("exclude_tables")
+
     for role in {left_role, right_role}:
         H.run_sql_file(ctx, sql_path, target=role, use_admin=False)
 
-    H.run_segment_hash_validations(ctx, left_role, right_role)
+    H.run_segment_hash_validations(ctx, left_role, right_role, exclude_tables=exclude_tables)
 
 
 @action("start_resumptions")
@@ -259,6 +263,11 @@ def finalize_schema_start_action(_stage, ctx: Any) -> None:
     H.run_checked(cmd, ctx.env, description="finalize_schema")
 
 
+@action("voyager_end_migration")
+def end_migration_action(_stage, ctx: Any) -> None:
+    H.end_migration(ctx.cfg, ctx.env)
+
+
 @action("assert_iteration_number")
 def assert_iteration_number_action(stage: Dict[str, Any], ctx: Any) -> None:
     expected = int(stage["expected"])
@@ -277,6 +286,15 @@ def takeover_fallback_action(_stage, ctx: Any) -> None:
     H.takeover_fallback_processes(ctx)
 
 
+def _count_injections(sub_stages: list) -> int:
+    total = 0
+    for s in sub_stages:
+        if s.get("action") == "start_resumptions":
+            for _, cfg in s.get("resumption", {}).items():
+                total += int(cfg.get("max_restarts", 0))
+    return total
+
+
 @action("iteration_loop")
 def iteration_loop_action(stage: Dict[str, Any], ctx: Any) -> None:
     """Repeat a block of sub-stages N times for iteration testing."""
@@ -286,8 +304,13 @@ def iteration_loop_action(stage: Dict[str, Any], ctx: Any) -> None:
     count = max(0, count - subtract)
 
     sub_stages = stage.get("stages", [])
+    import time as _time
     for i in range(count):
-        H.log(f"=== iteration_loop pass {i+1}/{count} ===")
+        iter_start = _time.monotonic()
+        H.log(f"\n{'='*60}")
+        H.log(f"  ITERATION {i+1} / {count}  |  injections: {_count_injections(sub_stages)}")
+        H.log(f"{'='*60}")
+
         for sub in sub_stages:
             if _stage_is_skipped(sub):
                 H.log(f"  [skip] {sub.get('name', '<unnamed>')}")
@@ -305,6 +328,9 @@ def iteration_loop_action(stage: Dict[str, Any], ctx: Any) -> None:
                 H.append_stage_summary(ctx.cfg["artifacts_dir"], sub_name, start_ts, end_ts, status="FAILED", error=str(e))
                 H.log_stage_end(sub_name, status=f"FAILED: {e}")
                 raise
+        elapsed = _time.monotonic() - iter_start
+        mins, secs = divmod(int(elapsed), 60)
+        H.log(f"  ITERATION {i+1} / {count} completed in {mins}m {secs}s")
 
 
 def _stage_is_skipped(stage: Dict[str, Any]) -> bool:

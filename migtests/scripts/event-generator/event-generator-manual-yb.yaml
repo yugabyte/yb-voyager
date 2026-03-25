@@ -1,0 +1,23 @@
+connection:
+  host: 10.9.15.11
+  port: 5433
+  database: iter_manual
+  user: ybvoyager
+  password: 'Test@123#$%^&*()!'
+
+generator:
+  schema_name: public
+  manual_table_list: []
+  exclude_table_list: [cutover_table, identity_test, tsvector_table]
+  num_iterations: -1
+  wait_after_operations: 1000
+  wait_duration_seconds: 1
+  table_weights: {}
+  operation_weights: {INSERT: 3, UPDATE: 2, DELETE: 1}
+  random_seed: 456
+  faker_seed: 456
+  insert_rows: 1
+  update_rows: 1
+  delete_rows: 1
+  insert_max_retries: 50
+  update_max_retries: 1
