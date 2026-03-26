@@ -549,6 +549,54 @@ func (m *MetaDB) GetSegmentsToBeDeleted() ([]utils.Segment, error) {
 	return segmentsToBeDeleted, nil
 }
 
+// GetProcessedAndPendingSegments atomically fetches both the processed (ready
+// for cleanup) and pending (still being imported) segment lists in a single
+// SQLite transaction, eliminating the race window where a segment could
+// transition between the two states and be missed by both queries.
+func (m *MetaDB) GetProcessedAndPendingSegments() (processed []utils.Segment, pending []utils.Segment, err error) {
+	tx, err := m.db.Begin()
+	if err != nil {
+		return nil, nil, goerrors.Errorf("begin transaction: %v", err)
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	record := new(MigrationStatusRecord)
+	found, err := m.GetJsonObject(tx, MIGRATION_STATUS_KEY, record)
+	if err != nil {
+		return nil, nil, goerrors.Errorf("get migration status record: %v", err)
+	}
+	if !found {
+		return nil, nil, goerrors.Errorf("migration status record not found")
+	}
+
+	importCount := 1
+	if record.FallForwardEnabled {
+		importCount = 2
+	}
+
+	processedPredicate := fmt.Sprintf(`((exporter_role == 'source_db_exporter' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer = %d)) OR
+	(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_source_replica_db_importer + imported_by_source_db_importer = 1)))
+	AND archived = 0 AND deleted = 0`, importCount)
+	processed, err = m.querySegmentsWith(tx, processedPredicate)
+	if err != nil {
+		return nil, nil, goerrors.Errorf("fetch processed segments: %v", err)
+	}
+
+	pendingPredicate := fmt.Sprintf(`(exporter_role == 'source_db_exporter' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer < %d)) OR
+		(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_source_replica_db_importer + imported_by_source_db_importer < 1))`, importCount)
+	pending, err = m.querySegmentsWith(tx, pendingPredicate)
+	if err != nil {
+		return nil, nil, goerrors.Errorf("fetch pending segments: %v", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, nil, goerrors.Errorf("commit transaction: %v", err)
+	}
+	return processed, pending, nil
+}
+
 func (m *MetaDB) GetPendingSegments() ([]utils.Segment, error) {
 	msr, err := m.GetMigrationStatusRecord()
 	if err != nil {
@@ -571,10 +619,18 @@ func (m *MetaDB) GetPendingSegments() ([]utils.Segment, error) {
 	return segments, nil
 }
 
+type segmentQuerier interface {
+	Query(query string, args ...any) (*sql.Rows, error)
+}
+
 func (m *MetaDB) querySegments(predicate string) ([]utils.Segment, error) {
+	return m.querySegmentsWith(m.db, predicate)
+}
+
+func (m *MetaDB) querySegmentsWith(q segmentQuerier, predicate string) ([]utils.Segment, error) {
 	var segments []utils.Segment
 	query := fmt.Sprintf(`SELECT segment_no, file_path FROM %s WHERE %s ORDER BY segment_no;`, QUEUE_SEGMENT_META_TABLE_NAME, predicate)
-	rows, err := m.db.Query(query)
+	rows, err := q.Query(query)
 	if err != nil {
 		return nil, goerrors.Errorf("run query on meta db -%s :%v", query, err)
 	}

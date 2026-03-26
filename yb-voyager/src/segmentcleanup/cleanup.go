@@ -106,13 +106,9 @@ func (sc *SegmentCleaner) runDeletePolicy() error {
 			continue
 		}
 
-		n, err := sc.DeleteProcessedSegments()
+		n, pendingSegments, err := sc.DeleteProcessedSegments()
 		if err != nil {
 			return err
-		}
-		pendingSegments, err := sc.metaDB.GetPendingSegments()
-		if err != nil {
-			return goerrors.Errorf("get pending segments: %v", err)
 		}
 		if sc.stop && (n == 0 && len(pendingSegments) == 0) {
 			log.Infof("all processed segments deleted, cleanup complete")
@@ -123,23 +119,20 @@ func (sc *SegmentCleaner) runDeletePolicy() error {
 }
 
 // DeleteProcessedSegments performs one iteration of the delete-policy cleanup:
-// fetch processed queue segments and delete each one. Between deletions it
-// rechecks FS utilization and stops early when utilization drops below threshold.
-// Returns the number of processed segments found.
-func (sc *SegmentCleaner) DeleteProcessedSegments() (int, error) {
-	segments, err := sc.metaDB.GetProcessedQueueSegments()
+// atomically fetch both processed and pending segment lists, delete each
+// processed segment, and return the count of processed segments found along
+// with the pending segments (for the caller's stop-condition check).
+func (sc *SegmentCleaner) DeleteProcessedSegments() (int, []utils.Segment, error) {
+	segments, pendingSegments, err := sc.metaDB.GetProcessedAndPendingSegments()
 	if err != nil {
-		return 0, goerrors.Errorf("get processed segments: %v", err)
+		return 0, nil, goerrors.Errorf("get processed and pending segments: %v", err)
 	}
 	for _, seg := range segments {
 		if err := sc.deleteSegment(seg); err != nil {
-			return len(segments), goerrors.Errorf("delete segment %s: %v", seg.FilePath, err)
-		}
-		if !sc.isFSUtilizationExceeded() {
-			break
+			return len(segments), pendingSegments, goerrors.Errorf("delete segment %s: %v", seg.FilePath, err)
 		}
 	}
-	return len(segments), nil
+	return len(segments), pendingSegments, nil
 }
 
 func (sc *SegmentCleaner) deleteSegment(seg utils.Segment) error {
@@ -191,18 +184,10 @@ func (sc *SegmentCleaner) runArchivePolicy() error {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
-		n, err := sc.ArchiveProcessedSegments()
-		//Both of these segment checks needs to be done probably in single call to the metaDB
-		//as there could be potential window where segment is processed after GetProcessedQueueSegments and during GetPendingSegments
-		//that is not accounted in any of these
+		n, pendingSegments, err := sc.ArchiveProcessedSegments()
 		if err != nil {
 			return err
 		}
-		pendingSegments, err := sc.metaDB.GetPendingSegments()
-		if err != nil {
-			return goerrors.Errorf("get pending segments: %v", err)
-		}
-
 		if sc.stop && (n == 0 && len(pendingSegments) == 0) {
 			log.Infof("all processed segments archived and deleted, cleanup complete")
 			return nil
@@ -212,19 +197,20 @@ func (sc *SegmentCleaner) runArchivePolicy() error {
 }
 
 // ArchiveProcessedSegments performs one iteration of the archive-policy cleanup:
-// fetch processed queue segments, copy each to the archive directory, then delete.
-// Returns the number of processed segments found.
-func (sc *SegmentCleaner) ArchiveProcessedSegments() (int, error) {
-	segments, err := sc.metaDB.GetProcessedQueueSegments()
+// atomically fetch both processed and pending segment lists, copy each processed
+// segment to the archive directory, then delete it. Returns the count of
+// processed segments found and the pending segments.
+func (sc *SegmentCleaner) ArchiveProcessedSegments() (int, []utils.Segment, error) {
+	segments, pendingSegments, err := sc.metaDB.GetProcessedAndPendingSegments()
 	if err != nil {
-		return 0, goerrors.Errorf("get processed segments: %v", err)
+		return 0, nil, goerrors.Errorf("get processed and pending segments: %v", err)
 	}
 	for _, seg := range segments {
 		if err := sc.archiveAndDeleteSegment(seg); err != nil {
-			return len(segments), goerrors.Errorf("archive segment %s: %v", seg.FilePath, err)
+			return len(segments), pendingSegments, goerrors.Errorf("archive segment %s: %v", seg.FilePath, err)
 		}
 	}
-	return len(segments), nil
+	return len(segments), pendingSegments, nil
 }
 
 func (sc *SegmentCleaner) archiveAndDeleteSegment(seg utils.Segment) error {

@@ -63,9 +63,10 @@ func TestDeletePolicy_ProcessedSegmentsDeletedWithoutFF(t *testing.T) {
 	insertSegment(t, exportDir, SegmentRow{3, paths[2], "source_db_exporter", 0, 0, 0, 0, 0})
 
 	cleaner := newDeleteCleaner(exportDir, mdb)
-	n, err := cleaner.DeleteProcessedSegments()
+	n, pending, err := cleaner.DeleteProcessedSegments()
 	require.NoError(t, err)
 	assert.Equal(t, 2, n, "Should find 2 processed segments")
+	assert.Len(t, pending, 1, "Seg 3 should still be pending")
 
 	assert.NoFileExists(t, paths[0], "Seg 1 file should be removed")
 	assert.NoFileExists(t, paths[1], "Seg 2 file should be removed")
@@ -79,7 +80,7 @@ func TestDeletePolicy_ProcessedSegmentsDeletedWithoutFF(t *testing.T) {
 	assert.Equal(t, 0, allSegs[2].Deleted, "Seg 3 should NOT be deleted")
 	assert.Equal(t, 0, allSegs[2].Archived, "Seg 3 should NOT be archived")
 
-	n2, err := cleaner.DeleteProcessedSegments()
+	n2, _, err := cleaner.DeleteProcessedSegments()
 	require.NoError(t, err)
 	assert.Equal(t, 0, n2, "No processed segments should remain after deletion")
 }
@@ -102,9 +103,10 @@ func TestDeletePolicy_FFPreCutoverRequiresBothImporters(t *testing.T) {
 	insertSegment(t, exportDir, SegmentRow{3, paths[2], "source_db_exporter", 1, 0, 0, 0, 0})
 
 	cleaner := newDeleteCleaner(exportDir, mdb)
-	n, err := cleaner.DeleteProcessedSegments()
+	n, pending, err := cleaner.DeleteProcessedSegments()
 	require.NoError(t, err)
 	assert.Equal(t, 2, n, "Only segments where target+SR=2 should be found (importCount=2 for FF pre-cutover)")
+	assert.Len(t, pending, 1, "Seg 3 should still be pending")
 
 	assert.NoFileExists(t, paths[0], "Seg 1 file should be removed")
 	assert.NoFileExists(t, paths[1], "Seg 2 file should be removed")
@@ -134,9 +136,10 @@ func TestDeletePolicy_FFPostCutoverSourceSegmentPendingSR(t *testing.T) {
 	insertSegment(t, exportDir, SegmentRow{2, paths[1], "source_db_exporter", 1, 1, 0, 0, 0})
 
 	cleaner := newDeleteCleaner(exportDir, mdb)
-	n, err := cleaner.DeleteProcessedSegments()
+	n, pending, err := cleaner.DeleteProcessedSegments()
 	require.NoError(t, err)
 	assert.Equal(t, 1, n, "Only seg 2 should be eligible (seg 1 sum=1, need 2)")
+	assert.Len(t, pending, 1, "Seg 1 should still be pending")
 
 	assert.FileExists(t, paths[0], "Seg 1 file should still exist (SR hasn't processed)")
 	assert.NoFileExists(t, paths[1], "Seg 2 file should be removed")
@@ -164,9 +167,10 @@ func TestDeletePolicy_FFPostCutoverTargetSegmentsSkippedBeforeSR(t *testing.T) {
 	insertSegment(t, exportDir, SegmentRow{11, paths[1], "target_db_exporter_ff", 0, 0, 0, 0, 0})
 
 	cleaner := newDeleteCleaner(exportDir, mdb)
-	n, err := cleaner.DeleteProcessedSegments()
+	n, pending, err := cleaner.DeleteProcessedSegments()
 	require.NoError(t, err)
 	assert.Equal(t, 0, n, "S10, S11 should NOT be eligible (SR hasn't processed)")
+	assert.Len(t, pending, 2, "Both target-exported segments should still be pending")
 
 	assert.FileExists(t, paths[0], "Seg 10 file should still exist")
 	assert.FileExists(t, paths[1], "Seg 11 file should still exist")
@@ -194,9 +198,10 @@ func TestDeletePolicy_FallbackWorkflowUsesImportCountOne(t *testing.T) {
 	insertSegment(t, exportDir, SegmentRow{3, paths[2], "source_db_exporter", 0, 0, 0, 0, 0})
 
 	cleaner := newDeleteCleaner(exportDir, mdb)
-	n, err := cleaner.DeleteProcessedSegments()
+	n, pending, err := cleaner.DeleteProcessedSegments()
 	require.NoError(t, err)
 	assert.Equal(t, 2, n, "Segs 1 and 2 with target=1 should be eligible (importCount=1)")
+	assert.Len(t, pending, 1, "Seg 3 should still be pending")
 
 	assert.NoFileExists(t, paths[0], "Seg 1 file should be removed")
 	assert.NoFileExists(t, paths[1], "Seg 2 file should be removed")
@@ -300,9 +305,10 @@ func TestDeleteProcessedSegmentsRemovesFile(t *testing.T) {
 	assert.FileExists(t, paths[0], "segment file should exist before delete")
 
 	cleaner := newDeleteCleaner(exportDir, mdb)
-	n, err := cleaner.DeleteProcessedSegments()
+	n, pending, err := cleaner.DeleteProcessedSegments()
 	require.NoError(t, err)
 	assert.Equal(t, 1, n)
+	assert.Empty(t, pending, "no pending segments expected")
 
 	assert.NoFileExists(t, paths[0], "segment file should be removed after delete")
 
@@ -323,9 +329,10 @@ func TestDeleteProcessedSegmentsMissingFile(t *testing.T) {
 	insertSegment(t, exportDir, SegmentRow{1, "/tmp/nonexistent/segment.1.ndjson", "source_db_exporter", 1, 0, 0, 0, 0})
 
 	cleaner := newDeleteCleaner(exportDir, mdb)
-	n, err := cleaner.DeleteProcessedSegments()
+	n, pending, err := cleaner.DeleteProcessedSegments()
 	require.NoError(t, err, "Should not error on missing file")
 	assert.Equal(t, 1, n)
+	assert.Empty(t, pending, "no pending segments expected")
 
 	allSegs := queryAllSegments(t, exportDir)
 	assert.Equal(t, 1, allSegs[0].Deleted)
