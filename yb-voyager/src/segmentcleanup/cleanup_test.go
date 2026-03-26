@@ -265,7 +265,7 @@ func TestDeletePolicy_FSBelowThresholdNoDeletion(t *testing.T) {
 // ============================================================
 func TestIsValidPolicy(t *testing.T) {
 	assert.True(t, IsValidPolicy("delete"))
-	assert.True(t, IsValidPolicy("retain"))
+	assert.False(t, IsValidPolicy("retain"))
 	assert.True(t, IsValidPolicy("archive"))
 	assert.False(t, IsValidPolicy(""))
 }
