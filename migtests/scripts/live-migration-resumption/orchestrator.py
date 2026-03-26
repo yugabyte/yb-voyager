@@ -109,6 +109,23 @@ def stop_command_action(stage: Dict[str, Any], ctx: Any) -> None:
     H.stop_process(ctx, command, graceful_timeout=timeout)
 
 
+@action("stop_external_process")
+def stop_external_process_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Stop a yb-voyager process by semantic name (tracked or discovered via pgrep).
+
+    Required stage key:
+      - process: logical name (export_data, import_data, export_from_target,
+        import_to_source, import_to_source_replica).
+    Optional:
+      - graceful_timeout_sec: seconds to wait after SIGTERM before SIGKILL (default 20).
+    """
+    name = stage.get("process")
+    if not name:
+        raise ValueError("stop_process action requires non-empty 'process'")
+    timeout = int(stage.get("graceful_timeout_sec", 20))
+    H.stop_external_process(ctx, str(name), graceful_timeout=timeout)
+
+
 _WAIT_FOR_CONDITIONS: Dict[str, Dict[str, Any]] = {
     "exporter_in_streaming_phase": {
         "interval": 5,
@@ -151,26 +168,36 @@ def wait_for_action(stage: Dict[str, Any], ctx: Any) -> None:
 
 
 @action("cutover_to_target")
-def cutover_to_target_action(_stage, ctx: Any) -> None:
-    H.initiate_cutover(ctx.cfg, ctx.env, "target")
+def cutover_to_target_action(stage, ctx: Any) -> None:
+    H.initiate_cutover(ctx.cfg, ctx.env, "target", extra_flags=stage.get("flags"))
 
 
 @action("cutover_to_source")
-def cutover_to_source_action(_stage, ctx: Any) -> None:
-    H.initiate_cutover(ctx.cfg, ctx.env, "source")
+def cutover_to_source_action(stage, ctx: Any) -> None:
+    H.initiate_cutover(ctx.cfg, ctx.env, "source", extra_flags=stage.get("flags"))
 
 
 @action("cutover_to_source_replica")
-def cutover_to_source_replica_action(_stage, ctx: Any) -> None:
+def cutover_to_source_replica_action(stage, ctx: Any) -> None:
     """Initiate cutover back to the source-replica database."""
-    H.initiate_cutover(ctx.cfg, ctx.env, "source-replica")
+    H.initiate_cutover(ctx.cfg, ctx.env, "source-replica", extra_flags=stage.get("flags"))
 
 
 @action("row_count_validations")
 def row_count_validations_action(stage: Dict[str, Any], ctx: Any) -> None:
     left_role = stage.get("left_role", "source")
     right_role = stage.get("right_role", "target")
-    H.run_row_count_validations(ctx, left_role, right_role)
+    exclude = stage.get("exclude_tables")
+    retry_sec = int(stage.get("retry_until_match_sec", 0))
+    retry_interval = int(stage.get("retry_interval_sec", 3))
+    H.run_row_count_validations(
+        ctx,
+        left_role,
+        right_role,
+        exclude_tables=exclude,
+        retry_until_match_sec=retry_sec,
+        retry_interval_sec=retry_interval,
+    )
 
 
 @action("row_hash_validations")
@@ -181,11 +208,12 @@ def row_hash_validations_action(stage: Dict[str, Any], ctx: Any) -> None:
 
     left_role = stage.get("left_role", "source")
     right_role = stage.get("right_role", "target")
+    exclude = stage.get("exclude_tables")
 
     for role in {left_role, right_role}:
         H.run_sql_file(ctx, sql_path, target=role, use_admin=False)
 
-    H.run_segment_hash_validations(ctx, left_role, right_role)
+    H.run_segment_hash_validations(ctx, left_role, right_role, exclude_tables=exclude)
 
 
 @action("start_resumptions")
@@ -311,6 +339,8 @@ def main() -> None:
         while idx < len(stages):
             stage = stages[idx]
             stage_name = stage.get("name", "<unnamed>")
+            ctx.loop_iteration = iteration
+            H.apply_effective_export_dir(ctx)
             H.log_stage_start(stage_name)
             start_ts = H._ts()
             try:

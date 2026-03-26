@@ -87,6 +87,12 @@ generator_target:
       update_max_retries: 1
 
 voyager:
+  export_data:
+    flags:
+      export-type: changes-only
+    flags_when_loop_iteration_gte:
+      "1":
+        config-file: /opt/yb-voyager/config-templates/live-migration-with-fall-back.yaml
   cutover_to_target:
     flags:
       prepare-for-fall-back: true
@@ -262,6 +268,8 @@ stages:
 
   - name: row_count_validations
     action: row_count_validations
+    retry_until_match_sec: 120
+    retry_interval_sec: 3
 
   - name: row_hash_validations
     action: row_hash_validations

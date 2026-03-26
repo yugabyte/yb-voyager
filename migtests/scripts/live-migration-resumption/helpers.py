@@ -2,6 +2,8 @@
 
 from typing import Any, Dict, Callable, Optional, List
 import os
+import re
+import signal
 import time
 import threading
 import random
@@ -41,6 +43,55 @@ class Context:
         self.stop_event = threading.Event()
         self.process_lock = threading.Lock()
         self.active_resumers: Dict[str, "Resumer"] = {}
+        # Incremented by orchestrator after each loop_end (0 = first pass through loop_start..loop_end).
+        self.loop_iteration: int = 0
+        # Resolved scenario export-dir (parent); cfg["export_dir"] may be rewritten to the latest iteration dir.
+        self.export_dir_base: str = os.path.abspath(cfg.get("export_dir") or "")
+
+
+def find_latest_iteration_export_dir(base_export_dir: str) -> str | None:
+    """Return .../live-data-migration-iterations/live-data-migration-iteration-N/export-dir for the largest N."""
+    base_export_dir = os.path.abspath(base_export_dir)
+    it_root = os.path.join(base_export_dir, "live-data-migration-iterations")
+    if not os.path.isdir(it_root):
+        return None
+    best_n = -1
+    best_path: str | None = None
+    for name in os.listdir(it_root):
+        if not name.startswith("live-data-migration-iteration-"):
+            continue
+        suffix = name.replace("live-data-migration-iteration-", "")
+        try:
+            n = int(suffix)
+        except ValueError:
+            continue
+        cand = os.path.join(it_root, name, "export-dir")
+        if os.path.isdir(cand) and n > best_n:
+            best_n = n
+            best_path = cand
+    return best_path
+
+
+def apply_effective_export_dir(ctx: Context) -> None:
+    """Point cfg['export_dir'] at the scenario parent for loop_iteration 0, else latest iteration export-dir.
+
+    Voyager stores CDC queues under the current iteration's export-dir after the first iteration; commands
+    must use that path when loop_iteration >= 1. Iteration 0 behavior matches the original single-dir layout.
+    """
+    base = ctx.export_dir_base or os.path.abspath(ctx.cfg.get("export_dir") or "")
+    if ctx.loop_iteration == 0:
+        ctx.cfg["export_dir"] = base
+        return
+    latest = find_latest_iteration_export_dir(base)
+    if latest:
+        ctx.cfg["export_dir"] = os.path.abspath(latest)
+        log(f"effective export-dir (loop_iteration={ctx.loop_iteration}): {ctx.cfg['export_dir']}")
+    else:
+        ctx.cfg["export_dir"] = base
+        log(
+            f"effective export-dir: no live-data-migration-iteration-*/export-dir under {base}; "
+            "using parent export-dir"
+        )
 
 
 class ResumptionPolicy:
@@ -147,6 +198,8 @@ def validate_scenario(cfg: Dict[str, Any]) -> None:
         action = _ensure(st, "action", str, sctx)
         if action == "wait_for":
             _ensure(st, "condition", str, sctx)
+        if action == "stop_process":
+            _ensure(st, "process", str, sctx)
 
 # -------------------------
 # Polling / Timeouts / Conditions
@@ -167,14 +220,31 @@ def poll_until(timeout_sec: int, interval_sec: int, fn: Callable[[], bool]) -> b
 
 
 
+def _queue_dirs_for_live_migration(export_dir: str) -> list[str]:
+    """Parent .../data/queue plus each .../live-data-migration-iterations/live-data-migration-iteration-N/export-dir/data/queue."""
+    out: list[str] = []
+    parent = os.path.join(export_dir, "data", "queue")
+    if os.path.isdir(parent):
+        out.append(parent)
+    it_root = os.path.join(export_dir, "live-data-migration-iterations")
+    if os.path.isdir(it_root):
+        for name in sorted(os.listdir(it_root)):
+            if not name.startswith("live-data-migration-iteration-"):
+                continue
+            q = os.path.join(it_root, name, "export-dir", "data", "queue")
+            if os.path.isdir(q):
+                out.append(q)
+    return out
+
+
 def exporter_streaming(export_dir: str) -> bool:
-    """Heuristic: streaming considered started when first queue segment has at least one event.
-    """
-    seg0 = os.path.join(export_dir, "data", "queue", "segment.0.ndjson")
+    """Heuristic: streaming started when some queue segment.0.ndjson has data (parent or iteration export-dir)."""
     try:
-        if not os.path.isfile(seg0):
-            return False
-        return os.path.getsize(seg0) > 0
+        for queue_dir in _queue_dirs_for_live_migration(export_dir):
+            seg0 = os.path.join(queue_dir, "segment.0.ndjson")
+            if os.path.isfile(seg0) and os.path.getsize(seg0) > 0:
+                return True
+        return False
     except (OSError, IOError):
         return False
 
@@ -202,26 +272,34 @@ def get_cutover_status(export_dir: str, mode: str = "target") -> str:
 
 def backlog_marker_present(export_dir: str) -> bool:
     """
-    Return True when the latest queue segment contains the marker insert for cutover_table.
-    Looks for "cutover_table" and the literal "Last event before cutover" in the last non-empty line.
+    Return True when any queue segment contains the cutover_table marker (insert_marker.sql).
+
+    Checks the parent export-dir queue and every live-data-migration-iteration/*/export-dir queue.
+    After iteration 1+, Voyager writes CDC segments under the iteration folder, not the parent
+    .../data/queue (so only scanning the parent breaks wait_backlog_zero on later loop passes).
+
+    Any line with both \"cutover_table\" and \"Last event before cutover\" counts (not only the
+    last line — Voyager may append cutover.source after the row event).
     """
-    queue_dir = os.path.join(export_dir, "data", "queue")
     try:
-        names = [n for n in os.listdir(queue_dir) if n.startswith("segment.") and n.endswith(".ndjson")]
-        if not names:
-            return False
-        # segment.N.ndjson -> pick max N
-        latest = max(names, key=lambda n: int(n.split(".")[1]))
-        path = os.path.join(queue_dir, latest)
-        if os.path.getsize(path) == 0:
-            return False
-        last: str | None = None
-        with open(path, "r") as f:
-            for line in f:
-                s = line.strip()
-                if s:
-                    last = s
-        return last is not None and ("cutover_table" in last) and ("Last event before cutover" in last)
+        for queue_dir in _queue_dirs_for_live_migration(export_dir):
+            names = [
+                n
+                for n in os.listdir(queue_dir)
+                if n.startswith("segment.") and n.endswith(".ndjson")
+            ]
+            for seg_name in sorted(names, key=lambda n: int(n.split(".")[1])):
+                path = os.path.join(queue_dir, seg_name)
+                if os.path.getsize(path) == 0:
+                    continue
+                with open(path, "r") as f:
+                    for line in f:
+                        s = line.strip()
+                        if not s:
+                            continue
+                        if "cutover_table" in s and "Last event before cutover" in s:
+                            return True
+        return False
     except OSError:
         return False
 
@@ -302,6 +380,90 @@ def kill(proc: subprocess.Popen | None, timeout_sec: int = 10) -> None:
         pass
 
 
+def _kill_pid_graceful(pid: int, timeout_sec: int) -> None:
+    """SIGTERM, wait, then SIGKILL if the PID is still alive."""
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    deadline = time.time() + float(timeout_sec)
+    while time.time() < deadline:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return
+        time.sleep(0.2)
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+
+def _voyager_pgrep_pattern(command_name: str, export_dir: str) -> str | None:
+    """Regex for full command line (pgrep -f). export_dir must match the running argv."""
+    ed = re.escape(os.path.abspath(export_dir))
+    patterns: Dict[str, str] = {
+        "export_data": rf"yb-voyager.*export.*data.*from source.*--export-dir {ed}",
+        "import_data": rf"yb-voyager.*import.*data.*to target.*--export-dir {ed}",
+        "export_from_target": rf"yb-voyager.*export.*data.*from target.*--export-dir {ed}",
+        "import_to_source": rf"yb-voyager.*import.*data.*to source\s+--export-dir {ed}",
+        "import_to_source_replica": rf"yb-voyager.*import.*data.*to source-replica.*--export-dir {ed}",
+    }
+    return patterns.get(command_name)
+
+
+def _pgrep_f_pids(pattern: str) -> list[int]:
+    proc = subprocess.run(
+        ["pgrep", "-f", pattern],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        return []
+    pids: list[int] = []
+    for line in proc.stdout.splitlines():
+        line = line.strip()
+        if line.isdigit():
+            pids.append(int(line))
+    return pids
+
+
+def find_external_voyager_pids(command_name: str, export_dir: str) -> list[int]:
+    """PIDs for a yb-voyager process matching this logical command + export-dir (not necessarily in ctx.processes)."""
+    pattern = _voyager_pgrep_pattern(command_name, export_dir)
+    if not pattern:
+        return []
+    return _pgrep_f_pids(pattern)
+
+
+def _export_dirs_for_stop_matching(ctx: Context) -> list[str]:
+    """Dirs that may appear in argv: current effective export-dir and scenario parent (iteration-0 dir).
+
+    After loop_iteration >= 1, cfg['export_dir'] is the iteration subdir, but processes started in
+    iteration 0 still run with --export-dir set to the parent; pgrep must try both or stop misses them
+    and replication slots stay active.
+    """
+    cur = os.path.abspath(ctx.cfg.get("export_dir") or "")
+    base = os.path.abspath(getattr(ctx, "export_dir_base", "") or "")
+    out: list[str] = []
+    for d in (cur, base):
+        if d and d not in out:
+            out.append(d)
+    return out
+
+
+def find_external_voyager_pids_all_export_dirs(ctx: Context, command_name: str) -> list[int]:
+    """Like find_external_voyager_pids but union PIDs across parent + iteration export-dir paths."""
+    seen: set[int] = set()
+    pids: list[int] = []
+    for ed in _export_dirs_for_stop_matching(ctx):
+        for pid in find_external_voyager_pids(command_name, ed):
+            if pid not in seen:
+                seen.add(pid)
+                pids.append(pid)
+    return pids
+
+
 def restart_like(name: str, _old_proc: subprocess.Popen | None, ctx: Context) -> subprocess.Popen:
     # Reconstruct a command by semantic name.
     return start_command_by_name(name, ctx)
@@ -317,6 +479,34 @@ def stop_process(ctx: Context, name: str, graceful_timeout: int = 10) -> bool:
     with ctx.process_lock:
         ctx.processes.pop(name, None)
     log(f"stop_process: stopped {name}")
+    return True
+
+
+def stop_external_process(ctx: Context, name: str, graceful_timeout: int = 10) -> bool:
+    """Like stop_process, but if there is no tracked handle, find matching yb-voyager PIDs via pgrep and stop them."""
+    with ctx.process_lock:
+        proc = ctx.processes.get(name)
+    if proc is not None and proc.poll() is None:
+        kill(proc, timeout_sec=graceful_timeout)
+        with ctx.process_lock:
+            ctx.processes.pop(name, None)
+        log(f"stop_external_process: stopped {name} (tracked)")
+        return True
+
+    ext_pids = find_external_voyager_pids_all_export_dirs(ctx, name)
+    if not ext_pids:
+        log(f"stop_external_process: no running process for {name}")
+        return False
+    log(
+        f"stop_external_process: no tracked handle for {name}; "
+        f"stopping external PID(s) {ext_pids} "
+        f"(matched --export-dir in {_export_dirs_for_stop_matching(ctx)})"
+    )
+    for pid in ext_pids:
+        _kill_pid_graceful(pid, graceful_timeout)
+    with ctx.process_lock:
+        ctx.processes.pop(name, None)
+    log(f"stop_external_process: stopped {name} (external)")
     return True
 
 
@@ -342,6 +532,18 @@ def _merge_flags(base: Dict[str, Any], extra: Dict[str, Any] | None) -> Dict[str
     merged = dict(base)
     merged.update(extra or {})
     return merged
+
+
+def _merge_flags_when_loop_iteration_gte(cfg: Dict[str, Any], op: str, loop_iteration: int) -> Dict[str, Any]:
+    """Merge flags from voyager.<op>.flags_when_loop_iteration_gte for each threshold T where loop_iteration >= T."""
+    voyager = cfg.get("voyager", {}) or {}
+    op_cfg = voyager.get(op, {}) or {}
+    gte = op_cfg.get("flags_when_loop_iteration_gte") or {}
+    merged_extra: Dict[str, Any] = {}
+    for threshold_str in sorted(gte.keys(), key=lambda x: int(x)):
+        if loop_iteration >= int(threshold_str):
+            merged_extra.update(gte[threshold_str] or {})
+    return merged_extra
 
 
 def _get_voyager_flags(cfg: Dict[str, Any], op: str) -> Dict[str, Any]:
@@ -409,15 +611,23 @@ def export_schema(cfg: Dict[str, Any], env: Dict[str, str]) -> None:
     run_checked(cmd, env, description="export_schema")
 
 
-def initiate_cutover(cfg: Dict[str, Any], env: Dict[str, str], direction: str) -> None:
+def initiate_cutover(
+    cfg: Dict[str, Any],
+    env: Dict[str, str],
+    direction: str,
+    extra_flags: Dict[str, Any] | None = None,
+) -> None:
     voyager_flags = _get_voyager_flags(cfg, f"cutover_to_{direction}")
     base = {"export-dir": cfg["export_dir"],}
     merged = _merge_flags(base, voyager_flags)
+    merged = _merge_flags(merged, extra_flags)
     cmd = ["yb-voyager", "initiate", "cutover", "to", direction, "--yes"] + to_kv_flags(merged)
     run_checked(cmd, env, description=f"cutover_to_{direction}")
 
 
-def build_export_data_cmd(cfg: Dict[str, Any]) -> list[str]:
+def build_export_data_cmd(ctx: Context) -> list[str]:
+    cfg = ctx.cfg
+    loop_iteration = ctx.loop_iteration
     voyager_flags = _get_voyager_flags(cfg, "export_data")
     base = _base_common_flags(cfg)
     base.update(_source_conn_flags(cfg))
@@ -426,6 +636,7 @@ def build_export_data_cmd(cfg: Dict[str, Any]) -> list[str]:
     # data command defaults
     base["disable-pb"] = True
     merged = _merge_flags(base, voyager_flags)
+    merged = _merge_flags(merged, _merge_flags_when_loop_iteration_gte(cfg, "export_data", loop_iteration))
     return ["yb-voyager", "export", "data", "--yes"] + to_kv_flags(merged)
 
 
@@ -485,7 +696,7 @@ def build_import_to_source_replica_cmd(cfg: Dict[str, Any]) -> list[str]:
 
 def start_command_by_name(name: str, ctx: Context) -> subprocess.Popen:
     mapping: Dict[str, Callable[[], subprocess.Popen]] = {
-        "export_data": lambda: spawn(build_export_data_cmd(ctx.cfg), ctx.env),
+        "export_data": lambda: spawn(build_export_data_cmd(ctx), ctx.env),
         "import_data": lambda: spawn(build_import_data_cmd(ctx.cfg), ctx.env),
         "export_from_target": lambda: spawn(build_export_from_target_cmd(ctx.cfg), ctx.env),
         "import_to_source_replica": lambda: spawn(build_import_to_source_replica_cmd(ctx.cfg), ctx.env),
@@ -1031,6 +1242,9 @@ def reset_database_for_role(role: str, ctx) -> None:
 # Validation helpers
 # -------------------------
 
+# Excluded from row-count and segment-hash comparisons (control / meta tables).
+_VALIDATION_ALWAYS_EXCLUDE_TABLES = frozenset({"cutover_table", "migration_validate_segments"})
+
 # TODO: Define a workflow to debug segment hash validation failures.
 
 def _load_segment_map_for_side(
@@ -1135,8 +1349,12 @@ def compare_segment_hashes(
     ctx: Context,
     left_side: str = "source",
     right_side: str = "target",
+    *,
+    exclude_tables: Optional[set[str]] = None,
 ) -> tuple[list[Dict[str, Any]], list[Dict[str, Any]]]:
     """Load segment hashes for two sides and compute in-memory differences.
+
+    cutover_table and migration_validate_segments are always excluded (same as row-count validation).
 
     Returns:
         all_segments: list of per-segment records including status.
@@ -1145,10 +1363,14 @@ def compare_segment_hashes(
     cfg = ctx.cfg
     schema = cfg["source"]["schema"]
 
+    exclude = set(_VALIDATION_ALWAYS_EXCLUDE_TABLES) | set(exclude_tables or [])
+
     left_map = _load_segment_map_for_side(cfg, schema, left_side)
     right_map = _load_segment_map_for_side(cfg, schema, right_side)
 
     all_keys = sorted(set(left_map.keys()) | set(right_map.keys()))
+    # key = (schema_name, table_name, segment_index)
+    all_keys = [k for k in all_keys if k[1] not in exclude]
 
     all_segments: list[Dict[str, Any]] = []
     mismatches: list[Dict[str, Any]] = []
@@ -1168,6 +1390,8 @@ def run_segment_hash_validations(
     ctx: Context,
     left_side: str = "source",
     right_side: str = "target",
+    *,
+    exclude_tables: Optional[List[str]] = None,
 ) -> None:
     """End-to-end segment-hash validation: compute, compare, and persist artifacts.
 
@@ -1178,8 +1402,11 @@ def run_segment_hash_validations(
     run_segment_hash_computation(ctx, left_side)
     run_segment_hash_computation(ctx, right_side)
 
-    # 2) Compare in-memory
-    all_segments, mismatches = compare_segment_hashes(ctx, left_side, right_side)
+    # 2) Compare in-memory (always skip cutover_table + migration_validate_segments; extra via exclude_tables)
+    exclude = set(exclude_tables or [])
+    all_segments, mismatches = compare_segment_hashes(
+        ctx, left_side, right_side, exclude_tables=exclude
+    )
 
     # 3) Persist artifacts
     base_dir = os.path.join(ctx.artifacts_dir, "validation", "hash_segments")
@@ -1210,42 +1437,62 @@ def run_row_count_validations(
     ctx: Context,
     left_role: str = "source",
     right_role: str = "target",
+    *,
+    exclude_tables: Optional[List[str]] = None,
+    retry_until_match_sec: int = 0,
+    retry_interval_sec: int = 3,
 ) -> None:
-    """Compare row counts between two roles (default: source and target) using direct SQL."""
+    """Compare row counts between two roles (default: source and target) using direct SQL.
+
+    cutover_table and migration_validate_segments are always excluded (control / validation artifacts).
+    exclude_tables adds more names. retry_until_match_sec helps streaming catch-up.
+    """
     cfg = ctx.cfg
     schema = cfg["source"]["schema"]
-    tables = list_source_tables(cfg)
+    exclude = set(_VALIDATION_ALWAYS_EXCLUDE_TABLES) | set(exclude_tables or [])
+    tables = [t for t in list_source_tables(cfg) if t not in exclude]
     out_dir = os.path.join(ctx.artifacts_dir, "validation", "row_counts")
     os.makedirs(out_dir, exist_ok=True)
-    mismatches = []
 
-    with db_connection(cfg, left_role) as left_conn, db_connection(cfg, right_role) as right_conn:
-        for table in tables:
-            left_count = _fetch_table_count(left_conn, schema, table)
-            right_count = _fetch_table_count(right_conn, schema, table)
+    deadline = time.time() + retry_until_match_sec if retry_until_match_sec > 0 else None
 
-            record = {
-                "table": table,
-                # Field names kept for backward-compatibility; values come from left/right roles.
-                "source_count": left_count,
-                "target_count": right_count,
-                "status": "success" if left_count == right_count else "mismatch",
-            }
+    while True:
+        mismatches: list[Dict[str, Any]] = []
 
-            # Write per-table result
-            with open(os.path.join(out_dir, f"{table}.json"), "w") as f:
-                json.dump(record, f)
-            if record["status"] == "mismatch":
-                mismatches.append(record)
+        with db_connection(cfg, left_role) as left_conn, db_connection(cfg, right_role) as right_conn:
+            for table in tables:
+                left_count = _fetch_table_count(left_conn, schema, table)
+                right_count = _fetch_table_count(right_conn, schema, table)
 
-    # If any mismatches, write summary + raise error
-    if mismatches:
-        summary_path = os.path.join(out_dir, "row_count_mismatches.json")
-        with open(summary_path, "w") as f:
-            json.dump({"mismatches": mismatches}, f)
+                record = {
+                    "table": table,
+                    "source_count": left_count,
+                    "target_count": right_count,
+                    "status": "success" if left_count == right_count else "mismatch",
+                }
 
-        preview = "; ".join(
-            f"{r['table']} (source={r['source_count']}, target={r['target_count']})"
-            for r in mismatches
+                with open(os.path.join(out_dir, f"{table}.json"), "w") as f:
+                    json.dump(record, f)
+                if record["status"] == "mismatch":
+                    mismatches.append(record)
+
+        if not mismatches:
+            return
+
+        if deadline is None or time.time() >= deadline:
+            summary_path = os.path.join(out_dir, "row_count_mismatches.json")
+            with open(summary_path, "w") as f:
+                json.dump({"mismatches": mismatches}, f)
+
+            preview = "; ".join(
+                f"{r['table']} (source={r['source_count']}, target={r['target_count']})"
+                for r in mismatches
+            )
+            raise RuntimeError(f"row count validation failed for tables: {preview}")
+
+        remaining = max(0.0, deadline - time.time())
+        log(
+            f"row_count_validations: {len(mismatches)} table(s) still mismatched; "
+            f"retrying in {retry_interval_sec}s (~{remaining:.0f}s left)"
         )
-        raise RuntimeError(f"row count validation failed for tables: {preview}")
+        time.sleep(retry_interval_sec)
