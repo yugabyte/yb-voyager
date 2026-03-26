@@ -588,11 +588,11 @@ archive-changes:
   ### Accepted values:
   ###   delete  — delete processed segments once fs utilization exceeds the threshold.
   ###   archive — copy processed segments to --archive-dir, then delete the originals.
-  policy: delete
+  policy: archive
 
   ### Directory to archive processed segments to.
   ### Required when policy is set to 'archive'.
-  # archive-dir: <path-to-archive-dir>
+  archive-dir: <path-to-archive-dir>
 
   ### Disk utilization percentage above which cleanup actions are triggered.
   ### Used with policy 'delete' and 'retain'.
