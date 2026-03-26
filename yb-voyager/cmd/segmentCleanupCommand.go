@@ -36,16 +36,19 @@ var (
 )
 
 var segmentCleanupCmd = &cobra.Command{
-	Use:   "segmentcleanup",
-	Short: "Clean up processed CDC event queue segments",
+	Use: "changes",
+	Short: "Archive or clean up processed CDC event queue segments during live migration.\n" +
+		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/cutover-archive/archive-changes/",
 	Long: fmt.Sprintf(`Manage the lifecycle of processed CDC event segments during live migration.
 
-Supported policies (--policy):
-  delete  (default) — delete processed segments once fs utilization exceeds the threshold.
-  retain  — keep all segments on disk; emit warnings if the threshold is exceeded.
-  archive — copy processed segments to --archive-dir, then delete the originals.
+This command handles old CDC events that have already been applied to the
+destination database. It supports three policies to control what happens
+to processed segments:
 
-Policies: %s`, strings.Join(segmentcleanup.ValidPolicyNames, ", ")),
+  delete  — delete processed segments once fs utilization exceeds the threshold.
+ archive — copy processed segments to --archive-dir, then delete the originals.
+
+The --policy flag is required. Accepted values: %s`, strings.Join(segmentcleanup.ValidPolicyNames, ", ")),
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validateSegmentCleanupFlags(cmd)
@@ -60,10 +63,10 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("error getting migration status record: %v", err)
 	}
 	if msr == nil {
-		utils.ErrExit("migration status record not found; ensure export has been initiated before running segmentcleanup")
+		utils.ErrExit("migration status record not found; ensure export has been initiated before running archive changes")
 	}
 	if !msr.ExportDataSourceDebeziumStarted {
-		utils.ErrExit("the streaming phase of export data has not started yet — this command can only be run after streaming begins")
+		utils.ErrExit("the streaming phase of export data has not started yet — archive changes can only be run after streaming begins")
 	}
 
 	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
@@ -95,8 +98,9 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 	go waitForWorkflowEnd(cleaner, ctx)
 
 	if err := cleaner.Run(); err != nil {
-		utils.ErrExit("segment cleanup failed: %v", err)
+		utils.ErrExit("archive changes failed: %v", err)
 	}
+	utils.PrintAndLogfSuccess("\nArchived all the changes.")
 	printNextIterationExportDirIfRequired()
 }
 
@@ -164,27 +168,28 @@ func waitForWorkflowEnd(cleaner *segmentcleanup.SegmentCleaner, ctx context.Cont
 			return
 		default:
 			if workflowEnded() {
-				utils.PrintAndLogfSuccess("\nArchived all the changes.")
 				cleaner.SignalStop()
 				return
 			}
-			time.Sleep(2 * time.Second)
+			time.Sleep(5 * time.Second)
 		}
 	}
 }
 
 func init() {
-	rootCmd.AddCommand(segmentCleanupCmd)
+	archiveCmd.AddCommand(segmentCleanupCmd)
 	registerCommonGlobalFlags(segmentCleanupCmd)
 
-	segmentCleanupCmd.Flags().StringVar(&cleanupPolicy, "policy", segmentcleanup.PolicyDelete,
-		fmt.Sprintf("cleanup policy for processed segments (%s)", strings.Join(segmentcleanup.ValidPolicyNames, ", ")))
+	segmentCleanupCmd.Flags().StringVar(&cleanupPolicy, "policy", "",
+		fmt.Sprintf("cleanup policy for processed segments; accepted values: %s (required)", strings.Join(segmentcleanup.ValidPolicyNames, ", ")))
+	segmentCleanupCmd.MarkFlagRequired("policy")
+	segmentCleanupCmd.MarkPersistentFlagRequired("export-dir")
 
 	segmentCleanupCmd.Flags().StringVar(&cleanupArchiveDir, "archive-dir", "",
 		"directory to archive processed segments to (required when --policy=archive)")
 
 	segmentCleanupCmd.Flags().IntVar(&cleanupUtilizationThreshold, "fs-utilization-threshold", 70,
-		"disk utilization percentage above which cleanup actions are triggered")
+		"disk utilization percentage above which cleanup actions are triggered (used with --policy=delete)")
 }
 
 func validateSegmentCleanupFlags(cmd *cobra.Command) {

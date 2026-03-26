@@ -49,7 +49,6 @@ func TestSendDiagnosticsAllowlistMatchesRegisteredCommands(t *testing.T) {
 		"compare-performance":              true,
 		"end migration":                    true,
 		"archive changes":                  true,
-		"segmentcleanup":                  true,
 		"assess-migration-bulk":            true,
 	}
 

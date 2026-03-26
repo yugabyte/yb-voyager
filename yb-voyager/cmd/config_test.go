@@ -34,6 +34,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
@@ -84,8 +85,9 @@ func setupExportDir(t *testing.T) string {
 }
 
 type testContext struct {
-	tmpExportDir string
-	configFile   string
+	tmpExportDir  string
+	configFile    string
+	tmpArchiveDir string
 }
 
 ////////////////////////////// Validation Logic Tests //////////////////////////////
@@ -3708,11 +3710,12 @@ func TestInitiateCutoverToTargetConfigBinding_CLIOverridesConfig(t *testing.T) {
 
 func setupArchiveChangesContext(t *testing.T) *testContext {
 	tmpExportDir := setupExportDir(t)
+	tmpArchiveDir := t.TempDir()
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
-	resetCmdAndEnvVars(archiveChangesCmd)
+	resetCmdAndEnvVars(segmentCleanupCmd)
 	t.Cleanup(func() {
-		resetFlags(archiveChangesCmd)
+		resetFlags(segmentCleanupCmd)
 	})
 
 	configContent := fmt.Sprintf(`
@@ -3721,15 +3724,15 @@ log-level: info
 send-diagnostics: false
 profile: true
 archive-changes:
-  delete-changes-without-archiving: true
-  fs-utilization-threshold: 20
-  move-to: "path/to/dir"
-`, tmpExportDir)
+  policy: archive
+  archive-dir: %s
+`, tmpExportDir, tmpArchiveDir)
 	configFile, configDir := setupConfigFile(t, configContent)
 	t.Cleanup(func() { os.RemoveAll(configDir) })
 	return &testContext{
-		tmpExportDir: tmpExportDir,
-		configFile:   configFile,
+		tmpExportDir:  tmpExportDir,
+		configFile:    configFile,
+		tmpArchiveDir: tmpArchiveDir,
 	}
 }
 
@@ -3747,10 +3750,9 @@ func TestArchiveChangesConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
 	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should match the config")
 	assert.Equal(t, utils.BoolStr(true), perfProfile, "Profile should match the config")
-	// Assertions on initiate cutover to target config
-	assert.Equal(t, utils.BoolStr(true), deleteSegments, "Delete Segments should match the config")
-	assert.Equal(t, 20, utilizationThreshold, "Utilizations threshold should match the config")
-	assert.Equal(t, "path/to/dir", moveDestination, "Move destination should match the config")
+	// Assertions on archive changes config
+	assert.Equal(t, "archive", cleanupPolicy, "policy should match the config")
+	assert.Equal(t, ctx.tmpArchiveDir, cleanupArchiveDir, "Move destination should match the config")
 }
 
 func TestArchiveChangesConfigBinding_CLIOverridesConfig(t *testing.T) {
@@ -3767,9 +3769,9 @@ func TestArchiveChangesConfigBinding_CLIOverridesConfig(t *testing.T) {
 		"--log-level", "debug",
 		"--send-diagnostics", "true",
 		"--profile", "false",
-		"--delete-changes-without-archiving", "false",
 		"--fs-utilization-threshold", "40",
-		"--move-to", "path/to/dir2",
+		"--policy", "delete",
+		"--archive-dir", "",
 	})
 	err := rootCmd.Execute()
 	require.NoError(t, err)
@@ -3778,24 +3780,25 @@ func TestArchiveChangesConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, "debug", config.LogLevel, "Log level should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), perfProfile, "Profile should be overridden by CLI")
-	// Assertions on initiate cutover to target config
-	assert.Equal(t, utils.BoolStr(false), deleteSegments, "Delete Segments should be overridden by CLI")
-	assert.Equal(t, 40, utilizationThreshold, "Utilizations threshold should be overridden by CLI")
-	assert.Equal(t, "path/to/dir2", moveDestination, "Move destination should be overridden by CLI")
+	// Assertions on archive config
+	assert.Equal(t, "delete", cleanupPolicy, "policy should be overridden by CLI")
+	assert.Equal(t, 40, cleanupUtilizationThreshold, "Utilizations threshold should be overridden by CLI")
+	assert.Equal(t, "", cleanupArchiveDir, "Move destination should be overridden by CLI")
 }
 
 func TestArchiveChangesConfigBinding_GlobalVsLocalConfig(t *testing.T) {
 	tmpExportDir := setupExportDir(t)
 	defer os.RemoveAll(tmpExportDir)
 
-	resetCmdAndEnvVars(archiveChangesCmd)
-	defer resetFlags(archiveChangesCmd)
+	resetCmdAndEnvVars(segmentCleanupCmd)
+	defer resetFlags(segmentCleanupCmd)
 
 	configContent := fmt.Sprintf(`
 export-dir: %s
 log-level: info
 send-diagnostics: true
 archive-changes:
+  policy: delete
   log-level: debug
   `, tmpExportDir)
 

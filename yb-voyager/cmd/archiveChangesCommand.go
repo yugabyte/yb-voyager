@@ -99,7 +99,6 @@ func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 }
 
 func init() {
-	archiveCmd.AddCommand(archiveChangesCmd)
 	registerCommonArchiveFlags(archiveChangesCmd)
 }
 

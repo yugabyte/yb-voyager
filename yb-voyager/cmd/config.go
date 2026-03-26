@@ -203,7 +203,7 @@ var allowedInitCutoverToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 var allowedArchiveChangesConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level",
-	"delete-changes-without-archiving", "fs-utilization-threshold", "move-to",
+	"policy", "archive-dir", "fs-utilization-threshold",
 )
 
 var allowedEndMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](

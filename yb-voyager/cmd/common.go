@@ -827,12 +827,12 @@ func isNextIterationStartedIfRequied(exportDir string, metaDB *metadb.MetaDB) bo
 	if !msr.RestartDataMigrationSourceTargetNextIteration {
 		return true
 	}
+	if !msr.NextIterationInitialized {
+		return false
+	}
 
 	iterationsDir := msr.GetIterationsDir(exportDir)
 	nextIterationExportDir := GetIterationExportDir(iterationsDir, msr.IterationNo+1)
-	if !utils.FileOrFolderExists(nextIterationExportDir) {
-		return false
-	}
 	nextIterationMetaDB, err := metadb.NewMetaDB(nextIterationExportDir)
 	if err != nil {
 		utils.ErrExit("failed to create iteration meta db: %w", err)
