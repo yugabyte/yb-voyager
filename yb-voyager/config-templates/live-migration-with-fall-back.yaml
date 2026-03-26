@@ -625,7 +625,7 @@ import-data-to-source:
 # initiate cutover to source configuration
 # ---------------------------------------------------------
 initiate-cutover-to-source:
-  ### Restart source to target live data migration iteration. Not applicable for fall-forward workflow.
+  ### Restart source to target live data migration to prepare to cutover to target.. Not applicable for fall-forward workflow.
   ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
   restart-data-migration-source-target: false
