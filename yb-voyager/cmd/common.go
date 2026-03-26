@@ -739,7 +739,7 @@ func retrieveMigrationUUID() error {
 	}
 
 	migrationUUID = uuid.MustParse(msr.MigrationUUID)
-	utils.PrintAndLogf("migrationID: %s", migrationUUID)
+	utils.PrintAndLogfInfo("migrationID: %s", utils.Path.Sprint(migrationUUID))
 	return nil
 }
 
@@ -752,7 +752,7 @@ func nameContainsCapitalLetter(name string) bool {
 	return false
 }
 
-func getCutoverStatus() string {
+func getCutoverStatus(metaDB *metadb.MetaDB) string {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("get migration status record: %v", err)
@@ -767,7 +767,7 @@ func getCutoverStatus() string {
 	}
 	if msr.FallForwardEnabled && a && b && c && msr.ExportFromTargetFallForwardStarted {
 		return COMPLETED
-	} else if msr.FallbackEnabled && a && b && c && msr.ExportFromTargetFallBackStarted {
+	} else if msr.FallbackEnabled && a && b && c && msr.ExportFromTargetFallBackStarted && msr.ImportDataToSourceStarted {
 		return COMPLETED
 	} else if !msr.FallForwardEnabled && !msr.FallbackEnabled && a && b && c {
 		return COMPLETED
@@ -785,7 +785,7 @@ func checkStreamingMode() (bool, error) {
 	return streamChanges, nil
 }
 
-func getCutoverToSourceReplicaStatus() string {
+func getCutoverToSourceReplicaStatus(metaDB *metadb.MetaDB) string {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("get migration status record: %v", err)
@@ -802,7 +802,7 @@ func getCutoverToSourceReplicaStatus() string {
 	return INITIATED
 }
 
-func getCutoverToSourceStatus(exportDir string) string {
+func getCutoverToSourceStatus(exportDir string, metaDB *metadb.MetaDB) string {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("get migration status record: %v", err)
@@ -813,13 +813,13 @@ func getCutoverToSourceStatus(exportDir string) string {
 
 	if !a {
 		return NOT_INITIATED
-	} else if a && b && c && isNextIterationStartedIfRequied(exportDir) {
+	} else if a && b && c && isNextIterationStartedIfRequied(exportDir, metaDB) {
 		return COMPLETED
 	}
 	return INITIATED
 }
 
-func isNextIterationStartedIfRequied(exportDir string) bool {
+func isNextIterationStartedIfRequied(exportDir string, metaDB *metadb.MetaDB) bool {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("get migration status record: %v", err)
@@ -1613,7 +1613,6 @@ func parseObjectNamesToPayload(objectNames string, objectType string, dbType str
 	}
 	return objects
 }
-
 
 // RowCountPair holds imported and errored row counts for a table.
 type RowCountPair struct {

@@ -59,6 +59,13 @@ func init() {
 }
 
 func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector bool) error {
+
+	if dbRole == "source" || dbRole == "source-replica" {
+		if getCutoverStatus(metaDB) != COMPLETED {
+			return goerrors.Errorf("cutover to target must be completed before initiating cutover to %s", dbRole)
+		}
+	}
+
 	userFacingActionMsg := fmt.Sprintf("cutover to %s", dbRole)
 	if !utils.AskPrompt(fmt.Sprintf("Are you sure you want to initiate %s? (y/n)", userFacingActionMsg)) {
 		utils.PrintAndLogf("Aborting %s", userFacingActionMsg)
@@ -158,13 +165,23 @@ func initializeNextIteration() error {
 
 	nextIterationMetaDB := CreateMigrationProjectIfNotExists(parentMSR.SourceDBConf.DBType, nextIterationExportDir)
 
-	utils.PrintAndLogfInfo("Initialized iteration %d at %s.", nextIterationNo, nextIterationExportDir)
+	utils.PrintAndLogfInfo("\nInitialized iteration %d at %s.", nextIterationNo, nextIterationExportDir)
 
 	//Update the MSR - parent, next iteration and current iteration
 	err = setUpNextIterationMSR(parentMetaDB, nextIterationNo, currentMSR, nextIterationMetaDB)
 	if err != nil {
 		return fmt.Errorf("failed to set up next iteration MSR: %w", err)
 	}
+
+	//Copying the name registry file to the next iteration so that we don't re-register the names again
+	currNameRegFile := fmt.Sprintf("%s/metainfo/name_registry.json", exportDir)
+	nextIterationNameRegFile := fmt.Sprintf("%s/metainfo/name_registry.json", nextIterationExportDir)
+	err = utils.CopyFile(currNameRegFile, nextIterationNameRegFile)
+	if err != nil {
+		return fmt.Errorf("failed to copy name registry file: %w", err)
+	}
+
+	injectDuringInitializeNextIteration()
 
 	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.NextIterationInitialized = true
@@ -184,11 +201,15 @@ func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, iterationNo int, current
 	if err != nil {
 		return fmt.Errorf("failed to update migration status record: %w", err)
 	}
+
+	injectDuringSetUpNextIterationMSR()
+
 	//Update next iteration's MSR
 	err = nextIterationMetaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.ExportTypeFromSource = CHANGES_ONLY
 		record.ParentExportDir = currentMSR.GetParentExportDir(exportDir)
 		record.IterationNo = iterationNo
-		//Used for the CLI case primarly when we start changes only command on iterations with CLI 
+		//Used for the CLI case primarly when we start changes only command on iterations with CLI
 		//we are directly overriding the source/target confs by reading from this MSR.
 		record.SourceDBConf = currentMSR.SourceDBConf
 		record.TargetDBConf = currentMSR.TargetDBConf
@@ -196,6 +217,14 @@ func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, iterationNo int, current
 
 		//set the table list exported from source to the next iteration
 		record.TableListExportedFromSource = currentMSR.TableListExportedFromSource
+		record.TargetExportedTableListWithLeafPartitions = currentMSR.TargetExportedTableListWithLeafPartitions
+		record.SourceExportedTableListWithLeafPartitions = currentMSR.SourceExportedTableListWithLeafPartitions
+		record.SourceRenameTablesMap = currentMSR.SourceRenameTablesMap
+		record.TargetRenameTablesMap = currentMSR.TargetRenameTablesMap
+
+		//sequence mapping is required for the next iteration to restore sequences
+		record.SourceColumnToSequenceMapping = currentMSR.SourceColumnToSequenceMapping
+		record.TargetColumnToSequenceMapping = currentMSR.TargetColumnToSequenceMapping
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update iteration migration status record: %w", err)

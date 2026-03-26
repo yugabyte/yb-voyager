@@ -79,12 +79,24 @@ var rootCmd = &cobra.Command{
 Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like setting up source/target, migration workflow etc.`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// Initialize the config file (also loads control plane config)
+		// Save before initConfig, which also marks flags as Changed when applying config values.
+		sendDiagnosticsSetByCLI := cmd.Flags().Changed("send-diagnostics")
+
 		envVarsAlreadyExported, err := initConfig(cmd)
 		if err != nil {
 			// not using utils.ErrExit as logging is not initialized yet
 			fmt.Printf("ERROR: Failed to initialize config: %v\n", err)
 			atexit.Exit(1)
+		}
+
+		// Targeted fix for send-diagnostics: read the env var after initConfig so it
+		// takes precedence over config file values (CLI > ENV > Config > Default).
+		// Unlike other env-var-backed settings (e.g. passwords via getPassword()), the
+		// callhome flag is read from a BoolVar pointer rather than os.Getenv() at point
+		// of use, so it needs this explicit ordering. A more general fix would be to
+		// refactor callhome to read the env var at point of use (like getPassword()).
+		if !sendDiagnosticsSetByCLI {
+			callhome.ReadEnvSendDiagnostics()
 		}
 
 		currentCommand = cmd.CommandPath()
@@ -282,10 +294,9 @@ func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
 	*/
 	cmdPath := cmd.CommandPath()
 	isFallbackCmd := slices.Contains(fallbackPhaseCommands, cmdPath)
-	//setting the metaDB to the iteration metaDB as the getCutoverStatus is using the global metaDB
+	//setting the metaDB to the iteration metaDB as the getCutoverStatus is using the global metaDB   
 	//and we are fetching the cutover status for the current iteration from this metaDB.
-	metaDB = iterationMetaDB
-	latestIterInForwardPhase := (getCutoverStatus() == NOT_INITIATED)
+	latestIterInForwardPhase := (getCutoverStatus(iterationMetaDB) == NOT_INITIATED)
 
 	if isFallbackCmd && latestIterInForwardPhase {
 		// Latest iteration is in forward phase — so fallback command belongs to the PREVIOUS iteration
@@ -293,6 +304,7 @@ func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
 			prevIterExportDir := GetIterationExportDir(iterationsDir, msr.LatestIterationNumber-1)
 			// resolve to previous iteration
 			exportDir = prevIterExportDir
+			utils.PrintAndLogfInfo("Data migration iteration: %s", utils.Path.Sprint(msr.LatestIterationNumber-1))
 		} else {
 			// Previous iteration is the parent — don't redirect
 			// (exportDir stays as parent)
@@ -302,6 +314,7 @@ func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
 	} else {
 		// Forward command or fallback command on a fallback-phase iteration
 		exportDir = iterationExportDir
+		utils.PrintAndLogfInfo("Data migration iteration: %s", utils.Path.Sprint(msr.LatestIterationNumber))
 	}
 
 	exportType = CHANGES_ONLY
@@ -355,6 +368,7 @@ var exportDirInitialisedCheckNeededList = []string{
 	"yb-voyager get data-migration-report",
 	"yb-voyager compare-performance",
 	"yb-voyager archive changes",
+	"yb-voyager segmentcleanup",
 	"yb-voyager end migration",
 	"yb-voyager initiate cutover to source",
 	"yb-voyager initiate cutover to source-replica",
@@ -425,12 +439,7 @@ func Execute() {
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
-
-	callhome.ReadEnvSendDiagnostics()
 }
 
 var globalFlags = []string{}
@@ -488,7 +497,7 @@ func validateExportDirFlag() {
 		exportDir = filepath.Clean(exportDir)
 	}
 
-	fmt.Printf("Using export-dir: %s\n\n", color.BlueString(exportDir))
+	utils.PrintfInfo("Using export-dir: %s\n", utils.Path.Sprint(exportDir))
 }
 
 func GetCommandID(c *cobra.Command) string {

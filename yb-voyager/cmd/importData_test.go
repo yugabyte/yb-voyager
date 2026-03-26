@@ -143,13 +143,6 @@ FROM generate_series(1, 500000);`
 		if err := runner.Kill(); err != nil {
 			t.Errorf("Failed to kill import command process on run #%d: %v", i+1, err)
 		}
-
-		// Wait for the command to exit.
-		if err := runner.Wait(); err != nil {
-			t.Logf("Async import run #%d exited with error (expected): %v", i+1, err)
-		} else {
-			t.Logf("Async import run #%d completed unexpectedly", i+1)
-		}
 	}
 
 	// Now, resume the import without interruption (synchronous mode) to complete the data import.
@@ -251,13 +244,6 @@ FROM generate_series(1, 500000);`
 		t.Log("Simulating interruption by sending SIGKILL to the import command process...")
 		if err = importDataCmdRunner.Kill(); err != nil {
 			t.Errorf("Failed to kill import command process on run #%d: %v", i+1, err)
-		}
-
-		// Wait for the command to exit.
-		if err = importDataCmdRunner.Wait(); err != nil {
-			t.Logf("Async import run #%d exited with error (expected): %v", i+1, err)
-		} else {
-			t.Logf("Async import run #%d completed unexpectedly", i+1)
 		}
 	}
 

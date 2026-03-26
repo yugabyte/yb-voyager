@@ -13,15 +13,43 @@ from datetime import datetime
 import json
 import sys
 import yaml
+import re
+import sqlite3
 
 
 # -------------------------
 # Config / Context helpers
 # -------------------------
 
+def _expand_env_in_value(val: Any) -> Any:
+    """Recursively expand ${VAR:-default} and ${VAR} patterns in strings,
+    with type coercion for numeric values."""
+    if isinstance(val, str):
+        def _replace(m):
+            var_name = m.group(1)
+            default = m.group(2)
+            return os.environ.get(var_name, default if default is not None else "")
+        expanded = re.sub(r'\$\{([^}:]+)(?::-(.*?))?\}', _replace, val)
+        if expanded != val:
+            try:
+                return int(expanded)
+            except ValueError:
+                try:
+                    return float(expanded)
+                except ValueError:
+                    pass
+        return expanded
+    elif isinstance(val, dict):
+        return {k: _expand_env_in_value(v) for k, v in val.items()}
+    elif isinstance(val, list):
+        return [_expand_env_in_value(item) for item in val]
+    return val
+
+
 def load_config(path: str) -> Dict[str, Any]:
     with open(path, "r") as f:
-        return yaml.safe_load(f)
+        raw = yaml.safe_load(f)
+    return _expand_env_in_value(raw)
 
 
 def merge_env(base: Dict[str, str], override: Dict[str, str] | None) -> Dict[str, str]:
@@ -180,21 +208,21 @@ def exporter_streaming(export_dir: str) -> bool:
 
 
 def get_cutover_status(export_dir: str, mode: str = "target") -> str:
-    mode_to_key = {
-        "target": "cutover to target status",
-        "source": "cutover to source status",
-        "source-replica": "cutover to source-replica status",
+    mode_to_direction = {
+        "target": "source → target",
+        "source": "target → source",
+        "source-replica": "target → source-replica",
     }
-    key = mode_to_key[mode]
+    direction = mode_to_direction[mode]
 
     cmd = ["yb-voyager", "cutover", "status", "--export-dir", export_dir]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
         for line in proc.stdout.splitlines():
-            if key in line:
-                parts = line.split(":", 1)
-                if len(parts) == 2:
-                    return parts[1].strip()
+            if direction in line:
+                cols = [c.strip() for c in line.split("|")]
+                if len(cols) >= 2:
+                    return cols[1]
         return ""
     except Exception:
         return ""
@@ -203,14 +231,23 @@ def get_cutover_status(export_dir: str, mode: str = "target") -> str:
 def backlog_marker_present(export_dir: str) -> bool:
     """
     Return True when the latest queue segment contains the marker insert for cutover_table.
-    Looks for "cutover_table" and the literal "Last event before cutover" in the last non-empty line.
+    Checks both the base export-dir and the latest iteration export-dir (after iterations,
+    the active queue moves to the iteration-specific directory).
     """
+    if _check_backlog_marker_in_dir(export_dir):
+        return True
+    iter_dir = latest_iteration_export_dir(export_dir)
+    if iter_dir != export_dir:
+        return _check_backlog_marker_in_dir(iter_dir)
+    return False
+
+
+def _check_backlog_marker_in_dir(export_dir: str) -> bool:
     queue_dir = os.path.join(export_dir, "data", "queue")
     try:
         names = [n for n in os.listdir(queue_dir) if n.startswith("segment.") and n.endswith(".ndjson")]
         if not names:
             return False
-        # segment.N.ndjson -> pick max N
         latest = max(names, key=lambda n: int(n.split(".")[1]))
         path = os.path.join(queue_dir, latest)
         if os.path.getsize(path) == 0:
@@ -224,6 +261,81 @@ def backlog_marker_present(export_dir: str) -> bool:
         return last is not None and ("cutover_table" in last) and ("Last event before cutover" in last)
     except OSError:
         return False
+
+
+def latest_iteration_export_dir(base_export_dir: str) -> str:
+    """Return the export-dir of the latest iteration, or base_export_dir if no iterations exist."""
+    iterations_dir = os.path.join(base_export_dir, "live-data-migration-iterations")
+    if not os.path.isdir(iterations_dir):
+        return base_export_dir
+    dirs = [d for d in os.listdir(iterations_dir) if d.startswith("live-data-migration-iteration-")]
+    if not dirs:
+        return base_export_dir
+    latest = max(dirs, key=lambda d: int(d.split("-")[-1]))
+    return os.path.join(iterations_dir, latest, "export-dir")
+
+
+def iteration_exporter_streaming(base_export_dir: str) -> bool:
+    """Check if the iteration exporter is in streaming phase.
+    For changes-only exports, also check export_status.json for STREAMING mode."""
+    iter_dir = latest_iteration_export_dir(base_export_dir)
+    if exporter_streaming(iter_dir):
+        return True
+    status_file = os.path.join(iter_dir, "data", "export_status.json")
+    try:
+        if os.path.isfile(status_file):
+            with open(status_file, "r") as f:
+                status = json.load(f)
+            return status.get("mode", "").upper() == "STREAMING"
+    except (OSError, json.JSONDecodeError):
+        pass
+    return False
+
+
+def backlog_marker_imported(ctx, target_role: str = "target") -> bool:
+    """Check if the backlog marker row exists in the destination database's cutover_table."""
+    try:
+        db_cfg = ctx.cfg[target_role]
+        conn = psycopg2.connect(
+            host=str(db_cfg["host"]),
+            port=int(db_cfg["port"]),
+            dbname=str(db_cfg["database"]),
+            user=str(db_cfg.get("admin", {}).get("user", db_cfg["user"])),
+            password=str(db_cfg.get("admin", {}).get("password", db_cfg["password"])),
+        )
+        conn.autocommit = True
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM public.cutover_table WHERE status = 'Last event before cutover'")
+        count = cur.fetchone()[0]
+        cur.close()
+        conn.close()
+        return count > 0
+    except Exception as e:
+        log(f"backlog_marker_imported check failed: {e}")
+        return False
+
+
+def get_iteration_number_from_metadb(base_export_dir: str) -> int:
+    """Read the current iteration number from meta.db."""
+    meta_db = os.path.join(base_export_dir, "metainfo", "meta.db")
+    if not os.path.isfile(meta_db):
+        return 0
+    try:
+        conn = sqlite3.connect(meta_db)
+        cur = conn.cursor()
+        cur.execute("SELECT value FROM migration_status_record WHERE key = 'iteration_number'")
+        row = cur.fetchone()
+        conn.close()
+        return int(row[0]) if row else 0
+    except Exception:
+        return 0
+
+
+def assert_iteration_number(base_export_dir: str, expected: int) -> None:
+    actual = get_iteration_number_from_metadb(base_export_dir)
+    if actual != expected:
+        raise AssertionError(f"Expected iteration number {expected}, got {actual}")
+    log(f"Iteration number assertion passed: {actual}")
 
 
 # -------------------------
@@ -409,8 +521,11 @@ def export_schema(cfg: Dict[str, Any], env: Dict[str, str]) -> None:
     run_checked(cmd, env, description="export_schema")
 
 
-def initiate_cutover(cfg: Dict[str, Any], env: Dict[str, str], direction: str) -> None:
+def initiate_cutover(cfg: Dict[str, Any], env: Dict[str, str], direction: str, *, flag_overrides: Dict[str, Any] | None = None) -> None:
     voyager_flags = _get_voyager_flags(cfg, f"cutover_to_{direction}")
+    if flag_overrides is not None:
+        voyager_flags = dict(voyager_flags)
+        voyager_flags.update(flag_overrides)
     base = {"export-dir": cfg["export_dir"],}
     merged = _merge_flags(base, voyager_flags)
     cmd = ["yb-voyager", "initiate", "cutover", "to", direction, "--yes"] + to_kv_flags(merged)
@@ -421,9 +536,12 @@ def build_export_data_cmd(cfg: Dict[str, Any]) -> list[str]:
     voyager_flags = _get_voyager_flags(cfg, "export_data")
     base = _base_common_flags(cfg)
     base.update(_source_conn_flags(cfg))
-    # Live migration default
-    base["export-type"] = "snapshot-and-changes"
-    # data command defaults
+    export_dir = base.get("export-dir", "")
+    iterations_dir = os.path.join(export_dir, "live-data-migration-iterations")
+    if os.path.isdir(iterations_dir):
+        base["export-type"] = "changes-only"
+    else:
+        base["export-type"] = "snapshot-and-changes"
     base["disable-pb"] = True
     merged = _merge_flags(base, voyager_flags)
     return ["yb-voyager", "export", "data", "--yes"] + to_kv_flags(merged)
@@ -439,6 +557,110 @@ def build_import_data_cmd(cfg: Dict[str, Any]) -> list[str]:
     base["disable-pb"] = True
     merged = _merge_flags(base, voyager_flags)
     return ["yb-voyager", "import", "data", "--yes"] + to_kv_flags(merged)
+
+
+def build_finalize_schema_cmd(cfg: Dict[str, Any]) -> list[str]:
+    """Build yb-voyager finalize-schema-post-data-import command."""
+    voyager_flags = _get_voyager_flags(cfg, "finalize_schema")
+    base = _base_common_flags(cfg)
+    base.update(_target_conn_flags(cfg))
+    merged = _merge_flags(base, voyager_flags)
+    return ["yb-voyager", "finalize-schema-post-data-import", "--yes"] + to_kv_flags(merged)
+
+
+def build_end_migration_cmd(cfg: Dict[str, Any]) -> list[str]:
+    """Build yb-voyager end migration command."""
+    voyager_flags = _get_voyager_flags(cfg, "end_migration")
+    base = _base_common_flags(cfg)
+    backup_dir = os.path.join(cfg["export_dir"], "backup-dir")
+    os.makedirs(backup_dir, exist_ok=True)
+    base["backup-dir"] = backup_dir
+    base["backup-schema-files"] = True
+    base["backup-data-files"] = True
+    base["backup-log-files"] = True
+    base["save-migration-reports"] = True
+    merged = _merge_flags(base, voyager_flags)
+    return ["yb-voyager", "end", "migration", "--yes"] + to_kv_flags(merged)
+
+
+def end_migration(cfg: Dict[str, Any], env: Dict[str, str]) -> None:
+    src = cfg.get("source", {})
+    tgt = cfg.get("target", {})
+    run_env = dict(env)
+    if src.get("password"):
+        run_env["SOURCE_DB_PASSWORD"] = str(src["password"])
+    if tgt.get("password"):
+        run_env["TARGET_DB_PASSWORD"] = str(tgt["password"])
+    src_rep = cfg.get("source_replica", {})
+    if src_rep.get("password"):
+        run_env["SOURCE_REPLICA_DB_PASSWORD"] = str(src_rep["password"])
+    cmd = build_end_migration_cmd(cfg)
+    run_checked(cmd, run_env, description="end_migration")
+
+
+def build_get_data_migration_report_cmd(cfg: Dict[str, Any]) -> list[str]:
+    """Build yb-voyager get data-migration-report command."""
+    base = _base_common_flags(cfg)
+    base["output-format"] = "json"
+    return ["yb-voyager", "get", "data-migration-report"] + to_kv_flags(base)
+
+
+def get_data_migration_report(cfg: Dict[str, Any], env: Dict[str, str], artifacts_dir: str) -> Dict[str, Any]:
+    """Run get data-migration-report and save the JSON output to artifacts."""
+    src = cfg.get("source", {})
+    tgt = cfg.get("target", {})
+    run_env = dict(env)
+    if src.get("password"):
+        run_env["SOURCE_DB_PASSWORD"] = str(src["password"])
+    if tgt.get("password"):
+        run_env["TARGET_DB_PASSWORD"] = str(tgt["password"])
+    src_rep = cfg.get("source_replica", {})
+    if src_rep.get("password"):
+        run_env["SOURCE_REPLICA_DB_PASSWORD"] = str(src_rep["password"])
+
+    cmd = build_get_data_migration_report_cmd(cfg)
+    run_checked(cmd, run_env, description="get_data_migration_report")
+
+    report_path = os.path.join(cfg["export_dir"], "reports", "data-migration-report.json")
+    report: Dict[str, Any] = {}
+    if os.path.isfile(report_path):
+        with open(report_path, "r") as f:
+            report = json.load(f)
+        dest = os.path.join(artifacts_dir, "data-migration-report.json")
+        os.makedirs(artifacts_dir, exist_ok=True)
+        shutil.copy2(report_path, dest)
+        log(f"data-migration-report saved to {dest}")
+    else:
+        log("WARNING: data-migration-report.json not found after command")
+    return report
+
+
+def validate_cutover_status(cfg: Dict[str, Any], artifacts_dir: str) -> Dict[str, str]:
+    """Capture full cutover status output and save to artifacts."""
+    export_dir = cfg["export_dir"]
+    cmd = ["yb-voyager", "cutover", "status", "--export-dir", export_dir]
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    output = proc.stdout.strip()
+
+    os.makedirs(artifacts_dir, exist_ok=True)
+    dest = os.path.join(artifacts_dir, "cutover-status.txt")
+    with open(dest, "w") as f:
+        f.write(output + "\n")
+    log(f"cutover status saved to {dest}")
+
+    statuses: Dict[str, str] = {}
+    for line in output.splitlines():
+        stripped = line.strip()
+        for key in ("cutover to target status", "cutover to source status"):
+            if stripped.lower().startswith(key):
+                parts = stripped.split(":", 1)
+                if len(parts) == 2:
+                    statuses[key] = parts[1].strip()
+
+    for line in output.splitlines():
+        log(f"  cutover-status: {line.rstrip()}")
+
+    return statuses
 
 
 def build_export_from_target_cmd(cfg: Dict[str, Any]) -> list[str]:
@@ -481,6 +703,84 @@ def build_import_to_source_replica_cmd(cfg: Dict[str, Any]) -> list[str]:
 
     merged = _merge_flags(base, voyager_flags)
     return ["yb-voyager", "import", "data", "to", "source-replica", "--yes"] + to_kv_flags(merged)
+
+
+def _kill_all_voyager_for_export_dir(export_dir: str) -> None:
+    """Aggressively kill all yb-voyager and child Debezium processes using this export-dir."""
+
+    def _find_pids() -> list:
+        pids: list = []
+        for pattern in [f"yb-voyager.*{export_dir}", f"debezium.*{export_dir}"]:
+            try:
+                result = subprocess.run(
+                    ["pgrep", "-f", pattern],
+                    capture_output=True, text=True, timeout=10,
+                )
+                pids.extend(p.strip() for p in result.stdout.strip().split("\n") if p.strip())
+            except Exception:
+                pass
+        return list(dict.fromkeys(pids))
+
+    for sig in ["-TERM", "-9"]:
+        pids = _find_pids()
+        if pids:
+            log(f"  killing PIDs {pids} with {sig}")
+            subprocess.run(["kill", sig] + pids, capture_output=True, timeout=10)
+        time.sleep(2)
+
+    # Remove voyager lock files (.lck) that prevent restart
+    for search_dir in [export_dir, latest_iteration_export_dir(export_dir)]:
+        try:
+            for f in os.listdir(search_dir):
+                if f.endswith("Lockfile.lck"):
+                    lock_path = os.path.join(search_dir, f)
+                    os.remove(lock_path)
+                    log(f"  removed lock: {lock_path}")
+        except OSError:
+            pass
+
+    # Final check -- make sure nothing is left
+    pids = _find_pids()
+    if pids:
+        log(f"  WARNING: processes still alive: {pids}")
+        subprocess.run(["kill", "-9"] + pids, capture_output=True, timeout=5)
+        time.sleep(2)
+
+
+def takeover_auto_transitioned_processes(ctx: Context) -> None:
+    """Kill voyager's auto-transitioned export/import processes and start fresh ones
+    that the orchestrator controls (needed for resumption kill/restart cycles)."""
+    export_dir = ctx.cfg["export_dir"]
+    log("takeover: killing auto-transitioned voyager processes")
+    _kill_all_voyager_for_export_dir(export_dir)
+
+    log("takeover: starting fresh export_data")
+    ctx.processes["export_data"] = start_command_by_name("export_data", ctx)
+
+    log("takeover: starting fresh import_data")
+    ctx.processes["import_data"] = start_command_by_name("import_data", ctx)
+
+    log("takeover: fresh processes registered, waiting for streaming")
+    ok = poll_until(300, 5, lambda: iteration_exporter_streaming(export_dir))
+    if not ok:
+        raise TimeoutError("takeover: exporter did not reach streaming after restart")
+    log("takeover: exporter streaming, ready for resumptions")
+
+
+def takeover_fallback_processes(ctx: Context) -> None:
+    """Kill voyager's auto-transitioned fallback processes and start fresh ones."""
+    export_dir = ctx.cfg["export_dir"]
+    log("takeover_fallback: killing auto-transitioned voyager processes")
+    _kill_all_voyager_for_export_dir(export_dir)
+
+    log("takeover_fallback: starting fresh export_from_target")
+    ctx.processes["export_from_target"] = start_command_by_name("export_from_target", ctx)
+
+    log("takeover_fallback: starting fresh import_to_source")
+    ctx.processes["import_to_source"] = start_command_by_name("import_to_source", ctx)
+
+    log("takeover_fallback: fresh fallback processes registered")
+    time.sleep(5)
 
 
 def start_command_by_name(name: str, ctx: Context) -> subprocess.Popen:
@@ -526,28 +826,80 @@ def resolve_generator_config(gen_cfg: Dict[str, Any] | None, test_root: str | No
     return fallback_path
 
 
-def start_generator(final_cfg_path: str, env: Dict[str, str]) -> subprocess.Popen:
+def start_generator(final_cfg_path: str, env: Dict[str, str], artifacts_dir: str | None = None) -> subprocess.Popen:
     helper_dir = os.path.dirname(__file__)
     generator_dir = os.path.abspath(os.path.join(helper_dir, "..", "event-generator"))
     generator_main = os.path.join(generator_dir, "generator.py")
     log(f"starting generator with --config {final_cfg_path}")
-    return subprocess.Popen(
+
+    log_file = None
+    if artifacts_dir:
+        os.makedirs(artifacts_dir, exist_ok=True)
+        log_path = os.path.join(artifacts_dir, "event-generator.log")
+        log_file = open(log_path, "a")
+
+    proc = subprocess.Popen(
         [sys.executable, generator_main, "--config", final_cfg_path],
         env=env,
-        stdout=subprocess.DEVNULL,
+        stdout=log_file or subprocess.DEVNULL,
+        stderr=subprocess.STDOUT if log_file else subprocess.DEVNULL,
         text=True,
         cwd=generator_dir,
     )
+    proc._gen_log_file = log_file  # type: ignore[attr-defined]
+    return proc
 
 
 def start_generator_from_context(ctx: Context, config_key: str = "generator") -> subprocess.Popen:
     gen_cfg = ctx.cfg.get(config_key)
     final_cfg_path = resolve_generator_config(gen_cfg, ctx.test_root)
-    return start_generator(final_cfg_path, ctx.env)
+    artifacts_dir = ctx.cfg.get("artifacts_dir")
+    return start_generator(final_cfg_path, ctx.env, artifacts_dir)
 
 
-def stop_generator(proc: subprocess.Popen | None, graceful_timeout_sec: int) -> None:
+def stop_generator(proc: subprocess.Popen | None, graceful_timeout_sec: int) -> Dict[str, int]:
+    """Stop the generator and return parsed event stats (if available)."""
     kill(proc, timeout_sec=graceful_timeout_sec)
+    stats: Dict[str, int] = {}
+    if proc is None:
+        return stats
+    log_file = getattr(proc, "_gen_log_file", None)
+    if log_file:
+        try:
+            log_file.close()
+        except Exception:
+            pass
+        try:
+            log_path = log_file.name
+            stats = _parse_generator_summary(log_path)
+            if stats:
+                log(f"event-gen stats: {stats}")
+        except Exception as e:
+            log(f"warning: could not parse event-gen summary: {e}")
+    return stats
+
+
+def _parse_generator_summary(log_path: str) -> Dict[str, int]:
+    """Parse the last EVENT_GEN_SUMMARY line from the generator log."""
+    import re
+    stats: Dict[str, int] = {}
+    last_summary = ""
+    with open(log_path, "r") as f:
+        for line in f:
+            if "EVENT_GEN_SUMMARY:" in line:
+                last_summary = line
+    if not last_summary:
+        return stats
+    for key in ("total_ops", "errors"):
+        m = re.search(rf"{key}=(\d+)", last_summary)
+        if m:
+            stats[key] = int(m.group(1))
+    for key in ("INSERT", "UPDATE", "DELETE"):
+        m = re.search(rf"{key}=(\d+)\((\d+) rows\)", last_summary)
+        if m:
+            stats[f"{key}_ops"] = int(m.group(1))
+            stats[f"{key}_rows"] = int(m.group(2))
+    return stats
 
 
 # -------------------------
@@ -976,6 +1328,12 @@ def _reset_database(db_cfg: Dict[str, Any], *, admin_db_name: str, role: str) ->
     port = str(db_cfg["port"])
     admin_user = str(admin["user"])
 
+    terminate_cmd = [
+        "psql", "-h", host, "-p", port, "-U", admin_user,
+        "-d", admin_db_name, "-v", "ON_ERROR_STOP=1",
+        "-c", f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{dbname}' AND pid <> pg_backend_pid()",
+    ]
+
     drop_cmd = [
         "psql", "-h", host, "-p", port, "-U", admin_user,
         "-d", admin_db_name, "-v", "ON_ERROR_STOP=1",
@@ -987,6 +1345,12 @@ def _reset_database(db_cfg: Dict[str, Any], *, admin_db_name: str, role: str) ->
         "-d", admin_db_name, "-v", "ON_ERROR_STOP=1",
         "-c", f'CREATE DATABASE "{dbname}"',
     ]
+
+    log(f"[db-reset:{role}] terminating active connections to '{dbname}'")
+    try:
+        run_checked(terminate_cmd, env, description=f"reset_database:{role}:terminate")
+    except Exception:
+        pass
 
     log(f"[db-reset:{role}] dropping database '{dbname}'")
     run_checked(drop_cmd, env, description=f"reset_database:{role}:drop")
@@ -1168,6 +1532,7 @@ def run_segment_hash_validations(
     ctx: Context,
     left_side: str = "source",
     right_side: str = "target",
+    exclude_tables: List[str] | None = None,
 ) -> None:
     """End-to-end segment-hash validation: compute, compare, and persist artifacts.
 
@@ -1180,6 +1545,8 @@ def run_segment_hash_validations(
 
     # 2) Compare in-memory
     all_segments, mismatches = compare_segment_hashes(ctx, left_side, right_side)
+    if exclude_tables:
+        mismatches = [m for m in mismatches if m.get("table_name") not in exclude_tables]
 
     # 3) Persist artifacts
     base_dir = os.path.join(ctx.artifacts_dir, "validation", "hash_segments")
@@ -1210,11 +1577,20 @@ def run_row_count_validations(
     ctx: Context,
     left_role: str = "source",
     right_role: str = "target",
+    mode: str = "exact",
+    exclude_tables: List[str] | None = None,
 ) -> None:
-    """Compare row counts between two roles (default: source and target) using direct SQL."""
+    """Compare row counts between two roles using direct SQL.
+
+    mode:
+        "exact"  – left_count must equal right_count (default)
+        "gte"    – right_count must be >= left_count (no data loss from left)
+    """
     cfg = ctx.cfg
     schema = cfg["source"]["schema"]
     tables = list_source_tables(cfg)
+    if exclude_tables:
+        tables = [t for t in tables if t not in exclude_tables]
     out_dir = os.path.join(ctx.artifacts_dir, "validation", "row_counts")
     os.makedirs(out_dir, exist_ok=True)
     mismatches = []
@@ -1224,21 +1600,31 @@ def run_row_count_validations(
             left_count = _fetch_table_count(left_conn, schema, table)
             right_count = _fetch_table_count(right_conn, schema, table)
 
+            if mode == "gte":
+                ok = right_count >= left_count
+            else:
+                ok = left_count == right_count
+
             record = {
                 "table": table,
-                # Field names kept for backward-compatibility; values come from left/right roles.
                 "source_count": left_count,
                 "target_count": right_count,
-                "status": "success" if left_count == right_count else "mismatch",
+                "status": "success" if ok else "mismatch",
             }
 
-            # Write per-table result
             with open(os.path.join(out_dir, f"{table}.json"), "w") as f:
                 json.dump(record, f)
             if record["status"] == "mismatch":
                 mismatches.append(record)
 
-    # If any mismatches, write summary + raise error
+    log(f"row count validation: {len(tables)} tables checked, {len(mismatches)} mismatches")
+    for table in tables:
+        rec_path = os.path.join(out_dir, f"{table}.json")
+        if os.path.isfile(rec_path):
+            with open(rec_path) as f:
+                rec = json.load(f)
+                log(f"  {rec['table']:30s}  source={rec['source_count']:>8,}  target={rec['target_count']:>8,}  {rec['status']}")
+
     if mismatches:
         summary_path = os.path.join(out_dir, "row_count_mismatches.json")
         with open(summary_path, "w") as f:
