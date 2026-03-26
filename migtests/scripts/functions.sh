@@ -554,9 +554,8 @@ archive_changes() {
 
     ARCHIVE_DIR=${EXPORT_DIR}/archive-dir
     mkdir ${ARCHIVE_DIR}
-    yb-voyager archive changes --move-to ${ARCHIVE_DIR} \
+    yb-voyager archive changes --policy archive --archive-dir ${ARCHIVE_DIR} \
         --export-dir ${EXPORT_DIR} \
-        --fs-utilization-threshold 0 \
         --send-diagnostics=false
 }
 

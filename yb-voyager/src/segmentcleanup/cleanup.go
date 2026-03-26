@@ -33,7 +33,7 @@ const (
 	PolicyArchive = "archive"
 )
 
-var ValidPolicyNames = []string{PolicyDelete, PolicyRetain, PolicyArchive}
+var ValidPolicyNames = []string{PolicyDelete, PolicyArchive}
 
 func IsValidPolicy(policy string) bool {
 	for _, v := range ValidPolicyNames {
