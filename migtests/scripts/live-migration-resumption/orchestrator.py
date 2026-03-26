@@ -213,6 +213,23 @@ def sleep_action(stage: Dict[str, Any], ctx: Any) -> None:
         time.sleep(secs)
 
 
+@action("loop_start")
+def loop_start_action(_stage, _ctx: Any) -> None:
+    """No-op marker; the runner uses this to know where to jump back."""
+    pass
+
+
+class _LoopEnd(Exception):
+    """Sentinel raised by loop_end to signal the runner to jump back."""
+    pass
+
+
+@action("loop_end")
+def loop_end_action(_stage, ctx: Any) -> None:
+    """Signal the runner to jump back to the matching loop_start."""
+    raise _LoopEnd()
+
+
 @action("reset_databases")
 def reset_databases_action(stage: Dict[str, Any], ctx: Any) -> None:
     """Drop and recreate source/target databases using admin credentials."""
@@ -279,8 +296,20 @@ def main() -> None:
     ctx = H.Context(cfg=cfg, env=env, test_root=test_root)
     had_failure = False
 
+    stages = cfg["stages"]
+    num_iterations = int(cfg.get("num_iterations", 1))
+
+    loop_start_idx = None
+    for i, s in enumerate(stages):
+        if s.get("action") == "loop_start":
+            loop_start_idx = i
+            break
+
     try:
-        for stage in cfg["stages"]:
+        iteration = 0
+        idx = 0
+        while idx < len(stages):
+            stage = stages[idx]
             stage_name = stage.get("name", "<unnamed>")
             H.log_stage_start(stage_name)
             start_ts = H._ts()
@@ -289,6 +318,17 @@ def main() -> None:
                 end_ts = H._ts()
                 H.append_stage_summary(cfg["artifacts_dir"], stage_name, start_ts, end_ts, status="OK")
                 H.log_stage_end(stage_name, status="OK")
+                idx += 1
+            except _LoopEnd:
+                iteration += 1
+                end_ts = H._ts()
+                H.append_stage_summary(cfg["artifacts_dir"], stage_name, start_ts, end_ts, status="OK")
+                H.log_stage_end(stage_name, status=f"OK (iteration {iteration}/{num_iterations})")
+                if iteration < num_iterations and loop_start_idx is not None:
+                    H.log(f"looping back to stage {loop_start_idx} (iteration {iteration + 1}/{num_iterations})")
+                    idx = loop_start_idx
+                else:
+                    idx += 1
             except Exception as e:
                 end_ts = H._ts()
                 H.append_stage_summary(cfg["artifacts_dir"], stage_name, start_ts, end_ts, status="FAILED", error=str(e))
