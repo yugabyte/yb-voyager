@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
-	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 func newDeleteCleaner(exportDir string, mdb *metadb.MetaDB) *SegmentCleaner {
@@ -51,17 +50,17 @@ func newArchiveCleaner(exportDir string, archiveDir string, mdb *metadb.MetaDB) 
 // segments are eligible (importCount=1).
 // ============================================================
 func TestDeletePolicy_ProcessedSegmentsDeletedWithoutFF(t *testing.T) {
-	mdb, exportDir := testutils.SetupTestMetaDB(t)
-	testutils.SetMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
+	mdb, exportDir := setupTestMetaDB(t)
+	setMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
 		r.FallForwardEnabled = false
 		r.ExportDataSourceDebeziumStarted = true
 	})
 
-	paths := testutils.CreateSegmentFiles(t, exportDir, 3)
+	paths := createSegmentFiles(t, exportDir, 3)
 
-	testutils.InsertSegment(t, exportDir, testutils.SegmentRow{1, paths[0], "source_db_exporter", 1, 0, 0, 0, 0})
-	testutils.InsertSegment(t, exportDir, testutils.SegmentRow{2, paths[1], "source_db_exporter", 1, 0, 0, 0, 0})
-	testutils.InsertSegment(t, exportDir, testutils.SegmentRow{3, paths[2], "source_db_exporter", 0, 0, 0, 0, 0})
+	insertSegment(t, exportDir, SegmentRow{1, paths[0], "source_db_exporter", 1, 0, 0, 0, 0})
+	insertSegment(t, exportDir, SegmentRow{2, paths[1], "source_db_exporter", 1, 0, 0, 0, 0})
+	insertSegment(t, exportDir, SegmentRow{3, paths[2], "source_db_exporter", 0, 0, 0, 0, 0})
 
 	cleaner := newDeleteCleaner(exportDir, mdb)
 	n, err := cleaner.DeleteProcessedSegments()
@@ -72,7 +71,7 @@ func TestDeletePolicy_ProcessedSegmentsDeletedWithoutFF(t *testing.T) {
 	assert.NoFileExists(t, paths[1], "Seg 2 file should be removed")
 	assert.FileExists(t, paths[2], "Seg 3 file should still exist")
 
-	allSegs := testutils.QueryAllSegments(t, exportDir)
+	allSegs := queryAllSegments(t, exportDir)
 	assert.Equal(t, 1, allSegs[0].Deleted, "Seg 1 should be deleted")
 	assert.Equal(t, 1, allSegs[0].Archived, "Seg 1 should be archived")
 	assert.Equal(t, 1, allSegs[1].Deleted, "Seg 2 should be deleted")
@@ -90,17 +89,17 @@ func TestDeletePolicy_ProcessedSegmentsDeletedWithoutFF(t *testing.T) {
 // segment before it becomes eligible (importCount=2).
 // ============================================================
 func TestDeletePolicy_FFPreCutoverRequiresBothImporters(t *testing.T) {
-	mdb, exportDir := testutils.SetupTestMetaDB(t)
-	testutils.SetMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
+	mdb, exportDir := setupTestMetaDB(t)
+	setMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
 		r.FallForwardEnabled = true
 		r.ExportDataSourceDebeziumStarted = true
 	})
 
-	paths := testutils.CreateSegmentFiles(t, exportDir, 3)
+	paths := createSegmentFiles(t, exportDir, 3)
 
-	testutils.InsertSegment(t, exportDir, testutils.SegmentRow{1, paths[0], "source_db_exporter", 1, 1, 0, 0, 0})
-	testutils.InsertSegment(t, exportDir, testutils.SegmentRow{2, paths[1], "source_db_exporter", 1, 1, 0, 0, 0})
-	testutils.InsertSegment(t, exportDir, testutils.SegmentRow{3, paths[2], "source_db_exporter", 1, 0, 0, 0, 0})
+	insertSegment(t, exportDir, SegmentRow{1, paths[0], "source_db_exporter", 1, 1, 0, 0, 0})
+	insertSegment(t, exportDir, SegmentRow{2, paths[1], "source_db_exporter", 1, 1, 0, 0, 0})
+	insertSegment(t, exportDir, SegmentRow{3, paths[2], "source_db_exporter", 1, 0, 0, 0, 0})
 
 	cleaner := newDeleteCleaner(exportDir, mdb)
 	n, err := cleaner.DeleteProcessedSegments()
@@ -111,7 +110,7 @@ func TestDeletePolicy_FFPreCutoverRequiresBothImporters(t *testing.T) {
 	assert.NoFileExists(t, paths[1], "Seg 2 file should be removed")
 	assert.FileExists(t, paths[2], "Seg 3 file should still exist (only target processed)")
 
-	allSegs := testutils.QueryAllSegments(t, exportDir)
+	allSegs := queryAllSegments(t, exportDir)
 	assert.Equal(t, 1, allSegs[0].Deleted, "Seg 1 should be deleted")
 	assert.Equal(t, 1, allSegs[1].Deleted, "Seg 2 should be deleted")
 	assert.Equal(t, 0, allSegs[2].Deleted, "Seg 3 should NOT be deleted")
@@ -122,17 +121,17 @@ func TestDeletePolicy_FFPreCutoverRequiresBothImporters(t *testing.T) {
 // must not be deleted; only the fully-processed one is eligible.
 // ============================================================
 func TestDeletePolicy_FFPostCutoverSourceSegmentPendingSR(t *testing.T) {
-	mdb, exportDir := testutils.SetupTestMetaDB(t)
-	testutils.SetMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
+	mdb, exportDir := setupTestMetaDB(t)
+	setMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
 		r.FallForwardEnabled = true
 		r.CutoverProcessedByTargetImporter = true
 		r.ExportFromTargetFallForwardStarted = true
 	})
 
-	paths := testutils.CreateSegmentFiles(t, exportDir, 2)
+	paths := createSegmentFiles(t, exportDir, 2)
 
-	testutils.InsertSegment(t, exportDir, testutils.SegmentRow{1, paths[0], "source_db_exporter", 1, 0, 0, 0, 0})
-	testutils.InsertSegment(t, exportDir, testutils.SegmentRow{2, paths[1], "source_db_exporter", 1, 1, 0, 0, 0})
+	insertSegment(t, exportDir, SegmentRow{1, paths[0], "source_db_exporter", 1, 0, 0, 0, 0})
+	insertSegment(t, exportDir, SegmentRow{2, paths[1], "source_db_exporter", 1, 1, 0, 0, 0})
 
 	cleaner := newDeleteCleaner(exportDir, mdb)
 	n, err := cleaner.DeleteProcessedSegments()
@@ -142,7 +141,7 @@ func TestDeletePolicy_FFPostCutoverSourceSegmentPendingSR(t *testing.T) {
 	assert.FileExists(t, paths[0], "Seg 1 file should still exist (SR hasn't processed)")
 	assert.NoFileExists(t, paths[1], "Seg 2 file should be removed")
 
-	allSegs := testutils.QueryAllSegments(t, exportDir)
+	allSegs := queryAllSegments(t, exportDir)
 	assert.Equal(t, 0, allSegs[0].Deleted, "Seg 1 should NOT be deleted")
 	assert.Equal(t, 1, allSegs[1].Deleted, "Seg 2 should be deleted")
 }
@@ -152,17 +151,17 @@ func TestDeletePolicy_FFPostCutoverSourceSegmentPendingSR(t *testing.T) {
 // processed must not be deleted.
 // ============================================================
 func TestDeletePolicy_FFPostCutoverTargetSegmentsSkippedBeforeSR(t *testing.T) {
-	mdb, exportDir := testutils.SetupTestMetaDB(t)
-	testutils.SetMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
+	mdb, exportDir := setupTestMetaDB(t)
+	setMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
 		r.FallForwardEnabled = true
 		r.CutoverProcessedByTargetImporter = true
 		r.ExportFromTargetFallForwardStarted = true
 	})
 
-	paths := testutils.CreateSegmentFiles(t, exportDir, 2)
+	paths := createSegmentFiles(t, exportDir, 2)
 
-	testutils.InsertSegment(t, exportDir, testutils.SegmentRow{10, paths[0], "target_db_exporter_ff", 0, 0, 0, 0, 0})
-	testutils.InsertSegment(t, exportDir, testutils.SegmentRow{11, paths[1], "target_db_exporter_ff", 0, 0, 0, 0, 0})
+	insertSegment(t, exportDir, SegmentRow{10, paths[0], "target_db_exporter_ff", 0, 0, 0, 0, 0})
+	insertSegment(t, exportDir, SegmentRow{11, paths[1], "target_db_exporter_ff", 0, 0, 0, 0, 0})
 
 	cleaner := newDeleteCleaner(exportDir, mdb)
 	n, err := cleaner.DeleteProcessedSegments()
@@ -172,7 +171,7 @@ func TestDeletePolicy_FFPostCutoverTargetSegmentsSkippedBeforeSR(t *testing.T) {
 	assert.FileExists(t, paths[0], "Seg 10 file should still exist")
 	assert.FileExists(t, paths[1], "Seg 11 file should still exist")
 
-	allSegs := testutils.QueryAllSegments(t, exportDir)
+	allSegs := queryAllSegments(t, exportDir)
 	assert.Equal(t, 0, allSegs[0].Deleted, "Seg 10 should NOT be deleted")
 	assert.Equal(t, 0, allSegs[1].Deleted, "Seg 11 should NOT be deleted")
 }
@@ -182,17 +181,17 @@ func TestDeletePolicy_FFPostCutoverTargetSegmentsSkippedBeforeSR(t *testing.T) {
 // target-processed segments are eligible.
 // ============================================================
 func TestDeletePolicy_FallbackWorkflowUsesImportCountOne(t *testing.T) {
-	mdb, exportDir := testutils.SetupTestMetaDB(t)
-	testutils.SetMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
+	mdb, exportDir := setupTestMetaDB(t)
+	setMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
 		r.FallForwardEnabled = false
 		r.FallbackEnabled = true
 		r.ExportDataSourceDebeziumStarted = true
 	})
 
-	paths := testutils.CreateSegmentFiles(t, exportDir, 3)
-	testutils.InsertSegment(t, exportDir, testutils.SegmentRow{1, paths[0], "source_db_exporter", 1, 0, 0, 0, 0})
-	testutils.InsertSegment(t, exportDir, testutils.SegmentRow{2, paths[1], "source_db_exporter", 1, 0, 0, 0, 0})
-	testutils.InsertSegment(t, exportDir, testutils.SegmentRow{3, paths[2], "source_db_exporter", 0, 0, 0, 0, 0})
+	paths := createSegmentFiles(t, exportDir, 3)
+	insertSegment(t, exportDir, SegmentRow{1, paths[0], "source_db_exporter", 1, 0, 0, 0, 0})
+	insertSegment(t, exportDir, SegmentRow{2, paths[1], "source_db_exporter", 1, 0, 0, 0, 0})
+	insertSegment(t, exportDir, SegmentRow{3, paths[2], "source_db_exporter", 0, 0, 0, 0, 0})
 
 	cleaner := newDeleteCleaner(exportDir, mdb)
 	n, err := cleaner.DeleteProcessedSegments()
@@ -203,7 +202,7 @@ func TestDeletePolicy_FallbackWorkflowUsesImportCountOne(t *testing.T) {
 	assert.NoFileExists(t, paths[1], "Seg 2 file should be removed")
 	assert.FileExists(t, paths[2], "Seg 3 file should still exist")
 
-	allSegs := testutils.QueryAllSegments(t, exportDir)
+	allSegs := queryAllSegments(t, exportDir)
 	assert.Equal(t, 1, allSegs[0].Deleted, "Seg 1 deleted")
 	assert.Equal(t, 1, allSegs[1].Deleted, "Seg 2 deleted")
 	assert.Equal(t, 0, allSegs[2].Deleted, "Seg 3 NOT deleted")
@@ -214,15 +213,15 @@ func TestDeletePolicy_FallbackWorkflowUsesImportCountOne(t *testing.T) {
 // until SignalStop forces a drain pass.
 // ============================================================
 func TestDeletePolicy_FSBelowThresholdNoDeletion(t *testing.T) {
-	mdb, exportDir := testutils.SetupTestMetaDB(t)
-	testutils.SetMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
+	mdb, exportDir := setupTestMetaDB(t)
+	setMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
 		r.FallForwardEnabled = true
 		r.CutoverProcessedByTargetImporter = true
 	})
 
-	paths := testutils.CreateSegmentFiles(t, exportDir, 2)
-	testutils.InsertSegment(t, exportDir, testutils.SegmentRow{1, paths[0], "source_db_exporter", 1, 1, 0, 0, 0})
-	testutils.InsertSegment(t, exportDir, testutils.SegmentRow{2, paths[1], "source_db_exporter", 1, 1, 0, 0, 0})
+	paths := createSegmentFiles(t, exportDir, 2)
+	insertSegment(t, exportDir, SegmentRow{1, paths[0], "source_db_exporter", 1, 1, 0, 0, 0})
+	insertSegment(t, exportDir, SegmentRow{2, paths[1], "source_db_exporter", 1, 1, 0, 0, 0})
 
 	cfg := Config{
 		Policy:                 PolicyDelete,
@@ -248,7 +247,7 @@ func TestDeletePolicy_FSBelowThresholdNoDeletion(t *testing.T) {
 		t.Fatal("cleanup did not stop")
 	}
 
-	allSegs := testutils.QueryAllSegments(t, exportDir)
+	allSegs := queryAllSegments(t, exportDir)
 	t.Log("Segments after cleanup with high threshold:")
 	deletedCount := 0
 	for _, s := range allSegs {
@@ -275,13 +274,13 @@ func TestIsValidPolicy(t *testing.T) {
 // MarkSegmentDeletedAndArchived sets both flags in the DB.
 // ============================================================
 func TestMarkSegmentDeletedAndArchived(t *testing.T) {
-	mdb, exportDir := testutils.SetupTestMetaDB(t)
-	paths := testutils.CreateSegmentFiles(t, exportDir, 1)
-	testutils.InsertSegment(t, exportDir, testutils.SegmentRow{1, paths[0], "source_db_exporter", 1, 0, 0, 0, 0})
+	mdb, exportDir := setupTestMetaDB(t)
+	paths := createSegmentFiles(t, exportDir, 1)
+	insertSegment(t, exportDir, SegmentRow{1, paths[0], "source_db_exporter", 1, 0, 0, 0, 0})
 
 	require.NoError(t, mdb.MarkSegmentDeletedAndArchived(1))
 
-	allSegs := testutils.QueryAllSegments(t, exportDir)
+	allSegs := queryAllSegments(t, exportDir)
 	assert.Equal(t, 1, allSegs[0].Deleted)
 	assert.Equal(t, 1, allSegs[0].Archived)
 }
@@ -291,12 +290,12 @@ func TestMarkSegmentDeletedAndArchived(t *testing.T) {
 // and marks it deleted+archived in the DB.
 // ============================================================
 func TestDeleteProcessedSegmentsRemovesFile(t *testing.T) {
-	mdb, exportDir := testutils.SetupTestMetaDB(t)
-	testutils.SetMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
+	mdb, exportDir := setupTestMetaDB(t)
+	setMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
 		r.FallForwardEnabled = false
 	})
-	paths := testutils.CreateSegmentFiles(t, exportDir, 1)
-	testutils.InsertSegment(t, exportDir, testutils.SegmentRow{1, paths[0], "source_db_exporter", 1, 0, 0, 0, 0})
+	paths := createSegmentFiles(t, exportDir, 1)
+	insertSegment(t, exportDir, SegmentRow{1, paths[0], "source_db_exporter", 1, 0, 0, 0, 0})
 
 	assert.FileExists(t, paths[0], "segment file should exist before delete")
 
@@ -307,7 +306,7 @@ func TestDeleteProcessedSegmentsRemovesFile(t *testing.T) {
 
 	assert.NoFileExists(t, paths[0], "segment file should be removed after delete")
 
-	allSegs := testutils.QueryAllSegments(t, exportDir)
+	allSegs := queryAllSegments(t, exportDir)
 	assert.Equal(t, 1, allSegs[0].Deleted)
 	assert.Equal(t, 1, allSegs[0].Archived)
 }
@@ -317,18 +316,18 @@ func TestDeleteProcessedSegmentsRemovesFile(t *testing.T) {
 // file is already missing (marks DB without error).
 // ============================================================
 func TestDeleteProcessedSegmentsMissingFile(t *testing.T) {
-	mdb, exportDir := testutils.SetupTestMetaDB(t)
-	testutils.SetMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
+	mdb, exportDir := setupTestMetaDB(t)
+	setMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
 		r.FallForwardEnabled = false
 	})
-	testutils.InsertSegment(t, exportDir, testutils.SegmentRow{1, "/tmp/nonexistent/segment.1.ndjson", "source_db_exporter", 1, 0, 0, 0, 0})
+	insertSegment(t, exportDir, SegmentRow{1, "/tmp/nonexistent/segment.1.ndjson", "source_db_exporter", 1, 0, 0, 0, 0})
 
 	cleaner := newDeleteCleaner(exportDir, mdb)
 	n, err := cleaner.DeleteProcessedSegments()
 	require.NoError(t, err, "Should not error on missing file")
 	assert.Equal(t, 1, n)
 
-	allSegs := testutils.QueryAllSegments(t, exportDir)
+	allSegs := queryAllSegments(t, exportDir)
 	assert.Equal(t, 1, allSegs[0].Deleted)
 	assert.Equal(t, 1, allSegs[0].Archived)
 }

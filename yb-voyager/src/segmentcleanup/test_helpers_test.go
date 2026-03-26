@@ -15,8 +15,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
-package testutils
+package segmentcleanup
 
 import (
 	"database/sql"
@@ -31,7 +30,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 )
 
-// SegmentRow represents a row in the queue_segment_meta table for testing.
 type SegmentRow struct {
 	SegmentNo               int
 	FilePath                string
@@ -43,9 +41,7 @@ type SegmentRow struct {
 	Archived                int
 }
 
-// SetupTestMetaDB creates a temporary meta database for testing segment cleanup.
-// Returns the MetaDB instance and the export directory path.
-func SetupTestMetaDB(t *testing.T) (*metadb.MetaDB, string) {
+func setupTestMetaDB(t *testing.T) (*metadb.MetaDB, string) {
 	tmpDir := t.TempDir()
 	exportDir := tmpDir
 	metainfoDir := filepath.Join(exportDir, "metainfo")
@@ -56,13 +52,7 @@ func SetupTestMetaDB(t *testing.T) (*metadb.MetaDB, string) {
 	return mdb, exportDir
 }
 
-// InsertSegment inserts a row into the queue_segment_meta table in the test meta database.
-// It is a helper for creating mock segment metadata for tests.
-// The seg argument defines values for all columns in queue_segment_meta.
-// Example usage:
-//
-//	InsertSegment(t, exportDir, SegmentRow{1, "/tmp/seg1", "source_db_exporter", 1, 0, 0, 0, 0})
-func InsertSegment(t *testing.T, exportDir string, seg SegmentRow) {
+func insertSegment(t *testing.T, exportDir string, seg SegmentRow) {
 	dbPath := metadb.GetMetaDBPath(exportDir)
 	db, err := sql.Open("sqlite3", dbPath)
 	require.NoError(t, err)
@@ -77,8 +67,7 @@ func InsertSegment(t *testing.T, exportDir string, seg SegmentRow) {
 	require.NoError(t, err)
 }
 
-// QueryAllSegments retrieves all segments from the queue_segment_meta table for verification.
-func QueryAllSegments(t *testing.T, exportDir string) []SegmentRow {
+func queryAllSegments(t *testing.T, exportDir string) []SegmentRow {
 	dbPath := metadb.GetMetaDBPath(exportDir)
 	db, err := sql.Open("sqlite3", dbPath)
 	require.NoError(t, err)
@@ -101,14 +90,11 @@ func QueryAllSegments(t *testing.T, exportDir string) []SegmentRow {
 	return result
 }
 
-// SetMSR updates the MigrationStatusRecord in the test database.
-func SetMSR(t *testing.T, mdb *metadb.MetaDB, updateFn func(*metadb.MigrationStatusRecord)) {
+func setMSR(t *testing.T, mdb *metadb.MetaDB, updateFn func(*metadb.MigrationStatusRecord)) {
 	require.NoError(t, mdb.UpdateMigrationStatusRecord(updateFn))
 }
 
-// CreateSegmentFiles creates mock segment files in the data directory.
-// Returns the paths of the created files.
-func CreateSegmentFiles(t *testing.T, exportDir string, count int) []string {
+func createSegmentFiles(t *testing.T, exportDir string, count int) []string {
 	dataDir := filepath.Join(exportDir, "data")
 	require.NoError(t, os.MkdirAll(dataDir, 0755))
 	var paths []string
