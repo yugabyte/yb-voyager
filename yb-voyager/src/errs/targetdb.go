@@ -38,6 +38,11 @@ const (
 	IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL  = "copy_normal"
 	IMPORT_BATCH_ERROR_FLOW_COPY_FAST    = "copy_fast"
 	IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER = "copy_recover"
+
+	// error types (DB-agnostic, set by each target DB layer)
+	ERROR_TYPE_PK_VIOLATION          = "primary_key_violation"
+	ERROR_TYPE_UNIQUE_VIOLATION      = "unique_violation"
+	ERROR_TYPE_FOREIGN_KEY_VIOLATION = "foreign_key_violation"
 )
 
 type ImportBatchError struct {
@@ -46,6 +51,7 @@ type ImportBatchError struct {
 	err               error
 	flow              string
 	step              string
+	errorType         string
 	dbSpecificContext map[string]string
 }
 
@@ -57,6 +63,10 @@ func (e ImportBatchError) Flow() string {
 	return e.flow
 }
 
+func (e ImportBatchError) ErrorType() string {
+	return e.errorType
+}
+
 func (e ImportBatchError) Error() string {
 	return fmt.Sprintf("import batch: %q into %s: flow=%s: step=%s: %s: dbcontext=%s", e.batchFilePath, e.tableName.ForOutput(), e.flow, e.step, e.err.Error(), utils.MapToString(e.dbSpecificContext))
 }
@@ -65,13 +75,14 @@ func (e ImportBatchError) Unwrap() error {
 	return e.err
 }
 
-func NewImportBatchError(tableName sqlname.NameTuple, batchFilePath string, err error, flow, step string, dbSpecificContext map[string]string) ImportBatchError {
+func NewImportBatchError(tableName sqlname.NameTuple, batchFilePath string, err error, flow, step, errorType string, dbSpecificContext map[string]string) ImportBatchError {
 	return ImportBatchError{
 		tableName:         tableName,
 		batchFilePath:     batchFilePath,
 		err:               err,
 		flow:              flow,
 		step:              step,
+		errorType:         errorType,
 		dbSpecificContext: dbSpecificContext,
 	}
 }

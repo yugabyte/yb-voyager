@@ -17,6 +17,7 @@ package tgtdb
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -836,7 +837,7 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	if err != nil {
 		err = newImportBatchErrorPgYb(err, batch,
 			lo.Ternary(args.ShouldUseFastPath(), errs.IMPORT_BATCH_ERROR_FLOW_COPY_FAST, errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL),
-			errs.IMPORT_BATCH_ERROR_STEP_COPY)
+			errs.IMPORT_BATCH_ERROR_STEP_COPY, args.PKConstraintNames...)
 
 		return res.RowsAffected(), err
 	}
@@ -926,7 +927,7 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 
 			err = newImportBatchErrorPgYb(err, batch,
 				errs.IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER,
-				errs.IMPORT_BATCH_ERROR_STEP_COPY)
+				errs.IMPORT_BATCH_ERROR_STEP_COPY, args.PKConstraintNames...)
 			return rowsAffected + rowsIgnored, err
 		}
 
@@ -966,12 +967,22 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 	return totalRowsInBatch, nil
 }
 
-func newImportBatchErrorPgYb(underlyingErr error, batch Batch, flow string, step string) errs.ImportBatchError {
+func newImportBatchErrorPgYb(underlyingErr error, batch Batch, flow string, step string, pkConstraintNames ...string) errs.ImportBatchError {
 	dbContext := map[string]string{}
+	var errorType string
 	var pgerr *pgconn.PgError
 	if errors.As(underlyingErr, &pgerr) {
-		if pgerr.Where != "" {
-			dbContext["where"] = pgerr.Where
+		dbContext["where"] = pgerr.Where
+		switch pgerr.Code {
+		case "23505": // unique_violation
+			cn := cmp.Or(pgerr.ConstraintName, extractConstraintNameFromMessage(pgerr.Message))
+			if slices.Contains(pkConstraintNames, cn) {
+				errorType = errs.ERROR_TYPE_PK_VIOLATION
+			} else {
+				errorType = errs.ERROR_TYPE_UNIQUE_VIOLATION
+			}
+		case "23503": // foreign_key_violation
+			errorType = errs.ERROR_TYPE_FOREIGN_KEY_VIOLATION
 		}
 	}
 
@@ -981,7 +992,25 @@ func newImportBatchErrorPgYb(underlyingErr error, batch Batch, flow string, step
 		underlyingErr,
 		flow,
 		step,
+		errorType,
 		dbContext)
+}
+
+// YugabyteDB does not populate PgError.ConstraintName, so we fall back to this.
+// Example messages:
+//
+//	duplicate key value violates unique constraint "test_pk_pkey"
+//	insert or update on table "child_tbl" violates foreign key constraint "child_tbl_parent_id_fkey"
+func extractConstraintNameFromMessage(msg string) string {
+	_, after, found := strings.Cut(msg, `constraint "`)
+	if !found {
+		return ""
+	}
+	name, _, found := strings.Cut(after, `"`)
+	if !found {
+		return ""
+	}
+	return name
 }
 
 func (yb *TargetYugabyteDB) GetListOfTableAttributes(nt sqlname.NameTuple) ([]string, error) {
