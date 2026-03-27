@@ -733,6 +733,11 @@ func startDebeziumAsPerExportTypeIfRequired(ctx context.Context, cancel context.
 		}
 	}
 
+	if exporterRole == TARGET_DB_EXPORTER_FF_ROLE || exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
+		if err := injectBeforeDebeziumForTargetExporter(); err != nil {
+			return err
+		}
+	}
 	err = debeziumExportData(config, tableNametoApproxRowCountMap)
 	if err != nil {
 		return fmt.Errorf("failed to export data using debezium: %w", err)

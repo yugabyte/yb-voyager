@@ -73,7 +73,7 @@ func TestCDCBatchProcessingFailure(t *testing.T) {
 	require.NoError(t, lm.SetupContainers(ctx))
 	require.NoError(t, lm.SetupSchema())
 
-	exportDir := lm.GetExportDir()
+	exportDir := lm.GetCurrentExportDir()
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper")
@@ -148,7 +148,7 @@ func TestCDCBatchProcessing_WithMarkers(t *testing.T) {
 	require.NoError(t, lm.SetupContainers(ctx))
 	require.NoError(t, lm.SetupSchema())
 
-	exportDir := lm.GetExportDir()
+	exportDir := lm.GetCurrentExportDir()
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err)

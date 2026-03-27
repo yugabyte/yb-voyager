@@ -47,36 +47,38 @@ It only supports for the normal live migration workflow and live migration workf
 
 // LiveMigrationTest manages the entire test lifecycle
 type LiveMigrationTest struct {
-	config                  *TestConfig
-	exportDir               string
-	backupDir               string
-	sourceContainer         testcontainers.TestContainer
-	targetContainer         testcontainers.TestContainer
-	sourceReplicaContainer  testcontainers.TestContainer
-	exportCmd               *testutils.VoyagerCommandRunner
-	importCmd               *testutils.VoyagerCommandRunner
-	exportFromTargetCmd     *testutils.VoyagerCommandRunner
-	importToSourceCmd       *testutils.VoyagerCommandRunner
-	sourceReplicaImportCmd  *testutils.VoyagerCommandRunner
-	metaDB                  *metadb.MetaDB
-	ctx                     context.Context
-	t                       *testing.T
-	envVars                 []string
-	exportCallback          func()
+	config                 *TestConfig
+	exportDir              string
+	backupDir              string
+	sourceContainer        testcontainers.TestContainer
+	targetContainer        testcontainers.TestContainer
+	sourceReplicaContainer testcontainers.TestContainer
+	exportCmd              *testutils.VoyagerCommandRunner
+	importCmd              *testutils.VoyagerCommandRunner
+	exportFromTargetCmd    *testutils.VoyagerCommandRunner
+	importToSourceCmd      *testutils.VoyagerCommandRunner
+	sourceReplicaImportCmd *testutils.VoyagerCommandRunner
+	archiveChangesCmd      *testutils.VoyagerCommandRunner
+	archiveDir             string
+	metaDB                 *metadb.MetaDB
+	ctx                    context.Context
+	t                      *testing.T
+	envVars                []string
+	exportCallback         func()
 }
 
 // TestConfig holds all configuration upfront
 type TestConfig struct {
 	// Container configs
-	SourceDB         ContainerConfig
-	TargetDB         ContainerConfig // Optional: if Type is empty, no target container is created
-	SourceReplicaDB  ContainerConfig // Optional: for fall-forward tests that need a 3rd container
+	SourceDB        ContainerConfig
+	TargetDB        ContainerConfig // Optional: if Type is empty, no target container is created
+	SourceReplicaDB ContainerConfig // Optional: for fall-forward tests that need a 3rd container
 
 	// Schema setup
-	SchemaNames                []string
-	SchemaSQL                  []string // CREATE statements
-	SourceSetupSchemaSQL       []string // ALTER REPLICA IDENTITY statements
-	InitialDataSQL             []string // INSERT statements
+	SchemaNames                 []string
+	SchemaSQL                   []string // CREATE statements
+	SourceSetupSchemaSQL        []string // ALTER REPLICA IDENTITY statements
+	InitialDataSQL              []string // INSERT statements
 	SourceReplicaSetupSchemaSQL []string // Schema SQL for the source-replica container
 
 	SourceDeltaSQL []string // I/U/D statements
@@ -563,6 +565,19 @@ func (lm *LiveMigrationTest) StopImportDataToSource() error {
 	return nil
 }
 
+func (lm *LiveMigrationTest) StopImportDataToSourceReplica() error {
+	fmt.Printf("Stopping import data to source-replica\n")
+	if lm.sourceReplicaImportCmd == nil {
+		return goerrors.Errorf("import to source-replica command not started")
+	}
+	err := lm.sourceReplicaImportCmd.GracefulStop(20)
+	if err != nil {
+		return goerrors.Errorf("failed to stop import data to source-replica: %w", err)
+	}
+	fmt.Printf("Import data to source-replica stopped\n")
+	return nil
+}
+
 func (lm *LiveMigrationTest) ResumeImportData(async bool, extraArgs map[string]string) error {
 	fmt.Printf("Resuming import data\n")
 	if lm.importCmd == nil {
@@ -860,6 +875,53 @@ func (lm *LiveMigrationTest) WaitForFallbackStreamingComplete(expectedChanges ma
 		return goerrors.Errorf("streaming phase did not complete within %v", streamingTimeout)
 	}
 	fmt.Printf("Streaming complete\n")
+	return nil
+}
+
+func (lm *LiveMigrationTest) StartArchiveChanges(withArchive bool) error {
+	return lm.startArchiveChanges(withArchive, true, nil, nil)
+}
+
+func (lm *LiveMigrationTest) startArchiveChanges(withArchive bool, async bool, extraArgs map[string]string, env []string) error {
+	if len(env) > 0 {
+		fmt.Printf("Starting archive changes with env %v\n", env)
+	} else {
+		fmt.Printf("Starting archive changes\n")
+	}
+	var onStart func()
+	if async {
+		onStart = func() {
+			time.Sleep(5 * time.Second) // Wait for archive changes to start
+		}
+	}
+
+	args := []string{
+		"--export-dir", lm.exportDir,
+		"--yes",
+	}
+	for key, value := range extraArgs {
+		args = append(args, key, value)
+	}
+
+	if withArchive {
+		lm.archiveDir = testutils.CreateTempExportDir()
+		args = append(args, "--policy", "archive")
+		args = append(args, "--archive-dir", lm.archiveDir)
+	} else {
+		args = append(args, "--policy", "delete")
+		args = append(args, "--fs-utilization-threshold", "0")
+	}
+
+	lm.archiveChangesCmd = testutils.NewVoyagerCommandRunner(nil, "archive changes", args, onStart, async).WithEnv(env...)
+	err := lm.archiveChangesCmd.Run()
+	if err != nil {
+		return goerrors.Errorf("failed to start archive changes: %w", err)
+	}
+	if len(env) > 0 {
+		fmt.Printf("Archive changes started with env %v\n", env)
+	} else {
+		fmt.Printf("Archive changes started\n")
+	}
 	return nil
 }
 
@@ -1517,7 +1579,6 @@ func (lm *LiveMigrationTest) StartImportDataToSourceReplica(async bool, extraArg
 		"--source-replica-db-password", srConfig.Password,
 		"--source-replica-db-name", srConfig.DBName,
 		"--disable-pb", "true",
-		"--start-clean", "true",
 		"--yes",
 	}
 	for key, value := range extraArgs {
