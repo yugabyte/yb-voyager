@@ -48,12 +48,14 @@ type LiveMigrationTest struct {
 	config              *TestConfig
 	exportDir           string
 	backupDir           string
+	archiveDir          string
 	sourceContainer     testcontainers.TestContainer
 	targetContainer     testcontainers.TestContainer
 	exportCmd           *testutils.VoyagerCommandRunner
 	importCmd           *testutils.VoyagerCommandRunner
 	exportFromTargetCmd *testutils.VoyagerCommandRunner
 	importToSourceCmd   *testutils.VoyagerCommandRunner
+	archiveChangesCmd   *testutils.VoyagerCommandRunner
 	metaDB              *metadb.MetaDB
 	ctx                 context.Context
 	t                   *testing.T
@@ -542,6 +544,64 @@ func (lm *LiveMigrationTest) InitiateCutoverToTarget(prepareForFallback bool, ex
 		return goerrors.Errorf("failed to initiate cutover: %w", err)
 	}
 	fmt.Printf("Cutover initiated to target\n")
+	return nil
+}
+
+func (lm *LiveMigrationTest) StartArchiveChanges(withArchive bool) error {
+	return lm.startArchiveChanges(withArchive, true, nil, nil)
+}
+
+func (lm *LiveMigrationTest) startArchiveChanges(withArchive bool, async bool, extraArgs map[string]string, env []string) error {
+	if len(env) > 0 {
+		fmt.Printf("Starting archive changes with env %v\n", env)
+	} else {
+		fmt.Printf("Starting archive changes\n")
+	}
+	var onStart func()
+	if async {
+		onStart = func() {
+			time.Sleep(5 * time.Second) // Wait for archive changes to start
+		}
+	}
+
+	args := []string{
+		"--export-dir", lm.exportDir,
+		"--yes",
+	}
+	for key, value := range extraArgs {
+		args = append(args, key, value)
+	}
+
+	if withArchive {
+		lm.archiveDir = testutils.CreateTempExportDir()
+		args = append(args, "--policy", "archive")
+		args = append(args, "--archive-dir", lm.archiveDir)
+	} else {
+		args = append(args, "--policy", "delete")
+		args = append(args, "--fs-utilization-threshold", "10")
+	}
+
+	lm.archiveChangesCmd = testutils.NewVoyagerCommandRunner(nil, "archive changes", args, onStart, async).WithEnv(env...)
+	err := lm.archiveChangesCmd.Run()
+	if err != nil {
+		return goerrors.Errorf("failed to start archive changes: %w", err)
+	}
+	if len(env) > 0 {
+		fmt.Printf("Archive changes started with env %v\n", env)
+	} else {
+		fmt.Printf("Archive changes started\n")
+	}
+	return nil
+}
+
+func (lm *LiveMigrationTest) WaitForArchiveChangesComplete(archiveChangesTimeout time.Duration) error {
+	fmt.Printf("Waiting for archive changes complete\n")
+	ok := utils.RetryWorkWithTimeout(1, archiveChangesTimeout, func() bool {
+		return lm.archiveChangesCmd.IsStopped()
+	})
+	if !ok {
+		return goerrors.Errorf("archive changes did not complete within %v", archiveChangesTimeout)
+	}
 	return nil
 }
 
