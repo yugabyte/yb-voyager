@@ -285,7 +285,7 @@ func NewPKHashShardingChange(applied bool, modifiedTables []string) *PKHashShard
 }
 
 func (p *PKHashShardingChange) Exist() bool {
-	return true
+	return len(p.ModifiedTables) > 0
 }
 
 func (p *PKHashShardingChange) Summary() string {
@@ -320,7 +320,7 @@ func NewPKOnTimestampRangeShardingChange(applied bool, modifiedTables []string) 
 }
 
 func (p *PKOnTimestampRangeShardingChange) Exist() bool {
-	return true
+	return len(p.ModifiedTables) > 0
 }
 
 func (p *PKOnTimestampRangeShardingChange) Summary() string {
@@ -331,10 +331,11 @@ type UKRangeSplittingChange struct {
 	Title                   string            `json:"title"`
 	Description             string            `json:"description"`
 	HyperLinksInDescription map[string]string `json:"hyper_links_in_description"`
+	ModifiedUKTables        []string          `json:"modified_uk_tables"`
 	IsApplied               bool              `json:"is_applied"`
 }
 
-func NewUKRangeSplittingChange(applied bool) *UKRangeSplittingChange {
+func NewUKRangeSplittingChange(applied bool, modifiedUKTables []string) *UKRangeSplittingChange {
 	title := "Unique Key Constraints to be range-sharded - Applied"
 	description := "All the unique key constraints were configured to be range-sharded in YugabyteDB."
 	if !applied {
@@ -343,9 +344,10 @@ func NewUKRangeSplittingChange(applied bool) *UKRangeSplittingChange {
 	}
 	description += "The range-sharded indexes helps in giving the flexibility to execute range-based queries, and avoids potential hotspot that comes with hash-sharded indexes such as index on high percentage of NULLs. Refer to sharding strategy in documentation for more information."
 	return &UKRangeSplittingChange{
-		Title:       title,
-		Description: description,
-		IsApplied:   applied,
+		Title:            title,
+		Description:      description,
+		ModifiedUKTables: modifiedUKTables,
+		IsApplied:        applied,
 		HyperLinksInDescription: map[string]string{
 			"documentation":                     "https://docs.yugabyte.com/preview/architecture/docdb-sharding/sharding/",
 			"index on high percentage of NULLs": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-a-high-percentage-of-null-values",
@@ -354,7 +356,7 @@ func NewUKRangeSplittingChange(applied bool) *UKRangeSplittingChange {
 }
 
 func (p *UKRangeSplittingChange) Exist() bool {
-	return p != nil
+	return len(p.ModifiedUKTables) > 0
 }
 
 func (u *UKRangeSplittingChange) Summary() string {
@@ -495,15 +497,22 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 	schemaOptimizationReport.SecondaryIndexToRangeChange = buildSecondaryIndexToRangeChange(indexTransformer)
 
 	var shardingChangesApplied bool
-	pkTablesOnTimestampOrDate, pkTablesWithHashSharded := []string{}, []string{}
+	pkTablesOnTimestampOrDate, pkTablesWithHashSharded, ukTablesWithRangeSharded := []string{}, []string{}, []string{}
 	if tableTransformer != nil {
 		shardingChangesApplied = tableTransformer.AppliedHashOrRangeShardingStrategyToConstraints
 		pkTablesOnTimestampOrDate = tableTransformer.PKTablesOnTimestampWithRangeSharded
 		pkTablesWithHashSharded = tableTransformer.PKTablesWithHashSharded
+		ukTablesWithRangeSharded = tableTransformer.UKTablesWithRangeSharded
 	}
-	schemaOptimizationReport.PKHashShardingChange = NewPKHashShardingChange(shardingChangesApplied, pkTablesWithHashSharded)
-	schemaOptimizationReport.PKOnTimestampRangeShardingChange = NewPKOnTimestampRangeShardingChange(shardingChangesApplied, pkTablesOnTimestampOrDate)
-	schemaOptimizationReport.UKRangeShardingChange = NewUKRangeSplittingChange(shardingChangesApplied)
+	if len(pkTablesWithHashSharded) > 0 {
+		schemaOptimizationReport.PKHashShardingChange = NewPKHashShardingChange(shardingChangesApplied, pkTablesWithHashSharded)
+	}
+	if len(pkTablesOnTimestampOrDate) > 0 {
+		schemaOptimizationReport.PKOnTimestampRangeShardingChange = NewPKOnTimestampRangeShardingChange(shardingChangesApplied, pkTablesOnTimestampOrDate)
+	}
+	if len(ukTablesWithRangeSharded) > 0 {
+		schemaOptimizationReport.UKRangeShardingChange = NewUKRangeSplittingChange(shardingChangesApplied, ukTablesWithRangeSharded)
+	}
 
 	if schemaOptimizationReport.HasOptimizations() {
 		file, err := os.Create(htmlReportFilePath)
