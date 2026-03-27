@@ -66,7 +66,11 @@ def generator_start_action(stage: Dict[str, Any], ctx: Any) -> None:
 def generator_stop_action(stage: Dict[str, Any], ctx: Any) -> None:
     key = stage.get("generator_key", "generator")
     timeout = int(stage.get("graceful_timeout_sec", 60))
-    H.stop_generator(ctx.processes.pop(key, None), timeout)
+    stats = H.stop_generator(ctx.processes.pop(key, None), timeout)
+    if stats:
+        if not hasattr(ctx, "last_gen_stats"):
+            ctx.last_gen_stats = {}
+        ctx.last_gen_stats[key] = stats
 
 
 @action("voyager_export_start")
@@ -114,9 +118,21 @@ _WAIT_FOR_CONDITIONS: Dict[str, Dict[str, Any]] = {
         "interval": 5,
         "predicate": lambda ctx: H.exporter_streaming(ctx.cfg["export_dir"]),
     },
+    "iteration_exporter_in_streaming_phase": {
+        "interval": 5,
+        "predicate": lambda ctx: H.iteration_exporter_streaming(ctx.cfg["export_dir"]),
+    },
     "remaining_events_eq_0": {
         "interval": 5,
         "predicate": lambda ctx: H.backlog_marker_present(ctx.cfg["export_dir"]),
+    },
+    "marker_imported_on_target": {
+        "interval": 5,
+        "predicate": lambda ctx: H.backlog_marker_imported(ctx, "target"),
+    },
+    "marker_imported_on_source": {
+        "interval": 5,
+        "predicate": lambda ctx: H.backlog_marker_imported(ctx, "source"),
     },
     "cutover_to_target_status_completed": {
         "interval": 10,
@@ -151,26 +167,28 @@ def wait_for_action(stage: Dict[str, Any], ctx: Any) -> None:
 
 
 @action("cutover_to_target")
-def cutover_to_target_action(_stage, ctx: Any) -> None:
-    H.initiate_cutover(ctx.cfg, ctx.env, "target")
+def cutover_to_target_action(stage: Dict[str, Any], ctx: Any) -> None:
+    H.initiate_cutover(ctx.cfg, ctx.env, "target", flag_overrides=stage.get("flags"))
 
 
 @action("cutover_to_source")
-def cutover_to_source_action(_stage, ctx: Any) -> None:
-    H.initiate_cutover(ctx.cfg, ctx.env, "source")
+def cutover_to_source_action(stage: Dict[str, Any], ctx: Any) -> None:
+    H.initiate_cutover(ctx.cfg, ctx.env, "source", flag_overrides=stage.get("flags"))
 
 
 @action("cutover_to_source_replica")
-def cutover_to_source_replica_action(_stage, ctx: Any) -> None:
+def cutover_to_source_replica_action(stage: Dict[str, Any], ctx: Any) -> None:
     """Initiate cutover back to the source-replica database."""
-    H.initiate_cutover(ctx.cfg, ctx.env, "source-replica")
+    H.initiate_cutover(ctx.cfg, ctx.env, "source-replica", flag_overrides=stage.get("flags"))
 
 
 @action("row_count_validations")
 def row_count_validations_action(stage: Dict[str, Any], ctx: Any) -> None:
     left_role = stage.get("left_role", "source")
     right_role = stage.get("right_role", "target")
-    H.run_row_count_validations(ctx, left_role, right_role)
+    mode = stage.get("mode", "exact")
+    exclude_tables = stage.get("exclude_tables")
+    H.run_row_count_validations(ctx, left_role, right_role, mode=mode, exclude_tables=exclude_tables)
 
 
 @action("row_hash_validations")
@@ -182,10 +200,12 @@ def row_hash_validations_action(stage: Dict[str, Any], ctx: Any) -> None:
     left_role = stage.get("left_role", "source")
     right_role = stage.get("right_role", "target")
 
+    exclude_tables = stage.get("exclude_tables")
+
     for role in {left_role, right_role}:
         H.run_sql_file(ctx, sql_path, target=role, use_admin=False)
 
-    H.run_segment_hash_validations(ctx, left_role, right_role)
+    H.run_segment_hash_validations(ctx, left_role, right_role, exclude_tables=exclude_tables)
 
 
 @action("start_resumptions")
@@ -239,6 +259,192 @@ def grant_source_permissions_action(stage: Dict[str, Any], ctx: Any) -> None:
     """
     fallback = int(stage.get("is_live_migration_fall_back", 0))
     H.grant_postgres_live_migration_permissions(ctx, is_live_migration_fall_back=fallback)
+
+
+@action("voyager_finalize_schema_start")
+def finalize_schema_start_action(_stage, ctx: Any) -> None:
+    cmd = H.build_finalize_schema_cmd(ctx.cfg)
+    H.run_checked(cmd, ctx.env, description="finalize_schema")
+
+
+@action("voyager_end_migration")
+def end_migration_action(_stage, ctx: Any) -> None:
+    H.end_migration(ctx.cfg, ctx.env)
+
+
+@action("get_data_migration_report")
+def get_data_migration_report_action(_stage, ctx: Any) -> None:
+    """Run yb-voyager get data-migration-report and save output to artifacts."""
+    H.get_data_migration_report(ctx.cfg, ctx.env, ctx.artifacts_dir)
+
+
+@action("validate_cutover_status")
+def validate_cutover_status_action(_stage, ctx: Any) -> None:
+    """Capture and log full cutover status from yb-voyager."""
+    H.validate_cutover_status(ctx.cfg, ctx.artifacts_dir)
+
+
+@action("assert_iteration_number")
+def assert_iteration_number_action(stage: Dict[str, Any], ctx: Any) -> None:
+    expected = int(stage["expected"])
+    H.assert_iteration_number(ctx.cfg["export_dir"], expected)
+
+
+@action("takeover_auto_transitioned")
+def takeover_action(_stage, ctx: Any) -> None:
+    """Kill voyager's auto-transitioned processes and start fresh ones we control."""
+    H.takeover_auto_transitioned_processes(ctx)
+
+
+@action("takeover_fallback")
+def takeover_fallback_action(_stage, ctx: Any) -> None:
+    """Kill voyager's auto-transitioned fallback processes and start fresh ones."""
+    H.takeover_fallback_processes(ctx)
+
+
+def _count_injections(sub_stages: list) -> int:
+    total = 0
+    for s in sub_stages:
+        if s.get("action") == "start_resumptions":
+            for _, cfg in s.get("resumption", {}).items():
+                total += int(cfg.get("max_restarts", 0))
+    return total
+
+
+def _count_resumption_events(ctx: Any, event_type: str) -> int:
+    """Count resumption events of a given type from the ndjson log."""
+    import json as _json
+    path = os.path.join(ctx.cfg.get("artifacts_dir", ""), "resumption_events.ndjson")
+    if not os.path.isfile(path):
+        return 0
+    count = 0
+    with open(path, "r") as f:
+        for line in f:
+            try:
+                rec = _json.loads(line)
+                if rec.get("event") == event_type:
+                    count += 1
+            except Exception:
+                pass
+    return count
+
+
+def _append_ndjson(artifacts_dir: str, filename: str, record: dict) -> None:
+    """Append a JSON record to an ndjson file in the artifacts directory."""
+    import json as _json
+    os.makedirs(artifacts_dir, exist_ok=True)
+    path = os.path.join(artifacts_dir, filename)
+    with open(path, "a") as f:
+        f.write(_json.dumps(record) + "\n")
+
+
+@action("iteration_loop")
+def iteration_loop_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Repeat a block of sub-stages N times for iteration testing."""
+    count_key = stage.get("count_from_config")
+    count = int(ctx.cfg.get(count_key, 1)) if count_key else int(stage.get("count", 1))
+    subtract = int(stage.get("subtract", 0))
+    count = max(0, count - subtract)
+
+    sub_stages = stage.get("stages", [])
+    import time as _time
+    loop_start = _time.monotonic()
+    total_kills = 0
+    total_restarts = 0
+
+    for i in range(count):
+        iter_start = _time.monotonic()
+        total_elapsed = iter_start - loop_start
+        total_mins, total_secs = divmod(int(total_elapsed), 60)
+        total_hrs, total_mins = divmod(total_mins, 60)
+        H.log(f"\n{'='*60}")
+        H.log(f"  ITERATION {i+1} / {count}  |  injections: {_count_injections(sub_stages)}")
+        H.log(f"  elapsed: {total_hrs}h {total_mins}m {total_secs}s  |  kills so far: {total_kills}  |  restarts: {total_restarts}")
+        H.log(f"{'='*60}")
+
+        iter_kills_before = _count_resumption_events(ctx, "killed")
+        iter_restarts_before = _count_resumption_events(ctx, "restart_success")
+        if hasattr(ctx, "last_gen_stats"):
+            ctx.last_gen_stats.clear()
+
+        for sub in sub_stages:
+            if _stage_is_skipped(sub):
+                H.log(f"  [skip] {sub.get('name', '<unnamed>')}")
+                continue
+            sub_name = f"loop[{i+1}].{sub.get('name', '<unnamed>')}"
+            H.log_stage_start(sub_name)
+            start_ts = H._ts()
+            try:
+                get_action(sub["action"])(sub, ctx)
+                end_ts = H._ts()
+                H.append_stage_summary(ctx.cfg["artifacts_dir"], sub_name, start_ts, end_ts, status="OK")
+                H.log_stage_end(sub_name, status="OK")
+            except Exception as e:
+                end_ts = H._ts()
+                H.append_stage_summary(ctx.cfg["artifacts_dir"], sub_name, start_ts, end_ts, status="FAILED", error=str(e))
+                H.log_stage_end(sub_name, status=f"FAILED: {e}")
+                raise
+
+        elapsed = _time.monotonic() - iter_start
+        mins, secs = divmod(int(elapsed), 60)
+        iter_kills = _count_resumption_events(ctx, "killed") - iter_kills_before
+        iter_restarts = _count_resumption_events(ctx, "restart_success") - iter_restarts_before
+        total_kills += iter_kills
+        total_restarts += iter_restarts
+
+        gen_stats = getattr(ctx, "last_gen_stats", {})
+        gen_summary = ""
+        for key, st in gen_stats.items():
+            if st:
+                gen_summary += (f"  events: {st.get('total_ops', '?')} ops "
+                                f"(I={st.get('INSERT_ops', 0)} U={st.get('UPDATE_ops', 0)} D={st.get('DELETE_ops', 0)})")
+
+        iter_summary = {
+            "stage": f"iteration_summary[{i+1}]",
+            "iteration": i + 1,
+            "duration_sec": round(elapsed, 1),
+            "kills": iter_kills,
+            "restarts": iter_restarts,
+        }
+        if gen_stats:
+            for key, st in gen_stats.items():
+                iter_summary["event_gen"] = st
+        H.append_stage_summary(
+            ctx.cfg["artifacts_dir"],
+            iter_summary["stage"],
+            H._ts(), H._ts(),
+            status="OK",
+        )
+        _append_ndjson(ctx.cfg["artifacts_dir"], "iteration_metrics.ndjson", iter_summary)
+
+        H.log(f"  ITERATION {i+1} / {count} completed in {mins}m {secs}s  |  kills: {iter_kills}  restarts: {iter_restarts}{gen_summary}")
+
+    total_elapsed = _time.monotonic() - loop_start
+    hrs, rem = divmod(int(total_elapsed), 3600)
+    mins, secs = divmod(rem, 60)
+    run_summary = {
+        "stage": "iteration_loop_summary",
+        "total_iterations": count,
+        "total_duration_sec": round(total_elapsed, 1),
+        "total_kills": total_kills,
+        "total_restarts": total_restarts,
+    }
+    _append_ndjson(ctx.cfg["artifacts_dir"], "iteration_metrics.ndjson", run_summary)
+    H.log(f"\n{'='*60}")
+    H.log(f"  ALL {count} ITERATIONS COMPLETE  |  {hrs}h {mins}m {secs}s  |  kills: {total_kills}  restarts: {total_restarts}")
+    H.log(f"{'='*60}")
+
+
+def _stage_is_skipped(stage: Dict[str, Any]) -> bool:
+    enabled = stage.get("enabled")
+    if enabled is None:
+        return False
+    if isinstance(enabled, bool):
+        return not enabled
+    if isinstance(enabled, str):
+        expanded = os.path.expandvars(enabled)
+        return expanded.lower() in ("false", "0", "no", "")
+    return not bool(enabled)
 
 
 # -------------------------
