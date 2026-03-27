@@ -21,7 +21,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -4059,14 +4058,7 @@ func TestLiveMigrationWithFallbackWithArchiveChanges(t *testing.T) {
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
-	//list the files under export-dir/data/queue and verif that any time only more or equal to 3 files are present in the directory
-	files, err := os.ReadDir(lm.GetCurrentExportDir() + "/data/queue/")
-	testutils.FatalIfError(t, err, "failed to read export directory")
-	assert.GreaterOrEqual(t, len(files), 3)
-
-	files, err = os.ReadDir(lm.archiveDir)
-	testutils.FatalIfError(t, err, "failed to read archive directory")
-	assert.GreaterOrEqual(t, len(files), 0)
+	lm.ValidateIntermediateArchivalState()
 
 	//validate VSN to be as per number of events streamed
 	err = lm.WithTargetConn(func(target *sql.DB) error {
@@ -4090,15 +4082,7 @@ func TestLiveMigrationWithFallbackWithArchiveChanges(t *testing.T) {
 	err = lm.ExecuteTargetDelta()
 	testutils.FatalIfError(t, err, "failed to execute target delta")
 
-	//list the files under export-dir/data/queue and verif that any time only more or equal to 3 files are present in the directory
-	files, err = os.ReadDir(lm.GetCurrentExportDir() + "/data/queue/")
-	testutils.FatalIfError(t, err, "failed to read export directory")
-	assert.GreaterOrEqual(t, len(files), 3)
-
-	//and some files are being archived
-	files, err = os.ReadDir(lm.archiveDir)
-	testutils.FatalIfError(t, err, "failed to read archive directory")
-	assert.GreaterOrEqual(t, len(files), 0)
+	lm.ValidateIntermediateArchivalState()
 
 	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
 		`"test_schema"."test_live"`: {
@@ -4134,14 +4118,6 @@ func TestLiveMigrationWithFallbackWithArchiveChanges(t *testing.T) {
 	err = lm.WaitForArchiveChangesComplete(150)
 	testutils.FatalIfError(t, err, "failed to wait for archive changes complete")
 
-	//at the end once the archive changes are complete, verify that no files are present in the export directory
-	//and archived files are present in the archive directory
-	files, err = os.ReadDir(lm.GetCurrentExportDir() + "/data/queue/")
-	testutils.FatalIfError(t, err, "failed to read export directory")
-	assert.Equal(t, 0, len(files))
-
-	files, err = os.ReadDir(lm.archiveDir)
-	testutils.FatalIfError(t, err, "failed to read archive directory")
-	assert.GreaterOrEqual(t, len(files), 0)
+	lm.ValidateEndArchivalState()
 
 }

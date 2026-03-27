@@ -29,6 +29,8 @@ import (
 	"time"
 
 	goerrors "github.com/go-errors/errors"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -578,7 +580,7 @@ func (lm *LiveMigrationTest) startArchiveChanges(withArchive bool, async bool, e
 		args = append(args, "--archive-dir", lm.archiveDir)
 	} else {
 		args = append(args, "--policy", "delete")
-		args = append(args, "--fs-utilization-threshold", "10")
+		args = append(args, "--fs-utilization-threshold", "0")
 	}
 
 	lm.archiveChangesCmd = testutils.NewVoyagerCommandRunner(nil, "archive changes", args, onStart, async).WithEnv(env...)
@@ -1167,6 +1169,50 @@ func (lm *LiveMigrationTest) getCutoverToSourceStatus(iterationNumber int) strin
 		return NOT_INITIATED
 	}
 	return rows[1].Status
+}
+
+func (lm *LiveMigrationTest) ValidateIntermediateArchivalState() {
+	require.Eventually(lm.t, func() bool {
+		// Verify that the queue retains at least 3 segment files (cleanup buffer)
+		// and the archive directory has received at least one file.
+		files, err := os.ReadDir(lm.GetCurrentExportDir() + "/data/queue/")
+		if err != nil {
+			return false
+		}
+		if !assert.GreaterOrEqual(lm.t, len(files), 3) {
+			return false
+		}
+		files, err = os.ReadDir(lm.archiveDir)
+		if err != nil {
+			return false
+		}
+		if !assert.Greater(lm.t, len(files), 0) {
+			return false
+		}
+		return true
+	}, 30*time.Second, 1*time.Second)
+}
+
+func (lm *LiveMigrationTest) ValidateEndArchivalState() {
+	require.Eventually(lm.t, func() bool {
+		// After migration ends, the queue should be fully drained (0 files)
+		// and the archive directory should contain the archived segments.
+		files, err := os.ReadDir(lm.GetCurrentExportDir() + "/data/queue/")
+		if err != nil {
+			return false
+		}
+		if !assert.Equal(lm.t, len(files), 0) {
+			return false
+		}
+		files, err = os.ReadDir(lm.archiveDir)
+		if err != nil {
+			return false
+		}
+		if !assert.Greater(lm.t, len(files), 0) {
+			return false
+		}
+		return true
+	}, 30*time.Second, 1*time.Second)
 }
 
 type DataMigrationReport struct {
