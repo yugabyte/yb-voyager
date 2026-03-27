@@ -90,7 +90,7 @@ jobs:
         run: |
           set -euo pipefail
           cd yb-voyager
-          go test -json -v -tags=failpoint -parallel 4 -timeout 30m ./cmd 2>/tmp/gotest-stderr.log | tee /tmp/gotest.log | (gotestfmt || true)
+          go test -json -tags=failpoint -parallel 4 -timeout 30m ./cmd 2>/tmp/gotest-stderr.log | tee /tmp/gotest.log | (grep --line-buffered '^\{' | gotestfmt || true)
       
       - name: Upload test log
         if: always()
