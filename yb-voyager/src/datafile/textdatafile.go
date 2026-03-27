@@ -34,17 +34,6 @@ type TextDataFile struct {
 	DataFile
 }
 
-func (df *TextDataFile) SkipLines(numLines int64) error {
-	for i := int64(1); i <= numLines; i++ {
-		_, _, err := df.NextLine()
-		if err != nil {
-			return err
-		}
-	}
-	df.ResetBytesRead(0)
-	return nil
-}
-
 func (df *TextDataFile) NextLine() (string, int64, error) {
 	var line string
 	var err error
