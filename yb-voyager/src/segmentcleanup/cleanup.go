@@ -31,6 +31,10 @@ const (
 	PolicyDelete  = "delete"
 	PolicyRetain  = "retain"
 	PolicyArchive = "archive"
+
+	// Minimum number of processed segments that must exist after a segment
+	// before it becomes eligible for cleanup during normal (non-stop) operation.
+	segmentCleanupBuffer = 3
 )
 
 var ValidPolicyNames = []string{PolicyDelete, PolicyArchive}
@@ -93,6 +97,20 @@ func (sc *SegmentCleaner) isFSUtilizationExceeded() bool {
 	return fsUtil > sc.config.FSUtilizationThreshold
 }
 
+// segmentsEligibleForCleanup returns the subset of processed segments that can
+// be safely cleaned up. During normal operation we keep a buffer of the last
+// `segmentCleanupBuffer` processed segments untouched; when the workflow has
+// ended (sc.stop) all processed segments are eligible.
+func (sc *SegmentCleaner) segmentsEligibleForCleanup(segments []utils.Segment) []utils.Segment {
+	if sc.stop || len(segments) <= segmentCleanupBuffer {
+		if sc.stop {
+			return segments
+		}
+		return nil
+	}
+	return segments[:len(segments)-segmentCleanupBuffer]
+}
+
 // --- delete policy ---
 
 func (sc *SegmentCleaner) runDeletePolicy() error {
@@ -118,12 +136,14 @@ func (sc *SegmentCleaner) runDeletePolicy() error {
 			return goerrors.Errorf("get pending segments: %v", err)
 		}
 
-		if sc.stop && (len(segments) == 0 && len(pendingSegments) == 0) {
+		eligible := sc.segmentsEligibleForCleanup(segments)
+
+		if sc.stop && (len(eligible) == 0 && len(pendingSegments) == 0) {
 			log.Infof("all processed segments deleted, cleanup complete")
 			return nil
 		}
 
-		for _, seg := range segments {
+		for _, seg := range eligible {
 			if err := sc.deleteSegment(seg); err != nil {
 				return goerrors.Errorf("delete segment %s: %v", seg.FilePath, err)
 			}
@@ -197,12 +217,14 @@ func (sc *SegmentCleaner) runArchivePolicy() error {
 			return goerrors.Errorf("get pending segments: %v", err)
 		}
 
-		if sc.stop && (len(segments) == 0 && len(pendingSegments) == 0) {
+		eligible := sc.segmentsEligibleForCleanup(segments)
+
+		if sc.stop && (len(eligible) == 0 && len(pendingSegments) == 0) {
 			log.Infof("all processed segments archived and deleted, cleanup complete")
 			return nil
 		}
 
-		for _, seg := range segments {
+		for _, seg := range eligible {
 			if err := sc.archiveAndDeleteSegment(seg); err != nil {
 				return goerrors.Errorf("archive segment %s: %v", seg.FilePath, err)
 			}
