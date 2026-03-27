@@ -151,7 +151,6 @@ stages:
     action: start_resumptions
     resumption:
       import_data:
-        # 20 forward import resumptions; ~60s avg per cycle -> needs ~1200s window before stop (soak + backlog).
         max_restarts: 50
         min_interrupt_seconds: 20
         max_interrupt_seconds: 60
@@ -175,7 +174,6 @@ stages:
 
   - name: soak_with_resumptions
     action: sleep
-    # Main forward window so resumers can finish up to 20 restarts each (~20*(30+30)s ≈ 20 min).
     seconds: 1500
 
   - name: stop_event_generator
@@ -260,6 +258,10 @@ stages:
     action: generator_stop
     generator_key: generator_target
     graceful_timeout_sec: 60
+    
+  - name: sleep
+    action: sleep
+    seconds: 30
 
   # Insert a marker into cutover_table on the target side and
   # wait for the fallback exporter backlog to drain past it
