@@ -3962,3 +3962,162 @@ func TestLiveMigrationWithFallbackWithIterationsTableList(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to end migration")
 
 }
+
+func TestLiveMigrationWithFallbackWithArchiveChanges(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_fallback_with_archive_changes",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_fallback_with_archive_changes",
+		},
+		SchemaNames: []string{`test_schema`},
+		SchemaSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+			`CREATE SCHEMA IF NOT EXISTS test_schema;`,
+			`CREATE TABLE test_schema.test_live (
+				id SERIAL PRIMARY KEY,
+				name TEXT,
+				email TEXT,
+				description TEXT
+			);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.test_live REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.test_live (name, email, description)
+			SELECT
+				md5(random()::text),
+				md5(random()::text) || '@example.com',	
+				repeat(md5(random()::text), 10)
+			FROM generate_series(1, 10);`,
+		},
+		SourceDeltaSQL: []string{
+			`INSERT INTO test_schema.test_live (name, email, description)
+			SELECT
+				md5(random()::text),
+				md5(random()::text) || '@example.com',
+				repeat(md5(random()::text), 10)
+			FROM generate_series(1, 50);`,
+		},
+		TargetDeltaSQL: []string{
+			`INSERT INTO test_schema.test_live (name, email, description)
+			SELECT
+				md5(random()::text),
+				md5(random()::text) || '@example.com',
+				repeat(md5(random()::text), 10)
+			FROM generate_series(1, 50);`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportDataWithEnv(true, nil, []string{`QUEUE_SEGMENT_MAX_BYTES=1000`})
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = lm.StartImportDataWithEnv(true, nil, []string{`QUEUE_SEGMENT_MAX_BYTES=1000`})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_live"`: 10,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.StartArchiveChanges(true)
+	testutils.FatalIfError(t, err, "failed to start archive changes")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live"`: {
+			Inserts: 50,
+			Updates: 0,
+			Deletes: 0,
+		},
+	}, 30, 1)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	lm.ValidateIntermediateArchivalState()
+
+	//validate VSN to be as per number of events streamed
+	err = lm.WithTargetConn(func(target *sql.DB) error {
+		query := `select max(last_applied_vsn) from ybvoyager_metadata.ybvoyager_import_data_event_channels_metainfo ;`
+		var lastAppliedVsn int64
+		err := target.QueryRow(query).Scan(&lastAppliedVsn)
+		if err != nil {
+			return fmt.Errorf("failed to query last applied vsn: %w", err)
+		}
+		assert.Equal(t, lastAppliedVsn, int64(50)) // 50 before cutover to target
+		return nil
+	})
+	testutils.FatalIfError(t, err, "failed to query last applied vsn")
+
+	err = lm.InitiateCutoverToTarget(true, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = lm.WaitForCutoverComplete(0, 50)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	err = lm.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	lm.ValidateIntermediateArchivalState()
+
+	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live"`: {
+			Inserts: 50,
+			Updates: 0,
+			Deletes: 0,
+		},
+	}, 30, 1)
+	testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	//validate VSN to be as per number of events streamed throught the migration including before cutover
+	err = lm.WithSourceConn(func(source *sql.DB) error {
+		query := `select max(last_applied_vsn) from ybvoyager_metadata.ybvoyager_import_data_event_channels_metainfo ;`
+		var lastAppliedVsn int64
+		err := source.QueryRow(query).Scan(&lastAppliedVsn)
+		if err != nil {
+			return fmt.Errorf("failed to query last applied vsn: %w", err)
+		}
+		assert.Equal(t, lastAppliedVsn, int64(101)) // 50 before cutover to target + 1 cutover event + 50 after cutover to target
+		return nil
+	})
+	testutils.FatalIfError(t, err, "failed to query last applied vsn")
+
+	err = lm.InitiateCutoverToSource(nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+
+	err = lm.WaitForCutoverSourceComplete(0, 150)
+	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
+
+	err = lm.WaitForArchiveChangesComplete(150)
+	testutils.FatalIfError(t, err, "failed to wait for archive changes complete")
+
+	lm.ValidateEndArchivalState()
+
+}
