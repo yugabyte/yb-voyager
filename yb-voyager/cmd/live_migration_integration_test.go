@@ -4067,6 +4067,18 @@ func TestLiveMigrationWithFallbackWithArchiveChanges(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to read archive directory")
 	assert.GreaterOrEqual(t, len(files), 0)
 
+	err = lm.WithTargetConn(func(target *sql.DB) error {
+		query := `select max(last_applied_vsn) from ybvoyager_metadata.ybvoyager_import_data_event_channels_metainfo ;`
+		var lastAppliedVsn int64
+		err := target.QueryRow(query).Scan(&lastAppliedVsn)
+		if err != nil {
+			return fmt.Errorf("failed to query last applied vsn: %w", err)
+		}
+		assert.Equal(t, lastAppliedVsn, int64(50)) // 50 before cutover to target
+		return nil
+	})
+	testutils.FatalIfError(t, err, "failed to query last applied vsn")
+
 	err = lm.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
@@ -4096,6 +4108,18 @@ func TestLiveMigrationWithFallbackWithArchiveChanges(t *testing.T) {
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.WithSourceConn(func(source *sql.DB) error {
+		query := `select max(last_applied_vsn) from ybvoyager_metadata.ybvoyager_import_data_event_channels_metainfo ;`
+		var lastAppliedVsn int64
+		err := source.QueryRow(query).Scan(&lastAppliedVsn)
+		if err != nil {
+			return fmt.Errorf("failed to query last applied vsn: %w", err)
+		}
+		assert.Equal(t, lastAppliedVsn, int64(101)) // 50 before cutover to target + 1 cutover event + 50 after cutover to target
+		return nil
+	})
+	testutils.FatalIfError(t, err, "failed to query last applied vsn")
 
 	err = lm.InitiateCutoverToSource(nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
