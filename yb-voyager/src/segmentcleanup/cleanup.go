@@ -102,10 +102,10 @@ func (sc *SegmentCleaner) isFSUtilizationExceeded() bool {
 // `segmentCleanupBuffer` processed segments untouched; when the workflow has
 // ended (sc.stop) all processed segments are eligible.
 func (sc *SegmentCleaner) segmentsEligibleForCleanup(segments []utils.Segment) []utils.Segment {
-	if sc.stop || len(segments) <= segmentCleanupBuffer {
-		if sc.stop {
-			return segments
-		}
+	if sc.stop {
+		return segments
+	}
+	if len(segments) <= segmentCleanupBuffer {
 		return nil
 	}
 	return segments[:len(segments)-segmentCleanupBuffer]
