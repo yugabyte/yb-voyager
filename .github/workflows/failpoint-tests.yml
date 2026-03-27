@@ -51,8 +51,10 @@ jobs:
         with:
           go-version: ${{ needs.prepare-versions.outputs.go_version }}
       
-      - name: Install failpoint-ctl
-        run: go install github.com/pingcap/failpoint/failpoint-ctl@latest
+      - name: Install failpoint-ctl and gotestsum
+        run: |
+          go install github.com/pingcap/failpoint/failpoint-ctl@latest
+          go install gotest.tools/gotestsum@latest
       
       - name: Enable failpoint code generation
         run: |
@@ -87,7 +89,16 @@ jobs:
           PG_VERSION: "14"
         run: |
           cd yb-voyager
-          go test -v -tags=failpoint ./cmd --parallel 4 -timeout 30m
+          gotestsum --format pkgname --jsonfile /tmp/gotest.log -- -tags=failpoint -parallel 4 -timeout 30m ./cmd 2>/tmp/gotest-stderr.log
+      
+      - name: Upload test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failpoint-test-log
+          path: |
+            /tmp/gotest.log
+            /tmp/gotest-stderr.log
       
       - name: Cleanup failpoint code
         if: always()
