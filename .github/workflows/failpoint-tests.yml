@@ -90,14 +90,16 @@ jobs:
         run: |
           set -euo pipefail
           cd yb-voyager
-          go test -json -v -tags=failpoint --parallel 4 -timeout 30m ./cmd 2>&1 | tee /tmp/gotest.log | gotestfmt
+          go test -json -v -tags=failpoint -parallel 4 -timeout 30m ./cmd 2>/tmp/gotest-stderr.log | tee /tmp/gotest.log | (gotestfmt || true)
       
       - name: Upload test log
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: failpoint-test-log
-          path: /tmp/gotest.log
+          path: |
+            /tmp/gotest.log
+            /tmp/gotest-stderr.log
       
       - name: Cleanup failpoint code
         if: always()
