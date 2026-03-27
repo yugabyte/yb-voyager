@@ -29,7 +29,6 @@ import (
 	"time"
 
 	goerrors "github.com/go-errors/errors"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -1179,14 +1178,14 @@ func (lm *LiveMigrationTest) ValidateIntermediateArchivalState() {
 		if err != nil {
 			return false
 		}
-		if !assert.GreaterOrEqual(lm.t, len(files), 3) {
+		if len(files) < 3 {
 			return false
 		}
 		files, err = os.ReadDir(lm.archiveDir)
 		if err != nil {
 			return false
 		}
-		if !assert.Greater(lm.t, len(files), 0) {
+		if len(files) == 0 {
 			return false
 		}
 		return true
@@ -1201,14 +1200,14 @@ func (lm *LiveMigrationTest) ValidateEndArchivalState() {
 		if err != nil {
 			return false
 		}
-		if !assert.Equal(lm.t, len(files), 0) {
+		if len(files) > 0 {
 			return false
 		}
 		files, err = os.ReadDir(lm.archiveDir)
 		if err != nil {
 			return false
 		}
-		if !assert.Greater(lm.t, len(files), 0) {
+		if len(files) == 0 {
 			return false
 		}
 		return true
