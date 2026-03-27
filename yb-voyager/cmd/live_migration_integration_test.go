@@ -4030,7 +4030,7 @@ func TestLiveMigrationWithFallbackWithArchiveChanges(t *testing.T) {
 	err = lm.StartExportDataWithEnv(true, nil, []string{`QUEUE_SEGMENT_MAX_BYTES=1000`})
 	testutils.FatalIfError(t, err, "failed to start export data")
 
-	err = lm.StartImportData(true, nil)
+	err = lm.StartImportDataWithEnv(true, nil, []string{`QUEUE_SEGMENT_MAX_BYTES=1000`})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
@@ -4068,7 +4068,7 @@ func TestLiveMigrationWithFallbackWithArchiveChanges(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to read archive directory")
 	assert.GreaterOrEqual(t, len(files), 0)
 
-	//validate VSN to be as per number of events streamed 
+	//validate VSN to be as per number of events streamed
 	err = lm.WithTargetConn(func(target *sql.DB) error {
 		query := `select max(last_applied_vsn) from ybvoyager_metadata.ybvoyager_import_data_event_channels_metainfo ;`
 		var lastAppliedVsn int64
@@ -4102,7 +4102,7 @@ func TestLiveMigrationWithFallbackWithArchiveChanges(t *testing.T) {
 
 	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
 		`"test_schema"."test_live"`: {
-			Inserts: 50 ,
+			Inserts: 50,
 			Updates: 0,
 			Deletes: 0,
 		},
@@ -4134,7 +4134,7 @@ func TestLiveMigrationWithFallbackWithArchiveChanges(t *testing.T) {
 	err = lm.WaitForArchiveChangesComplete(150)
 	testutils.FatalIfError(t, err, "failed to wait for archive changes complete")
 
-	//at the end once the archive changes are complete, verify that no files are present in the export directory 
+	//at the end once the archive changes are complete, verify that no files are present in the export directory
 	//and archived files are present in the archive directory
 	files, err = os.ReadDir(lm.GetCurrentExportDir() + "/data/queue/")
 	testutils.FatalIfError(t, err, "failed to read export directory")
