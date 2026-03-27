@@ -51,10 +51,10 @@ jobs:
         with:
           go-version: ${{ needs.prepare-versions.outputs.go_version }}
       
-      - name: Install failpoint-ctl and gotestfmt
+      - name: Install failpoint-ctl and gotestsum
         run: |
           go install github.com/pingcap/failpoint/failpoint-ctl@latest
-          go install github.com/gotesttools/gotestfmt/v2/cmd/gotestfmt@latest
+          go install gotest.tools/gotestsum@latest
       
       - name: Enable failpoint code generation
         run: |
@@ -88,9 +88,8 @@ jobs:
           YB_VERSION: ${{ needs.prepare-versions.outputs.yb_latest_stable }}
           PG_VERSION: "14"
         run: |
-          set -euo pipefail
           cd yb-voyager
-          go test -json -tags=failpoint -parallel 4 -timeout 30m ./cmd 2>/tmp/gotest-stderr.log | tee /tmp/gotest.log | (grep --line-buffered '^\{' | gotestfmt || true)
+          gotestsum --format pkgname --jsonfile /tmp/gotest.log -- -tags=failpoint -parallel 4 -timeout 30m ./cmd 2>/tmp/gotest-stderr.log
       
       - name: Upload test log
         if: always()
