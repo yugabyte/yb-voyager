@@ -289,8 +289,6 @@ stages:
   # Phase 3: cutover back to source and validation
   - name: cutover_to_source
     action: cutover_to_source
-    flags:
-      restart-data-migration-source-target: true
 
   - name: wait_cutover_to_source_completed
     action: wait_for
@@ -299,21 +297,18 @@ stages:
 
   - name: row_count_validations
     action: row_count_validations
-    retry_until_match_sec: 120
-    retry_interval_sec: 3
 
   - name: row_hash_validations
     action: row_hash_validations
 
-  - name: loop_end
-    action: loop_end
-
   - name: cleanup_source
     action: run_sql
-    sql_path: ../common-sql/cleanup.sql
+    sql_path: ./cleanup.sql
 
   - name: cleanup_target
     action: run_sql
     target: target
-    sql_path: ../common-sql/cleanup.sql
+    sql_path: ./cleanup.sql
 
+  - name: loop_end
+    action: loop_end
