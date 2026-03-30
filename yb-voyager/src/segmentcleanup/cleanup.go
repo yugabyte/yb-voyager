@@ -138,7 +138,7 @@ func (sc *SegmentCleaner) runDeletePolicy() error {
 
 		eligible := sc.segmentsEligibleForCleanup(segments)
 
-		if sc.stop && (len(eligible) == 0 && len(pendingSegments) == 0) {
+		if sc.stop && (len(segments) == 0 && len(pendingSegments) == 0) {
 			log.Infof("all processed segments deleted, cleanup complete")
 			return nil
 		}
@@ -219,7 +219,7 @@ func (sc *SegmentCleaner) runArchivePolicy() error {
 
 		eligible := sc.segmentsEligibleForCleanup(segments)
 
-		if sc.stop && (len(eligible) == 0 && len(pendingSegments) == 0) {
+		if sc.stop && (len(segments) == 0 && len(pendingSegments) == 0) {
 			log.Infof("all processed segments archived and deleted, cleanup complete")
 			return nil
 		}
