@@ -102,10 +102,10 @@ func (sc *SegmentCleaner) isFSUtilizationExceeded() bool {
 // `segmentCleanupBuffer` processed segments untouched; when the workflow has
 // ended (sc.stop) all processed segments are eligible.
 func (sc *SegmentCleaner) segmentsEligibleForCleanup(segments []utils.Segment) []utils.Segment {
-	if sc.stop || len(segments) <= segmentCleanupBuffer {
-		if sc.stop {
-			return segments
-		}
+	if sc.stop {
+		return segments
+	}
+	if len(segments) <= segmentCleanupBuffer {
 		return nil
 	}
 	return segments[:len(segments)-segmentCleanupBuffer]
@@ -124,9 +124,9 @@ func (sc *SegmentCleaner) runDeletePolicy() error {
 			continue
 		}
 		//Both of these segment checks needs to be done probably in single call to the metaDB
-		//as there could be potential window where segment is processed after GetProcessedQueueSegments and during GetPendingSegments
+		//as there could be potential window where segment is processed after GetProcessedQueueSegmentsInAscOrder and during GetPendingSegments
 		//that is not accounted in any of these
-		segments, err := sc.metaDB.GetProcessedQueueSegments()
+		segments, err := sc.metaDB.GetProcessedQueueSegmentsInAscOrder()
 		if err != nil {
 			return goerrors.Errorf("get processed segments: %v", err)
 		}
@@ -138,7 +138,7 @@ func (sc *SegmentCleaner) runDeletePolicy() error {
 
 		eligible := sc.segmentsEligibleForCleanup(segments)
 
-		if sc.stop && (len(eligible) == 0 && len(pendingSegments) == 0) {
+		if sc.stop && (len(segments) == 0 && len(pendingSegments) == 0) {
 			log.Infof("all processed segments deleted, cleanup complete")
 			return nil
 		}
@@ -205,9 +205,9 @@ func (sc *SegmentCleaner) runArchivePolicy() error {
 	defer ticker.Stop()
 	for range ticker.C {
 		//Both of these segment checks needs to be done probably in single call to the metaDB
-		//as there could be potential window where segment is processed after GetProcessedQueueSegments and during GetPendingSegments
+		//as there could be potential window where segment is processed after GetProcessedQueueSegmentsInAscOrder and during GetPendingSegments
 		//that is not accounted in any of these
-		segments, err := sc.metaDB.GetProcessedQueueSegments()
+		segments, err := sc.metaDB.GetProcessedQueueSegmentsInAscOrder()
 		if err != nil {
 			return goerrors.Errorf("get processed segments: %v", err)
 		}
@@ -219,7 +219,7 @@ func (sc *SegmentCleaner) runArchivePolicy() error {
 
 		eligible := sc.segmentsEligibleForCleanup(segments)
 
-		if sc.stop && (len(eligible) == 0 && len(pendingSegments) == 0) {
+		if sc.stop && (len(segments) == 0 && len(pendingSegments) == 0) {
 			log.Infof("all processed segments archived and deleted, cleanup complete")
 			return nil
 		}
