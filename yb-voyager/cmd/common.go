@@ -1922,6 +1922,8 @@ func PackAndSendCallhomePayloadOnExit() {
 		packAndSendImportDataFilePayload(status, exitErr)
 	case comparePerformanceCmd.CommandPath():
 		packAndSendComparePerformancePayload(status, exitErr, nil)
+	case segmentCleanupCmd.CommandPath():
+		packAndSendArchiveChangesPayload(status, exitErr)
 	}
 }
 
@@ -1994,6 +1996,8 @@ func sendCallhomePayloadAtIntervals() {
 			packAndSendImportDataToSrcReplicaPayload(INPROGRESS, nil)
 		case importDataFileCmd.CommandPath():
 			packAndSendImportDataFilePayload(INPROGRESS, nil)
+		case segmentCleanupCmd.CommandPath():
+			packAndSendArchiveChangesPayload(INPROGRESS, nil)
 		}
 	}
 }

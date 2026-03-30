@@ -665,6 +665,37 @@ func checkRowsAffected(result sql.Result, expectedRows int) error {
 	return nil
 }
 
+type SegmentCleanupStats struct {
+	TotalSegments    int
+	ArchivedSegments int
+	DeletedSegments  int
+	PendingSegments  int
+	TotalEvents      int64
+}
+
+func (m *MetaDB) GetSegmentCleanupStats() (SegmentCleanupStats, error) {
+	query := fmt.Sprintf(`SELECT 
+		COUNT(*) AS total,
+		COALESCE(SUM(archived), 0) AS archived,
+		COALESCE(SUM(deleted), 0) AS deleted,
+		COALESCE(SUM(CASE WHEN archived = 0 AND deleted = 0 THEN 1 ELSE 0 END), 0) AS pending,
+		COALESCE(SUM(total_events), 0) AS total_events
+		FROM %s;`, QUEUE_SEGMENT_META_TABLE_NAME)
+
+	var stats SegmentCleanupStats
+	err := m.db.QueryRow(query).Scan(
+		&stats.TotalSegments,
+		&stats.ArchivedSegments,
+		&stats.DeletedSegments,
+		&stats.PendingSegments,
+		&stats.TotalEvents,
+	)
+	if err != nil {
+		return stats, goerrors.Errorf("get segment cleanup stats: %v", err)
+	}
+	return stats, nil
+}
+
 func (m *MetaDB) ResetQueueSegmentMeta(importerRole string) error {
 	query := fmt.Sprintf(`UPDATE %s SET imported_by_%s = 0;`, QUEUE_SEGMENT_META_TABLE_NAME, importerRole)
 	_, err := m.db.Exec(query)

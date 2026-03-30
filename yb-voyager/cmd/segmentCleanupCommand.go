@@ -21,9 +21,11 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/tebeka/atexit"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/segmentcleanup"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -100,6 +102,7 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 	if err := cleaner.Run(); err != nil {
 		utils.ErrExit("archive changes failed: %v", err)
 	}
+	packAndSendArchiveChangesPayload(COMPLETE, nil)
 	utils.PrintAndLogfSuccess("\nArchived all the changes.")
 	printNextIterationExportDirIfRequired()
 }
@@ -190,6 +193,42 @@ func init() {
 
 	segmentCleanupCmd.Flags().IntVar(&cleanupUtilizationThreshold, "fs-utilization-threshold", 70,
 		"disk utilization percentage above which cleanup actions are triggered (used with --policy=delete)")
+}
+
+func packAndSendArchiveChangesPayload(status string, errorMsg error) {
+	if !shouldSendCallhome() {
+		return
+	}
+	payload := createCallhomePayload()
+	payload.MigrationType = LIVE_MIGRATION
+	payload.MigrationPhase = ARCHIVE_CHANGES_PHASE
+
+	archiveChangesPayload := callhome.ArchiveChangesPhasePayload{
+		PayloadVersion:         callhome.ARCHIVE_CHANGES_CALLHOME_PAYLOAD_VERSION,
+		Policy:                 cleanupPolicy,
+		FSUtilizationThreshold: cleanupUtilizationThreshold,
+		Error:                  callhome.SanitizeErrorMsg(errorMsg, anonymizer),
+		ControlPlaneType:       getControlPlaneType(),
+	}
+
+	stats, err := metaDB.GetSegmentCleanupStats()
+	if err != nil {
+		log.Infof("callhome: error getting segment cleanup stats: %v", err)
+	} else {
+		archiveChangesPayload.TotalSegments = stats.TotalSegments
+		archiveChangesPayload.ArchivedSegments = stats.ArchivedSegments
+		archiveChangesPayload.DeletedSegments = stats.DeletedSegments
+		archiveChangesPayload.PendingSegments = stats.PendingSegments
+		archiveChangesPayload.TotalEvents = stats.TotalEvents
+	}
+
+	payload.PhasePayload = callhome.MarshalledJsonString(archiveChangesPayload)
+	payload.Status = status
+
+	err = callhome.SendPayload(&payload)
+	if err == nil && (status == COMPLETE || status == ERROR) {
+		callHomeErrorOrCompletePayloadSent = true
+	}
 }
 
 func validateSegmentCleanupFlags(cmd *cobra.Command) {
