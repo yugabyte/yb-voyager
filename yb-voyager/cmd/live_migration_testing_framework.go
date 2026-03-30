@@ -29,6 +29,7 @@ import (
 	"time"
 
 	goerrors "github.com/go-errors/errors"
+	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -48,12 +49,14 @@ type LiveMigrationTest struct {
 	config              *TestConfig
 	exportDir           string
 	backupDir           string
+	archiveDir          string
 	sourceContainer     testcontainers.TestContainer
 	targetContainer     testcontainers.TestContainer
 	exportCmd           *testutils.VoyagerCommandRunner
 	importCmd           *testutils.VoyagerCommandRunner
 	exportFromTargetCmd *testutils.VoyagerCommandRunner
 	importToSourceCmd   *testutils.VoyagerCommandRunner
+	archiveChangesCmd   *testutils.VoyagerCommandRunner
 	metaDB              *metadb.MetaDB
 	ctx                 context.Context
 	t                   *testing.T
@@ -542,6 +545,64 @@ func (lm *LiveMigrationTest) InitiateCutoverToTarget(prepareForFallback bool, ex
 		return goerrors.Errorf("failed to initiate cutover: %w", err)
 	}
 	fmt.Printf("Cutover initiated to target\n")
+	return nil
+}
+
+func (lm *LiveMigrationTest) StartArchiveChanges(withArchive bool) error {
+	return lm.startArchiveChanges(withArchive, true, nil, nil)
+}
+
+func (lm *LiveMigrationTest) startArchiveChanges(withArchive bool, async bool, extraArgs map[string]string, env []string) error {
+	if len(env) > 0 {
+		fmt.Printf("Starting archive changes with env %v\n", env)
+	} else {
+		fmt.Printf("Starting archive changes\n")
+	}
+	var onStart func()
+	if async {
+		onStart = func() {
+			time.Sleep(5 * time.Second) // Wait for archive changes to start
+		}
+	}
+
+	args := []string{
+		"--export-dir", lm.exportDir,
+		"--yes",
+	}
+	for key, value := range extraArgs {
+		args = append(args, key, value)
+	}
+
+	if withArchive {
+		lm.archiveDir = testutils.CreateTempExportDir()
+		args = append(args, "--policy", "archive")
+		args = append(args, "--archive-dir", lm.archiveDir)
+	} else {
+		args = append(args, "--policy", "delete")
+		args = append(args, "--fs-utilization-threshold", "0")
+	}
+
+	lm.archiveChangesCmd = testutils.NewVoyagerCommandRunner(nil, "archive changes", args, onStart, async).WithEnv(env...)
+	err := lm.archiveChangesCmd.Run()
+	if err != nil {
+		return goerrors.Errorf("failed to start archive changes: %w", err)
+	}
+	if len(env) > 0 {
+		fmt.Printf("Archive changes started with env %v\n", env)
+	} else {
+		fmt.Printf("Archive changes started\n")
+	}
+	return nil
+}
+
+func (lm *LiveMigrationTest) WaitForArchiveChangesComplete(archiveChangesTimeout time.Duration) error {
+	fmt.Printf("Waiting for archive changes complete\n")
+	ok := utils.RetryWorkWithTimeout(1, archiveChangesTimeout, func() bool {
+		return lm.archiveChangesCmd.IsStopped()
+	})
+	if !ok {
+		return goerrors.Errorf("archive changes did not complete within %v", archiveChangesTimeout)
+	}
 	return nil
 }
 
@@ -1107,6 +1168,50 @@ func (lm *LiveMigrationTest) getCutoverToSourceStatus(iterationNumber int) strin
 		return NOT_INITIATED
 	}
 	return rows[1].Status
+}
+
+func (lm *LiveMigrationTest) ValidateIntermediateArchivalState() {
+	require.Eventually(lm.t, func() bool {
+		// Verify that the queue retains at least 3 segment files (cleanup buffer)
+		// and the archive directory has received at least one file.
+		files, err := os.ReadDir(lm.GetCurrentExportDir() + "/data/queue/")
+		if err != nil {
+			return false
+		}
+		if len(files) < 3 {
+			return false
+		}
+		files, err = os.ReadDir(lm.archiveDir)
+		if err != nil {
+			return false
+		}
+		if len(files) == 0 {
+			return false
+		}
+		return true
+	}, 30*time.Second, 1*time.Second)
+}
+
+func (lm *LiveMigrationTest) ValidateEndArchivalState() {
+	require.Eventually(lm.t, func() bool {
+		// After migration ends, the queue should be fully drained (0 files)
+		// and the archive directory should contain the archived segments.
+		files, err := os.ReadDir(lm.GetCurrentExportDir() + "/data/queue/")
+		if err != nil {
+			return false
+		}
+		if len(files) > 0 {
+			return false
+		}
+		files, err = os.ReadDir(lm.archiveDir)
+		if err != nil {
+			return false
+		}
+		if len(files) == 0 {
+			return false
+		}
+		return true
+	}, 30*time.Second, 1*time.Second)
 }
 
 type DataMigrationReport struct {
