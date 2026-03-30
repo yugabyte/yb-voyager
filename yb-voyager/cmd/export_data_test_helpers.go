@@ -15,15 +15,11 @@ import (
 	"testing"
 	"time"
 
-	"database/sql"
-
 	goerrors "github.com/go-errors/errors"
 	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
-	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
@@ -111,91 +107,6 @@ func verifyNoEventIDDuplicatesInternal(t *testing.T, exportDir string, failOnErr
 	return parseErrors, missingEventID
 }
 
-func waitForCDCEventCount(t *testing.T, exportDir string, expected int, timeout time.Duration, pollInterval time.Duration) int {
-	t.Helper()
-
-	var lastCount int
-	require.Eventually(t, func() bool {
-		count, err := countEventsInQueueSegments(exportDir)
-		if err != nil {
-			testutils.LogTestf(t, "Failed to count CDC events yet: %v", err)
-			return false
-		}
-		lastCount = count
-		testutils.LogTestf(t, "Current CDC event count: %d / %d expected", count, expected)
-		return count >= expected
-	}, timeout, pollInterval, "Timed out waiting for CDC event count to reach %d (last=%d)", expected, lastCount)
-
-	return lastCount
-}
-
-func waitForProcessExitOrKill(runner *testutils.VoyagerCommandRunner, exportDir string, timeout time.Duration) (bool, error) {
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- runner.Wait()
-	}()
-
-	select {
-	case err := <-errCh:
-		return false, err
-	case <-time.After(timeout):
-		_ = runner.Kill()
-		_ = killDebeziumForExportDir(exportDir)
-		return true, nil
-	}
-}
-
-func waitForMarkerFile(path string, timeout time.Duration, pollInterval time.Duration) (bool, error) {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		matched, err := markerFilePresent(path)
-		if err == nil && matched {
-			return true, nil
-		}
-		time.Sleep(pollInterval)
-	}
-	return markerFilePresent(path)
-}
-
-func markerFilePresent(path string) (bool, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return false, nil
-		}
-		return false, err
-	}
-	return strings.Contains(string(data), "hit"), nil
-}
-
-func waitForStreamingMode(exportDir string, timeout time.Duration, pollInterval time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
-		if err == nil && status != nil && status.Mode == dbzm.MODE_STREAMING {
-			return nil
-		}
-		time.Sleep(pollInterval)
-	}
-	return goerrors.Errorf("timed out waiting for streaming mode")
-}
-
-func killDebeziumForExportDir(exportDir string) error {
-	pidStr, err := dbzm.GetPIDOfDebeziumOnExportDir(exportDir, SOURCE_DB_EXPORTER_ROLE)
-	if err != nil {
-		return err
-	}
-	pid, err := strconv.Atoi(strings.TrimSpace(pidStr))
-	if err != nil {
-		return err
-	}
-	proc, err := os.FindProcess(pid)
-	if err != nil {
-		return err
-	}
-	return proc.Kill()
-}
-
 func hashSnapshotDescriptor(exportDir string) (string, error) {
 	descriptorPath := filepath.Join(exportDir, datafile.DESCRIPTOR_PATH)
 	data, err := os.ReadFile(descriptorPath)
@@ -217,27 +128,6 @@ func getSnapshotRowCountForTable(exportDir string, tableName string) (int64, err
 		}
 	}
 	return total, nil
-}
-
-func waitForSnapshotDescriptorHashSnapshotFailure(exportDir string, timeout time.Duration, pollInterval time.Duration) (string, error) {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		hash, err := hashSnapshotDescriptorSnapshotFailure(exportDir)
-		if err == nil && hash != "" {
-			return hash, nil
-		}
-		time.Sleep(pollInterval)
-	}
-	return hashSnapshotDescriptorSnapshotFailure(exportDir)
-}
-
-func hashSnapshotDescriptorSnapshotFailure(exportDir string) (string, error) {
-	descriptorPath := filepath.Join(exportDir, datafile.DESCRIPTOR_PATH)
-	data, err := os.ReadFile(descriptorPath)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%x", sha256.Sum256(data)), nil
 }
 
 func collectEventIDsForOffsetCommitTest(exportDir string) (map[string]struct{}, error) {
@@ -471,155 +361,4 @@ func getQueueSegmentCommittedSize(exportDir string, segmentNum int64) (int64, er
 		return -1, err
 	}
 	return metaDB.GetLastValidOffsetInSegmentFile(segmentNum)
-}
-
-
-func waitForFallForwardEnabled(t *testing.T, exportDir string, timeout time.Duration, pollInterval time.Duration) bool {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		msr := getMigrationStatusFromMetaDB(t, exportDir)
-		if msr.FallForwardEnabled {
-			return true
-		}
-		time.Sleep(pollInterval)
-	}
-	return false
-}
-
-func waitForTargetDBConfInMetaDB(t *testing.T, exportDir string, timeout time.Duration, pollInterval time.Duration) bool {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		msr := getMigrationStatusFromMetaDB(t, exportDir)
-		if msr.TargetDBConf != nil {
-			return true
-		}
-		time.Sleep(pollInterval)
-	}
-	return false
-}
-
-func initiateCutoverToTarget(t *testing.T, exportDir string) {
-	t.Helper()
-	cutoverRunner := testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", []string{
-		"--export-dir", exportDir,
-		"--prepare-for-fall-back", "false",
-		"--yes",
-	}, nil, false)
-	err := cutoverRunner.Run()
-	require.NoError(t, err, "Failed to initiate cutover to target")
-}
-
-func getMigrationStatusFromMetaDB(t *testing.T, exportDir string) *metadb.MigrationStatusRecord {
-	t.Helper()
-
-	mdb, err := metadb.NewMetaDB(exportDir)
-	require.NoError(t, err, "Failed to open metaDB")
-
-	msr, err := mdb.GetMigrationStatusRecord()
-	require.NoError(t, err, "Failed to get migration status record")
-	require.NotNil(t, msr, "Migration status record should not be nil")
-	return msr
-}
-
-func waitForExportFromTargetStarted(t *testing.T, exportDir string, timeout time.Duration, pollInterval time.Duration) bool {
-	t.Helper()
-
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		msr := getMigrationStatusFromMetaDB(t, exportDir)
-		if msr.ExportFromTargetFallForwardStarted || msr.ExportFromTargetFallBackStarted {
-			return true
-		}
-		time.Sleep(pollInterval)
-	}
-	return false
-}
-
-// setMetaDBForCutoverCheck sets the package-level metaDB variable so that
-// getCutoverStatus() (which reads from the global) works in the test context.
-// It returns a cleanup function that restores the previous value.
-func setMetaDBForCutoverCheck(t *testing.T, exportDir string) func() {
-	t.Helper()
-
-	mdb, err := metadb.NewMetaDB(exportDir)
-	require.NoError(t, err, "Failed to open metaDB for cutover check")
-
-	prev := metaDB
-	metaDB = mdb
-	return func() { metaDB = prev }
-}
-
-func verifyCutoverIsNotComplete(t *testing.T, exportDir string) {
-	t.Helper()
-
-	restore := setMetaDBForCutoverCheck(t, exportDir)
-	defer restore()
-
-	status := getCutoverStatus(metaDB)
-	require.NotEqual(t, COMPLETED, status,
-		"Cutover should NOT be COMPLETED when export-data-from-target has not started")
-	testutils.LogTestf(t, "Verified: cutover status is %q (not COMPLETED)", status)
-}
-
-func verifyCutoverIsComplete(t *testing.T, exportDir string) {
-	t.Helper()
-
-	restore := setMetaDBForCutoverCheck(t, exportDir)
-	defer restore()
-
-	status := getCutoverStatus(metaDB)
-	require.Equal(t, COMPLETED, status,
-		"Cutover should be COMPLETED after export-data-from-target starts successfully")
-	testutils.LogTestf(t, "Verified: cutover status is %q", status)
-}
-
-func waitForRowCount(t *testing.T, container testcontainers.TestContainer, table string, expected int64, timeout time.Duration, pollInterval time.Duration) bool {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		conn, err := container.GetConnection()
-		if err != nil {
-			time.Sleep(pollInterval)
-			continue
-		}
-		var count int64
-		err = conn.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s", table)).Scan(&count)
-		conn.Close()
-		if err == nil && count >= expected {
-			testutils.LogTestf(t, "Row count for %s: %d (expected >= %d)", table, count, expected)
-			return true
-		}
-		time.Sleep(pollInterval)
-	}
-	return false
-}
-
-func queryRowCount(t *testing.T, container testcontainers.TestContainer, table string) int64 {
-	t.Helper()
-	conn, err := container.GetConnection()
-	require.NoError(t, err, "Failed to get DB connection")
-	defer conn.Close()
-	var count int64
-	err = conn.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s", table)).Scan(&count)
-	require.NoError(t, err, "Failed to query row count")
-	return count
-}
-
-// waitForRowCountOnDB polls an existing *sql.DB until the expected count is reached.
-// Useful when the container's GetConnection() returns a new connection each time.
-func waitForRowCountOnDB(t *testing.T, db *sql.DB, table string, expected int64, timeout time.Duration, pollInterval time.Duration) bool {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		var count int64
-		err := db.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s", table)).Scan(&count)
-		if err == nil && count >= expected {
-			testutils.LogTestf(t, "Row count for %s: %d (expected >= %d)", table, count, expected)
-			return true
-		}
-		time.Sleep(pollInterval)
-	}
-	return false
 }
