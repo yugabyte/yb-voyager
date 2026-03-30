@@ -18,6 +18,8 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -79,29 +81,77 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 		})
 	}
 	defer resetSegmentCleanupRunning()
-	// Also register as an atexit handler so the flag is cleared when
-	// utils.ErrExit calls atexit.Exit, which bypasses Go defers.
-	atexit.Register(resetSegmentCleanupRunning)
-
-	cfg := segmentcleanup.Config{
-		Policy:                 cleanupPolicy,
-		ExportDir:              exportDir,
-		ArchiveDir:             cleanupArchiveDir,
-		FSUtilizationThreshold: cleanupUtilizationThreshold,
-	}
 
 	ctx, cancel := context.WithCancel(cmd.Context())
 	defer cancel()
 
-	cleaner := segmentcleanup.NewSegmentCleaner(cfg, metaDB)
+	// Also register as an atexit handler so the flag is cleared when
+	// utils.ErrExit calls atexit.Exit, which bypasses Go defers.
+	atexit.Register(resetSegmentCleanupRunning)
 
-	go waitForWorkflowEnd(cleaner, ctx)
-
-	if err := cleaner.Run(); err != nil {
-		utils.ErrExit("archive changes failed: %v", err)
+	msr, err = metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("error getting migration status record: %v", err)
 	}
-	utils.PrintAndLogfSuccess("\nArchived all the changes.")
-	printNextIterationExportDirIfRequired()
+	if msr.LatestIterationNumber == 0 {
+		cfg := segmentcleanup.Config{
+			Policy:                 cleanupPolicy,
+			ExportDir:              exportDir,
+			ArchiveDir:             cleanupArchiveDir,
+			FSUtilizationThreshold: cleanupUtilizationThreshold,
+		}
+
+		cleaner := segmentcleanup.NewSegmentCleaner(cfg, metaDB)
+
+		go waitForWorkflowEnd(cleaner, ctx)
+
+		if err := cleaner.Run(); err != nil {
+			utils.ErrExit("archive changes failed: %v", err)
+		}
+		utils.PrintAndLogfSuccess("\nArchived all the changes.")
+	} else {
+		cfg := segmentcleanup.Config{
+			Policy:                 cleanupPolicy,
+			ExportDir:              exportDir,
+			ArchiveDir:             cleanupArchiveDir,
+			FSUtilizationThreshold: cleanupUtilizationThreshold,
+		}
+
+		cleaner := segmentcleanup.NewSegmentCleaner(cfg, metaDB)
+
+		go waitForWorkflowEnd(cleaner, ctx)
+
+		if err := cleaner.Run(); err != nil {
+			utils.ErrExit("archive changes failed: %v", err)
+		}
+		utils.PrintAndLogfSuccess("\nArchived all the changes for iteration 0.")
+		for i := 1; i <= msr.LatestIterationNumber; i++ {
+			iterationsExportDir := msr.GetIterationsDir(exportDir)
+			iterationExportDir := GetIterationExportDir(iterationsExportDir, i)
+			utils.PrintAndLogfInfo("\nStart Archiving changes for iteration %d by running the following command on export-dir '%s'", i, utils.Path.Sprint(iterationExportDir))
+			iterationsArchiveDir := filepath.Join(cleanupArchiveDir, "live-data-migration-iterations", fmt.Sprintf("live-data-migration-iteration-%d", i))
+			err = os.MkdirAll(iterationsArchiveDir, 0755)
+			if err != nil {
+				utils.ErrExit("creating archive directory: %w", err)
+			}
+			cfg := segmentcleanup.Config{
+				Policy:                 cleanupPolicy,
+				ExportDir:              iterationExportDir,
+				ArchiveDir:             iterationsArchiveDir,
+				FSUtilizationThreshold: cleanupUtilizationThreshold,
+			}
+
+			cleaner := segmentcleanup.NewSegmentCleaner(cfg, metaDB)
+
+			go waitForWorkflowEnd(cleaner, ctx)
+
+			if err := cleaner.Run(); err != nil {
+				utils.ErrExit("archive changes failed: %v", err)
+			}
+			utils.PrintAndLogfSuccess("\nArchived all the changes for iteration %d.", i)
+		}
+	}
+	// printNextIterationExportDirIfRequired()
 }
 
 func printNextIterationExportDirIfRequired() {
