@@ -107,6 +107,10 @@ func NewLiveMigrationTest(t *testing.T, config *TestConfig) *LiveMigrationTest {
 	}
 }
 
+func (lm *LiveMigrationTest) GetExportDir() string {
+	return lm.exportDir
+}
+
 // SetupContainers starts source and (optionally) target and source-replica containers
 func (lm *LiveMigrationTest) SetupContainers(ctx context.Context) error {
 	fmt.Printf("Setting up containers\n")
