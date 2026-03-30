@@ -20,7 +20,6 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
-	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 func verifyNoEventIDDuplicates(t *testing.T, exportDir string) {
