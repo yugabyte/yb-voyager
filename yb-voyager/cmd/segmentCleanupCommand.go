@@ -105,8 +105,11 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 	}
 	utils.PrintAndLogfSuccess("\nArchived all the changes.")
 
+	lastArchivedIteration := 0
+	currentDB := metaDB
 	for {
-		msr, err = metaDB.GetMigrationStatusRecord()
+
+		msr, err = currentDB.GetMigrationStatusRecord()
 		if err != nil {
 			utils.ErrExit("error getting migration status record: %v", err)
 		}
@@ -116,35 +119,56 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 		}
 
 		if !msr.NextIterationInitialized {
-			break
+			time.Sleep(5 * time.Second)
+			continue
 		}
 
-		iterationsExportDir := msr.GetIterationsDir(exportDir)
-		iterationExportDir := GetIterationExportDir(iterationsExportDir, msr.LatestIterationNumber)
-		utils.PrintAndLogfInfo("\nStart Archiving changes for iteration %d by running the following command on export-dir '%s'", msr.LatestIterationNumber, utils.Path.Sprint(iterationExportDir))
-		iterationsArchiveDir := filepath.Join(cleanupArchiveDir, "live-data-migration-iterations", fmt.Sprintf("live-data-migration-iteration-%d", msr.LatestIterationNumber))
-		err = os.MkdirAll(iterationsArchiveDir, 0755)
+		nextIteration := lastArchivedIteration + 1
+		parentMSR, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
-			utils.ErrExit("creating archive directory: %w", err)
+			utils.ErrExit("error getting parent migration status record: %v", err)
 		}
+		iterationsExportDir := parentMSR.GetIterationsDir(exportDir)
+		iterationExportDir := GetIterationExportDir(iterationsExportDir, nextIteration)
+
+		iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
+		if err != nil {
+			utils.ErrExit("error opening iteration %d meta db: %v", nextIteration, err)
+		}
+
+		utils.PrintAndLogfInfo("\nStart Archiving changes for iteration %d on export-dir '%s'",
+			nextIteration, utils.Path.Sprint(iterationExportDir))
+
+		var iterationArchiveDir string
+		if cleanupArchiveDir != "" {
+			iterationArchiveDir = filepath.Join(cleanupArchiveDir,
+				"live-data-migration-iterations",
+				fmt.Sprintf("live-data-migration-iteration-%d", nextIteration))
+			err = os.MkdirAll(iterationArchiveDir, 0755)
+			if err != nil {
+				utils.ErrExit("creating archive directory: %v", err)
+			}
+		}
+
 		cfg = segmentcleanup.Config{
 			Policy:                 cleanupPolicy,
 			ExportDir:              iterationExportDir,
-			ArchiveDir:             iterationsArchiveDir,
+			ArchiveDir:             iterationArchiveDir,
 			FSUtilizationThreshold: cleanupUtilizationThreshold,
 		}
 
-		cleaner = segmentcleanup.NewSegmentCleaner(cfg, metaDB)
+		cleaner = segmentcleanup.NewSegmentCleaner(cfg, iterationMetaDB)
 
-		go waitForWorkflowEnd(cleaner, ctx)
+		go waitForWorkflowEndForDB(cleaner, ctx, iterationMetaDB, iterationExportDir)
 
 		if err := cleaner.Run(); err != nil {
-			utils.ErrExit("archive changes failed: %v", err)
+			utils.ErrExit("archive changes failed for iteration %d: %v", nextIteration, err)
 		}
-		utils.PrintAndLogfSuccess("\nArchived all the changes for iteration %d.", msr.LatestIterationNumber)
+		utils.PrintAndLogfSuccess("\nArchived all the changes for iteration %d.", nextIteration)
 
+		lastArchivedIteration = nextIteration
+		currentDB = iterationMetaDB
 	}
-	// printNextIterationExportDirIfRequired()
 }
 
 func printNextIterationExportDirIfRequired() {
@@ -181,36 +205,41 @@ func printNextIterationExportDirIfRequired() {
 	}
 }
 
-func workflowEnded() bool {
+func workflowEndedForDB(db *metadb.MetaDB, dir string) bool {
 	if StopArchiverSignal {
-		//End migration command triggered archive changes to stop
 		return true
 	}
-	msr, err := metaDB.GetMigrationStatusRecord()
+	msr, err := db.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("error getting migration status record: %v", err)
 	}
-	if getCutoverStatus(metaDB) != COMPLETED {
+	if getCutoverStatus(db) != COMPLETED {
 		return false
 	}
-	//if cutover to target is completed, then check as per the workflow fallback/fallforward status
 	switch true {
 	case msr.FallbackEnabled:
-		return getCutoverToSourceStatus(exportDir, metaDB) == COMPLETED
+		return getCutoverToSourceStatus(dir, db) == COMPLETED
 	case msr.FallForwardEnabled:
-		return getCutoverToSourceReplicaStatus(metaDB) == COMPLETED
+		return getCutoverToSourceReplicaStatus(db) == COMPLETED
 	}
-	//if cutover to target is completed and fallback/fallforward is not opted, then return true
 	return true
 }
 
+func workflowEnded() bool {
+	return workflowEndedForDB(metaDB, exportDir)
+}
+
 func waitForWorkflowEnd(cleaner *segmentcleanup.SegmentCleaner, ctx context.Context) {
+	waitForWorkflowEndForDB(cleaner, ctx, metaDB, exportDir)
+}
+
+func waitForWorkflowEndForDB(cleaner *segmentcleanup.SegmentCleaner, ctx context.Context, db *metadb.MetaDB, dir string) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		default:
-			if workflowEnded() {
+			if workflowEndedForDB(db, dir) {
 				cleaner.SignalStop()
 				return
 			}
