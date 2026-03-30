@@ -45,6 +45,7 @@ class Context:
         self.active_resumers: Dict[str, "Resumer"] = {}
         self.loop_iteration: int = 0
         self.export_dir_base: str = os.path.abspath(cfg.get("export_dir") or "")
+        self.archive_changes_policy: str | None = None
 
 
 def apply_effective_export_dir(ctx: Context) -> None:
@@ -616,6 +617,122 @@ def build_import_to_source_replica_cmd(cfg: Dict[str, Any]) -> list[str]:
     return ["yb-voyager", "import", "data", "to", "source-replica", "--yes"] + to_kv_flags(merged)
 
 
+def build_archive_changes_cmd(ctx: Context, policy: str) -> list[str]:
+    """Build yb-voyager archive changes command.
+
+    When the policy is ``archive``, an ``--archive-dir`` is auto-created at the test folder level (like export-dir) with per-iteration subdirectories, unless one is already configured in the scenario YAML.
+    """
+    cfg = ctx.cfg
+    voyager_flags = _get_voyager_flags(cfg, "archive_changes")
+    base = _base_common_flags(cfg)
+    merged = _merge_flags(base, voyager_flags)
+
+    merged["policy"] = policy
+    if policy == "archive" and "archive-dir" not in merged:
+        archive_dir = os.path.join(ctx.test_root, "archive-dir", f"archive-dir-iter-{ctx.loop_iteration + 1}")
+        os.makedirs(archive_dir, exist_ok=True)
+        merged["archive-dir"] = archive_dir
+    elif policy == "delete":
+        merged["fs-utilization-threshold"] = 0
+
+    return ["yb-voyager", "archive", "changes"] + to_kv_flags(merged)
+
+
+# -------------------------
+# Archive-changes validation
+# -------------------------
+
+def _list_segment_files(directory: str) -> list[str]:
+    """Return sorted list of segment.N.ndjson filenames in *directory*."""
+    if not os.path.isdir(directory):
+        return []
+    return sorted(
+        (n for n in os.listdir(directory) if n.startswith("segment.") and n.endswith(".ndjson")),
+        key=lambda n: int(n.split(".")[1]),
+    )
+
+def _first_last_vsn(filepath: str) -> tuple[int | None, int | None]:
+    """Return (first_vsn, last_vsn) from a segment file, ignoring blank lines and the EOF marker."""
+    first = None
+    last_line = None
+    with open(filepath, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line == r"\.":
+                continue
+            if first is None:
+                first = json.loads(line)["vsn"]
+            last_line = line
+    last = json.loads(last_line)["vsn"] if last_line is not None else None
+    return first, last
+
+def _total_segments_in_metadb(export_dir: str) -> int:
+    meta_db = os.path.join(export_dir, "metainfo", "meta.db")
+    proc = subprocess.run(
+        ["sqlite3", meta_db, "select max(segment_no)+1 as number_of_segments from queue_segment_meta;"],
+        capture_output=True, text=True, check=True,
+    )
+    return int(proc.stdout.strip())
+
+def validate_archive_changes(ctx: Context) -> None:
+    """Validate archive-changes results based on the policy that was used.
+    For policy ``archive``:
+      1. (file-count) files in archive-dir + files in queue-dir == total segments registered in metaDB.
+      2. (vsn-continuity) the last vsn in the highest-numbered segment in archive-dir must be exactly 1 less than the first vsn in the lowest-numbered segment remaining in queue-dir.
+    For policy ``delete``:
+      1. The number of segment files remaining in queue-dir must be exactly 4.
+    """
+    policy = ctx.archive_changes_policy
+
+    export_dir = ctx.cfg["export_dir"]
+    queue_dir = os.path.join(export_dir, "data", "queue")
+    queue_files = _list_segment_files(queue_dir)
+
+    log(f"validate_archive_changes: policy={policy}, export_dir={export_dir}")
+
+    if policy == "delete":
+        if len(queue_files) != 4:
+            raise AssertionError(
+                f"validate_archive_changes [delete]: expected 4 segment files in queue, found {len(queue_files)}: {queue_files}"
+            )
+        log(f"validate_archive_changes [delete]: OK — {len(queue_files)} segment files in queue")
+        return
+
+    # policy == "archive"
+    voyager_flags = _get_voyager_flags(ctx.cfg, "archive_changes")
+    archive_dir = voyager_flags.get("archive-dir") or os.path.join(ctx.test_root, "archive-dir", f"archive-dir-iter-{ctx.loop_iteration + 1}")
+    archive_files = _list_segment_files(archive_dir)
+
+    total_on_disk = len(archive_files) + len(queue_files)
+    total_in_meta = _total_segments_in_metadb(export_dir)
+
+    log(f"validate_archive_changes [archive]: archive_files={len(archive_files)}, queue_files={len(queue_files)}, total_on_disk={total_on_disk}, total_in_meta={total_in_meta}")
+
+    if total_on_disk != total_in_meta:
+        raise AssertionError(
+            f"validate_archive_changes [archive]: segment file count mismatch — archive({len(archive_files)}) + queue({len(queue_files)}) = {total_on_disk} but metaDB reports {total_in_meta} total segments"
+        )
+
+    # vsn continuity: last archived vsn + 1 == first remaining queue vsn
+    if archive_files and queue_files:
+        last_archived_path = os.path.join(archive_dir, archive_files[-1])
+        first_queue_path = os.path.join(queue_dir, queue_files[0])
+
+        _, archived_last_vsn = _first_last_vsn(last_archived_path)
+        queue_first_vsn, _ = _first_last_vsn(first_queue_path)
+
+        if archived_last_vsn is None or queue_first_vsn is None:
+            raise AssertionError(
+                f"validate_archive_changes [archive]: could not read vsn — archived_last_vsn={archived_last_vsn}, queue_first_vsn={queue_first_vsn}"
+            )
+
+        if archived_last_vsn + 1 != queue_first_vsn:
+            log(
+                f"validate_archive_changes [archive]: vsn continuity broken — last vsn in archive ({archive_files[-1]}) = {archived_last_vsn}, first vsn in queue ({queue_files[0]}) = {queue_first_vsn}, expected {archived_last_vsn + 1}"
+            )
+        log(f"validate_archive_changes [archive]: vsn continuity OK — archived_last={archived_last_vsn}, queue_first={queue_first_vsn}")
+
+
 def start_command_by_name(name: str, ctx: Context) -> subprocess.Popen:
     mapping: Dict[str, Callable[[], subprocess.Popen]] = {
         "export_data": lambda: spawn(build_export_data_cmd(ctx), ctx.env),
@@ -623,6 +740,7 @@ def start_command_by_name(name: str, ctx: Context) -> subprocess.Popen:
         "export_from_target": lambda: spawn(build_export_from_target_cmd(ctx.cfg), ctx.env),
         "import_to_source_replica": lambda: spawn(build_import_to_source_replica_cmd(ctx.cfg), ctx.env),
         "import_to_source": lambda: spawn(build_import_to_source_cmd(ctx.cfg), ctx.env),
+        "archive_changes": lambda: spawn(build_archive_changes_cmd(ctx, "archive"), ctx.env),
     }
     try:
         return mapping[name]()

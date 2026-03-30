@@ -3,6 +3,7 @@
 import os
 import sys
 import argparse
+import random
 import time
 from typing import Any, Dict, Callable
 import helpers as H
@@ -101,6 +102,24 @@ def import_to_source_replica_start_action(_stage, ctx: Any) -> None:
     with ctx.process_lock:
         ctx.processes["import_to_source_replica"] = H.start_command_by_name("import_to_source_replica", ctx)
 
+
+@action("voyager_archive_changes_start")
+def archive_changes_start_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Start yb-voyager archive changes process.
+
+    Optional stage key:
+      - policy: explicit policy ("delete" or "archive").
+                When omitted, a policy is chosen at random.
+    """
+    policy = stage.get("policy") or random.choice(["delete", "archive"])
+    H.log(f"archive_changes: selected policy={policy}")
+    cmd = H.build_archive_changes_cmd(ctx, policy)
+    with ctx.process_lock:
+        ctx.processes["archive_changes"] = H.spawn(cmd, ctx.env)
+
+@action("validate_archive_changes")
+def validate_archive_changes_action(_stage, ctx: Any) -> None:
+    H.validate_archive_changes(ctx)
 
 @action("voyager_stop_command")
 def stop_command_action(stage: Dict[str, Any], ctx: Any) -> None:

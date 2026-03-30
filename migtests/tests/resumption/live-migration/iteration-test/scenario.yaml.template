@@ -110,6 +110,12 @@ stages:
     sql_path: ../common-sql/init.sql
     use_admin: true
 
+  - name: increase_temp_file_limit
+    action: run_sql
+    sql_path: ./init.sql
+    targets: [source, target]
+    use_admin: true
+
   - name: create_cutover_table
     action: create_cutover_table
     target: [source]
@@ -162,6 +168,9 @@ stages:
     condition: exporter_in_streaming_phase
     timeout_sec: 600
 
+  - name: start_archiver
+    action: voyager_archive_changes_start
+
   - name: start_export_resumptions
     action: start_resumptions
     resumption:
@@ -200,6 +209,9 @@ stages:
     action: voyager_stop_resumptions
     command: import_data
     timeout_sec: 30
+
+  - name: validate_archive_changes
+    action: validate_archive_changes
 
   - name: cutover_to_target
     action: cutover_to_target
@@ -285,6 +297,9 @@ stages:
     action: voyager_stop_resumptions
     command: import_to_source
     timeout_sec: 60
+
+  - name: validate_archive_changes
+    action: validate_archive_changes
 
   # Phase 3: cutover back to source and validation
   - name: cutover_to_source

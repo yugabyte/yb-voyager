@@ -4,6 +4,7 @@ num_iterations: 3
 
 env:
   LOG_LEVEL: info
+  QUEUE_SEGMENT_MAX_BYTES: 10485760
 
 export_dir: ./export-dir
 artifacts_dir: ./artifacts
@@ -77,22 +78,20 @@ generator_target:
       wait_after_operations: 5000
       wait_duration_seconds: 1
       table_weights: {}
-      operation_weights: {INSERT: 3, UPDATE: 2, DELETE: 2}
+      operation_weights: {INSERT: 3, UPDATE: 2, DELETE: 1}
       random_seed: 456
       faker_seed: 456
       insert_rows: 6
       update_rows: 4
-      delete_rows: 1
+      delete_rows: 2
       insert_max_retries: 5
       update_max_retries: 1
 
 voyager:
   export_data:
-    flags:
-      export-type: changes-only
     flags_when_loop_iteration_gte:
       "1":
-        config-file: /opt/yb-voyager/config-templates/live-migration-with-fall-back.yaml
+        export-type: changes-only
   cutover_to_target:
     flags:
       prepare-for-fall-back: true
@@ -128,13 +127,15 @@ stages:
   - name: loop_start
     action: loop_start
 
-  - name: start_event_generator
-    action: generator_start
-    generator_key: generator_source
+  - name: stop_forward_exporter
+    action: stop_external_process
+    process: export_data
+    graceful_timeout_sec: 60
 
-  - name: load_snapshot
-    action: sleep
-    seconds: 10
+  - name: stop_forward_importer
+    action: stop_external_process
+    process: import_data
+    graceful_timeout_sec: 60
 
   - name: start_exporter
     action: voyager_export_start
@@ -142,19 +143,46 @@ stages:
   - name: start_importer
     action: voyager_import_start
 
+  - name: start_event_generator
+    action: generator_start
+    generator_key: generator_source
+
+  - name: start_import_resumptions
+    action: start_resumptions
+    resumption:
+      import_data:
+        max_restarts: 1
+        min_interrupt_seconds: 5
+        max_interrupt_seconds: 10
+        min_restart_wait_seconds: 5
+        max_restart_wait_seconds: 10
+
   - name: wait_exporter_streaming
     action: wait_for
     condition: exporter_in_streaming_phase
     timeout_sec: 600
 
-  - name: small_sleep_for_some_events_to_be_generated
+  - name: start_archiver
+    action: voyager_archive_changes_start
+
+  - name: start_export_resumptions
+    action: start_resumptions
+    resumption:
+      export_data:
+        max_restarts: 1
+        min_interrupt_seconds: 5
+        max_interrupt_seconds: 10
+        min_restart_wait_seconds: 5
+        max_restart_wait_seconds: 10
+
+  - name: soak_with_resumptions
     action: sleep
-    seconds: 10
+    seconds: 40
 
   - name: stop_event_generator
     action: generator_stop
     generator_key: generator_source
-    graceful_timeout_sec: 60
+    graceful_timeout_sec: 30
 
   - name: insert_backlog_marker
     action: run_sql
@@ -166,6 +194,19 @@ stages:
     condition: remaining_events_eq_0
     timeout_sec: 1200
 
+  - name: stop_export_resumptions
+    action: voyager_stop_resumptions
+    command: export_data
+    timeout_sec: 30
+
+  - name: stop_import_resumptions
+    action: voyager_stop_resumptions
+    command: import_data
+    timeout_sec: 30
+
+  - name: validate_archive_changes
+    action: validate_archive_changes
+
   - name: cutover_to_target
     action: cutover_to_target
 
@@ -174,25 +215,21 @@ stages:
     condition: cutover_to_target_status_completed
     timeout_sec: 900
 
-  # Stop the forward exporter/importer (these may have auto-chained internally).
   - name: stop_forward_exporter
-    action: voyager_stop_command
-    command: export_data
+    action: stop_external_process
+    process: export_data
     graceful_timeout_sec: 60
 
   - name: stop_forward_importer
-    action: voyager_stop_command
-    command: import_data
+    action: stop_external_process
+    process: import_data
     graceful_timeout_sec: 60
-
-  # Phase 2: explicit fallback leg (target -> source) with resumptions
 
   - name: start_fallback_exporter_from_target
     action: voyager_export_from_target_start
 
   - name: start_fallback_importer_to_source
     action: voyager_import_to_source_start
-
 
   # Start a generator on the target side to simulate ongoing writes during fallback.
   - name: start_target_event_generator
@@ -203,26 +240,34 @@ stages:
     action: start_resumptions
     resumption:
       export_from_target:
-        max_restarts: 25
+        max_restarts: 1
         min_interrupt_seconds: 5
-        max_interrupt_seconds: 20
+        max_interrupt_seconds: 10
         min_restart_wait_seconds: 5
-        max_restart_wait_seconds: 20
+        max_restart_wait_seconds: 10
+
+  - name: start_import_to_source_resumptions
+    action: start_resumptions
+    resumption:
       import_to_source:
-        max_restarts: 25
+        max_restarts: 1
         min_interrupt_seconds: 5
-        max_interrupt_seconds: 20
+        max_interrupt_seconds: 10
         min_restart_wait_seconds: 5
-        max_restart_wait_seconds: 20
+        max_restart_wait_seconds: 10
 
   - name: soak_fallback_with_resumptions
     action: sleep
-    seconds: 120
+    seconds: 40
 
   - name: stop_target_event_generator
     action: generator_stop
     generator_key: generator_target
     graceful_timeout_sec: 60
+    
+  - name: sleep
+    action: sleep
+    seconds: 30
 
   # Insert a marker into cutover_table on the target side and
   # wait for the fallback exporter backlog to drain past it
@@ -247,6 +292,9 @@ stages:
     command: import_to_source
     timeout_sec: 60
 
+  - name: validate_archive_changes
+    action: validate_archive_changes
+
   # Phase 3: cutover back to source and validation
   - name: cutover_to_source
     action: cutover_to_source
@@ -256,33 +304,20 @@ stages:
     condition: cutover_to_source_status_completed
     timeout_sec: 900
 
-  - name: stop_fallback_exporter
-    action: voyager_stop_command
-    command: export_from_target
-    graceful_timeout_sec: 60
-
-  - name: stop_fallback_importer
-    action: voyager_stop_command
-    command: import_to_source
-    graceful_timeout_sec: 60
-
   - name: row_count_validations
     action: row_count_validations
-    retry_until_match_sec: 120
-    retry_interval_sec: 3
 
   - name: row_hash_validations
     action: row_hash_validations
 
-  - name: loop_end
-    action: loop_end
-
   - name: cleanup_source
     action: run_sql
-    sql_path: ../common-sql/cleanup.sql
+    sql_path: ./cleanup.sql
 
   - name: cleanup_target
     action: run_sql
     target: target
-    sql_path: ../common-sql/cleanup.sql
+    sql_path: ./cleanup.sql
 
+  - name: loop_end
+    action: loop_end
