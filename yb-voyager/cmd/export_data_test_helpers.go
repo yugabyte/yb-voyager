@@ -69,7 +69,7 @@ func verifyNoEventIDDuplicatesInternal(t *testing.T, exportDir string, failOnErr
 				if err := json.Unmarshal([]byte(line), &eventData); err != nil {
 					parseErrors++
 					if parseErrors <= 3 {
-						testutils.LogTestf(t, "Malformed CDC line in %s: %s", filePath, line)
+						t.Logf("Malformed CDC line in %s: %s", filePath, line)
 					}
 					continue
 				}
@@ -83,14 +83,14 @@ func verifyNoEventIDDuplicatesInternal(t *testing.T, exportDir string, failOnErr
 				if !ok || eventID == "" || eventID == "null" {
 					missingEventID++
 					if missingEventID <= 3 {
-						testutils.LogTestf(t, "Missing event_id in %s: %s", filePath, line)
+						t.Logf("Missing event_id in %s: %s", filePath, line)
 					}
 					continue
 				}
 
 				if eventIDSet[eventID] {
 					duplicateCount++
-					testutils.LogTestf(t, "WARNING: Duplicate event_id found: %s", eventID)
+					t.Logf("WARNING: Duplicate event_id found: %s", eventID)
 				} else {
 					eventIDSet[eventID] = true
 				}
@@ -103,7 +103,7 @@ func verifyNoEventIDDuplicatesInternal(t *testing.T, exportDir string, failOnErr
 		require.Equal(t, 0, missingEventID, "Missing event_id values found while parsing queue segments")
 	}
 	require.Equal(t, 0, duplicateCount, "No duplicate events should exist (event deduplication should work)")
-	testutils.LogTestf(t, "✓ Verified %d unique event_id values with no duplicates (out of %d lines)", len(eventIDSet), totalLines)
+	t.Logf("Verified %d unique event_id values with no duplicates (out of %d lines)", len(eventIDSet), totalLines)
 	return parseErrors, missingEventID
 }
 

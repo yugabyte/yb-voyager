@@ -1565,11 +1565,11 @@ func (lm *LiveMigrationTest) WaitForCDCEventCount(t *testing.T, expected int, ti
 	require.Eventually(t, func() bool {
 		count, err := countEventsInQueueSegments(lm.exportDir)
 		if err != nil {
-			testutils.LogTestf(t, "Failed to count CDC events yet: %v", err)
+			t.Logf("Failed to count CDC events yet: %v", err)
 			return false
 		}
 		lastCount = count
-		testutils.LogTestf(t, "Current CDC event count: %d / %d expected", count, expected)
+		t.Logf("Current CDC event count: %d / %d expected", count, expected)
 		return count >= expected
 	}, timeout, pollInterval, "Timed out waiting for CDC event count to reach %d (last=%d)", expected, lastCount)
 	return lastCount
