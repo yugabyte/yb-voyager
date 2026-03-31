@@ -67,6 +67,12 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 	if msr == nil {
 		utils.ErrExit("migration status record not found; ensure export has been initiated before running archive changes")
 	}
+
+	if msr.IsIteration() {
+		utils.PrintAndLog("archive changes command should only be run on the iteration 0, not on any other iteration")
+		utils.ErrExit("Run the command on the '%s' export dir instead.", utils.Path.Sprint(msr.GetParentExportDir(exportDir)))
+	}
+
 	if !msr.ExportDataSourceDebeziumStarted {
 		utils.ErrExit("the streaming phase of export data has not started yet — archive changes can only be run after streaming begins")
 	}
@@ -103,13 +109,23 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 	if err := cleaner.Run(); err != nil {
 		utils.ErrExit("archive changes failed: %v", err)
 	}
-	utils.PrintAndLogfSuccess("\nArchived all the changes.")
+	msr, err = metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("error getting migration status record: %v", err)
+	}
+	if msr.RestartDataMigrationSourceTargetNextIteration {
+		utils.PrintAndLogfSuccess("\nArchived all the changes for the iteration 0.")
+	} else {
+		utils.PrintAndLogfSuccess("\nArchived all the changes.")
+		return
+	}
 
 	lastArchivedIteration := 0
 	currentDB := metaDB
 	for {
 
 		if StopArchiverSignal {
+			//if end migration signal is received, then break the loop
 			break
 		}
 
@@ -170,40 +186,8 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 		lastArchivedIteration = nextIteration
 		currentDB = iterationMetaDB
 	}
-}
 
-func printNextIterationExportDirIfRequired() {
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("error getting migration status record: %v", err)
-	}
-	printMsg := func(msr *metadb.MigrationStatusRecord, baseExportDir string) {
-		if msr.LatestIterationNumber == 0 {
-			return
-		}
-		iterationsExportDir := msr.GetIterationsDir(baseExportDir)
-		iterationExportDir := GetIterationExportDir(iterationsExportDir, msr.LatestIterationNumber)
-		utils.PrintAndLogfInfo("\nStart Archiving changes for iteration %d by running the following command on export-dir '%s'", msr.LatestIterationNumber, utils.Path.Sprint(iterationExportDir))
-	}
-	if msr.IsParentMigration() {
-		//if its a parent migration, then print the message for the next iteration
-		printMsg(msr, exportDir)
-	} else {
-		//if its an iteration, then check if there are more iterations to archive
-		parentMetaDB, err := metaDB.GetParentMetaDB()
-		if err != nil {
-			utils.ErrExit("error getting parent meta db: %v", err)
-		}
-		parentMSR, err := parentMetaDB.GetMigrationStatusRecord()
-		if err != nil {
-			utils.ErrExit("error getting parent migration status record: %v", err)
-		}
-		if parentMSR.LatestIterationNumber <= msr.IterationNo {
-			return
-		}
-		//if there are more iterations than the current iteration, then only print the message for the next iteration
-		printMsg(parentMSR, msr.ParentExportDir)
-	}
+	utils.PrintAndLogfSuccess("\nArchived all the changes for all iterations.")
 }
 
 func workflowEndedForDB(db *metadb.MetaDB, dir string) bool {
@@ -224,10 +208,6 @@ func workflowEndedForDB(db *metadb.MetaDB, dir string) bool {
 		return getCutoverToSourceReplicaStatus(db) == COMPLETED
 	}
 	return true
-}
-
-func workflowEnded() bool {
-	return workflowEndedForDB(metaDB, exportDir)
 }
 
 func waitForWorkflowEnd(cleaner *segmentcleanup.SegmentCleaner, ctx context.Context) {
