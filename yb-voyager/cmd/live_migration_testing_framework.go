@@ -242,16 +242,9 @@ func (lm *LiveMigrationTest) Cleanup() {
 		}
 	}
 
-	// Stop containers
-	if lm.sourceContainer != nil {
-		lm.sourceContainer.Stop(lm.ctx)
-	}
-	if lm.targetContainer != nil {
-		lm.targetContainer.Stop(lm.ctx)
-	}
-	if lm.sourceReplicaContainer != nil {
-		lm.sourceReplicaContainer.Stop(lm.ctx)
-	}
+	// Containers are shared via the singleton registry, so we do NOT stop them here.
+	// Stopping a shared container would destroy databases used by other parallel tests.
+	// The containers are cleaned up automatically when the test binary exits.
 
 	if lm.t.Failed() {
 		fmt.Printf("Test failed - preserving export directory for debugging: %s\n", lm.exportDir)
