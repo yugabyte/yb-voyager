@@ -113,6 +113,7 @@ def archive_changes_start_action(stage: Dict[str, Any], ctx: Any) -> None:
     """
     policy = stage.get("policy") or random.choice(["delete", "archive"])
     H.log(f"archive_changes: selected policy={policy}")
+    ctx.archive_changes_policy = policy
     cmd = H.build_archive_changes_cmd(ctx, policy)
     with ctx.process_lock:
         ctx.processes["archive_changes"] = H.spawn(cmd, ctx.env)
