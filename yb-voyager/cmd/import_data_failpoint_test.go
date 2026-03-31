@@ -40,13 +40,10 @@ func TestImportDataBatchCommitFailure(t *testing.T) {
 	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
 	err := postgresContainer.Start(ctx)
 	testutils.FatalIfError(t, err, "Failed to start Postgres container")
-	defer postgresContainer.Stop(ctx)
 
-	// Start YugabyteDB container for target
 	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
 	err = yugabytedbContainer.Start(ctx)
 	testutils.FatalIfError(t, err, "Failed to start YugabyteDB container")
-	defer yugabytedbContainer.Stop(ctx)
 
 	// Create test schema and small dataset
 	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
@@ -92,9 +89,10 @@ FROM generate_series(1, 20) i;`
 	importCmdWithFailpoint := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
 		"--disable-pb", "true",
-		"--batch-size", "2", // set batch size to 2 to trigger commit error
-		"--parallel-jobs", "1", // set parallel jobs to 1 to trigger commit error
+		"--batch-size", "2",
+		"--parallel-jobs", "1",
 		"--adaptive-parallelism", "disabled",
+		"--skip-replication-checks", "true",
 		"--yes",
 	}, nil, false).WithT(t).WithEnv(fpEnv, "YB_VOYAGER_COPY_MAX_RETRY_COUNT=1")
 
@@ -121,6 +119,7 @@ FROM generate_series(1, 20) i;`
 	importCmdResume := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
 		"--disable-pb", "true",
+		"--skip-replication-checks", "true",
 		"--yes",
 	}, nil, false).WithT(t)
 
