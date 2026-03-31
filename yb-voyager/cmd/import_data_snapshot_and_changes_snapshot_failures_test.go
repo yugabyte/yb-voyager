@@ -46,6 +46,7 @@ import (
 //   - `src/tgtdb/yugabytedb.go` in transactional COPY path, right before txn commit:
 //     failpoint `importBatchCommitError`.
 func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	tableName := "test_schema_import_snap_fail.snapshot_import_test"
 
@@ -181,6 +182,7 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 // Injection point:
 // - `cmd/importDataSequentialFileBatchProducer.go` in `transformRow()` via failpoint `importSnapshotTransformError`.
 func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	tableName := "test_schema_import_snap_transform_fail.snapshot_import_test"
 
