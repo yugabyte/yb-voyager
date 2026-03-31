@@ -990,7 +990,18 @@ func getCommandNamesFromLockFiles(lockFiles []*lockfile.Lockfile) []string {
 }
 
 func stopVoyagerCommands(msr *metadb.MigrationStatusRecord, lockFiles []*lockfile.Lockfile) {
-	if msr.ArchivingEnabled || msr.SegmentCleanupRunning {
+	parentMSR := msr
+	if msr.IsIteration() {
+		parentMetaDB, err := metaDB.GetParentMetaDB()
+		if err != nil {
+			utils.ErrExit("error getting parent meta db: %v", err)
+		}
+		parentMSR, err = parentMetaDB.GetMigrationStatusRecord()
+		if err != nil {
+			utils.ErrExit("error getting parent migration status record: %v", err)
+		}
+	}
+	if parentMSR.ArchivingEnabled || parentMSR.SegmentCleanupRunning {
 		exportDataLockFile := getLockFileForCommand(lockFiles, "export data")
 		exportDataFromTargetLockFile := getLockFileForCommand(lockFiles, "export data from target")
 		exportDataFromSourceLockFile := getLockFileForCommand(lockFiles, "export data from source")
