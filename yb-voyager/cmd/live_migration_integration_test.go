@@ -21,6 +21,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -28,6 +30,7 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -4122,10 +4125,8 @@ func TestLiveMigrationWithFallbackWithArchiveChanges(t *testing.T) {
 
 }
 
-
-func TestLiveMigrationWithFallbackWithIterationsAndArchiveChanges(t *testing.T) {
-	t.Parallel()
-	lm := NewLiveMigrationTest(t, &TestConfig{
+func getLiveMigrationTestForLiveWithFBWithIterationsAndArchiveChanges(t *testing.T) *LiveMigrationTest {
+	return NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
 			ForLive:      true,
@@ -4177,8 +4178,10 @@ func TestLiveMigrationWithFallbackWithIterationsAndArchiveChanges(t *testing.T) 
 			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
 		},
 	})
+}
 
-	defer lm.Cleanup()
+func setupLiveMigrationWithFallbackWithIterationsAndArchiveChanges(t *testing.T, lm *LiveMigrationTest) {
+	t.Parallel()
 
 	err := lm.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
@@ -4376,7 +4379,15 @@ func TestLiveMigrationWithFallbackWithIterationsAndArchiveChanges(t *testing.T) 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
-	err = lm.InitiateCutoverToSource(nil)
+}
+
+func TestLiveMigrationWithFallbackWithIterationsAndArchiveChanges(t *testing.T) {
+	lm := getLiveMigrationTestForLiveWithFBWithIterationsAndArchiveChanges(t)
+
+	defer lm.Cleanup()
+	setupLiveMigrationWithFallbackWithIterationsAndArchiveChanges(t, lm)
+
+	err := lm.InitiateCutoverToSource(nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
 	err = lm.WaitForCutoverComplete(2, 50)
@@ -4386,4 +4397,27 @@ func TestLiveMigrationWithFallbackWithIterationsAndArchiveChanges(t *testing.T) 
 	testutils.FatalIfError(t, err, "failed to wait for archive changes complete")
 
 	lm.ValidateEndArchivalState(2)
+}
+
+func TestLiveMigrationWithFallbackWithIterationsAndArchiveChangesAndEndMigration(t *testing.T) {
+	lm := getLiveMigrationTestForLiveWithFBWithIterationsAndArchiveChanges(t)
+
+	defer lm.Cleanup()
+	setupLiveMigrationWithFallbackWithIterationsAndArchiveChanges(t, lm)
+
+	totalSegments, err := lm.GetTotalSegments(2)
+	testutils.FatalIfError(t, err, "failed to get total segments")
+
+	err = lm.EndMigration(nil, true)
+	testutils.FatalIfError(t, err, "failed to end migration")
+
+	archiveDir := filepath.Join(lm.archiveDir, "live-data-migration-iterations", fmt.Sprintf("live-data-migration-iteration-%d", 2))
+	require.Eventually(t, func() bool {
+		archivedSegments, err := os.ReadDir(archiveDir)
+		if err != nil {
+			return false
+		}
+		return len(archivedSegments) == totalSegments
+	}, 30*time.Second, 1*time.Second)
+
 }

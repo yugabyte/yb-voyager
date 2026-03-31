@@ -232,7 +232,6 @@ func (lm *LiveMigrationTest) startExportData(async bool, extraArgs map[string]st
 		"--source-db-name", lm.config.SourceDB.DatabaseName,
 		"--disable-pb", "true",
 		"--export-type", exportType,
-		"--parallel-jobs", "1",
 		"--yes",
 	}
 	for key, value := range extraArgs {
@@ -1198,19 +1197,9 @@ func (lm *LiveMigrationTest) getCutoverToSourceStatus(iterationNumber int) strin
 }
 
 func (lm *LiveMigrationTest) ValidateIntermediateArchivalState(iterationNumber int) {
-	totalSegments := 0
-	err := lm.WithMetaDB(0, func(metaDB *metadb.MetaDB) error {
-		row, err := metaDB.QueryRow("SELECT max(segment_no) + 1 FROM queue_segment_meta;")
-		if err != nil {
-			return goerrors.Errorf("failed to get total segments: %w", err)
-		}
-		err = row.Scan(&totalSegments)
-		if err != nil {
-			return goerrors.Errorf("failed to scan total segments: %w", err)
-		}
-		return nil
-	})
+	totalSegments, err := lm.GetTotalSegments(iterationNumber)
 	testutils.FatalIfError(lm.t, err, "failed to get total segments")
+
 	archiveDir := lm.archiveDir
 	exportDir := lm.exportDir
 	if iterationNumber > 0 {
@@ -1246,9 +1235,9 @@ func (lm *LiveMigrationTest) ValidateIntermediateArchivalState(iterationNumber i
 	}, 30*time.Second, 1*time.Second)
 }
 
-func (lm *LiveMigrationTest) ValidateEndArchivalState(iterationNumber int) {
-	totalSegments := 0
-	err := lm.WithMetaDB(0, func(metaDB *metadb.MetaDB) error {
+func (lm *LiveMigrationTest) GetTotalSegments(iterationNumber int) (int, error) {
+	var totalSegments int
+	err := lm.WithMetaDB(iterationNumber, func(metaDB *metadb.MetaDB) error {
 		row, err := metaDB.QueryRow("SELECT max(segment_no) + 1 FROM queue_segment_meta;")
 		if err != nil {
 			return goerrors.Errorf("failed to get total segments: %w", err)
@@ -1259,7 +1248,13 @@ func (lm *LiveMigrationTest) ValidateEndArchivalState(iterationNumber int) {
 		}
 		return nil
 	})
+	return totalSegments, err
+}
+
+func (lm *LiveMigrationTest) ValidateEndArchivalState(iterationNumber int) {
+	totalSegments, err := lm.GetTotalSegments(iterationNumber)
 	testutils.FatalIfError(lm.t, err, "failed to get total segments")
+
 	archiveDir := lm.archiveDir
 	exportDir := lm.exportDir
 	if iterationNumber > 0 {
