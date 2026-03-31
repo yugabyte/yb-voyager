@@ -140,9 +140,6 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 			utils.ErrExit("error opening iteration %d meta db: %v", nextIteration, err)
 		}
 
-		utils.PrintAndLogfInfo("\nStart Archiving changes for iteration %d on export-dir '%s'",
-			nextIteration, utils.Path.Sprint(iterationExportDir))
-
 		var iterationArchiveDir string
 		if cleanupArchiveDir != "" {
 			iterationArchiveDir = filepath.Join(cleanupArchiveDir,

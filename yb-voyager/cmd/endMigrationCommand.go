@@ -907,6 +907,14 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 		utils.ErrExit("checking for ongoing voyager commands: %w", err)
 	}
 	if len(matches) > 0 {
+
+		//if there are any ongoing command in the current iteration then figure out if there are any ongoing command in the parent iteration also and combine them
+		parentExportDir := msr.GetParentExportDir(exportDir)
+		parentCmdMatches, err := filepath.Glob(filepath.Join(parentExportDir, ".*Lockfile.lck"))
+		if err != nil {
+			utils.ErrExit("checking for ongoing voyager commands: %w", err)
+		}
+		matches = append(matches, parentCmdMatches...)
 		var lockFiles []*lockfile.Lockfile
 		for _, match := range matches {
 			lockFile := lockfile.NewLockfile(match)
@@ -991,8 +999,6 @@ func stopVoyagerCommands(msr *metadb.MigrationStatusRecord, lockFiles []*lockfil
 		stopDataExportCommand(exportDataFromSourceLockFile)
 		stopDataExportCommand(exportDataFromTargetLockFile)
 		stopVoyagerCommand(archiveChangesLockFile, syscall.SIGUSR1)
-		segmentCleanupLockFile := getLockFileForCommand(lockFiles, "segmentcleanup")
-		stopVoyagerCommand(segmentCleanupLockFile, syscall.SIGUSR1)
 	}
 
 	for _, lockFile := range lockFiles {
