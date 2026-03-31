@@ -210,6 +210,10 @@ stages:
     command: import_data
     timeout_sec: 30
 
+  - name: wait_for_archiver
+    action: sleep
+    seconds: 180
+
   - name: validate_archive_changes
     action: validate_archive_changes
 
@@ -297,6 +301,10 @@ stages:
     action: voyager_stop_resumptions
     command: import_to_source
     timeout_sec: 60
+
+  - name: wait_for_archiver
+    action: sleep
+    seconds: 180
 
   - name: validate_archive_changes
     action: validate_archive_changes
