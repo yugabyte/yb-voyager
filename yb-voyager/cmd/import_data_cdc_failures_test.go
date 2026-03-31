@@ -60,6 +60,7 @@ import (
 //   - MAX_INTERVAL_BETWEEN_BATCHES=1
 //   - EVENT_CHANNEL_SIZE=2
 func TestImportCDCTransformFailureAndResume(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	tableName := "test_schema_import_cdc.cdc_import_test"
 
@@ -196,6 +197,7 @@ func TestImportCDCTransformFailureAndResume(t *testing.T) {
 // - Failpoint triggers in `cmd/live_migration.go` inside `processEvents()` before ExecuteBatch.
 // - We set NUM_EVENT_CHANNELS=1 and MAX_EVENTS_PER_BATCH=1 so "Nth batch" is deterministic.
 func TestImportCDCDbErrorAndResume(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	tableName := "test_schema_import_cdc_db_err.cdc_import_test"
 
@@ -332,6 +334,7 @@ func TestImportCDCDbErrorAndResume(t *testing.T) {
 // - We set NUM_EVENT_CHANNELS=1 and MAX_EVENTS_PER_BATCH=10 so event execution ordering is stable.
 // - Failpoint uses a hit-counter pattern: `50*off->return(true)` fails on the 51st event execution attempt.
 func TestImportCDCEventExecutionFailureAndResume(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	tableName := "test_schema_import_cdc_event_fail.cdc_import_test"
 
@@ -472,6 +475,7 @@ func TestImportCDCEventExecutionFailureAndResume(t *testing.T) {
 // - We cap retry sleeps using YB_VOYAGER_MAX_SLEEP_SECOND=0 so the retry is immediate.
 // - We set NUM_EVENT_CHANNELS=1 and MAX_EVENTS_PER_BATCH=10 to keep ordering stable.
 func TestImportCDCRetryableDbErrorThenSucceed(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	tableName := "test_schema_import_cdc_retry.cdc_import_test"
 
@@ -583,6 +587,7 @@ func TestImportCDCRetryableDbErrorThenSucceed(t *testing.T) {
 //  4. Verify via data-migration-report that imported CDC events catch up to exported events.
 //  5. Verify final target matches source without a resume run.
 func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	tableName := "test_schema_import_cdc_retry_after_commit.cdc_import_test"
 
@@ -707,6 +712,7 @@ func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 //     - final target matches source
 //     - each channel's last_applied_vsn advanced (>-1), proving multi-channel progress tracking worked
 func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	numChans := 4

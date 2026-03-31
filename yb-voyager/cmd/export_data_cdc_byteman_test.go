@@ -48,26 +48,27 @@ func TestCDCBatchProcessingFailure(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
 	}
+	t.Parallel()
 	ctx := context.Background()
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
-		SchemaNames: []string{"test_schema"},
+		SchemaNames: []string{"test_schema_byteman_fail"},
 		SchemaSQL: []string{
-			"CREATE SCHEMA IF NOT EXISTS test_schema;",
-			`CREATE TABLE test_schema.cdc_test (
+			"CREATE SCHEMA IF NOT EXISTS test_schema_byteman_fail;",
+			`CREATE TABLE test_schema_byteman_fail.cdc_test (
 				id SERIAL PRIMARY KEY,
 				name TEXT,
 				value INTEGER,
 				created_at TIMESTAMP DEFAULT NOW()
 			);`,
-			`ALTER TABLE test_schema.cdc_test REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema_byteman_fail.cdc_test REPLICA IDENTITY FULL;`,
 		},
 		InitialDataSQL: []string{
-			`INSERT INTO test_schema.cdc_test (name, value)
+			`INSERT INTO test_schema_byteman_fail.cdc_test (name, value)
 			SELECT 'initial_' || i, i * 10 FROM generate_series(1, 100) i;`,
 		},
-		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema CASCADE;"},
+		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema_byteman_fail CASCADE;"},
 	})
 	defer lm.Cleanup()
 	require.NoError(t, lm.SetupContainers(ctx))
@@ -94,7 +95,7 @@ func TestCDCBatchProcessingFailure(t *testing.T) {
 	time.Sleep(10 * time.Second)
 	for batch := 0; batch < 5; batch++ {
 		lm.ExecuteOnSource(
-			fmt.Sprintf(`INSERT INTO test_schema.cdc_test (name, value)
+			fmt.Sprintf(`INSERT INTO test_schema_byteman_fail.cdc_test (name, value)
 				SELECT 'batch%d_' || i, %d * 100 + i FROM generate_series(1, 50) i;`, batch, batch),
 		)
 		time.Sleep(2 * time.Second)
@@ -123,26 +124,27 @@ func TestCDCBatchProcessing_WithMarkers(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
 	}
+	t.Parallel()
 	ctx := context.Background()
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
-		SchemaNames: []string{"test_schema"},
+		SchemaNames: []string{"test_schema_byteman_markers"},
 		SchemaSQL: []string{
-			"CREATE SCHEMA IF NOT EXISTS test_schema;",
-			`CREATE TABLE test_schema.cdc_test (
+			"CREATE SCHEMA IF NOT EXISTS test_schema_byteman_markers;",
+			`CREATE TABLE test_schema_byteman_markers.cdc_test (
 				id SERIAL PRIMARY KEY,
 				name TEXT,
 				value INTEGER,
 				created_at TIMESTAMP DEFAULT NOW()
 			);`,
-			`ALTER TABLE test_schema.cdc_test REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema_byteman_markers.cdc_test REPLICA IDENTITY FULL;`,
 		},
 		InitialDataSQL: []string{
-			`INSERT INTO test_schema.cdc_test (name, value)
+			`INSERT INTO test_schema_byteman_markers.cdc_test (name, value)
 			SELECT 'initial_' || i, i * 10 FROM generate_series(1, 100) i;`,
 		},
-		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema CASCADE;"},
+		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema_byteman_markers CASCADE;"},
 	})
 	defer lm.Cleanup()
 	require.NoError(t, lm.SetupContainers(ctx))
@@ -167,7 +169,7 @@ func TestCDCBatchProcessing_WithMarkers(t *testing.T) {
 	time.Sleep(10 * time.Second)
 	for batch := 0; batch < 5; batch++ {
 		lm.ExecuteOnSource(
-			fmt.Sprintf(`INSERT INTO test_schema.cdc_test (name, value)
+			fmt.Sprintf(`INSERT INTO test_schema_byteman_markers.cdc_test (name, value)
 				SELECT 'marker_batch%d_' || i, %d * 100 + i FROM generate_series(1, 50) i;`, batch, batch),
 		)
 		time.Sleep(2 * time.Second)
