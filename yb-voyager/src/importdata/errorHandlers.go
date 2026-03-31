@@ -39,7 +39,13 @@ const (
 	STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE = "To stash the errored rows and continue importing data without aborting, set the configuration parameter error-policy/error-policy-snapshot to `stash-and-continue`"
 	PK_VIOLATION_RECOMMENDATION_MESSAGE       = "Import failed due to duplicate key conflict (SQLSTATE 23505): one or more rows in the import file conflict with existing rows in the target table.\n" +
 		"To resolve, truncate and re-import: restart with --start-clean true --truncate-tables true to clear target tables before importing."
-)
+	FK_VIOLATION_RECOMMENDATION_MESSAGE = "Import failed due to foreign key constraint violation (SQLSTATE 23503): one or more rows reference a parent row that does not exist in the target table.\n" +
+		"This typically occurs when the import user lacks superuser privileges to set session_replication_role to replica.\n" +
+		"To resolve, try one of the following:\n" +
+		" 1. Grant permission: GRANT SET ON PARAMETER session_replication_role TO <username> (YugabyteDB v2025.1+).\n" +	
+		" 2. Manually disable triggers and drop foreign keys before import, then recreate them afterwards.\n" +	
+		" Refer to: https://docs.yugabyte.com/stable/yugabyte-voyager/reference/non-superuser/"
+	)
 
 type ImportDataErrorHandler interface {
 	ShouldAbort() bool
