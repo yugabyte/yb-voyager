@@ -109,6 +109,10 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 	currentDB := metaDB
 	for {
 
+		if StopArchiverSignal {
+			break
+		}
+
 		msr, err = currentDB.GetMigrationStatusRecord()
 		if err != nil {
 			utils.ErrExit("error getting migration status record: %v", err)
