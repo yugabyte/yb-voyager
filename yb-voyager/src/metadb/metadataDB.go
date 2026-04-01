@@ -506,43 +506,17 @@ func (m *MetaDB) GetSegmentsToBeArchived(importCount int) ([]utils.Segment, erro
 	predicate := fmt.Sprintf(`((exporter_role == 'source_db_exporter' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer = %d)) OR
 	(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer = 1)))
 	AND archived = 0`, importCount)
-	segmentsToBeArchived, err := m.querySegments(predicate)
+	segmentsToBeArchived, err := m.querySegmentsInAscOrder(predicate)
 	if err != nil {
 		return nil, goerrors.Errorf("fetch segments to be archived: %v", err)
 	}
 	return segmentsToBeArchived, nil
 }
 
-// GetProcessedQueueSegments returns segments that all required importers have finished
-// processing and that have not yet been deleted, regardless of archive status.
-func (m *MetaDB) GetProcessedQueueSegments() ([]utils.Segment, error) {
-	msr, err := m.GetMigrationStatusRecord()
-	if err != nil {
-		return nil, goerrors.Errorf("get migration status record: %v", err)
-	}
-	if msr == nil {
-		return nil, goerrors.Errorf("migration status record not found")
-	}
-
-	importCount := 1
-	if msr.FallForwardEnabled {
-		importCount = 2
-	}
-
-	predicate := fmt.Sprintf(`((exporter_role == 'source_db_exporter' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer = %d)) OR
-	(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_source_replica_db_importer + imported_by_source_db_importer = 1)))
-	AND archived = 0 AND deleted = 0`, importCount)
-	segments, err := m.querySegments(predicate)
-	if err != nil {
-		return nil, goerrors.Errorf("fetch processed segments: %v", err)
-	}
-	return segments, nil
-}
-
 func (m *MetaDB) GetSegmentsToBeDeleted() ([]utils.Segment, error) {
 	// sample query: SELECT segment_no, file_path FROM queue_segment_meta WHERE archived = 1 AND deleted = 0 ORDER BY segment_no;
 	predicate := "archived = 1 AND deleted = 0"
-	segmentsToBeDeleted, err := m.querySegments(predicate)
+	segmentsToBeDeleted, err := m.querySegmentsInAscOrder(predicate)
 	if err != nil {
 		return nil, goerrors.Errorf("fetch segments to be deleted: %v", err)
 	}
@@ -578,14 +552,14 @@ func (m *MetaDB) GetProcessedAndPendingSegments() (processed []utils.Segment, pe
 	processedPredicate := fmt.Sprintf(`((exporter_role == 'source_db_exporter' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer = %d)) OR
 	(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_source_replica_db_importer + imported_by_source_db_importer = 1)))
 	AND archived = 0 AND deleted = 0`, importCount)
-	processed, err = m.querySegmentsWith(tx, processedPredicate)
+	processed, err = m.querySegmentIsInAscOrderWith(tx, processedPredicate)
 	if err != nil {
 		return nil, nil, goerrors.Errorf("fetch processed segments: %v", err)
 	}
 
 	pendingPredicate := fmt.Sprintf(`(exporter_role == 'source_db_exporter' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer < %d)) OR
 		(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_source_replica_db_importer + imported_by_source_db_importer < 1))`, importCount)
-	pending, err = m.querySegmentsWith(tx, pendingPredicate)
+	pending, err = m.querySegmentIsInAscOrderWith(tx, pendingPredicate)
 	if err != nil {
 		return nil, nil, goerrors.Errorf("fetch pending segments: %v", err)
 	}
@@ -611,7 +585,7 @@ func (m *MetaDB) GetPendingSegments() ([]utils.Segment, error) {
 	}
 	predicate := fmt.Sprintf(`(exporter_role == 'source_db_exporter' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer < %d)) OR
 		(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_source_replica_db_importer + imported_by_source_db_importer < 1))`, importCount)
-	segments, err := m.querySegments(predicate)
+	segments, err := m.querySegmentsInAscOrder(predicate)
 	if err != nil {
 		return nil, goerrors.Errorf("fetch pending segments: %v", err)
 	}
@@ -622,11 +596,11 @@ type Queryable interface {
 	Query(query string, args ...any) (*sql.Rows, error)
 }
 
-func (m *MetaDB) querySegments(predicate string) ([]utils.Segment, error) {
-	return m.querySegmentsWith(m.db, predicate)
+func (m *MetaDB) querySegmentsInAscOrder(predicate string) ([]utils.Segment, error) {
+	return m.querySegmentIsInAscOrderWith(m.db, predicate)
 }
 
-func (m *MetaDB) querySegmentsWith(q Queryable, predicate string) ([]utils.Segment, error) {
+func (m *MetaDB) querySegmentIsInAscOrderWith(q Queryable, predicate string) ([]utils.Segment, error) {
 	var segments []utils.Segment
 	query := fmt.Sprintf(`SELECT segment_no, file_path FROM %s WHERE %s ORDER BY segment_no;`, QUEUE_SEGMENT_META_TABLE_NAME, predicate)
 	rows, err := q.Query(query)

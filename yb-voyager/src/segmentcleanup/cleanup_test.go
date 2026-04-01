@@ -63,10 +63,8 @@ func TestDeletePolicy_ProcessedSegmentsDeletedWithoutFF(t *testing.T) {
 	insertSegment(t, exportDir, SegmentRow{3, paths[2], "source_db_exporter", 0, 0, 0, 0, 0})
 
 	cleaner := newDeleteCleaner(exportDir, mdb)
-	n, pending, err := cleaner.DeleteProcessedSegments()
+	err := cleaner.DeleteProcessedSegments()
 	require.NoError(t, err)
-	assert.Equal(t, 2, n, "Should find 2 processed segments")
-	assert.Len(t, pending, 1, "Seg 3 should still be pending")
 
 	assert.NoFileExists(t, paths[0], "Seg 1 file should be removed")
 	assert.NoFileExists(t, paths[1], "Seg 2 file should be removed")
@@ -80,9 +78,8 @@ func TestDeletePolicy_ProcessedSegmentsDeletedWithoutFF(t *testing.T) {
 	assert.Equal(t, 0, allSegs[2].Deleted, "Seg 3 should NOT be deleted")
 	assert.Equal(t, 0, allSegs[2].Archived, "Seg 3 should NOT be archived")
 
-	n2, _, err := cleaner.DeleteProcessedSegments()
+	err = cleaner.DeleteProcessedSegments()
 	require.NoError(t, err)
-	assert.Equal(t, 0, n2, "No processed segments should remain after deletion")
 }
 
 // ============================================================
