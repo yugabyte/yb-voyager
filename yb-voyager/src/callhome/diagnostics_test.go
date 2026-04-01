@@ -388,7 +388,7 @@ func TestAddStackTrace_SingleGoError(t *testing.T) {
 func TestAddStackTrace_PrefersInnermostGoError(t *testing.T) {
 	rootErr := goerrors.New("root")
 	wrappedRoot := fmt.Errorf("wrapped-root: %w", rootErr)
-	exitLikeErr := goerrors.Wrap(wrappedRoot, 0)
+	exitLikeErr := goerrors.Errorf("exit-like wrapper: %w", wrappedRoot)
 	err := fmt.Errorf("top: %w", exitLikeErr)
 	context := map[string]string{}
 
