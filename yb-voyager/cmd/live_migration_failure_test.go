@@ -1,4 +1,4 @@
-//go:build failpoint
+//go:build failpoint || failpoint_cutover
 
 /*
 Copyright (c) YugabyteDB, Inc.

@@ -1,4 +1,4 @@
-//go:build failpoint
+//go:build failpoint || failpoint_export_snapshot || failpoint_export_cdc || failpoint_export_ff || failpoint_import || failpoint_cutover
 
 package cmd
 
@@ -360,4 +360,14 @@ func getQueueSegmentCommittedSize(exportDir string, segmentNum int64) (int64, er
 		return -1, err
 	}
 	return metaDB.GetLastValidOffsetInSegmentFile(segmentNum)
+}
+
+// reportTableName converts a dot-separated table name (e.g. "schema.table") to the
+// quoted format used in the data-migration-report JSON (e.g. `"schema"."table"`).
+func reportTableName(dotNotation string) string {
+	parts := strings.SplitN(dotNotation, ".", 2)
+	if len(parts) == 2 {
+		return fmt.Sprintf(`"%s"."%s"`, parts[0], parts[1])
+	}
+	return fmt.Sprintf(`"%s"`, dotNotation)
 }

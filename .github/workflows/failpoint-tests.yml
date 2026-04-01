@@ -11,25 +11,39 @@ jobs:
     uses: ./.github/workflows/prepare-versions.yml
 
   failpoint-tests:
-    name: Failpoint Tests
+    name: "Failpoint: ${{ matrix.group_name }}"
     needs: [prepare-versions]
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
-    
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tag: failpoint_export_snapshot
+            group_name: "Export Snapshot"
+          - tag: failpoint_export_cdc
+            group_name: "Export CDC"
+          - tag: failpoint_export_ff
+            group_name: "Export Fall-Forward"
+          - tag: failpoint_import
+            group_name: "Import"
+          - tag: failpoint_cutover
+            group_name: "Cutover"
+
     env:
       YB_VOYAGER_SEND_DIAGNOSTICS: 0
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: "temurin"
           java-version: ${{ needs.prepare-versions.outputs.java_version }}
           check-latest: true
-      
+
       - name: Install Byteman
         run: |
           BYTEMAN_VERSION="4.0.22"
@@ -37,7 +51,7 @@ jobs:
           wget -q https://downloads.jboss.org/byteman/${BYTEMAN_VERSION}/byteman-download-${BYTEMAN_VERSION}-bin.zip
           unzip -q byteman-download-${BYTEMAN_VERSION}-bin.zip
           echo "BYTEMAN_JAR=/tmp/byteman-download-${BYTEMAN_VERSION}/lib/byteman.jar" >> $GITHUB_ENV
-      
+
       - name: Cache local Maven repository
         uses: actions/cache@v4
         with:
@@ -45,22 +59,22 @@ jobs:
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             ${{ runner.os }}-maven-
-      
+
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
           go-version: ${{ needs.prepare-versions.outputs.go_version }}
-      
+
       - name: Install failpoint-ctl and gotestsum
         run: |
           go install github.com/pingcap/failpoint/failpoint-ctl@latest
           go install gotest.tools/gotestsum@latest
-      
+
       - name: Enable failpoint code generation
         run: |
           cd yb-voyager
           failpoint-ctl enable
-      
+
       - name: Run installer script to setup voyager and dependencies
         run: |
           cd installer_scripts
@@ -74,7 +88,7 @@ jobs:
           psql --version
         env:
           ON_INSTALLER_ERROR_OUTPUT_LOG: Y
-      
+
       - name: Free disk space
         run: |
           df -h /
@@ -86,24 +100,31 @@ jobs:
       - name: Set up gotestfmt
         uses: GoTestTools/gotestfmt-action@v2
       
-      - name: Run failpoint tests
-        env:
-          YB_VERSION: ${{ needs.prepare-versions.outputs.yb_latest_stable }}
-          PG_VERSION: "14"
+      - name: Run Tests (${{ matrix.tag }})
+        shell: bash
         run: |
+          # Ensure the step fails if go test fails, even with pipes
+          set -o pipefail
+  
           cd yb-voyager
-          go test -json -v -tags=failpoint ./cmd --parallel 4 -timeout 30m 2>/tmp/gotest-stderr.log | tee /tmp/gotest.log | gotestfmt
+          
+          # Combined tags: 'failpoint' plus the specific matrix tag
+          go test -json -v -tags=failpoint,${{ matrix.tag }} ./cmd \
+            --parallel 4 -timeout 30m \
+            2>/tmp/gotest-stderr.log | tee /tmp/gotest.log | gotestfmt
+  
+          # Show stderr logs in a collapsible group if they exist
           if [ -s /tmp/gotest-stderr.log ]; then
             echo "::group::stderr output (docker/testcontainer logs)"
             cat /tmp/gotest-stderr.log
             echo "::endgroup::"
           fi
-
-      - name: Upload test logs
+  
+      - name: Upload test logs (${{ matrix.tag }})
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: failpoint-test-logs
+          name: failpoint-test-logs-${{ matrix.tag }}
           path: |
             /tmp/gotest.log
             /tmp/gotest-stderr.log
