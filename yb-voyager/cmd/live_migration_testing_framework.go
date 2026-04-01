@@ -163,6 +163,13 @@ func (lm *LiveMigrationTest) SetupContainers(ctx context.Context) error {
 			return goerrors.Errorf("failed to create target database: %v", err)
 		}
 	}
+	if lm.sourceReplicaContainer != nil && lm.config.SourceReplicaDB.DatabaseName != "" {
+		pg := lm.sourceReplicaContainer.(*testcontainers.PostgresContainer)
+		err := pg.CreateDatabase(lm.config.SourceReplicaDB.DatabaseName)
+		if err != nil {
+			return goerrors.Errorf("failed to create source-replica database: %v", err)
+		}
+	}
 	fmt.Printf("Containers setup completed\n")
 	return nil
 }
