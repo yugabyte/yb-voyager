@@ -4420,4 +4420,8 @@ func TestLiveMigrationWithFallbackWithIterationsAndArchiveChangesAndEndMigration
 		return len(archivedSegments) == totalSegments
 	}, 30*time.Second, 1*time.Second)
 
+	assert.True(t, lm.archiveChangesCmd.IsStopped(), "archive changes command should be stopped")
+	assert.True(t, lm.exportFromTargetCmd.IsStopped(), "export from target command should be stopped")
+	assert.True(t, lm.importToSourceCmd.IsStopped(), "import to source command should be stopped")
+
 }
