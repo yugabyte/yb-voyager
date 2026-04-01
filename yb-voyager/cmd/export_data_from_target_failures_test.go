@@ -136,7 +136,10 @@ func TestExportFromTargetStartupFailureAndCutoverResume(t *testing.T) {
 	require.NoError(t, lm.InitiateCutoverToTarget(false, nil), "Failed to initiate cutover")
 
 	// Export detects cutover and shuts down gracefully (exit code 0).
-	require.NoError(t, lm.WaitForExportDataExit(), "Export should exit cleanly after processing cutover")
+	// Use timeout variant: after cutover the Go process exits but the child
+	// Debezium JVM may linger, holding stdout/stderr pipes open.
+	err = lm.WaitForExportDataExitTimeout(120 * time.Second)
+	require.NoError(t, err, "Export should exit cleanly after processing cutover")
 
 	// Import processes cutover, then exec's into export-data-from-target.
 	// The exec'd process inherits GO_FAILPOINTS and crashes before setting the flag.
@@ -299,7 +302,8 @@ func TestFallForwardCDCStreamingFailureAndResume(t *testing.T) {
 
 	require.NoError(t, lm.InitiateCutoverToTarget(false, nil), "Failed to initiate cutover")
 
-	require.NoError(t, lm.WaitForExportDataExit(), "Export should exit cleanly after cutover")
+	err = lm.WaitForExportDataExitTimeout(120 * time.Second)
+	require.NoError(t, err, "Export should exit cleanly after cutover")
 
 	// --- Step 7: Wait for export-from-target to start and complete cutover ---
 	// Import exec's into export-from-target. Debezium starts with Byteman loaded but
