@@ -786,7 +786,33 @@ func (lm *LiveMigrationTest) GetImportRunner() *testutils.VoyagerCommandRunner {
 }
 
 func (lm *LiveMigrationTest) WaitForImportFailpointAndProcessCrash(t *testing.T, markerPath string, markerTimeout, exitTimeout time.Duration) error {
-	return testutils.WaitForFailpointAndProcessCrash(t, lm.importCmd, markerPath, markerTimeout, exitTimeout)
+	matched, err := testutils.WaitForFailpointMarker(markerPath, markerTimeout, 2*time.Second)
+	if err != nil {
+		return goerrors.Errorf("error reading failpoint marker %s: %w", markerPath, err)
+	}
+	if !matched {
+		_ = lm.importCmd.Kill()
+		return goerrors.Errorf("failpoint marker %s did not trigger", markerPath)
+	}
+
+	t.Log("Failpoint marker detected; killing orphaned Debezium and waiting for exit...")
+	lm.KillDebezium(TARGET_DB_EXPORTER_FF_ROLE)
+	lm.KillDebezium(TARGET_DB_EXPORTER_FB_ROLE)
+
+	deadline := time.Now().Add(exitTimeout)
+	for {
+		if time.Now().After(deadline) {
+			_ = lm.importCmd.Kill()
+			return goerrors.Errorf("process did not exit after %s — expected a crash", exitTimeout)
+		}
+		if lm.importCmd.IsStopped() {
+			if lm.importCmd.ExitCode() == testutils.ExitCodeSuccess {
+				return goerrors.Errorf("process exited cleanly after failpoint — expected a crash")
+			}
+			return nil
+		}
+		time.Sleep(1 * time.Second)
+	}
 }
 
 func (lm *LiveMigrationTest) GetExportCommandStderr() string {
