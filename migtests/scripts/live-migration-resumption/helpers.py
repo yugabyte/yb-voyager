@@ -627,13 +627,12 @@ def build_archive_changes_cmd(ctx: Context, policy: str) -> list[str]:
     base = _base_common_flags(cfg)
     merged = _merge_flags(base, voyager_flags)
 
-    merged["policy"] = policy
     if policy == "archive" and "archive-dir" not in merged:
         archive_dir = os.path.join(ctx.test_root, "archive-dir", f"archive-dir-iter-{ctx.loop_iteration + 1}")
         os.makedirs(archive_dir, exist_ok=True)
         merged["archive-dir"] = archive_dir
     elif policy == "delete":
-        merged["fs-utilization-threshold"] = 0
+        merged["delete-changes-without-archiving"] = True
 
     return ["yb-voyager", "archive", "changes"] + to_kv_flags(merged)
 
@@ -674,13 +673,16 @@ def _total_segments_in_metadb(export_dir: str) -> int:
     )
     return int(proc.stdout.strip())
 
-def validate_archive_changes(ctx: Context) -> None:
+def validate_archive_changes(ctx: Context, check_post_cutover_to_source: bool = False) -> None:
     """Validate archive-changes results based on the policy that was used.
     For policy ``archive``:
       1. (file-count) files in archive-dir + files in queue-dir == total segments registered in metaDB.
       2. (vsn-continuity) the last vsn in the highest-numbered segment in archive-dir must be exactly 1 less than the first vsn in the lowest-numbered segment remaining in queue-dir.
     For policy ``delete``:
       1. The number of segment files remaining in queue-dir must be exactly 4.
+    
+    When check_post_cutover_to_source=True: validates post-cutover state (queue empty, all segments archived).
+    When check_post_cutover_to_source=False (default): standard pre-cutover validation.
     """
     policy = ctx.archive_changes_policy
 
@@ -691,6 +693,14 @@ def validate_archive_changes(ctx: Context) -> None:
     log(f"validate_archive_changes: policy={policy}, export_dir={export_dir}")
 
     if policy == "delete":
+        if check_post_cutover_to_source:
+            if len(queue_files) == 0:
+                log(f"validate_archive_changes [delete]: OK — no segment files in queue")
+            else:
+                raise AssertionError(
+                    f"validate_archive_changes [delete]: expected no segment files in queue post cutover_to_source, found {len(queue_files)}: {queue_files}"
+                )
+            return                     
         if len(queue_files) != 4:
             raise AssertionError(
                 f"validate_archive_changes [delete]: expected 4 segment files in queue, found {len(queue_files)}: {queue_files}"
@@ -707,7 +717,23 @@ def validate_archive_changes(ctx: Context) -> None:
     total_in_meta = _total_segments_in_metadb(export_dir)
 
     log(f"validate_archive_changes [archive]: archive_files={len(archive_files)}, queue_files={len(queue_files)}, total_on_disk={total_on_disk}, total_in_meta={total_in_meta}")
-
+    
+    if check_post_cutover_to_source:
+        # Post-cutover-to-source: all queue segments should have been moved to archive
+        # Validate: queue must be empty
+        if len(queue_files) != 0:
+            raise AssertionError(
+                f"validate_archive_changes [archive]: expected queue to be empty, found {len(queue_files)} files: {queue_files}"
+            )
+        
+        # Validate: archive must have all segments
+        if len(archive_files) != total_in_meta:
+            raise AssertionError(
+                f"validate_archive_changes [archive]: expected {total_in_meta} segments in archive, found {len(archive_files)}"
+            )
+        
+        log(f"validate_archive_changes [archive,post_cutover]: OK — all {total_in_meta} segments archived, queue empty")
+        return        
     if total_on_disk != total_in_meta:
         raise AssertionError(
             f"validate_archive_changes [archive]: segment file count mismatch — archive({len(archive_files)}) + queue({len(queue_files)}) = {total_on_disk} but metaDB reports {total_in_meta} total segments"

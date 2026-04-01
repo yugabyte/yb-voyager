@@ -1,0 +1,822 @@
+2026-03-31 11:18:43.402879 INFO logging.go:74 Logging initialised.
+2026-03-31 11:18:43.403105 INFO logging.go:76 Args: [yb-voyager export data --yes --export-dir /home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --source-db-type postgresql --source-db-host 127.0.0.1 --source-db-port 5432 --source-db-user ybvoyager --source-db-password XXX --source-db-name test_db --source-db-schema public --export-type snapshot-and-changes --disable-pb true]
+2026-03-31 11:18:43.403211 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=72a0600deec0c9bc5d2f200955df938b636fc8a6
+LAST_COMMIT_DATE=2026-03-26T05:11:07Z
+
+2026-03-31 11:18:43.404219 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.404486 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-31 11:18:43.404612 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-31 11:18:43.404788 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.404943 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.405077 INFO logging.go:74 Logging initialised.
+2026-03-31 11:18:43.405138 INFO logging.go:76 Args: [yb-voyager export data --yes --export-dir /home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --source-db-type postgresql --source-db-host 127.0.0.1 --source-db-port 5432 --source-db-user ybvoyager --source-db-password XXX --source-db-name test_db --source-db-schema public --export-type snapshot-and-changes --disable-pb true]
+2026-03-31 11:18:43.405232 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=72a0600deec0c9bc5d2f200955df938b636fc8a6
+LAST_COMMIT_DATE=2026-03-26T05:11:07Z
+
+2026-03-31 11:18:43.405261 INFO root.go:164 Start time: 2026-03-31 11:18:43.40525437 +0000 UTC m=+0.052857403
+
+2026-03-31 11:18:43.405798 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.405992 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-31 11:18:43.406121 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-31 11:18:43.406304 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.406449 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.406485 INFO root.go:532 'control-plane-type' not set. Setting cp to NoopControlPlane.
+2026-03-31 11:18:43.406511 INFO root.go:210 Environment variable 'QUEUE_SEGMENT_MAX_BYTES' already set with value '1048576'
+
+2026-03-31 11:18:43.406554 INFO common.go:464 Creating a project directory if not exists...
+2026-03-31 11:18:43.420351 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.420928 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-31 11:18:43.421148 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-31 11:18:43.421378 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.421565 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.421597 INFO logging.go:86 migrationID: 01037c22-e640-41e2-8b0b-c63fbd07dc6a
+
+2026-03-31 11:18:43.421800 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.421841 WARN logging.go:89 
+Important: The following limitations apply to live migration:
+
+2026-03-31 11:18:43.421881 WARN logging.go:89   1. Schema modifications(for example, adding/droping columns, creating/deleting tables, adding/deleting partitions etc) on the source and target databases are not supported during live migration.
+
+2026-03-31 11:18:43.421926 WARN logging.go:89   2. Primary Key or Unique Key columns should be identical between source and target databases.
+
+2026-03-31 11:18:43.421948 WARN logging.go:89   3. TRUNCATE operations on source database tables are not automatically replicated to the target database.
+
+2026-03-31 11:18:43.421974 WARN logging.go:89   4. Sequences that are not associated with any column or are attached to columns of non-integer types are not supported for automatic value generation resumption. These sequences must be manually resumed during the cutover phase.
+
+2026-03-31 11:18:43.422003 WARN logging.go:89   5. Tables without a Primary Key are not supported for live migration.
+
+
+2026-03-31 11:18:43.422028 INFO logging.go:175 export of data for source type as 'postgresql'
+2026-03-31 11:18:43.518997 INFO utils.go:783 Found strings at /usr/bin/strings
+2026-03-31 11:18:43.553491 INFO postgres.go:642 Total size of all PG sourceDB schemas ('public'): 262144
+2026-03-31 11:18:43.554291 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.554343 INFO exportData.go:1736 clearing migration state if required: false
+2026-03-31 11:18:43.554434 INFO namereg.go:80 Initializing name registry with params - {/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/metainfo/name_registry.json source_db_exporter postgresql [public] test_db 0xc000d44de0 [] <nil>}
+2026-03-31 11:18:43.554470 INFO namereg.go:93 initialising name registry: /home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/metainfo/name_registry.json
+2026-03-31 11:18:43.554499 INFO namereg.go:126 registering source names in the name registry
+2026-03-31 11:18:43.555457 INFO postgres.go:311 Query found 10 tables in the source db: [test_table num_types decimal_types datatypes1 datetime_type datetime_type2 cutover_table tsvector_table datatypes2 null_and_default]
+2026-03-31 11:18:43.557307 INFO namereg.go:115 saving name registry: /home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/metainfo/name_registry.json
+2026-03-31 11:18:43.558936 INFO exportData.go:1855 Source database charset: "UTF8"
+2026-03-31 11:18:43.559192 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.559471 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.565867 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.565923 INFO exportData.go:1396 fetching tables names from source and filtering table list
+2026-03-31 11:18:43.567044 INFO postgres.go:356 Query found 10 tables in the source db: [public.test_table public.num_types public.decimal_types public.datatypes1 public.datetime_type public.datetime_type2 public.cutover_table public.tsvector_table public.datatypes2 public.null_and_default]
+2026-03-31 11:18:43.573714 INFO exportData.go:1285 fetched tables from source - [public.test_table public.num_types public.decimal_types public.datatypes1 public.datetime_type public.datetime_type2 public.cutover_table public.tsvector_table public.datatypes2 public.null_and_default]
+2026-03-31 11:18:43.573770 INFO exportData.go:1257 keeping only leaf and root tables in full table list - [public.test_table public.num_types public.decimal_types public.datatypes1 public.datetime_type public.datetime_type2 public.cutover_table public.tsvector_table public.datatypes2 public.null_and_default]
+2026-03-31 11:18:43.584364 INFO exportData.go:1264 filtered full table list and added leaf tables - [public.test_table public.num_types public.decimal_types public.datatypes1 public.datetime_type public.datetime_type2 public.cutover_table public.tsvector_table public.datatypes2 public.null_and_default]
+2026-03-31 11:18:43.584612 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.587823 INFO exportData.go:1316 filtered table list in first run - [public.test_table public.num_types public.decimal_types public.datatypes1 public.datetime_type public.datetime_type2 public.cutover_table public.tsvector_table public.datatypes2 public.null_and_default]
+2026-03-31 11:18:43.587882 INFO exportData.go:1319 partitions of all root table being exported: map[]
+2026-03-31 11:18:43.592006 INFO postgres.go:1668 Current wal_level: logical
+2026-03-31 11:18:43.597470 INFO exportData.go:855 All required permissions are present for the source database.
+2026-03-31 11:18:43.598974 INFO exportData.go:1973 initial all tables table list for data export: [public.test_table public.num_types public.decimal_types public.datatypes1 public.datetime_type public.datetime_type2 public.cutover_table public.tsvector_table public.datatypes2 public.null_and_default]
+2026-03-31 11:18:43.599010 INFO exportData.go:1977 finalizing table list by filtering empty tables and unsupported tables/columns
+2026-03-31 11:18:43.602590 INFO exportData.go:2010 final table list after filtering empty tables and unsupported tables/columns - [public.test_table public.num_types public.decimal_types public.datatypes1 public.datetime_type public.datetime_type2 public.cutover_table public.tsvector_table public.datatypes2 public.null_and_default]
+2026-03-31 11:18:43.602822 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.609525 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.609685 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.609794 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.609920 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.610075 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.610246 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.610372 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.610516 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.610661 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.610802 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.610986 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.611029 INFO logging.go:175 table list for data export: [public.test_table public.num_types public.decimal_types public.datatypes1 public.datetime_type public.datetime_type2 public.cutover_table public.tsvector_table public.datatypes2 public.null_and_default]
+2026-03-31 11:18:43.611171 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.611203 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.test_table'::regclass' approx row count of table "[CurrentName=(test_table) SourceName=(test_table) TargetName=()]"
+2026-03-31 11:18:43.611924 INFO postgres.go:229 Table "[CurrentName=(test_table) SourceName=(test_table) TargetName=()]" has approx {-1 true} rows.
+2026-03-31 11:18:43.611960 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.num_types'::regclass' approx row count of table "[CurrentName=(num_types) SourceName=(num_types) TargetName=()]"
+2026-03-31 11:18:43.612266 INFO postgres.go:229 Table "[CurrentName=(num_types) SourceName=(num_types) TargetName=()]" has approx {-1 true} rows.
+2026-03-31 11:18:43.612298 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.decimal_types'::regclass' approx row count of table "[CurrentName=(decimal_types) SourceName=(decimal_types) TargetName=()]"
+2026-03-31 11:18:43.612602 INFO postgres.go:229 Table "[CurrentName=(decimal_types) SourceName=(decimal_types) TargetName=()]" has approx {-1 true} rows.
+2026-03-31 11:18:43.612632 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.datatypes1'::regclass' approx row count of table "[CurrentName=(datatypes1) SourceName=(datatypes1) TargetName=()]"
+2026-03-31 11:18:43.612961 INFO postgres.go:229 Table "[CurrentName=(datatypes1) SourceName=(datatypes1) TargetName=()]" has approx {-1 true} rows.
+2026-03-31 11:18:43.612999 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.datetime_type'::regclass' approx row count of table "[CurrentName=(datetime_type) SourceName=(datetime_type) TargetName=()]"
+2026-03-31 11:18:43.613325 INFO postgres.go:229 Table "[CurrentName=(datetime_type) SourceName=(datetime_type) TargetName=()]" has approx {-1 true} rows.
+2026-03-31 11:18:43.613355 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.datetime_type2'::regclass' approx row count of table "[CurrentName=(datetime_type2) SourceName=(datetime_type2) TargetName=()]"
+2026-03-31 11:18:43.613645 INFO postgres.go:229 Table "[CurrentName=(datetime_type2) SourceName=(datetime_type2) TargetName=()]" has approx {-1 true} rows.
+2026-03-31 11:18:43.613674 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.cutover_table'::regclass' approx row count of table "[CurrentName=(cutover_table) SourceName=(cutover_table) TargetName=()]"
+2026-03-31 11:18:43.614008 INFO postgres.go:229 Table "[CurrentName=(cutover_table) SourceName=(cutover_table) TargetName=()]" has approx {-1 true} rows.
+2026-03-31 11:18:43.614044 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.tsvector_table'::regclass' approx row count of table "[CurrentName=(tsvector_table) SourceName=(tsvector_table) TargetName=()]"
+2026-03-31 11:18:43.614346 INFO postgres.go:229 Table "[CurrentName=(tsvector_table) SourceName=(tsvector_table) TargetName=()]" has approx {-1 true} rows.
+2026-03-31 11:18:43.614375 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.datatypes2'::regclass' approx row count of table "[CurrentName=(datatypes2) SourceName=(datatypes2) TargetName=()]"
+2026-03-31 11:18:43.614668 INFO postgres.go:229 Table "[CurrentName=(datatypes2) SourceName=(datatypes2) TargetName=()]" has approx {-1 true} rows.
+2026-03-31 11:18:43.614702 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.null_and_default'::regclass' approx row count of table "[CurrentName=(null_and_default) SourceName=(null_and_default) TargetName=()]"
+2026-03-31 11:18:43.615025 INFO postgres.go:229 Table "[CurrentName=(null_and_default) SourceName=(null_and_default) TargetName=()]" has approx {-1 true} rows.
+2026-03-31 11:18:43.615214 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.615374 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.615514 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.615652 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.615787 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.615939 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.616087 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.616219 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.616351 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.616484 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.616640 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.625217 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.629871 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.637137 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.637303 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.637424 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.637529 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.637635 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.637733 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.637844 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.637878 INFO postgres.go:920 getting unique key columns for tables: [[CurrentName=(test_table) SourceName=(test_table) TargetName=()] [CurrentName=(num_types) SourceName=(num_types) TargetName=()] [CurrentName=(decimal_types) SourceName=(decimal_types) TargetName=()] [CurrentName=(datatypes1) SourceName=(datatypes1) TargetName=()] [CurrentName=(datetime_type) SourceName=(datetime_type) TargetName=()] [CurrentName=(datetime_type2) SourceName=(datetime_type2) TargetName=()] [CurrentName=(cutover_table) SourceName=(cutover_table) TargetName=()] [CurrentName=(tsvector_table) SourceName=(tsvector_table) TargetName=()] [CurrentName=(datatypes2) SourceName=(datatypes2) TargetName=()] [CurrentName=(null_and_default) SourceName=(null_and_default) TargetName=()]]
+2026-03-31 11:18:43.637936 INFO postgres.go:934 query to get unique key columns: 
+WITH unique_constraints AS (
+	-- Retrieve columns with unique constraints
+    SELECT
+        tc.table_schema,
+        tc.table_name,
+        kcu.column_name
+    FROM
+        information_schema.table_constraints tc
+    JOIN
+        information_schema.key_column_usage kcu
+        ON tc.constraint_name = kcu.constraint_name
+        AND tc.table_schema = kcu.table_schema
+        AND tc.table_name = kcu.table_name
+    WHERE
+        tc.constraint_type = 'UNIQUE'
+        AND tc.table_schema = ANY('{public}')
+        AND tc.table_name = ANY('{test_table,num_types,decimal_types,datatypes1,datetime_type,datetime_type2,cutover_table,tsvector_table,datatypes2,null_and_default}')
+),
+unique_indexes AS (
+	-- Retrieve columns with unique indexes (excluding primary keys)
+    SELECT
+        n.nspname AS table_schema,
+        t.relname AS table_name,
+        a.attname AS column_name
+    FROM
+        pg_index ix
+	-- Join to get table and schema information from the index
+    JOIN
+        pg_class t ON t.oid = ix.indrelid
+    JOIN
+        pg_namespace n ON n.oid = t.relnamespace
+	-- Join to get column information
+    JOIN
+        pg_attribute a ON a.attrelid = t.oid 
+		AND a.attnum = ANY(ix.indkey)  -- Match indexed columns
+	 -- Left join to ensure we exclude primary keys by checking associated constraints
+    LEFT JOIN
+        pg_constraint c ON ix.indexrelid = c.conindid AND c.contype = 'p'
+    WHERE
+        ix.indisunique = TRUE
+		AND c.contype IS NULL -- Ensure it's not a primary key
+        AND n.nspname = ANY('{public}')
+        AND t.relname = ANY('{test_table,num_types,decimal_types,datatypes1,datetime_type,datetime_type2,cutover_table,tsvector_table,datatypes2,null_and_default}')
+)
+-- UNION will remove duplicate rows between unique constraints and unique indexes
+SELECT table_schema, table_name, column_name FROM unique_constraints
+UNION
+SELECT table_schema, table_name, column_name FROM unique_indexes;
+
+2026-03-31 11:18:43.642818 INFO postgres.go:969 unique key columns for tables: &{map[] map[]}
+2026-03-31 11:18:43.642863 INFO exportData.go:2208 updating metaDB with table to unique key columns map: &{map[] map[]}
+2026-03-31 11:18:43.642975 INFO metadataDB.go:299 No json object found for key: table_to_unique_key_columns_key_source_db_exporter
+2026-03-31 11:18:43.643002 INFO metadataDB.go:274 Inserting json object for key: table_to_unique_key_columns_key_source_db_exporter
+2026-03-31 11:18:43.649345 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.657499 INFO postgres.go:1048 dropping publication: voyager_dbz_publication_01037c22_e640_41e2_8b0b_c63fbd07dc6a
+2026-03-31 11:18:43.657744 INFO postgres.go:1050 drop publication result: {0xc000f32100 0}
+2026-03-31 11:18:43.660769 INFO postgres.go:1043 created publication with stmt CREATE PUBLICATION voyager_dbz_publication_01037c22_e640_41e2_8b0b_c63fbd07dc6a FOR TABLE "public"."test_table","public"."num_types","public"."decimal_types","public"."datatypes1","public"."datetime_type","public"."datetime_type2","public"."cutover_table","public"."tsvector_table","public"."datatypes2","public"."null_and_default";
+2026-03-31 11:18:43.660803 INFO postgres.go:984 dropping replication slot voyager_01037c22_e640_41e2_8b0b_c63fbd07dc6a if already exists
+2026-03-31 11:18:43.660822 INFO postgres.go:1010 dropping replication slot: voyager_01037c22_e640_41e2_8b0b_c63fbd07dc6a
+2026-03-31 11:18:43.661013 INFO postgres.go:991 creating replication slot voyager_01037c22_e640_41e2_8b0b_c63fbd07dc6a
+2026-03-31 11:18:43.682220 INFO logging.go:183 Created replication slot 'voyager_01037c22_e640_41e2_8b0b_c63fbd07dc6a' on source PG database. Be sure to run 'initiate cutover to target' or 'end migration' command after completing/aborting this migration to drop the replication slot. This is important to avoid filling up disk space.
+2026-03-31 11:18:43.682499 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.690980 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.691183 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.691355 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.691520 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.691700 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.691870 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.692059 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.692227 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.692389 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.692553 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.693020 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.693276 INFO exportData.go:1639 Export table metadata: (map[string]*utils.TableProgressMetadata) (len=10) {
+ (string) (len=24) "\"public\".\"cutover_table\"": (*utils.TableProgressMetadata)(0xc00056db00)({
+  TableName: (sqlname.NameTuple) [CurrentName=(cutover_table) SourceName=(cutover_table) TargetName=()],
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (sqlname.NameTuple) [CurrentName=() SourceName=() TargetName=()]
+ }),
+ (string) (len=21) "\"public\".\"datatypes2\"": (*utils.TableProgressMetadata)(0xc00056de00)({
+  TableName: (sqlname.NameTuple) [CurrentName=(datatypes2) SourceName=(datatypes2) TargetName=()],
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (sqlname.NameTuple) [CurrentName=() SourceName=() TargetName=()]
+ }),
+ (string) (len=20) "\"public\".\"num_types\"": (*utils.TableProgressMetadata)(0xc00056d280)({
+  TableName: (sqlname.NameTuple) [CurrentName=(num_types) SourceName=(num_types) TargetName=()],
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (sqlname.NameTuple) [CurrentName=() SourceName=() TargetName=()]
+ }),
+ (string) (len=24) "\"public\".\"decimal_types\"": (*utils.TableProgressMetadata)(0xc00056d480)({
+  TableName: (sqlname.NameTuple) [CurrentName=(decimal_types) SourceName=(decimal_types) TargetName=()],
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (sqlname.NameTuple) [CurrentName=() SourceName=() TargetName=()]
+ }),
+ (string) (len=25) "\"public\".\"tsvector_table\"": (*utils.TableProgressMetadata)(0xc00056dc80)({
+  TableName: (sqlname.NameTuple) [CurrentName=(tsvector_table) SourceName=(tsvector_table) TargetName=()],
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (sqlname.NameTuple) [CurrentName=() SourceName=() TargetName=()]
+ }),
+ (string) (len=27) "\"public\".\"null_and_default\"": (*utils.TableProgressMetadata)(0xc0009ec000)({
+  TableName: (sqlname.NameTuple) [CurrentName=(null_and_default) SourceName=(null_and_default) TargetName=()],
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (sqlname.NameTuple) [CurrentName=() SourceName=() TargetName=()]
+ }),
+ (string) (len=21) "\"public\".\"test_table\"": (*utils.TableProgressMetadata)(0xc00056d080)({
+  TableName: (sqlname.NameTuple) [CurrentName=(test_table) SourceName=(test_table) TargetName=()],
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (sqlname.NameTuple) [CurrentName=() SourceName=() TargetName=()]
+ }),
+ (string) (len=21) "\"public\".\"datatypes1\"": (*utils.TableProgressMetadata)(0xc00056d680)({
+  TableName: (sqlname.NameTuple) [CurrentName=(datatypes1) SourceName=(datatypes1) TargetName=()],
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (sqlname.NameTuple) [CurrentName=() SourceName=() TargetName=()]
+ }),
+ (string) (len=24) "\"public\".\"datetime_type\"": (*utils.TableProgressMetadata)(0xc00056d800)({
+  TableName: (sqlname.NameTuple) [CurrentName=(datetime_type) SourceName=(datetime_type) TargetName=()],
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (sqlname.NameTuple) [CurrentName=() SourceName=() TargetName=()]
+ }),
+ (string) (len=25) "\"public\".\"datetime_type2\"": (*utils.TableProgressMetadata)(0xc00056d980)({
+  TableName: (sqlname.NameTuple) [CurrentName=(datetime_type2) SourceName=(datetime_type2) TargetName=()],
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (sqlname.NameTuple) [CurrentName=() SourceName=() TargetName=()]
+ })
+}
+
+2026-03-31 11:18:43.693311 INFO logging.go:175 calculating approx num of rows to export for each table...
+2026-03-31 11:18:43.693340 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.cutover_table'::regclass' approx row count of table "[CurrentName=(cutover_table) SourceName=(cutover_table) TargetName=()]"
+2026-03-31 11:18:43.693722 INFO postgres.go:229 Table "[CurrentName=(cutover_table) SourceName=(cutover_table) TargetName=()]" has approx {-1 true} rows.
+2026-03-31 11:18:43.693760 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.datatypes1'::regclass' approx row count of table "[CurrentName=(datatypes1) SourceName=(datatypes1) TargetName=()]"
+2026-03-31 11:18:43.694017 INFO postgres.go:229 Table "[CurrentName=(datatypes1) SourceName=(datatypes1) TargetName=()]" has approx {-1 true} rows.
+2026-03-31 11:18:43.694046 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.datatypes2'::regclass' approx row count of table "[CurrentName=(datatypes2) SourceName=(datatypes2) TargetName=()]"
+2026-03-31 11:18:43.694288 INFO postgres.go:229 Table "[CurrentName=(datatypes2) SourceName=(datatypes2) TargetName=()]" has approx {-1 true} rows.
+2026-03-31 11:18:43.694317 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.datetime_type'::regclass' approx row count of table "[CurrentName=(datetime_type) SourceName=(datetime_type) TargetName=()]"
+2026-03-31 11:18:43.694552 INFO postgres.go:229 Table "[CurrentName=(datetime_type) SourceName=(datetime_type) TargetName=()]" has approx {-1 true} rows.
+2026-03-31 11:18:43.694591 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.datetime_type2'::regclass' approx row count of table "[CurrentName=(datetime_type2) SourceName=(datetime_type2) TargetName=()]"
+2026-03-31 11:18:43.694792 INFO postgres.go:229 Table "[CurrentName=(datetime_type2) SourceName=(datetime_type2) TargetName=()]" has approx {-1 true} rows.
+2026-03-31 11:18:43.694821 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.decimal_types'::regclass' approx row count of table "[CurrentName=(decimal_types) SourceName=(decimal_types) TargetName=()]"
+2026-03-31 11:18:43.695024 INFO postgres.go:229 Table "[CurrentName=(decimal_types) SourceName=(decimal_types) TargetName=()]" has approx {-1 true} rows.
+2026-03-31 11:18:43.695054 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.null_and_default'::regclass' approx row count of table "[CurrentName=(null_and_default) SourceName=(null_and_default) TargetName=()]"
+2026-03-31 11:18:43.695266 INFO postgres.go:229 Table "[CurrentName=(null_and_default) SourceName=(null_and_default) TargetName=()]" has approx {-1 true} rows.
+2026-03-31 11:18:43.695292 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.num_types'::regclass' approx row count of table "[CurrentName=(num_types) SourceName=(num_types) TargetName=()]"
+2026-03-31 11:18:43.695497 INFO postgres.go:229 Table "[CurrentName=(num_types) SourceName=(num_types) TargetName=()]" has approx {-1 true} rows.
+2026-03-31 11:18:43.695534 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.test_table'::regclass' approx row count of table "[CurrentName=(test_table) SourceName=(test_table) TargetName=()]"
+2026-03-31 11:18:43.695752 INFO postgres.go:229 Table "[CurrentName=(test_table) SourceName=(test_table) TargetName=()]" has approx {-1 true} rows.
+2026-03-31 11:18:43.695786 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.tsvector_table'::regclass' approx row count of table "[CurrentName=(tsvector_table) SourceName=(tsvector_table) TargetName=()]"
+2026-03-31 11:18:43.695988 INFO postgres.go:229 Table "[CurrentName=(tsvector_table) SourceName=(tsvector_table) TargetName=()]" has approx {-1 true} rows.
+2026-03-31 11:18:43.696203 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:43.729291 INFO pg_dump.go:62 Using base pg_dump arguments file: /etc/yb-voyager/pg_dump-args.ini
+2026-03-31 11:18:43.729559 INFO pg_dump_export_data.go:61 Running command: /usr/bin/pg_dump 'postgresql://ybvoyager@127.0.0.1:5432/test_db'  --data-only --no-blobs --compress=0 --table='"public"."test_table"' --table='"public"."num_types"' --table='"public"."decimal_types"' --table='"public"."datatypes1"' --table='"public"."datetime_type"' --table='"public"."datetime_type2"' --table='"public"."cutover_table"' --table='"public"."tsvector_table"' --table='"public"."datatypes2"' --table='"public"."null_and_default"' --table='"public"."datetime_type2_id_seq"' --table='"public"."num_types_id_seq"' --table='"public"."tsvector_table_id_seq"' --table='"public"."cutover_table_id_seq"' --table='"public"."datatypes1_id_seq"' --table='"public"."datatypes2_id_seq"' --table='"public"."datetime_type_id_seq"' --format=directory --file=/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data --jobs=4 --no-owner --no-privileges --no-tablespaces --load-via-partition-root --snapshot=00000074-00068523-1
+2026-03-31 11:18:43.729843 INFO logging.go:175 Data export started.
+2026-03-31 11:18:46.730512 INFO pg_dump_export_data.go:105 toc.dat file successfully created.
+2026-03-31 11:18:47.802003 INFO common.go:146 cmd: /usr/bin/pg_restore -l /home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data
+2026-03-31 11:18:47.802090 INFO common.go:147 output: ;
+; Archive created at 2026-03-31 11:18:43 UTC
+;     dbname: test_db
+;     TOC Entries: 21
+;     Compression: none
+;     Dump Version: 1.16-0
+;     Format: DIRECTORY
+;     Integer: 4 bytes
+;     Offset: 8 bytes
+;     Dumped from database version: 17.8 (Ubuntu 17.8-1.pgdg22.04+1)
+;     Dumped by pg_dump version: 17.9 (Ubuntu 17.9-1.pgdg22.04+1)
+;
+;
+; Selected TOC Entries:
+;
+3417; 0 65964 TABLE DATA public cutover_table postgres
+3406; 0 65912 TABLE DATA public datatypes1 postgres
+3412; 0 65936 TABLE DATA public datatypes2 postgres
+3408; 0 65921 TABLE DATA public datetime_type postgres
+3410; 0 65929 TABLE DATA public datetime_type2 postgres
+3404; 0 65891 TABLE DATA public decimal_types postgres
+3413; 0 65944 TABLE DATA public null_and_default postgres
+3403; 0 65885 TABLE DATA public num_types postgres
+3401; 0 65879 TABLE DATA public test_table postgres
+3415; 0 65955 TABLE DATA public tsvector_table postgres
+3424; 0 0 SEQUENCE SET public cutover_table_id_seq postgres
+3425; 0 0 SEQUENCE SET public datatypes1_id_seq postgres
+3426; 0 0 SEQUENCE SET public datatypes2_id_seq postgres
+3427; 0 0 SEQUENCE SET public datetime_type2_id_seq postgres
+3428; 0 0 SEQUENCE SET public datetime_type_id_seq postgres
+3429; 0 0 SEQUENCE SET public num_types_id_seq postgres
+3430; 0 0 SEQUENCE SET public tsvector_table_id_seq postgres
+
+2026-03-31 11:18:47.802581 INFO common.go:126 After updating data file paths, TablesProgressMetadata:&{TableName:[CurrentName=(cutover_table) SourceName=(cutover_table) TargetName=()] InProgressFilePath:/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/3417.dat FinalFilePath:/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/cutover_table_data.sql Status:0 CountLiveRows:0 CountTotalRows:-1 FileOffsetToContinue:0 IsPartition:false ParentTable:[CurrentName=() SourceName=() TargetName=()]}
+&{TableName:[CurrentName=(datatypes1) SourceName=(datatypes1) TargetName=()] InProgressFilePath:/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/3406.dat FinalFilePath:/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/datatypes1_data.sql Status:0 CountLiveRows:0 CountTotalRows:-1 FileOffsetToContinue:0 IsPartition:false ParentTable:[CurrentName=() SourceName=() TargetName=()]}
+&{TableName:[CurrentName=(datatypes2) SourceName=(datatypes2) TargetName=()] InProgressFilePath:/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/3412.dat FinalFilePath:/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/datatypes2_data.sql Status:0 CountLiveRows:0 CountTotalRows:-1 FileOffsetToContinue:0 IsPartition:false ParentTable:[CurrentName=() SourceName=() TargetName=()]}
+&{TableName:[CurrentName=(datetime_type) SourceName=(datetime_type) TargetName=()] InProgressFilePath:/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/3408.dat FinalFilePath:/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/datetime_type_data.sql Status:0 CountLiveRows:0 CountTotalRows:-1 FileOffsetToContinue:0 IsPartition:false ParentTable:[CurrentName=() SourceName=() TargetName=()]}
+&{TableName:[CurrentName=(datetime_type2) SourceName=(datetime_type2) TargetName=()] InProgressFilePath:/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/3410.dat FinalFilePath:/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/datetime_type2_data.sql Status:0 CountLiveRows:0 CountTotalRows:-1 FileOffsetToContinue:0 IsPartition:false ParentTable:[CurrentName=() SourceName=() TargetName=()]}
+&{TableName:[CurrentName=(decimal_types) SourceName=(decimal_types) TargetName=()] InProgressFilePath:/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/3404.dat FinalFilePath:/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/decimal_types_data.sql Status:0 CountLiveRows:0 CountTotalRows:-1 FileOffsetToContinue:0 IsPartition:false ParentTable:[CurrentName=() SourceName=() TargetName=()]}
+&{TableName:[CurrentName=(null_and_default) SourceName=(null_and_default) TargetName=()] InProgressFilePath:/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/3413.dat FinalFilePath:/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/null_and_default_data.sql Status:0 CountLiveRows:0 CountTotalRows:-1 FileOffsetToContinue:0 IsPartition:false ParentTable:[CurrentName=() SourceName=() TargetName=()]}
+&{TableName:[CurrentName=(num_types) SourceName=(num_types) TargetName=()] InProgressFilePath:/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/3403.dat FinalFilePath:/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/num_types_data.sql Status:0 CountLiveRows:0 CountTotalRows:-1 FileOffsetToContinue:0 IsPartition:false ParentTable:[CurrentName=() SourceName=() TargetName=()]}
+&{TableName:[CurrentName=(test_table) SourceName=(test_table) TargetName=()] InProgressFilePath:/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/3401.dat FinalFilePath:/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/test_table_data.sql Status:0 CountLiveRows:0 CountTotalRows:-1 FileOffsetToContinue:0 IsPartition:false ParentTable:[CurrentName=() SourceName=() TargetName=()]}
+&{TableName:[CurrentName=(tsvector_table) SourceName=(tsvector_table) TargetName=()] InProgressFilePath:/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/3415.dat FinalFilePath:/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/tsvector_table_data.sql Status:0 CountLiveRows:0 CountTotalRows:-1 FileOffsetToContinue:0 IsPartition:false ParentTable:[CurrentName=() SourceName=() TargetName=()]}
+
+2026-03-31 11:18:47.802853 INFO postgres.go:209 Querying row count of table "[CurrentName=(tsvector_table) SourceName=(tsvector_table) TargetName=()]"
+2026-03-31 11:18:47.802862 INFO postgres.go:209 Querying row count of table "[CurrentName=(datatypes2) SourceName=(datatypes2) TargetName=()]"
+2026-03-31 11:18:47.802928 INFO postgres.go:209 Querying row count of table "[CurrentName=(datetime_type2) SourceName=(datetime_type2) TargetName=()]"
+2026-03-31 11:18:47.802997 INFO postgres.go:209 Querying row count of table "[CurrentName=(null_and_default) SourceName=(null_and_default) TargetName=()]"
+2026-03-31 11:18:47.802858 INFO postgres.go:209 Querying row count of table "[CurrentName=(decimal_types) SourceName=(decimal_types) TargetName=()]"
+2026-03-31 11:18:47.802918 INFO postgres.go:209 Querying row count of table "[CurrentName=(datetime_type) SourceName=(datetime_type) TargetName=()]"
+2026-03-31 11:18:47.803140 INFO postgres.go:209 Querying row count of table "[CurrentName=(cutover_table) SourceName=(cutover_table) TargetName=()]"
+2026-03-31 11:18:47.803156 INFO postgres.go:209 Querying row count of table "[CurrentName=(num_types) SourceName=(num_types) TargetName=()]"
+2026-03-31 11:18:47.803161 INFO postgres.go:209 Querying row count of table "[CurrentName=(datatypes1) SourceName=(datatypes1) TargetName=()]"
+2026-03-31 11:18:47.803194 INFO postgres.go:209 Querying row count of table "[CurrentName=(test_table) SourceName=(test_table) TargetName=()]"
+2026-03-31 11:18:47.804117 INFO postgres.go:214 Table "[CurrentName=(tsvector_table) SourceName=(tsvector_table) TargetName=()]" has 17 rows.
+2026-03-31 11:18:47.804151 INFO exportDataStatus.go:212 Replacing actualRowCount=17 inplace of expectedRowCount=-1 for table="public"."tsvector_table"
+2026-03-31 11:18:47.804613 INFO postgres.go:214 Table "[CurrentName=(decimal_types) SourceName=(decimal_types) TargetName=()]" has 23 rows.
+2026-03-31 11:18:47.804645 INFO exportDataStatus.go:212 Replacing actualRowCount=23 inplace of expectedRowCount=-1 for table="public"."decimal_types"
+2026-03-31 11:18:47.805230 INFO postgres.go:214 Table "[CurrentName=(test_table) SourceName=(test_table) TargetName=()]" has 35 rows.
+2026-03-31 11:18:47.805262 INFO exportDataStatus.go:212 Replacing actualRowCount=35 inplace of expectedRowCount=-1 for table="public"."test_table"
+2026-03-31 11:18:47.806591 INFO postgres.go:214 Table "[CurrentName=(num_types) SourceName=(num_types) TargetName=()]" has 15 rows.
+2026-03-31 11:18:47.806625 INFO exportDataStatus.go:212 Replacing actualRowCount=15 inplace of expectedRowCount=-1 for table="public"."num_types"
+2026-03-31 11:18:47.807784 INFO postgres.go:214 Table "[CurrentName=(datetime_type) SourceName=(datetime_type) TargetName=()]" has 27 rows.
+2026-03-31 11:18:47.807815 INFO exportDataStatus.go:212 Replacing actualRowCount=27 inplace of expectedRowCount=-1 for table="public"."datetime_type"
+2026-03-31 11:18:47.808844 INFO postgres.go:214 Table "[CurrentName=(cutover_table) SourceName=(cutover_table) TargetName=()]" has 0 rows.
+2026-03-31 11:18:47.808871 INFO exportDataStatus.go:212 Replacing actualRowCount=0 inplace of expectedRowCount=-1 for table="public"."cutover_table"
+2026-03-31 11:18:47.809980 INFO postgres.go:214 Table "[CurrentName=(datatypes1) SourceName=(datatypes1) TargetName=()]" has 13 rows.
+2026-03-31 11:18:47.810014 INFO exportDataStatus.go:212 Replacing actualRowCount=13 inplace of expectedRowCount=-1 for table="public"."datatypes1"
+2026-03-31 11:18:47.821390 INFO postgres.go:214 Table "[CurrentName=(datetime_type2) SourceName=(datetime_type2) TargetName=()]" has 28 rows.
+2026-03-31 11:18:47.821422 INFO exportDataStatus.go:212 Replacing actualRowCount=28 inplace of expectedRowCount=-1 for table="public"."datetime_type2"
+2026-03-31 11:18:47.823740 INFO postgres.go:214 Table "[CurrentName=(null_and_default) SourceName=(null_and_default) TargetName=()]" has 32 rows.
+2026-03-31 11:18:47.823777 INFO exportDataStatus.go:212 Replacing actualRowCount=32 inplace of expectedRowCount=-1 for table="public"."null_and_default"
+2026-03-31 11:18:47.825722 INFO postgres.go:214 Table "[CurrentName=(datatypes2) SourceName=(datatypes2) TargetName=()]" has 26 rows.
+2026-03-31 11:18:47.825758 INFO exportDataStatus.go:212 Replacing actualRowCount=26 inplace of expectedRowCount=-1 for table="public"."datatypes2"
+2026-03-31 11:18:49.803851 INFO pg_dump_export_data.go:146 Renaming "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/3401.dat" -> "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/test_table_data.sql"
+2026-03-31 11:18:49.803957 INFO pg_dump_export_data.go:146 Renaming "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/3406.dat" -> "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/datatypes1_data.sql"
+2026-03-31 11:18:49.804005 INFO pg_dump_export_data.go:146 Renaming "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/3408.dat" -> "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/datetime_type_data.sql"
+2026-03-31 11:18:49.804046 INFO pg_dump_export_data.go:146 Renaming "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/3410.dat" -> "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/datetime_type2_data.sql"
+2026-03-31 11:18:49.804087 INFO pg_dump_export_data.go:146 Renaming "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/3417.dat" -> "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/cutover_table_data.sql"
+2026-03-31 11:18:49.804138 INFO pg_dump_export_data.go:146 Renaming "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/3412.dat" -> "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/datatypes2_data.sql"
+2026-03-31 11:18:49.804177 INFO pg_dump_export_data.go:146 Renaming "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/3403.dat" -> "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/num_types_data.sql"
+2026-03-31 11:18:49.804217 INFO pg_dump_export_data.go:146 Renaming "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/3404.dat" -> "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/decimal_types_data.sql"
+2026-03-31 11:18:49.804264 INFO pg_dump_export_data.go:146 Renaming "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/3415.dat" -> "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/tsvector_table_data.sql"
+2026-03-31 11:18:49.804303 INFO pg_dump_export_data.go:146 Renaming "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/3413.dat" -> "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/null_and_default_data.sql"
+2026-03-31 11:18:49.804544 INFO postgres.go:470 columns list for table [CurrentName=(null_and_default) SourceName=(null_and_default) TargetName=()]: [id b i val]
+2026-03-31 11:18:49.804721 INFO postgres.go:470 columns list for table [CurrentName=(test_table) SourceName=(test_table) TargetName=()]: [id name]
+2026-03-31 11:18:49.804824 INFO postgres.go:470 columns list for table [CurrentName=(datatypes1) SourceName=(datatypes1) TargetName=()]: [id bool_type char_type1 varchar_type byte_type enum_type]
+2026-03-31 11:18:49.804979 INFO postgres.go:470 columns list for table [CurrentName=(datetime_type) SourceName=(datetime_type) TargetName=()]: [id v1 v2 v3 v4]
+2026-03-31 11:18:49.805108 INFO postgres.go:470 columns list for table [CurrentName=(datetime_type2) SourceName=(datetime_type2) TargetName=()]: [id v1]
+2026-03-31 11:18:49.805201 INFO postgres.go:470 columns list for table [CurrentName=(cutover_table) SourceName=(cutover_table) TargetName=()]: [id status]
+2026-03-31 11:18:49.805318 INFO postgres.go:470 columns list for table [CurrentName=(datatypes2) SourceName=(datatypes2) TargetName=()]: [id v1 v2 v3 v5]
+2026-03-31 11:18:49.805469 INFO postgres.go:470 columns list for table [CurrentName=(num_types) SourceName=(num_types) TargetName=()]: [id v1 v2 v3 v4 v6]
+2026-03-31 11:18:49.805605 INFO postgres.go:470 columns list for table [CurrentName=(decimal_types) SourceName=(decimal_types) TargetName=()]: [id n1 n2]
+2026-03-31 11:18:49.805780 INFO postgres.go:470 columns list for table [CurrentName=(tsvector_table) SourceName=(tsvector_table) TargetName=()]: [id title content title_tsv content_tsv]
+2026-03-31 11:18:49.805806 INFO descriptor.go:96 storing DataFileDescriptor at "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/metainfo/dataFileDescriptor.json"
+2026-03-31 11:18:49.806060 INFO descriptor.go:69 loading DataFileDescriptor from "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/metainfo/dataFileDescriptor.json"
+2026-03-31 11:18:49.806488 INFO common.go:355 Parsed DataFileDescriptor: (*datafile.Descriptor)(0xc0008c3d50)({
+ FileFormat: (string) (len=4) "text",
+ Delimiter: (string) (len=1) "\t",
+ HasHeader: (bool) false,
+ ExportDir: (string) (len=100) "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir",
+ QuoteChar: (uint8) 0,
+ EscapeChar: (uint8) 0,
+ NullString: (string) (len=2) "\\N",
+ DataFileList: ([]*datafile.FileEntry) (len=10 cap=16) {
+  (*datafile.FileEntry)(0xc000bc4330)({
+   FilePath: (string) (len=125) "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/test_table_data.sql",
+   TableName: (string) (len=21) "\"public\".\"test_table\"",
+   RowCount: (int64) 0,
+   FileSize: (int64) -1
+  }),
+  (*datafile.FileEntry)(0xc000bc4360)({
+   FilePath: (string) (len=125) "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/datatypes1_data.sql",
+   TableName: (string) (len=21) "\"public\".\"datatypes1\"",
+   RowCount: (int64) 0,
+   FileSize: (int64) -1
+  }),
+  (*datafile.FileEntry)(0xc000bc4390)({
+   FilePath: (string) (len=128) "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/datetime_type_data.sql",
+   TableName: (string) (len=24) "\"public\".\"datetime_type\"",
+   RowCount: (int64) 0,
+   FileSize: (int64) -1
+  }),
+  (*datafile.FileEntry)(0xc000bc43c0)({
+   FilePath: (string) (len=129) "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/datetime_type2_data.sql",
+   TableName: (string) (len=25) "\"public\".\"datetime_type2\"",
+   RowCount: (int64) 0,
+   FileSize: (int64) -1
+  }),
+  (*datafile.FileEntry)(0xc000bc43f0)({
+   FilePath: (string) (len=128) "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/cutover_table_data.sql",
+   TableName: (string) (len=24) "\"public\".\"cutover_table\"",
+   RowCount: (int64) 0,
+   FileSize: (int64) -1
+  }),
+  (*datafile.FileEntry)(0xc000bc4420)({
+   FilePath: (string) (len=125) "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/datatypes2_data.sql",
+   TableName: (string) (len=21) "\"public\".\"datatypes2\"",
+   RowCount: (int64) 0,
+   FileSize: (int64) -1
+  }),
+  (*datafile.FileEntry)(0xc000bc4450)({
+   FilePath: (string) (len=124) "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/num_types_data.sql",
+   TableName: (string) (len=20) "\"public\".\"num_types\"",
+   RowCount: (int64) 0,
+   FileSize: (int64) -1
+  }),
+  (*datafile.FileEntry)(0xc000bc4480)({
+   FilePath: (string) (len=128) "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/decimal_types_data.sql",
+   TableName: (string) (len=24) "\"public\".\"decimal_types\"",
+   RowCount: (int64) 0,
+   FileSize: (int64) -1
+  }),
+  (*datafile.FileEntry)(0xc000bc44b0)({
+   FilePath: (string) (len=129) "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/tsvector_table_data.sql",
+   TableName: (string) (len=25) "\"public\".\"tsvector_table\"",
+   RowCount: (int64) 0,
+   FileSize: (int64) -1
+  }),
+  (*datafile.FileEntry)(0xc000bc44e0)({
+   FilePath: (string) (len=131) "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/null_and_default_data.sql",
+   TableName: (string) (len=27) "\"public\".\"null_and_default\"",
+   RowCount: (int64) 0,
+   FileSize: (int64) -1
+  })
+ },
+ TableNameToExportedColumns: (map[string][]string) (len=10) {
+  (string) (len=21) "\"public\".\"datatypes2\"": ([]string) (len=5 cap=8) {
+   (string) (len=2) "id",
+   (string) (len=2) "v1",
+   (string) (len=2) "v2",
+   (string) (len=2) "v3",
+   (string) (len=2) "v5"
+  },
+  (string) (len=24) "\"public\".\"datetime_type\"": ([]string) (len=5 cap=8) {
+   (string) (len=2) "id",
+   (string) (len=2) "v1",
+   (string) (len=2) "v2",
+   (string) (len=2) "v3",
+   (string) (len=2) "v4"
+  },
+  (string) (len=27) "\"public\".\"null_and_default\"": ([]string) (len=4 cap=4) {
+   (string) (len=2) "id",
+   (string) (len=1) "b",
+   (string) (len=1) "i",
+   (string) (len=3) "val"
+  },
+  (string) (len=20) "\"public\".\"num_types\"": ([]string) (len=6 cap=8) {
+   (string) (len=2) "id",
+   (string) (len=2) "v1",
+   (string) (len=2) "v2",
+   (string) (len=2) "v3",
+   (string) (len=2) "v4",
+   (string) (len=2) "v6"
+  },
+  (string) (len=21) "\"public\".\"test_table\"": ([]string) (len=2 cap=2) {
+   (string) (len=2) "id",
+   (string) (len=4) "name"
+  },
+  (string) (len=25) "\"public\".\"tsvector_table\"": ([]string) (len=5 cap=8) {
+   (string) (len=2) "id",
+   (string) (len=5) "title",
+   (string) (len=7) "content",
+   (string) (len=9) "title_tsv",
+   (string) (len=11) "content_tsv"
+  },
+  (string) (len=21) "\"public\".\"datatypes1\"": ([]string) (len=6 cap=8) {
+   (string) (len=2) "id",
+   (string) (len=9) "bool_type",
+   (string) (len=10) "char_type1",
+   (string) (len=12) "varchar_type",
+   (string) (len=9) "byte_type",
+   (string) (len=9) "enum_type"
+  },
+  (string) (len=25) "\"public\".\"datetime_type2\"": ([]string) (len=2 cap=2) {
+   (string) (len=2) "id",
+   (string) (len=2) "v1"
+  },
+  (string) (len=24) "\"public\".\"decimal_types\"": ([]string) (len=3 cap=4) {
+   (string) (len=2) "id",
+   (string) (len=2) "n1",
+   (string) (len=2) "n2"
+  },
+  (string) (len=24) "\"public\".\"cutover_table\"": ([]string) (len=2 cap=2) {
+   (string) (len=2) "id",
+   (string) (len=6) "status"
+  }
+ }
+})
+
+2026-03-31 11:18:49.806766 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:49.806982 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:49.807170 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:49.807337 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:49.807503 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:49.807665 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:49.807820 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:49.808004 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:49.808182 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:49.808350 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:49.808517 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:49.808675 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:49.808845 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:49.809030 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:49.809199 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:49.809371 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:49.809541 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:49.809706 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:49.809861 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:49.810043 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:49.810074 INFO descriptor.go:96 storing DataFileDescriptor at "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/metainfo/dataFileDescriptor.json"
+2026-03-31 11:18:49.810384 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:49.810557 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:49.810584 INFO descriptor.go:69 loading DataFileDescriptor from "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/metainfo/dataFileDescriptor.json"
+2026-03-31 11:18:49.811648 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:49.818107 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:49.819962 INFO config.go:316 QUEUE_SEGMENT_MAX_BYTES: 1048576
+2026-03-31 11:18:49.820225 INFO config.go:324 using port number 34759 for quarkus http server
+2026-03-31 11:18:49.820423 INFO dbzm.go:120 starting debezium...
+2026-03-31 11:18:49.820455 INFO dbzm.go:128 Setting TNS_ADMIN=
+2026-03-31 11:18:49.820479 INFO dbzm.go:133 Setting oracle wallet location=
+2026-03-31 11:18:49.820766 INFO dbzm.go:146 Debezium started successfully with pid = 704082
+2026-03-31 11:18:49.821029 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:51.828692 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:18:51.837971 INFO logging.go:86 streaming changes to a local queue file...
+
+2026-03-31 11:19:06.374642 INFO logging.go:175 
+Received signal terminated. Exiting...
+2026-03-31 11:19:06.382703 INFO common.go:955 Cleaning up child processes...
+2026-03-31 11:19:06.382753 INFO common.go:959 shutting down child pid 704082
+2026-03-31 11:19:06.382782 INFO common.go:982 sending signal=terminated to process with PID=704082
+2026-03-31 11:19:07.044346 ERROR dbzm.go:153 Debezium exited with: exit status 143
+2026-03-31 11:19:07.362597 ERROR exportData.go:645 Failed to start debezium: failed to export data using debezium: debezium failed with error: exit status 143
+2026-03-31 11:19:07.362862 INFO exportData.go:207 Shutting down as SIGINT/SIGTERM received.
+2026-03-31 11:19:08.382955 INFO common.go:1002 process with PID=704082 is stopped
+2026-03-31 11:19:08.383008 INFO common.go:964 shut down child pid 704082
+2026-03-31 11:19:08.383074 INFO common.go:86 End time: 2026-03-31 11:19:08.38304123 +0000 UTC m=+25.030644266
+
+2026-03-31 11:19:08.383097 INFO common.go:88 Time taken: 24.977830654s (24.98 seconds)
+
+2026-03-31 11:19:14.452541 INFO logging.go:74 Logging initialised.
+2026-03-31 11:19:14.452667 INFO logging.go:76 Args: [yb-voyager export data --yes --export-dir /home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --source-db-type postgresql --source-db-host 127.0.0.1 --source-db-port 5432 --source-db-user ybvoyager --source-db-password XXX --source-db-name test_db --source-db-schema public --export-type snapshot-and-changes --disable-pb true]
+2026-03-31 11:19:14.452769 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=72a0600deec0c9bc5d2f200955df938b636fc8a6
+LAST_COMMIT_DATE=2026-03-26T05:11:07Z
+
+2026-03-31 11:19:14.453760 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.454038 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-31 11:19:14.454579 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-31 11:19:14.455013 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.455293 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.455449 INFO logging.go:74 Logging initialised.
+2026-03-31 11:19:14.455530 INFO logging.go:76 Args: [yb-voyager export data --yes --export-dir /home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir --send-diagnostics false --source-db-type postgresql --source-db-host 127.0.0.1 --source-db-port 5432 --source-db-user ybvoyager --source-db-password XXX --source-db-name test_db --source-db-schema public --export-type snapshot-and-changes --disable-pb true]
+2026-03-31 11:19:14.455669 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=72a0600deec0c9bc5d2f200955df938b636fc8a6
+LAST_COMMIT_DATE=2026-03-26T05:11:07Z
+
+2026-03-31 11:19:14.455708 INFO root.go:164 Start time: 2026-03-31 11:19:14.455699436 +0000 UTC m=+0.055580336
+
+2026-03-31 11:19:14.456381 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.457531 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-31 11:19:14.457937 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-31 11:19:14.458226 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.458406 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.458453 INFO root.go:532 'control-plane-type' not set. Setting cp to NoopControlPlane.
+2026-03-31 11:19:14.458472 INFO root.go:210 Environment variable 'QUEUE_SEGMENT_MAX_BYTES' already set with value '1048576'
+
+2026-03-31 11:19:14.458504 INFO common.go:464 Creating a project directory if not exists...
+2026-03-31 11:19:14.474102 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.474302 INFO metadataDB.go:309 Found json object for key: import_data_status
+2026-03-31 11:19:14.474437 INFO metadataDB.go:309 Found json object for key: import_data_file_status
+2026-03-31 11:19:14.474702 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.474913 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.474953 INFO logging.go:86 migrationID: 01037c22-e640-41e2-8b0b-c63fbd07dc6a
+
+2026-03-31 11:19:14.475134 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.475162 WARN logging.go:89 
+Important: The following limitations apply to live migration:
+
+2026-03-31 11:19:14.475187 WARN logging.go:89   1. Schema modifications(for example, adding/droping columns, creating/deleting tables, adding/deleting partitions etc) on the source and target databases are not supported during live migration.
+
+2026-03-31 11:19:14.475201 WARN logging.go:89   2. Primary Key or Unique Key columns should be identical between source and target databases.
+
+2026-03-31 11:19:14.475213 WARN logging.go:89   3. TRUNCATE operations on source database tables are not automatically replicated to the target database.
+
+2026-03-31 11:19:14.475226 WARN logging.go:89   4. Sequences that are not associated with any column or are attached to columns of non-integer types are not supported for automatic value generation resumption. These sequences must be manually resumed during the cutover phase.
+
+2026-03-31 11:19:14.475238 WARN logging.go:89   5. Tables without a Primary Key are not supported for live migration.
+
+
+2026-03-31 11:19:14.475251 INFO logging.go:175 export of data for source type as 'postgresql'
+2026-03-31 11:19:14.475458 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.580014 INFO utils.go:783 Found strings at /usr/bin/strings
+2026-03-31 11:19:14.611815 INFO postgres.go:642 Total size of all PG sourceDB schemas ('public'): 2859008
+2026-03-31 11:19:14.612493 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.612523 INFO exportData.go:1736 clearing migration state if required: false
+2026-03-31 11:19:14.612644 INFO logging.go:175 Continuing streaming from where we left off...
+2026-03-31 11:19:14.612676 INFO namereg.go:80 Initializing name registry with params - {/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/metainfo/name_registry.json source_db_exporter postgresql [public] test_db 0xc0008efe10 [] <nil>}
+2026-03-31 11:19:14.612702 INFO namereg.go:93 initialising name registry: /home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/metainfo/name_registry.json
+2026-03-31 11:19:14.612806 INFO namereg.go:142 no name registry update required: mode "source_db_exporter"
+2026-03-31 11:19:14.613748 INFO exportData.go:1855 Source database charset: "UTF8"
+2026-03-31 11:19:14.614027 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.622604 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.622983 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.623018 INFO exportData.go:1408 retrieving first run list and partitions root map
+2026-03-31 11:19:14.623041 INFO exportData.go:1360 stored table list from meta db - [public.test_table public.num_types public.decimal_types public.datatypes1 public.datetime_type public.datetime_type2 public.cutover_table public.tsvector_table public.datatypes2 public.null_and_default]
+2026-03-31 11:19:14.628303 INFO exportData.go:1257 keeping only leaf and root tables in full table list - [public.test_table public.num_types public.decimal_types public.datatypes1 public.datetime_type public.datetime_type2 public.cutover_table public.tsvector_table public.datatypes2 public.null_and_default]
+2026-03-31 11:19:14.636419 INFO exportData.go:1264 filtered full table list and added leaf tables - [public.test_table public.num_types public.decimal_types public.datatypes1 public.datetime_type public.datetime_type2 public.cutover_table public.tsvector_table public.datatypes2 public.null_and_default]
+2026-03-31 11:19:14.639812 INFO postgres.go:1668 Current wal_level: logical
+2026-03-31 11:19:14.644027 INFO exportData.go:855 All required permissions are present for the source database.
+2026-03-31 11:19:14.644976 INFO exportData.go:1973 initial all tables table list for data export: [public.test_table public.num_types public.decimal_types public.datatypes1 public.datetime_type public.datetime_type2 public.cutover_table public.tsvector_table public.datatypes2 public.null_and_default]
+2026-03-31 11:19:14.645006 INFO exportData.go:1977 finalizing table list by filtering empty tables and unsupported tables/columns
+2026-03-31 11:19:14.648069 INFO exportData.go:2010 final table list after filtering empty tables and unsupported tables/columns - [public.test_table public.num_types public.decimal_types public.datatypes1 public.datetime_type public.datetime_type2 public.cutover_table public.tsvector_table public.datatypes2 public.null_and_default]
+2026-03-31 11:19:14.648409 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.648741 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.648914 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.649069 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.649228 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.649362 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.649504 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.649644 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.649830 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.649978 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.650130 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.650279 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.650314 INFO logging.go:175 table list for data export: [public.test_table public.num_types public.decimal_types public.datatypes1 public.datetime_type public.datetime_type2 public.cutover_table public.tsvector_table public.datatypes2 public.null_and_default]
+2026-03-31 11:19:14.650508 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.650537 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.test_table'::regclass' approx row count of table "[CurrentName=(test_table) SourceName=(test_table) TargetName=(test_table)]"
+2026-03-31 11:19:14.651087 INFO postgres.go:229 Table "[CurrentName=(test_table) SourceName=(test_table) TargetName=(test_table)]" has approx {234 true} rows.
+2026-03-31 11:19:14.651119 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.num_types'::regclass' approx row count of table "[CurrentName=(num_types) SourceName=(num_types) TargetName=(num_types)]"
+2026-03-31 11:19:14.651455 INFO postgres.go:229 Table "[CurrentName=(num_types) SourceName=(num_types) TargetName=(num_types)]" has approx {240 true} rows.
+2026-03-31 11:19:14.651482 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.decimal_types'::regclass' approx row count of table "[CurrentName=(decimal_types) SourceName=(decimal_types) TargetName=(decimal_types)]"
+2026-03-31 11:19:14.651804 INFO postgres.go:229 Table "[CurrentName=(decimal_types) SourceName=(decimal_types) TargetName=(decimal_types)]" has approx {208 true} rows.
+2026-03-31 11:19:14.651841 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.datatypes1'::regclass' approx row count of table "[CurrentName=(datatypes1) SourceName=(datatypes1) TargetName=(datatypes1)]"
+2026-03-31 11:19:14.652209 INFO postgres.go:229 Table "[CurrentName=(datatypes1) SourceName=(datatypes1) TargetName=(datatypes1)]" has approx {204 true} rows.
+2026-03-31 11:19:14.652265 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.datetime_type'::regclass' approx row count of table "[CurrentName=(datetime_type) SourceName=(datetime_type) TargetName=(datetime_type)]"
+2026-03-31 11:19:14.652572 INFO postgres.go:229 Table "[CurrentName=(datetime_type) SourceName=(datetime_type) TargetName=(datetime_type)]" has approx {261 true} rows.
+2026-03-31 11:19:14.652600 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.datetime_type2'::regclass' approx row count of table "[CurrentName=(datetime_type2) SourceName=(datetime_type2) TargetName=(datetime_type2)]"
+2026-03-31 11:19:14.652906 INFO postgres.go:229 Table "[CurrentName=(datetime_type2) SourceName=(datetime_type2) TargetName=(datetime_type2)]" has approx {216 true} rows.
+2026-03-31 11:19:14.652930 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.cutover_table'::regclass' approx row count of table "[CurrentName=(cutover_table) SourceName=(cutover_table) TargetName=(cutover_table)]"
+2026-03-31 11:19:14.653244 INFO postgres.go:229 Table "[CurrentName=(cutover_table) SourceName=(cutover_table) TargetName=(cutover_table)]" has approx {0 true} rows.
+2026-03-31 11:19:14.653270 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.tsvector_table'::regclass' approx row count of table "[CurrentName=(tsvector_table) SourceName=(tsvector_table) TargetName=(tsvector_table)]"
+2026-03-31 11:19:14.653575 INFO postgres.go:229 Table "[CurrentName=(tsvector_table) SourceName=(tsvector_table) TargetName=(tsvector_table)]" has approx {292 true} rows.
+2026-03-31 11:19:14.653604 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.datatypes2'::regclass' approx row count of table "[CurrentName=(datatypes2) SourceName=(datatypes2) TargetName=(datatypes2)]"
+2026-03-31 11:19:14.653914 INFO postgres.go:229 Table "[CurrentName=(datatypes2) SourceName=(datatypes2) TargetName=(datatypes2)]" has approx {213 true} rows.
+2026-03-31 11:19:14.653944 INFO postgres.go:223 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.null_and_default'::regclass' approx row count of table "[CurrentName=(null_and_default) SourceName=(null_and_default) TargetName=(null_and_default)]"
+2026-03-31 11:19:14.654223 INFO postgres.go:229 Table "[CurrentName=(null_and_default) SourceName=(null_and_default) TargetName=(null_and_default)]" has approx {269 true} rows.
+2026-03-31 11:19:14.654399 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.654585 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.654753 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.654915 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.655058 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.655181 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.655324 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.655496 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.655649 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.655792 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.655976 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.656204 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.656344 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.656484 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.656632 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.656860 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.657097 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.657271 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.657418 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.657460 INFO postgres.go:920 getting unique key columns for tables: [[CurrentName=(test_table) SourceName=(test_table) TargetName=(test_table)] [CurrentName=(num_types) SourceName=(num_types) TargetName=(num_types)] [CurrentName=(decimal_types) SourceName=(decimal_types) TargetName=(decimal_types)] [CurrentName=(datatypes1) SourceName=(datatypes1) TargetName=(datatypes1)] [CurrentName=(datetime_type) SourceName=(datetime_type) TargetName=(datetime_type)] [CurrentName=(datetime_type2) SourceName=(datetime_type2) TargetName=(datetime_type2)] [CurrentName=(cutover_table) SourceName=(cutover_table) TargetName=(cutover_table)] [CurrentName=(tsvector_table) SourceName=(tsvector_table) TargetName=(tsvector_table)] [CurrentName=(datatypes2) SourceName=(datatypes2) TargetName=(datatypes2)] [CurrentName=(null_and_default) SourceName=(null_and_default) TargetName=(null_and_default)]]
+2026-03-31 11:19:14.657492 INFO postgres.go:934 query to get unique key columns: 
+WITH unique_constraints AS (
+	-- Retrieve columns with unique constraints
+    SELECT
+        tc.table_schema,
+        tc.table_name,
+        kcu.column_name
+    FROM
+        information_schema.table_constraints tc
+    JOIN
+        information_schema.key_column_usage kcu
+        ON tc.constraint_name = kcu.constraint_name
+        AND tc.table_schema = kcu.table_schema
+        AND tc.table_name = kcu.table_name
+    WHERE
+        tc.constraint_type = 'UNIQUE'
+        AND tc.table_schema = ANY('{public}')
+        AND tc.table_name = ANY('{test_table,num_types,decimal_types,datatypes1,datetime_type,datetime_type2,cutover_table,tsvector_table,datatypes2,null_and_default}')
+),
+unique_indexes AS (
+	-- Retrieve columns with unique indexes (excluding primary keys)
+    SELECT
+        n.nspname AS table_schema,
+        t.relname AS table_name,
+        a.attname AS column_name
+    FROM
+        pg_index ix
+	-- Join to get table and schema information from the index
+    JOIN
+        pg_class t ON t.oid = ix.indrelid
+    JOIN
+        pg_namespace n ON n.oid = t.relnamespace
+	-- Join to get column information
+    JOIN
+        pg_attribute a ON a.attrelid = t.oid 
+		AND a.attnum = ANY(ix.indkey)  -- Match indexed columns
+	 -- Left join to ensure we exclude primary keys by checking associated constraints
+    LEFT JOIN
+        pg_constraint c ON ix.indexrelid = c.conindid AND c.contype = 'p'
+    WHERE
+        ix.indisunique = TRUE
+		AND c.contype IS NULL -- Ensure it's not a primary key
+        AND n.nspname = ANY('{public}')
+        AND t.relname = ANY('{test_table,num_types,decimal_types,datatypes1,datetime_type,datetime_type2,cutover_table,tsvector_table,datatypes2,null_and_default}')
+)
+-- UNION will remove duplicate rows between unique constraints and unique indexes
+SELECT table_schema, table_name, column_name FROM unique_constraints
+UNION
+SELECT table_schema, table_name, column_name FROM unique_indexes;
+
+2026-03-31 11:19:14.662227 INFO postgres.go:969 unique key columns for tables: &{map[] map[]}
+2026-03-31 11:19:14.662263 INFO exportData.go:2208 updating metaDB with table to unique key columns map: &{map[] map[]}
+2026-03-31 11:19:14.662346 INFO metadataDB.go:309 Found json object for key: table_to_unique_key_columns_key_source_db_exporter
+2026-03-31 11:19:14.670632 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.670788 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.671405 INFO config.go:316 QUEUE_SEGMENT_MAX_BYTES: 1048576
+2026-03-31 11:19:14.671606 INFO config.go:324 using port number 36243 for quarkus http server
+2026-03-31 11:19:14.671728 INFO dbzm.go:120 starting debezium...
+2026-03-31 11:19:14.671750 INFO dbzm.go:128 Setting TNS_ADMIN=
+2026-03-31 11:19:14.671764 INFO dbzm.go:133 Setting oracle wallet location=
+2026-03-31 11:19:14.672004 INFO dbzm.go:146 Debezium started successfully with pid = 704784
+2026-03-31 11:19:14.672252 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.672605 INFO metadataDB.go:309 Found json object for key: migration_status
+2026-03-31 11:19:14.672721 INFO logging.go:86 streaming changes to a local queue file...
+

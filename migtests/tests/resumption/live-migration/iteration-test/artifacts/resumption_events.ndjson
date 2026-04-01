@@ -1,0 +1,10 @@
+{"ts": "2026-03-31T11:18:47.357872Z", "command": "import_data", "event": "scheduled_interrupt", "message": "attempt 1/1: interrupting after 7s", "attempt": 1, "max_restarts": 1, "interrupt_delay_sec": 7}
+{"ts": "2026-03-31T11:18:54.392347Z", "command": "import_data", "event": "killed", "message": "killed process pid=704048", "pid": 704048}
+{"ts": "2026-03-31T11:18:54.392592Z", "command": "import_data", "event": "scheduled_restart", "message": "waiting 5s before restart", "restart_delay_sec": 5, "next_attempt": 1}
+{"ts": "2026-03-31T11:18:59.373137Z", "command": "export_data", "event": "scheduled_interrupt", "message": "attempt 1/1: interrupting after 7s", "attempt": 1, "max_restarts": 1, "interrupt_delay_sec": 7}
+{"ts": "2026-03-31T11:19:01.396070Z", "command": "import_data", "event": "restart_success", "message": "restart succeeded with pid=704405", "pid": 704405}
+{"ts": "2026-03-31T11:19:08.395478Z", "command": "export_data", "event": "killed", "message": "killed process pid=703962", "pid": 703962}
+{"ts": "2026-03-31T11:19:08.395713Z", "command": "export_data", "event": "scheduled_restart", "message": "waiting 6s before restart", "restart_delay_sec": 6, "next_attempt": 1}
+{"ts": "2026-03-31T11:19:16.399016Z", "command": "export_data", "event": "restart_success", "message": "restart succeeded with pid=704736", "pid": 704736}
+{"ts": "2026-03-31T11:21:04.634344Z", "command": "export_data", "event": "no_threads", "message": "no resumer threads to stop"}
+{"ts": "2026-03-31T11:21:04.634626Z", "command": "import_data", "event": "no_threads", "message": "no resumer threads to stop"}

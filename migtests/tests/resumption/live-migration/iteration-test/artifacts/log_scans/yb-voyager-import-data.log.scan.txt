@@ -1,0 +1,23 @@
+2026-03-31 11:18:45.409374 INFO import.go:572 passed value for --on-primary-key-conflict: ERROR-POLICY
+ ContinueOnError: (utils.BoolStr) false,
+ OnPrimaryKeyConflictAction: (string) (len=12) "ERROR-POLICY",
+ ContinueOnError: (utils.BoolStr) false,
+ OnPrimaryKeyConflictAction: (string) (len=12) "ERROR-POLICY",
+2026-03-31 11:18:59.478343 INFO import.go:572 passed value for --on-primary-key-conflict: ERROR-POLICY
+ ContinueOnError: (utils.BoolStr) false,
+ OnPrimaryKeyConflictAction: (string) (len=12) "ERROR-POLICY",
+ ContinueOnError: (utils.BoolStr) false,
+ OnPrimaryKeyConflictAction: (string) (len=12) "ERROR-POLICY",
+2026-03-31 11:19:00.088530 WARN yugabytedb.go:1442 Error while running query COPY yb_voyager_cores(num_cores) FROM PROGRAM 'grep processor /proc/cpuinfo|wc -l'; on host [postgresql://ybvoyager:xxxxx@10.9.15.11:5433/test_db?sslmode=prefer]: ERROR: relation "yb_voyager_cores" does not exist (SQLSTATE 42P01)
+2026-03-31 11:19:00.088624 WARN yugabytedb.go:1502 Could not determine cores, estimating clusterCores = 1 nodes * 16 cores/node = 16
+  Error: (string) ""
+  Error: (string) ""
+  Error: (string) ""
+  Error: (string) ""
+  Error: (string) ""
+  Error: (string) ""
+  Error: (string) ""
+  Error: (string) ""
+  Error: (string) ""
+  Error: (string) ""
+  Error: (string) ""

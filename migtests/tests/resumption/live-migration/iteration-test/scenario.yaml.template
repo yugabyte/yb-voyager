@@ -23,14 +23,14 @@ source:
 
 target:
   type: yugabytedb
-  host: ${TARGET_DB_HOST}
-  port: ${TARGET_DB_PORT}
+  host: 10.9.15.11
+  port: 5433
   database: test_db
-  user: ${TARGET_DB_USER}
-  password: ${TARGET_DB_PASSWORD}
+  user: yugabyte
+  password: yugabyte
   admin:
-    user: ${TARGET_DB_USER}
-    password: ${TARGET_DB_PASSWORD}
+    user: yugabyte
+    password: yugabyte
 
 # Forward (source) event generator configuration.
 generator_source:
@@ -64,11 +64,11 @@ generator_source:
 generator_target:
   config_inline:
     connection:
-      host: ${TARGET_DB_HOST}
-      port: ${TARGET_DB_PORT}
+      host: 10.9.15.11
+      port: 5433
       database: test_db
-      user: ${TARGET_DB_USER}
-      password: ${TARGET_DB_PASSWORD}
+      user: yugabyte
+      password: yugabyte
 
     generator:
       schema_name: public
@@ -317,6 +317,14 @@ stages:
     action: wait_for
     condition: cutover_to_source_status_completed
     timeout_sec: 900
+
+  - name: wait_for_archiver
+    action: sleep
+    seconds: 180
+
+  - name: validate_archive_changes_post_cutover_to_source
+    action: validate_archive_changes
+    check_post_cutover_to_source: true
 
   - name: row_count_validations
     action: row_count_validations

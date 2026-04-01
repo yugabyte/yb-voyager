@@ -1,0 +1,14 @@
+2026-03-31 11:18:43.421841 WARN logging.go:89
+2026-03-31 11:18:43.421881 WARN logging.go:89   1. Schema modifications(for example, adding/droping columns, creating/deleting tables, adding/deleting partitions etc) on the source and target databases are not supported during live migration.
+2026-03-31 11:18:43.421926 WARN logging.go:89   2. Primary Key or Unique Key columns should be identical between source and target databases.
+2026-03-31 11:18:43.421948 WARN logging.go:89   3. TRUNCATE operations on source database tables are not automatically replicated to the target database.
+2026-03-31 11:18:43.421974 WARN logging.go:89   4. Sequences that are not associated with any column or are attached to columns of non-integer types are not supported for automatic value generation resumption. These sequences must be manually resumed during the cutover phase.
+2026-03-31 11:18:43.422003 WARN logging.go:89   5. Tables without a Primary Key are not supported for live migration.
+2026-03-31 11:19:07.044346 ERROR dbzm.go:153 Debezium exited with: exit status 143
+2026-03-31 11:19:07.362597 ERROR exportData.go:645 Failed to start debezium: failed to export data using debezium: debezium failed with error: exit status 143
+2026-03-31 11:19:14.475162 WARN logging.go:89
+2026-03-31 11:19:14.475187 WARN logging.go:89   1. Schema modifications(for example, adding/droping columns, creating/deleting tables, adding/deleting partitions etc) on the source and target databases are not supported during live migration.
+2026-03-31 11:19:14.475201 WARN logging.go:89   2. Primary Key or Unique Key columns should be identical between source and target databases.
+2026-03-31 11:19:14.475213 WARN logging.go:89   3. TRUNCATE operations on source database tables are not automatically replicated to the target database.
+2026-03-31 11:19:14.475226 WARN logging.go:89   4. Sequences that are not associated with any column or are attached to columns of non-integer types are not supported for automatic value generation resumption. These sequences must be manually resumed during the cutover phase.
+2026-03-31 11:19:14.475238 WARN logging.go:89   5. Tables without a Primary Key are not supported for live migration.

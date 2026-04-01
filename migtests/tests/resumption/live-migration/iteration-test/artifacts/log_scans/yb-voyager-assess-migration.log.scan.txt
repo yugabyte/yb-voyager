@@ -1,0 +1,13 @@
+2026-03-31 11:18:37.023364 WARN logging.go:89   ⚠ Schemas without ANALYZE: [public] (some optimizations may not be detected)
+2026-03-31 11:18:37.023385 WARN logging.go:89   ⚠ pg_stat_statements extension is not installed on source DB, required for detecting Unsupported Query Constructs
+2026-03-31 11:18:37.994400 WARN assessmentDB.go:254 error while rollback the BulkInsert txn: sql: transaction has already been committed or rolled back
+2026-03-31 11:18:38.001045 WARN assessmentDB.go:254 error while rollback the BulkInsert txn: sql: transaction has already been committed or rolled back
+2026-03-31 11:18:38.007329 WARN assessmentDB.go:254 error while rollback the BulkInsert txn: sql: transaction has already been committed or rolled back
+2026-03-31 11:18:38.007504 WARN assessmentDB.go:254 error while rollback the BulkInsert txn: sql: transaction has already been committed or rolled back
+2026-03-31 11:18:38.013658 WARN assessmentDB.go:254 error while rollback the BulkInsert txn: sql: transaction has already been committed or rolled back
+2026-03-31 11:18:38.019791 WARN assessmentDB.go:254 error while rollback the BulkInsert txn: sql: transaction has already been committed or rolled back
+2026-03-31 11:18:38.026039 WARN assessmentDB.go:254 error while rollback the BulkInsert txn: sql: transaction has already been committed or rolled back
+2026-03-31 11:18:38.032523 WARN assessmentDB.go:254 error while rollback the BulkInsert txn: sql: transaction has already been committed or rolled back
+2026-03-31 11:18:38.038877 WARN assessmentDB.go:254 error while rollback the BulkInsert txn: sql: transaction has already been committed or rolled back
+2026-03-31 11:18:38.045148 WARN assessmentDB.go:254 error while rollback the BulkInsert txn: sql: transaction has already been committed or rolled back
+2026-03-31 11:18:38.051410 WARN assessmentDB.go:254 error while rollback the BulkInsert txn: sql: transaction has already been committed or rolled back

@@ -119,8 +119,10 @@ def archive_changes_start_action(stage: Dict[str, Any], ctx: Any) -> None:
         ctx.processes["archive_changes"] = H.spawn(cmd, ctx.env)
 
 @action("validate_archive_changes")
-def validate_archive_changes_action(_stage, ctx: Any) -> None:
-    H.validate_archive_changes(ctx)
+def validate_archive_changes_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Validate archive changes. Optional stage parameter: check_post_cutover_to_source (bool)"""
+    check_post = bool(stage.get("check_post_cutover_to_source", False))
+    H.validate_archive_changes(ctx, check_post_cutover_to_source=check_post)
 
 @action("voyager_stop_command")
 def stop_command_action(stage: Dict[str, Any], ctx: Any) -> None:

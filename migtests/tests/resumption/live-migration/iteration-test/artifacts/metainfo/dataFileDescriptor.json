@@ -1,0 +1,130 @@
+{
+	"FileFormat": "text",
+	"Delimiter": "\t",
+	"HasHeader": false,
+	"NullString": "\\N",
+	"FileList": [
+		{
+			"FilePath": "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/test_table_data.sql",
+			"TableName": "\"public\".\"test_table\"",
+			"RowCount": 0,
+			"FileSize": -1
+		},
+		{
+			"FilePath": "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/datatypes1_data.sql",
+			"TableName": "\"public\".\"datatypes1\"",
+			"RowCount": 0,
+			"FileSize": -1
+		},
+		{
+			"FilePath": "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/datetime_type_data.sql",
+			"TableName": "\"public\".\"datetime_type\"",
+			"RowCount": 0,
+			"FileSize": -1
+		},
+		{
+			"FilePath": "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/datetime_type2_data.sql",
+			"TableName": "\"public\".\"datetime_type2\"",
+			"RowCount": 0,
+			"FileSize": -1
+		},
+		{
+			"FilePath": "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/cutover_table_data.sql",
+			"TableName": "\"public\".\"cutover_table\"",
+			"RowCount": 0,
+			"FileSize": -1
+		},
+		{
+			"FilePath": "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/datatypes2_data.sql",
+			"TableName": "\"public\".\"datatypes2\"",
+			"RowCount": 0,
+			"FileSize": -1
+		},
+		{
+			"FilePath": "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/num_types_data.sql",
+			"TableName": "\"public\".\"num_types\"",
+			"RowCount": 0,
+			"FileSize": -1
+		},
+		{
+			"FilePath": "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/decimal_types_data.sql",
+			"TableName": "\"public\".\"decimal_types\"",
+			"RowCount": 0,
+			"FileSize": -1
+		},
+		{
+			"FilePath": "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/tsvector_table_data.sql",
+			"TableName": "\"public\".\"tsvector_table\"",
+			"RowCount": 0,
+			"FileSize": -1
+		},
+		{
+			"FilePath": "/home/ubuntu/voyager/yb-voyager-1/migtests/tests/resumption/live-migration/iteration-test/export-dir/data/null_and_default_data.sql",
+			"TableName": "\"public\".\"null_and_default\"",
+			"RowCount": 0,
+			"FileSize": -1
+		}
+	],
+	"TableNameToExportedColumns": {
+		"\"public\".\"cutover_table\"": [
+			"id",
+			"status"
+		],
+		"\"public\".\"datatypes1\"": [
+			"id",
+			"bool_type",
+			"char_type1",
+			"varchar_type",
+			"byte_type",
+			"enum_type"
+		],
+		"\"public\".\"datatypes2\"": [
+			"id",
+			"v1",
+			"v2",
+			"v3",
+			"v5"
+		],
+		"\"public\".\"datetime_type\"": [
+			"id",
+			"v1",
+			"v2",
+			"v3",
+			"v4"
+		],
+		"\"public\".\"datetime_type2\"": [
+			"id",
+			"v1"
+		],
+		"\"public\".\"decimal_types\"": [
+			"id",
+			"n1",
+			"n2"
+		],
+		"\"public\".\"null_and_default\"": [
+			"id",
+			"b",
+			"i",
+			"val"
+		],
+		"\"public\".\"num_types\"": [
+			"id",
+			"v1",
+			"v2",
+			"v3",
+			"v4",
+			"v6"
+		],
+		"\"public\".\"test_table\"": [
+			"id",
+			"name"
+		],
+		"\"public\".\"tsvector_table\"": [
+			"id",
+			"title",
+			"content",
+			"title_tsv",
+			"content_tsv"
+		]
+	}
+}
