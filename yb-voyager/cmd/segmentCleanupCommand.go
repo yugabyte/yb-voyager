@@ -69,7 +69,7 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 	}
 
 	if msr.IsIteration() {
-		utils.PrintAndLog("Archive changes command should only be run on the iteration 0, not on any other iteration")
+		utils.PrintAndLogf("Archive changes command should only be run on the main export directory '%s', not on iterations", utils.Path.Sprint(msr.GetParentExportDir(exportDir)))
 		if !utils.AskPrompt(fmt.Sprintf("Are you sure you want to run the command on the iteration %d?", msr.IterationNo)) {
 			utils.ErrExit("aborting the archive changes command")
 		}
