@@ -571,15 +571,46 @@ func addSpecificNonSensitiveContextForError(err error, anonymizer *anon.VoyagerA
 	addPostgreSQLErrorContext(err, context)
 	addExecuteDDLErrorContext(err, anonymizer, context)
 	addStackTrace(err, context)
-
-	return
 }
 
 func addStackTrace(err error, context map[string]string) {
-	var goErr *goerrors.Error
-	if goerrors.As(err, &goErr) {
+	goErr := findInnermostGoError(err)
+	if goErr != nil {
 		context["stack_trace"] = string(goErr.Stack())
 	}
+}
+
+func findInnermostGoError(err error) *goerrors.Error {
+	if err == nil {
+		return nil
+	}
+
+	var deepest *goerrors.Error
+	deepestDepth := -1
+
+	var walk func(curr error, depth int)
+	walk = func(curr error, depth int) {
+		if curr == nil {
+			return
+		}
+
+		if goErr, ok := curr.(*goerrors.Error); ok && depth >= deepestDepth {
+			deepest = goErr
+			deepestDepth = depth
+		}
+
+		switch unwrapped := curr.(type) {
+		case interface{ Unwrap() []error }:
+			for _, child := range unwrapped.Unwrap() {
+				walk(child, depth+1)
+			}
+		case interface{ Unwrap() error }:
+			walk(unwrapped.Unwrap(), depth+1)
+		}
+	}
+
+	walk(err, 0)
+	return deepest
 }
 
 func addImportBatchErrorContext(err error, context map[string]string) {
