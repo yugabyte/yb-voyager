@@ -174,6 +174,10 @@ func NewMetaDB(exportDir string) (*MetaDB, error) {
 	return &MetaDB{db: db}, nil
 }
 
+func (m *MetaDB) QueryRow(query string, args ...any) (*sql.Row, error) {
+	return m.db.QueryRow(query, args...), nil
+}
+
 func (m *MetaDB) MarkEventQueueSegmentAsProcessed(segmentNum int64, importerRole string) error {
 	query := fmt.Sprintf(`UPDATE %s SET imported_by_%s = 1 WHERE segment_no = %d;`, QUEUE_SEGMENT_META_TABLE_NAME, importerRole, segmentNum)
 
