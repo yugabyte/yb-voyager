@@ -74,19 +74,18 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
 	}
-	t.Parallel()
 
 	ctx := context.Background()
 
-	tableName := "test_schema_batch_fail.cdc_test"
+	tableName := "test_schema.cdc_test"
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
 		TargetDB: ContainerConfig{Type: "yugabytedb", DatabaseName: "test_batch_failure"},
-		SchemaNames: []string{"test_schema_batch_fail"},
+		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
-			"CREATE SCHEMA IF NOT EXISTS test_schema_batch_fail;",
-			`CREATE TABLE test_schema_batch_fail.cdc_test (
+			"CREATE SCHEMA IF NOT EXISTS test_schema;",
+			`CREATE TABLE test_schema.cdc_test (
 				id SERIAL PRIMARY KEY,
 				name TEXT,
 				value INTEGER,
@@ -94,13 +93,13 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 			);`,
 		},
 		SourceSetupSchemaSQL: []string{
-			`ALTER TABLE test_schema_batch_fail.cdc_test REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.cdc_test REPLICA IDENTITY FULL;`,
 		},
 		InitialDataSQL: []string{
-			`INSERT INTO test_schema_batch_fail.cdc_test (name, value)
+			`INSERT INTO test_schema.cdc_test (name, value)
 			SELECT 'initial_' || i, i * 10 FROM generate_series(1, 100) i;`,
 		},
-		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema_batch_fail CASCADE;"},
+		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema CASCADE;"},
 	})
 	defer lm.Cleanup()
 	require.NoError(t, lm.SetupContainers(ctx))
@@ -132,15 +131,15 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 		updateStart := (batch-1)*5 + 1
 		deleteStart := (batch-1)*5 + 51
 		lm.ExecuteOnSource(
-			fmt.Sprintf(`INSERT INTO test_schema_batch_fail.cdc_test (name, value)
+			fmt.Sprintf(`INSERT INTO test_schema.cdc_test (name, value)
 			SELECT 'batch%d_ins_' || i, %d + i FROM generate_series(1, 10) i;`, batch, batch*100),
 		)
 		lm.ExecuteOnSource(
-			fmt.Sprintf(`UPDATE test_schema_batch_fail.cdc_test SET name = 'batch%d_upd_' || id, value = value + 1000
+			fmt.Sprintf(`UPDATE test_schema.cdc_test SET name = 'batch%d_upd_' || id, value = value + 1000
 			WHERE id BETWEEN %d AND %d;`, batch, updateStart, updateStart+4),
 		)
 		lm.ExecuteOnSource(
-			fmt.Sprintf(`DELETE FROM test_schema_batch_fail.cdc_test WHERE id BETWEEN %d AND %d;`, deleteStart, deleteStart+4),
+			fmt.Sprintf(`DELETE FROM test_schema.cdc_test WHERE id BETWEEN %d AND %d;`, deleteStart, deleteStart+4),
 		)
 		time.Sleep(batchSeparationWaitTime)
 	}
@@ -206,19 +205,18 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
 	}
-	t.Parallel()
 
 	ctx := context.Background()
 
-	tableName := "test_schema_first_batch.first_batch_test"
+	tableName := "test_schema.first_batch_test"
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
 		TargetDB: ContainerConfig{Type: "yugabytedb", DatabaseName: "test_first_batch"},
-		SchemaNames: []string{"test_schema_first_batch"},
+		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
-			"CREATE SCHEMA IF NOT EXISTS test_schema_first_batch;",
-			`CREATE TABLE test_schema_first_batch.first_batch_test (
+			"CREATE SCHEMA IF NOT EXISTS test_schema;",
+			`CREATE TABLE test_schema.first_batch_test (
 				id SERIAL PRIMARY KEY,
 				name TEXT,
 				value INTEGER,
@@ -226,13 +224,13 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 			);`,
 		},
 		SourceSetupSchemaSQL: []string{
-			`ALTER TABLE test_schema_first_batch.first_batch_test REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.first_batch_test REPLICA IDENTITY FULL;`,
 		},
 		InitialDataSQL: []string{
-			`INSERT INTO test_schema_first_batch.first_batch_test (name, value)
+			`INSERT INTO test_schema.first_batch_test (name, value)
 			SELECT 'initial_' || i, i * 10 FROM generate_series(1, 50) i;`,
 		},
-		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema_first_batch CASCADE;"},
+		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema CASCADE;"},
 	})
 	defer lm.Cleanup()
 	require.NoError(t, lm.SetupContainers(ctx))
@@ -262,7 +260,7 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 
 	for batch := 1; batch <= 3; batch++ {
 		lm.ExecuteOnSource(
-			fmt.Sprintf(`INSERT INTO test_schema_first_batch.first_batch_test (name, value)
+			fmt.Sprintf(`INSERT INTO test_schema.first_batch_test (name, value)
 			SELECT 'batch%d_' || i, %d + i FROM generate_series(1, 20) i;`, batch, batch*100),
 		)
 		time.Sleep(batchSeparationWaitTime)
@@ -325,7 +323,6 @@ func TestCDCMultipleBatchFailures(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
 	}
-	t.Parallel()
 
 	ctx := context.Background()
 	tableName := "test_schema_multi_fail.cdc_multi_fail_test"
@@ -490,7 +487,6 @@ func TestCDCMultiTableBatchFailureAndResume(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
 	}
-	t.Parallel()
 
 	ctx := context.Background()
 

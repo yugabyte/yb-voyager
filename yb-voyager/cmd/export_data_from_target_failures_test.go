@@ -56,43 +56,41 @@ import (
 //   - Go failpoint in `cmd/exportDataFromTarget.go` at `exportFromTargetStartupError`,
 //     triggered via GO_FAILPOINTS env var passed through import data's post-cutover exec.
 func TestExportFromTargetStartupFailureAndCutoverResume(t *testing.T) {
-	t.Parallel()
-
-	tableName := "test_schema_ff_startup.ff_cutover_test"
+	tableName := "test_schema_ff.ff_cutover_test"
 	ctx := context.Background()
 
 	createSchemaSQL := []string{
-		"DROP SCHEMA IF EXISTS test_schema_ff_startup CASCADE;",
-		"CREATE SCHEMA test_schema_ff_startup;",
-		`CREATE TABLE test_schema_ff_startup.ff_cutover_test (
+		"DROP SCHEMA IF EXISTS test_schema_ff CASCADE;",
+		"CREATE SCHEMA test_schema_ff;",
+		`CREATE TABLE test_schema_ff.ff_cutover_test (
 			id SERIAL PRIMARY KEY,
 			name TEXT,
 			value INTEGER,
 			created_at TIMESTAMP DEFAULT NOW()
 		);`,
-		`ALTER TABLE test_schema_ff_startup.ff_cutover_test REPLICA IDENTITY FULL;`,
+		`ALTER TABLE test_schema_ff.ff_cutover_test REPLICA IDENTITY FULL;`,
 	}
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB:        ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
-		TargetDB:        ContainerConfig{Type: "yugabytedb", DatabaseName: "test_ff_startup"},
+		TargetDB:        ContainerConfig{Type: "yugabytedb", DatabaseName: "yugabyte"},
 		SourceReplicaDB: ContainerConfig{Type: "postgresql", DatabaseName: "postgres"},
-		SchemaNames:     []string{"test_schema_ff_startup"},
+		SchemaNames:     []string{"test_schema_ff"},
 		SchemaSQL:       createSchemaSQL,
 		SourceReplicaSetupSchemaSQL: createSchemaSQL,
 		InitialDataSQL: []string{
-			`INSERT INTO test_schema_ff_startup.ff_cutover_test (name, value)
+			`INSERT INTO test_schema_ff.ff_cutover_test (name, value)
 			SELECT 'initial_' || i, i * 10 FROM generate_series(1, 20) i;`,
 		},
 		SourceDeltaSQL: []string{
-			`INSERT INTO test_schema_ff_startup.ff_cutover_test (name, value)
+			`INSERT INTO test_schema_ff.ff_cutover_test (name, value)
 			SELECT 'cdc_forward_' || i, 1000 + i FROM generate_series(1, 5) i;`,
 		},
 		TargetDeltaSQL: []string{
-			`INSERT INTO test_schema_ff_startup.ff_cutover_test (name, value)
+			`INSERT INTO test_schema_ff.ff_cutover_test (name, value)
 			SELECT 'cdc_fallforward_' || i, 2000 + i FROM generate_series(1, 5) i;`,
 		},
-		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema_ff_startup CASCADE;"},
+		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema_ff CASCADE;"},
 	})
 	defer lm.Cleanup()
 	require.NoError(t, lm.SetupContainers(ctx))
@@ -205,43 +203,42 @@ func TestFallForwardCDCStreamingFailureAndResume(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
 	}
-	t.Parallel()
 
-	tableName := "test_schema_ff_cdc.ff_stream_test"
+	tableName := "test_schema_ff.ff_stream_test"
 	ctx := context.Background()
 
 	createSchemaSQL := []string{
-		"DROP SCHEMA IF EXISTS test_schema_ff_cdc CASCADE;",
-		"CREATE SCHEMA test_schema_ff_cdc;",
-		`CREATE TABLE test_schema_ff_cdc.ff_stream_test (
+		"DROP SCHEMA IF EXISTS test_schema_ff CASCADE;",
+		"CREATE SCHEMA test_schema_ff;",
+		`CREATE TABLE test_schema_ff.ff_stream_test (
 			id SERIAL PRIMARY KEY,
 			name TEXT,
 			value INTEGER,
 			created_at TIMESTAMP DEFAULT NOW()
 		);`,
-		`ALTER TABLE test_schema_ff_cdc.ff_stream_test REPLICA IDENTITY FULL;`,
+		`ALTER TABLE test_schema_ff.ff_stream_test REPLICA IDENTITY FULL;`,
 	}
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB:        ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
-		TargetDB:        ContainerConfig{Type: "yugabytedb", DatabaseName: "test_ff_cdc"},
+		TargetDB:        ContainerConfig{Type: "yugabytedb", DatabaseName: "yugabyte"},
 		SourceReplicaDB: ContainerConfig{Type: "postgresql", DatabaseName: "postgres"},
-		SchemaNames:     []string{"test_schema_ff_cdc"},
+		SchemaNames:     []string{"test_schema_ff"},
 		SchemaSQL:       createSchemaSQL,
 		SourceReplicaSetupSchemaSQL: createSchemaSQL,
 		InitialDataSQL: []string{
-			`INSERT INTO test_schema_ff_cdc.ff_stream_test (name, value)
+			`INSERT INTO test_schema_ff.ff_stream_test (name, value)
 			SELECT 'initial_' || i, i * 10 FROM generate_series(1, 20) i;`,
 		},
 		SourceDeltaSQL: []string{
-			`INSERT INTO test_schema_ff_cdc.ff_stream_test (name, value)
+			`INSERT INTO test_schema_ff.ff_stream_test (name, value)
 			SELECT 'cdc_forward_' || i, 1000 + i FROM generate_series(1, 5) i;`,
 		},
 		TargetDeltaSQL: []string{
-			`INSERT INTO test_schema_ff_cdc.ff_stream_test (name, value)
+			`INSERT INTO test_schema_ff.ff_stream_test (name, value)
 			SELECT 'cdc_fallforward_' || i, 2000 + i FROM generate_series(1, 5) i;`,
 		},
-		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema_ff_cdc CASCADE;"},
+		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema_ff CASCADE;"},
 	})
 	defer lm.Cleanup()
 	require.NoError(t, lm.SetupContainers(ctx))
@@ -337,7 +334,7 @@ func TestFallForwardCDCStreamingFailureAndResume(t *testing.T) {
 	// --- Step 10: Insert more rows on target, wait for fall-forward streaming ---
 
 	lm.ExecuteOnTarget(
-		`INSERT INTO test_schema_ff_cdc.ff_stream_test (name, value)
+		`INSERT INTO test_schema_ff.ff_stream_test (name, value)
 		SELECT 'cdc_ff_resume_' || i, 3000 + i FROM generate_series(1, 5) i;`,
 	)
 

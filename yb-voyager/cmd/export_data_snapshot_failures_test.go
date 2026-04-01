@@ -54,7 +54,6 @@ import (
 //   - `cmd/exportData.go` before pg_dump via failpoint `pgDumpSnapshotFailure`.
 //   - Delay controlled by `YB_VOYAGER_PGDUMP_FAIL_DELAY_MS` env var.
 func TestSnapshotFailureAndResume(t *testing.T) {
-	t.Parallel()
 	ctx := context.Background()
 
 	tableName := "test_schema_snapshot_fail.cdc_snapshot_fail_test"
@@ -170,7 +169,6 @@ func TestSnapshotFailureAndResume(t *testing.T) {
 //   - `cmd/exportDataDebezium.go` after snapshot, before CDC start:
 //     failpoint `snapshotToCDCTransitionError`.
 func TestSnapshotToCDCTransitionFailure(t *testing.T) {
-	t.Parallel()
 	ctx := context.Background()
 
 	tableName := "test_schema_transition.cdc_transition_test"
