@@ -905,7 +905,7 @@ func (lm *LiveMigrationTest) WaitForSnapshotComplete(expectedData map[string]int
 	})
 
 	if !ok {
-		return goerrors.Errorf("snapshot phase did not complete within %v", snapshotTimeout)
+		return goerrors.Errorf("snapshot phase did not complete within %ds", snapshotTimeout)
 	}
 	lm.t.Logf("Snapshot complete")
 	return nil

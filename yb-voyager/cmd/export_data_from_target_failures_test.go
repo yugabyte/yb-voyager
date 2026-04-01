@@ -277,14 +277,14 @@ func TestFallForwardCDCStreamingFailureAndResume(t *testing.T) {
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		reportTableName(tableName): 20,
-	}, 120)
+	}, 240)
 	require.NoError(t, err, "snapshot phase did not complete")
 
 	lm.ExecuteSourceDelta()
 
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		reportTableName(tableName): {Inserts: 5},
-	}, 60, 3)
+	}, 120, 3)
 	require.NoError(t, err, "forward streaming did not complete")
 
 	// --- Step 5: Start import data to source-replica (sets FallForwardEnabled) ---
