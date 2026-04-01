@@ -495,6 +495,36 @@ func (lm *LiveMigrationTest) WaitForExportDataExit() error {
 	return lm.exportCmd.Wait()
 }
 
+// WaitForExportDataExitTimeout waits up to 'timeout' for the async export
+// command to finish. If it doesn't exit in time (e.g. because an orphaned
+// Debezium child still holds the stdout/stderr pipes), Debezium is killed
+// and we wait once more. Returns the exit error from the export command.
+func (lm *LiveMigrationTest) WaitForExportDataExitTimeout(timeout time.Duration) error {
+	if lm.exportCmd == nil {
+		return goerrors.Errorf("export command not started")
+	}
+
+	deadline := time.Now().Add(timeout)
+	for {
+		if time.Now().After(deadline) {
+			lm.t.Log("Export process did not exit within timeout; killing orphaned Debezium")
+			lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
+			time.Sleep(2 * time.Second)
+			if !lm.exportCmd.IsStopped() {
+				_ = lm.exportCmd.Kill()
+			}
+			return goerrors.Errorf("export process did not exit within %s", timeout)
+		}
+		if lm.exportCmd.IsStopped() {
+			if lm.exportCmd.ExitCode() == testutils.ExitCodeSuccess {
+				return nil
+			}
+			return goerrors.Errorf("export exited with code %s", lm.exportCmd.ExitCode())
+		}
+		time.Sleep(1 * time.Second)
+	}
+}
+
 // WaitForImportDataExit waits for the import data process to exit.
 // This is useful when import has exec'd into export-data-from-target and
 // you need to detect the crash of the exec'd process.

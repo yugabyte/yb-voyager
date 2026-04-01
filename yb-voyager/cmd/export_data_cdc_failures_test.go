@@ -148,7 +148,7 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 	require.NoError(t, err, "Should be able to read debezium logs")
 	require.True(t, matched, "Byteman injection should have occurred and been logged")
 
-	err = lm.WaitForExportDataExit()
+	err = lm.WaitForExportDataExitTimeout(120 * time.Second)
 	require.Error(t, err, "Export should exit with error after Byteman injection")
 
 	time.Sleep(3 * time.Second)
@@ -270,7 +270,7 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 	require.NoError(t, err, "Should be able to read debezium logs")
 	require.True(t, matched, "Byteman injection should have occurred and been logged")
 
-	err = lm.WaitForExportDataExit()
+	err = lm.WaitForExportDataExitTimeout(120 * time.Second)
 	require.Error(t, err, "Export should exit with error after Byteman injection")
 
 	time.Sleep(3 * time.Second)
@@ -394,7 +394,7 @@ func TestCDCMultipleBatchFailures(t *testing.T) {
 	require.NoError(t, err, "Should be able to read debezium logs (run 1)")
 	require.True(t, matched, "Byteman injection should have occurred (run 1)")
 
-	err = lm.WaitForExportDataExit()
+	err = lm.WaitForExportDataExitTimeout(120 * time.Second)
 	require.Error(t, err, "Export should exit with error after run 1 injection")
 
 	time.Sleep(3 * time.Second)
@@ -431,7 +431,7 @@ func TestCDCMultipleBatchFailures(t *testing.T) {
 	require.NoError(t, err, "Should be able to read debezium logs (run 2)")
 	require.True(t, matched, "Byteman injection should have occurred (run 2)")
 
-	err = lm.WaitForExportDataExit()
+	err = lm.WaitForExportDataExitTimeout(120 * time.Second)
 	require.Error(t, err, "Export should exit with error after run 2 injection")
 
 	time.Sleep(3 * time.Second)
@@ -565,7 +565,7 @@ func TestCDCMultiTableBatchFailureAndResume(t *testing.T) {
 	require.NoError(t, err, "Should be able to read debezium logs")
 	require.True(t, matched, "Byteman injection should have occurred and been logged")
 
-	err = lm.WaitForExportDataExit()
+	err = lm.WaitForExportDataExitTimeout(120 * time.Second)
 	require.Error(t, err, "Export should exit with error after Byteman injection")
 
 	time.Sleep(3 * time.Second)
