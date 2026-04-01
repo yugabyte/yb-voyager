@@ -1,9 +1,0 @@
-	plugin.discovery = hybrid_warn
-2026-03-31 11:18:52,408 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    errors.retry.delay.initial.ms = 300
-2026-03-31 11:18:52,411 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    errors.max.retries = 15
-2026-03-31 11:18:52,416 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    errors.retry.delay.max.ms = 10000
-2026-03-31 11:19:06,715 INFO  [io.deb.ser.ConnectorLifecycle] (pool-7-thread-1) Connector completed: success = 'true', message = 'Connector 'io.debezium.connector.postgresql.PostgresConnector' completed normally.', error = 'null'
-	plugin.discovery = hybrid_warn
-2026-03-31 11:19:17,520 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    errors.retry.delay.initial.ms = 300
-2026-03-31 11:19:17,524 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    errors.max.retries = 15
-2026-03-31 11:19:17,528 INFO  [io.deb.con.com.BaseSourceTask] (pool-7-thread-1)    errors.retry.delay.max.ms = 10000
