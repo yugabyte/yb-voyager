@@ -149,7 +149,10 @@ func (fti *FileTaskImporter) recommendationForBatchError(ibe errs.ImportBatchErr
 	case errs.ERROR_TYPE_PK_VIOLATION:
 		return importdata.PK_VIOLATION_RECOMMENDATION_MESSAGE
 	case errs.ERROR_TYPE_FOREIGN_KEY_VIOLATION:
-		return importdata.FK_VIOLATION_RECOMMENDATION_MESSAGE
+		if importerRole == TARGET_DB_IMPORTER_ROLE {
+			return importdata.FK_VIOLATION_RECOMMENDATION_MESSAGE
+		}
+		return importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE
 	default:
 		return importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE
 	}
