@@ -499,6 +499,11 @@ func (lm *LiveMigrationTest) WaitForExportDataExit() error {
 	if lm.exportCmd == nil {
 		return goerrors.Errorf("export command not started")
 	}
+
+	// Kill Debezium process first to ensure its inherited stdout/stderr pipes
+	// are closed, otherwise Cmd.Wait() can hang indefinitely.
+	lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
+
 	return lm.exportCmd.Wait()
 }
 
@@ -535,10 +540,18 @@ func (lm *LiveMigrationTest) WaitForExportDataExitTimeout(timeout time.Duration)
 // WaitForImportDataExit waits for the import data process to exit.
 // This is useful when import has exec'd into export-data-from-target and
 // you need to detect the crash of the exec'd process.
+// Note: This function kills orphaned Debezium processes before waiting to avoid
+// hanging on open stdout/stderr pipes held by the child JVM.
 func (lm *LiveMigrationTest) WaitForImportDataExit() error {
 	if lm.importCmd == nil {
 		return goerrors.Errorf("import command not started")
 	}
+
+	// Kill Debezium processes first to ensure their inherited stdout/stderr pipes
+	// are closed, otherwise Cmd.Wait() can hang indefinitely.
+	lm.KillDebezium(TARGET_DB_EXPORTER_FF_ROLE)
+	lm.KillDebezium(TARGET_DB_EXPORTER_FB_ROLE)
+
 	return lm.importCmd.Wait()
 }
 
