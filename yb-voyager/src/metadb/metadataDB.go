@@ -666,29 +666,23 @@ func checkRowsAffected(result sql.Result, expectedRows int) error {
 }
 
 type SegmentCleanupStats struct {
-	TotalSegments    int
-	ArchivedSegments int
-	DeletedSegments  int
-	PendingSegments  int
-	TotalEvents      int64
+	TotalSegments              int
+	ArchivedAndDeletedSegments int
+	PendingSegments            int
 }
 
 func (m *MetaDB) GetSegmentCleanupStats() (SegmentCleanupStats, error) {
 	query := fmt.Sprintf(`SELECT 
 		COUNT(*) AS total,
-		COALESCE(SUM(archived), 0) AS archived,
-		COALESCE(SUM(deleted), 0) AS deleted,
-		COALESCE(SUM(CASE WHEN archived = 0 AND deleted = 0 THEN 1 ELSE 0 END), 0) AS pending,
-		COALESCE(SUM(total_events), 0) AS total_events
+		COALESCE(SUM(CASE WHEN archived = 1 OR deleted = 1 THEN 1 ELSE 0 END), 0) AS archived_and_deleted,
+		COALESCE(SUM(CASE WHEN archived = 0 AND deleted = 0 THEN 1 ELSE 0 END), 0) AS pending
 		FROM %s;`, QUEUE_SEGMENT_META_TABLE_NAME)
 
 	var stats SegmentCleanupStats
 	err := m.db.QueryRow(query).Scan(
 		&stats.TotalSegments,
-		&stats.ArchivedSegments,
-		&stats.DeletedSegments,
+		&stats.ArchivedAndDeletedSegments,
 		&stats.PendingSegments,
-		&stats.TotalEvents,
 	)
 	if err != nil {
 		return stats, goerrors.Errorf("get segment cleanup stats: %v", err)

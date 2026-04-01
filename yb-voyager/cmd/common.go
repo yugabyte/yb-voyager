@@ -1982,7 +1982,7 @@ func sendCallhomePayloadAtIntervals() {
 			//for just that corner case if there is some timing clash where complete and in-progress payload are sent together
 			break
 		}
-		time.Sleep(15 * time.Minute)
+		time.Sleep(10 * time.Second)
 		switch currentCommand {
 		case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
 			packAndSendExportDataPayload(INPROGRESS, nil)

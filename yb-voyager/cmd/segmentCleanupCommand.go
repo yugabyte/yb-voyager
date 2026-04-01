@@ -204,11 +204,13 @@ func packAndSendArchiveChangesPayload(status string, errorMsg error) {
 	payload.MigrationPhase = ARCHIVE_CHANGES_PHASE
 
 	archiveChangesPayload := callhome.ArchiveChangesPhasePayload{
-		PayloadVersion:         callhome.ARCHIVE_CHANGES_CALLHOME_PAYLOAD_VERSION,
-		Policy:                 cleanupPolicy,
-		FSUtilizationThreshold: cleanupUtilizationThreshold,
-		Error:                  callhome.SanitizeErrorMsg(errorMsg, anonymizer),
-		ControlPlaneType:       getControlPlaneType(),
+		PayloadVersion:   callhome.ARCHIVE_CHANGES_CALLHOME_PAYLOAD_VERSION,
+		Policy:           cleanupPolicy,
+		Error:            callhome.SanitizeErrorMsg(errorMsg, anonymizer),
+		ControlPlaneType: getControlPlaneType(),
+	}
+	if cleanupPolicy == segmentcleanup.PolicyDelete {
+		archiveChangesPayload.FSUtilizationThreshold = cleanupUtilizationThreshold
 	}
 
 	stats, err := metaDB.GetSegmentCleanupStats()
@@ -216,10 +218,8 @@ func packAndSendArchiveChangesPayload(status string, errorMsg error) {
 		log.Infof("callhome: error getting segment cleanup stats: %v", err)
 	} else {
 		archiveChangesPayload.TotalSegments = stats.TotalSegments
-		archiveChangesPayload.ArchivedSegments = stats.ArchivedSegments
-		archiveChangesPayload.DeletedSegments = stats.DeletedSegments
+		archiveChangesPayload.ArchivedAndDeletedSegments = stats.ArchivedAndDeletedSegments
 		archiveChangesPayload.PendingSegments = stats.PendingSegments
-		archiveChangesPayload.TotalEvents = stats.TotalEvents
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(archiveChangesPayload)
