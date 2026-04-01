@@ -321,10 +321,7 @@ func TestEdgeCase_FSUtilizationBelowThreshold(t *testing.T) {
 }
 
 // TestEdgeCase_MissingSegmentFile verifies that DeleteProcessedSegments gracefully
-// handles a segment whose file path does not exist on disk. The segment is inserted
-// into the DB with a non-existent path to simulate a scenario where the file was
-// already removed (e.g., manual deletion or previous partial cleanup). The cleaner
-// should still mark the segment as deleted+archived in the DB without returning an error.
+// handles a segment whose file is already missing (marks DB without error).
 func TestEdgeCase_MissingSegmentFile(t *testing.T) {
 	mdb, exportDir := setupTestMetaDB(t)
 	setMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {

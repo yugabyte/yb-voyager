@@ -541,10 +541,6 @@ func (m *MetaDB) GetProcessedAndPendingSegments() (processed []utils.Segment, pe
 		importCount = 2
 	}
 
-	return m.getProcessedAndPendingSegmentsWithImportCount(importCount)
-}
-
-func (m *MetaDB) getProcessedAndPendingSegmentsWithImportCount(importCount int) (processed []utils.Segment, pending []utils.Segment, err error) {
 	tx, err := m.db.Begin()
 	if err != nil {
 		return nil, nil, goerrors.Errorf("begin transaction: %v", err)
@@ -556,14 +552,14 @@ func (m *MetaDB) getProcessedAndPendingSegmentsWithImportCount(importCount int) 
 	processedPredicate := fmt.Sprintf(`((exporter_role == 'source_db_exporter' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer = %d)) OR
 	(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_source_replica_db_importer + imported_by_source_db_importer = 1)))
 	AND archived = 0 AND deleted = 0`, importCount)
-	processed, err = m.querySegmentsInAscOrderWith(tx, processedPredicate)
+	processed, err = m.querySegmentIsInAscOrderWith(tx, processedPredicate)
 	if err != nil {
 		return nil, nil, goerrors.Errorf("fetch processed segments: %v", err)
 	}
 
 	pendingPredicate := fmt.Sprintf(`(exporter_role == 'source_db_exporter' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer < %d)) OR
 		(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_source_replica_db_importer + imported_by_source_db_importer < 1))`, importCount)
-	pending, err = m.querySegmentsInAscOrderWith(tx, pendingPredicate)
+	pending, err = m.querySegmentIsInAscOrderWith(tx, pendingPredicate)
 	if err != nil {
 		return nil, nil, goerrors.Errorf("fetch pending segments: %v", err)
 	}
@@ -596,15 +592,15 @@ func (m *MetaDB) GetPendingSegments() ([]utils.Segment, error) {
 	return segments, nil
 }
 
-type DbQueryable interface {
+type Queryable interface {
 	Query(query string, args ...any) (*sql.Rows, error)
 }
 
 func (m *MetaDB) querySegmentsInAscOrder(predicate string) ([]utils.Segment, error) {
-	return m.querySegmentsInAscOrderWith(m.db, predicate)
+	return m.querySegmentIsInAscOrderWith(m.db, predicate)
 }
 
-func (m *MetaDB) querySegmentsInAscOrderWith(q DbQueryable, predicate string) ([]utils.Segment, error) {
+func (m *MetaDB) querySegmentIsInAscOrderWith(q Queryable, predicate string) ([]utils.Segment, error) {
 	var segments []utils.Segment
 	query := fmt.Sprintf(`SELECT segment_no, file_path FROM %s WHERE %s ORDER BY segment_no;`, QUEUE_SEGMENT_META_TABLE_NAME, predicate)
 	rows, err := q.Query(query)
