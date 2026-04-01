@@ -4125,16 +4125,16 @@ func TestLiveMigrationWithFallbackWithArchiveChanges(t *testing.T) {
 
 }
 
-func getLiveMigrationTestForLiveWithFBWithIterationsAndArchiveChanges(t *testing.T) *LiveMigrationTest {
+func getLiveMigrationTestForLiveWithFBWithIterationsAndArchiveChanges(t *testing.T, databaseName string) *LiveMigrationTest {
 	return NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
 			ForLive:      true,
-			DatabaseName: "test_fallback_with_archive_changes",
+			DatabaseName: databaseName,
 		},
 		TargetDB: ContainerConfig{
 			Type:         "yugabytedb",
-			DatabaseName: "test_fallback_with_archive_changes",
+			DatabaseName: databaseName,
 		},
 		SchemaNames: []string{`test_schema`},
 		SchemaSQL: []string{
@@ -4382,7 +4382,7 @@ func setupLiveMigrationWithFallbackWithIterationsAndArchiveChanges(t *testing.T,
 }
 
 func TestLiveMigrationWithFallbackWithIterationsAndArchiveChanges(t *testing.T) {
-	lm := getLiveMigrationTestForLiveWithFBWithIterationsAndArchiveChanges(t)
+	lm := getLiveMigrationTestForLiveWithFBWithIterationsAndArchiveChanges(t, "test_iterations_archive")
 
 	defer lm.Cleanup()
 	setupLiveMigrationWithFallbackWithIterationsAndArchiveChanges(t, lm)
@@ -4400,7 +4400,7 @@ func TestLiveMigrationWithFallbackWithIterationsAndArchiveChanges(t *testing.T) 
 }
 
 func TestLiveMigrationWithFallbackWithIterationsAndArchiveChangesAndEndMigration(t *testing.T) {
-	lm := getLiveMigrationTestForLiveWithFBWithIterationsAndArchiveChanges(t)
+	lm := getLiveMigrationTestForLiveWithFBWithIterationsAndArchiveChanges(t, "test_iterations_archive_end")
 
 	defer lm.Cleanup()
 	setupLiveMigrationWithFallbackWithIterationsAndArchiveChanges(t, lm)
@@ -4423,5 +4423,6 @@ func TestLiveMigrationWithFallbackWithIterationsAndArchiveChangesAndEndMigration
 	assert.True(t, lm.archiveChangesCmd.IsStopped(), "archive changes command should be stopped")
 	assert.True(t, lm.exportFromTargetCmd.IsStopped(), "export from target command should be stopped")
 	assert.True(t, lm.importToSourceCmd.IsStopped(), "import to source command should be stopped")
+
 
 }
