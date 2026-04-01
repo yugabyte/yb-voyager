@@ -120,7 +120,8 @@ def archive_changes_start_action(stage: Dict[str, Any], ctx: Any) -> None:
 
 @action("validate_archive_changes")
 def validate_archive_changes_action(_stage, ctx: Any) -> None:
-    H.validate_archive_changes(ctx)
+    check_post_cutover_to_source = bool(_stage.get("check_post_cutover_to_source", False))
+    H.validate_archive_changes(ctx, check_post_cutover_to_source=check_post_cutover_to_source)
 
 @action("voyager_stop_command")
 def stop_command_action(stage: Dict[str, Any], ctx: Any) -> None:
@@ -349,7 +350,6 @@ def main() -> None:
             stage = stages[idx]
             stage_name = stage.get("name", "<unnamed>")
             ctx.loop_iteration = iteration
-            H.apply_effective_export_dir(ctx)
             H.log_stage_start(stage_name)
             start_ts = H._ts()
             try:
@@ -368,6 +368,8 @@ def main() -> None:
                         "loop_end: scenario has no loop_start stage"
                     ) from None
                 iteration += 1
+                ctx.loop_iteration = iteration
+                H.apply_effective_export_dir(ctx)
                 if iteration >= num_iterations:
                     idx += 1
                 else:

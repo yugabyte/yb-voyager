@@ -210,7 +210,6 @@ def poll_until(timeout_sec: int, interval_sec: int, fn: Callable[[], bool]) -> b
 def exporter_streaming(export_dir: str) -> bool:
     """Heuristic: streaming started when some queue segment.0.ndjson has data (parent or iteration export-dir)."""
     seg0 = os.path.join(export_dir, "data", "queue", "segment.0.ndjson")
-    print(f"path to seg0: {seg0}")
     try:
         if not os.path.isfile(seg0):
             return False
@@ -674,7 +673,7 @@ def _total_segments_in_metadb(export_dir: str) -> int:
     )
     return int(proc.stdout.strip())
 
-def validate_archive_changes(ctx: Context) -> None:
+def validate_archive_changes(ctx: Context, check_post_cutover_to_source: bool = False) -> None:
     """Validate archive-changes results based on the policy that was used.
     For policy ``archive``:
       1. (file-count) files in archive-dir + files in queue-dir == total segments registered in metaDB.
@@ -691,6 +690,13 @@ def validate_archive_changes(ctx: Context) -> None:
     log(f"validate_archive_changes: policy={policy}, export_dir={export_dir}")
 
     if policy == "delete":
+        if check_post_cutover_to_source:
+            if len(queue_files) != 0:
+                raise AssertionError(
+                    f"validate_archive_changes [delete]: expected 0 segment files in queue, found {len(queue_files)}: {queue_files}"
+                )
+            log(f"validate_archive_changes [delete]: OK — {len(queue_files)} segment files in queue")
+            return
         if len(queue_files) != 4:
             raise AssertionError(
                 f"validate_archive_changes [delete]: expected 4 segment files in queue, found {len(queue_files)}: {queue_files}"
@@ -708,6 +714,15 @@ def validate_archive_changes(ctx: Context) -> None:
 
     log(f"validate_archive_changes [archive]: archive_files={len(archive_files)}, queue_files={len(queue_files)}, total_on_disk={total_on_disk}, total_in_meta={total_in_meta}")
 
+    if check_post_cutover_to_source:
+        if len(archive_files)==total_in_meta and len(queue_files)==0:
+            log(f"validate_archive_changes [archive]: OK — archive_files={len(archive_files)}, queue_files={len(queue_files)}")
+        else:
+            raise AssertionError(
+                f"validate_archive_changes [archive]: segment file count mismatch — archive({len(archive_files)}) + queue({len(queue_files)}) = {total_on_disk} but metaDB reports {total_in_meta} total segments"
+            )
+        return
+    
     if total_on_disk != total_in_meta:
         raise AssertionError(
             f"validate_archive_changes [archive]: segment file count mismatch — archive({len(archive_files)}) + queue({len(queue_files)}) = {total_on_disk} but metaDB reports {total_in_meta} total segments"

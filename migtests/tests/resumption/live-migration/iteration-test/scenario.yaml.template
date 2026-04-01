@@ -318,6 +318,14 @@ stages:
     condition: cutover_to_source_status_completed
     timeout_sec: 900
 
+  - name: wait_for_archiver
+    action: sleep
+    seconds: 240
+
+  - name: validate_archive_changes
+    action: validate_archive_changes
+    check_post_cutover_to_source: True
+
   - name: row_count_validations
     action: row_count_validations
 
