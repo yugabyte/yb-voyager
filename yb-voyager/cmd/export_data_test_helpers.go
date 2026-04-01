@@ -1,4 +1,4 @@
-//go:build failpoint || failpoint_export_snapshot || failpoint_export_cdc || failpoint_export_ff || failpoint_import || failpoint_cutover
+//go:build failpoint_export_snapshot || failpoint_export_cdc || failpoint_export_ff || failpoint_import || failpoint_cutover
 
 package cmd
 
