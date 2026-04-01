@@ -35,16 +35,15 @@ def get_action(name: str) -> Callable[[Dict[str, Any], Any], None]:
 
 @action("run_sql")
 def run_sql_action(stage: Dict[str, Any], ctx: Any) -> None:
-    # Execute SQL against source/target based on stage params
     sql_path = stage.get("sql_path")
-    target = stage.get("target", "source")
     use_admin = bool(stage.get("use_admin"))
     if not sql_path:
         raise ValueError("run_sql action requires non-empty 'sql_path'")
-    # Resolve relative to test_root if provided
     if ctx.test_root and not os.path.isabs(sql_path):
         sql_path = os.path.join(ctx.test_root, sql_path)
-    H.run_sql_file(ctx, sql_path, target, use_admin=use_admin)
+    targets = stage.get("targets") or [stage.get("target", "source")]
+    for target in targets:
+        H.run_sql_file(ctx, sql_path, target, use_admin=use_admin)
 
 
 @action("voyager_export_schema")

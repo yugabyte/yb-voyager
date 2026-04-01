@@ -187,7 +187,7 @@ def validate_scenario(cfg: Dict[str, Any]) -> None:
         action = _ensure(st, "action", str, sctx)
         if action == "wait_for":
             _ensure(st, "condition", str, sctx)
-        if action == "stop_process":
+        if action == "stop_external_process":
             _ensure(st, "process", str, sctx)
 
 # -------------------------
@@ -742,10 +742,11 @@ def validate_archive_changes(ctx: Context, check_post_cutover_to_source: bool = 
             )
 
         if archived_last_vsn + 1 != queue_first_vsn:
-            log(
+            raise AssertionError(
                 f"validate_archive_changes [archive]: vsn continuity broken — last vsn in archive ({archive_files[-1]}) = {archived_last_vsn}, first vsn in queue ({queue_files[0]}) = {queue_first_vsn}, expected {archived_last_vsn + 1}"
             )
-        log(f"validate_archive_changes [archive]: vsn continuity OK — archived_last={archived_last_vsn}, queue_first={queue_first_vsn}")
+        else:
+            log(f"validate_archive_changes [archive]: vsn continuity OK — archived_last={archived_last_vsn}, queue_first={queue_first_vsn}")
 
 
 def start_command_by_name(name: str, ctx: Context) -> subprocess.Popen:
@@ -755,7 +756,7 @@ def start_command_by_name(name: str, ctx: Context) -> subprocess.Popen:
         "export_from_target": lambda: spawn(build_export_from_target_cmd(ctx.cfg), ctx.env),
         "import_to_source_replica": lambda: spawn(build_import_to_source_replica_cmd(ctx.cfg), ctx.env),
         "import_to_source": lambda: spawn(build_import_to_source_cmd(ctx.cfg), ctx.env),
-        "archive_changes": lambda: spawn(build_archive_changes_cmd(ctx, "archive"), ctx.env),
+        "archive_changes": lambda: spawn(build_archive_changes_cmd(ctx, ctx.archive_changes_policy), ctx.env),
     }
     try:
         return mapping[name]()
