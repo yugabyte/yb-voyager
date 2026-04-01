@@ -120,7 +120,7 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 	require.NoError(t, err, "Should be able to read debezium logs for offset commit failure")
 	require.True(t, matched, "Byteman offset commit failure should be injected")
 
-	err = lm.WaitForExportDataExit()
+	err = lm.WaitForExportDataExitTimeout(120 * time.Second)
 	require.Error(t, err, "Export should exit with error after offset commit failure")
 
 	eventCountAfterFailure, err := countEventsInQueueSegments(exportDir)
@@ -270,7 +270,7 @@ func TestCDCBatchFailureBeforeHandleBatchComplete(t *testing.T) {
 	require.NoError(t, err, "Should be able to read debezium logs for handleBatchComplete failure")
 	require.True(t, matched, "Byteman failure should be injected before handleBatchComplete")
 
-	err = lm.WaitForExportDataExit()
+	err = lm.WaitForExportDataExitTimeout(120 * time.Second)
 	require.Error(t, err, "Export should exit with error after failure")
 
 	_, _ = verifyNoEventIDDuplicatesAfterFailure(t, exportDir)
@@ -391,7 +391,7 @@ func TestCDCQueueWriteFailureAndResume(t *testing.T) {
 	require.NoError(t, err, "Should be able to read debezium logs for queue write failure")
 	require.True(t, matched, "Byteman queue write failure should be injected")
 
-	err = lm.WaitForExportDataExit()
+	err = lm.WaitForExportDataExitTimeout(120 * time.Second)
 	require.Error(t, err, "Export should exit with error after queue write failure")
 
 	// Run 2: resume export — all 40 events should be recovered
@@ -590,7 +590,7 @@ func TestCDCQueueSegmentTruncationOnResume(t *testing.T) {
 	require.NoError(t, err, "Should be able to read debezium logs for handleBatchComplete failure")
 	require.True(t, matched, "Byteman failure should be injected before handleBatchComplete")
 
-	err = lm.WaitForExportDataExit()
+	err = lm.WaitForExportDataExitTimeout(120 * time.Second)
 	require.Error(t, err, "Export should exit with error after failure")
 
 	segmentFiles, err := listQueueSegmentFiles(exportDir)
