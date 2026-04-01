@@ -32,9 +32,9 @@ import (
 func TestImportDataBatchCommitFailure(t *testing.T) {
 	ctx := context.Background()
 
-	// Create a temporary export directory
-	exportDir = testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(exportDir)
+	// Create a temporary export directory (local var to avoid mutating global exportDir)
+	localExportDir := testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(localExportDir)
 
 	// Start Postgres container for source data
 	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
@@ -44,6 +44,9 @@ func TestImportDataBatchCommitFailure(t *testing.T) {
 	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
 	err = yugabytedbContainer.Start(ctx)
 	testutils.FatalIfError(t, err, "Failed to start YugabyteDB container")
+
+	const srcDB = "postgres"
+	const tgtDB = "yugabyte"
 
 	// Create test schema and small dataset
 	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
@@ -60,16 +63,17 @@ FROM generate_series(1, 20) i;`
 	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
 
 	// Setup source database
-	postgresContainer.ExecuteSqls(createSchemaSQL, createTableSQL, insertDataSQL)
-	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
+	postgresContainer.ExecuteSqlsOnDB(srcDB, createSchemaSQL, createTableSQL, insertDataSQL)
+	defer postgresContainer.ExecuteSqlsOnDB(srcDB, dropSchemaSQL)
 
 	// Setup target database
-	yugabytedbContainer.ExecuteSqls(createSchemaSQL, createTableSQL)
-	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
+	yugabytedbContainer.ExecuteSqlsOnDB(tgtDB, createSchemaSQL, createTableSQL)
+	defer yugabytedbContainer.ExecuteSqlsOnDB(tgtDB, dropSchemaSQL)
 
 	// Export data from Postgres (creates natural metadata)
 	exportRunner := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", exportDir,
+		"--export-dir", localExportDir,
+		"--source-db-name", srcDB,
 		"--source-db-schema", "test_schema",
 		"--disable-pb", "true",
 		"--yes",
@@ -87,7 +91,8 @@ FROM generate_series(1, 20) i;`
 	// Run import with failpoint enabled (should fail)
 	t.Log("Running import with failpoint enabled...")
 	importCmdWithFailpoint := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
-		"--export-dir", exportDir,
+		"--export-dir", localExportDir,
+		"--target-db-name", tgtDB,
 		"--disable-pb", "true",
 		"--batch-size", "2",
 		"--parallel-jobs", "1",
@@ -104,7 +109,7 @@ FROM generate_series(1, 20) i;`
 	assert.Contains(t, stderr, "failpoint", "Error should mention failpoint")
 
 	// Verify no data was committed to the database
-	ybConn, err := yugabytedbContainer.GetConnection()
+	ybConn, err := yugabytedbContainer.GetConnectionWithDB(tgtDB)
 	testutils.FatalIfError(t, err, "Failed to get YugabyteDB connection")
 	defer ybConn.Close()
 
@@ -117,7 +122,8 @@ FROM generate_series(1, 20) i;`
 	// Now resume import WITHOUT failpoint (should succeed)
 	t.Log("Resuming import without failpoint...")
 	importCmdResume := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
-		"--export-dir", exportDir,
+		"--export-dir", localExportDir,
+		"--target-db-name", tgtDB,
 		"--disable-pb", "true",
 		"--skip-replication-checks", "true",
 		"--yes",
@@ -134,7 +140,7 @@ FROM generate_series(1, 20) i;`
 	t.Logf("✓ Import successfully resumed and completed after failpoint was disabled")
 
 	// Compare data between source and target
-	pgConn, err := postgresContainer.GetConnection()
+	pgConn, err := postgresContainer.GetConnectionWithDB(srcDB)
 	testutils.FatalIfError(t, err, "Failed to get Postgres connection")
 	defer pgConn.Close()
 
