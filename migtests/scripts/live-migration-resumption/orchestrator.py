@@ -3,6 +3,7 @@
 import os
 import sys
 import argparse
+import random
 import time
 from typing import Any, Dict, Callable
 import helpers as H
@@ -102,11 +103,48 @@ def import_to_source_replica_start_action(_stage, ctx: Any) -> None:
         ctx.processes["import_to_source_replica"] = H.start_command_by_name("import_to_source_replica", ctx)
 
 
+@action("voyager_archive_changes_start")
+def archive_changes_start_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Start yb-voyager archive changes process.
+
+    Optional stage key:
+      - policy: explicit policy ("delete" or "archive").
+                When omitted, a policy is chosen at random.
+    """
+    policy = stage.get("policy") or random.choice(["delete", "archive"])
+    H.log(f"archive_changes: selected policy={policy}")
+    ctx.archive_changes_policy = policy
+    cmd = H.build_archive_changes_cmd(ctx, policy)
+    with ctx.process_lock:
+        ctx.processes["archive_changes"] = H.spawn(cmd, ctx.env)
+
+@action("validate_archive_changes")
+def validate_archive_changes_action(_stage, ctx: Any) -> None:
+    check_post_cutover_to_source = bool(_stage.get("check_post_cutover_to_source", False))
+    H.validate_archive_changes(ctx, check_post_cutover_to_source=check_post_cutover_to_source)
+
 @action("voyager_stop_command")
 def stop_command_action(stage: Dict[str, Any], ctx: Any) -> None:
     command = stage.get("command")
     timeout = int(stage.get("graceful_timeout_sec", 20))
     H.stop_process(ctx, command, graceful_timeout=timeout)
+
+
+@action("stop_external_process")
+def stop_external_process_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Stop a yb-voyager process by semantic name (tracked or discovered via pgrep).
+
+    Required stage key:
+      - process: logical name (export_data, import_data, export_from_target,
+        import_to_source, import_to_source_replica).
+    Optional:
+      - graceful_timeout_sec: seconds to wait after SIGTERM before SIGKILL (default 20).
+    """
+    name = stage.get("process")
+    if not name:
+        raise ValueError("stop_process action requires non-empty 'process'")
+    timeout = int(stage.get("graceful_timeout_sec", 20))
+    H.stop_external_process(ctx, str(name), graceful_timeout=timeout)
 
 
 _WAIT_FOR_CONDITIONS: Dict[str, Dict[str, Any]] = {
@@ -213,6 +251,23 @@ def sleep_action(stage: Dict[str, Any], ctx: Any) -> None:
         time.sleep(secs)
 
 
+@action("loop_start")
+def loop_start_action(_stage, _ctx: Any) -> None:
+    """No-op marker; the runner uses this to know where to jump back."""
+    pass
+
+
+class _LoopEnd(Exception):
+    """Sentinel raised by loop_end to signal the runner to jump back."""
+    pass
+
+
+@action("loop_end")
+def loop_end_action(_stage, ctx: Any) -> None:
+    """Signal the runner to jump back to the matching loop_start."""
+    raise _LoopEnd()
+
+
 @action("reset_databases")
 def reset_databases_action(stage: Dict[str, Any], ctx: Any) -> None:
     """Drop and recreate source/target databases using admin credentials."""
@@ -279,9 +334,22 @@ def main() -> None:
     ctx = H.Context(cfg=cfg, env=env, test_root=test_root)
     had_failure = False
 
+    stages = cfg["stages"]
+    num_iterations = int(cfg.get("num_iterations", 1))
+
+    loop_start_idx = None
+    for i, s in enumerate(stages):
+        if s.get("action") == "loop_start":
+            loop_start_idx = i
+            break
+
     try:
-        for stage in cfg["stages"]:
+        iteration = 0
+        idx = 0
+        while idx < len(stages):
+            stage = stages[idx]
             stage_name = stage.get("name", "<unnamed>")
+            ctx.loop_iteration = iteration
             H.log_stage_start(stage_name)
             start_ts = H._ts()
             try:
@@ -289,6 +357,23 @@ def main() -> None:
                 end_ts = H._ts()
                 H.append_stage_summary(cfg["artifacts_dir"], stage_name, start_ts, end_ts, status="OK")
                 H.log_stage_end(stage_name, status="OK")
+                idx += 1
+            except _LoopEnd:
+                # loop_end raises this on purpose: jump back to loop_start or exit after num_iterations.
+                end_ts = H._ts()
+                H.append_stage_summary(cfg["artifacts_dir"], stage_name, start_ts, end_ts, status="OK")
+                H.log_stage_end(stage_name, status="OK")
+                if loop_start_idx is None:
+                    raise RuntimeError(
+                        "loop_end: scenario has no loop_start stage"
+                    ) from None
+                iteration += 1
+                ctx.loop_iteration = iteration
+                H.apply_effective_export_dir(ctx)
+                if iteration >= num_iterations:
+                    idx += 1
+                else:
+                    idx = loop_start_idx
             except Exception as e:
                 end_ts = H._ts()
                 H.append_stage_summary(cfg["artifacts_dir"], stage_name, start_ts, end_ts, status="FAILED", error=str(e))
