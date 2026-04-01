@@ -994,23 +994,6 @@ func newImportBatchErrorPgYb(underlyingErr error, batch Batch, flow string, step
 		dbContext)
 }
 
-// YugabyteDB does not populate PgError.ConstraintName, so we fall back to this.
-// Example messages:
-//
-//	duplicate key value violates unique constraint "test_pk_pkey"
-//	insert or update on table "child_tbl" violates foreign key constraint "child_tbl_parent_id_fkey"
-func extractConstraintNameFromMessage(msg string) string {
-	_, after, found := strings.Cut(msg, `constraint "`)
-	if !found {
-		return ""
-	}
-	name, _, found := strings.Cut(after, `"`)
-	if !found {
-		return ""
-	}
-	return name
-}
-
 func (yb *TargetYugabyteDB) GetListOfTableAttributes(nt sqlname.NameTuple) ([]string, error) {
 	schemaName, tableName := nt.ForCatalogQuery()
 	var result []string
