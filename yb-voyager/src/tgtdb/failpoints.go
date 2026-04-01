@@ -35,7 +35,8 @@ func injectImportBatchCommitError(batch Batch) (triggered bool, importBatchErr e
 			err2 := goerrors.Errorf("failpoint: commit failed")
 			importBatchErr = newImportBatchErrorPgYb(err2, batch,
 				errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL,
-				errs.IMPORT_BATCH_ERROR_STEP_COMMIT_TXN)
+				errs.IMPORT_BATCH_ERROR_STEP_COMMIT_TXN, 
+				nil)
 			triggered = true
 		}
 	})
