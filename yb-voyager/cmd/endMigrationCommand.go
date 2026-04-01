@@ -94,14 +94,11 @@ var endMigrationCmd = &cobra.Command{
 			utils.PrintAndLogfInfo("\nEnding migration for iteration %d\n", i)
 			iterationExportDir := GetIterationExportDir(msr.GetIterationsDir(currExportDir), i)
 			if !utils.FileOrFolderExists(iterationExportDir) {
-				utils.ErrExit("iteration export directory %q does not exist", iterationExportDir)
+				utils.PrintAndLogf("Ended migration for iteration %d successfully", i)
+				continue
 			}
 			iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
 			if err != nil {
-				if os.IsNotExist(err) {
-					utils.PrintAndLogf("Ended migration for iteration %d successfully", i)
-					continue
-				}
 				utils.ErrExit("failed to create iteration meta db: %w", err)
 			}
 			if currBackupDir != "" {
@@ -116,6 +113,11 @@ var endMigrationCmd = &cobra.Command{
 			success := endMigrationCommandFn(cmd, args, true)
 			if !success {
 				utils.ErrExit("Aborting command to not end migration for further iterations")
+			}
+			//remove iteration export directory
+			err = os.RemoveAll(iterationExportDir)
+			if err != nil {
+				utils.ErrExit("removing iteration export directory: %w", err)
 			}
 		}
 		metaDB = currMetaDB
