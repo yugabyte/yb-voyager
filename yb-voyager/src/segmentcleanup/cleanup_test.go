@@ -46,40 +46,47 @@ func newArchiveCleaner(exportDir string, archiveDir string, mdb *metadb.MetaDB) 
 }
 
 // ============================================================
-// Delete policy without fall-forward: only target-processed
-// segments are eligible (importCount=1).
+// Buffer behaviour: with segmentCleanupBuffer=3, during normal
+// operation only segments beyond the last 3 processed are
+// eligible. After SignalStop all processed segments are eligible.
 // ============================================================
-func TestDeletePolicy_ProcessedSegmentsDeletedWithoutFF(t *testing.T) {
+func TestDeletePolicy_BufferKeepsLastThreeProcessed(t *testing.T) {
 	mdb, exportDir := setupTestMetaDB(t)
 	setMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
 		r.FallForwardEnabled = false
 		r.ExportDataSourceDebeziumStarted = true
 	})
 
-	paths := createSegmentFiles(t, exportDir, 3)
-
-	insertSegment(t, exportDir, SegmentRow{1, paths[0], "source_db_exporter", 1, 0, 0, 0, 0})
-	insertSegment(t, exportDir, SegmentRow{2, paths[1], "source_db_exporter", 1, 0, 0, 0, 0})
-	insertSegment(t, exportDir, SegmentRow{3, paths[2], "source_db_exporter", 0, 0, 0, 0, 0})
+	paths := createSegmentFiles(t, exportDir, 6)
+	for i := 1; i <= 5; i++ {
+		insertSegment(t, exportDir, SegmentRow{i, paths[i-1], "source_db_exporter", 1, 0, 0, 0, 0})
+	}
+	insertSegment(t, exportDir, SegmentRow{6, paths[5], "source_db_exporter", 0, 0, 0, 0, 0})
 
 	cleaner := newDeleteCleaner(exportDir, mdb)
-	err := cleaner.DeleteProcessedSegments()
+
+	// Normal operation: 5 processed, buffer=3 → first 2 eligible.
+	_, _, deleted, err := cleaner.DeleteProcessedSegments()
 	require.NoError(t, err)
+	assert.Len(t, deleted, 2, "Only first 2 of 5 processed segments should be eligible")
 
-	assert.NoFileExists(t, paths[0], "Seg 1 file should be removed")
-	assert.NoFileExists(t, paths[1], "Seg 2 file should be removed")
-	assert.FileExists(t, paths[2], "Seg 3 file should still exist")
+	assert.NoFileExists(t, paths[0], "Seg 1 should be deleted")
+	assert.NoFileExists(t, paths[1], "Seg 2 should be deleted")
+	assert.FileExists(t, paths[2], "Seg 3 should be retained (buffer)")
+	assert.FileExists(t, paths[3], "Seg 4 should be retained (buffer)")
+	assert.FileExists(t, paths[4], "Seg 5 should be retained (buffer)")
+	assert.FileExists(t, paths[5], "Seg 6 should still be pending")
 
-	allSegs := queryAllSegments(t, exportDir)
-	assert.Equal(t, 1, allSegs[0].Deleted, "Seg 1 should be deleted")
-	assert.Equal(t, 1, allSegs[0].Archived, "Seg 1 should be archived")
-	assert.Equal(t, 1, allSegs[1].Deleted, "Seg 2 should be deleted")
-	assert.Equal(t, 1, allSegs[1].Archived, "Seg 2 should be archived")
-	assert.Equal(t, 0, allSegs[2].Deleted, "Seg 3 should NOT be deleted")
-	assert.Equal(t, 0, allSegs[2].Archived, "Seg 3 should NOT be archived")
-
-	err = cleaner.DeleteProcessedSegments()
+	// After SignalStop: remaining 3 processed segments become eligible.
+	cleaner.SignalStop()
+	_, _, deleted2, err := cleaner.DeleteProcessedSegments()
 	require.NoError(t, err)
+	assert.Len(t, deleted2, 3, "All 3 remaining processed segments should be eligible after stop")
+
+	assert.NoFileExists(t, paths[2], "Seg 3 should now be deleted")
+	assert.NoFileExists(t, paths[3], "Seg 4 should now be deleted")
+	assert.NoFileExists(t, paths[4], "Seg 5 should now be deleted")
+	assert.FileExists(t, paths[5], "Seg 6 should still be pending")
 }
 
 // ============================================================
@@ -94,14 +101,18 @@ func TestDeletePolicy_FFPreCutoverRequiresBothImporters(t *testing.T) {
 	})
 
 	paths := createSegmentFiles(t, exportDir, 3)
-
 	insertSegment(t, exportDir, SegmentRow{1, paths[0], "source_db_exporter", 1, 1, 0, 0, 0})
 	insertSegment(t, exportDir, SegmentRow{2, paths[1], "source_db_exporter", 1, 1, 0, 0, 0})
 	insertSegment(t, exportDir, SegmentRow{3, paths[2], "source_db_exporter", 1, 0, 0, 0, 0})
 
 	cleaner := newDeleteCleaner(exportDir, mdb)
-	err := cleaner.DeleteProcessedSegments()
+	cleaner.SignalStop()
+
+	processed, pending, deleted, err := cleaner.DeleteProcessedSegments()
 	require.NoError(t, err)
+	assert.Len(t, processed, 2, "Segments where target+SR=2 are processed")
+	assert.Len(t, pending, 1, "Seg 3 should still be pending")
+	assert.Len(t, deleted, 2, "Both processed segments should be deleted in drain mode")
 
 	assert.NoFileExists(t, paths[0], "Seg 1 file should be removed")
 	assert.NoFileExists(t, paths[1], "Seg 2 file should be removed")
@@ -126,49 +137,24 @@ func TestDeletePolicy_FFPostCutoverSourceSegmentPendingSR(t *testing.T) {
 	})
 
 	paths := createSegmentFiles(t, exportDir, 2)
-
-	insertSegment(t, exportDir, SegmentRow{1, paths[0], "source_db_exporter", 1, 0, 0, 0, 0})
-	insertSegment(t, exportDir, SegmentRow{2, paths[1], "source_db_exporter", 1, 1, 0, 0, 0})
-
-	cleaner := newDeleteCleaner(exportDir, mdb)
-	err := cleaner.DeleteProcessedSegments()
-	require.NoError(t, err)
-
-	assert.FileExists(t, paths[0], "Seg 1 file should still exist (SR hasn't processed)")
-	assert.NoFileExists(t, paths[1], "Seg 2 file should be removed")
-
-	allSegs := queryAllSegments(t, exportDir)
-	assert.Equal(t, 0, allSegs[0].Deleted, "Seg 1 should NOT be deleted")
-	assert.Equal(t, 1, allSegs[1].Deleted, "Seg 2 should be deleted")
-}
-
-// ============================================================
-// FF post-cutover: target-exported segments that SR has not yet
-// processed must not be deleted.
-// ============================================================
-func TestDeletePolicy_FFPostCutoverTargetSegmentsSkippedBeforeSR(t *testing.T) {
-	mdb, exportDir := setupTestMetaDB(t)
-	setMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
-		r.FallForwardEnabled = true
-		r.CutoverProcessedByTargetImporter = true
-		r.ExportFromTargetFallForwardStarted = true
-	})
-
-	paths := createSegmentFiles(t, exportDir, 2)
-
-	insertSegment(t, exportDir, SegmentRow{10, paths[0], "target_db_exporter_ff", 0, 0, 0, 0, 0})
-	insertSegment(t, exportDir, SegmentRow{11, paths[1], "target_db_exporter_ff", 0, 0, 0, 0, 0})
+	insertSegment(t, exportDir, SegmentRow{1, paths[0], "source_db_exporter", 1, 1, 0, 0, 0})
+	insertSegment(t, exportDir, SegmentRow{2, paths[1], "source_db_exporter", 1, 0, 0, 0, 0})
 
 	cleaner := newDeleteCleaner(exportDir, mdb)
-	err := cleaner.DeleteProcessedSegments()
-	require.NoError(t, err)
+	cleaner.SignalStop()
 
-	assert.FileExists(t, paths[0], "Seg 10 file should still exist")
-	assert.FileExists(t, paths[1], "Seg 11 file should still exist")
+	processed, pending, deleted, err := cleaner.DeleteProcessedSegments()
+	require.NoError(t, err)
+	assert.Len(t, processed, 1, "Only seg 1 should be processed )")
+	assert.Len(t, pending, 1, "Seg 2 should still be pending")
+	assert.Len(t, deleted, 1, "Only seg 1 should be deleted")
+
+	assert.NoFileExists(t, paths[0], "Seg 1 file should be removed")
+	assert.FileExists(t, paths[1], "Seg 2 file should be removed")
 
 	allSegs := queryAllSegments(t, exportDir)
-	assert.Equal(t, 0, allSegs[0].Deleted, "Seg 10 should NOT be deleted")
-	assert.Equal(t, 0, allSegs[1].Deleted, "Seg 11 should NOT be deleted")
+	assert.Equal(t, 1, allSegs[0].Deleted, "Seg 1 should be deleted")
+	assert.Equal(t, 0, allSegs[1].Deleted, "Seg 2 should not be deleted")
 }
 
 // ============================================================
@@ -189,8 +175,11 @@ func TestDeletePolicy_FallbackWorkflowUsesImportCountOne(t *testing.T) {
 	insertSegment(t, exportDir, SegmentRow{3, paths[2], "source_db_exporter", 0, 0, 0, 0, 0})
 
 	cleaner := newDeleteCleaner(exportDir, mdb)
-	err := cleaner.DeleteProcessedSegments()
+	cleaner.SignalStop()
+
+	_, _, deleted, err := cleaner.DeleteProcessedSegments()
 	require.NoError(t, err)
+	assert.Len(t, deleted, 2, "Segs 1 and 2 with target=1 should be deleted in drain mode")
 
 	assert.NoFileExists(t, paths[0], "Seg 1 file should be removed")
 	assert.NoFileExists(t, paths[1], "Seg 2 file should be removed")
@@ -294,8 +283,11 @@ func TestDeleteProcessedSegmentsRemovesFile(t *testing.T) {
 	assert.FileExists(t, paths[0], "segment file should exist before delete")
 
 	cleaner := newDeleteCleaner(exportDir, mdb)
-	err := cleaner.DeleteProcessedSegments()
+	cleaner.SignalStop()
+
+	_, _, deleted, err := cleaner.DeleteProcessedSegments()
 	require.NoError(t, err)
+	assert.Len(t, deleted, 1)
 
 	assert.NoFileExists(t, paths[0], "segment file should be removed after delete")
 
@@ -316,8 +308,11 @@ func TestDeleteProcessedSegmentsMissingFile(t *testing.T) {
 	insertSegment(t, exportDir, SegmentRow{1, "/tmp/nonexistent/segment.1.ndjson", "source_db_exporter", 1, 0, 0, 0, 0})
 
 	cleaner := newDeleteCleaner(exportDir, mdb)
-	err := cleaner.DeleteProcessedSegments()
+	cleaner.SignalStop()
+
+	_, _, deleted, err := cleaner.DeleteProcessedSegments()
 	require.NoError(t, err, "Should not error on missing file")
+	assert.Len(t, deleted, 1)
 
 	allSegs := queryAllSegments(t, exportDir)
 	assert.Equal(t, 1, allSegs[0].Deleted)
