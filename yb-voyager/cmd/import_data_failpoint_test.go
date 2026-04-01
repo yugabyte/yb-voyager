@@ -30,12 +30,13 @@ import (
 // TestImportDataBatchCommitFailure tests failpoint infrastructure by injecting a commit failure
 // during batch import, then verifying the import can resume successfully without the failpoint.
 func TestImportDataBatchCommitFailure(t *testing.T) {
-	t.Parallel()
 	ctx := context.Background()
 
-	localExportDir := testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(localExportDir)
+	// Create a temporary export directory
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
 
+	// Start Postgres container for source data
 	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
 	err := postgresContainer.Start(ctx)
 	testutils.FatalIfError(t, err, "Failed to start Postgres container")
@@ -44,18 +45,19 @@ func TestImportDataBatchCommitFailure(t *testing.T) {
 	err = yugabytedbContainer.Start(ctx)
 	testutils.FatalIfError(t, err, "Failed to start YugabyteDB container")
 
-	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema_import_fp;`
+	// Create test schema and small dataset
+	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
 	createTableSQL := `
-CREATE TABLE test_schema_import_fp.test_failpoint (
+CREATE TABLE test_schema.test_failpoint (
 	id SERIAL PRIMARY KEY,
 	name TEXT,
 	value INTEGER
 );`
 	insertDataSQL := `
-INSERT INTO test_schema_import_fp.test_failpoint (name, value)
+INSERT INTO test_schema.test_failpoint (name, value)
 SELECT 'test_' || i, i * 100
 FROM generate_series(1, 20) i;`
-	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema_import_fp CASCADE;`
+	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
 
 	// Setup source database
 	postgresContainer.ExecuteSqls(createSchemaSQL, createTableSQL, insertDataSQL)
@@ -65,9 +67,10 @@ FROM generate_series(1, 20) i;`
 	yugabytedbContainer.ExecuteSqls(createSchemaSQL, createTableSQL)
 	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
 
+	// Export data from Postgres (creates natural metadata)
 	exportRunner := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", localExportDir,
-		"--source-db-schema", "test_schema_import_fp",
+		"--export-dir", exportDir,
+		"--source-db-schema", "test_schema",
 		"--disable-pb", "true",
 		"--yes",
 	}, nil, false).WithT(t)
@@ -81,9 +84,10 @@ FROM generate_series(1, 20) i;`
 		"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/importBatchCommitError=4*off->return()",
 	)
 
+	// Run import with failpoint enabled (should fail)
 	t.Log("Running import with failpoint enabled...")
 	importCmdWithFailpoint := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
-		"--export-dir", localExportDir,
+		"--export-dir", exportDir,
 		"--disable-pb", "true",
 		"--batch-size", "2",
 		"--parallel-jobs", "1",
@@ -99,19 +103,21 @@ FROM generate_series(1, 20) i;`
 	stderr := importCmdWithFailpoint.Stderr()
 	assert.Contains(t, stderr, "failpoint", "Error should mention failpoint")
 
+	// Verify no data was committed to the database
 	ybConn, err := yugabytedbContainer.GetConnection()
 	testutils.FatalIfError(t, err, "Failed to get YugabyteDB connection")
 	defer ybConn.Close()
 
 	var count int
-	err = ybConn.QueryRow("SELECT COUNT(*) FROM test_schema_import_fp.test_failpoint").Scan(&count)
+	err = ybConn.QueryRow("SELECT COUNT(*) FROM test_schema.test_failpoint").Scan(&count)
 	testutils.FatalIfError(t, err, "Failed to query row count")
 
 	assert.Equal(t, 8, count, "Expected 8 rows (4 batches succeeded before failpoint triggered)")
 
+	// Now resume import WITHOUT failpoint (should succeed)
 	t.Log("Resuming import without failpoint...")
 	importCmdResume := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
-		"--export-dir", localExportDir,
+		"--export-dir", exportDir,
 		"--disable-pb", "true",
 		"--skip-replication-checks", "true",
 		"--yes",
@@ -121,7 +127,7 @@ FROM generate_series(1, 20) i;`
 	testutils.FatalIfError(t, err, "Failed to resume import")
 
 	// Verify data was successfully imported this time
-	err = ybConn.QueryRow("SELECT COUNT(*) FROM test_schema_import_fp.test_failpoint").Scan(&count)
+	err = ybConn.QueryRow("SELECT COUNT(*) FROM test_schema.test_failpoint").Scan(&count)
 	testutils.FatalIfError(t, err, "Failed to query row count after resume")
 
 	assert.Equal(t, 20, count, "All 20 rows should be imported after successful resume")
@@ -132,7 +138,7 @@ FROM generate_series(1, 20) i;`
 	testutils.FatalIfError(t, err, "Failed to get Postgres connection")
 	defer pgConn.Close()
 
-	err = testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema_import_fp.test_failpoint", "id")
+	err = testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.test_failpoint", "id")
 	assert.NoError(t, err, "Data should match between source and target after recovery")
 
 	t.Logf("✓ All data correctly imported and matches source")

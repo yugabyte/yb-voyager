@@ -55,7 +55,6 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
 	}
-	t.Parallel()
 
 	ctx := context.Background()
 
@@ -207,7 +206,6 @@ func TestCDCBatchFailureBeforeHandleBatchComplete(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
 	}
-	t.Parallel()
 
 	ctx := context.Background()
 
@@ -329,7 +327,6 @@ func TestCDCQueueWriteFailureAndResume(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
 	}
-	t.Parallel()
 
 	ctx := context.Background()
 
@@ -436,7 +433,6 @@ func TestCDCRotationMidBatchClosesSegment(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
 	}
-	t.Parallel()
 
 	ctx := context.Background()
 
@@ -535,7 +531,6 @@ func TestCDCQueueSegmentTruncationOnResume(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
 	}
-	t.Parallel()
 
 	ctx := context.Background()
 

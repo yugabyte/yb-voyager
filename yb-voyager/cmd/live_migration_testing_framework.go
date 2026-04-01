@@ -270,8 +270,8 @@ func (lm *LiveMigrationTest) startExportData(async bool, extraArgs map[string]st
 	} else {
 		lm.t.Logf("Starting export data with export type %s", exportType)
 	}
-	var onStart func()
-	if async {
+	onStart := lm.exportCallback
+	if onStart == nil && async {
 		onStart = func() {
 			time.Sleep(5 * time.Second)
 		}
@@ -1216,6 +1216,15 @@ func (lm *LiveMigrationTest) ExecuteOnTarget(sqlStatements ...string) error {
 	return nil
 }
 
+// ExecuteOnSourceReplica executes SQL statements on source-replica database
+func (lm *LiveMigrationTest) ExecuteOnSourceReplica(sqlStatements ...string) error {
+	if lm.sourceReplicaContainer == nil {
+		return goerrors.Errorf("source-replica container not configured")
+	}
+	lm.sourceReplicaContainer.ExecuteSqls(sqlStatements...)
+	return nil
+}
+
 // ValidateDataConsistency compares data between source and target
 func (lm *LiveMigrationTest) ValidateDataConsistency(tables []string, orderBy string) error {
 	lm.t.Logf("Validating data consistency")
@@ -1616,12 +1625,33 @@ func (lm *LiveMigrationTest) ClearEnv() {
 	lm.envVars = nil
 }
 
+// SetExportCallback sets a callback to run concurrently after export starts
+func (lm *LiveMigrationTest) SetExportCallback(fn func()) {
+	lm.exportCallback = fn
+}
+
 // ============================================================
 // CONTAINER AND COMMAND ACCESSORS
 // ============================================================
 
+func (lm *LiveMigrationTest) GetSourceContainer() testcontainers.TestContainer {
+	return lm.sourceContainer
+}
+
 func (lm *LiveMigrationTest) GetTargetContainer() testcontainers.TestContainer {
 	return lm.targetContainer
+}
+
+func (lm *LiveMigrationTest) GetSourceReplicaContainer() testcontainers.TestContainer {
+	return lm.sourceReplicaContainer
+}
+
+func (lm *LiveMigrationTest) GetExportCmd() *testutils.VoyagerCommandRunner {
+	return lm.exportCmd
+}
+
+func (lm *LiveMigrationTest) GetImportCmd() *testutils.VoyagerCommandRunner {
+	return lm.importCmd
 }
 
 // ============================================================
@@ -1700,6 +1730,28 @@ func (lm *LiveMigrationTest) WaitForCDCEventCount(t *testing.T, expected int, ti
 		return count >= expected
 	}, timeout, pollInterval, "Timed out waiting for CDC event count to reach %d (last=%d)", expected, lastCount)
 	return lastCount
+}
+
+// killDebezium kills the Debezium process associated with this export dir
+func (lm *LiveMigrationTest) killDebezium() error {
+	pidStr, err := dbzm.GetPIDOfDebeziumOnExportDir(lm.exportDir, SOURCE_DB_EXPORTER_ROLE)
+	if err != nil {
+		return err
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(pidStr))
+	if err != nil {
+		return err
+	}
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return err
+	}
+	return proc.Kill()
+}
+
+// RemoveExportLockfile removes the export data lockfile (needed between export runs)
+func (lm *LiveMigrationTest) RemoveExportLockfile() {
+	_ = os.Remove(filepath.Join(lm.exportDir, ".export-dataLockfile.lck"))
 }
 
 // StartImportDataToSourceReplica starts "import data to source-replica" command
