@@ -554,6 +554,19 @@ func (m *MetaDB) GetSegmentsToBeDeleted() ([]utils.Segment, error) {
 // SQLite transaction, eliminating the race window where a segment could
 // transition between the two states and be missed by both queries.
 func (m *MetaDB) GetProcessedAndPendingSegments() (processed []utils.Segment, pending []utils.Segment, err error) {
+	msr, err := m.GetMigrationStatusRecord()
+	if err != nil {
+		return nil, nil, goerrors.Errorf("get migration status record: %v", err)
+	}
+	if msr == nil {
+		return nil, nil, goerrors.Errorf("migration status record not found")
+	}
+
+	importCount := 1
+	if msr.FallForwardEnabled {
+		importCount = 2
+	}
+
 	tx, err := m.db.Begin()
 	if err != nil {
 		return nil, nil, goerrors.Errorf("begin transaction: %v", err)
@@ -561,20 +574,6 @@ func (m *MetaDB) GetProcessedAndPendingSegments() (processed []utils.Segment, pe
 	defer func() {
 		_ = tx.Rollback()
 	}()
-
-	record := new(MigrationStatusRecord)
-	found, err := m.GetJsonObject(tx, MIGRATION_STATUS_KEY, record)
-	if err != nil {
-		return nil, nil, goerrors.Errorf("get migration status record: %v", err)
-	}
-	if !found {
-		return nil, nil, goerrors.Errorf("migration status record not found")
-	}
-
-	importCount := 1
-	if record.FallForwardEnabled {
-		importCount = 2
-	}
 
 	processedPredicate := fmt.Sprintf(`((exporter_role == 'source_db_exporter' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer = %d)) OR
 	(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_source_replica_db_importer + imported_by_source_db_importer = 1)))
@@ -619,7 +618,7 @@ func (m *MetaDB) GetPendingSegments() ([]utils.Segment, error) {
 	return segments, nil
 }
 
-type segmentQuerier interface {
+type Queryable interface {
 	Query(query string, args ...any) (*sql.Rows, error)
 }
 
@@ -627,7 +626,7 @@ func (m *MetaDB) querySegments(predicate string) ([]utils.Segment, error) {
 	return m.querySegmentsWith(m.db, predicate)
 }
 
-func (m *MetaDB) querySegmentsWith(q segmentQuerier, predicate string) ([]utils.Segment, error) {
+func (m *MetaDB) querySegmentsWith(q Queryable, predicate string) ([]utils.Segment, error) {
 	var segments []utils.Segment
 	query := fmt.Sprintf(`SELECT segment_no, file_path FROM %s WHERE %s ORDER BY segment_no;`, QUEUE_SEGMENT_META_TABLE_NAME, predicate)
 	rows, err := q.Query(query)
