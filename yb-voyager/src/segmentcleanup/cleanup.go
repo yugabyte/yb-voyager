@@ -139,7 +139,7 @@ func (sc *SegmentCleaner) runDeletePolicy() error {
 // DeleteProcessedSegments performs one iteration of the delete-policy cleanup:
 // atomically fetch both processed and pending segment lists, apply the cleanup
 // buffer, and delete each eligible segment. Logs counts for debugging.
-func (sc *SegmentCleaner) DeleteProcessedSegments() (segments []utils.Segment, pendingSegments []utils.Segment, deletedSegments []utils.Segment, error error) {
+func (sc *SegmentCleaner) DeleteProcessedSegments() (segments []utils.Segment, pendingSegments []utils.Segment, deletedSegments []utils.Segment, err error) {
 	segments, pendingSegments, err := sc.metaDB.GetProcessedAndPendingSegments()
 	if err != nil {
 		return nil, nil, nil, goerrors.Errorf("get processed and pending segments: %v", err)
@@ -221,7 +221,7 @@ func (sc *SegmentCleaner) runArchivePolicy() error {
 // ArchiveProcessedSegments performs one iteration of the archive-policy cleanup:
 // atomically fetch both processed and pending segment lists, copy each processed
 // segment to the archive directory, then delete it.
-func (sc *SegmentCleaner) ArchiveProcessedSegments() (segments []utils.Segment, pendingSegments []utils.Segment, archivedSegments []utils.Segment, error error) {
+func (sc *SegmentCleaner) ArchiveProcessedSegments() (segments []utils.Segment, pendingSegments []utils.Segment, archivedSegments []utils.Segment, err error) {
 	segments, pendingSegments, err := sc.metaDB.GetProcessedAndPendingSegments()
 	if err != nil {
 		return nil, nil, nil, goerrors.Errorf("get processed and pending segments: %v", err)
