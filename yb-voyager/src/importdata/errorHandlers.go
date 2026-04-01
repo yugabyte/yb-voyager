@@ -42,9 +42,10 @@ const (
 	FK_VIOLATION_RECOMMENDATION_MESSAGE = "Import failed due to foreign key constraint violation (SQLSTATE 23503): one or more rows reference a parent row that does not exist in the target table.\n" +
 		"This typically occurs when the import user lacks superuser privileges to set session_replication_role to replica.\n" +
 		"To resolve, try one of the following:\n" +
-		" 1. Grant permission: GRANT SET ON PARAMETER session_replication_role TO <username> (YugabyteDB v2025.1+).\n" +	
-		" 2. Manually disable triggers and drop foreign keys before import, then recreate them afterwards.\n" +	
-		" Refer to: https://docs.yugabyte.com/stable/yugabyte-voyager/reference/non-superuser/"
+		"  1. Grant superuser to the voyager user: ALTER USER <username> SUPERUSER.\n" +
+		"  2. Grant permission: GRANT SET ON PARAMETER session_replication_role TO <username> (YugabyteDB v2025.1+).\n" +
+		"  3. Manually disable triggers and drop foreign keys before import, then recreate them afterwards.\n" +
+		"     Refer to: https://docs.yugabyte.com/stable/yugabyte-voyager/reference/non-superuser/"
 	)
 
 type ImportDataErrorHandler interface {

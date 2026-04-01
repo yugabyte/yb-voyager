@@ -255,14 +255,11 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	}
 	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
 	if err != nil {
-		msg := importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE
-		var ibe errs.ImportBatchError
-		isImportBatchError := errors.As(err, &ibe)
-		if isImportBatchError {
-			msg = fti.recommendationForBatchError(ibe)
-		}
 		if fti.errorHandler.ShouldAbort() {
-			if isImportBatchError {
+			msg := importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE
+			var ibe errs.ImportBatchError
+			if errors.As(err, &ibe) {
+				msg = fti.recommendationForBatchError(ibe)
 				// If the error is an ImportBatchError, we abort directly because the string
 				// representation of the error is already formatted with all the details.
 				utils.ErrExit("%w\n%s", err, color.YellowString(msg))
