@@ -98,6 +98,10 @@ var endMigrationCmd = &cobra.Command{
 			}
 			iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
 			if err != nil {
+				if os.IsNotExist(err) {
+					utils.PrintAndLogf("Ended migration for iteration %d successfully", i)
+					continue
+				}
 				utils.ErrExit("failed to create iteration meta db: %w", err)
 			}
 			if currBackupDir != "" {
@@ -109,7 +113,10 @@ var endMigrationCmd = &cobra.Command{
 			}
 			metaDB = iterationMetaDB
 			exportDir = iterationExportDir
-			endMigrationCommandFn(cmd, args, true)
+			success := endMigrationCommandFn(cmd, args, true)
+			if !success {
+				utils.ErrExit("Aborting command to not end migration for further iterations")
+			}
 		}
 		metaDB = currMetaDB
 		backupDir = currBackupDir
@@ -122,12 +129,12 @@ var endMigrationCmd = &cobra.Command{
 }
 
 // TODO: do not use global variables
-func endMigrationCommandFn(cmd *cobra.Command, args []string, isIteration bool) {
+func endMigrationCommandFn(cmd *cobra.Command, args []string, isIteration bool) bool {
 	if utils.AskPrompt("Migration can't be resumed or continued after this.", "Are you sure you want to end the migration") {
 		log.Info("ending the migration")
 	} else {
 		utils.PrintAndLogf("aborting the end migration command")
-		return
+		return false
 	}
 
 	msr, err := metaDB.GetMigrationStatusRecord()
@@ -168,6 +175,8 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string, isIteration bool) 
 	cleanupExportDir()
 	utils.PrintAndLogf("Migration ended successfully")
 	packAndSendEndMigrationPayload(COMPLETE, nil)
+
+	return true
 }
 
 func packAndSendEndMigrationPayload(status string, errorMsg error) {
