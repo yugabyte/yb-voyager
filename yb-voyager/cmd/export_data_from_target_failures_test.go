@@ -72,9 +72,9 @@ func TestExportFromTargetStartupFailureAndCutoverResume(t *testing.T) {
 	}
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:        ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
-		TargetDB:        ContainerConfig{Type: "yugabytedb", DatabaseName: "yugabyte"},
-		SourceReplicaDB: ContainerConfig{Type: "postgresql", DatabaseName: "postgres"},
+		SourceDB:        ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "test_ff_startup"},
+		TargetDB:        ContainerConfig{Type: "yugabytedb", DatabaseName: "test_ff_startup_yb"},
+		SourceReplicaDB: ContainerConfig{Type: "postgresql", DatabaseName: "test_ff_startup_replica"},
 		SchemaNames:     []string{"test_schema_ff"},
 		SchemaSQL:       createSchemaSQL,
 		SourceReplicaSetupSchemaSQL: createSchemaSQL,
@@ -223,9 +223,9 @@ func TestFallForwardCDCStreamingFailureAndResume(t *testing.T) {
 	}
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:        ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
-		TargetDB:        ContainerConfig{Type: "yugabytedb", DatabaseName: "yugabyte"},
-		SourceReplicaDB: ContainerConfig{Type: "postgresql", DatabaseName: "postgres"},
+		SourceDB:        ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "test_ff_cdc"},
+		TargetDB:        ContainerConfig{Type: "yugabytedb", DatabaseName: "test_ff_cdc_yb"},
+		SourceReplicaDB: ContainerConfig{Type: "postgresql", DatabaseName: "test_ff_cdc_replica"},
 		SchemaNames:     []string{"test_schema_ff"},
 		SchemaSQL:       createSchemaSQL,
 		SourceReplicaSetupSchemaSQL: createSchemaSQL,
