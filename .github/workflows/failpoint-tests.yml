@@ -65,10 +65,9 @@ jobs:
         with:
           go-version: ${{ needs.prepare-versions.outputs.go_version }}
 
-      - name: Install failpoint-ctl and gotestsum
+      - name: Install failpoint-ctl
         run: |
           go install github.com/pingcap/failpoint/failpoint-ctl@latest
-          go install gotest.tools/gotestsum@latest
 
       - name: Enable failpoint code generation
         run: |
