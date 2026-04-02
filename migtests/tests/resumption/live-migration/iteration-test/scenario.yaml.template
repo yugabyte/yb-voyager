@@ -279,9 +279,11 @@ stages:
     action: sleep
     seconds: 30
 
-  # Insert a marker into cutover_table on the target side and
-  # wait for the fallback exporter backlog to drain past it
-  # before initiating cutover back to source.
+  - name: clear_cutover_table_on_target
+    action: run_sql
+    target: target
+    sql_path: ../common-sql/delete_marker.sql
+
   - name: insert_backlog_marker_on_target
     action: run_sql
     target: target
