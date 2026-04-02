@@ -232,7 +232,6 @@ func (lm *LiveMigrationTest) startExportData(async bool, extraArgs map[string]st
 		"--source-db-name", lm.config.SourceDB.DatabaseName,
 		"--disable-pb", "true",
 		"--export-type", exportType,
-		"--parallel-jobs", "1",
 		"--yes",
 	}
 	for key, value := range extraArgs {
@@ -1216,7 +1215,6 @@ func (lm *LiveMigrationTest) ValidateIntermediateArchivalState(iterationNumber i
 			return false
 		}
 		remainingSegments := len(files)
-		fmt.Printf("Remaining segments: %d\n", remainingSegments)
 		if remainingSegments < 3 {
 			return false
 		}
@@ -1226,11 +1224,9 @@ func (lm *LiveMigrationTest) ValidateIntermediateArchivalState(iterationNumber i
 				return false
 			}
 			archivedSegments := len(files)
-			fmt.Printf("Archived segments: %d\n", archivedSegments)
 			if archivedSegments == 0 {
 				return false
 			}
-			fmt.Printf("Total segments: %d\n", totalSegments)
 			if archivedSegments+remainingSegments != totalSegments {
 				return false
 			}
