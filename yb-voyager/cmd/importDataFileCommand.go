@@ -398,6 +398,9 @@ func packAndSendImportDataFilePayload(status string, errorMsg error) {
 		})
 	}
 
+	// Set table list count
+	dataMetrics.TableListCount = len(importTableList)
+
 	importDataFilePayload := callhome.ImportDataFilePhasePayload{
 		ParallelJobs:       int64(tconf.Parallelism),
 		StartClean:         bool(startClean),

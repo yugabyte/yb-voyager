@@ -140,6 +140,9 @@ func packAndSendImportDataToSrcReplicaPayload(status string, errorMsg error) {
 		dataMetrics.CdcEventsImportRate3min = statsReporter.EventsImportRateLast3Min
 	}
 
+	// Set table list count
+	dataMetrics.TableListCount = len(importTableList)
+
 	importDataPayload := callhome.ImportDataPhasePayload{
 		PayloadVersion:   callhome.IMPORT_DATA_CALLHOME_PAYLOAD_VERSION,
 		ParallelJobs:     int64(tconf.Parallelism),

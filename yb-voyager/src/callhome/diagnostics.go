@@ -328,7 +328,7 @@ Version History:
 1.3: Added CurrentParallelConnections field to ImportDataMetrics
 1.4: Added CutoverTimings field
 */
-var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.4"
+var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.5"
 
 type ImportDataPhasePayload struct {
 	PayloadVersion              string            `json:"payload_version"`
@@ -362,6 +362,9 @@ type ImportDataMetrics struct {
 	SnapshotTotalRows       int64 `json:"snapshot_total_rows"`
 	SnapshotTotalBytes      int64 `json:"snapshot_total_bytes"`
 	CdcEventsImportRate3min int64 `json:"cdc_events_import_rate_3min"`
+
+	// table list count - number of tables being imported
+	TableListCount int `json:"table_list_count"`
 }
 
 type YBClusterMetrics struct {
@@ -403,6 +406,9 @@ type ImportDataFileMetrics struct {
 	// command run related metrics; for the current command run.
 	SnapshotTotalRows  int64 `json:"snapshot_total_rows"`
 	SnapshotTotalBytes int64 `json:"snapshot_total_bytes"`
+
+	// table list count - number of tables being imported
+	TableListCount int `json:"table_list_count"`
 }
 
 type DataFileParameters struct {
