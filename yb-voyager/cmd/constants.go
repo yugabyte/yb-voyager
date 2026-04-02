@@ -78,6 +78,7 @@ const (
 	ASSESS_MIGRATION_PHASE           = "assess-migration"
 	ASSESS_MIGRATION_BULK_PHASE      = "assess-migration-bulk"
 	IMPORT_DATA_FILE_PHASE           = "import-data-file"
+	ARCHIVE_CHANGES_PHASE            = "archive-changes"
 	//...more phases
 	OFFLINE        = "offline"
 	LIVE_MIGRATION = "live-migration"

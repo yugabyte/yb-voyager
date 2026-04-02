@@ -3357,7 +3357,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterations(t *testing.T) {
 		})
 		testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-		err = lm.WaitForNextIterationInitialized(100, i-1)
+		err = lm.WaitForNextIterationInitialized(i-1, 100)
 		testutils.FatalIfError(t, err, "failed to wait for next iteration initialized")
 
 		err = lm.WaitForCutoverSourceComplete(i-1, 100)
@@ -3537,7 +3537,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterationsWithFailureScenariosDuri
 	err = lm.StartExportDataFromTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to start export data from target")
 
-	err = lm.WaitForNextIterationInitialized(100, 0)
+	err = lm.WaitForNextIterationInitialized(0, 100)
 	testutils.FatalIfError(t, err, "failed to wait for next iteration initialized")
 
 	err = lm.WaitForCutoverSourceComplete(0, 100)
@@ -3592,7 +3592,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterationsWithFailureScenariosDuri
 	err = lm.StartImportDataToSource(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data to source")
 
-	err = lm.WaitForNextIterationInitialized(100, 1)
+	err = lm.WaitForNextIterationInitialized(1, 100)
 	testutils.FatalIfError(t, err, "failed to wait for next iteration initialized")
 
 	err = lm.WaitForCutoverSourceComplete(1, 100)
@@ -3677,7 +3677,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterationsWithFailureScenariosDuri
 	err = lm.StartImportDataToSource(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data to source")
 
-	err = lm.WaitForNextIterationInitialized(100, 2)
+	err = lm.WaitForNextIterationInitialized(2, 100)
 	testutils.FatalIfError(t, err, "failed to wait for next iteration initialized")
 
 	err = lm.WaitForCutoverSourceComplete(2, 100)
@@ -3893,7 +3893,7 @@ func TestLiveMigrationWithFallbackWithIterationsTableList(t *testing.T) {
 	})
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-	err = lm.WaitForNextIterationInitialized(100, 0)
+	err = lm.WaitForNextIterationInitialized(0, 100)
 	testutils.FatalIfError(t, err, "failed to wait for next iteration initialized")
 
 	err = lm.WaitForCutoverSourceComplete(0, 100)
@@ -4278,7 +4278,7 @@ func setupLiveMigrationWithFallbackWithIterationsAndArchiveChanges(t *testing.T,
 	})
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-	err = lm.WaitForNextIterationInitialized(100, 0)
+	err = lm.WaitForNextIterationInitialized(0, 100)
 	testutils.FatalIfError(t, err, "failed to wait for next iteration initialized")
 
 	err = lm.WaitForCutoverSourceComplete(0, 150)
@@ -4331,7 +4331,7 @@ func setupLiveMigrationWithFallbackWithIterationsAndArchiveChanges(t *testing.T,
 	})
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-	err = lm.WaitForNextIterationInitialized(100, 1)
+	err = lm.WaitForNextIterationInitialized(1, 100)
 	testutils.FatalIfError(t, err, "failed to wait for next iteration initialized")
 
 	err = lm.WaitForCutoverSourceComplete(1, 150)
@@ -4390,7 +4390,7 @@ func TestLiveMigrationWithFallbackWithIterationsAndArchiveChanges(t *testing.T) 
 	err := lm.InitiateCutoverToSource(nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-	err = lm.WaitForCutoverComplete(2, 50)
+	err = lm.WaitForCutoverSourceComplete(2, 150)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	err = lm.WaitForArchiveChangesComplete(150)

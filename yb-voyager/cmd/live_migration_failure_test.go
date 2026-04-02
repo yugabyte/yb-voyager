@@ -530,7 +530,7 @@ func TestCutoverToSourceResumption_ImporterCrashBeforeMarkProcessed(t *testing.T
 	err = lm.StartImportDataToSource(true, nil)
 	require.NoError(t, err, "failed to resume import-to-source")
 
-	err = lm.WaitForNextIterationInitialized(120, 0)
+	err = lm.WaitForNextIterationInitialized(0, 120)
 	require.NoError(t, err, "next iteration was not initialized")
 
 	err = lm.WaitForCutoverSourceComplete(0, 180)
@@ -590,7 +590,7 @@ func TestCutoverToSourceResumption_ImporterCrashAfterMarkProcessed(t *testing.T)
 	err = lm.StartImportDataToSource(true, nil)
 	require.NoError(t, err, "failed to resume import-to-source")
 
-	err = lm.WaitForNextIterationInitialized(120, 0)
+	err = lm.WaitForNextIterationInitialized(0, 120)
 	require.NoError(t, err, "next iteration was not initialized")
 
 	err = lm.WaitForCutoverSourceComplete(0, 180)
@@ -647,7 +647,7 @@ func TestCutoverToSourceResumption_ImporterCrashDuringInitNextIteration(t *testi
 	err = lm.StartImportDataToSource(true, nil)
 	require.NoError(t, err, "failed to resume import-to-source")
 
-	err = lm.WaitForNextIterationInitialized(120, 0)
+	err = lm.WaitForNextIterationInitialized(0, 120)
 	require.NoError(t, err, "next iteration was not initialized after resume")
 
 	err = lm.WaitForCutoverSourceComplete(0, 180)
@@ -704,7 +704,7 @@ func TestCutoverToSourceResumption_ImporterCrashAfterInitNextIteration(t *testin
 	err = lm.StartImportDataToSource(true, nil)
 	require.NoError(t, err, "failed to resume import-to-source")
 
-	err = lm.WaitForNextIterationInitialized(120, 0)
+	err = lm.WaitForNextIterationInitialized(0, 120)
 	require.NoError(t, err, "next iteration was not initialized after resume")
 
 	err = lm.WaitForCutoverSourceComplete(0, 180)
@@ -757,7 +757,7 @@ func TestCutoverToSourceResumption_ImporterCrashBeforeInitNextIteration(t *testi
 	err = lm.StartImportDataToSource(true, nil)
 	require.NoError(t, err, "failed to resume import-to-source")
 
-	err = lm.WaitForNextIterationInitialized(120, 0)
+	err = lm.WaitForNextIterationInitialized(0, 120)
 	require.NoError(t, err, "next iteration was not initialized after resume")
 
 	err = lm.WaitForCutoverSourceComplete(0, 180)
@@ -807,7 +807,7 @@ func TestCutoverToSourceResumption_ImporterCrashDuringSetUpNextIterationMSR(t *t
 	err = lm.StartImportDataToSource(true, nil)
 	require.NoError(t, err, "failed to resume import-to-source")
 
-	err = lm.WaitForNextIterationInitialized(120, 0)
+	err = lm.WaitForNextIterationInitialized(0, 120)
 	require.NoError(t, err, "next iteration was not initialized after resume")
 
 	err = lm.WaitForCutoverSourceComplete(0, 180)
@@ -868,7 +868,7 @@ func TestCutoverToSourceResumption_ExporterCrashAfterMarkProcessed(t *testing.T)
 	// next iteration (since the exporter already marked processed before
 	// crashing, the importer's waitUntilCutoverProcessedByCorrespondingExporter
 	// will succeed). Give it time, then check iteration init.
-	err = lm.WaitForNextIterationInitialized(120, 0)
+	err = lm.WaitForNextIterationInitialized(0, 120)
 	require.NoError(t, err, "next iteration was not initialized by import-to-source")
 	t.Log("import-to-source initialized the next iteration while exporter was down")
 

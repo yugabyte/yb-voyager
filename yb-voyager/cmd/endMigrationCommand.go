@@ -174,7 +174,7 @@ func packAndSendEndMigrationPayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}
-	payload := createCallhomePayload()
+	payload := createCallhomePayload(migrationUUID)
 	streamChangesMode, err := checkStreamingMode()
 	if err != nil {
 		log.Errorf("callhome: error while checking migration type: %v\n", err)
@@ -1001,6 +1001,7 @@ func stopVoyagerCommands(msr *metadb.MigrationStatusRecord, lockFiles []*lockfil
 			utils.ErrExit("error getting parent migration status record: %v", err)
 		}
 	}
+	//checking if archiver is running on parent iteration as it is only expected to run on the main export directory
 	if parentMSR.ArchivingEnabled || parentMSR.SegmentCleanupRunning {
 		exportDataLockFile := getLockFileForCommand(lockFiles, "export data")
 		exportDataFromTargetLockFile := getLockFileForCommand(lockFiles, "export data from target")

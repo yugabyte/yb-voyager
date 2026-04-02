@@ -1870,7 +1870,7 @@ func shouldSendCallhome() bool {
 	return bool(callhome.SendDiagnostics) && !startTime.Equal(uninitialisedTimestamp)
 }
 
-func createCallhomePayload() callhome.Payload {
+func createCallhomePayload(migrationUUID uuid.UUID) callhome.Payload {
 	var payload callhome.Payload
 	payload.MigrationUUID = migrationUUID
 	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02 15:04:05.999999")
@@ -1922,6 +1922,8 @@ func PackAndSendCallhomePayloadOnExit() {
 		packAndSendImportDataFilePayload(status, exitErr)
 	case comparePerformanceCmd.CommandPath():
 		packAndSendComparePerformancePayload(status, exitErr, nil)
+	case segmentCleanupCmd.CommandPath():
+		packAndSendArchiveChangesPayload(status, exitErr, metaDB, migrationUUID)
 	}
 }
 
@@ -1994,6 +1996,8 @@ func sendCallhomePayloadAtIntervals() {
 			packAndSendImportDataToSrcReplicaPayload(INPROGRESS, nil)
 		case importDataFileCmd.CommandPath():
 			packAndSendImportDataFilePayload(INPROGRESS, nil)
+		case segmentCleanupCmd.CommandPath():
+			packAndSendArchiveChangesPayload(INPROGRESS, nil, metaDB, migrationUUID)
 		}
 	}
 }

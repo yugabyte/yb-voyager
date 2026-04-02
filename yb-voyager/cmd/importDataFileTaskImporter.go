@@ -144,6 +144,20 @@ func (fti *FileTaskImporter) TableHasPrimaryKey() bool {
 	return len(fti.importBatchArgsProto.PrimaryKeyColumns) > 0
 }
 
+func (fti *FileTaskImporter) recommendationForBatchError(ibe errs.ImportBatchError) string {
+	switch ibe.ErrorType() {
+	case errs.ERROR_TYPE_PK_VIOLATION:
+		return importdata.PK_VIOLATION_RECOMMENDATION_MESSAGE
+	case errs.ERROR_TYPE_FOREIGN_KEY_VIOLATION:
+		if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
+			return importdata.FK_VIOLATION_RECOMMENDATION_MESSAGE
+		}
+		return importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE
+	default:
+		return importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE
+	}
+}
+
 func (fti *FileTaskImporter) IsNextBatchAvailable() bool {
 	return fti.batchProducer.IsNextBatchAvailable()
 }
@@ -245,13 +259,15 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
 	if err != nil {
 		if fti.errorHandler.ShouldAbort() {
+			msg := importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE
 			var ibe errs.ImportBatchError
 			if errors.As(err, &ibe) {
+				msg = fti.recommendationForBatchError(ibe)
 				// If the error is an ImportBatchError, we abort directly because the string
 				// representation of the error is already formatted with all the details.
-				utils.ErrExit("%w\n%s", err, color.YellowString(importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE))
+				utils.ErrExit("%w\n%s", err, color.YellowString(msg))
 			}
-			utils.ErrExit("import batch: %q into %s: %w\n%s", batch.FilePath, batch.TableNameTup.ForOutput(), err, color.YellowString(importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE))
+			utils.ErrExit("import batch: %q into %s: %w\n%s", batch.FilePath, batch.TableNameTup.ForOutput(), err, color.YellowString(msg))
 		}
 
 		// Handle the error

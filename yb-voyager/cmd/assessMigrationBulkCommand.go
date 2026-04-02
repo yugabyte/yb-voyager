@@ -29,7 +29,6 @@ import (
 	"text/template"
 
 	goerrors "github.com/go-errors/errors"
-
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -74,7 +73,7 @@ func packAndSendAssessMigrationBulkPayload(status string, errorMsg error) {
 		return
 	}
 	log.Infof("sending callhome payload for assess-migration-bulk cmd with status as %s", status)
-	payload := createCallhomePayload()
+	payload := createCallhomePayload(migrationUUID)
 	payload.MigrationPhase = ASSESS_MIGRATION_BULK_PHASE
 
 	for i := 0; i < len(bulkAssessmentDBConfigs); i++ {
