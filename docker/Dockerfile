@@ -1,4 +1,4 @@
-FROM golang:1.23.1
+FROM golang:1.24.2
 RUN go install github.com/go-delve/delve/cmd/dlv@latest
 
 FROM amd64/ubuntu:22.04

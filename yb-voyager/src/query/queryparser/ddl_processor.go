@@ -20,6 +20,8 @@ import (
 	"slices"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -105,7 +107,7 @@ part_params:{partition_elem:{name:"country_code" location:150}}  part_params:{pa
 func (tableProcessor *TableProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	createTableNode, ok := getCreateTableStmtNode(parseTree)
 	if !ok {
-		return nil, fmt.Errorf("not a CREATE TABLE statement")
+		return nil, goerrors.Errorf("not a CREATE TABLE statement")
 	}
 
 	table := &Table{
@@ -390,6 +392,8 @@ func (t *Table) GetSchemaName() string { return t.SchemaName }
 
 func (t *Table) GetObjectType() string { return TABLE_OBJECT_TYPE }
 
+func (t *Table) GetTableName() string { return t.TableName }
+
 func (t *Table) PrimaryKeyColumns() []string {
 	for _, c := range t.Constraints {
 		if c.ConstraintType == PRIMARY_CONSTR_TYPE {
@@ -399,7 +403,7 @@ func (t *Table) PrimaryKeyColumns() []string {
 	return []string{}
 }
 
-//TODO: fix the []TableColumns to map[string]TableColumn
+// TODO: fix the []TableColumns to map[string]TableColumn
 func (t *Table) GetColumnType(colName string) string {
 	for _, col := range t.Columns {
 		if col.ColumnName == colName {
@@ -457,7 +461,7 @@ func NewForeignTableProcessor() *ForeignTableProcessor {
 func (ftProcessor *ForeignTableProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	foreignTableNode, ok := getForeignTableStmtNode(parseTree)
 	if !ok {
-		return nil, fmt.Errorf("not a CREATE FOREIGN TABLE statement")
+		return nil, goerrors.Errorf("not a CREATE FOREIGN TABLE statement")
 	}
 	baseStmt := foreignTableNode.CreateForeignTableStmt.BaseStmt
 	relation := baseStmt.Relation
@@ -509,9 +513,9 @@ func NewIndexProcessor() *IndexProcessor {
 }
 
 func (indexProcessor *IndexProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
-	indexNode, ok := getCreateIndexStmtNode(parseTree)
+	indexNode, ok := GetCreateIndexStmtNode(parseTree)
 	if !ok {
-		return nil, fmt.Errorf("not a CREATE INDEX statement")
+		return nil, goerrors.Errorf("not a CREATE INDEX statement")
 	}
 
 	index := &Index{
@@ -772,7 +776,7 @@ func NewAlterTableProcessor() *AlterTableProcessor {
 func (atProcessor *AlterTableProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	alterNode, ok := getAlterStmtNode(parseTree)
 	if !ok {
-		return nil, fmt.Errorf("not an ALTER TABLE statement")
+		return nil, goerrors.Errorf("not an ALTER TABLE statement")
 	}
 
 	alter := &AlterTable{
@@ -919,6 +923,8 @@ func (a *AlterTable) GetSchemaName() string { return a.SchemaName }
 
 func (a *AlterTable) GetObjectType() string { return TABLE_OBJECT_TYPE }
 
+func (a *AlterTable) GetTableName() string { return a.TableName }
+
 func (a *AlterTable) AddPrimaryKeyOrUniqueCons() bool {
 	return a.ConstraintType == PRIMARY_CONSTR_TYPE || a.ConstraintType == UNIQUE_CONSTR_TYPE
 }
@@ -939,7 +945,7 @@ func NewPolicyProcessor() *PolicyProcessor {
 func (policyProcessor *PolicyProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	policyNode, ok := getPolicyStmtNode(parseTree)
 	if !ok {
-		return nil, fmt.Errorf("not a CREATE POLICY statement")
+		return nil, goerrors.Errorf("not a CREATE POLICY statement")
 	}
 
 	policy := &Policy{
@@ -1018,7 +1024,7 @@ transition_rels:{trigger_transition:{name:"old_table" is_table:true}}}} stmt_len
 func (triggerProcessor *TriggerProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	triggerNode, ok := getCreateTriggerStmtNode(parseTree)
 	if !ok {
-		return nil, fmt.Errorf("not a CREATE TRIGGER statement")
+		return nil, goerrors.Errorf("not a CREATE TRIGGER statement")
 	}
 
 	trigger := &Trigger{
@@ -1119,7 +1125,7 @@ func (typeProcessor *TypeProcessor) Process(parseTree *pg_query.ParseResult) (DD
 		return createType, nil
 
 	default:
-		return nil, fmt.Errorf("not CREATE TYPE statement")
+		return nil, goerrors.Errorf("not CREATE TYPE statement")
 	}
 
 }
@@ -1148,7 +1154,7 @@ func NewViewProcessor() *ViewProcessor {
 func (v *ViewProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	viewNode, ok := getCreateViewNode(parseTree)
 	if !ok {
-		return nil, fmt.Errorf("not a CREATE VIEW statement")
+		return nil, goerrors.Errorf("not a CREATE VIEW statement")
 	}
 
 	viewSchemaName := viewNode.ViewStmt.View.Schemaname
@@ -1203,7 +1209,7 @@ func NewMViewProcessor() *MViewProcessor {
 func (mv *MViewProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	mviewNode, ok := getCreateTableAsStmtNode(parseTree)
 	if !ok {
-		return nil, fmt.Errorf("not a CREATE VIEW statement")
+		return nil, goerrors.Errorf("not a CREATE VIEW statement")
 	}
 	mview := MView{
 		SchemaName: mviewNode.CreateTableAsStmt.Into.Rel.Schemaname,
@@ -1235,12 +1241,12 @@ func NewCollationProcessor() *CollationProcessor {
 func (cp *CollationProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	defineStmt, ok := getDefineStmtNode(parseTree)
 	if !ok {
-		return nil, fmt.Errorf("not a CREATE COLLATION statement")
+		return nil, goerrors.Errorf("not a CREATE COLLATION statement")
 	}
 	schema, colName := getSchemaAndObjectName(defineStmt.Defnames)
 	defNamesWithValues, err := TraverseAndExtractDefNamesFromDefElem(defineStmt.ProtoReflect())
 	if err != nil {
-		return nil, fmt.Errorf("error getting the defElems in collation: %v", err)
+		return nil, goerrors.Errorf("error getting the defElems in collation: %v", err)
 	}
 	collation := Collation{
 		SchemaName:    schema,
@@ -1274,7 +1280,7 @@ func NewFunctionProcessor() *FunctionProcessor {
 func (mv *FunctionProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	funcNode, ok := getCreateFuncStmtNode(parseTree)
 	if !ok {
-		return nil, fmt.Errorf("not a CREATE FUNCTION statement")
+		return nil, goerrors.Errorf("not a CREATE FUNCTION statement")
 	}
 
 	funcNameList := funcNode.CreateFunctionStmt.GetFuncname()
@@ -1313,7 +1319,7 @@ func NewExtensionProcessor() *ExtensionProcessor {
 func (ep *ExtensionProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	extensionNode, ok := getCreateExtensionStmtNode(parseTree)
 	if !ok {
-		return nil, fmt.Errorf("not a CREATE EXTENSION statement")
+		return nil, goerrors.Errorf("not a CREATE EXTENSION statement")
 	}
 
 	/*
@@ -1322,7 +1328,7 @@ func (ep *ExtensionProcessor) Process(parseTree *pg_query.ParseResult) (DDLObjec
 	*/
 	defNames, err := TraverseAndExtractDefNamesFromDefElem(extensionNode.CreateExtensionStmt.ProtoReflect())
 	if err != nil {
-		return nil, fmt.Errorf("error getting the defElems in extension: %v", err)
+		return nil, goerrors.Errorf("error getting the defElems in extension: %v", err)
 	}
 
 	extension := &Extension{

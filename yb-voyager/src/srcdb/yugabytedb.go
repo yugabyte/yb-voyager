@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/jackc/pglogrepl"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -32,15 +33,19 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-// Apart from these we also skip UDT columns and error out for array of enums as unsupported tables (but array of enums are supported with logical connector).
-var YugabyteUnsupportedDataTypesForDbzmLogical = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER"}
+// Apart from these we also skip UDT columns. Array of enums, hstore, and tsvector are supported with logical connector (default).
+var YugabyteUnsupportedDataTypesForDbzmLogical = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE", "VECTOR", "TIMETZ"}
 
-var YugabyteUnsupportedDataTypesForDbzmGrpc = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER", "HSTORE"}
+// For the gRPC connector - datatypes like HSTORE/CITEXT/LTREE that are available by extensions, are not supported and the table of these needs to be skipped for the migration with grpc connector
+// but right now we are only skipping columns of that table and if there are DML on those tables the gRPC connector will error out.
+// TODO to handle that
+var YugabyteUnsupportedDataTypesForDbzmGrpc = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER", "HSTORE", "CITEXT", "LTREE", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE", "VECTOR", "TIMETZ"}
 
 func GetYugabyteUnsupportedDatatypesDbzm(isGRPCConnector bool) []string {
 	if isGRPCConnector {
@@ -145,49 +150,31 @@ func (yb *YugabyteDB) GetVersion() string {
 	return version
 }
 
-func (yb *YugabyteDB) CheckSchemaExists() bool {
-	schemaList := yb.checkSchemasExists()
-	return schemaList != nil
-}
-
-func (yb *YugabyteDB) checkSchemasExists() []string {
-	list := strings.Split(yb.source.Schema, "|")
-	var trimmedList []string
-	for _, schema := range list {
-		if utils.IsQuotedString(schema) {
-			schema = strings.Trim(schema, `"`)
-		}
-		trimmedList = append(trimmedList, schema)
-	}
-	querySchemaList := "'" + strings.Join(trimmedList, "','") + "'"
-	chkSchemaExistsQuery := fmt.Sprintf(`SELECT schema_name
-	FROM information_schema.schemata where schema_name IN (%s);`, querySchemaList)
-	rows, err := yb.db.Query(chkSchemaExistsQuery)
+func (yb *YugabyteDB) GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, error) {
+	fetchSchemasQuery := `SELECT nspname AS schema_name
+	FROM pg_namespace WHERE nspname NOT IN ('pg_catalog', 'information_schema');`
+	rows, err := yb.db.Query(fetchSchemasQuery)
 	if err != nil {
-		utils.ErrExit("error in querying source database for checking mentioned schema(s) present or not: %q: %w\n", chkSchemaExistsQuery, err)
+		return nil, fmt.Errorf("error in querying source database for checking mentioned schema(s) present or not: %q: %w\n", fetchSchemasQuery, err)
 	}
-	var listOfSchemaPresent []string
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", fetchSchemasQuery, closeErr)
+		}
+	}()
+	var listOfSchemaPresent []sqlname.Identifier
 	var tableSchemaName string
 
 	for rows.Next() {
 		err = rows.Scan(&tableSchemaName)
 		if err != nil {
-			utils.ErrExit("error in scanning query rows for schema names: %w\n", err)
+			return nil, fmt.Errorf("error in scanning query rows for schema names: %w\n", err)
 		}
-		listOfSchemaPresent = append(listOfSchemaPresent, tableSchemaName)
+		listOfSchemaPresent = append(listOfSchemaPresent, sqlname.NewIdentifier(yb.source.DBType, fmt.Sprintf(`"%s"`, tableSchemaName)))
 	}
-	defer func() {
-		closeErr := rows.Close()
-		if closeErr != nil {
-			log.Warnf("close rows for query %q: %v", chkSchemaExistsQuery, closeErr)
-		}
-	}()
 
-	schemaNotPresent := utils.SetDifference(trimmedList, listOfSchemaPresent)
-	if len(schemaNotPresent) > 0 {
-		utils.ErrExit("Following schemas are not present in source database: %v, please provide a valid schema list.\n", schemaNotPresent)
-	}
-	return trimmedList
+	return listOfSchemaPresent, nil
 }
 
 func (yb *YugabyteDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
@@ -231,12 +218,12 @@ func (yb *YugabyteDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 }
 
 func (yb *YugabyteDB) GetAllTableNames() []*sqlname.SourceName {
-	schemaList := yb.checkSchemasExists()
+	schemaList := sqlname.ExtractIdentifiersUnquoted(yb.source.Schemas)
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
 	// Information schema requires select permission on the tables to query the tables. However, pg_catalog does not require any permission.
 	// So, we are using pg_catalog to get the table names.
 	query := fmt.Sprintf(`
-	SELECT 
+	SELECT 	
 		n.nspname AS table_schema,
 		c.relname AS table_name
 	FROM 
@@ -373,14 +360,23 @@ func (yb *YugabyteDB) getExportedColumnsListForTable(exportDir, tableName string
 }
 
 // GetAllSequences returns all the sequence names in the database for the given schema list
-func (yb *YugabyteDB) GetAllSequences() []string {
-	schemaList := yb.checkSchemasExists()
-	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
-	var sequenceNames []string
-	query := fmt.Sprintf(`SELECT sequence_name FROM information_schema.sequences where sequence_schema IN (%s);`, querySchemaList)
+func (yb *YugabyteDB) GetSequencesLastValues(sequencesList []sqlname.NameTuple) (*utils.StructMap[sqlname.ObjectName, int64], error) {
+	sequenceQueryList := sqlname.JoinNameTuplesUnquoted(sequencesList, "','")
+	result := utils.NewStructMap[sqlname.ObjectName, int64]()
+	query := fmt.Sprintf(`SELECT schemaname, sequencename, COALESCE(last_value, 0) as last_value FROM pg_sequences where (schemaname || '.' || sequencename) IN ('%s');`, sequenceQueryList)
 	rows, err := yb.db.Query(query)
 	if err != nil {
-		utils.ErrExit("error in querying source database for sequence names: %q: %w\n", query, err)
+		if strings.Contains(err.Error(), "does not exist") {
+			//For PG version before 10 as identity columns are also introduced in PG 10 so using information_schema.sequences but it will not return the last value for the sequences
+			//will not work on PG <=10
+			query = fmt.Sprintf(`SELECT sequence_schema, sequence_name, 0 as last_value FROM information_schema.sequences where (sequence_schema || '.' || sequence_name) IN ('%s');`, sequenceQueryList)
+			rows, err = yb.db.Query(query)
+			if err != nil {
+				return nil, fmt.Errorf("error in querying(%q) source database for sequence last values: %w", query, err)
+			}
+		} else {
+			return nil, fmt.Errorf("error in querying(%q) source database for sequence last values: %w", query, err)
+		}
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -389,15 +385,18 @@ func (yb *YugabyteDB) GetAllSequences() []string {
 		}
 	}()
 
-	var sequenceName string
+	var sequenceName, sequenceSchema string
+	var lastValue int64
 	for rows.Next() {
-		err = rows.Scan(&sequenceName)
+		err = rows.Scan(&sequenceSchema, &sequenceName, &lastValue)
 		if err != nil {
 			utils.ErrExit("error in scanning query rows for sequence names: %w\n", err)
 		}
-		sequenceNames = append(sequenceNames, sequenceName)
+		qualifiedSequenceName := fmt.Sprintf(`"%s"."%s"`, sequenceSchema, sequenceName)
+		objName := sqlname.NewObjectNameWithQualifiedName(constants.YUGABYTEDB, "public", qualifiedSequenceName)
+		result.Put(*objName, lastValue)
 	}
-	return sequenceNames
+	return result, nil
 }
 
 // GetAllSequencesRaw returns all the sequence names in the database for the schema
@@ -450,6 +449,7 @@ func (yb *YugabyteDB) GetDatabaseSize() (int64, error) {
 	return dbSize.Int64, nil
 }
 
+// Thsi function returns some types like UDTs, ENums, etc.. fo which we need to check if there are any tables having columns of Array of these types for gRPC connector.
 func (yb *YugabyteDB) getAllUserDefinedTypesInSchema(schemaName string) []string {
 	query := fmt.Sprintf(`SELECT typname
 						FROM pg_type t
@@ -543,15 +543,19 @@ func (yb *YugabyteDB) getTypesOfAllArraysInATable(schemaName, tableName string) 
 }
 
 func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
+	if !yb.source.IsYBGrpcConnector {
+		//If its Logical connector, there aren't any unsupported table so we don't need to filter anything
+		//All the Array types are supported with logical connector
+		return tableList, nil
+	}
 	var unsupportedTables []sqlname.NameTuple
 	var filteredTableList []sqlname.NameTuple
 	for _, table := range tableList {
 		sname, tname := table.ForCatalogQuery()
-		userDefinedTypes := yb.getAllUserDefinedTypesInSchema(sname)
+		userDefinedTypes := yb.getAllUserDefinedTypesInSchema(sname) //returns UDTs + Enums
 		if len(userDefinedTypes) == 0 {
 			continue
 		}
-		enumTypes := yb.getAllEnumTypesInSchema(sname)
 		tableColumnArrayTypes := yb.getTypesOfAllArraysInATable(sname, tname)
 		if len(tableColumnArrayTypes) == 0 {
 			continue
@@ -559,12 +563,7 @@ func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList
 
 		// Build list of unsupported types based on connector type
 		// UDT types without enums are always unsupported
-		udtTypes := utils.SetDifference(userDefinedTypes, enumTypes)
-		unsupportedTableTypes := udtTypes
-		// Array of enums are only unsupported with YBGrpcConnector
-		if yb.source.IsYBGrpcConnector {
-			unsupportedTableTypes = append(unsupportedTableTypes, enumTypes...)
-		}
+		unsupportedTableTypes := userDefinedTypes
 
 		// If any of the data types of the arrays are in the unsupported types then add the table to the unsupported tables list
 		// udt_type/data_type looks like status_enum[] whereas enum_type looks like status_enum
@@ -611,74 +610,111 @@ func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList
 }
 
 func (yb *YugabyteDB) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, []sqlname.NameTuple) {
-	var nonEmptyTableList, emptyTableList []sqlname.NameTuple
-	for _, tableName := range tableList {
-		query := fmt.Sprintf(`SELECT false FROM %s LIMIT 1;`, tableName.ForUserQuery())
-		var empty bool
-		err := yb.db.QueryRow(query).Scan(&empty)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				empty = true
-			} else {
-				utils.ErrExit("error in querying table: %v: %w", tableName, err)
-			}
+	if len(tableList) == 0 {
+		return nil, nil
+	}
+
+	// Build a single UNION ALL query to check all tables at once.
+	// Example query for 3 tables:
+	//   SELECT 0 AS table_idx, EXISTS(SELECT 1 FROM public.products) AS has_rows
+	//   UNION ALL
+	//   SELECT 1 AS table_idx, EXISTS(SELECT 1 FROM public.users) AS has_rows
+	//   UNION ALL
+	//   SELECT 2 AS table_idx, EXISTS(SELECT 1 FROM public.invoices) AS has_rows
+	var unionParts []string
+	for idx, tableName := range tableList {
+		unionParts = append(unionParts,
+			fmt.Sprintf("SELECT %d AS table_idx, EXISTS(SELECT 1 FROM %s) AS has_rows",
+				idx, tableName.ForUserQuery()))
+	}
+	query := strings.Join(unionParts, " UNION ALL ")
+
+	rows, err := yb.db.Query(query)
+	if err != nil {
+		utils.ErrExit("failed to query for empty tables: %w", err)
+	}
+	defer rows.Close()
+
+	tableIsEmpty := make([]bool, len(tableList)) // defaults to false for all tables
+	for rows.Next() {
+		var tableIdx int
+		var hasRows bool
+		if err := rows.Scan(&tableIdx, &hasRows); err != nil {
+			utils.ErrExit("failed to scan row for empty table check: %w", err)
 		}
-		if !empty {
-			nonEmptyTableList = append(nonEmptyTableList, tableName)
+		if !hasRows {
+			tableIsEmpty[tableIdx] = true
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		utils.ErrExit("failed to iterate rows for empty table check: %w", err)
+	}
+
+	var nonEmptyTableList, emptyTableList []sqlname.NameTuple
+	for i, isEmpty := range tableIsEmpty {
+		if isEmpty {
+			emptyTableList = append(emptyTableList, tableList[i])
 		} else {
-			emptyTableList = append(emptyTableList, tableName)
+			nonEmptyTableList = append(nonEmptyTableList, tableList[i])
 		}
 	}
 	return nonEmptyTableList, emptyTableList
 }
 
-func (yb *YugabyteDB) getTableColumns(tableName sqlname.NameTuple) ([]string, []string, []string, error) {
-	var columns, dataTypes, dataTypesOwner []string
-	sname, tname := tableName.ForCatalogQuery()
-	query := fmt.Sprintf(GET_TABLE_COLUMNS_QUERY_TEMPLATE_PG_AND_YB, tname, sname)
-	rows, err := yb.db.Query(query)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("error in querying(%q) source database for table columns: %w", query, err)
-	}
-	defer func() {
-		closeErr := rows.Close()
-		if closeErr != nil {
-			log.Warnf("close rows for query %q: %v", query, closeErr)
-		}
-	}()
-	for rows.Next() {
-		var column, dataType, dataTypeOwner string
-		err = rows.Scan(&column, &dataType, &dataTypeOwner)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("error in scanning query(%q) rows for table columns: %w", query, err)
-		}
-		columns = append(columns, column)
-		dataTypes = append(dataTypes, dataType)
-		dataTypesOwner = append(dataTypesOwner, dataTypeOwner)
-	}
-	return columns, dataTypes, dataTypesOwner, nil
-}
+/*
+For gRPC
+UDTs other than enums and domain are unsupported and RANGE types are unsupported
+so we fetch
+i.e. typtype = 'c' (composite) or typtype = 'r' (range)
 
-func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(tableName sqlname.NameTuple) []string {
-	// Currently all UDTs other than enums and domain are unsupported
-	sname, tname := tableName.ForCatalogQuery()
-	query := fmt.Sprintf(`SELECT 
-    	t.typname AS type_name,
-		CASE WHEN t.typtype = 'c' THEN 'Yes' ELSE 'No' END AS is_user_defined
-	FROM 
-		pg_class c
-	JOIN 
-		pg_namespace n ON c.relnamespace = n.oid
-	JOIN 
-		pg_attribute a ON a.attrelid = c.oid
-	JOIN 
-		pg_type t ON a.atttypid = t.oid
-	WHERE 
-		c.relname = '%s' 
-		AND n.nspname = '%s'  
-		AND a.attnum > 0 
-	ORDER BY 
-		a.attnum;`, tname, sname)
+With logical connector
+RANGE  types are unsupported so we fetch typtype = 'r'
+
+This function now accepts a slice of tables and returns a unique list of fully qualified
+unsupported user-defined type names (e.g., "hr.contact", "inventory.device_specs") by making a single database query.
+Qualified because same typename can be present in multiple schemas in completely different ways.
+*/
+func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(tableList []sqlname.NameTuple) []string {
+	if len(tableList) == 0 {
+		return []string{}
+	}
+
+	typesNotSupportedClause := "t.typtype = 'r'" // RANGE types are not supported for gRPC and Logical both  as its an import value converter issue
+
+	if yb.source.IsYBGrpcConnector {
+		typesNotSupportedClause = "(t.typtype = 'c' OR t.typtype = 'r')" // gRPC doesn't support types so fetch both composite and range types
+	}
+
+	// Build the IN clause with tuples for all tables
+	// eg: [('public', 'products'), ('public', 'users'), ('public', 'invoices')]
+	var tableTuples []string
+	for _, table := range tableList {
+		schema, name := table.ForCatalogQuery()
+		tableTuples = append(tableTuples, fmt.Sprintf("('%s', '%s')", schema, name))
+	}
+	inClause := strings.Join(tableTuples, ", ")
+
+	query := fmt.Sprintf(`
+		SELECT DISTINCT
+			type_n.nspname || '.' || t.typname AS qualified_type_name
+		FROM
+			pg_attribute AS a
+		JOIN
+			pg_type AS t ON t.oid = a.atttypid
+		JOIN
+			pg_namespace AS type_n ON type_n.oid = t.typnamespace
+		JOIN
+			pg_class AS c ON c.oid = a.attrelid
+		JOIN
+			pg_namespace AS table_n ON table_n.oid = c.relnamespace
+		WHERE
+			(table_n.nspname, c.relname) IN (%s)
+			AND a.attnum > 0
+			AND %s
+		ORDER BY qualified_type_name;
+	`, inClause, typesNotSupportedClause)
+
 	rows, err := yb.db.Query(query)
 	if err != nil {
 		utils.ErrExit("error in querying source database for user defined columns: %q: %w\n", query, err)
@@ -689,45 +725,60 @@ func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(tableName sqlname.Na
 			log.Warnf("close rows for query %q: %v", query, closeErr)
 		}
 	}()
+
 	var userDefinedDataTypes []string
 	for rows.Next() {
-		var dataType, isUserDefined string
-		err = rows.Scan(&dataType, &isUserDefined)
+		var qualifiedTypeName string
+		err = rows.Scan(&qualifiedTypeName)
 		if err != nil {
 			utils.ErrExit("error in scanning query rows for user defined columns: %w\n", err)
 		}
-		if isUserDefined == "Yes" {
-			userDefinedDataTypes = append(userDefinedDataTypes, dataType)
-		}
+		userDefinedDataTypes = append(userDefinedDataTypes, qualifiedTypeName)
 	}
 	return userDefinedDataTypes
+}
+
+// tableColumnInfo holds columns and their data types information for a table
+type tableColumnInfo struct {
+	Columns   []string
+	DataTypes []string
 }
 
 func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (*utils.StructMap[sqlname.NameTuple, []string], *utils.StructMap[sqlname.NameTuple, []string], error) {
 	supportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	unsupportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 
+	// offline migration case, we support all datatypes
+	if !(useDebezium || isStreamingEnabled) {
+		return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
+	}
+
+	// Fetch all user-defined types for all tables in a single query and add them to the unsupported datatypes list
+	unsupportedUserDefinedTypes := yb.filterUnsupportedUserDefinedDatatypes(tableList)
 	unsupportedDatatypesList := GetYugabyteUnsupportedDatatypesDbzm(yb.source.IsYBGrpcConnector)
+	unsupportedDatatypesList = append(unsupportedDatatypesList, unsupportedUserDefinedTypes...)
+
+	// Fetch all table columns in a single query
+	allTablesColumnsInfo, err := getAllTableColumnsInfo(tableList, yb.db)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error fetching table columns: %w", err)
+	}
 
 	for _, tableName := range tableList {
-		columns, dataTypes, _, err := yb.getTableColumns(tableName)
-		if err != nil {
-			return nil, nil, fmt.Errorf("error in getting table columns and datatypes: %w", err)
-		}
-		userDefinedDataTypes := yb.filterUnsupportedUserDefinedDatatypes(tableName)
-		unsupportedDatatypesList = append(unsupportedDatatypesList, userDefinedDataTypes...)
+		columnInfo := allTablesColumnsInfo[tableName]
+		columns := columnInfo.Columns
+		dataTypes := columnInfo.DataTypes
+
 		var supportedColumnNames []string
 		var unsupportedColumnNames []string
 		for i, column := range columns {
-			if useDebezium || isStreamingEnabled {
-				//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
-				// which just contains the base type for example VARCHARs it won't include any length, precision or scale information
-				//of these types there are other columns available for these information so we just do string match of types with our list
-				if utils.ContainsAnyStringFromSlice(unsupportedDatatypesList, dataTypes[i]) {
-					unsupportedColumnNames = append(unsupportedColumnNames, column)
-				} else {
-					supportedColumnNames = append(supportedColumnNames, column)
-				}
+			//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
+			// which just contains the base type for example VARCHARs it won't include any length, precision or scale information
+			//of these types there are other columns available for these information so we just do string match of types with our list
+			if utils.ContainsAnyStringFromSlice(unsupportedDatatypesList, dataTypes[i]) {
+				unsupportedColumnNames = append(unsupportedColumnNames, column)
+			} else {
+				supportedColumnNames = append(supportedColumnNames, column)
 			}
 		}
 		if len(supportedColumnNames) == len(columns) {
@@ -741,6 +792,82 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 	}
 
 	return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
+}
+
+// getAllTableColumnsInfo fetches column information for all tables in a single database query
+func getAllTableColumnsInfo(tableList []sqlname.NameTuple, db *sql.DB) (map[sqlname.NameTuple]tableColumnInfo, error) {
+	var result = make(map[sqlname.NameTuple]tableColumnInfo)
+	if len(tableList) == 0 {
+		return result, nil
+	}
+
+	// Build IN clause AND create reverse lookup map for table name to NameTuple
+	var tableTuples []string
+	// Key: "schema.table" -> Value: original NameTuple
+	tableLookup := make(map[string]sqlname.NameTuple)
+
+	for _, table := range tableList {
+		schema, name := table.ForCatalogQuery()
+		tableTuples = append(tableTuples, fmt.Sprintf("('%s', '%s')", schema, name))
+
+		lookupKey := table.AsQualifiedCatalogName()
+		tableLookup[lookupKey] = table
+	}
+	inClause := strings.Join(tableTuples, ", ")
+	query := fmt.Sprintf(`
+		SELECT
+			n.nspname AS table_schema,
+			c.relname AS table_name,
+			a.attname AS column_name,
+			-- Qualify only composite types (UDTs) to distinguish same-named types across schemas.
+			-- Keep other types unqualified (hstore, int4, etc.) to match unsupported types list.
+			CASE
+				WHEN (t.typtype = 'c' OR t.typtype = 'r') THEN type_n.nspname || '.' || t.typname
+				ELSE t.typname
+			END AS data_type
+		FROM pg_attribute AS a
+		JOIN pg_type AS t ON t.oid = a.atttypid
+		JOIN pg_namespace AS type_n ON type_n.oid = t.typnamespace
+		JOIN pg_class AS c ON c.oid = a.attrelid
+		JOIN pg_namespace AS n ON n.oid = c.relnamespace
+		WHERE (n.nspname, c.relname) IN (%s)
+			AND a.attname NOT IN ('tableoid', 'cmax', 'xmax', 'cmin', 'xmin', 'ctid')
+			AND a.attnum > 0
+			AND NOT a.attisdropped
+		ORDER BY n.nspname, c.relname, a.attnum; -- attnum ensures columns appear in table definition order and keeps Columns[] and DataTypes[] arrays aligned deterministically
+	`, inClause)
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying table columns: %w", err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
+
+	for rows.Next() {
+		var schema, table, column, dataType string
+		if err := rows.Scan(&schema, &table, &column, &dataType); err != nil {
+			return nil, fmt.Errorf("error scanning column info: %w", err)
+		}
+
+		lookupKey := fmt.Sprintf("%s.%s", schema, table)
+		matchingTable, exists := tableLookup[lookupKey]
+		if !exists {
+			// This shouldn't happen, but handle gracefully
+			log.Warnf("Received column info for unexpected table: %s.%s", schema, table)
+			continue
+		}
+
+		info := result[matchingTable]
+		info.Columns = append(info.Columns, column)
+		info.DataTypes = append(info.DataTypes, dataType)
+		result[matchingTable] = info
+	}
+
+	return result, rows.Err()
 }
 
 func (yb *YugabyteDB) ParentTableOfPartition(table sqlname.NameTuple) string {
@@ -789,7 +916,7 @@ func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[
 			}
 			qualifiedColumnName := fmt.Sprintf("%s.%s", tableName, columeName)
 			// quoting sequence name as it can be case sensitive - required during import data restore sequences
-			columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf(`%s."%s"`, schemaName, sequenceName)
+			columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf(`"%s"."%s"`, schemaName, sequenceName)
 		}
 		err = rows.Close()
 		if err != nil {
@@ -919,14 +1046,16 @@ UNION
 SELECT table_schema, table_name, column_name FROM unique_indexes;
 `
 
-func (yb *YugabyteDB) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (map[string][]string, error) {
+func (yb *YugabyteDB) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
 	log.Infof("getting unique key columns for tables: %v", tableList)
-	result := make(map[string][]string)
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
 	var querySchemaList, queryTableList []string
+	tableStrToNameTupleMap := make(map[string]sqlname.NameTuple)
 	for i := 0; i < len(tableList); i++ {
 		sname, tname := tableList[i].ForCatalogQuery()
 		querySchemaList = append(querySchemaList, sname)
 		queryTableList = append(queryTableList, tname)
+		tableStrToNameTupleMap[tableList[i].AsQualifiedCatalogName()] = tableList[i]
 	}
 
 	querySchemaList = lo.Uniq(querySchemaList)
@@ -950,10 +1079,17 @@ func (yb *YugabyteDB) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTupl
 		if err != nil {
 			return nil, fmt.Errorf("scanning row for unique key column name: %w", err)
 		}
-		if schemaName != "public" {
-			tableName = fmt.Sprintf("%s.%s", schemaName, tableName)
+		tableName = fmt.Sprintf("%s.%s", schemaName, tableName)
+		tableNameTuple, ok := tableStrToNameTupleMap[tableName]
+		if !ok {
+			return nil, goerrors.Errorf("table %s not found in table list", tableName)
 		}
-		result[tableName] = append(result[tableName], colName)
+		cols, ok := result.Get(tableNameTuple)
+		if !ok {
+			cols = []string{}
+		}
+		cols = append(cols, colName)
+		result.Put(tableNameTuple, cols)
 	}
 
 	err = rows.Err()
@@ -971,8 +1107,7 @@ func (yb *YugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir str
 
 func (yb *YugabyteDB) GetNonPKTables() ([]string, error) {
 	var nonPKTables []string
-	schemaList := strings.Split(yb.source.Schema, "|")
-	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
+	querySchemaList := "'" + sqlname.JoinIdentifiersMinQuoted(yb.source.Schemas, "','") + "'"
 	query := fmt.Sprintf(PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK, querySchemaList)
 	rows, err := yb.db.Query(query)
 	if err != nil {
@@ -1033,6 +1168,15 @@ func (yb *YugabyteDB) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicatio
 		defer conn.Close(context.Background())
 	}
 	log.Infof("dropping replication slot: %s", replicationSlotName)
+
+	exists, err := yb.CheckIfReplicationSlotExists(replicationSlotName)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		log.Infof("replication slot %s does not exist, skipping dropping", replicationSlotName)
+		return nil
+	}
 
 	// TODO: Remove this sleep and check the status of the slot before dropping
 	// This sleep is added to avoid the error "replication slot is active" while dropping the slot since it takes 60 seconds by default to change the status of the slot
@@ -1137,8 +1281,8 @@ func (yb *YugabyteDB) GetMissingExportSchemaPermissions(queryTableList string) (
 	return nil, nil
 }
 
-func (yb *YugabyteDB) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, error) {
-	return nil, nil
+func (yb *YugabyteDB) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, bool, error) {
+	return nil, false, nil
 }
 
 func (yb *YugabyteDB) GetMissingAssessMigrationPermissions() ([]string, bool, error) {

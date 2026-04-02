@@ -173,7 +173,7 @@ func TestParsingIndexWhereClausePredicates(t *testing.T) {
 		assert.NoError(t, err)
 
 		ip := NewIndexProcessor()
-		indexNode, ok := getCreateIndexStmtNode(tree)
+		indexNode, ok := GetCreateIndexStmtNode(tree)
 		assert.True(t, ok)
 
 		clauses := ip.parseWhereClause(indexNode.IndexStmt.WhereClause)

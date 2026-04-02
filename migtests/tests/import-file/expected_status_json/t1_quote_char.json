@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"t1_quote_char\"",
+      "table_name": "\"public\".\"t1_quote_char\"",
       "file_name": "t1_quote_char.csv",
       "status": "DONE",
       "total_count": 65,

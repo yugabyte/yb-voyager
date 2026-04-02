@@ -1,11 +1,29 @@
 {
-    "continue_on_error": false,
-    "enable_orafce": true,
-    "ignore_exist": false,
-    "refresh_mviews": false,
-    "errors": 0,
-    "post_snapshot_import": false,
-    "start_clean": false,
-    "error": "",
-    "control_plane_type": ""
-}
+    "collected_at": "2025-11-03 16:17:26.72045",
+    "migration_phase": "import-schema",
+    "migration_type": "",
+    "migration_uuid": "61fbc9e8-de9c-45fe-821f-1a7689a342f2",
+    "phase_payload": {
+      "continue_on_error": false,
+      "control_plane_type": "",
+      "enable_orafce": true,
+      "error": "",
+      "errors": 0,
+      "ignore_exist": false,
+      "post_snapshot_import": false,
+      "refresh_mviews": false,
+      "start_clean": false
+    },
+    "phase_start_time": "2025-11-03 16:17:19.846178",
+    "source_db_details": "",
+    "status": "COMPLETE",
+    "target_db_details": {
+      "db_system_identifier": "3ab1df03-153e-4d76-b84a-6623da2cd352",
+      "db_version": "15.12-YB-2025.1.0.1-b0",
+      "host": "",
+      "node_count": 1,
+      "total_cores": 4
+    },
+    "time_taken_sec": 7,
+    "yb_voyager_version": "main"
+  }

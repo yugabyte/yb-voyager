@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"s3_text\"",
+      "table_name": "\"public\".\"s3_text\"",
       "file_name": "text_test.text",
       "status": "DONE",
       "total_count": 19,

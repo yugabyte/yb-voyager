@@ -1,1 +1,5 @@
 /yb-voyager/src/utils/version.go export-subst
+
+# Exclude migration test files from language statistics
+# See: https://github.com/github-linguist/linguist/blob/main/docs/overrides.md
+migtests/tests/ linguist-documentation

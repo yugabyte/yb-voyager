@@ -21,6 +21,8 @@ import (
 	"os"
 	"path/filepath"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/samber/lo"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -57,14 +59,14 @@ func ReadExportStatus(statusFilePath string) (*ExportStatus, error) {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("failed to open file %s: %v", statusFilePath, err)
+		return nil, goerrors.Errorf("failed to open file %s: %v", statusFilePath, err)
 	}
 	defer file.Close()
 
 	var status ExportStatus
 	err = json.NewDecoder(file).Decode(&status)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode export status file %s: %v", statusFilePath, err)
+		return nil, goerrors.Errorf("failed to decode export status file %s: %v", statusFilePath, err)
 	}
 	return &status, nil
 }
@@ -73,7 +75,7 @@ func IsLiveMigrationInSnapshotMode(exportDir string) (bool, error) {
 	statusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	status, err := ReadExportStatus(statusFilePath)
 	if err != nil {
-		return false, fmt.Errorf("failed to read export status file %s: %v", statusFilePath, err)
+		return false, goerrors.Errorf("failed to read export status file %s: %v", statusFilePath, err)
 	}
 	return (status != nil && status.Mode == MODE_SNAPSHOT), nil
 }

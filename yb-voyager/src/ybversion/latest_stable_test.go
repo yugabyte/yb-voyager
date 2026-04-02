@@ -58,7 +58,7 @@ func TestLatestStable(t *testing.T) {
 		releaseName = strings.Trim(releaseName, " ")
 		releaseSegs := strings.Split(releaseName, ".")
 		assert.Equal(t, 4, len(releaseSegs), "invalid release version: %s. It has %d segments. Version should have exactly 4 segments (A.B.C.D).")
-		//Changing the minor version segment to 0 to be able to compare only the major version i.e. aaaa.b.b 
+		//Changing the minor version segment to 0 to be able to compare only the major version i.e. aaaa.b.b
 		//e.g. 2024.2.3.1 -> 2024.2.3.0
 		releaseSegs[3] = "0"
 		rVersion, err := NewYBVersion(strings.Join(releaseSegs, "."))

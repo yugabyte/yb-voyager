@@ -72,7 +72,7 @@ func TestNameTuple(t *testing.T) {
 	ntup := NewNameTuple(TARGET_DB_IMPORTER_ROLE, sourceName, targetName)
 
 	assert.Equal(ntup.CurrentName, ntup.TargetName)
-	assert.Equal(ntup.ForUserQuery(), `public."table1"`)
+	assert.Equal(ntup.ForUserQuery(), `"public"."table1"`)
 	schemaName, tableName := ntup.ForCatalogQuery()
 	assert.Equal(schemaName, `public`)
 	assert.Equal(tableName, `table1`)
@@ -80,7 +80,7 @@ func TestNameTuple(t *testing.T) {
 	ntup = NewNameTuple(SOURCE_REPLICA_DB_IMPORTER_ROLE, sourceName, targetName)
 
 	assert.Equal(ntup.CurrentName, ntup.SourceName)
-	assert.Equal(ntup.ForUserQuery(), `SAKILA."TABLE1"`)
+	assert.Equal(ntup.ForUserQuery(), `"SAKILA"."TABLE1"`)
 	schemaName, tableName = ntup.ForCatalogQuery()
 	assert.Equal(schemaName, `SAKILA`)
 	assert.Equal(tableName, `TABLE1`)
@@ -315,7 +315,7 @@ func TestNameRegistryFailedLookup(t *testing.T) {
 	assert.Contains(err.Error(), "lookup target table name")
 
 	var tuple sqlname.NameTuple
-	sourceObj := sqlname.NewObjectNameWithQualifiedName(constants.ORACLE, "SAKILA", "SAKILA.TABLE3")
+	sourceObj := sqlname.NewObjectNameWithQualifiedName(constants.ORACLE, "SAKILA", "\"SAKILA\".\"TABLE3\"")
 	reg.params.Role = SOURCE_DB_EXPORTER_ROLE
 	expectedTuple := sqlname.NameTuple{
 		SourceName:  sourceObj,
@@ -330,7 +330,7 @@ func TestNameRegistryFailedLookup(t *testing.T) {
 	require.NotNil(err)
 	assert.Contains(err.Error(), "lookup source table name")
 	reg.params.Role = TARGET_DB_IMPORTER_ROLE
-	targetObj := sqlname.NewObjectNameWithQualifiedName(constants.YUGABYTEDB, "public", "public.table123")
+	targetObj := sqlname.NewObjectNameWithQualifiedName(constants.YUGABYTEDB, "public", "\"public\".\"table123\"")
 	expectedTuple = sqlname.NameTuple{
 		TargetName:  targetObj,
 		CurrentName: targetObj,
@@ -430,8 +430,10 @@ func TestDifferentSchemaInSameDBAsSourceReplica2(t *testing.T) {
 //=====================================================
 
 type dummySourceDB struct {
+	dbType        string
 	tableNames    map[string][]string // schemaName -> tableNames
 	sequenceNames map[string][]string // schemaName -> sequenceNames
+	schemaNames   []string
 }
 
 func (db *dummySourceDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
@@ -448,6 +450,10 @@ func (db *dummySourceDB) GetAllSequencesRaw(schemaName string) ([]string, error)
 		return nil, fmt.Errorf("schema %q not found", schemaName)
 	}
 	return sequenceNames, nil
+}
+
+func (db *dummySourceDB) GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, error) {
+	return sqlname.ParseIdentifiersFromStrings(db.dbType, db.schemaNames), nil
 }
 
 type dummyTargetDB struct {
@@ -487,6 +493,8 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 		sequenceNames: map[string][]string{
 			"SAKILA": {"SEQ1", "SEQ2"},
 		},
+		dbType:      constants.ORACLE,
+		schemaNames: []string{"SAKILA"},
 	}
 
 	// Create a dummy target DB.
@@ -524,9 +532,9 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 			FilePath:       "",
 			Role:           currentMode,
 			SourceDBType:   constants.ORACLE,
-			SourceDBSchema: "SAKILA",
+			SourceDBSchema: []string{"SAKILA"},
 			SourceDBName:   "ORCLPDB1",
-			TargetDBSchema: tSchema,
+			TargetDBSchema: []string{tSchema},
 			SDB:            dummySdb,
 			YBDB:           dummyTdb,
 		}
@@ -565,7 +573,7 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	ntup, err = reg.LookupTableName("TABLE1")
 	require.Nil(err)
 	assert.Equal(table1, ntup)
-	assert.Equal(`SAKILA."TABLE1"`, table1.ForUserQuery())
+	assert.Equal(`"SAKILA"."TABLE1"`, table1.ForUserQuery())
 
 	// Change the mode to IMPORT_TO_TARGET_MODE.
 	currentMode = TARGET_DB_IMPORTER_ROLE
@@ -583,7 +591,7 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	ntup, err = reg.LookupTableName("ybsakila.table1")
 	require.Nil(err)
 	assert.Equal(table1, ntup)
-	assert.Equal(`ybsakila."table1"`, table1.ForUserQuery())
+	assert.Equal(`"ybsakila"."table1"`, table1.ForUserQuery())
 
 	// When `import data` restarts, the registry should be reloaded from the file.
 	reg = newNameRegistry("ybsakila")
@@ -604,7 +612,7 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	ntup, err = reg.LookupTableName("TABLE1")
 	require.Nil(err)
 	assert.Equal(table1, ntup)
-	assert.Equal(`SAKILA_FF."TABLE1"`, table1.ForUserQuery())
+	assert.Equal(`"SAKILA_FF"."TABLE1"`, table1.ForUserQuery())
 }
 
 // Unit tests for breaking changes in NameRegistry.
@@ -623,10 +631,10 @@ func TestNameRegistryStructs(t *testing.T) {
 				FilePath       string
 				Role           string
 				SourceDBType   string
-				SourceDBSchema string
+				SourceDBSchema []string
 				SourceDBName   string
 				SDB            SourceDBInterface
-				TargetDBSchema string
+				TargetDBSchema []string
 				YBDB           YBDBInterface
 			}{},
 		},
@@ -667,9 +675,9 @@ func TestNameRegistryJson(t *testing.T) {
 			FilePath:       outputFilePath,
 			Role:           TARGET_DB_IMPORTER_ROLE,
 			SourceDBType:   constants.ORACLE,
-			SourceDBSchema: "SAKILA",
+			SourceDBSchema: []string{"SAKILA"},
 			SourceDBName:   "ORCLPDB1",
-			TargetDBSchema: "ybsakila",
+			TargetDBSchema: []string{"ybsakila"},
 		},
 		SourceDBSchemaNames:       []string{"SAKILA"},
 		DefaultSourceDBSchemaName: "SAKILA",

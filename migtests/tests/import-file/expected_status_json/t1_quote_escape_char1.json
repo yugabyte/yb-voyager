@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"t1_quote_escape_char1\"",
+      "table_name": "\"public\".\"t1_quote_escape_char1\"",
       "file_name": "t1_quote_escape_char1.csv",
       "status": "DONE",
       "total_count": 65,

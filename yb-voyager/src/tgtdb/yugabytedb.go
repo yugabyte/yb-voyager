@@ -30,9 +30,11 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	goerrors "github.com/go-errors/errors"
 	"github.com/goccy/go-json"
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
+	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
 	pgconn5 "github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -137,16 +139,30 @@ func (yb *TargetYugabyteDB) Init() error {
 		yb.Tconf.SessionVars = getYBSessionInitScript(yb.Tconf)
 	}
 
+	schemas := sqlname.ExtractIdentifiersUnquoted(yb.tconf.Schemas)
+	schemaList := strings.Join(schemas, "','") // a','b','c
 	checkSchemaExistsQuery := fmt.Sprintf(
-		"SELECT count(nspname) FROM pg_catalog.pg_namespace WHERE nspname = '%s';",
-		yb.Tconf.Schema)
-	var cntSchemaName int
-	if err = yb.QueryRow(checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
-		err = fmt.Errorf("run query %q on target %q to check schema exists: %w", checkSchemaExistsQuery, yb.Tconf.Host, err)
-	} else if cntSchemaName == 0 {
-		err = fmt.Errorf("schema '%s' does not exist in target", yb.Tconf.Schema)
+		"SELECT nspname FROM pg_catalog.pg_namespace WHERE nspname IN ('%s');",
+		schemaList)
+	rows, err := yb.Query(checkSchemaExistsQuery)
+	if err != nil {
+		return fmt.Errorf("run query %q on target %q to check schema exists: %w", checkSchemaExistsQuery, yb.Tconf.Host, err)
 	}
-	return err
+	defer rows.Close()
+	var returnedSchemas []string
+	for rows.Next() {
+		var schemaName string
+		err = rows.Scan(&schemaName)
+		if err != nil {
+			return fmt.Errorf("scan schema name: %w", err)
+		}
+		returnedSchemas = append(returnedSchemas, schemaName)
+	}
+	if len(returnedSchemas) != len(schemas) {
+		notExistsSchemas := utils.SetDifference(schemas, returnedSchemas)
+		return goerrors.Errorf("schemas '%s' do not exist in target", strings.Join(notExistsSchemas, ","))
+	}
+	return nil
 }
 
 func (yb *TargetYugabyteDB) Finalize() {
@@ -279,7 +295,7 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 		return fmt.Errorf("error fetching the yb servers: %w", err)
 	}
 	if loadBalancerUsed {
-		utils.PrintAndLog(LB_WARN_MSG)
+		utils.PrintAndLogf(LB_WARN_MSG)
 	}
 	tconfs := yb.getTargetConfsAsPerLoadBalancerUsed(loadBalancerUsed, confs)
 	var targetUriList []string
@@ -288,18 +304,8 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 	}
 	log.Infof("targetUriList: %s", utils.GetRedactedURLs(targetUriList))
 
-	if yb.Tconf.Parallelism <= 0 {
-		yb.Tconf.Parallelism = fetchDefaultParallelJobs(tconfs, YB_DEFAULT_PARALLELISM_FACTOR)
-		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.Tconf.Parallelism)
-	}
-
-	if yb.tconf.AdaptiveParallelismMode.IsEnabled() {
-		if yb.tconf.MaxParallelism <= 0 {
-			yb.tconf.MaxParallelism = yb.tconf.Parallelism * 2
-		}
-	} else {
-		yb.Tconf.MaxParallelism = yb.Tconf.Parallelism
-	}
+	nodeCount := len(confs) // confs from GetYBServers() has all nodes, even when using a load balancer
+	yb.setDefaultParallelism(tconfs, nodeCount, loadBalancerUsed)
 	params := &ConnectionParams{
 		NumConnections:    yb.Tconf.Parallelism,
 		NumMaxConnections: yb.Tconf.MaxParallelism,
@@ -334,7 +340,7 @@ const INVALID_INPUT_SYNTAX_ERROR = "invalid input syntax"
 // Mismatched param and argument count - produced by pgx's ExtendedQueryBuilder
 const MISMATCHED_PARAM_ARGUMENT_COUNT_ERROR = "mismatched param and argument count"
 
-// Failed to encode args[N] - pgx wraps encoding failures with fmt.Errorf
+// Failed to encode args[N] - pgx wraps encoding failures with goerrors.Errorf
 const FAILED_TO_ENCODE_ARGS_ERROR = "failed to encode args"
 
 // Unable to encode - many pgx/pgtype errors include this text
@@ -342,6 +348,9 @@ const UNABLE_TO_ENCODE_ERROR = "unable to encode"
 
 // Cannot find encode plan - specific phrase from pgx/pgtype
 const CANNOT_FIND_ENCODE_PLAN_ERROR = "cannot find encode plan"
+
+// error for inserting in xml table
+const UNSUPPORTED_XML_FEATURE = "unsupported XML feature"
 
 var NonRetryCopyErrors = []string{
 	// Existing patterns
@@ -354,6 +363,8 @@ var NonRetryCopyErrors = []string{
 	FAILED_TO_ENCODE_ARGS_ERROR,
 	UNABLE_TO_ENCODE_ERROR,
 	CANNOT_FIND_ENCODE_PLAN_ERROR,
+
+	UNSUPPORTED_XML_FEATURE,
 }
 
 // IsPgErrorCodeNonRetryable checks if an error is a data integrity or constraint violation or syntax error
@@ -400,7 +411,7 @@ func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 	return utils.ContainsAnySubstringFromSlice(NonRetryCopyErrorsYB, err.Error())
 }
 
-func (yb *TargetYugabyteDB) checkIfPrimaryKeyViolationError(err error, pkConstraintNames []string) bool {
+func checkIfPrimaryKeyViolationError(err error, pkConstraintNames []string) bool {
 	if err == nil {
 		return false
 	}
@@ -497,7 +508,7 @@ const BATCH_METADATA_TABLE_SCHEMA = "ybvoyager_metadata"
 const BATCH_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_import_data_batches_metainfo_v3"
 const EVENT_CHANNELS_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_import_data_event_channels_metainfo"
 const EVENTS_PER_TABLE_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_imported_event_count_by_table"
-const YB_DEFAULT_PARALLELISM_FACTOR = 2 // factor for default parallelism in case fetchDefaultParallelJobs() is not able to get the no of cores
+const YB_DEFAULT_CORES_PER_NODE = 16 // assumed vCPUs per node when core detection fails
 const ALTER_QUERY_RETRY_COUNT = 5
 
 func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
@@ -726,7 +737,7 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 	if err != nil {
 		return 0, newImportBatchErrorPgYb(err, batch,
 			errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL,
-			errs.IMPORT_BATCH_ERROR_STEP_BEGIN_TXN)
+			errs.IMPORT_BATCH_ERROR_STEP_BEGIN_TXN, nil)
 	}
 	defer func() {
 		var err2 error
@@ -736,15 +747,21 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 				rowsAffected = 0
 				err = newImportBatchErrorPgYb(fmt.Errorf("%w (while processing %s)", err2, err), batch,
 					errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL,
-					errs.IMPORT_BATCH_ERROR_STEP_ROLLBACK_TXN)
+					errs.IMPORT_BATCH_ERROR_STEP_ROLLBACK_TXN, nil)
 			}
 		} else {
+			if triggered, fpErr := injectImportBatchCommitError(batch); triggered {
+				rowsAffected = 0
+				err = fpErr
+				return
+			}
+
 			err2 = tx.Commit(ctx)
 			if err2 != nil {
 				rowsAffected = 0
 				err = newImportBatchErrorPgYb(err2, batch,
 					errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL,
-					errs.IMPORT_BATCH_ERROR_STEP_COMMIT_TXN)
+					errs.IMPORT_BATCH_ERROR_STEP_COMMIT_TXN, nil)
 			}
 		}
 	}()
@@ -767,7 +784,7 @@ func (yb *TargetYugabyteDB) importBatchFast(conn *pgx.Conn, batch Batch, args *I
 		Lets say the importBatchFastRecover fails with some trasient DB error. In that case,
 		caller(fileTaskImporter.importBatch() function) takes care of retrying with importBatchFastRecover
 	*/
-	if yb.checkIfPrimaryKeyViolationError(err, args.PKConstraintNames) {
+	if checkIfPrimaryKeyViolationError(err, args.PKConstraintNames) {
 		log.Infof("falling back to importBatchFastRecover for batch %q: %s", batch.GetFilePath(), err.Error())
 		return yb.importBatchFastRecover(conn, batch, args)
 	}
@@ -781,7 +798,7 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	if err != nil {
 		err = newImportBatchErrorPgYb(err, batch,
 			lo.Ternary(args.ShouldUseFastPath(), errs.IMPORT_BATCH_ERROR_FLOW_COPY_FAST, errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL),
-			errs.IMPORT_BATCH_ERROR_STEP_OPEN_BATCH)
+			errs.IMPORT_BATCH_ERROR_STEP_OPEN_BATCH, nil)
 		return 0, err
 	}
 	defer file.Close()
@@ -795,7 +812,7 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	if err != nil {
 		err = newImportBatchErrorPgYb(err, batch,
 			lo.Ternary(args.ShouldUseFastPath(), errs.IMPORT_BATCH_ERROR_FLOW_COPY_FAST, errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL),
-			errs.IMPORT_BATCH_ERROR_STEP_CHECK_BATCH_ALREADY_IMPORTED)
+			errs.IMPORT_BATCH_ERROR_STEP_CHECK_BATCH_ALREADY_IMPORTED, nil)
 		return 0, err
 	}
 	if alreadyImported {
@@ -819,7 +836,7 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	if err != nil {
 		err = newImportBatchErrorPgYb(err, batch,
 			lo.Ternary(args.ShouldUseFastPath(), errs.IMPORT_BATCH_ERROR_FLOW_COPY_FAST, errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL),
-			errs.IMPORT_BATCH_ERROR_STEP_COPY)
+			errs.IMPORT_BATCH_ERROR_STEP_COPY, args.PKConstraintNames)
 
 		return res.RowsAffected(), err
 	}
@@ -829,7 +846,7 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	if err != nil {
 		err = newImportBatchErrorPgYb(err, batch,
 			lo.Ternary(args.ShouldUseFastPath(), errs.IMPORT_BATCH_ERROR_FLOW_COPY_FAST, errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL),
-			errs.IMPORT_BATCH_ERROR_STEP_METADATA_ENTRY)
+			errs.IMPORT_BATCH_ERROR_STEP_METADATA_ENTRY, nil)
 		return res.RowsAffected(), err
 	}
 	return res.RowsAffected(), nil
@@ -843,7 +860,7 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 	if err != nil {
 		return 0, newImportBatchErrorPgYb(err, batch,
 			errs.IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER,
-			errs.IMPORT_BATCH_ERROR_STEP_CHECK_BATCH_ALREADY_IMPORTED)
+			errs.IMPORT_BATCH_ERROR_STEP_CHECK_BATCH_ALREADY_IMPORTED, nil)
 	}
 	if alreadyImported {
 		log.Infof("batch %q already imported, skipping fast recover", batch.GetFilePath())
@@ -855,7 +872,7 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 	if err != nil {
 		return 0, newImportBatchErrorPgYb(err, batch,
 			errs.IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER,
-			errs.IMPORT_BATCH_ERROR_STEP_OPEN_BATCH)
+			errs.IMPORT_BATCH_ERROR_STEP_OPEN_BATCH, nil)
 	}
 	defer df.Close()
 
@@ -872,7 +889,7 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 		if readLinErr != nil && readLinErr != io.EOF {
 			return 0, newImportBatchErrorPgYb(err, batch,
 				errs.IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER,
-				errs.IMPORT_BATCH_ERROR_STEP_READ_LINE_BATCH)
+				errs.IMPORT_BATCH_ERROR_STEP_READ_LINE_BATCH, nil)
 		}
 
 		/*
@@ -900,7 +917,7 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 		res, err := conn.PgConn().CopyFrom(context.Background(), singleLineReader, copyCommand)
 		if err != nil {
 			// Ignore err if its VIOLATES_UNIQUE_CONSTRAINT_ERROR_RETRYABLE_FAST_PATH only
-			if yb.checkIfPrimaryKeyViolationError(err, args.PKConstraintNames) {
+			if checkIfPrimaryKeyViolationError(err, args.PKConstraintNames) {
 				// logging lineNum might not be useful as batches are truncated later on
 				log.Debugf("ignoring error %s for line=%q in batch %q", err.Error(), line, batch.GetFilePath())
 				rowsIgnored++ // increment before continuing to next line
@@ -909,7 +926,7 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 
 			err = newImportBatchErrorPgYb(err, batch,
 				errs.IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER,
-				errs.IMPORT_BATCH_ERROR_STEP_COPY)
+				errs.IMPORT_BATCH_ERROR_STEP_COPY, args.PKConstraintNames)
 			return rowsAffected + rowsIgnored, err
 		}
 
@@ -936,7 +953,7 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 	if err != nil {
 		return 0, newImportBatchErrorPgYb(err, batch,
 			errs.IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER,
-			errs.IMPORT_BATCH_ERROR_STEP_METADATA_ENTRY)
+			errs.IMPORT_BATCH_ERROR_STEP_METADATA_ENTRY, nil)
 	}
 
 	// 7. log the summary: how many conflicts, how many inserted, how many update/upserted
@@ -949,12 +966,21 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 	return totalRowsInBatch, nil
 }
 
-func newImportBatchErrorPgYb(underlyingErr error, batch Batch, flow string, step string) errs.ImportBatchError {
+func newImportBatchErrorPgYb(underlyingErr error, batch Batch, flow string, step string, pkConstraintNames []string) errs.ImportBatchError {
 	dbContext := map[string]string{}
+	var errorType string
 	var pgerr *pgconn.PgError
 	if errors.As(underlyingErr, &pgerr) {
-		if pgerr.Where != "" {
-			dbContext["where"] = pgerr.Where
+		dbContext["where"] = pgerr.Where
+		switch pgerr.Code {
+		case "23505": // unique_violation
+			if checkIfPrimaryKeyViolationError(underlyingErr, pkConstraintNames) {
+				errorType = errs.ERROR_TYPE_PK_VIOLATION
+			} else {
+				errorType = errs.ERROR_TYPE_UNIQUE_VIOLATION
+			}
+		case "23503": // foreign_key_violation
+			errorType = errs.ERROR_TYPE_FOREIGN_KEY_VIOLATION
 		}
 	}
 
@@ -964,6 +990,7 @@ func newImportBatchErrorPgYb(underlyingErr error, batch Batch, flow string, step
 		underlyingErr,
 		flow,
 		step,
+		errorType,
 		dbContext)
 }
 
@@ -1034,6 +1061,11 @@ and needs to be prepared again
 */
 func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error {
 	log.Infof("executing batch(%s) of %d events", batch.ID(), len(batch.Events))
+
+	if fpErr := injectImportCDCRetryableExecuteBatchError(); fpErr != nil {
+		return fpErr
+	}
+
 	ybBatch := pgx.Batch{}
 	stmtToPrepare := make(map[string]string)
 	// processing batch events to convert into prepared or unprepared statements based on Op type
@@ -1103,6 +1135,9 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		}
 		for i := 0; i < len(batch.Events); i++ {
 			res, err := br.Exec()
+			if fpErr := injectImportCDCExecEventError(); fpErr != nil {
+				err = fpErr
+			}
 			if err != nil {
 				// When using pgx SendBatch, there can be two types of errors thrown:
 				// 1. Error while preparing the statement - this is preprocessing (parsing, preparinng statements, etc)
@@ -1174,6 +1209,17 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		if err = tx.Commit(ctx); err != nil {
 			return false, fmt.Errorf("failed to commit transaction : %w", err)
 		}
+
+		// Failpoint: simulate the "commit succeeded but ExecuteBatch returned a retryable error" case.
+		//
+		// This models scenarios like transient RPC/timeout errors on commit where the transaction
+		if fpErr := injectImportCDCRetryableAfterCommitError(); fpErr != nil {
+			err = fpErr
+		}
+		if err != nil {
+			return false, err
+		}
+
 		logDiscrepancyInEventBatchIfAny(batch, rowsAffectedInserts, rowsAffectedDeletes, rowsAffectedUpdates)
 		return false, err
 	})
@@ -1219,7 +1265,7 @@ func (yb *TargetYugabyteDB) GetYBServers() (bool, []*TargetConf, error) {
 
 	if yb.Tconf.TargetEndpoints != "" {
 		msg := fmt.Sprintf("given yb-servers for import data: %q\n", yb.Tconf.TargetEndpoints)
-		log.Infof(msg)
+		log.Info(msg)
 
 		ybServers := utils.CsvStringToSlice(yb.Tconf.TargetEndpoints)
 		for _, ybServer := range ybServers {
@@ -1368,7 +1414,7 @@ func testAndFilterYbServers(tconfs []*TargetConf) []*TargetConf {
 		log.Infof("testing server: %s\n", spew.Sdump(GetRedactedTargetConf(tconf)))
 		conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
 		if err != nil {
-			utils.PrintAndLog("unable to use yb-server %q: %v", tconf.Host, err)
+			utils.PrintAndLogf("unable to use yb-server %q: %v", tconf.Host, err)
 		} else {
 			availableTargets = append(availableTargets, tconf)
 			conn.Close(context.Background())
@@ -1417,20 +1463,61 @@ func fetchCores(tconfs []*TargetConf) (int, error) {
 	return totalCores, nil
 }
 
-func fetchDefaultParallelJobs(tconfs []*TargetConf, defaultParallelismFactor int) int {
-	totalCores, err := fetchCores(tconfs)
-	if err != nil {
-		defaultParallelJobs := len(tconfs) * defaultParallelismFactor
-		log.Errorf("error while fetching the cores information and using default parallelism: %v : %v ", defaultParallelJobs, err)
-		return defaultParallelJobs
+// setDefaultParallelism sets Parallelism and MaxParallelism on yb.tconf if not already
+// specified by the user. Parallelism is set by fetchDefaultParallelJobs(), and MaxParallelism defaults
+// to Parallelism*4 (i.e. clusterCores) when adaptive parallelism is enabled.
+func (yb *TargetYugabyteDB) setDefaultParallelism(tconfs []*TargetConf, nodeCount int, loadBalancerUsed bool) {
+	if yb.tconf.Parallelism <= 0 {
+		yb.tconf.Parallelism = yb.fetchDefaultParallelJobs(tconfs, nodeCount, loadBalancerUsed)
+		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.tconf.Parallelism)
 	}
-	if totalCores == 0 { //if target is running on MacOS, we are unable to determine totalCores
+
+	if yb.tconf.AdaptiveParallelismMode.IsEnabled() {
+		if yb.tconf.MaxParallelism <= 0 {
+			yb.tconf.MaxParallelism = yb.tconf.Parallelism * 4
+		}
+	} else {
+		yb.tconf.MaxParallelism = yb.tconf.Parallelism
+	}
+}
+
+// Determines totalCores for the cluster to compute default parallel jobs (totalCores / 4).
+//
+// tconfs are the connection targets voyager uses. Behind a load balancer, this collapses to a
+// single entry (the LB address), so fetchCores only reaches one node. nodeCount is the actual
+// number of nodes reported by yb_servers(), which may be greater than len(tconfs).
+//
+// Four cases:
+//  1. No LB, fetchCores succeeded  — totalCores = sum of cores across all nodes (accurate).
+//  2. LB,    fetchCores succeeded  — totalCores = single-node cores * nodeCount (extrapolated).
+//  3. LB,    fetchCores failed     — totalCores = nodeCount * YB_DEFAULT_CORES_PER_NODE (estimated; typical for YBAeon).
+//  4. No LB, fetchCores failed     — totalCores = nodeCount * YB_DEFAULT_CORES_PER_NODE (estimated; rare, e.g. permission issues).
+func (yb *TargetYugabyteDB) fetchDefaultParallelJobs(tconfs []*TargetConf, nodeCount int, loadBalancerUsed bool) int {
+	var clusterCores int
+	detectedCores, err := fetchCores(tconfs)
+	coresFetched := err == nil
+
+	switch {
+	case coresFetched && !loadBalancerUsed:
+		// Case 1: No load balancer, use detected cores directly
+		clusterCores = detectedCores
+	case coresFetched && loadBalancerUsed:
+		// Case 2: fetchCores only reached one node via load balancer; extrapolate to the full cluster
+		clusterCores = detectedCores * nodeCount
+		log.Infof("Load balancer detected: scaling single-node cores to cluster: %d cores/node * %d nodes = %d clusterCores",
+			detectedCores, nodeCount, clusterCores)
+	default:
+		// Case 3 & 4: No cores detected, estimate using the number of nodes and the default cores per node
+		clusterCores = nodeCount * YB_DEFAULT_CORES_PER_NODE
+		log.Warnf("Could not determine cores, estimating clusterCores = %d nodes * %d cores/node = %d",
+			nodeCount, YB_DEFAULT_CORES_PER_NODE, clusterCores)
+	}
+
+	// macOS: fetchCores succeeds but returns 0 because /proc/cpuinfo doesn't exist
+	if clusterCores == 0 {
 		return 3
 	}
-	if tconfs[0].TargetDBType == YUGABYTEDB {
-		return totalCores / 4
-	}
-	return totalCores / 2
+	return clusterCores / 4
 }
 
 // import session parameters
@@ -1500,7 +1587,7 @@ func getYBSessionInitScript(tconf *TargetConf) []string {
 
 	varsFile, err := os.Open(sessionVarsPath)
 	if err != nil {
-		utils.PrintAndLog("Unable to open %s : %v. Using default values.", sessionVarsPath, err)
+		utils.PrintAndLogf("Unable to open %s : %v. Using default values.", sessionVarsPath, err)
 		log.Infof("YBSessionInitScript: %v\n", sessionVars)
 		return sessionVars
 	}
@@ -1529,7 +1616,7 @@ func checkSessionVariableSupport(tconf *TargetConf, sqlStmt string) bool {
 	if err != nil {
 		if !strings.Contains(err.Error(), "unrecognized configuration parameter") {
 			if strings.Contains(err.Error(), ERROR_MSG_PERMISSION_DENIED) {
-				utils.PrintAndLog("Superuser privileges are required on the target database user.\nAttempted operation: %q. Error message: %s", sqlStmt, err.Error())
+				utils.PrintAndLogf("Superuser privileges are required on the target database user.\nAttempted operation: %q. Error message: %s", sqlStmt, err.Error())
 				if !utils.AskPrompt("Are you sure you want to proceed?") {
 					utils.ErrExit("Aborting import.")
 				}
@@ -1545,7 +1632,8 @@ func checkSessionVariableSupport(tconf *TargetConf, sqlStmt string) bool {
 }
 
 func (yb *TargetYugabyteDB) setTargetSchema(conn *pgx.Conn) error {
-	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", yb.Tconf.Schema)
+	schemas := sqlname.JoinIdentifiersMinQuoted(yb.tconf.Schemas, ", ")
+	setSchemaQuery := fmt.Sprintf("SET SEARCH_PATH TO %s", schemas)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
 		return fmt.Errorf("run query: %q on target %q: %w", setSchemaQuery, conn.Config().Host, err)
@@ -1590,31 +1678,73 @@ func (yb *TargetYugabyteDB) MaxBatchSizeInBytes() int64 {
 	return utils.GetEnvAsInt64("MAX_BATCH_SIZE_BYTES", 200*1024*1024) //default: 200 * 1024 * 1024 MB
 }
 
-func (yb *TargetYugabyteDB) GetIdentityColumnNamesForTable(tableNameTup sqlname.NameTuple, identityType string) ([]string, error) {
-	sname, tname := tableNameTup.ForCatalogQuery()
-	query := fmt.Sprintf(`SELECT column_name FROM information_schema.columns where table_schema='%s' AND
-		table_name='%s' AND is_identity='YES' AND identity_generation='%s'`, sname, tname, identityType)
-	log.Infof("query of identity(%s) columns for table(%s): %s", identityType, tableNameTup, query)
-	var identityColumns []string
-	err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-		rows, err := conn.Query(context.Background(), query)
+func (yb *TargetYugabyteDB) GetIdentityColumnNamesForTables(tableNameTuples []sqlname.NameTuple, identityType string) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
+	if len(tableNameTuples) == 0 {
+		return result, nil
+	}
+
+	// Build a single query to fetch identity columns for all tables at once
+	// Example query:
+	// SELECT table_schema, table_name, array_agg(column_name ORDER BY column_name) AS identity_columns
+	// FROM information_schema.columns
+	// WHERE (table_schema, table_name) IN (('public', 'users'), ('public', 'orders'), ('inventory', 'products'))
+	//   AND is_identity = 'YES'
+	//   AND identity_generation = 'ALWAYS'
+	// GROUP BY table_schema, table_name
+
+	var valuesClauses []string
+	tableNameMap := make(map[string]sqlname.NameTuple) // map to lookup table name tuples by schema and table name
+
+	for _, t := range tableNameTuples {
+		schema, table := t.ForCatalogQuery()
+		// Add to values for IN clause, e.g., "('my_schema','my_table')"
+		valuesClauses = append(valuesClauses, fmt.Sprintf("('%s', '%s')", schema, table))
+		tableNameMap[fmt.Sprintf("%s.%s", schema, table)] = t
+	}
+
+	query := fmt.Sprintf(`
+		SELECT table_schema, table_name, array_agg(column_name ORDER BY column_name) AS identity_columns
+		FROM information_schema.columns
+		WHERE (table_schema, table_name) IN (%s)
+		  AND is_identity = 'YES'
+		  AND identity_generation = '%s'
+		GROUP BY table_schema, table_name`,
+		strings.Join(valuesClauses, ", "), identityType)
+
+	log.Infof("Querying for identity columns for %d tables with type '%s'", len(tableNameTuples), identityType)
+	log.Debugf("Identity column query: %s", query)
+
+	rows, err := yb.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error in getting identity(%s) columns for tables: %w", identityType, err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var schemaName, tableName string
+		var identityColumnsPgTypeArray pgtype.TextArray
+		err = rows.Scan(&schemaName, &tableName, &identityColumnsPgTypeArray)
 		if err != nil {
-			log.Errorf("querying identity(%s) columns: %v", identityType, err)
-			return false, fmt.Errorf("querying identity(%s) columns: %w", identityType, err)
+			return nil, fmt.Errorf("error in scanning row for identity(%s) columns: %w", identityType, err)
 		}
-		defer rows.Close()
-		for rows.Next() {
-			var colName string
-			err = rows.Scan(&colName)
-			if err != nil {
-				log.Errorf("scanning row for identity(%s) column name: %v", identityType, err)
-				return false, fmt.Errorf("scanning row for identity(%s) column name: %w", identityType, err)
-			}
-			identityColumns = append(identityColumns, colName)
+
+		identityColumns := utils.ConvertPgTextArrayToStringSlice(identityColumnsPgTypeArray)
+
+		key := fmt.Sprintf("%s.%s", schemaName, tableName)
+		tableNameTuple, ok := tableNameMap[key]
+		if !ok {
+			// This should not happen if the query is correct.
+			log.Warnf("Found identity columns for table '%s' which was not in the original request", key)
+			continue
 		}
-		return false, nil
-	})
-	return identityColumns, err
+		result.Put(tableNameTuple, identityColumns)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over identity column results: %w", err)
+	}
+	return result, nil
+
 }
 
 func (yb *TargetYugabyteDB) DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error {
@@ -1636,31 +1766,46 @@ func (yb *TargetYugabyteDB) EnableGeneratedByDefaultAsIdentityColumns(tableColum
 func (yb *TargetYugabyteDB) alterColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string], alterAction string) error {
 	log.Infof("altering columns for action %s", alterAction)
 	return tableColumnsMap.IterKV(func(table sqlname.NameTuple, columns []string) (bool, error) {
+		// Build comma-separated ALTER COLUMN clauses for all columns in the table
+		var alterClauses []string
 		for _, column := range columns {
-			query := fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s %s`, table.ForUserQuery(), column, alterAction)
-			sleepIntervalSec := 10
-			for i := 0; i < ALTER_QUERY_RETRY_COUNT; i++ {
-				err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-					// Execute the query to alter the column
-					_, err := conn.Exec(context.Background(), query)
-					if err != nil {
-						log.Errorf("executing query to alter columns for table(%s): %v", table.ForUserQuery(), err)
-						return false, fmt.Errorf("executing query to alter columns for table(%s): %w", table.ForUserQuery(), err)
-					}
-					return false, nil
-				})
+			alterClauses = append(alterClauses, fmt.Sprintf("ALTER COLUMN %s %s", column, alterAction))
+		}
 
+		/*
+			Single ALTER TABLE statement with all columns
+			Example:
+				ALTER TABLE table_name
+				ALTER COLUMN column1 SET GENERATED ALWAYS AS IDENTITY,
+				ALTER COLUMN column2 SET GENERATED ALWAYS AS IDENTITY,
+				ALTER COLUMN column3 SET GENERATED ALWAYS AS IDENTITY;
+		*/
+		query := fmt.Sprintf("ALTER TABLE %s %s", table.ForUserQuery(), strings.Join(alterClauses, ", "))
+		log.Infof("Executing ALTER TABLE with %d columns for table %s: [%s]", len(columns), table.ForUserQuery(), query)
+
+		// Retry logic at table level
+		sleepIntervalSec := 10
+		for i := 0; i < ALTER_QUERY_RETRY_COUNT; i++ {
+			err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+				// Execute the query to alter all columns at once
+				_, err := conn.Exec(context.Background(), query)
 				if err != nil {
-					log.Errorf("error in altering columns for table(%s): %v", table.ForUserQuery(), err)
-					if !strings.Contains(err.Error(), "while reaching out to the tablet servers") {
-						return false, err
-					}
-					log.Infof("retrying after %d seconds for table(%s)", sleepIntervalSec, table.ForUserQuery())
-					time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
-					continue
+					log.Errorf("executing query to alter columns for table(%s): %v", table.ForUserQuery(), err)
+					return false, fmt.Errorf("executing query to alter columns for table(%s): %w", table.ForUserQuery(), err)
 				}
-				break
+				return false, nil
+			})
+
+			if err != nil {
+				log.Errorf("error in altering columns for table(%s): %v", table.ForUserQuery(), err)
+				if !strings.Contains(err.Error(), "while reaching out to the tablet servers") {
+					return false, err
+				}
+				log.Infof("retrying after %d seconds for table(%s)", sleepIntervalSec, table.ForUserQuery())
+				time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
+				continue
 			}
+			break
 		}
 
 		return true, nil
@@ -1771,7 +1916,7 @@ func (yb *TargetYugabyteDB) GetClusterMetrics() (map[string]NodeMetrics, error) 
 			return result, fmt.Errorf("scanning row for yb_servers_metrics(): %w", err)
 		}
 		if !uuid.Valid || !status.Valid || !errorStr.Valid || !metrics.Valid {
-			return result, fmt.Errorf("got invalid NULL values from yb_servers_metrics() : %v, %v, %v, %v",
+			return result, goerrors.Errorf("got invalid NULL values from yb_servers_metrics() : %v, %v, %v, %v",
 				uuid, metrics, status, errorStr)
 		}
 		nodeMetrics := NodeMetrics{
@@ -1842,11 +1987,11 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	nonEmptyTables := yb.GetNonEmptyTables(tables)
 	if len(nonEmptyTables) != 0 {
 		log.Infof("tables %v are not empty in schema %s", nonEmptyTables, schema)
-		utils.PrintAndLog("removed the current migration state from the target DB. "+
+		utils.PrintAndLogf("removed the current migration state from the target DB. "+
 			"But could not remove the schema '%s' as it still contains state of other migrations in '%s' database", schema, yb.Tconf.DBName)
 		return nil
 	}
-	utils.PrintAndLog("dropping schema %s", schema)
+	utils.PrintAndLogf("dropping schema %s", schema)
 	query := fmt.Sprintf("DROP SCHEMA %s CASCADE", schema)
 	_, err := yb.Exec(query)
 	if err != nil {
@@ -1871,7 +2016,7 @@ func (n *NodeMetrics) GetCPUPercent() (float64, error) {
 	userStr, ok1 := n.Metrics[CPU_USAGE_USER_METRIC]
 	sysStr, ok2 := n.Metrics[CPU_USAGE_SYSTEM_METRIC]
 	if !ok1 || !ok2 {
-		return -1, fmt.Errorf("node %s: missing cpu_usage_user or cpu_usage_system", n.UUID)
+		return -1, goerrors.Errorf("node %s: missing cpu_usage_user or cpu_usage_system", n.UUID)
 	}
 
 	user, err := strconv.ParseFloat(userStr, 64)
@@ -1891,7 +2036,7 @@ func (n *NodeMetrics) GetMemPercent() (float64, error) {
 	usedStr, ok1 := n.Metrics[TSERVER_ROOT_MEMORY_CONSUMPTION_METRIC]
 	softStr, ok2 := n.Metrics[TSERVER_ROOT_MEMORY_SOFT_LIMIT_METRIC]
 	if !ok1 || !ok2 {
-		return -1, fmt.Errorf("node %s: missing tserver_root_memory_consumption or tserver_root_memory_soft_limit", n.UUID)
+		return -1, goerrors.Errorf("node %s: missing tserver_root_memory_consumption or tserver_root_memory_soft_limit", n.UUID)
 	}
 
 	used, err := strconv.ParseFloat(usedStr, 64)
@@ -1903,7 +2048,7 @@ func (n *NodeMetrics) GetMemPercent() (float64, error) {
 		return -1, fmt.Errorf("node %s: parse memory_soft_limit: %w", n.UUID, err)
 	}
 	if soft == 0 {
-		return -1, fmt.Errorf("node %s: soft memory limit is zero", n.UUID)
+		return -1, goerrors.Errorf("node %s: soft memory limit is zero", n.UUID)
 	}
 
 	return (used / soft) * 100, nil
@@ -1912,7 +2057,7 @@ func (n *NodeMetrics) GetMemPercent() (float64, error) {
 func (n *NodeMetrics) GetMemoryFree() (int64, error) {
 	memoryFreeStr, ok := n.Metrics[MEMORY_FREE_METRIC]
 	if !ok {
-		return -1, fmt.Errorf("node %s: missing memory_free", n.UUID)
+		return -1, goerrors.Errorf("node %s: missing memory_free", n.UUID)
 	}
 
 	memoryFree, err := strconv.ParseInt(memoryFreeStr, 10, 64)
@@ -1925,7 +2070,7 @@ func (n *NodeMetrics) GetMemoryFree() (int64, error) {
 func (n *NodeMetrics) GetMemoryAvailable() (int64, error) {
 	memoryAvailableStr, ok := n.Metrics[MEMORY_AVAILABLE_METRIC]
 	if !ok {
-		return -1, fmt.Errorf("node %s: missing memory_available", n.UUID)
+		return -1, goerrors.Errorf("node %s: missing memory_available", n.UUID)
 	}
 
 	memoryAvailable, err := strconv.ParseInt(memoryAvailableStr, 10, 64)
@@ -1938,7 +2083,7 @@ func (n *NodeMetrics) GetMemoryAvailable() (int64, error) {
 func (n *NodeMetrics) GetMemoryTotal() (int64, error) {
 	memoryTotalStr, ok := n.Metrics[MEMORY_TOTAL_METRIC]
 	if !ok {
-		return -1, fmt.Errorf("node %s: missing memory_total", n.UUID)
+		return -1, goerrors.Errorf("node %s: missing memory_total", n.UUID)
 	}
 
 	memoryTotal, err := strconv.ParseInt(memoryTotalStr, 10, 64)
@@ -2093,7 +2238,7 @@ func IsCurrentUserSuperUser(tconf *TargetConf) (bool, error) {
 				return false, fmt.Errorf("scanning row for query: %w", err)
 			}
 		} else {
-			return false, fmt.Errorf("no current user found in pg_roles")
+			return false, goerrors.Errorf("no current user found in pg_roles")
 		}
 		return isProperUser, nil
 	}
@@ -2142,6 +2287,168 @@ func (yb *TargetYugabyteDB) NumOfLogicalReplicationSlots() (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("error scanning the row returned while querying pg_replication_slots: %w", err)
 	}
-
 	return numOfSlots, nil
+}
+
+// Function returns the table out of tableNames having the expression unique indexes
+// if returnPartitionRootTable is true, it will also check for the partitions of the partitioned table in tableNames and return the root table of the partition having expression unique indexes
+// else it will check for the tables in TableNames that have normal tables and root tables having expression unique indexes
+func (yb *TargetYugabyteDB) GetTablesHavingExpressionUniqueIndexes(tableNames []sqlname.NameTuple, returnPartitionRootTable bool) ([]sqlname.NameTuple, error) {
+	log.Infof("getting leaf table to root table map")
+	//returns a map of catalog leaf table name to catalog root table name
+	leafTableToRootTableMap, err := yb.getPartitionTableToRootTableMap(tableNames)
+	if err != nil {
+		return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
+	}
+	log.Infof("leaf table to root table map: %v", leafTableToRootTableMap)
+
+	tableCatalogNameToTuple := make(map[string]sqlname.NameTuple)
+	for _, t := range tableNames {
+		tableCatalogNameToTuple[t.AsQualifiedCatalogName()] = t
+	}
+
+	catalogTableNames := make([]string, 0)
+	catalogTableNames = append(catalogTableNames, lo.Keys(tableCatalogNameToTuple)...) //all normal tables/root tables
+	if returnPartitionRootTable {
+		catalogTableNames = append(catalogTableNames, lo.Keys(leafTableToRootTableMap)...) //all partitions
+	}
+	catalogTableNames = lo.Uniq(catalogTableNames) //remove duplicates
+
+	tableNamesStr := strings.Join(lo.Map(catalogTableNames, func(table string, _ int) string {
+		return fmt.Sprintf("('%s')", table)
+	}), ",")
+
+	query := fmt.Sprintf(`
+SELECT
+    n.nspname AS table_schema,
+    t.relname AS table_name,
+    i.relname AS index_name,
+    COALESCE(pg_get_expr(idx.indexprs, idx.indrelid), '') AS expression
+  FROM pg_class i
+  JOIN pg_index idx ON i.oid = idx.indexrelid
+  JOIN pg_class t ON idx.indrelid = t.oid
+  JOIN pg_namespace n ON t.relnamespace = n.oid
+  WHERE i.relkind = 'i'
+    AND idx.indisunique
+    AND idx.indexprs IS NOT NULL  -- expression index
+	AND (n.nspname || '.' || t.relname) IN (%s);`, tableNamesStr)
+	log.Debugf("query: %s", query)
+	rows, err := yb.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying for tables having expression indexes: %w", err)
+	}
+	defer rows.Close()
+
+	var expressionUniqueIndexTablesIncludingLeafPartitions []string
+	for rows.Next() {
+		var schemaName, tableName, indexName, expression string
+		err := rows.Scan(&schemaName, &tableName, &indexName, &expression) // index and expression are only used for logging
+		if err != nil {
+			return nil, fmt.Errorf("error scanning row for tables having expression indexes: %w", err)
+		}
+
+		log.Infof("table: %s.%s having expression index %s with expression %s", schemaName, tableName, indexName, expression)
+
+		expressionUniqueIndexTablesIncludingLeafPartitions = append(expressionUniqueIndexTablesIncludingLeafPartitions, fmt.Sprintf("%s.%s", schemaName, tableName))
+	}
+
+	var expressionUniqueIndexTables []sqlname.NameTuple
+	for _, t := range expressionUniqueIndexTablesIncludingLeafPartitions {
+		if rootTable, ok := leafTableToRootTableMap[t]; ok {
+			tuple, ok := tableCatalogNameToTuple[rootTable]
+			if !ok {
+				return nil, goerrors.Errorf("root table %s not found in table catalog name to tuple map", rootTable)
+			}
+			//if its a leaf partition, return the root table
+			expressionUniqueIndexTables = append(expressionUniqueIndexTables, tuple)
+		} else {
+			tuple, ok := tableCatalogNameToTuple[t]
+			if !ok {
+				return nil, goerrors.Errorf("table %s not found in table catalog name to tuple map", t)
+			}
+			//if its a normal/root table, return the table itself
+			expressionUniqueIndexTables = append(expressionUniqueIndexTables, tuple)
+		}
+	}
+	return lo.UniqBy(expressionUniqueIndexTables, func(t sqlname.NameTuple) string {
+		return t.ForKey()
+	}), nil
+}
+
+// returns map of table name to its root table name in catalog qualified name format
+// for leaf table, returns leaf table name -> root table name
+// for any non-leaf partitioned table, returns non-leaf partitioned table -> root table
+// for any non-partitioned/normal table, returns normal table -> normal table
+func (yb *TargetYugabyteDB) getPartitionTableToRootTableMap(tableNames []sqlname.NameTuple) (map[string]string, error) {
+	tableNamesStr := strings.Join(lo.Map(tableNames, func(t sqlname.NameTuple, _ int) string {
+		schema, table := t.ForCatalogQuery()
+		return fmt.Sprintf("('%s','%s')", schema, table)
+	}), ",")
+
+	query := fmt.Sprintf(`
+	WITH table_list(schema_name, table_name) AS (VALUES %s),
+	-- Create a mapping of all tables (especially leaf partitions) to their root tables
+	table_to_root AS (
+	  WITH RECURSIVE find_root AS (
+		-- Base case: all tables start as their own root
+		SELECT 
+		  t.oid AS table_oid,
+		  t.oid AS current_oid,
+		  n.nspname AS table_schema,
+		  t.relname AS table_name,
+		  n.nspname AS root_schema,
+		  t.relname AS root_name
+		FROM pg_class t
+		JOIN pg_namespace n ON t.relnamespace = n.oid
+		WHERE t.relkind IN ('r', 'p')  -- regular tables and partitioned tables
+		
+		UNION ALL
+		
+		-- Recursive case: if current table has a parent, traverse up
+		SELECT 
+		  fr.table_oid,
+		  parent_t.oid AS current_oid,
+		  fr.table_schema,
+		  fr.table_name,
+		  parent_ns.nspname AS root_schema,
+		  parent_t.relname AS root_name
+		FROM find_root fr
+		JOIN pg_inherits inh ON fr.current_oid = inh.inhrelid
+		JOIN pg_class parent_t ON inh.inhparent = parent_t.oid
+		JOIN pg_namespace parent_ns ON parent_t.relnamespace = parent_ns.oid
+	  )
+	  -- For each table, get its root (the one with no parent)
+	  SELECT DISTINCT ON (table_oid)
+		table_oid,
+		table_schema,
+		table_name,
+		root_schema,
+		root_name
+	  FROM find_root
+	  WHERE NOT EXISTS (
+		SELECT 1 FROM pg_inherits inh2 
+		WHERE inh2.inhrelid = find_root.current_oid
+	  )
+	  ORDER BY table_oid
+	)
+	SELECT table_schema, table_name, root_schema, root_name FROM table_to_root WHERE (root_schema, root_name) IN (SELECT schema_name, table_name FROM table_list);
+`, tableNamesStr)
+
+	log.Debugf("query: %s", query)
+	rows, err := yb.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying for leaf table to root table map: %w", err)
+	}
+	defer rows.Close()
+
+	leafTableToRootTableMap := make(map[string]string)
+	for rows.Next() {
+		var schemaName, tableName, rootSchema, rootName string
+		err := rows.Scan(&schemaName, &tableName, &rootSchema, &rootName)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning row for leaf table to root table map: %w", err)
+		}
+		leafTableToRootTableMap[fmt.Sprintf("%s.%s", schemaName, tableName)] = fmt.Sprintf("%s.%s", rootSchema, rootName)
+	}
+	return leafTableToRootTableMap, nil
 }

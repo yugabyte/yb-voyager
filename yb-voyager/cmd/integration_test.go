@@ -25,6 +25,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/stretchr/testify/assert"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
@@ -133,5 +134,5 @@ func Test_ContainerResumption(t *testing.T) {
 	if id != 9999 || name != "test_name" {
 		t.Fatalf("Expected row (1, 'test_name'), but got (%d, '%s')", id, name)
 	}
-	utils.PrintAndLog("PostgreSQL container resumed successfully with data intact")
+	utils.PrintAndLogf("PostgreSQL container resumed successfully with data intact")
 }

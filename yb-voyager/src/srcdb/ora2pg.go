@@ -25,6 +25,7 @@ import (
 	"text/template"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -62,8 +63,8 @@ func getDefaultOra2pgConfig(source *Source) *Ora2pgConfig {
 	conf.DisablePartition = "0"
 
 	conf.OracleHome = source.GetOracleHome()
-	if source.Schema != "" {
-		conf.Schema = source.Schema
+	if len(source.Schemas) > 0 {
+		conf.Schema = source.Schemas[0].Unquoted
 	} else {
 		conf.Schema = source.User
 	}

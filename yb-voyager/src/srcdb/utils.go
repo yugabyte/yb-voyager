@@ -15,16 +15,17 @@ limitations under the License.
 */package srcdb
 
 import (
-	"fmt"
 	"os"
 	"path"
 	"strings"
+
+	goerrors "github.com/go-errors/errors"
 )
 
 func findAllExecutablesInPath(executableName string) ([]string, error) {
 	pathString := os.Getenv("PATH")
 	if pathString == "" {
-		return nil, fmt.Errorf("PATH environment variable is not set")
+		return nil, goerrors.Errorf("PATH environment variable is not set")
 	}
 	paths := strings.Split(pathString, string(os.PathListSeparator))
 	var result []string

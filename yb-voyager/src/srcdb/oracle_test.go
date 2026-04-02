@@ -20,9 +20,11 @@ package srcdb
 import (
 	"testing"
 
+	"gotest.tools/assert"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
-	"gotest.tools/assert"
 )
 
 func TestOracleGetAllTableNames(t *testing.T) {
@@ -31,13 +33,13 @@ func TestOracleGetAllTableNames(t *testing.T) {
 	// Test GetAllTableNames
 	actualTables := testOracleSource.DB().GetAllTableNames()
 	expectedTables := []*sqlname.SourceName{
-		sqlname.NewSourceName("YBVOYAGER", "foo"),
-		sqlname.NewSourceName("YBVOYAGER", "bar"),
-		sqlname.NewSourceName("YBVOYAGER", "table1"),
-		sqlname.NewSourceName("YBVOYAGER", "table2"),
-		sqlname.NewSourceName("YBVOYAGER", "unique_table"),
-		sqlname.NewSourceName("YBVOYAGER", "non_pk1"),
-		sqlname.NewSourceName("YBVOYAGER", "non_pk2"),
+		sqlname.NewSourceName("YBVOYAGER", "FOO"),
+		sqlname.NewSourceName("YBVOYAGER", "BAR"),
+		sqlname.NewSourceName("YBVOYAGER", "TABLE1"),
+		sqlname.NewSourceName("YBVOYAGER", "TABLE2"),
+		sqlname.NewSourceName("YBVOYAGER", "UNIQUE_TABLE"),
+		sqlname.NewSourceName("YBVOYAGER", "NON_PK1"),
+		sqlname.NewSourceName("YBVOYAGER", "NON_PK2"),
 	}
 	assert.Equal(t, len(expectedTables), len(actualTables), "Expected number of tables to match")
 
@@ -45,11 +47,10 @@ func TestOracleGetAllTableNames(t *testing.T) {
 }
 
 func TestOracleGetTableToUniqueKeyColumnsMap(t *testing.T) {
-	objectName := sqlname.NewObjectName("oracle", "YBVOYAGER", "YBVOYAGER", "UNIQUE_TABLE")
 
 	// Test GetTableToUniqueKeyColumnsMap
 	tableList := []sqlname.NameTuple{
-		{CurrentName: objectName},
+		testutils.CreateNameTupleWithSourceName("YBVOYAGER.UNIQUE_TABLE", "YBVOYAGER", "oracle"),
 	}
 	_ = testOracleSource.DB().Connect()
 	uniqueKeys, err := testOracleSource.DB().GetTableToUniqueKeyColumnsMap(tableList)
@@ -57,19 +58,19 @@ func TestOracleGetTableToUniqueKeyColumnsMap(t *testing.T) {
 		t.Fatalf("Error retrieving unique keys: %v", err)
 	}
 
-	expectedKeys := map[string][]string{
-		"UNIQUE_TABLE": {"EMAIL", "PHONE", "ADDRESS"},
-	}
+	expectedKeys := utils.NewStructMap[sqlname.NameTuple, []string]()
+	expectedKeys.Put(testutils.CreateNameTupleWithSourceName("YBVOYAGER.UNIQUE_TABLE", "YBVOYAGER", "oracle"), []string{"EMAIL", "PHONE", "ADDRESS"})
 
 	// Compare the maps by iterating over each table and asserting the columns list
-	for table, expectedColumns := range expectedKeys {
-		actualColumns, exists := uniqueKeys[table]
+	expectedKeys.IterKV(func(table sqlname.NameTuple, expectedColumns []string) (bool, error) {
+		actualColumns, exists := uniqueKeys.Get(table)
 		if !exists {
 			t.Errorf("Expected table %s not found in uniqueKeys", table)
 		}
 
 		testutils.AssertEqualStringSlices(t, expectedColumns, actualColumns)
-	}
+		return true, nil
+	})
 }
 
 func TestOracleGetNonPKTables(t *testing.T) {
@@ -79,6 +80,6 @@ func TestOracleGetNonPKTables(t *testing.T) {
 	actualTables, err := testOracleSource.DB().GetNonPKTables()
 	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
 
-	expectedTables := []string{`YBVOYAGER."NON_PK1"`, `YBVOYAGER."NON_PK2"`}
+	expectedTables := []string{`"YBVOYAGER"."NON_PK1"`, `"YBVOYAGER"."NON_PK2"`}
 	testutils.AssertEqualStringSlices(t, expectedTables, actualTables)
 }

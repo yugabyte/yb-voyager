@@ -29,11 +29,11 @@ import (
 type SourceDB interface {
 	Connect() error
 	Disconnect()
-	CheckSchemaExists() bool
 	GetConnectionUriWithoutPassword() string
 	GetTableRowCount(tableName sqlname.NameTuple) (int64, error)
 	GetTableApproxRowCount(tableName sqlname.NameTuple) int64
 	GetVersion() string
+	GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, error)
 	GetAllTableNames() []*sqlname.SourceName
 	GetAllTableNamesRaw(schemaName string) ([]string, error)
 	GetAllSequencesRaw(schemaName string) ([]string, error)
@@ -47,16 +47,16 @@ type SourceDB interface {
 	GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (*utils.StructMap[sqlname.NameTuple, []string], *utils.StructMap[sqlname.NameTuple, []string], error)
 	ParentTableOfPartition(table sqlname.NameTuple) string
 	GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[string]string
-	GetAllSequences() []string
+	GetSequencesLastValues(sequencesList []sqlname.NameTuple) (*utils.StructMap[sqlname.ObjectName, int64], error)
 	GetServers() []string
 	GetPartitions(table sqlname.NameTuple) []string
-	GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (map[string][]string, error)
+	GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error)
 	ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error
 	GetNonPKTables() ([]string, error)
 	GetDatabaseSize() (int64, error)
 	CheckSourceDBVersion(exportType string) error
 	GetMissingExportSchemaPermissions(queryTableList string) ([]string, error)
-	GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, error)
+	GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, bool, error)
 	GetMissingAssessMigrationPermissions() ([]string, bool, error)
 	CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error)
 	GetSchemasMissingUsagePermissions() ([]string, error)

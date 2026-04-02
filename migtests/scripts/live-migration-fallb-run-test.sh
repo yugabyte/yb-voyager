@@ -144,11 +144,11 @@ main() {
 	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.json
 
 	step "Create target database."
-	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
+	run_ysql yugabyte "DROP DATABASE IF EXISTS \"${TARGET_DB_NAME}\";"
 	if [ "${SOURCE_DB_TYPE}" = "postgresql" ] || [ "${SOURCE_DB_TYPE}" = "oracle" ]; then
-		run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME} with COLOCATION=TRUE"
+		run_ysql yugabyte "CREATE DATABASE \"${TARGET_DB_NAME}\" with COLOCATION=TRUE"
 	else
-		run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
+		run_ysql yugabyte "CREATE DATABASE \"${TARGET_DB_NAME}\""
 	fi
 
 	step "Import schema."
@@ -227,7 +227,7 @@ main() {
 	cutover_to_target 
 
 	for ((i = 0; i < 20; i++)); do
-    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to target status" | cut -d ':'  -f 2 | tr -d '[:blank:]')" != "COMPLETED" ]; then
+    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "source → target" | awk -F'|' '{print $2}' | tr -d '[:blank:]')" != "COMPLETED" ]; then
         echo "Waiting for cutover to be COMPLETED..."
         sleep 20
         if [ "$i" -eq 19 ]; then
@@ -264,7 +264,7 @@ main() {
 	yb-voyager initiate cutover to source --export-dir ${EXPORT_DIR} --yes
 
 	for ((i = 0; i < 15; i++)); do
-    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to source status" | cut -d ':'  -f 2 | tr -d '[:blank:]')"  != "COMPLETED" ]; then
+		if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "target → source" | grep -v "source-replica" | awk -F'|' '{print $2}' | tr -d '[:blank:]')"  != "COMPLETED" ]; then
         echo "Waiting for switchover to be COMPLETED..."
         sleep 20
         if [ "$i" -eq 14 ]; then
@@ -300,12 +300,12 @@ main() {
 	get_data_migration_report
 
 	# Choose expected report file based on connector type
-	if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = true ]; then
-		expected_file="${TEST_DIR}/data-migration-report-live-migration-fallb-logical-connector.json"
-		echo "Using logical replication connector expected report"
-	else
+	if [ "${USE_YB_GRPC_CONNECTOR}" = true ]; then
 		expected_file="${TEST_DIR}/data-migration-report-live-migration-fallb.json"
 		echo "Using gRPC connector expected report"
+	else
+		expected_file="${TEST_DIR}/data-migration-report-live-migration-fallb-logical-connector.json"
+		echo "Using logical replication connector expected report"
 	fi
 	actual_file="${EXPORT_DIR}/reports/data-migration-report.json"
 
@@ -338,7 +338,7 @@ main() {
 	if [ "${run_via_config_file}" = true ]; then
 	rm -f "${GENERATED_CONFIG}"
 	fi
-	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
-}
+	run_ysql yugabyte "DROP DATABASE IF EXISTS \"${TARGET_DB_NAME}\";"
+}	
 
 main

@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"gcs_volume\"",
+      "table_name": "\"public\".\"gcs_volume\"",
       "file_name": "volume1.csv",
       "status": "DONE",
       "total_count": 85083271,

@@ -143,8 +143,8 @@ main() {
     fi
 
     step "Create target database."
-    run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
-    run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME} with COLOCATION=TRUE;"
+    run_ysql yugabyte "DROP DATABASE IF EXISTS \"${TARGET_DB_NAME};\""
+    run_ysql yugabyte "CREATE DATABASE  \"${TARGET_DB_NAME}\" with COLOCATION=TRUE;"
 
     step "Export schema"
     export_schema --send-diagnostics=true
@@ -157,6 +157,12 @@ main() {
     step "Compare actual and expected analyze-schema callhome data"
     expected_file="${TEST_DIR}/expected_callhome_payloads/analyse_schema_callhome.json"
     compare_callhome_json_reports "${expected_file}" "analyze-schema"
+
+    step "Fix schema."
+	if [ -x "${TEST_DIR}/fix-schema" ]
+	then
+		 "${TEST_DIR}/fix-schema"
+	fi
 
     step "Import schema"
     import_schema --send-diagnostics=true

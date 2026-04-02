@@ -98,8 +98,8 @@ main() {
 	compare_json_reports "${TEST_DIR}/expected_files/expected_schema_analysis_report.json" "${EXPORT_DIR}/reports/schema_analysis_report.json"
 
 	step "Create target database."
-	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
-	run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME} with COLOCATION=TRUE"
+	run_ysql yugabyte "DROP DATABASE IF EXISTS \"${TARGET_DB_NAME};\""
+	run_ysql yugabyte "CREATE DATABASE \"${TARGET_DB_NAME}\" with COLOCATION=TRUE"
 
 	step "Import schema."
 	import_schema --continue-on-error t
@@ -111,10 +111,19 @@ main() {
 
     if [ -f "${EXPORT_DIR}/schema/failed.sql" ]
     then
-		EXPECTED_FAILED_FILE="${TEST_DIR}/expected_files/expected_failed_${target_major_version}.sql"
-		if [ ! -f "$EXPECTED_FAILED_FILE" ]; then
-		    EXPECTED_FAILED_FILE="${TEST_DIR}/expected_files/expected_failed.sql"
+		EXPECTED_FAILED_FILE="${TEST_DIR}/expected_files/expected_failed.sql"
+		# If version is 2.25 or >= 2025.1, use expected_failed_2025.1.sql if it exists
+		EXPECTED_FAILED_FILE_2025_1="${TEST_DIR}/expected_files/expected_failed_2025.1.sql"
+		if [ -f "${EXPECTED_FAILED_FILE_2025_1}" ] && [ "$(echo "$target_major_version >= 2025.1" | bc)" -eq 1 ]; then
+		    EXPECTED_FAILED_FILE="${EXPECTED_FAILED_FILE_2025_1}"
 		fi
+
+		EXPECTED_FAILED_2_25="${TEST_DIR}/expected_files/expected_failed_2.25.sql"
+		if [ -f "${EXPECTED_FAILED_2_25}" ] && [ "$target_major_version" == "2.25" ]; then
+		    EXPECTED_FAILED_FILE="${EXPECTED_FAILED_2_25}"
+		fi
+
+		echo "EXPECTED_FAILED_FILE: $EXPECTED_FAILED_FILE"
         #compare the failed.sql to the expected_failed.sql
         compare_sql_files "${EXPORT_DIR}/schema/failed.sql" "${EXPECTED_FAILED_FILE}" "$target_major_version"
         #rename failed.sql
@@ -143,7 +152,7 @@ main() {
 	step "Clean up"
 	./cleanup-db
 	rm -rf "${EXPORT_DIR}"
-	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
+	run_ysql yugabyte "DROP DATABASE IF EXISTS \"${TARGET_DB_NAME}\";"
 }
 
 main

@@ -115,22 +115,22 @@ func TestIsSelectSetValStmt(t *testing.T) {
 
 func TestGetSequenceNameAndLastValueFromSetValStmt(t *testing.T) {
 	tests := []struct {
-		sql      string
+		sql                  string
 		expectedSequenceName string
 		expectedLastValue    int64
 	}{
 		{
-			sql:      "SELECT pg_catalog.setval('Case_Sensitive_always_ID_seq', 4, true);",
+			sql:                  "SELECT pg_catalog.setval('Case_Sensitive_always_ID_seq', 4, true);",
 			expectedSequenceName: "Case_Sensitive_always_ID_seq",
 			expectedLastValue:    4,
 		},
 		{
-			sql:      "SELECT pg_catalog.setval('Case_Sensitive_always_ID_seq', 4);",
+			sql:                  "SELECT pg_catalog.setval('Case_Sensitive_always_ID_seq', 4);",
 			expectedSequenceName: "Case_Sensitive_always_ID_seq",
 			expectedLastValue:    4,
 		},
 		{
-			sql:      "SELECT pg_catalog.setval('Case_Sensitive_always_ID_seq'::regclass, 4, false);",
+			sql:                  "SELECT pg_catalog.setval('Case_Sensitive_always_ID_seq'::regclass, 4, false);",
 			expectedSequenceName: "Case_Sensitive_always_ID_seq",
 			expectedLastValue:    4,
 		},

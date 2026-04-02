@@ -96,7 +96,7 @@ func getPgDumpArgsFromFile(sectionToRead string) string {
 			// no value to specify
 		} else if key.Name() == "schema" {
 			// value is comma separated schema names which need to be quoted
-			arg += fmt.Sprintf(`="%s"`, key.Value())
+			arg += fmt.Sprintf(`='%s'`, key.Value())
 		} else {
 			arg += fmt.Sprintf(`=%s`, key.Value())
 		}

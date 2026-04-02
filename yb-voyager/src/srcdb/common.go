@@ -42,7 +42,7 @@ func getExportedDataFileList(tablesMetadata map[string]*utils.TableProgressMetad
 		}
 		//using the information stored in TableProgressMetadata to get the root table name
 		//as the file path is for the leaf table and we need to use the root table name for the datafile descriptor
-		//we were already re-writing the descriptor in export data post processing phase but we can revisit that later if it is required or not 
+		//we were already re-writing the descriptor in export data post processing phase but we can revisit that later if it is required or not
 		rootTable := tableMetadata.TableName
 		if tableMetadata.IsPartition {
 			rootTable = tableMetadata.ParentTable

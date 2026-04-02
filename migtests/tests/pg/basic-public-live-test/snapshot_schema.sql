@@ -5,4 +5,3 @@ CREATE TABLE user_table (
     email VARCHAR(255) UNIQUE,
     status VARCHAR(50) DEFAULT 'active'
 );
-

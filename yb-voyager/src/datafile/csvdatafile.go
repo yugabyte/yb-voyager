@@ -55,7 +55,7 @@ func (df *CsvDataFile) NextLine() (string, int64, error) {
 		line, skippedByteCount, err = df.reader.Read()
 		currentBytesRead += int64(len(line)) + int64(skippedByteCount)
 		if err != nil {
-			return "", -1,  err
+			return "", -1, err
 		}
 		if df.isDataLine(line) {
 			break

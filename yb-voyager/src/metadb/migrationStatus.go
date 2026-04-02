@@ -17,6 +17,8 @@ package metadb
 
 import (
 	"fmt"
+	"path/filepath"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -29,8 +31,9 @@ type MigrationStatusRecord struct {
 	MigrationUUID                             string            `json:"MigrationUUID"`
 	AnonymizerSalt                            string            `json:"AnonymizerSalt"` // salt for anonymization, used to ensure consistent anonymization across runs
 	VoyagerVersion                            string            `json:"VoyagerVersion"`
-	ExportType                                string            `json:"ExportType"`
+	ExportTypeFromSource                      string            `json:"ExportType"`
 	ArchivingEnabled                          bool              `json:"ArchivingEnabled"`
+	SegmentCleanupRunning                     bool              `json:"SegmentCleanupRunning"`
 	FallForwardEnabled                        bool              `json:"FallForwardEnabled"`
 	FallbackEnabled                           bool              `json:"FallbackEnabled"`
 	UseYBgRPCConnector                        bool              `json:"UseYBgRPCConnector"`
@@ -53,6 +56,11 @@ type MigrationStatusRecord struct {
 	CutoverDetectedBySourceImporter        bool `json:"CutoverDetectedBySourceImporter"`
 	CutoverDetectedBySourceReplicaImporter bool `json:"CutoverDetectedBySourceReplicaImporter"`
 
+	//All the cutover detected by exporter flags (marked when the cutover is detected by the exporter)
+	CutoverDetectedBySourceExporter   bool `json:"CutoverDetectedBySourceExporter"`
+	CutoverDetectedByTargetFFExporter bool `json:"CutoverDetectedByTargetFFExporter"`
+	CutoverDetectedByTargetFBExporter bool `json:"CutoverDetectedByTargetFBExporter"`
+
 	//All the cutover processed by importer/exporter flags - indicating that the cutover is completed by that command.
 	CutoverProcessedBySourceExporter                bool `json:"CutoverProcessedBySourceExporter"`
 	CutoverToSourceProcessedByTargetExporter        bool `json:"CutoverToSourceProcessedByTargetExporter"`
@@ -63,6 +71,11 @@ type MigrationStatusRecord struct {
 
 	ExportFromTargetFallForwardStarted bool `json:"ExportFromTargetFallForwardStarted"`
 	ExportFromTargetFallBackStarted    bool `json:"ExportFromTargetFallBackStarted"`
+
+	ImportDataToSourceStarted bool `json:"ImportDataToSourceStarted"`
+
+	// Cutover timing data
+	CutoverTimings CutoverTimingRecord `json:"CutoverTimings,omitempty"`
 
 	ExportSchemaDone                bool `json:"ExportSchemaDone"`
 	ExportDataDone                  bool `json:"ExportDataDone"` // to be interpreted as export of snapshot data from source is complete
@@ -92,6 +105,44 @@ type MigrationStatusRecord struct {
 
 	SourceColumnToSequenceMapping map[string]string `json:"SourceColumnToSequenceMapping"`
 	TargetColumnToSequenceMapping map[string]string `json:"TargetColumnToSequenceMapping"`
+
+	//Common details for per migration
+	RestartDataMigrationSourceTargetNextIteration bool   `json:"RestartDataMigrationSourceTargetNextIteration"`
+	ParentExportDir                               string `json:"ParentExportDir"`
+	IterationNo                                   int    `json:"Iteration"`
+	ConfigFile                                    string `json:"ConfigFile"`
+
+	//Parent specific details
+	LatestIterationNumber    int  `json:"LatestIterationNumber"`
+	NextIterationInitialized bool `json:"NextIterationInitialized"`
+
+	//Iteration specific details
+	ExportDataFromSourceStarted bool `json:"ExportDataFromSourceStarted"`
+	ImportDataToTargetStarted   bool `json:"ImportDataToTargetStarted"`
+}
+
+type CutoverTimingRecord struct {
+	// Request timestamps
+	ToTargetRequestedAt        time.Time `json:"ToTargetRequestedAt,omitempty"`
+	ToSourceRequestedAt        time.Time `json:"ToSourceRequestedAt,omitempty"`
+	ToSourceReplicaRequestedAt time.Time `json:"ToSourceReplicaRequestedAt,omitempty"`
+
+	// Detection timestamps
+	DetectedByTargetImporterAt        time.Time `json:"DetectedByTargetImporterAt,omitempty"`
+	DetectedBySourceImporterAt        time.Time `json:"DetectedBySourceImporterAt,omitempty"`
+	DetectedBySourceReplicaImporterAt time.Time `json:"DetectedBySourceReplicaImporterAt,omitempty"`
+
+	// Processing timestamps
+	ProcessedBySourceExporterAt                time.Time `json:"ProcessedBySourceExporterAt,omitempty"`
+	ProcessedByTargetImporterAt                time.Time `json:"ProcessedByTargetImporterAt,omitempty"`
+	ToSourceReplicaProcessedByTargetExporterAt time.Time `json:"ToSourceReplicaProcessedByTargetExporterAt,omitempty"`
+	ToSourceProcessedByTargetExporterAt        time.Time `json:"ToSourceProcessedByTargetExporterAt,omitempty"`
+	ToSourceReplicaProcessedBySRImporterAt     time.Time `json:"ToSourceReplicaProcessedBySRImporterAt,omitempty"`
+	ToSourceProcessedBySourceImporterAt        time.Time `json:"ToSourceProcessedBySourceImporterAt,omitempty"`
+
+	// Export from target timestamps
+	ExportFromTargetFallForwardStartedAt time.Time `json:"ExportFromTargetFallForwardStartedAt,omitempty"`
+	ExportFromTargetFallBackStartedAt    time.Time `json:"ExportFromTargetFallBackStartedAt,omitempty"`
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"
@@ -112,7 +163,7 @@ func (m *MetaDB) GetMigrationStatusRecord() (*MigrationStatusRecord, error) {
 	return record, nil
 }
 
-func (m *MetaDB) InitMigrationStatusRecord() error {
+func (m *MetaDB) InitMigrationStatusRecord(cfgFile string) error {
 	return m.UpdateMigrationStatusRecord(func(record *MigrationStatusRecord) {
 		if record != nil && record.MigrationUUID != "" {
 			return // already initialized
@@ -121,11 +172,47 @@ func (m *MetaDB) InitMigrationStatusRecord() error {
 			record.VoyagerVersion = utils.YB_VOYAGER_VERSION
 		}
 
+		if record.ConfigFile == "" {
+			record.ConfigFile = cfgFile
+		}
+
 		record.MigrationUUID = uuid.New().String()
-		record.ExportType = utils.SNAPSHOT_ONLY
 	})
 }
 
 func (msr *MigrationStatusRecord) IsSnapshotExportedViaDebezium() bool {
 	return msr.SnapshotMechanism == "debezium"
+}
+
+func (msr *MigrationStatusRecord) IsParentMigration() bool {
+	return msr.ParentExportDir == ""
+}
+
+func (msr *MigrationStatusRecord) IsIteration() bool {
+	return msr.ParentExportDir != ""
+}
+
+func (m *MetaDB) GetParentMetaDB() (*MetaDB, error) {
+	msr, err := m.GetMigrationStatusRecord()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get migration status record: %w", err)
+	}
+	if msr.IsParentMigration() {
+		return m, nil
+	}
+	return NewMetaDB(msr.ParentExportDir)
+}
+
+func (msr *MigrationStatusRecord) GetIterationsDir(exportDir string) string {
+	if msr.IsParentMigration() {
+		return filepath.Join(exportDir, "live-data-migration-iterations")
+	}
+	return filepath.Join(msr.ParentExportDir, "live-data-migration-iterations")
+}
+
+func (msr *MigrationStatusRecord) GetParentExportDir(exportDir string) string {
+	if msr.IsParentMigration() {
+		return exportDir
+	}
+	return msr.ParentExportDir
 }

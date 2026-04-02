@@ -22,6 +22,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/samber/lo"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
@@ -61,7 +63,7 @@ func (ts *TableSchema) getColumnType(columnName string, getSourceDatatypeIfRequi
 
 		}
 	}
-	return "", nil, fmt.Errorf("Column %s not found in table schema %v", columnName, ts)
+	return "", nil, goerrors.Errorf("Column %s not found in table schema %v", columnName, ts)
 }
 
 //===========================================================
@@ -88,7 +90,7 @@ func NewSchemaRegistry(tableList []sqlname.NameTuple, exportDir string, exporter
 func (sreg *SchemaRegistry) GetColumnTypes(tableNameTup sqlname.NameTuple, columnNames []string, getSourceDatatypes bool) ([]string, []*ColumnSchema, error) {
 	tableSchema, _ := sreg.TableNameToSchema.Get(tableNameTup)
 	if tableSchema == nil {
-		return nil, nil, fmt.Errorf("table %s not found in schema registry", tableNameTup)
+		return nil, nil, goerrors.Errorf("table %s not found in schema registry", tableNameTup)
 	}
 	columnTypes := make([]string, len(columnNames))
 	columnSchemas := make([]*ColumnSchema, len(columnNames))
@@ -113,7 +115,7 @@ func (sreg *SchemaRegistry) GetColumnType(tableNameTup sqlname.NameTuple, column
 
 		err = sreg.Init()
 		if err != nil {
-			return "", nil, fmt.Errorf("re-init of registry : %v", err)
+			return "", nil, goerrors.Errorf("re-init of registry : %v", err)
 		}
 		tableSchema, found = sreg.TableNameToSchema.Get(tableNameTup)
 		if !found || tableSchema == nil {
@@ -148,7 +150,7 @@ func (sreg *SchemaRegistry) Init() error {
 		//using this function and checking if this is actually excluded in list
 		table, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tableName)
 		if err != nil {
-			return fmt.Errorf("lookup %s from name registry: %v", tableName, err)
+			return goerrors.Errorf("lookup %s from name registry: %v", tableName, err)
 		}
 		if !lo.ContainsBy(sreg.tableList, func(t sqlname.NameTuple) bool {
 			return t.ForKey() == table.ForKey()
@@ -158,7 +160,7 @@ func (sreg *SchemaRegistry) Init() error {
 		} else if !table.TargetTableAvailable() && sreg.importerRole == namereg.TARGET_DB_IMPORTER_ROLE {
 			//Table is in table list but target not found during lookup
 			// only possible in offline migration where table is exported, but not present in in import-data table list.
-			return fmt.Errorf("table %s is not present in the target database", table)
+			return goerrors.Errorf("table %s is not present in the target database", table)
 		}
 		sreg.TableNameToSchema.Put(table, &tableSchema)
 		schemaFile.Close()

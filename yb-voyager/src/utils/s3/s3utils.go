@@ -22,6 +22,8 @@ import (
 	"net/url"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -50,7 +52,7 @@ func ValidateObjectURL(datadir string) error {
 	}
 	bucket := u.Host
 	if bucket == "" {
-		return fmt.Errorf("missing bucket in s3 url %v", datadir)
+		return goerrors.Errorf("missing bucket in s3 url %v", datadir)
 	}
 	return nil
 }
@@ -63,10 +65,10 @@ func splitObjectPath(objectPath string) (string, string, error) {
 	bucket := u.Host
 	key := u.Path[1:] //remove initial "/", unable to find object with it
 	if bucket == "" {
-		return "", "", fmt.Errorf("missing bucket in s3 url %v", objectPath)
+		return "", "", goerrors.Errorf("missing bucket in s3 url %v", objectPath)
 	}
 	if key == "" {
-		return "", "", fmt.Errorf("missing key in s3 url %v", objectPath)
+		return "", "", goerrors.Errorf("missing key in s3 url %v", objectPath)
 	}
 	return bucket, key, nil
 }

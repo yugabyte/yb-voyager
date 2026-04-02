@@ -16,13 +16,13 @@ limitations under the License.
 package sqltransformer
 
 import (
-	"fmt"
 	"slices"
+
+	goerrors "github.com/go-errors/errors"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -67,7 +67,6 @@ Note: Need to keep the relative ordering of statements(tables) intact.
 Because there can be cases like Foreign Key constraints that depend on the order of tables.
 */
 func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.RawStmt, error) {
-	utils.PrintAndLog("Applying merge constraints transformation to the exported schema")
 	createStmtMap := make(map[string]*pg_query.RawStmt)
 	for _, stmt := range stmts {
 		stmtType := queryparser.GetStatementType(stmt.Stmt.ProtoReflect())
@@ -145,7 +144,7 @@ func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.R
 				// Merge these constraints into the CREATE TABLE stmt
 				createStmt, ok := createStmtMap[objectName]
 				if !ok {
-					return nil, fmt.Errorf("CREATE TABLE stmt not found for table %v", objectName)
+					return nil, goerrors.Errorf("CREATE TABLE stmt not found for table %v", objectName)
 				}
 				log.Infof("merging constraint %v into CREATE TABLE for object %v", constrType, objectName)
 				createStmt.Stmt.GetCreateStmt().TableElts = append(createStmt.Stmt.GetCreateStmt().TableElts, alterTableCmd.GetDef())
@@ -193,7 +192,7 @@ func (t *Transformer) ModifySecondaryIndexesToRange(stmts []*pg_query.RawStmt) (
 		if indexStmt == nil {
 			continue
 		}
-		if indexStmt.AccessMethod != queryissue.BTREE_ACCESS_METHOD {
+		if indexStmt.AccessMethod != queryparser.BTREE_ACCESS_METHOD {
 			//In Postgres the ordered scans are only supported for btree
 			//so restricting the change to only Btree indexes
 			//refer https://www.postgresql.org/docs/current/sql-createindex.html#:~:text=For%20index%20methods%20that%20support%20ordered%20scans%20(currently%2C%20only%20B%2Dtree)%2C%20the%20optional%20clauses%20ASC
@@ -254,7 +253,7 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 
 	tablesMap, err := getTablesMap(stmts)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to get tables to column on range types: %v", err)
+		return nil, nil, nil, goerrors.Errorf("failed to get tables to column on range types: %v", err)
 	}
 
 	for _, stmt := range stmts {
@@ -264,7 +263,7 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 		}
 		ddlObject, err := queryparser.ProcessDDL(&pg_query.ParseResult{Stmts: []*pg_query.RawStmt{stmt}})
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to process ddl: %v", err)
+			return nil, nil, nil, goerrors.Errorf("failed to process ddl: %v", err)
 		}
 		switch ddlObject.(type) {
 		case *queryparser.Table:
@@ -278,7 +277,7 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 			}
 			isPKOnRangeDatatype, err := t.checkIfPrimaryKeyOnRangeDatatype(pkConstraint.Columns, table)
 			if err != nil {
-				return nil, nil, nil, fmt.Errorf("failed to check if primary key on range datatype: %v", err)
+				return nil, nil, nil, goerrors.Errorf("failed to check if primary key on range datatype: %v", err)
 			}
 			if isPKOnRangeDatatype {
 				pkTablesOnTimestampOrDate = append(pkTablesOnTimestampOrDate, tableName)
@@ -293,11 +292,11 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 			case queryparser.PRIMARY_CONSTR_TYPE:
 				table, ok := tablesMap[alterTable.GetObjectName()]
 				if !ok {
-					return nil, nil, nil, fmt.Errorf("table %s not found in tables map", alterTable.GetObjectName())
+					return nil, nil, nil, goerrors.Errorf("table %s not found in tables map", alterTable.GetObjectName())
 				}
 				isPKOnRangeDatatype, err := t.checkIfPrimaryKeyOnRangeDatatype(alterTable.ConstraintColumns, table)
 				if err != nil {
-					return nil, nil, nil, fmt.Errorf("failed to check if primary key on range datatype: %v", err)
+					return nil, nil, nil, goerrors.Errorf("failed to check if primary key on range datatype: %v", err)
 				}
 				if isPKOnRangeDatatype {
 					pkTablesOnTimestampOrDate = append(pkTablesOnTimestampOrDate, alterTable.GetObjectName())
@@ -318,11 +317,11 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 
 	hashSplittingSessionVariableOnParseTree, err := queryparser.Parse(HASH_SPLITTING_SESSION_VARIABLE_ON)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to parse hash splitting session variable on: %v", err)
+		return nil, nil, nil, goerrors.Errorf("failed to parse hash splitting session variable on: %v", err)
 	}
 	hashSplittingSessionVariableOffParseTree, err := queryparser.Parse(HASH_SPLITTING_SESSION_VARIABLE_OFF)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to parse hash splitting session variable off: %v", err)
+		return nil, nil, nil, goerrors.Errorf("failed to parse hash splitting session variable off: %v", err)
 	}
 
 	//TODO: see how we can add comments in between statements to make the table.sql more readable
@@ -356,7 +355,7 @@ func getTablesMap(stmts []*pg_query.RawStmt) (map[string]*queryparser.Table, err
 	for _, stmt := range stmts {
 		ddlObject, err := queryparser.ProcessDDL(&pg_query.ParseResult{Stmts: []*pg_query.RawStmt{stmt}})
 		if err != nil {
-			return nil, fmt.Errorf("failed to process ddl: %v", err)
+			return nil, goerrors.Errorf("failed to process ddl: %v", err)
 		}
 		switch ddlObject.(type) {
 		case *queryparser.Table:
@@ -380,4 +379,93 @@ func (t *Transformer) checkIfPrimaryKeyOnRangeDatatype(pkConstraintCols []string
 	}
 	log.Infof("primary key first column - %s on table %s is on hotspot datatype, making it range sharded", firstCol, tableName)
 	return true, nil
+}
+
+// Assuming first column in the index is the one to be filtered for null values
+func (t *Transformer) AddPartialClauseForFilteringNULL(parseTree *pg_query.ParseResult) (*pg_query.ParseResult, error) {
+	indexNode, ok := queryparser.GetCreateIndexStmtNode(parseTree)
+	if !ok {
+		return nil, goerrors.Errorf("not a CREATE INDEX statement")
+	}
+	indexStmt := indexNode.IndexStmt
+
+	// Get the first column name from index params
+	if len(indexStmt.IndexParams) == 0 {
+		return nil, goerrors.Errorf("index has no parameters")
+	}
+	firstParam := indexStmt.IndexParams[0]
+	if firstParam == nil || firstParam.GetIndexElem() == nil {
+		return nil, goerrors.Errorf("first index parameter is nil or not an IndexElem")
+	}
+	colName := firstParam.GetIndexElem().GetName()
+	if colName == "" {
+		return nil, goerrors.Errorf("first index parameter is an expression, not a column")
+	}
+
+	isNotNullNode := &pg_query.Node{
+		Node: &pg_query.Node_NullTest{
+			NullTest: &pg_query.NullTest{
+				Arg:          pg_query.MakeColumnRefNode([]*pg_query.Node{pg_query.MakeStrNode(colName)}, -1),
+				Nulltesttype: pg_query.NullTestType_IS_NOT_NULL,
+			},
+		},
+	}
+
+	// AND with existing WHERE clause, or set as the new WHERE clause
+	if indexStmt.WhereClause != nil {
+		indexStmt.WhereClause = pg_query.MakeBoolExprNode(
+			pg_query.BoolExprType_AND_EXPR,
+			[]*pg_query.Node{indexStmt.WhereClause, isNotNullNode},
+			-1,
+		)
+	} else {
+		indexStmt.WhereClause = isNotNullNode
+	}
+
+	return parseTree, nil
+}
+
+// WHERE <col> <> <value> clause to filter out a particular frequent value from first column of the index
+func (t *Transformer) AddPartialClauseForFilteringValue(parseTree *pg_query.ParseResult, value string, columnDataType string) (*pg_query.ParseResult, error) {
+	indexNode, ok := queryparser.GetCreateIndexStmtNode(parseTree)
+	if !ok {
+		return nil, goerrors.Errorf("not a CREATE INDEX statement")
+	}
+	indexStmt := indexNode.IndexStmt
+
+	if len(indexStmt.IndexParams) == 0 {
+		return nil, goerrors.Errorf("index has no parameters")
+	}
+	// Get the first column name from index params
+	firstParam := indexStmt.IndexParams[0]
+	if firstParam == nil || firstParam.GetIndexElem() == nil {
+		return nil, goerrors.Errorf("first index parameter is nil or not an IndexElem")
+	}
+	colName := firstParam.GetIndexElem().GetName()
+	if colName == "" {
+		return nil, goerrors.Errorf("first index parameter is an expression, not a column")
+	}
+
+	// Build <col> <> <value> node
+	valueNode := queryparser.MakeAConstValueNode(value, columnDataType)
+	notEqualNode := pg_query.MakeAExprNode(
+		pg_query.A_Expr_Kind_AEXPR_OP,
+		[]*pg_query.Node{pg_query.MakeStrNode("<>")},
+		pg_query.MakeColumnRefNode([]*pg_query.Node{pg_query.MakeStrNode(colName)}, -1),
+		valueNode,
+		-1,
+	)
+
+	// AND with existing WHERE clause, or set as the new WHERE clause
+	if indexStmt.WhereClause != nil {
+		indexStmt.WhereClause = pg_query.MakeBoolExprNode(
+			pg_query.BoolExprType_AND_EXPR,
+			[]*pg_query.Node{indexStmt.WhereClause, notEqualNode},
+			-1,
+		)
+	} else {
+		indexStmt.WhereClause = notEqualNode
+	}
+
+	return parseTree, nil
 }

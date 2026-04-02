@@ -25,24 +25,37 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-func createMigrationAssessmentStartedEvent() *cp.MigrationAssessmentStartedEvent {
-	ev := &cp.MigrationAssessmentStartedEvent{}
-	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
-	return ev
-}
+/*
+YUGABYTED DATA FLOW - Migration Assessment Completed Event:
 
-func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedEvent {
+1. createMigrationAssessmentCompletedEventForYugabyteD() (here)
+   - Creates AssessMigrationPayloadYugabyteD struct with all assessment data
+   - MARSHALS struct to JSON string: json.Marshal(payload) -> string
+   - Sets ev.Report = payloadStr (type: string)
+
+2. MigrationAssessmentCompletedEvent.Report flows to yugabyted.go
+   - Report field type: string (already marshaled JSON)
+
+3. yugabyted.MigrationAssessmentCompleted() in src/cp/yugabyted/yugabyted.go
+   - Receives ev.Report as JSON string
+   - Directly inserts the JSON string into SQL database
+   - NO unmarshaling - database stores it as TEXT/JSON column
+
+Result: Single marshal (struct -> JSON string), no unmarshal
+*/
+
+func createMigrationAssessmentCompletedEventForYugabyteD() *cp.MigrationAssessmentCompletedEvent {
 	ev := &cp.MigrationAssessmentCompletedEvent{}
 	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
 
 	totalColocatedSize, err := assessmentReport.GetTotalColocatedSize(source.DBType)
 	if err != nil {
-		utils.PrintAndLog("failed to calculate the total colocated table size from tableIndexStats: %v", err)
+		utils.PrintAndLogf("failed to calculate the total colocated table size from tableIndexStats: %v", err)
 	}
 
 	totalShardedSize, err := assessmentReport.GetTotalShardedSize(source.DBType)
 	if err != nil {
-		utils.PrintAndLog("failed to calculate the total sharded table size from tableIndexStats: %v", err)
+		utils.PrintAndLogf("failed to calculate the total sharded table size from tableIndexStats: %v", err)
 	}
 
 	assessmentIssues := convertAssessmentIssueToYugabyteDAssessmentIssue(assessmentReport)
@@ -51,13 +64,16 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 		return note.Text
 	})
 
-	payload := AssessMigrationPayload{
+	schemaSummaryPayload := convertSchemaSummaryToPayload(assessmentReport.SchemaSummary, source.DBType)
+
+	payload := AssessMigrationPayloadYugabyteD{
 		PayloadVersion:                 ASSESS_MIGRATION_YBD_PAYLOAD_VERSION,
 		VoyagerVersion:                 assessmentReport.VoyagerVersion,
 		TargetDBVersion:                assessmentReport.TargetDBVersion,
 		MigrationComplexity:            assessmentReport.MigrationComplexity,
 		MigrationComplexityExplanation: assessmentReport.MigrationComplexityExplanation,
 		SchemaSummary:                  assessmentReport.SchemaSummary,
+		ParsedSchemaSummary:            schemaSummaryPayload,
 		AssessmentIssues:               assessmentIssues,
 		SourceSizeDetails: SourceDBSizeDetails{
 			TotalIndexSize:     assessmentReport.GetTotalIndexSize(),
@@ -106,7 +122,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		utils.PrintAndLog("Failed to serialise the final report to json (ERR IGNORED): %s", err)
+		utils.PrintAndLogf("Failed to serialise the final report to json (ERR IGNORED): %s", err)
 	}
 
 	ev.Report = string(payloadBytes)

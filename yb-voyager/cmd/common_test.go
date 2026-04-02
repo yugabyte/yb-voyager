@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
@@ -140,6 +141,7 @@ func TestAssessmentReportStructs(t *testing.T) {
 				Impact                 string                          `json:"Impact"`
 				ObjectType             string                          `json:"ObjectType"`
 				ObjectName             string                          `json:"ObjectName"`
+				ObjectUsage            string                          `json:"ObjectUsage,omitempty"`
 				SqlStatement           string                          `json:"SqlStatement"`
 				DocsLink               string                          `json:"DocsLink"`
 				MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"`
@@ -155,6 +157,7 @@ func TestAssessmentReportStructs(t *testing.T) {
 				MigrationComplexity            string                                `json:"MigrationComplexity"`
 				MigrationComplexityExplanation string                                `json:"MigrationComplexityExplanation"`
 				SchemaSummary                  utils.SchemaSummary                   `json:"SchemaSummary"`
+				NumReplicasUsed                int                                   `json:"NumReplicasUsed,omitempty"`
 				Sizing                         *migassessment.SizingAssessmentReport `json:"Sizing"`
 				Issues                         []AssessmentIssue                     `json:"AssessmentIssues"`
 				TableIndexStats                *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
@@ -398,7 +401,7 @@ func TestAssessmentReportJson(t *testing.T) {
 
 }
 
-func TestStripHTMLTags(t *testing.T) {
+func TestStripAnchorTags(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -422,12 +425,12 @@ func TestStripHTMLTags(t *testing.T) {
 		{
 			name:     "Leading and trailing whitespace",
 			input:    "   <a href=\"https://example.com\">Example</a>   ",
-			expected: "Example (https://example.com)",
+			expected: "Example ( https://example.com )",
 		},
 		{
 			name:     "Basic link processing",
 			input:    "<a href=\"https://example.com\">Example</a>",
-			expected: "Example (https://example.com)",
+			expected: "Example ( https://example.com )",
 		},
 		{
 			name:     "Link with text same as URL",
@@ -437,12 +440,12 @@ func TestStripHTMLTags(t *testing.T) {
 		{
 			name:     "Link with attributes and single quotes",
 			input:    "<a href='https://docs.yugabyte.com' target=\"_blank\" class=\"link\">YugabyteDB Docs</a>",
-			expected: "YugabyteDB Docs (https://docs.yugabyte.com)",
+			expected: "YugabyteDB Docs ( https://docs.yugabyte.com )",
 		},
 		{
 			name:     "Multiple links",
 			input:    "<a href=\"https://example1.com\">Link1</a> and <a href=\"https://example2.com\">Link2</a>",
-			expected: "Link1 (https://example1.com) and Link2 (https://example2.com)",
+			expected: "Link1 ( https://example1.com ) and Link2 ( https://example2.com )",
 		},
 		{
 			name:     "Various HTML tags preserved",
@@ -452,17 +455,22 @@ func TestStripHTMLTags(t *testing.T) {
 		{
 			name:     "Mixed content with links and diverse tags",
 			input:    "<div><a href=\"https://example.com\">Link</a> and <span>span text</span><img src=\"image.jpg\" alt=\"image\"/></div>",
-			expected: "<div>Link (https://example.com) and <span>span text</span><img src=\"image.jpg\" alt=\"image\"/></div>",
+			expected: "<div>Link ( https://example.com ) and <span>span text</span><img src=\"image.jpg\" alt=\"image\"/></div>",
 		},
 		{
 			name:     "Link with special characters in URL",
 			input:    "<a href=\"https://example.com/path?param=value&other=123\">Special URL</a>",
-			expected: "Special URL (https://example.com/path?param=value&other=123)",
+			expected: "Special URL ( https://example.com/path?param=value&other=123 )",
 		},
 		{
 			name:     "Link with special characters in text",
 			input:    "<a href=\"https://example.com\">Text with &amp; symbols &lt;tags&gt;</a>",
-			expected: "Text with &amp; symbols &lt;tags&gt; (https://example.com)",
+			expected: "Text with &amp; symbols &lt;tags&gt; ( https://example.com )",
+		},
+		{
+			name:     "URL with trailing slash preserved",
+			input:    `<a href="https://docs.yugabyte.com/preview/releases/ybdb-releases/">release notes</a>`,
+			expected: "release notes ( https://docs.yugabyte.com/preview/releases/ybdb-releases/ )",
 		},
 		{
 			name:     "Malformed HTML - missing closing tag",
@@ -473,10 +481,274 @@ func TestStripHTMLTags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := stripHTMLTags(tt.input)
+			result := stripAnchorTags(tt.input)
 			assert.Equal(t, tt.expected, result,
 				"Test: %s\nInput: %q\nExpected: %q\nActual: %q",
 				tt.name, tt.input, tt.expected, result)
+		})
+	}
+}
+
+func TestParseObjectNamesToPayload(t *testing.T) {
+	tests := []struct {
+		name       string
+		input      string
+		dbType     string
+		objectType string
+		expected   []ObjectPayload
+	}{
+		{
+			name:       "empty string",
+			input:      "",
+			dbType:     "postgresql",
+			objectType: "TABLE",
+			expected:   nil,
+		},
+		{
+			name:       "single table",
+			input:      "test_table",
+			dbType:     "postgresql",
+			objectType: "TABLE",
+			expected: []ObjectPayload{
+				{ObjectName: "test_table"},
+			},
+		},
+		{
+			name:       "multiple tables",
+			input:      "table_a, table_b, table_c",
+			dbType:     "postgresql",
+			objectType: "TABLE",
+			expected: []ObjectPayload{
+				{ObjectName: "table_a"},
+				{ObjectName: "table_b"},
+				{ObjectName: "table_c"},
+			},
+		},
+		{
+			name:       "quoted table",
+			input:      `"QuotedTable"`,
+			dbType:     "postgresql",
+			objectType: "TABLE",
+			expected: []ObjectPayload{
+				{ObjectName: "QuotedTable"},
+			},
+		},
+		{
+			name:       "quoted table with space",
+			input:      `"my table"`,
+			dbType:     "postgresql",
+			objectType: "TABLE",
+			expected: []ObjectPayload{
+				{ObjectName: "my table"},
+			},
+		},
+		{
+			name:       "schema-qualified table",
+			input:      "public.test_table",
+			dbType:     "postgresql",
+			objectType: "TABLE",
+			expected: []ObjectPayload{
+				{ObjectName: "test_table", SchemaName: "public"},
+			},
+		},
+		{
+			name:       "quoted schema-qualified table",
+			input:      `"Schema"."Table"`,
+			dbType:     "postgresql",
+			objectType: "TABLE",
+			expected: []ObjectPayload{
+				{ObjectName: "Table", SchemaName: "Schema"},
+			},
+		},
+		{
+			name:       "index with ON clause",
+			input:      "idx_name ON public.test_table",
+			dbType:     "postgresql",
+			objectType: "INDEX",
+			expected: []ObjectPayload{
+				{ObjectName: "idx_name", ParentTableName: "public.test_table", SchemaName: "public"},
+			},
+		},
+		{
+			name:       "quoted index with ON clause",
+			input:      `"IdxName" ON "Schema"."Table"`,
+			dbType:     "postgresql",
+			objectType: "INDEX",
+			expected: []ObjectPayload{
+				{ObjectName: "IdxName", ParentTableName: "Schema.Table", SchemaName: "Schema"},
+			},
+		},
+		{
+			name:       "quoted index with space in names",
+			input:      `"my index" ON public."my table"`,
+			dbType:     "postgresql",
+			objectType: "INDEX",
+			expected: []ObjectPayload{
+				{ObjectName: "my index", ParentTableName: "public.my table", SchemaName: "public"},
+			},
+		},
+		{
+			name:       "multiple indexes",
+			input:      `idx_name ON public.test_table, "IdxName" ON "Schema"."Table"`,
+			dbType:     "postgresql",
+			objectType: "INDEX",
+			expected: []ObjectPayload{
+				{ObjectName: "idx_name", ParentTableName: "public.test_table", SchemaName: "public"},
+				{ObjectName: "IdxName", ParentTableName: "Schema.Table", SchemaName: "Schema"},
+			},
+		},
+		{
+			name:       "schema-qualified index with ON clause",
+			input:      "public.idx_name ON public.test_table",
+			dbType:     "postgresql",
+			objectType: "INDEX",
+			expected: []ObjectPayload{
+				{ObjectName: "idx_name", ParentTableName: "public.test_table", SchemaName: "public"},
+			},
+		},
+		{
+			name:       "trigger with ON clause",
+			input:      "my_trigger ON public.my_table",
+			dbType:     "postgresql",
+			objectType: "TRIGGER",
+			expected: []ObjectPayload{
+				{ObjectName: "my_trigger", ParentTableName: "public.my_table", SchemaName: "public"},
+			},
+		},
+		{
+			name:       "policy with ON clause",
+			input:      "my_policy ON public.my_table",
+			dbType:     "postgresql",
+			objectType: "POLICY",
+			expected: []ObjectPayload{
+				{ObjectName: "my_policy", ParentTableName: "public.my_table", SchemaName: "public"},
+			},
+		},
+		{
+			name:       "multiple schemas",
+			input:      "public, sales",
+			dbType:     "postgresql",
+			objectType: "SCHEMA",
+			expected: []ObjectPayload{
+				{ObjectName: "public"},
+				{ObjectName: "sales"},
+			},
+		},
+		{
+			name:       "materialized view - schema-qualified",
+			input:      "public.my_mview",
+			dbType:     "postgresql",
+			objectType: "MVIEW",
+			expected: []ObjectPayload{
+				{ObjectName: "my_mview", SchemaName: "public"},
+			},
+		},
+		{
+			name:       "sequence - schema-qualified",
+			input:      "public.my_seq",
+			dbType:     "postgresql",
+			objectType: "SEQUENCE",
+			expected: []ObjectPayload{
+				{ObjectName: "my_seq", SchemaName: "public"},
+			},
+		},
+		{
+			name:       "function - schema-qualified",
+			input:      "public.my_func",
+			dbType:     "postgresql",
+			objectType: "FUNCTION",
+			expected: []ObjectPayload{
+				{ObjectName: "my_func", SchemaName: "public"},
+			},
+		},
+		{
+			name:       "view - schema-qualified",
+			input:      "public.my_view",
+			dbType:     "postgresql",
+			objectType: "VIEW",
+			expected: []ObjectPayload{
+				{ObjectName: "my_view", SchemaName: "public"},
+			},
+		},
+		{
+			name:       "extension - unqualified",
+			input:      "pg_stat_statements, vector",
+			dbType:     "postgresql",
+			objectType: "EXTENSION",
+			expected: []ObjectPayload{
+				{ObjectName: "pg_stat_statements"},
+				{ObjectName: "vector"},
+			},
+		},
+		{
+			name:       "type - schema-qualified",
+			input:      "public.mpaa_rating",
+			dbType:     "postgresql",
+			objectType: "TYPE",
+			expected: []ObjectPayload{
+				{ObjectName: "mpaa_rating", SchemaName: "public"},
+			},
+		},
+		{
+			name:       "procedure - schema-qualified",
+			input:      "public.my_proc",
+			dbType:     "postgresql",
+			objectType: "PROCEDURE",
+			expected: []ObjectPayload{
+				{ObjectName: "my_proc", SchemaName: "public"},
+			},
+		},
+		{
+			name:       "aggregate - schema-qualified",
+			input:      "public.group_concat",
+			dbType:     "postgresql",
+			objectType: "AGGREGATE",
+			expected: []ObjectPayload{
+				{ObjectName: "group_concat", SchemaName: "public"},
+			},
+		},
+		{
+			name:       "domain - schema-qualified",
+			input:      "public.year",
+			dbType:     "postgresql",
+			objectType: "DOMAIN",
+			expected: []ObjectPayload{
+				{ObjectName: "year", SchemaName: "public"},
+			},
+		},
+		{
+			name:       "collation - unqualified",
+			input:      "my_collation",
+			dbType:     "postgresql",
+			objectType: "COLLATION",
+			expected: []ObjectPayload{
+				{ObjectName: "my_collation"},
+			},
+		},
+		{
+			name:       "foreign table - schema-qualified",
+			input:      "public.my_foreign_table",
+			dbType:     "postgresql",
+			objectType: "FOREIGN TABLE",
+			expected: []ObjectPayload{
+				{ObjectName: "my_foreign_table", SchemaName: "public"},
+			},
+		},
+		{
+			name:       "rule - schema-qualified",
+			input:      "public.my_rule",
+			dbType:     "postgresql",
+			objectType: "RULE",
+			expected: []ObjectPayload{
+				{ObjectName: "my_rule", SchemaName: "public"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseObjectNamesToPayload(tt.input, tt.objectType, tt.dbType)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }

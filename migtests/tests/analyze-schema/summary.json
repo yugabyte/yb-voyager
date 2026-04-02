@@ -32,7 +32,7 @@
             {
                 "ObjectType": "TABLE",
                 "TotalCount": 65,
-                "InvalidCount": 43,
+                "InvalidCount": 41,
                 "ObjectNames": "tbl_comp, test_table_in_type_file, sales_data, salaries2, sales, test_1, test_2, test_non_pk_multi_column_list, test_3, test_4, test_5, test_6, test_7, test_8, test_9, order_details, public.employees4, enum_example.bugs, table_xyz, table_abc, table_1, table_test, test_interval, public.range_columns_partition_test, public.range_columns_partition_test_copy, anydata_test, anydataset_test, anytype_test, uritype_test, \"Test\", public.meeting, public.pr, public.foreign_def_test, public.users, foreign_def_test1, foreign_def_test2, unique_def_test, unique_def_test1, test_xml_type, test_xid_type, public.test_jsonb, public.inet_type, public.citext_type, public.documents, public.ts_query_table, combined_tbl, combined_tbl1, test_udt, test_arr_enum, public.locations, public.xml_data_example, image, public.json_data, employees, bigint_multirange_table, date_multirange_table, int_multirange_table, numeric_multirange_table, timestamp_multirange_table, timestamptz_multirange_table, users_unique_nulls_distinct, users_unique_nulls_not_distinct, sales_unique_nulls_not_distinct, sales_unique_nulls_not_distinct_alter, users_unique_nulls_not_distinct_index"            },
             {
                 "ObjectType": "INDEX",

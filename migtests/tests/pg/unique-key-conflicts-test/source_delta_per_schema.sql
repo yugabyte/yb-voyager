@@ -82,30 +82,30 @@ UPDATE same_column_unique_constraint_and_index SET email = 'user5@example.com' W
 
 
 -- Insert non-conflict rows for single_unique_index
-INSERT INTO single_unique_index (id, ssn) VALUES (10, 'non_conflict_ssn1');
-INSERT INTO single_unique_index (id, ssn) VALUES (11, 'non_conflict_ssn2');
+INSERT INTO single_unique_index (id, "Ssn") VALUES (10, 'non_conflict_ssn1');
+INSERT INTO single_unique_index (id, "Ssn") VALUES (11, 'non_conflict_ssn2');
 
 -- 4. Conflicts for single_unique_index
 -- DELETE-INSERT conflict
 DELETE FROM single_unique_index WHERE id = 1;
-INSERT INTO single_unique_index (id, ssn) VALUES (6, 'SSN1');
+INSERT INTO single_unique_index (id, "Ssn") VALUES (6, 'SSN1');
 
 
 -- Non-conflict update and delete
-UPDATE single_unique_index SET ssn = 'updated_non_conflict_ssn1' WHERE id = 10;
+UPDATE single_unique_index SET "Ssn" = 'updated_non_conflict_ssn1' WHERE id = 10;
 DELETE FROM single_unique_index WHERE id = 11;
 
 
 -- DELETE-UPDATE conflict
 DELETE FROM single_unique_index WHERE id = 2;
-UPDATE single_unique_index SET ssn = 'SSN2' WHERE id = 3;
+UPDATE single_unique_index SET "Ssn" = 'SSN2' WHERE id = 3;
 -- UPDATE-INSERT conflict
-UPDATE single_unique_index SET ssn = 'updated_SSN4' WHERE id = 4;
-INSERT INTO single_unique_index (id, ssn) VALUES (7, 'SSN4');
+UPDATE single_unique_index SET "Ssn" = 'updated_SSN4' WHERE id = 4;
+INSERT INTO single_unique_index (id, "Ssn") VALUES (7, 'SSN4');
 
 -- UPDATE-UPDATE conflict
-UPDATE single_unique_index SET ssn = 'updated_SSN5' WHERE id = 5;
-UPDATE single_unique_index SET ssn = 'SSN5' WHERE id = 6;
+UPDATE single_unique_index SET "Ssn" = 'updated_SSN5' WHERE id = 5;
+UPDATE single_unique_index SET "Ssn" = 'SSN5' WHERE id = 6;
 
 
 -- Insert non-conflict rows for multi_unique_index
@@ -188,3 +188,28 @@ INSERT INTO subset_columns_unique_constraint_and_index (id, first_name, last_nam
 -- UPDATE-UPDATE conflict
 UPDATE subset_columns_unique_constraint_and_index SET first_name = 'Updated_Alice' WHERE id = 4;
 UPDATE subset_columns_unique_constraint_and_index SET first_name = 'Alice', last_name = 'Williams', phone_number = '123-456-7893' WHERE id = 5;
+
+UPDATE expression_based_unique_index SET email = 'updated_user4@example.com' WHERE id = 4;
+INSERT INTO expression_based_unique_index (email) VALUES ('user4@example.com'); --conflict lower case email 
+
+-- UPDATE-UPDATE conflict
+UPDATE expression_based_unique_index SET email = 'updated_user5@example.com' WHERE id = 5;
+UPDATE expression_based_unique_index SET email = 'user5@example.com' WHERE id = 6;
+-- events for test_partial_unique_index table UPDATE-INSERT
+UPDATE test_partial_unique_index SET most_recent = false WHERE check_id = 1;
+INSERT INTO test_partial_unique_index (check_id, most_recent) VALUES (1, true);
+
+UPDATE test_partial_unique_index SET most_recent = false WHERE check_id = 2;
+INSERT INTO test_partial_unique_index (check_id, most_recent) VALUES (2, true);
+
+-- events for test_partial_unique_index table DELETE-INSERT
+DELETE FROM test_partial_unique_index WHERE id = 3;
+INSERT INTO test_partial_unique_index (check_id, most_recent) VALUES (3, true);
+
+-- events for test_partial_unique_index table DELETE-UPDATE
+DELETE FROM test_partial_unique_index WHERE id = 4;
+UPDATE test_partial_unique_index SET most_recent = true WHERE id = 5;
+
+-- events for test_partial_unique_index table UPDATE-UPDATE
+UPDATE test_partial_unique_index SET most_recent = false WHERE id = 7;
+UPDATE test_partial_unique_index SET most_recent = true WHERE id = 8;

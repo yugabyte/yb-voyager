@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -53,7 +54,7 @@ const (
 metainfo/import_data_state/table::<table_name>/file::<base_name>:<path_hash>/
 
 	link -> dataFile
-	batch::<batch_num>.<offset_end>.<record_count>.<byte_count>.<state>
+	batch::<batch_num>.<offset_end>.<record_count>.<byte_count>.<cum_byte_offset_end>.<state>
 */
 type ImportDataState struct {
 	exportDir               string
@@ -167,16 +168,17 @@ func (s *ImportDataState) GetFileImportState(filePath string, tableNameTup sqlna
 	return FILE_IMPORT_IN_PROGRESS, nil
 }
 
-func (s *ImportDataState) Recover(filePath string, tableNameTup sqlname.NameTuple) ([]*Batch, int64, int64, bool, error) {
+func (s *ImportDataState) Recover(filePath string, tableNameTup sqlname.NameTuple) ([]*Batch, int64, int64, int64, bool, error) {
 	var pendingBatches []*Batch
 
 	lastBatchNumber := int64(0)
 	lastOffset := int64(0)
+	lastBatchCumByteOffsetEnd := int64(0)
 	fileFullySplit := false
 
 	batches, err := s.GetAllBatches(filePath, tableNameTup)
 	if err != nil {
-		return nil, 0, 0, false, fmt.Errorf("error while getting all batches for %s: %w", tableNameTup, err)
+		return nil, 0, 0, 0, false, fmt.Errorf("error while getting all batches for %s: %w", tableNameTup, err)
 	}
 	for _, batch := range batches {
 		/*
@@ -190,14 +192,17 @@ func (s *ImportDataState) Recover(filePath string, tableNameTup sqlname.NameTupl
 		if batch.Number > lastBatchNumber {
 			lastBatchNumber = batch.Number
 		}
-		if batch.OffsetEnd > lastOffset {
-			lastOffset = batch.OffsetEnd
+		if batch.LineOffsetEnd > lastOffset {
+			lastOffset = batch.LineOffsetEnd
+		}
+		if batch.CumByteOffsetEnd > lastBatchCumByteOffsetEnd {
+			lastBatchCumByteOffsetEnd = batch.CumByteOffsetEnd
 		}
 		if !batch.IsCompleted() {
 			pendingBatches = append(pendingBatches, batch)
 		}
 	}
-	return pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, nil
+	return pendingBatches, lastBatchNumber, lastOffset, lastBatchCumByteOffsetEnd, fileFullySplit, nil
 }
 
 func (s *ImportDataState) Clean(filePath string, tableNameTup sqlname.NameTuple) error {
@@ -295,18 +300,18 @@ func (s *ImportDataState) getBatches(filePath string, tableNameTup sqlname.NameT
 			log.Infof("fileStateDir %q does not exist", fileStateDir)
 			return nil, nil
 		}
-		return nil, fmt.Errorf("stat %q: %s", fileStateDir, err)
+		return nil, goerrors.Errorf("stat %q: %s", fileStateDir, err)
 	}
 
 	// Find regular files in the `fileStateDir` whose name starts with "batch::"
 
 	files, err := os.ReadDir(fileStateDir)
 	if err != nil {
-		return nil, fmt.Errorf("read dir %q: %s", fileStateDir, err)
+		return nil, goerrors.Errorf("read dir %q: %s", fileStateDir, err)
 	}
 	for _, file := range files {
 		if file.Type().IsRegular() && strings.HasPrefix(file.Name(), "batch::") {
-			batchNum, offsetEnd, recordCount, byteCount, state, err := parseBatchFileName(file.Name())
+			batchNum, offsetEnd, recordCount, byteCount, cumByteOffsetEnd, state, err := parseBatchFileName(file.Name())
 			if err != nil {
 				return nil, fmt.Errorf("parse batch file name %q: %w", file.Name(), err)
 			}
@@ -314,15 +319,16 @@ func (s *ImportDataState) getBatches(filePath string, tableNameTup sqlname.NameT
 				continue
 			}
 			batch := &Batch{
-				SchemaName:   "",
-				TableNameTup: tableNameTup,
-				FilePath:     filepath.Join(fileStateDir, file.Name()),
-				BaseFilePath: filePath,
-				Number:       batchNum,
-				OffsetStart:  offsetEnd - recordCount,
-				OffsetEnd:    offsetEnd,
-				ByteCount:    byteCount,
-				RecordCount:  recordCount,
+				SchemaName:    "",
+				TableNameTup:  tableNameTup,
+				FilePath:      filepath.Join(fileStateDir, file.Name()),
+				BaseFilePath:  filePath,
+				Number:        batchNum,
+				LineOffsetStart: offsetEnd - recordCount,
+				LineOffsetEnd:   offsetEnd,
+				ByteCount:     byteCount,
+				RecordCount:   recordCount,
+				CumByteOffsetEnd: cumByteOffsetEnd,
 			}
 			result = append(result, batch)
 		}
@@ -331,34 +337,38 @@ func (s *ImportDataState) getBatches(filePath string, tableNameTup sqlname.NameT
 
 }
 
-// Sample batch file name - batch::1.5000.5000.107786.D
-// batch::<batch_num>.<offset_end>.<record_count>.<byte_count>.<state>
-func parseBatchFileName(fileName string) (batchNum, offsetEnd, recordCount, byteCount int64, state string, err error) {
+// Batch file name format (6 fields): batch::1.5000.5000.107786.320000.D
+// batch::<batch_num>.<offset_end>.<record_count>.<byte_count>.<cum_byte_offset_end>.<state>
+func parseBatchFileName(fileName string) (batchNum, offsetEnd, recordCount, byteCount, cumByteOffsetEnd int64, state string, err error) {
 	md := strings.Split(strings.Split(fileName, "::")[1], ".")
-	if len(md) != 5 {
-		return 0, 0, 0, 0, "", fmt.Errorf("invalid batch file name %q", fileName)
+	if len(md) != 6 {
+		return 0, 0, 0, 0, 0, "", goerrors.Errorf("invalid batch file name %q: expected 6 fields, got %d", fileName, len(md))
 	}
 	batchNum, err = strconv.ParseInt(md[0], 10, 64)
 	if err != nil {
-		return 0, 0, 0, 0, "", fmt.Errorf("invalid batchNumber %q in the file name %q", md[0], fileName)
+		return 0, 0, 0, 0, 0, "", goerrors.Errorf("invalid batchNumber %q in the file name %q", md[0], fileName)
 	}
 	offsetEnd, err = strconv.ParseInt(md[1], 10, 64)
 	if err != nil {
-		return 0, 0, 0, 0, "", fmt.Errorf("invalid offsetEnd %q in the file name %q", md[1], fileName)
+		return 0, 0, 0, 0, 0, "", goerrors.Errorf("invalid offsetEnd %q in the file name %q", md[1], fileName)
 	}
 	recordCount, err = strconv.ParseInt(md[2], 10, 64)
 	if err != nil {
-		return 0, 0, 0, 0, "", fmt.Errorf("invalid recordCount %q in the file name %q", md[2], fileName)
+		return 0, 0, 0, 0, 0, "", goerrors.Errorf("invalid recordCount %q in the file name %q", md[2], fileName)
 	}
 	byteCount, err = strconv.ParseInt(md[3], 10, 64)
 	if err != nil {
-		return 0, 0, 0, 0, "", fmt.Errorf("invalid byteCount %q in the file name %q", md[3], fileName)
+		return 0, 0, 0, 0, 0, "", goerrors.Errorf("invalid byteCount %q in the file name %q", md[3], fileName)
 	}
-	state = md[4]
+	cumByteOffsetEnd, err = strconv.ParseInt(md[4], 10, 64)
+	if err != nil {
+		return 0, 0, 0, 0, 0, "", goerrors.Errorf("invalid cumByteOffsetEnd %q in the file name %q", md[4], fileName)
+	}
+	state = md[5]
 	if !slices.Contains([]string{"C", "P", "D", "E"}, state) {
-		return 0, 0, 0, 0, "", fmt.Errorf("invalid state %q in the file name %q", md[4], fileName)
+		return 0, 0, 0, 0, 0, "", goerrors.Errorf("invalid state %q in the file name %q", state, fileName)
 	}
-	return batchNum, offsetEnd, recordCount, byteCount, state, nil
+	return batchNum, offsetEnd, recordCount, byteCount, cumByteOffsetEnd, state, nil
 }
 
 //============================================================================
@@ -388,7 +398,7 @@ func (s *ImportDataState) discoverTableNames() ([]sqlname.NameTuple, error) {
 	// Find directories in the `stateDir` whose name starts with "table::"
 	dirEntries, err := os.ReadDir(s.stateDir)
 	if err != nil {
-		return nil, fmt.Errorf("read dir %q: %s", s.stateDir, err)
+		return nil, goerrors.Errorf("read dir %q: %s", s.stateDir, err)
 	}
 	result := []sqlname.NameTuple{}
 	for _, dirEntry := range dirEntries {
@@ -408,7 +418,7 @@ func (s *ImportDataState) discoverTableFiles(tableNameTup sqlname.NameTuple) ([]
 	tableStateDir := s.getTableStateDir(tableNameTup)
 	dirEntries, err := os.ReadDir(tableStateDir)
 	if err != nil {
-		return nil, fmt.Errorf("read dir %q: %s", tableStateDir, err)
+		return nil, goerrors.Errorf("read dir %q: %s", tableStateDir, err)
 	}
 	result := []string{}
 	for _, dirEntry := range dirEntries {
@@ -416,7 +426,7 @@ func (s *ImportDataState) discoverTableFiles(tableNameTup sqlname.NameTuple) ([]
 			symLinkPath := filepath.Join(tableStateDir, dirEntry.Name(), "link")
 			targetPath, err := os.Readlink(symLinkPath)
 			if err != nil {
-				return nil, fmt.Errorf("read link %q: %s", symLinkPath, err)
+				return nil, goerrors.Errorf("read link %q: %s", symLinkPath, err)
 			}
 			result = append(result, targetPath)
 		}
@@ -718,7 +728,7 @@ func (s *ImportDataState) AllBatchesSubmittedForTask(taskId int) (bool, error) {
 func (s *ImportDataState) AllBatchesImported(filepath string, tableNameTup sqlname.NameTuple) (bool, error) {
 	taskStatus, err := s.GetFileImportState(filepath, tableNameTup)
 	if err != nil {
-		return false, fmt.Errorf("getting file import state: %s", err)
+		return false, goerrors.Errorf("getting file import state: %s", err)
 	}
 	return taskStatus == FILE_IMPORT_COMPLETED || taskStatus == FILE_IMPORT_COMPLETED_WITH_ERRORS, nil
 }
@@ -754,7 +764,7 @@ func (bw *BatchWriter) Init() error {
 	log.Infof("current temp file: %s", currTmpFileName)
 	outFile, err := os.Create(currTmpFileName)
 	if err != nil {
-		return fmt.Errorf("create file %q: %s", currTmpFileName, err)
+		return goerrors.Errorf("create file %q: %s", currTmpFileName, err)
 	}
 	bw.outFile = outFile
 	bw.w = bufio.NewWriterSize(outFile, 4*MB)
@@ -764,7 +774,7 @@ func (bw *BatchWriter) Init() error {
 func (bw *BatchWriter) WriteHeader(header string) error {
 	_, err := bw.w.WriteString(header + "\n")
 	if err != nil {
-		return fmt.Errorf("write header to %q: %s", bw.outFile.Name(), err)
+		return goerrors.Errorf("write header to %q: %s", bw.outFile.Name(), err)
 	}
 	return nil
 }
@@ -780,27 +790,27 @@ func (bw *BatchWriter) WriteRecord(record string) error {
 	if bw.flagFirstRecordWritten {
 		_, err = bw.w.WriteString("\n")
 		if err != nil {
-			return fmt.Errorf("write to %q: %s", bw.outFile.Name(), err)
+			return goerrors.Errorf("write to %q: %s", bw.outFile.Name(), err)
 		}
 	}
 	_, err = bw.w.WriteString(record)
 	if err != nil {
-		return fmt.Errorf("write record to %q: %s", bw.outFile.Name(), err)
+		return goerrors.Errorf("write record to %q: %s", bw.outFile.Name(), err)
 	}
 	bw.NumRecordsWritten++
 	bw.flagFirstRecordWritten = true
 	return nil
 }
 
-func (bw *BatchWriter) Done(isLastBatch bool, offsetEnd int64, byteCount int64) (*Batch, error) {
+func (bw *BatchWriter) Done(isLastBatch bool, offsetEnd int64, byteCount int64, cumByteOffsetEnd int64) (*Batch, error) {
 	err := bw.w.Flush()
 	if err != nil {
-		return nil, fmt.Errorf("flush %q: %s", bw.outFile.Name(), err)
+		return nil, goerrors.Errorf("flush %q: %s", bw.outFile.Name(), err)
 	}
 	tmpFileName := bw.outFile.Name()
 	err = bw.outFile.Close()
 	if err != nil {
-		return nil, fmt.Errorf("close %q: %s", bw.outFile.Name(), err)
+		return nil, goerrors.Errorf("close %q: %s", bw.outFile.Name(), err)
 	}
 
 	batchNumber := bw.batchNumber
@@ -808,23 +818,24 @@ func (bw *BatchWriter) Done(isLastBatch bool, offsetEnd int64, byteCount int64) 
 		batchNumber = LAST_SPLIT_NUM
 	}
 	fileStateDir := bw.state.getFileStateDir(bw.filePath, bw.tableName)
-	batchFilePath := fmt.Sprintf("%s/batch::%d.%d.%d.%d.C",
-		fileStateDir, batchNumber, offsetEnd, bw.NumRecordsWritten, byteCount)
+	batchFilePath := fmt.Sprintf("%s/batch::%d.%d.%d.%d.%d.C",
+		fileStateDir, batchNumber, offsetEnd, bw.NumRecordsWritten, byteCount, cumByteOffsetEnd)
 	log.Infof("Renaming %q to %q", tmpFileName, batchFilePath)
 	err = os.Rename(tmpFileName, batchFilePath)
 	if err != nil {
-		return nil, fmt.Errorf("rename %q to %q: %s", tmpFileName, batchFilePath, err)
+		return nil, goerrors.Errorf("rename %q to %q: %s", tmpFileName, batchFilePath, err)
 	}
 	batch := &Batch{
-		SchemaName:   "",
-		TableNameTup: bw.tableName,
-		FilePath:     batchFilePath,
-		BaseFilePath: bw.filePath,
-		Number:       batchNumber,
-		OffsetStart:  offsetEnd - bw.NumRecordsWritten,
-		OffsetEnd:    offsetEnd,
-		RecordCount:  bw.NumRecordsWritten,
-		ByteCount:    byteCount,
+		SchemaName:    "",
+		TableNameTup:  bw.tableName,
+		FilePath:      batchFilePath,
+		BaseFilePath:  bw.filePath,
+		Number:        batchNumber,
+		LineOffsetStart: offsetEnd - bw.NumRecordsWritten,
+		LineOffsetEnd:   offsetEnd,
+		RecordCount:   bw.NumRecordsWritten,
+		ByteCount:     byteCount,
+		CumByteOffsetEnd: cumByteOffsetEnd,
 	}
 	return batch, nil
 }
@@ -837,16 +848,17 @@ const (
 )
 
 type Batch struct {
-	Number       int64
-	TableNameTup sqlname.NameTuple
-	SchemaName   string
-	FilePath     string // Path of the batch file.
-	BaseFilePath string // Path of the original data file.
-	OffsetStart  int64
-	OffsetEnd    int64
-	RecordCount  int64
-	ByteCount    int64
-	Interrupted  bool
+	Number        int64
+	TableNameTup  sqlname.NameTuple
+	SchemaName    string
+	FilePath      string // Path of the batch file.
+	BaseFilePath  string // Path of the original data file.
+	LineOffsetStart int64
+	LineOffsetEnd   int64
+	RecordCount   int64
+	ByteCount     int64
+	CumByteOffsetEnd int64 // Absolute byte position in the original data file after this batch.
+	Interrupted   bool
 }
 
 func (batch *Batch) Open() (*os.File, error) {
@@ -858,12 +870,12 @@ func (batch *Batch) OpenAsDataFile() (datafile.DataFile, error) {
 	// since generated batches only use local files and don’t require cloud storage.
 	file, err := batch.Open()
 	if err != nil {
-		return nil, fmt.Errorf("open batch file %q: %s", batch.GetFilePath(), err)
+		return nil, goerrors.Errorf("open batch file %q: %s", batch.GetFilePath(), err)
 	}
 
-	datafile, err := datafile.NewDataFile(batch.GetFilePath(), file, dataFileDescriptor)
+	datafile, err := datafile.NewDataFile(batch.GetFilePath(), file, dataFileDescriptor, 0)
 	if err != nil {
-		return nil, fmt.Errorf("create datafile for %q: %s", batch.GetFilePath(), err)
+		return nil, goerrors.Errorf("create datafile for %q: %s", batch.GetFilePath(), err)
 	}
 
 	return datafile, err
@@ -872,7 +884,7 @@ func (batch *Batch) OpenAsDataFile() (datafile.DataFile, error) {
 func (batch *Batch) Delete() error {
 	err := os.RemoveAll(batch.FilePath)
 	if err != nil {
-		return fmt.Errorf("remove %q: %s", batch.FilePath, err)
+		return goerrors.Errorf("remove %q: %s", batch.FilePath, err)
 	}
 	log.Infof("Deleted %q", batch.FilePath)
 	batch.FilePath = ""
@@ -932,12 +944,12 @@ func (batch *Batch) MarkError(batchErr error, isPartialBatchIngestionPossible bo
 	// append error message to the file.
 	file, err := os.OpenFile(batch.FilePath, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		return fmt.Errorf("open file for appending error %q: %s", batch.FilePath, err)
+		return goerrors.Errorf("open file for appending error %q: %s", batch.FilePath, err)
 	}
 	defer file.Close()
 	_, err = file.WriteString(errorString)
 	if err != nil {
-		return fmt.Errorf("write error message to %q: %s", batch.FilePath, err)
+		return goerrors.Errorf("write error message to %q: %s", batch.FilePath, err)
 	}
 	return nil
 }

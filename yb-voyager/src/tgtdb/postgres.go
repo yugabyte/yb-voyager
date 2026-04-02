@@ -26,8 +26,10 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
+	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
 	pgconn5 "github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -118,14 +120,14 @@ func (pg *TargetPostgreSQL) Init() error {
 	if len(pg.tconf.SessionVars) == 0 {
 		pg.tconf.SessionVars = getPGSessionInitScript(pg.tconf)
 	}
-	schemas := strings.Split(pg.tconf.Schema, ",")
+	schemas := sqlname.ExtractIdentifiersUnquoted(pg.tconf.Schemas)
 	schemaList := strings.Join(schemas, "','") // a','b','c
 	checkSchemaExistsQuery := fmt.Sprintf(
 		"SELECT nspname FROM pg_catalog.pg_namespace WHERE nspname IN ('%s');",
 		schemaList)
 	rows, err := pg.Query(checkSchemaExistsQuery)
 	if err != nil {
-		return fmt.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, pg.tconf.Host, err)
+		return goerrors.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, pg.tconf.Host, err)
 	}
 	var returnedSchemas []string
 	defer rows.Close()
@@ -139,7 +141,7 @@ func (pg *TargetPostgreSQL) Init() error {
 	}
 	if len(returnedSchemas) != len(schemas) {
 		notExistsSchemas := utils.SetDifference(schemas, returnedSchemas)
-		return fmt.Errorf("schema '%s' does not exist in target", strings.Join(notExistsSchemas, ","))
+		return goerrors.Errorf("schema '%s' does not exist in target", strings.Join(notExistsSchemas, ","))
 	}
 	return err
 }
@@ -230,18 +232,27 @@ func (pg *TargetPostgreSQL) PrepareForStreaming() {
 	pg.connPool.DisableThrottling()
 }
 
-const PG_DEFAULT_PARALLELISM_FACTOR = 8 // factor for default parallelism in case fetchDefaultParallelJobs() is not able to get the no of cores
+const PG_DEFAULT_PARALLELISM = 8 // default parallel jobs when core detection fails
+
+func (pg *TargetPostgreSQL) fetchDefaultParallelJobs() int {
+	totalCores, err := fetchCores([]*TargetConf{pg.tconf})
+	if err != nil {
+		log.Warnf("error fetching cores, using default parallelism of %d: %v",
+			PG_DEFAULT_PARALLELISM, err)
+		return PG_DEFAULT_PARALLELISM
+	}
+	if totalCores == 0 { //if target is running on MacOS, we are unable to determine totalCores
+		return 3
+	}
+	return totalCores / 2
+}
 
 func (pg *TargetPostgreSQL) InitConnPool() error {
-	tconfs := []*TargetConf{pg.tconf}
-	var targetUriList []string
-	for _, tconf := range tconfs {
-		targetUriList = append(targetUriList, tconf.Uri)
-	}
+	targetUriList := []string{pg.tconf.Uri}
 	log.Infof("targetUriList: %s", utils.GetRedactedURLs(targetUriList))
 
 	if pg.tconf.Parallelism == 0 {
-		pg.tconf.Parallelism = fetchDefaultParallelJobs(tconfs, PG_DEFAULT_PARALLELISM_FACTOR)
+		pg.tconf.Parallelism = pg.fetchDefaultParallelJobs()
 		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", pg.tconf.Parallelism)
 	}
 	params := &ConnectionParams{
@@ -700,7 +711,8 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 }
 
 func (pg *TargetPostgreSQL) setTargetSchema(conn *pgx.Conn) {
-	setSchemaQuery := fmt.Sprintf("SET SEARCH_PATH TO %s", pg.tconf.Schema)
+	schemas := sqlname.JoinIdentifiersMinQuoted(pg.tconf.Schemas, ", ")
+	setSchemaQuery := fmt.Sprintf("SET SEARCH_PATH TO %s", schemas)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
 		utils.ErrExit("run query: %q on target %q: %w", setSchemaQuery, pg.tconf.Host, err)
@@ -736,31 +748,74 @@ func (pg *TargetPostgreSQL) MaxBatchSizeInBytes() int64 {
 	return utils.GetEnvAsInt64("MAX_BATCH_SIZE_BYTES", 200*1024*1024) // default: 200 * 1024 * 1024 MB
 }
 
-func (pg *TargetPostgreSQL) GetIdentityColumnNamesForTable(tableNameTup sqlname.NameTuple, identityType string) ([]string, error) {
-	sname, tname := tableNameTup.ForCatalogQuery()
-	query := fmt.Sprintf(`SELECT column_name FROM information_schema.columns where table_schema='%s' AND
-		table_name='%s' AND is_identity='YES' AND identity_generation='%s'`, sname, tname, identityType)
-	log.Infof("query of identity(%s) columns for table(%s): %s", identityType, tableNameTup, query)
-	var identityColumns []string
-	err := pg.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-		rows, err := conn.Query(context.Background(), query)
+func (pg *TargetPostgreSQL) GetIdentityColumnNamesForTables(tableNameTuples []sqlname.NameTuple, identityType string) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
+	if len(tableNameTuples) == 0 {
+		return result, nil
+	}
+
+	// Build a single query to fetch identity columns for all tables at once
+	// Example query:
+	// SELECT table_schema, table_name, array_agg(column_name ORDER BY column_name) AS identity_columns
+	// FROM information_schema.columns
+	// WHERE (table_schema, table_name) IN (('public', 'users'), ('public', 'orders'), ('inventory', 'products'))
+	//   AND is_identity = 'YES'
+	//   AND identity_generation = 'ALWAYS'
+	// GROUP BY table_schema, table_name
+
+	var valuesClauses []string
+	tableNameMap := make(map[string]sqlname.NameTuple) // map to lookup table name tuples by schema and table name
+
+	for _, t := range tableNameTuples {
+		schema, table := t.ForCatalogQuery()
+		// Add to values for IN clause, e.g., "('my_schema','my_table')"
+		valuesClauses = append(valuesClauses, fmt.Sprintf("('%s', '%s')", schema, table))
+		tableNameMap[fmt.Sprintf("%s.%s", schema, table)] = t
+	}
+
+	query := fmt.Sprintf(`
+		SELECT table_schema, table_name, array_agg(column_name ORDER BY column_name) AS identity_columns
+		FROM information_schema.columns
+		WHERE (table_schema, table_name) IN (%s)
+		  AND is_identity = 'YES'
+		  AND identity_generation = '%s'
+		GROUP BY table_schema, table_name`,
+		strings.Join(valuesClauses, ", "), identityType)
+
+	log.Infof("Querying for identity columns for %d tables with type '%s'", len(tableNameTuples), identityType)
+	log.Debugf("Identity column query: %s", query)
+
+	rows, err := pg.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error in getting identity(%s) columns for tables: %w", identityType, err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var schemaName, tableName string
+		var identityColumnsPgTypeArray pgtype.TextArray
+		err = rows.Scan(&schemaName, &tableName, &identityColumnsPgTypeArray)
 		if err != nil {
-			log.Errorf("querying identity(%s) columns: %v", identityType, err)
-			return false, fmt.Errorf("querying identity(%s) columns: %w", identityType, err)
+			return nil, fmt.Errorf("error in scanning row for identity(%s) columns: %w", identityType, err)
 		}
-		defer rows.Close()
-		for rows.Next() {
-			var colName string
-			err = rows.Scan(&colName)
-			if err != nil {
-				log.Errorf("scanning row for identity(%s) column name: %v", identityType, err)
-				return false, fmt.Errorf("scanning row for identity(%s) column name: %w", identityType, err)
-			}
-			identityColumns = append(identityColumns, colName)
+
+		identityColumns := utils.ConvertPgTextArrayToStringSlice(identityColumnsPgTypeArray)
+
+		key := fmt.Sprintf("%s.%s", schemaName, tableName)
+		tableNameTuple, ok := tableNameMap[key]
+		if !ok {
+			// This should not happen if the query is correct.
+			log.Warnf("Found identity columns for table '%s' which was not in the original request", key)
+			continue
 		}
-		return false, nil
-	})
-	return identityColumns, err
+
+		result.Put(tableNameTuple, identityColumns)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over identity column results: %w", err)
+	}
+	return result, nil
+
 }
 
 func (pg *TargetPostgreSQL) DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error {
@@ -869,11 +924,11 @@ func (pg *TargetPostgreSQL) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	nonEmptyTables := pg.GetNonEmptyTables(tables)
 	if len(nonEmptyTables) != 0 {
 		log.Infof("tables %v are not empty in schema %s", nonEmptyTables, schema)
-		utils.PrintAndLog("removed the current migration state from the target DB. "+
+		utils.PrintAndLogf("removed the current migration state from the target DB. "+
 			"But could not remove the schema '%s' as it still contains state of other migrations in '%s' database", schema, pg.tconf.DBName)
 		return nil
 	}
-	utils.PrintAndLog("dropping schema %s", schema)
+	utils.PrintAndLogf("dropping schema %s", schema)
 	query := fmt.Sprintf("DROP SCHEMA %s CASCADE", schema)
 	_, err := pg.Exec(query)
 	if err != nil {
@@ -952,7 +1007,7 @@ func (pg *TargetPostgreSQL) isUserSuperUser() (bool, error) {
 
 func (pg *TargetPostgreSQL) listSchemasMissingUsagePermission() ([]string, error) {
 	// Users need usage permissions on the schemas they want to export and the pg_catalog and information_schema schemas
-	querySchemaArray := pg.getSchemaList()
+	querySchemaArray := sqlname.ExtractIdentifiersUnquoted(pg.tconf.Schemas)
 	querySchemaList := strings.Join(querySchemaArray, ",")
 	chkSchemaUsagePermissionQuery := fmt.Sprintf(`
 	SELECT 
@@ -1000,7 +1055,7 @@ func (pg *TargetPostgreSQL) listSchemasMissingUsagePermission() ([]string, error
 }
 
 func (pg *TargetPostgreSQL) listTablesMissingSelectInsertUpdateDeletePermissions() (map[string][]string, error) {
-	querySchemaArray := pg.getSchemaList()
+	querySchemaArray := sqlname.ExtractIdentifiersUnquoted(pg.tconf.Schemas)
 	querySchemaList := strings.Join(querySchemaArray, ",")
 
 	query := fmt.Sprintf(`
@@ -1095,17 +1150,12 @@ func (pg *TargetPostgreSQL) listTablesMissingSelectInsertUpdateDeletePermissions
 	return missingPermissions, nil
 }
 
-func (pg *TargetPostgreSQL) getSchemaList() []string {
-	schemas := strings.Split(pg.tconf.Schema, ",")
-	return schemas
-}
-
 func (pg *TargetPostgreSQL) GetEnabledTriggersAndFks() (enabledTriggers []string, enabledFks []string, err error) {
 	if slices.Contains(pg.tconf.SessionVars, SET_SESSION_REPLICATE_ROLE_TO_REPLICA) {
 		//Not check for any triggers / FKs in case this session parameter is used
 		return nil, nil, nil
 	}
-	querySchemaArray := pg.getSchemaList()
+	querySchemaArray := sqlname.ExtractIdentifiersUnquoted(pg.tconf.Schemas)
 	querySchemaList := strings.Join(querySchemaArray, ",")
 
 	// Check the trigger status using the tgenabled column, which can have three possible values:

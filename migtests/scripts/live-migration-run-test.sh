@@ -134,11 +134,11 @@ main() {
 	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.json
 
 	step "Create target database."
-	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
+	run_ysql yugabyte "DROP DATABASE IF EXISTS \"${TARGET_DB_NAME}\";"
 	if [ "${SOURCE_DB_TYPE}" = "postgresql" ] || [ "${SOURCE_DB_TYPE}" = "oracle" ]; then
-		run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME} with COLOCATION=TRUE"
+		run_ysql yugabyte "CREATE DATABASE \"${TARGET_DB_NAME}\" with COLOCATION=TRUE"
 	else
-		run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
+		run_ysql yugabyte "CREATE DATABASE \"${TARGET_DB_NAME}\""
 	fi
 
 	step "Import schema."
@@ -215,7 +215,7 @@ main() {
 	cutover_to_target
 
 	for ((i = 0; i < 10; i++)); do
-    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to target status" | cut -d ':'  -f 2 | tr -d '[:blank:]')" != "COMPLETED" ]; then
+    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "source → target" | awk -F'|' '{print $2}' | tr -d '[:blank:]')" != "COMPLETED" ]; then
         echo "Waiting for cutover to be COMPLETED..."
         sleep 20
         if [ "$i" -eq 9 ]; then
@@ -272,7 +272,7 @@ main() {
 	if [ "${run_via_config_file}" = true ]; then
 	rm -f "${GENERATED_CONFIG}"
 	fi
-	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
+	run_ysql yugabyte "DROP DATABASE IF EXISTS \"${TARGET_DB_NAME};\""
 }
 
 main

@@ -1,8 +1,9 @@
 package utils
 
 import (
-	"fmt"
 	"strings"
+
+	goerrors "github.com/go-errors/errors"
 )
 
 //Handling Bool flags with an explicit type
@@ -15,7 +16,7 @@ func (b *BoolStr) Set(s string) error {
 	if !t {
 		f := BoolStr(s == "false" || s == "0" || s == "f" || s == "n" || s == "no")
 		if !f { // value is neither true nor false.
-			return fmt.Errorf("invalid boolean value: %q (valid values: true, false)", s)
+			return goerrors.Errorf("invalid boolean value: %q (valid values: true, false)", s)
 		}
 	}
 	*b = t

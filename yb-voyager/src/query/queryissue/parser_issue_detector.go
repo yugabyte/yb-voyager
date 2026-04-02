@@ -21,13 +21,18 @@ import (
 	"slices"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
@@ -65,6 +70,7 @@ type ConstraintMetadata struct {
 type TableMetadata struct {
 	TableName          string
 	SchemaName         string
+	Usage              string
 	Columns            map[string]*ColumnMetadata
 	Constraints        []ConstraintMetadata
 	Indexes            []*queryparser.Index
@@ -267,6 +273,12 @@ type ParserIssueDetector struct {
 	// Table metadata consolidated into a single structure
 	// Key is qualified table name (schema.table), value is TableMetadata
 	tablesMetadata map[string]*TableMetadata
+
+	// object usages
+	objectUsages map[string]*ObjectUsageCategory
+
+	// Track if SAVEPOINT usage was detected across all queries
+	isSavepointUsed bool
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -298,15 +310,16 @@ func (p *ParserIssueDetector) getOrCreateTableMetadata(tableName string) *TableM
 		schemaName = parts[0]
 		tableNameOnly = parts[1]
 	}
-
 	tm := &TableMetadata{
 		TableName:   tableNameOnly,
 		SchemaName:  schemaName,
+		Usage:       ObjectUsageCategoryUnused, //start with  unused and populating it in FinalizeColumnMetadata->buildUsageCategoryForAllTables()
 		Columns:     make(map[string]*ColumnMetadata),
 		Constraints: make([]ConstraintMetadata, 0),
 		Indexes:     make([]*queryparser.Index, 0),
 	}
 	p.tablesMetadata[tableName] = tm
+
 	return tm
 }
 
@@ -420,15 +433,15 @@ func (p *ParserIssueDetector) GetColumnsWithHotspotRangeIndexesDatatypes() map[s
 func (p *ParserIssueDetector) getAllIssues(query string) ([]QueryIssue, error) {
 	plpgsqlIssues, err := p.getPLPGSQLIssues(query)
 	if err != nil {
-		return nil, fmt.Errorf("error getting plpgsql issues: %v", err)
+		return nil, goerrors.Errorf("error getting plpgsql issues: %v", err)
 	}
 	dmlIssues, err := p.getDMLIssues(query)
 	if err != nil {
-		return nil, fmt.Errorf("error getting generic issues: %v", err)
+		return nil, goerrors.Errorf("error getting generic issues: %v", err)
 	}
 	ddlIssues, err := p.getDDLIssues(query)
 	if err != nil {
-		return nil, fmt.Errorf("error getting ddl issues: %v", err)
+		return nil, goerrors.Errorf("error getting ddl issues: %v", err)
 	}
 	return lo.Flatten([][]QueryIssue{plpgsqlIssues, dmlIssues, ddlIssues}), nil
 }
@@ -492,7 +505,7 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, erro
 	}
 	percentTypeSyntaxIssues, err := p.GetPercentTypeSyntaxIssues(query)
 	if err != nil {
-		return nil, fmt.Errorf("error getting reference TYPE syntax issues: %v", err)
+		return nil, goerrors.Errorf("error getting reference TYPE syntax issues: %v", err)
 	}
 	issues = append(issues, percentTypeSyntaxIssues...)
 
@@ -505,8 +518,29 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, erro
 	}), nil
 }
 
-// FinalizeColumnMetadata processes the column metadata after all DDL statements have been parsed.
-func (p *ParserIssueDetector) FinalizeColumnMetadata() {
+func (p *ParserIssueDetector) PopulateObjectUsages(objectUsagesStats []*types.ObjectUsageStats) {
+	var maxReads, maxWrites int64
+	for _, objectUsageStat := range objectUsagesStats {
+		if objectUsageStat.Scans > maxReads {
+			maxReads = objectUsageStat.Scans
+		}
+		if objectUsageStat.TotalWrites() > maxWrites {
+			maxWrites = objectUsageStat.TotalWrites()
+		}
+	}
+	objectUsageStatsMap := make(map[string]*ObjectUsageCategory)
+	for _, objectUsageStat := range objectUsagesStats {
+		objectUsage := NewObjectUsage(objectUsageStat.SchemaName, objectUsageStat.ObjectName, objectUsageStat.ObjectType, objectUsageStat.ParentTableName, objectUsageStat.Scans, objectUsageStat.Inserts, objectUsageStat.Updates, objectUsageStat.Deletes)
+		objectUsage.ReadUsage = GetReadUsageCategory(objectUsageStat.Scans, maxReads)
+		objectUsage.WriteUsage = GetWriteUsageCategory(objectUsageStat.TotalWrites(), maxWrites)
+		objectUsage.Usage = GetCombinedUsageCategory(objectUsage.ReadUsage, objectUsage.WriteUsage)
+		objectUsageStatsMap[objectUsageStat.GetObjectName()] = objectUsage
+	}
+	p.objectUsages = objectUsageStatsMap
+}
+
+// FinalizeTablesMetadata processes the column metadata after all DDL statements have been parsed.
+func (p *ParserIssueDetector) FinalizeTablesMetadata() {
 	// Finalize column metadata for inherited tables - copying columns from parent tables to child tables
 	p.finalizeColumnsFromParentMap(p.getInheritedFrom())
 
@@ -524,6 +558,43 @@ func (p *ParserIssueDetector) FinalizeColumnMetadata() {
 
 	// Build partition hierarchies
 	p.buildPartitionHierarchies()
+
+	p.buildUsageCategoryForAllTables()
+}
+
+/*
+Building the usage category for all the tables beforehand in the finalize step
+to populate the usage category for all the partitions once the partitions are populated in the buildPartitionHierarchies step
+for the partitioned tables.
+This is not required for indexes because the indexes are only reported per partitions level
+*/
+func (p *ParserIssueDetector) buildUsageCategoryForAllTables() {
+	for _, tm := range p.tablesMetadata {
+		tm.Usage = p.getUsageCategoryForTable(tm)
+	}
+}
+
+func (p *ParserIssueDetector) getUsageCategoryForTable(tm *TableMetadata) string {
+	objName := sqlname.NewObjectName(constants.POSTGRESQL, "", tm.SchemaName, tm.TableName)
+	qualifiedObjName := objName.Qualified.Unquoted
+	stat, ok := p.objectUsages[qualifiedObjName]
+	if !ok {
+		log.Infof("No object usage stats found for table: %s", qualifiedObjName)
+		return ObjectUsageCategoryUnused
+	}
+	usageCategory := stat.Usage
+
+	if !tm.IsPartitioned() {
+		return usageCategory
+	}
+
+	//for the partitioned tables the usage is only stored per partition level
+	//so we need to combine the usage of all the partitions to get the usage for the partitioned table
+	for _, partition := range tm.Partitions {
+		partitionUsageCategory := p.getUsageCategoryForTable(partition)
+		usageCategory = GetCombinedUsageCategory(usageCategory, partitionUsageCategory)
+	}
+	return usageCategory
 }
 
 // buildPartitionHierarchies builds the direct child relationships for all tables
@@ -668,7 +739,7 @@ func (p *ParserIssueDetector) finalizeForeignKeyConstraints() {
 func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 	parseTree, err := queryparser.Parse(query)
 	if err != nil {
-		return fmt.Errorf("error parsing a query: %v", err)
+		return goerrors.Errorf("error parsing a query: %v", err)
 	}
 	ddlObj, err := queryparser.ProcessDDL(parseTree)
 	if err != nil {
@@ -826,7 +897,7 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		}
 	case *queryparser.Index:
 		index, _ := ddlObj.(*queryparser.Index)
-		if index.AccessMethod == GIN_ACCESS_METHOD {
+		if index.AccessMethod == queryparser.GIN_ACCESS_METHOD {
 			p.isGinIndexPresentInSchema = true
 		}
 
@@ -852,7 +923,7 @@ func (p *ParserIssueDetector) GetDDLIssues(query string, targetDbVersion *ybvers
 func (p *ParserIssueDetector) getDDLIssues(query string) ([]QueryIssue, error) {
 	parseTree, err := queryparser.Parse(query)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing a query: %v", err)
+		return nil, goerrors.Errorf("error parsing a query: %v", err)
 	}
 	isDDL, err := queryparser.IsDDL(parseTree)
 	if err != nil {
@@ -885,6 +956,40 @@ func (p *ParserIssueDetector) getDDLIssues(query string) ([]QueryIssue, error) {
 		}
 	}
 
+	// Generate recommended SQL for issues
+
+	//checks if the issue has a SQL fix generator and no error is returned
+	hasRecommendedSql := make(map[*QueryIssue]bool)
+
+	workaroundParseTree := queryparser.CloneParseTree(parseTree)
+	for i := range issues {
+		var hasSQLFixGenerator bool
+		var err error
+
+		workaroundParseTree, hasSQLFixGenerator, err = p.GenerateRecommendedSql(issues[i], workaroundParseTree)
+		if err != nil {
+			log.Warnf("error generating recommended SQL for issue %s: %v", issues[i].Type, err)
+			continue
+		}
+
+		if hasSQLFixGenerator {
+			hasRecommendedSql[&issues[i]] = true
+		}
+	}
+
+	recommendedSql, err := queryparser.Deparse(workaroundParseTree)
+	if err != nil {
+		log.Warnf("error deparsing recommended SQL: %v", err)
+	}
+
+	if recommendedSql != "" && recommendedSql != query {
+		for i := range issues {
+			if hasRecommendedSql[&issues[i]] {
+				issues[i].Details[RECOMMENDED_SQL] = recommendedSql
+			}
+		}
+	}
+
 	/*
 		For detecting these generic issues (Advisory locks, XML functions and System columns as of now) on DDL example -
 		CREATE INDEX idx_invoices on invoices (xpath('/invoice/customer/text()', data));
@@ -907,13 +1012,13 @@ func (p *ParserIssueDetector) getDDLIssues(query string) ([]QueryIssue, error) {
 func (p *ParserIssueDetector) GetPercentTypeSyntaxIssues(query string) ([]QueryIssue, error) {
 	parseTree, err := queryparser.Parse(query)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing the query-%s: %v", query, err)
+		return nil, goerrors.Errorf("error parsing the query-%s: %v", query, err)
 	}
 
 	objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
 	typeNames, err := queryparser.GetAllTypeNamesInPlpgSQLStmt(query)
 	if err != nil {
-		return nil, fmt.Errorf("error getting type names in PLPGSQL: %v", err)
+		return nil, goerrors.Errorf("error getting type names in PLPGSQL: %v", err)
 	}
 
 	/*
@@ -950,7 +1055,7 @@ func (p *ParserIssueDetector) getDMLIssues(query string) ([]QueryIssue, error) {
 	}
 	isDDL, err := queryparser.IsDDL(parseTree)
 	if err != nil {
-		return nil, fmt.Errorf("error checking if query is a DDL: %v", err)
+		return nil, goerrors.Errorf("error checking if query is a DDL: %v", err)
 	}
 	if isDDL {
 		//Skip all the DDLs coming to this function
@@ -988,6 +1093,9 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		NewDatabaseOptionsDetector(query),
 		NewListenNotifyIssueDetector(query),
 		NewTwoPhaseCommitDetector(query),
+		NewSavepointDetector(func() {
+			p.isSavepointUsed = true
+		}),
 	}
 
 	processor := func(msg protoreflect.Message) error {
@@ -1077,13 +1185,35 @@ func (p *ParserIssueDetector) DetectMissingForeignKeyIndexes() []QueryIssue {
 			// Check if this FK has proper index coverage using existing logic
 			if !p.hasProperIndexCoverage(constraint, tableName) {
 				// Create and add the issue
-				issue := p.createMissingFKIndexIssue(constraint, tableName)
+				issue := p.createMissingFKIndexIssue(constraint, tableName, tm.Usage)
 				issues = append(issues, issue)
 			}
 		}
 	}
 
 	return issues
+}
+
+// For indexes we don't have any writes related information, so we get a writes usage for the table associated with that index
+// and use a combined usage of index reads and table writes
+func (p *ParserIssueDetector) getUsageCategoryForIndex(schemaName, tableName, indexName string) string {
+	objName := sqlname.NewObjectNameQualifiedWithTableName(constants.POSTGRESQL, "", indexName, schemaName, tableName)
+	qualifiedObjName := objName.Qualified.Unquoted
+	indexStat, ok := p.objectUsages[qualifiedObjName]
+	if !ok {
+		log.Infof("No object usage stats found for index: %s", qualifiedObjName)
+		return ObjectUsageCategoryUnused
+	}
+	indexReadCategory := indexStat.ReadUsage
+	tableObjName := sqlname.NewObjectName(constants.POSTGRESQL, "", schemaName, tableName)
+	qualifiedObjName = tableObjName.Qualified.Unquoted
+	tableStat, ok := p.objectUsages[qualifiedObjName]
+	if !ok {
+		log.Infof("No object usage stats found for table: %s", qualifiedObjName)
+		return ObjectUsageCategoryUnused
+	}
+	tableWritesCategory := tableStat.WriteUsage
+	return GetCombinedUsageCategory(indexReadCategory, tableWritesCategory)
 }
 
 // DetectPrimaryKeyRecommendations recommends adding a PK when there's a UNIQUE constraint with all NOT NULL columns and no PK
@@ -1177,7 +1307,7 @@ func (p *ParserIssueDetector) detectTablePKRecommendations(tm *TableMetadata) []
 	})
 
 	if len(uniqueOptions) > 0 {
-		issues = append(issues, NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", tm.GetObjectName(), uniqueOptions))
+		issues = append(issues, NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", tm.GetObjectName(), uniqueOptions, tm.Usage))
 	}
 
 	return issues
@@ -1233,7 +1363,7 @@ func (p *ParserIssueDetector) hasIndexCoverage(index *queryparser.Index, fkColum
 }
 
 // createMissingFKIndexIssue creates a QueryIssue from a foreign key constraint
-func (p *ParserIssueDetector) createMissingFKIndexIssue(constraint ConstraintMetadata, tableName string) QueryIssue {
+func (p *ParserIssueDetector) createMissingFKIndexIssue(constraint ConstraintMetadata, tableName string, usageCategory string) QueryIssue {
 	// Create fully qualified column names
 	qualifiedColumnNames := make([]string, len(constraint.Columns))
 	for i, colName := range constraint.Columns {
@@ -1246,6 +1376,7 @@ func (p *ParserIssueDetector) createMissingFKIndexIssue(constraint ConstraintMet
 		"", // sqlStatement - we don't have this in stored constraint
 		strings.Join(qualifiedColumnNames, ", "),
 		constraint.ReferencedTable,
+		usageCategory,
 	)
 }
 
@@ -1282,7 +1413,7 @@ func (p *ParserIssueDetector) addConstraintAsIndex(schemaName, tableName string,
 		IsUnique:   isUnique,
 		// Primary keys and unique constraints use btree by default.
 		//  Mentioned in the docs here:https://www.postgresql.org/docs/current/sql-createtable.html#:~:text=Adding%20a%20PRIMARY%20KEY%20constraint%20will%20automatically%20create%20a%20unique%20btree%20index%20on%20the%20column%20or%20group%20of%20columns%20used%20in%20the%20constraint.%20That%20index%20has%20the%20same%20name%20as%20the%20primary%20key%20constraint
-		AccessMethod: BTREE_ACCESS_METHOD,
+		AccessMethod: queryparser.BTREE_ACCESS_METHOD,
 		Params:       indexParams,
 	}
 
@@ -1315,6 +1446,11 @@ func (p *ParserIssueDetector) processTableConstraintsAsIndexes(table *queryparse
 			}
 		}
 	}
+}
+
+// IsSavepointUsed returns true if SAVEPOINT usage was detected in any query
+func (p *ParserIssueDetector) IsSavepointUsed() bool {
+	return p.isSavepointUsed
 }
 
 // ======= Functions not use parser right now

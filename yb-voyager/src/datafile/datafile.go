@@ -31,7 +31,7 @@ type DataFile interface {
 	SkipLines(numLines int64) error
 	NextLine() (string, int64, error) // line, bytes read for the line, error
 	GetBytesRead() int64
-	ResetBytesRead(int64) //bytes to be set 
+	ResetBytesRead(int64) //bytes to be set
 	GetHeader() string
 	Close()
 }
@@ -39,14 +39,18 @@ type DataFile interface {
 // Example: `COPY "Foo" ("v") FROM STDIN;`
 var reCopy = regexp.MustCompile(`(?i)COPY .* FROM STDIN;`)
 
-func NewDataFile(fileName string, reader io.ReadCloser, descriptor *Descriptor) (DataFile, error) {
+// NewDataFile creates a DataFile for the given format. openedAtOffset is the byte
+// offset at which the reader was opened (0 for start-of-file); format-specific
+// implementations use this to adjust internal state (e.g., SQL files assume they
+// are inside a COPY block when opened mid-file).
+func NewDataFile(fileName string, reader io.ReadCloser, descriptor *Descriptor, openedAtOffset int64) (DataFile, error) {
 	switch descriptor.FileFormat {
 	case CSV:
 		return newCsvDataFile(fileName, reader, descriptor)
 	case TEXT:
 		return newTextDataFile(fileName, reader, descriptor)
 	case SQL:
-		return newSqlDataFile(fileName, reader, descriptor)
+		return newSqlDataFile(fileName, reader, descriptor, openedAtOffset)
 	default:
 		panic(fmt.Sprintf("Unknown file type %q", descriptor.FileFormat))
 

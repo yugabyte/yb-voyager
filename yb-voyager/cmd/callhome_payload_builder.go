@@ -51,7 +51,10 @@ var (
 	}
 )
 
-func packAndSendAssessMigrationPayload(status string, errMsg error) {
+func packAndSendAssessMigrationPayload(
+	status string,
+	errMsg error,
+) {
 	var err error
 	if !shouldSendCallhome() {
 		return
@@ -132,6 +135,17 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 		}
 	}
 
+	// Build replica assessment topology information
+	// Note: Sent on both success and error (if discovery completed before failure)
+	var replicaTopology *callhome.ReplicaAssessmentTopology
+	if replicaDiscoveryInfoForCallhome != nil && len(replicaDiscoveryInfoForCallhome.ValidatedReplicas) > 0 {
+		replicaTopology = &callhome.ReplicaAssessmentTopology{
+			ReplicasDiscovered: replicaDiscoveryInfoForCallhome.DiscoveredCount,
+			ReplicasProvided:   replicaDiscoveryInfoForCallhome.UserProvidedCount,
+			ReplicasUsed:       len(replicaDiscoveryInfoForCallhome.ValidatedReplicas),
+		}
+	}
+
 	assessPayload := callhome.AssessMigrationPhasePayload{
 		PayloadVersion:                 callhome.ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION,
 		TargetDBVersion:                assessmentReport.TargetDBVersion,
@@ -147,6 +161,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 		IopsInterval:                   intervalForCapturingIOPS,
 		ControlPlaneType:               getControlPlaneType(),
 		AnonymizedDDLs:                 getAnonymizedDDLs(&source),
+		ReplicaAssessmentTopology:      replicaTopology,
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(assessPayload)
@@ -188,7 +203,7 @@ func anonymizeSourceDBDetails(source *srcdb.Source) callhome.SourceDBDetails {
 	}
 
 	// Anonymize schema names
-	if source.Schema != "" {
+	if len(source.Schemas) > 0 {
 		schemaList := source.GetSchemaList()
 		anonymizedSchemas := make([]string, 0, len(schemaList))
 		for _, schemaName := range schemaList {
@@ -225,7 +240,7 @@ func anonymizeAssessmentIssuesForCallhomePayload(assessmentIssues []AssessmentIs
 	var err error
 	anonymizedIssues := make([]callhome.AssessmentIssueCallhome, len(assessmentIssues))
 	for i, issue := range assessmentIssues {
-		anonymizedIssues[i] = callhome.NewAssessmentIssueCallhome(issue.Category, issue.CategoryDescription, issue.Type, issue.Name, issue.Impact, issue.ObjectType, issue.Details)
+		anonymizedIssues[i] = callhome.NewAssessmentIssueCallhome(issue.Category, issue.CategoryDescription, issue.Type, issue.Name, issue.Impact, issue.ObjectType, issue.Details, issue.ObjectUsage)
 
 		if shouldSkipAnonymization(issue) {
 			continue
@@ -422,14 +437,14 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 	}
 	//For individual change, adding the anonymized object names to the callhome payload
 	schemaOptimizationChanges := make([]callhome.SchemaOptimizationChange, 0)
-	if schemaOptimizationReport.RedundantIndexChange.Exist() {
+	if schemaOptimizationReport.RedundantIndexChange != nil {
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
 			OptimizationType: REDUNDANT_INDEX_CHANGE_TYPE,
 			IsApplied:        schemaOptimizationReport.RedundantIndexChange.IsApplied,
 			Objects:          getAnonymizedIndexObjectsFromIndexToTableMap(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap),
 		})
 	}
-	if schemaOptimizationReport.TableColocationRecommendation.Exist() {
+	if schemaOptimizationReport.TableColocationRecommendation != nil {
 		objects := make([]string, 0)
 		for _, obj := range schemaOptimizationReport.TableColocationRecommendation.ShardedObjects {
 			anonymizedObj, err := anonymizer.AnonymizeQualifiedTableName(obj)
@@ -445,7 +460,7 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 			Objects:          objects,
 		})
 	}
-	if schemaOptimizationReport.MviewColocationRecommendation.Exist() {
+	if schemaOptimizationReport.MviewColocationRecommendation != nil {
 		objects := make([]string, 0)
 		for _, obj := range schemaOptimizationReport.MviewColocationRecommendation.ShardedObjects {
 			anonymizedObj, err := anonymizer.AnonymizeQualifiedMViewName(obj)
@@ -461,28 +476,28 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 			Objects:          schemaOptimizationReport.MviewColocationRecommendation.ShardedObjects,
 		})
 	}
-	if schemaOptimizationReport.SecondaryIndexToRangeChange.Exist() {
+	if schemaOptimizationReport.SecondaryIndexToRangeChange != nil {
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
 			OptimizationType: SECONDARY_INDEX_TO_RANGE_CHANGE_TYPE,
 			IsApplied:        schemaOptimizationReport.SecondaryIndexToRangeChange.IsApplied,
 			Objects:          getAnonymizedIndexObjectsFromIndexToTableMap(schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes),
 		})
 	}
-	if schemaOptimizationReport.PKHashShardingChange.Exist() {
+	if schemaOptimizationReport.PKHashShardingChange != nil {
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
 			OptimizationType: PK_HASH_SPLITTING_CHANGE_TYPE,
 			IsApplied:        schemaOptimizationReport.PKHashShardingChange.IsApplied,
 			Objects:          anonymizeQualifiedTableNames(schemaOptimizationReport.PKHashShardingChange.ModifiedTables),
 		})
 	}
-	if schemaOptimizationReport.PKOnTimestampRangeShardingChange.Exist() {
+	if schemaOptimizationReport.PKOnTimestampRangeShardingChange != nil {
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
 			OptimizationType: PK_ON_TIMESTAMP_OR_DATE_RANGE_SPLITTING_CHANGE_TYPE,
 			IsApplied:        schemaOptimizationReport.PKOnTimestampRangeShardingChange.IsApplied,
 			Objects:          anonymizeQualifiedTableNames(schemaOptimizationReport.PKOnTimestampRangeShardingChange.ModifiedTables),
 		})
 	}
-	if schemaOptimizationReport.UKRangeShardingChange.Exist() {
+	if schemaOptimizationReport.UKRangeShardingChange != nil {
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
 			OptimizationType: UK_RANGE_SPLITTING_CHANGE_TYPE,
 			IsApplied:        schemaOptimizationReport.UKRangeShardingChange.IsApplied,

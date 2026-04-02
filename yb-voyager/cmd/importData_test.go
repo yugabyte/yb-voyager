@@ -143,13 +143,6 @@ FROM generate_series(1, 500000);`
 		if err := runner.Kill(); err != nil {
 			t.Errorf("Failed to kill import command process on run #%d: %v", i+1, err)
 		}
-
-		// Wait for the command to exit.
-		if err := runner.Wait(); err != nil {
-			t.Logf("Async import run #%d exited with error (expected): %v", i+1, err)
-		} else {
-			t.Logf("Async import run #%d completed unexpectedly", i+1)
-		}
 	}
 
 	// Now, resume the import without interruption (synchronous mode) to complete the data import.
@@ -251,13 +244,6 @@ FROM generate_series(1, 500000);`
 		t.Log("Simulating interruption by sending SIGKILL to the import command process...")
 		if err = importDataCmdRunner.Kill(); err != nil {
 			t.Errorf("Failed to kill import command process on run #%d: %v", i+1, err)
-		}
-
-		// Wait for the command to exit.
-		if err = importDataCmdRunner.Wait(); err != nil {
-			t.Logf("Async import run #%d exited with error (expected): %v", i+1, err)
-		} else {
-			t.Logf("Async import run #%d completed unexpectedly", i+1)
 		}
 	}
 
@@ -1242,7 +1228,7 @@ func TestExportAndImportDataSnapshotReport(t *testing.T) {
 	assert.Equal(t, 1, len(statusReport), "Report should contain exactly one entry")
 
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `public."test_data"`,
+		TableName:          `"public"."test_data"`,
 		FileName:           "",
 		ImportedCount:      10,
 		ErroredCount:       0,
@@ -1366,7 +1352,7 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue_BatchInge
 	assert.Equal(t, 1, len(statusReport), "Report should contain exactly one entry")
 
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `public."test_data"`,
+		TableName:          `"public"."test_data"`,
 		FileName:           "",
 		ImportedCount:      90,
 		ErroredCount:       10,
@@ -1390,15 +1376,15 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue_BatchInge
 	testutils.FatalIfError(t, err, "End migration command failed")
 
 	// Verify that the backup directory contains the expected error files.
-	// error file is expected to be under dir table::test_data/file::test_data_data.sql:1960b25c and of the name ingestion-error.batch::1.10.10.92.E
 	tableDir := fmt.Sprintf("table::%s", tblName.ForKey())
 	fileDir := fmt.Sprintf("file::test_data_data.sql:%s", importdata.ComputePathHash(filepath.Join(exportDir, "data", "test_data_data.sql")))
 	tableFileErrorsDir := filepath.Join(backupDir, "data", "errors", tableDir, fileDir)
-	errorFilePath := filepath.Join(tableFileErrorsDir, "ingestion-error.batch::1.10.10.92.E")
-	assert.FileExistsf(t, errorFilePath, "Expected error file %s to exist", errorFilePath)
+	errorFiles, globErr := filepath.Glob(filepath.Join(tableFileErrorsDir, "ingestion-error.batch::1.10.10.92.*.E"))
+	assert.NoError(t, globErr)
+	assert.Equal(t, 1, len(errorFiles), "Expected exactly one ingestion error file, found: %v", errorFiles)
 
 	// Verify the content of the error file
-	testutils.AssertFileContains(t, errorFilePath, "duplicate key value violates unique constraint")
+	testutils.AssertFileContains(t, errorFiles[0], "duplicate key value violates unique constraint")
 }
 
 func TestImportOfSubsetOfExportedTables(t *testing.T) {
@@ -1523,7 +1509,7 @@ FROM generate_series(1, 10);`
 	//assert error contains table not found
 	assert.NotNil(t, err)
 	assert.Contains(t, importCmd.Stdout(), `Following source tables are not present in the target database:
-test_schema."test_migration1"`)
+"test_schema"."test_migration1"`)
 
 	importCmd = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
@@ -1573,7 +1559,7 @@ Valid table names are: [test_schema.test_migration]
 
 	assert.Equal(t, 2, len(importReportData), "Report should contain exactly two entries")
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `test_schema."test_migration"`,
+		TableName:          `"test_schema"."test_migration"`,
 		FileName:           "",
 		ImportedCount:      10,
 		ErroredCount:       0,
@@ -1583,7 +1569,7 @@ Valid table names are: [test_schema.test_migration]
 	}, importReportData[0], "Status report row mismatch")
 
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `test_schema."test_migration1"`,
+		TableName:          `"test_schema"."test_migration1"`,
 		FileName:           "",
 		ImportedCount:      0,
 		ErroredCount:       0,
@@ -1617,7 +1603,7 @@ Valid table names are: [test_schema.test_migration]
 	}, exportReportData[1], "Status report row mismatch")
 
 	//verify the sequence last value is restored properly
-	seq1 := `test_schema.test_migration_id_seq`
+	seq1 := `"test_schema".test_migration_id_seq`
 	res1, err := yugabytedbContainer.Query(fmt.Sprintf("SELECT nextval('%s')", seq1))
 	testutils.FatalIfError(t, err, "Failed to query sequence %s", seq1)
 	defer res1.Close()
@@ -1751,7 +1737,7 @@ FROM generate_series(1, 10);`
 	//assert error contains table not found
 	assert.NotNil(t, err)
 	assert.Contains(t, importCmd.Stdout(), `Following source tables are not present in the target database:
-test_schema."test_migration1"`)
+"test_schema"."test_migration1"`)
 
 	importCmd = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
@@ -1804,7 +1790,7 @@ Valid table names are: [test_schema.test_migration]
 
 	assert.Equal(t, 2, len(importReportData), "Report should contain exactly one entry")
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `test_schema."test_migration"`,
+		TableName:          `"test_schema"."test_migration"`,
 		FileName:           "",
 		ImportedCount:      10,
 		ErroredCount:       0,
@@ -1814,7 +1800,7 @@ Valid table names are: [test_schema.test_migration]
 	}, importReportData[0], "Status report row mismatch")
 
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `test_schema."test_migration1"`,
+		TableName:          `"test_schema"."test_migration1"`,
 		FileName:           "",
 		ImportedCount:      10,
 		ErroredCount:       0,
@@ -1848,8 +1834,8 @@ Valid table names are: [test_schema.test_migration]
 	}, exportReportData[1], "Status report row mismatch")
 
 	//verify the sequence last value is restored properly
-	seq1 := `test_schema.test_migration_id_seq`
-	seq2 := `test_schema.test_migration1_id_seq`
+	seq1 := `"test_schema".test_migration_id_seq`
+	seq2 := `"test_schema".test_migration1_id_seq`
 	res1, err := yugabytedbContainer.Query(fmt.Sprintf("SELECT nextval('%s')", seq1))
 	testutils.FatalIfError(t, err, "Failed to query sequence %s", seq1)
 	defer res1.Close()
@@ -1996,7 +1982,7 @@ FROM generate_series(1, 10);`
 	//assert error contains table not found
 	assert.NotNil(t, err)
 	assert.Contains(t, importCmd.Stdout(), `Following source tables are not present in the target database:
-test_schema."test_migration1"`)
+"test_schema"."test_migration1"`)
 
 	err = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
@@ -2028,7 +2014,7 @@ test_schema."test_migration1"`)
 
 	assert.Equal(t, 2, len(importReportData), "Report should contain exactly two entries")
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `test_schema."test_migration"`,
+		TableName:          `"test_schema"."test_migration"`,
 		FileName:           "",
 		ImportedCount:      10,
 		ErroredCount:       0,
@@ -2038,7 +2024,7 @@ test_schema."test_migration1"`)
 	}, importReportData[0], "Status report row mismatch")
 
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `test_schema."test_migration1"`,
+		TableName:          `"test_schema"."test_migration1"`,
 		FileName:           "",
 		ImportedCount:      0,
 		ErroredCount:       0,
@@ -2072,7 +2058,7 @@ test_schema."test_migration1"`)
 	}, exportReportData[0], "Status report row mismatch")
 
 	//verify the sequence last value is restored properly
-	seq1 := `test_schema.test_migration_id_seq`
+	seq1 := `"test_schema".test_migration_id_seq`
 	res1, err := yugabytedbContainer.Query(fmt.Sprintf("SELECT nextval('%s')", seq1))
 	testutils.FatalIfError(t, err, "Failed to query sequence %s", seq1)
 	defer res1.Close()
@@ -2193,7 +2179,7 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue_Processin
 	assert.Equal(t, 1, len(statusReport), "Report should contain exactly one entry")
 
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `public."test_data"`,
+		TableName:          `"public"."test_data"`,
 		FileName:           "",
 		ImportedCount:      99,
 		ErroredCount:       1,

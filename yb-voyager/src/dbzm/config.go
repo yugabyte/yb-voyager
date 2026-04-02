@@ -25,6 +25,8 @@ import (
 	"strconv"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 
@@ -106,6 +108,7 @@ debezium.source.database.server.name=yb-voyager
 
 debezium.source.errors.max.retries=15
 `
+
 // errors.max.retries config doesn't work currently as there is a known bug on debezium end https://issues.redhat.com/browse/DBZ-8711, so when we update to latest it will work.
 
 var baseSinkConfigTemplate = `
@@ -243,6 +246,7 @@ debezium.source.hstore.handling.mode=map
 debezium.source.decimal.handling.mode=precise
 debezium.source.converters=postgres_source_converter
 debezium.source.postgres_source_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
+debezium.source.grpc.connector.enabled=true
 `
 
 var yugabyteLogicalReplicationSrcConfigTemplate = `
@@ -256,6 +260,7 @@ debezium.source.hstore.handling.mode=map
 debezium.source.decimal.handling.mode=string
 debezium.source.converters=postgres_source_converter
 debezium.source.postgres_source_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
+debezium.source.grpc.connector.enabled=false
 `
 
 var yugabyteLogicalReplicationSlotNameTemplate = `
@@ -511,7 +516,7 @@ func (c *Config) WriteToFile(filePath string) error {
 	}
 	err := os.WriteFile(filePath, []byte(config), 0644)
 	if err != nil {
-		return fmt.Errorf("failed to write config file %s: %v", filePath, err)
+		return goerrors.Errorf("failed to write config file %s: %v", filePath, err)
 	}
 	return nil
 }

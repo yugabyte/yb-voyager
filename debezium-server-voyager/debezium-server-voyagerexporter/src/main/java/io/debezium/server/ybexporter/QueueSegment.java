@@ -6,6 +6,7 @@
 package io.debezium.server.ybexporter;
 
 import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
@@ -46,14 +47,17 @@ public class QueueSegment {
     private ObjectWriter ow;
     private ExportStatus es;
     private String exporterRole;
+    private boolean ybGRPCConnectorEnabled;
+    private Integer ObjectMapperMaxStringLength;
     // (schemaName, tableName) -> (operation -> count)
     private Map<Pair<String, String>, Map<String, Long>> eventCountDeltaPerTable;
 
-    public QueueSegment(String datadirStr, long segmentNo, String filePath) {
+    public QueueSegment(String datadirStr, long segmentNo, String filePath, boolean ybGRPCConnectorEnabled, String exporterRole, Integer ObjectMapperMaxStringLength) {
         this.segmentNo = segmentNo;
         this.filePath = filePath;
-        final Config config = ConfigProvider.getConfig();
-        exporterRole = config.getValue("debezium.sink.ybexporter.exporter.role", String.class);
+        this.exporterRole = exporterRole;
+        this.ybGRPCConnectorEnabled = ybGRPCConnectorEnabled;
+        this.ObjectMapperMaxStringLength = ObjectMapperMaxStringLength;
         es = ExportStatus.getInstance(datadirStr);
         ow = new ObjectMapper().writer();
         try {
@@ -165,7 +169,7 @@ public class QueueSegment {
     }
 
     public long getSequenceNumberOfLastRecord() {
-        ObjectMapper mapper = new ObjectMapper(new JsonFactory());
+        ObjectMapper mapper = createObjectMapper();
         long vsn = -1;
         String last = null, line;
         BufferedReader input;
@@ -185,6 +189,17 @@ public class QueueSegment {
             throw new RuntimeException(e);
         }
         return vsn;
+    }
+    private ObjectMapper createObjectMapper() {
+        if (exporterRole.equals("target_db_exporter_fb") || exporterRole.equals("target_db_exporter_ff")) {
+            if (ybGRPCConnectorEnabled) {
+                //In case of gRPC connector, debezium is at 1.9.5 version and uses jackson 2.13.1 which does not support StreamReadConstraints
+                // So, we use the default ObjectMapper - should not cause issues for large strings in that path as this guardrail is introduced in 2.15 https://github.com/FasterXML/jackson-core/issues/1001
+                return new ObjectMapper(new JsonFactory());
+            }
+        }
+        //for any connector which uses 2.5.2 or higher uses jackson 2.15.2 which supports StreamReadConstraints
+        return new ObjectMapper(JsonFactory.builder().streamReadConstraints(StreamReadConstraints.builder().maxStringLength(ObjectMapperMaxStringLength).build()).build());
     }
 
     public boolean isClosed() {

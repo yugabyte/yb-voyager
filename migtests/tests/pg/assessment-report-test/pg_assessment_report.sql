@@ -14,7 +14,8 @@ CREATE TABLE Mixed_Data_Types_Table1 (
     point_data POINT,
     snapshot_data TXID_SNAPSHOT,
     lseg_data LSEG,
-    box_data BOX
+    box_data BOX,
+    time_with_tz TIMETZ
 );
 
 CREATE TABLE Mixed_Data_Types_Table2 (
@@ -52,6 +53,13 @@ CREATE TABLE timestamptz_multirange_table (
 CREATE TABLE date_multirange_table (
     id SERIAL PRIMARY KEY,
     project_dates datemultirange
+);
+
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE vector_table (
+    id SERIAL PRIMARY KEY,
+    vector_data public.vector(10)
 );
 
 -- Unsupported Extensions

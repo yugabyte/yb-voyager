@@ -12,6 +12,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -21,6 +22,10 @@ type MysqlContainer struct {
 	container testcontainers.Container
 }
 
+func (ms *MysqlContainer) SetConfig(config ContainerConfig) {
+	ms.ContainerConfig = config
+}
+
 func (ms *MysqlContainer) Start(ctx context.Context) (err error) {
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
@@ -28,11 +33,11 @@ func (ms *MysqlContainer) Start(ctx context.Context) (err error) {
 	if ms.container != nil {
 		// already running, do nothing.
 		if ms.container.IsRunning() {
-			utils.PrintAndLog("MySQL-%s container already running", ms.DBVersion)
+			utils.PrintAndLogf("MySQL-%s container already running", ms.DBVersion)
 			return nil
 		}
 		// but if it’s stopped, so start it back up in place
-		utils.PrintAndLog("Restarting MySQL-%s container", ms.DBVersion)
+		utils.PrintAndLogf("Restarting MySQL-%s container", ms.DBVersion)
 		if err := ms.container.Start(ctx); err != nil {
 			return fmt.Errorf("failed to restart mysql container: %w", err)
 		}
@@ -99,7 +104,7 @@ func (ms *MysqlContainer) Stop(ctx context.Context) error {
 	if ms.container == nil {
 		return nil
 	} else if !ms.container.IsRunning() {
-		utils.PrintAndLog("MySQL-%s container already stopped", ms.DBVersion)
+		utils.PrintAndLogf("MySQL-%s container already stopped", ms.DBVersion)
 		return nil
 	}
 
@@ -172,6 +177,11 @@ func (ms *MysqlContainer) GetConnection() (*sql.DB, error) {
 	return db, nil
 }
 
+func (ms *MysqlContainer) GetConnectionWithDB(dbName string) (*sql.DB, error) {
+	// Fallback to default connection when dbName not used
+	return ms.GetConnection()
+}
+
 func (ms *MysqlContainer) GetVersion() (string, error) {
 	if ms == nil {
 		return "", fmt.Errorf("mysql container is not started: nil")
@@ -223,4 +233,14 @@ func (ms *MysqlContainer) Query(sql string, args ...interface{}) (*sql.Rows, err
 	}
 
 	return rows, nil
+}
+
+func (ms *MysqlContainer) QueryOnDB(dbName string, sql string, args ...interface{}) (*sql.Rows, error) {
+	//Not implemented
+	return ms.Query(sql, args...)
+}
+
+func (ms *MysqlContainer) ExecuteSqlsOnDB(dbName string, sqls ...string) {
+	//Not implemented
+	ms.ExecuteSqls(sqls...)
 }

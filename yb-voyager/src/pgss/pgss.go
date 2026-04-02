@@ -25,6 +25,9 @@ import (
 // PgStatStatements represents a pg_stat_statements entry
 // All field names follow PostgreSQL 13+ conventions for consistency across versions
 type PgStatStatements struct {
+	// Source node identifier (for multi-node assessments)
+	SourceNode string `json:"source_node"` // Node identifier (e.g., "primary", "10.0.1.5-5432")
+
 	// Core identification fields
 	QueryID int64  `json:"queryid"` // Unique identifier for the normalized query
 	Query   string `json:"query"`   // The query text
@@ -42,7 +45,7 @@ type PgStatStatements struct {
 }
 
 func (p *PgStatStatements) String() string {
-	return fmt.Sprintf("PgStatStatements{QueryID: %d\nQuery: %s\nCalls: %d\nRows: %d\nTotalExecTime: %f\nMeanExecTime: %f\nMinExecTime: %f\nMaxExecTime: %f\nStddevExecTime: %f}", p.QueryID, p.Query, p.Calls, p.Rows, p.TotalExecTime, p.MeanExecTime, p.MinExecTime, p.MaxExecTime, p.StddevExecTime)
+	return fmt.Sprintf("PgStatStatements{SourceNode: %s\nQueryID: %d\nQuery: %s\nCalls: %d\nRows: %d\nTotalExecTime: %f\nMeanExecTime: %f\nMinExecTime: %f\nMaxExecTime: %f\nStddevExecTime: %f}", p.SourceNode, p.QueryID, p.Query, p.Calls, p.Rows, p.TotalExecTime, p.MeanExecTime, p.MinExecTime, p.MaxExecTime, p.StddevExecTime)
 }
 
 // Merge merges the stats for the entries with the same query
@@ -51,7 +54,8 @@ func (p *PgStatStatements) Merge(second *PgStatStatements) {
 
 	first := *p // shallow copy is ok as no pointers in the struct
 
-	// queryid and query are expected to be same for the entries to be merged
+	// queryid, query, and source_node are expected to be same for the entries to be merged
+	p.SourceNode = first.SourceNode
 	p.QueryID = first.QueryID
 	p.Query = first.Query
 	p.Calls = first.Calls + second.Calls

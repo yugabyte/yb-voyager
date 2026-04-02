@@ -102,6 +102,49 @@ func TestParseFromCSVFormats(t *testing.T) {
 				assert.Equal(t, 3.5, entries[0].StddevExecTime, "StddevExecTime should match")
 			},
 		},
+		{
+			name: "JSONB format with total_exec_time (PostgreSQL 13+)",
+			csvData: `source_node,pgss_data
+primary,"{""queryid"":123,""query"":""SELECT * FROM users"",""calls"":100,""rows"":1000,""total_exec_time"":1500.5,""mean_exec_time"":15.005,""min_exec_time"":5.2,""max_exec_time"":25.8,""stddev_exec_time"":3.5}"
+primary,"{""queryid"":456,""query"":""SELECT id FROM products"",""calls"":50,""rows"":500,""total_exec_time"":750.0,""mean_exec_time"":15.0,""min_exec_time"":10.0,""max_exec_time"":20.0,""stddev_exec_time"":2.1}"`,
+			expectedLen: 2,
+			validate: func(t *testing.T, entries []*PgStatStatements) {
+				entry1 := entries[0]
+				assert.Equal(t, int64(123), entry1.QueryID, "Entry1 QueryID should match")
+				assert.Equal(t, "SELECT * FROM users", entry1.Query, "Entry1 Query should match")
+				assert.Equal(t, int64(100), entry1.Calls, "Entry1 Calls should match")
+				assert.Equal(t, 1500.5, entry1.TotalExecTime, "Entry1 TotalExecTime should match")
+				assert.Equal(t, 15.005, entry1.MeanExecTime, "Entry1 MeanExecTime should match")
+			},
+		},
+		{
+			name: "JSONB format with total_time (PostgreSQL 11-12 older naming)",
+			csvData: `source_node,pgss_data
+primary,"{""queryid"":321,""query"":""UPDATE users SET last_login = NOW()"",""calls"":75,""rows"":75,""total_time"":150.0,""mean_time"":2.0,""min_time"":1.0,""max_time"":5.0,""stddev_time"":0.8}"`,
+			expectedLen: 1,
+			validate: func(t *testing.T, entries []*PgStatStatements) {
+				entry1 := entries[0]
+				assert.Equal(t, int64(321), entry1.QueryID, "Entry1 QueryID should match")
+				assert.Equal(t, "UPDATE users SET last_login = NOW()", entry1.Query, "Entry1 Query should match")
+				assert.Equal(t, 150.0, entry1.TotalExecTime, "Entry1 TotalExecTime should match (from total_time)")
+				assert.Equal(t, 2.0, entry1.MeanExecTime, "Entry1 MeanExecTime should match (from mean_time)")
+				assert.Equal(t, 1.0, entry1.MinExecTime, "Entry1 MinExecTime should match (from min_time)")
+				assert.Equal(t, 5.0, entry1.MaxExecTime, "Entry1 MaxExecTime should match (from max_time)")
+				assert.Equal(t, 0.8, entry1.StddevExecTime, "Entry1 StddevExecTime should match (from stddev_time)")
+			},
+		},
+		{
+			name: "JSONB format with extra columns (should ignore them gracefully)",
+			csvData: `source_node,pgss_data
+primary,"{""queryid"":999,""query"":""SELECT pg_stat_reset()"",""calls"":5,""rows"":5,""total_exec_time"":1.5,""mean_exec_time"":0.3,""min_exec_time"":0.1,""max_exec_time"":0.8,""stddev_exec_time"":0.2,""shared_blks_hit"":100,""blk_read_time"":0.5,""wal_records"":10}"`,
+			expectedLen: 1,
+			validate: func(t *testing.T, entries []*PgStatStatements) {
+				entry1 := entries[0]
+				assert.Equal(t, int64(999), entry1.QueryID, "Entry1 QueryID should match")
+				assert.Equal(t, "SELECT pg_stat_reset()", entry1.Query, "Entry1 Query should match")
+				assert.Equal(t, 1.5, entry1.TotalExecTime, "Entry1 TotalExecTime should match")
+			},
+		},
 	}
 
 	for _, tt := range tests {

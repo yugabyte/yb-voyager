@@ -23,6 +23,10 @@ type PostgresContainer struct {
 	container testcontainers.Container
 }
 
+func (pg *PostgresContainer) SetConfig(config ContainerConfig) {
+	pg.ContainerConfig = config
+}
+
 func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 	pg.mutex.Lock()
 	defer pg.mutex.Unlock()
@@ -31,11 +35,11 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 	if pg.container != nil {
 		// already running, do nothing.
 		if pg.container.IsRunning() {
-			utils.PrintAndLog("Postgres-%s container already running", pg.DBVersion)
+			utils.PrintAndLogf("Postgres-%s container already running", pg.DBVersion)
 			return nil
 		}
 		// but if it’s stopped, so start it back up in place
-		utils.PrintAndLog("Restarting Postgres-%s container", pg.DBVersion)
+		utils.PrintAndLogf("Restarting Postgres-%s container", pg.DBVersion)
 		if err := pg.container.Start(ctx); err != nil {
 			return fmt.Errorf("failed to restart postgres container: %w", err)
 		}
@@ -80,7 +84,8 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 	if pg.ContainerConfig.ForLive {
 		req.Cmd = []string{
 			"postgres",
-			"-c", "wal_level=logical", // <-- set wal_level,
+			"-c", "wal_level=logical", // <-- set wal_level for logical replication
+			"-c", "max_replication_slots=20", // <-- increase max replication slots for live migration tests
 		}
 	}
 
@@ -112,7 +117,7 @@ func (pg *PostgresContainer) Stop(ctx context.Context) error {
 	if pg.container == nil {
 		return nil
 	} else if !pg.container.IsRunning() {
-		utils.PrintAndLog("Postgres-%s container already stopped", pg.DBVersion)
+		utils.PrintAndLogf("Postgres-%s container already stopped", pg.DBVersion)
 		return nil
 	}
 
@@ -226,6 +231,76 @@ func (pg *PostgresContainer) ExecuteSqls(sqls ...string) {
 	}
 }
 
+func (pg *PostgresContainer) getConnWithDefaultDB() (*pgx.Conn, error) {
+	host, port, err := pg.GetHostPort()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get host port for postgres connection string: %w", err)
+	}
+	connStr := fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?sslmode=disable", pg.User, pg.Password, host, port, "postgres")
+	conn, err := pgx.Connect(context.Background(), connStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to postgres: %w", err)
+	}
+	return conn, nil
+}
+func (pg *PostgresContainer) CreateDatabase(dbName string) error {
+	conn, err := pg.getConnWithDefaultDB()
+	if err != nil {
+		return fmt.Errorf("failed to get connection with default database: %w", err)
+	}
+	defer conn.Close(context.Background())
+
+	//check if database already exists
+	existsQuery := fmt.Sprintf("SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = '%s')", dbName)
+	var exists bool
+	err = conn.QueryRow(context.Background(), existsQuery).Scan(&exists)
+	if err != nil {
+		return fmt.Errorf("failed to check if database exists: %w", err)
+	}
+	if exists {
+		return nil
+	}
+
+	_, err = conn.Exec(context.Background(), fmt.Sprintf("CREATE DATABASE %s", dbName))
+	if err != nil {
+		return fmt.Errorf("failed to create database '%s': %w", dbName, err)
+	}
+	return nil
+}
+
+func (pg *PostgresContainer) DropDatabase(dbName string) error {
+	conn, err := pg.getConnWithDefaultDB()
+	if err != nil {
+		return fmt.Errorf("failed to get connection with default database: %w", err)
+	}
+	defer conn.Close(context.Background())
+
+	// First, terminate all active connections to the database
+	terminateQuery := `
+		SELECT pg_terminate_backend(pg_stat_activity.pid)
+		FROM pg_stat_activity
+		WHERE pg_stat_activity.datname = $1
+		AND pid <> pg_backend_pid();
+	`
+
+	_, err = conn.Exec(context.Background(), terminateQuery, dbName)
+	if err != nil {
+		return fmt.Errorf("failed to terminate some connections to database '%s': %w", dbName, err)
+	}
+
+	for i := 0; i < 5; i++ {
+		_, err = conn.Exec(context.Background(), fmt.Sprintf("DROP DATABASE %s", dbName))
+		if err == nil {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to drop database '%s': %w", dbName, err)
+	}
+	return nil
+}
+
 func (pg *PostgresContainer) Query(sql string, args ...interface{}) (*sql.Rows, error) {
 	if pg == nil {
 		utils.ErrExit("postgres container is not started: nil")
@@ -235,11 +310,54 @@ func (pg *PostgresContainer) Query(sql string, args ...interface{}) (*sql.Rows, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get connection for postgres query: %w", err)
 	}
-
+	defer conn.Close()
 	rows, err := conn.Query(sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query '%s': %w", sql, err)
 	}
 
 	return rows, nil
+}
+
+func (pg *PostgresContainer) GetConnectionWithDB(dbName string) (*sql.DB, error) {
+	config := pg.GetConfig()
+	host, port, err := pg.GetHostPort()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get host port for postgres connection string: %w", err)
+	}
+	connStr := fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", config.User, config.Password, host, port, dbName)
+	return sql.Open("pgx", connStr)
+}
+
+func (pg *PostgresContainer) QueryOnDB(dbName string, sql string, args ...interface{}) (*sql.Rows, error) {
+	if pg == nil {
+		utils.ErrExit("postgres container is not started: nil")
+	}
+	conn, err := pg.GetConnectionWithDB(dbName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get connection for postgres query on db '%s': %w", dbName, err)
+	}
+	defer conn.Close()
+	rows, err := conn.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query '%s': %w", sql, err)
+	}
+	return rows, nil
+}
+
+func (pg *PostgresContainer) ExecuteSqlsOnDB(dbName string, sqls ...string) {
+	if pg == nil {
+		utils.ErrExit("postgres container is not started: nil")
+	}
+	conn, err := pg.GetConnectionWithDB(dbName)
+	if err != nil {
+		utils.ErrExit("failed to get connection for postgres executing sqls on db: %w", err)
+	}
+	defer conn.Close()
+	for _, sql := range sqls {
+		_, err := conn.Exec(sql)
+		if err != nil {
+			utils.ErrExit("failed to execute sql '%s': %w", sql, err)
+		}
+	}
 }

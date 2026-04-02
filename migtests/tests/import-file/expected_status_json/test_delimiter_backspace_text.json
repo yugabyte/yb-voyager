@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"test_delimiter_backspace_text\"",
+      "table_name": "\"public\".\"test_delimiter_backspace_text\"",
       "file_name": "test_delimiter_backspace_text.txt",
       "status": "DONE",
       "total_count": 73,

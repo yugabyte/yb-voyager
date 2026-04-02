@@ -17,8 +17,8 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -36,8 +36,15 @@ var importDataToSourceCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		validateMetaDBCreated()
 		importType = SNAPSHOT_AND_CHANGES
+		msr, err := metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			utils.ErrExit("failed to get migration status record: %w", err)
+		}
+		if !msr.FallbackEnabled {
+			utils.ErrExit("fallback is not enabled for this migration")
+		}
 		importerRole = SOURCE_DB_IMPORTER_ROLE
-		err := initTargetConfFromSourceConf()
+		err = initTargetConfFromSourceConf()
 		if err != nil {
 			utils.ErrExit("failed to setup target conf from source conf in MSR: %w", err)
 		}
@@ -52,10 +59,14 @@ func init() {
 	registerCommonGlobalFlags(importDataToSourceCmd)
 	registerCommonImportFlags(importDataToSourceCmd)
 	registerSourceDBAsTargetConnFlags(importDataToSourceCmd)
-	registerFlagsForSourceReplica(importDataToSourceCmd)
+	registerFlagsForSourceAndSourceReplica(importDataToSourceCmd)
 	registerImportDataCommonFlags(importDataToSourceCmd)
 	hideImportFlagsInFallForwardOrBackCmds(importDataToSourceCmd)
 	importDataToSourceCmd.Flags().MarkHidden("batch-size")
+
+	importDataToSourceCmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
+		"Port for Prometheus metrics server (default: 9104)")
+	importDataToSourceCmd.Flags().MarkHidden("prometheus-metrics-port")
 }
 
 func initTargetConfFromSourceConf() error {
@@ -69,11 +80,8 @@ func initTargetConfFromSourceConf() error {
 	tconf.Port = sconf.Port
 	tconf.User = sconf.User
 	tconf.DBName = sconf.DBName
-	if tconf.TargetDBType == POSTGRESQL {
-		tconf.Schema = strings.Join(strings.Split(sconf.Schema, "|"), ",")
-	} else {
-		tconf.Schema = sconf.Schema
-	}
+	tconf.Schemas = sconf.Schemas
+	tconf.SchemaConfig = sconf.SchemaConfig
 	tconf.SSLMode = sconf.SSLMode
 	tconf.SSLMode = sconf.SSLMode
 	tconf.SSLCertPath = sconf.SSLCertPath
@@ -130,10 +138,18 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg error) {
 		Phase:            importPhase,
 	}
 
+	// Add cutover timings if applicable
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err == nil {
+		importDataPayload.CutoverTimings = CalculateCutoverTimingsForSource(msr)
+	} else {
+		log.Infof("callhome: error getting MSR for cutover timings: %v", err)
+	}
+
 	payload.PhasePayload = callhome.MarshalledJsonString(importDataPayload)
 	payload.Status = status
 
-	err := callhome.SendPayload(&payload)
+	err = callhome.SendPayload(&payload)
 	if err == nil && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
 	}

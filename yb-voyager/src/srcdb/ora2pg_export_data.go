@@ -184,7 +184,7 @@ func renameDataFilesForReservedWords(tablesProgressMetadata map[string]*utils.Ta
 			}
 			tableProgressMetadata.FinalFilePath = newFilePath
 		} else {
-			utils.PrintAndLog("File %q to rename doesn't exists!", oldFilePath)
+			utils.PrintAndLogf("File %q to rename doesn't exists!", oldFilePath)
 		}
 	}
 }
@@ -196,7 +196,7 @@ func getOra2pgExportedColumnsMap(exportDir string, tablesMetadata map[string]*ut
 		if tableMetadata.CountLiveRows == 0 {
 			continue
 		}
-		//using ForKey here as this map is stored in the datafile descriptor and for correctness we should use ForKey only 
+		//using ForKey here as this map is stored in the datafile descriptor and for correctness we should use ForKey only
 		tableName := tableMetadata.TableName.ForKey()
 		result[tableName] = getOra2pgExportedColumnsListForTable(exportDir, tableName, tableMetadata.FinalFilePath)
 	}

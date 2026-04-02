@@ -182,7 +182,7 @@ func TestSequentialTaskPickerResumePicksInProgressTask(t *testing.T) {
 	}
 
 	// update the state of the first task to in progress
-	fbp, err := NewFileBatchProducer(task1, state, errorHandler, progressReporter)
+	fbp, err := NewSequentialFileBatchProducer(task1, state, false, errorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 	batch, err := fbp.NextBatch()
 	assert.NoError(t, err)
@@ -1189,21 +1189,21 @@ func TestColocatedAwareRandomTaskPickerResumable(t *testing.T) {
 	// pick 3 tasks and start the process.
 	task1, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp1, err := NewFileBatchProducer(task1, state, errorHandler, progressReporter)
+	fbp1, err := NewSequentialFileBatchProducer(task1, state, false, errorHandler, progressReporter)
 	batch1, err := fbp1.NextBatch()
 	assert.NoError(t, err)
 	batch1.MarkInProgress()
 
 	task2, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp2, err := NewFileBatchProducer(task2, state, errorHandler, progressReporter)
+	fbp2, err := NewSequentialFileBatchProducer(task2, state, false, errorHandler, progressReporter)
 	batch2, err := fbp2.NextBatch()
 	assert.NoError(t, err)
 	batch2.MarkInProgress()
 
 	task3, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp3, err := NewFileBatchProducer(task3, state, errorHandler, progressReporter)
+	fbp3, err := NewSequentialFileBatchProducer(task3, state, false, errorHandler, progressReporter)
 	batch3, err := fbp3.NextBatch()
 	assert.NoError(t, err)
 	batch3.MarkInProgress()
@@ -2049,28 +2049,28 @@ func TestColocatedCappedRandomTaskPickeResumable(t *testing.T) {
 	// pick 4 tasks and start the process.
 	task1, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp1, err := NewFileBatchProducer(task1, state, errorHandler, progressReporter)
+	fbp1, err := NewSequentialFileBatchProducer(task1, state, false, errorHandler, progressReporter)
 	batch1, err := fbp1.NextBatch()
 	assert.NoError(t, err)
 	batch1.MarkInProgress()
 
 	task2, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp2, err := NewFileBatchProducer(task2, state, errorHandler, progressReporter)
+	fbp2, err := NewSequentialFileBatchProducer(task2, state, false, errorHandler, progressReporter)
 	batch2, err := fbp2.NextBatch()
 	assert.NoError(t, err)
 	batch2.MarkInProgress()
 
 	task3, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp3, err := NewFileBatchProducer(task3, state, errorHandler, progressReporter)
+	fbp3, err := NewSequentialFileBatchProducer(task3, state, false, errorHandler, progressReporter)
 	batch3, err := fbp3.NextBatch()
 	assert.NoError(t, err)
 	batch3.MarkInProgress()
 
 	task4, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp4, err := NewFileBatchProducer(task4, state, errorHandler, progressReporter)
+	fbp4, err := NewSequentialFileBatchProducer(task4, state, false, errorHandler, progressReporter)
 	batch4, err := fbp4.NextBatch()
 	assert.NoError(t, err)
 	batch4.MarkInProgress()
@@ -2079,19 +2079,19 @@ func TestColocatedCappedRandomTaskPickeResumable(t *testing.T) {
 	picker, err = NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil, tableTypes)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
-	assert.Equal(t, 4, len(picker.inProgressTasks()))
+	assert.Equal(t, 4, len(picker.InProgressTasks()))
 
 	// simulate restart with a smaller no. of max tasks in progress
 	picker, err = NewColocatedCappedRandomTaskPicker(1, 1, tasks, state, dummyYb, nil, tableTypes)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 	// only two shoudl be inprogress even though previously 4 were in progress.
-	assert.Equal(t, 2, len(picker.inProgressTasks()))
+	assert.Equal(t, 2, len(picker.InProgressTasks()))
 	assert.Equal(t, 1, len(picker.inProgressColocatedTasks))
 	assert.Equal(t, 1, len(picker.inProgressShardedTasks))
 }
 
-func TestColocatedCappedRandomTaskPickerWaitForTasksBatchesTobeImported(t *testing.T) {
+func TestColocatedCappedRandomTaskPickerShardedTasksOrderedByRowCount(t *testing.T) {
 	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(3, 1024)
 	testutils.FatalIfError(t, err)
 
@@ -2109,6 +2109,14 @@ func TestColocatedCappedRandomTaskPickerWaitForTasksBatchesTobeImported(t *testi
 	_, shardedTask3, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.sharded3", 3)
 	testutils.FatalIfError(t, err)
 
+	// Set different RowCounts (simulating import-data scenario where RowCount is populated)
+	shardedTask1.RowCount = 100
+	shardedTask1.FileSize = -1
+	shardedTask2.RowCount = 500
+	shardedTask2.FileSize = -1
+	shardedTask3.RowCount = 200
+	shardedTask3.FileSize = -1
+
 	tasks := []*ImportFileTask{
 		shardedTask1,
 		shardedTask2,
@@ -2125,22 +2133,84 @@ func TestColocatedCappedRandomTaskPickerWaitForTasksBatchesTobeImported(t *testi
 	tableTypes, err := getTableTypes(tasks)
 	testutils.FatalIfError(t, err)
 
-	// 3 tasks, 10 max tasks in progress
-	picker, err := NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil, tableTypes)
+	// 3 tasks, 3 max tasks in progress
+	picker, err := NewColocatedCappedRandomTaskPicker(3, 3, tasks, state, dummyYb, nil, tableTypes)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
-	// no matter how many times we call Pick therefater,
-	// it should return one of the tasks
-	for i := 0; i < 100; i++ {
-		task, err := picker.Pick()
-		assert.NoError(t, err)
-		assert.Truef(t, task == shardedTask1 || task == shardedTask2 || task == shardedTask3, "task: %v, expected tasks = %v", task, tasks)
+	// Tasks should be picked in descending order of RowCount: 500 -> 200 -> 100
+	// Until we reach maxShardedTasksInProgress, tasks should be picked in descending order of RowCount from the pending list.
+	picked1, err := picker.Pick()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(500), picked1.RowCount, "First pick should be task with RowCount=500")
+
+	picked2, err := picker.Pick()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(200), picked2.RowCount, "Second pick should be task with RowCount=200")
+
+	picked3, err := picker.Pick()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(100), picked3.RowCount, "Third pick should be task with RowCount=100")
+}
+
+func TestColocatedCappedRandomTaskPickerShardedTasksOrderedByFileSize(t *testing.T) {
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(3, 1024)
+	testutils.FatalIfError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(ldataDir)
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(lexportDir)
 	}
 
-	// Even though no task importer has been created for any of the tasks,
-	// WaitForTasksBatchesTobeImported should not fail. It should assume that tasks
-	// are not yet done yet.
-	err = picker.WaitForTasksBatchesTobeImported()
+	_, shardedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.sharded1", 1)
+	testutils.FatalIfError(t, err)
+	_, shardedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.sharded2", 2)
+	testutils.FatalIfError(t, err)
+	_, shardedTask3, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.sharded3", 3)
+	testutils.FatalIfError(t, err)
+
+	// Set same RowCount (0), different FileSizes (simulating import-data-file scenario)
+	shardedTask1.RowCount = 0
+	shardedTask2.RowCount = 0
+	shardedTask3.RowCount = 0
+	shardedTask1.FileSize = 1000
+	shardedTask2.FileSize = 5000
+	shardedTask3.FileSize = 2000
+
+	tasks := []*ImportFileTask{
+		shardedTask1,
+		shardedTask2,
+		shardedTask3,
+	}
+	dummyYb := &dummyYb{
+		shardedTables: []sqlname.NameTuple{
+			shardedTask1.TableNameTup,
+			shardedTask2.TableNameTup,
+			shardedTask3.TableNameTup,
+		},
+	}
+	tdb = dummyYb
+	tableTypes, err := getTableTypes(tasks)
+	testutils.FatalIfError(t, err)
+
+	// 3 tasks, 3 max tasks in progress
+	picker, err := NewColocatedCappedRandomTaskPicker(3, 3, tasks, state, dummyYb, nil, tableTypes)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// Tasks should be picked in descending order of FileSize: 5000 -> 2000 -> 1000
+	// Until we reach maxShardedTasksInProgress, tasks should be picked in descending order of FileSize from the pending list.
+	picked1, err := picker.Pick()
 	assert.NoError(t, err)
+	assert.Equal(t, int64(5000), picked1.FileSize, "First pick should be task with FileSize=5000")
+
+	picked2, err := picker.Pick()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2000), picked2.FileSize, "Second pick should be task with FileSize=2000")
+
+	picked3, err := picker.Pick()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(1000), picked3.FileSize, "Third pick should be task with FileSize=1000")
 }

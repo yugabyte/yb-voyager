@@ -381,12 +381,16 @@
         let sortState = {
             category: 'asc',
             name: 'asc',
-            impact: 'asc'
+            impact: 'asc',
+            usage: 'asc'
         };
 
         function sortTableBy(field, isPerf) {
+            let tableClass = ".issues-table-highlight"
+            if (isPerf) tableClass = ".perf-table-highlight"
+
             // Grab the table element
-            const table = document.querySelector(".table-highlight");
+            const table = document.querySelector(tableClass);
 
             // Collect all the .issue-pair <tbody> elements
             const issuePairs = Array.from(table.querySelectorAll("tbody.issue-summary-detail-pair"));
@@ -408,7 +412,7 @@
             issuePairs.forEach(pair => table.appendChild(pair));
 
             // Update the sort indicator in the table header
-            const sortIndicator = table.querySelector(`th[onclick="sortTableBy('${field}', isPerf)"] .sort-indicator`);
+            const sortIndicator = table.querySelector(`th[onclick="sortTableBy('${field}', ${isPerf})"] .sort-indicator`);
             if (sortIndicator) {
                 sortIndicator.innerHTML = newDirection === 'asc' ? '&#8593;' : '&#8595;'; // &#8593; is up arrow, &#8595; is down arrow
             }
@@ -445,6 +449,13 @@
         {{ if ne .MigrationComplexity "NOT AVAILABLE" }}
             <p><strong>Migration Complexity:</strong> {{ .MigrationComplexity }}</p>
         {{ end }}
+
+        {{if gt .NumReplicasUsed 0}}
+        <h2>Assessment Topology</h2>
+        <div class="topology-info">
+            <p><strong>Total Nodes Assessed:</strong> {{add .NumReplicasUsed 1}} (1 primary + {{.NumReplicasUsed}} replica{{if ne .NumReplicasUsed 1}}s{{end}})</p>
+        </div>
+        {{end}}
 
         <h2>Database Objects</h2>
         <p>{{ .SchemaSummary.Description }}</p>
@@ -594,14 +605,16 @@
   {{ $issueKeyword := "Issue" }}
   {{ $expandButton := "expandAllButton" }}
   {{ $collapseButton := "collapseAllButton" }}
+  {{ $tableClass := "issues-table-highlight" }}
 
   {{ if .onlyPerf }}
-    {{ $heading = "Performance Optimzations" }}
+    {{ $heading = "Performance Optimizations" }}
     {{ $issues = getPerformanceOptimizationIssues .Issues }}
     {{ $totalCountKeyWord = "Total optimizations" }}
     {{ $issueKeyword = "Optimization" }}
     {{ $expandButton = "expandAllButton-perf" }}
     {{ $collapseButton = "collapseAllButton-perf" }}
+    {{ $tableClass = "perf-table-highlight" }}
   {{ end }}
 
         {{ if $issues }}
@@ -618,16 +631,21 @@
                     <button class="rounded-button" id={{ $collapseButton}} onclick="collapseAllIssues({{ .onlyPerf }})">Collapse All</button>
                 </div>
             </div>
-            <table class="table-highlight">
+            <table class={{ $tableClass }}>
                 <!-- Summary Row Header for the issue -->
                 <colgroup>
                     {{ $issueWidth := "40%" }}
+                    {{ $objectWidth := "40%;"}}
                     {{ if not .onlyPerf }}
                         <col style="width: 20%;"> <!-- Category + arrow -->
                         {{ $issueWidth = "20%" }}
+                        {{ $objectWidth = "50%" }}
                     {{ end }}
                     <col style="width: {{ $issueWidth }};"> <!-- Issue Name -->
-                    <col style="width: 50%;"> <!-- Object/SQL Preview -->
+                    <col style="width: {{ $objectWidth}}"> <!-- Object/SQL Preview -->
+                    {{ if .onlyPerf }}
+                        <col style="width: 10%;"> <!-- Object Usage -->
+                    {{ end }}
                     <col style="width: 10%;"> <!-- Impact -->
                 </colgroup>
                 <thead>
@@ -641,6 +659,11 @@
                             {{ $issueKeyword }} <span class="sort-indicator">&#8597;</span>
                         </th>
                         <th class="centered-cell">Object/SQL Preview</th>
+                        {{ if .onlyPerf }}
+                            <th class="centered-cell" style="cursor: pointer; text-align: center;" onclick="sortTableBy('usage', {{ .onlyPerf }})">
+                                Object Usage <span class="sort-indicator">&#8593;</span>
+                            </th>
+                        {{ end }}
                         <th class="centered-cell" style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact', {{ .onlyPerf }})">
                             Impact <span class="sort-indicator">&#8597;</span>
                         </th>
@@ -657,7 +680,8 @@
                     <tbody class="issue-summary-detail-pair"
                         data-category="{{ $issue.Category }}"
                         data-name="{{ $issue.Name }}"
-                        data-impact="{{ $issue.Impact }}">
+                        data-impact="{{ $issue.Impact }}" 
+                        data-usage="{{$issue.ObjectUsage}}">
                         
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('{{ $detailsId }}-{{ $idx }}', '{{ $arrowId }}-{{ $idx }}', {{ $onlyPerf }})">
@@ -688,6 +712,9 @@
                                     {{ getSqlPreview $issue.SqlStatement }}
                                 {{ end }}
                             </td>
+                            {{ if $onlyPerf }}
+                                <td class="centered-cell" style="text-align: center;">{{ $issue.ObjectUsage }}</td>
+                            {{ end }}
                             <td class="centered-cell" style="text-align: center;">{{ snakeCaseToTitleCase $issue.Impact }}</td>
                         </tr>
 
@@ -786,6 +813,28 @@
                 {{ end }}
             </table>
 
+            {{ if .onlyPerf }}
+                <div style="margin-top: 10px; line-height: 1.6;">
+                    <strong>Object Usage Categories:</strong>
+                    <ul style="margin-top: 6px; padding-left: 20px;">
+                        <li>
+                        <strong>FREQUENT:</strong> High-priority objects that account for the majority of workload activity 
+                        <em>(top ~70%)</em>
+                        </li>
+                        <li>
+                        <strong>MODERATE:</strong> Medium-priority objects with a balanced level of workload activity 
+                        <em>(within the 10-70% activity range)</em>
+                        </li>
+                        <li>
+                        <strong>RARE:</strong> Low-priority objects with infrequent access or minimal workload activity
+                        <em>(less than 10% of activity range)</em>
+                        </li>
+                        <li>
+                        <strong>UNUSED:</strong> Objects that show no workload activity.
+                        </li>
+                    </ul>
+                </div>
+            {{ end }}
         {{ else if not .onlyPerf }} 
             <p>No issues were found in the assessment.</p>
         {{ end }}

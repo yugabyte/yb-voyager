@@ -6,6 +6,8 @@ import (
 	"os"
 	"sync"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -53,7 +55,7 @@ func (j *JsonFile[T]) read(obj *T) (*T, error) {
 		return nil, fmt.Errorf("read file %s: %w", j.FilePath, err)
 	}
 	if len(bs) == 0 {
-		return nil, fmt.Errorf("file %s is empty", j.FilePath)
+		return nil, goerrors.Errorf("file %s is empty", j.FilePath)
 	}
 	if obj == nil {
 		obj = new(T)

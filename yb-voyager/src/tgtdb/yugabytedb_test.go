@@ -30,6 +30,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -123,15 +124,15 @@ func TestYugabyteGetPrimaryKeyColumns(t *testing.T) {
 		expectedPKCols []string
 	}{
 		{
-			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "foo")},
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.foo", "public", POSTGRESQL),
 			expectedPKCols: []string{"id", "category"},
 		},
 		{
-			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "bar")},
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.bar", "public", POSTGRESQL),
 			expectedPKCols: []string{"id"},
 		},
 		{
-			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "baz")},
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.baz", "public", POSTGRESQL),
 			expectedPKCols: nil,
 		},
 	}
@@ -182,18 +183,18 @@ func TestYugabyteGetNonEmptyTables(t *testing.T) {
 	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
 	tables := []sqlname.NameTuple{
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "foo")},
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "bar")},
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "unique_table")},
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "table1")},
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "table2")},
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "non_pk1")},
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "non_pk2")},
+		testutils.CreateNameTupleWithTargetName("test_schema.foo", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.bar", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.unique_table", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.table1", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.table2", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.non_pk1", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.non_pk2", "public", YUGABYTEDB),
 	}
 
 	expectedTables := []sqlname.NameTuple{
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "foo")},
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "bar")},
+		testutils.CreateNameTupleWithTargetName("test_schema.foo", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.bar", "public", YUGABYTEDB),
 	}
 
 	actualTables := testYugabyteDBTarget.GetNonEmptyTables(tables)
@@ -201,7 +202,7 @@ func TestYugabyteGetNonEmptyTables(t *testing.T) {
 	testutils.AssertEqualNameTuplesSlice(t, expectedTables, actualTables)
 }
 
-func TestGetPrimaryKeyConstraintNames(t *testing.T) {
+func TestYugabyteGetPrimaryKeyConstraintNames(t *testing.T) {
 	testYugabyteDBTarget.ExecuteSqls(
 		`CREATE SCHEMA test_schema;`,
 		`CREATE TABLE test_schema.foo (
@@ -262,31 +263,31 @@ func TestGetPrimaryKeyConstraintNames(t *testing.T) {
 		expectedPKNames []string
 	}{
 		{
-			table:           sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "foo")},
+			table:           testutils.CreateNameTupleWithTargetName("test_schema.foo", "public", POSTGRESQL),
 			expectedPKNames: []string{"foo_pkey"},
 		},
 		{
-			table:           sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "bar")},
+			table:           testutils.CreateNameTupleWithTargetName("test_schema.bar", "public", POSTGRESQL),
 			expectedPKNames: []string{"bar_primary_key"},
 		},
 		{
-			table:           sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "baz")},
+			table:           testutils.CreateNameTupleWithTargetName("test_schema.baz", "public", POSTGRESQL),
 			expectedPKNames: nil,
 		},
 		{
-			table:           sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "CASE_sensitive")},
+			table:           testutils.CreateNameTupleWithTargetName("test_schema.\"CASE_sensitive\"", "public", POSTGRESQL),
 			expectedPKNames: []string{"CASE_sensitive_pkey"},
 		},
 		{
-			table:           sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "public", "public", "sales_region")},
+			table:           testutils.CreateNameTupleWithTargetName("public.sales_region", "public", POSTGRESQL),
 			expectedPKNames: []string{"sales_region_pkey", "london_pkey", "sydney_pkey", "boston_pkey"},
 		},
 		{
-			table:           sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "EmP")},
+			table:           testutils.CreateNameTupleWithTargetName("test_schema.\"EmP\"", "public", POSTGRESQL),
 			expectedPKNames: []string{"EmP_pkey", "EmP_0_pkey", "EmP_1_pkey", "EmP_2_pkey"},
 		},
 		{
-			table: sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "public", "public", "customers")},
+			table: testutils.CreateNameTupleWithTargetName("public.customers", "public", POSTGRESQL),
 			expectedPKNames: []string{"customers_pkey", "cust_active_pkey", "cust_other_pkey", "cust_arr_small_pkey",
 				"cust_part11_pkey", "cust_part12_pkey", "cust_arr_large_pkey", "cust_part21_pkey", "cust_part22_pkey"},
 		},
@@ -508,12 +509,7 @@ func runPgStatStatementsTest(t *testing.T, testQueries map[string]struct {
 	}
 }
 
-func TestYugabyteGetIdentityColumnNamesForTable(t *testing.T) {
-	// Initialize connection pool used by the function to be tested
-	yb := testYugabyteDBTarget.TargetDB.(*TargetYugabyteDB)
-	err := yb.InitConnPool()
-	require.NoError(t, err)
-
+func TestYugabyteGetIdentityColumnNamesForTables(t *testing.T) {
 	testYugabyteDBTarget.ExecuteSqls(
 		`CREATE SCHEMA test_schema;`,
 		`CREATE TABLE test_schema.always_table (
@@ -539,60 +535,142 @@ func TestYugabyteGetIdentityColumnNamesForTable(t *testing.T) {
 	)
 	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
-	tests := []struct {
-		name         string
-		tableName    string
-		identityType string
-		expectedCols []string
-	}{
-		{
-			name:         "ALWAYS from always_table",
-			tableName:    "always_table",
-			identityType: constants.IDENTITY_GENERATION_ALWAYS,
-			expectedCols: []string{"id1", "id2"},
-		},
-		{
-			name:         "BY DEFAULT from bydefault_table",
-			tableName:    "bydefault_table",
-			identityType: constants.IDENTITY_GENERATION_BY_DEFAULT,
-			expectedCols: []string{"id1", "id2"},
-		},
-		{
-			name:         "ALWAYS from mixed_table",
-			tableName:    "mixed_table",
-			identityType: constants.IDENTITY_GENERATION_ALWAYS,
-			expectedCols: []string{"always_col"},
-		},
-		{
-			name:         "BY DEFAULT from mixed_table",
-			tableName:    "mixed_table",
-			identityType: constants.IDENTITY_GENERATION_BY_DEFAULT,
-			expectedCols: []string{"bydefault_col"},
-		},
-		{
-			name:         "ALWAYS from no_identity_table",
-			tableName:    "no_identity_table",
-			identityType: constants.IDENTITY_GENERATION_ALWAYS,
-			expectedCols: nil, // Expect nil for no results
-		},
-		{
-			name:         "BY DEFAULT from always_table (empty)",
-			tableName:    "always_table",
-			identityType: constants.IDENTITY_GENERATION_BY_DEFAULT,
-			expectedCols: nil, // Expect nil for no results
-		},
+	tableTuplesList := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithTargetName("test_schema.always_table", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.bydefault_table", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.mixed_table", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.no_identity_table", "public", YUGABYTEDB),
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tableNameTup := sqlname.NameTuple{
-				CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", tt.tableName),
-			}
+	// Expected results for ALWAYS identity columns
+	expectedAlways := map[string][]string{
+		"always_table": {"id1", "id2"},
+		"mixed_table":  {"always_col"},
+	}
 
-			actualCols, err := yb.GetIdentityColumnNamesForTable(tableNameTup, tt.identityType)
-			assert.NoError(t, err)
-			testutils.AssertEqualStringSlices(t, tt.expectedCols, actualCols)
-		})
+	// Expected results for BY DEFAULT identity columns
+	expectedByDefault := map[string][]string{
+		"bydefault_table": {"id1", "id2"},
+		"mixed_table":     {"bydefault_col"},
+	}
+
+	// Test 1: Get ALWAYS identity columns
+	tableColsStructMap, err := testYugabyteDBTarget.GetIdentityColumnNamesForTables(tableTuplesList, constants.IDENTITY_GENERATION_ALWAYS)
+	assert.NoError(t, err)
+
+	// Verify ALWAYS results
+	for _, tableTuple := range tableTuplesList {
+		_, tableName := tableTuple.ForCatalogQuery()
+		expectedCols, shouldExist := expectedAlways[tableName]
+		actualCols, exists := tableColsStructMap.Get(tableTuple)
+
+		if shouldExist {
+			assert.True(t, exists, "Expected ALWAYS identity columns for table %s", tableName)
+			testutils.AssertEqualStringSlices(t, expectedCols, actualCols)
+		} else {
+			assert.False(t, exists, "Expected no ALWAYS identity columns for table %s", tableName)
+		}
+	}
+
+	// Test 2: Get BY DEFAULT identity columns
+	tableColsStructMapByDefault, err := testYugabyteDBTarget.GetIdentityColumnNamesForTables(tableTuplesList, constants.IDENTITY_GENERATION_BY_DEFAULT)
+	assert.NoError(t, err)
+
+	// Verify BY DEFAULT results
+	for _, tableTuple := range tableTuplesList {
+		_, tableName := tableTuple.ForCatalogQuery()
+		expectedCols, shouldExist := expectedByDefault[tableName]
+		actualCols, exists := tableColsStructMapByDefault.Get(tableTuple)
+
+		if shouldExist {
+			assert.True(t, exists, "Expected BY DEFAULT identity columns for table %s", tableName)
+			testutils.AssertEqualStringSlices(t, expectedCols, actualCols)
+		} else {
+			assert.False(t, exists, "Expected no BY DEFAULT identity columns for table %s", tableName)
+		}
+	}
+}
+
+func TestYugabyteGetIdentityColumnNamesForTables_CaseSensitiveAndTablePartitions(t *testing.T) {
+	testYugabyteDBTarget.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		// Case-sensitive table with case-sensitive identity columns
+		`CREATE TABLE test_schema."MixedCaseTable" (
+			"Id1" INT GENERATED ALWAYS AS IDENTITY,
+			"ID2" INT GENERATED BY DEFAULT AS IDENTITY,
+			"MixedCaseCol" TEXT,
+			data TEXT
+		);`,
+		// Partitioned table with identity columns
+		`CREATE TABLE test_schema.partitioned_table (
+			"Id" INT GENERATED ALWAYS AS IDENTITY,
+			"PartitionKey" INT GENERATED BY DEFAULT AS IDENTITY,
+			region TEXT,
+			data TEXT,
+			PRIMARY KEY ("Id", region)
+		) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema.partition_east PARTITION OF test_schema.partitioned_table FOR VALUES IN ('East');`,
+		`CREATE TABLE test_schema.partition_west PARTITION OF test_schema.partitioned_table FOR VALUES IN ('West');`,
+		// Regular table without identity columns for comparison
+		`CREATE TABLE test_schema.regular_table (
+			id INT PRIMARY KEY,
+			data TEXT
+		);`,
+	)
+	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	tableTuplesList := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithTargetName("test_schema.\"MixedCaseTable\"", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.partitioned_table", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.regular_table", "public", YUGABYTEDB),
+	}
+
+	// Expected results for ALWAYS identity columns
+	expectedAlways := map[string][]string{
+		"MixedCaseTable":    {"Id1"},
+		"partitioned_table": {"Id"},
+	}
+
+	// Expected results for BY DEFAULT identity columns
+	expectedByDefault := map[string][]string{
+		"MixedCaseTable":    {"ID2"},
+		"partitioned_table": {"PartitionKey"},
+	}
+
+	// Test 1: Get ALWAYS identity columns
+	tableColsStructMap, err := testYugabyteDBTarget.GetIdentityColumnNamesForTables(tableTuplesList, constants.IDENTITY_GENERATION_ALWAYS)
+	assert.NoError(t, err)
+
+	// Verify ALWAYS results
+	for _, tableTuple := range tableTuplesList {
+		_, tableName := tableTuple.ForCatalogQuery()
+		expectedCols, shouldExist := expectedAlways[tableName]
+		actualCols, exists := tableColsStructMap.Get(tableTuple)
+
+		if shouldExist {
+			assert.True(t, exists, "Expected ALWAYS identity columns for table %s", tableName)
+			testutils.AssertEqualStringSlices(t, expectedCols, actualCols)
+		} else {
+			assert.False(t, exists, "Expected no ALWAYS identity columns for table %s", tableName)
+		}
+	}
+
+	// Test 2: Get BY DEFAULT identity columns
+	tableColsStructMapByDefault, err := testYugabyteDBTarget.GetIdentityColumnNamesForTables(tableTuplesList, constants.IDENTITY_GENERATION_BY_DEFAULT)
+	assert.NoError(t, err)
+
+	// Verify BY DEFAULT results
+	for _, tableTuple := range tableTuplesList {
+		_, tableName := tableTuple.ForCatalogQuery()
+		expectedCols, shouldExist := expectedByDefault[tableName]
+		actualCols, exists := tableColsStructMapByDefault.Get(tableTuple)
+
+		if shouldExist {
+			assert.True(t, exists, "Expected BY DEFAULT identity columns for table %s", tableName)
+			testutils.AssertEqualStringSlices(t, expectedCols, actualCols)
+		} else {
+			assert.False(t, exists, "Expected no BY DEFAULT identity columns for table %s", tableName)
+		}
 	}
 }
 
@@ -664,6 +742,381 @@ func TestYugabyteIdentityColumnsDisableEnableCycle(t *testing.T) {
 	assert.Equal(t, constants.IDENTITY_GENERATION_ALWAYS, table2TypesFinal["id2"])
 }
 
+func TestYugabyteAlterActionMultipleColumns_IdentityAlways(t *testing.T) {
+	// Initialize connection pool used by the functions to be tested
+	yb := testYugabyteDBTarget.TargetDB.(*TargetYugabyteDB)
+	err := yb.InitConnPool()
+	require.NoError(t, err)
+
+	// Create tables with BY DEFAULT identity columns mixed with regular columns
+	testYugabyteDBTarget.ExecuteSqls(
+		`CREATE SCHEMA test_alter_always;`,
+		// Table with multiple identity columns - only some will be altered
+		`CREATE TABLE test_alter_always.table1 (
+			id INT,
+			id1 INT GENERATED BY DEFAULT AS IDENTITY,
+			id2 INT GENERATED BY DEFAULT AS IDENTITY,
+			id3 INT GENERATED BY DEFAULT AS IDENTITY,
+			data TEXT
+		);`,
+		`CREATE TABLE test_alter_always.table2 (
+			col_int INT GENERATED BY DEFAULT AS IDENTITY,
+			col_bigint BIGINT GENERATED BY DEFAULT AS IDENTITY,
+			col_smallint SMALLINT GENERATED BY DEFAULT AS IDENTITY,
+			name TEXT
+		);`,
+	)
+	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_alter_always CASCADE;`)
+
+	db, dbErr := testYugabyteDBTarget.GetConnection()
+	require.NoError(t, dbErr)
+
+	// Verify initial BY DEFAULT state for all identity columns
+	table1Types, err := getIdentityColumnTypes(db, "test_alter_always", "table1", []string{"id1", "id2", "id3"})
+	require.NoError(t, err)
+	assert.Equal(t, constants.IDENTITY_GENERATION_BY_DEFAULT, table1Types["id1"])
+	assert.Equal(t, constants.IDENTITY_GENERATION_BY_DEFAULT, table1Types["id2"])
+	assert.Equal(t, constants.IDENTITY_GENERATION_BY_DEFAULT, table1Types["id3"])
+
+	table2Types, err := getIdentityColumnTypes(db, "test_alter_always", "table2", []string{"col_int", "col_bigint", "col_smallint"})
+	require.NoError(t, err)
+	assert.Equal(t, constants.IDENTITY_GENERATION_BY_DEFAULT, table2Types["col_int"])
+	assert.Equal(t, constants.IDENTITY_GENERATION_BY_DEFAULT, table2Types["col_bigint"])
+	assert.Equal(t, constants.IDENTITY_GENERATION_BY_DEFAULT, table2Types["col_smallint"])
+
+	// Action: Enable ALWAYS (BY DEFAULT -> ALWAYS) using alterColumns directly
+	// Note: Only altering table1's id1 and id2 columns, leaving id3 unchanged
+	tableColumnsMap := createTableToColumnsStructMap("test_alter_always", map[string][]string{
+		"table1": {"id1", "id2"},
+		"table2": {"col_int", "col_bigint", "col_smallint"},
+	})
+
+	err = yb.alterColumns(tableColumnsMap, constants.PG_SET_GENERATED_ALWAYS)
+	assert.NoError(t, err)
+
+	// Verify: table1's id1 and id2 columns changed to ALWAYS
+	table1TypesAlways, err := getIdentityColumnTypes(db, "test_alter_always", "table1", []string{"id1", "id2", "id3"})
+	require.NoError(t, err)
+	assert.Equal(t, constants.IDENTITY_GENERATION_ALWAYS, table1TypesAlways["id1"])
+	assert.Equal(t, constants.IDENTITY_GENERATION_ALWAYS, table1TypesAlways["id2"])
+	// Verify: table1's id3 column remains BY DEFAULT (unchanged)
+	assert.Equal(t, constants.IDENTITY_GENERATION_BY_DEFAULT, table1TypesAlways["id3"], "id3 should remain BY DEFAULT")
+
+	// Verify: table2's identity columns changed to ALWAYS
+	table2TypesAlways, err := getIdentityColumnTypes(db, "test_alter_always", "table2", []string{"col_int", "col_bigint", "col_smallint"})
+	require.NoError(t, err)
+	assert.Equal(t, constants.IDENTITY_GENERATION_ALWAYS, table2TypesAlways["col_int"])
+	assert.Equal(t, constants.IDENTITY_GENERATION_ALWAYS, table2TypesAlways["col_bigint"])
+	assert.Equal(t, constants.IDENTITY_GENERATION_ALWAYS, table2TypesAlways["col_smallint"])
+}
+
+func TestYugabyteAlterActionMultipleColumns_IdentityDefault(t *testing.T) {
+	// Initialize connection pool used by the functions to be tested
+	yb := testYugabyteDBTarget.TargetDB.(*TargetYugabyteDB)
+	err := yb.InitConnPool()
+	require.NoError(t, err)
+
+	// Create tables with ALWAYS identity columns mixed with regular columns
+	testYugabyteDBTarget.ExecuteSqls(
+		`CREATE SCHEMA test_alter_default;`,
+		// Table with multiple identity columns - only some will be altered
+		`CREATE TABLE test_alter_default.table1 (
+			id INT,
+			id1 INT GENERATED ALWAYS AS IDENTITY,
+			id2 INT GENERATED ALWAYS AS IDENTITY,
+			id3 INT GENERATED ALWAYS AS IDENTITY,
+			data TEXT
+		);`,
+		`CREATE TABLE test_alter_default.table2 (
+			col_int INT GENERATED ALWAYS AS IDENTITY,
+			col_bigint BIGINT GENERATED ALWAYS AS IDENTITY,
+			col_smallint SMALLINT GENERATED ALWAYS AS IDENTITY,
+			name TEXT
+		);`,
+	)
+	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_alter_default CASCADE;`)
+
+	db, dbErr := testYugabyteDBTarget.GetConnection()
+	require.NoError(t, dbErr)
+
+	// Verify initial ALWAYS state for all identity columns
+	table1Types, err := getIdentityColumnTypes(db, "test_alter_default", "table1", []string{"id1", "id2", "id3"})
+	require.NoError(t, err)
+	assert.Equal(t, constants.IDENTITY_GENERATION_ALWAYS, table1Types["id1"])
+	assert.Equal(t, constants.IDENTITY_GENERATION_ALWAYS, table1Types["id2"])
+	assert.Equal(t, constants.IDENTITY_GENERATION_ALWAYS, table1Types["id3"])
+
+	table2Types, err := getIdentityColumnTypes(db, "test_alter_default", "table2", []string{"col_int", "col_bigint", "col_smallint"})
+	require.NoError(t, err)
+	assert.Equal(t, constants.IDENTITY_GENERATION_ALWAYS, table2Types["col_int"])
+	assert.Equal(t, constants.IDENTITY_GENERATION_ALWAYS, table2Types["col_bigint"])
+	assert.Equal(t, constants.IDENTITY_GENERATION_ALWAYS, table2Types["col_smallint"])
+
+	// Action: Disable to BY DEFAULT (ALWAYS -> BY DEFAULT) using alterColumns directly
+	// Note: Only altering table1's id1 and id2 columns, leaving id3 unchanged
+	tableColumnsMap := createTableToColumnsStructMap("test_alter_default", map[string][]string{
+		"table1": {"id1", "id2"},
+		"table2": {"col_int", "col_bigint", "col_smallint"},
+	})
+
+	err = yb.alterColumns(tableColumnsMap, constants.PG_SET_GENERATED_BY_DEFAULT)
+	assert.NoError(t, err)
+
+	// Verify: table1's id1 and id2 columns changed to BY DEFAULT
+	table1TypesDefault, err := getIdentityColumnTypes(db, "test_alter_default", "table1", []string{"id1", "id2", "id3"})
+	require.NoError(t, err)
+	assert.Equal(t, constants.IDENTITY_GENERATION_BY_DEFAULT, table1TypesDefault["id1"])
+	assert.Equal(t, constants.IDENTITY_GENERATION_BY_DEFAULT, table1TypesDefault["id2"])
+	// Verify: table1's id3 column remains ALWAYS (unchanged)
+	assert.Equal(t, constants.IDENTITY_GENERATION_ALWAYS, table1TypesDefault["id3"], "id3 should remain ALWAYS")
+
+	// Verify: table2's identity columns changed to BY DEFAULT
+	table2TypesDefault, err := getIdentityColumnTypes(db, "test_alter_default", "table2", []string{"col_int", "col_bigint", "col_smallint"})
+	require.NoError(t, err)
+	assert.Equal(t, constants.IDENTITY_GENERATION_BY_DEFAULT, table2TypesDefault["col_int"])
+	assert.Equal(t, constants.IDENTITY_GENERATION_BY_DEFAULT, table2TypesDefault["col_bigint"])
+	assert.Equal(t, constants.IDENTITY_GENERATION_BY_DEFAULT, table2TypesDefault["col_smallint"])
+}
+
+func TestGetTablesHavingExpressionIndexes(t *testing.T) {
+	testYugabyteDBTarget.ExecuteSqls(
+		`CREATE SCHEMA test_expression_indexes;`,
+		`CREATE TABLE test_expression_indexes.table1 (
+			id INT,
+			data TEXT,
+			val text,
+			val2 text
+		);`,
+		`CREATE TABLE test_expression_indexes.table2 (
+			id INT,
+			data TEXT,
+			val text,
+			val2 text
+		);`,
+		`CREATE TABLE test_expression_indexes.table3 (
+			id INT,
+			data TEXT,
+			val text,
+			val2 text
+		);`,
+		`CREATE TABLE test_expression_indexes.table4 (
+			id INT,
+			data TEXT,
+			val text,
+			val2 text
+		);`,
+		`CREATE TABLE test_expression_indexes.table5 (
+			id INT,
+			data TEXT,
+			val text,
+			val2 text
+		);`,
+		`CREATE TABLE test_expression_indexes."Table6" (
+			id INT,
+			"Data" TEXT,
+			val text,
+			val2 text
+		);`,
+		`CREATE TABLE test_expression_indexes."Table7" (
+			id INT,
+			"Data" TEXT,
+			val text,
+			"Val2" text
+		);`,
+		`CREATE TABLE test_expression_indexes."Table8" (
+			id INT,
+			"Data" TEXT,
+			val text,
+			"Val2" text
+		);`,
+		`CREATE UNIQUE INDEX idx_expression_indexes ON test_expression_indexes.table1 ((val || val2));`,
+		`CREATE UNIQUE INDEX idx_expression_indexes_2 ON test_expression_indexes.table2 (lower(val));`,
+		`CREATE UNIQUE INDEX idx_expression_indexes_3 ON test_expression_indexes.table3 ((val || val2), data);`,
+		`CREATE INDEX idx_expression_indexes_4 ON test_expression_indexes.table4 (lower(val || val2), id, data);`, //normal index
+		`CREATE UNIQUE INDEX idx_expression_indexes_5 ON test_expression_indexes.table5 (data);`,                  //normal unique index
+		`CREATE UNIQUE INDEX idx_expression_indexes_6 ON test_expression_indexes."Table6" (lower("Data"));`,
+		`CREATE UNIQUE INDEX idx_expression_indexes_7 ON test_expression_indexes."Table7" (lower("Data" || "Val2"));`,
+		`CREATE UNIQUE INDEX idx_expression_indexes_8 ON test_expression_indexes."Table8" ("Data");`,
+		`CREATE INDEX idx_expression_indexes_9 ON test_expression_indexes."Table8" (("Data" || "Val2"));`, //normal index
+
+		//partitions cases
+		//only two partitions have expression indexes
+		`CREATE TABLE test_expression_indexes.table_partitioned (
+			id INT,
+			data TEXT,
+			val text,
+			val2 text
+		) PARTITION BY LIST (data);
+		CREATE TABLE test_expression_indexes.table_partitioned_l PARTITION OF test_expression_indexes.table_partitioned FOR VALUES IN ('London');
+		CREATE TABLE test_expression_indexes.table_partitioned_s PARTITION OF test_expression_indexes.table_partitioned FOR VALUES IN ('Sydney');
+		CREATE TABLE test_expression_indexes.table_partitioned_b PARTITION OF test_expression_indexes.table_partitioned FOR VALUES IN ('Boston');
+
+		CREATE UNIQUE INDEX idx_expression_indexes_10 ON test_expression_indexes.table_partitioned_l (lower(val || val2));
+		CREATE UNIQUE INDEX idx_expression_indexes_12 ON test_expression_indexes.table_partitioned_b (lower(val || val2));`,
+
+		//one of the leaf child in multi level partitioning has expression indexes
+		`CREATE TABLE test_expression_indexes.table_partitioned1 (
+			id INT,
+			data TEXT,
+			val text,
+			val2 text
+		) PARTITION BY LIST (data);
+		CREATE TABLE test_expression_indexes.table_partitioned_l1 PARTITION OF test_expression_indexes.table_partitioned1 FOR VALUES IN ('London') PARTITION BY LIST (val);
+		CREATE TABLE test_expression_indexes.table_partitioned_s1 PARTITION OF test_expression_indexes.table_partitioned1 FOR VALUES IN ('Sydney');
+		CREATE TABLE test_expression_indexes.table_partitioned_b1 PARTITION OF test_expression_indexes.table_partitioned1 FOR VALUES IN ('Boston');
+
+		CREATE TABLE test_expression_indexes.table_partitioned_l1_part1 PARTITION OF test_expression_indexes.table_partitioned_l1 FOR VALUES IN ('ABC data');
+		CREATE TABLE test_expression_indexes.table_partitioned_l1_part2 PARTITION OF test_expression_indexes.table_partitioned_l1 FOR VALUES IN ('XYZ data');
+
+		
+		CREATE UNIQUE INDEX idx_expression_indexes_13 ON test_expression_indexes.table_partitioned_l1_part1 (lower(val || val2));`,
+
+		//only two partitions have expression indexes
+		`CREATE TABLE test_expression_indexes.table_partitioned2 (
+			id INT,
+			data TEXT,
+			val text,
+			val2 text
+		) PARTITION BY LIST (data);
+		CREATE TABLE test_expression_indexes.table_partitioned_l2 PARTITION OF test_expression_indexes.table_partitioned2 FOR VALUES IN ('London');
+		CREATE TABLE test_expression_indexes.table_partitioned_s2 PARTITION OF test_expression_indexes.table_partitioned2 FOR VALUES IN ('Sydney');
+		CREATE TABLE test_expression_indexes.table_partitioned_b2 PARTITION OF test_expression_indexes.table_partitioned2 FOR VALUES IN ('Boston');
+
+		CREATE UNIQUE INDEX idx_expression_indexes_14 ON test_expression_indexes.table_partitioned_l2 (lower(val || val2));
+		CREATE UNIQUE INDEX idx_expression_indexes_15 ON test_expression_indexes.table_partitioned_b2 (lower(val || val2));`,
+
+		//none of the partitions have expression indexes
+		`CREATE TABLE test_expression_indexes.table_partitioned3 (
+			id INT,
+			data TEXT,
+			val text,
+			val2 text
+		) PARTITION BY LIST (data);
+		CREATE TABLE test_expression_indexes.table_partitioned_l3 PARTITION OF test_expression_indexes.table_partitioned3 FOR VALUES IN ('London');
+		CREATE TABLE test_expression_indexes.table_partitioned_s3 PARTITION OF test_expression_indexes.table_partitioned3 FOR VALUES IN ('Sydney');
+		CREATE TABLE test_expression_indexes.table_partitioned_b3 PARTITION OF test_expression_indexes.table_partitioned3 FOR VALUES IN ('Boston');`,
+
+		//root table has the expression index
+		`CREATE TABLE test_expression_indexes.table_partitioned4 (
+			id INT,
+			data TEXT,
+			val text,
+			val2 text
+		) PARTITION BY LIST (data);
+		CREATE TABLE test_expression_indexes.table_partitioned_l4 PARTITION OF test_expression_indexes.table_partitioned4 FOR VALUES IN ('London');
+		CREATE TABLE test_expression_indexes.table_partitioned_s4 PARTITION OF test_expression_indexes.table_partitioned4 FOR VALUES IN ('Sydney');
+		CREATE TABLE test_expression_indexes.table_partitioned_b4 PARTITION OF test_expression_indexes.table_partitioned4 FOR VALUES IN ('Boston');
+
+		CREATE UNIQUE INDEX idx_expression_indexes_16 ON test_expression_indexes.table_partitioned4 (data, upper(val || val2));`,
+
+		//cross schema partitions and
+		`CREATE SCHEMA test_expression_indexes_cross;
+		CREATE TABLE test_expression_indexes_cross.table_partitioned5 (
+			id INT,
+			data TEXT,
+			val text,
+			val2 text
+		) PARTITION BY LIST (data);
+		CREATE TABLE test_expression_indexes.table_partitioned_l5 PARTITION OF test_expression_indexes_cross.table_partitioned5 FOR VALUES IN ('London');
+		CREATE TABLE test_expression_indexes.table_partitioned_s5 PARTITION OF test_expression_indexes_cross.table_partitioned5 FOR VALUES IN ('Sydney');
+		CREATE TABLE test_expression_indexes.table_partitioned_b5 PARTITION OF test_expression_indexes_cross.table_partitioned5 FOR VALUES IN ('Boston');
+
+		CREATE UNIQUE INDEX idx_expression_indexes_17 ON test_expression_indexes.table_partitioned_l5 (data, upper(val || val2));`,
+	)
+	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_expression_indexes CASCADE;
+	DROP SCHEMA test_expression_indexes_cross CASCADE;`)
+
+	table1 := testutils.CreateNameTupleWithTargetName("test_expression_indexes.table1", "public", YUGABYTEDB)
+	table2 := testutils.CreateNameTupleWithTargetName("test_expression_indexes.table2", "public", YUGABYTEDB)
+	table3 := testutils.CreateNameTupleWithTargetName("test_expression_indexes.table3", "public", YUGABYTEDB)
+	table4 := testutils.CreateNameTupleWithTargetName("test_expression_indexes.table4", "public", YUGABYTEDB)
+	table5 := testutils.CreateNameTupleWithTargetName("test_expression_indexes.table5", "public", YUGABYTEDB)
+	table6 := testutils.CreateNameTupleWithTargetName("test_expression_indexes.\"Table6\"", "public", YUGABYTEDB)
+	table7 := testutils.CreateNameTupleWithTargetName("test_expression_indexes.\"Table7\"", "public", YUGABYTEDB)
+	table8 := testutils.CreateNameTupleWithTargetName("test_expression_indexes.\"Table8\"", "public", YUGABYTEDB)
+	partitionedTable := testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned", "public", YUGABYTEDB)
+	partitionedTable1 := testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned1", "public", YUGABYTEDB)
+	partitionedTable2 := testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned2", "public", YUGABYTEDB)
+	partitionedTable3 := testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned3", "public", YUGABYTEDB)
+	partitionedTable4 := testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned4", "public", YUGABYTEDB)
+	partitionedTable5 := testutils.CreateNameTupleWithTargetName("test_expression_indexes_cross.table_partitioned5", "public", YUGABYTEDB)
+
+	tableTuplesList := []sqlname.NameTuple{
+		table1, table2,
+		table3, table4,
+		table5, table6,
+		table7, table8,
+		partitionedTable, partitionedTable1,
+		partitionedTable2, partitionedTable3,
+		partitionedTable4, partitionedTable5,
+	}
+
+	yb, ok := testYugabyteDBTarget.TargetDB.(*TargetYugabyteDB)
+	require.True(t, ok)
+
+	leafTableToRootTableMap, err := yb.getPartitionTableToRootTableMap(tableTuplesList)
+	require.NoError(t, err)
+	expectedLeafTableToRootTableMap := map[string]string{
+		table1.AsQualifiedCatalogName():           table1.AsQualifiedCatalogName(),
+		table2.AsQualifiedCatalogName():           table2.AsQualifiedCatalogName(),
+		table3.AsQualifiedCatalogName():           table3.AsQualifiedCatalogName(),
+		table4.AsQualifiedCatalogName():           table4.AsQualifiedCatalogName(),
+		table5.AsQualifiedCatalogName():           table5.AsQualifiedCatalogName(),
+		table6.AsQualifiedCatalogName():           table6.AsQualifiedCatalogName(),
+		table7.AsQualifiedCatalogName():           table7.AsQualifiedCatalogName(),
+		table8.AsQualifiedCatalogName():           table8.AsQualifiedCatalogName(),
+		partitionedTable.AsQualifiedCatalogName(): partitionedTable.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_l", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_b", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_s", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable.AsQualifiedCatalogName(),
+		partitionedTable1.AsQualifiedCatalogName(): partitionedTable1.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_l1", "public", YUGABYTEDB).AsQualifiedCatalogName():       partitionedTable1.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_l1_part1", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable1.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_l1_part2", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable1.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_s1", "public", YUGABYTEDB).AsQualifiedCatalogName():       partitionedTable1.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_b1", "public", YUGABYTEDB).AsQualifiedCatalogName():       partitionedTable1.AsQualifiedCatalogName(),
+		partitionedTable2.AsQualifiedCatalogName(): partitionedTable2.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_l2", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable2.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_b2", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable2.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_s2", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable2.AsQualifiedCatalogName(),
+		partitionedTable3.AsQualifiedCatalogName(): partitionedTable3.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_l3", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable3.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_s3", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable3.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_b3", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable3.AsQualifiedCatalogName(),
+		partitionedTable4.AsQualifiedCatalogName(): partitionedTable4.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_l4", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable4.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_b4", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable4.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_s4", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable4.AsQualifiedCatalogName(),
+		partitionedTable5.AsQualifiedCatalogName(): partitionedTable5.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_l5", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable5.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_s5", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable5.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_b5", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable5.AsQualifiedCatalogName(),
+	}
+	assert.Equal(t, len(lo.Keys(expectedLeafTableToRootTableMap)), len(lo.Keys(leafTableToRootTableMap)))
+	for expectedKey, expectedValue := range expectedLeafTableToRootTableMap {
+		returnedValue, ok := leafTableToRootTableMap[expectedKey]
+		assert.True(t, ok)
+		assert.Equal(t, expectedValue, returnedValue)
+	}
+
+	tableTuplesHavingExpressionIndexes, err := yb.GetTablesHavingExpressionUniqueIndexes(tableTuplesList, true)
+	require.NoError(t, err)
+	assert.Equal(t, 10, len(tableTuplesHavingExpressionIndexes))
+	expectedTableTuplesHavingExpressionIndexes := []sqlname.NameTuple{
+		table1,
+		table2,
+		table3,
+		table6,
+		table7,
+		partitionedTable,
+		partitionedTable1,
+		partitionedTable2,
+		partitionedTable4,
+		partitionedTable5,
+	}
+	assert.ElementsMatch(t, expectedTableTuplesHavingExpressionIndexes, tableTuplesHavingExpressionIndexes)
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -713,11 +1166,8 @@ func getIdentityColumnTypes(db *sql.DB, schemaName, tableName string, columnName
 func createTableToColumnsStructMap(schemaName string, tables map[string][]string) *utils.StructMap[sqlname.NameTuple, []string] {
 	tableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	for tableName, columns := range tables {
-		objName := sqlname.NewObjectName(YUGABYTEDB, schemaName, schemaName, tableName)
-		tableNameTup := sqlname.NameTuple{
-			CurrentName: objName,
-			SourceName:  objName, // ForKey() method requires either SourceName or TargetName
-		}
+		qualifiedName := schemaName + "." + tableName
+		tableNameTup := testutils.CreateNameTupleWithTargetName(qualifiedName, "public", YUGABYTEDB)
 		tableColumnsMap.Put(tableNameTup, columns)
 	}
 	return tableColumnsMap

@@ -17,11 +17,13 @@ package metadb
 
 import (
 	"fmt"
+
+	goerrors "github.com/go-errors/errors"
 )
 
 type ImportDataFileStatusRecord struct {
-	ErrorPolicy         string `json:"errorPolicy"`
-	ImportDataStarted   bool   `json:"importDataStarted"`
+	ErrorPolicy       string `json:"errorPolicy"`
+	ImportDataStarted bool   `json:"importDataStarted"`
 }
 
 const IMPORT_DATA_FILE_STATUS_KEY = "import_data_file_status"
@@ -54,7 +56,7 @@ func (m *MetaDB) GetImportDataFileErrorPolicyUsed() (string, error) {
 		return "", fmt.Errorf("error while getting import data file status record from meta db: %w", err)
 	}
 	if idfsr == nil {
-		return "", fmt.Errorf("import data file status record not found")
+		return "", goerrors.Errorf("import data file status record not found")
 	}
 	return idfsr.ErrorPolicy, nil
 }

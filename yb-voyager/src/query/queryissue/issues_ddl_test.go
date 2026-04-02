@@ -1156,8 +1156,6 @@ func testPKandUKONComplexDataType(t *testing.T) {
 	}
 }
 
-
-
 func testExtensionSupportList(t *testing.T) {
 	conn, err := getConn()
 	assert.NoError(t, err)

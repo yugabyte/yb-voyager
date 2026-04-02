@@ -20,6 +20,8 @@ import (
 	"strconv"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
 
@@ -58,15 +60,15 @@ func readConfig(mode types.AdaptiveParallelismMode) {
 	}
 	MAX_CPU_THRESHOLD = utils.GetEnvAsInt("MAX_CPU_THRESHOLD", defaultMaxCpuThreshold)
 	if MAX_CPU_THRESHOLD != defaultMaxCpuThreshold {
-		utils.PrintAndLog("Using MAX_CPU_THRESHOLD: %d", MAX_CPU_THRESHOLD)
+		utils.PrintAndLogf("Using MAX_CPU_THRESHOLD: %d", MAX_CPU_THRESHOLD)
 	}
 	ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS = utils.GetEnvAsInt("ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS", DEFAULT_ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS)
 	if ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS != DEFAULT_ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS {
-		utils.PrintAndLog("Using ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS: %d", ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS)
+		utils.PrintAndLogf("Using ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS: %d", ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS)
 	}
 	MIN_AVAILABLE_MEMORY_THRESHOLD = utils.GetEnvAsInt("MIN_AVAILABLE_MEMORY_THRESHOLD", DEFAULT_MIN_AVAILABLE_MEMORY_THRESHOLD)
 	if MIN_AVAILABLE_MEMORY_THRESHOLD != DEFAULT_MIN_AVAILABLE_MEMORY_THRESHOLD {
-		utils.PrintAndLog("Using MIN_AVAILABLE_MEMORY_THRESHOLD: %d", MIN_AVAILABLE_MEMORY_THRESHOLD)
+		utils.PrintAndLogf("Using MIN_AVAILABLE_MEMORY_THRESHOLD: %d", MIN_AVAILABLE_MEMORY_THRESHOLD)
 	}
 }
 
@@ -78,7 +80,7 @@ type TargetYugabyteDBWithConnectionPool interface {
 	UpdateNumConnectionsInPool(int) error // (delta)
 }
 
-var ErrAdaptiveParallelismNotSupported = fmt.Errorf("adaptive parallelism not supported in target YB database")
+var ErrAdaptiveParallelismNotSupported = goerrors.Errorf("adaptive parallelism not supported in target YB database")
 
 func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool, mode types.AdaptiveParallelismMode, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) error {
 	if !mode.IsEnabled() {

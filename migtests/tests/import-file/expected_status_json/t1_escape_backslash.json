@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"t1_escape_backslash\"",
+      "table_name": "\"public\".\"t1_escape_backslash\"",
       "file_name": "t1_escape_backslash.csv",
       "status": "DONE",
       "total_count": 73,

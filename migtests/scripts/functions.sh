@@ -71,7 +71,8 @@ grant_user_permission_postgresql() {
 	db_name=$1
 	db_schema=$2
 	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
-	echo "2" | psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" \
+	echo "2" | psql "${conn_string}" --set ON_ERROR_STOP=on \
+                                    -v voyager_user="${SOURCE_DB_USER}" \
                                     -v schema_list="${db_schema}" \
                                     -v is_live_migration=0 \
                                     -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
@@ -183,7 +184,8 @@ grant_permissions_for_live_migration_pg() {
 	db_name=$1
 	db_schema=$2
 	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
-	echo "2" | psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" \
+	echo "2" | psql "${conn_string}" --set ON_ERROR_STOP=on \
+                                    -v voyager_user="${SOURCE_DB_USER}" \
                                     -v schema_list="${db_schema}" \
                                     -v replication_group='replication_group' \
                                     -v is_live_migration=1 \
@@ -552,9 +554,9 @@ archive_changes() {
 
     ARCHIVE_DIR=${EXPORT_DIR}/archive-dir
     mkdir ${ARCHIVE_DIR}
-    yb-voyager archive changes --move-to ${ARCHIVE_DIR} \
+    yb-voyager archive changes --policy archive --archive-dir ${ARCHIVE_DIR} \
         --export-dir ${EXPORT_DIR} \
-        --fs-utilization-threshold 0
+        --send-diagnostics=false
 }
 
 end_migration() {
@@ -576,7 +578,7 @@ end_migration() {
     yb-voyager end migration --export-dir ${EXPORT_DIR} \
         --backup-dir ${BACKUP_DIR} --backup-schema-files true \
         --backup-data-files true --backup-log-files true \
-        --save-migration-reports true "$@" || {
+        --save-migration-reports true --send-diagnostics=false "$@" || {
             cat ${EXPORT_DIR}/logs/yb-voyager-end-migration.log
             exit 1
         }
@@ -657,7 +659,7 @@ get_expected_event_count() {
             return 0
             ;;
         "target")
-            if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = true ] \
+            if [ "${USE_YB_GRPC_CONNECTOR}" != true ] \
                && jq -e 'has("target_delta_events_logical_replication")' "$metadata_file" >/dev/null 2>&1; then
                 jq -r '.target_delta_events_logical_replication' "$metadata_file"
                 return 0
@@ -905,7 +907,8 @@ get_value_from_msr(){
 }
 
 set_replica_identity(){
-	db_schema=$1
+    #trim the quotes from the schema name
+    db_schema=$(echo $1 | sed 's/"//g')
     cat > alter_replica_identity.sql <<EOF
     DO \$CUSTOM\$ 
     DECLARE
@@ -913,7 +916,7 @@ set_replica_identity(){
     BEGIN
         FOR r IN (SELECT table_schema,table_name FROM information_schema.tables WHERE table_schema = '${db_schema}' AND table_type = 'BASE TABLE') 
         LOOP
-            EXECUTE 'ALTER TABLE ' || r.table_schema || '."' || r.table_name || '" REPLICA IDENTITY FULL';
+            EXECUTE 'ALTER TABLE ' || '"' || r.table_schema || '"."' || r.table_name || '" REPLICA IDENTITY FULL';
         END LOOP;
     END \$CUSTOM\$;
 EOF
@@ -927,7 +930,6 @@ grant_permissions_for_live_migration() {
     elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
 		for schema_name in $(echo ${SOURCE_DB_SCHEMA} | tr "," "\n")
 		do
-			set_replica_identity ${schema_name}
 			grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${schema_name}
 			grant_permissions_for_live_migration_pg ${SOURCE_DB_NAME} ${schema_name}
 		done
@@ -956,7 +958,8 @@ setup_fallback_environment() {
 		rm -f $TEMP_SCRIPT
 	    elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
 		conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${SOURCE_DB_NAME}"
-		echo "2" | psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" \
+		echo "2" | psql "${conn_string}" --set ON_ERROR_STOP=on \
+                                    -v voyager_user="${SOURCE_DB_USER}" \
                                     -v schema_list="${SOURCE_DB_SCHEMA}" \
                                     -v replication_group='replication_group' \
                                     -v is_live_migration=1 \
@@ -1385,9 +1388,7 @@ cutover_to_target() {
     "
 
     # Set grpc connector flag
-    if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = true ]; then
-        args="${args} --use-yb-grpc-connector false"
-    else 
+    if [ "${USE_YB_GRPC_CONNECTOR}" = true ]; then
         args="${args} --use-yb-grpc-connector true"
     fi
 
@@ -1406,8 +1407,8 @@ create_source_db() {
 	source_db=$1
 	case ${SOURCE_DB_TYPE} in
 		postgresql)
-			run_psql postgres "DROP DATABASE IF EXISTS ${source_db};"
-			run_psql postgres "CREATE DATABASE ${source_db};"
+			run_psql postgres "DROP DATABASE IF EXISTS \"${source_db}\";"
+			run_psql postgres "CREATE DATABASE \"${source_db}\";"
 			;;
 		mysql)
 			run_mysql mysql "DROP DATABASE IF EXISTS ${source_db};"
@@ -1494,7 +1495,16 @@ normalize_callhome_json() {
             .yb_cluster_metrics = "IGNORED" |
             .parallel_jobs = "IGNORED" |
             .adaptive_parallelism_max = "IGNORED" |
-            .snapshot_total_bytes = "IGNORED"
+            .snapshot_total_bytes = "IGNORED" |
+            .collected_at = "IGNORED" |
+            .phase_start_time = "IGNORED" |
+            .time_taken_sec = "IGNORED" |
+            .yb_voyager_version = "IGNORED" |
+            .migration_uuid = "IGNORED" |
+            .db_version = "IGNORED" |
+            .db_system_identifier = "IGNORED" |
+            .target_db_details = "IGNORED" |
+            .total_db_size_bytes = "IGNORED"
         elif type == "array" then
 			sort_by(tostring)
         elif type == "string" and (
@@ -1547,7 +1557,7 @@ compare_callhome_json_reports() {
 
 # Function to execute logical replication connector specific DMLs
 execute_logical_replication_target_delta() {
-	if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" != true ]; then
+	if [ "${USE_YB_GRPC_CONNECTOR}" = true ]; then
 		echo "Skipping logical replication specific DMLs (gRPC connector)"
 		return 0
 	fi

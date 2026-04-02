@@ -21,35 +21,37 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 type TargetConf struct {
-	TargetDBType         string        `json:"target_db_type"`
-	Host                 string        `json:"host"`
-	Port                 int           `json:"port"`
-	User                 string        `json:"user"`
-	Password             string        `json:"password"`
-	DBName               string        `json:"db_name"`
-	Schema               string        `json:"schema"`
-	SSLMode              string        `json:"ssl_mode"`
-	SSLCertPath          string        `json:"ssl_cert_path"`
-	SSLKey               string        `json:"ssl_key"`
-	SSLRootCert          string        `json:"ssl_root_cert"`
-	SSLCRL               string        `json:"ssl_crl"`
-	SSLQueryString       string        `json:"ssl_query_string"`
-	DBSid                string        `json:"db_sid"`
-	TNSAlias             string        `json:"tns_alias"`
-	OracleHome           string        `json:"oracle_home"`
-	Uri                  string        `json:"uri"`
-	ContinueOnError      utils.BoolStr `json:"continue_on_error"`
-	IgnoreIfExists       utils.BoolStr `json:"ignore_if_exists"`
-	TableList            string        `json:"table_list"`
-	ExcludeTableList     string        `json:"exclude_table_list"`
-	ImportMode           bool          `json:"import_mode"`
-	ImportObjects        string        `json:"import_objects"`
-	ExcludeImportObjects string        `json:"exclude_import_objects"`
-	DBVersion            string        `json:"db_version"`
-	RunGuardrailsChecks  utils.BoolStr `json:"run_guardrails_checks"`
+	TargetDBType         string               `json:"target_db_type"`
+	Host                 string               `json:"host"`
+	Port                 int                  `json:"port"`
+	User                 string               `json:"user"`
+	Password             string               `json:"password"`
+	DBName               string               `json:"db_name"`
+	SchemaConfig         string               `json:"schema_config"`
+	Schemas              []sqlname.Identifier `json:"schemas"`
+	SSLMode              string               `json:"ssl_mode"`
+	SSLCertPath          string               `json:"ssl_cert_path"`
+	SSLKey               string               `json:"ssl_key"`
+	SSLRootCert          string               `json:"ssl_root_cert"`
+	SSLCRL               string               `json:"ssl_crl"`
+	SSLQueryString       string               `json:"ssl_query_string"`
+	DBSid                string               `json:"db_sid"`
+	TNSAlias             string               `json:"tns_alias"`
+	OracleHome           string               `json:"oracle_home"`
+	Uri                  string               `json:"uri"`
+	ContinueOnError      utils.BoolStr        `json:"continue_on_error"`
+	IgnoreIfExists       utils.BoolStr        `json:"ignore_if_exists"`
+	TableList            string               `json:"table_list"`
+	ExcludeTableList     string               `json:"exclude_table_list"`
+	ImportMode           bool                 `json:"import_mode"`
+	ImportObjects        string               `json:"import_objects"`
+	ExcludeImportObjects string               `json:"exclude_import_objects"`
+	DBVersion            string               `json:"db_version"`
+	RunGuardrailsChecks  utils.BoolStr        `json:"run_guardrails_checks"`
 
 	TargetEndpoints            string                        `json:"target_endpoints"`
 	UsePublicIP                utils.BoolStr                 `json:"use_public_ip"`

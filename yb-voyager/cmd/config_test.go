@@ -34,6 +34,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
@@ -79,13 +80,14 @@ func setupExportDir(t *testing.T) string {
 	exportDir, err := os.MkdirTemp("/tmp", "export-dir-*")
 	require.NoError(t, err)
 
-	CreateMigrationProjectIfNotExists(POSTGRESQL, exportDir)
+	metaDB = CreateMigrationProjectIfNotExists(POSTGRESQL, exportDir)
 	return exportDir
 }
 
 type testContext struct {
-	tmpExportDir string
-	configFile   string
+	tmpExportDir  string
+	configFile    string
+	tmpArchiveDir string
 }
 
 ////////////////////////////// Validation Logic Tests //////////////////////////////
@@ -266,7 +268,8 @@ log-level: info
 send-diagnostics: true
 profile: true
 control-plane-type: yugabyte
-yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+yugabyted-control-plane:
+  db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
 java-home: /path/to/java/home
 local-call-home-service-host: localhost
 local-call-home-service-port: 8080
@@ -344,7 +347,7 @@ func TestAssessMigration_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, "test_user", source.User, "Source user should match the config")
 	assert.Equal(t, "test_password", source.Password, "Source password should match the config")
 	assert.Equal(t, "test_db", source.DBName, "Source DB name should match the config")
-	assert.Equal(t, "public", source.Schema, "Source schema should match the config")
+	assert.Equal(t, "public", source.SchemaConfig, "Source schema should match the config")
 	assert.Equal(t, "/path/to/cert.pem", source.SSLCertPath, "Source SSL cert should match the config")
 	assert.Equal(t, "require", source.SSLMode, "Source SSL mode should match the config")
 	assert.Equal(t, "/path/to/key.pem", source.SSLKey, "Source SSL key should match the config")
@@ -425,7 +428,7 @@ func TestAssessMigration_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, "test_user2", source.User, "Source user should be overridden by CLI")
 	assert.Equal(t, "test_password2", source.Password, "Source password should be overridden by CLI")
 	assert.Equal(t, "test_db2", source.DBName, "Source DB name should be overridden by CLI")
-	assert.Equal(t, "public2", source.Schema, "Source schema should be overridden by CLI")
+	assert.Equal(t, "public2", source.SchemaConfig, "Source schema should be overridden by CLI")
 	assert.Equal(t, "/path/to/cert2.pem", source.SSLCertPath, "Source SSL cert should be overridden by CLI")
 	assert.Equal(t, "verify-full", source.SSLMode, "Source SSL mode should be overridden by CLI")
 	assert.Equal(t, "/path/to/key2.pem", source.SSLKey, "Source SSL key should be overridden by CLI")
@@ -490,7 +493,7 @@ func TestAssessMigration_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, "test_user", source.User, "Source user should match the config")
 	assert.Equal(t, "test_password", source.Password, "Source password should match the config")
 	assert.Equal(t, "test_db", source.DBName, "Source DB name should match the config")
-	assert.Equal(t, "public", source.Schema, "Source schema should match the config")
+	assert.Equal(t, "public", source.SchemaConfig, "Source schema should match the config")
 	assert.Equal(t, "/path/to/cert.pem", source.SSLCertPath, "Source SSL cert should match the config")
 	assert.Equal(t, "require", source.SSLMode, "Source SSL mode should match the config")
 	assert.Equal(t, "/path/to/key.pem", source.SSLKey, "Source SSL key should match the config")
@@ -565,7 +568,8 @@ log-level: info
 send-diagnostics: true
 profile: true
 control-plane-type: yugabyte
-yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+yugabyted-control-plane:
+  db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
 java-home: /path/to/java/home
 local-call-home-service-host: localhost
 local-call-home-service-port: 8080
@@ -638,7 +642,7 @@ func TestExportSchemaConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, "test_user", source.User, "Source user should match the config")
 	assert.Equal(t, "test_password", source.Password, "Source password should match the config")
 	assert.Equal(t, "test_db", source.DBName, "Source DB name should match the config")
-	assert.Equal(t, "public", source.Schema, "Source schema should match the config")
+	assert.Equal(t, "public", source.SchemaConfig, "Source schema should match the config")
 	assert.Equal(t, "/path/to/cert.pem", source.SSLCertPath, "Source SSL cert should match the config")
 	assert.Equal(t, "require", source.SSLMode, "Source SSL mode should match the config")
 	assert.Equal(t, "/path/to/key.pem", source.SSLKey, "Source SSL key should match the config")
@@ -721,7 +725,7 @@ func TestExportSchemaConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, "test_user2", source.User, "Source user should be overridden by CLI")
 	assert.Equal(t, "test_password2", source.Password, "Source password should be overridden by CLI")
 	assert.Equal(t, "test_db2", source.DBName, "Source DB name should be overridden by CLI")
-	assert.Equal(t, "public2", source.Schema, "Source schema should be overridden by CLI")
+	assert.Equal(t, "public2", source.SchemaConfig, "Source schema should be overridden by CLI")
 	assert.Equal(t, "/path/to/cert2.pem", source.SSLCertPath, "Source SSL cert should be overridden by CLI")
 	assert.Equal(t, "verify-full", source.SSLMode, "Source SSL mode should be overridden by CLI")
 	assert.Equal(t, "/path/to/key2.pem", source.SSLKey, "Source SSL key should be overridden by CLI")
@@ -784,7 +788,7 @@ func TestExportSchemaConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, "test_user", source.User, "Source user should match the config")
 	assert.Equal(t, "test_password", source.Password, "Source password should match the config")
 	assert.Equal(t, "test_db", source.DBName, "Source DB name should match the config")
-	assert.Equal(t, "public", source.Schema, "Source schema should match the config")
+	assert.Equal(t, "public", source.SchemaConfig, "Source schema should match the config")
 	assert.Equal(t, "/path/to/cert.pem", source.SSLCertPath, "Source SSL cert should match the config")
 	assert.Equal(t, "require", source.SSLMode, "Source SSL mode should match the config")
 	assert.Equal(t, "/path/to/key.pem", source.SSLKey, "Source SSL key should match the config")
@@ -859,7 +863,8 @@ log-level: info
 send-diagnostics: true
 profile: true
 control-plane-type: yugabyte
-yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+yugabyted-control-plane:
+  db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
 java-home: /path/to/java/home
 local-call-home-service-host: localhost
 local-call-home-service-port: 8080
@@ -1041,7 +1046,8 @@ log-level: info
 send-diagnostics: true
 profile: true
 control-plane-type: yugabyte
-yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+yugabyted-control-plane:
+  db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
 java-home: /path/to/java/home
 local-call-home-service-host: localhost
 local-call-home-service-port: 8080
@@ -1117,7 +1123,7 @@ func TestExportDataFromSourceConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, "test_user", source.User, "Source user should match the config")
 	assert.Equal(t, "test_password", source.Password, "Source password should match the config")
 	assert.Equal(t, "test_db", source.DBName, "Source DB name should match the config")
-	assert.Equal(t, "public", source.Schema, "Source schema should match the config")
+	assert.Equal(t, "public", source.SchemaConfig, "Source schema should match the config")
 	assert.Equal(t, "/path/to/cert.pem", source.SSLCertPath, "Source SSL cert should match the config")
 	assert.Equal(t, "require", source.SSLMode, "Source SSL mode should match the config")
 	assert.Equal(t, "/path/to/key.pem", source.SSLKey, "Source SSL key should match the config")
@@ -1208,7 +1214,7 @@ func TestExportDataFromSourceConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, "test_user2", source.User, "Source user should be overridden by CLI")
 	assert.Equal(t, "test_password2", source.Password, "Source password should be overridden by CLI")
 	assert.Equal(t, "test_db2", source.DBName, "Source DB name should be overridden by CLI")
-	assert.Equal(t, "public2", source.Schema, "Source schema should be overridden by CLI")
+	assert.Equal(t, "public2", source.SchemaConfig, "Source schema should be overridden by CLI")
 	assert.Equal(t, "/path/to/cert2.pem", source.SSLCertPath, "Source SSL cert should be overridden by CLI")
 	assert.Equal(t, "verify-full", source.SSLMode, "Source SSL mode should be overridden by CLI")
 	assert.Equal(t, "/path/to/key2.pem", source.SSLKey, "Source SSL key should be overridden by CLI")
@@ -1279,7 +1285,7 @@ func TestExportDataFromSourceConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, "test_user", source.User, "Source user should match the config")
 	assert.Equal(t, "test_password", source.Password, "Source password should match the config")
 	assert.Equal(t, "test_db", source.DBName, "Source DB name should match the config")
-	assert.Equal(t, "public", source.Schema, "Source schema should match the config")
+	assert.Equal(t, "public", source.SchemaConfig, "Source schema should match the config")
 	assert.Equal(t, "/path/to/cert.pem", source.SSLCertPath, "Source SSL cert should match the config")
 	assert.Equal(t, "require", source.SSLMode, "Source SSL mode should match the config")
 	assert.Equal(t, "/path/to/key.pem", source.SSLKey, "Source SSL key should match the config")
@@ -1349,7 +1355,7 @@ export-data:
 	assert.Equal(t, "test_db", source.DBName, "Source DB name should match the config")
 	assert.Equal(t, "test_user", source.User, "Source user should match the config")
 	assert.Equal(t, "localhost", source.Host, "Source host should match the config")
-	assert.Equal(t, "public", source.Schema, "Source schema should match the config")
+	assert.Equal(t, "public", source.SchemaConfig, "Source schema should match the config")
 	assert.Equal(t, "postgresql", source.DBType, "Source DB type should match the config")
 	assert.Equal(t, 5432, source.Port, "Source port should match the config")
 	// Assertions on export-data config
@@ -1405,7 +1411,7 @@ export-data-from-source:
 	assert.Equal(t, "test_db", source.DBName, "Source DB name should match the config")
 	assert.Equal(t, "test_user", source.User, "Source user should match the config")
 	assert.Equal(t, "localhost", source.Host, "Source host should match the config")
-	assert.Equal(t, "public", source.Schema, "Source schema should match the config")
+	assert.Equal(t, "public", source.SchemaConfig, "Source schema should match the config")
 	assert.Equal(t, "postgresql", source.DBType, "Source DB type should match the config")
 	assert.Equal(t, 5432, source.Port, "Source port should match the config")
 	// Assertions on export-data config
@@ -1475,7 +1481,8 @@ log-level: info
 send-diagnostics: true
 profile: true
 control-plane-type: yugabyte
-yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+yugabyted-control-plane:
+  db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
 java-home: /path/to/java/home
 local-call-home-service-host: localhost
 local-call-home-service-port: 8080
@@ -1538,7 +1545,7 @@ func TestImportSchemaConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, "test_user", tconf.User, "Target user should match the config")
 	assert.Equal(t, "test_password", tconf.Password, "Target password should match the config")
 	assert.Equal(t, "test_db", tconf.DBName, "Target DB name should match the config")
-	assert.Equal(t, "public", tconf.Schema, "Target schema should match the config")
+	assert.Equal(t, "public", tconf.SchemaConfig, "Target schema should match the config")
 	assert.Equal(t, "/path/to/ssl-cert", tconf.SSLCertPath, "Target SSL cert should match the config")
 	assert.Equal(t, "require", tconf.SSLMode, "Target SSL mode should match the config")
 	assert.Equal(t, "/path/to/ssl-key", tconf.SSLKey, "Target SSL key should match the config")
@@ -1608,7 +1615,7 @@ func TestImportSchemaConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, "test_user2", tconf.User, "Target user should be overridden by CLI")
 	assert.Equal(t, "test_password2", tconf.Password, "Target password should be overridden by CLI")
 	assert.Equal(t, "test_db2", tconf.DBName, "Target DB name should be overridden by CLI")
-	assert.Equal(t, "public2", tconf.Schema, "Target schema should be overridden by CLI")
+	assert.Equal(t, "public2", tconf.SchemaConfig, "Target schema should be overridden by CLI")
 	assert.Equal(t, "/path/to/ssl-cert2", tconf.SSLCertPath, "Target SSL cert should be overridden by CLI")
 	assert.Equal(t, "verify-full", tconf.SSLMode, "Target SSL mode should be overridden by CLI")
 	assert.Equal(t, "/path/to/ssl-key2", tconf.SSLKey, "Target SSL key should be overridden by CLI")
@@ -1679,7 +1686,8 @@ log-level: info
 send-diagnostics: true
 profile: true
 control-plane-type: yugabyte
-yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+yugabyted-control-plane:
+  db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
 java-home: /path/to/java/home
 local-call-home-service-host: localhost
 local-call-home-service-port: 8080
@@ -1768,7 +1776,7 @@ func TestImportDataConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, "test_user", tconf.User, "Target user should match the config")
 	assert.Equal(t, "test_password", tconf.Password, "Target password should match the config")
 	assert.Equal(t, "test_db", tconf.DBName, "Target DB name should match the config")
-	assert.Equal(t, "public", tconf.Schema, "Target schema should match the config")
+	assert.Equal(t, "public", tconf.SchemaConfig, "Target schema should match the config")
 	assert.Equal(t, "/path/to/ssl-cert", tconf.SSLCertPath, "Target SSL cert should match the config")
 	assert.Equal(t, "require", tconf.SSLMode, "Target SSL mode should match the config")
 	assert.Equal(t, "/path/to/ssl-key", tconf.SSLKey, "Target SSL key should match the config")
@@ -1881,7 +1889,7 @@ func TestImportDataConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, "test_user2", tconf.User, "Target user should be overridden by CLI")
 	assert.Equal(t, "test_password2", tconf.Password, "Target password should be overridden by CLI")
 	assert.Equal(t, "test_db2", tconf.DBName, "Target DB name should be overridden by CLI")
-	assert.Equal(t, "public2", tconf.Schema, "Target schemashould be overridden by CLI")
+	assert.Equal(t, "public2", tconf.SchemaConfig, "Target schemashould be overridden by CLI")
 	assert.Equal(t, "/path/to/ssl-cert2", tconf.SSLCertPath, "Target SSL cert should be overridden by CLI")
 	assert.Equal(t, "verify-full", tconf.SSLMode, "Target SSL mode should be overridden by CLI")
 	assert.Equal(t, "/path/to/ssl-key2", tconf.SSLKey, "Target SSL key should be overridden by CLI")
@@ -1975,7 +1983,7 @@ func TestImportDataConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, "test_user", tconf.User, "Target user should match the config")
 	assert.Equal(t, "test_password", tconf.Password, "Target password should match the config")
 	assert.Equal(t, "test_db", tconf.DBName, "Target DB name should match the config")
-	assert.Equal(t, "public", tconf.Schema, "Target schema should match the config")
+	assert.Equal(t, "public", tconf.SchemaConfig, "Target schema should match the config")
 	assert.Equal(t, "/path/to/ssl-cert", tconf.SSLCertPath, "Target SSL cert should match the config")
 	assert.Equal(t, "require", tconf.SSLMode, "Target SSL mode should match the config")
 	assert.Equal(t, "/path/to/ssl-key", tconf.SSLKey, "Target SSL key should match the config")
@@ -2089,7 +2097,7 @@ import-data:
 	assert.Equal(t, "test_user", tconf.User, "Target user should match the config")
 	assert.Equal(t, "test_password", tconf.Password, "Target password should match the config")
 	assert.Equal(t, "test_db", tconf.DBName, "Target DB name should match the config")
-	assert.Equal(t, "public", tconf.Schema, "Target schema should match the config")
+	assert.Equal(t, "public", tconf.SchemaConfig, "Target schema should match the config")
 	assert.Equal(t, "/path/to/ssl-cert", tconf.SSLCertPath, "Target SSL cert should match the config")
 	assert.Equal(t, "require", tconf.SSLMode, "Target SSL mode should match the config")
 	assert.Equal(t, "/path/to/ssl-key", tconf.SSLKey, "Target SSL key should match the config")
@@ -2191,7 +2199,7 @@ import-data-to-target:
 	assert.Equal(t, "test_user", tconf.User, "Target user should match the config")
 	assert.Equal(t, "test_password", tconf.Password, "Target password should match the config")
 	assert.Equal(t, "test_db", tconf.DBName, "Target DB name should match the config")
-	assert.Equal(t, "public", tconf.Schema, "Target schema should match the config")
+	assert.Equal(t, "public", tconf.SchemaConfig, "Target schema should match the config")
 	assert.Equal(t, "/path/to/ssl-cert", tconf.SSLCertPath, "Target SSL cert should match the config")
 	assert.Equal(t, "require", tconf.SSLMode, "Target SSL mode should match the config")
 	assert.Equal(t, "/path/to/ssl-key", tconf.SSLKey, "Target SSL key should match the config")
@@ -2284,7 +2292,8 @@ log-level: info
 send-diagnostics: true
 profile: true
 control-plane-type: yugabyte
-yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+yugabyted-control-plane:
+  db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
 java-home: /path/to/java/home
 local-call-home-service-host: localhost
 local-call-home-service-port: 8080
@@ -2373,7 +2382,7 @@ func TestImportDataFileConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, "test_user", tconf.User, "Target user should match the config")
 	assert.Equal(t, "test_password", tconf.Password, "Target password should match the config")
 	assert.Equal(t, "test_db", tconf.DBName, "Target DB name should match the config")
-	assert.Equal(t, "public", tconf.Schema, "Target schema should match the config")
+	assert.Equal(t, "public", tconf.SchemaConfig, "Target schema should match the config")
 	assert.Equal(t, "/path/to/ssl-cert", tconf.SSLCertPath, "Target SSL cert should match the config")
 	assert.Equal(t, "require", tconf.SSLMode, "Target SSL mode should match the config")
 	assert.Equal(t, "/path/to/ssl-key", tconf.SSLKey, "Target SSL key should match the config")
@@ -2491,7 +2500,7 @@ func TestImportDataFileConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, "test_user2", tconf.User, "Target user should be overridden by CLI")
 	assert.Equal(t, "test_password2", tconf.Password, "Target password should be overridden by CLI")
 	assert.Equal(t, "test_db2", tconf.DBName, "Target DB name should be overridden by CLI")
-	assert.Equal(t, "public2", tconf.Schema, "Target schema should be overridden by CLI")
+	assert.Equal(t, "public2", tconf.SchemaConfig, "Target schema should be overridden by CLI")
 	assert.Equal(t, "/path/to/ssl-cert2", tconf.SSLCertPath, "Target SSL cert should be overridden by CLI")
 	assert.Equal(t, "verify-full", tconf.SSLMode, "Target SSL mode should be overridden by CLI")
 	assert.Equal(t, "/path/to/ssl-key2", tconf.SSLKey, "Target SSL key should be overridden by CLI")
@@ -2581,7 +2590,7 @@ func TestImportDataFileConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, "test_user", tconf.User, "Target user should match the config")
 	assert.Equal(t, "test_password", tconf.Password, "Target password should match the config")
 	assert.Equal(t, "test_db", tconf.DBName, "Target DB name should match the config")
-	assert.Equal(t, "public", tconf.Schema, "Target schema should match the config")
+	assert.Equal(t, "public", tconf.SchemaConfig, "Target schema should match the config")
 	assert.Equal(t, "/path/to/ssl-cert", tconf.SSLCertPath, "Target SSL cert should match the config")
 	assert.Equal(t, "require", tconf.SSLMode, "Target SSL mode should match the config")
 	assert.Equal(t, "/path/to/ssl-key", tconf.SSLKey, "Target SSL key should match the config")
@@ -2681,7 +2690,8 @@ log-level: info
 send-diagnostics: true
 profile: true
 control-plane-type: yugabyte
-yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+yugabyted-control-plane:
+  db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
 java-home: /path/to/java/home
 local-call-home-service-host: localhost
 local-call-home-service-port: 8080
@@ -2742,7 +2752,7 @@ func TestFinalizeSchemaPostDataImportConfigBinding_ConfigFileBinding(t *testing.
 	assert.Equal(t, "test_user", tconf.User, "Target user should match the config")
 	assert.Equal(t, "test_password", tconf.Password, "Target password should match the config")
 	assert.Equal(t, "test_db", tconf.DBName, "Target DB name should match the config")
-	assert.Equal(t, "public", tconf.Schema, "Target schema should match the config")
+	assert.Equal(t, "public", tconf.SchemaConfig, "Target schema should match the config")
 	assert.Equal(t, "/path/to/ssl-cert", tconf.SSLCertPath, "Target SSL cert should match the config")
 	assert.Equal(t, "require", tconf.SSLMode, "Target SSL mode should match the config")
 	assert.Equal(t, "/path/to/ssl-key", tconf.SSLKey, "Target SSL key should match the config")
@@ -2809,7 +2819,7 @@ func TestFinalizeSchemaPostDataImportConfigBinding_CLIOverridesConfig(t *testing
 	assert.Equal(t, "test_user2", tconf.User, "Target user should be overridden by CLI")
 	assert.Equal(t, "test_password2", tconf.Password, "Target password should be overridden by CLI")
 	assert.Equal(t, "test_db2", tconf.DBName, "Target DB name should be overridden by CLI")
-	assert.Equal(t, "public2", tconf.Schema, "Target schema should be overridden by CLI")
+	assert.Equal(t, "public2", tconf.SchemaConfig, "Target schema should be overridden by CLI")
 	assert.Equal(t, "/path/to/ssl-cert2", tconf.SSLCertPath, "Target SSL cert should be overridden by CLI")
 	assert.Equal(t, "verify-full", tconf.SSLMode, "Target SSL mode should be overridden by CLI")
 	assert.Equal(t, "/path/to/ssl-key2", tconf.SSLKey, "Target SSL key should be overridden by CLI")
@@ -2862,7 +2872,7 @@ func TestFinalizeSchemaPostDataImportConfigBinding_EnvOverridesConfig(t *testing
 	assert.Equal(t, "test_user", tconf.User, "Target user should match the config")
 	assert.Equal(t, "test_password", tconf.Password, "Target password should match the config")
 	assert.Equal(t, "test_db", tconf.DBName, "Target DB name should match the config")
-	assert.Equal(t, "public", tconf.Schema, "Target schema should match the config")
+	assert.Equal(t, "public", tconf.SchemaConfig, "Target schema should match the config")
 	assert.Equal(t, "/path/to/ssl-cert", tconf.SSLCertPath, "Target SSL cert should match the config")
 	assert.Equal(t, "require", tconf.SSLMode, "Target SSL mode should match the config")
 	assert.Equal(t, "/path/to/ssl-key", tconf.SSLKey, "Target SSL key should match the config")
@@ -2930,7 +2940,8 @@ log-level: info
 send-diagnostics: true
 profile: true
 control-plane-type: yugabyte
-yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+yugabyted-control-plane:
+  db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
 java-home: /path/to/java/home
 local-call-home-service-host: localhost
 local-call-home-service-port: 8080
@@ -3168,7 +3179,8 @@ log-level: info
 send-diagnostics: true
 profile: true
 control-plane-type: yugabyte
-yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+yugabyted-control-plane:
+  db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
 java-home: /path/to/java/home
 local-call-home-service-host: localhost
 local-call-home-service-port: 8080
@@ -3371,7 +3383,8 @@ export-dir: %s
 log-level: info
 send-diagnostics: true
 control-plane-type: yugabyte
-yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+yugabyted-control-plane:
+  db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
 java-home: /path/to/java/home
 local-call-home-service-host: localhost
 local-call-home-service-port: 8080
@@ -3457,7 +3470,7 @@ func TestImportDataToSourceReplicaConfigBinding_ConfigFileBinding(t *testing.T) 
 	assert.Equal(t, "test_user", tconf.User, "Source replica user should match the config")
 	assert.Equal(t, "test_password", tconf.Password, "Source replica password should match the config")
 	assert.Equal(t, "test_db", tconf.DBName, "Source replica db name should match the config")
-	assert.Equal(t, "public", tconf.Schema, "Source replica schema should match the config")
+	assert.Equal(t, "public", tconf.SchemaConfig, "Source replica schema should match the config")
 	assert.Equal(t, "require", tconf.SSLMode, "Source replica SSL mode should match the config")
 	assert.Equal(t, "/path/to/ssl-cert", tconf.SSLCertPath, "Source replica SSL cert should match the config")
 	assert.Equal(t, "/path/to/ssl-key", tconf.SSLKey, "Source replica SSL key should match the config")
@@ -3536,7 +3549,7 @@ func TestImportDataToSourceReplicaConfigBinding_CLIOverridesConfig(t *testing.T)
 	assert.Equal(t, "test_user_2", tconf.User, "Source replica user should be overridden by CLI")
 	assert.Equal(t, "test_password_2", tconf.Password, "Source replica password should be overridden by CLI")
 	assert.Equal(t, "test_db_2", tconf.DBName, "Source replica db name should be overridden by CLI")
-	assert.Equal(t, "public_2", tconf.Schema, "Source replica schema should be overridden by CLI")
+	assert.Equal(t, "public_2", tconf.SchemaConfig, "Source replica schema should be overridden by CLI")
 	assert.Equal(t, "verify-full", tconf.SSLMode, "Source replica SSL mode should be overridden by CLI")
 	assert.Equal(t, "/path/to/ssl-cert-2", tconf.SSLCertPath, "Source replica SSL cert should be overridden by CLI")
 	assert.Equal(t, "/path/to/ssl-key-2", tconf.SSLKey, "Source replica SSL key should be overridden by CLI")
@@ -3605,7 +3618,7 @@ func TestImportDataToSourceReplicaConfigBinding_EnvOverridesConfig(t *testing.T)
 	assert.Equal(t, "test_user", tconf.User, "Source replica user should match the config")
 	assert.Equal(t, "test_password", tconf.Password, "Source replica password should match the config")
 	assert.Equal(t, "test_db", tconf.DBName, "Source replica db name should match the config")
-	assert.Equal(t, "public", tconf.Schema, "Source replica schema should match the config")
+	assert.Equal(t, "public", tconf.SchemaConfig, "Source replica schema should match the config")
 	assert.Equal(t, "require", tconf.SSLMode, "Source replica SSL mode should match the config")
 	assert.Equal(t, "/path/to/ssl-cert", tconf.SSLCertPath, "Source replica SSL cert should match the config")
 	assert.Equal(t, "/path/to/ssl-key", tconf.SSLKey, "Source replica SSL key should match the config")
@@ -3697,11 +3710,12 @@ func TestInitiateCutoverToTargetConfigBinding_CLIOverridesConfig(t *testing.T) {
 
 func setupArchiveChangesContext(t *testing.T) *testContext {
 	tmpExportDir := setupExportDir(t)
+	tmpArchiveDir := t.TempDir()
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
-	resetCmdAndEnvVars(archiveChangesCmd)
+	resetCmdAndEnvVars(segmentCleanupCmd)
 	t.Cleanup(func() {
-		resetFlags(archiveChangesCmd)
+		resetFlags(segmentCleanupCmd)
 	})
 
 	configContent := fmt.Sprintf(`
@@ -3710,15 +3724,15 @@ log-level: info
 send-diagnostics: false
 profile: true
 archive-changes:
-  delete-changes-without-archiving: true
-  fs-utilization-threshold: 20
-  move-to: "path/to/dir"
-`, tmpExportDir)
+  policy: archive
+  archive-dir: %s
+`, tmpExportDir, tmpArchiveDir)
 	configFile, configDir := setupConfigFile(t, configContent)
 	t.Cleanup(func() { os.RemoveAll(configDir) })
 	return &testContext{
-		tmpExportDir: tmpExportDir,
-		configFile:   configFile,
+		tmpExportDir:  tmpExportDir,
+		configFile:    configFile,
+		tmpArchiveDir: tmpArchiveDir,
 	}
 }
 
@@ -3736,10 +3750,9 @@ func TestArchiveChangesConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
 	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should match the config")
 	assert.Equal(t, utils.BoolStr(true), perfProfile, "Profile should match the config")
-	// Assertions on initiate cutover to target config
-	assert.Equal(t, utils.BoolStr(true), deleteSegments, "Delete Segments should match the config")
-	assert.Equal(t, 20, utilizationThreshold, "Utilizations threshold should match the config")
-	assert.Equal(t, "path/to/dir", moveDestination, "Move destination should match the config")
+	// Assertions on archive changes config
+	assert.Equal(t, "archive", cleanupPolicy, "policy should match the config")
+	assert.Equal(t, ctx.tmpArchiveDir, cleanupArchiveDir, "Move destination should match the config")
 }
 
 func TestArchiveChangesConfigBinding_CLIOverridesConfig(t *testing.T) {
@@ -3756,9 +3769,9 @@ func TestArchiveChangesConfigBinding_CLIOverridesConfig(t *testing.T) {
 		"--log-level", "debug",
 		"--send-diagnostics", "true",
 		"--profile", "false",
-		"--delete-changes-without-archiving", "false",
 		"--fs-utilization-threshold", "40",
-		"--move-to", "path/to/dir2",
+		"--policy", "delete",
+		"--archive-dir", "",
 	})
 	err := rootCmd.Execute()
 	require.NoError(t, err)
@@ -3767,24 +3780,25 @@ func TestArchiveChangesConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, "debug", config.LogLevel, "Log level should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), perfProfile, "Profile should be overridden by CLI")
-	// Assertions on initiate cutover to target config
-	assert.Equal(t, utils.BoolStr(false), deleteSegments, "Delete Segments should be overridden by CLI")
-	assert.Equal(t, 40, utilizationThreshold, "Utilizations threshold should be overridden by CLI")
-	assert.Equal(t, "path/to/dir2", moveDestination, "Move destination should be overridden by CLI")
+	// Assertions on archive config
+	assert.Equal(t, "delete", cleanupPolicy, "policy should be overridden by CLI")
+	assert.Equal(t, 40, cleanupUtilizationThreshold, "Utilizations threshold should be overridden by CLI")
+	assert.Equal(t, "", cleanupArchiveDir, "Move destination should be overridden by CLI")
 }
 
 func TestArchiveChangesConfigBinding_GlobalVsLocalConfig(t *testing.T) {
 	tmpExportDir := setupExportDir(t)
 	defer os.RemoveAll(tmpExportDir)
 
-	resetCmdAndEnvVars(archiveChangesCmd)
-	defer resetFlags(archiveChangesCmd)
+	resetCmdAndEnvVars(segmentCleanupCmd)
+	defer resetFlags(segmentCleanupCmd)
 
 	configContent := fmt.Sprintf(`
 export-dir: %s
 log-level: info
 send-diagnostics: true
 archive-changes:
+  policy: delete
   log-level: debug
   `, tmpExportDir)
 
@@ -3927,4 +3941,67 @@ end-migration:
 	assert.Equal(t, tmpExportDir, exportDir, "Export directory should match the global config section")
 	assert.Equal(t, "debug", config.LogLevel, "Log level should match the command level config section")
 	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the global config section")
+}
+
+///////////////////////////// Control Plane Configuration Tests ////////////////////////////////
+
+func setupControlPlaneConfigContext(t *testing.T) *testContext {
+	tmpExportDir := setupExportDir(t)
+	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
+
+	var configContent string
+
+	configContent = fmt.Sprintf(`
+export-dir: %s
+control-plane-type: ybm
+ybaeon-control-plane:
+  domain: "https://cloud.yugabyte.com"
+  account-id: "test-account-123"
+  project-id: "test-project-456"
+  cluster-id: "test-cluster-789"
+  api-key: "test-api-key-xyz"
+source:
+  db-type: postgresql
+  db-host: localhost
+  db-user: testuser
+  db-password: testpass
+  db-name: testdb
+  db-schema: public
+`, tmpExportDir)
+
+	configFile, _ := setupConfigFile(t, configContent)
+
+	resetCmdAndEnvVars(assessMigrationCmd)
+	t.Cleanup(func() {
+		resetFlags(assessMigrationCmd)
+	})
+
+	return &testContext{
+		tmpExportDir: tmpExportDir,
+		configFile:   configFile,
+	}
+}
+
+func TestControlPlane_YBMConfigFileBinding(t *testing.T) {
+	ctx := setupControlPlaneConfigContext(t)
+
+	// Set the global cfgFile variable directly (it's used by initConfig)
+	cfgFile = ctx.configFile
+	t.Cleanup(func() {
+		cfgFile = "" // Reset after test
+	})
+
+	// Initialize config to read the config file (now also loads control plane config internally)
+	_, err := initConfig(assessMigrationCmd)
+	require.NoError(t, err)
+
+	// Verify control plane config was loaded into the global controlPlaneConfig map
+	assert.Equal(t, "https://cloud.yugabyte.com", controlPlaneConfig["ybaeon-control-plane.domain"], "YB-Aeon domain should match config")
+	assert.Equal(t, "test-account-123", controlPlaneConfig["ybaeon-control-plane.account-id"], "YB-Aeon account ID should match config")
+	assert.Equal(t, "test-project-456", controlPlaneConfig["ybaeon-control-plane.project-id"], "YB-Aeon project ID should match config")
+	assert.Equal(t, "test-cluster-789", controlPlaneConfig["ybaeon-control-plane.cluster-id"], "YB-Aeon cluster ID should match config")
+	assert.Equal(t, "test-api-key-xyz", controlPlaneConfig["ybaeon-control-plane.api-key"], "YB-Aeon API key should match config")
+
+	// Verify control plane type via environment variable (set by initConfig)
+	assert.Equal(t, "ybm", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should be ybm")
 }

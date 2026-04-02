@@ -24,6 +24,8 @@ import (
 	"sort"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/fatih/color"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
@@ -125,7 +127,7 @@ func runExportDataStatusCmdDbzm(streamChanges bool, leafPartitions map[string][]
 		utils.ErrExit("Failed to read export status file: %s: %v", exportStatusFilePath, err)
 	}
 	if status == nil {
-		return nil, fmt.Errorf("export data has not started yet. Try running after export has started")
+		return nil, goerrors.Errorf("export data has not started yet. Try running after export has started")
 	}
 	InProgressTableSno = status.InProgressTableSno()
 	var rows []*exportTableMigStatusOutputRow
@@ -182,14 +184,14 @@ func runExportDataStatusCmd(msr *metadb.MigrationStatusRecord, leafPartitions ma
 	exportStatusSnapshot, err := exportSnapshotStatusFile.Read()
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, fmt.Errorf("export data has not started yet. Try running after export has started")
+			return nil, goerrors.Errorf("export data has not started yet. Try running after export has started")
 		}
 		utils.ErrExit("Failed to read export status file: %s: %v", exportSnapshotStatusFilePath, err)
 	}
 
 	exportedSnapshotRow, exportedSnapshotStatus, err := getExportedSnapshotRowsMap(exportStatusSnapshot)
 	if err != nil {
-		return nil, fmt.Errorf("error while getting exported snapshot rows map: %v", err)
+		return nil, goerrors.Errorf("error while getting exported snapshot rows map: %v", err)
 	}
 
 	for _, tableName := range tableList {
@@ -197,13 +199,13 @@ func runExportDataStatusCmd(msr *metadb.MigrationStatusRecord, leafPartitions ma
 		// if there is some table not present in target this should work
 		finalFullTableName, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tableName)
 		if err != nil {
-			return nil, fmt.Errorf("lookup %s in name registry: %v", tableName, err)
+			return nil, goerrors.Errorf("lookup %s in name registry: %v", tableName, err)
 		}
 		//Using the ForOutput() as a key for leafPartitions map as we are populating the map in that way.
 		displayTableName := getDisplayName(finalFullTableName, leafPartitions[finalFullTableName.ForOutput()], msr.IsExportTableListSet)
 		snapshotStatus, ok := exportedSnapshotStatus.Get(finalFullTableName)
 		if !ok {
-			return nil, fmt.Errorf("snapshot status for table %s is not populated in %q file", finalFullTableName.ForMinOutput(), exportSnapshotStatusFilePath)
+			return nil, goerrors.Errorf("snapshot status for table %s is not populated in %q file", finalFullTableName.ForMinOutput(), exportSnapshotStatusFilePath)
 		}
 		finalStatus := snapshotStatus[0]
 		if len(snapshotStatus) > 1 { // status for root partition wrt leaf partitions
@@ -231,7 +233,7 @@ func runExportDataStatusCmd(msr *metadb.MigrationStatusRecord, leafPartitions ma
 		}
 		exportedCount, ok := exportedSnapshotRow.Get(finalFullTableName)
 		if !ok {
-			return nil, fmt.Errorf("snapshot row count for table %s is not populated in %q file", finalFullTableName.ForMinOutput(), exportSnapshotStatusFilePath)
+			return nil, goerrors.Errorf("snapshot row count for table %s is not populated in %q file", finalFullTableName.ForMinOutput(), exportSnapshotStatusFilePath)
 		}
 		row := &exportTableMigStatusOutputRow{
 			TableName:     displayTableName,

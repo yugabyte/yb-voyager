@@ -36,9 +36,12 @@ import (
 	"syscall"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
+
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/fatih/color"
 	"github.com/google/uuid"
+	"github.com/jackc/pgtype"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -46,6 +49,11 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
+
+// GetCurrentTimestamp returns current UTC timestamp
+func GetCurrentTimestamp() time.Time {
+	return time.Now().UTC()
+}
 
 var DoNotPrompt bool
 
@@ -73,7 +81,7 @@ func Wait(args ...string) {
 			WaitChannel <- -1
 			return
 		default:
-			fmt.Printf("\b" + string(chars[i%4]))
+			fmt.Print("\b" + string(chars[i%4]))
 			time.Sleep(100 * time.Millisecond)
 		}
 	}
@@ -415,7 +423,7 @@ func WaitForLineInLogFile(filePath string, message string, timeoutDuration time.
 		}
 		select {
 		case <-timeout:
-			return fmt.Errorf("timeout while waiting for log file %q", filePath)
+			return goerrors.Errorf("timeout while waiting for log file %q", filePath)
 		default:
 			time.Sleep(1 * time.Second)
 		}
@@ -423,7 +431,7 @@ func WaitForLineInLogFile(filePath string, message string, timeoutDuration time.
 
 	file, err := os.Open(filePath)
 	if err != nil {
-		return fmt.Errorf("error opening file %s: %v", filePath, err)
+		return goerrors.Errorf("error opening file %s: %v", filePath, err)
 	}
 
 	defer file.Close()
@@ -434,7 +442,7 @@ func WaitForLineInLogFile(filePath string, message string, timeoutDuration time.
 			line, err := reader.ReadString('\n')
 
 			if err != nil && err != io.EOF {
-				return fmt.Errorf("error reading line from file %s: %v", filePath, err)
+				return goerrors.Errorf("error reading line from file %s: %v", filePath, err)
 			}
 
 			if strings.Contains(string(line), message) {
@@ -450,7 +458,7 @@ func WaitForLineInLogFile(filePath string, message string, timeoutDuration time.
 
 		select {
 		case <-timeout:
-			return fmt.Errorf("timeout while waiting for %q in %q", message, filePath)
+			return goerrors.Errorf("timeout while waiting for %q in %q", message, filePath)
 		default:
 			time.Sleep(1 * time.Second)
 		}
@@ -492,7 +500,7 @@ func PrintSqlStmtIfDDL(stmt string, fileName string, noticeMsg string) {
 	if !setOrSelectStmt {
 		fmt.Printf("%s: %s\n", fileName, GetSqlStmtToPrint(stmt))
 		if noticeMsg != "" {
-			fmt.Printf(color.YellowString("%s\n", noticeMsg))
+			fmt.Print(color.YellowString("%s\n", noticeMsg))
 			log.Infof("notice for %q: %s", GetSqlStmtToPrint(stmt), noticeMsg)
 		}
 	}
@@ -545,7 +553,7 @@ func ForEachMatchingLineInFile(filePath string, re *regexp.Regexp, callback func
 func ForEachLineInFile(filePath string, callback func(line string) bool) error {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return fmt.Errorf("error opening file %s: %v", filePath, err)
+		return goerrors.Errorf("error opening file %s: %v", filePath, err)
 	}
 	defer file.Close()
 
@@ -558,7 +566,7 @@ func ForEachLineInFile(filePath string, callback func(line string) bool) error {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("error reading file %s: %v", filePath, err)
+		return goerrors.Errorf("error reading file %s: %v", filePath, err)
 	}
 	return nil
 }
@@ -570,7 +578,7 @@ func GetEnvAsInt(key string, fallback int) int {
 	}
 	valueInt, err := strconv.ParseInt(valueStr, 10, 32)
 	if err != nil {
-		PrintAndLog("Couldn't interpret env var %v=%v. Defaulting to %v", key, valueStr, fallback)
+		PrintAndLogf("Couldn't interpret env var %v=%v. Defaulting to %v", key, valueStr, fallback)
 		return fallback
 	}
 	return int(valueInt)
@@ -584,7 +592,7 @@ func GetEnvAsInt64(key string, fallback int64) int64 {
 
 	valueInt, err := strconv.ParseInt(valueStr, 10, 64)
 	if err != nil {
-		PrintAndLog("Couldn't interpret env var %v=%v. Defaulting to %v", key, valueStr, fallback)
+		PrintAndLogf("Couldn't interpret env var %v=%v. Defaulting to %v", key, valueStr, fallback)
 		return fallback
 	}
 	return valueInt
@@ -618,7 +626,7 @@ func GetFSUtilizationPercentage(path string) (int, error) {
 	var stats syscall.Statfs_t
 	err := syscall.Statfs(path, &stats)
 	if err != nil {
-		return -1, fmt.Errorf("error while getting disk stats for %q: %v", path, err)
+		return -1, goerrors.Errorf("error while getting disk stats for %q: %v", path, err)
 	}
 
 	percUtilization := 100 - int((stats.Bavail*100)/stats.Blocks)
@@ -629,7 +637,7 @@ func GetFSUtilizationPercentage(path string) (int, error) {
 func ReadTableNameListFromFile(filePath string) ([]string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("error opening file %s: %v", filePath, err)
+		return nil, goerrors.Errorf("error opening file %s: %v", filePath, err)
 	}
 	defer file.Close()
 	var list []string
@@ -641,7 +649,7 @@ func ReadTableNameListFromFile(filePath string) ([]string, error) {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error reading file %s: %v", filePath, err)
+		return nil, goerrors.Errorf("error reading file %s: %v", filePath, err)
 	}
 	return list, nil
 }
@@ -735,7 +743,7 @@ func GetFreePort() (int, error) {
 	// Listen on port 0, which tells the OS to assign an available port
 	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
-		return 0, fmt.Errorf("failed to listen on a port: %v", err)
+		return 0, goerrors.Errorf("failed to listen on a port: %v", err)
 	}
 	defer listener.Close()
 
@@ -756,10 +764,10 @@ func GetFinalReleaseVersionFromRCVersion(msrVoyagerFinalVersion string) (string,
 		if len(versionParts) > 1 {
 			msrVoyagerFinalVersion = strings.Join(versionParts[1:], ".") // Join the parts after the first one
 		} else {
-			return "", fmt.Errorf("unexpected version format %q", msrVoyagerFinalVersion)
+			return "", goerrors.Errorf("unexpected version format %q", msrVoyagerFinalVersion)
 		}
 	} else {
-		return "", fmt.Errorf("unexpected version format %q", msrVoyagerFinalVersion)
+		return "", goerrors.Errorf("unexpected version format %q", msrVoyagerFinalVersion)
 	}
 	return msrVoyagerFinalVersion, nil
 }
@@ -827,7 +835,7 @@ func MatchesFormatString(format, final string) (bool, error) {
 
 	re, err := regexp.Compile(regexPattern)
 	if err != nil {
-		return false, fmt.Errorf("failed to compile regex pattern: %v", err)
+		return false, goerrors.Errorf("failed to compile regex pattern: %v", err)
 	}
 
 	return re.MatchString(final), nil
@@ -890,13 +898,13 @@ func ObfuscateFormatDetails(format, final, obfuscateWith string) (string, error)
 
 	re, err := regexp.Compile(regexPattern)
 	if err != nil {
-		return "", fmt.Errorf("failed to compile regex pattern: %v", err)
+		return "", goerrors.Errorf("failed to compile regex pattern: %v", err)
 	}
 
 	// Find the indexes of all capture groups using FindStringSubmatchIndex to get positions.
 	matchIndices := re.FindStringSubmatchIndex(final)
 	if matchIndices == nil {
-		return "", fmt.Errorf("no matches found")
+		return "", goerrors.Errorf("no matches found")
 	}
 
 	// matchIndices is a slice where:
@@ -992,7 +1000,7 @@ func RetryWorkWithTimeout(sleep time.Duration, timeout time.Duration, work func(
 // For example, GenerateAnonymisationSalt(8) gives you a 16-char hex string.
 func GenerateAnonymisationSalt(n int) (string, error) {
 	if n <= 0 {
-		return "", fmt.Errorf("invalid salt length %d; must be > 0", n)
+		return "", goerrors.Errorf("invalid salt length %d; must be > 0", n)
 	}
 
 	b := make([]byte, n)
@@ -1011,4 +1019,92 @@ func IsSetEqual(a, b []string) bool {
 	setB := mapset.NewThreadUnsafeSet(b...)
 
 	return setA.Equal(setB)
+}
+
+// ConvertPgTextArrayToStringSlice converts a pgtype.TextArray to a []string.
+// This utility function handles PostgreSQL text arrays returned from queries using array_agg() or similar functions.
+func ConvertPgTextArrayToStringSlice(textArray pgtype.TextArray) []string {
+	if textArray.Status != pgtype.Present {
+		return []string{}
+	}
+
+	result := make([]string, 0, len(textArray.Elements))
+	for _, elem := range textArray.Elements {
+		if elem.Status == pgtype.Present {
+			result = append(result, elem.String)
+		}
+		// Skip null elements - they won't be added to the result slice
+	}
+
+	return result
+}
+
+// ============================================================================
+// JSON Map Extraction Utilities
+// ============================================================================
+
+// GetInt64FromJSON extracts an int64 value from JSON map data with type conversion.
+// Supports conversion from float64, int64, int, and string types.
+func GetInt64FromJSON(data map[string]interface{}, key string) (int64, error) {
+	val, ok := data[key]
+	if !ok {
+		return 0, goerrors.Errorf("missing required field: %s", key)
+	}
+
+	switch v := val.(type) {
+	case float64:
+		return int64(v), nil
+	case int64:
+		return v, nil
+	case int:
+		return int64(v), nil
+	case string:
+		return strconv.ParseInt(v, 10, 64)
+	default:
+		return 0, goerrors.Errorf("invalid type for %s: %T", key, val)
+	}
+}
+
+// GetStringFromJSON extracts a string value from JSON map data with validation.
+// Returns error if key is missing, value is not a string, or string is empty after trimming.
+func GetStringFromJSON(data map[string]interface{}, key string) (string, error) {
+	val, ok := data[key]
+	if !ok {
+		return "", goerrors.Errorf("missing required field: %s", key)
+	}
+
+	str, ok := val.(string)
+	if !ok {
+		return "", goerrors.Errorf("invalid type for %s: expected string, got %T", key, val)
+	}
+
+	str = strings.TrimSpace(str)
+	if str == "" {
+		return "", goerrors.Errorf("empty value for %s", key)
+	}
+
+	return str, nil
+}
+
+// GetFloat64OrZero extracts a float64 value from JSON map data, trying multiple keys.
+// Returns 0.0 if none of the keys exist (for optional fields with fallback behavior).
+// Useful for handling version compatibility where field names may have changed.
+func GetFloat64OrZero(data map[string]interface{}, keys ...string) float64 {
+	for _, key := range keys {
+		if val, ok := data[key]; ok {
+			switch v := val.(type) {
+			case float64:
+				return v
+			case int64:
+				return float64(v)
+			case int:
+				return float64(v)
+			case string:
+				if f, err := strconv.ParseFloat(v, 64); err == nil {
+					return f
+				}
+			}
+		}
+	}
+	return 0.0
 }

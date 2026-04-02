@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"accounts\"",
+      "table_name": "\"public\".\"accounts\"",
       "file_name": "accounts_data.csv",
       "status": "DONE",
       "total_count": 170140395,

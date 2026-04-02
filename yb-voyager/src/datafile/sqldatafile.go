@@ -55,7 +55,7 @@ func (df *SqlDataFile) NextLine() (string, int64, error) {
 	}
 	df.bytesRead += currentBytesRead
 	line = strings.Trim(line, "\n") // to get the raw row
-	return line, currentBytesRead,  err
+	return line, currentBytesRead, err
 }
 
 func (df *SqlDataFile) Close() {
@@ -69,6 +69,7 @@ func (df *SqlDataFile) GetBytesRead() int64 {
 func (df *SqlDataFile) ResetBytesRead(bytes int64) {
 	df.bytesRead = bytes
 }
+
 
 func (df *SqlDataFile) isDataLine(line string) bool {
 	emptyLine := (len(line) == 0)
@@ -88,14 +89,14 @@ func (df *SqlDataFile) isDataLine(line string) bool {
 	}
 }
 
-func newSqlDataFile(fileName string, readCloser io.ReadCloser, descriptor *Descriptor) (*SqlDataFile, error) {
+func newSqlDataFile(fileName string, readCloser io.ReadCloser, descriptor *Descriptor, openedAtOffset int64) (*SqlDataFile, error) {
 	reader := bufio.NewReader(readCloser)
 	sqlDataFile := &SqlDataFile{
 		closer:         readCloser,
 		reader:         reader,
-		insideCopyStmt: false,
+		insideCopyStmt: openedAtOffset > 0,
 	}
-	log.Infof("created sql data file struct for file: %s", fileName)
+	log.Infof("created sql data file struct for file: %s (openedAtOffset=%d)", fileName, openedAtOffset)
 
 	return sqlDataFile, nil
 }

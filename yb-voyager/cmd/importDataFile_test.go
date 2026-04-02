@@ -142,7 +142,7 @@ func TestImportDataFileReport(t *testing.T) {
 	assert.Equal(t, 1, len(statusReport), "Report should contain exactly one entry")
 
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `public."test_data"`,
+		TableName:          `"public"."test_data"`,
 		FileName:           "test_data.csv",
 		ImportedCount:      1092,
 		ErroredCount:       0,
@@ -270,7 +270,7 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue_BatchIngestionError(t 
 	assert.Equal(t, 1, len(statusReport), "Report should contain exactly one entry")
 
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `public."test_data"`,
+		TableName:          `"public"."test_data"`,
 		FileName:           "test_data.csv",
 		ImportedCount:      992,
 		ErroredCount:       100,
@@ -294,15 +294,15 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue_BatchIngestionError(t 
 	testutils.FatalIfError(t, err, "End migration command failed")
 
 	// Verify that the backup directory contains the expected error files.
-	// error file is expected to be under dir table::test_data/file::test_data_data.sql:1960b25c and of the name ingestion-error.batch::1.10.10.92.E
 	tableDir := fmt.Sprintf("table::%s", tblName.ForKey())
 	fileDir := fmt.Sprintf("file::%s:%s", filepath.Base(dataFilePath), importdata.ComputePathHash(dataFilePath))
 	tableFileErrorsDir := filepath.Join(backupDir, "data", "errors", tableDir, fileDir)
-	errorFilePath := filepath.Join(tableFileErrorsDir, "ingestion-error.batch::1.10.10.100.E")
-	assert.FileExistsf(t, errorFilePath, "Expected error file %s to exist", errorFilePath)
+	errorFiles, globErr := filepath.Glob(filepath.Join(tableFileErrorsDir, "ingestion-error.batch::1.10.10.100.*.E"))
+	assert.NoError(t, globErr)
+	assert.Equal(t, 1, len(errorFiles), "Expected exactly one ingestion error file, found: %v", errorFiles)
 
 	// Verify the content of the error file
-	testutils.AssertFileContains(t, errorFilePath, "duplicate key value violates unique constraint")
+	testutils.AssertFileContains(t, errorFiles[0], "duplicate key value violates unique constraint")
 }
 
 func TestImportDataFileReport_ErrorPolicyStashAndContinue_ProcessingError(t *testing.T) {
@@ -423,7 +423,7 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue_ProcessingError(t *tes
 	assert.Equal(t, 1, len(statusReport), "Report should contain exactly one entry")
 
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `public."test_data"`,
+		TableName:          `"public"."test_data"`,
 		FileName:           "test_data.csv",
 		ImportedCount:      1081,
 		ErroredCount:       1009,
@@ -580,7 +580,7 @@ func TestImportDataFile_MultipleTasksForATable(t *testing.T) {
 	assert.Equal(t, 2, len(statusReport), "Report should contain exactly one entry")
 
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `public."test_data"`,
+		TableName:          `"public"."test_data"`,
 		FileName:           "test_data.csv",
 		ImportedCount:      1092,
 		ErroredCount:       0,
@@ -590,7 +590,7 @@ func TestImportDataFile_MultipleTasksForATable(t *testing.T) {
 	}, statusReport[0], "Status report row mismatch")
 
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `public."test_data"`,
+		TableName:          `"public"."test_data"`,
 		FileName:           "test_data1.csv",
 		ImportedCount:      1308,
 		ErroredCount:       0,
@@ -728,7 +728,7 @@ func TestImportDataFile_SameFileForMultipleTables(t *testing.T) {
 	assert.Equal(t, 2, len(statusReport), "Report should contain exactly one entry")
 
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `test_schema."test_data"`,
+		TableName:          `"test_schema"."test_data"`,
 		FileName:           "test_data.csv",
 		ImportedCount:      1092,
 		ErroredCount:       0,
@@ -738,7 +738,7 @@ func TestImportDataFile_SameFileForMultipleTables(t *testing.T) {
 	}, statusReport[0], "Status report row mismatch")
 
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `test_schema."test_data1"`,
+		TableName:          `"test_schema"."test_data1"`,
 		FileName:           "test_data.csv",
 		ImportedCount:      1092,
 		ErroredCount:       0,

@@ -21,6 +21,8 @@ import (
 	"io"
 	"os"
 	"strconv"
+
+	goerrors "github.com/go-errors/errors"
 )
 
 // A single record in a CSV file cannot be larger than this.
@@ -74,7 +76,7 @@ retry:
 			if n1 == len(r.buf) {
 				// The pending bytes are the entire buffer.
 				// This means that the record is larger than the buffer.
-				err := fmt.Errorf("record larger than %d bytes in file %s (line %d)",
+				err := goerrors.Errorf("record larger than %d bytes in file %s (line %d)",
 					len(r.buf), r.fileName, r.lineCount+1)
 				return "", skippedByteCount, err
 			}
@@ -90,7 +92,7 @@ retry:
 			if err == io.EOF {
 				r.eof = true
 			} else {
-				return "", skippedByteCount, fmt.Errorf("error reading file %s (line %d): %v", r.fileName, r.lineCount, err)
+				return "", skippedByteCount, goerrors.Errorf("error reading file %s (line %d): %v", r.fileName, r.lineCount, err)
 			}
 		}
 		r.remainingBuf = r.buf[:n] // Consume the valid bytes from the buffer.
@@ -102,7 +104,7 @@ retry:
 	if len(remainingBuf) == len(r.remainingBuf) && r.eof {
 		// We have reached the end of the file and there is no newline in the buffer.
 		if insideQuotes {
-			return "", skippedByteCount, fmt.Errorf("unterminated quoted field in file %s (line: %d)", r.fileName, r.lineCount)
+			return "", skippedByteCount, goerrors.Errorf("unterminated quoted field in file %s (line: %d)", r.fileName, r.lineCount)
 		} else {
 			// Return the last line in the file.
 			line = string(r.remainingBuf)

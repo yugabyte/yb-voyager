@@ -50,7 +50,7 @@ func (cluster *YugabyteDBClusterContainer) Start(ctx context.Context) (err error
 	if len(cluster.nodes) > 0 {
 		for _, node := range cluster.nodes {
 			if node.container != nil && node.container.IsRunning() {
-				utils.PrintAndLog("YugabyteDB cluster already running")
+				utils.PrintAndLogf("YugabyteDB cluster already running")
 				return nil
 			}
 		}
@@ -86,7 +86,7 @@ func (cluster *YugabyteDBClusterContainer) Start(ctx context.Context) (err error
 		return fmt.Errorf("cluster not ready: %w", err)
 	}
 
-	utils.PrintAndLog("YugabyteDB cluster with %d nodes started successfully", cluster.NodeCount)
+	utils.PrintAndLogf("YugabyteDB cluster with %d nodes started successfully", cluster.NodeCount)
 	return nil
 }
 
@@ -123,12 +123,16 @@ func (cluster *YugabyteDBClusterContainer) createNode(ctx context.Context, nodeI
 	return nodeContainer, nil
 }
 
+func (cluster *YugabyteDBClusterContainer) SetConfig(config ContainerConfig) {
+	cluster.ContainerConfig = config
+}
+
 func (cluster *YugabyteDBClusterContainer) Stop(ctx context.Context) error {
 	cluster.mutex.Lock()
 	defer cluster.mutex.Unlock()
 
 	if len(cluster.nodes) == 0 {
-		utils.PrintAndLog("YugabyteDB cluster already stopped")
+		utils.PrintAndLogf("YugabyteDB cluster already stopped")
 		return nil
 	}
 
@@ -140,7 +144,7 @@ func (cluster *YugabyteDBClusterContainer) Stop(ctx context.Context) error {
 		}
 	}
 
-	utils.PrintAndLog("YugabyteDB cluster stopped")
+	utils.PrintAndLogf("YugabyteDB cluster stopped")
 	return nil
 }
 
@@ -194,6 +198,10 @@ func (cluster *YugabyteDBClusterContainer) GetConnection() (*sql.DB, error) {
 	return cluster.nodes[0].GetConnection()
 }
 
+func (cluster *YugabyteDBClusterContainer) GetConnectionWithDB(dbName string) (*sql.DB, error) {
+	return cluster.nodes[0].GetConnectionWithDB(dbName)
+}
+
 // GetNodeConnection returns a connection to a specific node in the cluster
 // nodeIndex is 0-based: 0=first node (master), 1=second node, etc.
 func (cluster *YugabyteDBClusterContainer) GetNodeConnection(nodeIndex int) (*sql.DB, error) {
@@ -226,4 +234,12 @@ func yugabyteClusterWait(expectedNodes int) wait.Strategy {
 		},
 	).WithQuery(fmt.Sprintf("SELECT count(*) FROM yb_servers() HAVING count(*) = %d", expectedNodes)).
 		WithStartupTimeout(3 * time.Minute)
+}
+
+func (cluster *YugabyteDBClusterContainer) QueryOnDB(dbName string, sql string, args ...interface{}) (*sql.Rows, error) {
+	return cluster.nodes[0].QueryOnDB(dbName, sql, args...)
+}
+
+func (cluster *YugabyteDBClusterContainer) ExecuteSqlsOnDB(dbName string, sqls ...string) {
+	cluster.nodes[0].ExecuteSqlsOnDB(dbName, sqls...)
 }

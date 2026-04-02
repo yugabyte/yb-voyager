@@ -22,6 +22,8 @@ import (
 	"sort"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/fatih/color"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
@@ -99,7 +101,7 @@ type tableMigStatusOutputRow struct {
 // held in the main `import data` process.
 func runImportDataStatusCmd() error {
 	if !dataIsExported() {
-		return fmt.Errorf("cannot run `import data status` before data export is done")
+		return goerrors.Errorf("cannot run `import data status` before data export is done")
 	}
 	rows, err := prepareImportDataStatusTable()
 	if err != nil {
@@ -328,7 +330,7 @@ func getErrorHandlerUsed() (importdata.ImportDataErrorHandler, error) {
 	case TARGET_DB_IMPORTER_ROLE:
 		return getImportDataErrorHandlerUsed()
 	default:
-		return nil, fmt.Errorf("unknown importer role: %s", importerRole)
+		return nil, goerrors.Errorf("unknown importer role: %s", importerRole)
 	}
 }
 

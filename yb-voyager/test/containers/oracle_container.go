@@ -12,6 +12,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -21,18 +22,22 @@ type OracleContainer struct {
 	container testcontainers.Container
 }
 
+func (ora *OracleContainer) SetConfig(config ContainerConfig) {
+	ora.ContainerConfig = config
+}
+
 func (ora *OracleContainer) Start(ctx context.Context) (err error) {
 	ora.mutex.Lock()
 	defer ora.mutex.Unlock()
 
 	if ora.container != nil {
 		if ora.container.IsRunning() {
-			utils.PrintAndLog("Oracle-%s container already running", ora.DBVersion)
+			utils.PrintAndLogf("Oracle-%s container already running", ora.DBVersion)
 			return nil
 		}
 
 		// but if it’s stopped, so start it back up in place
-		utils.PrintAndLog("Restarting Oracle-%s container", ora.DBVersion)
+		utils.PrintAndLogf("Restarting Oracle-%s container", ora.DBVersion)
 		if err := ora.container.Start(ctx); err != nil {
 			return fmt.Errorf("failed to restart oracle container: %w", err)
 		}
@@ -98,7 +103,7 @@ func (ora *OracleContainer) Stop(ctx context.Context) error {
 	if ora.container == nil {
 		return nil
 	} else if !ora.container.IsRunning() {
-		utils.PrintAndLog("Oracle-%s container already stopped", ora.DBVersion)
+		utils.PrintAndLogf("Oracle-%s container already stopped", ora.DBVersion)
 		return nil
 	}
 
@@ -171,6 +176,11 @@ func (ora *OracleContainer) GetConnection() (*sql.DB, error) {
 	return conn, nil
 }
 
+func (ora *OracleContainer) GetConnectionWithDB(dbName string) (*sql.DB, error) {
+	// Oracle uses service/schema; dbName not used for connection
+	return ora.GetConnection()
+}
+
 func (ora *OracleContainer) GetVersion() (string, error) {
 	if ora == nil {
 		return "", fmt.Errorf("oracle container is not started: nil")
@@ -221,4 +231,14 @@ func (ora *OracleContainer) Query(sql string, args ...interface{}) (*sql.Rows, e
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
 	return rows, nil
+}
+
+func (ora *OracleContainer) QueryOnDB(dbName string, sql string, args ...interface{}) (*sql.Rows, error) {
+	//Not implemented
+	return ora.Query(sql, args...)
+}
+
+func (ora *OracleContainer) ExecuteSqlsOnDB(dbName string, sqls ...string) {
+	//Not implemented
+	ora.ExecuteSqls(sqls...)
 }

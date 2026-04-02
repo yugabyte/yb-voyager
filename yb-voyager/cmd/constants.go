@@ -36,8 +36,8 @@ const (
 	POSTGRESQL                      = "postgresql"
 	YUGABYTEDB                      = "yugabytedb"
 	LAST_SPLIT_NUM                  = 0
-	SPLIT_INFO_PATTERN              = "[0-9]*.[0-9]*.[0-9]*.[0-9]*"
-	LAST_SPLIT_PATTERN              = "0.[0-9]*.[0-9]*.[0-9]*"
+	SPLIT_INFO_PATTERN              = "[0-9]*.[0-9]*.[0-9]*.[0-9]*.[0-9]*"
+	LAST_SPLIT_PATTERN              = "0.[0-9]*.[0-9]*.[0-9]*.[0-9]*"
 	DEFAULT_BATCH_SIZE_ORACLE       = 10000000
 	DEFAULT_BATCH_SIZE_YUGABYTEDB   = 20000
 	DEFAULT_BATCH_SIZE_POSTGRESQL   = 100000
@@ -122,6 +122,7 @@ const (
 	MVIEW     = "MVIEW"
 	INDEX     = "INDEX"
 	YUGABYTED = "yugabyted"
+	YBAEON    = "ybaeon"
 
 	// assess-migration-bulk
 	SOURCE_DB_TYPE     = "source-db-type"

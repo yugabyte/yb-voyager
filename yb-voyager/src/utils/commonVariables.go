@@ -114,6 +114,7 @@ type AnalyzeSchemaIssue struct {
 	Type                   string                          `json:"-" xml:"-"` // identifier for issue type ADVISORY_LOCKS, SYSTEM_COLUMNS, etc
 	Name                   string                          `json:"-" xml:"-"` // to use for AssessmentIssue
 	Impact                 string                          `json:"-" xml:"-"` // temporary field; since currently we generate assessment issue from analyze issue
+	ObjectUsage            string                          `json:"-" xml:"-"`
 	SqlStatement           string                          `json:"SqlStatement,omitempty"`
 	FilePath               string                          `json:"FilePath"`
 	Suggestion             string                          `json:"Suggestion"`
@@ -159,7 +160,21 @@ func (colDatatype *TableColumnsDataTypes) GetBaseTypeNameFromDatatype() string {
 		log.Warnf("failed to get typename from colinfo: %s", colDatatype.DataType)
 	}
 	typeName = strings.TrimSuffix(typeName, "[]")
-	return typeName
+	// Normalize common multi-word PostgreSQL type spellings to their canonical names.
+	// This is needed because some catalog queries can return long names like `time with time zone`,
+	// while the rest of Voyager (unsupported datatype lists, etc.) uses canonical names like `timetz`.
+	switch strings.ToLower(strings.TrimSpace(typeName)) {
+	case "time with time zone":
+		return "timetz"
+	case "timestamp with time zone":
+		return "timestamptz"
+	case "timestamp without time zone":
+		return "timestamp"
+	case "time without time zone":
+		return "time"
+	default:
+		return typeName
+	}
 }
 
 type RedundantIndexesInfo struct {
@@ -198,6 +213,7 @@ func (r *RedundantIndexesInfo) GetExistingIndexObjectNameWithTableName() *sqlnam
 	objectNameWithTableName := sqlname.NewObjectNameQualifiedWithTableName(r.DBType, "", r.ExistingIndexName, r.ExistingSchemaName, r.ExistingTableName)
 	return objectNameWithTableName
 }
+
 type ColumnStatistics struct {
 	DBType              string
 	SchemaName          string

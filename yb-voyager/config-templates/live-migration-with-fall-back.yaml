@@ -18,15 +18,18 @@ log-level: info
 ### To see the Voyager migration workflow details in the UI, set the following parameters.
 
 ### Control plane type refers to the deployment type of YugabyteDB
-### Accepted value - (yugabyted)
-### Optional
-control-plane-type: yugabyted  
+### Accepted values: yugabyted
+### Optional (if not set, no visualization will be available)
+control-plane-type: yugabyted
 
-### YSQL connection string
-### Provide the standard PostgreSQL connection parameters, including user name, host name, and port. For example, postgresql://yugabyte:yugabyte@127.0.0.1:5433
-### Note: Don't include the dbname parameter in the connection string; the default yugabyte database is used to store the meta information for showing the migration in the yugabyted UI.
-### Required if control-plane-type is set to yugabyted
-yugabyted-db-conn-string: postgresql://yugabyte:yugabyte@127.0.0.1:5433                           
+### Yugabyted Control Plane Configuration (for local yugabyted clusters)
+### Uncomment the section below if control-plane-type is 'yugabyted'
+yugabyted-control-plane:
+  ### YSQL connection string to yugabyted database
+  ### Provide standard PostgreSQL connection parameters: user name, host name, and port
+  ### Example: postgresql://yugabyte:yugabyte@127.0.0.1:5433
+  ### Note: Don't include the dbname parameter; the default 'yugabyte' database is used for metadata
+  db-conn-string: postgresql://yugabyte:yugabyte@127.0.0.1:5433                       
 
 # ---------------------------------------------------------
 # Source Database Configuration
@@ -100,6 +103,13 @@ source:
 
   ### [For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle Container Database in case you are using a multitenant container database. Refer to documentation to learn more about configuring tnsnames.ora and aliases.
   # oracle-cdb-tns-alias: <oracle-cdb-tns-alias>
+
+### *********** PostgreSQL Read Replica Configuration ************
+
+  ### [For PostgreSQL Only] Comma-separated list of read replica endpoints for assessment. Each endpoint is host:port. Default port 5432.
+  ### Example: "host1:5432, host2:5433"
+  ### Optional - only used for assess-migration command 
+  # read-replica-endpoints: "host1:5432, host2:5433"
 
 
 # ---------------------------------------------------------
@@ -460,28 +470,28 @@ import-data-to-target:
 # Archive Changes
 # ---------------------------------------------------------
 
-### The archive changes command handles old CDC events that have already been applied to the destination database.
-### These events are kept in the local export directory until disk usage exceeds a threshold (default: 70%).
-### When the threshold is crossed, the command either archives the applied changes to another directory or deletes them.
-### This helps manage disk space usage during live migration.
+### The archive changes command manages the lifecycle of processed CDC event segments during live migration.
+### Once changes from the local queue are applied to the target DB, the processed segments can be deleted,
+### retained, or archived to another directory.
 
 ### Uncomment the respective parameters when you want to configure additional archive changes options.
 archive-changes:
 
-  ### Delete the imported changes without archiving them.
-  ### Note that: the changes are deleted from the export-dir only after disk utilisation exceeds 70%. 
-  ### Accepted values (true, false, yes, no, 0, 1)
-  ### Default - false
-  delete-changes-without-archiving: false
+  ### Cleanup policy for processed segments.
+  ### Required
+  ### Accepted values:
+  ###   delete  — delete processed segments once fs utilization exceeds the threshold.
+  ###   archive — copy processed segments to --archive-dir, then delete the originals.
+  policy: archive
 
-  ### Path to the directory where the imported change events are to be moved to. 
-  ### Note that, the changes are deleted from the export-dir only after the disk utilisation exceeds 70%.
-  ### Required if delete-changes-without-archiving is set to false.
-  move-to: <path-to-archive-dir>
+  ### Directory to archive processed segments to.
+  ### Required when policy is set to 'archive'.
+  archive-dir: <path-to-archive-dir>
 
-  ### Disk utilization threshold in percentage
+  ### Disk utilization percentage above which cleanup actions are triggered.
+  ### Used with policy 'delete' and 'retain'.
   ### Default - 70
-  # fs-utilization-threshold: 70 
+  # fs-utilization-threshold: 70
 
   ### Log level for the command
   ### Note: This overrides the global log-level parameter for this command only.
@@ -503,13 +513,14 @@ initiate-cutover-to-target:
   ### [DO NOT CHANGE]
   prepare-for-fall-back: true
 
-  ### Use the gRPC connector for YB export. 
-  ### If set to false, the logical replication connector (supported in YB versions 2024.1.1+) is used. 
-  ### For this new logical replication based connector, ensure no ALTER TABLE commands causing table rewrites (e.g., adding primary keys) 
-  ### were present in the schema during import
+  ### Applicable to Fall-forward/fall-back workflows where it is required to export changes from YugabyteDB during 'export data from target'. 
+  ### YugabyteDB provides two types of CDC (Change Data Capture) connectors:
+  ### Logical Connector(GA): It does not require access to internal ports. It is recommended for all deployments unless the version is less than 2024.1.1.
+  ### gRPC Connector: Requires direct access to the cluster's internal ports—specifically, TServer (9100) and Master (7100). This connector is suitable for deployments where these ports are accessible.
+  ### If set to true, workflow will use the gRPC connector. Otherwise, the logical connector (GA) (supported in YugabyteDB versions 2024.1.1+) is used.
   ### Accepted values (true, false, yes, no, 0, 1) 
-  ### Default - true
-  use-yb-grpc-connector: true
+  ### Default - false
+  # use-yb-grpc-connector: false
 
 # ---------------------------------------------------------
 # Finalize Schema Post Data Import Configuration
@@ -608,7 +619,17 @@ import-data-to-source:
   ### Maximum number of retries for the streaming change events during live migration
   ### Note: This overrides the value of the number of retries to happen for streaming phase 
   ## Accepted value - <integer>, default - 15
-  # max-retries-streaming: 15                                  
+  # max-retries-streaming: 15      
+
+# ---------------------------------------------------------
+# initiate cutover to source configuration
+# ---------------------------------------------------------
+initiate-cutover-to-source:
+  ### Restart source to target live data migration to prepare to cutover to target.. Not applicable for fall-forward workflow.
+  ### Accepted values (true, false, yes, no, 1, 0)
+  ### Default - false
+  restart-data-migration-source-target: false
+
 
 # ---------------------------------------------------------
 # End Migration Configuration

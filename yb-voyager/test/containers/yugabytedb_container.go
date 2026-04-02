@@ -25,18 +25,21 @@ type YugabyteDBContainer struct {
 	container testcontainers.Container
 }
 
+func (yb *YugabyteDBContainer) SetConfig(config ContainerConfig) {
+	yb.ContainerConfig = config
+}
 func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 	yb.mutex.Lock()
 	defer yb.mutex.Unlock()
 
 	if yb.container != nil {
 		if yb.container.IsRunning() {
-			utils.PrintAndLog("YugabyteDB-%s container already running", yb.DBVersion)
+			utils.PrintAndLogf("YugabyteDB-%s container already running", yb.DBVersion)
 			return nil
 		}
 
 		// but if it’s stopped, so start it back up in place
-		utils.PrintAndLog("Restarting YugabyteDB-%s container", yb.DBVersion)
+		utils.PrintAndLogf("Restarting YugabyteDB-%s container", yb.DBVersion)
 		if err := yb.container.Start(ctx); err != nil {
 			return fmt.Errorf("failed to restart yugabytedb container: %w", err)
 		}
@@ -68,7 +71,10 @@ func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 			"--daemon=false",
 			"--ui=false",
 			"--initial_scripts_dir=/home/yugabyte/initial-scripts",
+			// "--advertise_address=127.0.0.1",
+			// "--ysql_port=25433",
 		},
+		// Hostname:   "yb-cluster-test",
 		WaitingFor: yugabyteWait(),
 		Files: []testcontainers.ContainerFile{
 			{
@@ -77,6 +83,11 @@ func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 				FileMode:          0755,
 			},
 		},
+		// HostConfigModifier: func(hostConfig *container.HostConfig) {
+		// 	hostConfig.PortBindings = nat.PortMap{
+		// 		"25433/tcp": {{HostIP: "127.0.0.1", HostPort: "25433"}},
+		// 	}
+		// },
 	}
 
 	yb.container, err = testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
@@ -87,6 +98,17 @@ func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to start yugabytedb container: %w", err)
 	}
+
+	// hostFile, err := os.OpenFile("/etc/hosts", os.O_APPEND, 0644)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to open hosts file: %w", err)
+	// }
+	// defer hostFile.Close()
+	// data, err := io.ReadAll(hostFile)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to read hosts file: %w", err)
+	// }
+	// fmt.Printf("hosts file data before: %s\n", string(data))
 
 	return nil
 }
@@ -101,7 +123,7 @@ func (yb *YugabyteDBContainer) Stop(ctx context.Context) error {
 	if yb.container == nil {
 		return nil
 	} else if !yb.container.IsRunning() {
-		utils.PrintAndLog("YugabyteDB-%s container already stopped", yb.DBVersion)
+		utils.PrintAndLogf("YugabyteDB-%s container already stopped", yb.DBVersion)
 		return nil
 	}
 
@@ -111,7 +133,7 @@ func (yb *YugabyteDBContainer) Stop(ctx context.Context) error {
 		return fmt.Errorf("failed to stop postgres container: %w", err)
 	}
 
-	utils.PrintAndLog("🛑 YugabyteDB-%s container stopped", yb.DBVersion)
+	utils.PrintAndLogf("🛑 YugabyteDB-%s container stopped", yb.DBVersion)
 	return nil
 }
 
@@ -194,18 +216,87 @@ func (yb *YugabyteDBContainer) GetVersion() (string, error) {
 
 	return version, nil
 }
+func (yb *YugabyteDBContainer) getConnWithDefaultDB() (*pgx.Conn, error) {
+	host, port, err := yb.GetHostPort()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get host port for yugabytedb connection string: %w", err)
+	}
+
+	connStr := fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?sslmode=disable", yb.User, yb.Password, host, port, "yugabyte")
+	conn, err := pgx.Connect(context.Background(), connStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to yugabytedb: %w", err)
+	}
+	return conn, nil
+}
+func (yb *YugabyteDBContainer) CreateDatabase(dbName string) error {
+	conn, err := yb.getConnWithDefaultDB()
+	if err != nil {
+		return fmt.Errorf("failed to get connection with default database: %w", err)
+	}
+	defer conn.Close(context.Background())
+
+	//check if database already exists
+	existsQuery := fmt.Sprintf("SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = '%s')", dbName)
+	var exists bool
+	err = conn.QueryRow(context.Background(), existsQuery).Scan(&exists)
+	if err != nil {
+		return fmt.Errorf("failed to check if database exists: %w", err)
+	}
+	if exists {
+		return nil
+	}
+
+	_, err = conn.Exec(context.Background(), fmt.Sprintf("CREATE DATABASE %s", dbName))
+	if err != nil {
+		return fmt.Errorf("failed to create database '%s': %w", dbName, err)
+	}
+	return nil
+}
+
+func (yb *YugabyteDBContainer) DropDatabase(dbName string) error {
+	conn, err := yb.getConnWithDefaultDB()
+	if err != nil {
+		return fmt.Errorf("failed to get connection with default database: %w", err)
+	}
+	defer conn.Close(context.Background())
+
+	// First, terminate all active connections to the database
+	terminateQuery := `
+		SELECT pg_terminate_backend(pg_stat_activity.pid)
+		FROM pg_stat_activity
+		WHERE pg_stat_activity.datname = $1
+		AND pid <> pg_backend_pid();
+	`
+
+	_, err = conn.Exec(context.Background(), terminateQuery, dbName)
+	if err != nil {
+		return fmt.Errorf("failed to terminate some connections to database '%s': %w", dbName, err)
+	}
+
+	for i := 0; i < 5; i++ {
+		_, err = conn.Exec(context.Background(), fmt.Sprintf("DROP DATABASE %s", dbName))
+		if err == nil {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to drop database '%s': %w", dbName, err)
+	}
+	return nil
+}
 
 func (yb *YugabyteDBContainer) ExecuteSqls(sqls ...string) {
 	if yb == nil {
 		utils.ErrExit("yugabytedb container is not started: nil")
 	}
 
-	connStr := yb.GetConnectionString()
-	conn, err := pgx.Connect(context.Background(), connStr)
+	conn, err := yb.GetConnection()
 	if err != nil {
-		utils.ErrExit("failed to connect to yugabytedb for executing sqls: %w", err)
+		utils.ErrExit("failed to get connection for yugabytedb executing sqls: %w", err)
 	}
-	defer conn.Close(context.Background())
+	defer conn.Close()
 
 	retryCount := 3
 	retryErrors := []string{
@@ -214,7 +305,7 @@ func (yb *YugabyteDBContainer) ExecuteSqls(sqls ...string) {
 	for _, sql := range sqls {
 		var err error
 		for i := 0; i < retryCount; i++ {
-			_, err = conn.Exec(context.Background(), sql)
+			_, err = conn.Exec(sql)
 			if err == nil {
 				break
 			}
@@ -223,7 +314,7 @@ func (yb *YugabyteDBContainer) ExecuteSqls(sqls ...string) {
 			}) {
 				break
 			}
-			time.Sleep(2 * time.Second)
+			time.Sleep(10 * time.Second)
 		}
 		if err != nil {
 			utils.ErrExit("failed to execute sql '%s': %w", sql, err)
@@ -240,7 +331,7 @@ func (yb *YugabyteDBContainer) Query(sql string, args ...interface{}) (*sql.Rows
 	if err != nil {
 		return nil, fmt.Errorf("failed to get connection for yugabytedb query: %w", err)
 	}
-
+	defer conn.Close()
 	rows, err := conn.Query(sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query '%s': %w", sql, err)
@@ -249,10 +340,158 @@ func (yb *YugabyteDBContainer) Query(sql string, args ...interface{}) (*sql.Rows
 	return rows, nil
 }
 
+func (yb *YugabyteDBContainer) GetConnectionWithDB(dbName string) (*sql.DB, error) {
+	config := yb.GetConfig()
+	host, port, err := yb.GetHostPort()
+	if err != nil {
+		utils.ErrExit("failed to get host port for yugabytedb connection string: %v", err)
+	}
+
+	connStr := fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", config.User, config.Password, host, port, dbName)
+	conn, err := sql.Open("pgx", connStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to yugabytedb with db '%s': %w", dbName, err)
+	}
+	return conn, nil
+}
+
+func (yb *YugabyteDBContainer) QueryOnDB(dbName string, sql string, args ...interface{}) (*sql.Rows, error) {
+	if yb == nil {
+		utils.ErrExit("yugabytedb container is not started: nil")
+	}
+	conn, err := yb.GetConnectionWithDB(dbName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get connection for yugabytedb query on db: %w", err)
+	}
+	defer conn.Close()
+	rows, err := conn.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query '%s': %w", sql, err)
+	}
+
+	return rows, nil
+}
+
+const VIOLATES_UNIQUE_CONSTRAINT_ERROR = "violates unique constraint"
+const SYNTAX_ERROR = "syntax error at"
+const RPC_MSG_LIMIT_ERROR = "Sending too long RPC message"
+const INVALID_INPUT_SYNTAX_ERROR = "invalid input syntax"
+
+// pgx driver error patterns
+// Mismatched param and argument count - produced by pgx's ExtendedQueryBuilder
+const MISMATCHED_PARAM_ARGUMENT_COUNT_ERROR = "mismatched param and argument count"
+
+// Failed to encode args[N] - pgx wraps encoding failures with goerrors.Errorf
+const FAILED_TO_ENCODE_ARGS_ERROR = "failed to encode args"
+
+// Unable to encode - many pgx/pgtype errors include this text
+const UNABLE_TO_ENCODE_ERROR = "unable to encode"
+
+// Cannot find encode plan - specific phrase from pgx/pgtype
+const CANNOT_FIND_ENCODE_PLAN_ERROR = "cannot find encode plan"
+
+// error for inserting in xml table
+const UNSUPPORTED_XML_FEATURE = "unsupported XML feature"
+
+var NonRetryCopyErrors = []string{
+	// Existing patterns
+	INVALID_INPUT_SYNTAX_ERROR,
+	VIOLATES_UNIQUE_CONSTRAINT_ERROR,
+	SYNTAX_ERROR,
+
+	// pgx driver error patterns
+	MISMATCHED_PARAM_ARGUMENT_COUNT_ERROR,
+	FAILED_TO_ENCODE_ARGS_ERROR,
+	UNABLE_TO_ENCODE_ERROR,
+	CANNOT_FIND_ENCODE_PLAN_ERROR,
+
+	UNSUPPORTED_XML_FEATURE,
+}
+
+func (yb *YugabyteDBContainer) ExecuteSqlsOnDB(dbName string, sqls ...string) {
+	if yb == nil {
+		utils.ErrExit("yugabytedb container is not started: nil")
+	}
+	conn, err := yb.GetConnectionWithDB(dbName)
+	if err != nil {
+		utils.ErrExit("failed to get connection for yugabytedb executing sqls: %w", err)
+	}
+	defer conn.Close()
+
+	retryCount := 5
+	for _, sql := range sqls {
+		var err error
+		for i := 0; i < retryCount; i++ {
+			_, err = conn.Exec(sql)
+			if err == nil {
+				break
+			}
+			if lo.ContainsBy(NonRetryCopyErrors, func(r string) bool {
+				return strings.Contains(err.Error(), r)
+			}) {
+				//if its a non retryable error, break the loopd
+				break
+			}
+			time.Sleep(10 * time.Second)
+		}
+		if err != nil {
+			utils.ErrExit("failed to execute sql '%s': %w", sql, err)
+		}
+	}
+}
+
+// yugabyteSQLWaitStrategy is a basic wait strategy that connects to YugabyteDB
+// and executes a simple SQL query to verify the database is ready
+// type YugabyteDBWaitStrategy struct {
+// 	timeout      time.Duration
+// 	pollInterval time.Duration
+// }
+
+// func (y *YugabyteDBWaitStrategy) WaitUntilReady(ctx context.Context, target wait.StrategyTarget) error {
+// 	deadline := time.Now().Add(y.timeout)
+
+// 	for time.Now().Before(deadline) {
+// 		host, err := target.Host(ctx)
+// 		if err != nil {
+// 			return fmt.Errorf("failed to get host: %w", err)
+// 		}
+// 		fmt.Printf("host: %s\n", host)
+// 		fmt.Printf("Waiting for yugabyte to be ready...\n")
+// 		conn, err := pgx.Connect(ctx, fmt.Sprintf("postgres://yugabyte:password@%s:25433/yugabyte?sslmode=disable", host))
+// 		fmt.Printf("Error: %v\n", err)
+// 		if err == nil {
+// 			var result int
+// 			err = conn.QueryRow(ctx, "SELECT 1").Scan(&result)
+// 			fmt.Printf("Result: %d\n", result)
+// 			conn.Close(ctx)
+// 			if err == nil {
+// 				return nil // Success - database is ready
+// 			}
+// 		}
+
+// 		select {
+// 		case <-ctx.Done():
+// 			return ctx.Err()
+// 		case <-time.After(y.pollInterval):
+// 			// Continue polling
+// 		}
+// 	}
+
+// 	return fmt.Errorf("yugabyte wait strategy timed out after %v", y.timeout)
+// }
+
+// func yugabyteWait() wait.Strategy {
+// 	return &YugabyteDBWaitStrategy{
+// 		timeout:      3 * time.Minute,
+// 		pollInterval: 1 * time.Second,
+// 	}
+// }
+
 // yugabyteWait returns a wait strategy for YugabyteDB node(s)
 func yugabyteWait() wait.Strategy {
 	return wait.ForSQL(nat.Port("5433/tcp"), "pgx",
 		func(host string, port nat.Port) string {
+			fmt.Printf("host: %s, port: %s\n", host, port.Port())
 			return fmt.Sprintf(
 				"postgres://yugabyte:password@%s:%s/yugabyte?sslmode=disable",
 				host, port.Port())

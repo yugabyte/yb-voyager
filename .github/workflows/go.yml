@@ -28,6 +28,29 @@ jobs:
         cd yb-voyager
         go build -v ./...
 
+    - name: Check for leaf errors using fmt.Errorf
+      run: |
+        # Leaf errors (without %w) should use goerrors.Errorf for stack traces.
+        # Wrapped errors (with %w) should continue using fmt.Errorf.
+        #
+        # LIMITATION: This check is line-based and won't detect %w on a different
+        # line than fmt.Errorf. Keep format strings on a single line to ensure
+        # this check works correctly.
+        #
+        LEAF_ERRORS=$(grep -rn "fmt\.Errorf" yb-voyager/cmd yb-voyager/src --include="*.go" --exclude="*_test.go" | grep -v "%w" || true)
+        if [[ -n "$LEAF_ERRORS" ]]; then
+          echo "ERROR: Found fmt.Errorf used for leaf errors (without %w)."
+          echo "Leaf errors should use goerrors.Errorf for stack traces."
+          echo ""
+          echo "Offending lines:"
+          echo "$LEAF_ERRORS"
+          echo ""
+          echo "Fix: Replace 'fmt.Errorf(\"message\")' with 'goerrors.Errorf(\"message\")'"
+          echo "Note: Wrapped errors using %w should continue using fmt.Errorf"
+          exit 1
+        fi
+        echo "No leaf error violations found."
+
     - name: Verify Build Tags in Test Files
       run: |
         MISSING_TAGS=$(grep -L '//go:build' $(find . -type f -name '*_test.go' | grep -v vendor) || true)

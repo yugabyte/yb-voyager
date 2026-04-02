@@ -44,10 +44,12 @@ type ExportDataError struct {
 e.g.
 error in get_initial_table_list at step 'extract_table_list_from_exclude_list' in call 'apply_table_list_flags_on_full_list'
 Execution history
-    -> get_initial_table_list
-    -> fetch_tables_names_from_source
-    -> apply_table_list_flags_on_full_list
-Error: 
+
+	-> get_initial_table_list
+	-> fetch_tables_names_from_source
+	-> apply_table_list_flags_on_full_list
+
+Error:
 Unknown table names in the exclude list: [abc]
 */
 func (e *ExportDataError) Error() string {
@@ -64,11 +66,12 @@ func (e *ExportDataError) Error() string {
 }
 
 /*
-e.g. 
+e.g.
 Execution history
-    -> get_initial_table_list
-    -> fetch_tables_names_from_source
-    -> apply_table_list_flags_on_full_list
+
+	-> get_initial_table_list
+	-> fetch_tables_names_from_source
+	-> apply_table_list_flags_on_full_list
 */
 func (e *ExportDataError) buildStackTrace() (string, string) {
 	stackTrace := "Execution history\n"

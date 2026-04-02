@@ -62,7 +62,7 @@ func ora2pgExtractSchema(source *Source, exportDir string, schemaDir string) {
 
 		err := exportSchemaObjectCommand.Start()
 		if err != nil {
-			utils.PrintAndLog("Error while starting export: %v", err)
+			utils.PrintAndLogf("Error while starting export: %v", err)
 			utils.WaitChannel <- 1 //stop execution of command with exit code 1
 			<-utils.WaitChannel
 			continue
@@ -76,7 +76,7 @@ func ora2pgExtractSchema(source *Source, exportDir string, schemaDir string) {
 			log.Errorf(`ora2pg STDERR in export of %s : "%s"`, exportObject, errbuf.String())
 		}
 		if err != nil {
-			utils.PrintAndLog("Error while waiting for export command exit: %v", err)
+			utils.PrintAndLogf("Error while waiting for export command exit: %v", err)
 			utils.WaitChannel <- 1 //stop waiting with exit code 1
 			<-utils.WaitChannel
 			continue
@@ -93,7 +93,7 @@ func ora2pgExtractSchema(source *Source, exportDir string, schemaDir string) {
 			utils.ErrExit("failed to process import directives during export schema: %w", err)
 		}
 		if exportObject == "SYNONYM" {
-			if err := stripSourceSchemaNames(utils.GetObjectFilePath(schemaDir, exportObject), source.Schema); err != nil {
+			if err := stripSourceSchemaNames(utils.GetObjectFilePath(schemaDir, exportObject), source.Schemas[0].Unquoted); err != nil {
 				utils.ErrExit("failed to strip schema names for SYNONYM object during export schema: %w", err)
 			}
 		}

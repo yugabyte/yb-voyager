@@ -25,6 +25,8 @@ import (
 	"strconv"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -35,7 +37,16 @@ const (
 	PROCESSING_ERRORS_LOG_FILE                = "processing-errors.log"
 	INGESTION_ERROR_PREFIX                    = "ingestion-error"
 	STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE = "To stash the errored rows and continue importing data without aborting, set the configuration parameter error-policy/error-policy-snapshot to `stash-and-continue`"
-)
+	PK_VIOLATION_RECOMMENDATION_MESSAGE       = "Import failed due to duplicate key conflict (SQLSTATE 23505): one or more rows in the import file conflict with existing rows in the target table.\n" +
+		"To resolve, truncate and re-import: restart with --start-clean true --truncate-tables true to clear target tables before importing."
+	FK_VIOLATION_RECOMMENDATION_MESSAGE = "Import failed due to foreign key constraint violation (SQLSTATE 23503): one or more rows reference a parent row that does not exist in the target table.\n" +
+		"This typically occurs when the import user lacks superuser privileges to set session_replication_role to replica.\n" +
+		"To resolve, try one of the following:\n" +
+		"  1. Grant superuser to the voyager user: ALTER USER <username> SUPERUSER.\n" +
+		"  2. Grant permission: GRANT SET ON PARAMETER session_replication_role TO <username> (YugabyteDB v2025.1+).\n" +
+		"  3. Manually disable triggers and drop foreign keys before import, then recreate them afterwards.\n" +
+		"     Refer to: https://docs.yugabyte.com/stable/yugabyte-voyager/reference/non-superuser/"
+	)
 
 type ImportDataErrorHandler interface {
 	ShouldAbort() bool
@@ -186,7 +197,7 @@ func (handler *ImportDataStashAndContinueHandler) GetProcessingErrorCountSize(ta
 		// Extract row count and byte count from filename: processing-errors.<batchNumber>.<rowCount>.<byteCount>.log
 		parts := strings.Split(fileName, ".")
 		if len(parts) < 4 {
-			return 0, 0, fmt.Errorf("filename %s does not have enough parts to parse (expected 4, got %d)", fileName, len(parts))
+			return 0, 0, goerrors.Errorf("filename %s does not have enough parts to parse (expected 4, got %d)", fileName, len(parts))
 		}
 
 		// parts[0] = "processing-errors", parts[1] = batchNumber, parts[2] = rowCount, parts[3] = byteCount
@@ -280,19 +291,19 @@ func (handler *ImportDataStashAndContinueHandler) FinalizeRowProcessingErrorsFor
 */
 func (handler *ImportDataStashAndContinueHandler) HandleBatchIngestionError(batch ErroredBatch, taskFilePath string, batchErr error, isPartialBatchIngestionPossible bool) error {
 	if batch == nil {
-		return fmt.Errorf("batch cannot be nil")
+		return goerrors.Errorf("batch cannot be nil")
 	}
 	if taskFilePath == "" {
-		return fmt.Errorf("task file path cannot be empty")
+		return goerrors.Errorf("task file path cannot be empty")
 	}
 
 	err := batch.MarkError(batchErr, isPartialBatchIngestionPossible)
 	if err != nil {
-		return fmt.Errorf("marking batch as errored: %s", err)
+		return goerrors.Errorf("marking batch as errored: %s", err)
 	}
 	err = handler.createBatchSymlinkInErrorsFolder(batch, taskFilePath)
 	if err != nil {
-		return fmt.Errorf("creating symlink in errors folder: %s", err)
+		return goerrors.Errorf("creating symlink in errors folder: %s", err)
 	}
 	return nil
 }
@@ -303,13 +314,13 @@ func (handler *ImportDataStashAndContinueHandler) createBatchSymlinkInErrorsFold
 	errorsFolderPathForTableTask := handler.getErrorsFolderPathForTableTask(batch.GetTableName(), taskFilePath)
 	err := os.MkdirAll(errorsFolderPathForTableTask, os.ModePerm)
 	if err != nil {
-		return fmt.Errorf("creating errors folder: %s", err)
+		return goerrors.Errorf("creating errors folder: %s", err)
 	}
 
 	symlinkFileName := fmt.Sprintf("%s.%s", INGESTION_ERROR_PREFIX, filepath.Base(batch.GetFilePath()))
 	err = os.Symlink(batch.GetFilePath(), filepath.Join(errorsFolderPathForTableTask, symlinkFileName))
 	if err != nil {
-		return fmt.Errorf("creating symlink: %s", err)
+		return goerrors.Errorf("creating symlink: %s", err)
 	}
 	return nil
 }
@@ -325,12 +336,12 @@ func (handler *ImportDataStashAndContinueHandler) getErrorsFolderPathForTableTas
 
 func (handler *ImportDataStashAndContinueHandler) CleanUpStoredErrors(tableName sqlname.NameTuple, taskFilePath string) error {
 	if taskFilePath == "" {
-		return fmt.Errorf("task file path cannot be empty")
+		return goerrors.Errorf("task file path cannot be empty")
 	}
 
 	err := os.RemoveAll(handler.getErrorsFolderPathForTableTask(tableName, taskFilePath))
 	if err != nil {
-		return fmt.Errorf("removing errors folder for table : %s", err)
+		return goerrors.Errorf("removing errors folder for table : %s", err)
 	}
 	return nil
 }
@@ -356,6 +367,6 @@ func GetImportDataErrorHandler(errorPolicy ErrorPolicy, dataDir string) (ImportD
 	case StashAndContinueErrorPolicy:
 		return NewImportDataStashAndContinueHandler(dataDir), nil
 	default:
-		return nil, fmt.Errorf("unknown error policy: %s", errorPolicy)
+		return nil, goerrors.Errorf("unknown error policy: %s", errorPolicy)
 	}
 }
