@@ -100,7 +100,7 @@ var endMigrationCmd = &cobra.Command{
 			utils.PrintAndLogfInfo("\nEnding migration for iteration %d\n", i)
 			iterationExportDir := GetIterationExportDir(msr.GetIterationsDir(currExportDir), i)
 			if !utils.FileOrFolderExists(iterationExportDir) {
-				utils.PrintAndLogf("Ended migration for iteration %d successfully", i)
+				utils.PrintAndLogf("skipping iteration %d as it was previously ended", i)
 				continue
 			}
 			iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
