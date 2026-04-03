@@ -73,6 +73,9 @@ jobs:
     - name: Free disk after cleanup
       run: df -h /
 
+    - name: Set up gotestfmt
+      uses: GoTestTools/gotestfmt-action@v2
+
     # Note: Some voyager_command related go tests use a voyager binary to call voyager commands
     # Hence its important to ensure the voyager binary built is using the changes in the PR branch - `./install-yb-voyager --install-from-local-source`
     - name: Run Integration Tests (${{ matrix.test-tags }})
@@ -82,5 +85,21 @@ jobs:
         ORACLE_VERSION: "21"
         MYSQL_VERSION: "8.4"
       run: |
+        set -euo pipefail
         cd yb-voyager
-        go test -v ./... -tags ${{ matrix.test-tags }} -timeout 35m -parallel 4
+        go test -json -v ./... -tags ${{ matrix.test-tags }} -timeout 35m -parallel 4 2>/tmp/gotest-stderr.log | tee /tmp/gotest.log | gotestfmt
+        if [ -s /tmp/gotest-stderr.log ]; then
+          echo "::group::stderr output (docker/testcontainer logs)"
+          cat /tmp/gotest-stderr.log
+          echo "::endgroup::"
+        fi
+
+    - name: Upload test logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-log-${{ matrix.test-tags }}
+        path: |
+          /tmp/gotest.log
+          /tmp/gotest-stderr.log
+        retention-days: 7

@@ -102,7 +102,7 @@ func NewLiveMigrationTest(t *testing.T, config *TestConfig) *LiveMigrationTest {
 
 // SetupContainers starts source and target containers
 func (lm *LiveMigrationTest) SetupContainers(ctx context.Context) error {
-	fmt.Printf("Setting up containers\n")
+	lm.t.Logf("Setting up containers")
 	lm.ctx = ctx
 
 	// Start source container
@@ -138,13 +138,13 @@ func (lm *LiveMigrationTest) SetupContainers(ctx context.Context) error {
 			return goerrors.Errorf("failed to create target database: %v", err)
 		}
 	}
-	fmt.Printf("Containers setup completed\n")
+	lm.t.Logf("Containers setup completed")
 	return nil
 }
 
 // SetupSchema creates schema on source and target, registers cleanup
 func (lm *LiveMigrationTest) SetupSchema() error {
-	fmt.Printf("Setting up schema\n")
+	lm.t.Logf("Setting up schema")
 	// Execute schema SQL on source and target
 	lm.sourceContainer.ExecuteSqlsOnDB(lm.config.SourceDB.DatabaseName, lm.config.SchemaSQL...)
 	lm.sourceContainer.ExecuteSqlsOnDB(lm.config.SourceDB.DatabaseName, lm.config.SourceSetupSchemaSQL...)
@@ -152,7 +152,7 @@ func (lm *LiveMigrationTest) SetupSchema() error {
 
 	// Execute initial data SQL on source
 	lm.sourceContainer.ExecuteSqlsOnDB(lm.config.SourceDB.DatabaseName, lm.config.InitialDataSQL...)
-	fmt.Printf("Schema setup completed\n")
+	lm.t.Logf("Schema setup completed")
 
 	return nil
 }
@@ -171,7 +171,7 @@ func (lm *LiveMigrationTest) InitMetaDB() error {
 
 // Cleanup runs all cleanup operations (called via defer)
 func (lm *LiveMigrationTest) Cleanup() {
-	fmt.Printf("Cleaning up\n")
+	lm.t.Logf("Cleaning up")
 	// Kill any lingering Debezium processes before removing the export dir
 	// (the PID is read from a lock file inside the export dir).
 	lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
@@ -196,11 +196,11 @@ func (lm *LiveMigrationTest) Cleanup() {
 	}
 	// Remove export directory only if test passed
 	if lm.t.Failed() {
-		fmt.Printf("Test failed - preserving export directory for debugging: %s\n", lm.exportDir)
+		lm.t.Logf("Test failed - preserving export directory for debugging: %s", lm.exportDir)
 	} else {
 		testutils.RemoveTempExportDir(lm.exportDir)
 	}
-	fmt.Printf("Cleanup completed\n")
+	lm.t.Logf("Cleanup completed")
 }
 
 // ============================================================
@@ -215,9 +215,9 @@ func (lm *LiveMigrationTest) StartExportData(async bool, extraArgs map[string]st
 func (lm *LiveMigrationTest) startExportData(async bool, extraArgs map[string]string, exportType string, env []string) error {
 
 	if len(env) > 0 {
-		fmt.Printf("Starting export data with export type %s and env %v\n", exportType, env)
+		lm.t.Logf("Starting export data with export type %s and env %v", exportType, env)
 	} else {
-		fmt.Printf("Starting export data with export type %s\n", exportType)
+		lm.t.Logf("Starting export data with export type %s", exportType)
 	}
 	var onStart func()
 	if async {
@@ -238,15 +238,15 @@ func (lm *LiveMigrationTest) startExportData(async bool, extraArgs map[string]st
 		args = append(args, key, value)
 	}
 
-	lm.exportCmd = testutils.NewVoyagerCommandRunner(lm.sourceContainer, "export data", args, onStart, async).WithEnv(env...)
+	lm.exportCmd = testutils.NewVoyagerCommandRunner(lm.sourceContainer, "export data", args, onStart, async).WithEnv(env...).WithT(lm.t)
 	err := lm.exportCmd.Run()
 	if err != nil {
 		return goerrors.Errorf("failed to start export data: %w", err)
 	}
 	if len(env) > 0 {
-		fmt.Printf("Export data with export type %s started with env %v\n", exportType, env)
+		lm.t.Logf("Export data with export type %s started with env %v", exportType, env)
 	} else {
-		fmt.Printf("Export data with export type %s started\n", exportType)
+		lm.t.Logf("Export data with export type %s started", exportType)
 	}
 	return nil
 }
@@ -273,9 +273,9 @@ func (lm *LiveMigrationTest) StartImportDataWithEnv(async bool, extraArgs map[st
 
 func (lm *LiveMigrationTest) startImportData(async bool, extraArgs map[string]string, env []string) error {
 	if len(env) > 0 {
-		fmt.Printf("Starting import data with env %v\n", env)
+		lm.t.Logf("Starting import data with env %v", env)
 	} else {
-		fmt.Printf("Starting import data\n")
+		lm.t.Logf("Starting import data")
 	}
 	var onStart func()
 	if async {
@@ -294,15 +294,15 @@ func (lm *LiveMigrationTest) startImportData(async bool, extraArgs map[string]st
 		args = append(args, key, value)
 	}
 
-	lm.importCmd = testutils.NewVoyagerCommandRunner(lm.targetContainer, "import data", args, onStart, async).WithEnv(env...)
+	lm.importCmd = testutils.NewVoyagerCommandRunner(lm.targetContainer, "import data", args, onStart, async).WithEnv(env...).WithT(lm.t)
 	err := lm.importCmd.Run()
 	if err != nil {
 		return goerrors.Errorf("failed to start import data: %w", err)
 	}
 	if len(env) > 0 {
-		fmt.Printf("Import data started with env\n")
+		lm.t.Logf("Import data started with env")
 	} else {
-		fmt.Printf("Import data started\n")
+		lm.t.Logf("Import data started")
 	}
 	return nil
 }
@@ -313,9 +313,9 @@ func (lm *LiveMigrationTest) StartExportDataFromTarget(async bool, extraArgs map
 
 func (lm *LiveMigrationTest) startExportDataFromTarget(async bool, extraArgs map[string]string, env []string) error {
 	if len(env) > 0 {
-		fmt.Printf("Starting export data from target with env %v\n", env)
+		lm.t.Logf("Starting export data from target with env %v", env)
 	} else {
-		fmt.Printf("Starting export data from target\n")
+		lm.t.Logf("Starting export data from target")
 	}
 	var onStart func()
 	if async {
@@ -335,15 +335,15 @@ func (lm *LiveMigrationTest) startExportDataFromTarget(async bool, extraArgs map
 		args = append(args, key, value)
 	}
 
-	lm.exportFromTargetCmd = testutils.NewVoyagerCommandRunner(nil, "export data from target", args, onStart, async).WithEnv(env...)
+	lm.exportFromTargetCmd = testutils.NewVoyagerCommandRunner(nil, "export data from target", args, onStart, async).WithEnv(env...).WithT(lm.t)
 	err := lm.exportFromTargetCmd.Run()
 	if err != nil {
 		return goerrors.Errorf("failed to start export data: %w", err)
 	}
 	if len(env) > 0 {
-		fmt.Printf("Export data from target started with env %v\n", env)
+		lm.t.Logf("Export data from target started with env %v", env)
 	} else {
-		fmt.Printf("Export data from target started\n")
+		lm.t.Logf("Export data from target started")
 	}
 	return nil
 }
@@ -358,9 +358,9 @@ func (lm *LiveMigrationTest) StartImportDataToSource(async bool, extraArgs map[s
 
 func (lm *LiveMigrationTest) startImportDataToSource(async bool, extraArgs map[string]string, env []string) error {
 	if len(env) > 0 {
-		fmt.Printf("Starting import data to source with env %v\n", env)
+		lm.t.Logf("Starting import data to source with env %v", env)
 	} else {
-		fmt.Printf("Starting import data to source\n")
+		lm.t.Logf("Starting import data to source")
 	}
 	var onStart func()
 	if async {
@@ -379,15 +379,15 @@ func (lm *LiveMigrationTest) startImportDataToSource(async bool, extraArgs map[s
 		args = append(args, key, value)
 	}
 
-	lm.importToSourceCmd = testutils.NewVoyagerCommandRunner(nil, "import data to source", args, onStart, async).WithEnv(env...)
+	lm.importToSourceCmd = testutils.NewVoyagerCommandRunner(nil, "import data to source", args, onStart, async).WithEnv(env...).WithT(lm.t)
 	err := lm.importToSourceCmd.Run()
 	if err != nil {
 		return goerrors.Errorf("failed to start import data: %w", err)
 	}
 	if len(env) > 0 {
-		fmt.Printf("Import data to source started with env %v\n", env)
+		lm.t.Logf("Import data to source started with env %v", env)
 	} else {
-		fmt.Printf("Import data to source started\n")
+		lm.t.Logf("Import data to source started")
 	}
 	return nil
 }
@@ -410,7 +410,7 @@ func (lm *LiveMigrationTest) WaitForExportFailpointAndProcessCrash(t *testing.T,
 
 // StopExportData stops the running export data command
 func (lm *LiveMigrationTest) StopExportData() error {
-	fmt.Printf("Stopping export data\n")
+	lm.t.Logf("Stopping export data")
 	if lm.exportCmd == nil {
 		return goerrors.Errorf("export command not started")
 	}
@@ -418,12 +418,12 @@ func (lm *LiveMigrationTest) StopExportData() error {
 	if err != nil {
 		return goerrors.Errorf("failed to stop export data: %w", err)
 	}
-	fmt.Printf("Export data stopped\n")
+	lm.t.Logf("Export data stopped")
 	return nil
 }
 
 func (lm *LiveMigrationTest) StopExportDataFromTarget() error {
-	fmt.Printf("Stopping export data from target\n")
+	lm.t.Logf("Stopping export data from target")
 	if lm.exportFromTargetCmd == nil {
 		return goerrors.Errorf("export from target command not started")
 	}
@@ -431,7 +431,7 @@ func (lm *LiveMigrationTest) StopExportDataFromTarget() error {
 	if err != nil {
 		return goerrors.Errorf("failed to stop export data from target: %w", err)
 	}
-	fmt.Printf("Export data from target stopped\n")
+	lm.t.Logf("Export data from target stopped")
 	return nil
 }
 
@@ -468,7 +468,7 @@ func (lm *LiveMigrationTest) KillDebezium(exporterRole string) {
 
 // StopImportData stops the running import data command
 func (lm *LiveMigrationTest) StopImportData() error {
-	fmt.Printf("Stopping import data\n")
+	lm.t.Logf("Stopping import data")
 	if lm.importCmd == nil {
 		return goerrors.Errorf("import command not started")
 	}
@@ -476,12 +476,12 @@ func (lm *LiveMigrationTest) StopImportData() error {
 	if err != nil {
 		return goerrors.Errorf("failed to stop import data: %w", err)
 	}
-	fmt.Printf("Import data stopped\n")
+	lm.t.Logf("Import data stopped")
 	return nil
 }
 
 func (lm *LiveMigrationTest) StopImportDataToSource() error {
-	fmt.Printf("Stopping import data to source\n")
+	lm.t.Logf("Stopping import data to source")
 	if lm.importToSourceCmd == nil {
 		return goerrors.Errorf("import to source command not started")
 	}
@@ -489,12 +489,12 @@ func (lm *LiveMigrationTest) StopImportDataToSource() error {
 	if err != nil {
 		return goerrors.Errorf("failed to stop import data to source: %w", err)
 	}
-	fmt.Printf("Import data to source stopped\n")
+	lm.t.Logf("Import data to source stopped")
 	return nil
 }
 
 func (lm *LiveMigrationTest) ResumeImportData(async bool, extraArgs map[string]string) error {
-	fmt.Printf("Resuming import data\n")
+	lm.t.Logf("Resuming import data")
 	if lm.importCmd == nil {
 		return goerrors.Errorf("import command not started")
 	}
@@ -507,12 +507,12 @@ func (lm *LiveMigrationTest) ResumeImportData(async bool, extraArgs map[string]s
 	if err != nil {
 		return goerrors.Errorf("failed to resume import data: %w", err)
 	}
-	fmt.Printf("Import data resumed\n")
+	lm.t.Logf("Import data resumed")
 	return nil
 }
 
 func (lm *LiveMigrationTest) ResumeExportData(async bool) error {
-	fmt.Printf("Resuming export data\n")
+	lm.t.Logf("Resuming export data")
 	if lm.exportCmd == nil {
 		return goerrors.Errorf("export command not started")
 	}
@@ -521,13 +521,13 @@ func (lm *LiveMigrationTest) ResumeExportData(async bool) error {
 	if err != nil {
 		return goerrors.Errorf("failed to resume export data: %w", err)
 	}
-	fmt.Printf("Export data resumed\n")
+	lm.t.Logf("Export data resumed")
 	return nil
 }
 
 // InitiateCutover initiates cutover to target
 func (lm *LiveMigrationTest) InitiateCutoverToTarget(prepareForFallback bool, extraArgs map[string]string) error {
-	fmt.Printf("Initiating cutover to target\n")
+	lm.t.Logf("Initiating cutover to target")
 	args := []string{
 		"--export-dir", lm.exportDir,
 		"--yes",
@@ -539,12 +539,12 @@ func (lm *LiveMigrationTest) InitiateCutoverToTarget(prepareForFallback bool, ex
 		args = append(args, key, value)
 	}
 
-	cutoverCmd := testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", args, nil, false)
+	cutoverCmd := testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", args, nil, false).WithT(lm.t)
 	err := cutoverCmd.Run()
 	if err != nil {
 		return goerrors.Errorf("failed to initiate cutover: %w", err)
 	}
-	fmt.Printf("Cutover initiated to target\n")
+	lm.t.Logf("Cutover initiated to target")
 	return nil
 }
 
@@ -554,9 +554,9 @@ func (lm *LiveMigrationTest) StartArchiveChanges(withArchive bool) error {
 
 func (lm *LiveMigrationTest) startArchiveChanges(withArchive bool, async bool, extraArgs map[string]string, env []string) error {
 	if len(env) > 0 {
-		fmt.Printf("Starting archive changes with env %v\n", env)
+		lm.t.Logf("Starting archive changes with env %v", env)
 	} else {
-		fmt.Printf("Starting archive changes\n")
+		lm.t.Logf("Starting archive changes")
 	}
 	var onStart func()
 	if async {
@@ -582,21 +582,21 @@ func (lm *LiveMigrationTest) startArchiveChanges(withArchive bool, async bool, e
 		args = append(args, "--fs-utilization-threshold", "0")
 	}
 
-	lm.archiveChangesCmd = testutils.NewVoyagerCommandRunner(nil, "archive changes", args, onStart, async).WithEnv(env...)
+	lm.archiveChangesCmd = testutils.NewVoyagerCommandRunner(nil, "archive changes", args, onStart, async).WithEnv(env...).WithT(lm.t)
 	err := lm.archiveChangesCmd.Run()
 	if err != nil {
 		return goerrors.Errorf("failed to start archive changes: %w", err)
 	}
 	if len(env) > 0 {
-		fmt.Printf("Archive changes started with env %v\n", env)
+		lm.t.Logf("Archive changes started with env %v", env)
 	} else {
-		fmt.Printf("Archive changes started\n")
+		lm.t.Logf("Archive changes started")
 	}
 	return nil
 }
 
 func (lm *LiveMigrationTest) WaitForArchiveChangesComplete(archiveChangesTimeout time.Duration) error {
-	fmt.Printf("Waiting for archive changes complete\n")
+	lm.t.Logf("Waiting for archive changes complete")
 	ok := utils.RetryWorkWithTimeout(1, archiveChangesTimeout, func() bool {
 		return lm.archiveChangesCmd.IsStopped()
 	})
@@ -608,7 +608,7 @@ func (lm *LiveMigrationTest) WaitForArchiveChangesComplete(archiveChangesTimeout
 
 // InitiateCutover initiates cutover to target
 func (lm *LiveMigrationTest) InitiateCutoverToSource(extraArgs map[string]string) error {
-	fmt.Printf("Initiating cutover to source\n")
+	lm.t.Logf("Initiating cutover to source")
 	args := []string{
 		"--export-dir", lm.exportDir,
 		"--yes",
@@ -619,12 +619,12 @@ func (lm *LiveMigrationTest) InitiateCutoverToSource(extraArgs map[string]string
 		args = append(args, key, value)
 	}
 
-	cutoverCmd := testutils.NewVoyagerCommandRunner(nil, "initiate cutover to source", args, nil, false)
+	cutoverCmd := testutils.NewVoyagerCommandRunner(nil, "initiate cutover to source", args, nil, false).WithT(lm.t)
 	err := cutoverCmd.Run()
 	if err != nil {
 		return goerrors.Errorf("failed to initiate cutover: %w", err)
 	}
-	fmt.Printf("Cutover initiated to source\n")
+	lm.t.Logf("Cutover initiated to source")
 	return nil
 }
 
@@ -747,7 +747,7 @@ func (lm *LiveMigrationTest) GetExportCommandFromTargetStderr() string {
 }
 
 func (lm *LiveMigrationTest) EndMigration(extraArgs map[string]string, withBackup bool) error {
-	fmt.Printf("Ending migration\n")
+	lm.t.Logf("Ending migration")
 	if withBackup {
 		lm.backupDir = testutils.CreateBackupDir(lm.t)
 		defer testutils.RemoveTempExportDir(lm.backupDir)
@@ -778,12 +778,12 @@ func (lm *LiveMigrationTest) EndMigration(extraArgs map[string]string, withBacku
 	cutoverCmd := testutils.NewVoyagerCommandRunner(nil, "end migration", args, nil, false).WithEnv(
 		fmt.Sprintf("SOURCE_DB_PASSWORD=%s", lm.sourceContainer.GetConfig().Password),
 		fmt.Sprintf("TARGET_DB_PASSWORD=%s", lm.targetContainer.GetConfig().Password),
-	)
+	).WithT(lm.t)
 	err := cutoverCmd.Run()
 	if err != nil {
 		return goerrors.Errorf("failed to initiate cutover: %w", err)
 	}
-	fmt.Printf("Migration ended\n")
+	lm.t.Logf("Migration ended")
 	return nil
 }
 
@@ -793,7 +793,7 @@ func (lm *LiveMigrationTest) EndMigration(extraArgs map[string]string, withBacku
 
 // WaitForSnapshotComplete waits until snapshot phase is done
 func (lm *LiveMigrationTest) WaitForSnapshotComplete(expectedData map[string]int64, snapshotTimeout time.Duration) error {
-	fmt.Printf("Waiting for snapshot complete\n")
+	lm.t.Logf("Waiting for snapshot complete")
 
 	ok := utils.RetryWorkWithTimeout(1, snapshotTimeout, func() bool {
 		ok, err := lm.snapshotPhaseCompleted(expectedData)
@@ -807,13 +807,13 @@ func (lm *LiveMigrationTest) WaitForSnapshotComplete(expectedData map[string]int
 	if !ok {
 		return goerrors.Errorf("snapshot phase did not complete within %v", snapshotTimeout)
 	}
-	fmt.Printf("Snapshot complete\n")
+	lm.t.Logf("Snapshot complete")
 	return nil
 }
 
 // WaitForForwardStreamingComplete waits until streaming events are processed
 func (lm *LiveMigrationTest) WaitForForwardStreamingComplete(expectedChanges map[string]ChangesCount, streamingTimeout time.Duration, streamingSleep time.Duration) error {
-	fmt.Printf("Waiting for streaming complete\n")
+	lm.t.Logf("Waiting for streaming complete")
 
 	ok := utils.RetryWorkWithTimeout(streamingSleep, streamingTimeout, func() bool {
 		ok, err := lm.streamingPhaseCompleted(expectedChanges, "source", "target")
@@ -827,13 +827,13 @@ func (lm *LiveMigrationTest) WaitForForwardStreamingComplete(expectedChanges map
 	if !ok {
 		return goerrors.Errorf("streaming phase did not complete within %v", streamingTimeout)
 	}
-	fmt.Printf("Streaming complete\n")
+	lm.t.Logf("Streaming complete")
 	return nil
 }
 
 // WaitForForwardStreamingComplete waits until streaming events are processed
 func (lm *LiveMigrationTest) WaitForFallbackStreamingComplete(expectedChanges map[string]ChangesCount, streamingTimeout time.Duration, streamingSleep time.Duration) error {
-	fmt.Printf("Waiting for streaming complete\n")
+	lm.t.Logf("Waiting for streaming complete")
 
 	ok := utils.RetryWorkWithTimeout(streamingSleep, streamingTimeout, func() bool {
 		ok, err := lm.streamingPhaseCompleted(expectedChanges, "target", "source")
@@ -847,13 +847,13 @@ func (lm *LiveMigrationTest) WaitForFallbackStreamingComplete(expectedChanges ma
 	if !ok {
 		return goerrors.Errorf("streaming phase did not complete within %v", streamingTimeout)
 	}
-	fmt.Printf("Streaming complete\n")
+	lm.t.Logf("Streaming complete")
 	return nil
 }
 
 // WaitForCutoverComplete waits until cutover is done
 func (lm *LiveMigrationTest) WaitForCutoverComplete(iterationNumber int, cutoverTimeout time.Duration) error {
-	fmt.Printf("Waiting for cutover complete\n")
+	lm.t.Logf("Waiting for cutover complete")
 
 	// Initialize metaDB if not already done
 	if lm.metaDB == nil {
@@ -870,7 +870,7 @@ func (lm *LiveMigrationTest) WaitForCutoverComplete(iterationNumber int, cutover
 	if !ok {
 		return goerrors.Errorf("cutover did not complete within %v", cutoverTimeout)
 	}
-	fmt.Printf("Cutover complete\n")
+	lm.t.Logf("Cutover complete")
 	//update the export and import commands to the new export and import commands
 	lm.exportFromTargetCmd = lm.importCmd
 	lm.importToSourceCmd = lm.exportCmd
@@ -879,7 +879,7 @@ func (lm *LiveMigrationTest) WaitForCutoverComplete(iterationNumber int, cutover
 
 // WaitForCutoverSourceComplete waits until cutover to source is done
 func (lm *LiveMigrationTest) WaitForCutoverSourceComplete(iterationNumber int, cutoverTimeout time.Duration) error {
-	fmt.Printf("Waiting for cutover to source complete\n")
+	lm.t.Logf("Waiting for cutover to source complete")
 
 	// Initialize metaDB if not already done
 	if lm.metaDB == nil {
@@ -896,14 +896,14 @@ func (lm *LiveMigrationTest) WaitForCutoverSourceComplete(iterationNumber int, c
 	if !ok {
 		return goerrors.Errorf("cutover to source did not complete within %v", cutoverTimeout)
 	}
-	fmt.Printf("Cutover to source complete\n")
+	lm.t.Logf("Cutover to source complete")
 	lm.exportCmd = lm.importToSourceCmd
 	lm.importCmd = lm.exportFromTargetCmd
 	return nil
 }
 
 func (lm *LiveMigrationTest) WaitForNextIterationInitialized(waitTimeout time.Duration, iterationNo int) error {
-	fmt.Printf("Waiting for next iteration initialized\n")
+	lm.t.Logf("Waiting for next iteration initialized")
 	// Initialize metaDB if not already done
 	if lm.metaDB == nil {
 		err := lm.InitMetaDB()
@@ -919,7 +919,7 @@ func (lm *LiveMigrationTest) WaitForNextIterationInitialized(waitTimeout time.Du
 		return nil
 	}
 
-	fmt.Printf("Waiting for next iteration initialized: iterationNo = %d\n", iterationNo)
+	lm.t.Logf("Waiting for next iteration initialized: iterationNo = %d", iterationNo)
 	var iterationMetaDB *metadb.MetaDB
 	if iterationNo > 0 {
 		iterationsExportDir := msr.GetIterationsDir(lm.exportDir)
@@ -927,7 +927,7 @@ func (lm *LiveMigrationTest) WaitForNextIterationInitialized(waitTimeout time.Du
 		if !utils.FileOrFolderExists(iterationExportDir) {
 			return goerrors.Errorf("iteration export directory does not exist")
 		}
-		fmt.Printf("Iteration export directory exists: %s\n", iterationExportDir)
+		lm.t.Logf("Iteration export directory exists: %s", iterationExportDir)
 		iterationMetaDB, err = metadb.NewMetaDB(iterationExportDir)
 		if err != nil {
 			return goerrors.Errorf("failed to create iteration meta db: %w", err)
@@ -967,26 +967,26 @@ func (lm *LiveMigrationTest) ExecuteOnTarget(sqlStatements ...string) error {
 
 // ValidateDataConsistency compares data between source and target
 func (lm *LiveMigrationTest) ValidateDataConsistency(tables []string, orderBy string) error {
-	fmt.Printf("Validating data consistency\n")
+	lm.t.Logf("Validating data consistency")
 	return lm.WithSourceTargetConn(func(source, target *sql.DB) error {
 		for _, table := range tables {
 			if err := testutils.CompareTableData(lm.ctx, source, target, table, orderBy); err != nil {
 				return goerrors.Errorf("table data mismatch for %s: %w", table, err)
 			}
-			fmt.Printf("Data consistency validated for %s\n", table)
+			lm.t.Logf("Data consistency validated for %s", table)
 		}
 		return nil
 	})
 }
 
 func (lm *LiveMigrationTest) ValidateRowCount(tables []string) error {
-	fmt.Printf("Validating row count\n")
+	lm.t.Logf("Validating row count")
 	return lm.WithSourceTargetConn(func(source, target *sql.DB) error {
 		for _, table := range tables {
 			if err := testutils.CompareRowCount(lm.ctx, source, target, table); err != nil {
 				return goerrors.Errorf("row count mismatch for %s: %w", table, err)
 			}
-			fmt.Printf("Row count validated for %s\n", table)
+			lm.t.Logf("Row count validated for %s", table)
 		}
 		return nil
 	})
@@ -1091,7 +1091,7 @@ type ChangesCount struct {
 
 // streamingPhaseCompleted checks if streaming phase is complete
 func (lm *LiveMigrationTest) streamingPhaseCompleted(changesCount map[string]ChangesCount, exportFrom string, importTo string) (bool, error) {
-	fmt.Printf("Waiting for streaming complete\n")
+	lm.t.Logf("Waiting for streaming complete")
 	report, err := lm.GetDataMigrationReport()
 	if err != nil {
 		return false, goerrors.Errorf("failed to get data migration report: %w", err)
@@ -1234,7 +1234,7 @@ func (lm *LiveMigrationTest) GetDataMigrationReport() (*DataMigrationReport, err
 			"--output-format", "json",
 			"--source-db-password", lm.sourceContainer.GetConfig().Password,
 			"--target-db-password", lm.targetContainer.GetConfig().Password,
-		}, nil, true).Run()
+		}, nil, true).WithT(lm.t).Run()
 		if err != nil {
 			return nil, goerrors.Errorf("get data-migration-report command failed: %w", err)
 		}
