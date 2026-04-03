@@ -1307,7 +1307,7 @@ func packAndSendAnalyzeSchemaPayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}
-	payload := createCallhomePayload()
+	payload := createCallhomePayload(migrationUUID)
 	payload.MigrationPhase = ANALYZE_PHASE
 
 	var callhomeIssues []callhome.AnalyzeIssueCallhome

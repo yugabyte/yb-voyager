@@ -173,7 +173,7 @@ func packAndSendExportDataFromTargetPayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}
-	payload := createCallhomePayload()
+	payload := createCallhomePayload(migrationUUID)
 	payload.MigrationType = LIVE_MIGRATION
 
 	targetDBDetails := callhome.TargetDBDetails{
