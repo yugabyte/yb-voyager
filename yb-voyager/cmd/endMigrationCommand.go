@@ -90,7 +90,7 @@ var endMigrationCmd = &cobra.Command{
 			backupDir = currBackupDir
 			exportDir = currExportDir
 		}()
-		for i := 1; i <= msr.LatestIterationNumber; i++ {
+		for i := msr.LatestIterationNumber; i >= 0; i-- {
 			utils.PrintAndLogfInfo("\nEnding migration for iteration %d\n", i)
 			iterationExportDir := GetIterationExportDir(msr.GetIterationsDir(currExportDir), i)
 			if !utils.FileOrFolderExists(iterationExportDir) {
@@ -914,7 +914,15 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 		if err != nil {
 			utils.ErrExit("checking for ongoing voyager commands: %w", err)
 		}
-		matches = append(matches, parentCmdMatches...)
+		for _, match := range parentCmdMatches {
+			lockFile := lockfile.NewLockfile(match)
+			if lockFile.IsPIDActive() {
+				if lockFile.GetCmdName() == "archive changes" {
+					matches = append(matches, match)
+					break
+				}
+			}
+		}
 		var lockFiles []*lockfile.Lockfile
 		for _, match := range matches {
 			lockFile := lockfile.NewLockfile(match)

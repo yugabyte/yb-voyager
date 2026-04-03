@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -127,12 +128,6 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 
 	currentDB := metaDB
 	for {
-
-		if StopArchiverSignal {
-			//if end migration signal is received, then break the loop
-			break
-		}
-
 		msr, err = currentDB.GetMigrationStatusRecord()
 		if err != nil {
 			utils.ErrExit("error getting migration status record: %v", err)
@@ -142,18 +137,29 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 			break
 		}
 
-		iterationMetaDB, nextIterationConfig, nextIteration, iterationMigrationUUID, err := setupSegmentConfigForNextIteration(currentDB, msr.IterationNo)
+		nextIterationMetaDB, nextIterationConfig, nextIterationNum, nextIterationMigrationUUID, err := setupSegmentConfigForNextIteration(currentDB, msr.IterationNo)
 		if err != nil {
 			utils.ErrExit("error setting up segment config for next iteration: %v", err)
 		}
-		err = runSegmentCleaner(nextIterationConfig, iterationMetaDB, ctx)
+		err = runSegmentCleaner(nextIterationConfig, nextIterationMetaDB, ctx)
 		if err != nil {
-			utils.ErrExit("archive changes failed for iteration %d: %v", nextIteration, err)
+			utils.ErrExit("archive changes failed for iteration %d: %v", nextIterationNum, err)
 		}
-		packAndSendArchiveChangesPayload(COMPLETE, nil, iterationMetaDB, iterationMigrationUUID)
-		utils.PrintAndLogfSuccess("\nArchived all the changes for iteration %d.", nextIteration)
+		packAndSendArchiveChangesPayload(COMPLETE, nil, nextIterationMetaDB, nextIterationMigrationUUID)
+		utils.PrintAndLogfSuccess("\nArchived all the changes for iteration %d.", nextIterationNum)
 
-		currentDB = iterationMetaDB
+		currentDB = nextIterationMetaDB
+
+		parentMSR, err := metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			utils.ErrExit("error getting migration status record: %v", err)
+		}
+
+		if StopArchiverSignal && parentMSR.LatestIterationNumber == nextIterationNum {
+			//if end migration signal is received and no more iterations to process, then break the loop
+			break
+		}
+
 	}
 	utils.PrintAndLogfSuccess("\nArchived all the changes for all iterations.")
 }
@@ -169,25 +175,25 @@ func runSegmentCleaner(config segmentcleanup.Config, metaDB *metadb.MetaDB, ctx 
 func setupSegmentConfigForNextIteration(currentDB *metadb.MetaDB, lastArchivedIteration int) (*metadb.MetaDB, segmentcleanup.Config, int, uuid.UUID, error) {
 	err := waitUntilNextIterationInitialized(currentDB)
 	if err != nil {
-		return nil, segmentcleanup.Config{}, 0, uuid.Nil, fmt.Errorf("error waiting for next iteration initialized: %v", err)
+		return nil, segmentcleanup.Config{}, 0, uuid.Nil, fmt.Errorf("error waiting for next iteration initialized: %w", err)
 	}
 
 	nextIteration := lastArchivedIteration + 1
 	parentMSR, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return nil, segmentcleanup.Config{}, 0, uuid.Nil, fmt.Errorf("error getting parent migration status record: %v", err)
+		return nil, segmentcleanup.Config{}, 0, uuid.Nil, fmt.Errorf("error getting parent migration status record: %w", err)
 	}
 	iterationsExportDir := parentMSR.GetIterationsDir(exportDir)
 	iterationExportDir := GetIterationExportDir(iterationsExportDir, nextIteration)
 
 	iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
 	if err != nil {
-		return nil, segmentcleanup.Config{}, 0, uuid.Nil, fmt.Errorf("error opening iteration %d meta db: %v", nextIteration, err)
+		return nil, segmentcleanup.Config{}, 0, uuid.Nil, fmt.Errorf("error opening iteration %d meta db: %w", nextIteration, err)
 	}
 
 	iterationMSR, err := iterationMetaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return nil, segmentcleanup.Config{}, 0, uuid.Nil, fmt.Errorf("error getting migration status record for iteration %d: %v", nextIteration, err)
+		return nil, segmentcleanup.Config{}, 0, uuid.Nil, fmt.Errorf("error getting migration status record for iteration %d: %w", nextIteration, err)
 	}
 	iterationMigrationUUID := uuid.MustParse(iterationMSR.MigrationUUID)
 	var iterationArchiveDir string
@@ -197,7 +203,7 @@ func setupSegmentConfigForNextIteration(currentDB *metadb.MetaDB, lastArchivedIt
 			fmt.Sprintf("live-data-migration-iteration-%d", nextIteration))
 		err = os.MkdirAll(iterationArchiveDir, 0755)
 		if err != nil {
-			return nil, segmentcleanup.Config{}, 0, uuid.Nil, fmt.Errorf("creating archive directory: %v", err)
+			return nil, segmentcleanup.Config{}, 0, uuid.Nil, fmt.Errorf("creating archive directory: %w", err)
 		}
 	}
 	nextIterationConfig := segmentcleanup.Config{
