@@ -312,6 +312,15 @@ func (e *WorkflowEngine) GetStatus(ctx context.Context, workflowUUID string) (Wo
 				}
 				sr.ChildReports = append(sr.ChildReports, childReport)
 			}
+			// If no actual child instance exists yet and exactly 1 child
+			// workflow is configured, project the definition as a pending
+			// report so callers can see what comes next.
+			if len(sr.ChildReports) == 0 && len(stepDef.ChildWorkflows) == 1 {
+				projected, err := e.projectDefinition(stepDef.ChildWorkflows[0])
+				if err == nil {
+					sr.ChildReports = append(sr.ChildReports, projected)
+				}
+			}
 		}
 
 		report.Steps = append(report.Steps, sr)
@@ -456,6 +465,35 @@ func (e *WorkflowEngine) propagateChildFailure(ctx context.Context, workflowUUID
 		return err
 	}
 	return e.propagateChildFailure(ctx, inst.ParentWorkflowUUID)
+}
+
+// projectDefinition builds a synthetic WorkflowReport from a workflow
+// definition, with all steps pending. This allows callers to see what
+// a child workflow will contain before it is actually started.
+func (e *WorkflowEngine) projectDefinition(workflowName string) (WorkflowReport, error) {
+	def, err := e.registry.get(workflowName)
+	if err != nil {
+		return WorkflowReport{}, err
+	}
+	report := WorkflowReport{
+		WorkflowName: def.Name,
+		Status:       WorkflowStatusPending,
+	}
+	for _, stepDef := range def.Steps {
+		sr := StepReport{
+			StepName:  stepDef.Name,
+			DependsOn: stepDef.DependsOn,
+			Status:    StepStatusPending,
+		}
+		if len(stepDef.ChildWorkflows) == 1 {
+			childProjected, err := e.projectDefinition(stepDef.ChildWorkflows[0])
+			if err == nil {
+				sr.ChildReports = append(sr.ChildReports, childProjected)
+			}
+		}
+		report.Steps = append(report.Steps, sr)
+	}
+	return report, nil
 }
 
 func validateStepExists(def WorkflowDefinition, stepName string) error {

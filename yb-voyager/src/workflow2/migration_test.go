@@ -712,6 +712,167 @@ func TestBuildDuplicateStep(t *testing.T) {
 	}
 }
 
+// ==========================================
+// Report query methods (RunningSteps, FailedSteps, NextPotentialSteps)
+// ==========================================
+
+func TestRunningSteps_LiveDataStreaming(t *testing.T) {
+	engine := setupTestEngine(t)
+	registerAllWorkflows(t, engine)
+	ctx := context.Background()
+
+	fbUUID, _ := engine.StartWorkflow(ctx, "migrate-live-fb")
+	schemaUUID, _ := engine.StartChildWorkflow(ctx, fbUUID, "migrate-schema", "schema-migrate")
+	for _, step := range []string{"export-schema", "analyze-schema", "import-schema"} {
+		mustStartComplete(t, engine, ctx, schemaUUID, step)
+	}
+
+	dataUUID, _ := engine.StartChildWorkflow(ctx, fbUUID, "migrate-data", "data-live")
+	for _, step := range []string{"export-data", "import-data", "archive-changes"} {
+		if err := engine.StartStep(ctx, dataUUID, step); err != nil {
+			t.Fatalf("StartStep %s: %v", step, err)
+		}
+	}
+
+	report, _ := engine.GetStatus(ctx, fbUUID)
+	running := report.RunningSteps()
+
+	if len(running) != 3 {
+		t.Fatalf("expected 3 running steps, got %d: %v", len(running), running)
+	}
+	runningNames := leafStepNames(running)
+	assertContains(t, runningNames, "export-data")
+	assertContains(t, runningNames, "import-data")
+	assertContains(t, runningNames, "archive-changes")
+
+	for _, r := range running {
+		if r.WorkflowName != "data-live" {
+			t.Errorf("expected WorkflowName=data-live, got %q", r.WorkflowName)
+		}
+	}
+}
+
+func TestRunningSteps_NothingRunning(t *testing.T) {
+	engine := setupTestEngine(t)
+	registerAllWorkflows(t, engine)
+	ctx := context.Background()
+
+	uuid, _ := engine.StartWorkflow(ctx, "migrate-offline")
+
+	report, _ := engine.GetStatus(ctx, uuid)
+	running := report.RunningSteps()
+	if len(running) != 0 {
+		t.Fatalf("expected 0 running steps, got %d", len(running))
+	}
+}
+
+func TestNextPotentialSteps_OfflineAfterSchema(t *testing.T) {
+	engine := setupTestEngine(t)
+	registerAllWorkflows(t, engine)
+	ctx := context.Background()
+
+	offlineUUID, _ := engine.StartWorkflow(ctx, "migrate-offline")
+	schemaUUID, _ := engine.StartChildWorkflow(ctx, offlineUUID, "migrate-schema", "schema-migrate")
+	for _, step := range []string{"export-schema", "analyze-schema", "import-schema"} {
+		mustStartComplete(t, engine, ctx, schemaUUID, step)
+	}
+
+	report, _ := engine.GetStatus(ctx, offlineUUID)
+	ready := report.NextPotentialSteps()
+	readyNames := leafStepNames(ready)
+
+	assertContains(t, readyNames, "export-data")
+	assertContains(t, readyNames, "validate")
+	assertContains(t, readyNames, "end-migration")
+	assertNotContains(t, readyNames, "migrate-schema")
+	assertNotContains(t, readyNames, "migrate-data")
+}
+
+func TestNextPotentialSteps_LiveDataRunning(t *testing.T) {
+	engine := setupTestEngine(t)
+	registerAllWorkflows(t, engine)
+	ctx := context.Background()
+
+	fbUUID, _ := engine.StartWorkflow(ctx, "migrate-live-fb")
+	schemaUUID, _ := engine.StartChildWorkflow(ctx, fbUUID, "migrate-schema", "schema-migrate")
+	for _, step := range []string{"export-schema", "analyze-schema", "import-schema"} {
+		mustStartComplete(t, engine, ctx, schemaUUID, step)
+	}
+
+	dataUUID, _ := engine.StartChildWorkflow(ctx, fbUUID, "migrate-data", "data-live")
+	for _, step := range []string{"export-data", "import-data", "archive-changes"} {
+		if err := engine.StartStep(ctx, dataUUID, step); err != nil {
+			t.Fatalf("StartStep %s: %v", step, err)
+		}
+	}
+
+	report, _ := engine.GetStatus(ctx, fbUUID)
+	ready := report.NextPotentialSteps()
+	readyNames := leafStepNames(ready)
+
+	// data-live child has no pending steps (all running), so no ready there
+	// At fb level: reverse-sync blocked (dep migrate-data running), validate/end-migration are floating
+	assertContains(t, readyNames, "validate")
+	assertContains(t, readyNames, "end-migration")
+	assertNotContains(t, readyNames, "reverse-sync")
+}
+
+func TestFailedSteps_LeafFailure(t *testing.T) {
+	engine := setupTestEngine(t)
+	registerAllWorkflows(t, engine)
+	ctx := context.Background()
+
+	offlineUUID, _ := engine.StartWorkflow(ctx, "migrate-offline")
+	schemaUUID, _ := engine.StartChildWorkflow(ctx, offlineUUID, "migrate-schema", "schema-migrate")
+	for _, step := range []string{"export-schema", "analyze-schema", "import-schema"} {
+		mustStartComplete(t, engine, ctx, schemaUUID, step)
+	}
+
+	dataUUID, _ := engine.StartChildWorkflow(ctx, offlineUUID, "migrate-data", "data-offline")
+	mustStartComplete(t, engine, ctx, dataUUID, "export-data")
+
+	if err := engine.StartStep(ctx, dataUUID, "import-data"); err != nil {
+		t.Fatalf("StartStep import-data: %v", err)
+	}
+	if err := engine.FailStep(ctx, dataUUID, "import-data", fmt.Errorf("connection timeout")); err != nil {
+		t.Fatalf("FailStep import-data: %v", err)
+	}
+
+	report, _ := engine.GetStatus(ctx, offlineUUID)
+	failed := report.FailedSteps()
+
+	if len(failed) != 1 {
+		t.Fatalf("expected 1 failed step, got %d: %v", len(failed), failed)
+	}
+	if failed[0].StepName != "import-data" {
+		t.Fatalf("expected failed step import-data, got %q", failed[0].StepName)
+	}
+	if failed[0].WorkflowName != "data-offline" {
+		t.Fatalf("expected WorkflowName=data-offline, got %q", failed[0].WorkflowName)
+	}
+}
+
+func TestFailedSteps_NoFailures(t *testing.T) {
+	engine := setupTestEngine(t)
+	registerAllWorkflows(t, engine)
+	ctx := context.Background()
+
+	uuid, _ := engine.StartWorkflow(ctx, "migrate-offline")
+	report, _ := engine.GetStatus(ctx, uuid)
+	failed := report.FailedSteps()
+	if len(failed) != 0 {
+		t.Fatalf("expected 0 failed steps, got %d", len(failed))
+	}
+}
+
+func leafStepNames(steps []LeafStep) []string {
+	names := make([]string, len(steps))
+	for i, s := range steps {
+		names[i] = s.StepName
+	}
+	return names
+}
+
 // --- test helpers ---
 
 func assertContains(t *testing.T, slice []string, item string) {
