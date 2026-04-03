@@ -88,3 +88,11 @@ jobs:
         set -euo pipefail
         cd yb-voyager
         go test -json -v ./... -tags ${{ matrix.test-tags }} -timeout 35m -parallel 4 2>&1 | tee /tmp/gotest.log | gotestfmt
+
+    - name: Upload test log
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-log-${{ matrix.test-tags }}
+        path: /tmp/gotest.log
+        retention-days: 7
