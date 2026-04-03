@@ -2875,7 +2875,7 @@ END $$;`,
 	err = liveMigrationTest.WaitForCutoverComplete(0, 50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
-	fmt.Printf("\n✅ Forward streaming completed successfully!\n")
+	t.Log("\n✅ Forward streaming completed successfully!")
 
 	// Execute delta SQL on target for fallback testing
 	err = liveMigrationTest.ExecuteTargetDelta()
@@ -2911,12 +2911,12 @@ END $$;`,
 	}, "id")
 	testutils.FatalIfError(t, err, "failed to validate fallback data consistency")
 
-	fmt.Printf("\n✅ Full migration flow with fallback completed successfully!\n")
-	fmt.Printf("✅ Prepared statement collision scenarios tested in both directions:\n")
-	fmt.Printf("   ✓ Forward streaming (source → target)\n")
-	fmt.Printf("   ✓ Fallback streaming (target → source)\n")
-	fmt.Printf("   ✓ Mixed INSERT/UPDATE/DELETE on same long-named table\n")
-	fmt.Printf("   ✓ Operations on tables with similar long names (differ only at the end)\n\n")
+	t.Log("\n✅ Full migration flow with fallback completed successfully!")
+	t.Log("✅ Prepared statement collision scenarios tested in both directions:")
+	t.Log("   ✓ Forward streaming (source → target)")
+	t.Log("   ✓ Fallback streaming (target → source)")
+	t.Log("   ✓ Mixed INSERT/UPDATE/DELETE on same long-named table")
+	t.Log("   ✓ Operations on tables with similar long names (differ only at the end)")
 }
 
 func TestBasicLiveTestForCaseSensitiveSchema(t *testing.T) {
@@ -3231,9 +3231,9 @@ FROM generate_series(1, 5);`,
 	testutils.FatalIfError(t, err, "failed to check if YB replication slot exists")
 	assert.False(t, exists, "YB replication slot should be ended after cutover to source is completed")
 
-	fmt.Printf("\n✅ Live migration with import resumption after cutover completed successfully!\n")
-	fmt.Printf("✅ PostgreSQL replication slot should be ended after cutover\n")
-	fmt.Printf("✅ YB replication slot should still exist after cutover\n")
+	t.Log("\n✅ Live migration with import resumption after cutover completed successfully!")
+	t.Log("✅ PostgreSQL replication slot should be ended after cutover")
+	t.Log("✅ YB replication slot should still exist after cutover")
 }
 
 func TestLiveMigrationWithFallbackWithMultipleIterations(t *testing.T) {
@@ -3348,7 +3348,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterations(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
 
 	for i := 1; i <= 5; i++ {
-		fmt.Printf("\n✅ Starting iteration %d\n", i)
+		t.Logf("\n✅ Starting iteration %d", i)
 		err = lm.InitiateCutoverToSource(map[string]string{
 			"--restart-data-migration-source-target": "true",
 		})
@@ -3404,7 +3404,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterations(t *testing.T) {
 			err = lm.WaitForCutoverSourceComplete(i, 100)
 			testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 		}
-		fmt.Printf("\n✅ Iteration %d completed successfully!\n", i)
+		t.Logf("\n✅ Iteration %d completed successfully!", i)
 	}
 }
 
