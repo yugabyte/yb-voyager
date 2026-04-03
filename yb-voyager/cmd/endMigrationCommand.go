@@ -64,17 +64,23 @@ var endMigrationCmd = &cobra.Command{
 			utils.ErrExit("failed to get migration status record: %w", err)
 		}
 
+		if utils.AskPrompt("Migration can't be resumed or continued after this.", "Are you sure you want to end the migration") {
+			log.Info("ending the migration")
+		} else {
+			utils.ErrExit("Aborting.")
+		}
+
 		if msr.IsParentMigration() && msr.LatestIterationNumber == 0 {
 			//If normal migration flow
 			utils.PrintAndLogfInfo("\nEnding migration")
-			endMigrationCommandFn(cmd, args, false)
+			endMigrationCommandFn(false)
 			utils.PrintAndLogfSuccess("\nEnded migration successfully")
 			return
 		}
 		if msr.IsIteration() {
 			//If its an iteration like end migration on specific iteration do the cleanup of that iteration
 			utils.PrintAndLogfInfo("\nEnding migration")
-			endMigrationCommandFn(cmd, args, true)
+			endMigrationCommandFn(true)
 			utils.PrintAndLogfSuccess("\nEnded migration successfully")
 			return
 		}
@@ -94,7 +100,8 @@ var endMigrationCmd = &cobra.Command{
 			utils.PrintAndLogfInfo("\nEnding migration for iteration %d\n", i)
 			iterationExportDir := GetIterationExportDir(msr.GetIterationsDir(currExportDir), i)
 			if !utils.FileOrFolderExists(iterationExportDir) {
-				utils.ErrExit("iteration export directory %q does not exist", iterationExportDir)
+				utils.PrintAndLogf("skipping iteration %d as it was previously ended", i)
+				continue
 			}
 			iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
 			if err != nil {
@@ -109,27 +116,25 @@ var endMigrationCmd = &cobra.Command{
 			}
 			metaDB = iterationMetaDB
 			exportDir = iterationExportDir
-			endMigrationCommandFn(cmd, args, true)
+			endMigrationCommandFn(true)
+			//remove iteration export directory
+			err = os.RemoveAll(iterationExportDir)
+			if err != nil {
+				utils.ErrExit("removing iteration export directory: %w", err)
+			}
 		}
 		metaDB = currMetaDB
 		backupDir = currBackupDir
 		exportDir = currExportDir
 		utils.PrintAndLogfInfo("\nEnding migration for iteration 0")
-		endMigrationCommandFn(cmd, args, false)
+		endMigrationCommandFn(false)
 		utils.PrintAndLogfSuccess("\nEnded migration successfully for all iterations")
 
 	},
 }
 
 // TODO: do not use global variables
-func endMigrationCommandFn(cmd *cobra.Command, args []string, isIteration bool) {
-	if utils.AskPrompt("Migration can't be resumed or continued after this.", "Are you sure you want to end the migration") {
-		log.Info("ending the migration")
-	} else {
-		utils.PrintAndLogf("aborting the end migration command")
-		return
-	}
-
+func endMigrationCommandFn(isIteration bool) {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("getting migration status record: %w", err)
