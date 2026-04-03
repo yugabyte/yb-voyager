@@ -90,7 +90,7 @@ var endMigrationCmd = &cobra.Command{
 			backupDir = currBackupDir
 			exportDir = currExportDir
 		}()
-		for i := msr.LatestIterationNumber; i >= 0; i-- {
+		for i := msr.LatestIterationNumber; i >= 1; i-- {
 			utils.PrintAndLogfInfo("\nEnding migration for iteration %d\n", i)
 			iterationExportDir := GetIterationExportDir(msr.GetIterationsDir(currExportDir), i)
 			if !utils.FileOrFolderExists(iterationExportDir) {
