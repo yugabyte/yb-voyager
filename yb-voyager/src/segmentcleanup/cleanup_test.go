@@ -18,6 +18,7 @@ limitations under the License.
 package segmentcleanup
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -45,16 +46,19 @@ func newArchiveCleaner(exportDir string, archiveDir string, mdb *metadb.MetaDB) 
 	}, mdb)
 }
 
-// =============================================================================================
-// WORKFLOW 1: LIVE MIGRATION (Basic live flow without Fall-Forward or Fall-Back)
+// #############################################################################################
 //
-// Key characteristics:
-//   - importCount = 1 (only target importer needs to process each segment)
-//   - exporter_role = "source_db_exporter"
-//   - A segment is "processed" when imported_by_target = 1
+//	DELETE POLICY TESTS
+//
+// #############################################################################################
+
+// =============================================================================================
+// WORKFLOW 1: LIVE MIGRATION
+//   - importCount = 1, exporter_role = "source_db_exporter"
+//   - Processed when imported_by_target = 1
 // =============================================================================================
 
-func TestLiveMigration(t *testing.T) {
+func TestDeletePolicy_LiveMigration(t *testing.T) {
 	mdb, exportDir := setupTestMetaDB(t)
 	setMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
 		r.FallForwardEnabled = false
@@ -102,18 +106,11 @@ func TestLiveMigration(t *testing.T) {
 
 // =============================================================================================
 // WORKFLOW 2: LIVE-FALL-FORWARD MIGRATION
-//
-// Key characteristics:
-//   - Pre-cutover importCount = 2 (target + source-replica must both process)
-//   - A source_db_exporter segment is "processed" when target + sr = 2
-//   - Post-cutover: target exports target_db_exporter_ff segments,
-//     processed when sr + source = 1
+//   - Pre-cutover importCount = 2 (target + sr must both process)
+//   - Post-cutover: target_db_exporter_ff segments, processed when sr+source = 1
 // =============================================================================================
 
-// TestLiveFallForward_PreCutover verifies pre-cutover behavior where both target
-// and source-replica must process each segment (importCount=2). A segment only
-// processed by the target (sr=0) remains pending.
-func TestLiveFallForward_PreCutover(t *testing.T) {
+func TestDeletePolicy_LiveFallForward_PreCutover(t *testing.T) {
 	mdb, exportDir := setupTestMetaDB(t)
 	setMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
 		r.FallForwardEnabled = true
@@ -134,7 +131,6 @@ func TestLiveFallForward_PreCutover(t *testing.T) {
 	cleaner := newDeleteCleaner(exportDir, mdb)
 
 	// Normal operation: 5 processed − buffer(3) = 2 eligible (segs 1,2).
-	// Seg 6 is NOT processed (sum=1 < importCount=2).
 	processed, pending, deleted, err := cleaner.DeleteProcessedSegments()
 	require.NoError(t, err)
 	assert.Len(t, processed, 5)
@@ -160,10 +156,7 @@ func TestLiveFallForward_PreCutover(t *testing.T) {
 	assert.FileExists(t, paths[6], "Seg 7 (unprocessed) still pending")
 }
 
-// TestLiveFallForward_PostCutover verifies post-cutover behavior. After cutover,
-// all source_db_exporter segments are already fully processed, so the target starts
-// exporting target_db_exporter_ff segments processed once SR finishes (sr+source=1).
-func TestLiveFallForward_PostCutover(t *testing.T) {
+func TestDeletePolicy_LiveFallForward_PostCutover(t *testing.T) {
 	mdb, exportDir := setupTestMetaDB(t)
 	setMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
 		r.FallForwardEnabled = true
@@ -212,17 +205,11 @@ func TestLiveFallForward_PostCutover(t *testing.T) {
 
 // =============================================================================================
 // WORKFLOW 3: LIVE-FALL-BACK MIGRATION
-//
-// Key characteristics:
-//   - importCount = 1 (only target importer needs to process each segment)
-//   - Pre-cutover: source_db_exporter segments, processed when target imports (target=1)
-//   - Post-cutover: target exports target_db_exporter_fb segments back to source,
-//     processed when source_db_importer finishes (sr+source=1)
+//   - Pre-cutover: importCount = 1, source_db_exporter, processed when target = 1
+//   - Post-cutover: target_db_exporter_fb segments, processed when sr+source = 1
 // =============================================================================================
 
-// TestLiveFallBack_PreCutover verifies pre-cutover behavior with only
-// source_db_exporter segments (importCount=1, processed when target=1).
-func TestLiveFallBack_PreCutover(t *testing.T) {
+func TestDeletePolicy_LiveFallBack_PreCutover(t *testing.T) {
 	mdb, exportDir := setupTestMetaDB(t)
 	setMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
 		r.FallForwardEnabled = false
@@ -268,11 +255,7 @@ func TestLiveFallBack_PreCutover(t *testing.T) {
 	assert.FileExists(t, paths[6], "Seg 7 (pending) untouched")
 }
 
-// TestLiveFallBack_PostCutover verifies post-cutover behavior. After cutover to
-// target, the target exports target_db_exporter_fb segments back to source.
-// Some source_db_exporter segments that were already processed may still be in
-// the DB (buffered, not yet cleaned up). Both types coexist in the processed list.
-func TestLiveFallBack_PostCutover(t *testing.T) {
+func TestDeletePolicy_LiveFallBack_PostCutover(t *testing.T) {
 	mdb, exportDir := setupTestMetaDB(t)
 	setMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
 		r.FallForwardEnabled = false
@@ -327,9 +310,279 @@ func TestLiveFallBack_PostCutover(t *testing.T) {
 	assert.FileExists(t, paths[6], "Seg 7 (fb, source pending) untouched")
 }
 
+// #############################################################################################
+//
+//	ARCHIVE POLICY TESTS
+//
+// #############################################################################################
+
+// archivePath returns the expected archive location for a given export-dir segment path.
+func archivePath(archiveDir, segPath string) string {
+	return filepath.Join(archiveDir, filepath.Base(segPath))
+}
+
 // =============================================================================================
-// EDGE CASES & UTILITIES
+// WORKFLOW 1: LIVE MIGRATION (archive)
 // =============================================================================================
+
+func TestArchivePolicy_LiveMigration(t *testing.T) {
+	mdb, exportDir := setupTestMetaDB(t)
+	archiveDir := createArchiveDir(t, exportDir)
+	setMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
+		r.FallForwardEnabled = false
+		r.FallbackEnabled = false
+		r.ExportDataSourceDebeziumStarted = true
+	})
+
+	paths := createSegmentFiles(t, exportDir, 7)
+	for i := 1; i <= 5; i++ {
+		insertSegment(t, exportDir, SegmentRow{i, paths[i-1], "source_db_exporter", 1, 0, 0, 0, 0})
+	}
+	for i := 6; i <= 7; i++ {
+		insertSegment(t, exportDir, SegmentRow{i, paths[i-1], "source_db_exporter", 0, 0, 0, 0, 0})
+	}
+
+	cleaner := newArchiveCleaner(exportDir, archiveDir, mdb)
+
+	// Normal operation: 5 processed − buffer(3) = 2 eligible (segs 1,2).
+	processed, pending, archived, err := cleaner.ArchiveProcessedSegments()
+	require.NoError(t, err)
+	assert.Len(t, processed, 5)
+	assert.Len(t, pending, 2)
+	assert.Len(t, archived, 2)
+	assert.NoFileExists(t, paths[0], "Seg 1 removed from export dir")
+	assert.NoFileExists(t, paths[1], "Seg 2 removed from export dir")
+	assert.FileExists(t, archivePath(archiveDir, paths[0]), "Seg 1 archived")
+	assert.FileExists(t, archivePath(archiveDir, paths[1]), "Seg 2 archived")
+	for i := 2; i < 7; i++ {
+		assert.FileExists(t, paths[i])
+		assert.NoFileExists(t, archivePath(archiveDir, paths[i]))
+	}
+
+	// SignalStop: remaining 3 processed drained.
+	cleaner.SignalStop()
+	processed, pending, archived, err = cleaner.ArchiveProcessedSegments()
+	require.NoError(t, err)
+	assert.Len(t, processed, 3)
+	assert.Len(t, pending, 2)
+	assert.Len(t, archived, 3)
+	for i := 0; i < 5; i++ {
+		assert.NoFileExists(t, paths[i])
+		assert.FileExists(t, archivePath(archiveDir, paths[i]))
+	}
+	assert.FileExists(t, paths[5], "Seg 6 (pending) untouched")
+	assert.FileExists(t, paths[6], "Seg 7 (pending) untouched")
+}
+
+// =============================================================================================
+// WORKFLOW 2: LIVE-FALL-FORWARD MIGRATION (archive)
+// =============================================================================================
+
+func TestArchivePolicy_LiveFallForward_PreCutover(t *testing.T) {
+	mdb, exportDir := setupTestMetaDB(t)
+	archiveDir := createArchiveDir(t, exportDir)
+	setMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
+		r.FallForwardEnabled = true
+		r.FallbackEnabled = false
+		r.ExportDataSourceDebeziumStarted = true
+	})
+
+	paths := createSegmentFiles(t, exportDir, 7)
+	for i := 1; i <= 5; i++ {
+		insertSegment(t, exportDir, SegmentRow{i, paths[i-1], "source_db_exporter", 1, 1, 0, 0, 0})
+	}
+	insertSegment(t, exportDir, SegmentRow{6, paths[5], "source_db_exporter", 1, 0, 0, 0, 0})
+	insertSegment(t, exportDir, SegmentRow{7, paths[6], "source_db_exporter", 0, 0, 0, 0, 0})
+
+	cleaner := newArchiveCleaner(exportDir, archiveDir, mdb)
+
+	// Normal operation: 5 processed − buffer(3) = 2 eligible.
+	processed, pending, archived, err := cleaner.ArchiveProcessedSegments()
+	require.NoError(t, err)
+	assert.Len(t, processed, 5)
+	assert.Len(t, pending, 2, "seg 6 (partial) + seg 7 (unprocessed)")
+	assert.Len(t, archived, 2)
+	assert.NoFileExists(t, paths[0])
+	assert.NoFileExists(t, paths[1])
+	assert.FileExists(t, archivePath(archiveDir, paths[0]))
+	assert.FileExists(t, archivePath(archiveDir, paths[1]))
+	for i := 2; i < 7; i++ {
+		assert.FileExists(t, paths[i])
+	}
+
+	// SignalStop: remaining 3 processed drained.
+	cleaner.SignalStop()
+	processed, pending, archived, err = cleaner.ArchiveProcessedSegments()
+	require.NoError(t, err)
+	assert.Len(t, processed, 3)
+	assert.Len(t, pending, 2)
+	assert.Len(t, archived, 3)
+	for i := 0; i < 5; i++ {
+		assert.NoFileExists(t, paths[i])
+		assert.FileExists(t, archivePath(archiveDir, paths[i]))
+	}
+	assert.FileExists(t, paths[5], "Seg 6 still pending — FF needs both")
+	assert.FileExists(t, paths[6], "Seg 7 still pending")
+}
+
+func TestArchivePolicy_LiveFallForward_PostCutover(t *testing.T) {
+	mdb, exportDir := setupTestMetaDB(t)
+	archiveDir := createArchiveDir(t, exportDir)
+	setMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
+		r.FallForwardEnabled = true
+		r.FallbackEnabled = false
+		r.CutoverProcessedByTargetImporter = true
+		r.ExportFromTargetFallForwardStarted = true
+	})
+
+	paths := createSegmentFiles(t, exportDir, 7)
+	for i := 1; i <= 5; i++ {
+		insertSegment(t, exportDir, SegmentRow{i, paths[i-1], "target_db_exporter_ff", 0, 1, 0, 0, 0})
+	}
+	for i := 6; i <= 7; i++ {
+		insertSegment(t, exportDir, SegmentRow{i, paths[i-1], "target_db_exporter_ff", 0, 0, 0, 0, 0})
+	}
+
+	cleaner := newArchiveCleaner(exportDir, archiveDir, mdb)
+
+	// Normal operation: 5 processed − buffer(3) = 2 eligible.
+	processed, pending, archived, err := cleaner.ArchiveProcessedSegments()
+	require.NoError(t, err)
+	assert.Len(t, processed, 5)
+	assert.Len(t, pending, 2)
+	assert.Len(t, archived, 2)
+	assert.NoFileExists(t, paths[0])
+	assert.NoFileExists(t, paths[1])
+	assert.FileExists(t, archivePath(archiveDir, paths[0]))
+	assert.FileExists(t, archivePath(archiveDir, paths[1]))
+	for i := 2; i < 7; i++ {
+		assert.FileExists(t, paths[i])
+	}
+
+	// SignalStop: remaining 3 processed drained.
+	cleaner.SignalStop()
+	processed, pending, archived, err = cleaner.ArchiveProcessedSegments()
+	require.NoError(t, err)
+	assert.Len(t, processed, 3)
+	assert.Len(t, pending, 2)
+	assert.Len(t, archived, 3)
+	for i := 0; i < 5; i++ {
+		assert.NoFileExists(t, paths[i])
+		assert.FileExists(t, archivePath(archiveDir, paths[i]))
+	}
+	assert.FileExists(t, paths[5], "Seg 6 (SR pending) should remain")
+	assert.FileExists(t, paths[6], "Seg 7 (SR pending) should remain")
+}
+
+// =============================================================================================
+// WORKFLOW 3: LIVE-FALL-BACK MIGRATION (archive)
+// =============================================================================================
+
+func TestArchivePolicy_LiveFallBack_PreCutover(t *testing.T) {
+	mdb, exportDir := setupTestMetaDB(t)
+	archiveDir := createArchiveDir(t, exportDir)
+	setMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
+		r.FallForwardEnabled = false
+		r.FallbackEnabled = true
+		r.ExportDataSourceDebeziumStarted = true
+	})
+
+	paths := createSegmentFiles(t, exportDir, 7)
+	for i := 1; i <= 5; i++ {
+		insertSegment(t, exportDir, SegmentRow{i, paths[i-1], "source_db_exporter", 1, 0, 0, 0, 0})
+	}
+	for i := 6; i <= 7; i++ {
+		insertSegment(t, exportDir, SegmentRow{i, paths[i-1], "source_db_exporter", 0, 0, 0, 0, 0})
+	}
+
+	cleaner := newArchiveCleaner(exportDir, archiveDir, mdb)
+
+	// Normal operation: 5 processed − buffer(3) = 2 eligible.
+	processed, pending, archived, err := cleaner.ArchiveProcessedSegments()
+	require.NoError(t, err)
+	assert.Len(t, processed, 5)
+	assert.Len(t, pending, 2)
+	assert.Len(t, archived, 2)
+	assert.NoFileExists(t, paths[0])
+	assert.NoFileExists(t, paths[1])
+	assert.FileExists(t, archivePath(archiveDir, paths[0]))
+	assert.FileExists(t, archivePath(archiveDir, paths[1]))
+	for i := 2; i < 7; i++ {
+		assert.FileExists(t, paths[i])
+	}
+
+	// SignalStop: remaining 3 processed drained.
+	cleaner.SignalStop()
+	processed, pending, archived, err = cleaner.ArchiveProcessedSegments()
+	require.NoError(t, err)
+	assert.Len(t, processed, 3)
+	assert.Len(t, pending, 2)
+	assert.Len(t, archived, 3)
+	for i := 0; i < 5; i++ {
+		assert.NoFileExists(t, paths[i])
+		assert.FileExists(t, archivePath(archiveDir, paths[i]))
+	}
+	assert.FileExists(t, paths[5], "Seg 6 (pending) untouched")
+	assert.FileExists(t, paths[6], "Seg 7 (pending) untouched")
+}
+
+func TestArchivePolicy_LiveFallBack_PostCutover(t *testing.T) {
+	mdb, exportDir := setupTestMetaDB(t)
+	archiveDir := createArchiveDir(t, exportDir)
+	setMSR(t, mdb, func(r *metadb.MigrationStatusRecord) {
+		r.FallForwardEnabled = false
+		r.FallbackEnabled = true
+		r.ExportDataSourceDebeziumStarted = true
+		r.CutoverProcessedByTargetImporter = true
+		r.ExportFromTargetFallBackStarted = true
+	})
+
+	paths := createSegmentFiles(t, exportDir, 7)
+	insertSegment(t, exportDir, SegmentRow{1, paths[0], "source_db_exporter", 1, 0, 0, 0, 0})
+	insertSegment(t, exportDir, SegmentRow{2, paths[1], "source_db_exporter", 1, 0, 0, 0, 0})
+	for i := 3; i <= 5; i++ {
+		insertSegment(t, exportDir, SegmentRow{i, paths[i-1], "target_db_exporter_fb", 0, 0, 1, 0, 0})
+	}
+	for i := 6; i <= 7; i++ {
+		insertSegment(t, exportDir, SegmentRow{i, paths[i-1], "target_db_exporter_fb", 0, 0, 0, 0, 0})
+	}
+
+	cleaner := newArchiveCleaner(exportDir, archiveDir, mdb)
+
+	// Normal operation: processed=[1,2,3,4,5](5) − buffer(3) = 2 eligible (segs 1,2).
+	processed, pending, archived, err := cleaner.ArchiveProcessedSegments()
+	require.NoError(t, err)
+	assert.Len(t, processed, 5)
+	assert.Len(t, pending, 2)
+	assert.Len(t, archived, 2)
+	assert.NoFileExists(t, paths[0])
+	assert.NoFileExists(t, paths[1])
+	assert.FileExists(t, archivePath(archiveDir, paths[0]))
+	assert.FileExists(t, archivePath(archiveDir, paths[1]))
+	for i := 2; i < 7; i++ {
+		assert.FileExists(t, paths[i])
+	}
+
+	// SignalStop: remaining processed=[3,4,5](3), all eligible.
+	cleaner.SignalStop()
+	processed, pending, archived, err = cleaner.ArchiveProcessedSegments()
+	require.NoError(t, err)
+	assert.Len(t, processed, 3)
+	assert.Len(t, pending, 2)
+	assert.Len(t, archived, 3)
+	for i := 0; i < 5; i++ {
+		assert.NoFileExists(t, paths[i])
+		assert.FileExists(t, archivePath(archiveDir, paths[i]))
+	}
+	assert.FileExists(t, paths[5], "Seg 6 (fb, source pending) untouched")
+	assert.FileExists(t, paths[6], "Seg 7 (fb, source pending) untouched")
+}
+
+// #############################################################################################
+//
+//	EDGE CASES & UTILITIES
+//
+// #############################################################################################
 
 // TestEdgeCase_FSUtilizationBelowThreshold verifies that when FS utilization is below
 // the threshold, the run-loop skips deletion until SignalStop forces a drain pass.
