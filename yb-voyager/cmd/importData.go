@@ -1089,10 +1089,6 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		source = *msr.SourceDBConf
 	}
 
-	err = handleIdentityColumns(importTableList)
-	if err != nil {
-		utils.ErrExit("Failed to handle identity columns: %s", err)
-	}
 	// Import snapshots
 	if importSnapshotRequired() {
 		err = importSnapshotData(msr, errorHandler, state, importFileTasks, importTableList)
@@ -1103,6 +1099,10 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	}
 
 	if changeStreamingIsEnabled(importType) {
+		err = handleIdentityColumns(importTableList)
+		if err != nil {
+			utils.ErrExit("Failed to handle identity columns: %s", err)
+		}
 		if importSnapshotRequired() {
 			displayImportedRowCountSnapshot(state, importFileTasks, errorHandler)
 		}
@@ -1131,10 +1131,6 @@ func postSnapshotImportProcessing(msr *metadb.MigrationStatusRecord, importTable
 	err = restoreSequencesInOfflineMigration(msr, importTableList)
 	if err != nil {
 		return goerrors.Errorf("failed to restore sequences: %s", err)
-	}
-	err = restoreGeneratedIdentityColumns(importTableList)
-	if err != nil {
-		return goerrors.Errorf("failed to restore generated columns: %s", err)
 	}
 	return nil
 }
@@ -1751,6 +1747,9 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 		dataMetrics.MigrationCdcTotalImportedEvents = statsReporter.TotalEventsImported
 		dataMetrics.CdcEventsImportRate3min = statsReporter.EventsImportRateLast3Min
 	}
+
+	// Set table list count
+	dataMetrics.TableListCount = len(importTableList)
 
 	importDataPayload := callhome.ImportDataPhasePayload{
 		PayloadVersion:             callhome.IMPORT_DATA_CALLHOME_PAYLOAD_VERSION,

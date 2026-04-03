@@ -330,6 +330,7 @@ func TestCallhomeStructs(t *testing.T) {
 				SnapshotTotalRows                 int64 `json:"snapshot_total_rows"`
 				SnapshotTotalBytes                int64 `json:"snapshot_total_bytes"`
 				CdcEventsImportRate3min           int64 `json:"cdc_events_import_rate_3min"`
+				TableListCount                    int   `json:"table_list_count"`
 			}{},
 		},
 		{
@@ -341,6 +342,7 @@ func TestCallhomeStructs(t *testing.T) {
 				MigrationSnapshotLargestTableBytes int64 `json:"migration_snapshot_largest_table_bytes"`
 				SnapshotTotalRows                  int64 `json:"snapshot_total_rows"`
 				SnapshotTotalBytes                 int64 `json:"snapshot_total_bytes"`
+				TableListCount                     int   `json:"table_list_count"`
 			}{},
 		},
 		{
