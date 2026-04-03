@@ -156,6 +156,7 @@ func prepareForImportDataCmd(importFileTasks []*ImportFileTask) {
 
 	escapeFileOptsCharsIfRequired() // escaping for COPY command should be done after saving fileOpts in data file descriptor
 	setImportTableListFlag(importFileTasks)
+	importTableList = importFileTasksToTableNameTuples(importFileTasks)
 	setDataIsExported()
 }
 

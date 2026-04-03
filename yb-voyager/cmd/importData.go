@@ -1089,10 +1089,6 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		source = *msr.SourceDBConf
 	}
 
-	err = handleIdentityColumns(importTableList)
-	if err != nil {
-		utils.ErrExit("Failed to handle identity columns: %s", err)
-	}
 	// Import snapshots
 	if importSnapshotRequired() {
 		err = importSnapshotData(msr, errorHandler, state, importFileTasks, importTableList)
@@ -1103,6 +1099,10 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	}
 
 	if changeStreamingIsEnabled(importType) {
+		err = handleIdentityColumns(importTableList)
+		if err != nil {
+			utils.ErrExit("Failed to handle identity columns: %s", err)
+		}
 		if importSnapshotRequired() {
 			displayImportedRowCountSnapshot(state, importFileTasks, errorHandler)
 		}
