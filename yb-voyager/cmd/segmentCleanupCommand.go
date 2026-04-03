@@ -23,7 +23,6 @@ import (
 	"strings"
 	"time"
 
-	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
