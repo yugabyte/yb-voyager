@@ -1132,10 +1132,6 @@ func postSnapshotImportProcessing(msr *metadb.MigrationStatusRecord, importTable
 	if err != nil {
 		return goerrors.Errorf("failed to restore sequences: %s", err)
 	}
-	err = restoreGeneratedIdentityColumns(importTableList)
-	if err != nil {
-		return goerrors.Errorf("failed to restore generated columns: %s", err)
-	}
 	return nil
 }
 

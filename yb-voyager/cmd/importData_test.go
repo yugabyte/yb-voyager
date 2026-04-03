@@ -2213,3 +2213,78 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue_Processin
 	// Verify the content of the error file
 	testutils.AssertFileContains(t, errorFilePath, "larger than the max batch size")
 }
+
+func TestOfflineImportData_GeneratedAlwaysAsIdentity(t *testing.T) {
+	ctx := context.Background()
+
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	err := postgresContainer.Start(ctx)
+	testutils.FatalIfError(t, err, "Failed to start Postgres container")
+
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	err = yugabytedbContainer.Start(ctx)
+	testutils.FatalIfError(t, err, "Failed to start YugabyteDB container")
+
+	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
+	createTableSQL := `
+CREATE TABLE test_schema.identity_test (
+	id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	name TEXT NOT NULL
+);`
+	insertDataSQL := `
+INSERT INTO test_schema.identity_test (name)
+SELECT 'name_' || g FROM generate_series(1, 100) AS g;`
+	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
+
+	postgresContainer.ExecuteSqls(createSchemaSQL, createTableSQL, insertDataSQL)
+	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
+
+	// Export schema from PG
+	err = testutils.NewVoyagerCommandRunner(postgresContainer, "export schema", []string{
+		"--export-dir", exportDir,
+		"--source-db-schema", "test_schema",
+		"--yes",
+	}, nil, false).Run()
+	testutils.FatalIfError(t, err, "export schema failed")
+
+	// Import schema to YB
+	err = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import schema", []string{
+		"--export-dir", exportDir,
+		"--yes",
+	}, nil, false).Run()
+	testutils.FatalIfError(t, err, "import schema failed")
+
+	// Export data from PG
+	err = testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
+		"--export-dir", exportDir,
+		"--source-db-schema", "test_schema",
+		"--disable-pb", "true",
+		"--yes",
+	}, nil, false).Run()
+	testutils.FatalIfError(t, err, "export data failed")
+
+	// Import data to YB
+	err = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--yes",
+	}, nil, false).Run()
+	testutils.FatalIfError(t, err, "import data failed")
+
+	// Compare data between source and target
+	pgConn, err := postgresContainer.GetConnection()
+	testutils.FatalIfError(t, err, "connecting to Postgres")
+	defer pgConn.Close()
+	ybConn, err := yugabytedbContainer.GetConnection()
+	testutils.FatalIfError(t, err, "connecting to YugabyteDB")
+	defer ybConn.Close()
+
+	err = testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.identity_test", "id")
+	assert.NoError(t, err, "table data mismatch between source and target")
+
+	// Verify the identity column is still GENERATED ALWAYS on the target
+	assertIdentityColumnIsAlways(t, ybConn, "test_schema", "identity_test", "id")
+}
