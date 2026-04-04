@@ -1,4 +1,4 @@
-//go:build failpoint
+//go:build failpoint_export_cdc
 
 /*
 Copyright (c) YugabyteDB, Inc.
@@ -20,57 +20,64 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
-// setupCDCTestData creates test schema and data for CDC testing
-func setupCDCTestData(t *testing.T, container testcontainers.TestContainer) {
-	container.ExecuteSqls(
-		"CREATE SCHEMA IF NOT EXISTS test_schema;",
-		`CREATE TABLE test_schema.cdc_test (
-			id SERIAL PRIMARY KEY,
-			name TEXT,
-			value INTEGER,
-			created_at TIMESTAMP DEFAULT NOW()
-		);`,
-		`ALTER TABLE test_schema.cdc_test REPLICA IDENTITY FULL;`,
-		`INSERT INTO test_schema.cdc_test (name, value)
-		SELECT 'initial_' || i, i * 10 FROM generate_series(1, 100) i;`,
-	)
-}
-
-// TestCDCBatchProcessingFailure demonstrates testing CDC batch processing failures
-// by targeting YbExporterConsumer.handleBatch method in yb-voyager's Debezium consumer.
-// This test generates CDC events and fails on the 2nd batch.
+// TestCDCBatchProcessingFailure verifies that Byteman can inject a failure at
+// Debezium's `YbExporterConsumer.handleBatch` entry on the 2nd batch invocation.
+//
+// Scenario:
+//  1. Start `export data` (snapshot-and-changes mode) with 100 snapshot rows.
+//  2. Generate CDC batches (50 rows each, 2s apart) to trigger multiple handleBatch calls.
+//  3. Byteman injects a RuntimeException on the 2nd handleBatch call.
+//  4. Verify the injection is logged in Debezium logs.
+//
+// This test validates:
+// - Byteman attach and rule injection into Debezium JVM via method entry
+//
+// Injection point:
+//   - Byteman rule on `YbExporterConsumer.handleBatch` entry (2nd invocation).
 func TestCDCBatchProcessingFailure(t *testing.T) {
+	if os.Getenv("BYTEMAN_JAR") == "" {
+		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
+	}
 	ctx := context.Background()
 
-	exportDir = testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(exportDir)
-
-	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
-		ForLive: true,
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			"CREATE SCHEMA IF NOT EXISTS test_schema;",
+			`CREATE TABLE test_schema.cdc_test (
+				id SERIAL PRIMARY KEY,
+				name TEXT,
+				value INTEGER,
+				created_at TIMESTAMP DEFAULT NOW()
+			);`,
+			`ALTER TABLE test_schema.cdc_test REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.cdc_test (name, value)
+			SELECT 'initial_' || i, i * 10 FROM generate_series(1, 100) i;`,
+		},
+		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema CASCADE;"},
 	})
-	err := postgresContainer.Start(ctx)
-	require.NoError(t, err, "Failed to start PostgreSQL container")
-	defer postgresContainer.Stop(ctx)
+	defer lm.Cleanup()
+	require.NoError(t, lm.SetupContainers(ctx))
+	require.NoError(t, lm.SetupSchema())
 
-	setupCDCTestData(t, postgresContainer)
-	defer postgresContainer.ExecuteSqls(
-		"DROP SCHEMA IF EXISTS test_schema CASCADE;",
-	)
+	exportDir := lm.GetExportDir()
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper")
 
-	// Target YbExporterConsumer.handleBatch - fails on 2nd batch
 	bytemanHelper.AddRuleFromBuilder(
 		testutils.NewRule("fail_handle_batch").
 			Class("io.debezium.server.ybexporter.YbExporterConsumer").
@@ -79,105 +86,92 @@ func TestCDCBatchProcessingFailure(t *testing.T) {
 			If("incrementCounter(\"batch\") == 2").
 			ThrowException("java.lang.RuntimeException", "Simulated batch processing failure on batch 2"),
 	)
+	require.NoError(t, bytemanHelper.WriteRules())
 
-	err = bytemanHelper.WriteRules()
-	require.NoError(t, err, "Failed to write Byteman rules")
-
-	t.Log("Running CDC export with batch processing failure injection...")
-
-	generateCDCEvents := func() {
-		time.Sleep(10 * time.Second)
-		t.Log("Generating CDC events...")
-		for batch := 0; batch < 5; batch++ {
-			postgresContainer.ExecuteSqls(
-				fmt.Sprintf(`INSERT INTO test_schema.cdc_test (name, value) 
-					SELECT 'batch%d_' || i, %d * 100 + i FROM generate_series(1, 50) i;`, batch, batch),
-			)
-			time.Sleep(2 * time.Second)
-		}
-		t.Log("Finished generating CDC events")
-	}
-
-	// Run export data with Byteman injection - should fail on 2nd batch
-	exportRunner := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", exportDir,
-		"--export-type", "snapshot-and-changes",
-		"--source-db-schema", "test_schema",
-		"--disable-pb", "true",
-		"--yes",
-	}, generateCDCEvents, true).WithEnv(bytemanHelper.GetEnv()...) // async=true, with concurrent CDC event generation
-
-	err = exportRunner.Run()
+	err = lm.StartExportDataWithEnv(true, nil, bytemanHelper.GetEnv())
 	require.NoError(t, err, "Failed to start export")
-	defer exportRunner.Kill()
+
+	time.Sleep(10 * time.Second)
+	for batch := 0; batch < 5; batch++ {
+		lm.ExecuteOnSource(
+			fmt.Sprintf(`INSERT INTO test_schema.cdc_test (name, value)
+				SELECT 'batch%d_' || i, %d * 100 + i FROM generate_series(1, 50) i;`, batch, batch),
+		)
+		time.Sleep(2 * time.Second)
+	}
 
 	matched, err := bytemanHelper.WaitForInjection("fail_handle_batch|Simulated batch processing failure", 60*time.Second)
 	assert.True(t, matched, "Byteman injection should be logged in Debezium logs")
 	assert.NoError(t, err, "Should be able to read debezium logs for verification")
 }
 
-// TestCDCBatchProcessing_WithMarkers demonstrates testing CDC with marker-based injection.
-// This test targets BytemanMarkers.cdc("before-batch") added to YbExporterConsumer.handleBatch
-// for stable, self-documenting injection points.
+// TestCDCBatchProcessing_WithMarkers verifies that Byteman can inject a failure at
+// a CDC marker checkpoint (`before-batch`) instead of a raw Java method entry.
+//
+// Scenario:
+//  1. Start `export data` (snapshot-and-changes mode) with 100 snapshot rows.
+//  2. Generate CDC batches (50 rows each, 2s apart) to trigger multiple marker hits.
+//  3. Byteman fires at the before-batch-streaming marker on the 2nd invocation.
+//  4. Verify the injection is logged in Debezium logs.
+//
+// This test validates:
+// - Marker-based Byteman injection (cdc("before-batch") checkpoint)
+//
+// Injection point:
+//   - Byteman rule on Debezium at the `cdc("before-batch")` marker (2nd invocation).
 func TestCDCBatchProcessing_WithMarkers(t *testing.T) {
+	if os.Getenv("BYTEMAN_JAR") == "" {
+		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
+	}
 	ctx := context.Background()
 
-	exportDir = testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(exportDir)
-
-	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
-		ForLive: true,
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			"CREATE SCHEMA IF NOT EXISTS test_schema;",
+			`CREATE TABLE test_schema.cdc_test (
+				id SERIAL PRIMARY KEY,
+				name TEXT,
+				value INTEGER,
+				created_at TIMESTAMP DEFAULT NOW()
+			);`,
+			`ALTER TABLE test_schema.cdc_test REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.cdc_test (name, value)
+			SELECT 'initial_' || i, i * 10 FROM generate_series(1, 100) i;`,
+		},
+		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema CASCADE;"},
 	})
-	err := postgresContainer.Start(ctx)
-	require.NoError(t, err)
-	defer postgresContainer.Stop(ctx)
+	defer lm.Cleanup()
+	require.NoError(t, lm.SetupContainers(ctx))
+	require.NoError(t, lm.SetupSchema())
 
-	setupCDCTestData(t, postgresContainer)
-	defer postgresContainer.ExecuteSqls(
-		"DROP SCHEMA IF EXISTS test_schema CASCADE;",
-	)
+	exportDir := lm.GetExportDir()
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err)
 
-	// Target marker for batch processing - fails on 2nd batch
-	// batch_count is a variable counter maintained by Byteman; counter name can be anything here
 	bytemanHelper.AddRuleFromBuilder(
 		testutils.NewRule("fail_during_batch").
 			AtMarker(testutils.MarkerCDC, "before-batch").
 			If("incrementCounter(\"batch_count\") == 2").
 			ThrowException("java.lang.RuntimeException", "Simulated batch processing failure"),
 	)
+	require.NoError(t, bytemanHelper.WriteRules())
 
-	err = bytemanHelper.WriteRules()
-	require.NoError(t, err)
-
-	t.Log("Running CDC export with marker-based batch processing failure on 2nd batch...")
-
-	generateCDCEvents := func() {
-		time.Sleep(10 * time.Second)
-		t.Log("Generating CDC events...")
-		for batch := 0; batch < 5; batch++ {
-			postgresContainer.ExecuteSqls(
-				fmt.Sprintf(`INSERT INTO test_schema.cdc_test (name, value)
-					SELECT 'marker_batch%d_' || i, %d * 100 + i FROM generate_series(1, 50) i;`, batch, batch),
-			)
-			time.Sleep(2 * time.Second)
-		}
-		t.Log("Finished generating CDC events")
-	}
-
-	exportRunner := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", exportDir,
-		"--export-type", "snapshot-and-changes",
-		"--source-db-schema", "test_schema",
-		"--disable-pb", "true",
-		"--yes",
-	}, generateCDCEvents, true).WithEnv(bytemanHelper.GetEnv()...)
-
-	err = exportRunner.Run()
+	err = lm.StartExportDataWithEnv(true, nil, bytemanHelper.GetEnv())
 	require.NoError(t, err, "Failed to start export")
-	defer exportRunner.Kill()
+
+	time.Sleep(10 * time.Second)
+	for batch := 0; batch < 5; batch++ {
+		lm.ExecuteOnSource(
+			fmt.Sprintf(`INSERT INTO test_schema.cdc_test (name, value)
+				SELECT 'marker_batch%d_' || i, %d * 100 + i FROM generate_series(1, 50) i;`, batch, batch),
+		)
+		time.Sleep(2 * time.Second)
+	}
 
 	matched, err := bytemanHelper.WaitForInjection("fail_during_batch|Simulated batch processing failure", 60*time.Second)
 	assert.True(t, matched, "Byteman marker injection should be logged")

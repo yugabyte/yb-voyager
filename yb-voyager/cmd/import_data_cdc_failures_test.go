@@ -1,4 +1,4 @@
-//go:build failpoint
+//go:build failpoint_import
 
 /*
 Copyright (c) YugabyteDB, Inc.
@@ -913,15 +913,6 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// reportTableName converts a dot-separated table name (e.g. "schema.table") to the
-// quoted format used in the data-migration-report JSON (e.g. `"schema"."table"`).
-func reportTableName(dotNotation string) string {
-	parts := strings.SplitN(dotNotation, ".", 2)
-	if len(parts) == 2 {
-		return fmt.Sprintf(`"%s"."%s"`, parts[0], parts[1])
-	}
-	return fmt.Sprintf(`"%s"`, dotNotation)
-}
 
 // getReportCDCCounts extracts the total imported and exported CDC event counts for a
 // table from a DataMigrationReport. The tableName must be in the quoted format

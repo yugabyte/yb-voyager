@@ -1,4 +1,4 @@
-//go:build failpoint
+//go:build failpoint_import
 
 /*
 Copyright (c) YugabyteDB, Inc.

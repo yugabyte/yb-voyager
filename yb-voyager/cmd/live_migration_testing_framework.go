@@ -1,4 +1,4 @@
-//go:build integration_live_migration || failpoint
+//go:build integration_live_migration || failpoint_export_snapshot || failpoint_export_cdc || failpoint_export_ff || failpoint_import || failpoint_cutover
 
 /*
 Copyright (c) YugabyteDB, Inc.
@@ -18,6 +18,7 @@ limitations under the License.
 package cmd
 
 import (
+	"bufio"
 	"context"
 	"database/sql"
 	"fmt"
@@ -46,33 +47,39 @@ It only supports for the normal live migration workflow and live migration workf
 
 // LiveMigrationTest manages the entire test lifecycle
 type LiveMigrationTest struct {
-	config              *TestConfig
-	exportDir           string
-	backupDir           string
-	archiveDir          string
-	sourceContainer     testcontainers.TestContainer
-	targetContainer     testcontainers.TestContainer
-	exportCmd           *testutils.VoyagerCommandRunner
-	importCmd           *testutils.VoyagerCommandRunner
-	exportFromTargetCmd *testutils.VoyagerCommandRunner
-	importToSourceCmd   *testutils.VoyagerCommandRunner
-	archiveChangesCmd   *testutils.VoyagerCommandRunner
-	metaDB              *metadb.MetaDB
-	ctx                 context.Context
-	t                   *testing.T
+	config                  *TestConfig
+	exportDir               string
+	backupDir               string
+	archiveDir              string
+	sourceContainer         testcontainers.TestContainer
+	targetContainer         testcontainers.TestContainer
+	sourceReplicaContainer  testcontainers.TestContainer
+	exportCmd               *testutils.VoyagerCommandRunner
+	importCmd               *testutils.VoyagerCommandRunner
+	exportFromTargetCmd     *testutils.VoyagerCommandRunner
+	importToSourceCmd       *testutils.VoyagerCommandRunner
+	sourceReplicaImportCmd  *testutils.VoyagerCommandRunner
+	archiveChangesCmd       *testutils.VoyagerCommandRunner
+	metaDB                  *metadb.MetaDB
+	ctx                     context.Context
+	t                       *testing.T
+	envVars                 []string
+	exportCallback          func()
 }
 
 // TestConfig holds all configuration upfront
 type TestConfig struct {
 	// Container configs
-	SourceDB ContainerConfig
-	TargetDB ContainerConfig
+	SourceDB         ContainerConfig
+	TargetDB         ContainerConfig // Optional: if Type is empty, no target container is created
+	SourceReplicaDB  ContainerConfig // Optional: for fall-forward tests that need a 3rd container
 
 	// Schema setup
-	SchemaNames          []string
-	SchemaSQL            []string // CREATE statements
-	SourceSetupSchemaSQL []string // ALTER REPLICA IDENTITIY ones statements
-	InitialDataSQL       []string // INSERT statements
+	SchemaNames                []string
+	SchemaSQL                  []string // CREATE statements
+	SourceSetupSchemaSQL       []string // ALTER REPLICA IDENTITY statements
+	InitialDataSQL             []string // INSERT statements
+	SourceReplicaSetupSchemaSQL []string // Schema SQL for the source-replica container
 
 	SourceDeltaSQL []string // I/U/D statements
 	TargetDeltaSQL []string // I/U/D statements
@@ -100,7 +107,11 @@ func NewLiveMigrationTest(t *testing.T, config *TestConfig) *LiveMigrationTest {
 	}
 }
 
-// SetupContainers starts source and target containers
+func (lm *LiveMigrationTest) GetExportDir() string {
+	return lm.exportDir
+}
+
+// SetupContainers starts source and (optionally) target and source-replica containers
 func (lm *LiveMigrationTest) SetupContainers(ctx context.Context) error {
 	fmt.Printf("Setting up containers\n")
 	lm.ctx = ctx
@@ -114,13 +125,28 @@ func (lm *LiveMigrationTest) SetupContainers(ctx context.Context) error {
 		return goerrors.Errorf("failed to start source container: %w", err)
 	}
 
-	// Start target container
-	targetContainerConfig := &testcontainers.ContainerConfig{
-		ForLive: lm.config.TargetDB.ForLive,
+	// Start target container (optional)
+	if lm.config.TargetDB.Type != "" {
+		targetContainerConfig := &testcontainers.ContainerConfig{
+			ForLive: lm.config.TargetDB.ForLive,
+			DBName:  lm.config.TargetDB.DatabaseName,
+		}
+		lm.targetContainer = testcontainers.NewTestContainer(lm.config.TargetDB.Type, targetContainerConfig)
+		if err := lm.targetContainer.Start(ctx); err != nil {
+			return goerrors.Errorf("failed to start target container: %w", err)
+		}
 	}
-	lm.targetContainer = testcontainers.NewTestContainer(lm.config.TargetDB.Type, targetContainerConfig)
-	if err := lm.targetContainer.Start(ctx); err != nil {
-		return goerrors.Errorf("failed to start target container: %w", err)
+
+	// Start source-replica container (optional, for fall-forward tests)
+	if lm.config.SourceReplicaDB.Type != "" {
+		srConfig := &testcontainers.ContainerConfig{
+			ForLive: lm.config.SourceReplicaDB.ForLive,
+			DBName:  lm.config.SourceReplicaDB.DatabaseName,
+		}
+		lm.sourceReplicaContainer = testcontainers.NewTestContainer(lm.config.SourceReplicaDB.Type, srConfig)
+		if err := lm.sourceReplicaContainer.Start(ctx); err != nil {
+			return goerrors.Errorf("failed to start source-replica container: %w", err)
+		}
 	}
 
 	if lm.config.SourceDB.DatabaseName != "" {
@@ -130,27 +156,36 @@ func (lm *LiveMigrationTest) SetupContainers(ctx context.Context) error {
 			return goerrors.Errorf("failed to create source database: %v", err)
 		}
 	}
-	if lm.config.TargetDB.DatabaseName != "" {
-
+	if lm.config.TargetDB.Type != "" && lm.config.TargetDB.DatabaseName != "" {
 		yb := lm.targetContainer.(*testcontainers.YugabyteDBContainer)
 		err := yb.CreateDatabase(lm.config.TargetDB.DatabaseName)
 		if err != nil {
 			return goerrors.Errorf("failed to create target database: %v", err)
 		}
 	}
+	if lm.sourceReplicaContainer != nil && lm.config.SourceReplicaDB.DatabaseName != "" {
+		pg := lm.sourceReplicaContainer.(*testcontainers.PostgresContainer)
+		err := pg.CreateDatabase(lm.config.SourceReplicaDB.DatabaseName)
+		if err != nil {
+			return goerrors.Errorf("failed to create source-replica database: %v", err)
+		}
+	}
 	fmt.Printf("Containers setup completed\n")
 	return nil
 }
 
-// SetupSchema creates schema on source and target, registers cleanup
+// SetupSchema creates schema on source and (optionally) target/source-replica, registers cleanup
 func (lm *LiveMigrationTest) SetupSchema() error {
 	fmt.Printf("Setting up schema\n")
-	// Execute schema SQL on source and target
 	lm.sourceContainer.ExecuteSqlsOnDB(lm.config.SourceDB.DatabaseName, lm.config.SchemaSQL...)
 	lm.sourceContainer.ExecuteSqlsOnDB(lm.config.SourceDB.DatabaseName, lm.config.SourceSetupSchemaSQL...)
-	lm.targetContainer.ExecuteSqlsOnDB(lm.config.TargetDB.DatabaseName, lm.config.SchemaSQL...)
+	if lm.targetContainer != nil {
+		lm.targetContainer.ExecuteSqlsOnDB(lm.config.TargetDB.DatabaseName, lm.config.SchemaSQL...)
+	}
+	if lm.sourceReplicaContainer != nil {
+		lm.sourceReplicaContainer.ExecuteSqls(lm.config.SourceReplicaSetupSchemaSQL...)
+	}
 
-	// Execute initial data SQL on source
 	lm.sourceContainer.ExecuteSqlsOnDB(lm.config.SourceDB.DatabaseName, lm.config.InitialDataSQL...)
 	fmt.Printf("Schema setup completed\n")
 
@@ -172,29 +207,52 @@ func (lm *LiveMigrationTest) InitMetaDB() error {
 // Cleanup runs all cleanup operations (called via defer)
 func (lm *LiveMigrationTest) Cleanup() {
 	fmt.Printf("Cleaning up\n")
-	// Kill any lingering Debezium processes before removing the export dir
-	// (the PID is read from a lock file inside the export dir).
-	lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
 
-	// Execute cleanup SQL
-	lm.sourceContainer.ExecuteSqlsOnDB(lm.config.SourceDB.DatabaseName, lm.config.CleanupSQL...)
-	lm.targetContainer.ExecuteSqlsOnDB(lm.config.TargetDB.DatabaseName, lm.config.CleanupSQL...)
+	// Kill running commands
+	if lm.exportCmd != nil {
+		_ = lm.exportCmd.Kill()
+	}
+	if lm.importCmd != nil {
+		_ = lm.importCmd.Kill()
+	}
+	if lm.sourceReplicaImportCmd != nil {
+		_ = lm.sourceReplicaImportCmd.Kill()
+	}
+
+	lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
+	lm.KillDebezium(TARGET_DB_EXPORTER_FF_ROLE)
+	lm.KillDebezium(TARGET_DB_EXPORTER_FB_ROLE)
+
+	// Execute cleanup SQL on all containers
+	if lm.sourceContainer != nil {
+		lm.sourceContainer.ExecuteSqlsOnDB(lm.config.SourceDB.DatabaseName, lm.config.CleanupSQL...)
+	}
+	if lm.targetContainer != nil {
+		lm.targetContainer.ExecuteSqlsOnDB(lm.config.TargetDB.DatabaseName, lm.config.CleanupSQL...)
+	}
+	if lm.sourceReplicaContainer != nil {
+		lm.sourceReplicaContainer.ExecuteSqls(lm.config.CleanupSQL...)
+	}
 
 	if lm.config.SourceDB.DatabaseName != "" {
 		pg := lm.sourceContainer.(*testcontainers.PostgresContainer)
 		err := pg.DropDatabase(lm.config.SourceDB.DatabaseName)
 		if err != nil {
-			lm.t.Fatalf("failed to drop source database: %v", err)
+			lm.t.Logf("failed to drop source database: %v", err)
 		}
 	}
-	if lm.config.TargetDB.DatabaseName != "" {
+	if lm.config.TargetDB.Type != "" && lm.config.TargetDB.DatabaseName != "" {
 		yb := lm.targetContainer.(*testcontainers.YugabyteDBContainer)
 		err := yb.DropDatabase(lm.config.TargetDB.DatabaseName)
 		if err != nil {
-			lm.t.Fatalf("failed to drop target database: %v", err)
+			lm.t.Logf("failed to drop target database: %v", err)
 		}
 	}
-	// Remove export directory only if test passed
+
+	// Containers are shared via the singleton registry, so we do NOT stop them here.
+	// Stopping a shared container would destroy databases used by other parallel tests.
+	// The containers are cleaned up automatically when the test binary exits.
+
 	if lm.t.Failed() {
 		fmt.Printf("Test failed - preserving export directory for debugging: %s\n", lm.exportDir)
 	} else {
@@ -213,16 +271,15 @@ func (lm *LiveMigrationTest) StartExportData(async bool, extraArgs map[string]st
 }
 
 func (lm *LiveMigrationTest) startExportData(async bool, extraArgs map[string]string, exportType string, env []string) error {
-
 	if len(env) > 0 {
 		fmt.Printf("Starting export data with export type %s and env %v\n", exportType, env)
 	} else {
 		fmt.Printf("Starting export data with export type %s\n", exportType)
 	}
-	var onStart func()
-	if async {
+	onStart := lm.exportCallback
+	if onStart == nil && async {
 		onStart = func() {
-			time.Sleep(5 * time.Second) // Wait for export to start
+			time.Sleep(5 * time.Second)
 		}
 	}
 
@@ -238,7 +295,8 @@ func (lm *LiveMigrationTest) startExportData(async bool, extraArgs map[string]st
 		args = append(args, key, value)
 	}
 
-	lm.exportCmd = testutils.NewVoyagerCommandRunner(lm.sourceContainer, "export data", args, onStart, async).WithEnv(env...)
+	allEnv := append(env, lm.envVars...)
+	lm.exportCmd = testutils.NewVoyagerCommandRunner(lm.sourceContainer, "export data", args, onStart, async).WithEnv(allEnv...)
 	err := lm.exportCmd.Run()
 	if err != nil {
 		return goerrors.Errorf("failed to start export data: %w", err)
@@ -256,6 +314,7 @@ func (lm *LiveMigrationTest) StartExportDataChangesOnly(async bool, extraArgs ma
 }
 
 // StartExportDataWithEnv starts export data with additional environment variables.
+// This is useful for failpoint injection (GO_FAILPOINTS) and Byteman (DEBEZIUM_OPTS).
 func (lm *LiveMigrationTest) StartExportDataWithEnv(async bool, extraArgs map[string]string, env []string) error {
 	return lm.startExportData(async, extraArgs, SNAPSHOT_AND_CHANGES, env)
 }
@@ -433,6 +492,66 @@ func (lm *LiveMigrationTest) StopExportDataFromTarget() error {
 	}
 	fmt.Printf("Export data from target stopped\n")
 	return nil
+}
+
+func (lm *LiveMigrationTest) WaitForExportDataExit() error {
+	if lm.exportCmd == nil {
+		return goerrors.Errorf("export command not started")
+	}
+
+	// Kill Debezium process first to ensure its inherited stdout/stderr pipes
+	// are closed, otherwise Cmd.Wait() can hang indefinitely.
+	lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
+
+	return lm.exportCmd.Wait()
+}
+
+// WaitForExportDataExitTimeout waits up to 'timeout' for the async export
+// command to finish. If it doesn't exit in time (e.g. because an orphaned
+// Debezium child still holds the stdout/stderr pipes), Debezium is killed
+// and we wait once more. Returns the exit error from the export command.
+func (lm *LiveMigrationTest) WaitForExportDataExitTimeout(timeout time.Duration) error {
+	if lm.exportCmd == nil {
+		return goerrors.Errorf("export command not started")
+	}
+
+	deadline := time.Now().Add(timeout)
+	for {
+		if time.Now().After(deadline) {
+			lm.t.Log("Export process did not exit within timeout; killing orphaned Debezium")
+			lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
+			time.Sleep(2 * time.Second)
+			if !lm.exportCmd.IsStopped() {
+				_ = lm.exportCmd.Kill()
+			}
+			return goerrors.Errorf("export process did not exit within %s", timeout)
+		}
+		if lm.exportCmd.IsStopped() {
+			if lm.exportCmd.ExitCode() == testutils.ExitCodeSuccess {
+				return nil
+			}
+			return goerrors.Errorf("export exited with code %s", lm.exportCmd.ExitCode())
+		}
+		time.Sleep(1 * time.Second)
+	}
+}
+
+// WaitForImportDataExit waits for the import data process to exit.
+// This is useful when import has exec'd into export-data-from-target and
+// you need to detect the crash of the exec'd process.
+// Note: This function kills orphaned Debezium processes before waiting to avoid
+// hanging on open stdout/stderr pipes held by the child JVM.
+func (lm *LiveMigrationTest) WaitForImportDataExit() error {
+	if lm.importCmd == nil {
+		return goerrors.Errorf("import command not started")
+	}
+
+	// Kill Debezium processes first to ensure their inherited stdout/stderr pipes
+	// are closed, otherwise Cmd.Wait() can hang indefinitely.
+	lm.KillDebezium(TARGET_DB_EXPORTER_FF_ROLE)
+	lm.KillDebezium(TARGET_DB_EXPORTER_FB_ROLE)
+
+	return lm.importCmd.Wait()
 }
 
 // KillDebezium force-kills the Debezium Java process for the given exporter role.
@@ -679,7 +798,33 @@ func (lm *LiveMigrationTest) GetImportRunner() *testutils.VoyagerCommandRunner {
 }
 
 func (lm *LiveMigrationTest) WaitForImportFailpointAndProcessCrash(t *testing.T, markerPath string, markerTimeout, exitTimeout time.Duration) error {
-	return testutils.WaitForFailpointAndProcessCrash(t, lm.importCmd, markerPath, markerTimeout, exitTimeout)
+	matched, err := testutils.WaitForFailpointMarker(markerPath, markerTimeout, 2*time.Second)
+	if err != nil {
+		return goerrors.Errorf("error reading failpoint marker %s: %w", markerPath, err)
+	}
+	if !matched {
+		_ = lm.importCmd.Kill()
+		return goerrors.Errorf("failpoint marker %s did not trigger", markerPath)
+	}
+
+	t.Log("Failpoint marker detected; killing orphaned Debezium and waiting for exit...")
+	lm.KillDebezium(TARGET_DB_EXPORTER_FF_ROLE)
+	lm.KillDebezium(TARGET_DB_EXPORTER_FB_ROLE)
+
+	deadline := time.Now().Add(exitTimeout)
+	for {
+		if time.Now().After(deadline) {
+			_ = lm.importCmd.Kill()
+			return goerrors.Errorf("process did not exit after %s — expected a crash", exitTimeout)
+		}
+		if lm.importCmd.IsStopped() {
+			if lm.importCmd.ExitCode() == testutils.ExitCodeSuccess {
+				return goerrors.Errorf("process exited cleanly after failpoint — expected a crash")
+			}
+			return nil
+		}
+		time.Sleep(1 * time.Second)
+	}
 }
 
 func (lm *LiveMigrationTest) GetExportCommandStderr() string {
@@ -805,7 +950,7 @@ func (lm *LiveMigrationTest) WaitForSnapshotComplete(expectedData map[string]int
 	})
 
 	if !ok {
-		return goerrors.Errorf("snapshot phase did not complete within %v", snapshotTimeout)
+		return goerrors.Errorf("snapshot phase did not complete within %ds", snapshotTimeout)
 	}
 	fmt.Printf("Snapshot complete\n")
 	return nil
@@ -848,6 +993,35 @@ func (lm *LiveMigrationTest) WaitForFallbackStreamingComplete(expectedChanges ma
 		return goerrors.Errorf("streaming phase did not complete within %v", streamingTimeout)
 	}
 	fmt.Printf("Streaming complete\n")
+	return nil
+}
+
+func (lm *LiveMigrationTest) WaitForFallForwardStreamingComplete(tables []string, streamingTimeout time.Duration, streamingSleep time.Duration) error {
+	fmt.Printf("Waiting for fall-forward streaming complete\n")
+
+	ok := utils.RetryWorkWithTimeout(streamingSleep, streamingTimeout, func() bool {
+		allMatch := true
+		err := lm.WithTargetConn(func(targetConn *sql.DB) error {
+			return lm.WithSourceReplicaConn(func(replicaConn *sql.DB) error {
+				for _, table := range tables {
+					if err := testutils.CompareRowCount(lm.ctx, targetConn, replicaConn, table); err != nil {
+						allMatch = false
+						return nil
+					}
+				}
+				return nil
+			})
+		})
+		if err != nil {
+			return false
+		}
+		return allMatch
+	})
+
+	if !ok {
+		return goerrors.Errorf("fall-forward streaming did not complete within %v seconds", streamingTimeout)
+	}
+	fmt.Printf("Fall-forward streaming complete\n")
 	return nil
 }
 
@@ -899,6 +1073,66 @@ func (lm *LiveMigrationTest) WaitForCutoverSourceComplete(iterationNumber int, c
 	fmt.Printf("Cutover to source complete\n")
 	lm.exportCmd = lm.importToSourceCmd
 	lm.importCmd = lm.exportFromTargetCmd
+	return nil
+}
+
+func (lm *LiveMigrationTest) WaitForFallForwardEnabled(timeout time.Duration) error {
+	fmt.Printf("Waiting for fall-forward enabled\n")
+	if err := lm.InitMetaDB(); err != nil {
+		return goerrors.Errorf("failed to initialize meta db: %w", err)
+	}
+	ok := utils.RetryWorkWithTimeout(1, timeout, func() bool {
+		msr, err := lm.metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			return false
+		}
+		return msr.FallForwardEnabled
+	})
+	if !ok {
+		return goerrors.Errorf("fall-forward was not enabled within %v seconds", timeout)
+	}
+	fmt.Printf("Fall-forward enabled\n")
+	return nil
+}
+
+func (lm *LiveMigrationTest) WaitForExportFromTargetStarted(timeout time.Duration) error {
+	fmt.Printf("Waiting for export from target started\n")
+	if err := lm.InitMetaDB(); err != nil {
+		return goerrors.Errorf("failed to initialize meta db: %w", err)
+	}
+	ok := utils.RetryWorkWithTimeout(1, timeout, func() bool {
+		msr, err := lm.metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			return false
+		}
+		return msr.ExportFromTargetFallForwardStarted || msr.ExportFromTargetFallBackStarted
+	})
+	if !ok {
+		return goerrors.Errorf("export from target did not start within %v seconds", timeout)
+	}
+	fmt.Printf("Export from target started\n")
+	return nil
+}
+
+func (lm *LiveMigrationTest) AssertCutoverIsComplete() error {
+	if err := lm.InitMetaDB(); err != nil {
+		return goerrors.Errorf("failed to initialize meta db: %w", err)
+	}
+	status := lm.getCutoverStatus(0)
+	if status != COMPLETED {
+		return goerrors.Errorf("expected cutover status COMPLETED, got %q", status)
+	}
+	return nil
+}
+
+func (lm *LiveMigrationTest) AssertCutoverIsNotComplete() error {
+	if err := lm.InitMetaDB(); err != nil {
+		return goerrors.Errorf("failed to initialize meta db: %w", err)
+	}
+	status := lm.getCutoverStatus(0)
+	if status == COMPLETED {
+		return goerrors.Errorf("expected cutover status to NOT be COMPLETED, but it was")
+	}
 	return nil
 }
 
@@ -961,7 +1195,19 @@ func (lm *LiveMigrationTest) ExecuteOnSource(sqlStatements ...string) error {
 
 // ExecuteOnTarget executes SQL statements on target database (test-specific DB)
 func (lm *LiveMigrationTest) ExecuteOnTarget(sqlStatements ...string) error {
+	if lm.targetContainer == nil {
+		return goerrors.Errorf("target container not configured")
+	}
 	lm.targetContainer.ExecuteSqlsOnDB(lm.config.TargetDB.DatabaseName, sqlStatements...)
+	return nil
+}
+
+// ExecuteOnSourceReplica executes SQL statements on source-replica database
+func (lm *LiveMigrationTest) ExecuteOnSourceReplica(sqlStatements ...string) error {
+	if lm.sourceReplicaContainer == nil {
+		return goerrors.Errorf("source-replica container not configured")
+	}
+	lm.sourceReplicaContainer.ExecuteSqls(sqlStatements...)
 	return nil
 }
 
@@ -1007,6 +1253,18 @@ func (lm *LiveMigrationTest) WithTargetConn(fn func(*sql.DB) error) error {
 	conn, err := lm.targetContainer.GetConnectionWithDB(lm.config.TargetDB.DatabaseName)
 	if err != nil {
 		return goerrors.Errorf("failed to get target connection: %w", err)
+	}
+	defer conn.Close()
+	return fn(conn)
+}
+
+func (lm *LiveMigrationTest) WithSourceReplicaConn(fn func(*sql.DB) error) error {
+	if lm.sourceReplicaContainer == nil {
+		return goerrors.Errorf("source-replica container not configured")
+	}
+	conn, err := lm.sourceReplicaContainer.GetConnectionWithDB(lm.config.SourceReplicaDB.DatabaseName)
+	if err != nil {
+		return goerrors.Errorf("failed to get source-replica connection: %w", err)
 	}
 	defer conn.Close()
 	return fn(conn)
@@ -1229,12 +1487,18 @@ func (lm *LiveMigrationTest) GetDataMigrationReport() (*DataMigrationReport, err
 
 	maxRetry := 5
 	for {
-		err := testutils.NewVoyagerCommandRunner(nil, "get data-migration-report", []string{
+		reportArgs := []string{
 			"--export-dir", lm.exportDir,
 			"--output-format", "json",
 			"--source-db-password", lm.sourceContainer.GetConfig().Password,
-			"--target-db-password", lm.targetContainer.GetConfig().Password,
-		}, nil, true).Run()
+		}
+		if lm.targetContainer != nil {
+			reportArgs = append(reportArgs, "--target-db-password", lm.targetContainer.GetConfig().Password)
+		}
+		if lm.sourceReplicaContainer != nil {
+			reportArgs = append(reportArgs, "--source-replica-db-password", lm.sourceReplicaContainer.GetConfig().Password)
+		}
+		err := testutils.NewVoyagerCommandRunner(nil, "get data-migration-report", reportArgs, nil, true).Run()
 		if err != nil {
 			return nil, goerrors.Errorf("get data-migration-report command failed: %w", err)
 		}
@@ -1257,4 +1521,190 @@ func (lm *LiveMigrationTest) GetDataMigrationReport() (*DataMigrationReport, err
 
 		return &DataMigrationReport{RowData: *rowData}, nil
 	}
+}
+
+// ============================================================
+// ENV VAR AND CALLBACK HELPERS
+// ============================================================
+
+// WithEnv sets environment variables for subsequent command launches
+func (lm *LiveMigrationTest) WithEnv(envVars ...string) {
+	lm.envVars = append(lm.envVars, envVars...)
+}
+
+// ClearEnv clears all previously set environment variables
+func (lm *LiveMigrationTest) ClearEnv() {
+	lm.envVars = nil
+}
+
+// SetExportCallback sets a callback to run concurrently after export starts
+func (lm *LiveMigrationTest) SetExportCallback(fn func()) {
+	lm.exportCallback = fn
+}
+
+// ============================================================
+// CONTAINER AND COMMAND ACCESSORS
+// ============================================================
+
+func (lm *LiveMigrationTest) GetSourceContainer() testcontainers.TestContainer {
+	return lm.sourceContainer
+}
+
+func (lm *LiveMigrationTest) GetTargetContainer() testcontainers.TestContainer {
+	return lm.targetContainer
+}
+
+func (lm *LiveMigrationTest) GetSourceReplicaContainer() testcontainers.TestContainer {
+	return lm.sourceReplicaContainer
+}
+
+func (lm *LiveMigrationTest) GetExportCmd() *testutils.VoyagerCommandRunner {
+	return lm.exportCmd
+}
+
+func (lm *LiveMigrationTest) GetImportCmd() *testutils.VoyagerCommandRunner {
+	return lm.importCmd
+}
+
+// ============================================================
+// EXPORT-SIDE HELPERS
+// ============================================================
+
+// WaitForStreamingMode polls the export status until Debezium enters streaming mode
+func (lm *LiveMigrationTest) WaitForStreamingMode(timeout time.Duration, pollInterval time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		status, err := dbzm.ReadExportStatus(filepath.Join(lm.exportDir, "data", "export_status.json"))
+		if err == nil && status != nil && status.Mode == dbzm.MODE_STREAMING {
+			return nil
+		}
+		time.Sleep(pollInterval)
+	}
+	return goerrors.Errorf("timed out waiting for streaming mode")
+}
+
+func countEventsInQueueSegments(exportDir string) (int, error) {
+	queueDir := filepath.Join(exportDir, "data", "queue")
+	entries, err := os.ReadDir(queueDir)
+	if err != nil {
+		return 0, err
+	}
+
+	totalEvents := 0
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if strings.HasPrefix(entry.Name(), "segment.") && strings.HasSuffix(entry.Name(), ".ndjson") {
+			filePath := filepath.Join(queueDir, entry.Name())
+			count, err := countEventsInFile(filePath)
+			if err != nil {
+				return 0, err
+			}
+			totalEvents += count
+		}
+	}
+
+	return totalEvents, nil
+}
+
+func countEventsInFile(filePath string) (int, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	count := 0
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || line == `\.` {
+			continue
+		}
+		count++
+	}
+	return count, scanner.Err()
+}
+
+// WaitForCDCEventCount polls queue segments until the expected number of CDC events appear.
+func (lm *LiveMigrationTest) WaitForCDCEventCount(t *testing.T, expected int, timeout time.Duration, pollInterval time.Duration) int {
+	t.Helper()
+	var lastCount int
+	require.Eventually(t, func() bool {
+		count, err := countEventsInQueueSegments(lm.exportDir)
+		if err != nil {
+			t.Logf("Failed to count CDC events yet: %v", err)
+			return false
+		}
+		lastCount = count
+		t.Logf("Current CDC event count: %d / %d expected", count, expected)
+		return count >= expected
+	}, timeout, pollInterval, "Timed out waiting for CDC event count to reach %d (last=%d)", expected, lastCount)
+	return lastCount
+}
+
+// killDebezium kills the Debezium process associated with this export dir
+func (lm *LiveMigrationTest) killDebezium() error {
+	pidStr, err := dbzm.GetPIDOfDebeziumOnExportDir(lm.exportDir, SOURCE_DB_EXPORTER_ROLE)
+	if err != nil {
+		return err
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(pidStr))
+	if err != nil {
+		return err
+	}
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return err
+	}
+	return proc.Kill()
+}
+
+// RemoveExportLockfile removes the export data lockfile (needed between export runs)
+func (lm *LiveMigrationTest) RemoveExportLockfile() {
+	_ = os.Remove(filepath.Join(lm.exportDir, ".export-dataLockfile.lck"))
+}
+
+// StartImportDataToSourceReplica starts "import data to source-replica" command
+func (lm *LiveMigrationTest) StartImportDataToSourceReplica(async bool, extraArgs map[string]string) error {
+	fmt.Printf("Starting import data to source-replica\n")
+	if lm.sourceReplicaContainer == nil {
+		return goerrors.Errorf("source-replica container not configured")
+	}
+
+	var onStart func()
+	if async {
+		onStart = func() {
+			time.Sleep(5 * time.Second)
+		}
+	}
+
+	srConfig := lm.sourceReplicaContainer.GetConfig()
+	srHost, srPort, err := lm.sourceReplicaContainer.GetHostPort()
+	if err != nil {
+		return goerrors.Errorf("failed to get source-replica host:port: %w", err)
+	}
+
+	args := []string{
+		"--export-dir", lm.exportDir,
+		"--source-replica-db-host", srHost,
+		"--source-replica-db-port", strconv.Itoa(srPort),
+		"--source-replica-db-user", srConfig.User,
+		"--source-replica-db-password", srConfig.Password,
+		"--source-replica-db-name", srConfig.DBName,
+		"--disable-pb", "true",
+		"--start-clean", "true",
+		"--yes",
+	}
+	for key, value := range extraArgs {
+		args = append(args, key, value)
+	}
+
+	runner := testutils.NewVoyagerCommandRunner(nil, "import data to source-replica", args, onStart, async)
+	if err := runner.Run(); err != nil {
+		return goerrors.Errorf("failed to start import data to source-replica: %w", err)
+	}
+	lm.sourceReplicaImportCmd = runner
+	return nil
 }

@@ -506,6 +506,7 @@ func (c *Config) String() string {
 		conf += fmt.Sprintf("\ndebezium.source.column.include.list=%s", strings.Join(c.ColumnList, ","))
 	}
 
+
 	return conf
 }
 
