@@ -79,6 +79,15 @@ var skipNodeHealthChecks utils.BoolStr
 var skipDiskUsageHealthChecks utils.BoolStr
 var progressReporter *ImportDataProgressReporter
 var callhomeMetricsCollector *callhome.ImportDataMetricsCollector
+
+// ShutdownImportProgressBars stops the mpb progress container so that its
+// rendering goroutine no longer writes to stdout. Must be called before
+// printing any final messages on signal receipt to avoid the bars overwriting them.
+func ShutdownImportProgressBars() {
+	if progressReporter != nil {
+		progressReporter.Shutdown()
+	}
+}
 var importTableList []sqlname.NameTuple
 
 // Error policy
@@ -1077,12 +1086,17 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		utils.ErrExit("Failed to prepare target DB for import: %s", err)
 	}
 
-	utils.PrintAndLogf("\nimport of data in %q database started", tconf.DBName)
 	state := NewImportDataState(exportDir)
 
 	err = clearMigrationStateForImportDataStartClean(state, importFileTasks, errorHandler)
 	if err != nil {
 		utils.ErrExit("Failed to clean MigrationStatusRecord for import data start clean: %s", err)
+	}
+
+	if state.HasExistingState() {
+		utils.PrintAndLogf("\nResuming import of data in %q database", tconf.DBName)
+	} else {
+		utils.PrintAndLogf("\nimport of data in %q database started", tconf.DBName)
 	}
 
 	if msr.SourceDBConf != nil {
