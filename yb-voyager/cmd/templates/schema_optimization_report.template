@@ -514,6 +514,31 @@
                      {{.UKRangeShardingChange.Title}}
                   </h3>
                <pre>{{ replaceLinks .UKRangeShardingChange.Description .UKRangeShardingChange.HyperLinksInDescription}}</pre>
+               {{ if and (.UKRangeShardingChange.IsApplied) (.UKRangeShardingChange.ModifiedUKTables) }}
+                  <details>
+                     <summary>Details</summary>
+                     <table>
+                        <thead>
+                           <tr>
+                              <th class="centered-cell">Tables</th>
+                           </tr>
+                        </thead>
+                        <tbody>
+                           <tr>
+                              <td>
+                                 <div class="scrollable-div no-wrap-list">
+                                    <ul>
+                                       {{range $idx, $table := .UKRangeShardingChange.ModifiedUKTables }}
+                                          <li>{{ $table }}</li>
+                                       {{end}}
+                                    </ul>
+                                 </div>
+                              </td>
+                           </tr>
+                        </tbody>
+                     </table>
+                  </details>
+               {{ end }}
             </div>
             {{ end }}
 
