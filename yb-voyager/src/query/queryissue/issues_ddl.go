@@ -2048,5 +2048,13 @@ var extensionsIssue = issue.Issue{
 
 func NewExtensionsIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := extensionsIssue
+	fixedVersions := GetExtensionFixedVersions(objectName)
+	if len(fixedVersions) > 0 {
+		issue.MinimumVersionsFixedIn = make(map[string]*ybversion.YBVersion)
+		for series, verStr := range fixedVersions {
+			ver, _ := ybversion.NewYBVersion(verStr)
+			issue.MinimumVersionsFixedIn[series] = ver
+		}
+	}
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
