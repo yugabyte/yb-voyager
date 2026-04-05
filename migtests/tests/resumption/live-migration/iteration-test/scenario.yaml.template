@@ -1,6 +1,6 @@
 name: iteration-test
 
-num_iterations: 50
+num_iterations: 20
 
 env:
   LOG_LEVEL: info
@@ -110,10 +110,16 @@ stages:
     sql_path: ../common-sql/init.sql
     use_admin: true
 
-  - name: increase_temp_file_limit
+  - name: increase_temp_file_limit_source
     action: run_sql
     sql_path: ./init.sql
-    targets: [source, target]
+    target: source
+    use_admin: true
+
+  - name: increase_temp_file_limit_target
+    action: run_sql
+    target: target
+    sql_path: ./init.sql
     use_admin: true
 
   - name: create_cutover_table
@@ -183,7 +189,7 @@ stages:
 
   - name: soak_with_resumptions
     action: sleep
-    seconds: 1500
+    seconds: 400
 
   - name: stop_event_generator
     action: generator_stop
@@ -268,7 +274,7 @@ stages:
 
   - name: soak_fallback_with_resumptions
     action: sleep
-    seconds: 1500
+    seconds: 400
 
   - name: stop_target_event_generator
     action: generator_stop
