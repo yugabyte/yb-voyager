@@ -96,6 +96,9 @@ var endMigrationCmd = &cobra.Command{
 			backupDir = currBackupDir
 			exportDir = currExportDir
 		}()
+		//while ending the migration for each iteration, we need to end the migration for the latest iteration first and then other iterations and then parent
+		//for the scenario where archive is running and end migration has ended the migration of previous iterations untill archer can archive them and thne during latest iteration we try to archie the iterations as part of cleanup and it can fail
+		//so archiver is archiving from 0->latest iteration's changes and the end migraion is doing it in reverse order from latest to 0 so that while end latest iteration we finish up the archiver and then end other iterations
 		for i := msr.LatestIterationNumber; i >= 1; i-- {
 			utils.PrintAndLogfInfo("\nEnding migration for iteration %d\n", i)
 			iterationExportDir := GetIterationExportDir(msr.GetIterationsDir(currExportDir), i)
@@ -915,19 +918,11 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 
 		//if there are any ongoing command in the current iteration then figure out if there are any ongoing command in the parent iteration also and combine them
 		parentExportDir := msr.GetParentExportDir(exportDir)
-		parentCmdMatches, err := filepath.Glob(filepath.Join(parentExportDir, ".*Lockfile.lck"))
+		parentCmdMatch, err := filepath.Glob(filepath.Join(parentExportDir, "archive-changes.Lockfile.lck"))
 		if err != nil {
-			utils.ErrExit("checking for ongoing voyager commands: %w", err)
+			utils.ErrExit("checking for ongoing archive changes command: %w", err)
 		}
-		for _, match := range parentCmdMatches {
-			lockFile := lockfile.NewLockfile(match)
-			if lockFile.IsPIDActive() {
-				if lockFile.GetCmdName() == "archive changes" {
-					matches = append(matches, match)
-					break
-				}
-			}
-		}
+		matches = append(matches, parentCmdMatch...)
 		var lockFiles []*lockfile.Lockfile
 		for _, match := range matches {
 			lockFile := lockfile.NewLockfile(match)

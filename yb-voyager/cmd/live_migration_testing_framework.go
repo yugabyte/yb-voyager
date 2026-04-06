@@ -1197,9 +1197,6 @@ func (lm *LiveMigrationTest) getCutoverToSourceStatus(iterationNumber int) strin
 }
 
 func (lm *LiveMigrationTest) ValidateIntermediateArchivalState(iterationNumber int) {
-	totalSegments, err := lm.GetTotalSegments(iterationNumber)
-	testutils.FatalIfError(lm.t, err, "failed to get total segments")
-
 	archiveDir := lm.archiveDir
 	exportDir := lm.exportDir
 	if iterationNumber > 0 {
@@ -1207,6 +1204,9 @@ func (lm *LiveMigrationTest) ValidateIntermediateArchivalState(iterationNumber i
 		exportDir = filepath.Join(lm.exportDir, "live-data-migration-iterations", fmt.Sprintf("live-data-migration-iteration-%d", iterationNumber), "export-dir")
 	}
 	require.Eventually(lm.t, func() bool {
+		totalSegments, err := lm.GetTotalSegments(iterationNumber)
+		testutils.FatalIfError(lm.t, err, "failed to get total segments")
+
 		fmt.Printf("Validating intermediate archival state for iteration %d\n", iterationNumber)
 		// Verify that the queue retains at least 3 segment files (cleanup buffer)
 		// and the archive directory has received at least one file.
@@ -1252,9 +1252,6 @@ func (lm *LiveMigrationTest) GetTotalSegments(iterationNumber int) (int, error) 
 }
 
 func (lm *LiveMigrationTest) ValidateEndArchivalState(iterationNumber int) {
-	totalSegments, err := lm.GetTotalSegments(iterationNumber)
-	testutils.FatalIfError(lm.t, err, "failed to get total segments")
-
 	archiveDir := lm.archiveDir
 	exportDir := lm.exportDir
 	if iterationNumber > 0 {
@@ -1262,6 +1259,9 @@ func (lm *LiveMigrationTest) ValidateEndArchivalState(iterationNumber int) {
 		exportDir = filepath.Join(lm.exportDir, "live-data-migration-iterations", fmt.Sprintf("live-data-migration-iteration-%d", iterationNumber), "export-dir")
 	}
 	require.Eventually(lm.t, func() bool {
+		totalSegments, err := lm.GetTotalSegments(iterationNumber)
+		testutils.FatalIfError(lm.t, err, "failed to get total segments")
+
 		fmt.Printf("Validating end archival state for iteration %d\n", iterationNumber)
 		// After migration ends, the queue should be fully drained (0 files)
 		// and the archive directory should contain the archived segments.
