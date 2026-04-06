@@ -1710,7 +1710,7 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 	}
 
 	//basic payload details
-	payload := createCallhomePayload()
+	payload := createCallhomePayload(migrationUUID)
 	switch importType {
 	case SNAPSHOT_ONLY:
 		payload.MigrationType = OFFLINE

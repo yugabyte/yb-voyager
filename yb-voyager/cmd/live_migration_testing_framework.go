@@ -902,7 +902,7 @@ func (lm *LiveMigrationTest) WaitForCutoverSourceComplete(iterationNumber int, c
 	return nil
 }
 
-func (lm *LiveMigrationTest) WaitForNextIterationInitialized(waitTimeout time.Duration, iterationNo int) error {
+func (lm *LiveMigrationTest) WaitForNextIterationInitialized(iterationNo int, waitTimeout time.Duration) error {
 	fmt.Printf("Waiting for next iteration initialized\n")
 	// Initialize metaDB if not already done
 	if lm.metaDB == nil {
@@ -1027,6 +1027,32 @@ func (lm *LiveMigrationTest) WithSourceTargetConn(fn func(source, target *sql.DB
 	defer targetConn.Close()
 
 	return fn(sourceConn, targetConn)
+}
+
+func (lm *LiveMigrationTest) WithMetaDB(iterationNo int, fn func(*metadb.MetaDB) error) error {
+	if lm.metaDB == nil {
+		err := lm.InitMetaDB()
+		if err != nil {
+			return goerrors.Errorf("failed to initialize meta db: %w", err)
+		}
+	}
+	if iterationNo == 0 {
+		return fn(lm.metaDB)
+	}
+	msr, err := lm.metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return goerrors.Errorf("failed to get migration status record: %w", err)
+	}
+	iterationsExportDir := msr.GetIterationsDir(lm.exportDir)
+	iterationExportDir := GetIterationExportDir(iterationsExportDir, iterationNo)
+	if !utils.FileOrFolderExists(iterationExportDir) {
+		return goerrors.Errorf("iteration export directory does not exist")
+	}
+	iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
+	if err != nil {
+		return goerrors.Errorf("failed to create iteration meta db: %w", err)
+	}
+	return fn(iterationMetaDB)
 }
 
 // CheckIfReplicationSlotExists checks if a replication slot exists on the given database type
@@ -1170,44 +1196,92 @@ func (lm *LiveMigrationTest) getCutoverToSourceStatus(iterationNumber int) strin
 	return rows[1].Status
 }
 
-func (lm *LiveMigrationTest) ValidateIntermediateArchivalState() {
+func (lm *LiveMigrationTest) ValidateIntermediateArchivalState(iterationNumber int) {
+	archiveDir := lm.archiveDir
+	exportDir := lm.exportDir
+	if iterationNumber > 0 {
+		archiveDir = filepath.Join(lm.archiveDir, "live-data-migration-iterations", fmt.Sprintf("live-data-migration-iteration-%d", iterationNumber))
+		exportDir = filepath.Join(lm.exportDir, "live-data-migration-iterations", fmt.Sprintf("live-data-migration-iteration-%d", iterationNumber), "export-dir")
+	}
 	require.Eventually(lm.t, func() bool {
+		totalSegments, err := lm.GetTotalSegments(iterationNumber)
+		testutils.FatalIfError(lm.t, err, "failed to get total segments")
+
+		fmt.Printf("Validating intermediate archival state for iteration %d\n", iterationNumber)
 		// Verify that the queue retains at least 3 segment files (cleanup buffer)
 		// and the archive directory has received at least one file.
-		files, err := os.ReadDir(lm.GetCurrentExportDir() + "/data/queue/")
+		files, err := os.ReadDir(exportDir + "/data/queue/")
 		if err != nil {
 			return false
 		}
-		if len(files) < 3 {
+		remainingSegments := len(files)
+		if remainingSegments < 3 {
 			return false
 		}
-		files, err = os.ReadDir(lm.archiveDir)
-		if err != nil {
-			return false
-		}
-		if len(files) == 0 {
-			return false
+		if lm.archiveDir != "" {
+			files, err = os.ReadDir(archiveDir)
+			if err != nil {
+				return false
+			}
+			archivedSegments := len(files)
+			if archivedSegments == 0 {
+				return false
+			}
+			if archivedSegments+remainingSegments != totalSegments {
+				return false
+			}
 		}
 		return true
 	}, 30*time.Second, 1*time.Second)
 }
 
-func (lm *LiveMigrationTest) ValidateEndArchivalState() {
+func (lm *LiveMigrationTest) GetTotalSegments(iterationNumber int) (int, error) {
+	var totalSegments int
+	err := lm.WithMetaDB(iterationNumber, func(metaDB *metadb.MetaDB) error {
+		row, err := metaDB.QueryRow("SELECT max(segment_no) + 1 FROM queue_segment_meta;")
+		if err != nil {
+			return goerrors.Errorf("failed to get total segments: %w", err)
+		}
+		err = row.Scan(&totalSegments)
+		if err != nil {
+			return goerrors.Errorf("failed to scan total segments: %w", err)
+		}
+		return nil
+	})
+	return totalSegments, err
+}
+
+func (lm *LiveMigrationTest) ValidateEndArchivalState(iterationNumber int) {
+	archiveDir := lm.archiveDir
+	exportDir := lm.exportDir
+	if iterationNumber > 0 {
+		archiveDir = filepath.Join(lm.archiveDir, "live-data-migration-iterations", fmt.Sprintf("live-data-migration-iteration-%d", iterationNumber))
+		exportDir = filepath.Join(lm.exportDir, "live-data-migration-iterations", fmt.Sprintf("live-data-migration-iteration-%d", iterationNumber), "export-dir")
+	}
 	require.Eventually(lm.t, func() bool {
+		totalSegments, err := lm.GetTotalSegments(iterationNumber)
+		testutils.FatalIfError(lm.t, err, "failed to get total segments")
+
+		fmt.Printf("Validating end archival state for iteration %d\n", iterationNumber)
 		// After migration ends, the queue should be fully drained (0 files)
 		// and the archive directory should contain the archived segments.
-		files, err := os.ReadDir(lm.GetCurrentExportDir() + "/data/queue/")
+		files, err := os.ReadDir(exportDir + "/data/queue/")
 		if err != nil {
 			return false
 		}
-		if len(files) > 0 {
+		remainingSegments := len(files)
+		if remainingSegments > 0 {
 			return false
 		}
-		files, err = os.ReadDir(lm.archiveDir)
+		files, err = os.ReadDir(archiveDir)
 		if err != nil {
 			return false
 		}
-		if len(files) == 0 {
+		archivedSegments := len(files)
+		if archivedSegments == 0 {
+			return false
+		}
+		if archivedSegments != totalSegments {
 			return false
 		}
 		return true

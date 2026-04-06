@@ -60,7 +60,7 @@ func packAndSendAssessMigrationPayload(
 		return
 	}
 
-	payload := createCallhomePayload()
+	payload := createCallhomePayload(migrationUUID)
 	payload.MigrationPhase = ASSESS_MIGRATION_PHASE
 	payload.Status = status
 	if assessmentMetadataDirFlag == "" {
@@ -399,7 +399,7 @@ func packAndSendExportSchemaPayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}
-	payload := createCallhomePayload()
+	payload := createCallhomePayload(migrationUUID)
 	payload.MigrationPhase = EXPORT_SCHEMA_PHASE
 	payload.Status = status
 	sourceDBDetails := anonymizeSourceDBDetails(&source)
@@ -547,7 +547,7 @@ func packAndSendComparePerformancePayload(status string, errorMsg error, compara
 		return
 	}
 
-	payload := createCallhomePayload()
+	payload := createCallhomePayload(migrationUUID)
 	payload.MigrationPhase = COMPARE_PERFORMANCE_PHASE
 	payload.Status = status
 	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)

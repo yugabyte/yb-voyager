@@ -243,7 +243,7 @@ func setSourceDetailsForChangesOnly(msr *metadb.MigrationStatusRecord) {
 	}
 }
 
-func waitUntilNextIterationInitialized() error {
+func waitUntilNextIterationInitialized(metaDB *metadb.MetaDB) error {
 	timeout := 2 * time.Minute
 	startTime := time.Now()
 	utils.PrintAndLogfInfo("\nWaiting for next iteration to be initialized...")
@@ -277,7 +277,7 @@ func startNextIterationImportDataToTarget() {
 	}
 
 	//Waiting for the next iteration to be initialized so that we can start import data to target on the next iteration
-	err = waitUntilNextIterationInitialized()
+	err = waitUntilNextIterationInitialized(metaDB)
 	if err != nil {
 		utils.ErrExit("failed to wait until next iteration initialized: %w", err)
 	}
@@ -441,7 +441,7 @@ func packAndSendExportDataPayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}
-	payload := createCallhomePayload()
+	payload := createCallhomePayload(migrationUUID)
 
 	switch exportType {
 	case SNAPSHOT_ONLY:

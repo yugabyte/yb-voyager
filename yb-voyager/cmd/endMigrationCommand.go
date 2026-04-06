@@ -96,7 +96,10 @@ var endMigrationCmd = &cobra.Command{
 			backupDir = currBackupDir
 			exportDir = currExportDir
 		}()
-		for i := 1; i <= msr.LatestIterationNumber; i++ {
+		//while ending the migration for each iteration, we need to end the migration for the latest iteration first and then other iterations and then parent
+		//for the scenario where archive is running and end migration has ended the migration of previous iterations untill archer can archive them and thne during latest iteration we try to archie the iterations as part of cleanup and it can fail
+		//so archiver is archiving from 0->latest iteration's changes and the end migraion is doing it in reverse order from latest to 0 so that while end latest iteration we finish up the archiver and then end other iterations
+		for i := msr.LatestIterationNumber; i >= 1; i-- {
 			utils.PrintAndLogfInfo("\nEnding migration for iteration %d\n", i)
 			iterationExportDir := GetIterationExportDir(msr.GetIterationsDir(currExportDir), i)
 			if !utils.FileOrFolderExists(iterationExportDir) {
@@ -179,7 +182,7 @@ func packAndSendEndMigrationPayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}
-	payload := createCallhomePayload()
+	payload := createCallhomePayload(migrationUUID)
 	streamChangesMode, err := checkStreamingMode()
 	if err != nil {
 		log.Errorf("callhome: error while checking migration type: %v\n", err)
@@ -912,6 +915,14 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 		utils.ErrExit("checking for ongoing voyager commands: %w", err)
 	}
 	if len(matches) > 0 {
+
+		//if there are any ongoing command in the current iteration then figure out if there are any ongoing command in the parent iteration also and combine them
+		parentExportDir := msr.GetParentExportDir(exportDir)
+		parentCmdMatch, err := filepath.Glob(filepath.Join(parentExportDir, ".archive-changesLockfile.lck"))
+		if err != nil {
+			utils.ErrExit("checking for ongoing archive changes command: %w", err)
+		}
+		matches = append(matches, parentCmdMatch...)
 		var lockFiles []*lockfile.Lockfile
 		for _, match := range matches {
 			lockFile := lockfile.NewLockfile(match)
@@ -987,7 +998,19 @@ func getCommandNamesFromLockFiles(lockFiles []*lockfile.Lockfile) []string {
 }
 
 func stopVoyagerCommands(msr *metadb.MigrationStatusRecord, lockFiles []*lockfile.Lockfile) {
-	if msr.ArchivingEnabled || msr.SegmentCleanupRunning {
+	parentMSR := msr
+	if msr.IsIteration() {
+		parentMetaDB, err := metaDB.GetParentMetaDB()
+		if err != nil {
+			utils.ErrExit("error getting parent meta db: %v", err)
+		}
+		parentMSR, err = parentMetaDB.GetMigrationStatusRecord()
+		if err != nil {
+			utils.ErrExit("error getting parent migration status record: %v", err)
+		}
+	}
+	//checking if archiver is running on parent iteration as it is only expected to run on the main export directory
+	if parentMSR.ArchivingEnabled || parentMSR.SegmentCleanupRunning {
 		exportDataLockFile := getLockFileForCommand(lockFiles, "export data")
 		exportDataFromTargetLockFile := getLockFileForCommand(lockFiles, "export data from target")
 		exportDataFromSourceLockFile := getLockFileForCommand(lockFiles, "export data from source")
@@ -996,8 +1019,6 @@ func stopVoyagerCommands(msr *metadb.MigrationStatusRecord, lockFiles []*lockfil
 		stopDataExportCommand(exportDataFromSourceLockFile)
 		stopDataExportCommand(exportDataFromTargetLockFile)
 		stopVoyagerCommand(archiveChangesLockFile, syscall.SIGUSR1)
-		segmentCleanupLockFile := getLockFileForCommand(lockFiles, "segmentcleanup")
-		stopVoyagerCommand(segmentCleanupLockFile, syscall.SIGUSR1)
 	}
 
 	for _, lockFile := range lockFiles {
