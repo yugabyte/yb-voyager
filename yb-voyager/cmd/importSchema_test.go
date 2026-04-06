@@ -100,6 +100,7 @@ func TestImportSchemaWithYBSpecificSyntax(t *testing.T) {
 	_, err = testutils.RunVoyagerCommand(yugabyteContainer, "import schema", []string{
 		"--export-dir", tempExportDir,
 		"--yes",
+		"--start-clean", "true",
 	}, func() {
 		time.Sleep(10 * time.Second)
 	}, true)
