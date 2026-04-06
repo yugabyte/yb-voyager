@@ -156,6 +156,7 @@ func prepareForImportDataCmd(importFileTasks []*ImportFileTask) {
 
 	escapeFileOptsCharsIfRequired() // escaping for COPY command should be done after saving fileOpts in data file descriptor
 	setImportTableListFlag(importFileTasks)
+	importTableList = importFileTasksToTableNameTuples(importFileTasks)
 	setDataIsExported()
 }
 
@@ -364,7 +365,7 @@ func packAndSendImportDataFilePayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}
-	payload := createCallhomePayload()
+	payload := createCallhomePayload(migrationUUID)
 	payload.MigrationType = BULK_DATA_LOAD
 	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)
 	payload.MigrationPhase = IMPORT_DATA_FILE_PHASE
@@ -397,6 +398,9 @@ func packAndSendImportDataFilePayload(status string, errorMsg error) {
 			return true, nil
 		})
 	}
+
+	// Set table list count
+	dataMetrics.TableListCount = len(importTableList)
 
 	importDataFilePayload := callhome.ImportDataFilePhasePayload{
 		ParallelJobs:       int64(tconf.Parallelism),

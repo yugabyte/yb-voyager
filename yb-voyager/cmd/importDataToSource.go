@@ -101,7 +101,7 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}
-	payload := createCallhomePayload()
+	payload := createCallhomePayload(migrationUUID)
 
 	payload.MigrationType = LIVE_MIGRATION
 
@@ -126,6 +126,9 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg error) {
 		dataMetrics.MigrationCdcTotalImportedEvents = statsReporter.TotalEventsImported
 		dataMetrics.CdcEventsImportRate3min = statsReporter.EventsImportRateLast3Min
 	}
+
+	// Set table list count
+	dataMetrics.TableListCount = len(importTableList)
 
 	importDataPayload := callhome.ImportDataPhasePayload{
 		PayloadVersion:   callhome.IMPORT_DATA_CALLHOME_PAYLOAD_VERSION,

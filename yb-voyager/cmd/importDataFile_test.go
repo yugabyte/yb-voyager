@@ -747,3 +747,65 @@ func TestImportDataFile_SameFileForMultipleTables(t *testing.T) {
 		PercentageComplete: 100,
 	}, statusReport[1], "Status report row mismatch")
 }
+
+func TestImportDataFile_GeneratedAlwaysAsIdentity(t *testing.T) {
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	setupYugabyteTestDb(t)
+
+	createTableSQL := `CREATE TABLE public.identity_file_test (
+		id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+		name TEXT NOT NULL
+	);`
+	testYugabyteDBTarget.TestContainer.ExecuteSqls(createTableSQL)
+	t.Cleanup(func() {
+		testYugabyteDBTarget.TestContainer.ExecuteSqls("DROP TABLE IF EXISTS public.identity_file_test;")
+	})
+
+	// CSV contains only the non-identity column; id will be auto-generated.
+	dataFilePath := filepath.Join("/tmp", "identity_file_test.csv")
+	f, err := os.Create(dataFilePath)
+	testutils.FatalIfError(t, err, "Failed to create CSV file")
+	defer os.Remove(dataFilePath)
+	defer f.Close()
+
+	w := csv.NewWriter(f)
+	w.Write([]string{"name"})
+	for i := 1; i <= 50; i++ {
+		w.Write([]string{fmt.Sprintf("name_%d", i)})
+	}
+	w.Flush()
+
+	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data file", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--target-db-schema", "public",
+		"--data-dir", filepath.Dir(dataFilePath),
+		"--file-table-map", "identity_file_test.csv:public.identity_file_test",
+		"--format", "CSV",
+		"--has-header", "true",
+		"--yes",
+	}, nil, false).Run()
+	testutils.FatalIfError(t, err, "import data file failed")
+
+	ybConn, err := testYugabyteDBTarget.TestContainer.GetConnection()
+	testutils.FatalIfError(t, err, "connecting to YugabyteDB")
+	defer ybConn.Close()
+
+	// Verify row count
+	var rowCount int
+	err = ybConn.QueryRow("SELECT COUNT(*) FROM public.identity_file_test").Scan(&rowCount)
+	assert.NoError(t, err)
+	assert.Equal(t, 50, rowCount, "expected 50 rows imported")
+
+	// Verify identity column values were auto-generated (non-null, sequential)
+	var minID, maxID int
+	err = ybConn.QueryRow("SELECT MIN(id), MAX(id) FROM public.identity_file_test").Scan(&minID, &maxID)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, minID, "identity sequence should start at 1")
+	assert.Equal(t, 50, maxID, "identity sequence should reach 50")
+
+	// Verify the identity column is still GENERATED ALWAYS
+	assertIdentityColumnIsAlways(t, ybConn, "public", "identity_file_test", "id")
+}

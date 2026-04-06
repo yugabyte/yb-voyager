@@ -17,9 +17,12 @@ package cmd
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -135,4 +138,17 @@ func createFileAndTask(lexportDir string, fileContents string, ldataDir string, 
 		RowCount:     1,
 	}
 	return tempFile, task, nil
+}
+
+func assertIdentityColumnIsAlways(t *testing.T, conn *sql.DB, schema, table, column string) {
+	t.Helper()
+	var identityGeneration string
+	err := conn.QueryRow(
+		`SELECT identity_generation FROM information_schema.columns
+		 WHERE table_schema = $1 AND table_name = $2 AND column_name = $3`,
+		schema, table, column,
+	).Scan(&identityGeneration)
+	assert.NoError(t, err, "querying identity_generation for %s.%s.%s", schema, table, column)
+	assert.Equal(t, "ALWAYS", identityGeneration,
+		"expected identity_generation=ALWAYS for %s.%s.%s, got %q", schema, table, column, identityGeneration)
 }
