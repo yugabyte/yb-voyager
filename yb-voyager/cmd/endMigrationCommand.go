@@ -918,7 +918,7 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 
 		//if there are any ongoing command in the current iteration then figure out if there are any ongoing command in the parent iteration also and combine them
 		parentExportDir := msr.GetParentExportDir(exportDir)
-		parentCmdMatch, err := filepath.Glob(filepath.Join(parentExportDir, "archive-changes.Lockfile.lck"))
+		parentCmdMatch, err := filepath.Glob(filepath.Join(parentExportDir, ".archive-changesLockfile.lck"))
 		if err != nil {
 			utils.ErrExit("checking for ongoing archive changes command: %w", err)
 		}
