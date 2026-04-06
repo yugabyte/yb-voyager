@@ -21,7 +21,7 @@
         "snapshot_total_bytes": 12553,
         "cdc_events_import_rate_3min": 0,
         "current_parallel_connections": 0,
-        "table_list_count": 5
+        "table_list_count": 29
       },
       "enable_upsert": false,
       "error": "",
