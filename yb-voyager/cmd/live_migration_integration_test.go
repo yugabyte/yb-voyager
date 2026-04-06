@@ -847,7 +847,7 @@ FROM generate_series(1, 15);`,
 	//Resume import command after deleting a sequence of the table column idand import should fail while restoring sequences as cutover is already triggered
 	err = lm.ResumeImportData(false, nil)
 	assert.NotNil(t, err)
-	assert.True(t, strings.Contains(lm.GetImportCommandStderr(), "failed to restore sequences:"))
+	assert.True(t, strings.Contains(lm.GetImportCommandStderr(), "failed to restore sequenes:"))
 
 	//Create sequence back on yb to resume import and finish cutover
 	err = lm.WithTargetConn(func(target *sql.DB) error {
