@@ -116,8 +116,8 @@ jobs:
           sudo docker builder prune -a
           df -h /
       
-          - name: Set up gotestfmt
-          uses: GoTestTools/gotestfmt-action@v2
+      - name: Set up gotestfmt
+        uses: GoTestTools/gotestfmt-action@v2
   
       - name: Run failpoint tests (${{ matrix.group_name }})
         env:
