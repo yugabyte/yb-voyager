@@ -107,8 +107,7 @@ jobs:
   
           cd yb-voyager
           
-          # Combined tags: 'failpoint' plus the specific matrix tag
-          go test -json -v -tags=failpoint,${{ matrix.tag }} ./cmd \
+          go test -json -v -tags=${{ matrix.tag }} ./cmd \
             --parallel 4 -timeout 30m \
             2>/tmp/gotest-stderr.log | tee /tmp/gotest.log | gotestfmt
   
