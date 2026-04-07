@@ -175,7 +175,8 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 }
 
 func isSessionVariable(stmt string) (bool, error) {
-	if !strings.HasPrefix(strings.ToUpper(stmt), "SET") {
+	stmtForCheck := strings.TrimSpace(strings.ToUpper(stmt))
+	if !strings.HasPrefix(stmtForCheck, "SET") {
 		return false, nil
 	}
 	parseTree, err := queryparser.Parse(stmt)
@@ -210,7 +211,8 @@ func shouldSkipDDL(stmt string, objType string) (bool, error) {
 	if skipReplicaIdentity {
 		return true, nil
 	}
-	if !strings.HasPrefix(strings.ToUpper(stmt), "ALTER TABLE") {
+	stmtForCheck := strings.TrimSpace(strings.ToUpper(stmt))
+	if !strings.HasPrefix(stmtForCheck, "ALTER TABLE") {
 		//We should not use parser for every statement as some DDL statement can have YB specific syntax like SPLIT INTO x tablets, PRIMARY KEY (x HASH)
 		//but we right now use PG parser to parse the statement so it fails with syntax error for such statements so we are skipping the parser for such statements
 		//and only parsing the ALTER statements as ALTER most doesn't have support for any YB specific syntax as per docs, but one case where it is possible is
