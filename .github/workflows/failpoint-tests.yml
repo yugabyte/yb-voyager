@@ -98,25 +98,6 @@ jobs:
       
       - name: Set up gotestfmt
         uses: GoTestTools/gotestfmt-action@v2
-      
-      # - name: Run Tests (${{ matrix.tag }})
-      #   shell: bash
-      #   run: |
-      #     # Ensure the step fails if go test fails, even with pipes
-      #     set -o pipefail
-  
-      #     cd yb-voyager
-          
-      #     go test -json -v -tags=${{ matrix.tag }} ./cmd \
-      #       --parallel 4 -timeout 30m \
-      #       2>/tmp/gotest-stderr.log | tee /tmp/gotest.log | gotestfmt
-  
-      #     # Show stderr logs in a collapsible group if they exist
-      #     if [ -s /tmp/gotest-stderr.log ]; then
-      #       echo "::group::stderr output (docker/testcontainer logs)"
-      #       cat /tmp/gotest-stderr.log
-      #       echo "::endgroup::"
-      #     fi
 
       - name: Run Tests (${{ matrix.tag }})
         shell: bash
