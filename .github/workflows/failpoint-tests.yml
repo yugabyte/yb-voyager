@@ -48,8 +48,8 @@ jobs:
         run: |
           BYTEMAN_VERSION="4.0.22"
           cd /tmp
-          wget -q https://downloads.jboss.org/byteman/${BYTEMAN_VERSION}/byteman-download-${BYTEMAN_VERSION}-bin.zip
-          unzip -q byteman-download-${BYTEMAN_VERSION}-bin.zip
+          wget https://downloads.jboss.org/byteman/${BYTEMAN_VERSION}/byteman-download-${BYTEMAN_VERSION}-bin.zip
+          unzip byteman-download-${BYTEMAN_VERSION}-bin.zip
           echo "BYTEMAN_JAR=/tmp/byteman-download-${BYTEMAN_VERSION}/lib/byteman.jar" >> $GITHUB_ENV
 
       - name: Cache local Maven repository
@@ -99,24 +99,42 @@ jobs:
       - name: Set up gotestfmt
         uses: GoTestTools/gotestfmt-action@v2
       
+      # - name: Run Tests (${{ matrix.tag }})
+      #   shell: bash
+      #   run: |
+      #     # Ensure the step fails if go test fails, even with pipes
+      #     set -o pipefail
+  
+      #     cd yb-voyager
+          
+      #     go test -json -v -tags=${{ matrix.tag }} ./cmd \
+      #       --parallel 4 -timeout 30m \
+      #       2>/tmp/gotest-stderr.log | tee /tmp/gotest.log | gotestfmt
+  
+      #     # Show stderr logs in a collapsible group if they exist
+      #     if [ -s /tmp/gotest-stderr.log ]; then
+      #       echo "::group::stderr output (docker/testcontainer logs)"
+      #       cat /tmp/gotest-stderr.log
+      #       echo "::endgroup::"
+      #     fi
+
       - name: Run Tests (${{ matrix.tag }})
         shell: bash
         run: |
-          # Ensure the step fails if go test fails, even with pipes
           set -o pipefail
-  
           cd yb-voyager
           
+          # We keep the pipe, but we'll inspect the log if it fails
           go test -json -v -tags=${{ matrix.tag }} ./cmd \
             --parallel 4 -timeout 30m \
             2>/tmp/gotest-stderr.log | tee /tmp/gotest.log | gotestfmt
-  
-          # Show stderr logs in a collapsible group if they exist
-          if [ -s /tmp/gotest-stderr.log ]; then
-            echo "::group::stderr output (docker/testcontainer logs)"
-            cat /tmp/gotest-stderr.log
-            echo "::endgroup::"
-          fi
+
+      - name: Inspect Raw Logs on Failure
+        if: failure()
+        run: |
+          echo "::: gotestfmt crashed. Inspecting raw JSON output :::"
+          # This will show you the ACTUAL compiler error or panic hidden in the JSON
+          cat /tmp/gotest.log
   
       - name: Upload test logs (${{ matrix.tag }})
         if: failure()
