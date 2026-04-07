@@ -902,7 +902,7 @@ func (lm *LiveMigrationTest) WaitForCutoverSourceComplete(iterationNumber int, c
 	return nil
 }
 
-func (lm *LiveMigrationTest) WaitForNextIterationInitialized(waitTimeout time.Duration, iterationNo int) error {
+func (lm *LiveMigrationTest) WaitForNextIterationInitialized(iterationNo int, waitTimeout time.Duration) error {
 	lm.t.Logf("Waiting for next iteration initialized")
 	// Initialize metaDB if not already done
 	if lm.metaDB == nil {
