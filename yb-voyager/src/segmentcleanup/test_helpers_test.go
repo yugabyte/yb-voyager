@@ -94,6 +94,12 @@ func setMSR(t *testing.T, mdb *metadb.MetaDB, updateFn func(*metadb.MigrationSta
 	require.NoError(t, mdb.UpdateMigrationStatusRecord(updateFn))
 }
 
+func createArchiveDir(t *testing.T, exportDir string) string {
+	dir := filepath.Join(exportDir, "archive")
+	require.NoError(t, os.MkdirAll(dir, 0755))
+	return dir
+}
+
 func createSegmentFiles(t *testing.T, exportDir string, count int) []string {
 	dataDir := filepath.Join(exportDir, "data")
 	require.NoError(t, os.MkdirAll(dataDir, 0755))
