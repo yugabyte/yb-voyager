@@ -48,9 +48,25 @@ jobs:
         run: |
           BYTEMAN_VERSION="4.0.22"
           cd /tmp
-          wget https://downloads.jboss.org/byteman/${BYTEMAN_VERSION}/byteman-download-${BYTEMAN_VERSION}-bin.zip
-          unzip byteman-download-${BYTEMAN_VERSION}-bin.zip
-          echo "BYTEMAN_JAR=/tmp/byteman-download-${BYTEMAN_VERSION}/lib/byteman.jar" >> $GITHUB_ENV
+          
+          # 1. Switch to Maven Central (much more reliable than JBoss direct)
+          URL="https://repo1.maven.org/maven2/org/jboss/byteman/byteman/${BYTEMAN_VERSION}/byteman-${BYTEMAN_VERSION}-bin.zip"
+          
+          echo "Downloading Byteman from Maven Central..."
+          # 2. Add retries and a wait period in case of a temporary blip
+          wget --tries=5 --waitretry=5 --no-check-certificate -O byteman.zip "$URL"
+          
+          # 3. Explicit check to fail the step immediately if the download failed
+          if [ ! -s byteman.zip ]; then
+            echo "::error::Byteman download failed! File is empty or not found."
+            exit 1
+          fi
+
+          unzip -q byteman.zip
+          
+          # 4. Dynamically find the folder name (Maven and JBoss name them differently)
+          DIR_NAME=$(ls -d byteman-*)
+          echo "BYTEMAN_JAR=/tmp/${DIR_NAME}/lib/byteman.jar" >> $GITHUB_ENV
 
       - name: Cache local Maven repository
         uses: actions/cache@v4
