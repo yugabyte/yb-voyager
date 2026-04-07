@@ -985,35 +985,6 @@ func (lm *LiveMigrationTest) WaitForFallForwardStreamingComplete(tables []string
 	return nil
 }
 
-func (lm *LiveMigrationTest) WaitForFallForwardStreamingComplete(tables []string, streamingTimeout time.Duration, streamingSleep time.Duration) error {
-	fmt.Printf("Waiting for fall-forward streaming complete\n")
-
-	ok := utils.RetryWorkWithTimeout(streamingSleep, streamingTimeout, func() bool {
-		allMatch := true
-		err := lm.WithTargetConn(func(targetConn *sql.DB) error {
-			return lm.WithSourceReplicaConn(func(replicaConn *sql.DB) error {
-				for _, table := range tables {
-					if err := testutils.CompareRowCount(lm.ctx, targetConn, replicaConn, table); err != nil {
-						allMatch = false
-						return nil
-					}
-				}
-				return nil
-			})
-		})
-		if err != nil {
-			return false
-		}
-		return allMatch
-	})
-
-	if !ok {
-		return goerrors.Errorf("fall-forward streaming did not complete within %v seconds", streamingTimeout)
-	}
-	fmt.Printf("Fall-forward streaming complete\n")
-	return nil
-}
-
 // WaitForCutoverComplete waits until cutover is done
 func (lm *LiveMigrationTest) WaitForCutoverComplete(iterationNumber int, cutoverTimeout time.Duration) error {
 	lm.t.Logf("Waiting for cutover complete")

@@ -107,32 +107,28 @@ jobs:
           sudo docker builder prune -a
           df -h /
       
-      - name: Set up gotestfmt
-        uses: GoTestTools/gotestfmt-action@v2
-
-      - name: Run Tests (${{ matrix.tag }})
-        shell: bash
-        run: |
-          set -o pipefail
-          cd yb-voyager
-          
-          # We keep the pipe, but we'll inspect the log if it fails
-          go test -json -v -tags=${{ matrix.tag }} ./cmd \
-            --parallel 4 -timeout 30m \
-            2>/tmp/gotest-stderr.log | tee /tmp/gotest.log | gotestfmt
-
-      - name: Inspect Raw Logs on Failure
-        if: failure()
-        run: |
-          echo "::: gotestfmt crashed. Inspecting raw JSON output :::"
-          # This will show you the ACTUAL compiler error or panic hidden in the JSON
-          cat /tmp/gotest.log
+          - name: Set up gotestfmt
+          uses: GoTestTools/gotestfmt-action@v2
   
-      - name: Upload test logs (${{ matrix.tag }})
+      - name: Run failpoint tests (${{ matrix.group_name }})
+        env:
+          YB_VERSION: ${{ needs.prepare-versions.outputs.yb_latest_stable }}
+          PG_VERSION: "14"
+        run: |
+          set -euo pipefail
+          cd yb-voyager
+          go test -json -v -tags=${{ matrix.tag }} ./cmd --parallel 4 -timeout 30m 2>/tmp/gotest-stderr.log | tee /tmp/gotest.log | gotestfmt
+          if [ -s /tmp/gotest-stderr.log ]; then
+            echo "::group::stderr output (docker/testcontainer logs)"
+            cat /tmp/gotest-stderr.log
+            echo "::endgroup::"
+          fi
+
+      - name: Upload test logs
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: failpoint-test-logs-${{ matrix.tag }}
+          name: failpoint-test-logs
           path: |
             /tmp/gotest.log
             /tmp/gotest-stderr.log
