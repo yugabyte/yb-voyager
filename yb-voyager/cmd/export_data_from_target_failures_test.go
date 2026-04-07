@@ -30,6 +30,72 @@ import (
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
+const (
+	ffExportFailureSchema                = "test_schema_ff"
+	ffExportFailureSnapshotRows    int64 = 20
+	ffExportFailureForwardInserts        = 5
+	ffExportFailureWaitFallForward       = 60
+	ffExportFailureWaitCutover           = 120 // seconds; passed as time.Duration to helpers that multiply by time.Second
+)
+
+// ffExportFailureSchemaSQL returns DDL for a single table in test_schema_ff (drop/create schema + table + replica identity).
+func ffExportFailureSchemaSQL(tableFQ string) []string {
+	return []string{
+		"DROP SCHEMA IF EXISTS test_schema_ff CASCADE;",
+		"CREATE SCHEMA test_schema_ff;",
+		fmt.Sprintf(`CREATE TABLE %s (
+			id SERIAL PRIMARY KEY,
+			name TEXT,
+			value INTEGER,
+			created_at TIMESTAMP DEFAULT NOW()
+		);`, tableFQ),
+		fmt.Sprintf(`ALTER TABLE %s REPLICA IDENTITY FULL;`, tableFQ),
+	}
+}
+
+// ffExportFailureDeltaSQL returns InitialDataSQL, SourceDeltaSQL, TargetDeltaSQL for the standard fall-forward failure scenarios.
+func ffExportFailureDeltaSQL(tableFQ string, snapshotRows int64) (initial, sourceDelta, targetDelta []string) {
+	initial = []string{fmt.Sprintf(`INSERT INTO %s (name, value)
+			SELECT 'initial_' || i, i * 10 FROM generate_series(1, %d) i;`, tableFQ, snapshotRows)}
+	sourceDelta = []string{fmt.Sprintf(`INSERT INTO %s (name, value)
+			SELECT 'cdc_forward_' || i, 1000 + i FROM generate_series(1, %d) i;`, tableFQ, ffExportFailureForwardInserts)}
+	targetDelta = []string{fmt.Sprintf(`INSERT INTO %s (name, value)
+			SELECT 'cdc_fallforward_' || i, 2000 + i FROM generate_series(1, %d) i;`, tableFQ, ffExportFailureForwardInserts)}
+	return initial, sourceDelta, targetDelta
+}
+
+func newFFExportFailureLiveMigrationTest(t *testing.T, dbStem, tableShort string, snapshotRows int64) (*LiveMigrationTest, string) {
+	t.Helper()
+	tableFQ := fmt.Sprintf("%s.%s", ffExportFailureSchema, tableShort)
+	initial, srcDelta, tgtDelta := ffExportFailureDeltaSQL(tableFQ, snapshotRows)
+	schemaSQL := ffExportFailureSchemaSQL(tableFQ)
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB:                    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: dbStem},
+		TargetDB:                    ContainerConfig{Type: "yugabytedb", DatabaseName: dbStem + "_yb"},
+		SourceReplicaDB:             ContainerConfig{Type: "postgresql", DatabaseName: dbStem + "_replica"},
+		SchemaNames:                 []string{ffExportFailureSchema},
+		SchemaSQL:                   schemaSQL,
+		SourceReplicaSetupSchemaSQL: schemaSQL,
+		InitialDataSQL:              initial,
+		SourceDeltaSQL:              srcDelta,
+		TargetDeltaSQL:              tgtDelta,
+		CleanupSQL:                  []string{"DROP SCHEMA IF EXISTS test_schema_ff CASCADE;"},
+	})
+	return lm, tableFQ
+}
+
+func requireCutoverNotComplete(t *testing.T, lm *LiveMigrationTest) {
+	t.Helper()
+	require.NoError(t, lm.InitMetaDB())
+	require.NotEqual(t, COMPLETED, lm.getCutoverStatus(0), "cutover should not be complete yet")
+}
+
+// ffExportFromTargetEnv is for StartExportDataFromTargetWithEnv: the runner has no target container
+// handle, so pass TARGET_DB_PASSWORD explicitly (CLI also sets --target-db-password).
+func ffExportFromTargetEnv(lm *LiveMigrationTest) []string {
+	return []string{fmt.Sprintf("TARGET_DB_PASSWORD=%s", lm.GetTargetContainer().GetConfig().Password)}
+}
+
 // TestExportFromTargetStartupFailureAndCutoverResume verifies that live migration cutover
 // is only marked as complete once `export-data-from-target` starts up properly, and that
 // a startup failure can be recovered by resuming.
@@ -56,42 +122,8 @@ import (
 //   - Go failpoint in `cmd/exportDataFromTarget.go` at `exportFromTargetStartupError`,
 //     triggered via GO_FAILPOINTS env var passed through import data's post-cutover exec.
 func TestExportFromTargetStartupFailureAndCutoverResume(t *testing.T) {
-	tableName := "test_schema_ff.ff_cutover_test"
 	ctx := context.Background()
-
-	createSchemaSQL := []string{
-		"DROP SCHEMA IF EXISTS test_schema_ff CASCADE;",
-		"CREATE SCHEMA test_schema_ff;",
-		`CREATE TABLE test_schema_ff.ff_cutover_test (
-			id SERIAL PRIMARY KEY,
-			name TEXT,
-			value INTEGER,
-			created_at TIMESTAMP DEFAULT NOW()
-		);`,
-		`ALTER TABLE test_schema_ff.ff_cutover_test REPLICA IDENTITY FULL;`,
-	}
-
-	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:        ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "test_ff_startup"},
-		TargetDB:        ContainerConfig{Type: "yugabytedb", DatabaseName: "test_ff_startup_yb"},
-		SourceReplicaDB: ContainerConfig{Type: "postgresql", DatabaseName: "test_ff_startup_replica"},
-		SchemaNames:     []string{"test_schema_ff"},
-		SchemaSQL:       createSchemaSQL,
-		SourceReplicaSetupSchemaSQL: createSchemaSQL,
-		InitialDataSQL: []string{
-			`INSERT INTO test_schema_ff.ff_cutover_test (name, value)
-			SELECT 'initial_' || i, i * 10 FROM generate_series(1, 20) i;`,
-		},
-		SourceDeltaSQL: []string{
-			`INSERT INTO test_schema_ff.ff_cutover_test (name, value)
-			SELECT 'cdc_forward_' || i, 1000 + i FROM generate_series(1, 5) i;`,
-		},
-		TargetDeltaSQL: []string{
-			`INSERT INTO test_schema_ff.ff_cutover_test (name, value)
-			SELECT 'cdc_fallforward_' || i, 2000 + i FROM generate_series(1, 5) i;`,
-		},
-		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema_ff CASCADE;"},
-	})
+	lm, tableName := newFFExportFailureLiveMigrationTest(t, "test_ff_startup", "ff_cutover_test", ffExportFailureSnapshotRows)
 	defer lm.Cleanup()
 	require.NoError(t, lm.SetupContainers(ctx))
 	require.NoError(t, lm.SetupSchema())
@@ -112,14 +144,14 @@ func TestExportFromTargetStartupFailureAndCutoverResume(t *testing.T) {
 	// --- Wait for snapshot, then forward CDC ---
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		reportTableName(tableName): 20,
-	}, 120)
+		reportTableName(tableName): ffExportFailureSnapshotRows,
+	}, ffExportFailureWaitCutover)
 	require.NoError(t, err, "snapshot phase did not complete")
 
 	lm.ExecuteSourceDelta()
 
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		reportTableName(tableName): {Inserts: 5},
+		reportTableName(tableName): {Inserts: ffExportFailureForwardInserts},
 	}, 60, 3)
 	require.NoError(t, err, "forward streaming did not complete")
 
@@ -128,7 +160,7 @@ func TestExportFromTargetStartupFailureAndCutoverResume(t *testing.T) {
 	err = lm.StartImportDataToSourceReplica(true, nil)
 	require.NoError(t, err, "Failed to start import data to source-replica")
 
-	err = lm.WaitForFallForwardEnabled(60)
+	err = lm.WaitForFallForwardEnabled(0, ffExportFailureWaitFallForward)
 	require.NoError(t, err, "FallForwardEnabled should be set by import-to-source-replica")
 
 	// --- Step 4: Initiate cutover to target ---
@@ -149,23 +181,22 @@ func TestExportFromTargetStartupFailureAndCutoverResume(t *testing.T) {
 
 	// --- Step 5: Verify cutover is NOT complete ---
 
-	require.NoError(t, lm.AssertCutoverIsNotComplete())
+	requireCutoverNotComplete(t, lm)
 
 	// --- Step 6: Resume export-data-from-target WITHOUT failpoint ---
 
-	ybConfig := lm.GetTargetContainer().GetConfig()
-	lm.WithEnv(fmt.Sprintf("TARGET_DB_PASSWORD=%s", ybConfig.Password))
-	err = lm.StartExportDataFromTarget(true, nil)
+	err = lm.StartExportDataFromTargetWithEnv(true, nil, ffExportFromTargetEnv(lm))
 	require.NoError(t, err, "Failed to start resumed export-data-from-target")
 
 	// --- Step 7: Wait for export-from-target to start and set the flag ---
 
-	err = lm.WaitForExportFromTargetStarted(120)
+	err = lm.WaitForExportFromTargetStarted(ffExportFailureWaitCutover)
 	require.NoError(t, err, "ExportFromTargetFallForwardStarted should become true after successful startup")
 
-	// --- Step 8: Verify cutover IS complete ---
+	// --- Step 8: Wait for cutover completion (updates export/import command refs) ---
 
-	require.NoError(t, lm.AssertCutoverIsComplete())
+	err = lm.WaitForCutoverComplete(0, ffExportFailureWaitCutover)
+	require.NoError(t, err, "cutover should complete after export-from-target starts")
 
 	// --- Step 9: Fall-forward CDC: Insert 5 rows on YB target, verify on source-replica ---
 
@@ -207,42 +238,8 @@ func TestFallForwardCDCStreamingFailureAndResume(t *testing.T) {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
 	}
 
-	tableName := "test_schema_ff.ff_stream_test"
 	ctx := context.Background()
-
-	createSchemaSQL := []string{
-		"DROP SCHEMA IF EXISTS test_schema_ff CASCADE;",
-		"CREATE SCHEMA test_schema_ff;",
-		`CREATE TABLE test_schema_ff.ff_stream_test (
-			id SERIAL PRIMARY KEY,
-			name TEXT,
-			value INTEGER,
-			created_at TIMESTAMP DEFAULT NOW()
-		);`,
-		`ALTER TABLE test_schema_ff.ff_stream_test REPLICA IDENTITY FULL;`,
-	}
-
-	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:        ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "test_ff_cdc"},
-		TargetDB:        ContainerConfig{Type: "yugabytedb", DatabaseName: "test_ff_cdc_yb"},
-		SourceReplicaDB: ContainerConfig{Type: "postgresql", DatabaseName: "test_ff_cdc_replica"},
-		SchemaNames:     []string{"test_schema_ff"},
-		SchemaSQL:       createSchemaSQL,
-		SourceReplicaSetupSchemaSQL: createSchemaSQL,
-		InitialDataSQL: []string{
-			`INSERT INTO test_schema_ff.ff_stream_test (name, value)
-			SELECT 'initial_' || i, i * 10 FROM generate_series(1, 20) i;`,
-		},
-		SourceDeltaSQL: []string{
-			`INSERT INTO test_schema_ff.ff_stream_test (name, value)
-			SELECT 'cdc_forward_' || i, 1000 + i FROM generate_series(1, 5) i;`,
-		},
-		TargetDeltaSQL: []string{
-			`INSERT INTO test_schema_ff.ff_stream_test (name, value)
-			SELECT 'cdc_fallforward_' || i, 2000 + i FROM generate_series(1, 5) i;`,
-		},
-		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema_ff CASCADE;"},
-	})
+	lm, tableName := newFFExportFailureLiveMigrationTest(t, "test_ff_cdc", "ff_stream_test", ffExportFailureSnapshotRows)
 	defer lm.Cleanup()
 	require.NoError(t, lm.SetupContainers(ctx))
 	require.NoError(t, lm.SetupSchema())
@@ -279,14 +276,14 @@ func TestFallForwardCDCStreamingFailureAndResume(t *testing.T) {
 	// --- Step 4: Wait for snapshot, then forward CDC ---
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		reportTableName(tableName): 20,
+		reportTableName(tableName): ffExportFailureSnapshotRows,
 	}, 240)
 	require.NoError(t, err, "snapshot phase did not complete")
 
 	lm.ExecuteSourceDelta()
 
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		reportTableName(tableName): {Inserts: 5},
+		reportTableName(tableName): {Inserts: ffExportFailureForwardInserts},
 	}, 120, 3)
 	require.NoError(t, err, "forward streaming did not complete")
 
@@ -295,7 +292,7 @@ func TestFallForwardCDCStreamingFailureAndResume(t *testing.T) {
 	err = lm.StartImportDataToSourceReplica(true, nil)
 	require.NoError(t, err, "Failed to start import data to source-replica")
 
-	err = lm.WaitForFallForwardEnabled(60)
+	err = lm.WaitForFallForwardEnabled(0, ffExportFailureWaitFallForward)
 	require.NoError(t, err, "FallForwardEnabled should be set by import-to-source-replica")
 
 	// --- Step 6: Initiate cutover to target ---
@@ -309,10 +306,11 @@ func TestFallForwardCDCStreamingFailureAndResume(t *testing.T) {
 	// Import exec's into export-from-target. Debezium starts with Byteman loaded but
 	// the startup path succeeds (Byteman only fires on before-batch-streaming, not at startup).
 
-	err = lm.WaitForExportFromTargetStarted(120)
+	err = lm.WaitForExportFromTargetStarted(ffExportFailureWaitCutover)
 	require.NoError(t, err, "Export-from-target should start successfully before Byteman fires")
 
-	require.NoError(t, lm.AssertCutoverIsComplete())
+	err = lm.WaitForCutoverComplete(0, ffExportFailureWaitCutover)
+	require.NoError(t, err, "cutover should complete after export-from-target starts")
 
 	// --- Step 8: Insert rows on target -> triggers streaming batch -> Byteman crashes ---
 
@@ -330,9 +328,7 @@ func TestFallForwardCDCStreamingFailureAndResume(t *testing.T) {
 	// --- Step 9: Resume export-data-from-target WITHOUT Byteman ---
 
 	lm.ClearEnv()
-	ybConfig := lm.GetTargetContainer().GetConfig()
-	lm.WithEnv(fmt.Sprintf("TARGET_DB_PASSWORD=%s", ybConfig.Password))
-	err = lm.StartExportDataFromTarget(true, nil)
+	err = lm.StartExportDataFromTargetWithEnv(true, nil, ffExportFromTargetEnv(lm))
 	require.NoError(t, err, "Failed to start resumed export-data-from-target")
 
 	// --- Step 10: Insert more rows on target, wait for fall-forward streaming ---

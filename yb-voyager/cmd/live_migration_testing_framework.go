@@ -835,13 +835,6 @@ func (lm *LiveMigrationTest) GetExportCommandStderr() string {
 	return lm.exportCmd.Stderr()
 }
 
-func (lm *LiveMigrationTest) GetExportCommandStdout() string {
-	if lm.exportCmd == nil {
-		return ""
-	}
-	return lm.exportCmd.Stdout()
-}
-
 // GetImportCommandStderr gets stderr from import command
 func (lm *LiveMigrationTest) GetImportCommandStderr() string {
 	if lm.importCmd == nil {
@@ -850,46 +843,12 @@ func (lm *LiveMigrationTest) GetImportCommandStderr() string {
 	return lm.importCmd.Stderr()
 }
 
-// GetImportCommandStdout gets stdout from import command
-func (lm *LiveMigrationTest) GetImportCommandStdout() string {
-	if lm.importCmd == nil {
-		return ""
-	}
-	return lm.importCmd.Stdout()
-}
-
 // GetImportToSourceCommandStderr gets stderr from import to source command
 func (lm *LiveMigrationTest) GetImportToSourceCommandStderr() string {
 	if lm.importToSourceCmd == nil {
 		return ""
 	}
 	return lm.importToSourceCmd.Stderr()
-}
-
-// GetImportToSourceCommandStdout gets stdout from import to source command
-func (lm *LiveMigrationTest) GetImportToSourceCommandStdout() string {
-	if lm.importToSourceCmd == nil {
-		return ""
-	}
-	return lm.importToSourceCmd.Stdout()
-}
-
-// GetExportFromTargetCommandStderr gets stderr from export from target command
-
-// GetExportFromTargetCommandStdout gets stdout from export from target command
-func (lm *LiveMigrationTest) GetExportFromTargetCommandStdout() string {
-	if lm.exportFromTargetCmd == nil {
-		return ""
-	}
-	return lm.exportFromTargetCmd.Stdout()
-}
-
-// GetExportCommandFromTargetStderr gets stderr from export command from target
-func (lm *LiveMigrationTest) GetExportCommandFromTargetStderr() string {
-	if lm.exportFromTargetCmd == nil {
-		return ""
-	}
-	return lm.exportFromTargetCmd.Stderr()
 }
 
 func (lm *LiveMigrationTest) EndMigration(extraArgs map[string]string, withBackup bool) error {
@@ -1106,66 +1065,6 @@ func (lm *LiveMigrationTest) WaitForCutoverSourceComplete(iterationNumber int, c
 	return nil
 }
 
-func (lm *LiveMigrationTest) WaitForFallForwardEnabled(timeout time.Duration) error {
-	fmt.Printf("Waiting for fall-forward enabled\n")
-	if err := lm.InitMetaDB(); err != nil {
-		return goerrors.Errorf("failed to initialize meta db: %w", err)
-	}
-	ok := utils.RetryWorkWithTimeout(1, timeout, func() bool {
-		msr, err := lm.metaDB.GetMigrationStatusRecord()
-		if err != nil {
-			return false
-		}
-		return msr.FallForwardEnabled
-	})
-	if !ok {
-		return goerrors.Errorf("fall-forward was not enabled within %v seconds", timeout)
-	}
-	fmt.Printf("Fall-forward enabled\n")
-	return nil
-}
-
-func (lm *LiveMigrationTest) WaitForExportFromTargetStarted(timeout time.Duration) error {
-	fmt.Printf("Waiting for export from target started\n")
-	if err := lm.InitMetaDB(); err != nil {
-		return goerrors.Errorf("failed to initialize meta db: %w", err)
-	}
-	ok := utils.RetryWorkWithTimeout(1, timeout, func() bool {
-		msr, err := lm.metaDB.GetMigrationStatusRecord()
-		if err != nil {
-			return false
-		}
-		return msr.ExportFromTargetFallForwardStarted || msr.ExportFromTargetFallBackStarted
-	})
-	if !ok {
-		return goerrors.Errorf("export from target did not start within %v seconds", timeout)
-	}
-	fmt.Printf("Export from target started\n")
-	return nil
-}
-
-func (lm *LiveMigrationTest) AssertCutoverIsComplete() error {
-	if err := lm.InitMetaDB(); err != nil {
-		return goerrors.Errorf("failed to initialize meta db: %w", err)
-	}
-	status := lm.getCutoverStatus(0)
-	if status != COMPLETED {
-		return goerrors.Errorf("expected cutover status COMPLETED, got %q", status)
-	}
-	return nil
-}
-
-func (lm *LiveMigrationTest) AssertCutoverIsNotComplete() error {
-	if err := lm.InitMetaDB(); err != nil {
-		return goerrors.Errorf("failed to initialize meta db: %w", err)
-	}
-	status := lm.getCutoverStatus(0)
-	if status == COMPLETED {
-		return goerrors.Errorf("expected cutover status to NOT be COMPLETED, but it was")
-	}
-	return nil
-}
-
 func (lm *LiveMigrationTest) WaitForFallForwardEnabled(iterationNo int, timeout time.Duration) error {
 	fmt.Printf("Waiting for fall-forward enabled\n")
 	if err := lm.InitMetaDB(); err != nil {
@@ -1201,28 +1100,6 @@ func (lm *LiveMigrationTest) WaitForExportFromTargetStarted(timeout time.Duratio
 		return goerrors.Errorf("export from target did not start within %v seconds", timeout)
 	}
 	fmt.Printf("Export from target started\n")
-	return nil
-}
-
-func (lm *LiveMigrationTest) AssertCutoverIsComplete() error {
-	if err := lm.InitMetaDB(); err != nil {
-		return goerrors.Errorf("failed to initialize meta db: %w", err)
-	}
-	status := lm.getCutoverStatus(0)
-	if status != COMPLETED {
-		return goerrors.Errorf("expected cutover status COMPLETED, got %q", status)
-	}
-	return nil
-}
-
-func (lm *LiveMigrationTest) AssertCutoverIsNotComplete() error {
-	if err := lm.InitMetaDB(); err != nil {
-		return goerrors.Errorf("failed to initialize meta db: %w", err)
-	}
-	status := lm.getCutoverStatus(0)
-	if status == COMPLETED {
-		return goerrors.Errorf("expected cutover status to NOT be COMPLETED, but it was")
-	}
 	return nil
 }
 
@@ -1289,15 +1166,6 @@ func (lm *LiveMigrationTest) ExecuteOnTarget(sqlStatements ...string) error {
 		return goerrors.Errorf("target container not configured")
 	}
 	lm.targetContainer.ExecuteSqlsOnDB(lm.config.TargetDB.DatabaseName, sqlStatements...)
-	return nil
-}
-
-// ExecuteOnSourceReplica executes SQL statements on source-replica database
-func (lm *LiveMigrationTest) ExecuteOnSourceReplica(sqlStatements ...string) error {
-	if lm.sourceReplicaContainer == nil {
-		return goerrors.Errorf("source-replica container not configured")
-	}
-	lm.sourceReplicaContainer.ExecuteSqls(sqlStatements...)
 	return nil
 }
 
@@ -1722,14 +1590,6 @@ func (lm *LiveMigrationTest) GetSourceReplicaContainer() testcontainers.TestCont
 	return lm.sourceReplicaContainer
 }
 
-func (lm *LiveMigrationTest) GetExportCmd() *testutils.VoyagerCommandRunner {
-	return lm.exportCmd
-}
-
-func (lm *LiveMigrationTest) GetImportCmd() *testutils.VoyagerCommandRunner {
-	return lm.importCmd
-}
-
 // ============================================================
 // EXPORT-SIDE HELPERS
 // ============================================================
@@ -1806,23 +1666,6 @@ func (lm *LiveMigrationTest) WaitForCDCEventCount(t *testing.T, expected int, ti
 		return count >= expected
 	}, timeout, pollInterval, "Timed out waiting for CDC event count to reach %d (last=%d)", expected, lastCount)
 	return lastCount
-}
-
-// killDebezium kills the Debezium process associated with this export dir
-func (lm *LiveMigrationTest) killDebezium() error {
-	pidStr, err := dbzm.GetPIDOfDebeziumOnExportDir(lm.exportDir, SOURCE_DB_EXPORTER_ROLE)
-	if err != nil {
-		return err
-	}
-	pid, err := strconv.Atoi(strings.TrimSpace(pidStr))
-	if err != nil {
-		return err
-	}
-	proc, err := os.FindProcess(pid)
-	if err != nil {
-		return err
-	}
-	return proc.Kill()
 }
 
 // RemoveExportLockfile removes the export data lockfile (needed between export runs)
