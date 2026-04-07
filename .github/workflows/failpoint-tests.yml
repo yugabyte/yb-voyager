@@ -48,20 +48,29 @@ jobs:
         run: |
           BYTEMAN_VERSION="4.0.22"
           cd /tmp
-
-          URL="https://repo1.maven.org/maven2/org/jboss/byteman/byteman/${BYTEMAN_VERSION}/byteman-${BYTEMAN_VERSION}-bin.zip"
           
-          wget --tries=5 --waitretry=5 --no-check-certificate -O byteman.zip "$URL"
-
+          # Corrected Maven Central URL (includes -download)
+          MAVEN_URL="https://repo1.maven.org/maven2/org/jboss/byteman/byteman-download/${BYTEMAN_VERSION}/byteman-download-${BYTEMAN_VERSION}-bin.zip"
+          # Backup URL from GitHub (very reliable)
+          GITHUB_URL="https://github.com/bytemanproject/byteman/releases/download/v${BYTEMAN_VERSION}/byteman-download-${BYTEMAN_VERSION}-bin.zip"
+          
+          echo "Attempting to download Byteman..."
+          
+          # Try Maven first, fallback to GitHub if it fails
+          wget --tries=3 --waitretry=2 -O byteman.zip "$MAVEN_URL" || \
+          wget --tries=3 --waitretry=2 -O byteman.zip "$GITHUB_URL"
+          
           if [ ! -s byteman.zip ]; then
-            echo "::error::Byteman download failed! File is empty or not found."
+            echo "::error::All download sources failed!"
             exit 1
           fi
 
           unzip -q byteman.zip
           
-          DIR_NAME=$(ls -d byteman-*)
+          # This handles both naming conventions (byteman-4.0.22 or byteman-download-4.0.22)
+          DIR_NAME=$(ls -d byteman* | head -n 1)
           echo "BYTEMAN_JAR=/tmp/${DIR_NAME}/lib/byteman.jar" >> $GITHUB_ENV
+          echo "Byteman installed at /tmp/${DIR_NAME}"
 
       - name: Cache local Maven repository
         uses: actions/cache@v4
