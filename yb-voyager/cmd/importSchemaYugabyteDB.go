@@ -217,7 +217,7 @@ func shouldSkipDDL(stmt string, objType string) (bool, error) {
 		//but we right now use PG parser to parse the statement so it fails with syntax error for such statements so we are skipping the parser for such statements
 		//and only parsing the ALTER statements as ALTER most doesn't have support for any YB specific syntax as per docs, but one case where it is possible is
 		//ALTER TABLE ADD PRIMARY KEY (x HASH), but in most cases we don't have ADD PK DDL via voyager schema export
-		return false, nil
+		return bool(flagPostSnapshotImport), nil
 	}
 	isNotValid, err := isNotValidConstraint(stmt)
 	if err != nil {
