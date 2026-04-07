@@ -76,7 +76,7 @@ FROM generate_series(1, 20) i;`
 		"--source-db-schema", "test_schema",
 		"--disable-pb", "true",
 		"--yes",
-	}, nil, false)
+	}, nil, false).WithT(t)
 	err = exportRunner.Run()
 	testutils.FatalIfError(t, err, "Failed to export data")
 
@@ -96,7 +96,7 @@ FROM generate_series(1, 20) i;`
 		"--parallel-jobs", "1", // set parallel jobs to 1 to trigger commit error
 		"--adaptive-parallelism", "disabled",
 		"--yes",
-	}, nil, false).WithEnv(fpEnv, "YB_VOYAGER_COPY_MAX_RETRY_COUNT=1")
+	}, nil, false).WithT(t).WithEnv(fpEnv, "YB_VOYAGER_COPY_MAX_RETRY_COUNT=1")
 
 	err = importCmdWithFailpoint.Run()
 
@@ -122,7 +122,7 @@ FROM generate_series(1, 20) i;`
 		"--export-dir", exportDir,
 		"--disable-pb", "true",
 		"--yes",
-	}, nil, false)
+	}, nil, false).WithT(t)
 
 	err = importCmdResume.Run()
 	testutils.FatalIfError(t, err, "Failed to resume import")

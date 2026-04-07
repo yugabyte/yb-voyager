@@ -105,7 +105,7 @@ func TestCDCBatchProcessingFailure(t *testing.T) {
 		"--source-db-schema", "test_schema",
 		"--disable-pb", "true",
 		"--yes",
-	}, generateCDCEvents, true).WithEnv(bytemanHelper.GetEnv()...) // async=true, with concurrent CDC event generation
+	}, generateCDCEvents, true).WithT(t).WithEnv(bytemanHelper.GetEnv()...) // async=true, with concurrent CDC event generation
 
 	err = exportRunner.Run()
 	require.NoError(t, err, "Failed to start export")
@@ -173,7 +173,7 @@ func TestCDCBatchProcessing_WithMarkers(t *testing.T) {
 		"--source-db-schema", "test_schema",
 		"--disable-pb", "true",
 		"--yes",
-	}, generateCDCEvents, true).WithEnv(bytemanHelper.GetEnv()...)
+	}, generateCDCEvents, true).WithT(t).WithEnv(bytemanHelper.GetEnv()...)
 
 	err = exportRunner.Run()
 	require.NoError(t, err, "Failed to start export")
