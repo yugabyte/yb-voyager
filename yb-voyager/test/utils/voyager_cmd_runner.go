@@ -10,13 +10,49 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
+	"testing"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 )
+
+// testLogWriter is a line-buffered io.Writer that routes each complete line
+// through t.Log so that go test -json can attribute output to the correct test.
+type testLogWriter struct {
+	t      *testing.T
+	prefix string
+	mu     sync.Mutex
+	buf    []byte
+}
+
+func (w *testLogWriter) Write(p []byte) (n int, err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.buf = append(w.buf, p...)
+	for {
+		idx := bytes.IndexByte(w.buf, '\n')
+		if idx < 0 {
+			break
+		}
+		line := string(w.buf[:idx])
+		w.buf = w.buf[idx+1:]
+		w.t.Logf("[%s] %s", w.prefix, line)
+	}
+	return len(p), nil
+}
+
+func (w *testLogWriter) Flush() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if len(w.buf) > 0 {
+		w.t.Logf("[%s] %s", w.prefix, string(w.buf))
+		w.buf = nil
+	}
+}
 
 type ExitCode int
 
@@ -57,6 +93,10 @@ type VoyagerCommandRunner struct {
 	// additional environment variables for testing
 	testEnvVars []string
 
+	// testing.T for routing output through t.Log
+	t         *testing.T
+	logWriter *testLogWriter
+
 	stopChan chan error
 }
 
@@ -69,6 +109,14 @@ type VoyagerCommandRunner struct {
 //	runner := NewVoyagerCommandRunner(...).WithEnv("GO_FAILPOINTS=pkg/fp1=return()")
 func (v *VoyagerCommandRunner) WithEnv(envVars ...string) *VoyagerCommandRunner {
 	v.testEnvVars = append(v.testEnvVars, envVars...)
+	return v
+}
+
+// WithT attaches a testing.T so that subprocess output and command
+// headers/footers are routed through t.Log instead of os.Stdout/os.Stderr.
+// This allows go test -json to attribute output to the correct test.
+func (v *VoyagerCommandRunner) WithT(t *testing.T) *VoyagerCommandRunner {
+	v.t = t
 	return v
 }
 
@@ -192,12 +240,18 @@ func (v *VoyagerCommandRunner) newCmd() {
 	v.StderrBuf = &bytes.Buffer{}
 
 	v.Cmd = exec.Command("yb-voyager", v.finalArgs...)
-	v.Cmd.Stdout = io.MultiWriter(os.Stdout, v.StdoutBuf)
-	v.Cmd.Stderr = io.MultiWriter(os.Stderr, v.StderrBuf)
-	// disable callhome diagnostics during tests
+
+	if v.t != nil {
+		v.logWriter = &testLogWriter{t: v.t, prefix: v.CmdName}
+		v.Cmd.Stdout = io.MultiWriter(v.logWriter, v.StdoutBuf)
+		v.Cmd.Stderr = io.MultiWriter(v.logWriter, v.StderrBuf)
+	} else {
+		v.Cmd.Stdout = io.MultiWriter(os.Stdout, v.StdoutBuf)
+		v.Cmd.Stderr = io.MultiWriter(os.Stderr, v.StderrBuf)
+	}
+
 	v.Cmd.Env = append(os.Environ(), "YB_VOYAGER_SEND_DIAGNOSTICS=false")
 
-	// Add test-specific environment variables if provided
 	if len(v.testEnvVars) > 0 {
 		v.Cmd.Env = append(v.Cmd.Env, v.testEnvVars...)
 	}
@@ -247,6 +301,9 @@ func (v *VoyagerCommandRunner) IsStopped() bool {
 }
 func (v *VoyagerCommandRunner) Wait() error {
 	err := v.Cmd.Wait()
+	if v.logWriter != nil {
+		v.logWriter.Flush()
+	}
 	if err != nil {
 		if ee, ok := err.(*exec.ExitError); ok {
 			v.exitCode = ExitCode(ee.ExitCode())
@@ -334,24 +391,34 @@ func (v *VoyagerCommandRunner) SetAsync(async bool) {
 	v.isAsync = async
 }
 
-// printCommandHeader prints a formatted header before command execution
 func (v *VoyagerCommandRunner) printCommandHeader() {
-	fmt.Println()
-	fmt.Println(separator)
-	fmt.Printf(">>> Running: %s\n", v.GetCmd())
-	fmt.Println(separator)
+	if v.t != nil {
+		v.t.Logf("\n%s\n>>> Running: %s\n%s", separator, v.GetCmd(), separator)
+	} else {
+		fmt.Println()
+		fmt.Println(separator)
+		fmt.Printf(">>> Running: %s\n", v.GetCmd())
+		fmt.Println(separator)
+	}
 }
 
-// printCommandFooter prints a formatted footer after command execution
 func (v *VoyagerCommandRunner) printCommandFooter(err error) {
-	fmt.Println(separator)
-	if err != nil {
-		fmt.Printf(">>> Command FAILED: %s (Exit Code: %s)\n", v.CmdName, v.exitCode.String())
+	if v.t != nil {
+		if err != nil {
+			v.t.Logf("%s\n>>> Command FAILED: %s (Exit Code: %s)\n%s", separator, v.CmdName, v.exitCode.String(), separator)
+		} else {
+			v.t.Logf("%s\n>>> Command COMPLETED: %s\n%s", separator, v.CmdName, separator)
+		}
 	} else {
-		fmt.Printf(">>> Command COMPLETED: %s\n", v.CmdName)
+		fmt.Println(separator)
+		if err != nil {
+			fmt.Printf(">>> Command FAILED: %s (Exit Code: %s)\n", v.CmdName, v.exitCode.String())
+		} else {
+			fmt.Printf(">>> Command COMPLETED: %s\n", v.CmdName)
+		}
+		fmt.Println(separator)
+		fmt.Println()
 	}
-	fmt.Println(separator)
-	fmt.Println()
 }
 
 func (v *VoyagerCommandRunner) AddArgs(args ...string) {
