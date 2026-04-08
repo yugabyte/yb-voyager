@@ -1604,11 +1604,6 @@ func (lm *LiveMigrationTest) WaitForCDCEventCount(t *testing.T, expected int, ti
 	return lastCount
 }
 
-// RemoveExportLockfile removes the export data lockfile (needed between export runs)
-func (lm *LiveMigrationTest) RemoveExportLockfile() {
-	_ = os.Remove(filepath.Join(lm.exportDir, ".export-dataLockfile.lck"))
-}
-
 // StartImportDataToSourceReplica starts "import data to source-replica" command
 func (lm *LiveMigrationTest) StartImportDataToSourceReplica(async bool, extraArgs map[string]string) error {
 	fmt.Printf("Starting import data to source-replica\n")
@@ -1637,7 +1632,6 @@ func (lm *LiveMigrationTest) StartImportDataToSourceReplica(async bool, extraArg
 		"--source-replica-db-password", srConfig.Password,
 		"--source-replica-db-name", srConfig.DBName,
 		"--disable-pb", "true",
-		"--start-clean", "true",
 		"--yes",
 	}
 	for key, value := range extraArgs {
