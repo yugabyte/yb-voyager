@@ -4,6 +4,7 @@ import os
 import sys
 import argparse
 import random
+import subprocess
 import time
 from typing import Any, Dict, Callable
 import helpers as H
@@ -110,7 +111,13 @@ def archive_changes_start_action(stage: Dict[str, Any], ctx: Any) -> None:
     Optional stage key:
       - policy: explicit policy ("delete" or "archive").
                 When omitted, a policy is chosen at random.
+    Skips if the archiver is already running (continuous archiver across iterations).
     """
+    with ctx.process_lock:
+        existing = ctx.processes.get("archive_changes")
+        if existing and existing.poll() is None:
+            H.log("archive_changes: already running, skipping start")
+            return
     policy = stage.get("policy") or random.choice(["delete", "archive"])
     H.log(f"archive_changes: selected policy={policy}")
     ctx.archive_changes_policy = policy
@@ -402,15 +409,30 @@ def main() -> None:
                     pass
 
             # Terminate any remaining background processes that were started.
+            # Kill archiver last — it needs other processes to stop first so
+            # migration status changes and it can exit gracefully.
             with ctx.process_lock:
                 procs = list(ctx.processes.items())
                 ctx.processes.clear()
+            archiver_proc = None
             for name, proc in procs:
+                if name == "archive_changes":
+                    archiver_proc = (name, proc)
+                    continue
                 try:
                     H.log(f"cleanup: stopping process {name}")
                     H.kill(proc, timeout_sec=60)
                 except Exception:
                     pass
+            if archiver_proc:
+                name, proc = archiver_proc
+                H.log(f"cleanup: waiting 30s for archiver to exit gracefully...")
+                try:
+                    proc.wait(timeout=30)
+                    H.log(f"cleanup: archiver exited on its own")
+                except subprocess.TimeoutExpired:
+                    H.log(f"cleanup: archiver did not exit, stopping it")
+                    H.kill(proc, timeout_sec=60)
         except Exception:
             # Never fail the run due to cleanup.
             pass

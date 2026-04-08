@@ -317,7 +317,6 @@ stages:
   - name: validate_archive_changes
     action: validate_archive_changes
 
-  # Phase 3: cutover back to source and validation
   - name: cutover_to_source
     action: cutover_to_source
 
