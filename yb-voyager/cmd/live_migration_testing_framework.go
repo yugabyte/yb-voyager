@@ -63,8 +63,6 @@ type LiveMigrationTest struct {
 	metaDB                 *metadb.MetaDB
 	ctx                    context.Context
 	t                      *testing.T
-	envVars                []string
-	exportCallback         func()
 }
 
 // TestConfig holds all configuration upfront
@@ -277,8 +275,8 @@ func (lm *LiveMigrationTest) startExportData(async bool, extraArgs map[string]st
 	} else {
 		lm.t.Logf("Starting export data with export type %s", exportType)
 	}
-	onStart := lm.exportCallback
-	if onStart == nil && async {
+	var onStart func()
+	if async {
 		onStart = func() {
 			time.Sleep(5 * time.Second)
 		}
@@ -296,8 +294,7 @@ func (lm *LiveMigrationTest) startExportData(async bool, extraArgs map[string]st
 		args = append(args, key, value)
 	}
 
-	allEnv := append(env, lm.envVars...)
-	lm.exportCmd = testutils.NewVoyagerCommandRunner(lm.sourceContainer, "export data", args, onStart, async).WithEnv(allEnv...).WithT(lm.t)
+	lm.exportCmd = testutils.NewVoyagerCommandRunner(lm.sourceContainer, "export data", args, onStart, async).WithEnv(env...).WithT(lm.t)
 	err := lm.exportCmd.Run()
 	if err != nil {
 		return goerrors.Errorf("failed to start export data: %w", err)
@@ -1524,25 +1521,6 @@ func (lm *LiveMigrationTest) GetDataMigrationReport() (*DataMigrationReport, err
 
 		return &DataMigrationReport{RowData: *rowData}, nil
 	}
-}
-
-// ============================================================
-// ENV VAR AND CALLBACK HELPERS
-// ============================================================
-
-// WithEnv sets environment variables for subsequent command launches
-func (lm *LiveMigrationTest) WithEnv(envVars ...string) {
-	lm.envVars = append(lm.envVars, envVars...)
-}
-
-// ClearEnv clears all previously set environment variables
-func (lm *LiveMigrationTest) ClearEnv() {
-	lm.envVars = nil
-}
-
-// SetExportCallback sets a callback to run concurrently after export starts
-func (lm *LiveMigrationTest) SetExportCallback(fn func()) {
-	lm.exportCallback = fn
 }
 
 // ============================================================

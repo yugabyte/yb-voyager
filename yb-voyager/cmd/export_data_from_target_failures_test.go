@@ -327,7 +327,6 @@ func TestFallForwardCDCStreamingFailureAndResume(t *testing.T) {
 
 	// --- Step 9: Resume export-data-from-target WITHOUT Byteman ---
 
-	lm.ClearEnv()
 	err = lm.StartExportDataFromTargetWithEnv(true, nil, ffExportFromTargetEnv(lm))
 	require.NoError(t, err, "Failed to start resumed export-data-from-target")
 
