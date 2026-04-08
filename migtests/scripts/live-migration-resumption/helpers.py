@@ -633,11 +633,12 @@ def build_archive_changes_cmd(ctx: Context, policy: str) -> list[str]:
 
     merged["export-dir"] = ctx.export_dir_base
     if policy == "archive":
-        archive_dir = merged.pop("move-to", None) or os.path.join(ctx.test_root, "archive-dir")
+        archive_dir = merged.pop("archive-dir", None) or os.path.join(ctx.test_root, "archive-dir")
         os.makedirs(archive_dir, exist_ok=True)
-        merged["move-to"] = archive_dir
+        merged["archive-dir"] = archive_dir
+        merged["policy"] = "archive"
     elif policy == "delete":
-        merged["delete-changes-without-archiving"] = "true"
+        merged["policy"] = "delete"
         merged["fs-utilization-threshold"] = 0
 
     return ["yb-voyager", "archive", "changes"] + to_kv_flags(merged)
@@ -686,7 +687,7 @@ def _archive_dir_for_iteration(ctx: Context) -> str:
     Iteration N: <archive-dir>/live-data-migration-iterations/live-data-migration-iteration-N/
     """
     voyager_flags = _get_voyager_flags(ctx.cfg, "archive_changes")
-    top_archive = voyager_flags.get("move-to") or os.path.join(ctx.test_root, "archive-dir")
+    top_archive = voyager_flags.get("archive-dir") or os.path.join(ctx.test_root, "archive-dir")
     if ctx.loop_iteration == 0:
         return top_archive
     return os.path.join(
