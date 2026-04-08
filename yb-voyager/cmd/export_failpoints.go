@@ -25,12 +25,12 @@ import (
 	"github.com/pingcap/failpoint"
 )
 
-// injectPgDumpSnapshotFailure simulates a snapshot failure before pg_dump.
+// injectReplicationSlotReadyPrePgDumpFailure simulates a snapshot failure before pg_dump.
 // It optionally delays (via YB_VOYAGER_PGDUMP_FAIL_DELAY_MS), writes a marker file,
 // and returns a non-nil error when the failpoint is triggered.
-func injectPgDumpSnapshotFailure() error {
+func injectReplicationSlotReadyPrePgDumpFailure() error {
 	var fpErr error
-	failpoint.Inject("pgDumpSnapshotFailure", func(val failpoint.Value) {
+	failpoint.Inject("prePgDumpAfterSlotCreationFailure", func(val failpoint.Value) {
 		if val != nil {
 			if delayMs := os.Getenv("YB_VOYAGER_PGDUMP_FAIL_DELAY_MS"); delayMs != "" {
 				if delay, err := strconv.Atoi(delayMs); err == nil && delay > 0 {

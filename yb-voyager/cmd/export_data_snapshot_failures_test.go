@@ -30,7 +30,7 @@ import (
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
-// TestSnapshotFailureAndResume verifies that live migration `export data` can resume after
+// TestPrePgDumpAfterSlotCreationFailureAndResume verifies that live migration `export data` can resume after
 // a pg_dump snapshot failure during the snapshot phase, and that `import data` correctly applies
 // all snapshot + CDC events to the target with no anomalies.
 //
@@ -51,9 +51,9 @@ import (
 // - End-to-end: import data correctly applies recovered snapshot + CDC events to the target
 //
 // Injection point:
-//   - `cmd/exportData.go` before pg_dump via failpoint `pgDumpSnapshotFailure`.
+//   - `cmd/exportData.go` before pg_dump via failpoint `prePgDumpAfterSlotCreationFailure`.
 //   - Delay controlled by `YB_VOYAGER_PGDUMP_FAIL_DELAY_MS` env var.
-func TestSnapshotFailureAndResume(t *testing.T) {
+func TestPrePgDumpAfterSlotCreationFailureAndResume(t *testing.T) {
 	ctx := context.Background()
 
 	tableName := "test_schema_snapshot_fail.cdc_snapshot_fail_test"
@@ -95,7 +95,7 @@ func TestSnapshotFailureAndResume(t *testing.T) {
 
 	// --- Phase 1: Start export with failpoint, start import alongside, let export crash ---
 	failpointEnv := testutils.GetFailpointEnvVar(
-		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/pgDumpSnapshotFailure=1*return()",
+		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/prePgDumpAfterSlotCreationFailure=1*return()",
 	)
 	err := lm.StartExportDataWithEnv(true, nil, []string{failpointEnv, "YB_VOYAGER_PGDUMP_FAIL_DELAY_MS=8000"})
 	require.NoError(t, err, "Failed to start export")

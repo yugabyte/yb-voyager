@@ -1074,7 +1074,7 @@ func createAndStoreReplicationSlotAndPublication(finalTableList []sqlname.NameTu
 		return "", fmt.Errorf("update PGReplicationSlotName: update migration status record: %w", err)
 	}
 
-	if fpErr := injectPgDumpSnapshotFailure(); fpErr != nil {
+	if fpErr := injectReplicationSlotReadyPrePgDumpFailure(); fpErr != nil {
 		return "", fpErr
 	}
 
