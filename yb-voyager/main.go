@@ -54,9 +54,11 @@ func registerSignalHandlers() {
 		sig := <-sigs
 		switch sig {
 		case syscall.SIGINT, syscall.SIGTERM:
+			cmd.ShutdownImportProgressBars()
 			utils.PrintAndLogf("\nReceived signal %s. Exiting...", sig)
 			cmd.ProcessShutdownRequested = true
 		case syscall.SIGUSR2:
+			cmd.ShutdownImportProgressBars()
 			utils.PrintAndLogf("\nReceived signal to terminate due to end migration command. Exiting...")
 			cmd.ProcessShutdownRequested = true
 		case syscall.SIGUSR1:
