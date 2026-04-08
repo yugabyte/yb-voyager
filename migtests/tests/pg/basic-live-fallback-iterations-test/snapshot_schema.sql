@@ -1,0 +1,1 @@
+../basic-public-live-test/snapshot_schema.sql
