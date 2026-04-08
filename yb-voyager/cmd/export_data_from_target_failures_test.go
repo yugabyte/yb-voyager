@@ -175,7 +175,7 @@ func TestExportFromTargetStartupFailureAndCutoverResume(t *testing.T) {
 
 	// Import processes cutover, then exec's into export-data-from-target.
 	// The exec'd process inherits GO_FAILPOINTS and crashes before setting the flag.
-	failMarkerPath := filepath.Join(lm.GetExportDir(), "logs", "failpoint-export-from-target-startup.log")
+	failMarkerPath := filepath.Join(lm.GetCurrentExportDir(), "logs", "failpoint-export-from-target-startup.log")
 	err = lm.WaitForImportFailpointAndProcessCrash(t, failMarkerPath, 120*time.Second, 60*time.Second)
 	require.NoError(t, err, "Export-from-target should crash via failpoint")
 
@@ -244,7 +244,7 @@ func TestFallForwardCDCStreamingFailureAndResume(t *testing.T) {
 	require.NoError(t, lm.SetupContainers(ctx))
 	require.NoError(t, lm.SetupSchema())
 
-	exportDir := lm.GetExportDir()
+	exportDir := lm.GetCurrentExportDir()
 
 	// --- Step 1: Start export data from PG source (no Byteman) ---
 

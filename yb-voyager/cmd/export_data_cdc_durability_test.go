@@ -61,8 +61,8 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 	tableName := "test_schema_offset_commit.cdc_offset_commit_test"
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB: ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
-		TargetDB: ContainerConfig{Type: "yugabytedb", DatabaseName: "test_offset_commit"},
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
+		TargetDB:    ContainerConfig{Type: "yugabytedb", DatabaseName: "test_offset_commit"},
 		SchemaNames: []string{"test_schema_offset_commit"},
 		SchemaSQL: []string{
 			"DROP SCHEMA IF EXISTS test_schema_offset_commit CASCADE;",
@@ -91,7 +91,7 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 	require.NoError(t, lm.SetupContainers(ctx))
 	require.NoError(t, lm.SetupSchema())
 
-	exportDir := lm.GetExportDir()
+	exportDir := lm.GetCurrentExportDir()
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper")
@@ -212,8 +212,8 @@ func TestCDCBatchFailureBeforeHandleBatchComplete(t *testing.T) {
 	tableName := "test_schema_before_batch_complete.cdc_before_batch_complete_test"
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB: ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
-		TargetDB: ContainerConfig{Type: "yugabytedb", DatabaseName: "test_batch_complete"},
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
+		TargetDB:    ContainerConfig{Type: "yugabytedb", DatabaseName: "test_batch_complete"},
 		SchemaNames: []string{"test_schema_before_batch_complete"},
 		SchemaSQL: []string{
 			"DROP SCHEMA IF EXISTS test_schema_before_batch_complete CASCADE;",
@@ -243,7 +243,7 @@ func TestCDCBatchFailureBeforeHandleBatchComplete(t *testing.T) {
 	require.NoError(t, lm.SetupContainers(ctx))
 	require.NoError(t, lm.SetupSchema())
 
-	exportDir := lm.GetExportDir()
+	exportDir := lm.GetCurrentExportDir()
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper")
@@ -333,8 +333,8 @@ func TestCDCQueueWriteFailureAndResume(t *testing.T) {
 	tableName := "test_schema_queue_write.cdc_queue_write_test"
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB: ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
-		TargetDB: ContainerConfig{Type: "yugabytedb", DatabaseName: "test_queue_write"},
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
+		TargetDB:    ContainerConfig{Type: "yugabytedb", DatabaseName: "test_queue_write"},
 		SchemaNames: []string{"test_schema_queue_write"},
 		SchemaSQL: []string{
 			"DROP SCHEMA IF EXISTS test_schema_queue_write CASCADE;",
@@ -364,7 +364,7 @@ func TestCDCQueueWriteFailureAndResume(t *testing.T) {
 	require.NoError(t, lm.SetupContainers(ctx))
 	require.NoError(t, lm.SetupSchema())
 
-	exportDir := lm.GetExportDir()
+	exportDir := lm.GetCurrentExportDir()
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper")
@@ -465,7 +465,7 @@ func TestCDCRotationMidBatchClosesSegment(t *testing.T) {
 	require.NoError(t, lm.SetupContainers(ctx))
 	require.NoError(t, lm.SetupSchema())
 
-	exportDir := lm.GetExportDir()
+	exportDir := lm.GetCurrentExportDir()
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper")

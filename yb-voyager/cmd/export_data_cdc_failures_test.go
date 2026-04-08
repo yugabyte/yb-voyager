@@ -80,8 +80,8 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 	tableName := "test_schema.cdc_test"
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB: ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
-		TargetDB: ContainerConfig{Type: "yugabytedb", DatabaseName: "test_batch_failure"},
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
+		TargetDB:    ContainerConfig{Type: "yugabytedb", DatabaseName: "test_batch_failure"},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
 			"CREATE SCHEMA IF NOT EXISTS test_schema;",
@@ -105,7 +105,7 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 	require.NoError(t, lm.SetupContainers(ctx))
 	require.NoError(t, lm.SetupSchema())
 
-	exportDir := lm.GetExportDir()
+	exportDir := lm.GetCurrentExportDir()
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper")
@@ -211,8 +211,8 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 	tableName := "test_schema.first_batch_test"
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB: ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
-		TargetDB: ContainerConfig{Type: "yugabytedb", DatabaseName: "test_first_batch"},
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
+		TargetDB:    ContainerConfig{Type: "yugabytedb", DatabaseName: "test_first_batch"},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
 			"CREATE SCHEMA IF NOT EXISTS test_schema;",
@@ -236,7 +236,7 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 	require.NoError(t, lm.SetupContainers(ctx))
 	require.NoError(t, lm.SetupSchema())
 
-	exportDir := lm.GetExportDir()
+	exportDir := lm.GetCurrentExportDir()
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper")
@@ -328,8 +328,8 @@ func TestCDCMultipleBatchFailures(t *testing.T) {
 	tableName := "test_schema_multi_fail.cdc_multi_fail_test"
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB: ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
-		TargetDB: ContainerConfig{Type: "yugabytedb", DatabaseName: "test_multi_fail"},
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
+		TargetDB:    ContainerConfig{Type: "yugabytedb", DatabaseName: "test_multi_fail"},
 		SchemaNames: []string{"test_schema_multi_fail"},
 		SchemaSQL: []string{
 			"DROP SCHEMA IF EXISTS test_schema_multi_fail CASCADE;",
@@ -354,7 +354,7 @@ func TestCDCMultipleBatchFailures(t *testing.T) {
 	require.NoError(t, lm.SetupContainers(ctx))
 	require.NoError(t, lm.SetupSchema())
 
-	exportDir := lm.GetExportDir()
+	exportDir := lm.GetCurrentExportDir()
 
 	assertRowCount := func(expected int) {
 		err := lm.WithSourceConn(func(db *sql.DB) error {
@@ -494,8 +494,8 @@ func TestCDCMultiTableBatchFailureAndResume(t *testing.T) {
 	tableB := "test_schema_multi_tbl.table_b"
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB: ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
-		TargetDB: ContainerConfig{Type: "yugabytedb", DatabaseName: "test_multi_tbl"},
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
+		TargetDB:    ContainerConfig{Type: "yugabytedb", DatabaseName: "test_multi_tbl"},
 		SchemaNames: []string{"test_schema_multi_tbl"},
 		SchemaSQL: []string{
 			"DROP SCHEMA IF EXISTS test_schema_multi_tbl CASCADE;",
@@ -527,7 +527,7 @@ func TestCDCMultiTableBatchFailureAndResume(t *testing.T) {
 	require.NoError(t, lm.SetupContainers(ctx))
 	require.NoError(t, lm.SetupSchema())
 
-	exportDir := lm.GetExportDir()
+	exportDir := lm.GetCurrentExportDir()
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper")

@@ -105,10 +105,6 @@ func NewLiveMigrationTest(t *testing.T, config *TestConfig) *LiveMigrationTest {
 	}
 }
 
-func (lm *LiveMigrationTest) GetExportDir() string {
-	return lm.exportDir
-}
-
 // SetupContainers starts source and (optionally) target and source-replica containers
 func (lm *LiveMigrationTest) SetupContainers(ctx context.Context) error {
 	lm.t.Logf("Setting up containers")
@@ -755,8 +751,12 @@ func (lm *LiveMigrationTest) ExecuteTargetDelta() error {
 	return nil
 }
 
-// GetExportDir returns the export directory path
+// GetCurrentExportDir returns the active export directory, accounting for live-migration iterations
+// when metainfo exists. Before export has created metainfo/meta.db, it returns lm.exportDir
 func (lm *LiveMigrationTest) GetCurrentExportDir() string {
+	if !utils.FileOrFolderExists(metadb.GetMetaDBPath(lm.exportDir)) {
+		return lm.exportDir
+	}
 	if lm.metaDB == nil {
 		err := lm.InitMetaDB()
 		if err != nil {
