@@ -487,18 +487,6 @@ func (lm *LiveMigrationTest) StopExportDataFromTarget() error {
 	return nil
 }
 
-func (lm *LiveMigrationTest) WaitForExportDataExit() error {
-	if lm.exportCmd == nil {
-		return goerrors.Errorf("export command not started")
-	}
-
-	// Kill Debezium process first to ensure its inherited stdout/stderr pipes
-	// are closed, otherwise Cmd.Wait() can hang indefinitely.
-	lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
-
-	return lm.exportCmd.Wait()
-}
-
 // WaitForExportDataExitTimeout waits up to 'timeout' for the async export
 // command to finish. If it doesn't exit in time (e.g. because an orphaned
 // Debezium child still holds the stdout/stderr pipes), Debezium is killed
@@ -932,7 +920,7 @@ func (lm *LiveMigrationTest) WaitForForwardStreamingComplete(expectedChanges map
 	return nil
 }
 
-// WaitForForwardStreamingComplete waits until streaming events are processed
+// WaitForFallbackStreamingComplete waits until streaming events are processed (target -> source).
 func (lm *LiveMigrationTest) WaitForFallbackStreamingComplete(expectedChanges map[string]ChangesCount, streamingTimeout time.Duration, streamingSleep time.Duration) error {
 	lm.t.Logf("Waiting for streaming complete")
 
