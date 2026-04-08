@@ -73,11 +73,10 @@ type TestConfig struct {
 	SourceReplicaDB ContainerConfig // Optional: for fall-forward tests that need a 3rd container
 
 	// Schema setup
-	SchemaNames                 []string
-	SchemaSQL                   []string // CREATE statements
-	SourceSetupSchemaSQL        []string // ALTER REPLICA IDENTITY statements
-	InitialDataSQL              []string // INSERT statements
-	SourceReplicaSetupSchemaSQL []string // Schema SQL for the source-replica container
+	SchemaNames          []string
+	SchemaSQL            []string // CREATE statements
+	SourceSetupSchemaSQL []string // ALTER REPLICA IDENTITY statements
+	InitialDataSQL       []string // INSERT statements
 
 	SourceDeltaSQL []string // I/U/D statements
 	TargetDeltaSQL []string // I/U/D statements
@@ -178,7 +177,7 @@ func (lm *LiveMigrationTest) SetupSchema() error {
 		lm.targetContainer.ExecuteSqlsOnDB(lm.config.TargetDB.DatabaseName, lm.config.SchemaSQL...)
 	}
 	if lm.sourceReplicaContainer != nil {
-		lm.sourceReplicaContainer.ExecuteSqls(lm.config.SourceReplicaSetupSchemaSQL...)
+		lm.sourceReplicaContainer.ExecuteSqls(lm.config.SchemaSQL...)
 	}
 
 	lm.sourceContainer.ExecuteSqlsOnDB(lm.config.SourceDB.DatabaseName, lm.config.InitialDataSQL...)

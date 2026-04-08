@@ -70,16 +70,15 @@ func newFFExportFailureLiveMigrationTest(t *testing.T, dbStem, tableShort string
 	initial, srcDelta, tgtDelta := ffExportFailureDeltaSQL(tableFQ, snapshotRows)
 	schemaSQL := ffExportFailureSchemaSQL(tableFQ)
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:                    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: dbStem},
-		TargetDB:                    ContainerConfig{Type: "yugabytedb", DatabaseName: dbStem + "_yb"},
-		SourceReplicaDB:             ContainerConfig{Type: "postgresql", DatabaseName: dbStem + "_replica"},
-		SchemaNames:                 []string{ffExportFailureSchema},
-		SchemaSQL:                   schemaSQL,
-		SourceReplicaSetupSchemaSQL: schemaSQL,
-		InitialDataSQL:              initial,
-		SourceDeltaSQL:              srcDelta,
-		TargetDeltaSQL:              tgtDelta,
-		CleanupSQL:                  []string{"DROP SCHEMA IF EXISTS test_schema_ff CASCADE;"},
+		SourceDB:        ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: dbStem},
+		TargetDB:        ContainerConfig{Type: "yugabytedb", DatabaseName: dbStem + "_yb"},
+		SourceReplicaDB: ContainerConfig{Type: "postgresql", DatabaseName: dbStem + "_replica"},
+		SchemaNames:     []string{ffExportFailureSchema},
+		SchemaSQL:       schemaSQL,
+		InitialDataSQL:  initial,
+		SourceDeltaSQL:  srcDelta,
+		TargetDeltaSQL:  tgtDelta,
+		CleanupSQL:      []string{"DROP SCHEMA IF EXISTS test_schema_ff CASCADE;"},
 	})
 	return lm, tableFQ
 }
