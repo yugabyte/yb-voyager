@@ -531,7 +531,9 @@ func (lm *LiveMigrationTest) WaitForImportDataExit() error {
 	lm.KillDebezium(TARGET_DB_EXPORTER_FF_ROLE)
 	lm.KillDebezium(TARGET_DB_EXPORTER_FB_ROLE)
 
-	return lm.importCmd.Wait()
+	// Import is started with async=true; a background goroutine already owns exec.Cmd.Wait.
+	// Calling Wait() again is invalid and can deadlock in os/exec pipe goroutines on CI.
+	return lm.importCmd.WaitForAsyncCompletion(5*time.Minute, 2*time.Minute)
 }
 
 // KillDebezium force-kills the Debezium Java process for the given exporter role.
