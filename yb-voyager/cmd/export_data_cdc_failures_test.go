@@ -57,7 +57,8 @@ const (
 //  2. Start `import data` concurrently (imports snapshot + streams CDC to target).
 //  3. Generate 3 CDC batches (20 events each: 10 INSERTs + 5 UPDATEs + 5 DELETEs).
 //  4. Inject failure on 2nd CDC batch via before-batch-streaming marker.
-//  5. Export crashes after batch 1 committed; batch 2 and 3 are lost.
+//  5. Export crashes after some CDC from logical batch 1 is committed (connector may split
+//     work across handleBatch calls); logical batches 2 and 3 are not fully applied.
 //  6. Resume `export data` without failure injection.
 //  7. Verify all 60 CDC events recovered with no duplicates via event_id dedup.
 //  8. Verify import consumed all CDC events and source == target row counts match.
@@ -73,7 +74,7 @@ const (
 //     triggered via before-batch-streaming marker file.
 func TestCDCBatchFailureAndResume(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
-		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
+		t.Fatal("BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
 	}
 
 	ctx := context.Background()
@@ -125,6 +126,12 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 
 	err = lm.StartImportData(true, nil)
 	require.NoError(t, err, "Failed to start import data")
+
+	//Wait for streaming to start
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		reportTableName(tableName): 100,
+	}, 120)
+	require.NoError(t, err, "Snapshot did not complete")
 
 	time.Sleep(10 * time.Second)
 
@@ -204,7 +211,7 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 
 func TestFirstCDCBatchFailure(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
-		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
+		t.Fatal("BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
 	}
 
 	ctx := context.Background()
@@ -256,6 +263,12 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 
 	err = lm.StartImportData(true, nil)
 	require.NoError(t, err, "Failed to start import data")
+
+	//Wait for streaming to start
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		reportTableName(tableName): 50,
+	}, 120)
+	require.NoError(t, err, "Snapshot did not complete")
 
 	time.Sleep(10 * time.Second)
 
@@ -322,7 +335,7 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 //     triggered via before-batch-streaming marker file.
 func TestCDCMultipleBatchFailures(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
-		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
+		t.Fatal("BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
 	}
 
 	ctx := context.Background()
@@ -486,7 +499,7 @@ func TestCDCMultipleBatchFailures(t *testing.T) {
 //   - Byteman rule on Debezium at `cdc("before-batch-streaming")` marker (2nd invocation).
 func TestCDCMultiTableBatchFailureAndResume(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
-		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
+		t.Fatal("BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
 	}
 
 	ctx := context.Background()
@@ -547,6 +560,12 @@ func TestCDCMultiTableBatchFailureAndResume(t *testing.T) {
 
 	err = lm.StartImportData(true, nil)
 	require.NoError(t, err, "Failed to start import data")
+
+	//Wait for streaming to start
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		reportTableName(tableName): 50,
+	}, 120)
+	require.NoError(t, err, "Snapshot did not complete")
 
 	time.Sleep(10 * time.Second)
 
@@ -621,7 +640,7 @@ func TestCDCMultiTableBatchFailureAndResume(t *testing.T) {
 //     firing after queue write but before offset persistence.
 func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
-		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
+		t.Fatal("BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
 	}
 
 	ctx := context.Background()
@@ -772,7 +791,7 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 //     firing after queue write but before flush/sync.
 func TestCDCBatchFailureBeforeHandleBatchComplete(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
-		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
+		t.Fatal("BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
 	}
 
 	ctx := context.Background()
@@ -893,7 +912,7 @@ func TestCDCBatchFailureBeforeHandleBatchComplete(t *testing.T) {
 //     firing on the 25th event write.
 func TestCDCQueueWriteFailureAndResume(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
-		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
+		t.Fatal("BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
 	}
 
 	ctx := context.Background()
@@ -999,7 +1018,7 @@ func TestCDCQueueWriteFailureAndResume(t *testing.T) {
 //     firing before batch commit with small segment size forcing rotation.
 func TestCDCRotationMidBatchClosesSegment(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
-		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
+		t.Fatal("BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
 	}
 
 	ctx := context.Background()
@@ -1097,7 +1116,7 @@ func TestCDCRotationMidBatchClosesSegment(t *testing.T) {
 //     firing after write but before fsync/commit with large segment size.
 func TestCDCQueueSegmentTruncationOnResume(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
-		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
+		t.Fatal("BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
 	}
 
 	ctx := context.Background()

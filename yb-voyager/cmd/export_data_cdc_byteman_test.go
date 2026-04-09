@@ -46,7 +46,7 @@ import (
 //   - Byteman rule on `YbExporterConsumer.handleBatch` entry (2nd invocation).
 func TestCDCBatchProcessingFailure(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
-		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
+		t.Fatal("BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
 	}
 	ctx := context.Background()
 
@@ -121,7 +121,7 @@ func TestCDCBatchProcessingFailure(t *testing.T) {
 //   - Byteman rule on Debezium at the `cdc("before-batch")` marker (2nd invocation).
 func TestCDCBatchProcessing_WithMarkers(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
-		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
+		t.Fatal("BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
 	}
 	ctx := context.Background()
 
