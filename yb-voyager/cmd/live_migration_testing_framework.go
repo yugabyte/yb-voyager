@@ -1029,7 +1029,11 @@ func (lm *LiveMigrationTest) WaitForFallForwardEnabled(iterationNo int, timeout 
 		if err != nil {
 			return false
 		}
-		return msr.FallForwardEnabled
+
+		// Only return true if the flag is set AND the config that
+		// the CLI expects is actually present.
+		// This is to prevent the panic in get data migration report command if FallForwardEnabled is set but SourceReplicaDBConf is not set.
+		return msr.FallForwardEnabled && msr.SourceReplicaDBConf != nil
 	})
 	if !ok {
 		return goerrors.Errorf("fall-forward was not enabled within %v seconds", timeout)

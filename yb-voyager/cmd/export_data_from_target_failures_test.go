@@ -272,7 +272,15 @@ func TestFallForwardCDCStreamingFailureAndResume(t *testing.T) {
 	err = lm.StartImportDataWithEnv(true, nil, bytemanHelper.GetEnv())
 	require.NoError(t, err, "Failed to start import data")
 
-	// --- Step 4: Wait for snapshot, then forward CDC ---
+	// --- Step 4: Start import data to source-replica (sets FallForwardEnabled) ---
+
+	err = lm.StartImportDataToSourceReplica(true, nil)
+	require.NoError(t, err, "Failed to start import data to source-replica")
+
+	err = lm.WaitForFallForwardEnabled(0, ffExportFailureWaitFallForward)
+	require.NoError(t, err, "FallForwardEnabled should be set by import-to-source-replica")
+
+	// --- Step 5: Wait for snapshot, then forward CDC ---
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		testutils.ReportTableName(tableName): ffExportFailureSnapshotRows,
@@ -285,14 +293,6 @@ func TestFallForwardCDCStreamingFailureAndResume(t *testing.T) {
 		testutils.ReportTableName(tableName): {Inserts: ffExportFailureForwardInserts},
 	}, 120, 3)
 	require.NoError(t, err, "forward streaming did not complete")
-
-	// --- Step 5: Start import data to source-replica (sets FallForwardEnabled) ---
-
-	err = lm.StartImportDataToSourceReplica(true, nil)
-	require.NoError(t, err, "Failed to start import data to source-replica")
-
-	err = lm.WaitForFallForwardEnabled(0, ffExportFailureWaitFallForward)
-	require.NoError(t, err, "FallForwardEnabled should be set by import-to-source-replica")
 
 	// --- Step 6: Initiate cutover to target ---
 
