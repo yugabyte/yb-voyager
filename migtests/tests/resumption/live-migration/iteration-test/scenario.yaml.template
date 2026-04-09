@@ -139,12 +139,12 @@ stages:
   - name: loop_start
     action: loop_start
 
-  - name: stop_forward_exporter
+  - name: stop_prev_iteration_exporter
     action: stop_external_process
     process: export_data
     graceful_timeout_sec: 60
 
-  - name: stop_forward_importer
+  - name: stop_prev_iteration_importer
     action: stop_external_process
     process: import_data
     graceful_timeout_sec: 60
@@ -216,10 +216,6 @@ stages:
     command: import_data
     timeout_sec: 30
 
-  - name: wait_for_archiver
-    action: sleep
-    seconds: 180
-
   - name: validate_archive_changes
     action: validate_archive_changes
 
@@ -231,12 +227,12 @@ stages:
     condition: cutover_to_target_status_completed
     timeout_sec: 900
 
-  - name: stop_forward_exporter
+  - name: stop_forward_exporter_for_fallback
     action: stop_external_process
     process: export_data
     graceful_timeout_sec: 60
 
-  - name: stop_forward_importer
+  - name: stop_forward_importer_for_fallback
     action: stop_external_process
     process: import_data
     graceful_timeout_sec: 60
@@ -310,10 +306,6 @@ stages:
     command: import_to_source
     timeout_sec: 60
 
-  - name: wait_for_archiver
-    action: sleep
-    seconds: 180
-
   - name: validate_archive_changes
     action: validate_archive_changes
 
@@ -325,10 +317,6 @@ stages:
     condition: cutover_to_source_status_completed
     timeout_sec: 900
 
-  - name: wait_for_archiver
-    action: sleep
-    seconds: 240
-
   - name: validate_archive_changes
     action: validate_archive_changes
     check_post_cutover_to_source: True
@@ -338,15 +326,6 @@ stages:
 
   - name: row_hash_validations
     action: row_hash_validations
-
-  - name: cleanup_source
-    action: run_sql
-    sql_path: ./cleanup.sql
-
-  - name: cleanup_target
-    action: run_sql
-    target: target
-    sql_path: ./cleanup.sql
 
   - name: loop_end
     action: loop_end

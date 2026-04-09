@@ -189,7 +189,7 @@ def validate_scenario(cfg: Dict[str, Any]) -> None:
         action = _ensure(st, "action", str, sctx)
         if action == "wait_for":
             _ensure(st, "condition", str, sctx)
-        if action == "stop_process":
+        if action == "stop_external_process":
             _ensure(st, "process", str, sctx)
 
 # -------------------------
