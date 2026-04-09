@@ -94,6 +94,7 @@ func NewTestContainer(dbType string, containerConfig *ContainerConfig) TestConta
 	containerName := containerConfig.buildContainerName(dbType)
 	if container, exists := containerRegistry[containerName]; exists {
 		log.Infof("container '%s' already exists in the registry", containerName)
+		container.SetConfig(*containerConfig)
 		return container
 	}
 

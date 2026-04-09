@@ -11,33 +11,63 @@ jobs:
     uses: ./.github/workflows/prepare-versions.yml
 
   failpoint-tests:
-    name: Failpoint Tests
+    name: "Failpoint: ${{ matrix.group_name }}"
     needs: [prepare-versions]
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
-    
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tag: failpoint_export
+            group_name: "Export"
+          - tag: failpoint_import
+            group_name: "Import"
+          - tag: failpoint_cutover
+            group_name: "Cutover"
+
     env:
       YB_VOYAGER_SEND_DIAGNOSTICS: 0
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: "temurin"
           java-version: ${{ needs.prepare-versions.outputs.java_version }}
           check-latest: true
-      
+
       - name: Install Byteman
         run: |
           BYTEMAN_VERSION="4.0.22"
           cd /tmp
-          wget -q https://downloads.jboss.org/byteman/${BYTEMAN_VERSION}/byteman-download-${BYTEMAN_VERSION}-bin.zip
-          unzip -q byteman-download-${BYTEMAN_VERSION}-bin.zip
-          echo "BYTEMAN_JAR=/tmp/byteman-download-${BYTEMAN_VERSION}/lib/byteman.jar" >> $GITHUB_ENV
-      
+          
+          # Corrected Maven Central URL (includes -download)
+          MAVEN_URL="https://repo1.maven.org/maven2/org/jboss/byteman/byteman-download/${BYTEMAN_VERSION}/byteman-download-${BYTEMAN_VERSION}-bin.zip"
+          # Backup URL from GitHub (very reliable)
+          GITHUB_URL="https://github.com/bytemanproject/byteman/releases/download/v${BYTEMAN_VERSION}/byteman-download-${BYTEMAN_VERSION}-bin.zip"
+          
+          echo "Attempting to download Byteman..."
+          
+          # Try Maven first, fallback to GitHub if it fails
+          wget --tries=3 --waitretry=2 -O byteman.zip "$MAVEN_URL" || \
+          wget --tries=3 --waitretry=2 -O byteman.zip "$GITHUB_URL"
+          
+          if [ ! -s byteman.zip ]; then
+            echo "::error::All download sources failed!"
+            exit 1
+          fi
+
+          unzip -q byteman.zip
+          
+          # This handles both naming conventions (byteman-4.0.22 or byteman-download-4.0.22)
+          DIR_NAME=$(ls -d byteman* | head -n 1)
+          echo "BYTEMAN_JAR=/tmp/${DIR_NAME}/lib/byteman.jar" >> $GITHUB_ENV
+          echo "Byteman installed at /tmp/${DIR_NAME}"
+
       - name: Cache local Maven repository
         uses: actions/cache@v4
         with:
@@ -45,20 +75,21 @@ jobs:
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             ${{ runner.os }}-maven-
-      
+
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
           go-version: ${{ needs.prepare-versions.outputs.go_version }}
-      
+
       - name: Install failpoint-ctl
-        run: go install github.com/pingcap/failpoint/failpoint-ctl@latest
-      
+        run: |
+          go install github.com/pingcap/failpoint/failpoint-ctl@latest
+
       - name: Enable failpoint code generation
         run: |
           cd yb-voyager
           failpoint-ctl enable
-      
+
       - name: Run installer script to setup voyager and dependencies
         run: |
           cd installer_scripts
@@ -72,7 +103,7 @@ jobs:
           psql --version
         env:
           ON_INSTALLER_ERROR_OUTPUT_LOG: Y
-      
+
       - name: Free disk space
         run: |
           df -h /
@@ -83,15 +114,15 @@ jobs:
       
       - name: Set up gotestfmt
         uses: GoTestTools/gotestfmt-action@v2
-
-      - name: Run failpoint tests
+  
+      - name: Run failpoint tests (${{ matrix.group_name }})
         env:
           YB_VERSION: ${{ needs.prepare-versions.outputs.yb_latest_stable }}
           PG_VERSION: "14"
         run: |
           set -euo pipefail
           cd yb-voyager
-          go test -json -v -tags=failpoint ./cmd --parallel 4 -timeout 30m 2>/tmp/gotest-stderr.log | tee /tmp/gotest.log | gotestfmt
+          go test -json -v -tags=${{ matrix.tag }} ./cmd --parallel 4 -timeout 30m 2>/tmp/gotest-stderr.log | tee /tmp/gotest.log | gotestfmt
           if [ -s /tmp/gotest-stderr.log ]; then
             echo "::group::stderr output (docker/testcontainer logs)"
             cat /tmp/gotest-stderr.log

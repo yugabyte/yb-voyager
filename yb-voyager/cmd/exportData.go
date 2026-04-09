@@ -1073,6 +1073,11 @@ func createAndStoreReplicationSlotAndPublication(finalTableList []sqlname.NameTu
 	if err != nil {
 		return "", fmt.Errorf("update PGReplicationSlotName: update migration status record: %w", err)
 	}
+
+	if fpErr := injectReplicationSlotReadyPrePgDumpFailure(); fpErr != nil {
+		return "", fpErr
+	}
+
 	return res.SnapshotName, nil
 }
 func getSequenceInitialValues() (*utils.StructMap[sqlname.NameTuple, int64], error) {

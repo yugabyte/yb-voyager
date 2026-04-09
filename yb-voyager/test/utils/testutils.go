@@ -529,6 +529,18 @@ func CompareRowCount(ctx context.Context, srcDB *sql.DB, tgtDB *sql.DB, tableNam
 	return nil
 }
 
+func AssertRowCount(ctx context.Context, db *sql.DB, tableName string, expected int) error {
+	var count int
+	err := db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName)).Scan(&count)
+	if err != nil {
+		return fmt.Errorf("counting rows in table %s: %w", tableName, err)
+	}
+	if count != expected {
+		return fmt.Errorf("row count mismatch for table %s: expected %d, got %d", tableName, expected, count)
+	}
+	return nil
+}
+
 // scanRow reads the current row from rows, returning a slice of interface{} for each column.
 func scanRow(rows *sql.Rows, colCount int) ([]interface{}, error) {
 	values := make([]interface{}, colCount)   // holds the values for each column

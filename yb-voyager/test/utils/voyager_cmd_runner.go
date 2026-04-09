@@ -299,6 +299,35 @@ func (v *VoyagerCommandRunner) IsStopped() bool {
 		return false
 	}
 }
+
+// WaitForAsyncCompletion blocks until a command started with Run(async=true) finishes.
+// The returned error matches what a single Wait() would return (including command footer logging).
+//
+// Do not call Wait() on the same runner for an async command: exec.Cmd allows only one Wait,
+// and the async Run path already invokes Wait in a background goroutine. A second Wait can
+// hang indefinitely in pipe I/O waiters (awaitGoroutines), especially under slow CI logging.
+//
+// If primaryTimeout elapses first, the child process is SIGKILLed and this function waits up
+// to afterKillTimeout more for the internal Wait to complete.
+func (v *VoyagerCommandRunner) WaitForAsyncCompletion(primaryTimeout, afterKillTimeout time.Duration) error {
+	if v.stopChan == nil {
+		return fmt.Errorf("WaitForAsyncCompletion: %q was not started with async=true", v.CmdName)
+	}
+	select {
+	case err := <-v.stopChan:
+		return err
+	case <-time.After(primaryTimeout):
+		log.Debugf("WaitForAsyncCompletion: timeout waiting for %s, sending SIGKILL", v.CmdName)
+		_ = v.Kill()
+		select {
+		case err := <-v.stopChan:
+			return err
+		case <-time.After(afterKillTimeout):
+			return fmt.Errorf("WaitForAsyncCompletion: %q did not complete within %v after SIGKILL (internal Wait may be stuck)", v.CmdName, afterKillTimeout)
+		}
+	}
+}
+
 func (v *VoyagerCommandRunner) Wait() error {
 	err := v.Cmd.Wait()
 	if v.logWriter != nil {
