@@ -216,6 +216,10 @@ stages:
     command: import_data
     timeout_sec: 30
 
+  - name: wait_for_archiver
+    action: sleep
+    seconds: 180
+
   - name: validate_archive_changes
     action: validate_archive_changes
 
@@ -306,6 +310,10 @@ stages:
     command: import_to_source
     timeout_sec: 60
 
+  - name: wait_for_archiver
+    action: sleep
+    seconds: 180
+
   - name: validate_archive_changes
     action: validate_archive_changes
 
@@ -317,6 +325,10 @@ stages:
     condition: cutover_to_source_status_completed
     timeout_sec: 900
 
+  - name: wait_for_archiver
+    action: sleep
+    seconds: 240
+
   - name: validate_archive_changes
     action: validate_archive_changes
     check_post_cutover_to_source: True
@@ -326,6 +338,15 @@ stages:
 
   - name: row_hash_validations
     action: row_hash_validations
+
+  - name: cleanup_source
+    action: run_sql
+    sql_path: ./cleanup.sql
+
+  - name: cleanup_target
+    action: run_sql
+    target: target
+    sql_path: ./cleanup.sql
 
   - name: loop_end
     action: loop_end
