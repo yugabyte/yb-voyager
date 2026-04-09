@@ -1104,7 +1104,7 @@ func TestCDCRotationMidBatchClosesSegment(t *testing.T) {
 		require.True(t, closed, "Segment should be closed with EOF marker")
 	}
 
-	closed, err = testutils.IsQueueSegmentClosed(highestSegmentPath)
+	closed, err := testutils.IsQueueSegmentClosed(highestSegmentPath)
 	require.NoError(t, err, "Failed to check queue segment EOF marker")
 	require.False(t, closed, "Last rotated queue segment should be closed with EOF marker")
 
