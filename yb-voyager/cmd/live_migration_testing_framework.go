@@ -18,7 +18,6 @@ limitations under the License.
 package cmd
 
 import (
-	"bufio"
 	"context"
 	"database/sql"
 	"fmt"
@@ -1543,56 +1542,12 @@ func (lm *LiveMigrationTest) WaitForStreamingMode(timeout time.Duration, pollInt
 	return goerrors.Errorf("timed out waiting for streaming mode")
 }
 
-func countEventsInQueueSegments(exportDir string) (int, error) {
-	queueDir := filepath.Join(exportDir, "data", "queue")
-	entries, err := os.ReadDir(queueDir)
-	if err != nil {
-		return 0, err
-	}
-
-	totalEvents := 0
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		if strings.HasPrefix(entry.Name(), "segment.") && strings.HasSuffix(entry.Name(), ".ndjson") {
-			filePath := filepath.Join(queueDir, entry.Name())
-			count, err := countEventsInFile(filePath)
-			if err != nil {
-				return 0, err
-			}
-			totalEvents += count
-		}
-	}
-
-	return totalEvents, nil
-}
-
-func countEventsInFile(filePath string) (int, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return 0, err
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	count := 0
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || line == `\.` {
-			continue
-		}
-		count++
-	}
-	return count, scanner.Err()
-}
-
 // WaitForCDCEventCount polls queue segments until the expected number of CDC events appear.
 func (lm *LiveMigrationTest) WaitForCDCEventCount(t *testing.T, expected int, timeout time.Duration, pollInterval time.Duration) int {
 	t.Helper()
 	var lastCount int
 	require.Eventually(t, func() bool {
-		count, err := countEventsInQueueSegments(lm.exportDir)
+		count, err := testutils.CountEventsInQueueSegments(lm.exportDir)
 		if err != nil {
 			t.Logf("Failed to count CDC events yet: %v", err)
 			return false

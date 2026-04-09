@@ -1,6 +1,21 @@
 //go:build failpoint_export || failpoint_import || failpoint_cutover
 
-package cmd
+/*
+Copyright (c) YugabyteDB, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+package testutils
 
 import (
 	"bufio"
@@ -22,13 +37,13 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 )
 
-func verifyNoEventIDDuplicates(t *testing.T, exportDir string) {
+func VerifyNoEventIDDuplicates(t *testing.T, exportDir string) {
 	t.Helper()
 
 	_, _ = verifyNoEventIDDuplicatesInternal(t, exportDir, true)
 }
 
-func verifyNoEventIDDuplicatesAfterFailure(t *testing.T, exportDir string) (int, int) {
+func VerifyNoEventIDDuplicatesAfterFailure(t *testing.T, exportDir string) (int, int) {
 	t.Helper()
 	return verifyNoEventIDDuplicatesInternal(t, exportDir, false)
 }
@@ -106,7 +121,7 @@ func verifyNoEventIDDuplicatesInternal(t *testing.T, exportDir string, failOnErr
 	return parseErrors, missingEventID
 }
 
-func hashSnapshotDescriptor(exportDir string) (string, error) {
+func HashSnapshotDescriptor(exportDir string) (string, error) {
 	descriptorPath := filepath.Join(exportDir, datafile.DESCRIPTOR_PATH)
 	data, err := os.ReadFile(descriptorPath)
 	if err != nil {
@@ -115,7 +130,7 @@ func hashSnapshotDescriptor(exportDir string) (string, error) {
 	return fmt.Sprintf("%x", sha256.Sum256(data)), nil
 }
 
-func getSnapshotRowCountForTable(exportDir string, tableName string) (int64, error) {
+func GetSnapshotRowCountForTable(exportDir string, tableName string) (int64, error) {
 	descriptor := datafile.OpenDescriptor(exportDir)
 	if descriptor == nil || descriptor.DataFileList == nil {
 		return 0, goerrors.Errorf("data file descriptor not found")
@@ -129,7 +144,7 @@ func getSnapshotRowCountForTable(exportDir string, tableName string) (int64, err
 	return total, nil
 }
 
-func collectEventIDsForOffsetCommitTest(exportDir string) (map[string]struct{}, error) {
+func CollectEventIDsForOffsetCommitTest(exportDir string) (map[string]struct{}, error) {
 	queueDir := filepath.Join(exportDir, "data", "queue")
 	files, err := filepath.Glob(filepath.Join(queueDir, "segment.*.ndjson"))
 	if err != nil {
@@ -175,8 +190,8 @@ func collectEventIDsForOffsetCommitTest(exportDir string) (map[string]struct{}, 
 	return eventIDs, nil
 }
 
-func readOffsetFileChecksum(exportDir string) string {
-	offsetPath := filepath.Join(exportDir, "data", fmt.Sprintf("offsets.%s.dat", SOURCE_DB_EXPORTER_ROLE))
+func ReadOffsetFileChecksum(exportDir string, exporterRole string) string {
+	offsetPath := filepath.Join(exportDir, "data", fmt.Sprintf("offsets.%s.dat", exporterRole))
 	data, err := os.ReadFile(offsetPath)
 	if err != nil {
 		return ""
@@ -184,8 +199,8 @@ func readOffsetFileChecksum(exportDir string) string {
 	return fmt.Sprintf("%x", sha256.Sum256(data))
 }
 
-func readOffsetFileContents(exportDir string) string {
-	offsetPath := filepath.Join(exportDir, "data", fmt.Sprintf("offsets.%s.dat", SOURCE_DB_EXPORTER_ROLE))
+func ReadOffsetFileContents(exportDir string, exporterRole string) string {
+	offsetPath := filepath.Join(exportDir, "data", fmt.Sprintf("offsets.%s.dat", exporterRole))
 	data, err := os.ReadFile(offsetPath)
 	if err != nil {
 		return ""
@@ -193,7 +208,7 @@ func readOffsetFileContents(exportDir string) string {
 	return string(data)
 }
 
-func countDedupSkipLogs(exportDir string) (int, error) {
+func CountDedupSkipLogs(exportDir string) (int, error) {
 	logPattern := filepath.Join(exportDir, "logs", "debezium-*.log")
 	matches, err := filepath.Glob(logPattern)
 	if err != nil {
@@ -223,7 +238,7 @@ func countDedupSkipLogs(exportDir string) (int, error) {
 	return count, nil
 }
 
-func waitForTruncationLog(exportDir string, timeout time.Duration) (bool, error) {
+func WaitForTruncationLog(exportDir string, timeout time.Duration) (bool, error) {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		matched, err := checkTruncationLog(exportDir)
@@ -251,9 +266,9 @@ func checkTruncationLog(exportDir string) (bool, error) {
 	return strings.Contains(string(data), "Truncating queue segment"), nil
 }
 
-// parseTruncationTargetSize extracts the "to size N" value from the Debezium truncation log.
+// ParseTruncationTargetSize extracts the "to size N" value from the Debezium truncation log.
 // The log format is: "Truncating queue segment <num> at path <path> to size <size>"
-func parseTruncationTargetSize(exportDir string) (int64, error) {
+func ParseTruncationTargetSize(exportDir string) (int64, error) {
 	logPattern := filepath.Join(exportDir, "logs", "debezium-*.log")
 	matches, err := filepath.Glob(logPattern)
 	if err != nil {
@@ -274,11 +289,11 @@ func parseTruncationTargetSize(exportDir string) (int64, error) {
 	return strconv.ParseInt(m[1], 10, 64)
 }
 
-func assertEventCountDoesNotExceed(t *testing.T, exportDir string, max int, timeout, pollInterval time.Duration) {
+func AssertEventCountDoesNotExceed(t *testing.T, exportDir string, max int, timeout, pollInterval time.Duration) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		count, err := countEventsInQueueSegments(exportDir)
+		count, err := CountEventsInQueueSegments(exportDir)
 		require.NoError(t, err, "Failed to count events while checking upper bound")
 		if count > max {
 			require.Fail(t, "Event count exceeded expected max", "count=%d max=%d", count, max)
@@ -287,12 +302,12 @@ func assertEventCountDoesNotExceed(t *testing.T, exportDir string, max int, time
 	}
 }
 
-func listQueueSegmentFiles(exportDir string) ([]string, error) {
+func ListQueueSegmentFiles(exportDir string) ([]string, error) {
 	queueDir := filepath.Join(exportDir, "data", "queue")
 	return filepath.Glob(filepath.Join(queueDir, "segment.*.ndjson"))
 }
 
-func parseQueueSegmentNum(filePath string) (int64, error) {
+func ParseQueueSegmentNum(filePath string) (int64, error) {
 	base := filepath.Base(filePath)
 	parts := strings.Split(base, ".")
 	if len(parts) != 3 {
@@ -305,11 +320,11 @@ func parseQueueSegmentNum(filePath string) (int64, error) {
 	return segmentNum, nil
 }
 
-func findSegmentNumRange(segmentFiles []string) (lowestPath string, lowestNum, highestNum int64, err error) {
+func FindSegmentNumRange(segmentFiles []string) (lowestPath string, lowestNum, highestNum int64, err error) {
 	lowestNum = -1
 	highestNum = -1
 	for _, path := range segmentFiles {
-		num, parseErr := parseQueueSegmentNum(path)
+		num, parseErr := ParseQueueSegmentNum(path)
 		if parseErr != nil {
 			return "", -1, -1, parseErr
 		}
@@ -324,7 +339,7 @@ func findSegmentNumRange(segmentFiles []string) (lowestPath string, lowestNum, h
 	return lowestPath, lowestNum, highestNum, nil
 }
 
-func isQueueSegmentClosed(filePath string) (bool, error) {
+func IsQueueSegmentClosed(filePath string) (bool, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return false, err
@@ -346,7 +361,7 @@ func isQueueSegmentClosed(filePath string) (bool, error) {
 	return lastNonEmpty == `\.`, nil
 }
 
-func getQueueSegmentFileSize(filePath string) (int64, error) {
+func GetQueueSegmentFileSize(filePath string) (int64, error) {
 	info, err := os.Stat(filePath)
 	if err != nil {
 		return 0, err
@@ -354,7 +369,7 @@ func getQueueSegmentFileSize(filePath string) (int64, error) {
 	return info.Size(), nil
 }
 
-func getQueueSegmentCommittedSize(exportDir string, segmentNum int64) (int64, error) {
+func GetQueueSegmentCommittedSize(exportDir string, segmentNum int64) (int64, error) {
 	metaDB, err := metadb.NewMetaDB(exportDir)
 	if err != nil {
 		return -1, err
@@ -362,9 +377,9 @@ func getQueueSegmentCommittedSize(exportDir string, segmentNum int64) (int64, er
 	return metaDB.GetLastValidOffsetInSegmentFile(segmentNum)
 }
 
-// reportTableName converts a dot-separated table name (e.g. "schema.table") to the
+// ReportTableName converts a dot-separated table name (e.g. "schema.table") to the
 // quoted format used in the data-migration-report JSON (e.g. `"schema"."table"`).
-func reportTableName(dotNotation string) string {
+func ReportTableName(dotNotation string) string {
 	parts := strings.SplitN(dotNotation, ".", 2)
 	if len(parts) == 2 {
 		return fmt.Sprintf(`"%s"."%s"`, parts[0], parts[1])

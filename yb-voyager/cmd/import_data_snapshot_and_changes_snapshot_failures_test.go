@@ -160,7 +160,7 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 	defer lm.StopImportData()
 
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		reportTableName(tableName): {Inserts: 3, Updates: 2, Deletes: 1},
+		testutils.ReportTableName(tableName): {Inserts: 3, Updates: 2, Deletes: 1},
 	}, 120, 5)
 	require.NoError(t, err, "Migration report did not match expected CDC counts")
 
@@ -297,7 +297,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	defer lm.StopImportData()
 
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		reportTableName(tableName): {Inserts: 3, Updates: 2, Deletes: 1},
+		testutils.ReportTableName(tableName): {Inserts: 3, Updates: 2, Deletes: 1},
 	}, 120, 5)
 	require.NoError(t, err, "Migration report did not match expected CDC counts")
 

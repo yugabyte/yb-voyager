@@ -169,7 +169,7 @@ func TestImportCDCTransformFailureAndResume(t *testing.T) {
 	defer lm.StopImportData()
 
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		reportTableName(tableName): {Inserts: 200, Updates: 200, Deletes: 100},
+		testutils.ReportTableName(tableName): {Inserts: 200, Updates: 200, Deletes: 100},
 	}, 120, 5)
 	require.NoError(t, err, "Migration report did not match expected CDC counts")
 
@@ -309,7 +309,7 @@ func TestImportCDCDbErrorAndResume(t *testing.T) {
 	defer lm.StopImportData()
 
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		reportTableName(tableName): {Inserts: 200, Updates: 200, Deletes: 100},
+		testutils.ReportTableName(tableName): {Inserts: 200, Updates: 200, Deletes: 100},
 	}, 120, 5)
 	require.NoError(t, err, "Migration report did not match expected CDC counts")
 
@@ -449,7 +449,7 @@ func TestImportCDCEventExecutionFailureAndResume(t *testing.T) {
 	defer lm.StopImportData()
 
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		reportTableName(tableName): {Inserts: 120, Updates: 0, Deletes: 0},
+		testutils.ReportTableName(tableName): {Inserts: 120, Updates: 0, Deletes: 0},
 	}, 120, 5)
 	require.NoError(t, err, "Migration report did not match expected CDC counts")
 
@@ -560,7 +560,7 @@ func TestImportCDCRetryableDbErrorThenSucceed(t *testing.T) {
 
 	// --- Phase 3: Verify target matches source (no resume needed) ---
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		reportTableName(tableName): {Inserts: 120, Updates: 0, Deletes: 0},
+		testutils.ReportTableName(tableName): {Inserts: 120, Updates: 0, Deletes: 0},
 	}, 120, 5)
 	require.NoError(t, err, "Migration report did not match expected CDC counts")
 
@@ -678,13 +678,13 @@ func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 		if rerr != nil {
 			return false
 		}
-		imported, exported := getReportCDCCounts(report, reportTableName(tableName))
+		imported, exported := getReportCDCCounts(report, testutils.ReportTableName(tableName))
 		return exported > 0 && imported >= exported
 	}, 120*time.Second, 2*time.Second, "Expected imported CDC events to catch up to exported events after retryable-after-commit error")
 	t.Log("Verified CDC events caught up after retryable-after-commit error")
 
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		reportTableName(tableName): {Inserts: 60, Updates: 0, Deletes: 0},
+		testutils.ReportTableName(tableName): {Inserts: 60, Updates: 0, Deletes: 0},
 	}, 120, 5)
 	require.NoError(t, err, "Migration report did not match expected CDC counts")
 
@@ -888,7 +888,7 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 	defer lm.StopImportData()
 
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		reportTableName(tableName): {
+		testutils.ReportTableName(tableName): {
 			Inserts: int64(numChans * eventsPerChan),
 			Updates: int64(numChans * updatesPerChan),
 			Deletes: int64(numChans * deletesPerChan),
@@ -916,7 +916,7 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 
 // getReportCDCCounts extracts the total imported and exported CDC event counts for a
 // table from a DataMigrationReport. The tableName must be in the quoted format
-// returned by reportTableName().
+// returned by testutils.ReportTableName().
 func getReportCDCCounts(report *DataMigrationReport, tableName string) (imported, exported int64) {
 	for _, row := range report.RowData {
 		if row.TableName != tableName {

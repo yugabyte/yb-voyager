@@ -124,7 +124,7 @@ func TestPrePgDumpAfterSlotCreationFailureAndResume(t *testing.T) {
 	require.NoError(t, lm.WaitForStreamingMode(2*time.Minute, 2*time.Second),
 		"Export should reach streaming mode after resume")
 
-	snapshotRowCount, err := getSnapshotRowCountForTable(lm.GetCurrentExportDir(), "cdc_snapshot_fail_test")
+	snapshotRowCount, err := testutils.GetSnapshotRowCountForTable(lm.GetCurrentExportDir(), "cdc_snapshot_fail_test")
 	require.NoError(t, err, "Failed to get snapshot row count from descriptor")
 	require.Equal(t, int64(120), snapshotRowCount, "Snapshot should include initial rows + rows inserted before resume")
 
@@ -133,11 +133,11 @@ func TestPrePgDumpAfterSlotCreationFailureAndResume(t *testing.T) {
 	cdcEventCount := lm.WaitForCDCEventCount(t, 10, 60*time.Second, 2*time.Second)
 	require.Equal(t, 10, cdcEventCount, "Expected 10 CDC events after resume")
 
-	verifyNoEventIDDuplicates(t, lm.GetCurrentExportDir())
+	testutils.VerifyNoEventIDDuplicates(t, lm.GetCurrentExportDir())
 
 	// Validate: import should have snapshot + all CDC events, matching source
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		reportTableName(tableName): {Inserts: 10},
+		testutils.ReportTableName(tableName): {Inserts: 10},
 	}, 120, 5)
 	require.NoError(t, err, "Forward streaming did not complete")
 
@@ -225,11 +225,11 @@ func TestSnapshotToCDCTransitionFailure(t *testing.T) {
 	// --- Phase 2: Verify state after failure ---
 	time.Sleep(3 * time.Second)
 
-	eventCountAfterFailure, err := countEventsInQueueSegments(lm.GetCurrentExportDir())
+	eventCountAfterFailure, err := testutils.CountEventsInQueueSegments(lm.GetCurrentExportDir())
 	require.NoError(t, err, "Should be able to count CDC events after failure")
 	require.Equal(t, 0, eventCountAfterFailure, "Expected 0 CDC events before resume")
 
-	descriptorHashBefore, err := hashSnapshotDescriptor(lm.GetCurrentExportDir())
+	descriptorHashBefore, err := testutils.HashSnapshotDescriptor(lm.GetCurrentExportDir())
 	require.NoError(t, err, "Should be able to hash snapshot descriptor before resume")
 
 	// --- Phase 3: Resume export without failpoint, generate CDC events ---
@@ -244,15 +244,15 @@ func TestSnapshotToCDCTransitionFailure(t *testing.T) {
 	finalEventCount := lm.WaitForCDCEventCount(t, 20, 60*time.Second, 2*time.Second)
 	require.Equal(t, 20, finalEventCount, "Expected 20 CDC events after recovery")
 
-	verifyNoEventIDDuplicates(t, lm.GetCurrentExportDir())
+	testutils.VerifyNoEventIDDuplicates(t, lm.GetCurrentExportDir())
 
-	descriptorHashAfter, err := hashSnapshotDescriptor(lm.GetCurrentExportDir())
+	descriptorHashAfter, err := testutils.HashSnapshotDescriptor(lm.GetCurrentExportDir())
 	require.NoError(t, err, "Should be able to hash snapshot descriptor after resume")
 	require.Equal(t, descriptorHashBefore, descriptorHashAfter, "Snapshot descriptor should not change after resume")
 
 	// Validate: import (started alongside run 1) should have snapshot + all CDC events
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		reportTableName(tableName): {Inserts: 20},
+		testutils.ReportTableName(tableName): {Inserts: 20},
 	}, 120, 5)
 	require.NoError(t, err, "Forward streaming did not complete")
 

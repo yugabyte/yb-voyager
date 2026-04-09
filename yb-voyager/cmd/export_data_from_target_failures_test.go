@@ -143,14 +143,14 @@ func TestExportFromTargetStartupFailureAndCutoverResume(t *testing.T) {
 	// --- Wait for snapshot, then forward CDC ---
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		reportTableName(tableName): ffExportFailureSnapshotRows,
+		testutils.ReportTableName(tableName): ffExportFailureSnapshotRows,
 	}, ffExportFailureWaitCutover)
 	require.NoError(t, err, "snapshot phase did not complete")
 
 	lm.ExecuteSourceDelta()
 
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		reportTableName(tableName): {Inserts: ffExportFailureForwardInserts},
+		testutils.ReportTableName(tableName): {Inserts: ffExportFailureForwardInserts},
 	}, 60, 3)
 	require.NoError(t, err, "forward streaming did not complete")
 
@@ -275,14 +275,14 @@ func TestFallForwardCDCStreamingFailureAndResume(t *testing.T) {
 	// --- Step 4: Wait for snapshot, then forward CDC ---
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		reportTableName(tableName): ffExportFailureSnapshotRows,
+		testutils.ReportTableName(tableName): ffExportFailureSnapshotRows,
 	}, 240)
 	require.NoError(t, err, "snapshot phase did not complete")
 
 	lm.ExecuteSourceDelta()
 
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		reportTableName(tableName): {Inserts: ffExportFailureForwardInserts},
+		testutils.ReportTableName(tableName): {Inserts: ffExportFailureForwardInserts},
 	}, 120, 3)
 	require.NoError(t, err, "forward streaming did not complete")
 

@@ -162,11 +162,11 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 
 	time.Sleep(3 * time.Second)
 
-	eventCountAfterFailure, err := countEventsInQueueSegments(exportDir)
+	eventCountAfterFailure, err := testutils.CountEventsInQueueSegments(exportDir)
 	require.NoError(t, err, "Should be able to count CDC events after failure")
 	require.Equal(t, 20, eventCountAfterFailure, "Should have exactly 20 events (batch 1) before failure")
 
-	verifyNoEventIDDuplicates(t, exportDir)
+	testutils.VerifyNoEventIDDuplicates(t, exportDir)
 
 	// Run 2: resume export without Byteman
 	err = lm.StartExportData(true, nil)
@@ -175,11 +175,11 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 	finalEventCount := lm.WaitForCDCEventCount(t, 60, 120*time.Second, 5*time.Second)
 	require.Equal(t, 60, finalEventCount, "Expected 60 CDC events after resume")
 
-	verifyNoEventIDDuplicates(t, exportDir)
+	testutils.VerifyNoEventIDDuplicates(t, exportDir)
 
 	// Validate: import (started alongside run 1) should have snapshot + all CDC events
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		reportTableName(tableName): {Inserts: 30, Updates: 15, Deletes: 15},
+		testutils.ReportTableName(tableName): {Inserts: 30, Updates: 15, Deletes: 15},
 	}, 120, 5)
 	require.NoError(t, err, "Forward streaming did not complete")
 
@@ -291,7 +291,7 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 
 	time.Sleep(3 * time.Second)
 
-	eventCount1, err := countEventsInQueueSegments(exportDir)
+	eventCount1, err := testutils.CountEventsInQueueSegments(exportDir)
 	require.NoError(t, err, "Should be able to count events after first export")
 	require.Equal(t, 0, eventCount1, "Should have 0 events (first batch failed at entry, no CDC state yet)")
 
@@ -302,11 +302,11 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 	finalEventCount := lm.WaitForCDCEventCount(t, 60, 120*time.Second, 5*time.Second)
 	require.Equal(t, 60, finalEventCount, "Expected 60 CDC events after resume")
 
-	verifyNoEventIDDuplicates(t, exportDir)
+	testutils.VerifyNoEventIDDuplicates(t, exportDir)
 
 	// Validate: import (started alongside run 1) should have snapshot + all CDC events
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		reportTableName(tableName): {Inserts: 60},
+		testutils.ReportTableName(tableName): {Inserts: 60},
 	}, 120, 5)
 	require.NoError(t, err, "Forward streaming did not complete")
 
@@ -415,10 +415,10 @@ func TestCDCMultipleBatchFailures(t *testing.T) {
 
 	time.Sleep(3 * time.Second)
 
-	eventCountAfterRun1, err := countEventsInQueueSegments(exportDir)
+	eventCountAfterRun1, err := testutils.CountEventsInQueueSegments(exportDir)
 	require.NoError(t, err, "Should be able to count events after run 1")
 	require.Equal(t, 20, eventCountAfterRun1, "Expected 20 CDC events after run 1 (batch 1 only)")
-	verifyNoEventIDDuplicates(t, exportDir)
+	testutils.VerifyNoEventIDDuplicates(t, exportDir)
 	assertRowCount(90)
 
 	// Run 2: fail on 2nd streaming batch again (replay batch2 succeeds, batch3 fails)
@@ -452,10 +452,10 @@ func TestCDCMultipleBatchFailures(t *testing.T) {
 
 	time.Sleep(3 * time.Second)
 
-	eventCountAfterRun2, err := countEventsInQueueSegments(exportDir)
+	eventCountAfterRun2, err := testutils.CountEventsInQueueSegments(exportDir)
 	require.NoError(t, err, "Should be able to count events after run 2")
 	require.Equal(t, 40, eventCountAfterRun2, "Expected 40 CDC events after run 2 (batch 1 + replayed batch 2)")
-	verifyNoEventIDDuplicates(t, exportDir)
+	testutils.VerifyNoEventIDDuplicates(t, exportDir)
 	assertRowCount(110)
 
 	// Run 3: no injection, complete remaining CDC
@@ -465,12 +465,12 @@ func TestCDCMultipleBatchFailures(t *testing.T) {
 	finalEventCount := lm.WaitForCDCEventCount(t, 60, 120*time.Second, 5*time.Second)
 	require.Equal(t, 60, finalEventCount, "Expected 60 CDC events after final resume")
 
-	verifyNoEventIDDuplicates(t, exportDir)
+	testutils.VerifyNoEventIDDuplicates(t, exportDir)
 	assertRowCount(110)
 
 	// Validate: import (started alongside run 1) should have snapshot + all CDC events
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		reportTableName(tableName): {Inserts: 60},
+		testutils.ReportTableName(tableName): {Inserts: 60},
 	}, 120, 5)
 	require.NoError(t, err, "Forward streaming did not complete")
 
@@ -594,11 +594,11 @@ func TestCDCMultiTableBatchFailureAndResume(t *testing.T) {
 
 	time.Sleep(3 * time.Second)
 
-	eventCountAfterFailure, err := countEventsInQueueSegments(exportDir)
+	eventCountAfterFailure, err := testutils.CountEventsInQueueSegments(exportDir)
 	require.NoError(t, err, "Should be able to count CDC events after failure")
 	require.Equal(t, 20, eventCountAfterFailure, "Should have exactly 20 events (batch 1 from both tables) before failure")
 
-	verifyNoEventIDDuplicates(t, exportDir)
+	testutils.VerifyNoEventIDDuplicates(t, exportDir)
 
 	// Run 2: resume export without Byteman
 	err = lm.StartExportData(true, nil)
@@ -607,12 +607,12 @@ func TestCDCMultiTableBatchFailureAndResume(t *testing.T) {
 	finalEventCount := lm.WaitForCDCEventCount(t, 60, 120*time.Second, 5*time.Second)
 	require.Equal(t, 60, finalEventCount, "Expected 60 CDC events after resume (30 per table)")
 
-	verifyNoEventIDDuplicates(t, exportDir)
+	testutils.VerifyNoEventIDDuplicates(t, exportDir)
 
 	// Validate: import (started alongside run 1) should have snapshot + all CDC events
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		reportTableName(tableA): {Inserts: 30},
-		reportTableName(tableB): {Inserts: 30},
+		testutils.ReportTableName(tableA): {Inserts: 30},
+		testutils.ReportTableName(tableB): {Inserts: 30},
 	}, 120, 5)
 	require.NoError(t, err, "Forward streaming did not complete")
 
@@ -703,7 +703,7 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 
 	time.Sleep(10 * time.Second)
 
-	offsetBeforeCDC := readOffsetFileChecksum(exportDir)
+	offsetBeforeCDC := testutils.ReadOffsetFileChecksum(exportDir, SOURCE_DB_EXPORTER_ROLE)
 
 	lm.ExecuteSourceDelta()
 
@@ -714,19 +714,19 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 	err = lm.WaitForExportDataExitTimeout(120 * time.Second)
 	require.Error(t, err, "Export should exit with error after offset commit failure")
 
-	eventCountAfterFailure, err := countEventsInQueueSegments(exportDir)
+	eventCountAfterFailure, err := testutils.CountEventsInQueueSegments(exportDir)
 	require.NoError(t, err, "Should be able to count events after failure")
 	require.Equal(t, 20, eventCountAfterFailure, "Expected 20 CDC events after failure")
-	offsetAfterFailure := readOffsetFileChecksum(exportDir)
+	offsetAfterFailure := testutils.ReadOffsetFileChecksum(exportDir, SOURCE_DB_EXPORTER_ROLE)
 	require.Equal(t, offsetBeforeCDC, offsetAfterFailure, "Offsets advanced despite before-offset-commit failure; replay will not occur")
-	offsetContents := readOffsetFileContents(exportDir)
+	offsetContents := testutils.ReadOffsetFileContents(exportDir, SOURCE_DB_EXPORTER_ROLE)
 	require.Equal(t, "", strings.TrimSpace(offsetContents), "Offset file should be empty after failure")
 
-	eventIDsBefore, err := collectEventIDsForOffsetCommitTest(exportDir)
+	eventIDsBefore, err := testutils.CollectEventIDsForOffsetCommitTest(exportDir)
 	require.NoError(t, err, "Failed to read event_ids after failure")
 	require.Len(t, eventIDsBefore, 20, "Expected 20 unique event_ids after failure")
-	verifyNoEventIDDuplicates(t, exportDir)
-	dedupSkipsBeforeResume, err := countDedupSkipLogs(exportDir)
+	testutils.VerifyNoEventIDDuplicates(t, exportDir)
+	dedupSkipsBeforeResume, err := testutils.CountDedupSkipLogs(exportDir)
 	require.NoError(t, err, "Failed to count dedup skip logs before resume")
 
 	// Run 2: resume export with Byteman tracing rule to detect batch replay
@@ -747,22 +747,22 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 	require.NoError(t, err, "Should be able to read debezium logs for replay marker")
 	require.True(t, replayMatched, "Expected replay batch after resume")
 
-	eventIDsAfter, err := collectEventIDsForOffsetCommitTest(exportDir)
+	eventIDsAfter, err := testutils.CollectEventIDsForOffsetCommitTest(exportDir)
 	require.NoError(t, err, "Failed to read event_ids after resume")
 	require.Equal(t, len(eventIDsBefore), len(eventIDsAfter), "event_id set size should be unchanged after replay")
 	for eventID := range eventIDsBefore {
 		_, ok := eventIDsAfter[eventID]
 		require.True(t, ok, "event_id should still exist after replay: %s", eventID)
 	}
-	verifyNoEventIDDuplicates(t, exportDir)
-	dedupSkipsAfterResume, err := countDedupSkipLogs(exportDir)
+	testutils.VerifyNoEventIDDuplicates(t, exportDir)
+	dedupSkipsAfterResume, err := testutils.CountDedupSkipLogs(exportDir)
 	require.NoError(t, err, "Failed to count dedup skip logs after resume")
 	require.GreaterOrEqual(t, dedupSkipsAfterResume-dedupSkipsBeforeResume, 20,
 		"Expected dedup cache to skip at least 20 replayed records on resume")
 
 	// Validate: import (started alongside run 1) should have snapshot + all CDC events
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		reportTableName(tableName): {Inserts: 20},
+		testutils.ReportTableName(tableName): {Inserts: 20},
 	}, 120, 5)
 	require.NoError(t, err, "Forward streaming did not complete")
 
@@ -864,7 +864,7 @@ func TestCDCBatchFailureBeforeHandleBatchComplete(t *testing.T) {
 	err = lm.WaitForExportDataExitTimeout(120 * time.Second)
 	require.Error(t, err, "Export should exit with error after failure")
 
-	_, _ = verifyNoEventIDDuplicatesAfterFailure(t, exportDir)
+	_, _ = testutils.VerifyNoEventIDDuplicatesAfterFailure(t, exportDir)
 
 	// Run 2: resume export and insert 10 more events
 	err = lm.StartExportData(true, nil)
@@ -879,11 +879,11 @@ func TestCDCBatchFailureBeforeHandleBatchComplete(t *testing.T) {
 
 	finalEventCount := lm.WaitForCDCEventCount(t, 30, 120*time.Second, 5*time.Second)
 	require.Equal(t, 30, finalEventCount, "Expected 30 CDC events after resume")
-	verifyNoEventIDDuplicates(t, exportDir)
+	testutils.VerifyNoEventIDDuplicates(t, exportDir)
 
 	// Validate: import (started alongside run 1) should have snapshot + all CDC events
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		reportTableName(tableName): {Inserts: 30},
+		testutils.ReportTableName(tableName): {Inserts: 30},
 	}, 120, 5)
 	require.NoError(t, err, "Forward streaming did not complete")
 
@@ -990,12 +990,12 @@ func TestCDCQueueWriteFailureAndResume(t *testing.T) {
 	require.NoError(t, err, "Failed to start export resume")
 
 	lm.WaitForCDCEventCount(t, 40, 120*time.Second, 5*time.Second)
-	assertEventCountDoesNotExceed(t, exportDir, 40, 15*time.Second, 2*time.Second)
-	verifyNoEventIDDuplicates(t, exportDir)
+	testutils.AssertEventCountDoesNotExceed(t, exportDir, 40, 15*time.Second, 2*time.Second)
+	testutils.VerifyNoEventIDDuplicates(t, exportDir)
 
 	// Validate: import (started alongside run 1) should have snapshot + all CDC events
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		reportTableName(tableName): {Inserts: 40},
+		testutils.ReportTableName(tableName): {Inserts: 40},
 	}, 120, 5)
 	require.NoError(t, err, "Forward streaming did not complete")
 
@@ -1084,15 +1084,15 @@ func TestCDCRotationMidBatchClosesSegment(t *testing.T) {
 	_ = lm.exportCmd.Kill()
 	lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
 
-	segmentFiles, err := listQueueSegmentFiles(exportDir)
+	segmentFiles, err := testutils.ListQueueSegmentFiles(exportDir)
 	require.NoError(t, err, "Failed to list queue segment files")
 	require.GreaterOrEqual(t, len(segmentFiles), 2, "Expected multiple queue segments after rotation")
 
-	lowestSegmentPath, _, highestSegmentNum, err := findSegmentNumRange(segmentFiles)
+	lowestSegmentPath, _, highestSegmentNum, err := testutils.FindSegmentNumRange(segmentFiles)
 	require.NoError(t, err, "Failed to parse queue segment numbers")
 	require.NotEmpty(t, lowestSegmentPath, "Expected to identify lowest queue segment")
 
-	closed, err := isQueueSegmentClosed(lowestSegmentPath)
+	closed, err := testutils.IsQueueSegmentClosed(lowestSegmentPath)
 	require.NoError(t, err, "Failed to check queue segment EOF marker")
 	require.True(t, closed, "First rotated queue segment should be closed with EOF marker")
 
@@ -1184,15 +1184,15 @@ func TestCDCQueueSegmentTruncationOnResume(t *testing.T) {
 	err = lm.WaitForExportDataExitTimeout(120 * time.Second)
 	require.Error(t, err, "Export should exit with error after failure")
 
-	segmentFiles, err := listQueueSegmentFiles(exportDir)
+	segmentFiles, err := testutils.ListQueueSegmentFiles(exportDir)
 	require.NoError(t, err, "Failed to list queue segment files")
 	require.Len(t, segmentFiles, 1, "Expected a single queue segment before resume")
-	segmentNum, err := parseQueueSegmentNum(segmentFiles[0])
+	segmentNum, err := testutils.ParseQueueSegmentNum(segmentFiles[0])
 	require.NoError(t, err, "Failed to parse queue segment number")
 
-	fileSizeBefore, err := getQueueSegmentFileSize(segmentFiles[0])
+	fileSizeBefore, err := testutils.GetQueueSegmentFileSize(segmentFiles[0])
 	require.NoError(t, err, "Failed to read queue segment size after failure")
-	committedSize, err := getQueueSegmentCommittedSize(exportDir, segmentNum)
+	committedSize, err := testutils.GetQueueSegmentCommittedSize(exportDir, segmentNum)
 	require.NoError(t, err, "Failed to read committed size from metadb")
 	require.Greater(t, fileSizeBefore, committedSize, "Expected file size to exceed committed size before resume")
 
@@ -1200,11 +1200,11 @@ func TestCDCQueueSegmentTruncationOnResume(t *testing.T) {
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "Failed to start export resume")
 
-	truncationMatched, err := waitForTruncationLog(exportDir, 60*time.Second)
+	truncationMatched, err := testutils.WaitForTruncationLog(exportDir, 60*time.Second)
 	require.NoError(t, err, "Should be able to read debezium logs for truncation")
 	require.True(t, truncationMatched, "Expected truncation log on resume")
 
-	truncationTargetSize, err := parseTruncationTargetSize(exportDir)
+	truncationTargetSize, err := testutils.ParseTruncationTargetSize(exportDir)
 	require.NoError(t, err, "Failed to parse truncation target size from log")
 	require.Equal(t, committedSize, truncationTargetSize,
 		"Truncation target should equal committed size from metadb")
