@@ -129,11 +129,12 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 
 	//Wait for streaming to start
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		reportTableName(tableName): 100,
+		`"test_schema"."cdc_test"`: 100,
 	}, 120)
 	require.NoError(t, err, "Snapshot did not complete")
 
-	time.Sleep(10 * time.Second)
+	require.NoError(t, lm.WaitForStreamingMode(2*time.Minute, 2*time.Second),
+		"Export should reach streaming mode before generating CDC")
 
 	for batch := 1; batch <= 3; batch++ {
 		updateStart := (batch-1)*5 + 1
@@ -266,11 +267,12 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 
 	//Wait for streaming to start
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		reportTableName(tableName): 50,
+		`"test_schema"."first_batch_test"`: 50,
 	}, 120)
 	require.NoError(t, err, "Snapshot did not complete")
 
-	time.Sleep(10 * time.Second)
+	require.NoError(t, lm.WaitForStreamingMode(2*time.Minute, 2*time.Second),
+		"Export should reach streaming mode before generating CDC")
 
 	for batch := 1; batch <= 3; batch++ {
 		lm.ExecuteOnSource(
@@ -563,11 +565,13 @@ func TestCDCMultiTableBatchFailureAndResume(t *testing.T) {
 
 	//Wait for streaming to start
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		reportTableName(tableName): 50,
+		`"test_schema_multi_tbl"."table_a"`: 50,
+		`"test_schema_multi_tbl"."table_b"`: 50,
 	}, 120)
 	require.NoError(t, err, "Snapshot did not complete")
 
-	time.Sleep(10 * time.Second)
+	require.NoError(t, lm.WaitForStreamingMode(2*time.Minute, 2*time.Second),
+		"Export should reach streaming mode before generating CDC")
 
 	for batch := 1; batch <= 3; batch++ {
 		lm.ExecuteOnSource(
