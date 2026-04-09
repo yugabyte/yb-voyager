@@ -320,13 +320,13 @@ func ParseQueueSegmentNum(filePath string) (int64, error) {
 	return segmentNum, nil
 }
 
-func FindSegmentNumRange(segmentFiles []string) (lowestPath string, lowestNum, highestNum int64, err error) {
+func FindSegmentNumRange(segmentFiles []string) (lowestPath string, lowestNum int64, highestPath string, highestNum int64, err error) {
 	lowestNum = -1
 	highestNum = -1
 	for _, path := range segmentFiles {
 		num, parseErr := ParseQueueSegmentNum(path)
 		if parseErr != nil {
-			return "", -1, -1, parseErr
+			return "", -1, "", -1, parseErr
 		}
 		if lowestNum == -1 || num < lowestNum {
 			lowestNum = num
@@ -334,9 +334,10 @@ func FindSegmentNumRange(segmentFiles []string) (lowestPath string, lowestNum, h
 		}
 		if num > highestNum {
 			highestNum = num
+			highestPath = path
 		}
 	}
-	return lowestPath, lowestNum, highestNum, nil
+	return lowestPath, lowestNum, highestPath, highestNum, nil
 }
 
 func IsQueueSegmentClosed(filePath string) (bool, error) {

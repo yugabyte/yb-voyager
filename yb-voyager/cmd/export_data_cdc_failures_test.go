@@ -1081,20 +1081,32 @@ func TestCDCRotationMidBatchClosesSegment(t *testing.T) {
 	require.True(t, matched, "Byteman failure should be injected before handleBatchComplete")
 
 	// Kill immediately after injection to avoid graceful shutdown that could sync segments.
-	_ = lm.exportCmd.Kill()
-	lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
+	// _ = lm.exportCmd.Kill()
+	// lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
+	err = lm.WaitForExportDataExitTimeout(120 * time.Second)
+	require.Error(t, err, "Export should exit after Byteman failure")
 
 	segmentFiles, err := testutils.ListQueueSegmentFiles(exportDir)
 	require.NoError(t, err, "Failed to list queue segment files")
 	require.GreaterOrEqual(t, len(segmentFiles), 2, "Expected multiple queue segments after rotation")
 
-	lowestSegmentPath, _, highestSegmentNum, err := testutils.FindSegmentNumRange(segmentFiles)
+	lowestSegmentPath, _, highestSegmentPath, highestSegmentNum, err := testutils.FindSegmentNumRange(segmentFiles)
 	require.NoError(t, err, "Failed to parse queue segment numbers")
 	require.NotEmpty(t, lowestSegmentPath, "Expected to identify lowest queue segment")
 
-	closed, err := testutils.IsQueueSegmentClosed(lowestSegmentPath)
+	// Every segment other than highest segment should be closed with EOF marker
+	for _, segmentPath := range segmentFiles {
+		if segmentPath == highestSegmentPath {
+			continue
+		}
+		closed, err := testutils.IsQueueSegmentClosed(segmentPath)
+		require.NoError(t, err, "Failed to check queue segment EOF marker")
+		require.True(t, closed, "Segment should be closed with EOF marker")
+	}
+
+	closed, err = testutils.IsQueueSegmentClosed(highestSegmentPath)
 	require.NoError(t, err, "Failed to check queue segment EOF marker")
-	require.True(t, closed, "First rotated queue segment should be closed with EOF marker")
+	require.False(t, closed, "Last rotated queue segment should be closed with EOF marker")
 
 	require.GreaterOrEqual(t, highestSegmentNum, int64(1), "Expected latest segment to be >= 1 after rotation")
 }
