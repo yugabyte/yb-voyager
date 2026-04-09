@@ -19,12 +19,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - tag: failpoint_export_snapshot
-            group_name: "Export Snapshot"
-          - tag: failpoint_export_cdc
-            group_name: "Export CDC"
-          - tag: failpoint_export_ff
-            group_name: "Export Fall-Forward"
+          - tag: failpoint_export
+            group_name: "Export"
           - tag: failpoint_import
             group_name: "Import"
           - tag: failpoint_cutover
