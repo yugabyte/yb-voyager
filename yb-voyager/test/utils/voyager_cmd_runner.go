@@ -292,12 +292,19 @@ func (v *VoyagerCommandRunner) Run() error {
 }
 
 func (v *VoyagerCommandRunner) IsStopped() bool {
-	select {
-	case <-v.stopChan:
-		return true
-	default:
-		return false
+	if v.stopChan != nil {
+		select {
+		case <-v.stopChan:
+			return true
+		default:
+			return false
+		}
 	}
+	// Synchronous Run() never sets stopChan; ProcessState is set after Wait returns.
+	if v.Cmd != nil && v.Cmd.ProcessState != nil {
+		return true
+	}
+	return false
 }
 
 // WaitForAsyncCompletion blocks until a command started with Run(async=true) finishes.
@@ -378,6 +385,9 @@ func (v *VoyagerCommandRunner) GracefulStop(timeoutSeconds int) error {
 	log.Debugf("sending SIGTERM to command: %s (pid=%d)", v.Cmd.String(), v.Cmd.Process.Pid)
 	err := v.Cmd.Process.Signal(syscall.SIGTERM)
 	if err != nil {
+		if errors.Is(err, os.ErrProcessDone) {
+			return nil
+		}
 		return fmt.Errorf("failed to send SIGTERM to command: %w", err)
 	}
 

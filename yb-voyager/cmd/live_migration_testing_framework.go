@@ -201,20 +201,28 @@ func (lm *LiveMigrationTest) InitMetaDB() error {
 func (lm *LiveMigrationTest) Cleanup() {
 	lm.t.Logf("Cleaning up")
 
-	// Kill running commands
-	if lm.exportCmd != nil {
-		_ = lm.exportCmd.Kill()
+	// Prefer SIGTERM so yb-voyager can shut down Debezium children; abrupt Kill() on the
+	// parent can orphan the JVM (see WaitForImportDataExit / WaitForExportDataExitTimeout).
+	// GracefulStop SIGKILLs after the timeout if the process still has not exited.
+	const gracefulStopSeconds = 20
+	for _, c := range []struct {
+		cmd  *testutils.VoyagerCommandRunner
+		name string
+	}{
+		{lm.exportCmd, "export data"},
+		{lm.importCmd, "import data"},
+		{lm.sourceReplicaImportCmd, "import data (source replica)"},
+		{lm.exportFromTargetCmd, "export data from target"},
+		{lm.importToSourceCmd, "import data to source"},
+		{lm.archiveChangesCmd, "archive changes"},
+	} {
+		if c.cmd == nil || c.cmd.IsStopped() {
+			continue
+		}
+		if err := c.cmd.GracefulStop(gracefulStopSeconds); err != nil {
+			lm.t.Logf("WARNING: graceful stop of %s: %v", c.name, err)
+		}
 	}
-	if lm.importCmd != nil {
-		_ = lm.importCmd.Kill()
-	}
-	if lm.sourceReplicaImportCmd != nil {
-		_ = lm.sourceReplicaImportCmd.Kill()
-	}
-
-	lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
-	lm.KillDebezium(TARGET_DB_EXPORTER_FF_ROLE)
-	lm.KillDebezium(TARGET_DB_EXPORTER_FB_ROLE)
 
 	// Execute cleanup SQL on all containers
 	if lm.sourceContainer != nil {
@@ -538,7 +546,9 @@ func (lm *LiveMigrationTest) WaitForImportDataExit() error {
 
 // KillDebezium force-kills the Debezium Java process for the given exporter role.
 // Debezium runs as a separate child Java process and can outlive the `yb-voyager` parent if
-// the parent is SIGKILLed. Cleanup() calls this automatically for SOURCE_DB_EXPORTER_ROLE.
+// the parent is SIGKILLed. Used from timeout / wait helpers (e.g. WaitForExportDataExitTimeout,
+// WaitForImportDataExit, WaitForImportFailpointAndProcessCrash), not from Cleanup — Cleanup
+// stops parent yb-voyager commands with VoyagerCommandRunner.GracefulStop instead.
 func (lm *LiveMigrationTest) KillDebezium(exporterRole string) {
 	pidStr, err := dbzm.GetPIDOfDebeziumOnExportDir(lm.exportDir, exporterRole)
 	if err != nil {
