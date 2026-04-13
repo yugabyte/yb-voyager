@@ -729,12 +729,13 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 	dedupSkipsBeforeResume, err := testutils.CountDedupSkipLogs(exportDir)
 	require.NoError(t, err, "Failed to count dedup skip logs before resume")
 
-	// Run 2: resume export with Byteman tracing rule to detect batch replay
+	// Run 2: resume export with Byteman tracing rule after the first streaming batch's
+	// records are processed (write or dedup-skip), before handleBatchComplete / offset commit.
 	bytemanHelperResume, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper for resume")
 	bytemanHelperResume.AddRuleFromBuilder(
 		testutils.NewRule("replay_batch").
-			AtMarker(testutils.MarkerCDC, "before-batch-streaming").
+			AtMarker(testutils.MarkerCDC, "before-handle-batch-complete").
 			If("incrementCounter(\"replay_batch\") == 1").
 			Do(`traceln(">>> BYTEMAN: replay_batch");`),
 	)
@@ -745,7 +746,7 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 
 	replayMatched, err := bytemanHelperResume.WaitForInjection(">>> BYTEMAN: replay_batch", 90*time.Second)
 	require.NoError(t, err, "Should be able to read debezium logs for replay marker")
-	require.True(t, replayMatched, "Expected replay batch after resume")
+	require.True(t, replayMatched, "Expected first post-resume streaming batch to complete record processing")
 
 	eventIDsAfter, err := testutils.CollectEventIDsForOffsetCommitTest(exportDir)
 	require.NoError(t, err, "Failed to read event_ids after resume")

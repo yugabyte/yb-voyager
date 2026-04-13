@@ -36,10 +36,10 @@ import (
 //
 // Scenario:
 //  1. Start `export data` (snapshot-and-changes mode) with failpoint enabled and 100 initial rows.
-//  2. pg_dump fails; export crashes with no snapshot descriptor created.
-//  3. Insert 20 rows into the source after failure, before resume.
-//  4. Resume `export data` without failpoint.
-//  5. Start `import data` concurrently (imports snapshot + streams CDC to target).
+//  2. Start `import data` concurrently (it keeps running across failure and resume).
+//  3. pg_dump fails; export crashes with no snapshot descriptor created.
+//  4. Insert 20 rows into the source after failure, before resume.
+//  5. Resume `export data` without failpoint.
 //  6. Verify snapshot completes and captures all 120 rows (100 initial + 20 inserted before resume).
 //  7. Insert 10 CDC rows after snapshot and verify CDC export works correctly.
 //  8. Verify import consumed all events and source == target row counts match.

@@ -30,7 +30,7 @@ import (
 // and returns a non-nil error when the failpoint is triggered.
 func injectReplicationSlotReadyPrePgDumpFailure() error {
 	var fpErr error
-	if val, _err_ := failpoint.Eval(_curpkg_("prePgDumpAfterSlotCreationFailure")); _err_ == nil {
+	failpoint.Inject("prePgDumpAfterSlotCreationFailure", func(val failpoint.Value) {
 		if val != nil {
 			if delayMs := os.Getenv("YB_VOYAGER_PGDUMP_FAIL_DELAY_MS"); delayMs != "" {
 				if delay, err := strconv.Atoi(delayMs); err == nil && delay > 0 {
@@ -41,7 +41,7 @@ func injectReplicationSlotReadyPrePgDumpFailure() error {
 			_ = os.WriteFile(filepath.Join(exportDir, "logs", "failpoint-pg-dump-snapshot.log"), []byte("hit\n"), 0644)
 			fpErr = goerrors.Errorf("failpoint: pg_dump snapshot failure")
 		}
-	}
+	})
 	return fpErr
 }
 
@@ -50,14 +50,14 @@ func injectReplicationSlotReadyPrePgDumpFailure() error {
 func injectSnapshotToCDCTransitionError() (bool, error) {
 	var triggered bool
 	var fpErr error
-	if val, _err_ := failpoint.Eval(_curpkg_("snapshotToCDCTransitionError")); _err_ == nil {
+	failpoint.Inject("snapshotToCDCTransitionError", func(val failpoint.Value) {
 		if val != nil {
 			_ = os.MkdirAll(filepath.Join(exportDir, "logs"), 0755)
 			_ = os.WriteFile(filepath.Join(exportDir, "logs", "failpoint-snapshot-to-cdc.log"), []byte("hit\n"), 0644)
 			triggered = true
 			fpErr = goerrors.Errorf("failpoint: snapshot->CDC transition failure")
 		}
-	}
+	})
 	return triggered, fpErr
 }
 
@@ -66,13 +66,13 @@ func injectSnapshotToCDCTransitionError() (bool, error) {
 func injectExportFromTargetStartupError() (bool, error) {
 	var triggered bool
 	var fpErr error
-	if val, _err_ := failpoint.Eval(_curpkg_("exportFromTargetStartupError")); _err_ == nil {
+	failpoint.Inject("exportFromTargetStartupError", func(val failpoint.Value) {
 		if val != nil {
 			_ = os.MkdirAll(filepath.Join(exportDir, "logs"), 0755)
 			_ = os.WriteFile(filepath.Join(exportDir, "logs", "failpoint-export-from-target-startup.log"), []byte("hit\n"), 0644)
 			triggered = true
 			fpErr = goerrors.Errorf("failpoint: export-from-target startup failure")
 		}
-	}
+	})
 	return triggered, fpErr
 }

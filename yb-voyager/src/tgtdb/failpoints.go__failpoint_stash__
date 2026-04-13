@@ -30,16 +30,16 @@ import (
 // transactional COPY batch import. Returns (true, err) when the
 // failpoint fires so the caller can skip the real commit.
 func injectImportBatchCommitError(batch Batch) (triggered bool, importBatchErr error) {
-	if val, _err_ := failpoint.Eval(_curpkg_("importBatchCommitError")); _err_ == nil {
+	failpoint.Inject("importBatchCommitError", func(val failpoint.Value) {
 		if val != nil {
 			err2 := goerrors.Errorf("failpoint: commit failed")
 			importBatchErr = newImportBatchErrorPgYb(err2, batch,
 				errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL,
-				errs.IMPORT_BATCH_ERROR_STEP_COMMIT_TXN,
+				errs.IMPORT_BATCH_ERROR_STEP_COMMIT_TXN, 
 				nil)
 			triggered = true
 		}
-	}
+	})
 	return
 }
 
@@ -49,7 +49,7 @@ func injectImportBatchCommitError(batch Batch) (triggered bool, importBatchErr e
 // Black-box tests can set YB_VOYAGER_FAILPOINT_MARKER_DIR to write a marker file.
 func injectImportCDCRetryableExecuteBatchError() error {
 	var fpErr error
-	if val, _err_ := failpoint.Eval(_curpkg_("importCDCRetryableExecuteBatchError")); _err_ == nil {
+	failpoint.Inject("importCDCRetryableExecuteBatchError", func(val failpoint.Value) {
 		if val != nil {
 			if markerDir := os.Getenv("YB_VOYAGER_FAILPOINT_MARKER_DIR"); markerDir != "" {
 				_ = os.MkdirAll(markerDir, 0755)
@@ -57,7 +57,7 @@ func injectImportCDCRetryableExecuteBatchError() error {
 			}
 			fpErr = &pgconn.PgError{Code: "40001", Message: "failpoint: retryable execute batch error"}
 		}
-	}
+	})
 	return fpErr
 }
 
@@ -67,7 +67,7 @@ func injectImportCDCRetryableExecuteBatchError() error {
 // Black-box tests can set YB_VOYAGER_FAILPOINT_MARKER_DIR to write a marker file.
 func injectImportCDCExecEventError() error {
 	var fpErr error
-	if val, _err_ := failpoint.Eval(_curpkg_("importCDCExecEventError")); _err_ == nil {
+	failpoint.Inject("importCDCExecEventError", func(val failpoint.Value) {
 		if val != nil {
 			if markerDir := os.Getenv("YB_VOYAGER_FAILPOINT_MARKER_DIR"); markerDir != "" {
 				_ = os.MkdirAll(markerDir, 0755)
@@ -78,7 +78,7 @@ func injectImportCDCExecEventError() error {
 				Message: "failpoint: cdc event exec failed",
 			}
 		}
-	}
+	})
 	return fpErr
 }
 
@@ -88,7 +88,7 @@ func injectImportCDCExecEventError() error {
 // Black-box tests can set YB_VOYAGER_FAILPOINT_MARKER_DIR to write a marker file.
 func injectImportCDCRetryableAfterCommitError() error {
 	var fpErr error
-	if val, _err_ := failpoint.Eval(_curpkg_("importCDCRetryableAfterCommitError")); _err_ == nil {
+	failpoint.Inject("importCDCRetryableAfterCommitError", func(val failpoint.Value) {
 		if val != nil {
 			if markerDir := os.Getenv("YB_VOYAGER_FAILPOINT_MARKER_DIR"); markerDir != "" {
 				_ = os.MkdirAll(markerDir, 0755)
@@ -99,6 +99,6 @@ func injectImportCDCRetryableAfterCommitError() error {
 				Message: "failpoint: retryable error after commit",
 			}
 		}
-	}
+	})
 	return fpErr
 }
