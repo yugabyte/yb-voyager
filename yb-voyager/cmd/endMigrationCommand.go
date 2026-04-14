@@ -40,8 +40,8 @@ var (
 
 var endMigrationCmd = &cobra.Command{
 	Use:   "end-migration",
-	Short: "End the current migration and cleanup all metadata stored in databases(Target, Source-Replica and Source) and export-dir",
-	Long:  "End the current migration and cleanup all metadata stored in databases(Target, Source-Replica and Source) and export-dir",
+	Short: "Finalize migration and clean up metadata",
+	Long:  "End the current migration and clean up all metadata stored in databases (target, source-replica, and source) and the export directory.",
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if utils.IsDirectoryEmpty(exportDir) {

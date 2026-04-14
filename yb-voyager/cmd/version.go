@@ -26,7 +26,7 @@ import (
 
 var versionCmd = &cobra.Command{
 	Use:   "version",
-	Short: "Print yb-voyager version info.",
+	Short: "Print version info",
 
 	Run: func(cmd *cobra.Command, args []string) {
 		info := getVersionInfo()

@@ -48,11 +48,11 @@ const (
 
 var initCmd = &cobra.Command{
 	Use:   "new",
-	Short: "Create a new migration project",
-	Long: `Create a new YB Voyager migration project.
+	Short: "Create a new project to modernize your database",
+	Long: `Create a new YB Voyager project to modernize your database.
 
-Creates a migration directory with the necessary structure and configuration
-to begin migrating your database to YugabyteDB.`,
+Creates a project directory with the necessary structure and configuration
+to begin modernizing your database.`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		runInit()

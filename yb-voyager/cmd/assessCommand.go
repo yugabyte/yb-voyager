@@ -6,7 +6,7 @@ import (
 
 var assessCmd = &cobra.Command{
 	Use:   "assess",
-	Short: "Assess source database for migration to YugabyteDB",
+	Short: "Analyze source database for compatibility and get cluster sizing recommendations",
 	Long:  PARENT_COMMAND_USAGE,
 }
 

@@ -74,34 +74,48 @@ var configKeyValuesToObfuscateInLogs = []string{
 	"source-replica.db-password",
 }
 
-// commandOrder defines the display order for root-level commands, matching the migration journey.
-var commandOrder = []string{
-	"new",
-	"assess",
-	"start-migration",
-	"schema",
-	"data",
-	"validate",
-	"end-migration",
-	"status",
-	"version",
-	"help",
+// commandGroups defines the display order for root-level commands, grouped by
+// migration phase. Groups are separated by blank lines in the help output.
+var commandGroups = [][]string{
+	{"new"},
+	{"assess"},
+	{"start-migration", "schema", "data", "validate", "end-migration"},
+	{"status", "version", "help"},
 }
 
 func buildRootHelp(cmd *cobra.Command) string {
+	rule := ruleStyle.Render(strings.Repeat("─", ruleWidth))
+
 	var b strings.Builder
-	b.WriteString("Migrate your database to YugabyteDB.\n")
-	b.WriteString("  - Assessment  : Assess source database for complexity and sizing\n")
-	b.WriteString("  - Schema      : Export and import schema with auto optimizations\n")
-	b.WriteString("  - Data        : Migrate data offline or live with CDC\n")
-	b.WriteString("  - Validation  : Validate data consistency and performance\n")
+
+	// Section 1: Introduction
+	banner := titleStyle.Render(`` +
+		"          __                                                \n" +
+		"   __  __/ /_       _   ______  __  ______ _____ ____  _____\n" +
+		"  / / / / __ \\_____| | / / __ \\/ / / / __ `/ __ `/ _ \\/ ___/\n" +
+		" / /_/ / /_/ /_____/ |/ / /_/ / /_/ / /_/ / /_/ /  __/ /    \n" +
+		" \\__, /_.___/      |___/\\____/\\__, /\\__,_/\\__, /\\___/_/     \n" +
+		"/____/                       /____/      /____/             ")
+	b.WriteString(banner + "\n\n")
+	b.WriteString(titleStyle.Render("Modernize your database to YugabyteDB, a distributed, PostgreSQL-compatible database.") + "\n")
 	b.WriteString("\n")
-	b.WriteString(dimStyle.Render("Docs: https://docs.yugabyte.com/preview/yugabyte-voyager/") + "\n")
+	b.WriteString(fmt.Sprintf("  %s  Analyze source database for compatibility and get cluster sizing recommendations\n", cmdStyle.Render("Assessment")))
+	b.WriteString(fmt.Sprintf("  %s  Export and import schema with automatic optimizations\n", cmdStyle.Render("Schema    ")))
+	b.WriteString(fmt.Sprintf("  %s  Migrate data offline or live with change data capture\n", cmdStyle.Render("Data      ")))
+	b.WriteString(fmt.Sprintf("  %s  Validate data consistency and performance\n", cmdStyle.Render("Validation")))
 	b.WriteString("\n")
-	b.WriteString(titleStyle.Render("Getting started:") + "\n")
+	b.WriteString("  " + dimStyle.Render("Docs: https://docs.yugabyte.com/preview/yugabyte-voyager/") + "\n")
+	b.WriteString("\n")
+
+	// Section 2: Getting Started
+	b.WriteString(titleStyle.Render("Getting Started") + "\n")
+	b.WriteString(rule + "\n")
 	b.WriteString("  " + cmdStyle.Render("yb-voyager new") + "\n")
 	b.WriteString("\n")
-	b.WriteString("Available Commands:\n")
+
+	// Section 3: Available Commands
+	b.WriteString(titleStyle.Render("Available Commands") + "\n")
+	b.WriteString(rule + "\n")
 
 	cmdMap := make(map[string]*cobra.Command)
 	for _, c := range cmd.Commands() {
@@ -109,15 +123,24 @@ func buildRootHelp(cmd *cobra.Command) string {
 			cmdMap[c.Name()] = c
 		}
 	}
-	for _, name := range commandOrder {
-		if c, ok := cmdMap[name]; ok {
-			b.WriteString(fmt.Sprintf("  %-18s %s\n", c.Name(), c.Short))
-			delete(cmdMap, name)
+
+	for i, group := range commandGroups {
+		for _, name := range group {
+			if c, ok := cmdMap[name]; ok {
+				b.WriteString(fmt.Sprintf("  %s %s\n",
+					cmdStyle.Render(fmt.Sprintf("%-20s", c.Name())), c.Short))
+				delete(cmdMap, name)
+			}
+		}
+		if i < len(commandGroups)-1 {
+			b.WriteString("\n")
 		}
 	}
+	// Any remaining commands not covered by the groups.
 	for _, c := range cmd.Commands() {
 		if _, ok := cmdMap[c.Name()]; ok {
-			b.WriteString(fmt.Sprintf("  %-18s %s\n", c.Name(), c.Short))
+			b.WriteString(fmt.Sprintf("  %s %s\n",
+				cmdStyle.Render(fmt.Sprintf("%-20s", c.Name())), c.Short))
 		}
 	}
 
@@ -128,14 +151,8 @@ func buildRootHelp(cmd *cobra.Command) string {
 
 var rootCmd = &cobra.Command{
 	Use:   "yb-voyager",
-	Short: "A CLI based migration engine to migrate complete database(schema + data) from some source database to YugabyteDB",
-	Long: `Migrate your database to YugabyteDB.
-  - Assessment  : Assess source database for complexity and sizing
-  - Schema      : Export and import schema with auto optimizations
-  - Data        : Migrate data offline or live with CDC
-  - Validation  : Validate data consistency and performance
-
-Docs: https://docs.yugabyte.com/preview/yugabyte-voyager/`,
+	Short: "Database modernization CLI for migrating to YugabyteDB",
+	Long:  "Modernize your database to YugabyteDB, a distributed, PostgreSQL-compatible database.",
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// Initialize the config file (also loads control plane config)

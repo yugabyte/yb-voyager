@@ -39,8 +39,8 @@ import (
 
 var startMigrationCmd = &cobra.Command{
 	Use:   "start-migration",
-	Short: "Set up target database and migration workflow",
-	Long: `Set up target database connection and select migration workflow.
+	Short: "Configure your target database and select a migration workflow",
+	Long: `Configure your target database and select a migration workflow
 
 This command can be invoked in two ways:
 
