@@ -221,141 +221,201 @@ func assessMigration() (err error) {
 
 	assessmentMetadataDir = lo.Ternary(assessmentMetadataDirFlag != "", assessmentMetadataDirFlag,
 		filepath.Join(exportDir, "assessment", "metadata"))
-	// setting schemaDir to use later on - gather assessment metadata, segregating into schema files per object etc..
 	schemaDir = filepath.Join(assessmentMetadataDir, "schema")
 
 	err = handleStartCleanIfNeededForAssessMigration(assessmentMetadataDirFlag != "")
 	if err != nil {
 		return err
 	}
-	utils.PrintAndLogf("Assessing for migration to target YugabyteDB version %s\n", targetDbVersion)
 
 	assessmentDir := filepath.Join(exportDir, "assessment")
 	migassessment.AssessmentDir = assessmentDir
 	migassessment.SourceDBType = source.DBType
 	migassessment.IntervalForCapturingIops = intervalForCapturingIOPS
 
+	// ── Phase 1: Preflight ──────────────────────────────────────────────
+	printBanner(targetDbVersion.String())
+	log.Infof("assessing for migration to target YugabyteDB version %s", targetDbVersion)
+	printPreflightHeader()
+
 	var validatedReplicaEndpoints []srcdb.ReplicaEndpoint
 
-	if assessmentMetadataDirFlag == "" { // only in case of source connectivity
+	hasSourceConnectivity := assessmentMetadataDirFlag == ""
+	if hasSourceConnectivity {
+		// Password
 		if source.Password == "" {
 			source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
 			if err != nil {
+				printPreflightFail("Source database password")
 				return fmt.Errorf("failed to get source DB password for assessing migration: %w", err)
 			}
 		}
-		err := source.DB().Connect()
+		printPreflightCheck("Source database password")
+
+		// Connect
+		err = source.DB().Connect()
 		if err != nil {
+			printPreflightFail("Connected to source database")
 			return fmt.Errorf("failed to connect source db for assessing migration: %w", err)
 		}
-		// We will require source db connection for the below checks
-		// Check if required binaries are installed.
+		printPreflightCheck("Connected to source database")
+
+		// Guardrails: version + dependencies
 		if source.RunGuardrailsChecks {
-			// Check source database version.
 			log.Info("checking source DB version")
 			err = source.DB().CheckSourceDBVersion(exportType)
 			if err != nil {
+				printPreflightFail("Source DB version compatible")
 				return fmt.Errorf("failed to check source DB version for assess migration: %w", err)
 			}
+			printPreflightCheck(fmt.Sprintf("Source DB version compatible (%s)", source.DB().GetVersion()))
 
-			// Check if required binaries are installed.
 			binaryCheckIssues, err := checkDependenciesForExport()
 			if err != nil {
+				printPreflightFail("Required dependencies present")
 				return fmt.Errorf("failed to check dependencies for assess migration: %w", err)
 			} else if len(binaryCheckIssues) > 0 {
+				printPreflightFail("Required dependencies present")
 				return goerrors.Errorf("\n%s\n%s", color.RedString("\nMissing dependencies for assess migration:"), strings.Join(binaryCheckIssues, "\n"))
 			}
+			printPreflightCheck("Required dependencies present")
+		} else {
+			printPreflightSkip("Source DB version check (guardrails disabled)")
+			printPreflightSkip("Dependency check (guardrails disabled)")
 		}
 
+		// Schema resolution
 		allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
 		if err != nil {
+			printPreflightFail("Schema resolution")
 			return fmt.Errorf("failed to get all schema names identifiers: %w", err)
 		}
 		source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
 		if err != nil {
+			printPreflightFail("Schema resolution")
 			return fmt.Errorf("failed to match schema names: %w", err)
 		}
+		printPreflightCheck(fmt.Sprintf("Schema resolution (%d schemas)", len(source.Schemas)))
 
 		fetchSourceInfo()
 
-		// Handle replica discovery and validation (PostgreSQL only)
+		// Replica discovery
 		replicaDiscoveryInfo, err := migassessment.HandleReplicaDiscoveryAndValidation(&source, sourceReadReplicaEndpoints, primaryOnly)
 		if err != nil {
+			printPreflightFail("Replica discovery and validation")
 			return fmt.Errorf("failed to handle replica discovery and validation: %w", err)
 		}
 		validatedReplicaEndpoints = replicaDiscoveryInfo.ValidatedReplicas
-
-		// Store for callhome (including error scenarios)
 		replicaDiscoveryInfoForCallhome = &replicaDiscoveryInfo
+		printPreflightCheck("Replica discovery and validation")
 
-		// Check permissions on all nodes (primary + replicas) after validation
+		// Permissions
 		if source.RunGuardrailsChecks {
-			// Check schema usage permissions first (no-op for non-PostgreSQL databases)
 			checkIfSchemasHaveUsagePermissions()
-			// Check assessment-specific permissions on all nodes
 			pgssEnabledForAssessment, err = migassessment.CheckAssessmentPermissionsOnAllNodes(&source, validatedReplicaEndpoints)
 			if err != nil {
+				printPreflightFail("Permissions verified on all nodes")
 				return fmt.Errorf("permission check failed: %w", err)
 			}
+			printPreflightCheck("Permissions verified on all nodes")
+		} else {
+			printPreflightSkip("Permission checks (guardrails disabled)")
 		}
+	} else {
+		printPreflightSkip("Source connectivity checks (using metadata dir)")
 	}
 
+	fmt.Println()
+	printSeparator()
+
+	// ── Phase 2: Assessment pipeline ────────────────────────────────────
 	startEvent := createMigrationAssessmentStartedEvent()
 	controlPlane.MigrationAssessmentStarted(startEvent)
 
-	initAssessmentDB() // Note: migassessment.AssessmentDir needs to be set beforehand
+	tracker := NewAssessmentProgressTracker()
 
-	err = gatherAssessmentMetadata(validatedReplicaEndpoints)
+	// Stage 1: Gather metadata + export schema + load into DB
+	gatherSubStages := map[string]bool{
+		"Collecting column statistics...":        true,
+		"Collecting redundant indexes...":        true,
+		"Collecting table index usage stats...":  true,
+	}
+	tracker.StartStage("Gathering metadata", len(gatherSubStages))
+	initAssessmentDB()
+	err = gatherAssessmentMetadata(validatedReplicaEndpoints, func(detail string) {
+		if gatherSubStages[detail] {
+			tracker.IncrementStep(detail)
+		}
+	})
 	if err != nil {
+		tracker.Finish()
 		return fmt.Errorf("failed to gather assessment metadata: %w", err)
 	}
 
 	parseExportedSchemaFileForAssessmentIfRequired()
-
-	// Disconnect from primary DB only after all direct DB operations are complete
-	// (including schema export which may check schema existence)
-	if assessmentMetadataDirFlag == "" {
+	if hasSourceConnectivity {
 		source.DB().Disconnect()
 	}
 
 	err = populateMetadataCSVIntoAssessmentDB()
 	if err != nil {
+		tracker.Finish()
 		return fmt.Errorf("failed to populate metadata CSV into SQLite DB: %w", err)
 	}
+	tracker.CompleteStage()
 
-	objectUsagesStats, err := fetchObjectUsageStats()
-	if err != nil {
-		return fmt.Errorf("failed to populate object usage stats: %w", err)
-	}
-
-	parserIssueDetector.PopulateObjectUsages(objectUsagesStats)
-
+	// Pause for IOPS validation (may prompt the user)
+	tracker.Finish()
+	fmt.Println()
 	err = validateSourceDBIOPSForAssessMigration()
 	if err != nil {
 		return fmt.Errorf("failed to validate source database IOPS: %w", err)
 	}
 
+	tracker = NewAssessmentProgressTracker()
+
+	// Stage 2: Analyze usage statistics
+	tracker.StartStage("Analyzing usage statistics", 0)
+	objectUsagesStats, err := fetchObjectUsageStats()
+	if err != nil {
+		tracker.Finish()
+		return fmt.Errorf("failed to populate object usage stats: %w", err)
+	}
+	parserIssueDetector.PopulateObjectUsages(objectUsagesStats)
+	tracker.CompleteStage()
+
+	// Stage 3: Run sizing assessment
+	tracker.StartStage("Running sizing assessment", 0)
 	err = runAssessment()
 	if err != nil {
-		utils.PrintAndLogf("failed to run assessment: %v", err)
+		tracker.Finish()
+		log.Errorf("failed to run assessment: %v", err)
 	}
+	tracker.CompleteStage()
 
+	// Stage 4: Generate report
+	tracker.StartStage("Generating report", 0)
 	err = generateAssessmentReport()
 	if err != nil {
+		tracker.Finish()
 		return fmt.Errorf("failed to generate assessment report: %w", err)
 	}
+	tracker.CompleteStage()
+	tracker.Finish()
 
-	log.Infof("number of assessment issues detected: %d\n", len(assessmentReport.Issues))
+	// ── Phase 3: Summary ────────────────────────────────────────────────
+	log.Infof("number of assessment issues detected: %d", len(assessmentReport.Issues))
 
-	utils.PrintAndLog("Migration assessment completed successfully.")
+	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
+	jsonPath := filepath.Join(assessmentReportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, JSON_EXTENSION))
+	htmlPath := filepath.Join(assessmentReportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, HTML_EXTENSION))
+	printAssessmentSummary(len(assessmentReport.Issues), jsonPath, htmlPath)
 
-	// Call the appropriate event builder based on control plane type
 	var completedEvent *cp.MigrationAssessmentCompletedEvent
 	controlPlaneType := os.Getenv("CONTROL_PLANE_TYPE")
 	if controlPlaneType == YBAEON {
 		completedEvent = createMigrationAssessmentCompletedEventForYBAeon()
 	} else {
-		// Default to yugabyted format (backwards compatible)
 		completedEvent = createMigrationAssessmentCompletedEventForYugabyteD()
 	}
 
@@ -577,7 +637,7 @@ func handleStartCleanIfNeededForAssessMigration(metadataDirPassedByUser bool) er
 }
 
 // gatherAssessmentMetadata collects metadata from the source database.
-func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint) error {
+func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint, progressFn func(string)) error {
 	if assessmentMetadataDirFlag != "" {
 		return nil // assessment metadata files are provided by the user inside assessmentMetadataDir
 	}
@@ -586,7 +646,7 @@ func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint) error {
 	source.ExportObjectTypeList = utils.GetExportSchemaObjectList(source.DBType)
 	metaDB = CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
-	utils.PrintAndLogf("\ngathering metadata and stats from '%s' source database...\n", source.DBType)
+	log.Infof("gathering metadata and stats from '%s' source database...", source.DBType)
 
 	switch source.DBType {
 	case POSTGRESQL:
@@ -596,6 +656,7 @@ func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint) error {
 			assessmentMetadataDir,
 			pgssEnabledForAssessment,
 			intervalForCapturingIOPS,
+			progressFn,
 		)
 		if err != nil {
 			return fmt.Errorf("error gathering metadata and stats from source PG database: %w", err)
@@ -608,7 +669,7 @@ func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint) error {
 	default:
 		return goerrors.Errorf("source DB Type %s is not yet supported for metadata and stats gathering", source.DBType)
 	}
-	utils.PrintAndLogf("gathered assessment metadata files at '%s'", assessmentMetadataDir)
+	log.Infof("gathered assessment metadata files at '%s'", assessmentMetadataDir)
 	return nil
 }
 
@@ -695,7 +756,7 @@ func populateMetadataCSVIntoAssessmentDB() error {
 var bytesTemplate []byte
 
 func generateAssessmentReport() (err error) {
-	utils.PrintAndLogf("Generating assessment report...")
+	log.Info("generating assessment report...")
 
 	assessmentReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
 	assessmentReport.TargetDBVersion = targetDbVersion
@@ -1747,7 +1808,7 @@ func generateAssessmentReportJson(reportDir string) error {
 		return fmt.Errorf("failed to write assessment report to file: %w", err)
 	}
 
-	utils.PrintAndLogf("generated JSON assessment report at: %s", jsonReportFilePath)
+	log.Infof("generated JSON assessment report at: %s", jsonReportFilePath)
 	return nil
 }
 
@@ -1867,7 +1928,7 @@ func generateAssessmentReportHtml(reportDir string) error {
 		return fmt.Errorf("failed to render the assessment report: %w", err)
 	}
 
-	utils.PrintAndLogf("generated HTML assessment report at: %s", htmlReportFilePath)
+	log.Infof("generated HTML assessment report at: %s", htmlReportFilePath)
 	return nil
 }
 

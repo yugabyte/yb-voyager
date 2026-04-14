@@ -195,12 +195,15 @@ func (pt *progressTracker) finalizeAndCheckResults(resultChan <-chan collectionR
 // GatherAssessmentMetadataFromPG collects metadata from PostgreSQL primary and (optionally) replicas.
 // If no replicas are provided, uses a simpler sequential path.
 // If replicas are provided, collection is performed in parallel for better performance.
+// The optional progressFn callback receives sub-step descriptions as they happen;
+// when provided, direct stdout output from the script is suppressed.
 func GatherAssessmentMetadataFromPG(
 	source *srcdb.Source,
 	validatedReplicas []srcdb.ReplicaEndpoint,
 	assessmentMetadataDir string,
 	pgssEnabled bool,
 	iopsInterval int64,
+	progressFn func(detail string),
 ) error {
 	scriptPath, err := findGatherMetadataScriptPath(POSTGRESQL)
 	if err != nil {
@@ -209,13 +212,14 @@ func GatherAssessmentMetadataFromPG(
 
 	// If no replicas, use simpler sequential path without "Primary:" prefix terminology
 	if len(validatedReplicas) == 0 {
-		utils.PrintAndLogfInfo("\nCollecting metadata from source database...")
+		log.Info("collecting metadata from source database...")
 
 		connectionUri := source.DB().GetConnectionUriWithoutPassword()
-		err := runGatherAssessmentMetadataScript(
+		err := runGatherAssessmentMetadataScriptWithProgress(
 			scriptPath,
 			[]string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
 			assessmentMetadataDir,
+			progressFn,
 			connectionUri,
 			sqlname.JoinIdentifiersMinQuoted(source.Schemas, "|"),
 			assessmentMetadataDir,
@@ -229,8 +233,7 @@ func GatherAssessmentMetadataFromPG(
 			return err
 		}
 
-		fmt.Println() // Blank line before success
-		utils.PrintAndLogfSuccess("Successfully completed metadata collection")
+		log.Info("successfully completed metadata collection")
 		return nil
 	}
 
@@ -256,7 +259,7 @@ func GatherAssessmentMetadataFromPG(
 	}
 
 	totalNodes := len(nodes)
-	utils.PrintAndLogfInfo("\nCollecting metadata from %d nodes in parallel...", totalNodes)
+	log.Infof("collecting metadata from %d nodes in parallel...", totalNodes)
 
 	// Initialize progress tracker
 	tracker := newProgressTracker(nodes)
@@ -326,9 +329,7 @@ func GatherAssessmentMetadataFromPG(
 		return err
 	}
 
-	// All nodes succeeded (parallel path - always has replicas)
-	fmt.Println() // Single blank line before final success message
-	utils.PrintAndLogfSuccess("Successfully completed metadata collection from %d node(s) (primary + %d replica(s))",
+	log.Infof("successfully completed metadata collection from %d node(s) (primary + %d replica(s))",
 		totalNodes, len(validatedReplicas))
 
 	return nil
@@ -420,6 +421,69 @@ func runGatherAssessmentMetadataScript(scriptPath string, envVars []string, work
 	for scanner.Scan() {
 		log.Infof("[stdout of script]: %s", scanner.Text())
 		fmt.Printf("%s\n", scanner.Text())
+	}
+
+	err = cmd.Wait()
+	if err != nil {
+		if exiterr, ok := err.(*exec.ExitError); ok {
+			if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
+				if status.ExitStatus() == 2 {
+					log.Infof("Exit without error as user opted not to continue in the script.")
+					os.Exit(0)
+				}
+			}
+		}
+		return fmt.Errorf("error waiting for gather assessment metadata script to complete: %w", err)
+	}
+	return nil
+}
+
+// runGatherAssessmentMetadataScriptWithProgress runs the script, captures stdout, detects sub-steps
+// and sends them to progressFn. If progressFn is nil, falls back to printing stdout directly.
+func runGatherAssessmentMetadataScriptWithProgress(
+	scriptPath string, envVars []string, workingDir string,
+	progressFn func(detail string),
+	scriptArgs ...string,
+) error {
+	if progressFn == nil {
+		return runGatherAssessmentMetadataScript(scriptPath, envVars, workingDir, scriptArgs...)
+	}
+
+	cmd := exec.Command(scriptPath, scriptArgs...)
+	log.Infof("running script: %s", cmd.String())
+	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, envVars...)
+	cmd.Dir = workingDir
+	cmd.Stdin = os.Stdin
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("error creating stdout pipe: %w", err)
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("error creating stderr pipe: %w", err)
+	}
+
+	err = cmd.Start()
+	if err != nil {
+		return fmt.Errorf("error starting gather assessment metadata script: %w", err)
+	}
+
+	go func() {
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			log.Errorf("[stderr of script]: %s", scanner.Text())
+		}
+	}()
+
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		line := scanner.Text()
+		log.Infof("[stdout of script]: %s", line)
+		if stage := detectStageFromOutput(line); stage != "" {
+			progressFn(stage)
+		}
 	}
 
 	err = cmd.Wait()
