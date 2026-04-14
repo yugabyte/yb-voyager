@@ -176,11 +176,13 @@ func resolveNextStepForStatus(wf *Workflow, msr *metadb.MigrationStatusRecord, v
 
 	// If the next workflow step is export-schema (first Schema step) and the target
 	// is not yet configured, the user needs to run start-migration first.
+	migrationFlag := buildMigrationNameFlag()
+
 	if nextStep.ID == StepExportSchema && !targetConfigured(v, msr) {
-		return "Start Migration", fmt.Sprintf("yb-voyager start-migration%s", configFlag)
+		return "Start Migration", fmt.Sprintf("yb-voyager start-migration%s%s", configFlag, migrationFlag)
 	}
 
-	return nextStep.DisplayName, fmt.Sprintf("yb-voyager %s%s", nextStep.Command, configFlag)
+	return nextStep.DisplayName, fmt.Sprintf("yb-voyager %s%s%s", nextStep.Command, configFlag, migrationFlag)
 }
 
 // buildConfigFlag returns the --export-dir flag string for CLI commands when

@@ -47,6 +47,7 @@ import (
 
 var (
 	cfgFile                            string
+	migrationName                      string
 	exportDir                          string
 	schemaDir                          string
 	startClean                         utils.BoolStr
@@ -75,7 +76,7 @@ var configKeyValuesToObfuscateInLogs = []string{
 
 // commandOrder defines the display order for root-level commands, matching the migration journey.
 var commandOrder = []string{
-	"init",
+	"new",
 	"assess",
 	"start-migration",
 	"schema",
@@ -98,7 +99,7 @@ func buildRootHelp(cmd *cobra.Command) string {
 	b.WriteString(dimStyle.Render("Docs: https://docs.yugabyte.com/preview/yugabyte-voyager/") + "\n")
 	b.WriteString("\n")
 	b.WriteString(titleStyle.Render("Getting started:") + "\n")
-	b.WriteString("  " + cmdStyle.Render("yb-voyager init") + "\n")
+	b.WriteString("  " + cmdStyle.Render("yb-voyager new") + "\n")
 	b.WriteString("\n")
 	b.WriteString("Available Commands:\n")
 
@@ -323,7 +324,7 @@ var noLockNeededList = []string{
 	"yb-voyager",
 	"yb-voyager version",
 	"yb-voyager help",
-	"yb-voyager init",
+	"yb-voyager new",
 	"yb-voyager start-migration",
 	"yb-voyager status",
 	"yb-voyager assess",
@@ -340,7 +341,7 @@ var noPersistentPreRunNeededList = []string{
 	"yb-voyager",
 	"yb-voyager version",
 	"yb-voyager help",
-	"yb-voyager init",
+	"yb-voyager new",
 	"yb-voyager start-migration",
 	"yb-voyager assess",
 	"yb-voyager schema",
@@ -414,9 +415,12 @@ func registerCommonGlobalFlags(cmd *cobra.Command) {
 func registerConfigFileFlag(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVarP(&cfgFile, "config-file", "c", "",
 		"path of the config file which is used to set the various parameters for yb-voyager commands")
+	cmd.PersistentFlags().StringVarP(&migrationName, "migration-name", "m", "",
+		"name of the migration to use (from $HOME/.yb-voyager/)")
 
 	if !slices.Contains(offlineCommands, cmd.CommandPath()) {
 		cmd.PersistentFlags().MarkHidden("config-file")
+		cmd.PersistentFlags().MarkHidden("migration-name")
 	}
 }
 

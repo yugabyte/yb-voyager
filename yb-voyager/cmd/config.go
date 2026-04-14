@@ -221,7 +221,7 @@ var allowedConfigSections = map[string]mapset.Set[string]{
 	"target":                           allowedTargetConfigKeys,
 	"yugabyted-control-plane":          allowedYugabytedControlPlaneConfigKeys,
 	"ybaeon-control-plane":             allowedYBAeonControlPlaneConfigKeys,
-	"init":                             allowedInitConfigKeys,
+	"new":                              allowedInitConfigKeys,
 	"assess-migration":                 allowedAssessMigrationConfigKeys,
 	"analyze-schema":                   allowedAnalyzeSchemaConfigKeys,
 	"export-schema":                    allowedExportSchemaConfigKeys,
@@ -289,22 +289,32 @@ initConfig initializes the configuration for the given Cobra command.
 
 	This setup ensures CLI > Config precedence
 */
-func findConfigFile() string {
-	dir, err := os.Getwd()
+
+// resolveConfigFile determines the config file path using the following priority:
+// 1. --config-file flag (explicit path)
+// 2. --migration-name flag (resolves to $HOME/.yb-voyager/<name>/config.yaml)
+// 3. Auto-detect single migration in $HOME/.yb-voyager/
+func resolveConfigFile() (string, error) {
+	// Priority 1: --config-file was provided
+	if cfgFile != "" {
+		return cfgFile, nil
+	}
+
+	// Priority 2: --migration-name was provided
+	if migrationName != "" {
+		configPath, err := getMigrationConfigPath(migrationName)
+		if err != nil {
+			return "", err
+		}
+		return configPath, nil
+	}
+
+	// Priority 3: Auto-detect single migration
+	_, configPath, err := resolveMigration()
 	if err != nil {
-		return ""
+		return "", err
 	}
-	for {
-		candidate := filepath.Join(dir, "config.yaml")
-		if utils.FileOrFolderExists(candidate) {
-			return candidate
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return ""
-		}
-		dir = parent
-	}
+	return configPath, nil
 }
 
 func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig, map[string]string, error) {
@@ -312,15 +322,12 @@ func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig,
 	v.SetConfigType("yaml")
 
 	if cfgFile == "" {
-		cfgFile = findConfigFile()
-	}
-
-	if cfgFile == "" && shouldRunPersistentPreRun(cmd) {
-		fmt.Println(color.RedString("Error:") + " could not find config.yaml in the current directory or any parent directory.")
-		fmt.Println("Please either:")
-		fmt.Println("  - Run this command from inside a migration directory created by 'yb-voyager init'")
-		fmt.Println("  - Provide the config file explicitly with --config-file / -c")
-		os.Exit(1)
+		resolvedConfig, err := resolveConfigFile()
+		if err != nil && shouldRunPersistentPreRun(cmd) {
+			printMigrationResolutionError(err, cmd.CommandPath())
+			os.Exit(1)
+		}
+		cfgFile = resolvedConfig
 	}
 
 	if cfgFile != "" {

@@ -37,6 +37,8 @@ import (
 var migrationDir string
 var migrationDirExplicit bool
 var sourceConnString string
+var initAssessmentControlPlane string
+var initMigrationName string
 
 // paths for installed gather-assessment-metadata scripts
 const (
@@ -45,9 +47,9 @@ const (
 )
 
 var initCmd = &cobra.Command{
-	Use:   "init",
-	Short: "Initialize a new migration project",
-	Long: `Initialize a new YB Voyager migration project.
+	Use:   "new",
+	Short: "Create a new migration project",
+	Long: `Create a new YB Voyager migration project.
 
 Creates a migration directory with the necessary structure and configuration
 to begin migrating your database to YugabyteDB.`,
@@ -61,9 +63,15 @@ func init() {
 	rootCmd.AddCommand(initCmd)
 	initCmd.Flags().StringVar(&migrationDir, "migration-dir", "",
 		"path to the migration directory (will be created if it doesn't exist). "+
-			"If not provided, defaults to ./migration-<dbname> or ./migration")
+			"If not provided, creates in $HOME/.yb-voyager/<migration-name>/")
+	initCmd.Flags().StringVar(&initMigrationName, "migration-name", "",
+		"name for the migration (used for directory name and later reference). "+
+			"If not provided, derived from source database name.")
 	initCmd.Flags().StringVar(&sourceConnString, "source-db-connection-string", "",
 		"source database connection string (e.g. postgresql://user:password@host:5432/dbname). If provided, skips the interactive prompt.")
+	initCmd.Flags().StringVar(&initAssessmentControlPlane, "assessment-control-plane", "",
+		"connection string for a shared assessment control plane (advanced). "+
+			"If not provided, uses local YugabyteDB instance.")
 }
 
 func runInit() {
@@ -113,32 +121,47 @@ func runInit() {
 }
 
 // ensureMigrationDir sets migrationDir to a sensible default if it was not
-// provided via the --migration-dir flag. The directory is named
-// "voyager-migration-<dbname>" (or "voyager-migration" when no dbname is
-// available). If that directory already exists, a numeric suffix is appended
-// (-2, -3, ...) until a non-existing path is found. Existing directories are
-// never reused.
-func ensureMigrationDir(dbName string) {
+// provided via the --migration-dir flag. The migration is created at
+// $HOME/.yb-voyager/<migration-name>/.
+// The migration name is derived from: --migration-name flag, or <dbtype>-<dbname>.
+// If the migration name already exists, a numeric suffix is appended (-2, -3, ...).
+func ensureMigrationDir(dbType, dbName string) {
 	if migrationDir != "" {
 		return
 	}
-	baseName := "voyager-migration"
-	if dbName != "" {
-		baseName = fmt.Sprintf("voyager-migration-%s", dbName)
+
+	// Determine migration name
+	name := initMigrationName
+	if name == "" && dbName != "" {
+		prefix := shortDBTypePrefix(dbType)
+		if prefix != "" {
+			name = prefix + "-" + dbName
+		} else {
+			name = dbName
+		}
+	}
+	if name == "" {
+		name = "migration"
 	}
 
-	candidate := baseName
-	for i := 2; ; i++ {
-		absPath, err := filepath.Abs(candidate)
-		if err != nil {
-			utils.ErrExit("failed to resolve migration-dir path: %v", err)
-		}
-		if !utils.FileOrFolderExists(absPath) {
-			migrationDir = absPath
-			return
-		}
-		candidate = fmt.Sprintf("%s-%d", baseName, i)
+	// Validate the name
+	if !isValidMigrationName(name) {
+		utils.ErrExit("invalid migration name %q: must be alphanumeric with hyphens or underscores", name)
 	}
+
+	// Ensure voyager home exists
+	if err := ensureVoyagerHome(); err != nil {
+		utils.ErrExit("failed to create voyager home: %v", err)
+	}
+
+	// If migration name already exists, append numeric suffix
+	candidate := name
+	for i := 2; migrationExists(candidate); i++ {
+		candidate = fmt.Sprintf("%s-%d", name, i)
+	}
+
+	// Set the migration directory path
+	migrationDir = getDefaultMigrationPath(candidate)
 }
 
 // getMigrationPaths returns the config-file and export-dir paths derived from
@@ -154,6 +177,33 @@ func checkConfigIdempotency() {
 	if utils.FileOrFolderExists(configFilePath) {
 		utils.ErrExit("migration directory %q already contains a config.yaml. "+
 			"Use the existing config or choose a different directory.", migrationDir)
+	}
+}
+
+// registerMigrationIfNeeded registers the migration in the voyager home directory.
+// This is needed when a custom --migration-dir is used, to create a symlink
+// at $HOME/.yb-voyager/<name> pointing to the custom directory.
+// For default locations (already in voyager home), this is a no-op.
+func registerMigrationIfNeeded(dbName string) {
+	// Determine migration name
+	name := initMigrationName
+	if name == "" {
+		name = dbName
+	}
+	if name == "" {
+		name = "migration"
+	}
+
+	// Validate the name
+	if !isValidMigrationName(name) {
+		// Use a sanitized version
+		name = "migration"
+	}
+
+	// Register the migration (creates symlink for custom dirs, no-op for default location)
+	if err := registerMigration(name, migrationDir); err != nil {
+		// Don't fail the whole operation if registration fails, just warn
+		fmt.Printf("  Warning: could not register migration in voyager home: %v\n", err)
 	}
 }
 
@@ -214,7 +264,7 @@ func handleConnectionString() {
 				Run()
 			if !retry {
 				fmt.Println(color.YellowString("  Skipping connection setup. You can configure the connection later in the config file."))
-				ensureMigrationDir(parsed.DBName)
+				ensureMigrationDir("postgresql", parsed.DBName)
 				handleSkip()
 				return
 			}
@@ -223,7 +273,7 @@ func handleConnectionString() {
 		break
 	}
 
-	ensureMigrationDir(parsed.DBName)
+	ensureMigrationDir("postgresql", parsed.DBName)
 	if migrationDirExplicit {
 		checkConfigIdempotency()
 	}
@@ -240,9 +290,6 @@ func handleConnectionString() {
 	// Check SELECT permissions
 	selectPermsMissing := checkAndReportSelectPermissions(connString, schemas)
 
-	// Prompt for fleet control plane
-	cpConnStr := promptFleetControlPlane()
-
 	// Generate config
 	generateConfigFile(configFilePath, exportDirPath, &sourceConfig{
 		DBType:   "postgresql",
@@ -252,7 +299,10 @@ func handleConnectionString() {
 		User:     parsed.User,
 		Password: parsed.Password,
 		Schema:   schemas,
-	}, nil, cpConnStr)
+	}, nil, initAssessmentControlPlane)
+
+	// Register migration in voyager home (for custom dirs)
+	registerMigrationIfNeeded(parsed.DBName)
 
 	printInitResultBox(parsed, configFilePath, exportDirPath, selectPermsMissing)
 	printInitNextSteps(configFilePath, true, false, selectPermsMissing, parsed)
@@ -272,7 +322,7 @@ func handleConnectionStringDirect(connStr string) {
 		utils.ErrExit("Connection failed: %v", err)
 	}
 
-	ensureMigrationDir(parsed.DBName)
+	ensureMigrationDir("postgresql", parsed.DBName)
 	if migrationDirExplicit {
 		checkConfigIdempotency()
 	}
@@ -290,7 +340,6 @@ func handleConnectionStringDirect(connStr string) {
 	selectPermsMissing := checkAndReportSelectPermissions(connStr, schemas)
 
 	// Generate config from template with source details filled in
-	// Non-interactive: no fleet prompt; use default local control plane
 	generateConfigFile(configFilePath, exportDirPath, &sourceConfig{
 		DBType:   "postgresql",
 		Host:     parsed.Host,
@@ -299,7 +348,10 @@ func handleConnectionStringDirect(connStr string) {
 		User:     parsed.User,
 		Password: parsed.Password,
 		Schema:   schemas,
-	}, nil)
+	}, nil, initAssessmentControlPlane)
+
+	// Register migration in voyager home (for custom dirs)
+	registerMigrationIfNeeded(parsed.DBName)
 
 	printInitResultBox(parsed, configFilePath, exportDirPath, selectPermsMissing)
 	printInitNextSteps(configFilePath, true, false, selectPermsMissing, parsed)
@@ -307,7 +359,7 @@ func handleConnectionStringDirect(connStr string) {
 
 // handleGenerateScripts creates export-dir and copies gather-assessment-metadata scripts
 func handleGenerateScripts() {
-	ensureMigrationDir("")
+	ensureMigrationDir("", "")
 	if migrationDirExplicit {
 		checkConfigIdempotency()
 	}
@@ -326,11 +378,11 @@ func handleGenerateScripts() {
 	oracleScriptsDir := filepath.Join(scriptsDir, "oracle")
 	copyGatherScripts(oracleGatherScriptsInstalledDir, oracleScriptsDir)
 
-	// Prompt for fleet control plane
-	cpConnStr := promptFleetControlPlane()
-
 	// Generate a minimal config (no source connection)
-	generateConfigFile(configFilePath, exportDirPath, nil, nil, cpConnStr)
+	generateConfigFile(configFilePath, exportDirPath, nil, nil, initAssessmentControlPlane)
+
+	// Register migration in voyager home (for custom dirs)
+	registerMigrationIfNeeded("")
 
 	fmt.Println()
 	fmt.Println("  " + titleStyle.Render("Initializing Migration Project"))
@@ -355,7 +407,7 @@ func handleGenerateScripts() {
 
 // handleSkip creates export-dir and generates a config template
 func handleSkip() {
-	ensureMigrationDir("")
+	ensureMigrationDir("", "")
 	if migrationDirExplicit {
 		checkConfigIdempotency()
 	}
@@ -363,11 +415,11 @@ func handleSkip() {
 
 	createExportDir(exportDirPath)
 
-	// Prompt for fleet control plane
-	cpConnStr := promptFleetControlPlane()
-
 	// Generate config with empty source
-	generateConfigFile(configFilePath, exportDirPath, nil, nil, cpConnStr)
+	generateConfigFile(configFilePath, exportDirPath, nil, nil, initAssessmentControlPlane)
+
+	// Register migration in voyager home (for custom dirs)
+	registerMigrationIfNeeded("")
 
 	fmt.Println()
 	fmt.Println("  " + titleStyle.Render("Initializing Migration Project"))
@@ -389,43 +441,18 @@ func handleSkip() {
 	printInitNextSteps(configFilePath, false, false, false, nil)
 }
 
-// promptFleetControlPlane asks the user whether they have a fleet of databases to assess
-// and, if so, prompts for a shared control plane connection string. Returns the connection
-// string (empty if the user chose local UI).
-func promptFleetControlPlane() string {
-	var fleetOption string
-	err := huh.NewSelect[string]().
-		Title("Choose your assessment control plane.").
-		Description("Voyager stores assessment results in a YugabyteDB instance with a built-in dashboard.\nTip: To view assessments for multiple databases in one place, set up a shared instance: https://docs.yugabyte.com/stable/quick-start/linux/#install-yugabytedb").
-		Options(
-			huh.NewOption("Local instance (default — no setup needed)", "local"),
-			huh.NewOption("Shared YugabyteDB instance (I'll provide a connection string)", "fleet"),
-		).
-		Value(&fleetOption).
-		Run()
-	if err != nil {
-		utils.ErrExit("prompt failed: %v", err)
+// shortDBTypePrefix returns a short prefix for the database type
+func shortDBTypePrefix(dbType string) string {
+	switch strings.ToLower(dbType) {
+	case "postgresql", "postgres":
+		return "pg"
+	case "oracle":
+		return "oracle"
+	case "mysql":
+		return "mysql"
+	default:
+		return ""
 	}
-
-	if fleetOption == "fleet" {
-		var cpConnString string
-		err := huh.NewInput().
-			Title("Enter the connection string for your assessment control plane").
-			Description("Format: postgresql://user:password@host:port").
-			Placeholder("postgresql://yugabyte:yugabyte@yb-fleet.example.com:5433").
-			Value(&cpConnString).
-			Run()
-		if err != nil {
-			utils.ErrExit("prompt failed: %v", err)
-		}
-		cpConnString = strings.TrimSpace(cpConnString)
-		if cpConnString != "" {
-			return cpConnString
-		}
-		fmt.Println(color.YellowString("  No connection string provided. Using local UI."))
-	}
-
-	return ""
 }
 
 func createExportDir(exportDirPath string) {
@@ -851,10 +878,7 @@ func printInitNextSteps(configFilePath string, connected bool, scripts bool, sel
 
 	step := 1
 	migrationDirPath := filepath.Dir(configFilePath)
-	lines = append(lines, nextStepLabelStyle.Render(fmt.Sprintf("%d. Change into the migration directory:", step)))
-	lines = append(lines, cmdStyle.Render(fmt.Sprintf("  cd %s", displayPath(migrationDirPath))))
-	lines = append(lines, "")
-	step++
+	migrationNameFlag := buildMigrationNameFlag()
 
 	if !connected && !scripts {
 		lines = append(lines, fmt.Sprintf("%d. Add your source connection details to the config file:", step))
@@ -884,14 +908,14 @@ func printInitNextSteps(configFilePath string, connected bool, scripts bool, sel
 		lines = append(lines, fmt.Sprintf("%d. Copy the resulting metadata directory back to this machine.", step))
 		step++
 		lines = append(lines, nextStepLabelStyle.Render(fmt.Sprintf("%d. Run assessment:", step)))
-		lines = append(lines, cmdStyle.Render("   yb-voyager assess run --assessment-metadata-dir /path/to/metadata"))
+		lines = append(lines, cmdStyle.Render(fmt.Sprintf("   yb-voyager assess run%s --assessment-metadata-dir /path/to/metadata", migrationNameFlag)))
 	} else {
 		lines = append(lines, nextStepLabelStyle.Render(fmt.Sprintf("%d. Assess your source database for migration:", step)))
-		lines = append(lines, cmdStyle.Render("  yb-voyager assess run"))
+		lines = append(lines, cmdStyle.Render(fmt.Sprintf("  yb-voyager assess run%s", migrationNameFlag)))
 	}
 
 	lines = append(lines, "")
-	lines = append(lines, dimStyle.Render("Tip: yb-voyager status"))
+	lines = append(lines, dimStyle.Render(fmt.Sprintf("Tip: yb-voyager status%s", migrationNameFlag)))
 
 	printSection("What's Next", lines...)
 	fmt.Println()

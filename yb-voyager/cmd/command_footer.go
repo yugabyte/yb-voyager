@@ -205,6 +205,8 @@ func printCommandFooter(footer CommandFooter) {
 		progress = append(progress, formatPhaseLines(footer.Phases)...)
 	}
 
+	migrationFlag := buildMigrationNameFlag()
+
 	// Next step
 	if len(footer.NextStepDesc) > 0 || footer.NextStepCmd != "" {
 		if len(progress) > 0 {
@@ -218,12 +220,12 @@ func printCommandFooter(footer CommandFooter) {
 			}
 		}
 		if footer.NextStepCmd != "" {
-			progress = append(progress, padding+cmdStyle.Render(footer.NextStepCmd))
+			progress = append(progress, padding+cmdStyle.Render(footer.NextStepCmd+migrationFlag))
 		}
 	}
 
 	// Tip
-	tip := "yb-voyager status"
+	tip := "yb-voyager status" + migrationFlag
 	progress = append(progress, formatKeyValue("Tip:", dimStyle.Render(tip), kvWidth))
 
 	printSection("Migration Progress", progress...)

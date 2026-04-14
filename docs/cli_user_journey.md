@@ -76,17 +76,53 @@ Current help behaves like a man page.
 
 ## Introduce a “Guided Entry Point”
 
-* Add a top-level yb-voyager init and start-migration commands
+* Add a top-level yb-voyager new and start-migration commands
 
 
 1. Yb-voyager Init   
 2. Yb-voyager assess-migration   
 3. Yb-voyager start-migration
 
-## Init
+## New (formerly Init)
+
+Migrations are stored in `$HOME/.yb-voyager/` by default, organized by migration name.
 
 ```shell
-yb-voyager init --migration-dir /path/to/migration-dir 
+# Create migration (name derived from database name)
+yb-voyager new --source-db-connection-string "postgresql://user@host/mydb"
+# Creates: $HOME/.yb-voyager/mydb/
+
+# Create with explicit name
+yb-voyager new --migration-name prod-migration --source-db-connection-string "..."
+# Creates: $HOME/.yb-voyager/prod-migration/
+
+# Create at custom location (symlinked to registry)
+yb-voyager new --migration-dir /data/migrations/myproject --source-db-connection-string "..."
+# Creates: /data/migrations/myproject/ + symlink at $HOME/.yb-voyager/mydb
+```
+
+### Migration Name Resolution
+
+Commands automatically find your migration using this priority:
+1. `--config-file` - explicit path (backwards compatible)
+2. `--migration-name` - resolves to `$HOME/.yb-voyager/<name>/config.yaml`
+3. Auto-detect - if only one migration exists, use it automatically
+
+```shell
+# With single migration - no flags needed
+yb-voyager assess run
+
+# With multiple migrations - specify which one
+yb-voyager assess run --migration-name prod-migration
+
+# Backwards compatible
+yb-voyager assess run --config-file /custom/path/config.yaml
+```
+
+### Interactive Example
+
+```shell
+yb-voyager new
 
 ══════════════════════════════════════════════════════════════
                     Welcome to YB Voyager
@@ -403,7 +439,7 @@ Rename commands and group them by phase sub-commands.
 
 ```shell
 # Global Commands
-yb-voyager init (NEW) - Setup wizard
+yb-voyager new - Setup wizard
 yb-voyager status (NEW) - Overall migration progress
 yb-voyager version
 
@@ -457,19 +493,19 @@ cutover		/cutover/
 
 Latest feedback: 
 
-- make it simpler for basic use-cases. fleet is advanced use-case. 
-    - don't ask question about assessment control plane. assume local UI by default
-- init sounds like something you run once but it seems to be run once per migration. 
-    - maybe begin? 
-- use $HOME/.voyager
-- use migration name instead of uuid/config files
-    - If only one migration just assume that
+- [DONE] make it simpler for basic use-cases. fleet is advanced use-case. 
+    - [DONE] don't ask question about assessment control plane. assume local UI by default
+- [DONE] init sounds like something you run once (to initialize voyager) but it seems to be run once per migration. 
+    - [DONE] renamed to "new"
+- [DONE] use $HOME/.yb-voyager by default instead of cwd as the migration dir.
+- [DONE] use migration name instead of uuid/config files
+    - [DONE] --migration-name flag added, auto-detects if only one migration
 - voyager status should return status of all migrations 
     - --migration-name xyz
 - git style flow does not really make sense because you don't really work within that directory in the case of voyager. It's essentialyl just some data/metadata that you mostly should not have to look at. 
+- help should be more consise and the commands should be self-explanatory as possible. 
 - migrate -> modernize
 - use yugabyted UI as inspiration
 - control plane
     - probably until schema import (involving manual schema edits), local control plane makes sense. after that point user to target db control plane UI? 
     - you could also update both. (local UI + target DB control plane)
-- help should be more consise and the commands should be self-explanatory as possible. 
