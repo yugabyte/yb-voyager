@@ -28,6 +28,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
+	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
@@ -268,7 +269,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
 		packAndSendImportDataToSrcReplicaPayload(COMPLETE, nil)
 	case SOURCE_DB_IMPORTER_ROLE:
-		packAndSendImportDataToSourcePayload(COMPLETE, nil)
+		packAndSendImportDataToSourcePayload(COMPLETE, nil, false, uuid.Nil)
 	}
 	startFurtherCommandsAfterCurrentImportData()
 }
@@ -295,11 +296,12 @@ func startExportDataFromSourceOnNextIteration() {
 
 	injectBeforeInitializeNextIteration()
 
-	err = initializeNextIteration()
+	nextIterationMigrationUUID, err := initializeNextIteration()
 	if err != nil {
 		utils.ErrExit("failed to initialize next iteration: %w", err)
 	}
 
+	packAndSendImportDataToSourcePayload(COMPLETE, nil, true, nextIterationMigrationUUID)
 	injectAfterInitializeNextIteration()
 
 	//Start export from source on next iteration

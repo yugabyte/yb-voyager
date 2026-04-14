@@ -18,6 +18,7 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -96,7 +97,7 @@ func initTargetConfFromSourceConf() error {
 	return nil
 }
 
-func packAndSendImportDataToSourcePayload(status string, errorMsg error) {
+func packAndSendImportDataToSourcePayload(status string, errorMsg error, iterativeCutoverEnabled bool, nextIterationMigrationUUID uuid.UUID) {
 
 	if !shouldSendCallhome() {
 		return
@@ -131,14 +132,18 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg error) {
 	dataMetrics.TableListCount = len(importTableList)
 
 	importDataPayload := callhome.ImportDataPhasePayload{
-		PayloadVersion:   callhome.IMPORT_DATA_CALLHOME_PAYLOAD_VERSION,
-		ParallelJobs:     int64(tconf.Parallelism),
-		StartClean:       bool(startClean),
-		LiveWorkflowType: FALL_BACK,
-		Error:            callhome.SanitizeErrorMsg(errorMsg, anonymizer),
-		ControlPlaneType: getControlPlaneType(),
-		DataMetrics:      dataMetrics,
-		Phase:            importPhase,
+		PayloadVersion:          callhome.IMPORT_DATA_CALLHOME_PAYLOAD_VERSION,
+		ParallelJobs:            int64(tconf.Parallelism),
+		StartClean:              bool(startClean),
+		LiveWorkflowType:        FALL_BACK,
+		Error:                   callhome.SanitizeErrorMsg(errorMsg, anonymizer),
+		ControlPlaneType:        getControlPlaneType(),
+		DataMetrics:             dataMetrics,
+		Phase:                   importPhase,
+		IterativeCutoverEnabled: iterativeCutoverEnabled,
+	}
+	if iterativeCutoverEnabled {
+		importDataPayload.NextIterationMigrationUUID = nextIterationMigrationUUID
 	}
 
 	// Add cutover timings if applicable

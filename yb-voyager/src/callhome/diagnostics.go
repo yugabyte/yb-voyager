@@ -342,12 +342,14 @@ type ImportDataPhasePayload struct {
 	YBClusterMetrics            YBClusterMetrics  `json:"yb_cluster_metrics"`
 	DataMetrics                 ImportDataMetrics `json:"data_metrics"`
 	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
-	Phase            string          `json:"phase,omitempty"`
-	LiveWorkflowType string          `json:"live_workflow_type,omitempty"`
-	EnableUpsert     bool            `json:"enable_upsert"`
-	Error            string          `json:"error"`
-	ControlPlaneType string          `json:"control_plane_type"`
-	CutoverTimings   *CutoverTimings `json:"cutover_timings,omitempty"`
+	Phase                      string          `json:"phase,omitempty"`
+	IterativeCutoverEnabled    bool            `json:"iterative_cutover_enabled"`
+	NextIterationMigrationUUID uuid.UUID       `json:"next_iteration_migration_uuid"`
+	LiveWorkflowType           string          `json:"live_workflow_type,omitempty"`
+	EnableUpsert               bool            `json:"enable_upsert"`
+	Error                      string          `json:"error"`
+	ControlPlaneType           string          `json:"control_plane_type"`
+	CutoverTimings             *CutoverTimings `json:"cutover_timings,omitempty"`
 }
 
 type ImportDataMetrics struct {
@@ -477,14 +479,14 @@ Version History
 var ARCHIVE_CHANGES_CALLHOME_PAYLOAD_VERSION = "1.0"
 
 type ArchiveChangesPhasePayload struct {
-	PayloadVersion         string `json:"payload_version"`
-	Policy                 string `json:"policy"`
-	FSUtilizationThreshold int    `json:"fs_utilization_threshold"`
-	TotalSegments              int `json:"total_segments"`
-	ArchivedAndDeletedSegments int `json:"archived_and_deleted_segments"`
-	PendingSegments            int `json:"pending_segments"`
-	Error                  string `json:"error"`
-	ControlPlaneType       string `json:"control_plane_type"`
+	PayloadVersion             string `json:"payload_version"`
+	Policy                     string `json:"policy"`
+	FSUtilizationThreshold     int    `json:"fs_utilization_threshold"`
+	TotalSegments              int    `json:"total_segments"`
+	ArchivedAndDeletedSegments int    `json:"archived_and_deleted_segments"`
+	PendingSegments            int    `json:"pending_segments"`
+	Error                      string `json:"error"`
+	ControlPlaneType           string `json:"control_plane_type"`
 }
 
 func MarshalledJsonString[T any](value T) string {
