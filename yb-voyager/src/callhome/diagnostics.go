@@ -104,7 +104,7 @@ type SourceDBDetails struct {
 	DBSize             int64    `json:"total_db_size_bytes"`            //bytes
 	Role               string   `json:"role,omitempty"`                 //for differentiating replica details
 	DBSystemIdentifier int64    `json:"db_system_identifier,omitempty"` //Database system identifier for unique instance identification (currently only implemented for PostgreSQL)
-	DBID               int64    `json:"db_id"`                          // postgresql/yugabytedb: pg_database.oid; oracle: v$database.dbid; mysql: 0 (sent explicitly)
+	DBID               int64    `json:"db_id"`                          // postgresql/yugabytedb: pg_database.oid;
 	DBName             string   `json:"db_name,omitempty"`              //Anonymized database name
 	SchemaNames        []string `json:"schema_names,omitempty"`         //Anonymized schema names
 }
