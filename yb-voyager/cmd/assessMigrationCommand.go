@@ -335,10 +335,16 @@ func assessMigration() (err error) {
 	tracker := NewAssessmentProgressTracker()
 
 	// Stage 1: Gather metadata + export schema + load into DB
+	// 4 tracked sub-stages partition the ~12 script steps into logical groups:
+	//   1/4 steps 1-4:  column stats, query summary, index mapping, object types
+	//   2/4 steps 5-7:  redundant indexes, column counts, data types
+	//   3/4 step  8:    IOPS measurement (longest step, ~120s sleep)
+	//   4/4 steps 9-12: index sizes, usage stats, row counts, schema dump
 	gatherSubStages := map[string]bool{
-		"Collecting column statistics...":        true,
-		"Collecting redundant indexes...":        true,
-		"Collecting table index usage stats...":  true,
+		"Collecting column statistics...": true,
+		"Collecting redundant indexes...": true,
+		"Collecting table index iops...":  true,
+		"Collecting table index sizes...": true,
 	}
 	tracker.StartStage("Gathering metadata", len(gatherSubStages))
 	initAssessmentDB()
