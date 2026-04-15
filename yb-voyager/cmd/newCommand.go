@@ -86,7 +86,7 @@ func runInit() {
 		}
 	}
 
-	printWelcomeBanner()
+	// printWelcomeBanner()
 
 	// If connection string was provided via flag, skip the interactive prompt
 	if sourceConnString != "" {
@@ -97,14 +97,15 @@ func runInit() {
 	// Prompt for source DB details
 	var sourceOption string
 	err := huh.NewSelect[string]().
-		Title("First, let's assess your source database. How would you like to connect?\n"+
-			"Recommendation: Connect to your production database for accurate results.").
+		Title("The first step would be to assess your source database for compatibility and provide YugabyteDB clustersizing recommendations. \nHow would you like to connect?\n").
+		Description("Note:  It is recommended to connect to your live production database for accurate reporting.").
 		Options(
 			huh.NewOption("Enter a connection string", "connection_string"),
-			huh.NewOption("I don't have access to source database from this machine - Get scripts that can be run on another machine.", "generate_scripts"),
+			huh.NewOption("I don't have access to source database from this machine - Get scripts that can be run on another machine. (assessment-only)", "generate_scripts"),
 			huh.NewOption("Skip and configure later", "skip"),
 		).
 		Value(&sourceOption).
+		WithTheme(huh.ThemeDracula()).
 		Run()
 	if err != nil {
 		utils.ErrExit("prompt failed: %v", err)
@@ -231,6 +232,7 @@ func handleConnectionString() {
 			Description("Format: postgresql://user:password@host:port/dbname").
 			// Placeholder("postgresql://user:password@host:5432/mydb").
 			Value(&connString).
+			WithTheme(huh.ThemeDracula()).
 			Run()
 		if err != nil {
 			utils.ErrExit("prompt failed: %v", err)
@@ -855,8 +857,9 @@ func printInitResultBox(parsed *parsedConnInfo, configFilePath, exportDirPath st
 
 	steps := []string{
 		successLine("Connected to source database"),
-		successLine("Created migration workspace  " + dimStyle.Render(displayPath(exportDirPath))),
+		successLine("Created project workspace  " + dimStyle.Render(displayPath(exportDirPath))),
 		successLine("Generated config             " + dimStyle.Render(displayPath(configFilePath))),
+		successLine("Setting up control plane      "),
 	}
 
 	for _, step := range steps {

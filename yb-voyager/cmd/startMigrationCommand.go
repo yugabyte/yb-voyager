@@ -183,8 +183,9 @@ func continueStartMigration(v *viper.Viper) {
 	assessmentReportPath := filepath.Join(exportDirPath, "assessment", "reports",
 		fmt.Sprintf("%s.json", ASSESSMENT_FILE_NAME))
 	assessmentDone := utils.FileOrFolderExists(assessmentReportPath)
+	hasControlPlaneUI := v.GetString("control-plane-type") != ""
 
-	printAssessmentSection(sourceDBType, sourceHost, sourcePort, sourceDBName, assessmentDone, assessmentReportPath)
+	printAssessmentSection(sourceDBType, sourceHost, sourcePort, sourceDBName, assessmentDone, assessmentReportPath, hasControlPlaneUI)
 
 	if !assessmentDone {
 		var proceed bool
@@ -582,7 +583,7 @@ func parseAndValidateTarget(connStr string) *parsedConnInfo {
 }
 
 // printAssessmentSection prints the "Start Migration" header with source + assessment summary.
-func printAssessmentSection(dbType, host string, port int, dbName string, assessmentDone bool, assessmentReportPath string) {
+func printAssessmentSection(dbType, host string, port int, dbName string, assessmentDone bool, assessmentReportPath string, hasControlPlaneUI bool) {
 	kw := 13
 	indent := strings.Repeat(" ", kw+1) // indent for continuation lines under key-value pairs
 
@@ -598,8 +599,10 @@ func printAssessmentSection(dbType, host string, port int, dbName string, assess
 		if sizingInfo != "" {
 			lines = append(lines, indent+sizingInfo)
 		}
-		htmlReportPath := strings.TrimSuffix(assessmentReportPath, ".json") + ".html"
-		lines = append(lines, indent+dimStyle.Render("Report: "+displayPath(htmlReportPath)))
+		if !hasControlPlaneUI {
+			htmlReportPath := strings.TrimSuffix(assessmentReportPath, ".json") + ".html"
+			lines = append(lines, indent+dimStyle.Render("Report: "+displayPath(htmlReportPath)))
+		}
 	} else {
 		lines = append(lines, formatKeyValue("Assessment:", warnStyle.Render("not yet run"), kw))
 	}

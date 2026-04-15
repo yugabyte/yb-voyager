@@ -389,10 +389,6 @@ func printAssessMigrationFooter() {
 		return
 	}
 
-	reportDir := filepath.Join(exportDir, "assessment", "reports")
-	htmlReport := displayPath(filepath.Join(reportDir, ASSESSMENT_FILE_NAME+HTML_EXTENSION))
-	jsonReport := displayPath(filepath.Join(reportDir, ASSESSMENT_FILE_NAME+JSON_EXTENSION))
-
 	summary := []string{
 		formatKeyValue("Issues:", fmt.Sprintf("%d", len(assessmentReport.Issues)), 14),
 		formatKeyValue("Complexity:", assessmentReport.MigrationComplexity, 14),
@@ -407,10 +403,18 @@ func printAssessMigrationFooter() {
 	}
 	uiURL := fmt.Sprintf("http://%s:15433/migrations?migration_uuid=%s", uiHost, migrationUUID.String())
 
+	var artifacts []string
+	if uiURL == "" {
+		reportDir := filepath.Join(exportDir, "assessment", "reports")
+		htmlReport := displayPath(filepath.Join(reportDir, ASSESSMENT_FILE_NAME+HTML_EXTENSION))
+		jsonReport := displayPath(filepath.Join(reportDir, ASSESSMENT_FILE_NAME+JSON_EXTENSION))
+		artifacts = []string{htmlReport, jsonReport}
+	}
+
 	footer := CommandFooter{
 		SectionTitle: "Assessment Summary",
 		Title:        "Migration assessment completed successfully.",
-		Artifacts:    []string{htmlReport, jsonReport},
+		Artifacts:    artifacts,
 		Links:        []string{uiURL},
 		Summary:      summary,
 		NextStepDesc: []string{"Start the migration workflow:"},

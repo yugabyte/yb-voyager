@@ -1244,9 +1244,6 @@ func printAnalyzeSchemaFooter() {
 		return
 	}
 
-	reportFile := fmt.Sprintf("%s.%s", ANALYSIS_REPORT_FILE_NAME, HTML)
-	reportPath := displayPath(filepath.Join(exportDir, "reports", reportFile))
-
 	issueCount := len(schemaAnalysisReport.Issues)
 
 	summary := []string{
@@ -1255,6 +1252,13 @@ func printAnalyzeSchemaFooter() {
 
 	wf := resolveWorkflow(msr)
 	phases := computePhaseStatuses(wf, msr, StepAnalyzeSchema)
+
+	var artifacts []string
+	if getControlPlaneType() == "" {
+		reportFile := fmt.Sprintf("%s.%s", ANALYSIS_REPORT_FILE_NAME, HTML)
+		reportPath := displayPath(filepath.Join(exportDir, "reports", reportFile))
+		artifacts = []string{reportPath}
+	}
 
 	var nextStepDesc []string
 	if issueCount > 0 {
@@ -1269,7 +1273,7 @@ func printAnalyzeSchemaFooter() {
 	footer := CommandFooter{
 		SectionTitle: "Analyze Schema Summary",
 		Title:        "Schema analysis completed successfully.",
-		Artifacts:    []string{reportPath},
+		Artifacts:    artifacts,
 		Summary:      summary,
 		NextStepDesc: nextStepDesc,
 		NextStepCmd:  "yb-voyager schema import",
