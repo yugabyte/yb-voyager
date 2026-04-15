@@ -255,7 +255,7 @@ func assessMigration() (err error) {
 		// Connect
 		err = source.DB().Connect()
 		if err != nil {
-			printPreflightFail("Connected to source database")
+			printPreflightFail("Connect to source database")
 			return fmt.Errorf("failed to connect source db for assessing migration: %w", err)
 		}
 		printPreflightCheck("Connected to source database")
@@ -265,7 +265,7 @@ func assessMigration() (err error) {
 			log.Info("checking source DB version")
 			err = source.DB().CheckSourceDBVersion(exportType)
 			if err != nil {
-				printPreflightFail("Source DB version compatible")
+				printPreflightFail("Source DB version check")
 				return fmt.Errorf("failed to check source DB version for assess migration: %w", err)
 			}
 			printPreflightCheck(fmt.Sprintf("Source DB version compatible (%s)", source.DB().GetVersion()))
@@ -314,7 +314,7 @@ func assessMigration() (err error) {
 			checkIfSchemasHaveUsagePermissions()
 			pgssEnabledForAssessment, err = migassessment.CheckAssessmentPermissionsOnAllNodes(&source, validatedReplicaEndpoints)
 			if err != nil {
-				printPreflightFail("Permissions verified on all nodes")
+				printPreflightFail("Verify permissions on all nodes")
 				return fmt.Errorf("permission check failed: %w", err)
 			}
 			printPreflightCheck("Permissions verified on all nodes")
