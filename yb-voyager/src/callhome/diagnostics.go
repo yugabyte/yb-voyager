@@ -86,14 +86,15 @@ type Payload struct {
 	Status           string    `json:"status"`
 }
 
-// SHOULD NOT REMOVE THESE (host, db_type, db_version, total_db_size_bytes) FIELDS of SourceDBDetails as parsing these specifically here
+// SHOULD NOT REMOVE THESE (host, db_type, db_version, total_db_size_bytes, db_id) FIELDS of SourceDBDetails as parsing these specifically here
 // https://github.com/yugabyte/yugabyte-growth/blob/ad5df306c50c05136df77cd6548a1091ae577046/diagnostics_v2/main.py#L549
 
 /*
 Version History
 1.0: Introduced DBName and SchemaNames fields
+1.1: Added db_id (PostgreSQL/YugabyteDB: pg_database.oid; Oracle: v$database.dbid; MySQL: 0)
 */
-var SOURCE_DB_DETAILS_PAYLOAD_VERSION = "1.0"
+var SOURCE_DB_DETAILS_PAYLOAD_VERSION = "1.1"
 
 type SourceDBDetails struct {
 	PayloadVersion     string   `json:"payload_version"`
@@ -103,6 +104,7 @@ type SourceDBDetails struct {
 	DBSize             int64    `json:"total_db_size_bytes"`            //bytes
 	Role               string   `json:"role,omitempty"`                 //for differentiating replica details
 	DBSystemIdentifier int64    `json:"db_system_identifier,omitempty"` //Database system identifier for unique instance identification (currently only implemented for PostgreSQL)
+	DBID               int64    `json:"db_id"`                          // postgresql/yugabytedb: pg_database.oid; oracle: v$database.dbid; mysql: 0 (sent explicitly)
 	DBName             string   `json:"db_name,omitempty"`              //Anonymized database name
 	SchemaNames        []string `json:"schema_names,omitempty"`         //Anonymized schema names
 }
@@ -477,14 +479,14 @@ Version History
 var ARCHIVE_CHANGES_CALLHOME_PAYLOAD_VERSION = "1.0"
 
 type ArchiveChangesPhasePayload struct {
-	PayloadVersion         string `json:"payload_version"`
-	Policy                 string `json:"policy"`
-	FSUtilizationThreshold int    `json:"fs_utilization_threshold"`
-	TotalSegments              int `json:"total_segments"`
-	ArchivedAndDeletedSegments int `json:"archived_and_deleted_segments"`
-	PendingSegments            int `json:"pending_segments"`
-	Error                  string `json:"error"`
-	ControlPlaneType       string `json:"control_plane_type"`
+	PayloadVersion             string `json:"payload_version"`
+	Policy                     string `json:"policy"`
+	FSUtilizationThreshold     int    `json:"fs_utilization_threshold"`
+	TotalSegments              int    `json:"total_segments"`
+	ArchivedAndDeletedSegments int    `json:"archived_and_deleted_segments"`
+	PendingSegments            int    `json:"pending_segments"`
+	Error                      string `json:"error"`
+	ControlPlaneType           string `json:"control_plane_type"`
 }
 
 func MarshalledJsonString[T any](value T) string {
