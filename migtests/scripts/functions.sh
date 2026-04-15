@@ -93,6 +93,13 @@ run_ysql() {
 	PGPASSWORD="${TARGET_DB_ADMIN_PASSWORD}" psql -P pager=off -h ${TARGET_DB_HOST} -p ${TARGET_DB_PORT} -U ${TARGET_DB_ADMIN_USER} -d ${db_name} -c "${sql}"
 }
 
+ysql_terminate_and_drop_database() {
+	local target_db_to_drop=$1
+	run_ysql yugabyte "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${target_db_to_drop}' AND pid != pg_backend_pid();" || true
+	sleep 1
+	run_ysql yugabyte "DROP DATABASE IF EXISTS \"${target_db_to_drop}\";"
+}
+
 ysql_import_file() {
 	db_name=$1
 	file=$2
