@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/cmd"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
@@ -1074,10 +1075,10 @@ FROM generate_series(1, 10);`,
 
 	err = lm.InitMetaDB()
 	testutils.FatalIfError(t, err, "failed to initialize meta db")
-	metaDB = lm.metaDB
+	testMetaDB := lm.GetMetaDB()
 
 	//check if the cdc partitioning strategy is auto after the first import
-	importDataStatus, err := metaDB.GetImportDataStatusRecord()
+	importDataStatus, err := testMetaDB.GetImportDataStatusRecord()
 	testutils.FatalIfError(t, err, "Failed to get import data status record")
 	assert.Equal(t, importDataStatus.CdcPartitioningStrategyConfig, "auto")
 
@@ -1111,12 +1112,12 @@ FROM generate_series(1, 10);`,
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
 	for i := 0; i < 5; i++ {
-		importDataStatus, err = metaDB.GetImportDataStatusRecord()
+		importDataStatus, err = testMetaDB.GetImportDataStatusRecord()
 		testutils.FatalIfError(t, err, "Failed to get import data status record")
-		if importDataStatus.CdcPartitioningStrategyConfig == PARTITION_BY_PK {
+		if importDataStatus.CdcPartitioningStrategyConfig == cmd.PARTITION_BY_PK {
 			break
 		} else if i == 4 {
-			t.Fatalf("failed to validate cdc partitioning strategy: got: %s, expected: %s", importDataStatus.CdcPartitioningStrategyConfig, PARTITION_BY_PK)
+			t.Fatalf("failed to validate cdc partitioning strategy: got: %s, expected: %s", importDataStatus.CdcPartitioningStrategyConfig, cmd.PARTITION_BY_PK)
 		}
 		time.Sleep(5 * time.Second)
 	}
@@ -3159,7 +3160,7 @@ FROM generate_series(1, 5);`,
 	err = lm.InitMetaDB()
 	testutils.FatalIfError(t, err, "failed to initialize meta db")
 
-	msr, err := lm.metaDB.GetMigrationStatusRecord()
+	msr, err := lm.GetMetaDB().GetMigrationStatusRecord()
 	testutils.FatalIfError(t, err, "failed to get migration status record")
 
 	// Get replication slot names
@@ -3194,7 +3195,7 @@ FROM generate_series(1, 5);`,
 	err = lm.WaitForCutoverComplete(0, 50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
-	msr, err = lm.metaDB.GetMigrationStatusRecord()
+	msr, err = lm.GetMetaDB().GetMigrationStatusRecord()
 	testutils.FatalIfError(t, err, "failed to get migration status record")
 
 	ybSlotName := msr.YBReplicationSlotName

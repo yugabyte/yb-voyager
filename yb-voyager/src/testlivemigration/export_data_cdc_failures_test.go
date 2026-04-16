@@ -15,7 +15,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package cmd
+package testlivemigration
 
 import (
 	"context"
@@ -28,6 +28,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/cmd"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
@@ -703,7 +704,7 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 
 	time.Sleep(10 * time.Second)
 
-	offsetBeforeCDC := testutils.ReadOffsetFileChecksum(exportDir, SOURCE_DB_EXPORTER_ROLE)
+	offsetBeforeCDC := testutils.ReadOffsetFileChecksum(exportDir, cmd.SOURCE_DB_EXPORTER_ROLE)
 
 	lm.ExecuteSourceDelta()
 
@@ -717,9 +718,9 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 	eventCountAfterFailure, err := testutils.CountEventsInQueueSegments(exportDir)
 	require.NoError(t, err, "Should be able to count events after failure")
 	require.Equal(t, 20, eventCountAfterFailure, "Expected 20 CDC events after failure")
-	offsetAfterFailure := testutils.ReadOffsetFileChecksum(exportDir, SOURCE_DB_EXPORTER_ROLE)
+	offsetAfterFailure := testutils.ReadOffsetFileChecksum(exportDir, cmd.SOURCE_DB_EXPORTER_ROLE)
 	require.Equal(t, offsetBeforeCDC, offsetAfterFailure, "Offsets advanced despite before-offset-commit failure; replay will not occur")
-	offsetContents := testutils.ReadOffsetFileContents(exportDir, SOURCE_DB_EXPORTER_ROLE)
+	offsetContents := testutils.ReadOffsetFileContents(exportDir, cmd.SOURCE_DB_EXPORTER_ROLE)
 	require.Equal(t, "", strings.TrimSpace(offsetContents), "Offset file should be empty after failure")
 
 	eventIDsBefore, err := testutils.CollectEventIDsForOffsetCommitTest(exportDir)
@@ -1083,7 +1084,7 @@ func TestCDCRotationMidBatchClosesSegment(t *testing.T) {
 
 	// Kill immediately after injection to avoid graceful shutdown that could sync segments.
 	// _ = lm.exportCmd.Kill()
-	// lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
+	// lm.KillDebezium(cmd.SOURCE_DB_EXPORTER_ROLE)
 	err = lm.WaitForExportDataExitTimeout(120 * time.Second)
 	require.Error(t, err, "Export should exit after Byteman failure")
 

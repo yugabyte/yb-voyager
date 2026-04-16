@@ -15,7 +15,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package cmd
+package testlivemigration
 
 import (
 	"context"
@@ -31,6 +31,7 @@ import (
 	goerrors "github.com/go-errors/errors"
 	"github.com/stretchr/testify/require"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/cmd"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -268,7 +269,7 @@ func (lm *LiveMigrationTest) Cleanup() {
 
 // StartExportData starts export data command
 func (lm *LiveMigrationTest) StartExportData(async bool, extraArgs map[string]string) error {
-	return lm.startExportData(async, extraArgs, SNAPSHOT_AND_CHANGES, nil)
+	return lm.startExportData(async, extraArgs, cmd.SNAPSHOT_AND_CHANGES, nil)
 }
 
 func (lm *LiveMigrationTest) startExportData(async bool, extraArgs map[string]string, exportType string, env []string) error {
@@ -310,13 +311,13 @@ func (lm *LiveMigrationTest) startExportData(async bool, extraArgs map[string]st
 }
 
 func (lm *LiveMigrationTest) StartExportDataChangesOnly(async bool, extraArgs map[string]string) error {
-	return lm.startExportData(async, extraArgs, CHANGES_ONLY, nil)
+	return lm.startExportData(async, extraArgs, cmd.CHANGES_ONLY, nil)
 }
 
 // StartExportDataWithEnv starts export data with additional environment variables.
 // This is useful for failpoint injection (GO_FAILPOINTS) and Byteman (DEBEZIUM_OPTS).
 func (lm *LiveMigrationTest) StartExportDataWithEnv(async bool, extraArgs map[string]string, env []string) error {
-	return lm.startExportData(async, extraArgs, SNAPSHOT_AND_CHANGES, env)
+	return lm.startExportData(async, extraArgs, cmd.SNAPSHOT_AND_CHANGES, env)
 }
 
 // StartImportData starts import data command
@@ -507,7 +508,7 @@ func (lm *LiveMigrationTest) WaitForExportDataExitTimeout(timeout time.Duration)
 	for {
 		if time.Now().After(deadline) {
 			lm.t.Log("Export process did not exit within timeout; killing orphaned Debezium")
-			lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
+			lm.KillDebezium(cmd.SOURCE_DB_EXPORTER_ROLE)
 			time.Sleep(2 * time.Second)
 			if !lm.exportCmd.IsStopped() {
 				_ = lm.exportCmd.Kill()
@@ -536,8 +537,8 @@ func (lm *LiveMigrationTest) WaitForImportDataExit() error {
 
 	// Kill Debezium processes first to ensure their inherited stdout/stderr pipes
 	// are closed, otherwise Cmd.Wait() can hang indefinitely.
-	lm.KillDebezium(TARGET_DB_EXPORTER_FF_ROLE)
-	lm.KillDebezium(TARGET_DB_EXPORTER_FB_ROLE)
+	lm.KillDebezium(cmd.TARGET_DB_EXPORTER_FF_ROLE)
+	lm.KillDebezium(cmd.TARGET_DB_EXPORTER_FB_ROLE)
 
 	// Import is started with async=true; a background goroutine already owns exec.Cmd.Wait.
 	// Calling Wait() again is invalid and can deadlock in os/exec pipe goroutines on CI.
@@ -769,7 +770,7 @@ func (lm *LiveMigrationTest) GetCurrentExportDir() string {
 		testutils.FatalIfError(lm.t, goerrors.Errorf("migration status record not found"), "migration status record not found")
 	}
 	if msr.LatestIterationNumber > 0 {
-		return GetIterationExportDir(msr.GetIterationsDir(lm.exportDir), msr.LatestIterationNumber)
+		return cmd.GetIterationExportDir(msr.GetIterationsDir(lm.exportDir), msr.LatestIterationNumber)
 	}
 	return lm.exportDir
 }
@@ -804,8 +805,8 @@ func (lm *LiveMigrationTest) WaitForImportFailpointAndProcessCrash(t *testing.T,
 	}
 
 	t.Log("Failpoint marker detected; killing orphaned Debezium and waiting for exit...")
-	lm.KillDebezium(TARGET_DB_EXPORTER_FF_ROLE)
-	lm.KillDebezium(TARGET_DB_EXPORTER_FB_ROLE)
+	lm.KillDebezium(cmd.TARGET_DB_EXPORTER_FF_ROLE)
+	lm.KillDebezium(cmd.TARGET_DB_EXPORTER_FB_ROLE)
 
 	deadline := time.Now().Add(exitTimeout)
 	for {
@@ -993,7 +994,7 @@ func (lm *LiveMigrationTest) WaitForCutoverComplete(iterationNumber int, cutover
 	}
 
 	ok := utils.RetryWorkWithTimeout(1, cutoverTimeout, func() bool {
-		return lm.getCutoverStatus(iterationNumber) == COMPLETED
+		return lm.GetCutoverStatusForIteration(iterationNumber) == cmd.COMPLETED
 	})
 
 	if !ok {
@@ -1019,7 +1020,7 @@ func (lm *LiveMigrationTest) WaitForCutoverSourceComplete(iterationNumber int, c
 	}
 
 	ok := utils.RetryWorkWithTimeout(1, cutoverTimeout, func() bool {
-		return lm.getCutoverToSourceStatus(iterationNumber) == COMPLETED
+		return lm.GetCutoverToSourceStatus(iterationNumber) == cmd.COMPLETED
 	})
 
 	if !ok {
@@ -1094,7 +1095,7 @@ func (lm *LiveMigrationTest) WaitForNextIterationInitialized(iterationNo int, wa
 	var iterationMetaDB *metadb.MetaDB
 	if iterationNo > 0 {
 		iterationsExportDir := msr.GetIterationsDir(lm.exportDir)
-		iterationExportDir := GetIterationExportDir(iterationsExportDir, iterationNo)
+		iterationExportDir := cmd.GetIterationExportDir(iterationsExportDir, iterationNo)
 		if !utils.FileOrFolderExists(iterationExportDir) {
 			return goerrors.Errorf("iteration export directory does not exist")
 		}
@@ -1230,7 +1231,7 @@ func (lm *LiveMigrationTest) WithMetaDB(iterationNo int, fn func(*metadb.MetaDB)
 		return goerrors.Errorf("failed to get migration status record: %w", err)
 	}
 	iterationsExportDir := msr.GetIterationsDir(lm.exportDir)
-	iterationExportDir := GetIterationExportDir(iterationsExportDir, iterationNo)
+	iterationExportDir := cmd.GetIterationExportDir(iterationsExportDir, iterationNo)
 	if !utils.FileOrFolderExists(iterationExportDir) {
 		return goerrors.Errorf("iteration export directory does not exist")
 	}
@@ -1348,36 +1349,36 @@ func (lm *LiveMigrationTest) streamingPhaseCompleted(changesCount map[string]Cha
 	return allMatches, nil
 }
 
-// getCutoverStatus gets the current cutover status
-func (lm *LiveMigrationTest) getCutoverStatus(iterationNumber int) string {
+// GetCutoverStatusForIteration gets the current cutover status for the given iteration.
+func (lm *LiveMigrationTest) GetCutoverStatusForIteration(iterationNumber int) string {
 	if lm.metaDB == nil {
 		return ""
 	}
 	if iterationNumber == 0 {
-		return getCutoverStatus(lm.metaDB)
+		return cmd.GetCutoverStatus(lm.metaDB)
 	}
 
-	iterationCutoverMap := collectCutoverStatusRowsForAllIterations(lm.exportDir, lm.metaDB)
+	iterationCutoverMap := cmd.CollectCutoverStatusRowsForAllIterations(lm.exportDir, lm.metaDB)
 	rows := iterationCutoverMap[iterationNumber]
 	if len(rows) < 1 {
-		return NOT_INITIATED
+		return cmd.NOT_INITIATED
 	}
 	return rows[0].Status
 }
 
-// getCutoverToSourceStatus gets the current cutover to source status
-func (lm *LiveMigrationTest) getCutoverToSourceStatus(iterationNumber int) string {
+// GetCutoverToSourceStatus gets the current cutover to source status for the given iteration.
+func (lm *LiveMigrationTest) GetCutoverToSourceStatus(iterationNumber int) string {
 	if lm.metaDB == nil {
 		return ""
 	}
 	if iterationNumber == 0 {
-		return getCutoverToSourceStatus(lm.exportDir, lm.metaDB)
+		return cmd.GetCutoverToSourceStatus(lm.exportDir, lm.metaDB)
 	}
 
-	iterationCutoverMap := collectCutoverStatusRowsForAllIterations(lm.exportDir, lm.metaDB)
+	iterationCutoverMap := cmd.CollectCutoverStatusRowsForAllIterations(lm.exportDir, lm.metaDB)
 	rows := iterationCutoverMap[iterationNumber]
 	if len(rows) < 2 {
-		return NOT_INITIATED
+		return cmd.NOT_INITIATED
 	}
 	return rows[1].Status
 }
@@ -1475,7 +1476,7 @@ func (lm *LiveMigrationTest) ValidateEndArchivalState(iterationNumber int) {
 }
 
 type DataMigrationReport struct {
-	RowData []*rowData
+	RowData []*cmd.RowData
 }
 
 // GetDataMigrationReport retrieves the migration report
@@ -1515,7 +1516,7 @@ func (lm *LiveMigrationTest) GetDataMigrationReport() (*DataMigrationReport, err
 			continue
 		}
 
-		jsonFile := jsonfile.NewJsonFile[[]*rowData](reportFilePath)
+		jsonFile := jsonfile.NewJsonFile[[]*cmd.RowData](reportFilePath)
 		rowData, err := jsonFile.Read()
 		if err != nil {
 			return nil, goerrors.Errorf("error reading data-migration-report: %w", err)
@@ -1528,6 +1529,10 @@ func (lm *LiveMigrationTest) GetDataMigrationReport() (*DataMigrationReport, err
 // ============================================================
 // CONTAINER AND COMMAND ACCESSORS
 // ============================================================
+
+func (lm *LiveMigrationTest) GetMetaDB() *metadb.MetaDB {
+	return lm.metaDB
+}
 
 func (lm *LiveMigrationTest) GetSourceContainer() testcontainers.TestContainer {
 	return lm.sourceContainer
