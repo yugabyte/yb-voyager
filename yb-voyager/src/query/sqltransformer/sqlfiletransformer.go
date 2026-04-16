@@ -175,6 +175,7 @@ type TableFileTransformer struct {
 	skipPerformanceOptimizations                    bool
 	PKTablesOnTimestampWithRangeSharded             []string
 	PKTablesWithHashSharded                         []string
+	UKTablesWithRangeSharded                        []string
 	AppliedHashOrRangeShardingStrategyToConstraints bool
 
 	//Colocation recommendation related information - currently this change is done outside of this transformer but whenever we merge it will be easier for consumers of transformer t o rely on same informaiton
@@ -218,7 +219,7 @@ func (t *TableFileTransformer) Transform(file string) (string, error) {
 	}
 
 	if t.shouldConfigureShardingStrategyForConstraints() {
-		parseTree.Stmts, t.PKTablesOnTimestampWithRangeSharded, t.PKTablesWithHashSharded, err = transformer.AddShardingStrategyForConstraints(parseTree.Stmts)
+		parseTree.Stmts, t.PKTablesOnTimestampWithRangeSharded, t.PKTablesWithHashSharded, t.UKTablesWithRangeSharded, err = transformer.AddShardingStrategyForConstraints(parseTree.Stmts)
 		if err != nil {
 			return "", fmt.Errorf("failed to add hash splitting on for pk constraints: %w", err)
 		}
