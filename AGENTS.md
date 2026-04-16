@@ -62,3 +62,5 @@ yes | bash installer_scripts/install-yb-voyager -v
 - The `-l` (local build) flag requires `rsync` to be installed on the system.
 - Lock files (`.lck`) in the export directory can block re-runs; remove them if a previous `yb-voyager` process was killed.
 - Set `YB_VOYAGER_SEND_DIAGNOSTICS=0` to disable telemetry during development/testing.
+- After a full build (`install-yb-voyager -l`), run `source /home/ubuntu/.yb-voyager.rc` to set Maven/Debezium env vars for the current shell.
+- The default PostgreSQL `pg_hba.conf` uses `peer` auth. For `yb-voyager` to connect via TCP (127.0.0.1), add `host all all 127.0.0.1/32 md5` and reload: `sudo pg_ctlcluster 17 main reload`.
