@@ -32,18 +32,18 @@ const (
 	SourceReplicaDBConfigPrefix = "source-replica."
 )
 
-var commandsUsingSourceReplicaConfig = []string{"data-import-to-source-replica", "import-data-to-source-replica"}
+var commandsUsingSourceReplicaConfig = []string{"data-import-to-replica", "data-import-to-source-replica", "import-data-to-source-replica"}
 var commandsUsingSourceConfig = []string{
 	"assess-run", "assess-migration",
 	"schema-export", "export-schema",
 	"export-data",
-	"data-export-from-source", "export-data-from-source",
+	"data-export", "data-export-from-source", "export-data-from-source",
 	"data-import-to-source", "import-data-to-source",
 }
 var commandsUsingTargetConfig = []string{
 	"schema-import", "import-schema",
 	"import-data",
-	"data-import-to-target", "import-data-to-target",
+	"data-import", "data-import-to-target", "import-data-to-target",
 	"data-import-file", "import-data-file",
 	"data-export-from-target", "export-data-from-target",
 	"schema-finalize-post-data-import", "finalize-schema-post-data-import",
@@ -249,13 +249,13 @@ var aliasCommandsPrefixes = [][]string{
 	{"schema-analyze", "analyze-schema"},
 	{"schema-import", "import-schema"},
 	{"schema-finalize-post-data-import", "finalize-schema-post-data-import"},
-	{"data-export-from-source", "export-data", "export-data-from-source"},
-	{"data-import-to-target", "import-data", "import-data-to-target"},
+	{"data-export", "data-export-from-source", "export-data", "export-data-from-source"},
+	{"data-import", "data-import-to-target", "import-data", "import-data-to-target"},
 	{"data-export-from-target", "export-data-from-target"},
 	{"data-import-to-source", "import-data-to-source"},
-	{"data-import-to-source-replica", "import-data-to-source-replica"},
+	{"data-import-to-replica", "data-import-to-source-replica", "import-data-to-source-replica"},
 	{"data-import-file", "import-data-file"},
-	{"data-prepare-cutover-to-target", "initiate-cutover-to-target"},
+	{"cutover-prepare-target", "data-prepare-cutover-to-target", "initiate-cutover-to-target"},
 	{"data-archive-changes", "archive-changes"},
 	{"validate-compare-performance", "compare-performance"},
 }

@@ -326,7 +326,7 @@ func printImportSchemaFooter() {
 		Artifacts:    artifacts,
 		Summary:      summary,
 		NextStepDesc: []string{"Export data from your source database:"},
-		NextStepCmd:  "yb-voyager data export-from-source",
+		NextStepCmd:  "yb-voyager data export",
 		Phases:       phases,
 	}
 	printCommandFooter(footer)

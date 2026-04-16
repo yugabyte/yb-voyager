@@ -38,7 +38,7 @@ import (
 )
 
 var startMigrationCmd = &cobra.Command{
-	Use:   "start-migration",
+	Use:   "prepare",
 	Short: "Configure your target database and select a migration workflow",
 	Long: `Configure your target database and select a migration workflow
 
@@ -114,7 +114,7 @@ func runStartMigration() {
 		if _, configPath, err := resolveMigration(); err == nil {
 			startMigrationConfigFile = configPath
 		} else if shouldShowMigrationError(err) {
-			printMigrationResolutionError(err, "yb-voyager start-migration")
+			printMigrationResolutionError(err, "yb-voyager prepare")
 			os.Exit(1)
 		}
 	}
@@ -166,7 +166,7 @@ func runStartMigrationWithConfig() {
 	continueStartMigration(v)
 }
 
-// continueStartMigration runs the shared portion of start-migration: assessment summary,
+// continueStartMigration runs the shared portion of prepare: assessment summary,
 // source connection check, target prompt, workflow prompt, and config update.
 func continueStartMigration(v *viper.Viper) {
 	exportDirPath := v.GetString("export-dir")
@@ -325,7 +325,7 @@ func extractHostIP(rawHostIP string) string {
 }
 
 // bootstrapFromControlPlane sets up a new migration project by pulling assessment data
-// from a shared control plane, then continues with the standard start-migration flow.
+// from a shared control plane, then continues with the standard prepare flow.
 func bootstrapFromControlPlane() {
 	// If migration-dir was explicitly provided, resolve now
 	if startMigrationDir != "" {
@@ -534,7 +534,7 @@ func bootstrapFromControlPlane() {
 		utils.ErrExit("failed to read config file: %v", err)
 	}
 
-	// Continue with the standard start-migration flow (target + workflow)
+	// Continue with the standard prepare flow (target + workflow)
 	continueStartMigration(v)
 }
 

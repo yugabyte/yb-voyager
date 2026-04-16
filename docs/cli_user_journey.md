@@ -76,12 +76,12 @@ Current help behaves like a man page.
 
 ## Introduce a “Guided Entry Point”
 
-* Add a top-level yb-voyager new and start-migration commands
+* Add a top-level yb-voyager new and prepare commands
 
 
 1. Yb-voyager Init   
 2. Yb-voyager assess-migration   
-3. Yb-voyager start-migration
+3. Yb-voyager prepare
 
 ## New (formerly Init)
 
@@ -187,7 +187,7 @@ It is recommended to run assessment against production database for an accurate 
    1. The config file will be generated in a way where the data migration flow (offline/live/live-ff/live-fb) is not fixed.   
       1. Export-data: export-type is not filled. (mandatory param)  
       2. initiate-cutover-to-target	prepare-for-fall-back	is not filled (mandatory param)  
-   2. Separate \`yb-voyager start-migration\` command.   
+   2. Separate \`yb-voyager prepare\` command.   
 5. Permissions?  
    1. We can run guardrail checks after validating the connection (if they have enough permissions for assessment-only),   
    2. if the user does not have sufficient permissions, we add another step to the next steps \- to run the grant-permissions script (before running assess-migration). 
@@ -264,10 +264,10 @@ Tip: Run yb-voyager status -c /path/to/migration-dir/config.yaml
 
 ## Start-migration
 
-At the end of running assess-migration, the next step is to run \`start-migration\` which sets up for starting migration (export-schema/import-schema , export-data/import-data, etc, etc.)
+At the end of running assess-migration, the next step is to run \`prepare\` which sets up for starting migration (export-schema/import-schema , export-data/import-data, etc, etc.)
 
 ```shell
-yb-voyager start-migration --config /path/to/migration-dir/config.yaml
+yb-voyager prepare --config /path/to/migration-dir/config.yaml
 
 ══════════════════════════════════════════════════════════════
                     Start Migration
@@ -456,16 +456,18 @@ yb-voyager schema finalize-post-data-import - Refresh m-views, create not-valid 
 yb-voyager schema status - Schema migration progress
 
 # Data Phase
-yb-voyager data export-from-source
-yb-voyager data import-to-target
+yb-voyager data export
+yb-voyager data import
 
 yb-voyager data export-from-target
 yb-voyager data import-to-source
-yb-voyager data import-to-source-replica
+yb-voyager data import-to-replica
 
-yb-voyager data prepare-cutover-to-target    # default: to target
-yb-voyager data prepare-cutover-to-source    # fall-back
-yb-voyager data prepare-cutover-to-replica   # fall-forward
+yb-voyager cutover prepare-target    # default: to target
+yb-voyager cutover prepare-source    # fall-back
+yb-voyager cutover prepare-replica   # fall-forward
+yb-voyager cutover status
+
 yb-voyager data archive-changes - Cleanup applied CDC events from local disk
 yb-voyager data status - Consolidated data migration report
 

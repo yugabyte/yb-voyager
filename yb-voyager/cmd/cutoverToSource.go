@@ -21,7 +21,7 @@ import (
 )
 
 var cutoverToSourceCmd = &cobra.Command{
-	Use:   "prepare-cutover-to-source",
+	Use:   "prepare-source",
 	Short: "Initiate cutover to source DB",
 	Long:  `Initiate cutover to source DB`,
 
@@ -34,7 +34,7 @@ var cutoverToSourceCmd = &cobra.Command{
 }
 
 func init() {
-	dataCmd.AddCommand(cutoverToSourceCmd)
+	cutoverCmd.AddCommand(cutoverToSourceCmd)
 	registerExportDirFlag(cutoverToSourceCmd)
 	registerConfigFileFlag(cutoverToSourceCmd)
 }

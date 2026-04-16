@@ -28,7 +28,7 @@ import (
 // ruleWidth is the length of the thin rule under section titles.
 const ruleWidth = 50
 
-// Lipgloss styles used across init and start-migration commands.
+// Lipgloss styles used across init and prepare commands.
 var (
 	titleStyle = lipgloss.NewStyle().
 			Bold(true)

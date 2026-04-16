@@ -75,7 +75,7 @@ var exportDataFromCmd = &cobra.Command{
 }
 
 var exportDataFromSrcCmd = &cobra.Command{
-	Use:   "export-from-source",
+	Use:   "export",
 	Short: exportDataCmd.Short,
 	Long:  exportDataCmd.Long,
 	Args:  exportDataCmd.Args,
@@ -179,7 +179,7 @@ func printExportDataFooter() {
 		Title:        "Data export completed successfully.",
 		Artifacts:    artifacts,
 		NextStepDesc: []string{"Import data into your target YugabyteDB:"},
-		NextStepCmd:  "yb-voyager data import-to-target",
+		NextStepCmd:  "yb-voyager data import",
 		Phases:       phases,
 	}
 	printCommandFooter(footer)

@@ -79,7 +79,7 @@ var configKeyValuesToObfuscateInLogs = []string{
 var commandGroups = [][]string{
 	{"new"},
 	{"assess"},
-	{"start-migration", "schema", "data", "validate", "end-migration"},
+	{"prepare", "schema", "data", "cutover", "validate", "end-migration"},
 	{"status", "version", "help"},
 }
 
@@ -321,20 +321,18 @@ func startPprofServer() {
 
 var exportDirInitialisedCheckNeededList = []string{
 	"yb-voyager schema analyze",
-	"yb-voyager data import-to-target",
+	"yb-voyager data import",
 	"yb-voyager data import-to-source",
-	"yb-voyager data import-to-source-replica",
-	"yb-voyager data import-status",
+	"yb-voyager data import-to-replica",
 	"yb-voyager data export-from-target",
-	"yb-voyager data export-status",
-	"yb-voyager data cutover-status",
-	"yb-voyager data migration-report",
+	"yb-voyager data status",
+	"yb-voyager cutover status",
 	"yb-voyager validate compare-performance",
 	"yb-voyager data archive-changes",
 	"yb-voyager end-migration",
-	"yb-voyager data prepare-cutover-to-source",
-	"yb-voyager data prepare-cutover-to-replica",
-	"yb-voyager data prepare-cutover-to-target",
+	"yb-voyager cutover prepare-source",
+	"yb-voyager cutover prepare-replica",
+	"yb-voyager cutover prepare-target",
 }
 
 var noLockNeededList = []string{
@@ -342,16 +340,15 @@ var noLockNeededList = []string{
 	"yb-voyager version",
 	"yb-voyager help",
 	"yb-voyager new",
-	"yb-voyager start-migration",
+	"yb-voyager prepare",
 	"yb-voyager status",
 	"yb-voyager assess",
 	"yb-voyager schema",
 	"yb-voyager data",
+	"yb-voyager cutover",
 	"yb-voyager validate",
-	"yb-voyager data import-status",
-	"yb-voyager data export-status",
-	"yb-voyager data cutover-status",
-	"yb-voyager data migration-report",
+	"yb-voyager data status",
+	"yb-voyager cutover status",
 }
 
 var noPersistentPreRunNeededList = []string{
@@ -359,10 +356,11 @@ var noPersistentPreRunNeededList = []string{
 	"yb-voyager version",
 	"yb-voyager help",
 	"yb-voyager new",
-	"yb-voyager start-migration",
+	"yb-voyager prepare",
 	"yb-voyager assess",
 	"yb-voyager schema",
 	"yb-voyager data",
+	"yb-voyager cutover",
 	"yb-voyager validate",
 }
 
@@ -372,8 +370,8 @@ var offlineCommands = []string{
 	"yb-voyager schema export",
 	"yb-voyager schema analyze",
 	"yb-voyager schema import",
-	"yb-voyager data export-from-source",
-	"yb-voyager data import-to-target",
+	"yb-voyager data export",
+	"yb-voyager data import",
 	"yb-voyager schema finalize-post-data-import",
 	"yb-voyager end-migration",
 	"yb-voyager validate compare-performance",
@@ -405,9 +403,11 @@ func init() {
 func customHelpFunc(cmd *cobra.Command, args []string) {
 	if cmd == rootCmd {
 		fmt.Fprint(cmd.OutOrStdout(), buildRootHelp(cmd))
-		return
+	} else if cmd.HasSubCommands() {
+		fmt.Fprint(cmd.OutOrStdout(), buildParentHelp(cmd))
+	} else {
+		fmt.Fprint(cmd.OutOrStdout(), buildLeafHelp(cmd))
 	}
-	cmd.Usage()
 }
 
 // Note: assess-migration-bulk and get data-migration-report commands do not call this function.

@@ -30,13 +30,13 @@ import (
 
 var cutoverCmd = &cobra.Command{
 	Use:   "cutover",
-	Short: "Prepare to point your application to a different database during live migration.",
-	Long:  "",
+	Short: "Manage cutover between source and target databases",
+	Long:  PARENT_COMMAND_USAGE,
 }
 
 var cutoverRootCmd = &cobra.Command{
 	Use:   cutoverCmd.Use,
-	Short: "Get cutover related information. To initiate cutover, refer to `yb-voyager initiate cutover to` command.",
+	Short: "Get cutover related information. To initiate cutover, refer to `yb-voyager cutover prepare-target` command.",
 	Long:  "",
 }
 
@@ -47,6 +47,7 @@ var cutoverToCmd = &cobra.Command{
 }
 
 func init() {
+	rootCmd.AddCommand(cutoverCmd)
 	cutoverToCmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,
 		"assume answer as yes for all questions during migration (default false)")
 	cutoverToCmd.PersistentFlags().MarkHidden("yes") //for non TTY shell e.g jenkins for docker case

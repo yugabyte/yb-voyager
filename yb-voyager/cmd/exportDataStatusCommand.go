@@ -105,7 +105,8 @@ var exportDataStatusCmd = &cobra.Command{
 var migrationReportFormats = []string{"table", "json"}
 
 func init() {
-	dataCmd.AddCommand(exportDataStatusCmd)
+	// exportDataStatusCmd is no longer registered directly; its logic is
+	// accessed via the consolidated "data status" command.
 	exportDataStatusCmd.Flags().StringVar(&reportOrStatusCmdOutputFormat, "output-format", "table",
 		"format in which report will be generated: (table, json) (default: table)")
 }

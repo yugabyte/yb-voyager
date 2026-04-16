@@ -22,31 +22,32 @@ yb-voyager version
 ### Assessment Phase
 yb-voyager assess run - Single DB assessment
 
-### Start Migration
-yb-voyager start-migration 
+### Prepare
+yb-voyager prepare
 
 ### Schema Phase
 yb-voyager schema export - Export DDL from source
 yb-voyager schema analyze - Check YB compatibility
 yb-voyager schema import - Import to target
 yb-voyager schema finalize-post-data-import - Refresh m-views, create not-valid contraints
-yb-voyager schema status - Schema migration progress
 
 ### Data Phase
-yb-voyager data export-from-source
-yb-voyager data import-to-target
+yb-voyager data export
+yb-voyager data import
 
 yb-voyager data export-from-target
 yb-voyager data import-to-source
-yb-voyager data import-to-source-replica
+yb-voyager data import-to-replica
 
-yb-voyager data prepare-cutover-to-target    # default: to target
-yb-voyager data prepare-cutover-to-source    # fall-back
-yb-voyager data prepare-cutover-to-replica   # fall-forward
-yb-voyager data archive-changes - Cleanup applied CDC events from local disk
 yb-voyager data status - Consolidated data migration report
-
+yb-voyager data archive-changes - Cleanup applied CDC events from local disk
 yb-voyager data import-file - Import from CSV/text files
+
+### Cutover
+yb-voyager cutover prepare-target    # default: to target
+yb-voyager cutover prepare-source    # fall-back
+yb-voyager cutover prepare-replica   # fall-forward
+yb-voyager cutover status
 
 ### Validation Phase
 yb-voyager validate compare-performance - performance comparison between source/target

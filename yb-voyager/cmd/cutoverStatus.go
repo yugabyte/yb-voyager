@@ -31,7 +31,7 @@ const (
 )
 
 var cutoverStatusCmd = &cobra.Command{
-	Use:   "cutover-status",
+	Use:   "status",
 	Short: "Prints status of the cutover to YugabyteDB",
 	Long:  `Prints status of the cutover to YugabyteDB`,
 
@@ -41,7 +41,7 @@ var cutoverStatusCmd = &cobra.Command{
 }
 
 func init() {
-	dataCmd.AddCommand(cutoverStatusCmd)
+	cutoverCmd.AddCommand(cutoverStatusCmd)
 	registerExportDirFlag(cutoverStatusCmd)
 	registerConfigFileFlag(cutoverStatusCmd)
 }

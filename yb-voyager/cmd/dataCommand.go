@@ -6,7 +6,7 @@ import (
 
 var dataCmd = &cobra.Command{
 	Use:   "data",
-	Short: "Export and import data, manage cutover and archival",
+	Short: "Export and import data",
 	Long:  PARENT_COMMAND_USAGE,
 }
 

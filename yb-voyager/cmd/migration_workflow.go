@@ -92,12 +92,12 @@ var offlineWorkflow = &Workflow{
 		},
 		{
 			ID: StepExportData, DisplayName: "Export Data", Phase: PhaseData,
-			Command: "data export-from-source",
+			Command: "data export",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ExportDataDone },
 		},
 		{
 			ID: StepImportData, DisplayName: "Import Data", Phase: PhaseData,
-			Command: "data import-to-target",
+			Command: "data import",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ImportDataDone },
 		},
 		{
@@ -141,17 +141,17 @@ var liveWorkflow = &Workflow{
 		},
 		{
 			ID: StepExportData, DisplayName: "Export Data", Phase: PhaseData,
-			Command: "data export-from-source",
+			Command: "data export",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ExportDataDone },
 		},
 		{
 			ID: StepImportData, DisplayName: "Import Data", Phase: PhaseData,
-			Command: "data import-to-target",
+			Command: "data import",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ImportDataDone },
 		},
 		{
 			ID: StepCutoverToTarget, DisplayName: "Cutover to Target", Phase: PhaseData,
-			Command: "data prepare-cutover-to-target",
+			Command: "cutover prepare-target",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.CutoverProcessedByTargetImporter },
 		},
 		{
@@ -196,17 +196,17 @@ var liveFallBackWorkflow = &Workflow{
 		},
 		{
 			ID: StepExportData, DisplayName: "Export Data", Phase: PhaseData,
-			Command: "data export-from-source",
+			Command: "data export",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ExportDataDone },
 		},
 		{
 			ID: StepImportData, DisplayName: "Import Data", Phase: PhaseData,
-			Command: "data import-to-target",
+			Command: "data import",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ImportDataDone },
 		},
 		{
 			ID: StepCutoverToTarget, DisplayName: "Cutover to Target", Phase: PhaseData,
-			Command: "data prepare-cutover-to-target",
+			Command: "cutover prepare-target",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.CutoverProcessedByTargetImporter },
 		},
 		{
@@ -221,7 +221,7 @@ var liveFallBackWorkflow = &Workflow{
 		},
 		{
 			ID: StepCutoverToSource, DisplayName: "Cutover to Source", Phase: PhaseData,
-			Command: "data prepare-cutover-to-source",
+			Command: "cutover prepare-source",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.CutoverToSourceRequested },
 		},
 		{
@@ -263,17 +263,17 @@ var liveFallForwardWorkflow = &Workflow{
 		},
 		{
 			ID: StepExportData, DisplayName: "Export Data", Phase: PhaseData,
-			Command: "data export-from-source",
+			Command: "data export",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ExportDataDone },
 		},
 		{
 			ID: StepImportData, DisplayName: "Import Data", Phase: PhaseData,
-			Command: "data import-to-target",
+			Command: "data import",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ImportDataDone },
 		},
 		{
 			ID: StepCutoverToTarget, DisplayName: "Cutover to Target", Phase: PhaseData,
-			Command: "data prepare-cutover-to-target",
+			Command: "cutover prepare-target",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.CutoverProcessedByTargetImporter },
 		},
 		{
@@ -283,12 +283,12 @@ var liveFallForwardWorkflow = &Workflow{
 		},
 		{
 			ID: StepImportDataToReplica, DisplayName: "Import Data to Replica", Phase: PhaseData,
-			Command: "data import-to-source-replica",
+			Command: "data import-to-replica",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.CutoverToSourceReplicaProcessedBySRImporter },
 		},
 		{
 			ID: StepCutoverToReplica, DisplayName: "Cutover to Replica", Phase: PhaseData,
-			Command: "data prepare-cutover-to-replica",
+			Command: "cutover prepare-replica",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.CutoverToSourceReplicaRequested },
 		},
 		{

@@ -431,7 +431,8 @@ func getFinalRowCount(row rowData) int64 {
 }
 
 func init() {
-	dataCmd.AddCommand(getDataMigrationReportCmd)
+	// getDataMigrationReportCmd is no longer registered directly; its logic is
+	// accessed via the consolidated "data status" command.
 	registerExportDirFlag(getDataMigrationReportCmd)
 	registerConfigFileFlag(getDataMigrationReportCmd)
 	getDataMigrationReportCmd.PersistentFlags().StringVarP(&config.LogLevel, "log-level", "l", "info",

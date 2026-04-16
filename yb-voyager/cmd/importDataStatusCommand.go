@@ -73,7 +73,8 @@ var importDataStatusCmd = &cobra.Command{
 var reportOrStatusCmdOutputFormat string
 
 func init() {
-	dataCmd.AddCommand(importDataStatusCmd)
+	// importDataStatusCmd is no longer registered directly; its logic is
+	// accessed via the consolidated "data status" command.
 	importDataStatusCmd.Flags().StringVar(&reportOrStatusCmdOutputFormat, "output-format", "table",
 		"format in which report will be generated: (table, json) (default: table)")
 }

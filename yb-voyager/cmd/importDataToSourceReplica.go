@@ -28,7 +28,7 @@ import (
 )
 
 var importDataToSourceReplicaCmd = &cobra.Command{
-	Use: "import-to-source-replica",
+	Use: "import-to-replica",
 	Short: "Import data into source-replica database to prepare for fall-forward.\n" +
 		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-forward/",
 	Long: ``,

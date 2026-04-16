@@ -133,7 +133,7 @@ var importDataToCmd = &cobra.Command{
 }
 
 var importDataToTargetCmd = &cobra.Command{
-	Use:   "import-to-target",
+	Use:   "import",
 	Short: importDataCmd.Short,
 	Long:  importDataCmd.Long,
 	Args:  importDataCmd.Args,

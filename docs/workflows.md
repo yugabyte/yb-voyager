@@ -11,7 +11,7 @@ In future, we were even thinking of introducing a "schema migrate" command inste
 These durable workflows for now are going to run in the same process. The state of the workflow should be persisted on sqlite/postgres. To start with, it will be sqlite; later we will use yugabytedb(postgres compatible). 
 
 2. There is the overall migration workflow as well. this is at the command level. 
-I.e. assess -> start-migration -> schema-migrate -> data->migrate -> validate -> end
+I.e. assess -> prepare -> schema-migrate -> data->migrate -> validate -> end
 
 Today, all of this runs on the same machine, but in future, they could ideally be executed by different workers processes (something like temporal). 
 

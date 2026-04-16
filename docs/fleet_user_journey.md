@@ -34,8 +34,8 @@ If the user chooses option 2 (shared), ask for the control plane connection stri
 Now, let's solve the flow where in the user has assessed a database (and used a common control plane to view the assessments.). 
 Now, the user wants  to start the migration. Two possibilities here: 
 
-1. If the user has access to the migration dir that they used to previously assess, they can just continue by running start-migration --config-file <>. 
-2. If the user does not have access to the old migration dir (which is very possible), then we enhance start-migration to:
+1. If the user has access to the migration dir that they used to previously assess, they can just continue by running prepare --config-file <>. 
+2. If the user does not have access to the old migration dir (which is very possible), then we enhance prepare to:
     a. take the migration-dir, assessment-control-plane, migration-uuid as CLI args. 
     b. Set up export-dir. 
     c. Retrieve assessment details from the control plane. Store the assessment JSON in the export-dir (so that it is usable by further commands)
@@ -46,7 +46,7 @@ Now, the user wants  to start the migration. Two possibilities here:
 
 You can't pass both config-file as well as any of the migration-dir/assessment-control-plane/migration-uuid as it doesn't make sense. 
 
-Some of this is currently implemented as part of init, let's move that to start-migration. 
+Some of this is currently implemented as part of init, let's move that to prepare. 
 
 
 ## Implementation. 
@@ -63,7 +63,7 @@ postgresql://yugabyte:yugabyte@localhost:5433/dbx
 
 postgresql://yugabyte:yugabyte@10.9.15.135:5433
 
-yb-voyager start-migration --assessment-control-plane 'postgresql://yugabyte:yugabyte@10.9.15.135:5433' --migration-uuid 'acd1f159-2e9e-40c8-8f93-44d61bd24f54'
+yb-voyager prepare --assessment-control-plane 'postgresql://yugabyte:yugabyte@10.9.15.135:5433' --migration-uuid 'acd1f159-2e9e-40c8-8f93-44d61bd24f54'
 
 
 clean up
