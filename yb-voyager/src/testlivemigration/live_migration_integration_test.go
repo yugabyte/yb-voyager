@@ -4479,7 +4479,8 @@ func TestLiveMigrationPartitionedTableWithChildPK(t *testing.T) {
 			`ALTER TABLE public.orders_apac ADD PRIMARY KEY (id);`,
 		},
 		SourceSetupSchemaSQL: []string{
-			// Set replica identity for CDC
+			// Set replica identity for CDC on root and child partitions
+			`ALTER TABLE public.orders REPLICA IDENTITY FULL;`,
 			`ALTER TABLE public.orders_us REPLICA IDENTITY FULL;`,
 			`ALTER TABLE public.orders_eu REPLICA IDENTITY FULL;`,
 			`ALTER TABLE public.orders_apac REPLICA IDENTITY FULL;`,
@@ -4641,6 +4642,8 @@ func TestLiveMigrationPartitionedTableDefaultBehavior(t *testing.T) {
 			`CREATE TABLE public.orders_with_pk_eu PARTITION OF public.orders_with_pk FOR VALUES IN ('EU');`,
 		},
 		SourceSetupSchemaSQL: []string{
+			// Set replica identity for CDC on root and child partitions
+			`ALTER TABLE public.orders_with_pk REPLICA IDENTITY FULL;`,
 			`ALTER TABLE public.orders_with_pk_us REPLICA IDENTITY FULL;`,
 			`ALTER TABLE public.orders_with_pk_eu REPLICA IDENTITY FULL;`,
 		},
