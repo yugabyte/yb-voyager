@@ -104,7 +104,7 @@
       "db_type": "postgresql",
       "db_version": "17.6 (Ubuntu 17.6-2.pgdg22.04+1)",
       "host": "",
-      "payload_version": "",
+      "payload_version": "1.1",
       "schema_names": [
         "schema_d7108fd530c9b1c2"
       ],

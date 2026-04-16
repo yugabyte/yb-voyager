@@ -153,6 +153,7 @@ func exportSchema(cmd *cobra.Command) error {
 
 	// Get PostgreSQL system identifier while still connected
 	source.FetchDBSystemIdentifier()
+	source.FetchDBID()
 	utils.PrintAndLogf("%s version: %s\n", source.DBType, sourceDBVersion)
 
 	// Check if the source database has the required permissions for exporting schema.
