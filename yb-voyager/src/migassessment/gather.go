@@ -386,6 +386,24 @@ func findGatherMetadataScriptPath(dbType string) (string, error) {
 	return "", goerrors.Errorf("script not found in possible paths: %v", possiblePathsForScript)
 }
 
+// CountPGGatherSteps returns the number of metadata-collection sub-steps for
+// PostgreSQL by counting the .psql scripts in the installed script directory
+// plus one for the schema dump. Returns 0 if the script directory cannot be located.
+func CountPGGatherSteps() int {
+	scriptPath, err := findGatherMetadataScriptPath(POSTGRESQL)
+	if err != nil {
+		log.Warnf("could not locate PG gather script to count steps: %v", err)
+		return 0
+	}
+	scriptDir := filepath.Dir(scriptPath)
+	matches, err := filepath.Glob(filepath.Join(scriptDir, "*.psql"))
+	if err != nil {
+		log.Warnf("could not glob .psql files in %s: %v", scriptDir, err)
+		return 0
+	}
+	return len(matches) + 1 // +1 for schema collection (pg_dump)
+}
+
 func runGatherAssessmentMetadataScript(scriptPath string, envVars []string, workingDir string, scriptArgs ...string) error {
 	cmd := exec.Command(scriptPath, scriptArgs...)
 	log.Infof("running script: %s", cmd.String())

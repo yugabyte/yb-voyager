@@ -73,16 +73,29 @@ func printPreflightFail(label string) {
 	failColor.Printf("  %s %s\n", "\u2717", label)
 }
 
-// AssessmentProgressTracker renders stages with a spinner and a step counter.
-// Each stage has a name and tracks completed steps out of a total.
-// The spinner shows: ⠋ Stage name (3/12)
-// On completion:     ✓ Stage name (12/12)
+// AssessmentProgressTracker renders stages with a spinner.
+//
+// For stages WITH sub-steps (e.g. "Gathering metadata"), each sub-step is
+// printed on its own line as it completes:
+//
+//	✓ Collecting column statistics...
+//	✓ Collecting db queries summary...
+//	⠋ Collecting index to table mapping...
+//
+// When the stage finishes, all sub-step lines are erased and replaced by a
+// single completion line:
+//
+//	✓ Gathering metadata (12/12)
+//
+// For stages WITHOUT sub-steps, a single spinner line is shown and then
+// replaced by the checkmark on completion.
 type AssessmentProgressTracker struct {
 	mu            sync.Mutex
 	stageName     string
 	subStage      string
 	stepsTotal    int
 	stepsDone     int
+	linesPrinted  int // finalized sub-step lines currently visible on screen
 	spinnerStop   chan struct{}
 	spinnerDone   chan struct{}
 	headerPrinted bool
@@ -92,27 +105,27 @@ func NewAssessmentProgressTracker() *AssessmentProgressTracker {
 	return &AssessmentProgressTracker{}
 }
 
-// spinnerLabel builds the text shown next to the spinner (includes sub-stage if set).
+// spinnerLabel returns the text rendered next to the spinner frame.
+// When a sub-step is active it shows only the sub-step; otherwise the stage name.
 func (t *AssessmentProgressTracker) spinnerLabel() string {
-	base := t.stageName
-	if t.stepsTotal > 0 {
-		base = fmt.Sprintf("%s (%d/%d)", base, t.stepsDone, t.stepsTotal)
-	}
 	if t.subStage != "" {
-		base = fmt.Sprintf("%s %s", base, t.subStage)
-	}
-	return base
-}
-
-// completedLabel builds the text shown on the checkmark line (no sub-stage).
-func (t *AssessmentProgressTracker) completedLabel() string {
-	if t.stepsTotal > 0 {
-		return fmt.Sprintf("%s (%d/%d)", t.stageName, t.stepsDone, t.stepsTotal)
+		return t.subStage
 	}
 	return t.stageName
 }
 
-// StartStage begins a new stage with a spinner. totalSteps can be 0 if unknown upfront.
+// completedLabel builds the text shown on the final checkmark line.
+func (t *AssessmentProgressTracker) completedLabel() string {
+	if t.stepsTotal > 0 {
+		return fmt.Sprintf("%s (%d/%d)", t.stageName, t.stepsDone, t.stepsTotal)
+	}
+	if t.stepsDone > 0 {
+		return fmt.Sprintf("%s (%d steps)", t.stageName, t.stepsDone)
+	}
+	return t.stageName
+}
+
+// StartStage begins a new stage with a spinner. totalSteps can be 0 if unknown.
 func (t *AssessmentProgressTracker) StartStage(name string, totalSteps int) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -129,25 +142,48 @@ func (t *AssessmentProgressTracker) StartStage(name string, totalSteps int) {
 	t.subStage = ""
 	t.stepsTotal = totalSteps
 	t.stepsDone = 0
+	t.linesPrinted = 0
 	t.spinnerStop = make(chan struct{})
 	t.spinnerDone = make(chan struct{})
 	go t.runSpinner()
 }
 
-// IncrementStep increments the step counter and updates the inner sub-stage label.
+// IncrementStep finalizes the previous sub-step (prints it with a checkmark),
+// then starts a new spinner line for the new sub-step.
 func (t *AssessmentProgressTracker) IncrementStep(subStage string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+
 	t.stepsDone++
+	t.stopSpinnerLocked()
+
+	if t.subStage != "" {
+		checkColor.Printf("    %s %s\n", "\u2713", t.subStage)
+		t.linesPrinted++
+	}
+
 	t.subStage = subStage
+	t.spinnerStop = make(chan struct{})
+	t.spinnerDone = make(chan struct{})
+	go t.runSpinner()
 }
 
-// CompleteStage stops the spinner and prints a checkmark for the current stage.
+// CompleteStage finalizes the last sub-step, erases all sub-step lines, and
+// prints a single checkmark line for the stage.
 func (t *AssessmentProgressTracker) CompleteStage() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	t.stopSpinnerLocked()
+
+	if t.subStage != "" {
+		checkColor.Printf("    %s %s\n", "\u2713", t.subStage)
+		t.linesPrinted++
+	}
+
+	if t.linesPrinted > 0 {
+		fmt.Printf("\033[%dA\033[J", t.linesPrinted)
+	}
 
 	if t.stepsTotal > 0 {
 		t.stepsDone = t.stepsTotal
@@ -156,6 +192,7 @@ func (t *AssessmentProgressTracker) CompleteStage() {
 
 	fmt.Printf("\r\033[K")
 	checkColor.Printf("  %s %s\n", "\u2713", t.completedLabel())
+	t.linesPrinted = 0
 }
 
 // Finish stops any running spinner without printing a checkmark.
@@ -165,10 +202,16 @@ func (t *AssessmentProgressTracker) Finish() {
 	t.stopSpinnerLocked()
 }
 
+// stopSpinnerLocked signals the spinner goroutine to stop and waits for it.
+// Because the spinner acquires mu on each frame, we must temporarily release mu
+// here to avoid a deadlock (caller holds mu → spinner blocks on mu → caller
+// blocks on spinnerDone).
 func (t *AssessmentProgressTracker) stopSpinnerLocked() {
 	if t.spinnerStop != nil {
 		close(t.spinnerStop)
+		t.mu.Unlock()
 		<-t.spinnerDone
+		t.mu.Lock()
 		t.spinnerStop = nil
 		t.spinnerDone = nil
 	}
@@ -185,15 +228,30 @@ func (t *AssessmentProgressTracker) runSpinner() {
 			fmt.Printf("\r\033[K")
 			return
 		default:
-			t.mu.Lock()
-			label := t.spinnerLabel()
-			t.mu.Unlock()
-			frame := spinnerFrames[i%len(spinnerFrames)]
-			fmt.Printf("\r\033[K")
-			stageColor.Printf("  %s %s", frame, label)
-			i++
-			time.Sleep(80 * time.Millisecond)
 		}
+
+		t.mu.Lock()
+		label := t.spinnerLabel()
+		indent := "  "
+		if t.subStage != "" {
+			indent = "    "
+		}
+		t.mu.Unlock()
+
+		// Re-check stop after releasing the mutex so we exit promptly
+		// when stopSpinnerLocked is called.
+		select {
+		case <-t.spinnerStop:
+			fmt.Printf("\r\033[K")
+			return
+		default:
+		}
+
+		frame := spinnerFrames[i%len(spinnerFrames)]
+		fmt.Printf("\r\033[K")
+		stageColor.Printf("%s%s %s", indent, frame, label)
+		i++
+		time.Sleep(80 * time.Millisecond)
 	}
 }
 
