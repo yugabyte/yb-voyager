@@ -35,6 +35,7 @@ var sourceDBType string
 var enableOrafce utils.BoolStr
 var importType string
 var prometheusMetricsPort int
+var importUsePartitionRoot = true // default is true for backward compatibility
 
 var supportedSSLModesOnTargetForImport = AllSSLModes // supported SSL modes for YugabyteDB is different for import VS export data from target(streaming phase)
 var supportedSSLModesOnSourceOrSourceReplica = AllSSLModes
@@ -114,6 +115,25 @@ func validateImportDataFlags() error {
 		return err
 	}
 
+	err = validateImportUsePartitionRootFlag()
+	if err != nil {
+		return fmt.Errorf("error validating --use-partition-root flag: %w", err)
+	}
+
+	return nil
+}
+
+func validateImportUsePartitionRootFlag() error {
+	// --use-partition-root flag is only valid for live migration with PostgreSQL or YugabyteDB source
+	if !importUsePartitionRoot {
+		// Only validate when flag is explicitly set to false (non-default)
+		if !changeStreamingIsEnabled(importType) {
+			return fmt.Errorf("--use-partition-root=false is only valid for live migration")
+		}
+		if sourceDBType != POSTGRESQL && sourceDBType != YUGABYTEDB {
+			return fmt.Errorf("--use-partition-root flag is only valid for PostgreSQL and YugabyteDB source databases")
+		}
+	}
 	return nil
 }
 
@@ -329,6 +349,12 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 	cmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
 		"Port for Prometheus metrics server (default: 9101)")
 	cmd.Flags().MarkHidden("prometheus-metrics-port")
+
+	cmd.Flags().BoolVar(&importUsePartitionRoot, "use-partition-root", true,
+		"[PostgreSQL/YugabyteDB only] For partitioned tables during live migration:\n"+
+			"  - true (default): insert data via the root table using the root table's PK for ON CONFLICT.\n"+
+			"  - false: insert data directly into child partitions using their PKs. Useful when the root table\n"+
+			"    has no PK but child partitions do.")
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {

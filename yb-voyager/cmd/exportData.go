@@ -1686,9 +1686,8 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 	}
 
 	source.DB().ExportDataPostProcessing(exportDir, tablesProgressMetadata)
-	if source.DBType == POSTGRESQL && usePartitionRoot {
+	if source.DBType == POSTGRESQL {
 		//Make leaf partitions data files entry under the name of root table
-		//Skip renaming when usePartitionRoot=false since we want to keep leaf partition names
 		renameDatafileDescriptor(exportDir)
 	}
 	displayExportedRowCountSnapshot(false)
@@ -2033,14 +2032,25 @@ func reportUnsupportedTablesForLiveMigration(finalTableList []sqlname.NameTuple)
 	var nonPKTables []string
 	for _, table := range finalTableList {
 		if lo.Contains(allNonPKTables, table.ForKey()) {
-			// When usePartitionRoot=false, skip root tables that have child partitions
+			// When usePartitionRoot=false, skip root tables if all their leaf partitions have PKs
 			// because data will be inserted directly into child partitions using their PKs
 			if !usePartitionRoot {
 				children := GetAllLeafPartitions(table)
 				if len(children) > 0 {
-					log.Infof("Skipping PK check for root table %s because usePartitionRoot=false and it has %d child partitions",
-						table.ForKey(), len(children))
-					continue
+					// Check if all leaf partitions have PKs
+					allChildrenHavePK := true
+					for _, child := range children {
+						if lo.Contains(allNonPKTables, child.ForKey()) {
+							allChildrenHavePK = false
+							log.Infof("Leaf partition %s of root table %s does not have a primary key", child.ForKey(), table.ForKey())
+							break
+						}
+					}
+					if allChildrenHavePK {
+						log.Infof("Skipping PK check for root table %s because usePartitionRoot=false and all %d child partitions have PKs",
+							table.ForKey(), len(children))
+						continue
+					}
 				}
 			}
 			nonPKTables = append(nonPKTables, table.ForOutput())

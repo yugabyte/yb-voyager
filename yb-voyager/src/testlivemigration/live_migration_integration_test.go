@@ -4443,7 +4443,7 @@ func TestLiveMigrationWithFallbackWithIterationsAndArchiveChangesAndEndMigration
 //  2. Insert initial data into different partitions
 //  3. Export with --use-partition-root=false
 //  4. Create same schema on target
-//  5. Import data - should insert directly into child partitions
+//  5. Import data with --use-partition-root=false - should insert directly into child partitions
 //  6. Insert more rows on source (CDC)
 //  7. Verify CDC events flow correctly to child partitions
 //  8. Validate data consistency across all partitions
@@ -4514,25 +4514,26 @@ func TestLiveMigrationPartitionedTableWithChildPK(t *testing.T) {
 	err = lm.SetupSchema()
 	testutils.FatalIfError(t, err, "failed to setup schema")
 
-	// Start export with --use-partition-root=false
-	// This allows live migration for tables where root has no PK but children do
-	// Note: For boolean false flags, use --flag=false format with empty value
+	// Start export with --use-partition-root=false on export side
+	// This relaxes the PK check for root table since child partitions have PKs
+	// CDC events will contain partition_table_name for original partition
 	err = lm.StartExportData(true, map[string]string{
 		"--use-partition-root=false": "",
 		"--table-list":               "public.orders",
 	})
 	testutils.FatalIfError(t, err, "failed to start export data")
 
-	err = lm.StartImportData(true, nil)
+	// Start import with --use-partition-root=false
+	// This causes SQL to target partition tables using partition_table_name from events
+	err = lm.StartImportData(true, map[string]string{
+		"--use-partition-root=false": "",
+	})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
 	// Wait for snapshot to complete - 5 initial rows
-	// When usePartitionRoot=false, MSR tracks leaf partition names, not root table names
-	// Initial data: orders_us=2, orders_eu=2, orders_apac=1
+	// Snapshot data is tracked by root table name (standard behavior)
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		`"public"."orders_us"`:   2,
-		`"public"."orders_eu"`:   2,
-		`"public"."orders_apac"`: 1,
+		`"public"."orders"`: 5,
 	}, 60*time.Second)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
@@ -4559,22 +4560,13 @@ func TestLiveMigrationPartitionedTableWithChildPK(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
 	// Wait for streaming to complete
-	// When usePartitionRoot=false, CDC events are tracked by leaf partition names
-	// SourceDeltaSQL: insert US(1), insert EU(1), insert APAC(1), update US(1), delete APAC(1)
+	// CDC events are still tracked by root table name (table_name in event)
+	// But SQL targets partitions using partition_table_name when --use-partition-root=false
+	// SourceDeltaSQL: insert 3, update 1, delete 1
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`"public"."orders_us"`: {
-			Inserts: 1,
+		`"public"."orders"`: {
+			Inserts: 3,
 			Updates: 1,
-			Deletes: 0,
-		},
-		`"public"."orders_eu"`: {
-			Inserts: 1,
-			Updates: 0,
-			Deletes: 0,
-		},
-		`"public"."orders_apac"`: {
-			Inserts: 1,
-			Updates: 0,
 			Deletes: 1,
 		},
 	}, 60*time.Second, 2*time.Second)

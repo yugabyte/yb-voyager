@@ -33,13 +33,16 @@ import (
 )
 
 type Event struct {
-	Vsn          int64 // Voyager Sequence Number
-	Op           string
-	TableNameTup sqlname.NameTuple
-	Key          map[string]*string
-	Fields       map[string]*string //all the column values of the row - worst
-	BeforeFields map[string]*string //all the column values of the row - worst
-	ExporterRole string
+	Vsn                  int64 // Voyager Sequence Number
+	Op                   string
+	TableNameTup         sqlname.NameTuple
+	PartitionTableName   string // Original partition table name (before renaming to root)
+	PartitionSchemaName  string // Original partition schema name (before renaming to root)
+	UsePartitionTable    bool   // If true and IsPartitionEvent(), use partition table for SQL instead of root
+	Key                  map[string]*string
+	Fields               map[string]*string //all the column values of the row - worst
+	BeforeFields         map[string]*string //all the column values of the row - worst
+	ExporterRole         string
 }
 
 /*
@@ -61,14 +64,16 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	var err error
 	// This is how this json really looks like.
 	var rawEvent struct {
-		Vsn          int64              `json:"vsn"` // Voyager Sequence Number
-		Op           string             `json:"op"`
-		SchemaName   string             `json:"schema_name"`
-		TableName    string             `json:"table_name"`
-		Key          map[string]*string `json:"key"`
-		Fields       map[string]*string `json:"fields"`
-		BeforeFields map[string]*string `json:"before_fields"`
-		ExporterRole string             `json:"exporter_role"`
+		Vsn                 int64              `json:"vsn"` // Voyager Sequence Number
+		Op                  string             `json:"op"`
+		SchemaName          string             `json:"schema_name"`
+		TableName           string             `json:"table_name"`
+		PartitionSchemaName string             `json:"partition_schema_name,omitempty"` // Original partition schema (if renamed)
+		PartitionTableName  string             `json:"partition_table_name,omitempty"`  // Original partition table (if renamed)
+		Key                 map[string]*string `json:"key"`
+		Fields              map[string]*string `json:"fields"`
+		BeforeFields        map[string]*string `json:"before_fields"`
+		ExporterRole        string             `json:"exporter_role"`
 	}
 
 	if err = json.Unmarshal(data, &rawEvent); err != nil {
@@ -80,6 +85,8 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	e.Fields = rawEvent.Fields
 	e.BeforeFields = rawEvent.BeforeFields
 	e.ExporterRole = rawEvent.ExporterRole
+	e.PartitionSchemaName = rawEvent.PartitionSchemaName
+	e.PartitionTableName = rawEvent.PartitionTableName
 	if !e.IsCutoverEvent() {
 		e.TableNameTup, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", rawEvent.SchemaName, rawEvent.TableName))
 		if err != nil {
@@ -106,8 +113,12 @@ func (e *Event) String() string {
 		return "{" + strings.Join(elements, ", ") + "}"
 	}
 
-	return fmt.Sprintf("Event{vsn=%v, op=%v, table=%v, key=%v, before_fields=%v, fields=%v, exporter_role=%v}",
-		e.Vsn, e.Op, e.TableNameTup, mapStr(e.Key), mapStr(e.BeforeFields), mapStr(e.Fields), e.ExporterRole)
+	partitionInfo := ""
+	if e.PartitionTableName != "" {
+		partitionInfo = fmt.Sprintf(", partition=%s.%s", e.PartitionSchemaName, e.PartitionTableName)
+	}
+	return fmt.Sprintf("Event{vsn=%v, op=%v, table=%v%s, key=%v, before_fields=%v, fields=%v, exporter_role=%v}",
+		e.Vsn, e.Op, e.TableNameTup, partitionInfo, mapStr(e.Key), mapStr(e.BeforeFields), mapStr(e.Fields), e.ExporterRole)
 }
 
 func (e *Event) Copy() *Event {
@@ -115,13 +126,16 @@ func (e *Event) Copy() *Event {
 		return k, v
 	}
 	return &Event{
-		Vsn:          e.Vsn,
-		Op:           e.Op,
-		TableNameTup: e.TableNameTup,
-		Key:          lo.MapEntries(e.Key, idFn),
-		Fields:       lo.MapEntries(e.Fields, idFn),
-		BeforeFields: lo.MapEntries(e.BeforeFields, idFn),
-		ExporterRole: e.ExporterRole,
+		Vsn:                 e.Vsn,
+		Op:                  e.Op,
+		TableNameTup:        e.TableNameTup,
+		PartitionSchemaName: e.PartitionSchemaName,
+		PartitionTableName:  e.PartitionTableName,
+		UsePartitionTable:   e.UsePartitionTable,
+		Key:                 lo.MapEntries(e.Key, idFn),
+		Fields:              lo.MapEntries(e.Fields, idFn),
+		BeforeFields:        lo.MapEntries(e.BeforeFields, idFn),
+		ExporterRole:        e.ExporterRole,
 	}
 }
 
@@ -139,6 +153,30 @@ func (e *Event) IsCutoverToSource() bool {
 
 func (e *Event) IsCutoverEvent() bool {
 	return e.IsCutoverToTarget() || e.IsCutoverToSourceReplica() || e.IsCutoverToSource()
+}
+
+// IsPartitionEvent returns true if this event originated from a partition table that was renamed to root
+func (e *Event) IsPartitionEvent() bool {
+	return e.PartitionTableName != ""
+}
+
+// GetPartitionQualifiedName returns the fully qualified partition table name (schema.table)
+func (e *Event) GetPartitionQualifiedName() string {
+	if !e.IsPartitionEvent() {
+		return ""
+	}
+	return fmt.Sprintf("%s.%s", e.PartitionSchemaName, e.PartitionTableName)
+}
+
+// GetEffectiveTableNameForSQL returns the table name to use in SQL statements.
+// If UsePartitionTable is true and this is a partition event, returns the partition table name.
+// Otherwise, returns the root table name (TableNameTup).
+func (e *Event) GetEffectiveTableNameForSQL() string {
+	if e.UsePartitionTable && e.IsPartitionEvent() {
+		// Quote the schema and table names for SQL safety
+		return fmt.Sprintf(`"%s"."%s"`, e.PartitionSchemaName, e.PartitionTableName)
+	}
+	return e.TableNameTup.ForUserQuery()
 }
 
 func (e *Event) GetSQLStmt(tdb TargetDB) (string, error) {
@@ -296,7 +334,7 @@ func (event *Event) getInsertStmt(tdb TargetDB) (string, error) {
 	}
 	columns := strings.Join(columnList, ", ")
 	values := strings.Join(valueList, ", ")
-	stmt := fmt.Sprintf(insertTemplate, event.TableNameTup.ForUserQuery(), columns, values)
+	stmt := fmt.Sprintf(insertTemplate, event.GetEffectiveTableNameForSQL(), columns, values)
 	return stmt, nil
 }
 
@@ -327,7 +365,7 @@ func (event *Event) getUpdateStmt(tdb TargetDB) (string, error) {
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, *value))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
-	return fmt.Sprintf(updateTemplate, event.TableNameTup.ForUserQuery(), setClause, whereClause), nil
+	return fmt.Sprintf(updateTemplate, event.GetEffectiveTableNameForSQL(), setClause, whereClause), nil
 }
 
 func (event *Event) getDeleteStmt(tdb TargetDB) (string, error) {
@@ -343,7 +381,7 @@ func (event *Event) getDeleteStmt(tdb TargetDB) (string, error) {
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, *value))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
-	return fmt.Sprintf(deleteTemplate, event.TableNameTup.ForUserQuery(), whereClause), nil
+	return fmt.Sprintf(deleteTemplate, event.GetEffectiveTableNameForSQL(), whereClause), nil
 }
 
 func (event *Event) getPreparedInsertStmt(tdb TargetDB, targetDBType string) (string, error) {
@@ -360,7 +398,7 @@ func (event *Event) getPreparedInsertStmt(tdb TargetDB, targetDBType string) (st
 	}
 	columns := strings.Join(columnList, ", ")
 	values := strings.Join(valueList, ", ")
-	stmt := fmt.Sprintf(insertTemplate, event.TableNameTup.ForUserQuery(), columns, values)
+	stmt := fmt.Sprintf(insertTemplate, event.GetEffectiveTableNameForSQL(), columns, values)
 	if targetDBType == POSTGRESQL || targetDBType == YUGABYTEDB {
 		keyColumns := utils.GetMapKeysSorted(event.Key)
 		for i, column := range keyColumns {
@@ -399,7 +437,7 @@ func (event *Event) getPreparedUpdateStmt(tdb TargetDB) (string, error) {
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = $%d", key, pos))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
-	return fmt.Sprintf(updateTemplate, event.TableNameTup.ForUserQuery(), setClause, whereClause), nil
+	return fmt.Sprintf(updateTemplate, event.GetEffectiveTableNameForSQL(), setClause, whereClause), nil
 }
 
 func (event *Event) getPreparedDeleteStmt(tdb TargetDB) (string, error) {
@@ -413,7 +451,7 @@ func (event *Event) getPreparedDeleteStmt(tdb TargetDB) (string, error) {
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = $%d", key, pos+1))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
-	return fmt.Sprintf(deleteTemplate, event.TableNameTup.ForUserQuery(), whereClause), nil
+	return fmt.Sprintf(deleteTemplate, event.GetEffectiveTableNameForSQL(), whereClause), nil
 }
 
 func (event *Event) getInsertParams() []interface{} {

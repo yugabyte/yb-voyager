@@ -113,15 +113,9 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		return nil, nil, fmt.Errorf("failed to prepare ssl params for debezium: %w", err)
 	}
 
-	// When usePartitionRoot=false, we skip the table rename mapping so that
-	// Debezium events keep their original child partition table names.
-	// This is useful when root tables have no PK but child partitions do.
-	var tableRenameMapping string
-	if msr.GetUsePartitionRoot() {
-		tableRenameMapping = strings.Join(lo.MapToSlice(partitionsToRootTableMap, func(k, v string) string {
-			return fmt.Sprintf("%s:%s", k, v)
-		}), ",")
-	}
+	tableRenameMapping := strings.Join(lo.MapToSlice(partitionsToRootTableMap, func(k, v string) string {
+		return fmt.Sprintf("%s:%s", k, v)
+	}), ",")
 
 	dbzmLogLevel := config.LogLevel
 	if config.IsLogLevelErrorOrAbove() {

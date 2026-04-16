@@ -1047,11 +1047,6 @@ func renameTableIfRequired(table string) (string, bool) {
 		return table, false
 	}
 
-	// When UsePartitionRoot=false, we don't rename tables - data is associated with leaf partitions
-	if !msr.GetUsePartitionRoot() {
-		return table, false
-	}
-
 	sourceDBType = msr.SourceDBConf.DBType
 	sourceDBTypeInMigration := msr.SourceDBConf.DBType
 	schema := msr.SourceDBConf.Schemas
