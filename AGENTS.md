@@ -41,12 +41,12 @@ yes | bash installer_scripts/install-yb-voyager -v
 ### Docker (for testcontainers)
 
 Docker is installed with the fuse-overlayfs storage driver and iptables-legacy (required for DinD in Cloud Agent VMs). Before running integration tests, ensure the Docker daemon is running:
+Verify with `docker info`. If not started, use this to start docker: 
 ```
 sudo dockerd &>/tmp/dockerd.log &
 sleep 3
 sudo chmod 666 /var/run/docker.sock
 ```
-Verify with `docker info`. The daemon must be started each session — it does not auto-start.
 
 ### Running local databases
 
