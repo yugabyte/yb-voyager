@@ -809,3 +809,75 @@ func TestImportDataFile_GeneratedAlwaysAsIdentity(t *testing.T) {
 	// Verify the identity column is still GENERATED ALWAYS
 	assertIdentityColumnIsAlways(t, ybConn, "public", "identity_file_test", "id")
 }
+
+func TestImportDataFile_EmptyFile(t *testing.T) {
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	setupYugabyteTestDb(t)
+
+	createTableSQL := `CREATE TABLE public.empty_file_test (id INTEGER PRIMARY KEY, name TEXT);`
+	testYugabyteDBTarget.TestContainer.ExecuteSqls(createTableSQL)
+	t.Cleanup(func() {
+		testYugabyteDBTarget.TestContainer.ExecuteSqls("DROP TABLE IF EXISTS public.empty_file_test;")
+	})
+
+	dataFilePath := filepath.Join("/tmp", "abc1.csv")
+	f, err := os.Create(dataFilePath)
+	testutils.FatalIfError(t, err, "Failed to create CSV file")
+	defer os.Remove(dataFilePath)
+	defer f.Close()
+
+	w := csv.NewWriter(f)
+	w.Write([]string{"id", "name"})
+	w.Flush()
+
+	dataFilePath2 := filepath.Join("/tmp", "abc2.csv")
+	f2, err := os.Create(dataFilePath2)
+	testutils.FatalIfError(t, err, "Failed to create CSV file")
+	defer os.Remove(dataFilePath2)
+	defer f2.Close()
+
+	w2 := csv.NewWriter(f2)
+	w2.Write([]string{"id", "name"})
+	w2.Write([]string{"1", "abc"})
+	w2.Write([]string{"2", "def"})
+	w2.Write([]string{"3", "ghi"})
+	w2.Flush()
+
+	dataFilePath3 := filepath.Join("/tmp", "abc3.csv")
+	f3, err := os.Create(dataFilePath3)
+	testutils.FatalIfError(t, err, "Failed to create CSV file")
+	defer os.Remove(dataFilePath3)
+	defer f3.Close()
+
+	w3 := csv.NewWriter(f3)
+	w3.Write([]string{"id", "name"})
+	w3.Write([]string{"4", "abc"})
+	w3.Write([]string{"5", "def"})
+	w3.Write([]string{"6", "ghi"})
+	w3.Flush()
+
+	importDataFileCmdArgs := []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--target-db-schema", "public",
+		"--data-dir", "/tmp",
+		"--file-table-map", "abc*.csv:public.empty_file_test",
+		"--format", "CSV",
+		"--has-header", "true",
+		"--yes",
+	}
+
+	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data file", importDataFileCmdArgs, nil, false).Run()
+	testutils.FatalIfError(t, err, "import data file failed")
+
+	ybConn, err := testYugabyteDBTarget.TestContainer.GetConnection()
+	testutils.FatalIfError(t, err, "connecting to YugabyteDB")
+	defer ybConn.Close()
+	// Verify row count
+	var rowCount int
+	err = ybConn.QueryRow("SELECT COUNT(*) FROM public.empty_file_test").Scan(&rowCount)
+	testutils.FatalIfError(t, err, "failed to query row count")
+	assert.Equal(t, 6, rowCount, "expected 6 rows imported")
+}
