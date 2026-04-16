@@ -106,12 +106,26 @@ func NewAssessmentProgressTracker() *AssessmentProgressTracker {
 }
 
 // spinnerLabel returns the text rendered next to the spinner frame.
-// When a sub-step is active it shows only the sub-step; otherwise the stage name.
+// When a sub-step is active it shows the sub-step with a step counter;
+// otherwise just the stage name.
 func (t *AssessmentProgressTracker) spinnerLabel() string {
 	if t.subStage != "" {
-		return t.subStage
+		return fmt.Sprintf("%s %s", t.stepCounter(), t.subStage)
 	}
 	return t.stageName
+}
+
+// stepCounter returns a formatted counter for the current step like "(3/12)" or "(3)".
+func (t *AssessmentProgressTracker) stepCounter() string {
+	return t.stepCounterFor(t.stepsDone)
+}
+
+// stepCounterFor returns a formatted counter for a given step number.
+func (t *AssessmentProgressTracker) stepCounterFor(step int) string {
+	if t.stepsTotal > 0 {
+		return fmt.Sprintf("(%d/%d)", step, t.stepsTotal)
+	}
+	return fmt.Sprintf("(%d)", step)
 }
 
 // completedLabel builds the text shown on the final checkmark line.
@@ -148,17 +162,19 @@ func (t *AssessmentProgressTracker) StartStage(name string, totalSteps int) {
 	go t.runSpinner()
 }
 
-// IncrementStep finalizes the previous sub-step (prints it with a checkmark),
-// then starts a new spinner line for the new sub-step.
+// IncrementStep finalizes the previous sub-step (prints it with a checkmark
+// and its step number), then starts a new spinner line for the new sub-step.
 func (t *AssessmentProgressTracker) IncrementStep(subStage string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	prevStep := t.stepsDone
 	t.stepsDone++
 	t.stopSpinnerLocked()
 
 	if t.subStage != "" {
-		checkColor.Printf("    %s %s\n", "\u2713", t.subStage)
+		counter := t.stepCounterFor(prevStep)
+		checkColor.Printf("    %s %s %s\n", "\u2713", counter, t.subStage)
 		t.linesPrinted++
 	}
 
@@ -177,7 +193,8 @@ func (t *AssessmentProgressTracker) CompleteStage() {
 	t.stopSpinnerLocked()
 
 	if t.subStage != "" {
-		checkColor.Printf("    %s %s\n", "\u2713", t.subStage)
+		counter := t.stepCounter()
+		checkColor.Printf("    %s %s %s\n", "\u2713", counter, t.subStage)
 		t.linesPrinted++
 	}
 
