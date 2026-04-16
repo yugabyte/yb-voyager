@@ -636,6 +636,126 @@ func (lm *LiveMigrationTest) ResumeExportData(async bool) error {
 	return nil
 }
 
+// ResumeExportDataIfExited resumes export only when the async export process has
+// already exited with a non-success status (e.g. crash). No-op if still running or
+// if it exited successfully. Mirrors an operator re-running `export data` with resume.
+func (lm *LiveMigrationTest) ResumeExportDataIfExited(async bool) (resumed bool, err error) {
+	if lm.exportCmd == nil {
+		return false, nil
+	}
+	if !lm.exportCmd.IsStopped() {
+		return false, nil
+	}
+	if lm.exportCmd.ExitCode() == testutils.ExitCodeSuccess {
+		return false, nil
+	}
+	lm.t.Logf("export data exited with %s; resuming", lm.exportCmd.ExitCode().String())
+	if err := lm.ResumeExportData(async); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// ResumeImportDataIfExited resumes import only when the async import process has
+// already exited with a non-success status. No-op if still running or clean exit.
+func (lm *LiveMigrationTest) ResumeImportDataIfExited(async bool, extraArgs map[string]string) (resumed bool, err error) {
+	if lm.importCmd == nil {
+		return false, nil
+	}
+	if !lm.importCmd.IsStopped() {
+		return false, nil
+	}
+	if lm.importCmd.ExitCode() == testutils.ExitCodeSuccess {
+		return false, nil
+	}
+	lm.t.Logf("import data exited with %s; resuming", lm.importCmd.ExitCode().String())
+	if err := lm.ResumeImportData(async, extraArgs); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// ResumeMigrationStreamingIfExited resumes export and/or import when either async
+// process has exited with failure. Used after schema drift or partial failures to
+// match an operator resuming both sides of the pipeline.
+func (lm *LiveMigrationTest) ResumeMigrationStreamingIfExited(async bool, importExtraArgs map[string]string) (exportResumed, importResumed bool, err error) {
+	var firstErr error
+	if r, e := lm.ResumeExportDataIfExited(async); e != nil {
+		if firstErr == nil {
+			firstErr = e
+		}
+	} else if r {
+		exportResumed = true
+	}
+	if r, e := lm.ResumeImportDataIfExited(async, importExtraArgs); e != nil {
+		if firstErr == nil {
+			firstErr = e
+		}
+	} else if r {
+		importResumed = true
+	}
+	return exportResumed, importResumed, firstErr
+}
+
+// MigrationStreamingCycleResult records stop/resume outcomes for one full cycle of the live
+// export + import processes. Used when tests intentionally restart both sides (e.g. schema
+// drift); non-nil fields are expected in some scenarios and should be asserted explicitly.
+type MigrationStreamingCycleResult struct {
+	ExportStopErr   error
+	ImportStopErr   error
+	ExportResumeErr error
+	ImportResumeErr error
+}
+
+// HasError reports whether any stop or resume step returned an error.
+func (r MigrationStreamingCycleResult) HasError() bool {
+	return r.ExportStopErr != nil || r.ImportStopErr != nil || r.ExportResumeErr != nil || r.ImportResumeErr != nil
+}
+
+// Errors returns non-nil errors in stable order: export stop, import stop, export resume, import resume.
+func (r MigrationStreamingCycleResult) Errors() []error {
+	var out []error
+	for _, e := range []error{r.ExportStopErr, r.ImportStopErr, r.ExportResumeErr, r.ImportResumeErr} {
+		if e != nil {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// ExitAndResumeMigrationStreaming stops both async `import data` and `export data` (when
+// started), then starts them again via Resume*. Stop order is import then export; resume
+// order is export then import. Errors are captured on the returned value only — callers
+// decide whether a failed stop or resume is acceptable.
+func (lm *LiveMigrationTest) ExitAndResumeMigrationStreaming(async bool, importExtraArgs map[string]string) *MigrationStreamingCycleResult {
+	out := &MigrationStreamingCycleResult{}
+	if lm.importCmd != nil {
+		if err := lm.StopImportData(); err != nil {
+			out.ImportStopErr = err
+		}
+	}
+	if lm.exportCmd != nil {
+		if err := lm.StopExportData(); err != nil {
+			out.ExportStopErr = err
+		}
+	}
+	if lm.exportCmd != nil {
+		if err := lm.ResumeExportData(async); err != nil {
+			out.ExportResumeErr = err
+		}
+	}
+	if lm.importCmd != nil {
+		if err := lm.ResumeImportData(async, importExtraArgs); err != nil {
+			out.ImportResumeErr = err
+		}
+	}
+	if out.HasError() {
+		lm.t.Logf("ExitAndResumeMigrationStreaming: export_stop=%v import_stop=%v export_resume=%v import_resume=%v",
+			out.ExportStopErr, out.ImportStopErr, out.ExportResumeErr, out.ImportResumeErr)
+	}
+	return out
+}
+
 // InitiateCutover initiates cutover to target
 func (lm *LiveMigrationTest) InitiateCutoverToTarget(prepareForFallback bool, extraArgs map[string]string) error {
 	lm.t.Logf("Initiating cutover to target")
