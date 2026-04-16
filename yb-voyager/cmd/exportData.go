@@ -1686,8 +1686,9 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 	}
 
 	source.DB().ExportDataPostProcessing(exportDir, tablesProgressMetadata)
-	if source.DBType == POSTGRESQL {
+	if source.DBType == POSTGRESQL && usePartitionRoot {
 		//Make leaf partitions data files entry under the name of root table
+		//Skip renaming when usePartitionRoot=false since we want to keep leaf partition names
 		renameDatafileDescriptor(exportDir)
 	}
 	displayExportedRowCountSnapshot(false)
