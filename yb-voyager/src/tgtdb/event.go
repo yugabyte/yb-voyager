@@ -263,7 +263,9 @@ func (event *Event) GetPreparedStmtName() string {
 	// Build the base identifier (table name + columns for updates)
 	// This is what we'll hash if needed
 	var baseIdentifier strings.Builder
-	baseIdentifier.WriteString(event.TableNameTup.ForUserQuery())
+	// Use the effective table name for SQL to ensure prepared statement matches the target table
+	// This is important when UsePartitionTable is true - the prepared statement must be for the partition
+	baseIdentifier.WriteString(event.GetEffectiveTableNameForSQL())
 	if event.Op == "u" {
 		// For updates, include column names to distinguish different update patterns
 		keys := strings.Join(utils.GetMapKeysSorted(event.Fields), ",")

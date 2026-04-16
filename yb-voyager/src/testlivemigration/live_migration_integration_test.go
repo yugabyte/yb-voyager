@@ -4514,8 +4514,8 @@ func TestLiveMigrationPartitionedTableWithChildPK(t *testing.T) {
 	err = lm.SetupSchema()
 	testutils.FatalIfError(t, err, "failed to setup schema")
 
-	// Start export with --use-partition-root=false on export side
-	// This relaxes the PK check for root table since child partitions have PKs
+	// Start export with --use-partition-root=false
+	// This relaxes the PK check for root table since all child partitions have PKs
 	// CDC events will contain partition_table_name for original partition
 	err = lm.StartExportData(true, map[string]string{
 		"--use-partition-root=false": "",
