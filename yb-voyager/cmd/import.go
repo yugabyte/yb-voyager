@@ -128,10 +128,10 @@ func validateImportUsePartitionRootFlag() error {
 	if !importUsePartitionRoot {
 		// Only validate when flag is explicitly set to false (non-default)
 		if !changeStreamingIsEnabled(importType) {
-			return fmt.Errorf("--use-partition-root=false is only valid for live migration")
+			return goerrors.Errorf("--use-partition-root=false is only valid for live migration")
 		}
 		if sourceDBType != POSTGRESQL && sourceDBType != YUGABYTEDB {
-			return fmt.Errorf("--use-partition-root flag is only valid for PostgreSQL and YugabyteDB source databases")
+			return goerrors.Errorf("--use-partition-root flag is only valid for PostgreSQL and YugabyteDB source databases")
 		}
 	}
 	return nil
