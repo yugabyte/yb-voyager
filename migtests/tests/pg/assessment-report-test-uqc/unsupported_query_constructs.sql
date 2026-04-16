@@ -1,4 +1,5 @@
 -- Unsupported Query Constructs 
+SELECT * FROM pg_stat_statements;
 DROP EXTENSION IF EXISTS pg_stat_statements;
 CREATE EXTENSION pg_stat_statements;
 SELECT * FROM pg_stat_statements;

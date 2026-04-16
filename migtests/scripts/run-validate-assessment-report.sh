@@ -95,6 +95,13 @@ main() {
 		echo "Comparing JSON report"
         expected_json_file="${TEST_DIR}/expectedAssessmentReport.json"
         actual_json_file="${EXPORT_DIR}/assessment/reports/migration_assessment_report.json"
+
+		echo "=== Expected JSON file contents ==="
+		cat ${expected_json_file}
+		echo "=== Actual JSON file contents ==="
+		cat ${actual_json_file}
+		echo "=== End of file contents ==="
+
 	    compare_json_reports ${expected_json_file} ${actual_json_file}
 
 		if [[ "${SKIP_HTML_VALIDATION}" != "true" ]]; then 
