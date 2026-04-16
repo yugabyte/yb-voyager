@@ -109,6 +109,7 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 		utils.ErrExit("failed to validate export flags: %w", err)
 	}
 	validateExportTypeFlag()
+	validateUsePartitionRootFlag()
 	markFlagsRequired(cmd)
 	if changeStreamingIsEnabled(exportType) {
 		useDebezium = true
@@ -891,7 +892,11 @@ func updateCallhomeExportPhase() {
 
 // required only for postgresql/yugabytedb since GetAllTables() returns all tables and partitions
 // addAllLeafPartitions - this flag helps this function understand if it needs add leaf partitions or the list already consist it
-func addLeafPartitionsInTableList(tableList []sqlname.NameTuple, addAllLeafPartitions bool) (map[string]string, []sqlname.NameTuple, error) {
+// shouldUsePartitionRoot - when true (default), maps leaf partitions to root table for event renaming;
+//
+//	when false, does not populate the rename map, so events keep their child partition names.
+//	This is useful when root table has no PK but child partitions do.
+func addLeafPartitionsInTableList(tableList []sqlname.NameTuple, addAllLeafPartitions bool, shouldUsePartitionRoot bool) (map[string]string, []sqlname.NameTuple, error) {
 	requiredForSource := source.DBType == "postgresql" || source.DBType == "yugabytedb"
 	if !requiredForSource {
 		return nil, tableList, nil
@@ -904,7 +909,8 @@ func addLeafPartitionsInTableList(tableList []sqlname.NameTuple, addAllLeafParti
 	// events from oracle - will have customers for all of these partitions
 	// events from yb,pg will have `cust_other, cust_part11, cust_part12, cust_part22, cust_part21` out of these leaf partitions only
 	// using the dbzm we are renaming these events coming from yb to root_table for oracle.
-	// not required for pg to rename them.
+	// When shouldUsePartitionRoot=false, we skip adding to partitionsToRootTableMap, so Debezium
+	// will not rename events and they will keep their original child partition table names.
 
 	modifiedTableList := []sqlname.NameTuple{}
 	var partitionsToRootTableMap = make(map[string]string)
@@ -923,14 +929,20 @@ func addLeafPartitionsInTableList(tableList []sqlname.NameTuple, addAllLeafParti
 		prevLengthOfList := len(modifiedTableList)
 		switch true {
 		case len(allLeafPartitions) == 0 && !rootTable.Equals(table): //leaf partition
-			partitionsToRootTableMap[qualifiedCatalogName] = rootTable.AsQualifiedCatalogName() // Unquoted->Unquoted map as debezium uses Unquoted table name
+			// Only add to rename map if shouldUsePartitionRoot is true
+			if shouldUsePartitionRoot {
+				partitionsToRootTableMap[qualifiedCatalogName] = rootTable.AsQualifiedCatalogName() // Unquoted->Unquoted map as debezium uses Unquoted table name
+			}
 			modifiedTableList = append(modifiedTableList, table)
 		case len(allLeafPartitions) == 0 && rootTable.Equals(table): //normal table
 			modifiedTableList = append(modifiedTableList, table)
 		case len(allLeafPartitions) > 0 && addAllLeafPartitions: // table with partitions in table list
 			for _, leafPartition := range allLeafPartitions {
 				modifiedTableList = append(modifiedTableList, leafPartition)
-				partitionsToRootTableMap[leafPartition.AsQualifiedCatalogName()] = rootTable.AsQualifiedCatalogName()
+				// Only add to rename map if shouldUsePartitionRoot is true
+				if shouldUsePartitionRoot {
+					partitionsToRootTableMap[leafPartition.AsQualifiedCatalogName()] = rootTable.AsQualifiedCatalogName()
+				}
 			}
 		}
 		if prevLengthOfList < len(modifiedTableList) {
@@ -1230,7 +1242,8 @@ func applyTableListFlagsOnFullListAndAddLeafPartitions(fullTableList []sqlname.N
 		if err != nil {
 			return nil, errs.NewExportDataError(errs.APPLY_TABLE_LIST_FLAGS_ON_FULL_LIST, fmt.Sprintf("extract_table_list_from_%s_list", flagName), err)
 		}
-		_, flagTableList, err = addLeafPartitionsInTableList(flagTableList, true)
+		// For filtering purposes, always use true since we're not building the rename map here
+		_, flagTableList, err = addLeafPartitionsInTableList(flagTableList, true, true)
 		if err != nil {
 			return nil, errs.NewExportDataError(errs.APPLY_TABLE_LIST_FLAGS_ON_FULL_LIST, fmt.Sprintf("add_leaf_partitions_in_%s_list", flagName), err)
 		}
@@ -1262,7 +1275,8 @@ func applyTableListFlagsOnFullListAndAddLeafPartitions(fullTableList []sqlname.N
 		log.Infof("keeping only leaf and root tables in full table list - %v", lo.Map(includeTableList, func(t sqlname.NameTuple, _ int) string {
 			return t.ForOutput()
 		}))
-		_, includeTableList, err = addLeafPartitionsInTableList(includeTableList, false)
+		// For filtering purposes, always use true since we're not building the rename map here
+		_, includeTableList, err = addLeafPartitionsInTableList(includeTableList, false, true)
 		if err != nil {
 			return nil, nil, errs.NewExportDataError(errs.APPLY_TABLE_LIST_FLAGS_ON_FULL_LIST, "add_leaf_partitions", err)
 		}
@@ -1314,7 +1328,8 @@ func fetchTablesNamesFromSourceAndFilterTableList() (map[string]string, []sqlnam
 
 	var partitionsToRootTableMap map[string]string
 	//Just populating the partitionsToRootTableMap from the finalTableList which is filtered from flags if required and has leaf and roots both
-	partitionsToRootTableMap, tableListInFirstRun, err = addLeafPartitionsInTableList(tableListInFirstRun, false)
+	// Use the global usePartitionRoot flag for first run
+	partitionsToRootTableMap, tableListInFirstRun, err = addLeafPartitionsInTableList(tableListInFirstRun, false, usePartitionRoot)
 	if err != nil {
 		return nil, nil, errs.NewExportDataError(errs.FETCH_TABLES_NAMES_FROM_SOURCE, "add_leaf_partitions", err)
 	}
@@ -1322,6 +1337,7 @@ func fetchTablesNamesFromSourceAndFilterTableList() (map[string]string, []sqlnam
 		return t.ForOutput()
 	}))
 	log.Infof("partitions of all root table being exported: %v", partitionsToRootTableMap)
+	log.Infof("usePartitionRoot=%v", usePartitionRoot)
 	return partitionsToRootTableMap, tableListInFirstRun, nil
 }
 
@@ -1377,7 +1393,8 @@ func retrieveFirstRunListAndPartitionsRootMap(msr *metadb.MigrationStatusRecord)
 		if isFirstRunOfTargetExporter {
 			//Now add the leaf partitions to the stored table-list for the first run of export data from target
 			// as it will only have root table names and get the partitionsToRootTableMap
-			partitionsToRootTableMap, firstRunTableWithLeafsAndRoots, err = addLeafPartitionsInTableList(firstRunTableWithLeafsAndRoots, true)
+			// Use the MSR's usePartitionRoot value (which was set during source export)
+			partitionsToRootTableMap, firstRunTableWithLeafsAndRoots, err = addLeafPartitionsInTableList(firstRunTableWithLeafsAndRoots, true, msr.GetUsePartitionRoot())
 			if err != nil {
 				return nil, nil, errs.NewExportDataError(errs.RETRIEVE_FIRST_RUN_TABLE_LIST_OPERATION, "add_leaf_partitions", err)
 			}
@@ -1566,7 +1583,9 @@ func guardrailsAroundFirstRunAndCurrentRunTableList(firstRunTableListWithLeafPar
 }
 
 func detectAndReportNewLeafPartitionsOnPartitionedTables(rootTables []sqlname.NameTuple, registeredList []sqlname.NameTuple) (map[string][]string, error) {
-	updatedPartitionsToRootTableMap, _, err := addLeafPartitionsInTableList(rootTables, true)
+	// For detecting new partitions, we always need to build the map to compare with registered list
+	// Use true for shouldUsePartitionRoot to ensure we capture all partition relationships
+	updatedPartitionsToRootTableMap, _, err := addLeafPartitionsInTableList(rootTables, true, true)
 	if err != nil {
 		return nil, errs.NewExportDataError(errs.DETECT_AND_REPORT_NEW_LEAF_PARTITIONS_ON_PARTITIONED_TABLES, "add_leaf_partitions", err)
 	}
@@ -2030,7 +2049,21 @@ func reportUnsupportedTablesForLiveMigration(finalTableList []sqlname.NameTuple)
 	}
 	var nonPKTables []string
 	for _, table := range finalTableList {
-		if lo.Contains(allNonPKTables, table.ForKey()) {
+		tableName := table.ForKey()
+
+		// When usePartitionRoot=false, skip root tables that have child partitions
+		// because data will be inserted directly into child partitions using their PKs
+		if !usePartitionRoot {
+			children := GetAllLeafPartitions(table)
+			if len(children) > 0 {
+				// This is a root partitioned table - skip PK check since we'll insert into children
+				log.Infof("Skipping PK check for root table %s because usePartitionRoot=false and it has %d child partitions",
+					tableName, len(children))
+				continue
+			}
+		}
+
+		if lo.Contains(allNonPKTables, tableName) {
 			nonPKTables = append(nonPKTables, table.ForOutput())
 		}
 	}
