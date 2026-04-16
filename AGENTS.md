@@ -14,6 +14,7 @@ YugabyteDB Voyager (`yb-voyager`) is a database migration CLI tool (Go) with a D
 - **PostgreSQL client 17** — provides `pg_dump`/`pg_restore`.
 - **YugabyteDB** — installed at `/opt/yugabyte-2025.2.1.0`. The target database for migrations.
 - **PostgreSQL 17 server** — local source database for development/testing.
+- **Docker 28.5.2** — required for integration tests that use testcontainers.
 
 ### Building from source
 
@@ -34,7 +35,18 @@ yes | bash installer_scripts/install-yb-voyager -v
 
 - Unit tests use the `unit` build tag: `go test -tags unit ./...` (from `yb-voyager/` directory).
 - Integration tests use tags like `issues_integration` and require Docker + testcontainers.
+- Other integration test tags: `integration` (srcdb/tgtdb/pgss tests), `integration_voyager_command` (cmd-level tests), `integration_live_migration`, `failpoint_*`.
 - Lint: `go vet ./...` and `staticcheck -tags unit ./...` (from `yb-voyager/`).
+
+### Docker (for testcontainers)
+
+Docker is installed with the fuse-overlayfs storage driver and iptables-legacy (required for DinD in Cloud Agent VMs). Before running integration tests, ensure the Docker daemon is running:
+```
+sudo dockerd &>/tmp/dockerd.log &
+sleep 3
+sudo chmod 666 /var/run/docker.sock
+```
+Verify with `docker info`. The daemon must be started each session — it does not auto-start.
 
 ### Running local databases
 
