@@ -410,6 +410,53 @@ func checkTablesPresentInTarget(tablesToImport []sqlname.NameTuple) {
 	}
 }
 
+// checkPartitionConsistency verifies that partitions are the same between source and target
+// when use-partition-root=false is used during import. This is required because CDC events
+// will contain partition table names that must exist on the target.
+func checkPartitionConsistency(msr *metadb.MigrationStatusRecord) {
+	if importerRole != TARGET_DB_IMPORTER_ROLE {
+		return
+	}
+	if msr.SourceRenameTablesMap == nil || len(msr.SourceRenameTablesMap) == 0 {
+		// No partitions to check
+		return
+	}
+
+	log.Infof("Checking partition consistency between source and target (use-partition-root=false)")
+	
+	// Get list of partitions from MSR (source partitions)
+	sourcePartitions := make(map[string]bool)
+	for leafPartition := range msr.SourceRenameTablesMap {
+		sourcePartitions[leafPartition] = true
+	}
+
+	// Check each source partition exists on target
+	var missingPartitions []string
+	for partition := range sourcePartitions {
+		// Try to lookup the partition in name registry
+		tableTup, err := namereg.NameReg.LookupTableName(partition)
+		if err != nil {
+			log.Warnf("Partition %s from source not found in name registry: %v", partition, err)
+			missingPartitions = append(missingPartitions, partition)
+			continue
+		}
+		if !tableTup.TargetTableAvailable() {
+			log.Warnf("Partition %s exists in registry but not available on target", partition)
+			missingPartitions = append(missingPartitions, partition)
+		}
+	}
+
+	if len(missingPartitions) > 0 {
+		utils.PrintAndLogfInfo("\nWhen using --use-partition-root=false, CDC events will contain partition table names.")
+		utils.PrintAndLogfInfo("The following source partitions are not present on the target database:")
+		for _, p := range missingPartitions {
+			utils.PrintAndLogfInfo("  - %s", p)
+		}
+		utils.ErrExit("Ensure that all partitions from the source exist on the target, or use --use-partition-root=true (default).")
+	}
+	log.Infof("Partition consistency check passed: %d partitions verified", len(sourcePartitions))
+}
+
 func shouldReregisterYBNames() bool {
 	actualDataImportStarted := false
 	switch importerRole {
@@ -910,6 +957,11 @@ func initialiseImportTableList(importFileTasks []*ImportFileTask, msr *metadb.Mi
 		//otherwise use the tables from msr
 		tablesToImport := lo.Ternary(importSnapshotRequired(), importFileTasksToTableNameTuples(importFileTasks), importTableList)
 		checkTablesPresentInTarget(tablesToImport)
+		
+		// When use-partition-root=false, verify that partitions are consistent between source and target
+		if !importUsePartitionRoot {
+			checkPartitionConsistency(msr)
+		}
 		return importFileTasks, importTableList, nil
 	}
 	//for offline migration we need to use the import file tasks to get the import table list

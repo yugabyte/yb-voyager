@@ -93,6 +93,7 @@ type MigrationStatusRecord struct {
 	SnapshotMechanism                      string            `json:"SnapshotMechanism"`     // one of (debezium, pg_dump, ora2pg)
 	SourceRenameTablesMap                  map[string]string `json:"SourceRenameTablesMap"` // map of source table.Qualified.Unquoted -> table.Qualified.Unquoted for renaming the leaf partitions to root table in case of PG migration
 	TargetRenameTablesMap                  map[string]string `json:"TargetRenameTablesMap"` // map of target table.Qualified.Unquoted -> table.Qualified.Unquoted for renaming the leaf partitions to root table in case of PG migration
+	UsePartitionRoot                       *bool             `json:"UsePartitionRoot,omitempty"` // nil or true means use root table for partitions (default); false means insert directly into child partitions
 	IsExportTableListSet                   bool              `json:"IsExportTableListSet"`
 	MigrationAssessmentDone                bool              `json:"MigrationAssessmentDone"`
 	AssessmentRecommendationsApplied       bool              `json:"AssessmentRecommendationsApplied"`
@@ -182,6 +183,15 @@ func (m *MetaDB) InitMigrationStatusRecord(cfgFile string) error {
 
 func (msr *MigrationStatusRecord) IsSnapshotExportedViaDebezium() bool {
 	return msr.SnapshotMechanism == "debezium"
+}
+
+// GetUsePartitionRoot returns whether to use the partition root table for event renaming.
+// Default is true (backward compatible). When false, events keep their child partition names.
+func (msr *MigrationStatusRecord) GetUsePartitionRoot() bool {
+	if msr.UsePartitionRoot == nil {
+		return true // default behavior for backward compatibility
+	}
+	return *msr.UsePartitionRoot
 }
 
 func (msr *MigrationStatusRecord) IsParentMigration() bool {

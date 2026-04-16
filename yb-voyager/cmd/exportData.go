@@ -109,6 +109,7 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 		utils.ErrExit("failed to validate export flags: %w", err)
 	}
 	validateExportTypeFlag()
+	validateUsePartitionRootFlag()
 	markFlagsRequired(cmd)
 	if changeStreamingIsEnabled(exportType) {
 		useDebezium = true
@@ -2031,6 +2032,27 @@ func reportUnsupportedTablesForLiveMigration(finalTableList []sqlname.NameTuple)
 	var nonPKTables []string
 	for _, table := range finalTableList {
 		if lo.Contains(allNonPKTables, table.ForKey()) {
+			// When usePartitionRoot=false, skip root tables if all their leaf partitions have PKs
+			// because data will be inserted directly into child partitions using their PKs
+			if !usePartitionRoot {
+				children := GetAllLeafPartitions(table)
+				if len(children) > 0 {
+					// Check if all leaf partitions have PKs
+					allChildrenHavePK := true
+					for _, child := range children {
+						if lo.Contains(allNonPKTables, child.ForKey()) {
+							allChildrenHavePK = false
+							log.Infof("Leaf partition %s of root table %s does not have a primary key", child.ForKey(), table.ForKey())
+							break
+						}
+					}
+					if allChildrenHavePK {
+						log.Infof("Skipping PK check for root table %s because usePartitionRoot=false and all %d child partitions have PKs",
+							table.ForKey(), len(children))
+						continue
+					}
+				}
+			}
 			nonPKTables = append(nonPKTables, table.ForOutput())
 		}
 	}
