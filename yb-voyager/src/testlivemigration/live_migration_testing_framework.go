@@ -294,7 +294,12 @@ func (lm *LiveMigrationTest) startExportData(async bool, extraArgs map[string]st
 		"--yes",
 	}
 	for key, value := range extraArgs {
-		args = append(args, key, value)
+		if value == "" {
+			// For flags that are self-contained (e.g., --flag=value format)
+			args = append(args, key)
+		} else {
+			args = append(args, key, value)
+		}
 	}
 
 	lm.exportCmd = testutils.NewVoyagerCommandRunner(lm.sourceContainer, "export data", args, onStart, async).WithEnv(env...).WithT(lm.t)

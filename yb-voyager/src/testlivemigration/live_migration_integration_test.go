@@ -4515,9 +4515,10 @@ func TestLiveMigrationPartitionedTableWithChildPK(t *testing.T) {
 
 	// Start export with --use-partition-root=false
 	// This allows live migration for tables where root has no PK but children do
+	// Note: For boolean false flags, use --flag=false format with empty value
 	err = lm.StartExportData(true, map[string]string{
-		"--use-partition-root": "false",
-		"--table-list":         "public.orders",
+		"--use-partition-root=false": "",
+		"--table-list":               "public.orders",
 	})
 	testutils.FatalIfError(t, err, "failed to start export data")
 
