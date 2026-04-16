@@ -127,7 +127,13 @@ func validateImportUsePartitionRootFlag() error {
 	// --use-partition-root flag is only valid for live migration with PostgreSQL or YugabyteDB source
 	if !importUsePartitionRoot {
 		// Only validate when flag is explicitly set to false (non-default)
-		if !changeStreamingIsEnabled(importType) {
+		// Read the export type from MSR since importType may not be set yet in PreRun
+		msr, err := metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			return goerrors.Errorf("failed to get migration status record: %w", err)
+		}
+		exportTypeFromSource := msr.ExportTypeFromSource
+		if !changeStreamingIsEnabled(exportTypeFromSource) {
 			return goerrors.Errorf("--use-partition-root=false is only valid for live migration")
 		}
 		if sourceDBType != POSTGRESQL && sourceDBType != YUGABYTEDB {
