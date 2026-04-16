@@ -417,6 +417,7 @@ func fetchSourceInfo() {
 
 	// Get PostgreSQL system identifier
 	source.FetchDBSystemIdentifier()
+	source.FetchDBID()
 }
 
 func SetMigrationAssessmentDoneInMSR() error {
