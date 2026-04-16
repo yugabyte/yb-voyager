@@ -900,7 +900,14 @@ func initialiseImportTableList(importFileTasks []*ImportFileTask, msr *metadb.Mi
 		//as we don't suport filtering tables in import data for live migration so it might be okay to use source side list
 		//and one more reason of using that is empty tables which are not present in datafile descriptor but we need to have them in
 		// import list for live migration as streaming changes will be done for them
-		importTableList, err = getInitialImportTableListForLive(msr.TableListExportedFromSource)
+		//
+		// When UsePartitionRoot=false, Debezium events will have child partition names instead of root table names,
+		// so we need to use SourceExportedTableListWithLeafPartitions which contains the actual partition names.
+		sourceTableList := msr.TableListExportedFromSource
+		if !msr.GetUsePartitionRoot() {
+			sourceTableList = msr.SourceExportedTableListWithLeafPartitions
+		}
+		importTableList, err = getInitialImportTableListForLive(sourceTableList)
 		if err != nil {
 			return nil, nil, goerrors.Errorf("Failed to get import table list: %v", err)
 		}
