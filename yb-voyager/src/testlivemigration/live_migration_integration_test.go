@@ -4527,10 +4527,12 @@ func TestLiveMigrationPartitionedTableWithChildPK(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to start import data")
 
 	// Wait for snapshot to complete - 5 initial rows
-	// Data is inserted into child partitions, but we track by root table name
-	// (MSR tracks root table names)
+	// When usePartitionRoot=false, MSR tracks leaf partition names, not root table names
+	// Initial data: orders_us=2, orders_eu=2, orders_apac=1
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		`"public"."orders"`: 5,
+		`"public"."orders_us"`:   2,
+		`"public"."orders_eu"`:   2,
+		`"public"."orders_apac"`: 1,
 	}, 60*time.Second)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
@@ -4556,11 +4558,23 @@ func TestLiveMigrationPartitionedTableWithChildPK(t *testing.T) {
 	err = lm.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
-	// Wait for streaming to complete: 3 inserts, 1 update, 1 delete
+	// Wait for streaming to complete
+	// When usePartitionRoot=false, CDC events are tracked by leaf partition names
+	// SourceDeltaSQL: insert US(1), insert EU(1), insert APAC(1), update US(1), delete APAC(1)
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`"public"."orders"`: {
-			Inserts: 3,
+		`"public"."orders_us"`: {
+			Inserts: 1,
 			Updates: 1,
+			Deletes: 0,
+		},
+		`"public"."orders_eu"`: {
+			Inserts: 1,
+			Updates: 0,
+			Deletes: 0,
+		},
+		`"public"."orders_apac"`: {
+			Inserts: 1,
+			Updates: 0,
 			Deletes: 1,
 		},
 	}, 60*time.Second, 2*time.Second)
