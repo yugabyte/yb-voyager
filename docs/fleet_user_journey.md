@@ -34,9 +34,9 @@ If the user chooses option 2 (shared), ask for the control plane connection stri
 Now, let's solve the flow where in the user has assessed a database (and used a common control plane to view the assessments.). 
 Now, the user wants  to start the migration. Two possibilities here: 
 
-1. If the user has access to the migration dir that they used to previously assess, they can just continue by running prepare --config-file <>. 
-2. If the user does not have access to the old migration dir (which is very possible), then we enhance prepare to:
-    a. take the migration-dir, assessment-control-plane, migration-uuid as CLI args. 
+1. If the user has access to the migration dir that they used to previously assess, they can just continue by running start --config-file <>.
+2. If the user does not have access to the old migration dir (which is very possible), then we enhance start to:
+    a. take the migration-name, assessment-control-plane (and optionally migration-dir) as CLI args. 
     b. Set up export-dir. 
     c. Retrieve assessment details from the control plane. Store the assessment JSON in the export-dir (so that it is usable by further commands)
     d. Retrivve source connection details from the control plane. If not fully available (password will never be stored so this will always be the case that we don't have full connection details), ask the user for source connection string. Store the connection details in config file. 
@@ -44,9 +44,9 @@ Now, the user wants  to start the migration. Two possibilities here:
     f. Ask for target DB connection string. (same as current)
     g. Ask for data migration flow (same as current)
 
-You can't pass both config-file as well as any of the migration-dir/assessment-control-plane/migration-uuid as it doesn't make sense. 
+You can't pass both config-file as well as any of the migration-dir/assessment-control-plane as it doesn't make sense. 
 
-Some of this is currently implemented as part of init, let's move that to prepare. 
+Some of this is currently implemented as part of init, let's move that to start. 
 
 
 ## Implementation. 
@@ -63,7 +63,7 @@ postgresql://yugabyte:yugabyte@localhost:5433/dbx
 
 postgresql://yugabyte:yugabyte@10.9.15.135:5433
 
-yb-voyager prepare --assessment-control-plane 'postgresql://yugabyte:yugabyte@10.9.15.135:5433' --migration-uuid 'acd1f159-2e9e-40c8-8f93-44d61bd24f54'
+yb-voyager start --migration-name mydb --assessment-control-plane 'postgresql://yugabyte:yugabyte@10.9.15.135:5433'
 
 
 clean up

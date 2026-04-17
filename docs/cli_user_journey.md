@@ -60,7 +60,7 @@ Current help behaves like a man page.
        1. Run workloads, compare perf, and iterate  
           1. ***yb-voyager compare-performance***  
 11. End \- cleanup  
-    1. ***yb-voyager end-migration***
+    1. ***yb-voyager end***
 
 ## Gaps in user journey:
 
@@ -76,12 +76,12 @@ Current help behaves like a man page.
 
 ## Introduce a “Guided Entry Point”
 
-* Add a top-level yb-voyager new and prepare commands
+* Add a top-level yb-voyager new and start commands
 
 
 1. Yb-voyager Init   
 2. Yb-voyager assess-migration   
-3. Yb-voyager prepare
+3. Yb-voyager start
 
 ## New (formerly Init)
 
@@ -187,7 +187,7 @@ It is recommended to run assessment against production database for an accurate 
    1. The config file will be generated in a way where the data migration flow (offline/live/live-ff/live-fb) is not fixed.   
       1. Export-data: export-type is not filled. (mandatory param)  
       2. initiate-cutover-to-target	prepare-for-fall-back	is not filled (mandatory param)  
-   2. Separate \`yb-voyager prepare\` command.   
+   2. Separate \`yb-voyager start\` command.   
 5. Permissions?  
    1. We can run guardrail checks after validating the connection (if they have enough permissions for assessment-only),   
    2. if the user does not have sufficient permissions, we add another step to the next steps \- to run the grant-permissions script (before running assess-migration). 
@@ -264,10 +264,10 @@ Tip: Run yb-voyager status -c /path/to/migration-dir/config.yaml
 
 ## Start-migration
 
-At the end of running assess-migration, the next step is to run \`prepare\` which sets up for starting migration (export-schema/import-schema , export-data/import-data, etc, etc.)
+At the end of running assess-migration, the next step is to run \`start\` which sets up for starting migration (export-schema/import-schema , export-data/import-data, etc, etc.)
 
 ```shell
-yb-voyager prepare --config /path/to/migration-dir/config.yaml
+yb-voyager start --config /path/to/migration-dir/config.yaml
 
 ══════════════════════════════════════════════════════════════
                     Start Migration

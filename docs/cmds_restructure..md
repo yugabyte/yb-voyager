@@ -23,7 +23,7 @@ yb-voyager version
 yb-voyager assess run - Single DB assessment
 
 ### Prepare
-yb-voyager prepare
+yb-voyager start
 
 ### Schema Phase
 yb-voyager schema export - Export DDL from source
