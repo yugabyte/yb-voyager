@@ -43,6 +43,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ux"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
@@ -234,9 +235,25 @@ func assessMigration() (err error) {
 	migassessment.IntervalForCapturingIops = intervalForCapturingIOPS
 
 	// ── Phase 1: Preflight ──────────────────────────────────────────────
-	printBanner(targetDbVersion.String())
+	bannerRows := []ux.BannerRow{
+		{Key: "Voyager version", Value: utils.YB_VOYAGER_VERSION},
+		{Key: "Migration ID", Value: migrationUUID.String()},
+		{Key: "Target DB", Value: fmt.Sprintf("YugabyteDB %s", targetDbVersion)},
+		{Key: "Source DB type", Value: source.DBType},
+	}
+	if assessmentMetadataDirFlag == "" && source.Host != "" {
+		bannerRows = append(bannerRows, ux.BannerRow{
+			Key:   "Source",
+			Value: fmt.Sprintf("%s:%d/%s", source.Host, source.Port, source.DBName),
+		})
+	}
+	bannerRows = append(bannerRows, ux.BannerRow{Key: "Export directory", Value: exportDir})
+	if assessmentMetadataDirFlag != "" {
+		bannerRows = append(bannerRows, ux.BannerRow{Key: "Metadata directory", Value: assessmentMetadataDirFlag})
+	}
+	ux.PrintBanner("YugabyteDB Voyager — Migration Assessment", bannerRows)
 	log.Infof("assessing for migration to target YugabyteDB version %s", targetDbVersion)
-	printPreflightHeader()
+	ux.PrintSectionHeader("Preflight Checks")
 
 	var validatedReplicaEndpoints []srcdb.ReplicaEndpoint
 
@@ -246,100 +263,100 @@ func assessMigration() (err error) {
 		if source.Password == "" {
 			source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
 			if err != nil {
-				printPreflightFail("Source database password")
+				ux.PrintPreflightFail("Source database password")
 				return fmt.Errorf("failed to get source DB password for assessing migration: %w", err)
 			}
 		}
-		printPreflightCheck("Source database password")
+		ux.PrintPreflightCheck("Source database password")
 
 		// Connect
 		err = source.DB().Connect()
 		if err != nil {
-			printPreflightFail("Connect to source database")
+			ux.PrintPreflightFail("Connect to source database")
 			return fmt.Errorf("failed to connect source db for assessing migration: %w", err)
 		}
-		printPreflightCheck("Connected to source database")
+		ux.PrintPreflightCheck("Connected to source database")
 
 		// Guardrails: version + dependencies
 		if source.RunGuardrailsChecks {
 			log.Info("checking source DB version")
 			err = source.DB().CheckSourceDBVersion(exportType)
 			if err != nil {
-				printPreflightFail("Source DB version check")
+				ux.PrintPreflightFail("Source DB version check")
 				return fmt.Errorf("failed to check source DB version for assess migration: %w", err)
 			}
-			printPreflightCheck(fmt.Sprintf("Source DB version compatible (%s)", source.DB().GetVersion()))
+			ux.PrintPreflightCheck(fmt.Sprintf("Source DB version compatible (%s)", source.DB().GetVersion()))
 
 			binaryCheckIssues, err := checkDependenciesForExport()
 			if err != nil {
-				printPreflightFail("Required dependencies present")
+				ux.PrintPreflightFail("Required dependencies present")
 				return fmt.Errorf("failed to check dependencies for assess migration: %w", err)
 			} else if len(binaryCheckIssues) > 0 {
-				printPreflightFail("Required dependencies present")
+				ux.PrintPreflightFail("Required dependencies present")
 				return goerrors.Errorf("\n%s\n%s", color.RedString("\nMissing dependencies for assess migration:"), strings.Join(binaryCheckIssues, "\n"))
 			}
-			printPreflightCheck("Required dependencies present")
+			ux.PrintPreflightCheck("Required dependencies present")
 		} else {
-			printPreflightSkip("Source DB version check (guardrails disabled)")
-			printPreflightSkip("Dependency check (guardrails disabled)")
+			ux.PrintPreflightSkip("Source DB version check (guardrails disabled)")
+			ux.PrintPreflightSkip("Dependency check (guardrails disabled)")
 		}
 
 		// Schema resolution
 		allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
 		if err != nil {
-			printPreflightFail("Schema resolution")
+			ux.PrintPreflightFail("Schema resolution")
 			return fmt.Errorf("failed to get all schema names identifiers: %w", err)
 		}
 		source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
 		if err != nil {
-			printPreflightFail("Schema resolution")
+			ux.PrintPreflightFail("Schema resolution")
 			return fmt.Errorf("failed to match schema names: %w", err)
 		}
-		printPreflightCheck(fmt.Sprintf("Schema resolution (%d schemas)", len(source.Schemas)))
+		ux.PrintPreflightCheck(fmt.Sprintf("Schema resolution (%d schemas)", len(source.Schemas)))
 
 		fetchSourceInfo()
 
 		// Replica discovery
 		replicaDiscoveryInfo, err := migassessment.HandleReplicaDiscoveryAndValidation(&source, sourceReadReplicaEndpoints, primaryOnly)
 		if err != nil {
-			printPreflightFail("Replica discovery and validation")
+			ux.PrintPreflightFail("Replica discovery and validation")
 			return fmt.Errorf("failed to handle replica discovery and validation: %w", err)
 		}
 		validatedReplicaEndpoints = replicaDiscoveryInfo.ValidatedReplicas
 		replicaDiscoveryInfoForCallhome = &replicaDiscoveryInfo
-		printPreflightCheck("Replica discovery and validation")
+		ux.PrintPreflightCheck("Replica discovery and validation")
 
 		// Permissions
 		if source.RunGuardrailsChecks {
 			checkIfSchemasHaveUsagePermissions()
 			pgssEnabledForAssessment, err = migassessment.CheckAssessmentPermissionsOnAllNodes(&source, validatedReplicaEndpoints)
 			if err != nil {
-				printPreflightFail("Verify permissions on all nodes")
+				ux.PrintPreflightFail("Verify permissions on all nodes")
 				return fmt.Errorf("permission check failed: %w", err)
 			}
-			printPreflightCheck("Permissions verified on all nodes")
+			ux.PrintPreflightCheck("Permissions verified on all nodes")
 		} else {
-			printPreflightSkip("Permission checks (guardrails disabled)")
+			ux.PrintPreflightSkip("Permission checks (guardrails disabled)")
 		}
 	} else {
-		printPreflightSkip("Source connectivity checks (using metadata dir)")
+		ux.PrintPreflightSkip("Source connectivity checks (using metadata dir)")
 	}
 
 	fmt.Println()
-	printSeparator()
+	ux.PrintSeparator()
 
 	// ── Phase 2: Assessment pipeline ────────────────────────────────────
 	startEvent := createMigrationAssessmentStartedEvent()
 	controlPlane.MigrationAssessmentStarted(startEvent)
 
-	tracker := NewAssessmentProgressTracker()
+	tracker := ux.NewProgressTracker("Running Assessment")
 
 	// Stage 1: Gather metadata + export schema + load into DB
 	gatherStepCount := migassessment.CountPGGatherSteps()
 	tracker.StartStage("Gathering metadata", gatherStepCount)
 	initAssessmentDB()
 	err = gatherAssessmentMetadata(validatedReplicaEndpoints, func(detail string) {
-		if detail != "Starting collection..." && detail != "Complete" {
+		if detail != "Complete" {
 			tracker.IncrementStep(detail)
 		}
 	})
@@ -368,7 +385,7 @@ func assessMigration() (err error) {
 		return fmt.Errorf("failed to validate source database IOPS: %w", err)
 	}
 
-	tracker = NewAssessmentProgressTracker()
+	tracker = ux.NewProgressTracker("Running Assessment")
 
 	// Stage 2: Analyze usage statistics
 	tracker.StartStage("Analyzing usage statistics", 0)
@@ -405,7 +422,7 @@ func assessMigration() (err error) {
 	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
 	jsonPath := filepath.Join(assessmentReportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, JSON_EXTENSION))
 	htmlPath := filepath.Join(assessmentReportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, HTML_EXTENSION))
-	printAssessmentSummary(len(assessmentReport.Issues), jsonPath, htmlPath)
+	migassessment.PrintAssessmentSummary(len(assessmentReport.Issues), jsonPath, htmlPath)
 
 	var completedEvent *cp.MigrationAssessmentCompletedEvent
 	controlPlaneType := os.Getenv("CONTROL_PLANE_TYPE")
