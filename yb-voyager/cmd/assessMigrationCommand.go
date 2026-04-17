@@ -43,9 +43,9 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/ux"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ux"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
@@ -387,26 +387,23 @@ func assessMigration() (err error) {
 
 	tracker = ux.NewProgressTracker("Running Assessment")
 
-	// Stage 2: Analyze usage statistics
-	tracker.StartStage("Analyzing usage statistics", 0)
 	objectUsagesStats, err := fetchObjectUsageStats()
 	if err != nil {
 		tracker.Finish()
 		return fmt.Errorf("failed to populate object usage stats: %w", err)
 	}
 	parserIssueDetector.PopulateObjectUsages(objectUsagesStats)
-	tracker.CompleteStage()
 
-	// Stage 3: Run sizing assessment
-	tracker.StartStage("Running sizing assessment", 0)
+	// Stage 2: Assessing migration
+	tracker.StartStage("Assessing migration", 0)
 	err = runAssessment()
 	if err != nil {
 		tracker.Finish()
-		log.Errorf("failed to run assessment: %v", err)
+		return fmt.Errorf("failed to assess migration: %w", err)
 	}
 	tracker.CompleteStage()
 
-	// Stage 4: Generate report
+	// Stage 3: Generate report
 	tracker.StartStage("Generating report", 0)
 	err = generateAssessmentReport()
 	if err != nil {
