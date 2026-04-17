@@ -40,3 +40,8 @@ debezium-server-voyager/**/target/
 *.iml
 
 **/dummy_name_registry.json
+
+# resumption test artifacts (logs, metainfo, validation output)
+migtests/tests/resumption/**/artifacts/
+migtests/scripts/event-generator/event-generator-manual*.yaml
+migtests/scripts/event-generator/event-generator-iterations*.yaml
