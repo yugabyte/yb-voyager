@@ -24,6 +24,7 @@ type MigrationEvent struct {
 	MigrationPhase      int       `json:"migration_phase"`
 	InvocationSequence  int       `json:"invocation_sequence"`
 	MigrationDirectory  string    `json:"migration_dir"`
+	MigrationName       string    `json:"migration_name"`
 	DatabaseName        string    `json:"database_name"`
 	SchemaName          string    `json:"schema_name"`
 	DBIP                string    `json:"db_ip"`

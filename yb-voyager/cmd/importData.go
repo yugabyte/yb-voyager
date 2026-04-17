@@ -967,7 +967,7 @@ func printImportDataFooter() {
 
 	nextStep := findNextStep(wf, msr)
 	nextDesc := "End the migration and clean up resources:"
-	nextCmd := "yb-voyager end-migration"
+	nextCmd := "yb-voyager end"
 	if nextStep != nil && nextStep.ID == StepComparePerformance {
 		nextDesc = "Compare query performance between source and target:"
 		nextCmd = fmt.Sprintf("yb-voyager %s", nextStep.Command)

@@ -279,7 +279,7 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue_BatchIngestionError(t 
 		PercentageComplete: 100,
 	}, statusReport[0], "Status report row mismatch")
 
-	// Run end-migration to ensure that the errored files are backed up properly
+	// Run end to ensure that the errored files are backed up properly
 	os.Setenv("SOURCE_DB_PASSWORD", "postgres")
 	os.Setenv("TARGET_DB_PASSWORD", "yugabyte")
 	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "end migration", []string{
@@ -432,7 +432,7 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue_ProcessingError(t *tes
 		PercentageComplete: 100,
 	}, statusReport[0], "Status report row mismatch")
 
-	// Run end-migration to ensure that the errored files are backed up properly
+	// Run end to ensure that the errored files are backed up properly
 	os.Setenv("SOURCE_DB_PASSWORD", "postgres")
 	os.Setenv("TARGET_DB_PASSWORD", "yugabyte")
 	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "end migration", []string{

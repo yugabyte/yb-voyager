@@ -102,6 +102,7 @@ func SplitTableNameForPG(tableName string) (string, string) {
 type BaseEvent struct {
 	EventType     string
 	MigrationUUID uuid.UUID
+	MigrationName string
 	DBType        string
 	DatabaseName  string
 	SchemaNames   []string

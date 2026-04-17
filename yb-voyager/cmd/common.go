@@ -984,6 +984,7 @@ func initBaseSourceEvent(bev *cp.BaseEvent, eventType string) {
 	*bev = cp.BaseEvent{
 		EventType:     eventType,
 		MigrationUUID: migrationUUID,
+		MigrationName: migrationName,
 		DBType:        source.DBType,
 		DatabaseName:  source.DBName,
 		SchemaNames:   cp.GetSchemaList(sqlname.JoinIdentifiersUnquoted(source.Schemas, "|")),

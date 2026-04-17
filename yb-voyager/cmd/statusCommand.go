@@ -143,7 +143,7 @@ func printMigrationProgress(v *viper.Viper, msr *metadb.MigrationStatusRecord) {
 			formatKeyValue("Last Command:", fmt.Sprintf("%s — %s", lastStep.DisplayName, successStyle.Render("Completed")), kvWidth))
 	}
 
-	// Next step — resolve from workflow, but override with prepare when
+	// Next step — resolve from workflow, but override with start when
 	// assessment is done and the target hasn't been configured yet.
 	nextStepName, nextStepCmd := resolveNextStepForStatus(wf, msr, v)
 	if nextStepName != "" {
@@ -164,7 +164,7 @@ func printMigrationProgress(v *viper.Viper, msr *metadb.MigrationStatusRecord) {
 
 // resolveNextStepForStatus determines the next step to display.
 // It checks the workflow for the next undone migration step, but interposes
-// the administrative "prepare" step when assessment is done and the
+// the administrative "start" step when assessment is done and the
 // target database has not yet been configured.
 func resolveNextStepForStatus(wf *Workflow, msr *metadb.MigrationStatusRecord, v *viper.Viper) (name string, cmd string) {
 	configFlag := buildConfigFlag()
@@ -175,11 +175,11 @@ func resolveNextStepForStatus(wf *Workflow, msr *metadb.MigrationStatusRecord, v
 	}
 
 	// If the next workflow step is export-schema (first Schema step) and the target
-	// is not yet configured, the user needs to run prepare first.
+	// is not yet configured, the user needs to run start first.
 	migrationFlag := buildMigrationNameFlag()
 
 	if nextStep.ID == StepExportSchema && !targetConfigured(v, msr) {
-		return "Prepare Migration", fmt.Sprintf("yb-voyager prepare%s%s", configFlag, migrationFlag)
+		return "Start Migration", fmt.Sprintf("yb-voyager start%s%s", configFlag, migrationFlag)
 	}
 
 	return nextStep.DisplayName, fmt.Sprintf("yb-voyager %s%s%s", nextStep.Command, configFlag, migrationFlag)
@@ -196,7 +196,7 @@ func buildConfigFlag() string {
 }
 
 // targetConfigured checks whether the target database has been configured beyond
-// the template defaults. Used to detect whether prepare has been run.
+// the template defaults. Used to detect whether start has been run.
 func targetConfigured(v *viper.Viper, msr *metadb.MigrationStatusRecord) bool {
 	// If export schema (or any later step) is already done, target must be configured.
 	if msr != nil && msr.ExportSchemaDone {

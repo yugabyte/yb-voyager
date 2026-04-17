@@ -418,7 +418,7 @@ func printAssessMigrationFooter() {
 		Links:        []string{uiURL},
 		Summary:      summary,
 		NextStepDesc: []string{"Start the migration workflow:"},
-		NextStepCmd:  "yb-voyager prepare",
+		NextStepCmd:  "yb-voyager start",
 		Phases:       phases,
 	}
 	printCommandFooter(footer)

@@ -79,7 +79,7 @@ var configKeyValuesToObfuscateInLogs = []string{
 var commandGroups = [][]string{
 	{"new"},
 	{"assess"},
-	{"prepare", "schema", "data", "cutover", "validate", "end-migration"},
+	{"start", "schema", "data", "cutover", "validate", "end"},
 	{"status", "version", "help"},
 }
 
@@ -329,7 +329,7 @@ var exportDirInitialisedCheckNeededList = []string{
 	"yb-voyager cutover status",
 	"yb-voyager validate compare-performance",
 	"yb-voyager data archive-changes",
-	"yb-voyager end-migration",
+	"yb-voyager end",
 	"yb-voyager cutover prepare-source",
 	"yb-voyager cutover prepare-replica",
 	"yb-voyager cutover prepare-target",
@@ -340,7 +340,7 @@ var noLockNeededList = []string{
 	"yb-voyager version",
 	"yb-voyager help",
 	"yb-voyager new",
-	"yb-voyager prepare",
+	"yb-voyager start",
 	"yb-voyager status",
 	"yb-voyager assess",
 	"yb-voyager schema",
@@ -356,7 +356,7 @@ var noPersistentPreRunNeededList = []string{
 	"yb-voyager version",
 	"yb-voyager help",
 	"yb-voyager new",
-	"yb-voyager prepare",
+	"yb-voyager start",
 	"yb-voyager assess",
 	"yb-voyager schema",
 	"yb-voyager data",
@@ -373,7 +373,7 @@ var offlineCommands = []string{
 	"yb-voyager data export",
 	"yb-voyager data import",
 	"yb-voyager schema finalize-post-data-import",
-	"yb-voyager end-migration",
+	"yb-voyager end",
 	"yb-voyager validate compare-performance",
 	"yb-voyager status",
 }

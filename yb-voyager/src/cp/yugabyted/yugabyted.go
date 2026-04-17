@@ -145,6 +145,7 @@ func (cp *YugabyteD) createAndSendEvent(event *controlPlane.BaseEvent, status st
 		MigrationUUID:       event.MigrationUUID,
 		MigrationPhase:      controlPlane.MIGRATION_PHASE_MAP[event.EventType],
 		InvocationSequence:  invocationSequence,
+		MigrationName:       event.MigrationName,
 		DatabaseName:        event.DatabaseName,
 		SchemaName:          strings.Join(event.SchemaNames, "|"),
 		DBIP:                string(dbIps),
@@ -444,6 +445,7 @@ func (cp *YugabyteD) createYugabytedMetadataTable() error {
 		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN migration_dir TYPE TEXT;`, QUALIFIED_YUGABYTED_METADATA_TABLE_NAME),
 		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN database_name TYPE TEXT;`, QUALIFIED_YUGABYTED_METADATA_TABLE_NAME),
 		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN schema_name TYPE TEXT;`, QUALIFIED_YUGABYTED_METADATA_TABLE_NAME),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN IF NOT EXISTS migration_name TEXT;`, QUALIFIED_YUGABYTED_METADATA_TABLE_NAME),
 	}
 
 	for _, cmd := range alterTableCmds {
@@ -452,6 +454,7 @@ func (cp *YugabyteD) createYugabytedMetadataTable() error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -550,8 +553,9 @@ func (cp *YugabyteD) sendMigrationEvent(
 			voyager_info,
 			db_type,
 			status,
-			invocation_timestamp
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			invocation_timestamp,
+			migration_name
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 	`, QUALIFIED_YUGABYTED_METADATA_TABLE_NAME)
 
 	var maxAttempts = 5
@@ -647,7 +651,8 @@ func (cp *YugabyteD) executeInsertQuery(cmd string,
 		migrationEvent.VoyagerInfo,
 		migrationEvent.DBType,
 		migrationEvent.Status,
-		migrationEvent.InvocationTimestamp)
+		migrationEvent.InvocationTimestamp,
+		nilIfEmpty(migrationEvent.MigrationName))
 
 	if err == nil {
 		return nil
@@ -709,9 +714,9 @@ type AssessmentRecord struct {
 }
 
 // FetchAssessmentFromControlPlane queries the yugabyted control plane for assessment data
-// by migration UUID. This is a standalone function (not a method on YugabyteD) since it
-// is used during `init` before the full control plane is set up.
-func FetchAssessmentFromControlPlane(connString string, migrationUUID string) (*AssessmentRecord, error) {
+// by migration name. This is a standalone function (not a method on YugabyteD) since it
+// is used during `start` before the full control plane is set up.
+func FetchAssessmentFromControlPlane(connString string, migrationName string) (*AssessmentRecord, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
@@ -723,27 +728,28 @@ func FetchAssessmentFromControlPlane(connString string, migrationUUID string) (*
 
 	assessPhase := controlPlane.MIGRATION_PHASE_MAP["ASSESS MIGRATION"]
 
-	query := fmt.Sprintf(`SELECT payload, db_type, host_ip, port, database_name, schema_name, complexity
+	query := fmt.Sprintf(`SELECT migration_uuid, payload, db_type, host_ip, port, database_name, schema_name, complexity
 		FROM %s
-		WHERE migration_uuid = $1 AND migration_phase = $2
+		WHERE migration_name = $1 AND migration_phase = $2 AND status = 'COMPLETED'
 		ORDER BY invocation_sequence DESC
 		LIMIT 1`, QUALIFIED_YUGABYTED_METADATA_TABLE_NAME)
 
-	row := conn.QueryRow(ctx, query, migrationUUID, assessPhase)
+	row := conn.QueryRow(ctx, query, migrationName, assessPhase)
 
 	var rec AssessmentRecord
+	var migUUID string
 	var hostIP, dbType, dbName, schemaName, complexity, payload sql.NullString
 	var port sql.NullInt32
 
-	err = row.Scan(&payload, &dbType, &hostIP, &port, &dbName, &schemaName, &complexity)
+	err = row.Scan(&migUUID, &payload, &dbType, &hostIP, &port, &dbName, &schemaName, &complexity)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, fmt.Errorf("no assessment found for migration UUID %s", migrationUUID)
+			return nil, fmt.Errorf("no assessment found for migration %q", migrationName)
 		}
 		return nil, fmt.Errorf("query assessment from control plane: %w", err)
 	}
 
-	rec.MigrationUUID, err = uuid.Parse(migrationUUID)
+	rec.MigrationUUID, err = uuid.Parse(migUUID)
 	if err != nil {
 		return nil, fmt.Errorf("parse migration UUID: %w", err)
 	}
@@ -756,4 +762,12 @@ func FetchAssessmentFromControlPlane(connString string, migrationUUID string) (*
 	rec.Complexity = complexity.String
 
 	return &rec, nil
+}
+
+// nilIfEmpty returns nil for empty strings so the DB stores NULL instead of ''.
+func nilIfEmpty(s string) interface{} {
+	if s == "" {
+		return nil
+	}
+	return s
 }

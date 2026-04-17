@@ -38,15 +38,15 @@ import (
 )
 
 var startMigrationCmd = &cobra.Command{
-	Use:   "prepare",
+	Use:   "start",
 	Short: "Configure your target database and select a migration workflow",
 	Long: `Configure your target database and select a migration workflow
 
 This command can be invoked in two ways:
 
-1. With --config-file: Use an existing config from a previous 'yb-voyager new' run.
-2. With --migration-dir, --assessment-control-plane, and --migration-uuid: Bootstrap
-   a new migration project by pulling assessment data from a shared control plane.
+1. With --config-file or --migration-name: Use an existing config from a previous 'yb-voyager new' run.
+2. With --migration-name and --assessment-control-plane: Bootstrap a new migration
+   project by pulling assessment data from a shared control plane.
    This is useful when you don't have access to the original migration directory.
 
 The command will:
@@ -67,7 +67,6 @@ var migrationWorkflowFlag string
 
 var startMigrationDir string
 var startAssessmentControlPlane string
-var startMigrationUUID string
 
 func init() {
 	rootCmd.AddCommand(startMigrationCmd)
@@ -82,26 +81,30 @@ func init() {
 
 	startMigrationCmd.Flags().StringVar(&startMigrationDir, "migration-dir", "",
 		"path to the migration directory (will be created if it doesn't exist). "+
-			"If not provided, defaults to ./migration-<dbname>. Use with --assessment-control-plane and --migration-uuid.")
+			"If not provided, defaults to ./migration-<dbname>. Use with --assessment-control-plane and --migration-name.")
 	startMigrationCmd.Flags().StringVar(&startAssessmentControlPlane, "assessment-control-plane", "",
 		"connection string for the yugabyted control plane to pull assessment data from.")
-	startMigrationCmd.Flags().StringVar(&startMigrationUUID, "migration-uuid", "",
-		"migration UUID of a previously completed assessment (from the assessment UI).")
 }
 
 func runStartMigration() {
-	// ── Resolve --migration-name to config file if provided ──
-	if startMigrationConfigFile == "" && startMigrationNameFlag != "" {
-		configPath, err := getMigrationConfigPath(startMigrationNameFlag)
-		if err != nil {
-			utils.ErrExit("failed to resolve migration %q: %v", startMigrationNameFlag, err)
-		}
-		startMigrationConfigFile = configPath
-		migrationName = startMigrationNameFlag
+	// Resolve the effective migration name from either the local flag or the global persistent flag.
+	effectiveMigrationName := startMigrationNameFlag
+	if effectiveMigrationName == "" {
+		effectiveMigrationName = migrationName
 	}
 
-	// ── Validate flag combinations ──
-	controlPlaneFlow := startMigrationDir != "" || startAssessmentControlPlane != "" || startMigrationUUID != ""
+	// Control-plane flow is triggered when --assessment-control-plane is provided.
+	controlPlaneFlow := startAssessmentControlPlane != "" || startMigrationDir != ""
+
+	// ── Resolve --migration-name to config file if not in CP flow ──
+	if !controlPlaneFlow && startMigrationConfigFile == "" && effectiveMigrationName != "" {
+		configPath, err := getMigrationConfigPath(effectiveMigrationName)
+		if err != nil {
+			utils.ErrExit("failed to resolve migration %q: %v", effectiveMigrationName, err)
+		}
+		startMigrationConfigFile = configPath
+		migrationName = effectiveMigrationName
+	}
 
 	// If --config-file wasn't explicitly passed but auto-detection found one, use it
 	// (only when the user is not using the control-plane flow).
@@ -114,7 +117,7 @@ func runStartMigration() {
 		if _, configPath, err := resolveMigration(); err == nil {
 			startMigrationConfigFile = configPath
 		} else if shouldShowMigrationError(err) {
-			printMigrationResolutionError(err, "yb-voyager prepare")
+			printMigrationResolutionError(err, "yb-voyager start")
 			os.Exit(1)
 		}
 	}
@@ -122,21 +125,22 @@ func runStartMigration() {
 	configFileFlow := startMigrationConfigFile != ""
 
 	if controlPlaneFlow && configFileFlow {
-		utils.ErrExit("cannot use --config-file together with --migration-dir / --assessment-control-plane / --migration-uuid.\n" +
+		utils.ErrExit("cannot use --config-file together with --migration-dir / --assessment-control-plane.\n" +
 			"Use --config-file when you have an existing migration project, or use the control plane flags to bootstrap a new one.")
 	}
 
 	if controlPlaneFlow {
-		if startAssessmentControlPlane == "" || startMigrationUUID == "" {
-			utils.ErrExit("when using the control plane flow, --assessment-control-plane and --migration-uuid are required.\n" +
+		if startAssessmentControlPlane == "" || effectiveMigrationName == "" {
+			utils.ErrExit("when using the control plane flow, --assessment-control-plane and --migration-name are required.\n" +
 				"  --migration-dir is optional (defaults to ./migration-<dbname>)")
 		}
+		migrationName = effectiveMigrationName
 		bootstrapFromControlPlane()
 		return
 	}
 
 	if !configFileFlow {
-		utils.ErrExit("either --config-file, --migration-name, or --assessment-control-plane (with --migration-uuid) is required")
+		utils.ErrExit("either --config-file, --migration-name, or --assessment-control-plane (with --migration-name) is required")
 	}
 
 	runStartMigrationWithConfig()
@@ -166,7 +170,7 @@ func runStartMigrationWithConfig() {
 	continueStartMigration(v)
 }
 
-// continueStartMigration runs the shared portion of prepare: assessment summary,
+// continueStartMigration runs the shared portion of start: assessment summary,
 // source connection check, target prompt, workflow prompt, and config update.
 func continueStartMigration(v *viper.Viper) {
 	exportDirPath := v.GetString("export-dir")
@@ -325,7 +329,7 @@ func extractHostIP(rawHostIP string) string {
 }
 
 // bootstrapFromControlPlane sets up a new migration project by pulling assessment data
-// from a shared control plane, then continues with the standard prepare flow.
+// from a shared control plane, then continues with the standard start flow.
 func bootstrapFromControlPlane() {
 	// If migration-dir was explicitly provided, resolve now
 	if startMigrationDir != "" {
@@ -336,9 +340,9 @@ func bootstrapFromControlPlane() {
 		}
 	}
 
-	// 1. Fetch assessment from control plane
+	// 1. Fetch assessment from control plane by migration name
 	fmt.Printf("  Connecting to assessment control plane...\n")
-	rec, err := yugabyted.FetchAssessmentFromControlPlane(startAssessmentControlPlane, startMigrationUUID)
+	rec, err := yugabyted.FetchAssessmentFromControlPlane(startAssessmentControlPlane, migrationName)
 	if err != nil {
 		utils.ErrExit("failed to fetch assessment from control plane: %v", err)
 	}
@@ -360,6 +364,31 @@ func bootstrapFromControlPlane() {
 	fmt.Println()
 
 	startMigrationDirExplicit := startMigrationDir != ""
+
+	// Set up the migration directory using the same layout as `new`.
+	// Default: $HOME/.yb-voyager/<migration-name>/  (with numeric suffix if taken)
+	// Custom:  whatever --migration-dir points to, registered as a symlink.
+	if !startMigrationDirExplicit {
+		if err := ensureVoyagerHome(); err != nil {
+			utils.ErrExit("failed to create voyager home: %v", err)
+		}
+		candidate := migrationName
+		for i := 2; migrationExists(candidate); i++ {
+			candidate = fmt.Sprintf("%s-%d", migrationName, i)
+		}
+		migrationDir = getDefaultMigrationPath(candidate)
+		migrationName = candidate
+	} else {
+		migrationDir = startMigrationDir
+	}
+
+	configFilePath, exportDirPath := getMigrationPaths()
+
+	// Idempotency guard
+	if utils.FileOrFolderExists(configFilePath) {
+		utils.ErrExit("migration %q already contains a config.yaml. "+
+			"Use --config-file to continue with the existing project, or choose a different name.", migrationName)
+	}
 
 	// 2. Prompt for source connection details.
 	// The control plane never stores credentials, so we always ask the user for a
@@ -442,40 +471,11 @@ func bootstrapFromControlPlane() {
 		break
 	}
 
-	// Resolve migration-dir now that we have the source database name.
-	// When the user did not pass --migration-dir, auto-derive with increment.
-	if !startMigrationDirExplicit {
-		baseName := "voyager-migration"
-		if src.DBName != "" {
-			baseName = fmt.Sprintf("voyager-migration-%s", src.DBName)
-		}
-		candidate := baseName
-		for i := 2; ; i++ {
-			absPath, err := filepath.Abs(candidate)
-			if err != nil {
-				utils.ErrExit("failed to resolve migration-dir path: %v", err)
-			}
-			if !utils.FileOrFolderExists(absPath) {
-				startMigrationDir = absPath
-				break
-			}
-			candidate = fmt.Sprintf("%s-%d", baseName, i)
-		}
-	}
-
-	configFilePath := filepath.Join(startMigrationDir, "config.yaml")
-	exportDirPath := filepath.Join(startMigrationDir, "export-dir")
-
-	// Idempotency guard (only when user explicitly passed --migration-dir)
-	if startMigrationDirExplicit {
-		if utils.FileOrFolderExists(configFilePath) {
-			utils.ErrExit("migration directory %q already contains a config.yaml. "+
-				"Use --config-file to continue with the existing project, or choose a different directory.", startMigrationDir)
-		}
-	}
-
-	// 3. Create export directory
+	// 3. Create export directory and register migration
 	createExportDir(exportDirPath)
+	if startMigrationDirExplicit {
+		registerMigrationIfNeeded(src.DBName)
+	}
 
 	// Suppress noisy INFO logs and stdout prints from metaDB init and HTML generation.
 	prevLevel := log.GetLevel()
@@ -534,7 +534,7 @@ func bootstrapFromControlPlane() {
 		utils.ErrExit("failed to read config file: %v", err)
 	}
 
-	// Continue with the standard prepare flow (target + workflow)
+	// Continue with the standard start flow (target + workflow)
 	continueStartMigration(v)
 }
 

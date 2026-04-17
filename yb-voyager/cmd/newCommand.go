@@ -731,7 +731,7 @@ func generateConfigFile(configFilePath, exportDirPath string, src *sourceConfig,
 			"  db-password: test_password", "  # db-password: <password>  # Or set SOURCE_DB_PASSWORD env var")
 	}
 
-	// --- Target section: leave template defaults (will be filled by prepare) ---
+	// --- Target section: leave template defaults (will be filled by start) ---
 	// No changes needed; the template already has placeholder values for target.
 
 	if err := os.WriteFile(configFilePath, []byte(content), 0644); err != nil {

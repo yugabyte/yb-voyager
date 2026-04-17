@@ -196,7 +196,7 @@ var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
 
 var allowedInitConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"migration-dir", "source-db-connection-string",
-	"assessment-control-plane", "migration-uuid",
+	"assessment-control-plane",
 )
 
 var allowedInitCutoverToTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
@@ -258,6 +258,8 @@ var aliasCommandsPrefixes = [][]string{
 	{"cutover-prepare-target", "data-prepare-cutover-to-target", "initiate-cutover-to-target"},
 	{"data-archive-changes", "archive-changes"},
 	{"validate-compare-performance", "compare-performance"},
+	{"end", "end-migration"},
+	{"start", "prepare", "start-migration"},
 }
 
 // ConfigFlagOverride represents a CLI flag whose value was set from the config file.
@@ -310,9 +312,12 @@ func resolveConfigFile() (string, error) {
 	}
 
 	// Priority 3: Auto-detect single migration
-	_, configPath, err := resolveMigration()
+	name, configPath, err := resolveMigration()
 	if err != nil {
 		return "", err
+	}
+	if migrationName == "" {
+		migrationName = name
 	}
 	return configPath, nil
 }

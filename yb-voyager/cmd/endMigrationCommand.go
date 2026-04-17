@@ -39,7 +39,7 @@ var (
 )
 
 var endMigrationCmd = &cobra.Command{
-	Use:   "end-migration",
+	Use:   "end",
 	Short: "Finalize migration and clean up metadata",
 	Long:  "End the current migration and clean up all metadata stored in databases (target, source-replica, and source) and the export directory.",
 
@@ -54,7 +54,7 @@ var endMigrationCmd = &cobra.Command{
 		}
 		err = validateEndMigrationFlags(cmd)
 		if err != nil {
-			utils.ErrExit("failed to validate end-migration flags: %v", err.Error())
+			utils.ErrExit("failed to validate end flags: %v", err.Error())
 		}
 
 	},

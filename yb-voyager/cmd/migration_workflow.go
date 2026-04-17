@@ -107,7 +107,7 @@ var offlineWorkflow = &Workflow{
 		},
 		{
 			ID: StepEnd, DisplayName: "End Migration", Phase: PhaseEnd,
-			Command: "end-migration",
+			Command: "end",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.EndMigrationRequested },
 		},
 	},
@@ -164,7 +164,7 @@ var liveWorkflow = &Workflow{
 		},
 		{
 			ID: StepEnd, DisplayName: "End Migration", Phase: PhaseEnd,
-			Command: "end-migration",
+			Command: "end",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.EndMigrationRequested },
 		},
 	},
@@ -231,7 +231,7 @@ var liveFallBackWorkflow = &Workflow{
 		},
 		{
 			ID: StepEnd, DisplayName: "End Migration", Phase: PhaseEnd,
-			Command: "end-migration",
+			Command: "end",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.EndMigrationRequested },
 		},
 	},
@@ -298,7 +298,7 @@ var liveFallForwardWorkflow = &Workflow{
 		},
 		{
 			ID: StepEnd, DisplayName: "End Migration", Phase: PhaseEnd,
-			Command: "end-migration",
+			Command: "end",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.EndMigrationRequested },
 		},
 	},

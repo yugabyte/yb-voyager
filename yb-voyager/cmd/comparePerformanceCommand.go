@@ -134,7 +134,7 @@ func printComparePerformanceFooter() {
 		SectionTitle: "Performance Comparison Summary",
 		Title:        "Performance comparison completed successfully.",
 		NextStepDesc: []string{"End the migration and clean up resources:"},
-		NextStepCmd:  "yb-voyager end-migration",
+		NextStepCmd:  "yb-voyager end",
 		Phases:       phases,
 	}
 	printCommandFooter(footer)
