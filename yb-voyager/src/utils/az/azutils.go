@@ -176,3 +176,21 @@ func NewObjectReader(objectURL string) (io.ReadCloser, error) {
 	retryReader := get.NewRetryReader(ctx, &azblob.RetryReaderOptions{MaxRetries: 10})
 	return retryReader, nil
 }
+
+func NewObjectReaderAt(objectURL string, offset int64) (io.ReadCloser, error) {
+	createClientIfNotExists(objectURL)
+	_, containerName, key, err := splitObjectPath(objectURL)
+	if err != nil {
+		return nil, fmt.Errorf("splitting object path of %q: %w", objectURL, err)
+	}
+	ctx := context.Background()
+	// Count 0 means read from offset to end of blob
+	get, err := client.DownloadStream(ctx, containerName, key, &azblob.DownloadStreamOptions{
+		Range: azblob.HTTPRange{Offset: offset, Count: 0},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create download stream for %q at offset %d: %w", objectURL, offset, err)
+	}
+	retryReader := get.NewRetryReader(ctx, &azblob.RetryReaderOptions{MaxRetries: 10})
+	return retryReader, nil
+}

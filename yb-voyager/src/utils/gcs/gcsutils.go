@@ -129,3 +129,17 @@ func NewObjectReader(object string) (io.ReadCloser, error) {
 	}
 	return r, nil
 }
+
+func NewObjectReaderAt(object string, offset int64) (io.ReadCloser, error) {
+	createClientIfNotExists()
+	bucketName, keyName, err := splitObjectPath(object)
+	if err != nil {
+		return nil, fmt.Errorf("split object path of %q: %w", object, err)
+	}
+	// length -1 means read from offset to end of object
+	r, err := client.Bucket(bucketName).Object(keyName).NewRangeReader(context.Background(), offset, -1)
+	if err != nil {
+		return nil, fmt.Errorf("get range reader for %q at offset %d: %w", object, offset, err)
+	}
+	return r, nil
+}

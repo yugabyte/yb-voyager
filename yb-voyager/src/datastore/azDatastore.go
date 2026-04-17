@@ -80,11 +80,18 @@ func (ds *AzDataStore) Open(objectPath string) (io.ReadCloser, error) {
 	// if objectPath is hidden underneath a symlink for az blobs...
 	objectPath, err := os.Readlink(objectPath)
 	if err != nil {
-		utils.ErrExit("unable to resolve symlink: %v to gcs resource: %w", objectPath, err)
+		utils.ErrExit("unable to resolve symlink: %v to azure resource: %w", objectPath, err)
 	}
 	return az.NewObjectReader(objectPath)
 }
 
 func (ds *AzDataStore) OpenAt(objectPath string, offset int64) (io.ReadCloser, error) {
-	return nil, ErrOpenAtNotImplemented
+	if strings.HasPrefix(objectPath, "https://") {
+		return az.NewObjectReaderAt(objectPath, offset)
+	}
+	resolvedPath, err := os.Readlink(objectPath)
+	if err != nil {
+		return nil, fmt.Errorf("unable to resolve symlink: %v to azure resource: %w", objectPath, err)
+	}
+	return az.NewObjectReaderAt(resolvedPath, offset)
 }
