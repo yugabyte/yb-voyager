@@ -38,6 +38,7 @@ var (
 	cleanupPolicy               string
 	cleanupArchiveDir           string
 	cleanupUtilizationThreshold int
+	StopArchiverSignal          bool
 )
 
 var segmentCleanupCmd = &cobra.Command{
