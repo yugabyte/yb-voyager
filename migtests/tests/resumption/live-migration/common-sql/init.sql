@@ -59,3 +59,32 @@ CREATE TABLE tsvector_table (
     title_tsv TSVECTOR,
     content_tsv TSVECTOR
 );
+
+DROP TABLE IF EXISTS public.empty_iteration_table;
+CREATE TABLE public.empty_iteration_table (
+    id SERIAL PRIMARY KEY,
+    val TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+DROP TABLE IF EXISTS public.identity_test;
+CREATE TABLE public.identity_test (
+    id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    action TEXT NOT NULL,
+    detail TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+INSERT INTO public.identity_test (action, detail)
+SELECT 'seed_' || i, 'initial row ' || i FROM generate_series(1, 20) i;
+
+ALTER TABLE public.num_types REPLICA IDENTITY FULL;
+ALTER TABLE public.decimal_types REPLICA IDENTITY FULL;
+ALTER TABLE public.datatypes1 REPLICA IDENTITY FULL;
+ALTER TABLE public.datetime_type REPLICA IDENTITY FULL;
+ALTER TABLE public.datetime_type2 REPLICA IDENTITY FULL;
+ALTER TABLE public.datatypes2 REPLICA IDENTITY FULL;
+ALTER TABLE public.null_and_default REPLICA IDENTITY FULL;
+ALTER TABLE public.tsvector_table REPLICA IDENTITY FULL;
+ALTER TABLE public.empty_iteration_table REPLICA IDENTITY FULL;
+ALTER TABLE public.identity_test REPLICA IDENTITY FULL;
