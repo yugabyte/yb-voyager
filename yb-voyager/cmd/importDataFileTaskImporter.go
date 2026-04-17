@@ -99,6 +99,8 @@ type FileTaskImporter struct {
 
 	errorHandler             importdata.ImportDataErrorHandler
 	callhomeMetricsCollector *callhome.ImportDataMetricsCollector
+
+	resumeInfoShown bool
 }
 
 func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchProducer FileBatchProducer, workerPool *pool.Pool,
@@ -108,6 +110,18 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchProd
 	progressReporter.ImportFileStarted(task, totalProgressAmount)
 	currentProgressAmount := getImportedProgressAmount(task, state)
 	progressReporter.AddProgressAmount(task, currentProgressAmount)
+
+	resumeInfoShown := false
+	if currentProgressAmount > 0 {
+		var resumeMsg string
+		if reportProgressInBytes {
+			resumeMsg = "Resuming"
+		} else {
+			resumeMsg = fmt.Sprintf("Resuming: %d rows imported", currentProgressAmount)
+		}
+		progressReporter.AddResumeInformation(task, resumeMsg)
+		resumeInfoShown = true
+	}
 
 	fti := &FileTaskImporter{
 		state:                     state,
@@ -122,6 +136,7 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchProd
 		currentProgressAmount:     currentProgressAmount,
 		errorHandler:              errorHandler,
 		callhomeMetricsCollector:  callhomeMetricsCollector,
+		resumeInfoShown:           resumeInfoShown,
 	}
 	state.RegisterFileTaskImporter(fti)
 	return fti, nil
@@ -286,6 +301,11 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 }
 
 func (fti *FileTaskImporter) updateProgressForCompletedBatch(batch *Batch) {
+	if fti.resumeInfoShown {
+		fti.progressReporter.RemoveResumeInformation(fti.task)
+		fti.resumeInfoShown = false
+	}
+
 	// Update basic progress update for progress bar and control plane.
 	var progressAmount int64
 	if reportProgressInBytes {
