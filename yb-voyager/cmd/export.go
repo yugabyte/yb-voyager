@@ -44,7 +44,6 @@ var useDebezium bool
 var runId string
 var excludeTableListFilePath string
 var tableListFilePath string
-var usePartitionRoot = true // default is true for backward compatibility
 var pgExportCommands = []string{"pg_dump", "pg_restore", "psql"}
 
 var exportCmd = &cobra.Command{
@@ -255,11 +254,7 @@ func registerExportDataFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &source.AllowOracleClobDataExport, "allow-oracle-clob-data-export", false,
 		"[EXPERIMENTAL][Oracle only] Allow exporting data of CLOB columns in offline migration.")
 
-	cmd.Flags().BoolVar(&usePartitionRoot, "use-partition-root", true,
-		"[PostgreSQL/YugabyteDB only] For partitioned tables during live migration:\n"+
-			"  - true (default): rename leaf partition events to root table name, use root table's PK for ON CONFLICT.\n"+
-			"  - false: keep leaf partition names and insert directly into child partitions. Useful when the root table\n"+
-			"    has no PK but child partitions do. Data is inserted into child partitions using their PKs for conflict resolution.")
+
 }
 
 func validateSourceDBType() {
@@ -404,19 +399,6 @@ func validateExportTypeFlag() {
 
 }
 
-func validateUsePartitionRootFlag() {
-	// --use-partition-root flag is only valid for live migration with PostgreSQL or YugabyteDB
-	if !usePartitionRoot {
-		// Only validate when flag is explicitly set to false (non-default)
-		if !changeStreamingIsEnabled(exportType) {
-			utils.ErrExit("Error --use-partition-root=false is only valid for live migration (--export-type=%s or --export-type=%s)", SNAPSHOT_AND_CHANGES, CHANGES_ONLY)
-		}
-		if source.DBType != POSTGRESQL && source.DBType != YUGABYTEDB {
-			utils.ErrExit("Error --use-partition-root flag is only valid for PostgreSQL and YugabyteDB source databases")
-		}
-	}
-}
-
 func saveExportTypeInMSR() {
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		if exporterRole == SOURCE_DB_EXPORTER_ROLE {
@@ -424,14 +406,6 @@ func saveExportTypeInMSR() {
 				utils.ErrExit("Error export type from source is already set to '%s'. Cannot override it with '%s'. Use start-clean flag to use the new export type.", record.ExportTypeFromSource, exportType)
 			}
 			record.ExportTypeFromSource = exportType
-
-			// Store usePartitionRoot flag (only relevant for live migration)
-			if changeStreamingIsEnabled(exportType) && (source.DBType == POSTGRESQL || source.DBType == YUGABYTEDB) {
-				// Only allow setting on first run; subsequent runs use the stored value
-				if record.UsePartitionRoot == nil {
-					record.UsePartitionRoot = &usePartitionRoot
-				}
-			}
 		}
 	})
 	if err != nil {

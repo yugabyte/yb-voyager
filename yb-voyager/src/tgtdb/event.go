@@ -172,7 +172,7 @@ func (e *Event) GetPartitionQualifiedName() string {
 // If UsePartitionTable is true and this is a partition event, returns the partition table name.
 // Otherwise, returns the root table name (TableNameTup).
 func (e *Event) GetEffectiveTableNameForSQL() string {
-	if e.UsePartitionTable && e.IsPartitionEvent() {
+	if e.UsePartitionTable && e.IsPartitionEvent() && e.Op == "c" {
 		// Quote the schema and table names for SQL safety
 		return fmt.Sprintf(`"%s"."%s"`, e.PartitionSchemaName, e.PartitionTableName)
 	}

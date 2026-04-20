@@ -109,7 +109,6 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 		utils.ErrExit("failed to validate export flags: %w", err)
 	}
 	validateExportTypeFlag()
-	validateUsePartitionRootFlag()
 	markFlagsRequired(cmd)
 	if changeStreamingIsEnabled(exportType) {
 		useDebezium = true
@@ -1909,6 +1908,10 @@ func startFallBackSetupIfRequired() {
 		cmd = append(cmd, "--yes")
 	}
 
+	if !msr.GetUsePartitionRoot() {
+		cmd = append(cmd, "--use-partition-root=false")
+	}
+
 	arguments := generateGlobalExportImportArguments()
 	cmd = append(cmd, arguments...)
 	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
@@ -2032,29 +2035,28 @@ func reportUnsupportedTablesForLiveMigration(finalTableList []sqlname.NameTuple)
 	var nonPKTables []string
 	for _, table := range finalTableList {
 		if lo.Contains(allNonPKTables, table.ForKey()) {
-			// When usePartitionRoot=false, skip root tables if all their leaf partitions have PKs
-			// because data will be inserted directly into child partitions using their PKs
-			if !usePartitionRoot {
-				children := GetAllLeafPartitions(table)
-				if len(children) > 0 {
-					// Check if all leaf partitions have PKs
-					allChildrenHavePK := true
-					for _, child := range children {
-						if lo.Contains(allNonPKTables, child.ForKey()) {
-							allChildrenHavePK = false
-							log.Infof("Leaf partition %s of root table %s does not have a primary key", child.ForKey(), table.ForKey())
-							break
-						}
-					}
-					if allChildrenHavePK {
-						log.Infof("Skipping PK check for root table %s because usePartitionRoot=false and all %d child partitions have PKs",
-							table.ForKey(), len(children))
-						continue
+			children := GetAllLeafPartitions(table)
+			if len(children) > 0 {
+				// Check if all leaf partitions have PKs
+				allChildrenHavePK := true
+				for _, child := range children {
+					if lo.Contains(allNonPKTables, child.ForKey()) {
+						allChildrenHavePK = false
+						log.Infof("Leaf partition %s of root table %s does not have a primary key", child.ForKey(), table.ForKey())
+						break
 					}
 				}
+				if allChildrenHavePK {
+					log.Infof("Skipping PK check for root table %s and all %d child partitions have PKs",
+						table.ForKey(), len(children))
+					continue
+				}
+			} else {
+				nonPKTables = append(nonPKTables, table.ForOutput())
 			}
-			nonPKTables = append(nonPKTables, table.ForOutput())
+
 		}
+
 	}
 	if len(nonPKTables) > 0 {
 		utils.PrintAndLogf("Table names without a Primary key: %s", nonPKTables)
