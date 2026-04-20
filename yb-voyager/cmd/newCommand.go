@@ -161,8 +161,12 @@ func ensureMigrationDir(dbType, dbName string) {
 		candidate = fmt.Sprintf("%s-%d", name, i)
 	}
 
-	// Set the migration directory path
+	// Set the migration directory path, and propagate the (possibly disambiguated)
+	// name so that downstream helpers like buildMigrationNameFlag show the actual
+	// migration name (e.g. "pg-dbx-2") rather than the user-requested one ("pg-dbx").
 	migrationDir = getDefaultMigrationPath(candidate)
+	migrationName = candidate
+	initMigrationName = candidate
 }
 
 // getMigrationPaths returns the config-file and export-dir paths derived from
