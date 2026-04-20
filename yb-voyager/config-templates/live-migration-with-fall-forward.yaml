@@ -108,7 +108,7 @@ source:
 
   ### [For PostgreSQL Only] Comma-separated list of read replica endpoints for assessment. Each endpoint is host:port. Default port 5432.
   ### Example: "host1:5432, host2:5433"
-  ### Optional - only used for assess-migration command
+  ### Optional - only used for assess command
   # read-replica-endpoints: "host1:5432, host2:5433"
 
 
@@ -226,7 +226,7 @@ source-replica:
 ### Assess the migration from source (postgresql, oracle) database to YugabyteDB.
 
 ### Uncomment the respective parameters when you want to configure additional assess migration options.
-assess-migration:
+assess:
 
   ### Target YugabyteDB version to assess migration for (in format A.B.C.D). 
   ### Default - latest stable version

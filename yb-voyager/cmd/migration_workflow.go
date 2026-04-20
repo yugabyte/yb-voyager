@@ -70,7 +70,7 @@ var offlineWorkflow = &Workflow{
 	Steps: []WorkflowStep{
 		{
 			ID: StepAssess, DisplayName: "Assess Migration", Phase: PhaseAssess,
-			Command: "assess run",
+			Command: "assess",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.MigrationAssessmentDone },
 		},
 		{
@@ -119,7 +119,7 @@ var liveWorkflow = &Workflow{
 	Steps: []WorkflowStep{
 		{
 			ID: StepAssess, DisplayName: "Assess Migration", Phase: PhaseAssess,
-			Command: "assess run",
+			Command: "assess",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.MigrationAssessmentDone },
 		},
 		{
@@ -176,7 +176,7 @@ var liveFallBackWorkflow = &Workflow{
 	Steps: []WorkflowStep{
 		{
 			ID: StepAssess, DisplayName: "Assess Migration", Phase: PhaseAssess,
-			Command: "assess run",
+			Command: "assess",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.MigrationAssessmentDone },
 		},
 		{
@@ -243,7 +243,7 @@ var liveFallForwardWorkflow = &Workflow{
 	Steps: []WorkflowStep{
 		{
 			ID: StepAssess, DisplayName: "Assess Migration", Phase: PhaseAssess,
-			Command: "assess run",
+			Command: "assess",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.MigrationAssessmentDone },
 		},
 		{

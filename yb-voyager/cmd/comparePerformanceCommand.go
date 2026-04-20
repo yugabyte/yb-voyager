@@ -39,11 +39,11 @@ var comparePerformanceCmd = &cobra.Command{
 	Short: "Compare query performance between source and target YugabyteDB",
 	Long: `Compare query performance between source and target YugabyteDB.
 
-This command analyzes stats collected during assess-migration from the source database
+This command analyzes stats collected during assess from the source database
 and compares it with stats collected from the target YugabyteDB database.
 
 Prerequisites:
-  - assess-migration command must have been run and collected the stats from the source database
+  - assess command must have been run and collected the stats from the source database
   - Source workload should have been executed on both source and target database
   - stats collection(pg_stat_statements) must be enabled on the target YugabyteDB database`,
 
@@ -149,13 +149,13 @@ func validateComparePerfPrerequisites() {
 
 	utils.PrintAndLogf("validating the setup for performance comparison...")
 
-	// Check 1: assess-migration must have been run
+	// Check 1: assess must have been run
 	hasAssessment, err := IsMigrationAssessmentDoneDirectly(metaDB)
 	if err != nil {
-		utils.ErrExit("Failed to check if assess-migration has been run: %v", err)
+		utils.ErrExit("Failed to check if assess has been run: %v", err)
 	}
 	if !hasAssessment {
-		utils.ErrExit("Migration assessment not found. Please run 'assess-migration' command before performing performance comparison.")
+		utils.ErrExit("Migration assessment not found. Please run 'assess' command before performing performance comparison.")
 	}
 
 	// Check 2: source db type(postgres) by fetching from MetaDB
@@ -168,7 +168,7 @@ func validateComparePerfPrerequisites() {
 	migassessment.AssessmentDir = filepath.Join(exportDir, "assessment") // set assessment directory before assessmentDB access
 	assessmentDBPath := migassessment.GetSourceMetadataDBFilePath()
 	if _, err := os.Stat(assessmentDBPath); os.IsNotExist(err) {
-		utils.ErrExit("Assessment database not found. Please ensure 'assess-migration' command has run successfully.")
+		utils.ErrExit("Assessment database not found. Please ensure 'assess' command has run successfully.")
 	}
 	adb, err := migassessment.NewAssessmentDB()
 	if err != nil {
@@ -179,7 +179,7 @@ func validateComparePerfPrerequisites() {
 		utils.ErrExit("Failed to verify pg_stat_statements data in assessment database: %v", err)
 	}
 	if !hasData {
-		utils.ErrExit("No query statistics found in assessment database. Please ensure pg_stat_statements extension was enabled during assess-migration and that workload was executed on the source database.")
+		utils.ErrExit("No query statistics found in assessment database. Please ensure pg_stat_statements extension was enabled during assess and that workload was executed on the source database.")
 	}
 	
 	//TODO: fix later 

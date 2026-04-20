@@ -366,7 +366,7 @@ var noPersistentPreRunNeededList = []string{
 
 // used for registering the --config-file flag
 var offlineCommands = []string{
-	"yb-voyager assess run",
+	"yb-voyager assess",
 	"yb-voyager schema export",
 	"yb-voyager schema analyze",
 	"yb-voyager schema import",

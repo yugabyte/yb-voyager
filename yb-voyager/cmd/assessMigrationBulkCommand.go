@@ -224,7 +224,7 @@ func executeAssessment(dbConfig AssessMigrationDBConfig) error {
 
 func buildCommandArguments(dbConfig AssessMigrationDBConfig, exportDirPath string) []string {
 	log.Infof("building assess-migration command arguments for schema %q", dbConfig.GetSchemaIdentifier())
-	args := []string{"assess-migration",
+	args := []string{"assess",
 		"--source-db-type", dbConfig.DbType,
 		"--source-db-schema", dbConfig.Schema,
 		"--export-dir", exportDirPath,

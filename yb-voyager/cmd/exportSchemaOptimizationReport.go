@@ -209,7 +209,7 @@ func (c *ColocationRecommendationChange) Summary() string {
 func NewNotAppliedColocationRecommendationChangeWhenAssessNotDoneDirectly() *ColocationRecommendationChange {
 	return &ColocationRecommendationChange{
 		Title:             "Colocation Recommendations - Not Applied",
-		Description:       "Colocation recommendations were not applied since assessment was not run on the source database. Run the 'assess-migration' command explicitly to produce precise recommendations and re run the 'export schema' command to apply them.",
+		Description:       "Colocation recommendations were not applied since assessment was not run on the source database. Run the 'assess' command explicitly to produce precise recommendations and re run the 'export schema' command to apply them.",
 		ReferenceFile:     "",
 		ShardedObjects:    nil,
 		CollocatedObjects: nil,

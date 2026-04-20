@@ -353,8 +353,8 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 
 	utils.PrintAndLogfPhase("\nAssessing migration before exporting schema...")
 
-	// Invoke the assess-migration command as a subprocess
-	cmd := exec.Command(voyagerExecutable, append([]string{"assess-migration"}, assessFlagsWithValues...)...)
+	// Invoke the assess command as a subprocess
+	cmd := exec.Command(voyagerExecutable, append([]string{"assess"}, assessFlagsWithValues...)...)
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
 

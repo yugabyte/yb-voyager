@@ -62,7 +62,7 @@ var (
 	sourceReadReplicaEndpoints       string                              // CLI flag - package variable for Cobra binding
 	primaryOnly                      bool                                // CLI flag - package variable for Cobra binding
 	replicaDiscoveryInfoForCallhome  *migassessment.ReplicaDiscoveryInfo // Stored for error callhome
-	assessmentControlPlane           string                              // yugabyted connection string for assessment metadata ingestion
+	controlPlaneConnStr              string                              // yugabyted connection string for assessment metadata ingestion
 )
 
 var sourceConnectionFlags = []string{
@@ -80,8 +80,8 @@ var sourceConnectionFlags = []string{
 }
 
 var assessMigrationCmd = &cobra.Command{
-	Use:   "run",
-	Short: fmt.Sprintf("Assess the migration from source (%s) database to YugabyteDB.", strings.Join(assessMigrationSupportedDBTypes, ", ")),
+	Use:   "assess",
+	Short: "Analyze source database for compatibility and get cluster sizing recommendations",
 	Long:  fmt.Sprintf("Assess the migration from source (%s) database to YugabyteDB.", strings.Join(assessMigrationSupportedDBTypes, ", ")),
 
 	PreRun: func(cmd *cobra.Command, args []string) {
@@ -92,7 +92,7 @@ var assessMigrationCmd = &cobra.Command{
 		}
 
 		// Set up yugabyted control plane for assessment metadata ingestion
-		os.Setenv("YUGABYTED_DB_CONN_STRING", assessmentControlPlane)
+		os.Setenv("YUGABYTED_DB_CONN_STRING", controlPlaneConnStr)
 		err = setControlPlane(YUGABYTED)
 		if err != nil {
 			utils.ErrExit("failed to set up assessment control plane: %w", err)
@@ -187,7 +187,7 @@ func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
 }
 
 func init() {
-	assessCmd.AddCommand(assessMigrationCmd)
+	rootCmd.AddCommand(assessMigrationCmd)
 	registerCommonGlobalFlags(assessMigrationCmd)
 	registerSourceDBConnFlagsForAM(assessMigrationCmd)
 
@@ -218,7 +218,7 @@ func init() {
 	assessMigrationCmd.Flags().BoolVar(&primaryOnly, "primary-only", false,
 		"assess only the primary database, skip read replica discovery and assessment (only valid for PostgreSQL).")
 
-	assessMigrationCmd.Flags().StringVar(&assessmentControlPlane, "assessment-control-plane", "postgresql://yugabyte:yugabyte@127.0.0.1:5433",
+	assessMigrationCmd.Flags().StringVar(&controlPlaneConnStr, "control-plane", "postgresql://yugabyte:yugabyte@127.0.0.1:5433",
 		"Connection string for the yugabyted control plane to ingest assessment metadata into.")
 }
 
@@ -398,7 +398,7 @@ func printAssessMigrationFooter() {
 	phases := computePhaseStatuses(wf, msr, StepAssess)
 
 	uiHost := "localhost"
-	if parsed, err := url.Parse(assessmentControlPlane); err == nil && parsed.Hostname() != "" {
+	if parsed, err := url.Parse(controlPlaneConnStr); err == nil && parsed.Hostname() != "" {
 		uiHost = parsed.Hostname()
 	}
 	uiURL := fmt.Sprintf("http://%s:15433/migrations?migration_uuid=%s", uiHost, migrationUUID.String())

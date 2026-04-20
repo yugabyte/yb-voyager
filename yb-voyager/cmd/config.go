@@ -34,7 +34,7 @@ const (
 
 var commandsUsingSourceReplicaConfig = []string{"data-import-to-replica", "data-import-to-source-replica", "import-data-to-source-replica"}
 var commandsUsingSourceConfig = []string{
-	"assess-run", "assess-migration",
+	"assess", "assess-migration",
 	"schema-export", "export-schema",
 	"export-data",
 	"data-export", "data-export-from-source", "export-data-from-source",
@@ -90,7 +90,7 @@ var allowedAssessMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level", "run-guardrails-checks",
 	"iops-capture-interval", "target-db-version", "assessment-metadata-dir",
 	"invoked-by-export-schema",
-	"assessment-control-plane",
+	"control-plane",
 	// environment variables keys
 	"report-unsupported-query-constructs", "report-unsupported-plpgsql-objects",
 )
@@ -196,7 +196,7 @@ var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
 
 var allowedInitConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"migration-dir", "source-db-connection-string",
-	"assessment-control-plane",
+	"control-plane",
 )
 
 var allowedInitCutoverToTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
@@ -222,6 +222,7 @@ var allowedConfigSections = map[string]mapset.Set[string]{
 	"yugabyted-control-plane":          allowedYugabytedControlPlaneConfigKeys,
 	"ybaeon-control-plane":             allowedYBAeonControlPlaneConfigKeys,
 	"new":                              allowedInitConfigKeys,
+	"assess":                           allowedAssessMigrationConfigKeys,
 	"assess-migration":                 allowedAssessMigrationConfigKeys,
 	"analyze-schema":                   allowedAnalyzeSchemaConfigKeys,
 	"export-schema":                    allowedExportSchemaConfigKeys,
@@ -244,7 +245,7 @@ var allowedConfigSections = map[string]mapset.Set[string]{
 // The new command paths (e.g. "assess-run") are aliased to the config-file section
 // names (e.g. "assess-migration") so existing config files keep working.
 var aliasCommandsPrefixes = [][]string{
-	{"assess-run", "assess-migration"},
+	{"assess", "assess-migration"},
 	{"schema-export", "export-schema"},
 	{"schema-analyze", "analyze-schema"},
 	{"schema-import", "import-schema"},
@@ -400,6 +401,8 @@ var confParamEnvVarPairs = map[string]string{
 
 	"source-replica.db-password": "SOURCE_REPLICA_DB_PASSWORD",
 
+	"assess.report-unsupported-query-constructs":           "REPORT_UNSUPPORTED_QUERY_CONSTRUCTS",
+	"assess.report-unsupported-plpgsql-objects":            "REPORT_UNSUPPORTED_PLPGSQL_OBJECTS",
 	"assess-migration.report-unsupported-query-constructs": "REPORT_UNSUPPORTED_QUERY_CONSTRUCTS",
 	"assess-migration.report-unsupported-plpgsql-objects":  "REPORT_UNSUPPORTED_PLPGSQL_OBJECTS",
 

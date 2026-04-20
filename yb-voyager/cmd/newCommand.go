@@ -37,7 +37,7 @@ import (
 var migrationDir string
 var migrationDirExplicit bool
 var sourceConnString string
-var initAssessmentControlPlane string
+var initControlPlane string
 var initMigrationName string
 
 // paths for installed gather-assessment-metadata scripts
@@ -69,7 +69,7 @@ func init() {
 			"If not provided, derived from source database name.")
 	initCmd.Flags().StringVar(&sourceConnString, "source-db-connection-string", "",
 		"source database connection string (e.g. postgresql://user:password@host:5432/dbname). If provided, skips the interactive prompt.")
-	initCmd.Flags().StringVar(&initAssessmentControlPlane, "assessment-control-plane", "",
+	initCmd.Flags().StringVar(&initControlPlane, "control-plane", "",
 		"connection string for a shared assessment control plane (advanced). "+
 			"If not provided, uses local YugabyteDB instance.")
 }
@@ -301,7 +301,7 @@ func handleConnectionString() {
 		User:     parsed.User,
 		Password: parsed.Password,
 		Schema:   schemas,
-	}, nil, initAssessmentControlPlane)
+	}, nil, initControlPlane)
 
 	// Register migration in voyager home (for custom dirs)
 	registerMigrationIfNeeded(parsed.DBName)
@@ -350,7 +350,7 @@ func handleConnectionStringDirect(connStr string) {
 		User:     parsed.User,
 		Password: parsed.Password,
 		Schema:   schemas,
-	}, nil, initAssessmentControlPlane)
+	}, nil, initControlPlane)
 
 	// Register migration in voyager home (for custom dirs)
 	registerMigrationIfNeeded(parsed.DBName)
@@ -381,7 +381,7 @@ func handleGenerateScripts() {
 	copyGatherScripts(oracleGatherScriptsInstalledDir, oracleScriptsDir)
 
 	// Generate a minimal config (no source connection)
-	generateConfigFile(configFilePath, exportDirPath, nil, nil, initAssessmentControlPlane)
+	generateConfigFile(configFilePath, exportDirPath, nil, nil, initControlPlane)
 
 	// Register migration in voyager home (for custom dirs)
 	registerMigrationIfNeeded("")
@@ -418,7 +418,7 @@ func handleSkip() {
 	createExportDir(exportDirPath)
 
 	// Generate config with empty source
-	generateConfigFile(configFilePath, exportDirPath, nil, nil, initAssessmentControlPlane)
+	generateConfigFile(configFilePath, exportDirPath, nil, nil, initControlPlane)
 
 	// Register migration in voyager home (for custom dirs)
 	registerMigrationIfNeeded("")
@@ -651,10 +651,9 @@ func readConfigTemplate(templateName string) (string, error) {
 
 // generateConfigFile reads the offline-migration.yaml template, fills in the source
 // connection details via string replacement, and writes it as the project config file.
-// assessmentCP is an optional assessment control plane connection string; if non-empty,
-// the assess-migration.assessment-control-plane and yugabyted-control-plane.db-conn-string
-// fields are populated with this value.
-func generateConfigFile(configFilePath, exportDirPath string, src *sourceConfig, tgt *targetConfig, assessmentCP ...string) {
+// controlPlaneConn is an optional control plane connection string; if non-empty,
+// the assess.control-plane field is populated with this value.
+func generateConfigFile(configFilePath, exportDirPath string, src *sourceConfig, tgt *targetConfig, controlPlaneConn ...string) {
 	content, err := readConfigTemplate("offline-migration.yaml")
 	if err != nil {
 		utils.ErrExit("failed to read config template: %v\n"+
@@ -665,29 +664,29 @@ func generateConfigFile(configFilePath, exportDirPath string, src *sourceConfig,
 	content = replaceConfigValue(content, "export-dir:", "<export-dir-path>", exportDirPath)
 
 	// --- Control plane section ---
-	// If an assessment control plane connection string was provided, populate the
-	// assess-migration.assessment-control-plane field (not the global control plane config).
+	// If a control plane connection string was provided, populate the
+	// assess.control-plane field (not the global control plane config).
 	cpConnStr := ""
-	if len(assessmentCP) > 0 && assessmentCP[0] != "" {
-		cpConnStr = assessmentCP[0]
+	if len(controlPlaneConn) > 0 && controlPlaneConn[0] != "" {
+		cpConnStr = controlPlaneConn[0]
 	}
 	if cpConnStr != "" {
 		// Try replacing the commented-out placeholder first (new template)
-		newVal := fmt.Sprintf("assessment-control-plane: %s", cpConnStr)
+		newVal := fmt.Sprintf("control-plane: %s", cpConnStr)
 		replaced := strings.Replace(content,
-			"# assessment-control-plane: postgresql://yugabyte:yugabyte@127.0.0.1:5433",
+			"# control-plane: postgresql://yugabyte:yugabyte@127.0.0.1:5433",
 			newVal, 1)
 		if replaced != content {
 			content = replaced
 		} else {
 			// Fallback for older templates that don't have the placeholder:
-			// inject the field right after the "assess-migration:" section header.
-			marker := "assess-migration:\n"
+			// inject the field right after the "assess:" section header.
+			marker := "assess:\n"
 			idx := strings.Index(content, marker)
 			if idx != -1 {
 				insertAt := idx + len(marker)
 				content = content[:insertAt] +
-					fmt.Sprintf("\n  ### Connection string for the assessment control plane\n  %s\n", newVal) +
+					fmt.Sprintf("\n  ### Connection string for the control plane\n  %s\n", newVal) +
 					content[insertAt:]
 			}
 		}
@@ -911,10 +910,10 @@ func printInitNextSteps(configFilePath string, connected bool, scripts bool, sel
 		lines = append(lines, fmt.Sprintf("%d. Copy the resulting metadata directory back to this machine.", step))
 		step++
 		lines = append(lines, nextStepLabelStyle.Render(fmt.Sprintf("%d. Run assessment:", step)))
-		lines = append(lines, cmdStyle.Render(fmt.Sprintf("   yb-voyager assess run%s --assessment-metadata-dir /path/to/metadata", migrationNameFlag)))
+		lines = append(lines, cmdStyle.Render(fmt.Sprintf("   yb-voyager assess%s --assessment-metadata-dir /path/to/metadata", migrationNameFlag)))
 	} else {
 		lines = append(lines, nextStepLabelStyle.Render(fmt.Sprintf("%d. Assess your source database for migration:", step)))
-		lines = append(lines, cmdStyle.Render(fmt.Sprintf("  yb-voyager assess run%s", migrationNameFlag)))
+		lines = append(lines, cmdStyle.Render(fmt.Sprintf("  yb-voyager assess%s", migrationNameFlag)))
 	}
 
 	lines = append(lines, "")

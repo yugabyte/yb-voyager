@@ -110,13 +110,13 @@ Commands automatically find your migration using this priority:
 
 ```shell
 # With single migration - no flags needed
-yb-voyager assess run
+yb-voyager assess
 
 # With multiple migrations - specify which one
-yb-voyager assess run --migration-name prod-migration
+yb-voyager assess --migration-name prod-migration
 
 # Backwards compatible
-yb-voyager assess run --config-file /custom/path/config.yaml
+yb-voyager assess --config-file /custom/path/config.yaml
 ```
 
 ### Interactive Example
@@ -444,7 +444,7 @@ yb-voyager status (NEW) - Overall migration progress
 yb-voyager version
 
 # Assessment Phase
-yb-voyager assess run - Single DB assessment
+yb-voyager assess - Single DB assessment
 yb-voyager assess run-fleet - Fleet assessment 
 yb-voyager assess status - View assessment results
 

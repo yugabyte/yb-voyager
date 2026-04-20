@@ -156,7 +156,7 @@ func printMigrationProgress(v *viper.Viper, msr *metadb.MigrationStatusRecord) {
 
 	if msr == nil {
 		progress = append(progress, "")
-		progress = append(progress, dimStyle.Render("Migration has not started yet. Run assess-migration to begin."))
+		progress = append(progress, dimStyle.Render("Migration has not started yet. Run assess to begin."))
 	}
 
 	printSection("Migration Progress", progress...)
