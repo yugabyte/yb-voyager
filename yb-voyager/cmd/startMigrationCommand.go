@@ -390,86 +390,16 @@ func bootstrapFromControlPlane() {
 			"Use --config-file to continue with the existing project, or choose a different name.", migrationName)
 	}
 
-	// 2. Prompt for source connection details.
-	// The control plane never stores credentials, so we always ask the user for a
-	// full connection string rather than attempting an unauthenticated connection.
-	var src *sourceConfig
+	// 2. Prompt for source credentials.
+	// Host/port/dbname/schema come from the control plane assessment record;
+	// only the DB user and password are missing (credentials are never stored
+	// in the control plane).
 	defaultSchema := rec.SchemaName
 	if defaultSchema == "" {
 		defaultSchema = "public"
 	}
 
-	var userConnStr string
-	for {
-		err := huh.NewInput().
-			Title("Enter your source PostgreSQL connection string").
-			Description(fmt.Sprintf("Source from assessment: %s:%d/%s\nFormat: postgresql://user:password@host:port/dbname", sourceHost, rec.Port, rec.DatabaseName)).
-			Value(&userConnStr).
-			Run()
-		if err != nil {
-			utils.ErrExit("prompt failed: %v", err)
-		}
-		userConnStr = strings.TrimSpace(userConnStr)
-		if userConnStr == "" {
-			fmt.Println(color.YellowString("  No connection string provided. Using assessment details without verification."))
-			src = &sourceConfig{
-				DBType: rec.DBType,
-				Host:   sourceHost,
-				Port:   rec.Port,
-				DBName: rec.DatabaseName,
-				Schema: defaultSchema,
-			}
-			break
-		}
-
-		parsed, parseErr := parsePostgresConnString(userConnStr)
-		if parseErr != nil {
-			fmt.Println(color.RedString("  Invalid connection string: %v", parseErr))
-			fmt.Println()
-			continue
-		}
-
-		fmt.Printf("  Connecting to %s:%d...\n", parsed.Host, parsed.Port)
-		if err := validatePostgresConnection(userConnStr); err != nil {
-			fmt.Println(color.RedString("  Connection failed: %v", err))
-			fmt.Println()
-
-			var retry bool
-			huh.NewConfirm().
-				Title("Would you like to try again?").
-				Value(&retry).
-				Run()
-			if !retry {
-				fmt.Println(color.YellowString("  Proceeding without verified source connection."))
-				src = &sourceConfig{
-					DBType: rec.DBType,
-					Host:   parsed.Host,
-					Port:   parsed.Port,
-					DBName: parsed.DBName,
-					User:   parsed.User,
-					Schema: defaultSchema,
-				}
-				break
-			}
-			continue
-		}
-
-		schemas := parsed.Schema
-		if schemas == "" {
-			schemas = defaultSchema
-		}
-		src = &sourceConfig{
-			DBType:   rec.DBType,
-			Host:     parsed.Host,
-			Port:     parsed.Port,
-			DBName:   parsed.DBName,
-			User:     parsed.User,
-			Password: parsed.Password,
-			Schema:   schemas,
-		}
-		fmt.Println("  " + successLine(fmt.Sprintf("Connected to %s:%d", parsed.Host, parsed.Port)))
-		break
-	}
+	src := promptSourceCredentialsForBootstrap(rec, sourceHost, defaultSchema)
 
 	// 3. Create export directory and register migration
 	createExportDir(exportDirPath)
@@ -536,6 +466,139 @@ func bootstrapFromControlPlane() {
 
 	// Continue with the standard start flow (target + workflow)
 	continueStartMigration(v)
+}
+
+// promptSourceCredentialsForBootstrap prompts for the DB user + password, using
+// host/port/dbname/schema already known from the control plane assessment.
+// On connection failure, it offers retry or fallback to entering a full connection string.
+func promptSourceCredentialsForBootstrap(rec *yugabyted.AssessmentRecord, sourceHost, defaultSchema string) *sourceConfig {
+	src := &sourceConfig{
+		DBType: rec.DBType,
+		Host:   sourceHost,
+		Port:   rec.Port,
+		DBName: rec.DatabaseName,
+		Schema: defaultSchema,
+	}
+
+	fmt.Printf("  Source connection from assessment: %s:%d/%s\n", sourceHost, rec.Port, rec.DatabaseName)
+	fmt.Println("  Enter credentials to connect (host/port/dbname are reused from the assessment).")
+	fmt.Println()
+
+	for {
+		var user, password string
+		if envPwd, ok := os.LookupEnv("SOURCE_DB_PASSWORD"); ok {
+			password = envPwd
+		}
+
+		if err := huh.NewInput().
+			Title("Source DB user").
+			Value(&user).
+			Validate(func(s string) error {
+				if strings.TrimSpace(s) == "" {
+					return fmt.Errorf("user is required")
+				}
+				return nil
+			}).
+			Run(); err != nil {
+			utils.ErrExit("prompt failed: %v", err)
+		}
+		user = strings.TrimSpace(user)
+
+		if password == "" {
+			if err := huh.NewInput().
+				Title("Source DB password").
+				Description("Leave blank if the user has no password, or press Ctrl+C and re-run with SOURCE_DB_PASSWORD env var").
+				EchoMode(huh.EchoModePassword).
+				Value(&password).
+				Run(); err != nil {
+				utils.ErrExit("prompt failed: %v", err)
+			}
+		}
+
+		connStr := buildPostgresConnString(sourceHost, rec.Port, user, password, rec.DatabaseName)
+		fmt.Printf("  Connecting to %s:%d as %s...\n", sourceHost, rec.Port, user)
+		if err := validatePostgresConnection(connStr); err != nil {
+			fmt.Println(color.RedString("  Connection failed: %v", err))
+			fmt.Println()
+
+			var retry bool
+			huh.NewConfirm().
+				Title("Would you like to try again?").
+				Value(&retry).
+				Run()
+			if retry {
+				continue
+			}
+
+			// Fallback: let the user enter a full connection string.
+			fallback := promptFullSourceConnString(sourceHost, rec, defaultSchema)
+			if fallback != nil {
+				return fallback
+			}
+
+			fmt.Println(color.YellowString("  Proceeding without verified source connection."))
+			src.User = user
+			src.Password = password
+			return src
+		}
+
+		fmt.Println("  " + successLine(fmt.Sprintf("Connected to %s:%d", sourceHost, rec.Port)))
+		src.User = user
+		src.Password = password
+		return src
+	}
+}
+
+// promptFullSourceConnString asks the user for a full postgresql:// URL as a fallback when
+// the credentials-only path fails. Returns nil if the user skips.
+func promptFullSourceConnString(assessHost string, rec *yugabyted.AssessmentRecord, defaultSchema string) *sourceConfig {
+	var connStr string
+	err := huh.NewInput().
+		Title("Enter a full source PostgreSQL connection string (optional)").
+		Description(fmt.Sprintf("Source from assessment: %s:%d/%s\nFormat: postgresql://user:password@host:port/dbname\nLeave blank to skip verification.", assessHost, rec.Port, rec.DatabaseName)).
+		Value(&connStr).
+		Run()
+	if err != nil {
+		utils.ErrExit("prompt failed: %v", err)
+	}
+	connStr = strings.TrimSpace(connStr)
+	if connStr == "" {
+		return nil
+	}
+
+	parsed, parseErr := parsePostgresConnString(connStr)
+	if parseErr != nil {
+		fmt.Println(color.RedString("  Invalid connection string: %v", parseErr))
+		return nil
+	}
+
+	if err := validatePostgresConnection(connStr); err != nil {
+		fmt.Println(color.RedString("  Connection failed: %v", err))
+		fmt.Println(color.YellowString("  Proceeding without verified source connection."))
+		return &sourceConfig{
+			DBType: rec.DBType,
+			Host:   parsed.Host,
+			Port:   parsed.Port,
+			DBName: parsed.DBName,
+			User:   parsed.User,
+			Schema: defaultSchema,
+		}
+	}
+
+	schemas := parsed.Schema
+	if schemas == "" {
+		schemas = defaultSchema
+	}
+	fmt.Println("  " + successLine(fmt.Sprintf("Connected to %s:%d", parsed.Host, parsed.Port)))
+	return &sourceConfig{
+		DBType:   rec.DBType,
+		Host:     parsed.Host,
+		Port:     parsed.Port,
+		DBName:   parsed.DBName,
+		User:     parsed.User,
+		Password: parsed.Password,
+		Schema:   schemas,
+	}
 }
 
 // printBootstrapSummary prints progress checkmarks after bootstrapping from the control plane.
