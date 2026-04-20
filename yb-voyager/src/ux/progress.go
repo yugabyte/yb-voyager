@@ -189,6 +189,7 @@ func (t *ProgressTracker) runSpinner() {
 	for {
 		select {
 		case <-t.spinnerStop:
+			// This line clears the current line in the terminal:
 			fmt.Printf("\r\033[K")
 			return
 		default:

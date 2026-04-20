@@ -349,7 +349,7 @@ func assessMigration() (err error) {
 	startEvent := createMigrationAssessmentStartedEvent()
 	controlPlane.MigrationAssessmentStarted(startEvent)
 
-	tracker := ux.NewProgressTracker("Running Assessment")
+	tracker := ux.NewProgressTracker("Preparing for migration assessment")
 
 	// Stage 1: Gather metadata + export schema + load into DB
 	gatherStepCount := migassessment.CountPGGatherSteps()
