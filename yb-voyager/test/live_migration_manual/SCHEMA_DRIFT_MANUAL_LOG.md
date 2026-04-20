@@ -1,6 +1,6 @@
 # Schema drift manual log
 
-Database **`schema_drift`**, tables **`public.control_t`** / **`public.subject_t`**. Reset: run **`control_subject_baseline_schema.sql`** on **source and target** (empty tables); run **`control_subject_baseline_source_seeds.sql`** on **source only**. Or run **`control_subject_baseline.sql`** on source (schema + seeds in one go). Target must not run the seeds file. **Scenario C** adds **`public.side_t`** (with **PK**); **scenario D** adds **`public.nopk_side_t`** (**no PK**). Between runs drop on **both** sides: `DROP TABLE IF EXISTS public.side_t CASCADE;` and `DROP TABLE IF EXISTS public.nopk_side_t CASCADE;`. **Scenario E** renames **`public.subject_t`** → **`public.subject_renamed_t`** — afterward restore baseline (re-run schema + seeds) or reverse the renames on both sides so later scenarios stay comparable. **Scenario F** renames column **`note` → `note_renamed`** on **`public.subject_t`** on the **source** first — afterward restore baseline or **`RENAME COLUMN`** back on **both** sides so **`note`** exists again for other scenarios. **Scenario G** changes **`public.subject_t.score`** from **`INT`** to **`NUMERIC`** on the **source** first (see **prerequisite** in that section — **`score`** must exist on **both** sides). Afterward restore baseline or **`ALTER TABLE public.subject_t DROP COLUMN IF EXISTS score`** on **both** sides. **Scenario H** changes **`score`** from **`NUMERIC(10,2)`** to **`TEXT`** on the **source** first while the target stays **`NUMERIC`** (“**compatible**” in the sense that **string payloads often still cast** into **`NUMERIC`** on apply — record whether import stayed green). Same **`DROP COLUMN score`** / baseline cleanup afterward. **Scenario I** runs **`DROP TABLE public.subject_t`** on the **source** only (table is in the live migration set). **Destructive** for the lab DB — use a **full baseline** when you want **`subject_t`** back for **other** scenarios. **Do not** rely on **re-creating the old `subject_t` on the source** to “fix” export; use **mid-migration surgery** under **`<export-dir>/metainfo/`** so **stored lists + Debezium** match the **new** source catalog (**`control_t`** only, or whatever you keep). **Scenario J** drops the **nullable** column **`note`** (**`TEXT`**, no **`NOT NULL`**) on **`public.subject_t`** on the **source** first while the target keeps **`note`** — use a **fresh baseline** if **`subject_t`** is missing after **I**; afterward restore **`note`** with **`ALTER TABLE public.subject_t ADD COLUMN note TEXT`** on **both** sides or re-run **`control_subject_baseline_schema.sql`**. **Scenario K** drops a **`NOT NULL`** column on the **source** first (see its **prerequisite** — add **`tag`** on **both** sides); afterward **`DROP COLUMN IF EXISTS tag`** on **both** or re-baseline. **Scenario L** is the same **`DROP COLUMN`** skew as **K**, but the lagging target column is **`NOT NULL`** **without** any **`DEFAULT`** (see **prerequisite** — add **`tag2`** on **both** sides, backfill, **`SET NOT NULL`**, then **`DROP DEFAULT`**); afterward **`DROP COLUMN IF EXISTS tag2`** on **both** or re-baseline. **Scenario M** drops the **primary key** on **`public.subject_t`** on the **source** only (**`ALTER TABLE … DROP CONSTRAINT …`** on the **`PRIMARY KEY`**); afterward **`ADD PRIMARY KEY (id)`** on the **source** (and re-align the **target** if you changed it) or **full baseline** — live **`export data`** calls **`reportUnsupportedTablesForLiveMigration`** (`exportData.go`) and **`ErrExit`** if a captured table has **no PK** on the **source** when the table list is finalized. **Scenario N** adds a **new label** to a **PostgreSQL `ENUM`** on **`public.subject_t.phase`** on the **source** first while **YugabyteDB** keeps the **older** enum type definition — **`INSERT`**s using the **new** label fail on the target until **`ALTER TYPE … ADD VALUE`** (or equivalent) on **Yugabyte**; afterward **`DROP COLUMN IF EXISTS phase`** on **both** sides, then **`DROP TYPE IF EXISTS public.subject_phase_t CASCADE`** on **both** (after the column is gone), or re-baseline. **Scenario O** changes **`public.subject_t`**’s **primary key on the source only** (e.g. **`PRIMARY KEY (name)`** while **YugabyteDB** keeps **`PRIMARY KEY (id)`**) so live **`INSERT`** SQL built from **CDC `event.Key`** (**`ON CONFLICT (name)`**) no longer matches any **unique / PK** on the **target** — record the exact **SQLSTATE** / message; afterward restore **`PRIMARY KEY (id)`** on **PostgreSQL** (and drop the **`name`** PK) or re-baseline. Run **O** from a catalog where **`subject_t`** is still **`PK (id)`** on the **source** and **`name`** values are **unique** (baseline seeds satisfy this). **Scenario P** is **partition add** on **`public.part_t`** (mid-run capture + publication caveats). **Scenario Q** is **default change** on **`public.subject_t.flag`**. **Scenario R** is **target-only `NOT NULL`** on **`public.subject_t.strict_col`** (vs nullable source) — overlaps **L**’s “implicit null vs **`NOT NULL`**” theme for the **forward** path. **Scenario S** is **post-cutover fallback** (stream **Yugabyte → PostgreSQL**): **target** relaxes **`NOT NULL`** while **PostgreSQL** stays strict — **`NULL`** / omitted values from the **target** can fail on **import to source** (**`23502`**).
+Database **`schema_drift`**, tables **`public.control_t`** / **`public.subject_t`**. Reset: run **`control_subject_baseline_schema.sql`** on **source and target** (empty tables); run **`control_subject_baseline_source_seeds.sql`** on **source only**. Or run **`control_subject_baseline.sql`** on source (schema + seeds in one go). Target must not run the seeds file. **Scenario C** adds **`public.side_t`** (with **PK**); **scenario D** adds **`public.nopk_side_t`** (**no PK**). Between runs drop on **both** sides: `DROP TABLE IF EXISTS public.side_t CASCADE;` and `DROP TABLE IF EXISTS public.nopk_side_t CASCADE;`. **Scenario E** renames **`public.subject_t`** → **`public.subject_renamed_t`** — afterward restore baseline (re-run schema + seeds) or reverse the renames on both sides so later scenarios stay comparable. **Scenario F** renames column **`note` → `note_renamed`** on **`public.subject_t`** on the **source** first — afterward restore baseline or **`RENAME COLUMN`** back on **both** sides so **`note`** exists again for other scenarios. **Scenario G** changes **`public.subject_t.score`** from **`INT`** to **`NUMERIC`** on the **source** first (see **prerequisite** in that section — **`score`** must exist on **both** sides). Afterward restore baseline or **`ALTER TABLE public.subject_t DROP COLUMN IF EXISTS score`** on **both** sides. **Scenario H** changes **`score`** from **`NUMERIC(10,2)`** to **`TEXT`** on the **source** first while the target stays **`NUMERIC`** (“**compatible**” in the sense that **string payloads often still cast** into **`NUMERIC`** on apply — record whether import stayed green). Same **`DROP COLUMN score`** / baseline cleanup afterward. **Scenario I** runs **`DROP TABLE public.subject_t`** on the **source** only (table is in the live migration set). **Destructive** for the lab DB — use a **full baseline** when you want **`subject_t`** back for **other** scenarios. **Do not** rely on **re-creating the old `subject_t` on the source** to “fix” export; use **mid-migration surgery** under **`<export-dir>/metainfo/`** so **stored lists + Debezium** match the **new** source catalog (**`control_t`** only, or whatever you keep). **Scenario J** drops the **nullable** column **`note`** (**`TEXT`**, no **`NOT NULL`**) on **`public.subject_t`** on the **source** first while the target keeps **`note`** — use a **fresh baseline** if **`subject_t`** is missing after **I**; afterward restore **`note`** with **`ALTER TABLE public.subject_t ADD COLUMN note TEXT`** on **both** sides or re-run **`control_subject_baseline_schema.sql`**. **Scenario K** drops a **`NOT NULL`** column on the **source** first (see its **prerequisite** — add **`tag`** on **both** sides); afterward **`DROP COLUMN IF EXISTS tag`** on **both** or re-baseline. **Scenario L** is the same **`DROP COLUMN`** skew as **K**, but the lagging target column is **`NOT NULL`** **without** any **`DEFAULT`** (see **prerequisite** — add **`tag2`** on **both** sides, backfill, **`SET NOT NULL`**, then **`DROP DEFAULT`**); afterward **`DROP COLUMN IF EXISTS tag2`** on **both** or re-baseline. **Scenario M** drops the **primary key** on **`public.subject_t`** on the **source** only (**`ALTER TABLE … DROP CONSTRAINT …`** on the **`PRIMARY KEY`**); afterward **`ADD PRIMARY KEY (id)`** on the **source** (and re-align the **target** if you changed it) or **full baseline** — live **`export data`** calls **`reportUnsupportedTablesForLiveMigration`** (`exportData.go`) and **`ErrExit`** if a captured table has **no PK** on the **source** when the table list is finalized. **Scenario N** adds a **new label** to a **PostgreSQL `ENUM`** on **`public.subject_t.phase`** on the **source** first while **YugabyteDB** keeps the **older** enum type definition — **`INSERT`**s using the **new** label fail on the target until **`ALTER TYPE … ADD VALUE`** (or equivalent) on **Yugabyte**; afterward **`DROP COLUMN IF EXISTS phase`** on **both** sides, then **`DROP TYPE IF EXISTS public.subject_phase_t CASCADE`** on **both** (after the column is gone), or re-baseline. **Scenario O** changes **`public.subject_t`**’s **primary key on the source only** (e.g. **`PRIMARY KEY (name)`** while **YugabyteDB** keeps **`PRIMARY KEY (id)`**) so live **`INSERT`** SQL built from **CDC `event.Key`** (**`ON CONFLICT (name)`**) no longer matches any **unique / PK** on the **target** — record the exact **SQLSTATE** / message; afterward restore **`PRIMARY KEY (id)`** on **PostgreSQL** (and drop the **`name`** PK) or re-baseline. Run **O** from a catalog where **`subject_t`** is still **`PK (id)`** on the **source** and **`name`** values are **unique** (baseline seeds satisfy this). **Scenario P** is **partition add** on **`public.part_t`** (mid-run capture + publication caveats). **Scenario Q** is **default change** on **`public.subject_t.flag`**. **Scenario R** is **target-only `NOT NULL`** on **`public.subject_t.strict_col`** (vs nullable source) — overlaps **L**’s “implicit null vs **`NOT NULL`**” theme for the **forward** path. **Scenario S** is **post-cutover fallback** (stream **Yugabyte → PostgreSQL**): **target** relaxes **`NOT NULL`** while **PostgreSQL** stays strict — **`NULL`** / omitted values from the **target** can fail on **import to source** (**`23502`**). **Scenario T** is **`DETACH PARTITION`** on the **source** only (reuses `public.part_t` from **P**): a captured leaf partition is detached from its root on the source and becomes a **standalone** table. Debezium's `table.include.list` still contains the leaf name and voyager's `SourceRenameTablesMap` still maps the leaf back to the root — after detach this rename is semantically wrong (events from a now-standalone table get re-routed to a root the source no longer treats as its parent). Afterward **re-attach** on the **source** (`ALTER TABLE public.part_t ATTACH PARTITION public.part_t_p2 FOR VALUES FROM ('2026-04-01') TO ('2026-07-01');`) or re-baseline `part_t` on both sides.
 
 For each scenario: run the **DDL** on the side shown, wait and watch **export** / **import**. Then use the steps in order: **DML on source after resume**, then an **alignment** step (**DDL on the side that is behind** — not always sufficient; see **Findings** / **Final notes**), then **exit + resume**, then **more DML on source** to probe behavior. **Target-only DML** is not part of the CDC path for replicated tables; use **DML on source** to generate change events. All **source** SQL below is for **PostgreSQL** unless noted.
 
@@ -1837,3 +1837,155 @@ ALTER TABLE public.subject_t DROP COLUMN IF EXISTS fb_col;
 
 - **Failure (observed):** **PostgreSQL (importer)** stayed **`NOT NULL`** on **`fb_col`** while **Yugabyte** events carried **`NULL`** / omitted **`fb_col`** → **`23502`**.
 - **Workaround (observed):** **source-side** schema alignment (scenario **step 4**), then **resume** — catch-up OK.
+
+---
+
+## Scenario T — **`DETACH PARTITION`** on **source** only (leaf becomes standalone table)
+
+**Context:** Scenario **P** covered **adding** a new leaf partition mid-run. **T** is the mirror case: **detaching** an existing leaf partition on the **source** while the **target** still has it attached. Once a migration is running, voyager captures each leaf partition individually — Debezium's **`table.include.list`** names each leaf (e.g. **`public.part_t_p2`**), and voyager's **`SourceRenameTablesMap`** maps the leaf name back to the **root** (`public.part_t_p2 → public.part_t`) so target apply routes through the parent. After **`DETACH PARTITION`** on the **source**, the leaf is **no longer a child** of the root on the source — but voyager's capture set, publication, and rename map are unchanged. Events from the now-standalone leaf continue to stream, still rewritten to the root on the target. The **semantics** of that rename are broken.
+
+We reuse **`public.part_t`** from scenario **P**. Literals prefixed **`t_`**.
+
+### Prerequisite (both sides — baseline: `part_t` with `p1`, `p2`)
+
+If scenario **P** was already run and cleaned up, re-create `part_t` fresh on both sides **before** starting the migration (leaf partitions must be in the initial capture set):
+
+```sql
+DROP TABLE IF EXISTS public.part_t CASCADE;
+
+CREATE TABLE public.part_t (
+	id BIGINT NOT NULL,
+	day DATE NOT NULL,
+	name TEXT NOT NULL,
+	PRIMARY KEY (id, day)
+) PARTITION BY RANGE (day);
+
+CREATE TABLE public.part_t_p1 PARTITION OF public.part_t
+	FOR VALUES FROM ('2026-01-01') TO ('2026-04-01');
+
+CREATE TABLE public.part_t_p2 PARTITION OF public.part_t
+	FOR VALUES FROM ('2026-04-01') TO ('2026-07-01');
+```
+
+**Source-only (PostgreSQL):** voyager requires **`REPLICA IDENTITY FULL`** on the parent **and** each leaf:
+
+```sql
+ALTER TABLE public.part_t REPLICA IDENTITY FULL;
+ALTER TABLE public.part_t_p1 REPLICA IDENTITY FULL;
+ALTER TABLE public.part_t_p2 REPLICA IDENTITY FULL;
+```
+
+Optional seed (source only):
+
+```sql
+INSERT INTO public.part_t (id, day, name) VALUES
+	(101, '2026-01-15', 't_seed_p1'),
+	(102, '2026-04-15', 't_seed_p2');
+```
+
+### Steps
+
+**1. Start live migration** including **`public.part_t`** in the initial table list. Wait until snapshot import is done and CDC is flowing. Confirm a row routed through the root reaches the target correctly:
+
+```sql
+-- source
+INSERT INTO public.part_t (id, day, name) VALUES (103, '2026-04-20', 't_pre_detach_row');
+```
+
+**2. DDL (source) only** — detach the p2 leaf:
+
+```sql
+ALTER TABLE public.part_t DETACH PARTITION public.part_t_p2;
+```
+
+After this, on the **source**:
+- `public.part_t_p2` is a **standalone** table. It still exists, still holds its rows, still has `REPLICA IDENTITY FULL`, and is **still in the publication** voyager created.
+- `public.part_t` no longer has a partition for the `2026-04-01` → `2026-07-01` range — inserts through the parent for that range will fail with `no partition of relation "part_t" found for row`.
+
+**3. DML (source) — probe A**: insert directly into the now-standalone **`part_t_p2`**. Debezium will still emit a change event (table is in `table.include.list`); voyager will still rename it to `public.part_t` on apply:
+
+```sql
+INSERT INTO public.control_t (name) VALUES ('t_after_detach_ctl');
+INSERT INTO public.part_t_p2 (id, day, name) VALUES (104, '2026-04-25', 't_after_detach_direct_leaf');
+```
+
+**4. DML (source) — probe B**: try to route through the root for the old p2 range (expected to fail **on source** because p2 is no longer attached):
+
+```sql
+-- expected to fail on PostgreSQL with:
+--   ERROR: no partition of relation "part_t" found for row
+INSERT INTO public.part_t (id, day, name) VALUES (105, '2026-05-05', 't_after_detach_via_root');
+```
+
+**5. Exit + resume** `export data` and `import data`. Record whether voyager emits any warning about the leaf no longer being attached on the source (analogous to scenario **P**'s "Detected new partition tables…" prompt, but on the **drop** side).
+
+**6. DML (source) — probe C**: insert more rows into standalone **`part_t_p2`** after the resume and check where they land on the target:
+
+```sql
+INSERT INTO public.control_t (name) VALUES ('t_post_resume_ctl');
+INSERT INTO public.part_t_p2 (id, day, name) VALUES (106, '2026-04-28', 't_post_resume_direct_leaf');
+```
+
+**7. On target — observe**:
+- Does the row appear in `public.part_t` (root → routed into target's still-attached `part_t_p2`)? Or does it land nowhere?
+- Query both sides:
+
+```sql
+-- on both source and target
+SELECT 'source'   AS site, id, day, name FROM public.part_t_p2 ORDER BY id;
+SELECT 'combined' AS site, id, day, name FROM public.part_t   ORDER BY id;
+```
+
+**8. Target alignment attempt (DDL on Yugabyte)** — also detach p2 on the target so the two sides match structurally:
+
+```sql
+ALTER TABLE public.part_t DETACH PARTITION public.part_t_p2;
+```
+
+After target-side detach, CDC events for the leaf are still rewritten to the root on apply by `SourceRenameTablesMap`. On the target, the root no longer has p2 attached either — record whether apply fails (expected: `no partition of relation "part_t" found for row` on the **target** now, **`23514`**-class or partition routing error).
+
+**9. Exit + resume** and record the behavior. Note that mid-migration "remove leaf from capture set" surgery is the mirror of **P**'s "add leaf" surgery — neither is documented for end-users.
+
+### Cleanup (after **T**)
+
+Re-attach `p2` on both sides (or drop and re-baseline `part_t`):
+
+```sql
+-- on each side that was detached
+ALTER TABLE public.part_t ATTACH PARTITION public.part_t_p2
+	FOR VALUES FROM ('2026-04-01') TO ('2026-07-01');
+
+-- or nuke and restart:
+DROP TABLE IF EXISTS public.part_t CASCADE;
+```
+
+### Findings — T (detach partition, source ahead)
+
+> **Status: not yet run — fill `Observed` from an actual lab run before trusting `Why` / `Notes` below.** `Why` and `Notes` are **expectations** based on code paths (`SourceRenameTablesMap`, `SourceExportedTableListWithLeafPartitions`, Debezium `table.include.list`) and on the behavior recorded in scenario **P**.
+
+#### At a glance (expected)
+
+| When | Export | Import |
+|------|--------|--------|
+| After **source-only** `DETACH` of `part_t_p2` | Debezium still streams from standalone `part_t_p2` (unchanged include-list + publication) | Events get renamed to `part_t` by `SourceRenameTablesMap` → target routes through still-attached `part_t_p2` → **data lands in target `part_t_p2` even though source treats it as standalone** (silent semantic divergence) |
+| Source insert through **root** for p2 range | Fails on **source** (`no partition of relation "part_t" found for row`) → no event generated | Nothing to apply |
+| After **restart `export data`** | No current code path reports a **removed** leaf (mirror of the "new leaf" detector doesn't exist for detach). No warning expected. | Same as above |
+| After **target** also `DETACH`s `part_t_p2` | Export still OK | Apply fails: root `part_t` on target no longer has a partition for the p2 range → `no partition of relation "part_t" found for row` / partition routing error |
+
+#### Observed
+
+- _Not yet observed — pending test run._
+
+#### Why (from code)
+
+- Voyager builds the capture set + rename map **once** at migration setup: `exportData.go` stores `SourceExportedTableListWithLeafPartitions` and `SourceRenameTablesMap` in MSR, and feeds the leaf names into Debezium's `table.include.list`. Publication is created with the **leaf tables** added individually.
+- **`DETACH PARTITION`** on the source is a **pure catalog-level** change on PostgreSQL. It does **not** drop the table, does **not** remove it from the publication, does **not** change its `REPLICA IDENTITY`, and does **not** break logical replication.
+- Result: Debezium keeps streaming from the (now-standalone) leaf, voyager keeps renaming events to the root, and the target (still partitioned) silently routes them correctly. **Functionally invisible** on the happy path, but the **source-side semantics diverged** the moment detach happened: the source no longer considers the leaf part of `part_t`, while the pipeline does.
+- The "new leaf" detector at `detectAndReportNewLeafPartitionsOnPartitionedTables` in `exportData.go` has **no counterpart** for removed/detached leaves. So unlike scenario **P**, the user gets **no warning** on resume.
+
+#### Notes (expected)
+
+- **Failure (expected):** primarily **silent semantic drift** rather than an apply-time crash — data from a source-standalone table continues to flow into a target partition of the (unrelated on source) root. Crash only manifests when the target side also detaches, or when the source-side app switches to routing through the root (whose p2 range no longer exists on the source).
+- **Workaround (expected, mirrors P):** mid-migration surgery to remove the leaf from capture — `ALTER PUBLICATION <pub> DROP TABLE public.part_t_p2;`, remove it from `SourceExportedTableListWithLeafPartitions`, remove its entry from `SourceRenameTablesMap`, and update `name_registry.json`. End-users **cannot realistically do this**.
+- **Realistic workaround:** **restart the migration** with the desired partition structure. Or, if the detach was unintentional, **re-attach** `part_t_p2` on the source to restore semantics.
+- **Relation to other scenarios:** this is P0 in the same sense as scenario **P** (add partition) — both break voyager's partition capture inventory in ways that the exporter cannot self-heal and the user cannot fix without metadata surgery or a restart.
