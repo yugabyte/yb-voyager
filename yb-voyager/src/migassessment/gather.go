@@ -65,16 +65,20 @@ type progressTracker struct {
 	nodes        []string          // Ordered list of node names for consistent display
 	displayNames map[string]string // nodeName -> displayName
 	statuses     map[string]*NodeProgress
+	stepCounts   map[string]int // per-node completed step count
+	stepsTotal   int            // total steps per node (0 = unknown)
 	mutex        sync.Mutex
 	initialized  bool // Whether initial lines have been printed
 	maxNameLen   int  // Maximum length of display names for alignment
 }
 
-func newProgressTracker(nodes []collectionNode) *progressTracker {
+func newProgressTracker(nodes []collectionNode, stepsTotal int) *progressTracker {
 	tracker := &progressTracker{
 		nodes:        make([]string, 0, len(nodes)),
 		displayNames: make(map[string]string),
 		statuses:     make(map[string]*NodeProgress),
+		stepCounts:   make(map[string]int),
+		stepsTotal:   stepsTotal,
 		initialized:  false,
 		maxNameLen:   0,
 	}
@@ -120,12 +124,15 @@ func (pt *progressTracker) update(progress NodeProgress) {
 	pt.mutex.Lock()
 	defer pt.mutex.Unlock()
 
-	// Update only the stage, preserve the formatted & truncated display name
 	if existing := pt.statuses[progress.NodeName]; existing != nil {
+		// Increment step count on each new sub-step (not for terminal states)
+		if progress.Stage != "Complete" && progress.Stage != "Failed" &&
+			progress.Stage != "Pending..." && progress.Stage != existing.Stage {
+			pt.stepCounts[progress.NodeName]++
+		}
 		existing.Stage = progress.Stage
 	}
 
-	// Print/update display
 	pt.printAll()
 }
 
@@ -152,7 +159,6 @@ func (pt *progressTracker) printAll() {
 }
 
 func (pt *progressTracker) printSingleLine(progress NodeProgress) {
-	// Determine icon based on stage
 	var statusIcon string
 	switch progress.Stage {
 	case "Complete":
@@ -163,13 +169,24 @@ func (pt *progressTracker) printSingleLine(progress NodeProgress) {
 		statusIcon = "⏳"
 	}
 
-	// Look up display name from the map (already truncated in newProgressTracker)
 	displayName := pt.displayNames[progress.NodeName]
 
-	// Clear line and print with fixed-width column for name (for alignment)
-	// \r returns to start, \033[K clears to end of line
-	// Using %-*s for left-alignment with dynamic width based on longest (truncated) name
-	fmt.Printf("\r\033[K  %s %-*s %s\n", statusIcon, pt.maxNameLen+1, displayName+":", progress.Stage)
+	// Build stage text with step counter prefix
+	stageText := progress.Stage
+	if progress.Stage == "Complete" {
+		if pt.stepsTotal > 0 {
+			stageText = fmt.Sprintf("(%d/%d) Complete", pt.stepsTotal, pt.stepsTotal)
+		}
+	} else if progress.Stage != "Failed" && progress.Stage != "Pending..." {
+		step := pt.stepCounts[progress.NodeName]
+		if pt.stepsTotal > 0 {
+			stageText = fmt.Sprintf("(%d/%d) %s", step, pt.stepsTotal, progress.Stage)
+		} else {
+			stageText = fmt.Sprintf("(%d) %s", step, progress.Stage)
+		}
+	}
+
+	fmt.Printf("\r\033[K  %s %-*s %s\n", statusIcon, pt.maxNameLen+1, displayName+":", stageText)
 }
 
 // finalizeAndCheckResults processes the final results from all collection goroutines.
@@ -204,6 +221,7 @@ func GatherAssessmentMetadataFromPG(
 	pgssEnabled bool,
 	iopsInterval int64,
 	progressFn func(detail string),
+	stepsTotal int,
 ) error {
 	scriptPath, err := findGatherMetadataScriptPath(POSTGRESQL)
 	if err != nil {
@@ -261,8 +279,7 @@ func GatherAssessmentMetadataFromPG(
 	totalNodes := len(nodes)
 	log.Infof("collecting metadata from %d nodes in parallel...", totalNodes)
 
-	// Initialize progress tracker
-	tracker := newProgressTracker(nodes)
+	tracker := newProgressTracker(nodes, stepsTotal)
 
 	// Channel for progress updates
 	progressChan := make(chan NodeProgress, totalNodes*10) // Buffer for multiple updates per node
