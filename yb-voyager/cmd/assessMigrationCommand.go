@@ -248,6 +248,9 @@ func assessMigration() (err error) {
 		})
 	}
 	bannerRows = append(bannerRows, ux.BannerRow{Key: "Export directory", Value: exportDir})
+	if cfgFile != "" {
+		bannerRows = append(bannerRows, ux.BannerRow{Key: "Config file", Value: cfgFile})
+	}
 	if assessmentMetadataDirFlag != "" {
 		bannerRows = append(bannerRows, ux.BannerRow{Key: "Metadata directory", Value: assessmentMetadataDirFlag})
 	}

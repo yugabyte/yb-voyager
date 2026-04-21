@@ -54,10 +54,18 @@ type BannerRow struct {
 //	│  Export directory   /path/to/export                     │
 //	└──────────────────────────────────────────────────────────┘
 func PrintBanner(title string, rows []BannerRow) {
-	width := defaultBoxWidth
-	titleLen := len(title) + 4 // 2 padding + "│" on each side
+	keyWidth := 0
 	for _, r := range rows {
-		rowLen := len(r.Key) + len(r.Value) + 7 // "│  " + key + "  " + value + " │"
+		if len(r.Key) > keyWidth {
+			keyWidth = len(r.Key)
+		}
+	}
+
+	// "│  " + key (padded to keyWidth) + "  " + value + " │"  =  keyWidth + len(value) + 7
+	width := defaultBoxWidth
+	titleLen := len(title) + 4
+	for _, r := range rows {
+		rowLen := keyWidth + len(r.Value) + 7
 		if rowLen > width {
 			width = rowLen
 		}
@@ -65,7 +73,6 @@ func PrintBanner(title string, rows []BannerRow) {
 	if titleLen > width {
 		width = titleLen
 	}
-	// inner is the usable width between the "│" borders
 	inner := width - 2
 
 	top := "┌" + strings.Repeat("─", inner) + "┐"
@@ -78,22 +85,15 @@ func PrintBanner(title string, rows []BannerRow) {
 	if len(rows) > 0 {
 		BannerColor.Println(mid)
 
-		keyWidth := 0
 		for _, r := range rows {
-			if len(r.Key) > keyWidth {
-				keyWidth = len(r.Key)
-			}
-		}
-
-		for _, r := range rows {
-			padding := inner - 5 - keyWidth // "│  " + key + "  " + value + " │"
-			if padding < 0 {
-				padding = 0
+			valWidth := inner - keyWidth - 5
+			if valWidth < 0 {
+				valWidth = 0
 			}
 			BannerColor.Print("│  ")
 			DimColor.Printf("%-*s", keyWidth, r.Key)
 			BannerColor.Print("  ")
-			fmt.Printf("%-*s", padding, r.Value)
+			fmt.Printf("%-*s", valWidth, r.Value)
 			BannerColor.Println(" │")
 		}
 	}
