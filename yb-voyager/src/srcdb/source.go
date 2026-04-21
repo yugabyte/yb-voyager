@@ -108,9 +108,9 @@ func (s *Source) GetSchemaList() []string {
 	return sqlname.ExtractIdentifiersMinQuoted(s.Schemas)
 }
 
-// FetchDBSystemIdentifier fetches and stores the database system identifier
+// FetchPGDBSystemIdentifier fetches and stores the database system identifier
 // Currently only implemented for PostgreSQL
-func (s *Source) FetchDBSystemIdentifier() {
+func (s *Source) FetchPGDBSystemIdentifier() {
 	if s.DBType != "postgresql" {
 		return
 	}

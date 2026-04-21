@@ -524,7 +524,7 @@ func exportData() bool {
 	}
 
 	// Get PostgreSQL system identifier while still connected
-	source.FetchDBSystemIdentifier()
+	source.FetchPGDBSystemIdentifier()
 	source.FetchDBID()
 
 	msr, err := metaDB.GetMigrationStatusRecord()

@@ -152,7 +152,7 @@ func exportSchema(cmd *cobra.Command) error {
 	}
 
 	// Get PostgreSQL system identifier while still connected
-	source.FetchDBSystemIdentifier()
+	source.FetchPGDBSystemIdentifier()
 	source.FetchDBID()
 	utils.PrintAndLogf("%s version: %s\n", source.DBType, sourceDBVersion)
 

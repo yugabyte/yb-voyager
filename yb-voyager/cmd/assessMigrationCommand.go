@@ -416,7 +416,7 @@ func fetchSourceInfo() {
 	}
 
 	// Get PostgreSQL system identifier
-	source.FetchDBSystemIdentifier()
+	source.FetchPGDBSystemIdentifier()
 	source.FetchDBID()
 }
 

@@ -350,6 +350,16 @@ func (ora *Oracle) GetDatabaseSize() (int64, error) {
 	return dbSize.Int64, nil
 }
 
+func (ora *Oracle) FetchDBID() error {
+	var oid int64
+	err := ora.db.QueryRow(`SELECT DBID FROM V$DATABASE`).Scan(&oid)
+	if err != nil {
+		return err
+	}
+	ora.source.DBID = oid
+	return nil
+}
+
 func (ora *Oracle) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	var filteredTableList, unsupportedTableList []sqlname.NameTuple
 

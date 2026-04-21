@@ -287,6 +287,16 @@ func (ms *MySQL) GetDatabaseSize() (int64, error) {
 	return dbSize.Int64, nil
 }
 
+func (ms *MySQL) FetchDBID() error {
+	var oid int64
+	err := ms.db.QueryRow(`SELECT @@server_id`).Scan(&oid)
+	if err != nil {
+		return err
+	}
+	ms.source.DBID = oid
+	return nil
+}
+
 func (ms *MySQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	return tableList, nil
 }
