@@ -288,12 +288,7 @@ func (ms *MySQL) GetDatabaseSize() (int64, error) {
 }
 
 func (ms *MySQL) FetchDBID() error {
-	var oid int64
-	err := ms.db.QueryRow(`SELECT @@server_id`).Scan(&oid)
-	if err != nil {
-		return err
-	}
-	ms.source.DBID = oid
+	//Not implemented for mysql
 	return nil
 }
 

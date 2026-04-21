@@ -351,12 +351,7 @@ func (ora *Oracle) GetDatabaseSize() (int64, error) {
 }
 
 func (ora *Oracle) FetchDBID() error {
-	var oid int64
-	err := ora.db.QueryRow(`SELECT DBID FROM V$DATABASE`).Scan(&oid)
-	if err != nil {
-		return err
-	}
-	ora.source.DBID = oid
+	//Not implemented for oracle
 	return nil
 }
 
