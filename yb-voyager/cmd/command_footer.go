@@ -35,6 +35,7 @@ const (
 // StepProgress holds the computed progress for a single step within a phase.
 type StepProgress struct {
 	DisplayName string
+	Command     string // CLI subcommand, e.g. "schema export"
 	Done        bool
 }
 
@@ -101,6 +102,7 @@ func computePhaseStatuses(wf *Workflow, msr *metadb.MigrationStatusRecord, curre
 		}
 		pa.steps = append(pa.steps, StepProgress{
 			DisplayName: step.DisplayName,
+			Command:     step.Command,
 			Done:        done,
 		})
 	}
@@ -162,6 +164,58 @@ func formatPhaseLines(phases []PhaseProgress) []string {
 				}
 				lines = append(lines, fmt.Sprintf("    %s %s", stepMarker, stepName))
 			}
+		}
+	}
+	return lines
+}
+
+// formatPhaseLinesVerbose renders the phase progress with every phase's
+// sub-steps expanded (not just in-progress ones), and each sub-step annotated
+// with its voyager command wrapped in square brackets and rendered in cmdStyle.
+// cmdSuffix is appended to every command — typically " --migration-name <name>"
+// or " --export-dir <path>" so that each printed command is directly runnable.
+func formatPhaseLinesVerbose(phases []PhaseProgress, cmdSuffix string) []string {
+	// Width the step display name is right-padded to so bracketed commands
+	// line up in a readable column.
+	const stepNameWidth = 24
+
+	lines := make([]string, 0, len(phases)*4)
+	for _, p := range phases {
+		var marker, label string
+		switch p.Status {
+		case PhaseDone:
+			marker = phaseDoneMarker()
+			label = dimStyle.Render("done")
+		case PhaseInProgress:
+			marker = phaseActiveMarker()
+			label = "in progress"
+		case PhasePending:
+			marker = phasePendingMarker()
+			label = dimStyle.Render("pending")
+		}
+		lines = append(lines, fmt.Sprintf("%s %-10s %s", marker, p.Name, label))
+
+		for _, s := range p.Steps {
+			var stepMarker, stepName string
+			if s.Done {
+				stepMarker = phaseDoneMarker()
+				stepName = dimStyle.Render(fmt.Sprintf("%-*s", stepNameWidth, s.DisplayName))
+			} else {
+				stepMarker = phasePendingMarker()
+				stepName = fmt.Sprintf("%-*s", stepNameWidth, s.DisplayName)
+			}
+
+			var cmdCell string
+			if s.Command != "" {
+				fullCmd := "[yb-voyager " + s.Command + cmdSuffix + "]"
+				if s.Done {
+					cmdCell = dimStyle.Render(fullCmd)
+				} else {
+					cmdCell = cmdStyle.Render(fullCmd)
+				}
+			}
+
+			lines = append(lines, fmt.Sprintf("    %s %s  %s", stepMarker, stepName, cmdCell))
 		}
 	}
 	return lines

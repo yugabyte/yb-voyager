@@ -27,6 +27,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 )
 
+var statusVerbose bool
+
 var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show migration status and progress",
@@ -44,6 +46,8 @@ Shows two sections:
 func init() {
 	rootCmd.AddCommand(statusCmd)
 	registerCommonGlobalFlags(statusCmd)
+	statusCmd.Flags().BoolVarP(&statusVerbose, "verbose", "v", false,
+		"show each step's command inside the phase tree (offline workflow only)")
 }
 
 func runStatus() {
@@ -73,7 +77,7 @@ func runStatus() {
 	printMigrationDetails(v, msr)
 
 	// ── Section 2: Migration Progress ──
-	printMigrationProgress(v, msr)
+	printMigrationProgress(v, msr, statusVerbose)
 
 	fmt.Println()
 }
@@ -118,7 +122,10 @@ func printMigrationDetails(v *viper.Viper, msr *metadb.MigrationStatusRecord) {
 }
 
 // printMigrationProgress renders Section 2 with phase tree, last command, and next step.
-func printMigrationProgress(v *viper.Viper, msr *metadb.MigrationStatusRecord) {
+// When verbose is true AND the active workflow is offline, the phase tree is expanded
+// to show every step and its voyager command. For any other workflow, verbose is a no-op
+// and the compact tree is rendered as usual.
+func printMigrationProgress(v *viper.Viper, msr *metadb.MigrationStatusRecord, verbose bool) {
 	wf := resolveWorkflow(msr)
 
 	// Use empty currentStepID — we want status purely from MSR, not from a running command.
@@ -128,7 +135,12 @@ func printMigrationProgress(v *viper.Viper, msr *metadb.MigrationStatusRecord) {
 
 	// Phase tree
 	if len(phases) > 0 {
-		progress = append(progress, formatPhaseLines(phases)...)
+		if verbose && wf.Name == "offline" {
+			cmdSuffix := buildConfigFlag() + buildMigrationNameFlag()
+			progress = append(progress, formatPhaseLinesVerbose(phases, cmdSuffix)...)
+		} else {
+			progress = append(progress, formatPhaseLines(phases)...)
+		}
 	}
 
 	padding := strings.Repeat(" ", kvWidth+1)

@@ -219,6 +219,7 @@ func continueStartMigration(v *viper.Viper) {
 	if targetConnStringFlag != "" {
 		targetParsed = parseAndValidateTarget(targetConnStringFlag)
 	} else {
+		printTargetSizingReminder(exportDirPath)
 		var targetConnString string
 		for {
 			err := huh.NewInput().
@@ -280,12 +281,12 @@ func continueStartMigration(v *viper.Viper) {
 		}
 	} else {
 		err := huh.NewSelect[string]().
-			Title("Select your data migration workflow").
+			Title("Choose your data migration strategy").
 			Options(
-				huh.NewOption("Offline — One-time snapshot; requires downtime", "offline"),
-				huh.NewOption("Live — Minimal downtime using change data capture", "live"),
-				huh.NewOption("Live with fall-back — Can switch back to source if needed", "live-fall-back"),
-				huh.NewOption("Live with fall-forward — Can switch to a source-replica if needed", "live-fall-forward"),
+				huh.NewOption("I'm ok with ~hours of downtime (offline snapshot migration)", "offline"),
+				huh.NewOption("I want minimal downtime (live)", "live"),
+				huh.NewOption("I want minimal downtime and ability to fall-back to source (live-fall-back)", "live-fall-back"),
+				huh.NewOption("I want minimal downtime and ability to fall-forward to a source-replica (live-fall-forward)", "live-fall-forward"),
 			).
 			Value(&workflow).
 			Run()
@@ -301,7 +302,37 @@ func continueStartMigration(v *viper.Viper) {
 	printConfiguringSection(targetParsed, workflow, startMigrationConfigFile)
 
 	// ── Section 5: What's Next ──
-	printStartMigrationNextSteps(startMigrationConfigFile, v, workflow)
+	// For offline migrations we render the full verbose Migration Progress
+	// tree (same view as `yb-voyager status --verbose`) so the user sees the
+	// complete sequence of commands up front. That tree already includes the
+	// explicit "Next Step:" block, so we skip the separate "What's Next"
+	// section for offline. Other workflows keep the existing behavior.
+	if workflow == "offline" {
+		printStartMigrationVerboseProgress(exportDirPath, v)
+	} else {
+		printStartMigrationNextSteps(startMigrationConfigFile, v, workflow)
+	}
+}
+
+// printStartMigrationVerboseProgress renders the verbose Migration Progress
+// section at the end of `start` for the offline workflow. It best-effort
+// loads the MigrationStatusRecord so completed steps (e.g., Assess) show as
+// done; if metaDB isn't available yet, the tree renders with everything
+// pending, which is still accurate as a plan preview.
+func printStartMigrationVerboseProgress(exportDirPath string, v *viper.Viper) {
+	var msr *metadb.MigrationStatusRecord
+	if metaDB == nil && metaDBIsCreated(exportDirPath) {
+		metaDB = initMetaDB(exportDirPath)
+	}
+	if metaDB != nil {
+		if loaded, err := metaDB.GetMigrationStatusRecord(); err == nil {
+			msr = loaded
+		} else {
+			log.Warnf("failed to load migration status record for verbose progress: %v", err)
+		}
+	}
+	printMigrationProgress(v, msr, true)
+	fmt.Println()
 }
 
 // extractHostIP parses the host_ip field from the control plane, which is stored as
@@ -696,6 +727,22 @@ func printConfiguringSection(target *parsedConnInfo, workflow, configFilePath st
 	time.Sleep(500 * time.Millisecond)
 	fmt.Println()
 	fmt.Println("  " + successStyle.Render("Done!"))
+	fmt.Println()
+}
+
+// printTargetSizingReminder prints a one-line sizing reminder above the target
+// connection prompt so users who haven't provisioned the cluster yet see the
+// recommendation again before typing a connection string. Silent when no
+// sizing info is available.
+func printTargetSizingReminder(exportDirPath string) {
+	assessmentReportPath := filepath.Join(exportDirPath, "assessment", "reports",
+		fmt.Sprintf("%s.json", ASSESSMENT_FILE_NAME))
+	sizingInfo := loadAssessmentSizing(assessmentReportPath)
+	if sizingInfo == "" {
+		return
+	}
+	fmt.Println("  " + dimStyle.Render("Assessment recommends: "+sizingInfo+"."))
+	fmt.Println("  " + dimStyle.Render("If your target cluster isn't provisioned yet, set it up and re-run."))
 	fmt.Println()
 }
 
