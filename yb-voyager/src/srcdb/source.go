@@ -24,7 +24,6 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -126,24 +125,6 @@ func (s *Source) FetchPGDBSystemIdentifier() {
 	} else {
 		log.Infof("callhome: failed to get PostgreSQL system identifier: %v", err)
 	}
-}
-
-// FetchDBID fetches and stores a numeric database identifier for call-home when the source exposes one; otherwise leaves 0.
-//   - postgresql, yugabytedb: pg_database.oid for the current database (unique per DB within the cluster).
-//   - oracle: DBID from v$database.
-//   - mysql: 0 (no comparable stable id for call-home).
-func (s *Source) FetchDBID() {
-	if s.DBType != constants.POSTGRESQL && s.DBType != constants.YUGABYTEDB {
-		return
-	}
-	s.DBID = 0
-	var oid int64
-	err := s.DB().QueryRow(`SELECT oid FROM pg_database WHERE datname = current_database()`).Scan(&oid)
-	if err != nil {
-		log.Infof("callhome: failed to get database id: %v", err)
-		return
-	}
-	s.DBID = oid
 }
 
 func (s *Source) IsOracleCDBSetup() bool {

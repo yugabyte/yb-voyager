@@ -417,7 +417,10 @@ func fetchSourceInfo() {
 
 	// Get PostgreSQL system identifier
 	source.FetchPGDBSystemIdentifier()
-	source.FetchDBID()
+	err = source.DB().FetchDBID()
+	if err != nil {
+		log.Errorf("error getting database id: %v", err) //can just log as this is used for call-home only
+	}
 }
 
 func SetMigrationAssessmentDoneInMSR() error {
