@@ -522,34 +522,51 @@ func promptSourceCredentialsForBootstrap(rec *yugabyted.AssessmentRecord, source
 	fmt.Println("  Enter credentials to connect (host/port/dbname are reused from the assessment).")
 	fmt.Println()
 
+	envPwd, envPwdSet := os.LookupEnv("SOURCE_DB_PASSWORD")
+
 	for {
-		var user, password string
-		if envPwd, ok := os.LookupEnv("SOURCE_DB_PASSWORD"); ok {
-			password = envPwd
+		var input string
+		title := "Source DB credentials (user:password)"
+		desc := "If your password contains ':', only the first ':' is treated as the separator. Leave password empty for a passwordless user."
+		if envPwdSet {
+			title = "Source DB user"
+			desc = "Password will be read from SOURCE_DB_PASSWORD env var."
 		}
 
 		if err := huh.NewInput().
-			Title("Source DB user").
-			Value(&user).
+			Title(title).
+			Description(desc).
+			Value(&input).
 			Validate(func(s string) error {
-				if strings.TrimSpace(s) == "" {
+				s = strings.TrimSpace(s)
+				if s == "" {
 					return fmt.Errorf("user is required")
+				}
+				if !envPwdSet {
+					// When password is being entered inline, insist on a
+					// username before the ':' — catches empty-user inputs
+					// like ":secret".
+					if strings.HasPrefix(s, ":") {
+						return fmt.Errorf("user is required before ':'")
+					}
 				}
 				return nil
 			}).
 			Run(); err != nil {
 			utils.ErrExit("prompt failed: %v", err)
 		}
-		user = strings.TrimSpace(user)
+		input = strings.TrimSpace(input)
 
-		if password == "" {
-			if err := huh.NewInput().
-				Title("Source DB password").
-				Description("Leave blank if the user has no password, or press Ctrl+C and re-run with SOURCE_DB_PASSWORD env var").
-				EchoMode(huh.EchoModePassword).
-				Value(&password).
-				Run(); err != nil {
-				utils.ErrExit("prompt failed: %v", err)
+		var user, password string
+		if envPwdSet {
+			user = input
+			password = envPwd
+		} else {
+			// Split only on the first ':' so passwords with additional ':' survive.
+			parts := strings.SplitN(input, ":", 2)
+			user = parts[0]
+			if len(parts) == 2 {
+				password = parts[1]
 			}
 		}
 
