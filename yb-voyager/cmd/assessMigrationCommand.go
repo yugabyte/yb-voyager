@@ -353,7 +353,14 @@ func assessMigration() (err error) {
 
 	// Stage 1: Gather metadata + export schema + load into DB
 	gatherStepCount := migassessment.CountPGGatherSteps()
-	tracker.StartStage("Gathering metadata", gatherStepCount)
+	hasReplicas := len(validatedReplicaEndpoints) > 0
+	if hasReplicas {
+		// Parallel replica path uses its own internal progress display,
+		// so set up the stage without a spinner to avoid a duplicate line.
+		tracker.PrepareStage("Gathering metadata", gatherStepCount)
+	} else {
+		tracker.StartStage("Gathering metadata", gatherStepCount)
+	}
 	initAssessmentDB()
 	err = gatherAssessmentMetadata(validatedReplicaEndpoints, func(detail string) {
 		if detail != "Complete" {

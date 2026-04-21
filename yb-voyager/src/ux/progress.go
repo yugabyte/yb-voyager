@@ -95,21 +95,37 @@ func (t *ProgressTracker) StartStage(name string, totalSteps int) {
 	defer t.mu.Unlock()
 
 	t.stopSpinnerLocked()
+	t.initStageLocked(name, totalSteps)
+	t.spinnerStop = make(chan struct{})
+	t.spinnerDone = make(chan struct{})
+	go t.runSpinner()
+}
 
+// PrepareStage sets up stage state, prints the section header and a static
+// stage heading (e.g. "  Gathering metadata (12 steps)") but does NOT start a
+// spinner. Use this when external code (e.g. the parallel replica tracker)
+// will handle its own progress display. Call CompleteStage when done.
+func (t *ProgressTracker) PrepareStage(name string, totalSteps int) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	t.stopSpinnerLocked()
+	t.initStageLocked(name, totalSteps)
+
+	StageColor.Printf("  %s\n", t.spinnerLabel())
+}
+
+func (t *ProgressTracker) initStageLocked(name string, totalSteps int) {
 	if !t.headerPrinted {
 		fmt.Println()
 		BoldColor.Println(t.headerLabel)
 		t.headerPrinted = true
 	}
-
 	t.stageName = name
 	t.subStage = ""
 	t.stepsTotal = totalSteps
 	t.stepsDone = 0
 	t.linesPrinted = 0
-	t.spinnerStop = make(chan struct{})
-	t.spinnerDone = make(chan struct{})
-	go t.runSpinner()
 }
 
 // IncrementStep finalizes the previous sub-step (prints it with a checkmark
