@@ -64,7 +64,7 @@ postgresql://yugabyte:yugabyte@localhost:5433/dbx
 postgresql://yugabyte:yugabyte@10.9.15.135:5433
 
 yb-voyager new --control-plane 'postgresql://yugabyte:yugabyte@10.9.15.135:5433'
-yb-voyager start --migration-name mydb --control-plane 'postgresql://yugabyte:yugabyte@10.9.15.135:5433'
+yb-voyager start --migration-name pg-dby --control-plane 'postgresql://yugabyte:yugabyte@10.9.15.135:5433'
 
 
 clean up

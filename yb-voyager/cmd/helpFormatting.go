@@ -33,9 +33,15 @@ type subcommandGroup struct {
 // Commands not listed in any group are appended at the end.
 var parentHelpGroups = map[string][]subcommandGroup{
 	"data": {
-		{Title: "Core", Commands: []string{"export", "import", "import-file", "status"}},
+		{Title: "Migrate Data to Target", Commands: []string{"export", "import", "import-file"}},
 		{Title: "Fall-back & Fall-forward", Commands: []string{"export-from-target", "import-to-source", "import-to-replica"}},
-		{Title: "Maintenance", Commands: []string{"archive-changes"}},
+		{Title: "Utility", Commands: []string{"archive-changes", "status"}},
+	},
+	"schema": {
+		{Title: "Available Commands", Commands: []string{"export", "analyze", "import", "finalize-post-data-import"}},
+	},
+	"cutover": {
+		{Title: "Available Commands", Commands: []string{"prepare-target", "prepare-source", "prepare-replica", "status"}},
 	},
 }
 

@@ -112,8 +112,8 @@ func extractYBVersion(versionStr string) (string, error) {
 
 var cutoverToTargetCmd = &cobra.Command{
 	Use:   "prepare-target",
-	Short: "Initiate cutover to target DB",
-	Long:  `Initiate cutover to target DB`,
+	Short: "Prepare for cutover to target DB.",
+	Long:  `Prepare for cutover to target DB.`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		var err error
