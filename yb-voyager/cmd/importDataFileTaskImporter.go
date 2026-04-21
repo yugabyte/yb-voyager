@@ -217,6 +217,10 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 		// an empty batch is possible in case there are errors while reading and procesing rows in the file
 		// and the errors are handled by the error handler.
 		log.Infof("Skipping empty batch: %s", spew.Sdump(batch))
+		err = batch.MarkInProgress()
+		if err != nil {
+			utils.ErrExit("marking empty batch as in progress: %q: %s", batch.FilePath, err)
+		}
 		err = batch.MarkDone()
 		if err != nil {
 			utils.ErrExit("marking empty batch as done: %q: %s", batch.FilePath, err)
