@@ -298,6 +298,13 @@ func continueStartMigration(v *viper.Viper) {
 	// Update config file
 	updateConfigWithTargetAndWorkflow(startMigrationConfigFile, v, targetParsed, workflow)
 
+	// Re-read the config file so downstream code (targetConfigured, Migration
+	// Plan rendering, etc.) sees the freshly-written target details instead of
+	// the stale template defaults.
+	if err := v.ReadInConfig(); err != nil {
+		log.Warnf("failed to re-read config file after target update: %v", err)
+	}
+
 	// ── Section 4: Configuring Migration (progressive checkmarks) ──
 	printConfiguringSection(targetParsed, workflow, startMigrationConfigFile)
 
@@ -331,7 +338,7 @@ func printStartMigrationVerboseProgress(exportDirPath string, v *viper.Viper) {
 			log.Warnf("failed to load migration status record for verbose progress: %v", err)
 		}
 	}
-	printMigrationProgress(v, msr, true)
+	printMigrationProgressWithTitle(v, msr, true, "Migration Plan")
 	fmt.Println()
 }
 

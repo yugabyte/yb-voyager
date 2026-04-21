@@ -29,6 +29,7 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/fatih/color"
 	"github.com/jackc/pgx/v5"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -656,7 +657,9 @@ func readConfigTemplate(templateName string) (string, error) {
 // generateConfigFile reads the offline-migration.yaml template, fills in the source
 // connection details via string replacement, and writes it as the project config file.
 // controlPlaneConn is an optional control plane connection string; if non-empty,
-// the assess.control-plane field is populated with this value.
+// the yugabyted-control-plane.db-conn-string field is populated with this value.
+// This is the single source of truth for the control plane connection used by
+// every yb-voyager command (assess, export, import, analyze, status, end, ...).
 func generateConfigFile(configFilePath, exportDirPath string, src *sourceConfig, tgt *targetConfig, controlPlaneConn ...string) {
 	content, err := readConfigTemplate("offline-migration.yaml")
 	if err != nil {
@@ -668,32 +671,21 @@ func generateConfigFile(configFilePath, exportDirPath string, src *sourceConfig,
 	content = replaceConfigValue(content, "export-dir:", "<export-dir-path>", exportDirPath)
 
 	// --- Control plane section ---
-	// If a control plane connection string was provided, populate the
-	// assess.control-plane field (not the global control plane config).
+	// Overwrite the default db-conn-string under yugabyted-control-plane:. The
+	// template ships with "127.0.0.1:5433" as the default; if the user passed
+	// --control-plane we swap that one line to point at their remote yugabyted.
 	cpConnStr := ""
 	if len(controlPlaneConn) > 0 && controlPlaneConn[0] != "" {
 		cpConnStr = controlPlaneConn[0]
 	}
 	if cpConnStr != "" {
-		// Try replacing the commented-out placeholder first (new template)
-		newVal := fmt.Sprintf("control-plane: %s", cpConnStr)
-		replaced := strings.Replace(content,
-			"# control-plane: postgresql://yugabyte:yugabyte@127.0.0.1:5433",
-			newVal, 1)
-		if replaced != content {
-			content = replaced
-		} else {
-			// Fallback for older templates that don't have the placeholder:
-			// inject the field right after the "assess:" section header.
-			marker := "assess:\n"
-			idx := strings.Index(content, marker)
-			if idx != -1 {
-				insertAt := idx + len(marker)
-				content = content[:insertAt] +
-					fmt.Sprintf("\n  ### Connection string for the control plane\n  %s\n", newVal) +
-					content[insertAt:]
-			}
+		defaultCP := "db-conn-string: postgresql://yugabyte:yugabyte@127.0.0.1:5433"
+		newCP := fmt.Sprintf("db-conn-string: %s", cpConnStr)
+		replaced := strings.Replace(content, defaultCP, newCP, 1)
+		if replaced == content {
+			log.Warnf("could not inject --control-plane into config: expected line %q not found in template", defaultCP)
 		}
+		content = replaced
 	}
 
 	// --- Source replacements ---

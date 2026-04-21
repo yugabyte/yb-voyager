@@ -62,7 +62,6 @@ var (
 	sourceReadReplicaEndpoints       string                              // CLI flag - package variable for Cobra binding
 	primaryOnly                      bool                                // CLI flag - package variable for Cobra binding
 	replicaDiscoveryInfoForCallhome  *migassessment.ReplicaDiscoveryInfo // Stored for error callhome
-	controlPlaneConnStr              string                              // yugabyted connection string for assessment metadata ingestion
 )
 
 var sourceConnectionFlags = []string{
@@ -91,12 +90,12 @@ var assessMigrationCmd = &cobra.Command{
 			utils.ErrExit("failed to get migration UUID: %w", err)
 		}
 
-		// Set up yugabyted control plane for assessment metadata ingestion
-		os.Setenv("YUGABYTED_DB_CONN_STRING", controlPlaneConnStr)
-		err = setControlPlane(YUGABYTED)
-		if err != nil {
-			utils.ErrExit("failed to set up assessment control plane: %w", err)
-		}
+		// NOTE: the control plane is initialised once in the root command's
+		// PersistentPreRun based on `control-plane-type` / CONTROL_PLANE_TYPE
+		// and `yugabyted-control-plane.db-conn-string` / YUGABYTED_DB_CONN_STRING
+		// from the config. Every yb-voyager command — including assess —
+		// shares that one initialisation. Do not re-bind a different control
+		// plane here; it would silently shadow the config.
 
 		validateSourceDBTypeForAssessMigration()
 		setExportFlagsDefaults()
@@ -218,8 +217,10 @@ func init() {
 	assessMigrationCmd.Flags().BoolVar(&primaryOnly, "primary-only", false,
 		"assess only the primary database, skip read replica discovery and assessment (only valid for PostgreSQL).")
 
-	assessMigrationCmd.Flags().StringVar(&controlPlaneConnStr, "control-plane", "postgresql://yugabyte:yugabyte@127.0.0.1:5433",
-		"Connection string for the yugabyted control plane to ingest assessment metadata into.")
+	// NOTE: the former `--control-plane` flag was removed in favor of a single
+	// control plane configured at project creation time (`yb-voyager new
+	// --control-plane <url>`) and stored as yugabyted-control-plane.db-conn-string
+	// in config.yaml. The same connection is used by every command.
 }
 
 // createMigrationAssessmentStartedEvent creates a migration assessment started event
@@ -397,9 +398,14 @@ func printAssessMigrationFooter() {
 	wf := resolveWorkflow(msr)
 	phases := computePhaseStatuses(wf, msr, StepAssess)
 
+	// Derive the yugabyted UI host from the single source of truth —
+	// yugabyted-control-plane.db-conn-string (mapped onto YUGABYTED_DB_CONN_STRING
+	// by config.go). This is the same connection every command uses.
 	uiHost := "localhost"
-	if parsed, err := url.Parse(controlPlaneConnStr); err == nil && parsed.Hostname() != "" {
-		uiHost = parsed.Hostname()
+	if ybdConn := os.Getenv("YUGABYTED_DB_CONN_STRING"); ybdConn != "" {
+		if parsed, err := url.Parse(ybdConn); err == nil && parsed.Hostname() != "" {
+			uiHost = parsed.Hostname()
+		}
 	}
 	uiURL := fmt.Sprintf("http://%s:15433/migrations?migration_uuid=%s", uiHost, migrationUUID.String())
 

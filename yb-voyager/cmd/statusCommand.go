@@ -126,6 +126,20 @@ func printMigrationDetails(v *viper.Viper, msr *metadb.MigrationStatusRecord) {
 // to show every step and its voyager command. For any other workflow, verbose is a no-op
 // and the compact tree is rendered as usual.
 func printMigrationProgress(v *viper.Viper, msr *metadb.MigrationStatusRecord, verbose bool) {
+	printMigrationProgressWithTitle(v, msr, verbose, "Migration Progress")
+}
+
+// printMigrationProgressWithTitle is like printMigrationProgress but lets the caller
+// override the section title (e.g., "Migration Plan" at the end of `start`).
+func printMigrationProgressWithTitle(v *viper.Viper, msr *metadb.MigrationStatusRecord, verbose bool, title string) {
+	lines := buildMigrationProgressLines(v, msr, verbose)
+	printSection(title, lines...)
+}
+
+// buildMigrationProgressLines builds the body of the Migration Progress / Migration Plan
+// section: phase tree (compact or verbose), Last Command, Next Step, and a helpful
+// placeholder when no MSR is available.
+func buildMigrationProgressLines(v *viper.Viper, msr *metadb.MigrationStatusRecord, verbose bool) []string {
 	wf := resolveWorkflow(msr)
 
 	// Use empty currentStepID — we want status purely from MSR, not from a running command.
@@ -136,8 +150,11 @@ func printMigrationProgress(v *viper.Viper, msr *metadb.MigrationStatusRecord, v
 	// Phase tree
 	if len(phases) > 0 {
 		if verbose && wf.Name == "offline" {
-			cmdSuffix := buildConfigFlag() + buildMigrationNameFlag()
-			progress = append(progress, formatPhaseLinesVerbose(phases, cmdSuffix)...)
+			// Only --migration-name is emitted in plan commands. --export-dir
+			// is intentionally omitted because it's unset at start-time and
+			// the migration name is sufficient for every downstream command
+			// (auto-resolves to the registered migration dir).
+			progress = append(progress, formatPhaseLinesVerbose(phases, buildMigrationNameFlag())...)
 		} else {
 			progress = append(progress, formatPhaseLines(phases)...)
 		}
@@ -171,7 +188,7 @@ func printMigrationProgress(v *viper.Viper, msr *metadb.MigrationStatusRecord, v
 		progress = append(progress, dimStyle.Render("Migration has not started yet. Run assess to begin."))
 	}
 
-	printSection("Migration Progress", progress...)
+	return progress
 }
 
 // resolveNextStepForStatus determines the next step to display.
