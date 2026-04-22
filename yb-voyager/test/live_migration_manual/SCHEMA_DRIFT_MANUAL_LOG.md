@@ -1885,14 +1885,22 @@ INSERT INTO public.part_t (id, day, name) VALUES
 
 ### Steps
 
-**1. Start live migration** including **`public.part_t`** in the initial table list. Wait until snapshot import is done and CDC is flowing. Confirm a row routed through the root reaches the target correctly:
+Every DML block below pairs a **`control_t`** insert (canary — proves the pipeline is alive) with **`part_t`** / **`part_t_p2`** inserts (the actual probes). Use the literal names to grep logs / rows afterwards.
+
+**1. Start live migration** including **`public.part_t`** in the initial table list. Wait until snapshot import is done and CDC is flowing.
+
+**1a. Baseline DML (source)** — confirm a row routed **through the root** reaches the target correctly (pre-detach sanity check):
 
 ```sql
--- source
-INSERT INTO public.part_t (id, day, name) VALUES (103, '2026-04-20', 't_pre_detach_row');
+INSERT INTO public.control_t (name) VALUES ('t_pre_detach_ctl_1');
+INSERT INTO public.part_t     (id, day, name) VALUES (103, '2026-04-20', 't_pre_detach_via_root');
+INSERT INTO public.part_t_p2  (id, day, name) VALUES (150, '2026-04-21', 't_pre_detach_direct_leaf');
+INSERT INTO public.control_t (name) VALUES ('t_pre_detach_ctl_2');
 ```
 
-**2. DDL (source) only** — detach the p2 leaf:
+Verify on target that **both** `103` and `150` landed in `public.part_t` / `public.part_t_p2`.
+
+**2. DDL (source) only** — detach the `p2` leaf:
 
 ```sql
 ALTER TABLE public.part_t DETACH PARTITION public.part_t_p2;
@@ -1902,49 +1910,86 @@ After this, on the **source**:
 - `public.part_t_p2` is a **standalone** table. It still exists, still holds its rows, still has `REPLICA IDENTITY FULL`, and is **still in the publication** voyager created.
 - `public.part_t` no longer has a partition for the `2026-04-01` → `2026-07-01` range — inserts through the parent for that range will fail with `no partition of relation "part_t" found for row`.
 
-**3. DML (source) — probe A**: insert directly into the now-standalone **`part_t_p2`**. Debezium will still emit a change event (table is in `table.include.list`); voyager will still rename it to `public.part_t` on apply:
+**3. DML (source) — probe A (direct-to-standalone-leaf)**: insert directly into the now-standalone **`part_t_p2`**. Debezium will still emit a change event (table is in `table.include.list`); voyager will still rename it to `public.part_t` on apply:
 
 ```sql
-INSERT INTO public.control_t (name) VALUES ('t_after_detach_ctl');
-INSERT INTO public.part_t_p2 (id, day, name) VALUES (104, '2026-04-25', 't_after_detach_direct_leaf');
+INSERT INTO public.control_t (name) VALUES ('t_after_detach_ctl_1');
+INSERT INTO public.part_t_p2 (id, day, name) VALUES (104, '2026-04-25', 't_after_detach_direct_leaf_1');
+INSERT INTO public.part_t_p2 (id, day, name) VALUES (151, '2026-05-10', 't_after_detach_direct_leaf_2');
+INSERT INTO public.part_t_p2 (id, day, name) VALUES (152, '2026-06-15', 't_after_detach_direct_leaf_3');
+INSERT INTO public.control_t (name) VALUES ('t_after_detach_ctl_2');
 ```
 
-**4. DML (source) — probe B**: try to route through the root for the old p2 range (expected to fail **on source** because p2 is no longer attached):
+Verify on target where rows `104` / `151` / `152` landed (root `part_t`? target's `part_t_p2`? both?).
+
+**4. DML (source) — probe B (through-root, p2 range)**: try to route through the root for the old p2 range — expected to fail **on source** because `p2` is no longer attached:
 
 ```sql
--- expected to fail on PostgreSQL with:
---   ERROR: no partition of relation "part_t" found for row
+-- expected: ERROR: no partition of relation "part_t" found for row
 INSERT INTO public.part_t (id, day, name) VALUES (105, '2026-05-05', 't_after_detach_via_root');
 ```
 
-**5. Exit + resume** `export data` and `import data`. Record whether voyager emits any warning about the leaf no longer being attached on the source (analogous to scenario **P**'s "Detected new partition tables…" prompt, but on the **drop** side).
-
-**6. DML (source) — probe C**: insert more rows into standalone **`part_t_p2`** after the resume and check where they land on the target:
+**5. DML (source) — probe C (through-root, still-attached p1 range)**: confirm the root is still healthy for ranges whose partition is still attached (sanity check — proves the DETACH error is **range-specific**, not a broken root):
 
 ```sql
-INSERT INTO public.control_t (name) VALUES ('t_post_resume_ctl');
-INSERT INTO public.part_t_p2 (id, day, name) VALUES (106, '2026-04-28', 't_post_resume_direct_leaf');
+INSERT INTO public.control_t (name) VALUES ('t_p1_still_ok_ctl');
+INSERT INTO public.part_t (id, day, name) VALUES (107, '2026-02-15', 't_after_detach_via_root_p1');
 ```
 
-**7. On target — observe**:
-- Does the row appear in `public.part_t` (root → routed into target's still-attached `part_t_p2`)? Or does it land nowhere?
-- Query both sides:
+Row `107` should land in `p1` on both sides normally.
+
+**6. Exit + resume** `export data` and `import data`. Record whether voyager emits any warning about the leaf no longer being attached on the source (analogous to scenario **P**'s "Detected new partition tables…" prompt, but on the **drop** side).
+
+**7. DML (source) after resume — probe D**: insert more rows into standalone `part_t_p2` and into the root (p1 range) to see if the pipeline is steady after a clean bounce:
 
 ```sql
--- on both source and target
-SELECT 'source'   AS site, id, day, name FROM public.part_t_p2 ORDER BY id;
-SELECT 'combined' AS site, id, day, name FROM public.part_t   ORDER BY id;
+INSERT INTO public.control_t (name) VALUES ('t_post_resume_ctl_1');
+INSERT INTO public.part_t_p2 (id, day, name) VALUES (108, '2026-04-28', 't_post_resume_direct_leaf_1');
+INSERT INTO public.part_t_p2 (id, day, name) VALUES (153, '2026-06-28', 't_post_resume_direct_leaf_2');
+INSERT INTO public.part_t    (id, day, name) VALUES (109, '2026-02-20', 't_post_resume_via_root_p1');
+INSERT INTO public.control_t (name) VALUES ('t_post_resume_ctl_2');
 ```
 
-**8. Target alignment attempt (DDL on Yugabyte)** — also detach p2 on the target so the two sides match structurally:
+**8. On target — observe the state** after probes A, C, D:
+
+```sql
+-- on BOTH source and target
+SELECT 'leaf'     AS via, id, day, name FROM public.part_t_p2 ORDER BY id;
+SELECT 'combined' AS via, id, day, name FROM public.part_t    ORDER BY id;
+-- on target only — check whether leaf rows are reachable via the root (partition routing still works if target still has p2 attached)
+SELECT 'tgt root' AS via, id, day, name FROM public.part_t WHERE id IN (104, 151, 152, 108, 153) ORDER BY id;
+```
+
+Diff the two sites. Any row missing on the target (or landing in an unexpected partition) is the silent-divergence signal.
+
+**9. Target alignment attempt (DDL on Yugabyte)** — also detach `p2` on the target so the two sides match structurally:
 
 ```sql
 ALTER TABLE public.part_t DETACH PARTITION public.part_t_p2;
 ```
 
-After target-side detach, CDC events for the leaf are still rewritten to the root on apply by `SourceRenameTablesMap`. On the target, the root no longer has p2 attached either — record whether apply fails (expected: `no partition of relation "part_t" found for row` on the **target** now, **`23514`**-class or partition routing error).
+After target-side detach, CDC events for the leaf are still rewritten to the root on apply by `SourceRenameTablesMap`. On the target, the root no longer has p2 attached either — expect partition-routing failure on apply.
 
-**9. Exit + resume** and record the behavior. Note that mid-migration "remove leaf from capture set" surgery is the mirror of **P**'s "add leaf" surgery — neither is documented for end-users.
+**10. DML (source) — probe E (after target alignment)**: generate fresh events that the rewritten-to-root apply path now has nowhere to land on the target:
+
+```sql
+INSERT INTO public.control_t (name) VALUES ('t_after_tgt_detach_ctl');
+INSERT INTO public.part_t_p2 (id, day, name) VALUES (110, '2026-05-02', 't_after_tgt_detach_leaf_1');
+INSERT INTO public.part_t_p2 (id, day, name) VALUES (154, '2026-06-02', 't_after_tgt_detach_leaf_2');
+```
+
+Record the exact importer error (expected: `no partition of relation "part_t" found for row` on the **target** now, or a `23514`-class partition-routing error).
+
+**11. Exit + resume** and record whether the error persists. Note that mid-migration "remove leaf from capture set" surgery is the mirror of **P**'s "add leaf" surgery — neither is documented for end-users.
+
+**12. Final DML probe — is the pipeline still recoverable?** After steps **9**–**11**, try a root-range insert that has **nothing to do with p2** to confirm whether the whole pipeline is stuck or only p2 events are failing:
+
+```sql
+INSERT INTO public.control_t (name) VALUES ('t_final_ctl');
+INSERT INTO public.part_t (id, day, name) VALUES (111, '2026-03-10', 't_final_via_root_p1');
+```
+
+Row `111` should still apply on target (its partition `p1` is untouched on both sides) — if it does not, apply is blocked on the earlier p2 error.
 
 ### Cleanup (after **T**)
 
@@ -1961,31 +2006,105 @@ DROP TABLE IF EXISTS public.part_t CASCADE;
 
 ### Findings — T (detach partition, source ahead)
 
-> **Status: not yet run — fill `Observed` from an actual lab run before trusting `Why` / `Notes` below.** `Why` and `Notes` are **expectations** based on code paths (`SourceRenameTablesMap`, `SourceExportedTableListWithLeafPartitions`, Debezium `table.include.list`) and on the behavior recorded in scenario **P**.
+> **Status: run through step 11 — step 12 (final root-at-p1 liveness probe) pending.** Steps 1–11 are observed. `Why` / `Notes` are grounded in those observations plus code paths (`SourceRenameTablesMap`, `SourceExportedTableListWithLeafPartitions`, Debezium `table.include.list`).
 
-#### At a glance (expected)
+#### At a glance
 
 | When | Export | Import |
 |------|--------|--------|
-| After **source-only** `DETACH` of `part_t_p2` | Debezium still streams from standalone `part_t_p2` (unchanged include-list + publication) | Events get renamed to `part_t` by `SourceRenameTablesMap` → target routes through still-attached `part_t_p2` → **data lands in target `part_t_p2` even though source treats it as standalone** (silent semantic divergence) |
-| Source insert through **root** for p2 range | Fails on **source** (`no partition of relation "part_t" found for row`) → no event generated | Nothing to apply |
-| After **restart `export data`** | No current code path reports a **removed** leaf (mirror of the "new leaf" detector doesn't exist for detach). No warning expected. | Same as above |
-| After **target** also `DETACH`s `part_t_p2` | Export still OK | Apply fails: root `part_t` on target no longer has a partition for the p2 range → `no partition of relation "part_t" found for row` / partition routing error |
+| After **source-only** `DETACH` of `part_t_p2` (step 2) | OK — Debezium keeps streaming from standalone `part_t_p2` (unchanged include-list + publication) | OK — events rewritten to `part_t` by `SourceRenameTablesMap` apply cleanly into target's still-attached `part_t_p2` (silent semantic divergence only) |
+| Source direct insert into standalone `part_t_p2` (probe A, step 3) | OK — event emitted as usual | OK — row visible on target via both `part_t_p2` **and** root `part_t` |
+| Source insert via **root** for p2 range (probe B, step 4) | **Fails on source**: `ERROR: no partition of relation "part_t" found for row` — no event generated | Nothing to apply |
+| Source insert via **root** for still-attached p1 range (probe C, step 5) | OK | OK — lands in target `part_t_p1` |
+| **Exit + resume** after source DETACH (step 6) | OK — no warning about removed leaf | OK — pipeline resumes cleanly |
+| Post-resume inserts (probe D, step 7) | OK | OK — direct-to-leaf and root-at-p1 both replicate |
+| **Target** also `DETACH`s `part_t_p2` + resume (step 9) | OK | OK — resume clean on its own (no events in-flight for detached range at that moment) |
+| Source direct insert into standalone `part_t_p2` after **both** sides detached (probe E, step 10) | OK — event emitted | **Apply fails: `SQLSTATE 23514` — `no partition of relation "part_t" found for row`** |
+| **Exit + resume** after the 23514 (step 11) | OK | **Still fails — same 23514 on the same batch.** Pipeline is **stuck**; resume alone cannot heal it |
+| **Re-`ATTACH` `p2` on target** + resume (recovery) | OK | **OK — the previously-failing batch drains, all queued events apply.** Pipeline recovers without any voyager-internal surgery |
 
 #### Observed
 
-- _Not yet observed — pending test run._
+- **Step 1a (pre-detach baseline):** control-table and partitioned-table inserts via both the root (`103`) and the leaf (`150`) replicated normally; both rows visible on target.
+- **Step 2 (`DETACH` on source):** succeeded instantly; no immediate exporter/importer error, no log warning, pipeline kept running.
+- **Step 3 (probe A — direct-to-standalone-leaf):** inserts into the now-standalone `public.part_t_p2` replicated **cleanly** to the target. `control_t` canaries interleaved fine. **No apply failure.**
+- **Step 4 (probe B — through-root, p2 range):** blocked **on source**:
+  ```
+  schema_drift=# INSERT INTO public.part_t (id, day, name) VALUES (105, '2026-05-05', 't_after_detach_via_root');
+  ERROR:  no partition of relation "part_t" found for row
+  DETAIL:  Partition key of the failing row contains (day) = (2026-05-05).
+  ```
+  No event ever reaches Debezium, so nothing reaches the target either.
+- **Step 6 (exit + resume after source-only DETACH):** clean. Voyager did **not** emit any warning about the detached leaf — the mirror of the "Detected new partition tables…" prompt does **not exist** for the drop side.
+- **Step 9 (target-side `DETACH` + resume):** also worked fine on its own — no error at the moment of DETACH, resume clean.
+- **Step 10 (probe E — direct-to-standalone-leaf after both sides detached):** apply **failed** on the first event:
+  ```
+  error executing batch on channel 71: error executing batch:
+    error preparing statements for events in batch (18:18) or when executing event with vsn(18):
+    ERROR: no partition of relation "part_t" found for row (SQLSTATE 23514)
+  ```
+  i.e. Debezium emitted the event from standalone source `part_t_p2`, voyager rewrote it to `part_t` via `SourceRenameTablesMap`, and the target's root `part_t` (with p2 no longer attached) rejected it.
+- **Step 11 (exit + resume after the 23514):** **resume does not help.** The offending batch is replayed and fails with the same `23514` every time. The pipeline is **stuck** until the target regains a partition covering the p2 range (or the event is removed via mid-migration surgery, or the migration is restarted).
+- **Recovery (re-attach `p2` on target):** running
+  ```sql
+  -- on YugabyteDB (target)
+  ALTER TABLE public.part_t ATTACH PARTITION public.part_t_p2
+      FOR VALUES FROM ('2026-04-01') TO ('2026-07-01');
+  ```
+  and then resuming `import data` **cleared the stuck batch on the next apply**. All queued events drained; no voyager-internal edits were required. Source stayed detached (standalone `part_t_p2`); the rewrite-to-root in `SourceRenameTablesMap` now lands correctly because the target root owns the p2 range again.
+- _Step 12 (final root-at-p1 liveness probe) still pending — expected: after the recovery above, a `control_t` or root-at-p1 insert flows normally._
 
-#### Why (from code)
+#### Why (from code) — root cause
 
-- Voyager builds the capture set + rename map **once** at migration setup: `exportData.go` stores `SourceExportedTableListWithLeafPartitions` and `SourceRenameTablesMap` in MSR, and feeds the leaf names into Debezium's `table.include.list`. Publication is created with the **leaf tables** added individually.
-- **`DETACH PARTITION`** on the source is a **pure catalog-level** change on PostgreSQL. It does **not** drop the table, does **not** remove it from the publication, does **not** change its `REPLICA IDENTITY`, and does **not** break logical replication.
-- Result: Debezium keeps streaming from the (now-standalone) leaf, voyager keeps renaming events to the root, and the target (still partitioned) silently routes them correctly. **Functionally invisible** on the happy path, but the **source-side semantics diverged** the moment detach happened: the source no longer considers the leaf part of `part_t`, while the pipeline does.
-- The "new leaf" detector at `detectAndReportNewLeafPartitionsOnPartitionedTables` in `exportData.go` has **no counterpart** for removed/detached leaves. So unlike scenario **P**, the user gets **no warning** on resume.
+Three facts combine to produce the stuck-pipeline behavior in step 10:
 
-#### Notes (expected)
+1. **Voyager's partition inventory is fixed at export start.** In `exportData.go`, during the initial setup:
+   - Each **leaf partition** is resolved and added individually to Debezium's `table.include.list`.
+   - The leaf → root mapping is persisted once as `SourceRenameTablesMap["public.part_t_p2"] = "public.part_t"` in MSR (`meta.db → json_objects → migration_status`), and `SourceExportedTableListWithLeafPartitions` records every leaf.
+   - The PostgreSQL publication voyager manages is created with each leaf added as an individual table.
+   - There is a "new leaf" detector (`detectAndReportNewLeafPartitionsOnPartitionedTables`) that warns when leaves appear mid-run (scenario **P**), but there is **no counterpart** for leaves that disappear / detach. Voyager is therefore **blind to `DETACH PARTITION`**.
 
-- **Failure (expected):** primarily **silent semantic drift** rather than an apply-time crash — data from a source-standalone table continues to flow into a target partition of the (unrelated on source) root. Crash only manifests when the target side also detaches, or when the source-side app switches to routing through the root (whose p2 range no longer exists on the source).
-- **Workaround (expected, mirrors P):** mid-migration surgery to remove the leaf from capture — `ALTER PUBLICATION <pub> DROP TABLE public.part_t_p2;`, remove it from `SourceExportedTableListWithLeafPartitions`, remove its entry from `SourceRenameTablesMap`, and update `name_registry.json`. End-users **cannot realistically do this**.
-- **Realistic workaround:** **restart the migration** with the desired partition structure. Or, if the detach was unintentional, **re-attach** `part_t_p2` on the source to restore semantics.
-- **Relation to other scenarios:** this is P0 in the same sense as scenario **P** (add partition) — both break voyager's partition capture inventory in ways that the exporter cannot self-heal and the user cannot fix without metadata surgery or a restart.
+2. **`DETACH PARTITION` on PostgreSQL is catalog-only.** It does not drop the table, not remove it from any publication, not change `REPLICA IDENTITY`, not break logical replication. The detached table keeps its OID, its replica identity, and its publication membership. **Debezium keeps streaming from it as if nothing happened.**
+
+3. **Voyager rewrites every leaf event to the root on apply.** `SourceRenameTablesMap` is applied unconditionally in the importer — events from `public.part_t_p2` become INSERTs against `public.part_t`, and the target's partition-routing is responsible for placing the row in the correct child partition.
+
+As long as the **target root still owns the range**, facts 1–3 are self-consistent and the pipeline stays green (silent divergence only — steps 2–7). The moment the **target** also detaches `p2` (step 9), the root no longer owns the `2026-04-01 … 2026-07-01` range. Any subsequent event from standalone source `part_t_p2` is rewritten to `part_t` and PostgreSQL-compatible partition routing on YB rejects it with **`SQLSTATE 23514 — no partition of relation "part_t" found for row`**.
+
+Resume cannot recover because:
+
+- The failing batch stays at the head of the import queue.
+- Voyager's rename map is still `public.part_t_p2 → public.part_t`, and it is **not** user-configurable at runtime.
+- Nothing on the target DB changes between retries → same batch, same rewrite, same error.
+
+So the stuck state is caused by a **mismatch between voyager's pinned-at-startup capture inventory (leaves rewritten to root) and the live target catalog (root no longer covers the leaf's range)**. Fix: make the two agree again — either by undoing the target-side DETACH, or by rebuilding voyager's inventory to treat `part_t_p2` as its own table.
+
+#### Notes — failure modes and workarounds
+
+**Failure modes (in order they appear in the run):**
+
+- **Failure mode 1 — silent semantic drift** (source-only DETACH, steps 2–7, observed): data from a source-standalone `part_t_p2` continues to flow into the target root `part_t` and lands in the target's still-attached `part_t_p2`. Voyager emits **no warning** on resume. Pipeline stays green, but source and target have diverged semantically.
+- **Failure mode 2 — source-side app error** (probe B, step 4, observed): if the source application routes through the root for a range whose partition is no longer attached, PostgreSQL rejects the insert on the source itself. No event is emitted. Pure source-side issue, voyager is not involved.
+- **Failure mode 3 — target-side apply crash after both sides detach** (probe E, steps 9–11, observed): events from standalone source `part_t_p2` rewritten to `part_t` hit `SQLSTATE 23514` on the target root. **Resume does not recover** — the pipeline is stuck until voyager's inventory and the target catalog are reconciled.
+
+**Workarounds — three options, from cheapest to heaviest:**
+
+1. **Re-attach `part_t_p2` on the target (preferred — observed to work).** Run
+   ```sql
+   -- on YugabyteDB (target)
+   ALTER TABLE public.part_t ATTACH PARTITION public.part_t_p2
+       FOR VALUES FROM ('2026-04-01') TO ('2026-07-01');
+   ```
+   and resume `import data`. The stuck batch drains on the next retry because the target root now owns the p2 range again. No voyager-internal edits required. Source can stay detached — this puts the pipeline back into the "silent semantic drift" state of steps 2–7, which is at least green. This is the **realistic end-user fix** for failure mode 3.
+
+2. **Restart the migration.** The right option if the `DETACH` was **intentional** and the end-state is *"`part_t_p2` should be a standalone table, not a partition of `part_t`"* on both sides post-cutover. Voyager's initial capture set and rename map would need to be rebuilt from scratch against the new structure — only a restart produces a consistent inventory. Re-attach (option 1) is only a temporary unblock for this case.
+
+3. **Mid-migration surgery (last resort — not realistic for end-users).** Stop export/import, back up `meta.db` and `name_registry.json`, then:
+   - `ALTER PUBLICATION <voyager_pub> DROP TABLE public.part_t_p2;` on the source.
+   - Remove `public.part_t_p2` from `SourceExportedTableListWithLeafPartitions` in MSR (`meta.db → json_objects → migration_status`).
+   - Delete `SourceRenameTablesMap["public.part_t_p2"]`.
+   - Remove `part_t_p2` from `SourceDBTableNames.public[]` and `YBTableNames.public[]` in `name_registry.json`.
+   - Advance / skip the offending queue segment if the stuck batch is still in-flight (otherwise the same `23514` replays after surgery).
+
+   Use only if option 1 is not possible (e.g. target `part_t_p2` has data outside the original range, so `ATTACH` would fail) and you cannot afford a restart. End-users cannot realistically perform these edits.
+
+**Relation to other scenarios:** this is P0 in the same sense as scenario **P** (add partition) — both break voyager's partition capture inventory in ways the exporter cannot self-heal and that users cannot fix without surgery or a restart. The difference: **P** silently drops rows at export; **T** silently diverges (source-only detach) or hard-stops at apply with no retry path (both-sides detach). Unlike the other P0 scenarios, however, **T has a clean non-surgical escape hatch (option 1 above) as long as the target partition can be re-attached.**

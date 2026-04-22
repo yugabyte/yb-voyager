@@ -54,7 +54,7 @@ These drifts corrupt the pipeline's internal metadata or bypass its capture set.
 | 4 | Table | **Drop table** | Source | S vs S | Export fails (`42P01` on `reltuples`). Stale refs in MSR, Debezium config, schema files, queue segments, `postdata.sql`. | Restart migration (without the table) | I |
 | 5 | Table | **Add partition** (new leaf) | Source | S vs S | Exporter detects and **ignores** new partition. Rows routed there are **silently lost**. Publication not updated. | Restart migration with partition present | P |
 | 6 | PK | **Drop primary key** | Source | S vs S | Export: no-PK guardrail → `ErrExit`. Import: `42601` (`ON CONFLICT ()` is invalid SQL). | Re-add PK on Source, or restart | M |
-| 7 | Table | **Detach partition** | Source | S vs S | Partition was in Debezium `table.include.list` and `SourceRenameTablesMap`. After detach it becomes a standalone table — rename mapping to root is now semantically wrong. Events may still arrive under the leaf name but get misrouted. | Restart migration | *To be tested* |
+| 7 | Table | **Detach partition** | Source | S vs S | **Silent divergence** while Target keeps the partition (no warning — `SourceRenameTablesMap` still rewrites leaf → root, Target routes the row correctly). If Target **also** detaches, import hits **`23514`** (`no partition of relation "part_t" found for row`) and the pipeline is **stuck** — resume replays the same batch. | **Re-attach partition on Target** (observed to unblock import); else restart migration, or mid-migration surgery (publication + MSR + `name_registry`) | T |
 
 **Key observation:** every P0 scenario is **Source-side drift**. They all break the exporter's internal table/capture inventory. **S vs S** detection catches **all** of them.
 
