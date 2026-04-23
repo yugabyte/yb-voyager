@@ -307,6 +307,11 @@ fetch_release_data() {
 }
 
 check_java() {
+	// if skip-debezium is true, then skip the java check
+	if [ $SKIP_DEBEZIUM == "true" ] ; then
+		return
+	fi
+
 	if [ -z "$JAVA_HOME" ]; then
 		JAVA_BINARY="java"
 	else
