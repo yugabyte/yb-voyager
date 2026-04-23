@@ -2088,11 +2088,11 @@ func buildRootToLeafPartitionsMap(partitionsToRootTableMap map[string]string, fi
 	for leafQualified, rootQualified := range partitionsToRootTableMap {
 		leafTuple, ok := tableToUnQuotedMap[leafQualified]
 		if !ok {
-			return nil, fmt.Errorf("lookup leaf partition %q", leafQualified)
+			return nil, goerrors.Errorf("lookup leaf partition %q", leafQualified)
 		}
 		rootTuple, ok := tableToUnQuotedMap[rootQualified]
 		if !ok {
-			return nil, fmt.Errorf("lookup root partition %q", rootQualified)
+			return nil, goerrors.Errorf("lookup root partition %q", rootQualified)
 		}
 		leaves, ok := rootToLeafPartitions.Get(rootTuple)
 		if !ok {

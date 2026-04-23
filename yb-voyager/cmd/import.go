@@ -136,7 +136,6 @@ func validateImportUsePartitionRootFlag() error {
 			return goerrors.Errorf("--use-partition-root flag is only valid for PostgreSQL and YugabyteDB source databases")
 		}
 	}
-	fmt.Printf("importUsePartitionRoot: %t\n", bool(importUsePartitionRoot))
 	return metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.ImportUsePartitionRoot = bool(importUsePartitionRoot)
 	})
