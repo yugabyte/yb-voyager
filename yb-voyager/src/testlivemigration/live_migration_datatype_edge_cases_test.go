@@ -1,6 +1,6 @@
 //go:build integration_live_migration
 
-package cmd
+package testlivemigration
 
 import (
 	"context"

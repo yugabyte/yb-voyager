@@ -222,12 +222,12 @@ func workflowEndedForDB(db *metadb.MetaDB, dir string) bool {
 	if err != nil {
 		utils.ErrExit("error getting migration status record: %v", err)
 	}
-	if getCutoverStatus(db) != COMPLETED {
+	if GetCutoverStatus(db) != COMPLETED {
 		return false
 	}
 	switch true {
 	case msr.FallbackEnabled:
-		return getCutoverToSourceStatus(dir, db) == COMPLETED
+		return GetCutoverToSourceStatus(dir, db) == COMPLETED
 	case msr.FallForwardEnabled:
 		return getCutoverToSourceReplicaStatus(db) == COMPLETED
 	}
