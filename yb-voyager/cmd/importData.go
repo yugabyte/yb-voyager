@@ -982,8 +982,7 @@ func initialiseImportTableList(importFileTasks []*ImportFileTask, msr *metadb.Mi
 		//otherwise use the tables from msr
 		// tablesToImport := lo.Ternary(importSnapshotRequired(), importFileTasksToTableNameTuples(importFileTasks), importTableList) 
 		checkTablesPresentInTarget(importTableList)//to check whether tables exist or not we should use importTableList in live migration case
-g
-		fmt.Printf("importTableList: %v\n", importTableList)
+
 		// When use-partition-root=false, verify that partitions are consistent between source and target
 		if !importUsePartitionRoot {
 			checkPartitionConsistency(msr, importTableList)
