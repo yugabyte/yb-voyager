@@ -185,10 +185,12 @@ func anonymizeQualifiedTableNames(tableNames []string) []string {
 // anonymizeSourceDBDetails creates anonymized source DB details for callhome
 func anonymizeSourceDBDetails(source *srcdb.Source) callhome.SourceDBDetails {
 	details := callhome.SourceDBDetails{
+		PayloadVersion:     callhome.SOURCE_DB_DETAILS_PAYLOAD_VERSION,
 		DBType:             source.DBType,
 		DBVersion:          source.DBVersion,
 		DBSize:             source.DBSize,
 		DBSystemIdentifier: source.DBSystemIdentifier,
+		DBID:               source.DBID,
 	}
 
 	// Anonymize database name
