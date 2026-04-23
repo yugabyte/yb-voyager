@@ -122,6 +122,11 @@ var importDataCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("Error validating import data flags: %s", err.Error())
 		}
+
+		err = validateImportUsePartitionRootFlag()
+		if err != nil {
+			utils.ErrExit("Error validating --use-partition-root flag: %s", err.Error())
+		}
 	},
 	Run: importDataCommandFn,
 }
@@ -423,7 +428,7 @@ func checkPartitionConsistency(msr *metadb.MigrationStatusRecord) {
 	}
 
 	log.Infof("Checking partition consistency between source and target (use-partition-root=false)")
-	
+
 	// Get list of partitions from MSR (source partitions)
 	sourcePartitions := make(map[string]bool)
 	for leafPartition := range msr.SourceRenameTablesMap {
@@ -957,7 +962,7 @@ func initialiseImportTableList(importFileTasks []*ImportFileTask, msr *metadb.Mi
 		//otherwise use the tables from msr
 		tablesToImport := lo.Ternary(importSnapshotRequired(), importFileTasksToTableNameTuples(importFileTasks), importTableList)
 		checkTablesPresentInTarget(tablesToImport)
-		
+
 		// When use-partition-root=false, verify that partitions are consistent between source and target
 		if !importUsePartitionRoot {
 			checkPartitionConsistency(msr)

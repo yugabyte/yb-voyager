@@ -26,6 +26,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -35,7 +36,7 @@ var sourceDBType string
 var enableOrafce utils.BoolStr
 var importType string
 var prometheusMetricsPort int
-var importUsePartitionRoot = true // default is true for backward compatibility
+var importUsePartitionRoot utils.BoolStr // default is true for backward compatibility
 
 var supportedSSLModesOnTargetForImport = AllSSLModes // supported SSL modes for YugabyteDB is different for import VS export data from target(streaming phase)
 var supportedSSLModesOnSourceOrSourceReplica = AllSSLModes
@@ -115,11 +116,6 @@ func validateImportDataFlags() error {
 		return err
 	}
 
-	err = validateImportUsePartitionRootFlag()
-	if err != nil {
-		return fmt.Errorf("error validating --use-partition-root flag: %w", err)
-	}
-
 	return nil
 }
 
@@ -140,7 +136,10 @@ func validateImportUsePartitionRootFlag() error {
 			return goerrors.Errorf("--use-partition-root flag is only valid for PostgreSQL and YugabyteDB source databases")
 		}
 	}
-	return nil
+	fmt.Printf("importUsePartitionRoot: %t\n", bool(importUsePartitionRoot))
+	return metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.ImportUsePartitionRoot = bool(importUsePartitionRoot)
+	})
 }
 
 var validCdcPartitioningStrategies = []string{"pk", "table", "auto"}
@@ -323,11 +322,11 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &truncateSplits, "truncate-splits", true,
 		"Truncate splits after importing")
 	cmd.Flags().MarkHidden("truncate-splits")
-	cmd.Flags().BoolVar(&importUsePartitionRoot, "use-partition-root", true,
-	"[PostgreSQL/YugabyteDB only] For partitioned tables during live migration:\n"+
-		"  - true (default): insert data via the root table using the root table's PK for ON CONFLICT.\n"+
-		"  - false: insert data directly into child partitions using their PKs. Useful when the root table\n"+
-		"    has no PK but child partitions do.")
+	BoolVar(cmd.Flags(), &importUsePartitionRoot, "use-partition-root", true,
+		"[PostgreSQL/YugabyteDB only] For partitioned tables during live migration:\n"+
+			"  - true (default): insert data via the root table using the root table's PK for ON CONFLICT.\n"+
+			"  - false: insert data directly into child partitions using their PKs. Useful when the root table\n"+
+			"    has no PK but child partitions do.")
 }
 
 func registerImportDataToTargetFlags(cmd *cobra.Command) {

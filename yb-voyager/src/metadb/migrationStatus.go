@@ -120,7 +120,7 @@ type MigrationStatusRecord struct {
 	ExportDataFromSourceStarted bool `json:"ExportDataFromSourceStarted"`
 	ImportDataToTargetStarted   bool `json:"ImportDataToTargetStarted"`
 
-	ImportUsePartitionRoot *bool `json:"ImportUsePartitionRoot,omitempty"` // nil or true means use root table for partitions (default); false means insert directly into child partitions
+	ImportUsePartitionRoot bool `json:"ImportUsePartitionRoot"` // nil or true means use root table for partitions (default); false means insert directly into child partitions
 }
 
 type CutoverTimingRecord struct {
@@ -184,15 +184,6 @@ func (m *MetaDB) InitMigrationStatusRecord(cfgFile string) error {
 
 func (msr *MigrationStatusRecord) IsSnapshotExportedViaDebezium() bool {
 	return msr.SnapshotMechanism == "debezium"
-}
-
-// GetUsePartitionRoot returns whether to use the partition root table for event renaming.
-// Default is true (backward compatible). When false, events keep their child partition names.
-func (msr *MigrationStatusRecord) GetUsePartitionRoot() bool {
-	if msr.ImportUsePartitionRoot == nil {
-		return true // default behavior for backward compatibility
-	}
-	return *msr.ImportUsePartitionRoot
 }
 
 func (msr *MigrationStatusRecord) IsParentMigration() bool {

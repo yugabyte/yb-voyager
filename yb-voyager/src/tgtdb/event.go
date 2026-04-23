@@ -33,16 +33,16 @@ import (
 )
 
 type Event struct {
-	Vsn                  int64 // Voyager Sequence Number
-	Op                   string
-	TableNameTup         sqlname.NameTuple
-	PartitionTableName   string // Original partition table name (before renaming to root)
-	PartitionSchemaName  string // Original partition schema name (before renaming to root)
-	UsePartitionTable    bool   // If true and IsPartitionEvent(), use partition table for SQL instead of root
-	Key                  map[string]*string
-	Fields               map[string]*string //all the column values of the row - worst
-	BeforeFields         map[string]*string //all the column values of the row - worst
-	ExporterRole         string
+	Vsn                 int64 // Voyager Sequence Number
+	Op                  string
+	TableNameTup        sqlname.NameTuple
+	PartitionTableName  string // Original partition table name (before renaming to root)
+	PartitionSchemaName string // Original partition schema name (before renaming to root)
+	UsePartitionTable   bool   // If true and IsPartitionEvent(), use partition table for SQL instead of root
+	Key                 map[string]*string
+	Fields              map[string]*string //all the column values of the row - worst
+	BeforeFields        map[string]*string //all the column values of the row - worst
+	ExporterRole        string
 }
 
 /*

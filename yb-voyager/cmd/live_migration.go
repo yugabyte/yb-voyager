@@ -448,7 +448,7 @@ func handleEvent(event *tgtdb.Event,
 
 	// Set UsePartitionTable based on import flag
 	// When importUsePartitionRoot is false and event has partition info, SQL will target partition directly
-	if !importUsePartitionRoot && event.IsPartitionEvent() {
+	if !bool(importUsePartitionRoot) && event.IsPartitionEvent() {
 		event.UsePartitionTable = true
 		log.Debugf("event %d: using partition table %s instead of root table %s",
 			event.Vsn, event.GetPartitionQualifiedName(), event.TableNameTup.ForKey())

@@ -4547,7 +4547,7 @@ func TestLiveMigrationPartitionedTableWithChildPK(t *testing.T) {
 	// Start import with --use-partition-root=false
 	// This causes SQL to target partition tables using partition_table_name from events
 	err = lm.StartImportData(true, map[string]string{
-		"--use-partition-root=false": "",
+		"--use-partition-root": "false",
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
@@ -4610,4 +4610,375 @@ func TestLiveMigrationPartitionedTableWithChildPK(t *testing.T) {
 	err = lm.WaitForCutoverSourceComplete(0, 160)
 	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 
+}
+
+func TestLiveMigrationWithMultiLevelPartitioningWithChildTablesHasPK(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_multi_level_partitioning_with_child_tables_has_pk",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_multi_level_partitioning_with_child_tables_has_pk",
+		},
+		SchemaNames: []string{"public"},
+		SchemaSQL: []string{
+			//create a table with multi level partitioning
+			`CREATE TABLE public.customers(
+				id SERIAL,
+				name TEXT NOT NULL,
+				email TEXT NOT NULL,
+				status TEXT NOT NULL,
+				arr NUMERIC NOT NULL
+			) PARTITION BY LIST (status);`,
+			`CREATE TABLE public.customers_active PARTITION OF public.customers FOR VALUES IN ('ACTIVE', 'RECURRING','REACTIVATED') PARTITION BY RANGE(arr);`,
+			`CREATE TABLE public.customers_other PARTITION OF public.customers DEFAULT;`,
+			`CREATE TABLE public.customers_arr_small PARTITION OF public.customers_active FOR VALUES FROM (MINVALUE) TO (101) PARTITION BY HASH(id);`,
+			`CREATE TABLE public.customers_part11 PARTITION OF public.customers_arr_small FOR VALUES WITH (modulus 2, remainder 0);`,
+			`CREATE TABLE public.customers_part12 PARTITION OF public.customers_arr_small FOR VALUES WITH (modulus 2, remainder 1);`,
+			`CREATE TABLE public.customers_arr_large PARTITION OF public.customers_active FOR VALUES FROM (101) TO (MAXVALUE) PARTITION BY HASH(id);`,
+			`CREATE TABLE public.customers_part21 PARTITION OF public.customers_arr_large FOR VALUES WITH (modulus 2, remainder 0);`,
+			`CREATE TABLE public.customers_part22 PARTITION OF public.customers_arr_large FOR VALUES WITH (modulus 2, remainder 1);`,
+			`ALTER TABLE public.customers_other ADD PRIMARY KEY (id);`,
+			`ALTER TABLE public.customers_part11 ADD PRIMARY KEY (id);`,
+			`ALTER TABLE public.customers_part12 ADD PRIMARY KEY (id);`,
+			`ALTER TABLE public.customers_part21 ADD PRIMARY KEY (id);`,
+			`ALTER TABLE public.customers_part22 ADD PRIMARY KEY (id);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE public.customers REPLICA IDENTITY FULL;`,
+			`ALTER TABLE public.customers_other REPLICA IDENTITY FULL;`,
+			`ALTER TABLE public.customers_active REPLICA IDENTITY FULL;`,
+			`ALTER TABLE public.customers_arr_small REPLICA IDENTITY FULL;`,
+			`ALTER TABLE public.customers_part11 REPLICA IDENTITY FULL;`,
+			`ALTER TABLE public.customers_part12 REPLICA IDENTITY FULL;`,
+			`ALTER TABLE public.customers_arr_large REPLICA IDENTITY FULL;`,
+			`ALTER TABLE public.customers_part21 REPLICA IDENTITY FULL;`,
+			`ALTER TABLE public.customers_part22 REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO public.customers (id, name, email, status, arr) VALUES (1, 'ACTIVE', 'active@example.com', 'ACTIVE', 100	);`,
+			`INSERT INTO public.customers (id, name, email, status, arr) VALUES (2, 'RECURRING', 'recurring@example.com', 'RECURRING', 105);`,
+			`INSERT INTO public.customers (id, name, email, status, arr) VALUES (3, 'REACTIVATED', 'reactivated@example.com', 'REACTIVATED', 85);`,
+			`INSERT INTO public.customers (id, name, email, status, arr) VALUES (4, 'OTHER', 'other@example.com', 'OTHER', 150);`,
+			`INSERT INTO public.customers (id, name, email, status, arr) VALUES (5, 'ACTIVE', 'active@example.com', 'ACTIVE', 60);`,
+			`INSERT INTO public.customers (id, name, email, status, arr) VALUES (6, 'RECURRING', 'recurring@example.com', 'RECURRING', 160);`,
+			`INSERT INTO public.customers (id, name, email, status, arr) VALUES (7, 'REACTIVATED', 'reactivated@example.com', 'REACTIVATED', 50);`,
+		},
+		SourceDeltaSQL: []string{
+			`DO $$
+			DECLARE
+			BEGIN
+				FOR i IN 1..100 LOOP
+					INSERT INTO public.customers (id, name, email, status, arr) VALUES (i+7, 'ABC', 'active@example.com', 'ACTIVE', 100);
+					INSERT INTO public.customers (id, name, email, status, arr) VALUES (i+107, 'DEF', 'recurring@example.com', 'RECURRING', 105);
+					INSERT INTO public.customers (id, name, email, status, arr) VALUES (i+207, 'OTHER', 'other@example.com', 'OTHER', 150);
+					INSERT INTO public.customers (id, name, email, status, arr) VALUES (i+307, 'GHI', 'reactivated@example.com', 'REACTIVATED', 85);
+
+					UPDATE public.customers SET status = 'REACTIVATED', arr = 105 WHERE id = i+7 AND arr = 100;
+					UPDATE public.customers SET status = 'OTHER', arr = 50 WHERE id = i+107 AND arr = 105;
+					UPDATE public.customers SET status = 'ACTIVE', arr = 60 WHERE id = i+207 AND arr = 150;
+					UPDATE public.customers SET status = 'RECURRING', arr = 160 WHERE id = i+307 AND arr = 85;
+
+					UPDATE public.customers SET email = 'activeabc@example.com' WHERE id = i+7 AND arr = 105;
+					UPDATE public.customers SET email = 'recurringdef@example.com' WHERE id = i+107 AND arr = 50;
+					UPDATE public.customers SET email = 'reactivatedghi@example.com' WHERE id = i+207 AND arr = 60;
+					UPDATE public.customers SET email = 'otherjkl@example.com' WHERE id = i+307 AND arr = 160;
+				END LOOP;
+			END $$;`,
+		},
+		TargetDeltaSQL: []string{
+			`DO $$
+			DECLARE
+			BEGIN
+				FOR i IN 401..500 LOOP
+					INSERT INTO public.customers (id, name, email, status, arr) VALUES (i+7, 'ABC', 'active@example.com', 'ACTIVE', 100);
+					INSERT INTO public.customers (id, name, email, status, arr) VALUES (i+107, 'OTHER', 'other@example.com', 'OTHER', 150);
+					INSERT INTO public.customers (id, name, email, status, arr) VALUES (i+207, 'DEF', 'recurring@example.com', 'RECURRING', 160);
+					INSERT INTO public.customers (id, name, email, status, arr) VALUES (i+307, 'GHI', 'reactivated@example.com', 'REACTIVATED', 85);
+
+					UPDATE public.customers SET status = 'REACTIVATED', arr = 105 WHERE id = i+7 AND arr = 100;
+					UPDATE public.customers SET status = 'RECURRING', arr = 50 WHERE id = i+107 AND arr = 150;
+					UPDATE public.customers SET status = 'ACTIVE', arr = 60 WHERE id = i+207 AND arr = 160;
+					UPDATE public.customers SET status = 'OTHER', arr = 160 WHERE id = i+307 AND arr = 85;
+
+					UPDATE public.customers SET email = 'activeabc@example.com' WHERE id = i+7 AND arr = 105;
+					UPDATE public.customers SET email = 'recurringdef@example.com' WHERE id = i+107 AND arr = 50;
+					UPDATE public.customers SET email = 'reactivatedghi@example.com' WHERE id = i+207 AND arr = 60;
+					UPDATE public.customers SET email = 'otherjkl@example.com' WHERE id = i+307 AND arr = 160;
+				END LOOP;
+			END $$;`,
+		},
+		CleanupSQL: []string{
+			`DROP TABLE IF EXISTS public.customers CASCADE;`,
+		},
+	})
+
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = lm.StartImportData(true, map[string]string{
+		"--use-partition-root": "false",
+	})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"public"."customers"`: 7,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"public"."customers"`: {
+			Inserts: 800,
+			Updates: 400,
+			Deletes: 400,
+		},
+	}, 30, 1)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"public"."customers"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToTarget(true, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	err = lm.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		`"public"."customers"`: {
+			Inserts: 800,
+			Updates: 400,
+			Deletes: 400,
+		},
+	}, 60, 1)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"public"."customers"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToSource(nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+
+	err = lm.WaitForCutoverSourceComplete(0, 160)
+	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
+
+	err = lm.ValidateDataConsistency([]string{`"public"."customers"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+}
+
+func TestLiveMigrationPartitionedWithChildPKAndPartitionsAcrossDifferentSchemas(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_partition_across_schemas",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_partition_across_schemas",
+		},
+		SchemaNames: []string{"public", "test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS public;`,
+			`CREATE SCHEMA IF NOT EXISTS test_schema;`,
+			`CREATE TABLE public.orders (
+				id SERIAL,
+				region TEXT NOT NULL,
+				amount bigint
+			) PARTITION BY LIST (region);`,
+			`CREATE TABLE test_schema.orders_us PARTITION OF public.orders FOR VALUES IN ('US');`,
+			`ALTER TABLE test_schema.orders_us ADD PRIMARY KEY (id);`,
+			`CREATE TABLE test_schema.orders_eu PARTITION OF public.orders FOR VALUES IN ('EU');`,
+			`ALTER TABLE test_schema.orders_eu ADD PRIMARY KEY (id);`,
+			`CREATE TABLE test_schema.orders_apac PARTITION OF public.orders FOR VALUES IN ('APAC');`,
+			`ALTER TABLE test_schema.orders_apac ADD PRIMARY KEY (id);`,
+			`CREATE TABLE public.customers(
+				id SERIAL,
+				name TEXT NOT NULL,
+				email TEXT NOT NULL,
+				status TEXT NOT NULL,
+				arr NUMERIC NOT NULL
+			) PARTITION BY LIST (status);`,
+			`CREATE TABLE public.customers_active PARTITION OF public.customers FOR VALUES IN ('ACTIVE', 'RECURRING','REACTIVATED') PARTITION BY RANGE(arr);`,
+			`CREATE TABLE test_schema.customers_other PARTITION OF public.customers DEFAULT;`,
+			`CREATE TABLE public.customers_arr_small PARTITION OF public.customers_active FOR VALUES FROM (MINVALUE) TO (101) PARTITION BY HASH(id);`,
+			`CREATE TABLE test_schema.customers_part11 PARTITION OF public.customers_arr_small FOR VALUES WITH (modulus 2, remainder 0);`,
+			`CREATE TABLE public.customers_part12 PARTITION OF public.customers_arr_small FOR VALUES WITH (modulus 2, remainder 1);`,
+			`CREATE TABLE test_schema.customers_arr_large PARTITION OF public.customers_active FOR VALUES FROM (101) TO (MAXVALUE) PARTITION BY HASH(id);`,
+			`CREATE TABLE public.customers_part21 PARTITION OF test_schema.customers_arr_large FOR VALUES WITH (modulus 2, remainder 0);`,
+			`CREATE TABLE test_schema.customers_part22 PARTITION OF test_schema.customers_arr_large FOR VALUES WITH (modulus 2, remainder 1);`,
+			`ALTER TABLE test_schema.customers_other ADD PRIMARY KEY (id);`,
+			`ALTER TABLE test_schema.customers_part11 ADD PRIMARY KEY (id);`,
+			`ALTER TABLE public.customers_part12 ADD PRIMARY KEY (id);`,
+			`ALTER TABLE public.customers_part21 ADD PRIMARY KEY (id);`,
+			`ALTER TABLE test_schema.customers_part22 ADD PRIMARY KEY (id);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE public.orders REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.orders_us REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.orders_eu REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.orders_apac REPLICA IDENTITY FULL;`,
+			`ALTER TABLE public.customers REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.customers_other REPLICA IDENTITY FULL;`,
+			`ALTER TABLE public.customers_active REPLICA IDENTITY FULL;`,
+			`ALTER TABLE public.customers_arr_small REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.customers_part11 REPLICA IDENTITY FULL;`,
+			`ALTER TABLE public.customers_part12 REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.customers_arr_large REPLICA IDENTITY FULL;`,
+			`ALTER TABLE public.customers_part21 REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.customers_part22 REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO public.orders (id, region, amount) VALUES (1, 'US', 100);`,
+			`INSERT INTO public.orders (id, region, amount) VALUES (2, 'US', 200);`,
+			`INSERT INTO public.orders (id, region, amount) VALUES (3, 'EU', 150);`,
+			`INSERT INTO public.orders (id, region, amount) VALUES (4, 'EU', 250);`,
+			`INSERT INTO public.orders (id, region, amount) VALUES (5, 'APAC', 300);`,
+			`INSERT INTO public.customers (id, name, email, status, arr) VALUES (1, 'RECURRING', 'recurring@example.com', 'RECURRING', 106);`,
+			`INSERT INTO public.customers (id, name, email, status, arr) VALUES (2, 'REACTIVATED', 'reactivated@example.com', 'OTHER', 85);`,
+		},
+		SourceDeltaSQL: []string{
+			`
+			DO $$
+			DECLARE
+			BEGIN
+				FOR i IN 1..100 LOOP
+					INSERT INTO public.orders (id, region, amount) VALUES (i+5, 'US', i * 100);
+					INSERT INTO public.orders (id, region, amount) VALUES (i+105, 'EU', i * 100);
+					INSERT INTO public.orders (id, region, amount) VALUES (i+205, 'APAC', i * 100);
+
+					UPDATE public.orders SET amount = amount + 1 WHERE id = i;
+					UPDATE public.orders SET amount = amount + 1 WHERE id = i+105;
+					UPDATE public.orders SET amount = amount + 1 WHERE id = i+205;
+				END LOOP;
+			END $$;`,
+			`INSERT INTO public.customers (id, name, email, status, arr) VALUES (3, 'ABC', 'active@example.com', 'ACTIVE', 100);`,
+			`INSERT INTO public.customers (id, name, email, status, arr) VALUES (4, 'DEF', 'recurring@example.com', 'RECURRING', 105);`,
+			`UPDATE public.customers SET status = 'OTHER' WHERE id = 4 AND arr = 105;`,
+			`UPDATE public.customers SET status = 'RECURRING' WHERE id = 3 AND arr = 100;`,
+		},
+		TargetDeltaSQL: []string{
+			`
+			DO $$
+			DECLARE
+			BEGIN
+				FOR i IN 301..400 LOOP
+					INSERT INTO public.orders (id, region, amount) VALUES (i+5, 'US', i * 100);
+					INSERT INTO public.orders (id, region, amount) VALUES (i+105, 'EU', i * 100);
+					INSERT INTO public.orders (id, region, amount) VALUES (i+205, 'APAC', i * 100);
+
+					UPDATE public.orders SET amount = amount + 1 WHERE id = i;
+					UPDATE public.orders SET amount = amount + 1 WHERE id = i+105;
+					UPDATE public.orders SET amount = amount + 1 WHERE id = i+205;
+				END LOOP;
+			END $$;`,
+
+			`INSERT INTO public.customers (id, name, email, status, arr) VALUES (5, 'ABC', 'active@example.com', 'ACTIVE', 100);`,
+			`INSERT INTO public.customers (id, name, email, status, arr) VALUES (6, 'DEF', 'recurring@example.com', 'RECURRING', 105);`,
+			`UPDATE public.customers SET status = 'OTHER' WHERE id = 6 AND arr = 105;`,
+			`UPDATE public.customers SET status = 'REACTIVATED' WHERE id = 5 AND arr = 100;`,
+		},
+		CleanupSQL: []string{
+			`DROP TABLE IF EXISTS public.orders CASCADE;`,
+			`DROP TABLE IF EXISTS test_schema.orders_us CASCADE;`,
+			`DROP TABLE IF EXISTS test_schema.orders_eu CASCADE;`,
+			`DROP TABLE IF EXISTS test_schema.orders_apac CASCADE;`,
+		},
+	})
+
+	// defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = lm.StartImportData(true, map[string]string{
+		"--use-partition-root": "false",
+	})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"public"."orders"`:    5,
+		`"public"."customers"`: 2,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"public"."orders"`: {
+			Inserts: 300,
+			Updates: 300,
+			Deletes: 0,
+		},
+		`"public"."customers"`: {
+			Inserts: 3,
+			Updates: 1,
+			Deletes: 1,
+		},
+	}, 30, 1)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"public"."orders"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToTarget(true, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	err = lm.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		`"public"."orders"`: {
+			Inserts: 300,
+			Updates: 300,
+			Deletes: 0,
+		},
+		`"public"."customers"`: {
+			Inserts: 3,
+			Updates: 1,
+			Deletes: 1,
+		},
+	}, 60, 1)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"public"."orders"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToSource(nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+
+	err = lm.WaitForCutoverSourceComplete(0, 160)
+	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
+
+	err = lm.ValidateDataConsistency([]string{`"public"."orders"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
 }
