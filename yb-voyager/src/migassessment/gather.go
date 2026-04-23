@@ -32,6 +32,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ux"
 )
 
 const (
@@ -212,7 +213,7 @@ func (pt *progressTracker) finalizeAndCheckResults(resultChan <-chan collectionR
 // GatherAssessmentMetadataFromPG collects metadata from PostgreSQL primary and (optionally) replicas.
 // If no replicas are provided, uses a simpler sequential path.
 // If replicas are provided, collection is performed in parallel for better performance.
-// The optional progressFn callback receives sub-step descriptions as they happen;
+// The optional tracker receives sub-step updates via IncrementStep as they happen;
 // when provided, direct stdout output from the script is suppressed.
 func GatherAssessmentMetadataFromPG(
 	source *srcdb.Source,
@@ -220,8 +221,7 @@ func GatherAssessmentMetadataFromPG(
 	assessmentMetadataDir string,
 	pgssEnabled bool,
 	iopsInterval int64,
-	progressFn func(detail string),
-	stepsTotal int,
+	tracker *ux.ProgressTracker,
 ) error {
 	scriptPath, err := findGatherMetadataScriptPath(POSTGRESQL)
 	if err != nil {
@@ -237,7 +237,7 @@ func GatherAssessmentMetadataFromPG(
 			scriptPath,
 			[]string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
 			assessmentMetadataDir,
-			progressFn,
+			tracker,
 			connectionUri,
 			sqlname.JoinIdentifiersMinQuoted(source.Schemas, "|"),
 			assessmentMetadataDir,
@@ -279,7 +279,7 @@ func GatherAssessmentMetadataFromPG(
 	totalNodes := len(nodes)
 	log.Infof("collecting metadata from %d nodes in parallel...", totalNodes)
 
-	tracker := newProgressTracker(nodes, stepsTotal)
+	internalTracker := newProgressTracker(nodes, CountPGGatherSteps())
 
 	// Channel for progress updates
 	progressChan := make(chan NodeProgress, totalNodes*10) // Buffer for multiple updates per node
@@ -291,7 +291,7 @@ func GatherAssessmentMetadataFromPG(
 	go func() {
 		defer close(displayDone)
 		for progress := range progressChan {
-			tracker.update(progress)
+			internalTracker.update(progress)
 		}
 	}()
 
@@ -341,8 +341,7 @@ func GatherAssessmentMetadataFromPG(
 	// Wait for display goroutine to finish (it closes when progressChan is closed and drained)
 	<-displayDone
 
-	// Process results through tracker
-	if err := tracker.finalizeAndCheckResults(resultChan); err != nil {
+	if err := internalTracker.finalizeAndCheckResults(resultChan); err != nil {
 		return err
 	}
 
@@ -481,13 +480,13 @@ func runGatherAssessmentMetadataScript(scriptPath string, envVars []string, work
 }
 
 // runGatherAssessmentMetadataScriptWithProgress runs the script, captures stdout, detects sub-steps
-// and sends them to progressFn. If progressFn is nil, falls back to printing stdout directly.
+// and reports them via tracker.IncrementStep. If tracker is nil, falls back to printing stdout directly.
 func runGatherAssessmentMetadataScriptWithProgress(
 	scriptPath string, envVars []string, workingDir string,
-	progressFn func(detail string),
+	tracker *ux.ProgressTracker,
 	scriptArgs ...string,
 ) error {
-	if progressFn == nil {
+	if tracker == nil {
 		return runGatherAssessmentMetadataScript(scriptPath, envVars, workingDir, scriptArgs...)
 	}
 
@@ -527,8 +526,8 @@ func runGatherAssessmentMetadataScriptWithProgress(
 	for scanner.Scan() {
 		line := scanner.Text()
 		log.Infof("[stdout of script]: %s", line)
-		if stage := detectStageFromOutput(line); stage != "" {
-			progressFn(stage)
+		if stage := detectStageFromOutput(line); stage != "" && stage != "Complete" {
+			tracker.IncrementStep(stage)
 		}
 	}
 

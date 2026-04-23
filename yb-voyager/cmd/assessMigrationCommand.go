@@ -365,11 +365,7 @@ func assessMigration() (err error) {
 		tracker.StartStage("Gathering metadata", gatherStepCount)
 	}
 	initAssessmentDB()
-	err = gatherAssessmentMetadata(validatedReplicaEndpoints, func(detail string) {
-		if detail != "Complete" {
-			tracker.IncrementStep(detail)
-		}
-	}, gatherStepCount)
+	err = gatherAssessmentMetadata(validatedReplicaEndpoints, tracker)
 	if err != nil {
 		tracker.FailStage()
 		return fmt.Errorf("failed to gather assessment metadata: %w", err)
@@ -657,7 +653,7 @@ func handleStartCleanIfNeededForAssessMigration(metadataDirPassedByUser bool) er
 }
 
 // gatherAssessmentMetadata collects metadata from the source database.
-func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint, progressFn func(string), stepsTotal int) error {
+func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint, tracker *ux.ProgressTracker) error {
 	if assessmentMetadataDirFlag != "" {
 		return nil // assessment metadata files are provided by the user inside assessmentMetadataDir
 	}
@@ -676,8 +672,7 @@ func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint, progres
 			assessmentMetadataDir,
 			pgssEnabledForAssessment,
 			intervalForCapturingIOPS,
-			progressFn,
-			stepsTotal,
+			tracker,
 		)
 		if err != nil {
 			return fmt.Errorf("error gathering metadata and stats from source PG database: %w", err)
