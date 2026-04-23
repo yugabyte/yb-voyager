@@ -233,7 +233,7 @@ func GatherAssessmentMetadataFromPG(
 		log.Info("collecting metadata from source database...")
 
 		connectionUri := source.DB().GetConnectionUriWithoutPassword()
-		err := runGatherAssessmentMetadataScriptWithProgress(
+		err := runGatherAssessmentMetadataScript(
 			scriptPath,
 			[]string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
 			assessmentMetadataDir,
@@ -370,7 +370,7 @@ func GatherAssessmentMetadataFromOracle(
 		fmt.Sprintf("ORACLE_HOME=%s", source.GetOracleHome()),
 	}
 	log.Infof("environment variables passed to oracle gather metadata script: %v", envVars)
-	return runGatherAssessmentMetadataScript(scriptPath, envVars, assessmentMetadataDir,
+	return runGatherAssessmentMetadataScript(scriptPath, envVars, assessmentMetadataDir, nil,
 		source.DB().GetConnectionUriWithoutPassword(), strings.ToUpper(source.Schemas[0].Unquoted), assessmentMetadataDir)
 }
 
@@ -420,76 +420,13 @@ func CountPGGatherSteps() int {
 	return len(matches) + 1 // +1 for schema collection (pg_dump)
 }
 
-func runGatherAssessmentMetadataScript(scriptPath string, envVars []string, workingDir string, scriptArgs ...string) error {
-	cmd := exec.Command(scriptPath, scriptArgs...)
-	log.Infof("running script: %s", cmd.String())
-	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, envVars...)
-	cmd.Dir = workingDir
-	cmd.Stdin = os.Stdin
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return fmt.Errorf("error creating stdout pipe: %w", err)
-	}
-
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return fmt.Errorf("error creating stderr pipe: %w", err)
-	}
-
-	err = cmd.Start()
-	if err != nil {
-		return fmt.Errorf("error starting gather assessment metadata script: %w", err)
-	}
-
-	var stderrBuf strings.Builder
-	go func() {
-		scanner := bufio.NewScanner(stderr)
-		for scanner.Scan() {
-			line := scanner.Text()
-			log.Errorf("[stderr of script]: %s", line)
-			fmt.Printf("%s\n", line)
-			stderrBuf.WriteString(line)
-			stderrBuf.WriteString("\n")
-		}
-	}()
-
-	scanner := bufio.NewScanner(stdout)
-	for scanner.Scan() {
-		log.Infof("[stdout of script]: %s", scanner.Text())
-		fmt.Printf("%s\n", scanner.Text())
-	}
-
-	err = cmd.Wait()
-	if err != nil {
-		if exiterr, ok := err.(*exec.ExitError); ok {
-			if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
-				if status.ExitStatus() == 2 {
-					log.Infof("Exit without error as user opted not to continue in the script.")
-					os.Exit(0)
-				}
-			}
-		}
-		if stderrOutput := strings.TrimSpace(stderrBuf.String()); stderrOutput != "" {
-			return fmt.Errorf("gather assessment metadata script failed: %w\n%s", err, stderrOutput)
-		}
-		return fmt.Errorf("gather assessment metadata script failed: %w", err)
-	}
-	return nil
-}
-
-// runGatherAssessmentMetadataScriptWithProgress runs the script, captures stdout, detects sub-steps
+// runGatherAssessmentMetadataScript runs the script, captures stdout, detects sub-steps
 // and reports them via tracker.IncrementStep. If tracker is nil, falls back to printing stdout directly.
-func runGatherAssessmentMetadataScriptWithProgress(
+func runGatherAssessmentMetadataScript(
 	scriptPath string, envVars []string, workingDir string,
 	tracker *ux.ProgressTracker,
 	scriptArgs ...string,
 ) error {
-	if tracker == nil {
-		return runGatherAssessmentMetadataScript(scriptPath, envVars, workingDir, scriptArgs...)
-	}
-
 	cmd := exec.Command(scriptPath, scriptArgs...)
 	log.Infof("running script: %s", cmd.String())
 	cmd.Env = os.Environ()
@@ -526,8 +463,12 @@ func runGatherAssessmentMetadataScriptWithProgress(
 	for scanner.Scan() {
 		line := scanner.Text()
 		log.Infof("[stdout of script]: %s", line)
-		if stage := detectStageFromOutput(line); stage != "" && stage != "Complete" {
-			tracker.IncrementStep(stage)
+		if tracker != nil {
+			if stage := detectStageFromOutput(line); stage != "" && stage != "Complete" {
+				tracker.IncrementStep(stage)
+			}
+		} else {
+			fmt.Printf("%s\n", line)
 		}
 	}
 
