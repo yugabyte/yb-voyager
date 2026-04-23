@@ -11,7 +11,7 @@
     "query_metrics": null,
     "source_only_queries": 143,
     "target_only_queries": 224,
-    "total_queries": 366
+    "total_queries": 367
   },
   "phase_start_time": "2025-11-03 16:23:37.503733",
   "source_db_details": "",
