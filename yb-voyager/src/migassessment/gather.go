@@ -444,11 +444,15 @@ func runGatherAssessmentMetadataScript(scriptPath string, envVars []string, work
 		return fmt.Errorf("error starting gather assessment metadata script: %w", err)
 	}
 
+	var stderrBuf strings.Builder
 	go func() {
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
-			log.Errorf("[stderr of script]: %s", scanner.Text())
-			fmt.Printf("%s\n", scanner.Text())
+			line := scanner.Text()
+			log.Errorf("[stderr of script]: %s", line)
+			fmt.Printf("%s\n", line)
+			stderrBuf.WriteString(line)
+			stderrBuf.WriteString("\n")
 		}
 	}()
 
@@ -468,7 +472,10 @@ func runGatherAssessmentMetadataScript(scriptPath string, envVars []string, work
 				}
 			}
 		}
-		return fmt.Errorf("error waiting for gather assessment metadata script to complete: %w", err)
+		if stderrOutput := strings.TrimSpace(stderrBuf.String()); stderrOutput != "" {
+			return fmt.Errorf("gather assessment metadata script failed: %w\n%s", err, stderrOutput)
+		}
+		return fmt.Errorf("gather assessment metadata script failed: %w", err)
 	}
 	return nil
 }
@@ -505,10 +512,14 @@ func runGatherAssessmentMetadataScriptWithProgress(
 		return fmt.Errorf("error starting gather assessment metadata script: %w", err)
 	}
 
+	var stderrBuf strings.Builder
 	go func() {
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
-			log.Errorf("[stderr of script]: %s", scanner.Text())
+			line := scanner.Text()
+			log.Errorf("[stderr of script]: %s", line)
+			stderrBuf.WriteString(line)
+			stderrBuf.WriteString("\n")
 		}
 	}()
 
@@ -531,7 +542,10 @@ func runGatherAssessmentMetadataScriptWithProgress(
 				}
 			}
 		}
-		return fmt.Errorf("error waiting for gather assessment metadata script to complete: %w", err)
+		if stderrOutput := strings.TrimSpace(stderrBuf.String()); stderrOutput != "" {
+			return fmt.Errorf("gather assessment metadata script failed: %w\n%s", err, stderrOutput)
+		}
+		return fmt.Errorf("gather assessment metadata script failed: %w", err)
 	}
 	return nil
 }
@@ -575,6 +589,7 @@ func runGatherAssessmentMetadataScriptBuffered(
 		Stage:    "Starting collection...",
 	}
 
+	var stderrBuf strings.Builder
 	var wg sync.WaitGroup
 	wg.Add(2)
 
@@ -585,6 +600,8 @@ func runGatherAssessmentMetadataScriptBuffered(
 		for scanner.Scan() {
 			line := scanner.Text()
 			log.Errorf("[%s][stderr]: %s", nodeName, line)
+			stderrBuf.WriteString(line)
+			stderrBuf.WriteString("\n")
 		}
 	}()
 
@@ -619,7 +636,10 @@ func runGatherAssessmentMetadataScriptBuffered(
 			Stage:    "Failed",
 		}
 		log.Errorf("[%s] Script failed with error: %v", nodeName, err)
-		return fmt.Errorf("error waiting for gather assessment metadata script to complete: %w", err)
+		if stderrOutput := strings.TrimSpace(stderrBuf.String()); stderrOutput != "" {
+			return fmt.Errorf("[%s] gather assessment metadata script failed: %w\n%s", nodeName, err, stderrOutput)
+		}
+		return fmt.Errorf("[%s] gather assessment metadata script failed: %w", nodeName, err)
 	}
 
 	// Report completion
