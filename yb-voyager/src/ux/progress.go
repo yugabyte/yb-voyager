@@ -178,6 +178,25 @@ func (t *ProgressTracker) CompleteStage() {
 	t.linesPrinted = 0
 }
 
+// FailStage stops the spinner, erases any sub-step lines, and prints a red
+// "✗ <stage>" line so the user sees a clear failure marker in the progress
+// output before the error message is returned.
+func (t *ProgressTracker) FailStage() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	t.stopSpinnerLocked()
+
+	if t.linesPrinted > 0 {
+		fmt.Printf("\033[%dA\033[J", t.linesPrinted)
+	}
+
+	fmt.Printf("\r\033[K")
+	FailColor.Printf("  ✗ %s\n", t.stageName)
+	t.linesPrinted = 0
+	t.subStage = ""
+}
+
 // Finish stops any running spinner without printing a checkmark.
 func (t *ProgressTracker) Finish() {
 	t.mu.Lock()

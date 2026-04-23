@@ -371,7 +371,7 @@ func assessMigration() (err error) {
 		}
 	}, gatherStepCount)
 	if err != nil {
-		tracker.Finish()
+		tracker.FailStage()
 		return fmt.Errorf("failed to gather assessment metadata: %w", err)
 	}
 
@@ -382,7 +382,7 @@ func assessMigration() (err error) {
 
 	err = populateMetadataCSVIntoAssessmentDB()
 	if err != nil {
-		tracker.Finish()
+		tracker.FailStage()
 		return fmt.Errorf("failed to populate metadata CSV into SQLite DB: %w", err)
 	}
 	tracker.CompleteStage()
@@ -399,7 +399,7 @@ func assessMigration() (err error) {
 
 	objectUsagesStats, err := fetchObjectUsageStats()
 	if err != nil {
-		tracker.Finish()
+		tracker.FailStage()
 		return fmt.Errorf("failed to populate object usage stats: %w", err)
 	}
 	parserIssueDetector.PopulateObjectUsages(objectUsagesStats)
@@ -408,7 +408,7 @@ func assessMigration() (err error) {
 	tracker.StartStage("Assessing migration", 0)
 	err = runAssessment()
 	if err != nil {
-		tracker.Finish()
+		tracker.FailStage()
 		return fmt.Errorf("failed to assess migration: %w", err)
 	}
 	tracker.CompleteStage()
@@ -417,7 +417,7 @@ func assessMigration() (err error) {
 	tracker.StartStage("Generating report", 0)
 	err = generateAssessmentReport()
 	if err != nil {
-		tracker.Finish()
+		tracker.FailStage()
 		return fmt.Errorf("failed to generate assessment report: %w", err)
 	}
 	tracker.CompleteStage()
