@@ -1173,8 +1173,12 @@ move_tables() {
 normalize_json() {
     local input_file="$1"
     local output_file="$2"
-    local temp_file="/tmp/temp_file.json"
-	local temp_file2="/tmp/temp_file2.json"
+    # Use mktemp: hardcoded /tmp paths race across parallel nightly tests,
+    # causing jq-open errors and cross-test payload contamination in diffs.
+    local temp_file
+    temp_file=$(mktemp)
+    local temp_file2
+    temp_file2=$(mktemp)
 
     # Normalize JSON with jq; use --sort-keys to avoid the need to keep the same sequence of keys in expected vs actual json
     jq --sort-keys 'walk(
@@ -1227,6 +1231,7 @@ normalize_json() {
 
     # Move cleaned file to output
     mv "$temp_file2" "$output_file"
+    rm -f "$temp_file"
 }
 
 
@@ -1482,7 +1487,10 @@ generate_voyager_config() {
 normalize_callhome_json() {
     local input_file="$1"
     local output_file="$2"
-    local temp_file="/tmp/temp_file.json"
+    # Use mktemp: hardcoded /tmp paths race across parallel nightly tests,
+    # causing jq-open errors and cross-test payload contamination in diffs.
+    local temp_file
+    temp_file=$(mktemp)
 
     # Normalize JSON with jq; use --sort-keys to avoid the need to keep the same sequence of keys in expected vs actual json
     jq --sort-keys 'walk(
