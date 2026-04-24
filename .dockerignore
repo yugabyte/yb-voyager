@@ -1,0 +1,28 @@
+# Shrinks the build context for docker/sandbox/Dockerfile.
+# Items here are NOT COPY'd into the image at build time; at runtime the bind
+# mount in docker/sandbox/run.sh re-exposes the full repo anyway.
+
+# Maven build output for the Debezium plugin. install-yb-voyager rebuilds it,
+# so ~1 GB of stale target dirs would just slow the COPY.
+**/target/
+
+# Migration test fixtures are not needed to build voyager.
+migtests/
+
+# Prebuilt binaries / caches.
+yb-voyager/yb-voyager
+yb-voyager/**/testdata/**/*.out
+**/*.log
+
+# Editor / VCS scratch.
+.vscode/
+.idea/
+.cursor/
+*.swp
+*.tmp
+
+# Reports / transient outputs.
+reports/
+
+# Go build cache if it ever leaks into the workspace.
+.go-cache/
