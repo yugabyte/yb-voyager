@@ -296,7 +296,7 @@ func assessMigration() (err error) {
 				return fmt.Errorf("failed to check dependencies for assess migration: %w", err)
 			} else if len(binaryCheckIssues) > 0 {
 				ux.PrintPreflightFail("Required dependencies present")
-				return goerrors.Errorf("\n%s\n%s", color.RedString("\nMissing dependencies for assess migration:"), strings.Join(binaryCheckIssues, "\n"))
+				return goerrors.Errorf("\n%s\n%s", color.RedString("Missing dependencies for assess migration:"), strings.Join(binaryCheckIssues, "\n"))
 			}
 			ux.PrintPreflightCheck("Required dependencies present")
 		} else {

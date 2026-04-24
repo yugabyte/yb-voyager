@@ -246,8 +246,10 @@ func (t *ProgressTracker) runSpinner() {
 		}
 
 		frame := spinnerFrames[i%len(spinnerFrames)]
+		prefixLen := len(indent) + len(frame) + 1
+		truncated := TruncateToWidth(label, prefixLen)
 		fmt.Printf("\r\033[K")
-		StageColor.Printf("%s%s %s", indent, frame, label)
+		StageColor.Printf("%s%s %s", indent, frame, truncated)
 		i++
 		time.Sleep(80 * time.Millisecond)
 	}

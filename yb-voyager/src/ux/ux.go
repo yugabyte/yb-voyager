@@ -18,9 +18,11 @@ package ux
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/fatih/color"
+	"golang.org/x/term"
 )
 
 var (
@@ -35,7 +37,35 @@ var (
 	PathColor      = color.New(color.Underline)
 )
 
-const defaultBoxWidth = 60
+const (
+	defaultBoxWidth      = 60
+	defaultTerminalWidth = 80
+	ellipsis             = "..."
+)
+
+func GetTerminalWidth() int {
+	w, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil || w <= 0 {
+		return defaultTerminalWidth
+	}
+	return w
+}
+
+// TruncateToWidth truncates s so that the total printed length (prefixLen + len(s))
+// does not exceed the terminal width. Appends "..." when truncation occurs.
+func TruncateToWidth(s string, prefixLen int) string {
+	maxLen := GetTerminalWidth() - prefixLen
+	if maxLen <= 0 {
+		return ""
+	}
+	if len(s) <= maxLen {
+		return s
+	}
+	if maxLen <= len(ellipsis) {
+		return s[:maxLen]
+	}
+	return s[:maxLen-len(ellipsis)] + ellipsis
+}
 
 // BannerRow represents a key-value row inside the banner box.
 type BannerRow struct {
