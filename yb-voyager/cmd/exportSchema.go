@@ -157,7 +157,9 @@ func exportSchema(cmd *cobra.Command) error {
 
 	// Check if the source database has the required permissions for exporting schema.
 	if source.RunGuardrailsChecks {
-		checkIfSchemasHaveUsagePermissions()
+		if err := checkIfSchemasHaveUsagePermissions(); err != nil {
+			return fmt.Errorf("schema usage permission check failed: %w", err)
+		}
 		missingPerms, err := source.DB().GetMissingExportSchemaPermissions("")
 		if err != nil {
 			return fmt.Errorf("failed to get missing export schema permissions: %w", err)

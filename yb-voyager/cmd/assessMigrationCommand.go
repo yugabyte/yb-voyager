@@ -331,11 +331,14 @@ func assessMigration() (err error) {
 
 		// Permissions
 		if source.RunGuardrailsChecks {
-			checkIfSchemasHaveUsagePermissions()
+			if err := checkIfSchemasHaveUsagePermissions(); err != nil {
+				ux.PrintPreflightFail("Schema USAGE permissions")
+				return fmt.Errorf("schema usage permission check failed: %w", err)
+			}
 			pgssEnabledForAssessment, err = migassessment.CheckAssessmentPermissionsOnAllNodes(&source, validatedReplicaEndpoints)
 			if err != nil {
-				ux.PrintPreflightFail("Verify permissions on all nodes")
-				return fmt.Errorf("permission check failed: %w", err)
+				ux.PrintPreflightFail("Assessment permissions on all nodes")
+				return fmt.Errorf("assessment permission check failed: %w", err)
 			}
 			ux.PrintPreflightCheck("Permissions verified on all nodes")
 		} else {
