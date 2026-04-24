@@ -709,7 +709,7 @@ func TestHashSplittingChanges(t *testing.T) {
 
 		transformer := NewTransformer()
 
-		transformedStmts, _, _, err := transformer.AddShardingStrategyForConstraints(parseTree.Stmts)
+		transformedStmts, _, _, _, err := transformer.AddShardingStrategyForConstraints(parseTree.Stmts)
 		if testCase.errExpected {
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), testCase.errExpectedMsg)
