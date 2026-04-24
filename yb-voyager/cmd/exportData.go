@@ -870,7 +870,7 @@ func checkIfSchemasHaveUsagePermissions() error {
 		} else {
 			link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
 		}
-		return fmt.Errorf("missing USAGE permission for user %s on schemas: [%s]\nCheck the documentation to prepare the database for migration: %s",
+		return goerrors.Errorf("missing USAGE permission for user %s on schemas: [%s]\nCheck the documentation to prepare the database for migration: %s",
 			source.User, strings.Join(schemasMissingUsage, ", "), link)
 	}
 	return nil
