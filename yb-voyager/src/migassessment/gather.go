@@ -32,6 +32,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ux"
 )
 
 const (
@@ -65,16 +66,20 @@ type progressTracker struct {
 	nodes        []string          // Ordered list of node names for consistent display
 	displayNames map[string]string // nodeName -> displayName
 	statuses     map[string]*NodeProgress
+	stepCounts   map[string]int // per-node completed step count
+	stepsTotal   int            // total steps per node (0 = unknown)
 	mutex        sync.Mutex
 	initialized  bool // Whether initial lines have been printed
 	maxNameLen   int  // Maximum length of display names for alignment
 }
 
-func newProgressTracker(nodes []collectionNode) *progressTracker {
+func newProgressTracker(nodes []collectionNode, stepsTotal int) *progressTracker {
 	tracker := &progressTracker{
 		nodes:        make([]string, 0, len(nodes)),
 		displayNames: make(map[string]string),
 		statuses:     make(map[string]*NodeProgress),
+		stepCounts:   make(map[string]int),
+		stepsTotal:   stepsTotal,
 		initialized:  false,
 		maxNameLen:   0,
 	}
@@ -120,12 +125,15 @@ func (pt *progressTracker) update(progress NodeProgress) {
 	pt.mutex.Lock()
 	defer pt.mutex.Unlock()
 
-	// Update only the stage, preserve the formatted & truncated display name
 	if existing := pt.statuses[progress.NodeName]; existing != nil {
+		// Increment step count on each new sub-step (not for terminal states)
+		if progress.Stage != "Complete" && progress.Stage != "Failed" &&
+			progress.Stage != "Pending..." && progress.Stage != existing.Stage {
+			pt.stepCounts[progress.NodeName]++
+		}
 		existing.Stage = progress.Stage
 	}
 
-	// Print/update display
 	pt.printAll()
 }
 
@@ -152,7 +160,6 @@ func (pt *progressTracker) printAll() {
 }
 
 func (pt *progressTracker) printSingleLine(progress NodeProgress) {
-	// Determine icon based on stage
 	var statusIcon string
 	switch progress.Stage {
 	case "Complete":
@@ -163,13 +170,24 @@ func (pt *progressTracker) printSingleLine(progress NodeProgress) {
 		statusIcon = "⏳"
 	}
 
-	// Look up display name from the map (already truncated in newProgressTracker)
 	displayName := pt.displayNames[progress.NodeName]
 
-	// Clear line and print with fixed-width column for name (for alignment)
-	// \r returns to start, \033[K clears to end of line
-	// Using %-*s for left-alignment with dynamic width based on longest (truncated) name
-	fmt.Printf("\r\033[K  %s %-*s %s\n", statusIcon, pt.maxNameLen+1, displayName+":", progress.Stage)
+	// Build stage text with step counter prefix
+	stageText := progress.Stage
+	if progress.Stage == "Complete" {
+		if pt.stepsTotal > 0 {
+			stageText = fmt.Sprintf("(%d/%d) Complete", pt.stepsTotal, pt.stepsTotal)
+		}
+	} else if progress.Stage != "Failed" && progress.Stage != "Pending..." {
+		step := pt.stepCounts[progress.NodeName]
+		if pt.stepsTotal > 0 {
+			stageText = fmt.Sprintf("(%d/%d) %s", step, pt.stepsTotal, progress.Stage)
+		} else {
+			stageText = fmt.Sprintf("(%d) %s", step, progress.Stage)
+		}
+	}
+
+	fmt.Printf("\r\033[K  %s %-*s %s\n", statusIcon, pt.maxNameLen+1, displayName+":", stageText)
 }
 
 // finalizeAndCheckResults processes the final results from all collection goroutines.
@@ -195,12 +213,15 @@ func (pt *progressTracker) finalizeAndCheckResults(resultChan <-chan collectionR
 // GatherAssessmentMetadataFromPG collects metadata from PostgreSQL primary and (optionally) replicas.
 // If no replicas are provided, uses a simpler sequential path.
 // If replicas are provided, collection is performed in parallel for better performance.
+// The optional tracker receives sub-step updates via IncrementStep as they happen;
+// when provided, direct stdout output from the script is suppressed.
 func GatherAssessmentMetadataFromPG(
 	source *srcdb.Source,
 	validatedReplicas []srcdb.ReplicaEndpoint,
 	assessmentMetadataDir string,
 	pgssEnabled bool,
 	iopsInterval int64,
+	tracker *ux.ProgressTracker,
 ) error {
 	scriptPath, err := findGatherMetadataScriptPath(POSTGRESQL)
 	if err != nil {
@@ -209,13 +230,14 @@ func GatherAssessmentMetadataFromPG(
 
 	// If no replicas, use simpler sequential path without "Primary:" prefix terminology
 	if len(validatedReplicas) == 0 {
-		utils.PrintAndLogfInfo("\nCollecting metadata from source database...")
+		log.Info("collecting metadata from source database...")
 
 		connectionUri := source.DB().GetConnectionUriWithoutPassword()
 		err := runGatherAssessmentMetadataScript(
 			scriptPath,
 			[]string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
 			assessmentMetadataDir,
+			tracker,
 			connectionUri,
 			sqlname.JoinIdentifiersMinQuoted(source.Schemas, "|"),
 			assessmentMetadataDir,
@@ -229,8 +251,7 @@ func GatherAssessmentMetadataFromPG(
 			return err
 		}
 
-		fmt.Println() // Blank line before success
-		utils.PrintAndLogfSuccess("Successfully completed metadata collection")
+		log.Info("successfully completed metadata collection")
 		return nil
 	}
 
@@ -256,10 +277,9 @@ func GatherAssessmentMetadataFromPG(
 	}
 
 	totalNodes := len(nodes)
-	utils.PrintAndLogfInfo("\nCollecting metadata from %d nodes in parallel...", totalNodes)
+	log.Infof("collecting metadata from %d nodes in parallel...", totalNodes)
 
-	// Initialize progress tracker
-	tracker := newProgressTracker(nodes)
+	internalTracker := newProgressTracker(nodes, CountPGGatherSteps())
 
 	// Channel for progress updates
 	progressChan := make(chan NodeProgress, totalNodes*10) // Buffer for multiple updates per node
@@ -271,7 +291,7 @@ func GatherAssessmentMetadataFromPG(
 	go func() {
 		defer close(displayDone)
 		for progress := range progressChan {
-			tracker.update(progress)
+			internalTracker.update(progress)
 		}
 	}()
 
@@ -321,14 +341,11 @@ func GatherAssessmentMetadataFromPG(
 	// Wait for display goroutine to finish (it closes when progressChan is closed and drained)
 	<-displayDone
 
-	// Process results through tracker
-	if err := tracker.finalizeAndCheckResults(resultChan); err != nil {
+	if err := internalTracker.finalizeAndCheckResults(resultChan); err != nil {
 		return err
 	}
 
-	// All nodes succeeded (parallel path - always has replicas)
-	fmt.Println() // Single blank line before final success message
-	utils.PrintAndLogfSuccess("Successfully completed metadata collection from %d node(s) (primary + %d replica(s))",
+	log.Infof("successfully completed metadata collection from %d node(s) (primary + %d replica(s))",
 		totalNodes, len(validatedReplicas))
 
 	return nil
@@ -353,7 +370,7 @@ func GatherAssessmentMetadataFromOracle(
 		fmt.Sprintf("ORACLE_HOME=%s", source.GetOracleHome()),
 	}
 	log.Infof("environment variables passed to oracle gather metadata script: %v", envVars)
-	return runGatherAssessmentMetadataScript(scriptPath, envVars, assessmentMetadataDir,
+	return runGatherAssessmentMetadataScript(scriptPath, envVars, assessmentMetadataDir, nil,
 		source.DB().GetConnectionUriWithoutPassword(), strings.ToUpper(source.Schemas[0].Unquoted), assessmentMetadataDir)
 }
 
@@ -385,7 +402,31 @@ func findGatherMetadataScriptPath(dbType string) (string, error) {
 	return "", goerrors.Errorf("script not found in possible paths: %v", possiblePathsForScript)
 }
 
-func runGatherAssessmentMetadataScript(scriptPath string, envVars []string, workingDir string, scriptArgs ...string) error {
+// CountPGGatherSteps returns the number of metadata-collection sub-steps for
+// PostgreSQL by counting the .psql scripts in the installed script directory
+// plus one for the schema dump. Returns 0 if the script directory cannot be located.
+func CountPGGatherSteps() int {
+	scriptPath, err := findGatherMetadataScriptPath(POSTGRESQL)
+	if err != nil {
+		log.Warnf("could not locate PG gather script to count steps: %v", err)
+		return 0
+	}
+	scriptDir := filepath.Dir(scriptPath)
+	matches, err := filepath.Glob(filepath.Join(scriptDir, "*.psql"))
+	if err != nil {
+		log.Warnf("could not glob .psql files in %s: %v", scriptDir, err)
+		return 0
+	}
+	return len(matches) + 1 // +1 for schema collection (pg_dump)
+}
+
+// runGatherAssessmentMetadataScript runs the script, captures stdout, detects sub-steps
+// and reports them via tracker.IncrementStep. If tracker is nil, falls back to printing stdout directly.
+func runGatherAssessmentMetadataScript(
+	scriptPath string, envVars []string, workingDir string,
+	tracker *ux.ProgressTracker,
+	scriptArgs ...string,
+) error {
 	cmd := exec.Command(scriptPath, scriptArgs...)
 	log.Infof("running script: %s", cmd.String())
 	cmd.Env = os.Environ()
@@ -397,7 +438,6 @@ func runGatherAssessmentMetadataScript(scriptPath string, envVars []string, work
 	if err != nil {
 		return fmt.Errorf("error creating stdout pipe: %w", err)
 	}
-
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return fmt.Errorf("error creating stderr pipe: %w", err)
@@ -408,18 +448,28 @@ func runGatherAssessmentMetadataScript(scriptPath string, envVars []string, work
 		return fmt.Errorf("error starting gather assessment metadata script: %w", err)
 	}
 
+	var stderrBuf strings.Builder
 	go func() {
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
-			log.Errorf("[stderr of script]: %s", scanner.Text())
-			fmt.Printf("%s\n", scanner.Text())
+			line := scanner.Text()
+			log.Errorf("[stderr of script]: %s", line)
+			stderrBuf.WriteString(line)
+			stderrBuf.WriteString("\n")
 		}
 	}()
 
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
-		log.Infof("[stdout of script]: %s", scanner.Text())
-		fmt.Printf("%s\n", scanner.Text())
+		line := scanner.Text()
+		log.Infof("[stdout of script]: %s", line)
+		if tracker != nil {
+			if stage := detectStageFromOutput(line); stage != "" && stage != "Complete" {
+				tracker.IncrementStep(stage)
+			}
+		} else {
+			fmt.Printf("%s\n", line)
+		}
 	}
 
 	err = cmd.Wait()
@@ -432,7 +482,10 @@ func runGatherAssessmentMetadataScript(scriptPath string, envVars []string, work
 				}
 			}
 		}
-		return fmt.Errorf("error waiting for gather assessment metadata script to complete: %w", err)
+		if stderrOutput := strings.TrimSpace(stderrBuf.String()); stderrOutput != "" {
+			return fmt.Errorf("gather assessment metadata script failed: %w\n%s", err, stderrOutput)
+		}
+		return fmt.Errorf("gather assessment metadata script failed: %w", err)
 	}
 	return nil
 }
@@ -476,6 +529,7 @@ func runGatherAssessmentMetadataScriptBuffered(
 		Stage:    "Starting collection...",
 	}
 
+	var stderrBuf strings.Builder
 	var wg sync.WaitGroup
 	wg.Add(2)
 
@@ -486,6 +540,8 @@ func runGatherAssessmentMetadataScriptBuffered(
 		for scanner.Scan() {
 			line := scanner.Text()
 			log.Errorf("[%s][stderr]: %s", nodeName, line)
+			stderrBuf.WriteString(line)
+			stderrBuf.WriteString("\n")
 		}
 	}()
 
@@ -520,7 +576,10 @@ func runGatherAssessmentMetadataScriptBuffered(
 			Stage:    "Failed",
 		}
 		log.Errorf("[%s] Script failed with error: %v", nodeName, err)
-		return fmt.Errorf("error waiting for gather assessment metadata script to complete: %w", err)
+		if stderrOutput := strings.TrimSpace(stderrBuf.String()); stderrOutput != "" {
+			return fmt.Errorf("[%s] gather assessment metadata script failed: %w\n%s", nodeName, err, stderrOutput)
+		}
+		return fmt.Errorf("[%s] gather assessment metadata script failed: %w", nodeName, err)
 	}
 
 	// Report completion
