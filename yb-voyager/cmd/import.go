@@ -358,12 +358,6 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 	cmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
 		"Port for Prometheus metrics server (default: 9101)")
 	cmd.Flags().MarkHidden("prometheus-metrics-port")
-
-	// cmd.Flags().BoolVar(&importUsePartitionRoot, "use-partition-root", true,
-	// 	"[PostgreSQL/YugabyteDB only] For partitioned tables during live migration:\n"+
-	// 		"  - true (default): insert data via the root table using the root table's PK for ON CONFLICT.\n"+
-	// 		"  - false: insert data directly into child partitions using their PKs. Useful when the root table\n"+
-	// 		"    has no PK but child partitions do.")
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {

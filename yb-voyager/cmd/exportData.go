@@ -323,7 +323,7 @@ func startNextIterationImportDataToTarget() {
 	}
 
 	if !currentMsr.ImportUsePartitionRoot {
-		cmd = append(cmd, "--use-partition-root=false")
+		cmd = append(cmd, "--use-partition-root", "false")
 	}
 
 	iterationExportDir := GetIterationExportDir(currentMsr.GetIterationsDir(exportDir), currentMsr.IterationNo+1)
@@ -1912,9 +1912,8 @@ func startFallBackSetupIfRequired() {
 		cmd = append(cmd, "--yes")
 	}
 
-	fmt.Printf("use partition root: %t\n", msr.ImportUsePartitionRoot)
 	if !msr.ImportUsePartitionRoot {
-		cmd = append(cmd, "--use-partition-root=false")
+		cmd = append(cmd, "--use-partition-root", "false")
 	}
 
 	arguments := generateGlobalExportImportArguments()

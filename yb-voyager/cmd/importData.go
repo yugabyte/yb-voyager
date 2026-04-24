@@ -466,7 +466,7 @@ func checkPartitionConsistency(msr *metadb.MigrationStatusRecord, importTableLis
 
 	if len(missingRootToLeafPartitions) > 0 {
 		utils.PrintAndLogfInfo("\nWhen using --use-partition-root=false, CDC events will contain partition table names.")
-		utils.PrintAndLogfInfo("The following source partitions are not present on the target database:")
+		utils.PrintAndLogfInfo("The following root table partitions are not present on the target database:")
 		for root, leaves := range missingRootToLeafPartitions {
 			utils.PrintAndLogfInfo("  - %s:", root)
 			for _, leaf := range leaves {
