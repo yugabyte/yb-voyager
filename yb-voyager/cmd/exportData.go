@@ -528,7 +528,11 @@ func exportData() bool {
 	}
 
 	// Get PostgreSQL system identifier while still connected
-	source.FetchDBSystemIdentifier()
+	source.FetchPGDBSystemIdentifier()
+	err = source.DB().FetchDBID()
+	if err != nil {
+		log.Errorf("error getting database id: %v", err) //can just log as this is used for call-home only
+	}
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {

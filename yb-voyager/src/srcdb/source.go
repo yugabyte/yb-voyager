@@ -62,6 +62,7 @@ type Source struct {
 	DBVersion                 string               `json:"db_version"`
 	DBSize                    int64                `json:"db_size"`
 	DBSystemIdentifier        int64                `json:"db_system_identifier"`
+	DBID                      int64                `json:"db_id,omitempty"` // Source-specific numeric id for call-home; see FetchDBID()
 	StrExportObjectTypeList   string               `json:"str_export_object_type_list"`
 	StrExcludeObjectTypeList  string               `json:"str_exclude_object_type_list"`
 	RunGuardrailsChecks       utils.BoolStr        `json:"run_guardrails_checks"`
@@ -106,9 +107,9 @@ func (s *Source) GetSchemaList() []string {
 	return sqlname.ExtractIdentifiersMinQuoted(s.Schemas)
 }
 
-// FetchDBSystemIdentifier fetches and stores the database system identifier
+// FetchPGDBSystemIdentifier fetches and stores the database system identifier
 // Currently only implemented for PostgreSQL
-func (s *Source) FetchDBSystemIdentifier() {
+func (s *Source) FetchPGDBSystemIdentifier() {
 	if s.DBType != "postgresql" {
 		return
 	}

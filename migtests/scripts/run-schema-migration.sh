@@ -98,7 +98,7 @@ main() {
 	compare_json_reports "${TEST_DIR}/expected_files/expected_schema_analysis_report.json" "${EXPORT_DIR}/reports/schema_analysis_report.json"
 
 	step "Create target database."
-	run_ysql yugabyte "DROP DATABASE IF EXISTS \"${TARGET_DB_NAME};\""
+	ysql_terminate_and_drop_database "${TARGET_DB_NAME}"
 	run_ysql yugabyte "CREATE DATABASE \"${TARGET_DB_NAME}\" with COLOCATION=TRUE"
 
 	step "Import schema."
@@ -152,7 +152,7 @@ main() {
 	step "Clean up"
 	./cleanup-db
 	rm -rf "${EXPORT_DIR}"
-	run_ysql yugabyte "DROP DATABASE IF EXISTS \"${TARGET_DB_NAME}\";"
+	ysql_terminate_and_drop_database "${TARGET_DB_NAME}"
 }
 
 main
