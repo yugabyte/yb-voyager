@@ -398,19 +398,15 @@ func importSnapshotRequired() bool {
 	}
 }
 func checkTablesPresentInTarget(tablesToImport []sqlname.NameTuple) {
-	fmt.Printf("tablesToImport: %v\n", tablesToImport)
-	fmt.Printf("importerRole: %s\n", importerRole)
 	if importerRole != TARGET_DB_IMPORTER_ROLE {
 		return
 	}
 	tablesNotPresentInTarget := []sqlname.NameTuple{}
 	for _, tableName := range tablesToImport {
 		if !tableName.TargetTableAvailable() {
-			fmt.Printf("tableName not present in target: %s\n", tableName.ForKey())
 			tablesNotPresentInTarget = append(tablesNotPresentInTarget, tableName)
 		}
 	}
-	fmt.Printf("tablesNotPresentInTarget: %v\n", tablesNotPresentInTarget)
 	if len(tablesNotPresentInTarget) > 0 {
 		utils.PrintAndLogfInfo("\nFollowing source tables are not present in the target database:\n%v", strings.Join(lo.Map(tablesNotPresentInTarget, func(t sqlname.NameTuple, _ int) string {
 			return t.ForKey()

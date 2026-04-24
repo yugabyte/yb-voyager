@@ -291,16 +291,10 @@ func (lm *LiveMigrationTest) startExportData(async bool, extraArgs map[string]st
 		"--source-db-name", lm.config.SourceDB.DatabaseName,
 		"--disable-pb", "true",
 		"--export-type", exportType,
-		"--parallel-jobs", "1",
 		"--yes",
 	}
 	for key, value := range extraArgs {
-		if value == "" {
-			// For flags that are self-contained (e.g., --flag=value format)
-			args = append(args, key)
-		} else {
-			args = append(args, key, value)
-		}
+		args = append(args, key, value)
 	}
 
 	lm.exportCmd = testutils.NewVoyagerCommandRunner(lm.sourceContainer, "export data", args, onStart, async).WithEnv(env...).WithT(lm.t)
@@ -357,12 +351,7 @@ func (lm *LiveMigrationTest) startImportData(async bool, extraArgs map[string]st
 		"--yes",
 	}
 	for key, value := range extraArgs {
-		if value == "" {
-			// For flags that are self-contained (e.g., --flag=value format)
-			args = append(args, key)
-		} else {
-			args = append(args, key, value)
-		}
+		args = append(args, key, value)
 	}
 
 	lm.importCmd = testutils.NewVoyagerCommandRunner(lm.targetContainer, "import data", args, onStart, async).WithEnv(env...).WithT(lm.t)
@@ -403,11 +392,7 @@ func (lm *LiveMigrationTest) startExportDataFromTarget(async bool, extraArgs map
 		"--yes",
 	}
 	for key, value := range extraArgs {
-		if value == "" {
-			args = append(args, key)
-		} else {
-			args = append(args, key, value)
-		}
+		args = append(args, key, value)
 	}
 
 	lm.exportFromTargetCmd = testutils.NewVoyagerCommandRunner(nil, "export data from target", args, onStart, async).WithEnv(env...).WithT(lm.t)
@@ -451,11 +436,7 @@ func (lm *LiveMigrationTest) startImportDataToSource(async bool, extraArgs map[s
 		"--yes",
 	}
 	for key, value := range extraArgs {
-		if value == "" {
-			args = append(args, key)
-		} else {
-			args = append(args, key, value)
-		}
+		args = append(args, key, value)
 	}
 
 	lm.importToSourceCmd = testutils.NewVoyagerCommandRunner(nil, "import data to source", args, onStart, async).WithEnv(env...).WithT(lm.t)

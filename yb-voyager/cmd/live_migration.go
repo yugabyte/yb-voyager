@@ -454,6 +454,7 @@ func handleEvent(event *tgtdb.Event,
 			event.Vsn, event.GetPartitionQualifiedName(), event.TableNameTup.ForKey())
 	}
 
+	event.ImporterRole = importerRole
 	if err := injectImportCDCTransformFailure(); err != nil {
 		return err
 	}

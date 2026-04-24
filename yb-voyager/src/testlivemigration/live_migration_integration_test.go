@@ -4436,16 +4436,6 @@ func TestLiveMigrationWithFallbackWithIterationsAndArchiveChangesAndEndMigration
 //   - orders_us: partition for 'US' with PRIMARY KEY (id)
 //   - orders_eu: partition for 'EU' with PRIMARY KEY (id)
 //   - orders_apac: partition for 'APAC' with PRIMARY KEY (id)
-//
-// Test flow:
-//  1. Create partitioned table on source with PKs on children only
-//  2. Insert initial data into different partitions
-//  3. Export with --use-partition-root=false
-//  4. Create same schema on target
-//  5. Import data with --use-partition-root=false - should insert directly into child partitions
-//  6. Insert more rows on source (CDC)
-//  7. Verify CDC events flow correctly to child partitions
-//  8. Validate data consistency across all partitions
 func TestLiveMigrationPartitionedTableWithChildPK(t *testing.T) {
 	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
@@ -4612,6 +4602,17 @@ func TestLiveMigrationPartitionedTableWithChildPK(t *testing.T) {
 
 }
 
+/*
+Test schema:
+Root table: public.customers
+Child tables: public.customers_active, public.customers_other PK(id)
+Child tables of active: public.customers_arr_small,public.customers_arr_large,
+Child tables of arr_small: public.customers_part11 PK(id), public.customers_part12 PK(id)
+Child tables of arr_large: public.customers_part21 PK(id), public.customers_part22 PK(id)
+
+loading data using use-partition-root false
+
+*/
 func TestLiveMigrationWithMultiLevelPartitioningWithChildTablesHasPK(t *testing.T) {
 	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{

@@ -43,6 +43,7 @@ type Event struct {
 	Fields              map[string]*string //all the column values of the row - worst
 	BeforeFields        map[string]*string //all the column values of the row - worst
 	ExporterRole        string
+	ImporterRole        string
 }
 
 /*
@@ -168,11 +169,20 @@ func (e *Event) GetPartitionQualifiedName() string {
 	return fmt.Sprintf("%s.%s", e.PartitionSchemaName, e.PartitionTableName)
 }
 
+func (e *Event) supportsPartitionTableIngestion() bool {
+	if e.ImporterRole == constants.TARGET_DB_IMPORTER_ROLE {
+		//for import data to target, only insert events support partition table ingestion
+		return e.Op == "c"
+	}
+	//else anyother importer can work with partition table ingestion
+	return true
+}
+
 // GetEffectiveTableNameForSQL returns the table name to use in SQL statements.
 // If UsePartitionTable is true and this is a partition event, returns the partition table name.
 // Otherwise, returns the root table name (TableNameTup).
 func (e *Event) GetEffectiveTableNameForSQL() string {
-	if e.UsePartitionTable && e.IsPartitionEvent() && e.Op == "c" {
+	if e.UsePartitionTable && e.IsPartitionEvent() && e.supportsPartitionTableIngestion() {
 		// Quote the schema and table names for SQL safety
 		return fmt.Sprintf(`"%s"."%s"`, e.PartitionSchemaName, e.PartitionTableName)
 	}
