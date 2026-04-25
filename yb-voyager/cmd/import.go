@@ -26,6 +26,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -35,6 +36,7 @@ var sourceDBType string
 var enableOrafce utils.BoolStr
 var importType string
 var prometheusMetricsPort int
+var importUsePartitionRoot utils.BoolStr // default is true for backward compatibility
 
 var supportedSSLModesOnTargetForImport = AllSSLModes // supported SSL modes for YugabyteDB is different for import VS export data from target(streaming phase)
 var supportedSSLModesOnSourceOrSourceReplica = AllSSLModes
@@ -115,6 +117,36 @@ func validateImportDataFlags() error {
 	}
 
 	return nil
+}
+
+func validateImportUsePartitionRootFlag() error {
+	// --use-partition-root flag is only valid for live migration with PostgreSQL or YugabyteDB source
+	//and only for the CDC streaming phase and snapshot part isn't supported right now.
+	if !importUsePartitionRoot {
+		// Only validate when flag is explicitly set to false (non-default)
+		// Read the export type from MSR since importType may not be set yet in PreRun
+		msr, err := metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			return goerrors.Errorf("failed to get migration status record: %w", err)
+		}
+		exportTypeFromSource := msr.ExportTypeFromSource
+		if !changeStreamingIsEnabled(exportTypeFromSource) {
+			return goerrors.Errorf("'--use-partition-root false' is only valid for live migration")
+		}
+		if tconf.TargetDBType != POSTGRESQL && tconf.TargetDBType != YUGABYTEDB {
+			return goerrors.Errorf("'--use-partition-root' flag is only valid for PostgreSQL and YugabyteDB source databases")
+		}
+	}
+	return metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
+		switch importerRole {
+		case TARGET_DB_IMPORTER_ROLE:
+			record.TargetUsePartitionRoot = bool(importUsePartitionRoot)
+		case SOURCE_DB_IMPORTER_ROLE:
+			record.SourceUsePartitionRoot = bool(importUsePartitionRoot)
+		case SOURCE_REPLICA_DB_IMPORTER_ROLE:
+			record.SourceReplicaUsePartitionRoot = bool(importUsePartitionRoot)
+		}
+	})
 }
 
 var validCdcPartitioningStrategies = []string{"pk", "table", "auto"}
@@ -297,6 +329,11 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &truncateSplits, "truncate-splits", true,
 		"Truncate splits after importing")
 	cmd.Flags().MarkHidden("truncate-splits")
+	//only for the CDC streaming phase and snapshot part isn't supported right now.
+	BoolVar(cmd.Flags(), &importUsePartitionRoot, "use-partition-root", true,
+		"For partitioned tables during live migration:\n"+
+			"  - true (default): Import CDC data via the root table.\n"+
+			"  - false: Import CDC data directly into child partitions\n")
 }
 
 func registerImportDataToTargetFlags(cmd *cobra.Command) {

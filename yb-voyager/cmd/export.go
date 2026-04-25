@@ -253,6 +253,8 @@ func registerExportDataFlags(cmd *cobra.Command) {
 
 	BoolVar(cmd.Flags(), &source.AllowOracleClobDataExport, "allow-oracle-clob-data-export", false,
 		"[EXPERIMENTAL][Oracle only] Allow exporting data of CLOB columns in offline migration.")
+
+
 }
 
 func validateSourceDBType() {

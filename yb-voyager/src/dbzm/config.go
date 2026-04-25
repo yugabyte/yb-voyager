@@ -26,7 +26,6 @@ import (
 	"strings"
 
 	goerrors "github.com/go-errors/errors"
-
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 
