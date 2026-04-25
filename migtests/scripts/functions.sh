@@ -93,6 +93,11 @@ run_ysql() {
 	PGPASSWORD="${TARGET_DB_ADMIN_PASSWORD}" psql -P pager=off -h ${TARGET_DB_HOST} -p ${TARGET_DB_PORT} -U ${TARGET_DB_ADMIN_USER} -d ${db_name} -c "${sql}"
 }
 
+# TODO: Remove this helper (and all its call-sites) once the underlying
+# Voyager bug is fixed - target-side disconnect() does not close the
+# sql.DB handle, leaving stale sessions that block DROP DATABASE.
+# Once that is fixed, a plain `DROP DATABASE IF EXISTS "<name>";` should
+# suffice and this workaround can be removed.
 ysql_terminate_and_drop_database() {
 	local target_db_to_drop=$1
 	run_ysql yugabyte "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${target_db_to_drop}' AND pid != pg_backend_pid();" || true
