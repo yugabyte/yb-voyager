@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -27,7 +26,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -41,16 +39,15 @@ type SequentialFileBatchProducer struct {
 
 	pendingBatches  []*Batch // pending batches after recovery
 	lastBatchNumber int64    // batch number of the last batch that was produced
-	lastOffset      int64    // file offset from where the last batch was produced, only used in recovery
 	fileFullySplit  bool     // if the file is fully split into batches
 	completed       bool     // if all batches have been produced
 
-	dataFile               datafile.DataFile
-	header                 string
-	headerByteCount        int64
-	numLinesTaken          int64 // number of lines read from the file
+	dataFile                  datafile.DataFile
+	header                    string
+	headerByteCount           int64
+	numLinesTaken             int64 // number of lines read from the file
 	lastBatchCumByteOffsetEnd int64 // cumulative byte offset end recovered from the last batch's state
-	cumByteOffsetEnd         int64 // running cumulative byte offset end tracking absolute file position
+	cumByteOffsetEnd          int64 // running cumulative byte offset end tracking absolute file position
 	// line that was read from file while producing the previous batch
 	// but not added to the batch because adding it would breach size/row based thresholds.
 	lineFromPreviousBatch string
@@ -102,12 +99,11 @@ func NewSequentialFileBatchProducer(task *ImportFileTask, state *ImportDataState
 		state:                       state,
 		pendingBatches:              pendingBatches,
 		lastBatchNumber:             lastBatchNumber,
-		lastOffset:                  lastOffset,
 		fileFullySplit:              fileFullySplit,
 		completed:                   completed,
 		numLinesTaken:               lastOffset,
-		lastBatchCumByteOffsetEnd:      lastBatchCumByteOffsetEnd,
-		cumByteOffsetEnd:               lastBatchCumByteOffsetEnd,
+		lastBatchCumByteOffsetEnd:   lastBatchCumByteOffsetEnd,
+		cumByteOffsetEnd:            lastBatchCumByteOffsetEnd,
 		errorHandler:                errorHandler,
 		progressReporter:            progressReporter,
 		isRowTransformationRequired: isRowTransformationRequired,
@@ -340,14 +336,9 @@ func (p *SequentialFileBatchProducer) openDataFileAtByteOffset() error {
 		headerDataFile.Close()
 	}
 
-	// Seek to byte offset. Falls back to SkipLines if datastore doesn't support OpenAt yet.
 	log.Infof("Seeking to byte offset %d in %q", p.lastBatchCumByteOffsetEnd, p.task.FilePath)
 	reader, err := dataStore.OpenAt(p.task.FilePath, p.lastBatchCumByteOffsetEnd)
 	if err != nil {
-		if errors.Is(err, datastore.ErrOpenAtNotImplemented) {
-			log.Warnf("OpenAt not implemented for current datastore, falling back to SkipLines for %q", p.task.FilePath)
-			return p.openDataFileAndSkipLines()
-		}
 		return goerrors.Errorf("seeking to byte offset %d in file %q: %v", p.lastBatchCumByteOffsetEnd, p.task.FilePath, err)
 	}
 
@@ -360,26 +351,7 @@ func (p *SequentialFileBatchProducer) openDataFileAtByteOffset() error {
 	}
 	p.dataFile = dataFile
 
-	log.Infof("Resumed file %q at byte offset %d (skipped SkipLines)", p.task.FilePath, p.lastBatchCumByteOffsetEnd)
-	return nil
-}
-
-// openDataFileAndSkipLines resumes by opening the file from byte 0 and skipping
-// lines to reach the resumption point. Used when OpenAt is not supported.
-func (p *SequentialFileBatchProducer) openDataFileAndSkipLines() error {
-	df, err := p.openDataFileAndReadHeaderIfRequired()
-	if err != nil {
-		return err
-	}
-	p.dataFile = df
-
-	log.Infof("OpenAt not available, skipping %d lines from %q", p.lastOffset, p.task.FilePath)
-	p.progressReporter.AddResumeInformation(p.task, fmt.Sprintf("Resuming from %d lines", p.lastOffset))
-	err = df.SkipLines(p.lastOffset)
-	if err != nil {
-		return goerrors.Errorf("skipping line for offset=%d: %v", p.lastOffset, err)
-	}
-	p.progressReporter.RemoveResumeInformation(p.task)
+	log.Infof("Resumed file %q at byte offset %d", p.task.FilePath, p.lastBatchCumByteOffsetEnd)
 	return nil
 }
 
