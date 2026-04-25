@@ -526,6 +526,13 @@ import-data-to-target:
   ## Accepted value - <integer>, default - 15
   # max-retries-streaming: 15
 
+  ### For partitioned tables during live migration:
+  ### - true (default): Import CDC data via the root table.
+  ### - false: Import CDC data directly into child partitions
+  ### Accepted values (true, false, yes, no, 1, 0)
+  ### Default - true
+  # use-partition-root: true
+
 # ---------------------------------------------------------
 # Import data to source-replica
 # ---------------------------------------------------------
@@ -571,6 +578,13 @@ import-data-to-source-replica:
   ### Note: This overrides the value of the number of retries to happen for streaming phase 
   ## Accepted value - <integer>, default - 15
   # max-retries-streaming: 15
+
+  ### For partitioned tables during live migration:
+  ### - true (default): Import CDC data via the root table.
+  ### - false: Import CDC data directly into child partitions
+  ### Accepted values (true, false, yes, no, 1, 0)
+  ### Default - true
+  # use-partition-root: true
 
 # ---------------------------------------------------------
 # Archive Changes

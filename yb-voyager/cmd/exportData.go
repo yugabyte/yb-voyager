@@ -322,7 +322,11 @@ func startNextIterationImportDataToTarget() {
 		cmd = append(cmd, "--target-db-user", currentMsr.TargetDBConf.User)
 	}
 
-	if !currentMsr.ImportUsePartitionRoot {
+	importDataStatusRecord, err := metaDB.GetImportDataStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get import data status record: %w", err)
+	}
+	if !importDataStatusRecord.TargetUsePartitionRoot {
 		cmd = append(cmd, "--use-partition-root", "false")
 	}
 
@@ -1916,7 +1920,11 @@ func startFallBackSetupIfRequired() {
 		cmd = append(cmd, "--yes")
 	}
 
-	if !msr.ImportUsePartitionRoot {
+	importDataStatusRecord, err := metaDB.GetImportDataStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get import data status record: %w", err)
+	}
+	if !importDataStatusRecord.TargetUsePartitionRoot {
 		cmd = append(cmd, "--use-partition-root", "false")
 	}
 
@@ -2102,7 +2110,7 @@ func buildRootToLeafPartitionsMap(partitionsToRootTableMap map[string]string, fi
 			leaves = []sqlname.NameTuple{}
 		}
 		leaves = append(leaves, leafTuple)
-		rootToLeafPartitions.Put(rootTuple, append(leaves, leafTuple))
+		rootToLeafPartitions.Put(rootTuple, leaves)
 	}
 	return rootToLeafPartitions, nil
 }

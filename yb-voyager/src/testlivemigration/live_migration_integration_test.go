@@ -4429,7 +4429,7 @@ func TestLiveMigrationWithFallbackWithIterationsAndArchiveChangesAndEndMigration
 
 // TestLiveMigrationPartitionedTableWithChildPK tests live migration with partitioned tables
 // where the root table has no primary key but child partitions do.
-// This uses the --use-partition-root=false flag to insert directly into child partitions.
+// This uses the '--use-partition-root false' flag to insert directly into child partitions.
 //
 // Schema:
 //   - orders: root table partitioned by LIST on region, NO PRIMARY KEY
@@ -4528,13 +4528,12 @@ func TestLiveMigrationPartitionedTableWithChildPK(t *testing.T) {
 	err = lm.SetupSchema()
 	testutils.FatalIfError(t, err, "failed to setup schema")
 
-	// Start export with --use-partition-root=false
 	// This relaxes the PK check for root table since all child partitions have PKs
 	// CDC events will contain partition_table_name for original partition
 	err = lm.StartExportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start export data")
 
-	// Start import with --use-partition-root=false
+	// Start import with '--use-partition-root false'
 	// This causes SQL to target partition tables using partition_table_name from events
 	err = lm.StartImportData(true, map[string]string{
 		"--use-partition-root": "false",
@@ -4557,7 +4556,7 @@ func TestLiveMigrationPartitionedTableWithChildPK(t *testing.T) {
 
 	// Wait for streaming to complete
 	// CDC events are still tracked by root table name (table_name in event)
-	// But SQL targets partitions using partition_table_name when --use-partition-root=false
+	// But SQL targets partitions using partition_table_name when '--use-partition-root false'
 	// SourceDeltaSQL: insert 3, update 1, delete 1
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		`"public"."orders"`: {

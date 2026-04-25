@@ -120,7 +120,6 @@ type MigrationStatusRecord struct {
 	ExportDataFromSourceStarted bool `json:"ExportDataFromSourceStarted"`
 	ImportDataToTargetStarted   bool `json:"ImportDataToTargetStarted"`
 
-	ImportUsePartitionRoot bool `json:"ImportUsePartitionRoot"` // nil or true means use root table for partitions (default); false means insert directly into child partitions
 }
 
 type CutoverTimingRecord struct {

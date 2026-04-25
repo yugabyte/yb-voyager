@@ -33,17 +33,16 @@ import (
 )
 
 type Event struct {
-	Vsn                 int64 // Voyager Sequence Number
-	Op                  string
-	TableNameTup        sqlname.NameTuple
-	PartitionTableName  string // Original partition table name (before renaming to root)
-	PartitionSchemaName string // Original partition schema name (before renaming to root)
-	UsePartitionTable   bool   // If true and IsPartitionEvent(), use partition table for SQL instead of root
-	Key                 map[string]*string
-	Fields              map[string]*string //all the column values of the row - worst
-	BeforeFields        map[string]*string //all the column values of the row - worst
-	ExporterRole        string
-	ImporterRole        string
+	Vsn               int64 // Voyager Sequence Number
+	Op                string
+	TableNameTup      sqlname.NameTuple
+	PartitionTableTup sqlname.NameTuple // partition table name it will only work if the partitions remain same on target DB and we are already doing a guardrail check for the same
+	UsePartitionTable bool // If true and IsPartitionEvent(), use partition table for SQL instead of root
+	Key               map[string]*string
+	Fields            map[string]*string //all the column values of the row - worst
+	BeforeFields      map[string]*string //all the column values of the row - worst
+	ExporterRole      string
+	ImporterRole      string
 }
 
 /*
@@ -86,12 +85,14 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	e.Fields = rawEvent.Fields
 	e.BeforeFields = rawEvent.BeforeFields
 	e.ExporterRole = rawEvent.ExporterRole
-	e.PartitionSchemaName = rawEvent.PartitionSchemaName
-	e.PartitionTableName = rawEvent.PartitionTableName
 	if !e.IsCutoverEvent() {
 		e.TableNameTup, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", rawEvent.SchemaName, rawEvent.TableName))
 		if err != nil {
 			return fmt.Errorf("lookup table %s.%s in name registry: %w", rawEvent.SchemaName, rawEvent.TableName, err)
+		}
+		e.PartitionTableTup, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", rawEvent.PartitionSchemaName, rawEvent.PartitionTableName))
+		if err != nil {
+			return fmt.Errorf("lookup partition table %s.%s in name registry: %w", rawEvent.PartitionSchemaName, rawEvent.PartitionTableName, err)
 		}
 	}
 
@@ -115,8 +116,8 @@ func (e *Event) String() string {
 	}
 
 	partitionInfo := ""
-	if e.PartitionTableName != "" {
-		partitionInfo = fmt.Sprintf(", partition=%s.%s", e.PartitionSchemaName, e.PartitionTableName)
+	if e.IsPartitionEvent() {
+		partitionInfo = fmt.Sprintf(", partition=%v", e.PartitionTableTup)
 	}
 	return fmt.Sprintf("Event{vsn=%v, op=%v, table=%v%s, key=%v, before_fields=%v, fields=%v, exporter_role=%v}",
 		e.Vsn, e.Op, e.TableNameTup, partitionInfo, mapStr(e.Key), mapStr(e.BeforeFields), mapStr(e.Fields), e.ExporterRole)
@@ -127,16 +128,15 @@ func (e *Event) Copy() *Event {
 		return k, v
 	}
 	return &Event{
-		Vsn:                 e.Vsn,
-		Op:                  e.Op,
-		TableNameTup:        e.TableNameTup,
-		PartitionSchemaName: e.PartitionSchemaName,
-		PartitionTableName:  e.PartitionTableName,
-		UsePartitionTable:   e.UsePartitionTable,
-		Key:                 lo.MapEntries(e.Key, idFn),
-		Fields:              lo.MapEntries(e.Fields, idFn),
-		BeforeFields:        lo.MapEntries(e.BeforeFields, idFn),
-		ExporterRole:        e.ExporterRole,
+		Vsn:               e.Vsn,
+		Op:                e.Op,
+		TableNameTup:      e.TableNameTup,
+		PartitionTableTup: e.PartitionTableTup,
+		UsePartitionTable: e.UsePartitionTable,
+		Key:               lo.MapEntries(e.Key, idFn),
+		Fields:            lo.MapEntries(e.Fields, idFn),
+		BeforeFields:      lo.MapEntries(e.BeforeFields, idFn),
+		ExporterRole:      e.ExporterRole,
 	}
 }
 
@@ -158,7 +158,7 @@ func (e *Event) IsCutoverEvent() bool {
 
 // IsPartitionEvent returns true if this event originated from a partition table that was renamed to root
 func (e *Event) IsPartitionEvent() bool {
-	return e.PartitionTableName != ""
+	return e.PartitionTableTup != (sqlname.NameTuple{})
 }
 
 // GetPartitionQualifiedName returns the fully qualified partition table name (schema.table)
@@ -166,13 +166,19 @@ func (e *Event) GetPartitionQualifiedName() string {
 	if !e.IsPartitionEvent() {
 		return ""
 	}
-	return fmt.Sprintf("%s.%s", e.PartitionSchemaName, e.PartitionTableName)
+	return e.PartitionTableTup.ForUserQuery()
 }
 
+/*
+Currently ingestion logic is to ingest cdc data via root table for the partitioned table by default to cases where
+partitioning strategy/names change on the target database. So with configuration '--use-partition-root false', we are ingesting data via partition table.
+but with UPDATE <partition table> stmt on YB , there is a limiation that it errors out if the UPDATE statement doesn't include partition key so we are skipping
+ingestion of UPDATE events via partition table on Target DB. and in other importers we are ingesting data via partition table.
+*/
 func (e *Event) supportsPartitionTableIngestion() bool {
 	if e.ImporterRole == constants.TARGET_DB_IMPORTER_ROLE {
-		//for import data to target, only insert events support partition table ingestion
-		return e.Op == "c"
+		//for import data to target, only update events doesn't support partition table ingestion
+		return e.Op != "u"
 	}
 	//else anyother importer can work with partition table ingestion
 	return true
@@ -184,7 +190,7 @@ func (e *Event) supportsPartitionTableIngestion() bool {
 func (e *Event) GetEffectiveTableNameForSQL() string {
 	if e.UsePartitionTable && e.IsPartitionEvent() && e.supportsPartitionTableIngestion() {
 		// Quote the schema and table names for SQL safety
-		return fmt.Sprintf(`"%s"."%s"`, e.PartitionSchemaName, e.PartitionTableName)
+		return e.PartitionTableTup.ForUserQuery()
 	}
 	return e.TableNameTup.ForUserQuery()
 }

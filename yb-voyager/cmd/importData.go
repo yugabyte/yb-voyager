@@ -88,6 +88,7 @@ func ShutdownImportProgressBars() {
 		progressReporter.Shutdown()
 	}
 }
+
 var importTableList []sqlname.NameTuple
 
 // Error policy
@@ -425,18 +426,15 @@ func checkTablesPresentInTarget(tablesToImport []sqlname.NameTuple) {
 }
 
 // checkPartitionConsistency verifies that partitions are the same between source and target
-// when use-partition-root=false is used during import. This is required because CDC events
+// when '--use-partition-root false' is used during import. This is required because CDC events
 // will contain partition table names that must exist on the target.
 func checkPartitionConsistency(msr *metadb.MigrationStatusRecord, importTableList []sqlname.NameTuple) {
-	if importerRole != TARGET_DB_IMPORTER_ROLE {
-		return
-	}
 	if msr.SourceRenameTablesMap == nil || len(msr.SourceRenameTablesMap) == 0 {
 		// No partitions to check
 		return
 	}
 
-	log.Infof("Checking partition consistency between source and target (use-partition-root=false)")
+	log.Infof("Checking partition consistency between source and target ('--use-partition-root false')")
 
 	// Get list of partitions from MSR (source partitions)
 	rootToLeafPartitions := make(map[string][]string)
@@ -456,13 +454,11 @@ func checkPartitionConsistency(msr *metadb.MigrationStatusRecord, importTableLis
 	// Check each source partition exists on target
 	missingRootToLeafPartitions := make(map[string][]string)
 	for root, leaves := range rootToLeafPartitions {
-		if lo.ContainsBy(importTableList, func(t sqlname.NameTuple) bool {
+		if !lo.ContainsBy(importTableList, func(t sqlname.NameTuple) bool {
 			return t.ForKey() == root
 		}) {
-			continue
-		}
-		if !checkIfTableExistsOnTarget(root) {
-			missingRootToLeafPartitions[root] = []string{}
+			//if the root table is not in the import table list, then skip the check
+			//since its not being exported from source
 			continue
 		}
 		for _, leaf := range leaves {
@@ -474,7 +470,7 @@ func checkPartitionConsistency(msr *metadb.MigrationStatusRecord, importTableLis
 	}
 
 	if len(missingRootToLeafPartitions) > 0 {
-		utils.PrintAndLogfInfo("\nWhen using --use-partition-root=false, CDC events will contain partition table names.")
+		utils.PrintAndLogfInfo("\nWhen using '--use-partition-root false', CDC events will contain partition table names.")
 		utils.PrintAndLogfInfo("The following root table partitions are not present on the target database:")
 		for root, leaves := range missingRootToLeafPartitions {
 			utils.PrintAndLogfInfo("  - %s:", root)
@@ -482,7 +478,10 @@ func checkPartitionConsistency(msr *metadb.MigrationStatusRecord, importTableLis
 				utils.PrintAndLogfInfo("    - %s", leaf)
 			}
 		}
-		utils.ErrExit("Ensure that all partitions from the source exist on the target, or use --use-partition-root=true (default).")
+		utils.PrintAndLogfWarning("\nEnsure that all partitions from the source exist on the target, or use --use-partition-root true (default).")
+		if !utils.AskPrompt("\nDo you want to continue anyway") {
+			utils.ErrExit("Please ensure that all partitions from the source exist on the target, or use --use-partition-root true (default).")
+		}
 	}
 	log.Infof("Partition consistency check passed: %v root-to-leaf partitions verified", rootToLeafPartitions)
 }
@@ -985,10 +984,9 @@ func initialiseImportTableList(importFileTasks []*ImportFileTask, msr *metadb.Mi
 		//and if not, we need to exit with an error
 		//If the export type includes snapshot, then only use the importFileTasks to get the tables to import
 		//otherwise use the tables from msr
-		// tablesToImport := lo.Ternary(importSnapshotRequired(), importFileTasksToTableNameTuples(importFileTasks), importTableList) 
-		checkTablesPresentInTarget(importTableList)//to check whether tables exist or not we should use importTableList in live migration case
+		checkTablesPresentInTarget(importTableList) //to check whether tables exist or not we should use importTableList in live migration case
 
-		// When use-partition-root=false, verify that partitions are consistent between source and target
+		// When '--use-partition-root false', verify that partitions are consistent between source and target
 		if !importUsePartitionRoot {
 			checkPartitionConsistency(msr, importTableList)
 		}
