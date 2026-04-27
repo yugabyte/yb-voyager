@@ -37,7 +37,7 @@ type Event struct {
 	Op                string
 	TableNameTup      sqlname.NameTuple
 	PartitionTableTup sqlname.NameTuple // partition table name it will only work if the partitions remain same on target DB and we are already doing a guardrail check for the same
-	UsePartitionTable bool // If true and IsPartitionEvent(), use partition table for SQL instead of root
+	UsePartitionTable bool              // If true and IsPartitionEvent(), use partition table for SQL instead of root
 	Key               map[string]*string
 	Fields            map[string]*string //all the column values of the row - worst
 	BeforeFields      map[string]*string //all the column values of the row - worst
@@ -90,10 +90,12 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			return fmt.Errorf("lookup table %s.%s in name registry: %w", rawEvent.SchemaName, rawEvent.TableName, err)
 		}
-		// we ignore if target not found because we won't use the partition table if it's not present in the target without use-partition-root false as we already have a guardrail check for the same with use-partition-root false
-		e.PartitionTableTup, err = namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(fmt.Sprintf("%s.%s", rawEvent.PartitionSchemaName, rawEvent.PartitionTableName))
-		if err != nil {
-			return fmt.Errorf("lookup partition table %s.%s in name registry: %w", rawEvent.PartitionSchemaName, rawEvent.PartitionTableName, err)
+		if rawEvent.PartitionSchemaName != "" && rawEvent.PartitionTableName != "" {
+			// we ignore if target not found because we won't use the partition table if it's not present in the target without use-partition-root false as we already have a guardrail check for the same with use-partition-root false
+			e.PartitionTableTup, err = namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(fmt.Sprintf("%s.%s", rawEvent.PartitionSchemaName, rawEvent.PartitionTableName))
+			if err != nil {
+				return fmt.Errorf("lookup partition table %s.%s in name registry: %w", rawEvent.PartitionSchemaName, rawEvent.PartitionTableName, err)
+			}
 		}
 	}
 
