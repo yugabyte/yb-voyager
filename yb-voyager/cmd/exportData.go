@@ -135,7 +135,7 @@ func handleCutoverAlreadyProcessedForExportData() {
 	}
 	switch exporterRole {
 	case SOURCE_DB_EXPORTER_ROLE:
-		if getCutoverStatus(metaDB) == COMPLETED {
+		if GetCutoverStatus(metaDB) == COMPLETED {
 			utils.ErrExit("cutover to target already processed, exiting...")
 		}
 	case TARGET_DB_EXPORTER_FF_ROLE:
@@ -143,7 +143,7 @@ func handleCutoverAlreadyProcessedForExportData() {
 			utils.ErrExit("cutover to source-replica already processed, exiting...")
 		}
 	case TARGET_DB_EXPORTER_FB_ROLE:
-		if getCutoverToSourceStatus(exportDir, metaDB) == COMPLETED {
+		if GetCutoverToSourceStatus(exportDir, metaDB) == COMPLETED {
 			utils.ErrExit("cutover to source already processed, exiting...")
 		}
 	default:
@@ -524,7 +524,11 @@ func exportData() bool {
 	}
 
 	// Get PostgreSQL system identifier while still connected
-	source.FetchDBSystemIdentifier()
+	source.FetchPGDBSystemIdentifier()
+	err = source.DB().FetchDBID()
+	if err != nil {
+		log.Errorf("error getting database id: %v", err) //can just log as this is used for call-home only
+	}
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {

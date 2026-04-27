@@ -449,6 +449,16 @@ func (yb *YugabyteDB) GetDatabaseSize() (int64, error) {
 	return dbSize.Int64, nil
 }
 
+func (yb *YugabyteDB) FetchDBID() error {
+	var oid int64
+	err := yb.db.QueryRow(`SELECT oid FROM pg_database WHERE datname = current_database()`).Scan(&oid)
+	if err != nil {
+		return err
+	}
+	yb.source.DBID = oid
+	return nil
+}
+
 // Thsi function returns some types like UDTs, ENums, etc.. fo which we need to check if there are any tables having columns of Array of these types for gRPC connector.
 func (yb *YugabyteDB) getAllUserDefinedTypesInSchema(schemaName string) []string {
 	query := fmt.Sprintf(`SELECT typname

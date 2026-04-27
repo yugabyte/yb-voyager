@@ -287,6 +287,11 @@ func (ms *MySQL) GetDatabaseSize() (int64, error) {
 	return dbSize.Int64, nil
 }
 
+func (ms *MySQL) FetchDBID() error {
+	//Not implemented for mysql
+	return nil
+}
+
 func (ms *MySQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	return tableList, nil
 }

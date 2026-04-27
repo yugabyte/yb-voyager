@@ -643,6 +643,16 @@ GROUP BY
 	return totalSchemasSize, nil
 }
 
+func (pg *PostgreSQL) FetchDBID() error {
+	var oid int64
+	err := pg.db.QueryRow(`SELECT oid FROM pg_database WHERE datname = current_database()`).Scan(&oid)
+	if err != nil {
+		return err
+	}
+	pg.source.DBID = oid
+	return nil
+}
+
 func (pg *PostgreSQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	return tableList, nil
 }

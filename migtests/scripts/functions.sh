@@ -93,6 +93,13 @@ run_ysql() {
 	PGPASSWORD="${TARGET_DB_ADMIN_PASSWORD}" psql -P pager=off -h ${TARGET_DB_HOST} -p ${TARGET_DB_PORT} -U ${TARGET_DB_ADMIN_USER} -d ${db_name} -c "${sql}"
 }
 
+ysql_terminate_and_drop_database() {
+	local target_db_to_drop=$1
+	run_ysql yugabyte "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${target_db_to_drop}' AND pid != pg_backend_pid();" || true
+	sleep 1
+	run_ysql yugabyte "DROP DATABASE IF EXISTS \"${target_db_to_drop}\";"
+}
+
 ysql_import_file() {
 	db_name=$1
 	file=$2
@@ -1166,8 +1173,12 @@ move_tables() {
 normalize_json() {
     local input_file="$1"
     local output_file="$2"
-    local temp_file="/tmp/temp_file.json"
-	local temp_file2="/tmp/temp_file2.json"
+    # Use mktemp: hardcoded /tmp paths race across parallel nightly tests,
+    # causing jq-open errors and cross-test payload contamination in diffs.
+    local temp_file
+    temp_file=$(mktemp)
+    local temp_file2
+    temp_file2=$(mktemp)
 
     # Normalize JSON with jq; use --sort-keys to avoid the need to keep the same sequence of keys in expected vs actual json
     jq --sort-keys 'walk(
@@ -1220,6 +1231,7 @@ normalize_json() {
 
     # Move cleaned file to output
     mv "$temp_file2" "$output_file"
+    rm -f "$temp_file"
 }
 
 
@@ -1475,7 +1487,10 @@ generate_voyager_config() {
 normalize_callhome_json() {
     local input_file="$1"
     local output_file="$2"
-    local temp_file="/tmp/temp_file.json"
+    # Use mktemp: hardcoded /tmp paths race across parallel nightly tests,
+    # causing jq-open errors and cross-test payload contamination in diffs.
+    local temp_file
+    temp_file=$(mktemp)
 
     # Normalize JSON with jq; use --sort-keys to avoid the need to keep the same sequence of keys in expected vs actual json
     jq --sort-keys 'walk(
@@ -1503,6 +1518,7 @@ normalize_callhome_json() {
             .migration_uuid = "IGNORED" |
             .db_version = "IGNORED" |
             .db_system_identifier = "IGNORED" |
+            .db_id = "IGNORED" |
             .target_db_details = "IGNORED" |
             .total_db_size_bytes = "IGNORED"
         elif type == "array" then

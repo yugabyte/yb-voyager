@@ -756,7 +756,7 @@ func nameContainsCapitalLetter(name string) bool {
 	return false
 }
 
-func getCutoverStatus(metaDB *metadb.MetaDB) string {
+func GetCutoverStatus(metaDB *metadb.MetaDB) string {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("get migration status record: %v", err)
@@ -806,7 +806,7 @@ func getCutoverToSourceReplicaStatus(metaDB *metadb.MetaDB) string {
 	return INITIATED
 }
 
-func getCutoverToSourceStatus(exportDir string, metaDB *metadb.MetaDB) string {
+func GetCutoverToSourceStatus(exportDir string, metaDB *metadb.MetaDB) string {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("get migration status record: %v", err)
