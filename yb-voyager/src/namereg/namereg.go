@@ -375,6 +375,15 @@ func (reg *NameRegistry) LookupTableNameAndIgnoreIfSourceNotFound(tableNameArg s
 	return ntup, nil
 }
 
+func (reg *NameRegistry) LookupTableNameAndIgnoreIfTargetNotFound(tableNameArg string) (sqlname.NameTuple, error) {
+	sourceName, targetName, err := reg.lookupSourceAndTargetTableNames(tableNameArg, true, false)
+	if err != nil {
+		return sqlname.NameTuple{}, goerrors.Errorf("error lookup source and target names for table [%v]: %v", tableNameArg, err)
+	}
+	ntup := NewNameTuple(reg.params.Role, sourceName, targetName)
+	return ntup, nil
+}
+
 func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ignoreIfTargetNotFound bool, ignoreIfSourceNotFound bool) (*sqlname.ObjectName, *sqlname.ObjectName, error) {
 	if ignoreIfTargetNotFound && ignoreIfSourceNotFound {
 		//can't use nametuple if both are ignored
@@ -589,7 +598,7 @@ func NewNameTuple(role string, sourceName *sqlname.ObjectName, targetName *sqlna
 
 //=========================================================== schema name matcher ==========================
 
-func SchemaNameMatcher(dbType string ,allSchemas []sqlname.Identifier, schemaConfig string) ([]sqlname.Identifier, error) {
+func SchemaNameMatcher(dbType string, allSchemas []sqlname.Identifier, schemaConfig string) ([]sqlname.Identifier, error) {
 	if dbType == constants.MYSQL {
 		// MySQL doesn't have schema names, so we return empty list
 		return nil, nil

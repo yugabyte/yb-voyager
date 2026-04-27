@@ -92,7 +92,9 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 		}
 		if rawEvent.PartitionSchemaName != "" && rawEvent.PartitionTableName != "" {
 			// we ignore if target not found because we won't use the partition table if it's not present in the target without use-partition-root false as we already have a guardrail check for the same with use-partition-root false
-			e.PartitionTableTup, err = namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(fmt.Sprintf("%s.%s", rawEvent.PartitionSchemaName, rawEvent.PartitionTableName))
+			//TODO: check if its okay to have a new function to ignore target table name not found without any role based check
+			//This is required in case we marshall the event for source-replica it will fail in case partitions changes on target db
+			e.PartitionTableTup, err = namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(fmt.Sprintf("%s.%s", rawEvent.PartitionSchemaName, rawEvent.PartitionTableName))
 			if err != nil {
 				return fmt.Errorf("lookup partition table %s.%s in name registry: %w", rawEvent.PartitionSchemaName, rawEvent.PartitionTableName, err)
 			}
