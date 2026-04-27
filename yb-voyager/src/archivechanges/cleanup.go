@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package segmentcleanup
+package archivechanges
 
 import (
 	"os"
@@ -34,7 +34,7 @@ const (
 
 	// Minimum number of processed segments that must exist after a segment
 	// before it becomes eligible for cleanup during normal (non-stop) operation.
-	segmentCleanupBuffer = 3
+	archiveChangesBuffer = 3
 )
 
 var ValidPolicyNames = []string{PolicyDelete, PolicyArchive}
@@ -99,16 +99,16 @@ func (sc *SegmentCleaner) isFSUtilizationExceeded() bool {
 
 // segmentsEligibleForCleanup returns the subset of processed segments that can
 // be safely cleaned up. During normal operation we keep a buffer of the last
-// `segmentCleanupBuffer` processed segments untouched; when the workflow has
+// `archiveChangesBuffer` processed segments untouched; when the workflow has
 // ended (sc.stop) all processed segments are eligible.
 func (sc *SegmentCleaner) segmentsEligibleForCleanup(segments []utils.Segment) []utils.Segment {
 	if sc.stop {
 		return segments
 	}
-	if len(segments) <= segmentCleanupBuffer {
+	if len(segments) <= archiveChangesBuffer {
 		return nil
 	}
-	return segments[:len(segments)-segmentCleanupBuffer]
+	return segments[:len(segments)-archiveChangesBuffer]
 }
 
 // --- delete policy ---

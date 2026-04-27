@@ -1010,7 +1010,7 @@ func stopVoyagerCommands(msr *metadb.MigrationStatusRecord, lockFiles []*lockfil
 		}
 	}
 	//checking if archiver is running on parent iteration as it is only expected to run on the main export directory
-	if parentMSR.ArchivingEnabled || parentMSR.SegmentCleanupRunning {
+	if parentMSR.ArchivingEnabled || parentMSR.ArchiveChangesRunning {
 		exportDataLockFile := getLockFileForCommand(lockFiles, "export data")
 		exportDataFromTargetLockFile := getLockFileForCommand(lockFiles, "export data from target")
 		exportDataFromSourceLockFile := getLockFileForCommand(lockFiles, "export data from source")

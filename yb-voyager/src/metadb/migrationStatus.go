@@ -33,7 +33,7 @@ type MigrationStatusRecord struct {
 	VoyagerVersion                            string            `json:"VoyagerVersion"`
 	ExportTypeFromSource                      string            `json:"ExportType"`
 	ArchivingEnabled                          bool              `json:"ArchivingEnabled"`
-	SegmentCleanupRunning                     bool              `json:"SegmentCleanupRunning"`
+	ArchiveChangesRunning                     bool              `json:"ArchiveChangesRunning"`
 	FallForwardEnabled                        bool              `json:"FallForwardEnabled"`
 	FallbackEnabled                           bool              `json:"FallbackEnabled"`
 	UseYBgRPCConnector                        bool              `json:"UseYBgRPCConnector"`
