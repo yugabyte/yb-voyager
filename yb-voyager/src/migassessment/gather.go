@@ -67,7 +67,7 @@ type progressTracker struct {
 	displayNames map[string]string // nodeName -> displayName
 	statuses     map[string]*NodeProgress
 	stepCounts   map[string]int // per-node completed step count
-	stepsTotal   int            // total steps per node (0 = unknown)
+	stepsTotal   map[string]int // per-node total steps (primary may differ from replicas)
 	mutex        sync.Mutex
 	initialized  bool // Whether initial lines have been printed
 	maxNameLen   int  // Maximum length of display names for alignment
@@ -79,7 +79,7 @@ func newProgressTracker(nodes []collectionNode, stepsTotal int) *progressTracker
 		displayNames: make(map[string]string),
 		statuses:     make(map[string]*NodeProgress),
 		stepCounts:   make(map[string]int),
-		stepsTotal:   stepsTotal,
+		stepsTotal:   make(map[string]int),
 		initialized:  false,
 		maxNameLen:   0,
 	}
@@ -90,6 +90,13 @@ func newProgressTracker(nodes []collectionNode, stepsTotal int) *progressTracker
 
 	for _, node := range nodes {
 		tracker.nodes = append(tracker.nodes, node.nodeName)
+
+		if node.isPrimary {
+			tracker.stepsTotal[node.nodeName] = stepsTotal
+		} else {
+			// Replicas skip schema collection (pg_dump), so one fewer step
+			tracker.stepsTotal[node.nodeName] = stepsTotal - 1
+		}
 
 		// Build display name from node info
 		var displayName string
@@ -173,15 +180,16 @@ func (pt *progressTracker) printSingleLine(progress NodeProgress) {
 	displayName := pt.displayNames[progress.NodeName]
 
 	// Build stage text with step counter prefix
+	nodeTotal := pt.stepsTotal[progress.NodeName]
 	stageText := progress.Stage
 	if progress.Stage == "Complete" {
-		if pt.stepsTotal > 0 {
-			stageText = fmt.Sprintf("(%d/%d) Complete", pt.stepsTotal, pt.stepsTotal)
+		if nodeTotal > 0 {
+			stageText = fmt.Sprintf("(%d/%d) Complete", nodeTotal, nodeTotal)
 		}
 	} else if progress.Stage != "Failed" && progress.Stage != "Pending..." {
 		step := pt.stepCounts[progress.NodeName]
-		if pt.stepsTotal > 0 {
-			stageText = fmt.Sprintf("(%d/%d) %s", step, pt.stepsTotal, progress.Stage)
+		if nodeTotal > 0 {
+			stageText = fmt.Sprintf("(%d/%d) %s", step, nodeTotal, progress.Stage)
 		} else {
 			stageText = fmt.Sprintf("(%d) %s", step, progress.Stage)
 		}
