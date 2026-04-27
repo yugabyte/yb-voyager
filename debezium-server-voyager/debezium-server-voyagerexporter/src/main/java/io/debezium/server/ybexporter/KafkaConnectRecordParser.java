@@ -28,6 +28,7 @@ class KafkaConnectRecordParser implements RecordParser {
     private Map<String, Table> tableMap;
     private JsonConverter jsonConverter;
     private Map<String, String> renameTables;
+    private Map<String, String> partitionToRootMapping;
     Record r = new Record();
 
     public KafkaConnectRecordParser(String dataDirStr, String sourceType, Map<String, Table> tblMap) {
@@ -39,12 +40,15 @@ class KafkaConnectRecordParser implements RecordParser {
         Map<String, String> jsonConfig = Collections.singletonMap(JsonConverterConfig.SCHEMAS_ENABLE_CONFIG, "false");
         jsonConverter.configure(jsonConfig, false);
         renameTables = new HashMap<>();
+        partitionToRootMapping = new HashMap<>();
         retrieveRenameTablesFromConfig();
     }
 
     private void retrieveRenameTablesFromConfig() {
         final Config config = ConfigProvider.getConfig();
         String renameTablesConfig = config.getOptionalValue("debezium.sink.ybexporter.tables.rename", String.class)
+                .orElse("");
+        String partitionToRootMappingsConfig = config.getOptionalValue("debezium.sink.ybexporter.partition.to.root.mapping", String.class)
                 .orElse("");
         if (!renameTablesConfig.isEmpty()) {
             for (String renameTableConfig : renameTablesConfig.split(",")) {
@@ -67,6 +71,30 @@ class KafkaConnectRecordParser implements RecordParser {
                             after));
                 }
                 renameTables.put(before, after);
+            }
+        }
+        if (!partitionToRootMappingsConfig.isEmpty()) {
+            for (String partitionToRootMappingConfig : partitionToRootMappingsConfig.split(",")) {
+                String[] beforeAndAfter = partitionToRootMappingConfig.split(":");
+                if (beforeAndAfter.length != 2) {
+                    throw new RuntimeException(String.format(
+                            "Incorrect format for specifying partition to root mapping config %s. Provide it as <partitionSchema>.<partitionTableName>:<rootSchema>.<rootTableName>",
+                            partitionToRootMappingConfig));
+                }
+                String before = beforeAndAfter[0];
+                String after = beforeAndAfter[1];
+                if ((before.split("\\.").length != 2) && (!sourceType.equals("mysql"))) {
+                    throw new RuntimeException(String.format(
+                            "Incorrect format for specifying partition to root mapping config %s. Provide it as <partitionSchema>.<partitionTableName>:<rootSchema>.<rootTableName>",
+                            before));
+                }
+                if ((after.split("\\.").length != 2) && (!sourceType.equals("mysql"))) {
+                    throw new RuntimeException(String.format(
+                            "Incorrect format for specifying partition to root mapping config %s. Provide it as <partitionSchema>.<partitionTableName>:<rootSchema>.<rootTableName>",
+                            after));
+                }
+                partitionToRootMapping.put(before, after);
+
             }
         }
     }
@@ -184,13 +212,15 @@ class KafkaConnectRecordParser implements RecordParser {
         if (!schemaName.equals("")) {
             qualifiedTableName = schemaName + "." + tableName;
         }
-        boolean wasRenamed = false;
         if (renameTables.containsKey(qualifiedTableName)) {
             String[] renamedTableName = renameTables.get(qualifiedTableName).split("\\.");
             // TODO: support MySQL
             schemaName = renamedTableName[0];
             tableName = renamedTableName[1];
-            wasRenamed = true;
+        }
+        boolean isPartitionTable = false;
+        if (partitionToRootMapping.containsKey(qualifiedTableName)) {
+            isPartitionTable = true;
         }
         var tableIdentifier = dbName + "-" + schemaName + "-" + tableName;
 
@@ -228,7 +258,7 @@ class KafkaConnectRecordParser implements RecordParser {
         r.t = t;
 
         // Store original partition table if this was a renamed partition
-        if (wasRenamed) {
+        if (isPartitionTable) {
             r.partitionTable = new Table(dbName, originalSchemaName, originalTableName);
         }
         else {

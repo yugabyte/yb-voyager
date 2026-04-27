@@ -59,6 +59,7 @@ type Config struct {
 	ColumnSequenceMapping       string
 	InitSequenceMaxMapping      string
 	TableRenameMapping          string
+	PartitionToRootMapping      string
 	ColumnList                  []string
 	Uri                         string
 	TNSAdmin                    string
@@ -117,6 +118,7 @@ debezium.sink.ybexporter.dataDir=%s
 debezium.sink.ybexporter.column_sequence.map=%s
 debezium.sink.ybexporter.sequence.max.map=%s
 debezium.sink.ybexporter.tables.rename=%s
+debezium.sink.ybexporter.partition.to.root.mapping=%s
 debezium.sink.ybexporter.queueSegmentMaxBytes=%d
 debezium.sink.ybexporter.metadata.db.path=%s
 debezium.sink.ybexporter.run.id=%s
@@ -342,6 +344,7 @@ func (c *Config) String() string {
 			c.ColumnSequenceMapping,
 			c.InitSequenceMaxMapping,
 			c.TableRenameMapping,
+			c.PartitionToRootMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
@@ -377,6 +380,7 @@ func (c *Config) String() string {
 				c.ColumnSequenceMapping,
 				c.InitSequenceMaxMapping,
 				c.TableRenameMapping,
+				c.PartitionToRootMapping,
 				queueSegmentMaxBytes,
 				c.MetadataDBPath,
 				c.RunId,
@@ -414,6 +418,7 @@ func (c *Config) String() string {
 				c.ColumnSequenceMapping,
 				c.InitSequenceMaxMapping,
 				c.TableRenameMapping,
+				c.PartitionToRootMapping,
 				queueSegmentMaxBytes,
 				c.MetadataDBPath,
 				c.RunId,
@@ -449,6 +454,7 @@ func (c *Config) String() string {
 			c.ColumnSequenceMapping,
 			c.InitSequenceMaxMapping,
 			c.TableRenameMapping,
+			c.PartitionToRootMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
@@ -481,6 +487,7 @@ func (c *Config) String() string {
 			c.ColumnSequenceMapping,
 			c.InitSequenceMaxMapping,
 			c.TableRenameMapping,
+			c.PartitionToRootMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
