@@ -90,7 +90,8 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			return fmt.Errorf("lookup table %s.%s in name registry: %w", rawEvent.SchemaName, rawEvent.TableName, err)
 		}
-		e.PartitionTableTup, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", rawEvent.PartitionSchemaName, rawEvent.PartitionTableName))
+		// we ignore if target not found because we won't use the partition table if it's not present in the target without use-partition-root false as we already have a guardrail check for the same with use-partition-root false
+		e.PartitionTableTup, err = namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(fmt.Sprintf("%s.%s", rawEvent.PartitionSchemaName, rawEvent.PartitionTableName))
 		if err != nil {
 			return fmt.Errorf("lookup partition table %s.%s in name registry: %w", rawEvent.PartitionSchemaName, rawEvent.PartitionTableName, err)
 		}
