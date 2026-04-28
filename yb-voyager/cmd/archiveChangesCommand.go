@@ -85,11 +85,11 @@ func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 
 	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.ArchivingEnabled = true
-		record.ArchiveChangesRunning = true
+		record.SegmentCleanupRunning = true
 	})
 	resetArchiveChangesRunning := func() {
 		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-			record.ArchiveChangesRunning = false
+			record.SegmentCleanupRunning = false
 		})
 	}
 	defer resetArchiveChangesRunning()
