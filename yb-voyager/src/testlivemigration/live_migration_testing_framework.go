@@ -831,6 +831,13 @@ func (lm *LiveMigrationTest) GetExportCommandStderr() string {
 	return lm.exportCmd.Stderr()
 }
 
+func (lm *LiveMigrationTest) GetExportCommandStdout() string {
+	if lm.exportCmd == nil {
+		return ""
+	}
+	return lm.exportCmd.Stdout()
+}
+
 // GetImportCommandStderr gets stderr from import command
 func (lm *LiveMigrationTest) GetImportCommandStderr() string {
 	if lm.importCmd == nil {

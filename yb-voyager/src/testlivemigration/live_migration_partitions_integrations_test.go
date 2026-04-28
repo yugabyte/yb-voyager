@@ -19,7 +19,11 @@ package testlivemigration
 
 import (
 	"context"
+	"database/sql"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -340,32 +344,16 @@ END $$;`,
 
 }
 
-// TestLiveMigrationPartitionedTableWithChildPK tests live migration with partitioned tables
-// where the root table has no primary key but child partitions do.
-// This uses the '--use-partition-root false' flag to insert directly into child partitions.
-//
-// Schema:
-//   - orders: root table partitioned by LIST on region, NO PRIMARY KEY
-//   - orders_us: partition for 'US' with PRIMARY KEY (id)
-//   - orders_eu: partition for 'EU' with PRIMARY KEY (id)
-//   - orders_apac: partition for 'APAC' with PRIMARY KEY (id)
-/*
-INSERT events in all partitions 
-UPDATE partitions 
-	- change amount of the partitions 
-DELETE rows for partition
-*/
-func TestLiveMigrationPartitionedTableWithChildPK(t *testing.T) {
-	t.Parallel()
-	lm := NewLiveMigrationTest(t, &TestConfig{
+func getLiveMigrationTestBasicForPartitionedTableWithChildPK(t *testing.T, databaseName string) *LiveMigrationTest {
+	return NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
 			ForLive:      true,
-			DatabaseName: "test_partition",
+			DatabaseName: databaseName,
 		},
 		TargetDB: ContainerConfig{
 			Type:         "yugabytedb",
-			DatabaseName: "test_partition",
+			DatabaseName: databaseName,
 		},
 		SchemaNames: []string{"public"},
 		SchemaSQL: []string{
@@ -446,6 +434,27 @@ func TestLiveMigrationPartitionedTableWithChildPK(t *testing.T) {
 			`DROP TABLE IF EXISTS public.orders CASCADE;`,
 		},
 	})
+}
+
+// TestLiveMigrationPartitionedTableWithChildPK tests live migration with partitioned tables
+// where the root table has no primary key but child partitions do.
+// This uses the '--use-partition-root false' flag to insert directly into child partitions.
+//
+// Schema:
+//   - orders: root table partitioned by LIST on region, NO PRIMARY KEY
+//   - orders_us: partition for 'US' with PRIMARY KEY (id)
+//   - orders_eu: partition for 'EU' with PRIMARY KEY (id)
+//   - orders_apac: partition for 'APAC' with PRIMARY KEY (id)
+/*
+INSERT events in all partitions
+UPDATE partitions
+	- change amount of the partitions
+DELETE rows for partition
+*/
+func TestLiveMigrationPartitionedTableWithChildPK(t *testing.T) {
+	t.Parallel()
+
+	lm := getLiveMigrationTestBasicForPartitionedTableWithChildPK(t, "test_partition_with_child_pk")
 
 	defer lm.Cleanup()
 
@@ -538,15 +547,14 @@ Child tables of arr_large: public.customers_part21 PK(id), public.customers_part
 
 loading data using use-partition-root false
 
-INSERT events in all customer partitions 400 
-UPDATE customers 
-    - change email of the customers 400
-	- change status (partition key) for the partitions to change the partitions that gives out a DELETE (row with id and partition key) and INSERT (row with same id and new partition key) event
-		- DELETE - 400
-		- INSERT - 400
+INSERT events in all customer partitions 400
+UPDATE customers
+  - change email of the customers 400
+  - change status (partition key) for the partitions to change the partitions that gives out a DELETE (row with id and partition key) and INSERT (row with same id and new partition key) event
+  - DELETE - 400
+  - INSERT - 400
 
 DELETE rows for partition - 100
-
 */
 func TestLiveMigrationWithMultiLevelPartitioningWithChildTablesHasPK(t *testing.T) {
 	t.Parallel()
@@ -728,30 +736,35 @@ func TestLiveMigrationWithMultiLevelPartitioningWithChildTablesHasPK(t *testing.
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 }
 
-
 /*
-Schema: 
+Schema:
 public.orders - partitioned table with child partitions in different schemas
-       - no primary key on root table
-	   - test_schema.orders_us - partition for 'US' with primary key (id)
-	   - test_schema.orders_eu - partition for 'EU' with primary key (id)
-	   - test_schema.orders_apac - partition for 'APAC' with primary key (id)
+  - no primary key on root table
+  - test_schema.orders_us - partition for 'US' with primary key (id)
+  - test_schema.orders_eu - partition for 'EU' with primary key (id)
+  - test_schema.orders_apac - partition for 'APAC' with primary key (id)
+
 public.customers - partitioned table with child partitions in different schemas
-       - no primary key on root table
-	   - test_schema.customers_other - default partition with primary key (id)
-	   - test_schema.customers_active - partition for 'ACTIVE', 'RECURRING','REACTIVATED' with primary key (id)
-	   - test_schema.customers_arr_small - partition for 'ACTIVE', 'RECURRING','REACTIVATED' with primary key (id)
+  - no primary key on root table
+  - test_schema.customers_other - default partition with primary key (id)
+  - test_schema.customers_active - partition for 'ACTIVE', 'RECURRING','REACTIVATED' with primary key (id)
+  - test_schema.customers_arr_small - partition for 'ACTIVE', 'RECURRING','REACTIVATED' with primary key (id)
 
 CDC events:
 orders:
-	- INSERT events in all partitions - 600
-	- UPDATE partitions - 300
-	- DELETE rows for partition - 350
-customers:
-	- INSERT events in all partitions - 3
-	- UPDATE partitions - 2 (1 - updating email, 1 - updating status within same partition), (another UpdAte to change the partition from some status to OTHER default status so it changes the partition)
-	- DELETE rows for partition - 2
+  - INSERT events in all partitions - 600
+  - UPDATE partitions - 300
+  - DELETE rows for partition - 350
 
+customers:
+  - INSERT events in all partitions - 3
+  - UPDATE partitions - 2 (1 - updating email, 1 - updating status within same partition), (another UpdAte to change the partition from some status to OTHER default status so it changes the partition)
+  - DELETE rows for partition - 2
+
+In the starting not creating PK on some partitions of both the tables - test_schema.orders_eu, test_schema.customers_other, public.customers_part21
+Checking if export data fails with the Primary key guardrail error.
+if it fails, assert the error message contains the table names without a Primary key.
+and then create the PK on the tables and then runs the rest of the flow
 */
 func TestLiveMigrationPartitionedWithChildPKAndPartitionsAcrossDifferentSchemas(t *testing.T) {
 	t.Parallel()
@@ -777,7 +790,6 @@ func TestLiveMigrationPartitionedWithChildPKAndPartitionsAcrossDifferentSchemas(
 			`CREATE TABLE test_schema.orders_us PARTITION OF public.orders FOR VALUES IN ('US');`,
 			`ALTER TABLE test_schema.orders_us ADD PRIMARY KEY (id);`,
 			`CREATE TABLE test_schema.orders_eu PARTITION OF public.orders FOR VALUES IN ('EU');`,
-			`ALTER TABLE test_schema.orders_eu ADD PRIMARY KEY (id);`,
 			`CREATE TABLE test_schema.orders_apac PARTITION OF public.orders FOR VALUES IN ('APAC');`,
 			`ALTER TABLE test_schema.orders_apac ADD PRIMARY KEY (id);`,
 			`CREATE TABLE public.customers(
@@ -795,10 +807,8 @@ func TestLiveMigrationPartitionedWithChildPKAndPartitionsAcrossDifferentSchemas(
 			`CREATE TABLE test_schema.customers_arr_large PARTITION OF public.customers_active FOR VALUES FROM (101) TO (MAXVALUE) PARTITION BY HASH(id);`,
 			`CREATE TABLE public.customers_part21 PARTITION OF test_schema.customers_arr_large FOR VALUES WITH (modulus 2, remainder 0);`,
 			`CREATE TABLE test_schema.customers_part22 PARTITION OF test_schema.customers_arr_large FOR VALUES WITH (modulus 2, remainder 1);`,
-			`ALTER TABLE test_schema.customers_other ADD PRIMARY KEY (id);`,
 			`ALTER TABLE test_schema.customers_part11 ADD PRIMARY KEY (id);`,
 			`ALTER TABLE public.customers_part12 ADD PRIMARY KEY (id);`,
-			`ALTER TABLE public.customers_part21 ADD PRIMARY KEY (id);`,
 			`ALTER TABLE test_schema.customers_part22 ADD PRIMARY KEY (id);`,
 		},
 		SourceSetupSchemaSQL: []string{
@@ -884,7 +894,7 @@ func TestLiveMigrationPartitionedWithChildPKAndPartitionsAcrossDifferentSchemas(
 			`UPDATE public.customers SET status = 'OTHER' WHERE id = 6 AND arr = 105;`,
 			`UPDATE public.customers SET status = 'REACTIVATED' WHERE id = 5 AND arr = 100;`,
 			`UPDATE public.customers SET email = 'reactive@example.com' WHERE id = 5 AND arr = 100;`,
-			`DELETE FROM public.customers WHERE id = 5;`, 
+			`DELETE FROM public.customers WHERE id = 5;`,
 		},
 		CleanupSQL: []string{
 			`DROP TABLE IF EXISTS public.orders CASCADE;`,
@@ -904,13 +914,44 @@ func TestLiveMigrationPartitionedWithChildPKAndPartitionsAcrossDifferentSchemas(
 		},
 	})
 
-	// defer lm.Cleanup()
+	defer lm.Cleanup()
 
 	err := lm.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
 
 	err = lm.SetupSchema()
 	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(false, nil)
+	assert.Error(t, err)
+
+	exportStderr := lm.GetExportCommandStderr()
+	require.Contains(t, exportStderr, "Currently voyager does not support live-migration for tables without a primary key.\nYou can exclude these tables using the --exclude-table-list argument")
+
+	//Validation for the Primary key guardrail in export data
+	exportStdout := lm.GetExportCommandStdout()
+	require.Contains(t, exportStdout, "Table names without a Primary key: [public.orders test_schema.orders_eu test_schema.customers_other public.customers public.customers_part21]")
+
+	err = lm.WithSourceTargetConn(func(sourceConn *sql.DB, targetConn *sql.DB) error {
+		ddls := []string{
+			`ALTER TABLE test_schema.orders_eu ADD PRIMARY KEY (id);`,
+			`ALTER TABLE test_schema.customers_other ADD PRIMARY KEY (id);`,
+			`ALTER TABLE public.customers_part21 ADD PRIMARY KEY (id);`,
+		}
+		for _, ddl := range ddls {
+			_, err := sourceConn.Exec(ddl)
+			if err != nil {
+				return err
+			}
+			_, err = targetConn.Exec(ddl)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+
+	testutils.FatalIfError(t, err, "failed to add primary keys to source and target")
 
 	err = lm.StartExportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start export data")
@@ -980,4 +1021,262 @@ func TestLiveMigrationPartitionedWithChildPKAndPartitionsAcrossDifferentSchemas(
 
 	err = lm.ValidateDataConsistency([]string{`"public"."orders"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
+}
+
+func TestLiveMigrationWithIterationsOnPartitionedTableWithChildPK(t *testing.T) {
+	t.Parallel()
+
+	lm := getLiveMigrationTestBasicForPartitionedTableWithChildPK(t, "test_iterations_on_partitioned_table_with_child_pk")
+
+	// defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = lm.StartImportData(true, map[string]string{
+		"--use-partition-root": "false",
+	})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"public"."orders"`: 5,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ValidateDataConsistency([]string{`"public"."orders"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	var forwardInserts int64 = 300
+	var forwardUpdates int64 = 300
+	var forwardDeletes int64 = 50
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"public"."orders"`: {
+			Inserts: forwardInserts,
+			Updates: forwardUpdates,
+			Deletes: forwardDeletes,
+		},
+	}, 30, 1)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"public"."orders"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToTarget(true, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	err = lm.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	var fallbackInserts int64 = 300
+	var fallbackUpdates int64 = 300
+	var fallbackDeletes int64 = 50
+	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		`"public"."orders"`: {
+			Inserts: fallbackInserts,
+			Updates: fallbackUpdates,
+			Deletes: fallbackDeletes,
+		},
+	}, 30, 1)
+	testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"public"."orders"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	//iteration-1
+	err = lm.InitiateCutoverToSource(map[string]string{
+		"--restart-data-migration-source-target": "true",
+	})
+	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+
+	err = lm.WaitForNextIterationInitialized(0, 100)
+	testutils.FatalIfError(t, err, "failed to wait for next iteration initialized")
+
+	err = lm.WaitForCutoverSourceComplete(0, 100)
+	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
+
+	//source delta for iteration-1
+	lm.config.SourceDeltaSQL = []string{
+		`
+		DO $$
+			DECLARE
+			BEGIN
+				FOR i IN 601..700 LOOP
+					INSERT INTO public.orders (id, region, amount) VALUES (i+5, 'US', i * 100);
+					INSERT INTO public.orders (id, region, amount) VALUES (i+105, 'EU', i * 100);
+					INSERT INTO public.orders (id, region, amount) VALUES (i+205, 'APAC', i * 100);
+
+					UPDATE public.orders SET amount = amount + 1 WHERE id = i+5;
+					UPDATE public.orders SET amount = amount + 1 WHERE id = i+105;
+					UPDATE public.orders SET amount = amount + 1 WHERE id = i+205;
+
+					IF i % 2 = 0 THEN
+						DELETE FROM public.orders WHERE id = i+5;
+					END IF;
+				END LOOP;
+			END $$;
+		`,
+	}
+
+	//target delta for iteration-1
+	lm.config.TargetDeltaSQL = []string{
+		`
+		DO $$
+			DECLARE
+			BEGIN
+				FOR i IN 901..1000 LOOP
+					INSERT INTO public.orders (id, region, amount) VALUES (i+5, 'US', i * 100);
+					INSERT INTO public.orders (id, region, amount) VALUES (i+105, 'EU', i * 100);
+					INSERT INTO public.orders (id, region, amount) VALUES (i+205, 'APAC', i * 100);
+
+					UPDATE public.orders SET amount = amount + 1 WHERE id = i+5;
+					UPDATE public.orders SET amount = amount + 1 WHERE id = i+105;
+					UPDATE public.orders SET amount = amount + 1 WHERE id = i+205;
+
+					IF i % 2 = 0 THEN
+						DELETE FROM public.orders WHERE id = i+5;
+					END IF;
+				END LOOP;
+			END $$;
+		`,
+	}
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	forwardInserts += 300
+	forwardUpdates += 300
+	forwardDeletes += 50
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"public"."orders"`: {
+			Inserts: forwardInserts,
+			Updates: forwardUpdates,
+			Deletes: forwardDeletes,
+		},
+	}, 30, 1)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"public"."orders"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToTarget(true, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = lm.WaitForCutoverComplete(1, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	err = lm.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	fallbackInserts += 300
+	fallbackUpdates += 300
+	fallbackDeletes += 50
+	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		`"public"."orders"`: {
+			Inserts: fallbackInserts,
+			Updates: fallbackUpdates,
+			Deletes: fallbackDeletes,
+		},
+	}, 30, 1)
+	testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"public"."orders"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	//iteration-2
+	err = lm.InitiateCutoverToSource(map[string]string{
+		"--restart-data-migration-source-target": "true",
+	})
+	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+
+	err = lm.WaitForNextIterationInitialized(1, 100)
+	testutils.FatalIfError(t, err, "failed to wait for next iteration initialized")
+
+	err = lm.WaitForCutoverSourceComplete(1, 100)
+	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
+
+	//source delta for iteration-2
+	lm.config.SourceDeltaSQL = []string{
+		`
+		DO $$
+			DECLARE
+			BEGIN
+				FOR i IN 1201..1300 LOOP
+					INSERT INTO public.orders (id, region, amount) VALUES (i+5, 'US', i * 100);
+					INSERT INTO public.orders (id, region, amount) VALUES (i+105, 'EU', i * 100);
+					INSERT INTO public.orders (id, region, amount) VALUES (i+205, 'APAC', i * 100);
+
+					UPDATE public.orders SET amount = amount + 1 WHERE id = i+5;
+					UPDATE public.orders SET amount = amount + 1 WHERE id = i+105;
+					UPDATE public.orders SET amount = amount + 1 WHERE id = i+205;
+
+					IF i % 2 = 0 THEN
+						DELETE FROM public.orders WHERE id = i+5;
+					END IF;
+				END LOOP;
+			END $$;
+		`,
+	}
+
+	//target delta for iteration-2
+	lm.config.TargetDeltaSQL = []string{
+		`
+		DO $$
+			DECLARE
+			BEGIN
+				FOR i IN 1501..1600 LOOP
+					INSERT INTO public.orders (id, region, amount) VALUES (i+5, 'US', i * 100);
+					INSERT INTO public.orders (id, region, amount) VALUES (i+105, 'EU', i * 100);
+					INSERT INTO public.orders (id, region, amount) VALUES (i+205, 'APAC', i * 100);
+
+					UPDATE public.orders SET amount = amount + 1 WHERE id = i+5;
+					UPDATE public.orders SET amount = amount + 1 WHERE id = i+105;
+					UPDATE public.orders SET amount = amount + 1 WHERE id = i+205;
+
+					IF i % 2 = 0 THEN
+						DELETE FROM public.orders WHERE id = i+5;
+					END IF;
+				END LOOP;
+			END $$;
+		`,
+	}
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	forwardInserts += 300
+	forwardUpdates += 300
+	forwardDeletes += 50
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"public"."orders"`: {
+			Inserts: forwardInserts,
+			Updates: forwardUpdates,
+			Deletes: forwardDeletes,
+		},
+	}, 30, 1)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"public"."orders"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = lm.WaitForCutoverComplete(2, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	err = lm.ValidateDataConsistency([]string{`"public"."orders"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
 }
