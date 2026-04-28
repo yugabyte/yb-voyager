@@ -795,8 +795,10 @@ func TestLiveMigrationPartitionedWithChildPKAndPartitionsAcrossDifferentSchemas(
 			`CREATE TABLE test_schema.customers_arr_large PARTITION OF public.customers_active FOR VALUES FROM (101) TO (MAXVALUE) PARTITION BY HASH(id);`,
 			`CREATE TABLE public.customers_part21 PARTITION OF test_schema.customers_arr_large FOR VALUES WITH (modulus 2, remainder 0);`,
 			`CREATE TABLE test_schema.customers_part22 PARTITION OF test_schema.customers_arr_large FOR VALUES WITH (modulus 2, remainder 1);`,
+			`ALTER TABLE test_schema.customers_other ADD PRIMARY KEY (id);`,
 			`ALTER TABLE test_schema.customers_part11 ADD PRIMARY KEY (id);`,
 			`ALTER TABLE public.customers_part12 ADD PRIMARY KEY (id);`,
+			`ALTER TABLE public.customers_part21 ADD PRIMARY KEY (id);`,
 			`ALTER TABLE test_schema.customers_part22 ADD PRIMARY KEY (id);`,
 		},
 		SourceSetupSchemaSQL: []string{
@@ -910,15 +912,8 @@ func TestLiveMigrationPartitionedWithChildPKAndPartitionsAcrossDifferentSchemas(
 	err = lm.SetupSchema()
 	testutils.FatalIfError(t, err, "failed to setup schema")
 
-	err = lm.StartExportData(false, nil)
+	err = lm.StartExportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start export data")
-
-	exportErr := lm.GetExportCommandStderr()
-	assert.NonNil(t, exportErr)
-	assert.Contains(t, exportErr, "Table names without a Primary key: ")
-
-	err = lm.WithSourceTargetConn(func(sourceConn, targetConn *sql.DB) error {
-		PKs
 
 	err = lm.StartImportData(true, map[string]string{
 		"--use-partition-root": "false",
