@@ -137,7 +137,7 @@ func validateImportUsePartitionRootFlag() error {
 			return goerrors.Errorf("'--use-partition-root false' is not supported for source-replica")
 		}
 		if tconf.TargetDBType != POSTGRESQL && tconf.TargetDBType != YUGABYTEDB {
-			return goerrors.Errorf("'--use-partition-root' flag is only valid for PostgreSQL and YugabyteDB source databases")
+			return goerrors.Errorf("'--use-partition-root' flag is only valid for PostgreSQL to YugabyteDB migrations")
 		}
 	}
 	tconf.UsePartitionRoot = bool(importUsePartitionRoot)
