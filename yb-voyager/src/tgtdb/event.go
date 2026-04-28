@@ -25,6 +25,7 @@ import (
 	"github.com/goccy/go-json"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
@@ -33,16 +34,16 @@ import (
 )
 
 type Event struct {
-	Vsn               int64 // Voyager Sequence Number
-	Op                string
-	TableNameTup      sqlname.NameTuple
-	PartitionTableTup sqlname.NameTuple // partition table name it will only work if the partitions remain same on target DB and we are already doing a guardrail check for the same
-	UsePartitionTable bool              // If true and IsPartitionEvent(), use partition table for SQL instead of root
-	Key               map[string]*string
-	Fields            map[string]*string //all the column values of the row - worst
-	BeforeFields      map[string]*string //all the column values of the row - worst
-	ExporterRole      string
-	ImporterRole      string
+	Vsn                 int64 // Voyager Sequence Number
+	Op                  string
+	TableNameTup        sqlname.NameTuple
+	partitionSchemaName string
+	partitionTableName  string
+	PartitionTableTup   sqlname.NameTuple // partition table name it will only work if the partitions remain same on target DB and we are already doing a guardrail check for the same
+	Key                 map[string]*string
+	Fields              map[string]*string //all the column values of the row - worst
+	BeforeFields        map[string]*string //all the column values of the row - worst
+	ExporterRole        string
 }
 
 /*
@@ -85,19 +86,12 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	e.Fields = rawEvent.Fields
 	e.BeforeFields = rawEvent.BeforeFields
 	e.ExporterRole = rawEvent.ExporterRole
+	e.partitionSchemaName = rawEvent.PartitionSchemaName
+	e.partitionTableName = rawEvent.PartitionTableName
 	if !e.IsCutoverEvent() {
 		e.TableNameTup, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", rawEvent.SchemaName, rawEvent.TableName))
 		if err != nil {
 			return fmt.Errorf("lookup table %s.%s in name registry: %w", rawEvent.SchemaName, rawEvent.TableName, err)
-		}
-		if rawEvent.PartitionSchemaName != "" && rawEvent.PartitionTableName != "" {
-			// we ignore if target not found because we won't use the partition table if it's not present in the target without use-partition-root false as we already have a guardrail check for the same with use-partition-root false
-			//TODO: check if its okay to have a new function to ignore target table name not found without any role based check
-			//This is required in case we marshall the event for source-replica it will fail in case partitions changes on target db
-			e.PartitionTableTup, err = namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(fmt.Sprintf("%s.%s", rawEvent.PartitionSchemaName, rawEvent.PartitionTableName))
-			if err != nil {
-				return fmt.Errorf("lookup partition table %s.%s in name registry: %w", rawEvent.PartitionSchemaName, rawEvent.PartitionTableName, err)
-			}
 		}
 	}
 
@@ -133,15 +127,16 @@ func (e *Event) Copy() *Event {
 		return k, v
 	}
 	return &Event{
-		Vsn:               e.Vsn,
-		Op:                e.Op,
-		TableNameTup:      e.TableNameTup,
-		PartitionTableTup: e.PartitionTableTup,
-		UsePartitionTable: e.UsePartitionTable,
-		Key:               lo.MapEntries(e.Key, idFn),
-		Fields:            lo.MapEntries(e.Fields, idFn),
-		BeforeFields:      lo.MapEntries(e.BeforeFields, idFn),
-		ExporterRole:      e.ExporterRole,
+		Vsn:                 e.Vsn,
+		Op:                  e.Op,
+		TableNameTup:        e.TableNameTup,
+		partitionSchemaName: e.partitionSchemaName,
+		partitionTableName:  e.partitionTableName,
+		PartitionTableTup:   e.PartitionTableTup,
+		Key:                 lo.MapEntries(e.Key, idFn),
+		Fields:              lo.MapEntries(e.Fields, idFn),
+		BeforeFields:        lo.MapEntries(e.BeforeFields, idFn),
+		ExporterRole:        e.ExporterRole,
 	}
 }
 
@@ -163,76 +158,59 @@ func (e *Event) IsCutoverEvent() bool {
 
 // IsPartitionEvent returns true if this event originated from a partition table that was renamed to root
 func (e *Event) IsPartitionEvent() bool {
-	return e.PartitionTableTup != (sqlname.NameTuple{})
+	return e.partitionSchemaName != "" && e.partitionTableName != ""
 }
 
-// GetPartitionQualifiedName returns the fully qualified partition table name (schema.table)
-func (e *Event) GetPartitionQualifiedName() string {
-	if !e.IsPartitionEvent() {
-		return ""
+func (e *Event) GetSQLStmt(tdb TargetDB, usePartitionTable bool) (string, error) {
+	var err error
+	if usePartitionTable {
+		e.PartitionTableTup, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", e.partitionSchemaName, e.partitionTableName))
+		if err != nil {
+			return "", fmt.Errorf("lookup partition table %s.%s in name registry: %w", e.partitionSchemaName, e.partitionTableName, err)
+		}
+		log.Infof("event %d: using partition table %s instead of root table %s",
+			e.Vsn, e.PartitionTableTup.ForUserQuery(), e.TableNameTup.ForUserQuery())
 	}
-	return e.PartitionTableTup.ForUserQuery()
-}
-
-/*
-Currently ingestion logic is to ingest cdc data via root table for the partitioned table by default to cases where
-partitioning strategy/names change on the target database. So with configuration '--use-partition-root false', we are ingesting data via partition table.
-but with UPDATE <partition table> stmt on YB , there is a limiation that it errors out if the UPDATE statement doesn't include partition key so we are skipping
-ingestion of UPDATE events via partition table on Target DB. and in other importers we are ingesting data via partition table.
-*/
-func (e *Event) supportsPartitionTableIngestion() bool {
-	if e.ImporterRole == constants.TARGET_DB_IMPORTER_ROLE {
-		//for import data to target, only update events doesn't support partition table ingestion
-		return e.Op != "u"
-	}
-	//else anyother importer can work with partition table ingestion
-	return true
-}
-
-// GetEffectiveTableNameForSQL returns the table name to use in SQL statements.
-// If UsePartitionTable is true and this is a partition event, returns the partition table name.
-// Otherwise, returns the root table name (TableNameTup).
-func (e *Event) GetEffectiveTableNameForSQL() string {
-	if e.UsePartitionTable && e.IsPartitionEvent() && e.supportsPartitionTableIngestion() {
-		// Quote the schema and table names for SQL safety
-		return e.PartitionTableTup.ForUserQuery()
-	}
-	return e.TableNameTup.ForUserQuery()
-}
-
-func (e *Event) GetSQLStmt(tdb TargetDB) (string, error) {
 	switch e.Op {
 	case "c":
-		return e.getInsertStmt(tdb)
+		return e.getInsertStmt(tdb, usePartitionTable)
 	case "u":
-		return e.getUpdateStmt(tdb)
+		return e.getUpdateStmt(tdb, usePartitionTable)
 	case "d":
-		return e.getDeleteStmt(tdb)
+		return e.getDeleteStmt(tdb, usePartitionTable)
 	default:
 		panic("unknown op: " + e.Op)
 	}
 }
 
-func (e *Event) GetPreparedSQLStmt(tdb TargetDB, targetDBType string) (string, error) {
-	psName := e.GetPreparedStmtName()
+func (e *Event) GetPreparedSQLStmt(tdb TargetDB, targetDBType string, usePartitionTable bool) (string, error) {
+	var err error
+	if usePartitionTable {
+		e.PartitionTableTup, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", e.partitionSchemaName, e.partitionTableName))
+		if err != nil {
+			return "", fmt.Errorf("lookup partition table %s.%s in name registry: %w", e.partitionSchemaName, e.partitionTableName, err)
+		}
+		log.Infof("event %d: using partition table %s instead of root table %s",
+			e.Vsn, e.PartitionTableTup.ForUserQuery(), e.TableNameTup.ForUserQuery())
+	}
+	psName := e.GetPreparedStmtName(usePartitionTable)
 	if stmt, ok := cachePreparedStmt.Load(psName); ok {
 		return stmt.(string), nil
 	}
 	var ps string
-	var err error
 	switch e.Op {
 	case "c":
-		ps, err = e.getPreparedInsertStmt(tdb, targetDBType)
+		ps, err = e.getPreparedInsertStmt(tdb, targetDBType, usePartitionTable)
 		if err != nil {
 			return "", fmt.Errorf("get prepared insert stmt: %w", err)
 		}
 	case "u":
-		ps, err = e.getPreparedUpdateStmt(tdb)
+		ps, err = e.getPreparedUpdateStmt(tdb, usePartitionTable)
 		if err != nil {
 			return "", fmt.Errorf("get prepared update stmt: %w", err)
 		}
 	case "d":
-		ps, err = e.getPreparedDeleteStmt(tdb)
+		ps, err = e.getPreparedDeleteStmt(tdb, usePartitionTable)
 		if err != nil {
 			return "", fmt.Errorf("get prepared delete stmt: %w", err)
 		}
@@ -280,13 +258,17 @@ func (e *Event) GetParamsString() string {
 // NOTE: Prepared statements are currently used ONLY for INSERT and DELETE operations.
 // UPDATE operations use direct SQL (not prepared statements)
 // See ExecuteBatch() in yugabytedb.go/postgres.go where event.Op == "u" uses GetSQLStmt().
-func (event *Event) GetPreparedStmtName() string {
+func (event *Event) GetPreparedStmtName(usePartitionTable bool) string {
 	// Build the base identifier (table name + columns for updates)
 	// This is what we'll hash if needed
 	var baseIdentifier strings.Builder
 	// Use the effective table name for SQL to ensure prepared statement matches the target table
 	// This is important when UsePartitionTable is true - the prepared statement must be for the partition
-	baseIdentifier.WriteString(event.GetEffectiveTableNameForSQL())
+	if usePartitionTable {
+		baseIdentifier.WriteString(event.PartitionTableTup.ForUserQuery())
+	} else {
+		baseIdentifier.WriteString(event.TableNameTup.ForUserQuery())
+	}
 	if event.Op == "u" {
 		// For updates, include column names to distinguish different update patterns
 		keys := strings.Join(utils.GetMapKeysSorted(event.Fields), ",")
@@ -340,7 +322,7 @@ const insertTemplate = "INSERT INTO %s (%s) VALUES (%s)"
 const updateTemplate = "UPDATE %s SET %s WHERE %s"
 const deleteTemplate = "DELETE FROM %s WHERE %s"
 
-func (event *Event) getInsertStmt(tdb TargetDB) (string, error) {
+func (event *Event) getInsertStmt(tdb TargetDB, usePartitionTable bool) (string, error) {
 	columnList := make([]string, 0, len(event.Fields))
 	valueList := make([]string, 0, len(event.Fields))
 	for column, value := range event.Fields {
@@ -357,11 +339,16 @@ func (event *Event) getInsertStmt(tdb TargetDB) (string, error) {
 	}
 	columns := strings.Join(columnList, ", ")
 	values := strings.Join(valueList, ", ")
-	stmt := fmt.Sprintf(insertTemplate, event.GetEffectiveTableNameForSQL(), columns, values)
+	var stmt string
+	if usePartitionTable {
+		stmt = fmt.Sprintf(insertTemplate, event.PartitionTableTup.ForUserQuery(), columns, values)
+	} else {
+		stmt = fmt.Sprintf(insertTemplate, event.TableNameTup.ForUserQuery(), columns, values)
+	}
 	return stmt, nil
 }
 
-func (event *Event) getUpdateStmt(tdb TargetDB) (string, error) {
+func (event *Event) getUpdateStmt(tdb TargetDB, usePartitionTable bool) (string, error) {
 	setClauses := make([]string, 0, len(event.Fields))
 	for column, value := range event.Fields {
 		column, err := tdb.QuoteAttributeName(event.TableNameTup, column)
@@ -388,10 +375,16 @@ func (event *Event) getUpdateStmt(tdb TargetDB) (string, error) {
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, *value))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
-	return fmt.Sprintf(updateTemplate, event.GetEffectiveTableNameForSQL(), setClause, whereClause), nil
+	var stmt string
+	if usePartitionTable {
+		stmt = fmt.Sprintf(updateTemplate, event.PartitionTableTup.ForUserQuery(), setClause, whereClause)
+	} else {
+		stmt = fmt.Sprintf(updateTemplate, event.TableNameTup.ForUserQuery(), setClause, whereClause)
+	}
+	return stmt, nil
 }
 
-func (event *Event) getDeleteStmt(tdb TargetDB) (string, error) {
+func (event *Event) getDeleteStmt(tdb TargetDB, usePartitionTable bool) (string, error) {
 	whereClauses := make([]string, 0, len(event.Key))
 	for column, value := range event.Key {
 		if value == nil { // value can't be nil for keys
@@ -404,10 +397,16 @@ func (event *Event) getDeleteStmt(tdb TargetDB) (string, error) {
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, *value))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
-	return fmt.Sprintf(deleteTemplate, event.GetEffectiveTableNameForSQL(), whereClause), nil
+	var stmt string
+	if usePartitionTable {
+		stmt = fmt.Sprintf(deleteTemplate, event.PartitionTableTup.ForUserQuery(), whereClause)
+	} else {
+		stmt = fmt.Sprintf(deleteTemplate, event.TableNameTup.ForUserQuery(), whereClause)
+	}
+	return stmt, nil
 }
 
-func (event *Event) getPreparedInsertStmt(tdb TargetDB, targetDBType string) (string, error) {
+func (event *Event) getPreparedInsertStmt(tdb TargetDB, targetDBType string, usePartitionTable bool) (string, error) {
 	columnList := make([]string, 0, len(event.Fields))
 	valueList := make([]string, 0, len(event.Fields))
 	keys := utils.GetMapKeysSorted(event.Fields)
@@ -421,7 +420,12 @@ func (event *Event) getPreparedInsertStmt(tdb TargetDB, targetDBType string) (st
 	}
 	columns := strings.Join(columnList, ", ")
 	values := strings.Join(valueList, ", ")
-	stmt := fmt.Sprintf(insertTemplate, event.GetEffectiveTableNameForSQL(), columns, values)
+	var stmt string
+	if usePartitionTable {
+		stmt = fmt.Sprintf(insertTemplate, event.PartitionTableTup.ForUserQuery(), columns, values)
+	} else {
+		stmt = fmt.Sprintf(insertTemplate, event.TableNameTup.ForUserQuery(), columns, values)
+	}
 	if targetDBType == POSTGRESQL || targetDBType == YUGABYTEDB {
 		keyColumns := utils.GetMapKeysSorted(event.Key)
 		for i, column := range keyColumns {
@@ -437,7 +441,7 @@ func (event *Event) getPreparedInsertStmt(tdb TargetDB, targetDBType string) (st
 }
 
 // NOTE: PS for each event of same table can be different as it depends on columns being updated
-func (event *Event) getPreparedUpdateStmt(tdb TargetDB) (string, error) {
+func (event *Event) getPreparedUpdateStmt(tdb TargetDB, usePartitionTable bool) (string, error) {
 	setClauses := make([]string, 0, len(event.Fields))
 	keys := utils.GetMapKeysSorted(event.Fields)
 	for pos, key := range keys {
@@ -460,10 +464,16 @@ func (event *Event) getPreparedUpdateStmt(tdb TargetDB) (string, error) {
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = $%d", key, pos))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
-	return fmt.Sprintf(updateTemplate, event.GetEffectiveTableNameForSQL(), setClause, whereClause), nil
+	var stmt string
+	if usePartitionTable {
+		stmt = fmt.Sprintf(updateTemplate, event.PartitionTableTup.ForUserQuery(), setClause, whereClause)
+	} else {
+		stmt = fmt.Sprintf(updateTemplate, event.TableNameTup.ForUserQuery(), setClause, whereClause)
+	}
+	return stmt, nil
 }
 
-func (event *Event) getPreparedDeleteStmt(tdb TargetDB) (string, error) {
+func (event *Event) getPreparedDeleteStmt(tdb TargetDB, usePartitionTable bool) (string, error) {
 	whereClauses := make([]string, 0, len(event.Key))
 	keys := utils.GetMapKeysSorted(event.Key)
 	for pos, key := range keys {
@@ -474,7 +484,13 @@ func (event *Event) getPreparedDeleteStmt(tdb TargetDB) (string, error) {
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = $%d", key, pos+1))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
-	return fmt.Sprintf(deleteTemplate, event.GetEffectiveTableNameForSQL(), whereClause), nil
+	var stmt string
+	if usePartitionTable {
+		stmt = fmt.Sprintf(deleteTemplate, event.PartitionTableTup.ForUserQuery(), whereClause)
+	} else {
+		stmt = fmt.Sprintf(deleteTemplate, event.TableNameTup.ForUserQuery(), whereClause)
+	}
+	return stmt, nil
 }
 
 func (event *Event) getInsertParams() []interface{} {

@@ -446,15 +446,6 @@ func handleEvent(event *tgtdb.Event,
 		return goerrors.Errorf("error transforming event key fields: %v", err)
 	}
 
-	// Set UsePartitionTable based on import flag
-	// When importUsePartitionRoot is false and event has partition info, SQL will target partition directly
-	if !bool(importUsePartitionRoot) && event.IsPartitionEvent() {
-		event.UsePartitionTable = true
-		log.Debugf("event %d: using partition table %s instead of root table %s",
-			event.Vsn, event.GetPartitionQualifiedName(), event.TableNameTup.ForKey())
-	}
-
-	event.ImporterRole = importerRole
 	if err := injectImportCDCTransformFailure(); err != nil {
 		return err
 	}

@@ -558,6 +558,13 @@ func (pg *TargetPostgreSQL) RestoreSequences(sequencesLastVal *utils.StructMap[s
 	return err
 }
 
+func (pg *TargetPostgreSQL) shouldUsePartitionTable(event *Event) bool {
+	if pg.tconf.UsePartitionRoot || !event.IsPartitionEvent() {
+		return false
+	}
+	return true
+}
+
 /*
 TODO(future): figure out the sql error codes for prepared statements which have become invalid
 and needs to be prepared again
@@ -570,20 +577,20 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	for i := 0; i < len(batch.Events); i++ {
 		event := batch.Events[i]
 		if event.Op == "u" {
-			stmt, err := event.GetSQLStmt(pg)
+			stmt, err := event.GetSQLStmt(pg, pg.shouldUsePartitionTable(event))
 			if err != nil {
 				return fmt.Errorf("get sql stmt: %w", err)
 			}
 			ybBatch.Queue(stmt)
 			log.Debugf("SQL statement: Batch(%s): Event(%d): [%s]", batch.ID(), event.Vsn, stmt)
 		} else {
-			stmt, err := event.GetPreparedSQLStmt(pg, pg.tconf.TargetDBType)
+			stmt, err := event.GetPreparedSQLStmt(pg, pg.tconf.TargetDBType, pg.shouldUsePartitionTable(event))
 			if err != nil {
 				return fmt.Errorf("get prepared sql stmt: %w", err)
 			}
 			params := event.GetParams()
 			if _, ok := stmtToPrepare[stmt]; !ok {
-				stmtToPrepare[event.GetPreparedStmtName()] = stmt
+				stmtToPrepare[event.GetPreparedStmtName(pg.shouldUsePartitionTable(event))] = stmt
 			}
 			ybBatch.Queue(stmt, params...)
 			log.Debugf("SQL statement: Batch(%s): Event(%d): PREPARED STMT:[%s] PARAMS:[%s]", batch.ID(), event.Vsn, stmt, event.GetParamsString())
