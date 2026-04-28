@@ -376,10 +376,10 @@ def main() -> None:
                     ) from None
                 iteration += 1
                 ctx.loop_iteration = iteration
-                H.apply_effective_export_dir(ctx)
                 if iteration >= num_iterations:
                     idx += 1
                 else:
+                    H.apply_effective_export_dir(ctx)
                     idx = loop_start_idx
             except Exception as e:
                 end_ts = H._ts()

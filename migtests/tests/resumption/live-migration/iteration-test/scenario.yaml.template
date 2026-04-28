@@ -29,8 +29,8 @@ target:
   user: ${TARGET_DB_USER}
   password: ${TARGET_DB_PASSWORD}
   admin:
-    user: ${TARGET_DB_USER}
-    password: ${TARGET_DB_PASSWORD}
+    user: ${TARGET_DB_ADMIN_USER}
+    password: ${TARGET_DB_ADMIN_PASSWORD}
 
 # Forward (source) event generator configuration.
 generator_source:
@@ -112,14 +112,14 @@ stages:
 
   - name: increase_temp_file_limit_source
     action: run_sql
-    sql_path: ./init.sql
+    sql_path: ./temp_file_limit.sql
     target: source
     use_admin: true
 
   - name: increase_temp_file_limit_target
     action: run_sql
+    sql_path: ./temp_file_limit.sql
     target: target
-    sql_path: ./init.sql
     use_admin: true
 
   - name: create_cutover_table
@@ -341,12 +341,12 @@ stages:
 
   - name: cleanup_source
     action: run_sql
-    sql_path: ./cleanup.sql
+    sql_path: ./iteration_reset.sql
 
   - name: cleanup_target
     action: run_sql
     target: target
-    sql_path: ./cleanup.sql
+    sql_path: ./iteration_reset.sql
 
   - name: loop_end
     action: loop_end

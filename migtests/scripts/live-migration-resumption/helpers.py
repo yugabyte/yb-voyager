@@ -57,25 +57,25 @@ def apply_effective_export_dir(ctx: Context) -> None:
         ctx.cfg["export_dir"] = base
         return
 
-    it_root = os.path.join(base, "live-data-migration-iterations")
-    best_n = -1
-    latest: str | None = None
-    if os.path.isdir(it_root):
-        for name in os.listdir(it_root):
+    iterations_root_dir = os.path.join(base, "live-data-migration-iterations")
+    latest_iteration_num = -1
+    latest_iteration_export_dir: str | None = None
+    if os.path.isdir(iterations_root_dir):
+        for name in os.listdir(iterations_root_dir):
             if not name.startswith("live-data-migration-iteration-"):
                 continue
             suffix = name.replace("live-data-migration-iteration-", "")
             try:
-                n = int(suffix)
+                iteration_num = int(suffix)
             except ValueError:
                 continue
-            cand = os.path.join(it_root, name, "export-dir")
-            if os.path.isdir(cand) and n > best_n:
-                best_n = n
-                latest = cand
+            iteration_export_dir = os.path.join(iterations_root_dir, name, "export-dir")
+            if os.path.isdir(iteration_export_dir) and iteration_num > latest_iteration_num:
+                latest_iteration_num = iteration_num
+                latest_iteration_export_dir = iteration_export_dir
 
-    if latest:
-        ctx.cfg["export_dir"] = os.path.abspath(latest)
+    if latest_iteration_export_dir:
+        ctx.cfg["export_dir"] = os.path.abspath(latest_iteration_export_dir)
         log(f"effective export-dir (loop_iteration={ctx.loop_iteration}): {ctx.cfg['export_dir']}")
     else:
         ctx.cfg["export_dir"] = base
@@ -1089,6 +1089,9 @@ def snapshot_msr_and_stats(export_dir: str, artifacts_dir: str) -> None:
     metainfo_dir = os.path.join(export_dir, "metainfo")
     dest_dir = os.path.join(artifacts_dir, "metainfo")
 
+    if not os.path.isdir(metainfo_dir):
+        log(f"snapshot_msr_and_stats: skipped, no metainfo dir at {metainfo_dir}")
+        return
     shutil.copytree(metainfo_dir, dest_dir, dirs_exist_ok=True)
 
 
@@ -1096,6 +1099,9 @@ def copy_logs_directory(export_dir: str, artifacts_dir: str) -> None:
     logs_dir = os.path.join(export_dir, "logs")
     dest_dir = os.path.join(artifacts_dir, "logs")
 
+    if not os.path.isdir(logs_dir):
+        log(f"copy_logs_directory: skipped, no logs dir at {logs_dir}")
+        return
     shutil.copytree(logs_dir, dest_dir, dirs_exist_ok=True)
 
 
