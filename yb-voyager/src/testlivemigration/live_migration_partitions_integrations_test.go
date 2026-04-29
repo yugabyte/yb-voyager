@@ -538,6 +538,172 @@ func TestLiveMigrationPartitionedTableWithChildPK(t *testing.T) {
 
 }
 
+func TestLiveMigrationPartitionedTableWithChildTablesHavingDifferentPK(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_pt_ct_diff_pk",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_pt_ct_diff_pk",
+		},
+		SchemaNames: []string{"public"},
+		SchemaSQL: []string{
+			`CREATE TABLE public.orders(
+				id SERIAL,
+				id1 int NOT NULL,
+				region TEXT NOT NULL,
+				amount bigint
+			) PARTITION BY LIST (region);`,
+			`CREATE TABLE public.orders_us PARTITION OF public.orders FOR VALUES IN ('US');`,
+			`ALTER TABLE public.orders_us ADD PRIMARY KEY (id);`,
+			`CREATE TABLE public.orders_eu PARTITION OF public.orders FOR VALUES IN ('EU');`,
+			`ALTER TABLE public.orders_eu ADD PRIMARY KEY (id);`,
+			`CREATE TABLE public.orders_apac PARTITION OF public.orders FOR VALUES IN ('APAC');`,
+			`ALTER TABLE public.orders_apac ADD PRIMARY KEY (id1);`,
+			`CREATE TABLE public.orders_emea PARTITION OF public.orders FOR VALUES IN ('EMEA');`,
+			`ALTER TABLE public.orders_emea ADD PRIMARY KEY (id1);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE public.orders REPLICA IDENTITY FULL;`,
+			`ALTER TABLE public.orders_us REPLICA IDENTITY FULL;`,
+			`ALTER TABLE public.orders_eu REPLICA IDENTITY FULL;`,
+			`ALTER TABLE public.orders_apac REPLICA IDENTITY FULL;`,
+			`ALTER TABLE public.orders_emea REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO public.orders (id, id1, region, amount) VALUES (1, 1, 'US', 100);`,
+			`INSERT INTO public.orders (id, id1, region, amount) VALUES (2, 2, 'EU', 200);`,
+			`INSERT INTO public.orders (id, id1, region, amount) VALUES (3, 3, 'APAC', 300);`,
+			`INSERT INTO public.orders (id, id1, region, amount) VALUES (4, 4, 'EMEA', 400);`,
+		},
+		SourceDeltaSQL: []string{
+			`DO $$
+			DECLARE
+			BEGIN
+				FOR i IN 1..100 LOOP
+					INSERT INTO public.orders (id, id1, region, amount) VALUES (i+4, i+4, 'US', i * 100);
+					INSERT INTO public.orders (id, id1, region, amount) VALUES (i+104, i+104, 'EU', i * 100);
+					INSERT INTO public.orders (id, id1, region, amount) VALUES (i+204, i+204, 'APAC', i * 100);
+					INSERT INTO public.orders (id, id1, region, amount) VALUES (i+304, i+304, 'EMEA', i * 100);
+
+					UPDATE public.orders SET amount = amount + 1 WHERE id = i+4;
+					UPDATE public.orders SET amount = amount + 1 WHERE id = i+104;
+					UPDATE public.orders SET amount = amount + 1 WHERE id1 = i+204;
+					UPDATE public.orders SET amount = amount + 1 WHERE id1 = i+304;
+
+					UPDATE public.orders SET region = 'EU' WHERE id = i+4;
+					UPDATE public.orders SET region = 'APAC' WHERE id = i+104;
+					UPDATE public.orders SET region = 'EMEA' WHERE id = i+204;
+					UPDATE public.orders SET region = 'US' WHERE id = i+304;
+
+					if i % 2 = 0 THEN
+						DELETE FROM public.orders WHERE id = i+4;
+					END IF;
+				END LOOP;
+			END $$;`,
+		},
+		TargetDeltaSQL: []string{
+			`DO $$
+			DECLARE
+			BEGIN
+				FOR i IN 401..500 LOOP
+					INSERT INTO public.orders (id, id1, region, amount) VALUES (i+4, i+4, 'US', i * 100);
+					INSERT INTO public.orders (id, id1, region, amount) VALUES (i+104, i+104, 'EU', i * 100);
+					INSERT INTO public.orders (id, id1, region, amount) VALUES (i+204, i+204, 'APAC', i * 100);
+					INSERT INTO public.orders (id, id1, region, amount) VALUES (i+304, i+304, 'EMEA', i * 100);
+
+					UPDATE public.orders SET amount = amount + 1 WHERE id = i+4;
+					UPDATE public.orders SET amount = amount + 1 WHERE id = i+104;
+					UPDATE public.orders SET amount = amount + 1 WHERE id = i+204;
+					UPDATE public.orders SET amount = amount + 1 WHERE id = i+304;
+
+					UPDATE public.orders SET region = 'EU' WHERE id = i+4;
+					UPDATE public.orders SET region = 'APAC' WHERE id = i+104;
+					UPDATE public.orders SET region = 'EMEA' WHERE id = i+204;
+					UPDATE public.orders SET region = 'US' WHERE id = i+304;
+
+					if i % 2 = 0 THEN
+						DELETE FROM public.orders WHERE id = i+4;
+					END IF;
+				END LOOP;
+			END $$;`,
+		},
+		CleanupSQL: []string{
+			`DROP TABLE IF EXISTS public.orders CASCADE;`,
+		},
+	})
+
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = lm.StartImportData(true, map[string]string{
+		"--use-partition-root": "false",
+	})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"public"."orders"`: 4,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"public"."orders"`: {
+			Inserts: 800,
+			Updates: 400,
+			Deletes: 450,
+		},
+	}, 60, 3)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"public"."orders"`, `"public"."orders_us"`, `"public"."orders_eu"`, `"public"."orders_apac"`, `"public"."orders_emea"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToTarget(true, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	err = lm.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		`"public"."orders"`: {
+			Inserts: 800,
+			Updates: 400,
+			Deletes: 450,
+		},
+	}, 60, 3)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"public"."orders"`, `"public"."orders_us"`, `"public"."orders_eu"`, `"public"."orders_apac"`, `"public"."orders_emea"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToSource(nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+
+	err = lm.WaitForCutoverSourceComplete(0, 160)
+	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
+
+	err = lm.ValidateDataConsistency([]string{`"public"."orders"`, `"public"."orders_us"`, `"public"."orders_eu"`, `"public"."orders_apac"`, `"public"."orders_emea"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+}
+
 /*
 Test schema:
 Root table: public.customers
@@ -738,34 +904,51 @@ func TestLiveMigrationWithMultiLevelPartitioningWithChildTablesHasPK(t *testing.
 }
 
 /*
-Schema:
-public.orders - partitioned table with child partitions in different schemas
-  - no primary key on root table
-  - test_schema.orders_us - partition for 'US' with primary key (id)
-  - test_schema.orders_eu - partition for 'EU' with primary key (id)
-  - test_schema.orders_apac - partition for 'APAC' with primary key (id)
+Schema (partitions and roots are spread across schemas "public", "test_schema", and
+the case-sensitive "TestSchemaCase" to exercise quoted/unquoted and cross-schema
+partition hierarchies):
 
-public.customers - partitioned table with child partitions in different schemas
-  - no primary key on root table
-  - test_schema.customers_other - default partition with primary key (id)
-  - test_schema.customers_active - partition for 'ACTIVE', 'RECURRING','REACTIVATED' with primary key (id)
-  - test_schema.customers_arr_small - partition for 'ACTIVE', 'RECURRING','REACTIVATED' with primary key (id)
+"TestSchemaCase".orders - partitioned by LIST(region); no primary key on root
+  - test_schema."Orders_US"   - partition FOR ('US'),   PK (id)
+  - test_schema."Orders_EU"   - partition FOR ('EU'),   no PK initially
+  - test_schema."Orders_APAC" - partition FOR ('APAC'), PK (id)
+
+public.customers - partitioned by LIST(status); no PK on root
+  - test_schema."Customers_Other" - DEFAULT partition, no PK initially
+  - public."Customers_Active"     - partition FOR ('ACTIVE','RECURRING','REACTIVATED'),
+                                    sub-partitioned BY RANGE(arr); intermediate, no PK
+      - public.customers_arr_small - sub-partition FROM (MINVALUE) TO (101),
+                                     sub-partitioned BY HASH(id); intermediate, no PK
+          - test_schema."Customers_Part11"           - modulus 2, remainder 0, PK (id)
+          - "TestSchemaCase"."Customers_Part12"      - modulus 2, remainder 1, PK (id)
+      - "TestSchemaCase"."Customers_Arr_Large" - sub-partition FROM (101) TO (MAXVALUE),
+                                                 sub-partitioned BY HASH(id); intermediate, no PK
+          - public.customers_part21                  - modulus 2, remainder 0, no PK initially
+          - "TestSchemaCase".customers_part22        - modulus 2, remainder 1, PK (id)
 
 CDC events:
-orders:
+"TestSchemaCase".orders:
   - INSERT events in all partitions - 600
   - UPDATE partitions - 300
   - DELETE rows for partition - 350
 
-customers:
+public.customers:
   - INSERT events in all partitions - 3
-  - UPDATE partitions - 2 (1 - updating email, 1 - updating status within same partition), (another UpdAte to change the partition from some status to OTHER default status so it changes the partition)
+  - UPDATE partitions - 2 (1 - updating email, 1 - updating status within same partition), (another update to change the partition from some status to OTHER default status so it changes the partition)
   - DELETE rows for partition - 2
 
-In the starting not creating PK on some partitions of both the tables - test_schema.orders_eu, test_schema.customers_other, public.customers_part21
+Initially missing PKs (to trigger the primary-key guardrail in export data):
+  - test_schema."Orders_EU"
+  - test_schema."Customers_Other"
+  - public.customers_part21
 Checking if export data fails with the Primary key guardrail error.
-if it fails, assert the error message contains the table names without a Primary key.
-and then create the PK on the tables and then runs the rest of the flow
+If it fails, assert the error message contains the table names without a Primary key,
+and then create the PK on those tables and continue with the rest of the flow.
+
+In the import data we also validate the partition consistency by dropping some partitions
+(across different schemas including the case-sensitive one) and running import data
+with --use-partition-root=false, answering 'N' to the prompt, and then re-running
+import data after recreating the partitions.
 */
 func TestLiveMigrationPartitionedWithChildPKAndPartitionsAcrossDifferentSchemas(t *testing.T) {
 	t.Parallel()
