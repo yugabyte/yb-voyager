@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -429,7 +430,11 @@ func checkTablesPresentInTarget(tablesToImport []sqlname.NameTuple) {
 // when '--use-partition-root false' is used during import. This is required because CDC events
 // will contain partition table names that must exist on the target.
 func checkPartitionConsistency(msr *metadb.MigrationStatusRecord, importTableList []sqlname.NameTuple) {
-	if msr.SourceRenameTablesMap == nil || len(msr.SourceRenameTablesMap) == 0 {
+	if importerRole != TARGET_DB_IMPORTER_ROLE {
+		//TODO to have similar consistency check in source also later
+		return
+	}
+	if msr.SourceRenameTablesMap == nil {
 		// No partitions to check
 		return
 	}
@@ -437,9 +442,18 @@ func checkPartitionConsistency(msr *metadb.MigrationStatusRecord, importTableLis
 	log.Infof("Checking partition consistency between source and target ('--use-partition-root false')")
 
 	// Get list of partitions from MSR (source partitions)
-	rootToLeafPartitions := make(map[string][]string)
+	rootToLeafPartitions := utils.NewStructMap[sqlname.NameTuple, []string]()
 	for leaf, root := range msr.SourceRenameTablesMap {
-		rootToLeafPartitions[root] = append(rootToLeafPartitions[root], leaf)
+		rootTup, err := namereg.NameReg.LookupTableName(root)
+		if err != nil {
+			utils.ErrExit("failed to lookup root table %s: %w", root, err)
+		}
+		leaves, ok := rootToLeafPartitions.Get(rootTup)
+		if !ok {
+			leaves = []string{}
+		}
+		leaves = append(leaves, leaf)
+		rootToLeafPartitions.Put(rootTup, leaves)
 	}
 
 	checkIfTableExistsOnTarget := func(table string) bool {
@@ -451,41 +465,53 @@ func checkPartitionConsistency(msr *metadb.MigrationStatusRecord, importTableLis
 		}
 		return tableTup.TargetTableAvailable()
 	}
+	fmt.Printf("importTableList: %v\n", importTableList)
 	// Check each source partition exists on target
-	missingRootToLeafPartitions := make(map[string][]string)
-	for root, leaves := range rootToLeafPartitions {
+	missingRootToLeafPartitions := utils.NewStructMap[sqlname.NameTuple, []string]()
+	rootToLeafPartitions.IterKV(func(root sqlname.NameTuple, leaves []string) (bool, error) {
 		if !lo.ContainsBy(importTableList, func(t sqlname.NameTuple) bool {
-			return t.ForKey() == root
+			return t.Equals(root)
 		}) {
 			//if the root table is not in the import table list, then skip the check
-			//since its not being exported from source
-			continue
+			//since its not being exported from source and this is really possible as we don't allow changing table-list in the middle of the migration
+			log.Infof("Root table %s is not in the import table list, skipping check", root)
+			return true, nil
 		}
 		for _, leaf := range leaves {
 			if !checkIfTableExistsOnTarget(leaf) {
-				missingRootToLeafPartitions[root] = append(missingRootToLeafPartitions[root], leaf)
+				leaves, ok := missingRootToLeafPartitions.Get(root)
+				if !ok {
+					leaves = []string{}
+				}
+				leaves = append(leaves, leaf)
+				missingRootToLeafPartitions.Put(root, leaves)
 			}
 		}
+		return true, nil
+	})
 
-	}
-
-	if len(missingRootToLeafPartitions) > 0 {
+	if len(missingRootToLeafPartitions.Keys()) > 0 {
 		utils.PrintAndLogfInfo("\nWhen using '--use-partition-root false', CDC events will contain partition table names.")
 		utils.PrintAndLogfInfo("The following root table partitions are not present on the target database:")
-		for root, leaves := range missingRootToLeafPartitions {
-			utils.PrintAndLogfInfo("  - %s:", root)
-			for _, leaf := range leaves {
-				utils.PrintAndLogfInfo("    - %s", leaf)
-			}
-		}
+		printMissingRootToLeafPartitions(missingRootToLeafPartitions)
 		utils.PrintAndLogfWarning("\nEnsure that all partitions from the source exist on the target, or use --use-partition-root true (default).")
 		if !utils.AskPrompt("\nDo you want to continue anyway") {
+			//ideally we should just exit but for now since this is a new feature, we will just give a prompt in case if we miss something
 			utils.ErrExit("Please ensure that all partitions from the source exist on the target, or use --use-partition-root true (default).")
 		}
 	}
 	log.Infof("Partition consistency check passed: %v root-to-leaf partitions verified", rootToLeafPartitions)
 }
 
+func printMissingRootToLeafPartitions(missingRootToLeafPartitions *utils.StructMap[sqlname.NameTuple, []string]) {
+	sortFn := func(a, b sqlname.NameTuple) bool { return a.ForOutput() < b.ForOutput() }
+	missingRootToLeafPartitions.IterKVSorted(sortFn, func(root sqlname.NameTuple, leaves []string) (bool, error) {
+		utils.PrintAndLogfInfo("  - %s:", root.ForOutput())
+		sort.Slice(leaves, func(i, j int) bool { return leaves[i] < leaves[j] })
+		utils.PrintAndLogfInfo("    - %s", strings.Join(leaves, ", "))
+		return true, nil
+	})
+}
 func shouldReregisterYBNames() bool {
 	actualDataImportStarted := false
 	switch importerRole {
@@ -980,11 +1006,7 @@ func initialiseImportTableList(importFileTasks []*ImportFileTask, msr *metadb.Mi
 		if err != nil {
 			return nil, nil, goerrors.Errorf("Failed to get import table list: %v", err)
 		}
-		//for live target db importer we don't support table-list and exclude-table-list flags, so we need to check if all the tables in the importFileTasks are present in the target
-		//and if not, we need to exit with an error
-		//If the export type includes snapshot, then only use the importFileTasks to get the tables to import
-		//otherwise use the tables from msr
-		checkTablesPresentInTarget(importTableList) //to check whether tables exist or not we should use importTableList in live migration case
+		checkTablesPresentInTarget(importTableList) //to check whether tables exist or not we should use importTableList in live migration case as it includes all the tables being migration e.e.g mepty tables etc..
 
 		// When '--use-partition-root false', verify that partitions are consistent between source and target
 		if !importUsePartitionRoot {

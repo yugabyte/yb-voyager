@@ -33,9 +33,7 @@ type ImportDataStatusRecord struct {
 	*/
 	CdcPartitioningStrategyConfig string `json:"cdcPartitioningStrategyConfig"`
 
-	TargetUsePartitionRoot        bool `json:"TargetUsePartitionRoot"`        // false or true means use root table for partitions (default); false means insert via root table
-	SourceUsePartitionRoot        bool `json:"SourceUsePartitionRoot"`        // false or true means use root table for partitions (default); false means insert via root table
-	SourceReplicaUsePartitionRoot bool `json:"SourceReplicaUsePartitionRoot"` // false or true means use root table for partitions (default); false means insert via root table
+	TargetUsePartitionRoot        bool `json:"TargetUsePartitionRoot"`        // false - use leaf table for partitions, true - use root table for partitions; default is true
 }
 
 const IMPORT_DATA_STATUS_KEY = "import_data_status"

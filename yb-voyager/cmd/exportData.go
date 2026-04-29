@@ -2096,17 +2096,17 @@ func reportUnsupportedTablesForLiveMigration(finalTableList []sqlname.NameTuple,
 // into a NameTuple-keyed map of root -> []leaf partitions, resolving each name through the name
 // registry so callers can compare against NameTuples coming from finalTableList.
 func buildRootToLeafPartitionsMap(partitionsToRootTableMap map[string]string, finalTableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple], error) {
-	tableToUnQuotedMap := make(map[string]sqlname.NameTuple)
+	finalTableListMapUnquotedToNameTuple := make(map[string]sqlname.NameTuple)
 	for _, table := range finalTableList {
-		tableToUnQuotedMap[table.AsQualifiedCatalogName()] = table
+		finalTableListMapUnquotedToNameTuple[table.AsQualifiedCatalogName()] = table
 	}
 	rootToLeafPartitions := utils.NewStructMap[sqlname.NameTuple, []sqlname.NameTuple]()
 	for leafQualified, rootQualified := range partitionsToRootTableMap {
-		leafTuple, ok := tableToUnQuotedMap[leafQualified]
+		leafTuple, ok := finalTableListMapUnquotedToNameTuple[leafQualified]
 		if !ok {
 			return nil, goerrors.Errorf("lookup leaf partition %q", leafQualified)
 		}
-		rootTuple, ok := tableToUnQuotedMap[rootQualified]
+		rootTuple, ok := finalTableListMapUnquotedToNameTuple[rootQualified]
 		if !ok {
 			return nil, goerrors.Errorf("lookup root partition %q", rootQualified)
 		}

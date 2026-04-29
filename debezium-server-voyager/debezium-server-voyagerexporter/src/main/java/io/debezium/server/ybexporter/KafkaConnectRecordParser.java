@@ -75,25 +75,25 @@ class KafkaConnectRecordParser implements RecordParser {
         }
         if (!partitionToRootMappingsConfig.isEmpty()) {
             for (String partitionToRootMappingConfig : partitionToRootMappingsConfig.split(",")) {
-                String[] beforeAndAfter = partitionToRootMappingConfig.split(":");
-                if (beforeAndAfter.length != 2) {
+                String[] partitionAndRoot = partitionToRootMappingConfig.split(":");
+                if (partitionAndRoot.length != 2) {
                     throw new RuntimeException(String.format(
                             "Incorrect format for specifying partition to root mapping config %s. Provide it as <partitionSchema>.<partitionTableName>:<rootSchema>.<rootTableName>",
                             partitionToRootMappingConfig));
                 }
-                String before = beforeAndAfter[0];
-                String after = beforeAndAfter[1];
-                if ((before.split("\\.").length != 2) && (!sourceType.equals("mysql"))) {
+                String partition = partitionAndRoot[0];
+                String root = partitionAndRoot[1];
+                if ((partition.split("\\.").length != 2) && (!sourceType.equals("mysql"))) {
                     throw new RuntimeException(String.format(
                             "Incorrect format for specifying partition to root mapping config %s. Provide it as <partitionSchema>.<partitionTableName>:<rootSchema>.<rootTableName>",
-                            before));
+                            partition));
                 }
-                if ((after.split("\\.").length != 2) && (!sourceType.equals("mysql"))) {
+                if ((root.split("\\.").length != 2) && (!sourceType.equals("mysql"))) {
                     throw new RuntimeException(String.format(
                             "Incorrect format for specifying partition to root mapping config %s. Provide it as <partitionSchema>.<partitionTableName>:<rootSchema>.<rootTableName>",
-                            after));
+                            root));
                 }
-                partitionToRootMapping.put(before, after);
+                partitionToRootMapping.put(partition, root);
 
             }
         }

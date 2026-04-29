@@ -141,15 +141,11 @@ func validateImportUsePartitionRootFlag() error {
 		}
 	}
 	tconf.UsePartitionRoot = bool(importUsePartitionRoot)
+	if importerRole != TARGET_DB_IMPORTER_ROLE {
+		return nil
+	}
 	return metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
-		switch importerRole {
-		case TARGET_DB_IMPORTER_ROLE:
-			record.TargetUsePartitionRoot = bool(importUsePartitionRoot)
-		case SOURCE_DB_IMPORTER_ROLE:
-			record.SourceUsePartitionRoot = bool(importUsePartitionRoot)
-		case SOURCE_REPLICA_DB_IMPORTER_ROLE:
-			record.SourceReplicaUsePartitionRoot = bool(importUsePartitionRoot)
-		}
+		record.TargetUsePartitionRoot = bool(importUsePartitionRoot)
 	})
 }
 

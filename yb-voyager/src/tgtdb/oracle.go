@@ -495,12 +495,6 @@ func (tdb *TargetOracleDB) GetListOfTableAttributes(tableNameTup sqlname.NameTup
 	return columns, nil
 }
 
-func (tdb *TargetOracleDB) shouldUsePartitionTable(event *Event) bool {
-	//For oracle we don't support partition table ingestion
-	//so always insert data via root table
-	return false
-}
-
 // execute all events sequentially one by one in a single transaction
 func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error {
 	// TODO: figure out how to avoid round trips to Oracle DB
@@ -519,14 +513,14 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 		var rowsAffectedInserts, rowsAffectedDeletes, rowsAffectedUpdates int64
 		for i := 0; i < len(batch.Events); i++ {
 			event := batch.Events[i]
-			stmt, err := event.GetSQLStmt(tdb, tdb.shouldUsePartitionTable(event))
+			stmt, err := event.GetSQLStmt(tdb, true)
 			if err != nil {
 				return false, fmt.Errorf("get sql stmt: %w", err)
 			}
 			if event.Op == "c" {
 				// converting to an UPSERT
 				event.Op = "u"
-				updateStmt, err := event.GetSQLStmt(tdb, tdb.shouldUsePartitionTable(event))
+				updateStmt, err := event.GetSQLStmt(tdb, true)
 				if err != nil {
 					return false, fmt.Errorf("get sql stmt: %w", err)
 				}
