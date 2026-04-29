@@ -170,10 +170,11 @@ DECLARE
     tbl RECORD;
 BEGIN
     FOR tbl IN
-        SELECT table_name
-        FROM information_schema.tables
-        WHERE table_schema = p_schema_name
-          AND table_type   = 'BASE TABLE'
+        SELECT c.relname AS table_name
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname   = p_schema_name
+          AND c.relkind   = 'r'  -- ordinary tables only, skip partitioned parents ('p')
     LOOP
         PERFORM public.compute_table_segment_hashes(
             p_side,
