@@ -322,16 +322,21 @@ func (lm *LiveMigrationTest) StartExportDataWithEnv(async bool, extraArgs map[st
 
 // StartImportData starts import data command
 func (lm *LiveMigrationTest) StartImportData(async bool, extraArgs map[string]string) error {
-	return lm.startImportData(async, extraArgs, nil)
+	return lm.startImportData(async, extraArgs, nil, true)
 }
 
 // StartImportDataWithEnv starts import data with additional environment variables.
 // This is useful for failpoint injection and tuning knobs like batch sizes.
 func (lm *LiveMigrationTest) StartImportDataWithEnv(async bool, extraArgs map[string]string, env []string) error {
-	return lm.startImportData(async, extraArgs, env)
+	return lm.startImportData(async, extraArgs, env, true)
 }
 
-func (lm *LiveMigrationTest) startImportData(async bool, extraArgs map[string]string, env []string) error {
+// StartImportDataWithNoPrompt starts import data with no prompt
+func (lm *LiveMigrationTest) StartImportDataWithPromptAnswerNo(async bool, extraArgs map[string]string) error {
+	return lm.startImportData(async, extraArgs, nil, false)
+}
+
+func (lm *LiveMigrationTest) startImportData(async bool, extraArgs map[string]string, env []string, promptAnswer bool) error {
 	if len(env) > 0 {
 		lm.t.Logf("Starting import data with env %v", env)
 	} else {
@@ -348,13 +353,16 @@ func (lm *LiveMigrationTest) startImportData(async bool, extraArgs map[string]st
 		"--export-dir", lm.exportDir,
 		"--disable-pb", "true",
 		"--target-db-name", lm.config.TargetDB.DatabaseName,
-		"--yes",
 	}
 	for key, value := range extraArgs {
 		args = append(args, key, value)
 	}
 
-	lm.importCmd = testutils.NewVoyagerCommandRunner(lm.targetContainer, "import data", args, onStart, async).WithEnv(env...).WithT(lm.t)
+	answer := "Y\n"
+	if !promptAnswer {
+		answer = "N\n"
+	}
+	lm.importCmd = testutils.NewVoyagerCommandRunner(lm.targetContainer, "import data", args, onStart, async).WithEnv(env...).WithT(lm.t).WithStdin(strings.NewReader(answer))
 	err := lm.importCmd.Run()
 	if err != nil {
 		return goerrors.Errorf("failed to start import data: %w", err)
@@ -844,6 +852,13 @@ func (lm *LiveMigrationTest) GetImportCommandStderr() string {
 		return ""
 	}
 	return lm.importCmd.Stderr()
+}
+
+func (lm *LiveMigrationTest) GetImportCommandStdout() string {
+	if lm.importCmd == nil {
+		return ""
+	}
+	return lm.importCmd.Stdout()
 }
 
 // GetImportToSourceCommandStderr gets stderr from import to source command

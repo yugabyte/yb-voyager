@@ -465,7 +465,6 @@ func checkPartitionConsistency(msr *metadb.MigrationStatusRecord, importTableLis
 		}
 		return tableTup.TargetTableAvailable()
 	}
-	fmt.Printf("importTableList: %v\n", importTableList)
 	// Check each source partition exists on target
 	missingRootToLeafPartitions := utils.NewStructMap[sqlname.NameTuple, []string]()
 	rootToLeafPartitions.IterKV(func(root sqlname.NameTuple, leaves []string) (bool, error) {
@@ -497,14 +496,14 @@ func checkPartitionConsistency(msr *metadb.MigrationStatusRecord, importTableLis
 		utils.PrintAndLogfWarning("\nEnsure that all partitions from the source exist on the target, or use --use-partition-root true (default).")
 		if !utils.AskPrompt("\nDo you want to continue anyway") {
 			//ideally we should just exit but for now since this is a new feature, we will just give a prompt in case if we miss something
-			utils.ErrExit("Please ensure that all partitions from the source exist on the target, or use --use-partition-root true (default).")
+			utils.ErrExit("Aborting.")
 		}
 	}
 	log.Infof("Partition consistency check passed: %v root-to-leaf partitions verified", rootToLeafPartitions)
 }
 
 func printMissingRootToLeafPartitions(missingRootToLeafPartitions *utils.StructMap[sqlname.NameTuple, []string]) {
-	sortFn := func(a, b sqlname.NameTuple) bool { return a.ForOutput() < b.ForOutput() }
+	sortFn := func(a, b sqlname.NameTuple) bool { return a.AsQualifiedCatalogName() < b.AsQualifiedCatalogName() }
 	missingRootToLeafPartitions.IterKVSorted(sortFn, func(root sqlname.NameTuple, leaves []string) (bool, error) {
 		utils.PrintAndLogfInfo("  - %s:", root.ForOutput())
 		sort.Slice(leaves, func(i, j int) bool { return leaves[i] < leaves[j] })
