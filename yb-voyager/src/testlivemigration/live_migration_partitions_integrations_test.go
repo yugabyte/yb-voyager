@@ -733,7 +733,7 @@ func TestLiveMigrationWithMultiLevelPartitioningWithChildTablesHasPK(t *testing.
 	err = lm.WaitForCutoverSourceComplete(0, 160)
 	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 
-	err = lm.ValidateDataConsistency([]string{`"public"."customers"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"public"."customers"`, `public.customers_other`, `public.customers_part11`, `public.customers_part21`, `public.customers_part12`, `public.customers_part22`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 }
 
@@ -994,7 +994,8 @@ func TestLiveMigrationPartitionedWithChildPKAndPartitionsAcrossDifferentSchemas(
 	err = lm.WaitForCutoverSourceComplete(0, 160)
 	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 
-	err = lm.ValidateDataConsistency([]string{`"TestSchemaCase"."orders"`, `"public"."customers"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"TestSchemaCase"."orders"`, `"public"."customers"`, `"test_schema"."orders_us"`, `"test_schema"."orders_eu"`, `"test_schema"."orders_apac"`,
+		`test_schema."Customers_Other"`, `test_schema."Customers_Part11"`, `"TestSchemaCase"."Customers_Part12"`, `"TestSchemaCase".customers_part22`, `public.customers_part21`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 }
 
@@ -1340,7 +1341,7 @@ func TestLiveMigrationWithIterationsOnPartitionedTableWithChildPK(t *testing.T) 
 	err = lm.WaitForCutoverComplete(2, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
-	err = lm.ValidateDataConsistency([]string{`"public"."orders"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"public"."orders"`, `"public"."orders_eu"`, `"public"."orders_apac"`, `"public"."orders_us"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 }

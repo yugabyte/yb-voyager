@@ -1075,7 +1075,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			/*
 			   Currently ingestion logic is to ingest cdc data via root table for the partitioned table by default to cases where
 			   partitioning strategy/names change on the target database. So with configuration '--use-partition-root false', we are ingesting data via partition table.
-			   but with UPDATE <partition table> stmt on YB , there is a limiation that it errors out if the UPDATE statement doesn't include partition key so we are skipping
+			   but with UPDATE <partition table> stmt on YB https://github.com/yugabyte/yugabyte-db/issues/31214 , there is a limiation that it errors out if the UPDATE statement doesn't include partition key so we are skipping
 			   ingestion of UPDATE events via partition table on Target DB. and in other importers we are ingesting data via partition table.
 			   so use partition root table always for UPDATE events  in YB
 			*/
