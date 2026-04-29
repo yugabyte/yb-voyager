@@ -1069,7 +1069,7 @@ func validatingPartitionConsistencyCheck(lm *LiveMigrationTest) {
 
 	err = lm.WithTargetConn(func(targetConn *sql.DB) error {
 		ddls := []string{
-			`CREATE TABLE "TestSchemaCase".customers_part22 PARTITION OF "TestSchemaCase"."Customers_Arr_Large" FOR VALUES WITH (modulus 2, remainder 0);`,
+			`CREATE TABLE "TestSchemaCase".customers_part22 PARTITION OF "TestSchemaCase"."Customers_Arr_Large" FOR VALUES WITH (modulus 2, remainder 1);`,
 			`ALTER TABLE "TestSchemaCase".customers_part22 ADD PRIMARY KEY (id);`,
 			`CREATE TABLE test_schema."Customers_Other" PARTITION OF public.customers DEFAULT;`,
 			`ALTER TABLE test_schema."Customers_Other" ADD PRIMARY KEY (id);`,
