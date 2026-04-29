@@ -358,11 +358,11 @@ func assessMigration() (err error) {
 	tracker := ux.NewProgressTracker("Preparing for migration assessment")
 
 	// Stage 1: Gather metadata + export schema + load into DB
-	gatherStepCount := migassessment.CountPGGatherSteps()
 	hasReplicas := len(validatedReplicaEndpoints) > 0
-	if hasReplicas {
+	gatherStepCount, prepareStaticStage := gatherMetadataStageConfig(source.DBType, hasReplicas)
+	if prepareStaticStage {
 		// Parallel replica path uses its own internal progress display,
-		// so set up the stage without a spinner to avoid a duplicate line.
+		// and Oracle uses a static summary banner without per-step spinners.
 		tracker.PrepareStage("Gathering metadata", gatherStepCount)
 	} else {
 		tracker.StartStage("Gathering metadata", gatherStepCount)
@@ -694,6 +694,17 @@ func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint, tracker
 	}
 	log.Infof("gathered assessment metadata files at '%s'", assessmentMetadataDir)
 	return nil
+}
+
+func gatherMetadataStageConfig(sourceDBType string, hasReplicas bool) (int, bool) {
+	switch sourceDBType {
+	case ORACLE:
+		return 0, true
+	case POSTGRESQL:
+		return migassessment.CountPGGatherSteps(), hasReplicas
+	default:
+		return 0, false
+	}
 }
 
 /*
