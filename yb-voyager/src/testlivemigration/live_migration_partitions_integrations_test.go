@@ -930,7 +930,7 @@ func TestLiveMigrationPartitionedWithChildPKAndPartitionsAcrossDifferentSchemas(
 
 	//Validation for the Primary key guardrail in export data
 	exportStdout := lm.GetExportCommandStdout()
-	require.Contains(t, exportStdout, "Table names without a Primary key: [public.orders test_schema.orders_eu test_schema.customers_other public.customers public.customers_part21]")
+	require.Contains(t, exportStdout, "Table names without a Primary key: [public.customers public.customers_part21 public.orders test_schema.customers_other test_schema.orders_eu]")
 
 	err = lm.WithSourceTargetConn(func(sourceConn *sql.DB, targetConn *sql.DB) error {
 		ddls := []string{

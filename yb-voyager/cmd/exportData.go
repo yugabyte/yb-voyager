@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -2079,6 +2080,10 @@ func reportUnsupportedTablesForLiveMigration(finalTableList []sqlname.NameTuple,
 		}
 		nonPKTables = append(nonPKTables, table.ForOutput())
 	}
+
+	sort.Slice(nonPKTables, func(i, j int) bool {
+		return nonPKTables[i] < nonPKTables[j]
+	})
 
 	if len(nonPKTables) > 0 {
 		utils.PrintAndLogf("Table names without a Primary key: %s", nonPKTables)
