@@ -22,6 +22,7 @@ import (
 	"strings"
 	"sync"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/goccy/go-json"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
@@ -145,7 +146,7 @@ func (e *Event) GetEffectiveTableName(usePartitionRoot bool) (sqlname.NameTuple,
 		if e.PartitionTableTup != sqlname.NIL_NAME_TUPLE {
 			return e.PartitionTableTup, nil
 		}
-		return sqlname.NIL_NAME_TUPLE, fmt.Errorf("Partition table is not set for event %s", e.String())
+		return sqlname.NIL_NAME_TUPLE, goerrors.Errorf("Partition table is not set for event %s", e.String())
 	}
 	return e.TableNameTup, nil
 }
