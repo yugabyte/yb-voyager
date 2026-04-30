@@ -1068,7 +1068,7 @@ func (pg *PostgreSQL) DropPublication(publicationName string) error {
 // PK definition order. ORDER BY array_position(indkey, attnum) is essential:
 // (id, region) and (region, id) are different keys, and we compare slices for
 // equality across leaf partitions in the live-migration guardrail.
-var PG_QUERY_GET_PRIMARY_KEY_COLUMNS_FOR_LEAVES = `
+var PG_QUERY_GET_PRIMARY_KEY_COLUMNS_FOR_TABLES = `
 SELECT n.nspname, c.relname, a.attname
 FROM pg_index i
 JOIN pg_class      c ON c.oid = i.indrelid
@@ -1080,9 +1080,9 @@ ORDER BY array_position(i.indkey, a.attnum);`
 
 func (pg *PostgreSQL) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
 
-	catalogLeafToTuple := make(map[string]sqlname.NameTuple)
+	catalogTableToTuple := make(map[string]sqlname.NameTuple)
 	for _, table := range tables {
-		catalogLeafToTuple[table.AsQualifiedCatalogName()] = table
+		catalogTableToTuple[table.AsQualifiedCatalogName()] = table
 	}
 
 	result := utils.NewStructMap[sqlname.NameTuple, []string]()
@@ -1091,7 +1091,7 @@ func (pg *PostgreSQL) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.S
 		schema, tableName := table.ForCatalogQuery()
 		return fmt.Sprintf("('%s', '%s')", schema, tableName)
 	}), ", ")
-	query := fmt.Sprintf(PG_QUERY_GET_PRIMARY_KEY_COLUMNS_FOR_LEAVES, queryTablesString)
+	query := fmt.Sprintf(PG_QUERY_GET_PRIMARY_KEY_COLUMNS_FOR_TABLES, queryTablesString)
 
 	rows, err := pg.db.Query(query)
 	if err != nil {
@@ -1108,7 +1108,7 @@ func (pg *PostgreSQL) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.S
 		if err := rows.Scan(&schema, &table, &col); err != nil {
 			return nil, fmt.Errorf("scan PK column row for leaves: %w", err)
 		}
-		leaf, ok := catalogLeafToTuple[fmt.Sprintf("%s.%s", schema, table)]
+		leaf, ok := catalogTableToTuple[fmt.Sprintf("%s.%s", schema, table)]
 		if !ok {
 			return nil, fmt.Errorf("leaf not found in catalog: %s.%s", schema, table)
 		}

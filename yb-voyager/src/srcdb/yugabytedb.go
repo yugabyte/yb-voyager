@@ -1145,9 +1145,9 @@ func (yb *YugabyteDB) GetNonPKTables() ([]string, error) {
 }
 
 func (yb *YugabyteDB) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
-	catalogLeafToTuple := make(map[string]sqlname.NameTuple)
+	catalogTableToTuple := make(map[string]sqlname.NameTuple)
 	for _, table := range tables {
-		catalogLeafToTuple[table.AsQualifiedCatalogName()] = table
+		catalogTableToTuple[table.AsQualifiedCatalogName()] = table
 	}
 
 	result := utils.NewStructMap[sqlname.NameTuple, []string]()
@@ -1156,7 +1156,7 @@ func (yb *YugabyteDB) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.S
 		schema, tableName := table.ForCatalogQuery()
 		return fmt.Sprintf("('%s', '%s')", schema, tableName)
 	}), ", ")
-	query := fmt.Sprintf(PG_QUERY_GET_PRIMARY_KEY_COLUMNS_FOR_LEAVES, queryTablesString)
+	query := fmt.Sprintf(PG_QUERY_GET_PRIMARY_KEY_COLUMNS_FOR_TABLES, queryTablesString)
 
 	rows, err := yb.db.Query(query)
 	if err != nil {
@@ -1173,7 +1173,7 @@ func (yb *YugabyteDB) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.S
 		if err := rows.Scan(&schema, &table, &col); err != nil {
 			return nil, fmt.Errorf("scan PK column row for leaves: %w", err)
 		}
-		leaf, ok := catalogLeafToTuple[fmt.Sprintf("%s.%s", schema, table)]
+		leaf, ok := catalogTableToTuple[fmt.Sprintf("%s.%s", schema, table)]
 		if !ok {
 			return nil, fmt.Errorf("leaf not found in catalog: %s.%s", schema, table)
 		}
