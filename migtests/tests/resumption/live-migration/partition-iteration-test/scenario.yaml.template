@@ -32,6 +32,60 @@ target:
     user: ${TARGET_DB_ADMIN_USER}
     password: ${TARGET_DB_ADMIN_PASSWORD}
 
+# Forward (source) event generator: random INSERT/UPDATE/DELETE on all 3 tables.
+generator_source:
+  config_inline:
+    connection:
+      host: 127.0.0.1
+      port: 5432
+      database: test_db
+      user: postgres
+      password: postgres
+
+    generator:
+      schema_name: public
+      manual_table_list: []
+      exclude_table_list: [cutover_table]
+      num_iterations: -1
+      wait_after_operations: 1000
+      wait_duration_seconds: 1
+      table_weights: {events: 5, sales_region: 3, emp: 2}
+      operation_weights: {INSERT: 3, UPDATE: 2, DELETE: 1}
+      random_seed: 12345
+      faker_seed: 12345
+      insert_rows: 4
+      update_rows: 2
+      delete_rows: 1
+      insert_max_retries: 50
+      update_max_retries: 3
+
+# Fallback (target) event generator: random traffic on target during fallback.
+generator_target:
+  config_inline:
+    connection:
+      host: ${TARGET_DB_HOST}
+      port: ${TARGET_DB_PORT}
+      database: test_db
+      user: ${TARGET_DB_USER}
+      password: ${TARGET_DB_PASSWORD}
+
+    generator:
+      schema_name: public
+      manual_table_list: []
+      exclude_table_list: [cutover_table]
+      num_iterations: -1
+      wait_after_operations: 5000
+      wait_duration_seconds: 1
+      table_weights: {events: 5, sales_region: 3, emp: 2}
+      operation_weights: {INSERT: 3, UPDATE: 2, DELETE: 1}
+      random_seed: 67890
+      faker_seed: 67890
+      insert_rows: 6
+      update_rows: 4
+      delete_rows: 2
+      insert_max_retries: 50
+      update_max_retries: 3
+
 voyager:
   import_data:
     flags:
@@ -93,11 +147,17 @@ stages:
   - name: start_importer
     action: voyager_import_start
 
+  # Deterministic edge-case DML (boundary values, TOAST, cross-partition, LIST, HASH)
   - name: run_source_dml
     action: run_sql
     target: source
     sql_path: ./source_dml.sql
     use_admin: true
+
+  # Random DML via event generator (runs continuously until stopped)
+  - name: start_event_generator
+    action: generator_start
+    generator_key: generator_source
 
   - name: start_import_resumptions
     action: start_resumptions
@@ -127,6 +187,11 @@ stages:
   - name: soak_with_resumptions
     action: sleep
     seconds: 400
+
+  - name: stop_event_generator
+    action: generator_stop
+    generator_key: generator_source
+    graceful_timeout_sec: 30
 
   - name: insert_backlog_marker
     action: run_sql
@@ -172,11 +237,17 @@ stages:
   - name: start_fallback_importer_to_source
     action: voyager_import_to_source_start
 
+  # Deterministic edge-case DML on target (fallback direction)
   - name: run_target_dml
     action: run_sql
     target: target
     sql_path: ./target_dml.sql
     use_admin: true
+
+  # Random DML on target during fallback
+  - name: start_target_event_generator
+    action: generator_start
+    generator_key: generator_target
 
   - name: start_fallback_resumptions
     action: start_resumptions
@@ -201,6 +272,11 @@ stages:
   - name: soak_fallback_with_resumptions
     action: sleep
     seconds: 400
+
+  - name: stop_target_event_generator
+    action: generator_stop
+    generator_key: generator_target
+    graceful_timeout_sec: 60
 
   - name: sleep
     action: sleep
