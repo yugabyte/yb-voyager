@@ -1164,24 +1164,24 @@ func (yb *YugabyteDB) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.S
 	}
 	defer func() {
 		if cerr := rows.Close(); cerr != nil {
-			log.Warnf("close rows for leaf primary-key query: %v", cerr)
+			log.Warnf("close rows for table primary-key query: %v", cerr)
 		}
 	}()
 
 	for rows.Next() {
 		var schema, table, col string
 		if err := rows.Scan(&schema, &table, &col); err != nil {
-			return nil, fmt.Errorf("scan PK column row for leaves: %w", err)
+			return nil, fmt.Errorf("scan PK column row for tables: %w", err)
 		}
-		leaf, ok := catalogTableToTuple[fmt.Sprintf("%s.%s", schema, table)]
+		tableTuple, ok := catalogTableToTuple[fmt.Sprintf("%s.%s", schema, table)]
 		if !ok {
-			return nil, goerrors.Errorf("leaf not found in catalog: %s.%s", schema, table)
+			return nil, goerrors.Errorf("table not found in catalog: %s.%s", schema, table)
 		}
-		cols, _ := result.Get(leaf)
-		result.Put(leaf, append(cols, col))
+		cols, _ := result.Get(tableTuple)
+		result.Put(tableTuple, append(cols, col))
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate PK column rows for leaves: %w", err)
+		return nil, fmt.Errorf("iterate PK column rows for tables: %w", err)
 	}
 	return result, nil
 }
