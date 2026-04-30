@@ -1,3 +1,9 @@
+-- Partition iteration test schema
+-- Mirrors a real production pattern: RANGE-partitioned by timestamp,
+-- NO primary key on root table, PKs on all child partitions,
+-- shared sequence for globally unique IDs, 31 columns including JSONB.
+-- Tests --use-partition-root=false with CDC routing to child partitions.
+
 DROP TABLE IF EXISTS public.events CASCADE;
 DROP SEQUENCE IF EXISTS public.events_id_seq CASCADE;
 
@@ -39,6 +45,7 @@ CREATE TABLE public.events (
 
 ALTER SEQUENCE public.events_id_seq OWNED BY public.events.id;
 
+-- Monthly partitions (Jan-May have DML data, June is intentionally empty)
 CREATE TABLE public.events_202601 PARTITION OF public.events
     FOR VALUES FROM ('2026-01-01 00:00:00') TO ('2026-02-01 00:00:00');
 ALTER TABLE public.events_202601 ADD PRIMARY KEY (id);
@@ -59,12 +66,27 @@ CREATE TABLE public.events_202605 PARTITION OF public.events
     FOR VALUES FROM ('2026-05-01 00:00:00') TO ('2026-06-01 00:00:00');
 ALTER TABLE public.events_202605 ADD PRIMARY KEY (id);
 
+-- TC18: Empty partition — validates that Voyager handles partitions with zero rows
+-- (snapshot is no-op, CDC never targets it, hash validation confirms 0=0)
+CREATE TABLE public.events_202606 PARTITION OF public.events
+    FOR VALUES FROM ('2026-06-01 00:00:00') TO ('2026-07-01 00:00:00');
+ALTER TABLE public.events_202606 ADD PRIMARY KEY (id);
+
+-- TC38: DEFAULT partition — catches rows with timestamps outside all defined ranges
+-- (validates CDC routing for rows that land in the catch-all partition)
+CREATE TABLE public.events_default PARTITION OF public.events DEFAULT;
+ALTER TABLE public.events_default ADD PRIMARY KEY (id);
+
+-- REPLICA IDENTITY FULL required for UPDATEs/DELETEs on tables without PK on root.
+-- All column values included in CDC events for row identification.
 ALTER TABLE public.events REPLICA IDENTITY FULL;
 ALTER TABLE public.events_202601 REPLICA IDENTITY FULL;
 ALTER TABLE public.events_202602 REPLICA IDENTITY FULL;
 ALTER TABLE public.events_202603 REPLICA IDENTITY FULL;
 ALTER TABLE public.events_202604 REPLICA IDENTITY FULL;
 ALTER TABLE public.events_202605 REPLICA IDENTITY FULL;
+ALTER TABLE public.events_202606 REPLICA IDENTITY FULL;
+ALTER TABLE public.events_default REPLICA IDENTITY FULL;
 
 CREATE INDEX idx_events_push_token ON public.events (push_token);
 CREATE INDEX idx_events_candidate_id ON public.events (candidate_id);

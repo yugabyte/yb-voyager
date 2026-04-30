@@ -1,3 +1,5 @@
+-- Clean slate between iterations: truncate all child partitions via root,
+-- reset sequence so IDs are deterministic, remove validation artifacts.
 TRUNCATE TABLE public.events;
 TRUNCATE TABLE public.cutover_table;
 ALTER SEQUENCE public.events_id_seq RESTART WITH 1;

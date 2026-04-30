@@ -1,3 +1,8 @@
+-- Target DML: generates fallback CDC events on YB target.
+-- Uses id_offset=900000 to avoid PK conflicts with source DML rows.
+-- 500 batches x 5 months = 2500 iterations: INSERT + UPDATE + conditional DELETE.
+-- Runs during "import data to source" fallback phase to test reverse CDC.
+
 DO $$
 DECLARE
     base_ts     TIMESTAMP;
