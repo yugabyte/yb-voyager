@@ -2108,7 +2108,7 @@ func reportLeafPartitionsWithMismatchedPrimaryKeys(
 	hasPK func(sqlname.NameTuple) bool,
 ) {
 	mismatches := utils.NewStructMap[sqlname.NameTuple, []string]()
-	rootToLeafPartitions.IterKV(func(root sqlname.NameTuple, leaves []sqlname.NameTuple) (bool, error) {
+	err := rootToLeafPartitions.IterKV(func(root sqlname.NameTuple, leaves []sqlname.NameTuple) (bool, error) {
 		if hasPK(root) || len(leaves) <= 1 {
 			// PG enforces same PK across leaves when root has one; a single
 			// leaf has nothing to compare against.
@@ -2142,6 +2142,10 @@ func reportLeafPartitionsWithMismatchedPrimaryKeys(
 		}
 		return true, nil
 	})
+
+	if err != nil {
+		utils.ErrExit("report leaf partitions with mismatched primary keys: %w", err)
+	}
 
 	if len(mismatches.Keys()) == 0 {
 		return
