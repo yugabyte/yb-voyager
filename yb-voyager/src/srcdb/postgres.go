@@ -1064,6 +1064,47 @@ func (pg *PostgreSQL) DropPublication(publicationName string) error {
 	return nil
 }
 
+// PG_QUERY_GET_PRIMARY_KEY_COLUMNS returns the PK columns of a single table in
+// PK definition order. ORDER BY array_position(indkey, attnum) is essential:
+// (id, region) and (region, id) are different keys, and we compare slices for
+// equality across leaf partitions in the live-migration guardrail.
+var PG_QUERY_GET_PRIMARY_KEY_COLUMNS = `
+SELECT a.attname
+FROM pg_index i
+JOIN pg_class      c ON c.oid = i.indrelid
+JOIN pg_namespace  n ON n.oid = c.relnamespace
+JOIN pg_attribute  a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
+WHERE n.nspname = '%s'
+  AND c.relname = '%s'
+  AND i.indisprimary
+ORDER BY array_position(i.indkey, a.attnum);`
+
+func (pg *PostgreSQL) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error) {
+	schemaName, tableName := table.ForCatalogQuery()
+	query := fmt.Sprintf(PG_QUERY_GET_PRIMARY_KEY_COLUMNS, schemaName, tableName)
+	rows, err := pg.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("query PK columns for %s.%s: %w", schemaName, tableName, err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
+	var cols []string
+	for rows.Next() {
+		var c string
+		if err := rows.Scan(&c); err != nil {
+			return nil, fmt.Errorf("scan PK column for %s.%s: %w", schemaName, tableName, err)
+		}
+		cols = append(cols, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate PK columns for %s.%s: %w", schemaName, tableName, err)
+	}
+	return cols, nil
+}
+
 var PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK = `SELECT nspname AS schema_name, relname AS table_name, COUNT(conname) AS pk_count
 FROM pg_class c
 LEFT JOIN pg_namespace n ON n.oid = c.relnamespace

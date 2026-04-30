@@ -739,6 +739,13 @@ func (ora *Oracle) ClearMigrationState(migrationUUID uuid.UUID, exportDir string
 	return nil
 }
 
+// GetPrimaryKeyColumns is a no-op for Oracle: the partition-aware caller in
+// reportUnsupportedTablesForLiveMigration only iterates leaves built by
+// addLeafPartitionsInTableList, which is itself a no-op for non-PG/YB sources.
+func (ora *Oracle) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error) {
+	return nil, nil
+}
+
 func (ora *Oracle) GetNonPKTables() ([]string, error) {
 	query := fmt.Sprintf(`SELECT NVL(pk_count.count, 0) AS pk_count, at.table_name
 	FROM ALL_TABLES at

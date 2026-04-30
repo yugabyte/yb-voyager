@@ -1144,6 +1144,32 @@ func (yb *YugabyteDB) GetNonPKTables() ([]string, error) {
 	return nonPKTables, nil
 }
 
+func (yb *YugabyteDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error) {
+	schemaName, tableName := table.ForCatalogQuery()
+	query := fmt.Sprintf(PG_QUERY_GET_PRIMARY_KEY_COLUMNS, schemaName, tableName)
+	rows, err := yb.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("query PK columns for %s.%s: %w", schemaName, tableName, err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
+	var cols []string
+	for rows.Next() {
+		var c string
+		if err := rows.Scan(&c); err != nil {
+			return nil, fmt.Errorf("scan PK column for %s.%s: %w", schemaName, tableName, err)
+		}
+		cols = append(cols, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate PK columns for %s.%s: %w", schemaName, tableName, err)
+	}
+	return cols, nil
+}
+
 func (yb *YugabyteDB) GetReplicationConnection() (*pgconn.PgConn, error) {
 	return pgconn.Connect(context.Background(), yb.getConnectionUri()+"&replication=database")
 }
