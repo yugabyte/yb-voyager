@@ -1175,7 +1175,7 @@ func (yb *YugabyteDB) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.S
 		}
 		leaf, ok := catalogTableToTuple[fmt.Sprintf("%s.%s", schema, table)]
 		if !ok {
-			return nil, fmt.Errorf("leaf not found in catalog: %s.%s", schema, table)
+			return nil, goerrors.Errorf("leaf not found in catalog: %s.%s", schema, table)
 		}
 		cols, _ := result.Get(leaf)
 		result.Put(leaf, append(cols, col))
