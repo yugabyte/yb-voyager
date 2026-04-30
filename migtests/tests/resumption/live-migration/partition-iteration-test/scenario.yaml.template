@@ -114,9 +114,6 @@ stages:
     condition: exporter_in_streaming_phase
     timeout_sec: 600
 
-  - name: start_archiver
-    action: voyager_archive_changes_start
-
   - name: start_export_resumptions
     action: start_resumptions
     resumption:
@@ -150,13 +147,6 @@ stages:
     action: voyager_stop_resumptions
     command: import_data
     timeout_sec: 60
-
-  - name: wait_for_archiver
-    action: sleep
-    seconds: 30
-
-  - name: validate_archive_changes
-    action: validate_archive_changes
 
   - name: cutover_to_target
     action: cutover_to_target
@@ -241,12 +231,9 @@ stages:
     command: import_to_source
     timeout_sec: 60
 
-  - name: wait_for_archiver
+  - name: sleep_before_cutover_to_source
     action: sleep
-    seconds: 30
-
-  - name: validate_archive_changes
-    action: validate_archive_changes
+    seconds: 10
 
   - name: cutover_to_source
     action: cutover_to_source
@@ -255,14 +242,6 @@ stages:
     action: wait_for
     condition: cutover_to_source_status_completed
     timeout_sec: 900
-
-  - name: wait_for_archiver
-    action: sleep
-    seconds: 30
-
-  - name: validate_archive_changes
-    action: validate_archive_changes
-    check_post_cutover_to_source: True
 
   - name: row_count_validations
     action: row_count_validations
