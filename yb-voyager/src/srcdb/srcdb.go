@@ -54,12 +54,7 @@ type SourceDB interface {
 	GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error)
 	ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error
 	GetNonPKTables() ([]string, error)
-	// GetPrimaryKeyColumns returns the primary key column names for a table,
-	// in PK definition order. Returns an empty slice if the table has no PK.
-	// Only meaningful for PostgreSQL/YugabyteDB sources today; Oracle/MySQL
-	// implementations return (nil, nil) since the live-migration partition
-	// guardrail that consumes this never iterates leaves on those sources.
-	GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error)
+	GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error)
 	GetDatabaseSize() (int64, error)
 	CheckSourceDBVersion(exportType string) error
 	GetMissingExportSchemaPermissions(queryTableList string) ([]string, error)

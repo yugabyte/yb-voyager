@@ -505,8 +505,8 @@ func (ms *MySQL) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) 
 // GetPrimaryKeyColumns is a no-op for MySQL: the partition-aware caller in
 // reportUnsupportedTablesForLiveMigration only iterates leaves built by
 // addLeafPartitionsInTableList, which is itself a no-op for non-PG/YB sources.
-func (ms *MySQL) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error) {
-	return nil, nil
+func (ms *MySQL) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	panic("not implemented")
 }
 
 func (ms *MySQL) GetNonPKTables() ([]string, error) {

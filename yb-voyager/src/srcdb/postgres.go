@@ -1064,45 +1064,61 @@ func (pg *PostgreSQL) DropPublication(publicationName string) error {
 	return nil
 }
 
-// PG_QUERY_GET_PRIMARY_KEY_COLUMNS returns the PK columns of a single table in
+// PG_QUERY_GET_PRIMARY_KEY_COLUMNS returns the PK columns of all the tables in the given list in
 // PK definition order. ORDER BY array_position(indkey, attnum) is essential:
 // (id, region) and (region, id) are different keys, and we compare slices for
 // equality across leaf partitions in the live-migration guardrail.
-var PG_QUERY_GET_PRIMARY_KEY_COLUMNS = `
-SELECT a.attname
+var PG_QUERY_GET_PRIMARY_KEY_COLUMNS_FOR_LEAVES = `
+SELECT n.nspname, c.relname, a.attname
 FROM pg_index i
 JOIN pg_class      c ON c.oid = i.indrelid
 JOIN pg_namespace  n ON n.oid = c.relnamespace
 JOIN pg_attribute  a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
-WHERE n.nspname = '%s'
-  AND c.relname = '%s'
+WHERE (n.nspname, c.relname) IN (%s)
   AND i.indisprimary
 ORDER BY array_position(i.indkey, a.attnum);`
 
-func (pg *PostgreSQL) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error) {
-	schemaName, tableName := table.ForCatalogQuery()
-	query := fmt.Sprintf(PG_QUERY_GET_PRIMARY_KEY_COLUMNS, schemaName, tableName)
+func (pg *PostgreSQL) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+
+	catalogLeafToTuple := make(map[string]sqlname.NameTuple)
+	for _, table := range tables {
+		catalogLeafToTuple[table.AsQualifiedCatalogName()] = table
+	}
+
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
+
+	queryTablesString := strings.Join(lo.Map(tables, func(table sqlname.NameTuple, _ int) string {
+		schema, tableName := table.ForCatalogQuery()
+		return fmt.Sprintf("('%s', '%s')", schema, tableName)
+	}), ", ")
+	query := fmt.Sprintf(PG_QUERY_GET_PRIMARY_KEY_COLUMNS_FOR_LEAVES, queryTablesString)
+
 	rows, err := pg.db.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("query PK columns for %s.%s: %w", schemaName, tableName, err)
+		return nil, fmt.Errorf("query primary keys for tables: %w", err)
 	}
 	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			log.Warnf("close rows for query %q: %v", query, closeErr)
+		if cerr := rows.Close(); cerr != nil {
+			log.Warnf("close rows for leaf primary-key query: %v", cerr)
 		}
 	}()
-	var cols []string
+
 	for rows.Next() {
-		var c string
-		if err := rows.Scan(&c); err != nil {
-			return nil, fmt.Errorf("scan PK column for %s.%s: %w", schemaName, tableName, err)
+		var schema, table, col string
+		if err := rows.Scan(&schema, &table, &col); err != nil {
+			return nil, fmt.Errorf("scan PK column row for leaves: %w", err)
 		}
-		cols = append(cols, c)
+		leaf, ok := catalogLeafToTuple[fmt.Sprintf("%s.%s", schema, table)]
+		if !ok {
+			return nil, fmt.Errorf("leaf not found in catalog: %s.%s", schema, table)
+		}
+		cols, _ := result.Get(leaf)
+		result.Put(leaf, append(cols, col))
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate PK columns for %s.%s: %w", schemaName, tableName, err)
+		return nil, fmt.Errorf("iterate PK column rows for leaves: %w", err)
 	}
-	return cols, nil
+	return result, nil
 }
 
 var PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK = `SELECT nspname AS schema_name, relname AS table_name, COUNT(conname) AS pk_count

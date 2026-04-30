@@ -539,16 +539,15 @@ func TestLiveMigrationPartitionedTableWithChildPK(t *testing.T) {
 }
 
 /*
-Schema 
+Schema
 Root table: public.orders
 Child Tables:
-	- public.orders_us (PK id)
-	- public.orders_eu (PK id)
-	- public.orders_apac (PK id1)
-	- public.orders_emea (PK id1)
+  - public.orders_us (PK id)
+  - public.orders_eu (PK id)
+  - public.orders_apac (PK id1)
+  - public.orders_emea (PK id1)
 
 This scenario is not supported yet and validating guardrail in export data for that
-
 */
 func TestLiveMigrationPartitionedTableWithChildTablesHavingDifferentPK(t *testing.T) {
 	t.Parallel()
@@ -650,7 +649,9 @@ func TestLiveMigrationPartitionedTableWithChildTablesHavingDifferentPK(t *testin
 	assert.Contains(t, exportErr, "Live migration requires all leaf partitions of a partitioned table to share the same primary key columns.\nEither align the leaves' primary keys, or exclude these tables using the --exclude-table-list argument.")
 
 	exportStdout := lm.GetExportCommandStdout()
-	assert.Contains(t, exportStdout, "Partitioned tables with inconsistent primary keys across leaf partitions:\n\x1b[0m- \"TestSchemaCase\".orders: (id), (id1)\n- public.customers: (id), (id1)")
+	errMsg := utils.InfoColor.Sprintf("Partitioned tables with inconsistent primary keys across leaf partitions:\n")
+	errMsg += "- \"TestSchemaCase\".orders: (id), (id1)\n- public.customers: (id), (id1)"
+	assert.Contains(t, exportStdout, errMsg)
 
 	//Not supporting this test case for now as it requires some thinking and understanding cases of uniqueness of the PKs across the partitions
 	// err = lm.StartImportData(true, map[string]string{
@@ -921,15 +922,15 @@ partition hierarchies):
 public.customers - partitioned by LIST(status); no PK on root
   - test_schema."Customers_Other" - DEFAULT partition, no PK initially
   - public."Customers_Active"     - partition FOR ('ACTIVE','RECURRING','REACTIVATED'),
-                                    sub-partitioned BY RANGE(arr); intermediate, no PK
-      - public.customers_arr_small - sub-partition FROM (MINVALUE) TO (101),
-                                     sub-partitioned BY HASH(id); intermediate, no PK
-          - test_schema."Customers_Part11"           - modulus 2, remainder 0, PK (id)
-          - "TestSchemaCase"."Customers_Part12"      - modulus 2, remainder 1, PK (id)
-      - "TestSchemaCase"."Customers_Arr_Large" - sub-partition FROM (101) TO (MAXVALUE),
-                                                 sub-partitioned BY HASH(id); intermediate, no PK
-          - public.customers_part21                  - modulus 2, remainder 0, no PK initially
-          - "TestSchemaCase".customers_part22        - modulus 2, remainder 1, PK (id)
+    sub-partitioned BY RANGE(arr); intermediate, no PK
+  - public.customers_arr_small - sub-partition FROM (MINVALUE) TO (101),
+    sub-partitioned BY HASH(id); intermediate, no PK
+  - test_schema."Customers_Part11"           - modulus 2, remainder 0, PK (id)
+  - "TestSchemaCase"."Customers_Part12"      - modulus 2, remainder 1, PK (id)
+  - "TestSchemaCase"."Customers_Arr_Large" - sub-partition FROM (101) TO (MAXVALUE),
+    sub-partitioned BY HASH(id); intermediate, no PK
+  - public.customers_part21                  - modulus 2, remainder 0, no PK initially
+  - "TestSchemaCase".customers_part22        - modulus 2, remainder 1, PK (id)
 
 CDC events:
 "TestSchemaCase".orders:
@@ -946,6 +947,7 @@ Initially missing PKs (to trigger the primary-key guardrail in export data):
   - test_schema."Orders_EU"
   - test_schema."Customers_Other"
   - public.customers_part21
+
 Checking if export data fails with the Primary key guardrail error.
 If it fails, assert the error message contains the table names without a Primary key,
 and then create the PK on those tables and continue with the rest of the flow.

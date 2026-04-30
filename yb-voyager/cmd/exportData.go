@@ -42,6 +42,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -2107,6 +2108,9 @@ func reportLeafPartitionsWithMismatchedPrimaryKeys(
 	rootToLeafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple],
 	hasPK func(sqlname.NameTuple) bool,
 ) {
+	if source.DBType != constants.POSTGRESQL && source.DBType != constants.YUGABYTEDB {
+		return
+	}
 	mismatches := utils.NewStructMap[sqlname.NameTuple, []string]()
 	err := rootToLeafPartitions.IterKV(func(root sqlname.NameTuple, leaves []sqlname.NameTuple) (bool, error) {
 		if hasPK(root) || len(leaves) <= 1 {
@@ -2114,24 +2118,29 @@ func reportLeafPartitionsWithMismatchedPrimaryKeys(
 			// leaf has nothing to compare against.
 			return true, nil
 		}
+		leafToPrimaryKeyColumns, err := source.DB().GetPrimaryKeyColumns(leaves)
+		if err != nil {
+			return false, fmt.Errorf("get leaf to primary key columns map: %w", err)
+		}
 		var firstPK []string
-		for i, leaf := range leaves {
-			pk, err := source.DB().GetPrimaryKeyColumns(leaf)
-			if err != nil {
-				return false, fmt.Errorf("get primary key columns for %s: %w", leaf.ForOutput(), err)
+		err = leafToPrimaryKeyColumns.IterKV(func(leaf sqlname.NameTuple, pkColumns []string) (bool, error) {
+			if firstPK == nil {
+				//continue to the next leaf to check if they share the same PK columns
+				firstPK = pkColumns
+				return true, nil
 			}
-			if i == 0 {
-				firstPK = pk
-				continue
-			}
-			if !slices.Equal(firstPK, pk) {
+			if !slices.Equal(firstPK, pkColumns) {
 				pks, ok := mismatches.Get(root)
 				if !ok {
 					pks = []string{}
 				}
-				pks = append(pks, strings.Join(pk, ", "))
+				pks = append(pks, strings.Join(pkColumns, ", "))
 				mismatches.Put(root, pks)
 			}
+			return true, nil
+		})
+		if err != nil {
+			return false, fmt.Errorf("iterate leaf to primary key columns map: %w", err)
 		}
 		pks, ok := mismatches.Get(root)
 		if ok {

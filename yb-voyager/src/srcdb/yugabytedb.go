@@ -1144,30 +1144,46 @@ func (yb *YugabyteDB) GetNonPKTables() ([]string, error) {
 	return nonPKTables, nil
 }
 
-func (yb *YugabyteDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error) {
-	schemaName, tableName := table.ForCatalogQuery()
-	query := fmt.Sprintf(PG_QUERY_GET_PRIMARY_KEY_COLUMNS, schemaName, tableName)
+func (yb *YugabyteDB) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	catalogLeafToTuple := make(map[string]sqlname.NameTuple)
+	for _, table := range tables {
+		catalogLeafToTuple[table.AsQualifiedCatalogName()] = table
+	}
+
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
+
+	queryTablesString := strings.Join(lo.Map(tables, func(table sqlname.NameTuple, _ int) string {
+		schema, tableName := table.ForCatalogQuery()
+		return fmt.Sprintf("('%s', '%s')", schema, tableName)
+	}), ", ")
+	query := fmt.Sprintf(PG_QUERY_GET_PRIMARY_KEY_COLUMNS_FOR_LEAVES, queryTablesString)
+
 	rows, err := yb.db.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("query PK columns for %s.%s: %w", schemaName, tableName, err)
+		return nil, fmt.Errorf("query primary keys for tables: %w", err)
 	}
 	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			log.Warnf("close rows for query %q: %v", query, closeErr)
+		if cerr := rows.Close(); cerr != nil {
+			log.Warnf("close rows for leaf primary-key query: %v", cerr)
 		}
 	}()
-	var cols []string
+
 	for rows.Next() {
-		var c string
-		if err := rows.Scan(&c); err != nil {
-			return nil, fmt.Errorf("scan PK column for %s.%s: %w", schemaName, tableName, err)
+		var schema, table, col string
+		if err := rows.Scan(&schema, &table, &col); err != nil {
+			return nil, fmt.Errorf("scan PK column row for leaves: %w", err)
 		}
-		cols = append(cols, c)
+		leaf, ok := catalogLeafToTuple[fmt.Sprintf("%s.%s", schema, table)]
+		if !ok {
+			return nil, fmt.Errorf("leaf not found in catalog: %s.%s", schema, table)
+		}
+		cols, _ := result.Get(leaf)
+		result.Put(leaf, append(cols, col))
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate PK columns for %s.%s: %w", schemaName, tableName, err)
+		return nil, fmt.Errorf("iterate PK column rows for leaves: %w", err)
 	}
-	return cols, nil
+	return result, nil
 }
 
 func (yb *YugabyteDB) GetReplicationConnection() (*pgconn.PgConn, error) {
