@@ -454,6 +454,17 @@ def _get_voyager_flags(cfg: Dict[str, Any], op: str) -> Dict[str, Any]:
     return op_cfg.get("flags", {}) or {}
 
 
+def _merge_flags_when_loop_iteration_gte(cfg: Dict[str, Any], op: str, loop_iteration: int) -> Dict[str, Any]:
+    voyager = cfg.get("voyager", {}) or {}
+    op_cfg = voyager.get(op, {}) or {}
+    gte = op_cfg.get("flags_when_loop_iteration_gte") or {}
+    merged_extra: Dict[str, Any] = {}
+    for threshold_str in sorted(gte.keys(), key=lambda x: int(x)):
+        if loop_iteration >= int(threshold_str):
+            merged_extra.update(gte[threshold_str] or {})
+    return merged_extra
+
+
 def _source_conn_flags(cfg: Dict[str, Any]) -> Dict[str, Any]:
     src = cfg.get("source", {})
     return {
@@ -520,7 +531,9 @@ def initiate_cutover(cfg: Dict[str, Any], env: Dict[str, str], direction: str) -
     run_checked(cmd, env, description=f"cutover_to_{direction}")
 
 
-def build_export_data_cmd(cfg: Dict[str, Any]) -> list[str]:
+def build_export_data_cmd(ctx: Context) -> list[str]:
+    cfg = ctx.cfg
+    loop_iteration = ctx.loop_iteration
     voyager_flags = _get_voyager_flags(cfg, "export_data")
     base = _base_common_flags(cfg)
     base.update(_source_conn_flags(cfg))
@@ -529,6 +542,7 @@ def build_export_data_cmd(cfg: Dict[str, Any]) -> list[str]:
     # data command defaults
     base["disable-pb"] = True
     merged = _merge_flags(base, voyager_flags)
+    merged = _merge_flags(merged, _merge_flags_when_loop_iteration_gte(cfg, "export_data", loop_iteration))
     return ["yb-voyager", "export", "data", "--yes"] + to_kv_flags(merged)
 
 
@@ -588,7 +602,7 @@ def build_import_to_source_replica_cmd(cfg: Dict[str, Any]) -> list[str]:
 
 def start_command_by_name(name: str, ctx: Context) -> subprocess.Popen:
     mapping: Dict[str, Callable[[], subprocess.Popen]] = {
-        "export_data": lambda: spawn(build_export_data_cmd(ctx.cfg), ctx.env),
+        "export_data": lambda: spawn(build_export_data_cmd(ctx), ctx.env),
         "import_data": lambda: spawn(build_import_data_cmd(ctx.cfg), ctx.env),
         "export_from_target": lambda: spawn(build_export_from_target_cmd(ctx.cfg), ctx.env),
         "import_to_source_replica": lambda: spawn(build_import_to_source_replica_cmd(ctx.cfg), ctx.env),
