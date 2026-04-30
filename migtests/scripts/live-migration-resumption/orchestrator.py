@@ -115,7 +115,7 @@ def stop_command_action(stage: Dict[str, Any], ctx: Any) -> None:
 def stop_external_process_action(stage: Dict[str, Any], ctx: Any) -> None:
     name = stage.get("process")
     if not name:
-        raise ValueError("stop_process action requires non-empty 'process'")
+        raise ValueError("stop_external_process action requires non-empty 'process'")
     timeout = int(stage.get("graceful_timeout_sec", 20))
     H.stop_external_process(ctx, str(name), graceful_timeout=timeout)
 
