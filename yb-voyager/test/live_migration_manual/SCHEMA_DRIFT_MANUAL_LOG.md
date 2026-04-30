@@ -1,6 +1,8 @@
 # Schema drift manual log
 
-Database **`schema_drift`**, tables **`public.control_t`** / **`public.subject_t`**. Reset: run **`control_subject_baseline_schema.sql`** on **source and target** (empty tables); run **`control_subject_baseline_source_seeds.sql`** on **source only**. Or run **`control_subject_baseline.sql`** on source (schema + seeds in one go). Target must not run the seeds file. **Scenario C** adds **`public.side_t`** (with **PK**); **scenario D** adds **`public.nopk_side_t`** (**no PK**). Between runs drop on **both** sides: `DROP TABLE IF EXISTS public.side_t CASCADE;` and `DROP TABLE IF EXISTS public.nopk_side_t CASCADE;`. **Scenario E** renames **`public.subject_t`** → **`public.subject_renamed_t`** — afterward restore baseline (re-run schema + seeds) or reverse the renames on both sides so later scenarios stay comparable. **Scenario F** renames column **`note` → `note_renamed`** on **`public.subject_t`** on the **source** first — afterward restore baseline or **`RENAME COLUMN`** back on **both** sides so **`note`** exists again for other scenarios. **Scenario G** changes **`public.subject_t.score`** from **`INT`** to **`NUMERIC`** on the **source** first (see **prerequisite** in that section — **`score`** must exist on **both** sides). Afterward restore baseline or **`ALTER TABLE public.subject_t DROP COLUMN IF EXISTS score`** on **both** sides. **Scenario H** changes **`score`** from **`NUMERIC(10,2)`** to **`TEXT`** on the **source** first while the target stays **`NUMERIC`** (“**compatible**” in the sense that **string payloads often still cast** into **`NUMERIC`** on apply — record whether import stayed green). Same **`DROP COLUMN score`** / baseline cleanup afterward. **Scenario I** runs **`DROP TABLE public.subject_t`** on the **source** only (table is in the live migration set). **Destructive** for the lab DB — use a **full baseline** when you want **`subject_t`** back for **other** scenarios. **Do not** rely on **re-creating the old `subject_t` on the source** to “fix” export; use **mid-migration surgery** under **`<export-dir>/metainfo/`** so **stored lists + Debezium** match the **new** source catalog (**`control_t`** only, or whatever you keep). **Scenario J** drops the **nullable** column **`note`** (**`TEXT`**, no **`NOT NULL`**) on **`public.subject_t`** on the **source** first while the target keeps **`note`** — use a **fresh baseline** if **`subject_t`** is missing after **I**; afterward restore **`note`** with **`ALTER TABLE public.subject_t ADD COLUMN note TEXT`** on **both** sides or re-run **`control_subject_baseline_schema.sql`**. **Scenario K** drops a **`NOT NULL`** column on the **source** first (see its **prerequisite** — add **`tag`** on **both** sides); afterward **`DROP COLUMN IF EXISTS tag`** on **both** or re-baseline. **Scenario L** is the same **`DROP COLUMN`** skew as **K**, but the lagging target column is **`NOT NULL`** **without** any **`DEFAULT`** (see **prerequisite** — add **`tag2`** on **both** sides, backfill, **`SET NOT NULL`**, then **`DROP DEFAULT`**); afterward **`DROP COLUMN IF EXISTS tag2`** on **both** or re-baseline. **Scenario M** drops the **primary key** on **`public.subject_t`** on the **source** only (**`ALTER TABLE … DROP CONSTRAINT …`** on the **`PRIMARY KEY`**); afterward **`ADD PRIMARY KEY (id)`** on the **source** (and re-align the **target** if you changed it) or **full baseline** — live **`export data`** calls **`reportUnsupportedTablesForLiveMigration`** (`exportData.go`) and **`ErrExit`** if a captured table has **no PK** on the **source** when the table list is finalized. **Scenario N** adds a **new label** to a **PostgreSQL `ENUM`** on **`public.subject_t.phase`** on the **source** first while **YugabyteDB** keeps the **older** enum type definition — **`INSERT`**s using the **new** label fail on the target until **`ALTER TYPE … ADD VALUE`** (or equivalent) on **Yugabyte**; afterward **`DROP COLUMN IF EXISTS phase`** on **both** sides, then **`DROP TYPE IF EXISTS public.subject_phase_t CASCADE`** on **both** (after the column is gone), or re-baseline. **Scenario O** changes **`public.subject_t`**’s **primary key on the source only** (e.g. **`PRIMARY KEY (name)`** while **YugabyteDB** keeps **`PRIMARY KEY (id)`**) so live **`INSERT`** SQL built from **CDC `event.Key`** (**`ON CONFLICT (name)`**) no longer matches any **unique / PK** on the **target** — record the exact **SQLSTATE** / message; afterward restore **`PRIMARY KEY (id)`** on **PostgreSQL** (and drop the **`name`** PK) or re-baseline. Run **O** from a catalog where **`subject_t`** is still **`PK (id)`** on the **source** and **`name`** values are **unique** (baseline seeds satisfy this). **Scenario P** is **partition add** on **`public.part_t`** (mid-run capture + publication caveats). **Scenario Q** is **default change** on **`public.subject_t.flag`**. **Scenario R** is **target-only `NOT NULL`** on **`public.subject_t.strict_col`** (vs nullable source) — overlaps **L**’s “implicit null vs **`NOT NULL`**” theme for the **forward** path. **Scenario S** is **post-cutover fallback** (stream **Yugabyte → PostgreSQL**): **target** relaxes **`NOT NULL`** while **PostgreSQL** stays strict — **`NULL`** / omitted values from the **target** can fail on **import to source** (**`23502`**). **Scenario T** is **`DETACH PARTITION`** on the **source** only (reuses `public.part_t` from **P**): a captured leaf partition is detached from its root on the source and becomes a **standalone** table. Debezium's `table.include.list` still contains the leaf name and voyager's `SourceRenameTablesMap` still maps the leaf back to the root — after detach this rename is semantically wrong (events from a now-standalone table get re-routed to a root the source no longer treats as its parent). Afterward **re-attach** on the **source** (`ALTER TABLE public.part_t ATTACH PARTITION public.part_t_p2 FOR VALUES FROM ('2026-04-01') TO ('2026-07-01');`) or re-baseline `part_t` on both sides.
+Database **`schema_drift`**, tables **`public.control_t`** / **`public.subject_t`**. Reset: run **`control_subject_baseline_schema.sql`** on **source and target** (empty tables); run **`control_subject_baseline_source_seeds.sql`** on **source only**. Or run **`control_subject_baseline.sql`** on source (schema + seeds in one go). Target must not run the seeds file. **Scenario C** adds **`public.side_t`** (with **PK**); **scenario D** adds **`public.nopk_side_t`** (**no PK**). Between runs drop on **both** sides: `DROP TABLE IF EXISTS public.side_t CASCADE;` and `DROP TABLE IF EXISTS public.nopk_side_t CASCADE;`. **Scenario E** renames **`public.subject_t`** → **`public.subject_renamed_t`** — afterward restore baseline (re-run schema + seeds) or reverse the renames on both sides so later scenarios stay comparable. **Scenario F** renames column **`note` → `note_renamed`** on **`public.subject_t`** on the **source** first — afterward restore baseline or **`RENAME COLUMN`** back on **both** sides so **`note`** exists again for other scenarios. **Scenario G** changes **`public.subject_t.score`** from **`INT`** to **`NUMERIC`** on the **source** first (see **prerequisite** in that section — **`score`** must exist on **both** sides). Afterward restore baseline or **`ALTER TABLE public.subject_t DROP COLUMN IF EXISTS score`** on **both** sides. **Scenario H** changes **`score`** from **`NUMERIC(10,2)`** to **`TEXT`** on the **source** first while the target stays **`NUMERIC`** (“**compatible**” in the sense that **string payloads often still cast** into **`NUMERIC`** on apply — record whether import stayed green). Same **`DROP COLUMN score`** / baseline cleanup afterward. **Scenario I** runs **`DROP TABLE public.subject_t`** on the **source** only (table is in the live migration set). **Destructive** for the lab DB — use a **full baseline** when you want **`subject_t`** back for **other** scenarios. **Do not** rely on **re-creating the old `subject_t` on the source** to “fix” export; use **mid-migration surgery** under **`<export-dir>/metainfo/`** so **stored lists + Debezium** match the **new** source catalog (**`control_t`** only, or whatever you keep). **Scenario J** drops the **nullable** column **`note`** (**`TEXT`**, no **`NOT NULL`**) on **`public.subject_t`** on the **source** first while the target keeps **`note`** — use a **fresh baseline** if **`subject_t`** is missing after **I**; afterward restore **`note`** with **`ALTER TABLE public.subject_t ADD COLUMN note TEXT`** on **both** sides or re-run **`control_subject_baseline_schema.sql`**. **Scenario K** drops a **`NOT NULL`** column on the **source** first (see its **prerequisite** — add **`tag`** on **both** sides); afterward **`DROP COLUMN IF EXISTS tag`** on **both** or re-baseline. **Scenario L** is the same **`DROP COLUMN`** skew as **K**, but the lagging target column is **`NOT NULL`** **without** any **`DEFAULT`** (see **prerequisite** — add **`tag2`** on **both** sides, backfill, **`SET NOT NULL`**, then **`DROP DEFAULT`**); afterward **`DROP COLUMN IF EXISTS tag2`** on **both** or re-baseline. **Scenario M** drops the **primary key** on **`public.subject_t`** on the **source** only (**`ALTER TABLE … DROP CONSTRAINT …`** on the **`PRIMARY KEY`**); afterward **`ADD PRIMARY KEY (id)`** on the **source** (and re-align the **target** if you changed it) or **full baseline** — live **`export data`** calls **`reportUnsupportedTablesForLiveMigration`** (`exportData.go`) and **`ErrExit`** if a captured table has **no PK** on the **source** when the table list is finalized. **Scenario N** adds a **new label** to a **PostgreSQL `ENUM`** on **`public.subject_t.phase`** on the **source** first while **YugabyteDB** keeps the **older** enum type definition — **`INSERT`**s using the **new** label fail on the target until **`ALTER TYPE … ADD VALUE`** (or equivalent) on **Yugabyte**; afterward **`DROP COLUMN IF EXISTS phase`** on **both** sides, then **`DROP TYPE IF EXISTS public.subject_phase_t CASCADE`** on **both** (after the column is gone), or re-baseline. **Scenario O** changes **`public.subject_t`**’s **primary key on the source only** (e.g. **`PRIMARY KEY (name)`** while **YugabyteDB** keeps **`PRIMARY KEY (id)`**) so live **`INSERT`** SQL built from **CDC `event.Key`** (**`ON CONFLICT (name)`**) no longer matches any **unique / PK** on the **target** — record the exact **SQLSTATE** / message; afterward restore **`PRIMARY KEY (id)`** on **PostgreSQL** (and drop the **`name`** PK) or re-baseline. Run **O** from a catalog where **`subject_t`** is still **`PK (id)`** on the **source** and **`name`** values are **unique** (baseline seeds satisfy this). **Scenario P** is **partition add** on **`public.part_t`** (mid-run capture + publication caveats). **Scenario Q** is **default change** on **`public.subject_t.flag`**. **Scenario R** is **target-only `NOT NULL`** on **`public.subject_t.strict_col`** (vs nullable source) — overlaps **L**’s “implicit null vs **`NOT NULL`**” theme for the **forward** path. **Scenario S** is **post-cutover fallback** (stream **Yugabyte → PostgreSQL**): **target** relaxes **`NOT NULL`** while **PostgreSQL** stays strict — **`NULL`** / omitted values from the **target** can fail on **import to source** (**`23502`**). **Scenario T** is **`DETACH PARTITION`** on the **source** only (reuses `public.part_t` from **P**): a captured leaf partition is detached from its root on the source and becomes a **standalone** table. Debezium's `table.include.list` still contains the leaf name and voyager's `SourceRenameTablesMap` still maps the leaf back to the root — after detach this rename is semantically wrong (events from a now-standalone table get re-routed to a root the source no longer treats as its parent). Afterward **re-attach** on the **source** (`ALTER TABLE public.part_t ATTACH PARTITION public.part_t_p2 FOR VALUES FROM ('2026-04-01') TO ('2026-07-01');`) or re-baseline `part_t` on both sides. **Scenario U** creates a **brand-new partitioned parent `public.ev_t`** on the source mid-migration (root + initial leaves) and validates the **supplemental-migration** recipe on a whole partition tree; drop `public.ev_t CASCADE` on both sides afterward. **Scenario V** is the **supplemental-migration alternate** for a new leaf on an **already-captured** parent (reuses `part_t` from **P**, adds `part_t_p3`) — tries both **leaf-only** and **root+leaf** table lists in the second flow; clean up as in **P**. **Scenario W** attaches a pre-existing standalone table `public.part_sidecar_t` onto `part_t` via **`ATTACH PARTITION`** and runs the supplemental flow for that leaf; detach and drop `part_sidecar_t` afterward (or `DROP TABLE part_t CASCADE` for a full reset). **Scenario X** adds a **`DEFAULT PARTITION`** `public.part_t_default` on `part_t` and tests whether rows routed only to the default leaf are picked up by a supplemental flow; detach and drop the default leaf afterward. **Scenario Y** adds a new base table `public.child_t` with a **foreign key** referencing `public.subject_t(id)` mid-migration, and runs the supplemental-migration recipe on a table that is referentially coupled to the main flow; `DROP TABLE public.child_t CASCADE` afterward. **Scenario Z** extends **V** by adding **two** new leaves (`part_t_p3`, `part_t_p4`) on `part_t` in one DDL burst and running a single supplemental migration whose table list covers both leaves; cleanup as in **P**. **Scenario AA** is an **`ADD COLUMN … GENERATED ALWAYS AS (expr) STORED`** on `public.subject_t` on the source only — tests whether CDC carries the materialized value and whether aligning the target with a **plain** column (recommended) vs redefining it as `GENERATED STORED` changes apply behavior; afterward `DROP COLUMN IF EXISTS name_len` on both sides or re-baseline. **Scenario AB** is an **`ADD COLUMN … GENERATED BY DEFAULT AS IDENTITY`** on `public.subject_t` on the source only — tests how CDC carries the identity value, whether the **target sequence advances** when CDC supplies explicit values (it should not), and documents the **post-cutover sequence sync** caveat; afterward `DROP COLUMN IF EXISTS auto_id` on both sides or re-baseline. **Scenario AC** adds a column **with an inline `CHECK`** on `public.subject_t` on the source only — confirms that the `CHECK` is **not** propagated via CDC and documents that `session_replication_role = replica` on target disables **triggers and FK enforcement** but **not `CHECK`** (stricter target CHECK → apply error belongs in the fallback run); afterward `DROP COLUMN IF EXISTS level` on both sides or re-baseline. **Scenario AD** adds a column to a **partitioned parent** `public.part_t` on the source only — verifies that CDC events from **every leaf** carry the new column and that a **single** `ALTER TABLE public.part_t ADD COLUMN` on the target parent is sufficient (PG/YB propagate to leaves); afterward `DROP COLUMN IF EXISTS src_tag` on both sides or re-baseline `part_t`. **Scenario BA** adds a **new non-PK unique constraint** on `public.subject_t` on the source only — verifies that source enforcement is enough for forward apply and that voyager's INSERT conflict target remains driven by **CDC `event.Key`** (normally `id`), not by newly-added unique indexes; afterward drop `subject_t_name_uq` on both sides or re-baseline. **Scenario BB** adds a **foreign key** between already-captured tables on the source only — confirms that source-valid rows continue to stream and that target FK parity is a cutover concern because CDC apply runs with `session_replication_role = replica`; afterward drop `subject_t_control_id_fk` and `control_id`. **Scenario BC** switches **source replica identity** to a newly-created unique index mid-run — probes whether the CDC key shape and voyager's `ON CONFLICT` target shift cleanly or break when `event.Key` stops being the primary key.
+
+**Fallback scenario group (`FA`–`FF`)** starts after normal cutover to **YugabyteDB** with fallback prepared; the direction is **YugabyteDB → PostgreSQL** using `export data from target` + `import data to source`. These stubs cover the same three discussion pillars in fallback: create/drop table (**with PK** and **without PK**), add/drop column, and add/drop unique key.
 
 For each scenario: run the **DDL** on the side shown, wait and watch **export** / **import**. Then use the steps in order: **DML on source after resume**, then an **alignment** step (**DDL on the side that is behind** — not always sufficient; see **Findings** / **Final notes**), then **exit + resume**, then **more DML on source** to probe behavior. **Target-only DML** is not part of the CDC path for replicated tables; use **DML on source** to generate change events. All **source** SQL below is for **PostgreSQL** unless noted.
 
@@ -254,7 +256,9 @@ INSERT INTO public.side_t (label) VALUES ('c_post_workaround_side');
 
 #### Notes
 
-- **Failure (this run):** **`side_t`** never entered the export stream; **only `control_t`** replicated. **Workaround (observed):** **none** from this playbook — **target `CREATE TABLE` + import resume** did not help; **`--table-list … side_t`** on resume was **rejected**. **What would work (conceptually):** a **new migration / export** that registers and publishes **`side_t` from the start** (or a supported **add-table** flow), not DDL-only alignment on an existing run.
+- **Failure (this run):** **`side_t`** never entered the export stream; **only `control_t`** replicated. **Workaround (observed, verified):** run a **separate `yb-voyager` migration** in its **own `export-dir`** listing **only `public.side_t`**, with **matching `side_t` DDL on target** (step 5 style `CREATE TABLE`). The supplemental flow does its **own snapshot + CDC** for **`side_t`** while the **main** migration keeps running for **`subject_t` / `control_t`**; no downtime, no data loss for the new table. The main migration's metadata is **not** touched, so no surgery is needed. Target `CREATE TABLE` + import resume **on the main run** (step 5 of this scenario) does **not** help on its own; **`--table-list … side_t`** on a continuing main run is **rejected** (see "Why (from code)" §3). **When to prefer each:**
+  - **Preferred — separate migration.** Low risk, no MSR / descriptor / registry edits.
+  - **Mid-migration surgery (below).** Only if you must keep **a single `export-dir`**; bookkeeping edits + **backfill** for rows that existed before surgery.
 - **Workaround attempt (mid-migration surgery; got streaming but required backfill):**
   - **Edited Debezium config** at `<export-dir>/metainfo/conf/application.properties`:
     - `debezium.source.table.include.list=public.control_t,public.subject_t,public.side_t`
@@ -1180,6 +1184,7 @@ Live migration **rejects** changing **`--table-list` / `--exclude-table-list`** 
 - **No immediate failure** right after **`DROP`** of the **PK** on the source; **`control_t`** DML replicated.
 - **`subject_t`** **`INSERT`** failed on import:  
   `error executing batch on channel 13: error executing batch: error preparing stmt: failed to prepare statement "\"public\".\"subject_t\"_src_c": ERROR: syntax error at or near ")" (SQLSTATE 42601)`
+- The exported **`subject_t`** event had an empty key, e.g. **`"key":{}`**, while **`fields`** still contained **`id`**, **`name`**, and **`note`**. This is the concrete disk-state that makes import unrecoverable by DDL alone: restoring the PK later fixes future exported events, but already-written segment events still have no conflict key.
 - **`export data` resume** failed with **`Table names without a Primary key: [public.subject_t]`** and **`Currently voyager does not support live-migration for tables without a primary key`** (same class of message as **Scenario D** / **`reportUnsupportedTablesForLiveMigration`**).
 - **`import data` resume** still hit the **same `42601`** prepare failure for **`subject_t`**.
 - Trying **`--exclude-table-list`** (or otherwise changing the table list) mid-migration was **rejected** — tool enforces the **initial** table list for live runs.
@@ -1192,15 +1197,16 @@ Live migration **rejects** changing **`--table-list` / `--exclude-table-list`** 
 
 #### Why (from code)
 
-- **`INSERT`** live apply uses **`getPreparedInsertStmt`** (`tgtdb/event.go`): for Yugabyte/PostgreSQL targets it appends **`ON CONFLICT (<key columns>) DO NOTHING`**. After the source **PK** is gone, **`event.Key`** for **`c`** events can be **empty** (no replica-identity key columns) → **`strings.Join(keyColumns, ",")`** is empty → SQL becomes **`ON CONFLICT () DO NOTHING`** → **`42601` syntax error at or near ")"`** when preparing **`"\"public\".\"subject_t\"_src_c"`**.
+- **`INSERT`** live apply uses **`getPreparedInsertStmt`** (`tgtdb/event.go`): for Yugabyte/PostgreSQL targets it appends **`ON CONFLICT (<key columns>) DO NOTHING`**. After the source **PK** is gone, **`event.Key`** for **`c`** events can be **empty** (no replica-identity key columns), even though the row payload still has **`id`** in **`fields`** → **`strings.Join(keyColumns, ",")`** is empty → SQL becomes **`ON CONFLICT () DO NOTHING`** → **`42601` syntax error at or near ")"`** when preparing **`"\"public\".\"subject_t\"_src_c"`**.
 - **`reportUnsupportedTablesForLiveMigration`** (`exportData.go`) intersects the export table list with **`GetNonPKTables()`** on the **source**; if **`public.subject_t`** is listed and has **no PK**, voyager **`ErrExit`** with the message you saw.
 - **`NewStreamingPhaseDebeziumValueConverter`** (`live_migration.go` → **`dbzm/valueConverter.go`**) builds **`SchemaRegistry`** instances that **`Init()`** by scanning **`<export-dir>/data/schemas/<exporter_role>/*_schema.json`** and **lookup** each table in **`name_registry.json`**. Stale **`subject_t`** schema files + removed registry entry → **lookup** error before any batch runs.
 - **`json.Unmarshal`** into **`tgtdb.Event`** runs **`UnmarshalJSON`**, which **always** **`LookupTableName`** for non-cutover events — **queued** **`subject_t`** lines fail the same way if **`name_registry`** no longer lists **`subject_t`** (**`eventQueue.go`** + **`event.go`**).
+- **Important recovery implication:** **`ALTER TABLE … ADD PRIMARY KEY`** on the source only restores a valid catalog for **future** `export data` runs. It does **not** rewrite **already-exported** segment events that were persisted with **`key:{}`**. Those events must either be repaired (rebuild **`key`** from the restored PK columns, when possible) or discarded/re-exported/backfilled before import can resume cleanly.
 
 #### Notes
 
-- **Failure:** **Source PK removed** → **`subject_t`** live **`INSERT`** **invalid SQL** (**`42601`**); **export resume** blocked by **no-PK** guardrail; **CLI** cannot **shrink** the table list mid-migration. **Partial surgery** (MSR + registry + … **without** **`data/schemas/`** **or** **`data/queue/`** cleanup) → **export** may run while **import** fails (**schema registry** and/or **`failed to unmarshal json event … lookup subject_t`**). **Target `DROP TABLE`** removes neither **schemas** nor **queue** files.
-- **Workaround (observed / expected):** **Preferred:** **`ALTER TABLE public.subject_t ADD PRIMARY KEY (id)`** on the **source** (scenario **step 5**), then **resume** — restores supported export. **Alternative:** full surgery including **I §5.4a** (**`data/schemas/`**) **and** **I §5.4b** (**`data/queue/`** + **`queue_segment_meta.size_committed`**), then **resume import** — or, per **I §5.4b**, **start a new migration** instead of hand-editing segments when that is acceptable.
+- **Failure:** **Source PK removed** → exported **`subject_t`** events can have **`key:{}`**, so live **`INSERT`** builds invalid apply SQL (**`ON CONFLICT ()`**, **`42601`**); **export resume** is blocked by the **no-PK** guardrail; **CLI** cannot **shrink** the table list mid-migration. **Partial surgery** (MSR + registry + … **without** **`data/schemas/`** **or** **`data/queue/`** cleanup) → **export** may run while **import** fails (**schema registry** and/or **`failed to unmarshal json event … lookup subject_t`**). **Target `DROP TABLE`** removes neither **schemas** nor **queue** files.
+- **Workaround / recovery:** **Preferred first step:** **`ALTER TABLE public.subject_t ADD PRIMARY KEY (id)`** on the **source** so future export is supported. Then handle already-exported bad events: Voyager must either **repair segment events** by reconstructing **`key`** from the restored PK columns when possible, or **discard/re-export/backfill** the affected range. **Alternative:** full scope-removal surgery including **I §5.4a** (**`data/schemas/`**) **and** **I §5.4b** (**`data/queue/`** + **`queue_segment_meta.size_committed`**), then **resume import** — or, per **I §5.4b**, **start a new migration** instead of hand-editing segments when that is acceptable.
 
 ---
 
@@ -1422,7 +1428,7 @@ func (event *Event) getPreparedInsertStmt(tdb TargetDB, targetDBType string) (st
 **J:** **Failure:** **None observed** — source dropped **nullable** **`note`** while target kept **`note`**; **`control_t`** / **`subject_t`** fine; **exit + resume** fine; **target `DROP COLUMN`** + resume fine. **Workaround:** **none** for this run; **target `DROP COLUMN`** for parity only.  
 **K:** **Failure:** **None observed** — source dropped **`NOT NULL`** **`tag`** while target kept **`tag`** with **`DEFAULT 'k_seed'`**; **`control_t`** / **`subject_t`** fine; **resume** and **target `DROP COLUMN`** fine. **Why it worked:** **`INSERT`** from CDC **omitted** **`tag`**; Yugabyte applied the **column default** (not “null events” carrying **`k_seed`**). **Workaround:** **none**; skew **without** a target **default** is **Scenario L** (**`tag2`**).  
 **L:** **Failure:** Source **`DROP COLUMN tag2`** while target kept **`NOT NULL tag2`** **without** **`DEFAULT`** → **`control_t`** OK; first **`subject_t`** batch **`23502`**: **`null value in column "tag2" violates not-null constraint`** (`ExecuteBatch` / **`yugabytedb.go`**); **resume** repeated **`23502`**. **Workaround:** **`DROP COLUMN tag2`** on **Yugabyte**, resume — **all events** through.  
-**M:** **Failure:** Source **`DROP`** **`subject_t`** **PK** → **`control_t`** OK; **`subject_t`** import **`42601`** (**`ON CONFLICT ()`**); **export resume** **`reportUnsupportedTablesForLiveMigration`**; **`--exclude-table-list`** blocked; **partial surgery** → **import** **`schema registry: lookup subject_t`** until **`data/schemas/…`** removed (**I §5.4a**), then **`failed to unmarshal … lookup subject_t`** until **`data/queue/`** lines + **`queue_segment_meta`** fixed (**I §5.4b**). **Workaround:** **`ADD PRIMARY KEY (id)`** on **source** **or** full surgery **including** **`data/schemas/`** + **`data/queue/`** — **or** **new migration** (**I §5.4b**) if editing segments / **`size_committed`** is not worth it.  
+**M:** **Failure:** Source **`DROP`** **`subject_t`** **PK** → **`control_t`** OK; **`subject_t`** events can be exported with **`key:{}`**; import builds **`ON CONFLICT ()`** and fails with **`42601`**; **export resume** **`reportUnsupportedTablesForLiveMigration`**; **`--exclude-table-list`** blocked. Restoring **`PRIMARY KEY (id)`** on source fixes **future** export but not already-exported empty-key events; those segment events must be **repaired** (rebuild key from restored PK columns) or **discarded/re-exported/backfilled**. **Partial scope-removal surgery** → **import** **`schema registry: lookup subject_t`** until **`data/schemas/…`** removed (**I §5.4a**), then **`failed to unmarshal … lookup subject_t`** until **`data/queue/`** lines + **`queue_segment_meta`** fixed (**I §5.4b**). **Workaround:** restore PK + repair/discard affected segment events, or full surgery including **`data/schemas/`** + **`data/queue/`**, or **new migration** (**I §5.4b**) if editing segments / **`size_committed`** is not worth it.  
 **N:** **Failure:** Source **`ADD VALUE 'n_gamma'`** while target enum lacked **`n_gamma`** → **`control_t`** OK; **`subject_t`** **`22P02`** **`invalid input value for enum subject_phase_t: "n_gamma"`** (`ExecuteBatch` vsn(2)); **export** kept exporting both; **restart import** same error. **Workaround:** **`ALTER TYPE public.subject_phase_t ADD VALUE 'n_gamma'`** on **Yugabyte**, **exit + resume** export and import — backlog + **new** **`n_*`** events **OK**.  
 **O:** **Failure:** **Source** **`PK(name)`** while **target** stays **`PK(id)`** → **`control_t`** OK; **`subject_t`** **`42P10`** (*no unique/exclusion constraint matching `ON CONFLICT`*) and **resume** repeats. **Workaround:** switch target PK to match the CDC key (e.g. **drop PK(id)** and add **`PRIMARY KEY (name)`**), then resume — worked.  
 **P:** **Failure:** Source adds **new leaf partition** `public.part_t_p3` mid-run → exporter detects it and (if you continue) **ignores it**: `Detected new partition tables… These will not be considered during migration`. Rows routed to that partition are **not exported/imported**; target alignment does not help. **Workaround:** **new migration** with partition present up front (or risky mid-migration capture-set surgery) — see **Findings — P**.
@@ -2108,3 +2114,2146 @@ So the stuck state is caused by a **mismatch between voyager's pinned-at-startup
    Use only if option 1 is not possible (e.g. target `part_t_p2` has data outside the original range, so `ATTACH` would fail) and you cannot afford a restart. End-users cannot realistically perform these edits.
 
 **Relation to other scenarios:** this is P0 in the same sense as scenario **P** (add partition) — both break voyager's partition capture inventory in ways the exporter cannot self-heal and that users cannot fix without surgery or a restart. The difference: **P** silently drops rows at export; **T** silently diverges (source-only detach) or hard-stops at apply with no retry path (both-sides detach). Unlike the other P0 scenarios, however, **T has a clean non-surgical escape hatch (option 1 above) as long as the target partition can be re-attached.**
+
+---
+
+## Scenario U — **New partitioned parent** added mid-migration (supplemental migration)
+
+A fresh partitioned table (root + initial leaves) is created on the **source** after the main migration has started. The main export never saw this tree, so it is outside the capture set. The workaround under test is the **same supplemental-migration recipe** as **C**, but applied to a whole partition tree rather than a single base table.
+
+We use **`public.ev_t`** (separate from `subject_t` / `part_t` so existing scenarios stay reusable). Literals prefixed **`u_`**.
+
+### Steps
+
+**1. Start the main live migration** with the baseline table list (`control_t`, `subject_t`, etc. — **no** `ev_t`). Wait until snapshot is done and CDC is flowing.
+
+**2. DDL (source) only** — create a brand-new partitioned parent with initial leaves mid-migration:
+
+```sql
+CREATE TABLE public.ev_t (
+	id   BIGSERIAL NOT NULL,
+	day  DATE NOT NULL,
+	name TEXT NOT NULL,
+	PRIMARY KEY (id, day)
+) PARTITION BY RANGE (day);
+
+CREATE TABLE public.ev_t_p1 PARTITION OF public.ev_t
+	FOR VALUES FROM ('2026-01-01') TO ('2026-04-01');
+CREATE TABLE public.ev_t_p2 PARTITION OF public.ev_t
+	FOR VALUES FROM ('2026-04-01') TO ('2026-07-01');
+
+ALTER TABLE public.ev_t    REPLICA IDENTITY FULL;
+ALTER TABLE public.ev_t_p1 REPLICA IDENTITY FULL;
+ALTER TABLE public.ev_t_p2 REPLICA IDENTITY FULL;
+```
+
+**3. DML (source)** — exercise both leaves:
+
+```sql
+INSERT INTO public.control_t (name) VALUES ('u_after_ddl_ctl');
+INSERT INTO public.ev_t (day, name) VALUES ('2026-02-10', 'u_p1_row');
+INSERT INTO public.ev_t (day, name) VALUES ('2026-05-10', 'u_p2_row');
+```
+
+**4. Target alignment** — create the same tree on Yugabyte so the supplemental flow has something to apply into:
+
+```sql
+CREATE TABLE public.ev_t (
+	id   BIGSERIAL NOT NULL,
+	day  DATE NOT NULL,
+	name TEXT NOT NULL,
+	PRIMARY KEY (id, day)
+) PARTITION BY RANGE (day);
+
+CREATE TABLE public.ev_t_p1 PARTITION OF public.ev_t
+	FOR VALUES FROM ('2026-01-01') TO ('2026-04-01');
+CREATE TABLE public.ev_t_p2 PARTITION OF public.ev_t
+	FOR VALUES FROM ('2026-04-01') TO ('2026-07-01');
+```
+
+**5. Start a supplemental `yb-voyager` migration in a fresh `export-dir`** listing **only `public.ev_t`** (or, if that does not capture leaves, **`public.ev_t,public.ev_t_p1,public.ev_t_p2`**). Run the standard `export schema` / `import schema` / `export data` / `import data` sequence for this second flow. The **main** migration keeps running unchanged.
+
+> Test both **root-only** and **root + leaves** table lists so we know which form voyager accepts for a newly captured partition tree.
+
+**6. DML (source) after supplemental flow is up** — confirm new rows on both leaves make it through the supplemental pipeline:
+
+```sql
+INSERT INTO public.ev_t (day, name) VALUES ('2026-02-11', 'u_post_flow_p1');
+INSERT INTO public.ev_t (day, name) VALUES ('2026-05-11', 'u_post_flow_p2');
+INSERT INTO public.control_t (name) VALUES ('u_post_flow_ctl');
+```
+
+### Cleanup (after **U**)
+
+On **both** sides:
+
+```sql
+DROP TABLE IF EXISTS public.ev_t CASCADE;
+```
+
+### Findings — U (new partitioned parent)
+
+#### At a glance
+
+| When | Main migration | Supplemental migration (`export-dir` #2) |
+|------|----------------|--------------------------------------------|
+| After mid-migration `CREATE TABLE public.ev_t … PARTITION BY …` on source + leaves, with traffic to both leaves | Keeps running for `subject_t` / `control_t`; **`ev_t` never appears in the stream** (not in main capture set) | — |
+| Start supplemental with **`--table-list public.ev_t`** (root only, no leaves listed) + matching DDL on target | Unaffected | **OK** — snapshot + CDC run for `ev_t`; both leaves' rows flow through |
+
+#### Observed
+
+- Running the supplemental `yb-voyager` flow with **only `public.ev_t`** in its table list was sufficient — voyager resolves the root to its leaves internally; listing leaves explicitly is not required.
+- The main migration continued unaffected for the rest of the table list while the supplemental flow did its own snapshot + CDC for `ev_t`.
+
+#### Notes
+
+- **Failure:** a new partitioned tree created mid-migration is outside the main capture set (same class as **C** / **P**).
+- **Workaround (observed, verified):** **separate `yb-voyager` migration** in its own `export-dir`, **`--table-list public.ev_t`** (root-only is enough), with matching `CREATE TABLE … PARTITION OF …` DDL pre-created on the target. No edits to the main migration's metadata.
+
+---
+
+## Scenario V — **New leaf** on captured parent: supplemental-migration alt path (companion to **P**)
+
+This reuses **P**'s setup but tests the **alternate** workaround called out in the analysis doc: instead of restarting the migration or doing mid-migration surgery, run a **separate `yb-voyager` migration** for only the **new leaf** (and optionally the root). The main migration stays live.
+
+**Setup:** run **P** steps **Prerequisite** through **Step 4** (add `part_t_p3` on source only, insert a row that belongs to the new leaf), observe the silent-loss / routing-fail state. Then instead of aligning on target + resume (P step 5–7), try the supplemental flow below.
+
+### Steps
+
+**1. Ensure** `public.part_t_p3` exists on **source** with traffic routed to it (P steps 1–3).
+
+**2. Target alignment** — create `part_t_p3` on **Yugabyte** so the supplemental flow has somewhere to apply:
+
+```sql
+CREATE TABLE public.part_t_p3 PARTITION OF public.part_t
+	FOR VALUES FROM ('2026-07-01') TO ('2026-10-01');
+```
+
+**3. Start a supplemental `yb-voyager` migration** in a **fresh `export-dir`** targeting the new leaf. Try each form separately so we know what voyager accepts:
+
+- **Form A:** `--table-list public.part_t_p3`
+- **Form B:** `--table-list public.part_t,public.part_t_p3` (root + new leaf)
+
+For each form, complete `export schema` / `import schema` / `export data` / `import data`.
+
+**4. DML (source) after supplemental flow is up** — write into the new leaf:
+
+```sql
+INSERT INTO public.part_t (id, day, name) VALUES (10, '2026-07-15', 'v_post_flow_row');
+INSERT INTO public.control_t (name) VALUES ('v_post_flow_ctl');
+```
+
+### Cleanup (after **V**)
+
+Reuse P's cleanup:
+
+```sql
+DROP TABLE IF EXISTS public.part_t CASCADE;
+```
+
+### Findings — V (new leaf, supplemental alt)
+
+#### At a glance
+
+| When | Main migration | Supplemental migration (`export-dir` #2) |
+|------|----------------|--------------------------------------------|
+| After `CREATE TABLE public.part_t_p3 PARTITION OF public.part_t …` on source + traffic routed to the new leaf | New-leaf rows are **not captured** (same as **P**) | — |
+| Start supplemental with **`--table-list public.part_t_p3`** (new leaf only) + matching `part_t_p3` on target | Unaffected for `p1` / `p2` | **OK** — new-leaf rows flow through |
+
+#### Observed
+
+- Supplemental flow with **only the new leaf** (`public.part_t_p3`) in its table list was sufficient — no need to list `part_t` (the root) in the second flow; the main migration keeps owning the root and its pre-existing leaves.
+- Main migration continued applying `p1` / `p2` events without interference; no duplicate events observed from publication overlap.
+
+#### Notes
+
+- **Failure:** new leaf added to an already-captured partitioned parent (**P**).
+- **Workaround (observed, verified — alt to **P**'s restart path):** **separate `yb-voyager` migration** in its own `export-dir`, **`--table-list public.part_t_p3`** (leaf-only), with matching `part_t_p3` pre-created on the target. Main migration's capture inventory is untouched — future restarts of the main `export data` are still on the original (pre-`p3`) list, so bear in mind the parent's capture set is **not** self-repaired by this workaround.
+
+---
+
+## Scenario W — **`ATTACH PARTITION`** of a pre-existing standalone onto a captured parent
+
+`part_t` is the captured partitioned parent (from **P**'s prereq). A **standalone** table with compatible shape exists separately on the source and is then **attached** as a new partition. Unlike **P** (`CREATE TABLE … PARTITION OF`), the attached table already has its own rows before it joins the tree, and its own publication / replica-identity state.
+
+We use **`public.part_sidecar_t`** as the standalone.
+
+### Prerequisite (source)
+
+Ensure **P** prerequisite is in place (`part_t` with `p1`, `p2` on both sides, `REPLICA IDENTITY FULL`, in the main migration table list). Then on **source only**:
+
+```sql
+CREATE TABLE public.part_sidecar_t (
+	id BIGINT NOT NULL,
+	day DATE NOT NULL,
+	name TEXT NOT NULL,
+	PRIMARY KEY (id, day),
+	CHECK (day >= DATE '2026-10-01' AND day < DATE '2027-01-01')
+);
+ALTER TABLE public.part_sidecar_t REPLICA IDENTITY FULL;
+
+INSERT INTO public.part_sidecar_t (id, day, name) VALUES
+	(100, '2026-10-05', 'w_pre_attach_row_1'),
+	(101, '2026-11-05', 'w_pre_attach_row_2');
+```
+
+### Steps
+
+**1. Start the main live migration** including `part_t`. Let snapshot finish and CDC flow.
+
+**2. DDL (source) only** — attach the standalone as a new partition:
+
+```sql
+ALTER TABLE public.part_t ATTACH PARTITION public.part_sidecar_t
+	FOR VALUES FROM ('2026-10-01') TO ('2027-01-01');
+```
+
+**3. DML (source)** — write new rows routed to the newly attached leaf:
+
+```sql
+INSERT INTO public.control_t (name) VALUES ('w_after_attach_ctl');
+INSERT INTO public.part_t (id, day, name) VALUES (102, '2026-10-20', 'w_post_attach_row');
+```
+
+**4. Target alignment** — create the same partition on Yugabyte so the supplemental flow has a place to apply:
+
+```sql
+CREATE TABLE public.part_sidecar_t PARTITION OF public.part_t
+	FOR VALUES FROM ('2026-10-01') TO ('2027-01-01');
+```
+
+**5. Supplemental `yb-voyager` migration** — fresh `export-dir`, table list `public.part_sidecar_t` (try also `public.part_t,public.part_sidecar_t` if A fails). Run full `export schema` / `import schema` / `export data` / `import data`.
+
+**6. DML (source) after supplemental flow is up:**
+
+```sql
+INSERT INTO public.part_t (id, day, name) VALUES (103, '2026-11-20', 'w_post_flow_row');
+INSERT INTO public.control_t (name) VALUES ('w_post_flow_ctl');
+```
+
+### Cleanup (after **W**)
+
+```sql
+ALTER TABLE public.part_t DETACH PARTITION public.part_sidecar_t;
+DROP TABLE IF EXISTS public.part_sidecar_t;
+-- Optional full reset:
+DROP TABLE IF EXISTS public.part_t CASCADE;
+```
+
+### Findings — W (ATTACH standalone)
+
+**Actual test path (differs from the scaffolded steps above):** `public.part_sidecar_t` was created as a **standalone** on **both** source and target **before migration** (not in the main migration's table list). Mid-migration, `ALTER TABLE public.part_t ATTACH PARTITION public.part_sidecar_t …` was run on the **source** while the target kept its standalone copy. Inserts continued to flow **without any voyager-side workaround** — a supplemental migration was **not required**.
+
+#### At a glance
+
+| When | Main migration |
+|------|----------------|
+| Both sides have `part_sidecar_t` as a standalone, pre-migration (not in capture) | Main flow unaffected; `part_sidecar_t` is simply outside CDC |
+| `ATTACH PARTITION part_sidecar_t` on source mid-migration, inserts keep coming | Inserts applied normally on target; no crash, no stuck batch |
+
+#### Observed
+
+- Because the sidecar table existed on **both** sides from the start, and it was **not** in the main migration's capture set, attaching it on source did not introduce a mismatch that voyager had to resolve.
+- The supplemental-migration recipe (**step 5** of the scaffolded steps above) was **not needed** for this path.
+
+#### Notes
+
+- **Lesson (operational, not a drift failure class):** create tables **symmetrically on both sides** — either **before migration** or **during migration at the same time** on source and target. The scaffolded "source-only create, attach on source, align target later" path is an artificial skew test rather than a realistic customer pattern.
+- **Workaround (observed):** **none needed** when the sidecar pre-exists on both sides. If a customer does run the source-only skew (scaffolded path), the usual supplemental-migration recipe from **U** / **V** is the fallback.
+- **Keep the scenario** in the log as a negative result: not a new failure class beyond what **V** / **U** already cover.
+
+---
+
+## Scenario X — **`DEFAULT PARTITION`** added mid-migration
+
+Rows that don't match any explicit range / list partition fall into the **default** partition. If the default leaf is not in capture, those rows are lost silently (similar to **P**) — but only for the subset that misses bounds.
+
+### Prerequisite
+
+Same as **P** (`part_t` with `p1`, `p2` on both sides, in the main migration). Ensure the main flow is healthy and streaming.
+
+### Steps
+
+**1. DDL (source) only** — add a default partition:
+
+```sql
+CREATE TABLE public.part_t_default PARTITION OF public.part_t DEFAULT;
+ALTER TABLE public.part_t_default REPLICA IDENTITY FULL;
+```
+
+**2. DML (source)** — write rows that **bypass** `p1` / `p2` bounds so they land in the default leaf:
+
+```sql
+INSERT INTO public.control_t (name) VALUES ('x_after_default_ctl');
+INSERT INTO public.part_t (id, day, name) VALUES (200, '2027-02-15', 'x_default_row');
+INSERT INTO public.part_t (id, day, name) VALUES (201, '2025-11-15', 'x_default_row_out_of_range');
+```
+
+**3. Target alignment** — add the same default leaf on Yugabyte:
+
+```sql
+CREATE TABLE public.part_t_default PARTITION OF public.part_t DEFAULT;
+```
+
+**4. Supplemental `yb-voyager` migration** — fresh `export-dir`, table list `public.part_t_default` (try `public.part_t,public.part_t_default` as a second form).
+
+**5. DML (source) after supplemental flow is up:**
+
+```sql
+INSERT INTO public.part_t (id, day, name) VALUES (202, '2027-03-15', 'x_post_flow_default_row');
+INSERT INTO public.control_t (name) VALUES ('x_post_flow_ctl');
+```
+
+### Cleanup (after **X**)
+
+```sql
+ALTER TABLE public.part_t DETACH PARTITION public.part_t_default;
+DROP TABLE IF EXISTS public.part_t_default;
+-- Optional full reset:
+DROP TABLE IF EXISTS public.part_t CASCADE;
+```
+
+### Findings — X (default partition)
+
+#### At a glance
+
+| When | Main migration | Supplemental migration (`export-dir` #2) |
+|------|----------------|--------------------------------------------|
+| After `CREATE TABLE public.part_t_default PARTITION OF public.part_t DEFAULT` on source + rows that miss `p1` / `p2` bounds | Default-leaf rows **not captured** by main flow (same class as **P**) | — |
+| Start supplemental with **`--table-list public.part_t_default`** + matching `part_t_default` on target | Unaffected for `p1` / `p2` | **OK** — default-leaf rows flow through |
+
+#### Observed
+
+- Supplemental flow with **only the default leaf** (`public.part_t_default`) in its table list was sufficient — the default partition is captured and applied just like any other leaf.
+- Main migration continued applying `p1` / `p2` events; no duplicate events observed.
+
+#### Notes
+
+- **Failure:** same class as **P** — rows routed to a mid-migration-added default partition are outside the main capture set.
+- **Workaround (observed, verified):** **separate `yb-voyager` migration** in its own `export-dir`, **`--table-list public.part_t_default`**, with matching `CREATE TABLE … PARTITION OF … DEFAULT` pre-created on the target. Same recipe as **V**.
+
+---
+
+## Scenario Y — **New table with FK** into the migrated set (supplemental migration)
+
+A new base table is added on the source mid-migration, with a **FOREIGN KEY** referencing a table already covered by the main migration (**`public.subject_t`**). This tests the supplemental-migration recipe under **referential** coupling to the main flow: the FK itself is not enforced at apply time (`session_replication_role = replica`), but it matters for **snapshot ordering** and **post-cutover** parity.
+
+We use **`public.child_t`** (FK → `public.subject_t.id`). Literals prefixed **`y_`**.
+
+### Steps
+
+**1. Start the main live migration** with the baseline list (`control_t`, `subject_t`). Wait until snapshot is done and CDC flows.
+
+**2. DDL (source) only** — create child table with FK:
+
+```sql
+CREATE TABLE public.child_t (
+	id        BIGSERIAL PRIMARY KEY,
+	parent_id BIGINT NOT NULL REFERENCES public.subject_t(id),
+	label     TEXT NOT NULL
+);
+ALTER TABLE public.child_t REPLICA IDENTITY FULL;
+```
+
+**3. DML (source)** — insert children referring to subjects already replicated:
+
+```sql
+INSERT INTO public.control_t (name) VALUES ('y_after_ddl_ctl');
+INSERT INTO public.child_t (parent_id, label)
+SELECT id, 'y_child_for_'||name FROM public.subject_t LIMIT 3;
+```
+
+**4. Target alignment** — create `child_t` on Yugabyte with the same FK definition (FKs disabled at apply via replica role, but align for cutover):
+
+```sql
+CREATE TABLE public.child_t (
+	id        BIGSERIAL PRIMARY KEY,
+	parent_id BIGINT NOT NULL REFERENCES public.subject_t(id),
+	label     TEXT NOT NULL
+);
+ALTER TABLE public.child_t REPLICA IDENTITY FULL;
+```
+
+**5. Supplemental `yb-voyager` migration** — fresh `export-dir`, table list **only `public.child_t`**. Run full `export schema` / `import schema` / `export data` / `import data`.
+
+**6. DML (source) after supplemental flow is up:**
+
+```sql
+INSERT INTO public.subject_t (name, note) VALUES ('y_new_parent', NULL);
+INSERT INTO public.child_t (parent_id, label)
+SELECT id, 'y_post_flow_child' FROM public.subject_t WHERE name = 'y_new_parent';
+INSERT INTO public.control_t (name) VALUES ('y_post_flow_ctl');
+```
+
+### Cleanup (after **Y**)
+
+```sql
+DROP TABLE IF EXISTS public.child_t CASCADE;
+```
+
+### Findings — Y (FK into migrated set)
+
+#### At a glance
+
+| When | Main migration | Supplemental migration (`export-dir` #2) |
+|------|----------------|--------------------------------------------|
+| After `CREATE TABLE public.child_t … REFERENCES public.subject_t(id)` on source + inserts into `child_t` | `child_t` is **not captured** by the main flow; inserts silently skipped | — |
+| Start supplemental with **`--table-list public.child_t`** + matching `child_t` DDL (incl. FK) on target | Unaffected for `subject_t` / `control_t` | **OK** — snapshot + CDC for `child_t` succeed even though FK points at a table the main flow is still streaming |
+
+#### Observed
+
+- Supplemental flow with **only `public.child_t`** in its table list worked.
+- FK enforcement is disabled on the supplemental import connection (same `SET session_replication_role TO replica` as the main flow), so inserts into `child_t` applied even while `subject_t` parent rows were still being replicated by the main flow.
+- No FK violation / `23503` during supplemental import.
+
+#### Notes
+
+- **Failure:** new table with a FK into the already-migrated set is outside main capture — same class as **C**, with the added concern that the new table is referentially coupled to a main-migration table.
+- **Workaround (observed, verified):** **separate `yb-voyager` migration** in its own `export-dir`, **`--table-list public.child_t`**, with matching `CREATE TABLE … REFERENCES …` pre-created on the target. FK enforcement relaxation at apply (`session_replication_role = replica`) makes the supplemental snapshot + CDC tolerant of any temporary parent/child ordering skew between the two flows.
+- **Cutover note:** FK re-enforcement happens when normal sessions resume post-cutover. Verify referential parity (no orphan `child_t.parent_id` values) before cutting traffic over.
+
+---
+
+## Scenario Z — **Two new leaves** added to a captured parent in one DDL burst
+
+Extends **V**: instead of adding a single new leaf `part_t_p3`, add **two** leaves (`part_t_p3`, `part_t_p4`) mid-migration and run the supplemental-migration recipe for both at once. Validates whether the same recipe scales to more than one new object in a single `export-dir`.
+
+### Prerequisite
+
+Same as **P** (`part_t` with `p1`, `p2` on both sides, in the main migration table list, `REPLICA IDENTITY FULL`).
+
+### Steps
+
+**1. Start the main live migration** with `part_t` in the table list. Let snapshot finish and CDC flow.
+
+**2. DDL (source) only** — add two new leaves:
+
+```sql
+CREATE TABLE public.part_t_p3 PARTITION OF public.part_t
+	FOR VALUES FROM ('2026-07-01') TO ('2026-10-01');
+ALTER TABLE public.part_t_p3 REPLICA IDENTITY FULL;
+
+CREATE TABLE public.part_t_p4 PARTITION OF public.part_t
+	FOR VALUES FROM ('2026-10-01') TO ('2027-01-01');
+ALTER TABLE public.part_t_p4 REPLICA IDENTITY FULL;
+```
+
+**3. DML (source)** — write rows to each new leaf:
+
+```sql
+INSERT INTO public.control_t (name) VALUES ('z_after_ddl_ctl');
+INSERT INTO public.part_t (id, day, name) VALUES (30, '2026-08-10', 'z_p3_row');
+INSERT INTO public.part_t (id, day, name) VALUES (40, '2026-11-10', 'z_p4_row');
+```
+
+**4. Target alignment** — create both new leaves on Yugabyte:
+
+```sql
+CREATE TABLE public.part_t_p3 PARTITION OF public.part_t
+	FOR VALUES FROM ('2026-07-01') TO ('2026-10-01');
+CREATE TABLE public.part_t_p4 PARTITION OF public.part_t
+	FOR VALUES FROM ('2026-10-01') TO ('2027-01-01');
+```
+
+**5. Start a supplemental `yb-voyager` migration** in a **fresh `export-dir`** with **both** new leaves in the table list:
+
+```
+--table-list public.part_t_p3,public.part_t_p4
+```
+
+Run full `export schema` / `import schema` / `export data` / `import data`.
+
+**6. DML (source) after supplemental flow is up:**
+
+```sql
+INSERT INTO public.part_t (id, day, name) VALUES (31, '2026-08-11', 'z_post_flow_p3');
+INSERT INTO public.part_t (id, day, name) VALUES (41, '2026-11-11', 'z_post_flow_p4');
+INSERT INTO public.control_t (name) VALUES ('z_post_flow_ctl');
+```
+
+### Cleanup (after **Z**)
+
+Reuse P's cleanup:
+
+```sql
+DROP TABLE IF EXISTS public.part_t CASCADE;
+```
+
+### Findings — Z (two new leaves, one supplemental flow)
+
+#### At a glance
+
+| When | Main migration | Supplemental migration (`export-dir` #2) |
+|------|----------------|--------------------------------------------|
+| After `CREATE TABLE part_t_p3 …` and `CREATE TABLE part_t_p4 …` on source + traffic to each leaf | Rows on both new leaves **not captured** (same class as **P** / **V**) | — |
+| Start supplemental with **`--table-list public.part_t_p3,public.part_t_p4`** + matching new leaves pre-created on target | Unaffected for `p1` / `p2` | **OK** — snapshot + CDC for both new leaves |
+
+#### Observed
+
+- A **single** supplemental flow covering both new leaves was sufficient — no need for one `export-dir` per leaf.
+- No publication / rename-map overlap or duplicate events observed versus the main flow.
+
+#### Notes
+
+- **Failure:** same class as **V** — new leaves on an already-captured parent are outside the main capture set.
+- **Workaround (observed, verified):** **one separate `yb-voyager` migration** in its own `export-dir` with **all new leaves** listed (`--table-list public.part_t_p3,public.part_t_p4`) and matching leaves pre-created on the target. Extends **V**'s recipe to N-new-leaves-at-once.
+
+---
+
+## Scenario AA — **`ADD COLUMN … GENERATED ALWAYS AS (expr) STORED`** on **source**
+
+Adds a generated `STORED` column on `public.subject_t` on the source only. Tests whether CDC carries the **materialized** generated value and whether the target should keep the column as **plain** or define the matching generated expression. The verified result is important: generated columns were **not exported in the segment files**, so this does **not** behave like a normal `ADD COLUMN`.
+
+### Prerequisite
+
+Reset baseline on both sides so `public.subject_t(id, name, note)` is the only shape on `subject_t`.
+
+### Steps
+
+**1. DDL (source only):**
+
+```sql
+ALTER TABLE public.subject_t
+	ADD COLUMN name_len INT GENERATED ALWAYS AS (char_length(name)) STORED;
+```
+
+**Do not** run this on target yet.
+
+**2. DML (source)** — generate traffic with the new column populated:
+
+```sql
+INSERT INTO public.control_t (name) VALUES ('aa_after_src_ddl_ctl');
+INSERT INTO public.subject_t (name) VALUES ('aa_after_src_ddl_sub');
+UPDATE public.subject_t SET name = 'aa_updated_sub'
+	WHERE name = 'aa_after_src_ddl_sub';
+```
+
+**3. Exit + resume** export and import. Verify whether `name_len` appears in segment files / import payloads.
+
+**4. Target alignment — variant 1 (plain column probe):**
+
+```sql
+ALTER TABLE public.subject_t ADD COLUMN name_len INT;
+```
+
+**5. Exit + resume** import. Verify whether the plain target column receives any value from CDC.
+
+**6. DML (source) post-alignment (variant 1):**
+
+```sql
+INSERT INTO public.subject_t (name) VALUES ('aa_post_align_plain');
+```
+
+**7. Variant 2 (recommended parity alignment):** re-baseline, re-apply step 1 on source, then align target with a **generated** column instead:
+
+```sql
+ALTER TABLE public.subject_t
+	ADD COLUMN name_len INT GENERATED ALWAYS AS (char_length(name)) STORED;
+```
+
+Drive the same INSERT traffic and verify the target recomputes `name_len` locally from `name`.
+
+### Cleanup (after **AA**)
+
+```sql
+ALTER TABLE public.subject_t DROP COLUMN IF EXISTS name_len;
+```
+
+on both sides, or re-baseline.
+
+### Findings — AA
+
+#### At a glance
+
+| When | Export | Import |
+|------|--------|--------|
+| After DDL + DML (target lacks `name_len`) | OK | OK — no missing-column failure |
+| After target align — **plain `INT`** + resume | OK | OK, but `name_len` remains unset because CDC does not carry it |
+| After target align — **`GENERATED STORED`** + DML (variant 2) | OK | OK — target computes the value locally |
+
+#### Observed
+
+- Generated columns did **not** appear in the segment files.
+- The importer did **not** fail when the target lacked `name_len`, unlike normal source-only `ADD COLUMN`.
+- Adding `name_len INT` as a plain column on the target did not backfill / populate generated values from CDC, because no generated-column value was present in the event payload.
+- The better target alignment is to add the matching generated column on the target (`GENERATED ALWAYS AS (...) STORED`) so the target computes the value from its own row.
+
+#### Why (from code)
+
+- The generated column was absent from the observed segment-file payloads. This is consistent with PostgreSQL logical replication behavior: generated columns are not published by default (and prior to PostgreSQL 18, logical replication does not publish generated columns at all). Voyager's Debezium connector uses PostgreSQL `pgoutput` (`debezium.source.plugin.name=pgoutput` in `src/dbzm/config.go`), so `name_len` is omitted before voyager sees the event.
+- The voyager code confirms the importer side of the behavior: `Event.UnmarshalJSON` copies only the JSON `fields` map into `event.Fields`, and `getPreparedInsertStmt` only quotes/inserts columns present in `event.Fields`. Because `name_len` was absent from the event payload, the target catalog mismatch path in `event.go` was never reached for this column.
+- A plain target column cannot receive values that are absent from CDC. A generated target column works because the database computes the value locally during insert/update.
+
+#### Notes
+
+- **Failure:** none observed. This does **not** behave like **A** because generated columns were not exported in CDC segment payloads.
+- **Plain-column alignment:** works operationally but is semantically wrong for parity — the target column stays empty / unset because no generated values are streamed.
+- **Workaround / parity alignment (observed):** add the **generated** column on the target too. Since CDC omits the generated column, the target can safely compute it locally.
+
+---
+
+## Scenario AB — **`ADD COLUMN … GENERATED BY DEFAULT AS IDENTITY`** on **source**
+
+Adds an identity column on `public.subject_t` on the source only. Tests (a) whether CDC carries the identity value, (b) how plain-column vs matching-identity target alignment behaves, and (c) post-cutover sequence-sync implications. Distinct from **A** because of the implicit sequence created under the hood.
+
+### Prerequisite
+
+Reset baseline.
+
+### Steps
+
+**1. DDL (source only):**
+
+```sql
+ALTER TABLE public.subject_t
+	ADD COLUMN auto_id BIGINT GENERATED BY DEFAULT AS IDENTITY NOT NULL;
+```
+
+This rewrites `subject_t` on the source and backfills `auto_id` for existing rows via the implicit sequence `public.subject_t_auto_id_seq`.
+
+**2. DML (source)** — let the sequence advance:
+
+```sql
+INSERT INTO public.control_t (name) VALUES ('ab_after_src_ddl_ctl');
+INSERT INTO public.subject_t (name) VALUES ('ab_after_src_ddl_sub_1');
+INSERT INTO public.subject_t (name) VALUES ('ab_after_src_ddl_sub_2');
+```
+
+**3. Exit + resume** export and import — expect import failure mirroring **A**.
+
+**4. Target alignment — variant 1 (recommended: plain `BIGINT`):**
+
+```sql
+ALTER TABLE public.subject_t ADD COLUMN auto_id BIGINT;
+```
+
+**5. Exit + resume** import. Verify target rows carry the **source** identity values (not regenerated on target).
+
+**6. DML (source) post-alignment (variant 1):**
+
+```sql
+INSERT INTO public.subject_t (name) VALUES ('ab_post_align_1');
+INSERT INTO public.subject_t (name) VALUES ('ab_post_align_2');
+```
+
+**7. Variant 2 (optional — matching identity on target):** re-baseline, re-apply step 1 on source, align target with:
+
+```sql
+ALTER TABLE public.subject_t
+	ADD COLUMN auto_id BIGINT GENERATED BY DEFAULT AS IDENTITY NOT NULL;
+```
+
+Drive CDC traffic, then inspect the target sequence:
+
+```sql
+SELECT last_value, is_called FROM public.subject_t_auto_id_seq;
+```
+
+Record the target sequence state after CDC traffic and compare it with the source sequence. The verified run saw target/source sequence divergence, so treat sequence parity as a required cutover check.
+
+### Cleanup (after **AB**)
+
+```sql
+ALTER TABLE public.subject_t DROP COLUMN IF EXISTS auto_id;
+```
+
+on both sides, or re-baseline.
+
+### Findings — AB
+
+#### At a glance
+
+| When | Export | Import |
+|------|--------|--------|
+| After DDL + DML (target lacks `auto_id`) | OK | **Panic** — `auto_id` not found in target columns |
+| After target align — **plain `BIGINT`** + resume | OK | OK — CDC rows with `auto_id` apply |
+| Target `subject_t_auto_id_seq.last_value` after variant-2 CDC traffic | — | `100`, while source sequence was `9` |
+
+#### Observed
+
+- Import crashed as soon as a post-DDL `subject_t` insert arrived from the source while the target still lacked `auto_id`:
+
+  ```text
+  panic: quote column name : find best matching column name for "auto_id" in table [CurrentName=(subject_t) SourceName=(subject_t) TargetName=(subject_t)]: column "auto_id" not found amongst table columns [id note name]
+  ```
+
+- Adding `auto_id BIGINT` as a **plain** column on the target allowed import to resume.
+- With plain-column target alignment, CDC rows inserted after the source DDL carried `auto_id` values and applied. Existing / snapshot rows still need separate consideration because the column was added after snapshot and is not automatically backfilled on target.
+- With variant 2 (matching identity column on target), rows inserted **after** target alignment were fine, but rows that already existed / snapshot-era rows had mismatched `auto_id` values compared with the source because the target generated its own identity values during target-side DDL/backfill.
+- Sequence values diverged in the run:
+
+  ```text
+  Target: last_value = 100, is_called = t
+  Source: last_value = 9,   is_called = t
+  ```
+
+#### Why (from code)
+
+- `auto_id` is a normal field in the CDC event payload once the identity column exists on the source. The importer therefore follows the same path as **A**: `getPreparedInsertStmt` iterates `event.Fields`, calls `TargetDB.QuoteAttributeName` for `auto_id`, and panics if the target catalog does not contain that column.
+- A target identity column can generate its own values for rows materialized locally / during target-side DDL effects, while CDC-supplied rows carry explicit source values. That creates a parity hazard for rows that existed before target alignment and for the target sequence state.
+
+#### Notes
+
+- **Failure (observed):** same class as **A** while target column is missing — importer panics on unknown target column `auto_id`.
+- **Workaround (observed):** add `auto_id BIGINT` as a **plain** column on the target and resume import. This preserves CDC-supplied source identity values for rows streamed after the DDL.
+- **Identity-on-target caveat (observed):** adding the target column as an identity column can create mismatched values for existing / snapshot-era rows because the target generates its own identity values. Post-alignment rows can still be fine because CDC supplies explicit `auto_id`.
+- **Sequence caveat (observed):** source and target identity sequences diverged (`source last_value=9`, `target last_value=100`). Before cutover, explicitly compare and reset the target sequence to a safe value if the target will continue generating `auto_id`.
+
+---
+
+## Scenario AC — **`ADD COLUMN … CHECK (…)`** on **source** (constraint propagation probe)
+
+Adds a column with an inline `CHECK` on `public.subject_t` on the source only. Confirms that the `CHECK` is **not** propagated by CDC (only column shape is relevant to apply) and documents the `session_replication_role = replica` asymmetry: on target, replica-role disables **triggers and FK enforcement** but **not** `CHECK`. Source-only symmetric `CHECK` collapses to **A**'s failure shape — the interesting asymmetric-CHECK failure belongs in the **fallback** run (tracked separately).
+
+### Prerequisite
+
+Reset baseline.
+
+### Steps
+
+**1. DDL (source only):**
+
+```sql
+ALTER TABLE public.subject_t
+	ADD COLUMN level INT CHECK (level BETWEEN 1 AND 10);
+```
+
+**2. DML (source)** — only in-range values (source `CHECK` would reject anything else):
+
+```sql
+INSERT INTO public.control_t (name) VALUES ('ac_after_src_ddl_ctl');
+INSERT INTO public.subject_t (name, level) VALUES ('ac_after_src_ddl_sub', 5);
+```
+
+**3. Exit + resume** export and import — expect import failure mirroring **A**.
+
+**4. Target alignment — column only (no CHECK):**
+
+```sql
+ALTER TABLE public.subject_t ADD COLUMN level INT;
+```
+
+**5. Exit + resume** import. Apply should succeed.
+
+**6. DML (source) post-alignment:**
+
+```sql
+INSERT INTO public.subject_t (name, level) VALUES ('ac_post_align_sub', 7);
+```
+
+**7. (Optional parity step)** Add the `CHECK` on target to match source:
+
+```sql
+ALTER TABLE public.subject_t
+	ADD CONSTRAINT subject_t_level_ck CHECK (level BETWEEN 1 AND 10);
+```
+
+Verify in-range CDC events continue to apply; confirm `session_replication_role = replica` does **not** relax the `CHECK` (any out-of-range row would still fail — but we can't generate one from source without violating source's CHECK; asymmetric-CHECK test lives in the fallback pass).
+
+### Cleanup (after **AC**)
+
+```sql
+ALTER TABLE public.subject_t DROP CONSTRAINT IF EXISTS subject_t_level_ck;
+ALTER TABLE public.subject_t DROP COLUMN IF EXISTS level;
+```
+
+on both sides, or re-baseline.
+
+### Findings — AC
+
+#### At a glance
+
+| When | Export | Import |
+|------|--------|--------|
+| After DDL + DML (target lacks `level`) | OK | **Panic** — `level` not found in target columns |
+| After target align — **column only** + resume | OK | OK |
+| After optional parity `CHECK` + further DML | OK | OK |
+
+#### Observed
+
+- Import crashed on the first `subject_t` insert carrying `level` while the target still lacked the column:
+
+  ```text
+  panic: quote column name : find best matching column name for "level" in table [CurrentName=(subject_t) SourceName=(subject_t) TargetName=(subject_t)]: column "level" not found amongst table columns [id name note]
+  ```
+
+- Adding `level INT` as a plain column on the target allowed import to resume.
+- Adding the matching `CHECK (level BETWEEN 1 AND 10)` on the target also worked for source-valid rows.
+
+#### Why (from code)
+
+- `level` is present in CDC `event.Fields`, so the importer validates it against the target catalog in `getPreparedInsertStmt`. With no target column, `QuoteAttributeName` fails and the code panics.
+- The `CHECK` constraint itself is not transmitted by CDC. Once the target has the `level` column, source-valid values apply. Adding the same `CHECK` on target is safe because the source already enforces the same range.
+
+#### Notes
+
+- **Failure (observed):** same class as **A** while target lacks `level`; importer panics on unknown target column.
+- **Workaround (observed):** add `level` on target and resume. For schema parity, add the matching `CHECK` on target too; verified to work for valid source rows.
+- **`session_replication_role = replica` caveat:** disables **triggers** and **FK** constraint triggers — does **not** disable **`CHECK`** (`pg_constraint.contype = 'c'` is enforced unconditionally). Asymmetric `CHECK` (stricter on target than source) would `ErrExit` apply; covered in the **fallback**-environment pass, not here.
+
+---
+
+## Scenario AD — **`ADD COLUMN` on a partitioned parent** (propagation across leaves)
+
+Adds a new column to `public.part_t` (the partitioned table from **P**) on the **source only**. Tests whether CDC from **every leaf** carries the new column and whether a **single** `ALTER TABLE public.part_t ADD COLUMN` on the target parent is sufficient (PG/YB propagate the column to leaves). Distinct from **A** because it probes leaf coverage, not a standalone heap.
+
+### Prerequisite
+
+Same as **P** — `public.part_t` (range-partitioned by `day`) with `part_t_p1` and `part_t_p2` pre-created **symmetrically** on both sides, in the main migration table list, with `REPLICA IDENTITY FULL` on root **and** each leaf.
+
+### Steps
+
+**1. Start the main live migration** with `part_t` included. Wait until snapshot import is done and CDC is flowing.
+
+**2. DDL (source only):**
+
+```sql
+ALTER TABLE public.part_t ADD COLUMN src_tag TEXT;
+```
+
+PG propagates the column to `part_t_p1` and `part_t_p2` automatically.
+
+**3. DML (source)** — rows routed into **both** leaves using the new column:
+
+```sql
+INSERT INTO public.control_t (name) VALUES ('ad_after_src_ddl_ctl');
+INSERT INTO public.part_t (id, day, name, src_tag) VALUES (100, '2026-02-10', 'ad_p1_row', 'ad-p1');
+INSERT INTO public.part_t (id, day, name, src_tag) VALUES (101, '2026-05-10', 'ad_p2_row', 'ad-p2');
+```
+
+**4. Exit + resume** export and import — expect import failure mirroring **A** for events from both leaves.
+
+**5. Target alignment — single `ADD COLUMN` on parent:**
+
+```sql
+ALTER TABLE public.part_t ADD COLUMN src_tag TEXT;
+```
+
+**6. Exit + resume** import. Verify **both** leaves' backlog drains (not just one).
+
+**7. DML (source) post-alignment — rows into each leaf again:**
+
+```sql
+INSERT INTO public.part_t (id, day, name, src_tag) VALUES (102, '2026-02-11', 'ad_p1_post', 'ad-p1b');
+INSERT INTO public.part_t (id, day, name, src_tag) VALUES (103, '2026-05-11', 'ad_p2_post', 'ad-p2b');
+```
+
+### Cleanup (after **AD**)
+
+```sql
+ALTER TABLE public.part_t DROP COLUMN IF EXISTS src_tag;
+```
+
+on both sides, or `DROP TABLE public.part_t CASCADE` + re-create per **P**'s prerequisite.
+
+### Findings — AD
+
+#### At a glance
+
+| When | Export | Import |
+|------|--------|--------|
+| After DDL + DML into both leaves (target lacks `src_tag`) | OK | **Panic** — `src_tag` not found in target `part_t` columns |
+| After target parent `ADD COLUMN` + resume | OK | OK |
+| After post-alignment DML into both leaves | OK | TODO |
+
+#### Observed
+
+- Import crashed when CDC events for `part_t` carried `src_tag` while the target parent / leaves still lacked the column:
+
+  ```text
+  panic: quote column name : find best matching column name for "src_tag" in table [CurrentName=(part_t) SourceName=(part_t) TargetName=(part_t)]: column "src_tag" not found amongst table columns [day name id]
+  ```
+
+- Adding `src_tag` on the target parent (`ALTER TABLE public.part_t ADD COLUMN src_tag TEXT`) allowed import to resume successfully.
+- TODO — explicitly confirm post-alignment events from **both** `part_t_p1` and `part_t_p2` recover, not just one, if not already checked in the run output.
+
+#### Why (from code)
+
+- Events for partitioned-table rows are applied through the target table mapping for `part_t`. Once the source parent has `src_tag`, CDC row payloads include `src_tag`; `getPreparedInsertStmt` / target attribute lookup then requires the target `part_t` catalog to contain the same column.
+- Adding the column on the target parent propagates to leaves, so a single parent-level alignment is enough.
+
+#### Notes
+
+- **Failure (observed):** same class as **A** (importer panic on unknown target column), surfaced through `part_t` events carrying `src_tag`.
+- **Workaround (observed):** single `ALTER TABLE public.part_t ADD COLUMN src_tag TEXT` on target parent (PG/YB propagate to leaves) + resume import.
+
+---
+
+## Scenario BA — **Add non-PK `UNIQUE` constraint** on **source** only
+
+Adds a non-PK unique constraint to `public.subject_t` on the source only. This tests the meeting-note point: voyager's INSERT conflict target is built from **CDC `event.Key`** (usually the source primary key), not from all unique indexes on either side. A new source-only unique should not change `ON CONFLICT (id) DO NOTHING`; the source itself prevents duplicate values from entering CDC.
+
+### Prerequisite
+
+Reset baseline. The seed rows must have distinct `name` values (baseline seeds satisfy this).
+
+### Steps
+
+**1. DDL (source only):**
+
+```sql
+ALTER TABLE public.subject_t
+	ADD CONSTRAINT subject_t_name_uq UNIQUE (name);
+```
+
+**2. DML (source)** — source-valid traffic:
+
+```sql
+INSERT INTO public.control_t (name) VALUES ('ba_after_src_ddl_ctl');
+INSERT INTO public.subject_t (name, note) VALUES ('ba_unique_1', 'ok');
+INSERT INTO public.subject_t (name, note) VALUES ('ba_unique_2', 'ok');
+```
+
+**3. Optional source-side negative check** — duplicate `name` should fail on the source before CDC:
+
+```sql
+INSERT INTO public.subject_t (name, note) VALUES ('ba_unique_1', 'source should reject');
+```
+
+Record the source error and continue with valid rows only.
+
+**4. Exit + resume** export and import. No target alignment yet.
+
+**5. DML (source) after resume:**
+
+```sql
+INSERT INTO public.subject_t (name, note) VALUES ('ba_post_resume_unique', 'ok after resume');
+```
+
+**6. Target parity alignment (optional before cutover):**
+
+```sql
+ALTER TABLE public.subject_t
+	ADD CONSTRAINT subject_t_name_uq UNIQUE (name);
+```
+
+If the target already has all source-valid rows with distinct `name`, this should succeed. It is not required for CDC apply to stay green, but is required if the target should enforce the same application invariant after cutover.
+
+### Cleanup (after **BA**)
+
+```sql
+ALTER TABLE public.subject_t DROP CONSTRAINT IF EXISTS subject_t_name_uq;
+```
+
+on both sides, or re-baseline.
+
+### Findings — BA
+
+#### At a glance
+
+| When | Export | Import |
+|------|--------|--------|
+| After source adds `UNIQUE (name)` + valid DML | OK | OK |
+| After exit + resume | OK | OK |
+| After optional target parity constraint | OK | OK |
+
+#### Observed
+
+- Source-only `UNIQUE (name)` caused **no export failure, no import failure, and no crash**.
+- Valid rows continued to stream and apply normally before and after exit + resume.
+- Target parity alignment (`ALTER TABLE ... ADD CONSTRAINT subject_t_name_uq UNIQUE (name)`) also completed without problems.
+
+#### Why (from code)
+
+- `getPreparedInsertStmt` builds `ON CONFLICT (...)` from sorted `event.Key`, which is sourced from Debezium's CDC key / source replica identity. It does not inspect all source unique indexes or the target's unique indexes. A source-only non-PK unique therefore does not change the apply SQL's conflict target.
+- Since the unique is on the **source**, duplicate `name` values cannot enter the CDC stream in the first place. Source-valid rows apply normally even while the target is missing the non-PK unique.
+
+#### Notes
+
+- **Failure:** none observed.
+- **Workaround / operation (observed):** add the unique on **source first** so invalid duplicates never stream; add the matching unique on target before cutover for parity.
+- **Conflict-detection caveat:** a target-only unique index is different and belongs in the fallback / target-drift pass — `ON CONFLICT (id)` will not absorb a `23505` on a different target-only unique index.
+
+---
+
+## Scenario BB — **Add foreign key between captured tables** on **source** only
+
+Adds an FK to an existing captured table (`subject_t`) that references another captured table (`control_t`). Source-valid rows should continue to stream. This is distinct from **Y** because no new table / supplemental migration is involved; the only drift is the constraint itself.
+
+### Prerequisite
+
+Reset baseline. Both `public.control_t` and `public.subject_t` are in the main migration table list.
+
+### Steps
+
+**1. DDL (source only)** — add a nullable FK column, backfill a valid value, then add the FK:
+
+```sql
+ALTER TABLE public.subject_t ADD COLUMN control_id BIGINT;
+
+UPDATE public.subject_t s
+SET control_id = c.id
+FROM public.control_t c
+WHERE c.name = 'seed_ctl_1'
+  AND s.control_id IS NULL;
+
+ALTER TABLE public.subject_t
+	ADD CONSTRAINT subject_t_control_id_fk
+	FOREIGN KEY (control_id) REFERENCES public.control_t(id);
+```
+
+**2. DML (source)** — insert a parent row and a valid child row:
+
+```sql
+INSERT INTO public.control_t (name) VALUES ('bb_parent_1') RETURNING id;
+-- Use the returned id below.
+INSERT INTO public.subject_t (name, note, control_id)
+VALUES ('bb_child_1', 'valid fk', <bb_parent_1_id>);
+```
+
+**3. Optional source-side negative check** — invalid FK should fail on the source before CDC:
+
+```sql
+INSERT INTO public.subject_t (name, note, control_id)
+VALUES ('bb_bad_child', 'source should reject', -1);
+```
+
+**4. Exit + resume** export and import. Do not add the FK on target yet.
+
+**5. Target column alignment** — because the new column is carried in CDC payloads, align the target column before expecting import to recover:
+
+```sql
+ALTER TABLE public.subject_t ADD COLUMN control_id BIGINT;
+```
+
+**6. Exit + resume** import.
+
+**7. DML (source) after alignment:**
+
+```sql
+INSERT INTO public.control_t (name) VALUES ('bb_parent_2') RETURNING id;
+-- Use the returned id below.
+INSERT INTO public.subject_t (name, note, control_id)
+VALUES ('bb_child_2', 'valid fk after align', <bb_parent_2_id>);
+```
+
+**8. Target parity alignment (optional before cutover):**
+
+```sql
+ALTER TABLE public.subject_t
+	ADD CONSTRAINT subject_t_control_id_fk
+	FOREIGN KEY (control_id) REFERENCES public.control_t(id);
+```
+
+CDC apply runs with `session_replication_role = replica`, so FK triggers on the target are disabled for apply. Still add the FK before cutover if the target should enforce the invariant for normal application sessions.
+
+### Cleanup (after **BB**)
+
+```sql
+ALTER TABLE public.subject_t DROP CONSTRAINT IF EXISTS subject_t_control_id_fk;
+ALTER TABLE public.subject_t DROP COLUMN IF EXISTS control_id;
+```
+
+on both sides, or re-baseline.
+
+### Findings — BB
+
+#### At a glance
+
+| When | Export | Import |
+|------|--------|--------|
+| After source adds FK column + FK, target lacks `control_id` | OK | **Panic** — `control_id` not found in target columns |
+| After target `ADD COLUMN control_id` + resume | OK | OK |
+| After optional target FK parity | OK | OK |
+
+#### Observed
+
+- Import failed because of the missing target column, as expected:
+
+  ```text
+  panic: quote column name : find best matching column name for "control_id" in table [CurrentName=(subject_t) SourceName=(subject_t) TargetName=(subject_t)]: column "control_id" not found amongst table columns [id name note]
+  ```
+
+- Adding `control_id` on the target allowed import to resume properly.
+- Adding the matching FK on the target for parity also completed without problems.
+
+#### Why (from code)
+
+- Same column-shape mismatch as **A** until target has `control_id`: the CDC event contains `control_id`, and `getPreparedInsertStmt` validates every `event.Fields` key against the target table's attributes.
+- FK enforcement itself is not the apply blocker here. CDC apply sessions use `session_replication_role = replica`, which disables FK constraint triggers during apply. Once the column exists, source-valid FK rows apply; adding the target FK is a parity / cutover step.
+
+#### Notes
+
+- **Failure (observed):** same class as **A** while target lacks `control_id`; importer panics on unknown target column.
+- **Workaround (observed):** add `control_id` on target and resume import; add the FK on target for cutover parity.
+- **FK caveat:** target FK checks are disabled during CDC apply, but normal sessions after cutover will enforce them.
+
+---
+
+## Scenario BC — **Switch `REPLICA IDENTITY` to a unique index** on **source** mid-run
+
+> **Status:** not evaluated / removed from required manual coverage. Voyager live-migration tables are set up with **`REPLICA IDENTITY FULL`** (see the baseline and partition prerequisites). Switching to `REPLICA IDENTITY USING INDEX` mid-run is primarily a capture/export contract violation, not a distinct application DDL drift case worth testing in this playbook.
+
+Creates a new unique index on `public.subject_t(name)` on the source, then switches replica identity to that index. This probes whether Debezium's CDC key shape changes from `id` to `name` and whether voyager's apply SQL (`ON CONFLICT (...)`, UPDATE/DELETE predicates, prepared statement cache) follows cleanly.
+
+### Prerequisite
+
+Reset baseline. `public.subject_t.name` values must be unique before the unique index is created (baseline seeds satisfy this). Keep the target initially unchanged with `PRIMARY KEY (id)`.
+
+### Steps
+
+**1. DML before DDL (source)** — establish pre-switch traffic:
+
+```sql
+INSERT INTO public.subject_t (name, note) VALUES ('bc_before_switch', 'before');
+```
+
+**2. DDL (source only)** — create the unique index and use it as replica identity:
+
+```sql
+CREATE UNIQUE INDEX subject_t_name_ri_uq
+	ON public.subject_t (name);
+
+ALTER TABLE public.subject_t
+	REPLICA IDENTITY USING INDEX subject_t_name_ri_uq;
+```
+
+**3. DML (source)** — exercise INSERT / UPDATE / DELETE after the key switch:
+
+```sql
+INSERT INTO public.subject_t (name, note) VALUES ('bc_after_switch_insert', 'after');
+UPDATE public.subject_t SET note = 'after switch update'
+	WHERE name = 'bc_after_switch_insert';
+DELETE FROM public.subject_t
+	WHERE name = 'bc_after_switch_insert';
+```
+
+**4. Watch export/import without target alignment first.** Record whether import errors immediately because `ON CONFLICT (name)` has no matching unique / exclusion constraint on the target.
+
+**5. Target alignment** — add the matching unique index / constraint on target:
+
+```sql
+CREATE UNIQUE INDEX subject_t_name_ri_uq
+	ON public.subject_t (name);
+```
+
+**6. Exit + resume** import.
+
+**7. DML (source) after alignment:**
+
+```sql
+INSERT INTO public.subject_t (name, note) VALUES ('bc_post_align_insert', 'post align');
+UPDATE public.subject_t SET note = 'post align update'
+	WHERE name = 'bc_post_align_insert';
+DELETE FROM public.subject_t
+	WHERE name = 'bc_post_align_insert';
+```
+
+### Cleanup (after **BC**)
+
+On source:
+
+```sql
+ALTER TABLE public.subject_t REPLICA IDENTITY DEFAULT;
+DROP INDEX IF EXISTS public.subject_t_name_ri_uq;
+```
+
+On target:
+
+```sql
+DROP INDEX IF EXISTS public.subject_t_name_ri_uq;
+```
+
+or re-baseline.
+
+### Findings — BC
+
+#### At a glance
+
+| When | Export | Import |
+|------|--------|--------|
+| Before replica-identity switch | Not run | Not run |
+| After source switches identity to `name`, target lacks unique `(name)` | Not run | Not run |
+| After target matching unique index + resume | Not run | Not run |
+
+#### Observed
+
+- Not evaluated. We should not spend manual-testing time here unless we specifically want to test unsupported operator behavior around changing replica identity during live migration.
+- The useful `event.Key` / `ON CONFLICT` lesson is already covered by **O** and the unique-index conflict notes: voyager apply SQL follows CDC `event.Key`, not the target's unique-index set.
+
+#### Why (from code)
+
+- `getPreparedInsertStmt`, `getPreparedUpdateStmt`, and `getPreparedDeleteStmt` use `event.Key`. In principle, changing source replica identity could change `event.Key` without target-catalog awareness. In practice, live migration expects `REPLICA IDENTITY FULL`; switching away from that is an export/capture-contract violation rather than a normal schema drift workaround path.
+
+#### Notes
+
+- **Failure:** not evaluated; expected to fail at the export/capture layer if Debezium/voyager requires full before-images from `REPLICA IDENTITY FULL`.
+- **Decision:** skip as a required scenario. Avoid replica-identity changes during live migration; keep tables at `REPLICA IDENTITY FULL`.
+
+---
+
+## Fallback Lab Flow — common setup for **FA**–**FJ**
+
+These scenarios start **after forward live migration has cut over to YugabyteDB** and fallback streaming is active. From this point onward:
+
+| Role | Database | Voyager command |
+|------|----------|-----------------|
+| Export side | YugabyteDB target | `export data from target` |
+| Import side | PostgreSQL source | `import data to source` |
+
+### High-level command flow
+
+Run normal live migration first:
+
+```sh
+yb-voyager export data \
+	--export-dir <export-dir> \
+	--source-db-password <source-password> \
+	--export-type snapshot-and-changes \
+	--table-list public.control_t,public.subject_t \
+	--yes
+
+yb-voyager import data \
+	--export-dir <export-dir> \
+	--target-db-password <target-password> \
+	--yes
+```
+
+After forward snapshot + CDC are caught up, cut over to YugabyteDB and prepare fallback:
+
+```sh
+yb-voyager initiate cutover to target \
+	--export-dir <export-dir> \
+	--prepare-for-fall-back true \
+	--yes
+```
+
+Fallback streaming is then YugabyteDB → PostgreSQL. In the integration framework, these commands are tracked as `export data from target` and `import data to source` after cutover. If you need to start or resume them explicitly:
+
+```sh
+yb-voyager export data from target \
+	--export-dir <export-dir> \
+	--target-db-password <target-password> \
+	--disable-pb true \
+	--yes
+
+yb-voyager import data to source \
+	--export-dir <export-dir> \
+	--source-db-password <source-password> \
+	--disable-pb true \
+	--yes
+```
+
+When a scenario says **exit + resume fallback**, stop/restart the two fallback commands above (or use the equivalent runbook step for your environment). All DDL in **FA**–**FJ** happens on **YugabyteDB** first unless explicitly stated otherwise, because after cutover YugabyteDB is the active application database and the export side for fallback.
+
+---
+
+## Scenario FA — **Fallback: create new table** on **YugabyteDB** only (**with PK** / **without PK**)
+
+Creates brand-new tables on the active YugabyteDB side after fallback streaming is active: one **with a PK** and one **without a PK**. This is the fallback analogue of **C/D/U/Y**: the new table is outside the original fallback capture inventory, so rows may be valid on YugabyteDB but never reach PostgreSQL unless the operator explicitly handles the table. The no-PK variant checks whether fallback `export data from target` has a guardrail analogous to forward live export when a table is explicitly included.
+
+### Prerequisite
+
+Complete the **Fallback Lab Flow** with `control_t` / `subject_t` captured. Fallback streaming is active.
+
+### Steps
+
+**1. DDL (YugabyteDB / active target only) — variant A, table with PK:**
+
+```sql
+CREATE TABLE public.fb_side_pk_t (
+	id BIGINT PRIMARY KEY,
+	name TEXT NOT NULL,
+	note TEXT
+);
+```
+
+**2. DDL (YugabyteDB / active target only) — variant B, table without PK:**
+
+```sql
+CREATE TABLE public.fb_side_nopk_t (
+	id BIGINT,
+	name TEXT NOT NULL,
+	note TEXT
+);
+```
+
+**3. DML (YugabyteDB):**
+
+```sql
+INSERT INTO public.fb_side_pk_t (id, name, note)
+VALUES (1, 'fa_new_pk_table_row', 'created on yb during fallback');
+
+INSERT INTO public.fb_side_nopk_t (id, name, note)
+VALUES (1, 'fa_new_nopk_table_row', 'created on yb during fallback');
+
+INSERT INTO public.control_t (name) VALUES ('fa_control_ping');
+```
+
+**4. Watch fallback export/import.** Confirm `control_t` streams to PostgreSQL. Check whether `fb_side_pk_t` / `fb_side_nopk_t` exist or receive rows on PostgreSQL (expected: **no**, unless you manually created and separately synced them).
+
+**5. Exit + resume fallback** (`export data from target` and `import data to source`). Confirm whether restart changes capture inventory (expected: **no** for both variants).
+
+**6. Manual alignment / workaround probe — create both tables on PostgreSQL:**
+
+```sql
+-- PostgreSQL
+CREATE TABLE public.fb_side_pk_t (
+	id BIGINT PRIMARY KEY,
+	name TEXT NOT NULL,
+	note TEXT
+);
+
+CREATE TABLE public.fb_side_nopk_t (
+	id BIGINT,
+	name TEXT NOT NULL,
+	note TEXT
+);
+```
+
+Then decide whether the only practical workaround is out-of-band copy / a fresh migration path for these tables.
+
+**7. Optional explicit-inclusion guardrail probe:** in a **separate fallback experiment**, try to start a new fallback export path / table list that explicitly includes `public.fb_side_nopk_t` (if the CLI supports that shape in your runbook). Record whether `export data from target` rejects the no-PK table up front, similar to forward `reportUnsupportedTablesForLiveMigration`, or whether the command cannot be used this way for fallback.
+
+### Cleanup (after **FA**)
+
+```sql
+DROP TABLE IF EXISTS public.fb_side_pk_t CASCADE;
+DROP TABLE IF EXISTS public.fb_side_nopk_t CASCADE;
+```
+
+on both sides.
+
+### Findings — FA
+
+#### At a glance
+
+| When | `export data from target` | `import data to source` |
+|------|---------------------------|--------------------------|
+| After `CREATE TABLE fb_side_pk_t` + rows on YugabyteDB | OK for existing captured tables; **new table rows not exported** | No `fb_side_pk_t` rows applied |
+| After `CREATE TABLE fb_side_nopk_t` + rows on YugabyteDB | OK for existing captured tables; no-PK table is outside capture | No `fb_side_nopk_t` rows applied |
+| After exit + resume fallback | OK for existing captured tables; capture inventory unchanged | Missed new-table rows still not replayed |
+| After manual PostgreSQL table creation for both tables | OK for captured tables | Still no missed `fb_side_pk_t` rows replayed |
+| After metadata/config/name-registry/publication surgery for **PK** table + restart | **OK for future `fb_side_pk_t` events** | **OK for future `fb_side_pk_t` events** |
+| Optional explicit inclusion of no-PK table | Not directly viable | Add PK first, then use same surgery path as PK table |
+
+#### Observed
+
+- New PK table (`fb_side_pk_t`) rows were **not exported** during fallback, as expected.
+- Manual PostgreSQL table creation / schema alignment did **not** recover missed rows; since no events were exported for the new table, import had nothing to apply.
+- A complementary forward-style migration (`export data` / `import data`) warned because replication was already running on the YugabyteDB target: `It is NOT recommended to have any form of replication (CDC/xCluster) running on the target YugabyteDB cluster during data import... Found replication slot(s): 1.` It could be started with `--skip-replication-checks true`, but this is not a clean fallback workaround for YB → PG missed rows.
+- Mid-migration surgery **did work for the PK table for future events** after the fallback exporter was restarted. The patched pieces were `meta.db`, `application.properties`, `name_registry.json`, and the YugabyteDB publication. New rows inserted **after** the surgery/restart went through.
+- Rows inserted into `fb_side_pk_t` **before** the surgery remained missed; they were never exported and must be manually backfilled if needed.
+- The no-PK table cannot be added to the publication / fallback capture path as-is. Add a primary key first, then follow the same surgery path as the PK-table variant.
+- Existing captured tables continued streaming.
+
+#### Why (from code)
+
+- `export data from target` runs as `CHANGES_ONLY` and blocks normal `--table-list` / `--exclude-table-list` flags. The target exporter derives its table list from the existing migration metadata (`TableListExportedFromSource` on first target-export run, then `TargetExportedTableListWithLeafPartitions` / `TargetRenameTablesMap` on later runs). A table created after that inventory is built is not automatically added to the YB publication / Debezium include list / name registry, so no events are produced for it.
+- The surgery worked only after all relevant capture/apply metadata was made consistent and the fallback exporter was restarted: `meta.db` table inventories / import partitioning / unique-key map, Debezium `application.properties` table+column include lists, `name_registry.json`, and `ALTER PUBLICATION ... ADD TABLE public.fb_side_pk_t`.
+- Because no target-to-source snapshot is run in fallback, adding the table to the capture set later can only stream changes generated **after** the new capture configuration is active.
+
+#### Notes
+
+- **Failure / divergence (observed for PK variant):** silent divergence — rows inserted into `fb_side_pk_t` on YugabyteDB were not exported, and PostgreSQL table creation later did not replay them.
+- **No-PK guardrail / publication note:** a no-PK table cannot be added to the publication/capture path as-is. Add a PK first, then treat it like the PK variant.
+- **Workaround (observed for future rows only):** unsupported mid-migration surgery can add a new PK table to fallback capture. Patch `meta.db`, `application.properties`, `name_registry.json`, and the YB publication, create the table on PostgreSQL, restart fallback export/import, then future rows stream.
+- **Not recoverable by surgery:** rows written before the table entered the fallback capture set. These need manual/out-of-band backfill.
+
+---
+
+## Scenario FB — **Fallback: drop captured table** on **YugabyteDB**
+
+Drops a table that belongs to the fallback capture set on the active YugabyteDB side. This is the fallback analogue of **I**: the running stream may keep other tables moving, but restart / catalog refresh paths can fail because stored metadata still names the dropped table.
+
+### Prerequisite
+
+Complete the **Fallback Lab Flow** with `control_t` and `subject_t` captured.
+
+### Steps
+
+**1. DDL (YugabyteDB / active target only):**
+
+```sql
+DROP TABLE public.subject_t;
+```
+
+YugabyteDB may reject this while the table is part of the fallback publication:
+
+```text
+ERROR:  cannot drop a table which is part of a publication.
+HINT:  Use pg_publication_tables to find all such publications and retry after dropping the table from them.
+```
+
+If so, first remove it from the publication, then drop it:
+
+```sql
+ALTER PUBLICATION <yb_publication_name> DROP TABLE public.subject_t;
+DROP TABLE public.subject_t;
+```
+
+**2. DML (YugabyteDB)** — control table still exists:
+
+```sql
+INSERT INTO public.control_t (name) VALUES ('fb_after_drop_subject_control');
+```
+
+**3. Watch fallback export/import without restart.** Record whether `control_t` continues streaming and whether export logs complain about the missing captured table.
+
+**4. Exit + resume fallback** (`export data from target` and `import data to source`). Record exact failure, if any.
+
+**5. Workaround probe:** if the intended end-state is `subject_t` removed on both sides, drop it on PostgreSQL too and decide whether fallback needs a full restart / metadata surgery / new iteration with a table list excluding `subject_t`.
+
+```sql
+-- PostgreSQL, only if intentional end-state is "table removed"
+DROP TABLE public.subject_t;
+```
+
+### Cleanup (after **FB**)
+
+This is destructive. Re-run the baseline schema and seed setup, then re-run the **Fallback Lab Flow** before later scenarios.
+
+### Findings — FB
+
+#### At a glance
+
+| When | `export data from target` | `import data to source` |
+|------|---------------------------|--------------------------|
+| Initial `DROP TABLE public.subject_t` while still in YB publication | Not applicable | YB rejects the DDL |
+| After dropping `subject_t` from publication, then dropping table | **Crash** — YB object not found / catalog version mismatch | No useful recovery |
+| After exit + resume fallback | **Fails** — stale `public.subject_t` metadata queried | Not reached / blocked |
+
+#### Observed
+
+- YugabyteDB did **not** allow dropping a table that was still part of the fallback publication:
+
+  ```text
+  ERROR:  cannot drop a table which is part of a publication.
+  HINT:  Use pg_publication_tables to find all such publications and retry after dropping the table from them.
+  ```
+
+- After removing `subject_t` from the YB publication and then dropping the table, `export data from target` crashed immediately:
+
+  ```text
+  Caused by: com.yugabyte.util.PSQLException: ERROR: Table with identifier 00004002000030008000000000004087 not found: OBJECT_NOT_FOUND
+    Where: Catalog Version Mismatch: A DDL occurred while processing this query. Try again.
+  ```
+
+- Restarting `export data from target` also failed because fallback metadata still referenced `public.subject_t`:
+
+  ```text
+  Error in query for parent tablename of table: "SELECT inhparent::pg_catalog.regclass
+  	FROM pg_catalog.pg_class c JOIN pg_catalog.pg_inherits ON c.oid = inhrelid
+  	WHERE c.oid = 'public.subject_t'::regclass::oid": [CurrentName=(subject_t) SourceName=(subject_t) TargetName=()]: ERROR: relation "public.subject_t" does not exist (SQLSTATE 42P01)
+  ```
+
+#### Why (from code)
+
+- This matches the **I** / rename-table class of failure. The fallback target exporter still derives its table list from stored migration metadata (`TableListExportedFromSource` / `TargetExportedTableListWithLeafPartitions`) and then queries the live YugabyteDB catalog for those stored table names. Once `public.subject_t` is gone, catalog lookups like `'public.subject_t'::regclass` fail with `42P01`.
+- Removing the table from the YB publication is necessary before YB will allow the drop, but it is not sufficient for voyager: the metadb table inventories, Debezium include config, name registry, import partitioning metadata, and possibly queued events / stats still reference `subject_t`.
+
+#### Notes
+
+- **Failure (observed):** P0-style export-side metadata drift. YB first blocks the drop while the table is published; after publication removal + drop, fallback export crashes and restart fails on stale `public.subject_t`.
+- **Workaround:** no clean customer-facing workaround. If the intended end-state is to remove `subject_t`, fallback would need unsupported metadata surgery to remove it from the target-export/import inventories and config, or a fresh/new migration iteration with `subject_t` excluded. This was **not** tested further.
+
+---
+
+## Scenario FC — **Fallback: add column** on **YugabyteDB** only
+
+Adds a new column on the active YugabyteDB side during fallback. This is the direct reverse-direction analogue of **A**: CDC events from YugabyteDB carry the new column, but PostgreSQL does not know the column until aligned.
+
+### Prerequisite
+
+Complete the **Fallback Lab Flow**.
+
+### Steps
+
+**1. DDL (YugabyteDB / active target only):**
+
+```sql
+ALTER TABLE public.subject_t ADD COLUMN fb_added TEXT;
+```
+
+**2. DML (YugabyteDB):**
+
+```sql
+INSERT INTO public.control_t (name) VALUES ('fc_after_add_col_control');
+INSERT INTO public.subject_t (name, note, fb_added)
+VALUES ('fc_after_add_col_subject', 'fallback add column', 'yb-only value');
+```
+
+**3. Watch fallback export/import.** Expect PostgreSQL import to fail once it sees `fb_added`.
+
+**4. Source alignment (PostgreSQL):**
+
+```sql
+ALTER TABLE public.subject_t ADD COLUMN fb_added TEXT;
+```
+
+**5. Exit + resume fallback import.**
+
+**6. DML (YugabyteDB) after alignment:**
+
+```sql
+INSERT INTO public.subject_t (name, note, fb_added)
+VALUES ('fc_post_align_subject', 'fallback add column', 'after pg align');
+```
+
+### Cleanup (after **FC**)
+
+```sql
+ALTER TABLE public.subject_t DROP COLUMN IF EXISTS fb_added;
+```
+
+on both sides, or re-baseline.
+
+### Findings — FC
+
+#### At a glance
+
+| When | `export data from target` | `import data to source` |
+|------|---------------------------|--------------------------|
+| After YB adds `fb_added` and writes it | OK | **Panic** — `fb_added` not found in PostgreSQL columns |
+| After PostgreSQL `ADD COLUMN fb_added` + resume | OK | OK — queued subject event applied |
+| After post-alignment DML | OK | OK |
+
+#### Observed
+
+- Insert into `subject_t` after adding `fb_added` on YugabyteDB caused `import data to source` to fail:
+
+  ```text
+  panic: quote column name : find best matching column name for "fb_added" in table [CurrentName=(subject_t) SourceName=(subject_t) TargetName=(subject_t)]: column "fb_added" not found amongst table columns [id name note]
+  ```
+
+- After adding `fb_added` on PostgreSQL, `import data to source` resumed successfully.
+- The queued `subject_t` event that previously failed also went through after alignment.
+
+#### Why (from code)
+
+- Same target-column registry failure class as **A**, but import side is PostgreSQL during fallback. The YB CDC event includes `fb_added`; `getPreparedInsertStmt` validates every `event.Fields` key against the import-side table attributes and panics when PostgreSQL lacks the column.
+
+#### Notes
+
+- **Failure (observed):** unknown-column / column-mapping panic on `import data to source`.
+- **Workaround (observed):** add the column on PostgreSQL and resume fallback import.
+
+---
+
+## Scenario FD — **Fallback: drop column** on **YugabyteDB** while PostgreSQL keeps it
+
+Drops a column on the active YugabyteDB side during fallback. This tests both low-risk nullable-column divergence and stricter PostgreSQL behavior. Scenario **S** covers nullability relaxation; this case covers actual column removal / CDC omission.
+
+### Prerequisite
+
+Complete the **Fallback Lab Flow**. Add a test column on **both** sides before cutover or before this scenario starts:
+
+```sql
+ALTER TABLE public.subject_t ADD COLUMN fb_drop_me TEXT;
+UPDATE public.subject_t SET fb_drop_me = 'seeded' WHERE fb_drop_me IS NULL;
+```
+
+For the strict variant, also run on PostgreSQL before the YB-side drop:
+
+```sql
+ALTER TABLE public.subject_t ALTER COLUMN fb_drop_me SET NOT NULL;
+```
+
+### Steps
+
+**1. DDL (YugabyteDB / active target only):**
+
+```sql
+ALTER TABLE public.subject_t DROP COLUMN fb_drop_me;
+```
+
+**2. DML (YugabyteDB):**
+
+```sql
+INSERT INTO public.control_t (name) VALUES ('fd_after_drop_col_control');
+INSERT INTO public.subject_t (name, note)
+VALUES ('fd_after_drop_col_subject', 'fallback drop column');
+```
+
+**3. Watch fallback export/import.**
+
+Record separately:
+
+- **Nullable PostgreSQL column:** expected to apply, leaving PostgreSQL `fb_drop_me` as `NULL` / default for new rows.
+- **PostgreSQL `NOT NULL` without default:** expected to fail with `23502` when the CDC payload omits `fb_drop_me`.
+
+**4. Source alignment (PostgreSQL):** choose the one matching the intended end-state:
+
+```sql
+ALTER TABLE public.subject_t DROP COLUMN IF EXISTS fb_drop_me;
+```
+
+or
+
+```sql
+ALTER TABLE public.subject_t ALTER COLUMN fb_drop_me DROP NOT NULL;
+```
+
+**5. Exit + resume fallback import.**
+
+### Cleanup (after **FD**)
+
+Drop `fb_drop_me` on both sides or re-baseline.
+
+### Findings — FD
+
+#### At a glance
+
+| Variant | `export data from target` | `import data to source` |
+|---------|---------------------------|--------------------------|
+| PostgreSQL keeps nullable `fb_drop_me` | OK | OK — no crash |
+| PostgreSQL keeps `fb_drop_me NOT NULL` without default | OK | **Fails** — `23502` not-null violation |
+| After PostgreSQL alignment + resume | OK | OK |
+
+#### Observed
+
+- Strict variant: with `fb_drop_me NOT NULL` still present on PostgreSQL, the `subject_t` event from YugabyteDB failed on import:
+
+  ```text
+  error executing batch on channel 13: error executing batch: error preparing statements for events in batch (3:3) or when executing event with vsn(3): ERROR: null value in column "fb_drop_me" of relation "subject_t" violates not-null constraint (SQLSTATE 23502)
+  ```
+
+- After PostgreSQL alignment (drop the column or relax/drop `NOT NULL`), import resumed fine.
+- Nullable variant: with `fb_drop_me` nullable on both sides before the YB-side drop, fallback streaming worked smoothly. No crashes occurred before or after alignment.
+
+#### Why (from code)
+
+- CDC payload from YugabyteDB omits the dropped column. PostgreSQL either fills the missing import-side column with `NULL` / default, or rejects the row if the still-present column is `NOT NULL` without a usable default.
+
+#### Notes
+
+- **Failure (observed):** only in the strict PostgreSQL variant — `23502` because the omitted column becomes `NULL` on PostgreSQL.
+- **Workaround (observed):** align PostgreSQL to the YugabyteDB shape (drop the column) or relax the PostgreSQL column (`DROP NOT NULL` / add a default), then resume.
+- **Nullable variant:** no import failure; still a schema parity issue if PostgreSQL keeps the dropped column.
+
+---
+
+## Scenario FE — **Fallback: add non-PK `UNIQUE`** on **YugabyteDB** only
+
+Adds a unique constraint on the active YugabyteDB side while PostgreSQL lacks it. YugabyteDB enforces the new invariant before changes enter fallback CDC, so valid rows should apply. This is mostly a parity case and the fallback-side mirror of **BA**.
+
+### Prerequisite
+
+Complete the **Fallback Lab Flow**. Existing `subject_t.name` values must be unique.
+
+### Steps
+
+**1. DDL (YugabyteDB / active target only):**
+
+```sql
+ALTER TABLE public.subject_t
+	ADD CONSTRAINT subject_t_fb_name_uq UNIQUE (name);
+```
+
+**2. DML (YugabyteDB)** — valid unique rows:
+
+```sql
+INSERT INTO public.control_t (name) VALUES ('fe_after_unique_control');
+INSERT INTO public.subject_t (name, note)
+VALUES ('fe_unique_subject_1', 'valid unique');
+```
+
+**3. Optional YB-side negative check** — duplicate should fail on YugabyteDB before CDC:
+
+```sql
+INSERT INTO public.subject_t (name, note)
+VALUES ('fe_unique_subject_1', 'yb should reject');
+```
+
+**4. Watch fallback export/import and exit + resume fallback.** Import should stay green for YB-valid rows.
+
+**5. PostgreSQL parity alignment (before cutting back to source):**
+
+```sql
+ALTER TABLE public.subject_t
+	ADD CONSTRAINT subject_t_fb_name_uq UNIQUE (name);
+```
+
+### Cleanup (after **FE**)
+
+```sql
+ALTER TABLE public.subject_t DROP CONSTRAINT IF EXISTS subject_t_fb_name_uq;
+```
+
+on both sides, or re-baseline.
+
+### Findings — FE
+
+#### At a glance
+
+| When | `export data from target` | `import data to source` |
+|------|---------------------------|--------------------------|
+| After YB adds `UNIQUE (name)` + valid DML | OK | OK |
+| After duplicate attempt on YB | YB rejects before CDC | Nothing to apply |
+| After PostgreSQL parity unique | OK | OK |
+
+#### Observed
+
+- Adding `UNIQUE (name)` on YugabyteDB during fallback caused **no export failure, no import failure, and no crash**.
+- Valid rows streamed and applied normally.
+- The unique is on the export side, so any duplicate values are rejected by YugabyteDB before they can enter the fallback CDC stream.
+
+#### Why (from code)
+
+- Fallback import conflict handling is still driven by CDC key / replica identity, not by all unique indexes. Since the stricter unique is on the export side, violating rows never stream. Source-valid/YB-valid rows remain compatible with PostgreSQL even before PostgreSQL has the parity unique.
+
+#### Notes
+
+- **Failure:** none observed for YB-valid rows.
+- **Workaround / operation:** no runtime workaround needed. Add matching unique on PostgreSQL before cutting back to source for schema parity.
+
+---
+
+## Scenario FF — **Fallback: drop non-PK `UNIQUE`** on **YugabyteDB** while PostgreSQL keeps it
+
+Starts with a unique constraint on both sides, then drops it only on YugabyteDB after cutover. YugabyteDB can now accept duplicates that PostgreSQL still rejects during fallback import. This is the fallback version of the "target-only unique landmine": the import-side unique is not part of `ON CONFLICT (id)` and can raise `23505`.
+
+### Prerequisite
+
+Before cutover, make `subject_t.name` unique on **both** databases:
+
+```sql
+ALTER TABLE public.subject_t
+	ADD CONSTRAINT subject_t_fb_name_uq UNIQUE (name);
+```
+
+Then complete the **Fallback Lab Flow**.
+
+### Steps
+
+**1. DDL (YugabyteDB / active target only):**
+
+```sql
+ALTER TABLE public.subject_t
+	DROP CONSTRAINT subject_t_fb_name_uq;
+```
+
+PostgreSQL still has `subject_t_fb_name_uq`.
+
+**2. DML (YugabyteDB)** — insert two rows that are valid on YB but conflict on PG:
+
+```sql
+INSERT INTO public.control_t (name) VALUES ('ff_after_drop_unique_control');
+
+INSERT INTO public.subject_t (name, note)
+VALUES ('ff_duplicate_name', 'first yb row');
+
+INSERT INTO public.subject_t (name, note)
+VALUES ('ff_duplicate_name', 'second yb row, should fail on pg unique');
+```
+
+**3. Watch fallback export/import.** Record the PostgreSQL error. Expected class: `23505 duplicate key value violates unique constraint "subject_t_fb_name_uq"`.
+
+**4. Source alignment / repair (PostgreSQL):** choose one:
+
+```sql
+-- If the YB end-state intentionally allows duplicates:
+ALTER TABLE public.subject_t DROP CONSTRAINT IF EXISTS subject_t_fb_name_uq;
+```
+
+or delete/merge the duplicate row on YugabyteDB, keep the PostgreSQL unique, and resume after the stream is clean.
+
+**5. Exit + resume fallback import.**
+
+### Cleanup (after **FF**)
+
+Drop `subject_t_fb_name_uq` on both sides or re-baseline.
+
+### Findings — FF
+
+#### At a glance
+
+| When | `export data from target` | `import data to source` |
+|------|---------------------------|--------------------------|
+| After YB drops unique, PG keeps it | OK | OK until a duplicate arrives |
+| After duplicate `name` rows on YB | OK | **Fails** — `23505` on PostgreSQL unique |
+| After PostgreSQL alignment / duplicate repair + resume | OK | OK |
+
+#### Observed
+
+- Import failed on the duplicate `name` value, as expected:
+
+  ```text
+  error executing batch on channel 13: error executing batch: error preparing statements for events in batch (4:4) or when executing event with vsn(4): ERROR: duplicate key value violates unique constraint "subject_t_fb_name_uq" (SQLSTATE 23505)
+  ```
+
+- Dropping `subject_t_fb_name_uq` on PostgreSQL and restarting import allowed fallback to resume.
+
+#### Why (from code)
+
+- INSERT apply uses `ON CONFLICT (event.Key) DO NOTHING`, normally `ON CONFLICT (id)`. A `23505` on PostgreSQL's remaining `UNIQUE (name)` is not absorbed by `ON CONFLICT (id)`, so the import-side unique continues to reject duplicate values that YugabyteDB now permits.
+
+#### Notes
+
+- **Failure (observed):** `23505` on PostgreSQL import when YB emits duplicate values for a unique that only PostgreSQL still enforces.
+- **Workaround (observed):** drop/align the PostgreSQL unique to match YB, then restart import. Alternative: repair data so no duplicate reaches the stricter import side before resuming.
+
+---
+
+## Scenario FG — **Fallback: rename captured table** on **YugabyteDB**
+
+Renames a captured table on the active YugabyteDB side during fallback. This is the fallback analogue of **E**: the fallback exporter was initialized from the migration's stored table inventory, so a table rename on the export side likely leaves stale table-name references in fallback metadata / stream setup. Expected outcome is **no clean in-place workaround**; test whether running the same rename on PostgreSQL helps import, or whether export itself becomes unrecoverable.
+
+### Prerequisite
+
+Complete the **Fallback Lab Flow** with `public.control_t` and `public.subject_t` captured. Keep `subject_t` present on both sides before starting this scenario.
+
+### Steps
+
+**1. DDL (YugabyteDB / active target only):**
+
+```sql
+ALTER TABLE public.subject_t RENAME TO subject_fb_renamed_t;
+```
+
+**2. DML (YugabyteDB)** — write to both the renamed table and a control table:
+
+```sql
+INSERT INTO public.subject_fb_renamed_t (name, note)
+VALUES ('fg_after_rename_subject', 'fallback table rename');
+
+INSERT INTO public.control_t (name) VALUES ('fg_after_rename_control');
+```
+
+**3. Watch fallback export/import without PostgreSQL alignment.** Record whether:
+
+- `export data from target` continues streaming `control_t`;
+- rows from `subject_fb_renamed_t` are captured at all;
+- any error references the old `public.subject_t` name.
+
+**4. Exit + resume fallback** (`export data from target` and `import data to source`). This is the main restart probe. Record whether fallback export fails because the stored inventory still references `public.subject_t`.
+
+**5. PostgreSQL alignment probe** — only if export is still running and events appear to be produced for the renamed table:
+
+```sql
+ALTER TABLE public.subject_t RENAME TO subject_fb_renamed_t;
+```
+
+Then resume `import data to source` and drive another YB row:
+
+```sql
+INSERT INTO public.subject_fb_renamed_t (name, note)
+VALUES ('fg_post_pg_rename_subject', 'after pg rename');
+```
+
+If export already failed on the old table name, this alignment is expected **not** to be sufficient.
+
+### Cleanup (after **FG**)
+
+Rename back on any side where the rename was applied, or re-baseline:
+
+```sql
+ALTER TABLE IF EXISTS public.subject_fb_renamed_t RENAME TO subject_t;
+```
+
+### Findings — FG
+
+#### At a glance
+
+| When | `export data from target` | `import data to source` |
+|------|---------------------------|--------------------------|
+| After YB renames `subject_t` and writes renamed-table row | OK for existing captured tables; **renamed-table events not exported** | No renamed-table rows applied |
+| After exit + resume fallback | **Fails** — stale `public.subject_t` metadata queried | Not reached / blocked |
+| After optional PostgreSQL rename alignment | Not useful once export fails | Not sufficient |
+
+#### Observed
+
+- Events from the renamed table (`subject_fb_renamed_t`) were **not exported**.
+- Restarting `export data from target` crashed because stored fallback metadata still referenced `public.subject_t`:
+
+  ```text
+  export of data for source type as 'yugabytedb'
+  Continuing streaming from where we left off...
+  Error in query for parent tablename of table: "SELECT inhparent::pg_catalog.regclass
+  	FROM pg_catalog.pg_class c JOIN pg_catalog.pg_inherits ON c.oid = inhrelid
+  	WHERE c.oid = 'public.subject_t'::regclass::oid": [CurrentName=(subject_t) SourceName=(subject_t) TargetName=()]: ERROR: relation "public.subject_t" does not exist (SQLSTATE 42P01)
+  ```
+
+- PostgreSQL-side rename alignment cannot recover this once export cannot start. The exporter itself is blocked on stale target-side metadata.
+
+#### Why (from code)
+
+- Same class as **E**. Fallback uses stored migration inventory / name registry / stream configuration from the existing migration, not a fresh target→source snapshot inventory. After YB renames the table, the stored `public.subject_t` entry no longer resolves in the live YB catalog, so export restart fails on `'public.subject_t'::regclass`.
+- Since `subject_fb_renamed_t` was not in the fallback capture set, rows written under the new table name before any surgery are not present in the local queue and cannot be replayed by `import data to source`.
+
+#### Notes
+
+- **Failure (observed):** P0-style export-side metadata drift. Existing fallback metadata still references `public.subject_t`; restart cannot proceed after the YB rename.
+- **Workaround:** no clean customer-facing workaround. Unsupported metadata surgery may allow future `subject_fb_renamed_t` events to stream, but already-inserted renamed-table rows were missed and require manual backfill. Without surgery, `export data from target` cannot restart.
+
+---
+
+## Scenario FH — **Fallback: rename column** on **YugabyteDB**
+
+Renames a column on the active YugabyteDB side during fallback. This is the fallback analogue of **F**. Expected outcome: `import data to source` fails because PostgreSQL still has the old column name, but applying the same rename on PostgreSQL should allow queued events to drain.
+
+### Prerequisite
+
+Complete the **Fallback Lab Flow**. Start from baseline where `public.subject_t` has `note`.
+
+### Steps
+
+**1. DDL (YugabyteDB / active target only):**
+
+```sql
+ALTER TABLE public.subject_t RENAME COLUMN note TO note_fb_renamed;
+```
+
+**2. DML (YugabyteDB):**
+
+```sql
+INSERT INTO public.control_t (name) VALUES ('fh_after_rename_col_control');
+INSERT INTO public.subject_t (name, note_fb_renamed)
+VALUES ('fh_after_rename_col_subject', 'fallback column rename');
+```
+
+**3. Watch fallback export/import.** Expected: export continues, import fails when it sees `note_fb_renamed` but PostgreSQL still has `note`.
+
+**4. PostgreSQL alignment workaround:**
+
+```sql
+ALTER TABLE public.subject_t RENAME COLUMN note TO note_fb_renamed;
+```
+
+**5. Exit + resume fallback import.**
+
+**6. DML (YugabyteDB) after alignment:**
+
+```sql
+INSERT INTO public.subject_t (name, note_fb_renamed)
+VALUES ('fh_post_align_subject', 'after pg column rename');
+```
+
+### Cleanup (after **FH**)
+
+Rename back on both sides or re-baseline:
+
+```sql
+ALTER TABLE public.subject_t RENAME COLUMN note_fb_renamed TO note;
+```
+
+### Findings — FH
+
+#### At a glance
+
+| When | `export data from target` | `import data to source` |
+|------|---------------------------|--------------------------|
+| After YB renames `note` and writes renamed column | OK | **Panic** — `note_fb_renamed` not found in PostgreSQL columns |
+| After PostgreSQL column rename + resume | OK | OK |
+| After post-alignment DML | OK | OK |
+
+#### Observed
+
+- Import crashed as expected when the YB event carried `note_fb_renamed` while PostgreSQL still had `note`:
+
+  ```text
+  panic: quote column name : find best matching column name for "note_fb_renamed" in table [CurrentName=(subject_t) SourceName=(subject_t) TargetName=(subject_t)]: column "note_fb_renamed" not found amongst table columns [id name note]
+  ```
+
+- Renaming the column on PostgreSQL fixed the mismatch and `import data to source` resumed successfully.
+
+#### Why (from code)
+
+- Same class as **F** / **FC**: CDC field name follows the export DB (`note_fb_renamed`), and import validates that field against PostgreSQL's table attributes. Until PostgreSQL has the same column name, `getPreparedInsertStmt` cannot quote the field and import panics.
+
+#### Notes
+
+- **Failure (observed):** unknown-column panic on PostgreSQL import while it still has `note`.
+- **Workaround (observed):** apply the same column rename on PostgreSQL, then resume `import data to source`.
+
+---
+
+## Scenario FI — **Fallback: change primary key / conflict key** on **YugabyteDB**
+
+> **Status:** blocked at the YugabyteDB DDL layer for captured CDC tables. YugabyteDB rejects dropping/redefining the primary key because it would rewrite a table that is part of CDC.
+
+Changes the primary key shape on the active YugabyteDB side during fallback. This is the fallback analogue of **O**. The expected failure is not just schema parity: fallback apply builds INSERT conflict handling from CDC `event.Key`; if events start using `name` as the key while PostgreSQL only has `PRIMARY KEY (id)`, `ON CONFLICT (name)` has no matching constraint and import should fail.
+
+### Prerequisite
+
+Complete the **Fallback Lab Flow** from a clean baseline. Ensure `public.subject_t.name` values are unique.
+
+### Steps
+
+**1. DDL (YugabyteDB / active target only)** — change PK from `id` to `name`:
+
+```sql
+ALTER TABLE public.subject_t DROP CONSTRAINT subject_t_pkey;
+ALTER TABLE public.subject_t ADD CONSTRAINT subject_t_pkey PRIMARY KEY (name);
+```
+
+**2. DML (YugabyteDB)** — exercise INSERT / UPDATE / DELETE:
+
+```sql
+INSERT INTO public.control_t (name) VALUES ('fi_after_pk_change_control');
+INSERT INTO public.subject_t (name, note)
+VALUES ('fi_after_pk_change_subject', 'fallback pk change');
+
+UPDATE public.subject_t
+SET note = 'fallback pk change update'
+WHERE name = 'fi_after_pk_change_subject';
+```
+
+**3. Watch fallback export/import without PostgreSQL alignment.** Record exact error. Expected possibilities:
+
+- import error like `42P10` because `ON CONFLICT (name)` has no matching unique / PK on PostgreSQL;
+- or another key-shape / prepared-statement failure depending on the YB CDC key emitted.
+
+**4. PostgreSQL alignment workaround** — if the intended end-state is `PRIMARY KEY (name)`, align PostgreSQL:
+
+```sql
+ALTER TABLE public.subject_t DROP CONSTRAINT subject_t_pkey;
+ALTER TABLE public.subject_t ADD CONSTRAINT subject_t_pkey PRIMARY KEY (name);
+```
+
+**5. Exit + resume fallback import.**
+
+**6. DML (YugabyteDB) after alignment:**
+
+```sql
+INSERT INTO public.subject_t (name, note)
+VALUES ('fi_post_align_subject', 'after pg pk align');
+
+UPDATE public.subject_t
+SET note = 'after pg pk align update'
+WHERE name = 'fi_post_align_subject';
+```
+
+### Cleanup (after **FI**)
+
+Restore the baseline PK on both sides or re-baseline:
+
+```sql
+ALTER TABLE public.subject_t DROP CONSTRAINT subject_t_pkey;
+ALTER TABLE public.subject_t ADD CONSTRAINT subject_t_pkey PRIMARY KEY (id);
+```
+
+### Findings — FI
+
+#### At a glance
+
+| When | `export data from target` | `import data to source` |
+|------|---------------------------|--------------------------|
+| Attempt to drop YB `subject_t_pkey` while table is part of CDC | Not reached | YB rejects DDL |
+| After DML with PG still `PRIMARY KEY (id)` | Not run | Not run |
+| After PostgreSQL PK alignment + resume | Not run | Not run |
+
+#### Observed
+
+- The test could not proceed because YugabyteDB rejected the PK drop on the captured table:
+
+  ```text
+  NOTICE:  table rewrite may lead to inconsistencies
+  DETAIL:  Concurrent DMLs may not be reflected in the new table.
+  HINT:  See https://github.com/yugabyte/yugabyte-db/issues/19860. Set 'ysql_suppress_unsafe_alter_notice' yb-tserver gflag to true to suppress this notice.
+  ERROR:  Invalid table definition: Error creating table schema_drift.subject_t on the master: Cannot rewrite a table that is a part of CDC.
+  ```
+
+- Because the export-side DDL itself is blocked, no fallback CDC key-shape / `ON CONFLICT` mismatch was produced.
+
+#### Why (from code)
+
+- In principle, `getPreparedInsertStmt` appends `ON CONFLICT (` + sorted `event.Key` columns + `) DO NOTHING`; if fallback CDC `event.Key` changed to `name`, PostgreSQL would need a matching unique / PK constraint on `name`. In this actual fallback setup, YugabyteDB prevents the PK rewrite before voyager reaches that state.
+
+#### Notes
+
+- **Failure (observed):** YB-side DDL is blocked: cannot rewrite a table that is part of CDC.
+- **Workaround:** none in the normal fallback workflow. Do not change PK/conflict key on captured YB tables during fallback. The theoretical PostgreSQL PK-alignment workaround is not applicable because the YB DDL cannot be performed.
+
+---
+
+## Scenario FJ — **Fallback: add partition leaf** on **YugabyteDB**
+
+Adds a new partition leaf to an already-captured partitioned table on the active YugabyteDB side during fallback. This is expected to behave like **FA** / **V** in principle: the new leaf is a new physical table from the CDC capture perspective, so fallback should not export rows routed to it unless the leaf is added to the target-export capture metadata/publication. This case exists as a basic fallback partition check, not because we expect a fundamentally new recovery path.
+
+### Prerequisite
+
+Complete the **Fallback Lab Flow** with a partitioned table in scope. Reuse the **P** shape, but make sure `public.part_t` exists on **both** PostgreSQL and YugabyteDB before cutover and is included in the forward live migration table list:
+
+```sql
+CREATE TABLE public.part_t (
+	id BIGINT NOT NULL,
+	day DATE NOT NULL,
+	name TEXT NOT NULL,
+	PRIMARY KEY (id, day)
+) PARTITION BY RANGE (day);
+
+CREATE TABLE public.part_t_p1 PARTITION OF public.part_t
+	FOR VALUES FROM ('2026-01-01') TO ('2026-04-01');
+
+CREATE TABLE public.part_t_p2 PARTITION OF public.part_t
+	FOR VALUES FROM ('2026-04-01') TO ('2026-07-01');
+```
+
+### Steps
+
+**1. DDL (YugabyteDB / active target only)** — add a new leaf after fallback streaming is active:
+
+```sql
+CREATE TABLE public.part_t_p3 PARTITION OF public.part_t
+	FOR VALUES FROM ('2026-07-01') TO ('2026-10-01');
+```
+
+**2. DML (YugabyteDB)** — route a row into the new leaf:
+
+```sql
+INSERT INTO public.control_t (name) VALUES ('fj_after_new_leaf_control');
+INSERT INTO public.part_t (id, day, name)
+VALUES (300, '2026-08-10', 'fj_new_leaf_row');
+```
+
+**3. Watch fallback export/import.** Confirm `control_t` still streams and whether the `part_t_p3` row appears on PostgreSQL (expected: **no**).
+
+**4. PostgreSQL schema alignment only** — create the matching leaf on PostgreSQL:
+
+```sql
+CREATE TABLE public.part_t_p3 PARTITION OF public.part_t
+	FOR VALUES FROM ('2026-07-01') TO ('2026-10-01');
+```
+
+Verify whether this alone replays the missed row (expected: **no**, because the row was never exported).
+
+**5. Optional unsupported surgery probe** — same class as **FA**:
+
+- add `public.part_t_p3` to the YB publication;
+- patch `meta.db` target-export table inventory / import partitioning / unique-key metadata;
+- patch `application.properties` table+column include lists;
+- patch `name_registry.json`;
+- restart `export data from target` and `import data to source`;
+- insert a **new** row into `part_t_p3`.
+
+Expected: only **future** rows after surgery/restart can stream. Rows inserted before the leaf entered the fallback capture set require manual backfill.
+
+### Cleanup (after **FJ**)
+
+Drop the partitioned test table on both sides or re-baseline:
+
+```sql
+DROP TABLE IF EXISTS public.part_t CASCADE;
+```
+
+### Findings — FJ
+
+#### At a glance
+
+| When | `export data from target` | `import data to source` |
+|------|---------------------------|--------------------------|
+| After YB adds `part_t_p3` and writes a row into it | OK for existing captured leaves; **new leaf row not exported** | No `part_t_p3` row applied |
+| After PostgreSQL creates matching `part_t_p3` | OK for existing captured leaves | Still no missed `part_t_p3` row replayed |
+| After restart of `export data from target` | Warning about new leaf | No automatic recovery |
+| After optional surgery + new post-surgery row | TODO | TODO |
+
+#### Observed
+
+- By default, adding the new leaf did **not** crash export/import. Existing captured tables/leaves continued normally.
+- Rows routed to the new leaf (`part_t_p3`) were not exported; nothing arrived on PostgreSQL for that row.
+- Creating the matching PostgreSQL leaf is only schema alignment; it does not replay the already-missed row.
+- Restarting `export data from target` produced the expected new-leaf warning, same class as the forward partition case:
+
+  ```text
+  Root table: public.part_t, new leaf partitions: public.part_t_p3.
+  ```
+
+#### Why (from code)
+
+- Same capture-inventory class as **FA** / forward partition add. Fallback target export uses stored table/leaf inventory and does not automatically add new physical leaf tables to publication/include list/name registry. Restart can detect/report the new leaf, but it does not by itself make missed leaf rows appear in the queue.
+
+#### Notes
+
+- **Failure / divergence (observed):** silent divergence for rows routed to the new leaf before it is in the fallback capture set.
+- **Workaround:** same class as **FA**. Schema alignment alone cannot replay missed rows. Unsupported surgery may capture future rows only, with manual backfill for earlier rows.

@@ -1,14 +1,3 @@
--- Schema only: run on **PostgreSQL (source)** and **YugabyteDB (target)**.
--- Creates empty public.control_t / public.subject_t (no seed rows).
--- See control_subject_baseline.sql for how this fits the full reset flow.
-\connect postgres
-
-DROP DATABASE schema_drift;
-
-CREATE DATABASE schema_drift;
-
-\connect schema_drift
-
 BEGIN;
 
 DROP TABLE IF EXISTS public.subject_t CASCADE;

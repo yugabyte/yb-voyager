@@ -1,8 +1,3 @@
--- Seed rows: **PostgreSQL (source) only.** Do not run on YugabyteDB (target);
--- snapshot / import will populate the target.
-
-\connect schema_drift
-
 BEGIN;
 
 INSERT INTO public.control_t (name, note)
