@@ -4,7 +4,7 @@ on:
   push:
     branches: ['main', '*.*-dev', '*.*.*-dev']
   pull_request:
-    branches: [cursor/use-partition-root-flag-4f33]
+    branches: [main]
 
 jobs:
   prepare-versions:
