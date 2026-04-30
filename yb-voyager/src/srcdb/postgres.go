@@ -1064,6 +1064,63 @@ func (pg *PostgreSQL) DropPublication(publicationName string) error {
 	return nil
 }
 
+// PG_QUERY_GET_PRIMARY_KEY_COLUMNS returns the PK columns of all the tables in the given list in
+// PK definition order. ORDER BY array_position(indkey, attnum) is essential:
+// (id, region) and (region, id) are different keys, and we compare slices for
+// equality across leaf partitions in the live-migration guardrail.
+var PG_QUERY_GET_PRIMARY_KEY_COLUMNS_FOR_TABLES = `
+SELECT n.nspname, c.relname, a.attname
+FROM pg_index i
+JOIN pg_class      c ON c.oid = i.indrelid
+JOIN pg_namespace  n ON n.oid = c.relnamespace
+JOIN pg_attribute  a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
+WHERE (n.nspname, c.relname) IN (%s)
+  AND i.indisprimary
+ORDER BY array_position(i.indkey, a.attnum);`
+
+func (pg *PostgreSQL) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+
+	catalogTableToTuple := make(map[string]sqlname.NameTuple)
+	for _, table := range tables {
+		catalogTableToTuple[table.AsQualifiedCatalogName()] = table
+	}
+
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
+
+	queryTablesString := strings.Join(lo.Map(tables, func(table sqlname.NameTuple, _ int) string {
+		schema, tableName := table.ForCatalogQuery()
+		return fmt.Sprintf("('%s', '%s')", schema, tableName)
+	}), ", ")
+	query := fmt.Sprintf(PG_QUERY_GET_PRIMARY_KEY_COLUMNS_FOR_TABLES, queryTablesString)
+
+	rows, err := pg.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("query primary keys for tables: %w", err)
+	}
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			log.Warnf("close rows for table primary-key query: %v", cerr)
+		}
+	}()
+
+	for rows.Next() {
+		var schema, table, col string
+		if err := rows.Scan(&schema, &table, &col); err != nil {
+			return nil, fmt.Errorf("scan PK column row for tables: %w", err)
+		}
+		tableTuple, ok := catalogTableToTuple[fmt.Sprintf("%s.%s", schema, table)]
+		if !ok {
+			return nil, goerrors.Errorf("table not found in catalog: %s.%s", schema, table)
+		}
+		cols, _ := result.Get(tableTuple)
+		result.Put(tableTuple, append(cols, col))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate PK column rows for tables: %w", err)
+	}
+	return result, nil
+}
+
 var PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK = `SELECT nspname AS schema_name, relname AS table_name, COUNT(conname) AS pk_count
 FROM pg_class c
 LEFT JOIN pg_namespace n ON n.oid = c.relnamespace

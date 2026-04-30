@@ -1144,6 +1144,48 @@ func (yb *YugabyteDB) GetNonPKTables() ([]string, error) {
 	return nonPKTables, nil
 }
 
+func (yb *YugabyteDB) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	catalogTableToTuple := make(map[string]sqlname.NameTuple)
+	for _, table := range tables {
+		catalogTableToTuple[table.AsQualifiedCatalogName()] = table
+	}
+
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
+
+	queryTablesString := strings.Join(lo.Map(tables, func(table sqlname.NameTuple, _ int) string {
+		schema, tableName := table.ForCatalogQuery()
+		return fmt.Sprintf("('%s', '%s')", schema, tableName)
+	}), ", ")
+	query := fmt.Sprintf(PG_QUERY_GET_PRIMARY_KEY_COLUMNS_FOR_TABLES, queryTablesString)
+
+	rows, err := yb.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("query primary keys for tables: %w", err)
+	}
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			log.Warnf("close rows for table primary-key query: %v", cerr)
+		}
+	}()
+
+	for rows.Next() {
+		var schema, table, col string
+		if err := rows.Scan(&schema, &table, &col); err != nil {
+			return nil, fmt.Errorf("scan PK column row for tables: %w", err)
+		}
+		tableTuple, ok := catalogTableToTuple[fmt.Sprintf("%s.%s", schema, table)]
+		if !ok {
+			return nil, goerrors.Errorf("table not found in catalog: %s.%s", schema, table)
+		}
+		cols, _ := result.Get(tableTuple)
+		result.Put(tableTuple, append(cols, col))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate PK column rows for tables: %w", err)
+	}
+	return result, nil
+}
+
 func (yb *YugabyteDB) GetReplicationConnection() (*pgconn.PgConn, error) {
 	return pgconn.Connect(context.Background(), yb.getConnectionUri()+"&replication=database")
 }

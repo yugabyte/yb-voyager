@@ -538,6 +538,17 @@ func TestLiveMigrationPartitionedTableWithChildPK(t *testing.T) {
 
 }
 
+/*
+Schema
+Root table: public.orders
+Child Tables:
+  - public.orders_us (PK id)
+  - public.orders_eu (PK id)
+  - public.orders_apac (PK id1)
+  - public.orders_emea (PK id1)
+
+This scenario is not supported yet and validating guardrail in export data for that
+*/
 func TestLiveMigrationPartitionedTableWithChildTablesHavingDifferentPK(t *testing.T) {
 	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
@@ -550,88 +561,74 @@ func TestLiveMigrationPartitionedTableWithChildTablesHavingDifferentPK(t *testin
 			Type:         "yugabytedb",
 			DatabaseName: "test_pt_ct_diff_pk",
 		},
-		SchemaNames: []string{"public"},
+		SchemaNames: []string{"public", "test_schema", "TestSchemaCase"},
 		SchemaSQL: []string{
-			`CREATE TABLE public.orders(
+			`CREATE SCHEMA IF NOT EXISTS public;`,
+			`CREATE SCHEMA IF NOT EXISTS test_schema;`,
+			`CREATE SCHEMA IF NOT EXISTS "TestSchemaCase";`,
+			`CREATE TABLE "TestSchemaCase".orders (
 				id SERIAL,
-				id1 int NOT NULL,
 				region TEXT NOT NULL,
-				amount bigint
+				amount bigint,
+				id1 bigint
 			) PARTITION BY LIST (region);`,
-			`CREATE TABLE public.orders_us PARTITION OF public.orders FOR VALUES IN ('US');`,
-			`ALTER TABLE public.orders_us ADD PRIMARY KEY (id);`,
-			`CREATE TABLE public.orders_eu PARTITION OF public.orders FOR VALUES IN ('EU');`,
-			`ALTER TABLE public.orders_eu ADD PRIMARY KEY (id);`,
-			`CREATE TABLE public.orders_apac PARTITION OF public.orders FOR VALUES IN ('APAC');`,
-			`ALTER TABLE public.orders_apac ADD PRIMARY KEY (id1);`,
-			`CREATE TABLE public.orders_emea PARTITION OF public.orders FOR VALUES IN ('EMEA');`,
-			`ALTER TABLE public.orders_emea ADD PRIMARY KEY (id1);`,
+			`CREATE TABLE test_schema."Orders_US" PARTITION OF "TestSchemaCase".orders FOR VALUES IN ('US');`,
+			`ALTER TABLE test_schema."Orders_US" ADD PRIMARY KEY (id);`,
+			`CREATE TABLE test_schema."Orders_EU" PARTITION OF "TestSchemaCase".orders FOR VALUES IN ('EU');`,
+			`CREATE TABLE test_schema."Orders_APAC" PARTITION OF "TestSchemaCase".orders FOR VALUES IN ('APAC');`,
+			`ALTER TABLE test_schema."Orders_APAC" ADD PRIMARY KEY (id1);`,
+			`CREATE TABLE test_schema."Orders_EMEA" PARTITION OF "TestSchemaCase".orders FOR VALUES IN ('EMEA');`,
+			`ALTER TABLE test_schema."Orders_EMEA" ADD PRIMARY KEY (id1);`,
+			`CREATE TABLE public.customers(
+				id SERIAL,
+				id1 bigint,
+				name TEXT NOT NULL,
+				email TEXT NOT NULL,
+				status TEXT NOT NULL,
+				arr NUMERIC NOT NULL
+			) PARTITION BY LIST (status);`,
+			`CREATE TABLE public."Customers_Active" PARTITION OF public.customers FOR VALUES IN ('ACTIVE', 'RECURRING','REACTIVATED') PARTITION BY RANGE(arr);`,
+			`CREATE TABLE test_schema."Customers_Other" PARTITION OF public.customers DEFAULT;`,
+			`CREATE TABLE public.customers_arr_small PARTITION OF public."Customers_Active" FOR VALUES FROM (MINVALUE) TO (101) PARTITION BY HASH(id);`,
+			`CREATE TABLE test_schema."Customers_Part11" PARTITION OF public.customers_arr_small FOR VALUES WITH (modulus 2, remainder 0);`,
+			`CREATE TABLE "TestSchemaCase"."Customers_Part12" PARTITION OF public.customers_arr_small FOR VALUES WITH (modulus 2, remainder 1);`,
+			`CREATE TABLE "TestSchemaCase"."Customers_Arr_Large" PARTITION OF public."Customers_Active" FOR VALUES FROM (101) TO (MAXVALUE) PARTITION BY HASH(id);`,
+			`CREATE TABLE public.customers_part21 PARTITION OF "TestSchemaCase"."Customers_Arr_Large" FOR VALUES WITH (modulus 2, remainder 0);`,
+			`CREATE TABLE "TestSchemaCase".customers_part22 PARTITION OF "TestSchemaCase"."Customers_Arr_Large" FOR VALUES WITH (modulus 2, remainder 1);`,
+			`ALTER TABLE test_schema."Customers_Part11" ADD PRIMARY KEY (id1);`,
+			`ALTER TABLE "TestSchemaCase"."Customers_Part12" ADD PRIMARY KEY (id);`,
+			`ALTER TABLE "TestSchemaCase".customers_part22 ADD PRIMARY KEY (id1);`,
+			`ALTER TABLE test_schema."Orders_EU" ADD PRIMARY KEY (id);`,
+			`ALTER TABLE test_schema."Customers_Other" ADD PRIMARY KEY (id1);`,
+			`ALTER TABLE public.customers_part21 ADD PRIMARY KEY (id);`,
 		},
 		SourceSetupSchemaSQL: []string{
-			`ALTER TABLE public.orders REPLICA IDENTITY FULL;`,
-			`ALTER TABLE public.orders_us REPLICA IDENTITY FULL;`,
-			`ALTER TABLE public.orders_eu REPLICA IDENTITY FULL;`,
-			`ALTER TABLE public.orders_apac REPLICA IDENTITY FULL;`,
-			`ALTER TABLE public.orders_emea REPLICA IDENTITY FULL;`,
+			`ALTER TABLE "TestSchemaCase".orders REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema."Orders_US" REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema."Orders_EU" REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema."Orders_APAC" REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema."Orders_EMEA" REPLICA IDENTITY FULL;`,
+			`ALTER TABLE public.customers REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema."Customers_Other" REPLICA IDENTITY FULL;`,
+			`ALTER TABLE public."Customers_Active" REPLICA IDENTITY FULL;`,
+			`ALTER TABLE public.customers_arr_small REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema."Customers_Part11" REPLICA IDENTITY FULL;`,
+			`ALTER TABLE "TestSchemaCase"."Customers_Part12" REPLICA IDENTITY FULL;`,
+			`ALTER TABLE "TestSchemaCase"."Customers_Arr_Large" REPLICA IDENTITY FULL;`,
+			`ALTER TABLE public.customers_part21 REPLICA IDENTITY FULL;`,
+			`ALTER TABLE "TestSchemaCase".customers_part22 REPLICA IDENTITY FULL;`,
 		},
 		InitialDataSQL: []string{
-			`INSERT INTO public.orders (id, id1, region, amount) VALUES (1, 1, 'US', 100);`,
-			`INSERT INTO public.orders (id, id1, region, amount) VALUES (2, 2, 'EU', 200);`,
-			`INSERT INTO public.orders (id, id1, region, amount) VALUES (3, 3, 'APAC', 300);`,
-			`INSERT INTO public.orders (id, id1, region, amount) VALUES (4, 4, 'EMEA', 400);`,
+			`INSERT INTO "TestSchemaCase".orders (id, region, amount, id1) VALUES (1, 'US', 100, 1);`,
+			`INSERT INTO "TestSchemaCase".orders (id, region, amount, id1) VALUES (2, 'US', 200, 2);`,
+			`INSERT INTO "TestSchemaCase".orders (id, region, amount, id1) VALUES (3, 'EU', 150, 3);`,
+			`INSERT INTO "TestSchemaCase".orders (id, region, amount, id1) VALUES (4, 'EU', 250, 4);`,
+			`INSERT INTO "TestSchemaCase".orders (id, region, amount, id1) VALUES (5, 'APAC', 300, 5);`,
+			`INSERT INTO public.customers (id, id1, name, email, status, arr) VALUES (1, 1, 'RECURRING', 'recurring@example.com', 'RECURRING', 106);`,
+			`INSERT INTO public.customers (id, id1, name, email, status, arr) VALUES (2, 2, 'REACTIVATED', 'reactivated@example.com', 'OTHER', 85);`,
 		},
-		SourceDeltaSQL: []string{
-			`DO $$
-			DECLARE
-			BEGIN
-				FOR i IN 1..100 LOOP
-					INSERT INTO public.orders (id, id1, region, amount) VALUES (i+4, i+4, 'US', i * 100);
-					INSERT INTO public.orders (id, id1, region, amount) VALUES (i+104, i+104, 'EU', i * 100);
-					INSERT INTO public.orders (id, id1, region, amount) VALUES (i+204, i+204, 'APAC', i * 100);
-					INSERT INTO public.orders (id, id1, region, amount) VALUES (i+304, i+304, 'EMEA', i * 100);
-
-					UPDATE public.orders SET amount = amount + 1 WHERE id = i+4;
-					UPDATE public.orders SET amount = amount + 1 WHERE id = i+104;
-					UPDATE public.orders SET amount = amount + 1 WHERE id1 = i+204;
-					UPDATE public.orders SET amount = amount + 1 WHERE id1 = i+304;
-
-					UPDATE public.orders SET region = 'EU' WHERE id = i+4;
-					UPDATE public.orders SET region = 'APAC' WHERE id = i+104;
-					UPDATE public.orders SET region = 'EMEA' WHERE id = i+204;
-					UPDATE public.orders SET region = 'US' WHERE id = i+304;
-
-					if i % 2 = 0 THEN
-						DELETE FROM public.orders WHERE id = i+4;
-					END IF;
-				END LOOP;
-			END $$;`,
-		},
-		TargetDeltaSQL: []string{
-			`DO $$
-			DECLARE
-			BEGIN
-				FOR i IN 401..500 LOOP
-					INSERT INTO public.orders (id, id1, region, amount) VALUES (i+4, i+4, 'US', i * 100);
-					INSERT INTO public.orders (id, id1, region, amount) VALUES (i+104, i+104, 'EU', i * 100);
-					INSERT INTO public.orders (id, id1, region, amount) VALUES (i+204, i+204, 'APAC', i * 100);
-					INSERT INTO public.orders (id, id1, region, amount) VALUES (i+304, i+304, 'EMEA', i * 100);
-
-					UPDATE public.orders SET amount = amount + 1 WHERE id = i+4;
-					UPDATE public.orders SET amount = amount + 1 WHERE id = i+104;
-					UPDATE public.orders SET amount = amount + 1 WHERE id = i+204;
-					UPDATE public.orders SET amount = amount + 1 WHERE id = i+304;
-
-					UPDATE public.orders SET region = 'EU' WHERE id = i+4;
-					UPDATE public.orders SET region = 'APAC' WHERE id = i+104;
-					UPDATE public.orders SET region = 'EMEA' WHERE id = i+204;
-					UPDATE public.orders SET region = 'US' WHERE id = i+304;
-
-					if i % 2 = 0 THEN
-						DELETE FROM public.orders WHERE id = i+4;
-					END IF;
-				END LOOP;
-			END $$;`,
-		},
+		SourceDeltaSQL: []string{},
+		TargetDeltaSQL: []string{},
 		CleanupSQL: []string{
 			`DROP TABLE IF EXISTS public.orders CASCADE;`,
 		},
@@ -645,63 +642,72 @@ func TestLiveMigrationPartitionedTableWithChildTablesHavingDifferentPK(t *testin
 	err = lm.SetupSchema()
 	testutils.FatalIfError(t, err, "failed to setup schema")
 
-	err = lm.StartExportData(true, nil)
-	testutils.FatalIfError(t, err, "failed to start export data")
+	err = lm.StartExportData(false, nil)
+	assert.Error(t, err)
 
-	err = lm.StartImportData(true, map[string]string{
-		"--use-partition-root": "false",
-	})
-	testutils.FatalIfError(t, err, "failed to start import data")
+	exportErr := lm.GetExportCommandStderr()
+	assert.Contains(t, exportErr, "Live migration requires all leaf partitions of a partitioned table to share the same primary key columns.\nEither align the leaves' primary keys, or exclude these tables using the --exclude-table-list argument.")
 
-	err = lm.WaitForSnapshotComplete(map[string]int64{
-		`"public"."orders"`: 4,
-	}, 30)
-	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+	exportStdout := lm.GetExportCommandStdout()
+	errMsg := utils.InfoColor.Sprintf("Partitioned tables with inconsistent primary keys across leaf partitions:\n")
+	errMsg += "- \"TestSchemaCase\".orders: (id), (id1)\n- public.customers: (id), (id1)"
+	assert.Contains(t, exportStdout, errMsg)
 
-	err = lm.ExecuteSourceDelta()
-	testutils.FatalIfError(t, err, "failed to execute source delta")
+	//Not supporting this test case for now as it requires some thinking and understanding cases of uniqueness of the PKs across the partitions
+	// err = lm.StartImportData(true, map[string]string{
+	// 	"--use-partition-root": "false",
+	// })
+	// testutils.FatalIfError(t, err, "failed to start import data")
 
-	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`"public"."orders"`: {
-			Inserts: 800,
-			Updates: 400,
-			Deletes: 450,
-		},
-	}, 60, 3)
-	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+	// err = lm.WaitForSnapshotComplete(map[string]int64{
+	// 	`"public"."orders"`: 4,
+	// }, 30)
+	// testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
-	err = lm.ValidateDataConsistency([]string{`"public"."orders"`, `"public"."orders_us"`, `"public"."orders_eu"`, `"public"."orders_apac"`, `"public"."orders_emea"`}, "id")
-	testutils.FatalIfError(t, err, "failed to validate data consistency")
+	// err = lm.ExecuteSourceDelta()
+	// testutils.FatalIfError(t, err, "failed to execute source delta")
 
-	err = lm.InitiateCutoverToTarget(true, nil)
-	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+	// err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+	// 	`"public"."orders"`: {
+	// 		Inserts: 800,
+	// 		Updates: 400,
+	// 		Deletes: 450,
+	// 	},
+	// }, 60, 3)
+	// testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
-	err = lm.WaitForCutoverComplete(0, 30)
-	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+	// err = lm.ValidateDataConsistency([]string{`"public"."orders"`, `"public"."orders_us"`, `"public"."orders_eu"`, `"public"."orders_apac"`, `"public"."orders_emea"`}, "id")
+	// testutils.FatalIfError(t, err, "failed to validate data consistency")
 
-	err = lm.ExecuteTargetDelta()
-	testutils.FatalIfError(t, err, "failed to execute target delta")
+	// err = lm.InitiateCutoverToTarget(true, nil)
+	// testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
-	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
-		`"public"."orders"`: {
-			Inserts: 800,
-			Updates: 400,
-			Deletes: 450,
-		},
-	}, 60, 3)
-	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+	// err = lm.WaitForCutoverComplete(0, 30)
+	// testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
-	err = lm.ValidateDataConsistency([]string{`"public"."orders"`, `"public"."orders_us"`, `"public"."orders_eu"`, `"public"."orders_apac"`, `"public"."orders_emea"`}, "id")
-	testutils.FatalIfError(t, err, "failed to validate data consistency")
+	// err = lm.ExecuteTargetDelta()
+	// testutils.FatalIfError(t, err, "failed to execute target delta")
 
-	err = lm.InitiateCutoverToSource(nil)
-	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+	// err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+	// 	`"public"."orders"`: {
+	// 		Inserts: 800,
+	// 		Updates: 400,
+	// 		Deletes: 450,
+	// 	},
+	// }, 60, 3)
+	// testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
-	err = lm.WaitForCutoverSourceComplete(0, 160)
-	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
+	// err = lm.ValidateDataConsistency([]string{`"public"."orders"`, `"public"."orders_us"`, `"public"."orders_eu"`, `"public"."orders_apac"`, `"public"."orders_emea"`}, "id")
+	// testutils.FatalIfError(t, err, "failed to validate data consistency")
 
-	err = lm.ValidateDataConsistency([]string{`"public"."orders"`, `"public"."orders_us"`, `"public"."orders_eu"`, `"public"."orders_apac"`, `"public"."orders_emea"`}, "id")
-	testutils.FatalIfError(t, err, "failed to validate data consistency")
+	// err = lm.InitiateCutoverToSource(nil)
+	// testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+
+	// err = lm.WaitForCutoverSourceComplete(0, 160)
+	// testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
+
+	// err = lm.ValidateDataConsistency([]string{`"public"."orders"`, `"public"."orders_us"`, `"public"."orders_eu"`, `"public"."orders_apac"`, `"public"."orders_emea"`}, "id")
+	// testutils.FatalIfError(t, err, "failed to validate data consistency")
 }
 
 /*
@@ -916,15 +922,15 @@ partition hierarchies):
 public.customers - partitioned by LIST(status); no PK on root
   - test_schema."Customers_Other" - DEFAULT partition, no PK initially
   - public."Customers_Active"     - partition FOR ('ACTIVE','RECURRING','REACTIVATED'),
-                                    sub-partitioned BY RANGE(arr); intermediate, no PK
-      - public.customers_arr_small - sub-partition FROM (MINVALUE) TO (101),
-                                     sub-partitioned BY HASH(id); intermediate, no PK
-          - test_schema."Customers_Part11"           - modulus 2, remainder 0, PK (id)
-          - "TestSchemaCase"."Customers_Part12"      - modulus 2, remainder 1, PK (id)
-      - "TestSchemaCase"."Customers_Arr_Large" - sub-partition FROM (101) TO (MAXVALUE),
-                                                 sub-partitioned BY HASH(id); intermediate, no PK
-          - public.customers_part21                  - modulus 2, remainder 0, no PK initially
-          - "TestSchemaCase".customers_part22        - modulus 2, remainder 1, PK (id)
+    sub-partitioned BY RANGE(arr); intermediate, no PK
+  - public.customers_arr_small - sub-partition FROM (MINVALUE) TO (101),
+    sub-partitioned BY HASH(id); intermediate, no PK
+  - test_schema."Customers_Part11"           - modulus 2, remainder 0, PK (id)
+  - "TestSchemaCase"."Customers_Part12"      - modulus 2, remainder 1, PK (id)
+  - "TestSchemaCase"."Customers_Arr_Large" - sub-partition FROM (101) TO (MAXVALUE),
+    sub-partitioned BY HASH(id); intermediate, no PK
+  - public.customers_part21                  - modulus 2, remainder 0, no PK initially
+  - "TestSchemaCase".customers_part22        - modulus 2, remainder 1, PK (id)
 
 CDC events:
 "TestSchemaCase".orders:
