@@ -2090,6 +2090,73 @@ func reportUnsupportedTablesForLiveMigration(finalTableList []sqlname.NameTuple,
 		utils.ErrExit("Currently voyager does not support live-migration for tables without a primary key.\n" +
 			"You can exclude these tables using the --exclude-table-list argument.")
 	}
+
+	reportLeafPartitionsWithMismatchedPrimaryKeys(rootToLeafPartitions, hasPK)
+}
+
+// reportLeafPartitionsWithMismatchedPrimaryKeys ensures that, for every
+// partitioned root whose own PK is missing but each leaf carries one, all
+// leaves share the *same* PK column list (in the same order). With CDC,
+// events from different leaves carry different key columns when their PKs
+// diverge, which would silently corrupt downstream replication.
+//
+// The check is intentionally restricted to roots without a PK: PostgreSQL
+// already enforces that a PK on a partitioned root is propagated to every
+// leaf, so those cases cannot diverge.
+func reportLeafPartitionsWithMismatchedPrimaryKeys(
+	rootToLeafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple],
+	hasPK func(sqlname.NameTuple) bool,
+) {
+	mismatches := utils.NewStructMap[sqlname.NameTuple, []string]()
+	rootToLeafPartitions.IterKV(func(root sqlname.NameTuple, leaves []sqlname.NameTuple) (bool, error) {
+		if hasPK(root) || len(leaves) <= 1 {
+			// PG enforces same PK across leaves when root has one; a single
+			// leaf has nothing to compare against.
+			return true, nil
+		}
+		var firstPK []string
+		for i, leaf := range leaves {
+			pk, err := source.DB().GetPrimaryKeyColumns(leaf)
+			if err != nil {
+				return false, fmt.Errorf("get primary key columns for %s: %w", leaf.ForOutput(), err)
+			}
+			if i == 0 {
+				firstPK = pk
+				continue
+			}
+			if !slices.Equal(firstPK, pk) {
+				pks, ok := mismatches.Get(root)
+				if !ok {
+					pks = []string{}
+				}
+				pks = append(pks, strings.Join(pk, ", "))
+				mismatches.Put(root, pks)
+				// Stop at the first mismatch under this root; further
+				// mismatches add noise without changing the resolution.
+			}
+		}
+		pks, ok := mismatches.Get(root)
+		if ok {
+			pks = append(pks, strings.Join(firstPK, ", "))
+			pks = lo.Uniq(pks)
+			sort.Strings(pks)
+			mismatches.Put(root, pks)
+		}
+		return true, nil
+	})
+
+	if len(mismatches.Keys()) == 0 {
+		return
+	}
+	sortFn := func(a sqlname.NameTuple, b sqlname.NameTuple) bool {
+		return a.AsQualifiedCatalogName() < b.AsQualifiedCatalogName()
+	}
+	utils.PrintAndLogfInfo("Partitioned tables with inconsistent primary keys across leaf partitions:")
+	mismatches.IterKVSorted(sortFn, func(root sqlname.NameTuple, pks []string) (bool, error) {
+		utils.PrintAndLogf("- %s: (%s)\n", root.ForOutput(), strings.Join(pks, "), ("))
+		return true, nil
+	})
+	utils.ErrExit("Live migration requires all leaf partitions of a partitioned table to share the same primary key columns.\nEither align the leaves' primary keys, or exclude these tables using the --exclude-table-list argument.")
 }
 
 // buildRootToLeafPartitionsMap inverts the leaf->root rename map (qualified.Unquoted strings)
