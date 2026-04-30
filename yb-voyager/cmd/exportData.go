@@ -2198,34 +2198,6 @@ func buildRootToLeafPartitionsMap(partitionsToRootTableMap map[string]string, fi
 	return rootToLeafPartitions, nil
 }
 
-// buildRootToLeafPartitionsMap inverts the leaf->root rename map (qualified.Unquoted strings)
-// into a NameTuple-keyed map of root -> []leaf partitions, resolving each name through the name
-// registry so callers can compare against NameTuples coming from finalTableList.
-func buildRootToLeafPartitionsMap(partitionsToRootTableMap map[string]string, finalTableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple], error) {
-	finalTableListMapUnquotedToNameTuple := make(map[string]sqlname.NameTuple)
-	for _, table := range finalTableList {
-		finalTableListMapUnquotedToNameTuple[table.AsQualifiedCatalogName()] = table
-	}
-	rootToLeafPartitions := utils.NewStructMap[sqlname.NameTuple, []sqlname.NameTuple]()
-	for leafQualified, rootQualified := range partitionsToRootTableMap {
-		leafTuple, ok := finalTableListMapUnquotedToNameTuple[leafQualified]
-		if !ok {
-			return nil, goerrors.Errorf("lookup leaf partition %q", leafQualified)
-		}
-		rootTuple, ok := finalTableListMapUnquotedToNameTuple[rootQualified]
-		if !ok {
-			return nil, goerrors.Errorf("lookup root partition %q", rootQualified)
-		}
-		leaves, ok := rootToLeafPartitions.Get(rootTuple)
-		if !ok {
-			leaves = []sqlname.NameTuple{}
-		}
-		leaves = append(leaves, leafTuple)
-		rootToLeafPartitions.Put(rootTuple, leaves)
-	}
-	return rootToLeafPartitions, nil
-}
-
 func handleUnsupportedColumnsInExportData(unsupportedTableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) {
 	log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedTableColumnsMap)
 
