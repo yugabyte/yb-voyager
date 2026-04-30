@@ -62,6 +62,7 @@ type TargetConf struct {
 	MaxParallelism             int                           `json:"max_parallelism"` // in case adaptive parallelism is enabled.
 	OnPrimaryKeyConflictAction string                        `json:"on_primary_key_conflict_action"`
 	SessionVars                []string                      `json:"session_vars"`
+	UsePartitionRoot           bool                          `json:"use_partition_root"`
 }
 
 func (t *TargetConf) Clone() *TargetConf {

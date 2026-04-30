@@ -1072,18 +1072,28 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	for i := 0; i < len(batch.Events); i++ {
 		event := batch.Events[i]
 		if event.Op == "u" {
-			stmt, err := event.GetSQLStmt(yb)
+			/*
+			   Currently ingestion logic is to ingest cdc data via root table for the partitioned table by default to cases where
+			   partitioning strategy/names change on the target database. So with configuration '--use-partition-root false', we are ingesting data via partition table.
+			   but with UPDATE <partition table> stmt on YB https://github.com/yugabyte/yugabyte-db/issues/31214 , there is a limiation that it errors out if the UPDATE statement doesn't include partition key so we are skipping
+			   ingestion of UPDATE events via partition table on Target DB. and in other importers we are ingesting data via partition table.
+			   so use partition root table always for UPDATE events  in YB
+			*/
+			stmt, err := event.GetSQLStmt(yb, true)
 			if err != nil {
 				return fmt.Errorf("get sql stmt: %w", err)
 			}
 			ybBatch.Queue(stmt)
 			log.Debugf("SQL statement: Batch(%s): Event(%d): [%s]", batch.ID(), event.Vsn, stmt)
 		} else {
-			stmt, err := event.GetPreparedSQLStmt(yb, yb.Tconf.TargetDBType)
+			stmt, err := event.GetPreparedSQLStmt(yb, yb.Tconf.TargetDBType, yb.tconf.UsePartitionRoot)
 			if err != nil {
 				return fmt.Errorf("get prepared sql stmt: %w", err)
 			}
-			psName := event.GetPreparedStmtName()
+			psName, err := event.GetPreparedStmtName(yb.tconf.UsePartitionRoot)
+			if err != nil {
+				return fmt.Errorf("get prepared stmt name: %w", err)
+			}
 			params := event.GetParams()
 			if _, ok := stmtToPrepare[psName]; !ok {
 				stmtToPrepare[psName] = stmt
