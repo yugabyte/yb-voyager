@@ -947,7 +947,6 @@ Initially missing PKs (to trigger the primary-key guardrail in export data):
   - test_schema."Orders_EU"
   - test_schema."Customers_Other"
   - public.customers_part21
-
 Checking if export data fails with the Primary key guardrail error.
 If it fails, assert the error message contains the table names without a Primary key,
 and then create the PK on those tables and continue with the rest of the flow.
