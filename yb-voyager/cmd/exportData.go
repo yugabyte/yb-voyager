@@ -2131,8 +2131,6 @@ func reportLeafPartitionsWithMismatchedPrimaryKeys(
 				}
 				pks = append(pks, strings.Join(pk, ", "))
 				mismatches.Put(root, pks)
-				// Stop at the first mismatch under this root; further
-				// mismatches add noise without changing the resolution.
 			}
 		}
 		pks, ok := mismatches.Get(root)
