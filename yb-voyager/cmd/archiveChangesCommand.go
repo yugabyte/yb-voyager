@@ -28,9 +28,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tebeka/atexit"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/archivechanges"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/segmentcleanup"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -41,7 +41,7 @@ var (
 	StopArchiverSignal          bool
 )
 
-var segmentCleanupCmd = &cobra.Command{
+var archiveChangesCmd = &cobra.Command{
 	Use: "changes",
 	Short: "Archive or clean up processed CDC event queue segments during live migration.\n" +
 		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/cutover-archive/archive-changes/",
@@ -54,16 +54,16 @@ to processed segments:
   delete  — delete processed segments once fs utilization exceeds the threshold.
  archive — copy processed segments to --archive-dir, then delete the originals.
 
-The --policy flag is required. Accepted values: %s`, strings.Join(segmentcleanup.ValidPolicyNames, ", ")),
+The --policy flag is required. Accepted values: %s`, strings.Join(archivechanges.ValidPolicyNames, ", ")),
 
 	PreRun: func(cmd *cobra.Command, args []string) {
-		validateSegmentCleanupFlags(cmd)
+		validateArchiveChangesFlags(cmd)
 	},
 
-	Run: segmentCleanupCommandFn,
+	Run: archiveChangesCommandFn,
 }
 
-func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
+func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("error getting migration status record: %v", err)
@@ -87,28 +87,28 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 		record.ArchivingEnabled = true
 		record.SegmentCleanupRunning = true
 	})
-	resetSegmentCleanupRunning := func() {
+	resetArchiveChangesRunning := func() {
 		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			record.SegmentCleanupRunning = false
 		})
 	}
-	defer resetSegmentCleanupRunning()
+	defer resetArchiveChangesRunning()
 
 	ctx, cancel := context.WithCancel(cmd.Context())
 	defer cancel()
 
 	// Also register as an atexit handler so the flag is cleared when
 	// utils.ErrExit calls atexit.Exit, which bypasses Go defers.
-	atexit.Register(resetSegmentCleanupRunning)
+	atexit.Register(resetArchiveChangesRunning)
 
-	cfg := segmentcleanup.Config{
+	cfg := archivechanges.Config{
 		Policy:                 cleanupPolicy,
 		ExportDir:              exportDir,
 		ArchiveDir:             cleanupArchiveDir,
 		FSUtilizationThreshold: cleanupUtilizationThreshold,
 	}
 
-	err = runSegmentCleaner(cfg, metaDB, ctx)
+	err = runArchiveChangesCleaner(cfg, metaDB, ctx)
 	if err != nil {
 		utils.ErrExit("archive changes failed: %v", err)
 	}
@@ -137,11 +137,11 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 			break
 		}
 
-		nextIterationMetaDB, nextIterationConfig, nextIterationNum, nextIterationMigrationUUID, err := setupSegmentConfigForNextIteration(currentDB, msr.IterationNo)
+		nextIterationMetaDB, nextIterationConfig, nextIterationNum, nextIterationMigrationUUID, err := setupArchiveChangesConfigForNextIteration(currentDB, msr.IterationNo)
 		if err != nil {
 			utils.ErrExit("error setting up segment config for next iteration: %v", err)
 		}
-		err = runSegmentCleaner(nextIterationConfig, nextIterationMetaDB, ctx)
+		err = runArchiveChangesCleaner(nextIterationConfig, nextIterationMetaDB, ctx)
 		if err != nil {
 			utils.ErrExit("archive changes failed for iteration %d: %v", nextIterationNum, err)
 		}
@@ -164,36 +164,36 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 	utils.PrintAndLogfSuccess("\nArchived all the changes for all iterations.")
 }
 
-func runSegmentCleaner(config segmentcleanup.Config, metaDB *metadb.MetaDB, ctx context.Context) error {
-	cleaner := segmentcleanup.NewSegmentCleaner(config, metaDB)
+func runArchiveChangesCleaner(config archivechanges.Config, metaDB *metadb.MetaDB, ctx context.Context) error {
+	cleaner := archivechanges.NewSegmentCleaner(config, metaDB)
 
 	go waitForWorkflowEndForDB(cleaner, ctx, metaDB, config.ExportDir)
 
 	return cleaner.Run()
 }
 
-func setupSegmentConfigForNextIteration(currentDB *metadb.MetaDB, lastArchivedIteration int) (*metadb.MetaDB, segmentcleanup.Config, int, uuid.UUID, error) {
+func setupArchiveChangesConfigForNextIteration(currentDB *metadb.MetaDB, lastArchivedIteration int) (*metadb.MetaDB, archivechanges.Config, int, uuid.UUID, error) {
 	err := waitUntilNextIterationInitialized(currentDB)
 	if err != nil {
-		return nil, segmentcleanup.Config{}, 0, uuid.Nil, fmt.Errorf("error waiting for next iteration initialized: %w", err)
+		return nil, archivechanges.Config{}, 0, uuid.Nil, fmt.Errorf("error waiting for next iteration initialized: %w", err)
 	}
 
 	nextIteration := lastArchivedIteration + 1
 	parentMSR, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return nil, segmentcleanup.Config{}, 0, uuid.Nil, fmt.Errorf("error getting parent migration status record: %w", err)
+		return nil, archivechanges.Config{}, 0, uuid.Nil, fmt.Errorf("error getting parent migration status record: %w", err)
 	}
 	iterationsExportDir := parentMSR.GetIterationsDir(exportDir)
 	iterationExportDir := GetIterationExportDir(iterationsExportDir, nextIteration)
 
 	iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
 	if err != nil {
-		return nil, segmentcleanup.Config{}, 0, uuid.Nil, fmt.Errorf("error opening iteration %d meta db: %w", nextIteration, err)
+		return nil, archivechanges.Config{}, 0, uuid.Nil, fmt.Errorf("error opening iteration %d meta db: %w", nextIteration, err)
 	}
 
 	iterationMSR, err := iterationMetaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return nil, segmentcleanup.Config{}, 0, uuid.Nil, fmt.Errorf("error getting migration status record for iteration %d: %w", nextIteration, err)
+		return nil, archivechanges.Config{}, 0, uuid.Nil, fmt.Errorf("error getting migration status record for iteration %d: %w", nextIteration, err)
 	}
 	iterationMigrationUUID := uuid.MustParse(iterationMSR.MigrationUUID)
 	var iterationArchiveDir string
@@ -203,10 +203,10 @@ func setupSegmentConfigForNextIteration(currentDB *metadb.MetaDB, lastArchivedIt
 			fmt.Sprintf("live-data-migration-iteration-%d", nextIteration))
 		err = os.MkdirAll(iterationArchiveDir, 0755)
 		if err != nil {
-			return nil, segmentcleanup.Config{}, 0, uuid.Nil, fmt.Errorf("creating archive directory: %w", err)
+			return nil, archivechanges.Config{}, 0, uuid.Nil, fmt.Errorf("creating archive directory: %w", err)
 		}
 	}
-	nextIterationConfig := segmentcleanup.Config{
+	nextIterationConfig := archivechanges.Config{
 		Policy:                 cleanupPolicy,
 		ExportDir:              iterationExportDir,
 		ArchiveDir:             iterationArchiveDir,
@@ -235,11 +235,11 @@ func workflowEndedForDB(db *metadb.MetaDB, dir string) bool {
 	return true
 }
 
-func waitForWorkflowEnd(cleaner *segmentcleanup.SegmentCleaner, ctx context.Context) {
+func waitForWorkflowEnd(cleaner *archivechanges.SegmentCleaner, ctx context.Context) {
 	waitForWorkflowEndForDB(cleaner, ctx, metaDB, exportDir)
 }
 
-func waitForWorkflowEndForDB(cleaner *segmentcleanup.SegmentCleaner, ctx context.Context, db *metadb.MetaDB, dir string) {
+func waitForWorkflowEndForDB(cleaner *archivechanges.SegmentCleaner, ctx context.Context, db *metadb.MetaDB, dir string) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -255,18 +255,18 @@ func waitForWorkflowEndForDB(cleaner *segmentcleanup.SegmentCleaner, ctx context
 }
 
 func init() {
-	archiveCmd.AddCommand(segmentCleanupCmd)
-	registerCommonGlobalFlags(segmentCleanupCmd)
+	archiveCmd.AddCommand(archiveChangesCmd)
+	registerCommonGlobalFlags(archiveChangesCmd)
 
-	segmentCleanupCmd.Flags().StringVar(&cleanupPolicy, "policy", "",
-		fmt.Sprintf("cleanup policy for processed segments; accepted values: %s (required)", strings.Join(segmentcleanup.ValidPolicyNames, ", ")))
-	segmentCleanupCmd.MarkFlagRequired("policy")
-	segmentCleanupCmd.MarkPersistentFlagRequired("export-dir")
+	archiveChangesCmd.Flags().StringVar(&cleanupPolicy, "policy", "",
+		fmt.Sprintf("cleanup policy for processed segments; accepted values: %s (required)", strings.Join(archivechanges.ValidPolicyNames, ", ")))
+	archiveChangesCmd.MarkFlagRequired("policy")
+	archiveChangesCmd.MarkPersistentFlagRequired("export-dir")
 
-	segmentCleanupCmd.Flags().StringVar(&cleanupArchiveDir, "archive-dir", "",
+	archiveChangesCmd.Flags().StringVar(&cleanupArchiveDir, "archive-dir", "",
 		"directory to archive processed segments to (required when --policy=archive)")
 
-	segmentCleanupCmd.Flags().IntVar(&cleanupUtilizationThreshold, "fs-utilization-threshold", 70,
+	archiveChangesCmd.Flags().IntVar(&cleanupUtilizationThreshold, "fs-utilization-threshold", 70,
 		"disk utilization percentage above which cleanup actions are triggered (used with --policy=delete)")
 }
 
@@ -284,13 +284,13 @@ func packAndSendArchiveChangesPayload(status string, errorMsg error, metaDB *met
 		Error:            callhome.SanitizeErrorMsg(errorMsg, anonymizer),
 		ControlPlaneType: getControlPlaneType(),
 	}
-	if cleanupPolicy == segmentcleanup.PolicyDelete {
+	if cleanupPolicy == archivechanges.PolicyDelete {
 		archiveChangesPayload.FSUtilizationThreshold = cleanupUtilizationThreshold
 	}
 
-	stats, err := metaDB.GetSegmentCleanupStats()
+	stats, err := metaDB.GetArchiveChangesStats()
 	if err != nil {
-		log.Infof("callhome: error getting segment cleanup stats: %v", err)
+		log.Infof("callhome: error getting archive changes stats: %v", err)
 	} else {
 		archiveChangesPayload.TotalSegments = stats.TotalSegments
 		archiveChangesPayload.ArchivedAndDeletedSegments = stats.ArchivedAndDeletedSegments
@@ -306,20 +306,20 @@ func packAndSendArchiveChangesPayload(status string, errorMsg error, metaDB *met
 	}
 }
 
-func validateSegmentCleanupFlags(cmd *cobra.Command) {
-	if !segmentcleanup.IsValidPolicy(cleanupPolicy) {
-		utils.ErrExit("invalid --policy %q: must be one of %s", cleanupPolicy, strings.Join(segmentcleanup.ValidPolicyNames, ", "))
+func validateArchiveChangesFlags(cmd *cobra.Command) {
+	if !archivechanges.IsValidPolicy(cleanupPolicy) {
+		utils.ErrExit("invalid --policy %q: must be one of %s", cleanupPolicy, strings.Join(archivechanges.ValidPolicyNames, ", "))
 	}
-	if cleanupPolicy == segmentcleanup.PolicyArchive && cleanupArchiveDir == "" {
+	if cleanupPolicy == archivechanges.PolicyArchive && cleanupArchiveDir == "" {
 		utils.ErrExit("--archive-dir is required when --policy=archive")
 	}
-	if cleanupPolicy != segmentcleanup.PolicyArchive && cleanupArchiveDir != "" {
+	if cleanupPolicy != archivechanges.PolicyArchive && cleanupArchiveDir != "" {
 		utils.ErrExit("--archive-dir can only be used with --policy=archive")
 	}
 	if cleanupArchiveDir != "" && !utils.FileOrFolderExists(cleanupArchiveDir) {
 		utils.ErrExit("archive directory %q does not exist", cleanupArchiveDir)
 	}
-	if cleanupPolicy == segmentcleanup.PolicyArchive && cmd.Flags().Changed("fs-utilization-threshold") {
+	if cleanupPolicy == archivechanges.PolicyArchive && cmd.Flags().Changed("fs-utilization-threshold") {
 		utils.ErrExit("--fs-utilization-threshold cannot be used with --policy=archive")
 	}
 }
