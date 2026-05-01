@@ -344,12 +344,14 @@ type ImportDataPhasePayload struct {
 	YBClusterMetrics            YBClusterMetrics  `json:"yb_cluster_metrics"`
 	DataMetrics                 ImportDataMetrics `json:"data_metrics"`
 	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
-	Phase            string          `json:"phase,omitempty"`
-	LiveWorkflowType string          `json:"live_workflow_type,omitempty"`
-	EnableUpsert     bool            `json:"enable_upsert"`
-	Error            string          `json:"error"`
-	ControlPlaneType string          `json:"control_plane_type"`
-	CutoverTimings   *CutoverTimings `json:"cutover_timings,omitempty"`
+	Phase                      string          `json:"phase,omitempty"`
+	IterativeCutoverEnabled    bool            `json:"iterative_cutover_enabled"`
+	NextIterationMigrationUUID uuid.UUID       `json:"next_iteration_migration_uuid"`
+	LiveWorkflowType           string          `json:"live_workflow_type,omitempty"`
+	EnableUpsert               bool            `json:"enable_upsert"`
+	Error                      string          `json:"error"`
+	ControlPlaneType           string          `json:"control_plane_type"`
+	CutoverTimings             *CutoverTimings `json:"cutover_timings,omitempty"`
 }
 
 type ImportDataMetrics struct {
