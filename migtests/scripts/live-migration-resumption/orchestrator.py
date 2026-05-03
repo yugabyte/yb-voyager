@@ -3,6 +3,8 @@
 import os
 import sys
 import argparse
+import random
+import subprocess
 import time
 from typing import Any, Dict, Callable
 import helpers as H
@@ -109,6 +111,15 @@ def stop_command_action(stage: Dict[str, Any], ctx: Any) -> None:
     H.stop_process(ctx, command, graceful_timeout=timeout)
 
 
+@action("stop_external_process")
+def stop_external_process_action(stage: Dict[str, Any], ctx: Any) -> None:
+    name = stage.get("process")
+    if not name:
+        raise ValueError("stop_external_process action requires non-empty 'process'")
+    timeout = int(stage.get("graceful_timeout_sec", 20))
+    H.stop_external_process(ctx, str(name), graceful_timeout=timeout)
+
+
 _WAIT_FOR_CONDITIONS: Dict[str, Dict[str, Any]] = {
     "exporter_in_streaming_phase": {
         "interval": 5,
@@ -213,6 +224,20 @@ def sleep_action(stage: Dict[str, Any], ctx: Any) -> None:
         time.sleep(secs)
 
 
+@action("loop_start")
+def loop_start_action(_stage, _ctx: Any) -> None:
+    pass
+
+
+class _LoopEnd(Exception):
+    pass
+
+
+@action("loop_end")
+def loop_end_action(_stage, ctx: Any) -> None:
+    raise _LoopEnd()
+
+
 @action("reset_databases")
 def reset_databases_action(stage: Dict[str, Any], ctx: Any) -> None:
     """Drop and recreate source/target databases using admin credentials."""
@@ -279,9 +304,22 @@ def main() -> None:
     ctx = H.Context(cfg=cfg, env=env, test_root=test_root)
     had_failure = False
 
+    stages = cfg["stages"]
+    num_iterations = int(cfg.get("num_iterations", 1))
+
+    loop_start_idx = None
+    for i, s in enumerate(stages):
+        if s.get("action") == "loop_start":
+            loop_start_idx = i
+            break
+
     try:
-        for stage in cfg["stages"]:
+        iteration = 0
+        idx = 0
+        while idx < len(stages):
+            stage = stages[idx]
             stage_name = stage.get("name", "<unnamed>")
+            ctx.loop_iteration = iteration
             H.log_stage_start(stage_name)
             start_ts = H._ts()
             try:
@@ -289,6 +327,22 @@ def main() -> None:
                 end_ts = H._ts()
                 H.append_stage_summary(cfg["artifacts_dir"], stage_name, start_ts, end_ts, status="OK")
                 H.log_stage_end(stage_name, status="OK")
+                idx += 1
+            except _LoopEnd:
+                end_ts = H._ts()
+                H.append_stage_summary(cfg["artifacts_dir"], stage_name, start_ts, end_ts, status="OK")
+                H.log_stage_end(stage_name, status="OK")
+                if loop_start_idx is None:
+                    raise RuntimeError(
+                        "loop_end: scenario has no loop_start stage"
+                    ) from None
+                iteration += 1
+                ctx.loop_iteration = iteration
+                if iteration >= num_iterations:
+                    idx += 1
+                else:
+                    H.apply_effective_export_dir(ctx)
+                    idx = loop_start_idx
             except Exception as e:
                 end_ts = H._ts()
                 H.append_stage_summary(cfg["artifacts_dir"], stage_name, start_ts, end_ts, status="FAILED", error=str(e))

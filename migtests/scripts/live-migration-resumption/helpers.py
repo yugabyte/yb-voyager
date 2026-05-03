@@ -2,6 +2,7 @@
 
 from typing import Any, Dict, Callable, Optional, List
 import os
+import signal
 import time
 import threading
 import random
@@ -41,6 +42,43 @@ class Context:
         self.stop_event = threading.Event()
         self.process_lock = threading.Lock()
         self.active_resumers: Dict[str, "Resumer"] = {}
+        self.loop_iteration: int = 0
+        self.export_dir_base: str = os.path.abspath(cfg.get("export_dir") or "")
+
+
+def apply_effective_export_dir(ctx: Context) -> None:
+    """Point cfg['export_dir'] at the scenario parent for loop_iteration 0, else latest iteration export-dir."""
+    base = ctx.export_dir_base or os.path.abspath(ctx.cfg.get("export_dir") or "")
+    if ctx.loop_iteration == 0:
+        ctx.cfg["export_dir"] = base
+        return
+
+    iterations_root_dir = os.path.join(base, "live-data-migration-iterations")
+    latest_iteration_num = -1
+    latest_iteration_export_dir: str | None = None
+    if os.path.isdir(iterations_root_dir):
+        for name in os.listdir(iterations_root_dir):
+            if not name.startswith("live-data-migration-iteration-"):
+                continue
+            suffix = name.replace("live-data-migration-iteration-", "")
+            try:
+                iteration_num = int(suffix)
+            except ValueError:
+                continue
+            iteration_export_dir = os.path.join(iterations_root_dir, name, "export-dir")
+            if os.path.isdir(iteration_export_dir) and iteration_num > latest_iteration_num:
+                latest_iteration_num = iteration_num
+                latest_iteration_export_dir = iteration_export_dir
+
+    if latest_iteration_export_dir:
+        ctx.cfg["export_dir"] = os.path.abspath(latest_iteration_export_dir)
+        log(f"effective export-dir (loop_iteration={ctx.loop_iteration}): {ctx.cfg['export_dir']}")
+    else:
+        ctx.cfg["export_dir"] = base
+        log(
+            f"effective export-dir: no live-data-migration-iteration-*/export-dir under {base}; "
+            "using parent export-dir"
+        )
 
 
 class ResumptionPolicy:
@@ -320,6 +358,71 @@ def stop_process(ctx: Context, name: str, graceful_timeout: int = 10) -> bool:
     return True
 
 
+def _kill_pid_graceful(pid: int, timeout_sec: int) -> None:
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    deadline = time.time() + float(timeout_sec)
+    while time.time() < deadline:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return
+        time.sleep(0.2)
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+
+
+def _voyager_pgrep_pattern(command_name: str) -> str | None:
+    patterns: Dict[str, str] = {
+        "export_data": r"yb-voyager.*export.*data.*from source",
+        "import_data": r"yb-voyager.*import.*data.*to target",
+        "export_from_target": r"yb-voyager.*export.*data.*from target",
+        "import_to_source": r"yb-voyager.*import.*data.*to source\s",
+        "import_to_source_replica": r"yb-voyager.*import.*data.*to source-replica",
+    }
+    return patterns.get(command_name)
+
+
+def _pgrep_f_pids(pattern: str) -> list[int]:
+    proc = subprocess.run(
+        ["pgrep", "-f", pattern],
+        capture_output=True, text=True, check=False,
+    )
+    if proc.returncode != 0:
+        return []
+    return [int(line.strip()) for line in proc.stdout.splitlines() if line.strip().isdigit()]
+
+
+def stop_external_process(ctx: Context, name: str, graceful_timeout: int = 10) -> bool:
+    with ctx.process_lock:
+        proc = ctx.processes.get(name)
+    if proc is not None and proc.poll() is None:
+        kill(proc, timeout_sec=graceful_timeout)
+        with ctx.process_lock:
+            ctx.processes.pop(name, None)
+        log(f"stop_external_process: stopped {name} (tracked)")
+        return True
+
+    ext_pids = []
+    pattern = _voyager_pgrep_pattern(name)
+    if pattern is not None:
+        ext_pids = _pgrep_f_pids(pattern)
+    if not ext_pids:
+        log(f"stop_external_process: no running process for {name}")
+        return False
+    log(f"stop_external_process: stopping external PID(s) {ext_pids}")
+    for pid in ext_pids:
+        _kill_pid_graceful(pid, graceful_timeout)
+    with ctx.process_lock:
+        ctx.processes.pop(name, None)
+    log(f"stop_external_process: stopped {name} (external)")
+    return True
+
+
 # -------------------------
 # Voyager wrappers
 # -------------------------
@@ -349,6 +452,17 @@ def _get_voyager_flags(cfg: Dict[str, Any], op: str) -> Dict[str, Any]:
     voyager = cfg.get("voyager", {}) or {}
     op_cfg = voyager.get(op, {}) or {}
     return op_cfg.get("flags", {}) or {}
+
+
+def _merge_flags_when_loop_iteration_gte(cfg: Dict[str, Any], op: str, loop_iteration: int) -> Dict[str, Any]:
+    voyager = cfg.get("voyager", {}) or {}
+    op_cfg = voyager.get(op, {}) or {}
+    gte = op_cfg.get("flags_when_loop_iteration_gte") or {}
+    merged_extra: Dict[str, Any] = {}
+    for threshold_str in sorted(gte.keys(), key=lambda x: int(x)):
+        if loop_iteration >= int(threshold_str):
+            merged_extra.update(gte[threshold_str] or {})
+    return merged_extra
 
 
 def _source_conn_flags(cfg: Dict[str, Any]) -> Dict[str, Any]:
@@ -417,7 +531,9 @@ def initiate_cutover(cfg: Dict[str, Any], env: Dict[str, str], direction: str) -
     run_checked(cmd, env, description=f"cutover_to_{direction}")
 
 
-def build_export_data_cmd(cfg: Dict[str, Any]) -> list[str]:
+def build_export_data_cmd(ctx: Context) -> list[str]:
+    cfg = ctx.cfg
+    loop_iteration = ctx.loop_iteration
     voyager_flags = _get_voyager_flags(cfg, "export_data")
     base = _base_common_flags(cfg)
     base.update(_source_conn_flags(cfg))
@@ -426,6 +542,7 @@ def build_export_data_cmd(cfg: Dict[str, Any]) -> list[str]:
     # data command defaults
     base["disable-pb"] = True
     merged = _merge_flags(base, voyager_flags)
+    merged = _merge_flags(merged, _merge_flags_when_loop_iteration_gte(cfg, "export_data", loop_iteration))
     return ["yb-voyager", "export", "data", "--yes"] + to_kv_flags(merged)
 
 
@@ -485,7 +602,7 @@ def build_import_to_source_replica_cmd(cfg: Dict[str, Any]) -> list[str]:
 
 def start_command_by_name(name: str, ctx: Context) -> subprocess.Popen:
     mapping: Dict[str, Callable[[], subprocess.Popen]] = {
-        "export_data": lambda: spawn(build_export_data_cmd(ctx.cfg), ctx.env),
+        "export_data": lambda: spawn(build_export_data_cmd(ctx), ctx.env),
         "import_data": lambda: spawn(build_import_data_cmd(ctx.cfg), ctx.env),
         "export_from_target": lambda: spawn(build_export_from_target_cmd(ctx.cfg), ctx.env),
         "import_to_source_replica": lambda: spawn(build_import_to_source_replica_cmd(ctx.cfg), ctx.env),
@@ -803,6 +920,9 @@ def snapshot_msr_and_stats(export_dir: str, artifacts_dir: str) -> None:
     metainfo_dir = os.path.join(export_dir, "metainfo")
     dest_dir = os.path.join(artifacts_dir, "metainfo")
 
+    if not os.path.isdir(metainfo_dir):
+        log(f"snapshot_msr_and_stats: skipped, no metainfo dir at {metainfo_dir}")
+        return
     shutil.copytree(metainfo_dir, dest_dir, dirs_exist_ok=True)
 
 
@@ -810,6 +930,9 @@ def copy_logs_directory(export_dir: str, artifacts_dir: str) -> None:
     logs_dir = os.path.join(export_dir, "logs")
     dest_dir = os.path.join(artifacts_dir, "logs")
 
+    if not os.path.isdir(logs_dir):
+        log(f"copy_logs_directory: skipped, no logs dir at {logs_dir}")
+        return
     shutil.copytree(logs_dir, dest_dir, dirs_exist_ok=True)
 
 
