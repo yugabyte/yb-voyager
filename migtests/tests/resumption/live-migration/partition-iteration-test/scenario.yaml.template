@@ -90,9 +90,11 @@ voyager:
   import_data:
     flags:
       use-partition-root: "false"
+      max-retries-streaming: 100
   import_to_source:
     flags:
       use-partition-root: "false"
+      max-retries-streaming: 100
   export_data:
     flags_when_loop_iteration_gte:
       "1":
