@@ -25,7 +25,7 @@ import (
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 // ProgressTracker renders stages with a spinner.
-//
+// There would be only one instance of ProgressTracker per program execution.
 // For stages WITH sub-steps (e.g. "Gathering metadata"), each sub-step is
 // printed on its own line as it completes:
 //
@@ -52,6 +52,8 @@ type ProgressTracker struct {
 	headerPrinted bool
 	headerLabel   string
 }
+
+type ProgressStageFunc func() error
 
 // NewProgressTracker creates a tracker with a custom section header label.
 func NewProgressTracker(headerLabel string) *ProgressTracker {
@@ -90,29 +92,37 @@ func (t *ProgressTracker) completedLabel() string {
 }
 
 // StartStage begins a new stage with a spinner. totalSteps can be 0 if unknown.
-func (t *ProgressTracker) StartStage(name string, totalSteps int) {
+// When stageFunc is nil, the caller owns the existing manual lifecycle and must
+// call CompleteStage or FailStage as before. When stageFunc is provided, it is
+// executed and the stage is completed or failed based on the returned error.
+func (t *ProgressTracker) StartStage(name string, totalSteps int, stageFunc ProgressStageFunc) error {
 	t.mu.Lock()
-	defer t.mu.Unlock()
-
 	t.stopSpinnerLocked()
 	t.initStageLocked(name, totalSteps)
 	t.spinnerStop = make(chan struct{})
 	t.spinnerDone = make(chan struct{})
 	go t.runSpinner()
+	t.mu.Unlock()
+
+	return t.runStageFunc(stageFunc)
 }
 
 // PrepareStage sets up stage state, prints the section header and a static
 // stage heading (e.g. "  Gathering metadata (12 steps)") but does NOT start a
 // spinner. Use this when external code (e.g. the parallel replica tracker)
 // will handle its own progress display. Call CompleteStage when done.
-func (t *ProgressTracker) PrepareStage(name string, totalSteps int) {
+// When stageFunc is nil, the caller owns the existing manual lifecycle and must
+// call CompleteStage or FailStage as before. When stageFunc is provided, it is
+// executed and the stage is completed or failed based on the returned error.
+func (t *ProgressTracker) PrepareStage(name string, totalSteps int, stageFunc ProgressStageFunc) error {
 	t.mu.Lock()
-	defer t.mu.Unlock()
-
 	t.stopSpinnerLocked()
 	t.initStageLocked(name, totalSteps)
 
 	StageColor.Printf("  %s\n", t.spinnerLabel())
+	t.mu.Unlock()
+
+	return t.runStageFunc(stageFunc)
 }
 
 func (t *ProgressTracker) initStageLocked(name string, totalSteps int) {
@@ -126,6 +136,19 @@ func (t *ProgressTracker) initStageLocked(name string, totalSteps int) {
 	t.stepsTotal = totalSteps
 	t.stepsDone = 0
 	t.linesPrinted = 0
+}
+
+func (t *ProgressTracker) runStageFunc(stageFunc ProgressStageFunc) error {
+	if stageFunc == nil {
+		// Preserve the original lifecycle: start or prepare the stage only.
+		return nil
+	}
+	if err := stageFunc(); err != nil {
+		t.FailStage()
+		return err
+	}
+	t.CompleteStage()
+	return nil
 }
 
 // IncrementStep finalizes the previous sub-step (prints it with a checkmark

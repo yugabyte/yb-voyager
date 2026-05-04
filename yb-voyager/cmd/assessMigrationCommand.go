@@ -363,9 +363,9 @@ func assessMigration() (err error) {
 	if prepareStaticStage {
 		// Parallel replica path uses its own internal progress display,
 		// and Oracle uses a static summary banner without per-step spinners.
-		tracker.PrepareStage("Gathering metadata", gatherStepCount)
+		tracker.PrepareStage("Gathering metadata", gatherStepCount, nil)
 	} else {
-		tracker.StartStage("Gathering metadata", gatherStepCount)
+		tracker.StartStage("Gathering metadata", gatherStepCount, nil)
 	}
 	initAssessmentDB()
 	err = gatherAssessmentMetadata(validatedReplicaEndpoints, tracker)
@@ -404,7 +404,7 @@ func assessMigration() (err error) {
 	parserIssueDetector.PopulateObjectUsages(objectUsagesStats)
 
 	// Stage 2: Assessing migration
-	tracker.StartStage("Assessing migration", 0)
+	tracker.StartStage("Assessing migration", 0, nil)
 	err = runAssessment()
 	if err != nil {
 		tracker.FailStage()
@@ -413,7 +413,7 @@ func assessMigration() (err error) {
 	tracker.CompleteStage()
 
 	// Stage 3: Generate report
-	tracker.StartStage("Generating report", 0)
+	tracker.StartStage("Generating report", 0, nil)
 	err = generateAssessmentReport()
 	if err != nil {
 		tracker.FailStage()
