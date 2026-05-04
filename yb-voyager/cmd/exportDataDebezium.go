@@ -116,6 +116,10 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		return fmt.Sprintf("%s:%s", k, v)
 	}), ",")
 
+	partitionToRootMapping := strings.Join(lo.MapToSlice(partitionsToRootTableMap, func(k, v string) string {
+		return fmt.Sprintf("%s:%s", k, v)
+	}), ",")
+
 	dbzmLogLevel := config.LogLevel
 	if config.IsLogLevelErrorOrAbove() {
 		// dbzm does not support fatal/panic log levels
@@ -135,12 +139,13 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		Username:           source.User,
 		Password:           source.Password,
 
-		DatabaseName:          source.DBName,
-		SchemaNames:           sqlname.JoinIdentifiersUnquoted(source.Schemas, "|"),
-		TableList:             dbzmTableList,
-		ColumnList:            dbzmColumnList,
-		ColumnSequenceMapping: columnSequenceMapping,
-		TableRenameMapping:    tableRenameMapping,
+		DatabaseName:           source.DBName,
+		SchemaNames:            sqlname.JoinIdentifiersUnquoted(source.Schemas, "|"),
+		TableList:              dbzmTableList,
+		ColumnList:             dbzmColumnList,
+		ColumnSequenceMapping:  columnSequenceMapping,
+		TableRenameMapping:     tableRenameMapping,
+		PartitionToRootMapping: partitionToRootMapping,
 
 		SSLMode:               source.SSLMode,
 		SSLCertPath:           source.SSLCertPath,
@@ -522,6 +527,9 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 	if !status.SnapshotExportIsComplete() {
 		return false, nil
 	}
+	if triggered, fpErr := injectSnapshotToCDCTransitionError(); triggered {
+		return false, fpErr
+	}
 	exportPhase = dbzm.MODE_STREAMING
 	if config.SnapshotMode != "never" {
 		progressTracker.Done(status)
@@ -553,6 +561,10 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 					if err != nil {
 						return false, fmt.Errorf("failed to poll for message in log file: %w", err)
 					}
+				}
+
+				if triggered, fpErr := injectExportFromTargetStartupError(); triggered {
+					return false, fpErr
 				}
 
 				err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {

@@ -61,7 +61,7 @@ func init() {
 func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector bool) error {
 
 	if dbRole == "source" || dbRole == "source-replica" {
-		if getCutoverStatus(metaDB) != COMPLETED {
+		if GetCutoverStatus(metaDB) != COMPLETED {
 			return goerrors.Errorf("cutover to target must be completed before initiating cutover to %s", dbRole)
 		}
 	}

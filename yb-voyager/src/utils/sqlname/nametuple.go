@@ -27,7 +27,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 )
 
-//================================================
+// ================================================
+var NIL_NAME_TUPLE = NameTuple{}
 
 // Can be a name of a table, sequence, materialised view, etc.
 type ObjectName struct {

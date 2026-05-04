@@ -83,6 +83,19 @@ func (e ErrTaskNotFound) Error() string {
 	return fmt.Sprintf("task importer with id %d not registered", e.taskID)
 }
 
+func (s *ImportDataState) HasExistingState() bool {
+	entries, err := os.ReadDir(s.stateDir)
+	if err != nil {
+		return false
+	}
+	for _, entry := range entries {
+		if entry.IsDir() && strings.HasPrefix(entry.Name(), "table::") {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *ImportDataState) PrepareForFileImport(filePath string, tableNameTup sqlname.NameTuple) error {
 	fileStateDir := s.getFileStateDir(filePath, tableNameTup)
 	log.Infof("Creating %q.", fileStateDir)

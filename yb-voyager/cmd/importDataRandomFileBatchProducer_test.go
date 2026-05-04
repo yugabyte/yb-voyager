@@ -726,6 +726,61 @@ func TestRandomBatchProducer_StashAndContinue(t *testing.T) {
 	assert.True(t, producer.Done(), "Done() should be true after producer finishes")
 }
 
+func TestRandomBatchProducer_StashAndContinue_LastBatchHasAllErrors(t *testing.T) {
+	// Set max batch size in bytes to a small value to trigger the row-too-large error
+	maxBatchSizeBytes := int64(15) // deliberately small to trigger error
+	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(1000, maxBatchSizeBytes)
+	require.NoError(t, err)
+
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	require.NoError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	// The second row will be too large for the batch size
+	fileContents := `id,val
+1, "hello"
+2, "this row is too long and should trigger an error because it exceeds the max batch size"`
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+	require.NoError(t, err)
+
+	// Create RandomBatchProducer
+	producer, err := NewRandomFileBatchProducer(task, state, false, scErrorHandler, progressReporter, createTestSemaphore())
+	require.NoError(t, err)
+	defer producer.Close()
+
+	// Wait for batch to become available
+	available := waitForBatchAvailable(producer, 5*time.Second)
+	require.True(t, available, "Batch should become available within timeout")
+
+	// Get the batch - should contain only the first row (second row is skipped due to error)
+	batch, err := producer.NextBatch()
+	require.NoError(t, err, "NextBatch() should not return error with stash-and-continue policy")
+	require.NotNil(t, batch, "Batch should not be nil")
+	assert.Equal(t, int64(1), batch.RecordCount, "Batch should contain 1 record (second row skipped due to error)")
+
+	batch2, err := producer.NextBatch()
+	require.NoError(t, err, "NextBatch() should not return error with stash-and-continue policy")
+	require.NotNil(t, batch2, "Batch should not be nil")
+	assert.Equal(t, int64(0), batch2.RecordCount, "Batch should contain 0 records (second row skipped due to error)")
+
+	// Verify error file contains the error for the second row
+	assertProcessingErrorBatchFileContains(t, lexportDir, task,
+		batch.Number, 1, 91,
+		"larger than max batch size",
+		"ROW: 2, \"this row is too long and should trigger an error because it exceeds the max batch size\"")
+
+	// Verify producer eventually completes
+	_ = waitForProducerDone(producer, 5*time.Second)
+	assert.True(t, producer.Done(), "Done() should be true after producer finishes")
+
+}
+
 // ================================ Resumption Tests ================================
 
 // delayedSequentialFileBatchProducer wraps SequentialFileBatchProducer and adds a delay in NextBatch()

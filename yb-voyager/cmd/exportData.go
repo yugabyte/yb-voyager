@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -41,6 +42,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -135,7 +137,7 @@ func handleCutoverAlreadyProcessedForExportData() {
 	}
 	switch exporterRole {
 	case SOURCE_DB_EXPORTER_ROLE:
-		if getCutoverStatus(metaDB) == COMPLETED {
+		if GetCutoverStatus(metaDB) == COMPLETED {
 			utils.ErrExit("cutover to target already processed, exiting...")
 		}
 	case TARGET_DB_EXPORTER_FF_ROLE:
@@ -143,7 +145,7 @@ func handleCutoverAlreadyProcessedForExportData() {
 			utils.ErrExit("cutover to source-replica already processed, exiting...")
 		}
 	case TARGET_DB_EXPORTER_FB_ROLE:
-		if getCutoverToSourceStatus(exportDir, metaDB) == COMPLETED {
+		if GetCutoverToSourceStatus(exportDir, metaDB) == COMPLETED {
 			utils.ErrExit("cutover to source already processed, exiting...")
 		}
 	default:
@@ -320,6 +322,14 @@ func startNextIterationImportDataToTarget() {
 		//TODO: see if we can do better, but these params are required for import data to target cmd
 		cmd = append(cmd, "--target-db-name", currentMsr.TargetDBConf.DBName)
 		cmd = append(cmd, "--target-db-user", currentMsr.TargetDBConf.User)
+	}
+
+	importDataStatusRecord, err := metaDB.GetImportDataStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get import data status record: %w", err)
+	}
+	if !importDataStatusRecord.TargetUsePartitionRoot {
+		cmd = append(cmd, "--use-partition-root", "false")
 	}
 
 	iterationExportDir := GetIterationExportDir(currentMsr.GetIterationsDir(exportDir), currentMsr.IterationNo+1)
@@ -524,7 +534,11 @@ func exportData() bool {
 	}
 
 	// Get PostgreSQL system identifier while still connected
-	source.FetchDBSystemIdentifier()
+	source.FetchPGDBSystemIdentifier()
+	err = source.DB().FetchDBID()
+	if err != nil {
+		log.Errorf("error getting database id: %v", err) //can just log as this is used for call-home only
+	}
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
@@ -543,7 +557,9 @@ func exportData() bool {
 	}
 
 	if source.RunGuardrailsChecks {
-		checkIfSchemasHaveUsagePermissions()
+		if err := checkIfSchemasHaveUsagePermissions(); err != nil {
+			utils.ErrExit("schema usage permission check failed: %s", err)
+		}
 	}
 
 	checkSourceDBCharset()
@@ -569,7 +585,7 @@ func exportData() bool {
 	}
 
 	// finalizing table list and column list to be exported based on the datatypes supported by the source DB
-	finalTableList, tablesColumnList := finalizeTableAndColumnList(finalTableList)
+	finalTableList, tablesColumnList := finalizeTableAndColumnList(finalTableList, partitionsToRootTableMap)
 	handleEmptyTableListForExport(finalTableList)
 
 	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
@@ -856,22 +872,22 @@ func checkExportDataPermissions(finalTableList []sqlname.NameTuple) {
 	}
 }
 
-func checkIfSchemasHaveUsagePermissions() {
+func checkIfSchemasHaveUsagePermissions() error {
 	schemasMissingUsage, err := source.DB().GetSchemasMissingUsagePermissions()
 	if err != nil {
-		utils.ErrExit("get schemas missing usage permissions: %w", err)
+		return fmt.Errorf("get schemas missing usage permissions: %w", err)
 	}
 	if len(schemasMissingUsage) > 0 {
-		utils.PrintAndLogf("\n%s[%s]", color.RedString(fmt.Sprintf("Missing USAGE permission for user %s on Schemas: ", source.User)), strings.Join(schemasMissingUsage, ", "))
-
 		var link string
 		if changeStreamingIsEnabled(exportType) {
 			link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-migrate/#prepare-the-source-database"
 		} else {
 			link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
 		}
-		utils.ErrExit("\nCheck the documentation to prepare the database for migration: %s", color.BlueString(link))
+		return goerrors.Errorf("missing USAGE permission for user %s on schemas: [%s]\nCheck the documentation to prepare the database for migration: %s",
+			source.User, strings.Join(schemasMissingUsage, ", "), link)
 	}
+	return nil
 }
 
 func updateCallhomeExportPhase() {
@@ -1073,6 +1089,11 @@ func createAndStoreReplicationSlotAndPublication(finalTableList []sqlname.NameTu
 	if err != nil {
 		return "", fmt.Errorf("update PGReplicationSlotName: update migration status record: %w", err)
 	}
+
+	if fpErr := injectReplicationSlotReadyPrePgDumpFailure(); fpErr != nil {
+		return "", fpErr
+	}
+
 	return res.SnapshotName, nil
 }
 func getSequenceInitialValues() (*utils.StructMap[sqlname.NameTuple, int64], error) {
@@ -1903,6 +1924,14 @@ func startFallBackSetupIfRequired() {
 		cmd = append(cmd, "--yes")
 	}
 
+	importDataStatusRecord, err := metaDB.GetImportDataStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get import data status record: %w", err)
+	}
+	if !importDataStatusRecord.TargetUsePartitionRoot {
+		cmd = append(cmd, "--use-partition-root", "false")
+	}
+
 	arguments := generateGlobalExportImportArguments()
 	cmd = append(cmd, arguments...)
 	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
@@ -1968,8 +1997,11 @@ func generateGlobalExportImportArguments() []string {
 // ================================ Export Data table list filtering ================================
 
 // Finalize table and column lists for export, based on migration phase (offline/live) and DB type.
-func finalizeTableAndColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.NameTuple, *utils.StructMap[sqlname.NameTuple, []string]) {
-	reportUnsupportedTablesForLiveMigration(finalTableList)
+// partitionsToRootTableMap is passed in (rather than read from MSR) so that the partition-aware
+// non-PK check in reportUnsupportedTablesForLiveMigration also works on the first export run,
+// before the rename map is persisted to MSR.
+func finalizeTableAndColumnList(finalTableList []sqlname.NameTuple, partitionsToRootTableMap map[string]string) ([]sqlname.NameTuple, *utils.StructMap[sqlname.NameTuple, []string]) {
+	reportUnsupportedTablesForLiveMigration(finalTableList, partitionsToRootTableMap)
 	log.Infof("initial all tables table list for data export: %v", lo.Map(finalTableList, func(t sqlname.NameTuple, _ int) string {
 		return t.ForOutput()
 	}))
@@ -2013,27 +2045,159 @@ func finalizeTableAndColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.N
 	return finalTableList, tablesColumnList
 }
 
-func reportUnsupportedTablesForLiveMigration(finalTableList []sqlname.NameTuple) {
+// reportUnsupportedTablesForLiveMigration fails the export if any table that will be replicated
+// lacks a primary key. The check is partition-aware: a partitioned root table that has no PK of
+// its own is acceptable as long as every leaf partition under it carries a PK, because Debezium
+// streams change events from leaf partitions in PG/YB. Without this awareness, the root added by
+// addLeafPartitionsInTableList (so that catalog queries see it) would cause false-positive
+// failures for partition hierarchies whose PKs live only on the leaves.
+func reportUnsupportedTablesForLiveMigration(finalTableList []sqlname.NameTuple, partitionsToRootTableMap map[string]string) {
 	if !changeStreamingIsEnabled(exportType) {
 		return
 	}
+	rootToLeafPartitions, err := buildRootToLeafPartitionsMap(partitionsToRootTableMap, finalTableList)
+	if err != nil {
+		utils.ErrExit("build root-to-leaf partitions map for non-pk check: %w", err)
+	}
 
-	//report non-pk tables
 	allNonPKTables, err := source.DB().GetNonPKTables()
 	if err != nil {
 		utils.ErrExit("get non-pk tables: %w", err)
 	}
+	nonPKMap := lo.SliceToMap(allNonPKTables, func(t string) (string, bool) {
+		return t, true
+	})
+	hasPK := func(t sqlname.NameTuple) bool {
+		_, ok := nonPKMap[t.ForKey()]
+		return !ok
+	}
+
 	var nonPKTables []string
 	for _, table := range finalTableList {
-		if lo.Contains(allNonPKTables, table.ForKey()) {
-			nonPKTables = append(nonPKTables, table.ForOutput())
+		if hasPK(table) {
+			continue
 		}
+		// Accept partitioned roots whose every leaf has its own PK.
+		if leaves, isRoot := rootToLeafPartitions.Get(table); isRoot && len(leaves) > 0 && lo.EveryBy(leaves, hasPK) {
+			continue
+		}
+		nonPKTables = append(nonPKTables, table.ForOutput())
 	}
+
+	sort.Slice(nonPKTables, func(i, j int) bool {
+		return nonPKTables[i] < nonPKTables[j]
+	})
+
 	if len(nonPKTables) > 0 {
 		utils.PrintAndLogf("Table names without a Primary key: %s", nonPKTables)
 		utils.ErrExit("Currently voyager does not support live-migration for tables without a primary key.\n" +
 			"You can exclude these tables using the --exclude-table-list argument.")
 	}
+
+	reportLeafPartitionsWithMismatchedPrimaryKeys(rootToLeafPartitions, hasPK)
+}
+
+// reportLeafPartitionsWithMismatchedPrimaryKeys ensures that, for every
+// partitioned root whose own PK is missing but each leaf carries one, all
+// leaves share the *same* PK column list (in the same order). With CDC,
+// events from different leaves carry different key columns when their PKs
+// diverge, which would silently corrupt downstream replication.
+//
+// The check is intentionally restricted to roots without a PK: PostgreSQL
+// already enforces that a PK on a partitioned root is propagated to every
+// leaf, so those cases cannot diverge.
+func reportLeafPartitionsWithMismatchedPrimaryKeys(
+	rootToLeafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple],
+	hasPK func(sqlname.NameTuple) bool,
+) {
+	if source.DBType != constants.POSTGRESQL && source.DBType != constants.YUGABYTEDB {
+		return
+	}
+	mismatches := utils.NewStructMap[sqlname.NameTuple, []string]()
+	err := rootToLeafPartitions.IterKV(func(root sqlname.NameTuple, leaves []sqlname.NameTuple) (bool, error) {
+		if hasPK(root) || len(leaves) <= 1 {
+			// PG enforces same PK across leaves when root has one; a single
+			// leaf has nothing to compare against.
+			return true, nil
+		}
+		leafToPrimaryKeyColumns, err := source.DB().GetPrimaryKeyColumns(leaves)
+		if err != nil {
+			return false, fmt.Errorf("get leaf to primary key columns map: %w", err)
+		}
+		var firstPK []string
+		err = leafToPrimaryKeyColumns.IterKV(func(leaf sqlname.NameTuple, pkColumns []string) (bool, error) {
+			if firstPK == nil {
+				//continue to the next leaf to check if they share the same PK columns
+				firstPK = pkColumns
+				return true, nil
+			}
+			if !slices.Equal(firstPK, pkColumns) {
+				pks, ok := mismatches.Get(root)
+				if !ok {
+					pks = []string{}
+				}
+				pks = append(pks, strings.Join(pkColumns, ", "))
+				mismatches.Put(root, pks)
+			}
+			return true, nil
+		})
+		if err != nil {
+			return false, fmt.Errorf("iterate leaf to primary key columns map: %w", err)
+		}
+		pks, ok := mismatches.Get(root)
+		if ok {
+			pks = append(pks, strings.Join(firstPK, ", "))
+			pks = lo.Uniq(pks)
+			sort.Strings(pks)
+			mismatches.Put(root, pks)
+		}
+		return true, nil
+	})
+
+	if err != nil {
+		utils.ErrExit("report leaf partitions with mismatched primary keys: %w", err)
+	}
+
+	if len(mismatches.Keys()) == 0 {
+		return
+	}
+	sortFn := func(a sqlname.NameTuple, b sqlname.NameTuple) bool {
+		return a.AsQualifiedCatalogName() < b.AsQualifiedCatalogName()
+	}
+	utils.PrintAndLogfInfo("Partitioned tables with inconsistent primary keys across leaf partitions:")
+	mismatches.IterKVSorted(sortFn, func(root sqlname.NameTuple, pks []string) (bool, error) {
+		utils.PrintAndLogf("- %s: (%s)\n", root.ForOutput(), strings.Join(pks, "), ("))
+		return true, nil
+	})
+	utils.ErrExit("Live migration requires all leaf partitions of a partitioned table to share the same primary key columns.\nEither align the leaves' primary keys, or exclude these tables using the --exclude-table-list argument.")
+}
+
+// buildRootToLeafPartitionsMap inverts the leaf->root rename map (qualified.Unquoted strings)
+// into a NameTuple-keyed map of root -> []leaf partitions, resolving each name through the name
+// registry so callers can compare against NameTuples coming from finalTableList.
+func buildRootToLeafPartitionsMap(partitionsToRootTableMap map[string]string, finalTableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple], error) {
+	finalTableListMapUnquotedToNameTuple := make(map[string]sqlname.NameTuple)
+	for _, table := range finalTableList {
+		finalTableListMapUnquotedToNameTuple[table.AsQualifiedCatalogName()] = table
+	}
+	rootToLeafPartitions := utils.NewStructMap[sqlname.NameTuple, []sqlname.NameTuple]()
+	for leafQualified, rootQualified := range partitionsToRootTableMap {
+		leafTuple, ok := finalTableListMapUnquotedToNameTuple[leafQualified]
+		if !ok {
+			return nil, goerrors.Errorf("lookup leaf partition %q", leafQualified)
+		}
+		rootTuple, ok := finalTableListMapUnquotedToNameTuple[rootQualified]
+		if !ok {
+			return nil, goerrors.Errorf("lookup root partition %q", rootQualified)
+		}
+		leaves, ok := rootToLeafPartitions.Get(rootTuple)
+		if !ok {
+			leaves = []sqlname.NameTuple{}
+		}
+		leaves = append(leaves, leafTuple)
+		rootToLeafPartitions.Put(rootTuple, leaves)
+	}
+	return rootToLeafPartitions, nil
 }
 
 func handleUnsupportedColumnsInExportData(unsupportedTableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) {

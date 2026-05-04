@@ -119,6 +119,7 @@ type MigrationStatusRecord struct {
 	//Iteration specific details
 	ExportDataFromSourceStarted bool `json:"ExportDataFromSourceStarted"`
 	ImportDataToTargetStarted   bool `json:"ImportDataToTargetStarted"`
+
 }
 
 type CutoverTimingRecord struct {
