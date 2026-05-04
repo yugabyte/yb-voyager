@@ -1,6 +1,10 @@
 package utils
 
-import "github.com/samber/lo"
+import (
+	"sort"
+
+	"github.com/samber/lo"
+)
 
 // This file provides a generic map data structure that allows using custom structs as keys.
 // In golang, by default, you can use structs as keys as long as the fields of the structs themselves are comparable.
@@ -80,4 +84,28 @@ func (m *StructMap[K, V]) Keys() []string {
 // Returns the actual keys of struct map
 func (m *StructMap[K, V]) ActualKeys() []K {
 	return lo.Values(m.kmap)
+}
+
+// SortedActualKeys returns the map's keys sorted by the provided less function.
+// The map itself remains unordered; call this whenever you need a deterministic view.
+func (m *StructMap[K, V]) SortedActualKeys(fn func(a, b K) bool) []K {
+	keys := lo.Values(m.kmap)
+	sort.Slice(keys, func(i, j int) bool { return fn(keys[i], keys[j]) })
+	return keys
+}
+
+// IterKVSorted is like IterKV but visits entries in the order defined by less.
+// The callback returns (continue, err); returning false stops iteration.
+func (m *StructMap[K, V]) IterKVSorted(fn func(a, b K) bool, f func(key K, value V) (bool, error)) error {
+	for _, key := range m.SortedActualKeys(fn) {
+		value := m.vmap[key.Key()]
+		shouldContinue, err := f(key, value)
+		if err != nil {
+			return err
+		}
+		if !shouldContinue {
+			break
+		}
+	}
+	return nil
 }

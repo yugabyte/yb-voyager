@@ -151,6 +151,7 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"skip-node-health-checks", "skip-disk-usage-health-checks",
 	"on-primary-key-conflict", "disable-transactional-writes",
 	"truncate-splits", "prometheus-metrics-port",
+	"use-partition-root",
 
 	// environment variables keys
 	"csv-reader-max-buffer-size-bytes", "ybvoyager-max-colocated-batches-in-progress", "num-event-channels", "event-channel-size",
@@ -161,7 +162,7 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 
 var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level", "run-guardrails-checks",
-	"parallel-jobs", "disable-pb", "prometheus-metrics-port",
+	"parallel-jobs", "disable-pb", "prometheus-metrics-port", "use-partition-root",
 	// environment variables keys
 	"num-event-channels", "event-channel-size", "max-events-per-batch",
 	"max-interval-between-batches", "max-batch-size-bytes",
@@ -171,7 +172,7 @@ var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
 var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level", "run-guardrails-checks",
 	"batch-size", "parallel-jobs", "truncate-tables", "disable-pb", "max-retries-streaming",
-	"prometheus-metrics-port",
+	"prometheus-metrics-port",	
 	// environment variables keys
 	"ybvoyager-max-colocated-batches-in-progress", "num-event-channels",
 	"event-channel-size", "max-events-per-batch", "max-interval-between-batches",

@@ -61,6 +61,7 @@ func init() {
 	registerSourceDBAsTargetConnFlags(importDataToSourceCmd)
 	registerFlagsForSourceAndSourceReplica(importDataToSourceCmd)
 	registerImportDataCommonFlags(importDataToSourceCmd)
+	registerImportUsePartitionRootFlag(importDataToSourceCmd)
 	hideImportFlagsInFallForwardOrBackCmds(importDataToSourceCmd)
 	importDataToSourceCmd.Flags().MarkHidden("batch-size")
 

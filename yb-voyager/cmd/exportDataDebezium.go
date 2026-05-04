@@ -25,9 +25,8 @@ import (
 	"strings"
 	"time"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	"github.com/gosuri/uilive"
 	"github.com/magiconair/properties"
 	"github.com/samber/lo"
@@ -117,6 +116,10 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		return fmt.Sprintf("%s:%s", k, v)
 	}), ",")
 
+	partitionToRootMapping := strings.Join(lo.MapToSlice(partitionsToRootTableMap, func(k, v string) string {
+		return fmt.Sprintf("%s:%s", k, v)
+	}), ",")
+
 	dbzmLogLevel := config.LogLevel
 	if config.IsLogLevelErrorOrAbove() {
 		// dbzm does not support fatal/panic log levels
@@ -136,12 +139,13 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		Username:           source.User,
 		Password:           source.Password,
 
-		DatabaseName:          source.DBName,
-		SchemaNames:           sqlname.JoinIdentifiersUnquoted(source.Schemas, "|"),
-		TableList:             dbzmTableList,
-		ColumnList:            dbzmColumnList,
-		ColumnSequenceMapping: columnSequenceMapping,
-		TableRenameMapping:    tableRenameMapping,
+		DatabaseName:           source.DBName,
+		SchemaNames:            sqlname.JoinIdentifiersUnquoted(source.Schemas, "|"),
+		TableList:              dbzmTableList,
+		ColumnList:             dbzmColumnList,
+		ColumnSequenceMapping:  columnSequenceMapping,
+		TableRenameMapping:     tableRenameMapping,
+		PartitionToRootMapping: partitionToRootMapping,
 
 		SSLMode:               source.SSLMode,
 		SSLCertPath:           source.SSLCertPath,

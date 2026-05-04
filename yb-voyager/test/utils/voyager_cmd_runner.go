@@ -98,6 +98,8 @@ type VoyagerCommandRunner struct {
 	logWriter *testLogWriter
 
 	stopChan chan error
+
+	stdin io.Reader
 }
 
 // WithEnv adds custom environment variables to the command.
@@ -117,6 +119,18 @@ func (v *VoyagerCommandRunner) WithEnv(envVars ...string) *VoyagerCommandRunner 
 // This allows go test -json to attribute output to the correct test.
 func (v *VoyagerCommandRunner) WithT(t *testing.T) *VoyagerCommandRunner {
 	v.t = t
+	return v
+}
+
+// WithStdin adds a reader to the command's stdin.
+// This is useful for testing scenarios where the command needs to read from stdin.
+// Returns the VoyagerCommandRunner for method chaining.
+//
+// Example:
+//
+//	runner := NewVoyagerCommandRunner(...).WithStdin(strings.NewReader("yes"))
+func (v *VoyagerCommandRunner) WithStdin(stdin io.Reader) *VoyagerCommandRunner {
+	v.stdin = stdin
 	return v
 }
 
@@ -254,6 +268,9 @@ func (v *VoyagerCommandRunner) newCmd() {
 
 	if len(v.testEnvVars) > 0 {
 		v.Cmd.Env = append(v.Cmd.Env, v.testEnvVars...)
+	}
+	if v.stdin != nil {
+		v.Cmd.Stdin = v.stdin
 	}
 }
 

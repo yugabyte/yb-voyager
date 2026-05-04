@@ -26,6 +26,7 @@ var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "�
 
 // ProgressTracker renders stages with a spinner.
 // There would be only one instance of ProgressTracker per program execution.
+//
 // For stages WITH sub-steps (e.g. "Gathering metadata"), each sub-step is
 // printed on its own line as it completes:
 //
