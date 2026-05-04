@@ -58,6 +58,7 @@ var (
 	currentCommand                     string
 	callHomeErrorOrCompletePayloadSent bool
 	controlPlaneConfig                 map[string]string // Holds control plane configuration from config file
+	suppressInfoMessages               bool              // set by commands that render their own banner (e.g. assess-migration)
 )
 
 var envVarValuesToObfuscateInLogs = []string{
@@ -79,6 +80,8 @@ var rootCmd = &cobra.Command{
 Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like setting up source/target, migration workflow etc.`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		suppressInfoMessages = cmd.Name() == "assess-migration"
+
 		// Save before initConfig, which also marks flags as Changed when applying config values.
 		sendDiagnosticsSetByCLI := cmd.Flags().Changed("send-diagnostics")
 
@@ -496,7 +499,9 @@ func validateExportDirFlag() {
 		exportDir = filepath.Clean(exportDir)
 	}
 
-	utils.PrintfInfo("Using export-dir: %s\n", utils.Path.Sprint(exportDir))
+	if !suppressInfoMessages {
+		utils.PrintfInfo("Using export-dir: %s\n", utils.Path.Sprint(exportDir))
+	}
 }
 
 func GetCommandID(c *cobra.Command) string {

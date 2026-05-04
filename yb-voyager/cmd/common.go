@@ -739,7 +739,11 @@ func retrieveMigrationUUID() error {
 	}
 
 	migrationUUID = uuid.MustParse(msr.MigrationUUID)
-	utils.PrintAndLogfInfo("migrationID: %s", utils.Path.Sprint(migrationUUID))
+	if !suppressInfoMessages {
+		utils.PrintAndLogfInfo("migrationID: %s", utils.Path.Sprint(migrationUUID))
+	} else {
+		log.Infof("migrationID: %s", migrationUUID)
+	}
 	return nil
 }
 
