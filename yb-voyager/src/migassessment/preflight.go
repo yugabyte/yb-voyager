@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/export"
@@ -135,7 +136,7 @@ func runGuardrailChecks(config PreflightConfig) error {
 		return fmt.Errorf("failed to check dependencies for assess migration: %w", err)
 	} else if len(binaryCheckIssues) > 0 {
 		ux.PrintPreflightFail("Required dependencies present")
-		return fmt.Errorf("\n%s\n%s", ux.FailColor.Sprintf("Missing dependencies for assess migration:"), strings.Join(binaryCheckIssues, "\n"))
+		return goerrors.Errorf("\n%s\n%s", ux.FailColor.Sprintf("Missing dependencies for assess migration:"), strings.Join(binaryCheckIssues, "\n"))
 	}
 	ux.PrintPreflightCheck("Required dependencies present")
 	return nil
