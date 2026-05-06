@@ -465,6 +465,13 @@ func TestLiveMigrationPartitionedTableWithChildPK(t *testing.T) {
 	os.Setenv("YB_EXTERNAL_USER", "yugabyte")
 	os.Setenv("YB_EXTERNAL_PASSWORD", "yugabyte")
 
+	defer func() {
+		os.Unsetenv("YB_EXTERNAL_HOST")
+		os.Unsetenv("YB_EXTERNAL_PORT")
+		os.Unsetenv("YB_EXTERNAL_USER")
+		os.Unsetenv("YB_EXTERNAL_PASSWORD")
+	}()
+
 	err := lm.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
 
@@ -646,6 +653,13 @@ func TestLiveMigrationPartitionedTableWithChildTablesHavingDifferentPK(t *testin
 	os.Setenv("YB_EXTERNAL_PORT", "5433")
 	os.Setenv("YB_EXTERNAL_USER", "yugabyte")
 	os.Setenv("YB_EXTERNAL_PASSWORD", "yugabyte")
+
+	defer func() {
+		os.Unsetenv("YB_EXTERNAL_HOST")
+		os.Unsetenv("YB_EXTERNAL_PORT")
+		os.Unsetenv("YB_EXTERNAL_USER")
+		os.Unsetenv("YB_EXTERNAL_PASSWORD")
+	}()
 
 	err := lm.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
@@ -859,6 +873,13 @@ func TestLiveMigrationWithMultiLevelPartitioningWithChildTablesHasPK(t *testing.
 	os.Setenv("YB_EXTERNAL_PORT", "5433")
 	os.Setenv("YB_EXTERNAL_USER", "yugabyte")
 	os.Setenv("YB_EXTERNAL_PASSWORD", "yugabyte")
+
+	defer func() {
+		os.Unsetenv("YB_EXTERNAL_HOST")
+		os.Unsetenv("YB_EXTERNAL_PORT")
+		os.Unsetenv("YB_EXTERNAL_USER")
+		os.Unsetenv("YB_EXTERNAL_PASSWORD")
+	}()
 
 	err := lm.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
@@ -1129,6 +1150,13 @@ func TestLiveMigrationPartitionedWithChildPKAndPartitionsAcrossDifferentSchemas(
 	os.Setenv("YB_EXTERNAL_USER", "yugabyte")
 	os.Setenv("YB_EXTERNAL_PASSWORD", "yugabyte")
 
+	defer func() {
+		os.Unsetenv("YB_EXTERNAL_HOST")
+		os.Unsetenv("YB_EXTERNAL_PORT")
+		os.Unsetenv("YB_EXTERNAL_USER")
+		os.Unsetenv("YB_EXTERNAL_PASSWORD")
+	}()
+
 	err := lm.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
 
@@ -1310,6 +1338,13 @@ func TestLiveMigrationWithIterationsOnPartitionedTableWithChildPK(t *testing.T) 
 	os.Setenv("YB_EXTERNAL_PORT", "5433")
 	os.Setenv("YB_EXTERNAL_USER", "yugabyte")
 	os.Setenv("YB_EXTERNAL_PASSWORD", "yugabyte")
+
+	defer func() {
+		os.Unsetenv("YB_EXTERNAL_HOST")
+		os.Unsetenv("YB_EXTERNAL_PORT")
+		os.Unsetenv("YB_EXTERNAL_USER")
+		os.Unsetenv("YB_EXTERNAL_PASSWORD")
+	}()
 
 	err := lm.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
