@@ -56,6 +56,11 @@ func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 		utils.PrintAndLogf("Using external YugabyteDB at %s:%d (user=%s)", host, port, yb.User)
 		return nil
 	}
+	yb.external = false
+	yb.externalHost = ""
+	yb.externalPort = 0
+	yb.User = ""
+	yb.Password = ""
 
 	if yb.container != nil {
 		if yb.container.IsRunning() {
@@ -223,7 +228,7 @@ func (yb *YugabyteDBContainer) GetConnectionString() string {
 }
 
 func (yb *YugabyteDBContainer) GetConnection() (*sql.DB, error) {
-	if yb.container == nil {
+	if yb.container == nil && !yb.external {
 		utils.ErrExit("yugabytedb container is not started: nil")
 	}
 
