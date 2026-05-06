@@ -76,6 +76,23 @@ jobs:
     - name: Set up gotestfmt
       uses: GoTestTools/gotestfmt-action@v2
 
+    - name: Set up YugabyteDB with DB fix for UPDATE on child table 
+      env: 
+        AWS_ACCESS_KEY_ID: ${{ secrets.RAHULB_S3_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.RAHULB_S3_SECRET_ACCESS_KEY }}
+      run: |
+        aws s3 cp s3://dev-itest-builds/2.31.0.0-b99961491/yugabyte-2.31.0.0-b99961491-centos-x86_64.tar.gz .
+        tar -xzf yugabyte-2.31.0.0-b99961491-centos-x86_64.tar.gz
+        cd yugabyte-2.31.0.0
+        ./bin/yugabyted start --background=false --ui=false --callhome=false 
+        timeout 60s bash -c 'until psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT 1" > /dev/null 2>&1; do 
+          echo "YugabyteDB not ready yet, waiting 2 seconds..."
+          sleep 2
+        done'
+        echo "YugabyteDB is ready!"
+        psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT version();"
+
+
     # Note: Some voyager_command related go tests use a voyager binary to call voyager commands
     # Hence its important to ensure the voyager binary built is using the changes in the PR branch - `./install-yb-voyager --install-from-local-source`
     - name: Run Integration Tests (${{ matrix.test-tags }})
