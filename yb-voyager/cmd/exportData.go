@@ -47,6 +47,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/export"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
@@ -118,11 +119,11 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 
 	if bool(source.AllowOracleClobDataExport) {
 		if source.DBType != ORACLE {
-			utils.ErrExit(color.RedString("allow-oracle-clob-data-export is only valid with source db type oracle. Remove this flag and retry."))
+			utils.ErrExit("%s", color.RedString("allow-oracle-clob-data-export is only valid with source db type oracle. Remove this flag and retry."))
 		} else if changeStreamingIsEnabled(exportType) {
-			utils.ErrExit(color.RedString("allow-oracle-clob-data-export is not supported for Live Migration. Remove this flag and retry."))
+			utils.ErrExit("%s", color.RedString("allow-oracle-clob-data-export is not supported for Live Migration. Remove this flag and retry."))
 		} else if useDebezium {
-			utils.ErrExit(color.RedString("allow-oracle-clob-data-export is not supported for BETA_FAST_DATA_EXPORT export path. Remove this flag and retry."))
+			utils.ErrExit("%s", color.RedString("allow-oracle-clob-data-export is not supported for BETA_FAST_DATA_EXPORT export path. Remove this flag and retry."))
 		} else {
 			utils.PrintAndLog(color.YellowString("Note: Experimental CLOB export is enabled for Oracle offline export."))
 		}
@@ -507,7 +508,12 @@ func exportData() bool {
 			utils.ErrExit("Source DB version check failed: %w", err)
 		}
 
-		binaryCheckIssues, err := checkDependenciesForExport()
+		binaryCheckIssues, err := export.CheckDependencies(export.DependencyConfig{
+			SourceDBType:    source.DBType,
+			SourceDBVersion: source.DB().GetVersion(),
+			ExportType:      exportType,
+			UseDebezium:     useDebezium,
+		})
 		if err != nil {
 			utils.ErrExit("check dependencies for export: %w", err)
 		} else if len(binaryCheckIssues) > 0 {
@@ -557,7 +563,7 @@ func exportData() bool {
 	}
 
 	if source.RunGuardrailsChecks {
-		if err := checkIfSchemasHaveUsagePermissions(); err != nil {
+		if err := srcdb.CheckSchemasHaveUsagePermissions(&source, export.ChangeStreamingIsEnabled(exportType)); err != nil {
 			utils.ErrExit("schema usage permission check failed: %s", err)
 		}
 	}
@@ -574,7 +580,7 @@ func exportData() bool {
 	if err != nil {
 		var exportErr *errs.ExportDataError
 		if errors.As(err, &exportErr) {
-			utils.ErrExit(err.Error())
+			utils.ErrExit("%s", err.Error())
 		}
 		utils.ErrExit("error in get initial table list: %w", err)
 	}
@@ -807,7 +813,7 @@ func initPGLiveMigrationAndExportSnapshotIfRequired(ctx context.Context, cancel 
 		} else {
 			log.Errorf("error getting debezium PID: %v", err)
 		}
-		utils.ErrExit(color.RedString("\n%s", errorMsg))
+		utils.ErrExit("%s", color.RedString("\n%s", errorMsg))
 	}
 
 	// Setting up sequence values for debezium to start tracking from..
@@ -870,24 +876,6 @@ func checkExportDataPermissions(finalTableList []sqlname.NameTuple) {
 		// TODO: Print this message on the console too once the code is stable
 		log.Info("All required permissions are present for the source database.")
 	}
-}
-
-func checkIfSchemasHaveUsagePermissions() error {
-	schemasMissingUsage, err := source.DB().GetSchemasMissingUsagePermissions()
-	if err != nil {
-		return fmt.Errorf("get schemas missing usage permissions: %w", err)
-	}
-	if len(schemasMissingUsage) > 0 {
-		var link string
-		if changeStreamingIsEnabled(exportType) {
-			link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-migrate/#prepare-the-source-database"
-		} else {
-			link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
-		}
-		return goerrors.Errorf("missing USAGE permission for user %s on schemas: [%s]\nCheck the documentation to prepare the database for migration: %s",
-			source.User, strings.Join(schemasMissingUsage, ", "), link)
-	}
-	return nil
 }
 
 func updateCallhomeExportPhase() {
@@ -1466,7 +1454,7 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple, error) {
 	_, _, err = guardrailsAroundFirstRunAndCurrentRunTableList(firstRunTableWithLeafParititons, currentRunTableListWithLeafPartitions)
 	if err != nil {
 		//Directly erroring out here as we want to fail if guardrails checks fail
-		utils.ErrExit(err.Error())
+		utils.ErrExit("%s", err.Error())
 	}
 
 	return partitionsToRootTableMap, firstRunTableWithLeafsAndRoots, nil
@@ -1884,7 +1872,7 @@ func checkSourceDBCharset() {
 }
 
 func changeStreamingIsEnabled(s string) bool {
-	return (s == CHANGES_ONLY || s == SNAPSHOT_AND_CHANGES)
+	return export.ChangeStreamingIsEnabled(s)
 }
 
 func getTableNameToApproxRowCountMap(tableList []sqlname.NameTuple) map[string]int64 {

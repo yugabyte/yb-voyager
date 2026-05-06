@@ -20,28 +20,22 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fatih/color"
-	goerrors "github.com/go-errors/errors"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/export"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ux"
 )
 
-type AskPasswordFunc func(destination string, user string, envVar string) (string, error)
-type CheckDependenciesFunc func() ([]string, error)
-
 type PreflightConfig struct {
-	Source                      *srcdb.Source
-	AssessmentMetadataDirFlag   string
-	ExportType                  string
-	SourceReadReplicaEndpoints  string
-	PrimaryOnly                 bool
-	AskPassword                 AskPasswordFunc
-	CheckDependencies           CheckDependenciesFunc
-	FetchSourceInfo             func()
-	CheckSchemaUsagePermissions func() error
+	Source                     *srcdb.Source
+	AssessmentMetadataDirFlag  string
+	ExportType                 string
+	UseDebezium                bool
+	SourceReadReplicaEndpoints string
+	PrimaryOnly                bool
+	FetchSourceInfo            func()
 }
 
 type PreflightResult struct {
@@ -96,7 +90,7 @@ func RunPreflightChecks(config PreflightConfig) (PreflightResult, error) {
 
 func checkSourceDatabasePassword(config PreflightConfig) error {
 	if config.Source.Password == "" {
-		password, err := config.AskPassword("source DB", config.Source.User, "SOURCE_DB_PASSWORD")
+		password, err := ux.AskPassword("source DB", config.Source.User, "SOURCE_DB_PASSWORD")
 		if err != nil {
 			ux.PrintPreflightFail("Source database password")
 			return fmt.Errorf("failed to get source DB password for assessing migration: %w", err)
@@ -130,13 +124,18 @@ func runGuardrailChecks(config PreflightConfig) error {
 	}
 	ux.PrintPreflightCheck(fmt.Sprintf("Source DB version compatible (%s)", config.Source.DB().GetVersion()))
 
-	binaryCheckIssues, err := config.CheckDependencies()
+	binaryCheckIssues, err := export.CheckDependencies(export.DependencyConfig{
+		SourceDBType:    config.Source.DBType,
+		SourceDBVersion: config.Source.DB().GetVersion(),
+		ExportType:      config.ExportType,
+		UseDebezium:     config.UseDebezium,
+	})
 	if err != nil {
 		ux.PrintPreflightFail("Required dependencies present")
 		return fmt.Errorf("failed to check dependencies for assess migration: %w", err)
 	} else if len(binaryCheckIssues) > 0 {
 		ux.PrintPreflightFail("Required dependencies present")
-		return goerrors.Errorf("\n%s\n%s", color.RedString("Missing dependencies for assess migration:"), strings.Join(binaryCheckIssues, "\n"))
+		return fmt.Errorf("\n%s\n%s", ux.FailColor.Sprintf("Missing dependencies for assess migration:"), strings.Join(binaryCheckIssues, "\n"))
 	}
 	ux.PrintPreflightCheck("Required dependencies present")
 	return nil
@@ -177,7 +176,7 @@ func checkAssessmentPermissions(config PreflightConfig, validatedReplicaEndpoint
 		return false, nil
 	}
 
-	if err := config.CheckSchemaUsagePermissions(); err != nil {
+	if err := srcdb.CheckSchemasHaveUsagePermissions(config.Source, export.ChangeStreamingIsEnabled(config.ExportType)); err != nil {
 		ux.PrintPreflightFail("Schema USAGE permissions")
 		return false, fmt.Errorf("schema usage permission check failed: %w", err)
 	}

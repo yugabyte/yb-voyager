@@ -35,10 +35,12 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/export"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -126,7 +128,12 @@ func exportSchema(cmd *cobra.Command) error {
 		}
 
 		// Check if required binaries are installed.
-		binaryCheckIssues, err := checkDependenciesForExport()
+		binaryCheckIssues, err := export.CheckDependencies(export.DependencyConfig{
+			SourceDBType:    source.DBType,
+			SourceDBVersion: source.DB().GetVersion(),
+			ExportType:      exportType,
+			UseDebezium:     useDebezium,
+		})
 		if err != nil {
 			return fmt.Errorf("failed to check dependencies for export schema: %w", err)
 		} else if len(binaryCheckIssues) > 0 {
@@ -161,7 +168,7 @@ func exportSchema(cmd *cobra.Command) error {
 
 	// Check if the source database has the required permissions for exporting schema.
 	if source.RunGuardrailsChecks {
-		if err := checkIfSchemasHaveUsagePermissions(); err != nil {
+		if err := srcdb.CheckSchemasHaveUsagePermissions(&source, export.ChangeStreamingIsEnabled(exportType)); err != nil {
 			return fmt.Errorf("schema usage permission check failed: %w", err)
 		}
 		missingPerms, err := source.DB().GetMissingExportSchemaPermissions("")

@@ -256,15 +256,13 @@ func assessMigration() (err error) {
 	log.Infof("assessing for migration to target YugabyteDB version %s", targetDbVersion)
 
 	preflightResult, err := migassessment.RunPreflightChecks(migassessment.PreflightConfig{
-		Source:                      &source,
-		AssessmentMetadataDirFlag:   assessmentMetadataDirFlag,
-		ExportType:                  exportType,
-		SourceReadReplicaEndpoints:  sourceReadReplicaEndpoints,
-		PrimaryOnly:                 primaryOnly,
-		AskPassword:                 askPassword,
-		CheckDependencies:           checkDependenciesForExport,
-		FetchSourceInfo:             fetchSourceInfo,
-		CheckSchemaUsagePermissions: checkIfSchemasHaveUsagePermissions,
+		Source:                     &source,
+		AssessmentMetadataDirFlag:  assessmentMetadataDirFlag,
+		ExportType:                 exportType,
+		UseDebezium:                useDebezium,
+		SourceReadReplicaEndpoints: sourceReadReplicaEndpoints,
+		PrimaryOnly:                primaryOnly,
+		FetchSourceInfo:            fetchSourceInfo,
 	})
 	if err != nil {
 		return err
