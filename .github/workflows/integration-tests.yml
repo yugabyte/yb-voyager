@@ -83,7 +83,7 @@ jobs:
       run: |
         aws s3 cp s3://dev-itest-builds/2.31.0.0-b99961491/yugabyte-2.31.0.0-b99961491-centos-x86_64.tar.gz .
         tar -xzf yugabyte-2.31.0.0-b99961491-centos-x86_64.tar.gz
-        cd yugabyte-2.31.0.0 && ./bin/yugabyted start
+        cd yugabyte-2.31.0.0 && ./bin/yugabyted start --advertise_address=127.0.0.1
 
         # timeout 60s bash -c 'until psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT 1" > /dev/null 2>&1; do 
         #   echo "YugabyteDB not ready yet, waiting 2 seconds..."
