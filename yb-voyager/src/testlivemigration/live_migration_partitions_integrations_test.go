@@ -20,7 +20,6 @@ package testlivemigration
 import (
 	"context"
 	"database/sql"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -454,23 +453,14 @@ UPDATE partitions
 DELETE rows for partition
 */
 func TestLiveMigrationPartitionedTableWithChildPK(t *testing.T) {
-	t.Parallel()
+	t.Setenv("YB_EXTERNAL_HOST", "127.0.0.1")
+	t.Setenv("YB_EXTERNAL_PORT", "5433")
+	t.Setenv("YB_EXTERNAL_USER", "yugabyte")
+	t.Setenv("YB_EXTERNAL_PASSWORD", "yugabyte")
 
 	lm := getLiveMigrationTestBasicForPartitionedTableWithChildPK(t, "test_partition_with_child_pk")
 
 	defer lm.Cleanup()
-
-	os.Setenv("YB_EXTERNAL_HOST", "127.0.0.1")
-	os.Setenv("YB_EXTERNAL_PORT", "5433")
-	os.Setenv("YB_EXTERNAL_USER", "yugabyte")
-	os.Setenv("YB_EXTERNAL_PASSWORD", "yugabyte")
-
-	defer func() {
-		os.Unsetenv("YB_EXTERNAL_HOST")
-		os.Unsetenv("YB_EXTERNAL_PORT")
-		os.Unsetenv("YB_EXTERNAL_USER")
-		os.Unsetenv("YB_EXTERNAL_PASSWORD")
-	}()
 
 	err := lm.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
@@ -563,7 +553,11 @@ Child Tables:
 This scenario is not supported yet and validating guardrail in export data for that
 */
 func TestLiveMigrationPartitionedTableWithChildTablesHavingDifferentPK(t *testing.T) {
-	t.Parallel()
+	t.Setenv("YB_EXTERNAL_HOST", "127.0.0.1")
+	t.Setenv("YB_EXTERNAL_PORT", "5433")
+	t.Setenv("YB_EXTERNAL_USER", "yugabyte")
+	t.Setenv("YB_EXTERNAL_PASSWORD", "yugabyte")
+
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -648,18 +642,6 @@ func TestLiveMigrationPartitionedTableWithChildTablesHavingDifferentPK(t *testin
 	})
 
 	defer lm.Cleanup()
-
-	os.Setenv("YB_EXTERNAL_HOST", "127.0.0.1")
-	os.Setenv("YB_EXTERNAL_PORT", "5433")
-	os.Setenv("YB_EXTERNAL_USER", "yugabyte")
-	os.Setenv("YB_EXTERNAL_PASSWORD", "yugabyte")
-
-	defer func() {
-		os.Unsetenv("YB_EXTERNAL_HOST")
-		os.Unsetenv("YB_EXTERNAL_PORT")
-		os.Unsetenv("YB_EXTERNAL_USER")
-		os.Unsetenv("YB_EXTERNAL_PASSWORD")
-	}()
 
 	err := lm.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
@@ -755,7 +737,11 @@ UPDATE customers
 DELETE rows for partition - 100
 */
 func TestLiveMigrationWithMultiLevelPartitioningWithChildTablesHasPK(t *testing.T) {
-	t.Parallel()
+	t.Setenv("YB_EXTERNAL_HOST", "127.0.0.1")
+	t.Setenv("YB_EXTERNAL_PORT", "5433")
+	t.Setenv("YB_EXTERNAL_USER", "yugabyte")
+	t.Setenv("YB_EXTERNAL_PASSWORD", "yugabyte")
+
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -868,18 +854,6 @@ func TestLiveMigrationWithMultiLevelPartitioningWithChildTablesHasPK(t *testing.
 	})
 
 	defer lm.Cleanup()
-
-	os.Setenv("YB_EXTERNAL_HOST", "127.0.0.1")
-	os.Setenv("YB_EXTERNAL_PORT", "5433")
-	os.Setenv("YB_EXTERNAL_USER", "yugabyte")
-	os.Setenv("YB_EXTERNAL_PASSWORD", "yugabyte")
-
-	defer func() {
-		os.Unsetenv("YB_EXTERNAL_HOST")
-		os.Unsetenv("YB_EXTERNAL_PORT")
-		os.Unsetenv("YB_EXTERNAL_USER")
-		os.Unsetenv("YB_EXTERNAL_PASSWORD")
-	}()
 
 	err := lm.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
@@ -995,7 +969,11 @@ with --use-partition-root=false, answering 'N' to the prompt, and then re-runnin
 import data after recreating the partitions.
 */
 func TestLiveMigrationPartitionedWithChildPKAndPartitionsAcrossDifferentSchemas(t *testing.T) {
-	t.Parallel()
+	t.Setenv("YB_EXTERNAL_HOST", "127.0.0.1")
+	t.Setenv("YB_EXTERNAL_PORT", "5433")
+	t.Setenv("YB_EXTERNAL_USER", "yugabyte")
+	t.Setenv("YB_EXTERNAL_PASSWORD", "yugabyte")
+
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -1144,18 +1122,6 @@ func TestLiveMigrationPartitionedWithChildPKAndPartitionsAcrossDifferentSchemas(
 	})
 
 	defer lm.Cleanup()
-
-	os.Setenv("YB_EXTERNAL_HOST", "127.0.0.1")
-	os.Setenv("YB_EXTERNAL_PORT", "5433")
-	os.Setenv("YB_EXTERNAL_USER", "yugabyte")
-	os.Setenv("YB_EXTERNAL_PASSWORD", "yugabyte")
-
-	defer func() {
-		os.Unsetenv("YB_EXTERNAL_HOST")
-		os.Unsetenv("YB_EXTERNAL_PORT")
-		os.Unsetenv("YB_EXTERNAL_USER")
-		os.Unsetenv("YB_EXTERNAL_PASSWORD")
-	}()
 
 	err := lm.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
@@ -1328,23 +1294,14 @@ func validatingPartitionConsistencyCheck(lm *LiveMigrationTest) {
 }
 
 func TestLiveMigrationWithIterationsOnPartitionedTableWithChildPK(t *testing.T) {
-	t.Parallel()
+	t.Setenv("YB_EXTERNAL_HOST", "127.0.0.1")
+	t.Setenv("YB_EXTERNAL_PORT", "5433")
+	t.Setenv("YB_EXTERNAL_USER", "yugabyte")
+	t.Setenv("YB_EXTERNAL_PASSWORD", "yugabyte")
 
 	lm := getLiveMigrationTestBasicForPartitionedTableWithChildPK(t, "test_iterations_on_partitioned_table_with_child_pk")
 
 	defer lm.Cleanup()
-
-	os.Setenv("YB_EXTERNAL_HOST", "127.0.0.1")
-	os.Setenv("YB_EXTERNAL_PORT", "5433")
-	os.Setenv("YB_EXTERNAL_USER", "yugabyte")
-	os.Setenv("YB_EXTERNAL_PASSWORD", "yugabyte")
-
-	defer func() {
-		os.Unsetenv("YB_EXTERNAL_HOST")
-		os.Unsetenv("YB_EXTERNAL_PORT")
-		os.Unsetenv("YB_EXTERNAL_USER")
-		os.Unsetenv("YB_EXTERNAL_PASSWORD")
-	}()
 
 	err := lm.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
