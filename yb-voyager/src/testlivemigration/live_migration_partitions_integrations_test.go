@@ -509,32 +509,33 @@ func TestLiveMigrationPartitionedTableWithChildPK(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	// Perform cutover
-	err = lm.InitiateCutoverToTarget(true, nil)
+	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
 	err = lm.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
-	err = lm.ExecuteTargetDelta()
-	testutils.FatalIfError(t, err, "failed to execute target delta")
+	//TODO: remove this skip once we support have 2025.2.3 backport for the fix
+	// err = lm.ExecuteTargetDelta()
+	// testutils.FatalIfError(t, err, "failed to execute target delta")
 
-	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
-		`"public"."orders"`: {
-			Inserts: 300,
-			Updates: 300,
-			Deletes: 50,
-		},
-	}, 60, 1)
-	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+	// err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+	// 	`"public"."orders"`: {
+	// 		Inserts: 300,
+	// 		Updates: 300,
+	// 		Deletes: 50,
+	// 	},
+	// }, 60, 1)
+	// testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
-	err = lm.ValidateDataConsistency([]string{`"public"."orders"`}, "id")
-	testutils.FatalIfError(t, err, "failed to validate data consistency")
+	// err = lm.ValidateDataConsistency([]string{`"public"."orders"`}, "id")
+	// testutils.FatalIfError(t, err, "failed to validate data consistency")
 
-	err = lm.InitiateCutoverToSource(nil)
-	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+	// err = lm.InitiateCutoverToSource(nil)
+	// testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-	err = lm.WaitForCutoverSourceComplete(0, 160)
-	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
+	// err = lm.WaitForCutoverSourceComplete(0, 160)
+	// testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 
 	err = lm.ValidateDataConsistency([]string{`"public"."orders"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -889,32 +890,33 @@ func TestLiveMigrationWithMultiLevelPartitioningWithChildTablesHasPK(t *testing.
 	err = lm.ValidateDataConsistency([]string{`"public"."customers"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
-	err = lm.InitiateCutoverToTarget(true, nil)
+	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
 	err = lm.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
-	err = lm.ExecuteTargetDelta()
-	testutils.FatalIfError(t, err, "failed to execute target delta")
+	//TODO: remove this skip once we support have 2025.2.3 backport for the fix
+	// err = lm.ExecuteTargetDelta()
+	// testutils.FatalIfError(t, err, "failed to execute target delta")
 
-	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
-		`"public"."customers"`: {
-			Inserts: 800,
-			Updates: 400,
-			Deletes: 450,
-		},
-	}, 60, 1)
-	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+	// err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+	// 	`"public"."customers"`: {
+	// 		Inserts: 800,
+	// 		Updates: 400,
+	// 		Deletes: 450,
+	// 	},
+	// }, 60, 1)
+	// testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
-	err = lm.ValidateDataConsistency([]string{`"public"."customers"`}, "id")
-	testutils.FatalIfError(t, err, "failed to validate data consistency")
+	// err = lm.ValidateDataConsistency([]string{`"public"."customers"`}, "id")
+	// testutils.FatalIfError(t, err, "failed to validate data consistency")
 
-	err = lm.InitiateCutoverToSource(nil)
-	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+	// err = lm.InitiateCutoverToSource(nil)
+	// testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-	err = lm.WaitForCutoverSourceComplete(0, 160)
-	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
+	// err = lm.WaitForCutoverSourceComplete(0, 160)
+	// testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 
 	err = lm.ValidateDataConsistency([]string{`"public"."customers"`, `public.customers_other`, `public.customers_part11`, `public.customers_part21`, `public.customers_part12`, `public.customers_part22`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -1167,37 +1169,38 @@ func TestLiveMigrationPartitionedWithChildPKAndPartitionsAcrossDifferentSchemas(
 	err = lm.ValidateDataConsistency([]string{`"TestSchemaCase"."orders"`, `"public"."customers"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
-	err = lm.InitiateCutoverToTarget(true, nil)
+	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
 	err = lm.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
-	err = lm.ExecuteTargetDelta()
-	testutils.FatalIfError(t, err, "failed to execute target delta")
+	//TODO: remove this skip once we support have 2025.2.3 backport for the fix
+	// err = lm.ExecuteTargetDelta()
+	// testutils.FatalIfError(t, err, "failed to execute target delta")
 
-	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
-		`"TestSchemaCase"."orders"`: {
-			Inserts: 600,
-			Updates: 300,
-			Deletes: 350,
-		},
-		`"public"."customers"`: {
-			Inserts: 3,
-			Updates: 2,
-			Deletes: 2,
-		},
-	}, 60, 1)
-	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+	// err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+	// 	`"TestSchemaCase"."orders"`: {
+	// 		Inserts: 600,
+	// 		Updates: 300,
+	// 		Deletes: 350,
+	// 	},
+	// 	`"public"."customers"`: {
+	// 		Inserts: 3,
+	// 		Updates: 2,
+	// 		Deletes: 2,
+	// 	},
+	// }, 60, 1)
+	// testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
-	err = lm.ValidateDataConsistency([]string{`"TestSchemaCase"."orders"`, `"public"."customers"`}, "id")
-	testutils.FatalIfError(t, err, "failed to validate data consistency")
+	// err = lm.ValidateDataConsistency([]string{`"TestSchemaCase"."orders"`, `"public"."customers"`}, "id")
+	// testutils.FatalIfError(t, err, "failed to validate data consistency")
 
-	err = lm.InitiateCutoverToSource(nil)
-	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+	// err = lm.InitiateCutoverToSource(nil)
+	// testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-	err = lm.WaitForCutoverSourceComplete(0, 160)
-	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
+	// err = lm.WaitForCutoverSourceComplete(0, 160)
+	// testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 
 	err = lm.ValidateDataConsistency([]string{`"TestSchemaCase"."orders"`, `"public"."customers"`, `"test_schema"."Orders_US"`, `"test_schema"."Orders_EU"`, `"test_schema"."Orders_APAC"`,
 		`test_schema."Customers_Other"`, `test_schema."Customers_Part11"`, `"TestSchemaCase"."Customers_Part12"`, `"TestSchemaCase".customers_part22`, `public.customers_part21`}, "id")
@@ -1294,6 +1297,8 @@ func validatingPartitionConsistencyCheck(lm *LiveMigrationTest) {
 }
 
 func TestLiveMigrationWithIterationsOnPartitionedTableWithChildPK(t *testing.T) {
+	//TODO: remove this skip once we support have 2025.2.3 backport for the fix
+	t.Skip("Skipping this test as it is not supported yet for now as it will error out at fallback phase with 2.31 YB")
 	t.Setenv("YB_EXTERNAL_HOST", "127.0.0.1")
 	t.Setenv("YB_EXTERNAL_PORT", "5433")
 	t.Setenv("YB_EXTERNAL_USER", "yugabyte")
