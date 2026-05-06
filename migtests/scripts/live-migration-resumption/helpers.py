@@ -45,16 +45,27 @@ class Context:
         self.active_resumers: Dict[str, "Resumer"] = {}
         self.loop_iteration: int = 0
         self.export_dir_base: str = os.path.abspath(cfg.get("export_dir") or "")
+        # iteration_export_dir is the per-iteration child export-dir
+        # (live-data-migration-iteration-N/export-dir) used for test-side
+        # introspection only — queue scans, archive validation, marker checks.
+        # All `yb-voyager` invocations use the parent export-dir
+        # (cfg["export_dir"] / ctx.export_dir_base) to match real user flow.
+        self.iteration_export_dir: str = self.export_dir_base
         self.archive_changes_policy: str | None = None
         self.prev_archive_file_count: int = 0
 
 
 def apply_effective_export_dir(ctx: Context) -> None:
-    """Point cfg['export_dir'] at the scenario parent for loop_iteration 0, else latest iteration export-dir."""
+    """Resolve the per-iteration export-dir for test-side introspection.
+
+    Does NOT mutate cfg["export_dir"] — yb-voyager commands always run against
+    the parent export-dir. Only ctx.iteration_export_dir is updated, used by
+    queue scans, archive validation, and other voyager-metadata-aware checks.
+    """
     ctx.prev_archive_file_count = 0
     base = ctx.export_dir_base or os.path.abspath(ctx.cfg.get("export_dir") or "")
     if ctx.loop_iteration == 0:
-        ctx.cfg["export_dir"] = base
+        ctx.iteration_export_dir = base
         return
 
     iterations_root_dir = os.path.join(base, "live-data-migration-iterations")
@@ -75,12 +86,12 @@ def apply_effective_export_dir(ctx: Context) -> None:
                 latest_iteration_export_dir = iteration_export_dir
 
     if latest_iteration_export_dir:
-        ctx.cfg["export_dir"] = os.path.abspath(latest_iteration_export_dir)
-        log(f"effective export-dir (loop_iteration={ctx.loop_iteration}): {ctx.cfg['export_dir']}")
+        ctx.iteration_export_dir = os.path.abspath(latest_iteration_export_dir)
+        log(f"iteration_export_dir (loop_iteration={ctx.loop_iteration}): {ctx.iteration_export_dir}")
     else:
-        ctx.cfg["export_dir"] = base
+        ctx.iteration_export_dir = base
         log(
-            f"effective export-dir: no live-data-migration-iteration-*/export-dir under {base}; "
+            f"iteration_export_dir: no live-data-migration-iteration-*/export-dir under {base}; "
             "using parent export-dir"
         )
 
@@ -221,6 +232,20 @@ def exporter_streaming(export_dir: str) -> bool:
 
 
 def get_cutover_status(export_dir: str, mode: str = "target") -> str:
+    """Return the most recent cutover status for the given direction.
+
+    Voyager's iterative cutover output lists every past iteration plus a
+    "(current):" section. A first-match parse returns a stale completed
+    status from iteration 0. Anchoring strictly on "(current):" breaks the
+    cutover-to-source case, because once voyager flips a target→source
+    cutover to COMPLETED it auto-promotes the next iteration to current,
+    and the new current section has no target→source row yet.
+
+    The last occurrence of the direction line across the whole output is
+    always the most recent state — for an in-flight cutover that is the
+    current iteration's row; for a just-completed cutover it is the row
+    that just rolled into history. Both are what we want to act on.
+    """
     mode_to_direction = {
         "target": "source → target",
         "source": "target → source",
@@ -231,12 +256,13 @@ def get_cutover_status(export_dir: str, mode: str = "target") -> str:
     cmd = ["yb-voyager", "cutover", "status", "--export-dir", export_dir]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        last_status = ""
         for line in proc.stdout.splitlines():
             if direction in line:
                 cols = [c.strip() for c in line.split("|")]
                 if len(cols) >= 2:
-                    return cols[1]
-        return ""
+                    last_status = cols[1]
+        return last_status
     except Exception:
         return ""
 
@@ -711,7 +737,10 @@ def validate_archive_changes(ctx: Context, check_post_cutover_to_source: bool = 
     """
     policy = ctx.archive_changes_policy
 
-    export_dir = ctx.cfg["export_dir"]
+    # Archive validation introspects per-iteration queue + meta.db, so it
+    # uses the iteration-specific export-dir (not the parent that voyager
+    # commands run against).
+    export_dir = ctx.iteration_export_dir
     queue_dir = os.path.join(export_dir, "data", "queue")
     queue_files = _list_segment_files(queue_dir)
     total_in_meta = _total_segments_in_metadb(export_dir)
@@ -1466,6 +1495,10 @@ def run_segment_hash_validations(
     Raises:
         RuntimeError if any segment shows a mismatch or is missing on one side.
     """
+    # 0) Cleanup stale validation rows from prior iterations (self-cleaning per Abhinay's guidance)
+    for side in (left_side, right_side):
+        run_psql(ctx, side, "-c", "DELETE FROM public.migration_validate_segments;")
+
     # 1) Compute (or refresh) segment hashes on both sides
     run_segment_hash_computation(ctx, left_side)
     run_segment_hash_computation(ctx, right_side)
@@ -1498,6 +1531,9 @@ def run_segment_hash_validations(
         raise RuntimeError(f"segment hash validation failed for segments: {preview}")
 
 
+_VALIDATION_INFRA_TABLES = frozenset({"migration_validate_segments", "cutover_table"})
+
+
 def run_row_count_validations(
     ctx: Context,
     left_role: str = "source",
@@ -1506,7 +1542,7 @@ def run_row_count_validations(
     """Compare row counts between two roles (default: source and target) using direct SQL."""
     cfg = ctx.cfg
     schema = cfg["source"]["schema"]
-    tables = list_source_tables(cfg)
+    tables = [t for t in list_source_tables(cfg) if t not in _VALIDATION_INFRA_TABLES]
     out_dir = os.path.join(ctx.artifacts_dir, "validation", "row_counts")
     os.makedirs(out_dir, exist_ok=True)
 

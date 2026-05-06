@@ -88,10 +88,6 @@ generator_target:
       update_max_retries: 1
 
 voyager:
-  export_data:
-    flags_when_loop_iteration_gte:
-      "1":
-        export-type: changes-only
   cutover_to_target:
     flags:
       prepare-for-fall-back: true
@@ -285,11 +281,6 @@ stages:
     action: sleep
     seconds: 30
 
-  - name: clear_cutover_table_on_target
-    action: run_sql
-    target: target
-    sql_path: ../common-sql/delete_marker.sql
-
   - name: insert_backlog_marker_on_target
     action: run_sql
     target: target
@@ -338,15 +329,6 @@ stages:
 
   - name: row_hash_validations
     action: row_hash_validations
-
-  - name: cleanup_source
-    action: run_sql
-    sql_path: ./iteration_reset.sql
-
-  - name: cleanup_target
-    action: run_sql
-    target: target
-    sql_path: ./iteration_reset.sql
 
   - name: loop_end
     action: loop_end

@@ -154,26 +154,33 @@ def stop_external_process_action(stage: Dict[str, Any], ctx: Any) -> None:
     H.stop_external_process(ctx, str(name), graceful_timeout=timeout)
 
 
+# Predicate dispatch:
+#   - exporter_in_streaming_phase / remaining_events_eq_0 inspect the queue
+#     directory of the *current* iteration's export-dir, so they use
+#     ctx.iteration_export_dir.
+#   - cutover_to_*_status_completed call `yb-voyager cutover status`, which is
+#     a parent-scoped voyager operation from a user's perspective; pass
+#     ctx.export_dir_base.
 _WAIT_FOR_CONDITIONS: Dict[str, Dict[str, Any]] = {
     "exporter_in_streaming_phase": {
         "interval": 5,
-        "predicate": lambda ctx: H.exporter_streaming(ctx.cfg["export_dir"]),
+        "predicate": lambda ctx: H.exporter_streaming(ctx.iteration_export_dir),
     },
     "remaining_events_eq_0": {
         "interval": 5,
-        "predicate": lambda ctx: H.backlog_marker_present(ctx.cfg["export_dir"]),
+        "predicate": lambda ctx: H.backlog_marker_present(ctx.iteration_export_dir),
     },
     "cutover_to_target_status_completed": {
         "interval": 10,
-        "predicate": lambda ctx: H.get_cutover_status(ctx.cfg["export_dir"], mode="target") == "COMPLETED",
+        "predicate": lambda ctx: H.get_cutover_status(ctx.export_dir_base, mode="target") == "COMPLETED",
     },
     "cutover_to_source_status_completed": {
         "interval": 10,
-        "predicate": lambda ctx: H.get_cutover_status(ctx.cfg["export_dir"], mode="source") == "COMPLETED",
+        "predicate": lambda ctx: H.get_cutover_status(ctx.export_dir_base, mode="source") == "COMPLETED",
     },
     "cutover_to_source_replica_status_completed": {
         "interval": 10,
-        "predicate": lambda ctx: H.get_cutover_status(ctx.cfg["export_dir"], mode="source-replica") == "COMPLETED",
+        "predicate": lambda ctx: H.get_cutover_status(ctx.export_dir_base, mode="source-replica") == "COMPLETED",
     },
 }
 
