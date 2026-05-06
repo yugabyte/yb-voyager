@@ -59,8 +59,6 @@ func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 	yb.external = false
 	yb.externalHost = ""
 	yb.externalPort = 0
-	yb.User = ""
-	yb.Password = ""
 
 	if yb.container != nil {
 		if yb.container.IsRunning() {
