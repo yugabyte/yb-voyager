@@ -453,7 +453,10 @@ UPDATE partitions
 DELETE rows for partition
 */
 func TestLiveMigrationPartitionedTableWithChildPK(t *testing.T) {
-	t.Parallel()
+	t.Setenv("YB_EXTERNAL_HOST", "127.0.0.1")
+	t.Setenv("YB_EXTERNAL_PORT", "5433")
+	t.Setenv("YB_EXTERNAL_USER", "yugabyte")
+	t.Setenv("YB_EXTERNAL_PASSWORD", "yugabyte")
 
 	lm := getLiveMigrationTestBasicForPartitionedTableWithChildPK(t, "test_partition_with_child_pk")
 
@@ -512,6 +515,7 @@ func TestLiveMigrationPartitionedTableWithChildPK(t *testing.T) {
 	err = lm.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
+	//TODO: remove this skip once we support have 2025.2.3 backport for the fix
 	err = lm.ExecuteTargetDelta()
 	testutils.FatalIfError(t, err, "failed to execute target delta")
 
@@ -550,7 +554,11 @@ Child Tables:
 This scenario is not supported yet and validating guardrail in export data for that
 */
 func TestLiveMigrationPartitionedTableWithChildTablesHavingDifferentPK(t *testing.T) {
-	t.Parallel()
+	t.Setenv("YB_EXTERNAL_HOST", "127.0.0.1")
+	t.Setenv("YB_EXTERNAL_PORT", "5433")
+	t.Setenv("YB_EXTERNAL_USER", "yugabyte")
+	t.Setenv("YB_EXTERNAL_PASSWORD", "yugabyte")
+
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -730,7 +738,11 @@ UPDATE customers
 DELETE rows for partition - 100
 */
 func TestLiveMigrationWithMultiLevelPartitioningWithChildTablesHasPK(t *testing.T) {
-	t.Parallel()
+	t.Setenv("YB_EXTERNAL_HOST", "127.0.0.1")
+	t.Setenv("YB_EXTERNAL_PORT", "5433")
+	t.Setenv("YB_EXTERNAL_USER", "yugabyte")
+	t.Setenv("YB_EXTERNAL_PASSWORD", "yugabyte")
+
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -884,6 +896,7 @@ func TestLiveMigrationWithMultiLevelPartitioningWithChildTablesHasPK(t *testing.
 	err = lm.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
+	//TODO: remove this skip once we support have 2025.2.3 backport for the fix
 	err = lm.ExecuteTargetDelta()
 	testutils.FatalIfError(t, err, "failed to execute target delta")
 
@@ -947,6 +960,7 @@ Initially missing PKs (to trigger the primary-key guardrail in export data):
   - test_schema."Orders_EU"
   - test_schema."Customers_Other"
   - public.customers_part21
+
 Checking if export data fails with the Primary key guardrail error.
 If it fails, assert the error message contains the table names without a Primary key,
 and then create the PK on those tables and continue with the rest of the flow.
@@ -957,7 +971,11 @@ with --use-partition-root=false, answering 'N' to the prompt, and then re-runnin
 import data after recreating the partitions.
 */
 func TestLiveMigrationPartitionedWithChildPKAndPartitionsAcrossDifferentSchemas(t *testing.T) {
-	t.Parallel()
+	t.Setenv("YB_EXTERNAL_HOST", "127.0.0.1")
+	t.Setenv("YB_EXTERNAL_PORT", "5433")
+	t.Setenv("YB_EXTERNAL_USER", "yugabyte")
+	t.Setenv("YB_EXTERNAL_PASSWORD", "yugabyte")
+
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -1157,6 +1175,7 @@ func TestLiveMigrationPartitionedWithChildPKAndPartitionsAcrossDifferentSchemas(
 	err = lm.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
+	//TODO: remove this skip once we support have 2025.2.3 backport for the fix
 	err = lm.ExecuteTargetDelta()
 	testutils.FatalIfError(t, err, "failed to execute target delta")
 
@@ -1278,7 +1297,12 @@ func validatingPartitionConsistencyCheck(lm *LiveMigrationTest) {
 }
 
 func TestLiveMigrationWithIterationsOnPartitionedTableWithChildPK(t *testing.T) {
-	t.Parallel()
+	//TODO: remove this skip once we support have 2025.2.3 backport for the fix
+	// t.Skip("Skipping this test as it is not supported yet for now as it will error out at fallback phase with 2.31 YB")
+	t.Setenv("YB_EXTERNAL_HOST", "127.0.0.1")
+	t.Setenv("YB_EXTERNAL_PORT", "5433")
+	t.Setenv("YB_EXTERNAL_USER", "yugabyte")
+	t.Setenv("YB_EXTERNAL_PASSWORD", "yugabyte")
 
 	lm := getLiveMigrationTestBasicForPartitionedTableWithChildPK(t, "test_iterations_on_partitioned_table_with_child_pk")
 
