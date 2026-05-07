@@ -136,13 +136,13 @@ stages:
     action: loop_start
 
   - name: stop_prev_iteration_exporter
-    action: stop_external_process
-    process: export_data
+    action: voyager_stop_command
+    command: export_data
     graceful_timeout_sec: 60
 
   - name: stop_prev_iteration_importer
-    action: stop_external_process
-    process: import_data
+    action: voyager_stop_command
+    command: import_data
     graceful_timeout_sec: 60
 
   - name: start_exporter
@@ -228,13 +228,13 @@ stages:
     timeout_sec: 900
 
   - name: stop_forward_exporter_for_fallback
-    action: stop_external_process
-    process: export_data
+    action: voyager_stop_command
+    command: export_data
     graceful_timeout_sec: 60
 
   - name: stop_forward_importer_for_fallback
-    action: stop_external_process
-    process: import_data
+    action: voyager_stop_command
+    command: import_data
     graceful_timeout_sec: 60
 
   - name: start_fallback_exporter_from_target
