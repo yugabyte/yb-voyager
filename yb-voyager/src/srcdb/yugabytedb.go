@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/jackc/pglogrepl"
@@ -1334,7 +1335,70 @@ func (yb *YugabyteDB) GetMissingExportSchemaPermissions(queryTableList string) (
 }
 
 func (yb *YugabyteDB) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, bool, error) {
-	return nil, false, nil
+	var combinedResult []string
+
+	qualifiedMinQuotedTableNames := lo.Map(finalTableList, func(table sqlname.NameTuple, _ int) string {
+		return table.ForOutput()
+	})
+	queryTableList := fmt.Sprintf("'%s'", strings.Join(qualifiedMinQuotedTableNames, "','"))
+
+	missingTables, err := yb.listTablesMissingReplicaIdentityChange(queryTableList)
+	if err != nil {
+		return nil, false, fmt.Errorf("error in checking table replica identity: %w", err)
+	}
+	if len(missingTables) > 0 {
+		combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Tables missing replica identity CHANGE: "), strings.Join(missingTables, ", ")))
+	}
+
+	return combinedResult, len(combinedResult) > 0, nil
+}
+
+func (yb *YugabyteDB) listTablesMissingReplicaIdentityChange(queryTableList string) ([]string, error) {
+	checkTableReplicaIdentityQuery := fmt.Sprintf(`
+	SELECT
+		n.nspname AS schema_name,
+		c.relname AS table_name,
+		c.relreplident AS replica_identity,
+		CASE
+			WHEN c.relreplident <> 'c'
+			THEN '%s'
+			ELSE '%s'
+		END AS status
+	FROM pg_class c
+	JOIN pg_namespace n ON c.relnamespace = n.oid
+	WHERE (quote_ident(n.nspname) || '.' || quote_ident(c.relname)) IN (%s)
+	AND c.relkind IN ('r', 'p');
+	`, MISSING, GRANTED, queryTableList)
+
+	rows, err := yb.db.Query(checkTableReplicaIdentityQuery)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying(%q) source YugabyteDB for checking table replica identity: %w", checkTableReplicaIdentityQuery, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", checkTableReplicaIdentityQuery, closeErr)
+		}
+	}()
+
+	var missingTables []string
+	var tableSchemaName, tableName, replicaIdentity, status string
+
+	for rows.Next() {
+		err = rows.Scan(&tableSchemaName, &tableName, &replicaIdentity, &status)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
+		}
+		if status == MISSING {
+			missingTables = append(missingTables, fmt.Sprintf(`%s."%s"`, tableSchemaName, tableName))
+		}
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over query rows: %w", err)
+	}
+
+	return missingTables, nil
 }
 
 func (yb *YugabyteDB) GetMissingAssessMigrationPermissions() ([]string, bool, error) {
