@@ -508,12 +508,12 @@ func exportData() bool {
 			utils.ErrExit("Source DB version check failed: %w", err)
 		}
 
-		binaryCheckIssues, err := export.CheckDependencies(export.DependencyConfig{
-			SourceDBType:    source.DBType,
-			SourceDBVersion: source.DB().GetVersion(),
-			ExportType:      exportType,
-			UseDebezium:     useDebezium,
-		})
+		binaryCheckIssues, err := export.CheckDependencies(
+			source.DBType,
+			source.DB().GetVersion(),
+			exportType,
+			useDebezium,
+		)
 		if err != nil {
 			utils.ErrExit("check dependencies for export: %w", err)
 		} else if len(binaryCheckIssues) > 0 {

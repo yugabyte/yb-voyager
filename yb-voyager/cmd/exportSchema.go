@@ -128,12 +128,12 @@ func exportSchema(cmd *cobra.Command) error {
 		}
 
 		// Check if required binaries are installed.
-		binaryCheckIssues, err := export.CheckDependencies(export.DependencyConfig{
-			SourceDBType:    source.DBType,
-			SourceDBVersion: source.DB().GetVersion(),
-			ExportType:      exportType,
-			UseDebezium:     useDebezium,
-		})
+		binaryCheckIssues, err := export.CheckDependencies(
+			source.DBType,
+			source.DB().GetVersion(),
+			exportType,
+			useDebezium,
+		)
 		if err != nil {
 			return fmt.Errorf("failed to check dependencies for export schema: %w", err)
 		} else if len(binaryCheckIssues) > 0 {

@@ -125,12 +125,12 @@ func runGuardrailChecks(config PreflightConfig) error {
 	}
 	ux.PrintPreflightCheck(fmt.Sprintf("Source DB version compatible (%s)", config.Source.DB().GetVersion()))
 
-	binaryCheckIssues, err := export.CheckDependencies(export.DependencyConfig{
-		SourceDBType:    config.Source.DBType,
-		SourceDBVersion: config.Source.DB().GetVersion(),
-		ExportType:      config.ExportType,
-		UseDebezium:     config.UseDebezium,
-	})
+	binaryCheckIssues, err := export.CheckDependencies(
+		config.Source.DBType,
+		config.Source.DB().GetVersion(),
+		config.ExportType,
+		config.UseDebezium,
+	)
 	if err != nil {
 		ux.PrintPreflightFail("Required dependencies present")
 		return fmt.Errorf("failed to check dependencies for assess migration: %w", err)

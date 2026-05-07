@@ -38,22 +38,15 @@ func ChangeStreamingIsEnabled(exportType string) bool {
 	return exportType == utils.CHANGES_ONLY || exportType == utils.SNAPSHOT_AND_CHANGES
 }
 
-type DependencyConfig struct {
-	SourceDBType    string
-	SourceDBVersion string
-	ExportType      string
-	UseDebezium     bool
-}
-
-func CheckDependencies(config DependencyConfig) ([]string, error) {
+func CheckDependencies(sourceDBType, sourceDBVersion, exportType string, useDebezium bool) ([]string, error) {
 	var binaryCheckIssues []string
 	var missingTools []string
-	streamingOrDebezium := ChangeStreamingIsEnabled(config.ExportType) || config.UseDebezium
+	streamingOrDebezium := ChangeStreamingIsEnabled(exportType) || useDebezium
 
-	switch config.SourceDBType {
+	switch sourceDBType {
 	case "postgresql":
 		for _, binary := range PGExportCommands {
-			_, binaryCheckIssue, err := srcdb.GetAbsPathOfPGCommandAboveVersion(binary, config.SourceDBVersion)
+			_, binaryCheckIssue, err := srcdb.GetAbsPathOfPGCommandAboveVersion(binary, sourceDBVersion)
 			if err != nil {
 				return nil, err
 			} else if binaryCheckIssue != "" {
@@ -78,7 +71,7 @@ func CheckDependencies(config DependencyConfig) ([]string, error) {
 		missingTools = utils.CheckTools("strings")
 
 	default:
-		return nil, goerrors.Errorf("unknown source database type %q", config.SourceDBType)
+		return nil, goerrors.Errorf("unknown source database type %q", sourceDBType)
 	}
 
 	binaryCheckIssues = append(binaryCheckIssues, missingTools...)
@@ -98,7 +91,7 @@ func CheckDependencies(config DependencyConfig) ([]string, error) {
 	}
 
 	if streamingOrDebezium {
-		err := dbzm.FindDebeziumDistribution(config.SourceDBType, false)
+		err := dbzm.FindDebeziumDistribution(sourceDBType, false)
 		if err != nil {
 			if len(binaryCheckIssues) > 0 {
 				binaryCheckIssues = append(binaryCheckIssues, "")
