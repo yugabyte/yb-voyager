@@ -253,7 +253,7 @@ func assessMigration() (err error) {
 	ux.PrintBanner("YugabyteDB Voyager — Migration Assessment", bannerRows)
 	log.Infof("assessing for migration to target YugabyteDB version %s", targetDbVersion)
 
-	preflightResult, err := migassessment.RunPreflightChecks(migassessment.PreflightConfig{
+	preflightResult, err := migassessment.RunPreflightChecks(migassessment.PreflightChecksConfig{
 		Source:                     &source,
 		AssessmentMetadataDirFlag:  assessmentMetadataDirFlag,
 		ExportType:                 exportType,

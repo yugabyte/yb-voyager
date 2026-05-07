@@ -29,7 +29,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ux"
 )
 
-type PreflightConfig struct {
+type PreflightChecksConfig struct {
 	Source                     *srcdb.Source
 	AssessmentMetadataDirFlag  string
 	ExportType                 string
@@ -39,17 +39,17 @@ type PreflightConfig struct {
 	FetchSourceInfo            func()
 }
 
-type PreflightResult struct {
+type PreflightChecksResult struct {
 	HasSourceConnectivity     bool
 	ValidatedReplicaEndpoints []srcdb.ReplicaEndpoint
 	ReplicaDiscoveryInfo      *ReplicaDiscoveryInfo
 	PgssEnabledForAssessment  bool
 }
 
-func RunPreflightChecks(config PreflightConfig) (PreflightResult, error) {
+func RunPreflightChecks(config PreflightChecksConfig) (PreflightChecksResult, error) {
 	ux.PrintSectionHeader("Preflight Checks")
 
-	result := PreflightResult{
+	result := PreflightChecksResult{
 		HasSourceConnectivity: config.AssessmentMetadataDirFlag == "",
 	}
 	if !result.HasSourceConnectivity {
@@ -89,7 +89,7 @@ func RunPreflightChecks(config PreflightConfig) (PreflightResult, error) {
 	return result, nil
 }
 
-func checkSourceDatabasePassword(config PreflightConfig) error {
+func checkSourceDatabasePassword(config PreflightChecksConfig) error {
 	if config.Source.Password == "" {
 		password, err := ux.AskPassword("source DB", config.Source.User, "SOURCE_DB_PASSWORD")
 		if err != nil {
@@ -111,7 +111,7 @@ func connectToSourceDatabase(source *srcdb.Source) error {
 	return nil
 }
 
-func runGuardrailChecks(config PreflightConfig) error {
+func runGuardrailChecks(config PreflightChecksConfig) error {
 	if !bool(config.Source.RunGuardrailsChecks) {
 		ux.PrintPreflightSkip("Source DB version check (guardrails disabled)")
 		ux.PrintPreflightSkip("Dependency check (guardrails disabled)")
@@ -157,7 +157,7 @@ func resolveSourceSchemas(source *srcdb.Source) error {
 	return nil
 }
 
-func discoverAndValidateReplicas(config PreflightConfig) (ReplicaDiscoveryInfo, error) {
+func discoverAndValidateReplicas(config PreflightChecksConfig) (ReplicaDiscoveryInfo, error) {
 	replicaDiscoveryInfo, err := HandleReplicaDiscoveryAndValidation(
 		config.Source,
 		config.SourceReadReplicaEndpoints,
@@ -171,7 +171,7 @@ func discoverAndValidateReplicas(config PreflightConfig) (ReplicaDiscoveryInfo, 
 	return replicaDiscoveryInfo, nil
 }
 
-func checkAssessmentPermissions(config PreflightConfig, validatedReplicaEndpoints []srcdb.ReplicaEndpoint) (bool, error) {
+func checkAssessmentPermissions(config PreflightChecksConfig, validatedReplicaEndpoints []srcdb.ReplicaEndpoint) (bool, error) {
 	if !bool(config.Source.RunGuardrailsChecks) {
 		ux.PrintPreflightSkip("Permission checks (guardrails disabled)")
 		return false, nil
