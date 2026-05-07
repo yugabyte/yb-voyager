@@ -1169,7 +1169,7 @@ func TestLiveMigrationPartitionedWithChildPKAndPartitionsAcrossDifferentSchemas(
 	err = lm.ValidateDataConsistency([]string{`"TestSchemaCase"."orders"`, `"public"."customers"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
-	err = lm.InitiateCutoverToTarget(false, nil)
+	err = lm.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
 	err = lm.WaitForCutoverComplete(0, 30)
