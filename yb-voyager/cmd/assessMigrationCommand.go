@@ -56,8 +56,9 @@ var (
 	assessMigrationSupportedDBTypes  = []string{POSTGRESQL, ORACLE}
 	referenceOrTablePartitionPresent = false
 	invokedByExportSchema            utils.BoolStr
-	sourceReadReplicaEndpoints       string // CLI flag - package variable for Cobra binding
-	primaryOnly                      bool   // CLI flag - package variable for Cobra binding
+	sourceReadReplicaEndpoints       string                              // CLI flag - package variable for Cobra binding
+	primaryOnly                      bool                                // CLI flag - package variable for Cobra binding
+	replicaDiscoveryInfoForCallhome  *migassessment.ReplicaDiscoveryInfo // Stored for error callhome
 )
 
 var sourceConnectionFlags = []string{
@@ -116,7 +117,6 @@ var assessMigrationCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("%w", err)
 		}
-		packAndSendAssessMigrationPayload(COMPLETE, nil)
 	},
 }
 
@@ -267,7 +267,7 @@ func assessMigration() (err error) {
 	}
 	hasSourceConnectivity := preflightResult.HasSourceConnectivity
 	validatedReplicaEndpoints := preflightResult.ValidatedReplicaEndpoints
-	replicaDiscoveryInfoForCallhome := preflightResult.ReplicaDiscoveryInfo
+	replicaDiscoveryInfoForCallhome = preflightResult.ReplicaDiscoveryInfo
 	pgssEnabledForAssessment := preflightResult.PgssEnabledForAssessment
 
 	fmt.Println()
@@ -366,6 +366,7 @@ func assessMigration() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to set migration assessment completed in MSR: %w", err)
 	}
+	packAndSendAssessMigrationPayload(COMPLETE, nil)
 	return nil
 }
 
