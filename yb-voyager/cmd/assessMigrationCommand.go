@@ -55,11 +55,9 @@ var (
 	intervalForCapturingIOPS         int64
 	assessMigrationSupportedDBTypes  = []string{POSTGRESQL, ORACLE}
 	referenceOrTablePartitionPresent = false
-	pgssEnabledForAssessment         = false
 	invokedByExportSchema            utils.BoolStr
-	sourceReadReplicaEndpoints       string                              // CLI flag - package variable for Cobra binding
-	primaryOnly                      bool                                // CLI flag - package variable for Cobra binding
-	replicaDiscoveryInfoForCallhome  *migassessment.ReplicaDiscoveryInfo // Stored for error callhome
+	sourceReadReplicaEndpoints       string // CLI flag - package variable for Cobra binding
+	primaryOnly                      bool   // CLI flag - package variable for Cobra binding
 )
 
 var sourceConnectionFlags = []string{
@@ -269,8 +267,8 @@ func assessMigration() (err error) {
 	}
 	hasSourceConnectivity := preflightResult.HasSourceConnectivity
 	validatedReplicaEndpoints := preflightResult.ValidatedReplicaEndpoints
-	replicaDiscoveryInfoForCallhome = preflightResult.ReplicaDiscoveryInfo
-	pgssEnabledForAssessment = preflightResult.PgssEnabledForAssessment
+	replicaDiscoveryInfoForCallhome := preflightResult.ReplicaDiscoveryInfo
+	pgssEnabledForAssessment := preflightResult.PgssEnabledForAssessment
 
 	fmt.Println()
 	ux.PrintSeparator()
@@ -292,7 +290,7 @@ func assessMigration() (err error) {
 		tracker.StartStage("Gathering metadata", gatherStepCount, nil)
 	}
 	initAssessmentDB()
-	err = gatherAssessmentMetadata(validatedReplicaEndpoints, tracker)
+	err = gatherAssessmentMetadata(validatedReplicaEndpoints, pgssEnabledForAssessment, tracker)
 	if err != nil {
 		tracker.FailStage()
 		return fmt.Errorf("failed to gather assessment metadata: %w", err)
@@ -338,7 +336,7 @@ func assessMigration() (err error) {
 
 	// Stage 3: Generate report
 	tracker.StartStage("Generating report", 0, nil)
-	err = generateAssessmentReport()
+	err = generateAssessmentReport(replicaDiscoveryInfoForCallhome)
 	if err != nil {
 		tracker.FailStage()
 		return fmt.Errorf("failed to generate assessment report: %w", err)
@@ -584,7 +582,7 @@ func handleStartCleanIfNeededForAssessMigration(metadataDirPassedByUser bool) er
 }
 
 // gatherAssessmentMetadata collects metadata from the source database.
-func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint, tracker *ux.ProgressTracker) error {
+func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint, pgssEnabledForAssessment bool, tracker *ux.ProgressTracker) error {
 	if assessmentMetadataDirFlag != "" {
 		return nil // assessment metadata files are provided by the user inside assessmentMetadataDir
 	}
@@ -713,7 +711,7 @@ func populateMetadataCSVIntoAssessmentDB() error {
 //go:embed templates/migration_assessment_report.template
 var bytesTemplate []byte
 
-func generateAssessmentReport() (err error) {
+func generateAssessmentReport(replicaDiscoveryInfoForCallhome *migassessment.ReplicaDiscoveryInfo) (err error) {
 	log.Info("generating assessment report...")
 
 	assessmentReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
