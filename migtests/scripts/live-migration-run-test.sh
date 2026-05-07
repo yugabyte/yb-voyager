@@ -12,7 +12,6 @@ set -x
 
 export VOYAGER_WORKFLOW="live-migration"
 export YB_VOYAGER_SEND_DIAGNOSTICS=false
-export DEBEZIUM_SOURCE_YB_LOAD_BALANCE_CONNECTIONS=false
 export TEST_NAME=$1
 
 export REPO_ROOT="${PWD}"
