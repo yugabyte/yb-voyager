@@ -83,7 +83,7 @@ jobs:
       run: |
         aws s3 cp s3://dev-itest-builds/2025.2.4.0-b99961587/yugabyte-2025.2.4.0-b99961587-centos-x86_64.tar.gz .
         tar -xzf yugabyte-2025.2.4.0-b99961587-centos-x86_64.tar.gz
-        cd yugabyte-2025.2.4.0-b99961587 && ./bin/yugabyted start --advertise_address=127.0.0.1
+        cd yugabyte-2025.2.4.0 && ./bin/yugabyted start --advertise_address=127.0.0.1
 
         psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT version();"
 
