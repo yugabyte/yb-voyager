@@ -370,6 +370,9 @@ def main() -> None:
     finally:
         # Always capture artifacts/logs at the end regardless of success or failure
         H.scan_logs_for_errors(cfg["export_dir"], cfg["artifacts_dir"])
+        H.snapshot_msr_and_stats(cfg["export_dir"], cfg["artifacts_dir"])
+        if had_failure:
+            H.copy_logs_directory(cfg["export_dir"], cfg["artifacts_dir"])
 
         # Best-effort cleanup: ensure background processes started by the orchestrator
         # don't outlive the orchestrator itself.
