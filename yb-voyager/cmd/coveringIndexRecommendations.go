@@ -414,9 +414,29 @@ func fetchHighImpactQueries() ([]highImpactQuery, error) {
 		if err := rows.Scan(&h.text, &h.calls, &h.totalExecMs); err != nil {
 			return nil, err
 		}
+		if !isReadOnlySelectQuery(h.text) {
+			continue
+		}
 		out = append(out, h)
 	}
 	return out, rows.Err()
+}
+
+func isReadOnlySelectQuery(queryText string) bool {
+	parseTree, err := queryparser.Parse(queryText)
+	if err != nil {
+		return false
+	}
+	tree := asParseResult(parseTree)
+	if tree == nil || len(tree.Stmts) == 0 {
+		return false
+	}
+	for _, stmt := range tree.Stmts {
+		if stmt == nil || stmt.Stmt == nil || stmt.Stmt.GetSelectStmt() == nil {
+			return false
+		}
+	}
+	return true
 }
 
 // ---------- Parameter -> column linking ----------

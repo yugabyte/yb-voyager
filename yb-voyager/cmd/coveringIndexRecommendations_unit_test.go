@@ -286,6 +286,13 @@ func TestNormalizeTypedLiteralParams_ParseableAfterRewrite(t *testing.T) {
 	assert.Equal(t, "deleted_at", links[2].column)
 }
 
+func TestIsReadOnlySelectQuery(t *testing.T) {
+	assert.True(t, isReadOnlySelectQuery("SELECT * FROM public.users WHERE id = $1"))
+	assert.True(t, isReadOnlySelectQuery("WITH q AS (SELECT id FROM public.users) SELECT id FROM q"))
+	assert.False(t, isReadOnlySelectQuery("UPDATE public.users SET name = $1 WHERE id = $2"))
+	assert.False(t, isReadOnlySelectQuery("this is not valid sql"))
+}
+
 // ---------- walkPlanForIndexScans ----------
 
 func TestWalkPlanForIndexScans_SingleIndexScan(t *testing.T) {
