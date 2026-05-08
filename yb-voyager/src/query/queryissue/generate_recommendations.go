@@ -41,8 +41,9 @@ type SqlFixGenerator func(parseTree *pg_query.ParseResult, issue QueryIssue) (*p
 
 var sqlFixGenerators = map[string]SqlFixGenerator{
 	// Add more issue types as generators are implemented
-	NULL_VALUE_INDEXES:          generateNullPartialIndexFix,
-	MOST_FREQUENT_VALUE_INDEXES: generateMostFrequentValuePartialIndexFix,
+	NULL_VALUE_INDEXES:            generateNullPartialIndexFix,
+	MOST_FREQUENT_VALUE_INDEXES:   generateMostFrequentValuePartialIndexFix,
+	COVERING_INDEX_RECOMMENDATION: generateCoveringIndexFix,
 }
 
 func generateNullPartialIndexFix(parseTree *pg_query.ParseResult, issue QueryIssue) (*pg_query.ParseResult, error) {
@@ -65,5 +66,16 @@ func generateMostFrequentValuePartialIndexFix(parseTree *pg_query.ParseResult, i
 		return parseTree, err
 	}
 
+	return fixedParseTree, nil
+}
+
+func generateCoveringIndexFix(parseTree *pg_query.ParseResult, issue QueryIssue) (*pg_query.ParseResult, error) {
+	columns := issue.InternalDetails[INCLUDE_COLUMNS_LIST].([]string)
+	transformer := sqltransformer.NewTransformer()
+	fixedParseTree, err := transformer.AddIncludeColumnsToIndex(queryparser.CloneParseTree(parseTree), columns)
+	if err != nil {
+		return parseTree, err
+	}
+	
 	return fixedParseTree, nil
 }

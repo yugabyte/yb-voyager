@@ -476,6 +476,10 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
 	MISSING_FOREIGN_KEY_INDEX_ISSUE_NAME  = "Missing index on foreign key columns"
 	MISSING_FOREIGN_KEY_INDEX_DESCRIPTION = "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table."
 
+	COVERING_INDEX_RECOMMENDATION                  = "COVERING_INDEX_RECOMMENDATION"
+	COVERING_INDEX_RECOMMENDATION_ISSUE_NAME       = "Index candidate for covering index optimization"
+	COVERING_INDEX_RECOMMENDATION_ISSUE_DESCRIPTION = "Based on query workload analysis, certain columns are frequently read alongside the indexed columns but are rarely updated. Adding these columns to the index using the INCLUDE clause can enable index-only scans, avoiding extra table lookups and improving read performance. Use the Recommended SQL to apply this optimization."
+
 	// Recommend PK when UNIQUE + all NOT NULL but no PK exists
 	MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL             = "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL"
 	MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL_ISSUE_NAME  = "Missing primary key for table when unique and not null columns exist"
@@ -524,4 +528,15 @@ const (
 	LOW_CARDINALITY_MAX_THRESHOLD = 10
 	NULL_FREQUENCY_THRESHOLD      = 40 // percentage of nulls in the column
 	MOST_FREQUENT_VALUE_THRESHOLD = 60 // percentage of most frequent value in the column
+
+	// Covering index recommendation thresholds
+	COVERING_INDEX_UPDATE_WRITE_READ_THRESHOLD_PCT = 20.0
+	COVERING_INDEX_MIN_READ_OPS                    = 1
+
+	// Parameter-substitution EXPLAIN workload bounds
+	COVERING_INDEX_SAMPLE_VALUES_PER_COLUMN = 5
+	COVERING_INDEX_MAX_EXPLAIN_PER_QUERY    = 10
+	COVERING_INDEX_MIN_CALLS                = 5
+	COVERING_INDEX_MAX_QUERIES_ANALYZED     = 200
+	COVERING_INDEX_MAX_RELEVANT_QUERIES     = 5
 )

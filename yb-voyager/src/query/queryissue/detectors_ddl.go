@@ -19,6 +19,7 @@ package queryissue
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	goerrors "github.com/go-errors/errors"
 
@@ -789,7 +790,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 			}
 			if idx == 0 && !param.IsExpression {
 				//if this is first column and not an expression index
-				indexIssues, err := d.reportVariousIndexPerfOptimizationsOnFirstColumnOfIndex(index)
+				indexIssues, err := d.reportIndexPerfOptimizations(index)
 				if err != nil {
 					return nil, err
 				}
@@ -800,27 +801,39 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	return issues, nil
 }
 
-func (i *IndexIssueDetector) reportVariousIndexPerfOptimizationsOnFirstColumnOfIndex(index *queryparser.Index) ([]QueryIssue, error) {
+func (i *IndexIssueDetector) reportIndexPerfOptimizations(index *queryparser.Index) ([]QueryIssue, error) {
 	tm, ok := i.tablesMetadata[index.GetTableName()]
 	if !ok {
 		return nil, goerrors.Errorf("table metadata not found for table: %s", index.GetTableName())
 	}
+
+	var issues []QueryIssue
+
+	usageCategory := i.getUsageCategoryForIndex(index.GetSchemaName(), index.TableName, index.IndexName)
+
+	// Covering-index recommendations must be emitted for partitioned-parent
+	// indexes too. The walker rolls per-partition Index Scan matches up to
+	// the parent index via pg_inherits, so the candidate ONLY ever exists
+	// at the parent's CREATE INDEX. Skipping it here (as the partitioned
+	// short-circuit below does for hotspot/most-frequent checks) would
+	// silently drop the recommendation. Emit BEFORE that early-return.
+	if recIssue, ok := i.maybeCoveringIndexIssue(index, usageCategory); ok {
+		issues = append(issues, recIssue)
+	}
+
 	if tm.IsPartitioned() {
 		//not reporting the hotspot issue for partitioned table since we are already reporting it on all the partitions
-		return nil, nil
+		return issues, nil
 	}
-	var issues []QueryIssue
 
 	firstColumnParam := index.Params[0]
 	qualifiedFirstColumnName := fmt.Sprintf("%s.%s", index.GetTableName(), firstColumnParam.ColName)
-
-	usageCategory := i.getUsageCategoryForIndex(index.GetSchemaName(), index.TableName, index.IndexName)
 
 	isSingleColumnIndex := len(index.Params) == 1
 
 	stat, ok := i.columnStatistics[qualifiedFirstColumnName]
 	if !ok {
-		return nil, nil
+		return issues, nil
 	}
 
 	maxFrequencyPerc := int(stat.MostCommonFrequency * 100)
@@ -861,6 +874,33 @@ func (i *IndexIssueDetector) reportVariousIndexPerfOptimizationsOnFirstColumnOfI
 	}
 
 	return issues, nil
+}
+
+// maybeCoveringIndexIssue looks up a per-index covering recommendation produced
+// during the assessment EXPLAIN walk and, if present and non-empty after
+// filtering out columns already in the index key, returns a single
+// CoveringIndexRecommendation issue. Hoisted out of reportIndexPerfOptimizations
+// so it can run for both standalone and partitioned-parent index DDLs (the
+// walker's pg_inherits-based child->root resolution means the recommendation
+// only ever lives under the parent index's key).
+func (i *IndexIssueDetector) maybeCoveringIndexIssue(index *queryparser.Index, usageCategory string) (QueryIssue, bool) {
+	recKey := CoveringIndexRecommendationKey(index.GetSchemaName(), index.IndexName)
+	rec, ok := i.coveringIndexRecommendations[recKey]
+	if !ok || rec == nil {
+		return QueryIssue{}, false
+	}
+	indexKeyCols := lo.SliceToMap(index.Params, func(p queryparser.IndexParam) (string, bool) {
+		return strings.ToLower(p.ColName), true
+	})
+	colsToInclude := lo.Filter(rec.IncludeColumns, func(col string, _ int) bool {
+		return !indexKeyCols[strings.ToLower(col)]
+	})
+	if len(colsToInclude) == 0 {
+		return QueryIssue{}, false
+	}
+	return NewCoveringIndexRecommendationIssue(
+		INDEX_OBJECT_TYPE, index.GetObjectName(), colsToInclude, rec, usageCategory,
+	), true
 }
 
 func reportHotspotsOnTimestampTypes(typeName string, objType string, objName string, colName string, isSecondaryIndex bool, usageCategory string) ([]QueryIssue, error) {

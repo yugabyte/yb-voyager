@@ -194,6 +194,10 @@ func (pg *PostgreSQL) QueryRow(query string) *sql.Row {
 	return pg.db.QueryRow(query)
 }
 
+func (pg *PostgreSQL) Conn(ctx context.Context) (*sql.Conn, error) {
+	return pg.db.Conn(ctx)
+}
+
 func (pg *PostgreSQL) getTrimmedSchemaList() []string {
 	list := pg.source.Schemas
 	var trimmedList []string

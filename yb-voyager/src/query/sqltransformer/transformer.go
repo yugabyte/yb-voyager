@@ -469,3 +469,23 @@ func (t *Transformer) AddPartialClauseForFilteringValue(parseTree *pg_query.Pars
 
 	return parseTree, nil
 }
+
+func (t *Transformer) AddIncludeColumnsToIndex(parseTree *pg_query.ParseResult, columns []string) (*pg_query.ParseResult, error) {
+	indexNode, ok := queryparser.GetCreateIndexStmtNode(parseTree)
+	if !ok {
+		return nil, goerrors.Errorf("not a CREATE INDEX statement")
+	}
+	indexStmt := indexNode.IndexStmt
+
+	for _, col := range columns {
+		indexStmt.IndexIncludingParams = append(indexStmt.IndexIncludingParams, &pg_query.Node{
+			Node: &pg_query.Node_IndexElem{
+				IndexElem: &pg_query.IndexElem{
+					Name: col,
+				},
+			},
+		})
+	}
+
+	return parseTree, nil
+}

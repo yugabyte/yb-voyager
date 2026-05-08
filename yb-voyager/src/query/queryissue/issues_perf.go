@@ -37,6 +37,11 @@ const (
 	FK_COLUMN_NAMES              = "ForeignKeyColumnNames"
 	REFERENCED_TABLE_NAME        = "ReferencedTableName"
 	RECOMMENDED_SQL              = "RecommendedSQL"
+	INCLUDE_COLUMNS_LIST         = "IncludeColumnsList"
+	RELEVANT_QUERIES             = "RelevantQueries"
+	TOTAL_CALLS                  = "TotalCalls"
+	TOTAL_EXEC_TIME_MS           = "TotalExecTimeMs"
+	DROPPED_COLUMNS              = "DroppedColumns"
 )
 
 var hotspotsOnDateIndexes = issue.Issue{
@@ -258,4 +263,28 @@ func NewMissingPrimaryKeyWhenUniqueNotNullIssue(objectType string, objectName st
 	}
 
 	return newQueryIssueWithUsageCategory(issue, objectType, objectName, "", details, map[string]interface{}{}, usageCategory)
+}
+
+var coveringIndexRecommendationIssue = issue.Issue{
+	Name:        COVERING_INDEX_RECOMMENDATION_ISSUE_NAME,
+	Type:        COVERING_INDEX_RECOMMENDATION,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: COVERING_INDEX_RECOMMENDATION_ISSUE_DESCRIPTION,
+	DocsLink:    "https://docs.yugabyte.com/stable/yugabyte-voyager/known-issues/postgresql/#performance-optimizations", //TODO: add actual link to docs
+}
+
+func NewCoveringIndexRecommendationIssue(objectType string, objectName string, includeColumns []string, rec *CoveringIndexRecommendation, usageCategory string) QueryIssue {
+	issue := coveringIndexRecommendationIssue
+	details := map[string]interface{}{
+		RELEVANT_QUERIES:   rec.RelevantQueries,
+		TOTAL_CALLS:        rec.TotalCalls,
+		TOTAL_EXEC_TIME_MS: rec.TotalExecTimeMs,
+	}
+	if len(rec.DroppedColumns) > 0 {
+		details[DROPPED_COLUMNS] = rec.DroppedColumns
+	}
+	internalDetails := map[string]interface{}{
+		INCLUDE_COLUMNS_LIST: includeColumns,
+	}
+	return newQueryIssueWithUsageCategory(issue, objectType, objectName, "", details, internalDetails, usageCategory)
 }

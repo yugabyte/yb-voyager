@@ -2765,3 +2765,223 @@ func TestRecommendedSqlMultipleIssues(t *testing.T) {
 
 	assert.Equal(t, "CREATE INDEX idx_combined ON public.test_combined USING btree (status) WHERE status <> 'active' AND status IS NOT NULL;", freqRecommended)
 }
+
+// TestCoveringIndexRecommendation_SurfacesOnPartitionedParent locks down the
+// fix for the downstream-DDL detector bug where covering-index
+// recommendations were silently dropped for parent indexes on declaratively
+// partitioned tables.
+//
+// pg_dump emits the parent index as `CREATE INDEX ... ON ONLY public.events
+// (...)`, which still parses to a *queryparser.Index and reaches
+// IndexIssueDetector. However, before this fix, reportIndexPerfOptimizations
+// short-circuited early (return nil, nil) when the underlying table was
+// partitioned — that early return existed to suppress hotspot/most-frequent
+// reporting for partitioned parents (those signals are intentionally only
+// surfaced on the leaves), but it also suppressed the covering-index
+// recommendation, which is the exact opposite: the walker rolls per-partition
+// Index Scan matches up to the parent index via pg_inherits, so the
+// recommendation ONLY ever exists at the parent.
+func TestCoveringIndexRecommendation_SurfacesOnPartitionedParent(t *testing.T) {
+	const (
+		parentTable = `CREATE TABLE public.events (
+			id          bigint NOT NULL,
+			account_id  bigint NOT NULL,
+			occurred_at timestamptz NOT NULL,
+			kind        text,
+			payload     text
+		) PARTITION BY RANGE (occurred_at);`
+		partition = `CREATE TABLE public.events_2024 PARTITION OF public.events
+			FOR VALUES FROM ('2024-01-01') TO ('2025-01-01');`
+		// Mirrors what pg_dump emits for the parent index of a declaratively
+		// partitioned table: the ON ONLY clause is what previously caused
+		// downstream paths to bucket this DDL under PARTITION_INDEX, but the
+		// parser still produces a *queryparser.Index either way.
+		parentIndex = `CREATE INDEX idx_events_account ON ONLY public.events (account_id);`
+	)
+
+	detector := NewParserIssueDetector()
+	for _, ddl := range []string{parentTable, partition, parentIndex} {
+		err := detector.ParseAndProcessDDL(ddl)
+		testutils.FatalIfError(t, err)
+	}
+	detector.FinalizeTablesMetadata()
+
+	// Simulate what the assess-migration covering-index pipeline produces:
+	// a single recommendation keyed under the parent index, regardless of how
+	// many child partitions contributed to it.
+	rec := &CoveringIndexRecommendation{
+		IncludeColumns: []string{"kind", "payload"},
+		TotalCalls:     42,
+	}
+	detector.SetCoveringIndexRecommendations(map[string]*CoveringIndexRecommendation{
+		CoveringIndexRecommendationKey("public", "idx_events_account"): rec,
+	})
+
+	issues, err := detector.GetDDLIssues(parentIndex, ybversion.V2024_2_3_1)
+	testutils.FatalIfError(t, err)
+
+	var coveringIssue *QueryIssue
+	for i := range issues {
+		if issues[i].Type == COVERING_INDEX_RECOMMENDATION {
+			coveringIssue = &issues[i]
+			break
+		}
+	}
+	assert.NotNil(t, coveringIssue,
+		"expected COVERING_INDEX_RECOMMENDATION on partitioned-parent CREATE INDEX, got issues: %+v", issues)
+	if coveringIssue == nil {
+		return
+	}
+	assert.Equal(t, "idx_events_account ON public.events", coveringIssue.ObjectName)
+}
+
+// TestCoveringIndexRecommendation_SurfacesOnNonPartitionedIndex is the
+// companion baseline: the lookup must still fire for the original (non-
+// partitioned) case after we hoisted it above the IsPartitioned() early-return.
+func TestCoveringIndexRecommendation_SurfacesOnNonPartitionedIndex(t *testing.T) {
+	const (
+		tableStmt = `CREATE TABLE public.t (id bigint PRIMARY KEY, a text, b text);`
+		indexStmt = `CREATE INDEX idx_t_a ON public.t (a);`
+	)
+
+	detector := NewParserIssueDetector()
+	for _, ddl := range []string{tableStmt, indexStmt} {
+		err := detector.ParseAndProcessDDL(ddl)
+		testutils.FatalIfError(t, err)
+	}
+	detector.FinalizeTablesMetadata()
+
+	detector.SetCoveringIndexRecommendations(map[string]*CoveringIndexRecommendation{
+		CoveringIndexRecommendationKey("public", "idx_t_a"): {
+			IncludeColumns: []string{"b"},
+		},
+	})
+
+	issues, err := detector.GetDDLIssues(indexStmt, ybversion.V2024_2_3_1)
+	testutils.FatalIfError(t, err)
+
+	var found bool
+	for _, iss := range issues {
+		if iss.Type == COVERING_INDEX_RECOMMENDATION {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "expected COVERING_INDEX_RECOMMENDATION on non-partitioned index, got issues: %+v", issues)
+}
+
+// TestPartitionedParentIndex_SuppressesHotspotIssues_NoRegression locks down
+// that hoisting the covering-index lookup above the IsPartitioned() early-
+// return in reportIndexPerfOptimizations did NOT regress the long-standing
+// suppression of hotspot-style issues on partitioned-parent indexes.
+//
+// The same column statistics that fire MOST_FREQUENT_VALUE_INDEXES + 
+// NULL_VALUE_INDEXES on a non-partitioned index (see TestRecommendedSqlMultipleIssues 
+// for the baseline) MUST stay silent on a partitioned-parent index, because 
+// the same signals would otherwise fire again on every child partition. 
+// Mirrors the exact thresholds used in the baseline test.
+func TestPartitionedParentIndex_SuppressesHotspotIssues_NoRegression(t *testing.T) {
+	const (
+		parentTable = `CREATE TABLE public.events_h (
+			id          bigint NOT NULL,
+			status      text,
+			occurred_at timestamptz NOT NULL
+		) PARTITION BY RANGE (occurred_at);`
+		// Single child partition is enough for IsPartitioned() to be true
+		// on the parent — that's all the suppression check looks at.
+		partition   = `CREATE TABLE public.events_h_2024 PARTITION OF public.events_h
+			FOR VALUES FROM ('2024-01-01') TO ('2025-01-01');`
+		parentIndex = `CREATE INDEX idx_events_h_status ON ONLY public.events_h (status);`
+	)
+
+	detector := NewParserIssueDetector()
+	for _, ddl := range []string{parentTable, partition, parentIndex} {
+		err := detector.ParseAndProcessDDL(ddl)
+		testutils.FatalIfError(t, err)
+	}
+	detector.FinalizeTablesMetadata()
+
+	// Same thresholds the baseline non-partitioned test uses to fire both
+	// MOST_FREQUENT_VALUE_INDEXES and NULL_VALUE_INDEXES.
+	detector.SetColumnStatistics([]utils.ColumnStatistics{
+		{
+			DBType:              "postgresql",
+			SchemaName:          "public",
+			TableName:           "events_h",
+			ColumnName:          "status",
+			NullFraction:        0.40,
+			DistinctValues:      2,
+			MostCommonFrequency: 0.60,
+			MostCommonValue:     "active",
+		},
+	})
+
+	issues, err := detector.GetDDLIssues(parentIndex, ybversion.V2024_2_3_1)
+	testutils.FatalIfError(t, err)
+
+	for _, iss := range issues {
+		assert.NotEqualf(t, MOST_FREQUENT_VALUE_INDEXES, iss.Type,
+			"MOST_FREQUENT_VALUE_INDEXES must remain suppressed on partitioned-parent indexes (it would otherwise also fire on every child); got: %+v", iss)
+		assert.NotEqualf(t, NULL_VALUE_INDEXES, iss.Type,
+			"NULL_VALUE_INDEXES must remain suppressed on partitioned-parent indexes (same reason as above); got: %+v", iss)
+	}
+}
+
+// TestPartitionedParentIndex_SuppressesHotspotIssues_EvenWithCoveringRec
+// is the cross-cutting case: when BOTH hotspot stats AND a covering-index
+// recommendation exist for the same partitioned-parent index, the
+// recommendation must surface and the hotspot signals must stay suppressed.
+// Without the fix the recommendation was lost; without the early-return the
+// hotspots would over-report; this test pins both halves at once.
+func TestPartitionedParentIndex_SuppressesHotspotIssues_EvenWithCoveringRec(t *testing.T) {
+	const (
+		parentTable = `CREATE TABLE public.events_hc (
+			id          bigint NOT NULL,
+			status      text,
+			payload     text,
+			occurred_at timestamptz NOT NULL
+		) PARTITION BY RANGE (occurred_at);`
+		partition   = `CREATE TABLE public.events_hc_2024 PARTITION OF public.events_hc
+			FOR VALUES FROM ('2024-01-01') TO ('2025-01-01');`
+		parentIndex = `CREATE INDEX idx_events_hc_status ON ONLY public.events_hc (status);`
+	)
+
+	detector := NewParserIssueDetector()
+	for _, ddl := range []string{parentTable, partition, parentIndex} {
+		err := detector.ParseAndProcessDDL(ddl)
+		testutils.FatalIfError(t, err)
+	}
+	detector.FinalizeTablesMetadata()
+
+	detector.SetColumnStatistics([]utils.ColumnStatistics{
+		{
+			DBType:              "postgresql",
+			SchemaName:          "public",
+			TableName:           "events_hc",
+			ColumnName:          "status",
+			NullFraction:        0.40,
+			DistinctValues:      2,
+			MostCommonFrequency: 0.60,
+			MostCommonValue:     "active",
+		},
+	})
+	detector.SetCoveringIndexRecommendations(map[string]*CoveringIndexRecommendation{
+		CoveringIndexRecommendationKey("public", "idx_events_hc_status"): {
+			IncludeColumns: []string{"payload"},
+		},
+	})
+
+	issues, err := detector.GetDDLIssues(parentIndex, ybversion.V2024_2_3_1)
+	testutils.FatalIfError(t, err)
+
+	var sawCovering bool
+	for _, iss := range issues {
+		switch iss.Type {
+		case COVERING_INDEX_RECOMMENDATION:
+			sawCovering = true
+		case MOST_FREQUENT_VALUE_INDEXES, NULL_VALUE_INDEXES:
+			t.Errorf("hotspot issue %s leaked onto partitioned-parent index even with a covering-index recommendation present: %+v", iss.Type, iss)
+		}
+	}
+	assert.True(t, sawCovering, "expected COVERING_INDEX_RECOMMENDATION on partitioned parent alongside suppressed hotspots, got: %+v", issues)
+}

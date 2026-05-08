@@ -33,6 +33,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
@@ -62,6 +63,7 @@ var (
 	sourceReadReplicaEndpoints       string                              // CLI flag - package variable for Cobra binding
 	primaryOnly                      bool                                // CLI flag - package variable for Cobra binding
 	replicaDiscoveryInfoForCallhome  *migassessment.ReplicaDiscoveryInfo // Stored for error callhome
+	coveringIndexRecs                map[string]*queryissue.CoveringIndexRecommendation // pre-computed via EXPLAIN before source disconnect, keyed by queryissue.CoveringIndexRecommendationKey
 )
 
 var sourceConnectionFlags = []string{
@@ -375,16 +377,21 @@ func assessMigration() (err error) {
 	}
 
 	parseExportedSchemaFileForAssessmentIfRequired()
-	if hasSourceConnectivity {
-		source.DB().Disconnect()
-	}
-
+	// Populate assessment DB before disconnect so AST analysis can use it
+	// while the source connection is still live for EXPLAIN validation.
 	err = populateMetadataCSVIntoAssessmentDB()
 	if err != nil {
 		tracker.FailStage()
 		return fmt.Errorf("failed to populate metadata CSV into SQLite DB: %w", err)
 	}
 	tracker.CompleteStage()
+
+	// AST-first covering index analysis: compute recommendations from workload,
+	// then selectively validate with EXPLAIN on the live source connection.
+	if hasSourceConnectivity {
+		computeAndValidateCoveringIndexRecommendations()
+		source.DB().Disconnect()
+	}
 
 	// Pause for IOPS validation (may prompt the user)
 	tracker.Finish()
@@ -979,7 +986,397 @@ func fetchAndSetColumnStatisticsForIndexIssues() error {
 	}
 	//passing it on to the parser issue detector to enable it for detecting issues using this.
 	parserIssueDetector.SetColumnStatistics(columnStats)
+
+	if coveringIndexRecs != nil {
+		parserIssueDetector.SetCoveringIndexRecommendations(coveringIndexRecs)
+	}
 	return nil
+}
+
+func fetchAllTableColumnsFromAssessmentDB() (map[string][]string, error) {
+	query := fmt.Sprintf("SELECT schema_name, table_name, column_name FROM %s WHERE source_node = 'primary' ORDER BY schema_name, table_name, column_name", migassessment.TABLE_COLUMNS_DATA_TYPES)
+	rows, err := assessmentDB.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	tableToColumns := make(map[string][]string)
+	for rows.Next() {
+		var schemaName, tableName, columnName string
+		if err := rows.Scan(&schemaName, &tableName, &columnName); err != nil {
+			return nil, err
+		}
+		qualifiedTableName := strings.TrimSpace(tableName)
+		if strings.TrimSpace(schemaName) != "" {
+			qualifiedTableName = fmt.Sprintf("%s.%s", strings.TrimSpace(schemaName), qualifiedTableName)
+		}
+		tableToColumns[qualifiedTableName] = append(tableToColumns[qualifiedTableName], strings.TrimSpace(columnName))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	for tableName, columns := range tableToColumns {
+		tableToColumns[tableName] = slices.Compact(columns)
+	}
+	return tableToColumns, nil
+}
+
+type columnOpsMetric struct {
+	columnName     string
+	readOps        int64
+	updateWriteOps int64
+	filterOps      int64
+}
+
+// analyzeTableColumnOps parses query stats to compute per-column read, write, and filter
+// operation metrics for a given table.
+func analyzeTableColumnOps(queryStats []*types.QueryStats, schemaName, tableName string, allTableColumns []string) []columnOpsMetric {
+	normalizedSchema := normalizeColIdentifier(schemaName)
+	normalizedTable := normalizeColIdentifier(tableName)
+	normalizedColumns := lo.Uniq(lo.FilterMap(allTableColumns, func(c string, _ int) (string, bool) {
+		n := normalizeColIdentifier(c)
+		return n, n != ""
+	}))
+
+	metricsByColumn := make(map[string]*columnOpsMetric)
+	for _, col := range normalizedColumns {
+		metricsByColumn[col] = &columnOpsMetric{columnName: col}
+	}
+
+	addOps := func(cols map[string]bool, field func(*columnOpsMetric) *int64, count int64) {
+		for col := range cols {
+			if metricsByColumn[col] == nil {
+				metricsByColumn[col] = &columnOpsMetric{columnName: col}
+			}
+			*field(metricsByColumn[col]) += count
+		}
+	}
+
+	for _, qs := range queryStats {
+		if qs == nil {
+			continue
+		}
+		parseTree, err := queryparser.Parse(qs.QueryText)
+		if err != nil {
+			continue
+		}
+		for _, stmt := range parseTree.Stmts {
+			if stmt == nil || stmt.Stmt == nil {
+				continue
+			}
+			r, w, f := analyzeStmtColumnsForTable(stmt.Stmt.ProtoReflect(), normalizedSchema, normalizedTable, normalizedColumns)
+			addOps(r, func(m *columnOpsMetric) *int64 { return &m.readOps }, qs.ExecutionCount)
+			addOps(w, func(m *columnOpsMetric) *int64 { return &m.updateWriteOps }, qs.ExecutionCount)
+			addOps(f, func(m *columnOpsMetric) *int64 { return &m.filterOps }, qs.ExecutionCount)
+		}
+	}
+
+	metrics := make([]columnOpsMetric, 0, len(metricsByColumn))
+	for _, m := range metricsByColumn {
+		metrics = append(metrics, *m)
+	}
+	sort.Slice(metrics, func(i, j int) bool {
+		if metrics[i].readOps != metrics[j].readOps {
+			return metrics[i].readOps > metrics[j].readOps
+		}
+		return metrics[i].columnName < metrics[j].columnName
+	})
+	return metrics
+}
+
+func analyzeStmtColumnsForTable(stmtMsg protoreflect.Message, schemaName, tableName string, allTableColumns []string) (readCols, writeCols, filterCols map[string]bool) {
+	readCols = map[string]bool{}
+	writeCols = map[string]bool{}
+	filterCols = map[string]bool{}
+
+	qualifiers, hasTarget := collectTableQualifiers(stmtMsg, schemaName, tableName)
+	if !hasTarget {
+		return
+	}
+
+	stmtType := queryparser.GetStatementType(stmtMsg)
+	switch stmtType {
+	case queryparser.PG_QUERY_SELECTSTMT_NODE:
+		selectStmt := queryparser.GetMessageField(stmtMsg, "select_stmt")
+		collectSelectStmtCols(selectStmt, qualifiers, allTableColumns, readCols, filterCols)
+	case queryparser.PG_QUERY_UPDATESTMT_NODE:
+		updateStmt := queryparser.GetMessageField(stmtMsg, "update_stmt")
+		collectUpdateWriteCols(queryparser.GetListField(updateStmt, "target_list"), writeCols)
+		collectWhereCols(queryparser.GetMessageField(updateStmt, "where_clause"), qualifiers, filterCols, readCols)
+		collectJoinOnCols(queryparser.GetListField(updateStmt, "from_clause"), qualifiers, filterCols, readCols)
+	case queryparser.PG_QUERY_DELETESTMT_NODE:
+		deleteStmt := queryparser.GetMessageField(stmtMsg, "delete_stmt")
+		collectWhereCols(queryparser.GetMessageField(deleteStmt, "where_clause"), qualifiers, filterCols, readCols)
+	}
+	return
+}
+
+func collectTableQualifiers(stmtMsg protoreflect.Message, schemaName, tableName string) (map[string]bool, bool) {
+	qualifiers := map[string]bool{tableName: true}
+	hasTargetTable := false
+	visited := make(map[protoreflect.Message]bool)
+	_ = queryparser.TraverseParseTree(stmtMsg, visited, func(msg protoreflect.Message) error {
+		if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_RANGEVAR_NODE {
+			return nil
+		}
+		relname := normalizeColIdentifier(queryparser.GetStringField(msg, "relname"))
+		if relname != tableName {
+			return nil
+		}
+		if schemaName != "" {
+			sn := normalizeColIdentifier(queryparser.GetStringField(msg, "schemaname"))
+			if sn != "" && sn != schemaName {
+				return nil
+			}
+		}
+		hasTargetTable = true
+		if aliasMsg := queryparser.GetMessageField(msg, "alias"); aliasMsg != nil {
+			aliasName := normalizeColIdentifier(queryparser.GetStringField(aliasMsg, "aliasname"))
+			if aliasName != "" {
+				qualifiers[aliasName] = true
+			}
+		}
+		if schemaName != "" {
+			qualifiers[schemaName] = true
+		}
+		return nil
+	})
+	return qualifiers, hasTargetTable
+}
+
+// collectSelectStmtCols handles both leaf SELECTs and set operations (UNION/INTERSECT/EXCEPT).
+// Set operations have larg/rarg branches instead of a target_list at the outer level.
+func collectSelectStmtCols(selectStmt protoreflect.Message, qualifiers map[string]bool, allTableColumns []string, readCols, filterCols map[string]bool) {
+	if selectStmt == nil || !selectStmt.IsValid() {
+		return
+	}
+	if larg := queryparser.GetMessageField(selectStmt, "larg"); larg != nil {
+		collectSelectStmtCols(larg, qualifiers, allTableColumns, readCols, filterCols)
+		collectSelectStmtCols(queryparser.GetMessageField(selectStmt, "rarg"), qualifiers, allTableColumns, readCols, filterCols)
+		return
+	}
+	collectSelectReadCols(selectStmt, qualifiers, allTableColumns, readCols)
+	collectWhereCols(queryparser.GetMessageField(selectStmt, "where_clause"), qualifiers, filterCols, readCols)
+	collectJoinOnCols(queryparser.GetListField(selectStmt, "from_clause"), qualifiers, filterCols, readCols)
+	collectGroupByOrderByCols(selectStmt, qualifiers, readCols)
+	collectHavingCols(queryparser.GetMessageField(selectStmt, "having_clause"), qualifiers, filterCols, readCols)
+}
+
+func collectSelectReadCols(selectStmt protoreflect.Message, qualifiers map[string]bool, allTableColumns []string, readCols map[string]bool) {
+	if selectStmt == nil || !selectStmt.IsValid() {
+		return
+	}
+	targetList := queryparser.GetListField(selectStmt, "target_list")
+	if targetList == nil {
+		return
+	}
+	for i := 0; i < targetList.Len(); i++ {
+		node := targetList.Get(i).Message()
+		if node == nil || !node.IsValid() {
+			continue
+		}
+		resTarget := queryparser.GetMessageField(node, "res_target")
+		if resTarget == nil {
+			continue
+		}
+		val := queryparser.GetMessageField(resTarget, "val")
+		if val == nil {
+			continue
+		}
+		if isSelectStar(val, qualifiers) {
+			for _, col := range allTableColumns {
+				readCols[col] = true
+			}
+			continue
+		}
+		collectColRefsFromNode(val, qualifiers, readCols)
+	}
+}
+
+func isSelectStar(valNode protoreflect.Message, qualifiers map[string]bool) bool {
+	if queryparser.GetMessageField(valNode, "a_star") != nil {
+		return true
+	}
+	columnRef := queryparser.GetMessageField(valNode, "column_ref")
+	if columnRef == nil {
+		return false
+	}
+	fields := queryparser.GetListField(columnRef, "fields")
+	if fields == nil || fields.Len() == 0 {
+		return false
+	}
+	if fields.Len() == 1 {
+		return queryparser.GetMessageField(fields.Get(0).Message(), "a_star") != nil
+	}
+	if fields.Len() != 2 {
+		return false
+	}
+	qualifier := normalizeColIdentifier(queryparser.GetStringValueFromNode(fields.Get(0).Message()))
+	if !qualifiers[qualifier] {
+		return false
+	}
+	return queryparser.GetMessageField(fields.Get(1).Message(), "a_star") != nil
+}
+
+func collectUpdateWriteCols(targetList protoreflect.List, writeCols map[string]bool) {
+	if targetList == nil {
+		return
+	}
+	for i := 0; i < targetList.Len(); i++ {
+		node := targetList.Get(i).Message()
+		if node == nil || !node.IsValid() {
+			continue
+		}
+		resTarget := queryparser.GetMessageField(node, "res_target")
+		if resTarget == nil {
+			continue
+		}
+		columnName := normalizeColIdentifier(queryparser.GetStringField(resTarget, "name"))
+		if columnName != "" {
+			writeCols[columnName] = true
+		}
+	}
+}
+
+func collectWhereCols(whereClause protoreflect.Message, qualifiers map[string]bool, filterCols map[string]bool, readCols map[string]bool) {
+	if whereClause == nil || !whereClause.IsValid() {
+		return
+	}
+	colRefs := map[string]bool{}
+	collectColRefsFromNode(whereClause, qualifiers, colRefs)
+	for col := range colRefs {
+		filterCols[col] = true
+		readCols[col] = true
+	}
+}
+
+// collectJoinOnCols walks the from_clause to find JoinExpr nodes and collects
+// column refs from their ON conditions (quals) as both filter and read columns.
+func collectJoinOnCols(fromClause protoreflect.List, qualifiers map[string]bool, filterCols map[string]bool, readCols map[string]bool) {
+	if fromClause == nil {
+		return
+	}
+	visited := make(map[protoreflect.Message]bool)
+	for i := 0; i < fromClause.Len(); i++ {
+		node := fromClause.Get(i).Message()
+		if node == nil || !node.IsValid() {
+			continue
+		}
+		_ = queryparser.TraverseParseTree(node, visited, func(msg protoreflect.Message) error {
+			if queryparser.GetMsgFullName(msg) != "pg_query.JoinExpr" {
+				return nil
+			}
+			quals := queryparser.GetMessageField(msg, "quals")
+			if quals == nil {
+				return nil
+			}
+			collectWhereCols(quals, qualifiers, filterCols, readCols)
+			return nil
+		})
+	}
+}
+
+func collectGroupByOrderByCols(selectStmt protoreflect.Message, qualifiers map[string]bool, readCols map[string]bool) {
+	if selectStmt == nil || !selectStmt.IsValid() {
+		return
+	}
+	for _, field := range []string{"group_clause", "sort_clause"} {
+		list := queryparser.GetListField(selectStmt, field)
+		if list == nil {
+			continue
+		}
+		for i := 0; i < list.Len(); i++ {
+			node := list.Get(i).Message()
+			if node == nil || !node.IsValid() {
+				continue
+			}
+			collectColRefsFromNode(node, qualifiers, readCols)
+		}
+	}
+}
+
+func collectHavingCols(havingClause protoreflect.Message, qualifiers map[string]bool, filterCols map[string]bool, readCols map[string]bool) {
+	collectWhereCols(havingClause, qualifiers, filterCols, readCols)
+}
+
+func collectColRefsFromNode(nodeMsg protoreflect.Message, qualifiers map[string]bool, cols map[string]bool) {
+	if nodeMsg == nil || !nodeMsg.IsValid() {
+		return
+	}
+	visited := make(map[protoreflect.Message]bool)
+	_ = queryparser.TraverseParseTree(nodeMsg, visited, func(msg protoreflect.Message) error {
+		if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_COLUMNREF_NODE {
+			return nil
+		}
+		fields := queryparser.GetListField(msg, "fields")
+		if fields == nil {
+			return nil
+		}
+		var parts []string
+		for i := 0; i < fields.Len(); i++ {
+			name := queryparser.GetStringValueFromNode(fields.Get(i).Message())
+			if name != "" {
+				parts = append(parts, normalizeColIdentifier(name))
+			}
+		}
+		if len(parts) == 0 {
+			return nil
+		}
+		colName := parts[len(parts)-1]
+		if len(parts) == 1 {
+			cols[colName] = true
+		} else if qualifiers[parts[len(parts)-2]] {
+			cols[colName] = true
+		}
+		return nil
+	})
+}
+
+func normalizeColIdentifier(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.Trim(s, `"`)
+	return strings.ToLower(s)
+}
+
+func extractColumnsByPredicate(metrics []columnOpsMetric, predicate func(columnOpsMetric) bool) []string {
+	out := lo.FilterMap(metrics, func(m columnOpsMetric, _ int) (string, bool) {
+		return m.columnName, predicate(m)
+	})
+	sort.Strings(out)
+	return out
+}
+
+// computeAndValidateCoveringIndexRecommendations computes covering-index recommendations.
+//
+// Pipeline: parameter-substitution EXPLAIN per high-impact pg_stat_statements query ->
+// per-index candidate aggregation of missing columns (Output - index keys) ->
+// update/read ratio filter (drops write-heavy columns) ->
+// INCLUDE caps (count + total width, oversize guard) ->
+// one recommendation per index with a non-empty final INCLUDE set.
+//
+// Must be called while the source DB connection is still open and assessmentDB is populated.
+func computeAndValidateCoveringIndexRecommendations() {
+	if source.DBType != POSTGRESQL || assessmentDB == nil {
+		return
+	}
+	perIdx := computeExplainBasedIncludeColumns()
+	if len(perIdx) == 0 {
+		return
+	}
+	afterRatio := filterPerIndexCandidatesByUpdateReadRatio(perIdx)
+	log.Infof("covering-index: %d candidates remain after update/read ratio filter: %s", len(afterRatio), formatIndexKeys(afterRatio))
+	if len(afterRatio) == 0 {
+		return
+	}
+	coveringIndexRecs = buildRecommendations(afterRatio)
+	emittedKeys := make([]string, 0, len(coveringIndexRecs))
+	for k := range coveringIndexRecs {
+		emittedKeys = append(emittedKeys, k)
+	}
+	sort.Strings(emittedKeys)
+	log.Infof("covering-index: emitting %d recommendations: [%s]", len(coveringIndexRecs), strings.Join(emittedKeys, ", "))
 }
 
 func getAssessmentReportContentFromAnalyzeSchema() error {
@@ -1166,6 +1563,7 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.LOW_CARDINALITY_INDEX_ISSUE_NAME, "", queryissue.LOW_CARDINALITY_INDEXES, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.MOST_FREQUENT_VALUE_INDEXES_ISSUE_NAME, "", queryissue.MOST_FREQUENT_VALUE_INDEXES, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.NULL_VALUE_INDEXES_ISSUE_NAME, "", queryissue.NULL_VALUE_INDEXES, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.COVERING_INDEX_RECOMMENDATION_ISSUE_NAME, "", queryissue.COVERING_INDEX_RECOMMENDATION, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.HOTSPOTS_ON_DATE_PK_UK_ISSUE, "", queryissue.HOTSPOTS_ON_DATE_PK_UK, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.HOTSPOTS_ON_TIMESTAMP_PK_UK_ISSUE, "", queryissue.HOTSPOTS_ON_TIMESTAMP_PK_UK, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.FOREIGN_KEY_DATATYPE_MISMATCH_ISSUE_NAME, "", queryissue.FOREIGN_KEY_DATATYPE_MISMATCH, schemaAnalysisReport, false))

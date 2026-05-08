@@ -64,6 +64,12 @@ type SourceDB interface {
 	GetSchemasMissingUsagePermissions() ([]string, error)
 	Query(query string) (*sql.Rows, error)
 	QueryRow(query string) *sql.Row
+	// Conn returns a dedicated connection pinned to a single backend. Callers
+	// that issue multi-statement sequences which must all share session state
+	// (PREPARE/EXECUTE, SET LOCAL, temp tables, session GUCs, etc.) must use
+	// Conn so that every statement lands on the same backend and sees the same
+	// state. Remember to Close() the returned *sql.Conn when done.
+	Conn(ctx context.Context) (*sql.Conn, error)
 }
 
 func newSourceDB(source *Source) SourceDB {

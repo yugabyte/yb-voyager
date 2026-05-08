@@ -279,6 +279,10 @@ type ParserIssueDetector struct {
 
 	// Track if SAVEPOINT usage was detected across all queries
 	isSavepointUsed bool
+
+	// Per-index covering-index recommendations, keyed by CoveringIndexRecommendationKey(schema, index).
+	// Populated from parameter-substitution EXPLAIN analysis + ratio filter + INCLUDE caps.
+	coveringIndexRecommendations map[string]*CoveringIndexRecommendation
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -1384,6 +1388,10 @@ func (p *ParserIssueDetector) SetColumnStatistics(columnStats []utils.ColumnStat
 	for _, stat := range columnStats {
 		p.columnStatistics[stat.GetQualifiedColumnName()] = stat
 	}
+}
+
+func (p *ParserIssueDetector) SetCoveringIndexRecommendations(recs map[string]*CoveringIndexRecommendation) {
+	p.coveringIndexRecommendations = recs
 }
 
 // addIndexToCoverage adds an index to the table metadata for checking missing foreign key index issue
