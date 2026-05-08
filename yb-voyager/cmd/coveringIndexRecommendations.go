@@ -44,6 +44,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 // ---------- Data model ----------
@@ -721,6 +722,56 @@ func augmentSamplesWithPartialConstraints(meta *indexMeta, tgt paramTarget, vals
 	}
 	log.Infof("covering-index: augmented samples for %s with partial-predicate constraints (eq=%v, is_null=%v)",
 		key, extras, wantNull)
+	return out
+}
+
+// filterRedundantIndexCandidates drops candidates whose underlying index has
+// already been classified as REDUNDANT by the schema-assessment redundant-index
+// detection. We don't want to recommend INCLUDE columns for an index the user
+// is going to drop anyway. Fails open: on error reading the redundant-indexes
+// table, returns the input unchanged.
+func filterRedundantIndexCandidates(in map[indexKey]*indexCandidate) map[indexKey]*indexCandidate {
+	if len(in) == 0 {
+		return nil
+	}
+	redundant, err := fetchRedundantIndexInfoFromAssessmentDB()
+	if err != nil {
+		log.Warnf("covering-index: failed to fetch redundant indexes; skipping redundant filter: %v", err)
+		return in
+	}
+	return applyRedundantFilterToCandidates(in, redundant)
+}
+
+// applyRedundantFilterToCandidates is the pure helper exposed for unit tests.
+// It removes any candidate whose lower-cased (schema, name) matches a row in
+// redundant. Names from redundant are lower-cased before comparison since
+// candidate keys are already lower-cased.
+func applyRedundantFilterToCandidates(in map[indexKey]*indexCandidate, redundant []utils.RedundantIndexesInfo) map[indexKey]*indexCandidate {
+	if len(in) == 0 {
+		return nil
+	}
+	if len(redundant) == 0 {
+		return in
+	}
+	redundantKeys := lo.SliceToMap(redundant, func(r utils.RedundantIndexesInfo) (indexKey, struct{}) {
+		return indexKey{
+			schema: strings.ToLower(r.RedundantSchemaName),
+			name:   strings.ToLower(r.RedundantIndexName),
+		}, struct{}{}
+	})
+	out := make(map[indexKey]*indexCandidate, len(in))
+	dropped := make(map[indexKey]*indexCandidate)
+	for k, cand := range in {
+		if _, isRedundant := redundantKeys[k]; isRedundant {
+			dropped[k] = cand
+			continue
+		}
+		out[k] = cand
+	}
+	if len(dropped) > 0 {
+		log.Infof("covering-index: dropped %d candidate(s) classified as redundant by assessment: %s",
+			len(dropped), formatIndexKeys(dropped))
+	}
 	return out
 }
 

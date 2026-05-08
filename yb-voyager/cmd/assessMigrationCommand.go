@@ -1365,6 +1365,11 @@ func computeAndValidateCoveringIndexRecommendations() {
 	if len(perIdx) == 0 {
 		return
 	}
+	perIdx = filterRedundantIndexCandidates(perIdx)
+	if len(perIdx) == 0 {
+		log.Infof("covering-index: no candidates remain after redundant-index filter")
+		return
+	}
 	afterRatio := filterPerIndexCandidatesByUpdateReadRatio(perIdx)
 	log.Infof("covering-index: %d candidates remain after update/read ratio filter: %s", len(afterRatio), formatIndexKeys(afterRatio))
 	if len(afterRatio) == 0 {

@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 // ---------- linkParamsToColumns ----------
@@ -771,6 +772,59 @@ func TestAugmentSamplesWithPartialConstraints_NoOpWhenNoConstraint(t *testing.T)
 	in := []string{"1", "2"}
 	out := augmentSamplesWithPartialConstraints(meta, tgt, in)
 	assert.Equal(t, in, out)
+}
+
+// ---------- applyRedundantFilterToCandidates ----------
+
+func TestApplyRedundantFilter_DropsMatchingIndex(t *testing.T) {
+	keep := indexKey{schema: "public", name: "idx_keep"}
+	drop := indexKey{schema: "public", name: "idx_drop"}
+	in := map[indexKey]*indexCandidate{
+		keep: {key: keep, schema: "public", table: "t"},
+		drop: {key: drop, schema: "public", table: "t"},
+	}
+	redundant := []utils.RedundantIndexesInfo{
+		{RedundantSchemaName: "public", RedundantTableName: "t", RedundantIndexName: "idx_drop"},
+	}
+	out := applyRedundantFilterToCandidates(in, redundant)
+	require.Len(t, out, 1)
+	assert.Contains(t, out, keep)
+	assert.NotContains(t, out, drop)
+}
+
+func TestApplyRedundantFilter_CaseInsensitiveMatch(t *testing.T) {
+	drop := indexKey{schema: "public", name: "idx_drop"}
+	in := map[indexKey]*indexCandidate{
+		drop: {key: drop, schema: "public", table: "t"},
+	}
+	redundant := []utils.RedundantIndexesInfo{
+		{RedundantSchemaName: "Public", RedundantTableName: "T", RedundantIndexName: "Idx_Drop"},
+	}
+	out := applyRedundantFilterToCandidates(in, redundant)
+	assert.Empty(t, out)
+}
+
+func TestApplyRedundantFilter_NoRedundantInputReturnsAll(t *testing.T) {
+	a := indexKey{schema: "public", name: "idx_a"}
+	b := indexKey{schema: "public", name: "idx_b"}
+	in := map[indexKey]*indexCandidate{
+		a: {key: a, schema: "public", table: "t"},
+		b: {key: b, schema: "public", table: "t"},
+	}
+	out := applyRedundantFilterToCandidates(in, nil)
+	assert.Len(t, out, 2)
+	assert.Contains(t, out, a)
+	assert.Contains(t, out, b)
+}
+
+func TestApplyRedundantFilter_EmptyCandidatesReturnsEmpty(t *testing.T) {
+	out := applyRedundantFilterToCandidates(nil, []utils.RedundantIndexesInfo{
+		{RedundantSchemaName: "public", RedundantIndexName: "x"},
+	})
+	assert.Empty(t, out)
+
+	out = applyRedundantFilterToCandidates(map[indexKey]*indexCandidate{}, nil)
+	assert.Empty(t, out)
 }
 
 // ---------- helper ----------
