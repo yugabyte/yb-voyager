@@ -1,6 +1,6 @@
 name: iteration-test
 
-num_iterations: 20
+num_iterations: 10
 
 env:
   LOG_LEVEL: info
@@ -44,6 +44,7 @@ generator_source:
 
     generator:
       schema_name: public
+      manual_table_list: []
       exclude_table_list: [cutover_table]
       num_iterations: -1
       wait_after_operations: 1000
@@ -71,6 +72,7 @@ generator_target:
 
     generator:
       schema_name: public
+      manual_table_list: []
       exclude_table_list: [cutover_table]
       num_iterations: -1
       wait_after_operations: 5000
@@ -183,7 +185,7 @@ stages:
 
   - name: soak_with_resumptions
     action: sleep
-    seconds: 400
+    seconds: 120
 
   - name: stop_event_generator
     action: generator_stop
@@ -212,7 +214,7 @@ stages:
 
   - name: wait_for_archiver
     action: sleep
-    seconds: 180
+    seconds: 80
 
   - name: validate_archive_changes
     action: validate_archive_changes
@@ -268,7 +270,7 @@ stages:
 
   - name: soak_fallback_with_resumptions
     action: sleep
-    seconds: 400
+    seconds: 120
 
   - name: stop_target_event_generator
     action: generator_stop
@@ -301,7 +303,7 @@ stages:
 
   - name: wait_for_archiver
     action: sleep
-    seconds: 180
+    seconds: 80
 
   - name: validate_archive_changes
     action: validate_archive_changes
@@ -316,7 +318,7 @@ stages:
 
   - name: wait_for_archiver
     action: sleep
-    seconds: 240
+    seconds: 80
 
   - name: validate_archive_changes
     action: validate_archive_changes

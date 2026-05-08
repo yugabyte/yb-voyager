@@ -73,7 +73,7 @@ def load_yaml_file(path: str) -> Dict[str, Any]:
 
 def validate_section(section: Dict[str, Any], schema: Dict[str, Any], section_name: str) -> None:
     # Optional fields that don't need to be present (for backward compatibility)
-    optional_fields = {"enable_index_create_drop","index_events_interval","manual_table_list"}
+    optional_fields = {"enable_index_create_drop","index_events_interval"}
     
     for key, expected_type in schema.items():
         if key not in section:
