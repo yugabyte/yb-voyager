@@ -36,7 +36,7 @@ GEN = CONFIG["generator"]
 
 SCHEMA_NAME = GEN["schema_name"]
 
-MANUAL_TABLE_LIST = GEN["manual_table_list"]
+MANUAL_TABLE_LIST = GEN.get("manual_table_list", [])
 EXCLUDE_TABLE_LIST = GEN["exclude_table_list"]
 TABLE_WEIGHTS = GEN["table_weights"]
 

@@ -367,7 +367,6 @@ def kill(proc: subprocess.Popen | None, timeout_sec: int = 10) -> None:
         print(f"kill: killed {proc.pid}")
     except Exception:
         print(f"kill: failed to kill {proc.pid}")
-        # Best effort; ignore
         pass
 
 
@@ -387,6 +386,7 @@ def stop_process(ctx: Context, name: str, graceful_timeout: int = 10) -> bool:
         ctx.processes.pop(name, None)
     log(f"stop_process: stopped {name}")
     return True
+
 
 
 # -------------------------
@@ -491,10 +491,12 @@ def build_export_data_cmd(ctx: Context) -> list[str]:
     voyager_flags = _get_voyager_flags(cfg, "export_data")
     base = _base_common_flags(cfg)
     base.update(_source_conn_flags(cfg))
-    # Live migration default
-    base["export-type"] = "snapshot-and-changes"
-    # data command defaults
     base["disable-pb"] = True
+    if ctx.loop_iteration >= 1:
+        base["export-type"] = "changes-only"
+        merged = _merge_flags(base, voyager_flags)
+        return ["yb-voyager", "export", "data", "from", "source", "--yes"] + to_kv_flags(merged)
+    base["export-type"] = "snapshot-and-changes"
     merged = _merge_flags(base, voyager_flags)
     return ["yb-voyager", "export", "data", "--yes"] + to_kv_flags(merged)
 

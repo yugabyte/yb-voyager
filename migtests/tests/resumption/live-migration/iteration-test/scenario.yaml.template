@@ -133,14 +133,14 @@ stages:
   - name: loop_start
     action: loop_start
 
-  - name: stop_prev_iteration_exporter
+  - name: stop_prev_iteration_fallback_exporter
     action: voyager_stop_command
-    command: export_data
+    command: export_from_target
     graceful_timeout_sec: 60
 
-  - name: stop_prev_iteration_importer
+  - name: stop_prev_iteration_fallback_importer
     action: voyager_stop_command
-    command: import_data
+    command: import_to_source
     graceful_timeout_sec: 60
 
   - name: start_exporter
