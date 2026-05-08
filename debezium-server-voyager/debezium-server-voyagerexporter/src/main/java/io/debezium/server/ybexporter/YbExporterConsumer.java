@@ -464,6 +464,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
 
     private void handleBatchComplete() {
         flushSyncStreamingData();
+        exportStatus.flushToDisk();
     }
 
     /**
