@@ -76,6 +76,6 @@ func generateCoveringIndexFix(parseTree *pg_query.ParseResult, issue QueryIssue)
 	if err != nil {
 		return parseTree, err
 	}
-	
+
 	return fixedParseTree, nil
 }

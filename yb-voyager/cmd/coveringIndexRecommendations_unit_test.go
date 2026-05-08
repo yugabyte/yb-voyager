@@ -118,15 +118,15 @@ func TestBuildValueTuples_CrossProduct(t *testing.T) {
 		{"x", "y"},
 	}
 	out := buildValueTuples(in)
-	// 2x2 = 4 tuples, well under the cap (10).
+	// 2x2 = 4 tuples, well under the current cap.
 	assert.Len(t, out, 4)
 }
 
 func TestBuildValueTuples_PositionalFallback(t *testing.T) {
-	// Force total > cap of 10: 4 * 4 = 16.
+	// Force total > cap: 11 * 10 = 110 (> COVERING_INDEX_MAX_EXPLAIN_PER_QUERY=100).
 	in := [][]string{
-		{"a", "b", "c", "d"},
-		{"w", "x", "y", "z"},
+		{"a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9", "a10"},
+		{"b0", "b1", "b2", "b3", "b4", "b5", "b6", "b7", "b8", "b9"},
 	}
 	out := buildValueTuples(in)
 	// Positional fallback produces exactly COVERING_INDEX_MAX_EXPLAIN_PER_QUERY tuples.
@@ -600,6 +600,27 @@ func TestFilterPerIndexCandidatesByUpdateReadRatio_KeepsUnknownCols(t *testing.T
 	out := applyRatioFilterToCandidate(cand, map[string]columnOpsMetric{})
 	require.NotNil(t, out)
 	assert.Contains(t, out.missingCols, "mystery")
+}
+
+func TestApplyRatioFilterToCandidate_DropsWriteHeavyForQuotedCaseSensitiveColumn(t *testing.T) {
+	cand := &indexCandidate{
+		key: indexKey{"public", "idx_users_id"}, schema: "public", table: "Users",
+		missingCols: map[string]*colUsage{
+			"Email": {column: "Email"},
+			"Name":  {column: "Name"},
+		},
+	}
+	metrics := map[string]columnOpsMetric{
+		"email": {columnName: "email", updateWriteOps: 90, readOps: 5, filterOps: 5}, // 90% writes
+		"name":  {columnName: "name", updateWriteOps: 1, readOps: 100, filterOps: 0},
+	}
+
+	out := applyRatioFilterToCandidate(cand, metrics)
+	require.NotNil(t, out)
+	assert.NotContains(t, out.missingCols, "Email")
+	assert.Contains(t, out.missingCols, "Name")
+	require.Len(t, out.droppedList, 1)
+	assert.Equal(t, droppedColumn{name: "Email", reason: "write_heavy"}, out.droppedList[0])
 }
 
 // ---------- extractPartialPredicateConstraints ----------

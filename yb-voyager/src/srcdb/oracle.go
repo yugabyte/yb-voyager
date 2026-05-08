@@ -111,10 +111,6 @@ func (ora *Oracle) QueryRow(query string) *sql.Row {
 	return ora.db.QueryRow(query)
 }
 
-func (ora *Oracle) Conn(ctx context.Context) (*sql.Conn, error) {
-	return ora.db.Conn(ctx)
-}
-
 func (ora *Oracle) GetTableRowCount(tableName sqlname.NameTuple) (int64, error) {
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName.ForUserQuery())

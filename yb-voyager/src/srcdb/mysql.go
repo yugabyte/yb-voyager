@@ -90,10 +90,6 @@ func (ms *MySQL) QueryRow(query string) *sql.Row {
 	return ms.db.QueryRow(query)
 }
 
-func (ms *MySQL) Conn(ctx context.Context) (*sql.Conn, error) {
-	return ms.db.Conn(ctx)
-}
-
 func (ms *MySQL) GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, error) {
 	return nil, nil
 }

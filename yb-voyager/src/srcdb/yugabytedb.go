@@ -108,10 +108,6 @@ func (yb *YugabyteDB) QueryRow(query string) *sql.Row {
 	return yb.db.QueryRow(query)
 }
 
-func (yb *YugabyteDB) Conn(ctx context.Context) (*sql.Conn, error) {
-	return yb.db.Conn(ctx)
-}
-
 func (yb *YugabyteDB) GetTableRowCount(tableName sqlname.NameTuple) (int64, error) {
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName.ForUserQuery())

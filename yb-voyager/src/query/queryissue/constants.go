@@ -476,8 +476,8 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
 	MISSING_FOREIGN_KEY_INDEX_ISSUE_NAME  = "Missing index on foreign key columns"
 	MISSING_FOREIGN_KEY_INDEX_DESCRIPTION = "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table."
 
-	COVERING_INDEX_RECOMMENDATION                  = "COVERING_INDEX_RECOMMENDATION"
-	COVERING_INDEX_RECOMMENDATION_ISSUE_NAME       = "Index candidate for covering index optimization"
+	COVERING_INDEX_RECOMMENDATION                   = "COVERING_INDEX_RECOMMENDATION"
+	COVERING_INDEX_RECOMMENDATION_ISSUE_NAME        = "Index candidate for covering index optimization"
 	COVERING_INDEX_RECOMMENDATION_ISSUE_DESCRIPTION = "Based on query workload analysis, certain columns are frequently read alongside the indexed columns but are rarely updated. Adding these columns to the index using the INCLUDE clause can enable index-only scans, avoiding extra table lookups and improving read performance. Use the Recommended SQL to apply this optimization."
 
 	// Recommend PK when UNIQUE + all NOT NULL but no PK exists
@@ -531,7 +531,6 @@ const (
 
 	// Covering index recommendation thresholds
 	COVERING_INDEX_UPDATE_WRITE_READ_THRESHOLD_PCT = 20.0
-	COVERING_INDEX_MIN_READ_OPS                    = 1
 
 	// Parameter-substitution EXPLAIN workload bounds
 	COVERING_INDEX_SAMPLE_VALUES_PER_COLUMN = 10

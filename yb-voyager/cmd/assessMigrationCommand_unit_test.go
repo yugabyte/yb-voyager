@@ -38,9 +38,9 @@ func TestAnalyzeTableColumnOps(t *testing.T) {
 	readCols := extractColumnsByPredicate(metrics, func(m columnOpsMetric) bool { return m.readOps > 0 })
 	writeCols := extractColumnsByPredicate(metrics, func(m columnOpsMetric) bool { return m.updateWriteOps > 0 })
 	filteringCols := extractColumnsByPredicate(metrics, func(m columnOpsMetric) bool { return m.filterOps > 0 })
-	require.Equal(t, []string{"a", "b", "c", "x"}, readCols)
-	require.Equal(t, []string{"a"}, writeCols)
-	require.Equal(t, []string{"x"}, filteringCols)
+	require.ElementsMatch(t, []string{"a", "b", "c", "x"}, readCols)
+	require.ElementsMatch(t, []string{"a"}, writeCols)
+	require.ElementsMatch(t, []string{"x"}, filteringCols)
 }
 
 func TestAnalyzeTableColumnOpsJoinOn(t *testing.T) {

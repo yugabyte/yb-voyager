@@ -63,7 +63,6 @@ var (
 	sourceReadReplicaEndpoints       string                              // CLI flag - package variable for Cobra binding
 	primaryOnly                      bool                                // CLI flag - package variable for Cobra binding
 	replicaDiscoveryInfoForCallhome  *migassessment.ReplicaDiscoveryInfo // Stored for error callhome
-	coveringIndexRecs                map[string]*queryissue.CoveringIndexRecommendation // pre-computed via EXPLAIN before source disconnect, keyed by queryissue.CoveringIndexRecommendationKey
 )
 
 var sourceConnectionFlags = []string{
@@ -986,10 +985,6 @@ func fetchAndSetColumnStatisticsForIndexIssues() error {
 	}
 	//passing it on to the parser issue detector to enable it for detecting issues using this.
 	parserIssueDetector.SetColumnStatistics(columnStats)
-
-	if coveringIndexRecs != nil {
-		parserIssueDetector.SetCoveringIndexRecommendations(coveringIndexRecs)
-	}
 	return nil
 }
 
@@ -1017,9 +1012,6 @@ func fetchAllTableColumnsFromAssessmentDB() (map[string][]string, error) {
 		return nil, err
 	}
 
-	for tableName, columns := range tableToColumns {
-		tableToColumns[tableName] = slices.Compact(columns)
-	}
 	return tableToColumns, nil
 }
 
@@ -1375,7 +1367,8 @@ func computeAndValidateCoveringIndexRecommendations() {
 	if len(afterRatio) == 0 {
 		return
 	}
-	coveringIndexRecs = buildRecommendations(afterRatio)
+	coveringIndexRecs := buildRecommendations(afterRatio)
+	parserIssueDetector.SetCoveringIndexRecommendations(coveringIndexRecs)
 	emittedKeys := make([]string, 0, len(coveringIndexRecs))
 	for k := range coveringIndexRecs {
 		emittedKeys = append(emittedKeys, k)

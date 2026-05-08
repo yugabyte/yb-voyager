@@ -37,6 +37,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 )
 
 // nullParamSentinel is a magic value used in the EXPLAIN EXECUTE value tuples
@@ -44,20 +45,14 @@ import (
 // the partial-index sampling path to satisfy `col IS NULL` predicates.
 const nullParamSentinel = "\x00__null__\x00"
 
+// Concurrency invariant: covering-index analysis currently runs on a single
+// goroutine over one pinned connection, so these package-level caches/functions
+// are mutated without locks. If per-query analysis is parallelized in the
+// future, guard these with synchronization (or make them per-worker state).
 var relationHasColumnCache = map[string]bool{}
 var relationHasColumnFn = relationHasColumnFromCatalog
 
 // ---------- AST utilities ----------
-
-// asParseResult is a narrow helper used by buildAliasMapFromStmts to accept
-// *pg_query.ParseResult through an interface{} (used so the walker declaration
-// can be placed in the orchestrator file without needing pg_query there).
-func asParseResult(v interface{}) *pg_query.ParseResult {
-	if pr, ok := v.(*pg_query.ParseResult); ok {
-		return pr
-	}
-	return nil
-}
 
 // collectRangeVars walks a node tree and records every RangeVar alias / real name
 // into am, marking ambiguous names in ambiguous.
@@ -327,35 +322,46 @@ func relationHasColumnFromCatalog(t paramTarget, column string) bool {
 	if db == nil || t.table == "" || column == "" {
 		return false
 	}
+	pgSource, ok := db.(*srcdb.PostgreSQL)
+	if !ok {
+		return false
+	}
 	cacheKey := t.schema + "\x00" + t.table + "\x00" + column
 	if v, ok := relationHasColumnCache[cacheKey]; ok {
 		return v
 	}
 
+	ctx := context.Background()
+	conn, err := pgSource.Conn(ctx)
+	if err != nil {
+		log.Debugf("covering-index: failed to acquire source connection for column lookup %s.%s.%s: %v", t.schema, t.table, column, err)
+		return false
+	}
+	defer conn.Close()
+
 	var exists bool
-	var err error
 	if t.schema != "" {
-		q := fmt.Sprintf(
+		err = conn.QueryRowContext(
+			ctx,
 			`SELECT EXISTS(
 				SELECT 1
 				FROM information_schema.columns
-				WHERE table_schema = %s AND table_name = %s AND column_name = %s
+				WHERE table_schema = $1 AND table_name = $2 AND column_name = $3
 			)`,
-			pgQuoteLiteral(t.schema), pgQuoteLiteral(t.table), pgQuoteLiteral(column),
-		)
-		err = db.QueryRow(q).Scan(&exists)
+			t.schema, t.table, column,
+		).Scan(&exists)
 	} else {
-		q := fmt.Sprintf(
+		err = conn.QueryRowContext(
+			ctx,
 			`SELECT EXISTS(
 				SELECT 1
 				FROM information_schema.columns
 				WHERE table_schema = ANY(current_schemas(true))
-				  AND table_name = %s
-				  AND column_name = %s
+				  AND table_name = $1
+				  AND column_name = $2
 			)`,
-			pgQuoteLiteral(t.table), pgQuoteLiteral(column),
-		)
-		err = db.QueryRow(q).Scan(&exists)
+			t.table, column,
+		).Scan(&exists)
 	}
 	if err != nil {
 		log.Debugf("covering-index: relationHasColumn lookup failed for %s.%s.%s: %v", t.schema, t.table, column, err)
@@ -553,8 +559,8 @@ func prepareStatement(ctx context.Context, conn *sql.Conn, queryText string, exp
 	}
 
 	var rawTypes []byte
-	row := conn.QueryRowContext(ctx, fmt.Sprintf(
-		"SELECT parameter_types::text FROM pg_prepared_statements WHERE name = '%s'", stmtName))
+	row := conn.QueryRowContext(ctx,
+		"SELECT parameter_types::text FROM pg_prepared_statements WHERE name = $1", stmtName)
 	if err := row.Scan(&rawTypes); err != nil {
 		deallocateStatement(ctx, conn, stmtName)
 		return "", nil, fmt.Errorf("read parameter_types: %w", err)
@@ -578,6 +584,7 @@ func deallocateStatement(ctx context.Context, conn *sql.Conn, stmtName string) {
 
 // ---------- Per-column value sampling ----------
 
+// See concurrency invariant above.
 var sampleCache = map[string][]string{}
 
 // sampleValuesForColumn samples up to N non-NULL values for (schema, table, col).

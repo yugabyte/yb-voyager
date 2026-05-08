@@ -37,13 +37,14 @@ import (
 	"sort"
 	"strings"
 
+	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -217,6 +218,8 @@ func loadIndexMeta() (*indexMeta, error) {
 			}
 			m.columnDataType[sch+"."+tab+"."+col] = dtype
 		}
+	} else {
+		log.Warnf("covering-index: failed to read %s from assessment db: %v", migassessment.TABLE_COLUMNS_DATA_TYPES, err)
 	}
 
 	// Partition child -> parent index links. PG >= 11 records this in
@@ -427,11 +430,10 @@ func isReadOnlySelectQuery(queryText string) bool {
 	if err != nil {
 		return false
 	}
-	tree := asParseResult(parseTree)
-	if tree == nil || len(tree.Stmts) == 0 {
+	if parseTree == nil || len(parseTree.Stmts) == 0 {
 		return false
 	}
-	for _, stmt := range tree.Stmts {
+	for _, stmt := range parseTree.Stmts {
 		if stmt == nil || stmt.Stmt == nil || stmt.Stmt.GetSelectStmt() == nil {
 			return false
 		}
@@ -534,36 +536,23 @@ func collectReferencedColumnsForQuery(queryText string) (map[string]map[string]b
 // both alias names and real table names to their (schema, table). If a name
 // is ambiguous (different tables use it in the same query), we map it to the
 // empty sentinel struct which signals "ambiguous".
-func buildAliasMapFromStmts(parseTree interface{}) map[string]paramTarget {
+func buildAliasMapFromStmts(parseTree *pg_query.ParseResult) map[string]paramTarget {
 	// Use proto reflection to walk the tree: we reuse the queryparser traversal
 	// so we don't have to duplicate pg_query type switching here.
 	am := make(map[string]paramTarget)
 	ambiguous := make(map[string]bool)
 
-	pr, ok := parseTree.(interface {
-		// duck type: *pg_query.ParseResult has Stmts
-	})
-	_ = pr
-	_ = ok
-
-	// We receive the real *pg_query.ParseResult; cast via helpers.
-	if tree := asParseResult(parseTree); tree != nil {
-		for _, s := range tree.Stmts {
-			if s == nil || s.Stmt == nil {
-				continue
-			}
-			collectRangeVars(s.Stmt, am, ambiguous)
+	for _, s := range parseTree.Stmts {
+		if s == nil || s.Stmt == nil {
+			continue
 		}
+		collectRangeVars(s.Stmt, am, ambiguous)
 	}
 	for name := range ambiguous {
 		delete(am, name)
 	}
 	return am
 }
-
-// Uses the concrete pg_query_go types; the helpers below are thin to keep this file
-// readable (they could be inlined, but separating them makes testing easier later).
-// See covering_index_walk.go (this file) for the actual tree walker implementations.
 
 // ---------- Compute / filter / caps (high-level) ----------
 
@@ -598,7 +587,12 @@ func computeExplainBasedIncludeColumns() map[indexKey]*indexCandidate {
 	// so the prepared statement stays visible. Running them against the pool
 	// would hand each call to an arbitrary backend and silently fail.
 	ctx := context.Background()
-	conn, err := source.DB().Conn(ctx)
+	pgSource, ok := source.DB().(*srcdb.PostgreSQL)
+	if !ok {
+		log.Warnf("covering-index: source db is not PostgreSQL (%T); skipping analysis", source.DB())
+		return nil
+	}
+	conn, err := pgSource.Conn(ctx)
 	if err != nil {
 		log.Warnf("covering-index: failed to acquire source connection: %v", err)
 		return nil
@@ -862,6 +856,11 @@ func applyRatioFilterToCandidate(cand *indexCandidate, metrics map[string]column
 	kept := make(map[string]*colUsage, len(cand.missingCols))
 	for col, usage := range cand.missingCols {
 		m, ok := metrics[col]
+		if !ok {
+			// Candidate columns preserve source spelling (e.g. quoted "Email"),
+			// while metrics keys are normalized/lower-cased.
+			m, ok = metrics[strings.ToLower(strings.Trim(col, `"`))]
+		}
 		if ok {
 			denom := m.updateWriteOps + m.readOps + m.filterOps
 			if denom > 0 {
@@ -948,8 +947,6 @@ func buildRecommendationForIndex(cand *indexCandidate) *queryissue.CoveringIndex
 // droppedList accumulates upstream drop decisions (ratio filter) so
 // buildRecommendations can merge them into the final recommendation's
 // DroppedColumns.
-type candidateDrops = droppedColumn
-
 func (c *indexCandidate) addDropped(name, reason string) {
 	c.droppedList = append(c.droppedList, droppedColumn{name: name, reason: reason})
 }
@@ -1119,7 +1116,3 @@ func referencedColumnsForRelation(colsByRel map[string]map[string]bool, schema, 
 	}
 	return colsByRel[relationColumnKey("", table)]
 }
-
-// ---------- unused-value sinks (keeps goimports happy) ----------
-
-var _ = types.QueryStats{}
