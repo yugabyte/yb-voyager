@@ -486,17 +486,12 @@ def initiate_cutover(cfg: Dict[str, Any], env: Dict[str, str], direction: str) -
     run_checked(cmd, env, description=f"cutover_to_{direction}")
 
 
-def build_export_data_cmd(ctx: Context) -> list[str]:
-    cfg = ctx.cfg
+def build_export_data_cmd(cfg: Dict[str, Any]) -> list[str]:
     voyager_flags = _get_voyager_flags(cfg, "export_data")
     base = _base_common_flags(cfg)
     base.update(_source_conn_flags(cfg))
-    base["disable-pb"] = True
-    if ctx.loop_iteration >= 1:
-        base["export-type"] = "changes-only"
-        merged = _merge_flags(base, voyager_flags)
-        return ["yb-voyager", "export", "data", "from", "source", "--yes"] + to_kv_flags(merged)
     base["export-type"] = "snapshot-and-changes"
+    base["disable-pb"] = True
     merged = _merge_flags(base, voyager_flags)
     return ["yb-voyager", "export", "data", "--yes"] + to_kv_flags(merged)
 
@@ -710,7 +705,7 @@ def validate_archive_changes(ctx: Context, check_post_cutover_to_source: bool = 
 
 def start_command_by_name(name: str, ctx: Context) -> subprocess.Popen:
     mapping: Dict[str, Callable[[], subprocess.Popen]] = {
-        "export_data": lambda: spawn(build_export_data_cmd(ctx), ctx.env),
+        "export_data": lambda: spawn(build_export_data_cmd(ctx.cfg), ctx.env),
         "import_data": lambda: spawn(build_import_data_cmd(ctx.cfg), ctx.env),
         "export_from_target": lambda: spawn(build_export_from_target_cmd(ctx.cfg), ctx.env),
         "import_to_source_replica": lambda: spawn(build_import_to_source_replica_cmd(ctx.cfg), ctx.env),
@@ -1025,24 +1020,6 @@ def scan_logs_for_errors(export_dir: str, artifacts_dir: str, patterns: list[str
                 outf.write("\n".join(findings) + "\n")
 
 
-def snapshot_msr_and_stats(export_dir: str, artifacts_dir: str) -> None:
-    metainfo_dir = os.path.join(export_dir, "metainfo")
-    dest_dir = os.path.join(artifacts_dir, "metainfo")
-
-    if not os.path.isdir(metainfo_dir):
-        log(f"snapshot_msr_and_stats: skipped, no metainfo dir at {metainfo_dir}")
-        return
-    shutil.copytree(metainfo_dir, dest_dir, dirs_exist_ok=True)
-
-
-def copy_logs_directory(export_dir: str, artifacts_dir: str) -> None:
-    logs_dir = os.path.join(export_dir, "logs")
-    dest_dir = os.path.join(artifacts_dir, "logs")
-
-    if not os.path.isdir(logs_dir):
-        log(f"copy_logs_directory: skipped, no logs dir at {logs_dir}")
-        return
-    shutil.copytree(logs_dir, dest_dir, dirs_exist_ok=True)
 
 
 def append_stage_summary(artifacts_dir: str, stage_name: str, start_ts: str, end_ts: str, status: str, error: str | None = None) -> None:
@@ -1406,7 +1383,6 @@ def run_segment_hash_validations(
     Raises:
         RuntimeError if any segment shows a mismatch or is missing on one side.
     """
-    # 0) Cleanup stale validation rows from prior iterations (self-cleaning per Abhinay's guidance)
     for side in (left_side, right_side):
         run_psql(ctx, side, "-c", "DELETE FROM public.migration_validate_segments;")
 
