@@ -500,7 +500,6 @@ def build_import_data_cmd(cfg: Dict[str, Any]) -> list[str]:
     voyager_flags = _get_voyager_flags(cfg, "import_data")
     base = _base_common_flags(cfg)
     base.update(_target_conn_flags(cfg))
-    base["max-retries-streaming"] = 1
     base["skip-replication-checks"] = True
     # data command defaults
     base["disable-pb"] = True
