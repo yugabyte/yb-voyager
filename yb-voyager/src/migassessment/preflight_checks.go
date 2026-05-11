@@ -32,8 +32,6 @@ import (
 type PreflightChecksConfig struct {
 	Source                     *srcdb.Source
 	AssessmentMetadataDirFlag  string
-	ExportType                 string
-	UseDebezium                bool
 	SourceReadReplicaEndpoints string
 	PrimaryOnly                bool
 }
@@ -116,7 +114,7 @@ func runGuardrailChecks(config PreflightChecksConfig) error {
 	}
 
 	log.Info("checking source DB version")
-	if err := config.Source.DB().CheckSourceDBVersion(config.ExportType); err != nil {
+	if err := config.Source.DB().CheckSourceDBVersion(""); err != nil {
 		ux.PrintPreflightFail("Source DB version check")
 		return fmt.Errorf("failed to check source DB version for assess migration: %w", err)
 	}
@@ -125,8 +123,8 @@ func runGuardrailChecks(config PreflightChecksConfig) error {
 	binaryCheckIssues, err := export.CheckDependencies(
 		config.Source.DBType,
 		config.Source.DB().GetVersion(),
-		config.ExportType,
-		config.UseDebezium,
+		"",
+		false,
 	)
 	if err != nil {
 		ux.PrintPreflightFail("Required dependencies present")
@@ -174,7 +172,7 @@ func checkAssessmentPermissions(config PreflightChecksConfig, validatedReplicaEn
 		return false, nil
 	}
 
-	if err := srcdb.CheckSchemasHaveUsagePermissions(config.Source, export.ChangeStreamingIsEnabled(config.ExportType)); err != nil {
+	if err := srcdb.CheckSchemasHaveUsagePermissions(config.Source, export.ChangeStreamingIsEnabled("")); err != nil {
 		ux.PrintPreflightFail("Schema USAGE permissions")
 		return false, fmt.Errorf("schema usage permission check failed: %w", err)
 	}

@@ -256,8 +256,6 @@ func assessMigration() (err error) {
 	preflightResult, err := migassessment.RunPreflightChecks(migassessment.PreflightChecksConfig{
 		Source:                     &source,
 		AssessmentMetadataDirFlag:  assessmentMetadataDirFlag,
-		ExportType:                 exportType,
-		UseDebezium:                useDebezium,
 		SourceReadReplicaEndpoints: sourceReadReplicaEndpoints,
 		PrimaryOnly:                primaryOnly,
 	})

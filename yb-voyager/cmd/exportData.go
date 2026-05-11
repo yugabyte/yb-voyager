@@ -1871,8 +1871,8 @@ func checkSourceDBCharset() {
 	}
 }
 
-func changeStreamingIsEnabled(s string) bool {
-	return export.ChangeStreamingIsEnabled(s)
+func changeStreamingIsEnabled(exportType string) bool {
+	return export.ChangeStreamingIsEnabled(exportType)
 }
 
 func getTableNameToApproxRowCountMap(tableList []sqlname.NameTuple) map[string]int64 {
