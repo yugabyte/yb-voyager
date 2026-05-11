@@ -52,6 +52,7 @@ CONFIG_SCHEMA: Dict[str, Dict[str, Any]] = {
         "update_max_retries": int,
         "enable_index_create_drop": bool,
         "index_events_interval": int,
+        "column_overrides": dict,
     },
 }
 
@@ -73,7 +74,7 @@ def load_yaml_file(path: str) -> Dict[str, Any]:
 
 def validate_section(section: Dict[str, Any], schema: Dict[str, Any], section_name: str) -> None:
     # Optional fields that don't need to be present (for backward compatibility)
-    optional_fields = {"enable_index_create_drop","index_events_interval"}
+    optional_fields = {"enable_index_create_drop","index_events_interval","column_overrides"}
     
     for key, expected_type in schema.items():
         if key not in section:
@@ -167,6 +168,60 @@ def get_estimated_row_count(
 
 def set_faker_seed(seed: int) -> None:
     _fake.seed_instance(seed)
+
+
+# ----- Column override helpers -----
+
+def generate_override_value(override_spec: Dict[str, Any]) -> Any:
+    """Generate a value based on a column_overrides spec entry.
+
+    Supported override types:
+      - choice: pick randomly from a list of values
+      - timestamp_range: random timestamp between min and max (ISO format strings)
+      - date_range: random date between min and max (YYYY-MM-DD strings)
+      - int_range: random integer between min and max
+    """
+    from datetime import datetime, timedelta, date as date_type
+
+    override_type = override_spec.get("type")
+
+    if override_type == "choice":
+        return random.choice(override_spec["values"])
+
+    elif override_type == "timestamp_range":
+        min_ts = datetime.fromisoformat(override_spec["min"])
+        max_ts = datetime.fromisoformat(override_spec["max"])
+        delta = (max_ts - min_ts).total_seconds()
+        random_seconds = random.uniform(0, delta)
+        result = min_ts + timedelta(seconds=random_seconds)
+        return result.strftime("%Y-%m-%d %H:%M:%S")
+
+    elif override_type == "date_range":
+        min_d = date_type.fromisoformat(override_spec["min"])
+        max_d = date_type.fromisoformat(override_spec["max"])
+        delta_days = (max_d - min_d).days
+        random_days = random.randint(0, delta_days)
+        result = min_d + timedelta(days=random_days)
+        return result.isoformat()
+
+    elif override_type == "int_range":
+        return random.randint(override_spec["min"], override_spec["max"])
+
+    else:
+        raise ValueError(f"Unknown column_overrides type: {override_type}")
+
+
+def get_column_override(
+    column_overrides: Dict[str, Any],
+    table_name: str,
+    column_name: str,
+) -> Optional[Dict[str, Any]]:
+    """Look up an override spec for a given table.column, or None."""
+    table_overrides = column_overrides.get(table_name)
+    if not table_overrides:
+        return None
+    return table_overrides.get(column_name)
+
 
 # ----- Schema discovery/introspection -----
 
@@ -338,23 +393,56 @@ def _find_primary_key(
     cursor: Any,
     table_name: str,
     schema_name: Optional[str],
-) -> Optional[str]:
-    """Return the name of the primary key column or None if not found."""
+) -> Optional[List[str]]:
+    """Return the primary key column(s) as a list, or None if not found.
+
+    For partitioned tables where the root has no PK, falls back to querying
+    the first child partition's PK.
+    """
     regclass = _qualify_regclass(table_name, schema_name)
-    cursor.execute(
-        """
-            SELECT a.attname
-            FROM pg_index i
-            JOIN pg_class c ON c.oid = i.indrelid
-            JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
-            WHERE c.oid = %s::regclass
-              AND i.indisprimary
-            ORDER BY a.attnum
-        """,
-        (regclass,),
-    )
-    result = cursor.fetchone()
-    return result[0] if result else None
+    pk_query = """
+        SELECT a.attname
+        FROM pg_index i
+        JOIN pg_class c ON c.oid = i.indrelid
+        JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
+        WHERE c.oid = %s::regclass
+          AND i.indisprimary
+        ORDER BY a.attnum
+    """
+    cursor.execute(pk_query, (regclass,))
+    rows = cursor.fetchall()
+    if rows:
+        return [r[0] for r in rows]
+
+    # Root partitioned tables often have no PK; walk down through children
+    # until we find a leaf partition that has a PK (handles multilevel partitioning).
+    children_query = """
+        SELECT c.relname
+        FROM pg_inherits i
+        JOIN pg_class c ON c.oid = i.inhrelid
+        JOIN pg_class p ON p.oid = i.inhparent
+        JOIN pg_namespace n ON n.oid = p.relnamespace
+        WHERE p.relname = %s AND n.nspname = %s
+        ORDER BY c.relname
+        LIMIT 1
+    """
+    current = table_name
+    visited = set()
+    while current not in visited:
+        visited.add(current)
+        cursor.execute(children_query, (current, schema_name or 'public'))
+        child = cursor.fetchone()
+        if not child:
+            break
+        child_regclass = _qualify_regclass(child[0], schema_name)
+        cursor.execute(pk_query, (child_regclass,))
+        rows = cursor.fetchall()
+        if rows:
+            pk_cols = [r[0] for r in rows]
+            print(f"PK for '{table_name}' resolved from child '{child[0]}': {pk_cols}")
+            return pk_cols
+        current = child[0]
+    return None
 
 
 def _build_enum_values(
@@ -693,13 +781,18 @@ def build_insert_values(
     table_schemas: Dict[str, Dict[str, Any]],
     table_name: str,
     number_of_rows_to_insert: int,
+    column_overrides: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Build VALUES list like (v1, v2), (v1, v2) for INSERT ... VALUES ..."""
     rows = []
     for _ in range(number_of_rows_to_insert):
         values = []
         for column_name, data_type in table_schemas[table_name]["columns"].items():
-            if "bit" in data_type.lower():
+            override_spec = get_column_override(column_overrides or {}, table_name, column_name)
+            if override_spec:
+                value = generate_override_value(override_spec)
+                values.append(f"'{value}'" if value is not None else "NULL")
+            elif "bit" in data_type.lower():
                 values.append(build_bit_cast_expr(table_schemas, table_name, column_name))
             elif data_type != "USER-DEFINED" and data_type != "ARRAY":
                 values.append(f"'{generate_random_data(data_type, table_name, None, None)}'")
@@ -718,6 +811,7 @@ def build_update_values(
     table_schemas: Dict[str, Dict[str, Any]],
     table_name: str,
     columns_to_update: List[str],
+    column_overrides: Optional[Dict[str, Any]] = None,
 ) -> Tuple[str, List[Any]]:
     """Build a SET clause and params for UPDATE with type-aware handling.
 
@@ -731,7 +825,15 @@ def build_update_values(
 
     for col in columns_to_update:
         data_type = columns[col]
-        if "bit" in data_type.lower():
+        override_spec = get_column_override(column_overrides or {}, table_name, col)
+        if override_spec:
+            value = generate_override_value(override_spec)
+            if value is None:
+                set_parts.append(f"{col} = NULL")
+            else:
+                set_parts.append(f"{col} = %s")
+                params.append(value)
+        elif "bit" in data_type.lower():
             expr = build_bit_cast_expr(table_schemas, table_name, col)
             set_parts.append(f"{col} = {expr}")
         else:
@@ -786,7 +888,7 @@ DEFAULT_ROW_ESTIMATE = 1000
 def build_sampling_condition(
     db_flavor: str,
     table_name: str,
-    primary_key: str,
+    primary_key: "str | List[str]",
     target_row_count: int,
     estimated_row_count: Optional[int],
 ) -> Tuple[str, List[Any]]:
@@ -794,25 +896,39 @@ def build_sampling_condition(
     Build a WHERE condition fragment and parameters for sampling rows
     for UPDATE/DELETE operations.
 
+    primary_key can be a single column name (str) or a list of column names.
+    For composite PKs, uses row-value syntax: (col1, col2) IN (SELECT col1, col2 ...).
+
     For PostgreSQL, this uses TABLESAMPLE SYSTEM_ROWS(target_row_count).
     For YugabyteDB, it uses a probabilistic filter WHERE random() < p,
     where p is derived from target_row_count and an estimated row count.
     """
+    if isinstance(primary_key, str):
+        pk_cols = [primary_key]
+    else:
+        pk_cols = primary_key
+
+    if len(pk_cols) == 1:
+        pk_select = pk_cols[0]
+        pk_where = pk_cols[0]
+    else:
+        pk_select = ", ".join(pk_cols)
+        pk_where = f"({pk_select})"
+
     if db_flavor == "POSTGRES":
         where_clause = (
-            f"{primary_key} IN ("
-            f"SELECT {primary_key} FROM {table_name} TABLESAMPLE SYSTEM_ROWS(%s))"
+            f"{pk_where} IN ("
+            f"SELECT {pk_select} FROM {table_name} TABLESAMPLE SYSTEM_ROWS(%s))"
         )
         return where_clause, [target_row_count]
 
     # YugabyteDB path: derive p from estimated row count
     est = estimated_row_count if estimated_row_count and estimated_row_count > 0 else DEFAULT_ROW_ESTIMATE
 
-    # Derive sampling probability p from desired rows and estimated row count.
     p = min(1.0, float(target_row_count) / float(est))
 
     where_clause = (
-        f"{primary_key} IN ("
-        f"SELECT {primary_key} FROM {table_name} WHERE random() < %s)"
+        f"{pk_where} IN ("
+        f"SELECT {pk_select} FROM {table_name} WHERE random() < %s)"
     )
     return where_clause, [p]
