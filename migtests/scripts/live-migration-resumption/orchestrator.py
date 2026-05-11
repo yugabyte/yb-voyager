@@ -3,6 +3,8 @@
 import os
 import sys
 import argparse
+import random
+import subprocess
 import time
 from typing import Any, Dict, Callable
 import helpers as H
@@ -102,6 +104,32 @@ def import_to_source_replica_start_action(_stage, ctx: Any) -> None:
         ctx.processes["import_to_source_replica"] = H.start_command_by_name("import_to_source_replica", ctx)
 
 
+@action("voyager_archive_changes_start")
+def archive_changes_start_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Start yb-voyager archive changes process.
+
+    Optional stage key:
+      - policy: explicit policy ("delete" or "archive").
+                When omitted, a policy is chosen at random.
+    Skips if the archiver is already running (continuous archiver across iterations).
+    """
+    with ctx.process_lock:
+        existing = ctx.processes.get("archive_changes")
+        if existing and existing.poll() is None:
+            H.log("archive_changes: already running, skipping start")
+            return
+    policy = stage.get("policy") or random.choice(["delete", "archive"])
+    H.log(f"archive_changes: selected policy={policy}")
+    ctx.archive_changes_policy = policy
+    cmd = H.build_archive_changes_cmd(ctx, policy)
+    with ctx.process_lock:
+        ctx.processes["archive_changes"] = H.spawn(cmd, ctx.env)
+
+@action("validate_archive_changes")
+def validate_archive_changes_action(_stage, ctx: Any) -> None:
+    check_post_cutover_to_source = bool(_stage.get("check_post_cutover_to_source", False))
+    H.validate_archive_changes(ctx, check_post_cutover_to_source=check_post_cutover_to_source)
+
 @action("voyager_stop_command")
 def stop_command_action(stage: Dict[str, Any], ctx: Any) -> None:
     command = stage.get("command")
@@ -109,26 +137,33 @@ def stop_command_action(stage: Dict[str, Any], ctx: Any) -> None:
     H.stop_process(ctx, command, graceful_timeout=timeout)
 
 
+# Predicate dispatch:
+#   - exporter_in_streaming_phase / remaining_events_eq_0 inspect the queue
+#     directory of the *current* iteration's export-dir, so they use
+#     ctx.iteration_export_dir.
+#   - cutover_to_*_status_completed call `yb-voyager cutover status`, which is
+#     a parent-scoped voyager operation from a user's perspective; pass
+#     ctx.export_dir_base.
 _WAIT_FOR_CONDITIONS: Dict[str, Dict[str, Any]] = {
     "exporter_in_streaming_phase": {
         "interval": 5,
-        "predicate": lambda ctx: H.exporter_streaming(ctx.cfg["export_dir"]),
+        "predicate": lambda ctx: H.exporter_streaming(ctx.iteration_export_dir),
     },
     "remaining_events_eq_0": {
         "interval": 5,
-        "predicate": lambda ctx: H.backlog_marker_present(ctx.cfg["export_dir"]),
+        "predicate": lambda ctx: H.backlog_marker_present(ctx.iteration_export_dir),
     },
     "cutover_to_target_status_completed": {
         "interval": 10,
-        "predicate": lambda ctx: H.get_cutover_status(ctx.cfg["export_dir"], mode="target") == "COMPLETED",
+        "predicate": lambda ctx: H.get_cutover_status(ctx.export_dir_base, mode="target") == "COMPLETED",
     },
     "cutover_to_source_status_completed": {
         "interval": 10,
-        "predicate": lambda ctx: H.get_cutover_status(ctx.cfg["export_dir"], mode="source") == "COMPLETED",
+        "predicate": lambda ctx: H.get_cutover_status(ctx.export_dir_base, mode="source") == "COMPLETED",
     },
     "cutover_to_source_replica_status_completed": {
         "interval": 10,
-        "predicate": lambda ctx: H.get_cutover_status(ctx.cfg["export_dir"], mode="source-replica") == "COMPLETED",
+        "predicate": lambda ctx: H.get_cutover_status(ctx.export_dir_base, mode="source-replica") == "COMPLETED",
     },
 }
 
@@ -213,6 +248,18 @@ def sleep_action(stage: Dict[str, Any], ctx: Any) -> None:
         time.sleep(secs)
 
 
+@action("loop_start")
+def loop_start_action(_stage, _ctx: Any) -> None:
+    """No-op marker; the runner uses this to know where to jump back."""
+    pass
+
+
+@action("loop_end")
+def loop_end_action(_stage, _ctx: Any) -> None:
+    """No-op marker; the runner inline-handles loop-back at this stage."""
+    pass
+
+
 @action("reset_databases")
 def reset_databases_action(stage: Dict[str, Any], ctx: Any) -> None:
     """Drop and recreate source/target databases using admin credentials."""
@@ -279,9 +326,22 @@ def main() -> None:
     ctx = H.Context(cfg=cfg, env=env, test_root=test_root)
     had_failure = False
 
+    stages = cfg["stages"]
+    num_iterations = int(cfg.get("num_iterations", 1))
+
+    loop_start_idx = None
+    for i, s in enumerate(stages):
+        if s.get("action") == "loop_start":
+            loop_start_idx = i
+            break
+
     try:
-        for stage in cfg["stages"]:
+        iteration = 0
+        idx = 0
+        while idx < len(stages):
+            stage = stages[idx]
             stage_name = stage.get("name", "<unnamed>")
+            ctx.loop_iteration = iteration
             H.log_stage_start(stage_name)
             start_ts = H._ts()
             try:
@@ -289,6 +349,18 @@ def main() -> None:
                 end_ts = H._ts()
                 H.append_stage_summary(cfg["artifacts_dir"], stage_name, start_ts, end_ts, status="OK")
                 H.log_stage_end(stage_name, status="OK")
+                if stage["action"] == "loop_end":
+                    if loop_start_idx is None:
+                        raise RuntimeError("loop_end: scenario has no loop_start stage")
+                    iteration += 1
+                    ctx.loop_iteration = iteration
+                    if iteration >= num_iterations:
+                        idx += 1
+                    else:
+                        H.apply_effective_export_dir(ctx)
+                        idx = loop_start_idx
+                else:
+                    idx += 1
             except Exception as e:
                 end_ts = H._ts()
                 H.append_stage_summary(cfg["artifacts_dir"], stage_name, start_ts, end_ts, status="FAILED", error=str(e))
@@ -317,15 +389,30 @@ def main() -> None:
                     pass
 
             # Terminate any remaining background processes that were started.
+            # Kill archiver last — it needs other processes to stop first so
+            # migration status changes and it can exit gracefully.
             with ctx.process_lock:
                 procs = list(ctx.processes.items())
                 ctx.processes.clear()
+            archiver_proc = None
             for name, proc in procs:
+                if name == "archive_changes":
+                    archiver_proc = (name, proc)
+                    continue
                 try:
                     H.log(f"cleanup: stopping process {name}")
                     H.kill(proc, timeout_sec=60)
                 except Exception:
                     pass
+            if archiver_proc:
+                name, proc = archiver_proc
+                H.log(f"cleanup: waiting 30s for archiver to exit gracefully...")
+                try:
+                    proc.wait(timeout=30)
+                    H.log(f"cleanup: archiver exited on its own")
+                except subprocess.TimeoutExpired:
+                    H.log(f"cleanup: archiver did not exit, stopping it")
+                    H.kill(proc, timeout_sec=60)
         except Exception:
             # Never fail the run due to cleanup.
             pass
