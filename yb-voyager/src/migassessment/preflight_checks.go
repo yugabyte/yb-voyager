@@ -36,7 +36,6 @@ type PreflightChecksConfig struct {
 	UseDebezium                bool
 	SourceReadReplicaEndpoints string
 	PrimaryOnly                bool
-	FetchSourceInfo            func()
 }
 
 type PreflightChecksResult struct {
@@ -69,9 +68,7 @@ func RunPreflightChecks(config PreflightChecksConfig) (PreflightChecksResult, er
 	if err := resolveSourceSchemas(config.Source); err != nil {
 		return result, err
 	}
-	if config.FetchSourceInfo != nil {
-		config.FetchSourceInfo()
-	}
+	config.Source.FetchSourceInfo()
 
 	replicaDiscoveryInfo, err := discoverAndValidateReplicas(config)
 	if err != nil {

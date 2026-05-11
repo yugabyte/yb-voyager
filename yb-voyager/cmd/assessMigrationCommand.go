@@ -260,7 +260,6 @@ func assessMigration() (err error) {
 		UseDebezium:                useDebezium,
 		SourceReadReplicaEndpoints: sourceReadReplicaEndpoints,
 		PrimaryOnly:                primaryOnly,
-		FetchSourceInfo:            fetchSourceInfo,
 	})
 	if err != nil {
 		return err
@@ -407,22 +406,6 @@ func fetchObjectUsageStats() ([]*types.ObjectUsageStats, error) {
 		objectUsagesStats = append(objectUsagesStats, &objectUsage)
 	}
 	return objectUsagesStats, nil
-}
-
-func fetchSourceInfo() {
-	var err error
-	source.DBVersion = source.DB().GetVersion()
-	source.DBSize, err = source.DB().GetDatabaseSize()
-	if err != nil {
-		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
-	}
-
-	// Get PostgreSQL system identifier
-	source.FetchPGDBSystemIdentifier()
-	err = source.DB().FetchDBID()
-	if err != nil {
-		log.Errorf("error getting database id: %v", err) //can just log as this is used for call-home only
-	}
 }
 
 func SetMigrationAssessmentDoneInMSR() error {
