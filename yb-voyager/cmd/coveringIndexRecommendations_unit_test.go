@@ -345,6 +345,125 @@ func TestCollectReferencedColumnsForQuery_PreservesQuotedIdentifierCase(t *testi
 	assert.False(t, rel["email"])
 }
 
+// SELECT * expansion: ORM-style queries are extremely common and used to be
+// silently dropped because A_Star nodes never resolved to concrete columns.
+// The expansion path uses relationColumnsFn so unit tests can stub the
+// catalog without a live PostgreSQL connection.
+
+func TestCollectReferencedColumnsForQuery_StarExpandsAllRelationColumns(t *testing.T) {
+	oldFn := relationColumnsFn
+	t.Cleanup(func() { relationColumnsFn = oldFn })
+	relationColumnsFn = func(tgt paramTarget) []string {
+		if tgt.schema == "public" && tgt.table == "tweets" {
+			return []string{"id", "uid", "text", "created_at"}
+		}
+		return nil
+	}
+
+	cols, err := collectReferencedColumnsForQuery("SELECT * FROM public.tweets WHERE uid = $1")
+	require.NoError(t, err)
+	rel := cols["public.tweets"]
+	require.NotNil(t, rel, "expected relation key public.tweets, got: %v", cols)
+	assert.True(t, rel["id"])
+	assert.True(t, rel["uid"])
+	assert.True(t, rel["text"])
+	assert.True(t, rel["created_at"])
+}
+
+func TestCollectReferencedColumnsForQuery_QualifiedStarExpandsOnlyThatRelation(t *testing.T) {
+	oldFn := relationColumnsFn
+	t.Cleanup(func() { relationColumnsFn = oldFn })
+	relationColumnsFn = func(tgt paramTarget) []string {
+		switch tgt.table {
+		case "tweets":
+			return []string{"id", "uid", "text"}
+		case "accounts":
+			return []string{"acc_id", "name"}
+		}
+		return nil
+	}
+
+	// `SELECT t.*` should expand only `tweets`, leaving `accounts` to be
+	// touched only by columns explicitly mentioned in the query (none here).
+	cols, err := collectReferencedColumnsForQuery(
+		"SELECT t.* FROM public.tweets t, public.accounts a WHERE t.uid = a.acc_id",
+	)
+	require.NoError(t, err)
+	tweets := cols["public.tweets"]
+	require.NotNil(t, tweets)
+	assert.True(t, tweets["id"])
+	assert.True(t, tweets["text"])
+	// `accounts` only contributes the join column, not the full row.
+	accounts := cols["public.accounts"]
+	require.NotNil(t, accounts)
+	assert.True(t, accounts["acc_id"])
+	assert.False(t, accounts["name"])
+}
+
+func TestCollectReferencedColumnsForQuery_StarExpandsAllRelationsInMultiTableFrom(t *testing.T) {
+	oldFn := relationColumnsFn
+	t.Cleanup(func() { relationColumnsFn = oldFn })
+	relationColumnsFn = func(tgt paramTarget) []string {
+		switch tgt.table {
+		case "tweets":
+			return []string{"id", "uid"}
+		case "accounts":
+			return []string{"acc_id", "name"}
+		}
+		return nil
+	}
+
+	// Bare `SELECT *` over a multi-relation FROM expands every relation.
+	cols, err := collectReferencedColumnsForQuery(
+		"SELECT * FROM public.tweets t, public.accounts a WHERE t.uid = a.acc_id",
+	)
+	require.NoError(t, err)
+	tweets := cols["public.tweets"]
+	require.NotNil(t, tweets)
+	assert.True(t, tweets["id"])
+	assert.True(t, tweets["uid"])
+	accounts := cols["public.accounts"]
+	require.NotNil(t, accounts)
+	assert.True(t, accounts["acc_id"])
+	assert.True(t, accounts["name"])
+}
+
+func TestCollectReferencedColumnsForQuery_StarDedupesAliasAndRealName(t *testing.T) {
+	// `FROM tweets t` registers both "tweets" and "t" in the alias map,
+	// pointing at the same paramTarget. The expansion must not call the
+	// catalog twice for the same relation.
+	oldFn := relationColumnsFn
+	t.Cleanup(func() { relationColumnsFn = oldFn })
+	calls := 0
+	relationColumnsFn = func(tgt paramTarget) []string {
+		calls++
+		return []string{"id", "uid"}
+	}
+
+	cols, err := collectReferencedColumnsForQuery("SELECT * FROM public.tweets t WHERE t.uid = $1")
+	require.NoError(t, err)
+	assert.Equal(t, 1, calls, "catalog lookup should fire exactly once per (schema,table) regardless of aliases")
+	rel := cols["public.tweets"]
+	require.NotNil(t, rel)
+	assert.True(t, rel["id"])
+	assert.True(t, rel["uid"])
+}
+
+func TestCollectReferencedColumnsForQuery_StarFallsThroughOnEmptyCatalog(t *testing.T) {
+	// If the catalog returns nothing (e.g. lookup fails or schema is empty),
+	// the WHERE-clause references must still be registered. The query must
+	// not error out.
+	oldFn := relationColumnsFn
+	t.Cleanup(func() { relationColumnsFn = oldFn })
+	relationColumnsFn = func(tgt paramTarget) []string { return nil }
+
+	cols, err := collectReferencedColumnsForQuery("SELECT * FROM public.tweets WHERE uid = $1")
+	require.NoError(t, err)
+	rel := cols["public.tweets"]
+	require.NotNil(t, rel)
+	assert.True(t, rel["uid"])
+}
+
 func TestWalkPlanForIndexScans_PreservesQuotedIdentifierCase(t *testing.T) {
 	meta := &indexMeta{
 		keyColumns: map[indexKey][]string{

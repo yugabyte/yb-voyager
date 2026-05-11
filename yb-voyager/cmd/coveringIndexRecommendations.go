@@ -837,8 +837,20 @@ func filterPerIndexCandidatesByUpdateReadRatio(in map[indexKey]*indexCandidate) 
 	out := make(map[indexKey]*indexCandidate, len(in))
 	for k, cand := range in {
 		metrics := metricsFor(cand.schema, cand.table)
+		missingColNames := make([]string, 0, len(cand.missingCols))
+		for c := range cand.missingCols {
+			missingColNames = append(missingColNames, c)
+		}
+		log.Infof("covering-index: ratio-filter for %s (table=%s.%s): missingCols=%v, metricsNil=%v, metricsLen=%d",
+			k, cand.schema, cand.table, missingColNames, metrics == nil, len(metrics))
+		for col, m := range metrics {
+			log.Infof("covering-index:   metric %s.%s col=%s read=%d write=%d filter=%d",
+				cand.schema, cand.table, col, m.readOps, m.updateWriteOps, m.filterOps)
+		}
 		if kept := applyRatioFilterToCandidate(cand, metrics); kept != nil {
 			out[k] = kept
+		} else {
+			log.Infof("covering-index: ratio-filter DROPPED candidate %s entirely", k)
 		}
 	}
 	return out

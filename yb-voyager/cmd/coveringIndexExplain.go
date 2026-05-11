@@ -52,6 +52,12 @@ const nullParamSentinel = "\x00__null__\x00"
 var relationHasColumnCache = map[string]bool{}
 var relationHasColumnFn = relationHasColumnFromCatalog
 
+// relationColumnsCache memoizes the full ordered column list per relation
+// (keyed by relationColumnKey). Populated lazily by relationColumnsFromCatalog
+// when expanding `SELECT *` / `SELECT t.*` references.
+var relationColumnsCache = map[string][]string{}
+var relationColumnsFn = relationColumnsFromCatalog
+
 // ---------- AST utilities ----------
 
 // collectRangeVars walks a node tree and records every RangeVar alias / real name
@@ -131,12 +137,77 @@ func collectColumnRefsFromNode(root *pg_query.Node, alias map[string]paramTarget
 		if !ok {
 			return
 		}
+		// `SELECT *`, `SELECT t.*`, `SELECT s.t.*` reach us as ColumnRefs whose
+		// last field is A_Star. Expand them via the catalog so the projection's
+		// columns are not silently dropped from the candidate's missing-cols
+		// computation. ORM-generated workloads rely on this path heavily.
+		if expandStarRefIfAny(col, alias, out) {
+			return
+		}
 		tgt, ok := resolveColumnTarget(col, alias)
 		if !ok || tgt.table == "" || tgt.column == "" {
 			return
 		}
 		addReferencedColumn(out, tgt.schema, tgt.table, tgt.column)
 	})
+}
+
+// expandStarRefIfAny inspects c's fields. If the last field is A_Star, it
+// expands the reference to the catalog column list of the appropriate
+// relation(s) and registers them in out. Returns true if an expansion was
+// attempted (regardless of whether the catalog lookup yielded any columns),
+// so the caller skips the regular per-column resolution path. Returns false
+// for ordinary column references, which the caller resolves normally.
+func expandStarRefIfAny(c *pg_query.ColumnRef, alias map[string]paramTarget, out map[string]map[string]bool) bool {
+	fields := c.GetFields()
+	if len(fields) == 0 {
+		return false
+	}
+	if _, isStar := fields[len(fields)-1].Node.(*pg_query.Node_AStar); !isStar {
+		return false
+	}
+
+	var targets []paramTarget
+	switch len(fields) {
+	case 1:
+		// `SELECT *` — expand against every distinct relation in the FROM
+		// clause. The alias map intentionally contains both real-name and
+		// alias entries pointing at the same paramTarget; dedupe by
+		// (schema, table) so we only fetch each relation's columns once.
+		seen := make(map[string]bool)
+		for _, t := range alias {
+			if t.table == "" {
+				continue
+			}
+			key := relationColumnKey(t.schema, t.table)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			targets = append(targets, t)
+		}
+	case 2, 3:
+		// `t.*` or `schema.t.*` — the qualifier is the field immediately
+		// before the star. For schema-qualified shapes we trust the alias
+		// map (which already canonicalizes from the FROM clause RangeVars)
+		// rather than constructing a synthetic paramTarget here.
+		qualName, ok := fields[len(fields)-2].Node.(*pg_query.Node_String_)
+		if !ok {
+			return true
+		}
+		if t, ok := alias[qualName.String_.GetSval()]; ok && t.table != "" {
+			targets = append(targets, t)
+		}
+	default:
+		return true
+	}
+
+	for _, t := range targets {
+		for _, col := range relationColumnsFn(t) {
+			addReferencedColumn(out, t.schema, t.table, col)
+		}
+	}
+	return true
 }
 
 func addReferencedColumn(out map[string]map[string]bool, schema, table, column string) {
@@ -369,6 +440,72 @@ func relationHasColumnFromCatalog(t paramTarget, column string) bool {
 	}
 	relationHasColumnCache[cacheKey] = exists
 	return exists
+}
+
+// relationColumnsFromCatalog returns the ordered column list for a relation,
+// queried from information_schema.columns and cached for the lifetime of the
+// process. Used by the SELECT * expansion path; returns nil on any error so
+// the caller falls back to the AST-only behavior (i.e. just no expansion).
+func relationColumnsFromCatalog(t paramTarget) []string {
+	db := source.DB()
+	if db == nil || t.table == "" {
+		return nil
+	}
+	pgSource, ok := db.(*srcdb.PostgreSQL)
+	if !ok {
+		return nil
+	}
+	cacheKey := relationColumnKey(t.schema, t.table)
+	if cols, ok := relationColumnsCache[cacheKey]; ok {
+		return cols
+	}
+
+	ctx := context.Background()
+	conn, err := pgSource.Conn(ctx)
+	if err != nil {
+		log.Debugf("covering-index: failed to acquire source connection for column-list lookup %s.%s: %v", t.schema, t.table, err)
+		return nil
+	}
+	defer conn.Close()
+
+	var rows *sql.Rows
+	if t.schema != "" {
+		rows, err = conn.QueryContext(
+			ctx,
+			`SELECT column_name
+			   FROM information_schema.columns
+			  WHERE table_schema = $1 AND table_name = $2
+			  ORDER BY ordinal_position`,
+			t.schema, t.table,
+		)
+	} else {
+		rows, err = conn.QueryContext(
+			ctx,
+			`SELECT column_name
+			   FROM information_schema.columns
+			  WHERE table_schema = ANY(current_schemas(true))
+			    AND table_name = $1
+			  ORDER BY ordinal_position`,
+			t.table,
+		)
+	}
+	if err != nil {
+		log.Debugf("covering-index: relationColumns lookup failed for %s.%s: %v", t.schema, t.table, err)
+		return nil
+	}
+	defer rows.Close()
+
+	var cols []string
+	for rows.Next() {
+		var c string
+		if err := rows.Scan(&c); err != nil {
+			log.Debugf("covering-index: relationColumns scan failed for %s.%s: %v", t.schema, t.table, err)
+			return nil
+		}
+		cols = append(cols, c)
+	}
+	relationColumnsCache[cacheKey] = cols
+	return cols
 }
 
 func pgQuoteLiteral(v string) string {
