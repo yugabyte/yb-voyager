@@ -2288,3 +2288,81 @@ SELECT 'name_' || g FROM generate_series(1, 100) AS g;`
 	// Verify the identity column is still GENERATED ALWAYS on the target
 	assertIdentityColumnIsAlways(t, ybConn, "test_schema", "identity_test", "id")
 }
+
+// Regression test: `import data --start-clean true --truncate-tables true` must
+// succeed when the target has a non-empty parent table whose FK-dependent child
+// is empty. Previously cleanImportState() filtered out empty tables before
+// issuing TRUNCATE, so YB rejected the statement with "cannot truncate a table
+// referenced in a foreign key constraint".
+func TestImportData_TruncateTables_FKEmptyChild(t *testing.T) {
+	ctx := context.Background()
+
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	if err := postgresContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start Postgres container: %v", err)
+	}
+
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	if err := yugabytedbContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
+	}
+
+	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
+	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
+	createParentSQL := `
+CREATE TABLE test_schema.projects (
+	project_id   INT PRIMARY KEY,
+	project_name TEXT NOT NULL
+);`
+	createChildSQL := `
+CREATE TABLE test_schema.tasks (
+	task_id      INT PRIMARY KEY,
+	task_name    TEXT NOT NULL,
+	project_id   INT NOT NULL,
+	CONSTRAINT fk_project FOREIGN KEY (project_id) REFERENCES test_schema.projects(project_id)
+);`
+	insertParent := `INSERT INTO test_schema.projects VALUES (1, 'Alpha'), (2, 'Beta');`
+	insertChild := `INSERT INTO test_schema.tasks VALUES (1, 't1', 1), (2, 't2', 2);`
+
+	// Source PG: both parent and child populated.
+	postgresContainer.ExecuteSqls(createSchemaSQL, createParentSQL, createChildSQL, insertParent, insertChild)
+	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
+
+	// Target YB: parent has rows, child (tasks) is empty — this is the bug repro.
+	yugabytedbContainer.ExecuteSqls(createSchemaSQL, createParentSQL, createChildSQL, insertParent)
+	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
+
+	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
+		"--export-dir", exportDir,
+		"--source-db-schema", "test_schema",
+		"--disable-pb", "true",
+		"--yes",
+	}, nil, false).Run()
+	testutils.FatalIfError(t, err, "Export command failed")
+
+	err = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
+		"--export-dir", exportDir,
+		"--start-clean", "true",
+		"--truncate-tables", "true",
+		"--disable-pb", "true",
+		"--yes",
+	}, nil, false).Run()
+	testutils.FatalIfError(t, err, "Import command failed -- TRUNCATE of FK-related tables should succeed when child is empty on target")
+
+	pgConn, err := postgresContainer.GetConnection()
+	testutils.FatalIfError(t, err, "connecting to Postgres")
+	defer pgConn.Close()
+	ybConn, err := yugabytedbContainer.GetConnection()
+	testutils.FatalIfError(t, err, "connecting to YugabyteDB")
+	defer ybConn.Close()
+
+	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.projects", "project_id"); err != nil {
+		t.Errorf("projects mismatch: %v", err)
+	}
+	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.tasks", "task_id"); err != nil {
+		t.Errorf("tasks mismatch: %v", err)
+	}
+}
