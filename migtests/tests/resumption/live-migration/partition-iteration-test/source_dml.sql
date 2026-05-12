@@ -59,6 +59,37 @@ BEGIN
 
     UPDATE public.events SET created_at = '2024-07-10 08:00:00', updated_at = '2024-07-10 08:00:01' WHERE id = row_id;
 
+    -- ===================== RANGE TABLE: Unicode / special characters =====================
+    INSERT INTO public.events (id, ref_id, ref_type, recipient_id, destination, channel, event_key, body, created_at, updated_at, handler, recipient_type)
+    VALUES
+        (nextval('events_id_seq'), 77001, 'OrderDelivery', 77001, 'unicode@test.com', 'email', 'delivered',
+         E'Emojis: \xF0\x9F\x9A\x80\xF0\x9F\x8E\x89 CJK: \u4F60\u597D\u4E16\u754C RTL: \u0645\u0631\u062D\u0628\u0627 Newline:\nTab:\t',
+         '2024-08-15 10:00:00', '2024-08-15 10:00:01', 'OrderHandler', 'customer');
+
+    -- ===================== RANGE TABLE: empty string vs NULL =====================
+    INSERT INTO public.events (id, ref_id, ref_type, recipient_id, destination, channel, event_key, body, created_at, updated_at, handler, recipient_type)
+    VALUES
+        (nextval('events_id_seq'), 77002, 'UserAlert', 77002, '', 'sms', 'reminder',
+         NULL, '2024-09-10 10:00:00', '2024-09-10 10:00:01', 'PromoHandler', 'agent'),
+        (nextval('events_id_seq'), 77003, 'UserAlert', 77003, NULL, 'push', 'reminder',
+         '', '2024-09-10 11:00:00', '2024-09-10 11:00:01', 'PromoHandler', 'customer');
+
+    -- ===================== RANGE TABLE: DELETE + re-INSERT same PK =====================
+    row_id := nextval('events_id_seq');
+    INSERT INTO public.events (id, ref_id, ref_type, recipient_id, destination, channel, event_key, body, created_at, updated_at, handler, recipient_type)
+    VALUES (row_id, 77004, 'OrderPickup', 77004, 'tombstone@test.com', 'sms', 'picked_up', 'Original row', '2024-10-05 08:00:00', '2024-10-05 08:00:01', 'UserHandler', 'agent');
+
+    DELETE FROM public.events WHERE id = row_id;
+
+    INSERT INTO public.events (id, ref_id, ref_type, recipient_id, destination, channel, event_key, body, created_at, updated_at, handler, recipient_type)
+    VALUES (row_id, 77005, 'PromoOffer', 77005, 'resurrected@test.com', 'in_app', 'promo_sent', 'Resurrected row', '2024-10-05 09:00:00', '2024-10-05 09:00:01', 'OrderHandler', 'customer');
+
+    -- TC18: First CDC event into empty partition (events_202606)
+    -- This partition has zero rows at snapshot time; validates CDC handles first-ever insert
+    INSERT INTO public.events (id, ref_id, ref_type, recipient_id, destination, channel, event_key, body, created_at, updated_at, handler, recipient_type)
+    VALUES (nextval('events_id_seq'), 99910, 'OrderDelivery', 99910, 'empty-part@test.com', 'email', 'delivered',
+            'First row in empty Jun 2026 partition via CDC', '2026-06-15 10:00:00', '2026-06-15 10:00:01', 'OrderHandler', 'customer');
+
     -- ===================== LIST TABLE: edge cases =====================
 
     -- Insert into each LIST partition + DEFAULT
@@ -77,11 +108,12 @@ BEGIN
     -- TC17-LIST: Cross-partition UPDATE — INSERT into London, then UPDATE region to Sydney
     -- PG internally does DELETE from sales_london + INSERT into sales_sydney
     -- CDC must replicate this as a DELETE+INSERT pair on the correct child partitions
-    INSERT INTO public.sales_region (id, amount, branch, region, metadata)
-    VALUES (88001, 7777, 'Will Move', 'London', '{"will_move": true}'::jsonb);
+    INSERT INTO public.sales_region (amount, branch, region, metadata)
+    VALUES (7777, 'Will Move', 'London', '{"will_move": true}'::jsonb)
+    RETURNING id INTO row_id;
 
     UPDATE public.sales_region SET region = 'Sydney', metadata = metadata || '{"region_change": true}'::jsonb
-    WHERE id = 88001 AND region = 'London';
+    WHERE id = row_id AND region = 'London';
 
     -- DELETE from LIST partition
     DELETE FROM public.sales_region WHERE region = 'Berlin';
