@@ -2301,14 +2301,12 @@ func TestImportData_TruncateTables_FKEmptyChild(t *testing.T) {
 	defer testutils.RemoveTempExportDir(exportDir)
 
 	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
-	if err := postgresContainer.Start(ctx); err != nil {
-		utils.ErrExit("Failed to start Postgres container: %v", err)
-	}
+	err := postgresContainer.Start(ctx)
+	testutils.FatalIfError(t, err, "Failed to start Postgres container")
 
 	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
-	if err := yugabytedbContainer.Start(ctx); err != nil {
-		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
-	}
+	err = yugabytedbContainer.Start(ctx)
+	testutils.FatalIfError(t, err, "Failed to start YugabyteDB container")
 
 	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
 	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
@@ -2335,7 +2333,7 @@ CREATE TABLE test_schema.tasks (
 	yugabytedbContainer.ExecuteSqls(createSchemaSQL, createParentSQL, createChildSQL, insertParent)
 	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
 
-	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
+	err = testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
 		"--export-dir", exportDir,
 		"--source-db-schema", "test_schema",
 		"--disable-pb", "true",
