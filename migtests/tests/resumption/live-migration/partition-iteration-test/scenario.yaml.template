@@ -44,6 +44,7 @@ generator_source:
 
     generator:
       schema_name: public
+      manual_table_list: []
       exclude_table_list: [cutover_table]
       num_iterations: -1
       wait_after_operations: 1000
@@ -92,6 +93,7 @@ generator_target:
 
     generator:
       schema_name: public
+      manual_table_list: []
       exclude_table_list: [cutover_table]
       num_iterations: -1
       wait_after_operations: 5000
