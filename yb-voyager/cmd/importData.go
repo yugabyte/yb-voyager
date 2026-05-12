@@ -2089,8 +2089,9 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 		})
 		if truncateTables {
 			// truncate tables only supported for import-data-to-target.
-			utils.PrintAndLogf("Truncating non-empty tables on DB: %v", nonEmptyTableNames)
-			err := tdb.TruncateTables(nonEmptyNts)
+			utils.PrintAndLogf("Non-empty tables on DB: %v", nonEmptyTableNames)
+			utils.PrintAndLogf("Truncating all tables in import scope on DB to keep FK-dependents consistent")
+			err := tdb.TruncateTables(tableNames)
 			if err != nil {
 				utils.ErrExit("failed to truncate tables: %s", err)
 			}
