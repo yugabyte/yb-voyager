@@ -172,7 +172,7 @@ func checkAssessmentPermissions(config PreflightChecksConfig, validatedReplicaEn
 		return false, nil
 	}
 
-	if err := srcdb.CheckSchemasHaveUsagePermissions(config.Source, export.ChangeStreamingIsEnabled("")); err != nil {
+	if err := srcdb.CheckSchemasHaveUsagePermissions(config.Source, false); err != nil {
 		ux.PrintPreflightFail("Schema USAGE permissions")
 		return false, fmt.Errorf("schema usage permission check failed: %w", err)
 	}
