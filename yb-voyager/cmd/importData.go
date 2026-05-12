@@ -2262,8 +2262,8 @@ func init() {
 	registerTargetDBConnFlags(importDataToTargetCmd)
 	registerImportDataCommonFlags(importDataCmd)
 	registerImportDataCommonFlags(importDataToTargetCmd)
-	registerImportUsePartitionRootFlag(importDataCmd)
-	registerImportUsePartitionRootFlag(importDataToTargetCmd)
+	registerImportUsePartitionRootFlagToTarget(importDataCmd)
+	registerImportUsePartitionRootFlagToTarget(importDataToTargetCmd)
 	registerImportDataToTargetFlags(importDataCmd)
 	registerImportDataToTargetFlags(importDataToTargetCmd)
 }
