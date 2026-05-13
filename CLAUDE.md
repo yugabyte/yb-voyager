@@ -90,12 +90,6 @@ When changing anything in export/import/cutover or schema handling, evaluate aga
 
 Source heterogeneity: PG is primary, Oracle/MySQL also supported as sources, YugabyteDB as source for fall-back/fall-forward. Use source-agnostic naming (`GetQueryStats`, not `GetPgStatStatements`). Unsupported-datatype lists, permission checks, and schema-extraction queries are per-source — changing one usually means changing all.
 
-Partitioned tables: schema queries return both root and leaf partitions; caller must resolve leaf→root mapping. FK and index semantics on partitioned tables differ from regular tables. Always test with multi-level partition hierarchies.
-
-Sequences vary across paths: pg_dump captures last-values for offline/live; changes-only must fetch them separately before streaming. Every association type (SERIAL, BIGSERIAL, explicit `nextval`, `GENERATED ALWAYS AS IDENTITY`, `ALTER SEQUENCE ... OWNED BY`) must be exercised when changing sequence logic.
-
-Case-sensitive identifiers: route all object-name handling through `sqlname.NameTuple`/`ObjectName`. Test with quoted/case-sensitive names.
-
 ## Serialized-state backward compatibility
 
 Users routinely upgrade voyager mid-migration. The following surfaces are load-bearing across versions:
