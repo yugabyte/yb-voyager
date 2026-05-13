@@ -79,22 +79,6 @@ ALTER TABLE public.events_202606 ADD PRIMARY KEY (id);
 CREATE TABLE public.events_default PARTITION OF public.events DEFAULT;
 ALTER TABLE public.events_default ADD PRIMARY KEY (id);
 
--- REPLICA IDENTITY FULL on root + all children for CDC without PK on root
-ALTER TABLE public.events REPLICA IDENTITY FULL;
-DO $$
-DECLARE
-    child TEXT;
-BEGIN
-    FOR child IN
-        SELECT c.relname FROM pg_inherits i
-        JOIN pg_class c ON c.oid = i.inhrelid
-        JOIN pg_class p ON p.oid = i.inhparent
-        JOIN pg_namespace n ON n.oid = p.relnamespace
-        WHERE p.relname = 'events' AND n.nspname = 'public'
-    LOOP
-        EXECUTE format('ALTER TABLE public.%I REPLICA IDENTITY FULL', child);
-    END LOOP;
-END $$;
 
 -- 4 indexes: 52 RANGE partitions × (1 table + 4 indexes) = 260 + 15 (LIST/HASH/roots) = 275
 -- 275 + 220 system = 495 tablets, safely under YB 530 limit
@@ -133,13 +117,6 @@ ALTER TABLE public.sales_tokyo   ADD PRIMARY KEY (id, region);
 ALTER TABLE public.sales_berlin  ADD PRIMARY KEY (id, region);
 ALTER TABLE public.sales_default ADD PRIMARY KEY (id, region);
 
-ALTER TABLE public.sales_region REPLICA IDENTITY FULL;
-ALTER TABLE public.sales_london  REPLICA IDENTITY FULL;
-ALTER TABLE public.sales_sydney  REPLICA IDENTITY FULL;
-ALTER TABLE public.sales_boston   REPLICA IDENTITY FULL;
-ALTER TABLE public.sales_tokyo   REPLICA IDENTITY FULL;
-ALTER TABLE public.sales_berlin  REPLICA IDENTITY FULL;
-ALTER TABLE public.sales_default REPLICA IDENTITY FULL;
 
 
 -- ===================== HASH PARTITIONED TABLE =====================
@@ -168,12 +145,6 @@ ALTER TABLE public.emp_2 ADD PRIMARY KEY (emp_id);
 ALTER TABLE public.emp_3 ADD PRIMARY KEY (emp_id);
 ALTER TABLE public.emp_4 ADD PRIMARY KEY (emp_id);
 
-ALTER TABLE public.emp REPLICA IDENTITY FULL;
-ALTER TABLE public.emp_0 REPLICA IDENTITY FULL;
-ALTER TABLE public.emp_1 REPLICA IDENTITY FULL;
-ALTER TABLE public.emp_2 REPLICA IDENTITY FULL;
-ALTER TABLE public.emp_3 REPLICA IDENTITY FULL;
-ALTER TABLE public.emp_4 REPLICA IDENTITY FULL;
 
 
 -- ===================== MULTILEVEL (SUB)PARTITIONED TABLE =====================
@@ -248,25 +219,3 @@ ALTER TABLE public.orders_2026_shipped   ADD PRIMARY KEY (order_id, order_date, 
 ALTER TABLE public.orders_2026_delivered ADD PRIMARY KEY (order_id, order_date, status);
 ALTER TABLE public.orders_2026_default   ADD PRIMARY KEY (order_id, order_date, status);
 
--- REPLICA IDENTITY FULL on root, intermediate, and leaf partitions
-ALTER TABLE public.orders REPLICA IDENTITY FULL;
-ALTER TABLE public.orders_2023 REPLICA IDENTITY FULL;
-ALTER TABLE public.orders_2024 REPLICA IDENTITY FULL;
-ALTER TABLE public.orders_2025 REPLICA IDENTITY FULL;
-ALTER TABLE public.orders_2026 REPLICA IDENTITY FULL;
-ALTER TABLE public.orders_2023_pending   REPLICA IDENTITY FULL;
-ALTER TABLE public.orders_2023_shipped   REPLICA IDENTITY FULL;
-ALTER TABLE public.orders_2023_delivered REPLICA IDENTITY FULL;
-ALTER TABLE public.orders_2023_default   REPLICA IDENTITY FULL;
-ALTER TABLE public.orders_2024_pending   REPLICA IDENTITY FULL;
-ALTER TABLE public.orders_2024_shipped   REPLICA IDENTITY FULL;
-ALTER TABLE public.orders_2024_delivered REPLICA IDENTITY FULL;
-ALTER TABLE public.orders_2024_default   REPLICA IDENTITY FULL;
-ALTER TABLE public.orders_2025_pending   REPLICA IDENTITY FULL;
-ALTER TABLE public.orders_2025_shipped   REPLICA IDENTITY FULL;
-ALTER TABLE public.orders_2025_delivered REPLICA IDENTITY FULL;
-ALTER TABLE public.orders_2025_default   REPLICA IDENTITY FULL;
-ALTER TABLE public.orders_2026_pending   REPLICA IDENTITY FULL;
-ALTER TABLE public.orders_2026_shipped   REPLICA IDENTITY FULL;
-ALTER TABLE public.orders_2026_delivered REPLICA IDENTITY FULL;
-ALTER TABLE public.orders_2026_default   REPLICA IDENTITY FULL;
