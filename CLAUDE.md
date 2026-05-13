@@ -1,1 +1,1 @@
-INSTRUCTIONS.md
+AGENTS.md
