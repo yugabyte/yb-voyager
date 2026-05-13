@@ -52,6 +52,10 @@ generator:
   insert_max_retries: 50
   update_max_retries: 3
 
+  # Minimum column size in bytes. Only columns with size >= this value will be inserted.
+  # Set to 0 to disable size filtering (default behavior).
+  min_col_size_bytes: 0
+
   # Enable concurrent index create/drop operations alongside IUD operations
   enable_index_create_drop: false
 

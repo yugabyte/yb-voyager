@@ -55,6 +55,7 @@ for op_name, weight in raw_operation_weights.items():
 INSERT_ROWS = GEN["insert_rows"]
 UPDATE_ROWS = GEN["update_rows"]
 DELETE_ROWS = GEN["delete_rows"]
+MIN_COL_SIZE_BYTES = GEN["min_col_size_bytes"]
 
 # Retries
 INSERT_MAX_RETRIES = GEN["insert_max_retries"]
@@ -83,10 +84,6 @@ if FAKER_SEED is not None:
 conn = psycopg2.connect(**get_connection_kwargs_from_config(CONFIG))
 cursor = conn.cursor()
 
-# Refresh planner statistics up front for better row estimates
-cursor.execute("ANALYZE;")
-conn.commit()
-
 # Detect database flavor (PostgreSQL vs YugabyteDB)
 DB_FLAVOR = detect_db_flavor(cursor)
 
@@ -114,8 +111,24 @@ print("Schema analysed")
 
 # Precompute estimated row counts once per table for sampling decisions
 ROW_ESTIMATES = {}
-for table in table_schemas.keys():
-    ROW_ESTIMATES[table] = get_estimated_row_count(cursor, SCHEMA_NAME, table)
+
+try:
+    # Refresh planner statistics up front for better row estimates
+    cursor.execute("ANALYZE;")
+    conn.commit()
+    for table in table_schemas.keys():
+        ROW_ESTIMATES[table] = get_estimated_row_count(cursor, SCHEMA_NAME, table)
+except Exception as e:
+    print(f"Error refreshing planner statistics using ANALYZE: {e}. Getting row estimates using count(*).")
+    # Rollback the failed transaction before proceeding
+    conn.rollback()
+    # Using count(*) to get row estimates
+    for table in table_schemas.keys():
+        cursor.execute(f"SELECT COUNT(*) FROM {SCHEMA_NAME}.{table};")
+        ROW_ESTIMATES[table] = cursor.fetchone()[0]
+        conn.commit()
+
+print("Row estimates: ", ROW_ESTIMATES)
 
 # Precompute table selection weights once: default weight 1 for unspecified tables
 RESOLVED_TABLE_WEIGHTS = dict(TABLE_WEIGHTS)
@@ -151,7 +164,7 @@ try:
             if operation == "INSERT":
                 # Generate random data and execute INSERT statement
                 columns = ", ".join(table_schemas[table_name]["columns"].keys())
-                values_holder = {"values_list": build_insert_values(table_schemas, table_name, INSERT_ROWS)}
+                values_holder = {"values_list": build_insert_values(table_schemas, table_name, INSERT_ROWS, MIN_COL_SIZE_BYTES)}
 
                 # Prepare callbacks for retryable execution
                 def run_once():
@@ -159,7 +172,7 @@ try:
                     cursor.execute(query_to_run)
 
                 def rebuild():
-                    values_holder["values_list"] = build_insert_values(table_schemas, table_name, INSERT_ROWS)
+                    values_holder["values_list"] = build_insert_values(table_schemas, table_name, INSERT_ROWS, MIN_COL_SIZE_BYTES)
 
                 success = execute_with_retry(run_once, rebuild, conn.rollback, max_retries=INSERT_MAX_RETRIES)
                 if success:
@@ -185,7 +198,7 @@ try:
                     # Randomly choose the columns to update
                     columns_to_update = random.sample(updateable_columns, num_columns_to_update)
 
-                    set_clause, params = build_update_values(table_schemas, table_name, columns_to_update)
+                    set_clause, params = build_update_values(table_schemas, table_name, columns_to_update, MIN_COL_SIZE_BYTES)
                     where_clause, sampling_params = build_sampling_condition(
                         db_flavor=DB_FLAVOR,
                         table_name=table_name,
