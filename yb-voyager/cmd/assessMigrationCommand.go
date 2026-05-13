@@ -117,6 +117,7 @@ var assessMigrationCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("%w", err)
 		}
+		packAndSendAssessMigrationPayload(COMPLETE, nil)
 	},
 }
 
@@ -363,7 +364,6 @@ func assessMigration() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to set migration assessment completed in MSR: %w", err)
 	}
-	packAndSendAssessMigrationPayload(COMPLETE, nil)
 	return nil
 }
 
