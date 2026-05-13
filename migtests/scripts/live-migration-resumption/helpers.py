@@ -363,9 +363,9 @@ def kill(proc: subprocess.Popen | None, timeout_sec: int = 10) -> None:
             return
         proc.kill()
         wait_process(proc, timeout_sec)
-        log(f"kill: killed {proc.pid}")
+        print(f"kill: killed {proc.pid}")
     except Exception:
-        log(f"kill: failed to kill {proc.pid}")
+        print(f"kill: failed to kill {proc.pid}")
         pass
 
 
