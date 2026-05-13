@@ -478,6 +478,7 @@ def run_index_operations(stop_index_thread: threading.Event, config: Dict[str, A
     """Run index create/drop operations in a separate thread with its own connection."""
     # Create a separate connection for index operations
     index_conn = psycopg2.connect(**get_connection_kwargs_from_config(config))
+    index_conn.autocommit = True
     index_cur = index_conn.cursor()
     db_flavor = detect_db_flavor(index_cur)
 
@@ -508,7 +509,7 @@ def run_index_operations(stop_index_thread: threading.Event, config: Dict[str, A
                     if index_col:
                         table, col = index_col
                         idx_name = f"event_gen_idx_{table}_{col}_{random.randint(1000,9999)}"
-                        sql = f'CREATE INDEX "{idx_name}" ON "{schema_name}"."{table}" ("{col}");'
+                        sql = f'CREATE INDEX CONCURRENTLY "{idx_name}" ON "{schema_name}"."{table}" ("{col}");'
                     else:
                         print("No columns found to index.")
 
@@ -540,13 +541,11 @@ def run_index_operations(stop_index_thread: threading.Event, config: Dict[str, A
                     while retry_count < MAX_RETRIES:
                         try:
                             index_cur.execute(sql)
-                            index_conn.commit()
                             print(f"Successful operation on index: {idx_name}")
                             time.sleep(index_events_interval)
                             break
                         except psycopg2.Error as e:
                             print(f"Index operation error: {e}")
-                            index_conn.rollback()
                             time.sleep(1)
                             retry_count += 1
                             print(f"Retrying operation on index {idx_name} (attempt {retry_count} of {MAX_RETRIES})")
