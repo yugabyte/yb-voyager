@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -953,6 +954,11 @@ func TestImportDataFile_TruncateTables_FKEmptyChild(t *testing.T) {
 		"--truncate-tables", "true",
 		"--yes",
 	}
+
+	// Brief pause so the recent INSERT's commit hybrid-time settles across
+	// YB tablets before TRUNCATE's read snapshot. Avoids spurious
+	// SQLSTATE 40001 ("Restart read required") flakes in CI containers.
+	time.Sleep(2 * time.Second)
 
 	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data file", importDataFileCmdArgs, nil, false).Run()
 	testutils.FatalIfError(t, err, "import data file failed -- TRUNCATE of FK-related tables should succeed when child is empty on target")
