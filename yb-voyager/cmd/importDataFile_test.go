@@ -881,3 +881,92 @@ func TestImportDataFile_EmptyFile(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to query row count")
 	assert.Equal(t, 6, rowCount, "expected 6 rows imported")
 }
+
+// Regression test: `import data file --start-clean true --truncate-tables true`
+// must succeed when the target has a non-empty parent table whose FK-dependent
+// child is empty. Previously cleanImportState() filtered out empty tables
+// before issuing TRUNCATE, so YB rejected the statement with "cannot truncate
+// a table referenced in a foreign key constraint".
+func TestImportDataFile_TruncateTables_FKEmptyChild(t *testing.T) {
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	setupYugabyteTestDb(t)
+
+	// Create FK-related tables on the target. Parent (projects) is created first
+	// because tasks references it.
+	createParentSQL := `CREATE TABLE public.truncatefk_projects (project_id INT PRIMARY KEY, project_name TEXT NOT NULL);`
+	createChildSQL := `CREATE TABLE public.truncatefk_tasks (
+		task_id      INT PRIMARY KEY,
+		task_name    TEXT NOT NULL,
+		project_id   INT NOT NULL,
+		CONSTRAINT fk_project FOREIGN KEY (project_id) REFERENCES public.truncatefk_projects(project_id)
+	);`
+	testYugabyteDBTarget.TestContainer.ExecuteSqls(createParentSQL, createChildSQL)
+	t.Cleanup(func() {
+		testYugabyteDBTarget.TestContainer.ExecuteSqls(
+			"DROP TABLE IF EXISTS public.truncatefk_tasks;",
+			"DROP TABLE IF EXISTS public.truncatefk_projects;",
+		)
+	})
+
+	// Pre-populate parent on the target. Child stays empty — this is the bug repro:
+	// the prior code would issue `TRUNCATE truncatefk_projects` alone and YB would
+	// reject it because truncatefk_tasks has an FK to it.
+	testYugabyteDBTarget.TestContainer.ExecuteSqls(
+		`INSERT INTO public.truncatefk_projects VALUES (1, 'pre-existing alpha'), (2, 'pre-existing beta');`,
+	)
+
+	// CSV for projects (parent).
+	projectsCSV := filepath.Join("/tmp", "truncatefk_projects.csv")
+	pf, err := os.Create(projectsCSV)
+	testutils.FatalIfError(t, err, "Failed to create projects CSV")
+	defer os.Remove(projectsCSV)
+	defer pf.Close()
+	pw := csv.NewWriter(pf)
+	pw.Write([]string{"project_id", "project_name"})
+	pw.Write([]string{"10", "Alpha"})
+	pw.Write([]string{"20", "Beta"})
+	pw.Flush()
+
+	// CSV for tasks (FK-dependent child).
+	tasksCSV := filepath.Join("/tmp", "truncatefk_tasks.csv")
+	tf, err := os.Create(tasksCSV)
+	testutils.FatalIfError(t, err, "Failed to create tasks CSV")
+	defer os.Remove(tasksCSV)
+	defer tf.Close()
+	tw := csv.NewWriter(tf)
+	tw.Write([]string{"task_id", "task_name", "project_id"})
+	tw.Write([]string{"100", "t1", "10"})
+	tw.Write([]string{"200", "t2", "20"})
+	tw.Flush()
+
+	importDataFileCmdArgs := []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--target-db-schema", "public",
+		"--data-dir", "/tmp",
+		"--file-table-map", "truncatefk_projects.csv:public.truncatefk_projects,truncatefk_tasks.csv:public.truncatefk_tasks",
+		"--format", "CSV",
+		"--has-header", "true",
+		"--start-clean", "true",
+		"--truncate-tables", "true",
+		"--yes",
+	}
+
+	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data file", importDataFileCmdArgs, nil, false).Run()
+	testutils.FatalIfError(t, err, "import data file failed -- TRUNCATE of FK-related tables should succeed when child is empty on target")
+
+	ybConn, err := testYugabyteDBTarget.TestContainer.GetConnection()
+	testutils.FatalIfError(t, err, "connecting to YugabyteDB")
+	defer ybConn.Close()
+
+	var projectsCount, tasksCount int
+	err = ybConn.QueryRow("SELECT COUNT(*) FROM public.truncatefk_projects").Scan(&projectsCount)
+	testutils.FatalIfError(t, err, "failed to query projects row count")
+	assert.Equal(t, 2, projectsCount, "projects: expected 2 rows after truncate+import (pre-existing rows must have been truncated)")
+
+	err = ybConn.QueryRow("SELECT COUNT(*) FROM public.truncatefk_tasks").Scan(&tasksCount)
+	testutils.FatalIfError(t, err, "failed to query tasks row count")
+	assert.Equal(t, 2, tasksCount, "tasks: expected 2 rows after import")
+}
