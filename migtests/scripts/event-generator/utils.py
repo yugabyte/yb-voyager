@@ -491,7 +491,7 @@ def run_index_operations(stop_index_thread: threading.Event, config: Dict[str, A
         for column_name, data_type in columns.items():
             if data_type not in unsupported_indexable_data_types:
                 indexable_columns.append((table_name, column_name))
-    MAX_RETRIES = 30
+    MAX_RETRIES = 5
     
     print("Index operations thread started")
     
@@ -545,10 +545,13 @@ def run_index_operations(stop_index_thread: threading.Event, config: Dict[str, A
                             time.sleep(index_events_interval)
                             break
                         except psycopg2.Error as e:
-                            print(f"Index operation error: {e}")
+                            print(f"Index operation error on {idx_name}: {e}")
                             time.sleep(1)
                             retry_count += 1
-                            print(f"Retrying operation on index {idx_name} (attempt {retry_count} of {MAX_RETRIES})")
+                            if retry_count < MAX_RETRIES:
+                                print(f"Retrying operation on index {idx_name} (attempt {retry_count} of {MAX_RETRIES})")
+                    else:
+                        print(f"[INDEX] GIVING UP on {action.upper()} {idx_name} after {MAX_RETRIES} attempts")
 
             except Exception as e:
                 print(f"Unexpected error in index operations: {e}")
