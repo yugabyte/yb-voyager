@@ -194,7 +194,11 @@ func initializeNextIteration() (uuid.UUID, error) {
 	if err != nil {
 		return uuid.UUID{}, fmt.Errorf("failed to update migration status record: %w", err)
 	}
-	return uuid.MustParse(nextIterationMSR.MigrationUUID), nil
+	parsedUUID, err := uuid.Parse(nextIterationMSR.MigrationUUID)
+	if err != nil {
+		return uuid.UUID{}, fmt.Errorf("failed to parse migration UUID %q: %w", nextIterationMSR.MigrationUUID, err)
+	}
+	return parsedUUID, nil
 }
 
 func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, iterationNo int, currentMSR *metadb.MigrationStatusRecord,
