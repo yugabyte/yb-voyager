@@ -469,6 +469,7 @@ import-data-to-target:
   ### For partitioned tables during live migration:
   ### - true (default): Import CDC data via the root table.
   ### - false: Import CDC data directly into child partitions
+  ### Note: This flag is only supported for YugabyteDB target version 2025.2.3.0 and above
   ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - true
   # use-partition-root: true

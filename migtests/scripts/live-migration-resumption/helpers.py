@@ -2,6 +2,8 @@
 
 from typing import Any, Dict, Callable, Optional, List
 import os
+import re
+import signal
 import time
 import threading
 import random
@@ -41,6 +43,57 @@ class Context:
         self.stop_event = threading.Event()
         self.process_lock = threading.Lock()
         self.active_resumers: Dict[str, "Resumer"] = {}
+        self.loop_iteration: int = 0
+        self.export_dir_base: str = os.path.abspath(cfg.get("export_dir") or "")
+        # iteration_export_dir is the per-iteration child export-dir
+        # (live-data-migration-iteration-N/export-dir) used for test-side
+        # introspection only — queue scans, archive validation, marker checks.
+        # All `yb-voyager` invocations use the parent export-dir
+        # (cfg["export_dir"] / ctx.export_dir_base) to match real user flow.
+        self.iteration_export_dir: str = self.export_dir_base
+        self.archive_changes_policy: str | None = None
+        self.prev_archive_file_count: int = 0
+
+
+def apply_effective_export_dir(ctx: Context) -> None:
+    """Resolve the per-iteration export-dir for test-side introspection.
+
+    Does NOT mutate cfg["export_dir"] — yb-voyager commands always run against
+    the parent export-dir. Only ctx.iteration_export_dir is updated, used by
+    queue scans, archive validation, and other voyager-metadata-aware checks.
+    """
+    ctx.prev_archive_file_count = 0
+    base = ctx.export_dir_base or os.path.abspath(ctx.cfg.get("export_dir") or "")
+    if ctx.loop_iteration == 0:
+        ctx.iteration_export_dir = base
+        return
+
+    iterations_root_dir = os.path.join(base, "live-data-migration-iterations")
+    latest_iteration_num = -1
+    latest_iteration_export_dir: str | None = None
+    if os.path.isdir(iterations_root_dir):
+        for name in os.listdir(iterations_root_dir):
+            if not name.startswith("live-data-migration-iteration-"):
+                continue
+            suffix = name.replace("live-data-migration-iteration-", "")
+            try:
+                iteration_num = int(suffix)
+            except ValueError:
+                continue
+            iteration_export_dir = os.path.join(iterations_root_dir, name, "export-dir")
+            if os.path.isdir(iteration_export_dir) and iteration_num > latest_iteration_num:
+                latest_iteration_num = iteration_num
+                latest_iteration_export_dir = iteration_export_dir
+
+    if latest_iteration_export_dir:
+        ctx.iteration_export_dir = os.path.abspath(latest_iteration_export_dir)
+        log(f"iteration_export_dir (loop_iteration={ctx.loop_iteration}): {ctx.iteration_export_dir}")
+    else:
+        ctx.iteration_export_dir = base
+        log(
+            f"iteration_export_dir: no live-data-migration-iteration-*/export-dir under {base}; "
+            "using parent export-dir"
+        )
 
 
 class ResumptionPolicy:
@@ -147,6 +200,8 @@ def validate_scenario(cfg: Dict[str, Any]) -> None:
         action = _ensure(st, "action", str, sctx)
         if action == "wait_for":
             _ensure(st, "condition", str, sctx)
+        if action == "voyager_stop_command":
+            _ensure(st, "command", str, sctx)
 
 # -------------------------
 # Polling / Timeouts / Conditions
@@ -165,11 +220,8 @@ def poll_until(timeout_sec: int, interval_sec: int, fn: Callable[[], bool]) -> b
             return False
         time.sleep(interval_sec)
 
-
-
 def exporter_streaming(export_dir: str) -> bool:
-    """Heuristic: streaming considered started when first queue segment has at least one event.
-    """
+    """Heuristic: streaming started when some queue segment.0.ndjson has data (parent or iteration export-dir)."""
     seg0 = os.path.join(export_dir, "data", "queue", "segment.0.ndjson")
     try:
         if not os.path.isfile(seg0):
@@ -180,6 +232,20 @@ def exporter_streaming(export_dir: str) -> bool:
 
 
 def get_cutover_status(export_dir: str, mode: str = "target") -> str:
+    """Return the most recent cutover status for the given direction.
+
+    Voyager's iterative cutover output lists every past iteration plus a
+    "(current):" section. A first-match parse returns a stale completed
+    status from iteration 0. Anchoring strictly on "(current):" breaks the
+    cutover-to-source case, because once voyager flips a target→source
+    cutover to COMPLETED it auto-promotes the next iteration to current,
+    and the new current section has no target→source row yet.
+
+    The last occurrence of the direction line across the whole output is
+    always the most recent state — for an in-flight cutover that is the
+    current iteration's row; for a just-completed cutover it is the row
+    that just rolled into history. Both are what we want to act on.
+    """
     mode_to_direction = {
         "target": "source → target",
         "source": "target → source",
@@ -190,12 +256,13 @@ def get_cutover_status(export_dir: str, mode: str = "target") -> str:
     cmd = ["yb-voyager", "cutover", "status", "--export-dir", export_dir]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        last_status = ""
         for line in proc.stdout.splitlines():
             if direction in line:
                 cols = [c.strip() for c in line.split("|")]
                 if len(cols) >= 2:
-                    return cols[1]
-        return ""
+                    last_status = cols[1]
+        return last_status
     except Exception:
         return ""
 
@@ -297,8 +364,9 @@ def kill(proc: subprocess.Popen | None, timeout_sec: int = 10) -> None:
             return
         proc.kill()
         wait_process(proc, timeout_sec)
+        print(f"kill: killed {proc.pid}")
     except Exception:
-        # Best effort; ignore
+        print(f"kill: failed to kill {proc.pid}")
         pass
 
 
@@ -318,6 +386,7 @@ def stop_process(ctx: Context, name: str, graceful_timeout: int = 10) -> bool:
         ctx.processes.pop(name, None)
     log(f"stop_process: stopped {name}")
     return True
+
 
 
 # -------------------------
@@ -421,9 +490,7 @@ def build_export_data_cmd(cfg: Dict[str, Any]) -> list[str]:
     voyager_flags = _get_voyager_flags(cfg, "export_data")
     base = _base_common_flags(cfg)
     base.update(_source_conn_flags(cfg))
-    # Live migration default
     base["export-type"] = "snapshot-and-changes"
-    # data command defaults
     base["disable-pb"] = True
     merged = _merge_flags(base, voyager_flags)
     return ["yb-voyager", "export", "data", "--yes"] + to_kv_flags(merged)
@@ -433,7 +500,6 @@ def build_import_data_cmd(cfg: Dict[str, Any]) -> list[str]:
     voyager_flags = _get_voyager_flags(cfg, "import_data")
     base = _base_common_flags(cfg)
     base.update(_target_conn_flags(cfg))
-    base["max-retries-streaming"] = 1
     base["skip-replication-checks"] = True
     # data command defaults
     base["disable-pb"] = True
@@ -483,6 +549,159 @@ def build_import_to_source_replica_cmd(cfg: Dict[str, Any]) -> list[str]:
     return ["yb-voyager", "import", "data", "to", "source-replica", "--yes"] + to_kv_flags(merged)
 
 
+def build_archive_changes_cmd(ctx: Context, policy: str) -> list[str]:
+    """Build yb-voyager archive changes command.
+
+    The archiver runs on the **parent** export-dir and internally iterates
+    through all migration iterations.  When the policy is ``archive``, a
+    single archive directory is created at the test-root level; voyager
+    auto-creates per-iteration subdirectories beneath it.
+    """
+    cfg = ctx.cfg
+    voyager_flags = _get_voyager_flags(cfg, "archive_changes")
+    base = _base_common_flags(cfg)
+    merged = _merge_flags(base, voyager_flags)
+
+    merged["export-dir"] = ctx.export_dir_base
+    if policy == "archive":
+        archive_dir = merged.pop("archive-dir", None) or os.path.join(ctx.test_root, "archive-dir")
+        os.makedirs(archive_dir, exist_ok=True)
+        merged["archive-dir"] = archive_dir
+        merged["policy"] = "archive"
+    elif policy == "delete":
+        merged["policy"] = "delete"
+        merged["fs-utilization-threshold"] = 0
+
+    return ["yb-voyager", "archive", "changes"] + to_kv_flags(merged)
+
+
+# -------------------------
+# Archive-changes validation
+# -------------------------
+
+def _return_segment_files(directory: str) -> list[str]:
+    """Return sorted list of segment.N.ndjson filenames in *directory*."""
+    if not os.path.isdir(directory):
+        return []
+    return sorted(
+        (n for n in os.listdir(directory) if n.startswith("segment.") and n.endswith(".ndjson")),
+        key=lambda n: int(n.split(".")[1]),
+    )
+
+def _return_first_last_vsn(filepath: str) -> tuple[int | None, int | None]:
+    """Return (first_vsn, last_vsn) from a segment file, ignoring blank lines and the EOF marker."""
+    first = None
+    last_line = None
+    with open(filepath, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line == r"\.":
+                continue
+            if first is None:
+                first = json.loads(line)["vsn"]
+            last_line = line
+    last = json.loads(last_line)["vsn"] if last_line is not None else None
+    return first, last
+
+def _return_total_segments_in_metadb(export_dir: str) -> int:
+    meta_db = os.path.join(export_dir, "metainfo", "meta.db")
+    proc = subprocess.run(
+        ["sqlite3", meta_db, "select max(segment_no)+1 as number_of_segments from queue_segment_meta;"],
+        capture_output=True, text=True, check=True,
+    )
+    return int(proc.stdout.strip())
+
+def _return_archive_dir_for_iteration(ctx: Context) -> str:
+    """Return the archive directory for the current iteration.
+
+    Iteration 0: <archive-dir>/
+    Iteration N: <archive-dir>/live-data-migration-iterations/live-data-migration-iteration-N/
+    """
+    voyager_flags = _get_voyager_flags(ctx.cfg, "archive_changes")
+    top_archive = voyager_flags.get("archive-dir") or os.path.join(ctx.test_root, "archive-dir")
+    if ctx.loop_iteration == 0:
+        return top_archive
+    return os.path.join(
+        top_archive,
+        "live-data-migration-iterations",
+        f"live-data-migration-iteration-{ctx.loop_iteration}",
+    )
+
+
+def validate_archive_changes(ctx: Context, check_post_cutover_to_source: bool = False) -> None:
+    """Validate archive-changes using filesystem checks with progress tracking.
+
+    Delete policy:
+      partial (1 & 2): len(queue_files) < total_in_meta
+      post-cutover:    len(queue_files) == 0
+
+    Archive policy:
+      validation 1:  len(archive_files) > 0
+      validation 2:  len(archive_files) > prev_archive_count
+      post-cutover:  len(queue_files) == 0 AND len(archive_files) == total_in_meta
+    """
+    policy = ctx.archive_changes_policy
+
+    # Archive validation introspects per-iteration queue + meta.db, so it
+    # uses the iteration-specific export-dir (not the parent that voyager
+    # commands run against).
+    export_dir = ctx.iteration_export_dir
+    queue_dir = os.path.join(export_dir, "data", "queue")
+    queue_files = _return_segment_files(queue_dir)
+    total_in_meta = _return_total_segments_in_metadb(export_dir)
+
+    log(f"validate_archive_changes: policy={policy}, export_dir={export_dir}, iteration={ctx.loop_iteration}")
+
+    if policy == "delete":
+        log(f"validate_archive_changes [delete]: queue_files={len(queue_files)}, total_in_meta={total_in_meta}")
+
+        if check_post_cutover_to_source:
+            if len(queue_files) != 0:
+                raise AssertionError(
+                    f"validate_archive_changes [delete]: expected queue_files == 0 after cutover, found {len(queue_files)}: {queue_files}"
+                )
+            log(f"validate_archive_changes [delete]: OK — queue empty after cutover")
+            return
+
+        if len(queue_files) >= total_in_meta:
+            raise AssertionError(
+                f"validate_archive_changes [delete]: no segments deleted — queue_files={len(queue_files)}, total_in_meta={total_in_meta}"
+            )
+        log(f"validate_archive_changes [delete]: OK — {total_in_meta - len(queue_files)} deleted, {len(queue_files)} in queue, total_in_meta={total_in_meta}")
+        return
+
+    # policy == "archive"
+    archive_dir = _return_archive_dir_for_iteration(ctx)
+    archive_files = _return_segment_files(archive_dir)
+    prev_archive = ctx.prev_archive_file_count
+
+    log(f"validate_archive_changes [archive]: archive_dir={archive_dir}, archive_files={len(archive_files)}, queue_files={len(queue_files)}, total_in_meta={total_in_meta}, prev_archive_count={prev_archive}")
+
+    if check_post_cutover_to_source:
+        if len(queue_files) != 0:
+            raise AssertionError(
+                f"validate_archive_changes [archive]: expected queue_files == 0 after cutover, found {len(queue_files)}: {queue_files}"
+            )
+        if len(archive_files) != total_in_meta:
+            raise AssertionError(
+                f"validate_archive_changes [archive]: expected archive_files == total_in_meta, got archive_files={len(archive_files)}, total_in_meta={total_in_meta}"
+            )
+        log(f"validate_archive_changes [archive]: OK — queue empty, archive_files={len(archive_files)} == total_in_meta={total_in_meta}")
+        ctx.prev_archive_file_count = len(archive_files)
+        return
+
+    if len(archive_files) == 0:
+        raise AssertionError(
+            f"validate_archive_changes [archive]: archiver not working — no files in archive dir {archive_dir}"
+        )
+    if prev_archive > 0 and len(archive_files) <= prev_archive:
+        raise AssertionError(
+            f"validate_archive_changes [archive]: no progress — archive_files={len(archive_files)}, prev_archive={prev_archive}"
+        )
+    log(f"validate_archive_changes [archive]: OK — {len(archive_files)} files in archive dir (prev={prev_archive}), {len(queue_files)} in queue")
+    ctx.prev_archive_file_count = len(archive_files)
+
+
 def start_command_by_name(name: str, ctx: Context) -> subprocess.Popen:
     mapping: Dict[str, Callable[[], subprocess.Popen]] = {
         "export_data": lambda: spawn(build_export_data_cmd(ctx.cfg), ctx.env),
@@ -490,6 +709,7 @@ def start_command_by_name(name: str, ctx: Context) -> subprocess.Popen:
         "export_from_target": lambda: spawn(build_export_from_target_cmd(ctx.cfg), ctx.env),
         "import_to_source_replica": lambda: spawn(build_import_to_source_replica_cmd(ctx.cfg), ctx.env),
         "import_to_source": lambda: spawn(build_import_to_source_cmd(ctx.cfg), ctx.env),
+        "archive_changes": lambda: spawn(build_archive_changes_cmd(ctx, ctx.archive_changes_policy or "archive"), ctx.env),
     }
     try:
         return mapping[name]()
@@ -802,14 +1022,12 @@ def scan_logs_for_errors(export_dir: str, artifacts_dir: str, patterns: list[str
 def snapshot_msr_and_stats(export_dir: str, artifacts_dir: str) -> None:
     metainfo_dir = os.path.join(export_dir, "metainfo")
     dest_dir = os.path.join(artifacts_dir, "metainfo")
-
     shutil.copytree(metainfo_dir, dest_dir, dirs_exist_ok=True)
 
 
 def copy_logs_directory(export_dir: str, artifacts_dir: str) -> None:
     logs_dir = os.path.join(export_dir, "logs")
     dest_dir = os.path.join(artifacts_dir, "logs")
-
     shutil.copytree(logs_dir, dest_dir, dirs_exist_ok=True)
 
 
@@ -1174,6 +1392,9 @@ def run_segment_hash_validations(
     Raises:
         RuntimeError if any segment shows a mismatch or is missing on one side.
     """
+    for side in (left_side, right_side):
+        run_psql(ctx, side, "-c", "DELETE FROM public.migration_validate_segments;")
+
     # 1) Compute (or refresh) segment hashes on both sides
     run_segment_hash_computation(ctx, left_side)
     run_segment_hash_computation(ctx, right_side)
@@ -1206,6 +1427,9 @@ def run_segment_hash_validations(
         raise RuntimeError(f"segment hash validation failed for segments: {preview}")
 
 
+_VALIDATION_INFRA_TABLES = frozenset({"migration_validate_segments", "cutover_table"})
+
+
 def run_row_count_validations(
     ctx: Context,
     left_role: str = "source",
@@ -1214,9 +1438,10 @@ def run_row_count_validations(
     """Compare row counts between two roles (default: source and target) using direct SQL."""
     cfg = ctx.cfg
     schema = cfg["source"]["schema"]
-    tables = list_source_tables(cfg)
+    tables = [t for t in list_source_tables(cfg) if t not in _VALIDATION_INFRA_TABLES]
     out_dir = os.path.join(ctx.artifacts_dir, "validation", "row_counts")
     os.makedirs(out_dir, exist_ok=True)
+
     mismatches = []
 
     with db_connection(cfg, left_role) as left_conn, db_connection(cfg, right_role) as right_conn:
@@ -1243,7 +1468,6 @@ def run_row_count_validations(
         summary_path = os.path.join(out_dir, "row_count_mismatches.json")
         with open(summary_path, "w") as f:
             json.dump({"mismatches": mismatches}, f)
-
         preview = "; ".join(
             f"{r['table']} (source={r['source_count']}, target={r['target_count']})"
             for r in mismatches
