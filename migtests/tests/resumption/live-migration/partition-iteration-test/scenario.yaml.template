@@ -1,10 +1,10 @@
 name: partition-iteration-test
 
-num_iterations: 10
+num_iterations: 20
 
 env:
   LOG_LEVEL: info
-  QUEUE_SEGMENT_MAX_BYTES: 1048576
+  QUEUE_SEGMENT_MAX_BYTES: 10485760
 
 export_dir: ./export-dir
 artifacts_dir: ./artifacts
@@ -229,7 +229,7 @@ stages:
 
   - name: soak_with_resumptions
     action: sleep
-    seconds: 120
+    seconds: 400
 
   - name: stop_event_generator
     action: generator_stop
@@ -244,7 +244,7 @@ stages:
   - name: wait_backlog_zero
     action: wait_for
     condition: remaining_events_eq_0
-    timeout_sec: 1200
+    timeout_sec: 2400
 
   - name: stop_export_resumptions
     action: voyager_stop_resumptions
@@ -258,7 +258,7 @@ stages:
 
   - name: wait_for_archiver
     action: sleep
-    seconds: 80
+    seconds: 180
 
   - name: validate_archive_changes
     action: validate_archive_changes
@@ -269,7 +269,7 @@ stages:
   - name: wait_cutover_to_target_completed
     action: wait_for
     condition: cutover_to_target_status_completed
-    timeout_sec: 900
+    timeout_sec: 1800
 
   - name: stop_forward_exporter_for_fallback
     action: voyager_stop_command
@@ -321,7 +321,7 @@ stages:
 
   - name: soak_fallback_with_resumptions
     action: sleep
-    seconds: 120
+    seconds: 400
 
   - name: stop_target_event_generator
     action: generator_stop
@@ -330,7 +330,7 @@ stages:
 
   - name: sleep
     action: sleep
-    seconds: 30
+    seconds: 10
 
   - name: insert_backlog_marker_on_target
     action: run_sql
@@ -354,7 +354,7 @@ stages:
 
   - name: wait_for_archiver
     action: sleep
-    seconds: 80
+    seconds: 180
 
   - name: validate_archive_changes
     action: validate_archive_changes
@@ -365,11 +365,11 @@ stages:
   - name: wait_cutover_to_source_completed
     action: wait_for
     condition: cutover_to_source_status_completed
-    timeout_sec: 900
+    timeout_sec: 1800
 
   - name: wait_for_archiver
     action: sleep
-    seconds: 80
+    seconds: 240
 
   - name: validate_archive_changes
     action: validate_archive_changes
