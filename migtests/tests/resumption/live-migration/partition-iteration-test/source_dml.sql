@@ -129,7 +129,7 @@ BEGIN
         ('Eve', 104, 110000.00, '{"level": "principal"}'::jsonb);
 
     -- UPDATE on HASH partition
-    UPDATE public.emp SET salary = salary * 1.10, metadata = metadata || '{"raise": true}'::jsonb
+    UPDATE public.emp SET salary = 50000.00, metadata = metadata || '{"raise": true}'::jsonb
     WHERE emp_name = 'Alice';
 
     -- DELETE from HASH partition
