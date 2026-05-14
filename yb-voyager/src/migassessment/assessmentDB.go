@@ -238,6 +238,19 @@ func NewAssessmentDB() (*AssessmentDB, error) {
 	return &AssessmentDB{db: db}, nil
 }
 
+func InitAndOpenAssessmentDB() (*AssessmentDB, error) {
+	err := InitAssessmentDB()
+	if err != nil {
+		return nil, fmt.Errorf("error creating and initializing assessment DB: %w", err)
+	}
+
+	assessmentDB, err := NewAssessmentDB()
+	if err != nil {
+		return nil, fmt.Errorf("error creating assessment DB instance: %w", err)
+	}
+	return assessmentDB, nil
+}
+
 func (adb *AssessmentDB) BulkInsert(table string, records [][]string) error {
 	if len(records) == 0 {
 		return nil
