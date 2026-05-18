@@ -85,6 +85,22 @@ func (s *Source) DB() SourceDB {
 	return s.sourceDB
 }
 
+func (s *Source) FetchSourceInfo() {
+	var err error
+	s.DBVersion = s.DB().GetVersion()
+	s.DBSize, err = s.DB().GetDatabaseSize()
+	if err != nil {
+		log.Errorf("error getting database size: %v", err) // can just log as this is used for call-home only
+	}
+
+	// Get PostgreSQL system identifier.
+	s.FetchPGDBSystemIdentifier()
+	err = s.DB().FetchDBID()
+	if err != nil {
+		log.Errorf("error getting database id: %v", err) // can just log as this is used for call-home only
+	}
+}
+
 func (s *Source) GetOracleHome() string {
 	if s.OracleHome != "" {
 		return s.OracleHome

@@ -14,7 +14,6 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
@@ -24,6 +23,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ux"
 )
 
 var (
@@ -588,43 +588,23 @@ func backupLogFilesFn() {
 func askAndStorePasswords(msr *metadb.MigrationStatusRecord) {
 	var err error
 	if msr.TargetDBConf != nil {
-		targetDBPassword, err = askPassword("target DB", "", "TARGET_DB_PASSWORD")
+		targetDBPassword, err = ux.AskPassword("target DB", "", "TARGET_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting target db password: %w", err)
 		}
 	}
 	if msr.FallForwardEnabled {
-		sourceReplicaDBPassword, err = askPassword("source-replica DB", "", "SOURCE_REPLICA_DB_PASSWORD")
+		sourceReplicaDBPassword, err = ux.AskPassword("source-replica DB", "", "SOURCE_REPLICA_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting source-replica db password: %w", err)
 		}
 	}
 	if msr.FallbackEnabled {
-		sourceDBPassword, err = askPassword("source DB", "", "SOURCE_DB_PASSWORD")
+		sourceDBPassword, err = ux.AskPassword("source DB", "", "SOURCE_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting source password: %w", err)
 		}
 	}
-}
-
-func askPassword(destination string, user string, envVar string) (string, error) {
-	if os.Getenv(envVar) != "" {
-		return os.Getenv(envVar), nil
-	}
-
-	if user == "" {
-		fmt.Printf("Password to connect to %s (In addition, you can also set the password using the environment variable '%s'): ",
-			destination, envVar)
-	} else {
-		fmt.Printf("Password to connect to '%s' user of %s (In addition, you can also set the password using the environment variable '%s'): ",
-			user, destination, envVar)
-	}
-	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
-	if err != nil {
-		return "", fmt.Errorf("reading password: %w", err)
-	}
-	fmt.Print("\n")
-	return string(bytePassword), nil
 }
 
 func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
@@ -643,7 +623,7 @@ func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
 
 	var err error
 	if sourceDBPassword == "" {
-		sourceDBPassword, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
+		sourceDBPassword, err = ux.AskPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting source db password: %w", err)
 		}
@@ -698,7 +678,7 @@ func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {
 		return
 	}
 	if targetDBPassword == "" {
-		targetDBPassword, err = askPassword("target DB", tconf.User, "TARGET_DB_PASSWORD")
+		targetDBPassword, err = ux.AskPassword("target DB", tconf.User, "TARGET_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting target db password: %w", err)
 		}
@@ -832,7 +812,7 @@ func cleanupSourceReplicaDB(msr *metadb.MigrationStatusRecord) {
 		return
 	}
 	if sourceReplicaDBPassword == "" {
-		sourceReplicaDBPassword, err = askPassword("source-replica DB", sourceReplicaconf.User, "SOURCE_REPLICA_DB_PASSWORD")
+		sourceReplicaDBPassword, err = ux.AskPassword("source-replica DB", sourceReplicaconf.User, "SOURCE_REPLICA_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting source-replica db password: %w", err)
 		}
@@ -865,7 +845,7 @@ func cleanupFallBackDB(msr *metadb.MigrationStatusRecord) {
 		return
 	}
 	if sourceDBPassword == "" {
-		sourceDBPassword, err = askPassword("source DB", fbconf.User, "SOURCE_DB_PASSWORD")
+		sourceDBPassword, err = ux.AskPassword("source DB", fbconf.User, "SOURCE_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting source db password: %w", err)
 		}
