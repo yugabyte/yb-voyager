@@ -24,6 +24,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -97,7 +98,7 @@ func initTargetConfFromSourceConf() error {
 	return nil
 }
 
-func packAndSendImportDataToSourcePayload(status string, errorMsg error, iterativeCutoverEnabled bool, nextIterationMigrationUUID uuid.UUID) {
+func packAndSendImportDataToSourcePayload(status string, errorMsg error) {
 
 	if !shouldSendCallhome() {
 		return
@@ -131,6 +132,13 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg error, iterati
 	// Set table list count
 	dataMetrics.TableListCount = len(importTableList)
 
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		log.Infof("callhome: error getting MSR for iterative cutover enabled: %v", err)
+		return
+	}
+	iterativeCutoverEnabled := msr.RestartDataMigrationSourceTargetNextIteration && msr.NextIterationInitialized
+
 	importDataPayload := callhome.ImportDataPhasePayload{
 		PayloadVersion:          callhome.IMPORT_DATA_CALLHOME_PAYLOAD_VERSION,
 		ParallelJobs:            int64(tconf.Parallelism),
@@ -143,16 +151,24 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg error, iterati
 		IterativeCutoverEnabled: iterativeCutoverEnabled,
 	}
 	if iterativeCutoverEnabled {
+		iterationsDir := msr.GetIterationsDir(exportDir)
+		nextIterationExportDir := GetIterationExportDir(iterationsDir, msr.LatestIterationNumber)
+		nextIterationMetaDB, err := metadb.NewMetaDB(nextIterationExportDir)
+		if err != nil {
+			log.Infof("callhome: error creating next iteration meta db: %v", err)
+		}
+		nextIterationMsr, err := nextIterationMetaDB.GetMigrationStatusRecord()
+		if err != nil {
+			log.Infof("callhome: error getting next iteration MSR: %v", err)
+		}
+		nextIterationMigrationUUID, err := uuid.Parse(nextIterationMsr.MigrationUUID)
+		if err != nil {
+			log.Infof("callhome: error parsing next iteration migration UUID: %v", err)
+		}
 		importDataPayload.NextIterationMigrationUUID = nextIterationMigrationUUID
 	}
 
-	// Add cutover timings if applicable
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err == nil {
-		importDataPayload.CutoverTimings = CalculateCutoverTimingsForSource(msr)
-	} else {
-		log.Infof("callhome: error getting MSR for cutover timings: %v", err)
-	}
+	importDataPayload.CutoverTimings = CalculateCutoverTimingsForSource(msr)
 
 	payload.PhasePayload = callhome.MarshalledJsonString(importDataPayload)
 	payload.Status = status

@@ -22,7 +22,6 @@ import (
 	"time"
 
 	goerrors "github.com/go-errors/errors"
-	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -133,35 +132,35 @@ func iterativeCutoverSupported(msr *metadb.MigrationStatusRecord) bool {
 	return msr.FallbackEnabled && msr.SourceDBConf.DBType == POSTGRESQL
 }
 
-func initializeNextIteration() (uuid.UUID, error) {
+func initializeNextIteration() error {
 	currentMSR, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return uuid.UUID{}, fmt.Errorf("failed to get migration status record: %w", err)
+		return fmt.Errorf("failed to get migration status record: %w", err)
 	}
 	if !iterativeCutoverSupported(currentMSR) {
-		return uuid.UUID{}, goerrors.Errorf("iterative live migration is not supported for this migration")
+		return goerrors.Errorf("iterative live migration is not supported for this migration")
 	}
 	parentMetaDB, err := metaDB.GetParentMetaDB()
 	if err != nil {
-		return uuid.UUID{}, fmt.Errorf("failed to get parent meta db: %w", err)
+		return fmt.Errorf("failed to get parent meta db: %w", err)
 	}
 	iterationsDir := currentMSR.GetIterationsDir(exportDir)
 	err = os.MkdirAll(iterationsDir, 0755)
 	if err != nil {
-		return uuid.UUID{}, fmt.Errorf("failed to create iterations directory: %w", err)
+		return fmt.Errorf("failed to create iterations directory: %w", err)
 	}
 	nextIterationNo := currentMSR.IterationNo + 1
 
 	parentMSR, err := parentMetaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return uuid.UUID{}, fmt.Errorf("failed to get parent migration status record: %w", err)
+		return fmt.Errorf("failed to get parent migration status record: %w", err)
 	}
 	//Create a new export dir for the next iteration under export_dir int following structure
 
 	nextIterationExportDir := GetIterationExportDir(iterationsDir, nextIterationNo)
 	err = os.MkdirAll(nextIterationExportDir, 0755)
 	if err != nil {
-		return uuid.UUID{}, fmt.Errorf("failed to create iteration directory: %w", err)
+		return fmt.Errorf("failed to create iteration directory: %w", err)
 	}
 
 	nextIterationMetaDB := CreateMigrationProjectIfNotExists(parentMSR.SourceDBConf.DBType, nextIterationExportDir)
@@ -171,7 +170,7 @@ func initializeNextIteration() (uuid.UUID, error) {
 	//Update the MSR - parent, next iteration and current iteration
 	err = setUpNextIterationMSR(parentMetaDB, nextIterationNo, currentMSR, nextIterationMetaDB)
 	if err != nil {
-		return uuid.UUID{}, fmt.Errorf("failed to set up next iteration MSR: %w", err)
+		return fmt.Errorf("failed to set up next iteration MSR: %w", err)
 	}
 
 	//Copying the name registry file to the next iteration so that we don't re-register the names again
@@ -179,26 +178,18 @@ func initializeNextIteration() (uuid.UUID, error) {
 	nextIterationNameRegFile := fmt.Sprintf("%s/metainfo/name_registry.json", nextIterationExportDir)
 	err = utils.CopyFile(currNameRegFile, nextIterationNameRegFile)
 	if err != nil {
-		return uuid.UUID{}, fmt.Errorf("failed to copy name registry file: %w", err)
+		return fmt.Errorf("failed to copy name registry file: %w", err)
 	}
 
-	nextIterationMSR, err := nextIterationMetaDB.GetMigrationStatusRecord()
-	if err != nil {
-		return uuid.UUID{}, fmt.Errorf("failed to get migration status record: %w", err)
-	}
 	injectDuringInitializeNextIteration()
 
 	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.NextIterationInitialized = true
 	})
 	if err != nil {
-		return uuid.UUID{}, fmt.Errorf("failed to update migration status record: %w", err)
+		return fmt.Errorf("failed to update migration status record: %w", err)
 	}
-	parsedUUID, err := uuid.Parse(nextIterationMSR.MigrationUUID)
-	if err != nil {
-		return uuid.UUID{}, fmt.Errorf("failed to parse migration UUID %q: %w", nextIterationMSR.MigrationUUID, err)
-	}
-	return parsedUUID, nil
+	return nil
 }
 
 func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, iterationNo int, currentMSR *metadb.MigrationStatusRecord,
