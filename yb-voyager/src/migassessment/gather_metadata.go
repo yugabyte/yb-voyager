@@ -46,43 +46,44 @@ type GatherAssessmentMetadataStageConfig struct {
 }
 
 func RunGatherAssessmentMetadataStage(config GatherAssessmentMetadataStageConfig) (*AssessmentDB, error) {
-	startGatherMetadataStage(config.Source.DBType, len(config.ValidatedReplicaEndpoints) > 0, config.Tracker)
+	var assessmentDB *AssessmentDB
+	err := startGatherMetadataStage(config.Source.DBType, len(config.ValidatedReplicaEndpoints) > 0, config.Tracker, func() error {
+		var err error
+		assessmentDB, err = InitAndOpenAssessmentDB()
+		if err != nil {
+			return err
+		}
 
-	assessmentDB, err := InitAndOpenAssessmentDB()
+		err = gatherAssessmentMetadata(config)
+		if err != nil {
+			return fmt.Errorf("failed to gather assessment metadata: %w", err)
+		}
+
+		parseExportedSchemaFileForAssessmentIfRequired(config)
+		if config.HasSourceConnectivity {
+			config.Source.DB().Disconnect()
+		}
+
+		err = PopulateMetadataCSVIntoAssessmentDB(assessmentDB, config.AssessmentMetadataDir)
+		if err != nil {
+			return fmt.Errorf("failed to populate metadata CSV into SQLite DB: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
-		config.Tracker.FailStage()
 		return nil, err
 	}
-
-	err = gatherAssessmentMetadata(config)
-	if err != nil {
-		config.Tracker.FailStage()
-		return nil, fmt.Errorf("failed to gather assessment metadata: %w", err)
-	}
-
-	parseExportedSchemaFileForAssessmentIfRequired(config)
-	if config.HasSourceConnectivity {
-		config.Source.DB().Disconnect()
-	}
-
-	err = PopulateMetadataCSVIntoAssessmentDB(assessmentDB, config.AssessmentMetadataDir)
-	if err != nil {
-		config.Tracker.FailStage()
-		return nil, fmt.Errorf("failed to populate metadata CSV into SQLite DB: %w", err)
-	}
-	config.Tracker.CompleteStage()
 	return assessmentDB, nil
 }
 
-func startGatherMetadataStage(sourceDBType string, hasReplicas bool, tracker *ux.ProgressTracker) {
+func startGatherMetadataStage(sourceDBType string, hasReplicas bool, tracker *ux.ProgressTracker, stageFunc ux.ProgressStageFunc) error {
 	gatherStepCount, prepareStaticStage := gatherMetadataStageConfig(sourceDBType, hasReplicas)
 	if prepareStaticStage {
 		// Parallel replica path uses its own internal progress display,
 		// and Oracle uses a static summary banner without per-step spinners.
-		tracker.PrepareStage("Gathering metadata", gatherStepCount, nil)
-	} else {
-		tracker.StartStage("Gathering metadata", gatherStepCount, nil)
+		return tracker.PrepareStage("Gathering metadata", gatherStepCount, stageFunc)
 	}
+	return tracker.StartStage("Gathering metadata", gatherStepCount, stageFunc)
 }
 
 func gatherMetadataStageConfig(sourceDBType string, hasReplicas bool) (int, bool) {
