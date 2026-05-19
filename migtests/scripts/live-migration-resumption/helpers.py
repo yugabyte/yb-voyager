@@ -2,7 +2,6 @@
 
 from typing import Any, Dict, Callable, Optional, List
 import os
-import re
 import signal
 import time
 import threading
@@ -588,25 +587,11 @@ def _return_segment_files(directory: str) -> list[str]:
         key=lambda n: int(n.split(".")[1]),
     )
 
-def _return_first_last_vsn(filepath: str) -> tuple[int | None, int | None]:
-    """Return (first_vsn, last_vsn) from a segment file, ignoring blank lines and the EOF marker."""
-    first = None
-    last_line = None
-    with open(filepath, "r") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line == r"\.":
-                continue
-            if first is None:
-                first = json.loads(line)["vsn"]
-            last_line = line
-    last = json.loads(last_line)["vsn"] if last_line is not None else None
-    return first, last
 
 def _return_total_segments_in_metadb(export_dir: str) -> int:
     meta_db = os.path.join(export_dir, "metainfo", "meta.db")
     proc = subprocess.run(
-        ["sqlite3", meta_db, "select max(segment_no)+1 as number_of_segments from queue_segment_meta;"],
+        ["sqlite3", meta_db, "select coalesce(max(segment_no)+1, 0) as number_of_segments from queue_segment_meta;"],
         capture_output=True, text=True, check=True,
     )
     return int(proc.stdout.strip())
