@@ -151,7 +151,8 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg error) {
 		IterativeCutoverEnabled: iterativeCutoverEnabled,
 	}
 	if iterativeCutoverEnabled {
-		iterationsDir := msr.GetIterationsDir(exportDir)
+		parentExportDir := msr.GetParentExportDir(exportDir)
+		iterationsDir := msr.GetIterationsDir(parentExportDir)
 		nextIterationExportDir := GetIterationExportDir(iterationsDir, msr.LatestIterationNumber)
 		nextIterationMetaDB, err := metadb.NewMetaDB(nextIterationExportDir)
 		if err != nil {
