@@ -59,7 +59,10 @@ func RunGatherAssessmentMetadataStage(config GatherAssessmentMetadataStageConfig
 			return fmt.Errorf("failed to gather assessment metadata: %w", err)
 		}
 
-		parseExportedSchemaFileForAssessmentIfRequired(config)
+		err = parseExportedSchemaFileForAssessmentIfRequired(config)
+		if err != nil {
+			return fmt.Errorf("failed to parse exported schema file for assessment: %w", err)
+		}
 		if config.HasSourceConnectivity {
 			config.Source.DB().Disconnect()
 		}
@@ -141,10 +144,16 @@ It is due to the differences in how tools like ora2pg, and pg_dump exports the s
 pg_dump - export schema in single .sql file which is later on segregated by voyager in respective .sql file
 ora2pg - export schema in given .sql file, and we have to call it for each object type to export schema
 */
-func parseExportedSchemaFileForAssessmentIfRequired(config GatherAssessmentMetadataStageConfig) {
+func parseExportedSchemaFileForAssessmentIfRequired(config GatherAssessmentMetadataStageConfig) (err error) {
 	if config.Source.DBType == constants.ORACLE {
-		return // already parsed into schema files while exporting
+		return nil // already parsed into schema files while exporting
 	}
+
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("export schema failed: %v", recovered)
+		}
+	}()
 
 	log.Infof("set 'schemaDir' as: %s", config.SchemaDir)
 	config.Source.ApplyExportSchemaObjectListFilter()
@@ -152,6 +161,10 @@ func parseExportedSchemaFileForAssessmentIfRequired(config GatherAssessmentMetad
 		config.PrepareMigrationProject()
 	}
 	config.Source.DB().ExportSchema(config.ExportDir, config.SchemaDir)
+	if !utils.FileOrFolderExistsWithGlobPattern(filepath.Join(config.SchemaDir, "*", "*.sql")) {
+		return fmt.Errorf("no parsed schema files found in %s", config.SchemaDir)
+	}
+	return nil
 }
 
 func PopulateMetadataCSVIntoAssessmentDB(assessmentDB *AssessmentDB, assessmentMetadataDir string) error {
