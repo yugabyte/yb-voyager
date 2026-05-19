@@ -151,21 +151,7 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg error) {
 		IterativeCutoverEnabled: iterativeCutoverEnabled,
 	}
 	if iterativeCutoverEnabled {
-		parentExportDir := msr.GetParentExportDir(exportDir)
-		iterationsDir := msr.GetIterationsDir(parentExportDir)
-		nextIterationExportDir := GetIterationExportDir(iterationsDir, msr.LatestIterationNumber)
-		nextIterationMetaDB, err := metadb.NewMetaDB(nextIterationExportDir)
-		if err != nil {
-			log.Infof("callhome: error creating next iteration meta db: %v", err)
-		}
-		nextIterationMsr, err := nextIterationMetaDB.GetMigrationStatusRecord()
-		if err != nil {
-			log.Infof("callhome: error getting next iteration MSR: %v", err)
-		}
-		nextIterationMigrationUUID, err := uuid.Parse(nextIterationMsr.MigrationUUID)
-		if err != nil {
-			log.Infof("callhome: error parsing next iteration migration UUID: %v", err)
-		}
+		nextIterationMigrationUUID := getMigrationUUIDForNextIteration(msr)
 		importDataPayload.NextIterationMigrationUUID = nextIterationMigrationUUID
 	}
 
@@ -178,4 +164,37 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg error) {
 	if err == nil && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
 	}
+}
+
+func getMigrationUUIDForNextIteration(currentMSR *metadb.MigrationStatusRecord) uuid.UUID {
+	parentExportDir := currentMSR.GetParentExportDir(exportDir)
+	iterationsDir := currentMSR.GetIterationsDir(parentExportDir)
+	latestIterationNumber := currentMSR.LatestIterationNumber //if the export dir is the parent export dir, then the latest iteration number is the next iteration number
+	if currentMSR.IsIteration() {
+		//if its an iteration, we need to get the parent's latest iteration number to be used for the next iteration msr
+		parentMetaDB, err := metaDB.GetParentMetaDB()
+		if err != nil {
+			log.Infof("callhome: error getting parent meta db: %v", err)
+		}
+		parentMSR, err := parentMetaDB.GetMigrationStatusRecord()
+		if err != nil {
+			log.Infof("callhome: error getting parent MSR: %v", err)
+		}
+		latestIterationNumber = parentMSR.LatestIterationNumber
+	}
+	nextIterationExportDir := GetIterationExportDir(iterationsDir, latestIterationNumber)
+	nextIterationMetaDB, err := metadb.NewMetaDB(nextIterationExportDir)
+	if err != nil {
+		log.Infof("callhome: error creating next iteration meta db: %v", err)
+	}
+
+	nextIterationMsr, err := nextIterationMetaDB.GetMigrationStatusRecord()
+	if err != nil {
+		log.Infof("callhome: error getting next iteration MSR: %v", err)
+	}
+	nextIterationMigrationUUID, err := uuid.Parse(nextIterationMsr.MigrationUUID)
+	if err != nil {
+		log.Infof("callhome: error parsing next iteration migration UUID: %v", err)
+	}
+	return nextIterationMigrationUUID
 }
