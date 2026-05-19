@@ -74,6 +74,12 @@ func RunGatherAssessmentMetadataStage(config GatherAssessmentMetadataStageConfig
 		return nil
 	})
 	if err != nil {
+		if assessmentDB != nil {
+			closeErr := assessmentDB.Close()
+			if closeErr != nil {
+				log.Warnf("failed to close assessment DB after gather metadata stage failure: %v", closeErr)
+			}
+		}
 		return nil, err
 	}
 	return assessmentDB, nil
@@ -151,7 +157,7 @@ func parseExportedSchemaFileForAssessmentIfRequired(config GatherAssessmentMetad
 
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			err = fmt.Errorf("export schema failed: %v", recovered)
+			err = goerrors.Errorf("export schema failed: %v", recovered)
 		}
 	}()
 
@@ -162,7 +168,7 @@ func parseExportedSchemaFileForAssessmentIfRequired(config GatherAssessmentMetad
 	}
 	config.Source.DB().ExportSchema(config.ExportDir, config.SchemaDir)
 	if !utils.FileOrFolderExistsWithGlobPattern(filepath.Join(config.SchemaDir, "*", "*.sql")) {
-		return fmt.Errorf("no parsed schema files found in %s", config.SchemaDir)
+		return goerrors.Errorf("no parsed schema files found in %s", config.SchemaDir)
 	}
 	return nil
 }

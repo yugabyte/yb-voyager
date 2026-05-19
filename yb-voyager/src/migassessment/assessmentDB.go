@@ -238,6 +238,10 @@ func NewAssessmentDB() (*AssessmentDB, error) {
 	return &AssessmentDB{db: db}, nil
 }
 
+func (adb *AssessmentDB) Close() error {
+	return adb.db.Close()
+}
+
 func InitAndOpenAssessmentDB() (*AssessmentDB, error) {
 	err := InitAssessmentDB()
 	if err != nil {
