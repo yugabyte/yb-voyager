@@ -39,7 +39,10 @@ const (
 	ffExportFailureWaitCutover           = 120 // seconds; passed as time.Duration to helpers that multiply by time.Second
 )
 
-// ffExportFailureSchemaSQL returns DDL for a single table in test_schema_ff (drop/create schema + table + replica identity).
+// ffExportFailureSchemaSQL returns DDL for a single table in test_schema_ff (drop/create schema + table).
+// The REPLICA IDENTITY FULL is intentionally NOT included here; it is applied only to the
+// PostgreSQL source via SourceSetupSchemaSQL so that the YugabyteDB target retains its
+// default REPLICA IDENTITY CHANGE (required by the replica identity guardrail).
 func ffExportFailureSchemaSQL(tableFQ string) []string {
 	return []string{
 		"DROP SCHEMA IF EXISTS test_schema_ff CASCADE;",
@@ -50,6 +53,12 @@ func ffExportFailureSchemaSQL(tableFQ string) []string {
 			value INTEGER,
 			created_at TIMESTAMP DEFAULT NOW()
 		);`, tableFQ),
+	}
+}
+
+// ffExportFailureSourceSetupSQL returns source-only SQL for replica identity setup.
+func ffExportFailureSourceSetupSQL(tableFQ string) []string {
+	return []string{
 		fmt.Sprintf(`ALTER TABLE %s REPLICA IDENTITY FULL;`, tableFQ),
 	}
 }
@@ -70,16 +79,18 @@ func newFFExportFailureLiveMigrationTest(t *testing.T, dbStem, tableShort string
 	tableFQ := fmt.Sprintf("%s.%s", ffExportFailureSchema, tableShort)
 	initial, srcDelta, tgtDelta := ffExportFailureDeltaSQL(tableFQ, snapshotRows)
 	schemaSQL := ffExportFailureSchemaSQL(tableFQ)
+	sourceSetupSQL := ffExportFailureSourceSetupSQL(tableFQ)
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:        ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: dbStem},
-		TargetDB:        ContainerConfig{Type: "yugabytedb", DatabaseName: dbStem + "_yb"},
-		SourceReplicaDB: ContainerConfig{Type: "postgresql", DatabaseName: dbStem + "_replica"},
-		SchemaNames:     []string{ffExportFailureSchema},
-		SchemaSQL:       schemaSQL,
-		InitialDataSQL:  initial,
-		SourceDeltaSQL:  srcDelta,
-		TargetDeltaSQL:  tgtDelta,
-		CleanupSQL:      []string{"DROP SCHEMA IF EXISTS test_schema_ff CASCADE;"},
+		SourceDB:             ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: dbStem},
+		TargetDB:             ContainerConfig{Type: "yugabytedb", DatabaseName: dbStem + "_yb"},
+		SourceReplicaDB:      ContainerConfig{Type: "postgresql", DatabaseName: dbStem + "_replica"},
+		SchemaNames:          []string{ffExportFailureSchema},
+		SchemaSQL:            schemaSQL,
+		SourceSetupSchemaSQL: sourceSetupSQL,
+		InitialDataSQL:       initial,
+		SourceDeltaSQL:       srcDelta,
+		TargetDeltaSQL:       tgtDelta,
+		CleanupSQL:           []string{"DROP SCHEMA IF EXISTS test_schema_ff CASCADE;"},
 	})
 	return lm, tableFQ
 }
