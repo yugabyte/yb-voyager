@@ -460,6 +460,13 @@ func testCTEWithMaterializedIssue(t *testing.T) {
 	}
 }
 
+
+/*
+
+For YB version < 2025.2.3, LISTEN/NOTIFY is a no-op with a notice that it is not  supported
+For YB version >= 2025.2.3, LISTEN/NOTIFY is supported with a preview flag and is disabled by default and returns an error
+
+*/
 func testEventsListenNotifyIssue(t *testing.T) {
 	type listenNotifyCase struct {
 		sql                 string
@@ -480,7 +487,7 @@ func testEventsListenNotifyIssue(t *testing.T) {
 		{
 			sql:       `UNLISTEN my_notification;`,
 			noticeMsg: `UNLISTEN not supported yet and will be ignored`,
-			//unlisten is not error out with listen notify disabled
+			//unlisten is not erroring out with listen notify disabled
 		},
 		{
 			sql:                 `SELECT pg_notify('my_notification', 'Payload from pg_notify');`,
