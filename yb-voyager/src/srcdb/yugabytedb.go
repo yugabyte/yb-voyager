@@ -1352,9 +1352,11 @@ func (yb *YugabyteDB) GetMissingExportDataPermissions(exportType string, finalTa
 
 func (yb *YugabyteDB) listTablesMissingReplicaIdentityChange(tableList []sqlname.NameTuple) ([]string, error) {
 	var tableNamePairs []string
+	qualifiedNameByCatalogKey := make(map[string]string)
 	for _, table := range tableList {
 		sname, tname := table.ForCatalogQuery()
 		tableNamePairs = append(tableNamePairs, fmt.Sprintf("('%s','%s')", sname, tname))
+		qualifiedNameByCatalogKey[sname+"."+tname] = table.ForOutput()
 	}
 
 	checkTableReplicaIdentityQuery := fmt.Sprintf(`
@@ -1393,7 +1395,7 @@ func (yb *YugabyteDB) listTablesMissingReplicaIdentityChange(tableList []sqlname
 			return nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
 		}
 		if status == MISSING {
-			tablesWithoutReplicaIdentityChange = append(tablesWithoutReplicaIdentityChange, sqlname.NewSourceName(tableSchemaName, tableName).Qualified.MinQuoted)
+			tablesWithoutReplicaIdentityChange = append(tablesWithoutReplicaIdentityChange, qualifiedNameByCatalogKey[tableSchemaName+"."+tableName])
 		}
 	}
 
