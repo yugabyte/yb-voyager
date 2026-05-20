@@ -789,6 +789,87 @@ func TestYugabyteGetColumnsWithSupportedTypes_AllScenarios(t *testing.T) {
 	})
 }
 
+func TestYugabyteReplicaIdentityGuardrail(t *testing.T) {
+	testYugabyteDBSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA ri_test;`,
+		`CREATE TABLE ri_test.with_full_identity (
+			id INT PRIMARY KEY,
+			name VARCHAR(100)
+		);`,
+		`ALTER TABLE ri_test.with_full_identity REPLICA IDENTITY FULL;`,
+		`CREATE TABLE ri_test.without_identity (
+			id INT PRIMARY KEY,
+			name VARCHAR(100)
+		);`,
+	)
+	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA ri_test CASCADE;`)
+
+	ybDB := testYugabyteDBSource.DB().(*YugabyteDB)
+
+	tableWithFull := testutils.CreateNameTupleWithSourceName("ri_test.with_full_identity", "ri_test", constants.YUGABYTEDB)
+	tableWithoutIdentity := testutils.CreateNameTupleWithSourceName("ri_test.without_identity", "ri_test", constants.YUGABYTEDB)
+
+	// Case 1: Table WITH REPLICA IDENTITY FULL → should NOT appear in result
+	t.Run("TableWithFullReplicaIdentityNotMissing", func(t *testing.T) {
+		result, err := ybDB.listTablesMissingReplicaIdentityChange([]sqlname.NameTuple{tableWithFull})
+		assert.NilError(t, err)
+		assert.Equal(t, 0, len(result), "Expected no tables missing replica identity, got: %v", result)
+	})
+
+	// Case 2: Table WITHOUT replica identity change (default 'd') → IS in result
+	t.Run("TableWithDefaultReplicaIdentityIsMissing", func(t *testing.T) {
+		result, err := ybDB.listTablesMissingReplicaIdentityChange([]sqlname.NameTuple{tableWithoutIdentity})
+		assert.NilError(t, err)
+		assert.Equal(t, 1, len(result), "Expected 1 table missing replica identity, got: %v", result)
+		assert.Equal(t, `ri_test.without_identity`, result[0])
+	})
+
+	// Case 3: Mixed list → only the default-identity table appears
+	t.Run("MixedListOnlyDefaultAppears", func(t *testing.T) {
+		result, err := ybDB.listTablesMissingReplicaIdentityChange([]sqlname.NameTuple{tableWithFull, tableWithoutIdentity})
+		assert.NilError(t, err)
+		assert.Equal(t, 1, len(result), "Expected 1 table missing replica identity, got: %v", result)
+		assert.Equal(t, `ri_test.without_identity`, result[0])
+	})
+
+	// Case 4: exportType = "snapshot-only" → check skipped, empty result, hasMissing = false
+	t.Run("SnapshotOnlyExportTypeSkipsCheck", func(t *testing.T) {
+		ybDB.source.IsYBGrpcConnector = false
+		msgs, hasMissing, err := ybDB.GetMissingExportDataPermissions(utils.SNAPSHOT_ONLY, []sqlname.NameTuple{tableWithoutIdentity})
+		assert.NilError(t, err)
+		assert.Equal(t, false, hasMissing)
+		assert.Equal(t, 0, len(msgs))
+	})
+
+	// Case 5: exportType = "changes-only" → missing table appears in result
+	t.Run("ChangesOnlyExportTypeDetectsMissing", func(t *testing.T) {
+		ybDB.source.IsYBGrpcConnector = false
+		msgs, hasMissing, err := ybDB.GetMissingExportDataPermissions(utils.CHANGES_ONLY, []sqlname.NameTuple{tableWithoutIdentity})
+		assert.NilError(t, err)
+		assert.Equal(t, true, hasMissing)
+		assert.Equal(t, 1, len(msgs))
+	})
+
+	// Case 6: exportType = "snapshot-and-changes" → missing table appears in result
+	t.Run("SnapshotAndChangesExportTypeDetectsMissing", func(t *testing.T) {
+		ybDB.source.IsYBGrpcConnector = false
+		msgs, hasMissing, err := ybDB.GetMissingExportDataPermissions(utils.SNAPSHOT_AND_CHANGES, []sqlname.NameTuple{tableWithoutIdentity})
+		assert.NilError(t, err)
+		assert.Equal(t, true, hasMissing)
+		assert.Equal(t, 1, len(msgs))
+	})
+
+	// Case 7: IsYBGrpcConnector = true → check skipped entirely, empty result
+	t.Run("GRPCConnectorSkipsCheck", func(t *testing.T) {
+		ybDB.source.IsYBGrpcConnector = true
+		msgs, hasMissing, err := ybDB.GetMissingExportDataPermissions(utils.CHANGES_ONLY, []sqlname.NameTuple{tableWithoutIdentity})
+		assert.NilError(t, err)
+		assert.Equal(t, false, hasMissing)
+		assert.Equal(t, 0, len(msgs))
+		ybDB.source.IsYBGrpcConnector = false // restore
+	})
+}
+
 func TestYugabyteGetPrimaryKeyColumns(t *testing.T) {
 	testYugabyteDBSource.TestContainer.ExecuteSqls(
 		`CREATE SCHEMA test_schema;`,
