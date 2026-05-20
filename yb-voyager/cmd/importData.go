@@ -268,7 +268,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
 		packAndSendImportDataToSrcReplicaPayload(COMPLETE, nil)
 	case SOURCE_DB_IMPORTER_ROLE:
-		packAndSendImportDataToSourcePayload(COMPLETE, nil)
+		//No need to send payload to source here it will be sent in the startExportDataFromSourceOnNextIteration
 	}
 	startFurtherCommandsAfterCurrentImportData()
 }
@@ -290,6 +290,8 @@ func startExportDataFromSourceOnNextIteration() {
 		utils.ErrExit("failed to get migration status record: %w", err)
 	}
 	if !currentMsr.RestartDataMigrationSourceTargetNextIteration {
+		//If restart data migration source target next iteration is not set, then send the payload for import to source complete here as next iteration is not required
+		packAndSendImportDataToSourcePayload(COMPLETE, nil)
 		return
 	}
 
