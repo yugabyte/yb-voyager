@@ -20,7 +20,6 @@ package testlivemigration
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -29,55 +28,6 @@ import (
 
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
-
-func assertSequenceRangeInserted(
-	target *sql.DB, tableName string, startID int, endID int) error {
-	_, err := target.Exec(fmt.Sprintf(`INSERT INTO %s (name, email, description)
-SELECT
-	md5(random()::text),
-	md5(random()::text) || '@example.com',
-	repeat(md5(random()::text), 10)
-FROM generate_series(%d, %d);`, tableName, startID, endID))
-	if err != nil {
-		return fmt.Errorf("failed to insert into target: %w", err)
-	}
-
-	rows, err := target.Query(fmt.Sprintf(
-		"SELECT id FROM %s WHERE id BETWEEN %d AND %d ORDER BY id",
-		tableName, startID, endID))
-	if err != nil {
-		return fmt.Errorf("failed to query inserted ids: %w", err)
-	}
-	defer rows.Close()
-
-	var actualIDs []int
-	for rows.Next() {
-		var id int
-		if err := rows.Scan(&id); err != nil {
-			return fmt.Errorf("failed to scan inserted ids: %w", err)
-		}
-		actualIDs = append(actualIDs, id)
-	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("failed while reading inserted ids: %w", err)
-	}
-
-	expectedCount := endID - startID + 1
-	if len(actualIDs) != expectedCount {
-		return fmt.Errorf(
-			"expected %d inserted ids in range [%d,%d], got %v",
-			expectedCount, startID, endID, actualIDs)
-	}
-	for i := 0; i < expectedCount; i++ {
-		expectedID := startID + i
-		if actualIDs[i] != expectedID {
-			return fmt.Errorf(
-				"sequence mismatch, expected ids [%d..%d], got %v",
-				startID, endID, actualIDs)
-		}
-	}
-	return nil
-}
 
 // TestLiveMigrationResumption_SequenceRestoreAfterPostCommitCrash reproduces a
 // Debezium crash window where queue events are durable but export_status.json
@@ -187,17 +137,6 @@ incrementCounter("streaming_post_commit_crash") == 1`).
 	require.GreaterOrEqual(t, eventCountAfterCrash, int(expectedStreamingRows),
 		"expected committed CDC events to be present in queue after crash")
 
-	// status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
-	// require.NoError(t, err, "failed to read export_status.json")
-	// var maxFlushedSeq int64
-	// for _, value := range status.Sequences {
-	// 	if value > maxFlushedSeq {
-	// 		maxFlushedSeq = value
-	// 	}
-	// }
-	// require.Less(t, maxFlushedSeq, expectedStreamingRows,
-	// 	"expected stale flushed sequence max to reproduce flush gap")
-
 	require.NoError(t, lm.StartExportData(true, nil))
 
 	require.NoError(t, lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
@@ -209,7 +148,7 @@ incrementCounter("streaming_post_commit_crash") == 1`).
 	require.NoError(t, lm.WaitForCutoverComplete(0, 120))
 
 	err = lm.WithTargetConn(func(target *sql.DB) error {
-		return assertSequenceRangeInserted(target, tableName, 21, 25)
+		return assertSequenceValues(t, 21, 25, target, tableName)
 	})
 	require.NoError(t, err, "sequence should be restored correctly after cutover")
 }
