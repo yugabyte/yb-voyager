@@ -255,6 +255,8 @@ func TestCallhomeStructs(t *testing.T) {
 				YBClusterMetrics            YBClusterMetrics  `json:"yb_cluster_metrics"`
 				DataMetrics                 ImportDataMetrics `json:"data_metrics"`
 				Phase                       string            `json:"phase,omitempty"`
+				IterativeCutoverEnabled     bool              `json:"iterative_cutover_enabled"`
+				NextIterationMigrationUUID  uuid.UUID         `json:"next_iteration_migration_uuid"`
 				LiveWorkflowType            string            `json:"live_workflow_type,omitempty"`
 				EnableUpsert                bool              `json:"enable_upsert"`
 				Error                       string            `json:"error"`
