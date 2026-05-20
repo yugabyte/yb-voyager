@@ -68,6 +68,45 @@ func (b *BytemanHelper) AddRuleFromBuilder(builder *RuleBuilder) {
 	b.AddRule(builder.Build())
 }
 
+// AddCDCBatchFailAfterWritesRule installs a pair of Byteman rules that together cause
+// Debezium to throw at the START of a streaming handleBatch, but only after some prior
+// batch has produced at least one queue write.
+//
+// This is robust against the flake where the very first streaming handleBatch carries
+// only filtered records (e.g. transaction-boundary / heartbeat events that don't make
+// it past checkIfEventNeedsToBeWritten). A simple "throw on the Nth handleBatch" rule
+// fires regardless of whether any user data has actually landed in the queue, which can
+// leave the queue empty when the failure trips.
+//
+// The two installed rules:
+//  1. A counter rule that increments "<ruleName>_events_written" on every
+//     before-write-record marker (i.e. only when an event is actually being queued).
+//  2. The failure rule that throws at before-batch-streaming when
+//     handleBatch_count > 1 AND events_written > 0.
+//
+// On firing, Debezium logs ">>> BYTEMAN: <ruleName> - throwing at next batch start after writes".
+// Tests should use this string with WaitForInjection.
+//
+// Counters are namespaced by ruleName so multiple injection rules in the same JVM do
+// not interfere.
+func (b *BytemanHelper) AddCDCBatchFailAfterWritesRule(ruleName, throwMessage string) {
+	b.AddRule(fmt.Sprintf(`RULE %s_count_writes
+CLASS com.yugabyte.ybvoyager.BytemanMarkers
+METHOD cdc
+AT ENTRY
+IF $1.equals("before-write-record")
+DO incrementCounter("%s_events_written")
+ENDRULE`, ruleName, ruleName))
+	b.AddRule(fmt.Sprintf(`RULE %s
+CLASS com.yugabyte.ybvoyager.BytemanMarkers
+METHOD cdc
+AT ENTRY
+IF $1.equals("before-batch-streaming") && incrementCounter("%s_cdc_batch") > 1 && readCounter("%s_events_written") > 0
+DO traceln(">>> BYTEMAN: %s - throwing at next batch start after writes");
+   throw new java.lang.RuntimeException("%s")
+ENDRULE`, ruleName, ruleName, ruleName, ruleName, throwMessage))
+}
+
 // WriteRules writes all added rules to the Byteman rule file.
 // This must be called before running tests with Byteman.
 func (b *BytemanHelper) WriteRules() error {

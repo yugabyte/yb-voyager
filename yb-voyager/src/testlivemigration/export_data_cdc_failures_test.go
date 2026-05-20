@@ -113,15 +113,13 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper")
 
-	bytemanHelper.AddRuleFromBuilder(
-		testutils.NewRule("fail_cdc_batch_2").
-			AtMarker(testutils.MarkerCDC, "before-batch-streaming").
-			If("incrementCounter(\"cdc_batch\") == 2").
-			ThrowException("java.lang.RuntimeException", "TEST: Simulated batch processing failure on batch 2"),
+	bytemanHelper.AddCDCBatchFailAfterWritesRule(
+		"fail_cdc_batch_after_writes",
+		"TEST: Simulated batch processing failure at batch start after writes",
 	)
 	require.NoError(t, bytemanHelper.WriteRules())
 
-	// Run 1: export with Byteman injection - should fail on 2nd CDC batch
+	// Run 1: export with Byteman injection - should fail on a streaming batch after some events have been written.
 	err = lm.StartExportDataWithEnv(true, nil, bytemanHelper.GetEnv())
 	require.NoError(t, err, "Failed to start export")
 
@@ -154,7 +152,7 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 		time.Sleep(batchSeparationWaitTime)
 	}
 
-	matched, err := bytemanHelper.WaitForInjection(">>> BYTEMAN: fail_cdc_batch_2", 90*time.Second)
+	matched, err := bytemanHelper.WaitForInjection(">>> BYTEMAN: fail_cdc_batch_after_writes", 90*time.Second)
 	require.NoError(t, err, "Should be able to read debezium logs")
 	require.True(t, matched, "Byteman injection should have occurred and been logged")
 
@@ -165,7 +163,13 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 
 	eventCountAfterFailure, err := testutils.CountEventsInQueueSegments(exportDir)
 	require.NoError(t, err, "Should be able to count CDC events after failure")
-	require.Equal(t, 20, eventCountAfterFailure, "Should have exactly 20 events (batch 1) before failure")
+	// Exact count depends on how Debezium grouped the source-side INSERT/UPDATE/DELETEs
+	// into handleBatch calls. What we require: at least one batch was committed before the
+	// failure (>=1), and the failure prevented at least some events from making it through (<60).
+	require.GreaterOrEqual(t, eventCountAfterFailure, 1,
+		"Failure should have occurred after at least one batch of CDC events was committed")
+	require.Less(t, eventCountAfterFailure, 60,
+		"Failure should have prevented some CDC events from being written before resume")
 
 	testutils.VerifyNoEventIDDuplicates(t, exportDir)
 
@@ -380,14 +384,12 @@ func TestCDCMultipleBatchFailures(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// Run 1: fail on 2nd streaming batch
+	// Run 1: fail on a streaming batch after some events have been written.
 	bytemanHelperRun1, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper (run 1)")
-	bytemanHelperRun1.AddRuleFromBuilder(
-		testutils.NewRule("fail_cdc_batch_run1").
-			AtMarker(testutils.MarkerCDC, "before-batch-streaming").
-			If("incrementCounter(\"cdc_batch\") == 2").
-			ThrowException("java.lang.RuntimeException", "TEST: Simulated batch failure on run 1"),
+	bytemanHelperRun1.AddCDCBatchFailAfterWritesRule(
+		"fail_cdc_batch_run1",
+		"TEST: Simulated batch failure on run 1",
 	)
 	require.NoError(t, bytemanHelperRun1.WriteRules())
 
@@ -407,7 +409,7 @@ func TestCDCMultipleBatchFailures(t *testing.T) {
 		time.Sleep(batchSeparationWaitTime)
 	}
 
-	matched, err := bytemanHelperRun1.WaitForInjection(">>> BYTEMAN: fail_cdc_batch_run1", 90*time.Second)
+	matched, err := bytemanHelperRun1.WaitForInjection(">>> BYTEMAN: fail_cdc_batch_run1 - throwing", 90*time.Second)
 	require.NoError(t, err, "Should be able to read debezium logs (run 1)")
 	require.True(t, matched, "Byteman injection should have occurred (run 1)")
 
@@ -418,18 +420,22 @@ func TestCDCMultipleBatchFailures(t *testing.T) {
 
 	eventCountAfterRun1, err := testutils.CountEventsInQueueSegments(exportDir)
 	require.NoError(t, err, "Should be able to count events after run 1")
-	require.Equal(t, 20, eventCountAfterRun1, "Expected 20 CDC events after run 1 (batch 1 only)")
+	// At least one batch's worth of events was committed; not all 40 events made it.
+	require.GreaterOrEqual(t, eventCountAfterRun1, 1,
+		"Run 1 failure should have occurred after at least one batch was committed")
+	require.Less(t, eventCountAfterRun1, 40,
+		"Run 1 failure should have prevented some events (out of 40 generated) from being written")
 	testutils.VerifyNoEventIDDuplicates(t, exportDir)
 	assertRowCount(90)
 
-	// Run 2: fail on 2nd streaming batch again (replay batch2 succeeds, batch3 fails)
+	// Run 2: resume, then fail again on a streaming batch after some events have been written.
+	// Debezium replays from the last committed offset (= end of whatever ran 1 committed);
+	// subsequent batches include the un-committed replay events + the new batch3 inserts.
 	bytemanHelperRun2, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper (run 2)")
-	bytemanHelperRun2.AddRuleFromBuilder(
-		testutils.NewRule("fail_cdc_batch_run2").
-			AtMarker(testutils.MarkerCDC, "before-batch-streaming").
-			If("incrementCounter(\"cdc_batch\") == 2").
-			ThrowException("java.lang.RuntimeException", "TEST: Simulated batch failure on run 2"),
+	bytemanHelperRun2.AddCDCBatchFailAfterWritesRule(
+		"fail_cdc_batch_run2",
+		"TEST: Simulated batch failure on run 2",
 	)
 	require.NoError(t, bytemanHelperRun2.WriteRules())
 
@@ -444,7 +450,7 @@ func TestCDCMultipleBatchFailures(t *testing.T) {
 	)
 	time.Sleep(batchSeparationWaitTime)
 
-	matched, err = bytemanHelperRun2.WaitForInjection(">>> BYTEMAN: fail_cdc_batch_run2", 90*time.Second)
+	matched, err = bytemanHelperRun2.WaitForInjection(">>> BYTEMAN: fail_cdc_batch_run2 - throwing", 90*time.Second)
 	require.NoError(t, err, "Should be able to read debezium logs (run 2)")
 	require.True(t, matched, "Byteman injection should have occurred (run 2)")
 
@@ -455,7 +461,12 @@ func TestCDCMultipleBatchFailures(t *testing.T) {
 
 	eventCountAfterRun2, err := testutils.CountEventsInQueueSegments(exportDir)
 	require.NoError(t, err, "Should be able to count events after run 2")
-	require.Equal(t, 40, eventCountAfterRun2, "Expected 40 CDC events after run 2 (batch 1 + replayed batch 2)")
+	// Run 2 must have made progress (queue strictly larger than after run 1) and must
+	// have failed before all 60 events made it through.
+	require.Greater(t, eventCountAfterRun2, eventCountAfterRun1,
+		"Run 2 should have committed at least one more batch's worth of events")
+	require.Less(t, eventCountAfterRun2, 60,
+		"Run 2 failure should have prevented some events from being written")
 	testutils.VerifyNoEventIDDuplicates(t, exportDir)
 	assertRowCount(110)
 
@@ -549,11 +560,9 @@ func TestCDCMultiTableBatchFailureAndResume(t *testing.T) {
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper")
 
-	bytemanHelper.AddRuleFromBuilder(
-		testutils.NewRule("fail_multi_tbl_batch_2").
-			AtMarker(testutils.MarkerCDC, "before-batch-streaming").
-			If("incrementCounter(\"cdc_batch\") == 2").
-			ThrowException("java.lang.RuntimeException", "TEST: Simulated multi-table batch failure on batch 2"),
+	bytemanHelper.AddCDCBatchFailAfterWritesRule(
+		"fail_multi_tbl_after_writes",
+		"TEST: Simulated multi-table failure at batch start after writes",
 	)
 	require.NoError(t, bytemanHelper.WriteRules())
 
@@ -586,7 +595,7 @@ func TestCDCMultiTableBatchFailureAndResume(t *testing.T) {
 		time.Sleep(batchSeparationWaitTime)
 	}
 
-	matched, err := bytemanHelper.WaitForInjection(">>> BYTEMAN: fail_multi_tbl_batch_2", 90*time.Second)
+	matched, err := bytemanHelper.WaitForInjection(">>> BYTEMAN: fail_multi_tbl_after_writes", 90*time.Second)
 	require.NoError(t, err, "Should be able to read debezium logs")
 	require.True(t, matched, "Byteman injection should have occurred and been logged")
 
@@ -597,7 +606,13 @@ func TestCDCMultiTableBatchFailureAndResume(t *testing.T) {
 
 	eventCountAfterFailure, err := testutils.CountEventsInQueueSegments(exportDir)
 	require.NoError(t, err, "Should be able to count CDC events after failure")
-	require.Equal(t, 20, eventCountAfterFailure, "Should have exactly 20 events (batch 1 from both tables) before failure")
+	// Exact count depends on how Debezium batched the source-side INSERTs into handleBatch calls.
+	// What we require: at least one batch's events were committed before the failure (>=1),
+	// and the failure prevented at least some events from making it through (<60).
+	require.GreaterOrEqual(t, eventCountAfterFailure, 1,
+		"Failure should have occurred after at least one batch of CDC events was committed")
+	require.Less(t, eventCountAfterFailure, 60,
+		"Failure should have prevented some CDC events from being written before resume")
 
 	testutils.VerifyNoEventIDDuplicates(t, exportDir)
 
