@@ -331,7 +331,14 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 	cmd.Flags().MarkHidden("truncate-splits")
 }
 
-func registerImportUsePartitionRootFlag(cmd *cobra.Command) {
+func registerImportUsePartitionRootFlagToTarget(cmd *cobra.Command) {
+	BoolVar(cmd.Flags(), &importUsePartitionRoot, "use-partition-root", true,
+		"For partitioned tables during live migration:\n"+
+			"  - true (default): Import CDC data only via the root table.\n"+
+			"  - false: Import CDC data only via child partitions\n(Note: this flag is only supported for YugabyteDB target version 2025.2.3.0 and above)")
+}
+
+func registerImportUsePartitionRootFlagToSource(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &importUsePartitionRoot, "use-partition-root", true,
 		"For partitioned tables during live migration:\n"+
 			"  - true (default): Import CDC data only via the root table.\n"+

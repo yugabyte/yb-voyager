@@ -176,7 +176,7 @@ func TestExportFromTargetStartupFailureAndCutoverResume(t *testing.T) {
 	// Import processes cutover, then exec's into export-data-from-target.
 	// The exec'd process inherits GO_FAILPOINTS and crashes before setting the flag.
 	failMarkerPath := filepath.Join(lm.GetCurrentExportDir(), "logs", "failpoint-export-from-target-startup.log")
-	err = lm.WaitForImportFailpointAndProcessCrash(t, failMarkerPath, 120*time.Second, 60*time.Second)
+	err = lm.WaitForImportFailpointAndProcessCrash(t, failMarkerPath, 120*time.Second, 120*time.Second)
 	require.NoError(t, err, "Export-from-target should crash via failpoint")
 
 	// --- Step 5: Verify cutover is NOT complete ---

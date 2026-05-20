@@ -27,7 +27,6 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -38,7 +37,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
@@ -57,7 +55,6 @@ var (
 	intervalForCapturingIOPS         int64
 	assessMigrationSupportedDBTypes  = []string{POSTGRESQL, ORACLE}
 	referenceOrTablePartitionPresent = false
-	pgssEnabledForAssessment         = false
 	invokedByExportSchema            utils.BoolStr
 	sourceReadReplicaEndpoints       string                              // CLI flag - package variable for Cobra binding
 	primaryOnly                      bool                                // CLI flag - package variable for Cobra binding
@@ -256,97 +253,20 @@ func assessMigration() (err error) {
 	}
 	ux.PrintBanner("YugabyteDB Voyager — Migration Assessment", bannerRows)
 	log.Infof("assessing for migration to target YugabyteDB version %s", targetDbVersion)
-	ux.PrintSectionHeader("Preflight Checks")
 
-	var validatedReplicaEndpoints []srcdb.ReplicaEndpoint
-
-	hasSourceConnectivity := assessmentMetadataDirFlag == ""
-	if hasSourceConnectivity {
-		// Password
-		if source.Password == "" {
-			source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
-			if err != nil {
-				ux.PrintPreflightFail("Source database password")
-				return fmt.Errorf("failed to get source DB password for assessing migration: %w", err)
-			}
-		}
-		ux.PrintPreflightCheck("Source database password")
-
-		// Connect
-		err = source.DB().Connect()
-		if err != nil {
-			ux.PrintPreflightFail("Connect to source database")
-			return fmt.Errorf("failed to connect source db for assessing migration: %w", err)
-		}
-		ux.PrintPreflightCheck("Connected to source database")
-
-		// Guardrails: version + dependencies
-		if source.RunGuardrailsChecks {
-			log.Info("checking source DB version")
-			err = source.DB().CheckSourceDBVersion(exportType)
-			if err != nil {
-				ux.PrintPreflightFail("Source DB version check")
-				return fmt.Errorf("failed to check source DB version for assess migration: %w", err)
-			}
-			ux.PrintPreflightCheck(fmt.Sprintf("Source DB version compatible (%s)", source.DB().GetVersion()))
-
-			binaryCheckIssues, err := checkDependenciesForExport()
-			if err != nil {
-				ux.PrintPreflightFail("Required dependencies present")
-				return fmt.Errorf("failed to check dependencies for assess migration: %w", err)
-			} else if len(binaryCheckIssues) > 0 {
-				ux.PrintPreflightFail("Required dependencies present")
-				return goerrors.Errorf("\n%s\n%s", color.RedString("Missing dependencies for assess migration:"), strings.Join(binaryCheckIssues, "\n"))
-			}
-			ux.PrintPreflightCheck("Required dependencies present")
-		} else {
-			ux.PrintPreflightSkip("Source DB version check (guardrails disabled)")
-			ux.PrintPreflightSkip("Dependency check (guardrails disabled)")
-		}
-
-		// Schema resolution
-		allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
-		if err != nil {
-			ux.PrintPreflightFail("Schema resolution")
-			return fmt.Errorf("failed to get all schema names identifiers: %w", err)
-		}
-		source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
-		if err != nil {
-			ux.PrintPreflightFail("Schema resolution")
-			return fmt.Errorf("failed to match schema names: %w", err)
-		}
-		ux.PrintPreflightCheck(fmt.Sprintf("Schema resolution (%d schemas)", len(source.Schemas)))
-
-		fetchSourceInfo()
-
-		// Replica discovery
-		replicaDiscoveryInfo, err := migassessment.HandleReplicaDiscoveryAndValidation(&source, sourceReadReplicaEndpoints, primaryOnly)
-		if err != nil {
-			ux.PrintPreflightFail("Replica discovery and validation")
-			return fmt.Errorf("failed to handle replica discovery and validation: %w", err)
-		}
-		validatedReplicaEndpoints = replicaDiscoveryInfo.ValidatedReplicas
-		replicaDiscoveryInfoForCallhome = &replicaDiscoveryInfo
-		ux.PrintPreflightCheck("Replica discovery and validation")
-
-		// Permissions
-		if source.RunGuardrailsChecks {
-			if err := checkIfSchemasHaveUsagePermissions(); err != nil {
-				ux.PrintPreflightFail("Schema USAGE permissions")
-				return fmt.Errorf("schema usage permission check failed: %w", err)
-			}
-			pgssEnabledForAssessment, err = migassessment.CheckAssessmentPermissionsOnAllNodes(&source, validatedReplicaEndpoints)
-			if err != nil {
-				ux.PrintPreflightFail("Assessment permissions on all nodes")
-				return fmt.Errorf("assessment permission check failed: %w", err)
-			}
-			ux.PrintPreflightCheck("Permissions verified on all nodes")
-		} else {
-			ux.PrintPreflightSkip("Permission checks (guardrails disabled)")
-		}
-	} else {
-		ux.PrintPreflightSkip("Source connectivity checks (using metadata dir)")
+	preflightResult, err := migassessment.RunPreflightChecks(migassessment.PreflightChecksConfig{
+		Source:                     &source,
+		AssessmentMetadataDirFlag:  assessmentMetadataDirFlag,
+		SourceReadReplicaEndpoints: sourceReadReplicaEndpoints,
+		PrimaryOnly:                primaryOnly,
+	})
+	if err != nil {
+		return err
 	}
+	hasSourceConnectivity := preflightResult.HasSourceConnectivity
+	validatedReplicaEndpoints := preflightResult.ValidatedReplicaEndpoints
+	replicaDiscoveryInfoForCallhome = preflightResult.ReplicaDiscoveryInfo
+	pgssEnabledForAssessment := preflightResult.PgssEnabledForAssessment
 
 	fmt.Println()
 	ux.PrintSeparator()
@@ -363,12 +283,12 @@ func assessMigration() (err error) {
 	if prepareStaticStage {
 		// Parallel replica path uses its own internal progress display,
 		// and Oracle uses a static summary banner without per-step spinners.
-		tracker.PrepareStage("Gathering metadata", gatherStepCount)
+		tracker.PrepareStage("Gathering metadata", gatherStepCount, nil)
 	} else {
-		tracker.StartStage("Gathering metadata", gatherStepCount)
+		tracker.StartStage("Gathering metadata", gatherStepCount, nil)
 	}
 	initAssessmentDB()
-	err = gatherAssessmentMetadata(validatedReplicaEndpoints, tracker)
+	err = gatherAssessmentMetadata(validatedReplicaEndpoints, pgssEnabledForAssessment, tracker)
 	if err != nil {
 		tracker.FailStage()
 		return fmt.Errorf("failed to gather assessment metadata: %w", err)
@@ -404,7 +324,7 @@ func assessMigration() (err error) {
 	parserIssueDetector.PopulateObjectUsages(objectUsagesStats)
 
 	// Stage 2: Assessing migration
-	tracker.StartStage("Assessing migration", 0)
+	tracker.StartStage("Assessing migration", 0, nil)
 	err = runAssessment()
 	if err != nil {
 		tracker.FailStage()
@@ -413,8 +333,8 @@ func assessMigration() (err error) {
 	tracker.CompleteStage()
 
 	// Stage 3: Generate report
-	tracker.StartStage("Generating report", 0)
-	err = generateAssessmentReport()
+	tracker.StartStage("Generating report", 0, nil)
+	err = generateAssessmentReport(replicaDiscoveryInfoForCallhome)
 	if err != nil {
 		tracker.FailStage()
 		return fmt.Errorf("failed to generate assessment report: %w", err)
@@ -484,22 +404,6 @@ func fetchObjectUsageStats() ([]*types.ObjectUsageStats, error) {
 		objectUsagesStats = append(objectUsagesStats, &objectUsage)
 	}
 	return objectUsagesStats, nil
-}
-
-func fetchSourceInfo() {
-	var err error
-	source.DBVersion = source.DB().GetVersion()
-	source.DBSize, err = source.DB().GetDatabaseSize()
-	if err != nil {
-		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
-	}
-
-	// Get PostgreSQL system identifier
-	source.FetchPGDBSystemIdentifier()
-	err = source.DB().FetchDBID()
-	if err != nil {
-		log.Errorf("error getting database id: %v", err) //can just log as this is used for call-home only
-	}
 }
 
 func SetMigrationAssessmentDoneInMSR() error {
@@ -660,7 +564,7 @@ func handleStartCleanIfNeededForAssessMigration(metadataDirPassedByUser bool) er
 }
 
 // gatherAssessmentMetadata collects metadata from the source database.
-func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint, tracker *ux.ProgressTracker) error {
+func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint, pgssEnabledForAssessment bool, tracker *ux.ProgressTracker) error {
 	if assessmentMetadataDirFlag != "" {
 		return nil // assessment metadata files are provided by the user inside assessmentMetadataDir
 	}
@@ -789,7 +693,7 @@ func populateMetadataCSVIntoAssessmentDB() error {
 //go:embed templates/migration_assessment_report.template
 var bytesTemplate []byte
 
-func generateAssessmentReport() (err error) {
+func generateAssessmentReport(replicaDiscoveryInfoForCallhome *migassessment.ReplicaDiscoveryInfo) (err error) {
 	log.Info("generating assessment report...")
 
 	assessmentReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
