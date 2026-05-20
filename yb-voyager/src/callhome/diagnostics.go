@@ -327,8 +327,10 @@ Version History:
 1.2: Split out the data metrics into a separate struct - ImportDataMetrics
 1.3: Added CurrentParallelConnections field to ImportDataMetrics
 1.4: Added CutoverTimings field
+1.5: Added table list count to ImportDataMetrics
+1.6: Added iterative cutover enabled and next iteration migration UUID fields
 */
-var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.5"
+var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.6"
 
 type ImportDataPhasePayload struct {
 	PayloadVersion              string            `json:"payload_version"`
