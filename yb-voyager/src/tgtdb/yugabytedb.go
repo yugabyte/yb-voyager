@@ -1498,12 +1498,11 @@ func reconcileAdaptiveParallelism(tconf *TargetConf) {
 	// mode --parallel-jobs is rejected up front (see validateParallelismFlags), so
 	// Parallelism here is always the auto-computed clusterCores/4.
 	if tconf.AdaptiveParallelismMode.IsEnabled() {
-		switch {
-		case tconf.MaxParallelism <= 0:
+		if tconf.MaxParallelism <= 0 {
 			// --adaptive-parallelism={balanced,aggressive} without --adaptive-parallelism-max:
 			// default the ceiling to 4x the auto-computed Parallelism (≈ clusterCores).
 			tconf.MaxParallelism = tconf.Parallelism * 4
-		case tconf.Parallelism > tconf.MaxParallelism:
+		} else if tconf.Parallelism > tconf.MaxParallelism {
 			// --adaptive-parallelism={balanced,aggressive} with --adaptive-parallelism-max
 			// set below the auto-computed Parallelism: cap Parallelism so the conn pool
 			// invariant NumConnections <= NumMaxConnections holds (otherwise NewConnectionPool
@@ -1511,9 +1510,8 @@ func reconcileAdaptiveParallelism(tconf *TargetConf) {
 			log.Warnf("Computed default parallel-jobs (%d) exceeds --adaptive-parallelism-max (%d); capping initial parallelism to %d",
 				tconf.Parallelism, tconf.MaxParallelism, tconf.MaxParallelism)
 			tconf.Parallelism = tconf.MaxParallelism
-			// default case: --adaptive-parallelism-max already >= auto-computed Parallelism,
-			// nothing to reconcile.
 		}
+		// else: --adaptive-parallelism-max already >= auto-computed Parallelism, nothing to reconcile.
 	} else {
 		// --adaptive-parallelism=disabled (default): pool size is fixed, so the ceiling
 		// equals Parallelism (whether user-supplied via --parallel-jobs or auto-computed).
