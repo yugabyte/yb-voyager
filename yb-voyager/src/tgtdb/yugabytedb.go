@@ -1489,10 +1489,8 @@ func (yb *TargetYugabyteDB) setDefaultParallelism(tconfs []*TargetConf, nodeCoun
 }
 
 // reconcileAdaptiveParallelism finalizes Parallelism / MaxParallelism on tconf
-// once both have been resolved (user-supplied or auto-computed). When adaptive
-// parallelism is enabled and the auto-computed Parallelism exceeds the user-
-// supplied MaxParallelism, Parallelism is capped — otherwise NewConnectionPool
-// deadlocks on its init loop because NumConnections > NumMaxConnections.
+// once both have been resolved (user-supplied or auto-computed), enforcing the
+// invariant Parallelism <= MaxParallelism that the connection pool requires.
 func reconcileAdaptiveParallelism(tconf *TargetConf) {
 	// Adaptive enabled means --adaptive-parallelism is balanced or aggressive. In this
 	// mode --parallel-jobs is rejected up front (see validateParallelismFlags), so
@@ -1504,9 +1502,7 @@ func reconcileAdaptiveParallelism(tconf *TargetConf) {
 			tconf.MaxParallelism = tconf.Parallelism * 4
 		} else if tconf.Parallelism > tconf.MaxParallelism {
 			// --adaptive-parallelism={balanced,aggressive} with --adaptive-parallelism-max
-			// set below the auto-computed Parallelism: cap Parallelism so the conn pool
-			// invariant NumConnections <= NumMaxConnections holds (otherwise NewConnectionPool
-			// deadlocks on its init loop).
+			// set below the auto-computed Parallelism: cap Parallelism to the user's ceiling.
 			log.Warnf("Computed default parallel-jobs (%d) exceeds --adaptive-parallelism-max (%d); capping initial parallelism to %d",
 				tconf.Parallelism, tconf.MaxParallelism, tconf.MaxParallelism)
 			tconf.Parallelism = tconf.MaxParallelism
