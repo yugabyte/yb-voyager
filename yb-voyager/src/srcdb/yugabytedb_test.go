@@ -845,7 +845,7 @@ func TestYugabyteReplicaIdentityGuardrail(t *testing.T) {
 		result, err := ybDB.listTablesMissingReplicaIdentityChange([]sqlname.NameTuple{tableWithFull})
 		assert.NilError(t, err)
 		assert.Equal(t, 1, len(result), "Expected 1 table missing replica identity CHANGE, got: %v", result)
-		assert.Equal(t, `ri_test.with_full_identity`, result[0])
+		assert.Equal(t, tableWithFull, result[0])
 	})
 
 	// Case 3: Table with REPLICA IDENTITY DEFAULT ('d') → IS in result
@@ -853,7 +853,7 @@ func TestYugabyteReplicaIdentityGuardrail(t *testing.T) {
 		result, err := ybDB.listTablesMissingReplicaIdentityChange([]sqlname.NameTuple{tableWithDefault})
 		assert.NilError(t, err)
 		assert.Equal(t, 1, len(result), "Expected 1 table missing replica identity CHANGE, got: %v", result)
-		assert.Equal(t, `ri_test.with_default_identity`, result[0])
+		assert.Equal(t, tableWithDefault, result[0])
 	})
 
 	// Case 4: Table with REPLICA IDENTITY NOTHING ('n') → IS in result
@@ -861,7 +861,7 @@ func TestYugabyteReplicaIdentityGuardrail(t *testing.T) {
 		result, err := ybDB.listTablesMissingReplicaIdentityChange([]sqlname.NameTuple{tableWithNothing})
 		assert.NilError(t, err)
 		assert.Equal(t, 1, len(result), "Expected 1 table missing replica identity CHANGE, got: %v", result)
-		assert.Equal(t, `ri_test.with_nothing_identity`, result[0])
+		assert.Equal(t, tableWithNothing, result[0])
 	})
 
 	// Case 5: All three non-CHANGE types together → all three reported
@@ -887,7 +887,7 @@ func TestYugabyteReplicaIdentityGuardrail(t *testing.T) {
 		result, err := ybDB.listTablesMissingReplicaIdentityChange([]sqlname.NameTuple{caseSensitiveMissing})
 		assert.NilError(t, err)
 		assert.Equal(t, 1, len(result), "Expected 1 table missing replica identity CHANGE, got: %v", result)
-		assert.Equal(t, `"RiTest"."CaseSensitive"`, result[0])
+		assert.Equal(t, caseSensitiveMissing, result[0])
 	})
 
 	// Case 9: Case-sensitive quoted name with CHANGE identity → NOT reported
