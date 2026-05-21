@@ -1343,20 +1343,22 @@ func (yb *YugabyteDB) GetMissingExportDataPermissions(exportType string, finalTa
 			return nil, false, fmt.Errorf("error in checking table replica identity: %w", err)
 		}
 		if len(tablesWithoutReplicaIdentityChange) > 0 {
-			combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Tables not having replica identity CHANGE: "), strings.Join(tablesWithoutReplicaIdentityChange, ", ")))
+			combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Tables not having replica identity CHANGE: "), strings.Join(lo.Map(tablesWithoutReplicaIdentityChange, func(t sqlname.NameTuple, _ int) string {
+				return t.ForOutput()
+			}), ", ")))
 		}
 	}
 
 	return combinedResult, len(combinedResult) > 0, nil
 }
 
-func (yb *YugabyteDB) listTablesMissingReplicaIdentityChange(tableList []sqlname.NameTuple) ([]string, error) {
+// TODO: migrate postgres.go listTablesMissingReplicaIdentityFull from queryTableList string to []NameTuple,
+// then consolidate both into a shared helper parameterized by expected relreplident char and label.
+func (yb *YugabyteDB) listTablesMissingReplicaIdentityChange(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
 	var tableNamePairs []string
-	qualifiedNameByCatalogKey := make(map[string]string)
 	for _, table := range tableList {
 		sname, tname := table.ForCatalogQuery()
 		tableNamePairs = append(tableNamePairs, fmt.Sprintf("('%s','%s')", sname, tname))
-		qualifiedNameByCatalogKey[sname+"."+tname] = table.ForOutput()
 	}
 
 	checkTableReplicaIdentityQuery := fmt.Sprintf(`
@@ -1386,7 +1388,7 @@ func (yb *YugabyteDB) listTablesMissingReplicaIdentityChange(tableList []sqlname
 		}
 	}()
 
-	var tablesWithoutReplicaIdentityChange []string
+	tablesWithoutIdentityChangeKeys := make(map[string]bool)
 	var tableSchemaName, tableName, replicaIdentity, status string
 
 	for rows.Next() {
@@ -1395,7 +1397,7 @@ func (yb *YugabyteDB) listTablesMissingReplicaIdentityChange(tableList []sqlname
 			return nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
 		}
 		if status == MISSING {
-			tablesWithoutReplicaIdentityChange = append(tablesWithoutReplicaIdentityChange, qualifiedNameByCatalogKey[tableSchemaName+"."+tableName])
+			tablesWithoutIdentityChangeKeys[tableSchemaName+"."+tableName] = true
 		}
 	}
 
@@ -1403,7 +1405,14 @@ func (yb *YugabyteDB) listTablesMissingReplicaIdentityChange(tableList []sqlname
 		return nil, fmt.Errorf("error iterating over query rows: %w", err)
 	}
 
-	return tablesWithoutReplicaIdentityChange, nil
+	var result []sqlname.NameTuple
+	for _, table := range tableList {
+		sname, tname := table.ForCatalogQuery()
+		if tablesWithoutIdentityChangeKeys[sname+"."+tname] {
+			result = append(result, table)
+		}
+	}
+	return result, nil
 }
 
 func (yb *YugabyteDB) GetMissingAssessMigrationPermissions() ([]string, bool, error) {
