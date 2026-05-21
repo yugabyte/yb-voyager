@@ -76,11 +76,11 @@ func NewConnectionPool(params *ConnectionParams) (*ConnectionPool, error) {
 	// (idleConns has only NumMaxConnections slots, but the loop tries to drain
 	// NumConnections from it). Refuse to start instead of hanging silently.
 	if params.NumConnections > params.NumMaxConnections {
-		return nil, fmt.Errorf("invalid pool config: NumConnections (%d) > NumMaxConnections (%d)",
+		return nil, goerrors.Errorf("invalid pool config: NumConnections (%d) > NumMaxConnections (%d)",
 			params.NumConnections, params.NumMaxConnections)
 	}
 	if params.NumConnections < 0 || params.NumMaxConnections < 1 {
-		return nil, fmt.Errorf("invalid pool config: NumConnections=%d NumMaxConnections=%d (must be >=0 and >=1)",
+		return nil, goerrors.Errorf("invalid pool config: NumConnections=%d NumMaxConnections=%d (must be >=0 and >=1)",
 			params.NumConnections, params.NumMaxConnections)
 	}
 	pool := &ConnectionPool{
