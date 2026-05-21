@@ -1970,6 +1970,7 @@ type ReplicaEndpoint struct {
 	Port          int
 	Name          string // Display identifier for the replica (always in "host:port" format)
 	ConnectionUri string // full connection URI for this replica
+	PgssEnabled   bool   // whether pg_stat_statements is usable on this replica for assessment
 }
 
 // ErrNotAReplica indicates that an endpoint is connectable but not a replica (pg_is_in_recovery = false)

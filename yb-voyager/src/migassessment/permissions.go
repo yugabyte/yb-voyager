@@ -112,9 +112,10 @@ func checkPermissionsForPostgreSQL(source *srcdb.Source, validatedReplicas []src
 	results = append(results, primaryResult)
 	pgssEnabled := primaryResult.PgssEnabled // Return primary's pgss status
 
-	// Check each replica
-	for _, replica := range validatedReplicas {
-		replicaResult := checkPermissionsOnReplicaNode(source, replica)
+	// Check each replica and retain its PGSS status for metadata collection.
+	for i := range validatedReplicas {
+		replicaResult := checkPermissionsOnReplicaNode(source, validatedReplicas[i])
+		validatedReplicas[i].PgssEnabled = replicaResult.PgssEnabled
 		results = append(results, replicaResult)
 	}
 

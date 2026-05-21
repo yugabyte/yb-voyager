@@ -52,6 +52,7 @@ type collectionNode struct {
 	connectionUri string                 // Database connection string
 	isPrimary     bool                   // Whether this is the primary node (affects script behavior)
 	replica       *srcdb.ReplicaEndpoint // Replica info (nil for primary, contains raw data for display name extraction)
+	pgssEnabled   bool                   // Whether pg_stat_statements can be queried on this node
 }
 
 // collectionResult tracks the result of metadata collection from a single node
@@ -271,6 +272,7 @@ func GatherAssessmentMetadataFromPG(
 			connectionUri: source.DB().GetConnectionUriWithoutPassword(),
 			isPrimary:     true,
 			replica:       nil, // nil for primary
+			pgssEnabled:   pgssEnabled,
 		},
 	}
 
@@ -281,6 +283,7 @@ func GatherAssessmentMetadataFromPG(
 			connectionUri: validatedReplicas[i].ConnectionUri,
 			isPrimary:     false,
 			replica:       &validatedReplicas[i], // Pass entire replica object
+			pgssEnabled:   validatedReplicas[i].PgssEnabled,
 		})
 	}
 
@@ -325,7 +328,7 @@ func GatherAssessmentMetadataFromPG(
 				n.connectionUri,
 				sqlname.JoinIdentifiersMinQuoted(source.Schemas, "|"),
 				assessmentMetadataDir,
-				fmt.Sprintf("%t", pgssEnabled),
+				fmt.Sprintf("%t", n.pgssEnabled),
 				fmt.Sprintf("%d", iopsInterval),
 				"true",     // --yes (doesn't matter since skip_checks=true)
 				n.nodeName, // source_node_name
