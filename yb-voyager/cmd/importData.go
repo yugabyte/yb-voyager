@@ -260,19 +260,27 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 
 	importData(importFileTasks, errorPolicySnapshotFlag)
 	tdb.Finalize()
-	switch importerRole {
-	case TARGET_DB_IMPORTER_ROLE:
-		importDataCompletedEvent := createSnapshotImportCompletedEvent()
-		controlPlane.SnapshotImportCompleted(&importDataCompletedEvent)
-		packAndSendImportDataToTargetPayload(COMPLETE, nil)
-	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
-		packAndSendImportDataToSrcReplicaPayload(COMPLETE, nil)
-	case SOURCE_DB_IMPORTER_ROLE:
-		//No need to send payload to source here it will be sent in the startExportDataFromSourceOnNextIteration
+
+	if furtherCommandsRequired() {
+		startFurtherCommandsAfterCurrentImportData()
+	} else {
+		switch importerRole {
+		case TARGET_DB_IMPORTER_ROLE:
+			importDataCompletedEvent := createSnapshotImportCompletedEvent()
+			controlPlane.SnapshotImportCompleted(&importDataCompletedEvent)
+			packAndSendImportDataToTargetPayload(COMPLETE, nil)
+		case SOURCE_REPLICA_DB_IMPORTER_ROLE:
+			packAndSendImportDataToSrcReplicaPayload(COMPLETE, nil)
+		case SOURCE_DB_IMPORTER_ROLE:
+			packAndSendImportDataToSourcePayload(COMPLETE, nil)
+		}
 	}
-	startFurtherCommandsAfterCurrentImportData()
+
 }
 
+func furtherCommandsRequired() bool {
+	return isFallbackEnabled() || isNextIterationRequired()
+}
 func startFurtherCommandsAfterCurrentImportData() {
 	//Fallback export data from target commands
 	startExportDataFromTargetIfRequired()
@@ -281,29 +289,52 @@ func startFurtherCommandsAfterCurrentImportData() {
 	startExportDataFromSourceOnNextIteration()
 }
 
-func startExportDataFromSourceOnNextIteration() {
+func isFallbackEnabled() bool {
+	if !changeStreamingIsEnabled(importType) {
+		return false
+	}
+	if importerRole != TARGET_DB_IMPORTER_ROLE {
+		return false
+	}
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("could not fetch MigrationStatusRecord: %w", err)
+	}
+	if !msr.FallForwardEnabled && !msr.FallbackEnabled {
+		utils.PrintAndLogf("No fall-forward/back enabled. Exiting.")
+		return false
+	}
+	return true
+}
+func isNextIterationRequired() bool {
 	if importerRole != SOURCE_DB_IMPORTER_ROLE {
-		return
+		return false
 	}
 	currentMsr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("failed to get migration status record: %w", err)
 	}
-	if !currentMsr.RestartDataMigrationSourceTargetNextIteration {
-		//If restart data migration source target next iteration is not set, then send the payload for import to source complete here as next iteration is not required
-		packAndSendImportDataToSourcePayload(COMPLETE, nil)
+	return currentMsr.RestartDataMigrationSourceTargetNextIteration
+
+}
+func startExportDataFromSourceOnNextIteration() {
+	if !isNextIterationRequired() {
 		return
 	}
 
 	injectBeforeInitializeNextIteration()
 
-	err = initializeNextIteration()
+	err := initializeNextIteration()
 	if err != nil {
 		utils.ErrExit("failed to initialize next iteration: %w", err)
 	}
 
-	packAndSendImportDataToSourcePayload(COMPLETE, nil)
 	injectAfterInitializeNextIteration()
+
+	currentMsr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get migration status record: %w", err)
+	}
 
 	//Start export from source on next iteration
 
@@ -373,6 +404,8 @@ func startExportDataFromSourceOnNextIteration() {
 	}
 	env := os.Environ()
 	env = slices.Insert(env, 0, "SOURCE_DB_PASSWORD="+tconf.Password)
+
+	packAndSendImportDataToSourcePayload(COMPLETE, nil)
 
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
@@ -565,6 +598,11 @@ func startExportDataFromTargetIfRequired() {
 	}
 	env := os.Environ()
 	env = slices.Insert(env, 0, "TARGET_DB_PASSWORD="+tconf.Password)
+
+	//send callhome / control plane payload before starting export data from target
+	importDataCompletedEvent := createSnapshotImportCompletedEvent()
+	controlPlane.SnapshotImportCompleted(&importDataCompletedEvent)
+	packAndSendImportDataToTargetPayload(COMPLETE, nil)
 
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
