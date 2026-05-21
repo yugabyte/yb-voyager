@@ -9,12 +9,13 @@ import java.util.ArrayList;
 
 public class Record {
     public Table t;
+    public Table partitionTable; // Original partition table before renaming (for partitioned tables)
     public String snapshot;
     public String op;
     public String eventId;
     public long vsn; // Voyager Sequence Number.
 
-     // Value information for 'before' struct
+    // Value information for 'before' struct
     public ArrayList<String> beforeValueColumns = new ArrayList<>();
     public ArrayList<Object> beforeValueValues = new ArrayList<>();
 
@@ -27,6 +28,7 @@ public class Record {
 
     public void clear() {
         t = null;
+        partitionTable = null;
         snapshot = "";
         op = "";
         vsn = 0;
@@ -34,7 +36,7 @@ public class Record {
         keyValues.clear();
         afterValueColumns.clear();
         afterValueValues.clear();
-        
+
         beforeValueColumns.clear();
         beforeValueValues.clear();
     }
@@ -70,6 +72,7 @@ public class Record {
     public String toString() {
         return "Record{" +
                 "t=" + t +
+                ", partitionTable=" + partitionTable +
                 ", snapshot='" + snapshot + '\'' +
                 ", op='" + op + '\'' +
                 ", vsn=" + vsn +

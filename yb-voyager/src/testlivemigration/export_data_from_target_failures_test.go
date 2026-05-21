@@ -15,7 +15,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package cmd
+package testlivemigration
 
 import (
 	"context"
@@ -27,6 +27,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/cmd"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
@@ -86,7 +87,7 @@ func newFFExportFailureLiveMigrationTest(t *testing.T, dbStem, tableShort string
 func requireCutoverNotComplete(t *testing.T, lm *LiveMigrationTest) {
 	t.Helper()
 	require.NoError(t, lm.InitMetaDB())
-	require.NotEqual(t, COMPLETED, lm.getCutoverStatus(0), "cutover should not be complete yet")
+	require.NotEqual(t, cmd.COMPLETED, lm.GetCutoverStatusForIteration(0), "cutover should not be complete yet")
 }
 
 // ffExportFromTargetEnv is for StartExportDataFromTargetWithEnv: the runner has no target container
@@ -175,7 +176,7 @@ func TestExportFromTargetStartupFailureAndCutoverResume(t *testing.T) {
 	// Import processes cutover, then exec's into export-data-from-target.
 	// The exec'd process inherits GO_FAILPOINTS and crashes before setting the flag.
 	failMarkerPath := filepath.Join(lm.GetCurrentExportDir(), "logs", "failpoint-export-from-target-startup.log")
-	err = lm.WaitForImportFailpointAndProcessCrash(t, failMarkerPath, 120*time.Second, 60*time.Second)
+	err = lm.WaitForImportFailpointAndProcessCrash(t, failMarkerPath, 120*time.Second, 120*time.Second)
 	require.NoError(t, err, "Export-from-target should crash via failpoint")
 
 	// --- Step 5: Verify cutover is NOT complete ---

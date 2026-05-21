@@ -33,6 +33,7 @@ type SourceDB interface {
 	GetTableRowCount(tableName sqlname.NameTuple) (int64, error)
 	GetTableApproxRowCount(tableName sqlname.NameTuple) int64
 	GetVersion() string
+	FetchDBID() error
 	GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, error)
 	GetAllTableNames() []*sqlname.SourceName
 	GetAllTableNamesRaw(schemaName string) ([]string, error)
@@ -53,6 +54,7 @@ type SourceDB interface {
 	GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error)
 	ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error
 	GetNonPKTables() ([]string, error)
+	GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error)
 	GetDatabaseSize() (int64, error)
 	CheckSourceDBVersion(exportType string) error
 	GetMissingExportSchemaPermissions(queryTableList string) ([]string, error)

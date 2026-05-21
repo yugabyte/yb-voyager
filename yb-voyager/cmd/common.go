@@ -739,7 +739,11 @@ func retrieveMigrationUUID() error {
 	}
 
 	migrationUUID = uuid.MustParse(msr.MigrationUUID)
-	utils.PrintAndLogfInfo("migrationID: %s", utils.Path.Sprint(migrationUUID))
+	if !suppressInfoMessages {
+		utils.PrintAndLogfInfo("migrationID: %s", utils.Path.Sprint(migrationUUID))
+	} else {
+		log.Infof("migrationID: %s", migrationUUID)
+	}
 	return nil
 }
 
@@ -752,7 +756,7 @@ func nameContainsCapitalLetter(name string) bool {
 	return false
 }
 
-func getCutoverStatus(metaDB *metadb.MetaDB) string {
+func GetCutoverStatus(metaDB *metadb.MetaDB) string {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("get migration status record: %v", err)
@@ -802,7 +806,7 @@ func getCutoverToSourceReplicaStatus(metaDB *metadb.MetaDB) string {
 	return INITIATED
 }
 
-func getCutoverToSourceStatus(exportDir string, metaDB *metadb.MetaDB) string {
+func GetCutoverToSourceStatus(exportDir string, metaDB *metadb.MetaDB) string {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("get migration status record: %v", err)
@@ -1922,7 +1926,7 @@ func PackAndSendCallhomePayloadOnExit() {
 		packAndSendImportDataFilePayload(status, exitErr)
 	case comparePerformanceCmd.CommandPath():
 		packAndSendComparePerformancePayload(status, exitErr, nil)
-	case segmentCleanupCmd.CommandPath():
+	case archiveChangesCmd.CommandPath():
 		packAndSendArchiveChangesPayload(status, exitErr, metaDB, migrationUUID)
 	}
 }
@@ -1996,7 +2000,7 @@ func sendCallhomePayloadAtIntervals() {
 			packAndSendImportDataToSrcReplicaPayload(INPROGRESS, nil)
 		case importDataFileCmd.CommandPath():
 			packAndSendImportDataFilePayload(INPROGRESS, nil)
-		case segmentCleanupCmd.CommandPath():
+		case archiveChangesCmd.CommandPath():
 			packAndSendArchiveChangesPayload(INPROGRESS, nil, metaDB, migrationUUID)
 		}
 	}

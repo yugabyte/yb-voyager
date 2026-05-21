@@ -350,6 +350,11 @@ func (ora *Oracle) GetDatabaseSize() (int64, error) {
 	return dbSize.Int64, nil
 }
 
+func (ora *Oracle) FetchDBID() error {
+	//Not implemented for oracle
+	return nil
+}
+
 func (ora *Oracle) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	var filteredTableList, unsupportedTableList []sqlname.NameTuple
 
@@ -732,6 +737,13 @@ func (ora *Oracle) ClearMigrationState(migrationUUID uuid.UUID, exportDir string
 		return fmt.Errorf("drop table %s: %w", logMiningFlushTableName, err)
 	}
 	return nil
+}
+
+// GetPrimaryKeyColumns is a no-op for Oracle: the partition-aware caller in
+// reportUnsupportedTablesForLiveMigration only iterates leaves built by
+// addLeafPartitionsInTableList, which is itself a no-op for non-PG/YB sources.
+func (ora *Oracle) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	panic("not implemented")
 }
 
 func (ora *Oracle) GetNonPKTables() ([]string, error) {

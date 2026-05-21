@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +24,10 @@ type YugabyteDBContainer struct {
 	mutex sync.Mutex
 	ContainerConfig
 	container testcontainers.Container
+
+	external     bool
+	externalHost string
+	externalPort int
 }
 
 func (yb *YugabyteDBContainer) SetConfig(config ContainerConfig) {
@@ -31,6 +36,29 @@ func (yb *YugabyteDBContainer) SetConfig(config ContainerConfig) {
 func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 	yb.mutex.Lock()
 	defer yb.mutex.Unlock()
+
+	// External-instance mode: skip docker entirely.
+	if host := os.Getenv("YB_EXTERNAL_HOST"); host != "" {
+		port, err := strconv.Atoi(os.Getenv("YB_EXTERNAL_PORT"))
+		if err != nil || port == 0 {
+			port = 5433
+		}
+		yb.external = true
+		yb.externalHost = host
+		yb.externalPort = port
+		// Optional: respect YB_EXTERNAL_USER / YB_EXTERNAL_PASSWORD overrides
+		if u := os.Getenv("YB_EXTERNAL_USER"); u != "" {
+			yb.User = u
+		}
+		if p := os.Getenv("YB_EXTERNAL_PASSWORD"); p != "" {
+			yb.Password = p
+		}
+		utils.PrintAndLogf("Using external YugabyteDB at %s:%d (user=%s)", host, port, yb.User)
+		return nil
+	}
+	yb.external = false
+	yb.externalHost = ""
+	yb.externalPort = 0
 
 	if yb.container != nil {
 		if yb.container.IsRunning() {
@@ -120,6 +148,10 @@ func (yb *YugabyteDBContainer) Stop(ctx context.Context) error {
 	yb.mutex.Lock()
 	defer yb.mutex.Unlock()
 
+	if yb.external {
+		return nil
+	}
+
 	if yb.container == nil {
 		return nil
 	} else if !yb.container.IsRunning() {
@@ -145,6 +177,10 @@ func (yb *YugabyteDBContainer) Terminate(ctx context.Context) {
 		return
 	}
 
+	if yb.external {
+		return
+	}
+
 	err := yb.container.Terminate(ctx)
 	if err != nil {
 		log.Errorf("failed to terminate yugabytedb container: %v", err)
@@ -152,6 +188,11 @@ func (yb *YugabyteDBContainer) Terminate(ctx context.Context) {
 }
 
 func (yb *YugabyteDBContainer) GetHostPort() (string, int, error) {
+
+	if yb.external {
+		return yb.externalHost, yb.externalPort, nil
+	}
+
 	if yb.container == nil {
 		return "", -1, fmt.Errorf("yugabytedb container is not started: nil")
 	}
@@ -185,7 +226,7 @@ func (yb *YugabyteDBContainer) GetConnectionString() string {
 }
 
 func (yb *YugabyteDBContainer) GetConnection() (*sql.DB, error) {
-	if yb.container == nil {
+	if yb.container == nil && !yb.external {
 		utils.ErrExit("yugabytedb container is not started: nil")
 	}
 

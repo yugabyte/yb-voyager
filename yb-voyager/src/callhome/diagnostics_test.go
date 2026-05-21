@@ -67,6 +67,7 @@ func TestCallhomeStructs(t *testing.T) {
 				DBSize             int64    `json:"total_db_size_bytes"`
 				Role               string   `json:"role,omitempty"`
 				DBSystemIdentifier int64    `json:"db_system_identifier,omitempty"`
+				DBID               int64    `json:"db_id"`
 				DBName             string   `json:"db_name,omitempty"`
 				SchemaNames        []string `json:"schema_names,omitempty"`
 			}{},

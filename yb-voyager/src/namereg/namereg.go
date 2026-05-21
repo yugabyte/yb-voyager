@@ -589,7 +589,7 @@ func NewNameTuple(role string, sourceName *sqlname.ObjectName, targetName *sqlna
 
 //=========================================================== schema name matcher ==========================
 
-func SchemaNameMatcher(dbType string ,allSchemas []sqlname.Identifier, schemaConfig string) ([]sqlname.Identifier, error) {
+func SchemaNameMatcher(dbType string, allSchemas []sqlname.Identifier, schemaConfig string) ([]sqlname.Identifier, error) {
 	if dbType == constants.MYSQL {
 		// MySQL doesn't have schema names, so we return empty list
 		return nil, nil

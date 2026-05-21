@@ -120,7 +120,7 @@ main() {
 	if [ -n "${SOURCE_DB_NAME}" ]; then
 		run_psql postgres "DROP DATABASE ${SOURCE_DB_NAME};"
 	fi
-	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
+	ysql_terminate_and_drop_database "${TARGET_DB_NAME}"
 }
 
 main

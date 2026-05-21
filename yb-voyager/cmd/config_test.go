@@ -3713,9 +3713,9 @@ func setupArchiveChangesContext(t *testing.T) *testContext {
 	tmpArchiveDir := t.TempDir()
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
-	resetCmdAndEnvVars(segmentCleanupCmd)
+	resetCmdAndEnvVars(archiveChangesCmd)
 	t.Cleanup(func() {
-		resetFlags(segmentCleanupCmd)
+		resetFlags(archiveChangesCmd)
 	})
 
 	configContent := fmt.Sprintf(`
@@ -3790,8 +3790,8 @@ func TestArchiveChangesConfigBinding_GlobalVsLocalConfig(t *testing.T) {
 	tmpExportDir := setupExportDir(t)
 	defer os.RemoveAll(tmpExportDir)
 
-	resetCmdAndEnvVars(segmentCleanupCmd)
-	defer resetFlags(segmentCleanupCmd)
+	resetCmdAndEnvVars(archiveChangesCmd)
+	defer resetFlags(archiveChangesCmd)
 
 	configContent := fmt.Sprintf(`
 export-dir: %s
