@@ -266,9 +266,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	} else {
 		switch importerRole {
 		case TARGET_DB_IMPORTER_ROLE:
-			importDataCompletedEvent := createSnapshotImportCompletedEvent()
-			controlPlane.SnapshotImportCompleted(&importDataCompletedEvent)
-			packAndSendImportDataToTargetPayload(COMPLETE, nil)
+			sendImportDataPayloadToCallhomeAndControlPlane()
 		case SOURCE_REPLICA_DB_IMPORTER_ROLE:
 			packAndSendImportDataToSrcReplicaPayload(COMPLETE, nil)
 		case SOURCE_DB_IMPORTER_ROLE:
@@ -278,8 +276,15 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 
 }
 
+func sendImportDataPayloadToCallhomeAndControlPlane() {
+	//send callhome / control plane payload before starting export data from target
+	importDataCompletedEvent := createSnapshotImportCompletedEvent()
+	controlPlane.SnapshotImportCompleted(&importDataCompletedEvent)
+	packAndSendImportDataToTargetPayload(COMPLETE, nil)
+}
+
 func furtherCommandsRequired() bool {
-	return isFallbackEnabled() || isNextIterationRequired()
+	return isFallbackEnabledOrFallForwardEnabled() || isNextIterationRequired()
 }
 func startFurtherCommandsAfterCurrentImportData() {
 	//Fallback export data from target commands
@@ -289,7 +294,7 @@ func startFurtherCommandsAfterCurrentImportData() {
 	startExportDataFromSourceOnNextIteration()
 }
 
-func isFallbackEnabled() bool {
+func isFallbackEnabledOrFallForwardEnabled() bool {
 	if !changeStreamingIsEnabled(importType) {
 		return false
 	}
@@ -563,7 +568,7 @@ func checkImportDataPermissions() {
 }
 
 func startExportDataFromTargetIfRequired() {
-	if !isFallbackEnabled() {
+	if !isFallbackEnabledOrFallForwardEnabled() {
 		return
 	}
 
@@ -593,10 +598,7 @@ func startExportDataFromTargetIfRequired() {
 	env := os.Environ()
 	env = slices.Insert(env, 0, "TARGET_DB_PASSWORD="+tconf.Password)
 
-	//send callhome / control plane payload before starting export data from target
-	importDataCompletedEvent := createSnapshotImportCompletedEvent()
-	controlPlane.SnapshotImportCompleted(&importDataCompletedEvent)
-	packAndSendImportDataToTargetPayload(COMPLETE, nil)
+	sendImportDataPayloadToCallhomeAndControlPlane()
 
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
