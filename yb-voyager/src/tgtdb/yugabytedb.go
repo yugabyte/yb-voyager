@@ -683,11 +683,27 @@ func (yb *TargetYugabyteDB) TruncateTables(tables []sqlname.NameTuple) error {
 	})
 	commaSeparatedTableNames := strings.Join(tableNames, ", ")
 	query := fmt.Sprintf("TRUNCATE TABLE %s", commaSeparatedTableNames)
-	_, err := yb.Exec(query)
-	if err != nil {
+
+	// SQLSTATE 40001 ("Restart read required") is YB's transient retry
+	// signal during distributed multi-tablet operations like TRUNCATE.
+	// Retry with linear backoff before giving up.
+	const maxAttempts = 5
+	var err error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		if _, err = yb.Exec(query); err == nil {
+			return nil
+		}
+		var pgErr *pgconn5.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "40001" && attempt < maxAttempts {
+			sleepSec := attempt * 2
+			log.Infof("TRUNCATE got SQLSTATE 40001 (read restart), retrying in %ds (attempt %d/%d): %v",
+				sleepSec, attempt, maxAttempts, err)
+			time.Sleep(time.Duration(sleepSec) * time.Second)
+			continue
+		}
 		return err
 	}
-	return nil
+	return err
 }
 
 /*

@@ -329,8 +329,10 @@ Version History:
 1.2: Split out the data metrics into a separate struct - ImportDataMetrics
 1.3: Added CurrentParallelConnections field to ImportDataMetrics
 1.4: Added CutoverTimings field
+1.5: Added table list count to ImportDataMetrics
+1.6: Added iterative cutover enabled and next iteration migration UUID fields
 */
-var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.5"
+var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.6"
 
 type ImportDataPhasePayload struct {
 	PayloadVersion              string            `json:"payload_version"`
@@ -344,12 +346,14 @@ type ImportDataPhasePayload struct {
 	YBClusterMetrics            YBClusterMetrics  `json:"yb_cluster_metrics"`
 	DataMetrics                 ImportDataMetrics `json:"data_metrics"`
 	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
-	Phase            string          `json:"phase,omitempty"`
-	LiveWorkflowType string          `json:"live_workflow_type,omitempty"`
-	EnableUpsert     bool            `json:"enable_upsert"`
-	Error            string          `json:"error"`
-	ControlPlaneType string          `json:"control_plane_type"`
-	CutoverTimings   *CutoverTimings `json:"cutover_timings,omitempty"`
+	Phase                      string          `json:"phase,omitempty"`
+	IterativeCutoverEnabled    bool            `json:"iterative_cutover_enabled"`
+	NextIterationMigrationUUID *uuid.UUID      `json:"next_iteration_migration_uuid,omitempty"`
+	LiveWorkflowType           string          `json:"live_workflow_type,omitempty"`
+	EnableUpsert               bool            `json:"enable_upsert"`
+	Error                      string          `json:"error"`
+	ControlPlaneType           string          `json:"control_plane_type"`
+	CutoverTimings             *CutoverTimings `json:"cutover_timings,omitempty"`
 }
 
 type ImportDataMetrics struct {

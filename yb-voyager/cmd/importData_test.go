@@ -2341,11 +2341,6 @@ CREATE TABLE test_schema.tasks (
 	}, nil, false).Run()
 	testutils.FatalIfError(t, err, "Export command failed")
 
-	// Brief pause so the recent INSERT's commit hybrid-time settles across
-	// YB tablets before TRUNCATE's read snapshot. Avoids spurious
-	// SQLSTATE 40001 ("Restart read required") flakes in CI containers.
-	time.Sleep(2 * time.Second)
-
 	err = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
 		"--start-clean", "true",

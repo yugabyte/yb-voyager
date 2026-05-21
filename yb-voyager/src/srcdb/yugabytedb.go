@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/jackc/pglogrepl"
@@ -1334,7 +1335,84 @@ func (yb *YugabyteDB) GetMissingExportSchemaPermissions(queryTableList string) (
 }
 
 func (yb *YugabyteDB) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, bool, error) {
-	return nil, false, nil
+	var combinedResult []string
+
+	if !yb.source.IsYBGrpcConnector && (exportType == utils.CHANGES_ONLY || exportType == utils.SNAPSHOT_AND_CHANGES) {
+		tablesWithoutReplicaIdentityChange, err := yb.listTablesMissingReplicaIdentityChange(finalTableList)
+		if err != nil {
+			return nil, false, fmt.Errorf("error in checking table replica identity: %w", err)
+		}
+		if len(tablesWithoutReplicaIdentityChange) > 0 {
+			combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Tables not having replica identity CHANGE: "), strings.Join(lo.Map(tablesWithoutReplicaIdentityChange, func(t sqlname.NameTuple, _ int) string {
+				return t.ForOutput()
+			}), ", ")))
+		}
+	}
+
+	return combinedResult, len(combinedResult) > 0, nil
+}
+
+// TODO: migrate postgres.go listTablesMissingReplicaIdentityFull from queryTableList string to []NameTuple,
+// then consolidate both into a shared helper parameterized by expected relreplident char and label.
+func (yb *YugabyteDB) listTablesMissingReplicaIdentityChange(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
+	var tableNamePairs []string
+	for _, table := range tableList {
+		sname, tname := table.ForCatalogQuery()
+		tableNamePairs = append(tableNamePairs, fmt.Sprintf("('%s','%s')", sname, tname))
+	}
+
+	checkTableReplicaIdentityQuery := fmt.Sprintf(`
+	SELECT
+		n.nspname AS schema_name,
+		c.relname AS table_name,
+		c.relreplident AS replica_identity,
+		CASE
+			WHEN c.relreplident <> 'c'
+			THEN '%s'
+			ELSE '%s'
+		END AS status
+	FROM pg_class c
+	JOIN pg_namespace n ON c.relnamespace = n.oid
+	WHERE (n.nspname, c.relname) IN (%s)
+	AND c.relkind IN ('r', 'p');
+	`, MISSING, GRANTED, strings.Join(tableNamePairs, ","))
+
+	rows, err := yb.db.Query(checkTableReplicaIdentityQuery)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying(%q) source YugabyteDB for checking table replica identity: %w", checkTableReplicaIdentityQuery, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", checkTableReplicaIdentityQuery, closeErr)
+		}
+	}()
+
+	tablesWithoutIdentityChangeKeys := make(map[string]bool)
+	var tableSchemaName, tableName, replicaIdentity, status string
+
+	for rows.Next() {
+		err = rows.Scan(&tableSchemaName, &tableName, &replicaIdentity, &status)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
+		}
+		if status == MISSING {
+			tablesWithoutIdentityChangeKeys[tableSchemaName+"."+tableName] = true
+		}
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over query rows: %w", err)
+	}
+
+	var result []sqlname.NameTuple
+	for _, table := range tableList {
+		sname, tname := table.ForCatalogQuery()
+		if tablesWithoutIdentityChangeKeys[sname+"."+tname] {
+			result = append(result, table)
+		}
+	}
+	return result, nil
 }
 
 func (yb *YugabyteDB) GetMissingAssessMigrationPermissions() ([]string, bool, error) {
