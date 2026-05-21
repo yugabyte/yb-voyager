@@ -30,7 +30,7 @@ import (
 // when --adaptive-parallelism-max was less than the auto-computed Parallelism
 // (clusterCores/4), the conn-pool init deadlocked silently. Now Parallelism
 // is capped to MaxParallelism before the pool is created.
-func TestSetDefaultParallelism_AdaptiveMax_CapsComputedParallelism(t *testing.T) {
+func TestReconcileAdaptiveParallelism_CapsParallelismToUserMax(t *testing.T) {
 	// Mimics the post-fetch state: Parallelism would be set by fetchDefaultParallelJobs
 	// to clusterCores/4 = 72 for a 288-core cluster; user passed --adaptive-parallelism-max=12.
 	tconf := &TargetConf{
@@ -38,59 +38,43 @@ func TestSetDefaultParallelism_AdaptiveMax_CapsComputedParallelism(t *testing.T)
 		MaxParallelism:          12,
 		AdaptiveParallelismMode: types.BalancedAdaptiveParallelismMode,
 	}
-	applyAdaptiveCap(tconf)
+	reconcileAdaptiveParallelism(tconf)
 
 	assert.Equal(t, 12, tconf.Parallelism, "Parallelism should be capped to MaxParallelism")
 	assert.Equal(t, 12, tconf.MaxParallelism, "MaxParallelism should remain user-supplied value")
 }
 
-func TestSetDefaultParallelism_AdaptiveNoUserMax_DefaultsMaxTo4xParallelism(t *testing.T) {
+func TestReconcileAdaptiveParallelism_NoUserMax_DefaultsTo4xParallelism(t *testing.T) {
 	tconf := &TargetConf{
 		Parallelism:             50,
 		MaxParallelism:          0,
 		AdaptiveParallelismMode: types.BalancedAdaptiveParallelismMode,
 	}
-	applyAdaptiveCap(tconf)
+	reconcileAdaptiveParallelism(tconf)
 	assert.Equal(t, 50, tconf.Parallelism)
 	assert.Equal(t, 200, tconf.MaxParallelism)
 }
 
-func TestSetDefaultParallelism_AdaptiveDisabled_MaxEqualsParallelism(t *testing.T) {
+func TestReconcileAdaptiveParallelism_Disabled_MaxEqualsParallelism(t *testing.T) {
 	tconf := &TargetConf{
 		Parallelism:             8,
 		MaxParallelism:          0,
 		AdaptiveParallelismMode: types.DisabledAdaptiveParallelismMode,
 	}
-	applyAdaptiveCap(tconf)
+	reconcileAdaptiveParallelism(tconf)
 	assert.Equal(t, 8, tconf.Parallelism)
 	assert.Equal(t, 8, tconf.MaxParallelism)
 }
 
-func TestSetDefaultParallelism_AdaptiveMaxAboveParallelism_LeavesAsIs(t *testing.T) {
+func TestReconcileAdaptiveParallelism_MaxAboveParallelism_LeavesAsIs(t *testing.T) {
 	tconf := &TargetConf{
 		Parallelism:             10,
 		MaxParallelism:          40,
 		AdaptiveParallelismMode: types.BalancedAdaptiveParallelismMode,
 	}
-	applyAdaptiveCap(tconf)
+	reconcileAdaptiveParallelism(tconf)
 	assert.Equal(t, 10, tconf.Parallelism)
 	assert.Equal(t, 40, tconf.MaxParallelism)
-}
-
-// applyAdaptiveCap mirrors the reconciliation block in setDefaultParallelism.
-// We can't call setDefaultParallelism directly without a target DB (it goes
-// through fetchDefaultParallelJobs → fetchCores), so this helper captures the
-// part under test. If setDefaultParallelism's logic changes, update both.
-func applyAdaptiveCap(tconf *TargetConf) {
-	if tconf.AdaptiveParallelismMode.IsEnabled() {
-		if tconf.MaxParallelism <= 0 {
-			tconf.MaxParallelism = tconf.Parallelism * 4
-		} else if tconf.Parallelism > tconf.MaxParallelism {
-			tconf.Parallelism = tconf.MaxParallelism
-		}
-	} else {
-		tconf.MaxParallelism = tconf.Parallelism
-	}
 }
 
 // Regression: previously NewConnectionPool would deadlock when

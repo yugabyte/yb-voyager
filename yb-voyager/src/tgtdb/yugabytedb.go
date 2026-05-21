@@ -1485,19 +1485,25 @@ func (yb *TargetYugabyteDB) setDefaultParallelism(tconfs []*TargetConf, nodeCoun
 		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.tconf.Parallelism)
 	}
 
-	if yb.tconf.AdaptiveParallelismMode.IsEnabled() {
-		if yb.tconf.MaxParallelism <= 0 {
-			yb.tconf.MaxParallelism = yb.tconf.Parallelism * 4
-		} else if yb.tconf.Parallelism > yb.tconf.MaxParallelism {
-			// User-supplied --adaptive-parallelism-max may be below the auto-computed default
-			// parallel-jobs (clusterCores/4). Cap initial parallelism so the conn pool invariant
-			// NumConnections <= NumMaxConnections holds; otherwise NewConnectionPool deadlocks.
+	reconcileAdaptiveParallelism(yb.tconf)
+}
+
+// reconcileAdaptiveParallelism finalizes Parallelism / MaxParallelism on tconf
+// once both have been resolved (user-supplied or auto-computed). When adaptive
+// parallelism is enabled and the auto-computed Parallelism exceeds the user-
+// supplied MaxParallelism, Parallelism is capped — otherwise NewConnectionPool
+// deadlocks on its init loop because NumConnections > NumMaxConnections.
+func reconcileAdaptiveParallelism(tconf *TargetConf) {
+	if tconf.AdaptiveParallelismMode.IsEnabled() {
+		if tconf.MaxParallelism <= 0 {
+			tconf.MaxParallelism = tconf.Parallelism * 4
+		} else if tconf.Parallelism > tconf.MaxParallelism {
 			log.Warnf("Computed default parallel-jobs (%d) exceeds --adaptive-parallelism-max (%d); capping initial parallelism to %d",
-				yb.tconf.Parallelism, yb.tconf.MaxParallelism, yb.tconf.MaxParallelism)
-			yb.tconf.Parallelism = yb.tconf.MaxParallelism
+				tconf.Parallelism, tconf.MaxParallelism, tconf.MaxParallelism)
+			tconf.Parallelism = tconf.MaxParallelism
 		}
 	} else {
-		yb.tconf.MaxParallelism = yb.tconf.Parallelism
+		tconf.MaxParallelism = tconf.Parallelism
 	}
 }
 
