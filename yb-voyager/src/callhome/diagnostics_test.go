@@ -256,7 +256,7 @@ func TestCallhomeStructs(t *testing.T) {
 				DataMetrics                 ImportDataMetrics `json:"data_metrics"`
 				Phase                       string            `json:"phase,omitempty"`
 				IterativeCutoverEnabled     bool              `json:"iterative_cutover_enabled"`
-				NextIterationMigrationUUID  uuid.UUID         `json:"next_iteration_migration_uuid,omitempty"`
+				NextIterationMigrationUUID  *uuid.UUID        `json:"next_iteration_migration_uuid,omitempty"`
 				LiveWorkflowType            string            `json:"live_workflow_type,omitempty"`
 				EnableUpsert                bool              `json:"enable_upsert"`
 				Error                       string            `json:"error"`
@@ -387,6 +387,15 @@ func TestAddStackTrace_SingleGoError(t *testing.T) {
 	got, ok := context["stack_trace"]
 	require.True(t, ok, "expected stack_trace in context")
 	assert.Equal(t, string(rootErr.Stack()), got, "expected stack_trace to match root goerror stack")
+}
+
+func TestImportDataPhasePayloadOmitsZeroNextIterationUUID(t *testing.T) {
+	payload := ImportDataPhasePayload{
+		PayloadVersion:          IMPORT_DATA_CALLHOME_PAYLOAD_VERSION,
+		IterativeCutoverEnabled: false,
+	}
+	jsonStr := MarshalledJsonString(payload)
+	assert.NotContains(t, jsonStr, "next_iteration_migration_uuid")
 }
 
 func TestAddStackTrace_PrefersInnermostGoError(t *testing.T) {

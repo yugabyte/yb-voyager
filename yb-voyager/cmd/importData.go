@@ -563,19 +563,13 @@ func checkImportDataPermissions() {
 }
 
 func startExportDataFromTargetIfRequired() {
-	if !changeStreamingIsEnabled(importType) {
+	if !isFallbackEnabled() {
 		return
 	}
-	if importerRole != TARGET_DB_IMPORTER_ROLE {
-		return
-	}
+
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("could not fetch MigrationStatusRecord: %w", err)
-	}
-	if !msr.FallForwardEnabled && !msr.FallbackEnabled {
-		utils.PrintAndLogf("No fall-forward/back enabled. Exiting.")
-		return
 	}
 
 	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd

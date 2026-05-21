@@ -157,7 +157,7 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg error) {
 			log.Infof("callhome: error getting migration UUID for next iteration: %v", err)
 			return
 		}
-		importDataPayload.NextIterationMigrationUUID = nextIterationMigrationUUID
+		importDataPayload.NextIterationMigrationUUID = &nextIterationMigrationUUID
 	}
 
 	importDataPayload.CutoverTimings = CalculateCutoverTimingsForSource(msr)
