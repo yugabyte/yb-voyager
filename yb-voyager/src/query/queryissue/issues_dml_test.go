@@ -515,7 +515,7 @@ func testEventsListenNotifyIssue(t *testing.T) {
 		if testYbVersion.GreaterThanOrEqual(ybversion.V2025_2_3_0) {
 			if tc.errMsgAfter2025_2_3 == "" {
 				assert.NoError(t, err)
-				return
+				continue
 			}
 			assert.ErrorContains(t, err, tc.errMsgAfter2025_2_3, "sql: %s", tc.sql)
 		} else {
