@@ -263,7 +263,6 @@ func assessMigration() (err error) {
 	if err != nil {
 		return err
 	}
-	hasSourceConnectivity := preflightResult.HasSourceConnectivity
 	validatedReplicaEndpoints := preflightResult.ValidatedReplicaEndpoints
 	replicaDiscoveryInfoForCallhome = preflightResult.ReplicaDiscoveryInfo
 	pgssEnabledForAssessment := preflightResult.PgssEnabledForAssessment
@@ -287,7 +286,6 @@ func assessMigration() (err error) {
 		ValidatedReplicaEndpoints: validatedReplicaEndpoints,
 		PgssEnabledForAssessment:  pgssEnabledForAssessment,
 		IOPSInterval:              intervalForCapturingIOPS,
-		HasSourceConnectivity:     hasSourceConnectivity,
 		PrepareMigrationProject: func() {
 			metaDB = CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 		},

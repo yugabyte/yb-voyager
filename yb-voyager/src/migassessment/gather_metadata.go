@@ -40,7 +40,6 @@ type GatherAssessmentMetadataStageConfig struct {
 	ValidatedReplicaEndpoints []srcdb.ReplicaEndpoint
 	PgssEnabledForAssessment  bool
 	IOPSInterval              int64
-	HasSourceConnectivity     bool
 	PrepareMigrationProject   func()
 	Tracker                   *ux.ProgressTracker
 }
@@ -62,9 +61,6 @@ func RunGatherAssessmentMetadataStage(config GatherAssessmentMetadataStageConfig
 		err = parseExportedSchemaFileForAssessmentIfRequired(config)
 		if err != nil {
 			return fmt.Errorf("failed to parse exported schema file for assessment: %w", err)
-		}
-		if config.HasSourceConnectivity {
-			config.Source.DB().Disconnect()
 		}
 
 		err = PopulateMetadataCSVIntoAssessmentDB(assessmentDB, config.AssessmentMetadataDir)
