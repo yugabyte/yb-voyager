@@ -33,48 +33,48 @@ import (
 func TestReconcileAdaptiveParallelism_CapsParallelismToUserMax(t *testing.T) {
 	// Mimics the post-fetch state: Parallelism would be set by fetchDefaultParallelJobs
 	// to clusterCores/4 = 72 for a 288-core cluster; user passed --adaptive-parallelism-max=12.
-	tconf := &TargetConf{
+	yb := &TargetYugabyteDB{Tconf: &TargetConf{
 		Parallelism:             72,
 		MaxParallelism:          12,
 		AdaptiveParallelismMode: types.BalancedAdaptiveParallelismMode,
-	}
-	reconcileAdaptiveParallelism(tconf)
+	}}
+	yb.reconcileAdaptiveParallelism()
 
-	assert.Equal(t, 12, tconf.Parallelism, "Parallelism should be capped to MaxParallelism")
-	assert.Equal(t, 12, tconf.MaxParallelism, "MaxParallelism should remain user-supplied value")
+	assert.Equal(t, 12, yb.Tconf.Parallelism, "Parallelism should be capped to MaxParallelism")
+	assert.Equal(t, 12, yb.Tconf.MaxParallelism, "MaxParallelism should remain user-supplied value")
 }
 
 func TestReconcileAdaptiveParallelism_NoUserMax_DefaultsTo4xParallelism(t *testing.T) {
-	tconf := &TargetConf{
+	yb := &TargetYugabyteDB{Tconf: &TargetConf{
 		Parallelism:             50,
 		MaxParallelism:          0,
 		AdaptiveParallelismMode: types.BalancedAdaptiveParallelismMode,
-	}
-	reconcileAdaptiveParallelism(tconf)
-	assert.Equal(t, 50, tconf.Parallelism)
-	assert.Equal(t, 200, tconf.MaxParallelism)
+	}}
+	yb.reconcileAdaptiveParallelism()
+	assert.Equal(t, 50, yb.Tconf.Parallelism)
+	assert.Equal(t, 200, yb.Tconf.MaxParallelism)
 }
 
 func TestReconcileAdaptiveParallelism_Disabled_MaxEqualsParallelism(t *testing.T) {
-	tconf := &TargetConf{
+	yb := &TargetYugabyteDB{Tconf: &TargetConf{
 		Parallelism:             8,
 		MaxParallelism:          0,
 		AdaptiveParallelismMode: types.DisabledAdaptiveParallelismMode,
-	}
-	reconcileAdaptiveParallelism(tconf)
-	assert.Equal(t, 8, tconf.Parallelism)
-	assert.Equal(t, 8, tconf.MaxParallelism)
+	}}
+	yb.reconcileAdaptiveParallelism()
+	assert.Equal(t, 8, yb.Tconf.Parallelism)
+	assert.Equal(t, 8, yb.Tconf.MaxParallelism)
 }
 
 func TestReconcileAdaptiveParallelism_MaxAboveParallelism_LeavesAsIs(t *testing.T) {
-	tconf := &TargetConf{
+	yb := &TargetYugabyteDB{Tconf: &TargetConf{
 		Parallelism:             10,
 		MaxParallelism:          40,
 		AdaptiveParallelismMode: types.BalancedAdaptiveParallelismMode,
-	}
-	reconcileAdaptiveParallelism(tconf)
-	assert.Equal(t, 10, tconf.Parallelism)
-	assert.Equal(t, 40, tconf.MaxParallelism)
+	}}
+	yb.reconcileAdaptiveParallelism()
+	assert.Equal(t, 10, yb.Tconf.Parallelism)
+	assert.Equal(t, 40, yb.Tconf.MaxParallelism)
 }
 
 // Regression: previously NewConnectionPool would deadlock when
