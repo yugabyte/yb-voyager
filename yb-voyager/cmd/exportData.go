@@ -446,7 +446,7 @@ func packAndSendExportDataPayload(status string, errorMsg error) {
 	switch exportType {
 	case SNAPSHOT_ONLY:
 		payload.MigrationType = OFFLINE
-	case SNAPSHOT_AND_CHANGES:
+	case SNAPSHOT_AND_CHANGES, CHANGES_ONLY:
 		payload.MigrationType = LIVE_MIGRATION
 	}
 	sourceDBDetails := anonymizeSourceDBDetails(&source)
