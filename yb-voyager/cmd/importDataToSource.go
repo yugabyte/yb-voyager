@@ -18,6 +18,7 @@ package cmd
 import (
 	"fmt"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -151,7 +152,11 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg error) {
 		IterativeCutoverEnabled: iterativeCutoverEnabled,
 	}
 	if iterativeCutoverEnabled {
-		nextIterationMigrationUUID := getMigrationUUIDForNextIteration(msr)
+		nextIterationMigrationUUID, err := getMigrationUUIDForNextIteration(msr)
+		if err != nil {
+			log.Infof("callhome: error getting migration UUID for next iteration: %v", err)
+			return
+		}
 		importDataPayload.NextIterationMigrationUUID = nextIterationMigrationUUID
 	}
 
@@ -166,35 +171,26 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg error) {
 	}
 }
 
-func getMigrationUUIDForNextIteration(currentMSR *metadb.MigrationStatusRecord) uuid.UUID {
+func getMigrationUUIDForNextIteration(currentMSR *metadb.MigrationStatusRecord) (uuid.UUID, error) {
 	parentExportDir := currentMSR.GetParentExportDir(exportDir)
 	iterationsDir := currentMSR.GetIterationsDir(parentExportDir)
-	latestIterationNumber := currentMSR.LatestIterationNumber //if the export dir is the parent export dir, then the latest iteration number is the next iteration number
-	if currentMSR.IsIteration() {
-		//if its an iteration, we need to get the parent's latest iteration number to be used for the next iteration msr
-		parentMetaDB, err := metaDB.GetParentMetaDB()
-		if err != nil {
-			log.Infof("callhome: error getting parent meta db: %v", err)
-		}
-		parentMSR, err := parentMetaDB.GetMigrationStatusRecord()
-		if err != nil {
-			log.Infof("callhome: error getting parent MSR: %v", err)
-		}
-		latestIterationNumber = parentMSR.LatestIterationNumber
+	latestIterationNumber, err := metaDB.GetLatestIterationNumber()
+	if err != nil {
+		return uuid.Nil, goerrors.Errorf("get latest iteration number: %w", err)
 	}
 	nextIterationExportDir := GetIterationExportDir(iterationsDir, latestIterationNumber)
 	nextIterationMetaDB, err := metadb.NewMetaDB(nextIterationExportDir)
 	if err != nil {
-		log.Infof("callhome: error creating next iteration meta db: %v", err)
+		return uuid.Nil, goerrors.Errorf("create next iteration meta db: %w", err)
 	}
 
 	nextIterationMsr, err := nextIterationMetaDB.GetMigrationStatusRecord()
 	if err != nil {
-		log.Infof("callhome: error getting next iteration MSR: %v", err)
+		return uuid.Nil, goerrors.Errorf("get next iteration MSR: %w", err)
 	}
 	nextIterationMigrationUUID, err := uuid.Parse(nextIterationMsr.MigrationUUID)
 	if err != nil {
-		log.Infof("callhome: error parsing next iteration migration UUID: %v", err)
+		return uuid.Nil, goerrors.Errorf("parse next iteration migration UUID: %w", err)
 	}
-	return nextIterationMigrationUUID
+	return nextIterationMigrationUUID, nil
 }

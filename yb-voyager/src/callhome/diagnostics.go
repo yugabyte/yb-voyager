@@ -346,7 +346,7 @@ type ImportDataPhasePayload struct {
 	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
 	Phase                      string          `json:"phase,omitempty"`
 	IterativeCutoverEnabled    bool            `json:"iterative_cutover_enabled"`
-	NextIterationMigrationUUID uuid.UUID       `json:"next_iteration_migration_uuid"`
+	NextIterationMigrationUUID uuid.UUID       `json:"next_iteration_migration_uuid,omitempty"`
 	LiveWorkflowType           string          `json:"live_workflow_type,omitempty"`
 	EnableUpsert               bool            `json:"enable_upsert"`
 	Error                      string          `json:"error"`
