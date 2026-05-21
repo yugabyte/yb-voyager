@@ -312,7 +312,10 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 		ConnUriList:       targetUriList,
 		SessionInitScript: yb.Tconf.SessionVars,
 	}
-	yb.connPool = NewConnectionPool(params)
+	yb.connPool, err = NewConnectionPool(params)
+	if err != nil {
+		return fmt.Errorf("creating connection pool: %w", err)
+	}
 	redactedParams := &ConnectionParams{}
 	//Whenever adding new fields to CONNECTION PARAMS check if that needs to be redacted while logging
 	err = copier.Copy(redactedParams, params)
@@ -1485,6 +1488,13 @@ func (yb *TargetYugabyteDB) setDefaultParallelism(tconfs []*TargetConf, nodeCoun
 	if yb.tconf.AdaptiveParallelismMode.IsEnabled() {
 		if yb.tconf.MaxParallelism <= 0 {
 			yb.tconf.MaxParallelism = yb.tconf.Parallelism * 4
+		} else if yb.tconf.Parallelism > yb.tconf.MaxParallelism {
+			// User-supplied --adaptive-parallelism-max may be below the auto-computed default
+			// parallel-jobs (clusterCores/4). Cap initial parallelism so the conn pool invariant
+			// NumConnections <= NumMaxConnections holds; otherwise NewConnectionPool deadlocks.
+			log.Warnf("Computed default parallel-jobs (%d) exceeds --adaptive-parallelism-max (%d); capping initial parallelism to %d",
+				yb.tconf.Parallelism, yb.tconf.MaxParallelism, yb.tconf.MaxParallelism)
+			yb.tconf.Parallelism = yb.tconf.MaxParallelism
 		}
 	} else {
 		yb.tconf.MaxParallelism = yb.tconf.Parallelism

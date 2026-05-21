@@ -71,7 +71,18 @@ type ConnectionPool struct {
 	pendingConnsToCloseLock sync.Mutex
 }
 
-func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
+func NewConnectionPool(params *ConnectionParams) (*ConnectionPool, error) {
+	// NumConnections > NumMaxConnections would deadlock the init loop below
+	// (idleConns has only NumMaxConnections slots, but the loop tries to drain
+	// NumConnections from it). Refuse to start instead of hanging silently.
+	if params.NumConnections > params.NumMaxConnections {
+		return nil, fmt.Errorf("invalid pool config: NumConnections (%d) > NumMaxConnections (%d)",
+			params.NumConnections, params.NumMaxConnections)
+	}
+	if params.NumConnections < 0 || params.NumMaxConnections < 1 {
+		return nil, fmt.Errorf("invalid pool config: NumConnections=%d NumMaxConnections=%d (must be >=0 and >=1)",
+			params.NumConnections, params.NumMaxConnections)
+	}
 	pool := &ConnectionPool{
 		params:                    params,
 		conns:                     make(chan *pgx.Conn, params.NumMaxConnections),
@@ -91,7 +102,7 @@ func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
 	if pool.params.SessionInitScript == nil {
 		pool.params.SessionInitScript = defaultSessionVars
 	}
-	return pool
+	return pool, nil
 }
 
 func (pool *ConnectionPool) GetNumConnections() int {
