@@ -40,6 +40,7 @@ type GatherAssessmentMetadataStageConfig struct {
 	ValidatedReplicaEndpoints []srcdb.ReplicaEndpoint
 	PgssEnabledForAssessment  bool
 	IOPSInterval              int64
+	PrepareMigrationProject   func()
 	Tracker                   *ux.ProgressTracker
 }
 
@@ -107,6 +108,12 @@ func gatherAssessmentMetadata(config GatherAssessmentMetadataStageConfig) error 
 		return nil // assessment metadata files are provided by the user inside assessmentMetadataDir
 	}
 
+	// setting schema objects types to export before creating the project directories
+	config.Source.ExportObjectTypeList = utils.GetExportSchemaObjectList(config.Source.DBType)
+	if config.PrepareMigrationProject != nil {
+		config.PrepareMigrationProject()
+	}
+
 	log.Infof("gathering metadata and stats from '%s' source database...", config.Source.DBType)
 
 	switch config.Source.DBType {
@@ -152,6 +159,9 @@ func parseExportedSchemaFileForAssessmentIfRequired(config GatherAssessmentMetad
 
 	log.Infof("set 'schemaDir' as: %s", config.SchemaDir)
 	config.Source.ApplyExportSchemaObjectListFilter()
+	if config.PrepareMigrationProject != nil {
+		config.PrepareMigrationProject()
+	}
 	config.Source.DB().ExportSchema(config.ExportDir, config.SchemaDir)
 	if !utils.FileOrFolderExistsWithGlobPattern(filepath.Join(config.SchemaDir, "*", "*.sql")) {
 		return goerrors.Errorf("no parsed schema files found in %s", config.SchemaDir)

@@ -230,10 +230,6 @@ func assessMigration() (err error) {
 	migassessment.AssessmentDir = assessmentDir
 	migassessment.SourceDBType = source.DBType
 	migassessment.IntervalForCapturingIops = intervalForCapturingIOPS
-	source.ExportObjectTypeList = utils.GetExportSchemaObjectList(source.DBType)
-	if assessmentMetadataDirFlag == "" || source.DBType == POSTGRESQL {
-		metaDB = CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-	}
 
 	// ── Phase 1: Preflight ──────────────────────────────────────────────
 	bannerRows := []ux.BannerRow{
@@ -267,7 +263,7 @@ func assessMigration() (err error) {
 	if err != nil {
 		return err
 	}
- 	validatedReplicaEndpoints := preflightResult.ValidatedReplicaEndpoints
+	validatedReplicaEndpoints := preflightResult.ValidatedReplicaEndpoints
 	replicaDiscoveryInfoForCallhome = preflightResult.ReplicaDiscoveryInfo
 	pgssEnabledForAssessment := preflightResult.PgssEnabledForAssessment
 
@@ -290,6 +286,9 @@ func assessMigration() (err error) {
 		ValidatedReplicaEndpoints: validatedReplicaEndpoints,
 		PgssEnabledForAssessment:  pgssEnabledForAssessment,
 		IOPSInterval:              intervalForCapturingIOPS,
+		PrepareMigrationProject: func() {
+			metaDB = CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+		},
 		Tracker: tracker,
 	})
 	if err != nil {
