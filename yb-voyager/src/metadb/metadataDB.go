@@ -307,7 +307,7 @@ func (m *MetaDB) GetJsonObject(tx *sql.Tx, key string, obj any) (bool, error) {
 		log.Infof("Found json object for key: %s, but failed to unmarshal it: %v", key, err)
 		return true, fmt.Errorf("error while unmarshalling json: %w", err)
 	}
-	log.Infof("Found json object for key: %s", key)
+	log.Debugf("Found json object for key: %s", key)
 	return true, nil
 }
 

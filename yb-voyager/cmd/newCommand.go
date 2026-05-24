@@ -40,6 +40,7 @@ var migrationDirExplicit bool
 var sourceConnString string
 var initControlPlane string
 var initMigrationName string
+var initSkipAssess bool
 
 // paths for installed gather-assessment-metadata scripts
 const (
@@ -73,6 +74,9 @@ func init() {
 	initCmd.Flags().StringVar(&initControlPlane, "control-plane", "",
 		"connection string for a shared assessment control plane (advanced). "+
 			"If not provided, uses local YugabyteDB instance.")
+	initCmd.Flags().BoolVar(&initSkipAssess, "skip-assess", false,
+		"skip the automatic 'yb-voyager assess' run that normally follows successful source-connection setup. "+
+			"Use this when you want to bootstrap a migration project without running assessment yet.")
 }
 
 func runInit() {
@@ -311,8 +315,12 @@ func handleConnectionString() {
 	// Register migration in voyager home (for custom dirs)
 	registerMigrationIfNeeded(parsed.DBName)
 
-	printInitResultBox(parsed, configFilePath, exportDirPath, selectPermsMissing)
-	printInitNextSteps(configFilePath, true, false, selectPermsMissing, parsed)
+	// Suppress "Done!" when the auto-assess spinner is about to take over —
+	// the spinner is the natural continuation and a premature "Done!" reads
+	// as misleading. willAutoAssess mirrors the branch in finishNewWithMaybeAssess.
+	willAutoAssess := !initSkipAssess && !selectPermsMissing
+	printInitResultBox(parsed, configFilePath, exportDirPath, selectPermsMissing, !willAutoAssess)
+	finishNewWithMaybeAssess(configFilePath, exportDirPath, selectPermsMissing, parsed)
 }
 
 // handleConnectionStringDirect handles the case where the connection string was provided via flag (non-interactive).
@@ -360,8 +368,33 @@ func handleConnectionStringDirect(connStr string) {
 	// Register migration in voyager home (for custom dirs)
 	registerMigrationIfNeeded(parsed.DBName)
 
-	printInitResultBox(parsed, configFilePath, exportDirPath, selectPermsMissing)
-	printInitNextSteps(configFilePath, true, false, selectPermsMissing, parsed)
+	// Suppress "Done!" when the auto-assess spinner is about to take over —
+	// the spinner is the natural continuation and a premature "Done!" reads
+	// as misleading. willAutoAssess mirrors the branch in finishNewWithMaybeAssess.
+	willAutoAssess := !initSkipAssess && !selectPermsMissing
+	printInitResultBox(parsed, configFilePath, exportDirPath, selectPermsMissing, !willAutoAssess)
+	finishNewWithMaybeAssess(configFilePath, exportDirPath, selectPermsMissing, parsed)
+}
+
+// finishNewWithMaybeAssess closes out the connection-string flow of `new`.
+//
+// When SELECT permissions are missing or --skip-assess is set, it falls back
+// to the original "Next Step: yb-voyager assess" footer. Otherwise it
+// shells out to `yb-voyager assess` automatically so the user gets to the
+// assessment report in a single command.
+//
+// To revert auto-assess behavior entirely, replace this call in both
+// handleConnectionString and handleConnectionStringDirect with the
+// original `printInitNextSteps(...)` call.
+func finishNewWithMaybeAssess(configFilePath, exportDirPath string, selectPermsMissing bool, parsed *parsedConnInfo) {
+	if initSkipAssess || selectPermsMissing {
+		printInitNextSteps(configFilePath, true, false, selectPermsMissing, parsed)
+		return
+	}
+
+	if !runAutoAssess(initMigrationName, exportDirPath) {
+		os.Exit(1)
+	}
 }
 
 // handleGenerateScripts creates export-dir and copies gather-assessment-metadata scripts
@@ -841,7 +874,11 @@ func copyGatherScripts(srcDir, destDir string) {
 
 // printInitResultBox prints the "Initializing Migration Project" section with
 // progressive checkmarks (each appearing with a short delay).
-func printInitResultBox(parsed *parsedConnInfo, configFilePath, exportDirPath string, selectPermsMissing bool) {
+//
+// When showDone is false the trailing "Done!" line is omitted — callers use
+// this when more work (e.g. the auto-assess spinner) is about to print
+// directly after, so a premature "Done!" would be misleading.
+func printInitResultBox(parsed *parsedConnInfo, configFilePath, exportDirPath string, selectPermsMissing, showDone bool) {
 	fmt.Println()
 	fmt.Println("  " + titleStyle.Render("Initializing Migration Project"))
 	fmt.Println("  " + ruleStyle.Render(strings.Repeat("─", ruleWidth)))
@@ -867,8 +904,10 @@ func printInitResultBox(parsed *parsedConnInfo, configFilePath, exportDirPath st
 	}
 	time.Sleep(500 * time.Millisecond)
 	fmt.Println()
-	fmt.Println("  " + successStyle.Render("Done!"))
-	fmt.Println()
+	if showDone {
+		fmt.Println("  " + successStyle.Render("Done!"))
+		fmt.Println()
+	}
 }
 
 func printInitNextSteps(configFilePath string, connected bool, scripts bool, selectPermsMissing bool, parsed *parsedConnInfo) {
