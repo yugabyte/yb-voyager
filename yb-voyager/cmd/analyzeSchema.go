@@ -1231,6 +1231,14 @@ func analyzeSchema() {
 
 	packAndSendAnalyzeSchemaPayload(COMPLETE, nil)
 
+	issueCount := len(schemaAnalysisReport.Issues)
+	if mdbErr := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.AnalyzeSchemaDone = true
+		record.LastAnalyzeIssueCount = issueCount
+	}); mdbErr != nil {
+		log.Warnf("failed to persist analyze schema state in MSR: %v", mdbErr)
+	}
+
 	schemaAnalysisReport := createSchemaAnalysisIterationCompletedEvent(schemaAnalysisReport)
 	controlPlane.SchemaAnalysisIterationCompleted(&schemaAnalysisReport)
 
@@ -1404,7 +1412,8 @@ var analyzeSchemaCmd = &cobra.Command{
 	Use: "analyze",
 	Short: "Analyze converted source database schema and generate a report about YB incompatible constructs.\n" +
 		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/analyze-schema/",
-	Long: ``,
+	Long:   ``,
+	Hidden: true, // superseded by `schema migrate`; kept callable for compat and as a subprocess target.
 	PreRun: func(cmd *cobra.Command, args []string) {
 		err := retrieveMigrationUUID()
 		if err != nil {

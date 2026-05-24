@@ -45,6 +45,7 @@ var importSchemaCmd = &cobra.Command{
 	Use: "import",
 	Short: "Import schema into the target YugabyteDB database\n" +
 		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/import-schema/",
+	Hidden: true, // superseded by `schema migrate`; kept callable for compat and as a subprocess target.
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if !schemaIsExported() {

@@ -6,7 +6,7 @@ import (
 
 var schemaCmd = &cobra.Command{
 	Use:   "schema",
-	Short: "Export, analyze, and import schema",
+	Short: "Migrate schema from source to YugabyteDB.",
 	Long:  PARENT_COMMAND_USAGE,
 }
 

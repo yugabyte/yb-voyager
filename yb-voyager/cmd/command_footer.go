@@ -18,6 +18,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -261,8 +262,13 @@ func printCommandFooter(footer CommandFooter) {
 
 	migrationFlag := buildMigrationNameFlag()
 
+	// When `schema migrate` (or any future orchestrator) invokes this command
+	// as a subprocess, the child's per-phase "Next step" is misleading — the
+	// orchestrator emits its own next step at the end. Suppress this block.
+	suppressNextStep := os.Getenv("VOYAGER_SUPPRESS_NEXT_STEP") == "1"
+
 	// Next step
-	if len(footer.NextStepDesc) > 0 || footer.NextStepCmd != "" {
+	if !suppressNextStep && (len(footer.NextStepDesc) > 0 || footer.NextStepCmd != "") {
 		if len(progress) > 0 {
 			progress = append(progress, "")
 		}
@@ -278,9 +284,10 @@ func printCommandFooter(footer CommandFooter) {
 		}
 	}
 
-	// Tip
-	tip := "yb-voyager status" + migrationFlag
-	progress = append(progress, formatKeyValue("Tip:", dimStyle.Render(tip), kvWidth))
+	if !suppressNextStep {
+		tip := "yb-voyager status" + migrationFlag
+		progress = append(progress, formatKeyValue("Tip:", dimStyle.Render(tip), kvWidth))
+	}
 
 	printSection("Migration Progress", progress...)
 

@@ -38,7 +38,7 @@ var parentHelpGroups = map[string][]subcommandGroup{
 		{Title: "Utility", Commands: []string{"archive-changes", "status"}},
 	},
 	"schema": {
-		{Title: "Available Commands", Commands: []string{"export", "analyze", "import", "finalize-post-data-import"}},
+		{Title: "Available Commands", Commands: []string{"migrate", "finalize-post-data-import"}},
 	},
 	"cutover": {
 		{Title: "Available Commands", Commands: []string{"prepare-target", "prepare-source", "prepare-replica", "status"}},

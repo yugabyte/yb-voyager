@@ -343,6 +343,7 @@ var noLockNeededList = []string{
 	"yb-voyager plan-migration",
 	"yb-voyager status",
 	"yb-voyager schema",
+	"yb-voyager schema migrate",
 	"yb-voyager data",
 	"yb-voyager cutover",
 	"yb-voyager validate",
@@ -365,6 +366,7 @@ var noPersistentPreRunNeededList = []string{
 // used for registering the --config-file flag
 var offlineCommands = []string{
 	"yb-voyager assess",
+	"yb-voyager schema migrate",
 	"yb-voyager schema export",
 	"yb-voyager schema analyze",
 	"yb-voyager schema import",

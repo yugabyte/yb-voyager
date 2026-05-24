@@ -1057,9 +1057,9 @@ func printStartMigrationNextSteps(configFilePath string, v *viper.Viper, workflo
 		step++
 	}
 
-	lines = append(lines, fmt.Sprintf("%d. Export schema:", step))
+	lines = append(lines, fmt.Sprintf("%d. Migrate schema (export, analyze, and import in one command):", step))
 	lines = append(lines, "")
-	lines = append(lines, cmdStyle.Render("  yb-voyager schema export"+buildMigrationNameFlag()))
+	lines = append(lines, cmdStyle.Render("  yb-voyager schema migrate"+buildMigrationNameFlag()))
 
 	printSection("What's Next", lines...)
 	fmt.Println()

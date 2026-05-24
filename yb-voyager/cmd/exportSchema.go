@@ -53,7 +53,8 @@ var exportSchemaCmd = &cobra.Command{
 	Use: "export",
 	Short: "Export schema from source database into export-dir as .sql files\n" +
 		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/export-schema/",
-	Long: ``,
+	Long:   ``,
+	Hidden: true, // superseded by `schema migrate`; kept callable for compat and as a subprocess target.
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if source.StrExportObjectTypeList != "" && source.StrExcludeObjectTypeList != "" {

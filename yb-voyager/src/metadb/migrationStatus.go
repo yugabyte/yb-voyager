@@ -69,6 +69,9 @@ type MigrationStatusRecord struct {
 	CutoverTimings CutoverTimingRecord `json:"CutoverTimings,omitempty"`
 
 	ExportSchemaDone                bool `json:"ExportSchemaDone"`
+	AnalyzeSchemaDone               bool `json:"AnalyzeSchemaDone"`       // set by analyzeSchema() at end of every run
+	LastAnalyzeIssueCount           int  `json:"LastAnalyzeIssueCount"`   // issue count from the most recent analyze run; used by `schema migrate` to decide whether to skip re-analyzing
+
 	ExportDataDone                  bool `json:"ExportDataDone"` // to be interpreted as export of snapshot data from source is complete
 	ExportDataSourceDebeziumStarted bool `json:"ExportDataSourceDebeziumStarted"`
 	ExportDataTargetDebeziumStarted bool `json:"ExportDataTargetDebeziumStarted"`

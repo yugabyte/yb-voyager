@@ -214,6 +214,12 @@ func resolveNextStepForStatus(wf *Workflow, msr *metadb.MigrationStatusRecord, v
 		return "Plan Migration", fmt.Sprintf("yb-voyager plan-migration%s", migrationFlag)
 	}
 
+	// The three schema phases are orchestrated by `schema migrate` now —
+	// hide the per-phase suggestions in favor of the bundled command.
+	if nextStep.ID == StepExportSchema || nextStep.ID == StepAnalyzeSchema || nextStep.ID == StepImportSchema {
+		return "Migrate Schema", fmt.Sprintf("yb-voyager schema migrate%s", migrationFlag)
+	}
+
 	return nextStep.DisplayName, fmt.Sprintf("yb-voyager %s%s", nextStep.Command, migrationFlag)
 }
 
