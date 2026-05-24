@@ -79,7 +79,7 @@ var configKeyValuesToObfuscateInLogs = []string{
 var commandGroups = [][]string{
 	{"new"},
 	{"assess"},
-	{"start", "schema", "data", "cutover", "validate", "end"},
+	{"plan-migration", "schema", "data", "cutover", "validate", "end"},
 	{"status", "version", "help"},
 }
 
@@ -340,7 +340,7 @@ var noLockNeededList = []string{
 	"yb-voyager version",
 	"yb-voyager help",
 	"yb-voyager new",
-	"yb-voyager start",
+	"yb-voyager plan-migration",
 	"yb-voyager status",
 	"yb-voyager schema",
 	"yb-voyager data",
@@ -355,7 +355,7 @@ var noPersistentPreRunNeededList = []string{
 	"yb-voyager version",
 	"yb-voyager help",
 	"yb-voyager new",
-	"yb-voyager start",
+	"yb-voyager plan-migration",
 	"yb-voyager schema",
 	"yb-voyager data",
 	"yb-voyager cutover",

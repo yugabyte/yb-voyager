@@ -193,49 +193,44 @@ func buildMigrationProgressLines(v *viper.Viper, msr *metadb.MigrationStatusReco
 
 // resolveNextStepForStatus determines the next step to display.
 // It checks the workflow for the next undone migration step, but interposes
-// the administrative "start" step when assessment is done and the
+// the administrative "plan-migration" step when assessment is done and the
 // target database has not yet been configured.
+//
+// Only --migration-name is appended (when multiple migrations exist). --export-dir
+// is intentionally never emitted — the migration name is sufficient for every
+// downstream command (auto-resolves to the registered migration dir), and the
+// auto-detect path covers the single-migration case.
 func resolveNextStepForStatus(wf *Workflow, msr *metadb.MigrationStatusRecord, v *viper.Viper) (name string, cmd string) {
-	configFlag := buildConfigFlag()
-
 	nextStep := findNextStep(wf, msr)
 	if nextStep == nil {
 		return "", ""
 	}
 
 	// If the next workflow step is export-schema (first Schema step) and the target
-	// is not yet configured, the user needs to run start first.
+	// is not yet configured, the user needs to run plan-migration first.
 	migrationFlag := buildMigrationNameFlag()
 
 	if nextStep.ID == StepExportSchema && !targetConfigured(v, msr) {
-		return "Start Migration", fmt.Sprintf("yb-voyager start%s%s", configFlag, migrationFlag)
+		return "Plan Migration", fmt.Sprintf("yb-voyager plan-migration%s", migrationFlag)
 	}
 
-	return nextStep.DisplayName, fmt.Sprintf("yb-voyager %s%s%s", nextStep.Command, configFlag, migrationFlag)
-}
-
-// buildConfigFlag returns the --export-dir flag string for CLI commands when
-// config auto-detection is not available (legacy export-dir flow).
-// Returns an empty string when cfgFile is set, since auto-detection handles it.
-func buildConfigFlag() string {
-	if cfgFile != "" {
-		return ""
-	}
-	return fmt.Sprintf(" --export-dir %s", displayPath(exportDir))
+	return nextStep.DisplayName, fmt.Sprintf("yb-voyager %s%s", nextStep.Command, migrationFlag)
 }
 
 // targetConfigured checks whether the target database has been configured beyond
-// the template defaults. Used to detect whether start has been run.
+// the template defaults. Used to detect whether plan-migration has been run.
 func targetConfigured(v *viper.Viper, msr *metadb.MigrationStatusRecord) bool {
 	// If export schema (or any later step) is already done, target must be configured.
 	if msr != nil && msr.ExportSchemaDone {
 		return true
 	}
-	// Check the config file for target details that differ from template defaults.
+	// Check the config file for a real target db-user. The template ships with
+	// "test_user" — once plan-migration runs and writes the user's actual target
+	// user, this no longer matches. db-host is unreliable here because the
+	// template default (127.0.0.1) is also a perfectly valid real value.
 	if v != nil {
-		host := v.GetString("target.db-host")
 		user := v.GetString("target.db-user")
-		if host != "" && host != "127.0.0.1" && user != "" && user != "test_user" {
+		if user != "" && user != "test_user" {
 			return true
 		}
 	}

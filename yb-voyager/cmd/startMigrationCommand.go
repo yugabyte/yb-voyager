@@ -38,8 +38,9 @@ import (
 )
 
 var startMigrationCmd = &cobra.Command{
-	Use:   "start",
-	Short: "Configure your target database and select a migration workflow",
+	Use:     "plan-migration",
+	Aliases: []string{"start"},
+	Short:   "Configure your target database and select a migration workflow",
 	Long: `Configure your target database and select a migration workflow
 
 This command can be invoked in two ways:
@@ -117,7 +118,7 @@ func runStartMigration() {
 		if _, configPath, err := resolveMigration(); err == nil {
 			startMigrationConfigFile = configPath
 		} else if shouldShowMigrationError(err) {
-			printMigrationResolutionError(err, "yb-voyager start")
+			printMigrationResolutionError(err, "yb-voyager plan-migration")
 			os.Exit(1)
 		}
 	}
@@ -732,7 +733,7 @@ func printAssessmentSection(dbType, host string, port int, dbName string, assess
 // printConfiguringSection prints progressive checkmarks for target + workflow configuration.
 func printConfiguringSection(target *parsedConnInfo, workflow, configFilePath string) {
 	fmt.Println()
-	fmt.Println("  " + titleStyle.Render("Starting Migration"))
+	fmt.Println("  " + titleStyle.Render("Planning Migration"))
 	fmt.Println("  " + ruleStyle.Render(strings.Repeat("─", ruleWidth)))
 
 	targetLine := fmt.Sprintf("YugabyteDB @ %s:%d/%s", target.Host, target.Port, target.DBName)

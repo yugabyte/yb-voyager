@@ -260,7 +260,7 @@ var aliasCommandsPrefixes = [][]string{
 	{"data-archive-changes", "archive-changes"},
 	{"validate-compare-performance", "compare-performance"},
 	{"end", "end-migration"},
-	{"start", "prepare", "start-migration"},
+	{"plan-migration", "start", "prepare", "start-migration"},
 }
 
 // ConfigFlagOverride represents a CLI flag whose value was set from the config file.
