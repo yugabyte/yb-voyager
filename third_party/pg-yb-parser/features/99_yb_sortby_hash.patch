@@ -1,0 +1,101 @@
+From: YugabyteDB Voyager <amakala@yugabyte.com>
+Subject: [YB-EXT] Accept HASH as a column-ordering modifier
+
+YugabyteDB extends PG's column-ordering syntax with HASH alongside
+ASC/DESC, used to mark a column as participating in hash-distribution.
+This patch teaches the parser the new keyword and grammar rule, and
+adds SORTBY_HASH to the SortByDir enum so the existing IndexElem.ordering
+field can carry the value through to deparse.
+
+--- a/src/include/nodes/parsenodes.h	2026-05-25 11:09:02
++++ b/src/include/nodes/parsenodes.h	2026-05-25 13:59:52
+@@ -47,6 +47,9 @@
+ 	SORTBY_ASC,
+ 	SORTBY_DESC,
+ 	SORTBY_USING,				/* not allowed in CREATE INDEX ... */
++	/* YB-EXT BEGIN: hash-distribution ordering for PK / index columns */
++	SORTBY_HASH,
++	/* YB-EXT END */
+ } SortByDir;
+ 
+ typedef enum SortByNulls
+--- a/src/include/parser/kwlist.h	2026-05-25 11:09:02
++++ b/src/include/parser/kwlist.h	2026-05-25 14:01:45
+@@ -195,6 +195,9 @@
+ PG_KEYWORD("grouping", GROUPING, COL_NAME_KEYWORD, BARE_LABEL)
+ PG_KEYWORD("groups", GROUPS, UNRESERVED_KEYWORD, BARE_LABEL)
+ PG_KEYWORD("handler", HANDLER, UNRESERVED_KEYWORD, BARE_LABEL)
++/* YB-EXT BEGIN: HASH ordering modifier for CREATE INDEX / PRIMARY KEY columns */
++PG_KEYWORD("hash", HASH, UNRESERVED_KEYWORD, BARE_LABEL)
++/* YB-EXT END */
+ PG_KEYWORD("having", HAVING, RESERVED_KEYWORD, AS_LABEL)
+ PG_KEYWORD("header", HEADER_P, UNRESERVED_KEYWORD, BARE_LABEL)
+ PG_KEYWORD("hold", HOLD, UNRESERVED_KEYWORD, BARE_LABEL)
+--- a/src/backend/parser/gram.y	2026-05-25 15:42:25
++++ b/src/backend/parser/gram.y	2026-05-25 14:05:01
+@@ -735,7 +735,7 @@
+ 
+ 	GENERATED GLOBAL GRANT GRANTED GREATEST GROUP_P GROUPING GROUPS
+ 
+-	HANDLER HAVING HEADER_P HOLD HOUR_P
++	HANDLER HASH HAVING HEADER_P HOLD HOUR_P
+ 
+ 	IDENTITY_P IF_P ILIKE IMMEDIATE IMMUTABLE IMPLICIT_P IMPORT_P IN_P INCLUDE
+ 	INCLUDING INCREMENT INDENT INDEX INDEXES INHERIT INHERITS INITIALLY INLINE_P
+@@ -910,6 +910,15 @@
+  */
+ %left		JOIN CROSS LEFT FULL RIGHT INNER_P NATURAL
+ 
++/* YB-EXT BEGIN: break shift/reduce conflict between HASH-as-sort-modifier
++ * and HASH-as-ColId inside opt_qualified_name (used in index_elem_options).
++ * HASH gets higher precedence than NO_OPCLASS, so when HASH is the next
++ * token after opt_collate, bison prefers to shift HASH (treat it as the
++ * sort modifier) over reducing opt_qualified_name as empty. */
++%nonassoc	HASH
++%nonassoc	NO_OPCLASS
++/* YB-EXT END */
++
+ %%
+ 
+ /*
+@@ -1139,7 +1148,8 @@
+ 
+ opt_qualified_name:
+ 			any_name						{ $$ = $1; }
+-			| /*EMPTY*/						{ $$ = NIL; }
++			/* YB-EXT: precedence break for HASH ordering vs HASH ColId */
++			| /*EMPTY*/	%prec NO_OPCLASS	{ $$ = NIL; }
+ 		;
+ 
+ opt_concurrently:
+@@ -8283,6 +8293,9 @@
+ 
+ opt_asc_desc: ASC							{ $$ = SORTBY_ASC; }
+ 			| DESC							{ $$ = SORTBY_DESC; }
++			/* YB-EXT BEGIN: HASH ordering for hash-distributed indexes / PKs */
++			| HASH							{ $$ = SORTBY_HASH; }
++			/* YB-EXT END */
+ 			| /*EMPTY*/						{ $$ = SORTBY_DEFAULT; }
+ 		;
+ 
+@@ -17744,6 +17757,9 @@
+ 			| GRANTED
+ 			| GROUPS
+ 			| HANDLER
++			/* YB-EXT BEGIN: HASH ordering modifier (unreserved keyword) */
++			| HASH
++			/* YB-EXT END */
+ 			| HEADER_P
+ 			| HOLD
+ 			| HOUR_P
+@@ -18329,6 +18345,9 @@
+ 			| GROUPING
+ 			| GROUPS
+ 			| HANDLER
++			/* YB-EXT BEGIN: HASH ordering modifier (bare-label keyword) */
++			| HASH
++			/* YB-EXT END */
+ 			| HEADER_P
+ 			| HOLD
+ 			| IDENTITY_P
+

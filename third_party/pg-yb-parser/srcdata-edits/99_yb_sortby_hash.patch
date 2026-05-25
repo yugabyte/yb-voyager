@@ -1,0 +1,22 @@
+From: YugabyteDB Voyager <amakala@yugabyte.com>
+Subject: [YB-EXT] Accept HASH as a column-ordering modifier
+
+YugabyteDB extends PG's column-ordering syntax with HASH alongside
+ASC/DESC, used to mark a column as participating in hash-distribution.
+This patch teaches the parser the new keyword and grammar rule, and
+adds SORTBY_HASH to the SortByDir enum so the existing IndexElem.ordering
+field can carry the value through to deparse.
+--- a/srcdata/enum_defs.json
++++ b/srcdata/enum_defs.json
+@@ -54,6 +54,11 @@
+           "name": "SORTBY_USING",
+           "value": 3,
+           "comment": "/* not allowed in CREATE INDEX ... */"
++        },
++        {
++          "name": "SORTBY_HASH",
++          "value": 4,
++          "comment": "/* YB-EXT: hash-distributed ordering modifier for PK/index columns */"
+         }
+       ],
+       "comment": "/* Sort ordering options for ORDER BY and CREATE INDEX */\n"

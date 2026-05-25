@@ -1,0 +1,15 @@
+# libpg_query regen-time scratch space — downloaded PG sources, build outputs,
+# libclang analysis cache. Recreated by `make extract_source` each run.
+libpg_query/tmp/
+
+# libpg_query build artifacts
+libpg_query/*.a
+libpg_query/*.so
+libpg_query/*.dylib
+libpg_query/**/*.o
+
+# pg_query_go: downloaded protoc-gen-go binary
+pg_query_go/bin/
+
+# pg_query_go: unused C++ protobuf binding (Go uses protobuf-c only)
+pg_query_go/parser/include/protobuf/pg_query.pb.h

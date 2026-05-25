@@ -194,3 +194,8 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+// YB-EXT: route pg_query_go to the in-tree fork so we can extend the parser
+// with YugabyteDB-specific grammar (SPLIT INTO, SORTBY_HASH, etc.). See
+// third_party/README.md for the rebuild workflow.
+replace github.com/pganalyze/pg_query_go/v6 => ../third_party/pg_query_go

@@ -1,0 +1,106 @@
+From: YugabyteDB Voyager <amakala@yugabyte.com>
+Subject: [YB-EXT] libpg_query toolchain fixes for portable regen
+
+Adapts libpg_query's regen pipeline for use outside the maintainer's
+macOS environment:
+  - Makefile: respect LIBCLANG env var; use GNU sed -i; add regen_proto
+    target and protoc-c include-path rewrite.
+  - scripts/extract_source.rb: use modern ffi-clang predicate methods
+    array? / pointer? instead of removed FFI::Clang::Types constants.
+
+--- a/Makefile
++++ b/Makefile
+@@ -113,7 +113,7 @@
+ 	-@ $(RM) -rf {test,examples}/*.dSYM
+ 	-@ $(RM) -r $(PGDIR) $(PGDIRBZ2) $(PGDIRZIP)
+ 
+-.PHONY: all clean build build_shared extract_source examples test install
++.PHONY: all clean build build_shared extract_source examples test install regen_proto
+ 
+ $(PGDIR):
+ #	We temporarily build off REL_17_STABLE to pull in https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=6da2ba1d8a031984eb016fed6741bb2ac945f19d
+@@ -133,6 +133,8 @@
+ 	cd $(PGDIR); patch -p1 < $(root_dir)/patches/08_avoid_zero_length_delimiter_in_regression_tests.patch
+ 	cd $(PGDIR); patch -p1 < $(root_dir)/patches/09_allow_param_junk.patch
+ 	cd $(PGDIR); patch -p1 < $(root_dir)/patches/10_avoid_namespace_hashtab_impl_gen.patch
++	# YB-EXT patches — add YugabyteDB-specific grammar extensions on top of PG 17
++	cd $(PGDIR); patch -p1 < $(root_dir)/patches/99_yb_sortby_hash.patch
+ 	cd $(PGDIR); ./configure $(PG_CONFIGURE_FLAGS)
+ 	cd $(PGDIR); make -C src/pl/plpgsql/src pl_gram.h plerrcodes.h pl_reserved_kwlist_d.h pl_unreserved_kwlist_d.h
+ 	cd $(PGDIR); make -C src/port pg_config_paths.h
+@@ -145,7 +147,7 @@
+ 	# Add pg_config.h overrides
+ 	cat scripts/pg_config_overrides.h >> $(PGDIR)/src/include/pg_config.h
+ 	# Only define strlcpy when needed
+-	sed -i "" '$(shell echo 's/\#include "c.h"/#include "c.h"\n#if HAVE_DECL_STRLCPY == 0/')' $(PGDIR)/src/port/strlcpy.c
++	sed -i '$(shell echo 's/\#include "c.h"/#include "c.h"\n#if HAVE_DECL_STRLCPY == 0/')' $(PGDIR)/src/port/strlcpy.c
+ 	echo "#endif // HAVE_DECL_STRLCPY == 0" >> $(PGDIR)/src/port/strlcpy.c
+ 	# Define symbols needed by elog.c that are commonly defined by win32/signal.c
+ 	echo "#ifdef WIN32" >> $(PGDIR)/src/backend/utils/error/elog.c
+@@ -158,7 +160,9 @@
+ 	-@ $(RM) -rf ./src/postgres/
+ 	mkdir ./src/postgres
+ 	mkdir ./src/postgres/include
+-	LIBCLANG=/Library/Developer/CommandLineTools/usr/lib/libclang.dylib ruby ./scripts/extract_source.rb $(PGDIR)/ ./src/postgres/
++	# YB-EXT: respect LIBCLANG env var (set by our Docker image to point at
++	# Linux libclang). Default to the macOS path for native upstream use.
++	LIBCLANG=$${LIBCLANG:-/Library/Developer/CommandLineTools/usr/lib/libclang.dylib} ruby ./scripts/extract_source.rb $(PGDIR)/ ./src/postgres/
+ 	# Override OS-specific pg_config_os.h to only load Win32 logic (the primary port logic that matters for libpg_query), if needed
+ 	echo "#if defined(_WIN32) || defined(_WIN64)" > ./src/postgres/include/pg_config_os.h
+ 	echo "#include \"port/win32.h\"" >> ./src/postgres/include/pg_config_os.h
+@@ -171,17 +175,34 @@
+ 	echo "#endif /* __clang__ */" >> ./src/postgres/include/pg_config_os.h
+ 	echo "#endif" >> ./src/postgres/include/pg_config_os.h
+ 	# Adjust version string to ignore differences in build environments
+-	sed -i "" '$(shell echo 's/\#define PG_VERSION_STR .*/#define PG_VERSION_STR "PostgreSQL $(PG_VERSION) \(libpg_query\)"/')' ./src/postgres/include/pg_config.h
++	sed -i '$(shell echo 's/\#define PG_VERSION_STR .*/#define PG_VERSION_STR "PostgreSQL $(PG_VERSION) \(libpg_query\)"/')' ./src/postgres/include/pg_config.h
+ 	# Copy version information so its easily accessible
+-	sed -i "" '$(shell echo 's/\#define PG_MAJORVERSION .*/#define PG_MAJORVERSION "$(PG_VERSION_MAJOR)"/')' pg_query.h
+-	sed -i "" '$(shell echo 's/\#define PG_VERSION .*/#define PG_VERSION "$(PG_VERSION)"/')' pg_query.h
+-	sed -i "" '$(shell echo 's/\#define PG_VERSION_NUM .*/#define PG_VERSION_NUM $(PG_VERSION_NUM)/')' pg_query.h
++	sed -i '$(shell echo 's/\#define PG_MAJORVERSION .*/#define PG_MAJORVERSION "$(PG_VERSION_MAJOR)"/')' pg_query.h
++	sed -i '$(shell echo 's/\#define PG_VERSION .*/#define PG_VERSION "$(PG_VERSION)"/')' pg_query.h
++	sed -i '$(shell echo 's/\#define PG_VERSION_NUM .*/#define PG_VERSION_NUM $(PG_VERSION_NUM)/')' pg_query.h
+ 	# Copy regress SQL files so we can use them in tests
+ 	rm -f ./test/sql/postgres_regress/*.sql
+ 	rm -f ./test/sql/plpgsql_regress/*.sql
+ 	cp $(PGDIR)/src/test/regress/sql/*.sql ./test/sql/postgres_regress/
+ 	cp $(PGDIR)/src/pl/plpgsql/src/sql/*.sql ./test/sql/plpgsql_regress/
+ 
++# YB-EXT: regenerate proto schema + enum_defs.c / outfuncs_defs.c / readfuncs_defs.c
++# from srcdata/{enum,struct,nodetypes,typedefs}.json. Run after editing srcdata
++# (e.g., to register YB-specific enum values or struct fields).
++#
++# Then runs protoc to refresh pg_query.pb-c.{c,h} from the regenerated proto.
++# In upstream libpg_query, generate_protobuf_and_funcs.rb is a maintainer
++# script not in the Makefile; we wire it in so YB extensions stay reproducible.
++regen_proto:
++	ruby ./scripts/generate_protobuf_and_funcs.rb
++	protoc --proto_path=./protobuf \
++		--c_out=./protobuf \
++		./protobuf/pg_query.proto
++	# protoc-c emits `#include "pg_query.pb-c.h"` in the .pb-c.c, but the header
++	# lives under `protobuf/` once snapshotted into pg_query_go/parser/include/.
++	# Rewrite the include to match libpg_query's expected layout.
++	sed -i 's|#include "pg_query.pb-c.h"|#include "protobuf/pg_query.pb-c.h"|' ./protobuf/pg_query.pb-c.c
++
+ .c.o:
+ 	@$(ECHO) compiling $(<)
+ 	@$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ -c $<
+--- a/scripts/extract_source.rb
++++ b/scripts/extract_source.rb
+@@ -278,9 +278,12 @@
+             end_offset = cursor.extent.end.offset
+             end_offset += 1 if cursor.kind == :cursor_variable # The ";" isn't counted correctly by clang
+ 
++            # YB-EXT: original used FFI::Clang::Types::Array / ::Pointer which
++            # don't exist in modern ffi-clang (0.9+). Use the predicate methods
++            # array? / pointer? on Type directly.
+             if cursor.kind == :cursor_variable && (cursor.linkage == :external || cursor.linkage == :internal) &&
+-              !cursor.type.const_qualified? && !(cursor.type.is_a?(FFI::Clang::Types::Array) && cursor.type.element_type.const_qualified?) &&
+-              !(cursor.type.is_a?(FFI::Clang::Types::Pointer) && cursor.type.pointee.kind == :type_function_proto)
++              !cursor.type.const_qualified? && !(cursor.type.array? && cursor.type.element_type.const_qualified?) &&
++              !(cursor.type.pointer? && cursor.type.pointee.kind == :type_function_proto)
+               analysis.external_variables << cursor.spelling
+             end
+ 
