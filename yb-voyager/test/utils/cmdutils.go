@@ -103,7 +103,9 @@ func RunVoyagerCommand(container testcontainers.TestContainer,
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	// Do not send callhome diagnostics during tests.
-	cmd.Env = append(os.Environ(), "YB_VOYAGER_SEND_DIAGNOSTICS=false")
+	cmd.Env = append(os.Environ(),
+		"YB_VOYAGER_SEND_DIAGNOSTICS=false",
+		"DEBEZIUM_SOURCE_YB_LOAD_BALANCE_CONNECTIONS=false")
 
 	// Start the Voyager command asynchronously.
 	if err = cmd.Start(); err != nil {

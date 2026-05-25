@@ -263,7 +263,11 @@ func (pg *TargetPostgreSQL) InitConnPool() error {
 		// works fine as we check the support of any session variable before using it in the script.
 		// So upsert and disable transaction will never be used for PG
 	}
-	pg.connPool = NewConnectionPool(params)
+	var err error
+	pg.connPool, err = NewConnectionPool(params)
+	if err != nil {
+		return fmt.Errorf("creating connection pool: %w", err)
+	}
 	return nil
 }
 

@@ -312,7 +312,10 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 		ConnUriList:       targetUriList,
 		SessionInitScript: yb.Tconf.SessionVars,
 	}
-	yb.connPool = NewConnectionPool(params)
+	yb.connPool, err = NewConnectionPool(params)
+	if err != nil {
+		return fmt.Errorf("creating connection pool: %w", err)
+	}
 	redactedParams := &ConnectionParams{}
 	//Whenever adding new fields to CONNECTION PARAMS check if that needs to be redacted while logging
 	err = copier.Copy(redactedParams, params)
@@ -1498,12 +1501,33 @@ func (yb *TargetYugabyteDB) setDefaultParallelism(tconfs []*TargetConf, nodeCoun
 		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.tconf.Parallelism)
 	}
 
-	if yb.tconf.AdaptiveParallelismMode.IsEnabled() {
-		if yb.tconf.MaxParallelism <= 0 {
-			yb.tconf.MaxParallelism = yb.tconf.Parallelism * 4
+	yb.reconcileAdaptiveParallelism()
+}
+
+// reconcileAdaptiveParallelism finalizes Parallelism / MaxParallelism on yb.Tconf
+// once both have been resolved (user-supplied or auto-computed), enforcing the
+// invariant Parallelism <= MaxParallelism that the connection pool requires.
+func (yb *TargetYugabyteDB) reconcileAdaptiveParallelism() {
+	// Adaptive enabled means --adaptive-parallelism is balanced or aggressive. In this
+	// mode --parallel-jobs is rejected up front (see validateParallelismFlags), so
+	// Parallelism here is always the auto-computed clusterCores/4.
+	if yb.Tconf.AdaptiveParallelismMode.IsEnabled() {
+		if yb.Tconf.MaxParallelism <= 0 {
+			// --adaptive-parallelism={balanced,aggressive} without --adaptive-parallelism-max:
+			// default the ceiling to 4x the auto-computed Parallelism (≈ clusterCores).
+			yb.Tconf.MaxParallelism = yb.Tconf.Parallelism * 4
+		} else if yb.Tconf.Parallelism > yb.Tconf.MaxParallelism {
+			// --adaptive-parallelism={balanced,aggressive} with --adaptive-parallelism-max
+			// set below the auto-computed Parallelism: cap Parallelism to the user's ceiling.
+			log.Warnf("Computed default parallel-jobs (%d) exceeds --adaptive-parallelism-max (%d); capping initial parallelism to %d",
+				yb.Tconf.Parallelism, yb.Tconf.MaxParallelism, yb.Tconf.MaxParallelism)
+			yb.Tconf.Parallelism = yb.Tconf.MaxParallelism
 		}
+		// else: --adaptive-parallelism-max already >= auto-computed Parallelism, nothing to reconcile.
 	} else {
-		yb.tconf.MaxParallelism = yb.tconf.Parallelism
+		// --adaptive-parallelism=disabled (default): pool size is fixed, so the ceiling
+		// equals Parallelism (whether user-supplied via --parallel-jobs or auto-computed).
+		yb.Tconf.MaxParallelism = yb.Tconf.Parallelism
 	}
 }
 

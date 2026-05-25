@@ -276,19 +276,32 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 
 	importData(importFileTasks, errorPolicySnapshotFlag)
 	tdb.Finalize()
-	switch importerRole {
-	case TARGET_DB_IMPORTER_ROLE:
-		importDataCompletedEvent := createSnapshotImportCompletedEvent()
-		controlPlane.SnapshotImportCompleted(&importDataCompletedEvent)
-		packAndSendImportDataToTargetPayload(COMPLETE, nil)
-	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
-		packAndSendImportDataToSrcReplicaPayload(COMPLETE, nil)
-	case SOURCE_DB_IMPORTER_ROLE:
-		packAndSendImportDataToSourcePayload(COMPLETE, nil)
+
+	if furtherCommandsRequired() {
+		startFurtherCommandsAfterCurrentImportData()
+	} else {
+		switch importerRole {
+		case TARGET_DB_IMPORTER_ROLE:
+			sendImportDataPayloadToCallhomeAndControlPlane()
+		case SOURCE_REPLICA_DB_IMPORTER_ROLE:
+			packAndSendImportDataToSrcReplicaPayload(COMPLETE, nil)
+		case SOURCE_DB_IMPORTER_ROLE:
+			packAndSendImportDataToSourcePayload(COMPLETE, nil)
+		}
 	}
-	startFurtherCommandsAfterCurrentImportData()
+
 }
 
+func sendImportDataPayloadToCallhomeAndControlPlane() {
+	//send callhome / control plane payload before starting export data from target
+	importDataCompletedEvent := createSnapshotImportCompletedEvent()
+	controlPlane.SnapshotImportCompleted(&importDataCompletedEvent)
+	packAndSendImportDataToTargetPayload(COMPLETE, nil)
+}
+
+func furtherCommandsRequired() bool {
+	return isFallbackEnabledOrFallForwardEnabled() || isNextIterationRequired()
+}
 func startFurtherCommandsAfterCurrentImportData() {
 	//Fallback export data from target commands
 	startExportDataFromTargetIfRequired()
@@ -297,26 +310,52 @@ func startFurtherCommandsAfterCurrentImportData() {
 	startExportDataFromSourceOnNextIteration()
 }
 
-func startExportDataFromSourceOnNextIteration() {
+func isFallbackEnabledOrFallForwardEnabled() bool {
+	if !changeStreamingIsEnabled(importType) {
+		return false
+	}
+	if importerRole != TARGET_DB_IMPORTER_ROLE {
+		return false
+	}
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("could not fetch MigrationStatusRecord: %w", err)
+	}
+	if !msr.FallForwardEnabled && !msr.FallbackEnabled {
+		utils.PrintAndLogf("No fall-forward/back enabled. Exiting.")
+		return false
+	}
+	return true
+}
+func isNextIterationRequired() bool {
 	if importerRole != SOURCE_DB_IMPORTER_ROLE {
-		return
+		return false
 	}
 	currentMsr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("failed to get migration status record: %w", err)
 	}
-	if !currentMsr.RestartDataMigrationSourceTargetNextIteration {
+	return currentMsr.RestartDataMigrationSourceTargetNextIteration
+
+}
+func startExportDataFromSourceOnNextIteration() {
+	if !isNextIterationRequired() {
 		return
 	}
 
 	injectBeforeInitializeNextIteration()
 
-	err = initializeNextIteration()
+	err := initializeNextIteration()
 	if err != nil {
 		utils.ErrExit("failed to initialize next iteration: %w", err)
 	}
 
 	injectAfterInitializeNextIteration()
+
+	currentMsr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get migration status record: %w", err)
+	}
 
 	//Start export from source on next iteration
 
@@ -386,6 +425,8 @@ func startExportDataFromSourceOnNextIteration() {
 	}
 	env := os.Environ()
 	env = slices.Insert(env, 0, "SOURCE_DB_PASSWORD="+tconf.Password)
+
+	packAndSendImportDataToSourcePayload(COMPLETE, nil)
 
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
@@ -628,19 +669,13 @@ func checkImportDataPermissions() {
 }
 
 func startExportDataFromTargetIfRequired() {
-	if !changeStreamingIsEnabled(importType) {
+	if !isFallbackEnabledOrFallForwardEnabled() {
 		return
 	}
-	if importerRole != TARGET_DB_IMPORTER_ROLE {
-		return
-	}
+
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("could not fetch MigrationStatusRecord: %w", err)
-	}
-	if !msr.FallForwardEnabled && !msr.FallbackEnabled {
-		utils.PrintAndLogf("No fall-forward/back enabled. Exiting.")
-		return
 	}
 
 	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
@@ -663,6 +698,8 @@ func startExportDataFromTargetIfRequired() {
 	}
 	env := os.Environ()
 	env = slices.Insert(env, 0, "TARGET_DB_PASSWORD="+tconf.Password)
+
+	sendImportDataPayloadToCallhomeAndControlPlane()
 
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {

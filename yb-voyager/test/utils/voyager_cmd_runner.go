@@ -264,7 +264,9 @@ func (v *VoyagerCommandRunner) newCmd() {
 		v.Cmd.Stderr = io.MultiWriter(os.Stderr, v.StderrBuf)
 	}
 
-	v.Cmd.Env = append(os.Environ(), "YB_VOYAGER_SEND_DIAGNOSTICS=false")
+	v.Cmd.Env = append(os.Environ(),
+		"YB_VOYAGER_SEND_DIAGNOSTICS=false",
+		"DEBEZIUM_SOURCE_YB_LOAD_BALANCE_CONNECTIONS=false")
 
 	if len(v.testEnvVars) > 0 {
 		v.Cmd.Env = append(v.Cmd.Env, v.testEnvVars...)
