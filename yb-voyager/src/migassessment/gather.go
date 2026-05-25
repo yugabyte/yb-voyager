@@ -135,8 +135,7 @@ func (pt *progressTracker) update(progress NodeProgress) {
 	if existing := pt.statuses[progress.NodeName]; existing != nil {
 		// Increment step count on each new sub-step (not for terminal states)
 		if progress.Stage != "Complete" && progress.Stage != "Failed" &&
-			progress.Stage != "Pending..." && progress.Stage != "Starting collection..." &&
-			progress.Stage != existing.Stage {
+			progress.Stage != "Pending..." && progress.Stage != existing.Stage {
 			pt.stepCounts[progress.NodeName]++
 		}
 		existing.Stage = progress.Stage
@@ -473,7 +472,7 @@ func runGatherAssessmentMetadataScript(
 		line := scanner.Text()
 		log.Infof("[stdout of script]: %s", line)
 		if tracker != nil {
-			if stage := detectStageFromOutput(line); stage != "" && stage != "Complete" && stage != "Starting collection..." {
+			if stage := detectStageFromOutput(line); stage != "" && stage != "Complete" {
 				tracker.IncrementStep(stage)
 			}
 		} else {
@@ -606,25 +605,19 @@ func detectStageFromOutput(line string) string {
 	originalLine := strings.TrimSpace(line)
 	lineLower := strings.ToLower(originalLine)
 
-	// Special case: Start of collection
-	if strings.Contains(lineLower, "assessment metadata collection started") {
-		return "Starting collection..."
-	}
-
 	// Special case: Completion
 	if strings.Contains(lineLower, "assessment metadata collection completed") {
 		return "Complete"
 	}
 
-	// Pass through any line that looks like a stage message
-	// (contains keywords that indicate this is a meaningful status update)
+	// Only match actual data-collection steps ("Collecting ..." / "Executing ...").
+	// "Skipping ..." lines are informational follow-ups to a "Collecting ..." line
+	// for the same script and must not be counted as separate steps.
+	// "Assessment metadata collection started" is a preamble, not a step.
 	isStageMessage := strings.Contains(lineLower, "collecting") ||
-		strings.Contains(lineLower, "skipping") ||
 		strings.Contains(lineLower, "executing")
 
 	if isStageMessage {
-		// Return the original line (preserves capitalization)
-		// Add "..." if not already present
 		if !strings.HasSuffix(originalLine, "...") && !strings.HasSuffix(originalLine, ".") {
 			return originalLine + "..."
 		}
