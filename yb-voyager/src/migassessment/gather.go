@@ -373,7 +373,7 @@ func GatherAssessmentMetadataFromOracle(
 	if err != nil {
 		return fmt.Errorf("error getting tnsAdmin: %w", err)
 	}
-	envVars := []string{fmt.Sprintf("ORAgLE_PASSWORD=%s", source.Password),
+	envVars := []string{fmt.Sprintf("ORACLE_PASSWORD=%s", source.Password),
 		fmt.Sprintf("TNS_ADMIN=%s", tnsAdmin),
 		fmt.Sprintf("ORACLE_HOME=%s", source.GetOracleHome()),
 	}
