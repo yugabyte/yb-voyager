@@ -490,7 +490,95 @@ the next 2-3 years.
 
 ---
 
-## 8. Quick reference
+## 8. Licensing
+
+Four licenses are in play. All four are OSI-approved, permissive, and
+non-copyleft — there are no conflicts.
+
+| Component | License | Notes |
+|---|---|---|
+| **yb-voyager** | Apache License 2.0 | Top-level `LICENSE`; all `cmd/` and `src/` files I inspected carry Apache 2.0 headers. The repo `README.md` and `licenses/` directory also include Polyform Free Trial 1.0.0 for dual-licensing, but no current source files use it. |
+| **pg_query_go** (3-Clause BSD) | BSD-3-Clause | Copyright Lukas Fittl, Duboce Labs / pganalyze. Vendored at `third_party/pg_query_go/LICENSE`. |
+| **libpg_query** (3-Clause BSD) | BSD-3-Clause | Same authors as pg_query_go. In the proposed final layout, libpg_query is fetched on-demand at regen time rather than vendored, so its `LICENSE` doesn't ship in voyager — but the BSD-3 attribution still applies to the snapshot inside `pg_query_go/parser/` that derives from it. |
+| **PostgreSQL sources** (inside libpg_query — `gram.y`, `parsenodes.h`, etc.) | The PostgreSQL License (≈ MIT/BSD-2) | Each extracted PG source file carries `Portions Copyright (c) 1996-2024, PostgreSQL Global Development Group` and `Portions Copyright (c) 1994, Regents of the University of California`. These headers must be preserved. |
+
+### Compatibility
+
+```
+                    ┌─────────────────────────┐
+                    │   Apache License 2.0    │  ← voyager (most restrictive)
+                    └────────────▲────────────┘
+                                 │
+                       can absorb (one-way)
+                                 │
+              ┌──────────────────┼─────────────────┐
+              │                                    │
+       3-Clause BSD                        PostgreSQL License
+   (pg_query_go, libpg_query)         (PG sources inside libpg_query)
+```
+
+Apache 2.0 absorbs BSD-3 and the PostgreSQL License cleanly. Apache 2.0 adds
+an explicit patent grant and modification-notice requirement that BSD-3
+doesn't have, but this is an asymmetry, not a conflict — voyager (the
+absorbing project) is the one taking on the additional Apache obligations.
+
+### Obligations and how they're satisfied
+
+1. **Preserve license files where we redistribute code.**
+   - `third_party/pg_query_go/LICENSE` and `third_party/pg_query_go/LICENSE.POSTGRESQL` ✓ already vendored
+   - When we move to fetch-on-demand for libpg_query, the BSD-3 / PG-License coverage flows through to `pg_query_go/parser/` (the committed snapshot still contains the PG-derived sources with their headers)
+
+2. **Preserve copyright headers in source files.** ✓ The extracted PG sources retain their `Portions Copyright` lines. Don't strip them when re-snapshotting.
+
+3. **Don't use "pg_query" or "pganalyze" names to endorse YB Voyager** (BSD-3 clause 3). ✓ We don't.
+
+4. **For our own modifications** (Apache 2.0 §4(b)): patch files should identify what they modify and carry our copyright. ✓ `/* YB-EXT BEGIN: <feature> */` fenced blocks document the changes; patch file headers carry the Yugabyte copyright.
+
+### Recommended addition: `third_party/pg-yb-parser/NOTICE`
+
+None of the upstream licenses *require* a NOTICE file, but Apache 2.0 §4(d)
+makes it good hygiene. Proposed contents:
+
+```
+third_party/pg-yb-parser/NOTICE
+─────────────────────────────────────
+This directory contains YugabyteDB-specific modifications to:
+
+  libpg_query (BSD-3-Clause)
+    Upstream: https://github.com/pganalyze/libpg_query
+    Pinned to release: see regen.sh LIB_TAG (currently 17-6.1.0)
+    Copyright (c) 2015, Lukas Fittl
+    Copyright (c) 2016-2023, Duboce Labs, Inc. (pganalyze)
+
+  pg_query_go (BSD-3-Clause)
+    Upstream: https://github.com/pganalyze/pg_query_go
+    Pinned to release: see third_party/pg_query_go/Makefile (currently v6.1.0)
+    Copyright (c) 2015, Lukas Fittl
+
+The above projects incorporate sources from PostgreSQL
+(The PostgreSQL License):
+  Copyright (c) 1996-2024, PostgreSQL Global Development Group
+  Copyright (c) 1994, Regents of the University of California
+
+Modifications in this directory (the YB-EXT patches, the regen script,
+the Dockerfile, and any YB-EXT-fenced edits in pg_query_go/parser/
+postgres_deparse.c) are Copyright (c) YugabyteDB, Inc. and licensed
+under the Apache License, Version 2.0 (see ../../yb-voyager/LICENSE).
+```
+
+This makes redistribution audits trivial and is a one-time addition.
+
+### Net assessment
+
+Safe to use, distribute, and ship in voyager. No restrictive licenses, no
+copyleft, no patent encumbrances. The only ongoing obligation is to keep
+license files and copyright headers intact through the regen pipeline —
+which `make update_source` already does automatically by virtue of copying
+files verbatim from upstream.
+
+---
+
+## 9. Quick reference
 
 ### To verify what's working today
 
@@ -529,7 +617,7 @@ yb-voyager/src/query/queryparser/yb_hash_test.go       ← worked-example test
 
 ---
 
-## 9. Bottom line
+## 10. Bottom line
 
 The PoC proves the path works:
 
