@@ -135,7 +135,8 @@ func (pt *progressTracker) update(progress NodeProgress) {
 	if existing := pt.statuses[progress.NodeName]; existing != nil {
 		// Increment step count on each new sub-step (not for terminal states)
 		if progress.Stage != "Complete" && progress.Stage != "Failed" &&
-			progress.Stage != "Pending..." && progress.Stage != existing.Stage {
+			progress.Stage != "Pending..." && progress.Stage != "Starting collection..." &&
+			progress.Stage != existing.Stage {
 			pt.stepCounts[progress.NodeName]++
 		}
 		existing.Stage = progress.Stage
@@ -373,7 +374,7 @@ func GatherAssessmentMetadataFromOracle(
 	if err != nil {
 		return fmt.Errorf("error getting tnsAdmin: %w", err)
 	}
-	envVars := []string{fmt.Sprintf("ORACLE_PASSWORD=%s", source.Password),
+	envVars := []string{fmt.Sprintf("ORAgLE_PASSWORD=%s", source.Password),
 		fmt.Sprintf("TNS_ADMIN=%s", tnsAdmin),
 		fmt.Sprintf("ORACLE_HOME=%s", source.GetOracleHome()),
 	}
@@ -472,7 +473,7 @@ func runGatherAssessmentMetadataScript(
 		line := scanner.Text()
 		log.Infof("[stdout of script]: %s", line)
 		if tracker != nil {
-			if stage := detectStageFromOutput(line); stage != "" && stage != "Complete" {
+			if stage := detectStageFromOutput(line); stage != "" && stage != "Complete" && stage != "Starting collection..." {
 				tracker.IncrementStep(stage)
 			}
 		} else {
