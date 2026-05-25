@@ -40,7 +40,6 @@ type PreflightChecksResult struct {
 	HasSourceConnectivity     bool
 	ValidatedReplicaEndpoints []srcdb.ReplicaEndpoint
 	ReplicaDiscoveryInfo      *ReplicaDiscoveryInfo
-	PgssEnabledForAssessment  bool
 }
 
 func RunPreflightChecks(config PreflightChecksConfig) (PreflightChecksResult, error) {
@@ -75,11 +74,9 @@ func RunPreflightChecks(config PreflightChecksConfig) (PreflightChecksResult, er
 	result.ValidatedReplicaEndpoints = replicaDiscoveryInfo.ValidatedReplicas
 	result.ReplicaDiscoveryInfo = &replicaDiscoveryInfo
 
-	pgssEnabled, err := checkAssessmentPermissions(config, result.ValidatedReplicaEndpoints)
-	if err != nil {
+	if err := checkAssessmentPermissions(config, result.ValidatedReplicaEndpoints); err != nil {
 		return result, err
 	}
-	result.PgssEnabledForAssessment = pgssEnabled
 
 	return result, nil
 }
@@ -166,21 +163,21 @@ func discoverAndValidateReplicas(config PreflightChecksConfig) (ReplicaDiscovery
 	return replicaDiscoveryInfo, nil
 }
 
-func checkAssessmentPermissions(config PreflightChecksConfig, validatedReplicaEndpoints []srcdb.ReplicaEndpoint) (bool, error) {
+func checkAssessmentPermissions(config PreflightChecksConfig, validatedReplicaEndpoints []srcdb.ReplicaEndpoint) error {
 	if !bool(config.Source.RunGuardrailsChecks) {
 		ux.PrintPreflightSkip("Permission checks (guardrails disabled)")
-		return false, nil
+		return nil
 	}
 
 	if err := srcdb.CheckSchemasHaveUsagePermissions(config.Source, false); err != nil {
 		ux.PrintPreflightFail("Schema USAGE permissions")
-		return false, fmt.Errorf("schema usage permission check failed: %w", err)
+		return fmt.Errorf("schema usage permission check failed: %w", err)
 	}
-	pgssEnabled, err := CheckAssessmentPermissionsOnAllNodes(config.Source, validatedReplicaEndpoints)
+	_, err := CheckAssessmentPermissionsOnAllNodes(config.Source, validatedReplicaEndpoints)
 	if err != nil {
 		ux.PrintPreflightFail("Assessment permissions on all nodes")
-		return false, fmt.Errorf("assessment permission check failed: %w", err)
+		return fmt.Errorf("assessment permission check failed: %w", err)
 	}
 	ux.PrintPreflightCheck("Permissions verified on all nodes")
-	return pgssEnabled, nil
+	return nil
 }

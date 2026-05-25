@@ -228,7 +228,6 @@ func GatherAssessmentMetadataFromPG(
 	source *srcdb.Source,
 	validatedReplicas []srcdb.ReplicaEndpoint,
 	assessmentMetadataDir string,
-	pgssEnabled bool,
 	iopsInterval int64,
 	tracker *ux.ProgressTracker,
 ) error {
@@ -250,7 +249,7 @@ func GatherAssessmentMetadataFromPG(
 			connectionUri,
 			sqlname.JoinIdentifiersMinQuoted(source.Schemas, "|"),
 			assessmentMetadataDir,
-			fmt.Sprintf("%t", pgssEnabled),
+			fmt.Sprintf("%t", pgssByNode["primary"]),
 			fmt.Sprintf("%d", iopsInterval),
 			"true",    // --yes
 			"primary", // source_node_name
@@ -271,19 +270,20 @@ func GatherAssessmentMetadataFromPG(
 			nodeName:      "primary",
 			connectionUri: source.DB().GetConnectionUriWithoutPassword(),
 			isPrimary:     true,
-			replica:       nil, // nil for primary
-			pgssEnabled:   pgssEnabled,
+			replica:       nil,
+			pgssEnabled:   pgssByNode["primary"],
 		},
 	}
 
 	for i := range validatedReplicas {
 		uniqueNodeName := fmt.Sprintf("%s-%d", validatedReplicas[i].Host, validatedReplicas[i].Port)
+		mapKey := fmt.Sprintf("%s:%d", validatedReplicas[i].Host, validatedReplicas[i].Port)
 		nodes = append(nodes, collectionNode{
 			nodeName:      uniqueNodeName,
 			connectionUri: validatedReplicas[i].ConnectionUri,
 			isPrimary:     false,
-			replica:       &validatedReplicas[i], // Pass entire replica object
-			pgssEnabled:   validatedReplicas[i].PgssEnabled,
+			replica:       &validatedReplicas[i],
+			pgssEnabled:   pgssByNode[mapKey],
 		})
 	}
 
