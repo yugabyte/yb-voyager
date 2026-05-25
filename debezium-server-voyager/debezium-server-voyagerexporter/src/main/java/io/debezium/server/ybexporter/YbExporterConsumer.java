@@ -464,6 +464,11 @@ public class YbExporterConsumer extends BaseChangeConsumer {
 
     private void handleBatchComplete() {
         flushSyncStreamingData();
+        // Flush exportStatus (sequence max values) before Debezium commits the batch and the offsets.
+        // Otherwise on a hard stop (ctrl-c), queue events and Debezium offsets can be durable while
+        // exportStatus.json lags behind the periodic 2s flusher, leaving stale sequence max on resumption
+        // and breaking sequence restoration on the target after cutover.
+        exportStatus.flushToDisk();
     }
 
     /**

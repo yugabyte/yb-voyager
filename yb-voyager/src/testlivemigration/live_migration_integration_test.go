@@ -23,12 +23,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -37,40 +35,6 @@ import (
 )
 
 ////=========================================
-
-// This inserts some rows in target table having sequence and validates if the ids ingested are correct or not
-func assertSequenceValues(t *testing.T, startID int, endId int, ybConn *sql.DB, tableName string) error {
-	_, err := ybConn.Exec(fmt.Sprintf(`INSERT INTO %s (name, email, description)
-SELECT
-	md5(random()::text),                                      -- name
-	md5(random()::text) || '@example.com',                    -- email
-	repeat(md5(random()::text), 10)                           -- description (~320 chars)
-FROM generate_series(%d, %d);`, tableName, startID, endId))
-	if err != nil {
-		return fmt.Errorf("failed to insert into target: %w", err)
-	}
-
-	ids := []int{}
-	for i := startID; i <= endId; i++ {
-		ids = append(ids, i)
-	}
-	query := fmt.Sprintf("SELECT id from %s where id IN (%s) ORDER BY id;", tableName, strings.Join(lo.Map(ids, func(id int, _ int) string {
-		return strconv.Itoa(id)
-	}), ", "))
-	rows, err := ybConn.Query(query)
-	testutils.FatalIfError(t, err, "failed to read data")
-	var resIds []int
-	for rows.Next() {
-		var id int
-		err = rows.Scan(&id)
-		testutils.FatalIfError(t, err, "error scanning rows")
-		resIds = append(resIds, id)
-	}
-	if !assert.Equal(t, ids, resIds) {
-		return fmt.Errorf("ids do not match %v != %v", ids, resIds)
-	}
-	return nil
-}
 
 // Basic Test for live migration with cutover
 // cutover -> validate sequence restoration
