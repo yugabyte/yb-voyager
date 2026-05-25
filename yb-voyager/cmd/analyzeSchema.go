@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -1261,11 +1262,22 @@ func printAnalyzeSchemaFooter() {
 	wf := resolveWorkflow(msr)
 	phases := computePhaseStatuses(wf, msr, StepAnalyzeSchema)
 
-	var artifacts []string
-	if getControlPlaneType() == "" {
-		reportFile := fmt.Sprintf("%s.%s", ANALYSIS_REPORT_FILE_NAME, HTML)
-		reportPath := displayPath(filepath.Join(exportDir, "reports", reportFile))
-		artifacts = []string{reportPath}
+	reportFile := fmt.Sprintf("%s.%s", ANALYSIS_REPORT_FILE_NAME, HTML)
+	reportPath := displayPath(filepath.Join(exportDir, "reports", reportFile))
+	artifacts := []string{reportPath}
+
+	// When a yugabyted control plane is configured, surface the UI link as
+	// well — same pattern as the assess footer. Derived from the same
+	// YUGABYTED_DB_CONN_STRING env var that every other command reads.
+	var links []string
+	if getControlPlaneType() != "" {
+		uiHost := "localhost"
+		if ybdConn := os.Getenv("YUGABYTED_DB_CONN_STRING"); ybdConn != "" {
+			if parsed, perr := url.Parse(ybdConn); perr == nil && parsed.Hostname() != "" {
+				uiHost = parsed.Hostname()
+			}
+		}
+		links = []string{fmt.Sprintf("http://%s:15433/migrations?migration_uuid=%s", uiHost, migrationUUID.String())}
 	}
 
 	var nextStepDesc []string
@@ -1282,6 +1294,7 @@ func printAnalyzeSchemaFooter() {
 		SectionTitle: "Analyze Schema Summary",
 		Title:        "Schema analysis completed successfully.",
 		Artifacts:    artifacts,
+		Links:        links,
 		Summary:      summary,
 		NextStepDesc: nextStepDesc,
 		NextStepCmd:  "yb-voyager schema import",

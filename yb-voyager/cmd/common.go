@@ -739,7 +739,11 @@ func retrieveMigrationUUID() error {
 	}
 
 	migrationUUID = uuid.MustParse(msr.MigrationUUID)
-	utils.PrintAndLogf("migrationID: %s", migrationUUID)
+	if os.Getenv("VOYAGER_QUIET_STARTUP") == "1" {
+		log.Infof("migrationID: %s", migrationUUID)
+	} else {
+		utils.PrintAndLogf("migrationID: %s", migrationUUID)
+	}
 	return nil
 }
 

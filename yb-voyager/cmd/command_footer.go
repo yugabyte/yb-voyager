@@ -133,6 +133,36 @@ func computePhaseStatuses(wf *Workflow, msr *metadb.MigrationStatusRecord, curre
 	return result
 }
 
+// collapseSchemaSteps merges Export Schema, Analyze Schema, and Import Schema
+// into a single "Migrate Schema" step pointing at `schema migrate`.
+func collapseSchemaSteps(steps []StepProgress) []StepProgress {
+	schemaCommands := map[string]bool{
+		"schema export":  true,
+		"schema analyze": true,
+		"schema import":  true,
+	}
+
+	out := make([]StepProgress, 0, len(steps))
+	var merged *StepProgress
+	for _, s := range steps {
+		if schemaCommands[s.Command] {
+			if merged == nil {
+				out = append(out, StepProgress{
+					DisplayName: "Migrate Schema",
+					Command:     "schema migrate",
+					Done:        s.Done,
+				})
+				merged = &out[len(out)-1]
+			} else {
+				merged.Done = merged.Done && s.Done
+			}
+			continue
+		}
+		out = append(out, s)
+	}
+	return out
+}
+
 // formatPhaseLines renders the phase progress as styled strings for display.
 // Phases with more than one step get a drill-down showing individual step status.
 func formatPhaseLines(phases []PhaseProgress) []string {
@@ -196,7 +226,14 @@ func formatPhaseLinesVerbose(phases []PhaseProgress, cmdSuffix string) []string 
 		}
 		lines = append(lines, fmt.Sprintf("%s %-10s %s", marker, p.Name, label))
 
-		for _, s := range p.Steps {
+		// In the plan tree, collapse the three schema phases (export/analyze/import)
+		// into a single "Migrate Schema" row pointing at `schema migrate`. The
+		// underlying steps are still tracked individually in the MSR and shown
+		// granularly by `status`; this collapse is presentational only and reflects
+		// the fact that the user runs one command for the whole schema phase.
+		steps := collapseSchemaSteps(p.Steps)
+
+		for _, s := range steps {
 			var stepMarker, stepName string
 			if s.Done {
 				stepMarker = phaseDoneMarker()
@@ -252,6 +289,15 @@ func printCommandFooter(footer CommandFooter) {
 	summary = append(summary, footer.Summary...)
 	printSection(footer.SectionTitle, summary...)
 
+	// When `schema migrate` (or any future orchestrator) invokes this command
+	// as a subprocess, the child's Migration Progress section is noise — the
+	// orchestrator emits one combined progress block at the end. Suppress the
+	// whole section so the child prints only its Command Summary.
+	if os.Getenv("VOYAGER_SUPPRESS_PROGRESS") == "1" {
+		fmt.Println()
+		return
+	}
+
 	// ── Section 2: Migration Progress ──
 	var progress []string
 
@@ -262,9 +308,8 @@ func printCommandFooter(footer CommandFooter) {
 
 	migrationFlag := buildMigrationNameFlag()
 
-	// When `schema migrate` (or any future orchestrator) invokes this command
-	// as a subprocess, the child's per-phase "Next step" is misleading — the
-	// orchestrator emits its own next step at the end. Suppress this block.
+	// VOYAGER_SUPPRESS_NEXT_STEP suppresses only the Next-step + Tip rows
+	// (kept as a finer-grained knob; SUPPRESS_PROGRESS subsumes it).
 	suppressNextStep := os.Getenv("VOYAGER_SUPPRESS_NEXT_STEP") == "1"
 
 	// Next step

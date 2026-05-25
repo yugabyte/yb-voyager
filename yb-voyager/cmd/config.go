@@ -354,7 +354,9 @@ func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig,
 	// If a config file is found, read it in.
 	if err := v.ReadInConfig(); err == nil {
 		cfgFile = v.ConfigFileUsed()
-		fmt.Println("Using config file:", color.BlueString(v.ConfigFileUsed()))
+		if os.Getenv("VOYAGER_QUIET_STARTUP") != "1" {
+			fmt.Println("Using config file:", color.BlueString(v.ConfigFileUsed()))
+		}
 	} else {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			return nil, nil, nil, fmt.Errorf("%w\nHint: Check for YAML issues like missing colons, missing spaces after colons, or inconsistent indentation.", err)

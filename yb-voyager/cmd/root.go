@@ -464,7 +464,9 @@ func validateExportDirFlag() {
 		exportDir = filepath.Clean(exportDir)
 	}
 
-	fmt.Printf("Using export-dir: %s\n\n", color.BlueString(exportDir))
+	if os.Getenv("VOYAGER_QUIET_STARTUP") != "1" {
+		fmt.Printf("Using export-dir: %s\n\n", color.BlueString(exportDir))
+	}
 }
 
 func GetCommandID(c *cobra.Command) string {
