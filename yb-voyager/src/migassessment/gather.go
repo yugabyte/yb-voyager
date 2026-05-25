@@ -531,12 +531,6 @@ func runGatherAssessmentMetadataScriptBuffered(
 		return fmt.Errorf("error starting gather assessment metadata script: %w", err)
 	}
 
-	// Report starting status
-	progressChan <- NodeProgress{
-		NodeName: nodeName,
-		Stage:    "Starting collection...",
-	}
-
 	var stderrBuf strings.Builder
 	var wg sync.WaitGroup
 	wg.Add(2)
