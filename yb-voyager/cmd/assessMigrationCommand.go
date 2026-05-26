@@ -276,6 +276,9 @@ func assessMigration() (err error) {
 
 	tracker := ux.NewProgressTracker("Preparing for migration assessment")
 
+	source.ApplyExportSchemaObjectListFilter()
+	metaDB = CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+
 	// Stage 1: Gather metadata + export schema + load into DB
 	assessmentDB, err = migassessment.RunGatherAssessmentMetadataStage(migassessment.GatherAssessmentMetadataStageConfig{
 		Source:                    &source,
@@ -286,10 +289,7 @@ func assessMigration() (err error) {
 		ValidatedReplicaEndpoints: validatedReplicaEndpoints,
 		PgssEnabledForAssessment:  pgssEnabledForAssessment,
 		IOPSInterval:              intervalForCapturingIOPS,
-		PrepareMigrationProject: func() {
-			metaDB = CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-		},
-		Tracker: tracker,
+		Tracker:                   tracker,
 	})
 	if err != nil {
 		return err
