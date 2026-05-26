@@ -64,11 +64,6 @@ Rare — only when bumping `version[]` for matrix coverage while `latest_stable`
 - Version format: `A.B.C.D-b<N>` (four numeric segments + build).
 - Order: newest / current stable series first is the convention.
 
-Validate locally:
-
-```bash
-bash .cursor/skills/update-yb-latest-stable/validate-yb-versions.sh
-```
 
 ## Step 2: Code that auto-tracks `latest_stable` (usually no edit)
 
@@ -188,8 +183,6 @@ gh pr checks --json name,state,link --jq '.[] | select(.state != "SUCCESS")'
 Use the `babysit` skill to fix CI failures in a loop (do not weaken workflows to force green).
 
 ## DO NOT MERGE until
-
-- [ ] `validate-yb-versions.sh` passes
 - [ ] **`TestDDLIssuesInYBVersion` passes** for every entry in `yb-versions.json` `version[]` (run locally before push; confirmed green in **Issue Tests** workflow)
 - [ ] **`TestDMLIssuesInYBVersion` passes** for every entry in `version[]` (same)
 - [ ] **`yb_version_latest_stable` issue tests pass** (`go test -tags yb_version_latest_stable ./src/query/queryissue/...`)
