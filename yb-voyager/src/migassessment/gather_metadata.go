@@ -27,7 +27,6 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ux"
 )
 
@@ -38,9 +37,9 @@ type GatherAssessmentMetadataStageConfig struct {
 	ExportDir                 string
 	SchemaDir                 string
 	ValidatedReplicaEndpoints []srcdb.ReplicaEndpoint
-	PgssEnabledForAssessment bool
-	IOPSInterval             int64
-	Tracker                  *ux.ProgressTracker
+	PgssEnabledForAssessment  bool
+	IOPSInterval              int64
+	Tracker                   *ux.ProgressTracker
 }
 
 func RunGatherAssessmentMetadataStage(config GatherAssessmentMetadataStageConfig) (*AssessmentDB, error) {
@@ -151,11 +150,7 @@ func parseExportedSchemaFileForAssessmentIfRequired(config GatherAssessmentMetad
 	}()
 
 	log.Infof("set 'schemaDir' as: %s", config.SchemaDir)
-	config.Source.ApplyExportSchemaObjectListFilter()
 	config.Source.DB().ExportSchema(config.ExportDir, config.SchemaDir)
-	if !utils.FileOrFolderExistsWithGlobPattern(filepath.Join(config.SchemaDir, "*", "*.sql")) {
-		return goerrors.Errorf("no parsed schema files found in %s", config.SchemaDir)
-	}
 	return nil
 }
 
