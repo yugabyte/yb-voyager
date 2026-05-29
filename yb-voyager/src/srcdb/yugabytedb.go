@@ -482,10 +482,10 @@ func (yb *YugabyteDB) FetchSchemaOids() error {
 		}
 		oids = append(oids, oid)
 	}
-	yb.source.SchemaOids = oids
 	if rows.Err() != nil {
 		return fmt.Errorf("error in scanning query rows for schema oids: %w", rows.Err())
 	}
+	yb.source.SchemaOids = oids
 	return nil
 }
 

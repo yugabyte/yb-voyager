@@ -675,10 +675,10 @@ func (pg *PostgreSQL) FetchSchemaOids() error {
 		}
 		oids = append(oids, oid)
 	}
-	pg.source.SchemaOids = oids
 	if rows.Err() != nil {
 		return fmt.Errorf("error in scanning query rows for schema oids: %w", rows.Err())
 	}
+	pg.source.SchemaOids = oids
 	return nil
 }
 
