@@ -460,6 +460,35 @@ func (yb *YugabyteDB) FetchDBID() error {
 	return nil
 }
 
+func (yb *YugabyteDB) FetchSchemaOids() error {
+	var oids []int64
+	schemaList := sqlname.JoinIdentifiersUnquoted(yb.source.Schemas, "','")
+	query := fmt.Sprintf(`SELECT oid FROM pg_namespace WHERE nspname IN ('%s')`, schemaList)
+	rows, err := yb.db.Query(query)
+	if err != nil {
+		return fmt.Errorf("error in querying source database for schema oids: %q: %w", query, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
+	for rows.Next() {
+		var oid int64
+		err = rows.Scan(&oid)
+		if err != nil {
+			return fmt.Errorf("error in scanning query rows for schema oids: %w", err)
+		}
+		oids = append(oids, oid)
+	}
+	yb.source.SchemaOids = oids
+	if rows.Err() != nil {
+		return fmt.Errorf("error in scanning query rows for schema oids: %w", rows.Err())
+	}
+	return nil
+}
+
 // Thsi function returns some types like UDTs, ENums, etc.. fo which we need to check if there are any tables having columns of Array of these types for gRPC connector.
 func (yb *YugabyteDB) getAllUserDefinedTypesInSchema(schemaName string) []string {
 	query := fmt.Sprintf(`SELECT typname

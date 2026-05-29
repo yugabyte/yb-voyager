@@ -653,6 +653,35 @@ func (pg *PostgreSQL) FetchDBID() error {
 	return nil
 }
 
+func (pg *PostgreSQL) FetchSchemaOids() error {
+	var oids []int64
+	schemaList := sqlname.JoinIdentifiersUnquoted(pg.source.Schemas, "','")
+	query := fmt.Sprintf(`SELECT oid FROM pg_namespace WHERE nspname IN ('%s')`, schemaList)
+	rows, err := pg.db.Query(query)
+	if err != nil {
+		return fmt.Errorf("error in querying source database for schema oids: %q: %w", query, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
+	for rows.Next() {
+		var oid int64
+		err = rows.Scan(&oid)
+		if err != nil {
+			return fmt.Errorf("error in scanning query rows for schema oids: %w", err)
+		}
+		oids = append(oids, oid)
+	}
+	pg.source.SchemaOids = oids
+	if rows.Err() != nil {
+		return fmt.Errorf("error in scanning query rows for schema oids: %w", rows.Err())
+	}
+	return nil
+}
+
 func (pg *PostgreSQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	return tableList, nil
 }

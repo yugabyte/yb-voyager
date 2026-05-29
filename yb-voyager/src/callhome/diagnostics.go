@@ -93,8 +93,9 @@ type Payload struct {
 Version History
 1.0: Introduced DBName and SchemaNames fields
 1.1: Added db_id (PostgreSQL/YugabyteDB: pg_database.oid; Oracle: v$database.dbid; MySQL: 0)
+1.2: Added schema_oids field (PostgreSQL/YugabyteDB: pg_namespace.oid)
 */
-var SOURCE_DB_DETAILS_PAYLOAD_VERSION = "1.1"
+var SOURCE_DB_DETAILS_PAYLOAD_VERSION = "1.2"
 
 type SourceDBDetails struct {
 	PayloadVersion     string   `json:"payload_version"`
@@ -107,6 +108,7 @@ type SourceDBDetails struct {
 	DBID               int64    `json:"db_id"`                          // postgresql/yugabytedb: pg_database.oid;
 	DBName             string   `json:"db_name,omitempty"`              //Anonymized database name
 	SchemaNames        []string `json:"schema_names,omitempty"`         //Anonymized schema names
+	SchemaOids         []int64  `json:"schema_oids"`                    //Schema oids
 }
 
 // SHOULD NOT REMOVE THESE (host, db_version, node_count, total_cores) FIELDS of TargetDBDetails as parsing these specifically here

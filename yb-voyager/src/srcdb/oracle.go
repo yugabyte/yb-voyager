@@ -355,6 +355,10 @@ func (ora *Oracle) FetchDBID() error {
 	return nil
 }
 
+func (ora *Oracle) FetchSchemaOids() error {
+	return nil
+}
+
 func (ora *Oracle) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	var filteredTableList, unsupportedTableList []sqlname.NameTuple
 

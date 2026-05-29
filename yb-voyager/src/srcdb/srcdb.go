@@ -34,6 +34,7 @@ type SourceDB interface {
 	GetTableApproxRowCount(tableName sqlname.NameTuple) int64
 	GetVersion() string
 	FetchDBID() error
+	FetchSchemaOids() error
 	GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, error)
 	GetAllTableNames() []*sqlname.SourceName
 	GetAllTableNamesRaw(schemaName string) ([]string, error)
