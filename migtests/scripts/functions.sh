@@ -1525,6 +1525,7 @@ normalize_callhome_json() {
             .db_version = "IGNORED" |
             .db_system_identifier = "IGNORED" |
             .db_id = "IGNORED" |
+            .schema_oids = "IGNORED" |
             .target_db_details = "IGNORED" |
             .total_db_size_bytes = "IGNORED"
         elif type == "array" then
