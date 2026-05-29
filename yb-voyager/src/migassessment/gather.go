@@ -228,6 +228,7 @@ func GatherAssessmentMetadataFromPG(
 	source *srcdb.Source,
 	validatedReplicas []srcdb.ReplicaEndpoint,
 	assessmentMetadataDir string,
+	pgssByNode map[string]bool,
 	iopsInterval int64,
 	tracker *ux.ProgressTracker,
 ) error {

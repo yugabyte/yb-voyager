@@ -30,11 +30,6 @@ import (
 
 const POSTGRESQL = "postgresql"
 
-// pgssByNode tracks per-node pg_stat_statements availability.
-// Populated by CheckAssessmentPermissionsOnAllNodes, read by GatherAssessmentMetadataFromPG.
-// Keys are "primary" for the primary node and "host:port" for replicas.
-var pgssByNode map[string]bool
-
 // NodePermissionResult tracks permission check results for a single node
 type NodePermissionResult struct {
 	NodeName         string
@@ -90,8 +85,7 @@ func checkPermissionsForNonPostgreSQL(source *srcdb.Source) (map[string]bool, er
 }
 
 // checkPermissionsForPostgreSQL checks permissions on PostgreSQL primary and replica nodes.
-// Returns a map keyed by node name ("primary" / "host:port") → pgss availability and
-// also assigns it to the package-level pgssByNode for use by the gather phase.
+// Returns a map keyed by node name ("primary" / "host:port") → pgss availability.
 func checkPermissionsForPostgreSQL(source *srcdb.Source, validatedReplicas []srcdb.ReplicaEndpoint) (map[string]bool, error) {
 	pg, ok := source.DB().(*srcdb.PostgreSQL)
 	if !ok {
@@ -124,7 +118,6 @@ func checkPermissionsForPostgreSQL(source *srcdb.Source, validatedReplicas []src
 	for _, result := range results {
 		pgssMap[result.NodeName] = result.PgssEnabled
 	}
-	pgssByNode = pgssMap
 
 	return pgssMap, displayPermissionCheckResults(results)
 }

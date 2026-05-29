@@ -266,6 +266,7 @@ func assessMigration() (err error) {
 	hasSourceConnectivity := preflightResult.HasSourceConnectivity
 	validatedReplicaEndpoints := preflightResult.ValidatedReplicaEndpoints
 	replicaDiscoveryInfoForCallhome = preflightResult.ReplicaDiscoveryInfo
+	pgssByNode := preflightResult.PgssByNode
 
 	fmt.Println()
 	ux.PrintSeparator()
@@ -287,7 +288,7 @@ func assessMigration() (err error) {
 		tracker.StartStage("Gathering metadata", gatherStepCount, nil)
 	}
 	initAssessmentDB()
-	err = gatherAssessmentMetadata(validatedReplicaEndpoints, tracker)
+	err = gatherAssessmentMetadata(validatedReplicaEndpoints, pgssByNode, tracker)
 	if err != nil {
 		tracker.FailStage()
 		return fmt.Errorf("failed to gather assessment metadata: %w", err)
@@ -563,7 +564,7 @@ func handleStartCleanIfNeededForAssessMigration(metadataDirPassedByUser bool) er
 }
 
 // gatherAssessmentMetadata collects metadata from the source database.
-func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint, tracker *ux.ProgressTracker) error {
+func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint, pgssByNode map[string]bool, tracker *ux.ProgressTracker) error {
 	if assessmentMetadataDirFlag != "" {
 		return nil // assessment metadata files are provided by the user inside assessmentMetadataDir
 	}
@@ -580,6 +581,7 @@ func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint, tracker
 			&source,
 			validatedReplicas,
 			assessmentMetadataDir,
+			pgssByNode,
 			intervalForCapturingIOPS,
 			tracker,
 		)
