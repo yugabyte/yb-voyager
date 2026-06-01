@@ -583,6 +583,19 @@ func missingRequiredSchemaObject(err error) bool {
 	return strings.Contains(err.Error(), "does not exist")
 }
 
+// PL/pgSQL validator fails resolving %TYPE / %ROWTYPE against a relation that
+// doesn't exist yet (e.g., forward ref to a VIEW imported later in the order)
+// as SQLSTATE 42601. The wording varies — `invalid type name "...%TYPE"` on
+// some PGs, `syntax error at or near "%"` on YB 2025.2 — so match on error
+// class plus the syntactic construct in the failing stmt itself.
+func isPercentTypeResolutionError(err error, stmt string) bool {
+	if !strings.Contains(err.Error(), "(SQLSTATE 42601)") {
+		return false
+	}
+	upper := strings.ToUpper(stmt)
+	return strings.Contains(upper, "%TYPE") || strings.Contains(upper, "%ROWTYPE")
+}
+
 func isAlreadyExists(errString string) bool {
 	alreadyExistsErrors := []string{"already exists",
 		"multiple primary keys",

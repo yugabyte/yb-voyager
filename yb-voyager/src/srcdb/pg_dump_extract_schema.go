@@ -143,7 +143,7 @@ func readSchemaFile(path string) []string {
 var sqlInfoCommentRegex = regexp.MustCompile("-- Name:.*; Type:.*; Schema: .*")
 
 // NOTE: This is for case when --schema-only option is provided with pg_dump[Data shouldn't be there]
-func parseSchemaFile(exportDir string, schemaDir string, exportObjectTypesList []string) int {
+func parseSchemaFile(exportDir string, schemaDir string, exportObjectTypesList []string, schemas []sqlname.Identifier) int {
 	schemaFilePath := filepath.Join(exportDir, "temp", "schema.sql")
 	if utils.FileOrFolderExists(filepath.Join(schemaDir, "schema.sql")) { // assess-migration workflow
 		schemaFilePath = filepath.Join(schemaDir, "schema.sql")
@@ -221,13 +221,26 @@ func parseSchemaFile(exportDir string, schemaDir string, exportObjectTypesList [
 	// merging TABLE ATTACH later with TABLE - to avoid alter add PK on partitioned tables
 	objSqlStmts["TABLE"].WriteString(alterAttachPartition.String())
 
+	// pg_dump's preamble runs `SELECT pg_catalog.set_config('search_path', '', false)`,
+	// which makes PL/pgSQL body validation fail under check_function_bodies = true
+	// for unqualified %TYPE / %ROWTYPE refs. Append an explicit SET search_path for
+	// FUNCTION and PROCEDURE files so the validator can resolve those refs.
+	searchPathOverride := ""
+	if len(schemas) > 0 {
+		searchPathOverride = fmt.Sprintf("SET search_path = %s;\n", sqlname.JoinIdentifiersMinQuoted(schemas, ", "))
+	}
+
 	for objType, sqlStmts := range objSqlStmts {
 		if !utils.ContainsString(exportObjectTypesList, objType) || sqlStmts.Len() == 0 { // create .sql file only if there are DDLs or the user has asked for that object type
 			continue
 		}
 		filePath := utils.GetObjectFilePath(schemaDir, objType)
 		log.Infof("creating schema objects file for %q at %q", objType, filePath)
-		dataBytes := []byte(setSessionVariables.String() + sqlStmts.String())
+		prefix := setSessionVariables.String()
+		if (objType == "FUNCTION" || objType == "PROCEDURE") && searchPathOverride != "" {
+			prefix += searchPathOverride
+		}
+		dataBytes := []byte(prefix + sqlStmts.String())
 
 		err := os.WriteFile(filePath, dataBytes, 0644)
 		if err != nil {

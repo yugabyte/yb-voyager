@@ -308,7 +308,7 @@ func executeSqlStmtWithRetries(tgtConn **ImportSchemaTargetConn, sqlInfo sqlInfo
 				return fmt.Errorf("drop invalid index %q: %w", fullyQualifiedObjName, err2)
 			}
 			continue
-		} else if missingRequiredSchemaObject(err) {
+		} else if missingRequiredSchemaObject(err) || isPercentTypeResolutionError(err, sqlInfo.stmt) {
 			log.Infof("deffering execution of SQL: %s", sqlInfo.formattedStmt)
 			deferredSqlStmts = append(deferredSqlStmts, DefferedSqlStmt{
 				sqlStmt:          sqlInfo,
@@ -327,7 +327,7 @@ func executeSqlStmtWithRetries(tgtConn **ImportSchemaTargetConn, sqlInfo sqlInfo
 	if err != nil {
 		(*tgtConn).Close(context.Background())
 		(*tgtConn) = nil
-		if missingRequiredSchemaObject(err) {
+		if missingRequiredSchemaObject(err) || isPercentTypeResolutionError(err, sqlInfo.stmt) {
 			// Do nothing for deferred case
 		} else {
 			utils.PrintSqlStmtIfDDL(sqlInfo.stmt, utils.GetObjectFileName(filepath.Join(exportDir, "schema"), objType),
