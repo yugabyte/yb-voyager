@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/fatih/color"
@@ -583,16 +584,18 @@ func missingRequiredSchemaObject(err error) bool {
 	return strings.Contains(err.Error(), "does not exist")
 }
 
-// PL/pgSQL validator fails resolving %TYPE / %ROWTYPE against a relation that
-// doesn't exist yet (e.g., forward ref to a VIEW imported later in the order)
-// as SQLSTATE 42601. The wording varies — `invalid type name "...%TYPE"` on
-// some PGs, `syntax error at or near "%"` on YB 2025.2 — so match on error
-// class plus the syntactic construct in the failing stmt itself.
+// Matches SQL block comments (/* ... */, including multi-line) and line comments (-- to end-of-line).
+var sqlCommentRegex = regexp.MustCompile(`(?s)/\*.*?\*/|--[^\n]*`)
+
+// 42601 wording for failed %TYPE / %ROWTYPE resolution varies across PG and
+// YB versions, so we key on the syntactic construct in the failing stmt and
+// strip comments to avoid documentation refs in headers triggering.
 func isPercentTypeResolutionError(err error, stmt string) bool {
 	if !strings.Contains(err.Error(), "(SQLSTATE 42601)") {
 		return false
 	}
-	upper := strings.ToUpper(stmt)
+	stripped := sqlCommentRegex.ReplaceAllString(stmt, "")
+	upper := strings.ToUpper(stripped)
 	return strings.Contains(upper, "%TYPE") || strings.Contains(upper, "%ROWTYPE")
 }
 
