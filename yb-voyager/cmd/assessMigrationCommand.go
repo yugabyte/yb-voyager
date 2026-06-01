@@ -263,7 +263,6 @@ func assessMigration() (err error) {
 	if err != nil {
 		return err
 	}
-	hasSourceConnectivity := preflightResult.HasSourceConnectivity
 	validatedReplicaEndpoints := preflightResult.ValidatedReplicaEndpoints
 	replicaDiscoveryInfoForCallhome = preflightResult.ReplicaDiscoveryInfo
 	pgssByNode := preflightResult.PgssByNode
@@ -277,34 +276,24 @@ func assessMigration() (err error) {
 
 	tracker := ux.NewProgressTracker("Preparing for migration assessment")
 
+	source.ApplyExportSchemaObjectListFilter()
+	metaDB = CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+
 	// Stage 1: Gather metadata + export schema + load into DB
-	hasReplicas := len(validatedReplicaEndpoints) > 0
-	gatherStepCount, prepareStaticStage := gatherMetadataStageConfig(source.DBType, hasReplicas)
-	if prepareStaticStage {
-		// Parallel replica path uses its own internal progress display,
-		// and Oracle uses a static summary banner without per-step spinners.
-		tracker.PrepareStage("Gathering metadata", gatherStepCount, nil)
-	} else {
-		tracker.StartStage("Gathering metadata", gatherStepCount, nil)
-	}
-	initAssessmentDB()
-	err = gatherAssessmentMetadata(validatedReplicaEndpoints, pgssByNode, tracker)
+	assessmentDB, err = migassessment.RunGatherAssessmentMetadataStage(migassessment.GatherAssessmentMetadataStageConfig{
+		Source:                    &source,
+		AssessmentMetadataDir:     assessmentMetadataDir,
+		AssessmentMetadataDirFlag: assessmentMetadataDirFlag,
+		ExportDir:                 exportDir,
+		SchemaDir:                 schemaDir,
+		ValidatedReplicaEndpoints: validatedReplicaEndpoints,
+		PgssEnabledForAssessment:  pgssEnabledForAssessment,
+		IOPSInterval:              intervalForCapturingIOPS,
+		Tracker:                   tracker,
+	})
 	if err != nil {
-		tracker.FailStage()
-		return fmt.Errorf("failed to gather assessment metadata: %w", err)
+		return err
 	}
-
-	parseExportedSchemaFileForAssessmentIfRequired()
-	if hasSourceConnectivity {
-		source.DB().Disconnect()
-	}
-
-	err = populateMetadataCSVIntoAssessmentDB()
-	if err != nil {
-		tracker.FailStage()
-		return fmt.Errorf("failed to populate metadata CSV into SQLite DB: %w", err)
-	}
-	tracker.CompleteStage()
 
 	// Pause for IOPS validation (may prompt the user)
 	tracker.Finish()

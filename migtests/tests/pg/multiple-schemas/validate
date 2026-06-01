@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 
-import yb
-import common
+import re
 import sys
+
+from packaging.version import Version
+
+import common
+import yb
 
 live_migration = 'false'
 def main():
@@ -152,6 +156,9 @@ def migration_completed_checks(tgt):
 		print(f"reported extensions: {extensions}")
 		tgtVersion = tgt.get_target_version()
 		print(f"target version: {tgtVersion}")
+		match = re.search(r'YB-([0-9]+\.[0-9]+\.[0-9])', tgtVersion)
+		threeDotVersion = match.group(1) if match else ""
+		print(f"three dot version: {threeDotVersion}")
 		
 		# Handle PG15 merge versions (preview >= 2.25 or stable >= 2025.1)
 		if yb.has_pg15_merge(tgtVersion):
@@ -169,7 +176,12 @@ def migration_completed_checks(tgt):
 			expectedExtensions.extend(["yb_ycql_utils"])
 
 		if "2025.2" in tgtVersion:
-			expectedExtensions.extend(["pg_parquet"])
+			# pg_parquet is only available in 2025.2.0–2025.2.2, not in 2025.2.3+
+			if threeDotVersion and Version(threeDotVersion) < Version("2025.2.3"):
+				expectedExtensions.extend(["pg_parquet"])
+
+		if Version(threeDotVersion) >= Version("2025.2.3"):
+			expectedExtensions.extend(["age","pg_dist_rag"])
 			
 		for extension in expectedExtensions:
 			assert extension in extensions, f"expected extension is not reported: {extension}"

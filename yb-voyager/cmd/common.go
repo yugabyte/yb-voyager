@@ -653,18 +653,6 @@ func detectVersionCompatibility(msrVoyagerVersionString string, migrationExportD
 	}
 }
 
-func initAssessmentDB() {
-	err := migassessment.InitAssessmentDB()
-	if err != nil {
-		utils.ErrExit("error creating and initializing assessment DB: %v", err)
-	}
-
-	assessmentDB, err = migassessment.NewAssessmentDB()
-	if err != nil {
-		utils.ErrExit("error creating assessment DB instance: %v", err)
-	}
-}
-
 func InitNameRegistry(
 	exportDir string, role string,
 	sconf *srcdb.Source, sdb srcdb.SourceDB,

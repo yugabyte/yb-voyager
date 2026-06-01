@@ -535,12 +535,6 @@ func runGatherAssessmentMetadataScriptBuffered(
 		return fmt.Errorf("error starting gather assessment metadata script: %w", err)
 	}
 
-	// Report starting status
-	progressChan <- NodeProgress{
-		NodeName: nodeName,
-		Stage:    "Starting collection...",
-	}
-
 	var stderrBuf strings.Builder
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -609,25 +603,19 @@ func detectStageFromOutput(line string) string {
 	originalLine := strings.TrimSpace(line)
 	lineLower := strings.ToLower(originalLine)
 
-	// Special case: Start of collection
-	if strings.Contains(lineLower, "assessment metadata collection started") {
-		return "Starting collection..."
-	}
-
 	// Special case: Completion
 	if strings.Contains(lineLower, "assessment metadata collection completed") {
 		return "Complete"
 	}
 
-	// Pass through any line that looks like a stage message
-	// (contains keywords that indicate this is a meaningful status update)
+	// Only match actual data-collection steps ("Collecting ..." / "Executing ...").
+	// "Skipping ..." lines are informational follow-ups to a "Collecting ..." line
+	// for the same script and must not be counted as separate steps.
+	// "Assessment metadata collection started" is a preamble, not a step.
 	isStageMessage := strings.Contains(lineLower, "collecting") ||
-		strings.Contains(lineLower, "skipping") ||
 		strings.Contains(lineLower, "executing")
 
 	if isStageMessage {
-		// Return the original line (preserves capitalization)
-		// Add "..." if not already present
 		if !strings.HasSuffix(originalLine, "...") && !strings.HasSuffix(originalLine, ".") {
 			return originalLine + "..."
 		}

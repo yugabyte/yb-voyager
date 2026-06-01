@@ -60,6 +60,7 @@ func RunPreflightChecks(config PreflightChecksConfig) (PreflightChecksResult, er
 	if err := connectToSourceDatabase(config.Source); err != nil {
 		return result, err
 	}
+	defer config.Source.DB().Disconnect()
 	if err := runGuardrailChecks(config); err != nil {
 		return result, err
 	}
