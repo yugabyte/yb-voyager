@@ -59,11 +59,18 @@ type ConnectionPool struct {
 	// in adaptive parallelism, we may want to reduce the pool size, but
 	// we would not want to close the connection, as we might need to increase the pool
 	// size in the future. So, we move the connections to idleConns instead.
-	idleConns                 chan *pgx.Conn
-	connIdToPreparedStmtCache map[uint32]map[string]bool // cache list of prepared statements per connection
-	nextUriIndex              int
-	disableThrottling         bool
-	size                      int // current size of the pool
+	idleConns chan *pgx.Conn
+	// cache list of prepared statements per connection, keyed by the connection
+	// object itself. We must NOT key this by the backend PID: PIDs are unique
+	// only within a single node, so two connections to different nodes of a
+	// multi-node cluster (or behind a load balancer) can share a PID. Keying by
+	// PID caused a collision where we assumed a statement was already prepared on
+	// a connection it had never been prepared on, skipped the Prepare call, and
+	// failed later when the batch referenced the unprepared statement.
+	connToPreparedStmtCache map[*pgx.Conn]map[string]bool
+	nextUriIndex            int
+	disableThrottling       bool
+	size                    int // current size of the pool
 	// in adaptive parallelism, we may want to reduce the pool size, but
 	// doing it synchronously may lead to contention. So, we increment the
 	// counter pendingConnsToClose, and close the connections asynchronously.
@@ -84,13 +91,13 @@ func NewConnectionPool(params *ConnectionParams) (*ConnectionPool, error) {
 			params.NumConnections, params.NumMaxConnections)
 	}
 	pool := &ConnectionPool{
-		params:                    params,
-		conns:                     make(chan *pgx.Conn, params.NumMaxConnections),
-		idleConns:                 make(chan *pgx.Conn, params.NumMaxConnections),
-		connIdToPreparedStmtCache: make(map[uint32]map[string]bool, params.NumMaxConnections),
-		disableThrottling:         false,
-		size:                      params.NumConnections,
-		pendingConnsToClose:       0,
+		params:                  params,
+		conns:                   make(chan *pgx.Conn, params.NumMaxConnections),
+		idleConns:               make(chan *pgx.Conn, params.NumMaxConnections),
+		connToPreparedStmtCache: make(map[*pgx.Conn]map[string]bool, params.NumMaxConnections),
+		disableThrottling:       false,
+		size:                    params.NumConnections,
+		pendingConnsToClose:     0,
 	}
 	for i := 0; i < params.NumMaxConnections; i++ {
 		pool.idleConns <- nil
@@ -192,10 +199,7 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 			if errCloseConn != nil {
 				log.Warnf("closing the connection: %v", errCloseConn)
 			}
-			pool.Lock()
-			// assuming PID will still be available
-			delete(pool.connIdToPreparedStmtCache, conn.PgConn().PID())
-			pool.Unlock()
+			pool.removePreparedStmtCacheForConn(conn)
 
 			pool.pendingConnsToCloseLock.Lock()
 			if pool.pendingConnsToClose > 0 {
@@ -223,7 +227,7 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 }
 
 func (pool *ConnectionPool) PrepareStatement(conn *pgx.Conn, stmtName string, stmt string) error {
-	if pool.isStmtAlreadyPreparedOnConn(conn.PgConn().PID(), stmtName) {
+	if pool.isStmtAlreadyPreparedOnConn(conn, stmtName) {
 		return nil
 	}
 
@@ -232,26 +236,35 @@ func (pool *ConnectionPool) PrepareStatement(conn *pgx.Conn, stmtName string, st
 		log.Errorf("failed to prepare statement %q: %s", stmtName, err)
 		return fmt.Errorf("failed to prepare statement %q: %w", stmtName, err)
 	}
-	pool.cachePreparedStmtForConn(conn.PgConn().PID(), stmtName)
+	pool.cachePreparedStmtForConn(conn, stmtName)
 	return err
 }
 
-func (pool *ConnectionPool) cachePreparedStmtForConn(connId uint32, ps string) {
+func (pool *ConnectionPool) cachePreparedStmtForConn(conn *pgx.Conn, ps string) {
 	pool.Lock()
 	defer pool.Unlock()
-	if pool.connIdToPreparedStmtCache[connId] == nil {
-		pool.connIdToPreparedStmtCache[connId] = make(map[string]bool)
+	if pool.connToPreparedStmtCache[conn] == nil {
+		pool.connToPreparedStmtCache[conn] = make(map[string]bool)
 	}
-	pool.connIdToPreparedStmtCache[connId][ps] = true
+	pool.connToPreparedStmtCache[conn][ps] = true
 }
 
-func (pool *ConnectionPool) isStmtAlreadyPreparedOnConn(connId uint32, ps string) bool {
+func (pool *ConnectionPool) isStmtAlreadyPreparedOnConn(conn *pgx.Conn, ps string) bool {
 	pool.Lock()
 	defer pool.Unlock()
-	if pool.connIdToPreparedStmtCache[connId] == nil {
+	if pool.connToPreparedStmtCache[conn] == nil {
 		return false
 	}
-	return pool.connIdToPreparedStmtCache[connId][ps]
+	return pool.connToPreparedStmtCache[conn][ps]
+}
+
+// removePreparedStmtCacheForConn drops the cached prepared-statement set for a
+// connection. It must be called whenever a connection is closed, so the entry
+// (which holds a live reference to the *pgx.Conn) does not leak.
+func (pool *ConnectionPool) removePreparedStmtCacheForConn(conn *pgx.Conn) {
+	pool.Lock()
+	defer pool.Unlock()
+	delete(pool.connToPreparedStmtCache, conn)
 }
 
 func (pool *ConnectionPool) createNewConnection() (*pgx.Conn, error) {
@@ -330,6 +343,7 @@ func (pool *ConnectionPool) RemoveConnectionsForHosts(servers []string) error {
 			if err != nil {
 				log.Warnf("closing the connection: %v", err)
 			}
+			pool.removePreparedStmtCacheForConn(conn)
 			pool.conns <- nil
 		} else {
 			pool.conns <- conn
@@ -349,6 +363,7 @@ func (pool *ConnectionPool) RemoveConnectionsForHosts(servers []string) error {
 			if err != nil {
 				log.Warnf("closing the connection: %v", err)
 			}
+			pool.removePreparedStmtCacheForConn(idleConn)
 			pool.idleConns <- nil
 		} else {
 			pool.idleConns <- idleConn
