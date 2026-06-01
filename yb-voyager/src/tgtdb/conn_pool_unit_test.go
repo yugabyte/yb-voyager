@@ -22,6 +22,7 @@ import (
 
 	"github.com/jackc/pgx/v4"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // The prepared-statement cache helpers key only on the *pgx.Conn pointer; they
@@ -34,7 +35,7 @@ func newTestPool(t *testing.T) *ConnectionPool {
 		NumMaxConnections: 1,
 		ConnUriList:       []string{"postgres://localhost/test"},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	return pool
 }
 
