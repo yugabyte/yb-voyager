@@ -287,7 +287,7 @@ func assessMigration() (err error) {
 		ExportDir:                 exportDir,
 		SchemaDir:                 schemaDir,
 		ValidatedReplicaEndpoints: validatedReplicaEndpoints,
-		PgssEnabledForAssessment:  pgssEnabledForAssessment,
+		PgssByNode:                pgssByNode,
 		IOPSInterval:              intervalForCapturingIOPS,
 		Tracker:                   tracker,
 	})
