@@ -12,6 +12,7 @@
       "enable_yb_adaptive_parallelism": true,
       "adaptive_parallelism_max": 4,
       "error_policy_snapshot": "abort",
+      "iterative_cutover_enabled": false,
       "start_clean": false,
       "data_metrics": {
         "migration_snapshot_total_rows": 101,
