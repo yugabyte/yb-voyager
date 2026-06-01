@@ -292,201 +292,206 @@ own behavior on YB syntax is a follow-up.
 
 ## 7. Path to production
 
-### a) Repository structure: what stays in `third_party/`?
+### a) Two-fork architecture
 
-**Recommendation**: commit **only** the YB-EXT delta and the `pg_query_go` snapshot
-in voyager. Do **not** commit the full `libpg_query` source tree — fetch it on
-demand at regen time. The full libpg_query is purely a regen-time dependency;
-voyager's `go build` never touches it.
-
-Proposed layout:
+The PoC kept patches + regen tooling inside voyager's `third_party/` directory
+because that was the smallest configuration sufficient to prove the pipeline.
+For production at the projected scale (multiple YB feature clusters across
+several hundred lines of grammar delta), the right configuration is to hoist
+the parser delta out of voyager entirely and into two long-lived forks under
+the `yugabyte/` org:
 
 ```
-third_party/
-├── pg-yb-parser/                          ← OUR YB-EXT delta (small)
-│   ├── Dockerfile.regen                   ← Linux regen toolchain
-│   ├── regen.sh                           ← fetch upstream + apply patches + regen + snapshot
-│   ├── README.md                          ← contributor guide
-│   ├── 00_yb_toolchain.patch              ← one-time portability fixes to libpg_query
-│   │                                        (Makefile sed/LIBCLANG, extract_source.rb
-│   │                                        ffi-clang API, xcrun stub)
-│   └── features/
-│       └── 99_yb_sortby_hash.patch        ← one patch per YB feature, touches
-│                                            gram.y + parsenodes.h + kwlist.h +
-│                                            srcdata/enum_defs.json
-└── pg_query_go/                           ← committed snapshot (~21 MB)
-    └── parser/
-        ├── postgres_deparse.c             ← YB-EXT deparse cases live HERE
-        │                                    (normal committed code, fenced with
-        │                                    /* YB-EXT BEGIN: <feature> */ markers)
-        └── …                              ← regen output (gram.c, kwlist.h, pb-c, etc.)
+yugabyte/libpg_query    ← long-lived yb-main branch tracking pganalyze/libpg_query
+├── patches/
+│   ├── 00_wiring/               YB extension-hook patches (one-time, rare)
+│   └── 10_features/             per-feature patches (orthogonal, reorderable)
+├── src/postgres_deparse.c       committed edits, YB-EXT-fenced
+├── srcdata/*.json               committed edits
+└── protobuf/pg_query.proto      committed edits
+
+yugabyte/pg_query_go    ← long-lived yb-main branch tracking pganalyze/pg_query_go
+├── parser/                      regenerated snapshot, committed
+├── pg_query.pb.go               regenerated, committed
+├── yb-ext/
+│   ├── regen.sh                 clones libpg_query-yb, runs regen, snapshots into parser/
+│   └── Dockerfile.regen
+└── Makefile                     LIBDIR points at sibling libpg_query-yb checkout
+
+yugabyte/yb-voyager
+└── yb-voyager/go.mod            require github.com/yugabyte/pg_query_go/v6 v6.1.0-yb.N
+                                 (no third_party/, no patches, no regen tooling)
 ```
 
-**The YB-EXT contract is two surfaces per feature:**
+Voyager imports stay `pg_query "github.com/yugabyte/pg_query_go/v6"` — a
+one-time `sed` across `yb-voyager/src/` to update the import path.
 
-1. One patch file (`features/99_yb_<feature>.patch`) — grammar + AST + srcdata
-2. A small fenced edit in committed `pg_query_go/parser/postgres_deparse.c` —
-   the AST-to-SQL emit case
+**Why two forks rather than one combined fork.** Matches upstream's project
+boundary. libpg_query is the C library (grammar, deparse, srcdata extraction);
+pg_query_go is the Go binding (cgo wrapper, protobuf glue). Upstream releases
+them on independent cadences and our forks should track that.
 
-Plus a one-time `00_yb_toolchain.patch` (not per-feature) covering libpg_query's
-own Makefile / `extract_source.rb` portability fixes.
+**Why patches inside libpg_query-yb (rather than committing modified PG sources
+directly).** `gram.y`, `kwlist.h`, and `parsenodes.h` are upstream PostgreSQL
+files. libpg_query downloads them fresh from a PG tarball during
+`extract_source`; they don't live in libpg_query's git tree. The cleanest way
+to express our delta is libpg_query's existing `patches/` mechanism — which
+upstream uses for the same purpose. Forking PG itself to commit grammar edits
+directly is far heavier than our delta justifies.
 
-**Why deparse lives in committed `pg_query_go` instead of in the patch file:**
-`postgres_deparse.c` is hand-written code, not auto-generated. Editing it
-directly in the committed snapshot is the most familiar workflow — PRs show
-real code diffs, not patch hunks. The only nuance is that `regen.sh` runs a
-`git checkout HEAD -- pg_query_go/parser/postgres_deparse.c` step after the
-regen pipeline overwrites it, restoring the committed YB-EXT version.
+**Why committed edits (rather than patches) for libpg_query's own files.**
+`postgres_deparse.c`, `srcdata/*.json`, and `pg_query.proto` live directly in
+libpg_query's git tree. They get edited the natural way — `git blame` works,
+IDEs work, PRs show real code diffs.
 
-**What's not in the repo:**
-- `libpg_query/` source tree (~30 MB) — fetched fresh from upstream at regen
-- The patched-PG sources (`tmp/postgres/`) — purely transient
-- Regen-time build artifacts (`.o` files, etc.)
+### b) Patch layering and design disciplines
 
-**When to split into separate fork repos** (graduation criteria, deferred):
+The full YB syntax surface modifies several PG productions (`CreateStmt`,
+`AlterTableStmt`, `IndexStmt`) that exist in multiple grammar variants.
+Naïve per-feature patches would interfere with each other (patch N's context
+depends on patch N-1 having been applied). The mitigations:
 
-- Any consumer beyond yb-voyager wants the YB-extended parser
-- The YB-EXT patch surface grows beyond ~5 features and develops its own
-  release cadence independent of voyager
-- We need to publish standalone libpg_query release tarballs (e.g., for
-  non-Go consumers like Python / Java tooling)
+**Tier 1 — `patches/00_wiring/`.** One-time hook patches that edit each
+existing PG production *once* to introduce a neutral YB extension hook.
+Conceptually:
 
-If that day comes, `third_party/pg-yb-parser/` becomes a new repo
-`github.com/yugabyte/libpg_query-yb` containing exactly the patches + script,
-and a published `github.com/yugabyte/pg_query_go` fork. voyager's `go.mod`
-switches from a path replace to a normal require. The patches move 1:1.
-
-### b) Upgrading when upstream releases a new PG version
-
-libpg_query bumps PG every ~6 months (e.g. 17-6.1.0 → 17-7.0.0 → 18-1.0.0).
-With the layout above, the upgrade workflow is:
-
-```sh
-# 1. Bump the version pin and run regen
-$EDITOR third_party/pg-yb-parser/regen.sh    # change LIB_TAG=17-6.1.0 → 18-1.0.0
-./third_party/pg-yb-parser/regen.sh
-
-# regen.sh internally does:
-#   - git clone --depth 1 --branch $LIB_TAG https://github.com/pganalyze/libpg_query.git
-#   - apply 00_yb_toolchain.patch
-#   - copy features/*.patch into libpg_query/patches/
-#   - docker run libpg_query-regen make extract_source regen_proto
-#   - cd pg_query_go && make update_source (pointing at the freshly regen'd libpg_query)
-#   - git checkout HEAD -- third_party/pg_query_go/parser/postgres_deparse.c
-#                          (restores our committed YB-EXT deparse edits)
-
-# 2. If any patch failed to apply (production rename, line offsets, etc.):
-#    regen.sh exits non-zero with the conflict path. Manually fix the patch
-#    against the new upstream gram.y / parsenodes.h, re-run.
-
-# 3. Reconcile postgres_deparse.c with upstream
-#    Upstream may have added new deparse cases for PG 18 syntax. View the
-#    upstream changes:
-git diff HEAD -- third_party/pg_query_go/parser/postgres_deparse.c
-#    Manually pick up any worthwhile upstream additions; keep our YB-EXT
-#    fenced blocks intact.
-
-# 4. Verify
-make pg-yb-parser-check        # voyager builds + parser tests
-cd yb-voyager && go test -tags unit ./...
-
-# 5. Commit the new snapshot
-git add third_party/pg_query_go/ third_party/pg-yb-parser/regen.sh
-git commit -m "Bump libpg_query to 18-1.0.0; reconcile deparse edits"
+```bison
+CreateStmt: ... yb_table_extensions { ... }    /* wiring patch edits each variant once */
+yb_table_extensions:
+      yb_table_extensions yb_table_extension
+    | /* EMPTY */
+;
+yb_table_extension: /* feature patches plug in here */ ;
 ```
 
-The patch-based approach pays off here: if upstream's `gram.y` around line
-8284 didn't shift, our `99_yb_sortby_hash.patch` applies cleanly. If they
-renamed `opt_asc_desc` to something else, the patch fails with a hunk reject
-and we re-author the rule against the new context. In the worst case,
-"re-author the patch from scratch" is still small work because each YB
-feature is ~30 lines of grammar.
+Wiring patches change rarely. They concentrate the upstream-bump risk in one
+place — when upstream restructures a production we hook into, only the wiring
+patch needs careful rework. Feature patches stay stable.
 
-**Realistic estimate**: 1–3 days per PG bump per active YB feature, mostly
-spent on patch conflicts in `gram.y` and verification testing. The
-fetch-on-demand model means there's no stale vendored libpg_query to manually
-update — `git clone` always gets the latest.
+**Tier 2 — `patches/10_features/`.** Per-feature patches that touch only their
+own neutral hooks plus new productions / structs / enum values. They're
+orthogonal to each other and to upstream changes elsewhere in the same file.
 
-**Suggestion**: pin the upstream tag in `regen.sh` (single-line bump for
-upgrades). Don't tag releases of our fork — versioning is just the voyager
-commit SHA that contains the matching `pg_query_go` snapshot.
+**Design rule: additive over invasive.** Every YB edit should be expressible
+as one of:
 
-### c) Outstanding work to ship
+- A new field on an existing struct (never a type change to an existing field)
+- A new enum value (never a renamed or removed value)
+- A new struct alongside upstream structs
+- A new alternative in an existing grammar rule (via the wiring hooks)
 
-Before this lands in voyager's `main` branch and real users see it:
+Where YB upstream's own postgres tree changes types in-place (because YB owns
+the full execution path), our fork takes the additive route instead. This
+keeps every YB edit purely additive to upstream's data structures and immune
+to upstream's internal refactors.
 
-| Item | Effort | Owner |
+**Comment fences.** Every YB edit is wrapped:
+
+```c
+/* YB-EXT BEGIN: <feature> */
+... edit ...
+/* YB-EXT END */
+```
+
+`git grep YB-EXT` enumerates the full delta on demand.
+
+### c) Where each kind of edit lives
+
+| File type | Repo / location | How edited |
 |---|---|---|
-| Restructure to fetch-on-demand layout (extract YB edits as patches under `third_party/pg-yb-parser/`, write `regen.sh`, drop vendored `libpg_query/`) | 1 day | TBD |
-| Wire upstream pg_query_go's macOS `pg_config.h` restore into `regen.sh` (auto, not manual `cp`) | half a day | TBD |
-| Add a CI job that runs `regen.sh` on every PR touching `third_party/pg-yb-parser/` (catches patch drift early) | 1 day | TBD |
-| Add CI smoke test that voyager builds + parses sample YB-syntax SQL on both Linux and macOS runners | half a day | TBD |
-| SPLIT INTO patch — exercises the new-node-type pattern (`srcdata/struct_defs.json` + `srcdata/nodetypes.json` edits) | 2–3 days | TBD |
-| Voyager-side: extract `SortByDir_SORTBY_HASH` into `Table.PrimaryKeyColumns` metadata, expose to assess-migration report | 1 day | TBD |
-| Documentation: add a `CONTRIBUTING.md` section pointing at `third_party/pg-yb-parser/README.md` for grammar contributors | half a day | TBD |
-| Investigate native-macOS `extract_source.rb` (avoid Docker dependency for Mac devs) | 1–2 days, risk: may not be feasible | TBD |
+| PG source (`gram.y`, `kwlist.h`, `parsenodes.h`, `scan.l`) | `libpg_query-yb/patches/*.patch` | Patches — these files only exist transiently in `tmp/postgres/` during regen |
+| libpg_query's own C (`postgres_deparse.c`, `pg_query_*.c`) | `libpg_query-yb/src/` | Committed edits, YB-EXT fenced |
+| libpg_query's own data (`srcdata/*.json`) | `libpg_query-yb/srcdata/` | Committed edits |
+| libpg_query's own schema (`pg_query.proto`) | `libpg_query-yb/protobuf/` | Committed edits |
+| Regenerated outputs (`gram.c`, `pg_query.pb.go`, etc.) | `pg_query_go-yb/parser/`, `pg_query_go-yb/pg_query.pb.go` | Never hand-edited; produced by `yb-ext/regen.sh` |
 
-### d) Testing strategy
+### d) Workflows
 
-What CI should cover:
+| Event | Repos touched | Steps |
+|---|---|---|
+| New YB feature | libpg_query-yb → pg_query_go-yb → voyager | (1) Author patches in libpg_query-yb tier-2 (+ any deparse/srcdata edits). (2) Run `yb-ext/regen.sh` in pg_query_go-yb; commit snapshot; tag `v6.1.0-yb.N+1`. (3) Bump `go.mod` in voyager; add voyager-side queryparser extraction. |
+| Upstream libpg_query bump | libpg_query-yb → pg_query_go-yb → voyager | (1) `git fetch upstream && git merge` in libpg_query-yb; address any wiring-patch drift. (2) Bump `LIB_TAG`, regen, tag in pg_query_go-yb. (3) Bump `go.mod` in voyager. |
+| Upstream pg_query_go bump | pg_query_go-yb → voyager | (1) `git fetch upstream && git merge` in pg_query_go-yb. Regen. Tag. (2) Bump `go.mod` in voyager. |
+| Per voyager release | voyager | Nothing extra — the fork tag in `go.mod` is the only voyager-side dependency. |
 
-1. **Static**: `make pg-yb-parser-rebuild` exits clean. Anyone who edits
-   `patches/`, `srcdata/`, or `src/postgres_deparse.c` will surface conflicts
+### e) Outstanding work to migrate the PoC into this layout
+
+Each feature beyond the SORTBY_HASH PoC will be evaluated on its own when
+implementing — design choices per feature are deferred until then. The
+migration work itself is:
+
+| Item | Effort |
+|---|---|
+| Create `yugabyte/libpg_query` and `yugabyte/pg_query_go` fork repos | half a day |
+| Move PoC toolchain fixes and `99_yb_sortby_hash` patch into `libpg_query-yb` (initial tier-2 layout; tier-1 wiring patches added as features need them) | 1 day |
+| Move `regen.sh` + `Dockerfile.regen` into `pg_query_go-yb/yb-ext/` | half a day |
+| First tagged release `pg_query_go-yb v6.1.0-yb.1` covering SORTBY_HASH | half a day |
+| Wire macOS `pg_config.h` restore into `regen.sh` (replace today's manual `cp`) | half a day |
+| Drop `third_party/` from voyager; switch `go.mod`; one-time import-path `sed` across `yb-voyager/src/` | half a day |
+| CI in both forks: regen-on-PR + cross-platform cgo smoke test | 1–2 days |
+| Voyager-side: extract `SortByDir_SORTBY_HASH` into `Table.PrimaryKeyColumns` metadata, expose to assess-migration report | 1 day |
+
+### f) Testing strategy
+
+Coverage is unchanged from the PoC; what shifts is where each layer is
+exercised:
+
+1. **Static**: `regen.sh` exits clean. Run by CI in `pg_query_go-yb` on every
+   PR. Anyone who edits patches, srcdata, or deparse code surfaces conflicts
    immediately.
-2. **Parser unit tests**: in `pg_query_go` itself, add YB-syntax cases to
-   `parse_test.go` / `parse_protobuf_test.go`. These run as part of libpg_query's
-   own test suite via `make test`.
-3. **Voyager queryparser tests**: `yb_hash_test.go` exists; extend with
-   per-feature test files as we add SPLIT INTO etc.
-4. **Voyager integration tests**: hand-crafted `schema/tables.sql` containing
-   YB clauses, run through `yb-voyager analyze-schema` and `yb-voyager
-   import-schema` against a local YB cluster. Assert no parse errors, assert
-   tablet count via `yb_table_properties()`.
-5. **Cross-platform compile**: voyager `go build` + `go test -tags unit` on
-   both Ubuntu and macOS runners.
-6. **Regression**: every existing `queryissue` / `queryparser` test must still
-   pass with each YB-EXT addition.
+2. **Parser unit tests** in `pg_query_go-yb` itself — extend upstream's
+   `parse_test.go` with YB-syntax cases.
+3. **Voyager queryparser tests** in voyager (`yb_<feature>_test.go` per
+   feature). `yb_hash_test.go` already exists as the template.
+4. **Voyager integration tests** — hand-crafted YB-syntax DDL run through
+   `yb-voyager analyze-schema` and `yb-voyager import-schema` against a local
+   YB cluster. Assert no parse errors; assert applied behavior on YB (e.g.
+   tablet count via `yb_table_properties()`).
+5. **Cross-platform compile**: `go build` + `go test -tags unit` on both
+   Ubuntu and macOS runners in both fork repos and in voyager.
+6. **Regression**: every existing `queryissue` / `queryparser` test in voyager
+   must still pass with each YB-EXT addition.
 
-### e) Maintenance burden — honest assessment
+### g) Maintenance burden — honest assessment
 
-Forking a parser is a recurring tax. Concretely:
+- **Per YB feature**: ~1–3 days of grammar design + patch authoring + tests +
+  voyager integration. Each feature gets its own re-evaluation against the
+  additive-only discipline.
+- **Per upstream libpg_query release** (~6 mo cadence): ~1–3 days. Risk is
+  concentrated in tier-1 wiring patches; tier-2 feature patches stay stable.
+- **Per PG major bump** (~12 mo cadence): potentially more invasive — wiring
+  patches may need substantial rework if PG restructures `CreateStmt` et al.
+  Budget a week.
+- **Per voyager release**: nothing extra.
 
-- **Per YB feature**: ~1–3 days of grammar design + patch authoring + tests
-- **Per upstream libpg_query release** (~6 mo cadence): ~1–3 days of patch
-  rebasing per active YB feature, plus toolchain re-verification
-- **Per PG major bump** (~12 mo cadence): potentially more invasive — gram.y
-  structure can shift between PG majors. Budget a week.
-- **Per voyager release**: nothing extra, the fork comes along for the ride
-
-In steady state with 5 YB features tracked, expect ~2 person-weeks/year for
+In steady state with ~5 features tracked, expect ~2 person-weeks/year for
 maintenance, not counting new feature additions.
 
-The alternative — staying on stock pg_query_go and only ever emitting/accepting
-plain PG SQL — saves all this maintenance but blocks the use cases described
-in section 1. The PoC validates the path; whether the maintenance cost is
-worth it depends on how much voyager wants to do with YB-native syntax in
-the next 2-3 years.
+The alternative — staying on stock pg_query_go and only ever emitting /
+accepting plain PG SQL — saves all this maintenance but blocks the use cases
+described in section 1.
 
-### f) Risks
+### h) Risks
 
+- **Tier-1 wiring patches are the rebase pivot.** Concentrated risk by design —
+  feature patches stay safe at the cost of the wiring patches taking the
+  upstream-bump hit. Acceptable tradeoff.
+- **Three-repo coordination for a feature.** A new YB feature touches 3 repos
+  in sequence. Mitigation: documented release checklist; consider a meta
+  Makefile target in voyager for local development.
 - **libpg_query maintainer divergence.** If pganalyze restructures their
   parser-tree-walking conventions, our patches could become harder to rebase.
-  Mitigation: keep YB-EXT changes minimal and fenced (`/* YB-EXT BEGIN */`).
-- **PG 18 grammar churn.** PG occasionally restructures grammar productions
-  meaningfully (e.g., MERGE was a big addition in PG 15). Mitigation: review
-  PG release notes ahead of each libpg_query bump.
-- **Docker dependency for the regen step.** Linux developers don't need it.
-  macOS developers do. If voyager moves to CI-driven regen-on-push, this
-  becomes invisible.
-- **The unfixed `pg_config.h` issue.** Currently papered over with a manual
-  `cp`. If the upstream macOS-extracted pg_config.h ever drifts incompatibly
-  from our Linux-extracted one (e.g., a new `HAVE_*` define we'd need), we'd
-  notice via cgo build failures. Mitigation: get a real fix in before relying
-  on cross-platform regen at scale.
-- **YB grammar evolution.** If YB upstream changes how SPLIT INTO works in a
+  Mitigation: keep YB-EXT changes minimal, additive, and fenced.
+- **Docker dependency for regen.** Linux contributors don't need it; macOS
+  contributors do. If CI does regen on push, this becomes invisible to
+  feature contributors.
+- **`pg_config.h` cross-platform issue.** Currently papered over with a
+  manual `cp`. Needs a real fix before relying on cross-platform CI regen at
+  scale.
+- **YB grammar evolution.** If YB upstream changes how a feature works in a
   new YB release, we'd need to port the new behavior. This is a one-way diff —
-  we read YB's grammar but don't depend on it at build time, so it's purely a
-  documentation-tracking concern. Mitigation: subscribe to YB release notes.
+  we read YB's grammar but don't depend on it at build time, so it's purely
+  a documentation-tracking concern.
 
 ---
 
