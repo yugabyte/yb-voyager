@@ -37,7 +37,7 @@ type GatherAssessmentMetadataStageConfig struct {
 	ExportDir                 string
 	SchemaDir                 string
 	ValidatedReplicaEndpoints []srcdb.ReplicaEndpoint
-	PgssEnabledForAssessment  bool
+	PgssByNode                map[string]bool
 	IOPSInterval              int64
 	Tracker                   *ux.ProgressTracker
 }
@@ -114,7 +114,7 @@ func gatherAssessmentMetadata(config GatherAssessmentMetadataStageConfig) error 
 			config.Source,
 			config.ValidatedReplicaEndpoints,
 			config.AssessmentMetadataDir,
-			config.PgssEnabledForAssessment,
+			config.PgssByNode,
 			config.IOPSInterval,
 			config.Tracker,
 		)

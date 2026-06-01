@@ -265,7 +265,7 @@ func assessMigration() (err error) {
 	}
 	validatedReplicaEndpoints := preflightResult.ValidatedReplicaEndpoints
 	replicaDiscoveryInfoForCallhome = preflightResult.ReplicaDiscoveryInfo
-	pgssEnabledForAssessment := preflightResult.PgssEnabledForAssessment
+	pgssByNode := preflightResult.PgssByNode
 
 	fmt.Println()
 	ux.PrintSeparator()
@@ -287,7 +287,7 @@ func assessMigration() (err error) {
 		ExportDir:                 exportDir,
 		SchemaDir:                 schemaDir,
 		ValidatedReplicaEndpoints: validatedReplicaEndpoints,
-		PgssEnabledForAssessment:  pgssEnabledForAssessment,
+		PgssByNode:                pgssByNode,
 		IOPSInterval:              intervalForCapturingIOPS,
 		Tracker:                   tracker,
 	})
@@ -549,6 +549,133 @@ func handleStartCleanIfNeededForAssessMigration(metadataDirPassedByUser bool) er
 		return goerrors.Errorf("assessment metadata or reports files already exist in the assessment directory: '%s'. Use the --start-clean flag to clear the directory before proceeding.", assessmentDir)
 	}
 
+	return nil
+}
+
+// gatherAssessmentMetadata collects metadata from the source database.
+func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint, pgssByNode map[string]bool, tracker *ux.ProgressTracker) error {
+	if assessmentMetadataDirFlag != "" {
+		return nil // assessment metadata files are provided by the user inside assessmentMetadataDir
+	}
+
+	// setting schema objects types to export before creating the project directories
+	source.ExportObjectTypeList = utils.GetExportSchemaObjectList(source.DBType)
+	metaDB = CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+
+	log.Infof("gathering metadata and stats from '%s' source database...", source.DBType)
+
+	switch source.DBType {
+	case POSTGRESQL:
+		err := migassessment.GatherAssessmentMetadataFromPG(
+			&source,
+			validatedReplicas,
+			assessmentMetadataDir,
+			pgssByNode,
+			intervalForCapturingIOPS,
+			tracker,
+		)
+		if err != nil {
+			return fmt.Errorf("error gathering metadata and stats from source PG database: %w", err)
+		}
+	case ORACLE:
+		err := migassessment.GatherAssessmentMetadataFromOracle(&source, assessmentMetadataDir)
+		if err != nil {
+			return fmt.Errorf("error gathering metadata and stats from source Oracle database: %w", err)
+		}
+	default:
+		return goerrors.Errorf("source DB Type %s is not yet supported for metadata and stats gathering", source.DBType)
+	}
+	log.Infof("gathered assessment metadata files at '%s'", assessmentMetadataDir)
+	return nil
+}
+
+func gatherMetadataStageConfig(sourceDBType string, hasReplicas bool) (int, bool) {
+	switch sourceDBType {
+	case ORACLE:
+		return 0, true
+	case POSTGRESQL:
+		return migassessment.CountPGGatherSteps(), hasReplicas
+	default:
+		return 0, false
+	}
+}
+
+/*
+It is due to the differences in how tools like ora2pg, and pg_dump exports the schema
+pg_dump - export schema in single .sql file which is later on segregated by voyager in respective .sql file
+ora2pg - export schema in given .sql file, and we have to call it for each object type to export schema
+*/
+func parseExportedSchemaFileForAssessmentIfRequired() {
+	if source.DBType == ORACLE {
+		return // already parsed into schema files while exporting
+	}
+
+	log.Infof("set 'schemaDir' as: %s", schemaDir)
+	source.ApplyExportSchemaObjectListFilter()
+	metaDB = CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+	source.DB().ExportSchema(exportDir, schemaDir)
+}
+
+func populateMetadataCSVIntoAssessmentDB() error {
+	// Collect CSV files from metadata directory
+	// Two supported structures:
+	//   1. Multi-node (PostgreSQL): assessmentMetadataDir/node-*/*.csv
+	//   2. Single-node (Oracle, MySQL, etc.): assessmentMetadataDir/*.csv
+	var metadataFilesPath []string
+
+	// Check for multi-node structure first (node-* directories)
+	nodeDirs, err := filepath.Glob(filepath.Join(assessmentMetadataDir, "node-*"))
+	if err != nil {
+		return fmt.Errorf("error looking for node data directories in %s: %w", assessmentMetadataDir, err)
+	}
+
+	if len(nodeDirs) > 0 {
+		// Multi-node structure: Collect CSV files from each node directory
+		for _, nodeDir := range nodeDirs {
+			nodeFiles, err := filepath.Glob(filepath.Join(nodeDir, "*.csv"))
+			if err != nil {
+				return fmt.Errorf("error looking for csv files in directory %s: %w", nodeDir, err)
+			}
+			metadataFilesPath = append(metadataFilesPath, nodeFiles...)
+		}
+		log.Infof("Found %d CSV files across %d node(s) for population into assessment DB", len(metadataFilesPath), len(nodeDirs))
+	} else {
+		// Single-node structure: Collect CSV files directly from metadata directory
+		metadataFilesPath, err = filepath.Glob(filepath.Join(assessmentMetadataDir, "*.csv"))
+		if err != nil {
+			return fmt.Errorf("error looking for csv files in directory %s: %w", assessmentMetadataDir, err)
+		}
+		log.Infof("Found %d CSV files in metadata directory for population into assessment DB", len(metadataFilesPath))
+	}
+
+	for _, metadataFilePath := range metadataFilesPath {
+		baseFileName := filepath.Base(metadataFilePath)
+		metric := strings.TrimSuffix(baseFileName, filepath.Ext(baseFileName))
+		tableName := strings.Replace(metric, "-", "_", -1)
+		// collecting both initial and final measurement in the same table
+		tableName = lo.Ternary(strings.Contains(tableName, migassessment.TABLE_INDEX_IOPS),
+			migassessment.TABLE_INDEX_IOPS, tableName)
+
+		// check if the table exist in the assessment db or not
+		// possible scenario: if gather scripts are run manually, not via voyager
+		err := assessmentDB.CheckIfTableExists(tableName)
+		if err != nil {
+			return fmt.Errorf("error checking if table %s exists: %w", tableName, err)
+		}
+
+		log.Infof("populating metadata from file %s into table %s", metadataFilePath, tableName)
+		err = assessmentDB.LoadCSVFileIntoTable(metadataFilePath, tableName)
+		if err != nil {
+			return fmt.Errorf("error loading CSV file %s: %w", metadataFilePath, err)
+		}
+
+		log.Infof("populated metadata from file %s into table %s", metadataFilePath, tableName)
+	}
+
+	err = assessmentDB.PopulateMigrationAssessmentStats()
+	if err != nil {
+		return fmt.Errorf("failed to populate migration assessment stats: %w", err)
+	}
 	return nil
 }
 

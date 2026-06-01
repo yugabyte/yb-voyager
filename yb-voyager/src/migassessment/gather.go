@@ -52,6 +52,7 @@ type collectionNode struct {
 	connectionUri string                 // Database connection string
 	isPrimary     bool                   // Whether this is the primary node (affects script behavior)
 	replica       *srcdb.ReplicaEndpoint // Replica info (nil for primary, contains raw data for display name extraction)
+	pgssEnabled   bool                   // Whether pg_stat_statements can be queried on this node
 }
 
 // collectionResult tracks the result of metadata collection from a single node
@@ -227,7 +228,7 @@ func GatherAssessmentMetadataFromPG(
 	source *srcdb.Source,
 	validatedReplicas []srcdb.ReplicaEndpoint,
 	assessmentMetadataDir string,
-	pgssEnabled bool,
+	pgssByNode map[string]bool,
 	iopsInterval int64,
 	tracker *ux.ProgressTracker,
 ) error {
@@ -249,7 +250,7 @@ func GatherAssessmentMetadataFromPG(
 			connectionUri,
 			sqlname.JoinIdentifiersMinQuoted(source.Schemas, "|"),
 			assessmentMetadataDir,
-			fmt.Sprintf("%t", pgssEnabled),
+			fmt.Sprintf("%t", pgssByNode["primary"]),
 			fmt.Sprintf("%d", iopsInterval),
 			"true",    // --yes
 			"primary", // source_node_name
@@ -270,17 +271,20 @@ func GatherAssessmentMetadataFromPG(
 			nodeName:      "primary",
 			connectionUri: source.DB().GetConnectionUriWithoutPassword(),
 			isPrimary:     true,
-			replica:       nil, // nil for primary
+			replica:       nil,
+			pgssEnabled:   pgssByNode["primary"],
 		},
 	}
 
 	for i := range validatedReplicas {
 		uniqueNodeName := fmt.Sprintf("%s-%d", validatedReplicas[i].Host, validatedReplicas[i].Port)
+		mapKey := fmt.Sprintf("%s:%d", validatedReplicas[i].Host, validatedReplicas[i].Port)
 		nodes = append(nodes, collectionNode{
 			nodeName:      uniqueNodeName,
 			connectionUri: validatedReplicas[i].ConnectionUri,
 			isPrimary:     false,
-			replica:       &validatedReplicas[i], // Pass entire replica object
+			replica:       &validatedReplicas[i],
+			pgssEnabled:   pgssByNode[mapKey],
 		})
 	}
 
@@ -325,7 +329,7 @@ func GatherAssessmentMetadataFromPG(
 				n.connectionUri,
 				sqlname.JoinIdentifiersMinQuoted(source.Schemas, "|"),
 				assessmentMetadataDir,
-				fmt.Sprintf("%t", pgssEnabled),
+				fmt.Sprintf("%t", n.pgssEnabled),
 				fmt.Sprintf("%d", iopsInterval),
 				"true",     // --yes (doesn't matter since skip_checks=true)
 				n.nodeName, // source_node_name
