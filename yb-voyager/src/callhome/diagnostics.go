@@ -86,7 +86,7 @@ type Payload struct {
 	Status           string    `json:"status"`
 }
 
-// SHOULD NOT REMOVE THESE (host, db_type, db_version, total_db_size_bytes, db_id) FIELDS of SourceDBDetails as parsing these specifically here
+// SHOULD NOT REMOVE THESE (host, db_type, db_version, total_db_size_bytes) FIELDS of SourceDBDetails as parsing these specifically here
 // https://github.com/yugabyte/yugabyte-growth/blob/ad5df306c50c05136df77cd6548a1091ae577046/diagnostics_v2/main.py#L549
 
 /*

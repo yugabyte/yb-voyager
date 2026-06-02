@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/samber/lo"
@@ -184,6 +185,8 @@ func anonymizeQualifiedTableNames(tableNames []string) []string {
 
 // anonymizeSourceDBDetails creates anonymized source DB details for callhome
 func anonymizeSourceDBDetails(source *srcdb.Source) callhome.SourceDBDetails {
+	// Sort schema oids to ensure consistent order
+	slices.Sort(source.SchemaOids)
 	details := callhome.SourceDBDetails{
 		PayloadVersion:     callhome.SOURCE_DB_DETAILS_PAYLOAD_VERSION,
 		DBType:             source.DBType,
