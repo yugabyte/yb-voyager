@@ -130,7 +130,10 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			}
 			err = InitLogging(bulkAssessmentDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
 			if err != nil {
-				utils.ErrExit("Failed to initialize logging: %w", err)
+				// InitLogging failed, so logging is still on its default stderr output;
+				// avoid utils.ErrExit here as it would print the error twice.
+				fmt.Printf("ERROR: Failed to initialize logging: %v\n", err)
+				atexit.Exit(1)
 			}
 			startTime = time.Now()
 			log.Infof("Start time: %s\n", startTime)
@@ -161,7 +164,10 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			}
 			err = InitLogging(exportDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
 			if err != nil {
-				utils.ErrExit("Failed to initialize logging: %w", err)
+				// InitLogging failed, so logging is still on its default stderr output;
+				// avoid utils.ErrExit here as it would print the error twice.
+				fmt.Printf("ERROR: Failed to initialize logging: %v\n", err)
+				atexit.Exit(1)
 			}
 			startTime = time.Now()
 			log.Infof("Start time: %s\n", startTime)
@@ -262,7 +268,10 @@ func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
 	//this is just for any logs that might be printed before the iteration export dir is resolved
 	err := InitLogging(exportDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
 	if err != nil {
-		utils.ErrExit("Failed to initialize logging: %w", err)
+		// InitLogging failed, so logging is still on its default stderr output;
+		// avoid utils.ErrExit here as it would print the error twice.
+		fmt.Printf("ERROR: Failed to initialize logging: %v\n", err)
+		atexit.Exit(1)
 	}
 	metaDB = initMetaDB(exportDir)
 	msr, err := metaDB.GetMigrationStatusRecord()
@@ -482,11 +491,16 @@ func registerExportDirFlag(cmd *cobra.Command) {
 }
 
 func validateExportDirFlag() {
+	// This runs before InitLogging(), so logging is not yet redirected to the log
+	// file. Using utils.ErrExit here would print the message twice (once to stderr
+	// and again via logrus's default stderr output), so print to console directly.
 	if exportDir == "" {
-		utils.ErrExit(`ERROR required flag "export-dir" not set`)
+		fmt.Printf("ERROR required flag \"export-dir\" not set\n")
+		atexit.Exit(1)
 	}
 	if !utils.FileOrFolderExists(exportDir) {
-		utils.ErrExit("export-dir doesn't exist: %q\n", exportDir)
+		fmt.Printf("export-dir doesn't exist: %q\n", exportDir)
+		atexit.Exit(1)
 	} else {
 		if exportDir == "." {
 			fmt.Println("Note: Using current directory as export-dir")
@@ -494,7 +508,8 @@ func validateExportDirFlag() {
 		var err error
 		exportDir, err = filepath.Abs(exportDir)
 		if err != nil {
-			utils.ErrExit("Failed to get absolute path for export-dir: %q: %w\n", exportDir, err)
+			fmt.Printf("Failed to get absolute path for export-dir: %q: %v\n", exportDir, err)
+			atexit.Exit(1)
 		}
 		exportDir = filepath.Clean(exportDir)
 	}
