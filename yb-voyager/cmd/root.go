@@ -132,7 +132,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			if err != nil {
 				// InitLogging failed, so logging is still on its default stderr output;
 				// avoid utils.ErrExit here as it would print the error twice.
-				fmt.Printf("ERROR: Failed to initialize logging: %v\n", err)
+				fmt.Fprintf(os.Stderr, "ERROR: Failed to initialize logging: %v\n", err)
 				atexit.Exit(1)
 			}
 			startTime = time.Now()
@@ -166,7 +166,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			if err != nil {
 				// InitLogging failed, so logging is still on its default stderr output;
 				// avoid utils.ErrExit here as it would print the error twice.
-				fmt.Printf("ERROR: Failed to initialize logging: %v\n", err)
+				fmt.Fprintf(os.Stderr, "ERROR: Failed to initialize logging: %v\n", err)
 				atexit.Exit(1)
 			}
 			startTime = time.Now()
@@ -270,7 +270,7 @@ func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
 	if err != nil {
 		// InitLogging failed, so logging is still on its default stderr output;
 		// avoid utils.ErrExit here as it would print the error twice.
-		fmt.Printf("ERROR: Failed to initialize logging: %v\n", err)
+		fmt.Fprintf(os.Stderr, "ERROR: Failed to initialize logging: %v\n", err)
 		atexit.Exit(1)
 	}
 	metaDB = initMetaDB(exportDir)
@@ -495,11 +495,11 @@ func validateExportDirFlag() {
 	// file. Using utils.ErrExit here would print the message twice (once to stderr
 	// and again via logrus's default stderr output), so print to console directly.
 	if exportDir == "" {
-		fmt.Printf("ERROR required flag \"export-dir\" not set\n")
+		fmt.Fprintf(os.Stderr, "ERROR required flag \"export-dir\" not set\n")
 		atexit.Exit(1)
 	}
 	if !utils.FileOrFolderExists(exportDir) {
-		fmt.Printf("export-dir doesn't exist: %q\n", exportDir)
+		fmt.Fprintf(os.Stderr, "export-dir doesn't exist: %q\n", exportDir)
 		atexit.Exit(1)
 	} else {
 		if exportDir == "." {
@@ -508,7 +508,7 @@ func validateExportDirFlag() {
 		var err error
 		exportDir, err = filepath.Abs(exportDir)
 		if err != nil {
-			fmt.Printf("Failed to get absolute path for export-dir: %q: %v\n", exportDir, err)
+			fmt.Fprintf(os.Stderr, "Failed to get absolute path for export-dir: %q: %v\n", exportDir, err)
 			atexit.Exit(1)
 		}
 		exportDir = filepath.Clean(exportDir)

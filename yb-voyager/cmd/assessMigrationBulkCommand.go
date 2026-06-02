@@ -460,11 +460,11 @@ func validateBulkAssessmentDirFlag() {
 	// file. Using utils.ErrExit here would print the message twice (once to stderr
 	// and again via logrus's default stderr output), so print to console directly.
 	if bulkAssessmentDir == "" {
-		fmt.Printf("ERROR required flag \"bulk-assessment-dir\" not set\n")
+		fmt.Fprintf(os.Stderr, "ERROR required flag \"bulk-assessment-dir\" not set\n")
 		atexit.Exit(1)
 	}
 	if !utils.FileOrFolderExists(bulkAssessmentDir) {
-		fmt.Printf("bulk-assessment-dir doesn't exists: %q\n", bulkAssessmentDir)
+		fmt.Fprintf(os.Stderr, "bulk-assessment-dir doesn't exists: %q\n", bulkAssessmentDir)
 		atexit.Exit(1)
 	} else {
 		if bulkAssessmentDir == "." {
@@ -473,7 +473,7 @@ func validateBulkAssessmentDirFlag() {
 		var err error
 		bulkAssessmentDir, err = filepath.Abs(bulkAssessmentDir)
 		if err != nil {
-			fmt.Printf("Failed to get absolute path for bulk-assessment-dir: %q: %v\n", exportDir, err)
+			fmt.Fprintf(os.Stderr, "Failed to get absolute path for bulk-assessment-dir: %q: %v\n", bulkAssessmentDir, err)
 			atexit.Exit(1)
 		}
 		bulkAssessmentDir = filepath.Clean(bulkAssessmentDir)
