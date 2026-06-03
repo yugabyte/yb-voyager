@@ -504,15 +504,12 @@ func validateExportDirFlag() {
 	}
 }
 
-var commandAliases = map[string]string{
-	"export-data-from-source": "export-data",
-	"import-data-to-target":   "import-data",
-}
-
 func GetCommandID(c *cobra.Command) string {
 	commandID := buildCommandID(c)
-	if alias, ok := commandAliases[commandID]; ok {
-		return alias
+	for alias, aliases := range aliasCommandsPrefixes {
+		if slices.Contains(aliases, commandID) {
+			return alias
+		}
 	}
 	return commandID
 }
