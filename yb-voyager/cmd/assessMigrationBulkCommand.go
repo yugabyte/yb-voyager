@@ -31,7 +31,6 @@ import (
 	goerrors "github.com/go-errors/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/tebeka/atexit"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
@@ -456,16 +455,13 @@ func isMigrationAssessmentDoneForConfig(dbConfig AssessMigrationDBConfig) bool {
 }
 
 func validateBulkAssessmentDirFlag() {
-	// This runs before InitLogging(), so logging is not yet redirected to the log
-	// file. Using utils.ErrExit here would print the message twice (once to stderr
-	// and again via logrus's default stderr output), so print to console directly.
+	// This runs before InitLogging(), so use utils.ErrExitPreLog instead of
+	// utils.ErrExit to avoid printing the message twice.
 	if bulkAssessmentDir == "" {
-		fmt.Fprintf(os.Stderr, "ERROR required flag \"bulk-assessment-dir\" not set\n")
-		atexit.Exit(1)
+		utils.ErrExitPreLog("ERROR required flag \"bulk-assessment-dir\" not set")
 	}
 	if !utils.FileOrFolderExists(bulkAssessmentDir) {
-		fmt.Fprintf(os.Stderr, "bulk-assessment-dir doesn't exists: %q\n", bulkAssessmentDir)
-		atexit.Exit(1)
+		utils.ErrExitPreLog("bulk-assessment-dir doesn't exists: %q", bulkAssessmentDir)
 	} else {
 		if bulkAssessmentDir == "." {
 			fmt.Println("Note: Using current directory as bulk-assessment-dir")
@@ -473,8 +469,7 @@ func validateBulkAssessmentDirFlag() {
 		var err error
 		bulkAssessmentDir, err = filepath.Abs(bulkAssessmentDir)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to get absolute path for bulk-assessment-dir: %q: %v\n", bulkAssessmentDir, err)
-			atexit.Exit(1)
+			utils.ErrExitPreLog("Failed to get absolute path for bulk-assessment-dir: %q: %v", bulkAssessmentDir, err)
 		}
 		bulkAssessmentDir = filepath.Clean(bulkAssessmentDir)
 	}
