@@ -392,7 +392,7 @@ func (pg *PostgreSQL) ExportSchema(exportDir string, schemaDir string) {
 	if utils.FileOrFolderExists(filepath.Join(schemaDir, "schema.sql")) {
 		// case for assess-migration cmd workflow
 		log.Infof("directly parsing the '%s/schema.sql' file", schemaDir)
-		parseSchemaFile(exportDir, schemaDir, pg.source.ExportObjectTypeList, pg.source.Schemas)
+		parseSchemaFile(exportDir, schemaDir, pg.source.ExportObjectTypeList)
 	} else {
 		//TODO: remove as it might not be required
 		// pg.checkSchemasExists()
@@ -402,7 +402,7 @@ func (pg *PostgreSQL) ExportSchema(exportDir string, schemaDir string) {
 		pgdumpExtractSchema(pg.source, pg.GetConnectionUriWithoutPassword(), exportDir, schemaDir)
 
 		//Parsing the single file to generate multiple database object files
-		returnCode := parseSchemaFile(exportDir, schemaDir, pg.source.ExportObjectTypeList, pg.source.Schemas)
+		returnCode := parseSchemaFile(exportDir, schemaDir, pg.source.ExportObjectTypeList)
 
 		log.Info("Export of schema completed.")
 		utils.WaitChannel <- returnCode

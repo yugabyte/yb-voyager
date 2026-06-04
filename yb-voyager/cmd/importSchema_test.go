@@ -193,22 +193,6 @@ func TestImportSchemaWithPercentType(t *testing.T) {
 		t.Fatalf("Failed to export schema: %v", err)
 	}
 
-	// The export-side injection must put SET search_path in function.sql only.
-	functionSqlPath := filepath.Join(tempExportDir, "schema", "functions", "function.sql")
-	functionSql, err := os.ReadFile(functionSqlPath)
-	if err != nil {
-		t.Fatalf("Failed to read function.sql: %v", err)
-	}
-	if !strings.Contains(string(functionSql), "SET search_path = pct;") {
-		t.Fatalf("function.sql missing injected `SET search_path = pct;`; content:\n%s", string(functionSql))
-	}
-	tableSqlPath := filepath.Join(tempExportDir, "schema", "tables", "table.sql")
-	if tableSqlBytes, err := os.ReadFile(tableSqlPath); err == nil {
-		if strings.Contains(string(tableSqlBytes), "SET search_path = pct;") {
-			t.Fatalf("table.sql should NOT contain `SET search_path = pct;` (function/procedure only)")
-		}
-	}
-
 	if _, err := testutils.RunVoyagerCommand(yugabyteContainer, "import schema", []string{
 		"--export-dir", tempExportDir,
 		"--yes",
@@ -217,20 +201,21 @@ func TestImportSchemaWithPercentType(t *testing.T) {
 		t.Fatalf("Failed to import schema: %v", err)
 	}
 
-	// Verify the import took the expected path for each case by grepping the
-	// log: get_employee_salary must NOT be deferred (export-side injection
-	// fixes it first-pass), get_view_salary MUST be deferred (forward ref to
-	// the view — caught by the broader isPercentTypeResolutionError classifier
-	// and retried after view.sql imports).
+	// Verify each case took the expected path. get_employee_salary must NOT be
+	// deferred (the target table already exists and the import-side skip of
+	// pg_dump's empty-path SELECT lets setTargetSchema's search_path resolve
+	// `employees`). get_view_salary MUST be deferred (forward ref to a view
+	// imported later — caught by isPercentTypeResolutionError) and succeed on
+	// retry after view.sql imports.
 	importLog, err := os.ReadFile(filepath.Join(tempExportDir, "logs", "yb-voyager-import-schema.log"))
 	if err != nil {
 		t.Fatalf("read import-schema log: %v", err)
 	}
 	if strings.Contains(string(importLog), "deffering execution of SQL: CREATE FUNCTION pct.get_employee_salary") {
-		t.Fatalf("get_employee_salary was deferred — export-side SET search_path injection didn't take effect")
+		t.Fatalf("get_employee_salary was deferred — search_path override skip didn't take effect")
 	}
 	if !strings.Contains(string(importLog), "deffering execution of SQL: CREATE FUNCTION pct.get_view_salary") {
-		t.Fatalf("get_view_salary was NOT deferred — broader classifier (isPercentTypeResolutionError) didn't catch the 42601+%%TYPE case")
+		t.Fatalf("get_view_salary was NOT deferred — isPercentTypeResolutionError didn't catch the 42601+%%TYPE forward-ref case")
 	}
 
 	// Function bodies use unqualified %TYPE refs that re-resolve at every call
