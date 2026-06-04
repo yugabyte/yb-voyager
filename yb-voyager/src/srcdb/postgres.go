@@ -1438,6 +1438,22 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissionsForNode(isReplica bool
 	return combinedResult, pgssEnabled, nil
 }
 
+// IsPgStatStatementsAvailable reports whether pg_stat_statements is installed,
+// accessible, and properly loaded on the connected node.
+//
+// It runs the same lightweight detection used by the guardrails permission check
+// (checkPgStatStatementsSetup) but without surfacing the detailed reason. This is
+// used to decide whether query-level metadata (Unsupported Query Constructs) can be
+// collected even when guardrails checks are disabled, so that availability detection
+// is decoupled from the heavier guardrail validations.
+func (pg *PostgreSQL) IsPgStatStatementsAvailable() (bool, error) {
+	result, err := pg.checkPgStatStatementsSetup()
+	if err != nil {
+		return false, err
+	}
+	return result == "", nil
+}
+
 // CheckTrackCounts checks if the track_counts setting is enabled in PostgreSQL.
 // This setting is required for collecting IOPS metrics from pg_stat_user_tables.
 func (pg *PostgreSQL) CheckTrackCounts() (bool, error) {

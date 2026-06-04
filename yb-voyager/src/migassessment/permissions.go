@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	goerrors "github.com/go-errors/errors"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/fatih/color"
 
@@ -55,6 +56,76 @@ func CheckAssessmentPermissionsOnAllNodes(source *srcdb.Source, validatedReplica
 		return checkPermissionsForNonPostgreSQL(source)
 	}
 	return checkPermissionsForPostgreSQL(source, validatedReplicas)
+}
+
+// DetectPgssAvailabilityOnAllNodes determines pg_stat_statements availability on the
+// primary and each replica node WITHOUT running the full guardrails permission checks.
+//
+// This is used when guardrails checks are disabled (--run-guardrails-checks=false), so
+// that query-level metadata collection still behaves correctly instead of defaulting to
+// "pgss disabled" and falsely reporting that pg_stat_statements is not enabled.
+//
+// Detection failures are treated as non-fatal (the node is recorded as pgss-unavailable),
+// since the user has explicitly opted out of guardrail checks and should not be blocked.
+func DetectPgssAvailabilityOnAllNodes(source *srcdb.Source, validatedReplicas []srcdb.ReplicaEndpoint) (map[string]bool, error) {
+	// pg_stat_statements is PostgreSQL-specific.
+	if source.DBType != POSTGRESQL {
+		return nil, nil
+	}
+
+	pg, ok := source.DB().(*srcdb.PostgreSQL)
+	if !ok {
+		return nil, goerrors.Errorf("source database is not PostgreSQL")
+	}
+
+	pgssByNode := make(map[string]bool, len(validatedReplicas)+1)
+
+	primaryPgss, err := pg.IsPgStatStatementsAvailable()
+	if err != nil {
+		log.Warnf("failed to detect pg_stat_statements availability on primary: %v", err)
+		primaryPgss = false
+	}
+	pgssByNode["primary"] = primaryPgss
+
+	for _, replica := range validatedReplicas {
+		nodeKey := fmt.Sprintf("%s:%d", replica.Host, replica.Port)
+		replicaPgss, err := detectPgssOnReplicaNode(source, replica)
+		if err != nil {
+			log.Warnf("failed to detect pg_stat_statements availability on replica %s: %v", nodeKey, err)
+			replicaPgss = false
+		}
+		pgssByNode[nodeKey] = replicaPgss
+	}
+
+	return pgssByNode, nil
+}
+
+// detectPgssOnReplicaNode opens a short-lived connection to a replica and reports
+// whether pg_stat_statements is available on it.
+func detectPgssOnReplicaNode(source *srcdb.Source, replica srcdb.ReplicaEndpoint) (bool, error) {
+	replicaSource := srcdb.Source{
+		DBType:         source.DBType,
+		Host:           replica.Host,
+		Port:           replica.Port,
+		DBName:         source.DBName,
+		User:           source.User,
+		Password:       source.Password,
+		Schemas:        source.Schemas,
+		SSLMode:        source.SSLMode,
+		SSLCertPath:    source.SSLCertPath,
+		SSLKey:         source.SSLKey,
+		SSLRootCert:    source.SSLRootCert,
+		SSLCRL:         source.SSLCRL,
+		NumConnections: source.NumConnections,
+	}
+
+	replicaDB := replicaSource.DB().(*srcdb.PostgreSQL)
+	if err := replicaDB.Connect(); err != nil {
+		return false, fmt.Errorf("failed to connect: %w", err)
+	}
+	defer replicaDB.Disconnect()
+
+	return replicaDB.IsPgStatStatementsAvailable()
 }
 
 // checkPermissionsForNonPostgreSQL checks permissions for non-PostgreSQL databases (Oracle, etc.)
