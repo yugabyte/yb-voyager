@@ -17,7 +17,6 @@ limitations under the License.
 package ux
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -156,14 +155,4 @@ func PrintPreflightSkip(label string) {
 // PrintPreflightFail prints a red cross with the given label.
 func PrintPreflightFail(label string) {
 	FailColor.Printf("  ✗ %s\n", label)
-}
-
-// FailErrorf builds an error whose rendered message is styled in red. Use it for
-// preflight / terminal failures so that when the message is eventually printed
-// to the user (e.g. via utils.ErrExit) it is visually associated with the red
-// "✗" failure line rather than appearing as unstyled white text. When color is
-// disabled (non-TTY output, NO_COLOR, etc.) FailColor emits no escape codes, so
-// the message degrades gracefully to plain text.
-func FailErrorf(format string, args ...interface{}) error {
-	return errors.New(FailColor.Sprintf(format, args...))
 }

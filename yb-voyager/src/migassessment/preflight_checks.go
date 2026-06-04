@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/export"
@@ -89,7 +90,7 @@ func checkSourceDatabasePassword(config PreflightChecksConfig) error {
 		password, err := ux.AskPassword("source DB", config.Source.User, "SOURCE_DB_PASSWORD")
 		if err != nil {
 			ux.PrintPreflightFail("Source database password")
-			return ux.FailErrorf("failed to get source DB password for assessing migration: %s", err)
+			return fmt.Errorf("failed to get source DB password for assessing migration: %w", err)
 		}
 		config.Source.Password = password
 	}
@@ -100,7 +101,7 @@ func checkSourceDatabasePassword(config PreflightChecksConfig) error {
 func connectToSourceDatabase(source *srcdb.Source) error {
 	if err := source.DB().Connect(); err != nil {
 		ux.PrintPreflightFail("Connect to source database")
-		return ux.FailErrorf("failed to connect source db for assessing migration: %s", err)
+		return fmt.Errorf("failed to connect source db for assessing migration: %w", err)
 	}
 	ux.PrintPreflightCheck("Connected to source database")
 	return nil
@@ -116,7 +117,7 @@ func runGuardrailChecks(config PreflightChecksConfig) error {
 	log.Info("checking source DB version")
 	if err := config.Source.DB().CheckSourceDBVersion(""); err != nil {
 		ux.PrintPreflightFail("Source DB version check")
-		return ux.FailErrorf("failed to check source DB version for assess migration: %s", err)
+		return fmt.Errorf("failed to check source DB version for assess migration: %w", err)
 	}
 	ux.PrintPreflightCheck(fmt.Sprintf("Source DB version compatible (%s)", config.Source.DB().GetVersion()))
 
@@ -128,10 +129,10 @@ func runGuardrailChecks(config PreflightChecksConfig) error {
 	)
 	if err != nil {
 		ux.PrintPreflightFail("Required dependencies present")
-		return ux.FailErrorf("failed to check dependencies for assess migration: %s", err)
+		return fmt.Errorf("failed to check dependencies for assess migration: %w", err)
 	} else if len(binaryCheckIssues) > 0 {
 		ux.PrintPreflightFail("Required dependencies present")
-		return ux.FailErrorf("\nMissing dependencies for assess migration:\n%s", strings.Join(binaryCheckIssues, "\n"))
+		return goerrors.Errorf("\n%s\n%s", ux.FailColor.Sprintf("Missing dependencies for assess migration:"), strings.Join(binaryCheckIssues, "\n"))
 	}
 	ux.PrintPreflightCheck("Required dependencies present")
 	return nil
@@ -141,12 +142,12 @@ func resolveSourceSchemas(source *srcdb.Source) error {
 	allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
 	if err != nil {
 		ux.PrintPreflightFail("Schema resolution")
-		return ux.FailErrorf("failed to get all schema names identifiers: %s", err)
+		return fmt.Errorf("failed to get all schema names identifiers: %w", err)
 	}
 	source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
 	if err != nil {
 		ux.PrintPreflightFail("Schema resolution")
-		return ux.FailErrorf("failed to match schema names: %s", err)
+		return fmt.Errorf("failed to match schema names: %w", err)
 	}
 	ux.PrintPreflightCheck(fmt.Sprintf("Schema resolution (%d schemas)", len(source.Schemas)))
 	return nil
@@ -160,7 +161,7 @@ func discoverAndValidateReplicas(config PreflightChecksConfig) (ReplicaDiscovery
 	)
 	if err != nil {
 		ux.PrintPreflightFail("Replica discovery and validation")
-		return ReplicaDiscoveryInfo{}, ux.FailErrorf("failed to handle replica discovery and validation: %s", err)
+		return ReplicaDiscoveryInfo{}, fmt.Errorf("failed to handle replica discovery and validation: %w", err)
 	}
 	ux.PrintPreflightCheck("Replica discovery and validation")
 	return replicaDiscoveryInfo, nil
@@ -174,12 +175,12 @@ func checkAssessmentPermissions(config PreflightChecksConfig, validatedReplicaEn
 
 	if err := srcdb.CheckSchemasHaveUsagePermissions(config.Source, false); err != nil {
 		ux.PrintPreflightFail("Schema USAGE permissions")
-		return nil, ux.FailErrorf("schema usage permission check failed: %s", err)
+		return nil, fmt.Errorf("schema usage permission check failed: %w", err)
 	}
 	pgssByNode, err := CheckAssessmentPermissionsOnAllNodes(config.Source, validatedReplicaEndpoints)
 	if err != nil {
 		ux.PrintPreflightFail("Assessment permissions on all nodes")
-		return nil, ux.FailErrorf("assessment permission check failed: %s", err)
+		return nil, fmt.Errorf("assessment permission check failed: %w", err)
 	}
 	ux.PrintPreflightCheck("Permissions verified on all nodes")
 	return pgssByNode, nil

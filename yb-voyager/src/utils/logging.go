@@ -33,8 +33,14 @@ var ErrExitErr error
 var ErrExit = func(formatString string, args ...interface{}) {
 	ErrExitErr = goerrors.Errorf(formatString, args...)
 	formatString = strings.Replace(formatString, "%w", "%s", -1)
-	fmt.Fprintf(os.Stderr, formatString+"\n", args...)
-	log.Errorf(formatString+"\n", args...)
+	message := fmt.Sprintf(formatString, args...)
+	// Console: render the error in red so failures stand out and visually match
+	// the red "✗" markers printed by the progress/preflight UX. ErrorColor
+	// auto-disables escape codes for non-TTY output / NO_COLOR, so piped output
+	// degrades gracefully to plain text.
+	ErrorColor.Fprintln(os.Stderr, message)
+	// Log file: keep plain text only (never embed ANSI escape codes in logs).
+	log.Error(message)
 	atexit.Exit(1)
 }
 
