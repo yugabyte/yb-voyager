@@ -63,6 +63,7 @@ type Source struct {
 	DBSize                    int64                `json:"db_size"`
 	DBSystemIdentifier        int64                `json:"db_system_identifier"`
 	DBID                      int64                `json:"db_id,omitempty"` // Source-specific numeric id for call-home; see FetchDBID()
+	SchemaOids                []int64              `json:"schema_oids"`     //Schema oids
 	StrExportObjectTypeList   string               `json:"str_export_object_type_list"`
 	StrExcludeObjectTypeList  string               `json:"str_exclude_object_type_list"`
 	RunGuardrailsChecks       utils.BoolStr        `json:"run_guardrails_checks"`
@@ -98,6 +99,10 @@ func (s *Source) FetchSourceInfo() {
 	err = s.DB().FetchDBID()
 	if err != nil {
 		log.Errorf("error getting database id: %v", err) // can just log as this is used for call-home only
+	}
+	err = s.DB().FetchSchemaOids()
+	if err != nil {
+		log.Errorf("error getting schema oids: %v", err) // can just log as this is used for call-home only
 	}
 }
 

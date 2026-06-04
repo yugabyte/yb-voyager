@@ -151,20 +151,8 @@ func exportSchema(cmd *cobra.Command) error {
 	}
 
 	checkSourceDBCharset()
-	sourceDBVersion := source.DB().GetVersion()
-	source.DBVersion = sourceDBVersion
-	source.DBSize, err = source.DB().GetDatabaseSize()
-	if err != nil {
-		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
-	}
-
-	// Get PostgreSQL system identifier while still connected
-	source.FetchPGDBSystemIdentifier()
-	err = source.DB().FetchDBID()
-	if err != nil {
-		log.Errorf("error getting database id: %v", err) //can just log as this is used for call-home only
-	}
-	utils.PrintAndLogf("%s version: %s\n", source.DBType, sourceDBVersion)
+	source.FetchSourceInfo()
+	utils.PrintAndLogf("%s version: %s\n", source.DBType, source.DBVersion)
 
 	// Check if the source database has the required permissions for exporting schema.
 	if source.RunGuardrailsChecks {

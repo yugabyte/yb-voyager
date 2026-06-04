@@ -4,7 +4,7 @@
     "migration_type": "offline",
     "migration_uuid": "507f2869-f4bb-4459-b776-79c2f85f8d7e",
     "phase_payload": {
-      "payload_version": 1.5,
+      "payload_version": 1.6,
       "batch_size": 20000,
       "control_plane_type": "",
       "parallel_jobs": 1,
@@ -12,6 +12,7 @@
       "enable_yb_adaptive_parallelism": true,
       "adaptive_parallelism_max": 4,
       "error_policy_snapshot": "abort",
+      "iterative_cutover_enabled": false,
       "start_clean": false,
       "data_metrics": {
         "migration_snapshot_total_rows": 101,

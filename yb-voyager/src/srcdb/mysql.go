@@ -292,6 +292,10 @@ func (ms *MySQL) FetchDBID() error {
 	return nil
 }
 
+func (ms *MySQL) FetchSchemaOids() error {
+	return nil
+}
+
 func (ms *MySQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	return tableList, nil
 }

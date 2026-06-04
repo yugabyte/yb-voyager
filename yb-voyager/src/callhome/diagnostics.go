@@ -86,15 +86,16 @@ type Payload struct {
 	Status           string    `json:"status"`
 }
 
-// SHOULD NOT REMOVE THESE (host, db_type, db_version, total_db_size_bytes, db_id) FIELDS of SourceDBDetails as parsing these specifically here
+// SHOULD NOT REMOVE THESE (host, db_type, db_version, total_db_size_bytes) FIELDS of SourceDBDetails as parsing these specifically here
 // https://github.com/yugabyte/yugabyte-growth/blob/ad5df306c50c05136df77cd6548a1091ae577046/diagnostics_v2/main.py#L549
 
 /*
 Version History
 1.0: Introduced DBName and SchemaNames fields
 1.1: Added db_id (PostgreSQL/YugabyteDB: pg_database.oid; Oracle: v$database.dbid; MySQL: 0)
+1.2: Added schema_oids field (PostgreSQL/YugabyteDB: pg_namespace.oid)
 */
-var SOURCE_DB_DETAILS_PAYLOAD_VERSION = "1.1"
+var SOURCE_DB_DETAILS_PAYLOAD_VERSION = "1.2"
 
 type SourceDBDetails struct {
 	PayloadVersion     string   `json:"payload_version"`
@@ -104,9 +105,10 @@ type SourceDBDetails struct {
 	DBSize             int64    `json:"total_db_size_bytes"`            //bytes
 	Role               string   `json:"role,omitempty"`                 //for differentiating replica details
 	DBSystemIdentifier int64    `json:"db_system_identifier,omitempty"` //Database system identifier for unique instance identification (currently only implemented for PostgreSQL)
-	DBID               int64    `json:"db_id"`                          // postgresql/yugabytedb: pg_database.oid;
+	DBID               int64    `json:"db_id,omitempty"`                // postgresql/yugabytedb: pg_database.oid;
 	DBName             string   `json:"db_name,omitempty"`              //Anonymized database name
 	SchemaNames        []string `json:"schema_names,omitempty"`         //Anonymized schema names
+	SchemaOids         []int64  `json:"schema_oids,omitempty"`          //Schema oids
 }
 
 // SHOULD NOT REMOVE THESE (host, db_version, node_count, total_cores) FIELDS of TargetDBDetails as parsing these specifically here
