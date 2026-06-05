@@ -1,5 +1,5 @@
 ---
-name: release-notes
+name: voyager-release-notes
 description: >-
   Generate yb-voyager release notes from a commit range, formatted like the
   YugabyteDB Voyager release-notes docs page. Use when the user asks to draft
@@ -85,17 +85,29 @@ When a commit could plausibly be either New feature or Enhancement, prefer
 
 ### 4. Phrase each entry
 
-Synthesize the commit body and PR body into **one concise paragraph** per
-entry. Aim for the same density as the existing docs page — enough context
-for the user to know what changed and why it matters, without going into
-implementation detail.
+Reduce each commit to **what the user observes** — the symptom that was
+fixed, the capability that was added, the behaviour that improved. State
+that and nothing more. Prefer a **single sentence**; never exceed two. The
+goal is a point a user can scan in one read, not a paragraph that
+re-explains the change.
 
+- **Describe the WHAT, never the WHY or HOW.** Leave out the root cause and
+  the mechanism of the fix — those live in the PR, not the release note.
+  Write "Fixed an issue where `import data` could hang when
+  `--adaptive-parallelism-max` was set below the default `parallel-jobs`
+  value." Do **not** append why it hung (a blocked connection-pool init) or
+  how it was fixed (capping parallelism to the user's max). The user only
+  needs the symptom they could hit.
+- This rule applies to **every** bucket, not just bug fixes. A new feature
+  says what the user can now do; an enhancement says what is now better —
+  neither describes internals, data structures, or the code path that
+  changed.
 - Use plain text. **No markdown links.** No Hugo template tags. Code
   identifiers (commands, flags, SQLSTATEs, datatypes) go in backticks.
 - Write for the user, not the contributor. Skip "we", "this PR", "root
-  cause", file paths, function names.
-- Start with the user-visible effect ("Fixed an issue where…", "Added a
-  guardrail that…", "Improved…").
+  cause", file paths, function names, struct/field names.
+- Start with the user-visible effect ("Fixed an issue where…", "Added…",
+  "Improved…").
 
 ### 5. Render
 
@@ -154,6 +166,14 @@ markdown file. If yes, ask for the path. Do not write a file by default.
 - **Don't** describe the implementation ("changed `cleanImportState` to
   pass `tableNames` instead of `nonEmptyNts`"). Describe the effect on
   the user.
+- **Don't** explain the cause or the fix mechanism. Write "Fixed an issue
+  where `import data` could intermittently fail against multi-node targets
+  with a prepared-statement error" — not "the statement cache was keyed by
+  backend PID, which isn't unique across nodes, so it's now keyed by the
+  connection object." State only the symptom the user hit, in one sentence.
+- **Don't** pad a point to a paragraph. If the entry runs past two
+  sentences, it's almost certainly carrying cause or mechanism that belongs
+  in the PR — cut back to the user-visible symptom.
 - **Don't** skip the confirmation block, even when the prose ask looks
   unambiguous — one parse error wastes more time than one round-trip.
 - **Don't** write the release-notes file without being asked.
