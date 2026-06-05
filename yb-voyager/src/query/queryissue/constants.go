@@ -18,7 +18,6 @@ package queryissue
 
 // Types
 const (
-	REFERENCED_TYPE_DECLARATION              = "REFERENCED_TYPE_DECLARATION"
 	STORED_GENERATED_COLUMNS                 = "STORED_GENERATED_COLUMNS"
 	UNLOGGED_TABLES                          = "UNLOGGED_TABLES"
 	UNSUPPORTED_GIST_INDEX_METHOD            = "UNSUPPORTED_GIST_INDEX_METHOD"
@@ -417,7 +416,6 @@ const (
 
 	FOREIGN_TABLE_ISSUE_DESCRIPTION                            = "Foreign table creation fails as SERVER and USER MAPPING objects are not exported by voyager."
 	INHERITANCE_ISSUE_DESCRIPTION                              = "Table inheritance is not yet supported in YugabyteDB."
-	REFERENCED_TYPE_DECLARATION_ISSUE_DESCRIPTION              = "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB."
 	SECURITY_INVOKER_VIEWS_ISSUE_DESCRIPTION                   = "Security invoker views are not yet supported in YugabyteDB."
 	DETERMINISTIC_OPTION_WITH_COLLATION_ISSUE_DESCRIPTION      = "Deterministic option/attribute with collation is not yet supported in YugabyteDB."
 	NON_DETERMINISTIC_COLLATION_ISSUE_DESCRIPTION              = "Non-Deterministic collations are not yet supported in YugabyteDB."
@@ -515,8 +513,7 @@ const (
 	XML_DATATYPE_ISSUE_SUGGESTION                             = "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details."
 	XID_DATATYPE_ISSUE_SUGGESTION                             = "Functions for this type e.g. txid_current are not supported in YugabyteDB yet"
 
-	FOREIGN_TABLE_ISSUE_SUGGESTION               = "SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table"
-	REFERENCED_TYPE_DECLARATION_ISSUE_SUGGESTION = "Fix the syntax to include the actual type name instead of referencing the type of a column"
+	FOREIGN_TABLE_ISSUE_SUGGESTION = "SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table"
 )
 
 const (
