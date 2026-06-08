@@ -503,11 +503,6 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, erro
 	if errorneousQueriesStr != "" {
 		log.Warnf("Found some errorneous PL/pgSQL queries in stmt [%s]: %s", query, errorneousQueriesStr)
 	}
-	percentTypeSyntaxIssues, err := p.GetPercentTypeSyntaxIssues(query)
-	if err != nil {
-		return nil, goerrors.Errorf("error getting reference TYPE syntax issues: %v", err)
-	}
-	issues = append(issues, percentTypeSyntaxIssues...)
 
 	return lo.Map(issues, func(i QueryIssue, _ int) QueryIssue {
 		//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
@@ -1005,36 +1000,6 @@ func (p *ParserIssueDetector) getDDLIssues(query string) ([]QueryIssue, error) {
 		i.ObjectType = ddlObj.GetObjectType()
 		i.ObjectName = ddlObj.GetObjectName()
 		issues = append(issues, i)
-	}
-	return issues, nil
-}
-
-func (p *ParserIssueDetector) GetPercentTypeSyntaxIssues(query string) ([]QueryIssue, error) {
-	parseTree, err := queryparser.Parse(query)
-	if err != nil {
-		return nil, goerrors.Errorf("error parsing the query-%s: %v", query, err)
-	}
-
-	objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
-	typeNames, err := queryparser.GetAllTypeNamesInPlpgSQLStmt(query)
-	if err != nil {
-		return nil, goerrors.Errorf("error getting type names in PLPGSQL: %v", err)
-	}
-
-	/*
-		Caveats of GetAllTypeNamesInPlpgSQLStmt():
-			1. Not returning typename for variables in function parameter from this function (in correct in json as UNKNOWN), for that using the GetTypeNamesFromFuncParameters()
-			2. Not returning the return type from this function (not available in json), for that using the GetReturnTypeOfFunc()
-	*/
-	if queryparser.IsFunctionObject(parseTree) {
-		typeNames = append(typeNames, queryparser.GetReturnTypeOfFunc(parseTree))
-	}
-	typeNames = append(typeNames, queryparser.GetFuncParametersTypeNames(parseTree)...)
-	var issues []QueryIssue
-	for _, typeName := range typeNames {
-		if strings.HasSuffix(typeName, "%TYPE") {
-			issues = append(issues, NewPercentTypeSyntaxIssue(objType, objName, typeName)) // TODO: confirm
-		}
 	}
 	return issues, nil
 }
