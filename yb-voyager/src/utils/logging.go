@@ -38,6 +38,17 @@ var ErrExit = func(formatString string, args ...interface{}) {
 	atexit.Exit(1)
 }
 
+// ErrExitPreLog prints the message to stderr and exits with status 1.
+// Use it instead of ErrExit when logging has not been initialized yet (e.g. flag
+// validation that runs before InitLogging(), or when logging init itself fails).
+// It deliberately does not call log.Errorf: doing so before logging is redirected
+// to the log file would print the message twice (once here and again via logrus's
+// default stderr output).
+var ErrExitPreLog = func(formatString string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, formatString+"\n", args...)
+	atexit.Exit(1)
+}
+
 // OutputLogLevel represents different types of console messages
 type OutputLogLevel int
 

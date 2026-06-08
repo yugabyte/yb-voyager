@@ -119,9 +119,8 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			validateBulkAssessmentDirFlag()
 			err := config.ValidateLogLevel()
 			if err != nil {
-				// not using utils.ErrExit as logging is not initialized yet
-				fmt.Printf("ERROR: %v\n", err)
-				atexit.Exit(1)
+				// logging is not initialized yet
+				utils.ErrExitPreLog("ERROR: %v", err)
 			}
 			if shouldLock(cmd) {
 				lockFPath := filepath.Join(bulkAssessmentDir, fmt.Sprintf(".%sLockfile.lck", GetCommandID(cmd)))
@@ -130,7 +129,8 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			}
 			err = InitLogging(bulkAssessmentDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
 			if err != nil {
-				utils.ErrExit("Failed to initialize logging: %w", err)
+				// InitLogging failed, so use ErrExitPreLog to avoid printing twice.
+				utils.ErrExitPreLog("ERROR: Failed to initialize logging: %v", err)
 			}
 			startTime = time.Now()
 			log.Infof("Start time: %s\n", startTime)
@@ -149,9 +149,8 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			validateExportDirFlag()
 			err := config.ValidateLogLevel()
 			if err != nil {
-				// not using utils.ErrExit as logging is not initialized yet
-				fmt.Printf("ERROR: %v\n", err)
-				atexit.Exit(1)
+				// logging is not initialized yet
+				utils.ErrExitPreLog("ERROR: %v", err)
 			}
 			schemaDir = filepath.Join(exportDir, "schema")
 			if shouldLock(cmd) {
@@ -161,7 +160,8 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			}
 			err = InitLogging(exportDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
 			if err != nil {
-				utils.ErrExit("Failed to initialize logging: %w", err)
+				// InitLogging failed, so use ErrExitPreLog to avoid printing twice.
+				utils.ErrExitPreLog("ERROR: Failed to initialize logging: %v", err)
 			}
 			startTime = time.Now()
 			log.Infof("Start time: %s\n", startTime)
@@ -262,7 +262,8 @@ func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
 	//this is just for any logs that might be printed before the iteration export dir is resolved
 	err := InitLogging(exportDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
 	if err != nil {
-		utils.ErrExit("Failed to initialize logging: %w", err)
+		// InitLogging failed, so use ErrExitPreLog to avoid printing twice.
+		utils.ErrExitPreLog("ERROR: Failed to initialize logging: %v", err)
 	}
 	metaDB = initMetaDB(exportDir)
 	msr, err := metaDB.GetMigrationStatusRecord()
@@ -482,11 +483,13 @@ func registerExportDirFlag(cmd *cobra.Command) {
 }
 
 func validateExportDirFlag() {
+	// This runs before InitLogging(), so use utils.ErrExitPreLog instead of
+	// utils.ErrExit to avoid printing the message twice.
 	if exportDir == "" {
-		utils.ErrExit(`ERROR required flag "export-dir" not set`)
+		utils.ErrExitPreLog("ERROR required flag \"export-dir\" not set")
 	}
 	if !utils.FileOrFolderExists(exportDir) {
-		utils.ErrExit("export-dir doesn't exist: %q\n", exportDir)
+		utils.ErrExitPreLog("export-dir doesn't exist: %q", exportDir)
 	} else {
 		if exportDir == "." {
 			fmt.Println("Note: Using current directory as export-dir")
@@ -494,7 +497,7 @@ func validateExportDirFlag() {
 		var err error
 		exportDir, err = filepath.Abs(exportDir)
 		if err != nil {
-			utils.ErrExit("Failed to get absolute path for export-dir: %q: %w\n", exportDir, err)
+			utils.ErrExitPreLog("Failed to get absolute path for export-dir: %q: %v", exportDir, err)
 		}
 		exportDir = filepath.Clean(exportDir)
 	}
