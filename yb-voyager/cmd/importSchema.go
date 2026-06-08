@@ -26,6 +26,7 @@ import (
 	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
 	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5/pgconn"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
@@ -518,6 +519,14 @@ func createTargetSchemas(conn *pgx.Conn) {
 
 	}
 
+	// Pre-build the `SET search_path = …` that executeSqlFile will append to
+	// sessionVariables for FUNCTION/PROCEDURE files only. Populated once here
+	// so the consumer doesn't need to re-derive the list from analysis state.
+	if len(targetSchemas) > 0 {
+		setStmt := fmt.Sprintf("SET search_path = %s", sqlname.JoinIdentifiersMinQuoted(targetSchemas, ", "))
+		importTargetSearchPathStmt = sqlInfo{stmt: setStmt, formattedStmt: setStmt}
+	}
+
 	utils.PrintAndLogf("schemas to be present in target database %q: %v\n", tconf.DBName, sqlname.JoinIdentifiersMinQuoted(targetSchemas, ", "))
 	for _, targetSchema := range targetSchemas {
 		//check if target schema exists or not
@@ -581,6 +590,18 @@ func checkIfTargetSchemaExists(conn *pgx.Conn, targetSchema sqlname.Identifier) 
 
 func missingRequiredSchemaObject(err error) bool {
 	return strings.Contains(err.Error(), "does not exist")
+}
+
+// PL/pgSQL %TYPE / %ROWTYPE resolution failure under empty or missing
+// search_path surfaces as SQLSTATE 42601 with `invalid type name "X%TYPE"`
+func isPercentTypeResolutionError(err error) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != "42601" {
+		return false
+	}
+	text := pgErr.Message + " " + pgErr.Where
+	return strings.Contains(text, "invalid type name") &&
+		(strings.Contains(text, "%TYPE") || strings.Contains(text, "%ROWTYPE"))
 }
 
 func isAlreadyExists(errString string) bool {
