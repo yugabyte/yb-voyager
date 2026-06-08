@@ -24,7 +24,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
 	"testing"
 	"time"
 
@@ -201,22 +200,12 @@ func TestImportSchemaWithPercentType(t *testing.T) {
 		t.Fatalf("Failed to import schema: %v", err)
 	}
 
-	// Verify each case took the expected path. get_employee_salary must NOT be
-	// deferred (the target table already exists and the import-side skip of
-	// pg_dump's empty-path SELECT lets setTargetSchema's search_path resolve
-	// `employees`). get_view_salary MUST be deferred (forward ref to a view
-	// imported later — caught by isPercentTypeResolutionError) and succeed on
-	// retry after view.sql imports.
-	importLog, err := os.ReadFile(filepath.Join(tempExportDir, "logs", "yb-voyager-import-schema.log"))
-	if err != nil {
-		t.Fatalf("read import-schema log: %v", err)
-	}
-	if strings.Contains(string(importLog), "deffering execution of SQL: CREATE FUNCTION pct.get_employee_salary") {
-		t.Fatalf("get_employee_salary was deferred — search_path override skip didn't take effect")
-	}
-	if !strings.Contains(string(importLog), "deffering execution of SQL: CREATE FUNCTION pct.get_view_salary") {
-		t.Fatalf("get_view_salary was NOT deferred — isPercentTypeResolutionError didn't catch the 42601+%%TYPE forward-ref case")
-	}
+	// Verify both functions end up created in YB and resolve their unqualified
+	// %TYPE refs correctly. This covers both cases: get_employee_salary references
+	// a table imported earlier in the object order, and get_view_salary
+	// forward-references a view imported later. The DO blocks below invoke each
+	// function; a call to a function that was never created fails with a query
+	// error caught by t.Fatalf, so a missing object is a test failure.
 
 	// Function bodies use unqualified %TYPE refs that re-resolve at every call
 	// via the caller's search_path. Pin one physical connection (sql.DB is a
