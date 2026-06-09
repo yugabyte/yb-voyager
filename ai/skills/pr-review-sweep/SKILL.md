@@ -114,6 +114,15 @@ Repo root: <REPO_ROOT>. Base branch: <BASE>.
    HEAD is detached here; use "PR #<N>" as the branch name in the summary.
    If the `sem` tool is unavailable, omit the entity-modification tables.
 
+   Keep every finding pragmatic — no fluff. Each finding must use these
+   bullet points, in this order:
+     - Problem/Suggestion: <the issue or recommendation, if any>
+     - Code line: <file:line of the failing/affected code>
+     - Failure Code Case: <the case that breaks, if any>
+     - Suggested Code Change: <the concrete fix>
+   Omit a bullet's value only when it genuinely does not apply (e.g. "if any"
+   parts); never pad with restatements, praise, or generic advice.
+
 3. Read <REPO_ROOT>/ai/skills/post-pr-review/SKILL.md and apply it to post
    the findings to PR #<N>, with TWO overrides:
      a. Skip Step 6 (user confirmation) — post immediately after building
