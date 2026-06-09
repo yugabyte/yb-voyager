@@ -1035,7 +1035,7 @@ FROM generate_series(1, 10);`,
 		"--cdc-partitioning-strategy": "pk",
 	})
 
-	assert.True(t, strings.Contains(lm.GetImportCommandStderr(), "changing the cdc partitioning strategy is not allowed after the import data has started. Current strategy: auto, new strategy: pk"))
+	assert.True(t, strings.Contains(lm.GetImportCommandStderr(), "changing the cdc partitioning strategy is not allowed after the import data has started. Current strategy: table, new strategy: pk"))
 
 	err = lm.InitMetaDB()
 	testutils.FatalIfError(t, err, "failed to initialize meta db")
