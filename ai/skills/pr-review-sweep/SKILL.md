@@ -119,7 +119,7 @@ Repo root: <REPO_ROOT>. Base branch: <BASE>.
      - Problem/Suggestion: <the issue or recommendation, if any>
      - Code line: <file:line of the failing/affected code>
      - Failure Code Case: <the case that breaks, if any>
-     - Suggested Code Change: <the concrete fix>
+     - Suggested Code Change: <the concrete fix; if any code is being suggested, give it in a fenced code block>
    Omit a bullet's value only when it genuinely does not apply (e.g. "if any"
    parts); never pad with restatements, praise, or generic advice.
 
