@@ -79,6 +79,7 @@ func DetectPgssAvailabilityOnAllNodes(source *srcdb.Source, validatedReplicas []
 	}
 
 	pgssByNode := make(map[string]bool, len(validatedReplicas)+1)
+	var nodesWithoutPgss []string
 
 	primaryPgss, err := pg.IsPgStatStatementsAvailable()
 	if err != nil {
@@ -86,6 +87,9 @@ func DetectPgssAvailabilityOnAllNodes(source *srcdb.Source, validatedReplicas []
 		primaryPgss = false
 	}
 	pgssByNode["primary"] = primaryPgss
+	if !primaryPgss {
+		nodesWithoutPgss = append(nodesWithoutPgss, "primary")
+	}
 
 	for _, replica := range validatedReplicas {
 		nodeKey := fmt.Sprintf("%s:%d", replica.Host, replica.Port)
@@ -95,6 +99,28 @@ func DetectPgssAvailabilityOnAllNodes(source *srcdb.Source, validatedReplicas []
 			replicaPgss = false
 		}
 		pgssByNode[nodeKey] = replicaPgss
+		if !replicaPgss {
+			nodesWithoutPgss = append(nodesWithoutPgss, nodeKey)
+		}
+	}
+
+	// Mirror the normal permission-check flow: even though guardrail checks are
+	// disabled, warn the user when pg_stat_statements is unavailable (query-level
+	// analysis will be limited) and let them decide whether to continue.
+	if len(nodesWithoutPgss) > 0 {
+		hasMultipleNodes := len(pgssByNode) > 1
+		for _, node := range nodesWithoutPgss {
+			if hasMultipleNodes {
+				utils.PrintAndLogfWarning("\n⚠ pg_stat_statements not available on %s (query-level analysis will be limited)", node)
+			} else {
+				utils.PrintAndLogfWarning("\n⚠ pg_stat_statements not available (query-level analysis will be limited)")
+			}
+		}
+
+		reply := utils.AskPrompt("\nDo you want to continue anyway")
+		if !reply {
+			return nil, goerrors.Errorf("enable pg_stat_statements and try again")
+		}
 	}
 
 	return pgssByNode, nil
