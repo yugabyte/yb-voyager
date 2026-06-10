@@ -322,7 +322,7 @@ func streamChangesFromSegment(
 				TableToUniqueKeyColumns during export(from source/target) to reuse it during import
 			*/
 			sourceDBTypeForConflictCache := lo.Ternary(isTargetDBExporter(event.ExporterRole), YUGABYTEDB, sourceDBType)
-			err = initializeConflictDetectionCache(evChans, event.ExporterRole, sourceDBTypeForConflictCache)
+			err = initializeConflictDetectionCache(evChans, event.ExporterRole, sourceDBTypeForConflictCache, tableToPartitioningStrategyMap)
 			if err != nil {
 				return fmt.Errorf("error initializing conflict detection cache: %w", err)
 			}
@@ -584,13 +584,13 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 	done <- true
 }
 
-func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, exporterRole string, sourceDBTypeForConflictCache string) error {
+func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, exporterRole string, sourceDBTypeForConflictCache string, tableToPartitioningStrategyMap *utils.StructMap[sqlname.NameTuple, string]) error {
 	tableToUniqueKeyColumns, err := getTableToUniqueKeyColumnsMapFromMetaDB(exporterRole)
 	if err != nil {
 		return fmt.Errorf("get table unique key columns map: %w", err)
 	}
 	log.Infof("initializing conflict detection cache")
-	conflictDetectionCache = NewConflictDetectionCache(tableToUniqueKeyColumns, evChans, sourceDBTypeForConflictCache)
+	conflictDetectionCache = NewConflictDetectionCache(tableToUniqueKeyColumns, evChans, sourceDBTypeForConflictCache, tableToPartitioningStrategyMap)
 	return nil
 }
 
