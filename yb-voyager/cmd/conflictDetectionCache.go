@@ -319,11 +319,13 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 		return false
 	}
 
-	strategy, ok := c.tableToPartitioningStrategyMap.Get(cachedEvent.TableNameTup)
-	if ok && strategy == PARTITION_BY_TABLE {
-		// if the table is partitioned by table, then we don't need to check for conflicts
-		// because all the events for a table will be processed in the same channel
-		return false
+	if c.tableToPartitioningStrategyMap != nil {
+		strategy, ok := c.tableToPartitioningStrategyMap.Get(cachedEvent.TableNameTup)
+		if ok && strategy == PARTITION_BY_TABLE {
+			// if the table is partitioned by table, then we don't need to check for conflicts
+			// because all the events for a table will be processed in the same channel
+			return false
+		}
 	}
 
 	uniqueKeyColumns, _ := c.tableToUniqueKeyColumns.Get(cachedEvent.TableNameTup)
