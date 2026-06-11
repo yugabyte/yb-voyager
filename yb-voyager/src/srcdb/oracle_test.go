@@ -56,7 +56,7 @@ func TestOracleGetTableToUniqueKeyColumnsMap(t *testing.T) {
 	}
 
 	uniqueTable := testutils.CreateNameTupleWithSourceName("YBVOYAGER.UNIQUE_TABLE", "YBVOYAGER", "oracle")
-	expectedIndexes := []UniqueIndexColumns{
+	expectedIndexes := [][]string{
 		{Columns: []string{"EMAIL"}},
 		{Columns: []string{"PHONE"}},
 		{Columns: []string{"ADDRESS"}},

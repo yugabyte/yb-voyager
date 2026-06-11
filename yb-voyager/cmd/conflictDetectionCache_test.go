@@ -22,7 +22,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -32,8 +31,8 @@ func strPtr(v string) *string {
 	return &v
 }
 
-func newConflictCacheForTest(indexes []srcdb.UniqueIndexColumns) *ConflictDetectionCache {
-	tableToIndexes := utils.NewStructMap[sqlname.NameTuple, []srcdb.UniqueIndexColumns]()
+func newConflictCacheForTest(indexes [][]string) *ConflictDetectionCache {
+	tableToIndexes := utils.NewStructMap[sqlname.NameTuple, [][]string]()
 	oname := sqlname.NewObjectName(YUGABYTEDB, "public", "public", "users")
 	table := sqlname.NameTuple{CurrentName: oname, TargetName: oname}
 	tableToIndexes.Put(table, indexes)
@@ -46,7 +45,7 @@ func testTableTuple() sqlname.NameTuple {
 }
 
 func TestIndexTupleConflicts_CompositeTrueConflict(t *testing.T) {
-	cache := newConflictCacheForTest([]srcdb.UniqueIndexColumns{{Columns: []string{"a", "b"}}})
+	cache := newConflictCacheForTest([][]string{{Columns: []string{"a", "b"}}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
@@ -65,7 +64,7 @@ func TestIndexTupleConflicts_CompositeTrueConflict(t *testing.T) {
 }
 
 func TestIndexTupleConflicts_CompositeFalsePositiveFix(t *testing.T) {
-	cache := newConflictCacheForTest([]srcdb.UniqueIndexColumns{{Columns: []string{"a", "b"}}})
+	cache := newConflictCacheForTest([][]string{{Columns: []string{"a", "b"}}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
@@ -84,7 +83,7 @@ func TestIndexTupleConflicts_CompositeFalsePositiveFix(t *testing.T) {
 }
 
 func TestEventsConfict_TwoCompositeIndexes(t *testing.T) {
-	cache := newConflictCacheForTest([]srcdb.UniqueIndexColumns{
+	cache := newConflictCacheForTest([][]string{
 		{Columns: []string{"a", "b"}},
 		{Columns: []string{"c", "d"}},
 	})
@@ -108,7 +107,7 @@ func TestEventsConfict_TwoCompositeIndexes(t *testing.T) {
 }
 
 func TestEventsConfict_MissingColumnInEvent(t *testing.T) {
-	cache := newConflictCacheForTest([]srcdb.UniqueIndexColumns{{Columns: []string{"a", "b"}}})
+	cache := newConflictCacheForTest([][]string{{Columns: []string{"a", "b"}}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
@@ -129,7 +128,7 @@ func TestEventsConfict_MissingColumnInEvent(t *testing.T) {
 }
 
 func TestEventsConfict_SamePKNoConflict(t *testing.T) {
-	cache := newConflictCacheForTest([]srcdb.UniqueIndexColumns{{Columns: []string{"email"}}})
+	cache := newConflictCacheForTest([][]string{{Columns: []string{"email"}}})
 	key := map[string]*string{"id": strPtr("1")}
 	cached := &tgtdb.Event{
 		Vsn:          1,
@@ -151,7 +150,7 @@ func TestEventsConfict_SamePKNoConflict(t *testing.T) {
 }
 
 func TestUniqueIndexConflicts_BothNilBeforeAfter(t *testing.T) {
-	cache := newConflictCacheForTest([]srcdb.UniqueIndexColumns{{Columns: []string{"email"}}})
+	cache := newConflictCacheForTest([][]string{{Columns: []string{"email"}}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
@@ -171,7 +170,7 @@ func TestUniqueIndexConflicts_BothNilBeforeAfter(t *testing.T) {
 }
 
 func TestUniqueIndexConflicts_OneNilOneValueBeforeAfter(t *testing.T) {
-	cache := newConflictCacheForTest([]srcdb.UniqueIndexColumns{{Columns: []string{"email"}}})
+	cache := newConflictCacheForTest([][]string{{Columns: []string{"email"}}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
@@ -191,7 +190,7 @@ func TestUniqueIndexConflicts_OneNilOneValueBeforeAfter(t *testing.T) {
 }
 
 func TestUniqueIndexConflicts_CompositeBothNil(t *testing.T) {
-	cache := newConflictCacheForTest([]srcdb.UniqueIndexColumns{{Columns: []string{"a", "b"}}})
+	cache := newConflictCacheForTest([][]string{{Columns: []string{"a", "b"}}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
@@ -210,7 +209,7 @@ func TestUniqueIndexConflicts_CompositeBothNil(t *testing.T) {
 }
 
 func TestUniqueIndexConflicts_CompositeMixedNil(t *testing.T) {
-	cache := newConflictCacheForTest([]srcdb.UniqueIndexColumns{{Columns: []string{"a", "b"}}})
+	cache := newConflictCacheForTest([][]string{{Columns: []string{"a", "b"}}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
@@ -229,7 +228,7 @@ func TestUniqueIndexConflicts_CompositeMixedNil(t *testing.T) {
 }
 
 func TestUniqueIndexConflicts_BothNilBeforeBefore(t *testing.T) {
-	cache := newConflictCacheForTest([]srcdb.UniqueIndexColumns{{Columns: []string{"check_id"}}})
+	cache := newConflictCacheForTest([][]string{{Columns: []string{"check_id"}}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
 		Op:           "u",
@@ -252,7 +251,7 @@ func TestUniqueIndexConflicts_BothNilBeforeBefore(t *testing.T) {
 }
 
 func TestUniqueIndexConflicts_BeforeBeforeConflictOnly(t *testing.T) {
-	cache := newConflictCacheForTest([]srcdb.UniqueIndexColumns{{Columns: []string{"check_id"}}})
+	cache := newConflictCacheForTest([][]string{{Columns: []string{"check_id"}}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
@@ -274,7 +273,7 @@ func TestUniqueIndexConflicts_BeforeBeforeConflictOnly(t *testing.T) {
 }
 
 func TestUniqueIndexConflicts_BeforeBeforeNoConflictWhenValuesDiffer(t *testing.T) {
-	cache := newConflictCacheForTest([]srcdb.UniqueIndexColumns{{Columns: []string{"check_id"}}})
+	cache := newConflictCacheForTest([][]string{{Columns: []string{"check_id"}}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
 		Op:           "u",
@@ -296,7 +295,7 @@ func TestUniqueIndexConflicts_BeforeBeforeNoConflictWhenValuesDiffer(t *testing.
 }
 
 func TestUniqueIndexConflicts_BeforeBeforeMissingColumn(t *testing.T) {
-	cache := newConflictCacheForTest([]srcdb.UniqueIndexColumns{{Columns: []string{"a", "b"}}})
+	cache := newConflictCacheForTest([][]string{{Columns: []string{"a", "b"}}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
 		Op:           "u",
@@ -316,7 +315,7 @@ func TestUniqueIndexConflicts_BeforeBeforeMissingColumn(t *testing.T) {
 }
 
 func TestEventsConfict_BeforeBeforeConflict(t *testing.T) {
-	cache := newConflictCacheForTest([]srcdb.UniqueIndexColumns{{Columns: []string{"check_id"}}})
+	cache := newConflictCacheForTest([][]string{{Columns: []string{"check_id"}}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
@@ -338,7 +337,7 @@ func TestEventsConfict_BeforeBeforeConflict(t *testing.T) {
 }
 
 func TestEventsConfict_BothNilBeforeAfter(t *testing.T) {
-	cache := newConflictCacheForTest([]srcdb.UniqueIndexColumns{{Columns: []string{"email"}}})
+	cache := newConflictCacheForTest([][]string{{Columns: []string{"email"}}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",

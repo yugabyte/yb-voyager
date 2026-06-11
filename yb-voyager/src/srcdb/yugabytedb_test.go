@@ -312,7 +312,7 @@ func TestYugabyteGetTableToUniqueKeyColumnsMap(t *testing.T) {
 		t.Fatalf("Error retrieving unique indexes: %v", err)
 	}
 
-	expectedIndexesByTable := map[string][]UniqueIndexColumns{
+	expectedIndexesByTable := map[string][][]string{
 		"test_schema.unique_table": {
 			{Columns: []string{"email"}},
 			{Columns: []string{"phone"}},

@@ -371,7 +371,7 @@ func TestPostgresGetTableToUniqueKeyColumnsMap(t *testing.T) {
 	})
 
 	compositeTable := testutils.CreateNameTupleWithSourceName("test_schema.composite_unique_table", "test_schema", "postgresql")
-	expectedCompositeIndexes := []UniqueIndexColumns{
+	expectedCompositeIndexes := [][]string{
 		{Columns: []string{"first_name", "last_name"}},
 		{Columns: []string{"phone"}},
 	}
@@ -382,7 +382,7 @@ func TestPostgresGetTableToUniqueKeyColumnsMap(t *testing.T) {
 	assertEqualUniqueIndexes(t, expectedCompositeIndexes, actualCompositeIndexes)
 }
 
-func assertEqualUniqueIndexes(t *testing.T, expected, actual []UniqueIndexColumns) {
+func assertEqualUniqueIndexes(t *testing.T, expected, actual [][]string) {
 	t.Helper()
 	if len(expected) != len(actual) {
 		t.Fatalf("expected %d indexes, got %d", len(expected), len(actual))
