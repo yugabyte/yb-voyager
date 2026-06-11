@@ -22,7 +22,6 @@ import (
 
 	"gotest.tools/assert"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -47,30 +46,27 @@ func TestOracleGetAllTableNames(t *testing.T) {
 }
 
 func TestOracleGetTableToUniqueKeyColumnsMap(t *testing.T) {
-
-	// Test GetTableToUniqueKeyColumnsMap
 	tableList := []sqlname.NameTuple{
 		testutils.CreateNameTupleWithSourceName("YBVOYAGER.UNIQUE_TABLE", "YBVOYAGER", "oracle"),
 	}
 	_ = testOracleSource.DB().Connect()
-	uniqueKeys, err := testOracleSource.DB().GetTableToUniqueKeyColumnsMap(tableList)
+	actualIndexes, err := testOracleSource.DB().GetTableToUniqueIndexesMap(tableList)
 	if err != nil {
-		t.Fatalf("Error retrieving unique keys: %v", err)
+		t.Fatalf("Error retrieving unique indexes: %v", err)
 	}
 
-	expectedKeys := utils.NewStructMap[sqlname.NameTuple, []string]()
-	expectedKeys.Put(testutils.CreateNameTupleWithSourceName("YBVOYAGER.UNIQUE_TABLE", "YBVOYAGER", "oracle"), []string{"EMAIL", "PHONE", "ADDRESS"})
-
-	// Compare the maps by iterating over each table and asserting the columns list
-	expectedKeys.IterKV(func(table sqlname.NameTuple, expectedColumns []string) (bool, error) {
-		actualColumns, exists := uniqueKeys.Get(table)
-		if !exists {
-			t.Errorf("Expected table %s not found in uniqueKeys", table)
-		}
-
-		testutils.AssertEqualStringSlices(t, expectedColumns, actualColumns)
-		return true, nil
-	})
+	uniqueTable := testutils.CreateNameTupleWithSourceName("YBVOYAGER.UNIQUE_TABLE", "YBVOYAGER", "oracle")
+	expectedIndexes := []UniqueIndexColumns{
+		{Columns: []string{"EMAIL"}},
+		{Columns: []string{"PHONE"}},
+		{Columns: []string{"ADDRESS"}},
+	}
+	actualIndexesForTable, exists := actualIndexes.Get(uniqueTable)
+	if !exists {
+		t.Fatalf("Expected table %s not found in unique indexes map", uniqueTable)
+	}
+	assertEqualUniqueIndexes(t, expectedIndexes, actualIndexesForTable)
+	testutils.AssertEqualStringSlices(t, []string{"EMAIL", "PHONE", "ADDRESS"}, FlattenUniqueIndexColumns(actualIndexesForTable))
 }
 
 func TestOracleGetNonPKTables(t *testing.T) {

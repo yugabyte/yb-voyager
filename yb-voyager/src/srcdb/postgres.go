@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -955,57 +956,106 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
 	return partitions
 }
 
-func (pg *PostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
-	log.Infof("getting unique key columns for tables: %v", tableList)
-	result := utils.NewStructMap[sqlname.NameTuple, []string]()
-	var querySchemaList, queryTableList []string
-	tableStrToNameTupleMap := make(map[string]sqlname.NameTuple)
-	for i := 0; i < len(tableList); i++ {
-		sname, tname := tableList[i].ForCatalogQuery()
-		querySchemaList = append(querySchemaList, sname)
-		queryTableList = append(queryTableList, tname)
-		tableStrToNameTupleMap[tableList[i].AsQualifiedCatalogName()] = tableList[i]
+func dedupeUniqueIndexes(indexes [][]string) [][]string {
+	seen := make(map[string]bool)
+	result := make([][]string, 0, len(indexes))
+	for _, cols := range indexes {
+		key := strings.Join(cols, ",")
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		result = append(result, cols)
+	}
+	return result
+}
+
+// MergeUniqueIndexes merges two index lists, deduplicating by column signature.
+func MergeUniqueIndexes(existing, additional [][]string) [][]string {
+	return dedupeUniqueIndexes(append(existing, additional...))
+}
+
+func buildUniqueIndexesMapFromPGRows(rows *sql.Rows, tableStrToNameTupleMap map[string]sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
+	indexColumnMaps := make(map[tableIndexKey]map[int]string)
+
+	for rows.Next() {
+		var schemaName, tableName, indexKey, columnName string
+		var ordinalPosition int
+		err := rows.Scan(&schemaName, &tableName, &indexKey, &columnName, &ordinalPosition)
+		if err != nil {
+			return nil, fmt.Errorf("scanning row for unique index column: %w", err)
+		}
+		tableCatalogName := fmt.Sprintf("%s.%s", schemaName, tableName)
+		key := tableIndexKey{tableCatalogName: tableCatalogName, indexKey: indexKey}
+		if _, ok := indexColumnMaps[key]; !ok {
+			indexColumnMaps[key] = make(map[int]string)
+		}
+		indexColumnMaps[key][ordinalPosition] = columnName
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating rows for unique indexes: %w", err)
 	}
 
+	result := utils.NewStructMap[sqlname.NameTuple, [][]string]()
+	for key, ordinalToColumn := range indexColumnMaps {
+		tableNameTuple, ok := tableStrToNameTupleMap[key.tableCatalogName]
+		if !ok {
+			return nil, fmt.Errorf("table %s not found in table list", key.tableCatalogName)
+		}
+
+		ordinals := lo.Keys(ordinalToColumn)
+		sort.Ints(ordinals)
+		columns := make([]string, 0, len(ordinals))
+		for _, ord := range ordinals {
+			columns = append(columns, ordinalToColumn[ord])
+		}
+		if len(columns) == 0 {
+			continue
+		}
+
+		indexes, _ := result.Get(tableNameTuple)
+		indexes = append(indexes, []string(columns))
+		result.Put(tableNameTuple, dedupeUniqueIndexes(indexes))
+	}
+
+	return result, nil
+}
+
+func queryPGUniqueIndexesMap(db *sql.DB, tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
+	tableStrToNameTupleMap := make(map[string]sqlname.NameTuple)
+	var querySchemaList, queryTableList []string
+	for _, table := range tableList {
+		sname, tname := table.ForCatalogQuery()
+		querySchemaList = append(querySchemaList, sname)
+		queryTableList = append(queryTableList, tname)
+		tableStrToNameTupleMap[table.AsQualifiedCatalogName()] = table
+	}
 	querySchemaList = lo.Uniq(querySchemaList)
-	query := fmt.Sprintf(ybQueryTmplForUniqCols, strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","),
+
+	query := fmt.Sprintf(pgQueryTmplForUniqIndexes,
+		strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","),
 		strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","))
-	log.Infof("query to get unique key columns: %s", query)
-	rows, err := pg.db.Query(query)
+	rows, err := db.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("querying unique key columns: %w", err)
+		return nil, fmt.Errorf("querying unique indexes: %w", err)
 	}
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("close rows for query %q: %v", query, closeErr)
+			log.Errorf("closing rows for unique indexes: %v", closeErr)
 		}
 	}()
 
-	for rows.Next() {
-		var schemaName, tableName, colName string
-		err := rows.Scan(&schemaName, &tableName, &colName)
-		if err != nil {
-			return nil, fmt.Errorf("scanning row for unique key column name: %w", err)
-		}
-		tableName = fmt.Sprintf("%s.%s", schemaName, tableName)
-		tableNameTuple, ok := tableStrToNameTupleMap[tableName]
-		if !ok {
-			return nil, goerrors.Errorf("table %s not found in table list", tableName)
-		}
-		cols, ok := result.Get(tableNameTuple)
-		if !ok {
-			cols = []string{}
-		}
-		cols = append(cols, colName)
-		result.Put(tableNameTuple, cols)
-	}
+	return buildUniqueIndexesMapFromPGRows(rows, tableStrToNameTupleMap)
+}
 
-	err = rows.Err()
+func (pg *PostgreSQL) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
+	log.Infof("getting unique indexes for tables: %v", tableList)
+	result, err := queryPGUniqueIndexesMap(pg.db, tableList)
 	if err != nil {
-		return nil, fmt.Errorf("error iterating over rows for unique key columns: %w", err)
+		return nil, err
 	}
-	log.Infof("unique key columns for tables: %v", result)
+	log.Infof("unique indexes for tables: %v", result)
 	return result, nil
 }
 

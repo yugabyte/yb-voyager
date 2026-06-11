@@ -319,7 +319,7 @@ func streamChangesFromSegment(
 				Note: `sourceDBType` is a global variable, which always represent the initial source db type
 				which does not change even after cutover to target but for conflict detection cache,
 				we need to use the actual source db type at the moment since we save information like
-				TableToUniqueKeyColumns during export(from source/target) to reuse it during import
+				TableToUniqueIndexes during export(from source/target) to reuse it during import
 			*/
 			sourceDBTypeForConflictCache := lo.Ternary(isTargetDBExporter(event.ExporterRole), YUGABYTEDB, sourceDBType)
 			err = initializeConflictDetectionCache(evChans, event.ExporterRole, sourceDBTypeForConflictCache)
@@ -425,8 +425,8 @@ func handleEvent(event *tgtdb.Event,
 		Checking for all possible conflicts among events
 		For more details about ConflictDetectionCache see the related comment in [conflictDetectionCache.go](../conflictDetectionCache.go)
 	*/
-	uniqueKeyCols, _ := conflictDetectionCache.tableToUniqueKeyColumns.Get(event.TableNameTup)
-	if len(uniqueKeyCols) > 0 {
+	uniqueIndexes, _ := conflictDetectionCache.tableToUniqueIndexes.Get(event.TableNameTup)
+	if len(uniqueIndexes) > 0 {
 		if event.Op == "d" {
 			conflictDetectionCache.Put(event)
 		} else { // "i" or "u"
@@ -585,36 +585,59 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 }
 
 func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, exporterRole string, sourceDBTypeForConflictCache string) error {
-	tableToUniqueKeyColumns, err := getTableToUniqueKeyColumnsMapFromMetaDB(exporterRole)
+	tableToUniqueIndexes, err := getTableToUniqueIndexesMapFromMetaDB(exporterRole)
 	if err != nil {
-		return fmt.Errorf("get table unique key columns map: %w", err)
+		return fmt.Errorf("get table unique indexes map: %w", err)
 	}
 	log.Infof("initializing conflict detection cache")
-	conflictDetectionCache = NewConflictDetectionCache(tableToUniqueKeyColumns, evChans, sourceDBTypeForConflictCache)
+	conflictDetectionCache = NewConflictDetectionCache(tableToUniqueIndexes, evChans, sourceDBTypeForConflictCache)
 	return nil
 }
 
-func getTableToUniqueKeyColumnsMapFromMetaDB(exporterRole string) (*utils.StructMap[sqlname.NameTuple, []string], error) {
-	log.Infof("fetching table to unique key columns map from metaDB")
-	var metaDbData map[string][]string
-	res := utils.NewStructMap[sqlname.NameTuple, []string]()
+func getTableToUniqueIndexesMapFromMetaDB(exporterRole string) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
+	log.Infof("fetching table to unique indexes map from metaDB")
+	res := utils.NewStructMap[sqlname.NameTuple, [][]string]()
 
-	key := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, exporterRole)
-	found, err := metaDB.GetJsonObject(nil, key, &metaDbData)
+	indexesKey := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_INDEXES_KEY, exporterRole)
+	var indexesMetaDbData map[string][][]string
+	found, err := metaDB.GetJsonObject(nil, indexesKey, &indexesMetaDbData)
+	if err != nil {
+		return nil, err
+	}
+	if found {
+		log.Infof("fetched table to unique indexes map: %v", indexesMetaDbData)
+		for tableNameRaw, indexes := range indexesMetaDbData {
+			tableName, err := namereg.NameReg.LookupTableName(tableNameRaw)
+			if err != nil {
+				return nil, goerrors.Errorf("lookup table %s in name registry: %v", tableNameRaw, err)
+			}
+			res.Put(tableName, indexes)
+		}
+		return res, nil
+	}
+
+	// Backward compatibility: upgrade legacy flat column lists to single-column indexes.
+	legacyKey := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, exporterRole)
+	var legacyMetaDbData map[string][]string
+	found, err = metaDB.GetJsonObject(nil, legacyKey, &legacyMetaDbData)
 	if err != nil {
 		return nil, err
 	}
 	if !found {
-		return nil, goerrors.Errorf("table to unique key columns map not found in metaDB")
+		return nil, goerrors.Errorf("table to unique indexes map not found in metaDB")
 	}
-	log.Infof("fetched table to unique key columns map: %v", metaDbData)
-
-	for tableNameRaw, columns := range metaDbData {
+	log.Infof("upgrading legacy table to unique key columns map to unique indexes map: %v", legacyMetaDbData)
+	for tableNameRaw, columns := range legacyMetaDbData {
 		tableName, err := namereg.NameReg.LookupTableName(tableNameRaw)
 		if err != nil {
 			return nil, goerrors.Errorf("lookup table %s in name registry: %v", tableNameRaw, err)
 		}
-		res.Put(tableName, columns)
+		indexes := [][]string{}
+		for _, column := range columns {
+			//putting every column in a separate list to have old behaviour where we were checking for each column
+			indexes = append(indexes, []string{column})
+		}
+		res.Put(tableName, indexes)
 	}
 	return res, nil
 }

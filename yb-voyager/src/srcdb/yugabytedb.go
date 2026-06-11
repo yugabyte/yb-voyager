@@ -1034,14 +1034,15 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
 	return partitions
 }
 
-// query retrieves all unique columns in the specified tables and schemas, handling both unique constraints and unique indexes, while excluding primary key columns.
-const ybQueryTmplForUniqCols = `
+// query retrieves unique indexes/constraints with column order for PG-compatible catalogs.
+const pgQueryTmplForUniqIndexes = `
 WITH unique_constraints AS (
-	-- Retrieve columns with unique constraints
     SELECT
         tc.table_schema,
         tc.table_name,
-        kcu.column_name
+        tc.constraint_name AS index_key,
+        kcu.column_name,
+        kcu.ordinal_position
     FROM
         information_schema.table_constraints tc
     JOIN
@@ -1055,88 +1056,44 @@ WITH unique_constraints AS (
         AND tc.table_name = ANY('{%s}')
 ),
 unique_indexes AS (
-	-- Retrieve columns with unique indexes (excluding primary keys)
     SELECT
         n.nspname AS table_schema,
         t.relname AS table_name,
-        a.attname AS column_name
+        i.relname AS index_key,
+        a.attname AS column_name,
+        array_position(ix.indkey, a.attnum) AS ordinal_position
     FROM
         pg_index ix
-	-- Join to get table and schema information from the index
+    JOIN
+        pg_class i ON i.oid = ix.indexrelid
     JOIN
         pg_class t ON t.oid = ix.indrelid
     JOIN
         pg_namespace n ON n.oid = t.relnamespace
-	-- Join to get column information
     JOIN
-        pg_attribute a ON a.attrelid = t.oid 
-		AND a.attnum = ANY(ix.indkey)  -- Match indexed columns
-	 -- Left join to ensure we exclude primary keys by checking associated constraints
+        pg_attribute a ON a.attrelid = t.oid
+        AND a.attnum = ANY(ix.indkey)
     LEFT JOIN
         pg_constraint c ON ix.indexrelid = c.conindid AND c.contype = 'p'
     WHERE
         ix.indisunique = TRUE
-		AND c.contype IS NULL -- Ensure it's not a primary key
+        AND c.contype IS NULL
         AND n.nspname = ANY('{%s}')
         AND t.relname = ANY('{%s}')
 )
--- UNION will remove duplicate rows between unique constraints and unique indexes
-SELECT table_schema, table_name, column_name FROM unique_constraints
-UNION
-SELECT table_schema, table_name, column_name FROM unique_indexes;
+SELECT table_schema, table_name, index_key, column_name, ordinal_position FROM unique_constraints
+UNION ALL
+SELECT table_schema, table_name, index_key, column_name, ordinal_position FROM unique_indexes
+ORDER BY table_schema, table_name, index_key, ordinal_position;
 `
 
-func (yb *YugabyteDB) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
-	log.Infof("getting unique key columns for tables: %v", tableList)
-	result := utils.NewStructMap[sqlname.NameTuple, []string]()
-	var querySchemaList, queryTableList []string
-	tableStrToNameTupleMap := make(map[string]sqlname.NameTuple)
-	for i := 0; i < len(tableList); i++ {
-		sname, tname := tableList[i].ForCatalogQuery()
-		querySchemaList = append(querySchemaList, sname)
-		queryTableList = append(queryTableList, tname)
-		tableStrToNameTupleMap[tableList[i].AsQualifiedCatalogName()] = tableList[i]
-	}
-
-	querySchemaList = lo.Uniq(querySchemaList)
-	query := fmt.Sprintf(ybQueryTmplForUniqCols, strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","),
-		strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","))
-	log.Infof("query to get unique key columns: %s", query)
-	rows, err := yb.db.Query(query)
+func (yb *YugabyteDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
+	log.Infof("getting unique indexes for tables: %v", tableList)
+	result, err := queryPGUniqueIndexesMap(yb.db, tableList)
 	if err != nil {
-		return nil, fmt.Errorf("querying unique key columns: %w", err)
+		return nil, err
 	}
-	defer func() {
-		closeErr := rows.Close()
-		if closeErr != nil {
-			log.Warnf("close rows for query %q: %v", query, closeErr)
-		}
-	}()
-
-	for rows.Next() {
-		var schemaName, tableName, colName string
-		err := rows.Scan(&schemaName, &tableName, &colName)
-		if err != nil {
-			return nil, fmt.Errorf("scanning row for unique key column name: %w", err)
-		}
-		tableName = fmt.Sprintf("%s.%s", schemaName, tableName)
-		tableNameTuple, ok := tableStrToNameTupleMap[tableName]
-		if !ok {
-			return nil, goerrors.Errorf("table %s not found in table list", tableName)
-		}
-		cols, ok := result.Get(tableNameTuple)
-		if !ok {
-			cols = []string{}
-		}
-		cols = append(cols, colName)
-		result.Put(tableNameTuple, cols)
-	}
-
-	err = rows.Err()
-	if err != nil {
-		return nil, fmt.Errorf("error iterating over rows for unique key columns: %w", err)
-	}
-	log.Infof("unique key columns for tables: %v", result)
+	log.Infof("unique indexes for tables: %v", result)
 	return result, nil
 }
 
