@@ -35,9 +35,7 @@ var ErrExitErr error
 // NoColor is derived from stdout, so it cannot decide coloring for stderr on its
 // own: when stdout is a TTY but stderr is redirected (e.g. `yb-voyager ... 2>
 // err.log`), it would still emit ANSI escape codes into the file. We therefore
-// disable color when stderr itself is not a TTY. When stderr is a TTY the
-// object's per-instance flag stays unset, so it falls back to the global NoColor
-// and NO_COLOR / TERM=dumb are still honored.
+// disable color when stderr itself is not a TTY.
 var errorColor = func() *color.Color {
 	c := color.New(color.FgRed)
 	if !isatty.IsTerminal(os.Stderr.Fd()) && !isatty.IsCygwinTerminal(os.Stderr.Fd()) {
