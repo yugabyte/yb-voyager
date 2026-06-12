@@ -402,6 +402,19 @@ func shouldFormatValues(event *tgtdb.Event) bool {
 	}
 	return false
 }
+
+func shouldDetectConflicts(event *tgtdb.Event, tableToUniqueKeyColumns *utils.StructMap[sqlname.NameTuple, []string], tableToPartitioningStrategyMap *utils.StructMap[sqlname.NameTuple, string]) bool {
+	if tableToUniqueKeyColumns == nil || tableToPartitioningStrategyMap == nil {
+		return false
+	}
+	uniqueKeyCols, _ := tableToUniqueKeyColumns.Get(event.TableNameTup)
+	partitioningStrategy, _ := tableToPartitioningStrategyMap.Get(event.TableNameTup)
+	if len(uniqueKeyCols) == 0 || partitioningStrategy == PARTITION_BY_TABLE {
+		return false
+	}
+	return true
+}
+
 func handleEvent(event *tgtdb.Event,
 	evChans []chan *tgtdb.Event,
 	streamingPhaseValueConverter dbzm.StreamingPhaseValueConverter,
@@ -425,8 +438,7 @@ func handleEvent(event *tgtdb.Event,
 		Checking for all possible conflicts among events
 		For more details about ConflictDetectionCache see the related comment in [conflictDetectionCache.go](../conflictDetectionCache.go)
 	*/
-	uniqueKeyCols, _ := conflictDetectionCache.tableToUniqueKeyColumns.Get(event.TableNameTup)
-	if len(uniqueKeyCols) > 0 {
+	if shouldDetectConflicts(event, conflictDetectionCache.tableToUniqueKeyColumns, tableToPartitioningStrategyMap) {
 		if event.Op == "d" {
 			conflictDetectionCache.Put(event)
 		} else { // "i" or "u"
