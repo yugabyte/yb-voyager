@@ -172,7 +172,7 @@ var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
 var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level", "run-guardrails-checks",
 	"batch-size", "parallel-jobs", "truncate-tables", "disable-pb", "max-retries-streaming",
-	"prometheus-metrics-port",	
+	"prometheus-metrics-port",
 	// environment variables keys
 	"ybvoyager-max-colocated-batches-in-progress", "num-event-channels",
 	"event-channel-size", "max-events-per-batch", "max-interval-between-batches",
@@ -240,9 +240,9 @@ var allowedConfigSections = map[string]mapset.Set[string]{
 }
 
 // Define mutually exclusive section groups
-var aliasCommandsPrefixes = [][]string{
-	{"export-data", "export-data-from-source"},
-	{"import-data", "import-data-to-target"},
+var aliasCommandsPrefixes = map[string][]string{
+	"export-data": {"export-data", "export-data-from-source"},
+	"import-data": {"import-data", "import-data-to-target"},
 }
 
 // ConfigParam represents a CLI flag/Config/EnvVar whose value was set by the user depending on the mode of configuration.
