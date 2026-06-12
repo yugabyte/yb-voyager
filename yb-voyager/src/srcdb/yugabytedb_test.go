@@ -269,9 +269,6 @@ func TestYugabyteGetTableToUniqueKeyColumnsMap(t *testing.T) {
             age INT
         );`,
 		`CREATE UNIQUE INDEX idx_age ON test_schema.another_unique_table(age);`,
-		`INSERT INTO test_schema.another_unique_table (username, age) VALUES
-            ('user1', 30),
-            ('user2', 40);`,
 		`CREATE TABLE test_schema.composite_unique_table (
             id SERIAL PRIMARY KEY,
             first_name VARCHAR(100),
@@ -279,32 +276,39 @@ func TestYugabyteGetTableToUniqueKeyColumnsMap(t *testing.T) {
             phone VARCHAR(20) UNIQUE,
             CONSTRAINT unique_name UNIQUE (first_name, last_name)
         );`,
-		`CREATE TABLE test_schema.partial_unique_table (
-            id SERIAL PRIMARY KEY,
-            check_id INT,
-            most_recent BOOLEAN
-        );`,
-		`CREATE UNIQUE INDEX idx_partial_check_id ON test_schema.partial_unique_table(check_id) WHERE most_recent = true;`,
-		`CREATE TABLE test_schema.multi_col_index_table (
-            id SERIAL PRIMARY KEY,
-            region VARCHAR(10),
-            account_id INT
-        );`,
-		`CREATE UNIQUE INDEX idx_region_account ON test_schema.multi_col_index_table(region, account_id);`)
+		`INSERT INTO test_schema.another_unique_table (username, age) VALUES
+            ('user1', 30),
+            ('user2', 40);`,
+		`CREATE SCHEMA test_expression_indexes_cross;
+		CREATE SCHEMA test_expression_indexes;
+		CREATE TABLE test_expression_indexes_cross.table_partitioned5 (
+			id INT,
+			data TEXT,
+			val text,
+			val2 text
+		) PARTITION BY LIST (data);
+		CREATE TABLE test_expression_indexes.table_partitioned_l5 PARTITION OF test_expression_indexes_cross.table_partitioned5 FOR VALUES IN ('London');
+		CREATE TABLE test_expression_indexes.table_partitioned_s5 PARTITION OF test_expression_indexes_cross.table_partitioned5 FOR VALUES IN ('Sydney');
+		CREATE TABLE test_expression_indexes.table_partitioned_b5 PARTITION OF test_expression_indexes_cross.table_partitioned5 FOR VALUES IN ('Boston');
+
+		CREATE UNIQUE INDEX idx_expression_indexes_17 ON test_expression_indexes.table_partitioned_l5 (val) WHERE val2<>'';`)
 	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
 	testYugabyteDBSource.Schemas = []sqlname.Identifier{
 		sqlname.NewIdentifier(testYugabyteDBSource.DBType, "test_schema"),
+		sqlname.NewIdentifier(testYugabyteDBSource.DBType, "test_expression_indexes_cross"),
+		sqlname.NewIdentifier(testYugabyteDBSource.DBType, "test_expression_indexes"),
 	}
 	_ = testYugabyteDBSource.DB().Connect()
 
-	dbType := testYugabyteDBSource.DBType
 	uniqueTablesList := []sqlname.NameTuple{
-		testutils.CreateNameTupleWithSourceName("test_schema.unique_table", "test_schema", dbType),
-		testutils.CreateNameTupleWithSourceName("test_schema.another_unique_table", "test_schema", dbType),
-		testutils.CreateNameTupleWithSourceName("test_schema.composite_unique_table", "test_schema", dbType),
-		testutils.CreateNameTupleWithSourceName("test_schema.partial_unique_table", "test_schema", dbType),
-		testutils.CreateNameTupleWithSourceName("test_schema.multi_col_index_table", "test_schema", dbType),
+		testutils.CreateNameTupleWithSourceName("test_schema.unique_table", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.another_unique_table", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.composite_unique_table", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_expression_indexes_cross.table_partitioned5", "test_expression_indexes_cross", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_l5", "test_expression_indexes", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_s5", "test_expression_indexes", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_b5", "test_expression_indexes", "postgresql"),
 	}
 
 	actualIndexes, err := testYugabyteDBSource.DB().GetTableToUniqueIndexesMap(uniqueTablesList)
