@@ -122,23 +122,20 @@ type ConflictDetectionCache struct {
 		Worst event size can be 7kb for 30-50 columns in the table
 		so for the 500000 events (100 channels * 500 events per channel) at worst in the cache it will be 500000 * 7kb = 3.5GB
 	*/
-	m                              map[int64]*tgtdb.Event
-	cond                           *sync.Cond
-	tableToUniqueKeyColumns        *utils.StructMap[sqlname.NameTuple, []string]
-	evChans                        []chan *tgtdb.Event
-	sourceDBType                   string
-	tableToPartitioningStrategyMap *utils.StructMap[sqlname.NameTuple, string]
+	m                       map[int64]*tgtdb.Event
+	cond                    *sync.Cond
+	tableToUniqueKeyColumns *utils.StructMap[sqlname.NameTuple, []string]
+	evChans                 []chan *tgtdb.Event
+	sourceDBType            string
 }
 
-func NewConflictDetectionCache(tableToUniqueKeyColumns *utils.StructMap[sqlname.NameTuple, []string], evChans []chan *tgtdb.Event, sourceDBType string,
-	tableToPartitioningStrategyMap *utils.StructMap[sqlname.NameTuple, string]) *ConflictDetectionCache {
+func NewConflictDetectionCache(tableToUniqueKeyColumns *utils.StructMap[sqlname.NameTuple, []string], evChans []chan *tgtdb.Event, sourceDBType string) *ConflictDetectionCache {
 	c := &ConflictDetectionCache{}
 	c.m = make(map[int64]*tgtdb.Event)
 	c.cond = sync.NewCond(&c.Mutex)
 	c.tableToUniqueKeyColumns = tableToUniqueKeyColumns
 	c.sourceDBType = sourceDBType
 	c.evChans = evChans
-	c.tableToPartitioningStrategyMap = tableToPartitioningStrategyMap
 	return c
 }
 
@@ -317,15 +314,6 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 
 	if c.sameTableEventsHaveSamePK(cachedEvent, incomingEvent) {
 		return false
-	}
-
-	if c.tableToPartitioningStrategyMap != nil {
-		strategy, ok := c.tableToPartitioningStrategyMap.Get(cachedEvent.TableNameTup)
-		if ok && strategy == PARTITION_BY_TABLE {
-			// if the table is partitioned by table, then we don't need to check for conflicts
-			// because all the events for a table will be processed in the same channel
-			return false
-		}
 	}
 
 	uniqueKeyColumns, _ := c.tableToUniqueKeyColumns.Get(cachedEvent.TableNameTup)
