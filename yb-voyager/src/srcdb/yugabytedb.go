@@ -1061,7 +1061,7 @@ unique_indexes AS (
         t.relname AS table_name,
         i.relname AS index_key,
         a.attname AS column_name,
-        array_position(ix.indkey, a.attnum) AS ordinal_position
+        array_position(ix.indkey, a.attnum) + 1 AS ordinal_position
     FROM
         pg_index ix
     JOIN

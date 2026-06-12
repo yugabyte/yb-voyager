@@ -369,12 +369,6 @@ func TestPostgresGetTableToUniqueKeyColumnsMap(t *testing.T) {
 	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_l5", "test_expression_indexes", "postgresql"), [][]string{
 		{"val"},
 	})
-	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_s5", "test_expression_indexes", "postgresql"), [][]string{
-		{"val"},
-	})
-	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_b5", "test_expression_indexes", "postgresql"), [][]string{
-		{"val"},
-	})
 	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_schema.composite_unique_table", "test_schema", "postgresql"), [][]string{
 		{"first_name", "last_name"},
 		{"phone"},

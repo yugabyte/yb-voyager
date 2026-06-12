@@ -1000,7 +1000,7 @@ func buildUniqueIndexesMapFromPGRows(rows *sql.Rows, tableStrToNameTupleMap map[
 	for key, ordinalToColumn := range indexColumnMaps {
 		tableNameTuple, ok := tableStrToNameTupleMap[key.tableCatalogName]
 		if !ok {
-			return nil, fmt.Errorf("table %s not found in table list", key.tableCatalogName)
+			return nil, goerrors.Errorf("table %s not found in table list", key.tableCatalogName)
 		}
 
 		ordinals := lo.Keys(ordinalToColumn)

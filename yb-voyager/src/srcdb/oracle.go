@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -696,7 +697,7 @@ func buildUniqueIndexesMapFromOracleRows(rows *sql.Rows, tableStrToNameTupleMap 
 	for key, ordinalToColumn := range indexColumnMaps {
 		tableNameTuple, ok := tableStrToNameTupleMap[key.tableCatalogName]
 		if !ok {
-			return nil, fmt.Errorf("table %s not found in table list", key.tableCatalogName)
+			return nil, goerrors.Errorf("table %s not found in table list", key.tableCatalogName)
 		}
 
 		ordinals := lo.Keys(ordinalToColumn)
@@ -745,7 +746,6 @@ func (ora *Oracle) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*u
 	log.Infof("unique indexes for tables: %+v", result)
 	return result, nil
 }
-
 
 const DROP_TABLE_IF_EXISTS_QUERY = `BEGIN
 EXECUTE IMMEDIATE 'DROP TABLE %s ';
