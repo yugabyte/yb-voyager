@@ -298,7 +298,7 @@ func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
 	*/
 	cmdPath := cmd.CommandPath()
 	isFallbackCmd := slices.Contains(fallbackPhaseCommands, cmdPath)
-	//setting the metaDB to the iteration metaDB as the getCutoverStatus is using the global metaDB   
+	//setting the metaDB to the iteration metaDB as the getCutoverStatus is using the global metaDB
 	//and we are fetching the cutover status for the current iteration from this metaDB.
 	latestIterInForwardPhase := (GetCutoverStatus(iterationMetaDB) == NOT_INITIATED)
 
@@ -508,6 +508,16 @@ func validateExportDirFlag() {
 }
 
 func GetCommandID(c *cobra.Command) string {
+	commandID := buildCommandID(c)
+	for alias, aliases := range aliasCommandsPrefixes {
+		if slices.Contains(aliases, commandID) {
+			return alias
+		}
+	}
+	return commandID
+}
+
+func buildCommandID(c *cobra.Command) string {
 	if c.HasParent() {
 		p := GetCommandID(c.Parent())
 		if p == "" {
