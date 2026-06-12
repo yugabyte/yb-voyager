@@ -311,50 +311,42 @@ func TestYugabyteGetTableToUniqueKeyColumnsMap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error retrieving unique indexes: %v", err)
 	}
+	expectedIndexesByTable := utils.NewStructMap[sqlname.NameTuple, [][]string]()
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_schema.unique_table", "test_schema", "postgresql"), [][]string{
+		{"email"},
+		{"phone"},
+		{"address"},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_schema.another_unique_table", "test_schema", "postgresql"), [][]string{
+		{"username"},
+		{"age"},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_l5", "test_expression_indexes", "postgresql"), [][]string{
+		{"val"},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_s5", "test_expression_indexes", "postgresql"), [][]string{
+		{"val"},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_b5", "test_expression_indexes", "postgresql"), [][]string{
+		{"val"},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_schema.composite_unique_table", "test_schema", "postgresql"), [][]string{
+		{"first_name", "last_name"},
+		{"phone"},
+	})
 
-	expectedIndexesByTable := map[string][][]string{
-		"test_schema.unique_table": {
-			{Columns: []string{"email"}},
-			{Columns: []string{"phone"}},
-			{Columns: []string{"address"}},
-		},
-		"test_schema.another_unique_table": {
-			{Columns: []string{"username"}},
-			{Columns: []string{"age"}},
-		},
-		"test_schema.composite_unique_table": {
-			{Columns: []string{"first_name", "last_name"}},
-			{Columns: []string{"phone"}},
-		},
-		"test_schema.partial_unique_table": {
-			{Columns: []string{"check_id"}},
-		},
-		"test_schema.multi_col_index_table": {
-			{Columns: []string{"region", "account_id"}},
-		},
-	}
+	assert.Equal(t, len(expectedIndexesByTable.Keys()), len(actualIndexes.Keys()), "Expected number of tables to match")
 
-	for qualifiedName, expectedIndexes := range expectedIndexesByTable {
-		table := testutils.CreateNameTupleWithSourceName(qualifiedName, "test_schema", dbType)
+	expectedIndexesByTable.IterKV(func(table sqlname.NameTuple, expectedIndexes [][]string) (bool, error) {
 		actualIndexesForTable, exists := actualIndexes.Get(table)
-		if !exists {
-			t.Fatalf("Expected table %s not found in unique indexes map", qualifiedName)
-		}
-		assertEqualUniqueIndexes(t, expectedIndexes, actualIndexesForTable)
-	}
-
-	expectedFlatColumns := utils.NewStructMap[sqlname.NameTuple, []string]()
-	expectedFlatColumns.Put(testutils.CreateNameTupleWithSourceName("test_schema.unique_table", "test_schema", dbType), []string{"email", "phone", "address"})
-	expectedFlatColumns.Put(testutils.CreateNameTupleWithSourceName("test_schema.another_unique_table", "test_schema", dbType), []string{"username", "age"})
-	expectedFlatColumns.IterKV(func(table sqlname.NameTuple, expectedColumns []string) (bool, error) {
-		indexes, exists := actualIndexes.Get(table)
 		if !exists {
 			t.Errorf("Expected table %s not found in unique indexes map", table)
 			return true, nil
 		}
-		testutils.AssertEqualStringSlices(t, expectedColumns, FlattenUniqueIndexColumns(indexes))
+		assertEqualUniqueIndexes(t, expectedIndexes, actualIndexesForTable)
 		return true, nil
 	})
+
 }
 
 func TestYugabyteGetNonPKTables(t *testing.T) {

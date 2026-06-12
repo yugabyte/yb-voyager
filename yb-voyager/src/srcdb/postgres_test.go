@@ -356,30 +356,41 @@ func TestPostgresGetTableToUniqueKeyColumnsMap(t *testing.T) {
 		t.Fatalf("Error retrieving unique indexes: %v", err)
 	}
 
-	expectedFlatColumns := utils.NewStructMap[sqlname.NameTuple, []string]()
-	expectedFlatColumns.Put(testutils.CreateNameTupleWithSourceName("test_schema.unique_table", "test_schema", "postgresql"), []string{"email", "phone", "address"})
-	expectedFlatColumns.Put(testutils.CreateNameTupleWithSourceName("test_schema.another_unique_table", "test_schema", "postgresql"), []string{"username", "age"})
-	expectedFlatColumns.Put(testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_l5", "test_expression_indexes", "postgresql"), []string{"val"})
-	expectedFlatColumns.IterKV(func(table sqlname.NameTuple, expectedColumns []string) (bool, error) {
-		indexes, exists := actualIndexes.Get(table)
+	expectedIndexesByTable := utils.NewStructMap[sqlname.NameTuple, [][]string]()
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_schema.unique_table", "test_schema", "postgresql"), [][]string{
+		{"email"},
+		{"phone"},
+		{"address"},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_schema.another_unique_table", "test_schema", "postgresql"), [][]string{
+		{"username"},
+		{"age"},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_l5", "test_expression_indexes", "postgresql"), [][]string{
+		{"val"},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_s5", "test_expression_indexes", "postgresql"), [][]string{
+		{"val"},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_b5", "test_expression_indexes", "postgresql"), [][]string{
+		{"val"},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_schema.composite_unique_table", "test_schema", "postgresql"), [][]string{
+		{"first_name", "last_name"},
+		{"phone"},
+	})
+
+	assert.Equal(t, len(expectedIndexesByTable.Keys()), len(actualIndexes.Keys()), "Expected number of tables to match")
+
+	expectedIndexesByTable.IterKV(func(table sqlname.NameTuple, expectedIndexes [][]string) (bool, error) {
+		actualIndexesForTable, exists := actualIndexes.Get(table)
 		if !exists {
 			t.Errorf("Expected table %s not found in unique indexes map", table)
 			return true, nil
 		}
-		testutils.AssertEqualStringSlices(t, expectedColumns, FlattenUniqueIndexColumns(indexes))
+		assertEqualUniqueIndexes(t, expectedIndexes, actualIndexesForTable)
 		return true, nil
 	})
-
-	compositeTable := testutils.CreateNameTupleWithSourceName("test_schema.composite_unique_table", "test_schema", "postgresql")
-	expectedCompositeIndexes := [][]string{
-		{Columns: []string{"first_name", "last_name"}},
-		{Columns: []string{"phone"}},
-	}
-	actualCompositeIndexes, exists := actualIndexes.Get(compositeTable)
-	if !exists {
-		t.Fatalf("Expected table %s not found in unique indexes map", compositeTable)
-	}
-	assertEqualUniqueIndexes(t, expectedCompositeIndexes, actualCompositeIndexes)
 }
 
 func assertEqualUniqueIndexes(t *testing.T, expected, actual [][]string) {
@@ -388,16 +399,16 @@ func assertEqualUniqueIndexes(t *testing.T, expected, actual [][]string) {
 		t.Fatalf("expected %d indexes, got %d", len(expected), len(actual))
 	}
 	expectedSigs := make(map[string][]string)
-	for _, idx := range expected {
-		expectedSigs[strings.Join(idx.Columns, ",")] = idx.Columns
+	for _, idxColumns := range expected {
+		expectedSigs[strings.Join(idxColumns, ",")] = idxColumns
 	}
-	for _, idx := range actual {
-		sig := strings.Join(idx.Columns, ",")
+	for _, idxColumns := range actual {
+		sig := strings.Join(idxColumns, ",")
 		expCols, ok := expectedSigs[sig]
 		if !ok {
-			t.Fatalf("unexpected index columns %v", idx.Columns)
+			t.Fatalf("unexpected index columns %v", idxColumns)
 		}
-		testutils.AssertEqualStringSlices(t, expCols, idx.Columns)
+		testutils.AssertEqualStringSlices(t, expCols, idxColumns)
 	}
 }
 

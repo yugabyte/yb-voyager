@@ -57,16 +57,14 @@ func TestOracleGetTableToUniqueKeyColumnsMap(t *testing.T) {
 
 	uniqueTable := testutils.CreateNameTupleWithSourceName("YBVOYAGER.UNIQUE_TABLE", "YBVOYAGER", "oracle")
 	expectedIndexes := [][]string{
-		{Columns: []string{"EMAIL"}},
-		{Columns: []string{"PHONE"}},
-		{Columns: []string{"ADDRESS"}},
+		{"EMAIL", "PHONE"},
+		{"ADDRESS"},
 	}
 	actualIndexesForTable, exists := actualIndexes.Get(uniqueTable)
 	if !exists {
 		t.Fatalf("Expected table %s not found in unique indexes map", uniqueTable)
 	}
 	assertEqualUniqueIndexes(t, expectedIndexes, actualIndexesForTable)
-	testutils.AssertEqualStringSlices(t, []string{"EMAIL", "PHONE", "ADDRESS"}, FlattenUniqueIndexColumns(actualIndexesForTable))
 }
 
 func TestOracleGetNonPKTables(t *testing.T) {
