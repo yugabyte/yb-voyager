@@ -736,7 +736,7 @@ func startDebeziumAsPerExportTypeIfRequired(ctx context.Context, cancel context.
 	if err != nil {
 		return fmt.Errorf("failed to prepare dbzm config: %w", err)
 	}
-	saveTableToUniqueKeyColumnsMapInMetaDB(finalTableList, leafPartitions)
+	saveTableToUniqueIndexesMapInMetaDB(finalTableList, leafPartitions)
 	if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
 		err = initPGLiveMigrationAndExportSnapshotIfRequired(ctx, cancel, finalTableList, tablesColumnList, leafPartitions, config)
 		if err != nil {
@@ -2303,55 +2303,54 @@ func createUpdateExportedRowCountEventList(tableNames []string) []*cp.UpdateExpo
 	return result
 }
 
-func saveTableToUniqueKeyColumnsMapInMetaDB(tableList []sqlname.NameTuple, leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) {
-	res, err := source.DB().GetTableToUniqueKeyColumnsMap(tableList)
+func saveTableToUniqueIndexesMapInMetaDB(tableList []sqlname.NameTuple, leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) {
+	res, err := source.DB().GetTableToUniqueIndexesMap(tableList)
 	if err != nil {
-		utils.ErrExit("get table to unique key columns map: %w", err)
+		utils.ErrExit("get table to unique indexes map: %w", err)
 	}
 
+	key := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_INDEXES_KEY, exporterRole)
 	if res == nil {
-		log.Infof("no table to unique key columns map found, saving nil to metaDB")
-		key := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, exporterRole)
-		err = metadb.UpdateJsonObjectInMetaDB(metaDB, key, func(record *map[string][]string) {
+		log.Infof("no table to unique indexes map found, saving nil to metaDB")
+		err = metadb.UpdateJsonObjectInMetaDB(metaDB, key, func(record *map[string][][]string) {
 			*record = nil
 		})
 		if err != nil {
-			utils.ErrExit("insert table to unique key columns map: %w", err)
+			utils.ErrExit("insert table to unique indexes map: %w", err)
 		}
 		return
 	}
 
-	//Adding all the leaf partitions unique key columns to the root table unique key columns since in the importer all the events only have the root table name
+	//Adding all the leaf partitions unique indexes to the root table since in the importer all the events only have the root table name
 	leafPartitions.IterKV(func(rootTable sqlname.NameTuple, value []sqlname.NameTuple) (bool, error) {
 		for _, leafTable := range value {
-			leafUniqueColumns, ok := res.Get(leafTable)
+			leafUniqueIndexes, ok := res.Get(leafTable)
 			if !ok {
 				continue
 			}
 			//Do not add leaf table key in the map since this config will be read by importer
 			res.Delete(leafTable)
-			rootUniqueColumns, ok := res.Get(rootTable)
+			rootUniqueIndexes, ok := res.Get(rootTable)
 			if !ok {
-				rootUniqueColumns = []string{}
+				rootUniqueIndexes = [][]string{}
 			}
-			rootUniqueColumns = append(rootUniqueColumns, leafUniqueColumns...)
-			res.Put(rootTable, lo.Uniq(rootUniqueColumns))
+			rootUniqueIndexes = srcdb.MergeUniqueIndexes(rootUniqueIndexes, leafUniqueIndexes)
+			res.Put(rootTable, rootUniqueIndexes)
 		}
 		return true, nil
 	})
 
-	metaDbData := make(map[string][]string)
-	res.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
+	metaDbData := make(map[string][][]string)
+	res.IterKV(func(k sqlname.NameTuple, v [][]string) (bool, error) {
 		metaDbData[k.AsQualifiedCatalogName()] = v
 		return true, nil
 	})
 
-	log.Infof("updating metaDB with table to unique key columns map: %v", res)
-	key := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, exporterRole)
-	err = metadb.UpdateJsonObjectInMetaDB(metaDB, key, func(record *map[string][]string) {
+	log.Infof("updating metaDB with table to unique indexes map: %v", res)
+	err = metadb.UpdateJsonObjectInMetaDB(metaDB, key, func(record *map[string][][]string) {
 		*record = metaDbData
 	})
 	if err != nil {
-		utils.ErrExit("insert table to unique key columns map: %w", err)
+		utils.ErrExit("insert table to unique indexes map: %w", err)
 	}
 }

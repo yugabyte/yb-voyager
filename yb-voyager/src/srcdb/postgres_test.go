@@ -20,6 +20,7 @@ package srcdb
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/samber/lo"
@@ -307,6 +308,13 @@ func TestPostgresGetTableToUniqueKeyColumnsMap(t *testing.T) {
             age INT
         );`,
 		`CREATE UNIQUE INDEX idx_age ON test_schema.another_unique_table(age);`,
+		`CREATE TABLE test_schema.composite_unique_table (
+            id SERIAL PRIMARY KEY,
+            first_name VARCHAR(100),
+            last_name VARCHAR(100),
+            phone VARCHAR(20) UNIQUE,
+            CONSTRAINT unique_name UNIQUE (first_name, last_name)
+        );`,
 		`INSERT INTO test_schema.another_unique_table (username, age) VALUES
             ('user1', 30),
             ('user2', 40);`,
@@ -335,34 +343,67 @@ func TestPostgresGetTableToUniqueKeyColumnsMap(t *testing.T) {
 	uniqueTablesList := []sqlname.NameTuple{
 		testutils.CreateNameTupleWithSourceName("test_schema.unique_table", "test_schema", "postgresql"),
 		testutils.CreateNameTupleWithSourceName("test_schema.another_unique_table", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.composite_unique_table", "test_schema", "postgresql"),
 		testutils.CreateNameTupleWithSourceName("test_expression_indexes_cross.table_partitioned5", "test_expression_indexes_cross", "postgresql"),
 		testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_l5", "test_expression_indexes", "postgresql"),
 		testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_s5", "test_expression_indexes", "postgresql"),
 		testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_b5", "test_expression_indexes", "postgresql"),
 	}
 
-	// Test GetTableToUniqueKeyColumnsMap
 	_ = testPostgresSource.DB().Connect()
-	actualUniqKeys, err := testPostgresSource.DB().GetTableToUniqueKeyColumnsMap(uniqueTablesList)
+	actualIndexes, err := testPostgresSource.DB().GetTableToUniqueIndexesMap(uniqueTablesList)
 	if err != nil {
-		t.Fatalf("Error retrieving unique keys: %v", err)
+		t.Fatalf("Error retrieving unique indexes: %v", err)
 	}
 
-	expectedUniqKeys := utils.NewStructMap[sqlname.NameTuple, []string]()
-	expectedUniqKeys.Put(testutils.CreateNameTupleWithSourceName("test_schema.unique_table", "test_schema", "postgresql"), []string{"email", "phone", "address"})
-	expectedUniqKeys.Put(testutils.CreateNameTupleWithSourceName("test_schema.another_unique_table", "test_schema", "postgresql"), []string{"username", "age"})
-	expectedUniqKeys.Put(testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_l5", "test_expression_indexes", "postgresql"), []string{"val"})
+	expectedIndexesByTable := utils.NewStructMap[sqlname.NameTuple, [][]string]()
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_schema.unique_table", "test_schema", "postgresql"), [][]string{
+		{"email"},
+		{"phone"},
+		{"address"},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_schema.another_unique_table", "test_schema", "postgresql"), [][]string{
+		{"username"},
+		{"age"},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_l5", "test_expression_indexes", "postgresql"), [][]string{
+		{"val"},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_schema.composite_unique_table", "test_schema", "postgresql"), [][]string{
+		{"first_name", "last_name"},
+		{"phone"},
+	})
 
-	// Compare the maps by iterating over each table and asserting the columns list
-	expectedUniqKeys.IterKV(func(table sqlname.NameTuple, expectedColumns []string) (bool, error) {
-		actualColumns, exists := actualUniqKeys.Get(table)
+	assert.Equal(t, len(expectedIndexesByTable.Keys()), len(actualIndexes.Keys()), "Expected number of tables to match")
+
+	expectedIndexesByTable.IterKV(func(table sqlname.NameTuple, expectedIndexes [][]string) (bool, error) {
+		actualIndexesForTable, exists := actualIndexes.Get(table)
 		if !exists {
-			t.Errorf("Expected table %s not found in uniqueKeys", table)
+			t.Errorf("Expected table %s not found in unique indexes map", table)
+			return true, nil
 		}
-
-		testutils.AssertEqualStringSlices(t, expectedColumns, actualColumns)
+		assertEqualUniqueIndexes(t, expectedIndexes, actualIndexesForTable)
 		return true, nil
 	})
+}
+
+func assertEqualUniqueIndexes(t *testing.T, expected, actual [][]string) {
+	t.Helper()
+	if len(expected) != len(actual) {
+		t.Fatalf("expected %d indexes, got %d", len(expected), len(actual))
+	}
+	expectedSigs := make(map[string][]string)
+	for _, idxColumns := range expected {
+		expectedSigs[strings.Join(idxColumns, ",")] = idxColumns
+	}
+	for _, idxColumns := range actual {
+		sig := strings.Join(idxColumns, ",")
+		expCols, ok := expectedSigs[sig]
+		if !ok {
+			t.Fatalf("unexpected index columns %v", idxColumns)
+		}
+		testutils.AssertEqualStringSlices(t, expCols, idxColumns)
+	}
 }
 
 func TestPostgresGetNonPKTables(t *testing.T) {

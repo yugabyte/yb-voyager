@@ -44,7 +44,7 @@ func TestProcessEventsBasic(t *testing.T) {
 	statsReporter := &reporter.StreamImportStatsReporter{}
 	state := NewImportDataState(exportDir)
 	tdb = &mockYugabyteDB{}
-	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, []string](), []chan *tgtdb.Event{evChan}, POSTGRESQL)
+	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, [][]string](), []chan *tgtdb.Event{evChan}, POSTGRESQL)
 
 	oname := sqlname.NewObjectName(YUGABYTEDB, "public", "public", "users")
 	evChan <- &tgtdb.Event{
@@ -71,7 +71,7 @@ func TestProcessEventsRemovesEventFromConflicDetectionCache(t *testing.T) {
 	statsReporter := &reporter.StreamImportStatsReporter{}
 	state := NewImportDataState(exportDir)
 	tdb = &mockYugabyteDB{}
-	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, []string](), []chan *tgtdb.Event{evChan}, POSTGRESQL)
+	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, [][]string](), []chan *tgtdb.Event{evChan}, POSTGRESQL)
 
 	oname := sqlname.NewObjectName(YUGABYTEDB, "public", "public", "users")
 	e := &tgtdb.Event{
@@ -108,7 +108,7 @@ func TestProcessEventsRemovesIgnoredEventFromConflicDetectionCache(t *testing.T)
 	statsReporter := &reporter.StreamImportStatsReporter{}
 	state := NewImportDataState(exportDir)
 	tdb = &mockYugabyteDB{}
-	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, []string](), []chan *tgtdb.Event{evChan}, POSTGRESQL)
+	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, [][]string](), []chan *tgtdb.Event{evChan}, POSTGRESQL)
 
 	oname := sqlname.NewObjectName(YUGABYTEDB, "public", "public", "users")
 	e1 := &tgtdb.Event{

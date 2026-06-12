@@ -269,36 +269,82 @@ func TestYugabyteGetTableToUniqueKeyColumnsMap(t *testing.T) {
             age INT
         );`,
 		`CREATE UNIQUE INDEX idx_age ON test_schema.another_unique_table(age);`,
+		`CREATE TABLE test_schema.composite_unique_table (
+            id SERIAL PRIMARY KEY,
+            first_name VARCHAR(100),
+            last_name VARCHAR(100),
+            phone VARCHAR(20) UNIQUE,
+            CONSTRAINT unique_name UNIQUE (first_name, last_name)
+        );`,
 		`INSERT INTO test_schema.another_unique_table (username, age) VALUES
             ('user1', 30),
-            ('user2', 40);`)
+            ('user2', 40);`,
+		`CREATE SCHEMA test_expression_indexes_cross;
+		CREATE SCHEMA test_expression_indexes;
+		CREATE TABLE test_expression_indexes_cross.table_partitioned5 (
+			id INT,
+			data TEXT,
+			val text,
+			val2 text
+		) PARTITION BY LIST (data);
+		CREATE TABLE test_expression_indexes.table_partitioned_l5 PARTITION OF test_expression_indexes_cross.table_partitioned5 FOR VALUES IN ('London');
+		CREATE TABLE test_expression_indexes.table_partitioned_s5 PARTITION OF test_expression_indexes_cross.table_partitioned5 FOR VALUES IN ('Sydney');
+		CREATE TABLE test_expression_indexes.table_partitioned_b5 PARTITION OF test_expression_indexes_cross.table_partitioned5 FOR VALUES IN ('Boston');
+
+		CREATE UNIQUE INDEX idx_expression_indexes_17 ON test_expression_indexes.table_partitioned_l5 (val) WHERE val2<>'';`)
 	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	testYugabyteDBSource.Schemas = []sqlname.Identifier{
+		sqlname.NewIdentifier(testYugabyteDBSource.DBType, "test_schema"),
+		sqlname.NewIdentifier(testYugabyteDBSource.DBType, "test_expression_indexes_cross"),
+		sqlname.NewIdentifier(testYugabyteDBSource.DBType, "test_expression_indexes"),
+	}
+	_ = testYugabyteDBSource.DB().Connect()
 
 	uniqueTablesList := []sqlname.NameTuple{
 		testutils.CreateNameTupleWithSourceName("test_schema.unique_table", "test_schema", "postgresql"),
 		testutils.CreateNameTupleWithSourceName("test_schema.another_unique_table", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.composite_unique_table", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_expression_indexes_cross.table_partitioned5", "test_expression_indexes_cross", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_l5", "test_expression_indexes", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_s5", "test_expression_indexes", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_b5", "test_expression_indexes", "postgresql"),
 	}
 
-	// Test GetTableToUniqueKeyColumnsMap
-	actualUniqKeys, err := testYugabyteDBSource.DB().GetTableToUniqueKeyColumnsMap(uniqueTablesList)
+	actualIndexes, err := testYugabyteDBSource.DB().GetTableToUniqueIndexesMap(uniqueTablesList)
 	if err != nil {
-		t.Fatalf("Error retrieving unique keys: %v", err)
+		t.Fatalf("Error retrieving unique indexes: %v", err)
 	}
+	expectedIndexesByTable := utils.NewStructMap[sqlname.NameTuple, [][]string]()
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_schema.unique_table", "test_schema", "postgresql"), [][]string{
+		{"email"},
+		{"phone"},
+		{"address"},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_schema.another_unique_table", "test_schema", "postgresql"), [][]string{
+		{"username"},
+		{"age"},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_l5", "test_expression_indexes", "postgresql"), [][]string{
+		{"val"},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_schema.composite_unique_table", "test_schema", "postgresql"), [][]string{
+		{"first_name", "last_name"},
+		{"phone"},
+	})
 
-	expectedUniqKeys := utils.NewStructMap[sqlname.NameTuple, []string]()
-	expectedUniqKeys.Put(testutils.CreateNameTupleWithSourceName("test_schema.unique_table", "test_schema", "postgresql"), []string{"email", "phone", "address"})
-	expectedUniqKeys.Put(testutils.CreateNameTupleWithSourceName("test_schema.another_unique_table", "test_schema", "postgresql"), []string{"username", "age"})
+	assert.Equal(t, len(expectedIndexesByTable.Keys()), len(actualIndexes.Keys()), "Expected number of tables to match")
 
-	// Compare the maps by iterating over each table and asserting the columns list
-	expectedUniqKeys.IterKV(func(table sqlname.NameTuple, expectedColumns []string) (bool, error) {
-		actualColumns, exists := actualUniqKeys.Get(table)
+	expectedIndexesByTable.IterKV(func(table sqlname.NameTuple, expectedIndexes [][]string) (bool, error) {
+		actualIndexesForTable, exists := actualIndexes.Get(table)
 		if !exists {
-			t.Errorf("Expected table %s not found in uniqueKeys", table)
+			t.Errorf("Expected table %s not found in unique indexes map", table)
+			return true, nil
 		}
-
-		testutils.AssertEqualStringSlices(t, expectedColumns, actualColumns)
+		assertEqualUniqueIndexes(t, expectedIndexes, actualIndexesForTable)
 		return true, nil
 	})
+
 }
 
 func TestYugabyteGetNonPKTables(t *testing.T) {
