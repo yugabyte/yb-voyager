@@ -2369,14 +2369,34 @@ func clearMigrationStateForImportDataStartClean(state *ImportDataState, importFi
 
 	if msr == nil {
 		return goerrors.Errorf("migration status record not found.")
-	} else {
-		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-			msr.OnPrimaryKeyConflictAction = ""
-		})
-		err = metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
-			record.TableToCDCPartitioningStrategyMap = nil
-		})
 	}
+
+	// Guardrail: for change-streaming imports, start-clean resets the per-importer
+	// imported_by flags and re-streams the queue from the earliest segment. If that
+	// segment has already been archived/deleted by `archive changes`, the queue can
+	// no longer be re-streamed from the beginning. Detect this and fail before
+	// mutating any metaDB state.
+	if changeStreamingIsEnabled(importType) {
+		segmentsExporterRole := ""
+		if importerRole == SOURCE_DB_IMPORTER_ROLE {
+			// fall-back import only consumes segments exported from the target db.
+			segmentsExporterRole = TARGET_DB_EXPORTER_FB_ROLE
+		}
+		resumeSegmentDeleted, err := metaDB.IsResumeSegmentDeleted(segmentsExporterRole)
+		if err != nil {
+			return goerrors.Errorf("failed to check for archived/deleted queue segments: %s", err)
+		}
+		if resumeSegmentDeleted {
+			utils.ErrExit("cannot perform import data with --start-clean: some queue segments have already been archived/deleted by 'archive changes'. The change-event queue can no longer be re-streamed from the beginning, so a clean restart is not possible.")
+		}
+	}
+
+	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		msr.OnPrimaryKeyConflictAction = ""
+	})
+	err = metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
+		record.TableToCDCPartitioningStrategyMap = nil
+	})
 
 	err = handleStartCleanForSnapshot(state, importFileTasks, errorHandler)
 	if err != nil {

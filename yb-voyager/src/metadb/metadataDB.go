@@ -398,6 +398,31 @@ func (m *MetaDB) GetMinSegmentExportedByAndNotImportedBy(importerRole string, ex
 	return segmentNum.Int64, nil
 }
 
+// IsResumeSegmentDeleted reports whether the earliest queue segment (the lowest
+// segment_no for the given exporter role) has been deleted from disk by the
+// `archive changes` workflow. This is the segment that `import data --start-clean`
+// would reset to and attempt to re-stream from after clearing the per-importer
+// imported_by flags. If it has been deleted, the change-event queue can no longer
+// be re-streamed from the beginning and start-clean cannot proceed safely.
+// Returns false when there are no queue segments yet.
+func (m *MetaDB) IsResumeSegmentDeleted(exporterRole string) (bool, error) {
+	query := fmt.Sprintf("SELECT deleted FROM %s", QUEUE_SEGMENT_META_TABLE_NAME)
+	if exporterRole != "" {
+		query = fmt.Sprintf("%s WHERE exporter_role = '%s'", query, exporterRole)
+	}
+	query = fmt.Sprintf("%s ORDER BY segment_no ASC LIMIT 1;", query)
+
+	var deleted int
+	err := m.db.QueryRow(query).Scan(&deleted)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("run query on meta db - %s : %w", query, err)
+	}
+	return deleted == 1, nil
+}
+
 func (m *MetaDB) GetExportedEventsStatsForTable(schemaName string, tableName string) (*tgtdb.EventCounter, error) {
 	var totalCount int64
 	var inserts int64
