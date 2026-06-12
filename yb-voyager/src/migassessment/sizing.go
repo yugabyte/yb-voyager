@@ -1763,43 +1763,7 @@ func getSourceMetadataRedundantIndexes(sourceDB *sql.DB, sourceTableName string,
 }
 
 /*
-checkAndFetchIndexes checks for indexes associated with a specific database table and fetches their metadata.
-It iterates through a slice of index metadata and selects indexes that belong to the specified table by comparing
-their parent table names. The function returns a slice containing metadata for indexes associated with the table
-and the total size of those indexes.
-Parameters:
-
-	table: Metadata for the database table for which indexes are to be checked.
-	indexes: A slice containing metadata for all indexes in the database.
-
-Returns:
-
-	[]SourceDBMetadata: Metadata for indexes associated with the specified table.
-	float64: The total size of indexes associated with the specified table.
-	int64 : sum of read ops per second for all indexes of the table
-	int64 : sum of write ops per second for all indexes of the table
-*/
-func checkAndFetchIndexes(table SourceDBMetadata, indexes []SourceDBMetadata) ([]SourceDBMetadata, float64, int64, int64) {
-	indexesOfTable := make([]SourceDBMetadata, 0)
-	var indexesSizeSum float64 = 0
-	var cumulativeSelectOpsPerSecIdx int64 = 0
-	var cumulativeInsertOpsPerSecIdx int64 = 0
-	for _, index := range indexes {
-		if index.ParentTableName.Valid && (index.ParentTableName.String == (table.SchemaName + "." + table.ObjectName)) {
-			indexesOfTable = append(indexesOfTable, index)
-			indexesSizeSum += lo.Ternary(index.Size.Valid, index.Size.Float64, 0)
-			cumulativeSelectOpsPerSecIdx += lo.Ternary(index.ReadsPerSec.Valid, index.ReadsPerSec.Int64, 0)
-			cumulativeInsertOpsPerSecIdx += lo.Ternary(index.ReadsPerSec.Valid, index.ReadsPerSec.Int64, 0)
-		}
-	}
-
-	return indexesOfTable, indexesSizeSum, cumulativeSelectOpsPerSecIdx, cumulativeInsertOpsPerSecIdx
-}
-
-/*
 buildIndexLookupMap creates a map from parent table name to a list of indexes for O(1) lookup.
-This optimization is critical when dealing with large numbers of indexes (15,000+).
-Without this, checkAndFetchIndexes becomes O(n*m) where n=tables and m=indexes.
 
 Parameters:
 
@@ -1821,8 +1785,7 @@ func buildIndexLookupMap(indexes []SourceDBMetadata) map[string][]SourceDBMetada
 }
 
 /*
-checkAndFetchIndexesFromMap is an optimized version of checkAndFetchIndexes that uses a pre-built lookup map.
-This provides O(1) lookup instead of O(n) scanning, critical for large datasets (15,000+ indexes).
+checkAndFetchIndexesFromMap fetches indexes for a table using a pre-built lookup map.
 
 Parameters:
 
