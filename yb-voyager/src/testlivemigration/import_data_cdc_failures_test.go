@@ -936,7 +936,7 @@ func getReportCDCCounts(report *DataMigrationReport, tableName string) (imported
 func computeChanForID(tableFQN string, id int, numChans int) int {
 	h := fnv.New64a()
 	h.Write([]byte(tableFQN))
-	h.Write([]byte(strconv.Itoa(id)))
+	// h.Write([]byte(strconv.Itoa(id))) //removing it as per table partitioning strategy
 	return int(h.Sum64() % uint64(numChans))
 }
 

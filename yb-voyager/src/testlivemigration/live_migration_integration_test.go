@@ -1035,7 +1035,7 @@ FROM generate_series(1, 10);`,
 		"--cdc-partitioning-strategy": "pk",
 	})
 
-	assert.True(t, strings.Contains(lm.GetImportCommandStderr(), "changing the cdc partitioning strategy is not allowed after the import data has started. Current strategy: auto, new strategy: pk"))
+	assert.True(t, strings.Contains(lm.GetImportCommandStderr(), "changing the cdc partitioning strategy is not allowed after the import data has started. Current strategy: table, new strategy: pk"))
 
 	err = lm.InitMetaDB()
 	testutils.FatalIfError(t, err, "failed to initialize meta db")
@@ -1044,7 +1044,7 @@ FROM generate_series(1, 10);`,
 	//check if the cdc partitioning strategy is auto after the first import
 	importDataStatus, err := testMetaDB.GetImportDataStatusRecord()
 	testutils.FatalIfError(t, err, "Failed to get import data status record")
-	assert.Equal(t, importDataStatus.CdcPartitioningStrategyConfig, "auto")
+	assert.Equal(t, importDataStatus.CdcPartitioningStrategyConfig, "table")
 
 	//so instead dropping the table and creating it back
 	err = lm.WithTargetConn(func(target *sql.DB) error {

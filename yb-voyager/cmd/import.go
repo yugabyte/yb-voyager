@@ -365,7 +365,7 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 	BoolVar(cmd.Flags(), &enableRandomBatchProduction, "enable-random-batch-production", true, "Enable random batch production during data import (default true)")
 	cmd.Flags().MarkHidden("enable-random-batch-production")
 
-	cmd.Flags().StringVar(&cdcPartitioningStrategy, "cdc-partitioning-strategy", "auto",
+	cmd.Flags().StringVar(&cdcPartitioningStrategy, "cdc-partitioning-strategy", "table",
 		`The desired partitioning strategy to use while importing cdc events parallelly. The supported values are: pk, table. (default auto-detect)
 		\tauto: Automatically detect the partitioning strategy based on the table having expression or normal unique indexes.
 		\tpk: Partition the cdc events by primary key.
