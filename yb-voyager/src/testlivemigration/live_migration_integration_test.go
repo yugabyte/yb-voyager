@@ -1521,6 +1521,282 @@ FROM generate_series(1, 20) as i;`,
 
 }
 
+
+func TestLiveMigrationWithMultiColumnUniqueIndexConflictDetectionCases(t *testing.T) {
+	t.Parallel()
+	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_multi_column_unique_index",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_multi_column_unique_index",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.test_multi_column_unique_index (
+				id int PRIMARY KEY,
+				id1 int,
+				id2 int,
+				updated_at timestamp
+			);
+			CREATE UNIQUE INDEX idx_test_multi_column_unique_index_id1_id2 ON test_schema.test_multi_column_unique_index (id1, id2);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			"ALTER TABLE test_schema.test_multi_column_unique_index REPLICA IDENTITY FULL;",
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.test_multi_column_unique_index (id, id1, id2, updated_at)
+			SELECT i, i, i, now() FROM generate_series(1, 20) as i;`,
+		},
+		/*
+		false positive cases shouldn't be reported anymore - 
+			1.  updating i-1th row with id1 and id2 as 20 and inserting a row with id1 as 20 and id2 as i
+			2.  updating i-1th row with id1 20 and id2 as NULL and inserting a row with id1 as i and id2 as NULL
+			3. deleting i-1th row (id1 as 20 and id2 as i-1) and inserting a row with id1 as 20 and id2 as i
+			4. deleting i-1th row (id1 as i-1 and id2 as NULL) and inserting a row with id1 as i and id2 as NULL
+		
+
+		cases should be reported as conflicts:
+			1. updating i-1th row to set id1 from i-1 to i and id2 from i-1 to i and insert a row with id1 as 1022 and id2 as 1022
+			2. updating i-1th row to set id1 from NULL to i and id2 from NULL to i and insert a row with id1 as NULL and id2 as NULL(U->I)
+			3. delete new row and update i-1 to 1022,1022 and then deleting i-1th row (id1 as 1022 and id2 as 1022) and inserting a row with id1 as 1022 and id2 as 1022 (D->U, D->I)
+			4. delete new row and update i-1 to NULL,NULL and then deleting i-1th row (id1 as NULL and id2 as NULL) and inserting a row with id1 as NULL and id2 as NULL (D->U, D->I)
+
+
+		*/
+		SourceDeltaSQL: []string{
+		` DO $$                                                                                                                                
+		    DECLARE
+				i INTEGER;
+			BEGIN
+				FOR i IN 21..520 LOOP
+						UPDATE test_schema.test_multi_column_unique_index SET updated_at = now() WHERE id = i - 1;
+						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i, 20, i, now());
+
+						DELETE FROM test_schema.test_multi_column_unique_index WHERE id = i;
+						DELETE FROM test_schema.test_multi_column_unique_index WHERE id = i-1;
+						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i, 20, i, now());
+
+						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i-1,20, i-1, now());
+				END LOOP;
+       		END 
+		$$;`,
+		`INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(521, 521, NULL, now());`,
+		` DO $$                                                                                                                                
+		    DECLARE
+				i INTEGER;
+			BEGIN
+				FOR i IN 522..1021 LOOP
+						UPDATE test_schema.test_multi_column_unique_index SET updated_at = now() WHERE id = i - 1;
+						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i, i, NULL, now());
+
+						DELETE FROM test_schema.test_multi_column_unique_index WHERE id = i;
+						DELETE FROM test_schema.test_multi_column_unique_index WHERE id = i-1;
+						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i, i, NULL, now());
+
+						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i-1, i-1, NULL, now());
+						
+				END LOOP;
+       		END 
+		$$;`,
+		`INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(1022, 1022,1022, now());`,
+		` DO $$                                                                                                                                
+		    DECLARE
+				i INTEGER;
+			BEGIN
+				FOR i IN 1023..1522 LOOP
+						UPDATE test_schema.test_multi_column_unique_index SET id1=i, id2=i WHERE id = i - 1;
+						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i, 1022, 1022, now());
+
+						DELETE FROM test_schema.test_multi_column_unique_index WHERE id = i;
+						UPDATE test_schema.test_multi_column_unique_index SET id1=1022, id2=1022 WHERE id = i-1;
+
+						DELETE FROM test_schema.test_multi_column_unique_index WHERE id = i-1;
+						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i, 1022, 1022, now());
+
+						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i-1, i, i, now());
+
+				END LOOP;
+       		END 
+		$$;`,
+		`INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(1523, NULL, NULL, now());`,
+		` DO $$                                                                                                                                
+		    DECLARE
+				i INTEGER;
+			BEGIN
+				FOR i IN 1524..2023 LOOP
+						UPDATE test_schema.test_multi_column_unique_index SET id1=i, id2=i WHERE id = i - 1;
+						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i, NULL, NULL, now());
+
+						DELETE FROM test_schema.test_multi_column_unique_index WHERE id = i;
+						UPDATE test_schema.test_multi_column_unique_index SET id1=NULL, id2=NULL WHERE id = i-1;
+						
+						DELETE FROM test_schema.test_multi_column_unique_index WHERE id = i-1;
+						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i, NULL, NULL, now());
+
+						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i-1, i, i, now());
+
+
+				END LOOP;
+       		END 
+		$$;`,
+		},
+		TargetDeltaSQL: []string{
+			`INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(2024, 2024, 2024, now());`,
+			` DO $$                                                                                                                                
+		    DECLARE
+				i INTEGER;
+			BEGIN
+				FOR i IN 2025..2524 LOOP
+						UPDATE test_schema.test_multi_column_unique_index SET updated_at = now() WHERE id = i - 1;
+						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i, 2024, i, now());
+
+						DELETE FROM test_schema.test_multi_column_unique_index WHERE id = i;
+						DELETE FROM test_schema.test_multi_column_unique_index WHERE id = i-1;
+						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i, 2024, i, now());
+
+						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i-1,2024, i-1, now());
+				END LOOP;
+       		END 
+		$$;`,
+		`INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(2525, 2525, NULL, now());`,
+		` DO $$                                                                                                                                
+		    DECLARE
+				i INTEGER;
+			BEGIN
+				FOR i IN 2526..3025 LOOP
+						UPDATE test_schema.test_multi_column_unique_index SET updated_at = now() WHERE id = i - 1;
+						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i, i, NULL, now());
+
+						DELETE FROM test_schema.test_multi_column_unique_index WHERE id = i;
+						DELETE FROM test_schema.test_multi_column_unique_index WHERE id = i-1;
+						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i, i, NULL, now());
+
+						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i-1, i-1, NULL, now());
+						
+				END LOOP;
+       		END 
+		$$;`,
+		`INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(3026, 3026,3026, now());`,
+		` DO $$                                                                                                                                
+		    DECLARE
+				i INTEGER;
+			BEGIN
+				FOR i IN 3027..3526 LOOP
+						UPDATE test_schema.test_multi_column_unique_index SET id1=i, id2=i WHERE id = i - 1;
+						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i, 3026, 3026, now());
+
+						DELETE FROM test_schema.test_multi_column_unique_index WHERE id = i;
+						UPDATE test_schema.test_multi_column_unique_index SET id1=3026, id2=3026 WHERE id = i-1;
+
+						DELETE FROM test_schema.test_multi_column_unique_index WHERE id = i-1;
+						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i, 3026, 3026, now());
+
+						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i-1, i, i, now());
+
+				END LOOP;
+       		END 
+		$$;`,
+		`INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(3527, NULL, NULL, now());`,
+		` DO $$                                                                                                                                
+		    DECLARE
+				i INTEGER;
+			BEGIN
+				FOR i IN 3528..4027 LOOP
+						UPDATE test_schema.test_multi_column_unique_index SET id1=i, id2=i WHERE id = i - 1;
+						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i, NULL, NULL, now());
+
+						DELETE FROM test_schema.test_multi_column_unique_index WHERE id = i;
+						UPDATE test_schema.test_multi_column_unique_index SET id1=NULL, id2=NULL WHERE id = i-1;
+						
+						DELETE FROM test_schema.test_multi_column_unique_index WHERE id = i-1;
+						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i, NULL, NULL, now());
+
+						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i-1, i, i, now());
+
+
+				END LOOP;
+       		END 
+		$$;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+
+	defer liveMigrationTest.Cleanup()
+
+	err := liveMigrationTest.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = liveMigrationTest.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+
+	err = liveMigrationTest.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = liveMigrationTest.StartImportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_multi_column_unique_index"`: 20,
+	}, 80)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_multi_column_unique_index"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = liveMigrationTest.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_multi_column_unique_index"`: {
+			Inserts: 6003,
+			Updates: 2002,
+			Deletes: 4000,
+		},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_multi_column_unique_index"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = liveMigrationTest.InitiateCutoverToTarget(true, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = liveMigrationTest.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	err = liveMigrationTest.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	err = liveMigrationTest.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_multi_column_unique_index"`: {
+			Inserts: 6003,
+			Updates: 2002,
+			Deletes: 4000,
+		},
+	}, 120, 5)
+
+	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_multi_column_unique_index"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = liveMigrationTest.InitiateCutoverToSource(nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+
+	err = liveMigrationTest.WaitForCutoverSourceComplete(0, 100)
+	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
+
+	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_multi_column_unique_index"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+}
+
 func TestLiveMigrationWithBytesColumn(t *testing.T) {
 	t.Parallel()
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
