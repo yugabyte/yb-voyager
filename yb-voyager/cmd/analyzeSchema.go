@@ -724,22 +724,48 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		summaryMap[issueInstance.ObjectType].invalidCount[issueInstance.ObjectName] = true
 	}
 
+	// Augment the description with feature-maturity information when a target version is known.
+	// - If the feature is TP/EA in the target version, explain it is experimental + how to enable it.
+	// - If it is unsupported in the target but available later, performance optimizations carry the
+	//   supported-version info inline in the description (non-perf issues show it in a separate
+	//   "Supported In (versions)" row rendered by the template).
+	reason := issueInstance.Description
+	if targetDbVersion != nil {
+		maturity, err := issueInstance.GetMaturityInTarget(targetDbVersion)
+		if err != nil {
+			log.Warnf("checking maturity of issue %q in target version: %v", issueInstance.Type, err)
+		} else {
+			switch maturity {
+			case constants.MATURITY_TP, constants.MATURITY_EA:
+				reason = utils.JoinSentences(reason, buildExperimentalMaturityAnnotation(maturity, targetDbVersion, issueInstance.EnablingFlags))
+			case constants.MATURITY_UNSUPPORTED:
+				if slices.Contains(queryissue.PerformanceOptimizationIssues, issueInstance.Type) {
+					if vs := formatSupportedVersions(issueInstance.MinimumVersionsFixedIn, issueInstance.MinimumVersionsEAFixedIn, issueInstance.MinimumVersionsTPFixedIn); vs != "" {
+						reason = utils.JoinSentences(reason, fmt.Sprintf("Supported in: %s.", vs))
+					}
+				}
+			}
+		}
+	}
+
 	return utils.AnalyzeSchemaIssue{
-		IssueType:              issueType,
-		ObjectType:             issueInstance.ObjectType,
-		ObjectName:             displayObjectName,
-		Type:                   issueInstance.Type,
-		Name:                   issueInstance.Name,
-		Reason:                 issueInstance.Description,
-		Impact:                 issueInstance.Impact,
-		ObjectUsage:            issueInstance.ObjectUsage,
-		SqlStatement:           issueInstance.SqlStatement,
-		DocsLink:               issueInstance.DocsLink,
-		FilePath:               fileName,
-		Suggestion:             issueInstance.Suggestion,
-		GH:                     issueInstance.GH,
-		MinimumVersionsFixedIn: issueInstance.MinimumVersionsFixedIn,
-		Details:                issueInstance.Details,
+		IssueType:                issueType,
+		ObjectType:               issueInstance.ObjectType,
+		ObjectName:               displayObjectName,
+		Type:                     issueInstance.Type,
+		Name:                     issueInstance.Name,
+		Reason:                   reason,
+		Impact:                   issueInstance.Impact,
+		ObjectUsage:              issueInstance.ObjectUsage,
+		SqlStatement:             issueInstance.SqlStatement,
+		DocsLink:                 issueInstance.DocsLink,
+		FilePath:                 fileName,
+		Suggestion:               issueInstance.Suggestion,
+		GH:                       issueInstance.GH,
+		MinimumVersionsFixedIn:   issueInstance.MinimumVersionsFixedIn,
+		MinimumVersionsTPFixedIn: issueInstance.MinimumVersionsTPFixedIn,
+		MinimumVersionsEAFixedIn: issueInstance.MinimumVersionsEAFixedIn,
+		Details:                  issueInstance.Details,
 	}
 }
 

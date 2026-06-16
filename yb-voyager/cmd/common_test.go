@@ -26,7 +26,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
@@ -133,19 +136,21 @@ func TestAssessmentReportStructs(t *testing.T) {
 			name:       "Validate Assessment Issue Struct Definition",
 			actualType: reflect.TypeOf(AssessmentIssue{}),
 			expectedType: struct {
-				Category               string                          `json:"Category"`
-				CategoryDescription    string                          `json:"CategoryDescription"`
-				Type                   string                          `json:"Type"`
-				Name                   string                          `json:"Name"`
-				Description            string                          `json:"Description"`
-				Impact                 string                          `json:"Impact"`
-				ObjectType             string                          `json:"ObjectType"`
-				ObjectName             string                          `json:"ObjectName"`
-				ObjectUsage            string                          `json:"ObjectUsage,omitempty"`
-				SqlStatement           string                          `json:"SqlStatement"`
-				DocsLink               string                          `json:"DocsLink"`
-				MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"`
-				Details                map[string]interface{}          `json:"Details,omitempty"`
+				Category                 string                          `json:"Category"`
+				CategoryDescription      string                          `json:"CategoryDescription"`
+				Type                     string                          `json:"Type"`
+				Name                     string                          `json:"Name"`
+				Description              string                          `json:"Description"`
+				Impact                   string                          `json:"Impact"`
+				ObjectType               string                          `json:"ObjectType"`
+				ObjectName               string                          `json:"ObjectName"`
+				ObjectUsage              string                          `json:"ObjectUsage,omitempty"`
+				SqlStatement             string                          `json:"SqlStatement"`
+				DocsLink                 string                          `json:"DocsLink"`
+				MinimumVersionsFixedIn   map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"`
+				MinimumVersionsTPFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsTPFixedIn,omitempty"`
+				MinimumVersionsEAFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsEAFixedIn,omitempty"`
+				Details                  map[string]interface{}          `json:"Details,omitempty"`
 			}{},
 		},
 		{
@@ -759,4 +764,109 @@ func Int64Ptr(i int64) *int64 {
 
 func StringPtr(s string) *string {
 	return &s
+}
+
+// ================== Feature maturity (Tech Preview / Early Access) ==============================
+
+func TestFormatSupportedVersions(t *testing.T) {
+	gaMap := map[string]*ybversion.YBVersion{ybversion.SERIES_2025_2: ybversion.V2025_2_0_0}
+	eaMap := map[string]*ybversion.YBVersion{ybversion.SERIES_2025_1: ybversion.V2025_1_0_0}
+	tpMap := map[string]*ybversion.YBVersion{ybversion.SERIES_2024_2: ybversion.V2024_2_0_0}
+
+	// All three tiers, deterministic (sorted) output. GA is untagged; TP/EA are tagged.
+	got := formatSupportedVersions(gaMap, eaMap, tpMap)
+	assert.Equal(t,
+		">=2024.2.0.0 (2024.2 series) (TP), >=2025.1.0.0 (2025.1 series) (EA), >=2025.2.0.0 (2025.2 series)",
+		got)
+
+	// Only an EA entry.
+	got = formatSupportedVersions(nil, eaMap, nil)
+	assert.Equal(t, ">=2025.1.0.0 (2025.1 series) (EA)", got)
+
+	// All empty -> empty string.
+	assert.Equal(t, "", formatSupportedVersions(nil, nil, nil))
+}
+
+func TestBuildExperimentalMaturityAnnotation(t *testing.T) {
+	v := ybversion.V2025_2_0_0
+
+	tp := buildExperimentalMaturityAnnotation(constants.MATURITY_TP, v, []string{"yb_enable_foo=true", "yb_bar=64"})
+	assert.Contains(t, tp, "Tech Preview (TP)")
+	assert.Contains(t, tp, constants.TP_MATURITY_CAVEAT)
+	assert.Contains(t, tp, "not enabled by default")
+	assert.Contains(t, tp, "yb_enable_foo=true, yb_bar=64")
+
+	ea := buildExperimentalMaturityAnnotation(constants.MATURITY_EA, v, nil)
+	assert.Contains(t, ea, "Early Access (EA)")
+	assert.Contains(t, ea, constants.EA_MATURITY_CAVEAT)
+	// No flags -> no "Enable with" sentence.
+	assert.NotContains(t, ea, "Enable with the flag(s)")
+
+	// Non-experimental maturities produce no annotation.
+	assert.Equal(t, "", buildExperimentalMaturityAnnotation(constants.MATURITY_GA, v, nil))
+	assert.Equal(t, "", buildExperimentalMaturityAnnotation(constants.MATURITY_UNSUPPORTED, v, nil))
+}
+
+// withTargetDbVersion sets the package-level targetDbVersion for the duration of fn.
+func withTargetDbVersion(v *ybversion.YBVersion, fn func()) {
+	saved := targetDbVersion
+	targetDbVersion = v
+	defer func() { targetDbVersion = saved }()
+	fn()
+}
+
+func TestConvertIssueInstanceAnnotatesExperimentalMaturity(t *testing.T) {
+	// Feature that is Tech Preview in the 2025.2 target version, behind a flag.
+	qi := queryissue.QueryIssue{
+		Issue: issue.Issue{
+			Type:          "SOME_TP_FEATURE",
+			Name:          "Some TP Feature",
+			Description:   "Base description.",
+			Impact:        constants.IMPACT_LEVEL_1,
+			EnablingFlags: []string{"yb_enable_some_tp_feature=true"},
+			MinimumVersionsTPFixedIn: map[string]*ybversion.YBVersion{
+				ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
+			},
+		},
+		ObjectType: "TABLE",
+		ObjectName: "public.t",
+	}
+
+	withTargetDbVersion(ybversion.V2025_2_0_0, func() {
+		analyzeIssue := convertIssueInstanceToAnalyzeIssue(qi, "", false, false)
+		assert.Contains(t, analyzeIssue.Reason, "Base description.")
+		assert.Contains(t, analyzeIssue.Reason, "Tech Preview (TP)")
+		assert.Contains(t, analyzeIssue.Reason, "yb_enable_some_tp_feature=true")
+	})
+}
+
+func TestConvertIssueInstancePerfUnsupportedWithLaterVersions(t *testing.T) {
+	// A performance optimization that is unsupported in the 2024.2 target version,
+	// but is fixed as EA in 2025.1 and GA in 2025.2. The supported-version info
+	// should be folded into the Description (Reason).
+	qi := queryissue.QueryIssue{
+		Issue: issue.Issue{
+			Type:        queryissue.FOREIGN_KEY_DATATYPE_MISMATCH,
+			Name:        "Foreign key datatype mismatch",
+			Description: "Base perf description.",
+			Impact:      constants.IMPACT_LEVEL_1,
+			MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+				ybversion.SERIES_2025_2: ybversion.V2025_2_0_0, // GA later
+			},
+			MinimumVersionsEAFixedIn: map[string]*ybversion.YBVersion{
+				ybversion.SERIES_2025_1: ybversion.V2025_1_0_0, // EA later
+			},
+		},
+		ObjectType: "TABLE",
+		ObjectName: "public.orders",
+	}
+
+	withTargetDbVersion(ybversion.V2024_2_0_0, func() {
+		analyzeIssue := convertIssueInstanceToAnalyzeIssue(qi, "", false, false)
+		assert.Contains(t, analyzeIssue.Reason, "Base perf description.")
+		assert.Contains(t, analyzeIssue.Reason, "Supported in:")
+		// EA entry is tagged; GA entry is untagged (same format as today).
+		assert.Contains(t, analyzeIssue.Reason, ">=2025.1.0.0 (2025.1 series) (EA)")
+		assert.Contains(t, analyzeIssue.Reason, ">=2025.2.0.0 (2025.2 series)")
+	})
 }

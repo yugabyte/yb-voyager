@@ -46,6 +46,17 @@ const (
 	IMPACT_LEVEL_2 = "LEVEL_2" // Represents moderate impact like dml queries which might impact a lot of implementation/assumption in app layer
 	IMPACT_LEVEL_3 = "LEVEL_3" // Represent significant impact like TABLE INHERITANCE, which doesn't have any simple workaround but can impact multiple objects/apps
 
+	// Feature maturity of an issue in the target YugabyteDB version.
+	// GA features are enabled by default; EA/TP features are typically behind a flag.
+	MATURITY_GA          = "GA" // General Availability: enabled and supported by default
+	MATURITY_EA          = "EA" // Early Access: backwards-compatible, supported under SLA, not enabled by default
+	MATURITY_TP          = "TP" // Tech Preview: subject to change, no SLA, enabled via allowed_preview_flags_csv
+	MATURITY_UNSUPPORTED = "UNSUPPORTED"
+
+	// Caveat phrases describing what each experimental maturity implies; surfaced in the issue Description.
+	TP_MATURITY_CAVEAT = "subject to change and not covered by SLA"
+	EA_MATURITY_CAVEAT = "backwards-compatible and supported under SLA; validate with the Yugabyte team before production use"
+
 	// constants for migration complexity
 	MIGRATION_COMPLEXITY_LOW    = "LOW"
 	MIGRATION_COMPLEXITY_MEDIUM = "MEDIUM"

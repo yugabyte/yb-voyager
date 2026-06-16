@@ -970,14 +970,14 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueDes
 			link = analyzeIssue.DocsLink
 			objects = append(objects, objectInfo)
 			issueDescription = analyzeIssue.Reason
-			assessmentReport.AppendIssues(convertAnalyzeSchemaIssueToAssessmentIssue(analyzeIssue, minVersionsFixedIn))
+			assessmentReport.AppendIssues(convertAnalyzeSchemaIssueToAssessmentIssue(analyzeIssue))
 		}
 	}
 
 	return UnsupportedFeature{featureName, objects, displayDDLInHTML, link, issueDescription, minVersionsFixedIn}
 }
 
-func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.AnalyzeSchemaIssue, minVersionsFixedIn map[string]*ybversion.YBVersion) AssessmentIssue {
+func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.AnalyzeSchemaIssue) AssessmentIssue {
 	return AssessmentIssue{
 		Category:            analyzeSchemaIssue.IssueType,
 		CategoryDescription: GetCategoryDescription(analyzeSchemaIssue.IssueType),
@@ -988,14 +988,16 @@ func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.Analyze
 		// and we don't use any Suggestion field in AssessmentIssue. Combination of Description + DocsLink should be enough
 		Description: lo.Ternary(analyzeSchemaIssue.Suggestion == "", analyzeSchemaIssue.Reason, utils.JoinSentences(analyzeSchemaIssue.Reason, analyzeSchemaIssue.Suggestion)),
 
-		Impact:                 analyzeSchemaIssue.Impact,
-		ObjectType:             analyzeSchemaIssue.ObjectType,
-		ObjectName:             analyzeSchemaIssue.ObjectName,
-		ObjectUsage:            analyzeSchemaIssue.ObjectUsage,
-		SqlStatement:           analyzeSchemaIssue.SqlStatement,
-		DocsLink:               analyzeSchemaIssue.DocsLink,
-		MinimumVersionsFixedIn: minVersionsFixedIn,
-		Details:                analyzeSchemaIssue.Details,
+		Impact:                   analyzeSchemaIssue.Impact,
+		ObjectType:               analyzeSchemaIssue.ObjectType,
+		ObjectName:               analyzeSchemaIssue.ObjectName,
+		ObjectUsage:              analyzeSchemaIssue.ObjectUsage,
+		SqlStatement:             analyzeSchemaIssue.SqlStatement,
+		DocsLink:                 analyzeSchemaIssue.DocsLink,
+		MinimumVersionsFixedIn:   analyzeSchemaIssue.MinimumVersionsFixedIn,
+		MinimumVersionsTPFixedIn: analyzeSchemaIssue.MinimumVersionsTPFixedIn,
+		MinimumVersionsEAFixedIn: analyzeSchemaIssue.MinimumVersionsEAFixedIn,
+		Details:                  analyzeSchemaIssue.Details,
 	}
 }
 
@@ -1230,7 +1232,7 @@ func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []U
 				SqlStatement: issue.SqlStatement,
 			})
 			docsLink = issue.DocsLink
-			assessmentReport.AppendIssues(convertAnalyzeSchemaIssueToAssessmentIssue(issue, issue.MinimumVersionsFixedIn))
+			assessmentReport.AppendIssues(convertAnalyzeSchemaIssueToAssessmentIssue(issue))
 		}
 		feature := UnsupportedFeature{
 			FeatureName:            issueName,
@@ -1457,13 +1459,16 @@ func addAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 }
 
 func checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue queryissue.QueryIssue) {
-	fixed, err := queryIssue.IsFixedIn(targetDbVersion)
+	// Drop an issue only when the feature is GA in the target version. Issues that are
+	// only Tech Preview / Early Access in the target are retained and reported with
+	// their maturity annotation (added in convertIssueInstanceToAnalyzeIssue).
+	maturity, err := queryIssue.GetMaturityInTarget(targetDbVersion)
 	if err != nil {
-		log.Warnf("checking if issue %v is supported: %v", queryIssue, err)
+		log.Warnf("checking maturity of issue %v in target version: %v", queryIssue, err)
 	}
-	if !fixed {
+	if maturity != constants.MATURITY_GA {
 		convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryIssue, "", false, false)
-		issue := convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue, queryIssue.MinimumVersionsFixedIn)
+		issue := convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue)
 		assessmentReport.AppendIssues(issue)
 	}
 }
@@ -1822,7 +1827,7 @@ func generateAssessmentReportHtml(reportDir string) error {
 		"numKeysInMapStringObjectInfo":           numKeysInMapStringObjectInfo,
 		"groupByObjectName":                      groupByObjectName,
 		"totalUniqueObjectNamesOfAllTypes":       totalUniqueObjectNamesOfAllTypes,
-		"getSupportedVersionString":              getSupportedVersionString,
+		"getSupportedVersions":                   getSupportedVersions,
 		"snakeCaseToTitleCase":                   utils.SnakeCaseToTitleCase,
 		"camelCaseToTitleCase":                   utils.CamelCaseToTitleCase,
 		"getSqlPreview":                          utils.GetSqlStmtToPrint,
@@ -1959,6 +1964,58 @@ func getSupportedVersionString(minimumVersionsFixedIn map[string]*ybversion.YBVe
 		supportedVersions = append(supportedVersions, fmt.Sprintf(">=%s (%s series)", minVersionFixedIn.String(), series))
 	}
 	return strings.Join(supportedVersions, ", ")
+}
+
+// formatSupportedVersions merges the GA/EA/TP version maps and renders a
+// string, e.g. ">=2025.1.0.0 (2025.1 series) (EA), >=2025.2.0.0 (2025.2 series)".
+//
+// GA entries use the same untagged format as getSupportedVersionString (so the
+// "unsupported now, GA later" case is unchanged); only TP/EA entries carry a tier tag.
+func formatSupportedVersions(gaMap, eaMap, tpMap map[string]*ybversion.YBVersion) string {
+	var entries []string
+	appendEntries := func(versionsFixedIn map[string]*ybversion.YBVersion, tier string) {
+		for series, minVersionFixedIn := range versionsFixedIn {
+			if minVersionFixedIn == nil {
+				continue
+			}
+			if tier == constants.MATURITY_GA {
+				// Keep the original untagged format for GA.
+				entries = append(entries, fmt.Sprintf(">=%s (%s series)", minVersionFixedIn.String(), series))
+			} else {
+				entries = append(entries, fmt.Sprintf(">=%s (%s series) (%s)", minVersionFixedIn.String(), series, tier))
+			}
+		}
+	}
+	appendEntries(gaMap, constants.MATURITY_GA)
+	appendEntries(eaMap, constants.MATURITY_EA)
+	appendEntries(tpMap, constants.MATURITY_TP)
+	sort.Strings(entries)
+	return strings.Join(entries, ", ")
+}
+
+func getSupportedVersions(issue AssessmentIssue) string {
+	return formatSupportedVersions(issue.MinimumVersionsFixedIn, issue.MinimumVersionsEAFixedIn, issue.MinimumVersionsTPFixedIn)
+}
+
+// buildExperimentalMaturityAnnotation returns a sentence describing that the feature is
+// available only as Tech Preview / Early Access in the target version, with the flags needed
+// to enable it. Returns "" for any non-experimental maturity.
+func buildExperimentalMaturityAnnotation(maturity string, targetDbVersion *ybversion.YBVersion, enablingFlags []string) string {
+	var tierName, caveat string
+	switch maturity {
+	case constants.MATURITY_TP:
+		tierName, caveat = "Tech Preview (TP)", constants.TP_MATURITY_CAVEAT
+	case constants.MATURITY_EA:
+		tierName, caveat = "Early Access (EA)", constants.EA_MATURITY_CAVEAT
+	default:
+		return ""
+	}
+	annotation := fmt.Sprintf("This feature is available as %s in the target version (%s) — %s, and is not enabled by default.",
+		tierName, targetDbVersion.String(), caveat)
+	if len(enablingFlags) > 0 {
+		annotation += fmt.Sprintf(" Enable with the flag(s): %s.", strings.Join(enablingFlags, ", "))
+	}
+	return annotation
 }
 
 func validateSourceDBTypeForAssessMigration() {

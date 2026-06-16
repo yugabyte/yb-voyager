@@ -449,11 +449,14 @@ func (p *ParserIssueDetector) getAllIssues(query string) ([]QueryIssue, error) {
 func (p *ParserIssueDetector) getIssuesNotFixedInTargetDbVersion(issues []QueryIssue, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {
 	var filteredIssues []QueryIssue
 	for _, i := range issues {
-		fixed, err := i.IsFixedIn(targetDbVersion)
+		// Drop an issue only when the feature is GA (fully supported, enabled by default)
+		// in the target version. Issues that are only Tech Preview / Early Access in the
+		// target are retained so they can be reported with their maturity annotation.
+		maturity, err := i.GetMaturityInTarget(targetDbVersion)
 		if err != nil {
-			return nil, fmt.Errorf("checking if issue %v is supported: %w", i, err)
+			return nil, fmt.Errorf("checking maturity of issue %v in target version: %w", i, err)
 		}
-		if !fixed {
+		if maturity != constants.MATURITY_GA {
 			filteredIssues = append(filteredIssues, i)
 		} else {
 			if i.Issue.Type == UNLOGGED_TABLES {
