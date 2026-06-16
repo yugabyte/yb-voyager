@@ -192,6 +192,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.PrintAndLogf("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
 	}
 	printLiveMigrationLimitations()
+	warnIfYBServerNewerThanLogicalConnector(msr)
 	utils.PrintAndLogf("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
 	setSourceDetailsForChangesOnly(msr)
@@ -383,6 +384,118 @@ func isCDCSavepointFixedInTargetDBVersion(dbVersionStr string) (bool, string) {
 		return false, ""
 	}
 	return ybVer.GreaterThanOrEqual(minFixedVersion), minFixedVersion.String()
+}
+
+// shouldWarnServerSeriesNewerThanConnector reports whether to warn that the target YB
+// server may be incompatible with the logical connector. Compatibility is by release
+// SERIES (YEAR.TRACK) — the connector tag's trailing part (".3" in "2025.2.3") is a
+// connector-internal counter, not a YB patch, so a "2025.2" connector supports all
+// 2025.2.x. Warn when:
+//   - the server series is newer than the connector's series, or
+//   - the server series is unrecognized (ErrUnsupportedSeries) — likely newer, or
+//   - the server is on a PREVIEW series the connector was not built for.
+//
+// Do not warn when the server series is <= the connector's, or is a pre-calendar
+// STABLE_OLD (2.x) series (the newer, backward-compatible connector covers it).
+// Ref: https://docs.yugabyte.com/stable/releases/versioning/
+func shouldWarnServerSeriesNewerThanConnector(connectorYBVersion, serverYBVersion string) (bool, string, error) {
+	connSeries, err := ybversion.NewYBVersion(ybversion.SeriesVersion(connectorYBVersion))
+	if err != nil {
+		// The connector's series should always be a known YB series; if not, we cannot
+		// reason about it, so skip rather than warn.
+		return false, "", goerrors.Errorf("parsing connector series from %q: %w", connectorYBVersion, err)
+	}
+
+	serverSeries, err := ybversion.NewYBVersion(ybversion.SeriesVersion(serverYBVersion))
+	if err != nil {
+		if errors.Is(err, ybversion.ErrUnsupportedSeries) {
+			return true, fmt.Sprintf("the target YugabyteDB server %q is on a release series this Voyager build does not recognize (likely newer than the bundled connector)", serverYBVersion), nil
+		}
+		return false, "", goerrors.Errorf("parsing server series from %q: %w", serverYBVersion, err)
+	}
+
+	// Same release type: compare series numerically.
+	if connSeries.ReleaseType() == serverSeries.ReleaseType() {
+		if serverSeries.GreaterThanOrEqual(connSeries) && !serverSeries.Equal(connSeries) {
+			return true, fmt.Sprintf("the target YugabyteDB server series %s is newer than the connector's series %s", serverSeries.Series(), connSeries.Series()), nil
+		}
+		return false, "", nil
+	}
+
+	// Connector is stable; verdict depends on the server's release type.
+	switch serverSeries.ReleaseType() {
+	case ybversion.STABLE_OLD:
+		return false, "", nil
+	case ybversion.PREVIEW:
+		return true, fmt.Sprintf("the target YugabyteDB server is on preview series %s, which the connector was not built for", serverSeries.Series()), nil
+	default:
+		return false, "", goerrors.Errorf("cannot compare connector series %s (%s) with server series %s (%s)", connSeries.Series(), connSeries.ReleaseType(), serverSeries.Series(), serverSeries.ReleaseType())
+	}
+}
+
+// warnIfYBServerNewerThanLogicalConnector warns (and prompts to continue) when the target
+// YB server is on a newer release series than the logical connector supports — forward-
+// compatibility is not guaranteed. Only applies to the logical connector in the
+// export-data-from-target (fall-back/fall-forward) flow; a no-op for the gRPC connector or
+// when versions cannot be determined.
+func warnIfYBServerNewerThanLogicalConnector(msr *metadb.MigrationStatusRecord) {
+	if msr == nil || msr.UseYBgRPCConnector {
+		return
+	}
+	if !isTargetDBExporter(exporterRole) || !changeStreamingIsEnabled(exportType) {
+		return
+	}
+	if msr.TargetDBConf == nil || msr.TargetDBConf.DBVersion == "" {
+		return
+	}
+
+	// Resolve the Debezium distribution if it has not been located yet, so that we can
+	// inspect the logical connector jar that will actually be used for this export.
+	if dbzm.DEBEZIUM_DIST_DIR == "" {
+		if err := dbzm.FindDebeziumDistribution(source.DBType, false); err != nil {
+			log.Warnf("skipping connector/YB version compatibility check: %v", err)
+			return
+		}
+	}
+
+	connectorYBVersion, err := dbzm.GetLogicalConnectorYBVersion()
+	if err != nil {
+		// Multiple connector jars is a broken install: run.sh would load an undefined
+		// connector from the classpath, so we must stop rather than run blindly.
+		if errors.Is(err, dbzm.ErrMultipleLogicalConnectorVersions) {
+			utils.ErrExit("%v.\nThe %q directory must contain exactly one YugabyteDB logical replication connector jar. "+
+				"Remove the stale connector jar(s) so that only the intended version remains, then retry.",
+				err, filepath.Join(dbzm.DEBEZIUM_DIST_DIR, "yb-connector"))
+		}
+		// Otherwise best-effort: never block migration because we could not detect the version.
+		log.Warnf("skipping connector/YB version compatibility check: %v", err)
+		return
+	}
+
+	serverYBVersion, err := extractYBVersion(msr.TargetDBConf.DBVersion)
+	if err != nil {
+		log.Warnf("skipping connector/YB version compatibility check: %v", err)
+		return
+	}
+
+	warn, reason, err := shouldWarnServerSeriesNewerThanConnector(connectorYBVersion, serverYBVersion)
+	if err != nil {
+		log.Warnf("skipping connector/YB version compatibility check: %v", err)
+		return
+	}
+	if !warn {
+		return
+	}
+
+	utils.PrintAndLogfWarning(
+		"\nWarning: %s.\n"+
+			"Forward-compatibility of the YugabyteDB logical replication connector is not guaranteed, which may lead to silent data-capture issues during live migration.\n"+
+			"It is recommended to upgrade YugabyteDB Voyager to a version bundling a connector built for your YugabyteDB server series.\n",
+		reason,
+	)
+	if !utils.AskPrompt("Do you want to continue anyway") {
+		utils.ErrExit("aborting export data from target due to connector/YugabyteDB series mismatch")
+	}
 }
 
 func printLiveMigrationLimitations() {

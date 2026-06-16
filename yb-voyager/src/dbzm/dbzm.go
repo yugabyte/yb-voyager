@@ -16,11 +16,14 @@ limitations under the License.
 package dbzm
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -75,6 +78,73 @@ func FindDebeziumDistribution(sourceDBType string, useYBgRPCConnector bool) erro
 		DEBEZIUM_DIST_DIR = filepath.Join(DEBEZIUM_DIST_DIR, pathSuffix)
 	}
 	return nil
+}
+
+// logicalConnectorYBVersionRegex captures the connector version token after "yb." up to
+// the next "-" (e.g. "2025.2.3"):
+//   - only the first two segments matter (the YB series); the rest is a connector-internal
+//     counter, reduced later via ybversion.SeriesVersion.
+//   - the full token is kept so distinct jars can be told apart.
+//   - the required leading digit rejects the gRPC tag ("yb.grpc.<ver>").
+var logicalConnectorYBVersionRegex = regexp.MustCompile(`yb\.([0-9]+\.[0-9]+[^-]*)`)
+
+// ErrMultipleLogicalConnectorVersions means the yb-connector directory holds jars for
+// more than one connector version. run.sh puts every jar on the classpath, so which one
+// runs is undefined — callers treat this as fatal rather than guessing.
+var ErrMultipleLogicalConnectorVersions = errors.New("multiple logical connector versions found in distribution")
+
+// ParseLogicalConnectorYBVersion returns the connector version token from a jar name
+// (e.g. ".yb.2025.2.3-..." → "2025.2.3"):
+//   - only the first two segments (the YB series) matter for compatibility; the rest is a
+//     connector-internal counter.
+//   - the full token is returned so callers can distinguish distinct jars.
+//   - errors if the name has no "yb.<series>..." token (dependency jars, gRPC connector).
+func ParseLogicalConnectorYBVersion(jarName string) (string, error) {
+	match := logicalConnectorYBVersionRegex.FindStringSubmatch(jarName)
+	if len(match) < 2 {
+		return "", goerrors.Errorf("unable to extract a YugabyteDB connector version from jar name %q; expected a 'yb.<series>...' token", jarName)
+	}
+	return match[1], nil
+}
+
+// GetLogicalConnectorYBVersion returns the connector version token from the resolved
+// Debezium distribution (FindDebeziumDistribution must have run). run.sh puts every jar in
+// yb-connector on the classpath, so jars for multiple distinct tokens are a fatal
+// ambiguity → ErrMultipleLogicalConnectorVersions.
+func GetLogicalConnectorYBVersion() (string, error) {
+	if DEBEZIUM_DIST_DIR == "" {
+		return "", goerrors.Errorf("debezium distribution directory is not resolved")
+	}
+	connectorDir := filepath.Join(DEBEZIUM_DIST_DIR, "yb-connector")
+	jars, err := filepath.Glob(filepath.Join(connectorDir, "*.jar"))
+	if err != nil {
+		return "", goerrors.Errorf("listing logical connector jars in %s: %w", connectorDir, err)
+	}
+
+	// Collect distinct connector tokens (ignoring non-connector jars).
+	seen := make(map[string]bool)
+	var versions []string
+	for _, jar := range jars {
+		token, err := ParseLogicalConnectorYBVersion(filepath.Base(jar))
+		if err != nil {
+			// Not a connector jar (e.g. a dependency jar); ignore.
+			continue
+		}
+		if !seen[token] {
+			seen[token] = true
+			versions = append(versions, token)
+		}
+	}
+
+	switch len(versions) {
+	case 0:
+		return "", goerrors.Errorf("no logical connector jar found in %s", connectorDir)
+	case 1:
+		return versions[0], nil
+	default:
+		sort.Strings(versions)
+		return "", fmt.Errorf("found multiple logical connector jars with different versions %v in %s: %w", versions, connectorDir, ErrMultipleLogicalConnectorVersions)
+	}
 }
 
 func NewDebezium(config *Config) *Debezium {
