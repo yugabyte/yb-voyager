@@ -220,7 +220,29 @@ func resolveNextStepForStatus(wf *Workflow, msr *metadb.MigrationStatusRecord, v
 		return "Migrate Schema", fmt.Sprintf("yb-voyager schema migrate%s", migrationFlag)
 	}
 
+	// Offline data phases are orchestrated by `data migrate` now. Live
+	// workflows keep the split commands — their workflows include phases
+	// like StepExportDataFromTgt / StepImportDataToSource which never collapse.
+	if (nextStep.ID == StepExportData || nextStep.ID == StepImportData) && isOfflineWorkflow(wf) {
+		return "Migrate Data", fmt.Sprintf("yb-voyager data migrate%s", migrationFlag)
+	}
+
 	return nextStep.DisplayName, fmt.Sprintf("yb-voyager %s%s", nextStep.Command, migrationFlag)
+}
+
+// isOfflineWorkflow returns true if the workflow is the snapshot-only / offline
+// one (no live-migration or fall-forward/fall-back steps).
+func isOfflineWorkflow(wf *Workflow) bool {
+	if wf == nil {
+		return false
+	}
+	for _, s := range wf.Steps {
+		switch s.ID {
+		case StepExportDataFromTgt, StepImportDataToSource, StepImportDataToReplica:
+			return false
+		}
+	}
+	return true
 }
 
 // targetConfigured checks whether the target database has been configured beyond

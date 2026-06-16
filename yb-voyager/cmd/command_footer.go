@@ -133,6 +133,50 @@ func computePhaseStatuses(wf *Workflow, msr *metadb.MigrationStatusRecord, curre
 	return result
 }
 
+// collapseDataSteps merges Export Data and Import Data into a single
+// "Migrate Data" step pointing at `data migrate`. Only applied to offline
+// workflows — live workflows include extra steps (Export Data from Target,
+// Import Data to Source / Replica) that data migrate doesn't orchestrate,
+// so we leave the live phase tree intact.
+func collapseDataSteps(steps []StepProgress) []StepProgress {
+	// Live-only step commands. If any are present, this is a live workflow
+	// and we shouldn't collapse.
+	liveCommands := map[string]bool{
+		"data export-from-target": true,
+		"data import-to-source":   true,
+		"data import-to-replica":  true,
+	}
+	for _, s := range steps {
+		if liveCommands[s.Command] {
+			return steps
+		}
+	}
+
+	dataCommands := map[string]bool{
+		"data export": true,
+		"data import": true,
+	}
+	out := make([]StepProgress, 0, len(steps))
+	var merged *StepProgress
+	for _, s := range steps {
+		if dataCommands[s.Command] {
+			if merged == nil {
+				out = append(out, StepProgress{
+					DisplayName: "Migrate Data",
+					Command:     "data migrate",
+					Done:        s.Done,
+				})
+				merged = &out[len(out)-1]
+			} else {
+				merged.Done = merged.Done && s.Done
+			}
+			continue
+		}
+		out = append(out, s)
+	}
+	return out
+}
+
 // collapseSchemaSteps merges Export Schema, Analyze Schema, and Import Schema
 // into a single "Migrate Schema" step pointing at `schema migrate`.
 func collapseSchemaSteps(steps []StepProgress) []StepProgress {
@@ -226,12 +270,14 @@ func formatPhaseLinesVerbose(phases []PhaseProgress, cmdSuffix string) []string 
 		}
 		lines = append(lines, fmt.Sprintf("%s %-10s %s", marker, p.Name, label))
 
-		// In the plan tree, collapse the three schema phases (export/analyze/import)
-		// into a single "Migrate Schema" row pointing at `schema migrate`. The
-		// underlying steps are still tracked individually in the MSR and shown
-		// granularly by `status`; this collapse is presentational only and reflects
-		// the fact that the user runs one command for the whole schema phase.
+		// In the plan tree, collapse the three schema phases and the two
+		// (offline) data phases into single "Migrate Schema" / "Migrate Data"
+		// rows pointing at the bundled commands. The underlying steps are
+		// still tracked individually in the MSR and shown granularly by
+		// `status`; this collapse is presentational only and reflects the
+		// fact that the user runs one command for the whole phase.
 		steps := collapseSchemaSteps(p.Steps)
+		steps = collapseDataSteps(steps)
 
 		for _, s := range steps {
 			var stepMarker, stepName string

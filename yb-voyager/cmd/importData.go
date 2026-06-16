@@ -95,8 +95,9 @@ var importDataCmd = &cobra.Command{
 	Use: "data",
 	Short: "Import data from compatible source database to target database.\n" +
 		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/data-migration/import-data/",
-	Long: `Import the data exported from the source database into the target database. Also import data(snapshot + changes from target) into source-replica/source in case of live migration with fall-back/fall-forward worflows.`,
-	Args: cobra.NoArgs,
+	Long:   `Import the data exported from the source database into the target database. Also import data(snapshot + changes from target) into source-replica/source in case of live migration with fall-back/fall-forward worflows.`,
+	Args:   cobra.NoArgs,
+	Hidden: true, // superseded by `data migrate`; kept callable for compat and as a subprocess target.
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if tconf.TargetDBType == "" {
 			tconf.TargetDBType = YUGABYTEDB
@@ -133,10 +134,11 @@ var importDataToCmd = &cobra.Command{
 }
 
 var importDataToTargetCmd = &cobra.Command{
-	Use:   "import",
-	Short: importDataCmd.Short,
-	Long:  importDataCmd.Long,
-	Args:  importDataCmd.Args,
+	Use:    "import",
+	Short:  importDataCmd.Short,
+	Long:   importDataCmd.Long,
+	Args:   importDataCmd.Args,
+	Hidden: true, // superseded by `data migrate`; kept callable for compat.
 
 	PreRun: importDataCmd.PreRun,
 

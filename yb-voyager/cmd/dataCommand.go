@@ -6,7 +6,7 @@ import (
 
 var dataCmd = &cobra.Command{
 	Use:   "data",
-	Short: "Export and import data",
+	Short: "Migrate data from source to YugabyteDB.",
 	Long:  PARENT_COMMAND_USAGE,
 }
 

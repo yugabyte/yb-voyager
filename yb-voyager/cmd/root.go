@@ -345,6 +345,7 @@ var noLockNeededList = []string{
 	"yb-voyager schema",
 	"yb-voyager schema migrate",
 	"yb-voyager data",
+	"yb-voyager data migrate",
 	"yb-voyager cutover",
 	"yb-voyager validate",
 	"yb-voyager data status",
@@ -370,6 +371,7 @@ var offlineCommands = []string{
 	"yb-voyager schema export",
 	"yb-voyager schema analyze",
 	"yb-voyager schema import",
+	"yb-voyager data migrate",
 	"yb-voyager data export",
 	"yb-voyager data import",
 	"yb-voyager schema finalize-post-data-import",
@@ -389,6 +391,11 @@ func shouldRunPersistentPreRun(cmd *cobra.Command) bool {
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
+	// `data migrate` and `schema migrate` bundle their respective child
+	// subcommands. To expose the union of flags those children accept, we
+	// copy flags from the child cobra commands at Execute() time — by which
+	// point all package init()s have populated those commands' flag sets.
+	wireDataMigrateFlagUnion()
 	cobra.CheckErr(rootCmd.Execute())
 }
 

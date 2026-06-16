@@ -54,7 +54,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -69,12 +68,21 @@ import (
 
 var schemaMigrateAutoApprove utils.BoolStr = true
 
+// Set in Run after cobra parses flags; consulted by runChildSchemaPhase to decide
+// whether to forward import-only knobs to the schema import child.
+var (
+	schemaMigrateContinueOnErrorSet bool
+	schemaMigrateIgnoreExistSet     bool
+)
+
 var schemaMigrateCmd = &cobra.Command{
 	Use:     "migrate",
 	Short:   "Run schema export, analyze, and import as one durable iterative workflow.",
 	Aliases: []string{},
 
 	Run: func(cmd *cobra.Command, args []string) {
+		schemaMigrateContinueOnErrorSet = cmd.Flags().Changed("continue-on-error")
+		schemaMigrateIgnoreExistSet = cmd.Flags().Changed("ignore-exist")
 		runSchemaMigrate()
 	},
 }
@@ -88,6 +96,12 @@ func init() {
 
 	BoolVar(schemaMigrateCmd.Flags(), &schemaMigrateAutoApprove, "auto-approve", true,
 		"automatically continue to schema import when analyze reports 0 issues. Pass --auto-approve=false to stop after analyze.")
+
+	// Forwarded to the schema import child only.
+	BoolVar(schemaMigrateCmd.Flags(), &tconf.ContinueOnError, "continue-on-error", false,
+		"ignore errors during schema import and continue (forwarded to schema import).")
+	BoolVar(schemaMigrateCmd.Flags(), &tconf.IgnoreIfExists, "ignore-exist", false,
+		"ignore errors during schema import if the object already exists (forwarded to schema import).")
 }
 
 func runSchemaMigrate() {
@@ -201,6 +215,15 @@ func runChildSchemaPhase(phase string) error {
 	if bool(startClean) && (phase == "export" || phase == "import") {
 		args = append(args, "--start-clean=true")
 	}
+	// Forward import-only knobs to the schema import child if the user set them.
+	if phase == "import" {
+		if schemaMigrateContinueOnErrorSet {
+			args = append(args, fmt.Sprintf("--continue-on-error=%t", bool(tconf.ContinueOnError)))
+		}
+		if schemaMigrateIgnoreExistSet {
+			args = append(args, fmt.Sprintf("--ignore-exist=%t", bool(tconf.IgnoreIfExists)))
+		}
+	}
 
 	binary, err := os.Executable()
 	if err != nil {
@@ -212,12 +235,7 @@ func runChildSchemaPhase(phase string) error {
 	cmd.Stdout = pw
 	cmd.Stderr = pw
 	cmd.Stdin = nil // --yes is set; no interactive prompts expected
-	cmd.Env = append(os.Environ(),
-		"VOYAGER_SUPPRESS_NEXT_STEP=1",
-		"VOYAGER_SUPPRESS_PROGRESS=1",
-		"VOYAGER_QUIET_STARTUP=1",
-		"CLICOLOR_FORCE=1",
-	)
+	cmd.Env = orchestratorChildEnv()
 
 	stages := stagesForPhase(phase)
 	sp := startDynamicSpinner(stages[0].label)
@@ -253,8 +271,8 @@ func runChildSchemaPhase(phase string) error {
 	sp.stop()
 
 	if runErr != nil {
-		logPath := writeSchemaPhaseLog(phase, &outBuf)
-		printChildPhaseFailureTail(phase, &outBuf, logPath)
+		logPath := writeOrchestratorPhaseLog("schema-migrate", phase, &outBuf)
+		printOrchestratorFailureTail("schema "+phase, &outBuf, logPath)
 		return runErr
 	}
 
@@ -312,47 +330,6 @@ func schemaSummaryMarker(phase string) string {
 	}
 }
 
-// writeSchemaPhaseLog dumps the captured subprocess output to a timestamped
-// log file under <exportDir>/logs/. Returns empty string on write failure —
-// failure-path UX shouldn't itself fail.
-func writeSchemaPhaseLog(phase string, outBuf *bytes.Buffer) string {
-	logsDir := filepath.Join(exportDir, "logs")
-	if err := os.MkdirAll(logsDir, 0755); err != nil {
-		return ""
-	}
-	logPath := filepath.Join(logsDir,
-		fmt.Sprintf("schema-migrate-%s-%s.log", phase, time.Now().Format("20060102-150405")))
-	f, err := os.Create(logPath)
-	if err != nil {
-		return ""
-	}
-	defer f.Close()
-	w := bufio.NewWriter(f)
-	defer w.Flush()
-	_, _ = w.Write(outBuf.Bytes())
-	return logPath
-}
-
-// printChildPhaseFailureTail prints the last ~60 lines of captured output (so
-// the user sees the immediate error) and points to the full log file.
-func printChildPhaseFailureTail(phase string, outBuf *bytes.Buffer, logPath string) {
-	const tailLines = 60
-	lines := strings.Split(strings.TrimRight(outBuf.String(), "\n"), "\n")
-	start := 0
-	if len(lines) > tailLines {
-		start = len(lines) - tailLines
-		fmt.Println()
-		fmt.Println("  " + dimStyle.Render(fmt.Sprintf("--- last %d lines of schema %s output ---", tailLines, phase)))
-	}
-	for _, ln := range lines[start:] {
-		fmt.Println(ln)
-	}
-	if logPath != "" {
-		fmt.Println()
-		fmt.Println("  " + dimStyle.Render("Full log: "+displayPath(logPath)))
-	}
-}
-
 // dynamicSpinner is a spinner whose label can be swapped while it's running.
 // Used by `schema migrate` to transition the displayed label mid-subprocess
 // (e.g. from "Exporting schema" to "Optimizing schema for YugabyteDB").
@@ -390,13 +367,6 @@ func (s *dynamicSpinner) setLabel(label string) {
 
 func (s *dynamicSpinner) stop() {
 	s.once.Do(func() { close(s.done) })
-}
-
-func exitCodeFrom(err error) int {
-	if exitErr, ok := err.(*exec.ExitError); ok {
-		return exitErr.ExitCode()
-	}
-	return 1
 }
 
 // initialReadOfMSR returns a (never-nil) MSR; callers should not modify it.
@@ -440,41 +410,14 @@ func resetSchemaMigrateMSRFlags() {
 	}
 }
 
-// printClosingProgress emits one consolidated Migration Progress block at the
-// end of `schema migrate`, computed from the latest MSR. currentStepID marks
-// the last step we either ran or short-circuited on, so the in-progress
-// indicator points to the right phase.
-func printClosingProgress(currentStepID string) {
-	rec, err := metaDB.GetMigrationStatusRecord()
-	if err != nil || rec == nil {
-		return
-	}
-	wf := resolveWorkflow(rec)
-	phases := computePhaseStatuses(wf, rec, currentStepID)
-	if len(phases) == 0 {
-		return
-	}
-
-	migrationFlag := buildMigrationNameFlag()
-	var lines []string
-	lines = append(lines, formatPhaseLines(phases)...)
-	lines = append(lines, formatKeyValue("Tip:", dimStyle.Render("yb-voyager status"+migrationFlag), kvWidth))
-	printSection("Migration Progress", lines...)
-}
-
-func printPhaseSkipped(phase, reason string) {
-	fmt.Println()
-	fmt.Println("  " + dimStyle.Render(fmt.Sprintf("Skipping %s — %s. (Pass --start-clean to re-run from scratch.)", phase, reason)))
-}
-
 func printSchemaAlreadyMigrated() {
 	fmt.Println()
 	fmt.Println("  " + successStyle.Render("✓") + " Schema already migrated.")
 	fmt.Println("    " + dimStyle.Render("Use --start-clean to re-run the entire schema migration."))
 	printClosingProgress(StepImportSchema)
 	fmt.Println()
-	fmt.Println("  " + nextStepLabelStyle.Render("Next step:") + " " + nextStepLabelStyle.Render("Export data from your source database:"))
-	fmt.Println("    " + cmdStyle.Render("yb-voyager data export"+buildMigrationNameFlag()))
+	fmt.Println("  " + nextStepLabelStyle.Render("Next step:") + " " + nextStepLabelStyle.Render("Migrate data (export + import in one command):"))
+	fmt.Println("    " + cmdStyle.Render("yb-voyager data migrate"+buildMigrationNameFlag()))
 	fmt.Println()
 }
 
@@ -507,8 +450,8 @@ func printSchemaMigrateComplete() {
 	fmt.Println("  " + successStyle.Render("✓") + " Schema migration complete (export + analyze + import).")
 	printClosingProgress(StepImportSchema)
 	fmt.Println()
-	fmt.Println("  " + nextStepLabelStyle.Render("Next step:") + " " + nextStepLabelStyle.Render("Export data from your source database:"))
-	fmt.Println("    " + cmdStyle.Render("yb-voyager data export"+buildMigrationNameFlag()))
+	fmt.Println("  " + nextStepLabelStyle.Render("Next step:") + " " + nextStepLabelStyle.Render("Migrate data (export + import in one command):"))
+	fmt.Println("    " + cmdStyle.Render("yb-voyager data migrate"+buildMigrationNameFlag()))
 	fmt.Println()
 }
 
