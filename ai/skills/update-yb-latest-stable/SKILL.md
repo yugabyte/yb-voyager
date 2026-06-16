@@ -3,8 +3,10 @@ name: update-yb-latest-stable
 description: >-
   Bump YugabyteDB latest_stable in yb-versions.json, coordinate Jenkins migtest
   cluster upgrades, fix version-gated issue/integration tests, and open a PR only
-  after all GitHub Actions pass. Use when updating latest stable YB version,
-  yb-versions.json, Jenkins YB cluster, or Voyager supported YB versions.
+  after all GitHub Actions pass. Also covers bumping the bundled CDC connector
+  version in connector-versions.json. Use when updating latest stable YB version,
+  yb-versions.json, the CDC/debezium connector version, connector-versions.json,
+  Jenkins YB cluster, or Voyager supported YB versions.
 ---
 
 # Update Latest Stable YugabyteDB Version
@@ -219,4 +221,63 @@ Use the `babysit` skill to fix CI failures in a loop (do not weaken workflows to
 
 ```
 chore: bump latest stable YugabyteDB to <NEW_VERSION>
+```
+
+# Bump the bundled CDC connector version
+
+Separate from the YB version above. The CDC team does **not** guarantee
+forward-compatibility, so the bundled connector must be upgraded regularly to
+track new YugabyteDB series. Compatibility is **per YB series** (YEAR.TRACK): a
+`2025.2` logical connector works with all `2025.2.x` servers.
+
+## Single source of truth: `yb-voyager/versions/connector-versions.json`
+
+```json
+{
+    "logical_connector": { "tag": "dz.2.5.2.yb.2025.2.3", "supported_yb_series": "2025.2" },
+    "grpc_connector":    { "tag": "dz.1.9.5.yb.grpc.2024.2.3" }
+}
+```
+
+- `tag` is the GitHub release tag of the connector (logical connector repo:
+  [`yugabyte/debezium`](https://github.com/yugabyte/debezium/releases); gRPC repo:
+  `yugabyte/debezium-connector-yugabytedb`).
+- For the logical tag `dz.2.5.2.yb.2025.2.3`: `2025.2` is the YB series; the
+  trailing `.3` is the connector's own release counter (**not** a YB patch).
+- Store the gRPC tag **without** its leading `v` (the release tag has `v`, the jar does not).
+
+Everything else derives from this file:
+
+- **Installer** — `installer_scripts/install-yb-voyager` builds the connector
+  download URLs from the tags (in `package_debezium_server_local`); no hardcoded URLs.
+- **Go runtime/tests** — `yb-voyager/versions/versions.go` embeds the JSON and
+  exposes `GetLogicalConnectorTag()`, `GetLogicalConnectorSupportedSeries()`,
+  `GetGRPCConnectorTag()`.
+
+## How to bump
+
+1. Find the latest connector release tag in
+   [`yugabyte/debezium` releases](https://github.com/yugabyte/debezium/releases)
+   (and the gRPC repo if bumping that connector).
+2. Edit **only** `connector-versions.json` — update `tag` (and
+   `supported_yb_series` if the new connector targets a new YB series).
+3. `cd yb-voyager && go test -tags unit ./versions/...`
+4. Open a PR (use the `pr-description` skill); let CI run.
+
+## Freshness check (auto-detects staleness)
+
+- Test: `yb-voyager/versions/connector_latest_test.go`, build tag
+  `connector_latest_stable`.
+- Workflow: `.github/workflows/connector-version-check.yml` (push/PR to `main`
+  **and** weekly cron). It fails when a newer logical-connector release exists
+  than the one in `connector-versions.json`.
+- Run locally: `cd yb-voyager && go test -v -tags connector_latest_stable ./versions/...`
+  (set `GITHUB_TOKEN` to avoid API rate limits).
+- A failing run is the signal to do the bump above. Do **not** weaken the test to
+  make it pass.
+
+## PR title / commit message
+
+```
+chore: bump bundled CDC connector to <CONNECTOR_TAG>
 ```

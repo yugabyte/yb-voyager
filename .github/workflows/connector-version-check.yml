@@ -1,0 +1,28 @@
+name: Connector Version Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Weekly run so a newly published connector release is flagged even without a push.
+  schedule:
+    - cron: '0 6 * * 1'
+
+jobs:
+  connector-version-check:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version-file: yb-voyager/go.mod
+
+    - name: Test logical connector is up to date
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        cd yb-voyager
+        go test -v -tags connector_latest_stable ./versions/...

@@ -25,6 +25,27 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// =============================== Connector Versions Tests ===============================
+
+func TestLoadConnectorVersions(t *testing.T) {
+	cv := LoadConnectorVersions()
+	assert.NotEmpty(t, cv.LogicalConnector.Tag, "logical connector tag must not be empty")
+	assert.NotEmpty(t, cv.LogicalConnector.SupportedYBSeries, "logical connector supported_yb_series must not be empty")
+	assert.NotEmpty(t, cv.GRPCConnector.Tag, "grpc connector tag must not be empty")
+}
+
+func TestGetLogicalConnectorTag(t *testing.T) {
+	assert.Equal(t, "dz.2.5.2.yb.2025.2.3", GetLogicalConnectorTag())
+}
+
+func TestGetLogicalConnectorSupportedSeries(t *testing.T) {
+	assert.Equal(t, "2025.2", GetLogicalConnectorSupportedSeries())
+}
+
+func TestGetGRPCConnectorTag(t *testing.T) {
+	assert.Equal(t, "dz.1.9.5.yb.grpc.2024.2.3", GetGRPCConnectorTag())
+}
+
 func TestGetLatestStableYBVersionWithoutBuildNumber(t *testing.T) {
 	// Test the actual function with current data
 	fullVersion := GetLatestStableYBVersion()
