@@ -398,14 +398,13 @@ func (m *MetaDB) GetMinSegmentExportedByAndNotImportedBy(importerRole string, ex
 	return segmentNum.Int64, nil
 }
 
-// IsResumeSegmentDeleted reports whether the earliest queue segment (the lowest
-// segment_no for the given exporter role) has been deleted from disk by the
-// `archive changes` workflow. This is the segment that `import data --start-clean`
-// would reset to and attempt to re-stream from after clearing the per-importer
-// imported_by flags. If it has been deleted, the change-event queue can no longer
-// be re-streamed from the beginning and start-clean cannot proceed safely.
-// Returns false when there are no queue segments yet.
-func (m *MetaDB) IsResumeSegmentDeleted(exporterRole string) (bool, error) {
+// AnySegmentsDeletedOrArchived reports whether any queue segment (the lowest
+// segment_no for the given exporter role) has been deleted or archived by the
+// `archive changes` workflow. `import data --start-clean` resets per-importer
+// imported_by flags and attempts to re-stream the queue from the beginning, so a
+// missing segment means it cannot proceed safely. Returns false when there are no
+// queue segments yet.
+func (m *MetaDB) AnySegmentsDeletedOrArchived(exporterRole string) (bool, error) {
 	query := fmt.Sprintf("SELECT deleted FROM %s", QUEUE_SEGMENT_META_TABLE_NAME)
 	if exporterRole != "" {
 		query = fmt.Sprintf("%s WHERE exporter_role = '%s'", query, exporterRole)

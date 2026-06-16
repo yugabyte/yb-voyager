@@ -2382,12 +2382,12 @@ func clearMigrationStateForImportDataStartClean(state *ImportDataState, importFi
 			// fall-back import only consumes segments exported from the target db.
 			segmentsExporterRole = TARGET_DB_EXPORTER_FB_ROLE
 		}
-		resumeSegmentDeleted, err := metaDB.IsResumeSegmentDeleted(segmentsExporterRole)
+		resumeSegmentDeleted, err := metaDB.AnySegmentsDeletedOrArchived(segmentsExporterRole)
 		if err != nil {
 			return goerrors.Errorf("failed to check for archived/deleted queue segments: %s", err)
 		}
 		if resumeSegmentDeleted {
-			utils.ErrExit("cannot perform import data with --start-clean: some queue segments have already been archived/deleted by 'archive changes'. The change-event queue can no longer be re-streamed from the beginning, so a clean restart is not possible.")
+			return goerrors.Errorf("cannot perform import data with --start-clean: some queue segments have already been archived/deleted by 'archive changes'. The change-event queue can no longer be re-streamed from the beginning, so a clean restart is not possible.")
 		}
 	}
 
