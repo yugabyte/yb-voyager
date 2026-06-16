@@ -306,6 +306,16 @@ func continueStartMigration(v *viper.Viper) {
 		log.Warnf("failed to re-read config file after target update: %v", err)
 	}
 
+	// POC: switch the yugabyted control plane connection from local to target
+	// now that we have the target details. Re-emits the assessment events
+	// against the target so its UI shows the migration's history. Hard-fails
+	// on any error. Ensure the exportDir global is populated since switchover
+	// reads MSR and config relative to it.
+	if exportDir == "" {
+		exportDir = exportDirPath
+	}
+	switchControlPlaneToTarget(targetParsed, startMigrationConfigFile)
+
 	// ── Section 4: Configuring Migration (progressive checkmarks) ──
 	printConfiguringSection(targetParsed, workflow, startMigrationConfigFile)
 

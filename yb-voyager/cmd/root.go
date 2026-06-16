@@ -238,6 +238,12 @@ var rootCmd = &cobra.Command{
 				msrVoyagerVersionString := msr.VoyagerVersion
 
 				detectVersionCompatibility(msrVoyagerVersionString, exportDir)
+
+				// After plan-migration has switched the control-plane connection
+				// to the target, force the env var to match the config value —
+				// otherwise a shell-exported YUGABYTED_DB_CONN_STRING (set via
+				// .zshrc / .bashrc) would silently win over the rewritten config.
+				enforceSwitchedCPEnvVar()
 			}
 
 			if perfProfile {

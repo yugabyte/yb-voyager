@@ -72,6 +72,11 @@ type MigrationStatusRecord struct {
 	AnalyzeSchemaDone               bool `json:"AnalyzeSchemaDone"`       // set by analyzeSchema() at end of every run
 	LastAnalyzeIssueCount           int  `json:"LastAnalyzeIssueCount"`   // issue count from the most recent analyze run; used by `schema migrate` to decide whether to skip re-analyzing
 
+	// Set to true after plan-migration successfully switches the yugabyted control plane
+	// connection to the target cluster and re-emits historical assessment events.
+	// Used by plan-migration to skip re-switching on subsequent invocations.
+	ControlPlaneSwitched bool `json:"ControlPlaneSwitched"`
+
 	ExportDataDone                  bool `json:"ExportDataDone"` // to be interpreted as export of snapshot data from source is complete
 	ExportDataSourceDebeziumStarted bool `json:"ExportDataSourceDebeziumStarted"`
 	ExportDataTargetDebeziumStarted bool `json:"ExportDataTargetDebeziumStarted"`
