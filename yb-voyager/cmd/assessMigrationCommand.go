@@ -1997,17 +1997,24 @@ func getSupportedVersions(issue AssessmentIssue) string {
 	return formatSupportedVersions(issue.MinimumVersionsFixedIn, issue.MinimumVersionsEAFixedIn, issue.MinimumVersionsTPFixedIn)
 }
 
-// buildExperimentalMaturityAnnotation returns a sentence describing that the feature is
-// available only as Tech Preview / Early Access in the target version, with the flags needed
-// to enable it. Returns "" for any non-experimental maturity.
-func buildExperimentalMaturityAnnotation(maturity string, targetDbVersion *ybversion.YBVersion, enablingFlags []string) string {
-	var tierName, caveat string
+// maturityTierName returns the display name + caveat for an experimental maturity tier
+func maturityTierName(maturity string) (string, string) {
 	switch maturity {
 	case constants.MATURITY_TP:
-		tierName, caveat = "Tech Preview (TP)", constants.TP_MATURITY_CAVEAT
+		return "Tech Preview (TP)", constants.TP_MATURITY_CAVEAT
 	case constants.MATURITY_EA:
-		tierName, caveat = "Early Access (EA)", constants.EA_MATURITY_CAVEAT
+		return "Early Access (EA)", constants.EA_MATURITY_CAVEAT
 	default:
+		return "", ""
+	}
+}
+
+// buildExperimentalMaturityAnnotation returns a sentence (for an unsupported feature) describing
+// that the feature is available only as Tech Preview / Early Access in the target version, with
+// the flags needed to enable it.
+func buildExperimentalMaturityAnnotation(maturity string, targetDbVersion *ybversion.YBVersion, enablingFlags []string) string {
+	tierName, caveat := maturityTierName(maturity)
+	if tierName == "" {
 		return ""
 	}
 	annotation := fmt.Sprintf("This feature is available as %s in the target version (%s) — %s, and is not enabled by default.",
@@ -2016,6 +2023,29 @@ func buildExperimentalMaturityAnnotation(maturity string, targetDbVersion *ybver
 		annotation += fmt.Sprintf(" Enable with the flag(s): %s.", strings.Join(enablingFlags, ", "))
 	}
 	return annotation
+}
+
+// buildNativeResolutionRecommendation returns a version-aware recommendation (for a performance
+// optimization e.g. "bucket-based indexes"). If the resolution is Tech Preview / Early Access in the target version it reads
+// "available as <tier> in the target version"; otherwise it lists where it becomes available (supportedVersions).
+func buildNativeResolutionRecommendation(resolution, maturity string, targetDbVersion *ybversion.YBVersion, supportedVersions string, enablingFlags []string) string {
+	if resolution == "" {
+		return ""
+	}
+	var availability string
+	if tierName, caveat := maturityTierName(maturity); tierName != "" {
+		availability = fmt.Sprintf("available as %s in the target version (%s) — %s, and is not enabled by default",
+			tierName, targetDbVersion.String(), caveat)
+	} else if supportedVersions != "" {
+		availability = fmt.Sprintf("available in %s", supportedVersions)
+	} else {
+		return ""
+	}
+	rec := fmt.Sprintf("Consider using %s — %s.", resolution, availability)
+	if len(enablingFlags) > 0 {
+		rec += fmt.Sprintf(" Enable with the flag(s): %s.", strings.Join(enablingFlags, ", "))
+	}
+	return rec
 }
 
 func validateSourceDBTypeForAssessMigration() {

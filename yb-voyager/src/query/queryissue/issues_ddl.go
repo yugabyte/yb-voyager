@@ -1829,6 +1829,11 @@ var inheritanceIssue = issue.Issue{
 	Description: INHERITANCE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/YugaByte/yugabyte-db/issues/1129",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
+	MinimumVersionsTPFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
+	},
+	EnablingFlags: []string{"ysql_enable_inheritance"},
 }
 
 func NewInheritanceIssue(objectType string, objectName string, sqlStatement string) QueryIssue {

@@ -790,21 +790,37 @@ func TestFormatSupportedVersions(t *testing.T) {
 func TestBuildExperimentalMaturityAnnotation(t *testing.T) {
 	v := ybversion.V2025_2_0_0
 
-	tp := buildExperimentalMaturityAnnotation(constants.MATURITY_TP, v, []string{"yb_enable_foo=true", "yb_bar=64"})
-	assert.Contains(t, tp, "Tech Preview (TP)")
-	assert.Contains(t, tp, constants.TP_MATURITY_CAVEAT)
-	assert.Contains(t, tp, "not enabled by default")
-	assert.Contains(t, tp, "yb_enable_foo=true, yb_bar=64")
+	// TP, with flags.
+	assert.Equal(t,
+		fmt.Sprintf("This feature is available as Tech Preview (TP) in the target version (2025.2.0.0) — %s, and is not enabled by default. Enable with the flag(s): yb_enable_foo=true, yb_bar=64.", constants.TP_MATURITY_CAVEAT),
+		buildExperimentalMaturityAnnotation(constants.MATURITY_TP, v, []string{"yb_enable_foo=true", "yb_bar=64"}))
 
-	ea := buildExperimentalMaturityAnnotation(constants.MATURITY_EA, v, nil)
-	assert.Contains(t, ea, "Early Access (EA)")
-	assert.Contains(t, ea, constants.EA_MATURITY_CAVEAT)
-	// No flags -> no "Enable with" sentence.
-	assert.NotContains(t, ea, "Enable with the flag(s)")
+	// EA, no flags -> no "Enable with" sentence.
+	assert.Equal(t,
+		fmt.Sprintf("This feature is available as Early Access (EA) in the target version (2025.2.0.0) — %s, and is not enabled by default.", constants.EA_MATURITY_CAVEAT),
+		buildExperimentalMaturityAnnotation(constants.MATURITY_EA, v, nil))
 
 	// Non-experimental maturities produce no annotation.
-	assert.Equal(t, "", buildExperimentalMaturityAnnotation(constants.MATURITY_GA, v, nil))
-	assert.Equal(t, "", buildExperimentalMaturityAnnotation(constants.MATURITY_UNSUPPORTED, v, nil))
+	assert.Empty(t, buildExperimentalMaturityAnnotation(constants.MATURITY_GA, v, nil))
+	assert.Empty(t, buildExperimentalMaturityAnnotation(constants.MATURITY_UNSUPPORTED, v, nil))
+}
+
+func TestBuildNativeResolutionRecommendation(t *testing.T) {
+	flags := []string{"yb_enable_derived_saops=true", "yb_max_saop_merge_streams=64"}
+
+	// Resolution is TP in the target version.
+	assert.Equal(t,
+		fmt.Sprintf("Consider using bucket-based indexes — available as Tech Preview (TP) in the target version (2025.2.1.0) — %s, and is not enabled by default. Enable with the flag(s): yb_enable_derived_saops=true, yb_max_saop_merge_streams=64.", constants.TP_MATURITY_CAVEAT),
+		buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_TP, ybversion.V2025_2_1_0, "", flags))
+
+	// Resolution not in target yet, but available later (UNSUPPORTED maturity + supportedVersions).
+	assert.Equal(t,
+		"Consider using bucket-based indexes — available in >=2025.2.1.0 (2025.2 series) (TP). Enable with the flag(s): yb_enable_derived_saops=true, yb_max_saop_merge_streams=64.",
+		buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_UNSUPPORTED, ybversion.V2024_2_0_0, ">=2025.2.1.0 (2025.2 series) (TP)", flags))
+
+	// No resolution name, or unsupported with no later versions -> empty.
+	assert.Empty(t, buildNativeResolutionRecommendation("", constants.MATURITY_TP, ybversion.V2025_2_1_0, "", flags))
+	assert.Empty(t, buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_UNSUPPORTED, ybversion.V2024_2_0_0, "", flags))
 }
 
 // withTargetDbVersion sets the package-level targetDbVersion for the duration of fn.
@@ -834,39 +850,53 @@ func TestConvertIssueInstanceAnnotatesExperimentalMaturity(t *testing.T) {
 
 	withTargetDbVersion(ybversion.V2025_2_0_0, func() {
 		analyzeIssue := convertIssueInstanceToAnalyzeIssue(qi, "", false, false)
-		assert.Contains(t, analyzeIssue.Reason, "Base description.")
-		assert.Contains(t, analyzeIssue.Reason, "Tech Preview (TP)")
-		assert.Contains(t, analyzeIssue.Reason, "yb_enable_some_tp_feature=true")
+		// The converter appends exactly the experimental-maturity annotation to the base description.
+		expected := utils.JoinSentences("Base description.",
+			buildExperimentalMaturityAnnotation(constants.MATURITY_TP, ybversion.V2025_2_0_0, []string{"yb_enable_some_tp_feature=true"}))
+		assert.Equal(t, expected, analyzeIssue.Reason)
 	})
 }
 
-func TestConvertIssueInstancePerfUnsupportedWithLaterVersions(t *testing.T) {
-	// A performance optimization that is unsupported in the 2024.2 target version,
-	// but is fixed as EA in 2025.1 and GA in 2025.2. The supported-version info
-	// should be folded into the Description (Reason).
-	qi := queryissue.QueryIssue{
-		Issue: issue.Issue{
-			Type:        queryissue.FOREIGN_KEY_DATATYPE_MISMATCH,
-			Name:        "Foreign key datatype mismatch",
-			Description: "Base perf description.",
-			Impact:      constants.IMPACT_LEVEL_1,
-			MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
-				ybversion.SERIES_2025_2: ybversion.V2025_2_0_0, // GA later
+func TestConvertIssueInstancePerfRecommendationByTargetVersion(t *testing.T) {
+	// A performance optimization (hotspot) whose native resolution (bucket-based indexes) is
+	// Tech Preview in 2025.2.1. The resolution name is seeded in InternalDetails; the converter
+	// appends a version-aware recommendation to the Description.
+	newQi := func() queryissue.QueryIssue {
+		return queryissue.QueryIssue{
+			Issue: issue.Issue{
+				Type:        queryissue.HOTSPOTS_ON_DATE_INDEX,
+				Name:        "Hotspots with range sharded on date datatype index",
+				Description: "Base perf description.",
+				Impact:      constants.IMPACT_LEVEL_1,
+				MinimumVersionsTPFixedIn: map[string]*ybversion.YBVersion{
+					ybversion.SERIES_2025_2: ybversion.V2025_2_1_0,
+				},
+				EnablingFlags: []string{"yb_enable_derived_saops=true", "yb_max_saop_merge_streams=64"},
 			},
-			MinimumVersionsEAFixedIn: map[string]*ybversion.YBVersion{
-				ybversion.SERIES_2025_1: ybversion.V2025_1_0_0, // EA later
-			},
-		},
-		ObjectType: "TABLE",
-		ObjectName: "public.orders",
+			ObjectType:      "INDEX",
+			ObjectName:      "idx_x ON public.t",
+			InternalDetails: map[string]interface{}{queryissue.RECOMMENDED_RESOLUTION: "bucket-based indexes"},
+		}
 	}
 
+	flags := []string{"yb_enable_derived_saops=true", "yb_max_saop_merge_streams=64"}
+	// Pinned literal: this is what the converter must derive from the issue's maps.
+	supportedVersions := ">=2025.2.1.0 (2025.2 series) (TP)"
+
+	// Resolution available (TP) in the target version: converter routes the perf issue through the
+	// native-resolution recommendation (not the experimental annotation) and appends it to Reason.
+	withTargetDbVersion(ybversion.V2025_2_1_0, func() {
+		analyzeIssue := convertIssueInstanceToAnalyzeIssue(newQi(), "", false, false)
+		expected := utils.JoinSentences("Base perf description.",
+			buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_TP, ybversion.V2025_2_1_0, supportedVersions, flags))
+		assert.Equal(t, expected, analyzeIssue.Reason)
+	})
+
+	// Older target: resolution not in target yet, recommendation lists where it lands.
 	withTargetDbVersion(ybversion.V2024_2_0_0, func() {
-		analyzeIssue := convertIssueInstanceToAnalyzeIssue(qi, "", false, false)
-		assert.Contains(t, analyzeIssue.Reason, "Base perf description.")
-		assert.Contains(t, analyzeIssue.Reason, "Supported in:")
-		// EA entry is tagged; GA entry is untagged (same format as today).
-		assert.Contains(t, analyzeIssue.Reason, ">=2025.1.0.0 (2025.1 series) (EA)")
-		assert.Contains(t, analyzeIssue.Reason, ">=2025.2.0.0 (2025.2 series)")
+		analyzeIssue := convertIssueInstanceToAnalyzeIssue(newQi(), "", false, false)
+		expected := utils.JoinSentences("Base perf description.",
+			buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_UNSUPPORTED, ybversion.V2024_2_0_0, supportedVersions, flags))
+		assert.Equal(t, expected, analyzeIssue.Reason)
 	})
 }
