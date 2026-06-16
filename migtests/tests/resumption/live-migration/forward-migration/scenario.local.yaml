@@ -171,3 +171,4 @@ stages:
     action: run_sql
     target: target
     sql_path: ../common-sql/cleanup.sql
+    

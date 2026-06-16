@@ -55,7 +55,7 @@ for op_name, weight in raw_operation_weights.items():
 INSERT_ROWS = GEN["insert_rows"]
 UPDATE_ROWS = GEN["update_rows"]
 DELETE_ROWS = GEN["delete_rows"]
-MIN_COL_SIZE_BYTES = GEN["min_col_size_bytes"]
+MIN_COL_SIZE_BYTES = GEN.get("min_col_size_bytes", 0)
 
 # Retries
 INSERT_MAX_RETRIES = GEN["insert_max_retries"]

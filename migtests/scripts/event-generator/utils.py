@@ -75,7 +75,7 @@ def load_yaml_file(path: str) -> Dict[str, Any]:
 
 def validate_section(section: Dict[str, Any], schema: Dict[str, Any], section_name: str) -> None:
     # Optional fields that don't need to be present (for backward compatibility)
-    optional_fields = {"enable_index_create_drop","index_events_interval","column_overrides"}
+    optional_fields = {"enable_index_create_drop","index_events_interval","column_overrides","min_col_size_bytes"}
     
     for key, expected_type in schema.items():
         if key not in section:
@@ -695,7 +695,7 @@ def generate_random_data(
     """Generate random data compatible with a Postgres column type."""
     fake = faker_instance or _fake
 
-    if "text" in data_type or "bytea" in data_type and min_col_size_bytes > 0:
+    if ("text" in data_type or "bytea" in data_type) and min_col_size_bytes > 0:
         parts = []
         batch_size = max(1, min_col_size_bytes // 10)
         while True:
@@ -704,10 +704,10 @@ def generate_random_data(
             if len(value.encode("utf-8")) >= min_col_size_bytes:
                 return value
 
-    elif "json" in data_type or "jsonb" in data_type:
+    elif ("json" in data_type or "jsonb" in data_type) and min_col_size_bytes > 0:
         obj = {}
         while len(json.dumps(obj).encode("utf-8")) < min_col_size_bytes:
-            chunk_size = max(1000, min_col_size_bytes // 10)  # Generate in chunks
+            chunk_size = max(1000, min_col_size_bytes // 10)
             text_value = fake.text(max_nb_chars=chunk_size)
             obj[fake.word()] = text_value
         return json.dumps(obj)
