@@ -27,31 +27,34 @@ import (
 
 type QueryIssue struct {
 	issue.Issue
-	ObjectType   string // TABLE, FUNCTION, DML_QUERY?
-	ObjectName   string // table name/function name/etc
-	SqlStatement string
-	ObjectUsage  string                 //FREQUENT, MODERATE, RARE, UNUSED
-	Details      map[string]interface{} // additional details about the issue
+	ObjectType   		string // TABLE, FUNCTION, DML_QUERY?
+	ObjectName   		string // table name/function name/etc
+	SqlStatement 		string
+	ObjectUsage  		string                 //FREQUENT, MODERATE, RARE, UNUSED
+	Details      		map[string]interface{} // additional details about the issue
+	InternalDetails		map[string]interface{} // extraneous details which won't go into report
 }
 
-func newQueryIssue(issue issue.Issue, objectType string, objectName string, sqlStatement string, details map[string]interface{}) QueryIssue {
+func newQueryIssue(issue issue.Issue, objectType string, objectName string, sqlStatement string, details map[string]interface{}, internalDetails map[string]interface{}) QueryIssue {
 	return QueryIssue{
-		Issue:        issue,
-		ObjectType:   objectType,
-		ObjectName:   objectName,
-		SqlStatement: sqlStatement,
-		Details:      details,
+		Issue:        		issue,
+		ObjectType:   		objectType,
+		ObjectName:   		objectName,
+		SqlStatement: 		sqlStatement,
+		Details:			details,
+		InternalDetails:	internalDetails,
 	}
 }
 
-func newQueryIssueWithUsageCategory(issue issue.Issue, objectType string, objectName string, sqlStatement string, details map[string]interface{}, usageCategory string) QueryIssue {
+func newQueryIssueWithUsageCategory(issue issue.Issue, objectType string, objectName string, sqlStatement string, details map[string]interface{}, internalDetails map[string]interface{}, usageCategory string) QueryIssue {
 	return QueryIssue{
-		Issue:        issue,
-		ObjectType:   objectType,
-		ObjectName:   objectName,
-		SqlStatement: sqlStatement,
-		Details:      details,
-		ObjectUsage:  usageCategory,
+		Issue:        		issue,
+		ObjectType:   		objectType,
+		ObjectName:   		objectName,
+		SqlStatement: 		sqlStatement,
+		Details:      		details,
+		InternalDetails: 	internalDetails,
+		ObjectUsage:  		usageCategory,
 	}
 }
 
@@ -71,6 +74,7 @@ var UnsupportedDatatypesInLiveMigrationIssues = []string{
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POLYGON,
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CIRCLE,
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_VECTOR,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ,
 }
 
 var UnsupportedDatatypesInLiveMigrationIssuesWithFForFBIssues = []string{
@@ -108,6 +112,7 @@ var SensitiveKeysInIssueDetailsMap = []string{
 	FUNCTION_NAMES,
 	REFERENCED_COLUMN_NAME,
 	REFERENCED_TABLE_NAME,
+	RECOMMENDED_SQL,
 }
 
 type IssueTypeAndName struct {

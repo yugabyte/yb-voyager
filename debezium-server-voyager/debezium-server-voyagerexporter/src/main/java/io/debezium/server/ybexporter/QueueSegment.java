@@ -5,17 +5,6 @@
  */
 package io.debezium.server.ybexporter;
 
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.StreamReadConstraints;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectWriter;
-import org.eclipse.microprofile.config.Config;
-import org.eclipse.microprofile.config.ConfigProvider;
-import org.graalvm.collections.Pair;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.FileDescriptor;
@@ -30,6 +19,16 @@ import java.nio.file.Path;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
+
+import org.graalvm.collections.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.StreamReadConstraints;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
 
 /**
  * A QueueSegment represents a segment of the cdc queue.
@@ -66,10 +65,11 @@ public class QueueSegment {
             // corresponding entry in metadb
             es.queueSegmentCreated(segmentNo, filePath, exporterRole);
             openFile();
-        } catch (IOException e) {
+        }
+        catch (IOException e) {
             throw new RuntimeException(e);
         }
-        
+
         long committedSize = es.getQueueSegmentCommittedSize(segmentNo);
         LOGGER.info("Opened queue segment {}; byteCount={}, committedSize={}", filePath, byteCount, committedSize);
         if (committedSize < byteCount) {
@@ -96,7 +96,8 @@ public class QueueSegment {
             writer.write(cdcJson);
             byteCount += cdcJson.length();
             updateStats(r);
-        } catch (IOException e) {
+        }
+        catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
@@ -135,6 +136,11 @@ public class QueueSegment {
         cdcInfo.put("vsn", r.vsn);
         cdcInfo.put("schema_name", r.t.schemaName);
         cdcInfo.put("table_name", r.t.tableName);
+        // Include original partition table name if this was a renamed partition
+        if (r.partitionTable != null) {
+            cdcInfo.put("partition_schema_name", r.partitionTable.schemaName);
+            cdcInfo.put("partition_table_name", r.partitionTable.tableName);
+        }
         cdcInfo.put("key", key);
         cdcInfo.put("fields", afterFields);
         cdcInfo.put("before_fields", beforeFields);
@@ -185,21 +191,24 @@ public class QueueSegment {
                 JsonNode lastRecordJson = mapper.readTree(last);
                 vsn = lastRecordJson.get("vsn").asLong();
             }
-        } catch (IOException e) {
+        }
+        catch (IOException e) {
             throw new RuntimeException(e);
         }
         return vsn;
     }
+
     private ObjectMapper createObjectMapper() {
         if (exporterRole.equals("target_db_exporter_fb") || exporterRole.equals("target_db_exporter_ff")) {
             if (ybGRPCConnectorEnabled) {
-                //In case of gRPC connector, debezium is at 1.9.5 version and uses jackson 2.13.1 which does not support StreamReadConstraints
+                // In case of gRPC connector, debezium is at 1.9.5 version and uses jackson 2.13.1 which does not support StreamReadConstraints
                 // So, we use the default ObjectMapper - should not cause issues for large strings in that path as this guardrail is introduced in 2.15 https://github.com/FasterXML/jackson-core/issues/1001
                 return new ObjectMapper(new JsonFactory());
             }
         }
-        //for any connector which uses 2.5.2 or higher uses jackson 2.15.2 which supports StreamReadConstraints
-        return new ObjectMapper(JsonFactory.builder().streamReadConstraints(StreamReadConstraints.builder().maxStringLength(ObjectMapperMaxStringLength).build()).build());
+        // for any connector which uses 2.5.2 or higher uses jackson 2.15.2 which supports StreamReadConstraints
+        return new ObjectMapper(
+                JsonFactory.builder().streamReadConstraints(StreamReadConstraints.builder().maxStringLength(ObjectMapperMaxStringLength).build()).build());
     }
 
     public boolean isClosed() {
@@ -213,7 +222,8 @@ public class QueueSegment {
                     return true;
                 }
             }
-        } catch (IOException e) {
+        }
+        catch (IOException e) {
             throw new RuntimeException(e);
         }
         return false;
@@ -227,7 +237,8 @@ public class QueueSegment {
             f.setLength(offset);
             f.close();
             openFile();
-        } catch (IOException e) {
+        }
+        catch (IOException e) {
             throw new RuntimeException(e);
         }
 

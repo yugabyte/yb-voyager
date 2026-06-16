@@ -84,3 +84,7 @@ func (ds *S3DataStore) Open(resourceName string) (io.ReadCloser, error) {
 	}
 	return s3.NewObjectReader(objectPath)
 }
+
+func (ds *S3DataStore) OpenAt(resourceName string, offset int64) (io.ReadCloser, error) {
+	return nil, ErrOpenAtNotImplemented
+}

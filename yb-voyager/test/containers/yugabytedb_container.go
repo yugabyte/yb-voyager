@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +24,10 @@ type YugabyteDBContainer struct {
 	mutex sync.Mutex
 	ContainerConfig
 	container testcontainers.Container
+
+	external     bool
+	externalHost string
+	externalPort int
 }
 
 func (yb *YugabyteDBContainer) SetConfig(config ContainerConfig) {
@@ -31,6 +36,29 @@ func (yb *YugabyteDBContainer) SetConfig(config ContainerConfig) {
 func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 	yb.mutex.Lock()
 	defer yb.mutex.Unlock()
+
+	// External-instance mode: skip docker entirely.
+	if host := os.Getenv("YB_EXTERNAL_HOST"); host != "" {
+		port, err := strconv.Atoi(os.Getenv("YB_EXTERNAL_PORT"))
+		if err != nil || port == 0 {
+			port = 5433
+		}
+		yb.external = true
+		yb.externalHost = host
+		yb.externalPort = port
+		// Optional: respect YB_EXTERNAL_USER / YB_EXTERNAL_PASSWORD overrides
+		if u := os.Getenv("YB_EXTERNAL_USER"); u != "" {
+			yb.User = u
+		}
+		if p := os.Getenv("YB_EXTERNAL_PASSWORD"); p != "" {
+			yb.Password = p
+		}
+		utils.PrintAndLogf("Using external YugabyteDB at %s:%d (user=%s)", host, port, yb.User)
+		return nil
+	}
+	yb.external = false
+	yb.externalHost = ""
+	yb.externalPort = 0
 
 	if yb.container != nil {
 		if yb.container.IsRunning() {
@@ -120,6 +148,10 @@ func (yb *YugabyteDBContainer) Stop(ctx context.Context) error {
 	yb.mutex.Lock()
 	defer yb.mutex.Unlock()
 
+	if yb.external {
+		return nil
+	}
+
 	if yb.container == nil {
 		return nil
 	} else if !yb.container.IsRunning() {
@@ -145,6 +177,10 @@ func (yb *YugabyteDBContainer) Terminate(ctx context.Context) {
 		return
 	}
 
+	if yb.external {
+		return
+	}
+
 	err := yb.container.Terminate(ctx)
 	if err != nil {
 		log.Errorf("failed to terminate yugabytedb container: %v", err)
@@ -152,6 +188,11 @@ func (yb *YugabyteDBContainer) Terminate(ctx context.Context) {
 }
 
 func (yb *YugabyteDBContainer) GetHostPort() (string, int, error) {
+
+	if yb.external {
+		return yb.externalHost, yb.externalPort, nil
+	}
+
 	if yb.container == nil {
 		return "", -1, fmt.Errorf("yugabytedb container is not started: nil")
 	}
@@ -185,7 +226,7 @@ func (yb *YugabyteDBContainer) GetConnectionString() string {
 }
 
 func (yb *YugabyteDBContainer) GetConnection() (*sql.DB, error) {
-	if yb.container == nil {
+	if yb.container == nil && !yb.external {
 		utils.ErrExit("yugabytedb container is not started: nil")
 	}
 
@@ -314,7 +355,7 @@ func (yb *YugabyteDBContainer) ExecuteSqls(sqls ...string) {
 			}) {
 				break
 			}
-			time.Sleep(2 * time.Second)
+			time.Sleep(10 * time.Second)
 		}
 		if err != nil {
 			utils.ErrExit("failed to execute sql '%s': %w", sql, err)
@@ -338,6 +379,106 @@ func (yb *YugabyteDBContainer) Query(sql string, args ...interface{}) (*sql.Rows
 	}
 
 	return rows, nil
+}
+
+func (yb *YugabyteDBContainer) GetConnectionWithDB(dbName string) (*sql.DB, error) {
+	config := yb.GetConfig()
+	host, port, err := yb.GetHostPort()
+	if err != nil {
+		utils.ErrExit("failed to get host port for yugabytedb connection string: %v", err)
+	}
+
+	connStr := fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", config.User, config.Password, host, port, dbName)
+	conn, err := sql.Open("pgx", connStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to yugabytedb with db '%s': %w", dbName, err)
+	}
+	return conn, nil
+}
+
+func (yb *YugabyteDBContainer) QueryOnDB(dbName string, sql string, args ...interface{}) (*sql.Rows, error) {
+	if yb == nil {
+		utils.ErrExit("yugabytedb container is not started: nil")
+	}
+	conn, err := yb.GetConnectionWithDB(dbName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get connection for yugabytedb query on db: %w", err)
+	}
+	defer conn.Close()
+	rows, err := conn.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query '%s': %w", sql, err)
+	}
+
+	return rows, nil
+}
+
+const VIOLATES_UNIQUE_CONSTRAINT_ERROR = "violates unique constraint"
+const SYNTAX_ERROR = "syntax error at"
+const RPC_MSG_LIMIT_ERROR = "Sending too long RPC message"
+const INVALID_INPUT_SYNTAX_ERROR = "invalid input syntax"
+
+// pgx driver error patterns
+// Mismatched param and argument count - produced by pgx's ExtendedQueryBuilder
+const MISMATCHED_PARAM_ARGUMENT_COUNT_ERROR = "mismatched param and argument count"
+
+// Failed to encode args[N] - pgx wraps encoding failures with goerrors.Errorf
+const FAILED_TO_ENCODE_ARGS_ERROR = "failed to encode args"
+
+// Unable to encode - many pgx/pgtype errors include this text
+const UNABLE_TO_ENCODE_ERROR = "unable to encode"
+
+// Cannot find encode plan - specific phrase from pgx/pgtype
+const CANNOT_FIND_ENCODE_PLAN_ERROR = "cannot find encode plan"
+
+// error for inserting in xml table
+const UNSUPPORTED_XML_FEATURE = "unsupported XML feature"
+
+var NonRetryCopyErrors = []string{
+	// Existing patterns
+	INVALID_INPUT_SYNTAX_ERROR,
+	VIOLATES_UNIQUE_CONSTRAINT_ERROR,
+	SYNTAX_ERROR,
+
+	// pgx driver error patterns
+	MISMATCHED_PARAM_ARGUMENT_COUNT_ERROR,
+	FAILED_TO_ENCODE_ARGS_ERROR,
+	UNABLE_TO_ENCODE_ERROR,
+	CANNOT_FIND_ENCODE_PLAN_ERROR,
+
+	UNSUPPORTED_XML_FEATURE,
+}
+
+func (yb *YugabyteDBContainer) ExecuteSqlsOnDB(dbName string, sqls ...string) {
+	if yb == nil {
+		utils.ErrExit("yugabytedb container is not started: nil")
+	}
+	conn, err := yb.GetConnectionWithDB(dbName)
+	if err != nil {
+		utils.ErrExit("failed to get connection for yugabytedb executing sqls: %w", err)
+	}
+	defer conn.Close()
+
+	retryCount := 5
+	for _, sql := range sqls {
+		var err error
+		for i := 0; i < retryCount; i++ {
+			_, err = conn.Exec(sql)
+			if err == nil {
+				break
+			}
+			if lo.ContainsBy(NonRetryCopyErrors, func(r string) bool {
+				return strings.Contains(err.Error(), r)
+			}) {
+				//if its a non retryable error, break the loopd
+				break
+			}
+			time.Sleep(10 * time.Second)
+		}
+		if err != nil {
+			utils.ErrExit("failed to execute sql '%s': %w", sql, err)
+		}
+	}
 }
 
 // yugabyteSQLWaitStrategy is a basic wait strategy that connects to YugabyteDB

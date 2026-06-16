@@ -66,6 +66,15 @@ func init() {
 			log.Infof("COPY_MAX_RETRY_COUNT set to %d via environment variable", count)
 		}
 	}
+
+	// Allow overriding MAX_SLEEP_SECOND via environment variable for testing.
+	// Used by failpoint tests to avoid long retry sleeps while still exercising retry logic.
+	if val := os.Getenv("YB_VOYAGER_MAX_SLEEP_SECOND"); val != "" {
+		if secs, err := strconv.Atoi(val); err == nil && secs >= 0 {
+			MAX_SLEEP_SECOND = secs
+			log.Infof("MAX_SLEEP_SECOND set to %d via environment variable", secs)
+		}
+	}
 }
 
 /*
@@ -90,6 +99,8 @@ type FileTaskImporter struct {
 
 	errorHandler             importdata.ImportDataErrorHandler
 	callhomeMetricsCollector *callhome.ImportDataMetricsCollector
+
+	resumeInfoShown bool
 }
 
 func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchProducer FileBatchProducer, workerPool *pool.Pool,
@@ -99,6 +110,18 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchProd
 	progressReporter.ImportFileStarted(task, totalProgressAmount)
 	currentProgressAmount := getImportedProgressAmount(task, state)
 	progressReporter.AddProgressAmount(task, currentProgressAmount)
+
+	resumeInfoShown := false
+	if currentProgressAmount > 0 {
+		var resumeMsg string
+		if reportProgressInBytes {
+			resumeMsg = "Resuming"
+		} else {
+			resumeMsg = fmt.Sprintf("Resuming: %d rows imported", currentProgressAmount)
+		}
+		progressReporter.AddResumeInformation(task, resumeMsg)
+		resumeInfoShown = true
+	}
 
 	fti := &FileTaskImporter{
 		state:                     state,
@@ -113,6 +136,7 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchProd
 		currentProgressAmount:     currentProgressAmount,
 		errorHandler:              errorHandler,
 		callhomeMetricsCollector:  callhomeMetricsCollector,
+		resumeInfoShown:           resumeInfoShown,
 	}
 	state.RegisterFileTaskImporter(fti)
 	return fti, nil
@@ -133,6 +157,20 @@ func (fti *FileTaskImporter) AllBatchesSubmitted() bool {
 
 func (fti *FileTaskImporter) TableHasPrimaryKey() bool {
 	return len(fti.importBatchArgsProto.PrimaryKeyColumns) > 0
+}
+
+func (fti *FileTaskImporter) recommendationForBatchError(ibe errs.ImportBatchError) string {
+	switch ibe.ErrorType() {
+	case errs.ERROR_TYPE_PK_VIOLATION:
+		return importdata.PK_VIOLATION_RECOMMENDATION_MESSAGE
+	case errs.ERROR_TYPE_FOREIGN_KEY_VIOLATION:
+		if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
+			return importdata.FK_VIOLATION_RECOMMENDATION_MESSAGE
+		}
+		return importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE
+	default:
+		return importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE
+	}
 }
 
 func (fti *FileTaskImporter) IsNextBatchAvailable() bool {
@@ -179,6 +217,10 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 		// an empty batch is possible in case there are errors while reading and procesing rows in the file
 		// and the errors are handled by the error handler.
 		log.Infof("Skipping empty batch: %s", spew.Sdump(batch))
+		err = batch.MarkInProgress()
+		if err != nil {
+			utils.ErrExit("marking empty batch as in progress: %q: %s", batch.FilePath, err)
+		}
 		err = batch.MarkDone()
 		if err != nil {
 			utils.ErrExit("marking empty batch as done: %q: %s", batch.FilePath, err)
@@ -205,7 +247,7 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 
 	importBatchArgs := *fti.importBatchArgsProto
 	importBatchArgs.FilePath = batch.FilePath
-	importBatchArgs.RowsPerTransaction = batch.OffsetEnd - batch.OffsetStart
+	importBatchArgs.RowsPerTransaction = batch.LineOffsetEnd - batch.LineOffsetStart
 
 	sleepIntervalSec := 0
 	/*
@@ -236,13 +278,15 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
 	if err != nil {
 		if fti.errorHandler.ShouldAbort() {
+			msg := importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE
 			var ibe errs.ImportBatchError
 			if errors.As(err, &ibe) {
+				msg = fti.recommendationForBatchError(ibe)
 				// If the error is an ImportBatchError, we abort directly because the string
 				// representation of the error is already formatted with all the details.
-				utils.ErrExit("%w\n%s", err, color.YellowString(importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE))
+				utils.ErrExit("%w\n%s", err, color.YellowString(msg))
 			}
-			utils.ErrExit("import batch: %q into %s: %w\n%s", batch.FilePath, batch.TableNameTup.ForOutput(), err, color.YellowString(importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE))
+			utils.ErrExit("import batch: %q into %s: %w\n%s", batch.FilePath, batch.TableNameTup.ForOutput(), err, color.YellowString(msg))
 		}
 
 		// Handle the error
@@ -261,6 +305,11 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 }
 
 func (fti *FileTaskImporter) updateProgressForCompletedBatch(batch *Batch) {
+	if fti.resumeInfoShown {
+		fti.progressReporter.RemoveResumeInformation(fti.task)
+		fti.resumeInfoShown = false
+	}
+
 	// Update basic progress update for progress bar and control plane.
 	var progressAmount int64
 	if reportProgressInBytes {

@@ -160,7 +160,21 @@ func (colDatatype *TableColumnsDataTypes) GetBaseTypeNameFromDatatype() string {
 		log.Warnf("failed to get typename from colinfo: %s", colDatatype.DataType)
 	}
 	typeName = strings.TrimSuffix(typeName, "[]")
-	return typeName
+	// Normalize common multi-word PostgreSQL type spellings to their canonical names.
+	// This is needed because some catalog queries can return long names like `time with time zone`,
+	// while the rest of Voyager (unsupported datatype lists, etc.) uses canonical names like `timetz`.
+	switch strings.ToLower(strings.TrimSpace(typeName)) {
+	case "time with time zone":
+		return "timetz"
+	case "timestamp with time zone":
+		return "timestamptz"
+	case "timestamp without time zone":
+		return "timestamp"
+	case "time without time zone":
+		return "time"
+	default:
+		return typeName
+	}
 }
 
 type RedundantIndexesInfo struct {

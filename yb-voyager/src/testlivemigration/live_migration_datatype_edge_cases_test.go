@@ -1,6 +1,6 @@
 //go:build integration_live_migration
 
-package cmd
+package testlivemigration
 
 import (
 	"context"
@@ -289,14 +289,16 @@ import (
 //   - Tested in both forward and fallback streaming phases
 //   - Ensures proper handling of NULL ↔ non-NULL value transitions
 
-func getDatatypeEdgeCasesTestConfig() *TestConfig {
+func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 	return &TestConfig{
 		SourceDB: ContainerConfig{
-			Type:    "postgresql",
-			ForLive: true,
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: dbName,
 		},
 		TargetDB: ContainerConfig{
-			Type: "yugabytedb",
+			Type:         "yugabytedb",
+			DatabaseName: dbName,
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
@@ -3646,7 +3648,8 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 }
 
 func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
-	lm := NewLiveMigrationTest(t, getDatatypeEdgeCasesTestConfig())
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, getDatatypeEdgeCasesTestConfig("test_datatype_edge_cases"))
 	defer lm.Cleanup()
 
 	err := lm.SetupContainers(context.Background())
@@ -3755,7 +3758,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
-	err = lm.WaitForCutoverComplete(60)
+	err = lm.WaitForCutoverComplete(0, 60)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`}, "id")
@@ -3763,7 +3766,8 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 }
 
 func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
-	lm := NewLiveMigrationTest(t, getDatatypeEdgeCasesTestConfig())
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, getDatatypeEdgeCasesTestConfig("test_datatype_edge_cases_fallback"))
 	defer lm.Cleanup()
 
 	err := lm.SetupContainers(context.Background())
@@ -3872,7 +3876,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	err = lm.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
-	err = lm.WaitForCutoverComplete(90)
+	err = lm.WaitForCutoverComplete(0,90)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	err = lm.ExecuteTargetDelta()
@@ -3950,7 +3954,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	err = lm.InitiateCutoverToSource(nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-	err = lm.WaitForCutoverSourceComplete(150)
+	err = lm.WaitForCutoverSourceComplete(0,150)
 	testutils.FatalIfError(t, err, "failed to wait for cutover to source complete")
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`}, "id")

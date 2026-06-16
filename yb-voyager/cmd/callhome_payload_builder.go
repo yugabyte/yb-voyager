@@ -60,7 +60,7 @@ func packAndSendAssessMigrationPayload(
 		return
 	}
 
-	payload := createCallhomePayload()
+	payload := createCallhomePayload(migrationUUID)
 	payload.MigrationPhase = ASSESS_MIGRATION_PHASE
 	payload.Status = status
 	if assessmentMetadataDirFlag == "" {
@@ -184,11 +184,16 @@ func anonymizeQualifiedTableNames(tableNames []string) []string {
 
 // anonymizeSourceDBDetails creates anonymized source DB details for callhome
 func anonymizeSourceDBDetails(source *srcdb.Source) callhome.SourceDBDetails {
+	// Sort schema oids to ensure consistent order
+	slices.Sort(source.SchemaOids)
 	details := callhome.SourceDBDetails{
+		PayloadVersion:     callhome.SOURCE_DB_DETAILS_PAYLOAD_VERSION,
 		DBType:             source.DBType,
 		DBVersion:          source.DBVersion,
 		DBSize:             source.DBSize,
 		DBSystemIdentifier: source.DBSystemIdentifier,
+		DBID:               source.DBID,
+		SchemaOids:         source.SchemaOids,
 	}
 
 	// Anonymize database name
@@ -399,7 +404,7 @@ func packAndSendExportSchemaPayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}
-	payload := createCallhomePayload()
+	payload := createCallhomePayload(migrationUUID)
 	payload.MigrationPhase = EXPORT_SCHEMA_PHASE
 	payload.Status = status
 	sourceDBDetails := anonymizeSourceDBDetails(&source)
@@ -547,7 +552,7 @@ func packAndSendComparePerformancePayload(status string, errorMsg error, compara
 		return
 	}
 
-	payload := createCallhomePayload()
+	payload := createCallhomePayload(migrationUUID)
 	payload.MigrationPhase = COMPARE_PERFORMANCE_PHASE
 	payload.Status = status
 	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)

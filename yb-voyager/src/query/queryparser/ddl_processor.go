@@ -513,7 +513,7 @@ func NewIndexProcessor() *IndexProcessor {
 }
 
 func (indexProcessor *IndexProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
-	indexNode, ok := getCreateIndexStmtNode(parseTree)
+	indexNode, ok := GetCreateIndexStmtNode(parseTree)
 	if !ok {
 		return nil, goerrors.Errorf("not a CREATE INDEX statement")
 	}

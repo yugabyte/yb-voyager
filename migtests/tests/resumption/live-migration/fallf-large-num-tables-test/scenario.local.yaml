@@ -1,0 +1,278 @@
+name: fallf-large-num-tables-test
+
+env:
+  LOG_LEVEL: info
+  QUEUE_SEGMENT_MAX_BYTES: 10485760
+
+export_dir: ./export-dir
+artifacts_dir: ./artifacts
+
+source:
+  type: postgresql
+  host: 127.0.0.1
+  port: 5432
+  database: test_db
+  user: ybvoyager
+  password: Test@123#$%^&*()!
+  schema: public
+  admin:
+    user: postgres
+    password: postgres
+
+target:
+  type: yugabytedb
+  host: 127.0.0.1
+  port: 5433
+  database: test_db
+  user: ybvoyager
+  password: Test@123#$%^&*()!
+  admin:
+    user: yugabyte
+    password: yugabyte
+
+source_replica:
+  type: postgresql
+  host: 127.0.0.1
+  port: 5432
+  database: ff_db
+  user: postgres
+  password: postgres
+  schema: public
+  admin:
+    user: postgres
+    password: postgres
+
+# Forward (source) event generator configuration.
+generator_source:
+  config_inline:
+    connection:
+      host: 127.0.0.1
+      port: 5432
+      database: test_db
+      user: postgres
+      password: postgres
+
+    generator:
+      schema_name: public
+      manual_table_list: []
+      exclude_table_list: [cutover_table]
+      num_iterations: -1
+      wait_after_operations: 1000
+      wait_duration_seconds: 1
+      table_weights: {}
+      operation_weights: {INSERT: 3, UPDATE: 2, DELETE: 1}
+      random_seed: 123
+      faker_seed: 123
+      insert_rows: 3
+      update_rows: 2
+      delete_rows: 1
+      insert_max_retries: 5
+      update_max_retries: 1
+
+# Fallback (target) event generator configuration.
+# This will be used later when we start a generator on the target side.
+generator_target:
+  config_inline:
+    connection:
+      host: 127.0.0.1
+      port: 5433
+      database: test_db
+      user: ybvoyager
+      password: Test@123#$%^&*()!
+
+    generator:
+      schema_name: public
+      manual_table_list: []
+      exclude_table_list: [cutover_table]
+      num_iterations: -1
+      wait_after_operations: 1000
+      wait_duration_seconds: 1
+      table_weights: {}
+      operation_weights: {INSERT: 3, UPDATE: 2, DELETE: 1}
+      random_seed: 456
+      faker_seed: 456
+      insert_rows: 3
+      update_rows: 2
+      delete_rows: 1
+      insert_max_retries: 5
+      update_max_retries: 1
+
+stages:
+  # Phase 1: forward live migration (no resumptions)
+  - name: create_source_target_and_replica_dbs
+    action: reset_databases
+    targets: [source, target, source_replica]
+
+  - name: create_source_schema
+    action: run_sql
+    sql_path: ../common-sql/init-db-large.sql
+    use_admin: true
+
+  - name: create_source_replica_schema
+    action: run_sql
+    sql_path: ../common-sql/init-db-large.sql
+    use_admin: true
+    target: source_replica
+
+  - name: create_cutover_table
+    action: create_cutover_table
+    target: [source, source_replica]
+
+  - name: grant_source_permissions
+    action: grant_source_permissions
+
+  - name: export_schema_from_source
+    action: voyager_export_schema
+
+  - name: import_schema_on_target
+    action: voyager_import_schema
+
+  - name: start_event_generator
+    action: generator_start
+    generator_key: generator_source
+
+  - name: load_snapshot
+    action: sleep
+    seconds: 10
+
+  - name: start_exporter
+    action: voyager_export_start
+
+  - name: start_importer
+    action: voyager_import_start
+
+  - name: start_source_replica_importer
+    action: voyager_import_to_source_replica_start
+
+  - name: start_source_replica_import_resumptions
+    action: start_resumptions
+    resumption:
+      import_to_source_replica:
+        max_restarts: 25
+        min_interrupt_seconds: 15
+        max_interrupt_seconds: 60
+        min_restart_wait_seconds: 5
+        max_restart_wait_seconds: 30
+
+  - name: wait_exporter_streaming
+    action: wait_for
+    condition: exporter_in_streaming_phase
+    timeout_sec: 600
+
+  - name: sleep_for_some_events_to_be_generated
+    action: sleep
+    seconds: 60
+
+  - name: stop_event_generator
+    action: generator_stop
+    generator_key: generator_source
+    graceful_timeout_sec: 60
+
+  - name: insert_backlog_marker
+    action: run_sql
+    target: source
+    sql_path: ../common-sql/insert_marker.sql
+
+  - name: wait_backlog_zero
+    action: wait_for
+    condition: remaining_events_eq_0
+    timeout_sec: 60
+
+  - name: cutover_to_target
+    action: cutover_to_target
+
+  - name: wait_cutover_to_target_completed
+    action: wait_for
+    condition: cutover_to_target_status_completed
+    timeout_sec: 900
+
+  # Stop the forward exporter/importer (these may have auto-chained internally).
+  - name: stop_forward_importer
+    action: voyager_stop_command
+    command: import_data
+    graceful_timeout_sec: 60
+
+  # Phase 2: explicit fallback leg (target -> source replica) with resumptions
+
+  - name: start_fallback_exporter_from_target
+    action: voyager_export_from_target_start
+
+  # Start a generator on the target side to simulate ongoing writes during fallback.
+  - name: start_target_event_generator
+    action: generator_start
+    generator_key: generator_target
+
+  - name: start_fallback_resumptions
+    action: start_resumptions
+    resumption:
+      export_from_target:
+        max_restarts: 10
+        min_interrupt_seconds: 20
+        max_interrupt_seconds: 60
+        min_restart_wait_seconds: 10
+        max_restart_wait_seconds: 30
+
+  - name: soak_fallback_with_resumptions
+    action: sleep
+    seconds: 120
+
+  - name: stop_target_event_generator
+    action: generator_stop
+    generator_key: generator_target
+    graceful_timeout_sec: 60
+
+  # Insert a marker into cutover_table on the target side and
+  # wait for the fallback exporter backlog to drain past it
+  # before initiating cutover back to source.
+  - name: insert_backlog_marker_on_target
+    action: run_sql
+    target: target
+    sql_path: ../common-sql/insert_marker.sql
+
+  - name: wait_backlog_zero_after_fallback
+    action: wait_for
+    condition: remaining_events_eq_0
+    timeout_sec: 1200
+
+  - name: stop_fallback_export_resumptions
+    action: voyager_stop_resumptions
+    command: export_from_target
+    timeout_sec: 60
+
+  - name: stop_import_to_source_replica_resumptions
+    action: voyager_stop_resumptions
+    command: import_to_source_replica
+    timeout_sec: 60
+
+  # Phase 3: cutover back to source_replica and validation
+  - name: cutover_to_source_replica
+    action: cutover_to_source_replica
+
+  - name: wait_cutover_to_source_replica_completed
+    action: wait_for
+    condition: cutover_to_source_replica_status_completed
+    timeout_sec: 900
+
+  - name: row_count_validations
+    action: row_count_validations
+    left_role: target
+    right_role: source_replica
+
+  - name: row_hash_validations
+    action: row_hash_validations
+    left_role: target
+    right_role: source_replica
+
+  - name: cleanup_source
+    action: run_sql
+    sql_path: ../common-sql/cleanup.sql
+
+  - name: cleanup_target
+    action: run_sql
+    target: target
+    sql_path: ../common-sql/cleanup.sql
+
+  - name: cleanup_source_replica
+    action: run_sql
+    sql_path: ../common-sql/cleanup.sql
+    target: source_replica

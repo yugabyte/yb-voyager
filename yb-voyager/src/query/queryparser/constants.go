@@ -160,6 +160,9 @@ const (
 	SAVEPOINT_TRANSACTION_KIND         = pg_query.TransactionStmtKind_TRANS_STMT_SAVEPOINT
 	ROLLBACK_TO_SAVEPOINT_KIND         = pg_query.TransactionStmtKind_TRANS_STMT_ROLLBACK_TO
 	RELEASE_SAVEPOINT_KIND             = pg_query.TransactionStmtKind_TRANS_STMT_RELEASE
+
+	GIN_ACCESS_METHOD   = "gin"
+	BTREE_ACCESS_METHOD = "btree"
 )
 
 var RangeShardingClauses = []pg_query.SortByDir{

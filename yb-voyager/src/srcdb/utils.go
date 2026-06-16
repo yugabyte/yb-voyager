@@ -15,6 +15,7 @@ limitations under the License.
 */package srcdb
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"strings"
@@ -36,4 +37,21 @@ func findAllExecutablesInPath(executableName string) ([]string, error) {
 		}
 	}
 	return result, nil
+}
+
+func CheckSchemasHaveUsagePermissions(source *Source, isLiveMigration bool) error {
+	schemasMissingUsage, err := source.DB().GetSchemasMissingUsagePermissions()
+	if err != nil {
+		return fmt.Errorf("get schemas missing usage permissions: %w", err)
+	}
+	if len(schemasMissingUsage) == 0 {
+		return nil
+	}
+
+	link := "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
+	if isLiveMigration {
+		link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-migrate/#prepare-the-source-database"
+	}
+	return goerrors.Errorf("missing USAGE permission for user %s on schemas: [%s]\nCheck the documentation to prepare the database for migration: %s",
+		source.User, strings.Join(schemasMissingUsage, ", "), link)
 }

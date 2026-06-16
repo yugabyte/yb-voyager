@@ -232,18 +232,27 @@ func (pg *TargetPostgreSQL) PrepareForStreaming() {
 	pg.connPool.DisableThrottling()
 }
 
-const PG_DEFAULT_PARALLELISM_FACTOR = 8 // factor for default parallelism in case fetchDefaultParallelJobs() is not able to get the no of cores
+const PG_DEFAULT_PARALLELISM = 8 // default parallel jobs when core detection fails
+
+func (pg *TargetPostgreSQL) fetchDefaultParallelJobs() int {
+	totalCores, err := fetchCores([]*TargetConf{pg.tconf})
+	if err != nil {
+		log.Warnf("error fetching cores, using default parallelism of %d: %v",
+			PG_DEFAULT_PARALLELISM, err)
+		return PG_DEFAULT_PARALLELISM
+	}
+	if totalCores == 0 { //if target is running on MacOS, we are unable to determine totalCores
+		return 3
+	}
+	return totalCores / 2
+}
 
 func (pg *TargetPostgreSQL) InitConnPool() error {
-	tconfs := []*TargetConf{pg.tconf}
-	var targetUriList []string
-	for _, tconf := range tconfs {
-		targetUriList = append(targetUriList, tconf.Uri)
-	}
+	targetUriList := []string{pg.tconf.Uri}
 	log.Infof("targetUriList: %s", utils.GetRedactedURLs(targetUriList))
 
 	if pg.tconf.Parallelism == 0 {
-		pg.tconf.Parallelism = fetchDefaultParallelJobs(tconfs, PG_DEFAULT_PARALLELISM_FACTOR)
+		pg.tconf.Parallelism = pg.fetchDefaultParallelJobs()
 		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", pg.tconf.Parallelism)
 	}
 	params := &ConnectionParams{
@@ -254,7 +263,11 @@ func (pg *TargetPostgreSQL) InitConnPool() error {
 		// works fine as we check the support of any session variable before using it in the script.
 		// So upsert and disable transaction will never be used for PG
 	}
-	pg.connPool = NewConnectionPool(params)
+	var err error
+	pg.connPool, err = NewConnectionPool(params)
+	if err != nil {
+		return fmt.Errorf("creating connection pool: %w", err)
+	}
 	return nil
 }
 
@@ -561,20 +574,24 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	for i := 0; i < len(batch.Events); i++ {
 		event := batch.Events[i]
 		if event.Op == "u" {
-			stmt, err := event.GetSQLStmt(pg)
+			stmt, err := event.GetSQLStmt(pg, pg.tconf.UsePartitionRoot)
 			if err != nil {
 				return fmt.Errorf("get sql stmt: %w", err)
 			}
 			ybBatch.Queue(stmt)
 			log.Debugf("SQL statement: Batch(%s): Event(%d): [%s]", batch.ID(), event.Vsn, stmt)
 		} else {
-			stmt, err := event.GetPreparedSQLStmt(pg, pg.tconf.TargetDBType)
+			stmt, err := event.GetPreparedSQLStmt(pg, pg.tconf.TargetDBType, pg.tconf.UsePartitionRoot)
 			if err != nil {
 				return fmt.Errorf("get prepared sql stmt: %w", err)
 			}
 			params := event.GetParams()
 			if _, ok := stmtToPrepare[stmt]; !ok {
-				stmtToPrepare[event.GetPreparedStmtName()] = stmt
+				psName, err := event.GetPreparedStmtName(pg.tconf.UsePartitionRoot)
+				if err != nil {
+					return fmt.Errorf("get prepared stmt name: %w", err)
+				}
+				stmtToPrepare[psName] = stmt
 			}
 			ybBatch.Queue(stmt, params...)
 			log.Debugf("SQL statement: Batch(%s): Event(%d): PREPARED STMT:[%s] PARAMS:[%s]", batch.ID(), event.Vsn, stmt, event.GetParamsString())

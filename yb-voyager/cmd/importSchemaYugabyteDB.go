@@ -48,6 +48,13 @@ type DefferedSqlStmt struct {
 
 var finalFailedSqlStmts []string
 
+// Pre-built `SET search_path = <target schemas>` stmt appended to
+// sessionVariables when importing FUNCTION/PROCEDURE files, so PL/pgSQL body
+// validation can resolve unqualified %TYPE / %ROWTYPE refs against the right
+// path. Populated by createTargetSchemas; empty stmt means not populated
+// (createTargetSchemas not called, or no target schemas resolved).
+var importTargetSearchPathStmt sqlInfo
+
 // The client message (NOTICE/WARNING) from psql is stored in this global variable.
 // as part of the noticeHandler function for every query executed.
 var notice *pgconn.Notice
@@ -139,6 +146,16 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 			tgtConn.Close(context.Background())
 		}
 	}()
+
+	// PL/pgSQL function body validation runs at CREATE FUNCTION time and needs
+	// a populated search_path to resolve unqualified %TYPE / %ROWTYPE refs.
+	// pg_dump's preamble emits `SELECT set_config('search_path','',false)` that
+	// clobbers the connection's path mid-file; appending the pre-built SET
+	// search_path stmt to sessionVariables makes ApplySessionVariables re-apply
+	// it before every DDL, winning over the SELECT by the next CREATE FUNCTION.
+	if (objType == "FUNCTION" || objType == "PROCEDURE") && importTargetSearchPathStmt.stmt != "" {
+		sessionVariables = append(sessionVariables, importTargetSearchPathStmt)
+	}
 	for _, sqlInfo := range sqlInfoArr {
 		if tgtConn == nil {
 			tgtConn = newTargetConn()
@@ -175,6 +192,10 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 }
 
 func isSessionVariable(stmt string) (bool, error) {
+	stmtForCheck := strings.TrimSpace(strings.ToUpper(stmt))
+	if !strings.HasPrefix(stmtForCheck, "SET") {
+		return false, nil
+	}
 	parseTree, err := queryparser.Parse(stmt)
 	if err != nil {
 		return false, fmt.Errorf("error parsing statement: %w", err)
@@ -206,6 +227,14 @@ func shouldSkipDDL(stmt string, objType string) (bool, error) {
 	skipReplicaIdentity := strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "REPLICA IDENTITY")
 	if skipReplicaIdentity {
 		return true, nil
+	}
+	stmtForCheck := strings.TrimSpace(strings.ToUpper(stmt))
+	if !strings.HasPrefix(stmtForCheck, "ALTER TABLE") {
+		//We should not use parser for every statement as some DDL statement can have YB specific syntax like SPLIT INTO x tablets, PRIMARY KEY (x HASH)
+		//but we right now use PG parser to parse the statement so it fails with syntax error for such statements so we are skipping the parser for such statements
+		//and only parsing the ALTER statements as ALTER most doesn't have support for any YB specific syntax as per docs, but one case where it is possible is
+		//ALTER TABLE ADD PRIMARY KEY (x HASH), but in most cases we don't have ADD PK DDL via voyager schema export
+		return bool(flagPostSnapshotImport), nil
 	}
 	isNotValid, err := isNotValidConstraint(stmt)
 	if err != nil {
@@ -296,7 +325,7 @@ func executeSqlStmtWithRetries(tgtConn **ImportSchemaTargetConn, sqlInfo sqlInfo
 				return fmt.Errorf("drop invalid index %q: %w", fullyQualifiedObjName, err2)
 			}
 			continue
-		} else if missingRequiredSchemaObject(err) {
+		} else if missingRequiredSchemaObject(err) || isPercentTypeResolutionError(err) {
 			log.Infof("deffering execution of SQL: %s", sqlInfo.formattedStmt)
 			deferredSqlStmts = append(deferredSqlStmts, DefferedSqlStmt{
 				sqlStmt:          sqlInfo,
@@ -315,7 +344,7 @@ func executeSqlStmtWithRetries(tgtConn **ImportSchemaTargetConn, sqlInfo sqlInfo
 	if err != nil {
 		(*tgtConn).Close(context.Background())
 		(*tgtConn) = nil
-		if missingRequiredSchemaObject(err) {
+		if missingRequiredSchemaObject(err) || isPercentTypeResolutionError(err) {
 			// Do nothing for deferred case
 		} else {
 			utils.PrintSqlStmtIfDDL(sqlInfo.stmt, utils.GetObjectFileName(filepath.Join(exportDir, "schema"), objType),

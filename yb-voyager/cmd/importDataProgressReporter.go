@@ -46,6 +46,10 @@ func NewImportDataProgressReporter(disablePb bool) *ImportDataProgressReporter {
 	return pr
 }
 
+func (pr *ImportDataProgressReporter) Shutdown() {
+	pr.progress.Shutdown()
+}
+
 // Custom prepend decorator
 // This decorator is used to prepend the table name to the progress bar
 // It is also used to display the resume message to the user

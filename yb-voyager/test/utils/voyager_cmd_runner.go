@@ -2,18 +2,57 @@ package testutils
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
+	"syscall"
+	"testing"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 )
+
+// testLogWriter is a line-buffered io.Writer that routes each complete line
+// through t.Log so that go test -json can attribute output to the correct test.
+type testLogWriter struct {
+	t      *testing.T
+	prefix string
+	mu     sync.Mutex
+	buf    []byte
+}
+
+func (w *testLogWriter) Write(p []byte) (n int, err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.buf = append(w.buf, p...)
+	for {
+		idx := bytes.IndexByte(w.buf, '\n')
+		if idx < 0 {
+			break
+		}
+		line := string(w.buf[:idx])
+		w.buf = w.buf[idx+1:]
+		w.t.Logf("[%s] %s", w.prefix, line)
+	}
+	return len(p), nil
+}
+
+func (w *testLogWriter) Flush() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if len(w.buf) > 0 {
+		w.t.Logf("[%s] %s", w.prefix, string(w.buf))
+		w.buf = nil
+	}
+}
 
 type ExitCode int
 
@@ -53,6 +92,14 @@ type VoyagerCommandRunner struct {
 
 	// additional environment variables for testing
 	testEnvVars []string
+
+	// testing.T for routing output through t.Log
+	t         *testing.T
+	logWriter *testLogWriter
+
+	stopChan chan error
+
+	stdin io.Reader
 }
 
 // WithEnv adds custom environment variables to the command.
@@ -64,6 +111,26 @@ type VoyagerCommandRunner struct {
 //	runner := NewVoyagerCommandRunner(...).WithEnv("GO_FAILPOINTS=pkg/fp1=return()")
 func (v *VoyagerCommandRunner) WithEnv(envVars ...string) *VoyagerCommandRunner {
 	v.testEnvVars = append(v.testEnvVars, envVars...)
+	return v
+}
+
+// WithT attaches a testing.T so that subprocess output and command
+// headers/footers are routed through t.Log instead of os.Stdout/os.Stderr.
+// This allows go test -json to attribute output to the correct test.
+func (v *VoyagerCommandRunner) WithT(t *testing.T) *VoyagerCommandRunner {
+	v.t = t
+	return v
+}
+
+// WithStdin adds a reader to the command's stdin.
+// This is useful for testing scenarios where the command needs to read from stdin.
+// Returns the VoyagerCommandRunner for method chaining.
+//
+// Example:
+//
+//	runner := NewVoyagerCommandRunner(...).WithStdin(strings.NewReader("yes"))
+func (v *VoyagerCommandRunner) WithStdin(stdin io.Reader) *VoyagerCommandRunner {
+	v.stdin = stdin
 	return v
 }
 
@@ -85,6 +152,35 @@ func NewVoyagerCommandRunner(container testcontainers.TestContainer, cmdName str
 	}
 	log.Debugf("Creating CommandRunner for command: %s with args: %s", cmdName, strings.Join(cmdArgs, " "))
 	return &cmdRunner
+}
+
+// commandsSupportingSendDiagnostics lists commands that accept the --send-diagnostics flag
+// (registered via registerCommonGlobalFlags). This allowlist ensures we only pass the flag to
+// commands that support it -- passing it to commands like cutover, status, or get data-migration-report
+// would cause Cobra to fail with "unknown flag".
+var commandsSupportingSendDiagnostics = map[string]bool{
+	"export schema":                    true,
+	"export data":                      true,
+	"export data from source":          true,
+	"export data from target":          true,
+	"import schema":                    true,
+	"import data":                      true,
+	"import data to target":            true,
+	"import data to source":            true,
+	"import data to source-replica":    true,
+	"import data file":                 true,
+	"analyze-schema":                   true,
+	"assess-migration":                 true,
+	"finalize-schema-post-data-import": true,
+	"compare-performance":              true,
+	"end migration":                    true,
+	"archive changes":                  true,
+	"assess-migration-bulk":            true,
+}
+
+// supportsSendDiagnosticsFlag checks if the given command supports the --send-diagnostics flag.
+func supportsSendDiagnosticsFlag(cmdName string) bool {
+	return commandsSupportingSendDiagnostics[cmdName]
 }
 
 func (v *VoyagerCommandRunner) Prepare() error {
@@ -110,19 +206,23 @@ func (v *VoyagerCommandRunner) Prepare() error {
 				"--source-db-type", config.DBType,
 				"--source-db-user", config.User,
 				"--source-db-password", config.Password,
-				"--source-db-name", config.DBName,
 				"--source-db-host", host,
 				"--source-db-port", strconv.Itoa(port),
 				"--source-ssl-mode", "disable",
+			}
+			if !slices.Contains(v.CmdArgs, "--source-db-name") {
+				connectionArgs = append(connectionArgs, "--source-db-name", config.DBName)
 			}
 		} else {
 			connectionArgs = []string{
 				"--target-db-user", config.User,
 				"--target-db-password", config.Password,
-				"--target-db-name", config.DBName,
 				"--target-db-host", host,
 				"--target-db-port", strconv.Itoa(port),
 				"--target-ssl-mode", "disable",
+			}
+			if !slices.Contains(v.CmdArgs, "--target-db-name") {
+				connectionArgs = append(connectionArgs, "--target-db-name", config.DBName)
 			}
 		}
 	}
@@ -137,6 +237,15 @@ func (v *VoyagerCommandRunner) Prepare() error {
 		For eg: append(v.CmdArgs, connectionArgs...) the default connection args with override the ones passed to CommandRunner
 	*/
 	v.finalArgs = append(parts, append(connectionArgs, v.CmdArgs...)...)
+
+	// Add --send-diagnostics=false explicitly for commands that support it.
+	// This is an extra safety measure in addition to setting the YB_VOYAGER_SEND_DIAGNOSTICS
+	// environment variable, ensuring diagnostics are disabled even if the env var is not
+	// properly inherited by subprocesses.
+	if supportsSendDiagnosticsFlag(v.CmdName) && !slices.Contains(v.CmdArgs, "--send-diagnostics") {
+		v.finalArgs = append(v.finalArgs, "--send-diagnostics", "false")
+	}
+
 	return nil
 }
 
@@ -145,14 +254,25 @@ func (v *VoyagerCommandRunner) newCmd() {
 	v.StderrBuf = &bytes.Buffer{}
 
 	v.Cmd = exec.Command("yb-voyager", v.finalArgs...)
-	v.Cmd.Stdout = io.MultiWriter(os.Stdout, v.StdoutBuf)
-	v.Cmd.Stderr = io.MultiWriter(os.Stderr, v.StderrBuf)
-	// disable callhome diagnostics during tests
-	v.Cmd.Env = append(os.Environ(), "YB_VOYAGER_SEND_DIAGNOSTICS=false")
 
-	// Add test-specific environment variables if provided
+	if v.t != nil {
+		v.logWriter = &testLogWriter{t: v.t, prefix: v.CmdName}
+		v.Cmd.Stdout = io.MultiWriter(v.logWriter, v.StdoutBuf)
+		v.Cmd.Stderr = io.MultiWriter(v.logWriter, v.StderrBuf)
+	} else {
+		v.Cmd.Stdout = io.MultiWriter(os.Stdout, v.StdoutBuf)
+		v.Cmd.Stderr = io.MultiWriter(os.Stderr, v.StderrBuf)
+	}
+
+	v.Cmd.Env = append(os.Environ(),
+		"YB_VOYAGER_SEND_DIAGNOSTICS=false",
+		"DEBEZIUM_SOURCE_YB_LOAD_BALANCE_CONNECTIONS=false")
+
 	if len(v.testEnvVars) > 0 {
 		v.Cmd.Env = append(v.Cmd.Env, v.testEnvVars...)
+	}
+	if v.stdin != nil {
+		v.Cmd.Stdin = v.stdin
 	}
 }
 
@@ -179,11 +299,66 @@ func (v *VoyagerCommandRunner) Run() error {
 	if !v.isAsync {
 		return v.Wait()
 	}
+	//In case the command is asynchronous, we need to wait for the command to finish but asynchronously
+	//and prevents the zombie process from being left behind.
+	//As we issue signal to stop the command, it will exit but wihout wait the process metadata is not updated so if we are checking if the
+	//command stopped properly or not, we won't be able to know (e.g. in end-migration command).
+	v.stopChan = make(chan error, 1)
+	go func() {
+		v.stopChan <- v.Wait()
+	}()
 	return nil
-}	
+}
+
+func (v *VoyagerCommandRunner) IsStopped() bool {
+	if v.stopChan != nil {
+		select {
+		case <-v.stopChan:
+			return true
+		default:
+			return false
+		}
+	}
+	// Synchronous Run() never sets stopChan; ProcessState is set after Wait returns.
+	if v.Cmd != nil && v.Cmd.ProcessState != nil {
+		return true
+	}
+	return false
+}
+
+// WaitForAsyncCompletion blocks until a command started with Run(async=true) finishes.
+// The returned error matches what a single Wait() would return (including command footer logging).
+//
+// Do not call Wait() on the same runner for an async command: exec.Cmd allows only one Wait,
+// and the async Run path already invokes Wait in a background goroutine. A second Wait can
+// hang indefinitely in pipe I/O waiters (awaitGoroutines), especially under slow CI logging.
+//
+// If primaryTimeout elapses first, the child process is SIGKILLed and this function waits up
+// to afterKillTimeout more for the internal Wait to complete.
+func (v *VoyagerCommandRunner) WaitForAsyncCompletion(primaryTimeout, afterKillTimeout time.Duration) error {
+	if v.stopChan == nil {
+		return fmt.Errorf("WaitForAsyncCompletion: %q was not started with async=true", v.CmdName)
+	}
+	select {
+	case err := <-v.stopChan:
+		return err
+	case <-time.After(primaryTimeout):
+		log.Debugf("WaitForAsyncCompletion: timeout waiting for %s, sending SIGKILL", v.CmdName)
+		_ = v.Kill()
+		select {
+		case err := <-v.stopChan:
+			return err
+		case <-time.After(afterKillTimeout):
+			return fmt.Errorf("WaitForAsyncCompletion: %q did not complete within %v after SIGKILL (internal Wait may be stuck)", v.CmdName, afterKillTimeout)
+		}
+	}
+}
 
 func (v *VoyagerCommandRunner) Wait() error {
 	err := v.Cmd.Wait()
+	if v.logWriter != nil {
+		v.logWriter.Flush()
+	}
 	if err != nil {
 		if ee, ok := err.(*exec.ExitError); ok {
 			v.exitCode = ExitCode(ee.ExitCode())
@@ -218,6 +393,40 @@ func (v *VoyagerCommandRunner) Kill() error {
 	return nil
 }
 
+func (v *VoyagerCommandRunner) GracefulStop(timeoutSeconds int) error {
+	if v.Cmd == nil {
+		return fmt.Errorf("command for %s not built yet", v.CmdName)
+	}
+	if v.Cmd.Process == nil {
+		return fmt.Errorf("process for command %s is not available", v.CmdName)
+	}
+
+	log.Debugf("sending SIGTERM to command: %s (pid=%d)", v.Cmd.String(), v.Cmd.Process.Pid)
+	err := v.Cmd.Process.Signal(syscall.SIGTERM)
+	if err != nil {
+		if errors.Is(err, os.ErrProcessDone) {
+			return nil
+		}
+		return fmt.Errorf("failed to send SIGTERM to command: %w", err)
+	}
+
+	select {
+	case err := <-v.stopChan:
+		if err != nil {
+			log.Debugf("command %s exited with error (expected after SIGTERM): %v", v.CmdName, err)
+		}
+	case <-time.After(time.Duration(timeoutSeconds) * time.Second):
+		log.Debugf("command %s did not exit within %ds after SIGTERM, sending SIGKILL", v.CmdName, timeoutSeconds)
+		if killErr := v.Cmd.Process.Kill(); killErr != nil && !errors.Is(killErr, os.ErrProcessDone) {
+			return fmt.Errorf("failed to SIGKILL command after timeout: %w", killErr)
+		}
+		<-v.stopChan
+	}
+
+	v.exitCode = ExitCodeFailure
+	return nil
+}
+
 func (v *VoyagerCommandRunner) ExitCode() ExitCode {
 	return v.exitCode
 }
@@ -240,24 +449,34 @@ func (v *VoyagerCommandRunner) SetAsync(async bool) {
 	v.isAsync = async
 }
 
-// printCommandHeader prints a formatted header before command execution
 func (v *VoyagerCommandRunner) printCommandHeader() {
-	fmt.Println()
-	fmt.Println(separator)
-	fmt.Printf(">>> Running: %s\n", v.GetCmd())
-	fmt.Println(separator)
+	if v.t != nil {
+		v.t.Logf("\n%s\n>>> Running: %s\n%s", separator, v.GetCmd(), separator)
+	} else {
+		fmt.Println()
+		fmt.Println(separator)
+		fmt.Printf(">>> Running: %s\n", v.GetCmd())
+		fmt.Println(separator)
+	}
 }
 
-// printCommandFooter prints a formatted footer after command execution
 func (v *VoyagerCommandRunner) printCommandFooter(err error) {
-	fmt.Println(separator)
-	if err != nil {
-		fmt.Printf(">>> Command FAILED: %s (Exit Code: %s)\n", v.CmdName, v.exitCode.String())
+	if v.t != nil {
+		if err != nil {
+			v.t.Logf("%s\n>>> Command FAILED: %s (Exit Code: %s)\n%s", separator, v.CmdName, v.exitCode.String(), separator)
+		} else {
+			v.t.Logf("%s\n>>> Command COMPLETED: %s\n%s", separator, v.CmdName, separator)
+		}
 	} else {
-		fmt.Printf(">>> Command COMPLETED: %s\n", v.CmdName)
+		fmt.Println(separator)
+		if err != nil {
+			fmt.Printf(">>> Command FAILED: %s (Exit Code: %s)\n", v.CmdName, v.exitCode.String())
+		} else {
+			fmt.Printf(">>> Command COMPLETED: %s\n", v.CmdName)
+		}
+		fmt.Println(separator)
+		fmt.Println()
 	}
-	fmt.Println(separator)
-	fmt.Println()
 }
 
 func (v *VoyagerCommandRunner) AddArgs(args ...string) {

@@ -37,7 +37,10 @@ jobs:
         # line than fmt.Errorf. Keep format strings on a single line to ensure
         # this check works correctly.
         #
-        LEAF_ERRORS=$(grep -rn "fmt\.Errorf" yb-voyager/cmd yb-voyager/src --include="*.go" --exclude="*_test.go" | grep -v "%w" || true)
+        # Exclude testlivemigration: its files are test-only (gated by build tags
+        # like failpoint_export / integration_live_migration) but don't end in
+        # _test.go, so the *_test.go filter above doesn't catch them.
+        LEAF_ERRORS=$(grep -rn "fmt\.Errorf" yb-voyager/cmd yb-voyager/src --include="*.go" --exclude="*_test.go" --exclude-dir="testlivemigration" | grep -v "%w" || true)
         if [[ -n "$LEAF_ERRORS" ]]; then
           echo "ERROR: Found fmt.Errorf used for leaf errors (without %w)."
           echo "Leaf errors should use goerrors.Errorf for stack traces."

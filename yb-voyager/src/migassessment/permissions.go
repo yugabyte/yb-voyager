@@ -45,15 +45,12 @@ type NodePermissionResult struct {
 //
 // For PostgreSQL: Checks permissions on the primary and all provided replica nodes. This includes
 // verifying access to system catalogs, pg_stat_statements extension, and other metadata tables.
+// Returns a map keyed by node name ("primary" / "host:port") indicating whether
+// pg_stat_statements is available on each node.
 //
 // For other databases (Oracle, etc.): Checks permissions on the primary database only.
-//
-// The validatedReplicas parameter is only used for PostgreSQL multi-node assessments and is
-// ignored for other database types.
-//
-// Returns pgssEnabled flag indicating if pg_stat_statements is available on the primary node,
-// and any error encountered during permission checks.
-func CheckAssessmentPermissionsOnAllNodes(source *srcdb.Source, validatedReplicas []srcdb.ReplicaEndpoint) (pgssEnabled bool, err error) {
+// Returns nil for the map since pg_stat_statements is PostgreSQL-specific.
+func CheckAssessmentPermissionsOnAllNodes(source *srcdb.Source, validatedReplicas []srcdb.ReplicaEndpoint) (pgssByNode map[string]bool, err error) {
 	if source.DBType != POSTGRESQL {
 		return checkPermissionsForNonPostgreSQL(source)
 	}
@@ -61,13 +58,13 @@ func CheckAssessmentPermissionsOnAllNodes(source *srcdb.Source, validatedReplica
 }
 
 // checkPermissionsForNonPostgreSQL checks permissions for non-PostgreSQL databases (Oracle, etc.)
-// Always returns false for pgssEnabled since query-level analysis (pg_stat_statements) is PostgreSQL-specific.
-func checkPermissionsForNonPostgreSQL(source *srcdb.Source) (bool, error) {
+// Returns nil for the pgssByNode map since pg_stat_statements is PostgreSQL-specific.
+func checkPermissionsForNonPostgreSQL(source *srcdb.Source) (map[string]bool, error) {
 	// GetMissingAssessMigrationPermissions returns (missingPerms, pgssEnabled, error)
 	// We ignore pgssEnabled since it's always false for non-PostgreSQL databases
 	missingPerms, _, err := source.DB().GetMissingAssessMigrationPermissions()
 	if err != nil {
-		return false, fmt.Errorf("failed to get missing assess migration permissions: %w", err)
+		return nil, fmt.Errorf("failed to get missing assess migration permissions: %w", err)
 	}
 
 	if len(missingPerms) > 0 {
@@ -80,19 +77,19 @@ func checkPermissionsForNonPostgreSQL(source *srcdb.Source) (bool, error) {
 
 		reply := utils.AskPrompt("\nDo you want to continue anyway")
 		if !reply {
-			return false, goerrors.Errorf("grant the required permissions and try again")
+			return nil, goerrors.Errorf("grant the required permissions and try again")
 		}
 	}
 
-	// Query-level analysis (pg_stat_statements) not available for non-PostgreSQL databases
-	return false, nil
+	return nil, nil
 }
 
-// checkPermissionsForPostgreSQL checks permissions on PostgreSQL primary and replica nodes
-func checkPermissionsForPostgreSQL(source *srcdb.Source, validatedReplicas []srcdb.ReplicaEndpoint) (bool, error) {
+// checkPermissionsForPostgreSQL checks permissions on PostgreSQL primary and replica nodes.
+// Returns a map keyed by node name ("primary" / "host:port") → pgss availability.
+func checkPermissionsForPostgreSQL(source *srcdb.Source, validatedReplicas []srcdb.ReplicaEndpoint) (map[string]bool, error) {
 	pg, ok := source.DB().(*srcdb.PostgreSQL)
 	if !ok {
-		return false, goerrors.Errorf("source database is not PostgreSQL")
+		return nil, goerrors.Errorf("source database is not PostgreSQL")
 	}
 
 	// Print appropriate message based on replica count
@@ -107,18 +104,22 @@ func checkPermissionsForPostgreSQL(source *srcdb.Source, validatedReplicas []src
 	// Check primary
 	primaryResult, err := checkPermissionsOnPrimaryNode(pg)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	results = append(results, primaryResult)
-	pgssEnabled := primaryResult.PgssEnabled // Return primary's pgss status
 
 	// Check each replica
 	for _, replica := range validatedReplicas {
-		replicaResult := checkPermissionsOnReplicaNode(source, replica)
-		results = append(results, replicaResult)
+		results = append(results, checkPermissionsOnReplicaNode(source, replica))
 	}
 
-	return pgssEnabled, displayPermissionCheckResults(results)
+	// Build per-node pgss map from results
+	pgssMap := make(map[string]bool, len(results))
+	for _, result := range results {
+		pgssMap[result.NodeName] = result.PgssEnabled
+	}
+
+	return pgssMap, displayPermissionCheckResults(results)
 }
 
 // checkPermissionsOnPrimaryNode checks permissions on the primary PostgreSQL node

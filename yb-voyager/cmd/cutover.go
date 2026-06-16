@@ -17,8 +17,11 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -56,6 +59,13 @@ func init() {
 }
 
 func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector bool) error {
+
+	if dbRole == "source" || dbRole == "source-replica" {
+		if GetCutoverStatus(metaDB) != COMPLETED {
+			return goerrors.Errorf("cutover to target must be completed before initiating cutover to %s", dbRole)
+		}
+	}
+
 	userFacingActionMsg := fmt.Sprintf("cutover to %s", dbRole)
 	if !utils.AskPrompt(fmt.Sprintf("Are you sure you want to initiate %s? (y/n)", userFacingActionMsg)) {
 		utils.PrintAndLogf("Aborting %s", userFacingActionMsg)
@@ -64,7 +74,17 @@ func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector 
 	alreadyInitiated := false
 	alreadyInitiatedMsg := fmt.Sprintf("cutover to %s already initiated, wait for it to complete", dbRole)
 
-	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("failed to get migration status record: %w", err)
+	}
+	if restartSourceToTargetNextIteration {
+		if !iterativeCutoverSupported(msr) {
+			return goerrors.Errorf("iterative live migration is not supported for this migration")
+		}
+	}
+
+	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		switch dbRole {
 		case "target":
 			if record.CutoverToTargetRequested {
@@ -93,6 +113,7 @@ func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector 
 			}
 			record.CutoverToSourceRequested = true
 			record.CutoverTimings.ToSourceRequestedAt = utils.GetCurrentTimestamp()
+			record.RestartDataMigrationSourceTargetNextIteration = bool(restartSourceToTargetNextIteration)
 		}
 	})
 	if err != nil {
@@ -105,6 +126,114 @@ func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector 
 		utils.PrintAndLogf("%s initiated, wait for it to complete", userFacingActionMsg)
 	}
 	return nil
+}
+
+func iterativeCutoverSupported(msr *metadb.MigrationStatusRecord) bool {
+	return msr.FallbackEnabled && msr.SourceDBConf.DBType == POSTGRESQL
+}
+
+func initializeNextIteration() error {
+	currentMSR, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("failed to get migration status record: %w", err)
+	}
+	if !iterativeCutoverSupported(currentMSR) {
+		return goerrors.Errorf("iterative live migration is not supported for this migration")
+	}
+	parentMetaDB, err := metaDB.GetParentMetaDB()
+	if err != nil {
+		return fmt.Errorf("failed to get parent meta db: %w", err)
+	}
+	iterationsDir := currentMSR.GetIterationsDir(exportDir)
+	err = os.MkdirAll(iterationsDir, 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create iterations directory: %w", err)
+	}
+	nextIterationNo := currentMSR.IterationNo + 1
+
+	parentMSR, err := parentMetaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("failed to get parent migration status record: %w", err)
+	}
+	//Create a new export dir for the next iteration under export_dir int following structure
+
+	nextIterationExportDir := GetIterationExportDir(iterationsDir, nextIterationNo)
+	err = os.MkdirAll(nextIterationExportDir, 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create iteration directory: %w", err)
+	}
+
+	nextIterationMetaDB := CreateMigrationProjectIfNotExists(parentMSR.SourceDBConf.DBType, nextIterationExportDir)
+
+	utils.PrintAndLogfInfo("\nInitialized iteration %d at %s.", nextIterationNo, nextIterationExportDir)
+
+	//Update the MSR - parent, next iteration and current iteration
+	err = setUpNextIterationMSR(parentMetaDB, nextIterationNo, currentMSR, nextIterationMetaDB)
+	if err != nil {
+		return fmt.Errorf("failed to set up next iteration MSR: %w", err)
+	}
+
+	//Copying the name registry file to the next iteration so that we don't re-register the names again
+	currNameRegFile := fmt.Sprintf("%s/metainfo/name_registry.json", exportDir)
+	nextIterationNameRegFile := fmt.Sprintf("%s/metainfo/name_registry.json", nextIterationExportDir)
+	err = utils.CopyFile(currNameRegFile, nextIterationNameRegFile)
+	if err != nil {
+		return fmt.Errorf("failed to copy name registry file: %w", err)
+	}
+
+	injectDuringInitializeNextIteration()
+
+	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.NextIterationInitialized = true
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update migration status record: %w", err)
+	}
+	return nil
+}
+
+func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, iterationNo int, currentMSR *metadb.MigrationStatusRecord,
+	nextIterationMetaDB *metadb.MetaDB) error {
+
+	err := parentMetaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.LatestIterationNumber = iterationNo
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update migration status record: %w", err)
+	}
+
+	injectDuringSetUpNextIterationMSR()
+
+	//Update next iteration's MSR
+	err = nextIterationMetaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.ExportTypeFromSource = CHANGES_ONLY
+		record.ParentExportDir = currentMSR.GetParentExportDir(exportDir)
+		record.IterationNo = iterationNo
+		//Used for the CLI case primarly when we start changes only command on iterations with CLI
+		//we are directly overriding the source/target confs by reading from this MSR.
+		record.SourceDBConf = currentMSR.SourceDBConf
+		record.TargetDBConf = currentMSR.TargetDBConf
+		record.ConfigFile = cfgFile
+
+		//set the table list exported from source to the next iteration
+		record.TableListExportedFromSource = currentMSR.TableListExportedFromSource
+		record.TargetExportedTableListWithLeafPartitions = currentMSR.TargetExportedTableListWithLeafPartitions
+		record.SourceExportedTableListWithLeafPartitions = currentMSR.SourceExportedTableListWithLeafPartitions
+		record.SourceRenameTablesMap = currentMSR.SourceRenameTablesMap
+		record.TargetRenameTablesMap = currentMSR.TargetRenameTablesMap
+
+		//sequence mapping is required for the next iteration to restore sequences
+		record.SourceColumnToSequenceMapping = currentMSR.SourceColumnToSequenceMapping
+		record.TargetColumnToSequenceMapping = currentMSR.TargetColumnToSequenceMapping
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update iteration migration status record: %w", err)
+	}
+	return nil
+}
+
+func GetIterationExportDir(iterationsDir string, iterationNo int) string {
+	return filepath.Join(iterationsDir, fmt.Sprintf("live-data-migration-iteration-%d", iterationNo), "export-dir")
 }
 
 func markCutoverProcessed(importerOrExporterRole string) error {
@@ -135,46 +264,44 @@ func markCutoverProcessed(importerOrExporterRole string) error {
 	return err
 }
 
-func ExitIfAlreadyCutover(importerOrExporterRole string) {
+func isCutoverAlreadyProcessed(importerOrExporterRole string) bool {
 	if !dbzm.IsMigrationInStreamingMode(exportDir) {
-		return
+		return false
 	}
 
 	record, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("error getting migration status record to check cutover: %s", err)
 	}
-	cTAlreadyCompleted := "cutover already completed for this migration, aborting..."
-	cSRAlreadyCompleted := "cutover to source-replica already completed for this migration, aborting..."
-	cSAlreadyCompleted := "cutover to source already completed for this migration, aborting..."
 	switch importerOrExporterRole {
 	case SOURCE_DB_EXPORTER_ROLE:
 		if record.CutoverProcessedBySourceExporter {
-			utils.ErrExit(cTAlreadyCompleted)
+			return true
 		}
 	case TARGET_DB_IMPORTER_ROLE:
 		if record.CutoverProcessedByTargetImporter {
-			utils.ErrExit(cTAlreadyCompleted)
+			return true
 		}
 	case TARGET_DB_EXPORTER_FF_ROLE:
 		if record.CutoverToSourceReplicaProcessedByTargetExporter {
-			utils.ErrExit(cSRAlreadyCompleted)
+			return true
 		}
 	case TARGET_DB_EXPORTER_FB_ROLE:
 		if record.CutoverToSourceProcessedByTargetExporter {
-			utils.ErrExit(cSAlreadyCompleted)
+			return true
 		}
 	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
 		if record.CutoverToSourceReplicaProcessedBySRImporter {
-			utils.ErrExit(cSRAlreadyCompleted)
+			return true
 		}
 	case SOURCE_DB_IMPORTER_ROLE:
 		if record.CutoverToSourceProcessedBySourceImporter {
-			utils.ErrExit(cSAlreadyCompleted)
+			return true
 		}
 	default:
 		panic(fmt.Sprintf("invalid role %s", importerOrExporterRole))
 	}
+	return false
 }
 
 // CalculateCutoverTimingsForTarget calculates cutover timing metrics for cutover to target

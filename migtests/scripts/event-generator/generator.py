@@ -68,6 +68,9 @@ WAIT_DURATION_SECONDS = GEN["wait_duration_seconds"]
 # Index events flag
 ENABLE_INDEX_CREATE_DROP = GEN.get("enable_index_create_drop", False)
 INDEX_EVENTS_INTERVAL = GEN.get("index_events_interval", 5)
+
+# Column overrides for partition-aware value generation
+COLUMN_OVERRIDES = GEN.get("column_overrides", {})
 # ---------------------------------
 
 # Deterministic seeds from YAML
@@ -164,7 +167,7 @@ try:
             if operation == "INSERT":
                 # Generate random data and execute INSERT statement
                 columns = ", ".join(table_schemas[table_name]["columns"].keys())
-                values_holder = {"values_list": build_insert_values(table_schemas, table_name, INSERT_ROWS, MIN_COL_SIZE_BYTES)}
+                values_holder = {"values_list": build_insert_values(table_schemas, table_name, INSERT_ROWS, MIN_COL_SIZE_BYTES, COLUMN_OVERRIDES)}
 
                 # Prepare callbacks for retryable execution
                 def run_once():
@@ -172,7 +175,7 @@ try:
                     cursor.execute(query_to_run)
 
                 def rebuild():
-                    values_holder["values_list"] = build_insert_values(table_schemas, table_name, INSERT_ROWS, MIN_COL_SIZE_BYTES)
+                    values_holder["values_list"] = build_insert_values(table_schemas, table_name, INSERT_ROWS, MIN_COL_SIZE_BYTES, COLUMN_OVERRIDES)
 
                 success = execute_with_retry(run_once, rebuild, conn.rollback, max_retries=INSERT_MAX_RETRIES)
                 if success:
@@ -180,25 +183,29 @@ try:
                     pass
             
             elif operation == "UPDATE":
+                primary_key = table_schemas[table_name]["primary_key"]
+                if not primary_key:
+                    print(f"Skipping UPDATE on '{table_name}': no primary key found")
+                    continue
+
+                pk_set = set(primary_key) if isinstance(primary_key, list) else {primary_key}
+
                 for _ in range(UPDATE_MAX_RETRIES):
                     columns = table_schemas[table_name]["columns"]
-                    primary_key = table_schemas[table_name]["primary_key"]
 
-                    if len(columns) == 1:
-                        break  # Skip the entire update operation for tables with only one column
-                
-                    updateable_columns = [col for col in columns if col != primary_key]
+                    if len(columns) <= len(pk_set):
+                        break
+
+                    updateable_columns = [col for col in columns if col not in pk_set]
 
                     if not updateable_columns:
                         print(f"No updateable columns found for table {table_name}. Retrying...")
                         continue
 
                     num_columns_to_update = random.randint(1, len(updateable_columns))
-
-                    # Randomly choose the columns to update
                     columns_to_update = random.sample(updateable_columns, num_columns_to_update)
 
-                    set_clause, params = build_update_values(table_schemas, table_name, columns_to_update, MIN_COL_SIZE_BYTES)
+                    set_clause, params = build_update_values(table_schemas, table_name, columns_to_update, MIN_COL_SIZE_BYTES, COLUMN_OVERRIDES)
                     where_clause, sampling_params = build_sampling_condition(
                         db_flavor=DB_FLAVOR,
                         table_name=table_name,
@@ -212,12 +219,17 @@ try:
                     try:
                         cursor.execute(query_to_run, full_params)
                         conn.commit()
-                        break  # Break out of the loop if the update is successful
+                        break
                     except Exception as e:
+                        print(f"UPDATE failed on '{table_name}': {e}")
                         conn.rollback()
 
             elif operation == "DELETE":
                 primary_key = table_schemas[table_name]["primary_key"]
+                if not primary_key:
+                    print(f"Skipping DELETE on '{table_name}': no primary key found")
+                    continue
+
                 where_clause, sampling_params = build_sampling_condition(
                     db_flavor=DB_FLAVOR,
                     table_name=table_name,

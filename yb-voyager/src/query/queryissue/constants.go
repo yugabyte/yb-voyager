@@ -18,7 +18,6 @@ package queryissue
 
 // Types
 const (
-	REFERENCED_TYPE_DECLARATION              = "REFERENCED_TYPE_DECLARATION"
 	STORED_GENERATED_COLUMNS                 = "STORED_GENERATED_COLUMNS"
 	UNLOGGED_TABLES                          = "UNLOGGED_TABLES"
 	UNSUPPORTED_GIST_INDEX_METHOD            = "UNSUPPORTED_GIST_INDEX_METHOD"
@@ -68,6 +67,7 @@ const (
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POLYGON = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POLYGON"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CIRCLE  = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CIRCLE"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_VECTOR  = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_VECTOR"
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ  = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ"
 
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSQUERY      = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSQUERY"
@@ -264,7 +264,8 @@ const (
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POLYGON_ISSUE_NAME = "Unsupported datatype for Live migration - polygon"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CIRCLE_ISSUE_NAME  = "Unsupported datatype for Live migration - circle"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_VECTOR_ISSUE_NAME  = "Unsupported datatype for Live migration - vector"
-	
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ_ISSUE_NAME  = "Unsupported datatype for Live migration - timetz"
+
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED_ISSUE_NAME = "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSQUERY_ISSUE_NAME      = "Unsupported datatype for Live migration with fall-forward/fallback - tsquery Datatype"
 	UNSUPPORTED_EXTENSION_ISSUE_NAME                                       = "Unsupported Extension"
@@ -415,7 +416,6 @@ const (
 
 	FOREIGN_TABLE_ISSUE_DESCRIPTION                            = "Foreign table creation fails as SERVER and USER MAPPING objects are not exported by voyager."
 	INHERITANCE_ISSUE_DESCRIPTION                              = "Table inheritance is not yet supported in YugabyteDB."
-	REFERENCED_TYPE_DECLARATION_ISSUE_DESCRIPTION              = "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB."
 	SECURITY_INVOKER_VIEWS_ISSUE_DESCRIPTION                   = "Security invoker views are not yet supported in YugabyteDB."
 	DETERMINISTIC_OPTION_WITH_COLLATION_ISSUE_DESCRIPTION      = "Deterministic option/attribute with collation is not yet supported in YugabyteDB."
 	NON_DETERMINISTIC_COLLATION_ISSUE_DESCRIPTION              = "Non-Deterministic collations are not yet supported in YugabyteDB."
@@ -458,14 +458,14 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
 	NULL_VALUE_INDEXES_ISSUE_NAME                = "Index on column with a high percentage of NULL values"
 	NULL_VALUE_INDEXES                           = "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_NULL_VALUES"
 	NULL_VALUE_INDEXES_DESCRIPTION               = "If queries do not filter on NULL values, consider using partial indexes that excludes NULL values. In distributed databases, unnecessary index entries for NULL values can increase write performance and storage usage."
-	NULL_VALUE_INDEXES_DESCRIPTION_SINGLE_COLUMN = `This index is built on a column having high percentage of NULL values.`
-	NULL_VALUE_INDEXES_DESCRIPTION_MULTI_COLUMN  = `The first column of this index has high percentage of NULL values.`
+	NULL_VALUE_INDEXES_DESCRIPTION_SINGLE_COLUMN = `This index is built on a column having high percentage of NULL values. Use the Recommended SQL in case NULL values are not being queried.`
+	NULL_VALUE_INDEXES_DESCRIPTION_MULTI_COLUMN  = `The first column of this index has high percentage of NULL values. Use the Recommended SQL in case NULL values are not being queried.`
 
 	MOST_FREQUENT_VALUE_INDEXES_ISSUE_NAME              = "Index on column with high percentage of a particular value"
 	MOST_FREQUENT_VALUE_INDEXES                         = "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_PARTICULAR_VALUE"
 	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION               = `If queries do not filter on this value, using partial indexes that excludes this value. In distributed databases, unnecessary index entries for a value can increase write performance and storage usage.`
-	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_SINGLE_COLUMN = `This index is built on column having a value occuring in large number of rows.`
-	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_MULTI_COLUMN  = `The first column of this index has value occuring in large number of rows.`
+	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_SINGLE_COLUMN = `This index is built on column having a value occuring in large number of rows. Use the Recommended SQL in case this value is not being queried.`
+	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_MULTI_COLUMN  = `The first column of this index has value occuring in large number of rows. Use the Recommended SQL in case this value is not being queried.`
 
 	FOREIGN_KEY_DATATYPE_MISMATCH_ISSUE_NAME  = "Foreign key datatype mismatch"
 	FOREIGN_KEY_DATATYPE_MISMATCH             = "FOREIGN_KEY_DATATYPE_MISMATCH"
@@ -513,8 +513,7 @@ const (
 	XML_DATATYPE_ISSUE_SUGGESTION                             = "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details."
 	XID_DATATYPE_ISSUE_SUGGESTION                             = "Functions for this type e.g. txid_current are not supported in YugabyteDB yet"
 
-	FOREIGN_TABLE_ISSUE_SUGGESTION               = "SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table"
-	REFERENCED_TYPE_DECLARATION_ISSUE_SUGGESTION = "Fix the syntax to include the actual type name instead of referencing the type of a column"
+	FOREIGN_TABLE_ISSUE_SUGGESTION = "SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table"
 )
 
 const (

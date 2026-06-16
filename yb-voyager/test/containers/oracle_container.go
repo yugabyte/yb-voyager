@@ -176,6 +176,11 @@ func (ora *OracleContainer) GetConnection() (*sql.DB, error) {
 	return conn, nil
 }
 
+func (ora *OracleContainer) GetConnectionWithDB(dbName string) (*sql.DB, error) {
+	// Oracle uses service/schema; dbName not used for connection
+	return ora.GetConnection()
+}
+
 func (ora *OracleContainer) GetVersion() (string, error) {
 	if ora == nil {
 		return "", fmt.Errorf("oracle container is not started: nil")
@@ -226,4 +231,14 @@ func (ora *OracleContainer) Query(sql string, args ...interface{}) (*sql.Rows, e
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
 	return rows, nil
+}
+
+func (ora *OracleContainer) QueryOnDB(dbName string, sql string, args ...interface{}) (*sql.Rows, error) {
+	//Not implemented
+	return ora.Query(sql, args...)
+}
+
+func (ora *OracleContainer) ExecuteSqlsOnDB(dbName string, sqls ...string) {
+	//Not implemented
+	ora.ExecuteSqls(sqls...)
 }

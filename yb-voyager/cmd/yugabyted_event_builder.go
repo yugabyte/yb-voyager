@@ -64,6 +64,8 @@ func createMigrationAssessmentCompletedEventForYugabyteD() *cp.MigrationAssessme
 		return note.Text
 	})
 
+	schemaSummaryPayload := convertSchemaSummaryToPayload(assessmentReport.SchemaSummary, source.DBType)
+
 	payload := AssessMigrationPayloadYugabyteD{
 		PayloadVersion:                 ASSESS_MIGRATION_YBD_PAYLOAD_VERSION,
 		VoyagerVersion:                 assessmentReport.VoyagerVersion,
@@ -71,6 +73,7 @@ func createMigrationAssessmentCompletedEventForYugabyteD() *cp.MigrationAssessme
 		MigrationComplexity:            assessmentReport.MigrationComplexity,
 		MigrationComplexityExplanation: assessmentReport.MigrationComplexityExplanation,
 		SchemaSummary:                  assessmentReport.SchemaSummary,
+		ParsedSchemaSummary:            schemaSummaryPayload,
 		AssessmentIssues:               assessmentIssues,
 		SourceSizeDetails: SourceDBSizeDetails{
 			TotalIndexSize:     assessmentReport.GetTotalIndexSize(),

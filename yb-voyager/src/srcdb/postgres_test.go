@@ -19,6 +19,7 @@ package srcdb
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/samber/lo"
@@ -61,6 +62,37 @@ func TestPostgresGetAllTableNames(t *testing.T) {
 	}
 	assert.Equal(t, len(expectedTables), len(actualTables), "Expected number of tables to match")
 	testutils.AssertEqualSourceNameSlices(t, expectedTables, actualTables)
+}
+
+func TestPostgresGetColumnsWithSupportedTypes_TimetzExcluded(t *testing.T) {
+	testPostgresSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE TABLE test_schema.timetz_table (
+			id INT PRIMARY KEY,
+			reminder_at TIMETZ
+		);`,
+	)
+	defer testPostgresSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	sqlname.SourceDBType = "postgresql"
+	tableList := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithSourceName("test_schema.timetz_table", "test_schema", testPostgresSource.DBType),
+	}
+
+	_ = testPostgresSource.DB().Connect()
+	defer testPostgresSource.DB().Disconnect()
+
+	pgDB := testPostgresSource.DB().(*PostgreSQL)
+	supportedCols, unsupportedCols, err := pgDB.GetColumnsWithSupportedTypes(tableList, true, true)
+	assert.NilError(t, err, "Expected no error")
+
+	supported, exists := supportedCols.Get(tableList[0])
+	assert.Equal(t, true, exists, "Expected test_schema.timetz_table in supported map")
+	testutils.AssertEqualStringSlices(t, []string{"id"}, supported)
+
+	unsupported, exists := unsupportedCols.Get(tableList[0])
+	assert.Equal(t, true, exists, "Expected test_schema.timetz_table in unsupported map")
+	testutils.AssertEqualStringSlices(t, []string{"reminder_at"}, unsupported)
 }
 
 func TestPGGetColumnToSequenceMap(t *testing.T) {
@@ -362,4 +394,84 @@ func TestPostgresGetNonPKTables(t *testing.T) {
 
 	expectedTables := []string{`"test_schema"."non_pk2"`, `"test_schema"."non_pk1"`} // func returns table.Qualified.Quoted
 	testutils.AssertEqualStringSlices(t, expectedTables, actualTables)
+}
+
+func TestPostgresGetPrimaryKeyColumns(t *testing.T) {
+	testPostgresSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE SCHEMA "TestSchemaCase";`,
+
+		// Single-column PK.
+		`CREATE TABLE test_schema.simple_pk (
+			id SERIAL PRIMARY KEY,
+			name VARCHAR(100)
+		);`,
+
+		// Composite PK declared as (region, id) so the result must preserve
+		// that exact order; (region, id) and (id, region) are different keys
+		// and the live-migration guardrail compares the slices for equality.
+		`CREATE TABLE "TestSchemaCase".composite_pk (
+			region TEXT NOT NULL,
+			id INT NOT NULL,
+			payload TEXT,
+			PRIMARY KEY (region, id)
+		);`,
+
+		// Table with no PK -- must be absent from the resulting map (not an error).
+		`CREATE TABLE test_schema.no_pk (
+			id INT,
+			data TEXT
+		);`,
+
+		// Case-sensitive (quoted) schema and table to exercise identifier matching.
+		`CREATE TABLE "TestSchemaCase"."Orders" (
+			order_id INT PRIMARY KEY,
+			note TEXT
+		);`,
+	)
+	defer testPostgresSource.TestContainer.ExecuteSqls(
+		`DROP SCHEMA test_schema CASCADE;`,
+		`DROP SCHEMA "TestSchemaCase" CASCADE;`,
+	)
+	testPostgresSource.Schemas = []sqlname.Identifier{
+		sqlname.NewIdentifier("postgresql", "test_schema"),
+		sqlname.NewIdentifier("postgresql", "TestSchemaCase"),
+	}
+
+	inputTables := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithSourceName("test_schema.simple_pk", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("\"TestSchemaCase\".composite_pk", "TestSchemaCase", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.no_pk", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName(`"TestSchemaCase"."Orders"`, "TestSchemaCase", "postgresql"),
+	}
+
+	_ = testPostgresSource.DB().Connect()
+	actualPKColumns, err := testPostgresSource.DB().GetPrimaryKeyColumns(inputTables)
+	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
+
+	expectedPKColumns := utils.NewStructMap[sqlname.NameTuple, []string]()
+	expectedPKColumns.Put(testutils.CreateNameTupleWithSourceName("test_schema.simple_pk", "test_schema", "postgresql"), []string{"id"})
+	expectedPKColumns.Put(testutils.CreateNameTupleWithSourceName("\"TestSchemaCase\".composite_pk", "TestSchemaCase", "postgresql"), []string{"region", "id"})
+	expectedPKColumns.Put(testutils.CreateNameTupleWithSourceName(`"TestSchemaCase"."Orders"`, "TestSchemaCase", "postgresql"), []string{"order_id"})
+
+	expectedPKColumns.IterKV(func(table sqlname.NameTuple, expectedColumns []string) (bool, error) {
+		actualColumns, exists := actualPKColumns.Get(table)
+		if !exists {
+			t.Errorf("Expected table %s not found in actual PK columns map", table.ForOutput())
+			return true, nil
+		}
+		// Order matters for PKs -- compare positionally instead of as sets.
+		if !slices.Equal(expectedColumns, actualColumns) {
+			t.Errorf("PK columns mismatch for %s. Expected: %v, Actual: %v",
+				table.ForOutput(), expectedColumns, actualColumns)
+		}
+		return true, nil
+	})
+
+	// no_pk has no primary key, so it must be absent from the result map.
+	noPKTable := testutils.CreateNameTupleWithSourceName("test_schema.no_pk", "test_schema", "postgresql")
+	if cols, exists := actualPKColumns.Get(noPKTable); exists {
+		t.Errorf("Table %s has no PK and should be absent from result map; got %v",
+			noPKTable.ForOutput(), cols)
+	}
 }

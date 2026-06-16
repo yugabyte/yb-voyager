@@ -16,13 +16,10 @@ limitations under the License.
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 
 	goerrors "github.com/go-errors/errors"
-
-	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/mroth/weightedrand/v2"
@@ -42,7 +39,7 @@ type FileTaskPicker interface {
 	Pick() (*ImportFileTask, error)
 	MarkTaskAsDone(task *ImportFileTask) error
 	HasMoreTasks() bool
-	WaitForTasksBatchesTobeImported() error
+	InProgressTasks() []*ImportFileTask
 }
 
 /*
@@ -119,12 +116,11 @@ func (s *SequentialTaskPicker) HasMoreTasks() bool {
 	return len(s.pendingTasks) > 0
 }
 
-func (s *SequentialTaskPicker) WaitForTasksBatchesTobeImported() error {
-	// Consider the scenario where we have a single task in progress and all batches are submitted, but not yet ingested.
-	// In this case as per SequentialTaskPicker's implementation, it will wait for the task to be marked as done.
-	// Instead of having a busy-loop where we keep checking if the task is done, we can wait for a second and then check again.
-	time.Sleep(time.Second * 1)
-	return nil
+func (s *SequentialTaskPicker) InProgressTasks() []*ImportFileTask {
+	if s.inProgressTask == nil {
+		return []*ImportFileTask{}
+	}
+	return []*ImportFileTask{s.inProgressTask}
 }
 
 /*
@@ -392,26 +388,8 @@ func (c *ColocatedAwareRandomTaskPicker) HasMoreTasks() bool {
 	return pendingTasks
 }
 
-func (c *ColocatedAwareRandomTaskPicker) WaitForTasksBatchesTobeImported() error {
-	// if for all in-progress tasks, all batches are submitted, then sleep for a bit
-	allTasksAllBatchesSubmitted := true
-
-	for _, task := range c.inProgressTasks {
-		taskAllBatchesSubmitted, err := c.state.AllBatchesSubmittedForTask(task.ID)
-		if err != nil {
-			return fmt.Errorf("checking if all batches are submitted for task: %v: %w", task, err)
-		}
-		if !taskAllBatchesSubmitted {
-			allTasksAllBatchesSubmitted = false
-			break
-		}
-	}
-
-	if allTasksAllBatchesSubmitted {
-		log.Infof("All batches submitted for all in-progress tasks. Sleeping")
-		time.Sleep(time.Millisecond * 100)
-	}
-	return nil
+func (c *ColocatedAwareRandomTaskPicker) InProgressTasks() []*ImportFileTask {
+	return c.inProgressTasks
 }
 
 /*
@@ -545,7 +523,7 @@ func NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress int, maxColoca
 	return picker, nil
 }
 
-func (c *ColocatedCappedRandomTaskPicker) inProgressTasks() []*ImportFileTask {
+func (c *ColocatedCappedRandomTaskPicker) InProgressTasks() []*ImportFileTask {
 	return append(c.inProgressColocatedTasks, c.inProgressShardedTasks...)
 }
 
@@ -554,7 +532,7 @@ func (c *ColocatedCappedRandomTaskPicker) pendingTasks() []*ImportFileTask {
 }
 
 func (c *ColocatedCappedRandomTaskPicker) HasMoreTasks() bool {
-	return len(c.inProgressTasks()) > 0 || len(c.pendingTasks()) > 0
+	return len(c.InProgressTasks()) > 0 || len(c.pendingTasks()) > 0
 }
 
 func (c *ColocatedCappedRandomTaskPicker) HasMoreColocatedTasks() bool {
@@ -714,32 +692,6 @@ func (c *ColocatedCappedRandomTaskPicker) MarkTaskAsDone(task *ImportFileTask) e
 			return nil
 		}
 	}
-	return goerrors.Errorf("task [%v] not found in inProgressTasks: %v", task, c.inProgressTasks())
+	return goerrors.Errorf("task [%v] not found in inProgressTasks: %v", task, c.InProgressTasks())
 }
 
-func (c *ColocatedCappedRandomTaskPicker) WaitForTasksBatchesTobeImported() error {
-	// if for all in-progress tasks, all batches are submitted, then sleep for a bit
-	allTasksAllBatchesSubmitted := true
-
-	for _, task := range c.inProgressTasks() {
-		taskAllBatchesSubmitted, err := c.state.AllBatchesSubmittedForTask(task.ID)
-		if err != nil {
-			if errors.As(err, &ErrTaskNotFound{}) {
-				log.Infof("task [%v] not found in state. Assuming all batches NOT submitted for task", task)
-				allTasksAllBatchesSubmitted = false
-				break
-			}
-			return fmt.Errorf("checking if all batches are submitted for task: %v: %w", task, err)
-		}
-		if !taskAllBatchesSubmitted {
-			allTasksAllBatchesSubmitted = false
-			break
-		}
-	}
-
-	if allTasksAllBatchesSubmitted {
-		log.Infof("All batches submitted for all in-progress tasks. Sleeping")
-		time.Sleep(time.Millisecond * 100)
-	}
-	return nil
-}

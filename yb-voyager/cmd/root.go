@@ -24,9 +24,8 @@ import (
 	"path/filepath"
 	"time"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -41,6 +40,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/ybaeon"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/yugabyted"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/lockfile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -58,6 +58,7 @@ var (
 	currentCommand                     string
 	callHomeErrorOrCompletePayloadSent bool
 	controlPlaneConfig                 map[string]string // Holds control plane configuration from config file
+	suppressInfoMessages               bool              // set by commands that render their own banner (e.g. assess-migration)
 )
 
 var envVarValuesToObfuscateInLogs = []string{
@@ -79,14 +80,36 @@ var rootCmd = &cobra.Command{
 Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like setting up source/target, migration workflow etc.`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// Initialize the config file (also loads control plane config)
-		overrides, envVarsSetViaConfig, envVarsAlreadyExported, err := initConfig(cmd)
+		suppressInfoMessages = cmd.Name() == "assess-migration"
+
+		// Save before initConfig, which also marks flags as Changed when applying config values.
+		sendDiagnosticsSetByCLI := cmd.Flags().Changed("send-diagnostics")
+
+		envVarsAlreadyExported, err := initConfig(cmd)
 		if err != nil {
 			// not using utils.ErrExit as logging is not initialized yet
 			fmt.Printf("ERROR: Failed to initialize config: %v\n", err)
 			atexit.Exit(1)
 		}
+
+		// Targeted fix for send-diagnostics: read the env var after initConfig so it
+		// takes precedence over config file values (CLI > ENV > Config > Default).
+		// Unlike other env-var-backed settings (e.g. passwords via getPassword()), the
+		// callhome flag is read from a BoolVar pointer rather than os.Getenv() at point
+		// of use, so it needs this explicit ordering. A more general fix would be to
+		// refactor callhome to read the env var at point of use (like getPassword()).
+		if !sendDiagnosticsSetByCLI {
+			callhome.ReadEnvSendDiagnostics()
+		}
+
 		currentCommand = cmd.CommandPath()
+
+		if isLiveMigrationIterationCommand(cmd) {
+			err := resolveToActiveIterationIfRequired(cmd)
+			if err != nil {
+				utils.ErrExit("failed to resolve to active iteration: %w", err)
+			}
+		}
 
 		if !shouldRunPersistentPreRun(cmd) {
 			return
@@ -96,9 +119,8 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			validateBulkAssessmentDirFlag()
 			err := config.ValidateLogLevel()
 			if err != nil {
-				// not using utils.ErrExit as logging is not initialized yet
-				fmt.Printf("ERROR: %v\n", err)
-				atexit.Exit(1)
+				// logging is not initialized yet
+				utils.ErrExitPreLog("ERROR: %v", err)
 			}
 			if shouldLock(cmd) {
 				lockFPath := filepath.Join(bulkAssessmentDir, fmt.Sprintf(".%sLockfile.lck", GetCommandID(cmd)))
@@ -107,7 +129,8 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			}
 			err = InitLogging(bulkAssessmentDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
 			if err != nil {
-				utils.ErrExit("Failed to initialize logging: %w", err)
+				// InitLogging failed, so use ErrExitPreLog to avoid printing twice.
+				utils.ErrExitPreLog("ERROR: Failed to initialize logging: %v", err)
 			}
 			startTime = time.Now()
 			log.Infof("Start time: %s\n", startTime)
@@ -126,9 +149,8 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			validateExportDirFlag()
 			err := config.ValidateLogLevel()
 			if err != nil {
-				// not using utils.ErrExit as logging is not initialized yet
-				fmt.Printf("ERROR: %v\n", err)
-				atexit.Exit(1)
+				// logging is not initialized yet
+				utils.ErrExitPreLog("ERROR: %v", err)
 			}
 			schemaDir = filepath.Join(exportDir, "schema")
 			if shouldLock(cmd) {
@@ -138,7 +160,8 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			}
 			err = InitLogging(exportDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
 			if err != nil {
-				utils.ErrExit("Failed to initialize logging: %w", err)
+				// InitLogging failed, so use ErrExitPreLog to avoid printing twice.
+				utils.ErrExitPreLog("ERROR: Failed to initialize logging: %v", err)
 			}
 			startTime = time.Now()
 			log.Infof("Start time: %s\n", startTime)
@@ -162,6 +185,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 				msrVoyagerVersionString := msr.VoyagerVersion
 
 				detectVersionCompatibility(msrVoyagerVersionString, exportDir)
+
 			}
 
 			if perfProfile {
@@ -175,7 +199,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 		}
 
 		// Log the flag values set from the config file
-		for _, f := range overrides {
+		for _, f := range resolvedConfig.fromConfigFile {
 			if slices.Contains(configKeyValuesToObfuscateInLogs, f.ConfigKey) {
 				f.Value = "********"
 			}
@@ -189,7 +213,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			log.Infof("Environment variable '%s' already set with value '%s'\n", envVar, val)
 		}
 		// Log the env variables set from the config file
-		for _, val := range envVarsSetViaConfig {
+		for _, val := range resolvedConfig.fromEnvVar {
 			if slices.Contains(envVarValuesToObfuscateInLogs, val.EnvVar) {
 				val.Value = "********"
 			}
@@ -214,6 +238,98 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 		}
 		atexit.Exit(0)
 	},
+}
+
+var liveMigrationIterationCommandList = []string{
+	"yb-voyager import data",
+	"yb-voyager export data",
+	"yb-voyager export data from source",
+	"yb-voyager import data to target",
+	"yb-voyager export data from target",
+	"yb-voyager import data to source",
+	"yb-voyager initiate cutover to source",
+	"yb-voyager initiate cutover to target",
+}
+
+func isLiveMigrationIterationCommand(cmd *cobra.Command) bool {
+	return slices.Contains(liveMigrationIterationCommandList, cmd.CommandPath())
+}
+
+func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
+	if !metaDBIsCreated(exportDir) {
+		return nil
+	}
+	//this is just for any logs that might be printed before the iteration export dir is resolved
+	err := InitLogging(exportDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
+	if err != nil {
+		// InitLogging failed, so use ErrExitPreLog to avoid printing twice.
+		utils.ErrExitPreLog("ERROR: Failed to initialize logging: %v", err)
+	}
+	metaDB = initMetaDB(exportDir)
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil || msr == nil {
+		return nil
+	}
+	if msr.IsIteration() || msr.LatestIterationNumber == 0 {
+		//If there are no iterations and the export-dir is itself the iteration then no need to resolve to export-dir
+		return nil
+	}
+
+	parentExportDir := exportDir
+
+	iterationsDir := msr.GetIterationsDir(exportDir)
+	iterationExportDir := GetIterationExportDir(iterationsDir, msr.LatestIterationNumber)
+	if !utils.FileOrFolderExists(iterationExportDir) {
+		return goerrors.Errorf("iteration export directory does not exist")
+	}
+	iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
+	if err != nil {
+		return fmt.Errorf("failed to create iteration meta db: %w", err)
+	}
+
+	/*
+	 in case the iteration is updated to next iteration by improt data to source but export data is yet to pick that up and crashes
+	 now we need to re-run the export data from target to be able to start import data to target but since the latest iteration is updated to next
+	 we will always resolve the export-dir of the next one where export data from target will not work as it says no fallback/forward is enabled
+
+	 In this case we need to resolve the exprot-dir to previous iteration and this will only be require for fallback commands
+	 so in case the command is fallback one (export data from target and import data to source) and the cutover to target on latest iteration is not initiated
+	 we re-direct the command to the previous iteration and let it handle the command - if anything is left it will start finish that up.
+	*/
+	cmdPath := cmd.CommandPath()
+	isFallbackCmd := slices.Contains(fallbackPhaseCommands, cmdPath)
+	//setting the metaDB to the iteration metaDB as the getCutoverStatus is using the global metaDB
+	//and we are fetching the cutover status for the current iteration from this metaDB.
+	latestIterInForwardPhase := (GetCutoverStatus(iterationMetaDB) == NOT_INITIATED)
+
+	if isFallbackCmd && latestIterInForwardPhase {
+		// Latest iteration is in forward phase — so fallback command belongs to the PREVIOUS iteration
+		if msr.LatestIterationNumber > 1 {
+			prevIterExportDir := GetIterationExportDir(iterationsDir, msr.LatestIterationNumber-1)
+			// resolve to previous iteration
+			exportDir = prevIterExportDir
+			utils.PrintAndLogfInfo("Data migration iteration: %s", utils.Path.Sprint(msr.LatestIterationNumber-1))
+		} else {
+			// Previous iteration is the parent — don't redirect
+			// (exportDir stays as parent)
+			exportDir = parentExportDir
+
+		}
+	} else {
+		// Forward command or fallback command on a fallback-phase iteration
+		exportDir = iterationExportDir
+		utils.PrintAndLogfInfo("Data migration iteration: %s", utils.Path.Sprint(msr.LatestIterationNumber))
+	}
+
+	exportType = CHANGES_ONLY
+
+	return nil
+}
+
+var fallbackPhaseCommands = []string{
+	"yb-voyager export data from target",
+	"yb-voyager import data to source",
+	"yb-voyager initiate cutover to source",
 }
 
 func shouldRunExportDirInitialisedCheck(cmd *cobra.Command) bool {
@@ -326,13 +442,10 @@ func Execute() {
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
-
-	callhome.ReadEnvSendDiagnostics()
 }
+
+var globalFlags = []string{}
 
 // Note: assess-migration-bulk and get data-migration-report commands do not call this function.
 func registerCommonGlobalFlags(cmd *cobra.Command) {
@@ -341,25 +454,27 @@ func registerCommonGlobalFlags(cmd *cobra.Command) {
 	cmd.Flags().MarkHidden("profile")
 
 	registerExportDirFlag(cmd)
+	globalFlags = append(globalFlags, "export-dir")
 	registerConfigFileFlag(cmd)
+	globalFlags = append(globalFlags, "config-file")
 
 	cmd.PersistentFlags().StringVarP(&config.LogLevel, "log-level", "l", "info",
 		"log level for yb-voyager. Accepted values: (trace, debug, info, warn, error, fatal, panic)")
+	globalFlags = append(globalFlags, "log-level")
 
 	cmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,
 		"assume answer as yes for all questions during migration (default false)")
 
 	BoolVar(cmd.Flags(), &callhome.SendDiagnostics, "send-diagnostics", true,
 		"enable or disable the 'send-diagnostics' feature that sends analytics data to YugabyteDB.(default true)")
+	globalFlags = append(globalFlags, "send-diagnostics")
+
+	//Any global flags added here should be added to the globalFlags slice
 }
 
 func registerConfigFileFlag(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVarP(&cfgFile, "config-file", "c", "",
 		"path of the config file which is used to set the various parameters for yb-voyager commands")
-
-	if !slices.Contains(offlineCommands, cmd.CommandPath()) {
-		cmd.PersistentFlags().MarkHidden("config-file")
-	}
 }
 
 func registerExportDirFlag(cmd *cobra.Command) {
@@ -368,11 +483,13 @@ func registerExportDirFlag(cmd *cobra.Command) {
 }
 
 func validateExportDirFlag() {
+	// This runs before InitLogging(), so use utils.ErrExitPreLog instead of
+	// utils.ErrExit to avoid printing the message twice.
 	if exportDir == "" {
-		utils.ErrExit(`ERROR required flag "export-dir" not set`)
+		utils.ErrExitPreLog("ERROR required flag \"export-dir\" not set")
 	}
 	if !utils.FileOrFolderExists(exportDir) {
-		utils.ErrExit("export-dir doesn't exist: %q\n", exportDir)
+		utils.ErrExitPreLog("export-dir doesn't exist: %q", exportDir)
 	} else {
 		if exportDir == "." {
 			fmt.Println("Note: Using current directory as export-dir")
@@ -380,15 +497,27 @@ func validateExportDirFlag() {
 		var err error
 		exportDir, err = filepath.Abs(exportDir)
 		if err != nil {
-			utils.ErrExit("Failed to get absolute path for export-dir: %q: %w\n", exportDir, err)
+			utils.ErrExitPreLog("Failed to get absolute path for export-dir: %q: %v", exportDir, err)
 		}
 		exportDir = filepath.Clean(exportDir)
 	}
 
-	fmt.Printf("Using export-dir: %s\n\n", color.BlueString(exportDir))
+	if !suppressInfoMessages {
+		utils.PrintfInfo("Using export-dir: %s\n", utils.Path.Sprint(exportDir))
+	}
 }
 
 func GetCommandID(c *cobra.Command) string {
+	commandID := buildCommandID(c)
+	for alias, aliases := range aliasCommandsPrefixes {
+		if slices.Contains(aliases, commandID) {
+			return alias
+		}
+	}
+	return commandID
+}
+
+func buildCommandID(c *cobra.Command) string {
 	if c.HasParent() {
 		p := GetCommandID(c.Parent())
 		if p == "" {

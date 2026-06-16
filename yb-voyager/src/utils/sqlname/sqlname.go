@@ -99,6 +99,17 @@ func ExtractIdentifiersQuoted(identifiers []Identifier) []string {
 	})
 }
 
+func ExtractNameTuplesUnquoted(nameTuples []NameTuple) []string {
+	return lo.Map(nameTuples, func(nameTuple NameTuple, _ int) string {
+		return nameTuple.CurrentName.Qualified.Unquoted
+	})
+}
+
+func JoinNameTuplesUnquoted(nameTuples []NameTuple, separator string) string {
+	unquotedNameTuples := ExtractNameTuplesUnquoted(nameTuples)
+	return strings.Join(unquotedNameTuples, separator)
+}
+
 func JoinIdentifiersUnquoted(identifiers []Identifier, separator string) string {
 	unquotedIdentifiers := ExtractIdentifiersUnquoted(identifiers)
 	return strings.Join(unquotedIdentifiers, separator)
@@ -260,7 +271,7 @@ func (t *TargetName) String() string {
 }
 
 func IsQuoted(s string) bool {
-	if len(s) == 0 {
+	if len(s) < 2 {
 		return false
 	}
 	// TODO: Learn the semantics of backticks in MySQL and Oracle.

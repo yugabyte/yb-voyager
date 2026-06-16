@@ -20,9 +20,8 @@ import (
 	"os"
 	"strings"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/tebeka/atexit"
 )
@@ -36,6 +35,17 @@ var ErrExit = func(formatString string, args ...interface{}) {
 	formatString = strings.Replace(formatString, "%w", "%s", -1)
 	fmt.Fprintf(os.Stderr, formatString+"\n", args...)
 	log.Errorf(formatString+"\n", args...)
+	atexit.Exit(1)
+}
+
+// ErrExitPreLog prints the message to stderr and exits with status 1.
+// Use it instead of ErrExit when logging has not been initialized yet (e.g. flag
+// validation that runs before InitLogging(), or when logging init itself fails).
+// It deliberately does not call log.Errorf: doing so before logging is redirected
+// to the log file would print the message twice (once here and again via logrus's
+// default stderr output).
+var ErrExitPreLog = func(formatString string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, formatString+"\n", args...)
 	atexit.Exit(1)
 }
 
@@ -108,6 +118,27 @@ func PrintAndLogFormatted(OutputLogLevel OutputLogLevel, formatString string, ar
 	return
 }
 
+func PrintFormatted(OutputLogLevel OutputLogLevel, formatString string, args ...interface{}) {
+	message := fmt.Sprintf(formatString, args...)
+	if !strings.HasSuffix(formatString, "\n") {
+		message = message + "\n"
+	}
+	switch OutputLogLevel {
+	case OutputLogLevelSuccess:
+		SuccessColor.Print(message)
+	case OutputLogLevelInfo:
+		InfoColor.Print(message)
+	case OutputLogLevelWarning:
+		WarningColor.Print(message)
+	case OutputLogLevelError:
+		ErrorColor.Print(message)
+	case OutputLogLevelTitle:
+		printTitle(message, TitleColor)
+	default:
+		fmt.Print(message)
+	}
+}
+
 // printTitle formats and prints a title message with separators
 /*
 e.g.
@@ -145,6 +176,10 @@ func PrintAndLogfError(formatString string, args ...interface{}) {
 
 func PrintAndLogfPhase(formatString string, args ...interface{}) {
 	PrintAndLogFormatted(OutputLogLevelTitle, formatString, args...)
+}
+
+func PrintfInfo(formatString string, args ...interface{}) {
+	PrintFormatted(OutputLogLevelInfo, formatString, args...)
 }
 
 func PrintAndLogf(formatString string, args ...interface{}) {

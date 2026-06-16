@@ -294,15 +294,15 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue_BatchIngestionError(t 
 	testutils.FatalIfError(t, err, "End migration command failed")
 
 	// Verify that the backup directory contains the expected error files.
-	// error file is expected to be under dir table::test_data/file::test_data_data.sql:1960b25c and of the name ingestion-error.batch::1.10.10.92.E
 	tableDir := fmt.Sprintf("table::%s", tblName.ForKey())
 	fileDir := fmt.Sprintf("file::%s:%s", filepath.Base(dataFilePath), importdata.ComputePathHash(dataFilePath))
 	tableFileErrorsDir := filepath.Join(backupDir, "data", "errors", tableDir, fileDir)
-	errorFilePath := filepath.Join(tableFileErrorsDir, "ingestion-error.batch::1.10.10.100.E")
-	assert.FileExistsf(t, errorFilePath, "Expected error file %s to exist", errorFilePath)
+	errorFiles, globErr := filepath.Glob(filepath.Join(tableFileErrorsDir, "ingestion-error.batch::1.10.10.100.*.E"))
+	assert.NoError(t, globErr)
+	assert.Equal(t, 1, len(errorFiles), "Expected exactly one ingestion error file, found: %v", errorFiles)
 
 	// Verify the content of the error file
-	testutils.AssertFileContains(t, errorFilePath, "duplicate key value violates unique constraint")
+	testutils.AssertFileContains(t, errorFiles[0], "duplicate key value violates unique constraint")
 }
 
 func TestImportDataFileReport_ErrorPolicyStashAndContinue_ProcessingError(t *testing.T) {
@@ -746,4 +746,227 @@ func TestImportDataFile_SameFileForMultipleTables(t *testing.T) {
 		Status:             "DONE",
 		PercentageComplete: 100,
 	}, statusReport[1], "Status report row mismatch")
+}
+
+func TestImportDataFile_GeneratedAlwaysAsIdentity(t *testing.T) {
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	setupYugabyteTestDb(t)
+
+	createTableSQL := `CREATE TABLE public.identity_file_test (
+		id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+		name TEXT NOT NULL
+	);`
+	testYugabyteDBTarget.TestContainer.ExecuteSqls(createTableSQL)
+	t.Cleanup(func() {
+		testYugabyteDBTarget.TestContainer.ExecuteSqls("DROP TABLE IF EXISTS public.identity_file_test;")
+	})
+
+	// CSV contains only the non-identity column; id will be auto-generated.
+	dataFilePath := filepath.Join("/tmp", "identity_file_test.csv")
+	f, err := os.Create(dataFilePath)
+	testutils.FatalIfError(t, err, "Failed to create CSV file")
+	defer os.Remove(dataFilePath)
+	defer f.Close()
+
+	w := csv.NewWriter(f)
+	w.Write([]string{"name"})
+	for i := 1; i <= 50; i++ {
+		w.Write([]string{fmt.Sprintf("name_%d", i)})
+	}
+	w.Flush()
+
+	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data file", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--target-db-schema", "public",
+		"--data-dir", filepath.Dir(dataFilePath),
+		"--file-table-map", "identity_file_test.csv:public.identity_file_test",
+		"--format", "CSV",
+		"--has-header", "true",
+		"--yes",
+	}, nil, false).Run()
+	testutils.FatalIfError(t, err, "import data file failed")
+
+	ybConn, err := testYugabyteDBTarget.TestContainer.GetConnection()
+	testutils.FatalIfError(t, err, "connecting to YugabyteDB")
+	defer ybConn.Close()
+
+	// Verify row count
+	var rowCount int
+	err = ybConn.QueryRow("SELECT COUNT(*) FROM public.identity_file_test").Scan(&rowCount)
+	assert.NoError(t, err)
+	assert.Equal(t, 50, rowCount, "expected 50 rows imported")
+
+	// Verify identity column values were auto-generated (non-null, sequential)
+	var minID, maxID int
+	err = ybConn.QueryRow("SELECT MIN(id), MAX(id) FROM public.identity_file_test").Scan(&minID, &maxID)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, minID, "identity sequence should start at 1")
+	assert.Equal(t, 50, maxID, "identity sequence should reach 50")
+
+	// Verify the identity column is still GENERATED ALWAYS
+	assertIdentityColumnIsAlways(t, ybConn, "public", "identity_file_test", "id")
+}
+
+func TestImportDataFile_EmptyFile(t *testing.T) {
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	setupYugabyteTestDb(t)
+
+	createTableSQL := `CREATE TABLE public.empty_file_test (id INTEGER PRIMARY KEY, name TEXT);`
+	testYugabyteDBTarget.TestContainer.ExecuteSqls(createTableSQL)
+	t.Cleanup(func() {
+		testYugabyteDBTarget.TestContainer.ExecuteSqls("DROP TABLE IF EXISTS public.empty_file_test;")
+	})
+
+	dataFilePath := filepath.Join("/tmp", "abc1.csv")
+	f, err := os.Create(dataFilePath)
+	testutils.FatalIfError(t, err, "Failed to create CSV file")
+	defer os.Remove(dataFilePath)
+	defer f.Close()
+
+	w := csv.NewWriter(f)
+	w.Write([]string{"id", "name"})
+	w.Flush()
+
+	dataFilePath2 := filepath.Join("/tmp", "abc2.csv")
+	f2, err := os.Create(dataFilePath2)
+	testutils.FatalIfError(t, err, "Failed to create CSV file")
+	defer os.Remove(dataFilePath2)
+	defer f2.Close()
+
+	w2 := csv.NewWriter(f2)
+	w2.Write([]string{"id", "name"})
+	w2.Write([]string{"1", "abc"})
+	w2.Write([]string{"2", "def"})
+	w2.Write([]string{"3", "ghi"})
+	w2.Flush()
+
+	dataFilePath3 := filepath.Join("/tmp", "abc3.csv")
+	f3, err := os.Create(dataFilePath3)
+	testutils.FatalIfError(t, err, "Failed to create CSV file")
+	defer os.Remove(dataFilePath3)
+	defer f3.Close()
+
+	w3 := csv.NewWriter(f3)
+	w3.Write([]string{"id", "name"})
+	w3.Write([]string{"4", "abc"})
+	w3.Write([]string{"5", "def"})
+	w3.Write([]string{"6", "ghi"})
+	w3.Flush()
+
+	importDataFileCmdArgs := []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--target-db-schema", "public",
+		"--data-dir", "/tmp",
+		"--file-table-map", "abc*.csv:public.empty_file_test",
+		"--format", "CSV",
+		"--has-header", "true",
+		"--yes",
+	}
+
+	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data file", importDataFileCmdArgs, nil, false).Run()
+	testutils.FatalIfError(t, err, "import data file failed")
+
+	ybConn, err := testYugabyteDBTarget.TestContainer.GetConnection()
+	testutils.FatalIfError(t, err, "connecting to YugabyteDB")
+	defer ybConn.Close()
+	// Verify row count
+	var rowCount int
+	err = ybConn.QueryRow("SELECT COUNT(*) FROM public.empty_file_test").Scan(&rowCount)
+	testutils.FatalIfError(t, err, "failed to query row count")
+	assert.Equal(t, 6, rowCount, "expected 6 rows imported")
+}
+
+// Regression test: `import data file --start-clean true --truncate-tables true`
+// must succeed when the target has a non-empty parent table whose FK-dependent
+// child is empty. Previously cleanImportState() filtered out empty tables
+// before issuing TRUNCATE, so YB rejected the statement with "cannot truncate
+// a table referenced in a foreign key constraint".
+func TestImportDataFile_TruncateTables_FKEmptyChild(t *testing.T) {
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	setupYugabyteTestDb(t)
+
+	// Create FK-related tables on the target. Parent (projects) is created first
+	// because tasks references it.
+	createParentSQL := `CREATE TABLE public.truncatefk_projects (project_id INT PRIMARY KEY, project_name TEXT NOT NULL);`
+	createChildSQL := `CREATE TABLE public.truncatefk_tasks (
+		task_id      INT PRIMARY KEY,
+		task_name    TEXT NOT NULL,
+		project_id   INT NOT NULL,
+		CONSTRAINT fk_project FOREIGN KEY (project_id) REFERENCES public.truncatefk_projects(project_id)
+	);`
+	testYugabyteDBTarget.TestContainer.ExecuteSqls(createParentSQL, createChildSQL)
+	t.Cleanup(func() {
+		testYugabyteDBTarget.TestContainer.ExecuteSqls(
+			"DROP TABLE IF EXISTS public.truncatefk_tasks;",
+			"DROP TABLE IF EXISTS public.truncatefk_projects;",
+		)
+	})
+
+	// Pre-populate parent on the target. Child stays empty — this is the bug repro:
+	// the prior code would issue `TRUNCATE truncatefk_projects` alone and YB would
+	// reject it because truncatefk_tasks has an FK to it.
+	testYugabyteDBTarget.TestContainer.ExecuteSqls(
+		`INSERT INTO public.truncatefk_projects VALUES (1, 'pre-existing alpha'), (2, 'pre-existing beta');`,
+	)
+
+	// CSV for projects (parent).
+	projectsCSV := filepath.Join("/tmp", "truncatefk_projects.csv")
+	pf, err := os.Create(projectsCSV)
+	testutils.FatalIfError(t, err, "Failed to create projects CSV")
+	defer os.Remove(projectsCSV)
+	defer pf.Close()
+	pw := csv.NewWriter(pf)
+	pw.Write([]string{"project_id", "project_name"})
+	pw.Write([]string{"10", "Alpha"})
+	pw.Write([]string{"20", "Beta"})
+	pw.Flush()
+
+	// CSV for tasks (FK-dependent child).
+	tasksCSV := filepath.Join("/tmp", "truncatefk_tasks.csv")
+	tf, err := os.Create(tasksCSV)
+	testutils.FatalIfError(t, err, "Failed to create tasks CSV")
+	defer os.Remove(tasksCSV)
+	defer tf.Close()
+	tw := csv.NewWriter(tf)
+	tw.Write([]string{"task_id", "task_name", "project_id"})
+	tw.Write([]string{"100", "t1", "10"})
+	tw.Write([]string{"200", "t2", "20"})
+	tw.Flush()
+
+	importDataFileCmdArgs := []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--target-db-schema", "public",
+		"--data-dir", "/tmp",
+		"--file-table-map", "truncatefk_projects.csv:public.truncatefk_projects,truncatefk_tasks.csv:public.truncatefk_tasks",
+		"--format", "CSV",
+		"--has-header", "true",
+		"--start-clean", "true",
+		"--truncate-tables", "true",
+		"--yes",
+	}
+
+	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data file", importDataFileCmdArgs, nil, false).Run()
+	testutils.FatalIfError(t, err, "import data file failed -- TRUNCATE of FK-related tables should succeed when child is empty on target")
+
+	ybConn, err := testYugabyteDBTarget.TestContainer.GetConnection()
+	testutils.FatalIfError(t, err, "connecting to YugabyteDB")
+	defer ybConn.Close()
+
+	var projectsCount, tasksCount int
+	err = ybConn.QueryRow("SELECT COUNT(*) FROM public.truncatefk_projects").Scan(&projectsCount)
+	testutils.FatalIfError(t, err, "failed to query projects row count")
+	assert.Equal(t, 2, projectsCount, "projects: expected 2 rows after truncate+import (pre-existing rows must have been truncated)")
+
+	err = ybConn.QueryRow("SELECT COUNT(*) FROM public.truncatefk_tasks").Scan(&tasksCount)
+	testutils.FatalIfError(t, err, "failed to query tasks row count")
+	assert.Equal(t, 2, tasksCount, "tasks: expected 2 rows after import")
 }

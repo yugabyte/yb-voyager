@@ -460,30 +460,68 @@ func testCTEWithMaterializedIssue(t *testing.T) {
 	}
 }
 
+
+/*
+
+For YB version < 2025.2.3, LISTEN/NOTIFY is a no-op with a notice that it is not  supported
+For YB version >= 2025.2.3, LISTEN/NOTIFY is supported with a preview flag and is disabled by default and returns an error
+
+*/
 func testEventsListenNotifyIssue(t *testing.T) {
-	sqls := map[string]string{
-		`LISTEN my_table_changes;`:                                       `LISTEN not supported yet and will be ignored`,
-		`NOTIFY my_table_changes, 'Row inserted: id=1, name=Alice';`:     `NOTIFY not supported yet and will be ignored`,
-		`UNLISTEN my_notification;`:                                      `UNLISTEN not supported yet and will be ignored`,
-		`SELECT pg_notify('my_notification', 'Payload from pg_notify');`: `NOTIFY not supported yet and will be ignored`,
+	type listenNotifyCase struct {
+		sql                 string
+		noticeMsg           string // expected notice on versions before 2025.2.3
+		errMsgAfter2025_2_3 string // expected error on 2025.2.3+; empty means success
 	}
-	for sql, warnMsg := range sqls {
+	cases := []listenNotifyCase{
+		{
+			sql:                 `LISTEN my_table_changes;`,
+			noticeMsg:           `LISTEN not supported yet and will be ignored`,
+			errMsgAfter2025_2_3: `LISTEN/NOTIFY is disabled`,
+		},
+		{
+			sql:                 `NOTIFY my_table_changes, 'Row inserted: id=1, name=Alice';`,
+			noticeMsg:           `NOTIFY not supported yet and will be ignored`,
+			errMsgAfter2025_2_3: `LISTEN/NOTIFY is disabled`,
+		},
+		{
+			sql:       `UNLISTEN my_notification;`,
+			noticeMsg: `UNLISTEN not supported yet and will be ignored`,
+			//unlisten is not erroring out with listen notify disabled
+		},
+		{
+			sql:                 `SELECT pg_notify('my_notification', 'Payload from pg_notify');`,
+			noticeMsg:           `NOTIFY not supported yet and will be ignored`,
+			errMsgAfter2025_2_3: `LISTEN/NOTIFY is disabled`,
+		},
+	}
+	for _, tc := range cases {
 		ctx := context.Background()
 		conn, err := getConn()
 		assert.NoError(t, err)
 
-		connConfig := conn.Config()
-		connConfig.OnNotice = func(conn *pgconn.PgConn, n *pgconn.Notice) {
-			if n != nil {
-				assert.Contains(t, n.Message, warnMsg)
+		// On 2025.2.3+ the server returns an error; on older versions it emits a notice.
+		if !testYbVersion.GreaterThanOrEqual(ybversion.V2025_2_3_0) {
+			connConfig := conn.Config()
+			connConfig.OnNotice = func(conn *pgconn.PgConn, n *pgconn.Notice) {
+				if n != nil {
+					assert.Contains(t, n.Message, tc.noticeMsg)
+				}
 			}
 		}
 
 		defer conn.Close(context.Background())
-		_, err = conn.Exec(ctx, sql)
-		assert.NoError(t, err)
-
-		assertErrorCorrectlyThrownForIssueForYBVersion(t, fmt.Errorf(""), "", listenNotifyIssue)
+		_, err = conn.Exec(ctx, tc.sql)
+		if testYbVersion.GreaterThanOrEqual(ybversion.V2025_2_3_0) {
+			if tc.errMsgAfter2025_2_3 == "" {
+				assert.NoError(t, err)
+				continue
+			}
+			assert.ErrorContains(t, err, tc.errMsgAfter2025_2_3, "sql: %s", tc.sql)
+		} else {
+			assert.NoError(t, err)
+			assertErrorCorrectlyThrownForIssueForYBVersion(t, fmt.Errorf(""), "", listenNotifyIssue)
+		}
 	}
 }
 

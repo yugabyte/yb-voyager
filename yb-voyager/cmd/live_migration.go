@@ -79,7 +79,14 @@ func cutoverInitiatedAndCutoverEventProcessed() (bool, error) {
 	return false, nil
 }
 
-func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple, streamingPhaseValueConverter dbzm.StreamingPhaseValueConverter) error {
+func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error {
+	waitForDebeziumStartIfRequired()
+	importPhase = dbzm.MODE_STREAMING
+	utils.PrintAndLogfInfo("streaming changes to %s...", tconf.TargetDBType)
+	streamingPhaseValueConverter, err := dbzm.NewStreamingPhaseDebeziumValueConverter(tableNames, exportDir, tconf, importerRole, sourceDBType)
+	if err != nil {
+		return goerrors.Errorf("Failed to create streaming phase value converter: %s", err)
+	}
 	ok, err := cutoverInitiatedAndCutoverEventProcessed()
 	if err != nil {
 		return err
@@ -439,6 +446,10 @@ func handleEvent(event *tgtdb.Event,
 		return goerrors.Errorf("error transforming event key fields: %v", err)
 	}
 
+	if err := injectImportCDCTransformFailure(); err != nil {
+		return err
+	}
+
 	evChans[h] <- event
 	log.Tracef("inserted event %v into channel %v", event.Vsn, h)
 	return nil
@@ -527,6 +538,11 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		sleepIntervalSec := 0
 		for attempt := 0; attempt < EVENT_BATCH_MAX_RETRY_COUNT; attempt++ {
 			err = tdb.ExecuteBatch(migrationUUID, eventBatch)
+			if err == nil {
+				if fpErr := injectImportCDCNonRetryableBatchDBError(); fpErr != nil {
+					err = fpErr
+				}
+			}
 			if err == nil {
 				break
 			} else if tdb.IsNonRetryableCopyError(err) {

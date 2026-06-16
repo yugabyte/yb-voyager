@@ -35,6 +35,10 @@ func CreateBackupDir(t *testing.T) string {
 }
 
 func RemoveTempExportDir(exportDir string) {
+	if os.Getenv("YB_VOYAGER_KEEP_EXPORT_DIR") == "1" {
+		fmt.Printf("Keeping export dir for debugging: %s\n", exportDir)
+		return
+	}
 	// Remove the temporary directory
 	err := os.RemoveAll(exportDir)
 	if err != nil {
@@ -83,6 +87,15 @@ func RunVoyagerCommand(container testcontainers.TestContainer,
 
 	// Append connection arguments to provided command arguments.
 	cmdArgs = append(connectionArgs, cmdArgs...)
+
+	// Add --send-diagnostics=false explicitly for commands that support it.
+	// This is an extra safety measure in addition to setting the YB_VOYAGER_SEND_DIAGNOSTICS
+	// environment variable, ensuring diagnostics are disabled even if the env var is not
+	// properly inherited by subprocesses.
+	if supportsSendDiagnosticsFlag(cmdName) {
+		cmdArgs = append(cmdArgs, "--send-diagnostics", "false")
+	}
+
 	cmdStr := fmt.Sprintf("yb-voyager %s %s", cmdName, strings.Join(cmdArgs, " "))
 	cmd := exec.Command("/bin/bash", "-c", cmdStr)
 	fmt.Printf("Running command: %s\n", cmdStr)
@@ -90,7 +103,9 @@ func RunVoyagerCommand(container testcontainers.TestContainer,
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	// Do not send callhome diagnostics during tests.
-	cmd.Env = append(os.Environ(), "YB_VOYAGER_SEND_DIAGNOSTICS=false")
+	cmd.Env = append(os.Environ(),
+		"YB_VOYAGER_SEND_DIAGNOSTICS=false",
+		"DEBEZIUM_SOURCE_YB_LOAD_BALANCE_CONNECTIONS=false")
 
 	// Start the Voyager command asynchronously.
 	if err = cmd.Start(); err != nil {

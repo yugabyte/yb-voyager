@@ -318,3 +318,46 @@ func (pg *PostgresContainer) Query(sql string, args ...interface{}) (*sql.Rows, 
 
 	return rows, nil
 }
+
+func (pg *PostgresContainer) GetConnectionWithDB(dbName string) (*sql.DB, error) {
+	config := pg.GetConfig()
+	host, port, err := pg.GetHostPort()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get host port for postgres connection string: %w", err)
+	}
+	connStr := fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", config.User, config.Password, host, port, dbName)
+	return sql.Open("pgx", connStr)
+}
+
+func (pg *PostgresContainer) QueryOnDB(dbName string, sql string, args ...interface{}) (*sql.Rows, error) {
+	if pg == nil {
+		utils.ErrExit("postgres container is not started: nil")
+	}
+	conn, err := pg.GetConnectionWithDB(dbName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get connection for postgres query on db '%s': %w", dbName, err)
+	}
+	defer conn.Close()
+	rows, err := conn.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query '%s': %w", sql, err)
+	}
+	return rows, nil
+}
+
+func (pg *PostgresContainer) ExecuteSqlsOnDB(dbName string, sqls ...string) {
+	if pg == nil {
+		utils.ErrExit("postgres container is not started: nil")
+	}
+	conn, err := pg.GetConnectionWithDB(dbName)
+	if err != nil {
+		utils.ErrExit("failed to get connection for postgres executing sqls on db: %w", err)
+	}
+	defer conn.Close()
+	for _, sql := range sqls {
+		_, err := conn.Exec(sql)
+		if err != nil {
+			utils.ErrExit("failed to execute sql '%s': %w", sql, err)
+		}
+	}
+}

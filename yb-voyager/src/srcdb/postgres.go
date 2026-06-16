@@ -38,6 +38,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -54,7 +55,7 @@ const PG_STAT_STATEMENTS = "pg_stat_statements"
 var pg_catalog_tables_required = []string{"regclass", "pg_class", "pg_inherits", "setval", "pg_index", "pg_relation_size", "pg_namespace", "pg_tables", "pg_sequences", "pg_roles", "pg_database", "pg_extension"}
 var information_schema_tables_required = []string{"schemata", "tables", "columns", "key_column_usage", "sequences"}
 var PostgresUnsupportedDataTypes = []string{"GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "XID", "LO", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE"}
-var PostgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "LO", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE", "VECTOR"}
+var PostgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "LO", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE", "VECTOR", "TIMETZ"}
 
 func GetPGLiveMigrationUnsupportedDatatypes() []string {
 	liveMigrationUnsupportedDataTypes, _ := lo.Difference(PostgresUnsupportedDataTypesForDbzm, PostgresUnsupportedDataTypes)
@@ -513,14 +514,23 @@ func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (path
 }
 
 // GetAllSequences returns all the sequence names in the database for the given schema list
-func (pg *PostgreSQL) GetAllSequences() []string {
-	schemaList := sqlname.ExtractIdentifiersUnquoted(pg.source.Schemas)
-	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
-	var sequenceNames []string
-	query := fmt.Sprintf(`SELECT sequence_schema, sequence_name FROM information_schema.sequences where sequence_schema IN (%s);`, querySchemaList)
+func (pg *PostgreSQL) GetSequencesLastValues(sequencesList []sqlname.NameTuple) (*utils.StructMap[sqlname.ObjectName, int64], error) {
+	sequenceQueryList := sqlname.JoinNameTuplesUnquoted(sequencesList, "','")
+	result := utils.NewStructMap[sqlname.ObjectName, int64]()
+	query := fmt.Sprintf(`SELECT schemaname, sequencename, COALESCE(last_value, 0) as last_value FROM pg_sequences where (schemaname || '.' || sequencename) IN ('%s');`, sequenceQueryList)
 	rows, err := pg.db.Query(query)
 	if err != nil {
-		utils.ErrExit("error in querying source database for sequence names: %q: %w\n", query, err)
+		if strings.Contains(err.Error(), "does not exist") {
+			//For PG version before 10 as identity columns are also introduced in PG 10 so using information_schema.sequences but it will not return the last value for the sequences
+			//will not work on PG <=10
+			query = fmt.Sprintf(`SELECT sequence_schema, sequence_name, 0 as last_value FROM information_schema.sequences where (sequence_schema || '.' || sequence_name) IN ('%s');`, sequenceQueryList)
+			rows, err = pg.db.Query(query)
+			if err != nil {
+				return nil, fmt.Errorf("error in querying(%q) source database for sequence last values: %w", query, err)
+			}
+		} else {
+			return nil, fmt.Errorf("error in querying(%q) source database for sequence last values: %w", query, err)
+		}
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -529,14 +539,17 @@ func (pg *PostgreSQL) GetAllSequences() []string {
 		}
 	}()
 	var sequenceName, sequenceSchema string
+	var lastValue int64
 	for rows.Next() {
-		err = rows.Scan(&sequenceSchema, &sequenceName)
+		err = rows.Scan(&sequenceSchema, &sequenceName, &lastValue)
 		if err != nil {
 			utils.ErrExit("error in scanning query rows for sequence names: %w\n", err)
 		}
-		sequenceNames = append(sequenceNames, fmt.Sprintf(`%s."%s"`, sequenceSchema, sequenceName))
+		qualifiedSequenceName := fmt.Sprintf(`"%s"."%s"`, sequenceSchema, sequenceName)
+		objName := sqlname.NewObjectNameWithQualifiedName(constants.POSTGRESQL, "public", qualifiedSequenceName)
+		result.Put(*objName, lastValue)
 	}
-	return sequenceNames
+	return result, nil
 }
 
 // GetAllSequencesRaw returns all the sequence names in the database for the schema
@@ -628,6 +641,45 @@ GROUP BY
 	}
 	log.Infof("Total size of all PG sourceDB schemas ('%s'): %d", schemaList, totalSchemasSize)
 	return totalSchemasSize, nil
+}
+
+func (pg *PostgreSQL) FetchDBID() error {
+	var oid int64
+	err := pg.db.QueryRow(`SELECT oid FROM pg_database WHERE datname = current_database()`).Scan(&oid)
+	if err != nil {
+		return err
+	}
+	pg.source.DBID = oid
+	return nil
+}
+
+func (pg *PostgreSQL) FetchSchemaOids() error {
+	var oids []int64
+	schemaList := sqlname.JoinIdentifiersUnquoted(pg.source.Schemas, "','")
+	query := fmt.Sprintf(`SELECT oid FROM pg_namespace WHERE nspname IN ('%s')`, schemaList)
+	rows, err := pg.db.Query(query)
+	if err != nil {
+		return fmt.Errorf("error in querying source database for schema oids: %q: %w", query, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
+	for rows.Next() {
+		var oid int64
+		err = rows.Scan(&oid)
+		if err != nil {
+			return fmt.Errorf("error in scanning query rows for schema oids: %w", err)
+		}
+		oids = append(oids, oid)
+	}
+	if rows.Err() != nil {
+		return fmt.Errorf("error in scanning query rows for schema oids: %w", rows.Err())
+	}
+	pg.source.SchemaOids = oids
+	return nil
 }
 
 func (pg *PostgreSQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
@@ -1039,6 +1091,63 @@ func (pg *PostgreSQL) DropPublication(publicationName string) error {
 		return fmt.Errorf("drop publication(%s): %w", publicationName, err)
 	}
 	return nil
+}
+
+// PG_QUERY_GET_PRIMARY_KEY_COLUMNS returns the PK columns of all the tables in the given list in
+// PK definition order. ORDER BY array_position(indkey, attnum) is essential:
+// (id, region) and (region, id) are different keys, and we compare slices for
+// equality across leaf partitions in the live-migration guardrail.
+var PG_QUERY_GET_PRIMARY_KEY_COLUMNS_FOR_TABLES = `
+SELECT n.nspname, c.relname, a.attname
+FROM pg_index i
+JOIN pg_class      c ON c.oid = i.indrelid
+JOIN pg_namespace  n ON n.oid = c.relnamespace
+JOIN pg_attribute  a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
+WHERE (n.nspname, c.relname) IN (%s)
+  AND i.indisprimary
+ORDER BY array_position(i.indkey, a.attnum);`
+
+func (pg *PostgreSQL) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+
+	catalogTableToTuple := make(map[string]sqlname.NameTuple)
+	for _, table := range tables {
+		catalogTableToTuple[table.AsQualifiedCatalogName()] = table
+	}
+
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
+
+	queryTablesString := strings.Join(lo.Map(tables, func(table sqlname.NameTuple, _ int) string {
+		schema, tableName := table.ForCatalogQuery()
+		return fmt.Sprintf("('%s', '%s')", schema, tableName)
+	}), ", ")
+	query := fmt.Sprintf(PG_QUERY_GET_PRIMARY_KEY_COLUMNS_FOR_TABLES, queryTablesString)
+
+	rows, err := pg.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("query primary keys for tables: %w", err)
+	}
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			log.Warnf("close rows for table primary-key query: %v", cerr)
+		}
+	}()
+
+	for rows.Next() {
+		var schema, table, col string
+		if err := rows.Scan(&schema, &table, &col); err != nil {
+			return nil, fmt.Errorf("scan PK column row for tables: %w", err)
+		}
+		tableTuple, ok := catalogTableToTuple[fmt.Sprintf("%s.%s", schema, table)]
+		if !ok {
+			return nil, goerrors.Errorf("table not found in catalog: %s.%s", schema, table)
+		}
+		cols, _ := result.Get(tableTuple)
+		result.Put(tableTuple, append(cols, col))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate PK column rows for tables: %w", err)
+	}
+	return result, nil
 }
 
 var PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK = `SELECT nspname AS schema_name, relname AS table_name, COUNT(conname) AS pk_count

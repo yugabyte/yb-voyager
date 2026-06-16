@@ -29,7 +29,6 @@ import (
 	"text/template"
 
 	goerrors "github.com/go-errors/errors"
-
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -74,7 +73,7 @@ func packAndSendAssessMigrationBulkPayload(status string, errorMsg error) {
 		return
 	}
 	log.Infof("sending callhome payload for assess-migration-bulk cmd with status as %s", status)
-	payload := createCallhomePayload()
+	payload := createCallhomePayload(migrationUUID)
 	payload.MigrationPhase = ASSESS_MIGRATION_BULK_PHASE
 
 	for i := 0; i < len(bulkAssessmentDBConfigs); i++ {
@@ -456,11 +455,13 @@ func isMigrationAssessmentDoneForConfig(dbConfig AssessMigrationDBConfig) bool {
 }
 
 func validateBulkAssessmentDirFlag() {
+	// This runs before InitLogging(), so use utils.ErrExitPreLog instead of
+	// utils.ErrExit to avoid printing the message twice.
 	if bulkAssessmentDir == "" {
-		utils.ErrExit(`ERROR required flag "bulk-assessment-dir" not set`)
+		utils.ErrExitPreLog("ERROR required flag \"bulk-assessment-dir\" not set")
 	}
 	if !utils.FileOrFolderExists(bulkAssessmentDir) {
-		utils.ErrExit("bulk-assessment-dir doesn't exists: %q\n", bulkAssessmentDir)
+		utils.ErrExitPreLog("bulk-assessment-dir doesn't exists: %q", bulkAssessmentDir)
 	} else {
 		if bulkAssessmentDir == "." {
 			fmt.Println("Note: Using current directory as bulk-assessment-dir")
@@ -468,7 +469,7 @@ func validateBulkAssessmentDirFlag() {
 		var err error
 		bulkAssessmentDir, err = filepath.Abs(bulkAssessmentDir)
 		if err != nil {
-			utils.ErrExit("Failed to get absolute path for bulk-assessment-dir: %q: %v\n", exportDir, err)
+			utils.ErrExitPreLog("Failed to get absolute path for bulk-assessment-dir: %q: %v", bulkAssessmentDir, err)
 		}
 		bulkAssessmentDir = filepath.Clean(bulkAssessmentDir)
 	}

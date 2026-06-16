@@ -183,6 +183,6 @@ jobs:
 
             echo "Stop the cluster before the next iteration"
             docker stop yugabytedb-$version
-            docker remove yugabytedb-$version
+            docker rm yugabytedb-$version
           done
         shell: bash

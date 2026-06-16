@@ -78,7 +78,7 @@ import-data-to-target:
   max-retries-streaming: 1
 
 archive-changes:
-  delete-changes-without-archiving: true
+  policy: delete
 
 finalize-schema-post-data-import:
   refresh-mviews: true

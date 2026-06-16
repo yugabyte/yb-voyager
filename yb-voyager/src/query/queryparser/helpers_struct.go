@@ -17,6 +17,7 @@ package queryparser
 
 import (
 	"fmt"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -25,6 +26,7 @@ import (
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -76,7 +78,7 @@ func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string
 	viewNode, isViewStmt := getCreateViewNode(parseTree)
 	createAsNode, _ := getCreateTableAsStmtNode(parseTree)
 	createTableNode, isCreateTable := getCreateTableStmtNode(parseTree)
-	createIndexNode, isCreateIndex := getCreateIndexStmtNode(parseTree)
+	createIndexNode, isCreateIndex := GetCreateIndexStmtNode(parseTree)
 	alterTableNode, isAlterTable := getAlterStmtNode(parseTree)
 	switch true {
 	case isCreateFunc:
@@ -207,7 +209,7 @@ func getCreateTableStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_Cre
 	return node, ok
 }
 
-func getCreateIndexStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_IndexStmt, bool) {
+func GetCreateIndexStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_IndexStmt, bool) {
 	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_IndexStmt)
 	return node, ok
 }
@@ -454,6 +456,24 @@ func DeparseParseTree(parseTree *pg_query.ParseResult) (string, error) {
 	return deparsedStmt, nil
 }
 
+//Deparses with semicolon at the end
+func Deparse(parseTree *pg_query.ParseResult) (string, error) {
+	if parseTree == nil || len(parseTree.Stmts) == 0 {
+		return "", goerrors.Errorf("parse tree is empty or invalid")
+	}
+
+	deparsedStmt, err := pg_query.Deparse(parseTree)
+	if err != nil {
+		return "", fmt.Errorf("error deparsing parse tree: %w", err)
+	}
+
+	return fmt.Sprintf("%s;", deparsedStmt), nil
+}
+
+func CloneParseTree(parseTree *pg_query.ParseResult) *pg_query.ParseResult {
+    return proto.Clone(parseTree).(*pg_query.ParseResult)
+}
+
 func getAConstValue(node *pg_query.Node) string {
 
 	if node == nil {
@@ -698,4 +718,59 @@ func GetSessionVariableName(stmtStr string) (string, error) {
 	}
 	return varStmt.VariableSetStmt.GetName(), nil
 
+}
+
+func MakeAConstValueNode(value string, dataType string) *pg_query.Node {
+	switch dataType {
+	case "smallint", "integer", "bigint", "int", "int2", "int4", "int8":
+		ival, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			log.Warnf("failed to parse %q as integer for type %s, falling back to string node: %v", value, dataType, err)
+			return pg_query.MakeAConstStrNode(value, -1)
+		}
+		if ival > math.MaxInt32 || ival < math.MinInt32 {
+			return MakeAConstFloatNode(value)
+		}
+		return pg_query.MakeAConstIntNode(ival, -1)
+	case "float", "float4", "float8", "real", "double precision", "numeric", "dec", "decimal":
+		if _, err := strconv.ParseFloat(value, 64); err != nil {
+			log.Warnf("failed to parse %q as float for type %s, falling back to string node: %v", value, dataType, err)
+			return pg_query.MakeAConstStrNode(value, -1)
+		}
+		return MakeAConstFloatNode(value)
+	case "bool", "boolean":
+		bval, err := strconv.ParseBool(value)
+		if err != nil {
+			log.Warnf("failed to parse %q as boolean for type %s, falling back to string node: %v", value, dataType, err)
+			return pg_query.MakeAConstStrNode(value, -1)
+		}
+		return MakeAConstBooleanNode(bval)
+	default:
+		return pg_query.MakeAConstStrNode(value, -1)
+	}
+}
+
+func MakeAConstFloatNode(value string) *pg_query.Node {
+	return &pg_query.Node{
+		Node: &pg_query.Node_AConst{
+			AConst: &pg_query.A_Const{
+				Val: &pg_query.A_Const_Fval{
+					Fval: &pg_query.Float{Fval: value},
+				},
+			},
+		},
+	}
+}
+
+func MakeAConstBooleanNode(value bool) *pg_query.Node {
+	return &pg_query.Node{
+		Node: &pg_query.Node_AConst{
+			AConst: &pg_query.A_Const{
+				Val: &pg_query.A_Const_Boolval{
+					Boolval: &pg_query.Boolean{Boolval: value},
+				},
+				Location: -1,
+			},
+		},
+	}
 }

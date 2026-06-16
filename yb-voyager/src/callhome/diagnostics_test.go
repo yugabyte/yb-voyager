@@ -18,11 +18,16 @@ limitations under the License.
 package callhome
 
 import (
+	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
@@ -62,8 +67,10 @@ func TestCallhomeStructs(t *testing.T) {
 				DBSize             int64    `json:"total_db_size_bytes"`
 				Role               string   `json:"role,omitempty"`
 				DBSystemIdentifier int64    `json:"db_system_identifier,omitempty"`
+				DBID               int64    `json:"db_id,omitempty"`
 				DBName             string   `json:"db_name,omitempty"`
 				SchemaNames        []string `json:"schema_names,omitempty"`
+				SchemaOids         []int64  `json:"schema_oids,omitempty"`
 			}{},
 		},
 		{
@@ -250,6 +257,8 @@ func TestCallhomeStructs(t *testing.T) {
 				YBClusterMetrics            YBClusterMetrics  `json:"yb_cluster_metrics"`
 				DataMetrics                 ImportDataMetrics `json:"data_metrics"`
 				Phase                       string            `json:"phase,omitempty"`
+				IterativeCutoverEnabled     bool              `json:"iterative_cutover_enabled"`
+				NextIterationMigrationUUID  *uuid.UUID        `json:"next_iteration_migration_uuid,omitempty"`
 				LiveWorkflowType            string            `json:"live_workflow_type,omitempty"`
 				EnableUpsert                bool              `json:"enable_upsert"`
 				Error                       string            `json:"error"`
@@ -325,6 +334,7 @@ func TestCallhomeStructs(t *testing.T) {
 				SnapshotTotalRows                 int64 `json:"snapshot_total_rows"`
 				SnapshotTotalBytes                int64 `json:"snapshot_total_bytes"`
 				CdcEventsImportRate3min           int64 `json:"cdc_events_import_rate_3min"`
+				TableListCount                    int   `json:"table_list_count"`
 			}{},
 		},
 		{
@@ -336,6 +346,7 @@ func TestCallhomeStructs(t *testing.T) {
 				MigrationSnapshotLargestTableBytes int64 `json:"migration_snapshot_largest_table_bytes"`
 				SnapshotTotalRows                  int64 `json:"snapshot_total_rows"`
 				SnapshotTotalBytes                 int64 `json:"snapshot_total_bytes"`
+				TableListCount                     int   `json:"table_list_count"`
 			}{},
 		},
 		{
@@ -357,4 +368,61 @@ func TestCallhomeStructs(t *testing.T) {
 			testutils.CompareStructs(t, tt.actualType, reflect.TypeOf(tt.expectedType), tt.name)
 		})
 	}
+}
+
+func TestAddStackTrace_NoGoError(t *testing.T) {
+	err := fmt.Errorf("wrapped: %w", errors.New("root"))
+	context := map[string]string{}
+
+	addStackTrace(err, context)
+
+	assert.NotContains(t, context, "stack_trace")
+}
+
+func TestAddStackTrace_SingleGoError(t *testing.T) {
+	rootErr := goerrors.New("root")
+	err := fmt.Errorf("wrapped: %w", rootErr)
+	context := map[string]string{}
+
+	addStackTrace(err, context)
+
+	got, ok := context["stack_trace"]
+	require.True(t, ok, "expected stack_trace in context")
+	assert.Equal(t, string(rootErr.Stack()), got, "expected stack_trace to match root goerror stack")
+}
+
+func TestImportDataPhasePayloadOmitsZeroNextIterationUUID(t *testing.T) {
+	payload := ImportDataPhasePayload{
+		PayloadVersion:          IMPORT_DATA_CALLHOME_PAYLOAD_VERSION,
+		IterativeCutoverEnabled: false,
+	}
+	jsonStr := MarshalledJsonString(payload)
+	assert.NotContains(t, jsonStr, "next_iteration_migration_uuid")
+}
+
+func TestAddStackTrace_PrefersInnermostGoError(t *testing.T) {
+	rootErr := goerrors.New("root")
+	wrappedRoot := fmt.Errorf("wrapped-root: %w", rootErr)
+	exitLikeErr := goerrors.Errorf("exit-like wrapper: %w", wrappedRoot)
+	err := fmt.Errorf("top: %w", exitLikeErr)
+	context := map[string]string{}
+
+	addStackTrace(err, context)
+
+	got, ok := context["stack_trace"]
+	require.True(t, ok, "expected stack_trace in context")
+	assert.Equal(t, string(rootErr.Stack()), got, "expected innermost goerror stack")
+}
+
+func TestAddStackTrace_JoinedErrorsTraversal(t *testing.T) {
+	leftErr := goerrors.New("left")
+	rightErr := goerrors.New("right")
+	err := errors.Join(leftErr, fmt.Errorf("right-wrapper: %w", rightErr))
+	context := map[string]string{}
+
+	addStackTrace(err, context)
+
+	got, ok := context["stack_trace"]
+	require.True(t, ok, "expected stack_trace in context")
+	assert.Equal(t, string(rightErr.Stack()), got, "expected deepest stack from joined error tree")
 }

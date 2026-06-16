@@ -40,3 +40,7 @@ debezium-server-voyager/**/target/
 *.iml
 
 **/dummy_name_registry.json
+
+# Claude Code per-developer state
+.claude/settings.local.json
+.claude/worktrees/

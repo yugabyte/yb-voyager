@@ -16,15 +16,21 @@ limitations under the License.
 package datastore
 
 import (
+	"errors"
 	"io"
 	"strings"
 )
+
+// Returned by cloud datastore stubs before their OpenAt implementation is complete.
+// The caller uses errors.Is to distinguish this from real failures and falls back to SkipLines.
+var ErrOpenAtNotImplemented = errors.New("OpenAt not implemented for this datastore")
 
 type DataStore interface {
 	Glob(string) ([]string, error)
 	AbsolutePath(string) (string, error)
 	FileSize(string) (int64, error)
 	Open(string) (io.ReadCloser, error)
+	OpenAt(path string, offset int64) (io.ReadCloser, error)
 }
 
 func NewDataStore(location string) DataStore {

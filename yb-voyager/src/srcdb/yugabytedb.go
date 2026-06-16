@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/jackc/pglogrepl"
@@ -33,18 +34,19 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 // Apart from these we also skip UDT columns. Array of enums, hstore, and tsvector are supported with logical connector (default).
-var YugabyteUnsupportedDataTypesForDbzmLogical = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE", "VECTOR"}
+var YugabyteUnsupportedDataTypesForDbzmLogical = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE", "VECTOR", "TIMETZ"}
 
 // For the gRPC connector - datatypes like HSTORE/CITEXT/LTREE that are available by extensions, are not supported and the table of these needs to be skipped for the migration with grpc connector
 // but right now we are only skipping columns of that table and if there are DML on those tables the gRPC connector will error out.
 // TODO to handle that
-var YugabyteUnsupportedDataTypesForDbzmGrpc = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER", "HSTORE", "CITEXT", "LTREE", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE", "VECTOR"}
+var YugabyteUnsupportedDataTypesForDbzmGrpc = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER", "HSTORE", "CITEXT", "LTREE", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE", "VECTOR", "TIMETZ"}
 
 func GetYugabyteUnsupportedDatatypesDbzm(isGRPCConnector bool) []string {
 	if isGRPCConnector {
@@ -359,14 +361,23 @@ func (yb *YugabyteDB) getExportedColumnsListForTable(exportDir, tableName string
 }
 
 // GetAllSequences returns all the sequence names in the database for the given schema list
-func (yb *YugabyteDB) GetAllSequences() []string {
-	schemaList := sqlname.ExtractIdentifiersUnquoted(yb.source.Schemas)
-	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
-	var sequenceNames []string
-	query := fmt.Sprintf(`SELECT sequence_name FROM information_schema.sequences where sequence_schema IN (%s);`, querySchemaList)
+func (yb *YugabyteDB) GetSequencesLastValues(sequencesList []sqlname.NameTuple) (*utils.StructMap[sqlname.ObjectName, int64], error) {
+	sequenceQueryList := sqlname.JoinNameTuplesUnquoted(sequencesList, "','")
+	result := utils.NewStructMap[sqlname.ObjectName, int64]()
+	query := fmt.Sprintf(`SELECT schemaname, sequencename, COALESCE(last_value, 0) as last_value FROM pg_sequences where (schemaname || '.' || sequencename) IN ('%s');`, sequenceQueryList)
 	rows, err := yb.db.Query(query)
 	if err != nil {
-		utils.ErrExit("error in querying source database for sequence names: %q: %w\n", query, err)
+		if strings.Contains(err.Error(), "does not exist") {
+			//For PG version before 10 as identity columns are also introduced in PG 10 so using information_schema.sequences but it will not return the last value for the sequences
+			//will not work on PG <=10
+			query = fmt.Sprintf(`SELECT sequence_schema, sequence_name, 0 as last_value FROM information_schema.sequences where (sequence_schema || '.' || sequence_name) IN ('%s');`, sequenceQueryList)
+			rows, err = yb.db.Query(query)
+			if err != nil {
+				return nil, fmt.Errorf("error in querying(%q) source database for sequence last values: %w", query, err)
+			}
+		} else {
+			return nil, fmt.Errorf("error in querying(%q) source database for sequence last values: %w", query, err)
+		}
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -375,15 +386,18 @@ func (yb *YugabyteDB) GetAllSequences() []string {
 		}
 	}()
 
-	var sequenceName string
+	var sequenceName, sequenceSchema string
+	var lastValue int64
 	for rows.Next() {
-		err = rows.Scan(&sequenceName)
+		err = rows.Scan(&sequenceSchema, &sequenceName, &lastValue)
 		if err != nil {
 			utils.ErrExit("error in scanning query rows for sequence names: %w\n", err)
 		}
-		sequenceNames = append(sequenceNames, sequenceName)
+		qualifiedSequenceName := fmt.Sprintf(`"%s"."%s"`, sequenceSchema, sequenceName)
+		objName := sqlname.NewObjectNameWithQualifiedName(constants.YUGABYTEDB, "public", qualifiedSequenceName)
+		result.Put(*objName, lastValue)
 	}
-	return sequenceNames
+	return result, nil
 }
 
 // GetAllSequencesRaw returns all the sequence names in the database for the schema
@@ -434,6 +448,45 @@ func (yb *YugabyteDB) GetDatabaseSize() (int64, error) {
 	}
 	log.Infof("Total Database size of YugabyteDB sourceDB: %d", dbSize.Int64)
 	return dbSize.Int64, nil
+}
+
+func (yb *YugabyteDB) FetchDBID() error {
+	var oid int64
+	err := yb.db.QueryRow(`SELECT oid FROM pg_database WHERE datname = current_database()`).Scan(&oid)
+	if err != nil {
+		return err
+	}
+	yb.source.DBID = oid
+	return nil
+}
+
+func (yb *YugabyteDB) FetchSchemaOids() error {
+	var oids []int64
+	schemaList := sqlname.JoinIdentifiersUnquoted(yb.source.Schemas, "','")
+	query := fmt.Sprintf(`SELECT oid FROM pg_namespace WHERE nspname IN ('%s')`, schemaList)
+	rows, err := yb.db.Query(query)
+	if err != nil {
+		return fmt.Errorf("error in querying source database for schema oids: %q: %w", query, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
+	for rows.Next() {
+		var oid int64
+		err = rows.Scan(&oid)
+		if err != nil {
+			return fmt.Errorf("error in scanning query rows for schema oids: %w", err)
+		}
+		oids = append(oids, oid)
+	}
+	if rows.Err() != nil {
+		return fmt.Errorf("error in scanning query rows for schema oids: %w", rows.Err())
+	}
+	yb.source.SchemaOids = oids
+	return nil
 }
 
 // Thsi function returns some types like UDTs, ENums, etc.. fo which we need to check if there are any tables having columns of Array of these types for gRPC connector.
@@ -1121,6 +1174,48 @@ func (yb *YugabyteDB) GetNonPKTables() ([]string, error) {
 	return nonPKTables, nil
 }
 
+func (yb *YugabyteDB) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	catalogTableToTuple := make(map[string]sqlname.NameTuple)
+	for _, table := range tables {
+		catalogTableToTuple[table.AsQualifiedCatalogName()] = table
+	}
+
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
+
+	queryTablesString := strings.Join(lo.Map(tables, func(table sqlname.NameTuple, _ int) string {
+		schema, tableName := table.ForCatalogQuery()
+		return fmt.Sprintf("('%s', '%s')", schema, tableName)
+	}), ", ")
+	query := fmt.Sprintf(PG_QUERY_GET_PRIMARY_KEY_COLUMNS_FOR_TABLES, queryTablesString)
+
+	rows, err := yb.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("query primary keys for tables: %w", err)
+	}
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			log.Warnf("close rows for table primary-key query: %v", cerr)
+		}
+	}()
+
+	for rows.Next() {
+		var schema, table, col string
+		if err := rows.Scan(&schema, &table, &col); err != nil {
+			return nil, fmt.Errorf("scan PK column row for tables: %w", err)
+		}
+		tableTuple, ok := catalogTableToTuple[fmt.Sprintf("%s.%s", schema, table)]
+		if !ok {
+			return nil, goerrors.Errorf("table not found in catalog: %s.%s", schema, table)
+		}
+		cols, _ := result.Get(tableTuple)
+		result.Put(tableTuple, append(cols, col))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate PK column rows for tables: %w", err)
+	}
+	return result, nil
+}
+
 func (yb *YugabyteDB) GetReplicationConnection() (*pgconn.PgConn, error) {
 	return pgconn.Connect(context.Background(), yb.getConnectionUri()+"&replication=database")
 }
@@ -1155,6 +1250,15 @@ func (yb *YugabyteDB) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicatio
 		defer conn.Close(context.Background())
 	}
 	log.Infof("dropping replication slot: %s", replicationSlotName)
+
+	exists, err := yb.CheckIfReplicationSlotExists(replicationSlotName)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		log.Infof("replication slot %s does not exist, skipping dropping", replicationSlotName)
+		return nil
+	}
 
 	// TODO: Remove this sleep and check the status of the slot before dropping
 	// This sleep is added to avoid the error "replication slot is active" while dropping the slot since it takes 60 seconds by default to change the status of the slot
@@ -1260,7 +1364,84 @@ func (yb *YugabyteDB) GetMissingExportSchemaPermissions(queryTableList string) (
 }
 
 func (yb *YugabyteDB) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, bool, error) {
-	return nil, false, nil
+	var combinedResult []string
+
+	if !yb.source.IsYBGrpcConnector && (exportType == utils.CHANGES_ONLY || exportType == utils.SNAPSHOT_AND_CHANGES) {
+		tablesWithoutReplicaIdentityChange, err := yb.listTablesMissingReplicaIdentityChange(finalTableList)
+		if err != nil {
+			return nil, false, fmt.Errorf("error in checking table replica identity: %w", err)
+		}
+		if len(tablesWithoutReplicaIdentityChange) > 0 {
+			combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Tables not having replica identity CHANGE: "), strings.Join(lo.Map(tablesWithoutReplicaIdentityChange, func(t sqlname.NameTuple, _ int) string {
+				return t.ForOutput()
+			}), ", ")))
+		}
+	}
+
+	return combinedResult, len(combinedResult) > 0, nil
+}
+
+// TODO: migrate postgres.go listTablesMissingReplicaIdentityFull from queryTableList string to []NameTuple,
+// then consolidate both into a shared helper parameterized by expected relreplident char and label.
+func (yb *YugabyteDB) listTablesMissingReplicaIdentityChange(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
+	var tableNamePairs []string
+	for _, table := range tableList {
+		sname, tname := table.ForCatalogQuery()
+		tableNamePairs = append(tableNamePairs, fmt.Sprintf("('%s','%s')", sname, tname))
+	}
+
+	checkTableReplicaIdentityQuery := fmt.Sprintf(`
+	SELECT
+		n.nspname AS schema_name,
+		c.relname AS table_name,
+		c.relreplident AS replica_identity,
+		CASE
+			WHEN c.relreplident <> 'c'
+			THEN '%s'
+			ELSE '%s'
+		END AS status
+	FROM pg_class c
+	JOIN pg_namespace n ON c.relnamespace = n.oid
+	WHERE (n.nspname, c.relname) IN (%s)
+	AND c.relkind IN ('r', 'p');
+	`, MISSING, GRANTED, strings.Join(tableNamePairs, ","))
+
+	rows, err := yb.db.Query(checkTableReplicaIdentityQuery)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying(%q) source YugabyteDB for checking table replica identity: %w", checkTableReplicaIdentityQuery, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", checkTableReplicaIdentityQuery, closeErr)
+		}
+	}()
+
+	tablesWithoutIdentityChangeKeys := make(map[string]bool)
+	var tableSchemaName, tableName, replicaIdentity, status string
+
+	for rows.Next() {
+		err = rows.Scan(&tableSchemaName, &tableName, &replicaIdentity, &status)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
+		}
+		if status == MISSING {
+			tablesWithoutIdentityChangeKeys[tableSchemaName+"."+tableName] = true
+		}
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over query rows: %w", err)
+	}
+
+	var result []sqlname.NameTuple
+	for _, table := range tableList {
+		sname, tname := table.ForCatalogQuery()
+		if tablesWithoutIdentityChangeKeys[sname+"."+tname] {
+			result = append(result, table)
+		}
+	}
+	return result, nil
 }
 
 func (yb *YugabyteDB) GetMissingAssessMigrationPermissions() ([]string, bool, error) {
