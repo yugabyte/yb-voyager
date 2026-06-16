@@ -21,9 +21,12 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
@@ -115,4 +118,55 @@ func TestInitMetaDB(t *testing.T) {
 			}
 		})
 	}
+}
+
+// testSourceDBExporterRole is redeclared here to avoid an import cycle with the
+// cmd package. It must stay in sync with cmd.SOURCE_DB_EXPORTER_ROLE, which the
+// AnySegmentsDeletedOrArchived callers (importData.go guardrail and
+// eventQueue.go resolveSegmentToResumeFrom) pass in.
+const testSourceDBExporterRole = "source_db_exporter"
+
+func newTestMetaDB(t *testing.T) *MetaDB {
+	t.Helper()
+	exportDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(exportDir, "metainfo"), 0755))
+	require.NoError(t, CreateAndInitMetaDBIfRequired(exportDir))
+	mdb, err := NewMetaDB(exportDir)
+	require.NoError(t, err)
+	t.Cleanup(func() { mdb.db.Close() })
+	return mdb
+}
+
+func insertQueueSegment(t *testing.T, mdb *MetaDB, segmentNo int, exporterRole string, deleted int) {
+	t.Helper()
+	query := fmt.Sprintf(`INSERT INTO %s (segment_no, file_path, exporter_role, deleted) VALUES (?, ?, ?, ?)`,
+		QUEUE_SEGMENT_META_TABLE_NAME)
+	_, err := mdb.db.Exec(query, segmentNo,
+		fmt.Sprintf("segment.%d.ndjson", segmentNo), exporterRole, deleted)
+	require.NoError(t, err)
+}
+
+// TestAnySegmentsDeletedOrArchived covers the start-clean guardrail backing
+// AnySegmentsDeletedOrArchived. The guardrail must agree with
+// resolveSegmentToResumeFrom in eventQueue.go on which segment is the resume
+// point: the earliest segment_no (optionally filtered by exporter role).
+func TestAnySegmentsDeletedOrArchived(t *testing.T) {
+	t.Run("no queue segments returns false", func(t *testing.T) {
+		mdb := newTestMetaDB(t)
+
+		deleted, err := mdb.AnySegmentsDeletedOrArchived("")
+		require.NoError(t, err)
+		assert.False(t, deleted, "with no queue segments the guardrail must not block start-clean")
+	})
+
+	t.Run("earliest segment deleted returns true", func(t *testing.T) {
+		mdb := newTestMetaDB(t)
+		insertQueueSegment(t, mdb, 1, testSourceDBExporterRole, 1)
+		insertQueueSegment(t, mdb, 2, testSourceDBExporterRole, 0)
+
+		deleted, err := mdb.AnySegmentsDeletedOrArchived("")
+		require.NoError(t, err)
+		assert.True(t, deleted, "earliest segment (resume point) is deleted, so re-streaming from the beginning is impossible")
+	})
+
 }
