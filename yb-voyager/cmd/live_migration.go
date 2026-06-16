@@ -403,16 +403,26 @@ func shouldFormatValues(event *tgtdb.Event) bool {
 	return false
 }
 
-func shouldDetectConflicts(event *tgtdb.Event, tableToUniqueKeyColumns *utils.StructMap[sqlname.NameTuple, []string], tableToPartitioningStrategyMap *utils.StructMap[sqlname.NameTuple, string]) bool {
-	if tableToUniqueKeyColumns == nil || tableToPartitioningStrategyMap == nil {
-		return false
+func shouldHandleConflicts(event *tgtdb.Event, tableToUniqueKeyColumns *utils.StructMap[sqlname.NameTuple, []string], tableToPartitioningStrategyMap *utils.StructMap[sqlname.NameTuple, string]) (bool, error) {
+	if tableToUniqueKeyColumns == nil {
+		return false, goerrors.Errorf("table to unique key columns is not initialized")
 	}
-	uniqueKeyCols, _ := tableToUniqueKeyColumns.Get(event.TableNameTup)
-	partitioningStrategy, _ := tableToPartitioningStrategyMap.Get(event.TableNameTup)
-	if len(uniqueKeyCols) == 0 || partitioningStrategy == PARTITION_BY_TABLE {
-		return false
+	if tableToPartitioningStrategyMap == nil {
+		return false, goerrors.Errorf("table to partitioning strategy map is not initialized")
 	}
-	return true
+	uniqueKeyColumns, _ := tableToUniqueKeyColumns.Get(event.TableNameTup)
+
+	partitioningStrategy, ok := tableToPartitioningStrategyMap.Get(event.TableNameTup)
+	if !ok {
+		return false, goerrors.Errorf("table to partitioning strategy map does not contain table %v", event.TableNameTup)
+	}
+	if len(uniqueKeyColumns) == 0 || partitioningStrategy == PARTITION_BY_TABLE {
+		//for the partition by table strategy, we don't need to handle conflicts	
+		//since the events of the same table will be executed sequentially on a single channel
+		//hence the conflicts will never happen
+		return false, nil
+	}
+	return true, nil
 }
 
 func handleEvent(event *tgtdb.Event,
@@ -438,7 +448,11 @@ func handleEvent(event *tgtdb.Event,
 		Checking for all possible conflicts among events
 		For more details about ConflictDetectionCache see the related comment in [conflictDetectionCache.go](../conflictDetectionCache.go)
 	*/
-	if shouldDetectConflicts(event, conflictDetectionCache.tableToUniqueKeyColumns, tableToPartitioningStrategyMap) {
+	ok, err := shouldHandleConflicts(event, conflictDetectionCache.tableToUniqueKeyColumns, tableToPartitioningStrategyMap)
+	if err != nil {
+		return goerrors.Errorf("error checking if should handle conflicts: %v", err)
+	}
+	if ok {
 		if event.Op == "d" {
 			conflictDetectionCache.Put(event)
 		} else { // "i" or "u"

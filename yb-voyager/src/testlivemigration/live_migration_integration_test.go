@@ -1095,16 +1095,16 @@ FROM generate_series(1, 10);`,
 
 }
 
-func getPartialPredicateTestForUniqueConflictDetection(t *testing.T) *LiveMigrationTest {
+func getPartialPredicateTestForUniqueConflictDetection(t *testing.T, dbName string) *LiveMigrationTest {
 	return NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
 			ForLive:      true,
-			DatabaseName: "test7",
+			DatabaseName: dbName,
 		},
 		TargetDB: ContainerConfig{
 			Type:         "yugabytedb",
-			DatabaseName: "test7",
+			DatabaseName: dbName,
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
@@ -1195,7 +1195,7 @@ FROM generate_series(1, 20) as i;`,
 
 func TestLiveMigrationWithUniqueKeyValuesWithPartialPredicateConflictDetectionCases(t *testing.T) {
 	t.Parallel()
-	lm := getPartialPredicateTestForUniqueConflictDetection(t)
+	lm := getPartialPredicateTestForUniqueConflictDetection(t, "test_unique_conflict_partial_predicate")
 	defer lm.Cleanup()
 
 	err := lm.SetupContainers(context.Background())
@@ -1243,7 +1243,7 @@ func TestLiveMigrationWithUniqueKeyValuesWithPartialPredicateConflictDetectionCa
 
 func TestLiveMigrationWithUniqueKeyConflictWithTablePartitioning(t *testing.T) {
 	t.Parallel()
-	lm := getPartialPredicateTestForUniqueConflictDetection(t)
+	lm := getPartialPredicateTestForUniqueConflictDetection(t, "test_uc_table_partitioning")
 	defer lm.Cleanup()
 
 	err := lm.SetupContainers(context.Background())
