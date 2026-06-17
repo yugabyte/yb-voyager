@@ -49,8 +49,6 @@ CREATE TABLE large_col_table (
     uuid_col UUID
 );
 
-\d large_col_table
-
 ALTER DATABASE test_db SET temp_file_limit = 5242880; -- 5GB
 ALTER DATABASE ff_db SET temp_file_limit = 5242880; -- 5GB
 

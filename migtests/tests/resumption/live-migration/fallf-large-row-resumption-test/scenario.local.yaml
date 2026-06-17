@@ -1,4 +1,4 @@
-name: fall-forward-resumption-test
+name: fallf-large-col-resumption-test
 
 env:
   LOG_LEVEL: info
@@ -57,7 +57,7 @@ generator_source:
     generator:
       schema_name: public
       manual_table_list: []
-      exclude_table_list: []
+      exclude_table_list: [cutover_table]
       num_iterations: -1
       wait_after_operations: 1000
       wait_duration_seconds: 1
@@ -118,6 +118,12 @@ stages:
     use_admin: true
     target: source_replica
 
+  - name: init_target_db
+    action: run_sql
+    target: target
+    sql_path: ./init_target.sql
+    use_admin: true
+
   - name: create_cutover_table
     action: create_cutover_table
     target: [source, source_replica]
@@ -163,7 +169,7 @@ stages:
     condition: exporter_in_streaming_phase
     timeout_sec: 600
 
-  - name: sleep_for_some_events_to_be_generated
+  - name: soak_with_resumptions
     action: sleep
     seconds: 60
 
