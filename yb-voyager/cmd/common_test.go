@@ -148,8 +148,8 @@ func TestAssessmentReportStructs(t *testing.T) {
 				SqlStatement             string                          `json:"SqlStatement"`
 				DocsLink                 string                          `json:"DocsLink"`
 				MinimumVersionsFixedIn   map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"`
-				MinimumVersionsTPFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsTPFixedIn,omitempty"`
-				MinimumVersionsEAFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsEAFixedIn,omitempty"`
+				MinimumVersionsFixedInTP map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedInTP,omitempty"`
+				MinimumVersionsFixedInEA map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedInEA,omitempty"`
 				Details                  map[string]interface{}          `json:"Details,omitempty"`
 			}{},
 		},
@@ -840,7 +840,7 @@ func TestConvertIssueInstanceAnnotatesExperimentalMaturity(t *testing.T) {
 			Description:   "Base description.",
 			Impact:        constants.IMPACT_LEVEL_1,
 			EnablingFlags: []string{"yb_enable_some_tp_feature=true"},
-			MinimumVersionsTPFixedIn: map[string]*ybversion.YBVersion{
+			MinimumVersionsFixedInTP: map[string]*ybversion.YBVersion{
 				ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
 			},
 		},
@@ -868,7 +868,7 @@ func TestConvertIssueInstancePerfRecommendationByTargetVersion(t *testing.T) {
 				Name:        "Hotspots with range sharded on date datatype index",
 				Description: "Base perf description.",
 				Impact:      constants.IMPACT_LEVEL_1,
-				MinimumVersionsTPFixedIn: map[string]*ybversion.YBVersion{
+				MinimumVersionsFixedInTP: map[string]*ybversion.YBVersion{
 					ybversion.SERIES_2025_2: ybversion.V2025_2_1_0,
 				},
 				EnablingFlags: []string{"yb_enable_derived_saops=true", "yb_max_saop_merge_streams=64"},

@@ -132,10 +132,10 @@ func TestGetMaturityInTarget(t *testing.T) {
 		MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 			ybversion.SERIES_2025_2: ybversion.V2025_2_0_0, // GA
 		},
-		MinimumVersionsEAFixedIn: map[string]*ybversion.YBVersion{
+		MinimumVersionsFixedInEA: map[string]*ybversion.YBVersion{
 			ybversion.SERIES_2025_1: ybversion.V2025_1_0_0, // EA
 		},
-		MinimumVersionsTPFixedIn: map[string]*ybversion.YBVersion{
+		MinimumVersionsFixedInTP: map[string]*ybversion.YBVersion{
 			ybversion.SERIES_2024_2: ybversion.V2024_2_0_0, // TP
 		},
 	}
@@ -164,10 +164,10 @@ func TestGetMaturityInTargetPrecedenceGAOverEAOverTP(t *testing.T) {
 		MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 			ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 		},
-		MinimumVersionsEAFixedIn: map[string]*ybversion.YBVersion{
+		MinimumVersionsFixedInEA: map[string]*ybversion.YBVersion{
 			ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 		},
-		MinimumVersionsTPFixedIn: map[string]*ybversion.YBVersion{
+		MinimumVersionsFixedInTP: map[string]*ybversion.YBVersion{
 			ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 		},
 	}

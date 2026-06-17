@@ -35,8 +35,8 @@ type Issue struct {
 	GH                       string
 	DocsLink               	 string
 	MinimumVersionsFixedIn   map[string]*ybversion.YBVersion // key: series; GA
-	MinimumVersionsTPFixedIn map[string]*ybversion.YBVersion // key: series; available as Tech Preview
-	MinimumVersionsEAFixedIn map[string]*ybversion.YBVersion // key: series; available as Early Access
+	MinimumVersionsFixedInTP map[string]*ybversion.YBVersion // key: series; available as Tech Preview
+	MinimumVersionsFixedInEA map[string]*ybversion.YBVersion // key: series; available as Early Access
 
 	// Flags to set in order to enable the feature when it is available only as
 	// Tech Preview / Early Access in the target version (e.g. "yb_enable_derived_saops=true").
@@ -58,12 +58,12 @@ func (i Issue) IsFixedIn(v *ybversion.YBVersion) (bool, error) {
 	return isFixedInVersionMap(i.MinimumVersionsFixedIn, v)
 }
 
-func (i Issue) IsTPFixedIn(v *ybversion.YBVersion) (bool, error) {
-	return isFixedInVersionMap(i.MinimumVersionsTPFixedIn, v)
+func (i Issue) IsFixedInTP(v *ybversion.YBVersion) (bool, error) {
+	return isFixedInVersionMap(i.MinimumVersionsFixedInTP, v)
 }
 
-func (i Issue) IsEAFixedIn(v *ybversion.YBVersion) (bool, error) {
-	return isFixedInVersionMap(i.MinimumVersionsEAFixedIn, v)
+func (i Issue) IsFixedInEA(v *ybversion.YBVersion) (bool, error) {
+	return isFixedInVersionMap(i.MinimumVersionsFixedInEA, v)
 }
 
 // GetMaturityInTarget returns the maturity of the feature in the given target version:
@@ -77,14 +77,14 @@ func (i Issue) GetMaturityInTarget(v *ybversion.YBVersion) (string, error) {
 	if ga {
 		return constants.MATURITY_GA, nil
 	}
-	ea, err := i.IsEAFixedIn(v)
+	ea, err := i.IsFixedInEA(v)
 	if err != nil {
 		return "", err
 	}
 	if ea {
 		return constants.MATURITY_EA, nil
 	}
-	tp, err := i.IsTPFixedIn(v)
+	tp, err := i.IsFixedInTP(v)
 	if err != nil {
 		return "", err
 	}

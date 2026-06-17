@@ -995,8 +995,8 @@ func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.Analyze
 		SqlStatement:             analyzeSchemaIssue.SqlStatement,
 		DocsLink:                 analyzeSchemaIssue.DocsLink,
 		MinimumVersionsFixedIn:   analyzeSchemaIssue.MinimumVersionsFixedIn,
-		MinimumVersionsTPFixedIn: analyzeSchemaIssue.MinimumVersionsTPFixedIn,
-		MinimumVersionsEAFixedIn: analyzeSchemaIssue.MinimumVersionsEAFixedIn,
+		MinimumVersionsFixedInTP: analyzeSchemaIssue.MinimumVersionsFixedInTP,
+		MinimumVersionsFixedInEA: analyzeSchemaIssue.MinimumVersionsFixedInEA,
 		Details:                  analyzeSchemaIssue.Details,
 	}
 }
@@ -1310,16 +1310,23 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 			}
 			result = append(result, uqc)
 
+			description := issue.Description
+			if guidance := CheckIssueSupportMaturityInTDBVersion(issue); guidance != "" {
+				description = utils.JoinSentences(description, guidance)
+			}
+
 			assessmentReport.AppendIssues(AssessmentIssue{
-				Category:               UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY,
-				CategoryDescription:    GetCategoryDescription(UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY),
-				Type:                   issue.Type,
-				Name:                   issue.Name,
-				Impact:                 issue.Impact,
-				Description:            issue.Description,
-				SqlStatement:           issue.SqlStatement,
-				DocsLink:               issue.DocsLink,
-				MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,
+				Category:                 UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY,
+				CategoryDescription:      GetCategoryDescription(UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY),
+				Type:                     issue.Type,
+				Name:                     issue.Name,
+				Impact:                   issue.Impact,
+				Description:              description,
+				SqlStatement:             issue.SqlStatement,
+				DocsLink:                 issue.DocsLink,
+				MinimumVersionsFixedIn:   issue.MinimumVersionsFixedIn,
+				MinimumVersionsFixedInTP: issue.MinimumVersionsFixedInTP,
+				MinimumVersionsFixedInEA: issue.MinimumVersionsFixedInEA,
 			})
 		}
 	}
@@ -1994,7 +2001,7 @@ func formatSupportedVersions(gaMap, eaMap, tpMap map[string]*ybversion.YBVersion
 }
 
 func getSupportedVersions(issue AssessmentIssue) string {
-	return formatSupportedVersions(issue.MinimumVersionsFixedIn, issue.MinimumVersionsEAFixedIn, issue.MinimumVersionsTPFixedIn)
+	return formatSupportedVersions(issue.MinimumVersionsFixedIn, issue.MinimumVersionsFixedInEA, issue.MinimumVersionsFixedInTP)
 }
 
 // maturityTierName returns the display name + caveat for an experimental maturity tier
@@ -2046,6 +2053,43 @@ func buildNativeResolutionRecommendation(resolution, maturity string, targetDbVe
 		rec += fmt.Sprintf(" Enable with the flag(s): %s.", strings.Join(enablingFlags, ", "))
 	}
 	return rec
+}
+
+// CheckIssueSupportMaturityInTDBVersion returns a human-readable note describing the
+// feature's maturity in the configured target YugabyteDB version, or "" when there is
+// nothing to add. It is the single place that decides what maturity guidance an issue
+// warrants, so every detection path reports it consistently.
+func CheckIssueSupportMaturityInTDBVersion(issueInstance queryissue.QueryIssue) string {
+	// No target version configured -> we can't reason about maturity.
+	if targetDbVersion == nil {
+		return ""
+	}
+
+	maturity, err := issueInstance.GetMaturityInTarget(targetDbVersion)
+	if err != nil {
+		log.Warnf("checking maturity of issue %q in target version: %v", issueInstance.Type, err)
+		return ""
+	}
+
+	// Performance optimizations: recommend the native resolution (e.g. bucket-based indexes),
+	// stating its maturity/availability in the target version and the flags to enable it.
+	if slices.Contains(queryissue.PerformanceOptimizationIssues, issueInstance.Type) {
+		resolution, ok := issueInstance.InternalDetails[queryissue.RECOMMENDED_RESOLUTION].(string)
+		if !ok {
+			return ""
+		}
+		supportedVersions := formatSupportedVersions(issueInstance.MinimumVersionsFixedIn, issueInstance.MinimumVersionsFixedInEA, issueInstance.MinimumVersionsFixedInTP)
+		return buildNativeResolutionRecommendation(resolution, maturity, targetDbVersion, supportedVersions, issueInstance.EnablingFlags)
+	}
+
+	// Unsupported features that are Tech Preview / Early Access in the target version:
+	// explain they are experimental and how to enable them.
+	if maturity == constants.MATURITY_TP || maturity == constants.MATURITY_EA {
+		return buildExperimentalMaturityAnnotation(maturity, targetDbVersion, issueInstance.EnablingFlags)
+	}
+
+	// GA in the target (already reported as fixed) or unsupported with no maturity data: nothing to add.
+	return ""
 }
 
 func validateSourceDBTypeForAssessMigration() {

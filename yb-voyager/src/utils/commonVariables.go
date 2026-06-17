@@ -121,8 +121,8 @@ type AnalyzeSchemaIssue struct {
 	GH                       string                          `json:"GH"`
 	DocsLink                 string                          `json:"DocsLink,omitempty"`
 	MinimumVersionsFixedIn   map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn" xml:"-"`             // key: series (2024.1, 2.21, etc); GA
-	MinimumVersionsTPFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsTPFixedIn,omitempty" xml:"-"` // key: series; available as Tech Preview
-	MinimumVersionsEAFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsEAFixedIn,omitempty" xml:"-"` // key: series; available as Early Access
+	MinimumVersionsFixedInTP map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedInTP,omitempty" xml:"-"` // key: series; available as Tech Preview
+	MinimumVersionsFixedInEA map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedInEA,omitempty" xml:"-"` // key: series; available as Early Access
 	Details                  map[string]interface{}          `json:"-" xml:"-"`
 }
 

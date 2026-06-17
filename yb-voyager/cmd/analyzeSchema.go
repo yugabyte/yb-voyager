@@ -724,24 +724,10 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		summaryMap[issueInstance.ObjectType].invalidCount[issueInstance.ObjectName] = true
 	}
 
-	// Augment the description with feature-maturity information when a target version is known.
-	// - Performance optimizations: append a version-aware recommendation pointing at the native resolution (e.g. bucket-based indexes)
-	// - Unsupported features that are TP/EA in the target: explain it is experimental + how to enable it.
+	// Augment the description with feature-maturity guidance when a target version is known.
 	reason := issueInstance.Description
-	if targetDbVersion != nil {
-		maturity, err := issueInstance.GetMaturityInTarget(targetDbVersion)
-		if err != nil {
-			log.Warnf("checking maturity of issue %q in target version: %v", issueInstance.Type, err)
-		} else if slices.Contains(queryissue.PerformanceOptimizationIssues, issueInstance.Type) {
-			if resolution, ok := issueInstance.InternalDetails[queryissue.RECOMMENDED_RESOLUTION].(string); ok {
-				supportedVersions := formatSupportedVersions(issueInstance.MinimumVersionsFixedIn, issueInstance.MinimumVersionsEAFixedIn, issueInstance.MinimumVersionsTPFixedIn)
-				if rec := buildNativeResolutionRecommendation(resolution, maturity, targetDbVersion, supportedVersions, issueInstance.EnablingFlags); rec != "" {
-					reason = utils.JoinSentences(reason, rec)
-				}
-			}
-		} else if maturity == constants.MATURITY_TP || maturity == constants.MATURITY_EA {
-			reason = utils.JoinSentences(reason, buildExperimentalMaturityAnnotation(maturity, targetDbVersion, issueInstance.EnablingFlags))
-		}
+	if guidance := CheckIssueSupportMaturityInTDBVersion(issueInstance); guidance != "" {
+		reason = utils.JoinSentences(reason, guidance)
 	}
 
 	return utils.AnalyzeSchemaIssue{
@@ -759,8 +745,8 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		Suggestion:               issueInstance.Suggestion,
 		GH:                       issueInstance.GH,
 		MinimumVersionsFixedIn:   issueInstance.MinimumVersionsFixedIn,
-		MinimumVersionsTPFixedIn: issueInstance.MinimumVersionsTPFixedIn,
-		MinimumVersionsEAFixedIn: issueInstance.MinimumVersionsEAFixedIn,
+		MinimumVersionsFixedInTP: issueInstance.MinimumVersionsFixedInTP,
+		MinimumVersionsFixedInEA: issueInstance.MinimumVersionsFixedInEA,
 		Details:                  issueInstance.Details,
 	}
 }

@@ -1291,8 +1291,8 @@ type AssessmentIssue struct {
 	SqlStatement             string                          `json:"SqlStatement"`
 	DocsLink                 string                          `json:"DocsLink"`
 	MinimumVersionsFixedIn   map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"`             // key: series (2024.1, 2.21, etc); GA
-	MinimumVersionsTPFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsTPFixedIn,omitempty"` // key: series; available as Tech Preview
-	MinimumVersionsEAFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsEAFixedIn,omitempty"` // key: series; available as Early Access
+	MinimumVersionsFixedInTP map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedInTP,omitempty"` // key: series; available as Tech Preview
+	MinimumVersionsFixedInEA map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedInEA,omitempty"` // key: series; available as Early Access
 	Details                  map[string]interface{}          `json:"Details,omitempty"`
 }
 

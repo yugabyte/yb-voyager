@@ -37,7 +37,7 @@ var advisoryLocksIssue = issue.Issue{
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
 	},
-	MinimumVersionsTPFixedIn: map[string]*ybversion.YBVersion{
+	MinimumVersionsFixedInTP: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_1_0,
 	},
 	EnablingFlags: []string{"ysql_yb_enable_advisory_locks"},
@@ -363,7 +363,7 @@ var listenNotifyIssue = issue.Issue{
 	Description: "LISTEN / NOTIFY is not supported yet in YugabyteDB.",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/1872",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#events-listen-notify",
-	MinimumVersionsEAFixedIn: map[string]*ybversion.YBVersion{
+	MinimumVersionsFixedInEA: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2025_2: ybversion.V2025_2_3_0,
 	},
 	EnablingFlags: []string{"ysql_yb_enable_listen_notify"},
