@@ -1762,7 +1762,7 @@ func generateAssessmentReportJson(reportDir string) error {
 			- Displays a summary row with key information (category, name, object/SQL preview, impact).
 			- Allows expanding to show detailed information, including category description, object type/name, SQL statement, supported versions, description, documentation link, and additional details.
 		- Handles cases where no issues are found, displaying an appropriate message.
-		- Utilizes helper functions such as `filterOutPerformanceOptimizationIssues`, `getPerformanceOptimizationIssues`, `snakeCaseToTitleCase`, `camelCaseToTitleCase`, and `getSupportedVersionString` for data formatting and filtering.
+		- Utilizes helper functions such as `filterOutPerformanceOptimizationIssues`, `getPerformanceOptimizationIssues`, `snakeCaseToTitleCase`, `camelCaseToTitleCase`, and `getSupportedVersions` for data formatting and filtering.
 
 		Usage:
 		------
@@ -1952,20 +1952,6 @@ func filterNotesByType(notes []NoteInfo, noteType NoteType) []NoteInfo {
 		}
 	}
 	return filtered
-}
-
-func getSupportedVersionString(minimumVersionsFixedIn map[string]*ybversion.YBVersion) string {
-	if minimumVersionsFixedIn == nil {
-		return ""
-	}
-	supportedVersions := []string{}
-	for series, minVersionFixedIn := range minimumVersionsFixedIn {
-		if minVersionFixedIn == nil {
-			continue
-		}
-		supportedVersions = append(supportedVersions, fmt.Sprintf(">=%s (%s series)", minVersionFixedIn.String(), series))
-	}
-	return strings.Join(supportedVersions, ", ")
 }
 
 func validateSourceDBTypeForAssessMigration() {

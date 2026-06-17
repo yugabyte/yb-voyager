@@ -1101,8 +1101,8 @@ var funcMap = template.FuncMap{
 		}
 		return total
 	},
-	"split":                     split,
-	"getSupportedVersionString": getSupportedVersionString,
+	"split":                split,
+	"getSupportedVersions": queryissue.GetSupportedVersions,
 }
 
 // add info to the 'reportStruct' variable and return
