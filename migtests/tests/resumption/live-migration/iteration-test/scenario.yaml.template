@@ -237,6 +237,12 @@ stages:
     command: import_data
     graceful_timeout_sec: 60
 
+  - name: row_count_validations
+    action: row_count_validations
+
+  - name: row_hash_validations
+    action: row_hash_validations
+
   - name: start_fallback_exporter_from_target
     action: voyager_export_from_target_start
 
