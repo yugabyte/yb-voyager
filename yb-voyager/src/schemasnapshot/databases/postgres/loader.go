@@ -61,6 +61,8 @@ func (p *PostgresSnapshotProvider) TakeSnapshot(
 ) (*schemasnapshot.SchemaSnapshot, error) {
 	snap := &schemasnapshot.SchemaSnapshot{}
 
+	placeholders, args := buildInPlaceholders(schemas)
+
 	// Probe database version.
 	dbVersion, err := detectDatabaseVersion(ctx, db)
 	if err != nil {
@@ -69,14 +71,14 @@ func (p *PostgresSnapshotProvider) TakeSnapshot(
 	snap.DatabaseVersion = dbVersion
 
 	// Load tables (includes partition and inheritance wiring via pg_inherits).
-	tables, err := loadTables(ctx, db, schemas)
+	tables, err := loadTables(ctx, db, placeholders, args)
 	if err != nil {
 		return nil, fmt.Errorf("postgres: loading tables: %w", err)
 	}
 	snap.Tables = tables
 
 	// Load columns.
-	columns, err := loadColumns(ctx, db, schemas)
+	columns, err := loadColumns(ctx, db, placeholders, args)
 	if err != nil {
 		return nil, fmt.Errorf("postgres: loading columns: %w", err)
 	}
@@ -99,8 +101,7 @@ type tableLink struct {
 // loadTableLinks queries pg_inherits for BOTH declarative-partition and
 // legacy-inheritance parent/child relationships within the given schemas and
 // returns them in parent/child OID order.
-func loadTableLinks(ctx context.Context, db schemasnapshot.QueryExecutor, schemas []string) ([]tableLink, error) {
-	placeholders, args := buildInPlaceholders(schemas)
+func loadTableLinks(ctx context.Context, db schemasnapshot.QueryExecutor, placeholders string, args []interface{}) ([]tableLink, error) {
 	query := fmt.Sprintf(sqlLoadTableLinksFmt, placeholders)
 
 	rows, err := db.QueryContext(ctx, query, args...)
@@ -189,8 +190,7 @@ func detectDatabaseVersion(ctx context.Context, db schemasnapshot.QueryExecutor)
 // loadTables queries pg_class for tables (ordinary, partitioned, foreign) in the
 // given schemas, then queries pg_inherits to wire both declarative-partition and
 // legacy-inheritance parent/child links onto the returned tables.
-func loadTables(ctx context.Context, db schemasnapshot.QueryExecutor, schemas []string) ([]schemasnapshot.Table, error) {
-	placeholders, args := buildInPlaceholders(schemas)
+func loadTables(ctx context.Context, db schemasnapshot.QueryExecutor, placeholders string, args []interface{}) ([]schemasnapshot.Table, error) {
 	query := fmt.Sprintf(sqlLoadTablesFmt, placeholders)
 
 	rows, err := db.QueryContext(ctx, query, args...)
@@ -217,7 +217,7 @@ func loadTables(ctx context.Context, db schemasnapshot.QueryExecutor, schemas []
 	}
 
 	// Load and wire partition + inheritance links cohesively within table loading.
-	links, err := loadTableLinks(ctx, db, schemas)
+	links, err := loadTableLinks(ctx, db, placeholders, args)
 	if err != nil {
 		return nil, fmt.Errorf("loading table links: %w", err)
 	}
@@ -228,8 +228,7 @@ func loadTables(ctx context.Context, db schemasnapshot.QueryExecutor, schemas []
 
 // loadColumns queries pg_attribute for non-dropped columns of tables in the
 // given schemas and returns them as a slice of schemasnapshot.Column.
-func loadColumns(ctx context.Context, db schemasnapshot.QueryExecutor, schemas []string) ([]schemasnapshot.Column, error) {
-	placeholders, args := buildInPlaceholders(schemas)
+func loadColumns(ctx context.Context, db schemasnapshot.QueryExecutor, placeholders string, args []interface{}) ([]schemasnapshot.Column, error) {
 	query := fmt.Sprintf(sqlLoadColumnsFmt, placeholders)
 
 	rows, err := db.QueryContext(ctx, query, args...)
