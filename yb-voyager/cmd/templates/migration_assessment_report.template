@@ -767,10 +767,10 @@
                                                     </td>
                                                 </tr>
 
-                                                <!-- Only show if there is a supported version.
-                                                     For performance optimizations the supported-version
-                                                     info is folded into the Description instead, so this
-                                                     row is rendered only for non-perf issues. -->
+                                                {{/* Only show if there is a supported version. For performance
+                                                     optimizations the supported-version info is folded into the
+                                                     Description instead, so this row is rendered only for non-perf
+                                                     issues. (Go-template comment: not emitted into the HTML.) */}}
                                                 {{ if not $onlyPerf }}
                                                     {{ $verStr := getSupportedVersions $issue }}
                                                     {{ if $verStr }}
