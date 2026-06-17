@@ -1310,18 +1310,13 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 			}
 			result = append(result, uqc)
 
-			description := issue.Description
-			if guidance := CheckIssueSupportMaturityInTDBVersion(issue); guidance != "" {
-				description = utils.JoinSentences(description, guidance)
-			}
-
 			assessmentReport.AppendIssues(AssessmentIssue{
 				Category:                 UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY,
 				CategoryDescription:      GetCategoryDescription(UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY),
 				Type:                     issue.Type,
 				Name:                     issue.Name,
 				Impact:                   issue.Impact,
-				Description:              description,
+				Description:              issue.Description,
 				SqlStatement:             issue.SqlStatement,
 				DocsLink:                 issue.DocsLink,
 				MinimumVersionsFixedIn:   issue.MinimumVersionsFixedIn,
@@ -1834,7 +1829,7 @@ func generateAssessmentReportHtml(reportDir string) error {
 		"numKeysInMapStringObjectInfo":           numKeysInMapStringObjectInfo,
 		"groupByObjectName":                      groupByObjectName,
 		"totalUniqueObjectNamesOfAllTypes":       totalUniqueObjectNamesOfAllTypes,
-		"getSupportedVersions":                   getSupportedVersions,
+		"getSupportedVersions":                   queryissue.GetSupportedVersions,
 		"snakeCaseToTitleCase":                   utils.SnakeCaseToTitleCase,
 		"camelCaseToTitleCase":                   utils.CamelCaseToTitleCase,
 		"getSqlPreview":                          utils.GetSqlStmtToPrint,
@@ -1971,125 +1966,6 @@ func getSupportedVersionString(minimumVersionsFixedIn map[string]*ybversion.YBVe
 		supportedVersions = append(supportedVersions, fmt.Sprintf(">=%s (%s series)", minVersionFixedIn.String(), series))
 	}
 	return strings.Join(supportedVersions, ", ")
-}
-
-// formatSupportedVersions merges the GA/EA/TP version maps and renders a
-// string, e.g. ">=2025.1.0.0 (2025.1 series) (EA), >=2025.2.0.0 (2025.2 series)".
-//
-// GA entries use the same untagged format as getSupportedVersionString (so the
-// "unsupported now, GA later" case is unchanged); only TP/EA entries carry a tier tag.
-func formatSupportedVersions(gaMap, eaMap, tpMap map[string]*ybversion.YBVersion) string {
-	var entries []string
-	appendEntries := func(versionsFixedIn map[string]*ybversion.YBVersion, tier string) {
-		for series, minVersionFixedIn := range versionsFixedIn {
-			if minVersionFixedIn == nil {
-				continue
-			}
-			if tier == constants.MATURITY_GA {
-				// Keep the original untagged format for GA.
-				entries = append(entries, fmt.Sprintf(">=%s (%s series)", minVersionFixedIn.String(), series))
-			} else {
-				entries = append(entries, fmt.Sprintf(">=%s (%s series) (%s)", minVersionFixedIn.String(), series, tier))
-			}
-		}
-	}
-	appendEntries(gaMap, constants.MATURITY_GA)
-	appendEntries(eaMap, constants.MATURITY_EA)
-	appendEntries(tpMap, constants.MATURITY_TP)
-	sort.Strings(entries)
-	return strings.Join(entries, ", ")
-}
-
-func getSupportedVersions(issue AssessmentIssue) string {
-	return formatSupportedVersions(issue.MinimumVersionsFixedIn, issue.MinimumVersionsFixedInEA, issue.MinimumVersionsFixedInTP)
-}
-
-// maturityTierName returns the display name + caveat for an experimental maturity tier
-func maturityTierName(maturity string) (string, string) {
-	switch maturity {
-	case constants.MATURITY_TP:
-		return "Tech Preview (TP)", constants.TP_MATURITY_CAVEAT
-	case constants.MATURITY_EA:
-		return "Early Access (EA)", constants.EA_MATURITY_CAVEAT
-	default:
-		return "", ""
-	}
-}
-
-// buildExperimentalMaturityAnnotation returns a sentence (for an unsupported feature) describing
-// that the feature is available only as Tech Preview / Early Access in the target version, with
-// the flags needed to enable it.
-func buildExperimentalMaturityAnnotation(maturity string, targetDbVersion *ybversion.YBVersion, enablingFlags []string) string {
-	tierName, caveat := maturityTierName(maturity)
-	if tierName == "" {
-		return ""
-	}
-	annotation := fmt.Sprintf("This feature is available as %s in the target version (%s) — %s, and is not enabled by default.",
-		tierName, targetDbVersion.String(), caveat)
-	if len(enablingFlags) > 0 {
-		annotation += fmt.Sprintf(" Enable with the flag(s): %s.", strings.Join(enablingFlags, ", "))
-	}
-	return annotation
-}
-
-// buildNativeResolutionRecommendation returns a version-aware recommendation (for a performance
-// optimization e.g. "bucket-based indexes"). If the resolution is Tech Preview / Early Access in the target version it reads
-// "available as <tier> in the target version"; otherwise it lists where it becomes available (supportedVersions).
-func buildNativeResolutionRecommendation(resolution, maturity string, targetDbVersion *ybversion.YBVersion, supportedVersions string, enablingFlags []string) string {
-	if resolution == "" {
-		return ""
-	}
-	var availability string
-	if tierName, caveat := maturityTierName(maturity); tierName != "" {
-		availability = fmt.Sprintf("available as %s in the target version (%s) — %s, and is not enabled by default",
-			tierName, targetDbVersion.String(), caveat)
-	} else if supportedVersions != "" {
-		availability = fmt.Sprintf("available in %s", supportedVersions)
-	} else {
-		return ""
-	}
-	rec := fmt.Sprintf("Consider using %s — %s.", resolution, availability)
-	if len(enablingFlags) > 0 {
-		rec += fmt.Sprintf(" Enable with the flag(s): %s.", strings.Join(enablingFlags, ", "))
-	}
-	return rec
-}
-
-// CheckIssueSupportMaturityInTDBVersion returns a human-readable note describing the
-// feature's maturity in the configured target YugabyteDB version, or "" when there is
-// nothing to add. It is the single place that decides what maturity guidance an issue
-// warrants, so every detection path reports it consistently.
-func CheckIssueSupportMaturityInTDBVersion(issueInstance queryissue.QueryIssue) string {
-	// No target version configured -> we can't reason about maturity.
-	if targetDbVersion == nil {
-		return ""
-	}
-
-	maturity, err := issueInstance.GetMaturityInTarget(targetDbVersion)
-	if err != nil {
-		log.Warnf("checking maturity of issue %q in target version: %v", issueInstance.Type, err)
-		return ""
-	}
-
-	// Performance optimizations: recommend the native resolution (e.g. bucket-based indexes),
-	// stating its maturity/availability in the target version and the flags to enable it.
-	if slices.Contains(queryissue.PerformanceOptimizationIssues, issueInstance.Type) {
-		resolution, ok := issueInstance.InternalDetails[queryissue.RECOMMENDED_RESOLUTION].(string)
-		if !ok {
-			return ""
-		}
-		supportedVersions := formatSupportedVersions(issueInstance.MinimumVersionsFixedIn, issueInstance.MinimumVersionsFixedInEA, issueInstance.MinimumVersionsFixedInTP)
-		return buildNativeResolutionRecommendation(resolution, maturity, targetDbVersion, supportedVersions, issueInstance.EnablingFlags)
-	}
-
-	// Unsupported features that are Tech Preview / Early Access in the target version:
-	// explain they are experimental and how to enable them.
-	if maturity == constants.MATURITY_TP || maturity == constants.MATURITY_EA {
-		return buildExperimentalMaturityAnnotation(maturity, targetDbVersion, issueInstance.EnablingFlags)
-	}
-
-	// GA in the target (already reported as fixed) or unsupported with no maturity data: nothing to add.
-	return ""
 }
 
 func validateSourceDBTypeForAssessMigration() {

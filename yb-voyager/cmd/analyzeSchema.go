@@ -724,19 +724,13 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		summaryMap[issueInstance.ObjectType].invalidCount[issueInstance.ObjectName] = true
 	}
 
-	// Augment the description with feature-maturity guidance when a target version is known.
-	reason := issueInstance.Description
-	if guidance := CheckIssueSupportMaturityInTDBVersion(issueInstance); guidance != "" {
-		reason = utils.JoinSentences(reason, guidance)
-	}
-
 	return utils.AnalyzeSchemaIssue{
 		IssueType:                issueType,
 		ObjectType:               issueInstance.ObjectType,
 		ObjectName:               displayObjectName,
 		Type:                     issueInstance.Type,
 		Name:                     issueInstance.Name,
-		Reason:                   reason,
+		Reason:                   issueInstance.Description,
 		Impact:                   issueInstance.Impact,
 		ObjectUsage:              issueInstance.ObjectUsage,
 		SqlStatement:             issueInstance.SqlStatement,

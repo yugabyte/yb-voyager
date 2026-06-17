@@ -772,7 +772,7 @@
                                                      Description instead, so this row is rendered only for non-perf
                                                      issues. (Go-template comment: not emitted into the HTML.) */}}
                                                 {{ if not $onlyPerf }}
-                                                    {{ $verStr := getSupportedVersions $issue }}
+                                                    {{ $verStr := getSupportedVersions $issue.MinimumVersionsFixedIn $issue.MinimumVersionsFixedInEA $issue.MinimumVersionsFixedInTP }}
                                                     {{ if $verStr }}
                                                         <tr>
                                                             <th class="centered-cell">Supported In (versions)</th>
