@@ -14,7 +14,10 @@
 
 package schemasnapshot
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 // The four valid snapshot capture labels.
 const (
@@ -68,10 +71,8 @@ func ValidateLabelReason(label, reason string) error {
 	if reason == "" {
 		return fmt.Errorf("label %q requires a reason; valid values: %v", label, vocab)
 	}
-	for _, v := range vocab {
-		if reason == v {
-			return nil
-		}
+	if slices.Contains(vocab, reason) {
+		return nil
 	}
 	return fmt.Errorf("label %q does not accept reason %q; valid values: %v", label, reason, vocab)
 }
