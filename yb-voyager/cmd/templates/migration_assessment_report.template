@@ -767,13 +767,18 @@
                                                     </td>
                                                 </tr>
 
-                                                <!-- Only show if there is a supported version -->
-                                                {{ $verStr := getSupportedVersionString $issue.MinimumVersionsFixedIn }}
-                                                {{ if $verStr }}
-                                                    <tr>
-                                                        <th class="centered-cell">Supported In (versions)</th>
-                                                        <td>{{ $verStr }}</td>
-                                                    </tr>
+                                                {{/* Only show if there is a supported version. For performance
+                                                     optimizations the supported-version info is folded into the
+                                                     Description instead, so this row is rendered only for non-perf
+                                                     issues. (Go-template comment: not emitted into the HTML.) */}}
+                                                {{ if not $onlyPerf }}
+                                                    {{ $verStr := getSupportedVersions $issue.MinimumVersionsFixedIn $issue.MinimumVersionsFixedInEA $issue.MinimumVersionsFixedInTP }}
+                                                    {{ if $verStr }}
+                                                        <tr>
+                                                            <th class="centered-cell">Supported In (versions)</th>
+                                                            <td>{{ $verStr }}</td>
+                                                        </tr>
+                                                    {{ end }}
                                                 {{ end }}
                                                 <tr>
                                                     <th class="centered-cell">Description</th>
