@@ -417,7 +417,7 @@ func shouldWarnServerSeriesNewerThanConnector(connectorYBVersion, serverYBVersio
 	// Same release type: compare series numerically.
 	if connSeries.ReleaseType() == serverSeries.ReleaseType() {
 		if serverSeries.GreaterThanOrEqual(connSeries) && !serverSeries.Equal(connSeries) {
-			return true, fmt.Sprintf("the target YugabyteDB server release %s is newer than the connector's release %s", serverSeries.Series(), connSeries.Series()), nil
+			return true, fmt.Sprintf("the target YugabyteDB server release %s is newer than the connector's release %s", serverYBVersion, connectorYBVersion), nil
 		}
 		return false, "", nil
 	}
@@ -427,7 +427,7 @@ func shouldWarnServerSeriesNewerThanConnector(connectorYBVersion, serverYBVersio
 	case ybversion.STABLE_OLD:
 		return false, "", nil
 	case ybversion.PREVIEW:
-		return true, fmt.Sprintf("the target YugabyteDB server is on preview release %s, which the connector was not built for", serverSeries.Series()), nil
+		return true, fmt.Sprintf("the target YugabyteDB server is on preview release %s, which the connector was not built for", serverYBVersion), nil
 	default:
 		return false, "", goerrors.Errorf("cannot compare connector series %s (%s) with server series %s (%s)", connSeries.Series(), connSeries.ReleaseType(), serverSeries.Series(), serverSeries.ReleaseType())
 	}
