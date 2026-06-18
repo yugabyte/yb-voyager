@@ -34,6 +34,11 @@ type SchemaSnapshot struct {
 	Columns []Column `json:"columns,omitempty"` // captured columns; each keyed back to its parent table via Column.Table.
 }
 
+// RoleSource is the capture role for the migration source database. v1 only ever
+// captures the source; CaptureSource.Role / SnapshotMetadata.Side exist so other
+// roles (e.g. target, source-replica) can be added later without changing the types.
+const RoleSource = "source"
+
 // CaptureSource holds the descriptive source coordinates for a snapshot.
 // It is display-only identity — never connection secrets.
 type CaptureSource struct {

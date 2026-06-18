@@ -60,7 +60,7 @@ func makeSnapshot(capturedAt time.Time) *SchemaSnapshot {
 			Port:         5432,
 			Database:     "testdb",
 			User:         "voyager",
-			Role:         "source",
+			Role:         RoleSource,
 		},
 		Schemas: []string{"public"},
 		Tables: []Table{
@@ -81,7 +81,7 @@ func TestSaveSnapshotRoundTrip(t *testing.T) {
 	capturedAt := time.Date(2026, 5, 12, 10, 0, 0, 0, time.UTC)
 	snap := makeSnapshot(capturedAt)
 
-	name, err := SaveSnapshot(mdb, snap, LabelExportDataFromSourceExit, "cutover")
+	name, err := SaveSnapshot(mdb, snap, LabelExportDataFromSourceExit, ReasonCutover)
 	require.NoError(t, err)
 	assert.Equal(t, "export_data_from_source_exit_20260512T100000Z", name)
 
@@ -114,10 +114,10 @@ func TestListSnapshotsOrder(t *testing.T) {
 	t3 := time.Date(2026, 5, 12, 10, 0, 0, 0, time.UTC)
 
 	// Insert in non-chronological order.
-	_, err := SaveSnapshot(mdb, makeSnapshot(t3), LabelExportDataFromSourceExit, "complete")
+	_, err := SaveSnapshot(mdb, makeSnapshot(t3), LabelExportDataFromSourceExit, ReasonComplete)
 	require.NoError(t, err)
 
-	_, err = SavePlaceholder(mdb, LabelExportDataFromSourceStart, "initial", t1, "16.14", []string{"public"})
+	_, err = SavePlaceholder(mdb, LabelExportDataFromSourceStart, ReasonInitial, t1, "16.14", []string{"public"})
 	require.NoError(t, err)
 
 	_, err = SaveSnapshot(mdb, makeSnapshot(t2), LabelExportDataFromSourcePeriodic, "")
@@ -253,7 +253,7 @@ func TestSavePlaceholderEmptyDbVersion(t *testing.T) {
 	mdb := newTestMetaDB(t)
 	capturedAt := time.Date(2026, 5, 12, 10, 0, 0, 0, time.UTC)
 
-	name, err := SavePlaceholder(mdb, LabelExportDataFromSourceStart, "resume", capturedAt, "", []string{"public", "sales"})
+	name, err := SavePlaceholder(mdb, LabelExportDataFromSourceStart, ReasonResume, capturedAt, "", []string{"public", "sales"})
 	require.NoError(t, err)
 	assert.NotEmpty(t, name)
 
