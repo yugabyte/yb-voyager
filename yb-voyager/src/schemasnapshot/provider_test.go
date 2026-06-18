@@ -145,8 +145,12 @@ func TestCaptureAndSaveSnapshotSuccess(t *testing.T) {
 		Role:         "source",
 	}
 
-	name, err := CaptureAndSaveSnapshot(context.Background(), db, mdb, source, []string{"public"},
-		LabelExportSchema, "", false)
+	name, err := CaptureAndSaveSnapshot(context.Background(), db, mdb, CaptureRequest{
+		Source:               source,
+		Schemas:              []string{"public"},
+		Label:                LabelExportSchema,
+		PlaceholderOnFailure: false,
+	})
 	require.NoError(t, err)
 	assert.NotEmpty(t, name)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -175,8 +179,12 @@ func TestCaptureAndSaveSnapshotFailurePlaceholderTrue(t *testing.T) {
 	mdb := newTestMetaDB(t)
 
 	source := CaptureSource{DatabaseType: "test-error-provider-schemasnapshot"}
-	name, err := CaptureAndSaveSnapshot(context.Background(), db, mdb, source, []string{"public"},
-		LabelExportSchema, "", true)
+	name, err := CaptureAndSaveSnapshot(context.Background(), db, mdb, CaptureRequest{
+		Source:               source,
+		Schemas:              []string{"public"},
+		Label:                LabelExportSchema,
+		PlaceholderOnFailure: true,
+	})
 
 	assert.Empty(t, name, "name must be empty on capture failure")
 	require.Error(t, err)
@@ -207,8 +215,12 @@ func TestCaptureAndSaveSnapshotFailurePlaceholderFalse(t *testing.T) {
 	mdb := newTestMetaDB(t)
 
 	source := CaptureSource{DatabaseType: "test-error-provider-schemasnapshot"}
-	name, err := CaptureAndSaveSnapshot(context.Background(), db, mdb, source, []string{"public"},
-		LabelExportSchema, "", false)
+	name, err := CaptureAndSaveSnapshot(context.Background(), db, mdb, CaptureRequest{
+		Source:               source,
+		Schemas:              []string{"public"},
+		Label:                LabelExportSchema,
+		PlaceholderOnFailure: false,
+	})
 
 	assert.Empty(t, name, "name must be empty on capture failure")
 	require.Error(t, err)
