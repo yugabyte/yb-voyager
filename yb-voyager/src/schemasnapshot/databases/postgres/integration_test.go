@@ -97,7 +97,7 @@ func startCaptureTestDB(t *testing.T, cfg *testcontainers.ContainerConfig) (*sql
 		Port:         port,
 		Database:     pgCfg.DBName,
 		User:         pgCfg.User,
-		Role:         "source",
+		Role:         schemasnapshot.RoleSource,
 	}
 
 	cleanup := func() {
@@ -328,7 +328,7 @@ func TestCapturePersistRoundTrip(t *testing.T) {
 	mdb := newTestMetaDB(t)
 
 	// Step 3: Persist.
-	name, err := schemasnapshot.SaveSnapshot(mdb, snap, schemasnapshot.LabelExportDataFromSourceExit, "cutover")
+	name, err := schemasnapshot.SaveSnapshot(mdb, snap, schemasnapshot.LabelExportDataFromSourceExit, schemasnapshot.ReasonCutover)
 	require.NoError(t, err, "SaveSnapshot must succeed")
 	assert.NotEmpty(t, name)
 

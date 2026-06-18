@@ -42,11 +42,11 @@ func TestSchemaSnapshotJSONRoundTrip(t *testing.T) {
 			Port:         5432,
 			Database:     "mydb",
 			User:         "voyager",
-			Role:         "source",
+			Role:         RoleSource,
 		},
 		Schemas: []string{"public", "sales"},
-		Series:  "export_data_from_source_exit",
-		Reason:  "cutover",
+		Series:  LabelExportDataFromSourceExit,
+		Reason:  ReasonCutover,
 		Tables: []Table{
 			{
 				ObjectRef: ObjectRef{Schema: "public", Name: "orders"},
@@ -146,7 +146,7 @@ func TestCaptureSourceJSONFieldNames(t *testing.T) {
 		Port:         5432,
 		Database:     "mydb",
 		User:         "voyager",
-		Role:         "source",
+		Role:         RoleSource,
 	}
 	data, err := json.Marshal(cs)
 	require.NoError(t, err)

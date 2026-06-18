@@ -24,13 +24,27 @@ const (
 	LabelExportDataFromSourceExit     = "export_data_from_source_exit"
 )
 
+// The valid capture reasons, grouped by the label that carries them.
+const (
+	// Reasons for LabelExportDataFromSourceStart.
+	ReasonInitial      = "initial"
+	ReasonResume       = "resume"
+	ReasonCleanRestart = "clean_restart"
+
+	// Reasons for LabelExportDataFromSourceExit.
+	ReasonCutover   = "cutover"
+	ReasonComplete  = "complete"
+	ReasonInterrupt = "interrupt"
+	ReasonError     = "error"
+)
+
 // labelReasons maps each label to its allowed reason vocabulary.
 // A nil slice means no reason is permitted (empty reason required).
 var labelReasons = map[string][]string{
 	LabelExportSchema:                 nil,
-	LabelExportDataFromSourceStart:    {"initial", "resume", "clean_restart"},
+	LabelExportDataFromSourceStart:    {ReasonInitial, ReasonResume, ReasonCleanRestart},
 	LabelExportDataFromSourcePeriodic: nil,
-	LabelExportDataFromSourceExit:     {"cutover", "complete", "interrupt", "error"},
+	LabelExportDataFromSourceExit:     {ReasonCutover, ReasonComplete, ReasonInterrupt, ReasonError},
 }
 
 // ValidateLabelReason checks that the (label, reason) pair is legal.

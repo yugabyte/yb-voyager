@@ -100,7 +100,7 @@ func SaveSnapshot(mdb *metadb.MetaDB, snap *SchemaSnapshot, label, reason string
 
 	side := snap.CaptureSource.Role
 	if side == "" {
-		side = "source"
+		side = RoleSource
 	}
 
 	name := deriveName(label, snap.CapturedAt)
@@ -135,7 +135,7 @@ func SavePlaceholder(mdb *metadb.MetaDB, label, reason string, capturedAt time.T
 		Name:            name,
 		Label:           label,
 		Reason:          reason,
-		Side:            "source",
+		Side:            RoleSource,
 		CapturedAt:      capturedAt,
 		DatabaseVersion: dbVersion,
 		Schemas:         schemasToString(schemas),
