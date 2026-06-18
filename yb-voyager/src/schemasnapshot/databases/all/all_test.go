@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	// Import all to trigger provider registrations.
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	_ "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot/databases/all"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
@@ -31,7 +32,7 @@ import (
 // TestAllRegistersPostgres verifies that importing databases/all registers
 // the "postgresql" provider.
 func TestAllRegistersPostgres(t *testing.T) {
-	p, err := schemasnapshot.NewSnapshotProvider("postgresql")
+	p, err := schemasnapshot.NewSnapshotProvider(constants.POSTGRESQL)
 	require.NoError(t, err, "importing databases/all should register postgresql")
 	assert.Equal(t, "postgresql", p.DatabaseType())
 	assert.True(t, p.HasStableIdentity())
