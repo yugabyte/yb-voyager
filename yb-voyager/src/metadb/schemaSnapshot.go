@@ -42,7 +42,11 @@ type SchemaSnapshotRow struct {
 }
 
 // createSchemaSnapshotsTable creates the schema_snapshots table if it does not exist.
-// It is called lazily on first write, not at MetaDB init.
+// It is called lazily on first write rather than in initMetaDB: initMetaDB runs only
+// when the metadb file is first created, so a migration started on an older binary
+// (without this table) and then upgraded mid-flight would never get it. Creating on
+// first write makes the table appear regardless of which binary initialized the metadb,
+// and keeps it out of metadbs for migrations that never capture a snapshot.
 func (m *MetaDB) createSchemaSnapshotsTable() error {
 	query := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 		name             TEXT    PRIMARY KEY,
@@ -83,7 +87,7 @@ func (m *MetaDB) InsertSchemaSnapshot(row SchemaSnapshotRow) error {
 		row.SnapshotJSON,
 	)
 	if err != nil {
-		// Surface primary-key collision as-is; the schemadiff layer interprets it.
+		// Surface primary-key collision as-is; the schemasnapshot layer interprets it.
 		return fmt.Errorf("insert schema snapshot %q: %w", row.Name, err)
 	}
 	log.Infof("Executed query on meta db - %s", query)
