@@ -123,11 +123,18 @@ func SaveSnapshot(mdb *metadb.MetaDB, snap *SchemaSnapshot, label, reason string
 
 // SavePlaceholder records a metadata-only row (snapshot_json NULL) for when a capture
 // attempt fails mid-process but the lifecycle moment still needs a timeline marker.
+// role identifies which database the failed capture attempt targeted (e.g. RoleSource);
+// an empty role defaults to RoleSource.
 // An empty dbVersion is accepted.
 // Returns the derived name on success.
-func SavePlaceholder(mdb *metadb.MetaDB, label, reason string, capturedAt time.Time, dbVersion string, schemas []string) (string, error) {
+func SavePlaceholder(mdb *metadb.MetaDB, label, reason, role string, capturedAt time.Time, dbVersion string, schemas []string) (string, error) {
 	if err := ValidateLabelReason(label, reason); err != nil {
 		return "", err
+	}
+
+	side := role
+	if side == "" {
+		side = RoleSource
 	}
 
 	name := deriveName(label, capturedAt)
@@ -135,7 +142,7 @@ func SavePlaceholder(mdb *metadb.MetaDB, label, reason string, capturedAt time.T
 		Name:            name,
 		Label:           label,
 		Reason:          reason,
-		Side:            RoleSource,
+		Side:            side,
 		CapturedAt:      capturedAt,
 		DatabaseVersion: dbVersion,
 		Schemas:         schemasToString(schemas),
