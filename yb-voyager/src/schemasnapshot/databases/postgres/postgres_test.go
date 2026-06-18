@@ -110,7 +110,7 @@ func TestTakeSnapshotLoadsTablesAndColumns(t *testing.T) {
 
 // TestTakeSnapshotDatabaseVersionSet verifies that TakeSnapshot populates DatabaseVersion.
 func TestTakeSnapshotDatabaseVersionSet(t *testing.T) {
-	p, err := schemasnapshot.NewSnapshotProvider("postgresql")
+	p, err := schemasnapshot.NewSnapshotProvider(constants.POSTGRESQL)
 	require.NoError(t, err)
 
 	db, mock, err := sqlmock.New()
