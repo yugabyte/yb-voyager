@@ -27,6 +27,11 @@ import (
 // QueryExecutor is the minimal read interface the loaders run against.
 // It is satisfied by *sql.Tx (and by *sql.DB), allowing Capture to run
 // TakeSnapshot inside a managed REPEATABLE READ transaction.
+//
+// Why an interface and not *sql.Tx directly:
+//   - Least privilege: providers get read-only access; they cannot Commit,
+//     Rollback, Exec, or Close. Capture stays the sole owner of the tx lifecycle.
+//   - Trivially fakeable in tests (sqlmock/stub) — no real DB or tx needed.
 type QueryExecutor interface {
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
@@ -43,6 +48,11 @@ type SnapshotProvider interface {
 	// a populated *SchemaSnapshot. The header fields (CapturedAt, CaptureSource,
 	// StableIdentity, etc.) are stamped by the Capture orchestrator after this
 	// call returns, so the provider must not set them.
+	//
+	// Why: providers produce schema content only; the headers are capture-event
+	// metadata computed identically for every engine. Stamping them once in the
+	// orchestrator keeps them consistent (one Version/clock/source) and the
+	// provider never even receives the CaptureSource, so it can't set them wrong.
 	TakeSnapshot(ctx context.Context, db QueryExecutor, schemas []string) (*SchemaSnapshot, error)
 
 	// HasStableIdentity reports whether ID fields in the snapshot are reliable
@@ -87,12 +97,20 @@ func NewSnapshotProvider(databaseType string) (SnapshotProvider, error) {
 //  3. Calls provider.TakeSnapshot inside that transaction.
 //  4. Commits on success (rollback on any error) — atomic, never partial.
 //  5. Stamps all header fields onto the returned snapshot.
+//
+// db and source are both needed and not derivable from each other: db is the
+// connection we query against; source is the descriptive identity (host/role/
+// type) recorded into the snapshot — database/sql can't be introspected for it,
+// and source.DatabaseType also selects the provider.
 func Capture(ctx context.Context, db *sql.DB, source CaptureSource, schemas []string) (*SchemaSnapshot, error) {
 	provider, err := NewSnapshotProvider(source.DatabaseType)
 	if err != nil {
 		return nil, err
 	}
 
+	// REPEATABLE READ so every loader query (tables, columns, links) sees one
+	// consistent point-in-time catalog — concurrent DDL mid-capture can't make
+	// the multi-query snapshot internally inconsistent.
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{
 		Isolation: sql.LevelRepeatableRead,
 		ReadOnly:  true,
@@ -122,22 +140,33 @@ func Capture(ctx context.Context, db *sql.DB, source CaptureSource, schemas []st
 	return snap, nil
 }
 
+// CaptureRequest describes a single capture-and-persist operation. It bundles the
+// fields that describe *what* to capture and *how* to record it, keeping the
+// infrastructure handles (ctx, db, mdb) as direct parameters of CaptureAndSaveSnapshot.
+// Zero values are sane defaults (no placeholder, empty reason).
+type CaptureRequest struct {
+	Source               CaptureSource // descriptive source identity; Source.DatabaseType selects the provider.
+	Schemas              []string      // schemas in scope for this capture.
+	Label                string        // the capture label/series (a labels.go constant).
+	Reason               string        // capture reason where the label carries one; "" otherwise.
+	PlaceholderOnFailure bool          // when true, a failed capture still records a metadata-only timeline marker.
+}
+
 // CaptureAndSaveSnapshot captures the source schema and persists it. On capture failure,
-// if placeholderOnFailure is true it writes a metadata-only placeholder marker (so the
+// if req.PlaceholderOnFailure is true it writes a metadata-only placeholder marker (so the
 // lifecycle moment still appears on the timeline) and returns the original capture error;
 // if false it returns the capture error without writing anything.
 func CaptureAndSaveSnapshot(ctx context.Context, db *sql.DB, mdb *metadb.MetaDB,
-	source CaptureSource, schemas []string, label, reason string,
-	placeholderOnFailure bool) (name string, err error) {
+	req CaptureRequest) (name string, err error) {
 
-	snap, captureErr := Capture(ctx, db, source, schemas)
+	snap, captureErr := Capture(ctx, db, req.Source, req.Schemas)
 	if captureErr != nil {
-		if placeholderOnFailure {
+		if req.PlaceholderOnFailure {
 			// placeholder dbVersion is "" (the version probe was part of the failed capture).
-			_, _ = SavePlaceholder(mdb, label, reason, source.Role, time.Now().UTC(), "", schemas)
+			_, _ = SavePlaceholder(mdb, req.Label, req.Reason, req.Source.Role, time.Now().UTC(), "", req.Schemas)
 		}
 		return "", captureErr
 	}
 
-	return SaveSnapshot(mdb, snap, label, reason)
+	return SaveSnapshot(mdb, snap, req.Label, req.Reason)
 }
