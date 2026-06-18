@@ -50,6 +50,7 @@ CONFIG_SCHEMA: Dict[str, Dict[str, Any]] = {
         "delete_rows": int,
         "insert_max_retries": int,
         "update_max_retries": int,
+        "min_col_size_bytes": int,
         "enable_index_create_drop": bool,
         "index_events_interval": int,
         "column_overrides": dict,
@@ -74,7 +75,7 @@ def load_yaml_file(path: str) -> Dict[str, Any]:
 
 def validate_section(section: Dict[str, Any], schema: Dict[str, Any], section_name: str) -> None:
     # Optional fields that don't need to be present (for backward compatibility)
-    optional_fields = {"enable_index_create_drop","index_events_interval","column_overrides"}
+    optional_fields = {"enable_index_create_drop","index_events_interval","column_overrides","min_col_size_bytes"}
     
     for key, expected_type in schema.items():
         if key not in section:
@@ -328,7 +329,19 @@ def get_table_description(cursor: Any, table_name: str, schema_name: Optional[st
             """, (regclass, column_name))
             precision, scale = cursor.fetchone()
             column_info[i] = (column_name, f"{data_type}({precision},{scale})")
-
+        elif data_type == 'character varying' or data_type == 'varchar' or data_type == 'char' or data_type == 'character':
+            where_prefix, where_params = _schema_filter(schema_name)
+            cursor.execute(
+                f"""
+                SELECT character_maximum_length
+                FROM information_schema.columns
+                WHERE {where_prefix} column_name = %s AND table_name = %s
+                """,
+                where_params + (column_name, table_name),
+            )
+            character_maximum_length = cursor.fetchone()[0]
+            if character_maximum_length is not None and character_maximum_length > 0:
+                column_info[i] = (column_name, f"{data_type}({character_maximum_length})")
     return column_info
 
 def _build_columns_dict(column_info: List[Tuple[str, str]]) -> Dict[str, str]:
@@ -689,16 +702,72 @@ def generate_random_data(
     enum_values: Optional[List[str]] = None,
     array_types: Optional[str] = None,
     faker_instance: Optional[Faker] = None,
+    min_col_size_bytes: int = 0,
 ) -> Any:
     """Generate random data compatible with a Postgres column type."""
     fake = faker_instance or _fake
-    if "varchar" in data_type or "text" in data_type or "character varying" in data_type or "bytea" in data_type:
-        value = ' '.join([fake.word() for _ in range(3)])
-        return value # Change 3 to the desired number of words
+
+    if ("text" in data_type or "bytea" in data_type or (("character varying" in data_type or "varchar" in data_type) and re.search(r"\((\d+)\)", data_type) is None)) and min_col_size_bytes > 0:
+        parts = []
+        batch_size = max(1, min_col_size_bytes // 10)
+        while True:
+            parts.append(fake.pystr(min_chars=batch_size, max_chars=batch_size))
+            value = "".join(parts)
+            if len(value.encode("utf-8")) >= min_col_size_bytes:
+                return value
+
+    elif ("json" in data_type or "jsonb" in data_type) and min_col_size_bytes > 0:
+        obj = {}
+        while len(json.dumps(obj).encode("utf-8")) < min_col_size_bytes:
+            chunk_size = max(1000, min_col_size_bytes // 10)
+            text_value = fake.text(max_nb_chars=chunk_size)
+            obj[fake.word()] = text_value
+        return json.dumps(obj)
+
+    elif "tsvector" in data_type and min_col_size_bytes > 0:
+        words = []
+        while True:
+            chunk_size = max(1000, min_col_size_bytes // 10)  # Generate in chunks
+            text_chunk = fake.text(max_nb_chars=chunk_size)
+            words.append(text_chunk)
+            value = ' '.join(words)
+            if len(value.encode("utf-8")) >= min_col_size_bytes:
+                return value
+
+    elif "ARRAY" in data_type and min_col_size_bytes > 0 and array_types:
+        elements = []
+
+        def gen_elem():
+            if "int" in array_types:
+                return str(random.randint(0, 1_000_000))
+            elif "bool" in array_types:
+                return random.choice(["true", "false"])
+            elif "uuid" in array_types:
+                return f'"{fake.uuid4()}"'
+            else:
+                return f'"{fake.word()}"'
+
+        BATCH_SIZE = max(10, min_col_size_bytes // 10)
+
+        while True:
+            # grow in batches
+            elements.extend(gen_elem() for _ in range(BATCH_SIZE))
+
+            value = "{" + ",".join(elements) + "}"
+
+            if len(value.encode("utf-8")) >= min_col_size_bytes:
+                return value
+
+    elif "varchar" in data_type or "text" in data_type or "character varying" in data_type or "bytea" in data_type or "character" in data_type or "char" in data_type:
+        match = re.search(r"\((\d+)\)", data_type)
+        if match:
+            character_maximum_length = int(match.groups()[0])
+            value = fake.pystr(max_chars=character_maximum_length)
+        else:
+            value = ' '.join([fake.word() for _ in range(3)])
+        return value
     elif "boolean" in data_type:
         return random.choice(["true", "false"])
-    elif "char" in data_type:
-        return fake.word()[:1]
     elif "USER-DEFINED" in data_type and enum_values:
         val = random.choice(enum_values)
         return val
@@ -727,7 +796,7 @@ def generate_random_data(
 
     elif "smallint" in data_type:
         return random.randint(-1000, 1000)
-    elif "integer" in data_type:
+    elif "integer" in data_type or "real" in data_type:
         return random.randint(-200000000, 200000000)
     elif "bigint" in data_type:
         return random.randint(-9223372000000000000, 9223372000000000000)
@@ -766,6 +835,10 @@ def generate_random_data(
     elif "tsvector" in data_type:
         words = [fake.word() for _ in range(5)]
         return ' '.join(words)
+
+    elif "tsquery" in data_type:
+        words = [fake.word() for _ in range(5)]
+        return ' & '.join(words)
     
     # -- START: BIT TYPES --
     elif "bit" in data_type.lower():
@@ -783,12 +856,14 @@ def build_insert_values(
     table_schemas: Dict[str, Dict[str, Any]],
     table_name: str,
     number_of_rows_to_insert: int,
+    min_col_size_bytes: int = 0,
     column_overrides: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Build VALUES list like (v1, v2), (v1, v2) for INSERT ... VALUES ..."""
     rows = []
     for _ in range(number_of_rows_to_insert):
         values = []
+
         for column_name, data_type in table_schemas[table_name]["columns"].items():
             override_spec = get_column_override(column_overrides or {}, table_name, column_name)
             if override_spec:
@@ -797,12 +872,25 @@ def build_insert_values(
             elif "bit" in data_type.lower():
                 values.append(build_bit_cast_expr(table_schemas, table_name, column_name))
             elif data_type != "USER-DEFINED" and data_type != "ARRAY":
-                values.append(f"'{generate_random_data(data_type, table_name, None, None)}'")
+                value = generate_random_data(data_type, table_name, None, None, None, min_col_size_bytes)
+                if "bytea" in data_type and isinstance(value, bytes):
+                    hex_value = value.hex()
+                    values.append(f"'\\\\x{hex_value}'")
+                else:
+                    if isinstance(value, str):
+                        escaped_value = value.replace("'", "''")
+                        values.append(f"'{escaped_value}'")
+                    else:
+                        values.append(f"'{value}'" if value is not None else "NULL")
             else:
                 enum_values = fetch_enum_values_for_column(table_schemas, table_name, column_name)
                 array_types = fetch_array_types_for_column(table_schemas, table_name, column_name)
-                value = generate_random_data(data_type, table_name, enum_values, array_types)
-                values.append(f"'{value}'" if value is not None else "NULL")
+                value = generate_random_data(data_type, table_name, enum_values, array_types, None, min_col_size_bytes)
+                if isinstance(value, str):
+                    escaped_value = value.replace("'", "''")
+                    values.append(f"'{escaped_value}'" if value is not None else "NULL")
+                else:
+                    values.append(f"'{value}'" if value is not None else "NULL")
         rows.append(f"({', '.join(values)})")
     return ", ".join(rows)
 
@@ -813,6 +901,7 @@ def build_update_values(
     table_schemas: Dict[str, Dict[str, Any]],
     table_name: str,
     columns_to_update: List[str],
+    min_col_size_bytes: int = 0,
     column_overrides: Optional[Dict[str, Any]] = None,
 ) -> Tuple[str, List[Any]]:
     """Build a SET clause and params for UPDATE with type-aware handling.
@@ -841,10 +930,10 @@ def build_update_values(
         else:
             if data_type == "USER-DEFINED":
                 enum_values = fetch_enum_values_for_column(table_schemas, table_name, col)
-                value = generate_random_data(data_type, table_name, enum_values, None)
+                value = generate_random_data(data_type, table_name, enum_values, None, None, min_col_size_bytes)
             else:
                 array_types = fetch_array_types_for_column(table_schemas, table_name, col)
-                value = generate_random_data(data_type, table_name, None, array_types)
+                value = generate_random_data(data_type, table_name, None, array_types, None, min_col_size_bytes)
             if value is None:
                 set_parts.append(f"{col} = NULL")
             else:
