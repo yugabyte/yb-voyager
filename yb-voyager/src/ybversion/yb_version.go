@@ -50,6 +50,22 @@ type YBVersion struct {
 	*version.Version
 }
 
+// SeriesVersion reduces a YB version to its release series in the YEAR.TRACK.0.0 form
+// NewYBVersion accepts, dropping everything after the first two segments. CDC connector
+// compatibility is per-series, so only YEAR.TRACK is compared.
+// Examples: "2025.2.3"->"2025.2.0.0", "2025.2"->"2025.2.0.0", "2.25.2.0"->"2.25.0.0".
+func SeriesVersion(v string) string {
+	segments := strings.Split(v, ".")
+	if len(segments) > 2 {
+		segments = segments[:2]
+	}
+	for len(segments) < 2 {
+		segments = append(segments, "0")
+	}
+	segments = append(segments, "0", "0")
+	return strings.Join(segments, ".")
+}
+
 func NewYBVersion(v string) (*YBVersion, error) {
 	v1, err := version.NewVersion(v)
 	if err != nil {
