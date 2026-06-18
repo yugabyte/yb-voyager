@@ -329,7 +329,19 @@ def get_table_description(cursor: Any, table_name: str, schema_name: Optional[st
             """, (regclass, column_name))
             precision, scale = cursor.fetchone()
             column_info[i] = (column_name, f"{data_type}({precision},{scale})")
-
+        elif data_type == 'character varying' or data_type == 'varchar' or data_type == 'char' or data_type == 'character':
+            where_prefix, where_params = _schema_filter(schema_name)
+            cursor.execute(
+                f"""
+                SELECT character_maximum_length
+                FROM information_schema.columns
+                WHERE {where_prefix} column_name = %s AND table_name = %s
+                """,
+                where_params + (column_name, table_name),
+            )
+            character_maximum_length = cursor.fetchone()[0]
+            if character_maximum_length is not None and character_maximum_length > 0:
+                column_info[i] = (column_name, f"{data_type}({character_maximum_length})")
     return column_info
 
 def _build_columns_dict(column_info: List[Tuple[str, str]]) -> Dict[str, str]:
@@ -695,7 +707,7 @@ def generate_random_data(
     """Generate random data compatible with a Postgres column type."""
     fake = faker_instance or _fake
 
-    if ("text" in data_type or "bytea" in data_type) and min_col_size_bytes > 0:
+    if ("text" in data_type or "bytea" in data_type or (("character varying" in data_type or "varchar" in data_type) and re.search(r"\((\d+)\)", data_type) is None)) and min_col_size_bytes > 0:
         parts = []
         batch_size = max(1, min_col_size_bytes // 10)
         while True:
@@ -746,13 +758,16 @@ def generate_random_data(
             if len(value.encode("utf-8")) >= min_col_size_bytes:
                 return value
 
-    elif "varchar" in data_type or "text" in data_type or "character varying" in data_type or "bytea" in data_type:
-        value = ' '.join([fake.word() for _ in range(3)])
-        return value # Change 3 to the desired number of words
+    elif "varchar" in data_type or "text" in data_type or "character varying" in data_type or "bytea" in data_type or "character" in data_type or "char" in data_type:
+        match = re.search(r"\((\d+)\)", data_type)
+        if match:
+            character_maximum_length = int(match.groups()[0])
+            value = fake.pystr(max_chars=character_maximum_length)
+        else:
+            value = ' '.join([fake.word() for _ in range(3)])
+        return value
     elif "boolean" in data_type:
         return random.choice(["true", "false"])
-    elif "char" in data_type:
-        return fake.word()[:1]
     elif "USER-DEFINED" in data_type and enum_values:
         val = random.choice(enum_values)
         return val
