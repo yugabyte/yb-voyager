@@ -87,6 +87,21 @@ func (p *PostgresSnapshotProvider) TakeSnapshot(
 	return snap, nil
 }
 
+// detectDatabaseVersion probes the PostgreSQL server_version and returns just
+// the version number (truncated at the first space).
+func detectDatabaseVersion(ctx context.Context, db schemasnapshot.QueryExecutor) (string, error) {
+	row := db.QueryRowContext(ctx, sqlServerVersion)
+	var version string
+	if err := row.Scan(&version); err != nil {
+		return "", fmt.Errorf("SHOW server_version: %w", err)
+	}
+	// Truncate at first space: "16.4 (Ubuntu ...)" → "16.4"
+	if idx := strings.Index(version, " "); idx >= 0 {
+		version = version[:idx]
+	}
+	return version, nil
+}
+
 // tableLink holds a single row returned by sqlLoadTableLinksFmt.
 type tableLink struct {
 	childOID     string
@@ -170,21 +185,6 @@ func linkTableHierarchy(tables []schemasnapshot.Table, links []tableLink) {
 			}
 		}
 	}
-}
-
-// detectDatabaseVersion probes the PostgreSQL server_version and returns just
-// the version number (truncated at the first space).
-func detectDatabaseVersion(ctx context.Context, db schemasnapshot.QueryExecutor) (string, error) {
-	row := db.QueryRowContext(ctx, sqlServerVersion)
-	var version string
-	if err := row.Scan(&version); err != nil {
-		return "", fmt.Errorf("SHOW server_version: %w", err)
-	}
-	// Truncate at first space: "16.4 (Ubuntu ...)" → "16.4"
-	if idx := strings.Index(version, " "); idx >= 0 {
-		version = version[:idx]
-	}
-	return version, nil
 }
 
 // loadTables queries pg_class for tables (ordinary, partitioned, foreign) in the
