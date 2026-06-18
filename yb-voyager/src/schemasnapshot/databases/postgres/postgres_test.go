@@ -24,13 +24,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 )
 
 // TestProviderRegistered asserts that importing the postgres package causes
 // "postgresql" to be registered in the provider registry.
 func TestProviderRegistered(t *testing.T) {
-	p, err := schemasnapshot.NewSnapshotProvider("postgresql")
+	p, err := schemasnapshot.NewSnapshotProvider(constants.POSTGRESQL)
 	require.NoError(t, err, "NewSnapshotProvider must succeed after postgres init()")
 	assert.Equal(t, "postgresql", p.DatabaseType())
 	assert.True(t, p.HasStableIdentity(), "PostgreSQL provider must report stable identity")
@@ -47,7 +48,7 @@ func TestProviderUnknownTypeReturnsError(t *testing.T) {
 // TestTakeSnapshotLoadsTablesAndColumns verifies that TakeSnapshot queries
 // the catalog for tables and columns in the given schemas.
 func TestTakeSnapshotLoadsTablesAndColumns(t *testing.T) {
-	p, err := schemasnapshot.NewSnapshotProvider("postgresql")
+	p, err := schemasnapshot.NewSnapshotProvider(constants.POSTGRESQL)
 	require.NoError(t, err)
 
 	db, mock, err := sqlmock.New()
