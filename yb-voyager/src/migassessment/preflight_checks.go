@@ -168,29 +168,29 @@ func discoverAndValidateReplicas(config PreflightChecksConfig) (ReplicaDiscovery
 }
 
 func checkAssessmentPermissions(config PreflightChecksConfig, validatedReplicaEndpoints []srcdb.ReplicaEndpoint) (map[string]bool, error) {
-	if !bool(config.Source.RunGuardrailsChecks) {
-		ux.PrintPreflightSkip("Permission checks (guardrails disabled)")
-		// Even though guardrails (and the bundled permission checks) are skipped, we still
-		// need to know whether pg_stat_statements is available on each node. Otherwise the
-		// gather step defaults to "pgss disabled" and falsely reports that
-		// pg_stat_statements is not enabled, silently skipping Unsupported Query Constructs
-		// detection even when the extension is fully enabled.
-		pgssByNode, err := DetectPgssAvailabilityOnAllNodes(config.Source, validatedReplicaEndpoints)
-		if err != nil {
-			return nil, fmt.Errorf("failed to detect pg_stat_statements availability: %w", err)
+	// Permission/USAGE checks are part of the guardrails and are skipped when guardrails
+	// are disabled. pg_stat_statements detection (below) is NOT part of this and always runs.
+	if bool(config.Source.RunGuardrailsChecks) {
+		if err := srcdb.CheckSchemasHaveUsagePermissions(config.Source, false); err != nil {
+			ux.PrintPreflightFail("Schema USAGE permissions")
+			return nil, fmt.Errorf("schema usage permission check failed: %w", err)
 		}
-		return pgssByNode, nil
+		if err := CheckAssessmentPermissionsOnAllNodes(config.Source, validatedReplicaEndpoints); err != nil {
+			ux.PrintPreflightFail("Assessment permissions on all nodes")
+			return nil, fmt.Errorf("assessment permission check failed: %w", err)
+		}
+		ux.PrintPreflightCheck("Permissions verified on all nodes")
+	} else {
+		ux.PrintPreflightSkip("Permission checks (guardrails disabled)")
 	}
 
-	if err := srcdb.CheckSchemasHaveUsagePermissions(config.Source, false); err != nil {
-		ux.PrintPreflightFail("Schema USAGE permissions")
-		return nil, fmt.Errorf("schema usage permission check failed: %w", err)
-	}
-	pgssByNode, err := CheckAssessmentPermissionsOnAllNodes(config.Source, validatedReplicaEndpoints)
+	// pg_stat_statements availability is detected regardless of the guardrails flag. Its result
+	// drives whether Unsupported Query Constructs are collected; if skipped, the gather step
+	// would default to "pgss disabled" and silently drop that detection even when the extension
+	// is fully enabled. This is a non-blocking check: it only warns when pgss is unavailable.
+	pgssByNode, err := DetectPgssAvailabilityOnAllNodes(config.Source, validatedReplicaEndpoints)
 	if err != nil {
-		ux.PrintPreflightFail("Assessment permissions on all nodes")
-		return nil, fmt.Errorf("assessment permission check failed: %w", err)
+		return nil, fmt.Errorf("failed to detect pg_stat_statements availability: %w", err)
 	}
-	ux.PrintPreflightCheck("Permissions verified on all nodes")
 	return pgssByNode, nil
 }
