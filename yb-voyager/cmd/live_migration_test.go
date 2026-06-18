@@ -188,13 +188,13 @@ func TestShouldWarnServerSeriesNewerThanConnector(t *testing.T) {
 		expectedWarn     bool
 		wantErr          bool
 	}{
-		{"same series, server higher maintenance is NOT newer", "2025.2.3", "2025.2.9.0", false, false},
-		{"same series, server higher connector-counter-equivalent is NOT newer", "2025.2.3", "2025.2.4.0", false, false},
-		{"same series exact", "2025.2.3", "2025.2.0.0", false, false},
-		{"server on newer series warns", "2024.2.5", "2025.1.0.0", true, false},
-		{"server on older series does not warn", "2025.2.3", "2024.2.8.0", false, false},
-		{"server on unrecognized (newer) series warns", "2025.2.3", "2026.1.0.0", true, false},
-		{"connector 2-segment series tag, same series", "2025.2", "2025.2.9.0", false, false},
+		{"same release, server higher maintenance is NOT newer", "2025.2.3", "2025.2.9.0", false, false},
+		{"same release, server higher connector-counter-equivalent is NOT newer", "2025.2.3", "2025.2.4.0", false, false},
+		{"same release exact", "2025.2.3", "2025.2.0.0", false, false},
+		{"server on newer release warns", "2024.2.5", "2025.1.0.0", true, false},
+		{"server on older release does not warn", "2025.2.3", "2024.2.8.0", false, false},
+		{"server on unrecognized (newer) release warns", "2025.2.3", "2026.1.0.0", true, false},
+		{"connector 2-segment release tag, same release", "2025.2", "2025.2.9.0", false, false},
 		{"preview server warns (connector not built for preview)", "2025.2.3", "2.25.1.0", true, false},
 		{"stable-old server does not warn (connector is newer and backward-compatible)", "2025.2.3", "2.20.1.0", false, false},
 		{"unparseable server version returns error", "2025.2.3", "not-a-version", false, true},
