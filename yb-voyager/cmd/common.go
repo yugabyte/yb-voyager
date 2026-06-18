@@ -1279,19 +1279,21 @@ type AssessmentReport struct {
 
 // Fields apart from Category, CategoryDescription, TypeName and Impact will be populated only if/when available
 type AssessmentIssue struct {
-	Category               string                          `json:"Category"` // expected values: unsupported_features, unsupported_query_constructs, migration_caveats, unsupported_plpgsql_objects, unsupported_datatype
-	CategoryDescription    string                          `json:"CategoryDescription"`
-	Type                   string                          `json:"Type"` // Ex: GIN_INDEXES, SECURITY_INVOKER_VIEWS, STORED_GENERATED_COLUMNS
-	Name                   string                          `json:"Name"` // Ex: GIN Indexes, Security Invoker Views, Stored Generated Columns
-	Description            string                          `json:"Description"`
-	Impact                 string                          `json:"Impact"`     // // Level-1, Level-2, Level-3 (no default: need to be assigned for each issue)
-	ObjectType             string                          `json:"ObjectType"` // For datatype category, ObjectType will be datatype (for eg "geometry")
-	ObjectName             string                          `json:"ObjectName"`
-	ObjectUsage            string                          `json:"ObjectUsage,omitempty"`
-	SqlStatement           string                          `json:"SqlStatement"`
-	DocsLink               string                          `json:"DocsLink"`
-	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"` // key: series (2024.1, 2.21, etc)
-	Details                map[string]interface{}          `json:"Details,omitempty"`
+	Category                 string                          `json:"Category"` // expected values: unsupported_features, unsupported_query_constructs, migration_caveats, unsupported_plpgsql_objects, unsupported_datatype
+	CategoryDescription      string                          `json:"CategoryDescription"`
+	Type                     string                          `json:"Type"` // Ex: GIN_INDEXES, SECURITY_INVOKER_VIEWS, STORED_GENERATED_COLUMNS
+	Name                     string                          `json:"Name"` // Ex: GIN Indexes, Security Invoker Views, Stored Generated Columns
+	Description              string                          `json:"Description"`
+	Impact                   string                          `json:"Impact"`     // // Level-1, Level-2, Level-3 (no default: need to be assigned for each issue)
+	ObjectType               string                          `json:"ObjectType"` // For datatype category, ObjectType will be datatype (for eg "geometry")
+	ObjectName               string                          `json:"ObjectName"`
+	ObjectUsage              string                          `json:"ObjectUsage,omitempty"`
+	SqlStatement             string                          `json:"SqlStatement"`
+	DocsLink                 string                          `json:"DocsLink"`
+	MinimumVersionsFixedIn   map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"`             // key: series (2024.1, 2.21, etc); GA
+	MinimumVersionsFixedInTP map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedInTP,omitempty"` // key: series; available as Tech Preview
+	MinimumVersionsFixedInEA map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedInEA,omitempty"` // key: series; available as Early Access
+	Details                  map[string]interface{}          `json:"Details,omitempty"`
 }
 
 type UnsupportedFeature struct {

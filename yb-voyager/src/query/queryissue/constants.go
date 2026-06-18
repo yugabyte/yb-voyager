@@ -485,6 +485,7 @@ const (
 	//BEFORE ADDING ANY KEY FOR DETAILS MAP, ADD IT TO THE SensitiveKeysInIssueDetailsMap in query_issue.go
 	CONSTRAINT_NAME           = "ConstraintName"
 	FUNCTION_NAMES            = "FunctionNames"
+	RECOMMENDED_RESOLUTION    = "RecommendedResolution"
 	TABLE_OBJECT_TYPE         = "TABLE"
 	FOREIGN_TABLE_OBJECT_TYPE = "FOREIGN TABLE"
 	FUNCTION_OBJECT_TYPE      = "FUNCTION"
