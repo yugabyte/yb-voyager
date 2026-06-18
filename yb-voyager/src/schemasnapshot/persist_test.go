@@ -117,7 +117,7 @@ func TestListSnapshotsOrder(t *testing.T) {
 	_, err := SaveSnapshot(mdb, makeSnapshot(t3), LabelExportDataFromSourceExit, ReasonComplete)
 	require.NoError(t, err)
 
-	_, err = SavePlaceholder(mdb, LabelExportDataFromSourceStart, ReasonInitial, t1, "16.14", []string{"public"})
+	_, err = SavePlaceholder(mdb, LabelExportDataFromSourceStart, ReasonInitial, RoleSource, t1, "16.14", []string{"public"})
 	require.NoError(t, err)
 
 	_, err = SaveSnapshot(mdb, makeSnapshot(t2), LabelExportDataFromSourcePeriodic, "")
@@ -164,7 +164,7 @@ func TestLoadPlaceholderReturnsError(t *testing.T) {
 	mdb := newTestMetaDB(t)
 	capturedAt := time.Date(2026, 5, 12, 10, 0, 0, 0, time.UTC)
 
-	name, err := SavePlaceholder(mdb, LabelExportSchema, "", capturedAt, "", []string{"public"})
+	name, err := SavePlaceholder(mdb, LabelExportSchema, "", RoleSource, capturedAt, "", []string{"public"})
 	require.NoError(t, err)
 
 	_, err = LoadSnapshotByName(mdb, name)
@@ -176,11 +176,18 @@ func TestLoadPlaceholderReturnsError(t *testing.T) {
 func TestLoadMissingNameReturnsNotFound(t *testing.T) {
 	mdb := newTestMetaDB(t)
 
-	_, err := LoadSnapshotByName(mdb, "no_such_name")
+	// Save one snapshot so the schema_snapshots table exists, then look up a
+	// different name: this exercises the "table present, row absent" path.
+	_, err := SaveSnapshot(mdb, makeSnapshot(time.Date(2026, 5, 12, 10, 0, 0, 0, time.UTC)), LabelExportDataFromSourceExit, ReasonCutover)
+	require.NoError(t, err)
+
+	_, err = LoadSnapshotByName(mdb, "no_such_name")
 	assert.ErrorIs(t, err, ErrSnapshotNotFound)
 }
 
-// ErrSnapshotNotFound is also returned when the table has never been written.
+// ErrSnapshotNotFound is also returned when the table has never been written
+// (lazy CREATE TABLE IF NOT EXISTS hasn't run yet — distinct from the row-absent
+// case above).
 func TestLoadMissingNameNoTable(t *testing.T) {
 	mdb := newTestMetaDB(t)
 	_, err := LoadSnapshotByName(mdb, "anything")
@@ -253,7 +260,7 @@ func TestSavePlaceholderEmptyDbVersion(t *testing.T) {
 	mdb := newTestMetaDB(t)
 	capturedAt := time.Date(2026, 5, 12, 10, 0, 0, 0, time.UTC)
 
-	name, err := SavePlaceholder(mdb, LabelExportDataFromSourceStart, ReasonResume, capturedAt, "", []string{"public", "sales"})
+	name, err := SavePlaceholder(mdb, LabelExportDataFromSourceStart, ReasonResume, RoleSource, capturedAt, "", []string{"public", "sales"})
 	require.NoError(t, err)
 	assert.NotEmpty(t, name)
 
@@ -299,4 +306,34 @@ func TestSaveSnapshotBadLabel(t *testing.T) {
 	snap := makeSnapshot(time.Now())
 	_, err := SaveSnapshot(mdb, snap, "invalid_label", "")
 	require.Error(t, err)
+}
+
+// ─── SavePlaceholder role flows through to Side ───────────────────────────────
+
+func TestSavePlaceholderRecordsRole(t *testing.T) {
+	t.Run("explicit target role is stored as Side", func(t *testing.T) {
+		mdb := newTestMetaDB(t)
+		capturedAt := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+
+		_, err := SavePlaceholder(mdb, LabelExportSchema, "", "target", capturedAt, "", []string{"public"})
+		require.NoError(t, err)
+
+		list, err := ListSnapshots(mdb)
+		require.NoError(t, err)
+		require.Len(t, list, 1)
+		assert.Equal(t, "target", list[0].Side, "role 'target' should flow through to Side")
+	})
+
+	t.Run("empty role defaults Side to RoleSource", func(t *testing.T) {
+		mdb := newTestMetaDB(t)
+		capturedAt := time.Date(2026, 6, 2, 12, 0, 0, 0, time.UTC)
+
+		_, err := SavePlaceholder(mdb, LabelExportSchema, "", "", capturedAt, "", []string{"public"})
+		require.NoError(t, err)
+
+		list, err := ListSnapshots(mdb)
+		require.NoError(t, err)
+		require.Len(t, list, 1)
+		assert.Equal(t, RoleSource, list[0].Side, "empty role should default Side to RoleSource")
+	})
 }
