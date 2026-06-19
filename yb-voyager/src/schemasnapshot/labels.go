@@ -15,8 +15,9 @@
 package schemasnapshot
 
 import (
-	"fmt"
 	"slices"
+
+	goerrors "github.com/go-errors/errors"
 )
 
 // The four valid snapshot capture labels.
@@ -58,21 +59,21 @@ var labelReasons = map[string][]string{
 func ValidateLabelReason(label, reason string) error {
 	vocab, ok := labelReasons[label]
 	if !ok {
-		return fmt.Errorf("unknown snapshot label %q", label)
+		return goerrors.Errorf("unknown snapshot label %q", label)
 	}
 	if vocab == nil {
 		// No reason is allowed for this label.
 		if reason != "" {
-			return fmt.Errorf("label %q does not accept a reason, got %q", label, reason)
+			return goerrors.Errorf("label %q does not accept a reason, got %q", label, reason)
 		}
 		return nil
 	}
 	// Non-empty vocabulary: an empty reason is not allowed.
 	if reason == "" {
-		return fmt.Errorf("label %q requires a reason; valid values: %v", label, vocab)
+		return goerrors.Errorf("label %q requires a reason; valid values: %v", label, vocab)
 	}
 	if slices.Contains(vocab, reason) {
 		return nil
 	}
-	return fmt.Errorf("label %q does not accept reason %q; valid values: %v", label, reason, vocab)
+	return goerrors.Errorf("label %q does not accept reason %q; valid values: %v", label, reason, vocab)
 }

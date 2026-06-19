@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 )
 
@@ -195,10 +196,10 @@ func DecodeSnapshot(data []byte) (*SchemaSnapshot, error) {
 		return nil, fmt.Errorf("unmarshal snapshot: %w", err)
 	}
 	if snap.Version == 0 {
-		return nil, fmt.Errorf("snapshot has no version set (Version 0 or missing); this library requires Version %d", currentSnapshotVersion)
+		return nil, goerrors.Errorf("snapshot has no version set (Version 0 or missing); this library requires Version %d", currentSnapshotVersion)
 	}
 	if snap.Version > currentSnapshotVersion {
-		return nil, fmt.Errorf("snapshot Version %d is newer than this library understands (expected Version %d); upgrade yb-voyager", snap.Version, currentSnapshotVersion)
+		return nil, goerrors.Errorf("snapshot Version %d is newer than this library understands (expected Version %d); upgrade yb-voyager", snap.Version, currentSnapshotVersion)
 	}
 	return &snap, nil
 }
