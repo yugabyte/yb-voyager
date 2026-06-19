@@ -101,39 +101,45 @@ and `AnchorTable` points at the parent table.
 
 ## 6. DiffType enumeration (V1)
 
-**Tables**
-- `TABLE_ADDED`
-- `TABLE_DROPPED`
-- `TABLE_NAME_CHANGED`
-- `TABLE_SCHEMA_CHANGED`
-- `TABLE_KIND_CHANGED`
-- `TABLE_PARTITION_PARENT_CHANGED` — child's `PartitionParent` link changed
-- `TABLE_PARTITION_CHILDREN_CHANGED` — parent's `PartitionChildren` set changed
-- `TABLE_INHERITS_CHANGED` — child's `InheritsFrom` set changed
+The full `DiffType` enumeration from the design doc (`LIBRARY_DESIGN_V1.md` §7) is
+**declared** in `diff.go` as the forward-compat vocabulary, and the `filter.go`
+`DiffType → ObjectType` map covers all of them (so scope filtering and its
+exhaustiveness test are complete). V1 only **emits** the table/column/link subset
+below; the rest are declared-but-unemitted, exactly like `ATTR_CHANGED`.
 
-**Columns**
-- `COLUMN_ADDED`
-- `COLUMN_DROPPED`
-- `COLUMN_NAME_CHANGED`
-- `COLUMN_TYPE_CHANGED`
-- `COLUMN_NULLABILITY_CHANGED` — `NotNull` changed
-- `COLUMN_DEFAULT_CHANGED`
+**Tables (emitted)**
+- `TABLE_ADDED` — `TableAdded`
+- `TABLE_DROPPED` — `TableDropped`
+- `TABLE_NAME_CHANGED` — `TableNameChanged`
+- `TABLE_SCHEMA_CHANGED` — `TableSchemaChanged`
+- `TABLE_KIND_CHANGED` — `TableKindChanged`
+- `PARTITION_PARENT_CHANGED` — `PartitionParentChanged` *(new constant)* — child's `PartitionParent`
+- `PARTITION_CHILDREN_CHANGED` — `PartitionChildrenChanged` *(exists in enum)* — parent's `PartitionChildren`
+- `TABLE_INHERITS_CHANGED` — `TableInheritsChanged` *(new constant)* — child's `InheritsFrom`
+- `TABLE_INHERITED_BY_CHANGED` — `TableInheritedByChanged` *(new constant)* — parent's `InheritedBy`
 
-**Forward-compat (retained, not emitted in V1)**
-- `ATTR_CHANGED` — kept in the enum and the filter map; no Attr walk performed.
+**Columns (emitted)**
+- `COLUMN_ADDED` — `ColumnAdded`
+- `COLUMN_DROPPED` — `ColumnDropped`
+- `COLUMN_NAME_CHANGED` — `ColumnNameChanged`
+- `COLUMN_TYPE_CHANGED` — `ColumnTypeChanged`
+- `COLUMN_NULLABILITY_CHANGED` — `ColumnNullabilityChanged` (`NotNull`)
+- `COLUMN_DEFAULT_CHANGED` — `ColumnDefaultChanged`
 
-### Partition/inheritance link diffing — avoid double-reporting
+**Forward-compat (declared, not emitted in V1)**
+- `ATTR_CHANGED` and the entire constraint/index/sequence/view/function/trigger/type
+  vocabulary — present in the enum and filter map; no diff logic emits them yet.
+
+### Partition/inheritance link diffing — report both sides (deliberate)
 
 Links are stored bidirectionally: a parent's `PartitionChildren`/`InheritedBy` and a
-child's `PartitionParent`/`InheritsFrom`. To avoid emitting the same structural change
-twice:
-- Emit `TABLE_PARTITION_PARENT_CHANGED` / `TABLE_INHERITS_CHANGED` from the **child's
-  upward link** (authoritative for "this table's parent changed").
-- Emit `TABLE_PARTITION_CHILDREN_CHANGED` from the **parent's child set** only for
-  membership changes not already implied by a matched child's upward-link change
-  (e.g. a child added/removed that itself was added/dropped). Exact rule to be
-  pinned with tests during implementation; default to the child-anchored event being
-  the primary signal.
+child's `PartitionParent`/`InheritsFrom`. We diff **all four fields independently** and
+emit a finding for each side that changed. This is **not** double-reporting: each
+finding is anchored to a *different table* (the child for `PARTITION_PARENT_CHANGED` /
+`TABLE_INHERITS_CHANGED`, the parent for `PARTITION_CHILDREN_CHANGED` /
+`TABLE_INHERITED_BY_CHANGED`), and scope filtering is per-table — so a user scoping to
+just the child, or just the parent, must independently see the structural change that
+concerns that table. Each side is a distinct per-table fact.
 
 ## 7. Diff algorithm
 
@@ -184,11 +190,11 @@ type Scope struct {
 }
 ```
 
-- `DiffType → ObjectType` map trimmed to exactly the V1 DiffTypes. All V1 DiffTypes
-  (tables and columns) map to `ObjectTypeTable` (columns anchor under their table);
-  `ATTR_CHANGED → ObjectTypeTable`. An exhaustiveness test guards the map.
+- `DiffType → ObjectType` map ported in full from the parked `filter.go` (covers the
+  entire enum), plus entries for the 3 new link constants (all → `ObjectTypeTable`).
+  An exhaustiveness test guards that every declared `DiffType` has a mapping.
 - The full six-value `ObjectType` enum is kept for forward-compat; in V1 only
-  `TABLE` ever matches a produced diff.
+  `TABLE` ever matches an *emitted* diff (all emitted DiffTypes bucket to TABLE).
 - **Rename-aware table scoping:** a `TABLE_NAME_CHANGED` (and any finding anchored to
   a renamed table) is kept when **either** the old or the new name is in `Tables`, via
   a bidirectional rename-alias map built from `TABLE_NAME_CHANGED` findings. This is
