@@ -2378,9 +2378,9 @@ func clearMigrationStateForImportDataStartClean(state *ImportDataState, importFi
 	// mutating any metaDB state.
 	if changeStreamingIsEnabled(importType) {
 		segmentsExporterRole := ""
-		if importerRole == SOURCE_DB_IMPORTER_ROLE {
-			// fall-back import only consumes segments exported from the target db.
-			segmentsExporterRole = TARGET_DB_EXPORTER_FB_ROLE
+		if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
+			// fall-forward import only consumes segments exported from the target db.
+			segmentsExporterRole = TARGET_DB_EXPORTER_FF_ROLE
 		}
 		resumeSegmentDeleted, err := metaDB.AnySegmentsDeletedOrArchived(segmentsExporterRole)
 		if err != nil {
@@ -2392,7 +2392,7 @@ func clearMigrationStateForImportDataStartClean(state *ImportDataState, importFi
 	}
 
 	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		msr.OnPrimaryKeyConflictAction = ""
+		record.OnPrimaryKeyConflictAction = ""
 	})
 	err = metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
 		record.TableToCDCPartitioningStrategyMap = nil
