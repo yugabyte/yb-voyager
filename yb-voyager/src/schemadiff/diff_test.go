@@ -1,0 +1,551 @@
+//go:build unit
+
+// Copyright (c) YugabyteDB, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package schemadiff
+
+import (
+	"reflect"
+	"testing"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
+)
+
+// helper: build a minimal SchemaSnapshot with the given tables
+func snapWithTables(tables ...schemasnapshot.Table) *schemasnapshot.SchemaSnapshot {
+	return &schemasnapshot.SchemaSnapshot{
+		Version: 1,
+		Tables:  tables,
+	}
+}
+
+// helper: build a table with ID, schema, name, kind
+func makeTable(id, schema, name string, kind schemasnapshot.TableKind) schemasnapshot.Table {
+	return schemasnapshot.Table{
+		ObjectRef: schemasnapshot.ObjectRef{Schema: schema, Name: name},
+		ID:        id,
+		Kind:      kind,
+	}
+}
+
+// helper: ref shorthand
+func ref(schema, name string) schemasnapshot.ObjectRef {
+	return schemasnapshot.ObjectRef{Schema: schema, Name: name}
+}
+
+// refPtr returns a pointer to an ObjectRef
+func refPtr(schema, name string) *schemasnapshot.ObjectRef {
+	r := ref(schema, name)
+	return &r
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Test: Diff of two empty snapshots returns nil/empty
+// ──────────────────────────────────────────────────────────────────────────────
+
+func TestDiff_EmptySnapshots_ReturnsNilOrEmpty(t *testing.T) {
+	a := &schemasnapshot.SchemaSnapshot{Version: 1}
+	b := &schemasnapshot.SchemaSnapshot{Version: 1}
+	got := Diff(a, b)
+	if len(got) != 0 {
+		t.Errorf("expected no differences, got %d: %v", len(got), got)
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Test: Diff of identical snapshots returns no findings
+// ──────────────────────────────────────────────────────────────────────────────
+
+func TestDiff_IdenticalSnapshots_NoFindings(t *testing.T) {
+	tbl := makeTable("101", "public", "orders", schemasnapshot.TableKindOrdinary)
+	col := schemasnapshot.Column{
+		Table:    ref("public", "orders"),
+		ID:       "101:1",
+		Name:     "id",
+		DataType: "integer",
+		NotNull:  true,
+	}
+	a := &schemasnapshot.SchemaSnapshot{Version: 1, Tables: []schemasnapshot.Table{tbl}, Columns: []schemasnapshot.Column{col}}
+	b := &schemasnapshot.SchemaSnapshot{Version: 1, Tables: []schemasnapshot.Table{tbl}, Columns: []schemasnapshot.Column{col}}
+
+	got := Diff(a, b)
+	if len(got) != 0 {
+		t.Errorf("expected no differences, got %d: %v", len(got), got)
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Test: Diff does NOT mutate inputs
+// ──────────────────────────────────────────────────────────────────────────────
+
+func TestDiff_DoesNotMutateInputs(t *testing.T) {
+	tblA := makeTable("1", "public", "foo", schemasnapshot.TableKindOrdinary)
+	tblB := makeTable("2", "public", "bar", schemasnapshot.TableKindOrdinary)
+	a := snapWithTables(tblA)
+	b := snapWithTables(tblB)
+
+	aCopy := *a
+	aCopyTables := make([]schemasnapshot.Table, len(a.Tables))
+	copy(aCopyTables, a.Tables)
+	aCopy.Tables = aCopyTables
+
+	bCopy := *b
+	bCopyTables := make([]schemasnapshot.Table, len(b.Tables))
+	copy(bCopyTables, b.Tables)
+	bCopy.Tables = bCopyTables
+
+	Diff(a, b)
+
+	if !reflect.DeepEqual(a.Tables, aCopy.Tables) {
+		t.Errorf("snapshot A was mutated: got %v, want %v", a.Tables, aCopy.Tables)
+	}
+	if !reflect.DeepEqual(b.Tables, bCopy.Tables) {
+		t.Errorf("snapshot B was mutated: got %v, want %v", b.Tables, bCopy.Tables)
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Test: sortDifferences ordering
+// ──────────────────────────────────────────────────────────────────────────────
+
+func TestSortDifferences_Ordering(t *testing.T) {
+	// Build diffs that exercise all 5 sort keys in turn
+	diffs := []Difference{
+		// same schema/name/subobj/type; differ only on Property
+		{Object: ref("z_schema", "z_name"), SubObject: "z_sub", Type: TableKindChanged, Property: "z_prop"},
+		{Object: ref("z_schema", "z_name"), SubObject: "z_sub", Type: TableKindChanged, Property: "a_prop"},
+		// same schema/name/subobj; differ only on Type
+		{Object: ref("z_schema", "z_name"), SubObject: "a_sub", Type: TableSchemaChanged, Property: ""},
+		{Object: ref("z_schema", "z_name"), SubObject: "a_sub", Type: TableAdded, Property: ""},
+		// same schema/name; differ only on SubObject
+		{Object: ref("z_schema", "a_name"), SubObject: "z_sub", Type: TableAdded, Property: ""},
+		{Object: ref("z_schema", "a_name"), SubObject: "a_sub", Type: TableAdded, Property: ""},
+		// same schema; differ only on Name
+		{Object: ref("a_schema", "z_name"), SubObject: "", Type: TableAdded, Property: ""},
+		{Object: ref("a_schema", "a_name"), SubObject: "", Type: TableAdded, Property: ""},
+	}
+
+	sortDifferences(diffs)
+
+	want := []Difference{
+		{Object: ref("a_schema", "a_name"), SubObject: "", Type: TableAdded, Property: ""},
+		{Object: ref("a_schema", "z_name"), SubObject: "", Type: TableAdded, Property: ""},
+		{Object: ref("z_schema", "a_name"), SubObject: "a_sub", Type: TableAdded, Property: ""},
+		{Object: ref("z_schema", "a_name"), SubObject: "z_sub", Type: TableAdded, Property: ""},
+		{Object: ref("z_schema", "z_name"), SubObject: "a_sub", Type: TableAdded, Property: ""},
+		{Object: ref("z_schema", "z_name"), SubObject: "a_sub", Type: TableSchemaChanged, Property: ""},
+		{Object: ref("z_schema", "z_name"), SubObject: "z_sub", Type: TableKindChanged, Property: "a_prop"},
+		{Object: ref("z_schema", "z_name"), SubObject: "z_sub", Type: TableKindChanged, Property: "z_prop"},
+	}
+
+	if !reflect.DeepEqual(diffs, want) {
+		t.Errorf("wrong sort order\ngot:  %v\nwant: %v", diffs, want)
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Test: Table added (ID only in B)
+// ──────────────────────────────────────────────────────────────────────────────
+
+func TestDiffTables_TableAdded(t *testing.T) {
+	a := snapWithTables()
+	newTbl := makeTable("42", "public", "users", schemasnapshot.TableKindOrdinary)
+	b := snapWithTables(newTbl)
+
+	got := Diff(a, b)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
+	}
+	d := got[0]
+	if d.Type != TableAdded {
+		t.Errorf("expected TableAdded, got %v", d.Type)
+	}
+	if d.Object != ref("public", "users") {
+		t.Errorf("expected Object=public.users, got %v", d.Object)
+	}
+	if d.AnchorTable == nil || *d.AnchorTable != ref("public", "users") {
+		t.Errorf("expected AnchorTable=public.users, got %v", d.AnchorTable)
+	}
+	if d.OldValue != nil {
+		t.Errorf("expected OldValue=nil, got %v", d.OldValue)
+	}
+	if d.NewValue != nil {
+		t.Errorf("expected NewValue=nil, got %v", d.NewValue)
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Test: Table dropped (ID only in A)
+// ──────────────────────────────────────────────────────────────────────────────
+
+func TestDiffTables_TableDropped(t *testing.T) {
+	oldTbl := makeTable("99", "public", "orders", schemasnapshot.TableKindOrdinary)
+	a := snapWithTables(oldTbl)
+	b := snapWithTables()
+
+	got := Diff(a, b)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
+	}
+	d := got[0]
+	if d.Type != TableDropped {
+		t.Errorf("expected TableDropped, got %v", d.Type)
+	}
+	if d.Object != ref("public", "orders") {
+		t.Errorf("expected Object=public.orders, got %v", d.Object)
+	}
+	if d.AnchorTable == nil || *d.AnchorTable != ref("public", "orders") {
+		t.Errorf("expected AnchorTable=public.orders, got %v", d.AnchorTable)
+	}
+	if d.OldValue != nil {
+		t.Errorf("expected OldValue=nil, got %v", d.OldValue)
+	}
+	if d.NewValue != nil {
+		t.Errorf("expected NewValue=nil, got %v", d.NewValue)
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Test: Table renamed — single TableNameChanged, no TableAdded/TableDropped
+// ──────────────────────────────────────────────────────────────────────────────
+
+func TestDiffTables_TableRenamed(t *testing.T) {
+	oldTbl := makeTable("55", "public", "old_name", schemasnapshot.TableKindOrdinary)
+	newTbl := makeTable("55", "public", "new_name", schemasnapshot.TableKindOrdinary)
+	a := snapWithTables(oldTbl)
+	b := snapWithTables(newTbl)
+
+	got := Diff(a, b)
+
+	// Must have exactly ONE finding
+	if len(got) != 1 {
+		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
+	}
+	d := got[0]
+	if d.Type != TableNameChanged {
+		t.Errorf("expected TableNameChanged, got %v", d.Type)
+	}
+	if d.Object != ref("public", "old_name") {
+		t.Errorf("expected Object=public.old_name (old ref), got %v", d.Object)
+	}
+	if d.Property != "name" {
+		t.Errorf("expected Property='name', got %q", d.Property)
+	}
+	if d.OldValue.(string) != "old_name" {
+		t.Errorf("expected OldValue='old_name', got %v", d.OldValue)
+	}
+	if d.NewValue.(string) != "new_name" {
+		t.Errorf("expected NewValue='new_name', got %v", d.NewValue)
+	}
+
+	// No TableAdded or TableDropped
+	for _, diff := range got {
+		if diff.Type == TableAdded || diff.Type == TableDropped {
+			t.Errorf("unexpected %v in result", diff.Type)
+		}
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Test: Table schema moved
+// ──────────────────────────────────────────────────────────────────────────────
+
+func TestDiffTables_TableSchemaMoved(t *testing.T) {
+	oldTbl := makeTable("77", "old_schema", "my_table", schemasnapshot.TableKindOrdinary)
+	newTbl := makeTable("77", "new_schema", "my_table", schemasnapshot.TableKindOrdinary)
+	a := snapWithTables(oldTbl)
+	b := snapWithTables(newTbl)
+
+	got := Diff(a, b)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
+	}
+	d := got[0]
+	if d.Type != TableSchemaChanged {
+		t.Errorf("expected TableSchemaChanged, got %v", d.Type)
+	}
+	if d.Object != ref("old_schema", "my_table") {
+		t.Errorf("expected Object=old_schema.my_table, got %v", d.Object)
+	}
+	if d.Property != "schema" {
+		t.Errorf("expected Property='schema', got %q", d.Property)
+	}
+	if d.OldValue.(string) != "old_schema" {
+		t.Errorf("expected OldValue='old_schema', got %v", d.OldValue)
+	}
+	if d.NewValue.(string) != "new_schema" {
+		t.Errorf("expected NewValue='new_schema', got %v", d.NewValue)
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Test: Table kind changed
+// ──────────────────────────────────────────────────────────────────────────────
+
+func TestDiffTables_TableKindChanged(t *testing.T) {
+	oldTbl := makeTable("88", "public", "my_table", schemasnapshot.TableKindOrdinary)
+	newTbl := makeTable("88", "public", "my_table", schemasnapshot.TableKindPartitioned)
+	a := snapWithTables(oldTbl)
+	b := snapWithTables(newTbl)
+
+	got := Diff(a, b)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
+	}
+	d := got[0]
+	if d.Type != TableKindChanged {
+		t.Errorf("expected TableKindChanged, got %v", d.Type)
+	}
+	if d.Property != "kind" {
+		t.Errorf("expected Property='kind', got %q", d.Property)
+	}
+	// Kind is stored as string
+	if d.OldValue.(string) != string(schemasnapshot.TableKindOrdinary) {
+		t.Errorf("expected OldValue='ordinary', got %v", d.OldValue)
+	}
+	if d.NewValue.(string) != string(schemasnapshot.TableKindPartitioned) {
+		t.Errorf("expected NewValue='partitioned', got %v", d.NewValue)
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Test: PartitionParent changed — nil→set, set→nil, set→different
+// ──────────────────────────────────────────────────────────────────────────────
+
+func TestDiffTables_PartitionParent_NilToSet(t *testing.T) {
+	oldTbl := makeTable("10", "public", "part", schemasnapshot.TableKindOrdinary)
+	// old has no PartitionParent
+	newTbl := oldTbl
+	newTbl.PartitionParent = refPtr("public", "parent_table")
+
+	a := snapWithTables(oldTbl)
+	b := snapWithTables(newTbl)
+
+	got := Diff(a, b)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
+	}
+	d := got[0]
+	if d.Type != PartitionParentChanged {
+		t.Errorf("expected PartitionParentChanged, got %v", d.Type)
+	}
+	if d.Property != "partition_parent" {
+		t.Errorf("expected Property='partition_parent', got %q", d.Property)
+	}
+	if d.OldValue != nil {
+		t.Errorf("expected OldValue=nil, got %v", d.OldValue)
+	}
+	if d.NewValue == nil {
+		t.Errorf("expected NewValue non-nil")
+	}
+}
+
+func TestDiffTables_PartitionParent_SetToNil(t *testing.T) {
+	oldTbl := makeTable("11", "public", "part", schemasnapshot.TableKindOrdinary)
+	oldTbl.PartitionParent = refPtr("public", "parent_table")
+	newTbl := makeTable("11", "public", "part", schemasnapshot.TableKindOrdinary)
+	// new has no PartitionParent
+
+	a := snapWithTables(oldTbl)
+	b := snapWithTables(newTbl)
+
+	got := Diff(a, b)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
+	}
+	d := got[0]
+	if d.Type != PartitionParentChanged {
+		t.Errorf("expected PartitionParentChanged, got %v", d.Type)
+	}
+	if d.OldValue == nil {
+		t.Errorf("expected OldValue non-nil")
+	}
+	if d.NewValue != nil {
+		t.Errorf("expected NewValue=nil, got %v", d.NewValue)
+	}
+}
+
+func TestDiffTables_PartitionParent_SetToDifferent(t *testing.T) {
+	oldTbl := makeTable("12", "public", "part", schemasnapshot.TableKindOrdinary)
+	oldTbl.PartitionParent = refPtr("public", "parent_a")
+	newTbl := makeTable("12", "public", "part", schemasnapshot.TableKindOrdinary)
+	newTbl.PartitionParent = refPtr("public", "parent_b")
+
+	a := snapWithTables(oldTbl)
+	b := snapWithTables(newTbl)
+
+	got := Diff(a, b)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
+	}
+	d := got[0]
+	if d.Type != PartitionParentChanged {
+		t.Errorf("expected PartitionParentChanged, got %v", d.Type)
+	}
+	if d.OldValue.(schemasnapshot.ObjectRef) != ref("public", "parent_a") {
+		t.Errorf("unexpected OldValue %v", d.OldValue)
+	}
+	if d.NewValue.(schemasnapshot.ObjectRef) != ref("public", "parent_b") {
+		t.Errorf("unexpected NewValue %v", d.NewValue)
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Test: PartitionChildren changed — add member, remove member, order-insensitive
+// ──────────────────────────────────────────────────────────────────────────────
+
+func TestDiffTables_PartitionChildren_MemberAdded(t *testing.T) {
+	oldTbl := makeTable("20", "public", "parent", schemasnapshot.TableKindPartitioned)
+	oldTbl.PartitionChildren = []schemasnapshot.ObjectRef{ref("public", "child1")}
+	newTbl := makeTable("20", "public", "parent", schemasnapshot.TableKindPartitioned)
+	newTbl.PartitionChildren = []schemasnapshot.ObjectRef{ref("public", "child1"), ref("public", "child2")}
+
+	a := snapWithTables(oldTbl)
+	b := snapWithTables(newTbl)
+
+	got := Diff(a, b)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
+	}
+	if got[0].Type != PartitionChildrenChanged {
+		t.Errorf("expected PartitionChildrenChanged, got %v", got[0].Type)
+	}
+	if got[0].Property != "partition_children" {
+		t.Errorf("expected Property='partition_children', got %q", got[0].Property)
+	}
+}
+
+func TestDiffTables_PartitionChildren_MemberRemoved(t *testing.T) {
+	oldTbl := makeTable("21", "public", "parent", schemasnapshot.TableKindPartitioned)
+	oldTbl.PartitionChildren = []schemasnapshot.ObjectRef{ref("public", "child1"), ref("public", "child2")}
+	newTbl := makeTable("21", "public", "parent", schemasnapshot.TableKindPartitioned)
+	newTbl.PartitionChildren = []schemasnapshot.ObjectRef{ref("public", "child1")}
+
+	a := snapWithTables(oldTbl)
+	b := snapWithTables(newTbl)
+
+	got := Diff(a, b)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
+	}
+	if got[0].Type != PartitionChildrenChanged {
+		t.Errorf("expected PartitionChildrenChanged, got %v", got[0].Type)
+	}
+}
+
+func TestDiffTables_PartitionChildren_OrderInsensitive(t *testing.T) {
+	// Same members, different order → NO finding
+	oldTbl := makeTable("22", "public", "parent", schemasnapshot.TableKindPartitioned)
+	oldTbl.PartitionChildren = []schemasnapshot.ObjectRef{ref("public", "child1"), ref("public", "child2")}
+	newTbl := makeTable("22", "public", "parent", schemasnapshot.TableKindPartitioned)
+	newTbl.PartitionChildren = []schemasnapshot.ObjectRef{ref("public", "child2"), ref("public", "child1")}
+
+	a := snapWithTables(oldTbl)
+	b := snapWithTables(newTbl)
+
+	got := Diff(a, b)
+	if len(got) != 0 {
+		t.Errorf("expected no differences (order-insensitive), got %d: %v", len(got), got)
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Test: InheritsFrom changed
+// ──────────────────────────────────────────────────────────────────────────────
+
+func TestDiffTables_InheritsFromChanged(t *testing.T) {
+	oldTbl := makeTable("30", "public", "child", schemasnapshot.TableKindOrdinary)
+	oldTbl.InheritsFrom = []schemasnapshot.ObjectRef{ref("public", "parent_a")}
+	newTbl := makeTable("30", "public", "child", schemasnapshot.TableKindOrdinary)
+	newTbl.InheritsFrom = []schemasnapshot.ObjectRef{ref("public", "parent_a"), ref("public", "parent_b")}
+
+	a := snapWithTables(oldTbl)
+	b := snapWithTables(newTbl)
+
+	got := Diff(a, b)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
+	}
+	if got[0].Type != TableInheritsChanged {
+		t.Errorf("expected TableInheritsChanged, got %v", got[0].Type)
+	}
+	if got[0].Property != "inherits_from" {
+		t.Errorf("expected Property='inherits_from', got %q", got[0].Property)
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Test: InheritedBy changed
+// ──────────────────────────────────────────────────────────────────────────────
+
+func TestDiffTables_InheritedByChanged(t *testing.T) {
+	oldTbl := makeTable("31", "public", "parent", schemasnapshot.TableKindOrdinary)
+	oldTbl.InheritedBy = []schemasnapshot.ObjectRef{ref("public", "child_a")}
+	newTbl := makeTable("31", "public", "parent", schemasnapshot.TableKindOrdinary)
+	// InheritedBy is now empty
+
+	a := snapWithTables(oldTbl)
+	b := snapWithTables(newTbl)
+
+	got := Diff(a, b)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
+	}
+	if got[0].Type != TableInheritedByChanged {
+		t.Errorf("expected TableInheritedByChanged, got %v", got[0].Type)
+	}
+	if got[0].Property != "inherited_by" {
+		t.Errorf("expected Property='inherited_by', got %q", got[0].Property)
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Test: ID-empty fallback — matched by schema.name; name-only-in-A → TableDropped
+// ──────────────────────────────────────────────────────────────────────────────
+
+func TestDiffTables_IDEmptyFallback_MatchedByName(t *testing.T) {
+	// Table with empty ID, matched by name → should produce NO finding if identical
+	tblA := schemasnapshot.Table{
+		ObjectRef: ref("public", "shared"),
+		ID:        "",
+		Kind:      schemasnapshot.TableKindOrdinary,
+	}
+	tblB := schemasnapshot.Table{
+		ObjectRef: ref("public", "shared"),
+		ID:        "",
+		Kind:      schemasnapshot.TableKindOrdinary,
+	}
+	// Table only in A (ID="") → TableDropped
+	tblOnlyInA := schemasnapshot.Table{
+		ObjectRef: ref("public", "gone_table"),
+		ID:        "",
+		Kind:      schemasnapshot.TableKindOrdinary,
+	}
+
+	a := snapWithTables(tblA, tblOnlyInA)
+	b := snapWithTables(tblB)
+
+	got := Diff(a, b)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 difference (TableDropped for gone_table), got %d: %v", len(got), got)
+	}
+	d := got[0]
+	if d.Type != TableDropped {
+		t.Errorf("expected TableDropped, got %v", d.Type)
+	}
+	if d.Object != ref("public", "gone_table") {
+		t.Errorf("expected Object=public.gone_table, got %v", d.Object)
+	}
+}
