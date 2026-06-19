@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 )
 
@@ -84,7 +85,7 @@ func NewSnapshotProvider(databaseType string) (SnapshotProvider, error) {
 	factory, ok := providerRegistry[databaseType]
 	providerRegistryMu.RUnlock()
 	if !ok {
-		return nil, fmt.Errorf("schemasnapshot: no provider registered for database type %q (import the matching databases/<dbtype> package)", databaseType)
+		return nil, goerrors.Errorf("schemasnapshot: no provider registered for database type %q (import the matching databases/<dbtype> package)", databaseType)
 	}
 	return factory(), nil
 }
