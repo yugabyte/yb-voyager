@@ -405,21 +405,22 @@ func (m *MetaDB) GetMinSegmentExportedByAndNotImportedBy(importerRole string, ex
 // missing segment means it cannot proceed safely. Returns false when there are no
 // queue segments yet.
 func (m *MetaDB) AnySegmentsDeletedOrArchived(exporterRole string) (bool, error) {
-	query := fmt.Sprintf("SELECT deleted FROM %s", QUEUE_SEGMENT_META_TABLE_NAME)
+	query := fmt.Sprintf("SELECT archived, deleted FROM %s", QUEUE_SEGMENT_META_TABLE_NAME)
 	if exporterRole != "" {
 		query = fmt.Sprintf("%s WHERE exporter_role = '%s'", query, exporterRole)
 	}
 	query = fmt.Sprintf("%s ORDER BY segment_no ASC LIMIT 1;", query)
 
+	var archived int
 	var deleted int
-	err := m.db.QueryRow(query).Scan(&deleted)
+	err := m.db.QueryRow(query).Scan(&archived, &deleted)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
 	if err != nil {
 		return false, fmt.Errorf("run query on meta db - %s : %w", query, err)
 	}
-	return deleted == 1, nil
+	return archived == 1 || deleted == 1, nil
 }
 
 func (m *MetaDB) GetExportedEventsStatsForTable(schemaName string, tableName string) (*tgtdb.EventCounter, error) {

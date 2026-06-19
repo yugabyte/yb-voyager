@@ -137,12 +137,12 @@ func newTestMetaDB(t *testing.T) *MetaDB {
 	return mdb
 }
 
-func insertQueueSegment(t *testing.T, mdb *MetaDB, segmentNo int, exporterRole string, deleted int) {
+func insertQueueSegment(t *testing.T, mdb *MetaDB, segmentNo int, exporterRole string, archived int, deleted int) {
 	t.Helper()
-	query := fmt.Sprintf(`INSERT INTO %s (segment_no, file_path, exporter_role, deleted) VALUES (?, ?, ?, ?)`,
+	query := fmt.Sprintf(`INSERT INTO %s (segment_no, file_path, exporter_role, archived, deleted) VALUES (?, ?, ?, ?, ?)`,
 		QUEUE_SEGMENT_META_TABLE_NAME)
 	_, err := mdb.db.Exec(query, segmentNo,
-		fmt.Sprintf("segment.%d.ndjson", segmentNo), exporterRole, deleted)
+		fmt.Sprintf("segment.%d.ndjson", segmentNo), exporterRole, archived, deleted)
 	require.NoError(t, err)
 }
 
@@ -161,12 +161,22 @@ func TestAnySegmentsDeletedOrArchived(t *testing.T) {
 
 	t.Run("earliest segment deleted returns true", func(t *testing.T) {
 		mdb := newTestMetaDB(t)
-		insertQueueSegment(t, mdb, 1, testSourceDBExporterRole, 1)
-		insertQueueSegment(t, mdb, 2, testSourceDBExporterRole, 0)
+		insertQueueSegment(t, mdb, 1, testSourceDBExporterRole, 0, 1)
+		insertQueueSegment(t, mdb, 2, testSourceDBExporterRole, 0, 0)
 
 		deleted, err := mdb.AnySegmentsDeletedOrArchived("")
 		require.NoError(t, err)
 		assert.True(t, deleted, "earliest segment (resume point) is deleted, so re-streaming from the beginning is impossible")
+	})
+
+	t.Run("earliest segment archived returns true", func(t *testing.T) {
+		mdb := newTestMetaDB(t)
+		insertQueueSegment(t, mdb, 1, testSourceDBExporterRole, 1, 0)
+		insertQueueSegment(t, mdb, 2, testSourceDBExporterRole, 0, 0)
+
+		deletedOrArchived, err := mdb.AnySegmentsDeletedOrArchived("")
+		require.NoError(t, err)
+		assert.True(t, deletedOrArchived, "earliest segment (resume point) is archived, so re-streaming from the beginning is impossible")
 	})
 
 }
