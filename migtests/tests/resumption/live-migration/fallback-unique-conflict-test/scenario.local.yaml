@@ -11,8 +11,8 @@ source:
   host: 127.0.0.1
   port: 5432
   database: test_db
-  user: postgres
-  password: postgres
+  user: ybvoyager
+  password: Test@123#$%^&*()!
   schema: public
   admin:
     user: postgres
@@ -23,8 +23,8 @@ target:
   host: 127.0.0.1
   port: 5433
   database:  test_db
-  user: postgres
-  password: postgres
+  user: ybvoyager
+  password: Test@123#$%^&*()!
   admin:
     user: yugabyte
     password: yugabyte
@@ -64,8 +64,8 @@ generator_target:
       host: 127.0.0.1
       port: 5433
       database: test_db
-      user: postgres
-      password: postgres
+      user: ybvoyager
+      password: Test@123#$%^&*()!
 
     generator:
       schema_name: public
