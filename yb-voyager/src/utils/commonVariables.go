@@ -107,21 +107,23 @@ type DBObject struct {
 // TODO: support MinimumVersionsFixedIn in xml
 type AnalyzeSchemaIssue struct {
 	// TODO: deprecate this and rename to Category
-	IssueType              string                          `json:"IssueType"` //category: unsupported_features, unsupported_plpgsql_objects, etc
-	ObjectType             string                          `json:"ObjectType"`
-	ObjectName             string                          `json:"ObjectName"`
-	Reason                 string                          `json:"Reason"`
-	Type                   string                          `json:"-" xml:"-"` // identifier for issue type ADVISORY_LOCKS, SYSTEM_COLUMNS, etc
-	Name                   string                          `json:"-" xml:"-"` // to use for AssessmentIssue
-	Impact                 string                          `json:"-" xml:"-"` // temporary field; since currently we generate assessment issue from analyze issue
-	ObjectUsage            string                          `json:"-" xml:"-"`
-	SqlStatement           string                          `json:"SqlStatement,omitempty"`
-	FilePath               string                          `json:"FilePath"`
-	Suggestion             string                          `json:"Suggestion"`
-	GH                     string                          `json:"GH"`
-	DocsLink               string                          `json:"DocsLink,omitempty"`
-	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn" xml:"-"` // key: series (2024.1, 2.21, etc)
-	Details                map[string]interface{}          `json:"-" xml:"-"`
+	IssueType                string                          `json:"IssueType"` //category: unsupported_features, unsupported_plpgsql_objects, etc
+	ObjectType               string                          `json:"ObjectType"`
+	ObjectName               string                          `json:"ObjectName"`
+	Reason                   string                          `json:"Reason"`
+	Type                     string                          `json:"-" xml:"-"` // identifier for issue type ADVISORY_LOCKS, SYSTEM_COLUMNS, etc
+	Name                     string                          `json:"-" xml:"-"` // to use for AssessmentIssue
+	Impact                   string                          `json:"-" xml:"-"` // temporary field; since currently we generate assessment issue from analyze issue
+	ObjectUsage              string                          `json:"-" xml:"-"`
+	SqlStatement             string                          `json:"SqlStatement,omitempty"`
+	FilePath                 string                          `json:"FilePath"`
+	Suggestion               string                          `json:"Suggestion"`
+	GH                       string                          `json:"GH"`
+	DocsLink                 string                          `json:"DocsLink,omitempty"`
+	MinimumVersionsFixedIn   map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn" xml:"-"`             // key: series (2024.1, 2.21, etc); GA
+	MinimumVersionsFixedInTP map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedInTP,omitempty" xml:"-"` // key: series; available as Tech Preview
+	MinimumVersionsFixedInEA map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedInEA,omitempty" xml:"-"` // key: series; available as Early Access
+	Details                  map[string]interface{}          `json:"-" xml:"-"`
 }
 
 func (i AnalyzeSchemaIssue) IsFixedIn(v *ybversion.YBVersion) (bool, error) {
