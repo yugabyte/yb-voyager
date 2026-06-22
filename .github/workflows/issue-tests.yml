@@ -67,8 +67,6 @@ jobs:
         cd yb-voyager
         go test -v ./... -tags 'yb_version_latest_stable'
 
-    # Flags when the bundled CDC connector is behind the latest yugabyte/debezium release.
-    # GitHub-API-only (no DB); guarded so it runs once, not per matrix entry.
     - name: Test Latest Connector Version
       if: ${{ matrix.yb_version == env.YB_LATEST_STABLE }}
       env:
