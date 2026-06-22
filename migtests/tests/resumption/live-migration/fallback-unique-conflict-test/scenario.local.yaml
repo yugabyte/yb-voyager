@@ -136,10 +136,30 @@ stages:
     sql_path: ./source_dml.sql
     use_admin: true
 
+  - name: start_import_resumptions
+    action: start_resumptions
+    resumption:
+      import_data:
+        max_restarts: 25
+        min_interrupt_seconds: 15
+        max_interrupt_seconds: 60
+        min_restart_wait_seconds: 5
+        max_restart_wait_seconds: 30
+
   - name: wait_exporter_streaming
     action: wait_for
     condition: exporter_in_streaming_phase
     timeout_sec: 600
+
+  - name: start_export_resumptions
+    action: start_resumptions
+    resumption:
+      export_data:
+        max_restarts: 25
+        min_interrupt_seconds: 15
+        max_interrupt_seconds: 60
+        min_restart_wait_seconds: 5
+        max_restart_wait_seconds: 30
 
   - name: small_sleep_for_some_events_to_be_generated
     action: sleep
