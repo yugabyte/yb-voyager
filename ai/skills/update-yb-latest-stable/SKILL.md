@@ -268,9 +268,10 @@ Everything else derives from this file:
 
 - Test: `yb-voyager/versions/connector_latest_test.go`, build tag
   `connector_latest_stable`.
-- Workflow: `.github/workflows/connector-version-check.yml` (push/PR to `main`
-  **and** weekly cron). It fails when a newer logical-connector release exists
-  than the one in `connector-versions.json`.
+- CI: the `Test Latest Connector Version` step in
+  `.github/workflows/issue-tests.yml` (runs on the latest-stable matrix entry,
+  alongside `Test Latest Stable YB Version`). It fails when a newer
+  logical-connector release exists than the one in `connector-versions.json`.
 - Run locally: `cd yb-voyager && go test -v -tags connector_latest_stable ./versions/...`
   (set `GITHUB_TOKEN` to avoid API rate limits).
 - A failing run is the signal to do the bump above. Do **not** weaken the test to
