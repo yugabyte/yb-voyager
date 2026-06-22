@@ -39,14 +39,28 @@ func snapWithTablesAndColumns(tables []schemasnapshot.Table, cols []schemasnapsh
 	}
 }
 
+// colOpt is a functional option for makeColumn.
+type colOpt func(*schemasnapshot.Column)
+
+// notNull sets NotNull=true on a column.
+func notNull() colOpt { return func(c *schemasnapshot.Column) { c.NotNull = true } }
+
+// withDefault sets Default on a column.
+func withDefault(d string) colOpt { return func(c *schemasnapshot.Column) { c.Default = d } }
+
 // makeColumn builds a Column with the given parent table, ID, name, and type.
-func makeColumn(tableSchema, tableName, id, name, dataType string) schemasnapshot.Column {
-	return schemasnapshot.Column{
+// Optional colOpts can be passed to set additional fields (e.g. notNull(), withDefault(...)).
+func makeColumn(tableSchema, tableName, id, name, dataType string, opts ...colOpt) schemasnapshot.Column {
+	c := schemasnapshot.Column{
 		Table:    schemasnapshot.ObjectRef{Schema: tableSchema, Name: tableName},
 		ID:       id,
 		Name:     name,
 		DataType: dataType,
 	}
+	for _, o := range opts {
+		o(&c)
+	}
+	return c
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -397,18 +411,8 @@ func TestDiffColumns_MultipleTablesSort(t *testing.T) {
 
 func TestDiffColumns_IDEmptyFallback_MatchedByTableAndName(t *testing.T) {
 	// Both sides have same table+name, empty ID → should match, no findings if identical.
-	colA := schemasnapshot.Column{
-		Table:    schemasnapshot.ObjectRef{Schema: "public", Name: "orders"},
-		ID:       "",
-		Name:     "status",
-		DataType: "text",
-	}
-	colB := schemasnapshot.Column{
-		Table:    schemasnapshot.ObjectRef{Schema: "public", Name: "orders"},
-		ID:       "",
-		Name:     "status",
-		DataType: "text",
-	}
+	colA := makeColumn("public", "orders", "", "status", "text")
+	colB := makeColumn("public", "orders", "", "status", "text")
 
 	a := snapWithColumns(colA)
 	b := snapWithColumns(colB)
@@ -601,18 +605,8 @@ func TestDiff_TableDropped_PreservesOtherTableColumnChanges(t *testing.T) {
 
 func TestDiffColumns_IDMatchTableRenamed_ObjectIsOldTable(t *testing.T) {
 	// Column with same ID but different Column.Table (parent was renamed)
-	oldCol := schemasnapshot.Column{
-		Table:    schemasnapshot.ObjectRef{Schema: "public", Name: "old_table"},
-		ID:       "500:1",
-		Name:     "id",
-		DataType: "integer",
-	}
-	newCol := schemasnapshot.Column{
-		Table:    schemasnapshot.ObjectRef{Schema: "public", Name: "new_table"}, // parent renamed
-		ID:       "500:1",                                                       // same ID
-		Name:     "id",
-		DataType: "integer",
-	}
+	oldCol := makeColumn("public", "old_table", "500:1", "id", "integer")
+	newCol := makeColumn("public", "new_table", "500:1", "id", "integer") // parent renamed
 
 	a := snapWithColumns(oldCol)
 	b := snapWithColumns(newCol)

@@ -56,8 +56,8 @@ func refPtr(schema, name string) *schemasnapshot.ObjectRef {
 // ──────────────────────────────────────────────────────────────────────────────
 
 func TestDiff_EmptySnapshots_ReturnsNilOrEmpty(t *testing.T) {
-	a := &schemasnapshot.SchemaSnapshot{Version: 1}
-	b := &schemasnapshot.SchemaSnapshot{Version: 1}
+	a := snapWithTables()
+	b := snapWithTables()
 	got := Diff(a, b)
 	if len(got) != 0 {
 		t.Errorf("expected no differences, got %d: %v", len(got), got)
@@ -70,15 +70,9 @@ func TestDiff_EmptySnapshots_ReturnsNilOrEmpty(t *testing.T) {
 
 func TestDiff_IdenticalSnapshots_NoFindings(t *testing.T) {
 	tbl := makeTable("101", "public", "orders", schemasnapshot.TableKindOrdinary)
-	col := schemasnapshot.Column{
-		Table:    ref("public", "orders"),
-		ID:       "101:1",
-		Name:     "id",
-		DataType: "integer",
-		NotNull:  true,
-	}
-	a := &schemasnapshot.SchemaSnapshot{Version: 1, Tables: []schemasnapshot.Table{tbl}, Columns: []schemasnapshot.Column{col}}
-	b := &schemasnapshot.SchemaSnapshot{Version: 1, Tables: []schemasnapshot.Table{tbl}, Columns: []schemasnapshot.Column{col}}
+	col := makeColumn("public", "orders", "101:1", "id", "integer", notNull())
+	a := snapWithTablesAndColumns([]schemasnapshot.Table{tbl}, []schemasnapshot.Column{col})
+	b := snapWithTablesAndColumns([]schemasnapshot.Table{tbl}, []schemasnapshot.Column{col})
 
 	got := Diff(a, b)
 	if len(got) != 0 {
