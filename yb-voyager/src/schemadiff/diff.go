@@ -73,11 +73,6 @@ type Difference struct {
 	// Property; for COLUMN_ADDED it is the added column's data type (string), while
 	// table-level adds leave it nil. Same dynamic-type rules as OldValue.
 	NewValue any
-
-	// Details is an optional human-readable summary for renderers/reporters. It is
-	// NOT the value channel — consumers read OldValue/NewValue for the structured
-	// values. The diff engine leaves it empty; it is a slot for downstream use.
-	Details string
 }
 
 // Diff computes the schema differences between snapshot a (old/side-A) and b (new/side-B).
