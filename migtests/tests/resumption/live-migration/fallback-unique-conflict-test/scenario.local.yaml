@@ -20,7 +20,7 @@ source:
 
 target:
   type: yugabytedb
-  host: 10.9.5.77
+  host: 127.0.0.1
   port: 5433
   database:  test_db
   user: postgres
@@ -61,7 +61,7 @@ generator_source:
 generator_target:
   config_inline:
     connection:
-      host: 10.9.5.77
+      host: 127.0.0.1
       port: 5433
       database: test_db
       user: postgres
