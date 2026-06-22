@@ -21,8 +21,9 @@ import (
 )
 
 // DiffType is a string-typed enumeration of the kinds of schema changes that
-// can be detected between two snapshots. The full vocabulary is declared here
-// for forward-compat; v1 only emits a subset.
+// can be detected between two snapshots. Only the V1-emitted set is declared
+// here: table-level and column-level findings produced by diffTables and
+// diffColumns respectively.
 type DiffType string
 
 const (
@@ -32,15 +33,10 @@ const (
 	TableNameChanged         DiffType = "TABLE_NAME_CHANGED"
 	TableSchemaChanged       DiffType = "TABLE_SCHEMA_CHANGED"
 	TableKindChanged         DiffType = "TABLE_KIND_CHANGED"
-	PartitionStrategyChanged DiffType = "PARTITION_STRATEGY_CHANGED"
-	PartitionKeyChanged      DiffType = "PARTITION_KEY_CHANGED"
+	PartitionParentChanged   DiffType = "PARTITION_PARENT_CHANGED"
 	PartitionChildrenChanged DiffType = "PARTITION_CHILDREN_CHANGED"
-	ReplicaIdentityChanged   DiffType = "REPLICA_IDENTITY_CHANGED"
-	TablePersistenceChanged  DiffType = "TABLE_PERSISTENCE_CHANGED"
-	// New in this implementation.
-	PartitionParentChanged  DiffType = "PARTITION_PARENT_CHANGED"
-	TableInheritsChanged    DiffType = "TABLE_INHERITS_CHANGED"
-	TableInheritedByChanged DiffType = "TABLE_INHERITED_BY_CHANGED"
+	TableInheritsChanged     DiffType = "TABLE_INHERITS_CHANGED"
+	TableInheritedByChanged  DiffType = "TABLE_INHERITED_BY_CHANGED"
 
 	// Column-level findings.
 	ColumnAdded              DiffType = "COLUMN_ADDED"
@@ -49,86 +45,6 @@ const (
 	ColumnTypeChanged        DiffType = "COLUMN_TYPE_CHANGED"
 	ColumnNullabilityChanged DiffType = "COLUMN_NULLABILITY_CHANGED"
 	ColumnDefaultChanged     DiffType = "COLUMN_DEFAULT_CHANGED"
-	ColumnIdentityChanged    DiffType = "COLUMN_IDENTITY_CHANGED"
-	ColumnGeneratedChanged   DiffType = "COLUMN_GENERATED_CHANGED"
-	ColumnCollationChanged   DiffType = "COLUMN_COLLATION_CHANGED"
-
-	// Constraint-level findings.
-	ConstraintAdded            DiffType = "CONSTRAINT_ADDED"
-	ConstraintDropped          DiffType = "CONSTRAINT_DROPPED"
-	ConstraintNameChanged      DiffType = "CONSTRAINT_NAME_CHANGED"
-	PrimaryKeyChanged          DiffType = "PRIMARY_KEY_CHANGED"
-	UniqueConstraintChanged    DiffType = "UNIQUE_CONSTRAINT_CHANGED"
-	ForeignKeyChanged          DiffType = "FOREIGN_KEY_CHANGED"
-	CheckConstraintChanged     DiffType = "CHECK_CONSTRAINT_CHANGED"
-	ExclusionConstraintChanged DiffType = "EXCLUSION_CONSTRAINT_CHANGED"
-	NullsNotDistinctChanged    DiffType = "NULLS_NOT_DISTINCT_CHANGED"
-
-	// Index-level findings.
-	IndexAdded                  DiffType = "INDEX_ADDED"
-	IndexDropped                DiffType = "INDEX_DROPPED"
-	IndexNameChanged            DiffType = "INDEX_NAME_CHANGED"
-	IndexColumnsChanged         DiffType = "INDEX_COLUMNS_CHANGED"
-	IndexAccessMethodChanged    DiffType = "INDEX_ACCESS_METHOD_CHANGED"
-	IndexUniqueChanged          DiffType = "INDEX_UNIQUE_CHANGED"
-	IndexWhereChanged           DiffType = "INDEX_WHERE_CHANGED"
-	IndexIncludedColumnsChanged DiffType = "INDEX_INCLUDED_COLUMNS_CHANGED"
-
-	// Sequence-level findings.
-	SequenceAdded             DiffType = "SEQUENCE_ADDED"
-	SequenceDropped           DiffType = "SEQUENCE_DROPPED"
-	SequenceNameChanged       DiffType = "SEQUENCE_NAME_CHANGED"
-	SequenceSchemaChanged     DiffType = "SEQUENCE_SCHEMA_CHANGED"
-	SequencePropertiesChanged DiffType = "SEQUENCE_PROPERTIES_CHANGED"
-	SequenceOwnedByChanged    DiffType = "SEQUENCE_OWNED_BY_CHANGED"
-
-	// View-level findings.
-	ViewAdded             DiffType = "VIEW_ADDED"
-	ViewDropped           DiffType = "VIEW_DROPPED"
-	ViewNameChanged       DiffType = "VIEW_NAME_CHANGED"
-	ViewSchemaChanged     DiffType = "VIEW_SCHEMA_CHANGED"
-	ViewDefinitionChanged DiffType = "VIEW_DEFINITION_CHANGED"
-
-	// Materialized view-level findings.
-	MaterializedViewAdded             DiffType = "MATERIALIZED_VIEW_ADDED"
-	MaterializedViewDropped           DiffType = "MATERIALIZED_VIEW_DROPPED"
-	MaterializedViewNameChanged       DiffType = "MATERIALIZED_VIEW_NAME_CHANGED"
-	MaterializedViewSchemaChanged     DiffType = "MATERIALIZED_VIEW_SCHEMA_CHANGED"
-	MaterializedViewDefinitionChanged DiffType = "MATERIALIZED_VIEW_DEFINITION_CHANGED"
-
-	// Function-level findings.
-	FunctionAdded                 DiffType = "FUNCTION_ADDED"
-	FunctionDropped               DiffType = "FUNCTION_DROPPED"
-	FunctionNameChanged           DiffType = "FUNCTION_NAME_CHANGED"
-	FunctionSchemaChanged         DiffType = "FUNCTION_SCHEMA_CHANGED"
-	FunctionKindChanged           DiffType = "FUNCTION_KIND_CHANGED"
-	FunctionSignatureChanged      DiffType = "FUNCTION_SIGNATURE_CHANGED"
-	FunctionReturnTypeChanged     DiffType = "FUNCTION_RETURN_TYPE_CHANGED"
-	FunctionVolatilityChanged     DiffType = "FUNCTION_VOLATILITY_CHANGED"
-	FunctionParallelSafetyChanged DiffType = "FUNCTION_PARALLEL_SAFETY_CHANGED"
-	FunctionStrictChanged         DiffType = "FUNCTION_STRICT_CHANGED"
-	FunctionLanguageChanged       DiffType = "FUNCTION_LANGUAGE_CHANGED"
-	FunctionSecurityChanged       DiffType = "FUNCTION_SECURITY_CHANGED"
-
-	// Trigger-level findings.
-	TriggerAdded               DiffType = "TRIGGER_ADDED"
-	TriggerDropped             DiffType = "TRIGGER_DROPPED"
-	TriggerNameChanged         DiffType = "TRIGGER_NAME_CHANGED"
-	TriggerDefinitionChanged   DiffType = "TRIGGER_DEFINITION_CHANGED"
-	TriggerEnabledStateChanged DiffType = "TRIGGER_ENABLED_STATE_CHANGED"
-
-	// Type-level findings.
-	TypeAdded            DiffType = "TYPE_ADDED"
-	TypeDropped          DiffType = "TYPE_DROPPED"
-	TypeNameChanged      DiffType = "TYPE_NAME_CHANGED"
-	TypeSchemaChanged    DiffType = "TYPE_SCHEMA_CHANGED"
-	TypeKindChanged      DiffType = "TYPE_KIND_CHANGED"
-	EnumValueAdded       DiffType = "ENUM_VALUE_ADDED"
-	EnumValueRemoved     DiffType = "ENUM_VALUE_REMOVED"
-	TypeAttributeChanged DiffType = "TYPE_ATTRIBUTE_CHANGED"
-
-	// Generic attribute change.
-	AttrChanged DiffType = "ATTR_CHANGED"
 )
 
 // Difference describes a single detected schema change between two snapshots.
