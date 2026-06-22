@@ -31,8 +31,8 @@ func TestNewDiffer_ReturnsUsableDiffer(t *testing.T) {
 	if d == nil {
 		t.Fatal("NewDiffer returned nil")
 	}
-	a := &schemasnapshot.SchemaSnapshot{Version: 1}
-	b := &schemasnapshot.SchemaSnapshot{Version: 1}
+	a := snapWithTables()
+	b := snapWithTables()
 	got := d.Diff(a, b)
 	if len(got) != 0 {
 		t.Errorf("expected empty diff on identical empty snapshots, got %d findings: %v", len(got), got)
@@ -51,31 +51,11 @@ func TestDiffer_ZeroConfig_EqualsRawDiff(t *testing.T) {
 	legacyA := makeTable("202", "public", "legacy", schemasnapshot.TableKindOrdinary)
 	// legacy is dropped in b
 
-	colA := schemasnapshot.Column{
-		Table:    ref("public", "orders"),
-		ID:       "101:1",
-		Name:     "amount",
-		DataType: "integer",
-		NotNull:  true,
-	}
-	colB := schemasnapshot.Column{
-		Table:    ref("public", "orders"),
-		ID:       "101:1",
-		Name:     "amount",
-		DataType: "numeric", // type changed
-		NotNull:  true,
-	}
+	colA := makeColumn("public", "orders", "101:1", "amount", "integer", notNull())
+	colB := makeColumn("public", "orders", "101:1", "amount", "numeric", notNull()) // type changed
 
-	a := &schemasnapshot.SchemaSnapshot{
-		Version: 1,
-		Tables:  []schemasnapshot.Table{ordersA, legacyA},
-		Columns: []schemasnapshot.Column{colA},
-	}
-	b := &schemasnapshot.SchemaSnapshot{
-		Version: 1,
-		Tables:  []schemasnapshot.Table{ordersB},
-		Columns: []schemasnapshot.Column{colB},
-	}
+	a := snapWithTablesAndColumns([]schemasnapshot.Table{ordersA, legacyA}, []schemasnapshot.Column{colA})
+	b := snapWithTablesAndColumns([]schemasnapshot.Table{ordersB}, []schemasnapshot.Column{colB})
 
 	want := Diff(a, b)
 	got := NewDiffer(Config{}).Diff(a, b)
@@ -96,41 +76,13 @@ func TestDiffer_AppliesScope(t *testing.T) {
 	legacyA := makeTable("202", "public", "legacy", schemasnapshot.TableKindOrdinary)
 	legacyB := makeTable("202", "public", "legacy", schemasnapshot.TableKindOrdinary)
 
-	colOrdersA := schemasnapshot.Column{
-		Table:    ref("public", "orders"),
-		ID:       "101:1",
-		Name:     "price",
-		DataType: "integer",
-	}
-	colOrdersB := schemasnapshot.Column{
-		Table:    ref("public", "orders"),
-		ID:       "101:1",
-		Name:     "price",
-		DataType: "numeric", // type changed → COLUMN_TYPE_CHANGED on orders
-	}
-	colLegacyA := schemasnapshot.Column{
-		Table:    ref("public", "legacy"),
-		ID:       "202:1",
-		Name:     "old_col",
-		DataType: "text",
-	}
-	colLegacyB := schemasnapshot.Column{
-		Table:    ref("public", "legacy"),
-		ID:       "202:1",
-		Name:     "old_col",
-		DataType: "varchar", // type changed → COLUMN_TYPE_CHANGED on legacy
-	}
+	colOrdersA := makeColumn("public", "orders", "101:1", "price", "integer")
+	colOrdersB := makeColumn("public", "orders", "101:1", "price", "numeric") // type changed → COLUMN_TYPE_CHANGED on orders
+	colLegacyA := makeColumn("public", "legacy", "202:1", "old_col", "text")
+	colLegacyB := makeColumn("public", "legacy", "202:1", "old_col", "varchar") // type changed → COLUMN_TYPE_CHANGED on legacy
 
-	a := &schemasnapshot.SchemaSnapshot{
-		Version: 1,
-		Tables:  []schemasnapshot.Table{ordersA, legacyA},
-		Columns: []schemasnapshot.Column{colOrdersA, colLegacyA},
-	}
-	b := &schemasnapshot.SchemaSnapshot{
-		Version: 1,
-		Tables:  []schemasnapshot.Table{ordersB, legacyB},
-		Columns: []schemasnapshot.Column{colOrdersB, colLegacyB},
-	}
+	a := snapWithTablesAndColumns([]schemasnapshot.Table{ordersA, legacyA}, []schemasnapshot.Column{colOrdersA, colLegacyA})
+	b := snapWithTablesAndColumns([]schemasnapshot.Table{ordersB, legacyB}, []schemasnapshot.Column{colOrdersB, colLegacyB})
 
 	scope := Scope{Tables: []string{"public.orders"}}
 	d := NewDiffer(Config{Scope: scope})
@@ -167,31 +119,11 @@ func TestDiffer_ScopeRenameRetention(t *testing.T) {
 	purchasesB := makeTable("55", "public", "purchases", schemasnapshot.TableKindOrdinary)
 
 	// Add a column present in both sides to make the snapshot non-trivial.
-	colA := schemasnapshot.Column{
-		Table:    ref("public", "orders"),
-		ID:       "55:1",
-		Name:     "id",
-		DataType: "integer",
-		NotNull:  true,
-	}
-	colB := schemasnapshot.Column{
-		Table:    ref("public", "purchases"),
-		ID:       "55:1",
-		Name:     "id",
-		DataType: "integer",
-		NotNull:  true,
-	}
+	colA := makeColumn("public", "orders", "55:1", "id", "integer", notNull())
+	colB := makeColumn("public", "purchases", "55:1", "id", "integer", notNull())
 
-	a := &schemasnapshot.SchemaSnapshot{
-		Version: 1,
-		Tables:  []schemasnapshot.Table{ordersA},
-		Columns: []schemasnapshot.Column{colA},
-	}
-	b := &schemasnapshot.SchemaSnapshot{
-		Version: 1,
-		Tables:  []schemasnapshot.Table{purchasesB},
-		Columns: []schemasnapshot.Column{colB},
-	}
+	a := snapWithTablesAndColumns([]schemasnapshot.Table{ordersA}, []schemasnapshot.Column{colA})
+	b := snapWithTablesAndColumns([]schemasnapshot.Table{purchasesB}, []schemasnapshot.Column{colB})
 
 	// Scope by the NEW name (public.purchases).
 	scope := Scope{Tables: []string{"public.purchases"}}
