@@ -1574,7 +1574,7 @@ func TestLiveMigrationWithMultiColumnUniqueIndexConflictDetectionCases(t *testin
 				i INTEGER;
 			BEGIN
 				FOR i IN 21..520 LOOP
-						UPDATE test_schema.test_multi_column_unique_index SET updated_at = now() WHERE id = i - 1;
+						UPDATE test_schema.test_multi_column_unique_index SET updated_at = now() + interval '1 second' WHERE id = i - 1;
 						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i, 20, i, now());
 
 						DELETE FROM test_schema.test_multi_column_unique_index WHERE id = i;
@@ -1591,7 +1591,7 @@ func TestLiveMigrationWithMultiColumnUniqueIndexConflictDetectionCases(t *testin
 				i INTEGER;
 			BEGIN
 				FOR i IN 522..1021 LOOP
-						UPDATE test_schema.test_multi_column_unique_index SET updated_at = now() WHERE id = i - 1;
+						UPDATE test_schema.test_multi_column_unique_index SET updated_at = now() + interval '1 second' WHERE id = i - 1;
 						INSERT INTO test_schema.test_multi_column_unique_index(id, id1, id2, updated_at) VALUES(i, i, NULL, now());
 
 						DELETE FROM test_schema.test_multi_column_unique_index WHERE id = i;
@@ -1757,7 +1757,7 @@ func TestLiveMigrationWithMultiColumnUniqueIndexConflictDetectionCases(t *testin
 	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		`"test_schema"."test_multi_column_unique_index"`: {
 			Inserts: 6003,
-			Updates: 2002,
+			Updates: 3000,
 			Deletes: 4000,
 		},
 	}, 120, 5)
@@ -1772,16 +1772,22 @@ func TestLiveMigrationWithMultiColumnUniqueIndexConflictDetectionCases(t *testin
 	err = liveMigrationTest.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
+	tableKey := `"test_schema"."test_multi_column_unique_index"`
+	targetConflicts, err := liveMigrationTest.GetTableConflictCount(cmd.TARGET_DB_IMPORTER_ROLE, tableKey)
+	testutils.FatalIfError(t, err, "failed to get target conflict stats")
+	require.Equal(t, int64(3000), targetConflicts, "true-conflict blocks on target import")
+
 	err = liveMigrationTest.ExecuteTargetDelta()
 	testutils.FatalIfError(t, err, "failed to execute target delta")
 
 	err = liveMigrationTest.WaitForFallbackStreamingComplete(map[string]ChangesCount{
 		`"test_schema"."test_multi_column_unique_index"`: {
-			Inserts: 6003,
-			Updates: 2002,
+			Inserts: 6004,
+			Updates: 3000,
 			Deletes: 4000,
 		},
 	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
 	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_multi_column_unique_index"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")

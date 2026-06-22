@@ -46,6 +46,7 @@ var (
 	SOURCE_INDEXES_INFO_KEY                    = "source_indexes_info_key"
 	TABLE_TO_UNIQUE_KEY_COLUMNS_KEY            = "table_to_unique_key_columns_key"
 	TABLE_TO_UNIQUE_INDEXES_KEY                = "table_to_unique_indexes_key"
+	CONFLICT_DETECTION_STATS_KEY               = "conflict_detection_stats"
 	ErrNoQueueSegmentsFound                    = errors.New("no queue segments found")
 )
 

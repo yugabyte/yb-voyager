@@ -1617,3 +1617,21 @@ func (lm *LiveMigrationTest) StartImportDataToSourceReplica(async bool, extraArg
 	lm.sourceReplicaImportCmd = runner
 	return nil
 }
+
+func (lm *LiveMigrationTest) GetConflictDetectionStats() (*metadb.ConflictDetectionStatsRecord, error) {
+	if err := lm.InitMetaDB(); err != nil {
+		return nil, err
+	}
+	return lm.metaDB.GetConflictDetectionStatsRecord()
+}
+
+func (lm *LiveMigrationTest) GetTableConflictCount(importerRole, tableKey string) (int64, error) {
+	stats, err := lm.GetConflictDetectionStats()
+	if err != nil {
+		return 0, err
+	}
+	if stats == nil {
+		return 0, nil
+	}
+	return stats.GetTableConflictCount(importerRole, tableKey)
+}

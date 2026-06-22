@@ -123,11 +123,18 @@ type ConflictDetectionCache struct {
 		Worst event size can be 7kb for 30-50 columns in the table
 		so for the 500000 events (100 channels * 500 events per channel) at worst in the cache it will be 500000 * 7kb = 3.5GB
 	*/
-	m                    map[int64]*tgtdb.Event
-	cond                 *sync.Cond
-	tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, [][]string]
-	evChans              []chan *tgtdb.Event
-	sourceDBType         string
+	m                     map[int64]*tgtdb.Event
+	cond                  *sync.Cond
+	tableToUniqueIndexes  *utils.StructMap[sqlname.NameTuple, [][]string]
+	evChans               []chan *tgtdb.Event
+	sourceDBType          string
+	totalConflictsByTable *utils.StructMap[sqlname.NameTuple, int64]
+}
+
+// conflictVsnPair identifies a unique blocking relationship counted once per WaitUntilNoConflict call.
+type conflictVsnPair struct {
+	cachedVsn   int64
+	incomingVsn int64
 }
 
 func NewConflictDetectionCache(tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, [][]string], evChans []chan *tgtdb.Event, sourceDBType string) *ConflictDetectionCache {
@@ -137,7 +144,39 @@ func NewConflictDetectionCache(tableToUniqueIndexes *utils.StructMap[sqlname.Nam
 	c.tableToUniqueIndexes = tableToUniqueIndexes
 	c.sourceDBType = sourceDBType
 	c.evChans = evChans
+	c.totalConflictsByTable = utils.NewStructMap[sqlname.NameTuple, int64]()
 	return c
+}
+
+func (c *ConflictDetectionCache) recordConflict(table sqlname.NameTuple) {
+	count, _ := c.totalConflictsByTable.Get(table)
+	c.totalConflictsByTable.Put(table, count+1)
+}
+
+// recordConflictForVsnPair counts each (cached_vsn, incoming_vsn) combo once per WaitUntilNoConflict call.
+// Caller must hold c.Mutex.
+func (c *ConflictDetectionCache) recordConflictForVsnPair(table sqlname.NameTuple, pair conflictVsnPair, recordedPairs map[conflictVsnPair]struct{}) {
+	if _, alreadyRecorded := recordedPairs[pair]; alreadyRecorded {
+		return
+	}
+	recordedPairs[pair] = struct{}{}
+	c.recordConflict(table)
+}
+
+func (c *ConflictDetectionCache) SnapshotStatsByTable() map[string]int64 {
+	c.Lock()
+	defer c.Unlock()
+	stats := make(map[string]int64)
+	_ = c.totalConflictsByTable.IterKV(func(table sqlname.NameTuple, count int64) (bool, error) {
+		stats[table.ForKey()] = count
+		return true, nil
+	})
+	return stats
+}
+
+func (c *ConflictDetectionCache) TotalConflictsForTable(table sqlname.NameTuple) int64 {
+	count, _ := c.totalConflictsByTable.Get(table)
+	return count
 }
 
 func (c *ConflictDetectionCache) Put(event *tgtdb.Event) {
@@ -150,6 +189,8 @@ func (c *ConflictDetectionCache) Put(event *tgtdb.Event) {
 func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event) {
 	c.Lock()
 	defer c.Unlock()
+
+	recordedPairs := make(map[conflictVsnPair]struct{})
 
 retry:
 	for _, cachedEvent := range c.m {
@@ -169,6 +210,8 @@ retry:
 				}
 			}
 			log.Infof("waiting for event(vsn=%d) to be complete before processing event(vsn=%d)", cachedEvent.Vsn, incomingEvent.Vsn)
+			pair := conflictVsnPair{cachedVsn: cachedEvent.Vsn, incomingVsn: incomingEvent.Vsn}
+			c.recordConflictForVsnPair(incomingEvent.TableNameTup, pair, recordedPairs)
 			// wait will release the lock and wait for a broadcast signal
 			c.cond.Wait()
 
@@ -366,6 +409,26 @@ func (c *ConflictDetectionCache) uniqueIndexConflicts(cachedEvent *tgtdb.Event, 
 	}
 	return false
 }
+
+/*
+true positives
+	- Expectation: N > 0 conflicts 
+
+	Implementation
+		- log (okay - as if we change log it will fail the test)
+
+
+false positives
+	- Expectation: zero conflicts 
+
+	implementation
+		- log (not feasible - as )
+		- failpoint (deterministic, better)
+
+
+
+
+*/
 
 func (c *ConflictDetectionCache) checkUniqueIndexBeforeAfterConflict(cachedEvent *tgtdb.Event, incomingEvent *tgtdb.Event, indexColumns []string) bool {
 	// Check conflict: cachedEvent.BeforeFields[index columns] == incomingEvent.Fields[index columns]
