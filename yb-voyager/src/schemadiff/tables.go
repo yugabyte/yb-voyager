@@ -48,27 +48,29 @@ func partitionParentEqual(a, b *schemasnapshot.ObjectRef) bool {
 }
 
 // diffTables computes table-level differences between snapshots a and b.
-// Tables are matched by ID (OID). Tables with empty ID fall back to matching
-// by ObjectRef.String() (schema.name).
+// Tables are matched by ID (OID) only when both snapshots declare StableIdentity=true;
+// otherwise all tables fall back to matching by ObjectRef.String() (schema.name).
 func diffTables(a, b *schemasnapshot.SchemaSnapshot) []Difference {
 	var diffs []Difference
 
-	// Build maps: ID → Table for tables with non-empty ID.
-	// For tables with empty ID, use schema.name as key.
+	matchByID := a.StableIdentity && b.StableIdentity
+
+	// Build maps: ID → Table for tables with non-empty ID (when matching by ID is enabled).
+	// For tables with empty ID, or when matchByID is false, use schema.name as key.
 	byIDA := make(map[string]schemasnapshot.Table)
 	byIDB := make(map[string]schemasnapshot.Table)
 	byNameA := make(map[string]schemasnapshot.Table)
 	byNameB := make(map[string]schemasnapshot.Table)
 
 	for _, t := range a.Tables {
-		if t.ID != "" {
+		if matchByID && t.ID != "" {
 			byIDA[t.ID] = t
 		} else {
 			byNameA[t.ObjectRef.String()] = t
 		}
 	}
 	for _, t := range b.Tables {
-		if t.ID != "" {
+		if matchByID && t.ID != "" {
 			byIDB[t.ID] = t
 		} else {
 			byNameB[t.ObjectRef.String()] = t

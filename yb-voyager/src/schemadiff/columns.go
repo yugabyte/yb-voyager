@@ -17,26 +17,30 @@ package schemadiff
 import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 
 // diffColumns computes column-level differences between snapshots a and b.
-// Columns are matched by ID when non-empty; empty-ID columns fall back to
-// matching by the composite key Column.Table.String() + "." + Column.Name.
+// Columns are matched by ID only when both snapshots declare StableIdentity=true;
+// otherwise all columns fall back to matching by the composite key
+// Column.Table.String() + "." + Column.Name.
 func diffColumns(a, b *schemasnapshot.SchemaSnapshot) []Difference {
 	var diffs []Difference
 
-	// Build maps: ID → Column (non-empty ID) and compositeKey → Column (empty ID).
+	matchByID := a.StableIdentity && b.StableIdentity
+
+	// Build maps: ID → Column (non-empty ID, when matchByID is true) and
+	// compositeKey → Column (empty ID or matchByID=false).
 	byIDA := make(map[string]schemasnapshot.Column)
 	byIDB := make(map[string]schemasnapshot.Column)
 	byNameA := make(map[string]schemasnapshot.Column)
 	byNameB := make(map[string]schemasnapshot.Column)
 
 	for _, c := range a.Columns {
-		if c.ID != "" {
+		if matchByID && c.ID != "" {
 			byIDA[c.ID] = c
 		} else {
 			byNameA[c.Table.String()+"."+c.Name] = c
 		}
 	}
 	for _, c := range b.Columns {
-		if c.ID != "" {
+		if matchByID && c.ID != "" {
 			byIDB[c.ID] = c
 		} else {
 			byNameB[c.Table.String()+"."+c.Name] = c

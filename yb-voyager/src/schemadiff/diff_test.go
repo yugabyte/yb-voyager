@@ -23,11 +23,14 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 )
 
-// helper: build a minimal SchemaSnapshot with the given tables
+// helper: build a minimal SchemaSnapshot with the given tables.
+// StableIdentity is set to true because these helpers model PG snapshots
+// which always have stable OID-based identity.
 func snapWithTables(tables ...schemasnapshot.Table) *schemasnapshot.SchemaSnapshot {
 	return &schemasnapshot.SchemaSnapshot{
-		Version: 1,
-		Tables:  tables,
+		Version:        1,
+		StableIdentity: true,
+		Tables:         tables,
 	}
 }
 

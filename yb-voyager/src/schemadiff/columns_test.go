@@ -23,19 +23,25 @@ import (
 )
 
 // snapWithColumns builds a snapshot containing the given columns (no tables).
+// StableIdentity is set to true because these helpers model PG snapshots
+// which always have stable OID-based identity.
 func snapWithColumns(cols ...schemasnapshot.Column) *schemasnapshot.SchemaSnapshot {
 	return &schemasnapshot.SchemaSnapshot{
-		Version: 1,
-		Columns: cols,
+		Version:        1,
+		StableIdentity: true,
+		Columns:        cols,
 	}
 }
 
 // snapWithTablesAndColumns builds a snapshot with both tables and columns.
+// StableIdentity is set to true because these helpers model PG snapshots
+// which always have stable OID-based identity.
 func snapWithTablesAndColumns(tables []schemasnapshot.Table, cols []schemasnapshot.Column) *schemasnapshot.SchemaSnapshot {
 	return &schemasnapshot.SchemaSnapshot{
-		Version: 1,
-		Tables:  tables,
-		Columns: cols,
+		Version:        1,
+		StableIdentity: true,
+		Tables:         tables,
+		Columns:        cols,
 	}
 }
 
@@ -433,6 +439,57 @@ func TestDiffColumns_IDEmptyFallback_MatchedByTableAndName(t *testing.T) {
 	}
 	if got2[0].Type != ColumnTypeChanged {
 		t.Errorf("expected ColumnTypeChanged, got %v", got2[0].Type)
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Tests: StableIdentity gate for columns
+// ──────────────────────────────────────────────────────────────────────────────
+
+// unstableSnapWithColumns builds a snapshot with StableIdentity:false containing
+// the given columns (no tables).
+func unstableSnapWithColumns(cols ...schemasnapshot.Column) *schemasnapshot.SchemaSnapshot {
+	return &schemasnapshot.SchemaSnapshot{
+		Version:        1,
+		StableIdentity: false,
+		Columns:        cols,
+	}
+}
+
+// TestDiffColumns_UnstableIdentity_RenameBecomesAddDrop: when both snapshots have
+// StableIdentity:false, a column with same ID but different names must NOT be
+// rename-detected. Matching falls back to (table, name) composite key, producing
+// ColumnDropped (old name) + ColumnAdded (new name).
+func TestDiffColumns_UnstableIdentity_RenameBecomesAddDrop(t *testing.T) {
+	oldCol := makeColumn("public", "users", "200:1", "usr_name", "text")
+	newCol := makeColumn("public", "users", "200:1", "username", "text") // same ID, new name
+
+	a := unstableSnapWithColumns(oldCol)
+	b := unstableSnapWithColumns(newCol)
+
+	got := Diff(a, b)
+
+	// Expect ColumnDropped(usr_name) + ColumnAdded(username) — no ColumnNameChanged.
+	if len(got) != 2 {
+		t.Fatalf("expected 2 differences (ColumnDropped+ColumnAdded), got %d: %v", len(got), got)
+	}
+	var hasDropped, hasAdded bool
+	for _, d := range got {
+		if d.Type == ColumnNameChanged {
+			t.Errorf("unexpected ColumnNameChanged when StableIdentity=false: %v", d)
+		}
+		if d.Type == ColumnDropped && d.SubObject == "usr_name" {
+			hasDropped = true
+		}
+		if d.Type == ColumnAdded && d.SubObject == "username" {
+			hasAdded = true
+		}
+	}
+	if !hasDropped {
+		t.Errorf("expected ColumnDropped for usr_name; got: %v", got)
+	}
+	if !hasAdded {
+		t.Errorf("expected ColumnAdded for username; got: %v", got)
 	}
 }
 
