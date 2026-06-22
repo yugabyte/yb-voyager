@@ -20,6 +20,18 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 )
 
+// Difference describes a single detected schema change between two snapshots.
+type Difference struct {
+	Type        DiffType
+	Object      schemasnapshot.ObjectRef  // anchor: side-A (old) for most; side-B (new) for *_ADDED
+	AnchorTable *schemasnapshot.ObjectRef // table this finding filters under; nil for non-table-anchored
+	SubObject   string                    // dependent's name (column, etc.); "" for object-level
+	Property    string                    // changed attribute name; "" for object-level
+	OldValue    any                       // value on side A; nil if absent on A
+	NewValue    any                       // value on side B; nil if absent on B
+	Details     string                    // optional human-readable summary
+}
+
 // Diff computes the schema differences between snapshot a (old/side-A) and b (new/side-B).
 // It returns a sorted slice of Difference values.
 func Diff(a, b *schemasnapshot.SchemaSnapshot) []Difference {

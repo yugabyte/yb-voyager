@@ -14,8 +14,6 @@
 
 package schemadiff
 
-import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
-
 // DiffType is a string-typed enumeration of the kinds of schema changes that
 // can be detected between two snapshots. Only the V1-emitted set is declared
 // here: table-level and column-level findings produced by diffTables and
@@ -42,15 +40,3 @@ const (
 	ColumnNullabilityChanged DiffType = "COLUMN_NULLABILITY_CHANGED"
 	ColumnDefaultChanged     DiffType = "COLUMN_DEFAULT_CHANGED"
 )
-
-// Difference describes a single detected schema change between two snapshots.
-type Difference struct {
-	Type        DiffType
-	Object      schemasnapshot.ObjectRef  // anchor: side-A (old) for most; side-B (new) for *_ADDED
-	AnchorTable *schemasnapshot.ObjectRef // table this finding filters under; nil for non-table-anchored
-	SubObject   string                    // dependent's name (column, etc.); "" for object-level
-	Property    string                    // changed attribute name; "" for object-level
-	OldValue    any                       // value on side A; nil if absent on A
-	NewValue    any                       // value on side B; nil if absent on B
-	Details     string                    // optional human-readable summary
-}
