@@ -131,9 +131,10 @@ centos_main() {
 	fi
 	
 	# TODO: Remove the usage of jq and use something inbuilt in the future.
+	# jq is needed to read connector-versions.json in package_debezium_server_local (local builds too).
+	$YUM_INSTALL jq 1>&2
 	if [ "${VERSION}" != "local" ]
 	then
-		$YUM_INSTALL jq 1>&2
 		fetch_release_data
 	fi
 	
@@ -180,9 +181,10 @@ ubuntu_main() {
 	sudo apt-get update 1>&2
 
 	# TODO: Remove the usage of jq and use something inbuilt in the future.
+	# jq is needed to read connector-versions.json in package_debezium_server_local (local builds too).
+	sudo apt-get install -y jq 1>&2
 	if [ "${VERSION}" != "local" ]
 	then
-		sudo apt-get install -y jq 1>&2
 		fetch_release_data
 	fi
 
@@ -229,9 +231,10 @@ macos_main() {
 	macos_install_brew
 
 	# TODO: Remove the usage of jq and use something inbuilt in the future.
+	# jq is needed to read connector-versions.json in package_debezium_server_local (local builds too).
+	brew install jq 1>&2
 	if [ "${VERSION}" != "local" ]
 	then
-		brew install jq 1>&2
 		fetch_release_data
 	fi
 
