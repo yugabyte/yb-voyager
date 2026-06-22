@@ -285,13 +285,18 @@ func TestYugabyteGetTableToUniqueKeyColumnsMap(t *testing.T) {
 			id INT,
 			data TEXT,
 			val text,
-			val2 text
+			val2 text,
+			id1 int,
+			id2 int
 		) PARTITION BY LIST (data);
 		CREATE TABLE test_expression_indexes.table_partitioned_l5 PARTITION OF test_expression_indexes_cross.table_partitioned5 FOR VALUES IN ('London');
 		CREATE TABLE test_expression_indexes.table_partitioned_s5 PARTITION OF test_expression_indexes_cross.table_partitioned5 FOR VALUES IN ('Sydney');
 		CREATE TABLE test_expression_indexes.table_partitioned_b5 PARTITION OF test_expression_indexes_cross.table_partitioned5 FOR VALUES IN ('Boston');
 
-		CREATE UNIQUE INDEX idx_expression_indexes_17 ON test_expression_indexes.table_partitioned_l5 (val) WHERE val2<>'';`)
+		CREATE UNIQUE INDEX idx_expression_indexes_17 ON test_expression_indexes.table_partitioned_l5 (val) WHERE val2<>'';
+		CREATE UNIQUE INDEX idx_multi_col_l5 ON test_expression_indexes.table_partitioned_l5 (id1, id2);
+		CREATE UNIQUE INDEX idx_multi_col_s5 ON test_expression_indexes.table_partitioned_s5 (id1, id2);
+		CREATE UNIQUE INDEX idx_multi_col_b5 ON test_expression_indexes.table_partitioned_b5 (id1, id2);`)
 	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
 	testYugabyteDBSource.Schemas = []sqlname.Identifier{
@@ -327,6 +332,13 @@ func TestYugabyteGetTableToUniqueKeyColumnsMap(t *testing.T) {
 	})
 	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_l5", "test_expression_indexes", "postgresql"), [][]string{
 		{"val"},
+		{"id1", "id2"},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_s5", "test_expression_indexes", "postgresql"), [][]string{
+		{"id1", "id2"},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_b5", "test_expression_indexes", "postgresql"), [][]string{
+		{"id1", "id2"},
 	})
 	expectedIndexesByTable.Put(testutils.CreateNameTupleWithSourceName("test_schema.composite_unique_table", "test_schema", "postgresql"), [][]string{
 		{"first_name", "last_name"},

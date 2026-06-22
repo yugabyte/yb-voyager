@@ -736,7 +736,10 @@ func startDebeziumAsPerExportTypeIfRequired(ctx context.Context, cancel context.
 	if err != nil {
 		return fmt.Errorf("failed to prepare dbzm config: %w", err)
 	}
-	saveTableToUniqueIndexesMapInMetaDB(finalTableList, leafPartitions)
+	err = saveTableToUniqueIndexesMapInMetaDB(finalTableList, leafPartitions)
+	if err != nil {
+		return fmt.Errorf("failed to save table to unique indexes map in metaDB: %w", err)
+	}
 	if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
 		err = initPGLiveMigrationAndExportSnapshotIfRequired(ctx, cancel, finalTableList, tablesColumnList, leafPartitions, config)
 		if err != nil {
@@ -2303,10 +2306,10 @@ func createUpdateExportedRowCountEventList(tableNames []string) []*cp.UpdateExpo
 	return result
 }
 
-func saveTableToUniqueIndexesMapInMetaDB(tableList []sqlname.NameTuple, leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) {
+func saveTableToUniqueIndexesMapInMetaDB(tableList []sqlname.NameTuple, leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) error {
 	res, err := source.DB().GetTableToUniqueIndexesMap(tableList)
 	if err != nil {
-		utils.ErrExit("get table to unique indexes map: %w", err)
+		return fmt.Errorf("get table to unique indexes map: %w", err)
 	}
 
 	key := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_INDEXES_KEY, exporterRole)
@@ -2316,9 +2319,9 @@ func saveTableToUniqueIndexesMapInMetaDB(tableList []sqlname.NameTuple, leafPart
 			*record = nil
 		})
 		if err != nil {
-			utils.ErrExit("insert table to unique indexes map: %w", err)
+			return fmt.Errorf("insert table to unique indexes map: %w", err)
 		}
-		return
+		return nil
 	}
 
 	//Adding all the leaf partitions unique indexes to the root table since in the importer all the events only have the root table name
@@ -2351,6 +2354,7 @@ func saveTableToUniqueIndexesMapInMetaDB(tableList []sqlname.NameTuple, leafPart
 		*record = metaDbData
 	})
 	if err != nil {
-		utils.ErrExit("insert table to unique indexes map: %w", err)
+		return fmt.Errorf("insert table to unique indexes map: %w", err)
 	}
+	return nil
 }
