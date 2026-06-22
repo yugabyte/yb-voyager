@@ -50,28 +50,16 @@ type Scope struct {
 }
 
 // diffTypeObjectType is an exhaustive mapping from every DiffType constant to
-// its ObjectType bucket for scope filtering.
+// its ObjectType bucket for scope filtering. Only the V1-emitted DiffTypes are
+// present (tables and columns); all 15 map to ObjectTypeTable because columns
+// "ride with" their table and are not independently selectable.
 //
-// Bucket assignment rules (§8):
-//   - TABLE_*, COLUMN_*, CONSTRAINT_*, TRIGGER_*, PARTITION_*,
-//     PRIMARY_KEY_CHANGED, UNIQUE_CONSTRAINT_CHANGED, FOREIGN_KEY_CHANGED,
-//     CHECK_CONSTRAINT_CHANGED, EXCLUSION_CONSTRAINT_CHANGED,
-//     NULLS_NOT_DISTINCT_CHANGED, REPLICA_IDENTITY_CHANGED,
-//     TABLE_PERSISTENCE_CHANGED → ObjectTypeTable
-//     (columns, constraints, and triggers "ride with" their table; they are
-//     not independently selectable)
-//   - INDEX_* → ObjectTypeIndex
-//     (indexes are an independently selectable object type per the functional
-//     spec; the host table travels in AnchorTable for --table-list matching)
-//   - SEQUENCE_* → ObjectTypeSequence
-//   - VIEW_*, MATERIALIZED_VIEW_* → ObjectTypeView
-//     (ObjectTypeView covers both; no separate matview selector)
-//   - FUNCTION_* → ObjectTypeFunction
-//   - TYPE_*, ENUM_VALUE_* → ObjectTypeType
-//   - ATTR_CHANGED → ObjectTypeTable (V1 simplification: every Attr the current
-//     library writes sits on a table or table-owned object — Constraint, Index.
-//     Revisit if a future database type places Attrs on non-table objects such
-//     as sequences, views, or functions.)
+// Note: the six ObjectType selector constants (ObjectTypeTable, ObjectTypeIndex,
+// ObjectTypeSequence, ObjectTypeView, ObjectTypeFunction, ObjectTypeType) remain
+// declared for the user-facing --object-type-list vocabulary. Only ObjectTypeTable
+// currently appears as a map value because V1 emits no index, sequence, view,
+// function, or type findings; selectors for those object types are kept so that
+// callers can meaningfully filter them in (with no matching findings) or out.
 var diffTypeObjectType = map[DiffType]ObjectType{
 	// ── TABLE ────────────────────────────────────────────────────────────────
 	TableAdded:               ObjectTypeTable,
@@ -79,105 +67,19 @@ var diffTypeObjectType = map[DiffType]ObjectType{
 	TableNameChanged:         ObjectTypeTable,
 	TableSchemaChanged:       ObjectTypeTable,
 	TableKindChanged:         ObjectTypeTable,
-	PartitionStrategyChanged: ObjectTypeTable,
-	PartitionKeyChanged:      ObjectTypeTable,
+	PartitionParentChanged:   ObjectTypeTable,
 	PartitionChildrenChanged: ObjectTypeTable,
-	ReplicaIdentityChanged:   ObjectTypeTable,
-	TablePersistenceChanged:  ObjectTypeTable,
-	// New table-level link constants (not in the original parked branch).
-	PartitionParentChanged:  ObjectTypeTable,
-	TableInheritsChanged:    ObjectTypeTable,
-	TableInheritedByChanged: ObjectTypeTable,
+	TableInheritsChanged:     ObjectTypeTable,
+	TableInheritedByChanged:  ObjectTypeTable,
 
 	// ── COLUMN ───────────────────────────────────────────────────────────────
+	// Columns "ride with" their parent table and are not independently selectable.
 	ColumnAdded:              ObjectTypeTable,
 	ColumnDropped:            ObjectTypeTable,
 	ColumnNameChanged:        ObjectTypeTable,
 	ColumnTypeChanged:        ObjectTypeTable,
 	ColumnNullabilityChanged: ObjectTypeTable,
 	ColumnDefaultChanged:     ObjectTypeTable,
-	ColumnIdentityChanged:    ObjectTypeTable,
-	ColumnGeneratedChanged:   ObjectTypeTable,
-	ColumnCollationChanged:   ObjectTypeTable,
-
-	// ── CONSTRAINT ───────────────────────────────────────────────────────────
-	ConstraintAdded:            ObjectTypeTable,
-	ConstraintDropped:          ObjectTypeTable,
-	ConstraintNameChanged:      ObjectTypeTable,
-	PrimaryKeyChanged:          ObjectTypeTable,
-	UniqueConstraintChanged:    ObjectTypeTable,
-	ForeignKeyChanged:          ObjectTypeTable,
-	CheckConstraintChanged:     ObjectTypeTable,
-	ExclusionConstraintChanged: ObjectTypeTable,
-	NullsNotDistinctChanged:    ObjectTypeTable,
-
-	// ── INDEX ─────────────────────────────────────────────────────────────────
-	IndexAdded:                  ObjectTypeIndex,
-	IndexDropped:                ObjectTypeIndex,
-	IndexNameChanged:            ObjectTypeIndex,
-	IndexColumnsChanged:         ObjectTypeIndex,
-	IndexAccessMethodChanged:    ObjectTypeIndex,
-	IndexUniqueChanged:          ObjectTypeIndex,
-	IndexWhereChanged:           ObjectTypeIndex,
-	IndexIncludedColumnsChanged: ObjectTypeIndex,
-
-	// ── SEQUENCE ──────────────────────────────────────────────────────────────
-	SequenceAdded:             ObjectTypeSequence,
-	SequenceDropped:           ObjectTypeSequence,
-	SequenceNameChanged:       ObjectTypeSequence,
-	SequenceSchemaChanged:     ObjectTypeSequence,
-	SequencePropertiesChanged: ObjectTypeSequence,
-	SequenceOwnedByChanged:    ObjectTypeSequence,
-
-	// ── VIEW ──────────────────────────────────────────────────────────────────
-	ViewAdded:             ObjectTypeView,
-	ViewDropped:           ObjectTypeView,
-	ViewNameChanged:       ObjectTypeView,
-	ViewSchemaChanged:     ObjectTypeView,
-	ViewDefinitionChanged: ObjectTypeView,
-
-	// ── MATERIALIZED VIEW ─────────────────────────────────────────────────────
-	MaterializedViewAdded:             ObjectTypeView,
-	MaterializedViewDropped:           ObjectTypeView,
-	MaterializedViewNameChanged:       ObjectTypeView,
-	MaterializedViewSchemaChanged:     ObjectTypeView,
-	MaterializedViewDefinitionChanged: ObjectTypeView,
-
-	// ── FUNCTION ──────────────────────────────────────────────────────────────
-	FunctionAdded:                 ObjectTypeFunction,
-	FunctionDropped:               ObjectTypeFunction,
-	FunctionNameChanged:           ObjectTypeFunction,
-	FunctionSchemaChanged:         ObjectTypeFunction,
-	FunctionKindChanged:           ObjectTypeFunction,
-	FunctionSignatureChanged:      ObjectTypeFunction,
-	FunctionReturnTypeChanged:     ObjectTypeFunction,
-	FunctionVolatilityChanged:     ObjectTypeFunction,
-	FunctionParallelSafetyChanged: ObjectTypeFunction,
-	FunctionStrictChanged:         ObjectTypeFunction,
-	FunctionLanguageChanged:       ObjectTypeFunction,
-	FunctionSecurityChanged:       ObjectTypeFunction,
-
-	// ── TRIGGER ───────────────────────────────────────────────────────────────
-	TriggerAdded:               ObjectTypeTable,
-	TriggerDropped:             ObjectTypeTable,
-	TriggerNameChanged:         ObjectTypeTable,
-	TriggerDefinitionChanged:   ObjectTypeTable,
-	TriggerEnabledStateChanged: ObjectTypeTable,
-
-	// ── TYPE (user-defined) ───────────────────────────────────────────────────
-	TypeAdded:            ObjectTypeType,
-	TypeDropped:          ObjectTypeType,
-	TypeNameChanged:      ObjectTypeType,
-	TypeSchemaChanged:    ObjectTypeType,
-	TypeKindChanged:      ObjectTypeType,
-	EnumValueAdded:       ObjectTypeType,
-	EnumValueRemoved:     ObjectTypeType,
-	TypeAttributeChanged: ObjectTypeType,
-
-	// ── GENERIC (cross-cutting) ───────────────────────────────────────────────
-	// V1 simplification: classify as TABLE because all Attrs the current library
-	// writes are on table-owned objects. Revisit if non-table Attrs are added.
-	AttrChanged: ObjectTypeTable,
 }
 
 // FilterByScope returns the subset of diffs that fall within the given scope.

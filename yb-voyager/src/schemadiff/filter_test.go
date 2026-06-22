@@ -34,29 +34,10 @@ func tableDiff(dt DiffType, schema, name string) Difference {
 	return Difference{Type: dt, Object: o, AnchorTable: &o}
 }
 
-// indexDiff builds an INDEX_* finding whose Object is an index but whose
-// AnchorTable points to the host table.
-func indexDiff(dt DiffType, idxSchema, idxName, tblSchema, tblName string) Difference {
-	tbl := ref(tblSchema, tblName)
-	return Difference{
-		Type:        dt,
-		Object:      ref(idxSchema, idxName),
-		AnchorTable: &tbl,
-	}
-}
-
-// viewDiff builds a VIEW_* finding with a nil AnchorTable.
-func viewDiff(dt DiffType, schema, name string) Difference {
-	return Difference{Type: dt, Object: ref(schema, name), AnchorTable: nil}
-}
-
-// funcDiff builds a FUNCTION_* finding with a nil AnchorTable.
-func funcDiff(dt DiffType, schema, name string) Difference {
-	return Difference{Type: dt, Object: ref(schema, name), AnchorTable: nil}
-}
-
-// typeDiff builds a TYPE_* finding with a nil AnchorTable.
-func typeDiff(dt DiffType, schema, name string) Difference {
+// nilAnchorDiff builds a Difference with a nil AnchorTable, using a kept
+// DiffType. This is used to test filter behaviour for nil-AnchorTable findings
+// without relying on removed object types.
+func nilAnchorDiff(dt DiffType, schema, name string) Difference {
 	return Difference{Type: dt, Object: ref(schema, name), AnchorTable: nil}
 }
 
@@ -95,50 +76,19 @@ func collectTypes(diffs []Difference) map[DiffType]bool {
 // stay in sync with diff.go.
 func TestDiffTypeObjectTypeMapIsExhaustive(t *testing.T) {
 	// allDiffTypes must list every DiffType constant from diff.go.
+	// Only the 15 V1-emitted constants (tables + columns) are declared.
 	// Keeping this in sync is enforced by the test itself: a constant absent
 	// from this slice AND absent from diffTypeObjectType passes silently — the
 	// failure only fires when a constant is here but not in the map. Developers
 	// should add to this slice whenever they add to diff.go.
 	allDiffTypes := []DiffType{
-		// TABLE
+		// TABLE (9 constants)
 		TableAdded, TableDropped, TableNameChanged, TableSchemaChanged,
-		TableKindChanged, PartitionStrategyChanged, PartitionKeyChanged,
-		PartitionChildrenChanged, ReplicaIdentityChanged, TablePersistenceChanged,
-		// New table-level link constants (not in the original parked branch).
-		PartitionParentChanged, TableInheritsChanged, TableInheritedByChanged,
-		// COLUMN
+		TableKindChanged, PartitionParentChanged, PartitionChildrenChanged,
+		TableInheritsChanged, TableInheritedByChanged,
+		// COLUMN (6 constants)
 		ColumnAdded, ColumnDropped, ColumnNameChanged, ColumnTypeChanged,
-		ColumnNullabilityChanged, ColumnDefaultChanged, ColumnIdentityChanged,
-		ColumnGeneratedChanged, ColumnCollationChanged,
-		// CONSTRAINT
-		ConstraintAdded, ConstraintDropped, ConstraintNameChanged,
-		PrimaryKeyChanged, UniqueConstraintChanged, ForeignKeyChanged,
-		CheckConstraintChanged, ExclusionConstraintChanged, NullsNotDistinctChanged,
-		// INDEX
-		IndexAdded, IndexDropped, IndexNameChanged, IndexColumnsChanged,
-		IndexAccessMethodChanged, IndexUniqueChanged, IndexWhereChanged,
-		IndexIncludedColumnsChanged,
-		// SEQUENCE
-		SequenceAdded, SequenceDropped, SequenceNameChanged, SequenceSchemaChanged,
-		SequencePropertiesChanged, SequenceOwnedByChanged,
-		// VIEW
-		ViewAdded, ViewDropped, ViewNameChanged, ViewSchemaChanged, ViewDefinitionChanged,
-		// MATERIALIZED VIEW
-		MaterializedViewAdded, MaterializedViewDropped, MaterializedViewNameChanged,
-		MaterializedViewSchemaChanged, MaterializedViewDefinitionChanged,
-		// FUNCTION
-		FunctionAdded, FunctionDropped, FunctionNameChanged, FunctionSchemaChanged,
-		FunctionKindChanged, FunctionSignatureChanged, FunctionReturnTypeChanged,
-		FunctionVolatilityChanged, FunctionParallelSafetyChanged, FunctionStrictChanged,
-		FunctionLanguageChanged, FunctionSecurityChanged,
-		// TRIGGER
-		TriggerAdded, TriggerDropped, TriggerNameChanged, TriggerDefinitionChanged,
-		TriggerEnabledStateChanged,
-		// TYPE
-		TypeAdded, TypeDropped, TypeNameChanged, TypeSchemaChanged, TypeKindChanged,
-		EnumValueAdded, EnumValueRemoved, TypeAttributeChanged,
-		// GENERIC
-		AttrChanged,
+		ColumnNullabilityChanged, ColumnDefaultChanged,
 	}
 
 	// Guard: the two lists must have the same length. If they diverge someone
@@ -159,10 +109,9 @@ func TestDiffTypeObjectTypeMapIsExhaustive(t *testing.T) {
 func TestFilterByScopeEmptyScopeKeepsEverything(t *testing.T) {
 	diffs := []Difference{
 		tableDiff(TableAdded, "public", "orders"),
-		viewDiff(ViewAdded, "public", "v_active"),
-		funcDiff(FunctionAdded, "public", "calc_total"),
-		typeDiff(TypeAdded, "public", "order_status"),
-		indexDiff(IndexAdded, "public", "orders_idx", "public", "orders"),
+		tableDiff(TableDropped, "public", "legacy"),
+		tableDiff(ColumnAdded, "public", "orders"),
+		tableDiff(ColumnDropped, "public", "orders"),
 	}
 
 	got := FilterByScope(diffs, Scope{})
@@ -174,9 +123,12 @@ func TestFilterByScopeEmptyScopeKeepsEverything(t *testing.T) {
 // TestFilterByScopeIsPure verifies that FilterByScope does not mutate the
 // input slice or the Scope value, and that the returned slice is independent.
 func TestFilterByScopeIsPure(t *testing.T) {
+	orders := ref("public", "orders")
 	orig := []Difference{
 		tableDiff(TableAdded, "public", "orders"),
-		viewDiff(ViewAdded, "public", "v_active"),
+		// A finding with nil AnchorTable to verify it is excluded by a non-empty
+		// Tables filter without panicking. We use a kept DiffType here.
+		{Type: ColumnAdded, Object: orders, AnchorTable: nil, SubObject: "x"},
 	}
 	// Make a copy of the originals' JSON to compare after the call.
 	origJSON, err := json.Marshal(orig)
@@ -190,8 +142,9 @@ func TestFilterByScopeIsPure(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, string(origJSON), string(afterJSON), "FilterByScope must not mutate the input slice")
 
-	// Returned slice must be a new allocation.
-	require.Len(t, got, 1)
+	// Returned slice must be a new allocation (both findings are ObjectTypeTable,
+	// so both survive the include filter).
+	require.Len(t, got, 2)
 	assert.Equal(t, TableAdded, got[0].Type)
 
 	// Mutating the returned slice must not affect the input.
@@ -202,84 +155,97 @@ func TestFilterByScopeIsPure(t *testing.T) {
 // ─── ObjectTypes include filter ───────────────────────────────────────────────
 
 // TestFilterByScopeObjectTypeInclude verifies that only findings whose bucket
-// is listed in ObjectTypes are kept.
+// is listed in ObjectTypes are kept. In V1 all emitted DiffTypes map to
+// ObjectTypeTable, so an ObjectTypeTable filter keeps all findings and an
+// ObjectTypeIndex filter drops all of them (no V1 index findings exist).
 func TestFilterByScopeObjectTypeInclude(t *testing.T) {
 	diffs := []Difference{
 		tableDiff(TableAdded, "public", "orders"),
-		viewDiff(ViewAdded, "public", "v_active"),
-		funcDiff(FunctionAdded, "public", "calc_total"),
-		typeDiff(TypeAdded, "public", "order_status"),
-		indexDiff(IndexAdded, "public", "orders_idx", "public", "orders"),
-		{Type: SequenceAdded, Object: ref("public", "orders_id_seq"), AnchorTable: nil},
+		tableDiff(TableDropped, "public", "legacy"),
+		tableDiff(ColumnAdded, "public", "orders"),
+		tableDiff(ColumnTypeChanged, "public", "orders"),
 	}
 
-	got := FilterByScope(diffs, Scope{ObjectTypes: []ObjectType{ObjectTypeTable}})
-	gotTypes := collectTypes(got)
+	// TABLE filter keeps all V1 findings (all map to ObjectTypeTable).
+	gotTable := FilterByScope(diffs, Scope{ObjectTypes: []ObjectType{ObjectTypeTable}})
+	assert.Len(t, gotTable, len(diffs), "TABLE filter must keep all V1 findings")
 
-	assert.True(t, gotTypes[TableAdded], "TABLE_ADDED should pass TABLE filter")
-	assert.False(t, gotTypes[IndexAdded], "INDEX_ADDED is its own object type, should be excluded by TABLE-only filter")
-	assert.False(t, gotTypes[ViewAdded], "VIEW_ADDED should be excluded by TABLE-only filter")
-	assert.False(t, gotTypes[FunctionAdded], "FUNCTION_ADDED should be excluded")
-	assert.False(t, gotTypes[TypeAdded], "TYPE_ADDED should be excluded")
-	assert.False(t, gotTypes[SequenceAdded], "SEQUENCE_ADDED should be excluded")
+	// INDEX filter drops all V1 findings (none are ObjectTypeIndex).
+	gotIndex := FilterByScope(diffs, Scope{ObjectTypes: []ObjectType{ObjectTypeIndex}})
+	assert.Empty(t, gotIndex, "INDEX filter must drop all V1 findings — no V1 index DiffTypes exist")
+
+	// SEQUENCE filter also drops all V1 findings.
+	gotSeq := FilterByScope(diffs, Scope{ObjectTypes: []ObjectType{ObjectTypeSequence}})
+	assert.Empty(t, gotSeq, "SEQUENCE filter must drop all V1 findings")
 }
 
 // TestFilterByScopeObjectTypeIncludeIndex verifies that INDEX is an
-// independently selectable object type: an INDEX filter keeps index findings
-// and excludes table findings (and vice versa).
+// independently selectable object type. In V1 no index DiffTypes are emitted,
+// so an INDEX-only filter drops all table/column findings. This confirms that
+// INDEX is a valid (non-panicking) selector even with an empty result set.
 func TestFilterByScopeObjectTypeIncludeIndex(t *testing.T) {
 	diffs := []Difference{
 		tableDiff(TableAdded, "public", "orders"),
-		indexDiff(IndexAdded, "public", "orders_idx", "public", "orders"),
+		tableDiff(ColumnAdded, "public", "orders"),
 	}
 
 	got := FilterByScope(diffs, Scope{ObjectTypes: []ObjectType{ObjectTypeIndex}})
-	gotTypes := collectTypes(got)
 
-	assert.True(t, gotTypes[IndexAdded], "INDEX_ADDED should pass INDEX filter")
-	assert.False(t, gotTypes[TableAdded], "TABLE_ADDED should be excluded by INDEX-only filter")
+	// INDEX is a valid selector but no V1 findings map to it, so the result is empty.
+	assert.Empty(t, got, "INDEX-only filter must drop all V1 table/column findings")
+
+	// Cross-check: a TABLE filter keeps everything.
+	gotTable := FilterByScope(diffs, Scope{ObjectTypes: []ObjectType{ObjectTypeTable}})
+	assert.Len(t, gotTable, len(diffs), "TABLE filter must keep all V1 findings")
 }
 
-// TestFilterByScopeObjectTypeIncludeView verifies that VIEW filter covers
-// both plain views and materialized views.
+// TestFilterByScopeObjectTypeIncludeView verifies that VIEW is a valid
+// selectable object type that drops all V1 table/column findings (V1 emits no
+// view DiffTypes). The ObjectTypeView selector is kept in the vocabulary for
+// future use; this test confirms it is a valid no-op selector in V1.
 func TestFilterByScopeObjectTypeIncludeView(t *testing.T) {
 	diffs := []Difference{
-		viewDiff(ViewAdded, "public", "v_active"),
-		{Type: MaterializedViewAdded, Object: ref("public", "mv_totals"), AnchorTable: nil},
 		tableDiff(TableAdded, "public", "orders"),
+		tableDiff(ColumnAdded, "public", "orders"),
 	}
 
 	got := FilterByScope(diffs, Scope{ObjectTypes: []ObjectType{ObjectTypeView}})
-	gotTypes := collectTypes(got)
 
-	assert.True(t, gotTypes[ViewAdded], "VIEW_ADDED should pass VIEW filter")
-	assert.True(t, gotTypes[MaterializedViewAdded], "MATERIALIZED_VIEW_ADDED should pass VIEW filter")
-	assert.False(t, gotTypes[TableAdded], "TABLE_ADDED should not pass VIEW filter")
+	// VIEW is a valid selector but no V1 findings map to it.
+	assert.Empty(t, got, "VIEW-only filter must drop all V1 table/column findings")
 }
 
 // ─── ObjectTypes exclude filter ───────────────────────────────────────────────
 
 // TestFilterByScopeObjectTypeExclude verifies that findings in excluded buckets
-// are dropped.
+// are dropped. In V1 all findings map to ObjectTypeTable, so excluding
+// ObjectTypeTable drops everything; excluding ObjectTypeIndex (or any other
+// non-table type) is a no-op because no V1 findings map to those buckets.
 func TestFilterByScopeObjectTypeExclude(t *testing.T) {
 	diffs := []Difference{
 		tableDiff(TableAdded, "public", "orders"),
-		viewDiff(ViewAdded, "public", "v_active"),
-		funcDiff(FunctionAdded, "public", "calc_total"),
+		tableDiff(ColumnAdded, "public", "orders"),
+		tableDiff(TableDropped, "public", "legacy"),
 	}
 
-	got := FilterByScope(diffs, Scope{ExcludeObjectTypes: []ObjectType{ObjectTypeView}})
-	gotTypes := collectTypes(got)
+	// Excluding ObjectTypeTable drops all V1 findings.
+	gotExcludeTable := FilterByScope(diffs, Scope{ExcludeObjectTypes: []ObjectType{ObjectTypeTable}})
+	assert.Empty(t, gotExcludeTable, "excluding TABLE must drop all V1 findings")
 
-	assert.True(t, gotTypes[TableAdded], "TABLE_ADDED should not be excluded")
-	assert.False(t, gotTypes[ViewAdded], "VIEW_ADDED should be excluded")
-	assert.True(t, gotTypes[FunctionAdded], "FUNCTION_ADDED should not be excluded")
+	// Excluding ObjectTypeIndex is a no-op: no V1 findings map to it.
+	gotExcludeIndex := FilterByScope(diffs, Scope{ExcludeObjectTypes: []ObjectType{ObjectTypeIndex}})
+	assert.Len(t, gotExcludeIndex, len(diffs), "excluding INDEX must keep all V1 findings")
+
+	// Excluding ObjectTypeView is also a no-op.
+	gotExcludeView := FilterByScope(diffs, Scope{ExcludeObjectTypes: []ObjectType{ObjectTypeView}})
+	assert.Len(t, gotExcludeView, len(diffs), "excluding VIEW must keep all V1 findings")
 }
 
 // ─── Tables include filter ────────────────────────────────────────────────────
 
 // TestFilterByScopeTableInclude verifies that only findings whose AnchorTable
-// is in the Tables list are kept.
+// is in the Tables list are kept. A nil-AnchorTable finding is dropped by a
+// non-empty Tables filter.
 func TestFilterByScopeTableInclude(t *testing.T) {
 	orders := ref("public", "orders")
 	customers := ref("public", "customers")
@@ -289,7 +255,9 @@ func TestFilterByScopeTableInclude(t *testing.T) {
 		{Type: ColumnAdded, Object: orders, AnchorTable: &orders, SubObject: "id"},
 		{Type: TableAdded, Object: customers, AnchorTable: &customers},
 		{Type: ColumnAdded, Object: customers, AnchorTable: &customers, SubObject: "name"},
-		viewDiff(ViewAdded, "public", "v_active"), // nil AnchorTable
+		// A synthetic nil-AnchorTable finding using a kept DiffType, to verify
+		// that nil-anchored entries are dropped by a Tables include filter.
+		{Type: TableNameChanged, Object: orders, AnchorTable: nil},
 	}
 
 	got := FilterByScope(diffs, Scope{Tables: []string{"public.orders"}})
@@ -317,7 +285,9 @@ func TestFilterByScopeTableExclude(t *testing.T) {
 	diffs := []Difference{
 		{Type: TableAdded, Object: orders, AnchorTable: &orders},
 		{Type: TableAdded, Object: customers, AnchorTable: &customers},
-		viewDiff(ViewAdded, "public", "v_active"), // nil AnchorTable — must NOT be dropped
+		// Synthetic nil-AnchorTable finding using a kept DiffType.
+		// The ExcludeTables filter must NOT drop it (nil anchor is never excluded).
+		nilAnchorDiff(TableNameChanged, "public", "some_obj"),
 	}
 
 	got := FilterByScope(diffs, Scope{ExcludeTables: []string{"public.orders"}})
@@ -332,28 +302,35 @@ func TestFilterByScopeTableExclude(t *testing.T) {
 		return false
 	}(), "public.orders-anchored findings should be excluded")
 	assert.True(t, gotTypes[TableAdded], "public.customers TableAdded should remain")
-	assert.True(t, gotTypes[ViewAdded], "nil-AnchorTable ViewAdded should not be dropped by ExcludeTables")
+	assert.True(t, gotTypes[TableNameChanged], "nil-AnchorTable finding should not be dropped by ExcludeTables")
 	assert.Len(t, got, 2)
 }
 
 // ─── nil AnchorTable findings ─────────────────────────────────────────────────
 
 // TestFilterByScopeNilAnchorDroppedByTables verifies that a finding with a nil
-// AnchorTable is dropped when Tables is non-empty, but is selectable via ObjectTypes.
+// AnchorTable is dropped when Tables is non-empty, but passes through an empty
+// Scope (no filter applied). All findings use kept DiffTypes; their AnchorTable
+// is set to nil synthetically to exercise the nil-anchor code path.
 func TestFilterByScopeNilAnchorDroppedByTables(t *testing.T) {
+	// Three synthetic nil-AnchorTable findings using kept DiffTypes.
 	diffs := []Difference{
-		viewDiff(ViewAdded, "public", "v_active"),
-		funcDiff(FunctionAdded, "public", "calc_total"),
-		typeDiff(TypeAdded, "public", "order_status"),
+		nilAnchorDiff(TableAdded, "public", "t1"),
+		nilAnchorDiff(ColumnAdded, "public", "t2"),
+		nilAnchorDiff(TableDropped, "public", "t3"),
 	}
 
 	// Non-empty Tables list: nil-AnchorTable findings must be dropped.
 	got := FilterByScope(diffs, Scope{Tables: []string{"public.orders"}})
 	assert.Empty(t, got, "nil-AnchorTable findings must be dropped when Tables is non-empty")
 
-	// But they are selectable via ObjectTypes.
-	got2 := FilterByScope(diffs, Scope{ObjectTypes: []ObjectType{ObjectTypeView, ObjectTypeFunction, ObjectTypeType}})
-	assert.Len(t, got2, 3, "nil-AnchorTable findings are selectable via ObjectTypes")
+	// Empty scope: all pass through (nil-AnchorTable is not dropped by ObjectTypes alone).
+	got2 := FilterByScope(diffs, Scope{})
+	assert.Len(t, got2, 3, "nil-AnchorTable findings pass through an empty Scope")
+
+	// TABLE object-type filter: all three pass (they all map to ObjectTypeTable).
+	got3 := FilterByScope(diffs, Scope{ObjectTypes: []ObjectType{ObjectTypeTable}})
+	assert.Len(t, got3, 3, "nil-AnchorTable findings with TABLE DiffType pass ObjectTypeTable filter")
 }
 
 // ─── Either-side NAME_CHANGED rule ───────────────────────────────────────────
@@ -501,6 +478,9 @@ func TestFilterByScopeAliasMapCollision(t *testing.T) {
 
 // TestFilterByScopeIncludeThenExclude verifies that the include filter runs
 // before the exclude filter and that their interaction is correct.
+// In V1 all DiffTypes map to ObjectTypeTable, so: include TABLE keeps everything,
+// then exclude TABLE drops everything; include INDEX keeps nothing, exclude TABLE
+// is then moot.
 func TestFilterByScopeIncludeThenExclude(t *testing.T) {
 	orders := ref("public", "orders")
 	customers := ref("public", "customers")
@@ -508,21 +488,27 @@ func TestFilterByScopeIncludeThenExclude(t *testing.T) {
 	diffs := []Difference{
 		{Type: TableAdded, Object: orders, AnchorTable: &orders},
 		{Type: TableAdded, Object: customers, AnchorTable: &customers},
-		viewDiff(ViewAdded, "public", "v_active"),
-		funcDiff(FunctionAdded, "public", "calc_total"),
+		tableDiff(ColumnAdded, "public", "orders"),
 	}
 
-	// Include TABLE and FUNCTION, but then exclude FUNCTION.
-	got := FilterByScope(diffs, Scope{
-		ObjectTypes:        []ObjectType{ObjectTypeTable, ObjectTypeFunction},
-		ExcludeObjectTypes: []ObjectType{ObjectTypeFunction},
+	// Include TABLE, then exclude TABLE — exclude wins, result is empty.
+	gotBoth := FilterByScope(diffs, Scope{
+		ObjectTypes:        []ObjectType{ObjectTypeTable},
+		ExcludeObjectTypes: []ObjectType{ObjectTypeTable},
 	})
+	assert.Empty(t, gotBoth, "TABLE included then excluded — exclude wins, result must be empty")
 
-	gotTypes := collectTypes(got)
-	assert.True(t, gotTypes[TableAdded], "TABLE_ADDED should pass (included, not excluded)")
-	assert.False(t, gotTypes[ViewAdded], "VIEW_ADDED should be dropped (not in include list)")
-	assert.False(t, gotTypes[FunctionAdded], "FUNCTION_ADDED should be dropped (excluded after include)")
-	assert.Len(t, got, 2)
+	// Include TABLE only: all V1 findings pass.
+	gotIncludeTable := FilterByScope(diffs, Scope{
+		ObjectTypes: []ObjectType{ObjectTypeTable},
+	})
+	assert.Len(t, gotIncludeTable, len(diffs), "TABLE include keeps all V1 findings")
+
+	// Include INDEX only: no V1 findings map to INDEX, result is empty.
+	gotIncludeIndex := FilterByScope(diffs, Scope{
+		ObjectTypes: []ObjectType{ObjectTypeIndex},
+	})
+	assert.Empty(t, gotIncludeIndex, "INDEX include drops all V1 findings")
 }
 
 // TestFilterByScopeIncludeTableExcludeTable verifies that when a table appears
@@ -566,25 +552,10 @@ func TestFilterByScopeEmptyInputReturnsEmpty(t *testing.T) {
 	assert.Empty(t, got)
 }
 
-// TestFilterByScopeSequenceOwnedByTable verifies that an owned sequence
-// (AnchorTable set to owner table) is included/excluded by Tables as expected.
-func TestFilterByScopeSequenceOwnedByTable(t *testing.T) {
-	owner := ref("public", "orders")
-	seqDiff := Difference{
-		Type:        SequenceAdded,
-		Object:      ref("public", "orders_id_seq"),
-		AnchorTable: &owner,
-	}
-
-	// With TABLE filter: sequences classify as SEQUENCE, not TABLE — should be excluded.
-	got := FilterByScope([]Difference{seqDiff}, Scope{ObjectTypes: []ObjectType{ObjectTypeTable}})
-	assert.Empty(t, got, "owned sequence classifies as SEQUENCE, not TABLE")
-
-	// With SEQUENCE filter: should be included.
-	got2 := FilterByScope([]Difference{seqDiff}, Scope{ObjectTypes: []ObjectType{ObjectTypeSequence}})
-	assert.Len(t, got2, 1, "owned sequence passes SEQUENCE filter")
-
-	// With Tables filter and owner name: should be included (AnchorTable matches).
-	got3 := FilterByScope([]Difference{seqDiff}, Scope{Tables: []string{"public.orders"}})
-	assert.Len(t, got3, 1, "owned sequence is kept when its owner table is in Tables")
-}
+// TestFilterByScopeSequenceOwnedByTable was deleted.
+//
+// Reason: the test's entire premise was the SequenceAdded DiffType, which is not
+// emitted by V1 and has been removed from the DiffType vocabulary. There is no
+// meaningful rewrite using only kept (table/column) constants because the test
+// was specifically about SEQUENCE_* findings being classified as ObjectTypeSequence
+// (not ObjectTypeTable) even when their AnchorTable points to the owner table.

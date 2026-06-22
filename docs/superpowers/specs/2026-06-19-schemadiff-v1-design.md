@@ -32,9 +32,8 @@ extension seam). Therefore this PR implements diffing for exactly that surface:
 **Out of scope (deferred until capture is extended)**
 - Constraints, indexes, sequences, views, materialized views, functions, triggers,
   user-defined types — none are captured yet, so there is nothing to diff.
-- Attr walking/promotion — `Attrs` is an empty seam in V1. The `ATTR_CHANGED`
-  enum value and its filter mapping are retained for forward-compatibility, but no
-  Attr comparison is performed (no dead, untestable branches).
+- Attr walking/promotion — `Attrs` is an empty seam in V1; no Attr comparison is
+  performed and no `ATTR_CHANGED` DiffType is declared (added when Attr diffing lands).
 - The `schema drift-analysis` command wiring (separate, later work).
 
 ## 3. Dependencies & package layout
@@ -101,11 +100,11 @@ and `AnchorTable` points at the parent table.
 
 ## 6. DiffType enumeration (V1)
 
-The full `DiffType` enumeration from the design doc (`LIBRARY_DESIGN_V1.md` §7) is
-**declared** in `diff.go` as the forward-compat vocabulary, and the `filter.go`
-`DiffType → ObjectType` map covers all of them (so scope filtering and its
-exhaustiveness test are complete). V1 only **emits** the table/column/link subset
-below; the rest are declared-but-unemitted, exactly like `ATTR_CHANGED`.
+Only the **15 V1-emitted** `DiffType` constants are declared in `diff.go` (the
+broader vocabulary from `LIBRARY_DESIGN_V1.md` §7 is intentionally NOT declared yet
+— it is added incrementally as each object type becomes captured, to keep this PR
+minimal). The `filter.go` `DiffType → ObjectType` map covers exactly these 15 (all
+bucket to `ObjectTypeTable`), guarded by an exhaustiveness test.
 
 **Tables (emitted)**
 - `TABLE_ADDED` — `TableAdded`
@@ -113,10 +112,10 @@ below; the rest are declared-but-unemitted, exactly like `ATTR_CHANGED`.
 - `TABLE_NAME_CHANGED` — `TableNameChanged`
 - `TABLE_SCHEMA_CHANGED` — `TableSchemaChanged`
 - `TABLE_KIND_CHANGED` — `TableKindChanged`
-- `PARTITION_PARENT_CHANGED` — `PartitionParentChanged` *(new constant)* — child's `PartitionParent`
-- `PARTITION_CHILDREN_CHANGED` — `PartitionChildrenChanged` *(exists in enum)* — parent's `PartitionChildren`
-- `TABLE_INHERITS_CHANGED` — `TableInheritsChanged` *(new constant)* — child's `InheritsFrom`
-- `TABLE_INHERITED_BY_CHANGED` — `TableInheritedByChanged` *(new constant)* — parent's `InheritedBy`
+- `PARTITION_PARENT_CHANGED` — `PartitionParentChanged` — child's `PartitionParent`
+- `PARTITION_CHILDREN_CHANGED` — `PartitionChildrenChanged` — parent's `PartitionChildren`
+- `TABLE_INHERITS_CHANGED` — `TableInheritsChanged` — child's `InheritsFrom`
+- `TABLE_INHERITED_BY_CHANGED` — `TableInheritedByChanged` — parent's `InheritedBy`
 
 **Columns (emitted)**
 - `COLUMN_ADDED` — `ColumnAdded`
@@ -126,9 +125,9 @@ below; the rest are declared-but-unemitted, exactly like `ATTR_CHANGED`.
 - `COLUMN_NULLABILITY_CHANGED` — `ColumnNullabilityChanged` (`NotNull`)
 - `COLUMN_DEFAULT_CHANGED` — `ColumnDefaultChanged`
 
-**Forward-compat (declared, not emitted in V1)**
+**Not declared in V1 (added incrementally later)**
 - `ATTR_CHANGED` and the entire constraint/index/sequence/view/function/trigger/type
-  vocabulary — present in the enum and filter map; no diff logic emits them yet.
+  vocabulary — declared when their object types become captured and diffed.
 
 ### Partition/inheritance link diffing — report both sides (deliberate)
 
@@ -196,11 +195,13 @@ type Scope struct {
 }
 ```
 
-- `DiffType → ObjectType` map ported in full from the parked `filter.go` (covers the
-  entire enum), plus entries for the 3 new link constants (all → `ObjectTypeTable`).
-  An exhaustiveness test guards that every declared `DiffType` has a mapping.
-- The full six-value `ObjectType` enum is kept for forward-compat; in V1 only
-  `TABLE` ever matches an *emitted* diff (all emitted DiffTypes bucket to TABLE).
+- `DiffType → ObjectType` map covers exactly the 15 declared DiffTypes (all →
+  `ObjectTypeTable`). An exhaustiveness test guards that every declared `DiffType`
+  has a mapping.
+- The full six-value `ObjectType` enum **is** kept — it is the user-facing
+  `--object-type-list` selector vocabulary the command needs, not output vocabulary.
+  In V1 only `TABLE` matches an emitted diff; filtering by `INDEX`/`VIEW`/etc.
+  correctly yields nothing (and is tested as such).
 - **Rename-aware table scoping:** a `TABLE_NAME_CHANGED` (and any finding anchored to
   a renamed table) is kept when **either** the old or the new name is in `Tables`, via
   a bidirectional rename-alias map built from `TABLE_NAME_CHANGED` findings. This is
