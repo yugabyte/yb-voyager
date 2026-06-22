@@ -482,8 +482,16 @@ package_debezium_server_local(){
 
 	# Derive connector download URLs from the single source of truth.
 	_CV_JSON="${REPO_ROOT}/yb-voyager/versions/connector-versions.json"
+	if [ ! -f "${_CV_JSON}" ]; then
+		echo "ERROR: connector versions file not found: ${_CV_JSON}" 1>&2
+		exit 1
+	fi
 	_GRPC_TAG=$(jq -r '.grpc_connector.tag' "${_CV_JSON}")
 	_LOGICAL_TAG=$(jq -r '.logical_connector.tag' "${_CV_JSON}")
+	if [ -z "${_GRPC_TAG}" ] || [ "${_GRPC_TAG}" = "null" ] || [ -z "${_LOGICAL_TAG}" ] || [ "${_LOGICAL_TAG}" = "null" ]; then
+		echo "ERROR: missing connector tag(s) in ${_CV_JSON} (grpc='${_GRPC_TAG}', logical='${_LOGICAL_TAG}')" 1>&2
+		exit 1
+	fi
 	DEBEZIUM_YUGABYTE_CONNECTOR_URL="https://github.com/yugabyte/debezium-connector-yugabytedb/releases/download/v${_GRPC_TAG}/debezium-connector-yugabytedb-${_GRPC_TAG}.jar"
 	DEBEZIUM_YUGABYTE_LOGICAL_REPLICATOR_CONNECTOR_URL="https://github.com/yugabyte/debezium/releases/download/${_LOGICAL_TAG}/yugabytedb-source-connector-${_LOGICAL_TAG}-jar-with-dependencies.jar"
 

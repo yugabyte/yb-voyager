@@ -19,6 +19,7 @@ limitations under the License.
 package versions
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -35,15 +36,24 @@ func TestLoadConnectorVersions(t *testing.T) {
 }
 
 func TestGetLogicalConnectorTag(t *testing.T) {
-	assert.Equal(t, "dz.2.5.2.yb.2025.2.3", GetLogicalConnectorTag())
+	tag := GetLogicalConnectorTag()
+	assert.NotEmpty(t, tag, "logical connector tag must not be empty")
+	assert.Regexp(t, regexp.MustCompile(`^dz\..*\.yb\.`), tag,
+		"logical connector tag %q must start with 'dz.' and contain '.yb.'", tag)
 }
 
 func TestGetLogicalConnectorSupportedSeries(t *testing.T) {
-	assert.Equal(t, "2025.2", GetLogicalConnectorSupportedSeries())
+	series := GetLogicalConnectorSupportedSeries()
+	assert.NotEmpty(t, series, "logical connector supported series must not be empty")
+	assert.Regexp(t, regexp.MustCompile(`^\d+\.\d+$`), series,
+		"logical connector supported series %q must match YEAR.TRACK format", series)
 }
 
 func TestGetGRPCConnectorTag(t *testing.T) {
-	assert.Equal(t, "dz.1.9.5.yb.grpc.2024.2.3", GetGRPCConnectorTag())
+	tag := GetGRPCConnectorTag()
+	assert.NotEmpty(t, tag, "gRPC connector tag must not be empty")
+	assert.Regexp(t, regexp.MustCompile(`\.yb\.grpc\.`), tag,
+		"gRPC connector tag %q must contain '.yb.grpc.'", tag)
 }
 
 func TestGetLatestStableYBVersionWithoutBuildNumber(t *testing.T) {

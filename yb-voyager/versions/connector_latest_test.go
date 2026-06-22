@@ -29,6 +29,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // logicalConnectorTagRe matches logical connector tags of the form:
@@ -85,18 +86,18 @@ func TestConnectorLatestStable(t *testing.T) {
 	// -- 2. Fetch releases from GitHub --
 	url := "https://api.github.com/repos/yugabyte/debezium/releases"
 	req, err := http.NewRequest(http.MethodGet, url, nil)
-	assert.NoErrorf(t, err, "could not build request for %q", url)
+	require.NoErrorf(t, err, "could not build request for %q", url)
 
 	if tok := os.Getenv("GITHUB_TOKEN"); tok != "" {
 		req.Header.Set("Authorization", "Bearer "+tok)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
-	assert.NoErrorf(t, err, "could not access URL %q", url)
+	require.NoErrorf(t, err, "could not access URL %q", url)
 	defer resp.Body.Close()
 
-	if resp.StatusCode == 403 {
-		t.Skip("skipping; GitHub API rate limit exceeded")
+	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
+		t.Skipf("skipping; GitHub API rate limit exceeded (status %d)", resp.StatusCode)
 	}
 	assert.Equal(t, 200, resp.StatusCode)
 
