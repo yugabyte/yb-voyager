@@ -153,7 +153,13 @@ concerns that table. Each side is a distinct per-table fact.
 2. **Columns pass** — build maps keyed by `Column.ID`.
    - ID only in A → `COLUMN_DROPPED`; only in B → `COLUMN_ADDED`.
    - ID in both → compare `Name`, `DataType`, `NotNull`, `Default`.
-3. **Sort** the result deterministically by
+3. **Suppress lifecycle-table columns** — a post-pass drops `COLUMN_ADDED` /
+   `COLUMN_DROPPED` findings whose parent table is itself wholly added / dropped
+   (its `TABLE_ADDED` / `TABLE_DROPPED` finding already conveys the change; the
+   per-column findings would be redundant noise). Columns on *matched* tables —
+   including renamed tables (which emit `TABLE_NAME_CHANGED`, not added/dropped) —
+   are preserved, so real column changes on surviving tables are never lost.
+4. **Sort** the result deterministically by
    `(Object.Schema, Object.Name, SubObject, Type, Property)`.
 
 **Identity / matching**

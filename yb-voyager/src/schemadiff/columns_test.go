@@ -433,6 +433,169 @@ func TestDiffColumns_IDEmptyFallback_MatchedByTableAndName(t *testing.T) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// Tests: suppressLifecycleTableColumns — per-column findings are suppressed when
+// the parent table itself is wholly added or dropped.
+// ──────────────────────────────────────────────────────────────────────────────
+
+// TestDiff_TableAdded_SuppressesColumnAdds: when a table is wholly new (TABLE_ADDED),
+// its per-column COLUMN_ADDED findings are redundant and must be suppressed.
+func TestDiff_TableAdded_SuppressesColumnAdds(t *testing.T) {
+	tbl := makeTable("200", "public", "orders", schemasnapshot.TableKindOrdinary)
+	colID := makeColumn("public", "orders", "200:1", "id", "integer")
+	colEmail := makeColumn("public", "orders", "200:2", "email", "text")
+
+	a := snapWithTablesAndColumns(nil, nil)
+	b := snapWithTablesAndColumns([]schemasnapshot.Table{tbl}, []schemasnapshot.Column{colID, colEmail})
+
+	got := Diff(a, b)
+
+	// Must have exactly 1 finding: TABLE_ADDED for public.orders
+	if len(got) != 1 {
+		t.Fatalf("expected 1 finding (TableAdded), got %d: %v", len(got), got)
+	}
+	if got[0].Type != TableAdded {
+		t.Errorf("expected TableAdded, got %v", got[0].Type)
+	}
+	if got[0].Object != ref("public", "orders") {
+		t.Errorf("expected Object=public.orders, got %v", got[0].Object)
+	}
+	for _, d := range got {
+		if d.Type == ColumnAdded {
+			t.Errorf("unexpected ColumnAdded finding for wholly-added table: %v", d)
+		}
+	}
+}
+
+// TestDiff_TableDropped_SuppressesColumnDrops: when a table is wholly dropped (TABLE_DROPPED),
+// its per-column COLUMN_DROPPED findings are redundant and must be suppressed.
+func TestDiff_TableDropped_SuppressesColumnDrops(t *testing.T) {
+	tbl := makeTable("200", "public", "orders", schemasnapshot.TableKindOrdinary)
+	colID := makeColumn("public", "orders", "200:1", "id", "integer")
+	colEmail := makeColumn("public", "orders", "200:2", "email", "text")
+
+	a := snapWithTablesAndColumns([]schemasnapshot.Table{tbl}, []schemasnapshot.Column{colID, colEmail})
+	b := snapWithTablesAndColumns(nil, nil)
+
+	got := Diff(a, b)
+
+	// Must have exactly 1 finding: TABLE_DROPPED for public.orders
+	if len(got) != 1 {
+		t.Fatalf("expected 1 finding (TableDropped), got %d: %v", len(got), got)
+	}
+	if got[0].Type != TableDropped {
+		t.Errorf("expected TableDropped, got %v", got[0].Type)
+	}
+	if got[0].Object != ref("public", "orders") {
+		t.Errorf("expected Object=public.orders, got %v", got[0].Object)
+	}
+	for _, d := range got {
+		if d.Type == ColumnDropped {
+			t.Errorf("unexpected ColumnDropped finding for wholly-dropped table: %v", d)
+		}
+	}
+}
+
+// TestDiff_ColumnAddedToExistingTable_NotSuppressed: when a column is added to a matched
+// (existing) table, the COLUMN_ADDED finding must NOT be suppressed — there is no TABLE_ADDED.
+func TestDiff_ColumnAddedToExistingTable_NotSuppressed(t *testing.T) {
+	tbl := makeTable("200", "public", "orders", schemasnapshot.TableKindOrdinary)
+	colID := makeColumn("public", "orders", "200:1", "id", "integer")
+	colEmail := makeColumn("public", "orders", "200:2", "email", "text")
+
+	// A: same table + only "id" column
+	a := snapWithTablesAndColumns([]schemasnapshot.Table{tbl}, []schemasnapshot.Column{colID})
+	// B: same table (matched) + both "id" and "email" columns
+	b := snapWithTablesAndColumns([]schemasnapshot.Table{tbl}, []schemasnapshot.Column{colID, colEmail})
+
+	got := Diff(a, b)
+
+	// Exactly one finding: COLUMN_ADDED for email
+	if len(got) != 1 {
+		t.Fatalf("expected 1 finding (ColumnAdded for email), got %d: %v", len(got), got)
+	}
+	if got[0].Type != ColumnAdded {
+		t.Errorf("expected ColumnAdded, got %v", got[0].Type)
+	}
+	if got[0].SubObject != "email" {
+		t.Errorf("expected SubObject='email', got %q", got[0].SubObject)
+	}
+}
+
+// TestDiff_ColumnDroppedFromExistingTable_NotSuppressed: when a column is dropped from a
+// matched (existing) table, the COLUMN_DROPPED finding must NOT be suppressed.
+func TestDiff_ColumnDroppedFromExistingTable_NotSuppressed(t *testing.T) {
+	tbl := makeTable("200", "public", "orders", schemasnapshot.TableKindOrdinary)
+	colID := makeColumn("public", "orders", "200:1", "id", "integer")
+	colEmail := makeColumn("public", "orders", "200:2", "email", "text")
+
+	// A: same table + both columns
+	a := snapWithTablesAndColumns([]schemasnapshot.Table{tbl}, []schemasnapshot.Column{colID, colEmail})
+	// B: same table (matched) + only "id" column
+	b := snapWithTablesAndColumns([]schemasnapshot.Table{tbl}, []schemasnapshot.Column{colID})
+
+	got := Diff(a, b)
+
+	// Exactly one finding: COLUMN_DROPPED for email
+	if len(got) != 1 {
+		t.Fatalf("expected 1 finding (ColumnDropped for email), got %d: %v", len(got), got)
+	}
+	if got[0].Type != ColumnDropped {
+		t.Errorf("expected ColumnDropped, got %v", got[0].Type)
+	}
+	if got[0].SubObject != "email" {
+		t.Errorf("expected SubObject='email', got %q", got[0].SubObject)
+	}
+}
+
+// TestDiff_TableDropped_PreservesOtherTableColumnChanges guards against over-suppression:
+// dropping table X must not suppress column findings on unrelated matched table Y.
+func TestDiff_TableDropped_PreservesOtherTableColumnChanges(t *testing.T) {
+	// Table X is dropped; table Y is present on both sides but has a column type change.
+	tblX := makeTable("300", "public", "x", schemasnapshot.TableKindOrdinary)
+	colXA := makeColumn("public", "x", "300:1", "a", "integer")
+
+	tblY := makeTable("400", "public", "y", schemasnapshot.TableKindOrdinary)
+	colYOld := makeColumn("public", "y", "400:1", "val", "integer")
+	colYNew := makeColumn("public", "y", "400:1", "val", "text") // type changed
+
+	a := snapWithTablesAndColumns(
+		[]schemasnapshot.Table{tblX, tblY},
+		[]schemasnapshot.Column{colXA, colYOld},
+	)
+	b := snapWithTablesAndColumns(
+		[]schemasnapshot.Table{tblY},     // X dropped
+		[]schemasnapshot.Column{colYNew}, // Y's column type changed
+	)
+
+	got := Diff(a, b)
+
+	// Expect: TableDropped(x) + ColumnTypeChanged(y.val) — exactly 2 findings.
+	if len(got) != 2 {
+		t.Fatalf("expected 2 findings, got %d: %v", len(got), got)
+	}
+
+	var hasTableDropped, hasColTypeChanged bool
+	for _, d := range got {
+		if d.Type == TableDropped && d.Object.Name == "x" {
+			hasTableDropped = true
+		}
+		if d.Type == ColumnTypeChanged && d.SubObject == "val" && d.Object.Name == "y" {
+			hasColTypeChanged = true
+		}
+		if d.Type == ColumnDropped {
+			t.Errorf("unexpected ColumnDropped (should be suppressed for table x): %v", d)
+		}
+	}
+
+	if !hasTableDropped {
+		t.Errorf("expected TableDropped for x, not found in: %v", got)
+	}
+	if !hasColTypeChanged {
+		t.Errorf("expected ColumnTypeChanged for y.val, not found in: %v", got)
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Test: ID matches but parent table was renamed — match by ID, Object = side-A Column.Table
 // ──────────────────────────────────────────────────────────────────────────────
 
