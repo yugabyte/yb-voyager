@@ -43,22 +43,37 @@ One-way dependency: `schemadiff → schemasnapshot`. `schemadiff` never imports
 
 ```
 yb-voyager/src/schemadiff/
-  diff.go        # Difference, DiffType constants, Diff(a, b), diffTables, diffColumns, sort
+  difftypes.go   # DiffType constants + Difference model
+  diff.go        # Diff(a, b) orchestration, suppressLifecycleTableColumns, sort
+  tables.go      # diffTables + table/link helpers
+  columns.go     # diffColumns + column helpers
   filter.go      # ObjectType, Scope, FilterByScope (+ DiffType→ObjectType map)
-  diff_test.go   # unit tests (hand-built snapshots)
-  filter_test.go # unit tests (hand-built Difference slices)
-  integration_test.go  # //go:build integration — real testcontainer captures via schemasnapshot
+  differ.go      # Config, Differ façade (NewDiffer) over the pure functions
+  *_test.go      # unit tests (hand-built); integration_test.go is //go:build integration
 ```
 
 There is **no** `databases/` subpackage — the engine is pure and engine-agnostic.
 
-## 4. Public API — two pure functions
+## 4. Public API — pure functions + a thin Differ façade
 
-Decided deliberately (see §10): expose two composable pure functions rather than a
-`Differ` object with functional options. Scope is a post-diff filter; keeping it a
-separate step keeps the data flow honest, preserves rename correctness, and avoids
-functional-options machinery for a single knob. A `Differ` can be added later, non-
-breaking, with these functions as its implementation, if configuration grows.
+The mechanism is two composable **pure functions** — `Diff` and `FilterByScope` —
+kept exported (callers who want the raw, unfiltered diff use them directly, e.g. for
+"N total, M in scope" reporting). Scope is a post-diff filter; keeping it a separate
+function keeps the data flow honest and preserves rename correctness.
+
+On top of these sits a thin configured façade, `Differ`, added now because the
+`schema drift-analysis` command (next PR) consumes it as its stable entry point:
+
+```go
+type Config struct { Scope Scope }  // zero value = pass-through; IgnoreRules field added later
+func NewDiffer(cfg Config) *Differ
+func (d *Differ) Diff(a, b *schemasnapshot.SchemaSnapshot) []Difference // == FilterByScope(Diff(a,b), cfg.Scope)
+```
+
+A **config struct** is used rather than functional options: with few knobs (Scope
+now, IgnoreRules later) a struct is simpler and adding a field stays non-breaking;
+functional options only pay off with many optional knobs needing defaults (§10).
+The façade adds no logic — it composes the pure functions.
 
 ```go
 // Diff returns every change between snapshots a and b, sorted deterministically.
@@ -231,19 +246,27 @@ independently after each phase.
   change, capture snapshot B, run `Diff`, assert the findings. Proves the engine
   against real captures, not just hand-built structs.
 
-## 10. Key decision — two pure functions over a Differ (rationale)
+## 10. Key decision — pure functions as the mechanism, config-struct Differ as the façade
 
-Rejected `NewDiffer(WithScope(...)).Diff()` for V1 because:
-1. Functional options for a single knob (`WithScope`) is unjustified machinery —
-   the same over-engineering avoided elsewhere in this codebase.
-2. Scope is inherently a post-diff filter; two functions make that stage visible and
-   let callers inspect the full diff (e.g. "N total, M in scope").
-3. Rename correctness lives cleanly in `FilterByScope` (either-side retention).
-4. Easiest to TDD — two pure functions, no constructor/option wiring.
+Two layers, each justified:
 
-A `Differ` (config-struct or functional-options) can be layered on later without
-breaking these functions if configuration genuinely grows (rename-detection toggle,
-attr-comparison mode, ignore-lists).
+**Pure functions as the mechanism.** `Diff` and `FilterByScope` stay pure and
+exported. Scope is inherently a post-diff filter; keeping it a separate function
+makes the stage visible, lets callers inspect the full diff (e.g. "N total, M in
+scope"), keeps rename correctness localized in `FilterByScope` (either-side
+retention), and is the easiest thing to TDD.
+
+**Config-struct `Differ` as the façade.** A thin `NewDiffer(Config{...})` is added
+now (not deferred) because the next PR — the `schema drift-analysis` command —
+consumes it as its stable entry point, so it is an imminent-consumer addition, not
+speculative surface. It adds no logic; it composes the pure functions.
+
+**Config struct, not functional options.** With few knobs (`Scope` now, `IgnoreRules`
+later) a struct is simpler than `WithX` closures, the zero value is a clean
+pass-through, and adding a field is non-breaking. Functional options only pay off
+with many optional knobs needing defaults. (`IgnoreRules` will itself be just another
+post-diff filter, `[]Difference → []Difference`, surfaced as a new `Config` field and
+applied inside `Differ.Diff`.)
 
 ## 11. Branch / worktree / sync workflow
 
