@@ -20,16 +20,64 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 )
 
-// Difference describes a single detected schema change between two snapshots.
+// Difference describes a single detected schema change between two snapshots,
+// where A is the old (side-A) snapshot and B is the new (side-B) snapshot. It is
+// the unit element of the slice Diff returns. One shape covers added, dropped, and
+// changed findings; which fields are populated depends on Type — see each field.
 type Difference struct {
-	Type        DiffType
-	Object      schemasnapshot.ObjectRef  // anchor: side-A (old) for most; side-B (new) for *_ADDED
-	AnchorTable *schemasnapshot.ObjectRef // table this finding filters under; nil for non-table-anchored
-	SubObject   string                    // dependent's name (column, etc.); "" for object-level
-	Property    string                    // changed attribute name; "" for object-level
-	OldValue    any                       // value on side A; nil if absent on A
-	NewValue    any                       // value on side B; nil if absent on B
-	Details     string                    // optional human-readable summary
+	// Type identifies what changed (e.g. TABLE_ADDED, COLUMN_TYPE_CHANGED). The
+	// trailing verb governs which fields below are set: *_ADDED is present only on
+	// B, *_DROPPED only on A, *_*CHANGED on both with Property naming the attribute.
+	Type DiffType
+
+	// Object is the (schema, name) of the object the finding is reported against.
+	// For a table-level finding it is the table itself; for a column-level finding
+	// it is the column's PARENT table (the column name lives in SubObject).
+	// It is the side-A (old) ref for every finding EXCEPT *_ADDED, where the object
+	// exists only on B and so this is the side-B (new) ref. For a rename
+	// (*_NAME_CHANGED) it stays the OLD ref, with the new name carried in NewValue.
+	Object schemasnapshot.ObjectRef
+
+	// AnchorTable is the table this finding is scoped under by --table-list /
+	// --exclude-table-list (consumed by FilterByScope). For the table- and
+	// column-level findings v1 emits it points at the same table as Object. It is
+	// nil for findings anchored to no table — none in v1, reserved for future
+	// top-level objects (views, functions, sequences, types). A pointer so that
+	// "no anchor" (nil) is distinguishable from the zero ObjectRef.
+	AnchorTable *schemasnapshot.ObjectRef
+
+	// SubObject names the dependent object within Object that the finding concerns.
+	// In v1 this is a column name (e.g. "status") for column findings, and "" for
+	// table-level findings. (Future: constraint name, index column, enum value,
+	// type attribute.)
+	SubObject string
+
+	// Property names the single attribute that changed. Set ONLY for *_CHANGED
+	// findings; "" for object-level findings (*_ADDED / *_DROPPED). v1 values:
+	// "name", "schema", "kind" (table); "name", "data_type", "not_null", "default"
+	// (column); "partition_parent", "partition_children", "inherits_from",
+	// "inherited_by" (table links).
+	Property string
+
+	// OldValue is the value on side A, or nil when the object/attribute is absent
+	// on A (always nil for *_ADDED). For *_CHANGED it is the previous value of
+	// Property; for COLUMN_DROPPED it is the dropped column's data type (string),
+	// while table-level drops leave it nil. Its dynamic type tracks Property:
+	// string for name/schema/kind/data_type/default, bool for not_null,
+	// schemasnapshot.ObjectRef for partition_parent, and []schemasnapshot.ObjectRef
+	// for partition_children / inherits_from / inherited_by.
+	OldValue any
+
+	// NewValue is the value on side B, or nil when the object/attribute is absent
+	// on B (always nil for *_DROPPED). For *_CHANGED it is the new value of
+	// Property; for COLUMN_ADDED it is the added column's data type (string), while
+	// table-level adds leave it nil. Same dynamic-type rules as OldValue.
+	NewValue any
+
+	// Details is an optional human-readable summary for renderers/reporters. It is
+	// NOT the value channel — consumers read OldValue/NewValue for the structured
+	// values. The diff engine leaves it empty; it is a slot for downstream use.
+	Details string
 }
 
 // Diff computes the schema differences between snapshot a (old/side-A) and b (new/side-B).
