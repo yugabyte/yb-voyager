@@ -31,7 +31,6 @@ import (
 func TestLoadConnectorVersions(t *testing.T) {
 	cv := LoadConnectorVersions()
 	assert.NotEmpty(t, cv.LogicalConnector.Tag, "logical connector tag must not be empty")
-	assert.NotEmpty(t, cv.LogicalConnector.SupportedYBSeries, "logical connector supported_yb_series must not be empty")
 	assert.NotEmpty(t, cv.GRPCConnector.Tag, "grpc connector tag must not be empty")
 }
 
@@ -40,13 +39,6 @@ func TestGetLogicalConnectorTag(t *testing.T) {
 	assert.NotEmpty(t, tag, "logical connector tag must not be empty")
 	assert.Regexp(t, regexp.MustCompile(`^dz\..*\.yb\.`), tag,
 		"logical connector tag %q must start with 'dz.' and contain '.yb.'", tag)
-}
-
-func TestGetLogicalConnectorSupportedSeries(t *testing.T) {
-	series := GetLogicalConnectorSupportedSeries()
-	assert.NotEmpty(t, series, "logical connector supported series must not be empty")
-	assert.Regexp(t, regexp.MustCompile(`^\d+\.\d+$`), series,
-		"logical connector supported series %q must match YEAR.TRACK format", series)
 }
 
 func TestGetGRPCConnectorTag(t *testing.T) {

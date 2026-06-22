@@ -124,8 +124,7 @@ var connectorVersionsJSON []byte
 // - GRPCConnector: gRPC connector (tag stored WITHOUT leading "v")
 type ConnectorVersionsData struct {
 	LogicalConnector struct {
-		Tag               string `json:"tag"`
-		SupportedYBSeries string `json:"supported_yb_series"`
+		Tag string `json:"tag"`
 	} `json:"logical_connector"`
 	GRPCConnector struct {
 		Tag string `json:"tag"`
@@ -143,9 +142,6 @@ func LoadConnectorVersions() ConnectorVersionsData {
 	if cv.LogicalConnector.Tag == "" {
 		panic("No tag found for logical_connector in connector-versions.json")
 	}
-	if cv.LogicalConnector.SupportedYBSeries == "" {
-		panic("No supported_yb_series found for logical_connector in connector-versions.json")
-	}
 	if cv.GRPCConnector.Tag == "" {
 		panic("No tag found for grpc_connector in connector-versions.json")
 	}
@@ -155,11 +151,6 @@ func LoadConnectorVersions() ConnectorVersionsData {
 // GetLogicalConnectorTag returns the logical replication connector tag.
 func GetLogicalConnectorTag() string {
 	return LoadConnectorVersions().LogicalConnector.Tag
-}
-
-// GetLogicalConnectorSupportedSeries returns the YB series supported by the logical connector (e.g. "2025.2").
-func GetLogicalConnectorSupportedSeries() string {
-	return LoadConnectorVersions().LogicalConnector.SupportedYBSeries
 }
 
 // GetGRPCConnectorTag returns the gRPC connector tag (without leading "v").

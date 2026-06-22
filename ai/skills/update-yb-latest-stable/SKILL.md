@@ -234,7 +234,7 @@ track new YugabyteDB series. Compatibility is **per YB series** (YEAR.TRACK): a
 
 ```json
 {
-    "logical_connector": { "tag": "dz.2.5.2.yb.2025.2.3", "supported_yb_series": "2025.2" },
+    "logical_connector": { "tag": "dz.2.5.2.yb.2025.2.3" },
     "grpc_connector":    { "tag": "dz.1.9.5.yb.grpc.2024.2.3" }
 }
 ```
@@ -251,16 +251,14 @@ Everything else derives from this file:
 - **Installer** — `installer_scripts/install-yb-voyager` builds the connector
   download URLs from the tags (in `package_debezium_server_local`); no hardcoded URLs.
 - **Go runtime/tests** — `yb-voyager/versions/versions.go` embeds the JSON and
-  exposes `GetLogicalConnectorTag()`, `GetLogicalConnectorSupportedSeries()`,
-  `GetGRPCConnectorTag()`.
+  exposes `GetLogicalConnectorTag()`, `GetGRPCConnectorTag()`.
 
 ## How to bump
 
 1. Find the latest connector release tag in
    [`yugabyte/debezium` releases](https://github.com/yugabyte/debezium/releases)
    (and the gRPC repo if bumping that connector).
-2. Edit **only** `connector-versions.json` — update `tag` (and
-   `supported_yb_series` if the new connector targets a new YB series).
+2. Edit **only** `connector-versions.json` — update `tag`.
 3. `cd yb-voyager && go test -tags unit ./versions/...`
 4. Open a PR (use the `pr-description` skill); let CI run.
 

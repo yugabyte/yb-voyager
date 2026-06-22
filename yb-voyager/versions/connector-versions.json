@@ -1,7 +1,6 @@
 {
     "logical_connector": {
-        "tag": "dz.2.5.2.yb.2025.2.3",
-        "supported_yb_series": "2025.2"
+        "tag": "dz.2.5.2.yb.2025.2.3"
     },
     "grpc_connector": {
         "tag": "dz.1.9.5.yb.grpc.2024.2.3"
