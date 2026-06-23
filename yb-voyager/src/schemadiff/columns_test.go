@@ -798,6 +798,35 @@ func TestDiffColumns_IDMatchTableRenamed_ObjectIsOldTable(t *testing.T) {
 	}
 }
 
+// IDMissingTableRenamed: without a stable column ID, a column on a renamed parent
+// table cannot be tracked across the rename — the name-fallback key embeds the
+// table name, so old/new keys differ. It degrades to COLUMN_DROPPED on the old
+// table + COLUMN_ADDED on the new table. Contrast
+// TestDiffColumns_IDMatchTableRenamed_ObjectIsOldTable, where the stable ID (the
+// table OID is unchanged by a rename) tracks the column across it.
+func TestDiffColumns_IDMissingTableRenamed_BecomesDropAdd(t *testing.T) {
+	oldCol := makeColumn("public", "old_table", "", "id", "integer") // empty ID
+	newCol := makeColumn("public", "new_table", "", "id", "integer") // parent renamed, still empty ID
+
+	got := Diff(snapWithColumns(oldCol), snapWithColumns(newCol))
+	if len(got) != 2 {
+		t.Fatalf("expected 2 findings (drop+add — rename untrackable without a stable ID), got %d: %v", len(got), got)
+	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
+	}
+	objByType := map[DiffType]schemasnapshot.ObjectRef{}
+	for _, d := range got {
+		objByType[d.Type] = d.Object
+	}
+	if objByType[ColumnDropped] != ref("public", "old_table") {
+		t.Errorf("COLUMN_DROPPED should anchor to public.old_table, got %v", objByType[ColumnDropped])
+	}
+	if objByType[ColumnAdded] != ref("public", "new_table") {
+		t.Errorf("COLUMN_ADDED should anchor to public.new_table, got %v", objByType[ColumnAdded])
+	}
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Tests: hybrid ID-then-name matching for columns. A column whose stable ID is
 // present on one side but empty on the other must still be reconciled by name
