@@ -725,21 +725,23 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 	}
 
 	return utils.AnalyzeSchemaIssue{
-		IssueType:              issueType,
-		ObjectType:             issueInstance.ObjectType,
-		ObjectName:             displayObjectName,
-		Type:                   issueInstance.Type,
-		Name:                   issueInstance.Name,
-		Reason:                 issueInstance.Description,
-		Impact:                 issueInstance.Impact,
-		ObjectUsage:            issueInstance.ObjectUsage,
-		SqlStatement:           issueInstance.SqlStatement,
-		DocsLink:               issueInstance.DocsLink,
-		FilePath:               fileName,
-		Suggestion:             issueInstance.Suggestion,
-		GH:                     issueInstance.GH,
-		MinimumVersionsFixedIn: issueInstance.MinimumVersionsFixedIn,
-		Details:                issueInstance.Details,
+		IssueType:                issueType,
+		ObjectType:               issueInstance.ObjectType,
+		ObjectName:               displayObjectName,
+		Type:                     issueInstance.Type,
+		Name:                     issueInstance.Name,
+		Reason:                   issueInstance.Description,
+		Impact:                   issueInstance.Impact,
+		ObjectUsage:              issueInstance.ObjectUsage,
+		SqlStatement:             issueInstance.SqlStatement,
+		DocsLink:                 issueInstance.DocsLink,
+		FilePath:                 fileName,
+		Suggestion:               issueInstance.Suggestion,
+		GH:                       issueInstance.GH,
+		MinimumVersionsFixedIn:   issueInstance.MinimumVersionsFixedIn,
+		MinimumVersionsFixedInTP: issueInstance.MinimumVersionsFixedInTP,
+		MinimumVersionsFixedInEA: issueInstance.MinimumVersionsFixedInEA,
+		Details:                  issueInstance.Details,
 	}
 }
 
@@ -1099,8 +1101,8 @@ var funcMap = template.FuncMap{
 		}
 		return total
 	},
-	"split":                     split,
-	"getSupportedVersionString": getSupportedVersionString,
+	"split":                split,
+	"getSupportedVersions": queryissue.GetSupportedVersions,
 }
 
 // add info to the 'reportStruct' variable and return

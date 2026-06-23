@@ -24,7 +24,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -33,6 +32,7 @@ import (
 	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/jackc/pglogrepl"
+	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/mcuadros/go-version"
 	"github.com/samber/lo"
@@ -976,46 +976,32 @@ func MergeUniqueIndexes(existing, additional [][]string) [][]string {
 }
 
 func buildUniqueIndexesMapFromPGRows(rows *sql.Rows, tableStrToNameTupleMap map[string]sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
-	indexColumnMaps := make(map[tableIndexKey]map[int]string)
+	result := utils.NewStructMap[sqlname.NameTuple, [][]string]()
 
 	for rows.Next() {
-		var schemaName, tableName, indexKey, columnName string
-		var ordinalPosition int
-		err := rows.Scan(&schemaName, &tableName, &indexKey, &columnName, &ordinalPosition)
+		var schemaName, tableName, indexKey string
+		var columnsPgTypeArray pgtype.TextArray
+		err := rows.Scan(&schemaName, &tableName, &indexKey, &columnsPgTypeArray)
 		if err != nil {
-			return nil, fmt.Errorf("scanning row for unique index column: %w", err)
+			return nil, fmt.Errorf("scanning row for unique index: %w", err)
 		}
-		tableCatalogName := fmt.Sprintf("%s.%s", schemaName, tableName)
-		key := tableIndexKey{tableCatalogName: tableCatalogName, indexKey: indexKey}
-		if _, ok := indexColumnMaps[key]; !ok {
-			indexColumnMaps[key] = make(map[int]string)
-		}
-		indexColumnMaps[key][ordinalPosition] = columnName
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterating rows for unique indexes: %w", err)
-	}
-
-	result := utils.NewStructMap[sqlname.NameTuple, [][]string]()
-	for key, ordinalToColumn := range indexColumnMaps {
-		tableNameTuple, ok := tableStrToNameTupleMap[key.tableCatalogName]
-		if !ok {
-			return nil, goerrors.Errorf("table %s not found in table list", key.tableCatalogName)
-		}
-
-		ordinals := lo.Keys(ordinalToColumn)
-		sort.Ints(ordinals)
-		columns := make([]string, 0, len(ordinals))
-		for _, ord := range ordinals {
-			columns = append(columns, ordinalToColumn[ord])
-		}
+		columns := utils.ConvertPgTextArrayToStringSlice(columnsPgTypeArray)
 		if len(columns) == 0 {
 			continue
 		}
 
+		tableCatalogName := fmt.Sprintf("%s.%s", schemaName, tableName)
+		tableNameTuple, ok := tableStrToNameTupleMap[tableCatalogName]
+		if !ok {
+			return nil, goerrors.Errorf("table %s not found in table list", tableCatalogName)
+		}
+
 		indexes, _ := result.Get(tableNameTuple)
-		indexes = append(indexes, []string(columns))
+		indexes = append(indexes, columns)
 		result.Put(tableNameTuple, dedupeUniqueIndexes(indexes))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating rows for unique indexes: %w", err)
 	}
 
 	return result, nil

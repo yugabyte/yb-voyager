@@ -361,17 +361,22 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 	}
 
 	uniqueIndexes, _ := c.tableToUniqueIndexes.Get(cachedEvent.TableNameTup)
-	uniqueKeyColumns := make([]string, 0) // flattening the unique indexes to get the unique key columns
-	for _, indexColumns := range uniqueIndexes {
-		uniqueKeyColumns = append(uniqueKeyColumns, indexColumns...)
-	}
-	/*
-		Not checking for value of unique key values conflict in case of export from yb because of inconsistency issues in before values of events provided by yb-cdc
-		TODO(future): Fix this in our debezium voyager plugin
-
-		For now, we just check if the event is from same table then we consider it as a conflict
-	*/
 	if isTargetDBExporter(incomingEvent.ExporterRole) {
+		uniqueKeyColumns := make([]string, 0) // flattening the unique indexes to get the unique key columns
+		for _, indexColumns := range uniqueIndexes {
+			uniqueKeyColumns = append(uniqueKeyColumns, indexColumns...)
+		}
+		/*
+			Not checking for value of unique key values conflict in case of export from yb because of inconsistency issues in before values of events provided by yb-cdc
+			TODO(future): Fix this in our debezium voyager plugin
+
+			For now, we just check if the event is from same table then we consider it as a conflict
+
+			For the export data from target - we don't check for conflicts because we have default partition by table cdc strategy for import data to source/source-replica
+			so there won't be any conflicts detected as all the events for a table will be in the same channel.
+
+			In case user changes the cdc strategy to partition by pk/auto then we need to check for conflicts as we will execute the events for a table in different channels based on PK.
+		*/
 		conflict := false
 		if cachedEvent.Op == "d" {
 			// future: https://yugabyte.atlassian.net/browse/DB-9681
@@ -573,20 +578,20 @@ func uniqueIndexColumnValuesEqual(leftFields, rightFields map[string]*string, in
 }
 
 func formatUniqueIndexColumnValuesForLog(fields map[string]*string, indexColumns []string) string {
-	parts := make([]string, 0, len(indexColumns))
+	var logStr strings.Builder
 	for _, column := range indexColumns {
 		val, ok := fields[column]
 		if !ok {
-			parts = append(parts, column+"=<missing>")
+			logStr.WriteString(column + "=<missing>")
 			continue
 		}
 		if val == nil {
-			parts = append(parts, column+"=nil")
+			logStr.WriteString(column + "=nil")
 		} else {
-			parts = append(parts, column+"="+*val)
+			logStr.WriteString(column + "=" + *val)
 		}
 	}
-	return strings.Join(parts, ",")
+	return logStr.String()
 }
 
 func (c *ConflictDetectionCache) eventsAreOfSameTable(event1 *tgtdb.Event, event2 *tgtdb.Event) bool {

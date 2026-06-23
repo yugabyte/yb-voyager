@@ -46,6 +46,7 @@ var V2024_2_8_0 *YBVersion
 var V2025_1_0_0 *YBVersion
 var V2025_1_4_0 *YBVersion
 var V2025_2_0_0 *YBVersion
+var V2025_2_1_0 *YBVersion
 var V2025_2_2_0 *YBVersion
 var V2_23_0_0 *YBVersion
 var V2025_1_1_1 *YBVersion
@@ -134,6 +135,11 @@ func init() {
 	V2025_2_0_0, err = NewYBVersion("2025.2.0.0")
 	if err != nil {
 		panic("could not create version 2025.2.0.0")
+	}
+
+	V2025_2_1_0, err = NewYBVersion("2025.2.1.0")
+	if err != nil {
+		panic("could not create version 2025.2.1.0")
 	}
 
 	V2025_2_2_0, err = NewYBVersion("2025.2.2.0")

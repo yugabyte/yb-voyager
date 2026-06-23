@@ -19,7 +19,6 @@ package cmd
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -61,7 +60,7 @@ func TestIndexTupleConflicts_CompositeTrueConflict(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"a": strPtr("1"), "b": strPtr("2")},
 	}
-	assert.True(t, cache.uniqueIndexConflicts(cached, incoming, []string{"a", "b"}))
+	assert.True(t, cache.eventsConfict(cached, incoming))
 }
 
 func TestIndexTupleConflicts_CompositeFalsePositiveFix(t *testing.T) {
@@ -80,7 +79,7 @@ func TestIndexTupleConflicts_CompositeFalsePositiveFix(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"a": strPtr("1"), "b": strPtr("9")},
 	}
-	assert.False(t, cache.uniqueIndexConflicts(cached, incoming, []string{"a", "b"}))
+	assert.False(t, cache.eventsConfict(cached, incoming))
 }
 
 func TestEventsConfict_TwoCompositeIndexes(t *testing.T) {
@@ -150,7 +149,7 @@ func TestEventsConfict_SamePKNoConflict(t *testing.T) {
 	assert.False(t, cache.eventsConfict(cached, incoming))
 }
 
-func TestUniqueIndexConflicts_BothNilBeforeAfter(t *testing.T) {
+func TestEventsConfict_BothNilBeforeAfter(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"email"}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
@@ -167,10 +166,10 @@ func TestUniqueIndexConflicts_BothNilBeforeAfter(t *testing.T) {
 		Fields:       map[string]*string{"email": nil},
 	}
 	assert.True(t, cache.checkUniqueIndexBeforeAfterConflict(cached, incoming, []string{"email"}))
-	assert.True(t, cache.uniqueIndexConflicts(cached, incoming, []string{"email"}))
+	assert.True(t, cache.eventsConfict(cached, incoming))
 }
 
-func TestUniqueIndexConflicts_OneNilOneValueBeforeAfter(t *testing.T) {
+func TestEventsConflict_OneNilOneValueBeforeAfter(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"email"}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
@@ -187,10 +186,10 @@ func TestUniqueIndexConflicts_OneNilOneValueBeforeAfter(t *testing.T) {
 		Fields:       map[string]*string{"email": strPtr("a@example.com")},
 	}
 	assert.False(t, cache.checkUniqueIndexBeforeAfterConflict(cached, incoming, []string{"email"}))
-	assert.False(t, cache.uniqueIndexConflicts(cached, incoming, []string{"email"}))
+	assert.False(t, cache.eventsConfict(cached, incoming))
 }
 
-func TestUniqueIndexConflicts_CompositeBothNil(t *testing.T) {
+func TestEventsConflict_CompositeBothNil(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"a", "b"}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
@@ -206,10 +205,10 @@ func TestUniqueIndexConflicts_CompositeBothNil(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"a": nil, "b": nil},
 	}
-	assert.True(t, cache.uniqueIndexConflicts(cached, incoming, []string{"a", "b"}))
+	assert.True(t, cache.eventsConfict(cached, incoming))
 }
 
-func TestUniqueIndexConflicts_CompositeMixedNil(t *testing.T) {
+func TestEventsConflict_CompositeMixedNil(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"a", "b"}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
@@ -225,10 +224,10 @@ func TestUniqueIndexConflicts_CompositeMixedNil(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"a": nil, "b": strPtr("2")},
 	}
-	assert.False(t, cache.uniqueIndexConflicts(cached, incoming, []string{"a", "b"}))
+	assert.False(t, cache.eventsConfict(cached, incoming))
 }
 
-func TestUniqueIndexConflicts_BothNilBeforeBefore(t *testing.T) {
+func TestEventsConflict_BothNilBeforeBefore(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"check_id"}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
@@ -248,10 +247,10 @@ func TestUniqueIndexConflicts_BothNilBeforeBefore(t *testing.T) {
 	}
 	assert.False(t, cache.checkUniqueIndexBeforeAfterConflict(cached, incoming, []string{"check_id"}))
 	assert.True(t, cache.checkUniqueIndexBeforeBeforeConflict(cached, incoming, []string{"check_id"}))
-	assert.True(t, cache.uniqueIndexConflicts(cached, incoming, []string{"check_id"}))
+	assert.True(t, cache.eventsConfict(cached, incoming))
 }
 
-func TestUniqueIndexConflicts_BeforeBeforeConflictOnly(t *testing.T) {
+func TestEventsConflict_BeforeBeforeConflictOnly(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"check_id"}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
@@ -270,11 +269,11 @@ func TestUniqueIndexConflicts_BeforeBeforeConflictOnly(t *testing.T) {
 	}
 	assert.False(t, cache.checkUniqueIndexBeforeAfterConflict(cached, incoming, []string{"check_id"}))
 	assert.True(t, cache.checkUniqueIndexBeforeBeforeConflict(cached, incoming, []string{"check_id"}))
-	assert.True(t, cache.uniqueIndexConflicts(cached, incoming, []string{"check_id"}))
+	assert.True(t, cache.eventsConfict(cached, incoming))
 }
 
-func TestUniqueIndexConflicts_BeforeBeforeNoConflictWhenValuesDiffer(t *testing.T) {
-			cache := newConflictCacheForTest([][]string{{"check_id"}})
+func TestEventsConflict_BeforeBeforeNoConflictWhenValuesDiffer(t *testing.T) {
+	cache := newConflictCacheForTest([][]string{{"check_id"}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
 		Op:           "u",
@@ -292,10 +291,10 @@ func TestUniqueIndexConflicts_BeforeBeforeNoConflictWhenValuesDiffer(t *testing.
 		Fields:       map[string]*string{"check_id": strPtr("21")},
 	}
 	assert.False(t, cache.checkUniqueIndexBeforeBeforeConflict(cached, incoming, []string{"check_id"}))
-	assert.False(t, cache.uniqueIndexConflicts(cached, incoming, []string{"check_id"}))
+	assert.False(t, cache.eventsConfict(cached, incoming))
 }
 
-func TestUniqueIndexConflicts_BeforeBeforeMissingColumn(t *testing.T) {
+func TestEventsConflict_BeforeBeforeMissingColumn(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"a", "b"}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
@@ -332,27 +331,6 @@ func TestEventsConfict_BeforeBeforeConflict(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("2")},
 		BeforeFields: map[string]*string{"check_id": strPtr("10")},
 		Fields:       map[string]*string{"check_id": strPtr("20")},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
-	assert.True(t, cache.eventsConfict(cached, incoming))
-}
-
-func TestEventsConfict_BothNilBeforeAfter(t *testing.T) {
-	cache := newConflictCacheForTest([][]string{{"email"}})
-	cached := &tgtdb.Event{
-		Vsn:          1,
-		Op:           "d",
-		TableNameTup: testTableTuple(),
-		Key:          map[string]*string{"id": strPtr("1")},
-		BeforeFields: map[string]*string{"email": nil},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
-	incoming := &tgtdb.Event{
-		Vsn:          2,
-		Op:           "c",
-		TableNameTup: testTableTuple(),
-		Key:          map[string]*string{"id": strPtr("2")},
-		Fields:       map[string]*string{"email": nil},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
 	assert.True(t, cache.eventsConfict(cached, incoming))

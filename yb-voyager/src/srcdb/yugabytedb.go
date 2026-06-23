@@ -1080,11 +1080,29 @@ unique_indexes AS (
         AND c.contype IS NULL
         AND n.nspname = ANY('{%s}')
         AND t.relname = ANY('{%s}')
+),
+all_unique_indexes AS (
+    SELECT
+        table_schema,
+        table_name,
+        index_key,
+        column_name,
+        MIN(ordinal_position) AS ordinal_position
+    FROM (
+        SELECT table_schema, table_name, index_key, column_name, ordinal_position FROM unique_constraints
+        UNION
+        SELECT table_schema, table_name, index_key, column_name, ordinal_position FROM unique_indexes
+    ) AS combined
+    GROUP BY table_schema, table_name, index_key, column_name
 )
-SELECT table_schema, table_name, index_key, column_name, ordinal_position FROM unique_constraints
-UNION ALL
-SELECT table_schema, table_name, index_key, column_name, ordinal_position FROM unique_indexes
-ORDER BY table_schema, table_name, index_key, ordinal_position;
+SELECT
+    table_schema,
+    table_name,
+    index_key,
+    array_agg(column_name ORDER BY ordinal_position) AS columns
+FROM all_unique_indexes
+GROUP BY table_schema, table_name, index_key
+ORDER BY table_schema, table_name, index_key;
 `
 
 func (yb *YugabyteDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
