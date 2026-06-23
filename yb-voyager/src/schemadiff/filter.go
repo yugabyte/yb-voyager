@@ -41,7 +41,21 @@ const (
 // Tables and ExcludeTables match on Difference.AnchorTable (exact catalog
 // identifiers, case-sensitive). ObjectTypes and ExcludeObjectTypes match on
 // the object-type bucket that each DiffType belongs to. An empty list means
-// "all"; both include and exclude lists may be non-empty simultaneously.
+// "all".
+//
+// Scope is intentionally permissive and policy-free — it never errors:
+//   - Both an include and its exclude list may be non-empty at once. Overlap is
+//     resolved deterministically rather than rejected: exclude wins, because
+//     FilterByScope applies includes first and excludes last (a finding kept by
+//     an include is still dropped if it matches the corresponding exclude).
+//   - An entry that matches nothing in the diff is a silent no-op.
+//
+// Flag-level policy is deliberately left to the caller (the command), mirroring
+// where voyager validates such things. In particular, the convention that
+// --table-list and --exclude-table-list are mutually exclusive is the command's
+// to enforce at flag-parse time; the library does not, so that FilterByScope can
+// stay a pure, total function for any programmatic caller (a future Scope.Validate
+// could host such rules without making FilterByScope failable).
 type Scope struct {
 	Tables             []string     // empty = all; matched against AnchorTable
 	ExcludeTables      []string     // drop findings whose AnchorTable is in this list
