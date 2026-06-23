@@ -48,12 +48,17 @@ func partitionParentEqual(a, b *schemasnapshot.ObjectRef) bool {
 }
 
 // diffTables computes table-level differences between snapshots a and b.
-// Tables are matched by ID (OID) only when both snapshots declare StableIdentity=true;
-// otherwise all tables fall back to matching by ObjectRef.String() (schema.name).
+// Tables are matched by ID (OID) only when BOTH conditions hold:
+//  1. a.DatabaseType == b.DatabaseType — IDs (e.g. PG OIDs) are only comparable
+//     within the same database engine; cross-type ID comparison is illegal.
+//  2. Both snapshots declare StableIdentity=true — the capturing provider guarantees
+//     that IDs are stable across captures.
+//
+// If either condition fails, all tables fall back to matching by ObjectRef.String() (schema.name).
 func diffTables(a, b *schemasnapshot.SchemaSnapshot) []Difference {
 	var diffs []Difference
 
-	matchByID := a.StableIdentity && b.StableIdentity
+	matchByID := a.DatabaseType == b.DatabaseType && a.StableIdentity && b.StableIdentity
 
 	// Build maps: ID → Table for tables with non-empty ID (when matching by ID is enabled).
 	// For tables with empty ID, or when matchByID is false, use schema.name as key.

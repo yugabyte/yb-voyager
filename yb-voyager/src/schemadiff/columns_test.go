@@ -412,6 +412,61 @@ func TestDiffColumns_MultipleTablesSort(t *testing.T) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// Test: Different DatabaseType gate — ID comparison is legal only when
+// a.DatabaseType == b.DatabaseType AND both StableIdentity=true.
+// When DatabaseType differs, ID matching must be skipped and matching falls
+// back to (table, name) composite key, so same-ID+different-Name produces
+// ColumnDropped+ColumnAdded instead of ColumnNameChanged.
+// ──────────────────────────────────────────────────────────────────────────────
+
+// TestDiffColumns_DifferentDatabaseType_RenameBecomesAddDrop: snapshots with the
+// same column ID and StableIdentity:true on both sides, but different DatabaseType,
+// must NOT produce ColumnNameChanged. IDs are only comparable within one database
+// type; cross-type ID comparison is illegal, so matching falls back to name.
+func TestDiffColumns_DifferentDatabaseType_RenameBecomesAddDrop(t *testing.T) {
+	oldCol := makeColumn("public", "users", "200:1", "old_col", "text")
+	newCol := makeColumn("public", "users", "200:1", "new_col", "text") // same ID, different name
+	a := &schemasnapshot.SchemaSnapshot{
+		Version:        1,
+		DatabaseType:   "postgresql",
+		StableIdentity: true,
+		Columns:        []schemasnapshot.Column{oldCol},
+	}
+	b := &schemasnapshot.SchemaSnapshot{
+		Version:        1,
+		DatabaseType:   "mysql",
+		StableIdentity: true,
+		Columns:        []schemasnapshot.Column{newCol},
+	}
+
+	got := Diff(a, b)
+
+	// Must NOT produce ColumnNameChanged — cross-type ID matching is illegal.
+	// Must produce ColumnDropped(old_col) + ColumnAdded(new_col).
+	if len(got) != 2 {
+		t.Fatalf("expected 2 differences (ColumnDropped+ColumnAdded), got %d: %v", len(got), got)
+	}
+	var hasDropped, hasAdded bool
+	for _, d := range got {
+		if d.Type == ColumnNameChanged {
+			t.Errorf("unexpected ColumnNameChanged when DatabaseType differs: %v", d)
+		}
+		if d.Type == ColumnDropped && d.SubObject == "old_col" {
+			hasDropped = true
+		}
+		if d.Type == ColumnAdded && d.SubObject == "new_col" {
+			hasAdded = true
+		}
+	}
+	if !hasDropped {
+		t.Errorf("expected ColumnDropped for old_col; got: %v", got)
+	}
+	if !hasAdded {
+		t.Errorf("expected ColumnAdded for new_col; got: %v", got)
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Test: ID-empty fallback — match by (table, name) composite key
 // ──────────────────────────────────────────────────────────────────────────────
 

@@ -479,6 +479,61 @@ func TestDiffTables_MixedStability_FallsBackToName(t *testing.T) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// Test: Different DatabaseType gate — ID comparison is legal only when
+// a.DatabaseType == b.DatabaseType AND both StableIdentity=true.
+// When DatabaseType differs, ID matching must be skipped and matching falls
+// back to name, so same-ID+different-Name produces TableDropped+TableAdded
+// instead of TableNameChanged.
+// ──────────────────────────────────────────────────────────────────────────────
+
+// TestDiffTables_DifferentDatabaseType_RenameBecomesAddDrop: snapshots with the
+// same table ID and StableIdentity:true on both sides, but different DatabaseType,
+// must NOT produce TableNameChanged. IDs are only comparable within one database
+// type; cross-type ID comparison is illegal, so matching falls back to name.
+func TestDiffTables_DifferentDatabaseType_RenameBecomesAddDrop(t *testing.T) {
+	oldTbl := makeTable("55", "public", "old_name", schemasnapshot.TableKindOrdinary)
+	newTbl := makeTable("55", "public", "new_name", schemasnapshot.TableKindOrdinary)
+	a := &schemasnapshot.SchemaSnapshot{
+		Version:        1,
+		DatabaseType:   "postgresql",
+		StableIdentity: true,
+		Tables:         []schemasnapshot.Table{oldTbl},
+	}
+	b := &schemasnapshot.SchemaSnapshot{
+		Version:        1,
+		DatabaseType:   "mysql",
+		StableIdentity: true,
+		Tables:         []schemasnapshot.Table{newTbl},
+	}
+
+	got := Diff(a, b)
+
+	// Must NOT produce TableNameChanged — cross-type ID matching is illegal.
+	// Must produce TableDropped(old_name) + TableAdded(new_name).
+	if len(got) != 2 {
+		t.Fatalf("expected 2 differences (TableDropped+TableAdded), got %d: %v", len(got), got)
+	}
+	var hasDropped, hasAdded bool
+	for _, d := range got {
+		if d.Type == TableNameChanged {
+			t.Errorf("unexpected TableNameChanged when DatabaseType differs: %v", d)
+		}
+		if d.Type == TableDropped && d.Object == ref("public", "old_name") {
+			hasDropped = true
+		}
+		if d.Type == TableAdded && d.Object == ref("public", "new_name") {
+			hasAdded = true
+		}
+	}
+	if !hasDropped {
+		t.Errorf("expected TableDropped for public.old_name; got: %v", got)
+	}
+	if !hasAdded {
+		t.Errorf("expected TableAdded for public.new_name; got: %v", got)
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Test: ID-empty fallback — matched by schema.name; name-only-in-A → TableDropped
 // ──────────────────────────────────────────────────────────────────────────────
 
