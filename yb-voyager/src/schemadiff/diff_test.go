@@ -54,6 +54,21 @@ func refPtr(schema, name string) *schemasnapshot.ObjectRef {
 	return &r
 }
 
+// assertAnchoredToObject asserts the V1 invariant that a produced finding's
+// AnchorTable is non-nil and equals its Object — every V1 finding anchors to its
+// own object (a table to itself; a column to its parent table). This is the seam
+// that will change only when index/sequence/view findings arrive (Object != anchor).
+func assertAnchoredToObject(t *testing.T, d Difference) {
+	t.Helper()
+	if d.AnchorTable == nil {
+		t.Errorf("AnchorTable is nil for %v on %v; want non-nil == Object", d.Type, d.Object)
+		return
+	}
+	if *d.AnchorTable != d.Object {
+		t.Errorf("AnchorTable = %v, want == Object %v (for %v)", *d.AnchorTable, d.Object, d.Type)
+	}
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Test: Diff of two empty snapshots returns nil/empty
 // ──────────────────────────────────────────────────────────────────────────────

@@ -35,15 +35,15 @@ func TestDiffTables_TableAdded(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
 	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
+	}
 	d := got[0]
 	if d.Type != TableAdded {
 		t.Errorf("expected TableAdded, got %v", d.Type)
 	}
 	if d.Object != ref("public", "users") {
 		t.Errorf("expected Object=public.users, got %v", d.Object)
-	}
-	if d.AnchorTable == nil || *d.AnchorTable != ref("public", "users") {
-		t.Errorf("expected AnchorTable=public.users, got %v", d.AnchorTable)
 	}
 	if d.OldValue != nil {
 		t.Errorf("expected OldValue=nil, got %v", d.OldValue)
@@ -66,15 +66,15 @@ func TestDiffTables_TableDropped(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
 	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
+	}
 	d := got[0]
 	if d.Type != TableDropped {
 		t.Errorf("expected TableDropped, got %v", d.Type)
 	}
 	if d.Object != ref("public", "orders") {
 		t.Errorf("expected Object=public.orders, got %v", d.Object)
-	}
-	if d.AnchorTable == nil || *d.AnchorTable != ref("public", "orders") {
-		t.Errorf("expected AnchorTable=public.orders, got %v", d.AnchorTable)
 	}
 	if d.OldValue != nil {
 		t.Errorf("expected OldValue=nil, got %v", d.OldValue)
@@ -99,6 +99,9 @@ func TestDiffTables_TableRenamed(t *testing.T) {
 	// Must have exactly ONE finding
 	if len(got) != 1 {
 		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
+	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
 	}
 	d := got[0]
 	if d.Type != TableNameChanged {
@@ -139,6 +142,9 @@ func TestDiffTables_TableSchemaMoved(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
 	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
+	}
 	d := got[0]
 	if d.Type != TableSchemaChanged {
 		t.Errorf("expected TableSchemaChanged, got %v", d.Type)
@@ -170,6 +176,9 @@ func TestDiffTables_TableKindChanged(t *testing.T) {
 	got := Diff(a, b)
 	if len(got) != 1 {
 		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
+	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
 	}
 	d := got[0]
 	if d.Type != TableKindChanged {
@@ -204,6 +213,9 @@ func TestDiffTables_PartitionParent_NilToSet(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
 	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
+	}
 	d := got[0]
 	if d.Type != PartitionParentChanged {
 		t.Errorf("expected PartitionParentChanged, got %v", d.Type)
@@ -232,6 +244,9 @@ func TestDiffTables_PartitionParent_SetToNil(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
 	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
+	}
 	d := got[0]
 	if d.Type != PartitionParentChanged {
 		t.Errorf("expected PartitionParentChanged, got %v", d.Type)
@@ -256,6 +271,9 @@ func TestDiffTables_PartitionParent_SetToDifferent(t *testing.T) {
 	got := Diff(a, b)
 	if len(got) != 1 {
 		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
+	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
 	}
 	d := got[0]
 	if d.Type != PartitionParentChanged {
@@ -286,6 +304,9 @@ func TestDiffTables_PartitionChildren_MemberAdded(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
 	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
+	}
 	if got[0].Type != PartitionChildrenChanged {
 		t.Errorf("expected PartitionChildrenChanged, got %v", got[0].Type)
 	}
@@ -306,6 +327,9 @@ func TestDiffTables_PartitionChildren_MemberRemoved(t *testing.T) {
 	got := Diff(a, b)
 	if len(got) != 1 {
 		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
+	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
 	}
 	if got[0].Type != PartitionChildrenChanged {
 		t.Errorf("expected PartitionChildrenChanged, got %v", got[0].Type)
@@ -345,6 +369,9 @@ func TestDiffTables_InheritsFromChanged(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
 	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
+	}
 	if got[0].Type != TableInheritsChanged {
 		t.Errorf("expected TableInheritsChanged, got %v", got[0].Type)
 	}
@@ -369,6 +396,9 @@ func TestDiffTables_InheritedByChanged(t *testing.T) {
 	got := Diff(a, b)
 	if len(got) != 1 {
 		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
+	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
 	}
 	if got[0].Type != TableInheritedByChanged {
 		t.Errorf("expected TableInheritedByChanged, got %v", got[0].Type)
@@ -407,6 +437,9 @@ func TestDiffTables_UnstableIdentity_RenameBecomesAddDrop(t *testing.T) {
 	// Expect TableDropped(old_name) + TableAdded(new_name) — no TableNameChanged.
 	if len(got) != 2 {
 		t.Fatalf("expected 2 differences (TableDropped+TableAdded), got %d: %v", len(got), got)
+	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
 	}
 	var hasDropped, hasAdded bool
 	for _, d := range got {
@@ -458,6 +491,9 @@ func TestDiffTables_MixedStability_FallsBackToName(t *testing.T) {
 		t.Fatalf("mixed stability: expected 2 differences (TableDropped+TableAdded), got %d: %v", len(got), got)
 	}
 	for _, d := range got {
+		assertAnchoredToObject(t, d)
+	}
+	for _, d := range got {
 		if d.Type == TableNameChanged {
 			t.Errorf("mixed stability: unexpected TableNameChanged; got: %v", got)
 		}
@@ -470,6 +506,9 @@ func TestDiffTables_MixedStability_FallsBackToName(t *testing.T) {
 	got2 := Diff(a2, b2)
 	if len(got2) != 2 {
 		t.Fatalf("mixed stability (reversed): expected 2 differences (TableDropped+TableAdded), got %d: %v", len(got2), got2)
+	}
+	for _, d := range got2 {
+		assertAnchoredToObject(t, d)
 	}
 	for _, d := range got2 {
 		if d.Type == TableNameChanged {
@@ -512,6 +551,9 @@ func TestDiffTables_DifferentDatabaseType_RenameBecomesAddDrop(t *testing.T) {
 	// Must produce TableDropped(old_name) + TableAdded(new_name).
 	if len(got) != 2 {
 		t.Fatalf("expected 2 differences (TableDropped+TableAdded), got %d: %v", len(got), got)
+	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
 	}
 	var hasDropped, hasAdded bool
 	for _, d := range got {
@@ -563,12 +605,92 @@ func TestDiffTables_IDEmptyFallback_MatchedByName(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("expected 1 difference (TableDropped for gone_table), got %d: %v", len(got), got)
 	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
+	}
 	d := got[0]
 	if d.Type != TableDropped {
 		t.Errorf("expected TableDropped, got %v", d.Type)
 	}
 	if d.Object != ref("public", "gone_table") {
 		t.Errorf("expected Object=public.gone_table, got %v", d.Object)
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Test: hybrid ID-then-name matching. A table whose stable ID is present on one
+// side but empty on the other must still be reconciled by name (not surfaced as
+// a spurious drop + add), while a genuine drop-and-recreate that reuses a name
+// with a DIFFERENT id must stay an add + drop.
+// ──────────────────────────────────────────────────────────────────────────────
+
+// IDInAEmptyInB: same table, ID "123" in A but empty in B; identical otherwise.
+// The hybrid residue pass must reconcile them by name → no findings.
+func TestDiffTables_HybridResidue_IDInAEmptyInB_Matched(t *testing.T) {
+	a := snapWithTables(makeTable("123", "public", "t", schemasnapshot.TableKindOrdinary))
+	b := snapWithTables(makeTable("", "public", "t", schemasnapshot.TableKindOrdinary))
+
+	got := Diff(a, b)
+	if len(got) != 0 {
+		t.Fatalf("expected 0 findings (table reconciled by name despite missing ID in B), got %d: %v", len(got), got)
+	}
+}
+
+// EmptyInAIDInB: the symmetric case — empty in A, ID in B.
+func TestDiffTables_HybridResidue_EmptyInAIDInB_Matched(t *testing.T) {
+	a := snapWithTables(makeTable("", "public", "t", schemasnapshot.TableKindOrdinary))
+	b := snapWithTables(makeTable("456", "public", "t", schemasnapshot.TableKindOrdinary))
+
+	got := Diff(a, b)
+	if len(got) != 0 {
+		t.Fatalf("expected 0 findings (table reconciled by name despite missing ID in A), got %d: %v", len(got), got)
+	}
+}
+
+// MixedID with a real property change: reconciled by name AND the change
+// surfaces as a single TABLE_KIND_CHANGED (proving it matched, not drop+add).
+func TestDiffTables_HybridResidue_MixedID_PropertyChangeSurfaces(t *testing.T) {
+	a := snapWithTables(makeTable("123", "public", "t", schemasnapshot.TableKindOrdinary))
+	b := snapWithTables(makeTable("", "public", "t", schemasnapshot.TableKindPartitioned))
+
+	got := Diff(a, b)
+	if len(got) != 1 {
+		t.Fatalf("expected exactly 1 finding (TABLE_KIND_CHANGED on the reconciled table), got %d: %v", len(got), got)
+	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
+	}
+	if got[0].Type != TableKindChanged {
+		t.Errorf("expected TableKindChanged, got %v", got[0].Type)
+	}
+	if got[0].Object != ref("public", "t") {
+		t.Errorf("expected Object=public.t, got %v", got[0].Object)
+	}
+}
+
+// Drop-and-recreate guard: same name, DIFFERENT id, both ids present, matchByID
+// on. These are genuinely different objects and must NOT be collapsed into a
+// match — the residue name-match is only a fallback for tables lacking an id.
+func TestDiffTables_HybridResidue_DropRecreateSameNameDifferentID_NotCollapsed(t *testing.T) {
+	a := snapWithTables(makeTable("1", "public", "foo", schemasnapshot.TableKindOrdinary))
+	b := snapWithTables(makeTable("2", "public", "foo", schemasnapshot.TableKindOrdinary))
+
+	got := Diff(a, b)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 findings (TABLE_DROPPED + TABLE_ADDED for distinct OIDs), got %d: %v", len(got), got)
+	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
+	}
+	types := map[DiffType]int{}
+	for _, d := range got {
+		types[d.Type]++
+		if d.Object != ref("public", "foo") {
+			t.Errorf("expected Object=public.foo, got %v", d.Object)
+		}
+	}
+	if types[TableDropped] != 1 || types[TableAdded] != 1 {
+		t.Errorf("expected exactly one TableDropped and one TableAdded, got %v", types)
 	}
 }
 
@@ -595,6 +717,9 @@ func TestDiffTables_LinkSlicesAreDefensivelyCopied(t *testing.T) {
 	got := Diff(a, b)
 	if len(got) != 3 {
 		t.Fatalf("expected 3 link-change findings, got %d: %v", len(got), got)
+	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
 	}
 
 	// Snapshot the source slices' first elements so we can detect write-through.

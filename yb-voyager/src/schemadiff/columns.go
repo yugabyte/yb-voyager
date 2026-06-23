@@ -16,102 +16,105 @@ package schemadiff
 
 import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 
-// diffColumns computes column-level differences between snapshots a and b.
-// Columns are matched by ID only when BOTH conditions hold:
-//  1. a.DatabaseType == b.DatabaseType — IDs are only comparable within the same
-//     database engine; cross-type ID comparison is illegal.
-//  2. Both snapshots declare StableIdentity=true — the capturing provider guarantees
-//     that IDs are stable across captures.
+// diffColumns computes column-level differences between snapshots a and b using a
+// hybrid two-pass match keyed on the composite identifier
+// Column.Table.String() + "." + Column.Name:
 //
-// If either condition fails, all columns fall back to matching by the composite key
-// Column.Table.String() + "." + Column.Name.
+//  1. ID pass — columns carrying a usable stable ID are matched by ID. This is
+//     enabled only when BOTH conditions hold:
+//     a. a.DatabaseType == b.DatabaseType — IDs (e.g. PG OIDs) are only comparable
+//     within the same database engine; cross-type ID comparison is illegal.
+//     b. Both snapshots declare StableIdentity=true — the capturing provider
+//     guarantees IDs are stable across captures.
+//     ID matching is what lets a rename surface as COLUMN_NAME_CHANGED rather than
+//     an add+drop pair.
+//  2. Name pass — every column left unmatched by the ID pass (columns with no
+//     usable ID, PLUS any whose ID was present on one side but absent on the
+//     other) is reconciled by the composite key Table.String()+"."+Name.
+//
+// Letting ID-unmatched columns fall through to the name pass — instead of
+// declaring them dropped/added immediately — is what keeps a column whose ID is
+// present on one side but missing on the other from surfacing as a spurious
+// drop+add. The name pass guards against the inverse mistake: two same-named
+// columns that each carry a real but DIFFERENT ID are a genuine drop-and-recreate
+// and stay an add+drop rather than collapsing into one match (see nameMatchAllowed).
 func diffColumns(a, b *schemasnapshot.SchemaSnapshot) []Difference {
 	var diffs []Difference
 
 	matchByID := a.DatabaseType == b.DatabaseType && a.StableIdentity && b.StableIdentity
 
-	// Build maps: ID → Column (non-empty ID, when matchByID is true) and
-	// compositeKey → Column (empty ID or matchByID=false).
+	// Pass 1: ID-based matching for columns that carry a usable stable ID.
+	// Columns without one start life in the name-pass residue.
 	byIDA := make(map[string]schemasnapshot.Column)
 	byIDB := make(map[string]schemasnapshot.Column)
-	byNameA := make(map[string]schemasnapshot.Column)
-	byNameB := make(map[string]schemasnapshot.Column)
+	var residueA, residueB []schemasnapshot.Column
 
 	for _, c := range a.Columns {
 		if matchByID && c.ID != "" {
 			byIDA[c.ID] = c
 		} else {
-			byNameA[c.Table.String()+"."+c.Name] = c
+			residueA = append(residueA, c)
 		}
 	}
 	for _, c := range b.Columns {
 		if matchByID && c.ID != "" {
 			byIDB[c.ID] = c
 		} else {
-			byNameB[c.Table.String()+"."+c.Name] = c
+			residueB = append(residueB, c)
 		}
 	}
 
-	// Diff ID-matched columns.
 	for id, cA := range byIDA {
-		cB, ok := byIDB[id]
-		if !ok {
-			// Only in A → dropped
-			objRef := cA.Table
-			diffs = append(diffs, Difference{
-				Type:        ColumnDropped,
-				Object:      objRef,
-				AnchorTable: &objRef,
-				SubObject:   cA.Name,
-				OldValue:    cA.DataType,
-			})
-			continue
+		if cB, ok := byIDB[id]; ok {
+			diffs = append(diffs, compareMatchedColumns(cA, cB)...)
+		} else {
+			residueA = append(residueA, cA) // unmatched by ID → reconcile by name
 		}
-		diffs = append(diffs, compareMatchedColumns(cA, cB)...)
 	}
 	for id, cB := range byIDB {
 		if _, ok := byIDA[id]; !ok {
-			// Only in B → added
-			objRef := cB.Table
-			diffs = append(diffs, Difference{
-				Type:        ColumnAdded,
-				Object:      objRef,
-				AnchorTable: &objRef,
-				SubObject:   cB.Name,
-				NewValue:    cB.DataType,
-			})
+			residueB = append(residueB, cB) // unmatched by ID → reconcile by name
 		}
 	}
 
-	// Diff name-matched columns (ID-empty fallback).
+	// Pass 2: name-based reconciliation of the residue.
+	diffs = append(diffs, diffColumnsByName(residueA, residueB, matchByID)...)
+
+	return diffs
+}
+
+// diffColumnsByName reconciles the columns left unmatched by the ID pass, keyed on
+// the composite key Column.Table.String()+"."+Column.Name (unique within a snapshot).
+// A same-named pair is treated as the same column only when nameMatchAllowed permits
+// it; otherwise the A-side is dropped and the B-side added.
+func diffColumnsByName(residueA, residueB []schemasnapshot.Column, matchByID bool) []Difference {
+	var diffs []Difference
+
+	byNameA := make(map[string]schemasnapshot.Column, len(residueA))
+	byNameB := make(map[string]schemasnapshot.Column, len(residueB))
+	for _, c := range residueA {
+		byNameA[c.Table.String()+"."+c.Name] = c
+	}
+	for _, c := range residueB {
+		byNameB[c.Table.String()+"."+c.Name] = c
+	}
+
+	matchedB := make(map[string]bool, len(byNameB))
 	for key, cA := range byNameA {
-		cB, ok := byNameB[key]
-		if !ok {
-			// Only in A → dropped
-			objRef := cA.Table
-			diffs = append(diffs, Difference{
-				Type:        ColumnDropped,
-				Object:      objRef,
-				AnchorTable: &objRef,
-				SubObject:   cA.Name,
-				OldValue:    cA.DataType,
-			})
+		if cB, ok := byNameB[key]; ok && nameMatchAllowed(matchByID, cA.ID, cB.ID) {
+			diffs = append(diffs, compareMatchedColumns(cA, cB)...)
+			matchedB[key] = true
 			continue
 		}
-		diffs = append(diffs, compareMatchedColumns(cA, cB)...)
+		// Only in A (or a name collision we must not collapse) → dropped.
+		diffs = append(diffs, newDifference(ColumnDropped, cA.Table, &cA.Table, cA.Name, cA.DataType, nil))
 	}
 	for key, cB := range byNameB {
-		if _, ok := byNameA[key]; !ok {
-			// Only in B → added
-			objRef := cB.Table
-			diffs = append(diffs, Difference{
-				Type:        ColumnAdded,
-				Object:      objRef,
-				AnchorTable: &objRef,
-				SubObject:   cB.Name,
-				NewValue:    cB.DataType,
-			})
+		if matchedB[key] {
+			continue
 		}
+		// Only in B (or the un-collapsed half of a drop-and-recreate) → added.
+		diffs = append(diffs, newDifference(ColumnAdded, cB.Table, &cB.Table, cB.Name, nil, cB.DataType))
 	}
 
 	return diffs
@@ -123,49 +126,20 @@ func diffColumns(a, b *schemasnapshot.SchemaSnapshot) []Difference {
 func compareMatchedColumns(cA, cB schemasnapshot.Column) []Difference {
 	var diffs []Difference
 
-	oldRef := cA.Table
-	anchor := oldRef // copy; we take address of the copy below
-
-	base := Difference{
-		Object:      oldRef,
-		AnchorTable: &anchor,
-		SubObject:   cA.Name, // SubObject is the old (side-A) column name
-	}
-
 	if cA.Name != cB.Name {
-		d := base
-		d.Type = ColumnNameChanged
-		d.Property = "name"
-		d.OldValue = cA.Name
-		d.NewValue = cB.Name
-		diffs = append(diffs, d)
+		diffs = append(diffs, newDifference(ColumnNameChanged, cA.Table, &cA.Table, cA.Name, cA.Name, cB.Name))
 	}
 
 	if cA.DataType != cB.DataType {
-		d := base
-		d.Type = ColumnTypeChanged
-		d.Property = "data_type"
-		d.OldValue = cA.DataType
-		d.NewValue = cB.DataType
-		diffs = append(diffs, d)
+		diffs = append(diffs, newDifference(ColumnTypeChanged, cA.Table, &cA.Table, cA.Name, cA.DataType, cB.DataType))
 	}
 
 	if cA.NotNull != cB.NotNull {
-		d := base
-		d.Type = ColumnNullabilityChanged
-		d.Property = "not_null"
-		d.OldValue = cA.NotNull
-		d.NewValue = cB.NotNull
-		diffs = append(diffs, d)
+		diffs = append(diffs, newDifference(ColumnNullabilityChanged, cA.Table, &cA.Table, cA.Name, cA.NotNull, cB.NotNull))
 	}
 
 	if cA.Default != cB.Default {
-		d := base
-		d.Type = ColumnDefaultChanged
-		d.Property = "default"
-		d.OldValue = cA.Default
-		d.NewValue = cB.Default
-		diffs = append(diffs, d)
+		diffs = append(diffs, newDifference(ColumnDefaultChanged, cA.Table, &cA.Table, cA.Name, cA.Default, cB.Default))
 	}
 
 	// DO NOT diff Attrs (empty in v1).
