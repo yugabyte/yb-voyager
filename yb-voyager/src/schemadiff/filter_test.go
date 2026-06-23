@@ -474,6 +474,121 @@ func TestFilterByScopeAliasMapCollision(t *testing.T) {
 	assert.Len(t, got3, 1, "only rename2 should survive filtering by 'clients'")
 }
 
+// ─── Either-side rule across schema moves (SET SCHEMA) ───────────────────────
+
+// schemaChangedDiff builds a TABLE_SCHEMA_CHANGED finding: a table moved from
+// oldSchema to newSchema, keeping the same name. AnchorTable is the old ref,
+// matching how compareMatchedTables emits it (Object/AnchorTable = side-A ref,
+// OldValue/NewValue = the schema strings).
+func schemaChangedDiff(oldSchema, name, newSchema string) Difference {
+	o := ref(oldSchema, name)
+	return Difference{
+		Type:        TableSchemaChanged,
+		Object:      o,
+		AnchorTable: &o,
+		Property:    "schema",
+		OldValue:    oldSchema,
+		NewValue:    newSchema,
+	}
+}
+
+// TestFilterByScopeSchemaMoveNewIdentityInScope verifies the either-side rule
+// for a table moved to a new schema (TABLE_SCHEMA_CHANGED). A finding anchored
+// to the old schema-qualified identifier must be kept when the NEW one is in
+// Tables, just as renames are kept by either name.
+func TestFilterByScopeSchemaMoveNewIdentityInScope(t *testing.T) {
+	// "old_s.orders" moved to "new_s.orders".
+	move := schemaChangedDiff("old_s", "orders", "new_s")
+	// A column change anchored to the OLD (schema, name).
+	oldAnchor := ref("old_s", "orders")
+	colChange := Difference{
+		Type:        ColumnTypeChanged,
+		Object:      oldAnchor,
+		AnchorTable: &oldAnchor,
+		SubObject:   "amount",
+		Property:    "data_type",
+		OldValue:    "integer",
+		NewValue:    "bigint",
+	}
+
+	diffs := []Difference{move, colChange}
+
+	// Filtering by the NEW schema-qualified name must keep BOTH the move finding
+	// and the column change anchored to the old identifier.
+	got := FilterByScope(diffs, Scope{Tables: []string{"new_s.orders"}})
+	assert.Len(t, got, 2, "schema-move + column change should both be kept when the new identifier is in Tables")
+
+	// Symmetric: filtering by the OLD identifier also keeps both.
+	gotOld := FilterByScope(diffs, Scope{Tables: []string{"old_s.orders"}})
+	assert.Len(t, gotOld, 2, "both findings should be kept when the old identifier is in Tables")
+}
+
+// TestFilterByScopeSchemaMoveExclude verifies the either-side rule applies to
+// ExcludeTables for schema moves: excluding by the NEW identifier drops a
+// finding anchored to the OLD identifier.
+func TestFilterByScopeSchemaMoveExclude(t *testing.T) {
+	move := schemaChangedDiff("old_s", "orders", "new_s")
+	oldAnchor := ref("old_s", "orders")
+	colChange := Difference{
+		Type:        ColumnTypeChanged,
+		Object:      oldAnchor,
+		AnchorTable: &oldAnchor,
+		SubObject:   "amount",
+	}
+
+	diffs := []Difference{move, colChange}
+
+	got := FilterByScope(diffs, Scope{ExcludeTables: []string{"new_s.orders"}})
+	assert.Empty(t, got, "findings anchored to the old identifier should be excluded when the new identifier is in ExcludeTables")
+}
+
+// TestFilterByScopeRenameAndMove verifies the either-side rule when a table is
+// BOTH renamed and moved in the same interval. compareMatchedTables emits two
+// findings (TABLE_NAME_CHANGED and TABLE_SCHEMA_CHANGED) that share the same
+// side-A anchor; the new identity is (newSchema, newName). The alias must be
+// reconstructed from BOTH findings combined — not the old schema + new name.
+func TestFilterByScopeRenameAndMove(t *testing.T) {
+	// "old_s.orders" → "new_s.purchase_orders" (rename + move).
+	oldAnchor := ref("old_s", "orders")
+	rename := Difference{
+		Type:        TableNameChanged,
+		Object:      oldAnchor,
+		AnchorTable: &oldAnchor,
+		Property:    "name",
+		OldValue:    "orders",
+		NewValue:    "purchase_orders",
+	}
+	move := Difference{
+		Type:        TableSchemaChanged,
+		Object:      oldAnchor,
+		AnchorTable: &oldAnchor,
+		Property:    "schema",
+		OldValue:    "old_s",
+		NewValue:    "new_s",
+	}
+	colChange := Difference{
+		Type:        ColumnAdded,
+		Object:      oldAnchor,
+		AnchorTable: &oldAnchor,
+		SubObject:   "email",
+	}
+
+	diffs := []Difference{rename, move, colChange}
+
+	// The true new identity is "new_s.purchase_orders": filtering by it keeps all three.
+	got := FilterByScope(diffs, Scope{Tables: []string{"new_s.purchase_orders"}})
+	assert.Len(t, got, 3, "rename+move + column change should all be kept when the true new identifier is in Tables")
+
+	// The OLD identity "old_s.orders" keeps all three too (either-side).
+	gotOld := FilterByScope(diffs, Scope{Tables: []string{"old_s.orders"}})
+	assert.Len(t, gotOld, 3, "all three findings should be kept when the old identifier is in Tables")
+
+	// The bogus "old schema + new name" identifier must NOT match anything —
+	// it is not a real identity of this table on either side.
+	gotBogus := FilterByScope(diffs, Scope{Tables: []string{"old_s.purchase_orders"}})
+	assert.Empty(t, gotBogus, "the spurious old-schema+new-name identifier must not match — the table never had that identity")
+}
+
 // ─── Include-then-exclude interaction ────────────────────────────────────────
 
 // TestFilterByScopeIncludeThenExclude verifies that the include filter runs

@@ -35,6 +35,20 @@ func objectRefSetEqual(a, b []schemasnapshot.ObjectRef) bool {
 	return true
 }
 
+// cloneObjectRefs returns a fresh copy of an []ObjectRef so a Difference never
+// shares backing storage with the input snapshot. ObjectRef is a value type, so
+// a shallow copy fully decouples the result; a nil input stays nil (no needless
+// allocation). Without this, a consumer mutating a link finding's OldValue /
+// NewValue slice would write through into the source snapshot.
+func cloneObjectRefs(refs []schemasnapshot.ObjectRef) []schemasnapshot.ObjectRef {
+	if refs == nil {
+		return nil
+	}
+	out := make([]schemasnapshot.ObjectRef, len(refs))
+	copy(out, refs)
+	return out
+}
+
 // partitionParentEqual compares two *ObjectRef values for equality.
 // Both nil → equal; one nil → not equal; both set → compare by value.
 func partitionParentEqual(a, b *schemasnapshot.ObjectRef) bool {
@@ -197,8 +211,8 @@ func compareMatchedTables(tA, tB schemasnapshot.Table) []Difference {
 		d := base
 		d.Type = PartitionChildrenChanged
 		d.Property = "partition_children"
-		d.OldValue = tA.PartitionChildren
-		d.NewValue = tB.PartitionChildren
+		d.OldValue = cloneObjectRefs(tA.PartitionChildren)
+		d.NewValue = cloneObjectRefs(tB.PartitionChildren)
 		diffs = append(diffs, d)
 	}
 
@@ -206,8 +220,8 @@ func compareMatchedTables(tA, tB schemasnapshot.Table) []Difference {
 		d := base
 		d.Type = TableInheritsChanged
 		d.Property = "inherits_from"
-		d.OldValue = tA.InheritsFrom
-		d.NewValue = tB.InheritsFrom
+		d.OldValue = cloneObjectRefs(tA.InheritsFrom)
+		d.NewValue = cloneObjectRefs(tB.InheritsFrom)
 		diffs = append(diffs, d)
 	}
 
@@ -215,8 +229,8 @@ func compareMatchedTables(tA, tB schemasnapshot.Table) []Difference {
 		d := base
 		d.Type = TableInheritedByChanged
 		d.Property = "inherited_by"
-		d.OldValue = tA.InheritedBy
-		d.NewValue = tB.InheritedBy
+		d.OldValue = cloneObjectRefs(tA.InheritedBy)
+		d.NewValue = cloneObjectRefs(tB.InheritedBy)
 		diffs = append(diffs, d)
 	}
 
