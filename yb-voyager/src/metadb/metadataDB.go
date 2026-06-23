@@ -405,7 +405,7 @@ func (m *MetaDB) GetMinSegmentExportedByAndNotImportedBy(importerRole string, ex
 // missing segment means it cannot proceed safely. Returns false when there are no
 // queue segments yet.
 func (m *MetaDB) AnySegmentsDeletedOrArchived() (bool, error) {
-	query := fmt.Sprintf("SELECT deleted FROM %s", QUEUE_SEGMENT_META_TABLE_NAME)
+	query := fmt.Sprintf("SELECT archived, deleted FROM %s", QUEUE_SEGMENT_META_TABLE_NAME)
 	query = fmt.Sprintf("%s ORDER BY segment_no ASC LIMIT 1;", query)
 
 	var archived int

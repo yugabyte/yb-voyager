@@ -174,7 +174,7 @@ func TestAnySegmentsDeletedOrArchived(t *testing.T) {
 		insertQueueSegment(t, mdb, 1, testSourceDBExporterRole, 1, 0)
 		insertQueueSegment(t, mdb, 2, testSourceDBExporterRole, 0, 0)
 
-		deletedOrArchived, err := mdb.AnySegmentsDeletedOrArchived("")
+		deletedOrArchived, err := mdb.AnySegmentsDeletedOrArchived()
 		require.NoError(t, err)
 		assert.True(t, deletedOrArchived, "earliest segment (resume point) is archived, so re-streaming from the beginning is impossible")
 	})
