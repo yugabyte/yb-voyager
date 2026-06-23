@@ -261,10 +261,11 @@ type Scope struct {
   `--object-type-list` selector vocabulary the command needs, not output vocabulary.
   In V1 only `TABLE` matches an emitted diff; filtering by `INDEX`/`VIEW`/etc.
   correctly yields nothing (and is tested as such).
-- **Rename-aware table scoping:** a `TABLE_NAME_CHANGED` (and any finding anchored to
-  a renamed table) is kept when **either** the old or the new name is in `Tables`, via
-  a bidirectional rename-alias map built from `TABLE_NAME_CHANGED` findings. This is
-  the main reason scope stays a post-diff step (§10).
+- **Rename-aware table scoping:** a finding anchored to a renamed and/or schema-moved
+  table is kept when **either** the old or the new catalog identifier is in `Tables`,
+  via a bidirectional alias map built from `TABLE_NAME_CHANGED` **and**
+  `TABLE_SCHEMA_CHANGED` findings (grouped per side-A object so a rename+move resolves
+  to one new identifier). This is the main reason scope stays a post-diff step (§10).
 - Order: include ObjectTypes → include Tables → exclude ObjectTypes → exclude Tables.
 
 Scoping is **post-diff** (filter the results), not pre-diff. Pre-diff scoping is a
