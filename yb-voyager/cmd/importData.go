@@ -2377,12 +2377,7 @@ func clearMigrationStateForImportDataStartClean(state *ImportDataState, importFi
 	// no longer be re-streamed from the beginning. Detect this and fail before
 	// mutating any metaDB state.
 	if changeStreamingIsEnabled(importType) {
-		segmentsExporterRole := ""
-		if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
-			// fall-forward import only consumes segments exported from the target db.
-			segmentsExporterRole = TARGET_DB_EXPORTER_FF_ROLE
-		}
-		resumeSegmentDeleted, err := metaDB.AnySegmentsDeletedOrArchived(segmentsExporterRole)
+		resumeSegmentDeleted, err := metaDB.AnySegmentsDeletedOrArchived()
 		if err != nil {
 			return goerrors.Errorf("failed to check for archived/deleted queue segments: %s", err)
 		}

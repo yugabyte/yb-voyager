@@ -149,12 +149,12 @@ func insertQueueSegment(t *testing.T, mdb *MetaDB, segmentNo int, exporterRole s
 // TestAnySegmentsDeletedOrArchived covers the start-clean guardrail backing
 // AnySegmentsDeletedOrArchived. The guardrail must agree with
 // resolveSegmentToResumeFrom in eventQueue.go on which segment is the resume
-// point: the earliest segment_no (optionally filtered by exporter role).
+// point for importers that support --start-clean: the earliest segment_no.
 func TestAnySegmentsDeletedOrArchived(t *testing.T) {
 	t.Run("no queue segments returns false", func(t *testing.T) {
 		mdb := newTestMetaDB(t)
 
-		deleted, err := mdb.AnySegmentsDeletedOrArchived("")
+		deleted, err := mdb.AnySegmentsDeletedOrArchived()
 		require.NoError(t, err)
 		assert.False(t, deleted, "with no queue segments the guardrail must not block start-clean")
 	})
@@ -164,7 +164,7 @@ func TestAnySegmentsDeletedOrArchived(t *testing.T) {
 		insertQueueSegment(t, mdb, 1, testSourceDBExporterRole, 0, 1)
 		insertQueueSegment(t, mdb, 2, testSourceDBExporterRole, 0, 0)
 
-		deleted, err := mdb.AnySegmentsDeletedOrArchived("")
+		deleted, err := mdb.AnySegmentsDeletedOrArchived()
 		require.NoError(t, err)
 		assert.True(t, deleted, "earliest segment (resume point) is deleted, so re-streaming from the beginning is impossible")
 	})
