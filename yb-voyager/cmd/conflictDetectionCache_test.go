@@ -149,7 +149,7 @@ func TestEventsConfict_SamePKNoConflict(t *testing.T) {
 	assert.False(t, cache.eventsConfict(cached, incoming))
 }
 
-func TesteventsConflict_BothNilBeforeAfter(t *testing.T) {
+func TestEventsConfict_BothNilBeforeAfter(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"email"}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
@@ -169,7 +169,7 @@ func TesteventsConflict_BothNilBeforeAfter(t *testing.T) {
 	assert.True(t, cache.eventsConfict(cached, incoming))
 }
 
-func TesteventsConflict_OneNilOneValueBeforeAfter(t *testing.T) {
+func TestEventsConflict_OneNilOneValueBeforeAfter(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"email"}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
@@ -189,7 +189,7 @@ func TesteventsConflict_OneNilOneValueBeforeAfter(t *testing.T) {
 	assert.False(t, cache.eventsConfict(cached, incoming))
 }
 
-func TesteventsConflict_CompositeBothNil(t *testing.T) {
+func TestEventsConflict_CompositeBothNil(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"a", "b"}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
@@ -208,7 +208,7 @@ func TesteventsConflict_CompositeBothNil(t *testing.T) {
 	assert.True(t, cache.eventsConfict(cached, incoming))
 }
 
-func TesteventsConflict_CompositeMixedNil(t *testing.T) {
+func TestEventsConflict_CompositeMixedNil(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"a", "b"}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
@@ -227,7 +227,7 @@ func TesteventsConflict_CompositeMixedNil(t *testing.T) {
 	assert.False(t, cache.eventsConfict(cached, incoming))
 }
 
-func TesteventsConflict_BothNilBeforeBefore(t *testing.T) {
+func TestEventsConflict_BothNilBeforeBefore(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"check_id"}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
@@ -250,7 +250,7 @@ func TesteventsConflict_BothNilBeforeBefore(t *testing.T) {
 	assert.True(t, cache.eventsConfict(cached, incoming))
 }
 
-func TesteventsConflict_BeforeBeforeConflictOnly(t *testing.T) {
+func TestEventsConflict_BeforeBeforeConflictOnly(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"check_id"}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
@@ -272,7 +272,7 @@ func TesteventsConflict_BeforeBeforeConflictOnly(t *testing.T) {
 	assert.True(t, cache.eventsConfict(cached, incoming))
 }
 
-func TesteventsConflict_BeforeBeforeNoConflictWhenValuesDiffer(t *testing.T) {
+func TestEventsConflict_BeforeBeforeNoConflictWhenValuesDiffer(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"check_id"}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
@@ -294,7 +294,7 @@ func TesteventsConflict_BeforeBeforeNoConflictWhenValuesDiffer(t *testing.T) {
 			assert.False(t, cache.eventsConfict(cached, incoming))
 }
 
-func TesteventsConflict_BeforeBeforeMissingColumn(t *testing.T) {
+func TestEventsConflict_BeforeBeforeMissingColumn(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"a", "b"}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
@@ -331,27 +331,6 @@ func TestEventsConfict_BeforeBeforeConflict(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("2")},
 		BeforeFields: map[string]*string{"check_id": strPtr("10")},
 		Fields:       map[string]*string{"check_id": strPtr("20")},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
-	assert.True(t, cache.eventsConfict(cached, incoming))
-}
-
-func TestEventsConfict_BothNilBeforeAfter(t *testing.T) {
-	cache := newConflictCacheForTest([][]string{{"email"}})
-	cached := &tgtdb.Event{
-		Vsn:          1,
-		Op:           "d",
-		TableNameTup: testTableTuple(),
-		Key:          map[string]*string{"id": strPtr("1")},
-		BeforeFields: map[string]*string{"email": nil},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
-	incoming := &tgtdb.Event{
-		Vsn:          2,
-		Op:           "c",
-		TableNameTup: testTableTuple(),
-		Key:          map[string]*string{"id": strPtr("2")},
-		Fields:       map[string]*string{"email": nil},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
 	assert.True(t, cache.eventsConfict(cached, incoming))
