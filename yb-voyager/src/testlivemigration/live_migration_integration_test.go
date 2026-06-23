@@ -1096,17 +1096,16 @@ FROM generate_series(1, 10);`,
 
 }
 
-func TestLiveMigrationWithUniqueKeyValuesWithPartialPredicateConflictDetectionCases(t *testing.T) {
-	t.Parallel()
-	lm := NewLiveMigrationTest(t, &TestConfig{
+func getPartialPredicateTestForUniqueConflictDetection(t *testing.T, dbName string) *LiveMigrationTest {
+	return NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
 			ForLive:      true,
-			DatabaseName: "test7",
+			DatabaseName: dbName,
 		},
 		TargetDB: ContainerConfig{
 			Type:         "yugabytedb",
-			DatabaseName: "test7",
+			DatabaseName: dbName,
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
@@ -1193,6 +1192,11 @@ FROM generate_series(1, 20) as i;`,
 			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
 		},
 	})
+}
+
+func TestLiveMigrationWithUniqueKeyValuesWithPartialPredicateConflictDetectionCases(t *testing.T) {
+	t.Parallel()
+	lm := getPartialPredicateTestForUniqueConflictDetection(t, "test_unique_conflict_partial_predicate")
 	defer lm.Cleanup()
 
 	err := lm.SetupContainers(context.Background())
@@ -1236,6 +1240,55 @@ FROM generate_series(1, 20) as i;`,
 	err = lm.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
+}
+
+func TestLiveMigrationWithUniqueKeyConflictWithTablePartitioning(t *testing.T) {
+	t.Parallel()
+	lm := getPartialPredicateTestForUniqueConflictDetection(t, "test_uc_table_partitioning")
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = lm.StartImportData(true, map[string]string{
+		"--cdc-partitioning-strategy": "table",
+	})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_live"`: 20,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live"`: {
+			Inserts: 1500,
+			Updates: 2500,
+			Deletes: 1000,
+		},
+	}, 100, 5)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
 
 func TestLiveMigrationWithUniqueKeyConflictWithNullValuesDetectionCases(t *testing.T) {
