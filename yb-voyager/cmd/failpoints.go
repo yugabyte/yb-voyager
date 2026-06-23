@@ -244,3 +244,15 @@ func injectAfterCompletingDebezium() {
 		}
 	})
 }
+
+// injectUniqueKeyConflictDetected fails import when conflict detection reports a
+// unique-key conflict. Tests enable this failpoint during false-positive phases:
+// any eventsConfict() -> true crashes import deterministically.
+func injectUniqueKeyConflictDetectedFailpoint() {
+	failpoint.Inject("uniqueKeyConflictDetected", func(val failpoint.Value) {
+		if val != nil {
+			writeFailpointMarker("failpoint-unique-key-conflict-detected.log")
+			utils.ErrExit("failpoint: unexpected unique key conflict detected")
+		}
+	})
+}

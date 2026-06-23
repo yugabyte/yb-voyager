@@ -95,11 +95,6 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) (err 
 		log.Info("cutover is initiated and the event is detected..")
 		return nil
 	}
-	defer func() {
-		if finalizeErr := finalizeConflictDetectionStats(); finalizeErr != nil && err == nil {
-			err = finalizeErr
-		}
-	}()
 	log.Infof("NUM_EVENT_CHANNELS: %d, EVENT_CHANNEL_SIZE: %d, MAX_EVENTS_PER_BATCH: %d, MAX_INTERVAL_BETWEEN_BATCHES: %d",
 		NUM_EVENT_CHANNELS, EVENT_CHANNEL_SIZE, MAX_EVENTS_PER_BATCH, MAX_INTERVAL_BETWEEN_BATCHES)
 	// re-initilizing name registry in case it hadn't picked up the names registered on source/target/source-replica
@@ -590,38 +585,13 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 }
 
 func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, exporterRole string, sourceDBTypeForConflictCache string) error {
-	var priorStats *utils.StructMap[sqlname.NameTuple, int64]
-	if conflictDetectionCache != nil {
-		priorStats = conflictDetectionCache.totalConflictsByTable
-	}
 	tableToUniqueIndexes, err := getTableToUniqueIndexesMapFromMetaDB(exporterRole)
 	if err != nil {
 		return fmt.Errorf("get table unique indexes map: %w", err)
 	}
 	log.Infof("initializing conflict detection cache")
 	conflictDetectionCache = NewConflictDetectionCache(tableToUniqueIndexes, evChans, sourceDBTypeForConflictCache)
-	if priorStats != nil {
-		conflictDetectionCache.totalConflictsByTable = priorStats
-	}
 	return nil
-}
-
-func finalizeConflictDetectionStats() error {
-	if conflictDetectionCache == nil {
-		return nil
-	}
-	sessionStats := conflictDetectionCache.SnapshotStatsByTable()
-	if len(sessionStats) == 0 {
-		return nil
-	}
-	var mergeErr error
-	err := metaDB.UpdateConflictDetectionStatsRecord(func(record *metadb.ConflictDetectionStatsRecord) {
-		mergeErr = record.MergeSessionStats(importerRole, sessionStats)
-	})
-	if err != nil {
-		return err
-	}
-	return mergeErr
 }
 
 func getTableToUniqueIndexesMapFromMetaDB(exporterRole string) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {

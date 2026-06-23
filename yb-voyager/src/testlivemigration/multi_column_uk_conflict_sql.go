@@ -59,7 +59,7 @@ func multiColumnUniqueIndexConflictDeltaSQL(tableName string, withRegion bool, i
 				i INTEGER;
 			BEGIN
 				FOR i IN %d..%d LOOP
-						UPDATE %s SET updated_at = now() WHERE id = i - 1;
+						UPDATE %s SET updated_at = now() + interval '1 second' WHERE id = i - 1;
 						INSERT INTO %s(%s) VALUES(i, %s%d, i, now());
 
 						DELETE FROM %s WHERE id = i;
@@ -76,7 +76,7 @@ func multiColumnUniqueIndexConflictDeltaSQL(tableName string, withRegion bool, i
 				i INTEGER;
 			BEGIN
 				FOR i IN %d..%d LOOP
-						UPDATE %s SET updated_at = now() WHERE id = i - 1;
+						UPDATE %s SET updated_at = now() + interval '1 second' WHERE id = i - 1;
 						INSERT INTO %s(%s) VALUES(%s);
 
 						DELETE FROM %s WHERE id = i;
@@ -138,3 +138,23 @@ func multiColumnUniqueIndexConflictDeltaSQL(tableName string, withRegion bool, i
 	}
 	return blocks
 }
+
+// multiColumnUKFalsePositiveDeltaSQL returns delta SQL blocks that should not trigger
+// unique-key conflict detection (loops 21-1021).
+func multiColumnUKFalsePositiveDeltaSQL(tableName string, withRegion bool, idOffset int) []string {
+	all := multiColumnUniqueIndexConflictDeltaSQL(tableName, withRegion, idOffset)
+	return all[0:3]
+}
+
+// multiColumnUKTruePositiveDeltaSQL returns delta SQL blocks that should trigger
+// unique-key conflict detection (loops 1023+).
+func multiColumnUKTruePositiveDeltaSQL(tableName string, withRegion bool, idOffset int) []string {
+	all := multiColumnUniqueIndexConflictDeltaSQL(tableName, withRegion, idOffset)
+	return all[3:]
+}
+
+const (
+	multiColumnUKFalsePositiveChangesInserts = 3001
+	multiColumnUKFalsePositiveChangesUpdates = 1000
+	multiColumnUKFalsePositiveChangesDeletes = 2000
+)

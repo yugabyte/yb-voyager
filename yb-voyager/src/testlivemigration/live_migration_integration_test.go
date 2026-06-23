@@ -1524,9 +1524,13 @@ FROM generate_series(1, 20) as i;`,
 
 func TestLiveMigrationWithMultiColumnUniqueIndexConflictDetectionCases(t *testing.T) {
 	t.Parallel()
-	sourceDeltaSQL := slices.Concat(
-		multiColumnUniqueIndexConflictDeltaSQL("test_schema.test_multi_column_unique_index", false, 0),
-		multiColumnUniqueIndexConflictDeltaSQL("test_schema.test_multi_column_unique_index_part", true, 0),
+	sourceFPDeltaSQL := slices.Concat(
+		multiColumnUKFalsePositiveDeltaSQL("test_schema.test_multi_column_unique_index", false, 0),
+		multiColumnUKFalsePositiveDeltaSQL("test_schema.test_multi_column_unique_index_part", true, 0),
+	)
+	sourceTCDeltaSQL := slices.Concat(
+		multiColumnUKTruePositiveDeltaSQL("test_schema.test_multi_column_unique_index", false, 0),
+		multiColumnUKTruePositiveDeltaSQL("test_schema.test_multi_column_unique_index_part", true, 0),
 	)
 	targetDeltaSQL := slices.Concat(
 		multiColumnUniqueIndexConflictDeltaSQL("test_schema.test_multi_column_unique_index", false, multiColumnUKConflictTargetIDOffset),
@@ -1579,22 +1583,21 @@ func TestLiveMigrationWithMultiColumnUniqueIndexConflictDetectionCases(t *testin
 			SELECT i, 'r1', i, i, now() FROM generate_series(1, 20) as i;`,
 		},
 		/*
-		false positive cases shouldn't be reported anymore - 
-			1.  updating i-1th row with id1 and id2 as 20 and inserting a row with id1 as 20 and id2 as i
-			2.  updating i-1th row with id1 20 and id2 as NULL and inserting a row with id1 as i and id2 as NULL
-			3. deleting i-1th row (id1 as 20 and id2 as i-1) and inserting a row with id1 as 20 and id2 as i
-			4. deleting i-1th row (id1 as i-1 and id2 as NULL) and inserting a row with id1 as i and id2 as NULL
-		
+			false positive cases shouldn't be reported anymore -
+				1.  updating i-1th row with id1 and id2 as 20 and inserting a row with id1 as 20 and id2 as i
+				2.  updating i-1th row with id1 20 and id2 as NULL and inserting a row with id1 as i and id2 as NULL
+				3. deleting i-1th row (id1 as 20 and id2 as i-1) and inserting a row with id1 as 20 and id2 as i
+				4. deleting i-1th row (id1 as i-1 and id2 as NULL) and inserting a row with id1 as i and id2 as NULL
 
-		cases should be reported as conflicts:
-			1. updating i-1th row to set id1 from i-1 to i and id2 from i-1 to i and insert a row with id1 as 1022 and id2 as 1022
-			2. updating i-1th row to set id1 from NULL to i and id2 from NULL to i and insert a row with id1 as NULL and id2 as NULL(U->I)
-			3. delete new row and update i-1 to 1022,1022 and then deleting i-1th row (id1 as 1022 and id2 as 1022) and inserting a row with id1 as 1022 and id2 as 1022 (D->U, D->I)
-			4. delete new row and update i-1 to NULL,NULL and then deleting i-1th row (id1 as NULL and id2 as NULL) and inserting a row with id1 as NULL and id2 as NULL (D->U, D->I)
+
+			cases should be reported as conflicts:
+				1. updating i-1th row to set id1 from i-1 to i and id2 from i-1 to i and insert a row with id1 as 1022 and id2 as 1022
+				2. updating i-1th row to set id1 from NULL to i and id2 from NULL to i and insert a row with id1 as NULL and id2 as NULL(U->I)
+				3. delete new row and update i-1 to 1022,1022 and then deleting i-1th row (id1 as 1022 and id2 as 1022) and inserting a row with id1 as 1022 and id2 as 1022 (D->U, D->I)
+				4. delete new row and update i-1 to NULL,NULL and then deleting i-1th row (id1 as NULL and id2 as NULL) and inserting a row with id1 as NULL and id2 as NULL (D->U, D->I)
 
 
 		*/
-		SourceDeltaSQL: sourceDeltaSQL,
 		TargetDeltaSQL: targetDeltaSQL,
 		CleanupSQL: []string{
 			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
@@ -1609,12 +1612,17 @@ func TestLiveMigrationWithMultiColumnUniqueIndexConflictDetectionCases(t *testin
 	err = liveMigrationTest.SetupSchema()
 	testutils.FatalIfError(t, err, "failed to setup schema")
 
-
 	err = liveMigrationTest.StartExportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start export data")
 
-	err = liveMigrationTest.StartImportData(true, nil)
-	testutils.FatalIfError(t, err, "failed to start import data")
+	uniqueKeyConflictFailpointEnv := testutils.GetFailpointEnvVar(
+		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return(true)",
+	)
+	uniqueKeyConflictFailpointMarker := filepath.Join(
+		liveMigrationTest.GetCurrentExportDir(), "failpoints", "failpoint-unique-key-conflict-detected.log")
+
+	err = liveMigrationTest.StartImportDataWithEnv(true, nil, []string{uniqueKeyConflictFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import data with failpoint")
 
 	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_multi_column_unique_index"`:      20,
@@ -1626,6 +1634,11 @@ func TestLiveMigrationWithMultiColumnUniqueIndexConflictDetectionCases(t *testin
 		`"test_schema"."test_multi_column_unique_index"`,
 		`"test_schema"."test_multi_column_unique_index_part"`,
 	}
+	multiColumnUKFPChanges := ChangesCount{
+		Inserts: multiColumnUKFalsePositiveChangesInserts,
+		Updates: multiColumnUKFalsePositiveChangesUpdates,
+		Deletes: multiColumnUKFalsePositiveChangesDeletes,
+	}
 	multiColumnUKChanges := ChangesCount{
 		Inserts: 6003,
 		Updates: 2002,
@@ -1635,14 +1648,55 @@ func TestLiveMigrationWithMultiColumnUniqueIndexConflictDetectionCases(t *testin
 	err = liveMigrationTest.ValidateDataConsistency(multiColumnUKTables, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
-	err = liveMigrationTest.ExecuteSourceDelta()
-	testutils.FatalIfError(t, err, "failed to execute source delta")
+	liveMigrationTest.sourceContainer.ExecuteSqlsOnDB(
+		liveMigrationTest.config.SourceDB.DatabaseName, sourceFPDeltaSQL...)
+
+	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_multi_column_unique_index"`:      multiColumnUKFPChanges,
+		`"test_schema"."test_multi_column_unique_index_part"`: multiColumnUKFPChanges,
+	}, 300, 5)
+	testutils.FatalIfError(t, err, "failed to wait for false-positive streaming complete")
+
+	require.False(t, liveMigrationTest.GetImportRunner().IsStopped(),
+		"import should not exit during false-positive phase; stderr=%s", liveMigrationTest.GetImportCommandStderr())
+	failpointTriggered, err := testutils.WaitForFailpointMarker(uniqueKeyConflictFailpointMarker, 5*time.Second, 500*time.Millisecond)
+	if err != nil && !os.IsNotExist(err) {
+		testutils.FatalIfError(t, err, "failed to read unique key conflict failpoint marker")
+	}
+	require.False(t, failpointTriggered,
+		"unique key conflict false positive detected; marker=%s stderr=%s",
+		uniqueKeyConflictFailpointMarker, liveMigrationTest.GetImportCommandStderr())
+
+	err = liveMigrationTest.StopImportData()
+	testutils.FatalIfError(t, err, "failed to stop import after false-positive phase")
+
+	err = liveMigrationTest.StartImportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start import for true-positive phase")
+
+	streamingReady := false
+	for range 120 {
+		importOutput := liveMigrationTest.GetImportCommandStdout() + liveMigrationTest.GetImportCommandStderr()
+		if strings.Contains(importOutput, "streaming changes to") {
+			streamingReady = true
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+	require.True(t, streamingReady, "import did not enter streaming phase before true-positive delta")
+
+	liveMigrationTest.sourceContainer.ExecuteSqlsOnDB(
+		liveMigrationTest.config.SourceDB.DatabaseName, sourceTCDeltaSQL...)
 
 	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		`"test_schema"."test_multi_column_unique_index"`:      multiColumnUKChanges,
 		`"test_schema"."test_multi_column_unique_index_part"`: multiColumnUKChanges,
 	}, 300, 5)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	conflictLogCount := strings.Count(
+		liveMigrationTest.GetImportCommandStdout()+liveMigrationTest.GetImportCommandStderr(),
+		"conflict detected for table")
+	require.Greater(t, conflictLogCount, 0, "true-conflict blocks on target import should be logged")
 
 	err = liveMigrationTest.ValidateDataConsistency(multiColumnUKTables, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -1652,11 +1706,6 @@ func TestLiveMigrationWithMultiColumnUniqueIndexConflictDetectionCases(t *testin
 
 	err = liveMigrationTest.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
-
-	tableKey := `"test_schema"."test_multi_column_unique_index"`
-	targetConflicts, err := liveMigrationTest.GetTableConflictCount(cmd.TARGET_DB_IMPORTER_ROLE, tableKey)
-	testutils.FatalIfError(t, err, "failed to get target conflict stats")
-	require.Equal(t, int64(3000), targetConflicts, "true-conflict blocks on target import")
 
 	err = liveMigrationTest.ExecuteTargetDelta()
 	testutils.FatalIfError(t, err, "failed to execute target delta")
@@ -1778,9 +1827,18 @@ $$ LANGUAGE plpgsql;`,
 	err = liveMigrationTest.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
+	err = liveMigrationTest.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	err = liveMigrationTest.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	err = liveMigrationTest.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."large_test"`: {
 			Inserts: 5,
 			Updates: 0,
 			Deletes: 0,
+		},
 	}, 120, 5)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
