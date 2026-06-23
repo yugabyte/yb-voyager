@@ -685,11 +685,3 @@ func TestFilterByScopeEmptyInputReturnsEmpty(t *testing.T) {
 	assert.NotNil(t, got)
 	assert.Empty(t, got)
 }
-
-// TestFilterByScopeSequenceOwnedByTable was deleted.
-//
-// Reason: the test's entire premise was the SequenceAdded DiffType, which is not
-// emitted by V1 and has been removed from the DiffType vocabulary. There is no
-// meaningful rewrite using only kept (table/column) constants because the test
-// was specifically about SEQUENCE_* findings being classified as ObjectTypeSequence
-// (not ObjectTypeTable) even when their AnchorTable points to the owner table.
