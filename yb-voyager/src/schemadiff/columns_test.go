@@ -82,15 +82,15 @@ func TestDiffColumns_ColumnAdded(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
 	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
+	}
 	d := got[0]
 	if d.Type != ColumnAdded {
 		t.Errorf("expected ColumnAdded, got %v", d.Type)
 	}
 	if d.Object != ref("public", "orders") {
 		t.Errorf("expected Object=public.orders (parent table), got %v", d.Object)
-	}
-	if d.AnchorTable == nil || *d.AnchorTable != ref("public", "orders") {
-		t.Errorf("expected AnchorTable=public.orders, got %v", d.AnchorTable)
 	}
 	if d.SubObject != "email" {
 		t.Errorf("expected SubObject='email', got %q", d.SubObject)
@@ -116,15 +116,15 @@ func TestDiffColumns_ColumnDropped(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
 	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
+	}
 	d := got[0]
 	if d.Type != ColumnDropped {
 		t.Errorf("expected ColumnDropped, got %v", d.Type)
 	}
 	if d.Object != ref("public", "orders") {
 		t.Errorf("expected Object=public.orders, got %v", d.Object)
-	}
-	if d.AnchorTable == nil || *d.AnchorTable != ref("public", "orders") {
-		t.Errorf("expected AnchorTable=public.orders, got %v", d.AnchorTable)
 	}
 	if d.SubObject != "legacy_field" {
 		t.Errorf("expected SubObject='legacy_field', got %q", d.SubObject)
@@ -153,6 +153,9 @@ func TestDiffColumns_ColumnRenamed(t *testing.T) {
 	// Must have exactly ONE finding: ColumnNameChanged
 	if len(got) != 1 {
 		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
+	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
 	}
 	d := got[0]
 	if d.Type != ColumnNameChanged {
@@ -197,6 +200,9 @@ func TestDiffColumns_ColumnTypeChanged(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
 	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
+	}
 	d := got[0]
 	if d.Type != ColumnTypeChanged {
 		t.Errorf("expected ColumnTypeChanged, got %v", d.Type)
@@ -235,6 +241,9 @@ func TestDiffColumns_ColumnNullabilityChanged_FalseToTrue(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
 	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
+	}
 	d := got[0]
 	if d.Type != ColumnNullabilityChanged {
 		t.Errorf("expected ColumnNullabilityChanged, got %v", d.Type)
@@ -262,6 +271,9 @@ func TestDiffColumns_ColumnNullabilityChanged_TrueToFalse(t *testing.T) {
 	got := Diff(a, b)
 	if len(got) != 1 {
 		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
+	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
 	}
 	d := got[0]
 	if d.Type != ColumnNullabilityChanged {
@@ -292,6 +304,9 @@ func TestDiffColumns_ColumnDefaultChanged_SetToNew(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
 	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
+	}
 	d := got[0]
 	if d.Type != ColumnDefaultChanged {
 		t.Errorf("expected ColumnDefaultChanged, got %v", d.Type)
@@ -320,6 +335,9 @@ func TestDiffColumns_ColumnDefaultChanged_EmptyToSet(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
 	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
+	}
 	d := got[0]
 	if d.Type != ColumnDefaultChanged {
 		t.Errorf("expected ColumnDefaultChanged, got %v", d.Type)
@@ -338,6 +356,9 @@ func TestDiffColumns_ColumnDefaultChanged_SetToEmpty(t *testing.T) {
 	got := Diff(a, b)
 	if len(got) != 1 {
 		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
+	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
 	}
 	d := got[0]
 	if d.Type != ColumnDefaultChanged {
@@ -382,6 +403,9 @@ func TestDiffColumns_MultipleTablesSort(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("expected 2 differences, got %d: %v", len(got), got)
 	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
+	}
 
 	// After sort: alpha comes before zeta (Object.Name = "alpha" < "zeta")
 	if got[0].Object.Name != "alpha" {
@@ -401,6 +425,9 @@ func TestDiffColumns_MultipleTablesSort(t *testing.T) {
 	got2 := Diff(a2, b2)
 	if len(got2) != 2 {
 		t.Fatalf("expected 2 differences, got %d: %v", len(got2), got2)
+	}
+	for _, d := range got2 {
+		assertAnchoredToObject(t, d)
 	}
 	// aaa should come before zzz
 	if got2[0].SubObject != "aaa" {
@@ -445,6 +472,9 @@ func TestDiffColumns_DifferentDatabaseType_RenameBecomesAddDrop(t *testing.T) {
 	// Must produce ColumnDropped(old_col) + ColumnAdded(new_col).
 	if len(got) != 2 {
 		t.Fatalf("expected 2 differences (ColumnDropped+ColumnAdded), got %d: %v", len(got), got)
+	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
 	}
 	var hasDropped, hasAdded bool
 	for _, d := range got {
@@ -492,6 +522,9 @@ func TestDiffColumns_IDEmptyFallback_MatchedByTableAndName(t *testing.T) {
 	if len(got2) != 1 {
 		t.Fatalf("expected 1 difference for empty-ID columns with type change, got %d: %v", len(got2), got2)
 	}
+	for _, d := range got2 {
+		assertAnchoredToObject(t, d)
+	}
 	if got2[0].Type != ColumnTypeChanged {
 		t.Errorf("expected ColumnTypeChanged, got %v", got2[0].Type)
 	}
@@ -527,6 +560,9 @@ func TestDiffColumns_UnstableIdentity_RenameBecomesAddDrop(t *testing.T) {
 	// Expect ColumnDropped(usr_name) + ColumnAdded(username) — no ColumnNameChanged.
 	if len(got) != 2 {
 		t.Fatalf("expected 2 differences (ColumnDropped+ColumnAdded), got %d: %v", len(got), got)
+	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
 	}
 	var hasDropped, hasAdded bool
 	for _, d := range got {
@@ -569,6 +605,9 @@ func TestDiff_TableAdded_SuppressesColumnAdds(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("expected 1 finding (TableAdded), got %d: %v", len(got), got)
 	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
+	}
 	if got[0].Type != TableAdded {
 		t.Errorf("expected TableAdded, got %v", got[0].Type)
 	}
@@ -597,6 +636,9 @@ func TestDiff_TableDropped_SuppressesColumnDrops(t *testing.T) {
 	// Must have exactly 1 finding: TABLE_DROPPED for public.orders
 	if len(got) != 1 {
 		t.Fatalf("expected 1 finding (TableDropped), got %d: %v", len(got), got)
+	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
 	}
 	if got[0].Type != TableDropped {
 		t.Errorf("expected TableDropped, got %v", got[0].Type)
@@ -629,6 +671,9 @@ func TestDiff_ColumnAddedToExistingTable_NotSuppressed(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("expected 1 finding (ColumnAdded for email), got %d: %v", len(got), got)
 	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
+	}
 	if got[0].Type != ColumnAdded {
 		t.Errorf("expected ColumnAdded, got %v", got[0].Type)
 	}
@@ -654,6 +699,9 @@ func TestDiff_ColumnDroppedFromExistingTable_NotSuppressed(t *testing.T) {
 	// Exactly one finding: COLUMN_DROPPED for email
 	if len(got) != 1 {
 		t.Fatalf("expected 1 finding (ColumnDropped for email), got %d: %v", len(got), got)
+	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
 	}
 	if got[0].Type != ColumnDropped {
 		t.Errorf("expected ColumnDropped, got %v", got[0].Type)
@@ -688,6 +736,9 @@ func TestDiff_TableDropped_PreservesOtherTableColumnChanges(t *testing.T) {
 	// Expect: TableDropped(x) + ColumnTypeChanged(y.val) — exactly 2 findings.
 	if len(got) != 2 {
 		t.Fatalf("expected 2 findings, got %d: %v", len(got), got)
+	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
 	}
 
 	var hasTableDropped, hasColTypeChanged bool
@@ -738,11 +789,106 @@ func TestDiffColumns_IDMatchTableRenamed_ObjectIsOldTable(t *testing.T) {
 	if len(got2) != 1 {
 		t.Fatalf("expected 1 difference, got %d: %v", len(got2), got2)
 	}
+	for _, d := range got2 {
+		assertAnchoredToObject(t, d)
+	}
 	d := got2[0]
 	if d.Object != ref("public", "old_table") {
 		t.Errorf("expected Object=public.old_table (side-A), got %v", d.Object)
 	}
-	if d.AnchorTable == nil || *d.AnchorTable != ref("public", "old_table") {
-		t.Errorf("expected AnchorTable=public.old_table (side-A), got %v", d.AnchorTable)
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Tests: hybrid ID-then-name matching for columns. A column whose stable ID is
+// present on one side but empty on the other must still be reconciled by name
+// (not surfaced as a spurious drop+add), while a genuine drop-and-recreate that
+// reuses the same table+name with a DIFFERENT id must stay an add+drop.
+// ──────────────────────────────────────────────────────────────────────────────
+
+// IDInAEmptyInB: same column (same table+name, type integer), ID "5:1" in A but
+// "" in B. The hybrid residue pass must reconcile them by name → 0 findings.
+func TestDiffColumns_HybridResidue_IDInAEmptyInB_Matched(t *testing.T) {
+	cA := makeColumn("public", "orders", "5:1", "qty", "integer")
+	cB := makeColumn("public", "orders", "", "qty", "integer")
+
+	a := snapWithColumns(cA)
+	b := snapWithColumns(cB)
+
+	got := Diff(a, b)
+	if len(got) != 0 {
+		t.Fatalf("expected 0 findings (column reconciled by name despite missing ID in B), got %d: %v", len(got), got)
+	}
+}
+
+// EmptyInAIDInB: symmetric — empty in A, ID in B → still reconciled by name → 0 findings.
+func TestDiffColumns_HybridResidue_EmptyInAIDInB_Matched(t *testing.T) {
+	cA := makeColumn("public", "orders", "", "qty", "integer")
+	cB := makeColumn("public", "orders", "5:1", "qty", "integer")
+
+	a := snapWithColumns(cA)
+	b := snapWithColumns(cB)
+
+	got := Diff(a, b)
+	if len(got) != 0 {
+		t.Fatalf("expected 0 findings (column reconciled by name despite missing ID in A), got %d: %v", len(got), got)
+	}
+}
+
+// MixedID with a type change: ID "5:1" in A, "" in B, type integer→bigint.
+// Reconciled by name AND the type change surfaces as exactly 1 ColumnTypeChanged.
+func TestDiffColumns_HybridResidue_MixedID_TypeChangeSurfaces(t *testing.T) {
+	cA := makeColumn("public", "orders", "5:1", "qty", "integer")
+	cB := makeColumn("public", "orders", "", "qty", "bigint")
+
+	a := snapWithColumns(cA)
+	b := snapWithColumns(cB)
+
+	got := Diff(a, b)
+	if len(got) != 1 {
+		t.Fatalf("expected exactly 1 finding (ColumnTypeChanged on reconciled column), got %d: %v", len(got), got)
+	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
+	}
+	if got[0].Type != ColumnTypeChanged {
+		t.Errorf("expected ColumnTypeChanged, got %v", got[0].Type)
+	}
+	if got[0].SubObject != "qty" {
+		t.Errorf("expected SubObject='qty', got %q", got[0].SubObject)
+	}
+	if got[0].Object != ref("public", "orders") {
+		t.Errorf("expected Object=public.orders, got %v", got[0].Object)
+	}
+}
+
+// DropRecreateSameNameDifferentID: same table+name, DIFFERENT non-empty IDs ("5:1"
+// vs "5:2"), matchByID on. These are genuinely different columns (drop-and-recreate)
+// and must NOT be collapsed — expect exactly ColumnDropped + ColumnAdded.
+func TestDiffColumns_HybridResidue_DropRecreateSameNameDifferentID_NotCollapsed(t *testing.T) {
+	cA := makeColumn("public", "orders", "5:1", "qty", "integer")
+	cB := makeColumn("public", "orders", "5:2", "qty", "integer")
+
+	a := snapWithColumns(cA)
+	b := snapWithColumns(cB)
+
+	got := Diff(a, b)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 findings (ColumnDropped + ColumnAdded for distinct IDs), got %d: %v", len(got), got)
+	}
+	for _, d := range got {
+		assertAnchoredToObject(t, d)
+	}
+	types := map[DiffType]int{}
+	for _, d := range got {
+		types[d.Type]++
+		if d.SubObject != "qty" {
+			t.Errorf("expected SubObject='qty', got %q", d.SubObject)
+		}
+		if d.Object != ref("public", "orders") {
+			t.Errorf("expected Object=public.orders, got %v", d.Object)
+		}
+	}
+	if types[ColumnDropped] != 1 || types[ColumnAdded] != 1 {
+		t.Errorf("expected exactly one ColumnDropped and one ColumnAdded, got %v", types)
 	}
 }
