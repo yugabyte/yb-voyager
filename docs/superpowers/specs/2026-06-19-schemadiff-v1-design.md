@@ -47,7 +47,7 @@ yb-voyager/src/schemadiff/
   diff.go        # Diff(a, b) orchestration, suppressLifecycleTableColumns, sort
   tables.go      # diffTables + table/link helpers
   columns.go     # diffColumns + column helpers
-  filter.go      # ObjectType, Scope, FilterByScope (+ DiffType→ObjectType map)
+  filter.go      # ObjectType, Scope, FilterByScope (ObjectType bucket comes from diffTypeDefs registry)
   differ.go      # Config, Differ façade (NewDiffer) over the pure functions
   *_test.go      # unit tests (hand-built); integration_test.go is //go:build integration
 ```
@@ -119,11 +119,11 @@ and `AnchorTable` points at the parent table.
 
 ## 6. DiffType enumeration (V1)
 
-Only the **15 V1-emitted** `DiffType` constants are declared in `diff.go` (the
+Only the **15 V1-emitted** `DiffType` constants are declared in `difftypes.go` (the
 broader vocabulary from `LIBRARY_DESIGN_V1.md` §7 is intentionally NOT declared yet
 — it is added incrementally as each object type becomes captured, to keep this PR
-minimal). The `filter.go` `DiffType → ObjectType` map covers exactly these 15 (all
-bucket to `ObjectTypeTable`), guarded by an exhaustiveness test.
+minimal). The `diffTypeDefs` registry covers exactly these 15 (all bucket to
+`ObjectTypeTable`), guarded by its exhaustiveness test.
 
 **Tables (emitted)**
 - `TABLE_ADDED` — `TableAdded`
@@ -159,6 +159,26 @@ finding is anchored to a *different table* (the child for `PARTITION_PARENT_CHAN
 just the child, or just the parent, must independently see the structural change that
 concerns that table. Each side is a distinct per-table fact.
 
+### DiffType registry and single `newDifference` constructor
+
+Each `DiffType` has exactly two static, per-type facts: the `ObjectType` bucket it belongs to (used by `FilterByScope`) and the canonical `Property` name it sets on a finding (empty for `*_ADDED` / `*_DROPPED` types, non-empty for every `*_CHANGED` type). Rather than scattering these as hand-typed string literals at every emit site, both facts live in a single registry in `difftypes.go`:
+
+```go
+type diffTypeDef struct {
+    ObjectType ObjectType // scope bucket used by FilterByScope
+    Property   string     // canonical property name; "" for *_ADDED / *_DROPPED
+}
+var diffTypeDefs = map[DiffType]diffTypeDef{ /* all 15 DiffTypes */ }
+```
+
+This registry replaces the former standalone `diffTypeObjectType` map — the `ObjectType` bucket now lives at `diffTypeDefs[t].ObjectType`. A single generic constructor builds **every** kind of finding — added, dropped, and changed alike — deriving `Property` from the registry:
+
+```go
+func newDifference(t DiffType, obj schemasnapshot.ObjectRef, anchorTable *schemasnapshot.ObjectRef, subObject string, oldVal, newVal any) Difference
+```
+
+It sets `Type`, `Object`, `AnchorTable`, `SubObject`, `Property` (from `diffTypeDefs[t].Property`), `OldValue`, and `NewValue` and returns the completed `Difference`. `anchorTable` is an explicit `*ObjectRef` parameter (nil-able): in V1 every finding anchors to its own object (a table to itself; a column to its parent table), so `anchorTable` always equals `obj` or the parent table — it looks redundant now. It is carried explicitly as a deliberate anti-YAGNI choice: future `INDEX_*` and owned-`SEQUENCE_*` findings have `obj` = the index/sequence while `anchorTable` = the host/owner table, and top-level view/function/type findings pass `nil`. Accepting the parameter now means those cases slot in without changing the signature or any call site's shape. The value is copied internally so `AnchorTable` never aliases caller or snapshot storage. A single exhaustiveness test guards the registry: every declared `DiffType` has an entry, every `*_CHANGED` type has a non-empty `Property`, and every `*_ADDED` / `*_DROPPED` type has an empty `Property`.
+
 ## 7. Diff algorithm
 
 `Diff(a, b)`:
@@ -181,11 +201,31 @@ concerns that table. Each side is a distinct per-table fact.
    `(Object.Schema, Object.Name, SubObject, Type, Property)`.
 
 **Identity / matching**
-- Matching is by stable ID (OID-based) when `SchemaSnapshot.StableIdentity` is true
-  (always true for PostgreSQL). ID matching is what surfaces a rename as a single
-  `*_NAME_CHANGED` event rather than an add+drop pair.
-- Fallback: if an ID is empty on either side, fall back to name matching for that
-  object (no rename recognition). Defensive; not expected for PostgreSQL.
+
+Both `diffTables` and `diffColumns` use a hybrid two-pass strategy:
+
+1. **ID pass** — when `a.DatabaseType == b.DatabaseType` and both snapshots have
+   `StableIdentity == true`, objects are matched by stable ID (OID for tables;
+   `{tableOID}:{attnum}` for columns). An object whose ID appears on one side but
+   not the other is *not* immediately emitted as dropped/added — it is placed into a
+   residue set for the name pass.
+2. **Name pass** — the residue (objects with no usable ID on either side, plus the
+   ID-unmatched fall-through from the first pass) is reconciled by qualified name
+   (`schema.name` for tables; `table.schema.name` for columns). A same-named residue
+   pair is treated as the same object only when the predicate
+   `nameMatchAllowed(matchByID, idA, idB) = !matchByID || idA == "" || idB == ""`
+   holds — i.e., when ID-matching is on, at least one side must lack an ID. Two
+   objects that both carry distinct real IDs are kept as a drop + add (a genuine
+   drop-and-recreate that happened to reuse the name).
+
+What this fixes: the previous spurious `*_DROPPED` + `*_ADDED` pair when a stable ID
+existed on one snapshot side but was absent on the other (partial / mixed identity) —
+the name pass now reconciles those as the same object.
+
+What this does not fix: if the source is dump/restored or otherwise recreated so that
+*every* OID changes, both sides carry distinct non-empty IDs and the guard keeps them
+as drop + add. A global "all IDs changed → fall back to name matching everywhere"
+heuristic is not built.
 
 **Purity**
 - `Diff` and `FilterByScope` never mutate their inputs and perform no I/O. Enforced
@@ -214,9 +254,9 @@ type Scope struct {
 }
 ```
 
-- `DiffType → ObjectType` map covers exactly the 15 declared DiffTypes (all →
-  `ObjectTypeTable`). An exhaustiveness test guards that every declared `DiffType`
-  has a mapping.
+- The `ObjectType` bucket for each `DiffType` comes from `diffTypeDefs[t].ObjectType`
+  (the registry described in §6). All 15 declared DiffTypes map to `ObjectTypeTable`.
+  The registry's exhaustiveness test guards that every declared `DiffType` has an entry.
 - The full six-value `ObjectType` enum **is** kept — it is the user-facing
   `--object-type-list` selector vocabulary the command needs, not output vocabulary.
   In V1 only `TABLE` matches an emitted diff; filtering by `INDEX`/`VIEW`/etc.
