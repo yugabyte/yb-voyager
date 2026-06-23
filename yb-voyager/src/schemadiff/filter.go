@@ -49,39 +49,6 @@ type Scope struct {
 	ExcludeObjectTypes []ObjectType
 }
 
-// diffTypeObjectType is an exhaustive mapping from every DiffType constant to
-// its ObjectType bucket for scope filtering. Only the V1-emitted DiffTypes are
-// present (tables and columns); all 15 map to ObjectTypeTable because columns
-// "ride with" their table and are not independently selectable.
-//
-// Note: the six ObjectType selector constants (ObjectTypeTable, ObjectTypeIndex,
-// ObjectTypeSequence, ObjectTypeView, ObjectTypeFunction, ObjectTypeType) remain
-// declared for the user-facing --object-type-list vocabulary. Only ObjectTypeTable
-// currently appears as a map value because V1 emits no index, sequence, view,
-// function, or type findings; selectors for those object types are kept so that
-// callers can meaningfully filter them in (with no matching findings) or out.
-var diffTypeObjectType = map[DiffType]ObjectType{
-	// ── TABLE ────────────────────────────────────────────────────────────────
-	TableAdded:               ObjectTypeTable,
-	TableDropped:             ObjectTypeTable,
-	TableNameChanged:         ObjectTypeTable,
-	TableSchemaChanged:       ObjectTypeTable,
-	TableKindChanged:         ObjectTypeTable,
-	PartitionParentChanged:   ObjectTypeTable,
-	PartitionChildrenChanged: ObjectTypeTable,
-	TableInheritsChanged:     ObjectTypeTable,
-	TableInheritedByChanged:  ObjectTypeTable,
-
-	// ── COLUMN ───────────────────────────────────────────────────────────────
-	// Columns "ride with" their parent table and are not independently selectable.
-	ColumnAdded:              ObjectTypeTable,
-	ColumnDropped:            ObjectTypeTable,
-	ColumnNameChanged:        ObjectTypeTable,
-	ColumnTypeChanged:        ObjectTypeTable,
-	ColumnNullabilityChanged: ObjectTypeTable,
-	ColumnDefaultChanged:     ObjectTypeTable,
-}
-
 // FilterByScope returns the subset of diffs that fall within the given scope.
 //
 // Filtering is pure: diffs and scope are never mutated and the returned slice
@@ -208,7 +175,7 @@ func passesObjectTypeFilter(d Difference, includeTypes map[ObjectType]struct{}) 
 	if len(includeTypes) == 0 {
 		return true
 	}
-	bucket := diffTypeObjectType[d.Type]
+	bucket := diffTypeDefs[d.Type].ObjectType
 	_, ok := includeTypes[bucket]
 	return ok
 }
@@ -219,7 +186,7 @@ func passesObjectTypeExcludeFilter(d Difference, excludeTypes map[ObjectType]str
 	if len(excludeTypes) == 0 {
 		return true
 	}
-	bucket := diffTypeObjectType[d.Type]
+	bucket := diffTypeDefs[d.Type].ObjectType
 	_, excluded := excludeTypes[bucket]
 	return !excluded
 }

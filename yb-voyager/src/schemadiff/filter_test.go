@@ -18,6 +18,7 @@ package schemadiff
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -65,22 +66,25 @@ func collectTypes(diffs []Difference) map[DiffType]bool {
 
 // ─── DiffType coverage ───────────────────────────────────────────────────────
 
-// TestDiffTypeObjectTypeMapIsExhaustive asserts that every DiffType constant
-// declared in diff.go appears in the diffTypeObjectType map. If a new constant
-// is added to diff.go without a corresponding map entry, this test fails.
+// TestDiffTypeDefsRegistryIsExhaustive asserts that every DiffType constant
+// declared in difftypes.go appears in the diffTypeDefs registry. If a new
+// constant is added to difftypes.go without a corresponding registry entry,
+// this test fails.
 //
-// The set of all DiffType constants is obtained by the same technique used in
-// similar exhaustiveness tests in the codebase: JSON-marshal every constant
-// that ships in this package. We enumerate them manually here because Go has
+// It also enforces a Property invariant: *_CHANGED DiffTypes must carry a
+// non-empty Property, and *_ADDED / *_DROPPED DiffTypes must carry an empty
+// Property.
+//
+// The set of all DiffType constants is enumerated manually here because Go has
 // no reflection-level "list all constants of type T" API; the list below must
-// stay in sync with diff.go.
-func TestDiffTypeObjectTypeMapIsExhaustive(t *testing.T) {
-	// allDiffTypes must list every DiffType constant from diff.go.
+// stay in sync with difftypes.go.
+func TestDiffTypeDefsRegistryIsExhaustive(t *testing.T) {
+	// allDiffTypes must list every DiffType constant from difftypes.go.
 	// Only the 15 V1-emitted constants (tables + columns) are declared.
 	// Keeping this in sync is enforced by the test itself: a constant absent
-	// from this slice AND absent from diffTypeObjectType passes silently — the
-	// failure only fires when a constant is here but not in the map. Developers
-	// should add to this slice whenever they add to diff.go.
+	// from this slice AND absent from diffTypeDefs passes silently — the
+	// failure only fires when a constant is here but not in the registry.
+	// Developers should add to this slice whenever they add to difftypes.go.
 	allDiffTypes := []DiffType{
 		// TABLE (9 constants)
 		TableAdded, TableDropped, TableNameChanged, TableSchemaChanged,
@@ -93,12 +97,27 @@ func TestDiffTypeObjectTypeMapIsExhaustive(t *testing.T) {
 
 	// Guard: the two lists must have the same length. If they diverge someone
 	// added a DiffType to one place but not the other.
-	assert.Equal(t, len(allDiffTypes), len(diffTypeObjectType),
-		"allDiffTypes and diffTypeObjectType have different lengths — when adding a DiffType constant, add it to BOTH the allDiffTypes slice in this test AND the diffTypeObjectType map in filter.go")
+	assert.Equal(t, len(allDiffTypes), len(diffTypeDefs),
+		"allDiffTypes and diffTypeDefs have different lengths — when adding a DiffType constant, add it to BOTH the allDiffTypes slice in this test AND the diffTypeDefs registry in difftypes.go")
 
 	for _, dt := range allDiffTypes {
-		_, ok := diffTypeObjectType[dt]
-		assert.True(t, ok, "DiffType %q is missing from diffTypeObjectType — add an entry in filter.go", dt)
+		def, ok := diffTypeDefs[dt]
+		assert.True(t, ok, "DiffType %q is missing from diffTypeDefs — add an entry in difftypes.go", dt)
+		if !ok {
+			continue
+		}
+
+		// Property invariant: *_CHANGED must have a non-empty Property;
+		// *_ADDED and *_DROPPED must have an empty Property.
+		s := string(dt)
+		switch {
+		case strings.HasSuffix(s, "_CHANGED"):
+			assert.NotEmpty(t, def.Property,
+				"DiffType %q is a *_CHANGED type but has an empty Property in diffTypeDefs — add the canonical property name", dt)
+		case strings.HasSuffix(s, "_ADDED"), strings.HasSuffix(s, "_DROPPED"):
+			assert.Empty(t, def.Property,
+				"DiffType %q is a *_ADDED/*_DROPPED type but has a non-empty Property %q in diffTypeDefs — *_ADDED/*_DROPPED findings carry no Property", dt, def.Property)
+		}
 	}
 }
 
