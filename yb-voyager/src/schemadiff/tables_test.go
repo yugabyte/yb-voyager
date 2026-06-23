@@ -571,3 +571,67 @@ func TestDiffTables_IDEmptyFallback_MatchedByName(t *testing.T) {
 		t.Errorf("expected Object=public.gone_table, got %v", d.Object)
 	}
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Test: link-change OldValue/NewValue slices are independent of the input
+// snapshots (a consumer mutating a returned []ObjectRef must not reach back
+// into the source snapshot's slice).
+// ──────────────────────────────────────────────────────────────────────────────
+
+func TestDiffTables_LinkSlicesAreDefensivelyCopied(t *testing.T) {
+	oldTbl := makeTable("70", "public", "t", schemasnapshot.TableKindPartitioned)
+	oldTbl.PartitionChildren = []schemasnapshot.ObjectRef{ref("public", "child1")}
+	oldTbl.InheritsFrom = []schemasnapshot.ObjectRef{ref("public", "parent_a")}
+	oldTbl.InheritedBy = []schemasnapshot.ObjectRef{ref("public", "sub_a")}
+
+	newTbl := makeTable("70", "public", "t", schemasnapshot.TableKindPartitioned)
+	newTbl.PartitionChildren = []schemasnapshot.ObjectRef{ref("public", "child1"), ref("public", "child2")}
+	newTbl.InheritsFrom = []schemasnapshot.ObjectRef{ref("public", "parent_a"), ref("public", "parent_b")}
+	newTbl.InheritedBy = []schemasnapshot.ObjectRef{ref("public", "sub_a"), ref("public", "sub_b")}
+
+	a := snapWithTables(oldTbl)
+	b := snapWithTables(newTbl)
+
+	got := Diff(a, b)
+	if len(got) != 3 {
+		t.Fatalf("expected 3 link-change findings, got %d: %v", len(got), got)
+	}
+
+	// Snapshot the source slices' first elements so we can detect write-through.
+	wantOldA := a.Tables[0].PartitionChildren[0]
+	wantNewB := b.Tables[0].PartitionChildren[0]
+	wantInhA := a.Tables[0].InheritsFrom[0]
+	wantInhB := b.Tables[0].InheritsFrom[0]
+	wantBesA := a.Tables[0].InheritedBy[0]
+	wantBesB := b.Tables[0].InheritedBy[0]
+
+	// Mutate every returned link slice's first element through the any-typed value.
+	for _, d := range got {
+		if s, ok := d.OldValue.([]schemasnapshot.ObjectRef); ok && len(s) > 0 {
+			s[0] = ref("MUTATED", "MUTATED")
+		}
+		if s, ok := d.NewValue.([]schemasnapshot.ObjectRef); ok && len(s) > 0 {
+			s[0] = ref("MUTATED", "MUTATED")
+		}
+	}
+
+	// The source snapshots must be untouched.
+	if a.Tables[0].PartitionChildren[0] != wantOldA {
+		t.Errorf("PartitionChildren OldValue aliased input: source A mutated to %v", a.Tables[0].PartitionChildren[0])
+	}
+	if b.Tables[0].PartitionChildren[0] != wantNewB {
+		t.Errorf("PartitionChildren NewValue aliased input: source B mutated to %v", b.Tables[0].PartitionChildren[0])
+	}
+	if a.Tables[0].InheritsFrom[0] != wantInhA {
+		t.Errorf("InheritsFrom OldValue aliased input: source A mutated to %v", a.Tables[0].InheritsFrom[0])
+	}
+	if b.Tables[0].InheritsFrom[0] != wantInhB {
+		t.Errorf("InheritsFrom NewValue aliased input: source B mutated to %v", b.Tables[0].InheritsFrom[0])
+	}
+	if a.Tables[0].InheritedBy[0] != wantBesA {
+		t.Errorf("InheritedBy OldValue aliased input: source A mutated to %v", a.Tables[0].InheritedBy[0])
+	}
+	if b.Tables[0].InheritedBy[0] != wantBesB {
+		t.Errorf("InheritedBy NewValue aliased input: source B mutated to %v", b.Tables[0].InheritedBy[0])
+	}
+}

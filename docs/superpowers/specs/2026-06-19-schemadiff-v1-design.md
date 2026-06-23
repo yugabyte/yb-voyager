@@ -105,9 +105,13 @@ type Difference struct {
     Property    string      // changed attribute name; "" for object-level findings
     OldValue    any         // structured old value (not a rendered string); nil where N/A
     NewValue    any         // structured new value; nil where N/A
-    Details     string      // optional human-readable summary
 }
 ```
+
+There is intentionally **no** `Details`/rendered-summary field: the engine emits
+structured values only (`OldValue`/`NewValue`), leaving human-readable rendering to
+the consumer (the command's report layer). A summary string here would be dead
+weight in the library — never produced and never read by the engine itself.
 
 `ObjectRef` is `schemasnapshot.ObjectRef` (`{Schema, Name}` with `String() => "schema.name"`).
 For a column finding, `Object` is the parent table's ref, `SubObject` is the column name,

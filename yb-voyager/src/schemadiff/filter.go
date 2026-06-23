@@ -89,19 +89,21 @@ var diffTypeObjectType = map[DiffType]ObjectType{
 // silent no-op — validation is the caller's responsibility.
 //
 // The algorithm (§8):
-//  1. Build a rename-alias map from TABLE_NAME_CHANGED findings so that a
-//     finding whose AnchorTable was itself renamed is kept when either the
-//     old or new table name appears in Tables / ExcludeTables.
+//  1. Build an identity-alias map from TABLE_NAME_CHANGED and TABLE_SCHEMA_CHANGED
+//     findings so that a finding whose AnchorTable was itself renamed and/or
+//     moved is kept when either the old or new catalog identifier appears in
+//     Tables / ExcludeTables.
 //  2. Apply ObjectTypes (include) — keep if list is empty or bucket is listed.
 //  3. Apply Tables (include) — keep if list is empty or AnchorTable matches.
 //     A nil AnchorTable never matches a non-empty Tables list.
 //  4. Apply ExcludeObjectTypes — drop if bucket is listed.
 //  5. Apply ExcludeTables — drop if AnchorTable matches; nil is never dropped.
 func FilterByScope(diffs []Difference, scope Scope) []Difference {
-	// Pre-pass: build a map from old table name → new table name and vice versa
-	// from TABLE_NAME_CHANGED findings. This implements the anchor-rename
-	// either-side rule: a finding whose AnchorTable was itself renamed is kept
-	// when either the old or the new name is in scope.
+	// Pre-pass: build a bidirectional alias map between each table's old and new
+	// catalog identifier from TABLE_NAME_CHANGED / TABLE_SCHEMA_CHANGED findings.
+	// This implements the anchor either-side rule: a finding whose AnchorTable was
+	// itself renamed and/or moved is kept when either the old or the new
+	// identifier is in scope.
 	//
 	// The map is keyed by the catalog identifier string (ObjectRef.String()).
 	tableRenameAliases := buildTableRenameAliases(diffs)
@@ -131,36 +133,68 @@ func FilterByScope(diffs []Difference, scope Scope) []Difference {
 	return out
 }
 
-// buildTableRenameAliases scans diffs for TABLE_NAME_CHANGED entries and
-// returns a map from each name to all its rename aliases so that either side
-// of a rename can stand in for the other during table-scope matching.
+// buildTableRenameAliases scans diffs for the findings that change a table's
+// catalog identity — TABLE_NAME_CHANGED (new name) and TABLE_SCHEMA_CHANGED (new
+// schema, i.e. SET SCHEMA) — and returns a map from each identifier to all the
+// identifiers it is aliased to, so either side of an identity change can stand
+// in for the other during table-scope matching (the either-side rule, §8).
 //
-// The map accumulates multiple aliases per name to handle rename chains such as
-// "users→customers" and "customers→clients" in a single diff set. Each name
-// maps to a slice of all names it is aliased to via rename findings.
+// A single table may change BOTH its name and schema in one interval. The diff
+// engine emits these as two separate findings that share the same side-A anchor
+// (compareMatchedTables builds both from the same base.Object). We therefore
+// group identity changes by the old ObjectRef and reconstruct the FULL new ref
+// by applying whichever of {schema, name} changed — never "old schema + new
+// name", which is not a real identity of the table on either side.
 //
-// Keys and values are ObjectRef.String() catalog identifiers.
+// The map accumulates multiple aliases per identifier (a []string) so rename
+// chains across distinct tables in one diff set (e.g. a→b and b→c) do not clobber
+// one another. Keys and values are ObjectRef.String() catalog identifiers.
 //
-// No-op renames (old == new) are skipped to avoid polluting the alias set.
+// No-op changes (old == new) are skipped to keep the alias set clean.
 func buildTableRenameAliases(diffs []Difference) map[string][]string {
-	aliases := make(map[string][]string)
+	// Group the per-attribute identity changes by the side-A (old) ref so a
+	// rename-and-move pair is recombined into one old→new mapping.
+	type identityChange struct {
+		oldRef    schemasnapshot.ObjectRef
+		newSchema string // "" => schema unchanged
+		newName   string // "" => name unchanged
+	}
+	changes := make(map[string]*identityChange)
+	at := func(old schemasnapshot.ObjectRef) *identityChange {
+		key := old.String()
+		c := changes[key]
+		if c == nil {
+			c = &identityChange{oldRef: old}
+			changes[key] = c
+		}
+		return c
+	}
 	for _, d := range diffs {
-		if d.Type != TableNameChanged {
-			continue
+		switch d.Type {
+		case TableNameChanged:
+			if newName, ok := d.NewValue.(string); ok && newName != "" {
+				at(d.Object).newName = newName
+			}
+		case TableSchemaChanged:
+			if newSchema, ok := d.NewValue.(string); ok && newSchema != "" {
+				at(d.Object).newSchema = newSchema
+			}
 		}
-		// Object is the side-A (old) schemasnapshot.ObjectRef for a NAME_CHANGED finding.
-		// NewValue carries the new name string.
-		newName, ok := d.NewValue.(string)
-		if !ok || newName == "" {
-			continue
+	}
+
+	aliases := make(map[string][]string)
+	for _, c := range changes {
+		newRef := c.oldRef
+		if c.newSchema != "" {
+			newRef.Schema = c.newSchema
 		}
-		oldID := d.Object.String()
-		// Construct the new ObjectRef identifier: same schema (schema didn't
-		// change here), different name.
-		newID := d.Object.Schema + "." + newName
-		// Skip no-op renames to keep the alias map clean.
+		if c.newName != "" {
+			newRef.Name = c.newName
+		}
+		oldID := c.oldRef.String()
+		newID := newRef.String()
 		if oldID == newID {
-			continue
+			continue // no-op
 		}
 		aliases[oldID] = append(aliases[oldID], newID)
 		aliases[newID] = append(aliases[newID], oldID)
@@ -196,10 +230,11 @@ func passesObjectTypeExcludeFilter(d Difference, excludeTypes map[ObjectType]str
 // Rules:
 //   - Empty includeTables → keep everything.
 //   - nil AnchorTable → never matches; drop when list is non-empty.
-//   - Non-nil AnchorTable → keep if the anchor or any of its rename aliases
+//   - Non-nil AnchorTable → keep if the anchor or any of its identity aliases
 //     appears in the list (either-side rule, §8). The alias map built from
-//     TABLE_NAME_CHANGED findings covers all either-side cases including the
-//     rename finding itself (old and new names are both recorded as aliases).
+//     TABLE_NAME_CHANGED / TABLE_SCHEMA_CHANGED findings covers all either-side
+//     cases including the change finding itself (old and new identifiers are
+//     both recorded as aliases).
 func passesTableIncludeFilter(d Difference, includeTables map[string]struct{}, aliases map[string][]string) bool {
 	if len(includeTables) == 0 {
 		return true
@@ -230,8 +265,9 @@ func passesTableIncludeFilter(d Difference, includeTables map[string]struct{}, a
 // Rules:
 //   - Empty excludeTables → keep everything.
 //   - nil AnchorTable → never excluded by this filter.
-//   - Non-nil AnchorTable → drop if the anchor or any rename alias is in the list.
-//     The alias map covers TABLE_NAME_CHANGED either-side matching automatically.
+//   - Non-nil AnchorTable → drop if the anchor or any identity alias is in the list.
+//     The alias map covers TABLE_NAME_CHANGED / TABLE_SCHEMA_CHANGED either-side
+//     matching automatically.
 func passesTableExcludeFilter(d Difference, excludeTables map[string]struct{}, aliases map[string][]string) bool {
 	if len(excludeTables) == 0 {
 		return true
@@ -278,9 +314,3 @@ func makeStringSet(ss []string) map[string]struct{} {
 	}
 	return m
 }
-
-// Ensure schemasnapshot is used (the import is needed for the Difference type
-// which uses schemasnapshot.ObjectRef). This blank identifier avoids an
-// "imported and not used" error if the compiler cannot infer usage from
-// indirect references.
-var _ *schemasnapshot.ObjectRef
