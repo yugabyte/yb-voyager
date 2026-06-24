@@ -124,6 +124,16 @@ func initSourceConfFromTargetConf(cmd *cobra.Command) error {
 	sourceDBConf := msr.SourceDBConf
 	targetConf := msr.TargetDBConf
 	source.DBType = targetConf.TargetDBType
+	if targetConf.TargetDBType == YUGABYTEDB_AMP {
+		// yb-amp's compute is a PostgreSQL server on the wire, with no YB
+		// gRPC/CDC-stream API. For the fall-back direction we therefore read
+		// change events from it through Voyager's PostgreSQL source pipeline
+		// (PostgresConnector + logical replication via pgoutput, standard
+		// replication slot / publication), exactly as from any Postgres
+		// source. Driving it as "postgresql" here selects that pipeline for
+		// the Debezium connector, srcdb driver, name registry, and SSL.
+		source.DBType = POSTGRESQL
+	}
 	source.Host = targetConf.Host
 	source.Port = targetConf.Port
 	source.User = targetConf.User

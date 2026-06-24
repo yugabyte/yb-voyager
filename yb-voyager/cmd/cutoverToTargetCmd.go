@@ -148,8 +148,12 @@ var cutoverToTargetCmd = &cobra.Command{
 				log.Infof("Migration workflow opted is live migration with fall-forward.")
 			}
 
-			// Validate YugabyteDB version for logical connector
-			if !useYBgRPCConnector {
+			// Validate YugabyteDB version for logical connector.
+			// yb-amp is a PostgreSQL-compatible compute whose fall-back CDC uses
+			// the standard PostgreSQL connector (not the YugabyteDB logical
+			// connector), so the YB-version gate does not apply to it.
+			isYBAmpTarget := msr.TargetDBConf != nil && msr.TargetDBConf.TargetDBType == YUGABYTEDB_AMP
+			if !bool(useYBgRPCConnector) && !isYBAmpTarget {
 				err = validateYBVersionForLogicalConnector(msr.TargetDBConf)
 				if err != nil {
 					utils.ErrExit("%w", err)
@@ -157,6 +161,8 @@ var cutoverToTargetCmd = &cobra.Command{
 			}
 			if useYBgRPCConnector {
 				utils.PrintAndLog("Using YB gRPC connector for export data from target")
+			} else if isYBAmpTarget {
+				utils.PrintAndLog("Using PostgreSQL connector for export data from target (yb-amp)")
 			} else {
 				utils.PrintAndLog("Using YB Logical Replication connector for export data from target")
 			}

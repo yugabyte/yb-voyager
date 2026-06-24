@@ -113,7 +113,9 @@ func getDebeziumValueConverterSuite(tconf tgtdb.TargetConf) (map[string]tgtdbsui
 			}
 		}
 		return oraValueConverterSuite, nil
-	case tgtdb.YUGABYTEDB, tgtdb.POSTGRESQL:
+	case tgtdb.YUGABYTEDB, tgtdb.POSTGRESQL, tgtdb.YUGABYTEDB_AMP:
+		// yb-amp is PostgreSQL-compatible; its CDC value formatting matches
+		// the PostgreSQL/YugabyteDB suite.
 		return tgtdbsuite.YBValueConverterSuite, nil
 	default:
 		return nil, goerrors.Errorf("no converter suite found for %s", tconf.TargetDBType)

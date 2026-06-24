@@ -782,6 +782,14 @@ func exportData() bool {
 					if err != nil {
 						utils.ErrExit("failed to delete stream id after data export: %w", err)
 					}
+				} else if source.DBType == POSTGRESQL {
+					// yb-amp target: the fall-back slot/publication are PostgreSQL
+					// objects on the yb-amp compute (stored in the YB* MSR fields).
+					fmt.Println("Deleting PostgreSQL replication slot and publication on target (yb-amp)...")
+					err = deleteTargetPGReplicationSlotAndPublication(msr.YBReplicationSlotName, msr.YBPublicationName, source)
+					if err != nil {
+						utils.ErrExit("failed to delete replication slot and publication after data export: %w", err)
+					}
 				} else {
 					fmt.Println("Deleting YB replication slot and publication...")
 					err = deleteYBReplicationSlotAndPublication(msr.YBReplicationSlotName, msr.YBPublicationName, source)
@@ -850,7 +858,12 @@ func startDebeziumAsPerExportTypeIfRequired(ctx context.Context, cancel context.
 		return fmt.Errorf("failed to prepare dbzm config: %w", err)
 	}
 	saveTableToUniqueKeyColumnsMapInMetaDB(finalTableList, leafPartitions)
-	if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
+	// For the target-exporter (fall-back) role the slot/publication is created
+	// in prepareDebeziumConfig (createTargetPGReplicationSlotAndPublication for
+	// yb-amp); the forward-source PG live-migration init below must not run for
+	// it (it is guarded by the global dataIsExported() and references the
+	// source-side slot, which does not exist on the yb-amp target).
+	if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) && !isTargetDBExporter(exporterRole) {
 		err = initPGLiveMigrationAndExportSnapshotIfRequired(ctx, cancel, finalTableList, tablesColumnList, leafPartitions, config)
 		if err != nil {
 			return fmt.Errorf("failed to export snapshot using pg_dump: %w", err)

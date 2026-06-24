@@ -731,6 +731,28 @@ func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {
 	deleteCDCStreamIDForEndMigration(tconf)
 }
 
+// deleteTargetPGReplicationSlotAndPublication drops the PostgreSQL logical
+// replication slot + publication created on a yb-amp target during fall-back.
+func deleteTargetPGReplicationSlotAndPublication(replicationSlotName string, publicationName string, source srcdb.Source) (err error) {
+	pgDB, ok := source.DB().(*srcdb.PostgreSQL)
+	if !ok {
+		return goerrors.Errorf("unable to cast source db to postgresql")
+	}
+	if replicationSlotName != "" {
+		log.Info("deleting replication slot on yb-amp target: ", replicationSlotName)
+		if err = pgDB.DropLogicalReplicationSlot(nil, replicationSlotName); err != nil {
+			return fmt.Errorf("dropping replication slot %q: %w", replicationSlotName, err)
+		}
+	}
+	if publicationName != "" {
+		log.Info("deleting publication on yb-amp target: ", publicationName)
+		if err = pgDB.DropPublication(publicationName); err != nil {
+			return fmt.Errorf("dropping publication %q: %w", publicationName, err)
+		}
+	}
+	return nil
+}
+
 func deleteYBReplicationSlotAndPublication(replicationSlotName string, publicationName string, source srcdb.Source) (err error) {
 	ybDB, ok := source.DB().(*srcdb.YugabyteDB)
 	if !ok {

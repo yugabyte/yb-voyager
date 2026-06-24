@@ -177,7 +177,12 @@ TODO: handle upgrade scenario for PG/Oracle pk->table change
 func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, string], error) {
 	tableToPartitioningStrategyMap := utils.NewStructMap[sqlname.NameTuple, string]()
 
-	if importerRole != TARGET_DB_IMPORTER_ROLE {
+	// yb-amp is a single-node PostgreSQL-compatible compute (no YB tablets /
+	// colocation), so like the PG/Oracle source/source-replica path it uses
+	// partition-by-table. This also avoids the YugabyteDB-only
+	// expression-unique-index detection below (getExpressionUniqueIndexTables
+	// requires a real *TargetYugabyteDB).
+	if importerRole != TARGET_DB_IMPORTER_ROLE || tconf.TargetDBType == YUGABYTEDB_AMP {
 		//For PG/ORacle source/source-replica, using partitioning by table since there won't be any huge difference in
 		// performance between the two strategies for single node databases like PG/Oracle
 		//and Parititon by table is better from data correctness perspective
@@ -395,7 +400,7 @@ func updateCallhomeImportPhase(event *tgtdb.Event) {
 
 func shouldFormatValues(event *tgtdb.Event) bool {
 	switch tconf.TargetDBType {
-	case YUGABYTEDB, POSTGRESQL:
+	case YUGABYTEDB, POSTGRESQL, YUGABYTEDB_AMP:
 		return event.Op == "u"
 	case ORACLE:
 		return true

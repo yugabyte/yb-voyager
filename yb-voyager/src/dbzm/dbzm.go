@@ -170,7 +170,12 @@ func (d *Debezium) Start() error {
 	}
 
 	var YB_OR_PG_CONNECTOR_PATH string
-	if isTargetDBExporter(d.ExporterRole) {
+	// yb-amp is exported (fall-back) as a PostgreSQL source (Config.SourceDBType
+	// == "postgresql") and its config uses the standard PostgresConnector, so it
+	// must load the pg-connector — not the yb-connector (which ships the
+	// YugabyteDBConnector class). Only a real YugabyteDB target exporter uses the
+	// YB connector dirs.
+	if isTargetDBExporter(d.ExporterRole) && d.Config.SourceDBType == "yugabytedb" {
 		if !d.Config.UseYBgRPCConnector {
 			// In case of logical replication connector we need the path /opt/yb-voyager/debezium-server/yb-connector
 			YB_OR_PG_CONNECTOR_PATH = filepath.Join(DEBEZIUM_DIST_DIR, "yb-connector")

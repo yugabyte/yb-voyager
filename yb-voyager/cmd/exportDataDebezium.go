@@ -180,9 +180,19 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		}
 	} else if isTargetDBExporter(exporterRole) {
 		if !msr.UseYBgRPCConnector {
-			err = createYBReplicationSlotAndPublication(tableList, leafPartitions)
+			// Create the logical replication slot + publication on the DB being
+			// exported from (the migration target). For a real YugabyteDB target
+			// this uses the YB driver; for yb-amp it is a PostgreSQL-compatible
+			// compute (source.DBType==postgresql), so use the PostgreSQL driver.
+			// Both store the slot/publication in the YB* MSR fields, which the
+			// target-exporter path treats as "the fall-back slot".
+			if source.DBType == POSTGRESQL {
+				err = createTargetPGReplicationSlotAndPublication(tableList, leafPartitions)
+			} else {
+				err = createYBReplicationSlotAndPublication(tableList, leafPartitions)
+			}
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to create yb replication slot and publication: %w", err)
+				return nil, nil, fmt.Errorf("failed to create replication slot and publication: %w", err)
 			}
 
 			msr, err := metaDB.GetMigrationStatusRecord()
@@ -632,6 +642,46 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 	}
 	dfd.Save()
 	return nil
+}
+
+// createTargetPGReplicationSlotAndPublication creates a PostgreSQL logical
+// replication slot + publication on the migration target when that target is
+// yb-amp (a PostgreSQL-compatible compute exported via source.DBType==postgresql).
+// It mirrors createYBReplicationSlotAndPublication but uses the PostgreSQL
+// driver, and stores the names in the same YB* MSR fields the target-exporter
+// path reads from.
+func createTargetPGReplicationSlotAndPublication(tableList []sqlname.NameTuple, leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) error {
+	pgDB, ok := source.DB().(*srcdb.PostgreSQL)
+	if !ok {
+		return errors.New("unable to cast source DB to PostgreSQL for yb-amp target export")
+	}
+	replicationConn, err := pgDB.GetReplicationConnection()
+	if err != nil {
+		return fmt.Errorf("create replication connection to yb-amp: %w", err)
+	}
+	defer func() {
+		if cerr := replicationConn.Close(context.Background()); cerr != nil {
+			log.Errorf("close replication connection: %v", cerr)
+		}
+	}()
+
+	publicationName := "voyager_dbz_publication_" + strings.ReplaceAll(migrationUUID.String(), "-", "_")
+	if err := pgDB.CreatePublication(replicationConn, publicationName, tableList, true, leafPartitions); err != nil {
+		return fmt.Errorf("create publication on yb-amp: %w", err)
+	}
+	replicationSlotName := fmt.Sprintf("voyager_%s", strings.ReplaceAll(migrationUUID.String(), "-", "_"))
+	res, err := pgDB.CreateLogicalReplicationSlot(replicationConn, replicationSlotName, true)
+	if err != nil {
+		return fmt.Errorf("create replication slot on yb-amp: %w", err)
+	}
+	yellowBold := color.New(color.FgYellow, color.Bold)
+	utils.PrintAndLog(yellowBold.Sprintf("Created replication slot '%s' on the yb-amp target. "+
+		"Be sure to run 'initiate cutover to source' or 'end migration' afterwards to drop it.", replicationSlotName))
+
+	return metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.YBReplicationSlotName = res.SlotName
+		record.YBPublicationName = publicationName
+	})
 }
 
 func createYBReplicationSlotAndPublication(tableList []sqlname.NameTuple, leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) error {
