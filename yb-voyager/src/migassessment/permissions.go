@@ -162,7 +162,7 @@ func detectPgssOnReplicaNode(source *srcdb.Source, replica srcdb.ReplicaEndpoint
 
 	replicaDB, ok := replicaSource.DB().(*srcdb.PostgreSQL)
 	if !ok {
-		return false, fmt.Errorf("not a PostgreSQL source")
+		return false, goerrors.Errorf("not a PostgreSQL source")
 	}
 	if err := replicaDB.Connect(); err != nil {
 		return false, fmt.Errorf("failed to connect: %w", err)
