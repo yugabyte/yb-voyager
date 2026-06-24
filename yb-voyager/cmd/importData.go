@@ -115,8 +115,15 @@ var importDataCmd = &cobra.Command{
 		if importerRole == "" {
 			importerRole = TARGET_DB_IMPORTER_ROLE
 		}
+		validateTargetDBTypeFlag()
 		if tconf.AdaptiveParallelismMode == "" {
 			tconf.AdaptiveParallelismMode = types.BalancedAdaptiveParallelismMode
+		}
+		// yb-amp's PostgreSQL compute exposes no YB-cluster control API
+		// (yb_servers(), tserver metrics), so adaptive parallelism does not
+		// apply — force it off regardless of the requested/default mode.
+		if tconf.TargetDBType == YUGABYTEDB_AMP {
+			tconf.AdaptiveParallelismMode = types.DisabledAdaptiveParallelismMode
 		}
 
 		err := retrieveMigrationUUID()
@@ -1568,13 +1575,11 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 	concurrentBatchProductionSem := semaphore.NewWeighted(int64(maxConcurrentBatchProductions))
 
 	var taskPicker FileTaskPicker
-	var yb *tgtdb.TargetYugabyteDB
-	var ok bool
-	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
-		yb, ok = tdb.(*tgtdb.TargetYugabyteDB)
-		if !ok {
-			return goerrors.Errorf("expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
-		}
+	// The colocation-aware task picker only applies to a real YugabyteDB
+	// target. yb-amp (PostgreSQL-compatible, no colocation/tablets) and the
+	// PG fall-forward/back roles use the sequential picker instead.
+	yb, isYB := tdb.(*tgtdb.TargetYugabyteDB)
+	if (importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE) && isYB {
 		taskPicker, err = NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress, maxColocatedBatchesInProgress, pendingTasks, state, yb, colocatedBatchImportQueue, tableTypes)
 		if err != nil {
 			return fmt.Errorf("create colocated aware randmo task picker: %w", err)
@@ -1676,6 +1681,12 @@ func getTableTypes(tasks []*ImportFileTask) (*utils.StructMap[sqlname.NameTuple,
 	if !slices.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, importerRole) {
 		return nil, nil
 	}
+	// Colocation is a YugabyteDB-only concept. yb-amp uses plain PostgreSQL
+	// heap storage and the sequential task picker, which does not consult
+	// table types — so there is nothing to compute here.
+	if tconf.TargetDBType == YUGABYTEDB_AMP {
+		return nil, nil
+	}
 
 	tableTypes := utils.NewStructMap[sqlname.NameTuple, string]()
 	yb, ok := tdb.(YbTargetDBColocatedChecker)
@@ -1718,7 +1729,11 @@ func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchI
 	var err error
 	var batchProducer FileBatchProducer
 
-	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
+	// tableTypes (the colocation map) is only populated for a real YugabyteDB
+	// target. For yb-amp (PostgreSQL-compatible, no colocation) and the PG
+	// fall-forward/back roles it is nil, so they take the plain sequential
+	// importer path below.
+	if (importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE) && tableTypes != nil {
 		tableType, ok := tableTypes.Get(task.TableNameTup)
 		if !ok {
 			return nil, goerrors.Errorf("table type not found for table: %s", task.TableNameTup.ForOutput())
@@ -1756,6 +1771,12 @@ func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchI
 
 func startMonitoringTargetYBHealth() error {
 	if !slices.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, importerRole) {
+		return nil
+	}
+	// yb-amp's PostgreSQL compute has no YB-cluster health API (node /
+	// disk-usage / replication metrics live in the storage tier, not the
+	// compute), so target health monitoring does not apply.
+	if tconf.TargetDBType == YUGABYTEDB_AMP {
 		return nil
 	}
 	if skipNodeHealthChecks && skipDiskUsageHealthChecks && skipReplicationChecks {
@@ -2183,7 +2204,7 @@ func getTargetSchemaName(tableName string) string {
 	if len(parts) == 2 {
 		return parts[0]
 	}
-	if tconf.TargetDBType == POSTGRESQL {
+	if tconf.TargetDBType == POSTGRESQL || tconf.TargetDBType == YUGABYTEDB_AMP {
 		defaultSchema, noDefaultSchema := GetDefaultPGSchema(tconf.Schemas)
 		if noDefaultSchema {
 			utils.ErrExit("no default schema for table: %q ", tableName)

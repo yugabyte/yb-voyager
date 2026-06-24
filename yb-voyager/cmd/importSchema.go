@@ -56,6 +56,7 @@ var importSchemaCmd = &cobra.Command{
 		if importerRole == "" {
 			importerRole = TARGET_DB_IMPORTER_ROLE
 		}
+		validateTargetDBTypeFlag()
 
 		err := retrieveMigrationUUID()
 		if err != nil {

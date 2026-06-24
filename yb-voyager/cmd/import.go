@@ -199,6 +199,10 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 }
 
 func registerTargetDBConnFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&tconf.TargetDBType, "target-db-type", "",
+		fmt.Sprintf("type of the target database to import into. Supported values: %s (default), %s (YugabyteDB AMP — a PostgreSQL-compatible compute over YugabyteDB storage)",
+			YUGABYTEDB, YUGABYTEDB_AMP))
+
 	cmd.Flags().StringVar(&tconf.Host, "target-db-host", "127.0.0.1",
 		"host on which the YugabyteDB server is running")
 
@@ -412,6 +416,10 @@ func validateTargetPortRange() {
 			tconf.Port = YUGABYTEDB_YSQL_DEFAULT_PORT
 		} else if tconf.TargetDBType == POSTGRESQL {
 			tconf.Port = POSTGRES_DEFAULT_PORT
+		} else if tconf.TargetDBType == YUGABYTEDB_AMP {
+			// yb-amp compute endpoints are assigned deployment-specific ports
+			// (there is no canonical default like YSQL's 5433), so require it.
+			utils.ErrExit("--target-db-port is required for --target-db-type %s (yb-amp compute endpoints use deployment-specific ports)", YUGABYTEDB_AMP)
 		}
 		return
 	}
@@ -432,17 +440,36 @@ func validateTargetSchemaFlag() {
 	}
 
 	if tconf.SchemaConfig == "" {
-		if tconf.TargetDBType == YUGABYTEDB {
+		if tconf.TargetDBType == YUGABYTEDB || tconf.TargetDBType == YUGABYTEDB_AMP {
+			// yb-amp follows the PostgreSQL/YugabyteDB convention: default
+			// schema is "public" and PG-source schemas are preserved.
 			tconf.SchemaConfig = YUGABYTEDB_DEFAULT_SCHEMA
 		} else if tconf.TargetDBType == ORACLE {
 			tconf.SchemaConfig = tconf.User
 		}
 		return
-	} else if tconf.TargetDBType != POSTGRESQL {
+	} else if tconf.TargetDBType != POSTGRESQL && tconf.TargetDBType != YUGABYTEDB_AMP {
 		splits := strings.Split(tconf.SchemaConfig, ",")
 		if len(splits) > 1 {
 			utils.ErrExit("Error --target-db-schema flag can only contain one schema name. Got: %s", tconf.SchemaConfig)
 		}
+	}
+}
+
+// validateTargetDBTypeFlag ensures --target-db-type holds a value that is
+// supported for import-to-target. Fall-forward / fall-back roles derive
+// TargetDBType from the source DB type (oracle/postgresql/yugabytedb), so
+// this guardrail only applies to the target-import roles.
+func validateTargetDBTypeFlag() {
+	if importerRole != TARGET_DB_IMPORTER_ROLE && importerRole != IMPORT_FILE_ROLE {
+		return
+	}
+	switch tconf.TargetDBType {
+	case YUGABYTEDB, YUGABYTEDB_AMP:
+		// supported target types for import-to-target
+	default:
+		utils.ErrExit("unsupported --target-db-type %q for import to target. Supported values: %s, %s",
+			tconf.TargetDBType, YUGABYTEDB, YUGABYTEDB_AMP)
 	}
 }
 

@@ -220,6 +220,17 @@ func shouldSkipDDL(stmt string, objType string) (bool, error) {
 		return true, nil
 	}
 
+	// yb-amp is a PostgreSQL-compatible compute and does not recognize
+	// YugabyteDB-specific GUCs. The schema optimizer emits statements like
+	// `SET yb_use_hash_splitting_by_default TO ON` to steer YB sharding;
+	// those parameters don't exist on yb-amp's PG17 and would abort the
+	// import. Strip every `SET yb_*` so the remaining DDL applies as plain
+	// PostgreSQL (heap tables, no sharding clauses).
+	if tconf.TargetDBType == YUGABYTEDB_AMP && strings.HasPrefix(strings.TrimSpace(stmt), "SET YB_") {
+		log.Infof("Skipping YugabyteDB-specific session variable for yb-amp target: %s", stmt)
+		return true, nil
+	}
+
 	if objType != TABLE {
 		return false, nil
 	}
