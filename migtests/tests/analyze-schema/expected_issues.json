@@ -228,7 +228,7 @@
             "Suggestion": "remove \"temporary\" and change it to \"drop table\"",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/705",
             "MinimumVersionsFixedIn": null
-        }, 
+        },
         {
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
@@ -563,12 +563,16 @@
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "table_1",
-            "Reason": "Table inheritance is not yet supported in YugabyteDB.",
+            "Reason": "Table inheritance is not yet supported in YugabyteDB. This feature is available as Tech Preview (TP) in the target version (2025.2.3.0) — subject to change and not covered by SLA, and is not enabled by default. Enable with the flag(s): ysql_enable_inheritance.",
             "SqlStatement": "CREATE TABLE table_1 () INHERITS (xyz);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "Suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "MinimumVersionsFixedInTP": {
+                "2025.1": "2025.1.0.0",
+                "2025.2": "2025.2.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
@@ -1702,160 +1706,6 @@
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/24843",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_plpgsql_objects",
-            "ObjectType": "FUNCTION",
-            "ObjectName": "public.get_employeee_salary",
-            "Reason": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
-            "SqlStatement": "employees.salary%TYPE",
-            "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_plpgsql_objects",
-            "ObjectType": "FUNCTION",
-            "ObjectName": "calculate_tax",
-            "Reason": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
-            "SqlStatement": "employees.tax_rate%TYPE",
-            "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_plpgsql_objects",
-            "ObjectType": "FUNCTION",
-            "ObjectName": "log_salary_change",
-            "Reason": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
-            "SqlStatement": "employees.salary%TYPE",
-            "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_plpgsql_objects",
-            "ObjectType": "FUNCTION",
-            "ObjectName": "log_salary_change",
-            "Reason": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
-            "SqlStatement": "employees.salary%TYPE",
-            "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_plpgsql_objects",
-            "ObjectType": "FUNCTION",
-            "ObjectName": "get_employee_details",
-            "Reason": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
-            "SqlStatement": "employees.name%TYPE",
-            "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_plpgsql_objects",
-            "ObjectType": "FUNCTION",
-            "ObjectName": "get_employee_details",
-            "Reason": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
-            "SqlStatement": "employees.id%TYPE",
-            "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_plpgsql_objects",
-            "ObjectType": "FUNCTION",
-            "ObjectName": "list_high_earners",
-            "Reason": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
-            "SqlStatement": "employees.name%TYPE",
-            "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_plpgsql_objects",
-            "ObjectType": "FUNCTION",
-            "ObjectName": "list_high_earners",
-            "Reason": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
-            "SqlStatement": "employees.salary%TYPE",
-            "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_plpgsql_objects",
-            "ObjectType": "FUNCTION",
-            "ObjectName": "copy_high_earners",
-            "Reason": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
-            "SqlStatement": "employees.salary%TYPE",
-            "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_plpgsql_objects",
-            "ObjectType": "PROCEDURE",
-            "ObjectName": "update_salary",
-            "Reason": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
-            "SqlStatement": "employees.salary%TYPE",
-            "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_plpgsql_objects",
-            "ObjectType": "PROCEDURE",
-            "ObjectName": "get_employee_details_proc",
-            "Reason": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
-            "SqlStatement": "employees.name%TYPE",
-            "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_plpgsql_objects",
-            "ObjectType": "PROCEDURE",
-            "ObjectName": "get_employee_details_proc",
-            "Reason": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
-            "SqlStatement": "employees.id%TYPE",
-            "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_plpgsql_objects",
-            "ObjectType": "PROCEDURE",
-            "ObjectName": "get_employee_details_proc",
-            "Reason": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
-            "SqlStatement": "employees.salary%TYPE",
-            "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_plpgsql_objects",
-            "ObjectType": "FUNCTION",
-            "ObjectName": "get_employee_details",
-            "Reason": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
-            "SqlStatement": "public.employees.name%TYPE",
-            "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
         {

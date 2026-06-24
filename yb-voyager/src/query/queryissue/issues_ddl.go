@@ -1829,24 +1829,15 @@ var inheritanceIssue = issue.Issue{
 	Description: INHERITANCE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/YugaByte/yugabyte-db/issues/1129",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
+	MinimumVersionsFixedInTP: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
+	},
+	EnablingFlags: []string{"ysql_enable_inheritance"},
 }
 
 func NewInheritanceIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	return newQueryIssue(inheritanceIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
-}
-
-var percentTypeSyntax = issue.Issue{
-	Type:        REFERENCED_TYPE_DECLARATION,
-	Name:        "Referencing type declaration of variables",
-	Impact:      constants.IMPACT_LEVEL_1,
-	Description: REFERENCED_TYPE_DECLARATION_ISSUE_DESCRIPTION,
-	Suggestion:  REFERENCED_TYPE_DECLARATION_ISSUE_SUGGESTION,
-	GH:          "https://github.com/yugabyte/yugabyte-db/issues/23619",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
-}
-
-func NewPercentTypeSyntaxIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(percentTypeSyntax, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var securityInvokerViewIssue = issue.Issue{

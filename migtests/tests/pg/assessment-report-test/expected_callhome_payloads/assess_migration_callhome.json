@@ -1287,24 +1287,6 @@
       {
         "category": "unsupported_plpgsql_objects",
         "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
-        "impact": "LEVEL_1",
-        "name": "Referencing type declaration of variables",
-        "object_name": "",
-        "object_type": "FUNCTION",
-        "type": "REFERENCED_TYPE_DECLARATION"
-      },
-      {
-        "category": "unsupported_plpgsql_objects",
-        "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
-        "impact": "LEVEL_1",
-        "name": "Referencing type declaration of variables",
-        "object_name": "",
-        "object_type": "PROCEDURE",
-        "type": "REFERENCED_TYPE_DECLARATION"
-      },
-      {
-        "category": "unsupported_plpgsql_objects",
-        "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
         "impact": "LEVEL_2",
         "name": "Events Listen / Notify",
         "object_name": "",
@@ -2367,7 +2349,7 @@
           "TotalCount": 2
         },
         {
-          "InvalidCount": 1,
+          "InvalidCount": 0,
           "ObjectNames": "",
           "ObjectType": "PROCEDURE",
           "TotalCount": 3
@@ -2409,7 +2391,7 @@
           "TotalCount": 10
         },
         {
-          "InvalidCount": 6,
+          "InvalidCount": 5,
           "ObjectNames": "",
           "ObjectType": "FUNCTION",
           "TotalCount": 19

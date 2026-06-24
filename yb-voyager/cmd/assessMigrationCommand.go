@@ -970,14 +970,14 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueDes
 			link = analyzeIssue.DocsLink
 			objects = append(objects, objectInfo)
 			issueDescription = analyzeIssue.Reason
-			assessmentReport.AppendIssues(convertAnalyzeSchemaIssueToAssessmentIssue(analyzeIssue, minVersionsFixedIn))
+			assessmentReport.AppendIssues(convertAnalyzeSchemaIssueToAssessmentIssue(analyzeIssue))
 		}
 	}
 
 	return UnsupportedFeature{featureName, objects, displayDDLInHTML, link, issueDescription, minVersionsFixedIn}
 }
 
-func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.AnalyzeSchemaIssue, minVersionsFixedIn map[string]*ybversion.YBVersion) AssessmentIssue {
+func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.AnalyzeSchemaIssue) AssessmentIssue {
 	return AssessmentIssue{
 		Category:            analyzeSchemaIssue.IssueType,
 		CategoryDescription: GetCategoryDescription(analyzeSchemaIssue.IssueType),
@@ -988,14 +988,16 @@ func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.Analyze
 		// and we don't use any Suggestion field in AssessmentIssue. Combination of Description + DocsLink should be enough
 		Description: lo.Ternary(analyzeSchemaIssue.Suggestion == "", analyzeSchemaIssue.Reason, utils.JoinSentences(analyzeSchemaIssue.Reason, analyzeSchemaIssue.Suggestion)),
 
-		Impact:                 analyzeSchemaIssue.Impact,
-		ObjectType:             analyzeSchemaIssue.ObjectType,
-		ObjectName:             analyzeSchemaIssue.ObjectName,
-		ObjectUsage:            analyzeSchemaIssue.ObjectUsage,
-		SqlStatement:           analyzeSchemaIssue.SqlStatement,
-		DocsLink:               analyzeSchemaIssue.DocsLink,
-		MinimumVersionsFixedIn: minVersionsFixedIn,
-		Details:                analyzeSchemaIssue.Details,
+		Impact:                   analyzeSchemaIssue.Impact,
+		ObjectType:               analyzeSchemaIssue.ObjectType,
+		ObjectName:               analyzeSchemaIssue.ObjectName,
+		ObjectUsage:              analyzeSchemaIssue.ObjectUsage,
+		SqlStatement:             analyzeSchemaIssue.SqlStatement,
+		DocsLink:                 analyzeSchemaIssue.DocsLink,
+		MinimumVersionsFixedIn:   analyzeSchemaIssue.MinimumVersionsFixedIn,
+		MinimumVersionsFixedInTP: analyzeSchemaIssue.MinimumVersionsFixedInTP,
+		MinimumVersionsFixedInEA: analyzeSchemaIssue.MinimumVersionsFixedInEA,
+		Details:                  analyzeSchemaIssue.Details,
 	}
 }
 
@@ -1230,7 +1232,7 @@ func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []U
 				SqlStatement: issue.SqlStatement,
 			})
 			docsLink = issue.DocsLink
-			assessmentReport.AppendIssues(convertAnalyzeSchemaIssueToAssessmentIssue(issue, issue.MinimumVersionsFixedIn))
+			assessmentReport.AppendIssues(convertAnalyzeSchemaIssueToAssessmentIssue(issue))
 		}
 		feature := UnsupportedFeature{
 			FeatureName:            issueName,
@@ -1309,15 +1311,17 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 			result = append(result, uqc)
 
 			assessmentReport.AppendIssues(AssessmentIssue{
-				Category:               UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY,
-				CategoryDescription:    GetCategoryDescription(UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY),
-				Type:                   issue.Type,
-				Name:                   issue.Name,
-				Impact:                 issue.Impact,
-				Description:            issue.Description,
-				SqlStatement:           issue.SqlStatement,
-				DocsLink:               issue.DocsLink,
-				MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,
+				Category:                 UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY,
+				CategoryDescription:      GetCategoryDescription(UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY),
+				Type:                     issue.Type,
+				Name:                     issue.Name,
+				Impact:                   issue.Impact,
+				Description:              issue.Description,
+				SqlStatement:             issue.SqlStatement,
+				DocsLink:                 issue.DocsLink,
+				MinimumVersionsFixedIn:   issue.MinimumVersionsFixedIn,
+				MinimumVersionsFixedInTP: issue.MinimumVersionsFixedInTP,
+				MinimumVersionsFixedInEA: issue.MinimumVersionsFixedInEA,
 			})
 		}
 	}
@@ -1457,13 +1461,16 @@ func addAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 }
 
 func checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue queryissue.QueryIssue) {
-	fixed, err := queryIssue.IsFixedIn(targetDbVersion)
+	// Drop an issue only when the feature is GA in the target version. Issues that are
+	// only Tech Preview / Early Access in the target are retained and reported with
+	// their maturity annotation (added in convertIssueInstanceToAnalyzeIssue).
+	maturity, err := queryIssue.GetMaturityInTarget(targetDbVersion)
 	if err != nil {
-		log.Warnf("checking if issue %v is supported: %v", queryIssue, err)
+		log.Warnf("checking maturity of issue %v in target version: %v", queryIssue, err)
 	}
-	if !fixed {
+	if maturity != constants.MATURITY_GA {
 		convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryIssue, "", false, false)
-		issue := convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue, queryIssue.MinimumVersionsFixedIn)
+		issue := convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue)
 		assessmentReport.AppendIssues(issue)
 	}
 }
@@ -1755,7 +1762,7 @@ func generateAssessmentReportJson(reportDir string) error {
 			- Displays a summary row with key information (category, name, object/SQL preview, impact).
 			- Allows expanding to show detailed information, including category description, object type/name, SQL statement, supported versions, description, documentation link, and additional details.
 		- Handles cases where no issues are found, displaying an appropriate message.
-		- Utilizes helper functions such as `filterOutPerformanceOptimizationIssues`, `getPerformanceOptimizationIssues`, `snakeCaseToTitleCase`, `camelCaseToTitleCase`, and `getSupportedVersionString` for data formatting and filtering.
+		- Utilizes helper functions such as `filterOutPerformanceOptimizationIssues`, `getPerformanceOptimizationIssues`, `snakeCaseToTitleCase`, `camelCaseToTitleCase`, and `getSupportedVersions` for data formatting and filtering.
 
 		Usage:
 		------
@@ -1822,7 +1829,7 @@ func generateAssessmentReportHtml(reportDir string) error {
 		"numKeysInMapStringObjectInfo":           numKeysInMapStringObjectInfo,
 		"groupByObjectName":                      groupByObjectName,
 		"totalUniqueObjectNamesOfAllTypes":       totalUniqueObjectNamesOfAllTypes,
-		"getSupportedVersionString":              getSupportedVersionString,
+		"getSupportedVersions":                   queryissue.GetSupportedVersions,
 		"snakeCaseToTitleCase":                   utils.SnakeCaseToTitleCase,
 		"camelCaseToTitleCase":                   utils.CamelCaseToTitleCase,
 		"getSqlPreview":                          utils.GetSqlStmtToPrint,
@@ -1945,20 +1952,6 @@ func filterNotesByType(notes []NoteInfo, noteType NoteType) []NoteInfo {
 		}
 	}
 	return filtered
-}
-
-func getSupportedVersionString(minimumVersionsFixedIn map[string]*ybversion.YBVersion) string {
-	if minimumVersionsFixedIn == nil {
-		return ""
-	}
-	supportedVersions := []string{}
-	for series, minVersionFixedIn := range minimumVersionsFixedIn {
-		if minVersionFixedIn == nil {
-			continue
-		}
-		supportedVersions = append(supportedVersions, fmt.Sprintf(">=%s (%s series)", minVersionFixedIn.String(), series))
-	}
-	return strings.Join(supportedVersions, ", ")
 }
 
 func validateSourceDBTypeForAssessMigration() {

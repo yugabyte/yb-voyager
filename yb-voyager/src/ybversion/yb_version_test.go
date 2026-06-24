@@ -86,3 +86,18 @@ func TestStableOldReleaseType(t *testing.T) {
 		assert.Equal(t, STABLE_OLD, ybVersion.ReleaseType())
 	}
 }
+
+func TestSeriesVersion(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"2025.2.3", "2025.2.0.0"},   // 3-segment connector token: counter dropped, series kept
+		{"2025.2", "2025.2.0.0"},     // 2-segment: already just series, padded
+		{"2025.2.5.0", "2025.2.0.0"}, // 4-segment server version: everything after TRACK dropped
+		{"2.25.2.0", "2.25.0.0"},     // preview series: everything after TRACK dropped
+	}
+	for _, tt := range tests {
+		assert.Equal(t, tt.expected, SeriesVersion(tt.input))
+	}
+}

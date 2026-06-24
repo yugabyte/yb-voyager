@@ -22,6 +22,7 @@ import (
 
 	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
+	"github.com/mattn/go-isatty"
 	log "github.com/sirupsen/logrus"
 	"github.com/tebeka/atexit"
 )
@@ -30,11 +31,41 @@ var originalErrExit func(formatString string, args ...interface{})
 
 var ErrExitErr error
 
+// errorColor renders fatal errors in red on stderr. fatih/color's global
+// NoColor is derived from stdout, so it cannot decide coloring for stderr on its
+// own: when stdout is a TTY but stderr is redirected (e.g. `yb-voyager ... 2>
+// err.log`), it would still emit ANSI escape codes into the file. We therefore
+// disable color when stderr itself is not a TTY.
+var errorColor = func() *color.Color {
+	c := color.New(color.FgRed)
+	if !isatty.IsTerminal(os.Stderr.Fd()) && !isatty.IsCygwinTerminal(os.Stderr.Fd()) {
+		c.DisableColor()
+	}
+	return c
+}()
+
 var ErrExit = func(formatString string, args ...interface{}) {
 	ErrExitErr = goerrors.Errorf(formatString, args...)
 	formatString = strings.Replace(formatString, "%w", "%s", -1)
+	message := fmt.Sprintf(formatString, args...)
+	// Console: render the error in red so failures stand out and visually match
+	// the red "✗" markers printed by the progress/preflight UX. errorColor
+	// degrades to plain text automatically when stderr is not a TTY or color is
+	// globally disabled. color.Error is the colorable stderr writer, so ANSI is
+	// translated correctly on Windows too.
+	errorColor.Fprintln(color.Error, message) // Log file: keep plain text only (never embed ANSI escape codes in logs).
+	log.Error(message)
+	atexit.Exit(1)
+}
+
+// ErrExitPreLog prints the message to stderr and exits with status 1.
+// Use it instead of ErrExit when logging has not been initialized yet (e.g. flag
+// validation that runs before InitLogging(), or when logging init itself fails).
+// It deliberately does not call log.Errorf: doing so before logging is redirected
+// to the log file would print the message twice (once here and again via logrus's
+// default stderr output).
+var ErrExitPreLog = func(formatString string, args ...interface{}) {
 	fmt.Fprintf(os.Stderr, formatString+"\n", args...)
-	log.Errorf(formatString+"\n", args...)
 	atexit.Exit(1)
 }
 

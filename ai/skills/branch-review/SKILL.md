@@ -115,7 +115,14 @@ Evaluate every change against:
 
 ### Step 5: Present findings
 
-Group findings by severity:
+Group findings by severity. Keep every finding pragmatic — no fluff. Each finding must use these bullet points, in this order:
+
+- Problem/Suggestion: <the issue or recommendation, if any>
+- Code line: <file:line of the failing/affected code>
+- Failure Code Case: <the case that breaks, if any>
+- Suggested Code Change: <the concrete fix; if any code is being suggested, give it in a fenced code block>
+
+Omit a bullet's value only when it genuinely does not apply (e.g. "if any" parts); never pad with restatements, praise, or generic advice.
 
 #### Critical — Must fix before merge
 Issues that cause bugs, security holes, or data loss.
@@ -123,7 +130,10 @@ Issues that cause bugs, security holes, or data loss.
 Format:
 ```
 **[CRITICAL]** `file:line` — Brief description
-> Explanation of the issue and suggested fix
+- Problem/Suggestion: ...
+- Code line: ...
+- Failure Code Case: ...
+- Suggested Code Change: ...
 ```
 
 #### Warning — Should fix
@@ -132,7 +142,10 @@ Issues that may cause problems or hurt maintainability.
 Format:
 ```
 **[WARNING]** `file:line` — Brief description
-> Explanation and recommendation
+- Problem/Suggestion: ...
+- Code line: ...
+- Failure Code Case: ...
+- Suggested Code Change: ...
 ```
 
 #### Suggestion — Nice to have
@@ -141,7 +154,10 @@ Style improvements, minor refactors, optional enhancements.
 Format:
 ```
 **[SUGGESTION]** `file:line` — Brief description
-> Rationale
+- Problem/Suggestion: ...
+- Code line: ...
+- Failure Code Case: ...
+- Suggested Code Change: ...
 ```
 
 ### Step 6: Summary

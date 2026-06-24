@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
@@ -122,4 +123,57 @@ func TestIssueFixedFalseWhenMinimumNotSpecified(t *testing.T) {
 		// If the minimum fixed version is not specified, the issue is not fixed in any version.
 		assert.Falsef(t, fixed, "comparing ybv %s to fixed should be false", ybVersion)
 	}
+}
+
+func TestGetMaturityInTarget(t *testing.T) {
+	// A feature that is TP in 2024.2, EA in 2025.1, and GA in 2025.2.
+	issue := Issue{
+		Type: "SOME_FEATURE",
+		MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+			ybversion.SERIES_2025_2: ybversion.V2025_2_0_0, // GA
+		},
+		MinimumVersionsFixedInEA: map[string]*ybversion.YBVersion{
+			ybversion.SERIES_2025_1: ybversion.V2025_1_0_0, // EA
+		},
+		MinimumVersionsFixedInTP: map[string]*ybversion.YBVersion{
+			ybversion.SERIES_2024_2: ybversion.V2024_2_0_0, // TP
+		},
+	}
+
+	cases := map[string]string{
+		"2024.1.0.0": constants.MATURITY_UNSUPPORTED, // before any maturity
+		"2024.2.0.0": constants.MATURITY_TP,          // TP series
+		"2024.2.5.0": constants.MATURITY_TP,
+		"2025.1.0.0": constants.MATURITY_EA, // EA series
+		"2025.2.0.0": constants.MATURITY_GA, // GA series
+		"2025.2.3.0": constants.MATURITY_GA,
+	}
+	for v, expected := range cases {
+		ybVersion, err := ybversion.NewYBVersion(v)
+		assert.NoError(t, err)
+		maturity, err := issue.GetMaturityInTarget(ybVersion)
+		assert.NoError(t, err)
+		assert.Equalf(t, expected, maturity, "maturity for target %s", v)
+	}
+}
+
+func TestGetMaturityInTargetPrecedenceGAOverEAOverTP(t *testing.T) {
+	// Same series qualifies at all three maturities; highest (GA) must win.
+	issue := Issue{
+		Type: "SOME_FEATURE",
+		MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+			ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		},
+		MinimumVersionsFixedInEA: map[string]*ybversion.YBVersion{
+			ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		},
+		MinimumVersionsFixedInTP: map[string]*ybversion.YBVersion{
+			ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		},
+	}
+	ybVersion, err := ybversion.NewYBVersion("2025.1.0.0")
+	assert.NoError(t, err)
+	maturity, err := issue.GetMaturityInTarget(ybVersion)
+	assert.NoError(t, err)
+	assert.Equal(t, constants.MATURITY_GA, maturity)
 }

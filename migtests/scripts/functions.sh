@@ -1527,7 +1527,10 @@ normalize_callhome_json() {
             .db_id = "IGNORED" |
             .schema_oids = "IGNORED" |
             .target_db_details = "IGNORED" |
-            .total_db_size_bytes = "IGNORED"
+            .total_db_size_bytes = "IGNORED" |
+            .source_only_queries? |= (if type == "number" and . > 0 then "GT_ZERO" else . end) |
+            .target_only_queries? |= (if type == "number" and . > 0 then "GT_ZERO" else . end) |
+            .total_queries? |= (if type == "number" and . > 0 then "GT_ZERO" else . end)
         elif type == "array" then
 			sort_by(tostring)
         elif type == "string" and (

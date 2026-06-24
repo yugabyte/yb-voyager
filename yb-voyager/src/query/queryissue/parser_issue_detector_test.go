@@ -28,6 +28,8 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
@@ -311,9 +313,6 @@ func TestAllIssues(t *testing.T) {
 	parserIssueDetector := NewParserIssueDetector()
 	stmtsWithExpectedIssues := map[string][]QueryIssue{
 		stmt1: []QueryIssue{
-			NewPercentTypeSyntaxIssue("FUNCTION", "list_high_earners", "public.emp1.salary%TYPE"),
-			NewPercentTypeSyntaxIssue("FUNCTION", "list_high_earners", "employees.name%TYPE"),
-			NewPercentTypeSyntaxIssue("FUNCTION", "list_high_earners", "employees.salary%TYPE"),
 			NewClusterONIssue("TABLE", "employees", "ALTER TABLE employees CLUSTER ON idx;"),
 			NewAdvisoryLocksIssue("DML_QUERY", "", "SELECT pg_advisory_unlock(sender_id);"),
 			NewAdvisoryLocksIssue("DML_QUERY", "", "SELECT pg_advisory_unlock(receiver_id);"),
@@ -321,7 +320,6 @@ func TestAllIssues(t *testing.T) {
 			NewXmaxSystemColumnIssue("DML_QUERY", "", "SELECT * FROM employees e WHERE e.xmax = (SELECT MAX(xmax) FROM employees WHERE department = e.department);"),
 		},
 		stmt2: []QueryIssue{
-			NewPercentTypeSyntaxIssue("FUNCTION", "process_order", "orders.id%TYPE"),
 			NewStorageParameterIssue("TABLE", "public.example", "ALTER TABLE ONLY public.example ADD CONSTRAINT example_email_key UNIQUE (email) WITH (fillfactor=70);"),
 			NewMultiColumnGinIndexIssue("INDEX", "idx_example ON example_table", "CREATE INDEX idx_example ON example_table USING gin(name, name1);"),
 			NewUnsupportedGistIndexMethodIssue("INDEX", "idx_example ON schema1.example_table", "CREATE INDEX idx_example ON schema1.example_table USING gist(name);"),
@@ -690,6 +688,9 @@ $$ LANGUAGE plpgsql;
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
+			if g := CheckIssueSupportMaturityInTDBVersion(expectedIssue, ybversion.V2024_2_3_1); g != "" {
+				expectedIssue.Description = utils.JoinSentences(expectedIssue.Description, g)
+			}
 			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
 				return cmp.Equal(expectedIssue, queryIssue)
 			})
@@ -869,6 +870,9 @@ JSON_TABLE(data, '$.skills[*]'
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
+			if g := CheckIssueSupportMaturityInTDBVersion(expectedIssue, ybversion.V2024_2_3_1); g != "" {
+				expectedIssue.Description = utils.JoinSentences(expectedIssue.Description, g)
+			}
 			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
 				return cmp.Equal(expectedIssue, queryIssue)
 			})
@@ -988,6 +992,9 @@ FROM test_jsonb1;`,
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
+			if g := CheckIssueSupportMaturityInTDBVersion(expectedIssue, ybversion.V2024_2_3_1); g != "" {
+				expectedIssue.Description = utils.JoinSentences(expectedIssue.Description, g)
+			}
 			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
 				return cmp.Equal(expectedIssue, queryIssue)
 			})
@@ -1044,6 +1051,9 @@ $$ LANGUAGE plpgsql;`,
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
+			if g := CheckIssueSupportMaturityInTDBVersion(expectedIssue, ybversion.V2024_2_3_1); g != "" {
+				expectedIssue.Description = utils.JoinSentences(expectedIssue.Description, g)
+			}
 			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
 				return cmp.Equal(expectedIssue, queryIssue)
 			})
@@ -1136,6 +1146,9 @@ func TestFetchWithTiesInSelect(t *testing.T) {
 
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
+			if g := CheckIssueSupportMaturityInTDBVersion(expectedIssue, ybversion.V2024_2_3_1); g != "" {
+				expectedIssue.Description = utils.JoinSentences(expectedIssue.Description, g)
+			}
 			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
 				return cmp.Equal(expectedIssue, queryIssue)
 			})
@@ -1416,6 +1429,9 @@ $func$;`,
 
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
+			if g := CheckIssueSupportMaturityInTDBVersion(expectedIssue, ybversion.V2024_2_3_1); g != "" {
+				expectedIssue.Description = utils.JoinSentences(expectedIssue.Description, g)
+			}
 			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
 				return cmp.Equal(expectedIssue, queryIssue)
 			})
@@ -1474,6 +1490,10 @@ func TestDatabaseOptions(t *testing.T) {
 
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
+
+			if g := CheckIssueSupportMaturityInTDBVersion(expectedIssue, ybversion.V2024_2_3_1); g != "" {
+				expectedIssue.Description = utils.JoinSentences(expectedIssue.Description, g)
+			}
 			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
 				return cmp.Equal(expectedIssue, queryIssue)
 			})
@@ -1536,6 +1556,9 @@ $$ LANGUAGE plpgsql;`,
 
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
+			if g := CheckIssueSupportMaturityInTDBVersion(expectedIssue, ybversion.V2024_2_3_1); g != "" {
+				expectedIssue.Description = utils.JoinSentences(expectedIssue.Description, g)
+			}
 			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
 				return cmp.Equal(expectedIssue, queryIssue)
 			})
@@ -1747,6 +1770,9 @@ func TestTimestampOrDateHotspotsIssues(t *testing.T) {
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
+			if g := CheckIssueSupportMaturityInTDBVersion(expectedIssue, ybversion.V2024_2_3_1); g != "" {
+				expectedIssue.Description = utils.JoinSentences(expectedIssue.Description, g)
+			}
 			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
 				return cmp.Equal(expectedIssue, queryIssue)
 			})
@@ -2764,4 +2790,117 @@ func TestRecommendedSqlMultipleIssues(t *testing.T) {
 	t.Logf("Recommended SQL: %s", freqRecommended)
 
 	assert.Equal(t, "CREATE INDEX idx_combined ON public.test_combined USING btree (status) WHERE status <> 'active' AND status IS NOT NULL;", freqRecommended)
+}
+
+func TestGetSupportedVersions(t *testing.T) {
+	gaMap := map[string]*ybversion.YBVersion{ybversion.SERIES_2025_2: ybversion.V2025_2_0_0}
+	eaMap := map[string]*ybversion.YBVersion{ybversion.SERIES_2025_1: ybversion.V2025_1_0_0}
+	tpMap := map[string]*ybversion.YBVersion{ybversion.SERIES_2024_2: ybversion.V2024_2_0_0}
+
+	// All three tiers, deterministic (sorted) output. GA is untagged; TP/EA are tagged.
+	assert.Equal(t,
+		">=2024.2.0.0 (2024.2 series) (TP), >=2025.1.0.0 (2025.1 series) (EA), >=2025.2.0.0 (2025.2 series)",
+		GetSupportedVersions(gaMap, eaMap, tpMap))
+
+	// Only an EA entry.
+	assert.Equal(t, ">=2025.1.0.0 (2025.1 series) (EA)", GetSupportedVersions(nil, eaMap, nil))
+
+	// All empty -> empty string.
+	assert.Equal(t, "", GetSupportedVersions(nil, nil, nil))
+}
+
+func TestBuildExperimentalMaturityAnnotation(t *testing.T) {
+	v := ybversion.V2025_2_0_0
+
+	// TP, with flags.
+	assert.Equal(t,
+		fmt.Sprintf("This feature is available as Tech Preview (TP) in the target version (2025.2.0.0) — %s, and is not enabled by default. Enable with the flag(s): yb_enable_foo=true, yb_bar=64.", constants.TP_MATURITY_CAVEAT),
+		buildExperimentalMaturityAnnotation(constants.MATURITY_TP, v, []string{"yb_enable_foo=true", "yb_bar=64"}))
+
+	// EA, no flags -> no "Enable with" sentence.
+	assert.Equal(t,
+		fmt.Sprintf("This feature is available as Early Access (EA) in the target version (2025.2.0.0) — %s, and is not enabled by default.", constants.EA_MATURITY_CAVEAT),
+		buildExperimentalMaturityAnnotation(constants.MATURITY_EA, v, nil))
+
+	// Non-experimental maturities produce no annotation.
+	assert.Empty(t, buildExperimentalMaturityAnnotation(constants.MATURITY_GA, v, nil))
+	assert.Empty(t, buildExperimentalMaturityAnnotation(constants.MATURITY_UNSUPPORTED, v, nil))
+}
+
+func TestBuildNativeResolutionRecommendation(t *testing.T) {
+	flags := []string{"yb_enable_derived_saops=true", "yb_max_saop_merge_streams=64"}
+
+	// Resolution is TP in the target version.
+	assert.Equal(t,
+		fmt.Sprintf("Consider using bucket-based indexes — available as Tech Preview (TP) in the target version (2025.2.1.0) — %s, and is not enabled by default. Enable with the flag(s): yb_enable_derived_saops=true, yb_max_saop_merge_streams=64.", constants.TP_MATURITY_CAVEAT),
+		buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_TP, ybversion.V2025_2_1_0, "", flags))
+
+	// Resolution not in target yet, but available later (UNSUPPORTED maturity + supportedVersions).
+	assert.Equal(t,
+		"Consider using bucket-based indexes — available in >=2025.2.1.0 (2025.2 series) (TP). Enable with the flag(s): yb_enable_derived_saops=true, yb_max_saop_merge_streams=64.",
+		buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_UNSUPPORTED, ybversion.V2024_2_0_0, ">=2025.2.1.0 (2025.2 series) (TP)", flags))
+
+	// No resolution name, or unsupported with no later versions -> empty.
+	assert.Empty(t, buildNativeResolutionRecommendation("", constants.MATURITY_TP, ybversion.V2025_2_1_0, "", flags))
+	assert.Empty(t, buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_UNSUPPORTED, ybversion.V2024_2_0_0, "", flags))
+}
+
+func TestCheckIssueSupportMaturityInTDBVersionFeature(t *testing.T) {
+	// Unsupported feature that is Tech Preview in the 2025.2 target version, behind a flag.
+	qi := QueryIssue{
+		Issue: issue.Issue{
+			Type:          "SOME_TP_FEATURE",
+			Name:          "Some TP Feature",
+			Description:   "Base description.",
+			Impact:        constants.IMPACT_LEVEL_1,
+			EnablingFlags: []string{"yb_enable_some_tp_feature=true"},
+			MinimumVersionsFixedInTP: map[string]*ybversion.YBVersion{
+				ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
+			},
+		},
+		ObjectType: "TABLE",
+		ObjectName: "public.t",
+	}
+
+	// TP-in-target -> experimental annotation (composed via the same helper).
+	assert.Equal(t,
+		buildExperimentalMaturityAnnotation(constants.MATURITY_TP, ybversion.V2025_2_0_0, []string{"yb_enable_some_tp_feature=true"}),
+		CheckIssueSupportMaturityInTDBVersion(qi, ybversion.V2025_2_0_0))
+
+	// No target version -> nothing to add.
+	assert.Empty(t, CheckIssueSupportMaturityInTDBVersion(qi, nil))
+}
+
+func TestCheckIssueSupportMaturityInTDBVersionPerf(t *testing.T) {
+	// A performance optimization whose native resolution (bucket-based indexes) is TP in 2025.2.1;
+	// the resolution name is seeded in InternalDetails.
+	newQi := func() QueryIssue {
+		return QueryIssue{
+			Issue: issue.Issue{
+				Type:        HOTSPOTS_ON_DATE_INDEX,
+				Name:        "Hotspots with range sharded on date datatype index",
+				Description: "Base perf description.",
+				Impact:      constants.IMPACT_LEVEL_1,
+				MinimumVersionsFixedInTP: map[string]*ybversion.YBVersion{
+					ybversion.SERIES_2025_2: ybversion.V2025_2_1_0,
+				},
+				EnablingFlags: []string{"yb_enable_derived_saops=true", "yb_max_saop_merge_streams=64"},
+			},
+			ObjectType:      "INDEX",
+			ObjectName:      "idx_x ON public.t",
+			InternalDetails: map[string]interface{}{RECOMMENDED_RESOLUTION: "bucket-based indexes"},
+		}
+	}
+	flags := []string{"yb_enable_derived_saops=true", "yb_max_saop_merge_streams=64"}
+	supportedVersions := ">=2025.2.1.0 (2025.2 series) (TP)"
+
+	// Resolution available (TP) in the target version: native-resolution recommendation.
+	assert.Equal(t,
+		buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_TP, ybversion.V2025_2_1_0, supportedVersions, flags),
+		CheckIssueSupportMaturityInTDBVersion(newQi(), ybversion.V2025_2_1_0))
+
+	// Older target: resolution not in target yet, recommendation lists where it lands.
+	assert.Equal(t,
+		buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_UNSUPPORTED, ybversion.V2024_2_0_0, supportedVersions, flags),
+		CheckIssueSupportMaturityInTDBVersion(newQi(), ybversion.V2024_2_0_0))
 }

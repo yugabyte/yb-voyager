@@ -19,6 +19,7 @@ package queryissue
 import (
 	"fmt"
 	"slices"
+	"sort"
 	"strings"
 
 	goerrors "github.com/go-errors/errors"
@@ -449,11 +450,19 @@ func (p *ParserIssueDetector) getAllIssues(query string) ([]QueryIssue, error) {
 func (p *ParserIssueDetector) getIssuesNotFixedInTargetDbVersion(issues []QueryIssue, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {
 	var filteredIssues []QueryIssue
 	for _, i := range issues {
-		fixed, err := i.IsFixedIn(targetDbVersion)
+		// Drop an issue only when the feature is GA (fully supported, enabled by default)
+		// in the target version. Issues that are only Tech Preview / Early Access in the
+		// target are retained so they can be reported with their maturity annotation.
+		maturity, err := i.GetMaturityInTarget(targetDbVersion)
 		if err != nil {
-			return nil, fmt.Errorf("checking if issue %v is supported: %w", i, err)
+			return nil, fmt.Errorf("checking maturity of issue %v in target version: %w", i, err)
 		}
-		if !fixed {
+		if maturity != constants.MATURITY_GA {
+			// Surface the feature's maturity in the target version in the issue description, so every
+			// consumer (assessment report, analyze-schema, query constructs) reports it consistently.
+			if guidance := CheckIssueSupportMaturityInTDBVersion(i, targetDbVersion); guidance != "" {
+				i.Description = utils.JoinSentences(i.Description, guidance)
+			}
 			filteredIssues = append(filteredIssues, i)
 		} else {
 			if i.Issue.Type == UNLOGGED_TABLES {
@@ -462,6 +471,118 @@ func (p *ParserIssueDetector) getIssuesNotFixedInTargetDbVersion(issues []QueryI
 		}
 	}
 	return filteredIssues, nil
+}
+
+// GetSupportedVersions merges the GA/EA/TP version maps into a single human-readable
+// string, e.g. ">=2025.1.0.0 (2025.1 series) (EA), >=2025.2.0.0 (2025.2 series)". GA entries
+// stay untagged (so the "unsupported now, GA later" case is unchanged); TP/EA entries carry a
+// tier tag. Exported because the assessment report template renders it for the "Supported In
+// (versions)" row.
+func GetSupportedVersions(gaMap, eaMap, tpMap map[string]*ybversion.YBVersion) string {
+	var entries []string
+	appendEntries := func(versionsFixedIn map[string]*ybversion.YBVersion, tier string) {
+		for series, minVersionFixedIn := range versionsFixedIn {
+			if minVersionFixedIn == nil {
+				continue
+			}
+			if tier == constants.MATURITY_GA {
+				entries = append(entries, fmt.Sprintf(">=%s (%s series)", minVersionFixedIn.String(), series))
+			} else {
+				entries = append(entries, fmt.Sprintf(">=%s (%s series) (%s)", minVersionFixedIn.String(), series, tier))
+			}
+		}
+	}
+	appendEntries(gaMap, constants.MATURITY_GA)
+	appendEntries(eaMap, constants.MATURITY_EA)
+	appendEntries(tpMap, constants.MATURITY_TP)
+	sort.Strings(entries)
+	return strings.Join(entries, ", ")
+}
+
+// maturityTierName returns the display name + caveat for an experimental maturity tier.
+func maturityTierName(maturity string) (string, string) {
+	switch maturity {
+	case constants.MATURITY_TP:
+		return "Tech Preview (TP)", constants.TP_MATURITY_CAVEAT
+	case constants.MATURITY_EA:
+		return "Early Access (EA)", constants.EA_MATURITY_CAVEAT
+	default:
+		return "", ""
+	}
+}
+
+// buildExperimentalMaturityAnnotation returns a sentence (for an unsupported feature) describing
+// that the feature is available only as Tech Preview / Early Access in the target version, with
+// the flags needed to enable it.
+func buildExperimentalMaturityAnnotation(maturity string, targetDbVersion *ybversion.YBVersion, enablingFlags []string) string {
+	tierName, caveat := maturityTierName(maturity)
+	if tierName == "" {
+		return ""
+	}
+	annotation := fmt.Sprintf("This feature is available as %s in the target version (%s) — %s, and is not enabled by default.",
+		tierName, targetDbVersion.String(), caveat)
+	if len(enablingFlags) > 0 {
+		annotation += fmt.Sprintf(" Enable with the flag(s): %s.", strings.Join(enablingFlags, ", "))
+	}
+	return annotation
+}
+
+// buildNativeResolutionRecommendation returns a version-aware recommendation for a performance
+// optimization (e.g. "bucket-based indexes"). If the resolution is Tech Preview / Early Access in
+// the target version it reads "available as <tier> in the target version"; otherwise it lists where
+// it becomes available (supportedVersions).
+func buildNativeResolutionRecommendation(resolution, maturity string, targetDbVersion *ybversion.YBVersion, supportedVersions string, enablingFlags []string) string {
+	if resolution == "" {
+		return ""
+	}
+	var availability string
+	if tierName, caveat := maturityTierName(maturity); tierName != "" {
+		availability = fmt.Sprintf("available as %s in the target version (%s) — %s, and is not enabled by default",
+			tierName, targetDbVersion.String(), caveat)
+	} else if supportedVersions != "" {
+		availability = fmt.Sprintf("available in %s", supportedVersions)
+	} else {
+		return ""
+	}
+	rec := fmt.Sprintf("Consider using %s — %s.", resolution, availability)
+	if len(enablingFlags) > 0 {
+		rec += fmt.Sprintf(" Enable with the flag(s): %s.", strings.Join(enablingFlags, ", "))
+	}
+	return rec
+}
+
+// CheckIssueSupportMaturityInTDBVersion returns a human-readable note describing the feature's
+// maturity in the given target YugabyteDB version.
+func CheckIssueSupportMaturityInTDBVersion(issueInstance QueryIssue, targetDbVersion *ybversion.YBVersion) string {
+	if targetDbVersion == nil {
+		return ""
+	}
+
+	maturity, err := issueInstance.GetMaturityInTarget(targetDbVersion)
+	if err != nil {
+		log.Warnf("checking maturity of issue %q in target version: %v", issueInstance.Type, err)
+		return ""
+	}
+
+	// Performance optimizations: recommend the native resolution (e.g. bucket-based indexes),
+	// stating its maturity/availability in the target version and the flags to enable it.
+	if slices.Contains(PerformanceOptimizationIssues, issueInstance.Type) {
+		resolution, ok := issueInstance.InternalDetails[RECOMMENDED_RESOLUTION].(string)
+		if !ok {
+			return ""
+		}
+		supportedVersions := GetSupportedVersions(issueInstance.MinimumVersionsFixedIn, issueInstance.MinimumVersionsFixedInEA, issueInstance.MinimumVersionsFixedInTP)
+		return buildNativeResolutionRecommendation(resolution, maturity, targetDbVersion, supportedVersions, issueInstance.EnablingFlags)
+	}
+
+	// Unsupported features that are Tech Preview / Early Access in the target version:
+	// explain they are experimental and how to enable them.
+	if maturity == constants.MATURITY_TP || maturity == constants.MATURITY_EA {
+		return buildExperimentalMaturityAnnotation(maturity, targetDbVersion, issueInstance.EnablingFlags)
+	}
+
+	// GA in the target (already reported as fixed) or unsupported with no maturity data: nothing to add.
+	return ""
 }
 
 func (p *ParserIssueDetector) GetAllPLPGSQLIssues(query string, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {
@@ -503,11 +624,6 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, erro
 	if errorneousQueriesStr != "" {
 		log.Warnf("Found some errorneous PL/pgSQL queries in stmt [%s]: %s", query, errorneousQueriesStr)
 	}
-	percentTypeSyntaxIssues, err := p.GetPercentTypeSyntaxIssues(query)
-	if err != nil {
-		return nil, goerrors.Errorf("error getting reference TYPE syntax issues: %v", err)
-	}
-	issues = append(issues, percentTypeSyntaxIssues...)
 
 	return lo.Map(issues, func(i QueryIssue, _ int) QueryIssue {
 		//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
@@ -1005,36 +1121,6 @@ func (p *ParserIssueDetector) getDDLIssues(query string) ([]QueryIssue, error) {
 		i.ObjectType = ddlObj.GetObjectType()
 		i.ObjectName = ddlObj.GetObjectName()
 		issues = append(issues, i)
-	}
-	return issues, nil
-}
-
-func (p *ParserIssueDetector) GetPercentTypeSyntaxIssues(query string) ([]QueryIssue, error) {
-	parseTree, err := queryparser.Parse(query)
-	if err != nil {
-		return nil, goerrors.Errorf("error parsing the query-%s: %v", query, err)
-	}
-
-	objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
-	typeNames, err := queryparser.GetAllTypeNamesInPlpgSQLStmt(query)
-	if err != nil {
-		return nil, goerrors.Errorf("error getting type names in PLPGSQL: %v", err)
-	}
-
-	/*
-		Caveats of GetAllTypeNamesInPlpgSQLStmt():
-			1. Not returning typename for variables in function parameter from this function (in correct in json as UNKNOWN), for that using the GetTypeNamesFromFuncParameters()
-			2. Not returning the return type from this function (not available in json), for that using the GetReturnTypeOfFunc()
-	*/
-	if queryparser.IsFunctionObject(parseTree) {
-		typeNames = append(typeNames, queryparser.GetReturnTypeOfFunc(parseTree))
-	}
-	typeNames = append(typeNames, queryparser.GetFuncParametersTypeNames(parseTree)...)
-	var issues []QueryIssue
-	for _, typeName := range typeNames {
-		if strings.HasSuffix(typeName, "%TYPE") {
-			issues = append(issues, NewPercentTypeSyntaxIssue(objType, objName, typeName)) // TODO: confirm
-		}
 	}
 	return issues, nil
 }
