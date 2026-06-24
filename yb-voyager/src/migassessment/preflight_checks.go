@@ -187,7 +187,8 @@ func checkAssessmentPermissions(config PreflightChecksConfig, validatedReplicaEn
 	// pg_stat_statements availability is detected regardless of the guardrails flag. Its result
 	// drives whether Unsupported Query Constructs are collected; if skipped, the gather step
 	// would default to "pgss disabled" and silently drop that detection even when the extension
-	// is fully enabled. This is a non-blocking check: it only warns when pgss is unavailable.
+	// is fully enabled. If pgss is unavailable, the user is asked whether to continue with
+	// limited query-level analysis.
 	pgssByNode, err := DetectPgssAvailabilityOnAllNodes(config.Source, validatedReplicaEndpoints)
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect pg_stat_statements availability: %w", err)

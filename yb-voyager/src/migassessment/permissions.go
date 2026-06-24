@@ -21,7 +21,6 @@ import (
 	"strings"
 
 	goerrors "github.com/go-errors/errors"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/fatih/color"
 
@@ -65,8 +64,8 @@ func CheckAssessmentPermissionsOnAllNodes(source *srcdb.Source, validatedReplica
 // disabled" and silently skip Unsupported Query Constructs detection even when the extension
 // is fully enabled.
 //
-// This is a non-blocking detection check: when pg_stat_statements is unavailable it only warns
-// (query-level analysis will be limited) and proceeds. It never aborts the run.
+// When pg_stat_statements is unavailable it warns that query-level analysis will be limited
+// and asks the user whether to continue.
 //
 // The primary node reuses the already-open source connection; each replica uses a short-lived
 // connection of its own. Detection failures are treated as non-fatal (the node is recorded as
@@ -87,7 +86,7 @@ func DetectPgssAvailabilityOnAllNodes(source *srcdb.Source, validatedReplicas []
 
 	primaryPgss, err := pg.IsPgStatStatementsAvailable()
 	if err != nil {
-		log.Warnf("failed to detect pg_stat_statements availability on primary: %v", err)
+		utils.PrintAndLogfWarning("\n⚠ could not verify pg_stat_statements on primary: %v (query-level analysis will be limited)", err)
 		primaryPgss = false
 	}
 	pgssByNode["primary"] = primaryPgss
@@ -99,7 +98,7 @@ func DetectPgssAvailabilityOnAllNodes(source *srcdb.Source, validatedReplicas []
 		nodeKey := fmt.Sprintf("%s:%d", replica.Host, replica.Port)
 		replicaPgss, err := detectPgssOnReplicaNode(source, replica)
 		if err != nil {
-			log.Warnf("failed to detect pg_stat_statements availability on replica %s: %v", nodeKey, err)
+			utils.PrintAndLogfWarning("\n⚠ could not verify pg_stat_statements on %s: %v (query-level analysis will be limited)", nodeKey, err)
 			replicaPgss = false
 		}
 		pgssByNode[nodeKey] = replicaPgss
@@ -121,8 +120,21 @@ func DetectPgssAvailabilityOnAllNodes(source *srcdb.Source, validatedReplicas []
 		}
 
 		// If some nodes have pg_stat_statements and some don't, inform the user.
-		if len(nodesWithoutPgss) < len(pgssByNode) {
-			utils.PrintAndLogfInfo("\nNote: Query-level analysis (Unsupported Query Constructs) will only include data from nodes with pg_stat_statements.")
+		if len(nodesWithoutPgss) > 0 {
+			if len(pgssByNode) == 1 {
+				utils.PrintAndLogfWarning("\n⚠ pg_stat_statements not available (query-level analysis will be limited)")
+			} else {
+				utils.PrintAndLogfWarning("\n⚠ pg_stat_statements not available on %s (query-level analysis will be limited)",
+					strings.Join(nodesWithoutPgss, ", "))
+				if len(nodesWithoutPgss) < len(pgssByNode) {
+					utils.PrintAndLogfInfo("\nNote: Query-level analysis (Unsupported Query Constructs) will only include data from nodes with pg_stat_statements.")
+				}
+			}
+		}
+
+		reply := utils.AskPrompt("\nDo you want to continue anyway")
+		if !reply {
+			return nil, goerrors.Errorf("enable pg_stat_statements and try again")
 		}
 	}
 
@@ -148,7 +160,10 @@ func detectPgssOnReplicaNode(source *srcdb.Source, replica srcdb.ReplicaEndpoint
 		NumConnections: source.NumConnections,
 	}
 
-	replicaDB := replicaSource.DB().(*srcdb.PostgreSQL)
+	replicaDB, ok := replicaSource.DB().(*srcdb.PostgreSQL)
+	if !ok {
+		return false, fmt.Errorf("not a PostgreSQL source")
+	}
 	if err := replicaDB.Connect(); err != nil {
 		return false, fmt.Errorf("failed to connect: %w", err)
 	}
