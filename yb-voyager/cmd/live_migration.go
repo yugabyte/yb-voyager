@@ -319,7 +319,7 @@ func streamChangesFromSegment(
 				Note: `sourceDBType` is a global variable, which always represent the initial source db type
 				which does not change even after cutover to target but for conflict detection cache,
 				we need to use the actual source db type at the moment since we save information like
-				TableToUniqueKeyColumns during export(from source/target) to reuse it during import
+				TableToUniqueIndexes during export(from source/target) to reuse it during import
 			*/
 			sourceDBTypeForConflictCache := lo.Ternary(isTargetDBExporter(event.ExporterRole), YUGABYTEDB, sourceDBType)
 			err = initializeConflictDetectionCache(evChans, event.ExporterRole, sourceDBTypeForConflictCache)
@@ -403,21 +403,21 @@ func shouldFormatValues(event *tgtdb.Event) bool {
 	return false
 }
 
-func shouldHandleConflicts(event *tgtdb.Event, tableToUniqueKeyColumns *utils.StructMap[sqlname.NameTuple, []string], tableToPartitioningStrategyMap *utils.StructMap[sqlname.NameTuple, string]) (bool, error) {
-	if tableToUniqueKeyColumns == nil {
-		return false, goerrors.Errorf("table to unique key columns is not initialized")
+func shouldHandleConflicts(event *tgtdb.Event, tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, [][]string], tableToPartitioningStrategyMap *utils.StructMap[sqlname.NameTuple, string]) (bool, error) {
+	if tableToUniqueIndexes == nil {
+		return false, goerrors.Errorf("table to unique indexes is not initialized")
 	}
 	if tableToPartitioningStrategyMap == nil {
 		return false, goerrors.Errorf("table to partitioning strategy map is not initialized")
 	}
-	uniqueKeyColumns, _ := tableToUniqueKeyColumns.Get(event.TableNameTup)
+	uniqueIndexes, _ := tableToUniqueIndexes.Get(event.TableNameTup)
 
 	partitioningStrategy, ok := tableToPartitioningStrategyMap.Get(event.TableNameTup)
 	if !ok {
 		return false, goerrors.Errorf("table to partitioning strategy map does not contain table %v", event.TableNameTup)
 	}
-	if len(uniqueKeyColumns) == 0 || partitioningStrategy == PARTITION_BY_TABLE {
-		//for the partition by table strategy, we don't need to handle conflicts	
+	if len(uniqueIndexes) == 0 || partitioningStrategy == PARTITION_BY_TABLE {
+		//for the partition by table strategy, we don't need to handle conflicts
 		//since the events of the same table will be executed sequentially on a single channel
 		//hence the conflicts will never happen
 		return false, nil
@@ -448,7 +448,7 @@ func handleEvent(event *tgtdb.Event,
 		Checking for all possible conflicts among events
 		For more details about ConflictDetectionCache see the related comment in [conflictDetectionCache.go](../conflictDetectionCache.go)
 	*/
-	ok, err := shouldHandleConflicts(event, conflictDetectionCache.tableToUniqueKeyColumns, tableToPartitioningStrategyMap)
+	ok, err := shouldHandleConflicts(event, conflictDetectionCache.tableToUniqueIndexes, tableToPartitioningStrategyMap)
 	if err != nil {
 		return goerrors.Errorf("error checking if should handle conflicts: %v", err)
 	}
@@ -611,36 +611,35 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 }
 
 func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, exporterRole string, sourceDBTypeForConflictCache string) error {
-	tableToUniqueKeyColumns, err := getTableToUniqueKeyColumnsMapFromMetaDB(exporterRole)
+	tableToUniqueIndexes, err := getTableToUniqueIndexesMapFromMetaDB(exporterRole)
 	if err != nil {
-		return fmt.Errorf("get table unique key columns map: %w", err)
+		return fmt.Errorf("get table unique indexes map: %w", err)
 	}
 	log.Infof("initializing conflict detection cache")
-	conflictDetectionCache = NewConflictDetectionCache(tableToUniqueKeyColumns, evChans, sourceDBTypeForConflictCache)
+	conflictDetectionCache = NewConflictDetectionCache(tableToUniqueIndexes, evChans, sourceDBTypeForConflictCache)
 	return nil
 }
 
-func getTableToUniqueKeyColumnsMapFromMetaDB(exporterRole string) (*utils.StructMap[sqlname.NameTuple, []string], error) {
-	log.Infof("fetching table to unique key columns map from metaDB")
-	var metaDbData map[string][]string
-	res := utils.NewStructMap[sqlname.NameTuple, []string]()
+func getTableToUniqueIndexesMapFromMetaDB(exporterRole string) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
+	log.Infof("fetching table to unique indexes map from metaDB")
+	res := utils.NewStructMap[sqlname.NameTuple, [][]string]()
 
-	key := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, exporterRole)
-	found, err := metaDB.GetJsonObject(nil, key, &metaDbData)
+	indexesKey := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_INDEXES_KEY, exporterRole)
+	var indexesMetaDbData map[string][][]string
+	found, err := metaDB.GetJsonObject(nil, indexesKey, &indexesMetaDbData)
 	if err != nil {
 		return nil, err
 	}
 	if !found {
-		return nil, goerrors.Errorf("table to unique key columns map not found in metaDB")
+		return nil, goerrors.Errorf("table to unique indexes map not found in metaDB")
 	}
-	log.Infof("fetched table to unique key columns map: %v", metaDbData)
-
-	for tableNameRaw, columns := range metaDbData {
+	log.Infof("fetched table to unique indexes map: %v", indexesMetaDbData)
+	for tableNameRaw, indexes := range indexesMetaDbData {
 		tableName, err := namereg.NameReg.LookupTableName(tableNameRaw)
 		if err != nil {
 			return nil, goerrors.Errorf("lookup table %s in name registry: %v", tableNameRaw, err)
 		}
-		res.Put(tableName, columns)
+		res.Put(tableName, indexes)
 	}
 	return res, nil
 }

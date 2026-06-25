@@ -19,6 +19,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -629,11 +630,13 @@ func (ora *Oracle) GetPartitions(tableName sqlname.NameTuple) []string {
 	panic("not implemented")
 }
 
-var oraQueryTmplForUniqCols = `
+const oraQueryTmplForUniqIndexes = `
 WITH unique_constraints AS (
     SELECT
         consCols.TABLE_NAME,
-        consCols.COLUMN_NAME
+        consCols.CONSTRAINT_NAME AS index_key,
+        consCols.COLUMN_NAME,
+        consCols.POSITION AS ordinal_position
     FROM
         ALL_CONS_COLUMNS consCols
     JOIN
@@ -646,74 +649,101 @@ WITH unique_constraints AS (
 unique_indexes AS (
     SELECT
         indCols.TABLE_NAME,
-        indCols.COLUMN_NAME
+        indCols.INDEX_NAME AS index_key,
+        indCols.COLUMN_NAME,
+        indCols.COLUMN_POSITION AS ordinal_position
     FROM
         ALL_IND_COLUMNS indCols
     JOIN
         ALL_INDEXES ind ON ind.INDEX_NAME = indCols.INDEX_NAME
-		AND ind.TABLE_OWNER = indCols.TABLE_OWNER
-	LEFT JOIN
-		ALL_CONSTRAINTS cons ON cons.INDEX_NAME = ind.INDEX_NAME
-		AND cons.OWNER = indCols.TABLE_OWNER
-		AND cons.CONSTRAINT_TYPE = 'P' -- Primary key constraint
+        AND ind.TABLE_OWNER = indCols.TABLE_OWNER
+    LEFT JOIN
+        ALL_CONSTRAINTS cons ON cons.INDEX_NAME = ind.INDEX_NAME
+        AND cons.OWNER = indCols.TABLE_OWNER
+        AND cons.CONSTRAINT_TYPE = 'P'
     WHERE
         ind.UNIQUENESS = 'UNIQUE'
-		AND cons.CONSTRAINT_TYPE IS NULL -- Ensure it's not a primary key
+        AND cons.CONSTRAINT_TYPE IS NULL
         AND ind.TABLE_OWNER = '%s'
         AND indCols.TABLE_NAME IN ('%s')
 )
-SELECT * FROM unique_constraints
-UNION
-SELECT * FROM unique_indexes
+SELECT TABLE_NAME, index_key, COLUMN_NAME, ordinal_position FROM unique_constraints
+UNION ALL
+SELECT TABLE_NAME, index_key, COLUMN_NAME, ordinal_position FROM unique_indexes
+ORDER BY TABLE_NAME, index_key, ordinal_position
 `
 
-func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
-	result := utils.NewStructMap[sqlname.NameTuple, []string]()
-	var queryTableList []string
+func buildUniqueIndexesMapFromOracleRows(rows *sql.Rows, tableStrToNameTupleMap map[string]sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
+	indexColumnMaps := make(map[tableIndexKey]map[int]string)
+
+	for rows.Next() {
+		var tableName, indexKey, columnName string
+		var ordinalPosition int
+		err := rows.Scan(&tableName, &indexKey, &columnName, &ordinalPosition)
+		if err != nil {
+			return nil, fmt.Errorf("scanning row for unique index column: %w", err)
+		}
+		key := tableIndexKey{tableCatalogName: tableName, indexKey: indexKey}
+		if _, ok := indexColumnMaps[key]; !ok {
+			indexColumnMaps[key] = make(map[int]string)
+		}
+		indexColumnMaps[key][ordinalPosition] = columnName
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating rows for unique indexes: %w", err)
+	}
+
+	result := utils.NewStructMap[sqlname.NameTuple, [][]string]()
+	for key, ordinalToColumn := range indexColumnMaps {
+		tableNameTuple, ok := tableStrToNameTupleMap[key.tableCatalogName]
+		if !ok {
+			return nil, goerrors.Errorf("table %s not found in table list", key.tableCatalogName)
+		}
+
+		ordinals := lo.Keys(ordinalToColumn)
+		sort.Ints(ordinals)
+		columns := make([]string, 0, len(ordinals))
+		for _, ord := range ordinals {
+			columns = append(columns, ordinalToColumn[ord])
+		}
+		if len(columns) == 0 {
+			continue
+		}
+
+		indexes, _ := result.Get(tableNameTuple)
+		indexes = append(indexes, []string(columns))
+		result.Put(tableNameTuple, dedupeUniqueIndexes(indexes))
+	}
+
+	return result, nil
+}
+
+func queryOracleUniqueIndexesMap(db *sql.DB, owner string, tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
 	tableStrToNameTupleMap := make(map[string]sqlname.NameTuple)
+	var queryTableList []string
 	for _, table := range tableList {
 		_, tname := table.ForCatalogQuery()
 		queryTableList = append(queryTableList, tname)
 		tableStrToNameTupleMap[tname] = table
 	}
-	query := fmt.Sprintf(oraQueryTmplForUniqCols, ora.source.Schemas[0].Unquoted, strings.Join(queryTableList, "','"),
-		ora.source.Schemas[0].Unquoted, strings.Join(queryTableList, "','"))
-	log.Infof("query to get unique key columns for tables: %q", query)
-	rows, err := ora.db.Query(query)
-	if err != nil {
-		return nil, fmt.Errorf("querying unique key columns for tables: %w", err)
-	}
-	defer func() {
-		closeErr := rows.Close()
-		if closeErr != nil {
-			log.Warnf("close rows for query %q: %v", query, closeErr)
-		}
-	}()
 
-	for rows.Next() {
-		var tableName string
-		var columnName string
-		err := rows.Scan(&tableName, &columnName)
-		if err != nil {
-			return nil, fmt.Errorf("scanning row for unique key column name: %w", err)
-		}
-		tableNameTuple, ok := tableStrToNameTupleMap[tableName]
-		if !ok {
-			return nil, goerrors.Errorf("table %s not found in table list", tableName)
-		}
-		cols, ok := result.Get(tableNameTuple)
-		if !ok {
-			cols = []string{}
-		}
-		cols = append(cols, columnName)
-		result.Put(tableNameTuple, cols)
-	}
-
-	err = rows.Err()
+	query := fmt.Sprintf(oraQueryTmplForUniqIndexes, owner, strings.Join(queryTableList, "','"), owner, strings.Join(queryTableList, "','"))
+	rows, err := db.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("error iterating over rows for unique key columns: %w", err)
+		return nil, fmt.Errorf("querying unique indexes: %w", err)
 	}
-	log.Infof("unique key columns for tables: %+v", result)
+	defer rows.Close()
+
+	return buildUniqueIndexesMapFromOracleRows(rows, tableStrToNameTupleMap)
+}
+
+func (ora *Oracle) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
+	log.Infof("getting unique indexes for tables: %v", tableList)
+	result, err := queryOracleUniqueIndexesMap(ora.db, ora.source.Schemas[0].Unquoted, tableList)
+	if err != nil {
+		return nil, err
+	}
+	log.Infof("unique indexes for tables: %+v", result)
 	return result, nil
 }
 
