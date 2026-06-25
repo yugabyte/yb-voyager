@@ -630,38 +630,14 @@ func getTableToUniqueIndexesMapFromMetaDB(exporterRole string) (*utils.StructMap
 	if err != nil {
 		return nil, err
 	}
-	if found {
-		log.Infof("fetched table to unique indexes map: %v", indexesMetaDbData)
-		for tableNameRaw, indexes := range indexesMetaDbData {
-			tableName, err := namereg.NameReg.LookupTableName(tableNameRaw)
-			if err != nil {
-				return nil, goerrors.Errorf("lookup table %s in name registry: %v", tableNameRaw, err)
-			}
-			res.Put(tableName, indexes)
-		}
-		return res, nil
-	}
-
-	// Backward compatibility: upgrade legacy flat column lists to single-column indexes.
-	legacyKey := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, exporterRole)
-	var legacyMetaDbData map[string][]string
-	found, err = metaDB.GetJsonObject(nil, legacyKey, &legacyMetaDbData)
-	if err != nil {
-		return nil, err
-	}
 	if !found {
 		return nil, goerrors.Errorf("table to unique indexes map not found in metaDB")
 	}
-	log.Infof("upgrading legacy table to unique key columns map to unique indexes map: %v", legacyMetaDbData)
-	for tableNameRaw, columns := range legacyMetaDbData {
+	log.Infof("fetched table to unique indexes map: %v", indexesMetaDbData)
+	for tableNameRaw, indexes := range indexesMetaDbData {
 		tableName, err := namereg.NameReg.LookupTableName(tableNameRaw)
 		if err != nil {
 			return nil, goerrors.Errorf("lookup table %s in name registry: %v", tableNameRaw, err)
-		}
-		indexes := [][]string{}
-		for _, column := range columns {
-			//putting every column in a separate list to have old behaviour where we were checking for each column
-			indexes = append(indexes, []string{column})
 		}
 		res.Put(tableName, indexes)
 	}
