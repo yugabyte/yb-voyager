@@ -630,7 +630,7 @@ func getTableToUniqueIndexesMapFromMetaDB(exporterRole string) (*utils.StructMap
 	if err != nil {
 		return nil, err
 	}
-	if found {
+	if !found {
 		return nil, goerrors.Errorf("table to unique indexes map not found in metaDB")
 	}
 	log.Infof("fetched table to unique indexes map: %v", indexesMetaDbData)
