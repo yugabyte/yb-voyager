@@ -998,11 +998,17 @@ func buildUniqueIndexesMapFromPGRows(rows *sql.Rows, tableStrToNameTupleMap map[
 
 		indexes, _ := result.Get(tableNameTuple)
 		indexes = append(indexes, columns)
-		result.Put(tableNameTuple, dedupeUniqueIndexes(indexes))
+		result.Put(tableNameTuple, indexes)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterating rows for unique indexes: %w", err)
 	}
+
+	result.IterKV(func(k sqlname.NameTuple, v [][]string) (bool, error) {
+		v = dedupeUniqueIndexes(v)
+		result.Put(k, v)
+		return true, nil
+	})
 
 	return result, nil
 }
