@@ -121,9 +121,7 @@ func TestInitMetaDB(t *testing.T) {
 }
 
 // testSourceDBExporterRole is redeclared here to avoid an import cycle with the
-// cmd package. It must stay in sync with cmd.SOURCE_DB_EXPORTER_ROLE, which the
-// AnySegmentsDeletedOrArchived callers (importData.go guardrail and
-// eventQueue.go resolveSegmentToResumeFrom) pass in.
+// cmd package. It must stay in sync with cmd.SOURCE_DB_EXPORTER_ROLE.
 const testSourceDBExporterRole = "source_db_exporter"
 
 func newTestMetaDB(t *testing.T) *MetaDB {
@@ -147,9 +145,8 @@ func insertQueueSegment(t *testing.T, mdb *MetaDB, segmentNo int, exporterRole s
 }
 
 // TestAnySegmentsDeletedOrArchived covers the start-clean guardrail backing
-// AnySegmentsDeletedOrArchived. The guardrail must agree with
-// resolveSegmentToResumeFrom in eventQueue.go on which segment is the resume
-// point for importers that support --start-clean: the earliest segment_no.
+// AnySegmentsDeletedOrArchived. If any segment is missing from the queue,
+// re-streaming from the beginning is unsafe.
 func TestAnySegmentsDeletedOrArchived(t *testing.T) {
 	t.Run("no queue segments returns false", func(t *testing.T) {
 		mdb := newTestMetaDB(t)
@@ -159,24 +156,34 @@ func TestAnySegmentsDeletedOrArchived(t *testing.T) {
 		assert.False(t, deleted, "with no queue segments the guardrail must not block start-clean")
 	})
 
-	t.Run("earliest segment deleted returns true", func(t *testing.T) {
+	t.Run("any deleted segment returns true", func(t *testing.T) {
 		mdb := newTestMetaDB(t)
-		insertQueueSegment(t, mdb, 1, testSourceDBExporterRole, 0, 1)
-		insertQueueSegment(t, mdb, 2, testSourceDBExporterRole, 0, 0)
+		insertQueueSegment(t, mdb, 1, testSourceDBExporterRole, 0, 0)
+		insertQueueSegment(t, mdb, 2, testSourceDBExporterRole, 0, 1)
 
 		deleted, err := mdb.AnySegmentsDeletedOrArchived()
 		require.NoError(t, err)
-		assert.True(t, deleted, "earliest segment (resume point) is deleted, so re-streaming from the beginning is impossible")
+		assert.True(t, deleted, "a deleted segment means re-streaming from the beginning is impossible")
 	})
 
-	t.Run("earliest segment archived returns true", func(t *testing.T) {
+	t.Run("any archived segment returns true", func(t *testing.T) {
 		mdb := newTestMetaDB(t)
-		insertQueueSegment(t, mdb, 1, testSourceDBExporterRole, 1, 0)
+		insertQueueSegment(t, mdb, 1, testSourceDBExporterRole, 0, 0)
+		insertQueueSegment(t, mdb, 2, testSourceDBExporterRole, 1, 0)
+
+		deletedOrArchived, err := mdb.AnySegmentsDeletedOrArchived()
+		require.NoError(t, err)
+		assert.True(t, deletedOrArchived, "an archived segment means re-streaming from the beginning is impossible")
+	})
+
+	t.Run("no archived or deleted segments returns false", func(t *testing.T) {
+		mdb := newTestMetaDB(t)
+		insertQueueSegment(t, mdb, 1, testSourceDBExporterRole, 0, 0)
 		insertQueueSegment(t, mdb, 2, testSourceDBExporterRole, 0, 0)
 
 		deletedOrArchived, err := mdb.AnySegmentsDeletedOrArchived()
 		require.NoError(t, err)
-		assert.True(t, deletedOrArchived, "earliest segment (resume point) is archived, so re-streaming from the beginning is impossible")
+		assert.False(t, deletedOrArchived)
 	})
 
 }
