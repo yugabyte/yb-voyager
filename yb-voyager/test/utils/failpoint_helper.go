@@ -16,6 +16,7 @@ limitations under the License.
 package testutils
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -103,6 +104,28 @@ func WaitForFailpointMarker(path string, timeout, pollInterval time.Duration) (b
 	return strings.Contains(string(data), "hit"), nil
 }
 
+// UniqueKeyConflictStats matches cmd.UniqueKeyConflictStats JSON under export-dir/failpoints/.
+type UniqueKeyConflictStats struct {
+	Total   int            `json:"total"`
+	ByTable map[string]int `json:"by_table"`
+}
+
+// ReadUniqueKeyConflictStats reads failpoint conflict counts from export-dir/failpoints/.
+func ReadUniqueKeyConflictStats(path string) (*UniqueKeyConflictStats, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read unique key conflict stats %s: %w", path, err)
+	}
+	var stats UniqueKeyConflictStats
+	if err := json.Unmarshal(data, &stats); err != nil {
+		return nil, fmt.Errorf("parse unique key conflict stats %s: %w", path, err)
+	}
+	if stats.ByTable == nil {
+		stats.ByTable = map[string]int{}
+	}
+	return &stats, nil
+}
+
 // WaitForFailpointAndProcessCrash waits for a failpoint marker file to appear,
 // then waits for the given process to exit with an error. Returns an error if
 // the marker doesn't appear (failpoints not enabled) or if the process exits
@@ -121,6 +144,13 @@ func WaitForFailpointAndProcessCrash(t *testing.T, runner *VoyagerCommandRunner,
 	}
 
 	t.Log("Failpoint marker detected; waiting for process to exit with error...")
+	if runner.IsStopped() {
+		if runner.ExitCode() == ExitCodeSuccess {
+			return fmt.Errorf("process exited cleanly after failpoint %s — expected a crash", markerPath)
+		}
+		return nil
+	}
+
 	deadline := time.Now().Add(exitTimeout)
 	for {
 		if time.Now().After(deadline) {

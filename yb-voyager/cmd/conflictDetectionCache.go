@@ -168,7 +168,7 @@ retry:
 					log.Infof("channel %d is full with size %d, not sending FLUSH_BATCH_EVENT", i, len(c.evChans[i]))
 				}
 			}
-			injectUniqueKeyConflictDetectedFailpoint()
+			injectUniqueKeyConflictDetectedFailpoint(cachedEvent, incomingEvent)
 			log.Infof("waiting for event(vsn=%d) to be complete before processing event(vsn=%d)", cachedEvent.Vsn, incomingEvent.Vsn)
 			// wait will release the lock and wait for a broadcast signal
 			c.cond.Wait()

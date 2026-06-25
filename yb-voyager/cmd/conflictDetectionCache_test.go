@@ -18,9 +18,12 @@ limitations under the License.
 package cmd
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -334,4 +337,32 @@ func TestEventsConfict_BeforeBeforeConflict(t *testing.T) {
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
 	assert.True(t, cache.eventsConfict(cached, incoming))
+}
+
+func TestRecordUniqueKeyConflictCount_DedupesEventPair(t *testing.T) {
+	exportDir = t.TempDir()
+	ukConflictStats = UniqueKeyConflictStats{}
+	ukConflictSeen = nil
+
+	table := testTableTuple()
+	cached := &tgtdb.Event{Vsn: 10, TableNameTup: table}
+	incoming := &tgtdb.Event{Vsn: 20, TableNameTup: table}
+
+	recordUniqueKeyConflictCount(cached, incoming)
+	recordUniqueKeyConflictCount(cached, incoming)
+	recordUniqueKeyConflictCount(incoming, cached)
+
+	require.Equal(t, 1, ukConflictStats.Total)
+	require.Equal(t, 1, ukConflictStats.ByTable[table.ForKey()])
+
+	statsPath := filepath.Join(exportDir, "failpoints", uniqueKeyConflictStatsFileName)
+	data, err := os.ReadFile(statsPath)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"total": 1`)
+}
+
+func TestUniqueKeyConflictPairKey_OrdersVsns(t *testing.T) {
+	oname := sqlname.NewObjectName(YUGABYTEDB, "public", "public", "users")
+	table := sqlname.NameTuple{CurrentName: oname, TargetName: oname}.ForKey()
+	require.Equal(t, uniqueKeyConflictPairKey(table, 20, 10), uniqueKeyConflictPairKey(table, 10, 20))
 }

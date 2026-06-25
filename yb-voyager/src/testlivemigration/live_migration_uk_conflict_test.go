@@ -1,4 +1,4 @@
-//go:build integration_live_migration
+//go:build failpoint_import
 
 /*
 Copyright (c) YugabyteDB, Inc.
@@ -24,7 +24,6 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -267,8 +266,13 @@ func TestLiveMigrationWithMultiColumnUniqueIndexConflictDetectionCases(t *testin
 	uniqueKeyConflictFailpointEnv := testutils.GetFailpointEnvVar(
 		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return(true)",
 	)
+	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+	)
 	uniqueKeyConflictFailpointMarker := filepath.Join(
 		liveMigrationTest.GetCurrentExportDir(), "failpoints", "failpoint-unique-key-conflict-detected.log")
+	uniqueKeyConflictStatsPath := filepath.Join(
+		liveMigrationTest.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
 
 	err = liveMigrationTest.StartImportDataWithEnv(true, nil, []string{uniqueKeyConflictFailpointEnv})
 	testutils.FatalIfError(t, err, "failed to start import data with failpoint")
@@ -318,26 +322,33 @@ func TestLiveMigrationWithMultiColumnUniqueIndexConflictDetectionCases(t *testin
 	err = liveMigrationTest.StopImportData()
 	testutils.FatalIfError(t, err, "failed to stop import after false-positive phase")
 
-	err = liveMigrationTest.StartImportDataWithEnv(true, nil, []string{uniqueKeyConflictFailpointEnv})
-	testutils.FatalIfError(t, err, "failed to start import for true-positive phase with failpoint")
+	err = liveMigrationTest.StartImportDataWithEnv(true, nil, []string{uniqueKeyConflictCountFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import for true-positive phase with count failpoint")
 
 	liveMigrationTest.sourceContainer.ExecuteSqlsOnDB(
 		liveMigrationTest.config.SourceDB.DatabaseName, sourceTCDeltaSQL...)
-
-	time.Sleep(10 * time.Second)
-
-	err = liveMigrationTest.WaitForImportFailpointAndProcessCrash(
-		t, uniqueKeyConflictFailpointMarker, 120*time.Second, 120*time.Second)
-	testutils.FatalIfError(t, err, "true-positive conflict should trigger failpoint and crash import")
-
-	err = liveMigrationTest.StartImportData(true, nil)
-	testutils.FatalIfError(t, err, "failed to start import after true-positive failpoint crash")
 
 	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		`"test_schema"."test_multi_column_unique_index"`:      multiColumnUKChanges,
 		`"test_schema"."test_multi_column_unique_index_part"`: multiColumnUKChanges,
 	}, 300, 5)
-	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+	testutils.FatalIfError(t, err, "failed to wait for true-positive streaming complete")
+
+	require.False(t, liveMigrationTest.GetImportRunner().IsStopped(),
+		"import should keep running during count failpoint mode")
+
+	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
+	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
+
+	require.Equal(t, conflictStats.Total, 6000, "true-positive delta should produce at least 6000 UK conflicts")
+	require.Equal(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index"`], 3000, "test_multi_column_unique_index should have at least 3000 UK conflicts")
+	require.Equal(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index_part"`], 3000, "test_multi_column_unique_index_part should have at least 3000 UK conflicts")
+
+	failpointTriggered, err = testutils.WaitForFailpointMarker(uniqueKeyConflictFailpointMarker, 2, 200)
+	if err != nil && !os.IsNotExist(err) {
+		testutils.FatalIfError(t, err, "failed to read unique key conflict crash failpoint marker")
+	}
+	require.False(t, failpointTriggered, "count mode should not write crash failpoint marker")
 
 	err = liveMigrationTest.ValidateDataConsistency(multiColumnUKTables, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -484,7 +495,15 @@ func TestLiveMigrationWithUniqueKeyValuesWithPartialPredicateConflictDetectionCa
 	err = lm.StartExportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start export data")
 
-	err = lm.StartImportData(true, nil)
+	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+	)
+	uniqueKeyConflictFailpointMarker := filepath.Join(
+		lm.GetCurrentExportDir(), "failpoints", "failpoint-unique-key-conflict-detected.log")
+	uniqueKeyConflictStatsPath := filepath.Join(
+		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
+
+	err = lm.StartImportDataWithEnv(true, nil, []string{uniqueKeyConflictCountFailpointEnv})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
@@ -506,6 +525,18 @@ func TestLiveMigrationWithUniqueKeyValuesWithPartialPredicateConflictDetectionCa
 		},
 	}, 100, 5)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
+	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
+
+	require.Equal(t, conflictStats.Total, 2500, "true-positive delta should produce at least 3000 UK conflicts")
+	require.Equal(t, conflictStats.ByTable[`test_schema.test_live`], 2500, "test_live should have at least 3000 UK conflicts")
+
+	failpointTriggered, err := testutils.WaitForFailpointMarker(uniqueKeyConflictFailpointMarker, 2, 200)
+	if err != nil && !os.IsNotExist(err) {
+		testutils.FatalIfError(t, err, "failed to read unique key conflict crash failpoint marker")
+	}
+	require.False(t, failpointTriggered, "count mode should not write crash failpoint marker")
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -532,9 +563,16 @@ func TestLiveMigrationWithUniqueKeyConflictWithTablePartitioning(t *testing.T) {
 	err = lm.StartExportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start export data")
 
-	err = lm.StartImportData(true, map[string]string{
-		"--cdc-partitioning-strategy": "table",
-	})
+	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+	)
+	uniqueKeyConflictFailpointMarker := filepath.Join(
+		lm.GetCurrentExportDir(), "failpoints", "failpoint-unique-key-conflict-detected.log")
+
+	uniqueKeyConflictStatsPath := filepath.Join(
+		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
+
+	err = lm.StartImportDataWithEnv(true, nil, []string{uniqueKeyConflictCountFailpointEnv})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
@@ -556,6 +594,21 @@ func TestLiveMigrationWithUniqueKeyConflictWithTablePartitioning(t *testing.T) {
 		},
 	}, 100, 5)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	require.False(t, lm.GetImportRunner().IsStopped(),
+		"import should not exit during false-positive phase")
+	failpointTriggered, err := testutils.WaitForFailpointMarker(uniqueKeyConflictFailpointMarker, 5, 500)
+	if err != nil && !os.IsNotExist(err) {
+		testutils.FatalIfError(t, err, "failed to read unique key conflict failpoint marker")
+	}
+	require.False(t, failpointTriggered,
+		"unique key conflict false positive detected; marker=%s", uniqueKeyConflictFailpointMarker)
+
+	conflicts, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
+	if err != nil && !os.IsNotExist(err) {
+		testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
+	}
+	require.Nil(t, conflicts, "no conflicts should be detected")
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -674,7 +727,15 @@ FROM generate_series(1, 20) as i;`,
 	err = lm.StartExportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start export data")
 
-	err = lm.StartImportData(true, nil)
+	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+	)
+	uniqueKeyConflictFailpointMarker := filepath.Join(
+		lm.GetCurrentExportDir(), "failpoints", "failpoint-unique-key-conflict-detected.log")
+	uniqueKeyConflictStatsPath := filepath.Join(
+		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
+
+	err = lm.StartImportDataWithEnv(true, nil, []string{uniqueKeyConflictCountFailpointEnv})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
@@ -696,6 +757,21 @@ FROM generate_series(1, 20) as i;`,
 		},
 	}, 120, 5)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	require.False(t, lm.GetImportRunner().IsStopped(),
+		"import should keep running during count failpoint mode")
+
+	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
+	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
+	require.Equal(t, 2500, conflictStats.Total,
+		"null unique delta should produce 2500 UK conflicts (5 per loop x 500 loops)")
+	require.Equal(t, 2500, conflictStats.ByTable[`"test_schema"."test_live_null_unique_values"`])
+
+	failpointTriggered, err := testutils.WaitForFailpointMarker(uniqueKeyConflictFailpointMarker, 2, 200)
+	if err != nil && !os.IsNotExist(err) {
+		testutils.FatalIfError(t, err, "failed to read unique key conflict crash failpoint marker")
+	}
+	require.False(t, failpointTriggered, "count mode should not write crash failpoint marker")
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live_null_unique_values"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -817,7 +893,15 @@ FROM generate_series(1, 20) as i;`,
 	err = liveMigrationTest.StartExportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start export data")
 
-	err = liveMigrationTest.StartImportData(true, nil)
+	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+	)
+	uniqueKeyConflictFailpointMarker := filepath.Join(
+		liveMigrationTest.GetCurrentExportDir(), "failpoints", "failpoint-unique-key-conflict-detected.log")
+	uniqueKeyConflictStatsPath := filepath.Join(
+		liveMigrationTest.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
+
+	err = liveMigrationTest.StartImportDataWithEnv(true, nil, []string{uniqueKeyConflictCountFailpointEnv})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
 	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
@@ -839,6 +923,21 @@ FROM generate_series(1, 20) as i;`,
 		},
 	}, 120, 5)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	require.False(t, liveMigrationTest.GetImportRunner().IsStopped(),
+		"import should keep running during count failpoint mode")
+
+	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
+	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
+	require.Equal(t, 1000, conflictStats.Total,
+		"partial unique delta should produce 1000 UK conflicts (UI+UU only; DU/DI are false positives)")
+	require.Equal(t, 1000, conflictStats.ByTable[`"test_schema"."test_live_null_partial_unique_values"`])
+
+	failpointTriggered, err := testutils.WaitForFailpointMarker(uniqueKeyConflictFailpointMarker, 2, 200)
+	if err != nil && !os.IsNotExist(err) {
+		testutils.FatalIfError(t, err, "failed to read unique key conflict crash failpoint marker")
+	}
+	require.False(t, failpointTriggered, "count mode should not write crash failpoint marker")
 
 	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_live_null_partial_unique_values"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
