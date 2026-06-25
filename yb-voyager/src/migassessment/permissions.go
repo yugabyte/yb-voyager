@@ -110,14 +110,6 @@ func DetectPgssAvailabilityOnAllNodes(source *srcdb.Source, validatedReplicas []
 	// Warn the user when pg_stat_statements is unavailable (query-level analysis will be
 	// limited). This is informational only; it does not block the run.
 	if len(nodesWithoutPgss) > 0 {
-		hasMultipleNodes := len(pgssByNode) > 1
-		for _, node := range nodesWithoutPgss {
-			if hasMultipleNodes {
-				utils.PrintAndLogfWarning("\n⚠ pg_stat_statements not available on %s (query-level analysis will be limited)", node)
-			} else {
-				utils.PrintAndLogfWarning("\n⚠ pg_stat_statements not available (query-level analysis will be limited)")
-			}
-		}
 
 		// If some nodes have pg_stat_statements and some don't, inform the user.
 		if len(nodesWithoutPgss) > 0 {
