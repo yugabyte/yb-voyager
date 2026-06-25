@@ -398,6 +398,23 @@ func (m *MetaDB) GetMinSegmentExportedByAndNotImportedBy(importerRole string, ex
 	return segmentNum.Int64, nil
 }
 
+// AnySegmentsDeletedOrArchived reports whether any queue segment has been
+// deleted or archived by the
+// `archive changes` workflow. `import data --start-clean` resets per-importer
+// imported_by flags and attempts to re-stream the queue from the beginning, so a
+// missing segment means it cannot proceed safely. Returns false when there are no
+// queue segments yet.
+func (m *MetaDB) AnySegmentsDeletedOrArchived() (bool, error) {
+	query := fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM %s WHERE archived = 1 OR deleted = 1);", QUEUE_SEGMENT_META_TABLE_NAME)
+
+	var found bool
+	err := m.db.QueryRow(query).Scan(&found)
+	if err != nil {
+		return false, fmt.Errorf("run query on meta db - %s : %w", query, err)
+	}
+	return found, nil
+}
+
 func (m *MetaDB) GetExportedEventsStatsForTable(schemaName string, tableName string) (*tgtdb.EventCounter, error) {
 	var totalCount int64
 	var inserts int64
