@@ -23,7 +23,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -171,6 +170,207 @@ const (
 	multiColumnUKFalsePositiveChangesUpdates = 1000
 	multiColumnUKFalsePositiveChangesDeletes = 2000
 )
+
+func TestLiveMigrationWithMultiColumnUniqueIndexConflictDetectionCases(t *testing.T) {
+	t.Parallel()
+	sourceFPDeltaSQL := slices.Concat(
+		multiColumnUKFalsePositiveDeltaSQL("test_schema.test_multi_column_unique_index", false, 0),
+		multiColumnUKFalsePositiveDeltaSQL("test_schema.test_multi_column_unique_index_part", true, 0),
+	)
+	sourceTCDeltaSQL := slices.Concat(
+		multiColumnUKTruePositiveDeltaSQL("test_schema.test_multi_column_unique_index", false, 0),
+		multiColumnUKTruePositiveDeltaSQL("test_schema.test_multi_column_unique_index_part", true, 0),
+	)
+	targetDeltaSQL := slices.Concat(
+		multiColumnUniqueIndexConflictDeltaSQL("test_schema.test_multi_column_unique_index", false, multiColumnUKConflictTargetIDOffset),
+		multiColumnUniqueIndexConflictDeltaSQL("test_schema.test_multi_column_unique_index_part", true, multiColumnUKConflictTargetIDOffset),
+	)
+	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_multi_column_unique_index",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_multi_column_unique_index",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.test_multi_column_unique_index (
+				id int PRIMARY KEY,
+				id1 int,
+				id2 int,
+				updated_at timestamp
+			);
+			CREATE UNIQUE INDEX idx_test_multi_column_unique_index_id1_id2 ON test_schema.test_multi_column_unique_index (id1, id2);
+
+			CREATE TABLE test_schema.test_multi_column_unique_index_part (
+				id int,
+				region text,
+				id1 int,
+				id2 int,
+				updated_at timestamp,
+				PRIMARY KEY (id, region)
+			) PARTITION BY LIST (region);
+			CREATE TABLE test_schema.test_multi_column_unique_index_part_r1 PARTITION OF test_schema.test_multi_column_unique_index_part FOR VALUES IN ('r1');
+			CREATE TABLE test_schema.test_multi_column_unique_index_part_r2 PARTITION OF test_schema.test_multi_column_unique_index_part FOR VALUES IN ('r2');
+			CREATE UNIQUE INDEX idx_test_multi_column_unique_index_part_r1_id1_id2 ON test_schema.test_multi_column_unique_index_part_r1 (id1, id2);
+			CREATE UNIQUE INDEX idx_test_multi_column_unique_index_part_r2_id1_id2 ON test_schema.test_multi_column_unique_index_part_r2 (id1, id2);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			"ALTER TABLE test_schema.test_multi_column_unique_index REPLICA IDENTITY FULL;",
+			"ALTER TABLE test_schema.test_multi_column_unique_index_part REPLICA IDENTITY FULL;",
+			"ALTER TABLE test_schema.test_multi_column_unique_index_part_r1 REPLICA IDENTITY FULL;",
+			"ALTER TABLE test_schema.test_multi_column_unique_index_part_r2 REPLICA IDENTITY FULL;",
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.test_multi_column_unique_index (id, id1, id2, updated_at)
+			SELECT i, i, i, now() FROM generate_series(1, 20) as i;`,
+			`INSERT INTO test_schema.test_multi_column_unique_index_part (id, region, id1, id2, updated_at)
+			SELECT i, 'r1', i, i, now() FROM generate_series(1, 20) as i;`,
+		},
+		/*
+			false positive cases shouldn't be reported anymore -
+				1.  updating i-1th row with id1 and id2 as 20 and inserting a row with id1 as 20 and id2 as i
+				2.  updating i-1th row with id1 20 and id2 as NULL and inserting a row with id1 as i and id2 as NULL
+				3. deleting i-1th row (id1 as 20 and id2 as i-1) and inserting a row with id1 as 20 and id2 as i
+				4. deleting i-1th row (id1 as i-1 and id2 as NULL) and inserting a row with id1 as i and id2 as NULL
+
+
+			cases should be reported as conflicts:
+				1. updating i-1th row to set id1 from i-1 to i and id2 from i-1 to i and insert a row with id1 as 1022 and id2 as 1022
+				2. updating i-1th row to set id1 from NULL to i and id2 from NULL to i and insert a row with id1 as NULL and id2 as NULL(U->I)
+				3. delete new row and update i-1 to 1022,1022 and then deleting i-1th row (id1 as 1022 and id2 as 1022) and inserting a row with id1 as 1022 and id2 as 1022 (D->U, D->I)
+				4. delete new row and update i-1 to NULL,NULL and then deleting i-1th row (id1 as NULL and id2 as NULL) and inserting a row with id1 as NULL and id2 as NULL (D->U, D->I)
+
+
+		*/
+		TargetDeltaSQL: targetDeltaSQL,
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+
+	defer liveMigrationTest.Cleanup()
+
+	err := liveMigrationTest.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = liveMigrationTest.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = liveMigrationTest.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	uniqueKeyConflictFailpointEnv := testutils.GetFailpointEnvVar(
+		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return(true)",
+	)
+	uniqueKeyConflictFailpointMarker := filepath.Join(
+		liveMigrationTest.GetCurrentExportDir(), "failpoints", "failpoint-unique-key-conflict-detected.log")
+
+	err = liveMigrationTest.StartImportDataWithEnv(true, nil, []string{uniqueKeyConflictFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import data with failpoint")
+
+	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_multi_column_unique_index"`:      20,
+		`"test_schema"."test_multi_column_unique_index_part"`: 20,
+	}, 80)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	multiColumnUKTables := []string{
+		`"test_schema"."test_multi_column_unique_index"`,
+		`"test_schema"."test_multi_column_unique_index_part"`,
+	}
+	multiColumnUKFPChanges := ChangesCount{
+		Inserts: multiColumnUKFalsePositiveChangesInserts,
+		Updates: multiColumnUKFalsePositiveChangesUpdates,
+		Deletes: multiColumnUKFalsePositiveChangesDeletes,
+	}
+	multiColumnUKChanges := ChangesCount{
+		Inserts: 6003,
+		Updates: 3000,
+		Deletes: 4000,
+	}
+
+	err = liveMigrationTest.ValidateDataConsistency(multiColumnUKTables, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	liveMigrationTest.sourceContainer.ExecuteSqlsOnDB(
+		liveMigrationTest.config.SourceDB.DatabaseName, sourceFPDeltaSQL...)
+
+	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_multi_column_unique_index"`:      multiColumnUKFPChanges,
+		`"test_schema"."test_multi_column_unique_index_part"`: multiColumnUKFPChanges,
+	}, 300, 5)
+	testutils.FatalIfError(t, err, "failed to wait for false-positive streaming complete")
+
+	require.False(t, liveMigrationTest.GetImportRunner().IsStopped(),
+		"import should not exit during false-positive phase")
+	failpointTriggered, err := testutils.WaitForFailpointMarker(uniqueKeyConflictFailpointMarker, 5, 500)
+	if err != nil && !os.IsNotExist(err) {
+		testutils.FatalIfError(t, err, "failed to read unique key conflict failpoint marker")
+	}
+	require.False(t, failpointTriggered,
+		"unique key conflict false positive detected; marker=%s", uniqueKeyConflictFailpointMarker)
+
+	err = liveMigrationTest.StopImportData()
+	testutils.FatalIfError(t, err, "failed to stop import after false-positive phase")
+
+	err = liveMigrationTest.StartImportDataWithEnv(true, nil, []string{uniqueKeyConflictFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import for true-positive phase with failpoint")
+
+	liveMigrationTest.sourceContainer.ExecuteSqlsOnDB(
+		liveMigrationTest.config.SourceDB.DatabaseName, sourceTCDeltaSQL...)
+
+	time.Sleep(10 * time.Second)
+
+	err = liveMigrationTest.WaitForImportFailpointAndProcessCrash(
+		t, uniqueKeyConflictFailpointMarker, 120*time.Second, 120*time.Second)
+	testutils.FatalIfError(t, err, "true-positive conflict should trigger failpoint and crash import")
+
+	err = liveMigrationTest.StartImportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start import after true-positive failpoint crash")
+
+	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_multi_column_unique_index"`:      multiColumnUKChanges,
+		`"test_schema"."test_multi_column_unique_index_part"`: multiColumnUKChanges,
+	}, 300, 5)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	err = liveMigrationTest.ValidateDataConsistency(multiColumnUKTables, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = liveMigrationTest.InitiateCutoverToTarget(true, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = liveMigrationTest.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	err = liveMigrationTest.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	multiColumnUKChanges.Inserts += 1
+	err = liveMigrationTest.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_multi_column_unique_index"`:      multiColumnUKChanges,
+		`"test_schema"."test_multi_column_unique_index_part"`: multiColumnUKChanges,
+	}, 300, 5)
+	testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
+
+	err = liveMigrationTest.ValidateDataConsistency(multiColumnUKTables, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = liveMigrationTest.InitiateCutoverToSource(nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+
+	err = liveMigrationTest.WaitForCutoverSourceComplete(0, 100)
+	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
+
+	err = liveMigrationTest.ValidateDataConsistency(multiColumnUKTables, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+}
 
 func getPartialPredicateTestForUniqueConflictDetection(t *testing.T, dbName string) *LiveMigrationTest {
 	return NewLiveMigrationTest(t, &TestConfig{
@@ -648,212 +848,5 @@ FROM generate_series(1, 20) as i;`,
 
 	err = liveMigrationTest.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
-
-}
-
-func TestLiveMigrationWithMultiColumnUniqueIndexConflictDetectionCases(t *testing.T) {
-	t.Parallel()
-	sourceFPDeltaSQL := slices.Concat(
-		multiColumnUKFalsePositiveDeltaSQL("test_schema.test_multi_column_unique_index", false, 0),
-		multiColumnUKFalsePositiveDeltaSQL("test_schema.test_multi_column_unique_index_part", true, 0),
-	)
-	sourceTCDeltaSQL := slices.Concat(
-		multiColumnUKTruePositiveDeltaSQL("test_schema.test_multi_column_unique_index", false, 0),
-		multiColumnUKTruePositiveDeltaSQL("test_schema.test_multi_column_unique_index_part", true, 0),
-	)
-	targetDeltaSQL := slices.Concat(
-		multiColumnUniqueIndexConflictDeltaSQL("test_schema.test_multi_column_unique_index", false, multiColumnUKConflictTargetIDOffset),
-		multiColumnUniqueIndexConflictDeltaSQL("test_schema.test_multi_column_unique_index_part", true, multiColumnUKConflictTargetIDOffset),
-	)
-	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB: ContainerConfig{
-			Type:         "postgresql",
-			ForLive:      true,
-			DatabaseName: "test_multi_column_unique_index",
-		},
-		TargetDB: ContainerConfig{
-			Type:         "yugabytedb",
-			DatabaseName: "test_multi_column_unique_index",
-		},
-		SchemaNames: []string{"test_schema"},
-		SchemaSQL: []string{
-			`CREATE SCHEMA IF NOT EXISTS test_schema;
-			CREATE TABLE test_schema.test_multi_column_unique_index (
-				id int PRIMARY KEY,
-				id1 int,
-				id2 int,
-				updated_at timestamp
-			);
-			CREATE UNIQUE INDEX idx_test_multi_column_unique_index_id1_id2 ON test_schema.test_multi_column_unique_index (id1, id2);
-
-			CREATE TABLE test_schema.test_multi_column_unique_index_part (
-				id int,
-				region text,
-				id1 int,
-				id2 int,
-				updated_at timestamp,
-				PRIMARY KEY (id, region)
-			) PARTITION BY LIST (region);
-			CREATE TABLE test_schema.test_multi_column_unique_index_part_r1 PARTITION OF test_schema.test_multi_column_unique_index_part FOR VALUES IN ('r1');
-			CREATE TABLE test_schema.test_multi_column_unique_index_part_r2 PARTITION OF test_schema.test_multi_column_unique_index_part FOR VALUES IN ('r2');
-			CREATE UNIQUE INDEX idx_test_multi_column_unique_index_part_r1_id1_id2 ON test_schema.test_multi_column_unique_index_part_r1 (id1, id2);
-			CREATE UNIQUE INDEX idx_test_multi_column_unique_index_part_r2_id1_id2 ON test_schema.test_multi_column_unique_index_part_r2 (id1, id2);`,
-		},
-		SourceSetupSchemaSQL: []string{
-			"ALTER TABLE test_schema.test_multi_column_unique_index REPLICA IDENTITY FULL;",
-			"ALTER TABLE test_schema.test_multi_column_unique_index_part REPLICA IDENTITY FULL;",
-			"ALTER TABLE test_schema.test_multi_column_unique_index_part_r1 REPLICA IDENTITY FULL;",
-			"ALTER TABLE test_schema.test_multi_column_unique_index_part_r2 REPLICA IDENTITY FULL;",
-		},
-		InitialDataSQL: []string{
-			`INSERT INTO test_schema.test_multi_column_unique_index (id, id1, id2, updated_at)
-			SELECT i, i, i, now() FROM generate_series(1, 20) as i;`,
-			`INSERT INTO test_schema.test_multi_column_unique_index_part (id, region, id1, id2, updated_at)
-			SELECT i, 'r1', i, i, now() FROM generate_series(1, 20) as i;`,
-		},
-		/*
-			false positive cases shouldn't be reported anymore -
-				1.  updating i-1th row with id1 and id2 as 20 and inserting a row with id1 as 20 and id2 as i
-				2.  updating i-1th row with id1 20 and id2 as NULL and inserting a row with id1 as i and id2 as NULL
-				3. deleting i-1th row (id1 as 20 and id2 as i-1) and inserting a row with id1 as 20 and id2 as i
-				4. deleting i-1th row (id1 as i-1 and id2 as NULL) and inserting a row with id1 as i and id2 as NULL
-
-
-			cases should be reported as conflicts:
-				1. updating i-1th row to set id1 from i-1 to i and id2 from i-1 to i and insert a row with id1 as 1022 and id2 as 1022
-				2. updating i-1th row to set id1 from NULL to i and id2 from NULL to i and insert a row with id1 as NULL and id2 as NULL(U->I)
-				3. delete new row and update i-1 to 1022,1022 and then deleting i-1th row (id1 as 1022 and id2 as 1022) and inserting a row with id1 as 1022 and id2 as 1022 (D->U, D->I)
-				4. delete new row and update i-1 to NULL,NULL and then deleting i-1th row (id1 as NULL and id2 as NULL) and inserting a row with id1 as NULL and id2 as NULL (D->U, D->I)
-
-
-		*/
-		TargetDeltaSQL: targetDeltaSQL,
-		CleanupSQL: []string{
-			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
-		},
-	})
-
-	defer liveMigrationTest.Cleanup()
-
-	err := liveMigrationTest.SetupContainers(context.Background())
-	testutils.FatalIfError(t, err, "failed to setup containers")
-
-	err = liveMigrationTest.SetupSchema()
-	testutils.FatalIfError(t, err, "failed to setup schema")
-
-	err = liveMigrationTest.StartExportData(true, nil)
-	testutils.FatalIfError(t, err, "failed to start export data")
-
-	uniqueKeyConflictFailpointEnv := testutils.GetFailpointEnvVar(
-		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return(true)",
-	)
-	uniqueKeyConflictFailpointMarker := filepath.Join(
-		liveMigrationTest.GetCurrentExportDir(), "failpoints", "failpoint-unique-key-conflict-detected.log")
-
-	err = liveMigrationTest.StartImportDataWithEnv(true, nil, []string{uniqueKeyConflictFailpointEnv})
-	testutils.FatalIfError(t, err, "failed to start import data with failpoint")
-
-	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
-		`"test_schema"."test_multi_column_unique_index"`:      20,
-		`"test_schema"."test_multi_column_unique_index_part"`: 20,
-	}, 80)
-	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
-
-	multiColumnUKTables := []string{
-		`"test_schema"."test_multi_column_unique_index"`,
-		`"test_schema"."test_multi_column_unique_index_part"`,
-	}
-	multiColumnUKFPChanges := ChangesCount{
-		Inserts: multiColumnUKFalsePositiveChangesInserts,
-		Updates: multiColumnUKFalsePositiveChangesUpdates,
-		Deletes: multiColumnUKFalsePositiveChangesDeletes,
-	}
-	multiColumnUKChanges := ChangesCount{
-		Inserts: 6003,
-		Updates: 2002,
-		Deletes: 4000,
-	}
-
-	err = liveMigrationTest.ValidateDataConsistency(multiColumnUKTables, "id")
-	testutils.FatalIfError(t, err, "failed to validate data consistency")
-
-	liveMigrationTest.sourceContainer.ExecuteSqlsOnDB(
-		liveMigrationTest.config.SourceDB.DatabaseName, sourceFPDeltaSQL...)
-
-	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`"test_schema"."test_multi_column_unique_index"`:      multiColumnUKFPChanges,
-		`"test_schema"."test_multi_column_unique_index_part"`: multiColumnUKFPChanges,
-	}, 300, 5)
-	testutils.FatalIfError(t, err, "failed to wait for false-positive streaming complete")
-
-	require.False(t, liveMigrationTest.GetImportRunner().IsStopped(),
-		"import should not exit during false-positive phase; stderr=%s", liveMigrationTest.GetImportCommandStderr())
-	failpointTriggered, err := testutils.WaitForFailpointMarker(uniqueKeyConflictFailpointMarker, 5*time.Second, 500*time.Millisecond)
-	if err != nil && !os.IsNotExist(err) {
-		testutils.FatalIfError(t, err, "failed to read unique key conflict failpoint marker")
-	}
-	require.False(t, failpointTriggered,
-		"unique key conflict false positive detected; marker=%s stderr=%s",
-		uniqueKeyConflictFailpointMarker, liveMigrationTest.GetImportCommandStderr())
-
-	err = liveMigrationTest.StopImportData()
-	testutils.FatalIfError(t, err, "failed to stop import after false-positive phase")
-
-	err = liveMigrationTest.StartImportData(true, nil)
-	testutils.FatalIfError(t, err, "failed to start import for true-positive phase")
-
-	streamingReady := false
-	for range 120 {
-		importOutput := liveMigrationTest.GetImportCommandStdout() + liveMigrationTest.GetImportCommandStderr()
-		if strings.Contains(importOutput, "streaming changes to") {
-			streamingReady = true
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
-	require.True(t, streamingReady, "import did not enter streaming phase before true-positive delta")
-
-	liveMigrationTest.sourceContainer.ExecuteSqlsOnDB(
-		liveMigrationTest.config.SourceDB.DatabaseName, sourceTCDeltaSQL...)
-
-	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`"test_schema"."test_multi_column_unique_index"`:      multiColumnUKChanges,
-		`"test_schema"."test_multi_column_unique_index_part"`: multiColumnUKChanges,
-	}, 300, 5)
-	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
-
-	conflictLogCount := strings.Count(
-		liveMigrationTest.GetImportCommandStdout()+liveMigrationTest.GetImportCommandStderr(),
-		"conflict detected for table")
-	require.Greater(t, conflictLogCount, 0, "true-conflict blocks on target import should be logged")
-
-	err = liveMigrationTest.ValidateDataConsistency(multiColumnUKTables, "id")
-	testutils.FatalIfError(t, err, "failed to validate data consistency")
-
-	err = liveMigrationTest.InitiateCutoverToTarget(true, nil)
-	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
-
-	err = liveMigrationTest.WaitForCutoverComplete(0, 30)
-	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
-
-	err = liveMigrationTest.ExecuteTargetDelta()
-	testutils.FatalIfError(t, err, "failed to execute target delta")
-
-	err = liveMigrationTest.WaitForFallbackStreamingComplete(map[string]ChangesCount{
-		`"test_schema"."test_multi_column_unique_index"`:      multiColumnUKChanges,
-		`"test_schema"."test_multi_column_unique_index_part"`: multiColumnUKChanges,
-	}, 300, 5)
-
-	err = liveMigrationTest.ValidateDataConsistency(multiColumnUKTables, "id")
-	testutils.FatalIfError(t, err, "failed to validate data consistency")
-
-	err = liveMigrationTest.InitiateCutoverToSource(nil)
-	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
-
-	err = liveMigrationTest.WaitForCutoverSourceComplete(0, 100)
-	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
-
-	err = liveMigrationTest.ValidateDataConsistency(multiColumnUKTables, "id")
-	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 }
