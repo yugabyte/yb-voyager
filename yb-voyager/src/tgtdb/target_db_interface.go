@@ -77,7 +77,7 @@ const (
 	// YUGABYTEDB_AMP (yb-amp) is YugabyteDB AMP — a PostgreSQL-compatible
 	// compute backed by YugabyteDB storage. It reuses the PostgreSQL target
 	// driver (see newTargetYugabyteDBAmp).
-	YUGABYTEDB_AMP = "ybamp"
+	YUGABYTEDB_AMP = "yugabytedb-amp"
 )
 
 type Batch interface {

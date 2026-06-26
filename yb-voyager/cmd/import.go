@@ -198,11 +198,19 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &tconf.RunGuardrailsChecks, "run-guardrails-checks", true, "Run guardrails checks during import")
 }
 
-func registerTargetDBConnFlags(cmd *cobra.Command) {
+// registerTargetDBTypeFlag registers --target-db-type. It is intentionally
+// NOT part of registerTargetDBConnFlags: the choice of target engine is only
+// meaningful for the commands that import schema/data into the target
+// (import schema, import data / ...toTarget, finalize-schema-post-data-import).
+// Commands like import-data-file and compare-performance always target a real
+// YugabyteDB, so they don't expose it.
+func registerTargetDBTypeFlag(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.TargetDBType, "target-db-type", "",
 		fmt.Sprintf("type of the target database to import into. Supported values: %s (default), %s (YugabyteDB AMP — a PostgreSQL-compatible compute over YugabyteDB storage)",
 			YUGABYTEDB, YUGABYTEDB_AMP))
+}
 
+func registerTargetDBConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.Host, "target-db-host", "127.0.0.1",
 		"host on which the YugabyteDB server is running")
 

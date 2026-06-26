@@ -232,6 +232,13 @@ func exportSchema(cmd *cobra.Command) error {
 	}
 	printSchemaFilesPaths(tableTransformer, mviewTransformer, indexTransformer)
 
+	// Record whether YB-flavored optimizations (colocation recommendations or
+	// the performance/sharding transforms that emit `SET yb_*`) were written
+	// into the main schema files. When true, the pre-transformation originals
+	// were retained as backup_<file>; import-schema uses this to pick the plain
+	// originals for a PostgreSQL-compatible target like yb-amp.
+	setSchemaOptimizationsApplied(assessmentRecommendationsApplied || !bool(skipPerfOptimizations))
+
 	packAndSendExportSchemaPayload(COMPLETE, nil)
 
 	saveSourceDBConfInMSR()
@@ -400,6 +407,15 @@ func setSchemaIsExported() {
 	})
 	if err != nil {
 		utils.ErrExit("set schema is exported: update migration status record: %w", err)
+	}
+}
+
+func setSchemaOptimizationsApplied(applied bool) {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.SchemaOptimizationsApplied = applied
+	})
+	if err != nil {
+		utils.ErrExit("record schema optimizations applied: update migration status record: %w", err)
 	}
 }
 

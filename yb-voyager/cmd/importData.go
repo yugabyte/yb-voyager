@@ -119,10 +119,17 @@ var importDataCmd = &cobra.Command{
 		if tconf.AdaptiveParallelismMode == "" {
 			tconf.AdaptiveParallelismMode = types.BalancedAdaptiveParallelismMode
 		}
-		// yb-amp's PostgreSQL compute exposes no YB-cluster control API
-		// (yb_servers(), tserver metrics), so adaptive parallelism does not
-		// apply — force it off regardless of the requested/default mode.
+		// Adaptive parallelism needs the YB-cluster control API (yb_servers(),
+		// tserver metrics), which yb-amp's PostgreSQL compute does not expose.
+		// If the user explicitly asked for it, fail fast with a clear pointer to
+		// --parallel-jobs; otherwise silently disable it.
 		if tconf.TargetDBType == YUGABYTEDB_AMP {
+			if cmd.Flags().Changed("adaptive-parallelism") && tconf.AdaptiveParallelismMode.IsEnabled() {
+				utils.ErrExit("adaptive parallelism is only supported for YugabyteDB targets. For --target-db-type %s, use --parallel-jobs to control import parallelism.", YUGABYTEDB_AMP)
+			}
+			if cmd.Flags().Changed("adaptive-parallelism-max") {
+				utils.ErrExit("--adaptive-parallelism-max is only supported for YugabyteDB targets. For --target-db-type %s, use --parallel-jobs.", YUGABYTEDB_AMP)
+			}
 			tconf.AdaptiveParallelismMode = types.DisabledAdaptiveParallelismMode
 		}
 
@@ -1578,8 +1585,11 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 	// The colocation-aware task picker only applies to a real YugabyteDB
 	// target. yb-amp (PostgreSQL-compatible, no colocation/tablets) and the
 	// PG fall-forward/back roles use the sequential picker instead.
-	yb, isYB := tdb.(*tgtdb.TargetYugabyteDB)
-	if (importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE) && isYB {
+	if (importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE) && tconf.TargetDBType == YUGABYTEDB {
+		yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+		if !ok {
+			return goerrors.Errorf("expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
+		}
 		taskPicker, err = NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress, maxColocatedBatchesInProgress, pendingTasks, state, yb, colocatedBatchImportQueue, tableTypes)
 		if err != nil {
 			return fmt.Errorf("create colocated aware randmo task picker: %w", err)
@@ -2319,6 +2329,8 @@ func init() {
 	importDataToTargetCmd.Flags().MarkHidden("continue-on-error")
 	registerTargetDBConnFlags(importDataCmd)
 	registerTargetDBConnFlags(importDataToTargetCmd)
+	registerTargetDBTypeFlag(importDataCmd)
+	registerTargetDBTypeFlag(importDataToTargetCmd)
 	registerImportDataCommonFlags(importDataCmd)
 	registerImportDataCommonFlags(importDataToTargetCmd)
 	registerImportUsePartitionRootFlagToTarget(importDataCmd)

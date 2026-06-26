@@ -377,7 +377,7 @@ func IsCaseSensitive(s string, sourceDbType string) bool {
 	switch sourceDbType {
 	case constants.ORACLE:
 		return !IsAllUppercase(s)
-	case constants.POSTGRESQL, constants.YUGABYTEDB, constants.YUGABYTEDB_AMP:
+	case constants.POSTGRESQL:
 		return !IsAllLowercase(s)
 	case constants.MYSQL:
 		return false

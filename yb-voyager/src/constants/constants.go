@@ -36,7 +36,7 @@ const (
 	// PostgreSQL 17 compute backed by YugabyteDB storage. On the wire it is
 	// PostgreSQL-compatible, so identifier quoting, DDL and COPY semantics
 	// follow the PostgreSQL rules.
-	YUGABYTEDB_AMP = "ybamp"
+	YUGABYTEDB_AMP = "yugabytedb-amp"
 
 	// AssessmentIssue Categoes - used by YugabyteD payload and Migration Complexity Explainability
 	// TODO: soon to be renamed as SCHEMA, SCHEMA_PLPGSQL, DML_QUERY, MIGRATION_CAVEAT, "DATATYPE"

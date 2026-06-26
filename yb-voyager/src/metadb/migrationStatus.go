@@ -44,6 +44,14 @@ type MigrationStatusRecord struct {
 	SourceExportedTableListWithLeafPartitions []string          `json:"SourceExportedTableListWithLeafPartitions"` // will be same as `TableListExportedFromSource` for Oracle and MySQL but will have leaf partitions in case of PG
 	TargetExportedTableListWithLeafPartitions []string          `json:"TargetExportedTableListWithLeafPartitions"` // will be the table list for export data from target with leaf partitions
 
+	// SchemaOptimizationsApplied records whether export-schema wrote
+	// YugabyteDB-flavored optimizations (colocation / sharding-steering GUCs)
+	// into the main schema files. When true, the pre-transformation originals
+	// are retained alongside as backup_<file>. import-schema uses this to
+	// decide, for a PostgreSQL-compatible target like yb-amp, whether it must
+	// fall back to those plain-PG originals instead of the YB-optimized files.
+	SchemaOptimizationsApplied bool `json:"SchemaOptimizationsApplied"`
+
 	SourceDBConf *srcdb.Source `json:"SourceDBConf"`
 
 	//All the cutover requested flags by initiate cutover command

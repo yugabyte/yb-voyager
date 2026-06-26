@@ -35,7 +35,7 @@ const (
 	MYSQL                           = "mysql"
 	POSTGRESQL                      = "postgresql"
 	YUGABYTEDB                      = "yugabytedb"
-	YUGABYTEDB_AMP                  = "ybamp" // YugabyteDB AMP (yb-amp): PostgreSQL-compatible compute over YugabyteDB storage
+	YUGABYTEDB_AMP                  = "yugabytedb-amp" // YugabyteDB AMP (yb-amp): PostgreSQL-compatible compute over YugabyteDB storage
 	LAST_SPLIT_NUM                  = 0
 	SPLIT_INFO_PATTERN              = "[0-9]*.[0-9]*.[0-9]*.[0-9]*.[0-9]*"
 	LAST_SPLIT_PATTERN              = "0.[0-9]*.[0-9]*.[0-9]*.[0-9]*"

@@ -1238,3 +1238,69 @@ func (pg *TargetPostgreSQL) GetEnabledTriggersAndFks() (enabledTriggers []string
 
 	return enabledTriggers, enabledFks, nil
 }
+
+// The three methods below satisfy namereg.YBDBInterface, which the name
+// registry requires of every import-to-target driver. They use standard
+// PostgreSQL catalog queries, so they are valid for any PostgreSQL-compatible
+// target — vanilla PostgreSQL and YugabyteDB AMP (which embeds this driver)
+// alike. TargetYugabyteDB keeps its own equivalents.
+
+func (pg *TargetPostgreSQL) GetAllSchemaNamesRaw() ([]string, error) {
+	query := "SELECT schema_name FROM information_schema.schemata"
+	rows, err := pg.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("querying target for schema names: %w", err)
+	}
+	defer rows.Close()
+
+	var schemaNames []string
+	for rows.Next() {
+		var schemaName string
+		if err = rows.Scan(&schemaName); err != nil {
+			return nil, fmt.Errorf("scanning schema name: %w", err)
+		}
+		schemaNames = append(schemaNames, schemaName)
+	}
+	return schemaNames, rows.Err()
+}
+
+func (pg *TargetPostgreSQL) GetAllTableNamesRaw(schemaName string) ([]string, error) {
+	query := fmt.Sprintf(`SELECT table_name
+			  FROM information_schema.tables
+			  WHERE table_type = 'BASE TABLE' AND
+			        table_schema = '%s';`, schemaName)
+	rows, err := pg.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("querying target (%q) for table names: %w", query, err)
+	}
+	defer rows.Close()
+
+	var tableNames []string
+	for rows.Next() {
+		var tableName string
+		if err = rows.Scan(&tableName); err != nil {
+			return nil, fmt.Errorf("scanning table name: %w", err)
+		}
+		tableNames = append(tableNames, tableName)
+	}
+	return tableNames, rows.Err()
+}
+
+func (pg *TargetPostgreSQL) GetAllSequencesRaw(schemaName string) ([]string, error) {
+	query := fmt.Sprintf(`SELECT sequencename FROM pg_sequences WHERE schemaname = '%s';`, schemaName)
+	rows, err := pg.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("querying target (%q) for sequence names: %w", query, err)
+	}
+	defer rows.Close()
+
+	var sequenceNames []string
+	for rows.Next() {
+		var sequenceName string
+		if err = rows.Scan(&sequenceName); err != nil {
+			return nil, fmt.Errorf("scanning sequence name: %w", err)
+		}
+		sequenceNames = append(sequenceNames, sequenceName)
+	}
+	return sequenceNames, rows.Err()
+}

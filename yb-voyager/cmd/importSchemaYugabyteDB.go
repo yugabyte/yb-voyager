@@ -62,8 +62,29 @@ var notice *pgconn.Notice
 func importSchemaInternal(exportDir string, importObjectList []string,
 	skipFn func(string, string) bool) error {
 	schemaDir := filepath.Join(exportDir, "schema")
+
+	// yb-amp is PostgreSQL-compatible and rejects the YugabyteDB-specific
+	// optimizations (colocation, `SET yb_*` sharding steering) that
+	// export-schema bakes into the main schema files. When those optimizations
+	// were applied, export-schema also retained the pre-transformation
+	// originals as backup_<file>; import those plain-PG originals instead.
+	useOriginalSchemaFiles := false
+	if tconf.TargetDBType == YUGABYTEDB_AMP {
+		msr, err := metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			return fmt.Errorf("get migration status record: %w", err)
+		}
+		useOriginalSchemaFiles = msr.SchemaOptimizationsApplied
+	}
+
 	for _, importObjectType := range importObjectList {
 		importObjectFilePath := utils.GetObjectFilePath(schemaDir, importObjectType)
+		if useOriginalSchemaFiles {
+			if origPath := originalSchemaFilePath(importObjectFilePath); utils.FileOrFolderExists(origPath) {
+				log.Infof("yb-amp target: importing pre-transformation original %q instead of %q", origPath, importObjectFilePath)
+				importObjectFilePath = origPath
+			}
+		}
 		if !utils.FileOrFolderExists(importObjectFilePath) {
 			continue
 		}
@@ -73,6 +94,12 @@ func importSchemaInternal(exportDir string, importObjectList []string,
 		}
 	}
 	return nil
+}
+
+// originalSchemaFilePath returns the backup_<base> sibling that export-schema
+// writes alongside any schema file it transforms (tables, indexes, mviews).
+func originalSchemaFilePath(filePath string) string {
+	return filepath.Join(filepath.Dir(filePath), "backup_"+filepath.Base(filePath))
 }
 
 func generateAnalyzeReport(targetYBDBVersion string) (string, error) {
@@ -217,17 +244,6 @@ func shouldSkipDDL(stmt string, objType string) (bool, error) {
 		strings.Contains(stmt, TRANSACTION_TIMEOUT_SESSION_VAR) {
 		//skip these session variables
 		log.Infof("Skipping session variable: %s", stmt)
-		return true, nil
-	}
-
-	// yb-amp is a PostgreSQL-compatible compute and does not recognize
-	// YugabyteDB-specific GUCs. The schema optimizer emits statements like
-	// `SET yb_use_hash_splitting_by_default TO ON` to steer YB sharding;
-	// those parameters don't exist on yb-amp's PG17 and would abort the
-	// import. Strip every `SET yb_*` so the remaining DDL applies as plain
-	// PostgreSQL (heap tables, no sharding clauses).
-	if tconf.TargetDBType == YUGABYTEDB_AMP && strings.HasPrefix(strings.TrimSpace(stmt), "SET YB_") {
-		log.Infof("Skipping YugabyteDB-specific session variable for yb-amp target: %s", stmt)
 		return true, nil
 	}
 

@@ -84,6 +84,7 @@ func init() {
 	registerCommonGlobalFlags(importSchemaCmd)
 	registerCommonImportFlags(importSchemaCmd)
 	registerTargetDBConnFlags(importSchemaCmd)
+	registerTargetDBTypeFlag(importSchemaCmd)
 	registerImportSchemaFlags(importSchemaCmd)
 }
 
