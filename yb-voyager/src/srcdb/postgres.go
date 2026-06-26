@@ -1421,7 +1421,7 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string, finalTa
 	return combinedResult, len(combinedResult) > 0, nil
 }
 
-func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, bool, error) {
+func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, error) {
 	return pg.GetMissingAssessMigrationPermissionsForNode(false)
 }
 
@@ -1429,13 +1429,18 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, bool, er
 // The isReplica parameter controls which checks are performed:
 // - If isReplica=true, skips ANALYZE check (pg_stat_all_tables metadata is not replicated)
 // - If isReplica=false, performs all checks including ANALYZE
-func (pg *PostgreSQL) GetMissingAssessMigrationPermissionsForNode(isReplica bool) ([]string, bool, error) {
+//
+// Note: pg_stat_statements availability is intentionally NOT checked here. It is detected
+// separately as a mandatory check (DetectPgssAvailabilityOnAllNodes) because its result
+// drives whether Unsupported Query Constructs are collected, and must run regardless of
+// whether guardrails permission checks are enabled.
+func (pg *PostgreSQL) GetMissingAssessMigrationPermissionsForNode(isReplica bool) ([]string, error) {
 	var combinedResult []string
 
 	// Check if tables have SELECT permission
 	missingTables, err := pg.listTablesMissingSelectPermission("")
 	if err != nil {
-		return nil, false, fmt.Errorf("error checking table select permissions: %w", err)
+		return nil, fmt.Errorf("error checking table select permissions: %w", err)
 	}
 	if len(missingTables) > 0 {
 		combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Missing SELECT permission for user %s on Tables: ", pg.source.User), strings.Join(missingTables, ", ")))
@@ -1444,7 +1449,7 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissionsForNode(isReplica bool
 	// Check track_counts setting
 	trackCounts, err := pg.CheckTrackCounts()
 	if err != nil {
-		return nil, false, fmt.Errorf("error checking track_counts setting: %w", err)
+		return nil, fmt.Errorf("error checking track_counts setting: %w", err)
 	}
 	if !trackCounts {
 		combinedResult = append(combinedResult,
@@ -1459,7 +1464,7 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissionsForNode(isReplica bool
 		schemas := pg.getTrimmedSchemaList()
 		missingAnalyze, err := pg.CheckMissingAnalyzeStats(schemas)
 		if err != nil {
-			return nil, false, fmt.Errorf("error checking ANALYZE statistics: %w", err)
+			return nil, fmt.Errorf("error checking ANALYZE statistics: %w", err)
 		}
 		if len(missingAnalyze) > 0 {
 			combinedResult = append(combinedResult,
@@ -1467,17 +1472,22 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissionsForNode(isReplica bool
 		}
 	}
 
+	return combinedResult, nil
+}
+
+// IsPgStatStatementsAvailable reports whether pg_stat_statements is installed,
+// accessible, and properly loaded on the connected node.
+//
+// It runs the lightweight detection (checkPgStatStatementsSetup) without surfacing the
+// detailed reason. This is the single source of truth for deciding whether query-level
+// metadata (Unsupported Query Constructs) can be collected, and is run as a mandatory
+// check independently of the guardrails permission validations.
+func (pg *PostgreSQL) IsPgStatStatementsAvailable() (bool, error) {
 	result, err := pg.checkPgStatStatementsSetup()
 	if err != nil {
-		return nil, false, fmt.Errorf("error checking pg_stat_statement extension installed with read permissions: %w", err)
+		return false, err
 	}
-
-	pgssEnabled := true
-	if result != "" {
-		pgssEnabled = false
-		combinedResult = append(combinedResult, result)
-	}
-	return combinedResult, pgssEnabled, nil
+	return result == "", nil
 }
 
 // CheckTrackCounts checks if the track_counts setting is enabled in PostgreSQL.
