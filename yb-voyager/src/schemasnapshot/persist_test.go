@@ -337,3 +337,36 @@ func TestSavePlaceholderRecordsRole(t *testing.T) {
 		assert.Equal(t, RoleSource, list[0].Side, "empty role should default Side to RoleSource")
 	})
 }
+
+// ─── schemasToString / schemasFromString round-trip (Bug C) ──────────────────
+
+// TestSchemasRoundTripCommaInName verifies that a schema name containing a
+// comma survives the schemasToString → schemasFromString round-trip as a single
+// element (the old comma-join/split implementation would corrupt it).
+func TestSchemasRoundTripCommaInName(t *testing.T) {
+	in := []string{"a,b"}
+	got := schemasFromString(schemasToString(in))
+	assert.Equal(t, in, got, "schema name containing comma must round-trip as one element")
+}
+
+// TestSchemasRoundTripNormal verifies a normal two-element slice round-trips cleanly.
+func TestSchemasRoundTripNormal(t *testing.T) {
+	in := []string{"public", "app"}
+	got := schemasFromString(schemasToString(in))
+	assert.Equal(t, in, got)
+}
+
+// TestSchemasRoundTripEmpty verifies that an empty/nil input produces nil output.
+func TestSchemasRoundTripEmpty(t *testing.T) {
+	assert.Nil(t, schemasFromString(schemasToString(nil)), "nil input should produce nil")
+	assert.Nil(t, schemasFromString(""), "empty string input should produce nil")
+}
+
+// TestSchemasFromStringLegacyFallback verifies that a raw comma-delimited string
+// (not valid JSON, as written by older voyager binaries) is still parsed correctly
+// via the comma-split fallback path.
+func TestSchemasFromStringLegacyFallback(t *testing.T) {
+	// "a,b" is invalid JSON but valid legacy format → ["a", "b"] (two elements).
+	got := schemasFromString("a,b")
+	assert.Equal(t, []string{"a", "b"}, got, "legacy comma-delimited string should split into two elements")
+}

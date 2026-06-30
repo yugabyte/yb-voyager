@@ -53,18 +53,26 @@ func deriveName(label string, capturedAt time.Time) string {
 	return fmt.Sprintf("%s_%s", label, capturedAt.UTC().Format("20060102T150405Z"))
 }
 
-// schemasToString joins a string slice to a comma-separated string.
+// schemasToString serializes the schema slice to a JSON array string.
+// JSON encoding is delimiter-safe (a schema named "a,b" survives the round-trip).
 func schemasToString(schemas []string) string {
-	return strings.Join(schemas, ",")
+	b, _ := json.Marshal(schemas)
+	return string(b)
 }
 
-// schemasFromString splits a comma-separated string back to a slice.
+// schemasFromString deserializes a schema slice from a JSON array string.
 // An empty string returns nil (not an empty slice) for cleanliness.
+// For backward compatibility it falls back to comma-splitting when the value
+// is not valid JSON (rows written by older voyager binaries).
 func schemasFromString(s string) []string {
 	if s == "" {
 		return nil
 	}
-	return strings.Split(s, ",")
+	var out []string
+	if err := json.Unmarshal([]byte(s), &out); err != nil {
+		return strings.Split(s, ",") // legacy/non-JSON rows
+	}
+	return out
 }
 
 // rowToMetadata converts a metadb row to a SnapshotMetadata value.
