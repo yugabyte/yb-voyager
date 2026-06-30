@@ -158,6 +158,8 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"max-events-per-batch", "max-interval-between-batches", "max-cpu-threshold",
 	"adaptive-parallelism-frequency-seconds", "min-available-memory-threshold", "max-batch-size-bytes",
 	"ybvoyager-use-task-picker-for-import",
+
+	"cdc-partitioning-strategy", "disable-null-conflicts",
 )
 
 var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
