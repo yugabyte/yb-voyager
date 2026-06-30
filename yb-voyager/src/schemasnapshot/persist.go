@@ -89,18 +89,14 @@ func rowToMetadata(r metadb.SchemaSnapshotRow) SnapshotMetadata {
 	}
 }
 
-// SaveSnapshot stamps label/reason into snap.Series/Reason, serializes snap to JSON,
-// and persists it under the name "{label}_{second-precision-timestamp}".
-// It mutates snap in place.
-// Returns the derived name on success.
-func SaveSnapshot(mdb *metadb.MetaDB, snap *SchemaSnapshot, label, reason string) (string, error) {
-	if err := ValidateLabelReason(label, reason); err != nil {
-		return "", err
+// SaveSnapshot persists a fully-populated snapshot to the metadata database.
+// It does not mutate snap — all fields (including Series and Reason) must be
+// stamped by the caller (Capture does this automatically). Returns the derived
+// name "{series}_{second-precision-timestamp}" on success.
+func SaveSnapshot(mdb *metadb.MetaDB, snap *SchemaSnapshot) (string, error) {
+	if snap.Series == "" {
+		return "", goerrors.Errorf("schemasnapshot: snapshot has no label (Series); cannot persist")
 	}
-
-	// Stamp Series and Reason onto the snapshot before serializing.
-	snap.Series = label
-	snap.Reason = reason
 
 	data, err := json.Marshal(snap)
 	if err != nil {
@@ -112,11 +108,11 @@ func SaveSnapshot(mdb *metadb.MetaDB, snap *SchemaSnapshot, label, reason string
 		side = SideSource
 	}
 
-	name := deriveName(label, snap.CapturedAt)
+	name := deriveName(snap.Series, snap.CapturedAt)
 	row := metadb.SchemaSnapshotRow{
 		Name:            name,
-		Label:           label,
-		Reason:          reason,
+		Label:           snap.Series,
+		Reason:          snap.Reason,
 		Side:            side,
 		CapturedAt:      snap.CapturedAt,
 		DatabaseVersion: snap.DatabaseVersion,

@@ -61,7 +61,7 @@ func TestCaptureRollbackOnSnapshotError(t *testing.T) {
 	mock.ExpectRollback()
 
 	source := CaptureSource{DatabaseType: "test-error-provider-schemasnapshot"}
-	snap, err := Capture(context.Background(), db, source, []string{"public"})
+	snap, err := Capture(context.Background(), db, CaptureParams{Source: source, Schemas: []string{"public"}, Label: LabelExportSchema})
 
 	assert.Nil(t, snap, "Capture must return nil snapshot on TakeSnapshot error")
 	require.Error(t, err, "Capture must return an error when TakeSnapshot fails")
@@ -106,7 +106,7 @@ func TestCaptureStampsHeaders(t *testing.T) {
 		User:         "voyager",
 		Side:         "source",
 	}
-	snap, err := Capture(context.Background(), db, source, []string{"public"})
+	snap, err := Capture(context.Background(), db, CaptureParams{Source: source, Schemas: []string{"public"}, Label: LabelExportSchema})
 	require.NoError(t, err)
 	require.NotNil(t, snap)
 
@@ -146,9 +146,7 @@ func TestCaptureAndSaveSnapshotSuccess(t *testing.T) {
 	}
 
 	name, err := CaptureAndSaveSnapshot(context.Background(), db, mdb, CaptureRequest{
-		Source:               source,
-		Schemas:              []string{"public"},
-		Label:                LabelExportSchema,
+		CaptureParams:        CaptureParams{Source: source, Schemas: []string{"public"}, Label: LabelExportSchema},
 		PlaceholderOnFailure: false,
 	})
 	require.NoError(t, err)
@@ -180,9 +178,7 @@ func TestCaptureAndSaveSnapshotFailurePlaceholderTrue(t *testing.T) {
 
 	source := CaptureSource{DatabaseType: "test-error-provider-schemasnapshot"}
 	name, err := CaptureAndSaveSnapshot(context.Background(), db, mdb, CaptureRequest{
-		Source:               source,
-		Schemas:              []string{"public"},
-		Label:                LabelExportSchema,
+		CaptureParams:        CaptureParams{Source: source, Schemas: []string{"public"}, Label: LabelExportSchema},
 		PlaceholderOnFailure: true,
 	})
 
@@ -209,13 +205,13 @@ func TestCaptureEmptySchemasReturnsError(t *testing.T) {
 	source := CaptureSource{DatabaseType: "test-success-provider"}
 
 	// nil schemas
-	snap, err := Capture(context.Background(), db, source, nil)
+	snap, err := Capture(context.Background(), db, CaptureParams{Source: source, Schemas: nil, Label: LabelExportSchema})
 	assert.Nil(t, snap)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no schemas in scope")
 
 	// empty slice
-	snap, err = Capture(context.Background(), db, source, []string{})
+	snap, err = Capture(context.Background(), db, CaptureParams{Source: source, Schemas: []string{}, Label: LabelExportSchema})
 	assert.Nil(t, snap)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no schemas in scope")
@@ -242,9 +238,7 @@ func TestCaptureAndSaveSnapshotFailurePlaceholderFalse(t *testing.T) {
 
 	source := CaptureSource{DatabaseType: "test-error-provider-schemasnapshot"}
 	name, err := CaptureAndSaveSnapshot(context.Background(), db, mdb, CaptureRequest{
-		Source:               source,
-		Schemas:              []string{"public"},
-		Label:                LabelExportSchema,
+		CaptureParams:        CaptureParams{Source: source, Schemas: []string{"public"}, Label: LabelExportSchema},
 		PlaceholderOnFailure: false,
 	})
 

@@ -132,7 +132,7 @@ func TestCaptureAgainstLivePostgres(t *testing.T) {
 	db, src, cleanup := startCaptureTestDB(t, nil)
 	defer cleanup()
 
-	snap, err := schemasnapshot.Capture(ctx, db, src, []string{testSchema})
+	snap, err := schemasnapshot.Capture(ctx, db, schemasnapshot.CaptureParams{Source: src, Schemas: []string{testSchema}, Label: schemasnapshot.LabelExportSchema})
 	require.NoError(t, err, "Capture should succeed against live postgres")
 
 	// Header stamping.
@@ -305,7 +305,7 @@ func TestCapturePersistRoundTrip(t *testing.T) {
 	defer cleanup()
 
 	// Step 1: Capture.
-	snap, err := schemasnapshot.Capture(ctx, db, src, []string{testSchema})
+	snap, err := schemasnapshot.Capture(ctx, db, schemasnapshot.CaptureParams{Source: src, Schemas: []string{testSchema}, Label: schemasnapshot.LabelExportSchema})
 	require.NoError(t, err, "Capture must succeed")
 	require.NotEmpty(t, snap.Tables, "captured Tables must be non-empty")
 	require.NotEmpty(t, snap.Columns, "captured Columns must be non-empty")
@@ -327,12 +327,14 @@ func TestCapturePersistRoundTrip(t *testing.T) {
 	// Step 2: Create a temp meta.db.
 	mdb := newTestMetaDB(t)
 
-	// Step 3: Persist.
-	name, err := schemasnapshot.SaveSnapshot(mdb, snap, schemasnapshot.LabelExportDataFromSourceExit, schemasnapshot.ReasonCutover)
+	// Step 3: Persist. Stamp Series/Reason then save.
+	snap.Series = schemasnapshot.LabelExportDataFromSourceExit
+	snap.Reason = schemasnapshot.ReasonCutover
+	name, err := schemasnapshot.SaveSnapshot(mdb, snap)
 	require.NoError(t, err, "SaveSnapshot must succeed")
 	assert.NotEmpty(t, name)
 
-	// SaveSnapshot stamps Series/Reason onto snap in place.
+	// Verify Series/Reason are set on snap.
 	assert.Equal(t, schemasnapshot.LabelExportDataFromSourceExit, snap.Series)
 	assert.Equal(t, "cutover", snap.Reason)
 
