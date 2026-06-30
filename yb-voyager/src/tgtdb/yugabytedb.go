@@ -175,14 +175,14 @@ func (yb *TargetYugabyteDB) Init() error {
 // mistyped --target-db-type would proceed and misbehave (YB-only GUCs,
 // colocation, adaptive parallelism). Names the right target type to use.
 func (yb *TargetYugabyteDB) validateYugabyteDBTarget() error {
-	isYB, err := endpointIsRealYugabyteDB(yb)
+	isYB, err := endpointIsRealYugabyteDB(yb.db)
 	if err != nil {
 		return fmt.Errorf("validate target is YugabyteDB: %w", err)
 	}
 	if isYB {
 		return nil
 	}
-	if hasAmp, _ := endpointHasAmpGUCs(yb); hasAmp {
+	if hasAmp, _ := endpointHasAmpGUCs(yb.db); hasAmp {
 		return fmt.Errorf("the target at %s:%d is a YugabyteDB AMP (yb-amp) endpoint, not a standard YugabyteDB cluster. "+
 			"Use --target-db-type %s instead of %s",
 			yb.Tconf.Host, yb.Tconf.Port, YUGABYTEDB_AMP, YUGABYTEDB)
