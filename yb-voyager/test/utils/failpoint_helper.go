@@ -114,11 +114,11 @@ type UniqueKeyConflictStats struct {
 func ReadUniqueKeyConflictStats(path string) (*UniqueKeyConflictStats, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read unique key conflict stats %s: %w", path, err)
+		return nil, err
 	}
 	var stats UniqueKeyConflictStats
 	if err := json.Unmarshal(data, &stats); err != nil {
-		return nil, fmt.Errorf("parse unique key conflict stats %s: %w", path, err)
+		return nil, err
 	}
 	if stats.ByTable == nil {
 		stats.ByTable = map[string]int{}
