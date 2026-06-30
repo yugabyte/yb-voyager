@@ -116,13 +116,18 @@ var importDataCmd = &cobra.Command{
 			importerRole = TARGET_DB_IMPORTER_ROLE
 		}
 		validateTargetDBTypeFlag()
-		if tconf.AdaptiveParallelismMode == "" {
-			tconf.AdaptiveParallelismMode = types.BalancedAdaptiveParallelismMode
+
+		// Adaptive-parallelism default is per-target (Balanced for YugabyteDB, Disabled
+		// for yugabytedb-amp). yb-amp is a stateless PG17 compute with no YB cluster
+		// control API (yb_servers(), tserver metrics), so adaptive parallelism cannot
+		// work there; --parallel-jobs is used instead.
+		if !cmd.Flags().Changed("adaptive-parallelism") {
+			tconf.AdaptiveParallelismMode = defaultAdaptiveParallelismMode(tconf.TargetDBType)
 		}
-		// Adaptive parallelism needs the YB-cluster control API (yb_servers(),
-		// tserver metrics), which yb-amp's PostgreSQL compute does not expose.
-		// If the user explicitly asked for it, fail fast with a clear pointer to
-		// --parallel-jobs; otherwise silently disable it.
+		// amp guardrails: any explicit enabled adaptive mode (balanced/aggressive) or an
+		// explicit --adaptive-parallelism-max is unsupported. An explicit
+		// --adaptive-parallelism disabled is fine, and so is --parallel-jobs N on its own
+		// (the default above is Disabled for amp, so validateParallelismFlags won't flag it).
 		if tconf.TargetDBType == YUGABYTEDB_AMP {
 			if cmd.Flags().Changed("adaptive-parallelism") && tconf.AdaptiveParallelismMode.IsEnabled() {
 				utils.ErrExit("adaptive parallelism is only supported for YugabyteDB targets. For --target-db-type %s, use --parallel-jobs to control import parallelism.", YUGABYTEDB_AMP)
@@ -130,7 +135,6 @@ var importDataCmd = &cobra.Command{
 			if cmd.Flags().Changed("adaptive-parallelism-max") {
 				utils.ErrExit("--adaptive-parallelism-max is only supported for YugabyteDB targets. For --target-db-type %s, use --parallel-jobs.", YUGABYTEDB_AMP)
 			}
-			tconf.AdaptiveParallelismMode = types.DisabledAdaptiveParallelismMode
 		}
 
 		err := retrieveMigrationUUID()
@@ -138,6 +142,9 @@ var importDataCmd = &cobra.Command{
 			utils.ErrExit("failed to get migration UUID: %w", err)
 		}
 		sourceDBType = GetSourceDBTypeFromMSR()
+		// validateImportFlags runs the parallelism conflict check (validateParallelismFlags)
+		// and the amp source-compat check; the adaptive-parallelism default above must be
+		// resolved before this point.
 		err = validateImportFlags(cmd, importerRole)
 		if err != nil {
 			utils.ErrExit("Error validating import flags: %s", err.Error())
@@ -147,6 +154,11 @@ var importDataCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("Error validating import data flags: %s", err.Error())
 		}
+
+		// Reject the import-data flags that are not applicable for a yugabytedb-amp target.
+		// Run after validateImportDataFlags so --on-primary-key-conflict has been validated
+		// (the generic validity check) before we report it as not applicable for amp.
+		validateAmpUnsupportedFlags(cmd)
 
 		err = validateImportUsePartitionRootFlag()
 		if err != nil {
