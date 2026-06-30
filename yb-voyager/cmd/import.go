@@ -681,21 +681,20 @@ func validateFFDBSchemaFlag() {
 }
 
 // defaultAdaptiveParallelismMode returns the adaptive-parallelism mode to use when the
-// user did NOT pass --adaptive-parallelism. It is per-target:
-//   - YUGABYTEDB: Balanced — adaptive parallelism uses the YB cluster control API
-//     (yb_servers(), tserver metrics) and is the recommended default.
-//   - YUGABYTEDB_AMP: Disabled — yb-amp is a stateless PG17 compute with no YB cluster
-//     control API, so adaptive parallelism is not available; --parallel-jobs controls
-//     import parallelism instead.
+// user did NOT pass --adaptive-parallelism. Adaptive parallelism relies on the YugabyteDB
+// cluster control API (yb_servers(), tserver metrics), so it is the recommended default
+// (Balanced) ONLY for a real YugabyteDB target. Every other target — yb-amp (stateless
+// PG17 compute) and the PostgreSQL fall-forward/fall-back targets — has no such API, so it
+// defaults to Disabled; --parallel-jobs controls import parallelism there.
 //
-// Defaulting amp to Disabled is also what lets a user pass --parallel-jobs for amp without
-// having to also pass --adaptive-parallelism disabled (validateParallelismFlags only
-// conflicts --parallel-jobs with an *enabled* adaptive mode).
+// Defaulting non-YB targets to Disabled is also what lets a user pass --parallel-jobs for
+// them without having to also pass --adaptive-parallelism disabled (validateParallelismFlags
+// only conflicts --parallel-jobs with an *enabled* adaptive mode).
 func defaultAdaptiveParallelismMode(targetDBType string) types.AdaptiveParallelismMode {
-	if targetDBType == YUGABYTEDB_AMP {
-		return types.DisabledAdaptiveParallelismMode
+	if targetDBType == YUGABYTEDB {
+		return types.BalancedAdaptiveParallelismMode
 	}
-	return types.BalancedAdaptiveParallelismMode
+	return types.DisabledAdaptiveParallelismMode
 }
 
 func validateParallelismFlags(cmd *cobra.Command) {
