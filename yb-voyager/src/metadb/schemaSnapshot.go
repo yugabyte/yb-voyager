@@ -27,6 +27,11 @@ import (
 // schemaSnapshotsTableName is the SQLite table that persists schema snapshots.
 const schemaSnapshotsTableName = "schema_snapshots"
 
+// capturedAtLayout is a fixed-width UTC timestamp layout so that captured_at TEXT
+// values sort lexicographically == chronologically (RFC3339Nano strips trailing zeros
+// producing variable-length strings that break lexicographic ordering).
+const capturedAtLayout = "2006-01-02T15:04:05.000000000Z"
+
 // SchemaSnapshotRow is the primitive row stored in schema_snapshots.
 // snapshot_json is NULLable: NULL means the row is a placeholder (no schema content captured).
 // This struct intentionally contains no schemadiff types — the metadb package must not import schemadiff.
@@ -72,7 +77,7 @@ func (m *MetaDB) InsertSchemaSnapshot(row SchemaSnapshotRow) error {
 	if err := m.createSchemaSnapshotsTable(); err != nil {
 		return err
 	}
-	capturedAtStr := row.CapturedAt.UTC().Format(time.RFC3339Nano)
+	capturedAtStr := row.CapturedAt.UTC().Format(capturedAtLayout)
 	query := fmt.Sprintf(`INSERT INTO %s
 		(name, label, reason, side, captured_at, database_version, schemas, snapshot_json)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?);`, schemaSnapshotsTableName)
