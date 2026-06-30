@@ -232,13 +232,6 @@ func exportSchema(cmd *cobra.Command) error {
 	}
 	printSchemaFilesPaths(tableTransformer, mviewTransformer, indexTransformer)
 
-	// Record whether YB-flavored optimizations (colocation recommendations or
-	// the performance/sharding transforms that emit `SET yb_*`) were written
-	// into the main schema files. When true, the pre-transformation originals
-	// were retained as backup_<file>; import-schema uses this to pick the plain
-	// originals for a PostgreSQL-compatible target like yb-amp.
-	setSchemaOptimizationsApplied(assessmentRecommendationsApplied || !bool(skipPerfOptimizations))
-
 	packAndSendExportSchemaPayload(COMPLETE, nil)
 
 	saveSourceDBConfInMSR()
@@ -407,15 +400,6 @@ func setSchemaIsExported() {
 	})
 	if err != nil {
 		utils.ErrExit("set schema is exported: update migration status record: %w", err)
-	}
-}
-
-func setSchemaOptimizationsApplied(applied bool) {
-	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		record.SchemaOptimizationsApplied = applied
-	})
-	if err != nil {
-		utils.ErrExit("record schema optimizations applied: update migration status record: %w", err)
 	}
 }
 
@@ -805,8 +789,23 @@ func applyMviewFileTransformations(modifiedMviews []string, colocatedMviews []st
 	mviewTransformer := sqltransformer.NewMviewFileTransformer()
 	mviewTransformer.ShardedMviews = modifiedMviews
 	mviewTransformer.ColocatedMviews = colocatedMviews
+	// mviewBackupPath is the plain <mview.sql>.orig the colocation step wrote (if
+	// it ran). Hand it to the transformer so Transform can materialize the plain
+	// backup_<base> sibling that import-schema looks for on a PostgreSQL-compatible
+	// target like yb-amp.
 	mviewTransformer.BackupFilePath = mviewBackupPath
 	mviewTransformer.ColocationRecommendationsApplied = assessmentRecommendationsApplied
+
+	mviewFilePath := utils.GetObjectFilePath(schemaDir, MVIEW)
+	if mviewBackupPath != "" && utils.FileOrFolderExists(mviewFilePath) {
+		backUpFile, err := mviewTransformer.Transform(mviewFilePath)
+		if err != nil {
+			// Mirror the table-transform behavior: don't fail export over a backup hiccup.
+			log.Infof("skipping error while transforming mview file %s: %v", mviewFilePath, err)
+			return mviewTransformer, nil
+		}
+		log.Infof("Plain MVIEW DDLs backed up to %s", backUpFile)
+	}
 	return mviewTransformer, nil
 }
 func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, error) {

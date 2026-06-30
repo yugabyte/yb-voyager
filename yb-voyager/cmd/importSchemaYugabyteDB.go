@@ -63,23 +63,16 @@ func importSchemaInternal(exportDir string, importObjectList []string,
 	skipFn func(string, string) bool) error {
 	schemaDir := filepath.Join(exportDir, "schema")
 
-	// yb-amp is PostgreSQL-compatible and rejects the YugabyteDB-specific
-	// optimizations (colocation, `SET yb_*` sharding steering) that
-	// export-schema bakes into the main schema files. When those optimizations
-	// were applied, export-schema also retained the pre-transformation
-	// originals as backup_<file>; import those plain-PG originals instead.
-	useOriginalSchemaFiles := false
-	if tconf.TargetDBType == YUGABYTEDB_AMP {
-		msr, err := metaDB.GetMigrationStatusRecord()
-		if err != nil {
-			return fmt.Errorf("get migration status record: %w", err)
-		}
-		useOriginalSchemaFiles = msr.SchemaOptimizationsApplied
-	}
-
 	for _, importObjectType := range importObjectList {
 		importObjectFilePath := utils.GetObjectFilePath(schemaDir, importObjectType)
-		if useOriginalSchemaFiles {
+		// yb-amp is PostgreSQL-compatible and rejects the YugabyteDB-specific
+		// optimizations (colocation, `SET yb_*` sharding steering) that
+		// export-schema bakes into the main schema files. Whenever export-schema
+		// transformed an object file it also retained the plain pre-transformation
+		// original as backup_<base>; for yb-amp, prefer that plain original purely
+		// by its existence (an object type with nothing to transform has no backup,
+		// so its normal file is already plain).
+		if tconf.TargetDBType == YUGABYTEDB_AMP {
 			if origPath := originalSchemaFilePath(importObjectFilePath); utils.FileOrFolderExists(origPath) {
 				log.Infof("yb-amp target: importing pre-transformation original %q instead of %q", origPath, importObjectFilePath)
 				importObjectFilePath = origPath
@@ -103,6 +96,15 @@ func originalSchemaFilePath(filePath string) string {
 }
 
 func generateAnalyzeReport(targetYBDBVersion string) (string, error) {
+	// yb-amp reports a plain-PostgreSQL version ("PostgreSQL 17.x"), not the
+	// YugabyteDB "<pg>-YB-<yb>-<build>" string this report's version parsing
+	// expects, and the analyze report is YB-version-oriented. Skip it for yb-amp:
+	// returning an empty path also drops the YB-flavored analyze nudge downstream.
+	if tconf.TargetDBType == YUGABYTEDB_AMP {
+		log.Infof("skipping analyze-schema report generation for yb-amp target")
+		return "", nil
+	}
+
 	//check if schema is already analyzed
 	path := filepath.Join(exportDir, "reports", fmt.Sprintf("%s.*", ANALYSIS_REPORT_FILE_NAME))
 	reportPath, ok := utils.FilePathForAnyFileExistsInGlobPattern(path) // basic check if report files exists then return that only
