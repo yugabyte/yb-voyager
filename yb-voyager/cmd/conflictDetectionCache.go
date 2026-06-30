@@ -304,9 +304,10 @@ DELETE-UPDATE
 	c.before-i.after
 
 
-TODO: partition by table - no need to do conflict detection
-TODO: optimization if no partial unique index then no need to check before fields
-TODO: prometheus metrics for unique conflict detection logic
+TODO: fetch from target instead of source
+TODO: optimization if no partial unique index then no need to check before=before
+TODO: UNIQUE NULLS NOT DISTINCT
+TODO: DO not add-to-cache OR check-for-conflicts if the UPDATE does not change UK columns or partial predicate columns
 */
 
 func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomingEvent *tgtdb.Event) bool {
@@ -492,6 +493,12 @@ func uniqueKeyColumnValuesEqual(left, right *string) bool {
 	bothNil := left == nil && right == nil
 	bothNotNil := left != nil && right != nil
 	valuesEqual := bothNotNil && *left == *right
+	if disableNullConflicts {
+		//In case where users have UNIQUE INDEX NULLS DISTINCT property (default case), then we don't need to check for null conflicts as nulls are not treated as Unique key values.
+		//This configuration disables the conflict detection for null values completely so in any case if users have the UNIQUE NULLS NOT DISTINCT and pass this flag, we won't be
+		//detecting any conflicts and it will fail with unique key constraint error.
+		return valuesEqual
+	}
 	return bothNil || valuesEqual
 }
 

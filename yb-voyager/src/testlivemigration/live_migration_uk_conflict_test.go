@@ -628,11 +628,11 @@ func TestLiveMigrationWithUniqueKeyConflictWithNullValuesDetectionCases(t *testi
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
 			ForLive:      true,
-			DatabaseName: "test8",
+			DatabaseName: "test_null_conflict_detection",
 		},
 		TargetDB: ContainerConfig{
 			Type:         "yugabytedb",
-			DatabaseName: "test8",
+			DatabaseName: "test_null_conflict_detection",
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
@@ -787,6 +787,166 @@ FROM generate_series(1, 20) as i;`,
 
 }
 
+func TestLiveMigrationWithUniqueKeyConflictWithNullValuesDetectionCasesAndDisableNullConflicts(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_null_conflicts_disable",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_null_conflicts_disable",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.test_live_null_unique_values (
+				id int PRIMARY KEY,
+				name TEXT,
+				check_id int UNIQUE,
+				check_id_null_unique int,
+				id3 int
+			);`,
+			`CREATE UNIQUE INDEX idx_test_live_null_unique_values_check_id_null_unique ON test_schema.test_live_null_unique_values (check_id_null_unique, id3);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.test_live_null_unique_values REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.test_live_null_unique_values (id, name, check_id, check_id_null_unique, id3)
+SELECT
+	i,
+	md5(random()::text),                                   -- name
+    CASE WHEN i%2=0 THEN i ELSE NULL END,                  -- check_id
+    i,                                                 -- check_id_null_unique
+    i+100                                             -- id3
+FROM generate_series(1, 20) as i;`,
+		},
+		SourceDeltaSQL: []string{
+			/*
+				The below test covering  the null cases
+				1  NULL 1
+				2  2 2
+				...
+
+				i=21
+				UI conflict
+				U 20 20 20->NULL
+				I 21 NULL 20
+
+				UU conflict
+				U 20 20 NULL->20
+				U 21 NULL 20->NULL
+
+				DU conflict
+				D 20 20 20
+				U 21 NULL NULL->20
+
+				U 21 NULL 20->NULL
+
+				DI conflict
+				D 21 NULL NULL
+				I 20 20 NULL
+
+				U 20 20 NULL->20
+				I 21 NULL 21
+			*/
+			`DO $$
+		DECLARE	
+			i INTEGER;
+		BEGIN
+			FOR i IN 21..520 LOOP
+				UPDATE test_schema.test_live_null_unique_values SET check_id_null_unique = NULL, id3 = NULL WHERE id = i - 1;
+				INSERT INTO test_schema.test_live_null_unique_values(id, name, check_id, check_id_null_unique, id3) 
+				SELECT i, md5(random()::text), CASE WHEN i%2=0 THEN i ELSE NULL END, i-1, i+100 ;
+		
+				UPDATE test_schema.test_live_null_unique_values SET check_id_null_unique = i WHERE id = i - 1;
+				UPDATE test_schema.test_live_null_unique_values SET check_id_null_unique = NULL, id3 = NULL WHERE id = i;
+		
+				DELETE FROM test_schema.test_live_null_unique_values WHERE id = i-1;
+				UPDATE test_schema.test_live_null_unique_values SET check_id_null_unique = i-1, id3 = i+100 WHERE id = i;
+		
+				UPDATE test_schema.test_live_null_unique_values SET check_id_null_unique = NULL, id3 = NULL WHERE id = i;
+				
+				DELETE FROM test_schema.test_live_null_unique_values WHERE id = i;
+				INSERT INTO test_schema.test_live_null_unique_values(id, name, check_id, check_id_null_unique, id3) 
+				SELECT i-1, md5(random()::text), CASE WHEN (i-1)%2=0 THEN i-1 ELSE NULL END, NULL, NULL;
+		
+		
+				UPDATE test_schema.test_live_null_unique_values SET check_id_null_unique = i-1 WHERE id = i - 1;
+				INSERT INTO test_schema.test_live_null_unique_values(id, name, check_id, check_id_null_unique, id3)
+				SELECT i, md5(random()::text), CASE WHEN i%2=0 THEN i ELSE NULL END, i, i+100;
+		
+			END LOOP;
+		END $$;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+	)
+	uniqueKeyConflictFailpointMarker := filepath.Join(
+		lm.GetCurrentExportDir(), "failpoints", "failpoint-unique-key-conflict-detected.log")
+
+	err = lm.StartImportDataWithEnv(true, map[string]string{
+		"--disable-null-conflicts": "true",
+	}, []string{uniqueKeyConflictCountFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_live_null_unique_values"`: 20,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live_null_unique_values"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live_null_unique_values"`: {
+			Inserts: 1500,
+			Updates: 3000,
+			Deletes: 1000,
+		},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live_null_unique_values"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	require.False(t, lm.GetImportRunner().IsStopped(),
+		"import should not exit during false-positive phase")
+	failpointTriggered, err := testutils.WaitForFailpointMarker(uniqueKeyConflictFailpointMarker, 5, 500)
+	if err != nil && !os.IsNotExist(err) {
+		testutils.FatalIfError(t, err, "failed to read unique key conflict failpoint marker")
+	}
+	require.False(t, failpointTriggered,
+		"unique key conflict false positive detected; marker=%s", uniqueKeyConflictFailpointMarker)
+
+	require.False(t, failpointTriggered, "count mode should not write crash failpoint marker")
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+}
 func TestLiveMigrationWithUniqueKeyConflictWithNullValueAndPartialPredicatesDetectionCases(t *testing.T) {
 	t.Parallel()
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
