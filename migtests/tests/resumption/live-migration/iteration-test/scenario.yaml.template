@@ -45,7 +45,7 @@ generator_source:
     generator:
       schema_name: public
       manual_table_list: []
-      exclude_table_list: [cutover_table]
+      exclude_table_list: [cutover_table, cust_active, cust_arr_small, cust_arr_large, cust_part11, cust_part12, cust_part21, cust_part22, cust_other]
       num_iterations: -1
       wait_after_operations: 1000
       wait_duration_seconds: 1
@@ -58,6 +58,30 @@ generator_source:
       delete_rows: 1
       insert_max_retries: 5
       update_max_retries: 1
+      # Pin region/sale_date/status to valid partition values so generated rows route
+      # across the real partitions (DEFAULT partitions in partitioned-init.sql catch any strays).
+      column_overrides:
+        sales_region:
+          region:
+            type: choice
+            values: ["London", "Sydney", "Boston"]
+        test_partitions_sequences:
+          region:
+            type: choice
+            values: ["London", "Sydney", "Boston"]
+        sales:
+          sale_date:
+            type: timestamp_range
+            min: "2019-10-01 00:00:00"
+            max: "2020-06-30 23:59:59"
+        customers:
+          statuses:
+            type: choice
+            values: ["ACTIVE", "RECURRING", "REACTIVATED"]
+          arr:
+            type: int_range
+            min: 0
+            max: 200
 
 # Fallback (target) event generator configuration.
 # This will be used later when we start a generator on the target side.
@@ -73,7 +97,7 @@ generator_target:
     generator:
       schema_name: public
       manual_table_list: []
-      exclude_table_list: [cutover_table]
+      exclude_table_list: [cutover_table, cust_active, cust_arr_small, cust_arr_large, cust_part11, cust_part12, cust_part21, cust_part22, cust_other]
       num_iterations: -1
       wait_after_operations: 5000
       wait_duration_seconds: 1
@@ -86,8 +110,34 @@ generator_target:
       delete_rows: 2
       insert_max_retries: 5
       update_max_retries: 1
+      # Pin region/sale_date/status to valid partition values so generated rows route
+      # across the real partitions (DEFAULT partitions in partitioned-init.sql catch any strays).
+      column_overrides:
+        sales_region:
+          region:
+            type: choice
+            values: ["London", "Sydney", "Boston"]
+        test_partitions_sequences:
+          region:
+            type: choice
+            values: ["London", "Sydney", "Boston"]
+        sales:
+          sale_date:
+            type: timestamp_range
+            min: "2019-10-01 00:00:00"
+            max: "2020-06-30 23:59:59"
+        customers:
+          statuses:
+            type: choice
+            values: ["ACTIVE", "RECURRING", "REACTIVATED"]
+          arr:
+            type: int_range
+            min: 0
+            max: 200
 
 voyager:
+  # use-partition-root defaults to "true" (import via the partition ROOT), so it's left unset here.
+  # (partition-iteration-test covers the use-partition-root=false / non-default case.)
   cutover_to_target:
     flags:
       prepare-for-fall-back: true
@@ -101,9 +151,25 @@ stages:
     action: reset_databases
     targets: [source, target]
 
+  # Shared flat (non-partitioned) schema — the baseline this test has always used.
   - name: create_source_schema
     action: run_sql
     sql_path: ../common-sql/init.sql
+    use_admin: true
+
+  # Additional "normal" partitioned tables (PK on the partition root), reused DIRECTLY from the
+  # pg/partitions schema. Imported with use-partition-root=true (default) so CDC routes through
+  # the root. This is an ADDITION to the flat schema above, not a replacement.
+  - name: create_partitioned_source_schema
+    action: run_sql
+    sql_path: ../../../pg/partitions/schema.sql
+    use_admin: true
+
+  # Adjust the pg/partitions schema for live CDC: drop the p1/p2 cross-schema block (public-only
+  # export) and add DEFAULT partitions so the event generator's random values always route.
+  - name: create_partitioned_extras
+    action: run_sql
+    sql_path: ./partitioned-extras.sql
     use_admin: true
 
   - name: increase_temp_file_limit_source
