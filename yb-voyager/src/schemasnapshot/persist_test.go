@@ -46,6 +46,16 @@ func newTestMetaDB(t *testing.T) *metadb.MetaDB {
 	return mdb
 }
 
+// saveWithLabel stamps label/reason onto snap and calls SaveSnapshot, mirroring
+// what Capture does for callers that build a snapshot manually (e.g. tests that
+// call SaveSnapshot directly instead of going through Capture).
+func saveWithLabel(t *testing.T, mdb *metadb.MetaDB, snap *SchemaSnapshot, label, reason string) (string, error) {
+	t.Helper()
+	snap.Series = label
+	snap.Reason = reason
+	return SaveSnapshot(mdb, snap)
+}
+
 // makeSnapshot returns a minimal populated SchemaSnapshot with Version 1.
 func makeSnapshot(capturedAt time.Time) *SchemaSnapshot {
 	return &SchemaSnapshot{
@@ -81,7 +91,7 @@ func TestSaveSnapshotRoundTrip(t *testing.T) {
 	capturedAt := time.Date(2026, 5, 12, 10, 0, 0, 0, time.UTC)
 	snap := makeSnapshot(capturedAt)
 
-	name, err := SaveSnapshot(mdb, snap, LabelExportDataFromSourceExit, ReasonCutover)
+	name, err := saveWithLabel(t, mdb, snap, LabelExportDataFromSourceExit, ReasonCutover)
 	require.NoError(t, err)
 	assert.Equal(t, "export_data_from_source_exit_20260512T100000Z", name)
 
@@ -114,13 +124,13 @@ func TestListSnapshotsOrder(t *testing.T) {
 	t3 := time.Date(2026, 5, 12, 10, 0, 0, 0, time.UTC)
 
 	// Insert in non-chronological order.
-	_, err := SaveSnapshot(mdb, makeSnapshot(t3), LabelExportDataFromSourceExit, ReasonComplete)
+	_, err := saveWithLabel(t, mdb, makeSnapshot(t3), LabelExportDataFromSourceExit, ReasonComplete)
 	require.NoError(t, err)
 
 	_, err = SavePlaceholder(mdb, LabelExportDataFromSourceStart, ReasonInitial, SideSource, t1, "16.14", []string{"public"})
 	require.NoError(t, err)
 
-	_, err = SaveSnapshot(mdb, makeSnapshot(t2), LabelExportDataFromSourcePeriodic, "")
+	_, err = saveWithLabel(t, mdb, makeSnapshot(t2), LabelExportDataFromSourcePeriodic, "")
 	require.NoError(t, err)
 
 	list, err := ListSnapshots(mdb)
@@ -178,7 +188,7 @@ func TestLoadMissingNameReturnsNotFound(t *testing.T) {
 
 	// Save one snapshot so the schema_snapshots table exists, then look up a
 	// different name: this exercises the "table present, row absent" path.
-	_, err := SaveSnapshot(mdb, makeSnapshot(time.Date(2026, 5, 12, 10, 0, 0, 0, time.UTC)), LabelExportDataFromSourceExit, ReasonCutover)
+	_, err := saveWithLabel(t, mdb, makeSnapshot(time.Date(2026, 5, 12, 10, 0, 0, 0, time.UTC)), LabelExportDataFromSourceExit, ReasonCutover)
 	require.NoError(t, err)
 
 	_, err = LoadSnapshotByName(mdb, "no_such_name")
@@ -245,12 +255,12 @@ func TestSaveSnapshotNameCollision(t *testing.T) {
 	capturedAt := time.Date(2026, 5, 12, 10, 0, 0, 0, time.UTC)
 
 	snap1 := makeSnapshot(capturedAt)
-	_, err := SaveSnapshot(mdb, snap1, LabelExportSchema, "")
+	_, err := saveWithLabel(t, mdb, snap1, LabelExportSchema, "")
 	require.NoError(t, err)
 
 	// Same label + same second → same derived name → collision.
 	snap2 := makeSnapshot(capturedAt)
-	_, err = SaveSnapshot(mdb, snap2, LabelExportSchema, "")
+	_, err = saveWithLabel(t, mdb, snap2, LabelExportSchema, "")
 	require.Error(t, err)
 }
 
@@ -289,7 +299,7 @@ func TestSaveSnapshotEmptyRoleDefaultsSideToSource(t *testing.T) {
 	// Clear the side so the fallback logic is exercised.
 	snap.CaptureSource.Side = ""
 
-	name, err := SaveSnapshot(mdb, snap, LabelExportSchema, "")
+	name, err := saveWithLabel(t, mdb, snap, LabelExportSchema, "")
 	require.NoError(t, err)
 	assert.NotEmpty(t, name)
 
@@ -299,13 +309,29 @@ func TestSaveSnapshotEmptyRoleDefaultsSideToSource(t *testing.T) {
 	assert.Equal(t, "source", list[0].Side, "empty Side should default Side to 'source'")
 }
 
-// ─── SaveSnapshot rejects unknown label ───────────────────────────────────────
+// ─── ValidateLabelReason rejects unknown label ────────────────────────────────
 
-func TestSaveSnapshotBadLabel(t *testing.T) {
+// TestValidateLabelReasonBadLabel verifies that ValidateLabelReason returns an
+// error for an unrecognised label. Validation was previously in SaveSnapshot but
+// moved to Capture so the snapshot is fully validated before reaching persist.
+func TestValidateLabelReasonBadLabel(t *testing.T) {
+	err := ValidateLabelReason("invalid_label", "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown snapshot label")
+}
+
+// ─── SaveSnapshot rejects snapshot with empty Series ─────────────────────────
+
+// TestSaveSnapshotEmptySeriesReturnsError verifies that SaveSnapshot returns an
+// error when the snapshot has no Series (label) set, enforcing the storage
+// precondition: callers must stamp Series before calling SaveSnapshot.
+func TestSaveSnapshotEmptySeriesReturnsError(t *testing.T) {
 	mdb := newTestMetaDB(t)
 	snap := makeSnapshot(time.Now())
-	_, err := SaveSnapshot(mdb, snap, "invalid_label", "")
+	// Series is intentionally left empty.
+	_, err := SaveSnapshot(mdb, snap)
 	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no label (Series)")
 }
 
 // ─── SavePlaceholder side flows through to Side ───────────────────────────────

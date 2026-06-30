@@ -92,23 +92,37 @@ func NewSnapshotProvider(databaseType string) (SnapshotProvider, error) {
 
 // ─── Capture orchestrator ─────────────────────────────────────────────────────
 
+// CaptureParams describes a single capture: what to capture (Source, Schemas) and
+// how to file it (Label, Reason). Label is required at every call site — it is the
+// snapshot's filing key (a labels.go constant) and the basis of its persisted name.
+type CaptureParams struct {
+	Source  CaptureSource
+	Schemas []string
+	Label   string
+	Reason  string
+}
+
 // Capture is the library entry point for taking a schema snapshot. It:
-//  1. Resolves the SnapshotProvider for source.DatabaseType.
-//  2. Opens a read-only REPEATABLE READ transaction on db.
-//  3. Calls provider.TakeSnapshot inside that transaction.
-//  4. Commits on success (rollback on any error) — atomic, never partial.
-//  5. Stamps all header fields onto the returned snapshot.
+//  1. Guards against empty Schemas.
+//  2. Validates Label/Reason against the known vocabulary.
+//  3. Resolves the SnapshotProvider for p.Source.DatabaseType.
+//  4. Opens a read-only REPEATABLE READ transaction on db.
+//  5. Calls provider.TakeSnapshot inside that transaction.
+//  6. Commits on success (rollback on any error) — atomic, never partial.
+//  7. Stamps all header fields (including Series and Reason) onto the returned snapshot.
 //
-// db and source are both needed and not derivable from each other: db is the
-// connection we query against; source is the descriptive identity (host/role/
-// type) recorded into the snapshot — database/sql can't be introspected for it,
-// and source.DatabaseType also selects the provider.
-func Capture(ctx context.Context, db *sql.DB, source CaptureSource, schemas []string) (*SchemaSnapshot, error) {
-	if len(schemas) == 0 {
+// The snapshot returned is fully populated and ready for SaveSnapshot without any
+// further mutation.
+func Capture(ctx context.Context, db *sql.DB, p CaptureParams) (*SchemaSnapshot, error) {
+	if len(p.Schemas) == 0 {
 		return nil, goerrors.Errorf("schemasnapshot: no schemas in scope for capture")
 	}
 
-	provider, err := NewSnapshotProvider(source.DatabaseType)
+	if err := ValidateLabelReason(p.Label, p.Reason); err != nil {
+		return nil, err
+	}
+
+	provider, err := NewSnapshotProvider(p.Source.DatabaseType)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +139,7 @@ func Capture(ctx context.Context, db *sql.DB, source CaptureSource, schemas []st
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	snap, err := provider.TakeSnapshot(ctx, tx, schemas)
+	snap, err := provider.TakeSnapshot(ctx, tx, p.Schemas)
 	if err != nil {
 		return nil, fmt.Errorf("schemasnapshot: taking snapshot: %w", err)
 	}
@@ -136,11 +150,13 @@ func Capture(ctx context.Context, db *sql.DB, source CaptureSource, schemas []st
 
 	// Stamp header fields.
 	snap.Version = 1
-	snap.CaptureSource = source
+	snap.CaptureSource = p.Source
 	snap.CapturedAt = time.Now().UTC()
-	snap.DatabaseType = source.DatabaseType
+	snap.DatabaseType = p.Source.DatabaseType
 	snap.StableIdentity = provider.HasStableIdentity()
-	snap.Schemas = schemas
+	snap.Schemas = p.Schemas
+	snap.Series = p.Label
+	snap.Reason = p.Reason
 
 	return snap, nil
 }
@@ -150,11 +166,8 @@ func Capture(ctx context.Context, db *sql.DB, source CaptureSource, schemas []st
 // infrastructure handles (ctx, db, mdb) as direct parameters of CaptureAndSaveSnapshot.
 // Zero values are sane defaults (no placeholder, empty reason).
 type CaptureRequest struct {
-	Source               CaptureSource // descriptive source identity; Source.DatabaseType selects the provider.
-	Schemas              []string      // schemas in scope for this capture.
-	Label                string        // the capture label/series (a labels.go constant).
-	Reason               string        // capture reason where the label carries one; "" otherwise.
-	PlaceholderOnFailure bool          // when true, a failed capture still records a metadata-only timeline marker.
+	CaptureParams
+	PlaceholderOnFailure bool // when true, a failed capture still records a metadata-only timeline marker.
 }
 
 // CaptureAndSaveSnapshot captures the source schema and persists it. On capture failure,
@@ -164,7 +177,7 @@ type CaptureRequest struct {
 func CaptureAndSaveSnapshot(ctx context.Context, db *sql.DB, mdb *metadb.MetaDB,
 	req CaptureRequest) (name string, err error) {
 
-	snap, captureErr := Capture(ctx, db, req.Source, req.Schemas)
+	snap, captureErr := Capture(ctx, db, req.CaptureParams)
 	if captureErr != nil {
 		if req.PlaceholderOnFailure {
 			// placeholder dbVersion is "" (the version probe was part of the failed capture).
@@ -173,5 +186,5 @@ func CaptureAndSaveSnapshot(ctx context.Context, db *sql.DB, mdb *metadb.MetaDB,
 		return "", captureErr
 	}
 
-	return SaveSnapshot(mdb, snap, req.Label, req.Reason)
+	return SaveSnapshot(mdb, snap)
 }
