@@ -37,33 +37,22 @@ const (
 	HASH_SPLITTING_SESSION_VARIABLE_OFF            = "set yb_use_hash_splitting_by_default=off;"
 )
 
-// ensurePlainBackup creates the canonical backup_<base> sibling alongside `file`
-// and returns its path. The backup must always hold the PLAIN, pre-transform
-// DDL so a PostgreSQL-compatible target (yb-amp) can import the originals.
-//
-// existingPlainBackup, when non-empty, is an already-created plain backup of the
-// pre-transform DDL written by an earlier step (e.g. the colocation step renames
-// the plain file to <file>.orig before writing colocation clauses into `file`).
-// In that case we copy that plain file into backup_<base> rather than `file`,
-// because `file` has already been mutated by the earlier step and is no longer
-// plain. This is the fix for the clobber bug where copying the post-colocation
-// `file` into backup_<base> destroyed the plain backup.
-//
-// If backup_<base> already exists it is left untouched (skip-if-exists) so the
-// earliest/plain backup is preserved across multiple transform passes / re-runs.
-func ensurePlainBackup(file string, existingPlainBackup string) (string, error) {
+// EnsurePlainBackup creates the canonical backup_<base> sibling alongside `file`
+// and returns its path. It is the single place that produces a schema-file backup,
+// used by every step that mutates a schema file (the colocation recommender and the
+// file transformers) — each MUST call it BEFORE mutating `file`. Because the first
+// caller copies the still-pristine `file`, and it is skip-if-exists (never
+// overwrites an existing backup), backup_<base> always holds the plain,
+// pre-any-transformation pg_dump DDL. That is exactly what a PostgreSQL-compatible
+// target (yb-amp) imports.
+func EnsurePlainBackup(file string) (string, error) {
 	backUpFile := filepath.Join(filepath.Dir(file), fmt.Sprintf("backup_%s", filepath.Base(file)))
 	if utils.FileOrFolderExists(backUpFile) {
-		// Preserve the earliest (plain) backup; do not clobber it.
+		// Earliest (plain) backup wins; never clobber it.
 		return backUpFile, nil
 	}
-	src := file
-	if existingPlainBackup != "" && utils.FileOrFolderExists(existingPlainBackup) {
-		// `file` was already mutated by an earlier step; copy the plain original.
-		src = existingPlainBackup
-	}
-	if err := utils.CopyFile(src, backUpFile); err != nil {
-		return "", fmt.Errorf("failed to copy %s to %s: %w", src, backUpFile, err)
+	if err := utils.CopyFile(file, backUpFile); err != nil {
+		return "", fmt.Errorf("failed to back up %s to %s: %w", file, backUpFile, err)
 	}
 	return backUpFile, nil
 }
@@ -116,9 +105,8 @@ func (t *IndexFileTransformer) Transform(file string) (string, error) {
 
 	var err error
 	var parseTree *pg_query.ParseResult
-	// Index files have no earlier-step backup, so the plain backup is just a copy
-	// of `file` (still plain at this point), created skip-if-exists.
-	backUpFile, err := ensurePlainBackup(file, "")
+	// Back up the pristine file before transforming it (skip-if-exists).
+	backUpFile, err := EnsurePlainBackup(file)
 	if err != nil {
 		return "", err
 	}
@@ -226,12 +214,10 @@ func NewTableFileTransformer(skipMergeConstraints bool, sourceDBType string, ski
 func (t *TableFileTransformer) Transform(file string) (string, error) {
 	var err error
 	var parseTree *pg_query.ParseResult
-	// The colocation step (applyShardedTablesRecommendation) runs before this and,
-	// when it fires, renames the PLAIN table file to <file>.orig and sets
-	// t.BackupFilePath to it before writing colocation clauses into `file`. By the
-	// time we get here `file` is post-colocation, so we must back up the plain
-	// .orig instead of `file` to keep backup_<base> plain (the clobber-bug fix).
-	backUpFile, err := ensurePlainBackup(file, t.BackupFilePath)
+	// Back up the pristine file before transforming it. The colocation step, if it
+	// ran, already created backup_<base> from the plain pre-colocation file, so this
+	// is skip-if-exists and the backup stays plain.
+	backUpFile, err := EnsurePlainBackup(file)
 	if err != nil {
 		return "", err
 	}
@@ -302,25 +288,14 @@ func NewMviewFileTransformer() *MviewFileTransformer {
 	return &MviewFileTransformer{}
 }
 
-// Transform does not modify the mview file content (mview transformations are,
-// for now, applied outside this transformer by the colocation step). Its only
-// job is to materialize the canonical plain backup_<base> sibling so a
-// PostgreSQL-compatible target (yb-amp) can import the pre-colocation original.
-// When the colocation step ran it set t.BackupFilePath to the plain <file>.orig;
-// ensurePlainBackup copies that plain file (not the post-colocation `file`) into
-// backup_<base>, skip-if-exists. When colocation did not run, no backup is made.
+// Transform does not modify the mview file content; mview mutations (colocation)
+// are applied by the colocation step, which also creates the plain backup_<base>
+// via EnsurePlainBackup before mutating. So this transformer is a pass-through.
 func (t *MviewFileTransformer) Transform(file string) (string, error) {
-	if t.BackupFilePath == "" {
-		// Nothing transformed the mview file (no colocation), so it is already
-		// plain; no backup needed.
-		return file, nil
-	}
-	backUpFile, err := ensurePlainBackup(file, t.BackupFilePath)
-	if err != nil {
-		return "", err
-	}
-	t.BackupFilePath = backUpFile
-	return backUpFile, nil
+	// The mview file is only ever mutated by the colocation step, which backs it up
+	// (EnsurePlainBackup) before mutating. This transformer applies no content
+	// changes of its own, so there is nothing to do here.
+	return file, nil
 }
 
 func (t *MviewFileTransformer) GetBackupFilePath() string {
