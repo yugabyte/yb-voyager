@@ -18,6 +18,7 @@ package tgtdb
 import (
 	"fmt"
 
+	goerrors "github.com/go-errors/errors"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -68,11 +69,11 @@ func (amp *TargetYugabyteDBAmp) validateAmpTarget() error {
 	// Not yb-amp — name the right target type to use depending on whether
 	// this is a real YugabyteDB cluster or plain PostgreSQL.
 	if isYB, _ := endpointIsRealYugabyteDB(amp.db); isYB {
-		return fmt.Errorf("the target at %s:%d is a standard YugabyteDB cluster, not YugabyteDB AMP (yb-amp). "+
+		return goerrors.Errorf("the target at %s:%d is a standard YugabyteDB cluster, not YugabyteDB AMP (yb-amp). "+
 			"Use --target-db-type %s instead of %s",
 			amp.tconf.Host, amp.tconf.Port, YUGABYTEDB, YUGABYTEDB_AMP)
 	}
-	return fmt.Errorf("the target at %s:%d does not look like a YugabyteDB AMP (yb-amp) endpoint: "+
+	return goerrors.Errorf("the target at %s:%d does not look like a YugabyteDB AMP (yb-amp) endpoint: "+
 		"no '%s*' settings were found (it looks like plain PostgreSQL). "+
 		"If you are migrating to a standard YugabyteDB server, use --target-db-type %s instead of %s",
 		amp.tconf.Host, amp.tconf.Port, AMP_MARKER_SETTING_PREFIX, YUGABYTEDB, YUGABYTEDB_AMP)

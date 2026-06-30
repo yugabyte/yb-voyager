@@ -183,11 +183,11 @@ func (yb *TargetYugabyteDB) validateYugabyteDBTarget() error {
 		return nil
 	}
 	if hasAmp, _ := endpointHasAmpGUCs(yb.db); hasAmp {
-		return fmt.Errorf("the target at %s:%d is a YugabyteDB AMP (yb-amp) endpoint, not a standard YugabyteDB cluster. "+
+		return goerrors.Errorf("the target at %s:%d is a YugabyteDB AMP (yb-amp) endpoint, not a standard YugabyteDB cluster. "+
 			"Use --target-db-type %s instead of %s",
 			yb.Tconf.Host, yb.Tconf.Port, YUGABYTEDB_AMP, YUGABYTEDB)
 	}
-	return fmt.Errorf("the target at %s:%d does not look like a YugabyteDB cluster "+
+	return goerrors.Errorf("the target at %s:%d does not look like a YugabyteDB cluster "+
 		"(no yb_servers() — it looks like plain PostgreSQL). Use the matching --target-db-type",
 		yb.Tconf.Host, yb.Tconf.Port)
 }
