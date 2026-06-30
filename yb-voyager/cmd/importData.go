@@ -117,24 +117,12 @@ var importDataCmd = &cobra.Command{
 		}
 		validateTargetDBTypeFlag()
 
-		// Adaptive-parallelism default is per-target (Balanced for YugabyteDB, Disabled
-		// for yugabytedb-amp). yb-amp is a stateless PG17 compute with no YB cluster
-		// control API (yb_servers(), tserver metrics), so adaptive parallelism cannot
-		// work there; --parallel-jobs is used instead.
+		// Adaptive-parallelism default is per-target (Balanced for YugabyteDB,
+		// Disabled for yugabytedb-amp, which has no YB cluster control API so
+		// adaptive parallelism cannot work there). The explicit-flag guardrails
+		// for amp live in validateParallelismFlags (invoked via validateImportFlags).
 		if !cmd.Flags().Changed("adaptive-parallelism") {
 			tconf.AdaptiveParallelismMode = defaultAdaptiveParallelismMode(tconf.TargetDBType)
-		}
-		// amp guardrails: any explicit enabled adaptive mode (balanced/aggressive) or an
-		// explicit --adaptive-parallelism-max is unsupported. An explicit
-		// --adaptive-parallelism disabled is fine, and so is --parallel-jobs N on its own
-		// (the default above is Disabled for amp, so validateParallelismFlags won't flag it).
-		if tconf.TargetDBType == YUGABYTEDB_AMP {
-			if cmd.Flags().Changed("adaptive-parallelism") && tconf.AdaptiveParallelismMode.IsEnabled() {
-				utils.ErrExit("adaptive parallelism is only supported for YugabyteDB targets. For --target-db-type %s, use --parallel-jobs to control import parallelism.", YUGABYTEDB_AMP)
-			}
-			if cmd.Flags().Changed("adaptive-parallelism-max") {
-				utils.ErrExit("--adaptive-parallelism-max is only supported for YugabyteDB targets. For --target-db-type %s, use --parallel-jobs.", YUGABYTEDB_AMP)
-			}
 		}
 
 		err := retrieveMigrationUUID()
@@ -1703,10 +1691,10 @@ func getTableTypes(tasks []*ImportFileTask) (*utils.StructMap[sqlname.NameTuple,
 	if !slices.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, importerRole) {
 		return nil, nil
 	}
-	// Colocation is a YugabyteDB-only concept. yb-amp uses plain PostgreSQL
-	// heap storage and the sequential task picker, which does not consult
-	// table types — so there is nothing to compute here.
-	if tconf.TargetDBType == YUGABYTEDB_AMP {
+	// Colocation is a YugabyteDB-only concept; table types are only meaningful
+	// for a real YugabyteDB target. Non-YB targets (yb-amp, etc.) use plain heap
+	// storage and the sequential task picker, which does not consult table types.
+	if tconf.TargetDBType != YUGABYTEDB {
 		return nil, nil
 	}
 
@@ -1755,7 +1743,10 @@ func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchI
 	// target. For yb-amp (PostgreSQL-compatible, no colocation) and the PG
 	// fall-forward/back roles it is nil, so they take the plain sequential
 	// importer path below.
-	if (importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE) && tableTypes != nil {
+	// The colocation-aware importer applies only to a real YugabyteDB target;
+	// tableTypes is populated (non-nil) exactly for that case (see getTableTypes).
+	// Non-YB targets (yb-amp, etc.) take the plain sequential importer below.
+	if (importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE) && tconf.TargetDBType == YUGABYTEDB {
 		tableType, ok := tableTypes.Get(task.TableNameTup)
 		if !ok {
 			return nil, goerrors.Errorf("table type not found for table: %s", task.TableNameTup.ForOutput())
@@ -1795,10 +1786,10 @@ func startMonitoringTargetYBHealth() error {
 	if !slices.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, importerRole) {
 		return nil
 	}
-	// yb-amp's PostgreSQL compute has no YB-cluster health API (node /
-	// disk-usage / replication metrics live in the storage tier, not the
-	// compute), so target health monitoring does not apply.
-	if tconf.TargetDBType == YUGABYTEDB_AMP {
+	// Target health monitoring (node / disk-usage / replication metrics) is a
+	// YugabyteDB-cluster concept. Non-YB targets (yb-amp's stateless PG17 compute,
+	// etc.) expose no such API, so it does not apply.
+	if tconf.TargetDBType != YUGABYTEDB {
 		return nil
 	}
 	if skipNodeHealthChecks && skipDiskUsageHealthChecks && skipReplicationChecks {

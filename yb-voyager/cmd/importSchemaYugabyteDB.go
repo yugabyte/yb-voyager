@@ -96,12 +96,13 @@ func originalSchemaFilePath(filePath string) string {
 }
 
 func generateAnalyzeReport(targetYBDBVersion string) (string, error) {
-	// yb-amp reports a plain-PostgreSQL version ("PostgreSQL 17.x"), not the
-	// YugabyteDB "<pg>-YB-<yb>-<build>" string this report's version parsing
-	// expects, and the analyze report is YB-version-oriented. Skip it for yb-amp:
-	// returning an empty path also drops the YB-flavored analyze nudge downstream.
-	if tconf.TargetDBType == YUGABYTEDB_AMP {
-		log.Infof("skipping analyze-schema report generation for yb-amp target")
+	// The analyze-schema report is YugabyteDB-version-oriented: its version parsing
+	// expects the YugabyteDB "<pg>-YB-<yb>-<build>" string, which non-YB targets
+	// don't report (yb-amp reports a plain "PostgreSQL 17.x"). Only generate it for
+	// a real YugabyteDB target; returning an empty path also drops the YB-flavored
+	// analyze nudge downstream.
+	if tconf.TargetDBType != YUGABYTEDB {
+		log.Infof("skipping analyze-schema report generation for non-YugabyteDB target %q", tconf.TargetDBType)
 		return "", nil
 	}
 

@@ -102,7 +102,7 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	case SOURCE_DB_IMPORTER_ROLE:
 		getSourceDBPassword(cmd)
 	}
-	validateParallelismFlags()
+	validateParallelismFlags(cmd)
 
 	return nil
 }
@@ -698,7 +698,20 @@ func defaultAdaptiveParallelismMode(targetDBType string) types.AdaptiveParalleli
 	return types.BalancedAdaptiveParallelismMode
 }
 
-func validateParallelismFlags() {
+func validateParallelismFlags(cmd *cobra.Command) {
+	// yb-amp has no YB cluster control API, so adaptive parallelism cannot work
+	// there. Reject any explicit request for it (CLI or config — Flags().Changed()
+	// is true in both, since config values are applied via Flags().Set()), pointing
+	// the user to --parallel-jobs. An explicit `--adaptive-parallelism disabled` is
+	// fine (not IsEnabled()).
+	if tconf.TargetDBType == YUGABYTEDB_AMP {
+		if cmd.Flags().Changed("adaptive-parallelism") && tconf.AdaptiveParallelismMode.IsEnabled() {
+			utils.ErrExit("adaptive parallelism is only supported for YugabyteDB targets. For --target-db-type %s, use --parallel-jobs to control import parallelism.", YUGABYTEDB_AMP)
+		}
+		if cmd.Flags().Changed("adaptive-parallelism-max") {
+			utils.ErrExit("--adaptive-parallelism-max is only supported for YugabyteDB targets. For --target-db-type %s, use --parallel-jobs.", YUGABYTEDB_AMP)
+		}
+	}
 	if tconf.AdaptiveParallelismMode.IsEnabled() {
 		if tconf.Parallelism > 0 {
 			utils.ErrExit("Error --parallel-jobs flag cannot be used when adaptive-parallelism is enabled (balanced/aggressive). If you wish to set the number of parallel jobs explicitly, disable adaptive parallelism using --adaptive-parallelism disabled")

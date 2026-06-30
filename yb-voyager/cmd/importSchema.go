@@ -377,10 +377,11 @@ func assessmentRecommendedColocatedTables() (bool, error) {
 }
 
 func promptIfColocatedTablesInNonColocatedDB(conn *pgx.Conn) error {
-	// Colocation is not a yb-amp concept; the underlying check runs
-	// yb_is_database_colocated(), a YB-only function absent on yb-amp's PG17
-	// compute (it would fatally ErrExit). Skip the prompt entirely for yb-amp.
-	if tconf.TargetDBType == YUGABYTEDB_AMP {
+	// Colocation is a YugabyteDB-only concept; the underlying check runs
+	// yb_is_database_colocated(), a YB-only function absent on non-YB targets
+	// like yb-amp's PG17 compute (it would fatally ErrExit). Only run it for a
+	// real YugabyteDB target.
+	if tconf.TargetDBType != YUGABYTEDB {
 		return nil
 	}
 	migrationAssessmentDoneAndApplied, err := MigrationAssessmentDoneAndApplied()

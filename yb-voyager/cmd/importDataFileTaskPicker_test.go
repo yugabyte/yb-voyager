@@ -1251,6 +1251,7 @@ func TestColocatedCappedRandomTaskPickerSingleTaskSharded(t *testing.T) {
 		},
 	}
 	tdb = dummyYb
+	tconf.TargetDBType = YUGABYTEDB // colocation path is YugabyteDB-only
 	tableTypes, err := getTableTypes(tasks)
 	testutils.FatalIfError(t, err)
 
@@ -1311,6 +1312,7 @@ func TestColocatedCappedRandomTaskPickerSingleTaskColocated(t *testing.T) {
 		},
 	}
 	tdb = dummyYb
+	tconf.TargetDBType = YUGABYTEDB // colocation path is YugabyteDB-only
 	tableTypes, err := getTableTypes(tasks)
 	testutils.FatalIfError(t, err)
 
@@ -1379,6 +1381,7 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksSharded(t *testing.T) {
 		},
 	}
 	tdb = dummyYb
+	tconf.TargetDBType = YUGABYTEDB // colocation path is YugabyteDB-only
 	tableTypes, err := getTableTypes(tasks)
 	testutils.FatalIfError(t, err)
 
@@ -1496,6 +1499,7 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksColocated(t *testing.T) {
 		},
 	}
 	tdb = dummyYb
+	tconf.TargetDBType = YUGABYTEDB // colocation path is YugabyteDB-only
 	tableTypes, err := getTableTypes(tasks)
 	testutils.FatalIfError(t, err)
 
@@ -1627,6 +1631,7 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksColocatedAndSharded(t *test
 		},
 	}
 	tdb = dummyYb
+	tconf.TargetDBType = YUGABYTEDB // colocation path is YugabyteDB-only
 	tableTypes, err := getTableTypes(tasks)
 	testutils.FatalIfError(t, err)
 
@@ -1790,6 +1795,7 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksSameTableColocated(t *testi
 		},
 	}
 	tdb = dummyYb
+	tconf.TargetDBType = YUGABYTEDB // colocation path is YugabyteDB-only
 	tableTypes, err := getTableTypes(tasks)
 	testutils.FatalIfError(t, err)
 
@@ -1907,6 +1913,7 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksSameTableSharded(t *testing
 		},
 	}
 	tdb = dummyYb
+	tconf.TargetDBType = YUGABYTEDB // colocation path is YugabyteDB-only
 	tableTypes, err := getTableTypes(tasks)
 	testutils.FatalIfError(t, err)
 
@@ -2038,6 +2045,7 @@ func TestColocatedCappedRandomTaskPickeResumable(t *testing.T) {
 		},
 	}
 	tdb = dummyYb
+	tconf.TargetDBType = YUGABYTEDB // colocation path is YugabyteDB-only
 	tableTypes, err := getTableTypes(tasks)
 	testutils.FatalIfError(t, err)
 
@@ -2130,6 +2138,7 @@ func TestColocatedCappedRandomTaskPickerShardedTasksOrderedByRowCount(t *testing
 		},
 	}
 	tdb = dummyYb
+	tconf.TargetDBType = YUGABYTEDB // colocation path is YugabyteDB-only
 	tableTypes, err := getTableTypes(tasks)
 	testutils.FatalIfError(t, err)
 
@@ -2192,6 +2201,7 @@ func TestColocatedCappedRandomTaskPickerShardedTasksOrderedByFileSize(t *testing
 		},
 	}
 	tdb = dummyYb
+	tconf.TargetDBType = YUGABYTEDB // colocation path is YugabyteDB-only
 	tableTypes, err := getTableTypes(tasks)
 	testutils.FatalIfError(t, err)
 
