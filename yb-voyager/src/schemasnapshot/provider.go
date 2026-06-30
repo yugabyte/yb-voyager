@@ -104,6 +104,10 @@ func NewSnapshotProvider(databaseType string) (SnapshotProvider, error) {
 // type) recorded into the snapshot — database/sql can't be introspected for it,
 // and source.DatabaseType also selects the provider.
 func Capture(ctx context.Context, db *sql.DB, source CaptureSource, schemas []string) (*SchemaSnapshot, error) {
+	if len(schemas) == 0 {
+		return nil, goerrors.Errorf("schemasnapshot: no schemas in scope for capture")
+	}
+
 	provider, err := NewSnapshotProvider(source.DatabaseType)
 	if err != nil {
 		return nil, err

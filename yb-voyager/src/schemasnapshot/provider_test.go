@@ -198,6 +198,32 @@ func TestCaptureAndSaveSnapshotFailurePlaceholderTrue(t *testing.T) {
 	assert.True(t, list[0].IsPlaceholder, "the written row must be a placeholder")
 }
 
+// TestCaptureEmptySchemasReturnsError verifies that Capture returns an error when
+// the schemas slice is nil or empty, before touching the database.
+func TestCaptureEmptySchemasReturnsError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	// No mock expectations: the guard must return before any DB access.
+	source := CaptureSource{DatabaseType: "test-success-provider"}
+
+	// nil schemas
+	snap, err := Capture(context.Background(), db, source, nil)
+	assert.Nil(t, snap)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no schemas in scope")
+
+	// empty slice
+	snap, err = Capture(context.Background(), db, source, []string{})
+	assert.Nil(t, snap)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no schemas in scope")
+
+	// No Begin/Rollback/Commit should have been called.
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 // TestCaptureAndSaveSnapshotFailurePlaceholderFalse verifies that on capture failure
 // with placeholderOnFailure=false, nothing is written and the capture error is returned.
 func TestCaptureAndSaveSnapshotFailurePlaceholderFalse(t *testing.T) {
