@@ -42,7 +42,7 @@ func TestSchemaSnapshotJSONRoundTrip(t *testing.T) {
 			Port:         5432,
 			Database:     "mydb",
 			User:         "voyager",
-			Role:         RoleSource,
+			Side:         SideSource,
 		},
 		Schemas: []string{"public", "sales"},
 		Series:  LabelExportDataFromSourceExit,
@@ -119,7 +119,7 @@ func TestCaptureSourceJSONFieldNames(t *testing.T) {
 		Port:         5432,
 		Database:     "mydb",
 		User:         "voyager",
-		Role:         RoleSource,
+		Side:         SideSource,
 	}
 	data, err := json.Marshal(cs)
 	require.NoError(t, err)
@@ -129,5 +129,5 @@ func TestCaptureSourceJSONFieldNames(t *testing.T) {
 	assert.Contains(t, s, `"port"`)
 	assert.Contains(t, s, `"database"`)
 	assert.Contains(t, s, `"user"`)
-	assert.Contains(t, s, `"role"`)
+	assert.Contains(t, s, `"side"`)
 }

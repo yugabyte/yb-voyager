@@ -104,7 +104,7 @@ func TestCaptureStampsHeaders(t *testing.T) {
 		Port:         5432,
 		Database:     "mydb",
 		User:         "voyager",
-		Role:         "source",
+		Side:         "source",
 	}
 	snap, err := Capture(context.Background(), db, source, []string{"public"})
 	require.NoError(t, err)
@@ -142,7 +142,7 @@ func TestCaptureAndSaveSnapshotSuccess(t *testing.T) {
 		Port:         5432,
 		Database:     "mydb",
 		User:         "voyager",
-		Role:         "source",
+		Side:         "source",
 	}
 
 	name, err := CaptureAndSaveSnapshot(context.Background(), db, mdb, CaptureRequest{
