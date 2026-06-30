@@ -168,7 +168,7 @@ func CaptureAndSaveSnapshot(ctx context.Context, db *sql.DB, mdb *metadb.MetaDB,
 	if captureErr != nil {
 		if req.PlaceholderOnFailure {
 			// placeholder dbVersion is "" (the version probe was part of the failed capture).
-			_, _ = SavePlaceholder(mdb, req.Label, req.Reason, req.Source.Role, time.Now().UTC(), "", req.Schemas)
+			_, _ = SavePlaceholder(mdb, req.Label, req.Reason, req.Source.Side, time.Now().UTC(), "", req.Schemas)
 		}
 		return "", captureErr
 	}

@@ -97,7 +97,7 @@ func startCaptureTestDB(t *testing.T, cfg *testcontainers.ContainerConfig) (*sql
 		Port:         port,
 		Database:     pgCfg.DBName,
 		User:         pgCfg.User,
-		Role:         schemasnapshot.RoleSource,
+		Side:         schemasnapshot.SideSource,
 	}
 
 	cleanup := func() {

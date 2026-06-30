@@ -60,7 +60,7 @@ func makeSnapshot(capturedAt time.Time) *SchemaSnapshot {
 			Port:         5432,
 			Database:     "testdb",
 			User:         "voyager",
-			Role:         RoleSource,
+			Side:         SideSource,
 		},
 		Schemas: []string{"public"},
 		Tables: []Table{
@@ -117,7 +117,7 @@ func TestListSnapshotsOrder(t *testing.T) {
 	_, err := SaveSnapshot(mdb, makeSnapshot(t3), LabelExportDataFromSourceExit, ReasonComplete)
 	require.NoError(t, err)
 
-	_, err = SavePlaceholder(mdb, LabelExportDataFromSourceStart, ReasonInitial, RoleSource, t1, "16.14", []string{"public"})
+	_, err = SavePlaceholder(mdb, LabelExportDataFromSourceStart, ReasonInitial, SideSource, t1, "16.14", []string{"public"})
 	require.NoError(t, err)
 
 	_, err = SaveSnapshot(mdb, makeSnapshot(t2), LabelExportDataFromSourcePeriodic, "")
@@ -164,7 +164,7 @@ func TestLoadPlaceholderReturnsError(t *testing.T) {
 	mdb := newTestMetaDB(t)
 	capturedAt := time.Date(2026, 5, 12, 10, 0, 0, 0, time.UTC)
 
-	name, err := SavePlaceholder(mdb, LabelExportSchema, "", RoleSource, capturedAt, "", []string{"public"})
+	name, err := SavePlaceholder(mdb, LabelExportSchema, "", SideSource, capturedAt, "", []string{"public"})
 	require.NoError(t, err)
 
 	_, err = LoadSnapshotByName(mdb, name)
@@ -260,7 +260,7 @@ func TestSavePlaceholderEmptyDbVersion(t *testing.T) {
 	mdb := newTestMetaDB(t)
 	capturedAt := time.Date(2026, 5, 12, 10, 0, 0, 0, time.UTC)
 
-	name, err := SavePlaceholder(mdb, LabelExportDataFromSourceStart, ReasonResume, RoleSource, capturedAt, "", []string{"public", "sales"})
+	name, err := SavePlaceholder(mdb, LabelExportDataFromSourceStart, ReasonResume, SideSource, capturedAt, "", []string{"public", "sales"})
 	require.NoError(t, err)
 	assert.NotEmpty(t, name)
 
@@ -279,15 +279,15 @@ func TestSentinelErrorsAreDistinct(t *testing.T) {
 	assert.False(t, errors.Is(ErrPlaceholderSnapshot, ErrSnapshotNotFound))
 }
 
-// ─── SaveSnapshot with empty CaptureSource.Role defaults Side to "source" ────
+// ─── SaveSnapshot with empty CaptureSource.Side defaults Side to "source" ────
 
 func TestSaveSnapshotEmptyRoleDefaultsSideToSource(t *testing.T) {
 	mdb := newTestMetaDB(t)
 
 	capturedAt := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
 	snap := makeSnapshot(capturedAt)
-	// Clear the role so the fallback logic is exercised.
-	snap.CaptureSource.Role = ""
+	// Clear the side so the fallback logic is exercised.
+	snap.CaptureSource.Side = ""
 
 	name, err := SaveSnapshot(mdb, snap, LabelExportSchema, "")
 	require.NoError(t, err)
@@ -296,7 +296,7 @@ func TestSaveSnapshotEmptyRoleDefaultsSideToSource(t *testing.T) {
 	list, err := ListSnapshots(mdb)
 	require.NoError(t, err)
 	require.Len(t, list, 1)
-	assert.Equal(t, "source", list[0].Side, "empty Role should default Side to 'source'")
+	assert.Equal(t, "source", list[0].Side, "empty Side should default Side to 'source'")
 }
 
 // ─── SaveSnapshot rejects unknown label ───────────────────────────────────────
@@ -308,10 +308,10 @@ func TestSaveSnapshotBadLabel(t *testing.T) {
 	require.Error(t, err)
 }
 
-// ─── SavePlaceholder role flows through to Side ───────────────────────────────
+// ─── SavePlaceholder side flows through to Side ───────────────────────────────
 
 func TestSavePlaceholderRecordsRole(t *testing.T) {
-	t.Run("explicit target role is stored as Side", func(t *testing.T) {
+	t.Run("explicit target side is stored as Side", func(t *testing.T) {
 		mdb := newTestMetaDB(t)
 		capturedAt := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
 
@@ -321,10 +321,10 @@ func TestSavePlaceholderRecordsRole(t *testing.T) {
 		list, err := ListSnapshots(mdb)
 		require.NoError(t, err)
 		require.Len(t, list, 1)
-		assert.Equal(t, "target", list[0].Side, "role 'target' should flow through to Side")
+		assert.Equal(t, "target", list[0].Side, "side 'target' should flow through to Side")
 	})
 
-	t.Run("empty role defaults Side to RoleSource", func(t *testing.T) {
+	t.Run("empty side defaults Side to SideSource", func(t *testing.T) {
 		mdb := newTestMetaDB(t)
 		capturedAt := time.Date(2026, 6, 2, 12, 0, 0, 0, time.UTC)
 
@@ -334,7 +334,7 @@ func TestSavePlaceholderRecordsRole(t *testing.T) {
 		list, err := ListSnapshots(mdb)
 		require.NoError(t, err)
 		require.Len(t, list, 1)
-		assert.Equal(t, RoleSource, list[0].Side, "empty role should default Side to RoleSource")
+		assert.Equal(t, SideSource, list[0].Side, "empty side should default Side to SideSource")
 	})
 }
 
