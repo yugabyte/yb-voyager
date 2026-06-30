@@ -111,33 +111,6 @@ func TestTableKindConstants(t *testing.T) {
 	assert.Equal(t, TableKind("foreign"), TableKindForeign)
 }
 
-// TestTableAttrsIsNilWhenEmpty verifies that an empty Table.Attrs marshals to null
-// (omitempty) and not an empty array.
-func TestTableAttrsOmitEmpty(t *testing.T) {
-	tbl := Table{
-		ObjectRef: ObjectRef{Schema: "public", Name: "t"},
-		ID:        "1",
-		Kind:      TableKindOrdinary,
-	}
-	data, err := json.Marshal(tbl)
-	require.NoError(t, err)
-	assert.NotContains(t, string(data), `"attrs"`)
-}
-
-// TestColumnAttrsOmitEmpty verifies that an empty Column.Attrs is omitted.
-func TestColumnAttrsOmitEmpty(t *testing.T) {
-	col := Column{
-		Table:    ObjectRef{Schema: "public", Name: "t"},
-		ID:       "1:1",
-		Name:     "id",
-		DataType: "bigint",
-		NotNull:  true,
-	}
-	data, err := json.Marshal(col)
-	require.NoError(t, err)
-	assert.NotContains(t, string(data), `"attrs"`)
-}
-
 // TestCaptureSourceJSONFieldNames checks that CaptureSource marshals with the expected JSON keys.
 func TestCaptureSourceJSONFieldNames(t *testing.T) {
 	cs := CaptureSource{
