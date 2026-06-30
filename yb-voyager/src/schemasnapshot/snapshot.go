@@ -77,7 +77,6 @@ type Table struct {
 	PartitionChildren []ObjectRef `json:"partition_children,omitempty"` // set on a partitioned parent: its immediate partition children; nil otherwise
 	InheritsFrom      []ObjectRef `json:"inherits_from,omitempty"`      // legacy table inheritance (INHERITS): parent table(s) this table inherits from; can be multiple. Distinct from declarative partitioning.
 	InheritedBy       []ObjectRef `json:"inherited_by,omitempty"`       // legacy table inheritance (INHERITS): tables that inherit from this one.
-	Attrs             Attrs       `json:"attrs,omitempty"`              // engine-specific extension attributes; declared as the seam but empty/uncompared in v1.
 }
 
 // Column represents a single column within a table.
@@ -89,5 +88,4 @@ type Column struct {
 	DataType string    `json:"data_type"`         // rendered type via format_type(), e.g. "integer", "character varying(255)".
 	NotNull  bool      `json:"not_null"`          // true when the column has a NOT NULL constraint.
 	Default  string    `json:"default,omitempty"` // default expression text (pg_get_expr); "" when the column has no default.
-	Attrs    Attrs     `json:"attrs,omitempty"`   // engine-specific extension attributes; declared as the seam but empty/uncompared in v1.
 }

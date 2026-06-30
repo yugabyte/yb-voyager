@@ -277,7 +277,6 @@ func relkindToTableKind(relkind string) schemasnapshot.TableKind {
 // init self-registers the PostgreSQL provider.
 // This runs when the package is imported (directly or via databases/all).
 // Core schemasnapshot never imports this package — the registration is one-way.
-// v1: NO Attr types, NO RegisterAttrDecoder calls.
 func init() {
 	schemasnapshot.RegisterProvider(constants.POSTGRESQL, func() schemasnapshot.SnapshotProvider {
 		return &PostgresSnapshotProvider{}
