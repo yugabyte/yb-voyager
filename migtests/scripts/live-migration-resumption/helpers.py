@@ -783,34 +783,63 @@ class ConflictGenerator:
         sql_path: str,
         interval_sec: float,
         base_env: Dict[str, str],
+        label: str = "conflict-generator",
     ):
         self.connection = connection
         self.sql_path = sql_path
         self.interval_sec = interval_sec
         self.base_env = base_env
+        self.label = label
         self.stop_flag = threading.Event()
         self._thread: threading.Thread | None = None
+        self._cycles = 0        # successful DML applications this run
+        self._failures = 0      # cycles that errored (e.g. connection killed mid-run)
+        # Count the conflict "cases" the DML applies per cycle so we can report a
+        # running total per phase. Each table block is one COMMIT and exercises the
+        # four conflict transitions (DELETE-INSERT, DELETE-UPDATE, UPDATE-INSERT,
+        # UPDATE-UPDATE), so cases/cycle = tables * 4.
+        self._tables_per_cycle = self._count_tables(sql_path)
+        self._cases_per_cycle = self._tables_per_cycle * 4
+
+    @staticmethod
+    def _count_tables(sql_path: str) -> int:
+        try:
+            with open(sql_path) as f:
+                return sum(1 for line in f if line.strip() == "COMMIT;")
+        except OSError:
+            return 0
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
             return
         self._thread = threading.Thread(
             target=self._run_loop,
-            name="conflict-generator",
+            name=self.label,
             daemon=True,
         )
         self._thread.start()
-        log(f"conflict-generator: started (sql={self.sql_path}, interval={self.interval_sec}s)")
+        log(
+            f"{self.label}: started (sql={os.path.basename(self.sql_path)}, "
+            f"interval={self.interval_sec}s, {self._cases_per_cycle} conflict-cases/cycle)"
+        )
 
     def stop(self, timeout_sec: int = 60) -> None:
         self.stop_flag.set()
         thread = self._thread
         if thread:
             thread.join(timeout_sec)
-        log("conflict-generator: stopped")
+        total = self._cycles * self._cases_per_cycle
+        log(
+            f"{self.label}: stopped — {self._cycles} cycles applied "
+            f"(~{total} conflict-cases = {self._cycles} cycles x {self._tables_per_cycle} tables x 4 transitions), "
+            f"{self._failures} cycle failures"
+        )
 
     def is_alive(self) -> bool:
         return bool(self._thread and self._thread.is_alive())
+
+    def cycles(self) -> int:
+        return self._cycles
 
     def _run_once(self) -> None:
         c = self.connection
@@ -834,17 +863,20 @@ class ConflictGenerator:
             )
 
     def _run_loop(self) -> None:
-        cycle = 0
+        attempt = 0
         while not self.stop_flag.is_set():
-            cycle += 1
+            attempt += 1
             try:
                 self._run_once()
-                log(f"conflict-generator: completed cycle {cycle}")
+                self._cycles += 1
+                log(f"{self.label}: completed cycle {self._cycles} "
+                    f"(+{self._cases_per_cycle} conflict-cases, {self._cycles * self._cases_per_cycle} total)")
             except Exception as e:
                 # A cycle can fail transiently (e.g. a resumption killed the DB
                 # connection mid-run). Log and continue; the next cycle re-seeds
                 # from a clean slate because the DML is loop-safe.
-                log(f"conflict-generator: cycle {cycle} failed (continuing): {e}")
+                self._failures += 1
+                log(f"{self.label}: cycle attempt {attempt} failed (continuing): {e}")
             # Interruptible inter-cycle wait so stop() is responsive.
             self.stop_flag.wait(self.interval_sec)
 

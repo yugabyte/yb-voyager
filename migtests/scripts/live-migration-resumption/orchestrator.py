@@ -101,7 +101,11 @@ def conflict_generator_start_action(stage: Dict[str, Any], ctx: Any) -> None:
         sql_path = os.path.join(ctx.test_root, sql_path)
     interval = float(conflict_cfg.get("interval_seconds", 3))
 
-    gen = H.ConflictGenerator(connection, sql_path, interval, ctx.env)
+    # Label distinguishes the phase in the logs (e.g. conflict_generator_source
+    # = forward leg, conflict_generator_target = fallback leg), and includes the
+    # loop iteration so per-iteration counts are readable in iterated tests.
+    label = f"conflict-gen[{key} iter={ctx.loop_iteration}]"
+    gen = H.ConflictGenerator(connection, sql_path, interval, ctx.env, label=label)
     gen.start()
     ctx.conflict_generators[key] = gen
 
