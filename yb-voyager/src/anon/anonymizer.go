@@ -39,6 +39,7 @@ const (
 // NOTE: When adding a new prefix constant above, add it here too
 var AllKindPrefixes = []string{
 	DATABASE_KIND_PREFIX,
+	HOST_KIND_PREFIX,
 	SCHEMA_KIND_PREFIX,
 	SEQUENCE_KIND_PREFIX,
 	TABLE_KIND_PREFIX,
