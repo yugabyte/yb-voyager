@@ -21,11 +21,10 @@ import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 // Column.Table.String() + "." + Column.Name:
 //
 //  1. ID pass — columns carrying a usable stable ID are matched by ID. This is
-//     enabled only when BOTH conditions hold:
-//     a. a.DatabaseType == b.DatabaseType — IDs (e.g. PG OIDs) are only comparable
-//     within the same database engine; cross-type ID comparison is illegal.
-//     b. Both snapshots declare StableIdentity=true — the capturing provider
-//     guarantees IDs are stable across captures.
+//     enabled only when a.DatabaseType == b.DatabaseType — IDs (e.g. PG OIDs) are
+//     only comparable within the same database engine; cross-type ID comparison is
+//     illegal. Same engine ⇒ IDs are stable and comparable, so match by ID to detect
+//     renames; different engine ⇒ IDs aren't comparable, fall back to name matching.
 //     ID matching is what lets a rename surface as COLUMN_NAME_CHANGED rather than
 //     an add+drop pair.
 //  2. Name pass — every column left unmatched by the ID pass (columns with no
@@ -38,10 +37,12 @@ import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 // drop+add. The name pass guards against the inverse mistake: two same-named
 // columns that each carry a real but DIFFERENT ID are a genuine drop-and-recreate
 // and stay an add+drop rather than collapsing into one match (see nameMatchAllowed).
-func diffColumns(a, b *schemasnapshot.SchemaSnapshot) []Difference {
+func diffColumns(a, b *schemasnapshot.SnapshotContent) []Difference {
 	var diffs []Difference
 
-	matchByID := a.DatabaseType == b.DatabaseType && a.StableIdentity && b.StableIdentity
+	// Same engine ⇒ IDs (e.g. PG OIDs) are stable and comparable, so match by ID
+	// to detect renames; different engine ⇒ IDs aren't comparable, fall back to name matching.
+	matchByID := a.DatabaseType == b.DatabaseType
 
 	// Pass 1: ID-based matching for columns that carry a usable stable ID.
 	// Columns without one start life in the name-pass residue.
@@ -141,8 +142,6 @@ func compareMatchedColumns(cA, cB schemasnapshot.Column) []Difference {
 	if cA.Default != cB.Default {
 		diffs = append(diffs, newDifference(ColumnDefaultChanged, cA.Table, &cA.Table, cA.Name, cA.Default, cB.Default))
 	}
-
-	// DO NOT diff Attrs (empty in v1).
 
 	return diffs
 }

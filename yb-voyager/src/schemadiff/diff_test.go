@@ -23,14 +23,14 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 )
 
-// helper: build a minimal SchemaSnapshot with the given tables.
-// StableIdentity is set to true because these helpers model PG snapshots
-// which always have stable OID-based identity.
-func snapWithTables(tables ...schemasnapshot.Table) *schemasnapshot.SchemaSnapshot {
-	return &schemasnapshot.SchemaSnapshot{
-		Version:        1,
-		StableIdentity: true,
-		Tables:         tables,
+// helper: build a minimal SnapshotContent with the given tables.
+// DatabaseType is set to constants.POSTGRESQL because these helpers model PG snapshots
+// whose IDs (OIDs) are stable and comparable within the same engine.
+func snapWithTables(tables ...schemasnapshot.Table) *schemasnapshot.SnapshotContent {
+	return &schemasnapshot.SnapshotContent{
+		Version:      1,
+		DatabaseType: "postgresql",
+		Tables:       tables,
 	}
 }
 

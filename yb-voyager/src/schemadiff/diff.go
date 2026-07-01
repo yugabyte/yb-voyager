@@ -77,7 +77,7 @@ type Difference struct {
 
 // Diff computes the schema differences between snapshot a (old/side-A) and b (new/side-B).
 // It returns a sorted slice of Difference values.
-func Diff(a, b *schemasnapshot.SchemaSnapshot) []Difference {
+func Diff(a, b *schemasnapshot.SnapshotContent) []Difference {
 	var diffs []Difference
 	diffs = append(diffs, diffTables(a, b)...)
 	diffs = append(diffs, diffColumns(a, b)...)

@@ -27,9 +27,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
-
-	// Register the PostgreSQL schemasnapshot provider.
-	_ "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot/databases/postgres"
 )
 
 const driftSchema = "diff_it"
@@ -71,17 +68,22 @@ func TestDiff_EndToEnd(t *testing.T) {
 	require.NoError(t, err, "get host/port")
 	pgCfg := pg.GetConfig()
 
-	src := schemasnapshot.CaptureSource{
+	params := schemasnapshot.CaptureParams{
 		DatabaseType: constants.POSTGRESQL,
-		Host:         host,
-		Port:         port,
-		Database:     pgCfg.DBName,
-		User:         pgCfg.User,
-		Role:         schemasnapshot.RoleSource,
+		Side:         schemasnapshot.SideSource,
+		DBMetadata: schemasnapshot.DBMetadata{
+			Host:     host,
+			Port:     port,
+			Database: pgCfg.DBName,
+			User:     pgCfg.User,
+		},
+		Schemas: []string{driftSchema},
+		Label:   schemasnapshot.LabelExportSchema,
 	}
 
-	snapA, err := schemasnapshot.Capture(ctx, db, src, []string{driftSchema})
+	snapAWrapper, err := schemasnapshot.Capture(ctx, db, params)
 	require.NoError(t, err, "Capture snapshot A")
+	snapA := snapAWrapper.Content
 	db.Close()
 
 	// ── Mutation DDL — snapshot B ──────────────────────────────────────────────
@@ -100,8 +102,9 @@ func TestDiff_EndToEnd(t *testing.T) {
 	require.NoError(t, err, "get connection for snapshot B")
 	defer db2.Close()
 
-	snapB, err := schemasnapshot.Capture(ctx, db2, src, []string{driftSchema})
+	snapBWrapper, err := schemasnapshot.Capture(ctx, db2, params)
 	require.NoError(t, err, "Capture snapshot B")
+	snapB := snapBWrapper.Content
 
 	// ── Run the diff ───────────────────────────────────────────────────────────
 	diffs := schemadiff.Diff(snapA, snapB)

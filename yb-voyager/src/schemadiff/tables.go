@@ -65,13 +65,12 @@ func partitionParentEqual(a, b *schemasnapshot.ObjectRef) bool {
 // hybrid two-pass match:
 //
 //  1. ID pass — tables carrying a usable stable ID (OID) are matched by ID. This
-//     is enabled only when BOTH conditions hold:
-//     a. a.DatabaseType == b.DatabaseType — IDs (e.g. PG OIDs) are only comparable
-//     within the same database engine; cross-type ID comparison is illegal.
-//     b. Both snapshots declare StableIdentity=true — the capturing provider
-//     guarantees IDs are stable across captures.
-//     ID matching is what lets a rename surface as TABLE_NAME_CHANGED rather than
-//     an add+drop pair.
+//     is enabled only when a.DatabaseType == b.DatabaseType — IDs (e.g. PG OIDs)
+//     are only comparable within the same database engine; cross-type ID comparison
+//     is illegal. Same engine ⇒ IDs are stable and comparable, so match by ID to
+//     detect renames; different engine ⇒ IDs aren't comparable, fall back to name
+//     matching. ID matching is what lets a rename surface as TABLE_NAME_CHANGED
+//     rather than an add+drop pair.
 //  2. Name pass — every table left unmatched by the ID pass (tables with no
 //     usable ID, PLUS any whose ID was present on one side but absent on the
 //     other) is reconciled by ObjectRef.String() (schema.name).
@@ -82,10 +81,12 @@ func partitionParentEqual(a, b *schemasnapshot.ObjectRef) bool {
 // drop+add. The name pass guards against the inverse mistake: two same-named
 // tables that each carry a real but DIFFERENT ID are a genuine drop-and-recreate
 // and stay an add+drop rather than collapsing into one match (see nameMatchAllowed).
-func diffTables(a, b *schemasnapshot.SchemaSnapshot) []Difference {
+func diffTables(a, b *schemasnapshot.SnapshotContent) []Difference {
 	var diffs []Difference
 
-	matchByID := a.DatabaseType == b.DatabaseType && a.StableIdentity && b.StableIdentity
+	// Same engine ⇒ IDs (e.g. PG OIDs) are stable and comparable, so match by ID
+	// to detect renames; different engine ⇒ IDs aren't comparable, fall back to name matching.
+	matchByID := a.DatabaseType == b.DatabaseType
 
 	// Pass 1: ID-based matching for tables that carry a usable stable ID.
 	// Tables without one start life in the name-pass residue.
@@ -219,8 +220,6 @@ func compareMatchedTables(tA, tB schemasnapshot.Table) []Difference {
 	if !objectRefSetEqual(tA.InheritedBy, tB.InheritedBy) {
 		diffs = append(diffs, newDifference(TableInheritedByChanged, tA.ObjectRef, &tA.ObjectRef, "", cloneObjectRefs(tA.InheritedBy), cloneObjectRefs(tB.InheritedBy)))
 	}
-
-	// DO NOT diff Attrs (empty in v1).
 
 	return diffs
 }
