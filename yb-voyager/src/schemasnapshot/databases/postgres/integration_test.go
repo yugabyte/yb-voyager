@@ -38,12 +38,12 @@ const testSchema = "drift_test"
 // startCaptureTestDB starts a postgres container, creates the canonical test
 // schema (the full set: ordinary/partitioned/foreign tables, columns, a dropped
 // column, multi-level partitioning, single + multiple inheritance), and returns
-// a live connection, a ready CaptureSource, and a cleanup func.
+// a live connection, a ready DBMetadata, and a cleanup func.
 //
 // cfg is forwarded to NewTestContainer so callers can control the registry key
 // (pass &testcontainers.ContainerConfig{ForLive: true} to get a distinct key
 // and avoid singleton collisions when two tests run in the same process).
-func startCaptureTestDB(t *testing.T, cfg *testcontainers.ContainerConfig) (*sql.DB, schemasnapshot.CaptureSource, func()) {
+func startCaptureTestDB(t *testing.T, cfg *testcontainers.ContainerConfig) (*sql.DB, schemasnapshot.DBMetadata, func()) {
 	t.Helper()
 	ctx := context.Background()
 
@@ -91,7 +91,7 @@ func startCaptureTestDB(t *testing.T, cfg *testcontainers.ContainerConfig) (*sql
 	require.NoError(t, err)
 	pgCfg := pg.GetConfig()
 
-	src := schemasnapshot.CaptureSource{
+	src := schemasnapshot.DBMetadata{
 		DatabaseType: constants.POSTGRESQL,
 		Host:         host,
 		Port:         port,
@@ -365,7 +365,7 @@ func TestCapturePersistRoundTrip(t *testing.T) {
 	assert.Equal(t, snap.Schemas, loaded.Schemas)
 	assert.Equal(t, snap.Series, loaded.Series)
 	assert.Equal(t, snap.Reason, loaded.Reason)
-	assert.Equal(t, snap.CaptureSource, loaded.CaptureSource)
+	assert.Equal(t, snap.DBMetadata, loaded.DBMetadata)
 
 	// CapturedAt: compare via Equal() to strip monotonic component that doesn't survive JSON.
 	assert.True(t, snap.CapturedAt.Equal(loaded.CapturedAt),

@@ -51,7 +51,7 @@ func (p *PostgresSnapshotProvider) HasStableIdentity() bool { return true }
 
 // TakeSnapshot captures the PostgreSQL schema for the given schemas via db.
 // It loads tables (including hierarchy links) and columns (v1 scope).
-// The header fields (CapturedAt, CaptureSource, etc.) are stamped by the
+// The header fields (CapturedAt, DBMetadata, etc.) are stamped by the
 // Capture orchestrator in provider.go after this call returns.
 // Query order: SHOW server_version → pg_class → pg_inherits → pg_attribute.
 func (p *PostgresSnapshotProvider) TakeSnapshot(
