@@ -802,6 +802,10 @@ func (lm *LiveMigrationTest) GetImportRunner() *testutils.VoyagerCommandRunner {
 	return lm.importCmd
 }
 
+func (lm *LiveMigrationTest) GetImportToSourceRunner() *testutils.VoyagerCommandRunner {
+	return lm.importToSourceCmd
+}
+
 func (lm *LiveMigrationTest) WaitForImportFailpointAndProcessCrash(t *testing.T, markerPath string, markerTimeout, exitTimeout time.Duration) error {
 	return testutils.WaitForFailpointAndProcessCrash(t, lm.importCmd, markerPath, markerTimeout, exitTimeout)
 }
