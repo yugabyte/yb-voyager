@@ -69,7 +69,7 @@ conflict_generator_source:
       password: postgres
     conflict:
       sql_path: ./source_dml.sql
-      interval_seconds: 3
+      interval_seconds: 10
 
 # Fallback (target) event generator configuration.
 # This will be used later when we start a generator on the target side.
@@ -111,7 +111,7 @@ conflict_generator_target:
       password: ${TARGET_DB_PASSWORD}
     conflict:
       sql_path: ./target_dml.sql
-      interval_seconds: 3
+      interval_seconds: 10
 
 voyager:
   cutover_to_target:
@@ -196,9 +196,9 @@ stages:
         min_restart_wait_seconds: 5
         max_restart_wait_seconds: 30
 
-  - name: small_sleep_for_some_events_to_be_generated
+  - name: soak_with_resumptions
     action: sleep
-    seconds: 30
+    seconds: 400
 
   - name: stop_conflict_generator
     action: conflict_generator_stop
@@ -286,7 +286,7 @@ stages:
 
   - name: soak_fallback_with_resumptions
     action: sleep
-    seconds: 3000
+    seconds: 400
 
   - name: stop_target_conflict_generator
     action: conflict_generator_stop
