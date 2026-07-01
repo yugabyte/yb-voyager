@@ -16,38 +16,61 @@ package schemasnapshot
 
 import "time"
 
-// SchemaSnapshot is a point-in-time capture of a database schema.
-// The per-object lists are flat; each record keys back to its parent via an ObjectRef field.
-// v1 carries tables and columns only.
+// SchemaSnapshot is a point-in-time capture of a database schema: its header (metadata,
+// stored in metadb columns) and its content (serialized to the blob).
 type SchemaSnapshot struct {
-	Version         int        `json:"version"`                    // snapshot JSON format version; gates parse-compatibility on load. Currently 1.
-	DatabaseType    string     `json:"database_type"`              // source engine; selects the provider that produced this snapshot, e.g. "postgresql".
-	DatabaseVersion string     `json:"database_version,omitempty"` // server version, truncated at the first space (e.g. "16.4"); display-only, never diffed.
-	StableIdentity  bool       `json:"stable_identity"`            // true when object IDs are stable enough for rename matching (PostgreSQL OIDs: always true).
-	CapturedAt      time.Time  `json:"captured_at"`                // time the snapshot was taken, in UTC.
-	DBMetadata      DBMetadata `json:"db_metadata"`                // descriptive database coordinates (host/port/db/user/side) for display.
-	Schemas         []string   `json:"schemas"`                    // schemas in scope at capture time; fixed once captured and never widened/narrowed.
-	Series          string     `json:"series,omitempty"`           // the capture series (== persist label); empty until SaveSnapshot stamps it.
-	Reason          string     `json:"reason,omitempty"`           // the capture reason where the series carries one; empty otherwise.
-
-	Tables  []Table  `json:"tables,omitempty"`  // captured tables (ordinary/partitioned/foreign).
-	Columns []Column `json:"columns,omitempty"` // captured columns; each keyed back to its parent table via Column.Table.
+	Header  SnapshotHeader
+	Content *SnapshotContent
 }
 
+// ─── Header: per-snapshot metadata (stored in metadb columns) ───────────────────
+
+// SnapshotHeader is the per-snapshot metadata stored in metadb COLUMNS (not in the blob).
+// It is produced by Capture, written to columns by SaveSnapshot/SavePlaceholder, and
+// returned by ListSnapshots.
+type SnapshotHeader struct {
+	Label           string    // capture label (a labels.go constant); the filing key
+	Reason          string    // capture reason; "" when none
+	Side            string    // migration side (SideSource in v1)
+	CapturedAt      time.Time // capture time (UTC)
+	DatabaseVersion string    // server version, e.g. "16.4"
+	Schemas         []string  // schemas in scope
+	// IsPlaceholder marks a failed-capture marker row (no schema content). It is set at
+	// header construction (false for a real capture, true on the placeholder path),
+	// persisted to its own column, and read back directly.
+	IsPlaceholder bool
+}
+
+// Name is the derived primary-key handle "{label}_{second-precision-timestamp}".
+// Derived (not stored) so the struct carries no write-vs-read-asymmetric identity field.
+func (h SnapshotHeader) Name() string { return deriveName(h.Label, h.CapturedAt) }
+
 // SideSource is the capture side for the migration source database. v1 only ever
-// captures the source; DBMetadata.Side / SnapshotMetadata.Side exist so other
-// sides (e.g. target, source-replica) can be added later.
+// captures the source; SnapshotHeader.Side exists so other sides (e.g. target,
+// source-replica) can be added later.
 const SideSource = "source"
 
-// DBMetadata holds the descriptive database coordinates for a snapshot.
-// It is display-only identity — never connection secrets.
+// ─── Content: the schema itself (serialized to the blob) ────────────────────────
+
+// SnapshotContent is the schema CONTENT — this is what gets serialized to the metadb blob.
+// The per-object lists are flat; each record keys back to its parent via an ObjectRef field.
+// v1 carries tables and columns only.
+type SnapshotContent struct {
+	Version      int        `json:"version"`           // format/compat gate
+	DatabaseType string     `json:"database_type"`     // engine; the diff reads this
+	DBMetadata   DBMetadata `json:"db_metadata"`       // display coordinates; provenance for reports
+	Tables       []Table    `json:"tables,omitempty"`  // captured tables (ordinary/partitioned/foreign).
+	Columns      []Column   `json:"columns,omitempty"` // captured columns; each keyed back to its parent table via Column.Table.
+}
+
+// DBMetadata holds the display coordinates of the captured database (for report generation).
+// It is display-only identity — never connection secrets. No DatabaseType or Side here;
+// those live at the SnapshotContent and SnapshotHeader levels respectively.
 type DBMetadata struct {
-	DatabaseType string `json:"database_type"` // source engine; selects the provider, e.g. "postgresql".
-	Host         string `json:"host"`          // source host, for display.
-	Port         int    `json:"port"`          // source port, for display.
-	Database     string `json:"database"`      // source database name, for display.
-	User         string `json:"user"`          // connecting user, for display.
-	Side         string `json:"side"`          // which side of the migration produced this snapshot; "source" in v1.
+	Host     string `json:"host"`     // source host, for display.
+	Port     int    `json:"port"`     // source port, for display.
+	Database string `json:"database"` // source database name, for display.
+	User     string `json:"user"`     // connecting user, for display.
 }
 
 // ObjectRef is the (schema, name) identity embedded in every per-object struct.

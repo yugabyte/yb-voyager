@@ -68,8 +68,11 @@ func TestCaptureRollbackOnSnapshotError(t *testing.T) {
 		WillReturnError(fmt.Errorf("snapshot intentionally failed"))
 	mock.ExpectRollback()
 
-	source := DBMetadata{DatabaseType: constants.POSTGRESQL}
-	snap, err := Capture(context.Background(), db, CaptureParams{Source: source, Schemas: []string{"public"}, Label: LabelExportSchema})
+	snap, err := Capture(context.Background(), db, CaptureParams{
+		DatabaseType: constants.POSTGRESQL,
+		Schemas:      []string{"public"},
+		Label:        LabelExportSchema,
+	})
 
 	assert.Nil(t, snap, "Capture must return nil snapshot on TakeSnapshot error")
 	require.Error(t, err, "Capture must return an error when TakeSnapshot fails")
@@ -80,7 +83,7 @@ func TestCaptureRollbackOnSnapshotError(t *testing.T) {
 }
 
 // TestCaptureStampsHeaders verifies that Capture stamps Version, CapturedAt,
-// DatabaseType, StableIdentity, and Schemas on the returned snapshot.
+// DatabaseType, and Schemas on the returned Snapshot (schema + header).
 func TestCaptureStampsHeaders(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -88,24 +91,33 @@ func TestCaptureStampsHeaders(t *testing.T) {
 
 	setupSuccessfulPGMock(mock)
 
-	source := DBMetadata{
-		DatabaseType: constants.POSTGRESQL,
-		Host:         "localhost",
-		Port:         5432,
-		Database:     "mydb",
-		User:         "voyager",
-		Side:         "source",
+	dbMeta := DBMetadata{
+		Host:     "localhost",
+		Port:     5432,
+		Database: "mydb",
+		User:     "voyager",
 	}
-	snap, err := Capture(context.Background(), db, CaptureParams{Source: source, Schemas: []string{"public"}, Label: LabelExportSchema})
+	snap, err := Capture(context.Background(), db, CaptureParams{
+		DatabaseType: constants.POSTGRESQL,
+		Side:         SideSource,
+		DBMetadata:   dbMeta,
+		Schemas:      []string{"public"},
+		Label:        LabelExportSchema,
+	})
 	require.NoError(t, err)
 	require.NotNil(t, snap)
 
-	assert.Equal(t, 1, snap.Version)
-	assert.Equal(t, constants.POSTGRESQL, snap.DatabaseType)
-	assert.True(t, snap.StableIdentity)
-	assert.Equal(t, []string{"public"}, snap.Schemas)
-	assert.Equal(t, source, snap.DBMetadata)
-	assert.False(t, snap.CapturedAt.IsZero(), "CapturedAt must be set")
+	// Content fields stamped by Capture.
+	assert.Equal(t, 1, snap.Content.Version)
+	assert.Equal(t, constants.POSTGRESQL, snap.Content.DatabaseType)
+	assert.Equal(t, dbMeta, snap.Content.DBMetadata)
+
+	// Header fields stamped by Capture via newHeader.
+	assert.Equal(t, SideSource, snap.Header.Side)
+	assert.Equal(t, []string{"public"}, snap.Header.Schemas)
+	assert.False(t, snap.Header.CapturedAt.IsZero(), "CapturedAt must be set")
+	assert.Equal(t, "16.4", snap.Header.DatabaseVersion, "DatabaseVersion must be probed from mock")
+	assert.False(t, snap.Header.IsPlaceholder, "IsPlaceholder must be false on capture path")
 
 	require.NoError(t, mock.ExpectationsWereMet())
 }
@@ -121,17 +133,19 @@ func TestCaptureAndSaveSnapshotSuccess(t *testing.T) {
 
 	mdb := newTestMetaDB(t)
 
-	source := DBMetadata{
-		DatabaseType: constants.POSTGRESQL,
-		Host:         "localhost",
-		Port:         5432,
-		Database:     "mydb",
-		User:         "voyager",
-		Side:         "source",
-	}
-
 	name, err := CaptureAndSaveSnapshot(context.Background(), db, mdb, CaptureRequest{
-		CaptureParams:        CaptureParams{Source: source, Schemas: []string{"public"}, Label: LabelExportSchema},
+		CaptureParams: CaptureParams{
+			DatabaseType: constants.POSTGRESQL,
+			Side:         SideSource,
+			DBMetadata: DBMetadata{
+				Host:     "localhost",
+				Port:     5432,
+				Database: "mydb",
+				User:     "voyager",
+			},
+			Schemas: []string{"public"},
+			Label:   LabelExportSchema,
+		},
 		PlaceholderOnFailure: false,
 	})
 	require.NoError(t, err)
@@ -142,7 +156,7 @@ func TestCaptureAndSaveSnapshotSuccess(t *testing.T) {
 	list, err := ListSnapshots(mdb)
 	require.NoError(t, err)
 	require.Len(t, list, 1)
-	assert.Equal(t, name, list[0].Name)
+	assert.Equal(t, name, list[0].Name())
 }
 
 // TestCaptureAndSaveSnapshotFailurePlaceholderTrue verifies that on capture failure
@@ -159,9 +173,12 @@ func TestCaptureAndSaveSnapshotFailurePlaceholderTrue(t *testing.T) {
 
 	mdb := newTestMetaDB(t)
 
-	source := DBMetadata{DatabaseType: constants.POSTGRESQL}
 	name, err := CaptureAndSaveSnapshot(context.Background(), db, mdb, CaptureRequest{
-		CaptureParams:        CaptureParams{Source: source, Schemas: []string{"public"}, Label: LabelExportSchema},
+		CaptureParams: CaptureParams{
+			DatabaseType: constants.POSTGRESQL,
+			Schemas:      []string{"public"},
+			Label:        LabelExportSchema,
+		},
 		PlaceholderOnFailure: true,
 	})
 
@@ -185,16 +202,23 @@ func TestCaptureEmptySchemasReturnsError(t *testing.T) {
 	defer db.Close()
 
 	// No mock expectations: the guard must return before any DB access.
-	source := DBMetadata{DatabaseType: constants.POSTGRESQL}
 
 	// nil schemas
-	snap, err := Capture(context.Background(), db, CaptureParams{Source: source, Schemas: nil, Label: LabelExportSchema})
+	snap, err := Capture(context.Background(), db, CaptureParams{
+		DatabaseType: constants.POSTGRESQL,
+		Schemas:      nil,
+		Label:        LabelExportSchema,
+	})
 	assert.Nil(t, snap)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no schemas in scope")
 
 	// empty slice
-	snap, err = Capture(context.Background(), db, CaptureParams{Source: source, Schemas: []string{}, Label: LabelExportSchema})
+	snap, err = Capture(context.Background(), db, CaptureParams{
+		DatabaseType: constants.POSTGRESQL,
+		Schemas:      []string{},
+		Label:        LabelExportSchema,
+	})
 	assert.Nil(t, snap)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no schemas in scope")
@@ -217,9 +241,12 @@ func TestCaptureAndSaveSnapshotFailurePlaceholderFalse(t *testing.T) {
 
 	mdb := newTestMetaDB(t)
 
-	source := DBMetadata{DatabaseType: constants.POSTGRESQL}
 	name, err := CaptureAndSaveSnapshot(context.Background(), db, mdb, CaptureRequest{
-		CaptureParams:        CaptureParams{Source: source, Schemas: []string{"public"}, Label: LabelExportSchema},
+		CaptureParams: CaptureParams{
+			DatabaseType: constants.POSTGRESQL,
+			Schemas:      []string{"public"},
+			Label:        LabelExportSchema,
+		},
 		PlaceholderOnFailure: false,
 	})
 

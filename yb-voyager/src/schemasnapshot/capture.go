@@ -24,28 +24,29 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 )
 
-// ─── Capture orchestrator ─────────────────────────────────────────────────────
-
-// CaptureParams describes a single capture: what to capture (Source, Schemas) and
-// how to file it (Label, Reason). Label is required at every call site — it is the
-// snapshot's filing key (a labels.go constant) and the basis of its persisted name.
+// CaptureParams describes a single capture: what to capture and how to file it.
+// The old single Source DBMetadata is split into DatabaseType + Side + DBMetadata coords.
+// Label is required at every call site — it is the snapshot's filing key (a labels.go
+// constant) and the basis of its persisted name.
 type CaptureParams struct {
-	Source  DBMetadata
-	Schemas []string
-	Label   string
-	Reason  string
+	DatabaseType string     // selects the provider; recorded in SnapshotContent.DatabaseType
+	Side         string     // migration side; recorded in the header (defaults to SideSource if "")
+	DBMetadata   DBMetadata // display coordinates; recorded in SnapshotContent.DBMetadata
+	Schemas      []string
+	Label        string
+	Reason       string
 }
 
 // Capture is the library entry point for taking a schema snapshot. It:
 //  1. Guards against empty Schemas.
 //  2. Validates Label/Reason against the known vocabulary.
 //  3. Opens a read-only REPEATABLE READ transaction on db.
-//  4. Resolves the SnapshotProvider for p.Source.DatabaseType, bound to the tx.
+//  4. Resolves the SnapshotProvider for p.DatabaseType, bound to the tx.
 //  5. Calls provider.TakeSnapshot inside that transaction.
 //  6. Commits on success (rollback on any error) — atomic, never partial.
-//  7. Stamps all header fields (including Series and Reason) onto the returned snapshot.
+//  7. Stamps all header fields onto the returned SchemaSnapshot.
 //
-// The snapshot returned is fully populated and ready for SaveSnapshot without any
+// The SchemaSnapshot returned is fully populated and ready for SaveSnapshot without any
 // further mutation.
 func Capture(ctx context.Context, db *sql.DB, p CaptureParams) (*SchemaSnapshot, error) {
 	if len(p.Schemas) == 0 {
@@ -68,12 +69,12 @@ func Capture(ctx context.Context, db *sql.DB, p CaptureParams) (*SchemaSnapshot,
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	provider, err := newProvider(p.Source.DatabaseType, tx)
+	provider, err := newProvider(p.DatabaseType, tx)
 	if err != nil {
 		return nil, err
 	}
 
-	snap, err := provider.TakeSnapshot(ctx, p.Schemas)
+	schema, dbVersion, err := provider.TakeSnapshot(ctx, p.Schemas)
 	if err != nil {
 		return nil, fmt.Errorf("schemasnapshot: taking snapshot: %w", err)
 	}
@@ -82,17 +83,15 @@ func Capture(ctx context.Context, db *sql.DB, p CaptureParams) (*SchemaSnapshot,
 		return nil, fmt.Errorf("schemasnapshot: committing snapshot transaction: %w", err)
 	}
 
-	// Stamp header fields.
-	snap.Version = 1
-	snap.DBMetadata = p.Source
-	snap.CapturedAt = time.Now().UTC()
-	snap.DatabaseType = p.Source.DatabaseType
-	snap.StableIdentity = provider.HasStableIdentity()
-	snap.Schemas = p.Schemas
-	snap.Series = p.Label
-	snap.Reason = p.Reason
+	// Stamp schema-level fields (content).
+	schema.Version = 1
+	schema.DatabaseType = p.DatabaseType
+	schema.DBMetadata = p.DBMetadata
 
-	return snap, nil
+	// Build the header (metadata).
+	header := newHeader(p, time.Now().UTC(), dbVersion, false)
+
+	return &SchemaSnapshot{Header: header, Content: schema}, nil
 }
 
 // CaptureRequest describes a single capture-and-persist operation. It bundles the
@@ -115,10 +114,31 @@ func CaptureAndSaveSnapshot(ctx context.Context, db *sql.DB, mdb *metadb.MetaDB,
 	if captureErr != nil {
 		if req.PlaceholderOnFailure {
 			// placeholder dbVersion is "" (the version probe was part of the failed capture).
-			_, _ = SavePlaceholder(mdb, req.Label, req.Reason, req.Source.Side, time.Now().UTC(), "", req.Schemas)
+			h := newHeader(req.CaptureParams, time.Now().UTC(), "", true)
+			_, _ = SavePlaceholder(mdb, h)
 		}
 		return "", captureErr
 	}
 
 	return SaveSnapshot(mdb, snap)
+}
+
+// newHeader builds a SnapshotHeader from capture params + the capture-time facts.
+// Applies the SideSource default when Side is empty.
+// Used by both the success path (Capture) and the failure/placeholder path
+// (CaptureAndSaveSnapshot), so header construction lives in one place.
+func newHeader(p CaptureParams, capturedAt time.Time, dbVersion string, isPlaceholder bool) SnapshotHeader {
+	side := p.Side
+	if side == "" {
+		side = SideSource
+	}
+	return SnapshotHeader{
+		Label:           p.Label,
+		Reason:          p.Reason,
+		Side:            side,
+		CapturedAt:      capturedAt,
+		DatabaseVersion: dbVersion,
+		Schemas:         p.Schemas,
+		IsPlaceholder:   isPlaceholder,
+	}
 }

@@ -28,7 +28,7 @@ import (
 )
 
 // TestNewProviderPostgres asserts that newProvider("postgresql", db) returns a
-// provider whose DatabaseType() is "postgresql" and HasStableIdentity() is true.
+// provider whose DatabaseType() is "postgresql".
 func TestNewProviderPostgres(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -38,7 +38,6 @@ func TestNewProviderPostgres(t *testing.T) {
 	p, err := newProvider(constants.POSTGRESQL, db)
 	require.NoError(t, err, "newProvider must succeed for postgresql")
 	assert.Equal(t, "postgresql", p.DatabaseType())
-	assert.True(t, p.HasStableIdentity(), "PostgreSQL provider must report stable identity")
 }
 
 // TestNewProviderUnknownType asserts that newProvider for an unsupported database
@@ -82,9 +81,10 @@ func TestTakeSnapshotLoadsTablesAndColumns(t *testing.T) {
 		AddRow("16420", "2", "public", "orders", "amount", "numeric", false, "0")
 	mock.ExpectQuery(`pg_attribute`).WillReturnRows(colRows)
 
-	snap, err := p.TakeSnapshot(context.Background(), []string{"public"})
+	snap, dbVersion, err := p.TakeSnapshot(context.Background(), []string{"public"})
 	require.NoError(t, err)
 	require.NotNil(t, snap)
+	assert.Equal(t, "16.4", dbVersion, "dbVersion must be truncated at first space")
 
 	require.Len(t, snap.Tables, 3)
 	assert.Equal(t, "orders", snap.Tables[0].Name)
@@ -112,8 +112,9 @@ func TestTakeSnapshotLoadsTablesAndColumns(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-// TestTakeSnapshotDatabaseVersionSet verifies that TakeSnapshot populates DatabaseVersion.
-func TestTakeSnapshotDatabaseVersionSet(t *testing.T) {
+// TestTakeSnapshotDatabaseVersionReturned verifies that TakeSnapshot returns the
+// probed database version as the second return value (not stuffed into the snapshot).
+func TestTakeSnapshotDatabaseVersionReturned(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -129,9 +130,10 @@ func TestTakeSnapshotDatabaseVersionSet(t *testing.T) {
 	mock.ExpectQuery(`pg_inherits`).WillReturnRows(sqlmock.NewRows([]string{"child_oid", "child_schema", "child_name", "parent_oid", "parent_schema", "parent_name", "is_partition"}))
 	mock.ExpectQuery(`pg_attribute`).WillReturnRows(sqlmock.NewRows([]string{"table_oid", "attnum", "schema", "table_name", "col_name", "data_type", "not_null", "col_default"}))
 
-	snap, err := p.TakeSnapshot(context.Background(), []string{"public"})
+	snap, dbVersion, err := p.TakeSnapshot(context.Background(), []string{"public"})
 	require.NoError(t, err)
-	assert.Equal(t, "14.11", snap.DatabaseVersion)
+	require.NotNil(t, snap)
+	assert.Equal(t, "14.11", dbVersion, "dbVersion must be the second return value")
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -168,7 +170,7 @@ func TestTakeSnapshotPartitionLinkage(t *testing.T) {
 		sqlmock.NewRows([]string{"table_oid", "attnum", "schema", "table_name", "col_name", "data_type", "not_null", "col_default"}),
 	)
 
-	snap, err := p.TakeSnapshot(context.Background(), []string{"public"})
+	snap, _, err := p.TakeSnapshot(context.Background(), []string{"public"})
 	require.NoError(t, err)
 	require.NotNil(t, snap)
 
@@ -228,7 +230,7 @@ func TestTakeSnapshotInheritanceLinkage(t *testing.T) {
 		sqlmock.NewRows([]string{"table_oid", "attnum", "schema", "table_name", "col_name", "data_type", "not_null", "col_default"}),
 	)
 
-	snap, err := p.TakeSnapshot(context.Background(), []string{"public"})
+	snap, _, err := p.TakeSnapshot(context.Background(), []string{"public"})
 	require.NoError(t, err)
 	require.NotNil(t, snap)
 

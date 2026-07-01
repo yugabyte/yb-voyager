@@ -101,45 +101,41 @@ type postgresSnapshotProvider struct {
 // DatabaseType returns the canonical database type string for PostgreSQL.
 func (p *postgresSnapshotProvider) DatabaseType() string { return constants.POSTGRESQL }
 
-// HasStableIdentity reports that PostgreSQL OIDs are stable enough for rename
-// detection across consecutive snapshots.
-func (p *postgresSnapshotProvider) HasStableIdentity() bool { return true }
-
 // TakeSnapshot captures the PostgreSQL schema for the given schemas.
 // It loads tables (including hierarchy links) and columns (v1 scope).
-// The header fields (CapturedAt, DBMetadata, etc.) are stamped by the
+// Returns the schema content, the probed database version string (e.g. "16.4"), and any error.
+// The header fields (Version, DatabaseType, DBMetadata) are stamped by the
 // Capture orchestrator in capture.go after this call returns.
 // Query order: SHOW server_version → pg_class → pg_inherits → pg_attribute.
 func (p *postgresSnapshotProvider) TakeSnapshot(
 	ctx context.Context,
 	schemas []string,
-) (*SchemaSnapshot, error) {
-	snap := &SchemaSnapshot{}
+) (*SnapshotContent, string, error) {
+	snap := &SnapshotContent{}
 
 	placeholders, args := buildInPlaceholders(schemas)
 
 	// Probe database version.
 	dbVersion, err := detectDatabaseVersion(ctx, p.db)
 	if err != nil {
-		return nil, fmt.Errorf("postgres: detecting database version: %w", err)
+		return nil, "", fmt.Errorf("postgres: detecting database version: %w", err)
 	}
-	snap.DatabaseVersion = dbVersion
 
 	// Load tables (includes partition and inheritance wiring via pg_inherits).
 	tables, err := loadTables(ctx, p.db, placeholders, args)
 	if err != nil {
-		return nil, fmt.Errorf("postgres: loading tables: %w", err)
+		return nil, "", fmt.Errorf("postgres: loading tables: %w", err)
 	}
 	snap.Tables = tables
 
 	// Load columns.
 	columns, err := loadColumns(ctx, p.db, placeholders, args)
 	if err != nil {
-		return nil, fmt.Errorf("postgres: loading columns: %w", err)
+		return nil, "", fmt.Errorf("postgres: loading columns: %w", err)
 	}
 	snap.Columns = columns
 
-	return snap, nil
+	return snap, dbVersion, nil
 }
 
 // ─── Helper functions ──────────────────────────────────────────────────────────

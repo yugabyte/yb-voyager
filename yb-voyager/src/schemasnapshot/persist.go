@@ -35,18 +35,124 @@ var (
 	ErrPlaceholderSnapshot = errors.New("snapshot is a placeholder: no schema content captured")
 )
 
-// SnapshotMetadata holds the header columns for a persisted snapshot.
-// It is returned by ListSnapshots and never contains the full schema content.
-type SnapshotMetadata struct {
-	Name            string    // user-facing handle (primary key): "{label}_{timestamp-at-second-precision}"
-	Label           string    // the capture label/series this snapshot was saved under (a labels.go constant).
-	Reason          string    // capture reason where the series carries one; "" otherwise
-	Side            string    // which side of the migration produced it; "source" in v1
-	CapturedAt      time.Time // full-precision capture time (UTC)
-	DatabaseVersion string    // source server version, truncated at the first space, e.g. "16.4"
-	Schemas         []string  // schemas in scope for this snapshot
-	IsPlaceholder   bool      // true when snapshot_json is NULL (capture-attempt marker, no schema content)
+// SaveSnapshot persists a fully-populated SchemaSnapshot (header + schema content) to the
+// metadata database. The header must have a non-empty Label. Returns the derived
+// name "{label}_{second-precision-timestamp}" on success.
+func SaveSnapshot(mdb *metadb.MetaDB, snap *SchemaSnapshot) (string, error) {
+	if snap.Header.Label == "" {
+		return "", goerrors.Errorf("schemasnapshot: snapshot has no label; cannot persist")
+	}
+
+	data, err := json.Marshal(snap.Content)
+	if err != nil {
+		return "", fmt.Errorf("marshal snapshot: %w", err)
+	}
+
+	side := snap.Header.Side
+	if side == "" {
+		side = SideSource
+	}
+
+	name := snap.Header.Name()
+	row := metadb.SchemaSnapshotRow{
+		Name:            name,
+		Label:           snap.Header.Label,
+		Reason:          snap.Header.Reason,
+		Side:            side,
+		CapturedAt:      snap.Header.CapturedAt,
+		DatabaseVersion: snap.Header.DatabaseVersion,
+		Schemas:         schemasToString(snap.Header.Schemas),
+		IsPlaceholder:   snap.Header.IsPlaceholder,
+		SnapshotJSON:    sql.NullString{String: string(data), Valid: true},
+	}
+
+	if err := mdb.InsertSchemaSnapshot(row); err != nil {
+		return "", err
+	}
+	return name, nil
 }
+
+// SavePlaceholder records a metadata-only row (snapshot_json NULL) for when a capture
+// attempt fails mid-process but the lifecycle moment still needs a timeline marker.
+// h.Side defaults to SideSource if empty. An empty DatabaseVersion is accepted.
+// Returns the derived name on success.
+func SavePlaceholder(mdb *metadb.MetaDB, h SnapshotHeader) (string, error) {
+	if h.Label == "" {
+		return "", goerrors.Errorf("schemasnapshot: placeholder has no label; cannot persist")
+	}
+
+	side := h.Side
+	if side == "" {
+		side = SideSource
+	}
+
+	name := h.Name()
+	row := metadb.SchemaSnapshotRow{
+		Name:            name,
+		Label:           h.Label,
+		Reason:          h.Reason,
+		Side:            side,
+		CapturedAt:      h.CapturedAt,
+		DatabaseVersion: h.DatabaseVersion,
+		Schemas:         schemasToString(h.Schemas),
+		SnapshotJSON:    sql.NullString{Valid: false},
+	}
+
+	if err := mdb.InsertSchemaSnapshotPlaceholder(row); err != nil {
+		return "", err
+	}
+	return name, nil
+}
+
+// ListSnapshots returns the header for every snapshot (real and placeholder),
+// sorted oldest-first by captured_at. Header columns only; no blob deserialization.
+func ListSnapshots(mdb *metadb.MetaDB) ([]SnapshotHeader, error) {
+	rows, err := mdb.ListSchemaSnapshots()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]SnapshotHeader, 0, len(rows))
+	for _, r := range rows {
+		result = append(result, rowToHeader(r))
+	}
+	return result, nil
+}
+
+// LoadSnapshotByName fetches the snapshot with the given name and deserializes it.
+// Returns ErrSnapshotNotFound if the row does not exist (or the table has not been created yet).
+// Returns ErrPlaceholderSnapshot if the row is a placeholder (no schema content).
+func LoadSnapshotByName(mdb *metadb.MetaDB, name string) (*SnapshotContent, error) {
+	row, err := mdb.GetSchemaSnapshotByName(name)
+	if err != nil {
+		return nil, err
+	}
+	if row == nil {
+		return nil, ErrSnapshotNotFound
+	}
+	if row.IsPlaceholder {
+		return nil, ErrPlaceholderSnapshot
+	}
+	return DecodeSnapshot([]byte(row.SnapshotJSON.String))
+}
+
+// DecodeSnapshot deserializes a SnapshotContent from raw JSON bytes.
+// It enforces the versioning gate: a Version > currentSnapshotVersion is rejected,
+// and a missing or zero Version is rejected as unreadable.
+func DecodeSnapshot(data []byte) (*SnapshotContent, error) {
+	var snap SnapshotContent
+	if err := json.Unmarshal(data, &snap); err != nil {
+		return nil, fmt.Errorf("unmarshal snapshot: %w", err)
+	}
+	if snap.Version == 0 {
+		return nil, goerrors.Errorf("snapshot has no version set (Version 0 or missing); this library requires Version %d", currentSnapshotVersion)
+	}
+	if snap.Version > currentSnapshotVersion {
+		return nil, goerrors.Errorf("snapshot Version %d is newer than this library understands (expected Version %d); upgrade yb-voyager", snap.Version, currentSnapshotVersion)
+	}
+	return &snap, nil
+}
+
+// ─── helpers ────────────────────────────────────────────────────────────────────
 
 // deriveName builds the primary-key name "{label}_{timestamp-at-second-precision}".
 func deriveName(label string, capturedAt time.Time) string {
@@ -75,11 +181,11 @@ func schemasFromString(s string) []string {
 	return out
 }
 
-// rowToMetadata converts a lightweight list row to a SnapshotMetadata value.
-// IsPlaceholder comes directly from the SQL-computed flag; no blob field is present.
-func rowToMetadata(r metadb.SchemaSnapshotListRow) SnapshotMetadata {
-	return SnapshotMetadata{
-		Name:            r.Name,
+// rowToHeader converts a lightweight list row to a SnapshotHeader value.
+// IsPlaceholder comes directly from the is_placeholder column; no blob field is present.
+// Name is derived (not stored), so it is not set on the header struct.
+func rowToHeader(r metadb.SchemaSnapshotListRow) SnapshotHeader {
+	return SnapshotHeader{
 		Label:           r.Label,
 		Reason:          r.Reason,
 		Side:            r.Side,
@@ -88,122 +194,4 @@ func rowToMetadata(r metadb.SchemaSnapshotListRow) SnapshotMetadata {
 		Schemas:         schemasFromString(r.Schemas),
 		IsPlaceholder:   r.IsPlaceholder,
 	}
-}
-
-// SaveSnapshot persists a fully-populated snapshot to the metadata database.
-// It does not mutate snap — all fields (including Series and Reason) must be
-// stamped by the caller (Capture does this automatically). Returns the derived
-// name "{series}_{second-precision-timestamp}" on success.
-func SaveSnapshot(mdb *metadb.MetaDB, snap *SchemaSnapshot) (string, error) {
-	if snap.Series == "" {
-		return "", goerrors.Errorf("schemasnapshot: snapshot has no label (Series); cannot persist")
-	}
-
-	data, err := json.Marshal(snap)
-	if err != nil {
-		return "", fmt.Errorf("marshal snapshot: %w", err)
-	}
-
-	side := snap.DBMetadata.Side
-	if side == "" {
-		side = SideSource
-	}
-
-	name := deriveName(snap.Series, snap.CapturedAt)
-	row := metadb.SchemaSnapshotRow{
-		Name:            name,
-		Label:           snap.Series,
-		Reason:          snap.Reason,
-		Side:            side,
-		CapturedAt:      snap.CapturedAt,
-		DatabaseVersion: snap.DatabaseVersion,
-		Schemas:         schemasToString(snap.Schemas),
-		SnapshotJSON:    sql.NullString{String: string(data), Valid: true},
-	}
-
-	if err := mdb.InsertSchemaSnapshot(row); err != nil {
-		return "", err
-	}
-	return name, nil
-}
-
-// SavePlaceholder records a metadata-only row (snapshot_json NULL) for when a capture
-// attempt fails mid-process but the lifecycle moment still needs a timeline marker.
-// side identifies which database the failed capture attempt targeted (e.g. SideSource);
-// an empty side defaults to SideSource.
-// An empty dbVersion is accepted.
-// Returns the derived name on success.
-func SavePlaceholder(mdb *metadb.MetaDB, label, reason, side string, capturedAt time.Time, dbVersion string, schemas []string) (string, error) {
-	if err := ValidateLabelReason(label, reason); err != nil {
-		return "", err
-	}
-
-	if side == "" {
-		side = SideSource
-	}
-
-	name := deriveName(label, capturedAt)
-	row := metadb.SchemaSnapshotRow{
-		Name:            name,
-		Label:           label,
-		Reason:          reason,
-		Side:            side,
-		CapturedAt:      capturedAt,
-		DatabaseVersion: dbVersion,
-		Schemas:         schemasToString(schemas),
-		SnapshotJSON:    sql.NullString{Valid: false},
-	}
-
-	if err := mdb.InsertSchemaSnapshotPlaceholder(row); err != nil {
-		return "", err
-	}
-	return name, nil
-}
-
-// ListSnapshots returns metadata for every snapshot (real and placeholder),
-// sorted oldest-first by captured_at. Header columns only; no blob deserialization.
-func ListSnapshots(mdb *metadb.MetaDB) ([]SnapshotMetadata, error) {
-	rows, err := mdb.ListSchemaSnapshots()
-	if err != nil {
-		return nil, err
-	}
-	result := make([]SnapshotMetadata, 0, len(rows))
-	for _, r := range rows {
-		result = append(result, rowToMetadata(r))
-	}
-	return result, nil
-}
-
-// LoadSnapshotByName fetches the snapshot with the given name and deserializes it.
-// Returns ErrSnapshotNotFound if the row does not exist (or the table has not been created yet).
-// Returns ErrPlaceholderSnapshot if the row exists but snapshot_json is NULL.
-func LoadSnapshotByName(mdb *metadb.MetaDB, name string) (*SchemaSnapshot, error) {
-	row, err := mdb.GetSchemaSnapshotByName(name)
-	if err != nil {
-		return nil, err
-	}
-	if row == nil {
-		return nil, ErrSnapshotNotFound
-	}
-	if !row.SnapshotJSON.Valid {
-		return nil, ErrPlaceholderSnapshot
-	}
-	return DecodeSnapshot([]byte(row.SnapshotJSON.String))
-}
-
-// DecodeSnapshot deserializes a SchemaSnapshot from raw JSON bytes.
-// It enforces the versioning gate: a Version > currentSnapshotVersion is rejected,
-// and a missing or zero Version is rejected as unreadable.
-func DecodeSnapshot(data []byte) (*SchemaSnapshot, error) {
-	var snap SchemaSnapshot
-	if err := json.Unmarshal(data, &snap); err != nil {
-		return nil, fmt.Errorf("unmarshal snapshot: %w", err)
-	}
-	if snap.Version == 0 {
-		return nil, goerrors.Errorf("snapshot has no version set (Version 0 or missing); this library requires Version %d", currentSnapshotVersion)
-	}
-	if snap.Version > currentSnapshotVersion {
-		return nil, goerrors.Errorf("snapshot Version %d is newer than this library understands (expected Version %d); upgrade yb-voyager", snap.Version, currentSnapshotVersion)
-	}
-	return &snap, nil
 }
