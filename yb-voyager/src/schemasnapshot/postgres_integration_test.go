@@ -38,7 +38,7 @@ const testSchema = "drift_test"
 // startCaptureTestDB starts a postgres container, creates the canonical test
 // schema (the full set: ordinary/partitioned/foreign tables, columns, a dropped
 // column, multi-level partitioning, single + multiple inheritance), and returns
-// a live connection, a ready DBMetadata, and a cleanup func.
+// a live connection, display coordinates (DBMetadata), and a cleanup func.
 //
 // cfg is forwarded to NewTestContainer so callers can control the registry key
 // (pass &testcontainers.ContainerConfig{ForLive: true} to get a distinct key
@@ -91,20 +91,19 @@ func startCaptureTestDB(t *testing.T, cfg *testcontainers.ContainerConfig) (*sql
 	require.NoError(t, err)
 	pgCfg := pg.GetConfig()
 
-	src := schemasnapshot.DBMetadata{
-		DatabaseType: constants.POSTGRESQL,
-		Host:         host,
-		Port:         port,
-		Database:     pgCfg.DBName,
-		User:         pgCfg.User,
-		Side:         schemasnapshot.SideSource,
+	// DBMetadata now contains only display coordinates (no DatabaseType or Side).
+	dbMeta := schemasnapshot.DBMetadata{
+		Host:     host,
+		Port:     port,
+		Database: pgCfg.DBName,
+		User:     pgCfg.User,
 	}
 
 	cleanup := func() {
 		db.Close()
 		pg.Terminate(ctx)
 	}
-	return db, src, cleanup
+	return db, dbMeta, cleanup
 }
 
 // newIntegrationTestMetaDB creates a MetaDB backed by a fresh SQLite file in a temp dir.
@@ -129,23 +128,31 @@ func newIntegrationTestMetaDB(t *testing.T) *metadb.MetaDB {
 func TestCaptureAgainstLivePostgres(t *testing.T) {
 	ctx := context.Background()
 
-	db, src, cleanup := startCaptureTestDB(t, nil)
+	db, dbMeta, cleanup := startCaptureTestDB(t, nil)
 	defer cleanup()
 
-	snap, err := schemasnapshot.Capture(ctx, db, schemasnapshot.CaptureParams{Source: src, Schemas: []string{testSchema}, Label: schemasnapshot.LabelExportSchema})
+	snap, err := schemasnapshot.Capture(ctx, db, schemasnapshot.CaptureParams{
+		DatabaseType: constants.POSTGRESQL,
+		Side:         schemasnapshot.SideSource,
+		DBMetadata:   dbMeta,
+		Schemas:      []string{testSchema},
+		Label:        schemasnapshot.LabelExportSchema,
+	})
 	require.NoError(t, err, "Capture should succeed against live postgres")
 
-	// Header stamping.
-	assert.Equal(t, 1, snap.Version)
-	assert.Equal(t, "postgresql", snap.DatabaseType)
-	assert.True(t, snap.StableIdentity)
-	assert.NotEmpty(t, snap.DatabaseVersion, "DatabaseVersion should be probed")
-	assert.Equal(t, []string{testSchema}, snap.Schemas)
+	// Schema content fields.
+	assert.Equal(t, 1, snap.Content.Version)
+	assert.Equal(t, "postgresql", snap.Content.DatabaseType)
+
+	// Header fields.
+	assert.NotEmpty(t, snap.Header.DatabaseVersion, "DatabaseVersion should be probed")
+	assert.Equal(t, []string{testSchema}, snap.Header.Schemas)
+	assert.False(t, snap.Header.IsPlaceholder)
 
 	// Tables: orders (ordinary) + events (partitioned) + events_2026 (partition child)
 	//         + animals (ordinary, inheritance parent) + dogs (ordinary, inheritance child).
 	byName := map[string]schemasnapshot.Table{}
-	for _, tb := range snap.Tables {
+	for _, tb := range snap.Content.Tables {
 		byName[tb.Name] = tb
 	}
 	require.Contains(t, byName, "orders")
@@ -190,7 +197,7 @@ func TestCaptureAgainstLivePostgres(t *testing.T) {
 
 	// Columns of orders.
 	cols := map[string]schemasnapshot.Column{}
-	for _, c := range snap.Columns {
+	for _, c := range snap.Content.Columns {
 		if c.Table.Name == "orders" {
 			cols[c.Name] = c
 		}
@@ -210,7 +217,7 @@ func TestCaptureAgainstLivePostgres(t *testing.T) {
 		"remote_accounts relkind 'f' must map to TableKindForeign")
 
 	remoteAcctCols := map[string]schemasnapshot.Column{}
-	for _, c := range snap.Columns {
+	for _, c := range snap.Content.Columns {
 		if c.Table.Name == "remote_accounts" {
 			remoteAcctCols[c.Name] = c
 		}
@@ -221,7 +228,7 @@ func TestCaptureAgainstLivePostgres(t *testing.T) {
 	// ── Dropped column ────────────────────────────────────────────────────────
 	require.Contains(t, byName, "dropcol")
 	dropcolCols := map[string]schemasnapshot.Column{}
-	for _, c := range snap.Columns {
+	for _, c := range snap.Content.Columns {
 		if c.Table.Name == "dropcol" {
 			dropcolCols[c.Name] = c
 		}
@@ -301,18 +308,24 @@ func TestCapturePersistRoundTrip(t *testing.T) {
 	// registry key) so this test never collides with TestCaptureAgainstLivePostgres,
 	// which terminates its container in a defer and would leave a dead entry in the
 	// shared singleton registry.
-	db, src, cleanup := startCaptureTestDB(t, &testcontainers.ContainerConfig{ForLive: true})
+	db, dbMeta, cleanup := startCaptureTestDB(t, &testcontainers.ContainerConfig{ForLive: true})
 	defer cleanup()
 
 	// Step 1: Capture.
-	snap, err := schemasnapshot.Capture(ctx, db, schemasnapshot.CaptureParams{Source: src, Schemas: []string{testSchema}, Label: schemasnapshot.LabelExportSchema})
+	snap, err := schemasnapshot.Capture(ctx, db, schemasnapshot.CaptureParams{
+		DatabaseType: constants.POSTGRESQL,
+		Side:         schemasnapshot.SideSource,
+		DBMetadata:   dbMeta,
+		Schemas:      []string{testSchema},
+		Label:        schemasnapshot.LabelExportSchema,
+	})
 	require.NoError(t, err, "Capture must succeed")
-	require.NotEmpty(t, snap.Tables, "captured Tables must be non-empty")
-	require.NotEmpty(t, snap.Columns, "captured Columns must be non-empty")
+	require.NotEmpty(t, snap.Content.Tables, "captured Tables must be non-empty")
+	require.NotEmpty(t, snap.Content.Columns, "captured Columns must be non-empty")
 
 	// Verify partition and inheritance fields are non-empty before persisting.
-	tablesByName := make(map[string]schemasnapshot.Table, len(snap.Tables))
-	for _, tb := range snap.Tables {
+	tablesByName := make(map[string]schemasnapshot.Table, len(snap.Content.Tables))
+	for _, tb := range snap.Content.Tables {
 		tablesByName[tb.Name] = tb
 	}
 	require.Contains(t, tablesByName, "events")
@@ -327,16 +340,13 @@ func TestCapturePersistRoundTrip(t *testing.T) {
 	// Step 2: Create a temp meta.db.
 	mdb := newIntegrationTestMetaDB(t)
 
-	// Step 3: Persist. Stamp Series/Reason then save.
-	snap.Series = schemasnapshot.LabelExportDataFromSourceExit
-	snap.Reason = schemasnapshot.ReasonCutover
+	// Step 3: Persist. Capture already set the header; override Label/Reason to
+	// use a label that carries a reason (export_data_from_source_exit + cutover).
+	snap.Header.Label = schemasnapshot.LabelExportDataFromSourceExit
+	snap.Header.Reason = schemasnapshot.ReasonCutover
 	name, err := schemasnapshot.SaveSnapshot(mdb, snap)
 	require.NoError(t, err, "SaveSnapshot must succeed")
 	assert.NotEmpty(t, name)
-
-	// Verify Series/Reason are set on snap.
-	assert.Equal(t, schemasnapshot.LabelExportDataFromSourceExit, snap.Series)
-	assert.Equal(t, "cutover", snap.Reason)
 
 	// Step 4: Verify the persisted row via ListSnapshots.
 	metas, err := schemasnapshot.ListSnapshots(mdb)
@@ -344,7 +354,7 @@ func TestCapturePersistRoundTrip(t *testing.T) {
 	require.Len(t, metas, 1)
 
 	meta := metas[0]
-	assert.Equal(t, name, meta.Name)
+	assert.Equal(t, name, meta.Name())
 	assert.Equal(t, schemasnapshot.LabelExportDataFromSourceExit, meta.Label)
 	assert.Equal(t, "cutover", meta.Reason)
 	assert.Equal(t, "source", meta.Side)
@@ -357,24 +367,15 @@ func TestCapturePersistRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, loaded)
 
-	// Field-by-field comparisons (skip whole-struct equality to avoid monotonic-clock mismatch).
-	assert.Equal(t, snap.Version, loaded.Version)
-	assert.Equal(t, snap.DatabaseType, loaded.DatabaseType)
-	assert.Equal(t, snap.DatabaseVersion, loaded.DatabaseVersion)
-	assert.Equal(t, snap.StableIdentity, loaded.StableIdentity)
-	assert.Equal(t, snap.Schemas, loaded.Schemas)
-	assert.Equal(t, snap.Series, loaded.Series)
-	assert.Equal(t, snap.Reason, loaded.Reason)
-	assert.Equal(t, snap.DBMetadata, loaded.DBMetadata)
-
-	// CapturedAt: compare via Equal() to strip monotonic component that doesn't survive JSON.
-	assert.True(t, snap.CapturedAt.Equal(loaded.CapturedAt),
-		"CapturedAt mismatch: snap=%v loaded=%v", snap.CapturedAt, loaded.CapturedAt)
+	// The blob (SnapshotContent) carries Version, DatabaseType, DBMetadata, Tables, Columns.
+	assert.Equal(t, snap.Content.Version, loaded.Version)
+	assert.Equal(t, snap.Content.DatabaseType, loaded.DatabaseType)
+	assert.Equal(t, snap.Content.DBMetadata, loaded.DBMetadata)
 
 	// Tables and Columns survive JSON serialization including ObjectRef slices.
-	assert.Equal(t, snap.Tables, loaded.Tables,
+	assert.Equal(t, snap.Content.Tables, loaded.Tables,
 		"Tables must survive JSON round-trip (including partition/inheritance ObjectRef slices)")
-	assert.Equal(t, snap.Columns, loaded.Columns,
+	assert.Equal(t, snap.Content.Columns, loaded.Columns,
 		"Columns must survive JSON round-trip")
 
 	// Spot-check that partition + inheritance wiring survived serialization.

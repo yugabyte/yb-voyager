@@ -25,28 +25,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestSchemaSnapshotJSONRoundTrip verifies SchemaSnapshot JSON round-trip with
-// tables and columns only (v1 scope).
-func TestSchemaSnapshotJSONRoundTrip(t *testing.T) {
-	capturedAt := time.Date(2026, 5, 12, 10, 0, 0, 0, time.UTC)
+// timeFromStr parses an RFC3339 time string for use in test assertions.
+func timeFromStr(t *testing.T, s string) time.Time {
+	t.Helper()
+	ts, err := time.Parse(time.RFC3339, s)
+	require.NoError(t, err)
+	return ts
+}
 
-	snap := &SchemaSnapshot{
-		Version:         1,
-		DatabaseType:    "postgresql",
-		DatabaseVersion: "16.14",
-		StableIdentity:  true,
-		CapturedAt:      capturedAt,
+// TestSchemaSnapshotJSONRoundTrip verifies SnapshotContent JSON round-trip with
+// tables and columns only (v1 scope). Header fields (CapturedAt, DatabaseVersion,
+// Schemas, Reason) are now in SnapshotHeader, not in SnapshotContent.
+func TestSchemaSnapshotJSONRoundTrip(t *testing.T) {
+	snap := &SnapshotContent{
+		Version:      1,
+		DatabaseType: "postgresql",
 		DBMetadata: DBMetadata{
-			DatabaseType: "postgresql",
-			Host:         "db.example.com",
-			Port:         5432,
-			Database:     "mydb",
-			User:         "voyager",
-			Side:         SideSource,
+			Host:     "db.example.com",
+			Port:     5432,
+			Database: "mydb",
+			User:     "voyager",
 		},
-		Schemas: []string{"public", "sales"},
-		Series:  LabelExportDataFromSourceExit,
-		Reason:  ReasonCutover,
 		Tables: []Table{
 			{
 				ObjectRef: ObjectRef{Schema: "public", Name: "orders"},
@@ -81,19 +80,13 @@ func TestSchemaSnapshotJSONRoundTrip(t *testing.T) {
 	data, err := json.Marshal(snap)
 	require.NoError(t, err)
 
-	var got SchemaSnapshot
+	var got SnapshotContent
 	err = json.Unmarshal(data, &got)
 	require.NoError(t, err)
 
 	assert.Equal(t, snap.Version, got.Version)
 	assert.Equal(t, snap.DatabaseType, got.DatabaseType)
-	assert.Equal(t, snap.DatabaseVersion, got.DatabaseVersion)
-	assert.Equal(t, snap.StableIdentity, got.StableIdentity)
-	assert.True(t, snap.CapturedAt.Equal(got.CapturedAt), "CapturedAt mismatch")
 	assert.Equal(t, snap.DBMetadata, got.DBMetadata)
-	assert.Equal(t, snap.Schemas, got.Schemas)
-	assert.Equal(t, snap.Series, got.Series)
-	assert.Equal(t, snap.Reason, got.Reason)
 	assert.Equal(t, snap.Tables, got.Tables)
 	assert.Equal(t, snap.Columns, got.Columns)
 }
@@ -112,22 +105,42 @@ func TestTableKindConstants(t *testing.T) {
 }
 
 // TestDBMetadataJSONFieldNames checks that DBMetadata marshals with the expected JSON keys.
+// DatabaseType and Side have been removed from DBMetadata (they moved to SnapshotContent
+// and SnapshotHeader respectively).
 func TestDBMetadataJSONFieldNames(t *testing.T) {
 	cs := DBMetadata{
-		DatabaseType: "postgresql",
-		Host:         "localhost",
-		Port:         5432,
-		Database:     "mydb",
-		User:         "voyager",
-		Side:         SideSource,
+		Host:     "localhost",
+		Port:     5432,
+		Database: "mydb",
+		User:     "voyager",
 	}
 	data, err := json.Marshal(cs)
 	require.NoError(t, err)
 	s := string(data)
-	assert.Contains(t, s, `"database_type"`)
 	assert.Contains(t, s, `"host"`)
 	assert.Contains(t, s, `"port"`)
 	assert.Contains(t, s, `"database"`)
 	assert.Contains(t, s, `"user"`)
-	assert.Contains(t, s, `"side"`)
+	// DatabaseType and Side are no longer in DBMetadata.
+	assert.NotContains(t, s, `"database_type"`)
+	assert.NotContains(t, s, `"side"`)
+}
+
+// TestSnapshotHeaderName verifies that SnapshotHeader.Name() derives the
+// primary-key handle "{label}_{second-precision-timestamp}".
+func TestSnapshotHeaderName(t *testing.T) {
+	h := SnapshotHeader{
+		Label:      LabelExportSchema,
+		CapturedAt: timeFromStr(t, "2026-05-12T10:00:00Z"),
+	}
+	assert.Equal(t, "export_schema_20260512T100000Z", h.Name())
+}
+
+// TestSnapshotHeaderNameDifferentLabels verifies Name() with a longer label constant.
+func TestSnapshotHeaderNameDifferentLabels(t *testing.T) {
+	h := SnapshotHeader{
+		Label:      LabelExportDataFromSourceExit,
+		CapturedAt: timeFromStr(t, "2026-05-12T10:00:00Z"),
+	}
+	assert.Equal(t, "export_data_from_source_exit_20260512T100000Z", h.Name())
 }

@@ -43,21 +43,17 @@ type SnapshotProvider interface {
 	// DatabaseType returns the lowercase database type string, e.g. "postgresql".
 	DatabaseType() string
 
-	// TakeSnapshot captures the schema for the given schemas and returns
-	// a populated *SchemaSnapshot. The provider uses the QueryExecutor it was
-	// constructed with (bound at newProvider call time). The header fields
-	// (CapturedAt, DBMetadata, StableIdentity, etc.) are stamped by the Capture
-	// orchestrator after this call returns, so the provider must not set them.
+	// TakeSnapshot captures the schema for the given schemas and returns a populated
+	// *SnapshotContent (Tables/Columns set by provider), the probed database version
+	// string (e.g. "16.4"), and an error. The header fields (Version, DatabaseType,
+	// DBMetadata) are stamped by the Capture orchestrator after this call returns,
+	// so the provider must not set them.
 	//
 	// Why: providers produce schema content only; the headers are capture-event
 	// metadata computed identically for every engine. Stamping them once in the
 	// orchestrator keeps them consistent (one Version/clock/source) and the
 	// provider never even receives the DBMetadata, so it can't set them wrong.
-	TakeSnapshot(ctx context.Context, schemas []string) (*SchemaSnapshot, error)
-
-	// HasStableIdentity reports whether ID fields in the snapshot are reliable
-	// enough for rename detection across snapshots (true for PostgreSQL).
-	HasStableIdentity() bool
+	TakeSnapshot(ctx context.Context, schemas []string) (*SnapshotContent, string, error)
 }
 
 // ─── Provider constructor ──────────────────────────────────────────────────────
