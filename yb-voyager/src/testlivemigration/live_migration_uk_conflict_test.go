@@ -514,8 +514,6 @@ func TestLiveMigrationWithUniqueKeyValuesWithPartialPredicateConflictDetectionCa
 	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
 		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
 	)
-	uniqueKeyConflictFailpointMarker := filepath.Join(
-		lm.GetCurrentExportDir(), "failpoints", "failpoint-unique-key-conflict-detected.log")
 	uniqueKeyConflictStatsPath := filepath.Join(
 		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
 
@@ -889,15 +887,17 @@ FROM generate_series(1, 20) as i;`,
 
 	err = lm.StartExportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start export data")
-	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
-		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+
+	uniqueKeyConflictFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("true")`,
 	)
+
 	uniqueKeyConflictFailpointMarker := filepath.Join(
 		lm.GetCurrentExportDir(), "failpoints", "failpoint-unique-key-conflict-detected.log")
 
 	err = lm.StartImportDataWithEnv(true, map[string]string{
 		"--disable-null-conflicts": "true",
-	}, []string{uniqueKeyConflictCountFailpointEnv})
+	}, []string{uniqueKeyConflictFailpointEnv})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
@@ -925,7 +925,7 @@ FROM generate_series(1, 20) as i;`,
 
 	require.False(t, lm.GetImportRunner().IsStopped(),
 		"import should not exit during false-positive phase")
-	failpointTriggered, err := testutils.WaitForFailpointMarker(uniqueKeyConflictFailpointMarker, 5, 500)
+	failpointTriggered, err := testutils.WaitForFailpointMarker(uniqueKeyConflictFailpointMarker, 2*time.Second, 200*time.Millisecond)
 	if err != nil && !os.IsNotExist(err) {
 		testutils.FatalIfError(t, err, "failed to read unique key conflict failpoint marker")
 	}
