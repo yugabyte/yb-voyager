@@ -51,6 +51,12 @@ type CaptureSource struct {
 }
 
 // ObjectRef is the (schema, name) identity embedded in every per-object struct.
+//
+// TODO(schemadiff): handle case sensitivity in a coming PR. Schema/Name are stored
+// as the raw catalog identifiers and String() joins them as "schema.name" by plain
+// concatenation. This is consistent for source-vs-source matching, but quoted /
+// case-sensitive identifiers (and the --table-list matching boundary) need proper
+// handling — likely via the sqlname helpers rather than ad-hoc string join.
 type ObjectRef struct {
 	Schema string `json:"schema"` // schema (namespace) the object lives in, e.g. "public".
 	Name   string `json:"name"`   // object name within the schema, e.g. "orders".
@@ -85,6 +91,13 @@ type Column struct {
 	Table    ObjectRef `json:"table"`             // identity of the parent table this column belongs to.
 	ID       string    `json:"id,omitempty"`      // "{parentTableOID}:{attnum}"; matches the column across snapshots even after a rename.
 	Name     string    `json:"name"`              // column name.
+	// TODO(schemadiff): normalize the type before comparison in a future PR. Today
+	// this is source-vs-source (same engine's format_type() on both sides), so the
+	// raw string compares correctly. PG-vs-YB is also fine — YB shares PostgreSQL's
+	// type system and format_type() output. Normalization is needed only once we
+	// compare across different engines (e.g. Oracle/MySQL as source), where the same
+	// logical type is named/rendered differently and must be mapped to a shared
+	// vocabulary (common type enums / a normalizeType helper) before diffing.
 	DataType string    `json:"data_type"`         // rendered type via format_type(), e.g. "integer", "character varying(255)".
 	NotNull  bool      `json:"not_null"`          // true when the column has a NOT NULL constraint.
 	Default  string    `json:"default,omitempty"` // default expression text (pg_get_expr); "" when the column has no default.
