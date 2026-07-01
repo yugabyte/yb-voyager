@@ -36,7 +36,7 @@ func TestSchemaSnapshotJSONRoundTrip(t *testing.T) {
 		DatabaseVersion: "16.14",
 		StableIdentity:  true,
 		CapturedAt:      capturedAt,
-		CaptureSource: CaptureSource{
+		DBMetadata: DBMetadata{
 			DatabaseType: "postgresql",
 			Host:         "db.example.com",
 			Port:         5432,
@@ -90,7 +90,7 @@ func TestSchemaSnapshotJSONRoundTrip(t *testing.T) {
 	assert.Equal(t, snap.DatabaseVersion, got.DatabaseVersion)
 	assert.Equal(t, snap.StableIdentity, got.StableIdentity)
 	assert.True(t, snap.CapturedAt.Equal(got.CapturedAt), "CapturedAt mismatch")
-	assert.Equal(t, snap.CaptureSource, got.CaptureSource)
+	assert.Equal(t, snap.DBMetadata, got.DBMetadata)
 	assert.Equal(t, snap.Schemas, got.Schemas)
 	assert.Equal(t, snap.Series, got.Series)
 	assert.Equal(t, snap.Reason, got.Reason)
@@ -111,9 +111,9 @@ func TestTableKindConstants(t *testing.T) {
 	assert.Equal(t, TableKind("foreign"), TableKindForeign)
 }
 
-// TestCaptureSourceJSONFieldNames checks that CaptureSource marshals with the expected JSON keys.
-func TestCaptureSourceJSONFieldNames(t *testing.T) {
-	cs := CaptureSource{
+// TestDBMetadataJSONFieldNames checks that DBMetadata marshals with the expected JSON keys.
+func TestDBMetadataJSONFieldNames(t *testing.T) {
+	cs := DBMetadata{
 		DatabaseType: "postgresql",
 		Host:         "localhost",
 		Port:         5432,

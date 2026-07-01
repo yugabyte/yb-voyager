@@ -20,28 +20,28 @@ import "time"
 // The per-object lists are flat; each record keys back to its parent via an ObjectRef field.
 // v1 carries tables and columns only.
 type SchemaSnapshot struct {
-	Version         int           `json:"version"`                    // snapshot JSON format version; gates parse-compatibility on load. Currently 1.
-	DatabaseType    string        `json:"database_type"`              // source engine; selects the provider that produced this snapshot, e.g. "postgresql".
-	DatabaseVersion string        `json:"database_version,omitempty"` // server version, truncated at the first space (e.g. "16.4"); display-only, never diffed.
-	StableIdentity  bool          `json:"stable_identity"`            // true when object IDs are stable enough for rename matching (PostgreSQL OIDs: always true).
-	CapturedAt      time.Time     `json:"captured_at"`                // time the snapshot was taken, in UTC.
-	CaptureSource   CaptureSource `json:"capture_source"`             // descriptive source coordinates (host/port/db/user/role) for display.
-	Schemas         []string      `json:"schemas"`                    // schemas in scope at capture time; fixed once captured and never widened/narrowed.
-	Series          string        `json:"series,omitempty"`           // the capture series (== persist label); empty until SaveSnapshot stamps it.
-	Reason          string        `json:"reason,omitempty"`           // the capture reason where the series carries one; empty otherwise.
+	Version         int        `json:"version"`                    // snapshot JSON format version; gates parse-compatibility on load. Currently 1.
+	DatabaseType    string     `json:"database_type"`              // source engine; selects the provider that produced this snapshot, e.g. "postgresql".
+	DatabaseVersion string     `json:"database_version,omitempty"` // server version, truncated at the first space (e.g. "16.4"); display-only, never diffed.
+	StableIdentity  bool       `json:"stable_identity"`            // true when object IDs are stable enough for rename matching (PostgreSQL OIDs: always true).
+	CapturedAt      time.Time  `json:"captured_at"`                // time the snapshot was taken, in UTC.
+	DBMetadata      DBMetadata `json:"db_metadata"`                // descriptive database coordinates (host/port/db/user/side) for display.
+	Schemas         []string   `json:"schemas"`                    // schemas in scope at capture time; fixed once captured and never widened/narrowed.
+	Series          string     `json:"series,omitempty"`           // the capture series (== persist label); empty until SaveSnapshot stamps it.
+	Reason          string     `json:"reason,omitempty"`           // the capture reason where the series carries one; empty otherwise.
 
 	Tables  []Table  `json:"tables,omitempty"`  // captured tables (ordinary/partitioned/foreign).
 	Columns []Column `json:"columns,omitempty"` // captured columns; each keyed back to its parent table via Column.Table.
 }
 
 // SideSource is the capture side for the migration source database. v1 only ever
-// captures the source; CaptureSource.Side / SnapshotMetadata.Side exist so other
+// captures the source; DBMetadata.Side / SnapshotMetadata.Side exist so other
 // sides (e.g. target, source-replica) can be added later.
 const SideSource = "source"
 
-// CaptureSource holds the descriptive source coordinates for a snapshot.
+// DBMetadata holds the descriptive database coordinates for a snapshot.
 // It is display-only identity — never connection secrets.
-type CaptureSource struct {
+type DBMetadata struct {
 	DatabaseType string `json:"database_type"` // source engine; selects the provider, e.g. "postgresql".
 	Host         string `json:"host"`          // source host, for display.
 	Port         int    `json:"port"`          // source port, for display.
@@ -88,9 +88,9 @@ type Table struct {
 // Column represents a single column within a table.
 // ID encodes the parent table OID and the column attnum as "{parentTableOID}:{attnum}".
 type Column struct {
-	Table    ObjectRef `json:"table"`             // identity of the parent table this column belongs to.
-	ID       string    `json:"id,omitempty"`      // "{parentTableOID}:{attnum}"; matches the column across snapshots even after a rename.
-	Name     string    `json:"name"`              // column name.
+	Table ObjectRef `json:"table"`        // identity of the parent table this column belongs to.
+	ID    string    `json:"id,omitempty"` // "{parentTableOID}:{attnum}"; matches the column across snapshots even after a rename.
+	Name  string    `json:"name"`         // column name.
 	// TODO(schemadiff): normalize the type before comparison in a future PR. Today
 	// this is source-vs-source (same engine's format_type() on both sides), so the
 	// raw string compares correctly. PG-vs-YB is also fine — YB shares PostgreSQL's
@@ -98,7 +98,7 @@ type Column struct {
 	// compare across different engines (e.g. Oracle/MySQL as source), where the same
 	// logical type is named/rendered differently and must be mapped to a shared
 	// vocabulary (common type enums / a normalizeType helper) before diffing.
-	DataType string    `json:"data_type"`         // rendered type via format_type(), e.g. "integer", "character varying(255)".
-	NotNull  bool      `json:"not_null"`          // true when the column has a NOT NULL constraint.
-	Default  string    `json:"default,omitempty"` // default expression text (pg_get_expr); "" when the column has no default.
+	DataType string `json:"data_type"`         // rendered type via format_type(), e.g. "integer", "character varying(255)".
+	NotNull  bool   `json:"not_null"`          // true when the column has a NOT NULL constraint.
+	Default  string `json:"default,omitempty"` // default expression text (pg_get_expr); "" when the column has no default.
 }

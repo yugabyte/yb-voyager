@@ -60,7 +60,7 @@ func TestCaptureRollbackOnSnapshotError(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectRollback()
 
-	source := CaptureSource{DatabaseType: "test-error-provider-schemasnapshot"}
+	source := DBMetadata{DatabaseType: "test-error-provider-schemasnapshot"}
 	snap, err := Capture(context.Background(), db, CaptureParams{Source: source, Schemas: []string{"public"}, Label: LabelExportSchema})
 
 	assert.Nil(t, snap, "Capture must return nil snapshot on TakeSnapshot error")
@@ -98,7 +98,7 @@ func TestCaptureStampsHeaders(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectCommit()
 
-	source := CaptureSource{
+	source := DBMetadata{
 		DatabaseType: "test-success-provider",
 		Host:         "localhost",
 		Port:         5432,
@@ -114,7 +114,7 @@ func TestCaptureStampsHeaders(t *testing.T) {
 	assert.Equal(t, "test-success-provider", snap.DatabaseType)
 	assert.True(t, snap.StableIdentity)
 	assert.Equal(t, []string{"public"}, snap.Schemas)
-	assert.Equal(t, source, snap.CaptureSource)
+	assert.Equal(t, source, snap.DBMetadata)
 	assert.False(t, snap.CapturedAt.IsZero(), "CapturedAt must be set")
 
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -136,7 +136,7 @@ func TestCaptureAndSaveSnapshotSuccess(t *testing.T) {
 
 	mdb := newTestMetaDB(t)
 
-	source := CaptureSource{
+	source := DBMetadata{
 		DatabaseType: "test-success-provider",
 		Host:         "localhost",
 		Port:         5432,
@@ -176,7 +176,7 @@ func TestCaptureAndSaveSnapshotFailurePlaceholderTrue(t *testing.T) {
 
 	mdb := newTestMetaDB(t)
 
-	source := CaptureSource{DatabaseType: "test-error-provider-schemasnapshot"}
+	source := DBMetadata{DatabaseType: "test-error-provider-schemasnapshot"}
 	name, err := CaptureAndSaveSnapshot(context.Background(), db, mdb, CaptureRequest{
 		CaptureParams:        CaptureParams{Source: source, Schemas: []string{"public"}, Label: LabelExportSchema},
 		PlaceholderOnFailure: true,
@@ -202,7 +202,7 @@ func TestCaptureEmptySchemasReturnsError(t *testing.T) {
 	defer db.Close()
 
 	// No mock expectations: the guard must return before any DB access.
-	source := CaptureSource{DatabaseType: "test-success-provider"}
+	source := DBMetadata{DatabaseType: "test-success-provider"}
 
 	// nil schemas
 	snap, err := Capture(context.Background(), db, CaptureParams{Source: source, Schemas: nil, Label: LabelExportSchema})
@@ -236,7 +236,7 @@ func TestCaptureAndSaveSnapshotFailurePlaceholderFalse(t *testing.T) {
 
 	mdb := newTestMetaDB(t)
 
-	source := CaptureSource{DatabaseType: "test-error-provider-schemasnapshot"}
+	source := DBMetadata{DatabaseType: "test-error-provider-schemasnapshot"}
 	name, err := CaptureAndSaveSnapshot(context.Background(), db, mdb, CaptureRequest{
 		CaptureParams:        CaptureParams{Source: source, Schemas: []string{"public"}, Label: LabelExportSchema},
 		PlaceholderOnFailure: false,

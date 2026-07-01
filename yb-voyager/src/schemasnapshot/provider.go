@@ -43,14 +43,14 @@ type SnapshotProvider interface {
 	DatabaseType() string
 
 	// TakeSnapshot captures the schema for the given schemas via db and returns
-	// a populated *SchemaSnapshot. The header fields (CapturedAt, CaptureSource,
+	// a populated *SchemaSnapshot. The header fields (CapturedAt, DBMetadata,
 	// StableIdentity, etc.) are stamped by the Capture orchestrator after this
 	// call returns, so the provider must not set them.
 	//
 	// Why: providers produce schema content only; the headers are capture-event
 	// metadata computed identically for every engine. Stamping them once in the
 	// orchestrator keeps them consistent (one Version/clock/source) and the
-	// provider never even receives the CaptureSource, so it can't set them wrong.
+	// provider never even receives the DBMetadata, so it can't set them wrong.
 	TakeSnapshot(ctx context.Context, db QueryExecutor, schemas []string) (*SchemaSnapshot, error)
 
 	// HasStableIdentity reports whether ID fields in the snapshot are reliable

@@ -103,7 +103,7 @@ func SaveSnapshot(mdb *metadb.MetaDB, snap *SchemaSnapshot) (string, error) {
 		return "", fmt.Errorf("marshal snapshot: %w", err)
 	}
 
-	side := snap.CaptureSource.Side
+	side := snap.DBMetadata.Side
 	if side == "" {
 		side = SideSource
 	}

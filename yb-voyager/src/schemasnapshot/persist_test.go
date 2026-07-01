@@ -64,7 +64,7 @@ func makeSnapshot(capturedAt time.Time) *SchemaSnapshot {
 		DatabaseVersion: "16.14",
 		StableIdentity:  true,
 		CapturedAt:      capturedAt,
-		CaptureSource: CaptureSource{
+		DBMetadata: DBMetadata{
 			DatabaseType: "postgresql",
 			Host:         "localhost",
 			Port:         5432,
@@ -289,7 +289,7 @@ func TestSentinelErrorsAreDistinct(t *testing.T) {
 	assert.False(t, errors.Is(ErrPlaceholderSnapshot, ErrSnapshotNotFound))
 }
 
-// ─── SaveSnapshot with empty CaptureSource.Side defaults Side to "source" ────
+// ─── SaveSnapshot with empty DBMetadata.Side defaults Side to "source" ────
 
 func TestSaveSnapshotEmptyRoleDefaultsSideToSource(t *testing.T) {
 	mdb := newTestMetaDB(t)
@@ -297,7 +297,7 @@ func TestSaveSnapshotEmptyRoleDefaultsSideToSource(t *testing.T) {
 	capturedAt := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
 	snap := makeSnapshot(capturedAt)
 	// Clear the side so the fallback logic is exercised.
-	snap.CaptureSource.Side = ""
+	snap.DBMetadata.Side = ""
 
 	name, err := saveWithLabel(t, mdb, snap, LabelExportSchema, "")
 	require.NoError(t, err)

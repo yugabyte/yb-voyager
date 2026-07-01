@@ -30,7 +30,7 @@ import (
 // how to file it (Label, Reason). Label is required at every call site — it is the
 // snapshot's filing key (a labels.go constant) and the basis of its persisted name.
 type CaptureParams struct {
-	Source  CaptureSource
+	Source  DBMetadata
 	Schemas []string
 	Label   string
 	Reason  string
@@ -84,7 +84,7 @@ func Capture(ctx context.Context, db *sql.DB, p CaptureParams) (*SchemaSnapshot,
 
 	// Stamp header fields.
 	snap.Version = 1
-	snap.CaptureSource = p.Source
+	snap.DBMetadata = p.Source
 	snap.CapturedAt = time.Now().UTC()
 	snap.DatabaseType = p.Source.DatabaseType
 	snap.StableIdentity = provider.HasStableIdentity()
