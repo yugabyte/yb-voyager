@@ -514,8 +514,6 @@ func TestLiveMigrationWithUniqueKeyValuesWithPartialPredicateConflictDetectionCa
 	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
 		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
 	)
-	uniqueKeyConflictFailpointMarker := filepath.Join(
-		lm.GetCurrentExportDir(), "failpoints", "failpoint-unique-key-conflict-detected.log")
 	uniqueKeyConflictStatsPath := filepath.Join(
 		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
 
