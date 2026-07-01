@@ -1,6 +1,9 @@
 -- Deterministic unique-conflict DML for the FALLBACK (target -> source) leg.
--- Runs ONCE at the start of the fallback streaming phase on the YugabyteDB
--- target, while the target-side random generator also produces traffic.
+-- Run REPEATEDLY on a loop throughout the fallback streaming phase by the
+-- orchestrator's conflict generator (conflict_generator_target), in parallel
+-- with the target-side random generator, so conflicts are produced continuously.
+-- LOOP-SAFE: each block first deletes its own high-range rows (id >= 950000000),
+-- scoped so it never touches the forward-migrated rows (900000000 base).
 --
 -- Same four conflict types as the forward leg (DELETE-INSERT, DELETE-UPDATE,
 -- UPDATE-INSERT, UPDATE-UPDATE). For an export-from-target source the
@@ -18,6 +21,7 @@
 -- 1. single_unique_constraint (id PK, email UNIQUE)
 -- ============================================================
 BEGIN;
+DELETE FROM single_unique_constraint WHERE id >= 950000000;
 INSERT INTO single_unique_constraint (id, email) VALUES
     (950000001, 'tgt_suc_user1@conflict.test'),
     (950000002, 'tgt_suc_user2@conflict.test'),
@@ -47,6 +51,7 @@ COMMIT;
 -- 2. multi_unique_constraint (id PK, UNIQUE(first_name, last_name))
 -- ============================================================
 BEGIN;
+DELETE FROM multi_unique_constraint WHERE id >= 950000000;
 INSERT INTO multi_unique_constraint (id, first_name, last_name) VALUES
     (950010001, 'TgtJohn',  'Doe'),
     (950010002, 'TgtJane',  'Smith'),
@@ -76,6 +81,7 @@ COMMIT;
 -- 3. same_column_unique_constraint_and_index (id PK, email UNIQUE + UNIQUE INDEX on email)
 -- ============================================================
 BEGIN;
+DELETE FROM same_column_unique_constraint_and_index WHERE id >= 950000000;
 INSERT INTO same_column_unique_constraint_and_index (id, email) VALUES
     (950020001, 'tgt_scuci_user1@conflict.test'),
     (950020002, 'tgt_scuci_user2@conflict.test'),
@@ -105,6 +111,7 @@ COMMIT;
 -- 4. single_unique_index (id PK, UNIQUE INDEX on "Ssn" -- case-sensitive column)
 -- ============================================================
 BEGIN;
+DELETE FROM single_unique_index WHERE id >= 950000000;
 INSERT INTO single_unique_index (id, "Ssn") VALUES
     (950030001, 'TGT-SSN-1'),
     (950030002, 'TGT-SSN-2'),
@@ -134,6 +141,7 @@ COMMIT;
 -- 5. multi_unique_index (id PK, UNIQUE INDEX(first_name, last_name))
 -- ============================================================
 BEGIN;
+DELETE FROM multi_unique_index WHERE id >= 950000000;
 INSERT INTO multi_unique_index (id, first_name, last_name) VALUES
     (950040001, 'TgtIdxJohn',  'Doe'),
     (950040002, 'TgtIdxJane',  'Smith'),
@@ -164,6 +172,7 @@ COMMIT;
 --    (id PK, email UNIQUE, UNIQUE INDEX on phone_number)
 -- ============================================================
 BEGIN;
+DELETE FROM different_columns_unique_constraint_and_index WHERE id >= 950000000;
 INSERT INTO different_columns_unique_constraint_and_index (id, email, phone_number) VALUES
     (950050001, 'tgt_dcuci_user1@conflict.test', 'tgtdcph-1'),
     (950050002, 'tgt_dcuci_user2@conflict.test', 'tgtdcph-2'),
@@ -194,6 +203,7 @@ COMMIT;
 --    (id PK, UNIQUE(first_name,last_name), UNIQUE INDEX(first_name,last_name,phone_number))
 -- ============================================================
 BEGIN;
+DELETE FROM subset_columns_unique_constraint_and_index WHERE id >= 950000000;
 INSERT INTO subset_columns_unique_constraint_and_index (id, first_name, last_name, phone_number) VALUES
     (950060001, 'TgtSubJohn',  'Doe',      'tgtsubph-1'),
     (950060002, 'TgtSubJane',  'Smith',    'tgtsubph-2'),
@@ -223,6 +233,7 @@ COMMIT;
 -- 8. expression_based_unique_index (id PK, UNIQUE INDEX on LOWER(email))
 -- ============================================================
 BEGIN;
+DELETE FROM expression_based_unique_index WHERE id >= 950000000;
 INSERT INTO expression_based_unique_index (id, email) VALUES
     (950070001, 'Tgt_Expr_User1@conflict.test'),
     (950070002, 'Tgt_Expr_User2@conflict.test'),
@@ -252,6 +263,7 @@ COMMIT;
 -- 9. test_partial_unique_index (id PK, UNIQUE INDEX(check_id) WHERE most_recent)
 -- ============================================================
 BEGIN;
+DELETE FROM test_partial_unique_index WHERE id >= 950000000;
 INSERT INTO test_partial_unique_index (id, check_id, most_recent) VALUES
     (950080001, 950000091, true),
     (950080002, 950000092, true),

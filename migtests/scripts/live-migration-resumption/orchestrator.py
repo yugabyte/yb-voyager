@@ -71,6 +71,50 @@ def generator_stop_action(stage: Dict[str, Any], ctx: Any) -> None:
     H.stop_generator(ctx.processes.pop(key, None), timeout)
 
 
+@action("conflict_generator_start")
+def conflict_generator_start_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Start the conflict generator, modeled on `generator_start`.
+
+    Reads a config block named by `generator_key` (default: conflict_generator),
+    e.g.
+
+        conflict_generator_source:
+          config_inline:
+            connection: { host, port, database, user, password }
+            conflict:
+              sql_path: ./conflict_source_dml.sql
+              interval_seconds: 3
+
+    The conflict generator re-applies the (loop-safe) conflict-DML file every
+    `interval_seconds` until stopped.
+    """
+    key = stage.get("generator_key", "conflict_generator")
+    cfg_block = ctx.cfg.get(key) or {}
+    inline = cfg_block.get("config_inline") or cfg_block.get("config") or {}
+    connection = inline.get("connection") or {}
+    conflict_cfg = inline.get("conflict") or {}
+
+    sql_path = conflict_cfg.get("sql_path")
+    if not sql_path:
+        raise ValueError(f"conflict_generator_start: '{key}.config_inline.conflict.sql_path' is required")
+    if ctx.test_root and not os.path.isabs(sql_path):
+        sql_path = os.path.join(ctx.test_root, sql_path)
+    interval = float(conflict_cfg.get("interval_seconds", 3))
+
+    gen = H.ConflictGenerator(connection, sql_path, interval, ctx.env)
+    gen.start()
+    ctx.conflict_generators[key] = gen
+
+
+@action("conflict_generator_stop")
+def conflict_generator_stop_action(stage: Dict[str, Any], ctx: Any) -> None:
+    key = stage.get("generator_key", "conflict_generator")
+    timeout = int(stage.get("graceful_timeout_sec", 60))
+    gen = ctx.conflict_generators.pop(key, None)
+    if gen:
+        gen.stop(timeout_sec=timeout)
+
+
 @action("voyager_export_start")
 def export_start_action(_stage, ctx: Any) -> None:
     with ctx.process_lock:
@@ -385,6 +429,15 @@ def main() -> None:
             for r in resumers:
                 try:
                     r.stop(timeout_sec=60)
+                except Exception:
+                    pass
+
+            # Stop any still-running conflict generators so they don't outlive the run.
+            conflict_generators = list(ctx.conflict_generators.values())
+            ctx.conflict_generators.clear()
+            for gen in conflict_generators:
+                try:
+                    gen.stop(timeout_sec=60)
                 except Exception:
                     pass
 

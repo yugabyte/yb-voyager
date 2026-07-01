@@ -1,6 +1,9 @@
 -- Deterministic unique-conflict DML for the FORWARD (source -> target) leg.
--- Runs ONCE at the start of the streaming phase, while the random event
--- generator is also producing traffic on the same tables.
+-- Run REPEATEDLY on a loop throughout the streaming phase by the orchestrator's
+-- conflict generator (conflict_generator_source), in parallel with the random
+-- event generator, so the conflicts are produced continuously rather than once.
+-- LOOP-SAFE: each block first deletes its own high-range rows (id >= 900000000)
+-- so every cycle re-seeds from a clean slate.
 --
 -- Goal: deterministically exercise every conflict type the streaming-phase
 -- conflict-detection cache handles (see yb-voyager/cmd/conflictDetectionCache.go):
@@ -26,6 +29,7 @@
 -- 1. single_unique_constraint (id PK, email UNIQUE)
 -- ============================================================
 BEGIN;
+DELETE FROM single_unique_constraint WHERE id >= 900000000;
 INSERT INTO single_unique_constraint (id, email) VALUES
     (900000001, 'suc_user1@conflict.test'),
     (900000002, 'suc_user2@conflict.test'),
@@ -55,6 +59,7 @@ COMMIT;
 -- 2. multi_unique_constraint (id PK, UNIQUE(first_name, last_name))
 -- ============================================================
 BEGIN;
+DELETE FROM multi_unique_constraint WHERE id >= 900000000;
 INSERT INTO multi_unique_constraint (id, first_name, last_name) VALUES
     (900010001, 'SrcJohn',  'Doe'),
     (900010002, 'SrcJane',  'Smith'),
@@ -84,6 +89,7 @@ COMMIT;
 -- 3. same_column_unique_constraint_and_index (id PK, email UNIQUE + UNIQUE INDEX on email)
 -- ============================================================
 BEGIN;
+DELETE FROM same_column_unique_constraint_and_index WHERE id >= 900000000;
 INSERT INTO same_column_unique_constraint_and_index (id, email) VALUES
     (900020001, 'scuci_user1@conflict.test'),
     (900020002, 'scuci_user2@conflict.test'),
@@ -113,6 +119,7 @@ COMMIT;
 -- 4. single_unique_index (id PK, UNIQUE INDEX on "Ssn" -- case-sensitive column)
 -- ============================================================
 BEGIN;
+DELETE FROM single_unique_index WHERE id >= 900000000;
 INSERT INTO single_unique_index (id, "Ssn") VALUES
     (900030001, 'SRC-SSN-1'),
     (900030002, 'SRC-SSN-2'),
@@ -142,6 +149,7 @@ COMMIT;
 -- 5. multi_unique_index (id PK, UNIQUE INDEX(first_name, last_name))
 -- ============================================================
 BEGIN;
+DELETE FROM multi_unique_index WHERE id >= 900000000;
 INSERT INTO multi_unique_index (id, first_name, last_name) VALUES
     (900040001, 'IdxJohn',  'Doe'),
     (900040002, 'IdxJane',  'Smith'),
@@ -172,6 +180,7 @@ COMMIT;
 --    (id PK, email UNIQUE, UNIQUE INDEX on phone_number) -- two independent unique keys
 -- ============================================================
 BEGIN;
+DELETE FROM different_columns_unique_constraint_and_index WHERE id >= 900000000;
 INSERT INTO different_columns_unique_constraint_and_index (id, email, phone_number) VALUES
     (900050001, 'dcuci_user1@conflict.test', 'dcph-1'),
     (900050002, 'dcuci_user2@conflict.test', 'dcph-2'),
@@ -202,6 +211,7 @@ COMMIT;
 --    (id PK, UNIQUE(first_name,last_name), UNIQUE INDEX(first_name,last_name,phone_number))
 -- ============================================================
 BEGIN;
+DELETE FROM subset_columns_unique_constraint_and_index WHERE id >= 900000000;
 INSERT INTO subset_columns_unique_constraint_and_index (id, first_name, last_name, phone_number) VALUES
     (900060001, 'SubJohn',  'Doe',      'subph-1'),
     (900060002, 'SubJane',  'Smith',    'subph-2'),
@@ -233,6 +243,7 @@ COMMIT;
 --    same LOWER(email) value.
 -- ============================================================
 BEGIN;
+DELETE FROM expression_based_unique_index WHERE id >= 900000000;
 INSERT INTO expression_based_unique_index (id, email) VALUES
     (900070001, 'Expr_User1@conflict.test'),
     (900070002, 'Expr_User2@conflict.test'),
@@ -265,6 +276,7 @@ COMMIT;
 --    check_id values are > 2e8 so they cannot collide with generator rows.
 -- ============================================================
 BEGIN;
+DELETE FROM test_partial_unique_index WHERE id >= 900000000;
 INSERT INTO test_partial_unique_index (id, check_id, most_recent) VALUES
     (900080001, 900000091, true),    -- UPDATE-INSERT: active holder of check_id 900000091
     (900080002, 900000092, true),    -- DELETE-INSERT: active holder of check_id 900000092

@@ -57,6 +57,20 @@ generator_source:
       insert_max_retries: 5
       update_max_retries: 1
 
+# Forward (source) conflict generator: re-applies this test's own (loop-safe)
+# source_dml.sql on a loop throughout streaming, in parallel with generator_source.
+conflict_generator_source:
+  config_inline:
+    connection:
+      host: 127.0.0.1
+      port: 5432
+      database: test_db
+      user: postgres
+      password: postgres
+    conflict:
+      sql_path: ./source_dml.sql
+      interval_seconds: 3
+
 # Fallback (target) event generator configuration.
 # This will be used later when we start a generator on the target side.
 generator_target:
@@ -84,6 +98,20 @@ generator_target:
       delete_rows: 2
       insert_max_retries: 5
       update_max_retries: 1
+
+# Fallback (target) conflict generator: re-applies this test's own (loop-safe)
+# target_dml.sql on a loop throughout fallback streaming, in parallel with generator_target.
+conflict_generator_target:
+  config_inline:
+    connection:
+      host: ${TARGET_DB_HOST}
+      port: ${TARGET_DB_PORT}
+      database: test_db
+      user: ${TARGET_DB_USER}
+      password: ${TARGET_DB_PASSWORD}
+    conflict:
+      sql_path: ./target_dml.sql
+      interval_seconds: 3
 
 voyager:
   cutover_to_target:
@@ -129,12 +157,12 @@ stages:
   - name: start_importer
     action: voyager_import_start
 
-    # Deterministic edge-case DML (boundary values, TOAST, cross-partition, LIST, HASH)
-  - name: run_source_dml
-    action: run_sql
-    target: source
-    sql_path: ./source_dml.sql
-    use_admin: true
+  # Conflict generator: re-applies the deterministic unique-conflict DML
+  # (source_dml.sql) continuously throughout streaming, in parallel with the
+  # random event generator, instead of running it only once.
+  - name: start_conflict_generator
+    action: conflict_generator_start
+    generator_key: conflict_generator_source
 
   - name: start_import_resumptions
     action: start_resumptions
@@ -164,6 +192,11 @@ stages:
   - name: small_sleep_for_some_events_to_be_generated
     action: sleep
     seconds: 30
+
+  - name: stop_conflict_generator
+    action: conflict_generator_stop
+    generator_key: conflict_generator_source
+    graceful_timeout_sec: 60
 
   - name: stop_event_generator
     action: generator_stop
@@ -205,12 +238,11 @@ stages:
   - name: start_fallback_importer_to_source
     action: voyager_import_to_source_start
 
-    # Deterministic edge-case DML (boundary values, TOAST, cross-partition, LIST, HASH)
-  - name: run_target_dml
-    action: run_sql
-    target: target
-    sql_path: ./target_dml.sql
-    use_admin: true
+  # Conflict generator on the target: re-applies target_dml.sql continuously
+  # throughout fallback streaming, in parallel with the target-side generator.
+  - name: start_target_conflict_generator
+    action: conflict_generator_start
+    generator_key: conflict_generator_target
 
 
   # Start a generator on the target side to simulate ongoing writes during fallback.
@@ -241,6 +273,11 @@ stages:
   - name: soak_fallback_with_resumptions
     action: sleep
     seconds: 3000
+
+  - name: stop_target_conflict_generator
+    action: conflict_generator_stop
+    generator_key: conflict_generator_target
+    graceful_timeout_sec: 60
 
   - name: stop_target_event_generator
     action: generator_stop

@@ -43,6 +43,7 @@ class Context:
         self.process_lock = threading.Lock()
         self.active_resumers: Dict[str, "Resumer"] = {}
         self.loop_iteration: int = 0
+        self.conflict_generators: Dict[str, "ConflictGenerator"] = {}
         self.export_dir_base: str = os.path.abspath(cfg.get("export_dir") or "")
         # iteration_export_dir is the per-iteration child export-dir
         # (live-data-migration-iteration-N/export-dir) used for test-side
@@ -753,6 +754,99 @@ def start_generator_from_context(ctx: Context, config_key: str = "generator") ->
 
 def stop_generator(proc: subprocess.Popen | None, graceful_timeout_sec: int) -> None:
     kill(proc, timeout_sec=graceful_timeout_sec)
+
+
+# -------------------------
+# Conflict generator
+# -------------------------
+
+class ConflictGenerator:
+    """A background generator, modeled on the random event generator's lifecycle.
+
+    Where the event generator (generator.py) produces RANDOM traffic, this one
+    re-applies a fixed, deterministic conflict-DML file on a loop. Like the event
+    generator it is driven by a `config_inline` block (its own `connection`), is
+    started/stopped via dedicated actions with a `generator_key`, and runs as a
+    daemon for the duration of the streaming phase. Running it alongside the event
+    generator keeps the streaming-phase conflict-detection cache
+    (yb-voyager/cmd/conflictDetectionCache.go) exercised continuously under
+    resumption stress.
+
+    The DML file is written to be loop-safe: each table block deletes its own
+    high-range rows before re-seeding, so successive cycles never collide with
+    each other or with the random generator (which uses values < 2e8).
+    """
+
+    def __init__(
+        self,
+        connection: Dict[str, Any],
+        sql_path: str,
+        interval_sec: float,
+        base_env: Dict[str, str],
+    ):
+        self.connection = connection
+        self.sql_path = sql_path
+        self.interval_sec = interval_sec
+        self.base_env = base_env
+        self.stop_flag = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def start(self) -> None:
+        if self._thread and self._thread.is_alive():
+            return
+        self._thread = threading.Thread(
+            target=self._run_loop,
+            name="conflict-generator",
+            daemon=True,
+        )
+        self._thread.start()
+        log(f"conflict-generator: started (sql={self.sql_path}, interval={self.interval_sec}s)")
+
+    def stop(self, timeout_sec: int = 60) -> None:
+        self.stop_flag.set()
+        thread = self._thread
+        if thread:
+            thread.join(timeout_sec)
+        log("conflict-generator: stopped")
+
+    def is_alive(self) -> bool:
+        return bool(self._thread and self._thread.is_alive())
+
+    def _run_once(self) -> None:
+        c = self.connection
+        env = dict(self.base_env)
+        if c.get("password"):
+            env["PGPASSWORD"] = str(c["password"])
+        cmd = [
+            "psql",
+            "-h", str(c["host"]),
+            "-p", str(c["port"]),
+            "-U", str(c["user"]),
+            "-d", str(c["database"]),
+            "-v", "ON_ERROR_STOP=1",
+            "-f", self.sql_path,
+        ]
+        proc = subprocess.run(cmd, env=env, text=True, capture_output=True)
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"conflict-generator psql failed exit={proc.returncode}: "
+                f"{(proc.stderr or proc.stdout or '').strip()[:500]}"
+            )
+
+    def _run_loop(self) -> None:
+        cycle = 0
+        while not self.stop_flag.is_set():
+            cycle += 1
+            try:
+                self._run_once()
+                log(f"conflict-generator: completed cycle {cycle}")
+            except Exception as e:
+                # A cycle can fail transiently (e.g. a resumption killed the DB
+                # connection mid-run). Log and continue; the next cycle re-seeds
+                # from a clean slate because the DML is loop-safe.
+                log(f"conflict-generator: cycle {cycle} failed (continuing): {e}")
+            # Interruptible inter-cycle wait so stop() is responsive.
+            self.stop_flag.wait(self.interval_sec)
 
 
 # -------------------------
