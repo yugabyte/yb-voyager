@@ -36,6 +36,6 @@ func NewDiffer(cfg Config) *Differ {
 
 // Diff computes the differences between snapshots a and b and applies the
 // configured filters. With a zero Config it is equivalent to the package-level Diff.
-func (d *Differ) Diff(a, b *schemasnapshot.SchemaSnapshot) []Difference {
+func (d *Differ) Diff(a, b *schemasnapshot.SnapshotContent) []Difference {
 	return FilterByScope(Diff(a, b), d.cfg.Scope)
 }

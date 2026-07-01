@@ -409,140 +409,95 @@ func TestDiffTables_InheritedByChanged(t *testing.T) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Tests: StableIdentity gate — ID-based matching only when BOTH snapshots declare
-// StableIdentity: true. When either is false, fall back to name-based matching.
+// Tests: cross-engine gate — ID-based matching only when DatabaseType matches.
 // ──────────────────────────────────────────────────────────────────────────────
 
-// unstableSnapWithTables builds a snapshot with StableIdentity:false.
-func unstableSnapWithTables(tables ...schemasnapshot.Table) *schemasnapshot.SchemaSnapshot {
-	return &schemasnapshot.SchemaSnapshot{
-		Version:        1,
-		StableIdentity: false,
-		Tables:         tables,
+// crossEngineSnapWithTables builds a SnapshotContent with DatabaseType="mysql" for
+// use in tests that need two snapshots with differing DatabaseType values to verify
+// that ID-based matching is disabled across engines.
+func crossEngineSnapWithTables(tables ...schemasnapshot.Table) *schemasnapshot.SnapshotContent {
+	return &schemasnapshot.SnapshotContent{
+		Version:      1,
+		DatabaseType: "mysql",
+		Tables:       tables,
 	}
 }
 
-// TestDiffTables_UnstableIdentity_RenameBecomesAddDrop: when both snapshots have
-// StableIdentity:false, objects with same ID but different names must NOT be
-// rename-detected. Matching falls back to name, producing TableDropped (old name) +
-// TableAdded (new name).
-func TestDiffTables_UnstableIdentity_RenameBecomesAddDrop(t *testing.T) {
-	oldTbl := makeTable("55", "public", "old_name", schemasnapshot.TableKindOrdinary)
-	newTbl := makeTable("55", "public", "new_name", schemasnapshot.TableKindOrdinary)
-	a := unstableSnapWithTables(oldTbl)
-	b := unstableSnapWithTables(newTbl)
+// Note: TestDiffTables_UnstableIdentity_RenameBecomesAddDrop and
+// TestDiffTables_UnstableIdentity_SameNameMatches have been deleted.
+// The "same DatabaseType but StableIdentity=false" scenario is no longer expressible
+// after the API refactor (StableIdentity is gone; the gate is now DatabaseType equality).
+// Cross-engine add+drop behaviour is fully covered by
+// TestDiffTables_DifferentDatabaseType_RenameBecomesAddDrop.
 
-	got := Diff(a, b)
-
-	// Expect TableDropped(old_name) + TableAdded(new_name) — no TableNameChanged.
-	if len(got) != 2 {
-		t.Fatalf("expected 2 differences (TableDropped+TableAdded), got %d: %v", len(got), got)
-	}
-	for _, d := range got {
-		assertAnchoredToObject(t, d)
-	}
-	var hasDropped, hasAdded bool
-	for _, d := range got {
-		if d.Type == TableNameChanged {
-			t.Errorf("unexpected TableNameChanged when StableIdentity=false: %v", d)
-		}
-		if d.Type == TableDropped && d.Object == ref("public", "old_name") {
-			hasDropped = true
-		}
-		if d.Type == TableAdded && d.Object == ref("public", "new_name") {
-			hasAdded = true
-		}
-	}
-	if !hasDropped {
-		t.Errorf("expected TableDropped for public.old_name; got: %v", got)
-	}
-	if !hasAdded {
-		t.Errorf("expected TableAdded for public.new_name; got: %v", got)
-	}
-}
-
-// TestDiffTables_UnstableIdentity_SameNameMatches: same ID AND same name, both
-// StableIdentity:false → tables match by name → no findings.
-func TestDiffTables_UnstableIdentity_SameNameMatches(t *testing.T) {
-	tbl := makeTable("55", "public", "orders", schemasnapshot.TableKindOrdinary)
-	a := unstableSnapWithTables(tbl)
-	b := unstableSnapWithTables(tbl)
-
-	got := Diff(a, b)
-	if len(got) != 0 {
-		t.Errorf("expected no differences for unstable-identity snapshots with same-named tables, got %d: %v", len(got), got)
-	}
-}
-
-// TestDiffTables_MixedStability_FallsBackToName: a.StableIdentity=true but
-// b.StableIdentity=false (or vice-versa). The gate is AND, so a rename (same ID,
-// different name) must produce add+drop, not TableNameChanged.
-func TestDiffTables_MixedStability_FallsBackToName(t *testing.T) {
+// TestDiffTables_MixedDatabaseType_FallsBackToName: a has DatabaseType="postgresql"
+// but b has DatabaseType="mysql" (or vice-versa). The gate is equality, so a rename
+// (same ID, different name) must produce add+drop, not TableNameChanged.
+// (Converted from the old MixedStability test: StableIdentity no longer exists.)
+func TestDiffTables_MixedDatabaseType_FallsBackToName(t *testing.T) {
 	oldTbl := makeTable("77", "public", "old_name", schemasnapshot.TableKindOrdinary)
 	newTbl := makeTable("77", "public", "new_name", schemasnapshot.TableKindOrdinary)
 
-	// a=stable, b=unstable
-	a := &schemasnapshot.SchemaSnapshot{Version: 1, StableIdentity: true, Tables: []schemasnapshot.Table{oldTbl}}
-	b := &schemasnapshot.SchemaSnapshot{Version: 1, StableIdentity: false, Tables: []schemasnapshot.Table{newTbl}}
+	// a=postgresql, b=mysql
+	a := &schemasnapshot.SnapshotContent{Version: 1, DatabaseType: "postgresql", Tables: []schemasnapshot.Table{oldTbl}}
+	b := &schemasnapshot.SnapshotContent{Version: 1, DatabaseType: "mysql", Tables: []schemasnapshot.Table{newTbl}}
 
 	got := Diff(a, b)
 
 	if len(got) != 2 {
-		t.Fatalf("mixed stability: expected 2 differences (TableDropped+TableAdded), got %d: %v", len(got), got)
+		t.Fatalf("mixed db type: expected 2 differences (TableDropped+TableAdded), got %d: %v", len(got), got)
 	}
 	for _, d := range got {
 		assertAnchoredToObject(t, d)
 	}
 	for _, d := range got {
 		if d.Type == TableNameChanged {
-			t.Errorf("mixed stability: unexpected TableNameChanged; got: %v", got)
+			t.Errorf("mixed db type: unexpected TableNameChanged; got: %v", got)
 		}
 	}
 
-	// Also verify the symmetric case: a=unstable, b=stable
-	a2 := &schemasnapshot.SchemaSnapshot{Version: 1, StableIdentity: false, Tables: []schemasnapshot.Table{oldTbl}}
-	b2 := &schemasnapshot.SchemaSnapshot{Version: 1, StableIdentity: true, Tables: []schemasnapshot.Table{newTbl}}
+	// Also verify the symmetric case: a=mysql, b=postgresql
+	a2 := &schemasnapshot.SnapshotContent{Version: 1, DatabaseType: "mysql", Tables: []schemasnapshot.Table{oldTbl}}
+	b2 := &schemasnapshot.SnapshotContent{Version: 1, DatabaseType: "postgresql", Tables: []schemasnapshot.Table{newTbl}}
 
 	got2 := Diff(a2, b2)
 	if len(got2) != 2 {
-		t.Fatalf("mixed stability (reversed): expected 2 differences (TableDropped+TableAdded), got %d: %v", len(got2), got2)
+		t.Fatalf("mixed db type (reversed): expected 2 differences (TableDropped+TableAdded), got %d: %v", len(got2), got2)
 	}
 	for _, d := range got2 {
 		assertAnchoredToObject(t, d)
 	}
 	for _, d := range got2 {
 		if d.Type == TableNameChanged {
-			t.Errorf("mixed stability (reversed): unexpected TableNameChanged; got: %v", got2)
+			t.Errorf("mixed db type (reversed): unexpected TableNameChanged; got: %v", got2)
 		}
 	}
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Test: Different DatabaseType gate — ID comparison is legal only when
-// a.DatabaseType == b.DatabaseType AND both StableIdentity=true.
+// a.DatabaseType == b.DatabaseType (same engine ⇒ IDs are stable and comparable).
 // When DatabaseType differs, ID matching must be skipped and matching falls
 // back to name, so same-ID+different-Name produces TableDropped+TableAdded
 // instead of TableNameChanged.
 // ──────────────────────────────────────────────────────────────────────────────
 
 // TestDiffTables_DifferentDatabaseType_RenameBecomesAddDrop: snapshots with the
-// same table ID and StableIdentity:true on both sides, but different DatabaseType,
-// must NOT produce TableNameChanged. IDs are only comparable within one database
-// type; cross-type ID comparison is illegal, so matching falls back to name.
+// same table ID on both sides but different DatabaseType must NOT produce
+// TableNameChanged. IDs are only comparable within one database type;
+// cross-type ID comparison is illegal, so matching falls back to name.
 func TestDiffTables_DifferentDatabaseType_RenameBecomesAddDrop(t *testing.T) {
 	oldTbl := makeTable("55", "public", "old_name", schemasnapshot.TableKindOrdinary)
 	newTbl := makeTable("55", "public", "new_name", schemasnapshot.TableKindOrdinary)
-	a := &schemasnapshot.SchemaSnapshot{
-		Version:        1,
-		DatabaseType:   "postgresql",
-		StableIdentity: true,
-		Tables:         []schemasnapshot.Table{oldTbl},
+	a := &schemasnapshot.SnapshotContent{
+		Version:      1,
+		DatabaseType: "postgresql",
+		Tables:       []schemasnapshot.Table{oldTbl},
 	}
-	b := &schemasnapshot.SchemaSnapshot{
-		Version:        1,
-		DatabaseType:   "mysql",
-		StableIdentity: true,
-		Tables:         []schemasnapshot.Table{newTbl},
+	b := &schemasnapshot.SnapshotContent{
+		Version:      1,
+		DatabaseType: "mysql",
+		Tables:       []schemasnapshot.Table{newTbl},
 	}
 
 	got := Diff(a, b)

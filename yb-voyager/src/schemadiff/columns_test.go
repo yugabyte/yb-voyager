@@ -22,26 +22,26 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 )
 
-// snapWithColumns builds a snapshot containing the given columns (no tables).
-// StableIdentity is set to true because these helpers model PG snapshots
-// which always have stable OID-based identity.
-func snapWithColumns(cols ...schemasnapshot.Column) *schemasnapshot.SchemaSnapshot {
-	return &schemasnapshot.SchemaSnapshot{
-		Version:        1,
-		StableIdentity: true,
-		Columns:        cols,
+// snapWithColumns builds a SnapshotContent containing the given columns (no tables).
+// DatabaseType is set to "postgresql" because these helpers model PG snapshots
+// whose IDs (OIDs) are stable and comparable within the same engine.
+func snapWithColumns(cols ...schemasnapshot.Column) *schemasnapshot.SnapshotContent {
+	return &schemasnapshot.SnapshotContent{
+		Version:      1,
+		DatabaseType: "postgresql",
+		Columns:      cols,
 	}
 }
 
-// snapWithTablesAndColumns builds a snapshot with both tables and columns.
-// StableIdentity is set to true because these helpers model PG snapshots
-// which always have stable OID-based identity.
-func snapWithTablesAndColumns(tables []schemasnapshot.Table, cols []schemasnapshot.Column) *schemasnapshot.SchemaSnapshot {
-	return &schemasnapshot.SchemaSnapshot{
-		Version:        1,
-		StableIdentity: true,
-		Tables:         tables,
-		Columns:        cols,
+// snapWithTablesAndColumns builds a SnapshotContent with both tables and columns.
+// DatabaseType is set to "postgresql" because these helpers model PG snapshots
+// whose IDs (OIDs) are stable and comparable within the same engine.
+func snapWithTablesAndColumns(tables []schemasnapshot.Table, cols []schemasnapshot.Column) *schemasnapshot.SnapshotContent {
+	return &schemasnapshot.SnapshotContent{
+		Version:      1,
+		DatabaseType: "postgresql",
+		Tables:       tables,
+		Columns:      cols,
 	}
 }
 
@@ -440,30 +440,28 @@ func TestDiffColumns_MultipleTablesSort(t *testing.T) {
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Test: Different DatabaseType gate — ID comparison is legal only when
-// a.DatabaseType == b.DatabaseType AND both StableIdentity=true.
+// a.DatabaseType == b.DatabaseType (same engine ⇒ IDs are stable and comparable).
 // When DatabaseType differs, ID matching must be skipped and matching falls
 // back to (table, name) composite key, so same-ID+different-Name produces
 // ColumnDropped+ColumnAdded instead of ColumnNameChanged.
 // ──────────────────────────────────────────────────────────────────────────────
 
 // TestDiffColumns_DifferentDatabaseType_RenameBecomesAddDrop: snapshots with the
-// same column ID and StableIdentity:true on both sides, but different DatabaseType,
-// must NOT produce ColumnNameChanged. IDs are only comparable within one database
-// type; cross-type ID comparison is illegal, so matching falls back to name.
+// same column ID on both sides but different DatabaseType must NOT produce
+// ColumnNameChanged. IDs are only comparable within one database type;
+// cross-type ID comparison is illegal, so matching falls back to name.
 func TestDiffColumns_DifferentDatabaseType_RenameBecomesAddDrop(t *testing.T) {
 	oldCol := makeColumn("public", "users", "200:1", "old_col", "text")
 	newCol := makeColumn("public", "users", "200:1", "new_col", "text") // same ID, different name
-	a := &schemasnapshot.SchemaSnapshot{
-		Version:        1,
-		DatabaseType:   "postgresql",
-		StableIdentity: true,
-		Columns:        []schemasnapshot.Column{oldCol},
+	a := &schemasnapshot.SnapshotContent{
+		Version:      1,
+		DatabaseType: "postgresql",
+		Columns:      []schemasnapshot.Column{oldCol},
 	}
-	b := &schemasnapshot.SchemaSnapshot{
-		Version:        1,
-		DatabaseType:   "mysql",
-		StableIdentity: true,
-		Columns:        []schemasnapshot.Column{newCol},
+	b := &schemasnapshot.SnapshotContent{
+		Version:      1,
+		DatabaseType: "mysql",
+		Columns:      []schemasnapshot.Column{newCol},
 	}
 
 	got := Diff(a, b)
@@ -531,58 +529,13 @@ func TestDiffColumns_IDEmptyFallback_MatchedByTableAndName(t *testing.T) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Tests: StableIdentity gate for columns
+// Tests: cross-engine gate for columns — ID matching only when DatabaseType matches
 // ──────────────────────────────────────────────────────────────────────────────
 
-// unstableSnapWithColumns builds a snapshot with StableIdentity:false containing
-// the given columns (no tables).
-func unstableSnapWithColumns(cols ...schemasnapshot.Column) *schemasnapshot.SchemaSnapshot {
-	return &schemasnapshot.SchemaSnapshot{
-		Version:        1,
-		StableIdentity: false,
-		Columns:        cols,
-	}
-}
-
-// TestDiffColumns_UnstableIdentity_RenameBecomesAddDrop: when both snapshots have
-// StableIdentity:false, a column with same ID but different names must NOT be
-// rename-detected. Matching falls back to (table, name) composite key, producing
-// ColumnDropped (old name) + ColumnAdded (new name).
-func TestDiffColumns_UnstableIdentity_RenameBecomesAddDrop(t *testing.T) {
-	oldCol := makeColumn("public", "users", "200:1", "usr_name", "text")
-	newCol := makeColumn("public", "users", "200:1", "username", "text") // same ID, new name
-
-	a := unstableSnapWithColumns(oldCol)
-	b := unstableSnapWithColumns(newCol)
-
-	got := Diff(a, b)
-
-	// Expect ColumnDropped(usr_name) + ColumnAdded(username) — no ColumnNameChanged.
-	if len(got) != 2 {
-		t.Fatalf("expected 2 differences (ColumnDropped+ColumnAdded), got %d: %v", len(got), got)
-	}
-	for _, d := range got {
-		assertAnchoredToObject(t, d)
-	}
-	var hasDropped, hasAdded bool
-	for _, d := range got {
-		if d.Type == ColumnNameChanged {
-			t.Errorf("unexpected ColumnNameChanged when StableIdentity=false: %v", d)
-		}
-		if d.Type == ColumnDropped && d.SubObject == "usr_name" {
-			hasDropped = true
-		}
-		if d.Type == ColumnAdded && d.SubObject == "username" {
-			hasAdded = true
-		}
-	}
-	if !hasDropped {
-		t.Errorf("expected ColumnDropped for usr_name; got: %v", got)
-	}
-	if !hasAdded {
-		t.Errorf("expected ColumnAdded for username; got: %v", got)
-	}
-}
+// (The StableIdentity=false test has been deleted: the scenario it tested —
+// same DatabaseType but unstable identity — is no longer expressible after the API
+// refactor. The equivalent cross-engine behaviour (different DatabaseType → add+drop)
+// is fully covered by TestDiffColumns_DifferentDatabaseType_RenameBecomesAddDrop.)
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Tests: suppressLifecycleTableColumns — per-column findings are suppressed when
