@@ -107,3 +107,33 @@ func TestListSchemaSnapshotsSubSecondOrder(t *testing.T) {
 	assert.True(t, list[2].CapturedAt.Equal(t2), "row[2] should be t2 (123 ms), got %v", list[2].CapturedAt)
 	assert.True(t, list[3].CapturedAt.Equal(t3), "row[3] should be t3 (500 ms), got %v", list[3].CapturedAt)
 }
+
+// TestListSchemaSnapshotsIsPlaceholder verifies that ListSchemaSnapshots correctly
+// sets IsPlaceholder via the SQL-computed flag (snapshot_json IS NULL) without ever
+// selecting the snapshot_json blob. A full snapshot must have IsPlaceholder=false and
+// a placeholder row must have IsPlaceholder=true.
+func TestListSchemaSnapshotsIsPlaceholder(t *testing.T) {
+	mdb := newTestSchemaSnapshotMetaDB(t)
+
+	t1 := time.Date(2026, 3, 1, 10, 0, 0, 0, time.UTC)
+	t2 := time.Date(2026, 3, 1, 11, 0, 0, 0, time.UTC)
+
+	// Insert a full snapshot (snapshot_json is set).
+	fullRow := makeSchemaSnapshotRow("snap_full", t1)
+	require.NoError(t, mdb.InsertSchemaSnapshot(fullRow))
+
+	// Insert a placeholder row (snapshot_json NULL).
+	placeholderRow := makeSchemaSnapshotRow("snap_placeholder", t2)
+	require.NoError(t, mdb.InsertSchemaSnapshotPlaceholder(placeholderRow))
+
+	list, err := mdb.ListSchemaSnapshots()
+	require.NoError(t, err)
+	require.Len(t, list, 2)
+
+	// Rows are ordered oldest-first: full snapshot (t1) then placeholder (t2).
+	assert.Equal(t, "snap_full", list[0].Name)
+	assert.False(t, list[0].IsPlaceholder, "full snapshot must have IsPlaceholder=false")
+
+	assert.Equal(t, "snap_placeholder", list[1].Name)
+	assert.True(t, list[1].IsPlaceholder, "placeholder row must have IsPlaceholder=true")
+}
