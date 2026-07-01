@@ -373,7 +373,7 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 		\ttable: Partition the cdc events by table.`)
 	cmd.Flags().MarkHidden("cdc-partitioning-strategy")
 
-	BoolVar(cmd.Flags(), &disableNullConflicts, "disable-null-conflicts", false, "Disable conflict detection for null values during data import (default false)")
+	BoolVar(cmd.Flags(), &disableNullConflicts, "disable-null-conflicts", false, "Disable conflict detection for null values during data import (default false), UNSAFE to use this flag if you have unique key constraints with NULLS NOT DISTINCT property")
 	cmd.Flags().MarkHidden("disable-null-conflicts")
 
 	cmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
