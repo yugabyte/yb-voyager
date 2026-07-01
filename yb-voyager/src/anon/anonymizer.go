@@ -4,6 +4,7 @@ import pg_query "github.com/pganalyze/pg_query_go/v6"
 
 const (
 	DATABASE_KIND_PREFIX      = "db_"
+	HOST_KIND_PREFIX          = "host_"
 	SCHEMA_KIND_PREFIX        = "schema_"
 	SEQUENCE_KIND_PREFIX      = "seq_"
 	TABLE_KIND_PREFIX         = "table_"

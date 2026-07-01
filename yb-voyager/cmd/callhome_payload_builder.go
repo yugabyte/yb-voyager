@@ -193,7 +193,18 @@ func anonymizeSourceDBDetails(source *srcdb.Source) callhome.SourceDBDetails {
 		DBSize:             source.DBSize,
 		DBSystemIdentifier: source.DBSystemIdentifier,
 		DBID:               source.DBID,
+		SourceDeployment:   getSourceDeploymentType(source.Host),
 		SchemaOids:         source.SchemaOids,
+	}
+
+	if source.Host != "" {
+		anonymizedSourceHost, err := anonymizer.AnonymizeHostName(source.Host)
+		if err != nil {
+			log.Warnf("failed to anonymize source host %s: %v", source.Host, err)
+			details.SourceHost = constants.OBFUSCATE_STRING
+		} else {
+			details.SourceHost = anonymizedSourceHost
+		}
 	}
 
 	// Anonymize database name
@@ -227,6 +238,22 @@ func anonymizeSourceDBDetails(source *srcdb.Source) callhome.SourceDBDetails {
 	}
 
 	return details
+}
+
+func getSourceDeploymentType(host string) string {
+	normalizedHost := strings.ToLower(strings.TrimSpace(host))
+	switch {
+	case normalizedHost == "":
+		return ""
+	case strings.Contains(normalizedHost, ".rds.amazonaws.com"),
+		strings.Contains(normalizedHost, ".rds.amazonaws.com.cn"):
+		return "aws-rds"
+	case strings.Contains(normalizedHost, ".amazonaws.com"),
+		strings.Contains(normalizedHost, ".amazonaws.com.cn"):
+		return "aws"
+	default:
+		return "unknown"
+	}
 }
 
 // ============================assess migration callhome payload information============================
