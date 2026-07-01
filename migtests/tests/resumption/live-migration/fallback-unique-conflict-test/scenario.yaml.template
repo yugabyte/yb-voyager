@@ -157,9 +157,16 @@ stages:
   - name: start_importer
     action: voyager_import_start
 
-  # Conflict generator: re-applies the deterministic unique-conflict DML
-  # (source_dml.sql) continuously throughout streaming, in parallel with the
-  # random event generator, instead of running it only once.
+    # Deterministic unique-conflict DML applied once up-front for an immediate
+    # conflict burst as soon as streaming starts.
+  - name: run_source_dml
+    action: run_sql
+    target: source
+    sql_path: ./source_dml.sql
+    use_admin: true
+
+  # Conflict generator: then re-applies source_dml.sql continuously throughout
+  # streaming, in parallel with the random event generator, for sustained conflicts.
   - name: start_conflict_generator
     action: conflict_generator_start
     generator_key: conflict_generator_source
@@ -238,7 +245,14 @@ stages:
   - name: start_fallback_importer_to_source
     action: voyager_import_to_source_start
 
-  # Conflict generator on the target: re-applies target_dml.sql continuously
+    # Deterministic unique-conflict DML applied once up-front on the target.
+  - name: run_target_dml
+    action: run_sql
+    target: target
+    sql_path: ./target_dml.sql
+    use_admin: true
+
+  # Conflict generator on the target: then re-applies target_dml.sql continuously
   # throughout fallback streaming, in parallel with the target-side generator.
   - name: start_target_conflict_generator
     action: conflict_generator_start
