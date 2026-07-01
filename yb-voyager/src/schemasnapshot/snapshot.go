@@ -14,7 +14,10 @@
 
 package schemasnapshot
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // SchemaSnapshot is a point-in-time capture of a database schema: its header (metadata,
 // stored in metadb columns) and its content (serialized to the blob).
@@ -44,6 +47,11 @@ type SnapshotHeader struct {
 // Name is the derived primary-key handle "{label}_{second-precision-timestamp}".
 // Derived (not stored) so the struct carries no write-vs-read-asymmetric identity field.
 func (h SnapshotHeader) Name() string { return deriveName(h.Label, h.CapturedAt) }
+
+// deriveName builds the primary-key name "{label}_{timestamp-at-second-precision}".
+func deriveName(label string, capturedAt time.Time) string {
+	return fmt.Sprintf("%s_%s", label, capturedAt.UTC().Format("20060102T150405Z"))
+}
 
 // SideSource is the capture side for the migration source database. v1 only ever
 // captures the source; SnapshotHeader.Side exists so other sides (e.g. target,
