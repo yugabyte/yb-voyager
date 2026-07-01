@@ -46,6 +46,21 @@ type SchemaSnapshotRow struct {
 	SnapshotJSON    sql.NullString // the full SchemaSnapshot JSON; NULL for a placeholder
 }
 
+// SchemaSnapshotListRow is the lightweight row returned by ListSchemaSnapshots.
+// It omits the snapshot_json blob (never loaded for listing) and carries an
+// explicit IsPlaceholder flag computed in SQL, so listing does not pull every
+// schema's full JSON into memory.
+type SchemaSnapshotListRow struct {
+	Name            string
+	Label           string
+	Reason          string
+	Side            string
+	CapturedAt      time.Time
+	DatabaseVersion string
+	Schemas         string // JSON-encoded schema list (see schemasFromString)
+	IsPlaceholder   bool   // true when snapshot_json IS NULL
+}
+
 // createSchemaSnapshotsTable creates the schema_snapshots table if it does not exist.
 // It is called lazily on first write rather than in initMetaDB: initMetaDB runs only
 // when the metadb file is first created, so a migration started on an older binary
@@ -106,11 +121,12 @@ func (m *MetaDB) InsertSchemaSnapshotPlaceholder(row SchemaSnapshotRow) error {
 	return m.InsertSchemaSnapshot(row)
 }
 
-// ListSchemaSnapshots returns all rows ordered oldest-first by captured_at.
-// snapshot_json is populated for each row (callers that need to check placeholder use SnapshotJSON.Valid).
-// This method tolerates the table not existing: in that case it returns an empty slice.
-func (m *MetaDB) ListSchemaSnapshots() ([]SchemaSnapshotRow, error) {
-	query := fmt.Sprintf(`SELECT name, label, reason, side, captured_at, database_version, schemas, snapshot_json
+// ListSchemaSnapshots returns lightweight list rows ordered oldest-first by captured_at.
+// It does not populate snapshot_json; instead IsPlaceholder is computed in SQL
+// (snapshot_json IS NULL) so listing never pulls every schema's full JSON into memory.
+// This method tolerates the table not existing: in that case it returns (nil, nil).
+func (m *MetaDB) ListSchemaSnapshots() ([]SchemaSnapshotListRow, error) {
+	query := fmt.Sprintf(`SELECT name, label, reason, side, captured_at, database_version, schemas, (snapshot_json IS NULL) AS is_placeholder
 		FROM %s ORDER BY captured_at ASC;`, schemaSnapshotsTableName)
 	rows, err := m.db.Query(query)
 	if err != nil {
@@ -126,10 +142,11 @@ func (m *MetaDB) ListSchemaSnapshots() ([]SchemaSnapshotRow, error) {
 		}
 	}()
 
-	var result []SchemaSnapshotRow
+	var result []SchemaSnapshotListRow
 	for rows.Next() {
-		var r SchemaSnapshotRow
+		var r SchemaSnapshotListRow
 		var capturedAtStr string
+		var isPlaceholder int
 		if err := rows.Scan(
 			&r.Name,
 			&r.Label,
@@ -138,7 +155,7 @@ func (m *MetaDB) ListSchemaSnapshots() ([]SchemaSnapshotRow, error) {
 			&capturedAtStr,
 			&r.DatabaseVersion,
 			&r.Schemas,
-			&r.SnapshotJSON,
+			&isPlaceholder,
 		); err != nil {
 			return nil, fmt.Errorf("scan schema snapshot row: %w", err)
 		}
@@ -147,6 +164,7 @@ func (m *MetaDB) ListSchemaSnapshots() ([]SchemaSnapshotRow, error) {
 			return nil, fmt.Errorf("parse captured_at %q: %w", capturedAtStr, err)
 		}
 		r.CapturedAt = t.UTC()
+		r.IsPlaceholder = isPlaceholder != 0
 		result = append(result, r)
 	}
 	if err := rows.Err(); err != nil {

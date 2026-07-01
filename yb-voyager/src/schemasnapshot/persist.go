@@ -75,8 +75,9 @@ func schemasFromString(s string) []string {
 	return out
 }
 
-// rowToMetadata converts a metadb row to a SnapshotMetadata value.
-func rowToMetadata(r metadb.SchemaSnapshotRow) SnapshotMetadata {
+// rowToMetadata converts a lightweight list row to a SnapshotMetadata value.
+// IsPlaceholder comes directly from the SQL-computed flag; no blob field is present.
+func rowToMetadata(r metadb.SchemaSnapshotListRow) SnapshotMetadata {
 	return SnapshotMetadata{
 		Name:            r.Name,
 		Label:           r.Label,
@@ -85,7 +86,7 @@ func rowToMetadata(r metadb.SchemaSnapshotRow) SnapshotMetadata {
 		CapturedAt:      r.CapturedAt,
 		DatabaseVersion: r.DatabaseVersion,
 		Schemas:         schemasFromString(r.Schemas),
-		IsPlaceholder:   !r.SnapshotJSON.Valid,
+		IsPlaceholder:   r.IsPlaceholder,
 	}
 }
 
