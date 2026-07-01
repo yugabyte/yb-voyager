@@ -20,7 +20,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	goerrors "github.com/go-errors/errors"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -153,11 +152,6 @@ func DecodeSnapshot(data []byte) (*SnapshotContent, error) {
 }
 
 // ─── helpers ────────────────────────────────────────────────────────────────────
-
-// deriveName builds the primary-key name "{label}_{timestamp-at-second-precision}".
-func deriveName(label string, capturedAt time.Time) string {
-	return fmt.Sprintf("%s_%s", label, capturedAt.UTC().Format("20060102T150405Z"))
-}
 
 // schemasToString serializes the schema slice to a JSON array string.
 // JSON encoding is delimiter-safe (a schema named "a,b" survives the round-trip).
