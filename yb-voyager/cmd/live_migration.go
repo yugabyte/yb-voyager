@@ -217,6 +217,19 @@ func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.
 
 	switch cdcPartitioningStrategy {
 	case "auto":
+		if tconf.TargetDBType == YUGABYTEDB_AMP {
+			// yb-amp is a single-node PostgreSQL-compatible compute (no YB
+			// tablets / colocation), so — exactly like the PG/Oracle
+			// source/source-replica case above — PARTITION_BY_TABLE has no real
+			// throughput downside and is safer for correctness. It also sidesteps
+			// getExpressionUniqueIndexTables(), which is implemented only on the
+			// TargetYugabyteDB driver. (Explicit --cdc-partitioning-strategy
+			// pk/table still flows through the default branch below.)
+			for _, t := range tableNames {
+				tableToPartitioningStrategyMap.Put(t, PARTITION_BY_TABLE)
+			}
+			break
+		}
 		//if not found in metadb key, use the auto strategy
 		//find the tables having expression or normal unique indexes since the conflicts on these expression based unique indexes can't be detected easily as it require
 		//evaluating the expression for each event to detect the conflicts so we are running all the events of those tables sequentially by marking these table as partition by table
@@ -395,7 +408,7 @@ func updateCallhomeImportPhase(event *tgtdb.Event) {
 
 func shouldFormatValues(event *tgtdb.Event) bool {
 	switch tconf.TargetDBType {
-	case YUGABYTEDB, POSTGRESQL:
+	case YUGABYTEDB, YUGABYTEDB_AMP, POSTGRESQL:
 		return event.Op == "u"
 	case ORACLE:
 		return true
