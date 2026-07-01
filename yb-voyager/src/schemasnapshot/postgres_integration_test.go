@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package postgres
+package schemasnapshot_test
 
 import (
 	"context"
@@ -107,8 +107,8 @@ func startCaptureTestDB(t *testing.T, cfg *testcontainers.ContainerConfig) (*sql
 	return db, src, cleanup
 }
 
-// newTestMetaDB creates a MetaDB backed by a fresh SQLite file in a temp dir.
-func newTestMetaDB(t *testing.T) *metadb.MetaDB {
+// newIntegrationTestMetaDB creates a MetaDB backed by a fresh SQLite file in a temp dir.
+func newIntegrationTestMetaDB(t *testing.T) *metadb.MetaDB {
 	t.Helper()
 	dir := t.TempDir()
 	metainfoDir := filepath.Join(dir, "metainfo")
@@ -125,7 +125,7 @@ func newTestMetaDB(t *testing.T) *metadb.MetaDB {
 // TestCaptureAgainstLivePostgres starts a real PostgreSQL container, creates a
 // schema with tables and columns, and asserts that schemasnapshot.Capture
 // actually reads pg_catalog and returns the expected tables/columns.
-// Run with: go test -tags integration -run TestCaptureAgainstLivePostgres ./src/schemasnapshot/databases/postgres/
+// Run with: go test -tags integration -run TestCaptureAgainstLivePostgres ./src/schemasnapshot/
 func TestCaptureAgainstLivePostgres(t *testing.T) {
 	ctx := context.Background()
 
@@ -293,7 +293,7 @@ func TestCaptureAgainstLivePostgres(t *testing.T) {
 //
 // Run with:
 //
-//	go test -tags integration -run TestCapturePersistRoundTrip ./src/schemasnapshot/databases/postgres/
+//	go test -tags integration -run TestCapturePersistRoundTrip ./src/schemasnapshot/
 func TestCapturePersistRoundTrip(t *testing.T) {
 	ctx := context.Background()
 
@@ -325,7 +325,7 @@ func TestCapturePersistRoundTrip(t *testing.T) {
 	require.NotEmpty(t, tablesByName["dogs"].InheritsFrom, "dogs must have InheritsFrom")
 
 	// Step 2: Create a temp meta.db.
-	mdb := newTestMetaDB(t)
+	mdb := newIntegrationTestMetaDB(t)
 
 	// Step 3: Persist. Stamp Series/Reason then save.
 	snap.Series = schemasnapshot.LabelExportDataFromSourceExit

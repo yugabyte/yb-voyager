@@ -18,88 +18,78 @@ package schemasnapshot
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"testing"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 )
 
-// TestNewSnapshotProviderUnknownType asserts that requesting a provider for a
-// database type that was never registered returns a clear, non-nil error.
-func TestNewSnapshotProviderUnknownType(t *testing.T) {
-	_, err := NewSnapshotProvider("does-not-exist-schemasnapshot")
-	require.Error(t, err, "NewSnapshotProvider must return an error for an unregistered type")
+// TestNewProviderUnknownTypeFromCapture asserts that Capture returns a clear error
+// for a database type that is not supported by the switch in newProvider.
+func TestNewProviderUnknownTypeFromCapture(t *testing.T) {
+	_, err := newProvider("does-not-exist-schemasnapshot", nil)
+	require.Error(t, err, "newProvider must return an error for an unsupported type")
 	assert.Contains(t, err.Error(), "does-not-exist-schemasnapshot",
 		"error message should include the unrecognised database type")
 }
 
-// errSnapshotProvider is a test-only SnapshotProvider whose TakeSnapshot always
-// returns an error, exercising the Capture rollback path.
-type errSnapshotProvider struct{}
-
-func (e *errSnapshotProvider) DatabaseType() string    { return "test-error-provider-schemasnapshot" }
-func (e *errSnapshotProvider) HasStableIdentity() bool { return false }
-func (e *errSnapshotProvider) TakeSnapshot(_ context.Context, _ QueryExecutor, _ []string) (*SchemaSnapshot, error) {
-	return nil, errors.New("snapshot intentionally failed")
+// setupSuccessfulPGMock registers the minimal pg_catalog expectations for one
+// round of TakeSnapshot: server_version, pg_class (empty), pg_inherits (empty),
+// pg_attribute (empty). Use this when testing Capture orchestration (header
+// stamping, tx commit/rollback) rather than the loader logic itself.
+func setupSuccessfulPGMock(mock sqlmock.Sqlmock) {
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SHOW server_version`).
+		WillReturnRows(sqlmock.NewRows([]string{"server_version"}).AddRow("16.4"))
+	mock.ExpectQuery(`pg_class`).
+		WillReturnRows(sqlmock.NewRows([]string{"oid", "schema", "name", "relkind"}))
+	mock.ExpectQuery(`pg_inherits`).
+		WillReturnRows(sqlmock.NewRows([]string{"child_oid", "child_schema", "child_name", "parent_oid", "parent_schema", "parent_name", "is_partition"}))
+	mock.ExpectQuery(`pg_attribute`).
+		WillReturnRows(sqlmock.NewRows([]string{"table_oid", "attnum", "schema", "table_name", "col_name", "data_type", "not_null", "col_default"}))
+	mock.ExpectCommit()
 }
 
 // TestCaptureRollbackOnSnapshotError verifies that when TakeSnapshot returns an
-// error, Capture rolls back the transaction and returns the error.
+// error (simulated by making the server_version query fail), Capture rolls back
+// the transaction and propagates the error.
 func TestCaptureRollbackOnSnapshotError(t *testing.T) {
-	// Register the error provider under a unique type name.
-	RegisterProvider("test-error-provider-schemasnapshot", func() SnapshotProvider {
-		return &errSnapshotProvider{}
-	})
-
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 
 	mock.ExpectBegin()
+	// Make detectDatabaseVersion fail — this causes TakeSnapshot to return an error.
+	mock.ExpectQuery(`SHOW server_version`).
+		WillReturnError(fmt.Errorf("snapshot intentionally failed"))
 	mock.ExpectRollback()
 
-	source := DBMetadata{DatabaseType: "test-error-provider-schemasnapshot"}
+	source := DBMetadata{DatabaseType: constants.POSTGRESQL}
 	snap, err := Capture(context.Background(), db, CaptureParams{Source: source, Schemas: []string{"public"}, Label: LabelExportSchema})
 
 	assert.Nil(t, snap, "Capture must return nil snapshot on TakeSnapshot error")
 	require.Error(t, err, "Capture must return an error when TakeSnapshot fails")
 	assert.Contains(t, err.Error(), "snapshot intentionally failed")
 
-	// All mock expectations (Begin + Rollback) must have been satisfied.
+	// All mock expectations (Begin + query error + Rollback) must have been satisfied.
 	require.NoError(t, mock.ExpectationsWereMet(), "transaction must have been rolled back")
-}
-
-// successSnapshotProvider is a test-only SnapshotProvider that returns a minimal snapshot.
-type successSnapshotProvider struct{}
-
-func (s *successSnapshotProvider) DatabaseType() string    { return "test-success-provider" }
-func (s *successSnapshotProvider) HasStableIdentity() bool { return true }
-func (s *successSnapshotProvider) TakeSnapshot(_ context.Context, _ QueryExecutor, schemas []string) (*SchemaSnapshot, error) {
-	return &SchemaSnapshot{
-		Tables: []Table{
-			{ObjectRef: ObjectRef{Schema: schemas[0], Name: "t1"}, ID: "100", Kind: TableKindOrdinary},
-		},
-	}, nil
 }
 
 // TestCaptureStampsHeaders verifies that Capture stamps Version, CapturedAt,
 // DatabaseType, StableIdentity, and Schemas on the returned snapshot.
 func TestCaptureStampsHeaders(t *testing.T) {
-	RegisterProvider("test-success-provider", func() SnapshotProvider {
-		return &successSnapshotProvider{}
-	})
-
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 
-	mock.ExpectBegin()
-	mock.ExpectCommit()
+	setupSuccessfulPGMock(mock)
 
 	source := DBMetadata{
-		DatabaseType: "test-success-provider",
+		DatabaseType: constants.POSTGRESQL,
 		Host:         "localhost",
 		Port:         5432,
 		Database:     "mydb",
@@ -111,7 +101,7 @@ func TestCaptureStampsHeaders(t *testing.T) {
 	require.NotNil(t, snap)
 
 	assert.Equal(t, 1, snap.Version)
-	assert.Equal(t, "test-success-provider", snap.DatabaseType)
+	assert.Equal(t, constants.POSTGRESQL, snap.DatabaseType)
 	assert.True(t, snap.StableIdentity)
 	assert.Equal(t, []string{"public"}, snap.Schemas)
 	assert.Equal(t, source, snap.DBMetadata)
@@ -123,21 +113,16 @@ func TestCaptureStampsHeaders(t *testing.T) {
 // TestCaptureAndSaveSnapshotSuccess verifies that CaptureAndSaveSnapshot saves a
 // snapshot and returns its name when capture succeeds.
 func TestCaptureAndSaveSnapshotSuccess(t *testing.T) {
-	RegisterProvider("test-success-provider", func() SnapshotProvider {
-		return &successSnapshotProvider{}
-	})
-
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 
-	mock.ExpectBegin()
-	mock.ExpectCommit()
+	setupSuccessfulPGMock(mock)
 
 	mdb := newTestMetaDB(t)
 
 	source := DBMetadata{
-		DatabaseType: "test-success-provider",
+		DatabaseType: constants.POSTGRESQL,
 		Host:         "localhost",
 		Port:         5432,
 		Database:     "mydb",
@@ -163,20 +148,18 @@ func TestCaptureAndSaveSnapshotSuccess(t *testing.T) {
 // TestCaptureAndSaveSnapshotFailurePlaceholderTrue verifies that on capture failure
 // with placeholderOnFailure=true, a placeholder is saved and the capture error is returned.
 func TestCaptureAndSaveSnapshotFailurePlaceholderTrue(t *testing.T) {
-	RegisterProvider("test-error-provider-schemasnapshot", func() SnapshotProvider {
-		return &errSnapshotProvider{}
-	})
-
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 
 	mock.ExpectBegin()
+	mock.ExpectQuery(`SHOW server_version`).
+		WillReturnError(fmt.Errorf("snapshot intentionally failed"))
 	mock.ExpectRollback()
 
 	mdb := newTestMetaDB(t)
 
-	source := DBMetadata{DatabaseType: "test-error-provider-schemasnapshot"}
+	source := DBMetadata{DatabaseType: constants.POSTGRESQL}
 	name, err := CaptureAndSaveSnapshot(context.Background(), db, mdb, CaptureRequest{
 		CaptureParams:        CaptureParams{Source: source, Schemas: []string{"public"}, Label: LabelExportSchema},
 		PlaceholderOnFailure: true,
@@ -202,7 +185,7 @@ func TestCaptureEmptySchemasReturnsError(t *testing.T) {
 	defer db.Close()
 
 	// No mock expectations: the guard must return before any DB access.
-	source := DBMetadata{DatabaseType: "test-success-provider"}
+	source := DBMetadata{DatabaseType: constants.POSTGRESQL}
 
 	// nil schemas
 	snap, err := Capture(context.Background(), db, CaptureParams{Source: source, Schemas: nil, Label: LabelExportSchema})
@@ -223,20 +206,18 @@ func TestCaptureEmptySchemasReturnsError(t *testing.T) {
 // TestCaptureAndSaveSnapshotFailurePlaceholderFalse verifies that on capture failure
 // with placeholderOnFailure=false, nothing is written and the capture error is returned.
 func TestCaptureAndSaveSnapshotFailurePlaceholderFalse(t *testing.T) {
-	RegisterProvider("test-error-provider-schemasnapshot", func() SnapshotProvider {
-		return &errSnapshotProvider{}
-	})
-
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 
 	mock.ExpectBegin()
+	mock.ExpectQuery(`SHOW server_version`).
+		WillReturnError(fmt.Errorf("snapshot intentionally failed"))
 	mock.ExpectRollback()
 
 	mdb := newTestMetaDB(t)
 
-	source := DBMetadata{DatabaseType: "test-error-provider-schemasnapshot"}
+	source := DBMetadata{DatabaseType: constants.POSTGRESQL}
 	name, err := CaptureAndSaveSnapshot(context.Background(), db, mdb, CaptureRequest{
 		CaptureParams:        CaptureParams{Source: source, Schemas: []string{"public"}, Label: LabelExportSchema},
 		PlaceholderOnFailure: false,

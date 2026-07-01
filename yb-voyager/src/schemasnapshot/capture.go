@@ -39,8 +39,8 @@ type CaptureParams struct {
 // Capture is the library entry point for taking a schema snapshot. It:
 //  1. Guards against empty Schemas.
 //  2. Validates Label/Reason against the known vocabulary.
-//  3. Resolves the SnapshotProvider for p.Source.DatabaseType.
-//  4. Opens a read-only REPEATABLE READ transaction on db.
+//  3. Opens a read-only REPEATABLE READ transaction on db.
+//  4. Resolves the SnapshotProvider for p.Source.DatabaseType, bound to the tx.
 //  5. Calls provider.TakeSnapshot inside that transaction.
 //  6. Commits on success (rollback on any error) — atomic, never partial.
 //  7. Stamps all header fields (including Series and Reason) onto the returned snapshot.
@@ -56,11 +56,6 @@ func Capture(ctx context.Context, db *sql.DB, p CaptureParams) (*SchemaSnapshot,
 		return nil, err
 	}
 
-	provider, err := NewSnapshotProvider(p.Source.DatabaseType)
-	if err != nil {
-		return nil, err
-	}
-
 	// REPEATABLE READ so every loader query (tables, columns, links) sees one
 	// consistent point-in-time catalog — concurrent DDL mid-capture can't make
 	// the multi-query snapshot internally inconsistent.
@@ -73,7 +68,12 @@ func Capture(ctx context.Context, db *sql.DB, p CaptureParams) (*SchemaSnapshot,
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	snap, err := provider.TakeSnapshot(ctx, tx, p.Schemas)
+	provider, err := newProvider(p.Source.DatabaseType, tx)
+	if err != nil {
+		return nil, err
+	}
+
+	snap, err := provider.TakeSnapshot(ctx, p.Schemas)
 	if err != nil {
 		return nil, fmt.Errorf("schemasnapshot: taking snapshot: %w", err)
 	}

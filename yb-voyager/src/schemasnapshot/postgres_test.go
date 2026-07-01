@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package postgres_test
+package schemasnapshot
 
 import (
 	"context"
@@ -25,35 +25,39 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 )
 
-// TestProviderRegistered asserts that importing the postgres package causes
-// "postgresql" to be registered in the provider registry.
-func TestProviderRegistered(t *testing.T) {
-	p, err := schemasnapshot.NewSnapshotProvider(constants.POSTGRESQL)
-	require.NoError(t, err, "NewSnapshotProvider must succeed after postgres init()")
+// TestNewProviderPostgres asserts that newProvider("postgresql", db) returns a
+// provider whose DatabaseType() is "postgresql" and HasStableIdentity() is true.
+func TestNewProviderPostgres(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	_ = mock // no queries expected; just constructing the provider
+
+	p, err := newProvider(constants.POSTGRESQL, db)
+	require.NoError(t, err, "newProvider must succeed for postgresql")
 	assert.Equal(t, "postgresql", p.DatabaseType())
 	assert.True(t, p.HasStableIdentity(), "PostgreSQL provider must report stable identity")
 }
 
-// TestProviderUnknownTypeReturnsError asserts that requesting a provider for a
-// type that was never registered returns an error.
-func TestProviderUnknownTypeReturnsError(t *testing.T) {
-	_, err := schemasnapshot.NewSnapshotProvider("does-not-exist-pg-test")
-	require.Error(t, err, "NewSnapshotProvider must return an error for an unregistered type")
+// TestNewProviderUnknownType asserts that newProvider for an unsupported database
+// type returns a clear, non-nil error.
+func TestNewProviderUnknownType(t *testing.T) {
+	_, err := newProvider("does-not-exist-pg-test", nil)
+	require.Error(t, err, "newProvider must return an error for an unsupported type")
 	assert.Contains(t, err.Error(), "does-not-exist-pg-test")
 }
 
 // TestTakeSnapshotLoadsTablesAndColumns verifies that TakeSnapshot queries
 // the catalog for tables and columns in the given schemas.
 func TestTakeSnapshotLoadsTablesAndColumns(t *testing.T) {
-	p, err := schemasnapshot.NewSnapshotProvider(constants.POSTGRESQL)
-	require.NoError(t, err)
-
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
+
+	p, err := newProvider(constants.POSTGRESQL, db)
+	require.NoError(t, err)
 
 	// Expect the database version query.
 	mock.ExpectQuery(`SHOW server_version`).
@@ -78,20 +82,20 @@ func TestTakeSnapshotLoadsTablesAndColumns(t *testing.T) {
 		AddRow("16420", "2", "public", "orders", "amount", "numeric", false, "0")
 	mock.ExpectQuery(`pg_attribute`).WillReturnRows(colRows)
 
-	snap, err := p.TakeSnapshot(context.Background(), db, []string{"public"})
+	snap, err := p.TakeSnapshot(context.Background(), []string{"public"})
 	require.NoError(t, err)
 	require.NotNil(t, snap)
 
 	require.Len(t, snap.Tables, 3)
 	assert.Equal(t, "orders", snap.Tables[0].Name)
-	assert.Equal(t, schemasnapshot.TableKindOrdinary, snap.Tables[0].Kind)
+	assert.Equal(t, TableKindOrdinary, snap.Tables[0].Kind)
 	assert.Equal(t, "16420", snap.Tables[0].ID)
 
 	assert.Equal(t, "shipments", snap.Tables[1].Name)
-	assert.Equal(t, schemasnapshot.TableKindPartitioned, snap.Tables[1].Kind)
+	assert.Equal(t, TableKindPartitioned, snap.Tables[1].Kind)
 
 	assert.Equal(t, "foreign_t", snap.Tables[2].Name)
-	assert.Equal(t, schemasnapshot.TableKindForeign, snap.Tables[2].Kind)
+	assert.Equal(t, TableKindForeign, snap.Tables[2].Kind)
 
 	require.Len(t, snap.Columns, 2)
 	assert.Equal(t, "id", snap.Columns[0].Name)
@@ -110,12 +114,12 @@ func TestTakeSnapshotLoadsTablesAndColumns(t *testing.T) {
 
 // TestTakeSnapshotDatabaseVersionSet verifies that TakeSnapshot populates DatabaseVersion.
 func TestTakeSnapshotDatabaseVersionSet(t *testing.T) {
-	p, err := schemasnapshot.NewSnapshotProvider(constants.POSTGRESQL)
-	require.NoError(t, err)
-
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
+
+	p, err := newProvider(constants.POSTGRESQL, db)
+	require.NoError(t, err)
 
 	// Query order: SHOW server_version → pg_class → pg_inherits → pg_attribute.
 	mock.ExpectQuery(`SHOW server_version`).
@@ -125,7 +129,7 @@ func TestTakeSnapshotDatabaseVersionSet(t *testing.T) {
 	mock.ExpectQuery(`pg_inherits`).WillReturnRows(sqlmock.NewRows([]string{"child_oid", "child_schema", "child_name", "parent_oid", "parent_schema", "parent_name", "is_partition"}))
 	mock.ExpectQuery(`pg_attribute`).WillReturnRows(sqlmock.NewRows([]string{"table_oid", "attnum", "schema", "table_name", "col_name", "data_type", "not_null", "col_default"}))
 
-	snap, err := p.TakeSnapshot(context.Background(), db, []string{"public"})
+	snap, err := p.TakeSnapshot(context.Background(), []string{"public"})
 	require.NoError(t, err)
 	assert.Equal(t, "14.11", snap.DatabaseVersion)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -135,12 +139,12 @@ func TestTakeSnapshotDatabaseVersionSet(t *testing.T) {
 // PartitionParent on child tables and PartitionChildren on parent tables.
 // It also verifies that declarative partitions are NOT mislabeled as legacy inheritance.
 func TestTakeSnapshotPartitionLinkage(t *testing.T) {
-	p, err := schemasnapshot.NewSnapshotProvider("postgresql")
-	require.NoError(t, err)
-
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
+
+	p, err := newProvider("postgresql", db)
+	require.NoError(t, err)
 
 	// Query order: SHOW server_version → pg_class → pg_inherits → pg_attribute.
 
@@ -164,12 +168,12 @@ func TestTakeSnapshotPartitionLinkage(t *testing.T) {
 		sqlmock.NewRows([]string{"table_oid", "attnum", "schema", "table_name", "col_name", "data_type", "not_null", "col_default"}),
 	)
 
-	snap, err := p.TakeSnapshot(context.Background(), db, []string{"public"})
+	snap, err := p.TakeSnapshot(context.Background(), []string{"public"})
 	require.NoError(t, err)
 	require.NotNil(t, snap)
 
 	// build lookup map
-	byName := map[string]schemasnapshot.Table{}
+	byName := map[string]Table{}
 	for _, tb := range snap.Tables {
 		byName[tb.Name] = tb
 	}
@@ -177,14 +181,14 @@ func TestTakeSnapshotPartitionLinkage(t *testing.T) {
 	// parent should have PartitionChildren populated
 	parent := byName["events"]
 	require.Len(t, parent.PartitionChildren, 1)
-	assert.Equal(t, schemasnapshot.ObjectRef{Schema: "public", Name: "events_2026"}, parent.PartitionChildren[0])
+	assert.Equal(t, ObjectRef{Schema: "public", Name: "events_2026"}, parent.PartitionChildren[0])
 	assert.Nil(t, parent.PartitionParent, "partitioned parent must have nil PartitionParent")
 	assert.Empty(t, parent.InheritedBy, "partition parent must NOT be mislabeled as inheritance parent")
 
 	// child should have PartitionParent set
 	child := byName["events_2026"]
 	require.NotNil(t, child.PartitionParent)
-	assert.Equal(t, schemasnapshot.ObjectRef{Schema: "public", Name: "events"}, *child.PartitionParent)
+	assert.Equal(t, ObjectRef{Schema: "public", Name: "events"}, *child.PartitionParent)
 	assert.Empty(t, child.PartitionChildren, "child partition must have empty PartitionChildren")
 	assert.Empty(t, child.InheritsFrom, "declarative partition must NOT be mislabeled as legacy inheritance child")
 
@@ -195,12 +199,12 @@ func TestTakeSnapshotPartitionLinkage(t *testing.T) {
 // InheritsFrom on child tables and InheritedBy on parent tables for legacy
 // table inheritance (INHERITS), and does NOT mislabel them as partitions.
 func TestTakeSnapshotInheritanceLinkage(t *testing.T) {
-	p, err := schemasnapshot.NewSnapshotProvider("postgresql")
-	require.NoError(t, err)
-
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
+
+	p, err := newProvider("postgresql", db)
+	require.NoError(t, err)
 
 	// Query order: SHOW server_version → pg_class → pg_inherits → pg_attribute.
 
@@ -224,12 +228,12 @@ func TestTakeSnapshotInheritanceLinkage(t *testing.T) {
 		sqlmock.NewRows([]string{"table_oid", "attnum", "schema", "table_name", "col_name", "data_type", "not_null", "col_default"}),
 	)
 
-	snap, err := p.TakeSnapshot(context.Background(), db, []string{"public"})
+	snap, err := p.TakeSnapshot(context.Background(), []string{"public"})
 	require.NoError(t, err)
 	require.NotNil(t, snap)
 
 	// build lookup map
-	byName := map[string]schemasnapshot.Table{}
+	byName := map[string]Table{}
 	for _, tb := range snap.Tables {
 		byName[tb.Name] = tb
 	}
@@ -237,7 +241,7 @@ func TestTakeSnapshotInheritanceLinkage(t *testing.T) {
 	// dogs.InheritsFrom must contain animals
 	dogs := byName["dogs"]
 	require.Len(t, dogs.InheritsFrom, 1)
-	assert.Equal(t, schemasnapshot.ObjectRef{Schema: "public", Name: "animals"}, dogs.InheritsFrom[0])
+	assert.Equal(t, ObjectRef{Schema: "public", Name: "animals"}, dogs.InheritsFrom[0])
 	// dogs must NOT be mislabeled as a declarative partition
 	assert.Nil(t, dogs.PartitionParent, "legacy-inheritance child must NOT have PartitionParent set")
 	assert.Empty(t, dogs.PartitionChildren, "legacy-inheritance child must have empty PartitionChildren")
@@ -245,7 +249,7 @@ func TestTakeSnapshotInheritanceLinkage(t *testing.T) {
 	// animals.InheritedBy must contain dogs
 	animals := byName["animals"]
 	require.Len(t, animals.InheritedBy, 1)
-	assert.Equal(t, schemasnapshot.ObjectRef{Schema: "public", Name: "dogs"}, animals.InheritedBy[0])
+	assert.Equal(t, ObjectRef{Schema: "public", Name: "dogs"}, animals.InheritedBy[0])
 	// animals must NOT be mislabeled as a declarative partitioned table
 	assert.Empty(t, animals.PartitionChildren, "legacy-inheritance parent must NOT have PartitionChildren set")
 	assert.Nil(t, animals.PartitionParent, "legacy-inheritance parent must have nil PartitionParent")

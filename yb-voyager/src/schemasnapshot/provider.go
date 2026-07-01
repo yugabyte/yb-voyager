@@ -17,9 +17,9 @@ package schemasnapshot
 import (
 	"context"
 	"database/sql"
-	"sync"
 
 	goerrors "github.com/go-errors/errors"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 )
 
 // QueryExecutor is the minimal read interface the loaders run against.
@@ -36,53 +36,39 @@ type QueryExecutor interface {
 }
 
 // SnapshotProvider is the per-database-type seam that keeps the library
-// multi-engine. Each databases/<dbtype>/ sub-package registers a factory in
-// its init() via RegisterProvider.
+// multi-engine. Providers are constructed by newProvider, which selects the
+// right implementation via a switch on the database type string. To add a new
+// engine, add its implementation file to this package and add a case to newProvider.
 type SnapshotProvider interface {
 	// DatabaseType returns the lowercase database type string, e.g. "postgresql".
 	DatabaseType() string
 
-	// TakeSnapshot captures the schema for the given schemas via db and returns
-	// a populated *SchemaSnapshot. The header fields (CapturedAt, DBMetadata,
-	// StableIdentity, etc.) are stamped by the Capture orchestrator after this
-	// call returns, so the provider must not set them.
+	// TakeSnapshot captures the schema for the given schemas and returns
+	// a populated *SchemaSnapshot. The provider uses the QueryExecutor it was
+	// constructed with (bound at newProvider call time). The header fields
+	// (CapturedAt, DBMetadata, StableIdentity, etc.) are stamped by the Capture
+	// orchestrator after this call returns, so the provider must not set them.
 	//
 	// Why: providers produce schema content only; the headers are capture-event
 	// metadata computed identically for every engine. Stamping them once in the
 	// orchestrator keeps them consistent (one Version/clock/source) and the
 	// provider never even receives the DBMetadata, so it can't set them wrong.
-	TakeSnapshot(ctx context.Context, db QueryExecutor, schemas []string) (*SchemaSnapshot, error)
+	TakeSnapshot(ctx context.Context, schemas []string) (*SchemaSnapshot, error)
 
 	// HasStableIdentity reports whether ID fields in the snapshot are reliable
 	// enough for rename detection across snapshots (true for PostgreSQL).
 	HasStableIdentity() bool
 }
 
-// ─── Provider registry ────────────────────────────────────────────────────────
+// ─── Provider constructor ──────────────────────────────────────────────────────
 
-// providerRegistry maps a DatabaseType string to a factory function.
-var (
-	providerRegistryMu sync.RWMutex
-	providerRegistry   = map[string]func() SnapshotProvider{}
-)
-
-// RegisterProvider registers a provider factory for the given databaseType.
-// Packages under databases/<dbtype>/ call this in their init() functions.
-func RegisterProvider(databaseType string, factory func() SnapshotProvider) {
-	providerRegistryMu.Lock()
-	defer providerRegistryMu.Unlock()
-	providerRegistry[databaseType] = factory
-}
-
-// NewSnapshotProvider looks up the factory registered for databaseType and
-// returns a fresh provider. If no factory has been registered for the given
-// type it returns a clear error.
-func NewSnapshotProvider(databaseType string) (SnapshotProvider, error) {
-	providerRegistryMu.RLock()
-	factory, ok := providerRegistry[databaseType]
-	providerRegistryMu.RUnlock()
-	if !ok {
-		return nil, goerrors.Errorf("schemasnapshot: no provider registered for database type %q (import the matching databases/<dbtype> package)", databaseType)
+// newProvider returns the SnapshotProvider for databaseType, bound to db.
+// Unsupported types return a clear error.
+func newProvider(databaseType string, db QueryExecutor) (SnapshotProvider, error) {
+	switch databaseType {
+	case constants.POSTGRESQL:
+		return &postgresSnapshotProvider{db: db}, nil
+	default:
+		return nil, goerrors.Errorf("schemasnapshot: unsupported database type %q", databaseType)
 	}
-	return factory(), nil
 }
