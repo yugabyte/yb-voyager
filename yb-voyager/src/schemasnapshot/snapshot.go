@@ -152,16 +152,16 @@ type Column struct {
 	Default  string `json:"default,omitempty"` // default expression text (pg_get_expr); "" when the column has no default.
 }
 
-// ForKey returns a collision-safe canonical key for the column, combining the
-// parent table's ForKey with the quoted column name. For example:
-// "public"."orders"."Col"
-func (c Column) ForKey(dbType string) string {
-	return c.Table.ForKey(dbType) + "." + sqlname.NewIdentifier(dbType, c.Name).Quoted
+// sqlName builds the sqlname view of this column's fully-qualified (schema, table,
+// column) identity. defaultSchema="" keeps it always fully qualified.
+func (c Column) sqlName(dbType string) *sqlname.ObjectNameQualifiedWithTableName {
+	return sqlname.NewObjectNameQualifiedWithTableName(dbType, "", c.Name, c.Table.Schema, c.Table.Name)
 }
 
-// ForDisplay returns the minimally-quoted, always-fully-qualified rendering of
-// the column for reports, logs, and user-facing SQL. For example:
-// public.orders."Col"
-func (c Column) ForDisplay(dbType string) string {
-	return c.Table.ForDisplay(dbType) + "." + sqlname.NewIdentifier(dbType, c.Name).MinQuoted
-}
+// ForKey returns a collision-safe, per-part-quoted canonical key for the column:
+// "public"."orders"."Col".
+func (c Column) ForKey(dbType string) string { return c.sqlName(dbType).Qualified.Quoted }
+
+// ForDisplay returns the minimally-quoted, always-fully-qualified rendering of the
+// column for reports, logs, and user-facing SQL: public.orders."Col".
+func (c Column) ForDisplay(dbType string) string { return c.sqlName(dbType).MinQualified.MinQuoted }
