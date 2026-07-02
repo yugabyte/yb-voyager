@@ -785,6 +785,9 @@ class ConflictGenerator:
         base_env: Dict[str, str],
         label: str = "conflict-generator",
     ):
+        missing = [k for k in ("host", "port", "user", "database") if k not in connection]
+        if missing:
+            raise ValueError(f"{label}: connection config is missing required key(s): {missing}")
         self.connection = connection
         self.sql_path = sql_path
         self.interval_sec = interval_sec
@@ -792,6 +795,8 @@ class ConflictGenerator:
         self.label = label
         self.stop_flag = threading.Event()
         self._thread: threading.Thread | None = None
+        self._proc: subprocess.Popen | None = None   # current psql child (for kill on stop)
+        self._proc_lock = threading.Lock()
         self._cycles = 0        # successful DML applications this run
         self._failures = 0      # cycles that errored (e.g. connection killed mid-run)
         # Count the conflict "cases" the DML applies per cycle so we can report a
@@ -812,6 +817,7 @@ class ConflictGenerator:
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
             return
+        self.stop_flag.clear()   # allow a stopped generator to be started again
         self._thread = threading.Thread(
             target=self._run_loop,
             name=self.label,
@@ -825,6 +831,16 @@ class ConflictGenerator:
 
     def stop(self, timeout_sec: int = 60) -> None:
         self.stop_flag.set()
+        # Terminate any in-flight psql so a cycle cannot commit conflict DML after
+        # stop() returns (keeps the pre-backlog-marker drain deterministic).
+        with self._proc_lock:
+            proc = self._proc
+        if proc and proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
         thread = self._thread
         if thread:
             thread.join(timeout_sec)
@@ -841,7 +857,9 @@ class ConflictGenerator:
     def cycles(self) -> int:
         return self._cycles
 
-    def _run_once(self) -> None:
+    def _run_once(self, cycle_num: int) -> None:
+        # `cycle_num` is passed to the DML as `-v cycle=N`; the DML derives all ids
+        # and unique-key values from it so each cycle hits a fresh set of rows.
         c = self.connection
         env = dict(self.base_env)
         if c.get("password"):
@@ -853,13 +871,22 @@ class ConflictGenerator:
             "-U", str(c["user"]),
             "-d", str(c["database"]),
             "-v", "ON_ERROR_STOP=1",
+            "-v", f"cycle={cycle_num}",
             "-f", self.sql_path,
         ]
-        proc = subprocess.run(cmd, env=env, text=True, capture_output=True)
+        proc = subprocess.Popen(cmd, env=env, text=True,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        with self._proc_lock:
+            self._proc = proc
+        try:
+            out, err = proc.communicate()
+        finally:
+            with self._proc_lock:
+                self._proc = None
         if proc.returncode != 0:
             raise RuntimeError(
-                f"conflict-generator psql failed exit={proc.returncode}: "
-                f"{(proc.stderr or proc.stdout or '').strip()[:500]}"
+                f"conflict-generator psql failed (cycle {cycle_num}) exit={proc.returncode}: "
+                f"{(err or out or '').strip()[:500]}"
             )
 
     def _run_loop(self) -> None:
@@ -867,14 +894,15 @@ class ConflictGenerator:
         while not self.stop_flag.is_set():
             attempt += 1
             try:
-                self._run_once()
+                # Use the monotonic attempt number as the cycle id so every psql
+                # invocation targets a distinct id/value range -- a failed attempt
+                # (e.g. a resumption killed the connection mid-run) never collides
+                # with the retry, since the retry uses the next cycle number.
+                self._run_once(attempt)
                 self._cycles += 1
                 log(f"{self.label}: completed cycle {self._cycles} "
                     f"(+{self._cases_per_cycle} conflict-cases, {self._cycles * self._cases_per_cycle} total)")
             except Exception as e:
-                # A cycle can fail transiently (e.g. a resumption killed the DB
-                # connection mid-run). Log and continue; the next cycle re-seeds
-                # from a clean slate because the DML is loop-safe.
                 self._failures += 1
                 log(f"{self.label}: cycle attempt {attempt} failed (continuing): {e}")
             # Interruptible inter-cycle wait so stop() is responsive.

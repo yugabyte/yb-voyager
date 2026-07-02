@@ -284,6 +284,10 @@ stages:
         min_restart_wait_seconds: 5
         max_restart_wait_seconds: 30
 
+  # Kept symmetric with the forward soak (both 400s, matching iteration-test) so
+  # conflict injection and resumption restarts are balanced across the two legs
+  # rather than heavily fallback-weighted. 400s yields dozens of restart cycles
+  # here; raise it if a longer fallback resumption soak is needed.
   - name: soak_fallback_with_resumptions
     action: sleep
     seconds: 400

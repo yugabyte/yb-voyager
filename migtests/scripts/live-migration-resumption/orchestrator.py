@@ -82,11 +82,12 @@ def conflict_generator_start_action(stage: Dict[str, Any], ctx: Any) -> None:
           config_inline:
             connection: { host, port, database, user, password }
             conflict:
-              sql_path: ./conflict_source_dml.sql
-              interval_seconds: 3
+              sql_path: ./source_dml.sql
+              interval_seconds: 10
 
-    The conflict generator re-applies the (loop-safe) conflict-DML file every
-    `interval_seconds` until stopped.
+    The conflict generator re-applies the conflict-DML file every
+    `interval_seconds` until stopped, passing `-v cycle=N` so each cycle hits a
+    fresh set of rows.
     """
     key = stage.get("generator_key", "conflict_generator")
     cfg_block = ctx.cfg.get(key) or {}
@@ -99,7 +100,11 @@ def conflict_generator_start_action(stage: Dict[str, Any], ctx: Any) -> None:
         raise ValueError(f"conflict_generator_start: '{key}.config_inline.conflict.sql_path' is required")
     if ctx.test_root and not os.path.isabs(sql_path):
         sql_path = os.path.join(ctx.test_root, sql_path)
+    if not os.path.isfile(sql_path):
+        raise FileNotFoundError(f"conflict_generator_start: SQL file not found at '{sql_path}'")
     interval = float(conflict_cfg.get("interval_seconds", 3))
+    if interval <= 0:
+        raise ValueError(f"conflict_generator_start: 'interval_seconds' must be positive, got {interval}")
 
     # Label distinguishes the phase in the logs (e.g. conflict_generator_source
     # = forward leg, conflict_generator_target = fallback leg), and includes the
