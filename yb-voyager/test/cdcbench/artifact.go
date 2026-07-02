@@ -99,6 +99,12 @@ func EnsureArtifact(b *testing.B, w Workload) string {
 	}
 
 	b.Logf("cdcbench: generating artifact for workload %q (%d events) — one-time, cached under %s", w.Name, w.ExpectedEvents, dir)
+	// always generate into a clean dir: a stale export dir (e.g. from
+	// CDCBENCH_REGEN=1 or an aborted generation) makes export data resume the
+	// old migration instead of starting one
+	if err := os.RemoveAll(dir); err != nil {
+		b.Fatalf("cdcbench: clear stale artifact dir: %v", err)
+	}
 	if err := generateArtifact(b, w, voyagerBin, dir, exportDir); err != nil {
 		os.RemoveAll(dir) // don't leave a half-built artifact behind
 		b.Fatalf("cdcbench: generating artifact for workload %q: %v", w.Name, err)
