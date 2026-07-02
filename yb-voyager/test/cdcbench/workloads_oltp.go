@@ -29,7 +29,7 @@ func init() {
 	// indexes), but detection currently treats nil==nil as a conflict.
 	// CANARY: flip ExpectConflicts to false when NULL-distinctness is fixed.
 	Register(Workload{
-		Name:            "insert-null-then-fill-uk",
+		Name:            "canary-null-fill",
 		SchemaSQL:       mustRead("insert_null_then_fill/schema.sql"),
 		SeedSQL:         mustRead("insert_null_then_fill/seed.sql"),
 		DMLSQL:          mustRead("insert_null_then_fill/dml.sql"),
@@ -41,7 +41,7 @@ func init() {
 	// The most common OLTP lifecycle: insert once, then mutate status/payload
 	// columns repeatedly; the unique column never changes.
 	Register(Workload{
-		Name:            "orders-insert-then-status-updates",
+		Name:            "oltp-order-lifecycle",
 		SchemaSQL:       mustRead("orders_status/schema.sql"),
 		SeedSQL:         mustRead("orders_status/seed.sql"),
 		DMLSQL:          mustRead("orders_status/dml.sql"),
@@ -52,7 +52,7 @@ func init() {
 
 	// Auth/session churn: unique tokens inserted and deleted, never reused.
 	Register(Workload{
-		Name:            "session-token-churn",
+		Name:            "oltp-session-churn",
 		SchemaSQL:       mustRead("session_token_churn/schema.sql"),
 		SeedSQL:         mustRead("session_token_churn/seed.sql"),
 		DMLSQL:          mustRead("session_token_churn/dml.sql"),
@@ -64,7 +64,7 @@ func init() {
 	// "Replace" upsert idiom: DELETE + re-INSERT with the same unique value —
 	// the documented DELETE-INSERT conflict type, at volume.
 	Register(Workload{
-		Name:            "delete-reinsert-same-uk",
+		Name:            "conflict-delete-reinsert",
 		SchemaSQL:       mustRead("delete_reinsert/schema.sql"),
 		SeedSQL:         mustRead("delete_reinsert/seed.sql"),
 		DMLSQL:          mustRead("delete_reinsert/dml.sql"),
@@ -75,7 +75,7 @@ func init() {
 
 	// Unique-value swap between row pairs via a temp value (UPDATE-UPDATE chains).
 	Register(Workload{
-		Name:            "uk-value-swap",
+		Name:            "conflict-value-swap",
 		SchemaSQL:       mustRead("uk_value_swap/schema.sql"),
 		SeedSQL:         mustRead("uk_value_swap/seed.sql"),
 		DMLSQL:          mustRead("uk_value_swap/dml.sql"),
@@ -86,7 +86,7 @@ func init() {
 
 	// Two unique indexes on one table (email, username): per-index scan cost.
 	Register(Workload{
-		Name:            "two-unique-indexes-no-conflict",
+		Name:            "schema-two-unique-indexes",
 		SchemaSQL:       mustRead("two_unique_indexes/schema.sql"),
 		SeedSQL:         mustRead("two_unique_indexes/seed.sql"),
 		DMLSQL:          mustRead("two_unique_indexes/dml.sql"),
@@ -102,7 +102,7 @@ func init() {
 	// CANARY: flip ExpectConflicts to false once composite tuples are honored
 	// end-to-end (exporter metadata + detection).
 	Register(Workload{
-		Name:            "composite-uk-per-column-canary",
+		Name:            "canary-composite-per-column",
 		SchemaSQL:       mustRead("composite_uk/schema.sql"),
 		SeedSQL:         mustRead("composite_uk/seed.sql"),
 		DMLSQL:          mustRead("composite_uk/dml.sql"),
@@ -114,7 +114,7 @@ func init() {
 	// Wide rows: 50-column before-images (REPLICA IDENTITY FULL) measure the
 	// decode/convert share of the pipeline.
 	Register(Workload{
-		Name:            "wide-rows-50cols",
+		Name:            "schema-wide-rows",
 		SchemaSQL:       mustRead("wide_rows/schema.sql"),
 		SeedSQL:         mustRead("wide_rows/seed.sql"),
 		DMLSQL:          mustRead("wide_rows/dml.sql"),
@@ -126,7 +126,7 @@ func init() {
 	// Skewed access: 80% of updates hit 100 hot rows (same-PK exclusion path),
 	// 20% change cold rows' unique values.
 	Register(Workload{
-		Name:            "skewed-hot-rows",
+		Name:            "oltp-skewed-hot-rows",
 		SchemaSQL:       mustRead("skewed_hot_rows/schema.sql"),
 		SeedSQL:         mustRead("skewed_hot_rows/seed.sql"),
 		DMLSQL:          mustRead("skewed_hot_rows/dml.sql"),
@@ -137,7 +137,7 @@ func init() {
 
 	// All four conflict types documented in conflictDetectionCache.go.
 	Register(Workload{
-		Name:            "documented-conflict-types",
+		Name:            "conflict-documented-types",
 		SchemaSQL:       mustRead("documented_conflict_types/schema.sql"),
 		SeedSQL:         mustRead("documented_conflict_types/seed.sql"),
 		DMLSQL:          mustRead("documented_conflict_types/dml.sql"),
@@ -148,7 +148,7 @@ func init() {
 
 	// Corner case: inserts only — checks run against an always-empty cache.
 	Register(Workload{
-		Name:            "all-inserts-uk",
+		Name:            "edge-all-inserts",
 		SchemaSQL:       mustRead("all_inserts_uk/schema.sql"),
 		SeedSQL:         mustRead("all_inserts_uk/seed.sql"),
 		DMLSQL:          mustRead("all_inserts_uk/dml.sql"),
@@ -159,7 +159,7 @@ func init() {
 
 	// Corner case: deletes only — cache fills but nothing ever scans it.
 	Register(Workload{
-		Name:            "all-deletes-uk",
+		Name:            "edge-all-deletes",
 		SchemaSQL:       mustRead("all_deletes_uk/schema.sql"),
 		SeedSQL:         mustRead("all_deletes_uk/seed.sql"),
 		DMLSQL:          mustRead("all_deletes_uk/dml.sql"),
@@ -170,7 +170,7 @@ func init() {
 
 	// Corner case: archival — updates + deletes, no inserts.
 	Register(Workload{
-		Name:            "updates-and-deletes-uk",
+		Name:            "edge-updates-and-deletes",
 		SchemaSQL:       mustRead("updates_and_deletes/schema.sql"),
 		SeedSQL:         mustRead("updates_and_deletes/seed.sql"),
 		DMLSQL:          mustRead("updates_and_deletes/dml.sql"),

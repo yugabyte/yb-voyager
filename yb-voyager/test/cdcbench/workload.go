@@ -65,6 +65,21 @@ type Workload struct {
 	ExpectConflicts bool
 }
 
+// Workload name prefixes encode intent (and group the summary table):
+//
+//	oltp-     realistic customer pattern, measured for throughput
+//	schema-   schema-shape probe (index count, row width, key structure)
+//	edge-     degenerate op-mix corner case
+//	conflict- engineered, semantically REAL conflicts
+//	canary-   false-positive probe of current detection semantics; its
+//	          ExpectConflicts flips when the semantics are fixed
+var categoryOrder = map[string]int{"oltp": 0, "schema": 1, "edge": 2, "conflict": 3, "canary": 4}
+
+func (w Workload) category() string {
+	prefix, _, _ := strings.Cut(w.Name, "-")
+	return prefix
+}
+
 func (w Workload) validate() error {
 	switch {
 	case w.Name == "":
@@ -75,6 +90,9 @@ func (w Workload) validate() error {
 		return fmt.Errorf("workload %q: TableList is empty", w.Name)
 	case w.ExpectedEvents <= 0:
 		return fmt.Errorf("workload %q: ExpectedEvents must be > 0", w.Name)
+	}
+	if _, known := categoryOrder[w.category()]; !known {
+		return fmt.Errorf("workload %q: name must start with one of the category prefixes (oltp-, schema-, edge-, conflict-, canary-)", w.Name)
 	}
 	return nil
 }

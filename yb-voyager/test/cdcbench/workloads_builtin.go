@@ -34,13 +34,13 @@ func mustRead(path string) string {
 
 // The founding workload set. Together they span the conflict-detection
 // behavior space:
-//   - inserts-no-uk:             control; conflict machinery never engages
-//   - updates-uk-no-conflict:    every event scans the cache, none conflict
-//   - mixed-uk-no-conflict:      realistic op mix; only u/d events are cached
-//   - updates-uk-conflict-pairs: real unique-key conflicts with waits/flushes
+//   - schema-no-uk-control:  control; conflict machinery never engages
+//   - edge-all-updates:      every event scans the cache, none conflict
+//   - oltp-mixed-crud:       realistic op mix; only u/d events are cached
+//   - conflict-update-pairs: real unique-key conflicts with waits/flushes
 func init() {
 	Register(Workload{
-		Name:            "inserts-no-uk",
+		Name:            "schema-no-uk-control",
 		SchemaSQL:       mustRead("inserts_no_uk/schema.sql"),
 		SeedSQL:         mustRead("inserts_no_uk/seed.sql"),
 		DMLSQL:          mustRead("inserts_no_uk/dml.sql"),
@@ -49,7 +49,7 @@ func init() {
 		ExpectConflicts: false,
 	})
 	Register(Workload{
-		Name:            "updates-uk-no-conflict",
+		Name:            "edge-all-updates",
 		SchemaSQL:       mustRead("updates_uk/schema.sql"),
 		SeedSQL:         mustRead("updates_uk/seed.sql"),
 		DMLSQL:          mustRead("updates_uk/dml.sql"),
@@ -58,7 +58,7 @@ func init() {
 		ExpectConflicts: false,
 	})
 	Register(Workload{
-		Name:            "mixed-uk-no-conflict",
+		Name:            "oltp-mixed-crud",
 		SchemaSQL:       mustRead("mixed_uk/schema.sql"),
 		SeedSQL:         mustRead("mixed_uk/seed.sql"),
 		DMLSQL:          mustRead("mixed_uk/dml.sql"),
@@ -67,7 +67,7 @@ func init() {
 		ExpectConflicts: false,
 	})
 	Register(Workload{
-		Name:            "updates-uk-conflict-pairs",
+		Name:            "conflict-update-pairs",
 		SchemaSQL:       mustRead("conflict_pairs_uk/schema.sql"),
 		SeedSQL:         mustRead("conflict_pairs_uk/seed.sql"),
 		DMLSQL:          mustRead("conflict_pairs_uk/dml.sql"),

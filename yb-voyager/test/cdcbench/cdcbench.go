@@ -21,6 +21,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -121,6 +122,15 @@ func printSummary(results []workloadResult) {
 	if len(results) == 0 {
 		return
 	}
+	// group by category (oltp, schema, edge, conflict, canary), then by name
+	sort.SliceStable(results, func(i, j int) bool {
+		ci, _, _ := strings.Cut(results[i].name, "-")
+		cj, _, _ := strings.Cut(results[j].name, "-")
+		if categoryOrder[ci] != categoryOrder[cj] {
+			return categoryOrder[ci] < categoryOrder[cj]
+		}
+		return results[i].name < results[j].name
+	})
 	tw := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
 	fmt.Fprintln(os.Stdout, "\n--- cdcbench summary ---")
 	fmt.Fprintln(tw, "WORKLOAD\tRUNS\tEVENTS/S\tCONFLICTS/RUN\tBATCHES/RUN\tCACHE DEPTH AVG/MAX\tTIME/RUN")
