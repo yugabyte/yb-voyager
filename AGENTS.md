@@ -60,6 +60,7 @@ The Go module uses build tags to separate test tiers. From `yb-voyager/`:
 | `integration_live_migration` | Live migration end-to-end with Debezium. |
 | `failpoint_export` / `failpoint_import` / `failpoint_cutover` | Failpoint-injected tests. Requires `failpoint-ctl enable` (from `github.com/pingcap/failpoint`) to rewrite source before building. |
 | `yb_version_latest_stable` | Version-gated issue tests run against the latest stable YB. |
+| `cdc_benchmark` | CDC ingest benchmarks (`test/cdcbench/`, shim in `cmd/`): replay real export-data queue segments through the import streaming path with `ExecuteBatch` mocked. Artifact generation needs Docker + installed `yb-voyager`/Debezium; cached artifacts replay with neither. Run: `go test -tags cdc_benchmark -run '^$' -bench CDCIngest -benchtime 1x -count 5 ./cmd/`. See `test/cdcbench/README.md`. |
 | `manual` | Local-only experiments, not run in CI. |
 
 Single test: `go test -tags unit -run TestName ./yb-voyager/cmd/...`
