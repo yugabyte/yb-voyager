@@ -556,16 +556,16 @@ func applyShardedTablesRecommendation(shardedTables []string, colocatedTables []
 		}
 	}
 
-	// rename existing table.sql file to table.sql.orig
-	backupPath := filePath + ".orig"
-	log.Infof("renaming existing file '%s' --> '%s.orig'", filePath, backupPath)
-	err := os.Rename(filePath, filePath+".orig")
+	// Back up the pristine original (skip-if-exists, consistent backup_<base> name)
+	// before overwriting it with the colocation-modified schema, so a
+	// PostgreSQL-compatible target (yb-amp) can import the un-transformed DDL.
+	backupPath, err := sqltransformer.EnsurePlainBackup(filePath)
 	if err != nil {
-		return nil, nil, "", fmt.Errorf("error renaming file %s: %w", filePath, err)
+		return nil, nil, "", fmt.Errorf("backing up original schema file %s: %w", filePath, err)
 	}
 
-	// create new table.sql file for modified schema
-	log.Infof("creating file %q to store the modified recommended schema", filePath)
+	// overwrite filePath with the modified (colocation-applied) schema
+	log.Infof("writing the modified recommended schema to %q", filePath)
 	file, err := os.Create(filePath)
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("error creating file '%q' storing the modified recommended schema: %w", filePath, err)
@@ -789,6 +789,9 @@ func applyMviewFileTransformations(modifiedMviews []string, colocatedMviews []st
 	mviewTransformer := sqltransformer.NewMviewFileTransformer()
 	mviewTransformer.ShardedMviews = modifiedMviews
 	mviewTransformer.ColocatedMviews = colocatedMviews
+	// mviewBackupPath is the plain backup_<base> the colocation step created (if it
+	// ran via EnsurePlainBackup). The mview file is only ever mutated by that step,
+	// so this transformer applies no content changes — it just carries metadata.
 	mviewTransformer.BackupFilePath = mviewBackupPath
 	mviewTransformer.ColocationRecommendationsApplied = assessmentRecommendationsApplied
 	return mviewTransformer, nil

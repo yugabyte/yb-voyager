@@ -28,6 +28,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -60,6 +61,7 @@ func init() {
 func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	checkOrSetDefaultTargetSSLMode()
 	validateTargetPortRange()
+	validateAmpTargetSourceCompatibility()
 
 	validateConflictsBetweenTableListFlags(tconf.TableList, tconf.ExcludeTableList)
 
@@ -100,7 +102,7 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	case SOURCE_DB_IMPORTER_ROLE:
 		getSourceDBPassword(cmd)
 	}
-	validateParallelismFlags()
+	validateParallelismFlags(cmd)
 
 	return nil
 }
@@ -117,6 +119,62 @@ func validateImportDataFlags() error {
 	}
 
 	return nil
+}
+
+// validateAmpTargetSourceCompatibility ensures yugabytedb-amp is only used with a
+// PostgreSQL source. yb-amp is a PG-wire compute; the offline PG->amp path is the
+// only flow that has been audited/supported (see ACTION_ITEMS.md). Other sources
+// (oracle/mysql) bring schema/type transforms and YB-specific assumptions that have
+// not been validated for amp. This runs from validateImportFlags, which is invoked
+// by the import-schema, import-data / ...toTarget, and finalize PreRuns *after*
+// sourceDBType is populated from the MSR, so it covers all import-side commands.
+func validateAmpTargetSourceCompatibility() {
+	if tconf.TargetDBType != YUGABYTEDB_AMP {
+		return
+	}
+	if sourceDBType != POSTGRESQL {
+		utils.ErrExit("--target-db-type %s is only supported with a PostgreSQL source (detected source: %q)", YUGABYTEDB_AMP, sourceDBType)
+	}
+}
+
+// validateAmpUnsupportedFlags rejects, fail-fast, the import-data flags that have no
+// meaning for a yugabytedb-amp target. yb-amp is a stateless PG17 compute with none of
+// the YB cluster features these flags drive (no per-node fan-out, no upsert fast-path,
+// no ON CONFLICT-aware COPY), so honoring them silently would be wrong:
+//   - --target-endpoints / --use-public-ip: no multi-node cluster to distribute across.
+//   - --enable-upsert: a silent no-op on the PG COPY path — never actually honored.
+//   - --on-primary-key-conflict (non ERROR-POLICY, e.g. IGNORE): amp's snapshot path is
+//     plain COPY and cannot honor ON CONFLICT, so IGNORE would degrade and then ABORT on
+//     a duplicate key. (Validity of the value itself is checked separately in
+//     validateOnPrimaryKeyConflictFlag.)
+//
+// Only relevant for the target-import role (these are import-data flags). Invoked from
+// the import-data PreRun (shared by importDataCmd and importDataToTargetCmd).
+func validateAmpUnsupportedFlags(cmd *cobra.Command) {
+	if tconf.TargetDBType != YUGABYTEDB_AMP || importerRole != TARGET_DB_IMPORTER_ROLE {
+		return
+	}
+
+	notApplicable := func(flag string) {
+		utils.ErrExit("--%s is not applicable for --target-db-type %s", flag, YUGABYTEDB_AMP)
+	}
+
+	if tconf.TargetEndpoints != "" {
+		notApplicable("target-endpoints")
+	}
+	if bool(tconf.UsePublicIP) {
+		notApplicable("use-public-ip")
+	}
+	if bool(tconf.EnableUpsert) {
+		notApplicable("enable-upsert")
+	}
+	// --on-primary-key-conflict has already been upper-cased by validateOnPrimaryKeyConflictFlag
+	// when it runs (validateImportDataFlags -> validateOnPrimaryKeyConflictFlag); normalize here
+	// too so we are order-independent. Anything other than ERROR-POLICY (i.e. IGNORE / future
+	// UPDATE) cannot be honored by amp's plain-COPY snapshot path.
+	if strings.ToUpper(tconf.OnPrimaryKeyConflictAction) != constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR_POLICY {
+		notApplicable("on-primary-key-conflict")
+	}
 }
 
 func validateImportUsePartitionRootFlag() error {
@@ -196,6 +254,18 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 		"Ignore errors and continue with the import")
 
 	BoolVar(cmd.Flags(), &tconf.RunGuardrailsChecks, "run-guardrails-checks", true, "Run guardrails checks during import")
+}
+
+// registerTargetDBTypeFlag registers --target-db-type. It is intentionally
+// NOT part of registerTargetDBConnFlags: the choice of target engine is only
+// meaningful for the commands that import schema/data into the target
+// (import schema, import data / ...toTarget, finalize-schema-post-data-import).
+// Commands like import-data-file and compare-performance always target a real
+// YugabyteDB, so they don't expose it.
+func registerTargetDBTypeFlag(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&tconf.TargetDBType, "target-db-type", "",
+		fmt.Sprintf("type of the target database to import into. Supported values: %s (default), %s (YugabyteDB AMP — a PostgreSQL-compatible compute over YugabyteDB storage)",
+			YUGABYTEDB, YUGABYTEDB_AMP))
 }
 
 func registerTargetDBConnFlags(cmd *cobra.Command) {
@@ -412,6 +482,10 @@ func validateTargetPortRange() {
 			tconf.Port = YUGABYTEDB_YSQL_DEFAULT_PORT
 		} else if tconf.TargetDBType == POSTGRESQL {
 			tconf.Port = POSTGRES_DEFAULT_PORT
+		} else if tconf.TargetDBType == YUGABYTEDB_AMP {
+			// yb-amp compute endpoints are assigned deployment-specific ports
+			// (there is no canonical default like YSQL's 5433), so require it.
+			utils.ErrExit("--target-db-port is required for --target-db-type %s (yb-amp compute endpoints use deployment-specific ports)", YUGABYTEDB_AMP)
 		}
 		return
 	}
@@ -432,17 +506,36 @@ func validateTargetSchemaFlag() {
 	}
 
 	if tconf.SchemaConfig == "" {
-		if tconf.TargetDBType == YUGABYTEDB {
+		if tconf.TargetDBType == YUGABYTEDB || tconf.TargetDBType == YUGABYTEDB_AMP {
+			// yb-amp follows the PostgreSQL/YugabyteDB convention: default
+			// schema is "public" and PG-source schemas are preserved.
 			tconf.SchemaConfig = YUGABYTEDB_DEFAULT_SCHEMA
 		} else if tconf.TargetDBType == ORACLE {
 			tconf.SchemaConfig = tconf.User
 		}
 		return
-	} else if tconf.TargetDBType != POSTGRESQL {
+	} else if tconf.TargetDBType != POSTGRESQL && tconf.TargetDBType != YUGABYTEDB_AMP {
 		splits := strings.Split(tconf.SchemaConfig, ",")
 		if len(splits) > 1 {
 			utils.ErrExit("Error --target-db-schema flag can only contain one schema name. Got: %s", tconf.SchemaConfig)
 		}
+	}
+}
+
+// validateTargetDBTypeFlag ensures --target-db-type holds a value that is
+// supported for import-to-target. Fall-forward / fall-back roles derive
+// TargetDBType from the source DB type (oracle/postgresql/yugabytedb), so
+// this guardrail only applies to the target-import roles.
+func validateTargetDBTypeFlag() {
+	if importerRole != TARGET_DB_IMPORTER_ROLE && importerRole != IMPORT_FILE_ROLE {
+		return
+	}
+	switch tconf.TargetDBType {
+	case YUGABYTEDB, YUGABYTEDB_AMP:
+		// supported target types for import-to-target
+	default:
+		utils.ErrExit("unsupported --target-db-type %q for import to target. Supported values: %s, %s",
+			tconf.TargetDBType, YUGABYTEDB, YUGABYTEDB_AMP)
 	}
 }
 
@@ -587,7 +680,37 @@ func validateFFDBSchemaFlag() {
 	}
 }
 
-func validateParallelismFlags() {
+// defaultAdaptiveParallelismMode returns the adaptive-parallelism mode to use when the
+// user did NOT pass --adaptive-parallelism. Adaptive parallelism relies on the YugabyteDB
+// cluster control API (yb_servers(), tserver metrics), so it is the recommended default
+// (Balanced) ONLY for a real YugabyteDB target. Every other target — yb-amp (stateless
+// PG17 compute) and the PostgreSQL fall-forward/fall-back targets — has no such API, so it
+// defaults to Disabled; --parallel-jobs controls import parallelism there.
+//
+// Defaulting non-YB targets to Disabled is also what lets a user pass --parallel-jobs for
+// them without having to also pass --adaptive-parallelism disabled (validateParallelismFlags
+// only conflicts --parallel-jobs with an *enabled* adaptive mode).
+func defaultAdaptiveParallelismMode(targetDBType string) types.AdaptiveParallelismMode {
+	if targetDBType == YUGABYTEDB {
+		return types.BalancedAdaptiveParallelismMode
+	}
+	return types.DisabledAdaptiveParallelismMode
+}
+
+func validateParallelismFlags(cmd *cobra.Command) {
+	// yb-amp has no YB cluster control API, so adaptive parallelism cannot work
+	// there. Reject any explicit request for it (CLI or config — Flags().Changed()
+	// is true in both, since config values are applied via Flags().Set()), pointing
+	// the user to --parallel-jobs. An explicit `--adaptive-parallelism disabled` is
+	// fine (not IsEnabled()).
+	if tconf.TargetDBType == YUGABYTEDB_AMP {
+		if cmd.Flags().Changed("adaptive-parallelism") && tconf.AdaptiveParallelismMode.IsEnabled() {
+			utils.ErrExit("adaptive parallelism is only supported for YugabyteDB targets. For --target-db-type %s, use --parallel-jobs to control import parallelism.", YUGABYTEDB_AMP)
+		}
+		if cmd.Flags().Changed("adaptive-parallelism-max") {
+			utils.ErrExit("--adaptive-parallelism-max is only supported for YugabyteDB targets. For --target-db-type %s, use --parallel-jobs.", YUGABYTEDB_AMP)
+		}
+	}
 	if tconf.AdaptiveParallelismMode.IsEnabled() {
 		if tconf.Parallelism > 0 {
 			utils.ErrExit("Error --parallel-jobs flag cannot be used when adaptive-parallelism is enabled (balanced/aggressive). If you wish to set the number of parallel jobs explicitly, disable adaptive parallelism using --adaptive-parallelism disabled")
