@@ -64,6 +64,7 @@ type Source struct {
 	DBSystemIdentifier        int64                `json:"db_system_identifier"`
 	DBID                      int64                `json:"db_id,omitempty"` // Source-specific numeric id for call-home; see FetchDBID()
 	SchemaOids                []int64              `json:"schema_oids"`     //Schema oids
+	SourceDeployment          string               `json:"source_deployment_type,omitempty"`
 	StrExportObjectTypeList   string               `json:"str_export_object_type_list"`
 	StrExcludeObjectTypeList  string               `json:"str_exclude_object_type_list"`
 	RunGuardrailsChecks       utils.BoolStr        `json:"run_guardrails_checks"`
@@ -96,6 +97,7 @@ func (s *Source) FetchSourceInfo() {
 
 	// Get PostgreSQL system identifier.
 	s.FetchPGDBSystemIdentifier()
+	s.FetchPGDeploymentType()
 	err = s.DB().FetchDBID()
 	if err != nil {
 		log.Errorf("error getting database id: %v", err) // can just log as this is used for call-home only
@@ -145,6 +147,32 @@ func (s *Source) FetchPGDBSystemIdentifier() {
 		s.DBSystemIdentifier = systemIdentifier
 	} else {
 		log.Infof("callhome: failed to get PostgreSQL system identifier: %v", err)
+	}
+}
+
+func (s *Source) FetchPGDeploymentType() {
+	if s.DBType != "postgresql" {
+		return
+	}
+
+	// Note: On Aurora PostgreSQL, aurora_version() is not visible via a direct
+	// pg_proc/pg_namespace scan, but to_regproc() resolves it, so use that for detection.
+	query := `
+	SELECT
+		CASE
+			WHEN to_regproc('aurora_version') IS NOT NULL THEN 'aws-aurora-postgresql'
+			WHEN EXISTS (
+				SELECT 1
+				FROM pg_roles
+				WHERE rolname = 'rds_superuser'
+			) THEN 'aws-rds-postgresql'
+			ELSE ''
+		END
+	`
+	err := s.DB().QueryRow(query).Scan(&s.SourceDeployment)
+	if err != nil {
+		log.Infof("callhome: failed to detect PostgreSQL deployment type: %v", err)
+		return
 	}
 }
 
