@@ -186,7 +186,7 @@ func validateAmpUnsupportedFlags(cmd *cobra.Command) {
 }
 
 func validateImportUsePartitionRootFlag() error {
-	// --use-partition-root flag is only valid for live migration with PostgreSQL or YugabyteDB source
+	// --use-partition-root flag is only valid for live migration with a PostgreSQL source
 	//and only for the CDC streaming phase and snapshot part isn't supported right now.
 	if !importUsePartitionRoot {
 		// Only validate when flag is explicitly set to false (non-default)
@@ -202,8 +202,11 @@ func validateImportUsePartitionRootFlag() error {
 		if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
 			return goerrors.Errorf("'--use-partition-root false' is not supported for source-replica")
 		}
-		if tconf.TargetDBType != POSTGRESQL && tconf.TargetDBType != YUGABYTEDB && tconf.TargetDBType != YUGABYTEDB_AMP {
-			return goerrors.Errorf("'--use-partition-root' flag is only valid for PostgreSQL to YugabyteDB migrations")
+		// --use-partition-root controls how PostgreSQL declarative-partitioned tables are
+		// streamed; it is meaningful only when the source database is PostgreSQL. The target
+		// engine (yugabytedb / yugabytedb-amp / a PG fall-back target) is irrelevant here.
+		if sourceDBType != POSTGRESQL {
+			return goerrors.Errorf("'--use-partition-root false' is only valid when the source database is PostgreSQL")
 		}
 	}
 	tconf.UsePartitionRoot = bool(importUsePartitionRoot)
