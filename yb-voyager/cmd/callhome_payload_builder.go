@@ -197,16 +197,6 @@ func anonymizeSourceDBDetails(source *srcdb.Source) callhome.SourceDBDetails {
 		SchemaOids:         source.SchemaOids,
 	}
 
-	if source.Host != "" {
-		anonymizedSourceHost, err := anonymizer.AnonymizeHostName(source.Host)
-		if err != nil {
-			log.Warnf("failed to anonymize source host %s: %v", source.Host, err)
-			details.SourceHost = constants.OBFUSCATE_STRING
-		} else {
-			details.SourceHost = anonymizedSourceHost
-		}
-	}
-
 	// Anonymize database name
 	if source.DBName != "" {
 		anonymizedDBName, err := anonymizer.AnonymizeDatabaseName(source.DBName)

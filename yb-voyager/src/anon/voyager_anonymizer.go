@@ -14,7 +14,6 @@ type VoyagerAnonymizer struct {
 	sqlAnonymizer Anonymizer
 	// Anonymizers for different identifier kinds
 	databaseNameAnonymizer   Anonymizer
-	hostNameAnonymizer       Anonymizer
 	schemaNameAnonymizer     Anonymizer
 	tableNameAnonymizer      Anonymizer
 	columnNameAnonymizer     Anonymizer
@@ -33,7 +32,6 @@ func NewVoyagerAnonymizer(anonymizationSalt string) (*VoyagerAnonymizer, error) 
 		identifierHashRegistry:   registry,
 		sqlAnonymizer:            NewSqlAnonymizer(registry),
 		databaseNameAnonymizer:   NewIdentifierAnonymizer(registry, DATABASE_KIND_PREFIX),
-		hostNameAnonymizer:       NewIdentifierAnonymizer(registry, HOST_KIND_PREFIX),
 		schemaNameAnonymizer:     NewIdentifierAnonymizer(registry, SCHEMA_KIND_PREFIX),
 		tableNameAnonymizer:      NewIdentifierAnonymizer(registry, TABLE_KIND_PREFIX),
 		columnNameAnonymizer:     NewIdentifierAnonymizer(registry, COLUMN_KIND_PREFIX),
@@ -49,10 +47,6 @@ func (s *VoyagerAnonymizer) AnonymizeSql(sql string) (string, error) {
 
 func (s *VoyagerAnonymizer) AnonymizeDatabaseName(databaseName string) (string, error) {
 	return s.databaseNameAnonymizer.Anonymize(databaseName)
-}
-
-func (s *VoyagerAnonymizer) AnonymizeHostName(hostName string) (string, error) {
-	return s.hostNameAnonymizer.Anonymize(hostName)
 }
 
 func (s *VoyagerAnonymizer) AnonymizeSchemaName(schemaName string) (string, error) {

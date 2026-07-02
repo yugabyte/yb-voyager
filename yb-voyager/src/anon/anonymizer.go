@@ -4,7 +4,6 @@ import pg_query "github.com/pganalyze/pg_query_go/v6"
 
 const (
 	DATABASE_KIND_PREFIX      = "db_"
-	HOST_KIND_PREFIX          = "host_"
 	SCHEMA_KIND_PREFIX        = "schema_"
 	SEQUENCE_KIND_PREFIX      = "seq_"
 	TABLE_KIND_PREFIX         = "table_"
@@ -39,7 +38,6 @@ const (
 // NOTE: When adding a new prefix constant above, add it here too
 var AllKindPrefixes = []string{
 	DATABASE_KIND_PREFIX,
-	HOST_KIND_PREFIX,
 	SCHEMA_KIND_PREFIX,
 	SEQUENCE_KIND_PREFIX,
 	TABLE_KIND_PREFIX,
