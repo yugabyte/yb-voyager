@@ -4,7 +4,7 @@ on:
   push:
     branches: ['main', '*.*-dev', '*.*.*-dev']
   pull_request:
-    branches: [priyanshi/test-validation-conflict-cases]
+    branches: [main]
 
 jobs:
   prepare-versions:

@@ -2,7 +2,7 @@ name: Failpoint Tests
 
 on:
   pull_request:
-    branches: [priyanshi/test-validation-conflict-cases]
+    branches: [main]
   push:
     branches: [ main, '*.*-dev', '*.*.*-dev' ]
 
