@@ -157,31 +157,31 @@ func (s *Source) FetchPGDeploymentType() {
 		return
 	}
 
-	var isAurora, isRDS bool
+	// Note: On Aurora PostgreSQL, aurora_version() is not visible via a direct
+	// pg_proc/pg_namespace scan, but to_regproc() resolves it, so use that for detection.
 	query := `
 	SELECT
-		EXISTS (
-			SELECT 1
-			FROM pg_proc p
-			JOIN pg_namespace n ON n.oid = p.pronamespace
-			WHERE p.proname = 'aurora_version'
-			  AND n.nspname = 'pg_catalog'
-		) AS is_aurora,
-		EXISTS (
-			SELECT 1
-			FROM pg_roles
-			WHERE rolname = 'rds_superuser'
-		) AS is_rds`
-	err := s.DB().QueryRow(query).Scan(&isAurora, &isRDS)
+		CASE
+			WHEN to_regproc('aurora_version') IS NOT NULL THEN 'aurora'
+			WHEN EXISTS (
+				SELECT 1
+				FROM pg_roles
+				WHERE rolname = 'rds_superuser'
+			) THEN 'rds'
+			ELSE 'unknown'
+		END
+	`
+	var deploymentType string
+	err := s.DB().QueryRow(query).Scan(&deploymentType)
 	if err != nil {
 		log.Infof("callhome: failed to detect PostgreSQL deployment type: %v", err)
 		return
 	}
 
 	switch {
-	case isAurora:
+	case deploymentType == "aurora":
 		s.SourceDeployment = "aws-aurora-postgresql"
-	case isRDS:
+	case deploymentType == "rds":
 		s.SourceDeployment = "aws-rds-postgresql"
 	}
 }
