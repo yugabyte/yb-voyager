@@ -621,7 +621,7 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 		"Adapt parallelism based on the resource usage (CPU, memory) of the target YugabyteDB cluster."+
 			"\n"+
 			"Specify the mode for adaptive parallelism behavior: disabled, balanced, aggressive "+
-			"(default: balanced for YugabyteDB targets; disabled for other target types e.g. yugabytedb-amp, since they have no cluster control API — use --parallel-jobs there)"+
+			"(default: balanced for YugabyteDB, disabled for YugabyteDB AMP)"+
 			"\n"+
 			"\tbalanced: Operate with moderate thresholds. Recommended to be used when there are other workloads running on the cluster.\n"+
 			"\taggressive: Operate with aggressive max-CPU thresholds for better performance. Recommended to be used when there are no other workloads running on the cluster.\n"+
