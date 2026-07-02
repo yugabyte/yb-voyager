@@ -2490,6 +2490,12 @@ func updateErrorPolicyInMetaDB(errorPolicy importdata.ErrorPolicy) error {
 }
 
 func BuildCallhomeYBClusterMetrics() (callhome.YBClusterMetrics, error) {
+	// YB cluster metrics only exist for a real YugabyteDB target. Non-YB targets
+	// (yb-amp's single-node PG-compatible compute, PG fall-back/forward roles)
+	// have no such API — return empty rather than a misleading type-assertion error.
+	if tconf.TargetDBType != YUGABYTEDB {
+		return callhome.YBClusterMetrics{}, nil
+	}
 	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
 	if !ok {
 		return callhome.YBClusterMetrics{}, goerrors.Errorf("importData: expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
