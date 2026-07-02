@@ -34,6 +34,7 @@ type PreflightChecksConfig struct {
 	AssessmentMetadataDirFlag  string
 	SourceReadReplicaEndpoints string
 	PrimaryOnly                bool
+	SendDiagnostics            bool
 }
 
 type PreflightChecksResult struct {
@@ -67,7 +68,7 @@ func RunPreflightChecks(config PreflightChecksConfig) (PreflightChecksResult, er
 	if err := resolveSourceSchemas(config.Source); err != nil {
 		return result, err
 	}
-	config.Source.FetchSourceInfo()
+	config.Source.FetchSourceInfo(config.SendDiagnostics)
 
 	replicaDiscoveryInfo, err := discoverAndValidateReplicas(config)
 	if err != nil {

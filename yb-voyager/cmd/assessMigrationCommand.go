@@ -33,6 +33,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -259,6 +260,7 @@ func assessMigration() (err error) {
 		AssessmentMetadataDirFlag:  assessmentMetadataDirFlag,
 		SourceReadReplicaEndpoints: sourceReadReplicaEndpoints,
 		PrimaryOnly:                primaryOnly,
+		SendDiagnostics:            bool(callhome.SendDiagnostics),
 	})
 	if err != nil {
 		return err

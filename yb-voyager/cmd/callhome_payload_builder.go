@@ -193,7 +193,7 @@ func anonymizeSourceDBDetails(source *srcdb.Source) callhome.SourceDBDetails {
 		DBSize:             source.DBSize,
 		DBSystemIdentifier: source.DBSystemIdentifier,
 		DBID:               source.DBID,
-		SourceDeployment:   getSourceDeploymentType(source.Host),
+		SourceDeployment:   source.SourceDeployment,
 		SchemaOids:         source.SchemaOids,
 	}
 
@@ -238,27 +238,6 @@ func anonymizeSourceDBDetails(source *srcdb.Source) callhome.SourceDBDetails {
 	}
 
 	return details
-}
-
-func getSourceDeploymentType(host string) string {
-	normalizedHost := strings.ToLower(strings.TrimSpace(host))
-	normalizedHost = strings.TrimSuffix(normalizedHost, ".")
-	switch {
-	case normalizedHost == "":
-		return ""
-	case hasDomainSuffix(normalizedHost, "rds.amazonaws.com"),
-		hasDomainSuffix(normalizedHost, "rds.amazonaws.com.cn"):
-		return "aws-rds"
-	case hasDomainSuffix(normalizedHost, "amazonaws.com"),
-		hasDomainSuffix(normalizedHost, "amazonaws.com.cn"):
-		return "aws"
-	default:
-		return "unknown"
-	}
-}
-
-func hasDomainSuffix(host, domain string) bool {
-	return host == domain || strings.HasSuffix(host, "."+domain)
 }
 
 // ============================assess migration callhome payload information============================

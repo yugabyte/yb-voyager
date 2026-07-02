@@ -64,6 +64,7 @@ type Source struct {
 	DBSystemIdentifier        int64                `json:"db_system_identifier"`
 	DBID                      int64                `json:"db_id,omitempty"` // Source-specific numeric id for call-home; see FetchDBID()
 	SchemaOids                []int64              `json:"schema_oids"`     //Schema oids
+	SourceDeployment          string               `json:"source_deployment_type,omitempty"`
 	StrExportObjectTypeList   string               `json:"str_export_object_type_list"`
 	StrExcludeObjectTypeList  string               `json:"str_exclude_object_type_list"`
 	RunGuardrailsChecks       utils.BoolStr        `json:"run_guardrails_checks"`
@@ -86,7 +87,7 @@ func (s *Source) DB() SourceDB {
 	return s.sourceDB
 }
 
-func (s *Source) FetchSourceInfo() {
+func (s *Source) FetchSourceInfo(fetchDiagnosticsMetadata bool) {
 	var err error
 	s.DBVersion = s.DB().GetVersion()
 	s.DBSize, err = s.DB().GetDatabaseSize()
@@ -96,6 +97,9 @@ func (s *Source) FetchSourceInfo() {
 
 	// Get PostgreSQL system identifier.
 	s.FetchPGDBSystemIdentifier()
+	if fetchDiagnosticsMetadata {
+		s.FetchPGDeploymentType()
+	}
 	err = s.DB().FetchDBID()
 	if err != nil {
 		log.Errorf("error getting database id: %v", err) // can just log as this is used for call-home only
@@ -145,6 +149,40 @@ func (s *Source) FetchPGDBSystemIdentifier() {
 		s.DBSystemIdentifier = systemIdentifier
 	} else {
 		log.Infof("callhome: failed to get PostgreSQL system identifier: %v", err)
+	}
+}
+
+func (s *Source) FetchPGDeploymentType() {
+	if s.DBType != "postgresql" {
+		return
+	}
+
+	var isAurora, isRDS bool
+	query := `
+	SELECT
+		EXISTS (
+			SELECT 1
+			FROM pg_proc p
+			JOIN pg_namespace n ON n.oid = p.pronamespace
+			WHERE p.proname = 'aurora_version'
+			  AND n.nspname = 'pg_catalog'
+		) AS is_aurora,
+		EXISTS (
+			SELECT 1
+			FROM pg_roles
+			WHERE rolname = 'rds_superuser'
+		) AS is_rds`
+	err := s.DB().QueryRow(query).Scan(&isAurora, &isRDS)
+	if err != nil {
+		log.Infof("callhome: failed to detect PostgreSQL deployment type: %v", err)
+		return
+	}
+
+	switch {
+	case isAurora:
+		s.SourceDeployment = "aws-aurora-postgresql"
+	case isRDS:
+		s.SourceDeployment = "aws-rds-postgresql"
 	}
 }
 
