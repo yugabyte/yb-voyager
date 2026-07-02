@@ -26,6 +26,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"text/tabwriter"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -33,7 +34,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 )
 
-const cacheDepthSampleInterval = 25 * time.Millisecond
+const cacheDepthSampleInterval = 100 * time.Millisecond
 
 // Hooks are the cmd-package internals the framework cannot reach itself,
 // injected as closures by the benchmark shim in cmd.
@@ -76,10 +77,24 @@ var (
 	conflictCount = &conflictHook{}
 )
 
+// workloadResult holds one workload's aggregated numbers for the summary table.
+type workloadResult struct {
+	name          string
+	runs          int
+	eventsPerSec  float64
+	conflictsPer  float64
+	batchesPer    float64
+	depthAvg      float64
+	depthMax      int
+	timePerRun    time.Duration
+	execDelayNote string
+}
+
 // Run executes every registered workload as a sub-benchmark. Each b.N
 // iteration replays the workload's artifact once through the real streaming
 // path (fresh artifact copy per iteration). Reported metrics per workload:
-// events/s, conflicts/op, batches/op, cache-depth-avg, cache-depth-max.
+// events/s, conflicts/op, batches/op, cache-depth-avg, cache-depth-max —
+// as benchstat-compatible Benchmark lines plus a human summary table at the end.
 func Run(b *testing.B, hooks Hooks) {
 	if err := hooks.validate(); err != nil {
 		b.Fatal(err)
@@ -88,15 +103,57 @@ func Run(b *testing.B, hooks Hooks) {
 	if len(workloads) == 0 {
 		b.Fatal("cdcbench: no workloads registered")
 	}
+	var results []workloadResult
 	for _, w := range workloads {
 		w := w
 		b.Run(w.Name, func(b *testing.B) {
-			runWorkload(b, w, hooks)
+			// runWorkload does not return on Skip/Fatal (runtime.Goexit), so
+			// skipped/failed workloads simply don't appear in the summary
+			results = append(results, runWorkload(b, w, hooks))
 		})
 	}
+	printSummary(results)
 }
 
-func runWorkload(b *testing.B, w Workload, hooks Hooks) {
+// printSummary renders the human-readable table. It intentionally does not
+// start lines with "Benchmark" so benchstat parsing is unaffected.
+func printSummary(results []workloadResult) {
+	if len(results) == 0 {
+		return
+	}
+	tw := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
+	fmt.Fprintln(os.Stdout, "\n--- cdcbench summary ---")
+	fmt.Fprintln(tw, "WORKLOAD\tRUNS\tEVENTS/S\tCONFLICTS/RUN\tBATCHES/RUN\tCACHE DEPTH AVG/MAX\tTIME/RUN")
+	for _, r := range results {
+		fmt.Fprintf(tw, "%s%s\t%d\t%s\t%s\t%s\t%s / %s\t%s\n",
+			r.name, r.execDelayNote, r.runs,
+			comma(int64(r.eventsPerSec)),
+			comma(int64(r.conflictsPer)),
+			comma(int64(r.batchesPer)),
+			comma(int64(r.depthAvg)), comma(int64(r.depthMax)),
+			r.timePerRun.Round(time.Millisecond))
+	}
+	tw.Flush()
+	fmt.Fprintln(os.Stdout)
+}
+
+// comma formats n with thousands separators (12345678 -> "12,345,678").
+func comma(n int64) string {
+	s := strconv.FormatInt(n, 10)
+	neg := ""
+	if strings.HasPrefix(s, "-") {
+		neg, s = "-", s[1:]
+	}
+	var parts []string
+	for len(s) > 3 {
+		parts = append([]string{s[len(s)-3:]}, parts...)
+		s = s[:len(s)-3]
+	}
+	parts = append([]string{s}, parts...)
+	return neg + strings.Join(parts, ",")
+}
+
+func runWorkload(b *testing.B, w Workload, hooks Hooks) workloadResult {
 	b.Helper()
 	pristine := EnsureArtifact(b, w)
 
@@ -202,12 +259,29 @@ func runWorkload(b *testing.B, w Workload, hooks Hooks) {
 		os.RemoveAll(runDir)
 	}
 
+	// benchstat-compatible metrics: totals normalized per iteration ("op" =
+	// one full artifact replay), except events/s which is a rate
 	n := int64(b.N)
 	b.ReportMetric(float64(totalEvents)/totalElapsed.Seconds(), "events/s")
 	b.ReportMetric(float64(totalConflicts)/float64(n), "conflicts/op")
 	b.ReportMetric(float64(totalBatches)/float64(n), "batches/op")
 	b.ReportMetric(float64(depthAvgSum)/float64(n), "cache-depth-avg")
 	b.ReportMetric(float64(depthMax), "cache-depth-max")
+
+	result := workloadResult{
+		name:         w.Name,
+		runs:         b.N,
+		eventsPerSec: float64(totalEvents) / totalElapsed.Seconds(),
+		conflictsPer: float64(totalConflicts) / float64(n),
+		batchesPer:   float64(totalBatches) / float64(n),
+		depthAvg:     float64(depthAvgSum) / float64(n),
+		depthMax:     depthMax,
+		timePerRun:   totalElapsed / time.Duration(n),
+	}
+	if execDelay > 0 {
+		result.execDelayNote = fmt.Sprintf(" (exec-delay %s)", execDelay)
+	}
+	return result
 }
 
 // runLogDest returns the logrus output for one run: a per-run file under

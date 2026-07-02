@@ -33,8 +33,22 @@ benchstat before.txt after.txt
 
 Reported metrics per workload: `events/s` (ingest throughput), `conflicts/op`,
 `batches/op`, `cache-depth-avg` / `cache-depth-max` (conflict-cache occupancy, sampled
-every 25ms). Each run also **asserts** its conflict expectation (zero for no-conflict
+every 100ms). Each run also **asserts** its conflict expectation (zero for no-conflict
 workloads, non-zero for conflict workloads) and the exact processed-event count.
+
+Output comes in two forms: standard `Benchmark...` lines (machine-readable, what
+benchstat consumes) and a human summary table printed after all workloads:
+
+```
+--- cdcbench summary ---
+WORKLOAD                   RUNS  EVENTS/S  CONFLICTS/RUN  BATCHES/RUN  CACHE DEPTH AVG/MAX  TIME/RUN
+inserts-no-uk              1     128,857   0              100          0 / 0                155ms
+updates-uk-conflict-pairs  1     30,444    13,961         19,828       1 / 2                657ms
+```
+
+Flag semantics worth knowing: `-benchtime 1x` sets iterations *within* one benchmark
+execution (`b.N`, one "op" = one full artifact replay); `-count 5` runs each benchmark
+5 separate times producing 5 output lines — the independent samples benchstat needs.
 
 ## Knobs (env vars)
 
