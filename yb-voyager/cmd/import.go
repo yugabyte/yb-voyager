@@ -26,6 +26,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
@@ -174,6 +175,13 @@ func validateAmpUnsupportedFlags(cmd *cobra.Command) {
 	// UPDATE) cannot be honored by amp's plain-COPY snapshot path.
 	if strings.ToUpper(tconf.OnPrimaryKeyConflictAction) != constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR_POLICY {
 		notApplicable("on-primary-key-conflict")
+	}
+	// Only the default `abort` error policy is validated for amp. `stash-and-continue`
+	// (stashing errored snapshot rows and continuing) has not been tested on amp's
+	// plain-COPY path, so reject it explicitly rather than silently allowing it.
+	if errorPolicySnapshotFlag == importdata.StashAndContinueErrorPolicy {
+		utils.ErrExit("--error-policy-snapshot %s is not supported for --target-db-type %s; only the default %s error policy is supported",
+			importdata.StashAndContinueErrorPolicy, YUGABYTEDB_AMP, importdata.AbortErrorPolicy)
 	}
 }
 
@@ -609,7 +617,8 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 	cmd.Flags().Var(&tconf.AdaptiveParallelismMode, "adaptive-parallelism",
 		"Adapt parallelism based on the resource usage (CPU, memory) of the target YugabyteDB cluster."+
 			"\n"+
-			"Specify the mode for adaptive parallelism behavior: disabled, balanced, aggressive (default balanced)"+
+			"Specify the mode for adaptive parallelism behavior: disabled, balanced, aggressive "+
+			"(default: balanced for YugabyteDB targets; disabled for other target types e.g. yugabytedb-amp, since they have no cluster control API — use --parallel-jobs there)"+
 			"\n"+
 			"\tbalanced: Operate with moderate thresholds. Recommended to be used when there are other workloads running on the cluster.\n"+
 			"\taggressive: Operate with aggressive max-CPU thresholds for better performance. Recommended to be used when there are no other workloads running on the cluster.\n"+
