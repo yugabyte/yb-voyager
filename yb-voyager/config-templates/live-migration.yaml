@@ -118,6 +118,12 @@ source:
 
 target:    
 
+  ### Target database type to import into. Supported values:
+  ###   yugabytedb (default) - a standard YugabyteDB cluster
+  ###   yugabytedb-amp       - YugabyteDB AMP: a PostgreSQL-compatible compute over YugabyteDB storage
+  ###   Note: yugabytedb-amp requires an explicit db-port (no default).
+  db-type: yugabytedb
+
   ### Host on which the YugabyteDB server is running. 
   ### Default - 127.0.0.1                          
   db-host: 127.0.0.1      
@@ -376,16 +382,18 @@ export-data-from-source:
 import-data-to-target:
 
   ### Control parallelism of data import
-  ### By default, Voyager enables adaptive parallelism which adjusts the number 
-  ### of parallel jobs based on the resource usage (CPU, memory) of the target 
-  ### YugabyteDB cluster.
+  ### By default, Voyager chooses the adaptive-parallelism mode based on the target database type:
+  ###   - yugabytedb: balanced - adaptive parallelism adjusts the number of parallel jobs based on
+  ###     the resource usage (CPU, memory) of the target YugabyteDB cluster.
+  ###   - yugabytedb-amp: disabled - it has no cluster control API, so set parallel-jobs to control
+  ###     import parallelism instead.
   ### The following flags are available to control parallelism:
   ### - adaptive-parallelism: Choose the mode for adaptive parallelism behavior.
   ###     balanced: Operate with moderate thresholds. Recommended to be used when there are other workloads running on the cluster.
   ###     aggressive: Operate with aggressive max-CPU thresholds for better performance. Recommended to be used when there are no other workloads running on the cluster.
   ###     disabled: Disable adaptive parallelism.
   ###   Accepted values: disabled, balanced, aggressive
-  ###   Default: balanced
+  ###   Default: balanced for yugabytedb, disabled for yugabytedb-amp
   ### - adaptive-parallelism-max: Optional upper limit on parallel jobs when
   ###   adaptive parallelism is enabled. If not set, Voyager will use N/2,
   ###   where N is the number of available CPU cores.
@@ -393,7 +401,7 @@ import-data-to-target:
   ###   Voyager will use the given number of parallel jobs.
   ###   Any value < 1 falls back to N/4 or 2×node count if N is not available.
   ###   Note: Do not set this if adaptive-parallelism is enabled (balanced/aggressive).
-  adaptive-parallelism: balanced
+  # adaptive-parallelism: balanced
   # adaptive-parallelism-max: <integer>
   # parallel-jobs: <integer>   # Do not set if adaptive parallelism is enabled   
 
@@ -422,7 +430,7 @@ import-data-to-target:
   ### Disable progress bar/stats during data import 
   ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
-  # disable-pb: false         
+  disable-pb: false
 
   ### Use the public IPs of the nodes to distribute --parallel-jobs uniformly for data import
   ### Note - you might need to configure database to have public_ip available by setting server-broadcast-addresses.

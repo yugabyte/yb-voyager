@@ -453,7 +453,7 @@ import-data-to-target:
   ###   Voyager will use the given number of parallel jobs.
   ###   Any value < 1 falls back to N/4 or 2×node count if N is not available.
   ###   Note: Do not set this if adaptive-parallelism is enabled (balanced/aggressive).
-  adaptive-parallelism: balanced
+  # adaptive-parallelism: balanced
   # adaptive-parallelism-max: <integer>
   # parallel-jobs: <integer>   # Do not set if adaptive parallelism is enabled   
 
@@ -482,7 +482,7 @@ import-data-to-target:
   ### Disable progress bar/stats during data import 
   ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
-  # disable-pb: false         
+  disable-pb: false
 
   ### Use the public IPs of the nodes to distribute --parallel-jobs uniformly for data import
   ### Note - you might need to configure database to have public_ip available by setting server-broadcast-addresses.

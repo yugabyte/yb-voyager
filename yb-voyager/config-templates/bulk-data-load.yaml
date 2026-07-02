@@ -133,7 +133,7 @@ import-data-file:
   ###   Voyager will use the given number of parallel jobs.
   ###   Any value < 1 falls back to N/4 or 2×node count if N is not available.
   ###   Note: Do not set this if adaptive-parallelism is enabled (balanced/aggressive).
-  adaptive-parallelism: balanced
+  # adaptive-parallelism: balanced
   # adaptive-parallelism-max: <integer>
   # parallel-jobs: <integer>   # Do not set if adaptive parallelism is enabled  
 
@@ -183,7 +183,7 @@ import-data-file:
   ### Disable progress bar/stats during data import 
   ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
-  # disable-pb: false                                                                
+  disable-pb: false
 
 # ---------------------------------------------------------
 # End Migration Configuration

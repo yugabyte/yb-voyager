@@ -26,6 +26,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
@@ -176,10 +177,17 @@ func validateAmpUnsupportedFlags(cmd *cobra.Command) {
 	if strings.ToUpper(tconf.OnPrimaryKeyConflictAction) != constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR_POLICY {
 		notApplicable("on-primary-key-conflict")
 	}
+	// Only the default `abort` error policy is validated for amp. `stash-and-continue`
+	// (stashing errored snapshot rows and continuing) has not been tested on amp's
+	// plain-COPY path, so reject it explicitly rather than silently allowing it.
+	if errorPolicySnapshotFlag == importdata.StashAndContinueErrorPolicy {
+		utils.ErrExit("--error-policy-snapshot %s is not supported for --target-db-type %s; only the default %s error policy is supported",
+			importdata.StashAndContinueErrorPolicy, YUGABYTEDB_AMP, importdata.AbortErrorPolicy)
+	}
 }
 
 func validateImportUsePartitionRootFlag() error {
-	// --use-partition-root flag is only valid for live migration with PostgreSQL or YugabyteDB source
+	// --use-partition-root flag is only valid for live migration with a PostgreSQL source
 	//and only for the CDC streaming phase and snapshot part isn't supported right now.
 	if !importUsePartitionRoot {
 		// Only validate when flag is explicitly set to false (non-default)
@@ -195,8 +203,11 @@ func validateImportUsePartitionRootFlag() error {
 		if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
 			return goerrors.Errorf("'--use-partition-root false' is not supported for source-replica")
 		}
-		if tconf.TargetDBType != POSTGRESQL && tconf.TargetDBType != YUGABYTEDB && tconf.TargetDBType != YUGABYTEDB_AMP {
-			return goerrors.Errorf("'--use-partition-root' flag is only valid for PostgreSQL to YugabyteDB migrations")
+		// --use-partition-root controls how PostgreSQL declarative-partitioned tables are
+		// streamed; it is meaningful only when the source database is PostgreSQL. The target
+		// engine (yugabytedb / yugabytedb-amp / a PG fall-back target) is irrelevant here.
+		if sourceDBType != POSTGRESQL {
+			return goerrors.Errorf("'--use-partition-root false' is only valid when the source database is PostgreSQL")
 		}
 	}
 	tconf.UsePartitionRoot = bool(importUsePartitionRoot)
@@ -613,7 +624,8 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 	cmd.Flags().Var(&tconf.AdaptiveParallelismMode, "adaptive-parallelism",
 		"Adapt parallelism based on the resource usage (CPU, memory) of the target YugabyteDB cluster."+
 			"\n"+
-			"Specify the mode for adaptive parallelism behavior: disabled, balanced, aggressive (default balanced)"+
+			"Specify the mode for adaptive parallelism behavior: disabled, balanced, aggressive "+
+			"(default: balanced for YugabyteDB, disabled for YugabyteDB AMP)"+
 			"\n"+
 			"\tbalanced: Operate with moderate thresholds. Recommended to be used when there are other workloads running on the cluster.\n"+
 			"\taggressive: Operate with aggressive max-CPU thresholds for better performance. Recommended to be used when there are no other workloads running on the cluster.\n"+
