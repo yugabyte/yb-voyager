@@ -84,7 +84,7 @@ func TestProcessEventsRemovesEventFromConflicDetectionCache(t *testing.T) {
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
 
-	conflictDetectionCache.Put(e)
+	conflictDetectionCache.Put(e, 0)
 	evChan <- e
 	evChan <- END_OF_QUEUE_SEGMENT_EVENT
 	processEvents(1, evChan, lastAppliedVsn, doneChan, statsReporter, state)
@@ -131,8 +131,8 @@ func TestProcessEventsRemovesIgnoredEventFromConflicDetectionCache(t *testing.T)
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE, // not TARGET_DB_EXPORTER_FB_ROLE so that it is ignored.
 	}
 
-	conflictDetectionCache.Put(e1)
-	conflictDetectionCache.Put(e2)
+	conflictDetectionCache.Put(e1, 0)
+	conflictDetectionCache.Put(e2, 0)
 	evChan <- e1
 	evChan <- e2
 	evChan <- END_OF_QUEUE_SEGMENT_EVENT

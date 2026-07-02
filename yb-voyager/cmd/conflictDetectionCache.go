@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"strconv"
 	"strings"
 	"sync"
 
@@ -114,17 +115,45 @@ DELETE FROM example_table WHERE id = 2;
 -- Another conflicting update for id = 3, setting it to previous value of id = 2
 UPDATE example_table SET email = 'user42@example.com' WHERE id = 3;
 */
+/*
+POC: unique-key-value-indexed conflict detection.
+
+Instead of scanning every in-flight event per incoming event (O(cache depth)),
+maintain an inverted index keyed by (table, unique index, encoded UK value
+tuple of the cached event's before-image). A conflict check is then two O(1)
+lookups per unique index (incoming after-image tuple and before-image tuple),
+independent of how many events are in flight.
+
+Semantics preserved from the scan implementation:
+  - a cached event contributes a key for an index only if its BeforeFields
+    contain ALL index columns (existence requirement);
+  - a lookup tuple is built only if the incoming image contains ALL columns;
+  - per-column equality is nil==nil or string-equal (nil encoded as a
+    sentinel distinct from every real value);
+  - pairs with the same PK never conflict;
+  - export-from-target (fall-back/fall-forward) keeps the op-based logic,
+    evaluated over the table's in-flight entries only.
+*/
+type ukCacheEntry struct {
+	vsn       int64
+	chanNo    int // channel this event was dispatched to (for targeted batch flush)
+	tableKey  string
+	op        string
+	pk        map[string]*string // shallow copy of event.Key (values are immutable strings)
+	fieldCols []string           // column names present in Fields (target-exporter logic)
+	ukKeys    []string           // ukIndex keys this event contributed
+}
+
 type ConflictDetectionCache struct {
 	sync.Mutex
-	/*
-		m caches separate copy of events not pointer, otherwise it will be modified by ConvertEvent() causing issue in events comparison for conflict detection
-		ConvertEvent() in some case modifies schemaName, tableName and before after values
-
-		Worst event size can be 7kb for 30-50 columns in the table
-		so for the 500000 events (100 channels * 500 events per channel) at worst in the cache it will be 500000 * 7kb = 3.5GB
-	*/
-	m                    map[int64]*tgtdb.Event
-	cond                 *sync.Cond
+	// m holds one slim entry per in-flight u/d event, keyed by vsn.
+	// (No full event copies: only the PK and the encoded UK tuples are needed.)
+	m    map[int64]*ukCacheEntry
+	cond *sync.Cond
+	// ukIndex: (table, index ordinal, encoded before-image UK tuple) -> vsns holding it
+	ukIndex map[string]map[int64]*ukCacheEntry
+	// tableEntries: table -> in-flight entries, for the export-from-target path
+	tableEntries         map[string]map[int64]*ukCacheEntry
 	tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, [][]string]
 	evChans              []chan *tgtdb.Event
 	sourceDBType         string
@@ -132,19 +161,180 @@ type ConflictDetectionCache struct {
 
 func NewConflictDetectionCache(tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, [][]string], evChans []chan *tgtdb.Event, sourceDBType string) *ConflictDetectionCache {
 	c := &ConflictDetectionCache{}
-	c.m = make(map[int64]*tgtdb.Event)
+	c.m = make(map[int64]*ukCacheEntry)
 	c.cond = sync.NewCond(&c.Mutex)
+	c.ukIndex = make(map[string]map[int64]*ukCacheEntry)
+	c.tableEntries = make(map[string]map[int64]*ukCacheEntry)
 	c.tableToUniqueIndexes = tableToUniqueIndexes
 	c.sourceDBType = sourceDBType
 	c.evChans = evChans
 	return c
 }
 
-func (c *ConflictDetectionCache) Put(event *tgtdb.Event) {
+// encodeUKTuple builds an unambiguous string encoding of the given columns'
+// values from fields. Returns ok=false if any column is absent (matching the
+// scan implementation's existence requirement). nil values get a sentinel so
+// nil==nil compares equal and never collides with a real value; real values
+// are length-prefixed so component boundaries are unambiguous.
+func encodeUKTuple(fields map[string]*string, indexColumns []string) (string, bool) {
+	var b strings.Builder
+	for _, column := range indexColumns {
+		v, ok := fields[column]
+		if !ok {
+			return "", false
+		}
+		if v == nil {
+			b.WriteString("\x00N\x1f")
+		} else {
+			b.WriteString(strconv.Itoa(len(*v)))
+			b.WriteByte(':')
+			b.WriteString(*v)
+			b.WriteByte('\x1f')
+		}
+	}
+	return b.String(), true
+}
+
+func ukIndexKey(tableKey string, indexOrdinal int, tuple string) string {
+	return tableKey + "\x1e" + strconv.Itoa(indexOrdinal) + "\x1e" + tuple
+}
+
+func pkEqual(pk1, pk2 map[string]*string) bool {
+	if len(pk1) != len(pk2) {
+		return false
+	}
+	for k, v := range pk1 {
+		v2, ok := pk2[k]
+		if !ok {
+			return false
+		}
+		if !uniqueKeyColumnValuesEqual(v, v2) {
+			return false
+		}
+	}
+	return true
+}
+
+func (c *ConflictDetectionCache) Put(event *tgtdb.Event, chanNo int) {
 	c.Lock()
 	defer c.Unlock()
-	c.m[event.Vsn] = event.Copy()
+
+	tableKey := event.TableNameTup.Key()
+	entry := &ukCacheEntry{
+		vsn:       event.Vsn,
+		chanNo:    chanNo,
+		tableKey:  tableKey,
+		op:        event.Op,
+		pk:        make(map[string]*string, len(event.Key)),
+		fieldCols: lo.Keys(event.Fields),
+	}
+	for k, v := range event.Key {
+		entry.pk[k] = v
+	}
+
+	uniqueIndexes, _ := c.tableToUniqueIndexes.Get(event.TableNameTup)
+	for i, indexColumns := range uniqueIndexes {
+		tuple, ok := encodeUKTuple(event.BeforeFields, indexColumns)
+		if !ok {
+			continue
+		}
+		key := ukIndexKey(tableKey, i, tuple)
+		set := c.ukIndex[key]
+		if set == nil {
+			set = make(map[int64]*ukCacheEntry)
+			c.ukIndex[key] = set
+		}
+		set[event.Vsn] = entry
+		entry.ukKeys = append(entry.ukKeys, key)
+	}
+
+	tset := c.tableEntries[tableKey]
+	if tset == nil {
+		tset = make(map[int64]*ukCacheEntry)
+		c.tableEntries[tableKey] = tset
+	}
+	tset[event.Vsn] = entry
+
+	c.m[event.Vsn] = entry
 	log.Infof("adding event vsn(%d) to conflict cache", event.Vsn)
+}
+
+// findConflictingEntries returns ALL in-flight entries conflicting with the
+// incoming event (deduped by vsn). Gathering every blocker in one pass lets
+// the caller flush all their channels at once, so multiple blockers resolve
+// in parallel (one batch round-trip) instead of serially (one per blocker).
+func (c *ConflictDetectionCache) findConflictingEntries(incomingEvent *tgtdb.Event) map[int64]*ukCacheEntry {
+	tableKey := incomingEvent.TableNameTup.Key()
+	uniqueIndexes, _ := c.tableToUniqueIndexes.Get(incomingEvent.TableNameTup)
+	blockers := map[int64]*ukCacheEntry{}
+
+	if isTargetDBExporter(incomingEvent.ExporterRole) {
+		/*
+			Same semantics as the scan implementation: before values from yb-cdc
+			are unreliable, so conflict on op-type per table (see original notes).
+		*/
+		uniqueKeyColumns := make([]string, 0)
+		for _, indexColumns := range uniqueIndexes {
+			uniqueKeyColumns = append(uniqueKeyColumns, indexColumns...)
+		}
+		incomingCols := lo.Keys(incomingEvent.Fields)
+		for _, e := range c.tableEntries[tableKey] {
+			if pkEqual(e.pk, incomingEvent.Key) {
+				continue
+			}
+			if e.op == "d" {
+				log.Infof("conflict detected for table %s, between event1(vsn=%d) and event2(vsn=%d)", incomingEvent.TableNameTup, e.vsn, incomingEvent.Vsn)
+				blockers[e.vsn] = e
+				continue
+			}
+			if e.op == "u" {
+				ukList := lo.Intersect(e.fieldCols, uniqueKeyColumns)
+				if lo.Some(incomingCols, ukList) {
+					log.Infof("conflict detected for table %s, between event1(vsn=%d) and event2(vsn=%d)", incomingEvent.TableNameTup, e.vsn, incomingEvent.Vsn)
+					blockers[e.vsn] = e
+				}
+			}
+		}
+		return blockers
+	}
+
+	for i, indexColumns := range uniqueIndexes {
+		// before-after: cached.BeforeFields == incoming.Fields
+		if tuple, ok := encodeUKTuple(incomingEvent.Fields, indexColumns); ok {
+			for _, e := range c.lookupConflicts(tableKey, i, tuple, incomingEvent) {
+				if _, seen := blockers[e.vsn]; !seen {
+					log.Infof("conflict detected for table %s, index columns %v, between before value of cached-event1(vsn=%d) and after value of incoming-event2(vsn=%d)",
+						incomingEvent.TableNameTup.ForKey(), indexColumns, e.vsn, incomingEvent.Vsn)
+					blockers[e.vsn] = e
+				}
+			}
+		}
+		// before-before: cached.BeforeFields == incoming.BeforeFields
+		if tuple, ok := encodeUKTuple(incomingEvent.BeforeFields, indexColumns); ok {
+			for _, e := range c.lookupConflicts(tableKey, i, tuple, incomingEvent) {
+				if _, seen := blockers[e.vsn]; !seen {
+					log.Infof("conflict detected for table %s, index columns %v, between before value of cached-event1(vsn=%d) and before value of incoming-event2(vsn=%d)",
+						incomingEvent.TableNameTup.ForKey(), indexColumns, e.vsn, incomingEvent.Vsn)
+					blockers[e.vsn] = e
+				}
+			}
+		}
+	}
+	return blockers
+}
+
+func (c *ConflictDetectionCache) lookupConflicts(tableKey string, indexOrdinal int, tuple string, incomingEvent *tgtdb.Event) []*ukCacheEntry {
+	var hits []*ukCacheEntry
+	set := c.ukIndex[ukIndexKey(tableKey, indexOrdinal, tuple)]
+	for _, e := range set {
+		if pkEqual(e.pk, incomingEvent.Key) {
+			// same row: events for the same PK land on the same channel and are
+			// already ordered; never a conflict (matches scan implementation)
+			continue
+		}
+		hits = append(hits, e)
+	}
+	return hits
 }
 
 func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event) {
@@ -152,31 +342,40 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 	defer c.Unlock()
 
 retry:
-	for _, cachedEvent := range c.m {
-		log.Debugf("checking conflict for event(vsn=%d) and event(vsn=%d)", cachedEvent.Vsn, incomingEvent.Vsn)
-		if c.eventsConfict(cachedEvent, incomingEvent) {
-			// flushing all the batches in channels instead of waiting for MAX_INTERVAL_BETWEEN_BATCHES
-			for i := 0; i < NUM_EVENT_CHANNELS; i++ {
-				// non-blocking send because blocking send can cause deadlock
-				// between main goroutine acquiring lock and blocking on sending to channel
-				// and processEvents goroutine waiting to acquire lock in RemoveEvents.
-				select {
-				case c.evChans[i] <- FLUSH_BATCH_EVENT:
-				default:
-					// channel is full, so it's okay not to send FLUSH_BATCH_EVENT
-					// because MAX_EVENTS_PER_BATCH would likely be reached in the next batch.
-					log.Infof("channel %d is full with size %d, not sending FLUSH_BATCH_EVENT", i, len(c.evChans[i]))
-				}
+	if blockers := c.findConflictingEntries(incomingEvent); len(blockers) > 0 {
+		// Targeted flush: only the channels holding blocking events need their
+		// batches executed early; other channels keep filling their batches.
+		// All blockers' channels are flushed at once so multiple blockers
+		// resolve in parallel (one batch round-trip), like the old flush-all.
+		// Non-blocking send because a blocking send can cause deadlock between
+		// the main goroutine (holding the cache lock) and a processEvents
+		// goroutine waiting for the lock in RemoveEvents.
+		flushed := make(map[int]bool, len(blockers))
+		for _, blocker := range blockers {
+			// preserve the failpoint instrumentation (conflict count/validation
+			// tests); cache entries are slim, so pass a minimal cached-event view
+			// carrying the fields the failpoint uses (table, vsn)
+			injectUniqueKeyConflictDetectedFailpoint(
+				&tgtdb.Event{Vsn: blocker.vsn, TableNameTup: incomingEvent.TableNameTup, Key: blocker.pk},
+				incomingEvent)
+			if flushed[blocker.chanNo] {
+				continue
 			}
-			injectUniqueKeyConflictDetectedFailpoint(cachedEvent, incomingEvent)
-			log.Infof("waiting for event(vsn=%d) to be complete before processing event(vsn=%d)", cachedEvent.Vsn, incomingEvent.Vsn)
-			// wait will release the lock and wait for a broadcast signal
-			c.cond.Wait()
-
-			// can't return after just one conflict, incoming event can have multiple conflicts
-			// for example: table with 3 unique key columns conflicting with 3 different events
-			goto retry
+			flushed[blocker.chanNo] = true
+			select {
+			case c.evChans[blocker.chanNo] <- FLUSH_BATCH_EVENT:
+			default:
+				// channel is full, so it's okay not to send FLUSH_BATCH_EVENT
+				// because MAX_EVENTS_PER_BATCH would likely be reached in the next batch.
+				log.Infof("channel %d is full with size %d, not sending FLUSH_BATCH_EVENT", blocker.chanNo, len(c.evChans[blocker.chanNo]))
+			}
+			log.Infof("waiting for event(vsn=%d) to be complete before processing event(vsn=%d)", blocker.vsn, incomingEvent.Vsn)
 		}
+		// wait will release the lock and wait for a broadcast signal
+		c.cond.Wait()
+
+		// re-check after every wake-up: blockers may remain or new checks may apply
+		goto retry
 	}
 }
 
@@ -186,10 +385,24 @@ func (c *ConflictDetectionCache) RemoveEvents(events ...*tgtdb.Event) {
 	eventsRemoved := false
 
 	for _, event := range events {
-		if _, ok := c.m[event.Vsn]; ok {
-			delete(c.m, event.Vsn)
-			eventsRemoved = true
+		e, ok := c.m[event.Vsn]
+		if !ok {
+			continue
 		}
+		for _, key := range e.ukKeys {
+			set := c.ukIndex[key]
+			delete(set, e.vsn)
+			if len(set) == 0 {
+				delete(c.ukIndex, key)
+			}
+		}
+		tset := c.tableEntries[e.tableKey]
+		delete(tset, e.vsn)
+		if len(tset) == 0 {
+			delete(c.tableEntries, e.tableKey)
+		}
+		delete(c.m, event.Vsn)
+		eventsRemoved = true
 	}
 
 	// if we removed any event then broadcast to all waiting threads to check for conflicts again
@@ -533,7 +746,7 @@ func formatUniqueIndexColumnValuesForLog(fields map[string]*string, indexColumns
 }
 
 func (c *ConflictDetectionCache) eventsAreOfSameTable(event1 *tgtdb.Event, event2 *tgtdb.Event) bool {
-	return event1.TableNameTup.Equals(event2.TableNameTup)
+	return event1.TableNameTup.Key() == event2.TableNameTup.Key()
 }
 
 func (c *ConflictDetectionCache) sameTableEventsHaveSamePK(event1 *tgtdb.Event, event2 *tgtdb.Event) bool {
