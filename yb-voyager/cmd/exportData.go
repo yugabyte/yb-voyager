@@ -646,7 +646,7 @@ func exportData() bool {
 		utils.ErrExit("schema name matcher: %w", err)
 	}
 
-	source.FetchSourceInfo(bool(callhome.SendDiagnostics))
+	source.FetchSourceInfo()
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {

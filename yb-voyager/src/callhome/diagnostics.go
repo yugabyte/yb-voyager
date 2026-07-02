@@ -94,7 +94,7 @@ Version History
 1.0: Introduced DBName and SchemaNames fields
 1.1: Added db_id (PostgreSQL/YugabyteDB: pg_database.oid; Oracle: v$database.dbid; MySQL: 0)
 1.2: Added schema_oids field (PostgreSQL/YugabyteDB: pg_namespace.oid)
-1.3: Added source_deployment_type field for source deployment identification
+1.3: Added source_deployment_type field for source deployment identification(currently only implemented for PostgreSQL)
 */
 var SOURCE_DB_DETAILS_PAYLOAD_VERSION = "1.3"
 

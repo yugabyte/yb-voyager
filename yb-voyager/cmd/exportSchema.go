@@ -33,7 +33,6 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/export"
@@ -152,7 +151,7 @@ func exportSchema(cmd *cobra.Command) error {
 	}
 
 	checkSourceDBCharset()
-	source.FetchSourceInfo(bool(callhome.SendDiagnostics))
+	source.FetchSourceInfo()
 	utils.PrintAndLogf("%s version: %s\n", source.DBType, source.DBVersion)
 
 	// Check if the source database has the required permissions for exporting schema.

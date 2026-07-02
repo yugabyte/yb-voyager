@@ -87,7 +87,7 @@ func (s *Source) DB() SourceDB {
 	return s.sourceDB
 }
 
-func (s *Source) FetchSourceInfo(fetchDiagnosticsMetadata bool) {
+func (s *Source) FetchSourceInfo() {
 	var err error
 	s.DBVersion = s.DB().GetVersion()
 	s.DBSize, err = s.DB().GetDatabaseSize()
@@ -97,9 +97,7 @@ func (s *Source) FetchSourceInfo(fetchDiagnosticsMetadata bool) {
 
 	// Get PostgreSQL system identifier.
 	s.FetchPGDBSystemIdentifier()
-	if fetchDiagnosticsMetadata {
-		s.FetchPGDeploymentType()
-	}
+	s.FetchPGDeploymentType()
 	err = s.DB().FetchDBID()
 	if err != nil {
 		log.Errorf("error getting database id: %v", err) // can just log as this is used for call-home only
@@ -162,27 +160,19 @@ func (s *Source) FetchPGDeploymentType() {
 	query := `
 	SELECT
 		CASE
-			WHEN to_regproc('aurora_version') IS NOT NULL THEN 'aurora'
+			WHEN to_regproc('aurora_version') IS NOT NULL THEN 'aws-aurora-postgresql'
 			WHEN EXISTS (
 				SELECT 1
 				FROM pg_roles
 				WHERE rolname = 'rds_superuser'
-			) THEN 'rds'
-			ELSE 'unknown'
+			) THEN 'aws-rds-postgresql'
+			ELSE ''
 		END
 	`
-	var deploymentType string
-	err := s.DB().QueryRow(query).Scan(&deploymentType)
+	err := s.DB().QueryRow(query).Scan(&s.SourceDeployment)
 	if err != nil {
 		log.Infof("callhome: failed to detect PostgreSQL deployment type: %v", err)
 		return
-	}
-
-	switch {
-	case deploymentType == "aurora":
-		s.SourceDeployment = "aws-aurora-postgresql"
-	case deploymentType == "rds":
-		s.SourceDeployment = "aws-rds-postgresql"
 	}
 }
 
