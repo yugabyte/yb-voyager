@@ -52,7 +52,7 @@ type SourceDB interface {
 	GetSequencesLastValues(sequencesList []sqlname.NameTuple) (*utils.StructMap[sqlname.ObjectName, int64], error)
 	GetServers() []string
 	GetPartitions(table sqlname.NameTuple) []string
-	GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error)
+	GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error)
 	ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error
 	GetNonPKTables() ([]string, error)
 	GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error)
@@ -60,7 +60,7 @@ type SourceDB interface {
 	CheckSourceDBVersion(exportType string) error
 	GetMissingExportSchemaPermissions(queryTableList string) ([]string, error)
 	GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, bool, error)
-	GetMissingAssessMigrationPermissions() ([]string, bool, error)
+	GetMissingAssessMigrationPermissions() ([]string, error)
 	CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error)
 	GetSchemasMissingUsagePermissions() ([]string, error)
 	Query(query string) (*sql.Rows, error)

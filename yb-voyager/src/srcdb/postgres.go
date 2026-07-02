@@ -32,6 +32,7 @@ import (
 	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/jackc/pglogrepl"
+	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/mcuadros/go-version"
 	"github.com/samber/lo"
@@ -955,57 +956,98 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
 	return partitions
 }
 
-func (pg *PostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
-	log.Infof("getting unique key columns for tables: %v", tableList)
-	result := utils.NewStructMap[sqlname.NameTuple, []string]()
-	var querySchemaList, queryTableList []string
-	tableStrToNameTupleMap := make(map[string]sqlname.NameTuple)
-	for i := 0; i < len(tableList); i++ {
-		sname, tname := tableList[i].ForCatalogQuery()
-		querySchemaList = append(querySchemaList, sname)
-		queryTableList = append(queryTableList, tname)
-		tableStrToNameTupleMap[tableList[i].AsQualifiedCatalogName()] = tableList[i]
+func dedupeUniqueIndexes(indexes [][]string) [][]string {
+	seen := make(map[string]bool)
+	result := make([][]string, 0, len(indexes))
+	for _, cols := range indexes {
+		key := strings.Join(cols, ",")
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		result = append(result, cols)
+	}
+	return result
+}
+
+// MergeUniqueIndexes merges two index lists, deduplicating by column signature.
+func MergeUniqueIndexes(existing, additional [][]string) [][]string {
+	return dedupeUniqueIndexes(append(existing, additional...))
+}
+
+func buildUniqueIndexesMapFromPGRows(rows *sql.Rows, tableStrToNameTupleMap map[string]sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
+	result := utils.NewStructMap[sqlname.NameTuple, [][]string]()
+
+	for rows.Next() {
+		var schemaName, tableName, indexKey string
+		var columnsPgTypeArray pgtype.TextArray
+		err := rows.Scan(&schemaName, &tableName, &indexKey, &columnsPgTypeArray)
+		if err != nil {
+			return nil, fmt.Errorf("scanning row for unique index: %w", err)
+		}
+		columns := utils.ConvertPgTextArrayToStringSlice(columnsPgTypeArray)
+		if len(columns) == 0 {
+			continue
+		}
+
+		tableCatalogName := fmt.Sprintf("%s.%s", schemaName, tableName)
+		tableNameTuple, ok := tableStrToNameTupleMap[tableCatalogName]
+		if !ok {
+			return nil, goerrors.Errorf("table %s not found in table list", tableCatalogName)
+		}
+
+		indexes, _ := result.Get(tableNameTuple)
+		indexes = append(indexes, columns)
+		result.Put(tableNameTuple, indexes)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating rows for unique indexes: %w", err)
 	}
 
+	result.IterKV(func(k sqlname.NameTuple, v [][]string) (bool, error) {
+		v = dedupeUniqueIndexes(v)
+		result.Put(k, v)
+		return true, nil
+	})
+
+	return result, nil
+}
+
+func queryPGUniqueIndexesMap(db *sql.DB, tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
+	tableStrToNameTupleMap := make(map[string]sqlname.NameTuple)
+	var querySchemaList, queryTableList []string
+	for _, table := range tableList {
+		sname, tname := table.ForCatalogQuery()
+		querySchemaList = append(querySchemaList, sname)
+		queryTableList = append(queryTableList, tname)
+		tableStrToNameTupleMap[table.AsQualifiedCatalogName()] = table
+	}
 	querySchemaList = lo.Uniq(querySchemaList)
-	query := fmt.Sprintf(ybQueryTmplForUniqCols, strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","),
+
+	query := fmt.Sprintf(pgQueryTmplForUniqIndexes,
+		strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","),
 		strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","))
-	log.Infof("query to get unique key columns: %s", query)
-	rows, err := pg.db.Query(query)
+	rows, err := db.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("querying unique key columns: %w", err)
+		return nil, fmt.Errorf("querying unique indexes: %w", err)
 	}
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("close rows for query %q: %v", query, closeErr)
+			log.Errorf("closing rows for unique indexes: %v", closeErr)
 		}
 	}()
 
-	for rows.Next() {
-		var schemaName, tableName, colName string
-		err := rows.Scan(&schemaName, &tableName, &colName)
-		if err != nil {
-			return nil, fmt.Errorf("scanning row for unique key column name: %w", err)
-		}
-		tableName = fmt.Sprintf("%s.%s", schemaName, tableName)
-		tableNameTuple, ok := tableStrToNameTupleMap[tableName]
-		if !ok {
-			return nil, goerrors.Errorf("table %s not found in table list", tableName)
-		}
-		cols, ok := result.Get(tableNameTuple)
-		if !ok {
-			cols = []string{}
-		}
-		cols = append(cols, colName)
-		result.Put(tableNameTuple, cols)
-	}
+	return buildUniqueIndexesMapFromPGRows(rows, tableStrToNameTupleMap)
+}
 
-	err = rows.Err()
+func (pg *PostgreSQL) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
+	log.Infof("getting unique indexes for tables: %v", tableList)
+	result, err := queryPGUniqueIndexesMap(pg.db, tableList)
 	if err != nil {
-		return nil, fmt.Errorf("error iterating over rows for unique key columns: %w", err)
+		return nil, err
 	}
-	log.Infof("unique key columns for tables: %v", result)
+	log.Infof("unique indexes for tables: %v", result)
 	return result, nil
 }
 
@@ -1379,7 +1421,7 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string, finalTa
 	return combinedResult, len(combinedResult) > 0, nil
 }
 
-func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, bool, error) {
+func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, error) {
 	return pg.GetMissingAssessMigrationPermissionsForNode(false)
 }
 
@@ -1387,13 +1429,18 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, bool, er
 // The isReplica parameter controls which checks are performed:
 // - If isReplica=true, skips ANALYZE check (pg_stat_all_tables metadata is not replicated)
 // - If isReplica=false, performs all checks including ANALYZE
-func (pg *PostgreSQL) GetMissingAssessMigrationPermissionsForNode(isReplica bool) ([]string, bool, error) {
+//
+// Note: pg_stat_statements availability is intentionally NOT checked here. It is detected
+// separately as a mandatory check (DetectPgssAvailabilityOnAllNodes) because its result
+// drives whether Unsupported Query Constructs are collected, and must run regardless of
+// whether guardrails permission checks are enabled.
+func (pg *PostgreSQL) GetMissingAssessMigrationPermissionsForNode(isReplica bool) ([]string, error) {
 	var combinedResult []string
 
 	// Check if tables have SELECT permission
 	missingTables, err := pg.listTablesMissingSelectPermission("")
 	if err != nil {
-		return nil, false, fmt.Errorf("error checking table select permissions: %w", err)
+		return nil, fmt.Errorf("error checking table select permissions: %w", err)
 	}
 	if len(missingTables) > 0 {
 		combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Missing SELECT permission for user %s on Tables: ", pg.source.User), strings.Join(missingTables, ", ")))
@@ -1402,7 +1449,7 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissionsForNode(isReplica bool
 	// Check track_counts setting
 	trackCounts, err := pg.CheckTrackCounts()
 	if err != nil {
-		return nil, false, fmt.Errorf("error checking track_counts setting: %w", err)
+		return nil, fmt.Errorf("error checking track_counts setting: %w", err)
 	}
 	if !trackCounts {
 		combinedResult = append(combinedResult,
@@ -1417,7 +1464,7 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissionsForNode(isReplica bool
 		schemas := pg.getTrimmedSchemaList()
 		missingAnalyze, err := pg.CheckMissingAnalyzeStats(schemas)
 		if err != nil {
-			return nil, false, fmt.Errorf("error checking ANALYZE statistics: %w", err)
+			return nil, fmt.Errorf("error checking ANALYZE statistics: %w", err)
 		}
 		if len(missingAnalyze) > 0 {
 			combinedResult = append(combinedResult,
@@ -1425,17 +1472,22 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissionsForNode(isReplica bool
 		}
 	}
 
+	return combinedResult, nil
+}
+
+// IsPgStatStatementsAvailable reports whether pg_stat_statements is installed,
+// accessible, and properly loaded on the connected node.
+//
+// It runs the lightweight detection (checkPgStatStatementsSetup) without surfacing the
+// detailed reason. This is the single source of truth for deciding whether query-level
+// metadata (Unsupported Query Constructs) can be collected, and is run as a mandatory
+// check independently of the guardrails permission validations.
+func (pg *PostgreSQL) IsPgStatStatementsAvailable() (bool, error) {
 	result, err := pg.checkPgStatStatementsSetup()
 	if err != nil {
-		return nil, false, fmt.Errorf("error checking pg_stat_statement extension installed with read permissions: %w", err)
+		return false, err
 	}
-
-	pgssEnabled := true
-	if result != "" {
-		pgssEnabled = false
-		combinedResult = append(combinedResult, result)
-	}
-	return combinedResult, pgssEnabled, nil
+	return result == "", nil
 }
 
 // CheckTrackCounts checks if the track_counts setting is enabled in PostgreSQL.
