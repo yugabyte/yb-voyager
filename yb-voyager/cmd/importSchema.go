@@ -56,6 +56,7 @@ var importSchemaCmd = &cobra.Command{
 		if importerRole == "" {
 			importerRole = TARGET_DB_IMPORTER_ROLE
 		}
+		validateTargetDBTypeFlag()
 
 		err := retrieveMigrationUUID()
 		if err != nil {
@@ -83,6 +84,7 @@ func init() {
 	registerCommonGlobalFlags(importSchemaCmd)
 	registerCommonImportFlags(importSchemaCmd)
 	registerTargetDBConnFlags(importSchemaCmd)
+	registerTargetDBTypeFlag(importSchemaCmd)
 	registerImportSchemaFlags(importSchemaCmd)
 }
 
@@ -154,7 +156,12 @@ func importSchema() error {
 	if err != nil {
 		return fmt.Errorf("failed to get target db version: %w", err)
 	}
-	utils.PrintAndLogf("YugabyteDB version: %s\n", importTargetDBVersion)
+	if tconf.TargetDBType == YUGABYTEDB_AMP {
+		// yb-amp is a PostgreSQL-compatible compute; version() reports "PostgreSQL 17.x".
+		utils.PrintAndLogf("Target (yugabytedb-amp) version: %s\n", importTargetDBVersion)
+	} else {
+		utils.PrintAndLogf("YugabyteDB version: %s\n", importTargetDBVersion)
+	}
 
 	if err := promptIfColocatedTablesInNonColocatedDB(conn); err != nil {
 		log.Warnf("failed to prompt for colocated tables in non-colocated DB: %v", err)
@@ -370,6 +377,13 @@ func assessmentRecommendedColocatedTables() (bool, error) {
 }
 
 func promptIfColocatedTablesInNonColocatedDB(conn *pgx.Conn) error {
+	// Colocation is a YugabyteDB-only concept; the underlying check runs
+	// yb_is_database_colocated(), a YB-only function absent on non-YB targets
+	// like yb-amp's PG17 compute (it would fatally ErrExit). Only run it for a
+	// real YugabyteDB target.
+	if tconf.TargetDBType != YUGABYTEDB {
+		return nil
+	}
 	migrationAssessmentDoneAndApplied, err := MigrationAssessmentDoneAndApplied()
 	if err != nil {
 		return fmt.Errorf("failed to check if the migration assessment is completed and applied recommendations on schema in export schema: %w", err)

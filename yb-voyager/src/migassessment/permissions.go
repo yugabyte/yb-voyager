@@ -35,36 +35,140 @@ type NodePermissionResult struct {
 	NodeName         string
 	IsPrimary        bool
 	MissingPerms     []string
-	PgssEnabled      bool
 	ConnectionFailed bool  // Explicitly tracks if connection to this node failed
 	Error            error // Any error during permission check (can be connection or other errors)
 }
 
 // CheckAssessmentPermissionsOnAllNodes verifies that the source database has the required
-// permissions for assess-migration command.
+// permissions for assess-migration command. This is part of the guardrails checks and is
+// skipped when --run-guardrails-checks=false.
 //
-// For PostgreSQL: Checks permissions on the primary and all provided replica nodes. This includes
-// verifying access to system catalogs, pg_stat_statements extension, and other metadata tables.
-// Returns a map keyed by node name ("primary" / "host:port") indicating whether
-// pg_stat_statements is available on each node.
+// For PostgreSQL: Checks permissions on the primary and all provided replica nodes (access to
+// system catalogs, table SELECT, track_counts, ANALYZE stats, etc.).
 //
 // For other databases (Oracle, etc.): Checks permissions on the primary database only.
-// Returns nil for the map since pg_stat_statements is PostgreSQL-specific.
-func CheckAssessmentPermissionsOnAllNodes(source *srcdb.Source, validatedReplicas []srcdb.ReplicaEndpoint) (pgssByNode map[string]bool, err error) {
+//
+// Note: pg_stat_statements availability is intentionally NOT checked here; it is detected
+// separately as a mandatory check via DetectPgssAvailabilityOnAllNodes.
+func CheckAssessmentPermissionsOnAllNodes(source *srcdb.Source, validatedReplicas []srcdb.ReplicaEndpoint) error {
 	if source.DBType != POSTGRESQL {
 		return checkPermissionsForNonPostgreSQL(source)
 	}
 	return checkPermissionsForPostgreSQL(source, validatedReplicas)
 }
 
-// checkPermissionsForNonPostgreSQL checks permissions for non-PostgreSQL databases (Oracle, etc.)
-// Returns nil for the pgssByNode map since pg_stat_statements is PostgreSQL-specific.
-func checkPermissionsForNonPostgreSQL(source *srcdb.Source) (map[string]bool, error) {
-	// GetMissingAssessMigrationPermissions returns (missingPerms, pgssEnabled, error)
-	// We ignore pgssEnabled since it's always false for non-PostgreSQL databases
-	missingPerms, _, err := source.DB().GetMissingAssessMigrationPermissions()
+// DetectPgssAvailabilityOnAllNodes determines pg_stat_statements availability on the
+// primary and each replica node. It always runs, regardless of whether guardrails permission
+// checks are enabled, because the result drives whether query-level metadata (Unsupported
+// Query Constructs) is collected. If it did not run, the gather step would default to "pgss
+// disabled" and silently skip Unsupported Query Constructs detection even when the extension
+// is fully enabled.
+//
+// When pg_stat_statements is unavailable it warns that query-level analysis will be limited
+// and asks the user whether to continue.
+//
+// The primary node reuses the already-open source connection; each replica uses a short-lived
+// connection of its own. Detection failures are treated as non-fatal (the node is recorded as
+// pgss-unavailable).
+func DetectPgssAvailabilityOnAllNodes(source *srcdb.Source, validatedReplicas []srcdb.ReplicaEndpoint) (map[string]bool, error) {
+	// pg_stat_statements is PostgreSQL-specific.
+	if source.DBType != POSTGRESQL {
+		return nil, nil
+	}
+
+	pg, ok := source.DB().(*srcdb.PostgreSQL)
+	if !ok {
+		return nil, goerrors.Errorf("source database is not PostgreSQL")
+	}
+
+	pgssByNode := make(map[string]bool, len(validatedReplicas)+1)
+	var nodesWithoutPgss []string
+
+	primaryPgss, err := pg.IsPgStatStatementsAvailable()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get missing assess migration permissions: %w", err)
+		utils.PrintAndLogfWarning("\n⚠ could not verify pg_stat_statements on primary: %v (query-level analysis will be limited)", err)
+		primaryPgss = false
+	}
+	pgssByNode["primary"] = primaryPgss
+	if !primaryPgss {
+		nodesWithoutPgss = append(nodesWithoutPgss, "primary")
+	}
+
+	for _, replica := range validatedReplicas {
+		nodeKey := fmt.Sprintf("%s:%d", replica.Host, replica.Port)
+		replicaPgss, err := detectPgssOnReplicaNode(source, replica)
+		if err != nil {
+			utils.PrintAndLogfWarning("\n⚠ could not verify pg_stat_statements on %s: %v (query-level analysis will be limited)", nodeKey, err)
+			replicaPgss = false
+		}
+		pgssByNode[nodeKey] = replicaPgss
+		if !replicaPgss {
+			nodesWithoutPgss = append(nodesWithoutPgss, nodeKey)
+		}
+	}
+
+	// Warn the user when pg_stat_statements is unavailable (query-level analysis will be
+	// limited). This is informational only; it does not block the run.
+	if len(nodesWithoutPgss) > 0 {
+
+		// If some nodes have pg_stat_statements and some don't, inform the user.
+		if len(nodesWithoutPgss) > 0 {
+			if len(pgssByNode) == 1 {
+				utils.PrintAndLogfWarning("\n⚠ pg_stat_statements not available (query-level analysis will be limited)")
+			} else {
+				utils.PrintAndLogfWarning("\n⚠ pg_stat_statements not available on %s (query-level analysis will be limited)",
+					strings.Join(nodesWithoutPgss, ", "))
+				if len(nodesWithoutPgss) < len(pgssByNode) {
+					utils.PrintAndLogfInfo("\nNote: Query-level analysis (Unsupported Query Constructs) will only include data from nodes with pg_stat_statements.")
+				}
+			}
+		}
+
+		reply := utils.AskPrompt("\nDo you want to continue anyway")
+		if !reply {
+			return nil, goerrors.Errorf("enable pg_stat_statements and try again")
+		}
+	}
+
+	return pgssByNode, nil
+}
+
+// detectPgssOnReplicaNode opens a short-lived connection to a replica and reports
+// whether pg_stat_statements is available on it.
+func detectPgssOnReplicaNode(source *srcdb.Source, replica srcdb.ReplicaEndpoint) (bool, error) {
+	replicaSource := srcdb.Source{
+		DBType:         source.DBType,
+		Host:           replica.Host,
+		Port:           replica.Port,
+		DBName:         source.DBName,
+		User:           source.User,
+		Password:       source.Password,
+		Schemas:        source.Schemas,
+		SSLMode:        source.SSLMode,
+		SSLCertPath:    source.SSLCertPath,
+		SSLKey:         source.SSLKey,
+		SSLRootCert:    source.SSLRootCert,
+		SSLCRL:         source.SSLCRL,
+		NumConnections: source.NumConnections,
+	}
+
+	replicaDB, ok := replicaSource.DB().(*srcdb.PostgreSQL)
+	if !ok {
+		return false, goerrors.Errorf("not a PostgreSQL source")
+	}
+	if err := replicaDB.Connect(); err != nil {
+		return false, fmt.Errorf("failed to connect: %w", err)
+	}
+	defer replicaDB.Disconnect()
+
+	return replicaDB.IsPgStatStatementsAvailable()
+}
+
+// checkPermissionsForNonPostgreSQL checks permissions for non-PostgreSQL databases (Oracle, etc.)
+func checkPermissionsForNonPostgreSQL(source *srcdb.Source) error {
+	missingPerms, err := source.DB().GetMissingAssessMigrationPermissions()
+	if err != nil {
+		return fmt.Errorf("failed to get missing assess migration permissions: %w", err)
 	}
 
 	if len(missingPerms) > 0 {
@@ -77,19 +181,18 @@ func checkPermissionsForNonPostgreSQL(source *srcdb.Source) (map[string]bool, er
 
 		reply := utils.AskPrompt("\nDo you want to continue anyway")
 		if !reply {
-			return nil, goerrors.Errorf("grant the required permissions and try again")
+			return goerrors.Errorf("grant the required permissions and try again")
 		}
 	}
 
-	return nil, nil
+	return nil
 }
 
 // checkPermissionsForPostgreSQL checks permissions on PostgreSQL primary and replica nodes.
-// Returns a map keyed by node name ("primary" / "host:port") → pgss availability.
-func checkPermissionsForPostgreSQL(source *srcdb.Source, validatedReplicas []srcdb.ReplicaEndpoint) (map[string]bool, error) {
+func checkPermissionsForPostgreSQL(source *srcdb.Source, validatedReplicas []srcdb.ReplicaEndpoint) error {
 	pg, ok := source.DB().(*srcdb.PostgreSQL)
 	if !ok {
-		return nil, goerrors.Errorf("source database is not PostgreSQL")
+		return goerrors.Errorf("source database is not PostgreSQL")
 	}
 
 	// Print appropriate message based on replica count
@@ -104,7 +207,7 @@ func checkPermissionsForPostgreSQL(source *srcdb.Source, validatedReplicas []src
 	// Check primary
 	primaryResult, err := checkPermissionsOnPrimaryNode(pg)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	results = append(results, primaryResult)
 
@@ -113,18 +216,12 @@ func checkPermissionsForPostgreSQL(source *srcdb.Source, validatedReplicas []src
 		results = append(results, checkPermissionsOnReplicaNode(source, replica))
 	}
 
-	// Build per-node pgss map from results
-	pgssMap := make(map[string]bool, len(results))
-	for _, result := range results {
-		pgssMap[result.NodeName] = result.PgssEnabled
-	}
-
-	return pgssMap, displayPermissionCheckResults(results)
+	return displayPermissionCheckResults(results)
 }
 
 // checkPermissionsOnPrimaryNode checks permissions on the primary PostgreSQL node
 func checkPermissionsOnPrimaryNode(pg *srcdb.PostgreSQL) (NodePermissionResult, error) {
-	missingPerms, pgssEnabled, err := pg.GetMissingAssessMigrationPermissions()
+	missingPerms, err := pg.GetMissingAssessMigrationPermissions()
 	if err != nil {
 		return NodePermissionResult{}, fmt.Errorf("failed to check permissions on primary: %w", err)
 	}
@@ -132,7 +229,6 @@ func checkPermissionsOnPrimaryNode(pg *srcdb.PostgreSQL) (NodePermissionResult, 
 		NodeName:         "primary",
 		IsPrimary:        true,
 		MissingPerms:     missingPerms,
-		PgssEnabled:      pgssEnabled,
 		ConnectionFailed: false,
 		Error:            nil,
 	}, nil
@@ -170,14 +266,13 @@ func checkPermissionsOnReplicaNode(source *srcdb.Source, replica srcdb.ReplicaEn
 		}
 	}
 
-	missingPerms, pgssEnabled, err := replicaDB.GetMissingAssessMigrationPermissionsForNode(true) // isReplica=true
+	missingPerms, err := replicaDB.GetMissingAssessMigrationPermissionsForNode(true) // isReplica=true
 	replicaDB.Disconnect()
 
 	return NodePermissionResult{
 		NodeName:         fmt.Sprintf("%s:%d", replica.Host, replica.Port),
 		IsPrimary:        false,
 		MissingPerms:     missingPerms,
-		PgssEnabled:      pgssEnabled,
 		ConnectionFailed: false,
 		Error:            err,
 	}
@@ -185,7 +280,6 @@ func checkPermissionsOnReplicaNode(source *srcdb.Source, replica srcdb.ReplicaEn
 
 // displayPermissionCheckResults displays the results of permission checks across all nodes
 func displayPermissionCheckResults(results []NodePermissionResult) error {
-	var nodesWithoutPgss []string
 	var nodesMissingPerms []string
 
 	utils.PrintAndLogfPhase("\n=== Permission Check Results ===\n")
@@ -231,22 +325,12 @@ func displayPermissionCheckResults(results []NodePermissionResult) error {
 				utils.PrintAndLogfWarning("  ⚠ %s", strings.TrimSpace(perm))
 			}
 			nodesMissingPerms = append(nodesMissingPerms, result.NodeName)
-			// Track if pg_stat_statements is missing (already shown in permissions list above)
-			if !result.PgssEnabled {
-				nodesWithoutPgss = append(nodesWithoutPgss, result.NodeName)
-			}
 		} else {
 			// No permission issues - show success
 			if hasMultipleNodes {
 				utils.PrintAndLogf("\n%s:", displayName)
 			}
 			utils.PrintAndLogfSuccess("  ✓ All required permissions present")
-
-			// Show pg_stat_statements status separately only when there are no other permission issues
-			if !result.PgssEnabled {
-				utils.PrintAndLogfWarning("  ⚠ pg_stat_statements not available (query-level analysis will be limited)")
-				nodesWithoutPgss = append(nodesWithoutPgss, result.NodeName)
-			}
 		}
 	}
 
@@ -260,11 +344,6 @@ func displayPermissionCheckResults(results []NodePermissionResult) error {
 		if !reply {
 			return goerrors.Errorf("grant the required permissions and try again")
 		}
-	}
-
-	// If some nodes have pg_stat_statements and some don't, inform user
-	if len(nodesWithoutPgss) > 0 && len(nodesWithoutPgss) < len(results) {
-		utils.PrintAndLogfInfo("\nNote: Query-level analysis (Unsupported Query Constructs) will only include data from nodes with pg_stat_statements.")
 	}
 
 	return nil

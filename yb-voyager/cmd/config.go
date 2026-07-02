@@ -75,7 +75,7 @@ var allowedSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"name", "db-host", "db-port", "db-user", "db-password", "db-name",
+	"name", "db-type", "db-host", "db-port", "db-user", "db-password", "db-name",
 	"db-schema", "ssl-cert", "ssl-mode", "ssl-key", "ssl-root-cert", "ssl-crl",
 )
 

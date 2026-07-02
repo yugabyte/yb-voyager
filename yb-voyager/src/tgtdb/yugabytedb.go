@@ -135,6 +135,10 @@ func (yb *TargetYugabyteDB) Init() error {
 		return err
 	}
 
+	if err := yb.validateYugabyteDBTarget(); err != nil {
+		return err
+	}
+
 	if len(yb.Tconf.SessionVars) == 0 {
 		yb.Tconf.SessionVars = getYBSessionInitScript(yb.Tconf)
 	}
@@ -163,6 +167,29 @@ func (yb *TargetYugabyteDB) Init() error {
 		return goerrors.Errorf("schemas '%s' do not exist in target", strings.Join(notExistsSchemas, ","))
 	}
 	return nil
+}
+
+// validateYugabyteDBTarget confirms the connected endpoint is a genuine
+// YugabyteDB cluster, not a PostgreSQL-compatible look-alike. yb-amp and
+// plain PostgreSQL both speak the PG wire protocol, so without this a
+// mistyped --target-db-type would proceed and misbehave (YB-only GUCs,
+// colocation, adaptive parallelism). Names the right target type to use.
+func (yb *TargetYugabyteDB) validateYugabyteDBTarget() error {
+	isYB, err := endpointIsRealYugabyteDB(yb.db)
+	if err != nil {
+		return fmt.Errorf("validate target is YugabyteDB: %w", err)
+	}
+	if isYB {
+		return nil
+	}
+	if hasAmp, _ := endpointHasAmpGUCs(yb.db); hasAmp {
+		return goerrors.Errorf("the target at %s:%d is a YugabyteDB AMP (yb-amp) endpoint, not a standard YugabyteDB cluster. "+
+			"Use --target-db-type %s instead of %s",
+			yb.Tconf.Host, yb.Tconf.Port, YUGABYTEDB_AMP, YUGABYTEDB)
+	}
+	return goerrors.Errorf("the target at %s:%d does not look like a YugabyteDB cluster "+
+		"(no yb_servers() — it looks like plain PostgreSQL). Use the matching --target-db-type",
+		yb.Tconf.Host, yb.Tconf.Port)
 }
 
 func (yb *TargetYugabyteDB) Finalize() {
