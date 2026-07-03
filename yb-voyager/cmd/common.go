@@ -1887,6 +1887,19 @@ func PackAndSendCallhomePayloadOnExit() {
 		status = EXIT
 	}
 
+	// import data has no single success/failure return value to branch on (unlike
+	// export data): it fails via scattered utils.ErrExit calls, which is why this
+	// is the only place that reliably distinguishes a genuine import data error
+	// (status == ERROR) from a clean exit or a user-requested interrupt (which
+	// also lands here with ErrExitErr unset, i.e. status == EXIT).
+	if status == ERROR {
+		switch currentCommand {
+		case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath(),
+			importDataToSourceCmd.CommandPath(), importDataToSourceReplicaCmd.CommandPath():
+			printSchemaDriftErrorFooter("import data exited with an error.")
+		}
+	}
+
 	switch currentCommand {
 	case assessMigrationCmd.CommandPath():
 		packAndSendAssessMigrationPayload(status, exitErr)

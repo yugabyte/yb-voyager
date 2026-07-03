@@ -133,6 +133,31 @@ func exitDriftOperationalError(format string, args ...interface{}) {
 	os.Exit(2)
 }
 
+// driftDetectionHint returns the example invocation of `schema detect-drift`
+// printed as part of the guidance footers below.
+func driftDetectionHint() string {
+	return fmt.Sprintf("\t%s --export-dir %s (with your source connection flags)", detectDriftCmd.CommandPath(), exportDir)
+}
+
+// printSchemaDriftErrorFooter prints a guidance footer nudging the user
+// towards `schema detect-drift` after an export/import data command has
+// exited with an error. firstLine is the caller-specific lead-in sentence
+// (e.g. "export data exited with an error."); the rest of the message and
+// the example invocation are identical across call sites.
+func printSchemaDriftErrorFooter(firstLine string) {
+	utils.PrintAndLog(fmt.Sprintf("%s If the source schema may have changed since export began, review schema drift before retrying or cutting over:\n%s",
+		firstLine, driftDetectionHint()))
+}
+
+// printCutoverSchemaDriftRecommendation prints a one-time, non-error
+// recommendation to review schema drift on the source before proceeding
+// with cutover -- cutover is the last point at which the source schema is
+// captured, so drift after that point won't be reflected in the migration.
+func printCutoverSchemaDriftRecommendation() {
+	utils.PrintAndLog(fmt.Sprintf("Recommendation: cutover is the last point at which the source schema is captured. Consider reviewing schema drift on the source before proceeding:\n%s",
+		driftDetectionHint()))
+}
+
 // validateDetectDriftFlags runs all flag-only validation (no DB connection
 // required): source DB type, mutually-exclusive flag pairs, and output-format
 // values. Table-list validation (whether a pattern actually matches a table)
