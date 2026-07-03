@@ -465,7 +465,8 @@ func (s *ImportDataState) GetTotalNumOfEventsImportedByType(migrationUUID uuid.U
 // constant across runs of a given migration. Changing it makes resumption read
 // metadata written for a different channel count, skipping or re-applying events.
 // Existing rows are only cleared when startClean is set (a fresh run); on a normal
-// resume initChannelMetaInfo detects the existing rows and skips re-init.
+// resume initChannelMetaInfo detects the existing rows and skips re-init, and
+// errors out if numChans differs from the channel count of the previous run.
 func (s *ImportDataState) InitLiveMigrationState(migrationUUID uuid.UUID, numChans int, startClean bool, tableNameTups []sqlname.NameTuple) error {
 	if startClean {
 		// TODO: common definition for these batch metadata name tuples
@@ -530,6 +531,20 @@ func (s *ImportDataState) initChannelMetaInfo(migrationUUID uuid.UUID, numChans 
 		return fmt.Errorf("error getting channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
 	}
 	if rowCount > 0 {
+		// The metadata was seeded by a previous run with exactly one row per channel
+		// (0..numChans-1). If the configured channel count no longer matches, the
+		// migration is being resumed with a different NUM_EVENT_CHANNELS. Resuming in
+		// that state would read per-channel metadata written for a different channel
+		// count and route events by a different hash % numChans, silently skipping or
+		// re-applying events. Fail fast instead of corrupting data. See the warning on
+		// NUM_EVENT_CHANNELS in live_migration.go.
+		if rowCount != int64(numChans) {
+			return fmt.Errorf("NUM_EVENT_CHANNELS cannot be changed once a migration has started: "+
+				"the previous run used %d channel(s) but this run is configured for %d. "+
+				"Revert NUM_EVENT_CHANNELS to %d to resume. Changing it requires restarting the "+
+				"migration from scratch with --start-clean, which is not possible after cutover",
+				rowCount, numChans, rowCount)
+		}
 		log.Info("event channels meta info already created. Skipping init.")
 		return nil
 	}
