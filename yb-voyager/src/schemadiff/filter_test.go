@@ -23,6 +23,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 )
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -279,12 +282,12 @@ func TestFilterByScopeTableInclude(t *testing.T) {
 		{Type: TableNameChanged, Object: orders, AnchorTable: nil},
 	}
 
-	got := FilterByScope(diffs, Scope{Tables: []string{"public.orders"}})
+	got := FilterByScope(diffs, Scope{Tables: []schemasnapshot.ObjectRef{ref("public", "orders")}})
 
 	// Only orders-anchored findings should survive.
 	for _, d := range got {
 		if d.AnchorTable != nil {
-			assert.Equal(t, "public.orders", d.AnchorTable.String(),
+			assert.Equal(t, "public.orders", d.AnchorTable.ForDisplay(constants.POSTGRESQL),
 				"only public.orders-anchored findings should pass")
 		} else {
 			t.Errorf("nil-AnchorTable finding should have been dropped by Tables filter: %v", d)
@@ -309,12 +312,12 @@ func TestFilterByScopeTableExclude(t *testing.T) {
 		nilAnchorDiff(TableNameChanged, "public", "some_obj"),
 	}
 
-	got := FilterByScope(diffs, Scope{ExcludeTables: []string{"public.orders"}})
+	got := FilterByScope(diffs, Scope{ExcludeTables: []schemasnapshot.ObjectRef{ref("public", "orders")}})
 
 	gotTypes := collectTypes(got)
 	assert.False(t, func() bool {
 		for _, d := range got {
-			if d.AnchorTable != nil && d.AnchorTable.String() == "public.orders" {
+			if d.AnchorTable != nil && d.AnchorTable.ForDisplay(constants.POSTGRESQL) == "public.orders" {
 				return true
 			}
 		}
@@ -340,7 +343,7 @@ func TestFilterByScopeNilAnchorDroppedByTables(t *testing.T) {
 	}
 
 	// Non-empty Tables list: nil-AnchorTable findings must be dropped.
-	got := FilterByScope(diffs, Scope{Tables: []string{"public.orders"}})
+	got := FilterByScope(diffs, Scope{Tables: []schemasnapshot.ObjectRef{ref("public", "orders")}})
 	assert.Empty(t, got, "nil-AnchorTable findings must be dropped when Tables is non-empty")
 
 	// Empty scope: all pass through (nil-AnchorTable is not dropped by ObjectTypes alone).
@@ -360,7 +363,7 @@ func TestFilterByScopeTableNameChangedOldNameInScope(t *testing.T) {
 	// TABLE_NAME_CHANGED: old name "orders", new name "purchase_orders".
 	d := nameChangedDiff(TableNameChanged, "public", "orders", "purchase_orders")
 
-	got := FilterByScope([]Difference{d}, Scope{Tables: []string{"public.orders"}})
+	got := FilterByScope([]Difference{d}, Scope{Tables: []schemasnapshot.ObjectRef{ref("public", "orders")}})
 	assert.Len(t, got, 1, "TABLE_NAME_CHANGED should be kept when old name is in Tables")
 }
 
@@ -369,7 +372,7 @@ func TestFilterByScopeTableNameChangedOldNameInScope(t *testing.T) {
 func TestFilterByScopeTableNameChangedNewNameInScope(t *testing.T) {
 	d := nameChangedDiff(TableNameChanged, "public", "orders", "purchase_orders")
 
-	got := FilterByScope([]Difference{d}, Scope{Tables: []string{"public.purchase_orders"}})
+	got := FilterByScope([]Difference{d}, Scope{Tables: []schemasnapshot.ObjectRef{ref("public", "purchase_orders")}})
 	assert.Len(t, got, 1, "TABLE_NAME_CHANGED should be kept when new name is in Tables")
 }
 
@@ -378,7 +381,7 @@ func TestFilterByScopeTableNameChangedNewNameInScope(t *testing.T) {
 func TestFilterByScopeTableNameChangedNeitherNameInScope(t *testing.T) {
 	d := nameChangedDiff(TableNameChanged, "public", "orders", "purchase_orders")
 
-	got := FilterByScope([]Difference{d}, Scope{Tables: []string{"public.customers"}})
+	got := FilterByScope([]Difference{d}, Scope{Tables: []schemasnapshot.ObjectRef{ref("public", "customers")}})
 	assert.Empty(t, got, "TABLE_NAME_CHANGED should be dropped when neither name is in Tables")
 }
 
@@ -406,7 +409,7 @@ func TestFilterByScopeAnchorRenameExtension(t *testing.T) {
 
 	// Filtering by the NEW name should include both: the rename itself and
 	// the column change whose anchor is the old name.
-	got := FilterByScope(diffs, Scope{Tables: []string{"public.purchase_orders"}})
+	got := FilterByScope(diffs, Scope{Tables: []schemasnapshot.ObjectRef{ref("public", "purchase_orders")}})
 	assert.Len(t, got, 2, "rename + column change should both be kept when new name is in Tables")
 }
 
@@ -427,7 +430,7 @@ func TestFilterByScopeAnchorRenameExtensionExclude(t *testing.T) {
 
 	// Excluding by the NEW name should drop findings whose anchor is the OLD name
 	// (because they are aliases via the rename map).
-	got := FilterByScope(diffs, Scope{ExcludeTables: []string{"public.purchase_orders"}})
+	got := FilterByScope(diffs, Scope{ExcludeTables: []schemasnapshot.ObjectRef{ref("public", "purchase_orders")}})
 	assert.Empty(t, got, "findings anchored to old name should be excluded when new name is in ExcludeTables")
 }
 
@@ -467,7 +470,7 @@ func TestFilterByScopeAliasMapCollision(t *testing.T) {
 	// The key concern is that the alias-map collision (rename1 and rename2 both
 	// touching "customers" as a key) must NOT cause rename1 or colChange to be
 	// silently dropped.
-	got := FilterByScope(diffs, Scope{Tables: []string{"public.customers"}})
+	got := FilterByScope(diffs, Scope{Tables: []schemasnapshot.ObjectRef{ref("public", "customers")}})
 	gotTypes := collectTypes(got)
 	assert.True(t, gotTypes[TableNameChanged], "rename findings should be kept — 'customers' is an anchor or alias")
 	assert.True(t, gotTypes[ColumnAdded], "column change anchored to 'users' must NOT be dropped — 'users' aliases 'customers'")
@@ -476,7 +479,7 @@ func TestFilterByScopeAliasMapCollision(t *testing.T) {
 	// Filtering by "users" should include all three: rename1 (direct anchor),
 	// colChange (direct anchor), and rename2 (its anchor "customers" aliases
 	// "users" because rename1 recorded customers→users in both directions).
-	got2 := FilterByScope(diffs, Scope{Tables: []string{"public.users"}})
+	got2 := FilterByScope(diffs, Scope{Tables: []schemasnapshot.ObjectRef{ref("public", "users")}})
 	got2Types := collectTypes(got2)
 	assert.True(t, got2Types[TableNameChanged], "rename findings should be kept — 'users' is an anchor or alias")
 	assert.True(t, got2Types[ColumnAdded], "colChange anchored to 'users' should be kept")
@@ -486,7 +489,7 @@ func TestFilterByScopeAliasMapCollision(t *testing.T) {
 	// rename1 (anchor "users") and colChange (anchor "users") must NOT be
 	// incorrectly included: aliases["public.users"] = ["public.customers"] only,
 	// not "public.clients" — so the alias-map collision fix is verified here.
-	got3 := FilterByScope(diffs, Scope{Tables: []string{"public.clients"}})
+	got3 := FilterByScope(diffs, Scope{Tables: []schemasnapshot.ObjectRef{ref("public", "clients")}})
 	got3Types := collectTypes(got3)
 	assert.True(t, got3Types[TableNameChanged], "rename2 (customers→clients) should be kept when Tables=['public.clients']")
 	assert.False(t, got3Types[ColumnAdded], "colChange anchored to 'users' must NOT be incorrectly included for 'clients'")
@@ -534,11 +537,11 @@ func TestFilterByScopeSchemaMoveNewIdentityInScope(t *testing.T) {
 
 	// Filtering by the NEW schema-qualified name must keep BOTH the move finding
 	// and the column change anchored to the old identifier.
-	got := FilterByScope(diffs, Scope{Tables: []string{"new_s.orders"}})
+	got := FilterByScope(diffs, Scope{Tables: []schemasnapshot.ObjectRef{ref("new_s", "orders")}})
 	assert.Len(t, got, 2, "schema-move + column change should both be kept when the new identifier is in Tables")
 
 	// Symmetric: filtering by the OLD identifier also keeps both.
-	gotOld := FilterByScope(diffs, Scope{Tables: []string{"old_s.orders"}})
+	gotOld := FilterByScope(diffs, Scope{Tables: []schemasnapshot.ObjectRef{ref("old_s", "orders")}})
 	assert.Len(t, gotOld, 2, "both findings should be kept when the old identifier is in Tables")
 }
 
@@ -557,7 +560,7 @@ func TestFilterByScopeSchemaMoveExclude(t *testing.T) {
 
 	diffs := []Difference{move, colChange}
 
-	got := FilterByScope(diffs, Scope{ExcludeTables: []string{"new_s.orders"}})
+	got := FilterByScope(diffs, Scope{ExcludeTables: []schemasnapshot.ObjectRef{ref("new_s", "orders")}})
 	assert.Empty(t, got, "findings anchored to the old identifier should be excluded when the new identifier is in ExcludeTables")
 }
 
@@ -595,16 +598,16 @@ func TestFilterByScopeRenameAndMove(t *testing.T) {
 	diffs := []Difference{rename, move, colChange}
 
 	// The true new identity is "new_s.purchase_orders": filtering by it keeps all three.
-	got := FilterByScope(diffs, Scope{Tables: []string{"new_s.purchase_orders"}})
+	got := FilterByScope(diffs, Scope{Tables: []schemasnapshot.ObjectRef{ref("new_s", "purchase_orders")}})
 	assert.Len(t, got, 3, "rename+move + column change should all be kept when the true new identifier is in Tables")
 
 	// The OLD identity "old_s.orders" keeps all three too (either-side).
-	gotOld := FilterByScope(diffs, Scope{Tables: []string{"old_s.orders"}})
+	gotOld := FilterByScope(diffs, Scope{Tables: []schemasnapshot.ObjectRef{ref("old_s", "orders")}})
 	assert.Len(t, gotOld, 3, "all three findings should be kept when the old identifier is in Tables")
 
 	// The bogus "old schema + new name" identifier must NOT match anything —
 	// it is not a real identity of this table on either side.
-	gotBogus := FilterByScope(diffs, Scope{Tables: []string{"old_s.purchase_orders"}})
+	gotBogus := FilterByScope(diffs, Scope{Tables: []schemasnapshot.ObjectRef{ref("old_s", "purchase_orders")}})
 	assert.Empty(t, gotBogus, "the spurious old-schema+new-name identifier must not match — the table never had that identity")
 }
 
@@ -658,12 +661,12 @@ func TestFilterByScopeIncludeTableExcludeTable(t *testing.T) {
 
 	// Include both, then exclude orders.
 	got := FilterByScope(diffs, Scope{
-		Tables:        []string{"public.orders", "public.customers"},
-		ExcludeTables: []string{"public.orders"},
+		Tables:        []schemasnapshot.ObjectRef{ref("public", "orders"), ref("public", "customers")},
+		ExcludeTables: []schemasnapshot.ObjectRef{ref("public", "orders")},
 	})
 
 	assert.Len(t, got, 1)
-	assert.Equal(t, "public.customers", got[0].AnchorTable.String())
+	assert.Equal(t, "public.customers", got[0].AnchorTable.ForDisplay(constants.POSTGRESQL))
 }
 
 // ─── Edge cases ───────────────────────────────────────────────────────────────
@@ -674,7 +677,7 @@ func TestFilterByScopeUnknownTableNameIsNoOp(t *testing.T) {
 	diffs := []Difference{
 		tableDiff(TableAdded, "public", "orders"),
 	}
-	got := FilterByScope(diffs, Scope{Tables: []string{"public.nonexistent"}})
+	got := FilterByScope(diffs, Scope{Tables: []schemasnapshot.ObjectRef{ref("public", "nonexistent")}})
 	assert.Empty(t, got)
 }
 

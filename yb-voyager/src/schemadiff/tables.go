@@ -73,7 +73,8 @@ func partitionParentEqual(a, b *schemasnapshot.ObjectRef) bool {
 //     rather than an add+drop pair.
 //  2. Name pass — every table left unmatched by the ID pass (tables with no
 //     usable ID, PLUS any whose ID was present on one side but absent on the
-//     other) is reconciled by ObjectRef.String() (schema.name).
+//     other) is reconciled by ObjectRef.ForKey(dbType), the collision-safe,
+//     case-sensitive, per-part-quoted canonical key (see diffTablesByName).
 //
 // Letting ID-unmatched tables fall through to the name pass — instead of
 // declaring them dropped/added immediately — is what keeps a table whose ID is
@@ -123,25 +124,33 @@ func diffTables(a, b *schemasnapshot.SnapshotContent) []Difference {
 	}
 
 	// Pass 2: name-based reconciliation of the residue.
-	diffs = append(diffs, diffTablesByName(residueA, residueB, matchByID)...)
+	diffs = append(diffs, diffTablesByName(residueA, residueB, matchByID, a.DatabaseType, b.DatabaseType)...)
 
 	return diffs
 }
 
 // diffTablesByName reconciles the tables left unmatched by the ID pass, keyed on
-// ObjectRef.String() (schema.name, which is unique within a snapshot). A
-// same-named pair is treated as the same table only when nameMatchAllowed
-// permits it; otherwise the A-side is dropped and the B-side added.
-func diffTablesByName(residueA, residueB []schemasnapshot.Table, matchByID bool) []Difference {
+// the collision-safe, case-sensitive, per-part-quoted canonical key returned by
+// ObjectRef.ForKey(dbType) (unique within a snapshot). A same-named pair is
+// treated as the same table only when nameMatchAllowed permits it; otherwise
+// the A-side is dropped and the B-side added.
+func diffTablesByName(residueA, residueB []schemasnapshot.Table, matchByID bool, dbTypeA, dbTypeB string) []Difference {
 	var diffs []Difference
+
+	// identity seam — the single point where a table's name-match key is derived.
+	// Today: the case-sensitive, collision-safe per-part-quoted key (ForKey). When
+	// cross-engine diffing lands, this becomes a NameRegistry-canonicalized handle —
+	// change only here; the match loop stays generic over the key string.
+	keyA := func(t schemasnapshot.Table) string { return t.ForKey(dbTypeA) }
+	keyB := func(t schemasnapshot.Table) string { return t.ForKey(dbTypeB) }
 
 	byNameA := make(map[string]schemasnapshot.Table, len(residueA))
 	byNameB := make(map[string]schemasnapshot.Table, len(residueB))
 	for _, t := range residueA {
-		byNameA[t.ObjectRef.String()] = t
+		byNameA[keyA(t)] = t
 	}
 	for _, t := range residueB {
-		byNameB[t.ObjectRef.String()] = t
+		byNameB[keyB(t)] = t
 	}
 
 	matchedB := make(map[string]bool, len(byNameB))
