@@ -396,6 +396,7 @@ func isCutoverInitiatedAndCutoverDetected(exporterRole string) (bool, error) {
 func debeziumExportData(config *dbzm.Config, tableNameToApproxRowCountMap map[string]int64) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	defer startPeriodicSourceSchemaSnapshotCapture(ctx)()
 	if config.SnapshotMode != "never" {
 		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			record.SnapshotMechanism = "debezium"

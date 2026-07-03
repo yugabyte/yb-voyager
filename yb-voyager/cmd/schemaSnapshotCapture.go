@@ -17,10 +17,12 @@ package cmd
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 )
@@ -69,6 +71,41 @@ func captureSourceSchemaSnapshot(ctx context.Context, label, reason string, plac
 		return
 	}
 	log.Infof("captured schema snapshot %q", name)
+}
+
+// startPeriodicSourceSchemaSnapshotCapture launches a background ticker that
+// captures a source schema snapshot every --schema-snapshot-capture-interval
+// minutes while the export is in the snapshot phase (exportPhase == MODE_SNAPSHOT).
+// It returns a stop function to be invoked via defer. Best-effort and off the data
+// path: a no-op when suppressed, when the interval is <= 0, or when this is not the
+// source exporter; periodic capture failures are logged and never affect export.
+func startPeriodicSourceSchemaSnapshotCapture(ctx context.Context) func() {
+	if exporterRole != SOURCE_DB_EXPORTER_ROLE || bool(suppressSchemaSnapshotCapture) {
+		return func() {}
+	}
+	interval := time.Duration(schemaSnapshotCaptureInterval) * time.Minute
+	if interval <= 0 {
+		return func() {}
+	}
+	stop := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-stop:
+				return
+			case <-ticker.C:
+				if exportPhase == dbzm.MODE_SNAPSHOT {
+					captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourcePeriodic, "", false)
+				}
+			}
+		}
+	}()
+	var once sync.Once
+	return func() { once.Do(func() { close(stop) }) }
 }
 
 // saveSourceSchemaSnapshotPlaceholder records a metadata-only timeline marker

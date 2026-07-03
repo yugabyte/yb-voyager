@@ -1756,6 +1756,7 @@ func propagateIfExportDataError(err error, currentFlow string) error {
 }
 
 func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string) error {
+	defer startPeriodicSourceSchemaSnapshotCapture(ctx)()
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 		exportDataStartEvent := createSnapshotExportStartedEvent()
 		controlPlane.SnapshotExportStarted(&exportDataStartEvent)
