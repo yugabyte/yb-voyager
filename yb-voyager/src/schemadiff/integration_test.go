@@ -113,7 +113,7 @@ func TestDiff_EndToEnd(t *testing.T) {
 	t.Logf("Total findings: %d", len(diffs))
 	for i, d := range diffs {
 		t.Logf("  [%d] Type=%-30s Object=%-30s SubObject=%s OldValue=%v NewValue=%v",
-			i, d.Type, d.Object.String(), d.SubObject, d.OldValue, d.NewValue)
+			i, d.Type, d.Object.ForDisplay(constants.POSTGRESQL), d.SubObject, d.OldValue, d.NewValue)
 	}
 
 	// ── Helper ─────────────────────────────────────────────────────────────────
@@ -207,7 +207,7 @@ func TestDiff_EndToEnd(t *testing.T) {
 	// The rename finding is anchored to old-name "diff_it.orders"; the alias map
 	// must bridge purchases ↔ orders so both names retain the rename finding.
 	scopedByNew := schemadiff.FilterByScope(diffs, schemadiff.Scope{
-		Tables: []string{driftSchema + ".purchases"},
+		Tables: []schemasnapshot.ObjectRef{{Schema: driftSchema, Name: "purchases"}},
 	})
 	t.Logf("Scoped by new name 'purchases': %d findings", len(scopedByNew))
 
@@ -233,7 +233,7 @@ func TestDiff_EndToEnd(t *testing.T) {
 
 	// ── 12. Scope filtering: Tables=["diff_it.orders"] (old name) ──────────────
 	scopedByOld := schemadiff.FilterByScope(diffs, schemadiff.Scope{
-		Tables: []string{driftSchema + ".orders"},
+		Tables: []schemasnapshot.ObjectRef{{Schema: driftSchema, Name: "orders"}},
 	})
 	t.Logf("Scoped by old name 'orders': %d findings", len(scopedByOld))
 

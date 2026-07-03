@@ -102,15 +102,15 @@ func Diff(a, b *schemasnapshot.SnapshotContent) []Difference {
 // suppressed; all other finding types (e.g. COLUMN_TYPE_CHANGED on matched tables,
 // TABLE_NAME_CHANGED, etc.) pass through unchanged.
 func suppressLifecycleTableColumns(diffs []Difference) []Difference {
-	// Build sets of table ObjectRef strings for wholly added and wholly dropped tables.
-	added := make(map[string]struct{})
-	dropped := make(map[string]struct{})
+	// Build sets of table ObjectRefs for wholly added and wholly dropped tables.
+	added := make(map[schemasnapshot.ObjectRef]struct{})
+	dropped := make(map[schemasnapshot.ObjectRef]struct{})
 	for _, d := range diffs {
 		switch d.Type {
 		case TableAdded:
-			added[d.Object.String()] = struct{}{}
+			added[d.Object] = struct{}{}
 		case TableDropped:
-			dropped[d.Object.String()] = struct{}{}
+			dropped[d.Object] = struct{}{}
 		}
 	}
 	// Fast path: nothing to suppress.
@@ -122,11 +122,11 @@ func suppressLifecycleTableColumns(diffs []Difference) []Difference {
 	for _, d := range diffs {
 		switch d.Type {
 		case ColumnAdded:
-			if _, ok := added[d.Object.String()]; ok {
+			if _, ok := added[d.Object]; ok {
 				continue // suppress: parent table is wholly added
 			}
 		case ColumnDropped:
-			if _, ok := dropped[d.Object.String()]; ok {
+			if _, ok := dropped[d.Object]; ok {
 				continue // suppress: parent table is wholly dropped
 			}
 		}

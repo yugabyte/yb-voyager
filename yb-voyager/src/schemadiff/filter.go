@@ -38,10 +38,13 @@ const (
 
 // Scope describes the include/exclude filters applied by FilterByScope.
 //
-// Tables and ExcludeTables match on Difference.AnchorTable (exact catalog
-// identifiers, case-sensitive). ObjectTypes and ExcludeObjectTypes match on
-// the object-type bucket that each DiffType belongs to. An empty list means
-// "all".
+// Tables and ExcludeTables hold caller-RESOLVED catalog identities: the caller
+// resolves --table-list / --exclude-table-list globs and the default schema to
+// concrete ObjectRefs before calling FilterByScope. Matching here is exact,
+// case-sensitive struct equality against Difference.AnchorTable — no further
+// name resolution, quoting, or case-folding happens inside this package.
+// ObjectTypes and ExcludeObjectTypes match on the object-type bucket that each
+// DiffType belongs to. An empty list means "all".
 //
 // Scope is intentionally permissive and policy-free — it never errors:
 //   - Both an include and its exclude list may be non-empty at once. Overlap is
@@ -57,9 +60,9 @@ const (
 // stay a pure, total function for any programmatic caller (a future Scope.Validate
 // could host such rules without making FilterByScope failable).
 type Scope struct {
-	Tables             []string     // empty = all; matched against AnchorTable
-	ExcludeTables      []string     // drop findings whose AnchorTable is in this list
-	ObjectTypes        []ObjectType // empty = all
+	Tables             []schemasnapshot.ObjectRef // empty = all; matched against AnchorTable
+	ExcludeTables      []schemasnapshot.ObjectRef // drop findings whose AnchorTable is in this list
+	ObjectTypes        []ObjectType               // empty = all
 	ExcludeObjectTypes []ObjectType
 }
 
@@ -86,14 +89,14 @@ func FilterByScope(diffs []Difference, scope Scope) []Difference {
 	// itself renamed and/or moved is kept when either the old or the new
 	// identifier is in scope.
 	//
-	// The map is keyed by the catalog identifier string (ObjectRef.String()).
+	// The map is keyed by ObjectRef (exact struct identity), not a string.
 	tableRenameAliases := buildTableRenameAliases(diffs)
 
 	// Pre-build lookup sets for the four lists to avoid O(n²) inner scans.
 	includeTypes := makeObjectTypeSet(scope.ObjectTypes)
 	excludeTypes := makeObjectTypeSet(scope.ExcludeObjectTypes)
-	includeTables := makeStringSet(scope.Tables)
-	excludeTables := makeStringSet(scope.ExcludeTables)
+	includeTables := makeObjectRefSet(scope.Tables)
+	excludeTables := makeObjectRefSet(scope.ExcludeTables)
 
 	out := make([]Difference, 0, len(diffs))
 	for _, d := range diffs {
@@ -116,8 +119,8 @@ func FilterByScope(diffs []Difference, scope Scope) []Difference {
 
 // buildTableRenameAliases scans diffs for the findings that change a table's
 // catalog identity — TABLE_NAME_CHANGED (new name) and TABLE_SCHEMA_CHANGED (new
-// schema, i.e. SET SCHEMA) — and returns a map from each identifier to all the
-// identifiers it is aliased to, so either side of an identity change can stand
+// schema, i.e. SET SCHEMA) — and returns a map from each identity to all the
+// identities it is aliased to, so either side of an identity change can stand
 // in for the other during table-scope matching (the either-side rule, §8).
 //
 // A single table may change BOTH its name and schema in one interval. The diff
@@ -127,12 +130,13 @@ func FilterByScope(diffs []Difference, scope Scope) []Difference {
 // by applying whichever of {schema, name} changed — never "old schema + new
 // name", which is not a real identity of the table on either side.
 //
-// The map accumulates multiple aliases per identifier (a []string) so rename
+// The map accumulates multiple aliases per identity (a []ObjectRef) so rename
 // chains across distinct tables in one diff set (e.g. a→b and b→c) do not clobber
-// one another. Keys and values are ObjectRef.String() catalog identifiers.
+// one another. Keys and values are ObjectRef structs (exact identity, no string
+// rendering involved).
 //
 // No-op changes (old == new) are skipped to keep the alias set clean.
-func buildTableRenameAliases(diffs []Difference) map[string][]string {
+func buildTableRenameAliases(diffs []Difference) map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef {
 	// Group the per-attribute identity changes by the side-A (old) ref so a
 	// rename-and-move pair is recombined into one old→new mapping.
 	type identityChange struct {
@@ -140,13 +144,12 @@ func buildTableRenameAliases(diffs []Difference) map[string][]string {
 		newSchema string // "" => schema unchanged
 		newName   string // "" => name unchanged
 	}
-	changes := make(map[string]*identityChange)
+	changes := make(map[schemasnapshot.ObjectRef]*identityChange)
 	at := func(old schemasnapshot.ObjectRef) *identityChange {
-		key := old.String()
-		c := changes[key]
+		c := changes[old]
 		if c == nil {
 			c = &identityChange{oldRef: old}
-			changes[key] = c
+			changes[old] = c
 		}
 		return c
 	}
@@ -163,7 +166,7 @@ func buildTableRenameAliases(diffs []Difference) map[string][]string {
 		}
 	}
 
-	aliases := make(map[string][]string)
+	aliases := make(map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef)
 	for _, c := range changes {
 		newRef := c.oldRef
 		if c.newSchema != "" {
@@ -172,13 +175,12 @@ func buildTableRenameAliases(diffs []Difference) map[string][]string {
 		if c.newName != "" {
 			newRef.Name = c.newName
 		}
-		oldID := c.oldRef.String()
-		newID := newRef.String()
-		if oldID == newID {
+		oldRef := c.oldRef
+		if oldRef == newRef {
 			continue // no-op
 		}
-		aliases[oldID] = append(aliases[oldID], newID)
-		aliases[newID] = append(aliases[newID], oldID)
+		aliases[oldRef] = append(aliases[oldRef], newRef)
+		aliases[newRef] = append(aliases[newRef], oldRef)
 	}
 	return aliases
 }
@@ -216,22 +218,22 @@ func passesObjectTypeExcludeFilter(d Difference, excludeTypes map[ObjectType]str
 //     TABLE_NAME_CHANGED / TABLE_SCHEMA_CHANGED findings covers all either-side
 //     cases including the change finding itself (old and new identifiers are
 //     both recorded as aliases).
-func passesTableIncludeFilter(d Difference, includeTables map[string]struct{}, aliases map[string][]string) bool {
+func passesTableIncludeFilter(d Difference, includeTables map[schemasnapshot.ObjectRef]struct{}, aliases map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef) bool {
 	if len(includeTables) == 0 {
 		return true
 	}
 	if d.AnchorTable == nil {
 		return false
 	}
-	anchorID := d.AnchorTable.String()
+	anchor := *d.AnchorTable
 
 	// Check the anchor itself.
-	if _, ok := includeTables[anchorID]; ok {
+	if _, ok := includeTables[anchor]; ok {
 		return true
 	}
 
 	// Check all rename aliases of the anchor.
-	for _, alias := range aliases[anchorID] {
+	for _, alias := range aliases[anchor] {
 		if _, ok := includeTables[alias]; ok {
 			return true
 		}
@@ -249,21 +251,21 @@ func passesTableIncludeFilter(d Difference, includeTables map[string]struct{}, a
 //   - Non-nil AnchorTable → drop if the anchor or any identity alias is in the list.
 //     The alias map covers TABLE_NAME_CHANGED / TABLE_SCHEMA_CHANGED either-side
 //     matching automatically.
-func passesTableExcludeFilter(d Difference, excludeTables map[string]struct{}, aliases map[string][]string) bool {
+func passesTableExcludeFilter(d Difference, excludeTables map[schemasnapshot.ObjectRef]struct{}, aliases map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef) bool {
 	if len(excludeTables) == 0 {
 		return true
 	}
 	if d.AnchorTable == nil {
 		return true // nil anchor is never excluded by ExcludeTables
 	}
-	anchorID := d.AnchorTable.String()
+	anchor := *d.AnchorTable
 
-	if _, ok := excludeTables[anchorID]; ok {
+	if _, ok := excludeTables[anchor]; ok {
 		return false
 	}
 
 	// Check all rename aliases of the anchor.
-	for _, alias := range aliases[anchorID] {
+	for _, alias := range aliases[anchor] {
 		if _, ok := excludeTables[alias]; ok {
 			return false
 		}
@@ -284,14 +286,15 @@ func makeObjectTypeSet(types []ObjectType) map[ObjectType]struct{} {
 	return m
 }
 
-// makeStringSet converts a []string into a map for O(1) lookup.
-func makeStringSet(ss []string) map[string]struct{} {
-	if len(ss) == 0 {
+// makeObjectRefSet converts a []schemasnapshot.ObjectRef into a map for O(1)
+// exact, case-sensitive struct-equality lookup.
+func makeObjectRefSet(refs []schemasnapshot.ObjectRef) map[schemasnapshot.ObjectRef]struct{} {
+	if len(refs) == 0 {
 		return nil
 	}
-	m := make(map[string]struct{}, len(ss))
-	for _, s := range ss {
-		m[s] = struct{}{}
+	m := make(map[schemasnapshot.ObjectRef]struct{}, len(refs))
+	for _, r := range refs {
+		m[r] = struct{}{}
 	}
 	return m
 }
