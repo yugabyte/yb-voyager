@@ -34,7 +34,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
@@ -160,13 +159,12 @@ import-data-to-target:
 	// Now verify that exactly one conflicting sections array contains 'export-data' and 'export-data-from-source'
 	assert.Len(t, validationErr.ConflictingSections, 2, "Expected exactly two conflicting sections array")
 
-	// Now verify that one string array contains only 'export-data' and 'export-data-from-source'
-	assert.Len(t, validationErr.ConflictingSections[0], 2, "Expected the conflicting sections array to contain exactly two sections")
-	assert.ElementsMatch(t, validationErr.ConflictingSections[0], []string{"export-data", "export-data-from-source"}, "Expected 'export-data' and 'export-data-from-source' to be in the conflicting sections")
-	// Now verify that the other string array contains only 'import-data' and 'import-data-to-target'
-	assert.Len(t, validationErr.ConflictingSections[1], 2, "Expected the conflicting sections array to contain exactly two sections")
-	assert.ElementsMatch(t, validationErr.ConflictingSections[1], []string{"import-data", "import-data-to-target"}, "Expected 'import-data' and 'import-data-to-target' to be in the conflicting sections")
-
+	//matching the conflicting sections with ElementsMatch as in the validteConfigFile function we are iterating over the map where the order of keys is random
+	//so the order of these arrays is not consistent in test,
+	assert.ElementsMatch(t, [][]string{
+		{"export-data", "export-data-from-source"},
+		{"import-data", "import-data-to-target"},
+	}, validationErr.ConflictingSections, "Expected conflicting sections to match")
 	// Ensure that all other sets are empty
 	assert.Empty(t, validationErr.InvalidGlobalKeys, "Expected InvalidGlobalKeys to be empty")
 	assert.Empty(t, validationErr.InvalidSectionKeys, "Expected InvalidSectionKeys to be empty")
