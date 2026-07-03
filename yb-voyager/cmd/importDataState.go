@@ -458,6 +458,14 @@ func (s *ImportDataState) GetTotalNumOfEventsImportedByType(migrationUUID uuid.U
 	return numInserts, numUpdates, numDeletes, nil
 }
 
+// InitLiveMigrationState seeds the per-channel resumption metadata: one row per
+// channel index (0..numChans-1) in the event-channels and per-table event-count
+// tables. numChans is NUM_EVENT_CHANNELS. Because this metadata is keyed by
+// channel index and events are routed by hash % numChans, numChans MUST stay
+// constant across runs of a given migration. Changing it makes resumption read
+// metadata written for a different channel count, skipping or re-applying events.
+// Existing rows are only cleared when startClean is set (a fresh run); on a normal
+// resume initChannelMetaInfo detects the existing rows and skips re-init.
 func (s *ImportDataState) InitLiveMigrationState(migrationUUID uuid.UUID, numChans int, startClean bool, tableNameTups []sqlname.NameTuple) error {
 	if startClean {
 		// TODO: common definition for these batch metadata name tuples
