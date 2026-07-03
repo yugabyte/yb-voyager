@@ -50,6 +50,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/export"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
@@ -540,6 +541,15 @@ func exportData() bool {
 		utils.ErrExit("error getting migration status record: %w", err)
 	}
 
+	// Compute the schema-snapshot start reason BEFORE clearMigrationStateIfRequired()
+	// can zero out msr.ExportDataDone (--start-clean resets it).
+	snapshotStartReason := schemasnapshot.ReasonInitial
+	if bool(startClean) {
+		snapshotStartReason = schemasnapshot.ReasonCleanRestart
+	} else if msr != nil && msr.ExportDataDone {
+		snapshotStartReason = schemasnapshot.ReasonResume
+	}
+
 	if source.DBType == YUGABYTEDB {
 		source.IsYBGrpcConnector = msr.UseYBgRPCConnector
 	}
@@ -649,6 +659,20 @@ func exportData() bool {
 
 	//finalTableList is with leaf partitions and root tables after this in the whole export flow to make all the catalog queries work fine
 
+	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+		captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourceStart, snapshotStartReason, true)
+		atexit.Register(func() {
+			if exportDataExitSnapshotCaptured {
+				return // normal complete/cutover path already recorded the exit
+			}
+			reason := schemasnapshot.ReasonError
+			if ProcessShutdownRequested {
+				reason = schemasnapshot.ReasonInterrupt
+			}
+			saveSourceSchemaSnapshotPlaceholder(schemasnapshot.LabelExportDataFromSourceExit, reason)
+		})
+	}
+
 	if changeStreamingIsEnabled(exportType) || useDebezium {
 		exportPhase = dbzm.MODE_SNAPSHOT
 		err = startDebeziumAsPerExportTypeIfRequired(ctx, cancel, finalTableList, tablesColumnList, leafPartitions, partitionsToRootTableMap)
@@ -704,6 +728,17 @@ func exportData() bool {
 
 			utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
+
+			if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+				captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourceExit, schemasnapshot.ReasonCutover, true)
+				exportDataExitSnapshotCaptured = true
+			}
+		} else if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+			// useDebezium && !changeStreamingIsEnabled(exportType): snapshot-only
+			// export via debezium. No change streaming happened, so no cutover
+			// was processed above; this is a plain completion, not a cutover.
+			captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourceExit, schemasnapshot.ReasonComplete, true)
+			exportDataExitSnapshotCaptured = true
 		}
 		return true
 	} else {
@@ -716,6 +751,10 @@ func exportData() bool {
 		if err != nil {
 			log.Errorf("Export Data failed: %v", err)
 			return false
+		}
+		if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+			captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourceExit, schemasnapshot.ReasonComplete, true)
+			exportDataExitSnapshotCaptured = true
 		}
 		return true
 	}
