@@ -128,11 +128,13 @@ func TestRenderHTML(t *testing.T) {
 
 	html := string(out)
 	assert.Contains(t, html, "db.example.internal", "source host should appear")
-	assert.Contains(t, html, "breaks_migration_recoverable", "status badge label should appear")
-	assert.Contains(t, html, "TABLE_ADDED", "a diff type string should appear")
-	assert.Contains(t, html, "COLUMN_TYPE_CHANGED")
+	assert.Contains(t, html, "⛔ Breaks the migration — recoverable", "status action label should appear")
+	assert.Contains(t, html, "table added", "a diff kind label should appear")
+	assert.Contains(t, html, "column type changed")
+	assert.Contains(t, html, "public.orders.", "object qualifier should appear")
+	assert.Contains(t, html, `<span class="s">amount</span>`, "object subject should appear")
 	assert.Contains(t, html, "export data: running", "phase label should appear")
-	assert.Contains(t, html, "informational only", "standing disclaimer footer should appear")
+	assert.Contains(t, html, "does not apply any of these changes", "standing disclaimer banner should appear")
 }
 
 func TestRenderHTML_EmptyReportDoesNotPanic(t *testing.T) {

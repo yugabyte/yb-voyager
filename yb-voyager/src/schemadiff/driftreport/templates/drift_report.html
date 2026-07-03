@@ -1,265 +1,273 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Schema Drift Report</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>yb-voyager · schema drift report</title>
 <style>
-  :root {
+  :root{
     color-scheme: light dark;
-    --bg: #ffffff;
-    --fg: #1a1d23;
-    --muted: #5b6270;
-    --border: #e2e5ea;
-    --panel: #f7f8fa;
-    --accent: #2c5cc5;
+    --bg:#f5f6f8; --card:#fff; --ink:#1b2026; --muted:#6a7280; --faint:#98a1ad; --line:#e6e8ec;
+    --add:#3f4fb0;  --add-bg:#eef0fb;  --add-line:#cdd3f3;
+    --rem:#586273;  --rem-bg:#eef1f4;  --rem-line:#d4dae1;
+    --chg:#8a5a12;  --chg-bg:#fbf3e3;  --chg-line:#ecdab2;
+    --accent:#2f4156;
+    --shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.04);
   }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    padding: 2rem;
-    background: var(--bg);
-    color: var(--fg);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    line-height: 1.5;
-  }
-  h1, h2, h3 { margin-top: 0; }
-  .banner {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1.5rem;
-    padding: 1.25rem 1.5rem;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--panel);
-    margin-bottom: 1rem;
-  }
-  .banner .stat { min-width: 10rem; }
-  .banner .stat .label {
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--muted);
-  }
-  .banner .stat .value { font-size: 1.05rem; font-weight: 600; }
-  .comparing {
-    padding: 0.75rem 1.5rem;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    margin-bottom: 2rem;
-    font-size: 0.9rem;
-    color: var(--muted);
-  }
-  .comparing strong { color: var(--fg); font-weight: 600; }
-  .timeline {
-    position: relative;
-    padding-left: 1.75rem;
-    border-left: 2px solid var(--border);
-  }
-  .capture-marker {
-    position: relative;
-    margin: 0 0 1.25rem 0;
-    font-size: 0.85rem;
-    color: var(--muted);
-  }
-  .capture-marker::before {
-    content: "";
-    position: absolute;
-    left: -2.28rem;
-    top: 0.3rem;
-    width: 0.6rem;
-    height: 0.6rem;
-    border-radius: 50%;
-    background: var(--accent);
-  }
-  .capture-marker .series { font-weight: 600; color: var(--fg); }
-  .interval {
-    margin: 0 0 2rem 0;
-  }
-  .interval-header {
-    padding: 0.5rem 0.9rem;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    margin-bottom: 0.75rem;
-    font-size: 0.9rem;
-  }
-  .interval-header .window { font-weight: 600; }
-  .interval-header .phase {
-    color: var(--accent);
-    margin-left: 0.5rem;
-  }
-  .interval-header .count {
-    float: right;
-    color: var(--muted);
-  }
-  .diff {
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 0.75rem 1rem;
-    margin: 0 0 0.75rem 0;
-  }
-  .diff-head {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    flex-wrap: wrap;
-    margin-bottom: 0.35rem;
-  }
-  .diff-type {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 0.85rem;
-    color: var(--muted);
-  }
-  .diff-object { font-weight: 600; }
-  .diff-subobject { color: var(--muted); }
-  .badge {
-    display: inline-block;
-    padding: 0.15rem 0.55rem;
-    border-radius: 999px;
-    font-size: 0.72rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-    margin-left: auto;
-  }
-  .badge-advisory { background: #e3f2fd; color: #0d47a1; }
-  .badge-potential_impact { background: #fff3cd; color: #7a5b00; }
-  .badge-breaks_migration_recoverable { background: #ffe0cc; color: #8a3b00; }
-  .badge-breaks_migration_unrecoverable { background: #fde2e2; color: #8a1010; }
-  .diff-values {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 0.85rem;
-    color: var(--fg);
-    margin: 0.3rem 0;
-  }
-  .diff-values .arrow { color: var(--muted); margin: 0 0.4rem; }
-  .diff-guidance {
-    font-size: 0.85rem;
-    color: var(--muted);
-    margin-top: 0.3rem;
-  }
-  .empty {
-    color: var(--muted);
-    font-style: italic;
-  }
-  footer {
-    margin-top: 2.5rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--border);
-    font-size: 0.8rem;
-    color: var(--muted);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #14161a;
-      --fg: #e7e9ee;
-      --muted: #9aa1ad;
-      --border: #2b2f37;
-      --panel: #1c1f26;
-      --accent: #7ea6ff;
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:920px;margin:0 auto;padding:32px 20px 80px;}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+
+  /* header */
+  .banner{background:linear-gradient(180deg,#2b3a4d,#1c2733);color:#fff;border-radius:14px;
+    padding:22px 26px;box-shadow:var(--shadow);}
+  .banner-top{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;}
+  .banner h1{margin:0;font-size:19px;letter-spacing:.2px;}
+  .banner .sub{color:#9fb0c2;font-size:13px;margin-top:3px;}
+  .stat{text-align:right;flex:none;}
+  .stat-n{font-size:34px;font-weight:700;line-height:1;}
+  .stat-l{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#9fb0c2;margin-top:3px;}
+  .facts{display:flex;flex-direction:column;gap:11px;margin:18px 0 0;
+    border-top:1px solid rgba(255,255,255,.13);padding-top:15px;}
+  .facts div{display:flex;gap:12px;align-items:baseline;}
+  .facts .facts-scope{align-items:baseline;}
+  .facts dt{color:#8da0b4;font-size:11px;text-transform:uppercase;letter-spacing:.5px;
+    min-width:84px;flex:none;}
+  .facts dd{margin:0;font-size:13.5px;}
+  /* comparing-scope dropdown (banner) — always expandable, lists every table/type compared */
+  .facts details.scope>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:7px;}
+  .facts details.scope>summary::-webkit-details-marker{display:none;}
+  .facts details.scope>summary::after{content:"\203A";color:#9fb0c2;font-weight:700;font-size:15px;
+    line-height:1;transition:transform .15s ease;}
+  .facts details.scope[open]>summary::after{transform:rotate(90deg);}
+  .scope-body{margin-top:10px;display:grid;gap:8px;}
+  .scope-row{display:flex;gap:7px;flex-wrap:wrap;align-items:baseline;}
+  .scope-k{color:#8da0b4;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;
+    min-width:84px;flex:none;padding-top:2px;}
+  .scope-chip{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;
+    color:#dbe6f0;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
+    border-radius:5px;padding:2px 8px;}
+
+  .hint{color:var(--muted);font-size:12.5px;margin:22px 0 18px;}
+
+  /* change-kind chip */
+  .kind{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.4px;
+    padding:3px 9px;border-radius:6px;text-transform:uppercase;white-space:nowrap;}
+  .k-add .kind{color:var(--add);background:var(--add-bg);}
+  .k-rem .kind{color:var(--rem);background:var(--rem-bg);}
+  .k-chg .kind{color:var(--chg);background:var(--chg-bg);}
+
+  /* phase badge */
+  .phase{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;
+    color:var(--accent);background:#e9eef3;padding:3px 10px;border-radius:6px;}
+
+  /* object path */
+  .obj{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13.5px;}
+  .obj .q{color:var(--muted);} .obj .s{color:var(--ink);font-weight:700;}
+
+  /* value */
+  .val{display:flex;align-items:center;gap:9px;flex-wrap:wrap;}
+  .v-lbl{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.5px;}
+  .chiplet{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;
+    padding:4px 9px;border-radius:6px;border:1px solid var(--line);background:#fbfbfc;}
+  .v-def{color:var(--add);background:var(--add-bg);border-color:var(--add-line);}
+  .v-old{color:var(--chg);background:var(--chg-bg);border-color:var(--chg-line);text-decoration:line-through;text-decoration-color:rgba(138,90,18,.4);}
+  .v-new{color:var(--chg);background:var(--chg-bg);border-color:var(--chg-line);font-weight:700;}
+  .arrow{color:var(--faint);font-weight:700;}
+
+  /* finding */
+  .finding{background:var(--card);border:1px solid var(--line);border-left-width:3px;border-radius:10px;
+    padding:13px 16px;box-shadow:var(--shadow);}
+  .k-add{border-left-color:var(--add);} .k-rem{border-left-color:var(--rem);} .k-chg{border-left-color:var(--chg);}
+  .finding-h{display:flex;align-items:center;gap:11px;flex-wrap:wrap;}
+  .interval .finding{margin:8px 0;}
+
+  /* dropdown — only on findings that carry extra detail (definition / old → new) */
+  details.finding>summary{list-style:none;cursor:pointer;}
+  details.finding>summary::-webkit-details-marker{display:none;}
+  details.finding>summary::after{content:"\203A";margin-left:auto;color:var(--faint);
+    font-size:18px;line-height:1;font-weight:700;transition:transform .15s ease;}
+  details.finding[open]>summary::after{transform:rotate(90deg);}
+  details.finding .val{margin-top:11px;padding-top:11px;border-top:1px dotted var(--line);}
+
+  /* "Impact & action" note inside a finding */
+  .action{margin-top:11px;padding-top:11px;border-top:1px dotted var(--line);}
+  .action-h{display:block;font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;}
+  .action-status{margin:0 0 8px;font-weight:700;font-size:12.5px;color:var(--ink);letter-spacing:.2px;}
+  .action-t{margin:0;font-size:13px;color:var(--ink);line-height:1.55;}
+  .action-t + .action-t{margin-top:10px;}
+  .action-t code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;
+    background:#f0f1f3;border:1px solid var(--line);border-radius:4px;padding:1px 5px;}
+
+  /* top apply-note — Voyager applies nothing automatically */
+  .applynote{background:#eef1f4;border:1px solid var(--line);border-radius:8px;
+    padding:11px 14px;font-size:13px;color:var(--accent);margin:0 0 18px;}
+
+  /* timeline */
+  .tl{position:relative;margin-top:8px;padding-left:28px;}
+  .tl::before{content:"";position:absolute;left:7px;top:8px;bottom:8px;width:2px;background:var(--line);}
+  .interval{position:relative;margin:0 0 24px;}
+  .interval::before{content:"";position:absolute;left:-25px;top:4px;width:12px;height:12px;border-radius:50%;
+    background:#fff;border:3px solid var(--accent);}
+  .interval.live::before{background:var(--accent);box-shadow:0 0 0 4px rgba(47,65,86,.13);}
+  .ivl-h{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:9px;}
+  .ivl-win{font-weight:650;font-size:14px;}
+  .ivl-n{color:var(--faint);font-size:12px;}
+  .live-tag{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#fff;
+    background:var(--accent);border-radius:5px;padding:2px 7px;}
+
+  /* point-event marker on the spine */
+  .event{position:relative;margin:0 0 20px;line-height:1.4;}
+  .event::before{content:"";position:absolute;left:-24.5px;top:50%;width:10px;height:10px;
+    background:var(--accent);transform:translateY(-50%) rotate(45deg);box-shadow:0 0 0 3px var(--bg);}
+  .event .lbl{font-size:12.5px;font-weight:600;letter-spacing:.2px;color:var(--accent);}
+  .event .t{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;color:var(--faint);margin-left:8px;}
+  .event.err::before{background:var(--chg);box-shadow:0 0 0 3px var(--bg);}
+  .event.err .lbl{color:var(--chg);}
+
+  /* footer */
+  footer{margin-top:36px;border-top:1px solid var(--line);padding-top:20px;color:var(--muted);font-size:12.5px;}
+  footer h3{color:var(--ink);font-size:13px;margin:0 0 8px;text-transform:uppercase;letter-spacing:.5px;}
+  table.derive{width:100%;border-collapse:collapse;margin-top:6px;font-size:12.5px;}
+  table.derive th,table.derive td{text-align:left;padding:6px 10px 6px 0;border-bottom:1px solid var(--line);vertical-align:top;}
+  table.derive th{color:var(--faint);font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.4px;}
+  table.derive code,.ic{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;color:var(--accent);}
+  .note{color:var(--faint);}
+
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#14161a; --card:#1c1f26; --ink:#e7e9ee; --muted:#9aa1ad; --faint:#767e8a; --line:#2b2f37;
+      --add:#9fb0ff; --add-bg:#232a4a; --add-line:#3a4576;
+      --rem:#b9c2cf; --rem-bg:#242830; --rem-line:#3a4049;
+      --chg:#f0c674; --chg-bg:#3a2f14; --chg-line:#5c4a1e;
+      --accent:#8fabc4;
     }
-    .badge-advisory { background: #10305a; color: #b7d4ff; }
-    .badge-potential_impact { background: #4a3b00; color: #ffe28a; }
-    .badge-breaks_migration_recoverable { background: #5a2c00; color: #ffc399; }
-    .badge-breaks_migration_unrecoverable { background: #5a1414; color: #ffb3b3; }
+    .chiplet{background:#161920;}
+    table.derive code,.ic{color:#a9c3da;}
   }
-  :root[data-theme="dark"] {
-    --bg: #14161a;
-    --fg: #e7e9ee;
-    --muted: #9aa1ad;
-    --border: #2b2f37;
-    --panel: #1c1f26;
-    --accent: #7ea6ff;
+  :root[data-theme="dark"]{
+    --bg:#14161a; --card:#1c1f26; --ink:#e7e9ee; --muted:#9aa1ad; --faint:#767e8a; --line:#2b2f37;
+    --add:#9fb0ff; --add-bg:#232a4a; --add-line:#3a4576;
+    --rem:#b9c2cf; --rem-bg:#242830; --rem-line:#3a4049;
+    --chg:#f0c674; --chg-bg:#3a2f14; --chg-line:#5c4a1e;
+    --accent:#8fabc4;
   }
-  :root[data-theme="dark"] .badge-advisory { background: #10305a; color: #b7d4ff; }
-  :root[data-theme="dark"] .badge-potential_impact { background: #4a3b00; color: #ffe28a; }
-  :root[data-theme="dark"] .badge-breaks_migration_recoverable { background: #5a2c00; color: #ffc399; }
-  :root[data-theme="dark"] .badge-breaks_migration_unrecoverable { background: #5a1414; color: #ffb3b3; }
-  :root[data-theme="light"] {
-    --bg: #ffffff;
-    --fg: #1a1d23;
-    --muted: #5b6270;
-    --border: #e2e5ea;
-    --panel: #f7f8fa;
-    --accent: #2c5cc5;
+  :root[data-theme="dark"] .chiplet{background:#161920;}
+  :root[data-theme="dark"] table.derive code,:root[data-theme="dark"] .ic{color:#a9c3da;}
+  :root[data-theme="light"]{
+    --bg:#f5f6f8; --card:#fff; --ink:#1b2026; --muted:#6a7280; --faint:#98a1ad; --line:#e6e8ec;
+    --add:#3f4fb0; --add-bg:#eef0fb; --add-line:#cdd3f3;
+    --rem:#586273; --rem-bg:#eef1f4; --rem-line:#d4dae1;
+    --chg:#8a5a12; --chg-bg:#fbf3e3; --chg-line:#ecdab2;
+    --accent:#2f4156;
   }
 </style>
 </head>
 <body>
-  <h1>Schema Drift Report</h1>
+<div class="wrap">
 
   <div class="banner">
-    <div class="stat">
-      <div class="label">Source</div>
-      <div class="value">{{.Source.DatabaseType}} &middot; {{.Source.Host}} &middot; {{.Source.Database}}</div>
-    </div>
-    <div class="stat">
-      <div class="label">Window</div>
-      <div class="value">{{formatTime .Window.From}} &rarr; {{formatTime .Window.To}}</div>
-    </div>
-    <div class="stat">
-      <div class="label">Changes</div>
-      <div class="value">{{.Summary.ChangeCount}}</div>
-    </div>
-    <div class="stat">
-      <div class="label">Captures</div>
-      <div class="value">{{.Summary.CaptureCount}}{{if .Summary.LiveCompared}} + live{{end}}</div>
-    </div>
-  </div>
-
-  <div class="comparing">
-    Comparing &mdash;
-    <strong>schemas:</strong> {{.ComparingSchemas}} &middot;
-    <strong>tables:</strong> {{.ComparingTables}} &middot;
-    <strong>object types:</strong> {{.ComparingObjectTypes}}
-  </div>
-
-  <h2>Timeline</h2>
-  <div class="timeline">
-    {{range .Captures}}
-    <div class="capture-marker">
-      <span class="series">{{.Series}}</span>{{if .Reason}} ({{.Reason}}){{end}}
-      &mdash; {{formatTime .CapturedAt}}
-    </div>
-    {{end}}
-
-    {{if not .Groups}}
-    <p class="empty">No changes detected across the captured intervals.</p>
-    {{end}}
-
-    {{range .Groups}}
-    <div class="interval">
-      <div class="interval-header">
-        <span class="window">{{formatTime .Window.From}} &rarr; {{formatTime .Window.To}}</span>
-        {{if .Phase}}<span class="phase">{{.Phase}}</span>{{end}}
-        <span class="count">{{len .Diffs}} change(s)</span>
+    <div class="banner-top">
+      <div>
+        <h1>Schema drift report</h1>
+        <div class="sub">Source-side schema changes captured during the migration</div>
       </div>
+      <div class="stat"><div class="stat-n">{{.ChangeCount}}</div><div class="stat-l">changes</div></div>
+    </div>
+    <dl class="facts">
+      <div><dt>Source</dt><dd class="mono">{{.SourceLine}}</dd></div>
+      <div><dt>Window</dt><dd>{{.WindowLine}}</dd></div>
+      <div class="facts-scope"><dt>Comparing</dt><dd>
+        <details class="scope">
+          <summary>{{.ComparingSummary}}</summary>
+          <div class="scope-body">
+            {{range .ComparingScope}}
+            <div class="scope-row"><span class="scope-k">{{.Label}}</span>
+              {{if .Chips}}{{range .Chips}}<span class="scope-chip">{{.}}</span>{{end}}{{else}}<span class="scope-chip">all</span>{{end}}</div>
+            {{end}}
+          </div>
+        </details>
+      </dd></div>
+    </dl>
+  </div>
 
-      {{range .Diffs}}
-      <div class="diff">
-        <div class="diff-head">
-          <span class="diff-type">{{.Type}}</span>
-          <span class="diff-object">{{.Object.Schema}}.{{.Object.Name}}</span>
-          {{if .SubObject}}<span class="diff-subobject">&middot; {{.SubObject}}</span>{{end}}
-          <span class="badge badge-{{.Status}}">{{.Status}}</span>
-        </div>
-        {{if .Property}}
-        <div class="diff-values">
-          <strong>{{.Property}}:</strong>
-          {{if .OldValue}}{{.OldValue}}{{else}}&mdash;{{end}}
-          <span class="arrow">&rarr;</span>
-          {{if .NewValue}}{{.NewValue}}{{else}}&mdash;{{end}}
-        </div>
+  <p class="hint">Grouped by the span between two captures, labelled with what Voyager was doing then. Expand a change to see its details.</p>
+
+  <p class="applynote">Voyager does not apply any of these changes on the target automatically. Each one below is a change you make yourself.</p>
+
+  <!-- ===================== TIMELINE ===================== -->
+  <div class="tl">
+    {{if not .Timeline}}
+    <p class="note">No changes detected across the captured intervals.</p>
+    {{end}}
+
+    {{range .Timeline}}
+      {{if .Event}}
+      <div class="event{{if .Event.Err}} err{{end}}"><span class="lbl">{{.Event.Label}}</span><span class="t">{{.Event.Time}}</span></div>
+      {{else if .Interval}}
+      <div class="interval{{if .Interval.Live}} live{{end}}">
+        <div class="ivl-h"><span class="ivl-win">{{.Interval.Window}}</span>
+          {{if .Interval.Live}}<span class="live-tag">live</span>{{end}}
+          {{if .Interval.Phase}}<span class="phase">{{.Interval.Phase}}</span>{{end}}
+          <span class="ivl-n">{{.Interval.Count}}</span></div>
+        {{range .Interval.Findings}}
+        <details class="finding {{.KindClass}}">
+          <summary class="finding-h"><span class="kind">{{.KindLabel}}</span>
+            <span class="obj"><span class="q">{{.ObjQ}}</span><span class="s">{{.ObjS}}</span></span></summary>
+          {{if .HasDef}}<div class="val"><span class="v-lbl">definition</span><span class="chiplet v-def">{{.ValDef}}</span></div>{{end}}
+          {{if .HasChange}}<div class="val"><span class="chiplet v-old">{{.ValOld}}</span><span class="arrow">→</span><span class="chiplet v-new">{{.ValNew}}</span></div>{{end}}
+          <div class="action"><span class="action-h">Impact &amp; action</span>
+            <p class="action-status">{{.ActionStatus}}</p>
+            {{if .Guidance}}<p class="action-t">{{.Guidance}}</p>{{end}}</div>
+        </details>
         {{end}}
-        {{if .Guidance}}<div class="diff-guidance">{{.Guidance}}</div>{{end}}
       </div>
       {{end}}
-    </div>
     {{end}}
   </div>
 
+  <!-- ===================== FOOTER ===================== -->
   <footer>
-    This report is informational only. Voyager does not automatically apply any of the changes listed above.
+    <h3>Snapshots used</h3>
+    <p class="note">The captures this report was built from. The changes come from diffing consecutive captures, plus a final compare
+       against the live source. These names are internal — the body shows only windows and phases.</p>
+    <table class="derive">
+      <tr><th></th><th>Capture label</th><th>Captured (UTC)</th><th>Note</th></tr>
+      {{range .Snapshots}}
+      <tr><td>{{.Seq}}</td><td class="ic">{{.Series}}</td><td>{{.CapturedAt}}</td><td>{{.Note}}</td></tr>
+      {{end}}
+    </table>
+
+    <h3 style="margin-top:26px">How phases &amp; events are derived</h3>
+    <p>Nothing here is stored as prose. A <strong>phase</strong> labels the span between two captures and is derived from the pair;
+       a <strong>point event</strong> (a timeline marker) is derived from a capture's <code>reason</code> attribute. Captures carry a
+       <strong>series</strong> and a <code>reason</code> (start = initial / resume / clean_restart; exit = cutover / error / interrupt / complete).</p>
+    <table class="derive">
+      <tr><th>Earlier capture A</th><th>Later capture B</th><th>Phase</th><th>Label shown</th></tr>
+      <tr><td class="ic">export_schema</td><td class="ic">…_start</td><td><code>PRE_DATA_EXPORT</code></td><td>export data: pending</td></tr>
+      <tr><td class="ic">…_start / …_periodic</td><td class="ic">…_periodic</td><td><code>DATA_EXPORT_RUNNING</code></td><td>export data: running</td></tr>
+      <tr><td class="ic">…_exit</td><td class="ic">…_start (resume / clean_restart)</td><td><code>PRE_DATA_EXPORT_RESTART</code></td><td>export data: paused</td></tr>
+      <tr><td class="ic">last capture</td><td class="ic">source (live)</td><td><code>SINCE_LAST_CAPTURE</code></td><td>since last capture</td></tr>
+      <tr><td class="ic">any other pair</td><td class="ic">—</td><td><code>UNLABELLED</code></td><td><em>(none — time window only)</em></td></tr>
+    </table>
+    <p style="margin-top:14px">Point events come from an <code>export_schema</code>, <code>…_start</code>, or <code>…_exit</code> capture's <code>reason</code> — they mark the moment, while
+       the phase labels the span:</p>
+    <table class="derive">
+      <tr><th>Capture</th><th>reason</th><th>Marker on the spine</th></tr>
+      <tr><td class="ic">export_schema</td><td>—</td><td>export schema: completed</td></tr>
+      <tr><td class="ic">…_start</td><td><code>initial</code></td><td>export data: started</td></tr>
+      <tr><td class="ic">…_start</td><td><code>resume</code></td><td>export data: restarted</td></tr>
+      <tr><td class="ic">…_start</td><td><code>clean_restart</code></td><td>export data: restarted (start-clean)</td></tr>
+      <tr><td class="ic">…_exit</td><td><code>interrupt</code></td><td>export data: stopped</td></tr>
+      <tr><td class="ic">…_exit</td><td><code>complete</code></td><td>export data: completed</td></tr>
+      <tr><td class="ic">…_exit</td><td><code>error</code></td><td>⚠ export data: failed</td></tr>
+      <tr><td class="ic">…_exit</td><td><code>cutover</code></td><td>cutover: to target</td></tr>
+    </table>
+    <p class="note" style="margin-top:10px">If <code>export data</code> crashes hard (no exit capture), there is no end-of-timeline marker — the report ends at the last periodic.</p>
   </footer>
+
+</div>
 </body>
 </html>
