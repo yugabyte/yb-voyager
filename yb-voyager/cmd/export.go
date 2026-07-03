@@ -257,7 +257,7 @@ func registerExportDataFlags(cmd *cobra.Command) {
 
 	// Config-file key: "export-data.schema-snapshot-capture-interval".
 	cmd.Flags().IntVar(&schemaSnapshotCaptureInterval, "schema-snapshot-capture-interval", 60,
-		"interval (in minutes) at which voyager periodically captures a schema snapshot of the source database during live migration export-data. (only valid for PostgreSQL)")
+		"interval (in minutes) at which voyager periodically captures a source schema snapshot during export-data's snapshot phase (offline and live). (only valid for PostgreSQL)")
 }
 
 func validateSourceDBType() {
