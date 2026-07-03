@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Schema Drift Report</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1a1d23;
+    --muted: #5b6270;
+    --border: #e2e5ea;
+    --panel: #f7f8fa;
+    --accent: #2c5cc5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 2rem;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+  }
+  h1, h2, h3 { margin-top: 0; }
+  .banner {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--panel);
+    margin-bottom: 1rem;
+  }
+  .banner .stat { min-width: 10rem; }
+  .banner .stat .label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  .banner .stat .value { font-size: 1.05rem; font-weight: 600; }
+  .comparing {
+    padding: 0.75rem 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 2rem;
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  .comparing strong { color: var(--fg); font-weight: 600; }
+  .timeline {
+    position: relative;
+    padding-left: 1.75rem;
+    border-left: 2px solid var(--border);
+  }
+  .capture-marker {
+    position: relative;
+    margin: 0 0 1.25rem 0;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .capture-marker::before {
+    content: "";
+    position: absolute;
+    left: -2.28rem;
+    top: 0.3rem;
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .capture-marker .series { font-weight: 600; color: var(--fg); }
+  .interval {
+    margin: 0 0 2rem 0;
+  }
+  .interval-header {
+    padding: 0.5rem 0.9rem;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+  }
+  .interval-header .window { font-weight: 600; }
+  .interval-header .phase {
+    color: var(--accent);
+    margin-left: 0.5rem;
+  }
+  .interval-header .count {
+    float: right;
+    color: var(--muted);
+  }
+  .diff {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin: 0 0 0.75rem 0;
+  }
+  .diff-head {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.35rem;
+  }
+  .diff-type {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .diff-object { font-weight: 600; }
+  .diff-subobject { color: var(--muted); }
+  .badge {
+    display: inline-block;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    margin-left: auto;
+  }
+  .badge-advisory { background: #e3f2fd; color: #0d47a1; }
+  .badge-potential_impact { background: #fff3cd; color: #7a5b00; }
+  .badge-breaks_migration_recoverable { background: #ffe0cc; color: #8a3b00; }
+  .badge-breaks_migration_unrecoverable { background: #fde2e2; color: #8a1010; }
+  .diff-values {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.85rem;
+    color: var(--fg);
+    margin: 0.3rem 0;
+  }
+  .diff-values .arrow { color: var(--muted); margin: 0 0.4rem; }
+  .diff-guidance {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-top: 0.3rem;
+  }
+  .empty {
+    color: var(--muted);
+    font-style: italic;
+  }
+  footer {
+    margin-top: 2.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --fg: #e7e9ee;
+      --muted: #9aa1ad;
+      --border: #2b2f37;
+      --panel: #1c1f26;
+      --accent: #7ea6ff;
+    }
+    .badge-advisory { background: #10305a; color: #b7d4ff; }
+    .badge-potential_impact { background: #4a3b00; color: #ffe28a; }
+    .badge-breaks_migration_recoverable { background: #5a2c00; color: #ffc399; }
+    .badge-breaks_migration_unrecoverable { background: #5a1414; color: #ffb3b3; }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161a;
+    --fg: #e7e9ee;
+    --muted: #9aa1ad;
+    --border: #2b2f37;
+    --panel: #1c1f26;
+    --accent: #7ea6ff;
+  }
+  :root[data-theme="dark"] .badge-advisory { background: #10305a; color: #b7d4ff; }
+  :root[data-theme="dark"] .badge-potential_impact { background: #4a3b00; color: #ffe28a; }
+  :root[data-theme="dark"] .badge-breaks_migration_recoverable { background: #5a2c00; color: #ffc399; }
+  :root[data-theme="dark"] .badge-breaks_migration_unrecoverable { background: #5a1414; color: #ffb3b3; }
+  :root[data-theme="light"] {
+    --bg: #ffffff;
+    --fg: #1a1d23;
+    --muted: #5b6270;
+    --border: #e2e5ea;
+    --panel: #f7f8fa;
+    --accent: #2c5cc5;
+  }
+</style>
+</head>
+<body>
+  <h1>Schema Drift Report</h1>
+
+  <div class="banner">
+    <div class="stat">
+      <div class="label">Source</div>
+      <div class="value">{{.Source.DatabaseType}} &middot; {{.Source.Host}} &middot; {{.Source.Database}}</div>
+    </div>
+    <div class="stat">
+      <div class="label">Window</div>
+      <div class="value">{{formatTime .Window.From}} &rarr; {{formatTime .Window.To}}</div>
+    </div>
+    <div class="stat">
+      <div class="label">Changes</div>
+      <div class="value">{{.Summary.ChangeCount}}</div>
+    </div>
+    <div class="stat">
+      <div class="label">Captures</div>
+      <div class="value">{{.Summary.CaptureCount}}{{if .Summary.LiveCompared}} + live{{end}}</div>
+    </div>
+  </div>
+
+  <div class="comparing">
+    Comparing &mdash;
+    <strong>schemas:</strong> {{.ComparingSchemas}} &middot;
+    <strong>tables:</strong> {{.ComparingTables}} &middot;
+    <strong>object types:</strong> {{.ComparingObjectTypes}}
+  </div>
+
+  <h2>Timeline</h2>
+  <div class="timeline">
+    {{range .Captures}}
+    <div class="capture-marker">
+      <span class="series">{{.Series}}</span>{{if .Reason}} ({{.Reason}}){{end}}
+      &mdash; {{formatTime .CapturedAt}}
+    </div>
+    {{end}}
+
+    {{if not .Groups}}
+    <p class="empty">No changes detected across the captured intervals.</p>
+    {{end}}
+
+    {{range .Groups}}
+    <div class="interval">
+      <div class="interval-header">
+        <span class="window">{{formatTime .Window.From}} &rarr; {{formatTime .Window.To}}</span>
+        {{if .Phase}}<span class="phase">{{.Phase}}</span>{{end}}
+        <span class="count">{{len .Diffs}} change(s)</span>
+      </div>
+
+      {{range .Diffs}}
+      <div class="diff">
+        <div class="diff-head">
+          <span class="diff-type">{{.Type}}</span>
+          <span class="diff-object">{{.Object.Schema}}.{{.Object.Name}}</span>
+          {{if .SubObject}}<span class="diff-subobject">&middot; {{.SubObject}}</span>{{end}}
+          <span class="badge badge-{{.Status}}">{{.Status}}</span>
+        </div>
+        {{if .Property}}
+        <div class="diff-values">
+          <strong>{{.Property}}:</strong>
+          {{if .OldValue}}{{.OldValue}}{{else}}&mdash;{{end}}
+          <span class="arrow">&rarr;</span>
+          {{if .NewValue}}{{.NewValue}}{{else}}&mdash;{{end}}
+        </div>
+        {{end}}
+        {{if .Guidance}}<div class="diff-guidance">{{.Guidance}}</div>{{end}}
+      </div>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+
+  <footer>
+    This report is informational only. Voyager does not automatically apply any of the changes listed above.
+  </footer>
+</body>
+</html>
