@@ -109,9 +109,9 @@ func TestListSchemaSnapshotsSubSecondOrder(t *testing.T) {
 }
 
 // TestListSchemaSnapshotsIsPlaceholder verifies that ListSchemaSnapshots correctly
-// sets IsPlaceholder via the SQL-computed flag (snapshot_json IS NULL) without ever
-// selecting the snapshot_json blob. A full snapshot must have IsPlaceholder=false and
-// a placeholder row must have IsPlaceholder=true.
+// sets IsPlaceholder by reading the explicit is_placeholder column directly, without
+// ever selecting the snapshot_json blob. A full snapshot must have IsPlaceholder=false
+// and a placeholder row must have IsPlaceholder=true.
 func TestListSchemaSnapshotsIsPlaceholder(t *testing.T) {
 	mdb := newTestSchemaSnapshotMetaDB(t)
 
