@@ -193,6 +193,10 @@ func (pg *PostgreSQL) Query(query string) (*sql.Rows, error) {
 	return pg.db.Query(query)
 }
 
+// GetDB returns the underlying *sql.DB handle for callers (e.g. schema-snapshot
+// capture) that need direct database/sql access. Valid only after Connect().
+func (pg *PostgreSQL) GetDB() *sql.DB { return pg.db }
+
 func (pg *PostgreSQL) QueryRow(query string) *sql.Row {
 	return pg.db.QueryRow(query)
 }
