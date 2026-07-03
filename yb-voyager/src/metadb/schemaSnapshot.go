@@ -36,7 +36,7 @@ const capturedAtLayout = "2006-01-02T15:04:05.000000000Z"
 // snapshot_json is NULLable: NULL means the row is a placeholder (no schema content captured).
 // This struct intentionally contains no schemadiff types — the metadb package must not import schemadiff.
 type SchemaSnapshotRow struct {
-	Name            string         // PRIMARY KEY: "{label}_{timestamp-at-second-precision}"
+	Name            string         // UNIQUE handle "{label}_{timestamp-at-second-precision}"; the composite (side, label, captured_at) is the PRIMARY KEY
 	Label           string         // one of the four capture labels
 	Reason          string         // capture reason; "" when the series carries none
 	Side            string         // "source"
@@ -69,8 +69,16 @@ type SchemaSnapshotListRow struct {
 // first write makes the table appear regardless of which binary initialized the metadb,
 // and keeps it out of metadbs for migrations that never capture a snapshot.
 func (m *MetaDB) createSchemaSnapshotsTable() error {
+	// The PRIMARY KEY is the composite logical identity (side, label, captured_at):
+	// a given side capturing a given label at a given time. name is kept as a UNIQUE
+	// secondary key because it is the derived public handle
+	// ("{label}_{timestamp-at-second-precision}") that GetSchemaSnapshotByName /
+	// LoadSnapshotByName look up by, so it must stay unique on its own. captured_at is
+	// stored full-precision; UNIQUE(name) is the tighter de-dupe (second granularity via
+	// the derived name), so it can never admit a row the composite PK rejects — the two
+	// constraints are consistent.
 	query := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-		name             TEXT    PRIMARY KEY,
+		name             TEXT    NOT NULL UNIQUE,
 		label            TEXT    NOT NULL,
 		reason           TEXT    NOT NULL DEFAULT '',
 		side             TEXT    NOT NULL,
@@ -78,7 +86,8 @@ func (m *MetaDB) createSchemaSnapshotsTable() error {
 		database_version TEXT    NOT NULL DEFAULT '',
 		schemas          TEXT    NOT NULL DEFAULT '',
 		is_placeholder   INTEGER NOT NULL DEFAULT 0,
-		snapshot_json    TEXT
+		snapshot_json    TEXT,
+		PRIMARY KEY (side, label, captured_at)
 	);`, schemaSnapshotsTableName)
 	_, err := m.db.Exec(query)
 	if err != nil {
