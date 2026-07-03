@@ -39,6 +39,8 @@ var useDebezium bool
 var runId string
 var excludeTableListFilePath string
 var tableListFilePath string
+var schemaSnapshotCaptureInterval int
+var suppressSchemaSnapshotCapture utils.BoolStr
 
 var exportCmd = &cobra.Command{
 	Use:   "export",
@@ -56,6 +58,11 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 		"cleans up the project directory for schema or data files depending on the export command (default false)")
 
 	BoolVar(cmd.Flags(), &source.RunGuardrailsChecks, "run-guardrails-checks", true, "run guardrails checks before export. (only valid for PostgreSQL)")
+
+	// Config-file key: nested under the invoking command's section, e.g. "export-schema.suppress-schema-snapshot-capture"
+	// or "export-data.suppress-schema-snapshot-capture" (same pattern as run-guardrails-checks above).
+	BoolVar(cmd.Flags(), &suppressSchemaSnapshotCapture, "suppress-schema-snapshot-capture", false,
+		"disable best-effort schema-snapshot capture during export. (only valid for PostgreSQL)")
 }
 
 func registerCommonSourceDBConnFlags(cmd *cobra.Command) {
@@ -248,6 +255,9 @@ func registerExportDataFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &source.AllowOracleClobDataExport, "allow-oracle-clob-data-export", false,
 		"[EXPERIMENTAL][Oracle only] Allow exporting data of CLOB columns in offline migration.")
 
+	// Config-file key: "export-data.schema-snapshot-capture-interval".
+	cmd.Flags().IntVar(&schemaSnapshotCaptureInterval, "schema-snapshot-capture-interval", 60,
+		"interval (in minutes) at which voyager periodically captures a schema snapshot of the source database during live migration export-data. (only valid for PostgreSQL)")
 }
 
 func validateSourceDBType() {
