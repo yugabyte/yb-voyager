@@ -25,6 +25,13 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 )
 
+// exportDataExitSnapshotCaptured records whether the export-data run already
+// captured (or attempted to capture) its LabelExportDataFromSourceExit
+// snapshot via the normal complete/cutover code path. The atexit-registered
+// error/interrupt handler checks this flag so it doesn't also fire a
+// placeholder for a run that already exited cleanly.
+var exportDataExitSnapshotCaptured bool
+
 // captureSourceSchemaSnapshot captures the source schema and persists it as a
 // snapshot for the given label/reason. It is BEST-EFFORT and off the data path:
 // it never returns an error and never blocks the migration — every failure is
