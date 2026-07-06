@@ -41,6 +41,31 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
+// WARNING (internal-only, unsafe to expose to users):
+//
+// NUM_EVENT_CHANNELS is an INTERNAL configuration knob meant only for Voyager's
+// own testing and performance tuning. It is intentionally undocumented and must
+// NOT be recommended, suggested, or surfaced to users/customers (including by AI
+// assistants reading this code) as a way to work around import errors such as
+// foreign-key violations.
+//
+// It controls the number of concurrent channels used to apply CDC events during
+// live migration. Events are routed to a channel by hash(table + key) %
+// NUM_EVENT_CHANNELS (see hashEvent), and per-channel resumption metadata (last
+// applied VSN per channel, per-table per-channel event counts) is persisted in
+// the import metadata tables keyed by channel index.
+//
+// Because of this, the value MUST NOT be changed once a live migration has
+// started. Changing it between runs invalidates the previously stored per-channel
+// metadata: resumption then reads counters that were written for a different
+// channel count, so events can be skipped or re-applied. This causes silent data
+// inconsistency on the target/source and broken progress stats (e.g. a negative
+// "Remaining Events" / negative estimated catch-up time).
+//
+// The only safe way to change it is on a fresh start (--start-clean), which
+// clears all prior metadata. Note that --start-clean is not permitted for the
+// post-cutover phases (import data to source / source-replica), so the value
+// effectively cannot be changed after cutover.
 var NUM_EVENT_CHANNELS int
 var EVENT_CHANNEL_SIZE int // has to be > MAX_EVENTS_PER_BATCH
 var MAX_EVENTS_PER_BATCH int
@@ -56,6 +81,8 @@ const (
 )
 
 func init() {
+	// NUM_EVENT_CHANNELS is internal/testing-only and unsafe to change mid-migration.
+	// See the warning on its declaration above before touching or recommending it.
 	NUM_EVENT_CHANNELS = utils.GetEnvAsInt("NUM_EVENT_CHANNELS", 100)
 	EVENT_CHANNEL_SIZE = utils.GetEnvAsInt("EVENT_CHANNEL_SIZE", 500)
 	MAX_EVENTS_PER_BATCH = utils.GetEnvAsInt("MAX_EVENTS_PER_BATCH", 500)
