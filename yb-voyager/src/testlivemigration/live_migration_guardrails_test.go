@@ -133,4 +133,9 @@ FROM generate_series(1, 5);`,
 	assert.Error(t, err, "resuming with a changed NUM_EVENT_CHANNELS must fail")
 	assert.Contains(t, lm.GetImportCommandStderr(), "NUM_EVENT_CHANNELS cannot be changed",
 		"import should fail with the channel-count guard error; stderr=%s", lm.GetImportCommandStderr())
+
+	// End the migration to clean up (drops the source replication slot; also stops
+	// the still-running export data command).
+	err = lm.EndMigration(nil, false)
+	testutils.FatalIfError(t, err, "failed to end migration")
 }
