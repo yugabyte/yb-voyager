@@ -99,6 +99,13 @@ func Run(b *testing.B, hooks Hooks) {
 	if err := hooks.validate(); err != nil {
 		b.Fatal(err)
 	}
+	// the suite retargets the global logrus output per run; restore the
+	// caller's output (and tear down the shared source container) at the end
+	origLogOutput := log.StandardLogger().Out
+	b.Cleanup(func() {
+		log.SetOutput(origLogOutput)
+		cleanupSourceContainer()
+	})
 	workloads := Workloads()
 	if len(workloads) == 0 {
 		b.Fatal("cdcbench: no workloads registered")
@@ -299,5 +306,10 @@ func runLogDest(b *testing.B, w Workload, run int) (io.Writer, func()) {
 	if err != nil {
 		b.Fatalf("cdcbench: create run log %s: %v", path, err)
 	}
-	return f, func() { f.Close() }
+	return f, func() {
+		// point the global logger away from the file before closing it so
+		// later log writes never hit a closed descriptor
+		log.SetOutput(io.Discard)
+		f.Close()
+	}
 }
