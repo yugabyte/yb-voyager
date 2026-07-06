@@ -74,7 +74,7 @@ func makeColumn(tableSchema, tableName, id, name, dataType string, opts ...colOp
 // ──────────────────────────────────────────────────────────────────────────────
 
 func TestDiffColumns_ColumnAdded(t *testing.T) {
-	newCol := makeColumn("public", "orders", "101:2", "email", "text")
+	newCol := makeColumn("public", "orders", "101:2", "email", "text", notNull(), withDefault("'unknown'"))
 	a := snapWithColumns()
 	b := snapWithColumns(newCol)
 
@@ -98,8 +98,21 @@ func TestDiffColumns_ColumnAdded(t *testing.T) {
 	if d.OldValue != nil {
 		t.Errorf("expected OldValue=nil, got %v", d.OldValue)
 	}
-	if d.NewValue.(string) != "text" {
-		t.Errorf("expected NewValue='text', got %v", d.NewValue)
+	nv, ok := d.NewValue.(schemasnapshot.Column)
+	if !ok {
+		t.Fatalf("expected NewValue to be a schemasnapshot.Column, got %T: %v", d.NewValue, d.NewValue)
+	}
+	if nv != newCol {
+		t.Errorf("expected NewValue=%v, got %v", newCol, nv)
+	}
+	if nv.DataType != "text" {
+		t.Errorf("expected NewValue.DataType='text', got %v", nv.DataType)
+	}
+	if nv.NotNull != true {
+		t.Errorf("expected NewValue.NotNull=true, got %v", nv.NotNull)
+	}
+	if nv.Default != "'unknown'" {
+		t.Errorf("expected NewValue.Default=\"'unknown'\", got %v", nv.Default)
 	}
 }
 
@@ -108,7 +121,7 @@ func TestDiffColumns_ColumnAdded(t *testing.T) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 func TestDiffColumns_ColumnDropped(t *testing.T) {
-	oldCol := makeColumn("public", "orders", "101:3", "legacy_field", "integer")
+	oldCol := makeColumn("public", "orders", "101:3", "legacy_field", "integer", notNull(), withDefault("0"))
 	a := snapWithColumns(oldCol)
 	b := snapWithColumns()
 
@@ -129,8 +142,21 @@ func TestDiffColumns_ColumnDropped(t *testing.T) {
 	if d.SubObject != "legacy_field" {
 		t.Errorf("expected SubObject='legacy_field', got %q", d.SubObject)
 	}
-	if d.OldValue.(string) != "integer" {
-		t.Errorf("expected OldValue='integer' (type), got %v", d.OldValue)
+	ov, ok := d.OldValue.(schemasnapshot.Column)
+	if !ok {
+		t.Fatalf("expected OldValue to be a schemasnapshot.Column, got %T: %v", d.OldValue, d.OldValue)
+	}
+	if ov != oldCol {
+		t.Errorf("expected OldValue=%v, got %v", oldCol, ov)
+	}
+	if ov.DataType != "integer" {
+		t.Errorf("expected OldValue.DataType='integer', got %v", ov.DataType)
+	}
+	if ov.NotNull != true {
+		t.Errorf("expected OldValue.NotNull=true, got %v", ov.NotNull)
+	}
+	if ov.Default != "0" {
+		t.Errorf("expected OldValue.Default='0', got %v", ov.Default)
 	}
 	if d.NewValue != nil {
 		t.Errorf("expected NewValue=nil, got %v", d.NewValue)
@@ -567,6 +593,14 @@ func TestDiff_TableAdded_SuppressesColumnAdds(t *testing.T) {
 	if got[0].Object != ref("public", "orders") {
 		t.Errorf("expected Object=public.orders, got %v", got[0].Object)
 	}
+	// The suppressed columns must survive on the TABLE_ADDED finding's NewValue.
+	cols, ok := got[0].NewValue.([]schemasnapshot.Column)
+	if !ok {
+		t.Fatalf("expected NewValue to be []schemasnapshot.Column, got %T: %v", got[0].NewValue, got[0].NewValue)
+	}
+	if len(cols) != 2 || cols[0] != colID || cols[1] != colEmail {
+		t.Errorf("expected NewValue=[%v, %v], got %v", colID, colEmail, cols)
+	}
 	for _, d := range got {
 		if d.Type == ColumnAdded {
 			t.Errorf("unexpected ColumnAdded finding for wholly-added table: %v", d)
@@ -598,6 +632,14 @@ func TestDiff_TableDropped_SuppressesColumnDrops(t *testing.T) {
 	}
 	if got[0].Object != ref("public", "orders") {
 		t.Errorf("expected Object=public.orders, got %v", got[0].Object)
+	}
+	// The suppressed columns must survive on the TABLE_DROPPED finding's OldValue.
+	cols, ok := got[0].OldValue.([]schemasnapshot.Column)
+	if !ok {
+		t.Fatalf("expected OldValue to be []schemasnapshot.Column, got %T: %v", got[0].OldValue, got[0].OldValue)
+	}
+	if len(cols) != 2 || cols[0] != colID || cols[1] != colEmail {
+		t.Errorf("expected OldValue=[%v, %v], got %v", colID, colEmail, cols)
 	}
 	for _, d := range got {
 		if d.Type == ColumnDropped {

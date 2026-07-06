@@ -118,14 +118,14 @@ func diffColumnsByName(residueA, residueB []schemasnapshot.Column, matchByID boo
 			continue
 		}
 		// Only in A (or a name collision we must not collapse) → dropped.
-		diffs = append(diffs, newDifference(ColumnDropped, cA.Table, &cA.Table, cA.Name, cA.DataType, nil))
+		diffs = append(diffs, newDifference(ColumnDropped, cA.Table, &cA.Table, cA.Name, cA, nil))
 	}
 	for key, cB := range byNameB {
 		if matchedB[key] {
 			continue
 		}
 		// Only in B (or the un-collapsed half of a drop-and-recreate) → added.
-		diffs = append(diffs, newDifference(ColumnAdded, cB.Table, &cB.Table, cB.Name, nil, cB.DataType))
+		diffs = append(diffs, newDifference(ColumnAdded, cB.Table, &cB.Table, cB.Name, nil, cB))
 	}
 
 	return diffs

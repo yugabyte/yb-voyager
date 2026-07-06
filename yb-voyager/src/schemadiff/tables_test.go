@@ -48,8 +48,14 @@ func TestDiffTables_TableAdded(t *testing.T) {
 	if d.OldValue != nil {
 		t.Errorf("expected OldValue=nil, got %v", d.OldValue)
 	}
-	if d.NewValue != nil {
-		t.Errorf("expected NewValue=nil, got %v", d.NewValue)
+	// No columns were added alongside the table (snapWithTables sets no Columns),
+	// so NewValue must be an empty []schemasnapshot.Column.
+	newCols, ok := d.NewValue.([]schemasnapshot.Column)
+	if !ok {
+		t.Fatalf("expected NewValue to be []schemasnapshot.Column, got %T: %v", d.NewValue, d.NewValue)
+	}
+	if len(newCols) != 0 {
+		t.Errorf("expected NewValue to be empty, got %v", newCols)
 	}
 }
 
@@ -76,11 +82,119 @@ func TestDiffTables_TableDropped(t *testing.T) {
 	if d.Object != ref("public", "orders") {
 		t.Errorf("expected Object=public.orders, got %v", d.Object)
 	}
-	if d.OldValue != nil {
-		t.Errorf("expected OldValue=nil, got %v", d.OldValue)
+	// No columns existed on the dropped table (snapWithTables sets no Columns),
+	// so OldValue must be an empty []schemasnapshot.Column.
+	oldCols, ok := d.OldValue.([]schemasnapshot.Column)
+	if !ok {
+		t.Fatalf("expected OldValue to be []schemasnapshot.Column, got %T: %v", d.OldValue, d.OldValue)
+	}
+	if len(oldCols) != 0 {
+		t.Errorf("expected OldValue to be empty, got %v", oldCols)
 	}
 	if d.NewValue != nil {
 		t.Errorf("expected NewValue=nil, got %v", d.NewValue)
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Test: Table added carries its columns, in original (attnum) order
+// ──────────────────────────────────────────────────────────────────────────────
+
+func TestDiffTables_TableAdded_CarriesColumnsInOrder(t *testing.T) {
+	newTbl := makeTable("42", "public", "users", schemasnapshot.TableKindOrdinary)
+	col1 := makeColumn("public", "users", "42:1", "id", "integer", notNull())
+	col2 := makeColumn("public", "users", "42:2", "email", "text")
+	col3 := makeColumn("public", "users", "42:3", "created_at", "timestamp", withDefault("now()"))
+
+	a := snapWithTablesAndColumns(nil, nil)
+	b := snapWithTablesAndColumns([]schemasnapshot.Table{newTbl}, []schemasnapshot.Column{col1, col2, col3})
+
+	got := Diff(a, b)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 difference (TableAdded; per-column adds must be suppressed), got %d: %v", len(got), got)
+	}
+	d := got[0]
+	if d.Type != TableAdded {
+		t.Fatalf("expected TableAdded, got %v", d.Type)
+	}
+	if d.OldValue != nil {
+		t.Errorf("expected OldValue=nil, got %v", d.OldValue)
+	}
+	cols, ok := d.NewValue.([]schemasnapshot.Column)
+	if !ok {
+		t.Fatalf("expected NewValue to be []schemasnapshot.Column, got %T: %v", d.NewValue, d.NewValue)
+	}
+	wantCols := []schemasnapshot.Column{col1, col2, col3}
+	if len(cols) != len(wantCols) {
+		t.Fatalf("expected %d columns, got %d: %v", len(wantCols), len(cols), cols)
+	}
+	for i := range wantCols {
+		if cols[i] != wantCols[i] {
+			t.Errorf("column order mismatch at index %d: expected %v, got %v", i, wantCols[i], cols[i])
+		}
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Test: Table dropped carries its columns, in original (attnum) order
+// ──────────────────────────────────────────────────────────────────────────────
+
+func TestDiffTables_TableDropped_CarriesColumnsInOrder(t *testing.T) {
+	oldTbl := makeTable("99", "public", "orders", schemasnapshot.TableKindOrdinary)
+	col1 := makeColumn("public", "orders", "99:1", "id", "integer", notNull())
+	col2 := makeColumn("public", "orders", "99:2", "amount", "numeric(10,2)")
+	col3 := makeColumn("public", "orders", "99:3", "status", "text", withDefault("'pending'"))
+
+	a := snapWithTablesAndColumns([]schemasnapshot.Table{oldTbl}, []schemasnapshot.Column{col1, col2, col3})
+	b := snapWithTablesAndColumns(nil, nil)
+
+	got := Diff(a, b)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 difference (TableDropped; per-column drops must be suppressed), got %d: %v", len(got), got)
+	}
+	d := got[0]
+	if d.Type != TableDropped {
+		t.Fatalf("expected TableDropped, got %v", d.Type)
+	}
+	if d.NewValue != nil {
+		t.Errorf("expected NewValue=nil, got %v", d.NewValue)
+	}
+	cols, ok := d.OldValue.([]schemasnapshot.Column)
+	if !ok {
+		t.Fatalf("expected OldValue to be []schemasnapshot.Column, got %T: %v", d.OldValue, d.OldValue)
+	}
+	wantCols := []schemasnapshot.Column{col1, col2, col3}
+	if len(cols) != len(wantCols) {
+		t.Fatalf("expected %d columns, got %d: %v", len(wantCols), len(cols), cols)
+	}
+	for i := range wantCols {
+		if cols[i] != wantCols[i] {
+			t.Errorf("column order mismatch at index %d: expected %v, got %v", i, wantCols[i], cols[i])
+		}
+	}
+}
+
+// TestCloneColumns_Independence verifies cloneColumns decouples the Difference's
+// column slice from the source snapshot: mutating the returned slice must not
+// write through into the snapshot's original Columns.
+func TestCloneColumns_Independence(t *testing.T) {
+	newTbl := makeTable("42", "public", "users", schemasnapshot.TableKindOrdinary)
+	col1 := makeColumn("public", "users", "42:1", "id", "integer")
+
+	a := snapWithTablesAndColumns(nil, nil)
+	b := snapWithTablesAndColumns([]schemasnapshot.Table{newTbl}, []schemasnapshot.Column{col1})
+
+	got := Diff(a, b)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
+	}
+	cols, ok := got[0].NewValue.([]schemasnapshot.Column)
+	if !ok || len(cols) != 1 {
+		t.Fatalf("expected NewValue to be a 1-element []schemasnapshot.Column, got %T: %v", got[0].NewValue, got[0].NewValue)
+	}
+	cols[0].Name = "mutated"
+	if b.Columns[0].Name != "id" {
+		t.Errorf("mutating the returned column slice must not affect the source snapshot; source became %v", b.Columns[0].Name)
 	}
 }
 

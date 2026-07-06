@@ -153,12 +153,44 @@ func TestDiff_EndToEnd(t *testing.T) {
 	})
 	require.Len(t, legacyDropped, 1, "expected exactly one TableDropped for diff_it.legacy")
 
+	// TableDropped for a wholly-dropped table carries its columns as OldValue,
+	// and those columns must NOT also appear as standalone ColumnDropped findings.
+	legacyCols, ok := legacyDropped[0].OldValue.([]schemasnapshot.Column)
+	require.True(t, ok, "TableDropped.OldValue must be []schemasnapshot.Column, got %T", legacyDropped[0].OldValue)
+	var legacyColNames []string
+	for _, c := range legacyCols {
+		legacyColNames = append(legacyColNames, c.Name)
+	}
+	assert.ElementsMatch(t, []string{"a", "b"}, legacyColNames,
+		"TableDropped(legacy).OldValue must carry legacy's columns")
+	legacyStandaloneColumnDrops := findDiffs(func(d schemadiff.Difference) bool {
+		return d.Type == schemadiff.ColumnDropped && d.Object.Name == "legacy"
+	})
+	assert.Empty(t, legacyStandaloneColumnDrops,
+		"legacy's columns must remain suppressed as standalone ColumnDropped findings")
+
 	// ── 4. TableAdded for diff_it.newbie ───────────────────────────────────────
 	newbieAdded := findDiffs(func(d schemadiff.Difference) bool {
 		return d.Type == schemadiff.TableAdded &&
 			d.Object.Schema == driftSchema && d.Object.Name == "newbie"
 	})
 	require.Len(t, newbieAdded, 1, "expected exactly one TableAdded for diff_it.newbie")
+
+	// TableAdded for a wholly-added table carries its columns as NewValue, and
+	// those columns must NOT also appear as standalone ColumnAdded findings.
+	newbieCols, ok := newbieAdded[0].NewValue.([]schemasnapshot.Column)
+	require.True(t, ok, "TableAdded.NewValue must be []schemasnapshot.Column, got %T", newbieAdded[0].NewValue)
+	var newbieColNames []string
+	for _, c := range newbieCols {
+		newbieColNames = append(newbieColNames, c.Name)
+	}
+	assert.ElementsMatch(t, []string{"x"}, newbieColNames,
+		"TableAdded(newbie).NewValue must carry newbie's columns")
+	newbieStandaloneColumnAdds := findDiffs(func(d schemadiff.Difference) bool {
+		return d.Type == schemadiff.ColumnAdded && d.Object.Name == "newbie"
+	})
+	assert.Empty(t, newbieStandaloneColumnAdds,
+		"newbie's columns must remain suppressed as standalone ColumnAdded findings")
 
 	// ── 5. TableAdded for diff_it.events_2027 ──────────────────────────────────
 	events2027Added := findDiffs(func(d schemadiff.Difference) bool {

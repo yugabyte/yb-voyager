@@ -78,8 +78,23 @@ func diffTables(a, b *schemasnapshot.SnapshotContent) []Difference {
 		}
 	}
 
+	// Group each snapshot's columns by their parent table's canonical key, so
+	// TABLE_ADDED/TABLE_DROPPED findings can carry the added/dropped table's
+	// columns. Iterate Columns in order and append so each table's columns
+	// preserve their original (attnum) order.
+	colsByTableA := make(map[string][]schemasnapshot.Column)
+	for _, col := range a.Columns {
+		key := col.Table.ForKey(a.DatabaseType)
+		colsByTableA[key] = append(colsByTableA[key], col)
+	}
+	colsByTableB := make(map[string][]schemasnapshot.Column)
+	for _, col := range b.Columns {
+		key := col.Table.ForKey(b.DatabaseType)
+		colsByTableB[key] = append(colsByTableB[key], col)
+	}
+
 	// Pass 2: name-based reconciliation of the residue.
-	diffs = append(diffs, diffTablesByName(residueA, residueB, matchByID, a.DatabaseType, b.DatabaseType)...)
+	diffs = append(diffs, diffTablesByName(residueA, residueB, matchByID, a.DatabaseType, b.DatabaseType, colsByTableA, colsByTableB)...)
 
 	return diffs
 }
@@ -89,7 +104,11 @@ func diffTables(a, b *schemasnapshot.SnapshotContent) []Difference {
 // ObjectRef.ForKey(dbType) (unique within a snapshot). A same-named pair is
 // treated as the same table only when nameMatchAllowed permits it; otherwise
 // the A-side is dropped and the B-side added.
-func diffTablesByName(residueA, residueB []schemasnapshot.Table, matchByID bool, dbTypeA, dbTypeB string) []Difference {
+//
+// colsByTableA and colsByTableB map a table's ForKey(dbType) to its columns (in
+// original snapshot order) and are used to attach the added/dropped table's
+// columns onto the TABLE_ADDED/TABLE_DROPPED finding.
+func diffTablesByName(residueA, residueB []schemasnapshot.Table, matchByID bool, dbTypeA, dbTypeB string, colsByTableA, colsByTableB map[string][]schemasnapshot.Column) []Difference {
 	var diffs []Difference
 
 	// identity seam — the single point where a table's name-match key is derived.
@@ -116,14 +135,14 @@ func diffTablesByName(residueA, residueB []schemasnapshot.Table, matchByID bool,
 			continue
 		}
 		// Only in A (or a name collision we must not collapse) → dropped.
-		diffs = append(diffs, newDifference(TableDropped, tA.ObjectRef, &tA.ObjectRef, "", nil, nil))
+		diffs = append(diffs, newDifference(TableDropped, tA.ObjectRef, &tA.ObjectRef, "", cloneColumns(colsByTableA[tA.ForKey(dbTypeA)]), nil))
 	}
 	for name, tB := range byNameB {
 		if matchedB[name] {
 			continue
 		}
 		// Only in B (or the un-collapsed half of a drop-and-recreate) → added.
-		diffs = append(diffs, newDifference(TableAdded, tB.ObjectRef, &tB.ObjectRef, "", nil, nil))
+		diffs = append(diffs, newDifference(TableAdded, tB.ObjectRef, &tB.ObjectRef, "", nil, cloneColumns(colsByTableB[tB.ForKey(dbTypeB)])))
 	}
 
 	return diffs
@@ -230,5 +249,19 @@ func cloneObjectRefs(refs []schemasnapshot.ObjectRef) []schemasnapshot.ObjectRef
 	}
 	out := make([]schemasnapshot.ObjectRef, len(refs))
 	copy(out, refs)
+	return out
+}
+
+// cloneColumns returns a fresh copy of a []Column so a Difference never shares
+// backing storage with the input snapshot. Column is a value type, so a shallow
+// copy fully decouples the result; a nil input stays nil (no needless
+// allocation). Without this, a consumer mutating a TABLE_ADDED/TABLE_DROPPED
+// finding's OldValue/NewValue slice would write through into the source snapshot.
+func cloneColumns(cols []schemasnapshot.Column) []schemasnapshot.Column {
+	if cols == nil {
+		return nil
+	}
+	out := make([]schemasnapshot.Column, len(cols))
+	copy(out, cols)
 	return out
 }

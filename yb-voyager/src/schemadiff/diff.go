@@ -52,13 +52,15 @@ type Difference struct {
 	Property string
 
 	// OldValue is the value on side A (nil for *_ADDED). For *_CHANGED it is the
-	// previous value of Property; for COLUMN_DROPPED the dropped column's type. Its
-	// dynamic type depends on Property (string, bool, ObjectRef, or []ObjectRef).
+	// previous value of Property; for COLUMN_DROPPED the whole dropped Column; for
+	// TABLE_DROPPED the dropped table's []Column. Its dynamic type depends on Type/
+	// Property (string, bool, ObjectRef, []ObjectRef, schemasnapshot.Column, or
+	// []schemasnapshot.Column).
 	OldValue any
 
 	// NewValue is the value on side B (nil for *_DROPPED). For *_CHANGED it is the
-	// new value of Property; for COLUMN_ADDED the added column's type. Same
-	// dynamic-type rules as OldValue.
+	// new value of Property; for COLUMN_ADDED the whole added Column; for
+	// TABLE_ADDED the added table's []Column. Same dynamic-type rules as OldValue.
 	NewValue any
 }
 
