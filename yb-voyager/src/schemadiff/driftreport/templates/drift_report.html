@@ -239,33 +239,6 @@
       <tr><td>{{.Seq}}</td><td class="ic">{{.Series}}</td><td>{{.CapturedAt}}</td><td>{{.Note}}</td></tr>
       {{end}}
     </table>
-
-    <h3 style="margin-top:26px">How phases &amp; events are derived</h3>
-    <p>Nothing here is stored as prose. A <strong>phase</strong> labels the span between two captures and is derived from the pair;
-       a <strong>point event</strong> (a timeline marker) is derived from a capture's <code>reason</code> attribute. Captures carry a
-       <strong>series</strong> and a <code>reason</code> (start = initial / resume / clean_restart; exit = cutover / error / interrupt / complete).</p>
-    <table class="derive">
-      <tr><th>Earlier capture A</th><th>Later capture B</th><th>Phase</th><th>Label shown</th></tr>
-      <tr><td class="ic">export_schema</td><td class="ic">…_start</td><td><code>PRE_DATA_EXPORT</code></td><td>export data: pending</td></tr>
-      <tr><td class="ic">…_start / …_periodic</td><td class="ic">…_periodic</td><td><code>DATA_EXPORT_RUNNING</code></td><td>export data: running</td></tr>
-      <tr><td class="ic">…_exit</td><td class="ic">…_start (resume / clean_restart)</td><td><code>PRE_DATA_EXPORT_RESTART</code></td><td>export data: paused</td></tr>
-      <tr><td class="ic">last capture</td><td class="ic">source (live)</td><td><code>SINCE_LAST_CAPTURE</code></td><td>since last capture</td></tr>
-      <tr><td class="ic">any other pair</td><td class="ic">—</td><td><code>UNLABELLED</code></td><td><em>(none — time window only)</em></td></tr>
-    </table>
-    <p style="margin-top:14px">Point events come from an <code>export_schema</code>, <code>…_start</code>, or <code>…_exit</code> capture's <code>reason</code> — they mark the moment, while
-       the phase labels the span:</p>
-    <table class="derive">
-      <tr><th>Capture</th><th>reason</th><th>Marker on the spine</th></tr>
-      <tr><td class="ic">export_schema</td><td>—</td><td>export schema: completed</td></tr>
-      <tr><td class="ic">…_start</td><td><code>initial</code></td><td>export data: started</td></tr>
-      <tr><td class="ic">…_start</td><td><code>resume</code></td><td>export data: restarted</td></tr>
-      <tr><td class="ic">…_start</td><td><code>clean_restart</code></td><td>export data: restarted (start-clean)</td></tr>
-      <tr><td class="ic">…_exit</td><td><code>interrupt</code></td><td>export data: stopped</td></tr>
-      <tr><td class="ic">…_exit</td><td><code>complete</code></td><td>export data: completed</td></tr>
-      <tr><td class="ic">…_exit</td><td><code>error</code></td><td>⚠ export data: failed</td></tr>
-      <tr><td class="ic">…_exit</td><td><code>cutover</code></td><td>cutover: to target</td></tr>
-    </table>
-    <p class="note" style="margin-top:10px">If <code>export data</code> crashes hard (no exit capture), there is no end-of-timeline marker — the report ends at the last periodic.</p>
   </footer>
 
 </div>
