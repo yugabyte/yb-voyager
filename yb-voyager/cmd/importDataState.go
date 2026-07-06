@@ -539,7 +539,7 @@ func (s *ImportDataState) initChannelMetaInfo(migrationUUID uuid.UUID, numChans 
 		// re-applying events. Fail fast instead of corrupting data. See the warning on
 		// NUM_EVENT_CHANNELS in live_migration.go.
 		if rowCount != int64(numChans) {
-			return fmt.Errorf("NUM_EVENT_CHANNELS cannot be changed once a migration has started: "+
+			return goerrors.Errorf("NUM_EVENT_CHANNELS cannot be changed once a migration has started: "+
 				"the previous run used %d channel(s) but this run is configured for %d. "+
 				"Revert NUM_EVENT_CHANNELS to %d to resume. Changing it requires restarting the "+
 				"migration from scratch with --start-clean, which is not possible after cutover",
