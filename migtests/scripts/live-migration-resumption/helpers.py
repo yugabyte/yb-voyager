@@ -834,16 +834,12 @@ class ConflictGenerator:
 
     def stop(self, timeout_sec: int = 60) -> None:
         self.stop_flag.set()
-        # Terminate any in-flight psql so a cycle cannot commit conflict DML after
-        # stop() returns (keeps the pre-backlog-marker drain deterministic).
+        # Kill any in-flight psql child so a cycle can't commit conflict DML after
+        # stop() returns -- same as stop_generator() does via kill() (which is a
+        # no-op if the child is absent or already exited).
         with self._proc_lock:
             proc = self._proc
-        if proc and proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                proc.kill()
+        kill(proc, timeout_sec=timeout_sec)
         thread = self._thread
         if thread:
             thread.join(timeout_sec)
