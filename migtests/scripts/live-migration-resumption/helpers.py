@@ -772,9 +772,12 @@ class ConflictGenerator:
     (yb-voyager/cmd/conflictDetectionCache.go) exercised continuously under
     resumption stress.
 
-    The DML file is written to be loop-safe: each table block deletes its own
-    high-range rows before re-seeding, so successive cycles never collide with
-    each other or with the random generator (which uses values < 2e8).
+    Each cycle is run with `psql -v cycle=N` (a monotonically increasing number);
+    the DML derives every id and unique-key value from that number, so each cycle
+    exercises the conflicts on a FRESH set of rows rather than recycling the same
+    ones. The freeing and reusing events within a cycle still share that cycle's
+    value, so the conflict is preserved every cycle; only the rows differ across
+    cycles.
     """
 
     def __init__(

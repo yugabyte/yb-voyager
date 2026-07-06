@@ -57,7 +57,7 @@ generator_source:
       insert_max_retries: 5
       update_max_retries: 1
 
-# Forward (source) conflict generator: re-applies this test's own (loop-safe)
+# Forward (source) conflict generator: re-applies this test's own dynamic
 # source_dml.sql on a loop throughout streaming, in parallel with generator_source.
 conflict_generator_source:
   config_inline:
@@ -99,7 +99,7 @@ generator_target:
       insert_max_retries: 5
       update_max_retries: 1
 
-# Fallback (target) conflict generator: re-applies this test's own (loop-safe)
+# Fallback (target) conflict generator: re-applies this test's own dynamic
 # target_dml.sql on a loop throughout fallback streaming, in parallel with generator_target.
 conflict_generator_target:
   config_inline:
