@@ -72,11 +72,11 @@ If you are unsure whether a path is hot, ask; do not assume it is cold.
 
 Applies especially to new packages, interfaces, and abstractions:
 
-- **Avoid unnecessary indirection.** A `switch` on database type or a direct call is often clearer than a registry/factory/provider seam. 
+- **Favor simplicity over abstraction** Introduce layers, interfaces, factories, registries, or other indirection only when they provide a clear benefit.
 - **YAGNI.** Do not add fields, parameters, or extension seams that nothing consumes yet. Recommend pulling unused surface out of the PR until the consumer lands.
 - **Respect layering.** Each layer does only its job — For example, populate domain data before entering the persistence layer.
-- **Name to avoid collisions and ambiguity.** A field named `Role` next to Postgres roles, or two fields (`Label`/`Series`) that mean the same thing, will confuse readers. Prefer qualified, single-purpose names.
-- **One source of truth.** Do not persist the same fact two ways 
+- **Name to avoid collisions and ambiguity.** A field named `Role` next to Postgres roles, or two fields that mean the same thing, will confuse readers. Prefer qualified, single-purpose names.
+- **One source of truth.** Do not persist the same fact two ways. 
 
 ## Generic Coding Practices
 
