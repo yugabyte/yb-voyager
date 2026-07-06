@@ -16,51 +16,6 @@ package schemadiff
 
 import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 
-// objectRefSetEqual returns true when two []ObjectRef slices have the same members
-// regardless of order. Nil and empty slices are treated as equal.
-func objectRefSetEqual(a, b []schemasnapshot.ObjectRef) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	set := make(map[schemasnapshot.ObjectRef]int, len(a))
-	for _, r := range a {
-		set[r]++
-	}
-	for _, r := range b {
-		set[r]--
-		if set[r] < 0 {
-			return false
-		}
-	}
-	return true
-}
-
-// cloneObjectRefs returns a fresh copy of an []ObjectRef so a Difference never
-// shares backing storage with the input snapshot. ObjectRef is a value type, so
-// a shallow copy fully decouples the result; a nil input stays nil (no needless
-// allocation). Without this, a consumer mutating a link finding's OldValue /
-// NewValue slice would write through into the source snapshot.
-func cloneObjectRefs(refs []schemasnapshot.ObjectRef) []schemasnapshot.ObjectRef {
-	if refs == nil {
-		return nil
-	}
-	out := make([]schemasnapshot.ObjectRef, len(refs))
-	copy(out, refs)
-	return out
-}
-
-// partitionParentEqual compares two *ObjectRef values for equality.
-// Both nil → equal; one nil → not equal; both set → compare by value.
-func partitionParentEqual(a, b *schemasnapshot.ObjectRef) bool {
-	if a == nil && b == nil {
-		return true
-	}
-	if a == nil || b == nil {
-		return false
-	}
-	return *a == *b
-}
-
 // diffTables computes table-level differences between snapshots a and b using a
 // hybrid two-pass match:
 //
@@ -231,4 +186,49 @@ func compareMatchedTables(tA, tB schemasnapshot.Table) []Difference {
 	}
 
 	return diffs
+}
+
+// partitionParentEqual compares two *ObjectRef values for equality.
+// Both nil → equal; one nil → not equal; both set → compare by value.
+func partitionParentEqual(a, b *schemasnapshot.ObjectRef) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
+}
+
+// objectRefSetEqual returns true when two []ObjectRef slices have the same members
+// regardless of order. Nil and empty slices are treated as equal.
+func objectRefSetEqual(a, b []schemasnapshot.ObjectRef) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	set := make(map[schemasnapshot.ObjectRef]int, len(a))
+	for _, r := range a {
+		set[r]++
+	}
+	for _, r := range b {
+		set[r]--
+		if set[r] < 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// cloneObjectRefs returns a fresh copy of an []ObjectRef so a Difference never
+// shares backing storage with the input snapshot. ObjectRef is a value type, so
+// a shallow copy fully decouples the result; a nil input stays nil (no needless
+// allocation). Without this, a consumer mutating a link finding's OldValue /
+// NewValue slice would write through into the source snapshot.
+func cloneObjectRefs(refs []schemasnapshot.ObjectRef) []schemasnapshot.ObjectRef {
+	if refs == nil {
+		return nil
+	}
+	out := make([]schemasnapshot.ObjectRef, len(refs))
+	copy(out, refs)
+	return out
 }
