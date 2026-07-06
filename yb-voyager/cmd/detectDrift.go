@@ -82,6 +82,12 @@ Exit codes: 0 = success, no drift found; 1 = success, drift found; 2 = operation
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validateDetectDriftFlags(cmd)
+		// Resolve the source password from the --source-db-password flag, the
+		// SOURCE_DB_PASSWORD env var, or an interactive prompt -- exactly as the
+		// export commands do. Without this, source.Password stays empty and the
+		// connect in detectDrift() fails SASL auth against any password-protected
+		// source.
+		getAndStoreSourceDBPasswordInSourceConf(cmd)
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
