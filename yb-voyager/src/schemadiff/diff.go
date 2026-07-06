@@ -26,61 +26,39 @@ import (
 // changed findings; which fields are populated depends on Type — see each field.
 type Difference struct {
 	// Type identifies what changed (e.g. TABLE_ADDED, COLUMN_TYPE_CHANGED). The
-	// trailing verb governs which fields below are set: *_ADDED is present only on
-	// B, *_DROPPED only on A, *_*CHANGED on both with Property naming the attribute.
+	// trailing verb governs which fields are set: *_ADDED uses NewValue, *_DROPPED
+	// uses OldValue, *_CHANGED uses both plus Property.
 	Type DiffType
 
-	// Object is the (schema, name) of the object the finding is reported against.
-	// For a table-level finding it is the table itself; for a column-level finding
-	// it is the column's PARENT table (the column name lives in SubObject).
-	// It is the side-A (old) ref for every finding EXCEPT *_ADDED, where the object
-	// exists only on B and so this is the side-B (new) ref. For a rename
-	// (*_NAME_CHANGED) it stays the OLD ref, with the new name carried in NewValue.
+	// Object is the object the finding is about: the table itself for a table-level
+	// finding, or the column's parent table for a column-level finding (column name
+	// in SubObject). It is the old (side-A) ref, except *_ADDED which uses the new
+	// (side-B) ref; a rename keeps the old ref with the new name in NewValue.
 	Object schemasnapshot.ObjectRef
 
 	// AnchorTable is the table this finding is scoped under by --table-list /
-	// --exclude-table-list (consumed by FilterByScope). For the table- and
-	// column-level findings v1 emits it points at the same table as Object, so
-	// today it is always non-nil and never diverges from Object. It stops being
-	// redundant — and starts doing real work — only once the engine emits object
-	// types v1 does not yet:
-	//   - INDEX_* and owned SEQUENCE_* findings: Object is the index/sequence,
-	//     while AnchorTable is its host/owner table. The two diverge, so e.g.
-	//     `--table-list orders` still scopes an index-on-orders finding to orders.
-	//   - Top-level VIEW_*, FUNCTION_*, TYPE_* findings: these have no host table,
-	//     so AnchorTable is nil — and because a nil anchor never matches a
-	//     non-empty --table-list, table scoping correctly leaves them out.
-	// Carrying it now means those findings slot in without changing this field,
-	// FilterByScope, or any call site. A pointer so that "no anchor" (nil) is
-	// distinguishable from the zero ObjectRef.
+	// --exclude-table-list. In v1 it always equals Object. It only diverges or goes
+	// nil for object types not yet emitted: INDEX_*/owned SEQUENCE_* anchor to their
+	// host/owner table, and top-level VIEW_*/FUNCTION_*/TYPE_* have no table (nil).
+	// A pointer so "no anchor" (nil) is distinct from the zero ObjectRef.
 	AnchorTable *schemasnapshot.ObjectRef
 
-	// SubObject names the dependent object within Object that the finding concerns.
-	// In v1 this is a column name (e.g. "status") for column findings, and "" for
-	// table-level findings. (Future: constraint name, index column, enum value,
-	// type attribute.)
+	// SubObject names the dependent within Object — a column name in v1, "" for
+	// table-level findings.
 	SubObject string
 
-	// Property names the single attribute that changed. Set ONLY for *_CHANGED
-	// findings; "" for object-level findings (*_ADDED / *_DROPPED). v1 values:
-	// "name", "schema", "kind" (table); "name", "data_type", "not_null", "default"
-	// (column); "partition_parent", "partition_children", "inherits_from",
-	// "inherited_by" (table links).
+	// Property names the single attribute that changed. Set only for *_CHANGED
+	// findings; "" for *_ADDED / *_DROPPED.
 	Property string
 
-	// OldValue is the value on side A, or nil when the object/attribute is absent
-	// on A (always nil for *_ADDED). For *_CHANGED it is the previous value of
-	// Property; for COLUMN_DROPPED it is the dropped column's data type (string),
-	// while table-level drops leave it nil. Its dynamic type tracks Property:
-	// string for name/schema/kind/data_type/default, bool for not_null,
-	// schemasnapshot.ObjectRef for partition_parent, and []schemasnapshot.ObjectRef
-	// for partition_children / inherits_from / inherited_by.
+	// OldValue is the value on side A (nil for *_ADDED). For *_CHANGED it is the
+	// previous value of Property; for COLUMN_DROPPED the dropped column's type. Its
+	// dynamic type depends on Property (string, bool, ObjectRef, or []ObjectRef).
 	OldValue any
 
-	// NewValue is the value on side B, or nil when the object/attribute is absent
-	// on B (always nil for *_DROPPED). For *_CHANGED it is the new value of
-	// Property; for COLUMN_ADDED it is the added column's data type (string), while
-	// table-level adds leave it nil. Same dynamic-type rules as OldValue.
+	// NewValue is the value on side B (nil for *_DROPPED). For *_CHANGED it is the
+	// new value of Property; for COLUMN_ADDED the added column's type. Same
+	// dynamic-type rules as OldValue.
 	NewValue any
 }
 
