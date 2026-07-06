@@ -72,7 +72,7 @@ If you are unsure whether a path is hot, ask; do not assume it is cold.
 
 Applies especially to new packages, interfaces, and abstractions:
 
-- **Favor simplicity over abstraction** Introduce layers, interfaces, factories, registries, or other indirection only when they provide a clear benefit.
+- **Favor simplicity over abstraction** Introduce layers, interfaces, factories, registries, or other indirection only when they provide a clear benefit or there is strong evidence that upcoming scale or feature growth will require them.
 - **YAGNI.** Do not add fields, parameters, or extension seams that nothing consumes yet. Recommend pulling unused surface out of the PR until the consumer lands.
 - **Respect layering.** Each layer does only its job — For example, populate domain data before entering the persistence layer.
 - **Name to avoid collisions and ambiguity.** A field named `Role` next to Postgres roles, or two fields that mean the same thing, will confuse readers. Prefer qualified, single-purpose names.
