@@ -36,7 +36,7 @@
 ## Object Names
 
 - Use the `sqlname` package for all object name handling(table names especially). Do not construct qualified names via manual string concatenation.
-- When using a `NameTuple`/`ObjectName` as a **map key** or serialising it as a key (e.g. a metaDB JSON map keyed by table), use its canonical key method (`Key()` / `ForKey()`), **not** `AsQualifiedCatalogName()` or `String()`. The catalog-name/display forms do not round-trip through the name registry for case-sensitive (quoted) identifiers, so a key written one way and read back another way can silently miss.
+- When using a `NameTuple`/`ObjectName` as a **map key** or serialising it as a key (e.g. a metaDB JSON map keyed by table), use its canonical key method (`Key()` / `ForKey()`), **not** `AsQualifiedCatalogName()` or `String()`. 
 
 
 ## Flag and Config Handling

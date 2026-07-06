@@ -68,21 +68,15 @@ On a hot path:
 
 If you are unsure whether a path is hot, ask; do not assume it is cold.
 
-## Change Scope and Tool-Generated Diffs
-
-- Every hunk should be **necessary and in scope** for the PR's stated goal. Do not merge speculative code — fields, parameters, interfaces, or whole files added "for a later PR" that have no caller yet. If scaffolding is genuinely unavoidable, keep it minimal and call it out explicitly.
-- AI/agent-generated diffs (Cursor, Claude, etc.) frequently include **incidental, unrelated changes**: a `UNION`→`UNION ALL` swap with no functional reason, an unnecessary new file split out from an existing one, reformatting, or renamed locals. Each such change must be either justified or reverted — "the tool did it" is not a reason.
-- Prefer keeping closely-related code together (e.g. test SQL beside the tests that use it) unless there is a concrete reason to separate it.
-
 ## Design and Abstraction
 
 Applies especially to new packages, interfaces, and abstractions:
 
-- **Avoid unnecessary indirection.** A `switch` on database type or a direct call is often clearer than a registry/factory/provider seam. Add the abstraction only when there is a concrete second implementation or a real import-cycle/testing reason — and state that reason.
-- **YAGNI.** Do not add fields, parameters, or extension seams that nothing consumes yet (e.g. an unused `Attrs` map, a `StableIdentity` no diff step reads). Recommend pulling unused surface out of the PR until the consumer lands.
-- **Respect layering.** Each layer does only its job — a persist/metadb layer stores and loads; it does not compute, stamp, or derive domain values. Populate domain data before entering the persistence layer.
+- **Avoid unnecessary indirection.** A `switch` on database type or a direct call is often clearer than a registry/factory/provider seam. 
+- **YAGNI.** Do not add fields, parameters, or extension seams that nothing consumes yet. Recommend pulling unused surface out of the PR until the consumer lands.
+- **Respect layering.** Each layer does only its job — For example, populate domain data before entering the persistence layer.
 - **Name to avoid collisions and ambiguity.** A field named `Role` next to Postgres roles, or two fields (`Label`/`Series`) that mean the same thing, will confuse readers. Prefer qualified, single-purpose names.
-- **One source of truth.** Do not persist the same fact two ways (e.g. an `is_placeholder` column *and* `snapshot_json IS NULL`); the two will drift.
+- **One source of truth.** Do not persist the same fact two ways 
 
 ## Generic Coding Practices
 

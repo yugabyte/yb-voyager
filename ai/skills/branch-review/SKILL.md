@@ -106,34 +106,24 @@ Evaluate every change against the BUGBOT hierarchy (4a) and the review lenses (4
 
 #### 4a. Apply the BUGBOT hierarchy as an active checklist
 
-For each changed file, take the union of all `BUGBOT.md` / `.cursor/BUGBOT.md` files from that file's directory through the repo root (Step 1). Walk each rule and actively look for a violation in the diff — do not just confirm you read it. Voyager rules that are easy to miss and *have been missed before*:
+For each changed file, take the union of all `BUGBOT.md` / `.cursor/BUGBOT.md` files from that file's directory through the repo root (Step 1). Walk each rule and actively look for a violation in the diff — do not just confirm you read it.
 
-- `utils.ErrExit` (or a silent swallow) where a function should return an error to its caller — cmd / yb-voyager error-handling rules.
-- Object names assembled by string concatenation instead of `sqlname` / `NameTuple` / `AsKey` — the "Object Names" rule.
-- Missing test cases for **partitioned / multi-level tables** and **case-sensitive identifiers** — root + srcdb rules.
-- Dead / unused code, or code (fields, functions, whole files) added for a *future* PR with no caller yet.
-- Backward-compat surfaces (MSR JSON tags, assessment SQLite schema, callhome/YugabyteD payload version) changed non-additively.
-- Layering: business logic landing in `cmd/`, or a lower layer (e.g. persist/metadb) doing work that belongs to a higher one.
 
-**Turn each lexically-detectable rule into a search over the *added* (`+`) lines** — do not rely on reading comprehension alone. A rule you only *read* is a rule you will miss; a rule you *grep for* is one you enforce. After loading the rules, scan the diff's added lines for these tell-tale signatures and inspect each hit in context:
 
-- `utils.ErrExit(` inside a **newly-added** leaf/helper function (a `func save…/get…/build…` that returns nothing) — flag it **even when the enclosing file already uses `ErrExit` pervasively** (e.g. a `cmd/` command file). Existing usage is not license to add more; the new helper should return a wrapped error.
-- `.AsQualifiedCatalogName()` or `.String()` used to build a **map key** or a metaDB key from a `NameTuple`/`ObjectName` — should be the canonical key method (`Key()` / `ForKey()`), which round-trips through the name registry for case-sensitive identifiers.
-- A new `func Test…` body that calls an **unexported** helper (lowercase first letter) instead of the exported entry point it is meant to cover.
-- New exported symbols, fields, or files that nothing else references yet — `git -C "$WT" grep <symbol>` to confirm; zero hits outside the definition ⇒ speculative/dead code for a later PR.
-- `UNION ALL`, reformatting, or renamed locals in a file whose stated purpose is unrelated to the change — incidental churn to question.
+**Turn each lexically-detectable rule into a search over the *added* (`+`) lines** — do not rely on reading comprehension alone. A rule you only *read* is a rule you will miss; a rule you *grep for* is one you enforce.
+
 
 #### 4b. Review lenses
 
 | Lens | What to check |
 |------|---------------|
 | **Correctness** | Logic errors, off-by-one, **inverted / negated conditions** (`!found`, a flipped `<`/`>`, a wrong `!`), nil/null handling, race conditions, edge cases. |
-| **Scope & necessity** | Is every hunk needed *for this PR*? Flag speculative code, unused fields/params/abstractions added "for a later PR" with no caller, and **incidental changes unrelated to the stated goal** — e.g. a `UNION`→`UNION ALL` swap with no functional reason, a needless new file, drive-by reformatting. AI/Cursor-generated diffs routinely carry this noise; make the author justify each such change or drop it. |
-| **Design & maintainability** | Especially for new packages/interfaces/abstractions: unnecessary indirection (a registry/factory/extra interface where a `switch` or direct call would do), **YAGNI** (seams/fields not exercised yet — recommend pulling them from the PR), **layering** (each layer does only its job), names that collide with domain terms (e.g. a field named `Role` next to DB roles), redundant concepts (two fields meaning the same thing), and two-sources-of-truth for one fact. |
-| **Hot-path performance** | *First decide whether the change is on a performance-critical path* — per-event / CDC / conflict-detection, the per-row import-data loop, per-tuple value conversion (see root BUGBOT "Performance-Critical (Hot) Paths"). On those paths scrutinize per-iteration allocations, string building (`+` in a loop, or building a temp string before `WriteString`), and repeated map/JSON/regex/lookup work; expect a benchmark for non-trivial changes. Off hot paths, apply ordinary performance judgment. |
-| **Simplification** | Is there a materially simpler implementation? Push aggregation/sorting/dedup into SQL instead of post-processing in Go; dedupe once at the end instead of on every append; reuse an existing helper instead of re-implementing. |
+| **Scope & necessity** | Is every hunk needed *for this PR*? Flag speculative code, unused fields/params/abstractions added "for a later PR" with no caller, and **incidental changes unrelated to the stated goal** —  a needless new file, drive-by reformatting. AI-generated diffs routinely carry this noise; make the author justify each such change or drop it. |
+| **Design & maintainability** | Especially for new packages/interfaces/abstractions: unnecessary indirection, **YAGNI** , **layering** (each layer does only its job), redundant concepts (two fields meaning the same thing), and two-sources-of-truth for one fact. |
+| **Hot-path performance** | *First decide whether the change is on a performance-critical path* — per-event / CDC / conflict-detection, the per-row import-data loop, per-tuple value conversion (see root BUGBOT "Performance-Critical (Hot) Paths").  |
+| **Simplification** | Is there a materially simpler implementation?  |
 | **Security** | Injection, hardcoded secrets, auth gaps, input validation. |
-| **Tests** | New logic has tests that actually assert behavior; edge cases covered. Prefer exercising the **exported/public API** over calling unexported helpers directly. **Cross-variant coverage**: sources (PG/Oracle/MySQL/YB), migration flows, partitioned/multi-level tables, case-sensitive names. If a touched code path can't be easily tested (e.g. Oracle), confirm the author *manually verified* it. Tests must clean up and restore any shared state (schemas, global vars). |
+| **Tests** | New logic has tests that actually assert behavior; edge cases covered. |
 | **Documentation** | Public APIs documented; non-obvious gating/branching logic commented with *why* and *when it applies*; genuinely unclear concepts (new fields, enums, labels) explained — if you can't tell what a field is for, ask. |
 
 Severity is not tied to lens: a hot-path regression or an inverted condition is Critical/Warning, not a nitpick. Design, scope, and clarity concerns that need author input but aren't defects go in the **Question** class (Step 5) — surface them, but don't invent a "bug" to justify them.
