@@ -1,5 +1,5 @@
 FROM golang:1.24.2
-RUN go install github.com/go-delve/delve/cmd/dlv@latest
+RUN go install github.com/go-delve/delve/cmd/dlv@v1.26.3
 
 FROM amd64/ubuntu:22.04
 ARG DEBIAN_FRONTEND=noninteractive
