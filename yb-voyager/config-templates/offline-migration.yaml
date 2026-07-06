@@ -181,6 +181,7 @@ assess-migration:
   ### Note - This is only valid for PostgreSQL source database.
   ### Accepted values - (true, false, yes, no, 1, 0)
   ### Default - true
+  ### Warning - Setting this to false is unsafe: it skips critical pre-migration validations (such as source/target database permissions, binary dependencies, and version compatibility) and may lead to migration failures or data issues. Leave the default (true) unless you have a specific reason to disable checks.
   # run-guardrails-checks: true  
 
   ### Log level for the command
@@ -235,6 +236,7 @@ export-schema:
   ### Note - This is only valid for PostgreSQL source database.
   ### Accepted values - (true, false, yes, no, 1, 0)
   ### Default - true
+  ### Warning - Setting this to false is unsafe: it skips critical pre-migration validations (such as source/target database permissions, binary dependencies, and version compatibility) and may lead to migration failures or data issues. Leave the default (true) unless you have a specific reason to disable checks.
   # run-guardrails-checks: true  
 
   ### Log level for the command
@@ -310,6 +312,7 @@ import-schema:
   ### Note - This is only valid for PostgreSQL source database.
   ### Accepted values - (true, false, yes, no, 1, 0)
   ### Default - true
+  ### Warning - Setting this to false is unsafe: it skips critical pre-migration validations (such as source/target database permissions, binary dependencies, and version compatibility) and may lead to migration failures or data issues. Leave the default (true) unless you have a specific reason to disable checks.
   # run-guardrails-checks: true 
 
   ### Log level for the command
@@ -361,6 +364,7 @@ export-data:
   ### Note - This is only valid for PostgreSQL source database.
   ### Accepted values - (true, false, yes, no, 1, 0)
   ### Default - true
+  ### Warning - Setting this to false is unsafe: it skips critical pre-migration validations (such as source/target database permissions, binary dependencies, and version compatibility) and may lead to migration failures or data issues. Leave the default (true) unless you have a specific reason to disable checks.
   # run-guardrails-checks: true
 
   ### Log level for the command
@@ -476,6 +480,7 @@ import-data:
   ### Note - This is only valid for PostgreSQL source database.
   ### Accepted values - (true, false, yes, no, 1, 0)
   ### Default - true
+  ### Warning - Setting this to false is unsafe: it skips critical pre-migration validations (such as source/target database permissions, binary dependencies, and version compatibility) and may lead to migration failures or data issues. Leave the default (true) unless you have a specific reason to disable checks.
   # run-guardrails-checks: true
 
   ### Log level for the command
@@ -512,6 +517,7 @@ finalize-schema-post-data-import:
   ### Note - This is only valid for PostgreSQL source database.
   ### Accepted values - (true, false, yes, no, 1, 0)
   ### Default - true
+  ### Warning - Setting this to false is unsafe: it skips critical pre-migration validations (such as source/target database permissions, binary dependencies, and version compatibility) and may lead to migration failures or data issues. Leave the default (true) unless you have a specific reason to disable checks.
   # run-guardrails-checks: true  
 
   ### Log level for the command
