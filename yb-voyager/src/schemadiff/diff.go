@@ -40,10 +40,19 @@ type Difference struct {
 
 	// AnchorTable is the table this finding is scoped under by --table-list /
 	// --exclude-table-list (consumed by FilterByScope). For the table- and
-	// column-level findings v1 emits it points at the same table as Object. It is
-	// nil for findings anchored to no table — none in v1, reserved for future
-	// top-level objects (views, functions, sequences, types). A pointer so that
-	// "no anchor" (nil) is distinguishable from the zero ObjectRef.
+	// column-level findings v1 emits it points at the same table as Object, so
+	// today it is always non-nil and never diverges from Object. It stops being
+	// redundant — and starts doing real work — only once the engine emits object
+	// types v1 does not yet:
+	//   - INDEX_* and owned SEQUENCE_* findings: Object is the index/sequence,
+	//     while AnchorTable is its host/owner table. The two diverge, so e.g.
+	//     `--table-list orders` still scopes an index-on-orders finding to orders.
+	//   - Top-level VIEW_*, FUNCTION_*, TYPE_* findings: these have no host table,
+	//     so AnchorTable is nil — and because a nil anchor never matches a
+	//     non-empty --table-list, table scoping correctly leaves them out.
+	// Carrying it now means those findings slot in without changing this field,
+	// FilterByScope, or any call site. A pointer so that "no anchor" (nil) is
+	// distinguishable from the zero ObjectRef.
 	AnchorTable *schemasnapshot.ObjectRef
 
 	// SubObject names the dependent object within Object that the finding concerns.
