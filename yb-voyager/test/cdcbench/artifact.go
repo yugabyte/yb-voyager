@@ -112,25 +112,46 @@ func EnsureArtifact(b *testing.B, w Workload) string {
 	return exportDir
 }
 
-// shared source-PG container, started lazily on first generation
+// shared source-PG container, started lazily on first generation and
+// terminated by cleanupSourceContainer (registered via b.Cleanup in Run).
+// A sticky start error makes later workloads skip instead of re-dialing a
+// broken Docker; the container itself is restartable after cleanup so
+// -count=N runs that need regeneration keep working.
 var (
-	pgOnce      sync.Once
+	pgMu        sync.Mutex
 	pgContainer testcontainers.TestContainer
 	pgStartErr  error
 )
 
 func sourceContainer(b *testing.B) testcontainers.TestContainer {
 	b.Helper()
-	pgOnce.Do(func() {
-		pgContainer = testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
-			ForLive: true, // wal_level=logical for CDC
-		})
-		pgStartErr = pgContainer.Start(context.Background())
-	})
+	pgMu.Lock()
+	defer pgMu.Unlock()
 	if pgStartErr != nil {
 		b.Skipf("cdcbench: cannot start source postgres container (is Docker running?): %v", pgStartErr)
 	}
+	if pgContainer == nil {
+		c := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
+			ForLive: true, // wal_level=logical for CDC
+		})
+		if err := c.Start(context.Background()); err != nil {
+			pgStartErr = err
+			b.Skipf("cdcbench: cannot start source postgres container (is Docker running?): %v", err)
+		}
+		pgContainer = c
+	}
 	return pgContainer
+}
+
+// cleanupSourceContainer terminates the shared source container if it was
+// started, so benchmark runs don't leave containers behind.
+func cleanupSourceContainer() {
+	pgMu.Lock()
+	defer pgMu.Unlock()
+	if pgContainer != nil {
+		pgContainer.Terminate(context.Background())
+		pgContainer = nil
+	}
 }
 
 func generateArtifact(b *testing.B, w Workload, voyagerBin, dir, exportDir string) error {
@@ -297,6 +318,8 @@ func execSQLScript(connStr, script string) error {
 // export process exits early (procDone).
 func pollUntil(timeout, interval time.Duration, procDone <-chan error, cond func() (bool, error)) error {
 	deadline := time.Now().Add(timeout)
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 	for {
 		ok, err := cond()
 		if err != nil {
@@ -311,7 +334,7 @@ func pollUntil(timeout, interval time.Duration, procDone <-chan error, cond func
 		select {
 		case err := <-procDone:
 			return fmt.Errorf("export data exited early: %v", err)
-		case <-time.After(interval):
+		case <-ticker.C:
 		}
 	}
 }
@@ -372,9 +395,15 @@ func ensureUniqueKeyCompatKeys(exportDir string) error {
 	newKey := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_INDEXES_KEY, sourceDBExporterRole)
 
 	var flat map[string][]string
-	oldFound, _ := mdb.GetJsonObject(nil, oldKey, &flat)
+	oldFound, err := mdb.GetJsonObject(nil, oldKey, &flat)
+	if err != nil {
+		return fmt.Errorf("read %q from artifact metaDB: %w", oldKey, err)
+	}
 	var indexes map[string][][]string
-	newFound, _ := mdb.GetJsonObject(nil, newKey, &indexes)
+	newFound, err := mdb.GetJsonObject(nil, newKey, &indexes)
+	if err != nil {
+		return fmt.Errorf("read %q from artifact metaDB: %w", newKey, err)
+	}
 
 	switch {
 	case oldFound && newFound:

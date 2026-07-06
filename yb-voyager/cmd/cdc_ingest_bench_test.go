@@ -51,6 +51,8 @@ func BenchmarkCDCIngest(b *testing.B) {
 		converter dbzm.StreamingPhaseValueConverter
 		partMap   *utils.StructMap[sqlname.NameTuple, string]
 		state     *ImportDataState
+		evChans   []chan *tgtdb.Event
+		doneChans []chan bool
 	}
 
 	cdcbench.Run(b, cdcbench.Hooks{
@@ -94,22 +96,36 @@ func BenchmarkCDCIngest(b *testing.B) {
 				return fmt.Errorf("get cdc partitioning strategy: %w", err)
 			}
 			run.state = NewImportDataState(exportDir)
-
 			tdb = mock
-			prevExporterRole = "" // force conflict-cache re-init on the first event
+
+			// Initialize the conflict detection cache HERE (as production does
+			// lazily on the first event) and pin prevExporterRole so the
+			// streaming loop never reassigns the package-global cache pointer
+			// mid-stream: the framework's depth sampler reads that pointer
+			// concurrently, and writing it during StreamAll would be a data
+			// race. Benchmark artifacts carry a single exporter role by
+			// construction, so the re-init-on-role-change path is unreachable
+			// for them anyway.
+			run.evChans = nil
+			run.doneChans = nil
+			for i := 0; i < NUM_EVENT_CHANNELS; i++ {
+				run.evChans = append(run.evChans, make(chan *tgtdb.Event, EVENT_CHANNEL_SIZE))
+				run.doneChans = append(run.doneChans, make(chan bool, 1))
+			}
+			if err := initializeConflictDetectionCache(run.evChans, SOURCE_DB_EXPORTER_ROLE, sourceDBType); err != nil {
+				return fmt.Errorf("initialize conflict detection cache: %w", err)
+			}
+			prevExporterRole = SOURCE_DB_EXPORTER_ROLE
 			return nil
 		},
 
 		StreamAll: func() error {
 			// the segment loop from streamChanges (live_migration.go), with
 			// fresh-migration channel metadata (what InitLiveMigrationState
-			// inserts and GetEventChannelsMetaInfo returns on a first run)
-			var evChans []chan *tgtdb.Event
-			var doneChans []chan bool
+			// inserts and GetEventChannelsMetaInfo returns on a first run);
+			// channels and the conflict cache were prepared in Bootstrap
 			chanMeta := map[int]EventChannelMetaInfo{}
 			for i := 0; i < NUM_EVENT_CHANNELS; i++ {
-				evChans = append(evChans, make(chan *tgtdb.Event, EVENT_CHANNEL_SIZE))
-				doneChans = append(doneChans, make(chan bool, 1))
 				chanMeta[i] = EventChannelMetaInfo{ChanNo: i, LastAppliedVsn: -1}
 			}
 			statsReporter := &reporterstats.StreamImportStatsReporter{}
@@ -120,7 +136,7 @@ func BenchmarkCDCIngest(b *testing.B) {
 				if err != nil {
 					return fmt.Errorf("get next queue segment: %w", err)
 				}
-				err = streamChangesFromSegment(segment, evChans, doneChans, chanMeta, statsReporter, run.state, run.converter, run.partMap)
+				err = streamChangesFromSegment(segment, run.evChans, run.doneChans, chanMeta, statsReporter, run.state, run.converter, run.partMap)
 				if err != nil {
 					return fmt.Errorf("stream changes from segment %s: %w", segment.FilePath, err)
 				}
