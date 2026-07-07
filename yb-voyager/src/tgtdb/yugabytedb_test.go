@@ -300,6 +300,95 @@ func TestYugabyteGetPrimaryKeyConstraintNames(t *testing.T) {
 	}
 }
 
+func TestYugabyteGetTableToUniqueIndexesMap(t *testing.T) {
+	testYugabyteDBTarget.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE TABLE test_schema.unique_table (
+			id SERIAL PRIMARY KEY,
+			email VARCHAR(255) UNIQUE,
+			phone VARCHAR(20) UNIQUE,
+			address VARCHAR(255) UNIQUE
+		);`,
+		`CREATE TABLE test_schema.another_unique_table (
+			user_id SERIAL PRIMARY KEY,
+			username VARCHAR(50) UNIQUE,
+			age INT
+		);`,
+		`CREATE UNIQUE INDEX idx_age ON test_schema.another_unique_table(age);`,
+		`CREATE TABLE test_schema.composite_unique_table (
+			id SERIAL PRIMARY KEY,
+			first_name VARCHAR(100),
+			last_name VARCHAR(100),
+			phone VARCHAR(20) UNIQUE,
+			CONSTRAINT unique_name UNIQUE (first_name, last_name)
+		);`,
+		// table with only a primary key and no unique index/constraint -> should not appear in the map
+		`CREATE TABLE test_schema.pk_only_table (
+			id INT PRIMARY KEY,
+			name TEXT
+		);`,
+	)
+	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	tablesList := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithTargetName("test_schema.unique_table", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.another_unique_table", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.composite_unique_table", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.pk_only_table", "public", YUGABYTEDB),
+	}
+
+	actualIndexes, err := testYugabyteDBTarget.GetTableToUniqueIndexesMap(tablesList)
+	require.NoError(t, err)
+
+	expectedIndexesByTable := utils.NewStructMap[sqlname.NameTuple, [][]string]()
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.unique_table", "public", YUGABYTEDB), [][]string{
+		{"email"},
+		{"phone"},
+		{"address"},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.another_unique_table", "public", YUGABYTEDB), [][]string{
+		{"username"},
+		{"age"},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.composite_unique_table", "public", YUGABYTEDB), [][]string{
+		{"first_name", "last_name"},
+		{"phone"},
+	})
+
+	assert.Equal(t, len(expectedIndexesByTable.Keys()), len(actualIndexes.Keys()), "Expected number of tables to match")
+
+	expectedIndexesByTable.IterKV(func(table sqlname.NameTuple, expectedIndexes [][]string) (bool, error) {
+		actualIndexesForTable, exists := actualIndexes.Get(table)
+		if !exists {
+			t.Errorf("Expected table %s not found in unique indexes map", table)
+			return true, nil
+		}
+		assertEqualUniqueIndexes(t, expectedIndexes, actualIndexesForTable)
+		return true, nil
+	})
+}
+
+// assertEqualUniqueIndexes compares two lists of unique indexes irrespective of order,
+// matching each index by its ordered column signature.
+func assertEqualUniqueIndexes(t *testing.T, expected, actual [][]string) {
+	t.Helper()
+	if len(expected) != len(actual) {
+		t.Fatalf("expected %d indexes, got %d", len(expected), len(actual))
+	}
+	expectedSigs := make(map[string][]string)
+	for _, idxColumns := range expected {
+		expectedSigs[strings.Join(idxColumns, ",")] = idxColumns
+	}
+	for _, idxColumns := range actual {
+		sig := strings.Join(idxColumns, ",")
+		expCols, ok := expectedSigs[sig]
+		if !ok {
+			t.Fatalf("unexpected index columns %v", idxColumns)
+		}
+		testutils.AssertEqualStringSlices(t, expCols, idxColumns)
+	}
+}
+
 // this test is to ensure the query being used for fetching pg_stat_statements from target is working for voyager supported yb versions
 func TestPGStatStatementsQuery(t *testing.T) {
 	versionsList := versions.GetVoyagerSupportedYBVersions()

@@ -304,7 +304,9 @@ DELETE-UPDATE
 	c.before-i.after
 
 
-TODO: fetch from target instead of source
+NOTE: tableToUniqueIndexes is fetched live from the import target DB (see initializeConflictDetectionCache),
+which is the DB that actually enforces the unique constraints. Oracle sources always use PARTITION_BY_TABLE
+during live migration, so conflict detection never runs for them.
 TODO: optimization if no partial unique index then no need to check before=before
 TODO: UNIQUE NULLS NOT DISTINCT
 TODO: DO not add-to-cache OR check-for-conflicts if the UPDATE does not change UK columns or partial predicate columns

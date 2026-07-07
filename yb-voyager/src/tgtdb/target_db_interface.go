@@ -45,6 +45,11 @@ type TargetDB interface {
 	QuoteAttributeNames(tableNameTup sqlname.NameTuple, columns []string) ([]string, error)
 	GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error)
 	GetPrimaryKeyConstraintNames(tableNameTup sqlname.NameTuple) ([]string, error)
+	// GetTableToUniqueIndexesMap returns, for each table, the list of unique
+	// indexes/constraints (each an ordered column list). Used by live-migration
+	// conflict detection to fetch unique-key metadata directly from the import
+	// target. Not supported for Oracle targets (those use the metaDB path).
+	GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error)
 	ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error
 	GetListOfTableAttributes(tableNameTup sqlname.NameTuple) ([]string, error)
 	QuoteAttributeName(tableNameTup sqlname.NameTuple, columnName string) (string, error)

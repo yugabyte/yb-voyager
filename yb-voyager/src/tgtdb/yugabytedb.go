@@ -633,6 +633,16 @@ func (yb *TargetYugabyteDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]str
 	return primaryKeyColumns, nil
 }
 
+func (yb *TargetYugabyteDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
+	log.Infof("getting unique indexes from target for tables: %v", tableList)
+	result, err := queryPGUniqueIndexesMap(yb.Query, tableList)
+	if err != nil {
+		return nil, err
+	}
+	log.Infof("unique indexes from target for tables: %v", result)
+	return result, nil
+}
+
 // GetPrimaryKeyConstraintName returns the name of the primary key constraint for the given table.
 // If the table does not have a primary key, it returns an empty string and no error
 // If the table is partitioned, it returns the list of primary key constraint names for all partitions
