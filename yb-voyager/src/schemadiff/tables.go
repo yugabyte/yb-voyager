@@ -19,29 +19,26 @@ import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 // diffTables computes table-level differences between snapshots a and b using a
 // hybrid two-pass match:
 //
-//  1. ID pass — tables carrying a usable stable ID (OID) are matched by ID. This
-//     is enabled only when a.DatabaseType == b.DatabaseType — IDs (e.g. PG OIDs)
-//     are only comparable within the same database engine; cross-type ID comparison
-//     is illegal. Same engine ⇒ IDs are stable and comparable, so match by ID to
-//     detect renames; different engine ⇒ IDs aren't comparable, fall back to name
-//     matching. ID matching is what lets a rename surface as TABLE_NAME_CHANGED
-//     rather than an add+drop pair.
-//  2. Name pass — every table left unmatched by the ID pass (tables with no
-//     usable ID, PLUS any whose ID was present on one side but absent on the
-//     other) is reconciled by ObjectRef.ForKey(dbType), the collision-safe,
-//     case-sensitive, per-part-quoted canonical key (see diffTablesByName).
+//  1. ID pass — tables with a usable stable ID (OID) are matched by ID. Enabled
+//     only when a.DatabaseType == b.DatabaseType, since IDs are comparable only
+//     within the same engine. Same engine ⇒ match by ID, which lets a rename
+//     surface as TABLE_NAME_CHANGED instead of an add+drop pair; different
+//     engine ⇒ fall back to name matching.
+//  2. Name pass — tables left unmatched by the ID pass (no usable ID, or an ID
+//     present on only one side) are reconciled by ObjectRef.ForKey(dbType), the
+//     collision-safe, case-sensitive, per-part-quoted canonical key (see
+//     diffTablesByName).
 //
-// Letting ID-unmatched tables fall through to the name pass — instead of
-// declaring them dropped/added immediately — is what keeps a table whose ID is
-// present on one side but missing on the other from surfacing as a spurious
-// drop+add. The name pass guards against the inverse mistake: two same-named
-// tables that each carry a real but DIFFERENT ID are a genuine drop-and-recreate
-// and stay an add+drop rather than collapsing into one match (see nameMatchAllowed).
+// Falling through to the name pass instead of declaring ID-unmatched tables
+// dropped/added immediately avoids a spurious drop+add when an ID is missing on
+// one side. The name pass guards the inverse case: two same-named tables with
+// real but DIFFERENT IDs are a genuine drop-and-recreate and stay an add+drop
+// (see nameMatchAllowed).
 func diffTables(a, b *schemasnapshot.SnapshotContent) []Difference {
 	var diffs []Difference
 
-	// Same engine ⇒ IDs (e.g. PG OIDs) are stable and comparable, so match by ID
-	// to detect renames; different engine ⇒ IDs aren't comparable, fall back to name matching.
+	// Same engine ⇒ IDs are stable/comparable; match by ID. Different engine ⇒
+	// fall back to name matching.
 	matchByID := a.DatabaseType == b.DatabaseType
 
 	// Pass 1: ID-based matching for tables that carry a usable stable ID.
@@ -112,9 +109,9 @@ func diffTablesByName(residueA, residueB []schemasnapshot.Table, matchByID bool,
 	var diffs []Difference
 
 	// identity seam — the single point where a table's name-match key is derived.
-	// Today: the case-sensitive, collision-safe per-part-quoted key (ForKey). When
-	// cross-engine diffing lands, this becomes a NameRegistry-canonicalized handle —
-	// change only here; the match loop stays generic over the key string.
+	// Today: ForKey (case-sensitive, collision-safe, per-part-quoted). When
+	// cross-engine diffing lands, this becomes a NameRegistry handle — change only
+	// here; the match loop stays generic over the key string.
 	keyA := func(t schemasnapshot.Table) string { return t.ForKey(dbTypeA) }
 	keyB := func(t schemasnapshot.Table) string { return t.ForKey(dbTypeB) }
 
@@ -151,14 +148,12 @@ func diffTablesByName(residueA, residueB []schemasnapshot.Table, matchByID bool,
 // nameMatchAllowed reports whether two same-named residue objects may be treated
 // as the same object during the name pass.
 //
-//   - When ID matching is off entirely (different DatabaseType, or a snapshot
-//     without stable identity), name is the only signal we have, so any
-//     same-named pair matches — the documented name-only fallback.
-//   - When ID matching is on, a residue pair is the same object only if at least
-//     one side lacked a usable ID (and so could not have been ID-matched). If
-//     BOTH sides carry real, distinct IDs that simply did not match, they are
-//     genuinely different objects — a drop-and-recreate that reused the name —
-//     and must stay an add + drop.
+//   - ID matching off (different DatabaseType, or no stable identity): name is
+//     the only signal, so any same-named pair matches.
+//   - ID matching on: a residue pair is the same object only if at least one
+//     side lacked a usable ID. If BOTH sides carry real, distinct IDs that
+//     simply didn't match, they're genuinely different objects — a
+//     drop-and-recreate that reused the name — and stay an add + drop.
 func nameMatchAllowed(matchByID bool, idA, idB string) bool {
 	return !matchByID || idA == "" || idB == ""
 }
@@ -189,11 +184,11 @@ func compareMatchedTables(tA, tB schemasnapshot.Table) []Difference {
 		if tB.PartitionParent != nil {
 			nv = *tB.PartitionParent
 		}
-		diffs = append(diffs, newDifference(PartitionParentChanged, tA.ObjectRef, &tA.ObjectRef, "", ov, nv))
+		diffs = append(diffs, newDifference(TablePartitionParentChanged, tA.ObjectRef, &tA.ObjectRef, "", ov, nv))
 	}
 
 	if !objectRefSetEqual(tA.PartitionChildren, tB.PartitionChildren) {
-		diffs = append(diffs, newDifference(PartitionChildrenChanged, tA.ObjectRef, &tA.ObjectRef, "", cloneObjectRefs(tA.PartitionChildren), cloneObjectRefs(tB.PartitionChildren)))
+		diffs = append(diffs, newDifference(TablePartitionChildrenChanged, tA.ObjectRef, &tA.ObjectRef, "", cloneObjectRefs(tA.PartitionChildren), cloneObjectRefs(tB.PartitionChildren)))
 	}
 
 	if !objectRefSetEqual(tA.InheritsFrom, tB.InheritsFrom) {
@@ -239,10 +234,10 @@ func objectRefSetEqual(a, b []schemasnapshot.ObjectRef) bool {
 }
 
 // cloneObjectRefs returns a fresh copy of an []ObjectRef so a Difference never
-// shares backing storage with the input snapshot. ObjectRef is a value type, so
-// a shallow copy fully decouples the result; a nil input stays nil (no needless
-// allocation). Without this, a consumer mutating a link finding's OldValue /
-// NewValue slice would write through into the source snapshot.
+// shares backing storage with the input snapshot — a shallow copy fully decouples
+// it since ObjectRef is a value type (nil input stays nil). Without this, a
+// consumer mutating a link finding's OldValue/NewValue slice would write through
+// into the source snapshot.
 func cloneObjectRefs(refs []schemasnapshot.ObjectRef) []schemasnapshot.ObjectRef {
 	if refs == nil {
 		return nil
@@ -253,10 +248,10 @@ func cloneObjectRefs(refs []schemasnapshot.ObjectRef) []schemasnapshot.ObjectRef
 }
 
 // cloneColumns returns a fresh copy of a []Column so a Difference never shares
-// backing storage with the input snapshot. Column is a value type, so a shallow
-// copy fully decouples the result; a nil input stays nil (no needless
-// allocation). Without this, a consumer mutating a TABLE_ADDED/TABLE_DROPPED
-// finding's OldValue/NewValue slice would write through into the source snapshot.
+// backing storage with the input snapshot — a shallow copy fully decouples it
+// since Column is a value type (nil input stays nil). Without this, a consumer
+// mutating a TABLE_ADDED/TABLE_DROPPED finding's OldValue/NewValue slice would
+// write through into the source snapshot.
 func cloneColumns(cols []schemasnapshot.Column) []schemasnapshot.Column {
 	if cols == nil {
 		return nil

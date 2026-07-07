@@ -24,15 +24,15 @@ type DiffType string
 
 const (
 	// Table-level findings.
-	TableAdded               DiffType = "TABLE_ADDED"
-	TableDropped             DiffType = "TABLE_DROPPED"
-	TableNameChanged         DiffType = "TABLE_NAME_CHANGED"
-	TableSchemaChanged       DiffType = "TABLE_SCHEMA_CHANGED"
-	TableKindChanged         DiffType = "TABLE_KIND_CHANGED"
-	PartitionParentChanged   DiffType = "PARTITION_PARENT_CHANGED"
-	PartitionChildrenChanged DiffType = "PARTITION_CHILDREN_CHANGED"
-	TableInheritsChanged     DiffType = "TABLE_INHERITS_CHANGED"
-	TableInheritedByChanged  DiffType = "TABLE_INHERITED_BY_CHANGED"
+	TableAdded                    DiffType = "TABLE_ADDED"
+	TableDropped                  DiffType = "TABLE_DROPPED"
+	TableNameChanged              DiffType = "TABLE_NAME_CHANGED"
+	TableSchemaChanged            DiffType = "TABLE_SCHEMA_CHANGED"
+	TableKindChanged              DiffType = "TABLE_KIND_CHANGED"
+	TablePartitionParentChanged   DiffType = "TABLE_PARTITION_PARENT_CHANGED"
+	TablePartitionChildrenChanged DiffType = "TABLE_PARTITION_CHILDREN_CHANGED"
+	TableInheritsChanged          DiffType = "TABLE_INHERITS_CHANGED"
+	TableInheritedByChanged       DiffType = "TABLE_INHERITED_BY_CHANGED"
 
 	// Column-level findings.
 	ColumnAdded              DiffType = "COLUMN_ADDED"
@@ -43,65 +43,51 @@ const (
 	ColumnDefaultChanged     DiffType = "COLUMN_DEFAULT_CHANGED"
 )
 
-// diffTypeDef holds the static, per-DiffType facts derivable from the type alone:
-// its scope bucket (for FilterByScope) and the canonical Property name that the
-// finding (and the command's JSON "property" field) carries. Single source of
-// truth so the Type↔ObjectType and Type↔Property contracts cannot drift.
-type diffTypeDef struct {
-	ObjectType ObjectType // scope bucket
-	Property   string     // canonical property name; "" for *_ADDED / *_DROPPED
-}
-
-// diffTypeDefs is an exhaustive registry of every DiffType constant, covering all
-// 15 V1-emitted types (tables and columns). It is the single source of truth for
-// the Type↔ObjectType and Type↔Property contracts used by FilterByScope and the
-// property-change constructors.
+// diffTypeDefs is an exhaustive registry mapping every DiffType constant to its
+// scope bucket (ObjectType), covering all 15 V1-emitted types (tables and
+// columns). Single source of truth for the Type↔ObjectType contract used by
+// FilterByScope.
 //
 // Note: only ObjectTypeTable is declared and used here — V1 emits no index,
 // sequence, view, function, or type findings, so the other selectors are commented
 // out in filter.go and re-enabled alongside the findings they select.
-var diffTypeDefs = map[DiffType]diffTypeDef{
+var diffTypeDefs = map[DiffType]ObjectType{
 	// ── TABLE ────────────────────────────────────────────────────────────────
-	TableAdded:               {ObjectTypeTable, ""},
-	TableDropped:             {ObjectTypeTable, ""},
-	TableNameChanged:         {ObjectTypeTable, "name"},
-	TableSchemaChanged:       {ObjectTypeTable, "schema"},
-	TableKindChanged:         {ObjectTypeTable, "kind"},
-	PartitionParentChanged:   {ObjectTypeTable, "partition_parent"},
-	PartitionChildrenChanged: {ObjectTypeTable, "partition_children"},
-	TableInheritsChanged:     {ObjectTypeTable, "inherits_from"},
-	TableInheritedByChanged:  {ObjectTypeTable, "inherited_by"},
+	TableAdded:                    ObjectTypeTable,
+	TableDropped:                  ObjectTypeTable,
+	TableNameChanged:              ObjectTypeTable,
+	TableSchemaChanged:            ObjectTypeTable,
+	TableKindChanged:              ObjectTypeTable,
+	TablePartitionParentChanged:   ObjectTypeTable,
+	TablePartitionChildrenChanged: ObjectTypeTable,
+	TableInheritsChanged:          ObjectTypeTable,
+	TableInheritedByChanged:       ObjectTypeTable,
 
 	// ── COLUMN ───────────────────────────────────────────────────────────────
 	// Columns "ride with" their parent table and are not independently selectable.
-	ColumnAdded:              {ObjectTypeTable, ""},
-	ColumnDropped:            {ObjectTypeTable, ""},
-	ColumnNameChanged:        {ObjectTypeTable, "name"},
-	ColumnTypeChanged:        {ObjectTypeTable, "data_type"},
-	ColumnNullabilityChanged: {ObjectTypeTable, "not_null"},
-	ColumnDefaultChanged:     {ObjectTypeTable, "default"},
+	ColumnAdded:              ObjectTypeTable,
+	ColumnDropped:            ObjectTypeTable,
+	ColumnNameChanged:        ObjectTypeTable,
+	ColumnTypeChanged:        ObjectTypeTable,
+	ColumnNullabilityChanged: ObjectTypeTable,
+	ColumnDefaultChanged:     ObjectTypeTable,
 }
 
 // newDifference builds a Difference for any DiffType — added, dropped, or changed.
 //
-// obj is the identity the finding is reported against and sorted by: the side-B
-// ref for *_ADDED, the side-A ref otherwise; for a column finding it is the
-// parent table's ref.
+// obj is the finding's reported/sorted identity: the side-B ref for *_ADDED, the
+// side-A ref otherwise; for a column finding, its parent table's ref.
 //
 // anchorTable is the table the finding filters under (--table-list / --exclude-
-// table-list). It LOOKS redundant in V1: every finding emitted today anchors to
-// its own object, so all callers pass &obj (a table anchors to itself; a column
-// to its parent table, which is also obj). It is taken explicitly anyway because
-// the findings V1 does not emit yet make obj and the anchor diverge — an INDEX_*
-// or owned-SEQUENCE_* finding's obj is the index/sequence while anchorTable is the
-// host/owner table, and a top-level view/function/type finding has no anchor (nil).
-// Carrying the parameter now means those types slot in without changing this
-// signature or any existing call site's shape. It is a pointer so "no anchor" can
-// be nil, and it is copied internally so AnchorTable never aliases caller or
+// table-list). It LOOKS redundant in V1 — every finding anchors to its own object,
+// so all callers pass &obj — but is taken explicitly because future findings
+// (INDEX_*/owned SEQUENCE_* anchor to their host table; top-level VIEW_*/FUNCTION_*/
+// TYPE_* have no anchor) will make obj and anchor diverge. Carrying the parameter
+// now means those types slot in without a signature change. It's a pointer so "no
+// anchor" can be nil, and copied internally so AnchorTable never aliases caller or
 // snapshot storage.
 //
 // subObject is the dependent's name (the column name; "" for table findings).
-// Property is derived from diffTypeDefs ("" for *_ADDED / *_DROPPED).
 func newDifference(t DiffType, obj schemasnapshot.ObjectRef, anchorTable *schemasnapshot.ObjectRef, subObject string, oldVal, newVal any) Difference {
 	var anchor *schemasnapshot.ObjectRef
 	if anchorTable != nil {
@@ -113,7 +99,6 @@ func newDifference(t DiffType, obj schemasnapshot.ObjectRef, anchorTable *schema
 		Object:      obj,
 		AnchorTable: anchor,
 		SubObject:   subObject,
-		Property:    diffTypeDefs[t].Property,
 		OldValue:    oldVal,
 		NewValue:    newVal,
 	}

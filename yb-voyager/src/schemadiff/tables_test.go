@@ -224,9 +224,6 @@ func TestDiffTables_TableRenamed(t *testing.T) {
 	if d.Object != ref("public", "old_name") {
 		t.Errorf("expected Object=public.old_name (old ref), got %v", d.Object)
 	}
-	if d.Property != "name" {
-		t.Errorf("expected Property='name', got %q", d.Property)
-	}
 	if d.OldValue.(string) != "old_name" {
 		t.Errorf("expected OldValue='old_name', got %v", d.OldValue)
 	}
@@ -266,9 +263,6 @@ func TestDiffTables_TableSchemaMoved(t *testing.T) {
 	if d.Object != ref("old_schema", "my_table") {
 		t.Errorf("expected Object=old_schema.my_table, got %v", d.Object)
 	}
-	if d.Property != "schema" {
-		t.Errorf("expected Property='schema', got %q", d.Property)
-	}
 	if d.OldValue.(string) != "old_schema" {
 		t.Errorf("expected OldValue='old_schema', got %v", d.OldValue)
 	}
@@ -297,9 +291,6 @@ func TestDiffTables_TableKindChanged(t *testing.T) {
 	d := got[0]
 	if d.Type != TableKindChanged {
 		t.Errorf("expected TableKindChanged, got %v", d.Type)
-	}
-	if d.Property != "kind" {
-		t.Errorf("expected Property='kind', got %q", d.Property)
 	}
 	// Kind is stored as string
 	if d.OldValue.(string) != string(schemasnapshot.TableKindOrdinary) {
@@ -331,11 +322,8 @@ func TestDiffTables_PartitionParent_NilToSet(t *testing.T) {
 		assertAnchoredToObject(t, d)
 	}
 	d := got[0]
-	if d.Type != PartitionParentChanged {
-		t.Errorf("expected PartitionParentChanged, got %v", d.Type)
-	}
-	if d.Property != "partition_parent" {
-		t.Errorf("expected Property='partition_parent', got %q", d.Property)
+	if d.Type != TablePartitionParentChanged {
+		t.Errorf("expected TablePartitionParentChanged, got %v", d.Type)
 	}
 	if d.OldValue != nil {
 		t.Errorf("expected OldValue=nil, got %v", d.OldValue)
@@ -362,8 +350,8 @@ func TestDiffTables_PartitionParent_SetToNil(t *testing.T) {
 		assertAnchoredToObject(t, d)
 	}
 	d := got[0]
-	if d.Type != PartitionParentChanged {
-		t.Errorf("expected PartitionParentChanged, got %v", d.Type)
+	if d.Type != TablePartitionParentChanged {
+		t.Errorf("expected TablePartitionParentChanged, got %v", d.Type)
 	}
 	if d.OldValue == nil {
 		t.Errorf("expected OldValue non-nil")
@@ -390,8 +378,8 @@ func TestDiffTables_PartitionParent_SetToDifferent(t *testing.T) {
 		assertAnchoredToObject(t, d)
 	}
 	d := got[0]
-	if d.Type != PartitionParentChanged {
-		t.Errorf("expected PartitionParentChanged, got %v", d.Type)
+	if d.Type != TablePartitionParentChanged {
+		t.Errorf("expected TablePartitionParentChanged, got %v", d.Type)
 	}
 	if d.OldValue.(schemasnapshot.ObjectRef) != ref("public", "parent_a") {
 		t.Errorf("unexpected OldValue %v", d.OldValue)
@@ -421,11 +409,8 @@ func TestDiffTables_PartitionChildren_MemberAdded(t *testing.T) {
 	for _, d := range got {
 		assertAnchoredToObject(t, d)
 	}
-	if got[0].Type != PartitionChildrenChanged {
-		t.Errorf("expected PartitionChildrenChanged, got %v", got[0].Type)
-	}
-	if got[0].Property != "partition_children" {
-		t.Errorf("expected Property='partition_children', got %q", got[0].Property)
+	if got[0].Type != TablePartitionChildrenChanged {
+		t.Errorf("expected TablePartitionChildrenChanged, got %v", got[0].Type)
 	}
 }
 
@@ -445,8 +430,8 @@ func TestDiffTables_PartitionChildren_MemberRemoved(t *testing.T) {
 	for _, d := range got {
 		assertAnchoredToObject(t, d)
 	}
-	if got[0].Type != PartitionChildrenChanged {
-		t.Errorf("expected PartitionChildrenChanged, got %v", got[0].Type)
+	if got[0].Type != TablePartitionChildrenChanged {
+		t.Errorf("expected TablePartitionChildrenChanged, got %v", got[0].Type)
 	}
 }
 
@@ -489,9 +474,6 @@ func TestDiffTables_InheritsFromChanged(t *testing.T) {
 	if got[0].Type != TableInheritsChanged {
 		t.Errorf("expected TableInheritsChanged, got %v", got[0].Type)
 	}
-	if got[0].Property != "inherits_from" {
-		t.Errorf("expected Property='inherits_from', got %q", got[0].Property)
-	}
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -517,9 +499,6 @@ func TestDiffTables_InheritedByChanged(t *testing.T) {
 	if got[0].Type != TableInheritedByChanged {
 		t.Errorf("expected TableInheritedByChanged, got %v", got[0].Type)
 	}
-	if got[0].Property != "inherited_by" {
-		t.Errorf("expected Property='inherited_by', got %q", got[0].Property)
-	}
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -538,16 +517,14 @@ func crossEngineSnapWithTables(tables ...schemasnapshot.Table) *schemasnapshot.S
 }
 
 // Note: TestDiffTables_UnstableIdentity_RenameBecomesAddDrop and
-// TestDiffTables_UnstableIdentity_SameNameMatches have been deleted.
-// The "same DatabaseType but StableIdentity=false" scenario is no longer expressible
-// after the API refactor (StableIdentity is gone; the gate is now DatabaseType equality).
-// Cross-engine add+drop behaviour is fully covered by
-// TestDiffTables_DifferentDatabaseType_RenameBecomesAddDrop.
+// TestDiffTables_UnstableIdentity_SameNameMatches were deleted — "same
+// DatabaseType but StableIdentity=false" is unexpressible after the API
+// refactor (gate is now DatabaseType equality). Cross-engine add+drop is
+// covered by TestDiffTables_DifferentDatabaseType_RenameBecomesAddDrop.
 
-// TestDiffTables_MixedDatabaseType_FallsBackToName: a has DatabaseType="postgresql"
-// but b has DatabaseType="mysql" (or vice-versa). The gate is equality, so a rename
-// (same ID, different name) must produce add+drop, not TableNameChanged.
-// (Converted from the old MixedStability test: StableIdentity no longer exists.)
+// TestDiffTables_MixedDatabaseType_FallsBackToName: a="postgresql", b="mysql"
+// (or vice-versa). The gate is equality, so a rename (same ID, different name)
+// must produce add+drop, not TableNameChanged.
 func TestDiffTables_MixedDatabaseType_FallsBackToName(t *testing.T) {
 	oldTbl := makeTable("77", "public", "old_name", schemasnapshot.TableKindOrdinary)
 	newTbl := makeTable("77", "public", "new_name", schemasnapshot.TableKindOrdinary)
@@ -589,16 +566,13 @@ func TestDiffTables_MixedDatabaseType_FallsBackToName(t *testing.T) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Test: Different DatabaseType gate — ID comparison is legal only when
-// a.DatabaseType == b.DatabaseType (same engine ⇒ IDs are stable and comparable).
-// When DatabaseType differs, ID matching must be skipped and matching falls
-// back to name, so same-ID+different-Name produces TableDropped+TableAdded
-// instead of TableNameChanged.
+// Test: cross-engine gate — ID matching requires a.DatabaseType == b.DatabaseType.
+// When it differs, matching falls back to name, so same-ID+different-name
+// produces TableDropped+TableAdded, not TableNameChanged.
 // ──────────────────────────────────────────────────────────────────────────────
 
-// TestDiffTables_DifferentDatabaseType_RenameBecomesAddDrop: snapshots with the
-// same table ID on both sides but different DatabaseType must NOT produce
-// TableNameChanged. IDs are only comparable within one database type;
+// TestDiffTables_DifferentDatabaseType_RenameBecomesAddDrop: same table ID on
+// both sides but different DatabaseType must NOT produce TableNameChanged —
 // cross-type ID comparison is illegal, so matching falls back to name.
 func TestDiffTables_DifferentDatabaseType_RenameBecomesAddDrop(t *testing.T) {
 	oldTbl := makeTable("55", "public", "old_name", schemasnapshot.TableKindOrdinary)
@@ -687,10 +661,9 @@ func TestDiffTables_IDEmptyFallback_MatchedByName(t *testing.T) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Test: hybrid ID-then-name matching. A table whose stable ID is present on one
-// side but empty on the other must still be reconciled by name (not surfaced as
-// a spurious drop + add), while a genuine drop-and-recreate that reuses a name
-// with a DIFFERENT id must stay an add + drop.
+// Test: hybrid ID-then-name matching. A table with a stable ID on one side but
+// empty on the other must reconcile by name (not a spurious drop+add); a
+// genuine drop-and-recreate reusing a name with a DIFFERENT id stays add+drop.
 // ──────────────────────────────────────────────────────────────────────────────
 
 // IDInAEmptyInB: same table, ID "123" in A but empty in B; identical otherwise.

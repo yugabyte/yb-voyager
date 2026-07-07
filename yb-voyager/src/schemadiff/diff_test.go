@@ -133,33 +133,28 @@ func TestDiff_DoesNotMutateInputs(t *testing.T) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 func TestSortDifferences_Ordering(t *testing.T) {
-	// Build diffs that exercise all 5 sort keys in turn
+	// Build diffs that exercise all 4 sort keys in turn
 	diffs := []Difference{
-		// same schema/name/subobj/type; differ only on Property
-		{Object: ref("z_schema", "z_name"), SubObject: "z_sub", Type: TableKindChanged, Property: "z_prop"},
-		{Object: ref("z_schema", "z_name"), SubObject: "z_sub", Type: TableKindChanged, Property: "a_prop"},
 		// same schema/name/subobj; differ only on Type
-		{Object: ref("z_schema", "z_name"), SubObject: "a_sub", Type: TableSchemaChanged, Property: ""},
-		{Object: ref("z_schema", "z_name"), SubObject: "a_sub", Type: TableAdded, Property: ""},
+		{Object: ref("z_schema", "z_name"), SubObject: "a_sub", Type: TableSchemaChanged},
+		{Object: ref("z_schema", "z_name"), SubObject: "a_sub", Type: TableAdded},
 		// same schema/name; differ only on SubObject
-		{Object: ref("z_schema", "a_name"), SubObject: "z_sub", Type: TableAdded, Property: ""},
-		{Object: ref("z_schema", "a_name"), SubObject: "a_sub", Type: TableAdded, Property: ""},
+		{Object: ref("z_schema", "a_name"), SubObject: "z_sub", Type: TableAdded},
+		{Object: ref("z_schema", "a_name"), SubObject: "a_sub", Type: TableAdded},
 		// same schema; differ only on Name
-		{Object: ref("a_schema", "z_name"), SubObject: "", Type: TableAdded, Property: ""},
-		{Object: ref("a_schema", "a_name"), SubObject: "", Type: TableAdded, Property: ""},
+		{Object: ref("a_schema", "z_name"), SubObject: "", Type: TableAdded},
+		{Object: ref("a_schema", "a_name"), SubObject: "", Type: TableAdded},
 	}
 
 	sortDifferences(diffs)
 
 	want := []Difference{
-		{Object: ref("a_schema", "a_name"), SubObject: "", Type: TableAdded, Property: ""},
-		{Object: ref("a_schema", "z_name"), SubObject: "", Type: TableAdded, Property: ""},
-		{Object: ref("z_schema", "a_name"), SubObject: "a_sub", Type: TableAdded, Property: ""},
-		{Object: ref("z_schema", "a_name"), SubObject: "z_sub", Type: TableAdded, Property: ""},
-		{Object: ref("z_schema", "z_name"), SubObject: "a_sub", Type: TableAdded, Property: ""},
-		{Object: ref("z_schema", "z_name"), SubObject: "a_sub", Type: TableSchemaChanged, Property: ""},
-		{Object: ref("z_schema", "z_name"), SubObject: "z_sub", Type: TableKindChanged, Property: "a_prop"},
-		{Object: ref("z_schema", "z_name"), SubObject: "z_sub", Type: TableKindChanged, Property: "z_prop"},
+		{Object: ref("a_schema", "a_name"), SubObject: "", Type: TableAdded},
+		{Object: ref("a_schema", "z_name"), SubObject: "", Type: TableAdded},
+		{Object: ref("z_schema", "a_name"), SubObject: "a_sub", Type: TableAdded},
+		{Object: ref("z_schema", "a_name"), SubObject: "z_sub", Type: TableAdded},
+		{Object: ref("z_schema", "z_name"), SubObject: "a_sub", Type: TableAdded},
+		{Object: ref("z_schema", "z_name"), SubObject: "a_sub", Type: TableSchemaChanged},
 	}
 
 	if !reflect.DeepEqual(diffs, want) {

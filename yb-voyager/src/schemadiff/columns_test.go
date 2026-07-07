@@ -193,9 +193,6 @@ func TestDiffColumns_ColumnRenamed(t *testing.T) {
 	if d.SubObject != "usr_name" {
 		t.Errorf("expected SubObject='usr_name' (old name), got %q", d.SubObject)
 	}
-	if d.Property != "name" {
-		t.Errorf("expected Property='name', got %q", d.Property)
-	}
 	if d.OldValue.(string) != "usr_name" {
 		t.Errorf("expected OldValue='usr_name', got %v", d.OldValue)
 	}
@@ -239,9 +236,6 @@ func TestDiffColumns_ColumnTypeChanged(t *testing.T) {
 	if d.SubObject != "price" {
 		t.Errorf("expected SubObject='price', got %q", d.SubObject)
 	}
-	if d.Property != "data_type" {
-		t.Errorf("expected Property='data_type', got %q", d.Property)
-	}
 	if d.OldValue.(string) != "integer" {
 		t.Errorf("expected OldValue='integer', got %v", d.OldValue)
 	}
@@ -273,9 +267,6 @@ func TestDiffColumns_ColumnNullabilityChanged_FalseToTrue(t *testing.T) {
 	d := got[0]
 	if d.Type != ColumnNullabilityChanged {
 		t.Errorf("expected ColumnNullabilityChanged, got %v", d.Type)
-	}
-	if d.Property != "not_null" {
-		t.Errorf("expected Property='not_null', got %q", d.Property)
 	}
 	if d.OldValue.(bool) != false {
 		t.Errorf("expected OldValue=false, got %v", d.OldValue)
@@ -336,9 +327,6 @@ func TestDiffColumns_ColumnDefaultChanged_SetToNew(t *testing.T) {
 	d := got[0]
 	if d.Type != ColumnDefaultChanged {
 		t.Errorf("expected ColumnDefaultChanged, got %v", d.Type)
-	}
-	if d.Property != "default" {
-		t.Errorf("expected Property='default', got %q", d.Property)
 	}
 	if d.OldValue.(string) != "pending" {
 		t.Errorf("expected OldValue='pending', got %v", d.OldValue)
@@ -465,16 +453,13 @@ func TestDiffColumns_MultipleTablesSort(t *testing.T) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Test: Different DatabaseType gate — ID comparison is legal only when
-// a.DatabaseType == b.DatabaseType (same engine ⇒ IDs are stable and comparable).
-// When DatabaseType differs, ID matching must be skipped and matching falls
-// back to (table, name) composite key, so same-ID+different-Name produces
-// ColumnDropped+ColumnAdded instead of ColumnNameChanged.
+// Test: cross-engine gate — ID matching requires a.DatabaseType == b.DatabaseType.
+// When it differs, matching falls back to (table, name), so same-ID+different-
+// name produces ColumnDropped+ColumnAdded, not ColumnNameChanged.
 // ──────────────────────────────────────────────────────────────────────────────
 
-// TestDiffColumns_DifferentDatabaseType_RenameBecomesAddDrop: snapshots with the
-// same column ID on both sides but different DatabaseType must NOT produce
-// ColumnNameChanged. IDs are only comparable within one database type;
+// TestDiffColumns_DifferentDatabaseType_RenameBecomesAddDrop: same column ID on
+// both sides but different DatabaseType must NOT produce ColumnNameChanged —
 // cross-type ID comparison is illegal, so matching falls back to name.
 func TestDiffColumns_DifferentDatabaseType_RenameBecomesAddDrop(t *testing.T) {
 	oldCol := makeColumn("public", "users", "200:1", "old_col", "text")
@@ -558,10 +543,9 @@ func TestDiffColumns_IDEmptyFallback_MatchedByTableAndName(t *testing.T) {
 // Tests: cross-engine gate for columns — ID matching only when DatabaseType matches
 // ──────────────────────────────────────────────────────────────────────────────
 
-// (The StableIdentity=false test has been deleted: the scenario it tested —
-// same DatabaseType but unstable identity — is no longer expressible after the API
-// refactor. The equivalent cross-engine behaviour (different DatabaseType → add+drop)
-// is fully covered by TestDiffColumns_DifferentDatabaseType_RenameBecomesAddDrop.)
+// (StableIdentity=false test deleted: unexpressible after the API refactor.
+// Cross-engine add+drop is covered by
+// TestDiffColumns_DifferentDatabaseType_RenameBecomesAddDrop.)
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Tests: suppressLifecycleTableColumns — per-column findings are suppressed when
@@ -793,12 +777,11 @@ func TestDiffColumns_IDMatchTableRenamed_ObjectIsOldTable(t *testing.T) {
 	}
 }
 
-// IDMissingTableRenamed: without a stable column ID, a column on a renamed parent
-// table cannot be tracked across the rename — the name-fallback key embeds the
-// table name, so old/new keys differ. It degrades to COLUMN_DROPPED on the old
-// table + COLUMN_ADDED on the new table. Contrast
-// TestDiffColumns_IDMatchTableRenamed_ObjectIsOldTable, where the stable ID (the
-// table OID is unchanged by a rename) tracks the column across it.
+// IDMissingTableRenamed: without a stable ID, a column on a renamed parent table
+// can't be tracked across the rename — the name-fallback key embeds the table
+// name, so old/new keys differ — and degrades to COLUMN_DROPPED + COLUMN_ADDED.
+// Contrast TestDiffColumns_IDMatchTableRenamed_ObjectIsOldTable, where a stable
+// ID tracks the column across the rename.
 func TestDiffColumns_IDMissingTableRenamed_BecomesDropAdd(t *testing.T) {
 	oldCol := makeColumn("public", "old_table", "", "id", "integer") // empty ID
 	newCol := makeColumn("public", "new_table", "", "id", "integer") // parent renamed, still empty ID
@@ -823,10 +806,10 @@ func TestDiffColumns_IDMissingTableRenamed_BecomesDropAdd(t *testing.T) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Tests: hybrid ID-then-name matching for columns. A column whose stable ID is
-// present on one side but empty on the other must still be reconciled by name
-// (not surfaced as a spurious drop+add), while a genuine drop-and-recreate that
-// reuses the same table+name with a DIFFERENT id must stay an add+drop.
+// Tests: hybrid ID-then-name matching for columns. A column with a stable ID on
+// one side but empty on the other must reconcile by name (not a spurious
+// drop+add); a genuine drop-and-recreate reusing the table+name with a
+// DIFFERENT id stays an add+drop.
 // ──────────────────────────────────────────────────────────────────────────────
 
 // IDInAEmptyInB: same column (same table+name, type integer), ID "5:1" in A but

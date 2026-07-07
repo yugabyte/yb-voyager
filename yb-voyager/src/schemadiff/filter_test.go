@@ -18,7 +18,6 @@ package schemadiff
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -46,7 +45,7 @@ func nilAnchorDiff(dt DiffType, schema, name string) Difference {
 }
 
 // nameChangedDiff builds a *_NAME_CHANGED finding with the given old and new names.
-// AnchorTable is set to the old ObjectRef (same as Object), per the spec.
+// AnchorTable is set to the old ObjectRef (same as Object).
 func nameChangedDiff(dt DiffType, schema, oldName, newName string) Difference {
 	o := ref(schema, oldName)
 	return Difference{
@@ -74,10 +73,6 @@ func collectTypes(diffs []Difference) map[DiffType]bool {
 // constant is added to difftypes.go without a corresponding registry entry,
 // this test fails.
 //
-// It also enforces a Property invariant: *_CHANGED DiffTypes must carry a
-// non-empty Property, and *_ADDED / *_DROPPED DiffTypes must carry an empty
-// Property.
-//
 // The set of all DiffType constants is enumerated manually here because Go has
 // no reflection-level "list all constants of type T" API; the list below must
 // stay in sync with difftypes.go.
@@ -91,7 +86,7 @@ func TestDiffTypeDefsRegistryIsExhaustive(t *testing.T) {
 	allDiffTypes := []DiffType{
 		// TABLE (9 constants)
 		TableAdded, TableDropped, TableNameChanged, TableSchemaChanged,
-		TableKindChanged, PartitionParentChanged, PartitionChildrenChanged,
+		TableKindChanged, TablePartitionParentChanged, TablePartitionChildrenChanged,
 		TableInheritsChanged, TableInheritedByChanged,
 		// COLUMN (6 constants)
 		ColumnAdded, ColumnDropped, ColumnNameChanged, ColumnTypeChanged,
@@ -104,23 +99,8 @@ func TestDiffTypeDefsRegistryIsExhaustive(t *testing.T) {
 		"allDiffTypes and diffTypeDefs have different lengths — when adding a DiffType constant, add it to BOTH the allDiffTypes slice in this test AND the diffTypeDefs registry in difftypes.go")
 
 	for _, dt := range allDiffTypes {
-		def, ok := diffTypeDefs[dt]
+		_, ok := diffTypeDefs[dt]
 		assert.True(t, ok, "DiffType %q is missing from diffTypeDefs — add an entry in difftypes.go", dt)
-		if !ok {
-			continue
-		}
-
-		// Property invariant: *_CHANGED must have a non-empty Property;
-		// *_ADDED and *_DROPPED must have an empty Property.
-		s := string(dt)
-		switch {
-		case strings.HasSuffix(s, "_CHANGED"):
-			assert.NotEmpty(t, def.Property,
-				"DiffType %q is a *_CHANGED type but has an empty Property in diffTypeDefs — add the canonical property name", dt)
-		case strings.HasSuffix(s, "_ADDED"), strings.HasSuffix(s, "_DROPPED"):
-			assert.Empty(t, def.Property,
-				"DiffType %q is a *_ADDED/*_DROPPED type but has a non-empty Property %q in diffTypeDefs — *_ADDED/*_DROPPED findings carry no Property", dt, def.Property)
-		}
 	}
 }
 
@@ -346,7 +326,6 @@ func TestFilterByScopeAnchorRenameExtension(t *testing.T) {
 		Object:      oldAnchor,
 		AnchorTable: &oldAnchor,
 		SubObject:   "amount",
-		Property:    "data_type",
 		OldValue:    "integer",
 		NewValue:    "bigint",
 	}
@@ -380,19 +359,19 @@ func TestFilterByScopeAnchorRenameExtensionExclude(t *testing.T) {
 	assert.Empty(t, got, "findings anchored to old name should be excluded when new name is in ExcludeTables")
 }
 
-// TestFilterByScopeAliasMapCollision verifies that when two TABLE_NAME_CHANGED
-// entries share a name (e.g. "users→customers" and "customers→clients"), the
-// alias map correctly accumulates multiple aliases per name without the second
-// rename silently overwriting the first, so no finding is incorrectly dropped.
+// TestFilterByScopeAliasMapCollision verifies that two TABLE_NAME_CHANGED
+// entries sharing a name (e.g. "users→customers" and "customers→clients")
+// accumulate multiple aliases per name instead of the second rename
+// overwriting the first.
 //
 // Scenario:
 //
 //	rename1: users        → customers
 //	rename2: customers    → clients
 //
-// A column finding anchored to "users" must still be included when Tables
-// contains "customers" (transitively via rename1's alias), and must not be
-// silently dropped by a map-key collision between the two renames.
+// A column finding anchored to "users" must stay included when Tables contains
+// "customers" (via rename1's alias), without being dropped by the map-key
+// collision between the two renames.
 func TestFilterByScopeAliasMapCollision(t *testing.T) {
 	// Two renames where rename2's old name equals rename1's new name.
 	rename1 := nameChangedDiff(TableNameChanged, "public", "users", "customers")
@@ -413,18 +392,17 @@ func TestFilterByScopeAliasMapCollision(t *testing.T) {
 	//   - rename1: anchor "users" aliases "customers" ✓
 	//   - rename2: anchor "customers" direct match ✓
 	//   - colChange: anchor "users" aliases "customers" ✓
-	// The key concern is that the alias-map collision (rename1 and rename2 both
-	// touching "customers" as a key) must NOT cause rename1 or colChange to be
-	// silently dropped.
+	// The alias-map collision (both renames touching "customers" as a key) must
+	// not drop rename1 or colChange.
 	got := FilterByScope(diffs, Scope{Tables: []schemasnapshot.ObjectRef{ref("public", "customers")}})
 	gotTypes := collectTypes(got)
 	assert.True(t, gotTypes[TableNameChanged], "rename findings should be kept — 'customers' is an anchor or alias")
 	assert.True(t, gotTypes[ColumnAdded], "column change anchored to 'users' must NOT be dropped — 'users' aliases 'customers'")
 	assert.Len(t, got, 3, "all three findings should survive filtering by 'customers'")
 
-	// Filtering by "users" should include all three: rename1 (direct anchor),
-	// colChange (direct anchor), and rename2 (its anchor "customers" aliases
-	// "users" because rename1 recorded customers→users in both directions).
+	// Filtering by "users" should include all three: rename1 and colChange
+	// (direct anchor), and rename2 (anchor "customers" aliases "users" since
+	// rename1 recorded the alias in both directions).
 	got2 := FilterByScope(diffs, Scope{Tables: []schemasnapshot.ObjectRef{ref("public", "users")}})
 	got2Types := collectTypes(got2)
 	assert.True(t, got2Types[TableNameChanged], "rename findings should be kept — 'users' is an anchor or alias")
@@ -432,9 +410,8 @@ func TestFilterByScopeAliasMapCollision(t *testing.T) {
 	assert.Len(t, got2, 3, "all three findings are reachable from 'users'")
 
 	// Filtering by "clients" (rename2's new name) should keep rename2 only.
-	// rename1 (anchor "users") and colChange (anchor "users") must NOT be
-	// incorrectly included: aliases["public.users"] = ["public.customers"] only,
-	// not "public.clients" — so the alias-map collision fix is verified here.
+	// rename1 and colChange (anchor "users") must NOT be included:
+	// aliases["public.users"] = ["public.customers"] only, not "public.clients".
 	got3 := FilterByScope(diffs, Scope{Tables: []schemasnapshot.ObjectRef{ref("public", "clients")}})
 	got3Types := collectTypes(got3)
 	assert.True(t, got3Types[TableNameChanged], "rename2 (customers→clients) should be kept when Tables=['public.clients']")
@@ -454,7 +431,6 @@ func schemaChangedDiff(oldSchema, name, newSchema string) Difference {
 		Type:        TableSchemaChanged,
 		Object:      o,
 		AnchorTable: &o,
-		Property:    "schema",
 		OldValue:    oldSchema,
 		NewValue:    newSchema,
 	}
@@ -474,7 +450,6 @@ func TestFilterByScopeSchemaMoveNewIdentityInScope(t *testing.T) {
 		Object:      oldAnchor,
 		AnchorTable: &oldAnchor,
 		SubObject:   "amount",
-		Property:    "data_type",
 		OldValue:    "integer",
 		NewValue:    "bigint",
 	}
@@ -522,7 +497,6 @@ func TestFilterByScopeRenameAndMove(t *testing.T) {
 		Type:        TableNameChanged,
 		Object:      oldAnchor,
 		AnchorTable: &oldAnchor,
-		Property:    "name",
 		OldValue:    "orders",
 		NewValue:    "purchase_orders",
 	}
@@ -530,7 +504,6 @@ func TestFilterByScopeRenameAndMove(t *testing.T) {
 		Type:        TableSchemaChanged,
 		Object:      oldAnchor,
 		AnchorTable: &oldAnchor,
-		Property:    "schema",
 		OldValue:    "old_s",
 		NewValue:    "new_s",
 	}

@@ -228,12 +228,12 @@ func TestDiff_EndToEnd(t *testing.T) {
 	assert.Equal(t, false, idNullabilityChanged[0].NewValue,
 		"NewValue (now nullable) must be false")
 
-	// ── 10. PartitionChildrenChanged anchored to diff_it.events ────────────────
+	// ── 10. TablePartitionChildrenChanged anchored to diff_it.events ────────────────
 	partChanged := findDiffs(func(d schemadiff.Difference) bool {
-		return d.Type == schemadiff.PartitionChildrenChanged &&
+		return d.Type == schemadiff.TablePartitionChildrenChanged &&
 			d.Object.Schema == driftSchema && d.Object.Name == "events"
 	})
-	require.Len(t, partChanged, 1, "expected exactly one PartitionChildrenChanged for diff_it.events")
+	require.Len(t, partChanged, 1, "expected exactly one TablePartitionChildrenChanged for diff_it.events")
 
 	// ── 11. Scope filtering: Tables=["diff_it.purchases"] ──────────────────────
 	// The rename finding is anchored to old-name "diff_it.orders"; the alias map

@@ -20,29 +20,25 @@ import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 // hybrid two-pass match keyed on Column.ForKey(dbType), the collision-safe,
 // case-sensitive, per-part-quoted composite key "schema"."table"."col":
 //
-//  1. ID pass — columns carrying a usable stable ID are matched by ID. This is
-//     enabled only when a.DatabaseType == b.DatabaseType — IDs (e.g. PG OIDs) are
-//     only comparable within the same database engine; cross-type ID comparison is
-//     illegal. Same engine ⇒ IDs are stable and comparable, so match by ID to detect
-//     renames; different engine ⇒ IDs aren't comparable, fall back to name matching.
-//     ID matching is what lets a rename surface as COLUMN_NAME_CHANGED rather than
-//     an add+drop pair.
-//  2. Name pass — every column left unmatched by the ID pass (columns with no
-//     usable ID, PLUS any whose ID was present on one side but absent on the
-//     other) is reconciled by the collision-safe composite key
+//  1. ID pass — columns with a usable stable ID are matched by ID. Enabled only
+//     when a.DatabaseType == b.DatabaseType, since IDs are comparable only
+//     within the same engine. Same engine ⇒ match by ID, which lets a rename
+//     surface as COLUMN_NAME_CHANGED instead of an add+drop pair; different
+//     engine ⇒ fall back to name matching.
+//  2. Name pass — columns left unmatched by the ID pass (no usable ID, or an ID
+//     present on only one side) are reconciled by the composite key
 //     Column.ForKey(dbType).
 //
-// Letting ID-unmatched columns fall through to the name pass — instead of
-// declaring them dropped/added immediately — is what keeps a column whose ID is
-// present on one side but missing on the other from surfacing as a spurious
-// drop+add. The name pass guards against the inverse mistake: two same-named
-// columns that each carry a real but DIFFERENT ID are a genuine drop-and-recreate
-// and stay an add+drop rather than collapsing into one match (see nameMatchAllowed).
+// Falling through to the name pass instead of declaring ID-unmatched columns
+// dropped/added immediately avoids a spurious drop+add when an ID is missing on
+// one side. The name pass guards the inverse case: two same-named columns with
+// real but DIFFERENT IDs are a genuine drop-and-recreate and stay an add+drop
+// (see nameMatchAllowed).
 func diffColumns(a, b *schemasnapshot.SnapshotContent) []Difference {
 	var diffs []Difference
 
-	// Same engine ⇒ IDs (e.g. PG OIDs) are stable and comparable, so match by ID
-	// to detect renames; different engine ⇒ IDs aren't comparable, fall back to name matching.
+	// Same engine ⇒ IDs are stable/comparable; match by ID. Different engine ⇒
+	// fall back to name matching.
 	matchByID := a.DatabaseType == b.DatabaseType
 
 	// Pass 1: ID-based matching for columns that carry a usable stable ID.
@@ -94,10 +90,10 @@ func diffColumnsByName(residueA, residueB []schemasnapshot.Column, matchByID boo
 	var diffs []Difference
 
 	// identity seam — the single point where a column's name-match key is
-	// derived. Today: the case-sensitive, collision-safe per-part-quoted
-	// composite key (ForKey). When cross-engine diffing lands, this becomes a
-	// NameRegistry-canonicalized handle — change only here; the match loop
-	// stays generic over the key string.
+	// derived. Today: ForKey (case-sensitive, collision-safe, per-part-quoted
+	// composite key). When cross-engine diffing lands, this becomes a
+	// NameRegistry handle — change only here; the match loop stays generic
+	// over the key string.
 	keyA := func(c schemasnapshot.Column) string { return c.ForKey(dbTypeA) }
 	keyB := func(c schemasnapshot.Column) string { return c.ForKey(dbTypeB) }
 

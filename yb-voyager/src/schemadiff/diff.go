@@ -27,7 +27,7 @@ import (
 type Difference struct {
 	// Type identifies what changed (e.g. TABLE_ADDED, COLUMN_TYPE_CHANGED). The
 	// trailing verb governs which fields are set: *_ADDED uses NewValue, *_DROPPED
-	// uses OldValue, *_CHANGED uses both plus Property.
+	// uses OldValue, *_CHANGED uses both.
 	Type DiffType
 
 	// Object is the object the finding is about: the table itself for a table-level
@@ -47,20 +47,16 @@ type Difference struct {
 	// table-level findings.
 	SubObject string
 
-	// Property names the single attribute that changed. Set only for *_CHANGED
-	// findings; "" for *_ADDED / *_DROPPED.
-	Property string
-
 	// OldValue is the value on side A (nil for *_ADDED). For *_CHANGED it is the
-	// previous value of Property; for COLUMN_DROPPED the whole dropped Column; for
-	// TABLE_DROPPED the dropped table's []Column. Its dynamic type depends on Type/
-	// Property (string, bool, ObjectRef, []ObjectRef, schemasnapshot.Column, or
-	// []schemasnapshot.Column).
+	// previous value of the changed attribute; for COLUMN_DROPPED the whole
+	// dropped Column; for TABLE_DROPPED the dropped table's []Column. Its dynamic
+	// type depends on Type (string, bool, ObjectRef, []ObjectRef,
+	// schemasnapshot.Column, or []schemasnapshot.Column).
 	OldValue any
 
 	// NewValue is the value on side B (nil for *_DROPPED). For *_CHANGED it is the
-	// new value of Property; for COLUMN_ADDED the whole added Column; for
-	// TABLE_ADDED the added table's []Column. Same dynamic-type rules as OldValue.
+	// new value of the changed attribute; for COLUMN_ADDED the whole added Column;
+	// for TABLE_ADDED the added table's []Column. Same dynamic-type rules as OldValue.
 	NewValue any
 }
 
@@ -78,18 +74,15 @@ func Diff(a, b *schemasnapshot.SnapshotContent) []Difference {
 // suppressLifecycleTableColumns removes per-column COLUMN_ADDED and COLUMN_DROPPED
 // findings whose parent table is itself wholly added or dropped in the same diff.
 //
-// WHY: When a table is wholly added (TABLE_ADDED) or dropped (TABLE_DROPPED), every
-// column in that table appears as COLUMN_ADDED or COLUMN_DROPPED respectively. These
-// column-level findings are pure noise — the TABLE_ADDED / TABLE_DROPPED finding
-// already conveys the full change. Emitting both creates redundant, confusing output.
+// WHY: every column of a wholly added/dropped table also appears as COLUMN_ADDED/
+// COLUMN_DROPPED — pure noise once TABLE_ADDED/TABLE_DROPPED already conveys the
+// full change.
 //
-// A renamed table is a *matched* table (it emits TABLE_NAME_CHANGED, not TABLE_ADDED
-// or TABLE_DROPPED), so its real column-level changes (adds, drops, type changes, etc.)
-// are intentionally preserved: they describe actual mutations to an existing table.
+// A renamed table is matched (emits TABLE_NAME_CHANGED, not TABLE_ADDED/DROPPED),
+// so its real column changes are actual mutations and are preserved.
 //
 // Only COLUMN_ADDED under TABLE_ADDED and COLUMN_DROPPED under TABLE_DROPPED are
-// suppressed; all other finding types (e.g. COLUMN_TYPE_CHANGED on matched tables,
-// TABLE_NAME_CHANGED, etc.) pass through unchanged.
+// suppressed; every other finding type passes through unchanged.
 func suppressLifecycleTableColumns(diffs []Difference) []Difference {
 	// Build sets of table ObjectRefs for wholly added and wholly dropped tables.
 	added := make(map[schemasnapshot.ObjectRef]struct{})
@@ -125,7 +118,7 @@ func suppressLifecycleTableColumns(diffs []Difference) []Difference {
 }
 
 // sortDifferences sorts a slice of Difference values in place by a deterministic
-// key: Schema → Name → SubObject → Type → Property.
+// key: Schema → Name → SubObject → Type.
 func sortDifferences(diffs []Difference) {
 	sort.Slice(diffs, func(i, j int) bool {
 		a, b := diffs[i], diffs[j]
@@ -138,9 +131,6 @@ func sortDifferences(diffs []Difference) {
 		if a.SubObject != b.SubObject {
 			return a.SubObject < b.SubObject
 		}
-		if a.Type != b.Type {
-			return string(a.Type) < string(b.Type)
-		}
-		return a.Property < b.Property
+		return string(a.Type) < string(b.Type)
 	})
 }

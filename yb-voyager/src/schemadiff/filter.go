@@ -158,7 +158,7 @@ func passesObjectTypeFilter(d Difference, includeTypes map[ObjectType]struct{}) 
 	if len(includeTypes) == 0 {
 		return true
 	}
-	bucket := diffTypeDefs[d.Type].ObjectType
+	bucket := diffTypeDefs[d.Type]
 	_, ok := includeTypes[bucket]
 	return ok
 }
@@ -169,7 +169,7 @@ func passesObjectTypeExcludeFilter(d Difference, excludeTypes map[ObjectType]str
 	if len(excludeTypes) == 0 {
 		return true
 	}
-	bucket := diffTypeDefs[d.Type].ObjectType
+	bucket := diffTypeDefs[d.Type]
 	_, excluded := excludeTypes[bucket]
 	return !excluded
 }
