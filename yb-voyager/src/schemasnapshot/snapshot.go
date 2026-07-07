@@ -87,8 +87,8 @@ type DBMetadata struct {
 //
 // Schema and Name hold the raw, unquoted catalog names exactly as returned by the
 // database catalog (e.g. pg_class.relname). Rendering and matching are engine-aware:
-// use ForDisplay(dbType) for human-facing output and ForKey(dbType) for collision-safe
-// map keys. The struct itself is comparable and can be used as a Go map key.
+// use ForDisplay(dbType) for human-facing output and ForKey(dbType) for a readable
+// canonical map key. The struct itself is comparable and can be used as a Go map key.
 type ObjectRef struct {
 	Schema string `json:"schema"` // schema (namespace) the object lives in, e.g. "public".
 	Name   string `json:"name"`   // object name within the schema, e.g. "orders".
@@ -106,13 +106,16 @@ func (o ObjectRef) sqlName(dbType string) *sqlname.ObjectName {
 // public."Orders".
 func (o ObjectRef) ForDisplay(dbType string) string { return o.sqlName(dbType).String() }
 
-// ForKey returns the case-sensitive, per-part-quoted, collision-safe canonical key
-// suitable for use as a string map key. For example: "public"."orders".
-// Two ObjectRefs that differ only in case produce different ForKey values, and two
-// refs that would naively produce the same "schema.name" join (e.g. schema "a.b" /
-// name "c" vs schema "a" / name "b.c") produce different ForKey values because each
-// part is independently double-quoted.
-func (o ObjectRef) ForKey(dbType string) string { return o.sqlName(dbType).Qualified.Quoted }
+// ForKey returns the case-preserving, unquoted, dot-joined canonical key suitable for
+// use as a string map key, via sqlname's Key(). For example: public.orders — and
+// public.Orders stays distinct from public.orders, since case is preserved. It reads
+// cleanly in logs and reports, unlike a per-part-quoted form.
+//
+// It inherits sqlname Key()'s limitations: an identifier that itself contains a dot can
+// collide with a different (schema, name) split, and reserved words / embedded quotes
+// are not escaped. These limitations apply to every use of the SQL name across the
+// codebase; when sqlname gains quoting-aware keys, this picks them up automatically.
+func (o ObjectRef) ForKey(dbType string) string { return o.sqlName(dbType).Key() }
 
 // TableKind maps pg_class.relkind to a portable enum value.
 type TableKind string
@@ -158,9 +161,10 @@ func (c Column) sqlName(dbType string) *sqlname.ObjectNameQualifiedWithTableName
 	return sqlname.NewObjectNameQualifiedWithTableName(dbType, "", c.Name, c.Table.Schema, c.Table.Name)
 }
 
-// ForKey returns a collision-safe, per-part-quoted canonical key for the column:
-// "public"."orders"."Col".
-func (c Column) ForKey(dbType string) string { return c.sqlName(dbType).Qualified.Quoted }
+// ForKey returns the case-preserving, unquoted, dot-joined canonical key for the
+// column, via sqlname's Key(): public.orders.Col. It shares the same limitations as
+// ObjectRef.ForKey (see there).
+func (c Column) ForKey(dbType string) string { return c.sqlName(dbType).Key() }
 
 // ForDisplay returns the minimally-quoted, always-fully-qualified rendering of the
 // column for reports, logs, and user-facing SQL: public.orders."Col".
