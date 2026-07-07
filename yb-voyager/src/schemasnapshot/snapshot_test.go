@@ -23,6 +23,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 )
 
 // timeFromStr parses an RFC3339 time string for use in test assertions.
@@ -91,10 +93,91 @@ func TestSchemaSnapshotJSONRoundTrip(t *testing.T) {
 	assert.Equal(t, snap.Columns, got.Columns)
 }
 
-// TestObjectRefString verifies ObjectRef.String() returns "schema.name".
-func TestObjectRefString(t *testing.T) {
-	ref := ObjectRef{Schema: "public", Name: "orders"}
-	assert.Equal(t, "public.orders", ref.String())
+// TestObjectRefForDisplayAndForKey verifies engine-aware rendering via ForDisplay
+// and ForKey for PostgreSQL. For PG:
+//   - ForDisplay uses minQuote2: no quotes for all-lowercase non-reserved names,
+//     double-quotes otherwise.
+//   - ForKey uses sqlname's Key(): the unquoted, dot-joined form (case preserved).
+func TestObjectRefForDisplayAndForKey(t *testing.T) {
+	const pg = constants.POSTGRESQL
+
+	cases := []struct {
+		name           string
+		ref            ObjectRef
+		wantForDisplay string
+		wantForKey     string
+	}{
+		{
+			name:           "lowercase table",
+			ref:            ObjectRef{Schema: "public", Name: "orders"},
+			wantForDisplay: `public.orders`,
+			wantForKey:     `public.orders`,
+		},
+		{
+			name:           "mixed-case table",
+			ref:            ObjectRef{Schema: "public", Name: "Orders"},
+			wantForDisplay: `public."Orders"`,
+			wantForKey:     `public.Orders`,
+		},
+		{
+			name:           "reserved word as table name",
+			ref:            ObjectRef{Schema: "public", Name: "user"},
+			wantForDisplay: `public."user"`,
+			wantForKey:     `public.user`,
+		},
+		{
+			name:           "name containing a dot",
+			ref:            ObjectRef{Schema: "public", Name: "a.b"},
+			wantForDisplay: `public."a.b"`,
+			wantForKey:     `public.a.b`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.wantForDisplay, tc.ref.ForDisplay(pg), "ForDisplay")
+			assert.Equal(t, tc.wantForKey, tc.ref.ForKey(pg), "ForKey")
+		})
+	}
+}
+
+// TestObjectRefForKeyDotCollisionKnownLimitation documents an accepted limitation of
+// ForKey's unquoted, dot-joined key: two refs whose parts differ only in where the dot
+// falls collapse to the same key — schema "a.b" / name "c" and schema "a" / name "b.c"
+// both key to "a.b.c". This is inherent to every sqlname Key() use across the codebase;
+// when sqlname gains quoting-aware keys, it resolves centrally with no change here.
+func TestObjectRefForKeyDotCollisionKnownLimitation(t *testing.T) {
+	const pg = constants.POSTGRESQL
+
+	refDotInSchema := ObjectRef{Schema: "a.b", Name: "c"}
+	refDotInName := ObjectRef{Schema: "a", Name: "b.c"}
+
+	// KNOWN LIMITATION: the unquoted dot-join makes these collide.
+	assert.Equal(t, refDotInSchema.ForKey(pg), refDotInName.ForKey(pg),
+		"accepted limitation: dot-containing identifiers collide under the unquoted key")
+	assert.Equal(t, "a.b.c", refDotInSchema.ForKey(pg))
+}
+
+// TestObjectRefForKeyCaseSensitivity verifies that case distinguishes identity:
+// {public, Orders}.ForKey != {public, orders}.ForKey for PostgreSQL.
+func TestObjectRefForKeyCaseSensitivity(t *testing.T) {
+	const pg = constants.POSTGRESQL
+	upper := ObjectRef{Schema: "public", Name: "Orders"}
+	lower := ObjectRef{Schema: "public", Name: "orders"}
+	assert.NotEqual(t, upper.ForKey(pg), lower.ForKey(pg),
+		"mixed-case and lowercase table names must produce different ForKey values")
+}
+
+// TestColumnForKeyAndForDisplay verifies Column.ForKey and Column.ForDisplay
+// produce the correct composite key/display strings.
+func TestColumnForKeyAndForDisplay(t *testing.T) {
+	const pg = constants.POSTGRESQL
+	col := Column{
+		Table: ObjectRef{Schema: "public", Name: "orders"},
+		Name:  "Col",
+	}
+	assert.Equal(t, `public.orders.Col`, col.ForKey(pg), "Column.ForKey")
+	assert.Equal(t, `public.orders."Col"`, col.ForDisplay(pg), "Column.ForDisplay")
 }
 
 // TestTableKindConstants verifies the three table kind constants have correct values.

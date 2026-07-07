@@ -17,6 +17,8 @@ package schemasnapshot
 import (
 	"fmt"
 	"time"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 // SchemaSnapshot is a point-in-time capture of a database schema: its header (metadata,
@@ -83,18 +85,37 @@ type DBMetadata struct {
 
 // ObjectRef is the (schema, name) identity embedded in every per-object struct.
 //
-// TODO(schemadiff): handle case sensitivity in a coming PR. Schema/Name are stored
-// as the raw catalog identifiers and String() joins them as "schema.name" by plain
-// concatenation. This is consistent for source-vs-source matching, but quoted /
-// case-sensitive identifiers (and the --table-list matching boundary) need proper
-// handling — likely via the sqlname helpers rather than ad-hoc string join.
+// Schema and Name hold the raw, unquoted catalog names exactly as returned by the
+// database catalog (e.g. pg_class.relname). Rendering and matching are engine-aware:
+// use ForDisplay(dbType) for human-facing output and ForKey(dbType) for a readable
+// canonical map key. The struct itself is comparable and can be used as a Go map key.
 type ObjectRef struct {
 	Schema string `json:"schema"` // schema (namespace) the object lives in, e.g. "public".
 	Name   string `json:"name"`   // object name within the schema, e.g. "orders".
 }
 
-// String returns "schema.name".
-func (o ObjectRef) String() string { return o.Schema + "." + o.Name }
+// sqlName builds the sqlname view for dbType. Passing defaultSchema="" means
+// MinQualified == Qualified, so String() yields the fully-qualified form.
+func (o ObjectRef) sqlName(dbType string) *sqlname.ObjectName {
+	return sqlname.NewObjectName(dbType, "", o.Schema, o.Name)
+}
+
+// ForDisplay returns the minimally-quoted, always-fully-qualified rendering for
+// reports, logs, and user-facing SQL. For example, a lowercase PG table renders
+// as public.orders (no quotes needed), while a mixed-case table renders as
+// public."Orders".
+func (o ObjectRef) ForDisplay(dbType string) string { return o.sqlName(dbType).String() }
+
+// ForKey returns the case-preserving, unquoted, dot-joined canonical key suitable for
+// use as a string map key, via sqlname's Key(). For example: public.orders — and
+// public.Orders stays distinct from public.orders, since case is preserved. It reads
+// cleanly in logs and reports, unlike a per-part-quoted form.
+//
+// It inherits sqlname Key()'s limitations: an identifier that itself contains a dot can
+// collide with a different (schema, name) split, and reserved words / embedded quotes
+// are not escaped. These limitations apply to every use of the SQL name across the
+// codebase; when sqlname gains quoting-aware keys, this picks them up automatically.
+func (o ObjectRef) ForKey(dbType string) string { return o.sqlName(dbType).Key() }
 
 // TableKind maps pg_class.relkind to a portable enum value.
 type TableKind string
@@ -133,3 +154,18 @@ type Column struct {
 	NotNull  bool   `json:"not_null"`          // true when the column has a NOT NULL constraint.
 	Default  string `json:"default,omitempty"` // default expression text (pg_get_expr); "" when the column has no default.
 }
+
+// sqlName builds the sqlname view of this column's fully-qualified (schema, table,
+// column) identity. defaultSchema="" keeps it always fully qualified.
+func (c Column) sqlName(dbType string) *sqlname.ObjectNameQualifiedWithTableName {
+	return sqlname.NewObjectNameQualifiedWithTableName(dbType, "", c.Name, c.Table.Schema, c.Table.Name)
+}
+
+// ForKey returns the case-preserving, unquoted, dot-joined canonical key for the
+// column, via sqlname's Key(): public.orders.Col. It shares the same limitations as
+// ObjectRef.ForKey (see there).
+func (c Column) ForKey(dbType string) string { return c.sqlName(dbType).Key() }
+
+// ForDisplay returns the minimally-quoted, always-fully-qualified rendering of the
+// column for reports, logs, and user-facing SQL: public.orders."Col".
+func (c Column) ForDisplay(dbType string) string { return c.sqlName(dbType).MinQualified.MinQuoted }
