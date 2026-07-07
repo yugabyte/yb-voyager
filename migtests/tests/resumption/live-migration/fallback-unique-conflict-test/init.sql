@@ -81,6 +81,35 @@ CREATE TABLE test_partial_unique_index (
 
 CREATE UNIQUE INDEX idx_test_partial_unique_index ON test_partial_unique_index (check_id) WHERE most_recent;
 
+-- Single-column unique index with NULLS NOT DISTINCT: two NULLs are treated as
+-- equal, so a NULL free->reuse across different PKs is a real conflict.
+CREATE TABLE single_unique_index_nulls_not_distinct (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255)
+);
+CREATE UNIQUE INDEX idx_email_nnd ON single_unique_index_nulls_not_distinct (email) NULLS NOT DISTINCT;
+
+-- Multi-column unique index with NULLS NOT DISTINCT.
+CREATE TABLE multi_unique_index_nulls_not_distinct (
+    id SERIAL PRIMARY KEY,
+    first_name VARCHAR(100),
+    last_name VARCHAR(100)
+);
+CREATE UNIQUE INDEX idx_name_nnd ON multi_unique_index_nulls_not_distinct (first_name, last_name) NULLS NOT DISTINCT;
+
+-- Partitioned table with a unique index. A unique key on a partitioned table
+-- must include the partition-key column, so the key is (email, region).
+CREATE TABLE partitioned_unique_conflict (
+    id INT,
+    region VARCHAR(50),
+    email VARCHAR(255),
+    PRIMARY KEY (id, region)
+) PARTITION BY LIST (region);
+CREATE TABLE partitioned_unique_conflict_east PARTITION OF partitioned_unique_conflict FOR VALUES IN ('east');
+CREATE TABLE partitioned_unique_conflict_west PARTITION OF partitioned_unique_conflict FOR VALUES IN ('west');
+CREATE TABLE partitioned_unique_conflict_default PARTITION OF partitioned_unique_conflict DEFAULT;
+CREATE UNIQUE INDEX idx_partitioned_unique_email ON partitioned_unique_conflict (email, region);
+
 
 -- Full before-images are required for unique-conflict detection during streaming.
 ALTER TABLE single_unique_constraint REPLICA IDENTITY FULL;
@@ -92,3 +121,8 @@ ALTER TABLE different_columns_unique_constraint_and_index REPLICA IDENTITY FULL;
 ALTER TABLE subset_columns_unique_constraint_and_index REPLICA IDENTITY FULL;
 ALTER TABLE expression_based_unique_index REPLICA IDENTITY FULL;
 ALTER TABLE test_partial_unique_index REPLICA IDENTITY FULL;
+ALTER TABLE single_unique_index_nulls_not_distinct REPLICA IDENTITY FULL;
+ALTER TABLE multi_unique_index_nulls_not_distinct REPLICA IDENTITY FULL;
+ALTER TABLE partitioned_unique_conflict_east REPLICA IDENTITY FULL;
+ALTER TABLE partitioned_unique_conflict_west REPLICA IDENTITY FULL;
+ALTER TABLE partitioned_unique_conflict_default REPLICA IDENTITY FULL;

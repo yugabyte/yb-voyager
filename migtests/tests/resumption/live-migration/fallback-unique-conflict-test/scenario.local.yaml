@@ -2,6 +2,7 @@ name: unique-conflict-test
 
 env:
   LOG_LEVEL: info
+  QUEUE_SEGMENT_MAX_BYTES: 10485760
 
 export_dir: ./export-dir
 artifacts_dir: ./artifacts
@@ -22,9 +23,9 @@ target:
   type: yugabytedb
   host: 127.0.0.1
   port: 5433
-  database:  test_db
-  user: ybvoyager
-  password: Test@123#$%^&*()!
+  database: test_db
+  user: yugabyte
+  password: yugabyte
   admin:
     user: yugabyte
     password: yugabyte
@@ -56,6 +57,20 @@ generator_source:
       insert_max_retries: 5
       update_max_retries: 1
 
+# Forward (source) conflict generator: re-applies this test's own dynamic
+# source_dml.sql on a loop throughout streaming, in parallel with generator_source.
+conflict_generator_source:
+  config_inline:
+    connection:
+      host: 127.0.0.1
+      port: 5432
+      database: test_db
+      user: postgres
+      password: postgres
+    conflict:
+      sql_path: ./source_dml.sql
+      interval_seconds: 10
+
 # Fallback (target) event generator configuration.
 # This will be used later when we start a generator on the target side.
 generator_target:
@@ -64,8 +79,8 @@ generator_target:
       host: 127.0.0.1
       port: 5433
       database: test_db
-      user: ybvoyager
-      password: Test@123#$%^&*()!
+      user: yugabyte
+      password: yugabyte
 
     generator:
       schema_name: public
@@ -75,16 +90,33 @@ generator_target:
       wait_after_operations: 5000
       wait_duration_seconds: 1
       table_weights: {}
-      operation_weights: {INSERT: 3, UPDATE: 2, DELETE: 2}
+      operation_weights: {INSERT: 3, UPDATE: 2, DELETE: 1}
       random_seed: 456
       faker_seed: 456
       insert_rows: 6
       update_rows: 4
-      delete_rows: 1
+      delete_rows: 2
       insert_max_retries: 5
       update_max_retries: 1
 
+# Fallback (target) conflict generator: re-applies this test's own dynamic
+# target_dml.sql on a loop throughout fallback streaming, in parallel with generator_target.
+conflict_generator_target:
+  config_inline:
+    connection:
+      host: 127.0.0.1
+      port: 5433
+      database: test_db
+      user: yugabyte
+      password: yugabyte
+    conflict:
+      sql_path: ./target_dml.sql
+      interval_seconds: 10
+
 voyager:
+  export_schema:
+    flags:
+      skip-performance-recommendations: "true"
   cutover_to_target:
     flags:
       prepare-for-fall-back: true
@@ -120,7 +152,7 @@ stages:
 
   - name: load_snapshot
     action: sleep
-    seconds: 45
+    seconds: 120
 
   - name: start_exporter
     action: voyager_export_start
@@ -128,23 +160,29 @@ stages:
   - name: start_importer
     action: voyager_import_start
 
-    # Deterministic unique-conflict DML (DELETE-INSERT, DELETE-UPDATE,
-    # UPDATE-INSERT, UPDATE-UPDATE) generated at the start of streaming.
+    # Deterministic unique-conflict DML applied once up-front for an immediate
+    # conflict burst as soon as streaming starts.
   - name: run_source_dml
     action: run_sql
     target: source
     sql_path: ./source_dml.sql
     use_admin: true
 
+  # Conflict generator: then re-applies source_dml.sql continuously throughout
+  # streaming, in parallel with the random event generator, for sustained conflicts.
+  - name: start_conflict_generator
+    action: conflict_generator_start
+    generator_key: conflict_generator_source
+
   - name: start_import_resumptions
     action: start_resumptions
     resumption:
       import_data:
-        max_restarts: 1000
-        min_interrupt_seconds: 30
+        max_restarts: 25
+        min_interrupt_seconds: 15
         max_interrupt_seconds: 60
-        min_restart_wait_seconds: 30
-        max_restart_wait_seconds: 60
+        min_restart_wait_seconds: 5
+        max_restart_wait_seconds: 30
 
   - name: wait_exporter_streaming
     action: wait_for
@@ -155,15 +193,20 @@ stages:
     action: start_resumptions
     resumption:
       export_data:
-        max_restarts: 1000
-        min_interrupt_seconds: 30
+        max_restarts: 25
+        min_interrupt_seconds: 15
         max_interrupt_seconds: 60
-        min_restart_wait_seconds: 30
-        max_restart_wait_seconds: 60
+        min_restart_wait_seconds: 5
+        max_restart_wait_seconds: 30
 
-  - name: small_sleep_for_some_events_to_be_generated
+  - name: soak_with_resumptions
     action: sleep
-    seconds: 45
+    seconds: 400
+
+  - name: stop_conflict_generator
+    action: conflict_generator_stop
+    generator_key: conflict_generator_source
+    graceful_timeout_sec: 60
 
   - name: stop_event_generator
     action: generator_stop
@@ -199,21 +242,25 @@ stages:
     command: import_data
     graceful_timeout_sec: 60
 
-  # Phase 2: explicit fallback leg (target -> source) with resumptions
-
   - name: start_fallback_exporter_from_target
     action: voyager_export_from_target_start
 
   - name: start_fallback_importer_to_source
     action: voyager_import_to_source_start
 
-    # Deterministic unique-conflict DML on the target side at the start of
-    # fallback streaming (target -> source).
+    # Deterministic unique-conflict DML applied once up-front on the target.
   - name: run_target_dml
     action: run_sql
     target: target
     sql_path: ./target_dml.sql
     use_admin: true
+
+  # Conflict generator on the target: then re-applies target_dml.sql continuously
+  # throughout fallback streaming, in parallel with the target-side generator.
+  - name: start_target_conflict_generator
+    action: conflict_generator_start
+    generator_key: conflict_generator_target
+
 
   # Start a generator on the target side to simulate ongoing writes during fallback.
   - name: start_target_event_generator
@@ -224,21 +271,34 @@ stages:
     action: start_resumptions
     resumption:
       export_from_target:
-        max_restarts: 1000      
-        min_interrupt_seconds: 30
+        max_restarts: 100
+        min_interrupt_seconds: 15
         max_interrupt_seconds: 60
-        min_restart_wait_seconds: 30
-        max_restart_wait_seconds: 60
-      import_to_source:
-        max_restarts: 1000
-        min_interrupt_seconds: 30
-        max_interrupt_seconds: 60
-        min_restart_wait_seconds: 30
-        max_restart_wait_seconds: 60
+        min_restart_wait_seconds: 5
+        max_restart_wait_seconds: 30
 
+  - name: start_import_to_source_resumptions
+    action: start_resumptions
+    resumption:
+      import_to_source:
+        max_restarts: 100
+        min_interrupt_seconds: 15
+        max_interrupt_seconds: 60
+        min_restart_wait_seconds: 5
+        max_restart_wait_seconds: 30
+
+  # Kept symmetric with the forward soak (both 400s, matching iteration-test) so
+  # conflict injection and resumption restarts are balanced across the two legs
+  # rather than heavily fallback-weighted. 400s yields dozens of restart cycles
+  # here; raise it if a longer fallback resumption soak is needed.
   - name: soak_fallback_with_resumptions
     action: sleep
-    seconds: 3600
+    seconds: 400
+
+  - name: stop_target_conflict_generator
+    action: conflict_generator_stop
+    generator_key: conflict_generator_target
+    graceful_timeout_sec: 60
 
   - name: stop_target_event_generator
     action: generator_stop

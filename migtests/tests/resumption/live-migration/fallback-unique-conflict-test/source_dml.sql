@@ -297,3 +297,59 @@ UPDATE test_partial_unique_index SET most_recent = true WHERE id = :base + 80004
 UPDATE test_partial_unique_index SET most_recent = false WHERE id = :base + 80005;
 UPDATE test_partial_unique_index SET most_recent = true WHERE id = :base + 80006;
 COMMIT;
+
+-- ============================================================
+-- 10. single_unique_index_nulls_not_distinct (id PK, UNIQUE INDEX(email) NULLS NOT DISTINCT)
+-- Under NULLS NOT DISTINCT two NULLs are equal, so a NULL free->reuse across PKs is a
+-- real conflict. Only one NULL can exist at a time, so the NULL is moved off at the end
+-- of the block, leaving none behind for the next cycle.
+-- ============================================================
+BEGIN;
+-- UPDATE-INSERT (non-null value)
+INSERT INTO single_unique_index_nulls_not_distinct (id, email) VALUES (:base + 85001, ('nnd1_user1@conflict.test' || :cycle));
+UPDATE single_unique_index_nulls_not_distinct SET email = ('nnd1_user1_moved@conflict.test' || :cycle) WHERE id = :base + 85001;
+INSERT INTO single_unique_index_nulls_not_distinct (id, email) VALUES (:base + 85101, ('nnd1_user1@conflict.test' || :cycle));
+
+-- NULL free->reuse: free the NULL by moving base+85010 off it, reuse NULL on base+85011
+-- (conflict under NULLS NOT DISTINCT), then move base+85011 off NULL to leave none behind.
+INSERT INTO single_unique_index_nulls_not_distinct (id, email) VALUES (:base + 85010, NULL);
+UPDATE single_unique_index_nulls_not_distinct SET email = ('nnd1_wasnull_a@conflict.test' || :cycle) WHERE id = :base + 85010;
+INSERT INTO single_unique_index_nulls_not_distinct (id, email) VALUES (:base + 85011, NULL);
+UPDATE single_unique_index_nulls_not_distinct SET email = ('nnd1_wasnull_b@conflict.test' || :cycle) WHERE id = :base + 85011;
+COMMIT;
+
+-- ============================================================
+-- 11. multi_unique_index_nulls_not_distinct (id PK, UNIQUE INDEX(first_name, last_name) NULLS NOT DISTINCT)
+-- ============================================================
+BEGIN;
+-- UPDATE-INSERT (non-null values)
+INSERT INTO multi_unique_index_nulls_not_distinct (id, first_name, last_name) VALUES (:base + 86001, ('nnd2First' || :cycle), ('nnd2Last' || :cycle));
+UPDATE multi_unique_index_nulls_not_distinct SET first_name = ('nnd2First_moved' || :cycle) WHERE id = :base + 86001;
+INSERT INTO multi_unique_index_nulls_not_distinct (id, first_name, last_name) VALUES (:base + 86101, ('nnd2First' || :cycle), ('nnd2Last' || :cycle));
+
+-- (NULL, NULL) free->reuse: two all-NULL rows conflict under NULLS NOT DISTINCT.
+INSERT INTO multi_unique_index_nulls_not_distinct (id, first_name, last_name) VALUES (:base + 86010, NULL, NULL);
+UPDATE multi_unique_index_nulls_not_distinct SET first_name = ('nnd2wasnull_a' || :cycle) WHERE id = :base + 86010;
+INSERT INTO multi_unique_index_nulls_not_distinct (id, first_name, last_name) VALUES (:base + 86011, NULL, NULL);
+UPDATE multi_unique_index_nulls_not_distinct SET first_name = ('nnd2wasnull_b' || :cycle) WHERE id = :base + 86011;
+COMMIT;
+
+-- ============================================================
+-- 12. partitioned_unique_conflict (PK(id, region), UNIQUE INDEX(email, region), PARTITION BY LIST(region))
+-- The unique key includes the partition-key column; conflicts are exercised within a partition.
+-- ============================================================
+BEGIN;
+INSERT INTO partitioned_unique_conflict (id, region, email) VALUES
+    (:base + 87001, 'east', ('puc_user1@conflict.test' || :cycle)),
+    (:base + 87002, 'east', ('puc_user2@conflict.test' || :cycle)),
+    (:base + 87003, 'west', ('puc_user3@conflict.test' || :cycle)),
+    (:base + 87004, 'west', ('puc_user4@conflict.test' || :cycle));
+
+-- DELETE-INSERT within the 'east' partition: free (puc_user1, east), reuse on a new PK
+DELETE FROM partitioned_unique_conflict WHERE id = :base + 87001 AND region = 'east';
+INSERT INTO partitioned_unique_conflict (id, region, email) VALUES (:base + 87101, 'east', ('puc_user1@conflict.test' || :cycle));
+
+-- UPDATE-INSERT within the 'west' partition: free (puc_user3, west) by moving it, reuse on a new PK
+UPDATE partitioned_unique_conflict SET email = ('puc_user3_moved@conflict.test' || :cycle) WHERE id = :base + 87003 AND region = 'west';
+INSERT INTO partitioned_unique_conflict (id, region, email) VALUES (:base + 87103, 'west', ('puc_user3@conflict.test' || :cycle));
+COMMIT;
