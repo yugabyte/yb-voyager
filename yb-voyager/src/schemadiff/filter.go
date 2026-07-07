@@ -17,18 +17,21 @@ package schemadiff
 import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 
 // ObjectType is the user-facing object-type selector for Scope filtering, matching
-// the values accepted by --object-type-list (materialized views ride under VIEW).
-// v1 emits only TABLE findings; the other selectors are valid but currently match
-// nothing (see difftypes.go).
+// the values accepted by --object-type-list. v1 emits and filters only TABLE
+// findings, so only TABLE is declared; the remaining selectors are re-enabled as
+// the engine starts emitting their findings.
 type ObjectType string
 
 const (
-	ObjectTypeTable    ObjectType = "TABLE"
-	ObjectTypeIndex    ObjectType = "INDEX" // indexes classify here, not under TABLE; still anchored to their host table for --table-list
-	ObjectTypeSequence ObjectType = "SEQUENCE"
-	ObjectTypeView     ObjectType = "VIEW"
-	ObjectTypeFunction ObjectType = "FUNCTION"
-	ObjectTypeType     ObjectType = "TYPE"
+	ObjectTypeTable ObjectType = "TABLE"
+	// Not yet emitted by the diff engine — uncomment each as its findings land
+	// (INDEX classifies here, not under TABLE, but stays anchored to its host
+	// table for --table-list):
+	// ObjectTypeIndex    ObjectType = "INDEX"
+	// ObjectTypeSequence ObjectType = "SEQUENCE"
+	// ObjectTypeView     ObjectType = "VIEW"
+	// ObjectTypeFunction ObjectType = "FUNCTION"
+	// ObjectTypeType     ObjectType = "TYPE"
 )
 
 // Scope describes the include/exclude filters applied by FilterByScope.

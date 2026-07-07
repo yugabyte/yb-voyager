@@ -57,12 +57,9 @@ type diffTypeDef struct {
 // the Type↔ObjectType and Type↔Property contracts used by FilterByScope and the
 // property-change constructors.
 //
-// Note: the six ObjectType selector constants (ObjectTypeTable, ObjectTypeIndex,
-// ObjectTypeSequence, ObjectTypeView, ObjectTypeFunction, ObjectTypeType) remain
-// declared for the user-facing --object-type-list vocabulary. Only ObjectTypeTable
-// currently appears as a value because V1 emits no index, sequence, view,
-// function, or type findings; selectors for those object types are kept so that
-// callers can meaningfully filter them in (with no matching findings) or out.
+// Note: only ObjectTypeTable is declared and used here — V1 emits no index,
+// sequence, view, function, or type findings, so the other selectors are commented
+// out in filter.go and re-enabled alongside the findings they select.
 var diffTypeDefs = map[DiffType]diffTypeDef{
 	// ── TABLE ────────────────────────────────────────────────────────────────
 	TableAdded:               {ObjectTypeTable, ""},

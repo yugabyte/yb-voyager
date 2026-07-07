@@ -178,8 +178,7 @@ func TestFilterByScopeIsPure(t *testing.T) {
 
 // TestFilterByScopeObjectTypeInclude verifies that only findings whose bucket
 // is listed in ObjectTypes are kept. In V1 all emitted DiffTypes map to
-// ObjectTypeTable, so an ObjectTypeTable filter keeps all findings and an
-// ObjectTypeIndex filter drops all of them (no V1 index findings exist).
+// ObjectTypeTable, so a TABLE filter keeps everything.
 func TestFilterByScopeObjectTypeInclude(t *testing.T) {
 	diffs := []Difference{
 		tableDiff(TableAdded, "public", "orders"),
@@ -191,58 +190,13 @@ func TestFilterByScopeObjectTypeInclude(t *testing.T) {
 	// TABLE filter keeps all V1 findings (all map to ObjectTypeTable).
 	gotTable := FilterByScope(diffs, Scope{ObjectTypes: []ObjectType{ObjectTypeTable}})
 	assert.Len(t, gotTable, len(diffs), "TABLE filter must keep all V1 findings")
-
-	// INDEX filter drops all V1 findings (none are ObjectTypeIndex).
-	gotIndex := FilterByScope(diffs, Scope{ObjectTypes: []ObjectType{ObjectTypeIndex}})
-	assert.Empty(t, gotIndex, "INDEX filter must drop all V1 findings — no V1 index DiffTypes exist")
-
-	// SEQUENCE filter also drops all V1 findings.
-	gotSeq := FilterByScope(diffs, Scope{ObjectTypes: []ObjectType{ObjectTypeSequence}})
-	assert.Empty(t, gotSeq, "SEQUENCE filter must drop all V1 findings")
-}
-
-// TestFilterByScopeObjectTypeIncludeIndex verifies that INDEX is an
-// independently selectable object type. In V1 no index DiffTypes are emitted,
-// so an INDEX-only filter drops all table/column findings. This confirms that
-// INDEX is a valid (non-panicking) selector even with an empty result set.
-func TestFilterByScopeObjectTypeIncludeIndex(t *testing.T) {
-	diffs := []Difference{
-		tableDiff(TableAdded, "public", "orders"),
-		tableDiff(ColumnAdded, "public", "orders"),
-	}
-
-	got := FilterByScope(diffs, Scope{ObjectTypes: []ObjectType{ObjectTypeIndex}})
-
-	// INDEX is a valid selector but no V1 findings map to it, so the result is empty.
-	assert.Empty(t, got, "INDEX-only filter must drop all V1 table/column findings")
-
-	// Cross-check: a TABLE filter keeps everything.
-	gotTable := FilterByScope(diffs, Scope{ObjectTypes: []ObjectType{ObjectTypeTable}})
-	assert.Len(t, gotTable, len(diffs), "TABLE filter must keep all V1 findings")
-}
-
-// TestFilterByScopeObjectTypeIncludeView verifies that VIEW is a valid
-// selectable object type that drops all V1 table/column findings (V1 emits no
-// view DiffTypes). The ObjectTypeView selector is kept in the vocabulary for
-// future use; this test confirms it is a valid no-op selector in V1.
-func TestFilterByScopeObjectTypeIncludeView(t *testing.T) {
-	diffs := []Difference{
-		tableDiff(TableAdded, "public", "orders"),
-		tableDiff(ColumnAdded, "public", "orders"),
-	}
-
-	got := FilterByScope(diffs, Scope{ObjectTypes: []ObjectType{ObjectTypeView}})
-
-	// VIEW is a valid selector but no V1 findings map to it.
-	assert.Empty(t, got, "VIEW-only filter must drop all V1 table/column findings")
 }
 
 // ─── ObjectTypes exclude filter ───────────────────────────────────────────────
 
 // TestFilterByScopeObjectTypeExclude verifies that findings in excluded buckets
-// are dropped. In V1 all findings map to ObjectTypeTable, so excluding
-// ObjectTypeTable drops everything; excluding ObjectTypeIndex (or any other
-// non-table type) is a no-op because no V1 findings map to those buckets.
+// are dropped. In V1 all findings map to ObjectTypeTable, so excluding TABLE
+// drops everything.
 func TestFilterByScopeObjectTypeExclude(t *testing.T) {
 	diffs := []Difference{
 		tableDiff(TableAdded, "public", "orders"),
@@ -253,14 +207,6 @@ func TestFilterByScopeObjectTypeExclude(t *testing.T) {
 	// Excluding ObjectTypeTable drops all V1 findings.
 	gotExcludeTable := FilterByScope(diffs, Scope{ExcludeObjectTypes: []ObjectType{ObjectTypeTable}})
 	assert.Empty(t, gotExcludeTable, "excluding TABLE must drop all V1 findings")
-
-	// Excluding ObjectTypeIndex is a no-op: no V1 findings map to it.
-	gotExcludeIndex := FilterByScope(diffs, Scope{ExcludeObjectTypes: []ObjectType{ObjectTypeIndex}})
-	assert.Len(t, gotExcludeIndex, len(diffs), "excluding INDEX must keep all V1 findings")
-
-	// Excluding ObjectTypeView is also a no-op.
-	gotExcludeView := FilterByScope(diffs, Scope{ExcludeObjectTypes: []ObjectType{ObjectTypeView}})
-	assert.Len(t, gotExcludeView, len(diffs), "excluding VIEW must keep all V1 findings")
 }
 
 // ─── Tables include filter ────────────────────────────────────────────────────
@@ -614,10 +560,9 @@ func TestFilterByScopeRenameAndMove(t *testing.T) {
 // ─── Include-then-exclude interaction ────────────────────────────────────────
 
 // TestFilterByScopeIncludeThenExclude verifies that the include filter runs
-// before the exclude filter and that their interaction is correct.
-// In V1 all DiffTypes map to ObjectTypeTable, so: include TABLE keeps everything,
-// then exclude TABLE drops everything; include INDEX keeps nothing, exclude TABLE
-// is then moot.
+// before the exclude filter and that their interaction is correct. In V1 all
+// DiffTypes map to ObjectTypeTable, so include TABLE keeps everything and then
+// exclude TABLE drops everything.
 func TestFilterByScopeIncludeThenExclude(t *testing.T) {
 	orders := ref("public", "orders")
 	customers := ref("public", "customers")
@@ -640,12 +585,6 @@ func TestFilterByScopeIncludeThenExclude(t *testing.T) {
 		ObjectTypes: []ObjectType{ObjectTypeTable},
 	})
 	assert.Len(t, gotIncludeTable, len(diffs), "TABLE include keeps all V1 findings")
-
-	// Include INDEX only: no V1 findings map to INDEX, result is empty.
-	gotIncludeIndex := FilterByScope(diffs, Scope{
-		ObjectTypes: []ObjectType{ObjectTypeIndex},
-	})
-	assert.Empty(t, gotIncludeIndex, "INDEX include drops all V1 findings")
 }
 
 // TestFilterByScopeIncludeTableExcludeTable verifies that when a table appears
