@@ -41,11 +41,13 @@ const (
 // against Difference.AnchorTable. ObjectTypes/ExcludeObjectTypes match a finding's
 // object-type bucket. An empty include list means "all".
 //
-// Scope is permissive and total — it never errors. If an include and its exclude
-// are both set, exclude wins (includes apply first, excludes last); an entry that
-// matches nothing is a silent no-op. Flag-level policy — e.g. --table-list and
-// --exclude-table-list being mutually exclusive — is the command's to enforce, so
-// FilterByScope stays pure for any caller.
+// Scope is permissive and total — it never errors:
+//   - If an include and its exclude are both set, exclude wins (includes apply
+//     first, excludes last).
+//   - An entry that matches nothing is a silent no-op.
+//
+// Flag-level policy — e.g. --table-list and --exclude-table-list being mutually
+// exclusive — is the command's to enforce, so FilterByScope stays pure for any caller.
 type Scope struct {
 	Tables             []schemasnapshot.ObjectRef // empty = all; matched against AnchorTable
 	ExcludeTables      []schemasnapshot.ObjectRef // drop findings whose AnchorTable is in this list
@@ -57,10 +59,12 @@ type Scope struct {
 // never mutated and the result is a fresh slice; a name matching nothing is a
 // silent no-op (validation is the caller's job).
 //
-// Order: (1) build a table rename/move alias map so a finding anchored to a renamed
-// table matches on either its old or new identity; (2) include by ObjectTypes;
-// (3) include by Tables; (4) exclude by ObjectTypes; (5) exclude by Tables. A nil
-// AnchorTable never matches a non-empty Tables list.
+// A table rename/move alias map is built first so a finding anchored to a renamed
+// table matches on either its old or new identity. Then, in order:
+//  1. include by ObjectTypes
+//  2. include by Tables (a nil AnchorTable never matches a non-empty list)
+//  3. exclude by ObjectTypes
+//  4. exclude by Tables
 func FilterByScope(diffs []Difference, scope Scope) []Difference {
 	// Bidirectional old<->new alias map for renamed/moved tables, so a finding
 	// anchored to a renamed table matches on either identity (keyed by ObjectRef).
@@ -170,9 +174,10 @@ func passesObjectTypeExcludeFilter(d Difference, excludeTypes map[ObjectType]str
 	return !excluded
 }
 
-// passesTableIncludeFilter keeps a finding under the Tables include filter: an
-// empty list keeps all; a nil AnchorTable never matches a non-empty list;
-// otherwise keep if the anchor or any of its rename aliases is listed (either-side).
+// passesTableIncludeFilter keeps a finding under the Tables include filter:
+//   - empty list keeps all
+//   - nil AnchorTable never matches a non-empty list
+//   - otherwise keep if the anchor or any of its rename aliases is listed (either-side)
 func passesTableIncludeFilter(d Difference, includeTables map[schemasnapshot.ObjectRef]struct{}, aliases map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef) bool {
 	if len(includeTables) == 0 {
 		return true
@@ -197,9 +202,10 @@ func passesTableIncludeFilter(d Difference, includeTables map[schemasnapshot.Obj
 	return false
 }
 
-// passesTableExcludeFilter drops a finding under the ExcludeTables filter: an empty
-// list excludes nothing; a nil AnchorTable is never excluded; otherwise drop if the
-// anchor or any of its rename aliases is listed (either-side).
+// passesTableExcludeFilter drops a finding under the ExcludeTables filter:
+//   - empty list excludes nothing
+//   - nil AnchorTable is never excluded
+//   - otherwise drop if the anchor or any of its rename aliases is listed (either-side)
 func passesTableExcludeFilter(d Difference, excludeTables map[schemasnapshot.ObjectRef]struct{}, aliases map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef) bool {
 	if len(excludeTables) == 0 {
 		return true
