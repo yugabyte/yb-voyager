@@ -61,7 +61,9 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 
 	// Config-file key: nested under the invoking command's section, e.g. "export-schema.suppress-schema-snapshot-capture"
 	// or "export-data.suppress-schema-snapshot-capture" (same pattern as run-guardrails-checks above).
-	BoolVar(cmd.Flags(), &suppressSchemaSnapshotCapture, "suppress-schema-snapshot-capture", false,
+	// Defaults to true (capture off) for now: nothing consumes the snapshots until the
+	// detect-drift command ships. Flip to false to enable capture by default once it does.
+	BoolVar(cmd.Flags(), &suppressSchemaSnapshotCapture, "suppress-schema-snapshot-capture", true,
 		"disable best-effort schema-snapshot capture during export. (only valid for PostgreSQL)")
 }
 
