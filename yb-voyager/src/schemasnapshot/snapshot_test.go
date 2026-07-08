@@ -53,28 +53,28 @@ func TestSchemaSnapshotJSONRoundTrip(t *testing.T) {
 				ObjectRef: ObjectRef{Schema: "public", Name: "orders"},
 				ID:        "16420",
 				Kind:      TableKindOrdinary,
+				Columns: []Column{
+					{
+						Table:    ObjectRef{Schema: "public", Name: "orders"},
+						ID:       "16420:1",
+						Name:     "id",
+						DataType: "bigint",
+						NotNull:  true,
+					},
+					{
+						Table:    ObjectRef{Schema: "public", Name: "orders"},
+						ID:       "16420:2",
+						Name:     "customer_id",
+						DataType: "integer",
+						NotNull:  false,
+						Default:  "0",
+					},
+				},
 			},
 			{
 				ObjectRef: ObjectRef{Schema: "public", Name: "big_table"},
 				ID:        "16421",
 				Kind:      TableKindPartitioned,
-			},
-		},
-		Columns: []Column{
-			{
-				Table:    ObjectRef{Schema: "public", Name: "orders"},
-				ID:       "16420:1",
-				Name:     "id",
-				DataType: "bigint",
-				NotNull:  true,
-			},
-			{
-				Table:    ObjectRef{Schema: "public", Name: "orders"},
-				ID:       "16420:2",
-				Name:     "customer_id",
-				DataType: "integer",
-				NotNull:  false,
-				Default:  "0",
 			},
 		},
 	}
@@ -90,7 +90,6 @@ func TestSchemaSnapshotJSONRoundTrip(t *testing.T) {
 	assert.Equal(t, snap.DatabaseType, got.DatabaseType)
 	assert.Equal(t, snap.DBMetadata, got.DBMetadata)
 	assert.Equal(t, snap.Tables, got.Tables)
-	assert.Equal(t, snap.Columns, got.Columns)
 }
 
 // TestObjectRefForDisplayAndForKey verifies engine-aware rendering via ForDisplay

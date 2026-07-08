@@ -53,9 +53,11 @@ func TestDiffer_ZeroConfig_EqualsRawDiff(t *testing.T) {
 
 	colA := makeColumn("public", "orders", "101:1", "amount", "integer", notNull())
 	colB := makeColumn("public", "orders", "101:1", "amount", "numeric", notNull()) // type changed
+	ordersA.Columns = []schemasnapshot.Column{colA}
+	ordersB.Columns = []schemasnapshot.Column{colB}
 
-	a := snapWithTablesAndColumns([]schemasnapshot.Table{ordersA, legacyA}, []schemasnapshot.Column{colA})
-	b := snapWithTablesAndColumns([]schemasnapshot.Table{ordersB}, []schemasnapshot.Column{colB})
+	a := snapWithTables(ordersA, legacyA)
+	b := snapWithTables(ordersB)
 
 	want := Diff(a, b)
 	got := NewDiffer(Config{}).Diff(a, b)
@@ -80,9 +82,13 @@ func TestDiffer_AppliesScope(t *testing.T) {
 	colOrdersB := makeColumn("public", "orders", "101:1", "price", "numeric") // type changed → COLUMN_TYPE_CHANGED on orders
 	colLegacyA := makeColumn("public", "legacy", "202:1", "old_col", "text")
 	colLegacyB := makeColumn("public", "legacy", "202:1", "old_col", "varchar") // type changed → COLUMN_TYPE_CHANGED on legacy
+	ordersA.Columns = []schemasnapshot.Column{colOrdersA}
+	ordersB.Columns = []schemasnapshot.Column{colOrdersB}
+	legacyA.Columns = []schemasnapshot.Column{colLegacyA}
+	legacyB.Columns = []schemasnapshot.Column{colLegacyB}
 
-	a := snapWithTablesAndColumns([]schemasnapshot.Table{ordersA, legacyA}, []schemasnapshot.Column{colOrdersA, colLegacyA})
-	b := snapWithTablesAndColumns([]schemasnapshot.Table{ordersB, legacyB}, []schemasnapshot.Column{colOrdersB, colLegacyB})
+	a := snapWithTables(ordersA, legacyA)
+	b := snapWithTables(ordersB, legacyB)
 
 	scope := Scope{IncludeTables: []schemasnapshot.ObjectRef{ref("public", "orders")}}
 	d := NewDiffer(Config{Scope: scope})
@@ -121,9 +127,11 @@ func TestDiffer_ScopeRenameRetention(t *testing.T) {
 	// Add a column present in both sides to make the snapshot non-trivial.
 	colA := makeColumn("public", "orders", "55:1", "id", "integer", notNull())
 	colB := makeColumn("public", "purchases", "55:1", "id", "integer", notNull())
+	ordersA.Columns = []schemasnapshot.Column{colA}
+	purchasesB.Columns = []schemasnapshot.Column{colB}
 
-	a := snapWithTablesAndColumns([]schemasnapshot.Table{ordersA}, []schemasnapshot.Column{colA})
-	b := snapWithTablesAndColumns([]schemasnapshot.Table{purchasesB}, []schemasnapshot.Column{colB})
+	a := snapWithTables(ordersA)
+	b := snapWithTables(purchasesB)
 
 	// Scope by the NEW name (public.purchases).
 	scope := Scope{IncludeTables: []schemasnapshot.ObjectRef{ref("public", "purchases")}}

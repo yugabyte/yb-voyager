@@ -105,9 +105,10 @@ func TestDiffTables_TableAdded_CarriesColumnsInOrder(t *testing.T) {
 	col1 := makeColumn("public", "users", "42:1", "id", "integer", notNull())
 	col2 := makeColumn("public", "users", "42:2", "email", "text")
 	col3 := makeColumn("public", "users", "42:3", "created_at", "timestamp", withDefault("now()"))
+	newTbl.Columns = []schemasnapshot.Column{col1, col2, col3}
 
-	a := snapWithTablesAndColumns(nil, nil)
-	b := snapWithTablesAndColumns([]schemasnapshot.Table{newTbl}, []schemasnapshot.Column{col1, col2, col3})
+	a := snapWithTables()
+	b := snapWithTables(newTbl)
 
 	got := Diff(a, b)
 	if len(got) != 1 {
@@ -144,9 +145,10 @@ func TestDiffTables_TableDropped_CarriesColumnsInOrder(t *testing.T) {
 	col1 := makeColumn("public", "orders", "99:1", "id", "integer", notNull())
 	col2 := makeColumn("public", "orders", "99:2", "amount", "numeric(10,2)")
 	col3 := makeColumn("public", "orders", "99:3", "status", "text", withDefault("'pending'"))
+	oldTbl.Columns = []schemasnapshot.Column{col1, col2, col3}
 
-	a := snapWithTablesAndColumns([]schemasnapshot.Table{oldTbl}, []schemasnapshot.Column{col1, col2, col3})
-	b := snapWithTablesAndColumns(nil, nil)
+	a := snapWithTables(oldTbl)
+	b := snapWithTables()
 
 	got := Diff(a, b)
 	if len(got) != 1 {
@@ -180,9 +182,10 @@ func TestDiffTables_TableDropped_CarriesColumnsInOrder(t *testing.T) {
 func TestCloneColumns_Independence(t *testing.T) {
 	newTbl := makeTable("42", "public", "users", schemasnapshot.TableKindOrdinary)
 	col1 := makeColumn("public", "users", "42:1", "id", "integer")
+	newTbl.Columns = []schemasnapshot.Column{col1}
 
-	a := snapWithTablesAndColumns(nil, nil)
-	b := snapWithTablesAndColumns([]schemasnapshot.Table{newTbl}, []schemasnapshot.Column{col1})
+	a := snapWithTables()
+	b := snapWithTables(newTbl)
 
 	got := Diff(a, b)
 	if len(got) != 1 {
@@ -193,8 +196,8 @@ func TestCloneColumns_Independence(t *testing.T) {
 		t.Fatalf("expected NewValue to be a 1-element []schemasnapshot.Column, got %T: %v", got[0].NewValue, got[0].NewValue)
 	}
 	cols[0].Name = "mutated"
-	if b.Columns[0].Name != "id" {
-		t.Errorf("mutating the returned column slice must not affect the source snapshot; source became %v", b.Columns[0].Name)
+	if b.Tables[0].Columns[0].Name != "id" {
+		t.Errorf("mutating the returned column slice must not affect the source snapshot; source became %v", b.Tables[0].Columns[0].Name)
 	}
 }
 

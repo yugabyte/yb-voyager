@@ -23,94 +23,75 @@ import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 // Unmatched side-A tables become TABLE_DROPPED and unmatched side-B tables
 // TABLE_ADDED, each carrying the table's columns as payload.
 func diffTables(a, b *schemasnapshot.SnapshotContent) []Difference {
-	// Group columns by their parent table's canonical key so a wholly added/dropped
-	// table can carry its columns on the finding, in original (attnum) order.
-	colsByTableA := columnsByTable(a.Columns, a.DatabaseType)
-	colsByTableB := columnsByTable(b.Columns, b.DatabaseType)
-
 	keyA, keyB := chooseMatchKeys(a.DatabaseType, b.DatabaseType, a.Tables, b.Tables,
 		idOfTable, schemasnapshot.Table.ForKey)
 
 	return matchByKey(a.Tables, b.Tables, keyA, keyB,
-		compareMatchedTables,
-		emitTableDropped(colsByTableA, a.DatabaseType),
-		emitTableAdded(colsByTableB, b.DatabaseType))
+		compareMatchedTables(a.DatabaseType, b.DatabaseType),
+		emitTableDropped, emitTableAdded)
 }
 
 // idOfTable extracts a table's stable ID (OID) for ID-based matching.
 func idOfTable(t schemasnapshot.Table) string { return t.ID }
 
-// emitTableDropped returns the matchByKey onDropped callback for tables: it emits a
-// TABLE_DROPPED finding carrying the dropped table's columns (looked up from
-// colsByTable, keyed by ForKey(dbType)).
-func emitTableDropped(colsByTable map[string][]schemasnapshot.Column, dbType string) func(schemasnapshot.Table) []Difference {
-	return func(t schemasnapshot.Table) []Difference {
-		return []Difference{newDifference(TableDropped, t.ObjectRef, &t.ObjectRef, "", cloneColumns(colsByTable[t.ForKey(dbType)]), nil)}
-	}
+// emitTableDropped is the matchByKey onDropped callback for tables: it emits a
+// TABLE_DROPPED finding carrying the dropped table's columns.
+func emitTableDropped(t schemasnapshot.Table) []Difference {
+	return []Difference{newDifference(TableDropped, t.ObjectRef, &t.ObjectRef, "", cloneColumns(t.Columns), nil)}
 }
 
-// emitTableAdded returns the matchByKey onAdded callback for tables: it emits a
-// TABLE_ADDED finding carrying the added table's columns (looked up from
-// colsByTable, keyed by ForKey(dbType)).
-func emitTableAdded(colsByTable map[string][]schemasnapshot.Column, dbType string) func(schemasnapshot.Table) []Difference {
-	return func(t schemasnapshot.Table) []Difference {
-		return []Difference{newDifference(TableAdded, t.ObjectRef, &t.ObjectRef, "", nil, cloneColumns(colsByTable[t.ForKey(dbType)]))}
-	}
+// emitTableAdded is the matchByKey onAdded callback for tables: it emits a
+// TABLE_ADDED finding carrying the added table's columns.
+func emitTableAdded(t schemasnapshot.Table) []Difference {
+	return []Difference{newDifference(TableAdded, t.ObjectRef, &t.ObjectRef, "", nil, cloneColumns(t.Columns))}
 }
 
-// columnsByTable groups columns by their parent table's canonical key, preserving
-// each table's original column (attnum) order.
-func columnsByTable(cols []schemasnapshot.Column, dbType string) map[string][]schemasnapshot.Column {
-	out := make(map[string][]schemasnapshot.Column)
-	for _, col := range cols {
-		key := col.Table.ForKey(dbType)
-		out[key] = append(out[key], col)
-	}
-	return out
-}
+// compareMatchedTables returns the matchByKey onMatch callback for tables: it
+// emits the table's field-level differences and then diffs its nested columns.
+// dbTypeA/dbTypeB select ID- vs name-based column matching (see diffColumnsIn).
+func compareMatchedTables(dbTypeA, dbTypeB string) func(tA, tB schemasnapshot.Table) []Difference {
+	return func(tA, tB schemasnapshot.Table) []Difference {
+		var diffs []Difference
 
-// compareMatchedTables emits all field-level differences for a pair of tables
-// matched by chooseMatchKeys (ID or name). Object in each Difference is always
-// the side-A (old) ObjectRef.
-func compareMatchedTables(tA, tB schemasnapshot.Table) []Difference {
-	var diffs []Difference
-
-	if tA.Name != tB.Name {
-		diffs = append(diffs, newDifference(TableNameChanged, tA.ObjectRef, &tA.ObjectRef, "", tA.Name, tB.Name))
-	}
-
-	if tA.Schema != tB.Schema {
-		diffs = append(diffs, newDifference(TableSchemaChanged, tA.ObjectRef, &tA.ObjectRef, "", tA.Schema, tB.Schema))
-	}
-
-	if tA.Kind != tB.Kind {
-		diffs = append(diffs, newDifference(TableKindChanged, tA.ObjectRef, &tA.ObjectRef, "", string(tA.Kind), string(tB.Kind)))
-	}
-
-	if !partitionParentEqual(tA.PartitionParent, tB.PartitionParent) {
-		var ov, nv any
-		if tA.PartitionParent != nil {
-			ov = *tA.PartitionParent
+		if tA.Name != tB.Name {
+			diffs = append(diffs, newDifference(TableNameChanged, tA.ObjectRef, &tA.ObjectRef, "", tA.Name, tB.Name))
 		}
-		if tB.PartitionParent != nil {
-			nv = *tB.PartitionParent
+
+		if tA.Schema != tB.Schema {
+			diffs = append(diffs, newDifference(TableSchemaChanged, tA.ObjectRef, &tA.ObjectRef, "", tA.Schema, tB.Schema))
 		}
-		diffs = append(diffs, newDifference(TablePartitionParentChanged, tA.ObjectRef, &tA.ObjectRef, "", ov, nv))
-	}
 
-	if !objectRefSetEqual(tA.PartitionChildren, tB.PartitionChildren) {
-		diffs = append(diffs, newDifference(TablePartitionChildrenChanged, tA.ObjectRef, &tA.ObjectRef, "", cloneObjectRefs(tA.PartitionChildren), cloneObjectRefs(tB.PartitionChildren)))
-	}
+		if tA.Kind != tB.Kind {
+			diffs = append(diffs, newDifference(TableKindChanged, tA.ObjectRef, &tA.ObjectRef, "", string(tA.Kind), string(tB.Kind)))
+		}
 
-	if !objectRefSetEqual(tA.InheritsFrom, tB.InheritsFrom) {
-		diffs = append(diffs, newDifference(TableInheritsChanged, tA.ObjectRef, &tA.ObjectRef, "", cloneObjectRefs(tA.InheritsFrom), cloneObjectRefs(tB.InheritsFrom)))
-	}
+		if !partitionParentEqual(tA.PartitionParent, tB.PartitionParent) {
+			var ov, nv any
+			if tA.PartitionParent != nil {
+				ov = *tA.PartitionParent
+			}
+			if tB.PartitionParent != nil {
+				nv = *tB.PartitionParent
+			}
+			diffs = append(diffs, newDifference(TablePartitionParentChanged, tA.ObjectRef, &tA.ObjectRef, "", ov, nv))
+		}
 
-	if !objectRefSetEqual(tA.InheritedBy, tB.InheritedBy) {
-		diffs = append(diffs, newDifference(TableInheritedByChanged, tA.ObjectRef, &tA.ObjectRef, "", cloneObjectRefs(tA.InheritedBy), cloneObjectRefs(tB.InheritedBy)))
-	}
+		if !objectRefSetEqual(tA.PartitionChildren, tB.PartitionChildren) {
+			diffs = append(diffs, newDifference(TablePartitionChildrenChanged, tA.ObjectRef, &tA.ObjectRef, "", cloneObjectRefs(tA.PartitionChildren), cloneObjectRefs(tB.PartitionChildren)))
+		}
 
-	return diffs
+		if !objectRefSetEqual(tA.InheritsFrom, tB.InheritsFrom) {
+			diffs = append(diffs, newDifference(TableInheritsChanged, tA.ObjectRef, &tA.ObjectRef, "", cloneObjectRefs(tA.InheritsFrom), cloneObjectRefs(tB.InheritsFrom)))
+		}
+
+		if !objectRefSetEqual(tA.InheritedBy, tB.InheritedBy) {
+			diffs = append(diffs, newDifference(TableInheritedByChanged, tA.ObjectRef, &tA.ObjectRef, "", cloneObjectRefs(tA.InheritedBy), cloneObjectRefs(tB.InheritedBy)))
+		}
+
+		diffs = append(diffs, diffColumnsIn(tA.Columns, tB.Columns, dbTypeA, dbTypeB)...)
+
+		return diffs
+	}
 }
 
 // partitionParentEqual compares two *ObjectRef values for equality.

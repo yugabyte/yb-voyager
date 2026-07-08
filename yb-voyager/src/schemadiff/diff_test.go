@@ -87,10 +87,11 @@ func TestDiff_EmptySnapshots_ReturnsNilOrEmpty(t *testing.T) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 func TestDiff_IdenticalSnapshots_NoFindings(t *testing.T) {
-	tbl := makeTable("101", "public", "orders", schemasnapshot.TableKindOrdinary)
+	table := makeTable("101", "public", "orders", schemasnapshot.TableKindOrdinary)
 	col := makeColumn("public", "orders", "101:1", "id", "integer", notNull())
-	a := snapWithTablesAndColumns([]schemasnapshot.Table{tbl}, []schemasnapshot.Column{col})
-	b := snapWithTablesAndColumns([]schemasnapshot.Table{tbl}, []schemasnapshot.Column{col})
+	table.Columns = []schemasnapshot.Column{col}
+	a := snapWithTables(table)
+	b := snapWithTables(table)
 
 	got := Diff(a, b)
 	if len(got) != 0 {

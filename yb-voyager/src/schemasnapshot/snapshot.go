@@ -66,11 +66,10 @@ const SideSource = "source"
 // The per-object lists are flat; each record keys back to its parent via an ObjectRef field.
 // v1 carries tables and columns only.
 type SnapshotContent struct {
-	Version      int        `json:"version"`           // format/compat gate
-	DatabaseType string     `json:"database_type"`     // engine; the diff reads this
-	DBMetadata   DBMetadata `json:"db_metadata"`       // display coordinates; provenance for reports
-	Tables       []Table    `json:"tables,omitempty"`  // captured tables (ordinary/partitioned/foreign).
-	Columns      []Column   `json:"columns,omitempty"` // captured columns; each keyed back to its parent table via Column.Table.
+	Version      int        `json:"version"`          // format/compat gate
+	DatabaseType string     `json:"database_type"`    // engine; the diff reads this
+	DBMetadata   DBMetadata `json:"db_metadata"`      // display coordinates; provenance for reports
+	Tables       []Table    `json:"tables,omitempty"` // captured tables (ordinary/partitioned/foreign), each carrying its own columns.
 }
 
 // DBMetadata holds the display coordinates of the captured database (for report generation).
@@ -135,6 +134,7 @@ type Table struct {
 	PartitionChildren []ObjectRef `json:"partition_children,omitempty"` // set on a partitioned parent: its immediate partition children; nil otherwise
 	InheritsFrom      []ObjectRef `json:"inherits_from,omitempty"`      // legacy table inheritance (INHERITS): parent table(s) this table inherits from; can be multiple. Distinct from declarative partitioning.
 	InheritedBy       []ObjectRef `json:"inherited_by,omitempty"`       // legacy table inheritance (INHERITS): tables that inherit from this one.
+	Columns           []Column    `json:"columns,omitempty"`            // columns of this table, in attnum order.
 }
 
 // Column represents a single column within a table.

@@ -195,12 +195,10 @@ func TestCaptureAgainstLivePostgres(t *testing.T) {
 	assert.Empty(t, byName["animals"].PartitionChildren, "legacy inheritance parent must not have PartitionChildren")
 	assert.Nil(t, byName["animals"].PartitionParent, "legacy inheritance parent must have nil PartitionParent")
 
-	// Columns of orders.
+	// Columns of orders (nested under its Table entry by attachColumns during capture).
 	cols := map[string]schemasnapshot.Column{}
-	for _, c := range snap.Content.Columns {
-		if c.Table.Name == "orders" {
-			cols[c.Name] = c
-		}
+	for _, c := range byName["orders"].Columns {
+		cols[c.Name] = c
 	}
 	require.Contains(t, cols, "id")
 	require.Contains(t, cols, "customer")
@@ -217,10 +215,8 @@ func TestCaptureAgainstLivePostgres(t *testing.T) {
 		"remote_accounts relkind 'f' must map to TableKindForeign")
 
 	remoteAcctCols := map[string]schemasnapshot.Column{}
-	for _, c := range snap.Content.Columns {
-		if c.Table.Name == "remote_accounts" {
-			remoteAcctCols[c.Name] = c
-		}
+	for _, c := range byName["remote_accounts"].Columns {
+		remoteAcctCols[c.Name] = c
 	}
 	assert.Contains(t, remoteAcctCols, "id", "remote_accounts column 'id' must be captured")
 	assert.Contains(t, remoteAcctCols, "name", "remote_accounts column 'name' must be captured")
@@ -228,10 +224,8 @@ func TestCaptureAgainstLivePostgres(t *testing.T) {
 	// ── Dropped column ────────────────────────────────────────────────────────
 	require.Contains(t, byName, "dropcol")
 	dropcolCols := map[string]schemasnapshot.Column{}
-	for _, c := range snap.Content.Columns {
-		if c.Table.Name == "dropcol" {
-			dropcolCols[c.Name] = c
-		}
+	for _, c := range byName["dropcol"].Columns {
+		dropcolCols[c.Name] = c
 	}
 	assert.Len(t, dropcolCols, 2, "dropcol must have exactly 2 columns after DROP COLUMN b")
 	assert.NotContains(t, dropcolCols, "b", "dropped column 'b' must not appear in snapshot")
@@ -321,13 +315,15 @@ func TestCapturePersistRoundTrip(t *testing.T) {
 	})
 	require.NoError(t, err, "Capture must succeed")
 	require.NotEmpty(t, snap.Content.Tables, "captured Tables must be non-empty")
-	require.NotEmpty(t, snap.Content.Columns, "captured Columns must be non-empty")
 
 	// Verify partition and inheritance fields are non-empty before persisting.
 	tablesByName := make(map[string]schemasnapshot.Table, len(snap.Content.Tables))
+	totalCols := 0
 	for _, tb := range snap.Content.Tables {
 		tablesByName[tb.Name] = tb
+		totalCols += len(tb.Columns)
 	}
+	require.NotZero(t, totalCols, "captured tables must carry columns (attachColumns nests them per-table)")
 	require.Contains(t, tablesByName, "events")
 	require.NotEmpty(t, tablesByName["events"].PartitionChildren, "events must have partition children")
 	require.Contains(t, tablesByName, "events_2026")
@@ -367,16 +363,16 @@ func TestCapturePersistRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, loaded)
 
-	// The blob (SnapshotContent) carries Version, DatabaseType, DBMetadata, Tables, Columns.
+	// The blob (SnapshotContent) carries Version, DatabaseType, DBMetadata, Tables
+	// (each carrying its own nested Columns).
 	assert.Equal(t, snap.Content.Version, loaded.Version)
 	assert.Equal(t, snap.Content.DatabaseType, loaded.DatabaseType)
 	assert.Equal(t, snap.Content.DBMetadata, loaded.DBMetadata)
 
-	// Tables and Columns survive JSON serialization including ObjectRef slices.
+	// Tables (including their nested Columns) survive JSON serialization, along
+	// with the partition/inheritance ObjectRef slices.
 	assert.Equal(t, snap.Content.Tables, loaded.Tables,
-		"Tables must survive JSON round-trip (including partition/inheritance ObjectRef slices)")
-	assert.Equal(t, snap.Content.Columns, loaded.Columns,
-		"Columns must survive JSON round-trip")
+		"Tables (including nested Columns) must survive JSON round-trip")
 
 	// Spot-check that partition + inheritance wiring survived serialization.
 	loadedByName := make(map[string]schemasnapshot.Table, len(loaded.Tables))

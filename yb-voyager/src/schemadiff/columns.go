@@ -16,17 +16,18 @@ package schemadiff
 
 import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 
-// diffColumns computes column-level differences between snapshots a and b. Columns
-// are matched by chooseMatchKeys: by stable "{tableOID}:{attnum}" ID when IDs are
-// usable (same engine, all present) so a rename surfaces as COLUMN_NAME_CHANGED,
-// else by the unquoted dot-joined composite key schema.table.col (see Column.ForKey
-// and its dot-collision limitation). Unmatched side-A columns become COLUMN_DROPPED
+// diffColumnsIn computes column-level differences between two column slices
+// (the nested columns of a matched table pair). Matched by chooseMatchKeys:
+// by stable "{tableOID}:{attnum}" ID when IDs are usable (same engine, all
+// present) so a rename surfaces as COLUMN_NAME_CHANGED, else by the unquoted
+// dot-joined composite key schema.table.col (see Column.ForKey and its
+// dot-collision limitation). Unmatched side-A columns become COLUMN_DROPPED
 // and unmatched side-B columns COLUMN_ADDED.
-func diffColumns(a, b *schemasnapshot.SnapshotContent) []Difference {
-	keyA, keyB := chooseMatchKeys(a.DatabaseType, b.DatabaseType, a.Columns, b.Columns,
+func diffColumnsIn(colsA, colsB []schemasnapshot.Column, dbTypeA, dbTypeB string) []Difference {
+	keyA, keyB := chooseMatchKeys(dbTypeA, dbTypeB, colsA, colsB,
 		idOfColumn, schemasnapshot.Column.ForKey)
 
-	return matchByKey(a.Columns, b.Columns, keyA, keyB,
+	return matchByKey(colsA, colsB, keyA, keyB,
 		compareMatchedColumns, emitColumnDropped, emitColumnAdded)
 }
 

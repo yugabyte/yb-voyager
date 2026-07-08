@@ -63,58 +63,9 @@ type Difference struct {
 // Diff computes the schema differences between snapshot a (old/side-A) and b (new/side-B).
 // It returns a sorted slice of Difference values.
 func Diff(a, b *schemasnapshot.SnapshotContent) []Difference {
-	var diffs []Difference
-	diffs = append(diffs, diffTables(a, b)...)
-	diffs = append(diffs, diffColumns(a, b)...)
-	diffs = suppressLifecycleTableColumns(diffs)
+	diffs := diffTables(a, b)
 	sortDifferences(diffs)
 	return diffs
-}
-
-// suppressLifecycleTableColumns removes per-column COLUMN_ADDED and COLUMN_DROPPED
-// findings whose parent table is itself wholly added or dropped in the same diff.
-//
-// WHY: every column of a wholly added/dropped table also appears as COLUMN_ADDED/
-// COLUMN_DROPPED — pure noise once TABLE_ADDED/TABLE_DROPPED already conveys the
-// full change.
-//
-// A renamed table is matched (emits TABLE_NAME_CHANGED, not TABLE_ADDED/DROPPED),
-// so its real column changes are actual mutations and are preserved.
-//
-// Only COLUMN_ADDED under TABLE_ADDED and COLUMN_DROPPED under TABLE_DROPPED are
-// suppressed; every other finding type passes through unchanged.
-func suppressLifecycleTableColumns(diffs []Difference) []Difference {
-	// Build sets of table ObjectRefs for wholly added and wholly dropped tables.
-	added := make(map[schemasnapshot.ObjectRef]struct{})
-	dropped := make(map[schemasnapshot.ObjectRef]struct{})
-	for _, d := range diffs {
-		switch d.Type {
-		case TableAdded:
-			added[d.Object] = struct{}{}
-		case TableDropped:
-			dropped[d.Object] = struct{}{}
-		}
-	}
-	// Fast path: nothing to suppress.
-	if len(added) == 0 && len(dropped) == 0 {
-		return diffs
-	}
-	// Filter: drop redundant child findings into a fresh slice.
-	out := make([]Difference, 0, len(diffs))
-	for _, d := range diffs {
-		switch d.Type {
-		case ColumnAdded:
-			if _, ok := added[d.Object]; ok {
-				continue // suppress: parent table is wholly added
-			}
-		case ColumnDropped:
-			if _, ok := dropped[d.Object]; ok {
-				continue // suppress: parent table is wholly dropped
-			}
-		}
-		out = append(out, d)
-	}
-	return out
 }
 
 // sortDifferences sorts a slice of Difference values in place by a deterministic
