@@ -88,7 +88,7 @@ func TestConnectorLatestStable(t *testing.T) {
 	bundledOk, bYear, bTrack, bCounter := parseLogicalConnectorTag(bundledTag)
 	if !bundledOk {
 		t.Fatalf("bundled logical connector tag %q does not match expected format — "+
-			"check yb-voyager/versions/connector-versions.json", bundledTag)
+			"check yb-voyager/versions/yb-cdc-connector-versions.json", bundledTag)
 	}
 
 	// -- 2. Fetch releases from GitHub --
@@ -149,7 +149,7 @@ func TestConnectorLatestStable(t *testing.T) {
 			"bundled logical connector is behind the latest available release.\n"+
 				"  bundled : %s\n"+
 				"  latest  : %s\n"+
-				"Remediation: bump yb-voyager/versions/connector-versions.json to the latest connector release "+
+				"Remediation: bump yb-voyager/versions/yb-cdc-connector-versions.json to the latest connector release "+
 				"and follow the connector-version section of the update-yb-latest-stable skill.",
 			bundledTag,
 			fmt.Sprintf("%s (series %d.%d, counter %d)", latestTag, lYear, lTrack, lCounter),

@@ -4,8 +4,8 @@ description: >-
   Bump YugabyteDB latest_stable in yb-versions.json, coordinate Jenkins migtest
   cluster upgrades, fix version-gated issue/integration tests, and open a PR only
   after all GitHub Actions pass. Also covers bumping the bundled CDC connector
-  version in connector-versions.json. Use when updating latest stable YB version,
-  yb-versions.json, the CDC/debezium connector version, connector-versions.json,
+  version in yb-cdc-connector-versions.json. Use when updating latest stable YB version,
+  yb-versions.json, the CDC/debezium connector version, yb-cdc-connector-versions.json,
   Jenkins YB cluster, or Voyager supported YB versions.
 ---
 
@@ -230,7 +230,7 @@ forward-compatibility, so the bundled connector must be upgraded regularly to
 track new YugabyteDB series. Compatibility is **per YB series** (YEAR.TRACK): a
 `2025.2` logical connector works with all `2025.2.x` servers.
 
-## Single source of truth: `yb-voyager/versions/connector-versions.json`
+## Single source of truth: `yb-voyager/versions/yb-cdc-connector-versions.json`
 
 ```json
 {
@@ -258,7 +258,7 @@ Everything else derives from this file:
 1. Find the latest connector release tag in
    [`yugabyte/debezium` releases](https://github.com/yugabyte/debezium/releases)
    (and the gRPC repo if bumping that connector).
-2. Edit **only** `connector-versions.json` — update `tag`.
+2. Edit **only** `yb-cdc-connector-versions.json` — update `tag`.
 3. `cd yb-voyager && go test -tags unit ./versions/...`
 4. Open a PR (use the `pr-description` skill); let CI run.
 
@@ -269,7 +269,7 @@ Everything else derives from this file:
 - CI: the `Test Latest Connector Version` step in
   `.github/workflows/issue-tests.yml` (runs on the latest-stable matrix entry,
   alongside `Test Latest Stable YB Version`). It fails when a newer
-  logical-connector release exists than the one in `connector-versions.json`.
+  logical-connector release exists than the one in `yb-cdc-connector-versions.json`.
 - Run locally: `cd yb-voyager && go test -v -tags connector_latest_stable ./versions/...`
   (set `GITHUB_TOKEN` to avoid API rate limits).
 - A failing run is the signal to do the bump above. Do **not** weaken the test to

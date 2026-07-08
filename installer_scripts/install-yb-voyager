@@ -33,7 +33,7 @@ DEBEZIUM_LOCAL_REF=${DEBEZIUM_LOCAL_REF:-"2b5eb9f485d6a0e54c9af4e6a99d3abaa6839a
 DEBEZIUM_LOCAL_SERVER_REF=${DEBEZIUM_LOCAL_SERVER_REF:-"1b9f1a87c35bc111ac44f875024c8068efe43e51"}
 DEBEZIUM_LOCAL_REF_1X=${DEBEZIUM_LOCAL_REF_1X:-"78ff67c054bec08bcad060968b24bfc9ba8b2112"}
 DEBEZIUM_LOCAL_INSTALLATION_DESTINATION=${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION:-"/opt/yb-voyager"}
-# Connector URLs are derived from connector-versions.json in package_debezium_server_local().
+# Connector URLs are derived from yb-cdc-connector-versions.json in package_debezium_server_local().
 
 # only rebuild voyager
 REBUILD_VOYAGER_LOCAL="false"
@@ -131,7 +131,7 @@ centos_main() {
 	fi
 	
 	# TODO: Remove the usage of jq and use something inbuilt in the future.
-	# jq is needed to read connector-versions.json in package_debezium_server_local (local builds too).
+	# jq is needed to read yb-cdc-connector-versions.json in package_debezium_server_local (local builds too).
 	$YUM_INSTALL jq 1>&2
 	if [ "${VERSION}" != "local" ]
 	then
@@ -181,7 +181,7 @@ ubuntu_main() {
 	sudo apt-get update 1>&2
 
 	# TODO: Remove the usage of jq and use something inbuilt in the future.
-	# jq is needed to read connector-versions.json in package_debezium_server_local (local builds too).
+	# jq is needed to read yb-cdc-connector-versions.json in package_debezium_server_local (local builds too).
 	sudo apt-get install -y jq 1>&2
 	if [ "${VERSION}" != "local" ]
 	then
@@ -231,7 +231,7 @@ macos_main() {
 	macos_install_brew
 
 	# TODO: Remove the usage of jq and use something inbuilt in the future.
-	# jq is needed to read connector-versions.json in package_debezium_server_local (local builds too).
+	# jq is needed to read yb-cdc-connector-versions.json in package_debezium_server_local (local builds too).
 	brew install jq 1>&2
 	if [ "${VERSION}" != "local" ]
 	then
@@ -484,7 +484,7 @@ package_debezium_server_local(){
 	output "Packaging debezium server..."
 
 	# Derive connector download URLs from the single source of truth.
-	_CV_JSON="${REPO_ROOT}/yb-voyager/versions/connector-versions.json"
+	_CV_JSON="${REPO_ROOT}/yb-voyager/versions/yb-cdc-connector-versions.json"
 	if [ ! -f "${_CV_JSON}" ]; then
 		echo "ERROR: connector versions file not found: ${_CV_JSON}" 1>&2
 		exit 1

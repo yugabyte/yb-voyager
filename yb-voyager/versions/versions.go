@@ -116,10 +116,10 @@ func GetStaticcheckVersion() string {
 
 // =============================== Connector Versions ===============================
 
-//go:embed connector-versions.json
+//go:embed yb-cdc-connector-versions.json
 var connectorVersionsJSON []byte
 
-// ConnectorVersionsData represents the structure of connector-versions.json.
+// ConnectorVersionsData represents the structure of yb-cdc-connector-versions.json.
 // - LogicalConnector: logical-replication (debezium) connector
 // - GRPCConnector: gRPC connector (tag stored WITHOUT leading "v")
 type ConnectorVersionsData struct {
@@ -131,19 +131,19 @@ type ConnectorVersionsData struct {
 	} `json:"grpc_connector"`
 }
 
-// LoadConnectorVersions loads connector versions from the embedded connector-versions.json.
+// LoadConnectorVersions loads connector versions from the embedded yb-cdc-connector-versions.json.
 // Panics if the file cannot be parsed or required fields are missing.
 func LoadConnectorVersions() ConnectorVersionsData {
 	var cv ConnectorVersionsData
 	err := json.Unmarshal(connectorVersionsJSON, &cv)
 	if err != nil {
-		panic(fmt.Sprintf("Failed to parse connector-versions.json: %v", err))
+		panic(fmt.Sprintf("Failed to parse yb-cdc-connector-versions.json: %v", err))
 	}
 	if cv.LogicalConnector.Tag == "" {
-		panic("No tag found for logical_connector in connector-versions.json")
+		panic("No tag found for logical_connector in yb-cdc-connector-versions.json")
 	}
 	if cv.GRPCConnector.Tag == "" {
-		panic("No tag found for grpc_connector in connector-versions.json")
+		panic("No tag found for grpc_connector in yb-cdc-connector-versions.json")
 	}
 	return cv
 }
