@@ -25,7 +25,7 @@ import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 func diffColumns(a, b *schemasnapshot.SnapshotContent) []Difference {
 	keyA, keyB := chooseMatchKeys(a.DatabaseType, b.DatabaseType, a.Columns, b.Columns,
 		func(c schemasnapshot.Column) string { return c.ID },
-		func(c schemasnapshot.Column, dbType string) string { return c.ForKey(dbType) })
+		schemasnapshot.Column.ForKey)
 
 	return matchByKey(a.Columns, b.Columns, keyA, keyB,
 		compareMatchedColumns,

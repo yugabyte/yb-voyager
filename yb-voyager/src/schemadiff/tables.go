@@ -30,7 +30,7 @@ func diffTables(a, b *schemasnapshot.SnapshotContent) []Difference {
 
 	keyA, keyB := chooseMatchKeys(a.DatabaseType, b.DatabaseType, a.Tables, b.Tables,
 		func(t schemasnapshot.Table) string { return t.ID },
-		func(t schemasnapshot.Table, dbType string) string { return t.ForKey(dbType) })
+		schemasnapshot.Table.ForKey)
 
 	return matchByKey(a.Tables, b.Tables, keyA, keyB,
 		compareMatchedTables,
