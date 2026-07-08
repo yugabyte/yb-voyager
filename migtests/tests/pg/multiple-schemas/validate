@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import re
 import sys
 
 from packaging.version import Version
@@ -52,7 +51,7 @@ def migration_completed_checks_fb():
 	print("Running tests on PG source")
 	yb.run_checks(migration_completed_checks, db_type="source")
 
-def check_validations_per_schema(tgt,schema_name):
+def check_validations_per_schema(tgt, schema_name, threeDotVersion):
 	table_list = tgt.get_table_names(schema_name)
 	print("table_list:", table_list)
 	assert len(table_list) == 7 
@@ -68,7 +67,9 @@ def check_validations_per_schema(tgt,schema_name):
 
 	fetched_procedures_functions = tgt.fetch_all_procedures(schema_name)
 	print(f"count of fetched procedures/functions - {len(fetched_procedures_functions)}")
-	chk_conditions = (len(fetched_procedures_functions) == 40 and schema_name == 'schema2') or (len(fetched_procedures_functions) == 4 and schema_name == 'public')
+	# an extra routine ships from YB 2025.2.4, bumping the count from 40 to 41
+	schema2_count = 41 if (threeDotVersion and Version(threeDotVersion) >= Version("2025.2.4")) else 40
+	chk_conditions = (len(fetched_procedures_functions) == schema2_count and schema_name == 'schema2') or (len(fetched_procedures_functions) == 4 and schema_name == 'public')
 	assert chk_conditions == True
 
 	res_total_proc = tgt.execute_query(f"select total();")
@@ -108,7 +109,9 @@ def check_validations_per_schema(tgt,schema_name):
 
 def migration_completed_checks(tgt):
 	global test_type_flags
-	check_validations_per_schema(tgt, "public")
+	tgtVersion = tgt.get_target_version()
+	threeDotVersion = yb.get_three_dot_version(tgtVersion)
+	check_validations_per_schema(tgt, "public", threeDotVersion)
 
 	QUERY_CHK_TYPES_DOMAINS = "select count(typname) from pg_type where typname in ('enum_kind', 'item_details', 'person_name');"
 	cnt_type_domain = tgt.execute_query(QUERY_CHK_TYPES_DOMAINS)
@@ -124,7 +127,7 @@ def migration_completed_checks(tgt):
 	print(f"schema set in search_path - {schema_set}")
 	assert schema_set == 'schema2'
 
-	check_validations_per_schema(tgt, "schema2")
+	check_validations_per_schema(tgt, "schema2", threeDotVersion)
 
 	# in live migration, sequences are only applied at cutover.
 	if not live_migration == 'true':
@@ -154,10 +157,7 @@ def migration_completed_checks(tgt):
 		extensions = tgt.get_available_extensions()
 		print(f"expected extensions: {expectedExtensions}")
 		print(f"reported extensions: {extensions}")
-		tgtVersion = tgt.get_target_version()
 		print(f"target version: {tgtVersion}")
-		match = re.search(r'YB-([0-9]+\.[0-9]+\.[0-9])', tgtVersion)
-		threeDotVersion = match.group(1) if match else ""
 		print(f"three dot version: {threeDotVersion}")
 		
 		# Handle PG15 merge versions (preview >= 2.25 or stable >= 2025.1)
