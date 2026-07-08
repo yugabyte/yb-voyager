@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"time"
 
@@ -55,22 +56,90 @@ func captureSourceSchemaSnapshot(ctx context.Context, label, reason string, plac
 		log.Warnf("schema-snapshot capture skipped for label %q: no active database handle", label)
 		return
 	}
-	req := schemasnapshot.CaptureRequest{
-		CaptureParams: schemasnapshot.CaptureParams{
-			DatabaseType: source.DBType,
-			DBMetadata:   schemasnapshot.DBMetadata{Host: source.Host, Port: source.Port, Database: source.DBName, User: source.User},
-			Schemas:      source.GetSchemaList(),
-			Label:        label,
-			Reason:       reason,
-		},
-		PlaceholderOnFailure: placeholderOnFailure,
+	captureParams := schemasnapshot.CaptureParams{
+		DatabaseType: source.DBType,
+		DBMetadata:   schemasnapshot.DBMetadata{Host: source.Host, Port: source.Port, Database: source.DBName, User: source.User},
+		Schemas:      source.GetSchemaList(),
+		Label:        label,
+		Reason:       reason,
 	}
-	name, err := schemasnapshot.CaptureAndSaveSnapshot(ctx, db, metaDB, req)
+
+	if label != schemasnapshot.LabelExportDataFromSourcePeriodic {
+		// Lifecycle markers (start/exit/export-schema) are always saved, never deduped.
+		req := schemasnapshot.CaptureRequest{
+			CaptureParams:        captureParams,
+			PlaceholderOnFailure: placeholderOnFailure,
+		}
+		name, err := schemasnapshot.CaptureAndSaveSnapshot(ctx, db, metaDB, req)
+		if err != nil {
+			log.Warnf("schema-snapshot capture for label %q failed (continuing, migration unaffected): %v", label, err)
+			return
+		}
+		log.Infof("captured schema snapshot %q", name)
+		return
+	}
+
+	// Periodic capture: dedup against the last stored (non-placeholder) snapshot so an
+	// unchanged schema doesn't grow the timeline with identical rows. placeholderOnFailure
+	// is always false for the periodic label, so a capture failure needs no placeholder.
+	snap, err := schemasnapshot.Capture(ctx, db, captureParams)
+	if err != nil {
+		log.Warnf("schema-snapshot capture for label %q failed (continuing, migration unaffected): %v", label, err)
+		return
+	}
+
+	prev, err := latestStoredSnapshotContent()
+	if err != nil {
+		log.Debugf("schema-snapshot dedup check for label %q failed (continuing, treating as changed): %v", label, err)
+	} else if snapshotContentEqual(prev, snap.Content) {
+		log.Infof("source schema unchanged since last snapshot; skipping periodic capture")
+		return
+	}
+
+	name, err := schemasnapshot.SaveSnapshot(metaDB, snap)
 	if err != nil {
 		log.Warnf("schema-snapshot capture for label %q failed (continuing, migration unaffected): %v", label, err)
 		return
 	}
 	log.Infof("captured schema snapshot %q", name)
+}
+
+// snapshotContentEqual reports whether a and b marshal to byte-identical JSON. It is the
+// dedup comparison used by periodic capture: nil == nil is equal; nil vs non-nil is not;
+// a marshal error on either side is treated as "changed" (never blocks capture).
+func snapshotContentEqual(a, b *schemasnapshot.SnapshotContent) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	aBytes, err := json.Marshal(a)
+	if err != nil {
+		return false
+	}
+	bBytes, err := json.Marshal(b)
+	if err != nil {
+		return false
+	}
+	return string(aBytes) == string(bBytes)
+}
+
+// latestStoredSnapshotContent returns the content of the most recently persisted
+// non-placeholder snapshot, or (nil, nil) if none exists. ListSnapshots returns headers
+// ordered oldest-first, so this scans from the end to find the most recent real capture.
+func latestStoredSnapshotContent() (*schemasnapshot.SnapshotContent, error) {
+	headers, err := schemasnapshot.ListSnapshots(metaDB)
+	if err != nil {
+		return nil, err
+	}
+	for i := len(headers) - 1; i >= 0; i-- {
+		if headers[i].IsPlaceholder {
+			continue
+		}
+		return schemasnapshot.LoadSnapshotByName(metaDB, headers[i].Name())
+	}
+	return nil, nil
 }
 
 // startPeriodicSourceSchemaSnapshotCapture launches a background ticker that

@@ -258,7 +258,7 @@ func registerExportDataFlags(cmd *cobra.Command) {
 		"[EXPERIMENTAL][Oracle only] Allow exporting data of CLOB columns in offline migration.")
 
 	// Config-file key: "export-data.schema-snapshot-capture-interval".
-	cmd.Flags().IntVar(&schemaSnapshotCaptureInterval, "schema-snapshot-capture-interval", 60,
+	cmd.Flags().IntVar(&schemaSnapshotCaptureInterval, "schema-snapshot-capture-interval", 5,
 		"interval (in minutes) at which voyager periodically captures a source schema snapshot during export-data's snapshot phase (offline and live). (only valid for PostgreSQL)")
 }
 
