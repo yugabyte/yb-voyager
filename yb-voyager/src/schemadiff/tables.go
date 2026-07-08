@@ -16,153 +16,47 @@ package schemadiff
 
 import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 
-// diffTables computes table-level differences between snapshots a and b using a
-// hybrid two-pass match:
-//
-//  1. ID pass — tables with a usable stable ID (OID) are matched by ID. Enabled
-//     only when a.DatabaseType == b.DatabaseType, since IDs are comparable only
-//     within the same engine. Same engine ⇒ match by ID, which lets a rename
-//     surface as TABLE_NAME_CHANGED instead of an add+drop pair; different
-//     engine ⇒ fall back to name matching.
-//  2. Name pass — tables left unmatched by the ID pass (no usable ID, or an ID
-//     present on only one side) are reconciled by ObjectRef.ForKey(dbType), the
-//     case-sensitive, unquoted dot-joined canonical key (see diffTablesByName,
-//     and ForKey's own doc for its dot-collision limitation).
-//
-// Falling through to the name pass instead of declaring ID-unmatched tables
-// dropped/added immediately avoids a spurious drop+add when an ID is missing on
-// one side. The name pass guards the inverse case: two same-named tables with
-// real but DIFFERENT IDs are a genuine drop-and-recreate and stay an add+drop
-// (see nameMatchAllowed).
+// diffTables computes table-level differences between snapshots a and b. Tables
+// are matched by chooseMatchKeys: by stable OID when IDs are usable (same engine,
+// all present) so a rename surfaces as TABLE_NAME_CHANGED, else by the unquoted
+// dot-joined canonical key (see ObjectRef.ForKey and its dot-collision limitation).
+// Unmatched side-A tables become TABLE_DROPPED and unmatched side-B tables
+// TABLE_ADDED, each carrying the table's columns as payload.
 func diffTables(a, b *schemasnapshot.SnapshotContent) []Difference {
-	var diffs []Difference
+	// Group columns by their parent table's canonical key so a wholly added/dropped
+	// table can carry its columns on the finding, in original (attnum) order.
+	colsByTableA := columnsByTable(a.Columns, a.DatabaseType)
+	colsByTableB := columnsByTable(b.Columns, b.DatabaseType)
 
-	// Same engine ⇒ IDs are stable/comparable; match by ID. Different engine ⇒
-	// fall back to name matching.
-	matchByID := a.DatabaseType == b.DatabaseType
+	keyA, keyB := chooseMatchKeys(a.DatabaseType, b.DatabaseType, a.Tables, b.Tables,
+		func(t schemasnapshot.Table) string { return t.ID },
+		func(t schemasnapshot.Table, dbType string) string { return t.ForKey(dbType) })
 
-	// Pass 1: ID-based matching for tables that carry a usable stable ID.
-	// Tables without one start life in the name-pass residue.
-	byIDA := make(map[string]schemasnapshot.Table)
-	byIDB := make(map[string]schemasnapshot.Table)
-	var residueA, residueB []schemasnapshot.Table
-
-	for _, t := range a.Tables {
-		if matchByID && t.ID != "" {
-			byIDA[t.ID] = t
-		} else {
-			residueA = append(residueA, t)
-		}
-	}
-	for _, t := range b.Tables {
-		if matchByID && t.ID != "" {
-			byIDB[t.ID] = t
-		} else {
-			residueB = append(residueB, t)
-		}
-	}
-
-	for id, tA := range byIDA {
-		if tB, ok := byIDB[id]; ok {
-			diffs = append(diffs, compareMatchedTables(tA, tB)...)
-		} else {
-			residueA = append(residueA, tA) // unmatched by ID → reconcile by name
-		}
-	}
-	for id, tB := range byIDB {
-		if _, ok := byIDA[id]; !ok {
-			residueB = append(residueB, tB) // unmatched by ID → reconcile by name
-		}
-	}
-
-	// Group each snapshot's columns by their parent table's canonical key, so
-	// TABLE_ADDED/TABLE_DROPPED findings can carry the added/dropped table's
-	// columns. Iterate Columns in order and append so each table's columns
-	// preserve their original (attnum) order.
-	colsByTableA := make(map[string][]schemasnapshot.Column)
-	for _, col := range a.Columns {
-		key := col.Table.ForKey(a.DatabaseType)
-		colsByTableA[key] = append(colsByTableA[key], col)
-	}
-	colsByTableB := make(map[string][]schemasnapshot.Column)
-	for _, col := range b.Columns {
-		key := col.Table.ForKey(b.DatabaseType)
-		colsByTableB[key] = append(colsByTableB[key], col)
-	}
-
-	// Pass 2: name-based reconciliation of the residue.
-	diffs = append(diffs, diffTablesByName(residueA, residueB, matchByID, a.DatabaseType, b.DatabaseType, colsByTableA, colsByTableB)...)
-
-	return diffs
+	return matchByKey(a.Tables, b.Tables, keyA, keyB,
+		compareMatchedTables,
+		func(t schemasnapshot.Table) []Difference {
+			return []Difference{newDifference(TableDropped, t.ObjectRef, &t.ObjectRef, "", cloneColumns(colsByTableA[t.ForKey(a.DatabaseType)]), nil)}
+		},
+		func(t schemasnapshot.Table) []Difference {
+			return []Difference{newDifference(TableAdded, t.ObjectRef, &t.ObjectRef, "", nil, cloneColumns(colsByTableB[t.ForKey(b.DatabaseType)]))}
+		},
+	)
 }
 
-// diffTablesByName reconciles the tables left unmatched by the ID pass, keyed on
-// the case-sensitive, unquoted dot-joined canonical key returned by
-// ObjectRef.ForKey(dbType) (unique within a snapshot in practice; see ForKey's
-// doc for its dot-collision limitation). A same-named pair is treated as the
-// same table only when nameMatchAllowed permits it; otherwise the A-side is
-// dropped and the B-side added.
-//
-// colsByTableA and colsByTableB map a table's ForKey(dbType) to its columns (in
-// original snapshot order) and are used to attach the added/dropped table's
-// columns onto the TABLE_ADDED/TABLE_DROPPED finding.
-func diffTablesByName(residueA, residueB []schemasnapshot.Table, matchByID bool, dbTypeA, dbTypeB string, colsByTableA, colsByTableB map[string][]schemasnapshot.Column) []Difference {
-	var diffs []Difference
-
-	// identity seam — the single point where a table's name-match key is derived.
-	// Today: ForKey (case-sensitive, unquoted dot-joined; see its doc for the
-	// dot-collision limitation). When cross-engine diffing lands, this becomes a
-	// NameRegistry handle — change only here; the match loop stays generic over
-	// the key string.
-	keyA := func(t schemasnapshot.Table) string { return t.ForKey(dbTypeA) }
-	keyB := func(t schemasnapshot.Table) string { return t.ForKey(dbTypeB) }
-
-	byNameA := make(map[string]schemasnapshot.Table, len(residueA))
-	byNameB := make(map[string]schemasnapshot.Table, len(residueB))
-	for _, t := range residueA {
-		byNameA[keyA(t)] = t
+// columnsByTable groups columns by their parent table's canonical key, preserving
+// each table's original column (attnum) order.
+func columnsByTable(cols []schemasnapshot.Column, dbType string) map[string][]schemasnapshot.Column {
+	out := make(map[string][]schemasnapshot.Column)
+	for _, col := range cols {
+		key := col.Table.ForKey(dbType)
+		out[key] = append(out[key], col)
 	}
-	for _, t := range residueB {
-		byNameB[keyB(t)] = t
-	}
-
-	matchedB := make(map[string]bool, len(byNameB))
-	for name, tA := range byNameA {
-		if tB, ok := byNameB[name]; ok && nameMatchAllowed(matchByID, tA.ID, tB.ID) {
-			diffs = append(diffs, compareMatchedTables(tA, tB)...)
-			matchedB[name] = true
-			continue
-		}
-		// Only in A (or a name collision we must not collapse) → dropped.
-		diffs = append(diffs, newDifference(TableDropped, tA.ObjectRef, &tA.ObjectRef, "", cloneColumns(colsByTableA[tA.ForKey(dbTypeA)]), nil))
-	}
-	for name, tB := range byNameB {
-		if matchedB[name] {
-			continue
-		}
-		// Only in B (or the un-collapsed half of a drop-and-recreate) → added.
-		diffs = append(diffs, newDifference(TableAdded, tB.ObjectRef, &tB.ObjectRef, "", nil, cloneColumns(colsByTableB[tB.ForKey(dbTypeB)])))
-	}
-
-	return diffs
-}
-
-// nameMatchAllowed reports whether two same-named residue objects may be treated
-// as the same object during the name pass.
-//
-//   - ID matching off (different DatabaseType, or no stable identity): name is
-//     the only signal, so any same-named pair matches.
-//   - ID matching on: a residue pair is the same object only if at least one
-//     side lacked a usable ID. If BOTH sides carry real, distinct IDs that
-//     simply didn't match, they're genuinely different objects — a
-//     drop-and-recreate that reused the name — and stay an add + drop.
-func nameMatchAllowed(matchByID bool, idA, idB string) bool {
-	return !matchByID || idA == "" || idB == ""
+	return out
 }
 
 // compareMatchedTables emits all field-level differences for a pair of tables
-// matched by ID (or name for the ID-empty fallback). Object in each Difference
-// is always the side-A (old) ObjectRef.
+// matched by chooseMatchKeys (ID or name). Object in each Difference is always
+// the side-A (old) ObjectRef.
 func compareMatchedTables(tA, tB schemasnapshot.Table) []Difference {
 	var diffs []Difference
 
