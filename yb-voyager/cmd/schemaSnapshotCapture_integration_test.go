@@ -155,4 +155,50 @@ func TestSchemaSnapshotCaptureIntegration(t *testing.T) {
 		assert.True(t, placeholder.IsPlaceholder, "the marker must be flagged as a placeholder")
 		assert.Equal(t, schemasnapshot.ReasonError, placeholder.Reason)
 	})
+
+	t.Run("periodic capture dedups against an unchanged schema and persists on a real change", func(t *testing.T) {
+		suppressSchemaSnapshotCapture = utils.BoolStr(false)
+
+		countPeriodicSnapshots := func() int {
+			headers, err := schemasnapshot.ListSnapshots(metaDB)
+			require.NoError(t, err)
+			n := 0
+			for _, h := range headers {
+				if h.Label == schemasnapshot.LabelExportDataFromSourcePeriodic {
+					n++
+				}
+			}
+			return n
+		}
+
+		// Force the schema to differ from whatever earlier subtests in this file may have
+		// already captured (e.g. the "happy path" export_schema snapshot), so the first
+		// periodic capture below is guaranteed to be a real change and persist.
+		testPostgresSource.ExecuteSqls(`ALTER TABLE public.orders ADD COLUMN dedup_marker_1 numeric`)
+		t.Cleanup(func() {
+			testPostgresSource.ExecuteSqls(`ALTER TABLE public.orders DROP COLUMN IF EXISTS dedup_marker_1`)
+		})
+
+		before := countPeriodicSnapshots()
+
+		// First periodic capture after the schema change above: must persist.
+		captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourcePeriodic, "", false)
+		afterFirst := countPeriodicSnapshots()
+		require.Equal(t, before+1, afterFirst, "a periodic capture following a real schema change must persist")
+
+		// Second periodic capture with no further schema change: must be deduped (no new row).
+		captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourcePeriodic, "", false)
+		afterSecond := countPeriodicSnapshots()
+		assert.Equal(t, afterFirst, afterSecond, "an unchanged schema must not add a second periodic snapshot")
+
+		// Alter the schema again, then capture again: must persist a new row.
+		testPostgresSource.ExecuteSqls(`ALTER TABLE public.orders ADD COLUMN dedup_marker_2 numeric`)
+		t.Cleanup(func() {
+			testPostgresSource.ExecuteSqls(`ALTER TABLE public.orders DROP COLUMN IF EXISTS dedup_marker_2`)
+		})
+
+		captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourcePeriodic, "", false)
+		afterSchemaChange := countPeriodicSnapshots()
+		assert.Equal(t, afterSecond+1, afterSchemaChange, "a real schema change must persist a new periodic snapshot")
+	})
 }

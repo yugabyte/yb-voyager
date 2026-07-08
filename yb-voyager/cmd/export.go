@@ -260,7 +260,7 @@ func registerExportDataFlags(cmd *cobra.Command) {
 	cmd.Flags().IntVar(&metricsPort, "metrics-port", 0,
 		"Port to expose Prometheus metrics on (0 disables). Serves GET /metrics.")
 	// Config-file key: "export-data.schema-snapshot-capture-interval".
-	cmd.Flags().IntVar(&schemaSnapshotCaptureInterval, "schema-snapshot-capture-interval", 60,
+	cmd.Flags().IntVar(&schemaSnapshotCaptureInterval, "schema-snapshot-capture-interval", 5,
 		"interval (in minutes) at which voyager periodically captures a source schema snapshot during export-data's snapshot phase (offline and live). (only valid for PostgreSQL)")
 }
 
