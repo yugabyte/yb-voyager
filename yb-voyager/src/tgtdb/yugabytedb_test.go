@@ -1162,7 +1162,7 @@ func TestGetTablesHavingExpressionIndexes(t *testing.T) {
 	yb, ok := testYugabyteDBTarget.TargetDB.(*TargetYugabyteDB)
 	require.True(t, ok)
 
-	leafTableToRootTableMap, err := yb.getPartitionTableToRootTableMap(tableTuplesList)
+	leafTableToRootTableMap, err := getPartitionTableToRootTableMap(yb.Query, tableTuplesList)
 	require.NoError(t, err)
 	expectedLeafTableToRootTableMap := map[string]string{
 		table1.AsQualifiedCatalogName():           table1.AsQualifiedCatalogName(),
