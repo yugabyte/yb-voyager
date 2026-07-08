@@ -239,7 +239,7 @@ func TestDiff_EndToEnd(t *testing.T) {
 	// The rename finding is anchored to old-name "diff_it.orders"; the alias map
 	// must bridge purchases ↔ orders so both names retain the rename finding.
 	scopedByNew := schemadiff.FilterByScope(diffs, schemadiff.Scope{
-		Tables: []schemasnapshot.ObjectRef{{Schema: driftSchema, Name: "purchases"}},
+		IncludeTables: []schemasnapshot.ObjectRef{{Schema: driftSchema, Name: "purchases"}},
 	})
 	t.Logf("Scoped by new name 'purchases': %d findings", len(scopedByNew))
 
@@ -265,7 +265,7 @@ func TestDiff_EndToEnd(t *testing.T) {
 
 	// ── 12. Scope filtering: Tables=["diff_it.orders"] (old name) ──────────────
 	scopedByOld := schemadiff.FilterByScope(diffs, schemadiff.Scope{
-		Tables: []schemasnapshot.ObjectRef{{Schema: driftSchema, Name: "orders"}},
+		IncludeTables: []schemasnapshot.ObjectRef{{Schema: driftSchema, Name: "orders"}},
 	})
 	t.Logf("Scoped by old name 'orders': %d findings", len(scopedByOld))
 
