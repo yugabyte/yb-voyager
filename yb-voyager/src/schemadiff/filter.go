@@ -102,7 +102,7 @@ func FilterByScope(diffs []Difference, scope Scope) []Difference {
 // A table may change both name and schema in one interval; those arrive as two
 // findings sharing the same side-A anchor, so we group by the old ref and rebuild
 // the full new ref from whichever parts changed. Aliases accumulate ([]ObjectRef)
-// so chains like a→b, b→c don't clobber each other. No-op changes are skipped.
+// so chains like a→b, b→c don't clobber each other.
 func buildTableRenameAliases(diffs []Difference) map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef {
 	// Group the per-attribute identity changes by the side-A (old) ref so a
 	// rename-and-move pair is recombined into one old→new mapping.
@@ -143,9 +143,6 @@ func buildTableRenameAliases(diffs []Difference) map[schemasnapshot.ObjectRef][]
 			newRef.Name = c.newName
 		}
 		oldRef := c.oldRef
-		if oldRef == newRef {
-			continue // no-op
-		}
 		aliases[oldRef] = append(aliases[oldRef], newRef)
 		aliases[newRef] = append(aliases[newRef], oldRef)
 	}
