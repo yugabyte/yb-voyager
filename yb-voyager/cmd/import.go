@@ -231,6 +231,10 @@ func validateCdcPartitioningStrategyFlag(cmd *cobra.Command) error {
 		}
 		return nil
 	}
+	if sourceDBType != POSTGRESQL {
+		utils.ErrExit("--cdc-partitioning-strategy is only supported for PostgreSQL source")
+	}
+	
 	if cdcPartitioningStrategy == "" {
 		utils.ErrExit("cdc partitioning strategy is required")
 	}
