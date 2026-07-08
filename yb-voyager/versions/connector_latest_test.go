@@ -34,10 +34,13 @@ import (
 
 // logicalConnectorTagRe matches logical connector tags of the form:
 //
-//	dz.<DZMAJOR>.<DZMINOR>.<DZPATCH>.yb.<YBYEAR>.<YBTRACK>.<COUNTER>
+//	dz.<DZMAJOR>.<DZMINOR>.<DZPATCH>.yb.<YBYEAR>.<YBTRACK>[.<COUNTER>]
 //
-// It intentionally rejects gRPC tags (which contain ".yb.grpc.") and any other non-logical tags.
-var logicalConnectorTagRe = regexp.MustCompile(`^dz\.\d+\.\d+\.\d+\.yb\.(\d+)\.(\d+)\.(\d+)$`)
+// The trailing counter is optional: the first (GA) release of a YB series omits it
+// (e.g. dz.2.5.2.yb.2026.1), while subsequent patches carry one (e.g. dz.2.5.2.yb.2025.2.3).
+// It intentionally rejects gRPC tags (which contain ".yb.grpc.") and pre-release tags such
+// as ".SNAPSHOT.N" or "-CF-DRAFT" (their suffix is non-numeric, so the counter group fails to match).
+var logicalConnectorTagRe = regexp.MustCompile(`^dz\.\d+\.\d+\.\d+\.yb\.(\d+)\.(\d+)(?:\.(\d+))?$`)
 
 // parseLogicalConnectorTag parses a logical connector tag.
 // Returns ok=false for any tag that does not match the logical-connector format.
@@ -46,10 +49,14 @@ func parseLogicalConnectorTag(tag string) (ok bool, ybYear, ybTrack, counter int
 	if m == nil {
 		return false, 0, 0, 0
 	}
-	// m[1]=ybYear, m[2]=ybTrack, m[3]=counter — strconv.Atoi cannot fail on \d+ groups
+	// m[1]=ybYear, m[2]=ybTrack, m[3]=counter — strconv.Atoi cannot fail on \d+ groups.
 	ybYear, _ = strconv.Atoi(m[1])
 	ybTrack, _ = strconv.Atoi(m[2])
-	counter, _ = strconv.Atoi(m[3])
+	// m[3] is empty for a series-GA tag (no counter); treat that as counter 0 — the
+	// series baseline, which sorts below any .1, .2, ... patch of the same series.
+	if m[3] != "" {
+		counter, _ = strconv.Atoi(m[3])
+	}
 	return true, ybYear, ybTrack, counter
 }
 
