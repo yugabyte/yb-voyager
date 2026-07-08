@@ -84,7 +84,7 @@ func TestDiffer_AppliesScope(t *testing.T) {
 	a := snapWithTablesAndColumns([]schemasnapshot.Table{ordersA, legacyA}, []schemasnapshot.Column{colOrdersA, colLegacyA})
 	b := snapWithTablesAndColumns([]schemasnapshot.Table{ordersB, legacyB}, []schemasnapshot.Column{colOrdersB, colLegacyB})
 
-	scope := Scope{Tables: []schemasnapshot.ObjectRef{ref("public", "orders")}}
+	scope := Scope{IncludeTables: []schemasnapshot.ObjectRef{ref("public", "orders")}}
 	d := NewDiffer(Config{Scope: scope})
 	got := d.Diff(a, b)
 
@@ -126,7 +126,7 @@ func TestDiffer_ScopeRenameRetention(t *testing.T) {
 	b := snapWithTablesAndColumns([]schemasnapshot.Table{purchasesB}, []schemasnapshot.Column{colB})
 
 	// Scope by the NEW name (public.purchases).
-	scope := Scope{Tables: []schemasnapshot.ObjectRef{ref("public", "purchases")}}
+	scope := Scope{IncludeTables: []schemasnapshot.ObjectRef{ref("public", "purchases")}}
 	got := NewDiffer(Config{Scope: scope}).Diff(a, b)
 
 	// The TABLE_NAME_CHANGED finding must survive even though its AnchorTable is

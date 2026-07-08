@@ -36,10 +36,10 @@ const (
 
 // Scope describes the include/exclude filters applied by FilterByScope.
 //
-// Tables/ExcludeTables hold caller-RESOLVED ObjectRefs (globs and the default
+// IncludeTables/ExcludeTables hold caller-RESOLVED ObjectRefs (globs and the default
 // schema already expanded); matching is exact, case-sensitive struct equality
-// against Difference.AnchorTable. ObjectTypes/ExcludeObjectTypes match a finding's
-// object-type bucket. An empty include list means "all".
+// against Difference.AnchorTable. IncludeObjectTypes/ExcludeObjectTypes match a
+// finding's object-type bucket. An empty include list means "all".
 //
 // Scope is permissive and total — it never errors:
 //   - If an include and its exclude are both set, exclude wins (includes apply
@@ -49,9 +49,9 @@ const (
 // Flag-level policy — e.g. --table-list and --exclude-table-list being mutually
 // exclusive — is the command's to enforce, so FilterByScope stays pure for any caller.
 type Scope struct {
-	Tables             []schemasnapshot.ObjectRef // empty = all; matched against AnchorTable
+	IncludeTables      []schemasnapshot.ObjectRef // empty = all; matched against AnchorTable
 	ExcludeTables      []schemasnapshot.ObjectRef // drop findings whose AnchorTable is in this list
-	ObjectTypes        []ObjectType               // empty = all
+	IncludeObjectTypes []ObjectType               // empty = all
 	ExcludeObjectTypes []ObjectType
 }
 
@@ -61,19 +61,19 @@ type Scope struct {
 //
 // A table rename/move alias map is built first so a finding anchored to a renamed
 // table matches on either its old or new identity. Then, in order:
-//  1. include by ObjectTypes
-//  2. include by Tables (a nil AnchorTable never matches a non-empty list)
-//  3. exclude by ObjectTypes
-//  4. exclude by Tables
+//  1. include by IncludeObjectTypes
+//  2. include by IncludeTables (a nil AnchorTable never matches a non-empty list)
+//  3. exclude by ExcludeObjectTypes
+//  4. exclude by ExcludeTables
 func FilterByScope(diffs []Difference, scope Scope) []Difference {
 	// Bidirectional old<->new alias map for renamed/moved tables, so a finding
 	// anchored to a renamed table matches on either identity (keyed by ObjectRef).
 	tableRenameAliases := buildTableRenameAliases(diffs)
 
 	// Pre-build lookup sets for the four lists to avoid O(n²) inner scans.
-	includeTypes := toSet(scope.ObjectTypes)
+	includeTypes := toSet(scope.IncludeObjectTypes)
 	excludeTypes := toSet(scope.ExcludeObjectTypes)
-	includeTables := toSet(scope.Tables)
+	includeTables := toSet(scope.IncludeTables)
 	excludeTables := toSet(scope.ExcludeTables)
 
 	out := make([]Difference, 0, len(diffs))
