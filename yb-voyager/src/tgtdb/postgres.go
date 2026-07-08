@@ -479,23 +479,68 @@ func dedupeUniqueIndexes(indexes [][]string) [][]string {
 	return result
 }
 
+// mergeUniqueIndexes merges two index lists, deduplicating by column signature.
+func mergeUniqueIndexes(existing, additional [][]string) [][]string {
+	return dedupeUniqueIndexes(append(existing, additional...))
+}
+
+// catalogNamesToSchemaAndTableLists splits a list of "schema.table" catalog names
+// into de-duplicated, parallel-usable schema and table lists suitable for the
+// pgQueryTmplForUniqIndexes filter (which filters schema and table independently).
+func catalogNamesToSchemaAndTableLists(catalogNames []string) (schemaList, tableList []string) {
+	for _, catalogName := range catalogNames {
+		parts := strings.SplitN(catalogName, ".", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		schemaList = append(schemaList, parts[0])
+		tableList = append(tableList, parts[1])
+	}
+	return lo.Uniq(schemaList), lo.Uniq(tableList)
+}
+
 // queryPGUniqueIndexesMap runs the PG/YB unique-index discovery query for the given
 // tables using the provided query function and returns a map from table to its list
 // of unique indexes (each represented as an ordered column list).
 func queryPGUniqueIndexesMap(queryFn func(query string) (*sql.Rows, error), tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
-	tableStrToNameTupleMap := make(map[string]sqlname.NameTuple)
+	catalogToTuple := make(map[string]sqlname.NameTuple)
 	var querySchemaList, queryTableList []string
 	for _, table := range tableList {
 		sname, tname := table.ForCatalogQuery()
 		querySchemaList = append(querySchemaList, sname)
 		queryTableList = append(queryTableList, tname)
-		tableStrToNameTupleMap[table.AsQualifiedCatalogName()] = table
+		catalogToTuple[table.AsQualifiedCatalogName()] = table
 	}
 	querySchemaList = lo.Uniq(querySchemaList)
 
+	catalogToIndexes, err := queryPGUniqueIndexesByCatalog(queryFn, querySchemaList, queryTableList)
+	if err != nil {
+		return nil, err
+	}
+
+	result := utils.NewStructMap[sqlname.NameTuple, [][]string]()
+	for catalogName, indexes := range catalogToIndexes {
+		tuple, ok := catalogToTuple[catalogName]
+		if !ok {
+			// possible cross-schema over-match from the query filter; skip it.
+			continue
+		}
+		result.Put(tuple, indexes)
+	}
+	return result, nil
+}
+
+// queryPGUniqueIndexesByCatalog runs the PG/YB unique-index discovery query for the
+// given schema/table filter lists and returns a map keyed by "schema.table" catalog
+// name to its list of unique indexes (each an ordered, de-duplicated column list).
+func queryPGUniqueIndexesByCatalog(queryFn func(query string) (*sql.Rows, error), schemaList, tableList []string) (map[string][][]string, error) {
+	if len(schemaList) == 0 || len(tableList) == 0 {
+		return map[string][][]string{}, nil
+	}
+
 	query := fmt.Sprintf(pgQueryTmplForUniqIndexes,
-		strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","),
-		strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","))
+		strings.Join(schemaList, ","), strings.Join(tableList, ","),
+		strings.Join(schemaList, ","), strings.Join(tableList, ","))
 	rows, err := queryFn(query)
 	if err != nil {
 		return nil, fmt.Errorf("querying unique indexes: %w", err)
@@ -507,12 +552,7 @@ func queryPGUniqueIndexesMap(queryFn func(query string) (*sql.Rows, error), tabl
 		}
 	}()
 
-	return buildUniqueIndexesMapFromPGRows(rows, tableStrToNameTupleMap)
-}
-
-func buildUniqueIndexesMapFromPGRows(rows *sql.Rows, tableStrToNameTupleMap map[string]sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
-	result := utils.NewStructMap[sqlname.NameTuple, [][]string]()
-
+	result := make(map[string][][]string)
 	for rows.Next() {
 		var schemaName, tableName, indexKey string
 		var columnsPgTypeArray pgtype.TextArray
@@ -524,27 +564,16 @@ func buildUniqueIndexesMapFromPGRows(rows *sql.Rows, tableStrToNameTupleMap map[
 		if len(columns) == 0 {
 			continue
 		}
-
-		tableCatalogName := fmt.Sprintf("%s.%s", schemaName, tableName)
-		tableNameTuple, ok := tableStrToNameTupleMap[tableCatalogName]
-		if !ok {
-			return nil, goerrors.Errorf("table %s not found in table list", tableCatalogName)
-		}
-
-		indexes, _ := result.Get(tableNameTuple)
-		indexes = append(indexes, columns)
-		result.Put(tableNameTuple, indexes)
+		catalogName := fmt.Sprintf("%s.%s", schemaName, tableName)
+		result[catalogName] = append(result[catalogName], columns)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterating rows for unique indexes: %w", err)
 	}
 
-	result.IterKV(func(k sqlname.NameTuple, v [][]string) (bool, error) {
-		v = dedupeUniqueIndexes(v)
-		result.Put(k, v)
-		return true, nil
-	})
-
+	for catalogName, indexes := range result {
+		result[catalogName] = dedupeUniqueIndexes(indexes)
+	}
 	return result, nil
 }
 

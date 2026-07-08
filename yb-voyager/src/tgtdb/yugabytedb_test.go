@@ -327,6 +327,19 @@ func TestYugabyteGetTableToUniqueIndexesMap(t *testing.T) {
 			id INT PRIMARY KEY,
 			name TEXT
 		);`,
+		// partitioned table whose unique indexes are defined on the leaf partitions.
+		// The merged result should be attributed to the root table.
+		`CREATE TABLE test_schema.part_table (
+			id INT,
+			region TEXT,
+			id1 INT,
+			id2 INT,
+			PRIMARY KEY (id, region)
+		) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema.part_table_r1 PARTITION OF test_schema.part_table FOR VALUES IN ('r1');`,
+		`CREATE TABLE test_schema.part_table_r2 PARTITION OF test_schema.part_table FOR VALUES IN ('r2');`,
+		`CREATE UNIQUE INDEX idx_part_table_r1_id1_id2 ON test_schema.part_table_r1 (id1, id2);`,
+		`CREATE UNIQUE INDEX idx_part_table_r2_id1_id2 ON test_schema.part_table_r2 (id1, id2);`,
 	)
 	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
@@ -335,6 +348,7 @@ func TestYugabyteGetTableToUniqueIndexesMap(t *testing.T) {
 		testutils.CreateNameTupleWithTargetName("test_schema.another_unique_table", "public", YUGABYTEDB),
 		testutils.CreateNameTupleWithTargetName("test_schema.composite_unique_table", "public", YUGABYTEDB),
 		testutils.CreateNameTupleWithTargetName("test_schema.pk_only_table", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.part_table", "public", YUGABYTEDB),
 	}
 
 	actualIndexes, err := testYugabyteDBTarget.GetTableToUniqueIndexesMap(tablesList)
@@ -353,6 +367,11 @@ func TestYugabyteGetTableToUniqueIndexesMap(t *testing.T) {
 	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.composite_unique_table", "public", YUGABYTEDB), [][]string{
 		{"first_name", "last_name"},
 		{"phone"},
+	})
+	// The two leaf partitions each define the same (id1, id2) unique index; the merged,
+	// de-duplicated result is attributed to the root partitioned table.
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.part_table", "public", YUGABYTEDB), [][]string{
+		{"id1", "id2"},
 	})
 
 	assert.Equal(t, len(expectedIndexesByTable.Keys()), len(actualIndexes.Keys()), "Expected number of tables to match")

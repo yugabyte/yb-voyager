@@ -635,10 +635,48 @@ func (yb *TargetYugabyteDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]str
 
 func (yb *TargetYugabyteDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
 	log.Infof("getting unique indexes from target for tables: %v", tableList)
-	result, err := queryPGUniqueIndexesMap(yb.Query, tableList)
+
+	// Unique indexes on a partitioned table are often defined on its leaf partitions
+	// rather than the root (e.g. CREATE UNIQUE INDEX ... ON <leaf> (...)). Since import
+	// events only reference the root table, we discover the unique indexes of every leaf
+	// partition (and the root/normal tables themselves) and merge them into the root.
+	//
+	// getPartitionTableToRootTableMap returns, for every table whose root is in tableList,
+	// a mapping of its catalog name ("schema.table") to its root's catalog name. This
+	// includes each leaf partition -> root, and each root/normal table -> itself.
+	tableToRootMap, err := yb.getPartitionTableToRootTableMap(tableList)
+	if err != nil {
+		return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
+	}
+
+	// Fetch unique indexes for all leaves + roots and key them by catalog name.
+	querySchemaList, queryTableList := catalogNamesToSchemaAndTableLists(lo.Keys(tableToRootMap))
+	catalogToIndexes, err := queryPGUniqueIndexesByCatalog(yb.Query, querySchemaList, queryTableList)
 	if err != nil {
 		return nil, err
 	}
+
+	rootCatalogToTuple := make(map[string]sqlname.NameTuple)
+	for _, t := range tableList {
+		rootCatalogToTuple[t.AsQualifiedCatalogName()] = t
+	}
+
+	result := utils.NewStructMap[sqlname.NameTuple, [][]string]()
+	for catalogName, indexes := range catalogToIndexes {
+		rootCatalogName, ok := tableToRootMap[catalogName]
+		if !ok {
+			// table not under any of the requested roots (possible cross-schema
+			// over-match from the query filter); skip it.
+			continue
+		}
+		rootTuple, ok := rootCatalogToTuple[rootCatalogName]
+		if !ok {
+			return nil, goerrors.Errorf("root table %s not found in requested table list", rootCatalogName)
+		}
+		existing, _ := result.Get(rootTuple)
+		result.Put(rootTuple, mergeUniqueIndexes(existing, indexes))
+	}
+
 	log.Infof("unique indexes from target for tables: %v", result)
 	return result, nil
 }
