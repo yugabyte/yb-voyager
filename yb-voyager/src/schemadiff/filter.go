@@ -71,10 +71,10 @@ func FilterByScope(diffs []Difference, scope Scope) []Difference {
 	tableRenameAliases := buildTableRenameAliases(diffs)
 
 	// Pre-build lookup sets for the four lists to avoid O(n²) inner scans.
-	includeTypes := makeObjectTypeSet(scope.ObjectTypes)
-	excludeTypes := makeObjectTypeSet(scope.ExcludeObjectTypes)
-	includeTables := makeObjectRefSet(scope.Tables)
-	excludeTables := makeObjectRefSet(scope.ExcludeTables)
+	includeTypes := toSet(scope.ObjectTypes)
+	excludeTypes := toSet(scope.ExcludeObjectTypes)
+	includeTables := toSet(scope.Tables)
+	excludeTables := toSet(scope.ExcludeTables)
 
 	out := make([]Difference, 0, len(diffs))
 	for _, d := range diffs {
@@ -226,27 +226,16 @@ func passesTableExcludeFilter(d Difference, excludeTables map[schemasnapshot.Obj
 	return true
 }
 
-// makeObjectTypeSet converts a []ObjectType into a map keyed by ObjectType for O(1) lookup.
-func makeObjectTypeSet(types []ObjectType) map[ObjectType]struct{} {
-	if len(types) == 0 {
+// toSet builds a lookup set from a slice for O(1) membership tests; returns nil
+// for an empty/nil input. For ObjectRef, membership is exact case-sensitive
+// struct equality.
+func toSet[T comparable](items []T) map[T]struct{} {
+	if len(items) == 0 {
 		return nil
 	}
-	m := make(map[ObjectType]struct{}, len(types))
-	for _, t := range types {
-		m[t] = struct{}{}
-	}
-	return m
-}
-
-// makeObjectRefSet converts a []schemasnapshot.ObjectRef into a map for O(1)
-// exact, case-sensitive struct-equality lookup.
-func makeObjectRefSet(refs []schemasnapshot.ObjectRef) map[schemasnapshot.ObjectRef]struct{} {
-	if len(refs) == 0 {
-		return nil
-	}
-	m := make(map[schemasnapshot.ObjectRef]struct{}, len(refs))
-	for _, r := range refs {
-		m[r] = struct{}{}
+	m := make(map[T]struct{}, len(items))
+	for _, x := range items {
+		m[x] = struct{}{}
 	}
 	return m
 }
