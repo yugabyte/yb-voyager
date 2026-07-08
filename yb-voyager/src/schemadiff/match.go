@@ -29,24 +29,24 @@ func matchByKey[T any](
 	onDropped func(a T) []Difference,
 	onAdded func(b T) []Difference,
 ) []Difference {
-	byA := make(map[string]T, len(as))
+	byKeyA := make(map[string]T, len(as))
 	for _, a := range as {
-		byA[keyA(a)] = a
+		byKeyA[keyA(a)] = a
 	}
-	byB := make(map[string]T, len(bs))
+	byKeyB := make(map[string]T, len(bs))
 	for _, b := range bs {
-		byB[keyB(b)] = b
+		byKeyB[keyB(b)] = b
 	}
 	var diffs []Difference
-	for k, a := range byA {
-		if b, ok := byB[k]; ok {
+	for k, a := range byKeyA {
+		if b, ok := byKeyB[k]; ok {
 			diffs = append(diffs, onMatch(a, b)...)
 		} else {
 			diffs = append(diffs, onDropped(a)...)
 		}
 	}
-	for k, b := range byB {
-		if _, ok := byA[k]; !ok {
+	for k, b := range byKeyB {
+		if _, ok := byKeyA[k]; !ok {
 			diffs = append(diffs, onAdded(b)...)
 		}
 	}
