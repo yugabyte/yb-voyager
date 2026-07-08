@@ -130,6 +130,11 @@ func NewObjectReader(object string) (io.ReadCloser, error) {
 	return r, nil
 }
 
+// NewObjectReaderAt returns a reader positioned at the given byte offset of the
+// object, used for byte-offset seek resumption. It is currently not wired up:
+// GCSDataStore.OpenAt is disabled and returns ErrOpenAtNotImplemented. This helper
+// is kept intentionally so byte-offset seek resumption can be re-enabled for GCS
+// by uncommenting GCSDataStore.OpenAt.
 func NewObjectReaderAt(object string, offset int64) (io.ReadCloser, error) {
 	createClientIfNotExists()
 	bucketName, keyName, err := splitObjectPath(object)
