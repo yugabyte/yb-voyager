@@ -536,36 +536,6 @@ func catalogNamesToSchemaAndTableLists(catalogNames []string) (schemaList, table
 	return lo.Uniq(schemaList), lo.Uniq(tableList)
 }
 
-// queryPGUniqueIndexesMap runs the PG/YB unique-index discovery query for the given
-// tables using the provided query function and returns a map from table to its list
-// of unique indexes (each represented as an ordered column list).
-func queryPGUniqueIndexesMap(queryFn func(query string) (*sql.Rows, error), tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
-	catalogToTuple := make(map[string]sqlname.NameTuple)
-	var querySchemaList, queryTableList []string
-	for _, table := range tableList {
-		sname, tname := table.ForCatalogQuery()
-		querySchemaList = append(querySchemaList, sname)
-		queryTableList = append(queryTableList, tname)
-		catalogToTuple[table.AsQualifiedCatalogName()] = table
-	}
-	querySchemaList = lo.Uniq(querySchemaList)
-
-	catalogToIndexes, err := queryPGUniqueIndexesByCatalog(queryFn, querySchemaList, queryTableList)
-	if err != nil {
-		return nil, err
-	}
-
-	result := utils.NewStructMap[sqlname.NameTuple, [][]string]()
-	for catalogName, indexes := range catalogToIndexes {
-		tuple, ok := catalogToTuple[catalogName]
-		if !ok {
-			// possible cross-schema over-match from the query filter; skip it.
-			continue
-		}
-		result.Put(tuple, indexes)
-	}
-	return result, nil
-}
 
 // queryPGUniqueIndexesByCatalog runs the PG/YB unique-index discovery query for the
 // given schema/table filter lists and returns a map keyed by "schema.table" catalog

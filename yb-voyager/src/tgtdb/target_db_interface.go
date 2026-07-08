@@ -46,9 +46,13 @@ type TargetDB interface {
 	GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error)
 	GetPrimaryKeyConstraintNames(tableNameTup sqlname.NameTuple) ([]string, error)
 	// GetTableToUniqueIndexesMap returns, for each table, the list of unique
-	// indexes/constraints (each an ordered column list). Used by live-migration
-	// conflict detection to fetch unique-key metadata directly from the import
-	// target. Not supported for Oracle targets (those use the metaDB path).
+	// indexes/constraints (each an ordered column list), fetched live from the
+	// import target which is the DB that actually enforces the constraints. It is
+	// used by live-migration conflict detection. For partitioned tables the unique
+	// indexes defined on leaf partitions are merged into their root table (import
+	// events only reference the root). Oracle targets return an empty map: Oracle
+	// sources always use PARTITION_BY_TABLE during live migration, so conflict
+	// detection never runs for them.
 	GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error)
 	ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error
 	GetListOfTableAttributes(tableNameTup sqlname.NameTuple) ([]string, error)
