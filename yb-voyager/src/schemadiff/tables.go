@@ -29,30 +29,30 @@ func diffTables(a, b *schemasnapshot.SnapshotContent) []Difference {
 	colsByTableB := columnsByTable(b.Columns, b.DatabaseType)
 
 	keyA, keyB := chooseMatchKeys(a.DatabaseType, b.DatabaseType, a.Tables, b.Tables,
-		tableID, schemasnapshot.Table.ForKey)
+		idOfTable, schemasnapshot.Table.ForKey)
 
 	return matchByKey(a.Tables, b.Tables, keyA, keyB,
 		compareMatchedTables,
-		tableDropped(colsByTableA, a.DatabaseType),
-		tableAdded(colsByTableB, b.DatabaseType))
+		emitTableDropped(colsByTableA, a.DatabaseType),
+		emitTableAdded(colsByTableB, b.DatabaseType))
 }
 
-// tableID extracts a table's stable ID (OID) for ID-based matching.
-func tableID(t schemasnapshot.Table) string { return t.ID }
+// idOfTable extracts a table's stable ID (OID) for ID-based matching.
+func idOfTable(t schemasnapshot.Table) string { return t.ID }
 
-// tableDropped returns the matchByKey onDropped callback for tables: it emits a
+// emitTableDropped returns the matchByKey onDropped callback for tables: it emits a
 // TABLE_DROPPED finding carrying the dropped table's columns (looked up from
 // colsByTable, keyed by ForKey(dbType)).
-func tableDropped(colsByTable map[string][]schemasnapshot.Column, dbType string) func(schemasnapshot.Table) []Difference {
+func emitTableDropped(colsByTable map[string][]schemasnapshot.Column, dbType string) func(schemasnapshot.Table) []Difference {
 	return func(t schemasnapshot.Table) []Difference {
 		return []Difference{newDifference(TableDropped, t.ObjectRef, &t.ObjectRef, "", cloneColumns(colsByTable[t.ForKey(dbType)]), nil)}
 	}
 }
 
-// tableAdded returns the matchByKey onAdded callback for tables: it emits a
+// emitTableAdded returns the matchByKey onAdded callback for tables: it emits a
 // TABLE_ADDED finding carrying the added table's columns (looked up from
 // colsByTable, keyed by ForKey(dbType)).
-func tableAdded(colsByTable map[string][]schemasnapshot.Column, dbType string) func(schemasnapshot.Table) []Difference {
+func emitTableAdded(colsByTable map[string][]schemasnapshot.Column, dbType string) func(schemasnapshot.Table) []Difference {
 	return func(t schemasnapshot.Table) []Difference {
 		return []Difference{newDifference(TableAdded, t.ObjectRef, &t.ObjectRef, "", nil, cloneColumns(colsByTable[t.ForKey(dbType)]))}
 	}
