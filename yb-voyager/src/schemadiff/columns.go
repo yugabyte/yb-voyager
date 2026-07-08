@@ -17,8 +17,9 @@ package schemadiff
 import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 
 // diffColumns computes column-level differences between snapshots a and b using a
-// hybrid two-pass match keyed on Column.ForKey(dbType), the collision-safe,
-// case-sensitive, per-part-quoted composite key "schema"."table"."col":
+// hybrid two-pass match keyed on Column.ForKey(dbType), the case-sensitive,
+// unquoted dot-joined composite key schema.table.col (see its doc for the
+// dot-collision limitation):
 //
 //  1. ID pass — columns with a usable stable ID are matched by ID. Enabled only
 //     when a.DatabaseType == b.DatabaseType, since IDs are comparable only
@@ -26,8 +27,8 @@ import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 //     surface as COLUMN_NAME_CHANGED instead of an add+drop pair; different
 //     engine ⇒ fall back to name matching.
 //  2. Name pass — columns left unmatched by the ID pass (no usable ID, or an ID
-//     present on only one side) are reconciled by the composite key
-//     Column.ForKey(dbType).
+//     present on only one side) are reconciled by the unquoted dot-joined
+//     composite key Column.ForKey(dbType).
 //
 // Falling through to the name pass instead of declaring ID-unmatched columns
 // dropped/added immediately avoids a spurious drop+add when an ID is missing on
@@ -82,18 +83,18 @@ func diffColumns(a, b *schemasnapshot.SnapshotContent) []Difference {
 }
 
 // diffColumnsByName reconciles the columns left unmatched by the ID pass, keyed
-// on the collision-safe composite key Column.ForKey(dbType) (unique within a
-// snapshot). A same-named pair is treated as the same column only when
-// nameMatchAllowed permits it; otherwise the A-side is dropped and the B-side
-// added.
+// on the case-sensitive composite key Column.ForKey(dbType) (unique within a
+// snapshot in practice; see ForKey's doc for the dot-collision limitation). A
+// same-named pair is treated as the same column only when nameMatchAllowed
+// permits it; otherwise the A-side is dropped and the B-side added.
 func diffColumnsByName(residueA, residueB []schemasnapshot.Column, matchByID bool, dbTypeA, dbTypeB string) []Difference {
 	var diffs []Difference
 
 	// identity seam — the single point where a column's name-match key is
-	// derived. Today: ForKey (case-sensitive, collision-safe, per-part-quoted
-	// composite key). When cross-engine diffing lands, this becomes a
-	// NameRegistry handle — change only here; the match loop stays generic
-	// over the key string.
+	// derived. Today: ForKey (case-sensitive, unquoted dot-joined composite key;
+	// see its doc for the dot-collision limitation). When cross-engine diffing
+	// lands, this becomes a NameRegistry handle — change only here; the match
+	// loop stays generic over the key string.
 	keyA := func(c schemasnapshot.Column) string { return c.ForKey(dbTypeA) }
 	keyB := func(c schemasnapshot.Column) string { return c.ForKey(dbTypeB) }
 

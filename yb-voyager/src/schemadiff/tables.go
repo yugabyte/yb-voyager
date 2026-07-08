@@ -26,8 +26,8 @@ import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 //     engine ⇒ fall back to name matching.
 //  2. Name pass — tables left unmatched by the ID pass (no usable ID, or an ID
 //     present on only one side) are reconciled by ObjectRef.ForKey(dbType), the
-//     collision-safe, case-sensitive, per-part-quoted canonical key (see
-//     diffTablesByName).
+//     case-sensitive, unquoted dot-joined canonical key (see diffTablesByName,
+//     and ForKey's own doc for its dot-collision limitation).
 //
 // Falling through to the name pass instead of declaring ID-unmatched tables
 // dropped/added immediately avoids a spurious drop+add when an ID is missing on
@@ -97,10 +97,11 @@ func diffTables(a, b *schemasnapshot.SnapshotContent) []Difference {
 }
 
 // diffTablesByName reconciles the tables left unmatched by the ID pass, keyed on
-// the collision-safe, case-sensitive, per-part-quoted canonical key returned by
-// ObjectRef.ForKey(dbType) (unique within a snapshot). A same-named pair is
-// treated as the same table only when nameMatchAllowed permits it; otherwise
-// the A-side is dropped and the B-side added.
+// the case-sensitive, unquoted dot-joined canonical key returned by
+// ObjectRef.ForKey(dbType) (unique within a snapshot in practice; see ForKey's
+// doc for its dot-collision limitation). A same-named pair is treated as the
+// same table only when nameMatchAllowed permits it; otherwise the A-side is
+// dropped and the B-side added.
 //
 // colsByTableA and colsByTableB map a table's ForKey(dbType) to its columns (in
 // original snapshot order) and are used to attach the added/dropped table's
@@ -109,9 +110,10 @@ func diffTablesByName(residueA, residueB []schemasnapshot.Table, matchByID bool,
 	var diffs []Difference
 
 	// identity seam — the single point where a table's name-match key is derived.
-	// Today: ForKey (case-sensitive, collision-safe, per-part-quoted). When
-	// cross-engine diffing lands, this becomes a NameRegistry handle — change only
-	// here; the match loop stays generic over the key string.
+	// Today: ForKey (case-sensitive, unquoted dot-joined; see its doc for the
+	// dot-collision limitation). When cross-engine diffing lands, this becomes a
+	// NameRegistry handle — change only here; the match loop stays generic over
+	// the key string.
 	keyA := func(t schemasnapshot.Table) string { return t.ForKey(dbTypeA) }
 	keyB := func(t schemasnapshot.Table) string { return t.ForKey(dbTypeB) }
 
