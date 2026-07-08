@@ -699,13 +699,20 @@ func updateImportedEventsCountsInTheRow(row *RowData, tableNameTup sqlname.NameT
 		}
 	}
 
-	if importerRole != SOURCE_DB_IMPORTER_ROLE && msr.ExportTypeFromSource == SNAPSHOT_AND_CHANGES {
+	if importerRole != SOURCE_DB_IMPORTER_ROLE && msr.ExportTypeFromSource == SNAPSHOT_AND_CHANGES && snapshotImportedRowsMap != nil {
 		rowCountPair, _ := snapshotImportedRowsMap.Get(tableNameTup)
 		row.ImportedSnapshotRows = rowCountPair.Imported
 		row.ErroredImportedSnapshotRows = rowCountPair.Errored
 	}
 
-	eventCounter, _ := eventsImportedMap.Get(tableNameTup)
+	if eventsImportedMap == nil {
+		// Import has not produced any events yet; leave counts at zero.
+		return nil
+	}
+	eventCounter, ok := eventsImportedMap.Get(tableNameTup)
+	if !ok || eventCounter == nil {
+		return nil
+	}
 	row.ImportedInserts = eventCounter.NumInserts
 	row.ImportedUpdates = eventCounter.NumUpdates
 	row.ImportedDeletes = eventCounter.NumDeletes

@@ -423,6 +423,28 @@ func IsPgErrorCodeNonRetryable(err error) bool {
 	return false
 }
 
+// IsUndefinedTableError reports whether err is a PostgreSQL/YugabyteDB
+// "relation does not exist" error (SQLSTATE 42P01). This is the expected state
+// when get-data-migration-report reads the ybvoyager_metadata event-count
+// tables before import-data has created them on the target.
+func IsUndefinedTableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	const undefinedTable = "42P01"
+	// The YB/PG targets use the pgx v5 stdlib driver, so errors surface as pgconn5.
+	var pgErr5 *pgconn5.PgError
+	if errors.As(err, &pgErr5) {
+		return pgErr5.Code == undefinedTable
+	}
+	// Fallback for any pgx v4 code paths.
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == undefinedTable
+	}
+	return false
+}
+
 func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 	if err == nil {
 		return false
