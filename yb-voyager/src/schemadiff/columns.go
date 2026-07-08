@@ -24,18 +24,25 @@ import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 // and unmatched side-B columns COLUMN_ADDED.
 func diffColumns(a, b *schemasnapshot.SnapshotContent) []Difference {
 	keyA, keyB := chooseMatchKeys(a.DatabaseType, b.DatabaseType, a.Columns, b.Columns,
-		func(c schemasnapshot.Column) string { return c.ID },
-		schemasnapshot.Column.ForKey)
+		columnID, schemasnapshot.Column.ForKey)
 
 	return matchByKey(a.Columns, b.Columns, keyA, keyB,
-		compareMatchedColumns,
-		func(c schemasnapshot.Column) []Difference {
-			return []Difference{newDifference(ColumnDropped, c.Table, &c.Table, c.Name, c, nil)}
-		},
-		func(c schemasnapshot.Column) []Difference {
-			return []Difference{newDifference(ColumnAdded, c.Table, &c.Table, c.Name, nil, c)}
-		},
-	)
+		compareMatchedColumns, columnDropped, columnAdded)
+}
+
+// columnID extracts a column's stable ID ("{tableOID}:{attnum}") for ID-based matching.
+func columnID(c schemasnapshot.Column) string { return c.ID }
+
+// columnDropped is the matchByKey onDropped callback for columns: it emits a
+// COLUMN_DROPPED finding carrying the dropped column, anchored to its parent table.
+func columnDropped(c schemasnapshot.Column) []Difference {
+	return []Difference{newDifference(ColumnDropped, c.Table, &c.Table, c.Name, c, nil)}
+}
+
+// columnAdded is the matchByKey onAdded callback for columns: it emits a
+// COLUMN_ADDED finding carrying the added column, anchored to its parent table.
+func columnAdded(c schemasnapshot.Column) []Difference {
+	return []Difference{newDifference(ColumnAdded, c.Table, &c.Table, c.Name, nil, c)}
 }
 
 // compareMatchedColumns emits all field-level differences for a pair of columns

@@ -29,18 +29,33 @@ func diffTables(a, b *schemasnapshot.SnapshotContent) []Difference {
 	colsByTableB := columnsByTable(b.Columns, b.DatabaseType)
 
 	keyA, keyB := chooseMatchKeys(a.DatabaseType, b.DatabaseType, a.Tables, b.Tables,
-		func(t schemasnapshot.Table) string { return t.ID },
-		schemasnapshot.Table.ForKey)
+		tableID, schemasnapshot.Table.ForKey)
 
 	return matchByKey(a.Tables, b.Tables, keyA, keyB,
 		compareMatchedTables,
-		func(t schemasnapshot.Table) []Difference {
-			return []Difference{newDifference(TableDropped, t.ObjectRef, &t.ObjectRef, "", cloneColumns(colsByTableA[t.ForKey(a.DatabaseType)]), nil)}
-		},
-		func(t schemasnapshot.Table) []Difference {
-			return []Difference{newDifference(TableAdded, t.ObjectRef, &t.ObjectRef, "", nil, cloneColumns(colsByTableB[t.ForKey(b.DatabaseType)]))}
-		},
-	)
+		tableDropped(colsByTableA, a.DatabaseType),
+		tableAdded(colsByTableB, b.DatabaseType))
+}
+
+// tableID extracts a table's stable ID (OID) for ID-based matching.
+func tableID(t schemasnapshot.Table) string { return t.ID }
+
+// tableDropped returns the matchByKey onDropped callback for tables: it emits a
+// TABLE_DROPPED finding carrying the dropped table's columns (looked up from
+// colsByTable, keyed by ForKey(dbType)).
+func tableDropped(colsByTable map[string][]schemasnapshot.Column, dbType string) func(schemasnapshot.Table) []Difference {
+	return func(t schemasnapshot.Table) []Difference {
+		return []Difference{newDifference(TableDropped, t.ObjectRef, &t.ObjectRef, "", cloneColumns(colsByTable[t.ForKey(dbType)]), nil)}
+	}
+}
+
+// tableAdded returns the matchByKey onAdded callback for tables: it emits a
+// TABLE_ADDED finding carrying the added table's columns (looked up from
+// colsByTable, keyed by ForKey(dbType)).
+func tableAdded(colsByTable map[string][]schemasnapshot.Column, dbType string) func(schemasnapshot.Table) []Difference {
+	return func(t schemasnapshot.Table) []Difference {
+		return []Difference{newDifference(TableAdded, t.ObjectRef, &t.ObjectRef, "", nil, cloneColumns(colsByTable[t.ForKey(dbType)]))}
+	}
 }
 
 // columnsByTable groups columns by their parent table's canonical key, preserving
