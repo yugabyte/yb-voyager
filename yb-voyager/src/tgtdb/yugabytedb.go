@@ -644,7 +644,7 @@ func (yb *TargetYugabyteDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameT
 	// getPartitionTableToRootTableMap returns, for every table whose root is in tableList,
 	// a mapping of its catalog name ("schema.table") to its root's catalog name. This
 	// includes each leaf partition -> root, and each root/normal table -> itself.
-	tableToRootMap, err := yb.getPartitionTableToRootTableMap(tableList)
+	tableToRootMap, err := getPartitionTableToRootTableMap(yb.Query, tableList)
 	if err != nil {
 		return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
 	}
@@ -2421,7 +2421,7 @@ func (yb *TargetYugabyteDB) NumOfLogicalReplicationSlots() (int64, error) {
 func (yb *TargetYugabyteDB) GetTablesHavingExpressionUniqueIndexes(tableNames []sqlname.NameTuple, returnPartitionRootTable bool) ([]sqlname.NameTuple, error) {
 	log.Infof("getting leaf table to root table map")
 	//returns a map of catalog leaf table name to catalog root table name
-	leafTableToRootTableMap, err := yb.getPartitionTableToRootTableMap(tableNames)
+	leafTableToRootTableMap, err := getPartitionTableToRootTableMap(yb.Query, tableNames)
 	if err != nil {
 		return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
 	}
@@ -2504,7 +2504,7 @@ SELECT
 // for leaf table, returns leaf table name -> root table name
 // for any non-leaf partitioned table, returns non-leaf partitioned table -> root table
 // for any non-partitioned/normal table, returns normal table -> normal table
-func (yb *TargetYugabyteDB) getPartitionTableToRootTableMap(tableNames []sqlname.NameTuple) (map[string]string, error) {
+func getPartitionTableToRootTableMap(queryFn func(query string) (*sql.Rows, error), tableNames []sqlname.NameTuple) (map[string]string, error) {
 	tableNamesStr := strings.Join(lo.Map(tableNames, func(t sqlname.NameTuple, _ int) string {
 		schema, table := t.ForCatalogQuery()
 		return fmt.Sprintf("('%s','%s')", schema, table)
@@ -2560,7 +2560,7 @@ func (yb *TargetYugabyteDB) getPartitionTableToRootTableMap(tableNames []sqlname
 `, tableNamesStr)
 
 	log.Debugf("query: %s", query)
-	rows, err := yb.Query(query)
+	rows, err := queryFn(query)
 	if err != nil {
 		return nil, fmt.Errorf("error querying for leaf table to root table map: %w", err)
 	}
