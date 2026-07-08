@@ -27,6 +27,7 @@ import (
 	"regexp"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -99,14 +100,17 @@ func TestConnectorLatestStable(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+tok)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
 	require.NoErrorf(t, err, "could not access URL %q", url)
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
 		t.Skipf("skipping; GitHub API rate limit exceeded (status %d)", resp.StatusCode)
 	}
-	assert.Equal(t, 200, resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected status code from %q: %d", url, resp.StatusCode)
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	assert.NoError(t, err, "could not read response body")
