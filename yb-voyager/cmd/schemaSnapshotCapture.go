@@ -44,8 +44,8 @@ const schemaSnapshotExitCaptureTimeout = 2 * time.Minute
 // captureSourceSchemaSnapshot captures the source schema and persists it as a
 // snapshot for the given label/reason. It is BEST-EFFORT and off the data path:
 // it never returns an error and never blocks the migration — every failure is
-// logged and swallowed (FS: capture must never interrupt export). Honors
-// --suppress-schema-snapshot-capture. PostgreSQL only (no-op with a log for
+// logged and swallowed.
+// Honors --suppress-schema-snapshot-capture. PostgreSQL only (no-op with a log for
 // other engines). Callers are responsible for exporter-role gating.
 func captureSourceSchemaSnapshot(ctx context.Context, label, reason string, placeholderOnFailure bool) {
 	if source.DBType != POSTGRESQL {
@@ -157,8 +157,7 @@ func latestStoredSnapshotContent() (*schemasnapshot.SnapshotContent, error) {
 // startPeriodicSourceSchemaSnapshotCapture launches a background ticker that
 // captures a source schema snapshot every --schema-snapshot-capture-interval
 // minutes for the full duration of the export — both the snapshot and streaming
-// phases — so schema drift is tracked throughout the migration, not just during
-// the initial snapshot. It returns a stop function to be invoked via defer.
+// phases. It returns a stop function to be invoked via defer.
 // Best-effort and off the data path: a no-op when suppressed, when the interval is
 // <= 0, or when this is not the source exporter; periodic capture failures are
 // logged and never affect export.
