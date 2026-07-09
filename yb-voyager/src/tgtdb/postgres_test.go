@@ -215,6 +215,14 @@ func TestPostgresTargetGetTableToUniqueIndexesMap(t *testing.T) {
 			phone VARCHAR(20) UNIQUE,
 			CONSTRAINT unique_name UNIQUE (first_name, last_name)
 		);`,
+		// table with a NULLS NOT DISTINCT unique index (PG 15+) alongside a default one
+		`CREATE TABLE test_schema.nulls_not_distinct_table (
+			id SERIAL PRIMARY KEY,
+			token VARCHAR(100),
+			code VARCHAR(100)
+		);`,
+		`CREATE UNIQUE INDEX idx_token_nnd ON test_schema.nulls_not_distinct_table(token) NULLS NOT DISTINCT;`,
+		`CREATE UNIQUE INDEX idx_code_default ON test_schema.nulls_not_distinct_table(code);`,
 		// table with only a primary key and no unique index/constraint -> should not appear in the map
 		`CREATE TABLE test_schema.pk_only_table (
 			id INT PRIMARY KEY,
@@ -227,30 +235,35 @@ func TestPostgresTargetGetTableToUniqueIndexesMap(t *testing.T) {
 		testutils.CreateNameTupleWithTargetName("test_schema.unique_table", "public", POSTGRESQL),
 		testutils.CreateNameTupleWithTargetName("test_schema.another_unique_table", "public", POSTGRESQL),
 		testutils.CreateNameTupleWithTargetName("test_schema.composite_unique_table", "public", POSTGRESQL),
+		testutils.CreateNameTupleWithTargetName("test_schema.nulls_not_distinct_table", "public", POSTGRESQL),
 		testutils.CreateNameTupleWithTargetName("test_schema.pk_only_table", "public", POSTGRESQL),
 	}
 
 	actualIndexes, err := testPostgresTarget.GetTableToUniqueIndexesMap(tablesList)
 	require.NoError(t, err)
 
-	expectedIndexesByTable := utils.NewStructMap[sqlname.NameTuple, [][]string]()
-	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.unique_table", "public", POSTGRESQL), [][]string{
-		{"email"},
-		{"phone"},
-		{"address"},
+	expectedIndexesByTable := utils.NewStructMap[sqlname.NameTuple, []UniqueIndex]()
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.unique_table", "public", POSTGRESQL), []UniqueIndex{
+		{Columns: []string{"email"}},
+		{Columns: []string{"phone"}},
+		{Columns: []string{"address"}},
 	})
-	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.another_unique_table", "public", POSTGRESQL), [][]string{
-		{"username"},
-		{"age"},
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.another_unique_table", "public", POSTGRESQL), []UniqueIndex{
+		{Columns: []string{"username"}},
+		{Columns: []string{"age"}},
 	})
-	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.composite_unique_table", "public", POSTGRESQL), [][]string{
-		{"first_name", "last_name"},
-		{"phone"},
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.composite_unique_table", "public", POSTGRESQL), []UniqueIndex{
+		{Columns: []string{"first_name", "last_name"}},
+		{Columns: []string{"phone"}},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.nulls_not_distinct_table", "public", POSTGRESQL), []UniqueIndex{
+		{Columns: []string{"token"}, NullsNotDistinct: true},
+		{Columns: []string{"code"}, NullsNotDistinct: false},
 	})
 
 	assert.Equal(t, len(expectedIndexesByTable.Keys()), len(actualIndexes.Keys()), "Expected number of tables to match")
 
-	expectedIndexesByTable.IterKV(func(table sqlname.NameTuple, expectedIndexes [][]string) (bool, error) {
+	expectedIndexesByTable.IterKV(func(table sqlname.NameTuple, expectedIndexes []UniqueIndex) (bool, error) {
 		actualIndexesForTable, exists := actualIndexes.Get(table)
 		if !exists {
 			t.Errorf("Expected table %s not found in unique indexes map", table)

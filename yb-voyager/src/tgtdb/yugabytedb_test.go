@@ -338,8 +338,18 @@ func TestYugabyteGetTableToUniqueIndexesMap(t *testing.T) {
 		) PARTITION BY LIST (region);`,
 		`CREATE TABLE test_schema.part_table_r1 PARTITION OF test_schema.part_table FOR VALUES IN ('r1');`,
 		`CREATE TABLE test_schema.part_table_r2 PARTITION OF test_schema.part_table FOR VALUES IN ('r2');`,
-		`CREATE UNIQUE INDEX idx_part_table_r1_id1_id2 ON test_schema.part_table_r1 (id1, id2);`,
+		// r1's (id1, id2) index is NULLS NOT DISTINCT, r2's is the default NULLS DISTINCT.
+		// When merged into the root, the stricter NULLS NOT DISTINCT should win.
+		`CREATE UNIQUE INDEX idx_part_table_r1_id1_id2 ON test_schema.part_table_r1 (id1, id2) NULLS NOT DISTINCT;`,
 		`CREATE UNIQUE INDEX idx_part_table_r2_id1_id2 ON test_schema.part_table_r2 (id1, id2);`,
+		// table with a NULLS NOT DISTINCT unique index (PG 15+) alongside a default one
+		`CREATE TABLE test_schema.nulls_not_distinct_table (
+			id SERIAL PRIMARY KEY,
+			token VARCHAR(100),
+			code VARCHAR(100)
+		);`,
+		`CREATE UNIQUE INDEX idx_token_nnd ON test_schema.nulls_not_distinct_table(token) NULLS NOT DISTINCT;`,
+		`CREATE UNIQUE INDEX idx_code_default ON test_schema.nulls_not_distinct_table(code);`,
 	)
 	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
@@ -349,34 +359,40 @@ func TestYugabyteGetTableToUniqueIndexesMap(t *testing.T) {
 		testutils.CreateNameTupleWithTargetName("test_schema.composite_unique_table", "public", YUGABYTEDB),
 		testutils.CreateNameTupleWithTargetName("test_schema.pk_only_table", "public", YUGABYTEDB),
 		testutils.CreateNameTupleWithTargetName("test_schema.part_table", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.nulls_not_distinct_table", "public", YUGABYTEDB),
 	}
 
 	actualIndexes, err := testYugabyteDBTarget.GetTableToUniqueIndexesMap(tablesList)
 	require.NoError(t, err)
 
-	expectedIndexesByTable := utils.NewStructMap[sqlname.NameTuple, [][]string]()
-	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.unique_table", "public", YUGABYTEDB), [][]string{
-		{"email"},
-		{"phone"},
-		{"address"},
+	expectedIndexesByTable := utils.NewStructMap[sqlname.NameTuple, []UniqueIndex]()
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.unique_table", "public", YUGABYTEDB), []UniqueIndex{
+		{Columns: []string{"email"}},
+		{Columns: []string{"phone"}},
+		{Columns: []string{"address"}},
 	})
-	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.another_unique_table", "public", YUGABYTEDB), [][]string{
-		{"username"},
-		{"age"},
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.another_unique_table", "public", YUGABYTEDB), []UniqueIndex{
+		{Columns: []string{"username"}},
+		{Columns: []string{"age"}},
 	})
-	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.composite_unique_table", "public", YUGABYTEDB), [][]string{
-		{"first_name", "last_name"},
-		{"phone"},
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.composite_unique_table", "public", YUGABYTEDB), []UniqueIndex{
+		{Columns: []string{"first_name", "last_name"}},
+		{Columns: []string{"phone"}},
 	})
 	// The two leaf partitions each define the same (id1, id2) unique index; the merged,
-	// de-duplicated result is attributed to the root partitioned table.
-	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.part_table", "public", YUGABYTEDB), [][]string{
-		{"id1", "id2"},
+	// de-duplicated result is attributed to the root partitioned table. Since r1's index
+	// is NULLS NOT DISTINCT, the merged index is NULLS NOT DISTINCT.
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.part_table", "public", YUGABYTEDB), []UniqueIndex{
+		{Columns: []string{"id1", "id2"}, NullsNotDistinct: true},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.nulls_not_distinct_table", "public", YUGABYTEDB), []UniqueIndex{
+		{Columns: []string{"token"}, NullsNotDistinct: true},
+		{Columns: []string{"code"}, NullsNotDistinct: false},
 	})
 
 	assert.Equal(t, len(expectedIndexesByTable.Keys()), len(actualIndexes.Keys()), "Expected number of tables to match")
 
-	expectedIndexesByTable.IterKV(func(table sqlname.NameTuple, expectedIndexes [][]string) (bool, error) {
+	expectedIndexesByTable.IterKV(func(table sqlname.NameTuple, expectedIndexes []UniqueIndex) (bool, error) {
 		actualIndexesForTable, exists := actualIndexes.Get(table)
 		if !exists {
 			t.Errorf("Expected table %s not found in unique indexes map", table)
@@ -389,22 +405,25 @@ func TestYugabyteGetTableToUniqueIndexesMap(t *testing.T) {
 
 // assertEqualUniqueIndexes compares two lists of unique indexes irrespective of order,
 // matching each index by its ordered column signature.
-func assertEqualUniqueIndexes(t *testing.T, expected, actual [][]string) {
+func assertEqualUniqueIndexes(t *testing.T, expected, actual []UniqueIndex) {
 	t.Helper()
 	if len(expected) != len(actual) {
 		t.Fatalf("expected %d indexes, got %d", len(expected), len(actual))
 	}
-	expectedSigs := make(map[string][]string)
-	for _, idxColumns := range expected {
-		expectedSigs[strings.Join(idxColumns, ",")] = idxColumns
+	expectedSigs := make(map[string]UniqueIndex)
+	for _, idx := range expected {
+		expectedSigs[strings.Join(idx.Columns, ",")] = idx
 	}
-	for _, idxColumns := range actual {
-		sig := strings.Join(idxColumns, ",")
-		expCols, ok := expectedSigs[sig]
+	for _, idx := range actual {
+		sig := strings.Join(idx.Columns, ",")
+		expIdx, ok := expectedSigs[sig]
 		if !ok {
-			t.Fatalf("unexpected index columns %v", idxColumns)
+			t.Fatalf("unexpected index columns %v", idx.Columns)
 		}
-		testutils.AssertEqualStringSlices(t, expCols, idxColumns)
+		testutils.AssertEqualStringSlices(t, expIdx.Columns, idx.Columns)
+		if expIdx.NullsNotDistinct != idx.NullsNotDistinct {
+			t.Fatalf("index %v: expected NullsNotDistinct=%v, got %v", idx.Columns, expIdx.NullsNotDistinct, idx.NullsNotDistinct)
+		}
 	}
 }
 

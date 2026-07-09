@@ -379,7 +379,7 @@ func (pg *TargetPostgreSQL) GetPrimaryKeyConstraintNames(table sqlname.NameTuple
 	return nil, nil
 }
 
-func (pg *TargetPostgreSQL) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
+func (pg *TargetPostgreSQL) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []UniqueIndex], error) {
 	log.Infof("getting unique indexes from target Postgres for tables: %v", tableList)
 	// Unique indexes on a partitioned table are often defined on its leaf partitions
 	// rather than the root (e.g. CREATE UNIQUE INDEX ... ON <leaf> (...)). Since import
@@ -406,7 +406,7 @@ func (pg *TargetPostgreSQL) GetTableToUniqueIndexesMap(tableList []sqlname.NameT
 		rootCatalogToTuple[t.AsQualifiedCatalogName()] = t
 	}
 
-	result := utils.NewStructMap[sqlname.NameTuple, [][]string]()
+	result := utils.NewStructMap[sqlname.NameTuple, []UniqueIndex]()
 	for catalogName, indexes := range catalogToIndexes {
 		rootCatalogName, ok := tableToRootMap[catalogName]
 		if !ok {
@@ -437,7 +437,8 @@ WITH unique_constraints AS (
         tc.table_name,
         tc.constraint_name AS index_key,
         kcu.column_name,
-        kcu.ordinal_position
+        kcu.ordinal_position,
+        false AS nulls_not_distinct
     FROM
         information_schema.table_constraints tc
     JOIN
@@ -456,7 +457,8 @@ unique_indexes AS (
         t.relname AS table_name,
         i.relname AS index_key,
         a.attname AS column_name,
-        array_position(ix.indkey, a.attnum) + 1 AS ordinal_position
+        array_position(ix.indkey, a.attnum) + 1 AS ordinal_position,
+        COALESCE((to_jsonb(ix) ->> 'indnullsnotdistinct')::boolean, false) AS nulls_not_distinct
     FROM
         pg_index ix
     JOIN
@@ -482,11 +484,12 @@ all_unique_indexes AS (
         table_name,
         index_key,
         column_name,
-        MIN(ordinal_position) AS ordinal_position
+        MIN(ordinal_position) AS ordinal_position,
+        bool_or(nulls_not_distinct) AS nulls_not_distinct
     FROM (
-        SELECT table_schema, table_name, index_key, column_name, ordinal_position FROM unique_constraints
+        SELECT table_schema, table_name, index_key, column_name, ordinal_position, nulls_not_distinct FROM unique_constraints
         UNION
-        SELECT table_schema, table_name, index_key, column_name, ordinal_position FROM unique_indexes
+        SELECT table_schema, table_name, index_key, column_name, ordinal_position, nulls_not_distinct FROM unique_indexes
     ) AS combined
     GROUP BY table_schema, table_name, index_key, column_name
 )
@@ -494,30 +497,34 @@ SELECT
     table_schema,
     table_name,
     index_key,
-    array_agg(column_name ORDER BY ordinal_position) AS columns
+    array_agg(column_name ORDER BY ordinal_position) AS columns,
+    bool_or(nulls_not_distinct) AS nulls_not_distinct
 FROM all_unique_indexes
 GROUP BY table_schema, table_name, index_key
 ORDER BY table_schema, table_name, index_key;
 `
 
 // dedupeUniqueIndexes removes duplicate index definitions, keyed by the ordered
-// column signature.
-func dedupeUniqueIndexes(indexes [][]string) [][]string {
-	seen := make(map[string]bool)
-	result := make([][]string, 0, len(indexes))
-	for _, cols := range indexes {
-		key := strings.Join(cols, ",")
-		if seen[key] {
+// column signature. When the same column signature appears more than once (e.g.
+// merged from multiple leaf partitions), the NullsNotDistinct flags are OR-ed so
+// that a stricter (NULLS NOT DISTINCT) definition on any partition wins.
+func dedupeUniqueIndexes(indexes []UniqueIndex) []UniqueIndex {
+	indexByKey := make(map[string]int)
+	result := make([]UniqueIndex, 0, len(indexes))
+	for _, idx := range indexes {
+		key := strings.Join(idx.Columns, ",")
+		if pos, ok := indexByKey[key]; ok {
+			result[pos].NullsNotDistinct = result[pos].NullsNotDistinct || idx.NullsNotDistinct
 			continue
 		}
-		seen[key] = true
-		result = append(result, cols)
+		indexByKey[key] = len(result)
+		result = append(result, idx)
 	}
 	return result
 }
 
 // mergeUniqueIndexes merges two index lists, deduplicating by column signature.
-func mergeUniqueIndexes(existing, additional [][]string) [][]string {
+func mergeUniqueIndexes(existing, additional []UniqueIndex) []UniqueIndex {
 	return dedupeUniqueIndexes(append(existing, additional...))
 }
 
@@ -540,9 +547,9 @@ func catalogNamesToSchemaAndTableLists(catalogNames []string) (schemaList, table
 // queryPGUniqueIndexesByCatalog runs the PG/YB unique-index discovery query for the
 // given schema/table filter lists and returns a map keyed by "schema.table" catalog
 // name to its list of unique indexes (each an ordered, de-duplicated column list).
-func queryPGUniqueIndexesByCatalog(queryFn func(query string) (*sql.Rows, error), schemaList, tableList []string) (map[string][][]string, error) {
+func queryPGUniqueIndexesByCatalog(queryFn func(query string) (*sql.Rows, error), schemaList, tableList []string) (map[string][]UniqueIndex, error) {
 	if len(schemaList) == 0 || len(tableList) == 0 {
-		return map[string][][]string{}, nil
+		return map[string][]UniqueIndex{}, nil
 	}
 
 	query := fmt.Sprintf(pgQueryTmplForUniqIndexes,
@@ -559,11 +566,12 @@ func queryPGUniqueIndexesByCatalog(queryFn func(query string) (*sql.Rows, error)
 		}
 	}()
 
-	result := make(map[string][][]string)
+	result := make(map[string][]UniqueIndex)
 	for rows.Next() {
 		var schemaName, tableName, indexKey string
 		var columnsPgTypeArray pgtype.TextArray
-		err := rows.Scan(&schemaName, &tableName, &indexKey, &columnsPgTypeArray)
+		var nullsNotDistinct bool
+		err := rows.Scan(&schemaName, &tableName, &indexKey, &columnsPgTypeArray, &nullsNotDistinct)
 		if err != nil {
 			return nil, fmt.Errorf("scanning row for unique index: %w", err)
 		}
@@ -572,7 +580,10 @@ func queryPGUniqueIndexesByCatalog(queryFn func(query string) (*sql.Rows, error)
 			continue
 		}
 		catalogName := fmt.Sprintf("%s.%s", schemaName, tableName)
-		result[catalogName] = append(result[catalogName], columns)
+		result[catalogName] = append(result[catalogName], UniqueIndex{
+			Columns:          columns,
+			NullsNotDistinct: nullsNotDistinct,
+		})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterating rows for unique indexes: %w", err)
