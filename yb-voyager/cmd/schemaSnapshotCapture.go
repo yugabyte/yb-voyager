@@ -23,7 +23,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 )
@@ -121,15 +120,12 @@ func captureSourceSchemaSnapshot(ctx context.Context, label, reason string, plac
 }
 
 // snapshotContentEqual reports whether a and b marshal to byte-identical JSON. It is the
-// dedup comparison used by periodic capture: nil == nil is equal; nil vs non-nil is not;
-// a marshal error on either side is treated as "changed" (never blocks capture).
+// dedup comparison used by periodic capture. Nil needs no explicit guard: json.Marshal
+// renders a nil *SnapshotContent as "null", so nil == nil compares equal and nil vs
+// non-nil does not. A marshal error on either side is treated as "changed" (never blocks
+// capture). The first periodic capture has no prior stored snapshot, so a is nil then and
+// this correctly reports "changed".
 func snapshotContentEqual(a, b *schemasnapshot.SnapshotContent) bool {
-	if a == nil && b == nil {
-		return true
-	}
-	if a == nil || b == nil {
-		return false
-	}
 	aBytes, err := json.Marshal(a)
 	if err != nil {
 		return false
@@ -160,10 +156,12 @@ func latestStoredSnapshotContent() (*schemasnapshot.SnapshotContent, error) {
 
 // startPeriodicSourceSchemaSnapshotCapture launches a background ticker that
 // captures a source schema snapshot every --schema-snapshot-capture-interval
-// minutes while the export is in the snapshot phase (exportPhase == MODE_SNAPSHOT).
-// It returns a stop function to be invoked via defer. Best-effort and off the data
-// path: a no-op when suppressed, when the interval is <= 0, or when this is not the
-// source exporter; periodic capture failures are logged and never affect export.
+// minutes for the full duration of the export — both the snapshot and streaming
+// phases — so schema drift is tracked throughout the migration, not just during
+// the initial snapshot. It returns a stop function to be invoked via defer.
+// Best-effort and off the data path: a no-op when suppressed, when the interval is
+// <= 0, or when this is not the source exporter; periodic capture failures are
+// logged and never affect export.
 func startPeriodicSourceSchemaSnapshotCapture(ctx context.Context) func() {
 	if exporterRole != SOURCE_DB_EXPORTER_ROLE || source.DBType != POSTGRESQL || bool(suppressSchemaSnapshotCapture) {
 		return func() {}
@@ -183,9 +181,7 @@ func startPeriodicSourceSchemaSnapshotCapture(ctx context.Context) func() {
 			case <-stop:
 				return
 			case <-ticker.C:
-				if exportPhase == dbzm.MODE_SNAPSHOT {
-					captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourcePeriodic, "", false)
-				}
+				captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourcePeriodic, "", false)
 			}
 		}
 	}()
