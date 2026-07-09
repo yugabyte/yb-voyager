@@ -678,13 +678,10 @@ func exportData() bool {
 	}
 
 	// Compute the schema-snapshot start reason BEFORE clearMigrationStateIfRequired()
-	// can zero out msr.ExportDataDone (--start-clean resets it).
-	snapshotStartReason := schemasnapshot.ReasonInitial
-	if bool(startClean) {
-		snapshotStartReason = schemasnapshot.ReasonCleanRestart
-	} else if msr != nil && msr.ExportDataDone {
-		snapshotStartReason = schemasnapshot.ReasonResume
-	}
+	// wipes the data directory (--start-clean empties it): the reason is derived from
+	// whether that directory already holds a prior run's output (see snapshotStartReasonFor).
+	exportDataDir := filepath.Join(exportDir, "data")
+	snapshotStartReason := snapshotStartReasonFor(bool(startClean), utils.IsDirectoryEmpty(exportDataDir))
 
 	if source.DBType == YUGABYTEDB {
 		source.IsYBGrpcConnector = msr.UseYBgRPCConnector
@@ -1940,6 +1937,31 @@ func validateAndExtractTableNamesFromFile(filePath string, flagName string) (str
 		}
 	}
 	return strings.Join(tableList, ","), nil
+}
+
+// snapshotStartReasonFor classifies why export-data is capturing its start snapshot,
+// producing the reason recorded on the LabelExportDataFromSourceStart snapshot.
+//
+// The classification answers a single question — does export-data already have prior
+// output? — from the same data-directory signal the guard uses:
+//   - startClean:   prior state is being discarded → re-capturing fresh → clean_restart
+//   - empty dir:    no prior run's output → genuine first run           → initial
+//   - non-empty:    a prior run's output is present → continuing it      → resume
+//
+// Admissibility is a SEPARATE concern owned by clearMigrationStateIfRequired (the
+// guard), which runs immediately after: it ErrExits a non-empty, non-start-clean
+// offline or mid-snapshot rerun (pg_dump can't resume), so the only non-empty run that
+// actually reaches this capture is the streaming-continue resume — for which "resume"
+// is the correct label.
+func snapshotStartReasonFor(startClean, dataDirEmpty bool) string {
+	switch {
+	case startClean:
+		return schemasnapshot.ReasonCleanRestart
+	case dataDirEmpty:
+		return schemasnapshot.ReasonInitial
+	default:
+		return schemasnapshot.ReasonResume
+	}
 }
 
 func clearMigrationStateIfRequired() {
