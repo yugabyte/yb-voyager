@@ -20,6 +20,15 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 )
 
+// QualifiedObject is the object a Difference is about, pre-rendered at diff time
+// (Difference is ephemeral, never serialized). Key is the unquoted canonical name
+// (ForKey) used for sorting/internal keys; Display is the minimally-quoted,
+// case-correct name (ForDisplay) for user-facing reports.
+type QualifiedObject struct {
+	Key     string
+	Display string
+}
+
 // Difference describes a single detected schema change between two snapshots,
 // where A is the old (side-A) snapshot and B is the new (side-B) snapshot. It is
 // the unit element of the slice Diff returns. One shape covers added, dropped, and
@@ -30,22 +39,17 @@ type Difference struct {
 	// uses OldValue, *_CHANGED uses both.
 	Type DiffType
 
-	// Object is the object the finding is about: the table itself for a table-level
-	// finding, or the column's parent table for a column-level finding (column name
-	// in SubObject). It is the old (side-A) ref, except *_ADDED which uses the new
-	// (side-B) ref; a rename keeps the old ref with the new name in NewValue.
-	Object schemasnapshot.ObjectRef
+	// Object is the rendered identity of the changed object: the table itself for
+	// a table-level finding, or schema.table.column for a column-level finding.
+	// It is rendered from the old (side-A) identity, except *_ADDED which uses the
+	// new (side-B) identity; a rename keeps the old identity with the new name in
+	// NewValue.
+	Object QualifiedObject
 
-	// AnchorTable is the table this finding is scoped under by --table-list /
-	// --exclude-table-list. In v1 it always equals Object. It only diverges or goes
-	// nil for object types not yet emitted: INDEX_*/owned SEQUENCE_* anchor to their
-	// host/owner table, and top-level VIEW_*/FUNCTION_*/TYPE_* have no table (nil).
-	// A pointer so "no anchor" (nil) is distinct from the zero ObjectRef.
+	// AnchorTable is the table this finding filters under (--table-list /
+	// --exclude-table-list) — nil for top-level findings not yet emitted
+	// (VIEW_*/FUNCTION_*/TYPE_*, in the future).
 	AnchorTable *schemasnapshot.ObjectRef
-
-	// SubObject names the dependent within Object — a column name in v1, "" for
-	// table-level findings.
-	SubObject string
 
 	// OldValue is the value on side A (nil for *_ADDED). For *_CHANGED it is the
 	// previous value of the changed attribute; for COLUMN_DROPPED the whole
@@ -69,18 +73,13 @@ func Diff(a, b *schemasnapshot.SnapshotContent) []Difference {
 }
 
 // sortDifferences sorts a slice of Difference values in place by a deterministic
-// key: Schema → Name → SubObject → Type.
+// key: sorted by Object.Key, then Type. Object.Key groups columns under their
+// table because e.g. "public.orders" < "public.orders.email".
 func sortDifferences(diffs []Difference) {
 	sort.Slice(diffs, func(i, j int) bool {
 		a, b := diffs[i], diffs[j]
-		if a.Object.Schema != b.Object.Schema {
-			return a.Object.Schema < b.Object.Schema
-		}
-		if a.Object.Name != b.Object.Name {
-			return a.Object.Name < b.Object.Name
-		}
-		if a.SubObject != b.SubObject {
-			return a.SubObject < b.SubObject
+		if a.Object.Key != b.Object.Key {
+			return a.Object.Key < b.Object.Key
 		}
 		return string(a.Type) < string(b.Type)
 	})

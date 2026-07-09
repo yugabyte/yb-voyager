@@ -42,8 +42,8 @@ func TestDiffTables_TableAdded(t *testing.T) {
 	if d.Type != TableAdded {
 		t.Errorf("expected TableAdded, got %v", d.Type)
 	}
-	if d.Object != ref("public", "users") {
-		t.Errorf("expected Object=public.users, got %v", d.Object)
+	if d.Object.Key != "public.users" {
+		t.Errorf("expected Object.Key=public.users, got %v", d.Object.Key)
 	}
 	if d.OldValue != nil {
 		t.Errorf("expected OldValue=nil, got %v", d.OldValue)
@@ -79,8 +79,8 @@ func TestDiffTables_TableDropped(t *testing.T) {
 	if d.Type != TableDropped {
 		t.Errorf("expected TableDropped, got %v", d.Type)
 	}
-	if d.Object != ref("public", "orders") {
-		t.Errorf("expected Object=public.orders, got %v", d.Object)
+	if d.Object.Key != "public.orders" {
+		t.Errorf("expected Object.Key=public.orders, got %v", d.Object.Key)
 	}
 	// No columns existed on the dropped table (snapWithTables sets no Columns),
 	// so OldValue must be an empty []schemasnapshot.Column.
@@ -224,8 +224,8 @@ func TestDiffTables_TableRenamed(t *testing.T) {
 	if d.Type != TableNameChanged {
 		t.Errorf("expected TableNameChanged, got %v", d.Type)
 	}
-	if d.Object != ref("public", "old_name") {
-		t.Errorf("expected Object=public.old_name (old ref), got %v", d.Object)
+	if d.Object.Key != "public.old_name" {
+		t.Errorf("expected Object.Key=public.old_name (old ref), got %v", d.Object.Key)
 	}
 	if d.OldValue.(string) != "old_name" {
 		t.Errorf("expected OldValue='old_name', got %v", d.OldValue)
@@ -263,8 +263,8 @@ func TestDiffTables_TableSchemaMoved(t *testing.T) {
 	if d.Type != TableSchemaChanged {
 		t.Errorf("expected TableSchemaChanged, got %v", d.Type)
 	}
-	if d.Object != ref("old_schema", "my_table") {
-		t.Errorf("expected Object=old_schema.my_table, got %v", d.Object)
+	if d.Object.Key != "old_schema.my_table" {
+		t.Errorf("expected Object.Key=old_schema.my_table, got %v", d.Object.Key)
 	}
 	if d.OldValue.(string) != "old_schema" {
 		t.Errorf("expected OldValue='old_schema', got %v", d.OldValue)
@@ -606,10 +606,10 @@ func TestDiffTables_DifferentDatabaseType_RenameBecomesAddDrop(t *testing.T) {
 		if d.Type == TableNameChanged {
 			t.Errorf("unexpected TableNameChanged when DatabaseType differs: %v", d)
 		}
-		if d.Type == TableDropped && d.Object == ref("public", "old_name") {
+		if d.Type == TableDropped && d.Object.Key == "public.old_name" {
 			hasDropped = true
 		}
-		if d.Type == TableAdded && d.Object == ref("public", "new_name") {
+		if d.Type == TableAdded && d.Object.Key == "public.new_name" {
 			hasAdded = true
 		}
 	}
@@ -658,8 +658,8 @@ func TestDiffTables_IDEmptyFallback_MatchedByName(t *testing.T) {
 	if d.Type != TableDropped {
 		t.Errorf("expected TableDropped, got %v", d.Type)
 	}
-	if d.Object != ref("public", "gone_table") {
-		t.Errorf("expected Object=public.gone_table, got %v", d.Object)
+	if d.Object.Key != "public.gone_table" {
+		t.Errorf("expected Object.Key=public.gone_table, got %v", d.Object.Key)
 	}
 }
 
@@ -708,8 +708,8 @@ func TestDiffTables_HybridResidue_MixedID_PropertyChangeSurfaces(t *testing.T) {
 	if got[0].Type != TableKindChanged {
 		t.Errorf("expected TableKindChanged, got %v", got[0].Type)
 	}
-	if got[0].Object != ref("public", "t") {
-		t.Errorf("expected Object=public.t, got %v", got[0].Object)
+	if got[0].Object.Key != "public.t" {
+		t.Errorf("expected Object.Key=public.t, got %v", got[0].Object.Key)
 	}
 }
 
@@ -730,8 +730,8 @@ func TestDiffTables_HybridResidue_DropRecreateSameNameDifferentID_NotCollapsed(t
 	types := map[DiffType]int{}
 	for _, d := range got {
 		types[d.Type]++
-		if d.Object != ref("public", "foo") {
-			t.Errorf("expected Object=public.foo, got %v", d.Object)
+		if d.Object.Key != "public.foo" {
+			t.Errorf("expected Object.Key=public.foo, got %v", d.Object.Key)
 		}
 	}
 	if types[TableDropped] != 1 || types[TableAdded] != 1 {

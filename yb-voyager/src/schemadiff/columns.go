@@ -28,45 +28,59 @@ func diffColumnsIn(colsA, colsB []schemasnapshot.Column, dbTypeA, dbTypeB string
 		idOfColumn, schemasnapshot.Column.ForKey)
 
 	return matchByKey(colsA, colsB, keyA, keyB,
-		compareMatchedColumns, emitColumnDropped, emitColumnAdded)
+		compareMatchedColumns(dbTypeA), emitColumnDropped(dbTypeA), emitColumnAdded(dbTypeB))
 }
 
 // idOfColumn extracts a column's stable ID ("{tableOID}:{attnum}") for ID-based matching.
 func idOfColumn(c schemasnapshot.Column) string { return c.ID }
 
-// emitColumnDropped is the matchByKey onDropped callback for columns: it emits a
-// COLUMN_DROPPED finding carrying the dropped column, anchored to its parent table.
-func emitColumnDropped(c schemasnapshot.Column) []Difference {
-	return []Difference{newDifference(ColumnDropped, c.Table, &c.Table, c.Name, c, nil)}
+// columnObject renders a column's identity (schema.table.column) for a finding.
+func columnObject(c schemasnapshot.Column, dbType string) QualifiedObject {
+	return QualifiedObject{Key: c.ForKey(dbType), Display: c.ForDisplay(dbType)}
 }
 
-// emitColumnAdded is the matchByKey onAdded callback for columns: it emits a
+// emitColumnDropped returns the matchByKey onDropped callback for columns: it
+// emits a COLUMN_DROPPED finding carrying the dropped column, anchored to its
+// parent table.
+func emitColumnDropped(dbType string) func(schemasnapshot.Column) []Difference {
+	return func(c schemasnapshot.Column) []Difference {
+		return []Difference{newDifference(ColumnDropped, columnObject(c, dbType), &c.Table, c, nil)}
+	}
+}
+
+// emitColumnAdded returns the matchByKey onAdded callback for columns: it emits a
 // COLUMN_ADDED finding carrying the added column, anchored to its parent table.
-func emitColumnAdded(c schemasnapshot.Column) []Difference {
-	return []Difference{newDifference(ColumnAdded, c.Table, &c.Table, c.Name, nil, c)}
+func emitColumnAdded(dbType string) func(schemasnapshot.Column) []Difference {
+	return func(c schemasnapshot.Column) []Difference {
+		return []Difference{newDifference(ColumnAdded, columnObject(c, dbType), &c.Table, nil, c)}
+	}
 }
 
-// compareMatchedColumns emits all field-level differences for a pair of columns
-// matched by chooseMatchKeys (ID or composite name key). Object in each
-// Difference is always the side-A (old) Column.Table.
-func compareMatchedColumns(cA, cB schemasnapshot.Column) []Difference {
-	var diffs []Difference
+// compareMatchedColumns returns the matchByKey onMatch callback for columns: it
+// emits all field-level differences for a pair of columns matched by
+// chooseMatchKeys (ID or composite name key). Object in each Difference is
+// always the side-A (old) column, rendered in dbType.
+func compareMatchedColumns(dbType string) func(cA, cB schemasnapshot.Column) []Difference {
+	return func(cA, cB schemasnapshot.Column) []Difference {
+		var diffs []Difference
+		obj := columnObject(cA, dbType)
 
-	if cA.Name != cB.Name {
-		diffs = append(diffs, newDifference(ColumnNameChanged, cA.Table, &cA.Table, cA.Name, cA.Name, cB.Name))
+		if cA.Name != cB.Name {
+			diffs = append(diffs, newDifference(ColumnNameChanged, obj, &cA.Table, cA.Name, cB.Name))
+		}
+
+		if cA.DataType != cB.DataType {
+			diffs = append(diffs, newDifference(ColumnTypeChanged, obj, &cA.Table, cA.DataType, cB.DataType))
+		}
+
+		if cA.NotNull != cB.NotNull {
+			diffs = append(diffs, newDifference(ColumnNullabilityChanged, obj, &cA.Table, cA.NotNull, cB.NotNull))
+		}
+
+		if cA.Default != cB.Default {
+			diffs = append(diffs, newDifference(ColumnDefaultChanged, obj, &cA.Table, cA.Default, cB.Default))
+		}
+
+		return diffs
 	}
-
-	if cA.DataType != cB.DataType {
-		diffs = append(diffs, newDifference(ColumnTypeChanged, cA.Table, &cA.Table, cA.Name, cA.DataType, cB.DataType))
-	}
-
-	if cA.NotNull != cB.NotNull {
-		diffs = append(diffs, newDifference(ColumnNullabilityChanged, cA.Table, &cA.Table, cA.Name, cA.NotNull, cB.NotNull))
-	}
-
-	if cA.Default != cB.Default {
-		diffs = append(diffs, newDifference(ColumnDefaultChanged, cA.Table, &cA.Table, cA.Name, cA.Default, cB.Default))
-	}
-
-	return diffs
 }

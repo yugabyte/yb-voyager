@@ -90,11 +90,8 @@ func TestDiffColumns_ColumnAdded(t *testing.T) {
 	if d.Type != ColumnAdded {
 		t.Errorf("expected ColumnAdded, got %v", d.Type)
 	}
-	if d.Object != ref("public", "orders") {
-		t.Errorf("expected Object=public.orders (parent table), got %v", d.Object)
-	}
-	if d.SubObject != "email" {
-		t.Errorf("expected SubObject='email', got %q", d.SubObject)
+	if d.Object.Key != "public.orders.email" {
+		t.Errorf("expected Object.Key=public.orders.email, got %v", d.Object.Key)
 	}
 	if d.OldValue != nil {
 		t.Errorf("expected OldValue=nil, got %v", d.OldValue)
@@ -137,11 +134,8 @@ func TestDiffColumns_ColumnDropped(t *testing.T) {
 	if d.Type != ColumnDropped {
 		t.Errorf("expected ColumnDropped, got %v", d.Type)
 	}
-	if d.Object != ref("public", "orders") {
-		t.Errorf("expected Object=public.orders, got %v", d.Object)
-	}
-	if d.SubObject != "legacy_field" {
-		t.Errorf("expected SubObject='legacy_field', got %q", d.SubObject)
+	if d.Object.Key != "public.orders.legacy_field" {
+		t.Errorf("expected Object.Key=public.orders.legacy_field, got %v", d.Object.Key)
 	}
 	ov, ok := d.OldValue.(schemasnapshot.Column)
 	if !ok {
@@ -188,11 +182,8 @@ func TestDiffColumns_ColumnRenamed(t *testing.T) {
 	if d.Type != ColumnNameChanged {
 		t.Errorf("expected ColumnNameChanged, got %v", d.Type)
 	}
-	if d.Object != ref("public", "users") {
-		t.Errorf("expected Object=public.users, got %v", d.Object)
-	}
-	if d.SubObject != "usr_name" {
-		t.Errorf("expected SubObject='usr_name' (old name), got %q", d.SubObject)
+	if d.Object.Key != "public.users.usr_name" {
+		t.Errorf("expected Object.Key=public.users.usr_name (old name), got %v", d.Object.Key)
 	}
 	if d.OldValue.(string) != "usr_name" {
 		t.Errorf("expected OldValue='usr_name', got %v", d.OldValue)
@@ -231,11 +222,8 @@ func TestDiffColumns_ColumnTypeChanged(t *testing.T) {
 	if d.Type != ColumnTypeChanged {
 		t.Errorf("expected ColumnTypeChanged, got %v", d.Type)
 	}
-	if d.Object != ref("public", "products") {
-		t.Errorf("expected Object=public.products, got %v", d.Object)
-	}
-	if d.SubObject != "price" {
-		t.Errorf("expected SubObject='price', got %q", d.SubObject)
+	if d.Object.Key != "public.products.price" {
+		t.Errorf("expected Object.Key=public.products.price, got %v", d.Object.Key)
 	}
 	if d.OldValue.(string) != "integer" {
 		t.Errorf("expected OldValue='integer', got %v", d.OldValue)
@@ -422,15 +410,15 @@ func TestDiffColumns_MultipleTablesSort(t *testing.T) {
 		assertAnchoredToObject(t, d)
 	}
 
-	// After sort: alpha comes before zeta (Object.Name = "alpha" < "zeta")
-	if got[0].Object.Name != "alpha" {
-		t.Errorf("expected first finding for 'alpha', got %q", got[0].Object.Name)
+	// After sort: alpha comes before zeta (Object.Key = "public.alpha..." < "public.zeta...")
+	if got[0].Object.Key != "public.alpha.col1" {
+		t.Errorf("expected first finding for public.alpha.col1, got %q", got[0].Object.Key)
 	}
-	if got[1].Object.Name != "zeta" {
-		t.Errorf("expected second finding for 'zeta', got %q", got[1].Object.Name)
+	if got[1].Object.Key != "public.zeta.col1" {
+		t.Errorf("expected second finding for public.zeta.col1, got %q", got[1].Object.Key)
 	}
 
-	// Within same table, SubObject sorts columns under their parent
+	// Within same table, the column tail of Object.Key sorts columns under their parent
 	colAlpha2 := makeColumn("public", "alpha", "10:2", "zzz", "text")
 	colAlpha3 := makeColumn("public", "alpha", "10:3", "aaa", "text")
 
@@ -445,11 +433,11 @@ func TestDiffColumns_MultipleTablesSort(t *testing.T) {
 		assertAnchoredToObject(t, d)
 	}
 	// aaa should come before zzz
-	if got2[0].SubObject != "aaa" {
-		t.Errorf("expected first SubObject='aaa', got %q", got2[0].SubObject)
+	if got2[0].Object.Key != "public.alpha.aaa" {
+		t.Errorf("expected first Object.Key='public.alpha.aaa', got %q", got2[0].Object.Key)
 	}
-	if got2[1].SubObject != "zzz" {
-		t.Errorf("expected second SubObject='zzz', got %q", got2[1].SubObject)
+	if got2[1].Object.Key != "public.alpha.zzz" {
+		t.Errorf("expected second Object.Key='public.alpha.zzz', got %q", got2[1].Object.Key)
 	}
 }
 
@@ -493,10 +481,10 @@ func TestDiffColumns_DifferentDatabaseType_RenameBecomesAddDrop(t *testing.T) {
 		if d.Type == ColumnNameChanged {
 			t.Errorf("unexpected ColumnNameChanged when DatabaseType differs: %v", d)
 		}
-		if d.Type == ColumnDropped && d.SubObject == "old_col" {
+		if d.Type == ColumnDropped && d.Object.Key == "public.users.old_col" {
 			hasDropped = true
 		}
-		if d.Type == ColumnAdded && d.SubObject == "new_col" {
+		if d.Type == ColumnAdded && d.Object.Key == "public.users.new_col" {
 			hasAdded = true
 		}
 	}
@@ -579,8 +567,8 @@ func TestDiff_TableAdded_SuppressesColumnAdds(t *testing.T) {
 	if got[0].Type != TableAdded {
 		t.Errorf("expected TableAdded, got %v", got[0].Type)
 	}
-	if got[0].Object != ref("public", "orders") {
-		t.Errorf("expected Object=public.orders, got %v", got[0].Object)
+	if got[0].Object.Key != "public.orders" {
+		t.Errorf("expected Object.Key=public.orders, got %v", got[0].Object.Key)
 	}
 	// The columns must survive on the TABLE_ADDED finding's NewValue.
 	cols, ok := got[0].NewValue.([]schemasnapshot.Column)
@@ -619,8 +607,8 @@ func TestDiff_TableDropped_SuppressesColumnDrops(t *testing.T) {
 	if got[0].Type != TableDropped {
 		t.Errorf("expected TableDropped, got %v", got[0].Type)
 	}
-	if got[0].Object != ref("public", "orders") {
-		t.Errorf("expected Object=public.orders, got %v", got[0].Object)
+	if got[0].Object.Key != "public.orders" {
+		t.Errorf("expected Object.Key=public.orders, got %v", got[0].Object.Key)
 	}
 	// The columns must survive on the TABLE_DROPPED finding's OldValue.
 	cols, ok := got[0].OldValue.([]schemasnapshot.Column)
@@ -660,8 +648,8 @@ func TestDiff_ColumnAddedToExistingTable_NotSuppressed(t *testing.T) {
 	if got[0].Type != ColumnAdded {
 		t.Errorf("expected ColumnAdded, got %v", got[0].Type)
 	}
-	if got[0].SubObject != "email" {
-		t.Errorf("expected SubObject='email', got %q", got[0].SubObject)
+	if got[0].Object.Key != "public.orders.email" {
+		t.Errorf("expected Object.Key=public.orders.email, got %q", got[0].Object.Key)
 	}
 }
 
@@ -688,8 +676,8 @@ func TestDiff_ColumnDroppedFromExistingTable_NotSuppressed(t *testing.T) {
 	if got[0].Type != ColumnDropped {
 		t.Errorf("expected ColumnDropped, got %v", got[0].Type)
 	}
-	if got[0].SubObject != "email" {
-		t.Errorf("expected SubObject='email', got %q", got[0].SubObject)
+	if got[0].Object.Key != "public.orders.email" {
+		t.Errorf("expected Object.Key=public.orders.email, got %q", got[0].Object.Key)
 	}
 }
 
@@ -722,10 +710,10 @@ func TestDiff_TableDropped_PreservesOtherTableColumnChanges(t *testing.T) {
 
 	var hasTableDropped, hasColTypeChanged bool
 	for _, d := range got {
-		if d.Type == TableDropped && d.Object.Name == "x" {
+		if d.Type == TableDropped && d.Object.Key == "public.x" {
 			hasTableDropped = true
 		}
-		if d.Type == ColumnTypeChanged && d.SubObject == "val" && d.Object.Name == "y" {
+		if d.Type == ColumnTypeChanged && d.Object.Key == "public.y.val" {
 			hasColTypeChanged = true
 		}
 		if d.Type == ColumnDropped {
@@ -785,8 +773,8 @@ func TestDiffColumns_IDMatchTableRenamed_ObjectIsOldTable(t *testing.T) {
 	for _, d := range got2 {
 		if d.Type == ColumnTypeChanged {
 			foundColChange = true
-			if d.Object != ref("public", "old_table") {
-				t.Errorf("expected Object=public.old_table (side-A), got %v", d.Object)
+			if d.Object.Key != "public.old_table.id" {
+				t.Errorf("expected Object.Key=public.old_table.id (side-A), got %v", d.Object.Key)
 			}
 		}
 	}
@@ -814,18 +802,18 @@ func TestDiffColumns_IDMissingTableRenamed_BecomesDropAdd(t *testing.T) {
 	for _, d := range got {
 		assertAnchoredToObject(t, d)
 	}
-	objByType := map[DiffType]schemasnapshot.ObjectRef{}
+	objByType := map[DiffType]string{}
 	for _, d := range got {
-		objByType[d.Type] = d.Object
+		objByType[d.Type] = d.Object.Key
 	}
 	if _, ok := objByType[TableNameChanged]; !ok {
 		t.Errorf("expected TableNameChanged, got: %v", got)
 	}
-	if objByType[ColumnDropped] != ref("public", "old_table") {
-		t.Errorf("COLUMN_DROPPED should anchor to public.old_table, got %v", objByType[ColumnDropped])
+	if objByType[ColumnDropped] != "public.old_table.id" {
+		t.Errorf("COLUMN_DROPPED should anchor to public.old_table.id, got %v", objByType[ColumnDropped])
 	}
-	if objByType[ColumnAdded] != ref("public", "new_table") {
-		t.Errorf("COLUMN_ADDED should anchor to public.new_table, got %v", objByType[ColumnAdded])
+	if objByType[ColumnAdded] != "public.new_table.id" {
+		t.Errorf("COLUMN_ADDED should anchor to public.new_table.id, got %v", objByType[ColumnAdded])
 	}
 }
 
@@ -884,11 +872,8 @@ func TestDiffColumns_HybridResidue_MixedID_TypeChangeSurfaces(t *testing.T) {
 	if got[0].Type != ColumnTypeChanged {
 		t.Errorf("expected ColumnTypeChanged, got %v", got[0].Type)
 	}
-	if got[0].SubObject != "qty" {
-		t.Errorf("expected SubObject='qty', got %q", got[0].SubObject)
-	}
-	if got[0].Object != ref("public", "orders") {
-		t.Errorf("expected Object=public.orders, got %v", got[0].Object)
+	if got[0].Object.Key != "public.orders.qty" {
+		t.Errorf("expected Object.Key=public.orders.qty, got %q", got[0].Object.Key)
 	}
 }
 
@@ -912,11 +897,8 @@ func TestDiffColumns_HybridResidue_DropRecreateSameNameDifferentID_NotCollapsed(
 	types := map[DiffType]int{}
 	for _, d := range got {
 		types[d.Type]++
-		if d.SubObject != "qty" {
-			t.Errorf("expected SubObject='qty', got %q", d.SubObject)
-		}
-		if d.Object != ref("public", "orders") {
-			t.Errorf("expected Object=public.orders, got %v", d.Object)
+		if d.Object.Key != "public.orders.qty" {
+			t.Errorf("expected Object.Key=public.orders.qty, got %q", d.Object.Key)
 		}
 	}
 	if types[ColumnDropped] != 1 || types[ColumnAdded] != 1 {

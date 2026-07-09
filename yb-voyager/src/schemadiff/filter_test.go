@@ -31,17 +31,29 @@ import (
 
 // Note: ref(schema, name) is already declared in diff_test.go (same package).
 
+// objOf renders a table-level finding's Object from its ObjectRef, using the
+// postgresql dialect (all filter_test.go fixtures model PG snapshots).
+func objOf(o schemasnapshot.ObjectRef) QualifiedObject {
+	return QualifiedObject{Key: o.ForKey(constants.POSTGRESQL), Display: o.ForDisplay(constants.POSTGRESQL)}
+}
+
+// colObj renders a column-level finding's Object as table.column, using the
+// postgresql dialect.
+func colObj(table schemasnapshot.ObjectRef, column string) QualifiedObject {
+	return QualifiedObject{Key: objOf(table).Key + "." + column}
+}
+
 // tableDiff builds a Difference anchored to a table (AnchorTable == Object).
 func tableDiff(dt DiffType, schema, name string) Difference {
 	o := ref(schema, name)
-	return Difference{Type: dt, Object: o, AnchorTable: &o}
+	return Difference{Type: dt, Object: objOf(o), AnchorTable: &o}
 }
 
 // nilAnchorDiff builds a Difference with a nil AnchorTable, using a kept
 // DiffType. This is used to test filter behaviour for nil-AnchorTable findings
 // without relying on removed object types.
 func nilAnchorDiff(dt DiffType, schema, name string) Difference {
-	return Difference{Type: dt, Object: ref(schema, name), AnchorTable: nil}
+	return Difference{Type: dt, Object: objOf(ref(schema, name)), AnchorTable: nil}
 }
 
 // nameChangedDiff builds a *_NAME_CHANGED finding with the given old and new names.
@@ -50,7 +62,7 @@ func nameChangedDiff(dt DiffType, schema, oldName, newName string) Difference {
 	o := ref(schema, oldName)
 	return Difference{
 		Type:        dt,
-		Object:      o,
+		Object:      objOf(o),
 		AnchorTable: &o,
 		OldValue:    oldName,
 		NewValue:    newName,
@@ -130,7 +142,7 @@ func TestFilterByScopeIsPure(t *testing.T) {
 		tableDiff(TableAdded, "public", "orders"),
 		// A finding with nil AnchorTable to verify it is excluded by a non-empty
 		// Tables filter without panicking. We use a kept DiffType here.
-		{Type: ColumnAdded, Object: orders, AnchorTable: nil, SubObject: "x"},
+		{Type: ColumnAdded, Object: colObj(orders, "x"), AnchorTable: nil},
 	}
 	// Make a copy of the originals' JSON to compare after the call.
 	origJSON, err := json.Marshal(orig)
@@ -199,13 +211,13 @@ func TestFilterByScopeTableInclude(t *testing.T) {
 	customers := ref("public", "customers")
 
 	diffs := []Difference{
-		{Type: TableAdded, Object: orders, AnchorTable: &orders},
-		{Type: ColumnAdded, Object: orders, AnchorTable: &orders, SubObject: "id"},
-		{Type: TableAdded, Object: customers, AnchorTable: &customers},
-		{Type: ColumnAdded, Object: customers, AnchorTable: &customers, SubObject: "name"},
+		{Type: TableAdded, Object: objOf(orders), AnchorTable: &orders},
+		{Type: ColumnAdded, Object: colObj(orders, "id"), AnchorTable: &orders},
+		{Type: TableAdded, Object: objOf(customers), AnchorTable: &customers},
+		{Type: ColumnAdded, Object: colObj(customers, "name"), AnchorTable: &customers},
 		// A synthetic nil-AnchorTable finding using a kept DiffType, to verify
 		// that nil-anchored entries are dropped by a Tables include filter.
-		{Type: TableNameChanged, Object: orders, AnchorTable: nil},
+		{Type: TableNameChanged, Object: objOf(orders), AnchorTable: nil},
 	}
 
 	got := FilterByScope(diffs, Scope{IncludeTables: []schemasnapshot.ObjectRef{ref("public", "orders")}})
@@ -231,8 +243,8 @@ func TestFilterByScopeTableExclude(t *testing.T) {
 	customers := ref("public", "customers")
 
 	diffs := []Difference{
-		{Type: TableAdded, Object: orders, AnchorTable: &orders},
-		{Type: TableAdded, Object: customers, AnchorTable: &customers},
+		{Type: TableAdded, Object: objOf(orders), AnchorTable: &orders},
+		{Type: TableAdded, Object: objOf(customers), AnchorTable: &customers},
 		// Synthetic nil-AnchorTable finding using a kept DiffType.
 		// The ExcludeTables filter must NOT drop it (nil anchor is never excluded).
 		nilAnchorDiff(TableNameChanged, "public", "some_obj"),
@@ -323,9 +335,8 @@ func TestFilterByScopeAnchorRenameExtension(t *testing.T) {
 	oldAnchor := ref("public", "orders")
 	colChange := Difference{
 		Type:        ColumnTypeChanged,
-		Object:      oldAnchor,
+		Object:      colObj(oldAnchor, "amount"),
 		AnchorTable: &oldAnchor,
-		SubObject:   "amount",
 		OldValue:    "integer",
 		NewValue:    "bigint",
 	}
@@ -346,9 +357,8 @@ func TestFilterByScopeAnchorRenameExtensionExclude(t *testing.T) {
 	oldAnchor := ref("public", "orders")
 	colChange := Difference{
 		Type:        ColumnTypeChanged,
-		Object:      oldAnchor,
+		Object:      colObj(oldAnchor, "amount"),
 		AnchorTable: &oldAnchor,
-		SubObject:   "amount",
 	}
 
 	diffs := []Difference{rename, colChange}
@@ -381,9 +391,8 @@ func TestFilterByScopeAliasMapCollision(t *testing.T) {
 	usersRef := ref("public", "users")
 	colChange := Difference{
 		Type:        ColumnAdded,
-		Object:      usersRef,
+		Object:      colObj(usersRef, "email"),
 		AnchorTable: &usersRef,
-		SubObject:   "email",
 	}
 
 	diffs := []Difference{rename1, rename2, colChange}
@@ -429,7 +438,7 @@ func schemaChangedDiff(oldSchema, name, newSchema string) Difference {
 	o := ref(oldSchema, name)
 	return Difference{
 		Type:        TableSchemaChanged,
-		Object:      o,
+		Object:      objOf(o),
 		AnchorTable: &o,
 		OldValue:    oldSchema,
 		NewValue:    newSchema,
@@ -447,9 +456,8 @@ func TestFilterByScopeSchemaMoveNewIdentityInScope(t *testing.T) {
 	oldAnchor := ref("old_s", "orders")
 	colChange := Difference{
 		Type:        ColumnTypeChanged,
-		Object:      oldAnchor,
+		Object:      colObj(oldAnchor, "amount"),
 		AnchorTable: &oldAnchor,
-		SubObject:   "amount",
 		OldValue:    "integer",
 		NewValue:    "bigint",
 	}
@@ -474,9 +482,8 @@ func TestFilterByScopeSchemaMoveExclude(t *testing.T) {
 	oldAnchor := ref("old_s", "orders")
 	colChange := Difference{
 		Type:        ColumnTypeChanged,
-		Object:      oldAnchor,
+		Object:      colObj(oldAnchor, "amount"),
 		AnchorTable: &oldAnchor,
-		SubObject:   "amount",
 	}
 
 	diffs := []Difference{move, colChange}
@@ -495,23 +502,22 @@ func TestFilterByScopeRenameAndMove(t *testing.T) {
 	oldAnchor := ref("old_s", "orders")
 	rename := Difference{
 		Type:        TableNameChanged,
-		Object:      oldAnchor,
+		Object:      objOf(oldAnchor),
 		AnchorTable: &oldAnchor,
 		OldValue:    "orders",
 		NewValue:    "purchase_orders",
 	}
 	move := Difference{
 		Type:        TableSchemaChanged,
-		Object:      oldAnchor,
+		Object:      objOf(oldAnchor),
 		AnchorTable: &oldAnchor,
 		OldValue:    "old_s",
 		NewValue:    "new_s",
 	}
 	colChange := Difference{
 		Type:        ColumnAdded,
-		Object:      oldAnchor,
+		Object:      colObj(oldAnchor, "email"),
 		AnchorTable: &oldAnchor,
-		SubObject:   "email",
 	}
 
 	diffs := []Difference{rename, move, colChange}
@@ -541,8 +547,8 @@ func TestFilterByScopeIncludeThenExclude(t *testing.T) {
 	customers := ref("public", "customers")
 
 	diffs := []Difference{
-		{Type: TableAdded, Object: orders, AnchorTable: &orders},
-		{Type: TableAdded, Object: customers, AnchorTable: &customers},
+		{Type: TableAdded, Object: objOf(orders), AnchorTable: &orders},
+		{Type: TableAdded, Object: objOf(customers), AnchorTable: &customers},
 		tableDiff(ColumnAdded, "public", "orders"),
 	}
 
@@ -567,8 +573,8 @@ func TestFilterByScopeIncludeTableExcludeTable(t *testing.T) {
 	customers := ref("public", "customers")
 
 	diffs := []Difference{
-		{Type: TableAdded, Object: orders, AnchorTable: &orders},
-		{Type: TableAdded, Object: customers, AnchorTable: &customers},
+		{Type: TableAdded, Object: objOf(orders), AnchorTable: &orders},
+		{Type: TableAdded, Object: objOf(customers), AnchorTable: &customers},
 	}
 
 	// Include both, then exclude orders.

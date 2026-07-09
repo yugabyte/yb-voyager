@@ -18,6 +18,7 @@ package schemadiff
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
@@ -54,18 +55,20 @@ func refPtr(schema, name string) *schemasnapshot.ObjectRef {
 	return &r
 }
 
-// assertAnchoredToObject asserts the V1 invariant that a produced finding's
-// AnchorTable is non-nil and equals its Object — every V1 finding anchors to its
-// own object (a table to itself; a column to its parent table). This is the seam
-// that will change only when index/sequence/view findings arrive (Object != anchor).
+// assertAnchoredToObject asserts the V1 invariant that a produced finding is
+// anchored under its own object: a table-level finding's Object.Key equals its
+// AnchorTable's key, and a column-level finding's Object.Key is the AnchorTable's
+// key plus ".<column>". This is the seam that will change only when
+// index/sequence/view findings arrive (Object and anchor diverge further).
 func assertAnchoredToObject(t *testing.T, d Difference) {
 	t.Helper()
 	if d.AnchorTable == nil {
-		t.Errorf("AnchorTable is nil for %v on %v; want non-nil == Object", d.Type, d.Object)
+		t.Errorf("AnchorTable is nil for %v (%q); want non-nil", d.Type, d.Object.Key)
 		return
 	}
-	if *d.AnchorTable != d.Object {
-		t.Errorf("AnchorTable = %v, want == Object %v (for %v)", *d.AnchorTable, d.Object, d.Type)
+	anchorKey := d.AnchorTable.ForKey("postgresql")
+	if d.Object.Key != anchorKey && !strings.HasPrefix(d.Object.Key, anchorKey+".") {
+		t.Errorf("Object %q not anchored under table %q", d.Object.Key, anchorKey)
 	}
 }
 
@@ -134,28 +137,31 @@ func TestDiff_DoesNotMutateInputs(t *testing.T) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 func TestSortDifferences_Ordering(t *testing.T) {
-	// Build diffs that exercise all 4 sort keys in turn
+	// Build diffs that exercise both sort keys (Object.Key, then Type). Each
+	// Object.Key below folds in what used to be a separate SubObject: a
+	// column-level key is "schema.table.column"; a table-level key is
+	// "schema.table".
 	diffs := []Difference{
-		// same schema/name/subobj; differ only on Type
-		{Object: ref("z_schema", "z_name"), SubObject: "a_sub", Type: TableSchemaChanged},
-		{Object: ref("z_schema", "z_name"), SubObject: "a_sub", Type: TableAdded},
-		// same schema/name; differ only on SubObject
-		{Object: ref("z_schema", "a_name"), SubObject: "z_sub", Type: TableAdded},
-		{Object: ref("z_schema", "a_name"), SubObject: "a_sub", Type: TableAdded},
-		// same schema; differ only on Name
-		{Object: ref("a_schema", "z_name"), SubObject: "", Type: TableAdded},
-		{Object: ref("a_schema", "a_name"), SubObject: "", Type: TableAdded},
+		// same Object.Key; differ only on Type
+		{Object: QualifiedObject{Key: "z_schema.z_name.a_sub"}, Type: TableSchemaChanged},
+		{Object: QualifiedObject{Key: "z_schema.z_name.a_sub"}, Type: TableAdded},
+		// same schema/name; differ only on the column tail of Object.Key
+		{Object: QualifiedObject{Key: "z_schema.a_name.z_sub"}, Type: TableAdded},
+		{Object: QualifiedObject{Key: "z_schema.a_name.a_sub"}, Type: TableAdded},
+		// same schema; differ only on the table-name portion of Object.Key
+		{Object: QualifiedObject{Key: "a_schema.z_name"}, Type: TableAdded},
+		{Object: QualifiedObject{Key: "a_schema.a_name"}, Type: TableAdded},
 	}
 
 	sortDifferences(diffs)
 
 	want := []Difference{
-		{Object: ref("a_schema", "a_name"), SubObject: "", Type: TableAdded},
-		{Object: ref("a_schema", "z_name"), SubObject: "", Type: TableAdded},
-		{Object: ref("z_schema", "a_name"), SubObject: "a_sub", Type: TableAdded},
-		{Object: ref("z_schema", "a_name"), SubObject: "z_sub", Type: TableAdded},
-		{Object: ref("z_schema", "z_name"), SubObject: "a_sub", Type: TableAdded},
-		{Object: ref("z_schema", "z_name"), SubObject: "a_sub", Type: TableSchemaChanged},
+		{Object: QualifiedObject{Key: "a_schema.a_name"}, Type: TableAdded},
+		{Object: QualifiedObject{Key: "a_schema.z_name"}, Type: TableAdded},
+		{Object: QualifiedObject{Key: "z_schema.a_name.a_sub"}, Type: TableAdded},
+		{Object: QualifiedObject{Key: "z_schema.a_name.z_sub"}, Type: TableAdded},
+		{Object: QualifiedObject{Key: "z_schema.z_name.a_sub"}, Type: TableAdded},
+		{Object: QualifiedObject{Key: "z_schema.z_name.a_sub"}, Type: TableSchemaChanged},
 	}
 
 	if !reflect.DeepEqual(diffs, want) {

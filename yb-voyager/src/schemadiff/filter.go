@@ -123,12 +123,12 @@ func buildTableRenameAliases(diffs []Difference) map[schemasnapshot.ObjectRef][]
 	for _, d := range diffs {
 		switch d.Type {
 		case TableNameChanged:
-			if newName, ok := d.NewValue.(string); ok && newName != "" {
-				at(d.Object).newName = newName
+			if newName, ok := d.NewValue.(string); ok && newName != "" && d.AnchorTable != nil {
+				at(*d.AnchorTable).newName = newName
 			}
 		case TableSchemaChanged:
-			if newSchema, ok := d.NewValue.(string); ok && newSchema != "" {
-				at(d.Object).newSchema = newSchema
+			if newSchema, ok := d.NewValue.(string); ok && newSchema != "" && d.AnchorTable != nil {
+				at(*d.AnchorTable).newSchema = newSchema
 			}
 		}
 	}

@@ -75,20 +75,18 @@ var diffTypeDefs = map[DiffType]ObjectType{
 
 // newDifference builds a Difference for any DiffType — added, dropped, or changed.
 //
-// obj is the finding's reported/sorted identity: the side-B ref for *_ADDED, the
-// side-A ref otherwise; for a column finding, its parent table's ref.
+// obj is the finding's rendered/sorted identity: the side-B rendering for
+// *_ADDED, the side-A rendering otherwise; for a column finding, schema.table.column.
 //
 // anchorTable is the table the finding filters under (--table-list / --exclude-
 // table-list). It LOOKS redundant in V1 — every finding anchors to its own object,
-// so all callers pass &obj — but is taken explicitly because future findings
-// (INDEX_*/owned SEQUENCE_* anchor to their host table; top-level VIEW_*/FUNCTION_*/
-// TYPE_* have no anchor) will make obj and anchor diverge. Carrying the parameter
-// now means those types slot in without a signature change. It's a pointer so "no
-// anchor" can be nil, and copied internally so AnchorTable never aliases caller or
-// snapshot storage.
-//
-// subObject is the dependent's name (the column name; "" for table findings).
-func newDifference(t DiffType, obj schemasnapshot.ObjectRef, anchorTable *schemasnapshot.ObjectRef, subObject string, oldVal, newVal any) Difference {
+// so all callers pass &obj's underlying table ref — but is taken explicitly because
+// future findings (INDEX_*/owned SEQUENCE_* anchor to their host table; top-level
+// VIEW_*/FUNCTION_*/TYPE_* have no anchor) will make obj and anchor diverge.
+// Carrying the parameter now means those types slot in without a signature
+// change. It's a pointer so "no anchor" can be nil, and copied internally so
+// AnchorTable never aliases caller or snapshot storage.
+func newDifference(t DiffType, obj QualifiedObject, anchorTable *schemasnapshot.ObjectRef, oldVal, newVal any) Difference {
 	var anchor *schemasnapshot.ObjectRef
 	if anchorTable != nil {
 		a := *anchorTable
@@ -98,7 +96,6 @@ func newDifference(t DiffType, obj schemasnapshot.ObjectRef, anchorTable *schema
 		Type:        t,
 		Object:      obj,
 		AnchorTable: anchor,
-		SubObject:   subObject,
 		OldValue:    oldVal,
 		NewValue:    newVal,
 	}
