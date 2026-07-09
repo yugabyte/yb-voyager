@@ -59,8 +59,6 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 
 	BoolVar(cmd.Flags(), &source.RunGuardrailsChecks, "run-guardrails-checks", true, "run guardrails checks before export. (only valid for PostgreSQL) Setting this to false is unsafe: it skips critical pre-migration validations (such as source/target database permissions, binary dependencies, and version compatibility) and may lead to migration failures or data issues. Leave the default (true) unless you have a specific reason to disable checks.")
 
-	// Config-file key: nested under the invoking command's section, e.g. "export-schema.suppress-schema-snapshot-capture"
-	// or "export-data.suppress-schema-snapshot-capture" (same pattern as run-guardrails-checks above).
 	// Defaults to true (capture off) for now: nothing consumes the snapshots until the
 	// detect-drift command ships. Flip to false to enable capture by default once it does.
 	BoolVar(cmd.Flags(), &suppressSchemaSnapshotCapture, "suppress-schema-snapshot-capture", true,
