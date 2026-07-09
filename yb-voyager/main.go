@@ -61,6 +61,7 @@ func registerSignalHandlers() {
 			cmd.ShutdownImportProgressBars()
 			utils.PrintAndLogf("\nReceived signal to terminate due to end migration command. Exiting...")
 			cmd.ProcessShutdownRequested = true
+			cmd.EndMigrationStopRequested = true
 		case syscall.SIGUSR1:
 			cmd.StopArchiverSignal = true
 			return

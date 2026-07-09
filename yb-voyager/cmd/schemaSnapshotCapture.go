@@ -35,6 +35,13 @@ import (
 // placeholder for a run that already exited cleanly.
 var exportDataExitSnapshotCaptured bool
 
+// schemaSnapshotExitCaptureTimeout bounds the best-effort schema capture attempted on
+// an abnormal export-data exit (error/signal). The run's own context is already
+// cancelled by then, so this fresh budget lets a healthy catalog read finish (seconds)
+// while capping the delay if the source DB is wedged. Matches main.go's post-shutdown
+// cleanup window.
+const schemaSnapshotExitCaptureTimeout = 2 * time.Minute
+
 // captureSourceSchemaSnapshot captures the source schema and persists it as a
 // snapshot for the given label/reason. It is BEST-EFFORT and off the data path:
 // it never returns an error and never blocks the migration — every failure is
@@ -42,18 +49,27 @@ var exportDataExitSnapshotCaptured bool
 // --suppress-schema-snapshot-capture. PostgreSQL only (no-op with a log for
 // other engines). Callers are responsible for exporter-role gating.
 func captureSourceSchemaSnapshot(ctx context.Context, label, reason string, placeholderOnFailure bool) {
+	if source.DBType != POSTGRESQL {
+		log.Infof("schema-snapshot capture skipped for label %q: only PostgreSQL sources are supported", label)
+		return
+	}
 	if bool(suppressSchemaSnapshotCapture) {
 		log.Infof("schema-snapshot capture suppressed (--suppress-schema-snapshot-capture); skipping %s", label)
 		return
 	}
 	pg, ok := source.DB().(*srcdb.PostgreSQL)
 	if !ok {
-		log.Infof("schema-snapshot capture skipped for label %q: only PostgreSQL sources are supported", label)
+		log.Warnf("schema-snapshot capture skipped for label %q: PostgreSQL source lacks a *srcdb.PostgreSQL handle", label)
 		return
 	}
 	db := pg.GetDB()
 	if db == nil {
 		log.Warnf("schema-snapshot capture skipped for label %q: no active database handle", label)
+		if placeholderOnFailure {
+			// Still record the timeline marker so a lifecycle moment (e.g. an exit)
+			// isn't lost just because the DB handle is gone during teardown.
+			saveSourceSchemaSnapshotPlaceholder(label, reason)
+		}
 		return
 	}
 	captureParams := schemasnapshot.CaptureParams{
@@ -149,7 +165,7 @@ func latestStoredSnapshotContent() (*schemasnapshot.SnapshotContent, error) {
 // path: a no-op when suppressed, when the interval is <= 0, or when this is not the
 // source exporter; periodic capture failures are logged and never affect export.
 func startPeriodicSourceSchemaSnapshotCapture(ctx context.Context) func() {
-	if exporterRole != SOURCE_DB_EXPORTER_ROLE || bool(suppressSchemaSnapshotCapture) {
+	if exporterRole != SOURCE_DB_EXPORTER_ROLE || source.DBType != POSTGRESQL || bool(suppressSchemaSnapshotCapture) {
 		return func() {}
 	}
 	interval := time.Duration(schemaSnapshotCaptureInterval) * time.Minute
@@ -181,10 +197,10 @@ func startPeriodicSourceSchemaSnapshotCapture(ctx context.Context) func() {
 // (no schema read) for a lifecycle moment we can't fully capture, e.g. an
 // error/interrupt exit. Best-effort; never fails the caller. Honors suppression.
 func saveSourceSchemaSnapshotPlaceholder(label, reason string) {
-	if bool(suppressSchemaSnapshotCapture) {
+	if source.DBType != POSTGRESQL {
 		return
 	}
-	if source.DBType != POSTGRESQL {
+	if bool(suppressSchemaSnapshotCapture) {
 		return
 	}
 	h := schemasnapshot.SnapshotHeader{

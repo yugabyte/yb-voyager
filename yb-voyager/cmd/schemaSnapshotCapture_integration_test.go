@@ -21,6 +21,7 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -196,6 +197,14 @@ func TestSchemaSnapshotCaptureIntegration(t *testing.T) {
 		t.Cleanup(func() {
 			testPostgresSource.ExecuteSqls(`ALTER TABLE public.orders DROP COLUMN IF EXISTS dedup_marker_2`)
 		})
+
+		// Snapshot names are second-granularity ({label}_{YYYYMMDDThhmmssZ}). This test
+		// fires the persisting captures back-to-back, so without spacing this capture can
+		// land in the same second as the one at afterFirst above and collide on the UNIQUE
+		// name. A >=1s wait guarantees a distinct timestamp. Not a real-run concern:
+		// periodic captures are >=1 minute apart (--schema-snapshot-capture-interval is in
+		// minutes) and start/exit fire once each.
+		time.Sleep(time.Second)
 
 		captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourcePeriodic, "", false)
 		afterSchemaChange := countPeriodicSnapshots()

@@ -54,6 +54,7 @@ var (
 	migrationUUID                      uuid.UUID
 	perfProfile                        utils.BoolStr
 	ProcessShutdownRequested           bool
+	EndMigrationStopRequested          bool
 	controlPlane                       cp.ControlPlane
 	currentCommand                     string
 	callHomeErrorOrCompletePayloadSent bool
