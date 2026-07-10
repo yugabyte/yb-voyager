@@ -1632,6 +1632,8 @@ func getYBSessionInitScript(tconf *TargetConf) []string {
 		sessionVars = append(sessionVars, SET_DEFAULT_ISOLATION_LEVEL_REPEATABLE_READ)
 	}
 
+	sessionVars = append(sessionVars, "SET yb_enable_cbo=off;")
+
 	// enable `set yb_fast_path_for_colocated_copy` only if opted for IGNORE or UPDATE as PK conflict action
 	if (tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE) &&
 		checkSessionVariableSupport(tconf, SET_YB_FAST_PATH_FOR_COLOCATED_COPY) {
