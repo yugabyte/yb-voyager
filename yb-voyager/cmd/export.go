@@ -63,6 +63,9 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 	// detect-drift command ships. Flip to false to enable capture by default once it does.
 	BoolVar(cmd.Flags(), &suppressSchemaSnapshotCapture, "suppress-schema-snapshot-capture", true,
 		"disable best-effort schema-snapshot capture during export. (only valid for PostgreSQL)")
+	// Hidden for now: capture is off by default and nothing consumes the snapshots until
+	// the detect-drift command ships. Still settable via CLI/config for internal use.
+	cmd.Flags().MarkHidden("suppress-schema-snapshot-capture")
 }
 
 func registerCommonSourceDBConnFlags(cmd *cobra.Command) {
@@ -258,8 +261,11 @@ func registerExportDataFlags(cmd *cobra.Command) {
 	cmd.Flags().IntVar(&metricsPort, "metrics-port", 0,
 		"Port to expose Prometheus metrics on (0 disables). Serves GET /metrics.")
 	// Config-file key: "export-data.schema-snapshot-capture-interval".
-	cmd.Flags().IntVar(&schemaSnapshotCaptureInterval, "schema-snapshot-capture-interval", 5,
+	cmd.Flags().IntVar(&schemaSnapshotCaptureInterval, "schema-snapshot-capture-interval", 60,
 		"interval (in minutes) at which voyager periodically captures a source schema snapshot throughout export data (both snapshot and streaming phases; offline and live). (only valid for PostgreSQL)")
+	// Hidden for now: capture is off by default and nothing consumes the snapshots until
+	// the detect-drift command ships. Still settable via CLI/config for internal use.
+	cmd.Flags().MarkHidden("schema-snapshot-capture-interval")
 }
 
 func validateSourceDBType() {
