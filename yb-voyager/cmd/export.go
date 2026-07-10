@@ -63,6 +63,9 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 	// detect-drift command ships. Flip to false to enable capture by default once it does.
 	BoolVar(cmd.Flags(), &suppressSchemaSnapshotCapture, "suppress-schema-snapshot-capture", true,
 		"disable best-effort schema-snapshot capture during export. (only valid for PostgreSQL)")
+	// Hidden for now: capture is off by default and nothing consumes the snapshots until
+	// the detect-drift command ships. Still settable via CLI/config for internal use.
+	cmd.Flags().MarkHidden("suppress-schema-snapshot-capture")
 }
 
 func registerCommonSourceDBConnFlags(cmd *cobra.Command) {
@@ -255,8 +258,11 @@ func registerExportDataFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &source.AllowOracleClobDataExport, "allow-oracle-clob-data-export", false,
 		"[EXPERIMENTAL][Oracle only] Allow exporting data of CLOB columns in offline migration.")
 
-	cmd.Flags().IntVar(&schemaSnapshotCaptureInterval, "schema-snapshot-capture-interval", 5,
+	cmd.Flags().IntVar(&schemaSnapshotCaptureInterval, "schema-snapshot-capture-interval", 60,
 		"interval (in minutes) at which voyager periodically captures a source schema snapshot throughout export data (both snapshot and streaming phases; offline and live). (only valid for PostgreSQL)")
+	// Hidden for now: capture is off by default and nothing consumes the snapshots until
+	// the detect-drift command ships. Still settable via CLI/config for internal use.
+	cmd.Flags().MarkHidden("schema-snapshot-capture-interval")
 }
 
 func validateSourceDBType() {

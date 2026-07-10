@@ -157,7 +157,7 @@ func TestSchemaSnapshotCaptureIntegration(t *testing.T) {
 		assert.Equal(t, schemasnapshot.ReasonError, placeholder.Reason)
 	})
 
-	t.Run("periodic capture dedups against an unchanged schema and persists on a real change", func(t *testing.T) {
+	t.Run("periodic capture persists on every tick, even for an unchanged schema (no dedup)", func(t *testing.T) {
 		suppressSchemaSnapshotCapture = utils.BoolStr(false)
 
 		countPeriodicSnapshots := func() int {
@@ -172,42 +172,25 @@ func TestSchemaSnapshotCaptureIntegration(t *testing.T) {
 			return n
 		}
 
-		// Force the schema to differ from whatever earlier subtests in this file may have
-		// already captured (e.g. the "happy path" export_schema snapshot), so the first
-		// periodic capture below is guaranteed to be a real change and persist.
-		testPostgresSource.ExecuteSqls(`ALTER TABLE public.orders ADD COLUMN dedup_marker_1 numeric`)
-		t.Cleanup(func() {
-			testPostgresSource.ExecuteSqls(`ALTER TABLE public.orders DROP COLUMN IF EXISTS dedup_marker_1`)
-		})
-
 		before := countPeriodicSnapshots()
 
-		// First periodic capture after the schema change above: must persist.
-		captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourcePeriodic, "", false)
-		afterFirst := countPeriodicSnapshots()
-		require.Equal(t, before+1, afterFirst, "a periodic capture following a real schema change must persist")
+		// Every periodic capture is persisted unconditionally — no dedup — so the drift
+		// timeline records the source schema at each interval even when it hasn't changed.
+		// The schema is NOT altered between these captures, so under the old dedup logic the
+		// 2nd and 3rd would have been skipped; here all three must persist.
+		//
+		// Snapshot names are second-granularity ({label}_{YYYYMMDDThhmmssZ}); this test fires
+		// captures back-to-back, so a >=1s wait between them avoids a UNIQUE-name collision.
+		// Not a real-run concern: periodic captures are >=1 minute apart.
+		const captures = 3
+		for i := 0; i < captures; i++ {
+			if i > 0 {
+				time.Sleep(time.Second)
+			}
+			captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourcePeriodic, "", false)
+		}
 
-		// Second periodic capture with no further schema change: must be deduped (no new row).
-		captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourcePeriodic, "", false)
-		afterSecond := countPeriodicSnapshots()
-		assert.Equal(t, afterFirst, afterSecond, "an unchanged schema must not add a second periodic snapshot")
-
-		// Alter the schema again, then capture again: must persist a new row.
-		testPostgresSource.ExecuteSqls(`ALTER TABLE public.orders ADD COLUMN dedup_marker_2 numeric`)
-		t.Cleanup(func() {
-			testPostgresSource.ExecuteSqls(`ALTER TABLE public.orders DROP COLUMN IF EXISTS dedup_marker_2`)
-		})
-
-		// Snapshot names are second-granularity ({label}_{YYYYMMDDThhmmssZ}). This test
-		// fires the persisting captures back-to-back, so without spacing this capture can
-		// land in the same second as the one at afterFirst above and collide on the UNIQUE
-		// name. A >=1s wait guarantees a distinct timestamp. Not a real-run concern:
-		// periodic captures are >=1 minute apart (--schema-snapshot-capture-interval is in
-		// minutes) and start/exit fire once each.
-		time.Sleep(time.Second)
-
-		captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourcePeriodic, "", false)
-		afterSchemaChange := countPeriodicSnapshots()
-		assert.Equal(t, afterSecond+1, afterSchemaChange, "a real schema change must persist a new periodic snapshot")
+		assert.Equal(t, before+captures, countPeriodicSnapshots(),
+			"every periodic capture must persist a new snapshot, even with an unchanged schema")
 	})
 }
