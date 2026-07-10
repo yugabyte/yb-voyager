@@ -17,6 +17,7 @@ limitations under the License.
 package cdcbench
 
 import (
+	"database/sql"
 	"sync/atomic"
 	"time"
 
@@ -36,8 +37,28 @@ type MockTargetDB struct {
 	// ExecDelay simulates target batch-commit latency (CDCBENCH_EXEC_DELAY_MS).
 	ExecDelay time.Duration
 
+	// metadata backs Query/QueryRow/Exec/WithTx for the streaming bootstrap's
+	// live-migration bookkeeping (see mock_metadata.go)
+	metadata *sql.DB
+
 	batches atomic.Int64
 	events  atomic.Int64
+}
+
+// NewMockTargetDB returns a mock whose ExecuteBatch succeeds without a
+// database and whose streaming-metadata queries run against an in-memory store.
+func NewMockTargetDB(execDelay time.Duration) (*MockTargetDB, error) {
+	metadata, err := newMockMetadataStore()
+	if err != nil {
+		return nil, err
+	}
+	return &MockTargetDB{ExecDelay: execDelay, metadata: metadata}, nil
+}
+
+func (m *MockTargetDB) Close() {
+	if m.metadata != nil {
+		m.metadata.Close()
+	}
 }
 
 func (m *MockTargetDB) ExecuteBatch(migrationUUID uuid.UUID, batch *tgtdb.EventBatch) error {
@@ -51,8 +72,3 @@ func (m *MockTargetDB) ExecuteBatch(migrationUUID uuid.UUID, batch *tgtdb.EventB
 
 func (m *MockTargetDB) Batches() int64 { return m.batches.Load() }
 func (m *MockTargetDB) Events() int64  { return m.events.Load() }
-
-func (m *MockTargetDB) reset() {
-	m.batches.Store(0)
-	m.events.Store(0)
-}

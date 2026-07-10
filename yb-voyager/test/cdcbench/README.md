@@ -95,13 +95,21 @@ before-image (see `conflict_pairs_uk/dml.sql`).
 
 `test/cdcbench` knows nothing about the `cmd` package. The three pieces that need cmd
 internals are injected as closures (`Hooks`) by the shim `cmd/cdc_ingest_bench_test.go`
-(build tag `cdc_benchmark`): `Bootstrap` (prepare metaDB/name registry/converter/etc.
-for an artifact copy), `StreamAll` (the real segment loop — the timed region), and
-`CacheDepth` (conflict-cache occupancy for the sampler). Everything else — workload
-registry, artifact generation & caching, the `ExecuteBatch` mock, conflict counting
-(logrus hook), metrics and assertions — lives here.
+(build tag `cdc_benchmark`): `Bootstrap` (prepare metaDB/name registry/table list for
+an artifact copy and install the mock), `StreamAll` (calls the real `streamChanges` —
+the timed region), and `CacheDepth` (conflict-cache occupancy for the sampler).
+Everything else — workload registry, artifact generation & caching, the mock (whose
+`ExecuteBatch` is a no-op and whose target-side streaming-metadata queries are answered
+by an in-memory store with fresh-migration values), conflict counting (logrus hook),
+metrics and assertions — lives here.
 
 Generated artifacts are self-contained: the framework patches the YB-side names into
 the artifact's name registry (a live `import data` would register them against a real
-target) and writes both historical variants of the unique-key metaDB key so artifacts
-replay identically across voyager versions.
+target). Artifact generation requires a `yb-voyager` binary recent enough to write
+multi-column unique-index metadata; artifacts produced by older binaries fail loudly
+at conflict-cache initialization and must be regenerated (`CDCBENCH_REGEN=1`).
+
+Known accepted limitation: the depth sampler reads the conflict-cache pointer while
+the stream's first event initializes it (a benign, one-time unsynchronized access —
+benchmark artifacts are single-exporter-role, so the pointer never changes mid-run).
+Expect `go test -race` to flag it.

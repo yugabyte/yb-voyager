@@ -31,15 +31,10 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 )
 
 const (
-	// the exporter role suffix under which export data stores per-table
-	// unique-key metadata in the artifact's metaDB
-	sourceDBExporterRole = "source_db_exporter"
-
 	benchDBPrefix = "cdcbench_"
 
 	streamingStartTimeout = 5 * time.Minute
@@ -276,9 +271,6 @@ func generateArtifact(b *testing.B, w Workload, voyagerBin, dir, exportDir strin
 	if err := patchNameRegistryYBNames(exportDir); err != nil {
 		return fmt.Errorf("patch name registry: %w", err)
 	}
-	if err := ensureUniqueKeyCompatKeys(exportDir); err != nil {
-		return fmt.Errorf("ensure unique-key metaDB keys: %w", err)
-	}
 
 	manifest := artifactManifest{
 		Hash:        w.hash(),
@@ -374,57 +366,6 @@ func patchNameRegistryYBNames(exportDir string) error {
 		return err
 	}
 	return os.WriteFile(path, out, 0644)
-}
-
-// ensureUniqueKeyCompatKeys makes the artifact readable regardless of which
-// unique-key metaDB key the exporting binary wrote (it changed across voyager
-// versions): whichever of the flattened-columns / per-index keys is present,
-// derive the other. Exact for single-column unique keys.
-func ensureUniqueKeyCompatKeys(exportDir string) error {
-	mdb, err := metadb.NewMetaDB(exportDir)
-	if err != nil {
-		return err
-	}
-	oldKey := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, sourceDBExporterRole)
-	newKey := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_INDEXES_KEY, sourceDBExporterRole)
-
-	var flat map[string][]string
-	oldFound, err := mdb.GetJsonObject(nil, oldKey, &flat)
-	if err != nil {
-		return fmt.Errorf("read %q from artifact metaDB: %w", oldKey, err)
-	}
-	var indexes map[string][][]string
-	newFound, err := mdb.GetJsonObject(nil, newKey, &indexes)
-	if err != nil {
-		return fmt.Errorf("read %q from artifact metaDB: %w", newKey, err)
-	}
-
-	switch {
-	case oldFound && newFound:
-		return nil
-	case newFound: // derive old from new: flatten index column lists
-		derived := make(map[string][]string, len(indexes))
-		for table, idxs := range indexes {
-			cols := make([]string, 0)
-			for _, idx := range idxs {
-				cols = append(cols, idx...)
-			}
-			derived[table] = cols
-		}
-		return mdb.InsertJsonObject(nil, oldKey, derived)
-	case oldFound: // derive new from old: each column becomes its own 1-col index
-		derived := make(map[string][][]string, len(flat))
-		for table, cols := range flat {
-			idxs := make([][]string, 0, len(cols))
-			for _, col := range cols {
-				idxs = append(idxs, []string{col})
-			}
-			derived[table] = idxs
-		}
-		return mdb.InsertJsonObject(nil, newKey, derived)
-	default:
-		return fmt.Errorf("neither %q nor %q found in artifact metaDB", oldKey, newKey)
-	}
 }
 
 func fileTail(path string, lines int) string {
