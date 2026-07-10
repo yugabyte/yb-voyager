@@ -35,10 +35,13 @@ var exportDataExitSnapshotCaptured bool
 
 // schemaSnapshotExitCaptureTimeout bounds the best-effort schema capture attempted on
 // an abnormal export-data exit (error/signal). The run's own context is already
-// cancelled by then, so this fresh budget lets a healthy catalog read finish (seconds)
-// while capping the delay if the source DB is wedged. Matches main.go's post-shutdown
-// cleanup window.
-const schemaSnapshotExitCaptureTimeout = 2 * time.Minute
+// cancelled by then, so this fresh budget lets a healthy catalog read finish (a
+// metadata-only read is well under this) while capping how long a wedged or
+// unreachable source DB delays the exit. The pgx driver honors the deadline by setting
+// a deadline on the underlying connection, so even a silently-hung socket is
+// interrupted promptly — no dependence on reaching the dead host — which is why a plain
+// context timeout is a sufficient bound here.
+const schemaSnapshotExitCaptureTimeout = 10 * time.Second
 
 // captureSourceSchemaSnapshot captures the source schema and persists it as a
 // snapshot for the given label/reason. It is BEST-EFFORT and off the data path:
