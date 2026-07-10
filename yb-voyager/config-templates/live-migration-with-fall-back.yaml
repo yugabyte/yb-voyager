@@ -242,12 +242,6 @@ export-schema:
   ### Warning - Setting this to false is unsafe: it skips critical pre-migration validations (such as source/target database permissions, binary dependencies, and version compatibility) and may lead to migration failures or data issues. Leave the default (true) unless you have a specific reason to disable checks.
   # run-guardrails-checks: true  
 
-  ### Disable best-effort capture of source schema snapshots during export (consumed later by schema-drift detection).
-  ### Note - This is only valid for PostgreSQL source database.
-  ### Accepted values - (true, false, yes, no, 1, 0)
-  ### Default - true
-  # suppress-schema-snapshot-capture: true
-
   ### Log level for the command
   ### Note: This overrides the global log-level parameter for this command only.
   ### Accepted values - (trace, debug, info, warn, error, fatal, panic) 
@@ -369,17 +363,6 @@ export-data-from-source:
   ### Default - true
   ### Warning - Setting this to false is unsafe: it skips critical pre-migration validations (such as source/target database permissions, binary dependencies, and version compatibility) and may lead to migration failures or data issues. Leave the default (true) unless you have a specific reason to disable checks.
   # run-guardrails-checks: true  
-
-  ### Disable best-effort capture of source schema snapshots during export (consumed later by schema-drift detection).
-  ### Note - This is only valid for PostgreSQL source database.
-  ### Accepted values - (true, false, yes, no, 1, 0)
-  ### Default - true
-  # suppress-schema-snapshot-capture: true
-
-  ### Interval (in minutes) at which a source schema snapshot is periodically captured throughout export data (both snapshot and streaming phases).
-  ### Note - This is only valid for PostgreSQL source database.
-  ### Default - 5
-  # schema-snapshot-capture-interval: 5
 
   ### Log level for the command
   ### Note: This overrides the global log-level parameter for this command only.
@@ -623,11 +606,6 @@ export-data-from-target:
   ### Accepted values (true, false, yes, no, 0, 1) 
   ### Default - true
   # transaction-ordering: true 
-
-  ### Interval (in minutes) at which a source schema snapshot is periodically captured throughout export data (both snapshot and streaming phases).
-  ### Note - This is only valid for PostgreSQL source database.
-  ### Default - 5
-  # schema-snapshot-capture-interval: 5
 
   ### Log level for the command
   ### Note: This overrides the global log-level parameter for this command only.
