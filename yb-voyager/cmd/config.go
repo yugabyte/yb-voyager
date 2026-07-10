@@ -108,6 +108,7 @@ var allowedExportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"skip-colocation-recommendations", "assessment-report-path",
 	"skip-performance-recommendations",
 	"assess-schema-before-export",
+	"suppress-schema-snapshot-capture",
 	// environment variables keys
 	"ybvoyager-skip-merge-constraints-transformation",
 )
@@ -117,6 +118,7 @@ var allowedExportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
 	"table-list-file-path", "parallel-jobs", "export-type",
 	"allow-oracle-clob-data-export",
+	"suppress-schema-snapshot-capture", "schema-snapshot-capture-interval",
 	// environment variables keys
 	"queue-segment-max-bytes", "debezium-dist-dir", "beta-fast-data-export",
 )
@@ -125,6 +127,7 @@ var allowedExportDataFromTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level",
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
 	"table-list-file-path", "transaction-ordering",
+	"schema-snapshot-capture-interval",
 	// environment variables keys
 	"yb-master-port", "queue-segment-max-bytes", "debezium-dist-dir",
 )
