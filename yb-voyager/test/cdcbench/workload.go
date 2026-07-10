@@ -71,9 +71,11 @@ type Workload struct {
 //	schema-   schema-shape probe (index count, row width, key structure)
 //	edge-     degenerate op-mix corner case
 //	conflict- engineered, semantically REAL conflicts
-//	canary-   false-positive probe of current detection semantics; its
-//	          ExpectConflicts flips when the semantics are fixed
-var categoryOrder = map[string]int{"oltp": 0, "schema": 1, "edge": 2, "conflict": 3, "canary": 4}
+//
+// Names describe the workload's construction, never its current detection
+// outcome; workloads asserting known false positives of current semantics say
+// so in their registration comment instead.
+var categoryOrder = map[string]int{"oltp": 0, "schema": 1, "edge": 2, "conflict": 3}
 
 func (w Workload) category() string {
 	prefix, _, _ := strings.Cut(w.Name, "-")
@@ -92,7 +94,7 @@ func (w Workload) validate() error {
 		return fmt.Errorf("workload %q: ExpectedEvents must be > 0", w.Name)
 	}
 	if _, known := categoryOrder[w.category()]; !known {
-		return fmt.Errorf("workload %q: name must start with one of the category prefixes (oltp-, schema-, edge-, conflict-, canary-)", w.Name)
+		return fmt.Errorf("workload %q: name must start with one of the category prefixes (oltp-, schema-, edge-, conflict-)", w.Name)
 	}
 	return nil
 }
