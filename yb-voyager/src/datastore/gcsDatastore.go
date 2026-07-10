@@ -86,5 +86,19 @@ func (ds *GCSDataStore) Open(resourceName string) (io.ReadCloser, error) {
 }
 
 func (ds *GCSDataStore) OpenAt(resourceName string, offset int64) (io.ReadCloser, error) {
+	// Byte-offset seek resumption is disabled for GCS for now. Returning
+	// ErrOpenAtNotImplemented makes the caller fall back to the older
+	// SkipLines-based resumption path. The working implementation below is
+	// preserved intentionally — uncomment it (and delete the return above)
+	// to re-enable byte-offset seek resumption for GCS in the future.
 	return nil, ErrOpenAtNotImplemented
+
+	// if strings.HasPrefix(resourceName, "gs://") {
+	// 	return gcs.NewObjectReaderAt(resourceName, offset)
+	// }
+	// objectPath, err := os.Readlink(resourceName)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("unable to resolve symlink: %v to gcs resource: %w", resourceName, err)
+	// }
+	// return gcs.NewObjectReaderAt(objectPath, offset)
 }

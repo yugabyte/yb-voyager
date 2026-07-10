@@ -86,5 +86,12 @@ func (ds *S3DataStore) Open(resourceName string) (io.ReadCloser, error) {
 }
 
 func (ds *S3DataStore) OpenAt(resourceName string, offset int64) (io.ReadCloser, error) {
-	return nil, ErrOpenAtNotImplemented
+	if strings.HasPrefix(resourceName, "s3://") {
+		return s3.NewObjectReaderAt(resourceName, offset)
+	}
+	objectPath, err := os.Readlink(resourceName)
+	if err != nil {
+		return nil, fmt.Errorf("unable to resolve symlink to s3 resource: %v: %w", resourceName, err)
+	}
+	return s3.NewObjectReaderAt(objectPath, offset)
 }
