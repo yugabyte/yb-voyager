@@ -259,7 +259,7 @@ func registerExportDataFlags(cmd *cobra.Command) {
 		"Port to expose Prometheus metrics on (0 disables). Serves GET /metrics.")
 	// Config-file key: "export-data.schema-snapshot-capture-interval".
 	cmd.Flags().IntVar(&schemaSnapshotCaptureInterval, "schema-snapshot-capture-interval", 5,
-		"interval (in minutes) at which voyager periodically captures a source schema snapshot during export-data's snapshot phase (offline and live). (only valid for PostgreSQL)")
+		"interval (in minutes) at which voyager periodically captures a source schema snapshot throughout export data (both snapshot and streaming phases; offline and live). (only valid for PostgreSQL)")
 }
 
 func validateSourceDBType() {
