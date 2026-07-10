@@ -225,14 +225,14 @@ func validateCdcPartitioningStrategyFlag(cmd *cobra.Command) error {
 	if importerRole != TARGET_DB_IMPORTER_ROLE {
 		return nil
 	}
-	parameterPassed := cmd.Flags().Changed("cdc-partitioning-strategy")
+	cdcPartitioningStrategyParameterPassed := cmd.Flags().Changed("cdc-partitioning-strategy")
 	if !changeStreamingIsEnabled(importType) {
-		if parameterPassed {
+		if cdcPartitioningStrategyParameterPassed {
 			utils.ErrExit("--cdc-partitioning-strategy is not supported for offline migration. Re-run the command without this flag.")
 		}
 		return nil
 	}
-	if sourceDBType != POSTGRESQL && parameterPassed {
+	if sourceDBType != POSTGRESQL && cdcPartitioningStrategyParameterPassed {
 		utils.ErrExit("--cdc-partitioning-strategy is only supported for PostgreSQL source")
 	}
 
