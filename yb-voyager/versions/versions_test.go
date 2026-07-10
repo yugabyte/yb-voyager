@@ -19,11 +19,34 @@ limitations under the License.
 package versions
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+// =============================== Connector Versions Tests ===============================
+
+func TestLoadConnectorVersions(t *testing.T) {
+	cv := LoadConnectorVersions()
+	assert.NotEmpty(t, cv.LogicalConnector.Tag, "logical connector tag must not be empty")
+	assert.NotEmpty(t, cv.GRPCConnector.Tag, "grpc connector tag must not be empty")
+}
+
+func TestGetLogicalConnectorTag(t *testing.T) {
+	tag := GetLogicalConnectorTag()
+	assert.NotEmpty(t, tag, "logical connector tag must not be empty")
+	assert.Regexp(t, regexp.MustCompile(`^dz\..*\.yb\.`), tag,
+		"logical connector tag %q must start with 'dz.' and contain '.yb.'", tag)
+}
+
+func TestGetGRPCConnectorTag(t *testing.T) {
+	tag := GetGRPCConnectorTag()
+	assert.NotEmpty(t, tag, "gRPC connector tag must not be empty")
+	assert.Regexp(t, regexp.MustCompile(`\.yb\.grpc\.`), tag,
+		"gRPC connector tag %q must contain '.yb.grpc.'", tag)
+}
 
 func TestGetLatestStableYBVersionWithoutBuildNumber(t *testing.T) {
 	// Test the actual function with current data
