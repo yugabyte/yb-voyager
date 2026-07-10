@@ -188,8 +188,6 @@ func runWorkload(b *testing.B, w Workload, hooks Hooks) workloadResult {
 	log.SetLevel(log.InfoLevel)
 	hookOnce.Do(func() { log.AddHook(conflictCount) })
 
-	mock := &MockTargetDB{ExecDelay: execDelay}
-
 	var (
 		totalEvents    int64
 		totalBatches   int64
@@ -209,7 +207,12 @@ func runWorkload(b *testing.B, w Workload, hooks Hooks) workloadResult {
 		logDest, closeLog := runLogDest(b, w, i)
 		log.SetOutput(logDest)
 
-		mock.reset()
+		// fresh mock per run: the metadata store must hold fresh-migration
+		// values (channel vsn = -1), exactly like a first import run
+		mock, err := NewMockTargetDB(execDelay)
+		if err != nil {
+			b.Fatalf("cdcbench: create mock target: %v", err)
+		}
 		conflictCount.count.Store(0)
 		if err := hooks.Bootstrap(runDir, mock); err != nil {
 			b.Fatalf("cdcbench: bootstrap: %v", err)
@@ -234,15 +237,16 @@ func runWorkload(b *testing.B, w Workload, hooks Hooks) workloadResult {
 
 		b.StartTimer()
 		start := time.Now()
-		err := hooks.StreamAll()
+		streamErr := hooks.StreamAll()
 		elapsed := time.Since(start)
 		b.StopTimer()
 
 		close(samplerStop)
 		<-samplerDone
 		closeLog()
-		if err != nil {
-			b.Fatalf("cdcbench: streaming: %v", err)
+		mock.Close()
+		if streamErr != nil {
+			b.Fatalf("cdcbench: streaming: %v", streamErr)
 		}
 
 		// per-run assertions: measured, not assumed

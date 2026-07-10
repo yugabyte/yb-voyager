@@ -37,10 +37,7 @@ import (
 	"testing"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
-	reporterstats "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/stats"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"github.com/yugabyte/yb-voyager/yb-voyager/test/cdcbench"
 )
@@ -48,19 +45,17 @@ import (
 func BenchmarkCDCIngest(b *testing.B) {
 	// state shared between Bootstrap and StreamAll within one run
 	var run struct {
-		converter dbzm.StreamingPhaseValueConverter
-		partMap   *utils.StructMap[sqlname.NameTuple, string]
 		state     *ImportDataState
-		evChans   []chan *tgtdb.Event
-		doneChans []chan bool
+		tableList []sqlname.NameTuple
 	}
 
 	cdcbench.Run(b, cdcbench.Hooks{
 		Bootstrap: func(artifactDir string, mock tgtdb.TargetDB) error {
-			// mirrors the importData command's bootstrap, minus the target DB:
-			// channel metadata and vsn state are fresh-migration values, and the
-			// only target interaction left in the streaming path is the mocked
-			// ExecuteBatch.
+			// mirrors the importData command's bootstrap; the streaming-phase
+			// setup itself (value converter, channels, conflict cache, channel
+			// metadata, stats reporter) is done by the real streamChanges call
+			// in StreamAll, with the mock answering the target-side metadata
+			// queries with fresh-migration values.
 			exportDir = artifactDir
 			metaDB = initMetaDB(exportDir)
 			if err := retrieveMigrationUUID(); err != nil {
@@ -70,6 +65,7 @@ func BenchmarkCDCIngest(b *testing.B) {
 			sqlname.SourceDBType = sourceDBType
 			importerRole = TARGET_DB_IMPORTER_ROLE
 			callhome.SendDiagnostics = false
+			disablePb = true
 			// production default resolution for tables without expression-based
 			// unique indexes; avoids the target-DB query of the "auto" path
 			cdcPartitioningStrategy = "pk"
@@ -83,65 +79,30 @@ func BenchmarkCDCIngest(b *testing.B) {
 			if err != nil {
 				return fmt.Errorf("get migration status record: %w", err)
 			}
-			tableList, err := getInitialImportTableListForLive(msr.TableListExportedFromSource)
+			run.tableList, err = getInitialImportTableListForLive(msr.TableListExportedFromSource)
 			if err != nil {
 				return fmt.Errorf("get import table list: %w", err)
-			}
-			run.converter, err = dbzm.NewStreamingPhaseDebeziumValueConverter(tableList, exportDir, tconf, importerRole, sourceDBType)
-			if err != nil {
-				return fmt.Errorf("create streaming value converter: %w", err)
-			}
-			run.partMap, err = getCdcPartitioningStrategyPerTable(tableList)
-			if err != nil {
-				return fmt.Errorf("get cdc partitioning strategy: %w", err)
 			}
 			run.state = NewImportDataState(exportDir)
 			tdb = mock
 
-			// Initialize the conflict detection cache HERE (as production does
-			// lazily on the first event) and pin prevExporterRole so the
-			// streaming loop never reassigns the package-global cache pointer
-			// mid-stream: the framework's depth sampler reads that pointer
-			// concurrently, and writing it during StreamAll would be a data
-			// race. Benchmark artifacts carry a single exporter role by
-			// construction, so the re-init-on-role-change path is unreachable
-			// for them anyway.
-			run.evChans = nil
-			run.doneChans = nil
-			for i := 0; i < NUM_EVENT_CHANNELS; i++ {
-				run.evChans = append(run.evChans, make(chan *tgtdb.Event, EVENT_CHANNEL_SIZE))
-				run.doneChans = append(run.doneChans, make(chan bool, 1))
-			}
-			if err := initializeConflictDetectionCache(run.evChans, SOURCE_DB_EXPORTER_ROLE, sourceDBType); err != nil {
-				return fmt.Errorf("initialize conflict detection cache: %w", err)
-			}
-			prevExporterRole = SOURCE_DB_EXPORTER_ROLE
+			// reset streaming globals so this run initializes them afresh, as
+			// production does on the first event of a stream. The framework's
+			// depth sampler reads the conflictDetectionCache pointer while the
+			// stream's first event assigns it — an unsynchronized read/write
+			// pair, accepted for the benchmark: artifacts carry a single
+			// exporter role, so the pointer is written exactly once and never
+			// changes mid-run.
+			conflictDetectionCache = nil
+			prevExporterRole = ""
 			return nil
 		},
 
+		// the real streaming entrypoint, end to end: value converter, channel
+		// metadata (answered by the mock's metadata store), conflict cache,
+		// stats reporter, and the segment loop
 		StreamAll: func() error {
-			// the segment loop from streamChanges (live_migration.go), with
-			// fresh-migration channel metadata (what InitLiveMigrationState
-			// inserts and GetEventChannelsMetaInfo returns on a first run);
-			// channels and the conflict cache were prepared in Bootstrap
-			chanMeta := map[int]EventChannelMetaInfo{}
-			for i := 0; i < NUM_EVENT_CHANNELS; i++ {
-				chanMeta[i] = EventChannelMetaInfo{ChanNo: i, LastAppliedVsn: -1}
-			}
-			statsReporter := &reporterstats.StreamImportStatsReporter{}
-
-			eventQueue = NewEventQueue(exportDir)
-			for !eventQueue.EndOfQueue {
-				segment, err := eventQueue.GetNextSegment()
-				if err != nil {
-					return fmt.Errorf("get next queue segment: %w", err)
-				}
-				err = streamChangesFromSegment(segment, run.evChans, run.doneChans, chanMeta, statsReporter, run.state, run.converter, run.partMap)
-				if err != nil {
-					return fmt.Errorf("stream changes from segment %s: %w", segment.FilePath, err)
-				}
-			}
-			return nil
+			return streamChanges(run.state, run.tableList)
 		},
 
 		CacheDepth: func() int {
