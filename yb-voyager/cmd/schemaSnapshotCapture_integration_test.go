@@ -193,4 +193,53 @@ func TestSchemaSnapshotCaptureIntegration(t *testing.T) {
 		assert.Equal(t, before+captures, countPeriodicSnapshots(),
 			"every periodic capture must persist a new snapshot, even with an unchanged schema")
 	})
+
+	t.Run("an expired context aborts the capture fast and falls back to a placeholder", func(t *testing.T) {
+		suppressSchemaSnapshotCapture = utils.BoolStr(false)
+
+		countExitPlaceholders := func() int {
+			headers, err := schemasnapshot.ListSnapshots(metaDB)
+			require.NoError(t, err)
+			n := 0
+			for _, h := range headers {
+				if h.Label == schemasnapshot.LabelExportDataFromSourceExit && h.IsPlaceholder {
+					n++
+				}
+			}
+			return n
+		}
+		before := countExitPlaceholders()
+
+		// A context whose deadline has already passed. The capture must not run a real
+		// query and must not hang; with placeholderOnFailure=true (as the abnormal-exit
+		// path uses) it falls back to a metadata-only marker.
+		expiredCtx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
+		defer cancel()
+		time.Sleep(time.Millisecond) // ensure the deadline has elapsed
+
+		start := time.Now()
+		captureSourceSchemaSnapshot(expiredCtx, schemasnapshot.LabelExportDataFromSourceExit, schemasnapshot.ReasonError, true)
+		elapsed := time.Since(start)
+
+		assert.Less(t, elapsed, 3*time.Second, "an expired context must abort the capture promptly, not hang")
+		assert.Equal(t, before+1, countExitPlaceholders(),
+			"an aborted capture with placeholderOnFailure must record exactly one exit placeholder")
+	})
+
+	t.Run("a healthy capture completes well under the exit-capture timeout", func(t *testing.T) {
+		suppressSchemaSnapshotCapture = utils.BoolStr(false)
+
+		// Same budget the abnormal-exit path uses. A metadata-only catalog read must
+		// finish comfortably inside it.
+		budgetCtx, cancel := context.WithTimeout(context.Background(), schemaSnapshotExitCaptureTimeout)
+		defer cancel()
+
+		start := time.Now()
+		captureSourceSchemaSnapshot(budgetCtx, schemasnapshot.LabelExportSchema, "", true)
+		elapsed := time.Since(start)
+
+		require.NoError(t, budgetCtx.Err(), "capture must finish before the exit-capture budget is exhausted")
+		assert.Less(t, elapsed, schemaSnapshotExitCaptureTimeout,
+			"a healthy catalog read must finish within the exit-capture budget")
+	})
 }
