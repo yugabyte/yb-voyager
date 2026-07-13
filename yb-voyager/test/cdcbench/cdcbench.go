@@ -172,7 +172,7 @@ func comma(n int64) string {
 
 func runWorkload(b *testing.B, w Workload, hooks Hooks) workloadResult {
 	b.Helper()
-	pristine := EnsureArtifact(b, w)
+	pristine, manifest := EnsureArtifact(b, w)
 
 	execDelay := time.Duration(0)
 	if ms := os.Getenv("CDCBENCH_EXEC_DELAY_MS"); ms != "" {
@@ -209,7 +209,7 @@ func runWorkload(b *testing.B, w Workload, hooks Hooks) workloadResult {
 
 		// fresh mock per run: the metadata store must hold fresh-migration
 		// values (channel vsn = -1), exactly like a first import run
-		mock, err := NewMockTargetDB(execDelay)
+		mock, err := NewMockTargetDB(execDelay, manifest.UniqueIndexes)
 		if err != nil {
 			b.Fatalf("cdcbench: create mock target: %v", err)
 		}

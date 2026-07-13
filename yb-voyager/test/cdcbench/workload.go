@@ -35,7 +35,7 @@ import (
 
 // artifactFormatVersion invalidates all cached artifacts when the generation
 // logic changes in a way that affects artifact content.
-const artifactFormatVersion = "1"
+const artifactFormatVersion = "2" // v2: manifest carries unique-index metadata
 
 // Workload defines one benchmark scenario. The SQL fields fully determine the
 // generated artifact; changing any of them invalidates the cached artifact
