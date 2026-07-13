@@ -458,7 +458,7 @@ func registerCommonGlobalFlags(cmd *cobra.Command) {
 	registerConfigFileFlag(cmd)
 	globalFlags = append(globalFlags, "config-file")
 
-	cmd.PersistentFlags().StringVarP(&config.LogLevel, "log-level", "l", "info",
+	cmd.PersistentFlags().StringVarP(&config.LogLevel, "log-level", "l", "debug",
 		"log level for yb-voyager. Accepted values: (trace, debug, info, warn, error, fatal, panic)")
 	globalFlags = append(globalFlags, "log-level")
 
