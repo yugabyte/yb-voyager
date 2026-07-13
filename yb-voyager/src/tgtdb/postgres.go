@@ -428,49 +428,21 @@ func (pg *TargetPostgreSQL) GetTableToUniqueIndexesMap(tableList []sqlname.NameT
 
 // pgQueryTmplForUniqIndexes returns, for the given schema/table lists, every unique
 // constraint and unique index (excluding primary keys) with its ordered column list.
+// Unique constraints are included via their backing unique indexes in pg_index
+// (contype 'u'); only primary-key indexes (contype 'p') are excluded.
 // It is used for both PostgreSQL and YugabyteDB targets since YugabyteDB is
 // PG-compatible at the catalog level.
 const pgQueryTmplForUniqIndexes = `
-WITH unique_constraints AS (
-    SELECT
-        tc.table_schema,
-        tc.table_name,
-        tc.constraint_name AS index_key,
-        kcu.column_name,
-        kcu.ordinal_position,
-        -- UNIQUE constraints can be declared with NULLS NOT DISTINCT (PG 15+);
-        -- the flag lives on the backing index (pg_index.indnullsnotdistinct).
-        COALESCE((to_jsonb(ix) ->> 'indnullsnotdistinct')::boolean, false) AS nulls_not_distinct
-    FROM
-        information_schema.table_constraints tc
-    JOIN
-        information_schema.key_column_usage kcu
-        ON tc.constraint_name = kcu.constraint_name
-        AND tc.table_schema = kcu.table_schema
-        AND tc.table_name = kcu.table_name
-    JOIN
-        pg_namespace n ON n.nspname = tc.table_schema
-    JOIN
-        pg_class t ON t.relname = tc.table_name AND t.relnamespace = n.oid
-    JOIN
-        pg_constraint c ON c.conname = tc.constraint_name
-        AND c.conrelid = t.oid
-        AND c.contype = 'u'
-    JOIN
-        pg_index ix ON ix.indexrelid = c.conindid
-    WHERE
-        tc.constraint_type = 'UNIQUE'
-        AND tc.table_schema = ANY('{%s}')
-        AND tc.table_name = ANY('{%s}')
-),
-unique_indexes AS (
+WITH unique_indexes AS (
     SELECT
         n.nspname AS table_schema,
         t.relname AS table_name,
         i.relname AS index_key,
         a.attname AS column_name,
-        array_position(ix.indkey, a.attnum) + 1 AS ordinal_position,
-        COALESCE((to_jsonb(ix) ->> 'indnullsnotdistinct')::boolean, false) AS nulls_not_distinct -- for PG 15+, as this field is added in newer PG versions
+        MIN(array_position(ix.indkey, a.attnum) + 1) AS ordinal_position,
+        -- UNIQUE constraints/indexes can be declared with NULLS NOT DISTINCT (PG 15+);
+        -- the flag lives on pg_index.indnullsnotdistinct.
+        bool_or(COALESCE((to_jsonb(ix) ->> 'indnullsnotdistinct')::boolean, false)) AS nulls_not_distinct
     FROM
         pg_index ix
     JOIN
@@ -489,21 +461,8 @@ unique_indexes AS (
         AND c.contype IS NULL
         AND n.nspname = ANY('{%s}')
         AND t.relname = ANY('{%s}')
-),
-all_unique_indexes AS (
-    SELECT
-        table_schema,
-        table_name,
-        index_key,
-        column_name,
-        MIN(ordinal_position) AS ordinal_position,
-        bool_or(nulls_not_distinct) AS nulls_not_distinct
-    FROM (
-        SELECT table_schema, table_name, index_key, column_name, ordinal_position, nulls_not_distinct FROM unique_constraints
-        UNION
-        SELECT table_schema, table_name, index_key, column_name, ordinal_position, nulls_not_distinct FROM unique_indexes
-    ) AS combined
-    GROUP BY table_schema, table_name, index_key, column_name
+    GROUP BY
+        n.nspname, t.relname, i.relname, a.attname
 )
 SELECT
     table_schema,
@@ -511,7 +470,7 @@ SELECT
     index_key,
     array_agg(column_name ORDER BY ordinal_position) AS columns,
     bool_or(nulls_not_distinct) AS nulls_not_distinct
-FROM all_unique_indexes
+FROM unique_indexes
 GROUP BY table_schema, table_name, index_key
 ORDER BY table_schema, table_name, index_key;
 `
@@ -565,7 +524,6 @@ func queryPGUniqueIndexesByCatalog(queryFn func(query string) (*sql.Rows, error)
 	}
 
 	query := fmt.Sprintf(pgQueryTmplForUniqIndexes,
-		strings.Join(schemaList, ","), strings.Join(tableList, ","),
 		strings.Join(schemaList, ","), strings.Join(tableList, ","))
 	rows, err := queryFn(query)
 	if err != nil {
