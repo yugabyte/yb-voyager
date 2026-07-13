@@ -160,6 +160,10 @@ class RateGovernor(object):
                 if sleep_needed > 0:
                     self._sleep(sleep_needed)
 
+        # Refresh the clock after any pacing sleep so the reported rate divides by
+        # the true elapsed wall-clock (including the sleep), not the pre-sleep time.
+        now = self._clock()
+
         if self.report_interval > 0 and now - self.last_report >= self.report_interval:
             elapsed_since_report = now - self.last_report
             achieved = self.report_events / elapsed_since_report if elapsed_since_report > 0 else 0.0

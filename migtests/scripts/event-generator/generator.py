@@ -193,6 +193,10 @@ try:
         operation = random.choices(OPERATIONS, weights=OPERATION_WEIGHTS)[0]
 
         try:
+            # Rows actually changed this iteration. Set only when a statement really
+            # executes; stays 0 if the op is skipped (no PK, no updateable columns,
+            # retry budget exhausted) so we never re-count a stale cursor.rowcount.
+            events_emitted = 0
             if operation == "INSERT":
                 # Generate random data and execute INSERT statement
                 columns = ", ".join(table_schemas[table_name]["columns"].keys())
@@ -211,6 +215,7 @@ try:
 
                 success = execute_with_retry(run_once, rebuild, conn.rollback, max_retries=INSERT_MAX_RETRIES)
                 if success:
+                    events_emitted = max(cursor.rowcount or 0, 0)
                     # Refresh the PK pool (if any) with the ids we just inserted,
                     # so subsequent UPDATE/DELETE can target them directly.
                     pool = POOLS.get(table_name)
@@ -263,6 +268,7 @@ try:
                     try:
                         cursor.execute(query_to_run, full_params)
                         conn.commit()
+                        events_emitted = max(cursor.rowcount or 0, 0)
                         break
                     except Exception as e:
                         print(f"UPDATE failed on '{table_name}': {e}")
@@ -292,6 +298,7 @@ try:
                 cursor.execute(query_to_run, sampling_params)
 
                 conn.commit()
+                events_emitted = max(cursor.rowcount or 0, 0)
 
                 # Delete succeeded (no exception raised above) -- these ids
                 # are no longer live.
@@ -308,9 +315,8 @@ try:
 
             conn.commit()
 
-            # event = one changed row (cursor.rowcount); 0 on failure/rollback/unknown
-            rowcount = cursor.rowcount
-            events_emitted = rowcount if rowcount is not None and rowcount > 0 else 0
+            # events_emitted was captured right after each successful statement above
+            # (0 if this iteration executed nothing), so we never re-count a stale rowcount.
             GOVERNOR.pace(events_emitted)
 
         except psycopg2.Error as e:
