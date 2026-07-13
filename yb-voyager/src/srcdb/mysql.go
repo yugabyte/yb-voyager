@@ -496,11 +496,6 @@ func (ms *MySQL) GetPartitions(tableName sqlname.NameTuple) []string {
 	panic("not implemented")
 }
 
-func (ms *MySQL) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
-	// required in case of live migration(unsupported for MySQL)
-	return nil, nil
-}
-
 func (ms *MySQL) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
 	log.Infof("ClearMigrationState not implemented yet for MySQL")
 	return nil
