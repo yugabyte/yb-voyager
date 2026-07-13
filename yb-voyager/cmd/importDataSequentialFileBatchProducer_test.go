@@ -19,6 +19,7 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -1675,4 +1677,89 @@ func assertNoProcessingErrorBatchFileExists(t *testing.T, lexportDir string, tas
 			t.Errorf("Expected no processing error file for batch %d, but found: %s", batchNumber, entry.Name())
 		}
 	}
+}
+
+// notImplementedOpenAtDataStore wraps a real DataStore but makes OpenAt report
+// that byte-offset seek is unavailable, exactly as GCS and Azure now do. It
+// records how the batch producer reacted so we can prove it fell back to the
+// older SkipLines-based resumption path.
+type notImplementedOpenAtDataStore struct {
+	datastore.DataStore // embedded real store handles Glob/AbsolutePath/FileSize/Open
+	openCalls           int
+	openAtCalls         int
+}
+
+func (d *notImplementedOpenAtDataStore) Open(path string) (io.ReadCloser, error) {
+	d.openCalls++
+	return d.DataStore.Open(path)
+}
+
+func (d *notImplementedOpenAtDataStore) OpenAt(path string, offset int64) (io.ReadCloser, error) {
+	d.openAtCalls++
+	// Mirror the disabled GCS/Azure behaviour.
+	return nil, datastore.ErrOpenAtNotImplemented
+}
+
+// TestResumeFallsBackToSkipLinesWhenOpenAtUnsupported verifies the end-to-end
+// contract that GCS and Azure rely on: when a datastore's OpenAt returns
+// ErrOpenAtNotImplemented, the sequential batch producer resumes correctly via
+// the older SkipLines path instead of byte-offset seek.
+func TestResumeFallsBackToSkipLinesWhenOpenAtUnsupported(t *testing.T) {
+	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
+	assert.NoError(t, err)
+	defer os.RemoveAll(ldataDir)
+	defer os.RemoveAll(lexportDir)
+
+	header := "id,val"
+	rows := []string{`1, "hello"`, `2, "world"`, `3, "foo"`, `4, "bar"`}
+	fileContents := header + "\n" + strings.Join(rows, "\n")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+	assert.NoError(t, err)
+
+	// First run (real local datastore): produce one batch (rows 1-2) so that a
+	// resumption point with a recovered byte offset exists.
+	bp1, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	assert.NoError(t, err)
+	batch1, err := bp1.NextBatch()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), batch1.RecordCount)
+	bp1.Close()
+
+	// Now wrap the datastore so OpenAt reports "not implemented", like GCS/Azure.
+	spy := &notImplementedOpenAtDataStore{DataStore: dataStore}
+	dataStore = spy
+
+	// Resume.
+	bp2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	assert.NoError(t, err)
+	assert.Greater(t, bp2.lastBatchCumByteOffsetEnd, int64(0),
+		"a byte offset should have been recovered, so the producer would attempt byte-offset seek")
+
+	// Pending batch 1 is returned from state without touching the file.
+	recoveredBatch, err := bp2.NextBatch()
+	assert.NoError(t, err)
+	assert.Equal(t, batch1.Number, recoveredBatch.Number)
+
+	// Producing the next batch is where resumption reads the file: it attempts
+	// OpenAt, gets ErrOpenAtNotImplemented, and falls back to SkipLines.
+	batch2, err := bp2.NextBatch()
+	assert.NoError(t, err)
+	assert.True(t, bp2.Done())
+	bp2.Close()
+
+	// The producer attempted the byte-offset seek path exactly once...
+	assert.Equal(t, 1, spy.openAtCalls,
+		"resumption should attempt OpenAt before falling back")
+	// ...and then, because OpenAt was unavailable, resumed via SkipLines, which
+	// opens the file from byte 0. (The byte-seek path would have used the reader
+	// returned by OpenAt and never called Open for the data.)
+	assert.Greater(t, spy.openCalls, 0,
+		"fallback should open the file from the start for the SkipLines path")
+
+	// Data correctness: batch 2 must contain exactly rows 3-4.
+	batchContents, err := os.ReadFile(batch2.GetFilePath())
+	assert.NoError(t, err)
+	expectedContent := header + "\n" + strings.Join(rows[2:], "\n")
+	assert.Equal(t, expectedContent, string(batchContents),
+		"fallback resumption must produce the same rows as byte-offset seek")
 }

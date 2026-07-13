@@ -224,16 +224,17 @@ func validateCdcPartitioningStrategyFlag(cmd *cobra.Command) error {
 	if importerRole != TARGET_DB_IMPORTER_ROLE {
 		return nil
 	}
+	cdcPartitioningStrategyParameterPassed := cmd.Flags().Changed("cdc-partitioning-strategy")
 	if !changeStreamingIsEnabled(importType) {
-		if cmd.Flags().Changed("cdc-partitioning-strategy") {
+		if cdcPartitioningStrategyParameterPassed {
 			utils.ErrExit("--cdc-partitioning-strategy is not supported for offline migration. Re-run the command without this flag.")
 		}
 		return nil
 	}
-	if sourceDBType != POSTGRESQL {
+	if sourceDBType != POSTGRESQL && cdcPartitioningStrategyParameterPassed {
 		utils.ErrExit("--cdc-partitioning-strategy is only supported for PostgreSQL source")
 	}
-	
+
 	if cdcPartitioningStrategy == "" {
 		utils.ErrExit("cdc partitioning strategy is required")
 	}
@@ -268,7 +269,7 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &tconf.ContinueOnError, "continue-on-error", false,
 		"Ignore errors and continue with the import")
 
-	BoolVar(cmd.Flags(), &tconf.RunGuardrailsChecks, "run-guardrails-checks", true, "Run guardrails checks during import")
+	BoolVar(cmd.Flags(), &tconf.RunGuardrailsChecks, "run-guardrails-checks", true, "Run guardrails checks during import. Setting this to false is unsafe: it skips critical pre-migration validations (such as source/target database permissions, binary dependencies, and version compatibility) and may lead to migration failures or data issues. Leave the default (true) unless you have a specific reason to disable checks.")
 }
 
 // registerTargetDBTypeFlag registers --target-db-type. It is intentionally
