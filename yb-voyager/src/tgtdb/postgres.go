@@ -438,7 +438,9 @@ WITH unique_constraints AS (
         tc.constraint_name AS index_key,
         kcu.column_name,
         kcu.ordinal_position,
-        false AS nulls_not_distinct
+        -- UNIQUE constraints can be declared with NULLS NOT DISTINCT (PG 15+);
+        -- the flag lives on the backing index (pg_index.indnullsnotdistinct).
+        COALESCE((to_jsonb(ix) ->> 'indnullsnotdistinct')::boolean, false) AS nulls_not_distinct
     FROM
         information_schema.table_constraints tc
     JOIN
@@ -446,6 +448,16 @@ WITH unique_constraints AS (
         ON tc.constraint_name = kcu.constraint_name
         AND tc.table_schema = kcu.table_schema
         AND tc.table_name = kcu.table_name
+    JOIN
+        pg_namespace n ON n.nspname = tc.table_schema
+    JOIN
+        pg_class t ON t.relname = tc.table_name AND t.relnamespace = n.oid
+    JOIN
+        pg_constraint c ON c.conname = tc.constraint_name
+        AND c.conrelid = t.oid
+        AND c.contype = 'u'
+    JOIN
+        pg_index ix ON ix.indexrelid = c.conindid
     WHERE
         tc.constraint_type = 'UNIQUE'
         AND tc.table_schema = ANY('{%s}')
@@ -458,7 +470,7 @@ unique_indexes AS (
         i.relname AS index_key,
         a.attname AS column_name,
         array_position(ix.indkey, a.attnum) + 1 AS ordinal_position,
-        COALESCE((to_jsonb(ix) ->> 'indnullsnotdistinct')::boolean, false) AS nulls_not_distinct
+        COALESCE((to_jsonb(ix) ->> 'indnullsnotdistinct')::boolean, false) AS nulls_not_distinct -- for PG 15+, as this field is added in newer PG versions
     FROM
         pg_index ix
     JOIN
