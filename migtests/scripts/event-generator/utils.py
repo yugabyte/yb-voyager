@@ -971,11 +971,31 @@ def build_insert_values(
     number_of_rows_to_insert: int,
     min_col_size_bytes: int = 0,
     column_overrides: Optional[Dict[str, Any]] = None,
-) -> str:
-    """Build VALUES list like (v1, v2), (v1, v2) for INSERT ... VALUES ..."""
+) -> Tuple[str, List[Any]]:
+    """Build VALUES list like (v1, v2), (v1, v2) for INSERT ... VALUES ...
+
+    Returns a tuple (values_string, pk_values):
+      - values_string: the SQL VALUES fragment, e.g. "(1, 'a'), (2, 'b')".
+      - pk_values: a list with one entry per inserted row, capturing the RAW
+        (pre-SQL-quoting) generated primary-key value(s) for that row --
+        a scalar for a single-column PK, a tuple for a composite PK, or None
+        if the table has no primary key. Callers use this to refresh an
+        in-memory PkPool after a successful INSERT, so later UPDATE/DELETE
+        operations can target rows directly instead of scanning the table.
+    """
+    primary_key = table_schemas[table_name].get("primary_key")
+    if isinstance(primary_key, str):
+        pk_cols = [primary_key]
+    elif isinstance(primary_key, list):
+        pk_cols = primary_key
+    else:
+        pk_cols = []
+
     rows = []
+    pk_values: List[Any] = []
     for _ in range(number_of_rows_to_insert):
         values = []
+        row_pk_captured: Dict[str, Any] = {}
 
         for column_name, data_type in table_schemas[table_name]["columns"].items():
             override_spec = get_column_override(column_overrides or {}, table_name, column_name)
@@ -984,6 +1004,7 @@ def build_insert_values(
                 values.append(f"'{value}'" if value is not None else "NULL")
             elif "bit" in data_type.lower():
                 values.append(build_bit_cast_expr(table_schemas, table_name, column_name))
+                value = None
             elif data_type != "USER-DEFINED" and data_type != "ARRAY":
                 value = generate_random_data(data_type, table_name, None, None, None, min_col_size_bytes)
                 if "bytea" in data_type and isinstance(value, bytes):
@@ -1004,8 +1025,20 @@ def build_insert_values(
                     values.append(f"'{escaped_value}'" if value is not None else "NULL")
                 else:
                     values.append(f"'{value}'" if value is not None else "NULL")
+
+            if column_name in pk_cols:
+                row_pk_captured[column_name] = value
+
         rows.append(f"({', '.join(values)})")
-    return ", ".join(rows)
+
+        if not pk_cols:
+            pk_values.append(None)
+        elif len(pk_cols) == 1:
+            pk_values.append(row_pk_captured.get(pk_cols[0]))
+        else:
+            pk_values.append(tuple(row_pk_captured.get(col) for col in pk_cols))
+
+    return ", ".join(rows), pk_values
 
 
 # ----- UPDATE helpers -----
@@ -1136,3 +1169,79 @@ def build_sampling_condition(
         f"SELECT {pk_select} FROM {table_name} WHERE random() < %s)"
     )
     return where_clause, [p]
+
+
+def build_pk_in_condition(
+    primary_key: "str | List[str]",
+    ids: List[Any],
+) -> Tuple[str, List[Any]]:
+    """
+    Build a WHERE clause fragment and parameters that target explicit
+    primary-key values via IN, for use with an in-memory PkPool instead of
+    scanning the table (see build_sampling_condition for the scan-based
+    fallback).
+
+    primary_key can be a single column name (str) or a list of column names,
+    mirroring the pk formatting used in build_sampling_condition.
+
+    For a single-column PK, `ids` is a list of scalar values and this
+    returns row-value form, e.g. ("id IN (%s, %s, %s)", ids).
+
+    For a composite PK, `ids` is a list of tuples (one per PK column, in
+    primary_key order) and this returns row-value form, e.g.
+    ("(c1, c2) IN ((%s, %s), (%s, %s))", flat_params).
+    """
+    if isinstance(primary_key, str):
+        pk_cols = [primary_key]
+    else:
+        pk_cols = primary_key
+
+    if not ids:
+        # No ids to target; caller should not normally reach here (the
+        # generator only calls this when a non-empty sample was drawn from
+        # the pool), but guard against building invalid SQL.
+        return "1=0", []
+
+    if len(pk_cols) == 1:
+        placeholders = ", ".join(["%s"] * len(ids))
+        where_clause = f"{pk_cols[0]} IN ({placeholders})"
+        return where_clause, list(ids)
+
+    pk_where = "(" + ", ".join(pk_cols) + ")"
+    row_placeholder = "(" + ", ".join(["%s"] * len(pk_cols)) + ")"
+    placeholders = ", ".join([row_placeholder] * len(ids))
+    where_clause = f"{pk_where} IN ({placeholders})"
+    flat_params: List[Any] = []
+    for row in ids:
+        flat_params.extend(row)
+    return where_clause, flat_params
+
+
+def seed_pk_pool(
+    cursor: Any,
+    schema_name: Optional[str],
+    table_name: str,
+    primary_key: "str | List[str]",
+    pool: Any,
+    limit: int = 200000,
+) -> None:
+    """
+    Prefill an in-memory PkPool with primary-key values that already exist
+    in a table, so UPDATE/DELETE can target rows directly from the start.
+
+    Only supported for a single-column primary key: runs
+    `SELECT <pk> FROM <schema>.<table> LIMIT <limit>` and adds the results to
+    `pool`. For a composite (or missing) primary key, this is a no-op and
+    `pool` is left empty -- callers should fall back to
+    build_sampling_condition in that case.
+    """
+    if isinstance(primary_key, str):
+        pk_col = primary_key
+    elif isinstance(primary_key, list) and len(primary_key) == 1:
+        pk_col = primary_key[0]
+    else:
+        return
+
+    qualified_table = f"{schema_name}.{table_name}" if schema_name else table_name
+    cursor.execute(f"SELECT {pk_col} FROM {qualified_table} LIMIT %s", (limit,))
+    pool.add_many([row[0] for row in cursor.fetchall()])
