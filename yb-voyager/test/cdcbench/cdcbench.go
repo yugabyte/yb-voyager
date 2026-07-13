@@ -21,6 +21,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -128,6 +129,15 @@ func printSummary(results []workloadResult) {
 	if len(results) == 0 {
 		return
 	}
+	// group by category (oltp, schema, edge, conflict, canary), then by name
+	sort.SliceStable(results, func(i, j int) bool {
+		ci, _, _ := strings.Cut(results[i].name, "-")
+		cj, _, _ := strings.Cut(results[j].name, "-")
+		if categoryOrder[ci] != categoryOrder[cj] {
+			return categoryOrder[ci] < categoryOrder[cj]
+		}
+		return results[i].name < results[j].name
+	})
 	tw := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
 	fmt.Fprintln(os.Stdout, "\n--- cdcbench summary ---")
 	fmt.Fprintln(tw, "WORKLOAD\tRUNS\tEVENTS/S\tCONFLICTS/RUN\tBATCHES/RUN\tCACHE DEPTH AVG/MAX\tTIME/RUN")
@@ -162,7 +172,7 @@ func comma(n int64) string {
 
 func runWorkload(b *testing.B, w Workload, hooks Hooks) workloadResult {
 	b.Helper()
-	pristine := EnsureArtifact(b, w)
+	pristine, manifest := EnsureArtifact(b, w)
 
 	execDelay := time.Duration(0)
 	if ms := os.Getenv("CDCBENCH_EXEC_DELAY_MS"); ms != "" {
@@ -199,7 +209,7 @@ func runWorkload(b *testing.B, w Workload, hooks Hooks) workloadResult {
 
 		// fresh mock per run: the metadata store must hold fresh-migration
 		// values (channel vsn = -1), exactly like a first import run
-		mock, err := NewMockTargetDB(execDelay)
+		mock, err := NewMockTargetDB(execDelay, manifest.UniqueIndexes)
 		if err != nil {
 			b.Fatalf("cdcbench: create mock target: %v", err)
 		}

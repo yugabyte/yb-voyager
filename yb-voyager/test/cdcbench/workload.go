@@ -35,7 +35,7 @@ import (
 
 // artifactFormatVersion invalidates all cached artifacts when the generation
 // logic changes in a way that affects artifact content.
-const artifactFormatVersion = "1"
+const artifactFormatVersion = "2" // v2: manifest carries unique-index metadata
 
 // Workload defines one benchmark scenario. The SQL fields fully determine the
 // generated artifact; changing any of them invalidates the cached artifact
@@ -65,6 +65,23 @@ type Workload struct {
 	ExpectConflicts bool
 }
 
+// Workload name prefixes encode intent (and group the summary table):
+//
+//	oltp-     realistic customer pattern, measured for throughput
+//	schema-   schema-shape probe (index count, row width, key structure)
+//	edge-     degenerate op-mix corner case
+//	conflict- engineered, semantically REAL conflicts
+//
+// Names describe the workload's construction, never its current detection
+// outcome; workloads asserting known false positives of current semantics say
+// so in their registration comment instead.
+var categoryOrder = map[string]int{"oltp": 0, "schema": 1, "edge": 2, "conflict": 3}
+
+func (w Workload) category() string {
+	prefix, _, _ := strings.Cut(w.Name, "-")
+	return prefix
+}
+
 func (w Workload) validate() error {
 	switch {
 	case w.Name == "":
@@ -75,6 +92,9 @@ func (w Workload) validate() error {
 		return fmt.Errorf("workload %q: TableList is empty", w.Name)
 	case w.ExpectedEvents <= 0:
 		return fmt.Errorf("workload %q: ExpectedEvents must be > 0", w.Name)
+	}
+	if _, known := categoryOrder[w.category()]; !known {
+		return fmt.Errorf("workload %q: name must start with one of the category prefixes (oltp-, schema-, edge-, conflict-)", w.Name)
 	}
 	return nil
 }
