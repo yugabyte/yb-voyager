@@ -342,7 +342,7 @@ func getExporterRoleID(exporterRole string) string {
 
 const insertTemplate = "INSERT INTO %s (%s) VALUES (%s)"
 const updateTemplate = "/*+ Set(enable_seqscan off) */UPDATE %s SET %s WHERE %s"
-const deleteTemplate = "DELETE FROM %s WHERE %s"
+const deleteTemplate = "/*+ Set(enable_seqscan off) */DELETE FROM %s WHERE %s"
 
 func (event *Event) getInsertStmt(tdb TargetDB, usePartitionRoot bool) (string, error) {
 	columnList := make([]string, 0, len(event.Fields))

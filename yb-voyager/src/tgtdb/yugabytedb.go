@@ -1101,6 +1101,42 @@ func (yb *TargetYugabyteDB) RestoreSequences(sequencesLastVal *utils.StructMap[s
 	return err
 }
 
+func (yb *TargetYugabyteDB) ExplainPlan(stmt string) (string, error) {
+	return yb.explainPlan(stmt, false)
+}
+
+func (yb *TargetYugabyteDB) ExplainAnalyzePlan(stmt string) (string, error) {
+	return yb.explainPlan(stmt, true)
+}
+
+func (yb *TargetYugabyteDB) explainPlan(stmt string, analyze bool) (string, error) {
+	query := fmt.Sprintf("EXPLAIN %s", stmt)
+	if analyze {
+		query = fmt.Sprintf("EXPLAIN (dist, ANALYZE) %s", stmt)
+	}
+	rows, err := yb.Query(query)
+	if err != nil {
+		if analyze {
+			return "", fmt.Errorf("error explaining analyze plan: %w", err)
+		}
+		return "", fmt.Errorf("error explaining plan: %w", err)
+	}
+	defer rows.Close()
+
+	var planLines []string
+	for rows.Next() {
+		var line string
+		if err := rows.Scan(&line); err != nil {
+			return "", fmt.Errorf("error scanning explain plan row: %w", err)
+		}
+		planLines = append(planLines, line)
+	}
+	if err := rows.Err(); err != nil {
+		return "", fmt.Errorf("error reading explain plan rows: %w", err)
+	}
+	return strings.Join(planLines, "\n"), nil
+}
+
 /*
 TODO(future): figure out the sql error codes for prepared statements which have become invalid
 and needs to be prepared again
@@ -1131,6 +1167,18 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			}
 			ybBatch.Queue(stmt)
 			log.Debugf("SQL statement: Batch(%s): Event(%d): [%s]", batch.ID(), event.Vsn, stmt)
+			explainPlan, err := yb.ExplainPlan(stmt)
+			if err != nil {
+				log.Errorf("error generating explain plan for update statement: %v", err)
+			} else {
+				log.Debugf("Explain Plan: %s", explainPlan)
+			}
+			explainAnalyzePlan, err := yb.ExplainAnalyzePlan(stmt)
+			if err != nil {
+				log.Errorf("error generating explain analyze plan for update statement: %v", err)
+			} else {
+				log.Debugf("Explain Analyze Plan: %s", explainAnalyzePlan)
+			}
 		} else {
 			stmt, err := event.GetPreparedSQLStmt(yb, yb.Tconf.TargetDBType, yb.tconf.UsePartitionRoot)
 			if err != nil {
