@@ -88,6 +88,57 @@ rate_control:
 ```
 Run with `num_iterations: -1` and e.g. `timeout 24h python3 generator.py -c event-generator.yaml`.
 
+### Parallel runs
+
+`generator.py` is single-process. For rates beyond what one process can push
+against the DB, `parallel_generator.py` wraps it: it launches N unmodified
+copies of `generator.py`, each pacing a slice of the total rate, and reports
+the combined throughput. `generator.py` itself is never changed.
+
+Add a top-level `parallel` block to a normal config (connection + generator,
+including a `rate_control` block whose rates are the **desired TOTAL across
+all workers**, not per-worker):
+```yaml
+parallel:
+  max_workers: 6              # hard cap on worker processes
+  calibration_seconds: 30     # how long the one-shot calibration run lasts
+  margin: 1.3                 # safety headroom: target workers for 1.3x peak
+  run_seconds: 1800           # total wall-clock run time
+  monitor_interval_seconds: 5 # how often to print the aggregate rate
+```
+
+How it derives the worker count:
+1. **Calibrate**: runs a single uncapped worker (no `rate_control`) for
+   `calibration_seconds`, measuring events/sec via `pg_stat_statements`
+   (`SUM(rows)` over insert/update/delete statements) to get a per-worker
+   throughput ceiling.
+2. **Derive**: takes the peak target -- the max of
+   `rate_control.default_events_per_second` and every `schedule` entry's
+   `events_per_second`, so a spike is servable -- and computes
+   `workers = ceil(peak * margin / per_worker_ceiling)`, clamped to
+   `max_workers`. If the clamp bites, it prints the requested vs. achievable
+   rate.
+3. **Spawn**: writes `workers` per-worker YAML configs (each with
+   `generator.random_seed`/`faker_seed` = base seed + worker index, and
+   `rate_control` rates divided by `workers`) to a temp directory and
+   launches one `generator.py -c <worker_i.yaml>` subprocess per config.
+4. **Monitor**: since `pg_stat_statements` counts DB-wide, the same
+   `SUM(rows)` query already aggregates every worker; it's sampled every
+   `monitor_interval_seconds` and printed as one combined events/sec figure.
+5. **Shutdown**: on `run_seconds` elapsed or Ctrl+C, all worker processes are
+   sent SIGTERM (then SIGKILL after a grace period), temp configs are
+   cleaned up, and a final summary (total events, mean aggregate ev/s,
+   workers used) is printed.
+
+Requires `pg_stat_statements` (`shared_preload_libraries = 'pg_stat_statements'`
+plus `CREATE EXTENSION pg_stat_statements;`) -- calibration and monitoring
+fail fast with a clear message if it's unavailable.
+
+Run with:
+```bash
+python3 parallel_generator.py -c event-generator.yaml
+```
+
 ### Run
 From the folder:
 ```bash
