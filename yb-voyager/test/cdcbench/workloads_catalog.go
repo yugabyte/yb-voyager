@@ -87,6 +87,13 @@ func init() {
 	// 20% change cold rows' unique values.
 	Register(testdataWorkload("oltp-skewed-hot-rows", []string{"uk_table"}, 20_000, false))
 
+	// Append-only state-machine transition log (the shape popular state-machine
+	// libraries generate): UNIQUE(parent, sort_key) for ordering plus a partial
+	// unique index enforcing one most_recent transition per parent. Every step
+	// demotes the current transition and appends its successor — REAL
+	// conflicts on the partial index.
+	Register(testdataWorkload("oltp-state-machine-transitions", []string{"payment_transitions"}, 20_000, true))
+
 	// CUSTOMER PATTERN (reported in the field): records are INSERTed as drafts
 	// with NULL unique columns; the unique value is filled by a later UPDATE.
 	// SQL-semantically there are ZERO conflicts (NULLs are distinct in unique
@@ -105,20 +112,30 @@ func init() {
 	Register(testdataWorkload("schema-two-unique-indexes", []string{"accounts"}, 20_000, false))
 
 	// Composite key UNIQUE(tenant_id, slug), one tenant per row (tenant_id ==
-	// id): composite-tuple cost without any shared column values.
+	// id) so no two rows ever share a tenant value: zero conflicts under ANY
+	// semantics (per-column or tuple) — the semantics-invariant baseline for
+	// composite-key cost. Same DML as schema-composite-uk-shared-tenants; the
+	// seed's tenant distribution is the only difference between the pair.
 	Register(testdataWorkload("schema-composite-uk-unique-tenants", []string{"comp_items"}, 20_000, false))
 
 	// Composite key UNIQUE(tenant_id, slug) with 100 SHARED tenants; all slugs
 	// renamed to globally fresh values => zero conflicts under composite-tuple
-	// semantics (verified with exporters that write multi-column unique-index
-	// metadata, a323249bb+). Artifacts from older exporters lack that metadata
-	// key entirely and fail loudly at conflict-cache initialization —
-	// regenerate with a current binary (CDCBENCH_REGEN=1).
+	// semantics, but flattened per-column comparison would false-positive on
+	// the shared tenant_id — the discriminator proving tuples are honored end
+	// to end. Counterpart of schema-composite-uk-unique-tenants (same DML;
+	// only the seed's tenant distribution differs).
 	Register(testdataWorkload("schema-composite-uk-shared-tenants", []string{"tenant_items"}, 20_000, false))
 
 	// Wide rows: 50-column before-images (REPLICA IDENTITY FULL) measure the
 	// decode/convert share of the pipeline.
 	Register(testdataWorkload("schema-wide-rows", []string{"wide_table"}, 20_000, false))
+
+	// Composite key UNIQUE(folder_id, name) where every index tuple has a NULL
+	// component (unnamed drafts sharing a folder). Semantically ZERO conflicts
+	// — SQL treats NULLs as distinct — but detection compares tuples with
+	// nil==nil, so in-flight draft pairs false-positive against each other.
+	// Flip ExpectConflicts to false when NULL-distinctness is fixed.
+	Register(testdataWorkload("schema-composite-uk-null-component", []string{"docs"}, 20_000, true))
 
 	// Payload-only updates to soft-DELETED rows that legitimately share email
 	// values (the partial index UNIQUE(email) WHERE NOT deleted excludes
@@ -160,6 +177,13 @@ func init() {
 
 	// Real conflicts confined to the SECOND unique index of a two-index table.
 	Register(testdataWorkload("conflict-second-index", []string{"accounts2"}, 20_000, true))
+
+	// UNIQUE NULLS NOT DISTINCT: at most one row may hold NULL, and the single
+	// NULL "slot" is handed row to row (release, then claim). Each handoff is
+	// a REAL conflict — the claim must not apply before the release commits.
+	// This is the case that makes nil==nil detection correct; it must KEEP
+	// detecting after NULL-distinctness is fixed for ordinary unique indexes.
+	Register(testdataWorkload("conflict-nulls-not-distinct", []string{"null_slot"}, 20_000, true))
 
 	// Versioned rows behind a partial unique index (UNIQUE(entity_id) WHERE
 	// most_recent): demote current version + insert successor with the same
