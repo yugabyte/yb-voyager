@@ -15,6 +15,7 @@ from utils import (
     detect_db_flavor,
     get_estimated_row_count,
     build_sampling_condition,
+    build_rate_governor,
 )
 import time
 from utils import set_faker_seed
@@ -64,6 +65,16 @@ UPDATE_MAX_RETRIES = GEN["update_max_retries"]
 # Throttling
 WAIT_AFTER_OPERATIONS = GEN["wait_after_operations"]
 WAIT_DURATION_SECONDS = GEN["wait_duration_seconds"]
+
+# Rate governor: paces the aggregate events/sec (event = one changed row, i.e.
+# cursor.rowcount after each operation) when generator.rate_control is
+# configured; otherwise a no-op NullGovernor preserves today's unpaced
+# behavior. When active, it takes over pacing and the legacy
+# wait_after_operations/wait_duration_seconds knobs above are ignored.
+RATE_CONTROL = GEN.get("rate_control")
+GOVERNOR = build_rate_governor(CONFIG)
+if RATE_CONTROL:
+    print("rate_control is configured: ignoring wait_after_operations/wait_duration_seconds (legacy throttle)")
 
 # Index events flag
 ENABLE_INDEX_CREATE_DROP = GEN.get("enable_index_create_drop", False)
@@ -242,7 +253,7 @@ try:
 
                 conn.commit()
 
-            if WAIT_AFTER_OPERATIONS and i % WAIT_AFTER_OPERATIONS == 0 and i != 0:
+            if not RATE_CONTROL and WAIT_AFTER_OPERATIONS and i % WAIT_AFTER_OPERATIONS == 0 and i != 0:
                 if WAIT_DURATION_SECONDS > 0:
                     print("-" * 50)
                     print(f"Waiting for {WAIT_DURATION_SECONDS} seconds after {i} operations...")
@@ -251,6 +262,11 @@ try:
                 conn.commit()
 
             conn.commit()
+
+            # event = one changed row (cursor.rowcount); 0 on failure/rollback/unknown
+            rowcount = cursor.rowcount
+            events_emitted = rowcount if rowcount is not None and rowcount > 0 else 0
+            GOVERNOR.pace(events_emitted)
 
         except psycopg2.Error as e:
             print(f"An error occurred: {e}")

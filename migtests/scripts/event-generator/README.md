@@ -48,6 +48,46 @@ Notes:
 - Set `num_iterations: -1` to run indefinitely.
 - Seeds make runs reproducible. Omit to make runs non-deterministic.
 
+### Rate control
+An optional `rate_control` block under `generator:` (commented out by default in `event-generator.yaml`) paces the aggregate **events/second** the generator produces. An event is one changed row: `cursor.rowcount` read after each operation (an INSERT batch counts its rows; UPDATE/DELETE count whatever the sampling actually hit; a failed/rolled-back op counts 0).
+
+```yaml
+generator:
+  # ...
+  rate_control:
+    default_events_per_second: 1500   # baseline rate when no spike is active
+    report_interval_seconds: 60       # log achieved ev/s every N s (omit/0 = off)
+    schedule:                         # optional list of recurring spike windows
+      - events_per_second: 10000      # spike target rate
+        duration_seconds: 300         #   spike lasts 5 min
+        every_seconds: 1800           #   one spike per 30 min (the period)
+        offset_seconds: 600           #   first 10 min of each period stay at baseline
+        jitter_pct: 10                #   +/-10% randomization of spike start & rate (seeded)
+```
+
+Nullability:
+- Omitted (default): no pacing — the generator runs as fast as the DB allows, unchanged from today. `wait_after_operations`/`wait_duration_seconds` still apply.
+- Present, no `schedule`: steady rate at `default_events_per_second`.
+- Present, with `schedule`: baseline plus recurring spike windows; when windows overlap, the max rate wins.
+
+When `rate_control` is present, `wait_after_operations`/`wait_duration_seconds` are ignored (a one-line warning is printed at startup), since they would fight the governor.
+
+Validation runs at startup and fails fast with a clear message: `default_events_per_second > 0`; per schedule entry `events_per_second > 0`, `duration_seconds > 0`, `every_seconds > 0`, `offset_seconds >= 0`, `0 <= jitter_pct <= 50`; and `offset_seconds + duration_seconds <= every_seconds` so a spike window fits inside its period. Unknown keys print a non-fatal warning (typo guard) rather than failing.
+
+Example — the 24h fall-back (YB→PG) throughput test: a ~1.5k ev/s baseline with a 10k ev/s spike for 5 min every 30 min, a 10-min baseline lead-in each period, and ±10% jitter:
+```yaml
+rate_control:
+  default_events_per_second: 1500
+  report_interval_seconds: 60
+  schedule:
+    - events_per_second: 10000
+      duration_seconds: 300
+      every_seconds: 1800
+      offset_seconds: 600
+      jitter_pct: 10
+```
+Run with `num_iterations: -1` and e.g. `timeout 24h python3 generator.py -c event-generator.yaml`.
+
 ### Run
 From the folder:
 ```bash

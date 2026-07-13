@@ -15,6 +15,7 @@ try:
     import yaml  # type: ignore
 except Exception:
     yaml = None  # Defer strict error to loader to produce a clearer message
+from rate_governor import RateGovernor, NullGovernor
 
 # Module-level Faker instance for reuse; can be overridden via function parameter
 _fake = Faker()
@@ -109,7 +110,119 @@ def load_event_generator_config(path_override: Optional[str] = None) -> Dict[str
             raise ValueError(f"Missing or invalid '{section_name}' section in config")
         validate_section(section, schema, section_name)
 
+    rate_control = config.get("generator", {}).get("rate_control")
+    if rate_control is not None:
+        validate_rate_control(rate_control)
+
     return config
+
+
+# ---------------------
+# Rate governor config
+# ---------------------
+
+# Known keys for the optional rate_control block and its schedule entries.
+# Anything else is a likely typo: warn but don't fail (non-fatal, per spec).
+_RATE_CONTROL_KEYS = {"default_events_per_second", "report_interval_seconds", "schedule"}
+_RATE_SCHEDULE_ENTRY_KEYS = {
+    "events_per_second",
+    "duration_seconds",
+    "every_seconds",
+    "offset_seconds",
+    "jitter_pct",
+}
+
+
+def validate_rate_control(rc: Dict[str, Any]) -> None:
+    """
+    Validate a 'generator.rate_control' block.
+
+    Raises ValueError with a clear message on any violation:
+      - default_events_per_second must be present and > 0.
+      - Each schedule entry: events_per_second > 0, duration_seconds > 0,
+        every_seconds > 0, offset_seconds >= 0, 0 <= jitter_pct <= 50.
+      - offset_seconds + duration_seconds <= every_seconds (the spike window
+        must fit inside its period).
+    Unknown keys print a non-fatal warning (typo guard) rather than raising.
+    """
+    if not isinstance(rc, dict):
+        raise ValueError("rate_control must be a mapping/object")
+
+    for key in rc:
+        if key not in _RATE_CONTROL_KEYS:
+            print(f"Warning: unknown key '{key}' in 'rate_control' (ignored)")
+
+    if "default_events_per_second" not in rc:
+        raise ValueError("rate_control.default_events_per_second is required when 'rate_control' is present")
+    default_eps = rc["default_events_per_second"]
+    if isinstance(default_eps, bool) or not isinstance(default_eps, (int, float)) or default_eps <= 0:
+        raise ValueError(f"rate_control.default_events_per_second must be > 0, got {default_eps!r}")
+
+    report_interval = rc.get("report_interval_seconds", 0)
+    if isinstance(report_interval, bool) or not isinstance(report_interval, (int, float)) or report_interval < 0:
+        raise ValueError(f"rate_control.report_interval_seconds must be >= 0, got {report_interval!r}")
+
+    schedule = rc.get("schedule")
+    if schedule is None:
+        schedule = []
+    if not isinstance(schedule, list):
+        raise ValueError("rate_control.schedule must be a list")
+
+    for idx, entry in enumerate(schedule):
+        if not isinstance(entry, dict):
+            raise ValueError(f"rate_control.schedule[{idx}] must be a mapping")
+
+        for key in entry:
+            if key not in _RATE_SCHEDULE_ENTRY_KEYS:
+                print(f"Warning: unknown key '{key}' in 'rate_control.schedule[{idx}]' (ignored)")
+
+        for required_key in ("events_per_second", "duration_seconds", "every_seconds"):
+            if required_key not in entry:
+                raise ValueError(f"rate_control.schedule[{idx}].{required_key} is required")
+
+        events_per_second = entry["events_per_second"]
+        if isinstance(events_per_second, bool) or not isinstance(events_per_second, (int, float)) or events_per_second <= 0:
+            raise ValueError(f"rate_control.schedule[{idx}].events_per_second must be > 0, got {events_per_second!r}")
+
+        duration_seconds = entry["duration_seconds"]
+        if isinstance(duration_seconds, bool) or not isinstance(duration_seconds, (int, float)) or duration_seconds <= 0:
+            raise ValueError(f"rate_control.schedule[{idx}].duration_seconds must be > 0, got {duration_seconds!r}")
+
+        every_seconds = entry["every_seconds"]
+        if isinstance(every_seconds, bool) or not isinstance(every_seconds, (int, float)) or every_seconds <= 0:
+            raise ValueError(f"rate_control.schedule[{idx}].every_seconds must be > 0, got {every_seconds!r}")
+
+        offset_seconds = entry.get("offset_seconds", 0)
+        if isinstance(offset_seconds, bool) or not isinstance(offset_seconds, (int, float)) or offset_seconds < 0:
+            raise ValueError(f"rate_control.schedule[{idx}].offset_seconds must be >= 0, got {offset_seconds!r}")
+
+        jitter_pct = entry.get("jitter_pct", 0)
+        if isinstance(jitter_pct, bool) or not isinstance(jitter_pct, (int, float)) or not (0 <= jitter_pct <= 50):
+            raise ValueError(f"rate_control.schedule[{idx}].jitter_pct must be between 0 and 50, got {jitter_pct!r}")
+
+        if offset_seconds + duration_seconds > every_seconds:
+            raise ValueError(
+                f"rate_control.schedule[{idx}]: offset_seconds + duration_seconds "
+                f"({offset_seconds + duration_seconds}) must be <= every_seconds ({every_seconds})"
+            )
+
+
+def build_rate_governor(config: Dict[str, Any], **injectables) -> Any:
+    """
+    Build the rate governor used to pace the generator's event loop.
+
+    Returns a NullGovernor() (no pacing; today's unpaced behavior) when
+    'generator.rate_control' is absent. Otherwise returns a RateGovernor
+    configured from the rate_control block, seeded from 'generator.random_seed'
+    (falling back to 'generator.seed') for deterministic jitter.
+    """
+    gen = config["generator"]
+    rate_control = gen.get("rate_control")
+    if not rate_control:
+        return NullGovernor()
+    random_seed = gen.get("random_seed", gen.get("seed"))
+    return RateGovernor(rate_control, random_seed=random_seed, **injectables)
+
 
 def get_connection_kwargs_from_config(config: Dict[str, Any]) -> Dict[str, Any]:
     """
