@@ -158,6 +158,8 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"max-events-per-batch", "max-interval-between-batches", "max-cpu-threshold",
 	"adaptive-parallelism-frequency-seconds", "min-available-memory-threshold", "max-batch-size-bytes",
 	"ybvoyager-use-task-picker-for-import",
+
+	"cdc-partitioning-strategy", "disable-null-conflicts",
 )
 
 var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
@@ -379,7 +381,7 @@ var confParamEnvVarPairs = map[string]string{
 
 	"import-data.csv-reader-max-buffer-size-bytes":            "CSV_READER_MAX_BUFFER_SIZE_BYTES",
 	"import-data.ybvoyager-max-colocated-batches-in-progress": "YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS",
-	"import-data.num-event-channels":                          "NUM_EVENT_CHANNELS",
+	"import-data.num-event-channels":                          "NUM_EVENT_CHANNELS", // INTERNAL/testing-only, unsafe to change mid-migration; do not recommend to users. See live_migration.go.
 	"import-data.event-channel-size":                          "EVENT_CHANNEL_SIZE",
 	"import-data.max-events-per-batch":                        "MAX_EVENTS_PER_BATCH",
 	"import-data.max-interval-between-batches":                "MAX_INTERVAL_BETWEEN_BATCHES",
@@ -391,7 +393,7 @@ var confParamEnvVarPairs = map[string]string{
 
 	"import-data-to-target.csv-reader-max-buffer-size-bytes":            "CSV_READER_MAX_BUFFER_SIZE_BYTES",
 	"import-data-to-target.ybvoyager-max-colocated-batches-in-progress": "YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS",
-	"import-data-to-target.num-event-channels":                          "NUM_EVENT_CHANNELS",
+	"import-data-to-target.num-event-channels":                          "NUM_EVENT_CHANNELS", // INTERNAL/testing-only, unsafe to change mid-migration; do not recommend to users. See live_migration.go.
 	"import-data-to-target.event-channel-size":                          "EVENT_CHANNEL_SIZE",
 	"import-data-to-target.max-events-per-batch":                        "MAX_EVENTS_PER_BATCH",
 	"import-data-to-target.max-interval-between-batches":                "MAX_INTERVAL_BETWEEN_BATCHES",
@@ -402,13 +404,13 @@ var confParamEnvVarPairs = map[string]string{
 	"import-data-to-target.ybvoyager-use-task-picker-for-import":        "YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT",
 
 	"import-data-to-source-replica.ybvoyager-max-colocated-batches-in-progress": "YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS",
-	"import-data-to-source-replica.num-event-channels":                          "NUM_EVENT_CHANNELS",
+	"import-data-to-source-replica.num-event-channels":                          "NUM_EVENT_CHANNELS", // INTERNAL/testing-only, unsafe to change mid-migration; do not recommend to users. See live_migration.go.
 	"import-data-to-source-replica.event-channel-size":                          "EVENT_CHANNEL_SIZE",
 	"import-data-to-source-replica.max-events-per-batch":                        "MAX_EVENTS_PER_BATCH",
 	"import-data-to-source-replica.max-interval-between-batches":                "MAX_INTERVAL_BETWEEN_BATCHES",
 	"import-data-to-source-replica.max-batch-size-bytes":                        "MAX_BATCH_SIZE_BYTES",
 
-	"import-data-to-source.num-event-channels":           "NUM_EVENT_CHANNELS",
+	"import-data-to-source.num-event-channels":           "NUM_EVENT_CHANNELS", // INTERNAL/testing-only, unsafe to change mid-migration; do not recommend to users. See live_migration.go.
 	"import-data-to-source.event-channel-size":           "EVENT_CHANNEL_SIZE",
 	"import-data-to-source.max-events-per-batch":         "MAX_EVENTS_PER_BATCH",
 	"import-data-to-source.max-interval-between-batches": "MAX_INTERVAL_BETWEEN_BATCHES",

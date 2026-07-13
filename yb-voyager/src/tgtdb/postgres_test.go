@@ -25,6 +25,8 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -189,4 +191,72 @@ func TestPostgresGetNonEmptyTables(t *testing.T) {
 
 	actualTables := testPostgresTarget.GetNonEmptyTables(tables)
 	testutils.AssertEqualNameTuplesSlice(t, expectedTables, actualTables)
+}
+
+func TestPostgresTargetGetTableToUniqueIndexesMap(t *testing.T) {
+	testPostgresTarget.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE TABLE test_schema.unique_table (
+			id SERIAL PRIMARY KEY,
+			email VARCHAR(255) UNIQUE,
+			phone VARCHAR(20) UNIQUE,
+			address VARCHAR(255) UNIQUE
+		);`,
+		`CREATE TABLE test_schema.another_unique_table (
+			user_id SERIAL PRIMARY KEY,
+			username VARCHAR(50) UNIQUE,
+			age INT
+		);`,
+		`CREATE UNIQUE INDEX idx_age ON test_schema.another_unique_table(age);`,
+		`CREATE TABLE test_schema.composite_unique_table (
+			id SERIAL PRIMARY KEY,
+			first_name VARCHAR(100),
+			last_name VARCHAR(100),
+			phone VARCHAR(20) UNIQUE,
+			CONSTRAINT unique_name UNIQUE (first_name, last_name)
+		);`,
+		// table with only a primary key and no unique index/constraint -> should not appear in the map
+		`CREATE TABLE test_schema.pk_only_table (
+			id INT PRIMARY KEY,
+			name TEXT
+		);`,
+	)
+	defer testPostgresTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	tablesList := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithTargetName("test_schema.unique_table", "public", POSTGRESQL),
+		testutils.CreateNameTupleWithTargetName("test_schema.another_unique_table", "public", POSTGRESQL),
+		testutils.CreateNameTupleWithTargetName("test_schema.composite_unique_table", "public", POSTGRESQL),
+		testutils.CreateNameTupleWithTargetName("test_schema.pk_only_table", "public", POSTGRESQL),
+	}
+
+	actualIndexes, err := testPostgresTarget.GetTableToUniqueIndexesMap(tablesList)
+	require.NoError(t, err)
+
+	expectedIndexesByTable := utils.NewStructMap[sqlname.NameTuple, [][]string]()
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.unique_table", "public", POSTGRESQL), [][]string{
+		{"email"},
+		{"phone"},
+		{"address"},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.another_unique_table", "public", POSTGRESQL), [][]string{
+		{"username"},
+		{"age"},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.composite_unique_table", "public", POSTGRESQL), [][]string{
+		{"first_name", "last_name"},
+		{"phone"},
+	})
+
+	assert.Equal(t, len(expectedIndexesByTable.Keys()), len(actualIndexes.Keys()), "Expected number of tables to match")
+
+	expectedIndexesByTable.IterKV(func(table sqlname.NameTuple, expectedIndexes [][]string) (bool, error) {
+		actualIndexesForTable, exists := actualIndexes.Get(table)
+		if !exists {
+			t.Errorf("Expected table %s not found in unique indexes map", table)
+			return true, nil
+		}
+		assertEqualUniqueIndexes(t, expectedIndexes, actualIndexesForTable)
+		return true, nil
+	})
 }

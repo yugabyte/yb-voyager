@@ -32,7 +32,6 @@ import (
 	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/jackc/pglogrepl"
-	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/mcuadros/go-version"
 	"github.com/samber/lo"
@@ -954,101 +953,6 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
 		utils.ErrExit("Error in scanning for child partitions of table: %s: %w", tableName, rows.Err())
 	}
 	return partitions
-}
-
-func dedupeUniqueIndexes(indexes [][]string) [][]string {
-	seen := make(map[string]bool)
-	result := make([][]string, 0, len(indexes))
-	for _, cols := range indexes {
-		key := strings.Join(cols, ",")
-		if seen[key] {
-			continue
-		}
-		seen[key] = true
-		result = append(result, cols)
-	}
-	return result
-}
-
-// MergeUniqueIndexes merges two index lists, deduplicating by column signature.
-func MergeUniqueIndexes(existing, additional [][]string) [][]string {
-	return dedupeUniqueIndexes(append(existing, additional...))
-}
-
-func buildUniqueIndexesMapFromPGRows(rows *sql.Rows, tableStrToNameTupleMap map[string]sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
-	result := utils.NewStructMap[sqlname.NameTuple, [][]string]()
-
-	for rows.Next() {
-		var schemaName, tableName, indexKey string
-		var columnsPgTypeArray pgtype.TextArray
-		err := rows.Scan(&schemaName, &tableName, &indexKey, &columnsPgTypeArray)
-		if err != nil {
-			return nil, fmt.Errorf("scanning row for unique index: %w", err)
-		}
-		columns := utils.ConvertPgTextArrayToStringSlice(columnsPgTypeArray)
-		if len(columns) == 0 {
-			continue
-		}
-
-		tableCatalogName := fmt.Sprintf("%s.%s", schemaName, tableName)
-		tableNameTuple, ok := tableStrToNameTupleMap[tableCatalogName]
-		if !ok {
-			return nil, goerrors.Errorf("table %s not found in table list", tableCatalogName)
-		}
-
-		indexes, _ := result.Get(tableNameTuple)
-		indexes = append(indexes, columns)
-		result.Put(tableNameTuple, indexes)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterating rows for unique indexes: %w", err)
-	}
-
-	result.IterKV(func(k sqlname.NameTuple, v [][]string) (bool, error) {
-		v = dedupeUniqueIndexes(v)
-		result.Put(k, v)
-		return true, nil
-	})
-
-	return result, nil
-}
-
-func queryPGUniqueIndexesMap(db *sql.DB, tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
-	tableStrToNameTupleMap := make(map[string]sqlname.NameTuple)
-	var querySchemaList, queryTableList []string
-	for _, table := range tableList {
-		sname, tname := table.ForCatalogQuery()
-		querySchemaList = append(querySchemaList, sname)
-		queryTableList = append(queryTableList, tname)
-		tableStrToNameTupleMap[table.AsQualifiedCatalogName()] = table
-	}
-	querySchemaList = lo.Uniq(querySchemaList)
-
-	query := fmt.Sprintf(pgQueryTmplForUniqIndexes,
-		strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","),
-		strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","))
-	rows, err := db.Query(query)
-	if err != nil {
-		return nil, fmt.Errorf("querying unique indexes: %w", err)
-	}
-	defer func() {
-		closeErr := rows.Close()
-		if closeErr != nil {
-			log.Errorf("closing rows for unique indexes: %v", closeErr)
-		}
-	}()
-
-	return buildUniqueIndexesMapFromPGRows(rows, tableStrToNameTupleMap)
-}
-
-func (pg *PostgreSQL) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
-	log.Infof("getting unique indexes for tables: %v", tableList)
-	result, err := queryPGUniqueIndexesMap(pg.db, tableList)
-	if err != nil {
-		return nil, err
-	}
-	log.Infof("unique indexes for tables: %v", result)
-	return result, nil
 }
 
 func (pg *PostgreSQL) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {

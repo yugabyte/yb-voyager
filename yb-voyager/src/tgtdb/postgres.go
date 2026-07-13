@@ -379,6 +379,211 @@ func (pg *TargetPostgreSQL) GetPrimaryKeyConstraintNames(table sqlname.NameTuple
 	return nil, nil
 }
 
+func (pg *TargetPostgreSQL) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
+	log.Infof("getting unique indexes from target Postgres for tables: %v", tableList)
+	// Unique indexes on a partitioned table are often defined on its leaf partitions
+	// rather than the root (e.g. CREATE UNIQUE INDEX ... ON <leaf> (...)). Since import
+	// events only reference the root table, we discover the unique indexes of every leaf
+	// partition (and the root/normal tables themselves) and merge them into the root.
+	//
+	// getPartitionTableToRootTableMap returns, for every table whose root is in tableList,
+	// a mapping of its catalog name ("schema.table") to its root's catalog name. This
+	// includes each leaf partition -> root, and each root/normal table -> itself.
+	tableToRootMap, err := getPartitionTableToRootTableMap(pg.Query, tableList)
+	if err != nil {
+		return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
+	}
+
+	// Fetch unique indexes for all leaves + roots and key them by catalog name.
+	querySchemaList, queryTableList := catalogNamesToSchemaAndTableLists(lo.Keys(tableToRootMap))
+	catalogToIndexes, err := queryPGUniqueIndexesByCatalog(pg.Query, querySchemaList, queryTableList)
+	if err != nil {
+		return nil, err
+	}
+
+	rootCatalogToTuple := make(map[string]sqlname.NameTuple)
+	for _, t := range tableList {
+		rootCatalogToTuple[t.AsQualifiedCatalogName()] = t
+	}
+
+	result := utils.NewStructMap[sqlname.NameTuple, [][]string]()
+	for catalogName, indexes := range catalogToIndexes {
+		rootCatalogName, ok := tableToRootMap[catalogName]
+		if !ok {
+			// table not under any of the requested roots (possible cross-schema
+			// over-match from the query filter); skip it.
+			continue
+		}
+		rootTuple, ok := rootCatalogToTuple[rootCatalogName]
+		if !ok {
+			return nil, goerrors.Errorf("root table %s not found in requested table list", rootCatalogName)
+		}
+		existing, _ := result.Get(rootTuple)
+		result.Put(rootTuple, mergeUniqueIndexes(existing, indexes))
+	}
+
+	log.Infof("unique indexes from postgres for tables: %v", result)
+	return result, nil
+}
+
+// pgQueryTmplForUniqIndexes returns, for the given schema/table lists, every unique
+// constraint and unique index (excluding primary keys) with its ordered column list.
+// It is used for both PostgreSQL and YugabyteDB targets since YugabyteDB is
+// PG-compatible at the catalog level.
+const pgQueryTmplForUniqIndexes = `
+WITH unique_constraints AS (
+    SELECT
+        tc.table_schema,
+        tc.table_name,
+        tc.constraint_name AS index_key,
+        kcu.column_name,
+        kcu.ordinal_position
+    FROM
+        information_schema.table_constraints tc
+    JOIN
+        information_schema.key_column_usage kcu
+        ON tc.constraint_name = kcu.constraint_name
+        AND tc.table_schema = kcu.table_schema
+        AND tc.table_name = kcu.table_name
+    WHERE
+        tc.constraint_type = 'UNIQUE'
+        AND tc.table_schema = ANY('{%s}')
+        AND tc.table_name = ANY('{%s}')
+),
+unique_indexes AS (
+    SELECT
+        n.nspname AS table_schema,
+        t.relname AS table_name,
+        i.relname AS index_key,
+        a.attname AS column_name,
+        array_position(ix.indkey, a.attnum) + 1 AS ordinal_position
+    FROM
+        pg_index ix
+    JOIN
+        pg_class i ON i.oid = ix.indexrelid
+    JOIN
+        pg_class t ON t.oid = ix.indrelid
+    JOIN
+        pg_namespace n ON n.oid = t.relnamespace
+    JOIN
+        pg_attribute a ON a.attrelid = t.oid
+        AND a.attnum = ANY(ix.indkey)
+    LEFT JOIN
+        pg_constraint c ON ix.indexrelid = c.conindid AND c.contype = 'p'
+    WHERE
+        ix.indisunique = TRUE
+        AND c.contype IS NULL
+        AND n.nspname = ANY('{%s}')
+        AND t.relname = ANY('{%s}')
+),
+all_unique_indexes AS (
+    SELECT
+        table_schema,
+        table_name,
+        index_key,
+        column_name,
+        MIN(ordinal_position) AS ordinal_position
+    FROM (
+        SELECT table_schema, table_name, index_key, column_name, ordinal_position FROM unique_constraints
+        UNION
+        SELECT table_schema, table_name, index_key, column_name, ordinal_position FROM unique_indexes
+    ) AS combined
+    GROUP BY table_schema, table_name, index_key, column_name
+)
+SELECT
+    table_schema,
+    table_name,
+    index_key,
+    array_agg(column_name ORDER BY ordinal_position) AS columns
+FROM all_unique_indexes
+GROUP BY table_schema, table_name, index_key
+ORDER BY table_schema, table_name, index_key;
+`
+
+// dedupeUniqueIndexes removes duplicate index definitions, keyed by the ordered
+// column signature.
+func dedupeUniqueIndexes(indexes [][]string) [][]string {
+	seen := make(map[string]bool)
+	result := make([][]string, 0, len(indexes))
+	for _, cols := range indexes {
+		key := strings.Join(cols, ",")
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		result = append(result, cols)
+	}
+	return result
+}
+
+// mergeUniqueIndexes merges two index lists, deduplicating by column signature.
+func mergeUniqueIndexes(existing, additional [][]string) [][]string {
+	return dedupeUniqueIndexes(append(existing, additional...))
+}
+
+// catalogNamesToSchemaAndTableLists splits a list of "schema.table" catalog names
+// into de-duplicated, parallel-usable schema and table lists suitable for the
+// pgQueryTmplForUniqIndexes filter (which filters schema and table independently).
+func catalogNamesToSchemaAndTableLists(catalogNames []string) (schemaList, tableList []string) {
+	for _, catalogName := range catalogNames {
+		parts := strings.SplitN(catalogName, ".", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		schemaList = append(schemaList, parts[0])
+		tableList = append(tableList, parts[1])
+	}
+	return lo.Uniq(schemaList), lo.Uniq(tableList)
+}
+
+
+// queryPGUniqueIndexesByCatalog runs the PG/YB unique-index discovery query for the
+// given schema/table filter lists and returns a map keyed by "schema.table" catalog
+// name to its list of unique indexes (each an ordered, de-duplicated column list).
+func queryPGUniqueIndexesByCatalog(queryFn func(query string) (*sql.Rows, error), schemaList, tableList []string) (map[string][][]string, error) {
+	if len(schemaList) == 0 || len(tableList) == 0 {
+		return map[string][][]string{}, nil
+	}
+
+	query := fmt.Sprintf(pgQueryTmplForUniqIndexes,
+		strings.Join(schemaList, ","), strings.Join(tableList, ","),
+		strings.Join(schemaList, ","), strings.Join(tableList, ","))
+	rows, err := queryFn(query)
+	if err != nil {
+		return nil, fmt.Errorf("querying unique indexes: %w", err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Errorf("closing rows for unique indexes: %v", closeErr)
+		}
+	}()
+
+	result := make(map[string][][]string)
+	for rows.Next() {
+		var schemaName, tableName, indexKey string
+		var columnsPgTypeArray pgtype.TextArray
+		err := rows.Scan(&schemaName, &tableName, &indexKey, &columnsPgTypeArray)
+		if err != nil {
+			return nil, fmt.Errorf("scanning row for unique index: %w", err)
+		}
+		columns := utils.ConvertPgTextArrayToStringSlice(columnsPgTypeArray)
+		if len(columns) == 0 {
+			continue
+		}
+		catalogName := fmt.Sprintf("%s.%s", schemaName, tableName)
+		result[catalogName] = append(result[catalogName], columns)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating rows for unique indexes: %w", err)
+	}
+
+	for catalogName, indexes := range result {
+		result[catalogName] = dedupeUniqueIndexes(indexes)
+	}
+	return result, nil
+}
+
 func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
 	result := []sqlname.NameTuple{}
 

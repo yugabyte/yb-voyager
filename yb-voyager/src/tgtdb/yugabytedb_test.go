@@ -300,6 +300,114 @@ func TestYugabyteGetPrimaryKeyConstraintNames(t *testing.T) {
 	}
 }
 
+func TestYugabyteGetTableToUniqueIndexesMap(t *testing.T) {
+	testYugabyteDBTarget.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE TABLE test_schema.unique_table (
+			id SERIAL PRIMARY KEY,
+			email VARCHAR(255) UNIQUE,
+			phone VARCHAR(20) UNIQUE,
+			address VARCHAR(255) UNIQUE
+		);`,
+		`CREATE TABLE test_schema.another_unique_table (
+			user_id SERIAL PRIMARY KEY,
+			username VARCHAR(50) UNIQUE,
+			age INT
+		);`,
+		`CREATE UNIQUE INDEX idx_age ON test_schema.another_unique_table(age);`,
+		`CREATE TABLE test_schema.composite_unique_table (
+			id SERIAL PRIMARY KEY,
+			first_name VARCHAR(100),
+			last_name VARCHAR(100),
+			phone VARCHAR(20) UNIQUE,
+			CONSTRAINT unique_name UNIQUE (first_name, last_name)
+		);`,
+		// table with only a primary key and no unique index/constraint -> should not appear in the map
+		`CREATE TABLE test_schema.pk_only_table (
+			id INT PRIMARY KEY,
+			name TEXT
+		);`,
+		// partitioned table whose unique indexes are defined on the leaf partitions.
+		// The merged result should be attributed to the root table.
+		`CREATE TABLE test_schema.part_table (
+			id INT,
+			region TEXT,
+			id1 INT,
+			id2 INT,
+			PRIMARY KEY (id, region)
+		) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema.part_table_r1 PARTITION OF test_schema.part_table FOR VALUES IN ('r1');`,
+		`CREATE TABLE test_schema.part_table_r2 PARTITION OF test_schema.part_table FOR VALUES IN ('r2');`,
+		`CREATE UNIQUE INDEX idx_part_table_r1_id1_id2 ON test_schema.part_table_r1 (id1, id2);`,
+		`CREATE UNIQUE INDEX idx_part_table_r2_id1_id2 ON test_schema.part_table_r2 (id1, id2);`,
+	)
+	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	tablesList := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithTargetName("test_schema.unique_table", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.another_unique_table", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.composite_unique_table", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.pk_only_table", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.part_table", "public", YUGABYTEDB),
+	}
+
+	actualIndexes, err := testYugabyteDBTarget.GetTableToUniqueIndexesMap(tablesList)
+	require.NoError(t, err)
+
+	expectedIndexesByTable := utils.NewStructMap[sqlname.NameTuple, [][]string]()
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.unique_table", "public", YUGABYTEDB), [][]string{
+		{"email"},
+		{"phone"},
+		{"address"},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.another_unique_table", "public", YUGABYTEDB), [][]string{
+		{"username"},
+		{"age"},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.composite_unique_table", "public", YUGABYTEDB), [][]string{
+		{"first_name", "last_name"},
+		{"phone"},
+	})
+	// The two leaf partitions each define the same (id1, id2) unique index; the merged,
+	// de-duplicated result is attributed to the root partitioned table.
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.part_table", "public", YUGABYTEDB), [][]string{
+		{"id1", "id2"},
+	})
+
+	assert.Equal(t, len(expectedIndexesByTable.Keys()), len(actualIndexes.Keys()), "Expected number of tables to match")
+
+	expectedIndexesByTable.IterKV(func(table sqlname.NameTuple, expectedIndexes [][]string) (bool, error) {
+		actualIndexesForTable, exists := actualIndexes.Get(table)
+		if !exists {
+			t.Errorf("Expected table %s not found in unique indexes map", table)
+			return true, nil
+		}
+		assertEqualUniqueIndexes(t, expectedIndexes, actualIndexesForTable)
+		return true, nil
+	})
+}
+
+// assertEqualUniqueIndexes compares two lists of unique indexes irrespective of order,
+// matching each index by its ordered column signature.
+func assertEqualUniqueIndexes(t *testing.T, expected, actual [][]string) {
+	t.Helper()
+	if len(expected) != len(actual) {
+		t.Fatalf("expected %d indexes, got %d", len(expected), len(actual))
+	}
+	expectedSigs := make(map[string][]string)
+	for _, idxColumns := range expected {
+		expectedSigs[strings.Join(idxColumns, ",")] = idxColumns
+	}
+	for _, idxColumns := range actual {
+		sig := strings.Join(idxColumns, ",")
+		expCols, ok := expectedSigs[sig]
+		if !ok {
+			t.Fatalf("unexpected index columns %v", idxColumns)
+		}
+		testutils.AssertEqualStringSlices(t, expCols, idxColumns)
+	}
+}
+
 // this test is to ensure the query being used for fetching pg_stat_statements from target is working for voyager supported yb versions
 func TestPGStatStatementsQuery(t *testing.T) {
 	versionsList := versions.GetVoyagerSupportedYBVersions()
@@ -1054,7 +1162,7 @@ func TestGetTablesHavingExpressionIndexes(t *testing.T) {
 	yb, ok := testYugabyteDBTarget.TargetDB.(*TargetYugabyteDB)
 	require.True(t, ok)
 
-	leafTableToRootTableMap, err := yb.getPartitionTableToRootTableMap(tableTuplesList)
+	leafTableToRootTableMap, err := getPartitionTableToRootTableMap(yb.Query, tableTuplesList)
 	require.NoError(t, err)
 	expectedLeafTableToRootTableMap := map[string]string{
 		table1.AsQualifiedCatalogName():           table1.AsQualifiedCatalogName(),
