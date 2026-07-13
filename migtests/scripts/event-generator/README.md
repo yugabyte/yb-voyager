@@ -100,11 +100,19 @@ including a `rate_control` block whose rates are the **desired TOTAL across
 all workers**, not per-worker):
 ```yaml
 parallel:
-  max_workers: 6              # hard cap on worker processes
-  calibration_seconds: 30     # how long the one-shot calibration run lasts
-  margin: 1.3                 # safety headroom: target workers for 1.3x peak
-  run_seconds: 1800           # total wall-clock run time
-  monitor_interval_seconds: 5 # how often to print the aggregate rate
+  max_workers: 6              # hard cap on worker processes; if the peak target
+                              #   needs more, worker count is clamped here and the
+                              #   shortfall ("requested X, achievable ~Y") is logged
+  calibration_seconds: 30     # length of the one-shot uncapped probe that measures
+                              #   the per-worker throughput ceiling (bigger = steadier
+                              #   estimate, but delays the run start)
+  margin: 1.3                 # headroom factor: size workers for peak_target * margin
+                              #   so each worker sits below its ceiling and the governor
+                              #   throttles down rather than running flat-out
+  run_seconds: 1800           # total run duration after calibration; workers are
+                              #   stopped when this elapses (Ctrl+C also stops cleanly)
+  monitor_interval_seconds: 5 # how often the aggregate events/sec (summed across all
+                              #   workers via pg_stat_statements) is sampled and printed
 ```
 
 How it derives the worker count:
