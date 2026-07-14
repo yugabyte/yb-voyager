@@ -49,9 +49,11 @@ var hotspotsOnDateIndexes = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 	MinimumVersionsFixedInTP: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2025_2: ybversion.V2025_2_1_0,
+		ybversion.SERIES_2026_1: ybversion.V2026_1_0_0,
 	},
 	MinimumVersionsFixedInEA: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2025_2: ybversion.V2025_2_2_0,
+		ybversion.SERIES_2026_1: ybversion.V2026_1_0_0,
 	},
 	EnablingFlags: []string{"yb_enable_derived_saops=true", "yb_max_saop_merge_streams=64"},
 }
@@ -113,9 +115,11 @@ var hotspotsOnTimestampIndexes = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 	MinimumVersionsFixedInTP: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2025_2: ybversion.V2025_2_1_0,
+		ybversion.SERIES_2026_1: ybversion.V2026_1_0_0,
 	},
 	MinimumVersionsFixedInEA: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2025_2: ybversion.V2025_2_2_0,
+		ybversion.SERIES_2026_1: ybversion.V2026_1_0_0,
 	},
 	EnablingFlags: []string{"yb_enable_derived_saops=true", "yb_max_saop_merge_streams=64"},
 }

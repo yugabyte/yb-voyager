@@ -36,6 +36,7 @@ var advisoryLocksIssue = issue.Issue{
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
+		ybversion.SERIES_2026_1: ybversion.V2026_1_0_0,
 	},
 	MinimumVersionsFixedInTP: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_1_0,
@@ -146,6 +147,7 @@ var regexFunctionsIssue = issue.Issue{
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
+		ybversion.SERIES_2026_1: ybversion.V2026_1_0_0,
 	},
 }
 
@@ -179,6 +181,7 @@ var rangeAggregateFunctionIssue = issue.Issue{
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
+		ybversion.SERIES_2026_1: ybversion.V2026_1_0_0,
 	},
 }
 
@@ -255,6 +258,7 @@ var jsonbSubscriptingIssue = issue.Issue{
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
+		ybversion.SERIES_2026_1: ybversion.V2026_1_0_0,
 	},
 }
 
@@ -288,6 +292,7 @@ var copyFromWhereIssue = issue.Issue{
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
+		ybversion.SERIES_2026_1: ybversion.V2026_1_0_0,
 	},
 }
 
@@ -334,6 +339,7 @@ var cteWithMaterializedIssue = issue.Issue{
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0, //TODO: understand in NOT MATERIALIZED works as expected internally
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
+		ybversion.SERIES_2026_1: ybversion.V2026_1_0_0,
 	},
 }
 
@@ -365,6 +371,7 @@ var listenNotifyIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#events-listen-notify",
 	MinimumVersionsFixedInEA: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2025_2: ybversion.V2025_2_3_0,
+		ybversion.SERIES_2026_1: ybversion.V2026_1_0_0,
 	},
 	EnablingFlags: []string{"ysql_yb_enable_listen_notify"},
 }
@@ -413,6 +420,7 @@ var savepointUsageIssue = issue.Issue{
 		ybversion.SERIES_2024_2: ybversion.V2024_2_8_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_4_0,
 		ybversion.SERIES_2025_2: ybversion.V2025_2_2_0,
+		ybversion.SERIES_2026_1: ybversion.V2026_1_0_0,
 	},
 }
 
