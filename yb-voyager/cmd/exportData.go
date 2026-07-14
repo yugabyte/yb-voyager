@@ -360,6 +360,7 @@ var ybCDCSavepointAndReadCommittedFixedVersions = map[string]*ybversion.YBVersio
 	ybversion.SERIES_2024_2: ybversion.V2024_2_8_0,
 	ybversion.SERIES_2025_1: ybversion.V2025_1_4_0,
 	ybversion.SERIES_2025_2: ybversion.V2025_2_2_0,
+	ybversion.SERIES_2026_1: ybversion.V2026_1_0_0,
 }
 
 // isCDCSavepointFixedInTargetDBVersion returns whether the CDC savepoint rollback
@@ -848,10 +849,6 @@ func startDebeziumAsPerExportTypeIfRequired(ctx context.Context, cancel context.
 	config, tableNametoApproxRowCountMap, err := prepareDebeziumConfig(partitionsToRootTableMap, finalTableList, tablesColumnList, leafPartitions)
 	if err != nil {
 		return fmt.Errorf("failed to prepare dbzm config: %w", err)
-	}
-	err = saveTableToUniqueIndexesMapInMetaDB(finalTableList, leafPartitions)
-	if err != nil {
-		return fmt.Errorf("failed to save table to unique indexes map in metaDB: %w", err)
 	}
 	if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
 		err = initPGLiveMigrationAndExportSnapshotIfRequired(ctx, cancel, finalTableList, tablesColumnList, leafPartitions, config)
@@ -2417,57 +2414,4 @@ func createUpdateExportedRowCountEventList(tableNames []string) []*cp.UpdateExpo
 	}
 
 	return result
-}
-
-func saveTableToUniqueIndexesMapInMetaDB(tableList []sqlname.NameTuple, leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) error {
-	res, err := source.DB().GetTableToUniqueIndexesMap(tableList)
-	if err != nil {
-		return fmt.Errorf("get table to unique indexes map: %w", err)
-	}
-
-	key := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_INDEXES_KEY, exporterRole)
-	if res == nil {
-		log.Infof("no table to unique indexes map found, saving nil to metaDB")
-		err = metadb.UpdateJsonObjectInMetaDB(metaDB, key, func(record *map[string][][]string) {
-			*record = nil
-		})
-		if err != nil {
-			return fmt.Errorf("insert table to unique indexes map: %w", err)
-		}
-		return nil
-	}
-
-	//Adding all the leaf partitions unique indexes to the root table since in the importer all the events only have the root table name
-	leafPartitions.IterKV(func(rootTable sqlname.NameTuple, value []sqlname.NameTuple) (bool, error) {
-		for _, leafTable := range value {
-			leafUniqueIndexes, ok := res.Get(leafTable)
-			if !ok {
-				continue
-			}
-			//Do not add leaf table key in the map since this config will be read by importer
-			res.Delete(leafTable)
-			rootUniqueIndexes, ok := res.Get(rootTable)
-			if !ok {
-				rootUniqueIndexes = [][]string{}
-			}
-			rootUniqueIndexes = srcdb.MergeUniqueIndexes(rootUniqueIndexes, leafUniqueIndexes)
-			res.Put(rootTable, rootUniqueIndexes)
-		}
-		return true, nil
-	})
-
-	metaDbData := make(map[string][][]string)
-	res.IterKV(func(k sqlname.NameTuple, v [][]string) (bool, error) {
-		metaDbData[k.AsQualifiedCatalogName()] = v
-		return true, nil
-	})
-
-	log.Infof("updating metaDB with table to unique indexes map: %v", res)
-	err = metadb.UpdateJsonObjectInMetaDB(metaDB, key, func(record *map[string][][]string) {
-		*record = metaDbData
-	})
-	if err != nil {
-		return fmt.Errorf("insert table to unique indexes map: %w", err)
-	}
-	return nil
 }

@@ -34,8 +34,30 @@ func strPtr(v string) *string {
 	return &v
 }
 
+// uidx builds a default (NULLS DISTINCT) unique index for tests.
+func uidx(columns ...string) tgtdb.UniqueIndex {
+	return tgtdb.UniqueIndex{Columns: columns}
+}
+
+// uidxNND builds a NULLS NOT DISTINCT unique index for tests.
+func uidxNND(columns ...string) tgtdb.UniqueIndex {
+	return tgtdb.UniqueIndex{Columns: columns, NullsNotDistinct: true}
+}
+
+// newConflictCacheForTest builds a cache with default (NULLS DISTINCT) unique
+// indexes from the given ordered column lists.
 func newConflictCacheForTest(indexes [][]string) *ConflictDetectionCache {
-	tableToIndexes := utils.NewStructMap[sqlname.NameTuple, [][]string]()
+	uniqueIndexes := make([]tgtdb.UniqueIndex, 0, len(indexes))
+	for _, cols := range indexes {
+		uniqueIndexes = append(uniqueIndexes, uidx(cols...))
+	}
+	return newConflictCacheForTestWithIndexes(uniqueIndexes...)
+}
+
+// newConflictCacheForTestWithIndexes builds a cache with the given unique indexes
+// (allowing per-index NULLS NOT DISTINCT configuration).
+func newConflictCacheForTestWithIndexes(indexes ...tgtdb.UniqueIndex) *ConflictDetectionCache {
+	tableToIndexes := utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]()
 	oname := sqlname.NewObjectName(YUGABYTEDB, "public", "public", "users")
 	table := sqlname.NameTuple{CurrentName: oname, TargetName: oname}
 	tableToIndexes.Put(table, indexes)
@@ -152,7 +174,29 @@ func TestEventsConfict_SamePKNoConflict(t *testing.T) {
 	assert.False(t, cache.eventsConfict(cached, incoming))
 }
 
-func TestEventsConfict_BothNilBeforeAfter(t *testing.T) {
+// With NULLS NOT DISTINCT, two NULL values are treated as equal and therefore conflict.
+func TestEventsConfict_BothNilBeforeAfter_NullsNotDistinct(t *testing.T) {
+	cache := newConflictCacheForTestWithIndexes(uidxNND("email"))
+	cached := &tgtdb.Event{
+		Vsn:          1,
+		Op:           "d",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("1")},
+		BeforeFields: map[string]*string{"email": nil},
+	}
+	incoming := &tgtdb.Event{
+		Vsn:          2,
+		Op:           "c",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("2")},
+		Fields:       map[string]*string{"email": nil},
+	}
+	assert.True(t, cache.checkUniqueIndexBeforeAfterConflict(cached, incoming, uidxNND("email")))
+	assert.True(t, cache.eventsConfict(cached, incoming))
+}
+
+// With the default NULLS DISTINCT, two NULL values are distinct and never conflict.
+func TestEventsConfict_BothNilBeforeAfter_NullsDistinct(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"email"}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
@@ -168,8 +212,8 @@ func TestEventsConfict_BothNilBeforeAfter(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"email": nil},
 	}
-	assert.True(t, cache.checkUniqueIndexBeforeAfterConflict(cached, incoming, []string{"email"}))
-	assert.True(t, cache.eventsConfict(cached, incoming))
+	assert.False(t, cache.checkUniqueIndexBeforeAfterConflict(cached, incoming, uidx("email")))
+	assert.False(t, cache.eventsConfict(cached, incoming))
 }
 
 func TestEventsConflict_OneNilOneValueBeforeAfter(t *testing.T) {
@@ -188,12 +232,13 @@ func TestEventsConflict_OneNilOneValueBeforeAfter(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"email": strPtr("a@example.com")},
 	}
-	assert.False(t, cache.checkUniqueIndexBeforeAfterConflict(cached, incoming, []string{"email"}))
+	assert.False(t, cache.checkUniqueIndexBeforeAfterConflict(cached, incoming, uidx("email")))
 	assert.False(t, cache.eventsConfict(cached, incoming))
 }
 
-func TestEventsConflict_CompositeBothNil(t *testing.T) {
-	cache := newConflictCacheForTest([][]string{{"a", "b"}})
+// Composite NULLS NOT DISTINCT: all-NULL column values are treated as equal and conflict.
+func TestEventsConflict_CompositeBothNil_NullsNotDistinct(t *testing.T) {
+	cache := newConflictCacheForTestWithIndexes(uidxNND("a", "b"))
 	cached := &tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
@@ -209,6 +254,26 @@ func TestEventsConflict_CompositeBothNil(t *testing.T) {
 		Fields:       map[string]*string{"a": nil, "b": nil},
 	}
 	assert.True(t, cache.eventsConfict(cached, incoming))
+}
+
+// Composite default NULLS DISTINCT: all-NULL column values are distinct and never conflict.
+func TestEventsConflict_CompositeBothNil_NullsDistinct(t *testing.T) {
+	cache := newConflictCacheForTest([][]string{{"a", "b"}})
+	cached := &tgtdb.Event{
+		Vsn:          1,
+		Op:           "d",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("1")},
+		BeforeFields: map[string]*string{"a": nil, "b": nil},
+	}
+	incoming := &tgtdb.Event{
+		Vsn:          2,
+		Op:           "c",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("2")},
+		Fields:       map[string]*string{"a": nil, "b": nil},
+	}
+	assert.False(t, cache.eventsConfict(cached, incoming))
 }
 
 func TestEventsConflict_CompositeMixedNil(t *testing.T) {
@@ -230,7 +295,32 @@ func TestEventsConflict_CompositeMixedNil(t *testing.T) {
 	assert.False(t, cache.eventsConfict(cached, incoming))
 }
 
-func TestEventsConflict_BothNilBeforeBefore(t *testing.T) {
+// With NULLS NOT DISTINCT, two NULL before-values conflict (before-before check).
+func TestEventsConflict_BothNilBeforeBefore_NullsNotDistinct(t *testing.T) {
+	cache := newConflictCacheForTestWithIndexes(uidxNND("check_id"))
+	cached := &tgtdb.Event{
+		Vsn:          1,
+		Op:           "u",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("1")},
+		BeforeFields: map[string]*string{"check_id": nil},
+		Fields:       map[string]*string{"check_id": strPtr("10")},
+	}
+	incoming := &tgtdb.Event{
+		Vsn:          2,
+		Op:           "u",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("2")},
+		BeforeFields: map[string]*string{"check_id": nil},
+		Fields:       map[string]*string{"check_id": strPtr("20")},
+	}
+	assert.False(t, cache.checkUniqueIndexBeforeAfterConflict(cached, incoming, uidxNND("check_id")))
+	assert.True(t, cache.checkUniqueIndexBeforeBeforeConflict(cached, incoming, uidxNND("check_id")))
+	assert.True(t, cache.eventsConfict(cached, incoming))
+}
+
+// With the default NULLS DISTINCT, two NULL before-values do not conflict (before-before check).
+func TestEventsConflict_BothNilBeforeBefore_NullsDistinct(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"check_id"}})
 	cached := &tgtdb.Event{
 		Vsn:          1,
@@ -248,9 +338,9 @@ func TestEventsConflict_BothNilBeforeBefore(t *testing.T) {
 		BeforeFields: map[string]*string{"check_id": nil},
 		Fields:       map[string]*string{"check_id": strPtr("20")},
 	}
-	assert.False(t, cache.checkUniqueIndexBeforeAfterConflict(cached, incoming, []string{"check_id"}))
-	assert.True(t, cache.checkUniqueIndexBeforeBeforeConflict(cached, incoming, []string{"check_id"}))
-	assert.True(t, cache.eventsConfict(cached, incoming))
+	assert.False(t, cache.checkUniqueIndexBeforeAfterConflict(cached, incoming, uidx("check_id")))
+	assert.False(t, cache.checkUniqueIndexBeforeBeforeConflict(cached, incoming, uidx("check_id")))
+	assert.False(t, cache.eventsConfict(cached, incoming))
 }
 
 func TestEventsConflict_BeforeBeforeConflictOnly(t *testing.T) {
@@ -270,8 +360,8 @@ func TestEventsConflict_BeforeBeforeConflictOnly(t *testing.T) {
 		BeforeFields: map[string]*string{"check_id": strPtr("10")},
 		Fields:       map[string]*string{"check_id": strPtr("20")},
 	}
-	assert.False(t, cache.checkUniqueIndexBeforeAfterConflict(cached, incoming, []string{"check_id"}))
-	assert.True(t, cache.checkUniqueIndexBeforeBeforeConflict(cached, incoming, []string{"check_id"}))
+	assert.False(t, cache.checkUniqueIndexBeforeAfterConflict(cached, incoming, uidx("check_id")))
+	assert.True(t, cache.checkUniqueIndexBeforeBeforeConflict(cached, incoming, uidx("check_id")))
 	assert.True(t, cache.eventsConfict(cached, incoming))
 }
 
@@ -293,7 +383,7 @@ func TestEventsConflict_BeforeBeforeNoConflictWhenValuesDiffer(t *testing.T) {
 		BeforeFields: map[string]*string{"check_id": strPtr("20")},
 		Fields:       map[string]*string{"check_id": strPtr("21")},
 	}
-	assert.False(t, cache.checkUniqueIndexBeforeBeforeConflict(cached, incoming, []string{"check_id"}))
+	assert.False(t, cache.checkUniqueIndexBeforeBeforeConflict(cached, incoming, uidx("check_id")))
 	assert.False(t, cache.eventsConfict(cached, incoming))
 }
 
@@ -314,7 +404,7 @@ func TestEventsConflict_BeforeBeforeMissingColumn(t *testing.T) {
 		BeforeFields: map[string]*string{"a": strPtr("1")},
 		Fields:       map[string]*string{"a": strPtr("9"), "b": strPtr("2")},
 	}
-	assert.False(t, cache.checkUniqueIndexBeforeBeforeConflict(cached, incoming, []string{"a", "b"}))
+	assert.False(t, cache.checkUniqueIndexBeforeBeforeConflict(cached, incoming, uidx("a", "b")))
 }
 
 func TestEventsConfict_BeforeBeforeConflict(t *testing.T) {

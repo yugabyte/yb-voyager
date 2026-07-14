@@ -181,7 +181,7 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error
 		}
 		log.Infof("got next segment to stream: %v", segment)
 
-		err = streamChangesFromSegment(segment, evChans, processingDoneChans, eventChannelsMetaInfo, statsReporter, state, streamingPhaseValueConverter, tableToPartitioningStrategyMap)
+		err = streamChangesFromSegment(segment, evChans, processingDoneChans, eventChannelsMetaInfo, statsReporter, state, streamingPhaseValueConverter, tableToPartitioningStrategyMap, tableNames)
 		if err != nil {
 			return goerrors.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
 		}
@@ -208,6 +208,17 @@ func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.
 		//For PG/ORacle source/source-replica, using partitioning by table since there won't be any huge difference in
 		// performance between the two strategies for single node databases like PG/Oracle
 		//and Parititon by table is better from data correctness perspective
+		for _, t := range tableNames {
+			tableToPartitioningStrategyMap.Put(t, PARTITION_BY_TABLE)
+		}
+		return tableToPartitioningStrategyMap, nil
+	}
+
+	if sourceDBType == ORACLE {
+		//Oracle sources do not support unique-key conflict detection during live migration
+		//(we do not fetch unique indexes for Oracle). Force PARTITION_BY_TABLE so that all
+		//events of a table run sequentially on a single channel, which makes unique-key
+		//conflicts impossible and hence conflict detection unnecessary.
 		for _, t := range tableNames {
 			tableToPartitioningStrategyMap.Put(t, PARTITION_BY_TABLE)
 		}
@@ -322,7 +333,8 @@ func streamChangesFromSegment(
 	statsReporter *reporter.StreamImportStatsReporter,
 	state *ImportDataState,
 	streamingPhaseValueConverter dbzm.StreamingPhaseValueConverter,
-	tableToPartitioningStrategyMap *utils.StructMap[sqlname.NameTuple, string]) error {
+	tableToPartitioningStrategyMap *utils.StructMap[sqlname.NameTuple, string],
+	importTableList []sqlname.NameTuple) error {
 
 	err := segment.Open()
 	if err != nil {
@@ -358,11 +370,10 @@ func streamChangesFromSegment(
 			/*
 				Note: `sourceDBType` is a global variable, which always represent the initial source db type
 				which does not change even after cutover to target but for conflict detection cache,
-				we need to use the actual source db type at the moment since we save information like
-				TableToUniqueIndexes during export(from source/target) to reuse it during import
+				we need to use the actual source db type at the moment.
 			*/
 			sourceDBTypeForConflictCache := lo.Ternary(isTargetDBExporter(event.ExporterRole), YUGABYTEDB, sourceDBType)
-			err = initializeConflictDetectionCache(evChans, event.ExporterRole, sourceDBTypeForConflictCache)
+			err = initializeConflictDetectionCache(evChans, sourceDBTypeForConflictCache, importTableList)
 			if err != nil {
 				return fmt.Errorf("error initializing conflict detection cache: %w", err)
 			}
@@ -443,7 +454,7 @@ func shouldFormatValues(event *tgtdb.Event) bool {
 	return false
 }
 
-func shouldHandleConflicts(event *tgtdb.Event, tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, [][]string], tableToPartitioningStrategyMap *utils.StructMap[sqlname.NameTuple, string]) (bool, error) {
+func shouldHandleConflicts(event *tgtdb.Event, tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex], tableToPartitioningStrategyMap *utils.StructMap[sqlname.NameTuple, string]) (bool, error) {
 	if tableToUniqueIndexes == nil {
 		return false, goerrors.Errorf("table to unique indexes is not initialized")
 	}
@@ -650,38 +661,23 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 	done <- true
 }
 
-func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, exporterRole string, sourceDBTypeForConflictCache string) error {
-	tableToUniqueIndexes, err := getTableToUniqueIndexesMapFromMetaDB(exporterRole)
+// initializeConflictDetectionCache builds the conflict detection cache used during
+// the streaming phase. The per-table unique indexes are fetched live from the import
+// target DB (the DB that actually enforces unique constraints). Oracle import targets
+// always use PARTITION_BY_TABLE (see getCdcPartitioningStrategyPerTable), so conflict
+// detection never runs for them and their target driver returns an empty map.
+//Attribute name registry is not required here as for the PG->YB migrations the attribute name is same in both the places - event's fields coming from source and unique-index-column mapping coming from target and 
+//And this path is only for PG->YB migrations as of now.
+// This path assumes that the column name remains same in PG->YB migrations.
+func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, sourceDBTypeForConflictCache string, importTableList []sqlname.NameTuple) error {
+	log.Infof("fetching table to unique indexes map from import target (%s)", tconf.TargetDBType)
+	tableToUniqueIndexes, err := tdb.GetTableToUniqueIndexesMap(importTableList)
 	if err != nil {
-		return fmt.Errorf("get table unique indexes map: %w", err)
+		return fmt.Errorf("get table unique indexes map from target: %w", err)
 	}
 	log.Infof("initializing conflict detection cache")
 	conflictDetectionCache = NewConflictDetectionCache(tableToUniqueIndexes, evChans, sourceDBTypeForConflictCache)
 	return nil
-}
-
-func getTableToUniqueIndexesMapFromMetaDB(exporterRole string) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
-	log.Infof("fetching table to unique indexes map from metaDB")
-	res := utils.NewStructMap[sqlname.NameTuple, [][]string]()
-
-	indexesKey := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_INDEXES_KEY, exporterRole)
-	var indexesMetaDbData map[string][][]string
-	found, err := metaDB.GetJsonObject(nil, indexesKey, &indexesMetaDbData)
-	if err != nil {
-		return nil, err
-	}
-	if !found {
-		return nil, goerrors.Errorf("table to unique indexes map not found in metaDB")
-	}
-	log.Infof("fetched table to unique indexes map: %v", indexesMetaDbData)
-	for tableNameRaw, indexes := range indexesMetaDbData {
-		tableName, err := namereg.NameReg.LookupTableName(tableNameRaw)
-		if err != nil {
-			return nil, goerrors.Errorf("lookup table %s in name registry: %v", tableNameRaw, err)
-		}
-		res.Put(tableName, indexes)
-	}
-	return res, nil
 }
 
 func checkifEventBatchAlreadyImported(state *ImportDataState, eventBatch *tgtdb.EventBatch, migrationUUID uuid.UUID) (bool, error) {

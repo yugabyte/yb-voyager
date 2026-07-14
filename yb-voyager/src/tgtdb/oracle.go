@@ -207,6 +207,14 @@ func (tdb *TargetOracleDB) GetPrimaryKeyConstraintNames(table sqlname.NameTuple)
 	return nil, nil
 }
 
+// GetTableToUniqueIndexesMap returns an empty map for Oracle targets. Oracle
+// import targets always use PARTITION_BY_TABLE during live migration (all events
+// of a table run sequentially on a single channel), so unique-key conflict
+// detection never runs and no unique-index metadata is needed.
+func (tdb *TargetOracleDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []UniqueIndex], error) {
+	return utils.NewStructMap[sqlname.NameTuple, []UniqueIndex](), nil
+}
+
 func (tdb *TargetOracleDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
 	result := []sqlname.NameTuple{}
 
