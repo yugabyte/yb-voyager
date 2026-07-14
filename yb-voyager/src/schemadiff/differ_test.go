@@ -108,7 +108,7 @@ func TestDiffer_AppliesScope(t *testing.T) {
 	// No finding must be anchored to public.legacy.
 	legacyRef := ref("public", "legacy")
 	for _, diff := range got {
-		if diff.AnchorTable != nil && *diff.AnchorTable == legacyRef {
+		if anchor, ok := anchorTableOf(diff); ok && anchor == legacyRef {
 			t.Errorf("unexpected legacy finding in scoped result: %v", diff)
 		}
 	}
@@ -116,8 +116,8 @@ func TestDiffer_AppliesScope(t *testing.T) {
 
 // ─── TestDiffer_ScopeRenameRetention ─────────────────────────────────────────
 // The façade preserves FilterByScope's rename-alias behaviour: filtering by the
-// NEW table name still returns the TABLE_NAME_CHANGED finding whose AnchorTable
-// carries the OLD name.
+// NEW table name still returns the TABLE_NAME_CHANGED finding whose derived
+// anchor carries the OLD name.
 
 func TestDiffer_ScopeRenameRetention(t *testing.T) {
 	// public.orders (ID "55") is renamed to public.purchases in b.
@@ -137,15 +137,16 @@ func TestDiffer_ScopeRenameRetention(t *testing.T) {
 	scope := Scope{IncludeTables: []schemasnapshot.ObjectRef{ref("public", "purchases")}}
 	got := NewDiffer(Config{Scope: scope}).Diff(a, b)
 
-	// The TABLE_NAME_CHANGED finding must survive even though its AnchorTable is
-	// the old name (public.orders) — FilterByScope honours rename aliases.
+	// The TABLE_NAME_CHANGED finding must survive even though its derived anchor
+	// is the old name (public.orders) — FilterByScope honours rename aliases.
 	found := false
 	for _, diff := range got {
 		if diff.Type == TableNameChanged {
 			found = true
-			// AnchorTable is the old (side-A) ref.
-			if diff.AnchorTable == nil || diff.AnchorTable.Name != "orders" {
-				t.Errorf("TableNameChanged AnchorTable should be public.orders, got %v", diff.AnchorTable)
+			// The derived anchor is the old (side-A) ref.
+			anchor, ok := anchorTableOf(diff)
+			if !ok || anchor.Name != "orders" {
+				t.Errorf("TableNameChanged anchor should be public.orders, got %v (ok=%v)", anchor, ok)
 			}
 		}
 	}

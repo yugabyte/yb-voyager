@@ -55,20 +55,32 @@ func refPtr(schema, name string) *schemasnapshot.ObjectRef {
 	return &r
 }
 
+// identKey renders a finding's own identity key: side-A's key, falling back to
+// side-B for *_ADDED (where ObjectA is nil), in dbType's dialect. This is the
+// direct replacement for the old pre-rendered Object.Key.
+func identKey(d Difference, dbType string) string {
+	if d.ObjectA != nil {
+		return d.ObjectA.ForKey(dbType)
+	}
+	return d.ObjectB.ForKey(dbType)
+}
+
 // assertAnchoredToObject asserts the V1 invariant that a produced finding is
-// anchored under its own object: a table-level finding's Object.Key equals its
-// AnchorTable's key, and a column-level finding's Object.Key is the AnchorTable's
-// key plus ".<column>". This is the seam that will change only when
-// index/sequence/view findings arrive (Object and anchor diverge further).
+// anchored under its own object: a table-level finding's identity key equals its
+// derived anchor table's key, and a column-level finding's identity key is the
+// anchor table's key plus ".<column>". This is the seam that will change only
+// when index/sequence/view findings arrive (identity and anchor diverge further).
 func assertAnchoredToObject(t *testing.T, d Difference) {
 	t.Helper()
-	if d.AnchorTable == nil {
-		t.Errorf("AnchorTable is nil for %v (%q); want non-nil", d.Type, d.Object.Key)
+	anchor, ok := anchorTableOf(d)
+	if !ok {
+		t.Errorf("anchorTableOf failed for %v (%q); want a table anchor", d.Type, identKey(d, "postgresql"))
 		return
 	}
-	anchorKey := d.AnchorTable.ForKey("postgresql")
-	if d.Object.Key != anchorKey && !strings.HasPrefix(d.Object.Key, anchorKey+".") {
-		t.Errorf("Object %q not anchored under table %q", d.Object.Key, anchorKey)
+	anchorKey := anchor.ForKey("postgresql")
+	objKey := identKey(d, "postgresql")
+	if objKey != anchorKey && !strings.HasPrefix(objKey, anchorKey+".") {
+		t.Errorf("finding identity %q not anchored under table %q", objKey, anchorKey)
 	}
 }
 
@@ -137,34 +149,147 @@ func TestDiff_DoesNotMutateInputs(t *testing.T) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 func TestSortDifferences_Ordering(t *testing.T) {
-	// Build diffs that exercise both sort keys (Object.Key, then Type). Each
-	// Object.Key below folds in what used to be a separate SubObject: a
-	// column-level key is "schema.table.column"; a table-level key is
-	// "schema.table".
+	// Build diffs that exercise both sort keys (ObjectA's key, then Type). Each
+	// identity below folds in what used to be a separate SubObject: a
+	// column-level identity is a TableScopedRef ("schema.table.column"); a
+	// table-level identity is an ObjectRef ("schema.table").
 	diffs := []Difference{
-		// same Object.Key; differ only on Type
-		{Object: QualifiedObject{Key: "z_schema.z_name.a_sub"}, Type: TableSchemaChanged},
-		{Object: QualifiedObject{Key: "z_schema.z_name.a_sub"}, Type: TableAdded},
-		// same schema/name; differ only on the column tail of Object.Key
-		{Object: QualifiedObject{Key: "z_schema.a_name.z_sub"}, Type: TableAdded},
-		{Object: QualifiedObject{Key: "z_schema.a_name.a_sub"}, Type: TableAdded},
-		// same schema; differ only on the table-name portion of Object.Key
-		{Object: QualifiedObject{Key: "a_schema.z_name"}, Type: TableAdded},
-		{Object: QualifiedObject{Key: "a_schema.a_name"}, Type: TableAdded},
+		// same identity key; differ only on Type
+		{ObjectType: ObjectTypeColumn, ObjectA: schemasnapshot.TableScopedRef{Table: ref("z_schema", "z_name"), Name: "a_sub"}, Type: TableSchemaChanged},
+		{ObjectType: ObjectTypeColumn, ObjectA: schemasnapshot.TableScopedRef{Table: ref("z_schema", "z_name"), Name: "a_sub"}, Type: TableAdded},
+		// same schema/table; differ only on the column tail of the identity key
+		{ObjectType: ObjectTypeColumn, ObjectA: schemasnapshot.TableScopedRef{Table: ref("z_schema", "a_name"), Name: "z_sub"}, Type: TableAdded},
+		{ObjectType: ObjectTypeColumn, ObjectA: schemasnapshot.TableScopedRef{Table: ref("z_schema", "a_name"), Name: "a_sub"}, Type: TableAdded},
+		// same schema; differ only on the table-name portion of the identity key
+		{ObjectType: ObjectTypeTable, ObjectA: ref("a_schema", "z_name"), Type: TableAdded},
+		{ObjectType: ObjectTypeTable, ObjectA: ref("a_schema", "a_name"), Type: TableAdded},
 	}
 
-	sortDifferences(diffs)
+	sortDifferences(diffs, "postgresql", "postgresql")
 
 	want := []Difference{
-		{Object: QualifiedObject{Key: "a_schema.a_name"}, Type: TableAdded},
-		{Object: QualifiedObject{Key: "a_schema.z_name"}, Type: TableAdded},
-		{Object: QualifiedObject{Key: "z_schema.a_name.a_sub"}, Type: TableAdded},
-		{Object: QualifiedObject{Key: "z_schema.a_name.z_sub"}, Type: TableAdded},
-		{Object: QualifiedObject{Key: "z_schema.z_name.a_sub"}, Type: TableAdded},
-		{Object: QualifiedObject{Key: "z_schema.z_name.a_sub"}, Type: TableSchemaChanged},
+		{ObjectType: ObjectTypeTable, ObjectA: ref("a_schema", "a_name"), Type: TableAdded},
+		{ObjectType: ObjectTypeTable, ObjectA: ref("a_schema", "z_name"), Type: TableAdded},
+		{ObjectType: ObjectTypeColumn, ObjectA: schemasnapshot.TableScopedRef{Table: ref("z_schema", "a_name"), Name: "a_sub"}, Type: TableAdded},
+		{ObjectType: ObjectTypeColumn, ObjectA: schemasnapshot.TableScopedRef{Table: ref("z_schema", "a_name"), Name: "z_sub"}, Type: TableAdded},
+		{ObjectType: ObjectTypeColumn, ObjectA: schemasnapshot.TableScopedRef{Table: ref("z_schema", "z_name"), Name: "a_sub"}, Type: TableAdded},
+		{ObjectType: ObjectTypeColumn, ObjectA: schemasnapshot.TableScopedRef{Table: ref("z_schema", "z_name"), Name: "a_sub"}, Type: TableSchemaChanged},
 	}
 
 	if !reflect.DeepEqual(diffs, want) {
 		t.Errorf("wrong sort order\ngot:  %v\nwant: %v", diffs, want)
 	}
+}
+
+// TestDifferenceDecompositionMatchesType verifies that every finding Diff emits
+// carries an (Operation, ObjectType, Attribute) triple consistent with its Type
+// string, and that a single rich scenario exercises all 15 V1 DiffTypes. The
+// expected facets are derived by parsing Type here — an independent oracle that
+// would disagree if any newDifference call site passed the wrong op/objtype/attr.
+func TestDifferenceDecompositionMatchesType(t *testing.T) {
+	// A matched table (OID "1") with every table attribute and a rich set of
+	// column changes, plus one dropped-only and one added-only table, so the diff
+	// spans all 15 DiffTypes.
+	tA := schemasnapshot.Table{
+		ObjectRef:         ref("s1", "t_old"),
+		ID:                "1",
+		Kind:              schemasnapshot.TableKindOrdinary,
+		PartitionParent:   refPtr("s1", "parent_a"),
+		PartitionChildren: []schemasnapshot.ObjectRef{ref("s1", "child_a")},
+		InheritsFrom:      []schemasnapshot.ObjectRef{ref("s1", "base_a")},
+		InheritedBy:       []schemasnapshot.ObjectRef{ref("s1", "derived_a")},
+		Columns: []schemasnapshot.Column{
+			makeColumn("s1", "t_old", "1:1", "col_keep", "integer", notNull(), withDefault("0")),
+			makeColumn("s1", "t_old", "1:2", "col_gone", "text"),
+		},
+	}
+	tB := schemasnapshot.Table{
+		ObjectRef:         ref("s2", "t_new"), // name + schema changed
+		ID:                "1",
+		Kind:              schemasnapshot.TableKindPartitioned,                // kind changed
+		PartitionParent:   refPtr("s2", "parent_b"),                           // changed
+		PartitionChildren: []schemasnapshot.ObjectRef{ref("s2", "child_b")},   // changed
+		InheritsFrom:      []schemasnapshot.ObjectRef{ref("s2", "base_b")},    // changed
+		InheritedBy:       []schemasnapshot.ObjectRef{ref("s2", "derived_b")}, // changed
+		Columns: []schemasnapshot.Column{
+			// col "1:1" matches by ID; name+type+nullability+default all differ.
+			makeColumn("s2", "t_new", "1:1", "col_renamed", "bigint"),
+			makeColumn("s2", "t_new", "1:3", "col_added", "text"), // added
+		},
+	}
+
+	a := snapWithTables(tA, makeTable("2", "s1", "dropped_only", schemasnapshot.TableKindOrdinary))
+	b := snapWithTables(tB, makeTable("3", "s2", "added_only", schemasnapshot.TableKindOrdinary))
+
+	got := Diff(a, b)
+
+	seen := map[DiffType]bool{}
+	for _, d := range got {
+		seen[d.Type] = true
+
+		wantOp, wantOT, wantAttr := expectedFacets(t, d.Type)
+		if d.Operation != wantOp {
+			t.Errorf("%s: Operation=%q, want %q", d.Type, d.Operation, wantOp)
+		}
+		if d.ObjectType != wantOT {
+			t.Errorf("%s: ObjectType=%q, want %q", d.Type, d.ObjectType, wantOT)
+		}
+		if d.Attribute != wantAttr {
+			t.Errorf("%s: Attribute=%q, want %q", d.Type, d.Attribute, wantAttr)
+		}
+		// Invariant: Attribute is set iff the finding is a *_CHANGED.
+		if (d.Operation == OpChanged) != (d.Attribute != AttrNone) {
+			t.Errorf("%s: Attribute/Operation mismatch: op=%q attr=%q", d.Type, d.Operation, d.Attribute)
+		}
+	}
+
+	allTypes := []DiffType{
+		TableAdded, TableDropped, TableNameChanged, TableSchemaChanged, TableKindChanged,
+		TablePartitionParentChanged, TablePartitionChildrenChanged, TableInheritsChanged,
+		TableInheritedByChanged,
+		ColumnAdded, ColumnDropped, ColumnNameChanged, ColumnTypeChanged,
+		ColumnNullabilityChanged, ColumnDefaultChanged,
+	}
+	for _, dt := range allTypes {
+		if !seen[dt] {
+			t.Errorf("scenario did not emit %s — decomposition for it is unverified", dt)
+		}
+	}
+}
+
+// expectedFacets derives the (Operation, ObjectType, Attribute) a Difference of
+// the given Type must carry, by parsing the Type string. This is the test's
+// independent oracle; production sets these explicitly at each call site.
+func expectedFacets(t *testing.T, dt DiffType) (Operation, ObjectType, Attribute) {
+	t.Helper()
+	s := string(dt)
+
+	var op Operation
+	switch {
+	case strings.HasSuffix(s, "_ADDED"):
+		op = OpAdded
+	case strings.HasSuffix(s, "_DROPPED"):
+		op = OpDropped
+	case strings.HasSuffix(s, "_CHANGED"):
+		op = OpChanged
+	default:
+		t.Fatalf("unrecognized DiffType verb: %s", s)
+	}
+
+	var ot ObjectType
+	switch {
+	case strings.HasPrefix(s, "TABLE_"):
+		ot = ObjectTypeTable
+	case strings.HasPrefix(s, "COLUMN_"):
+		ot = ObjectTypeColumn
+	default:
+		t.Fatalf("unrecognized DiffType object prefix: %s", s)
+	}
+
+	attr := AttrNone
+	if op == OpChanged {
+		mid := strings.TrimSuffix(strings.TrimPrefix(s, string(ot)+"_"), "_CHANGED")
+		attr = Attribute(mid)
+	}
+	return op, ot, attr
 }

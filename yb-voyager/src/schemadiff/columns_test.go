@@ -58,9 +58,11 @@ func withDefault(d string) colOpt { return func(c *schemasnapshot.Column) { c.De
 // Optional colOpts can be passed to set additional fields (e.g. notNull(), withDefault(...)).
 func makeColumn(tableSchema, tableName, id, name, dataType string, opts ...colOpt) schemasnapshot.Column {
 	c := schemasnapshot.Column{
-		Table:    schemasnapshot.ObjectRef{Schema: tableSchema, Name: tableName},
+		TableScopedRef: schemasnapshot.TableScopedRef{
+			Table: schemasnapshot.ObjectRef{Schema: tableSchema, Name: tableName},
+			Name:  name,
+		},
 		ID:       id,
-		Name:     name,
 		DataType: dataType,
 	}
 	for _, o := range opts {
@@ -90,15 +92,15 @@ func TestDiffColumns_ColumnAdded(t *testing.T) {
 	if d.Type != ColumnAdded {
 		t.Errorf("expected ColumnAdded, got %v", d.Type)
 	}
-	if d.Object.Key != "public.orders.email" {
-		t.Errorf("expected Object.Key=public.orders.email, got %v", d.Object.Key)
+	if identKey(d, "postgresql") != "public.orders.email" {
+		t.Errorf("expected Object.Key=public.orders.email, got %v", identKey(d, "postgresql"))
 	}
-	if d.OldValue != nil {
-		t.Errorf("expected OldValue=nil, got %v", d.OldValue)
+	if d.SideAValue != nil {
+		t.Errorf("expected OldValue=nil, got %v", d.SideAValue)
 	}
-	nv, ok := d.NewValue.(schemasnapshot.Column)
+	nv, ok := d.SideBValue.(schemasnapshot.Column)
 	if !ok {
-		t.Fatalf("expected NewValue to be a schemasnapshot.Column, got %T: %v", d.NewValue, d.NewValue)
+		t.Fatalf("expected NewValue to be a schemasnapshot.Column, got %T: %v", d.SideBValue, d.SideBValue)
 	}
 	if nv != newCol {
 		t.Errorf("expected NewValue=%v, got %v", newCol, nv)
@@ -134,12 +136,12 @@ func TestDiffColumns_ColumnDropped(t *testing.T) {
 	if d.Type != ColumnDropped {
 		t.Errorf("expected ColumnDropped, got %v", d.Type)
 	}
-	if d.Object.Key != "public.orders.legacy_field" {
-		t.Errorf("expected Object.Key=public.orders.legacy_field, got %v", d.Object.Key)
+	if identKey(d, "postgresql") != "public.orders.legacy_field" {
+		t.Errorf("expected Object.Key=public.orders.legacy_field, got %v", identKey(d, "postgresql"))
 	}
-	ov, ok := d.OldValue.(schemasnapshot.Column)
+	ov, ok := d.SideAValue.(schemasnapshot.Column)
 	if !ok {
-		t.Fatalf("expected OldValue to be a schemasnapshot.Column, got %T: %v", d.OldValue, d.OldValue)
+		t.Fatalf("expected OldValue to be a schemasnapshot.Column, got %T: %v", d.SideAValue, d.SideAValue)
 	}
 	if ov != oldCol {
 		t.Errorf("expected OldValue=%v, got %v", oldCol, ov)
@@ -153,8 +155,8 @@ func TestDiffColumns_ColumnDropped(t *testing.T) {
 	if ov.Default != "0" {
 		t.Errorf("expected OldValue.Default='0', got %v", ov.Default)
 	}
-	if d.NewValue != nil {
-		t.Errorf("expected NewValue=nil, got %v", d.NewValue)
+	if d.SideBValue != nil {
+		t.Errorf("expected NewValue=nil, got %v", d.SideBValue)
 	}
 }
 
@@ -182,14 +184,14 @@ func TestDiffColumns_ColumnRenamed(t *testing.T) {
 	if d.Type != ColumnNameChanged {
 		t.Errorf("expected ColumnNameChanged, got %v", d.Type)
 	}
-	if d.Object.Key != "public.users.usr_name" {
-		t.Errorf("expected Object.Key=public.users.usr_name (old name), got %v", d.Object.Key)
+	if identKey(d, "postgresql") != "public.users.usr_name" {
+		t.Errorf("expected Object.Key=public.users.usr_name (old name), got %v", identKey(d, "postgresql"))
 	}
-	if d.OldValue.(string) != "usr_name" {
-		t.Errorf("expected OldValue='usr_name', got %v", d.OldValue)
+	if d.SideAValue.(string) != "usr_name" {
+		t.Errorf("expected OldValue='usr_name', got %v", d.SideAValue)
 	}
-	if d.NewValue.(string) != "username" {
-		t.Errorf("expected NewValue='username', got %v", d.NewValue)
+	if d.SideBValue.(string) != "username" {
+		t.Errorf("expected NewValue='username', got %v", d.SideBValue)
 	}
 
 	// No ColumnAdded or ColumnDropped
@@ -222,14 +224,14 @@ func TestDiffColumns_ColumnTypeChanged(t *testing.T) {
 	if d.Type != ColumnTypeChanged {
 		t.Errorf("expected ColumnTypeChanged, got %v", d.Type)
 	}
-	if d.Object.Key != "public.products.price" {
-		t.Errorf("expected Object.Key=public.products.price, got %v", d.Object.Key)
+	if identKey(d, "postgresql") != "public.products.price" {
+		t.Errorf("expected Object.Key=public.products.price, got %v", identKey(d, "postgresql"))
 	}
-	if d.OldValue.(string) != "integer" {
-		t.Errorf("expected OldValue='integer', got %v", d.OldValue)
+	if d.SideAValue.(string) != "integer" {
+		t.Errorf("expected OldValue='integer', got %v", d.SideAValue)
 	}
-	if d.NewValue.(string) != "numeric(10,2)" {
-		t.Errorf("expected NewValue='numeric(10,2)', got %v", d.NewValue)
+	if d.SideBValue.(string) != "numeric(10,2)" {
+		t.Errorf("expected NewValue='numeric(10,2)', got %v", d.SideBValue)
 	}
 }
 
@@ -257,11 +259,11 @@ func TestDiffColumns_ColumnNullabilityChanged_FalseToTrue(t *testing.T) {
 	if d.Type != ColumnNullabilityChanged {
 		t.Errorf("expected ColumnNullabilityChanged, got %v", d.Type)
 	}
-	if d.OldValue.(bool) != false {
-		t.Errorf("expected OldValue=false, got %v", d.OldValue)
+	if d.SideAValue.(bool) != false {
+		t.Errorf("expected OldValue=false, got %v", d.SideAValue)
 	}
-	if d.NewValue.(bool) != true {
-		t.Errorf("expected NewValue=true, got %v", d.NewValue)
+	if d.SideBValue.(bool) != true {
+		t.Errorf("expected NewValue=true, got %v", d.SideBValue)
 	}
 }
 
@@ -285,11 +287,11 @@ func TestDiffColumns_ColumnNullabilityChanged_TrueToFalse(t *testing.T) {
 	if d.Type != ColumnNullabilityChanged {
 		t.Errorf("expected ColumnNullabilityChanged, got %v", d.Type)
 	}
-	if d.OldValue.(bool) != true {
-		t.Errorf("expected OldValue=true, got %v", d.OldValue)
+	if d.SideAValue.(bool) != true {
+		t.Errorf("expected OldValue=true, got %v", d.SideAValue)
 	}
-	if d.NewValue.(bool) != false {
-		t.Errorf("expected NewValue=false, got %v", d.NewValue)
+	if d.SideBValue.(bool) != false {
+		t.Errorf("expected NewValue=false, got %v", d.SideBValue)
 	}
 }
 
@@ -317,11 +319,11 @@ func TestDiffColumns_ColumnDefaultChanged_SetToNew(t *testing.T) {
 	if d.Type != ColumnDefaultChanged {
 		t.Errorf("expected ColumnDefaultChanged, got %v", d.Type)
 	}
-	if d.OldValue.(string) != "pending" {
-		t.Errorf("expected OldValue='pending', got %v", d.OldValue)
+	if d.SideAValue.(string) != "pending" {
+		t.Errorf("expected OldValue='pending', got %v", d.SideAValue)
 	}
-	if d.NewValue.(string) != "active" {
-		t.Errorf("expected NewValue='active', got %v", d.NewValue)
+	if d.SideBValue.(string) != "active" {
+		t.Errorf("expected NewValue='active', got %v", d.SideBValue)
 	}
 }
 
@@ -411,11 +413,11 @@ func TestDiffColumns_MultipleTablesSort(t *testing.T) {
 	}
 
 	// After sort: alpha comes before zeta (Object.Key = "public.alpha..." < "public.zeta...")
-	if got[0].Object.Key != "public.alpha.col1" {
-		t.Errorf("expected first finding for public.alpha.col1, got %q", got[0].Object.Key)
+	if identKey(got[0], "postgresql") != "public.alpha.col1" {
+		t.Errorf("expected first finding for public.alpha.col1, got %q", identKey(got[0], "postgresql"))
 	}
-	if got[1].Object.Key != "public.zeta.col1" {
-		t.Errorf("expected second finding for public.zeta.col1, got %q", got[1].Object.Key)
+	if identKey(got[1], "postgresql") != "public.zeta.col1" {
+		t.Errorf("expected second finding for public.zeta.col1, got %q", identKey(got[1], "postgresql"))
 	}
 
 	// Within same table, the column tail of Object.Key sorts columns under their parent
@@ -433,11 +435,11 @@ func TestDiffColumns_MultipleTablesSort(t *testing.T) {
 		assertAnchoredToObject(t, d)
 	}
 	// aaa should come before zzz
-	if got2[0].Object.Key != "public.alpha.aaa" {
-		t.Errorf("expected first Object.Key='public.alpha.aaa', got %q", got2[0].Object.Key)
+	if identKey(got2[0], "postgresql") != "public.alpha.aaa" {
+		t.Errorf("expected first Object.Key='public.alpha.aaa', got %q", identKey(got2[0], "postgresql"))
 	}
-	if got2[1].Object.Key != "public.alpha.zzz" {
-		t.Errorf("expected second Object.Key='public.alpha.zzz', got %q", got2[1].Object.Key)
+	if identKey(got2[1], "postgresql") != "public.alpha.zzz" {
+		t.Errorf("expected second Object.Key='public.alpha.zzz', got %q", identKey(got2[1], "postgresql"))
 	}
 }
 
@@ -481,10 +483,10 @@ func TestDiffColumns_DifferentDatabaseType_RenameBecomesAddDrop(t *testing.T) {
 		if d.Type == ColumnNameChanged {
 			t.Errorf("unexpected ColumnNameChanged when DatabaseType differs: %v", d)
 		}
-		if d.Type == ColumnDropped && d.Object.Key == "public.users.old_col" {
+		if d.Type == ColumnDropped && identKey(d, "postgresql") == "public.users.old_col" {
 			hasDropped = true
 		}
-		if d.Type == ColumnAdded && d.Object.Key == "public.users.new_col" {
+		if d.Type == ColumnAdded && identKey(d, "postgresql") == "public.users.new_col" {
 			hasAdded = true
 		}
 	}
@@ -567,13 +569,13 @@ func TestDiff_TableAdded_SuppressesColumnAdds(t *testing.T) {
 	if got[0].Type != TableAdded {
 		t.Errorf("expected TableAdded, got %v", got[0].Type)
 	}
-	if got[0].Object.Key != "public.orders" {
-		t.Errorf("expected Object.Key=public.orders, got %v", got[0].Object.Key)
+	if identKey(got[0], "postgresql") != "public.orders" {
+		t.Errorf("expected Object.Key=public.orders, got %v", identKey(got[0], "postgresql"))
 	}
 	// The columns must survive on the TABLE_ADDED finding's NewValue.
-	cols, ok := got[0].NewValue.([]schemasnapshot.Column)
+	cols, ok := got[0].SideBValue.([]schemasnapshot.Column)
 	if !ok {
-		t.Fatalf("expected NewValue to be []schemasnapshot.Column, got %T: %v", got[0].NewValue, got[0].NewValue)
+		t.Fatalf("expected NewValue to be []schemasnapshot.Column, got %T: %v", got[0].SideBValue, got[0].SideBValue)
 	}
 	if len(cols) != 2 || cols[0] != colID || cols[1] != colEmail {
 		t.Errorf("expected NewValue=[%v, %v], got %v", colID, colEmail, cols)
@@ -607,13 +609,13 @@ func TestDiff_TableDropped_SuppressesColumnDrops(t *testing.T) {
 	if got[0].Type != TableDropped {
 		t.Errorf("expected TableDropped, got %v", got[0].Type)
 	}
-	if got[0].Object.Key != "public.orders" {
-		t.Errorf("expected Object.Key=public.orders, got %v", got[0].Object.Key)
+	if identKey(got[0], "postgresql") != "public.orders" {
+		t.Errorf("expected Object.Key=public.orders, got %v", identKey(got[0], "postgresql"))
 	}
 	// The columns must survive on the TABLE_DROPPED finding's OldValue.
-	cols, ok := got[0].OldValue.([]schemasnapshot.Column)
+	cols, ok := got[0].SideAValue.([]schemasnapshot.Column)
 	if !ok {
-		t.Fatalf("expected OldValue to be []schemasnapshot.Column, got %T: %v", got[0].OldValue, got[0].OldValue)
+		t.Fatalf("expected OldValue to be []schemasnapshot.Column, got %T: %v", got[0].SideAValue, got[0].SideAValue)
 	}
 	if len(cols) != 2 || cols[0] != colID || cols[1] != colEmail {
 		t.Errorf("expected OldValue=[%v, %v], got %v", colID, colEmail, cols)
@@ -648,8 +650,8 @@ func TestDiff_ColumnAddedToExistingTable_NotSuppressed(t *testing.T) {
 	if got[0].Type != ColumnAdded {
 		t.Errorf("expected ColumnAdded, got %v", got[0].Type)
 	}
-	if got[0].Object.Key != "public.orders.email" {
-		t.Errorf("expected Object.Key=public.orders.email, got %q", got[0].Object.Key)
+	if identKey(got[0], "postgresql") != "public.orders.email" {
+		t.Errorf("expected Object.Key=public.orders.email, got %q", identKey(got[0], "postgresql"))
 	}
 }
 
@@ -676,8 +678,8 @@ func TestDiff_ColumnDroppedFromExistingTable_NotSuppressed(t *testing.T) {
 	if got[0].Type != ColumnDropped {
 		t.Errorf("expected ColumnDropped, got %v", got[0].Type)
 	}
-	if got[0].Object.Key != "public.orders.email" {
-		t.Errorf("expected Object.Key=public.orders.email, got %q", got[0].Object.Key)
+	if identKey(got[0], "postgresql") != "public.orders.email" {
+		t.Errorf("expected Object.Key=public.orders.email, got %q", identKey(got[0], "postgresql"))
 	}
 }
 
@@ -710,10 +712,10 @@ func TestDiff_TableDropped_PreservesOtherTableColumnChanges(t *testing.T) {
 
 	var hasTableDropped, hasColTypeChanged bool
 	for _, d := range got {
-		if d.Type == TableDropped && d.Object.Key == "public.x" {
+		if d.Type == TableDropped && identKey(d, "postgresql") == "public.x" {
 			hasTableDropped = true
 		}
-		if d.Type == ColumnTypeChanged && d.Object.Key == "public.y.val" {
+		if d.Type == ColumnTypeChanged && identKey(d, "postgresql") == "public.y.val" {
 			hasColTypeChanged = true
 		}
 		if d.Type == ColumnDropped {
@@ -773,8 +775,8 @@ func TestDiffColumns_IDMatchTableRenamed_ObjectIsOldTable(t *testing.T) {
 	for _, d := range got2 {
 		if d.Type == ColumnTypeChanged {
 			foundColChange = true
-			if d.Object.Key != "public.old_table.id" {
-				t.Errorf("expected Object.Key=public.old_table.id (side-A), got %v", d.Object.Key)
+			if identKey(d, "postgresql") != "public.old_table.id" {
+				t.Errorf("expected Object.Key=public.old_table.id (side-A), got %v", identKey(d, "postgresql"))
 			}
 		}
 	}
@@ -804,7 +806,7 @@ func TestDiffColumns_IDMissingTableRenamed_BecomesDropAdd(t *testing.T) {
 	}
 	objByType := map[DiffType]string{}
 	for _, d := range got {
-		objByType[d.Type] = d.Object.Key
+		objByType[d.Type] = identKey(d, "postgresql")
 	}
 	if _, ok := objByType[TableNameChanged]; !ok {
 		t.Errorf("expected TableNameChanged, got: %v", got)
@@ -872,8 +874,8 @@ func TestDiffColumns_HybridResidue_MixedID_TypeChangeSurfaces(t *testing.T) {
 	if got[0].Type != ColumnTypeChanged {
 		t.Errorf("expected ColumnTypeChanged, got %v", got[0].Type)
 	}
-	if got[0].Object.Key != "public.orders.qty" {
-		t.Errorf("expected Object.Key=public.orders.qty, got %q", got[0].Object.Key)
+	if identKey(got[0], "postgresql") != "public.orders.qty" {
+		t.Errorf("expected Object.Key=public.orders.qty, got %q", identKey(got[0], "postgresql"))
 	}
 }
 
@@ -897,8 +899,8 @@ func TestDiffColumns_HybridResidue_DropRecreateSameNameDifferentID_NotCollapsed(
 	types := map[DiffType]int{}
 	for _, d := range got {
 		types[d.Type]++
-		if d.Object.Key != "public.orders.qty" {
-			t.Errorf("expected Object.Key=public.orders.qty, got %q", d.Object.Key)
+		if identKey(d, "postgresql") != "public.orders.qty" {
+			t.Errorf("expected Object.Key=public.orders.qty, got %q", identKey(d, "postgresql"))
 		}
 	}
 	if types[ColumnDropped] != 1 || types[ColumnAdded] != 1 {

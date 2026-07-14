@@ -331,9 +331,11 @@ func loadColumns(ctx context.Context, db QueryExecutor, placeholders string, arg
 			return nil, fmt.Errorf("scan column row: %w", err)
 		}
 		col := Column{
-			Table:    ObjectRef{Schema: schema, Name: tableName},
+			TableScopedRef: TableScopedRef{
+				Table: ObjectRef{Schema: schema, Name: tableName},
+				Name:  colName,
+			},
 			ID:       tableOID + ":" + attnum,
-			Name:     colName,
 			DataType: dataType,
 			NotNull:  notNull,
 			Default:  colDefault,

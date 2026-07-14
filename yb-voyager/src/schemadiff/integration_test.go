@@ -113,8 +113,8 @@ func TestDiff_EndToEnd(t *testing.T) {
 
 	t.Logf("Total findings: %d", len(diffs))
 	for i, d := range diffs {
-		t.Logf("  [%d] Type=%-30s Object=%-30s OldValue=%v NewValue=%v",
-			i, d.Type, d.Object.Display, d.OldValue, d.NewValue)
+		t.Logf("  [%d] Type=%-30s Object=%-30s SideAValue=%v SideBValue=%v",
+			i, d.Type, identDisplay(d, constants.POSTGRESQL), d.SideAValue, d.SideBValue)
 	}
 
 	// ── Helper ─────────────────────────────────────────────────────────────────
@@ -130,102 +130,102 @@ func TestDiff_EndToEnd(t *testing.T) {
 
 	// ── 1. Exactly one TableNameChanged for orders → purchases ─────────────────
 	renames := findDiffs(func(d schemadiff.Difference) bool {
-		return d.Type == schemadiff.TableNameChanged && d.Object.Key == driftSchema+".orders"
+		return d.Type == schemadiff.TableNameChanged && identKey(d, constants.POSTGRESQL) == driftSchema+".orders"
 	})
 	require.Len(t, renames, 1, "expected exactly one TableNameChanged anchored to diff_it.orders")
-	assert.Equal(t, "purchases", renames[0].NewValue, "NewValue must be the new table name 'purchases'")
+	assert.Equal(t, "purchases", renames[0].SideBValue, "NewValue must be the new table name 'purchases'")
 
 	// ── 2. No TableAdded/TableDropped for orders or purchases ──────────────────
 	spurious := findDiffs(func(d schemadiff.Difference) bool {
 		if d.Type != schemadiff.TableAdded && d.Type != schemadiff.TableDropped {
 			return false
 		}
-		return d.Object.Key == driftSchema+".orders" || d.Object.Key == driftSchema+".purchases"
+		return identKey(d, constants.POSTGRESQL) == driftSchema+".orders" || identKey(d, constants.POSTGRESQL) == driftSchema+".purchases"
 	})
 	assert.Empty(t, spurious,
 		"rename must NOT appear as TableAdded+TableDropped for 'orders' or 'purchases'; got: %v", spurious)
 
 	// ── 3. TableDropped for diff_it.legacy ─────────────────────────────────────
 	legacyDropped := findDiffs(func(d schemadiff.Difference) bool {
-		return d.Type == schemadiff.TableDropped && d.Object.Key == driftSchema+".legacy"
+		return d.Type == schemadiff.TableDropped && identKey(d, constants.POSTGRESQL) == driftSchema+".legacy"
 	})
 	require.Len(t, legacyDropped, 1, "expected exactly one TableDropped for diff_it.legacy")
 
 	// TableDropped for a wholly-dropped table carries its columns as OldValue,
 	// and those columns must NOT also appear as standalone ColumnDropped findings.
-	legacyCols, ok := legacyDropped[0].OldValue.([]schemasnapshot.Column)
-	require.True(t, ok, "TableDropped.OldValue must be []schemasnapshot.Column, got %T", legacyDropped[0].OldValue)
+	legacyCols, ok := legacyDropped[0].SideAValue.([]schemasnapshot.Column)
+	require.True(t, ok, "TableDropped.SideAValue must be []schemasnapshot.Column, got %T", legacyDropped[0].SideAValue)
 	var legacyColNames []string
 	for _, c := range legacyCols {
 		legacyColNames = append(legacyColNames, c.Name)
 	}
 	assert.ElementsMatch(t, []string{"a", "b"}, legacyColNames,
-		"TableDropped(legacy).OldValue must carry legacy's columns")
+		"TableDropped(legacy).SideAValue must carry legacy's columns")
 	legacyStandaloneColumnDrops := findDiffs(func(d schemadiff.Difference) bool {
-		return d.Type == schemadiff.ColumnDropped && strings.HasPrefix(d.Object.Key, driftSchema+".legacy.")
+		return d.Type == schemadiff.ColumnDropped && strings.HasPrefix(identKey(d, constants.POSTGRESQL), driftSchema+".legacy.")
 	})
 	assert.Empty(t, legacyStandaloneColumnDrops,
 		"legacy's columns must remain suppressed as standalone ColumnDropped findings")
 
 	// ── 4. TableAdded for diff_it.newbie ───────────────────────────────────────
 	newbieAdded := findDiffs(func(d schemadiff.Difference) bool {
-		return d.Type == schemadiff.TableAdded && d.Object.Key == driftSchema+".newbie"
+		return d.Type == schemadiff.TableAdded && identKey(d, constants.POSTGRESQL) == driftSchema+".newbie"
 	})
 	require.Len(t, newbieAdded, 1, "expected exactly one TableAdded for diff_it.newbie")
 
 	// TableAdded for a wholly-added table carries its columns as NewValue, and
 	// those columns must NOT also appear as standalone ColumnAdded findings.
-	newbieCols, ok := newbieAdded[0].NewValue.([]schemasnapshot.Column)
-	require.True(t, ok, "TableAdded.NewValue must be []schemasnapshot.Column, got %T", newbieAdded[0].NewValue)
+	newbieCols, ok := newbieAdded[0].SideBValue.([]schemasnapshot.Column)
+	require.True(t, ok, "TableAdded.SideBValue must be []schemasnapshot.Column, got %T", newbieAdded[0].SideBValue)
 	var newbieColNames []string
 	for _, c := range newbieCols {
 		newbieColNames = append(newbieColNames, c.Name)
 	}
 	assert.ElementsMatch(t, []string{"x"}, newbieColNames,
-		"TableAdded(newbie).NewValue must carry newbie's columns")
+		"TableAdded(newbie).SideBValue must carry newbie's columns")
 	newbieStandaloneColumnAdds := findDiffs(func(d schemadiff.Difference) bool {
-		return d.Type == schemadiff.ColumnAdded && strings.HasPrefix(d.Object.Key, driftSchema+".newbie.")
+		return d.Type == schemadiff.ColumnAdded && strings.HasPrefix(identKey(d, constants.POSTGRESQL), driftSchema+".newbie.")
 	})
 	assert.Empty(t, newbieStandaloneColumnAdds,
 		"newbie's columns must remain suppressed as standalone ColumnAdded findings")
 
 	// ── 5. TableAdded for diff_it.events_2027 ──────────────────────────────────
 	events2027Added := findDiffs(func(d schemadiff.Difference) bool {
-		return d.Type == schemadiff.TableAdded && d.Object.Key == driftSchema+".events_2027"
+		return d.Type == schemadiff.TableAdded && identKey(d, constants.POSTGRESQL) == driftSchema+".events_2027"
 	})
 	require.Len(t, events2027Added, 1, "expected exactly one TableAdded for diff_it.events_2027")
 
 	// ── 6. ColumnAdded for discount (on the renamed table, side-B name "purchases") ──
 	discountAdded := findDiffs(func(d schemadiff.Difference) bool {
-		return d.Type == schemadiff.ColumnAdded && d.Object.Key == driftSchema+".purchases.discount"
+		return d.Type == schemadiff.ColumnAdded && identKey(d, constants.POSTGRESQL) == driftSchema+".purchases.discount"
 	})
 	require.Len(t, discountAdded, 1, "expected exactly one ColumnAdded with Object.Key='diff_it.purchases.discount'")
 
 	// ── 7. ColumnDropped for amount (on the pre-rename table, side-A name "orders") ──
 	amountDropped := findDiffs(func(d schemadiff.Difference) bool {
-		return d.Type == schemadiff.ColumnDropped && d.Object.Key == driftSchema+".orders.amount"
+		return d.Type == schemadiff.ColumnDropped && identKey(d, constants.POSTGRESQL) == driftSchema+".orders.amount"
 	})
 	require.Len(t, amountDropped, 1, "expected exactly one ColumnDropped with Object.Key='diff_it.orders.amount'")
 
 	// ── 8. ColumnTypeChanged for customer ──────────────────────────────────────
 	customerTypeChanged := findDiffs(func(d schemadiff.Difference) bool {
-		return d.Type == schemadiff.ColumnTypeChanged && d.Object.Key == driftSchema+".orders.customer"
+		return d.Type == schemadiff.ColumnTypeChanged && identKey(d, constants.POSTGRESQL) == driftSchema+".orders.customer"
 	})
 	require.Len(t, customerTypeChanged, 1, "expected exactly one ColumnTypeChanged with Object.Key='diff_it.orders.customer'")
 
 	// ── 9. ColumnNullabilityChanged for id (NotNull true → false) ──────────────
 	idNullabilityChanged := findDiffs(func(d schemadiff.Difference) bool {
-		return d.Type == schemadiff.ColumnNullabilityChanged && d.Object.Key == driftSchema+".orders.id"
+		return d.Type == schemadiff.ColumnNullabilityChanged && identKey(d, constants.POSTGRESQL) == driftSchema+".orders.id"
 	})
 	require.Len(t, idNullabilityChanged, 1, "expected exactly one ColumnNullabilityChanged for 'id'")
-	assert.Equal(t, true, idNullabilityChanged[0].OldValue,
+	assert.Equal(t, true, idNullabilityChanged[0].SideAValue,
 		"OldValue (was NotNull) must be true")
-	assert.Equal(t, false, idNullabilityChanged[0].NewValue,
+	assert.Equal(t, false, idNullabilityChanged[0].SideBValue,
 		"NewValue (now nullable) must be false")
 
 	// ── 10. TablePartitionChildrenChanged anchored to diff_it.events ────────────────
 	partChanged := findDiffs(func(d schemadiff.Difference) bool {
-		return d.Type == schemadiff.TablePartitionChildrenChanged && d.Object.Key == driftSchema+".events"
+		return d.Type == schemadiff.TablePartitionChildrenChanged && identKey(d, constants.POSTGRESQL) == driftSchema+".events"
 	})
 	require.Len(t, partChanged, 1, "expected exactly one TablePartitionChildrenChanged for diff_it.events")
 
@@ -238,20 +238,20 @@ func TestDiff_EndToEnd(t *testing.T) {
 	t.Logf("Scoped by new name 'purchases': %d findings", len(scopedByNew))
 
 	scopedRenameByNew := filterLocal(scopedByNew, func(d schemadiff.Difference) bool {
-		return d.Type == schemadiff.TableNameChanged && d.Object.Key == driftSchema+".orders"
+		return d.Type == schemadiff.TableNameChanged && identKey(d, constants.POSTGRESQL) == driftSchema+".orders"
 	})
 	assert.Len(t, scopedRenameByNew, 1,
 		"TableNameChanged anchored to old name 'orders' must be retained when scoping by new name 'purchases'")
 
 	// Column findings on the renamed table must also survive scope by new name.
 	scopedDiscountByNew := filterLocal(scopedByNew, func(d schemadiff.Difference) bool {
-		return d.Type == schemadiff.ColumnAdded && d.Object.Key == driftSchema+".purchases.discount"
+		return d.Type == schemadiff.ColumnAdded && identKey(d, constants.POSTGRESQL) == driftSchema+".purchases.discount"
 	})
 	assert.Len(t, scopedDiscountByNew, 1,
 		"ColumnAdded(discount) must be retained under scope Tables=['diff_it.purchases']")
 
 	scopedAmountByNew := filterLocal(scopedByNew, func(d schemadiff.Difference) bool {
-		return d.Type == schemadiff.ColumnDropped && d.Object.Key == driftSchema+".orders.amount"
+		return d.Type == schemadiff.ColumnDropped && identKey(d, constants.POSTGRESQL) == driftSchema+".orders.amount"
 	})
 	assert.Len(t, scopedAmountByNew, 1,
 		"ColumnDropped(amount) must be retained under scope Tables=['diff_it.purchases']")
@@ -263,13 +263,13 @@ func TestDiff_EndToEnd(t *testing.T) {
 	t.Logf("Scoped by old name 'orders': %d findings", len(scopedByOld))
 
 	scopedRenameByOld := filterLocal(scopedByOld, func(d schemadiff.Difference) bool {
-		return d.Type == schemadiff.TableNameChanged && d.Object.Key == driftSchema+".orders"
+		return d.Type == schemadiff.TableNameChanged && identKey(d, constants.POSTGRESQL) == driftSchema+".orders"
 	})
 	assert.Len(t, scopedRenameByOld, 1,
 		"TableNameChanged must be retained when scoping by old name 'orders'")
 
 	scopedDiscountByOld := filterLocal(scopedByOld, func(d schemadiff.Difference) bool {
-		return d.Type == schemadiff.ColumnAdded && d.Object.Key == driftSchema+".purchases.discount"
+		return d.Type == schemadiff.ColumnAdded && identKey(d, constants.POSTGRESQL) == driftSchema+".purchases.discount"
 	})
 	assert.Len(t, scopedDiscountByOld, 1,
 		"ColumnAdded(discount) must be retained under scope Tables=['diff_it.orders']")
@@ -285,4 +285,23 @@ func filterLocal(diffs []schemadiff.Difference, pred func(schemadiff.Difference)
 		}
 	}
 	return out
+}
+
+// identKey renders a finding's own identity key: side-A's key, falling back to
+// side-B for *_ADDED (where ObjectA is nil), in dbType's dialect. This is the
+// direct replacement for the old pre-rendered Difference.Object.Key.
+func identKey(d schemadiff.Difference, dbType string) string {
+	if d.ObjectA != nil {
+		return d.ObjectA.ForKey(dbType)
+	}
+	return d.ObjectB.ForKey(dbType)
+}
+
+// identDisplay is identKey's ForDisplay counterpart, replacing the old
+// Difference.Object.Display.
+func identDisplay(d schemadiff.Difference, dbType string) string {
+	if d.ObjectA != nil {
+		return d.ObjectA.ForDisplay(dbType)
+	}
+	return d.ObjectB.ForDisplay(dbType)
 }

@@ -55,16 +55,20 @@ func TestSchemaSnapshotJSONRoundTrip(t *testing.T) {
 				Kind:      TableKindOrdinary,
 				Columns: []Column{
 					{
-						Table:    ObjectRef{Schema: "public", Name: "orders"},
+						TableScopedRef: TableScopedRef{
+							Table: ObjectRef{Schema: "public", Name: "orders"},
+							Name:  "id",
+						},
 						ID:       "16420:1",
-						Name:     "id",
 						DataType: "bigint",
 						NotNull:  true,
 					},
 					{
-						Table:    ObjectRef{Schema: "public", Name: "orders"},
+						TableScopedRef: TableScopedRef{
+							Table: ObjectRef{Schema: "public", Name: "orders"},
+							Name:  "customer_id",
+						},
 						ID:       "16420:2",
-						Name:     "customer_id",
 						DataType: "integer",
 						NotNull:  false,
 						Default:  "0",
@@ -172,8 +176,10 @@ func TestObjectRefForKeyCaseSensitivity(t *testing.T) {
 func TestColumnForKeyAndForDisplay(t *testing.T) {
 	const pg = constants.POSTGRESQL
 	col := Column{
-		Table: ObjectRef{Schema: "public", Name: "orders"},
-		Name:  "Col",
+		TableScopedRef: TableScopedRef{
+			Table: ObjectRef{Schema: "public", Name: "orders"},
+			Name:  "Col",
+		},
 	}
 	assert.Equal(t, `public.orders.Col`, col.ForKey(pg), "Column.ForKey")
 	assert.Equal(t, `public.orders."Col"`, col.ForDisplay(pg), "Column.ForDisplay")

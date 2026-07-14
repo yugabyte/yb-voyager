@@ -28,59 +28,47 @@ func diffColumnsIn(colsA, colsB []schemasnapshot.Column, dbTypeA, dbTypeB string
 		idOfColumn, schemasnapshot.Column.ForKey)
 
 	return matchByKey(colsA, colsB, keyA, keyB,
-		compareMatchedColumns(dbTypeA), emitColumnDropped(dbTypeA), emitColumnAdded(dbTypeB))
+		compareMatchedColumns, emitColumnDropped, emitColumnAdded)
 }
 
 // idOfColumn extracts a column's stable ID ("{tableOID}:{attnum}") for ID-based matching.
 func idOfColumn(c schemasnapshot.Column) string { return c.ID }
 
-// columnObject renders a column's identity (schema.table.column) for a finding.
-func columnObject(c schemasnapshot.Column, dbType string) QualifiedObject {
-	return QualifiedObject{Key: c.ForKey(dbType), Display: c.ForDisplay(dbType)}
+// emitColumnDropped is the matchByKey onDropped callback for columns: it emits a
+// COLUMN_DROPPED finding carrying the dropped column, identified by its
+// TableScopedRef.
+func emitColumnDropped(c schemasnapshot.Column) []Difference {
+	return []Difference{newDifference(ColumnDropped, OpDropped, ObjectTypeColumn, AttrNone, c.TableScopedRef, nil, c, nil)}
 }
 
-// emitColumnDropped returns the matchByKey onDropped callback for columns: it
-// emits a COLUMN_DROPPED finding carrying the dropped column, anchored to its
-// parent table.
-func emitColumnDropped(dbType string) func(schemasnapshot.Column) []Difference {
-	return func(c schemasnapshot.Column) []Difference {
-		return []Difference{newDifference(ColumnDropped, columnObject(c, dbType), &c.Table, c, nil)}
-	}
+// emitColumnAdded is the matchByKey onAdded callback for columns: it emits a
+// COLUMN_ADDED finding carrying the added column, identified by its TableScopedRef.
+func emitColumnAdded(c schemasnapshot.Column) []Difference {
+	return []Difference{newDifference(ColumnAdded, OpAdded, ObjectTypeColumn, AttrNone, nil, c.TableScopedRef, nil, c)}
 }
 
-// emitColumnAdded returns the matchByKey onAdded callback for columns: it emits a
-// COLUMN_ADDED finding carrying the added column, anchored to its parent table.
-func emitColumnAdded(dbType string) func(schemasnapshot.Column) []Difference {
-	return func(c schemasnapshot.Column) []Difference {
-		return []Difference{newDifference(ColumnAdded, columnObject(c, dbType), &c.Table, nil, c)}
+// compareMatchedColumns is the matchByKey onMatch callback for columns: it emits
+// all field-level differences for a pair of columns matched by chooseMatchKeys
+// (ID or composite name key). ObjectA/ObjectB are the side-A/side-B columns'
+// TableScopedRef identities.
+func compareMatchedColumns(cA, cB schemasnapshot.Column) []Difference {
+	var diffs []Difference
+
+	if cA.Name != cB.Name {
+		diffs = append(diffs, newDifference(ColumnNameChanged, OpChanged, ObjectTypeColumn, AttrName, cA.TableScopedRef, cB.TableScopedRef, cA.Name, cB.Name))
 	}
-}
 
-// compareMatchedColumns returns the matchByKey onMatch callback for columns: it
-// emits all field-level differences for a pair of columns matched by
-// chooseMatchKeys (ID or composite name key). Object in each Difference is
-// always the side-A (old) column, rendered in dbType.
-func compareMatchedColumns(dbType string) func(cA, cB schemasnapshot.Column) []Difference {
-	return func(cA, cB schemasnapshot.Column) []Difference {
-		var diffs []Difference
-		obj := columnObject(cA, dbType)
-
-		if cA.Name != cB.Name {
-			diffs = append(diffs, newDifference(ColumnNameChanged, obj, &cA.Table, cA.Name, cB.Name))
-		}
-
-		if cA.DataType != cB.DataType {
-			diffs = append(diffs, newDifference(ColumnTypeChanged, obj, &cA.Table, cA.DataType, cB.DataType))
-		}
-
-		if cA.NotNull != cB.NotNull {
-			diffs = append(diffs, newDifference(ColumnNullabilityChanged, obj, &cA.Table, cA.NotNull, cB.NotNull))
-		}
-
-		if cA.Default != cB.Default {
-			diffs = append(diffs, newDifference(ColumnDefaultChanged, obj, &cA.Table, cA.Default, cB.Default))
-		}
-
-		return diffs
+	if cA.DataType != cB.DataType {
+		diffs = append(diffs, newDifference(ColumnTypeChanged, OpChanged, ObjectTypeColumn, AttrType, cA.TableScopedRef, cB.TableScopedRef, cA.DataType, cB.DataType))
 	}
+
+	if cA.NotNull != cB.NotNull {
+		diffs = append(diffs, newDifference(ColumnNullabilityChanged, OpChanged, ObjectTypeColumn, AttrNullability, cA.TableScopedRef, cB.TableScopedRef, cA.NotNull, cB.NotNull))
+	}
+
+	if cA.Default != cB.Default {
+		diffs = append(diffs, newDifference(ColumnDefaultChanged, OpChanged, ObjectTypeColumn, AttrDefault, cA.TableScopedRef, cB.TableScopedRef, cA.Default, cB.Default))
+	}
+
+	return diffs
 }

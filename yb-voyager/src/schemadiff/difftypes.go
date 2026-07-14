@@ -14,8 +14,6 @@
 
 package schemadiff
 
-import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
-
 // DiffType is a string-typed enumeration of the kinds of schema changes that
 // can be detected between two snapshots. Only the V1-emitted set is declared
 // here: table-level and column-level findings produced by diffTables and
@@ -43,60 +41,51 @@ const (
 	ColumnDefaultChanged     DiffType = "COLUMN_DEFAULT_CHANGED"
 )
 
-// diffTypeDefs is an exhaustive registry mapping every DiffType constant to its
-// scope bucket (ObjectType), covering all 15 V1-emitted types (tables and
-// columns). Single source of truth for the Type↔ObjectType contract used by
-// FilterByScope.
-//
-// Note: only ObjectTypeTable is declared and used here — V1 emits no index,
-// sequence, view, function, or type findings, so the other selectors are commented
-// out in filter.go and re-enabled alongside the findings they select.
-var diffTypeDefs = map[DiffType]ObjectType{
-	// ── TABLE ────────────────────────────────────────────────────────────────
-	TableAdded:                    ObjectTypeTable,
-	TableDropped:                  ObjectTypeTable,
-	TableNameChanged:              ObjectTypeTable,
-	TableSchemaChanged:            ObjectTypeTable,
-	TableKindChanged:              ObjectTypeTable,
-	TablePartitionParentChanged:   ObjectTypeTable,
-	TablePartitionChildrenChanged: ObjectTypeTable,
-	TableInheritsChanged:          ObjectTypeTable,
-	TableInheritedByChanged:       ObjectTypeTable,
+// Operation is the kind of change a Difference records: an object added or
+// dropped, or one of its attributes changed. It is the decomposed verb of Type
+// (e.g. COLUMN_TYPE_CHANGED → OpChanged), surfaced as a first-class field so
+// consumers can group/filter by verb without parsing Type.
+type Operation string
 
-	// ── COLUMN ───────────────────────────────────────────────────────────────
-	// Columns "ride with" their parent table and are not independently selectable.
-	ColumnAdded:              ObjectTypeTable,
-	ColumnDropped:            ObjectTypeTable,
-	ColumnNameChanged:        ObjectTypeTable,
-	ColumnTypeChanged:        ObjectTypeTable,
-	ColumnNullabilityChanged: ObjectTypeTable,
-	ColumnDefaultChanged:     ObjectTypeTable,
-}
+const (
+	OpAdded   Operation = "ADDED"
+	OpDropped Operation = "DROPPED"
+	OpChanged Operation = "CHANGED"
+)
 
-// newDifference builds a Difference for any DiffType — added, dropped, or changed.
-//
-// obj is the finding's rendered/sorted identity: the side-B rendering for
-// *_ADDED, the side-A rendering otherwise; for a column finding, schema.table.column.
-//
-// anchorTable is the table the finding filters under (--table-list / --exclude-
-// table-list). It LOOKS redundant in V1 — every finding anchors to its own object,
-// so all callers pass &obj's underlying table ref — but is taken explicitly because
-// future findings (INDEX_*/owned SEQUENCE_* anchor to their host table; top-level
-// VIEW_*/FUNCTION_*/TYPE_* have no anchor) will make obj and anchor diverge.
-// Carrying the parameter now means those types slot in without a signature
-// change. It's a pointer so "no anchor" can be nil, and copied internally so
-// AnchorTable never aliases caller or snapshot storage.
-func newDifference(t DiffType, obj QualifiedObject, anchorTable *schemasnapshot.ObjectRef, oldVal, newVal any) Difference {
-	var anchor *schemasnapshot.ObjectRef
-	if anchorTable != nil {
-		a := *anchorTable
-		anchor = &a
-	}
+// Attribute names the specific object attribute a *_CHANGED finding is about
+// (e.g. COLUMN_TYPE_CHANGED → AttrType). It is AttrNone for ADDED/DROPPED
+// findings, which concern the whole object rather than one attribute.
+type Attribute string
+
+const (
+	AttrNone              Attribute = "" // added/dropped: no single attribute
+	AttrName              Attribute = "NAME"
+	AttrSchema            Attribute = "SCHEMA"
+	AttrKind              Attribute = "KIND"
+	AttrType              Attribute = "TYPE"
+	AttrNullability       Attribute = "NULLABILITY"
+	AttrDefault           Attribute = "DEFAULT"
+	AttrPartitionParent   Attribute = "PARTITION_PARENT"
+	AttrPartitionChildren Attribute = "PARTITION_CHILDREN"
+	AttrInherits          Attribute = "INHERITS"
+	AttrInheritedBy       Attribute = "INHERITED_BY"
+)
+
+// newDifference builds a Difference. Type is the single-string kind; op, objType,
+// and attr are its decomposed facets (attr is AttrNone for ADDED/DROPPED). objA/objB
+// are the side-A/side-B identities (nil on the absent side: objA nil for *_ADDED,
+// objB nil for *_DROPPED). Identities are value types, so they are copied into the
+// interface — no aliasing with snapshot storage.
+func newDifference(t DiffType, op Operation, objType ObjectType, attr Attribute, objA, objB ObjectIdent, sideAVal, sideBVal any) Difference {
 	return Difference{
-		Type:        t,
-		Object:      obj,
-		AnchorTable: anchor,
-		OldValue:    oldVal,
-		NewValue:    newVal,
+		Type:       t,
+		Operation:  op,
+		ObjectType: objType,
+		Attribute:  attr,
+		ObjectA:    objA,
+		ObjectB:    objB,
+		SideAValue: sideAVal,
+		SideBValue: sideBVal,
 	}
 }

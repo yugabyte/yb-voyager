@@ -42,17 +42,17 @@ func TestDiffTables_TableAdded(t *testing.T) {
 	if d.Type != TableAdded {
 		t.Errorf("expected TableAdded, got %v", d.Type)
 	}
-	if d.Object.Key != "public.users" {
-		t.Errorf("expected Object.Key=public.users, got %v", d.Object.Key)
+	if identKey(d, "postgresql") != "public.users" {
+		t.Errorf("expected Object.Key=public.users, got %v", identKey(d, "postgresql"))
 	}
-	if d.OldValue != nil {
-		t.Errorf("expected OldValue=nil, got %v", d.OldValue)
+	if d.SideAValue != nil {
+		t.Errorf("expected OldValue=nil, got %v", d.SideAValue)
 	}
 	// No columns were added alongside the table (snapWithTables sets no Columns),
 	// so NewValue must be an empty []schemasnapshot.Column.
-	newCols, ok := d.NewValue.([]schemasnapshot.Column)
+	newCols, ok := d.SideBValue.([]schemasnapshot.Column)
 	if !ok {
-		t.Fatalf("expected NewValue to be []schemasnapshot.Column, got %T: %v", d.NewValue, d.NewValue)
+		t.Fatalf("expected NewValue to be []schemasnapshot.Column, got %T: %v", d.SideBValue, d.SideBValue)
 	}
 	if len(newCols) != 0 {
 		t.Errorf("expected NewValue to be empty, got %v", newCols)
@@ -79,20 +79,20 @@ func TestDiffTables_TableDropped(t *testing.T) {
 	if d.Type != TableDropped {
 		t.Errorf("expected TableDropped, got %v", d.Type)
 	}
-	if d.Object.Key != "public.orders" {
-		t.Errorf("expected Object.Key=public.orders, got %v", d.Object.Key)
+	if identKey(d, "postgresql") != "public.orders" {
+		t.Errorf("expected Object.Key=public.orders, got %v", identKey(d, "postgresql"))
 	}
 	// No columns existed on the dropped table (snapWithTables sets no Columns),
 	// so OldValue must be an empty []schemasnapshot.Column.
-	oldCols, ok := d.OldValue.([]schemasnapshot.Column)
+	oldCols, ok := d.SideAValue.([]schemasnapshot.Column)
 	if !ok {
-		t.Fatalf("expected OldValue to be []schemasnapshot.Column, got %T: %v", d.OldValue, d.OldValue)
+		t.Fatalf("expected OldValue to be []schemasnapshot.Column, got %T: %v", d.SideAValue, d.SideAValue)
 	}
 	if len(oldCols) != 0 {
 		t.Errorf("expected OldValue to be empty, got %v", oldCols)
 	}
-	if d.NewValue != nil {
-		t.Errorf("expected NewValue=nil, got %v", d.NewValue)
+	if d.SideBValue != nil {
+		t.Errorf("expected NewValue=nil, got %v", d.SideBValue)
 	}
 }
 
@@ -118,12 +118,12 @@ func TestDiffTables_TableAdded_CarriesColumnsInOrder(t *testing.T) {
 	if d.Type != TableAdded {
 		t.Fatalf("expected TableAdded, got %v", d.Type)
 	}
-	if d.OldValue != nil {
-		t.Errorf("expected OldValue=nil, got %v", d.OldValue)
+	if d.SideAValue != nil {
+		t.Errorf("expected OldValue=nil, got %v", d.SideAValue)
 	}
-	cols, ok := d.NewValue.([]schemasnapshot.Column)
+	cols, ok := d.SideBValue.([]schemasnapshot.Column)
 	if !ok {
-		t.Fatalf("expected NewValue to be []schemasnapshot.Column, got %T: %v", d.NewValue, d.NewValue)
+		t.Fatalf("expected NewValue to be []schemasnapshot.Column, got %T: %v", d.SideBValue, d.SideBValue)
 	}
 	wantCols := []schemasnapshot.Column{col1, col2, col3}
 	if len(cols) != len(wantCols) {
@@ -158,12 +158,12 @@ func TestDiffTables_TableDropped_CarriesColumnsInOrder(t *testing.T) {
 	if d.Type != TableDropped {
 		t.Fatalf("expected TableDropped, got %v", d.Type)
 	}
-	if d.NewValue != nil {
-		t.Errorf("expected NewValue=nil, got %v", d.NewValue)
+	if d.SideBValue != nil {
+		t.Errorf("expected NewValue=nil, got %v", d.SideBValue)
 	}
-	cols, ok := d.OldValue.([]schemasnapshot.Column)
+	cols, ok := d.SideAValue.([]schemasnapshot.Column)
 	if !ok {
-		t.Fatalf("expected OldValue to be []schemasnapshot.Column, got %T: %v", d.OldValue, d.OldValue)
+		t.Fatalf("expected OldValue to be []schemasnapshot.Column, got %T: %v", d.SideAValue, d.SideAValue)
 	}
 	wantCols := []schemasnapshot.Column{col1, col2, col3}
 	if len(cols) != len(wantCols) {
@@ -191,9 +191,9 @@ func TestCloneColumns_Independence(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
 	}
-	cols, ok := got[0].NewValue.([]schemasnapshot.Column)
+	cols, ok := got[0].SideBValue.([]schemasnapshot.Column)
 	if !ok || len(cols) != 1 {
-		t.Fatalf("expected NewValue to be a 1-element []schemasnapshot.Column, got %T: %v", got[0].NewValue, got[0].NewValue)
+		t.Fatalf("expected NewValue to be a 1-element []schemasnapshot.Column, got %T: %v", got[0].SideBValue, got[0].SideBValue)
 	}
 	cols[0].Name = "mutated"
 	if b.Tables[0].Columns[0].Name != "id" {
@@ -224,14 +224,14 @@ func TestDiffTables_TableRenamed(t *testing.T) {
 	if d.Type != TableNameChanged {
 		t.Errorf("expected TableNameChanged, got %v", d.Type)
 	}
-	if d.Object.Key != "public.old_name" {
-		t.Errorf("expected Object.Key=public.old_name (old ref), got %v", d.Object.Key)
+	if identKey(d, "postgresql") != "public.old_name" {
+		t.Errorf("expected Object.Key=public.old_name (old ref), got %v", identKey(d, "postgresql"))
 	}
-	if d.OldValue.(string) != "old_name" {
-		t.Errorf("expected OldValue='old_name', got %v", d.OldValue)
+	if d.SideAValue.(string) != "old_name" {
+		t.Errorf("expected OldValue='old_name', got %v", d.SideAValue)
 	}
-	if d.NewValue.(string) != "new_name" {
-		t.Errorf("expected NewValue='new_name', got %v", d.NewValue)
+	if d.SideBValue.(string) != "new_name" {
+		t.Errorf("expected NewValue='new_name', got %v", d.SideBValue)
 	}
 
 	// No TableAdded or TableDropped
@@ -263,14 +263,14 @@ func TestDiffTables_TableSchemaMoved(t *testing.T) {
 	if d.Type != TableSchemaChanged {
 		t.Errorf("expected TableSchemaChanged, got %v", d.Type)
 	}
-	if d.Object.Key != "old_schema.my_table" {
-		t.Errorf("expected Object.Key=old_schema.my_table, got %v", d.Object.Key)
+	if identKey(d, "postgresql") != "old_schema.my_table" {
+		t.Errorf("expected Object.Key=old_schema.my_table, got %v", identKey(d, "postgresql"))
 	}
-	if d.OldValue.(string) != "old_schema" {
-		t.Errorf("expected OldValue='old_schema', got %v", d.OldValue)
+	if d.SideAValue.(string) != "old_schema" {
+		t.Errorf("expected OldValue='old_schema', got %v", d.SideAValue)
 	}
-	if d.NewValue.(string) != "new_schema" {
-		t.Errorf("expected NewValue='new_schema', got %v", d.NewValue)
+	if d.SideBValue.(string) != "new_schema" {
+		t.Errorf("expected NewValue='new_schema', got %v", d.SideBValue)
 	}
 }
 
@@ -296,11 +296,11 @@ func TestDiffTables_TableKindChanged(t *testing.T) {
 		t.Errorf("expected TableKindChanged, got %v", d.Type)
 	}
 	// Kind is stored as string
-	if d.OldValue.(string) != string(schemasnapshot.TableKindOrdinary) {
-		t.Errorf("expected OldValue='ordinary', got %v", d.OldValue)
+	if d.SideAValue.(string) != string(schemasnapshot.TableKindOrdinary) {
+		t.Errorf("expected OldValue='ordinary', got %v", d.SideAValue)
 	}
-	if d.NewValue.(string) != string(schemasnapshot.TableKindPartitioned) {
-		t.Errorf("expected NewValue='partitioned', got %v", d.NewValue)
+	if d.SideBValue.(string) != string(schemasnapshot.TableKindPartitioned) {
+		t.Errorf("expected NewValue='partitioned', got %v", d.SideBValue)
 	}
 }
 
@@ -328,10 +328,10 @@ func TestDiffTables_PartitionParent_NilToSet(t *testing.T) {
 	if d.Type != TablePartitionParentChanged {
 		t.Errorf("expected TablePartitionParentChanged, got %v", d.Type)
 	}
-	if d.OldValue != nil {
-		t.Errorf("expected OldValue=nil, got %v", d.OldValue)
+	if d.SideAValue != nil {
+		t.Errorf("expected OldValue=nil, got %v", d.SideAValue)
 	}
-	if d.NewValue == nil {
+	if d.SideBValue == nil {
 		t.Errorf("expected NewValue non-nil")
 	}
 }
@@ -356,11 +356,11 @@ func TestDiffTables_PartitionParent_SetToNil(t *testing.T) {
 	if d.Type != TablePartitionParentChanged {
 		t.Errorf("expected TablePartitionParentChanged, got %v", d.Type)
 	}
-	if d.OldValue == nil {
+	if d.SideAValue == nil {
 		t.Errorf("expected OldValue non-nil")
 	}
-	if d.NewValue != nil {
-		t.Errorf("expected NewValue=nil, got %v", d.NewValue)
+	if d.SideBValue != nil {
+		t.Errorf("expected NewValue=nil, got %v", d.SideBValue)
 	}
 }
 
@@ -384,11 +384,11 @@ func TestDiffTables_PartitionParent_SetToDifferent(t *testing.T) {
 	if d.Type != TablePartitionParentChanged {
 		t.Errorf("expected TablePartitionParentChanged, got %v", d.Type)
 	}
-	if d.OldValue.(schemasnapshot.ObjectRef) != ref("public", "parent_a") {
-		t.Errorf("unexpected OldValue %v", d.OldValue)
+	if d.SideAValue.(schemasnapshot.ObjectRef) != ref("public", "parent_a") {
+		t.Errorf("unexpected OldValue %v", d.SideAValue)
 	}
-	if d.NewValue.(schemasnapshot.ObjectRef) != ref("public", "parent_b") {
-		t.Errorf("unexpected NewValue %v", d.NewValue)
+	if d.SideBValue.(schemasnapshot.ObjectRef) != ref("public", "parent_b") {
+		t.Errorf("unexpected NewValue %v", d.SideBValue)
 	}
 }
 
@@ -606,10 +606,10 @@ func TestDiffTables_DifferentDatabaseType_RenameBecomesAddDrop(t *testing.T) {
 		if d.Type == TableNameChanged {
 			t.Errorf("unexpected TableNameChanged when DatabaseType differs: %v", d)
 		}
-		if d.Type == TableDropped && d.Object.Key == "public.old_name" {
+		if d.Type == TableDropped && identKey(d, "postgresql") == "public.old_name" {
 			hasDropped = true
 		}
-		if d.Type == TableAdded && d.Object.Key == "public.new_name" {
+		if d.Type == TableAdded && identKey(d, "postgresql") == "public.new_name" {
 			hasAdded = true
 		}
 	}
@@ -658,8 +658,8 @@ func TestDiffTables_IDEmptyFallback_MatchedByName(t *testing.T) {
 	if d.Type != TableDropped {
 		t.Errorf("expected TableDropped, got %v", d.Type)
 	}
-	if d.Object.Key != "public.gone_table" {
-		t.Errorf("expected Object.Key=public.gone_table, got %v", d.Object.Key)
+	if identKey(d, "postgresql") != "public.gone_table" {
+		t.Errorf("expected Object.Key=public.gone_table, got %v", identKey(d, "postgresql"))
 	}
 }
 
@@ -708,8 +708,8 @@ func TestDiffTables_HybridResidue_MixedID_PropertyChangeSurfaces(t *testing.T) {
 	if got[0].Type != TableKindChanged {
 		t.Errorf("expected TableKindChanged, got %v", got[0].Type)
 	}
-	if got[0].Object.Key != "public.t" {
-		t.Errorf("expected Object.Key=public.t, got %v", got[0].Object.Key)
+	if identKey(got[0], "postgresql") != "public.t" {
+		t.Errorf("expected Object.Key=public.t, got %v", identKey(got[0], "postgresql"))
 	}
 }
 
@@ -730,8 +730,8 @@ func TestDiffTables_HybridResidue_DropRecreateSameNameDifferentID_NotCollapsed(t
 	types := map[DiffType]int{}
 	for _, d := range got {
 		types[d.Type]++
-		if d.Object.Key != "public.foo" {
-			t.Errorf("expected Object.Key=public.foo, got %v", d.Object.Key)
+		if identKey(d, "postgresql") != "public.foo" {
+			t.Errorf("expected Object.Key=public.foo, got %v", identKey(d, "postgresql"))
 		}
 	}
 	if types[TableDropped] != 1 || types[TableAdded] != 1 {
@@ -777,10 +777,10 @@ func TestDiffTables_LinkSlicesAreDefensivelyCopied(t *testing.T) {
 
 	// Mutate every returned link slice's first element through the any-typed value.
 	for _, d := range got {
-		if s, ok := d.OldValue.([]schemasnapshot.ObjectRef); ok && len(s) > 0 {
+		if s, ok := d.SideAValue.([]schemasnapshot.ObjectRef); ok && len(s) > 0 {
 			s[0] = ref("MUTATED", "MUTATED")
 		}
-		if s, ok := d.NewValue.([]schemasnapshot.ObjectRef); ok && len(s) > 0 {
+		if s, ok := d.SideBValue.([]schemasnapshot.ObjectRef); ok && len(s) > 0 {
 			s[0] = ref("MUTATED", "MUTATED")
 		}
 	}

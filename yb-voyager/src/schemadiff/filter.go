@@ -17,16 +17,21 @@ package schemadiff
 import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 
 // ObjectType is the user-facing object-type selector for Scope filtering, matching
-// the values accepted by --object-type-list. v1 emits and filters only TABLE
-// findings, so only TABLE is declared; the remaining selectors are re-enabled as
-// the engine starts emitting their findings.
+// the values accepted by --object-type-list. v1 emits and filters TABLE and COLUMN
+// findings, so both are declared; the remaining selectors are re-enabled as the
+// engine starts emitting their findings.
+//
+// COLUMN is its own selector: a column change is filtered directly by
+// --object-type-list=COLUMN (it is NOT swept in under TABLE). Table-scoping is
+// orthogonal — a column finding still anchors to its host table for --table-list.
 type ObjectType string
 
 const (
-	ObjectTypeTable ObjectType = "TABLE"
+	ObjectTypeTable  ObjectType = "TABLE"
+	ObjectTypeColumn ObjectType = "COLUMN"
 	// Not yet emitted by the diff engine — uncomment each as its findings land
-	// (INDEX classifies here, not under TABLE, but stays anchored to its host
-	// table for --table-list):
+	// (INDEX is its own selector but stays anchored to its host table for
+	// --table-list, like COLUMN):
 	// ObjectTypeIndex    ObjectType = "INDEX"
 	// ObjectTypeSequence ObjectType = "SEQUENCE"
 	// ObjectTypeView     ObjectType = "VIEW"
@@ -38,8 +43,9 @@ const (
 //
 // IncludeTables/ExcludeTables hold caller-RESOLVED ObjectRefs (globs and the default
 // schema already expanded); matching is exact, case-sensitive struct equality
-// against Difference.AnchorTable. IncludeObjectTypes/ExcludeObjectTypes match a
-// finding's object-type bucket. An empty include list means "all".
+// against the finding's anchor table, derived from its identity by anchorTableOf.
+// IncludeObjectTypes/ExcludeObjectTypes match a finding's object-type bucket. An
+// empty include list means "all".
 //
 // Scope is permissive and total — it never errors:
 //   - If an include and its exclude are both set, exclude wins (includes apply
@@ -49,8 +55,8 @@ const (
 // Flag-level policy — e.g. --table-list and --exclude-table-list being mutually
 // exclusive — is the command's to enforce, so FilterByScope stays pure for any caller.
 type Scope struct {
-	IncludeTables      []schemasnapshot.ObjectRef // empty = all; matched against AnchorTable
-	ExcludeTables      []schemasnapshot.ObjectRef // drop findings whose AnchorTable is in this list
+	IncludeTables      []schemasnapshot.ObjectRef // empty = all; matched against the finding's derived anchor table
+	ExcludeTables      []schemasnapshot.ObjectRef // drop findings whose derived anchor table is in this list
 	IncludeObjectTypes []ObjectType               // empty = all
 	ExcludeObjectTypes []ObjectType
 }
@@ -62,7 +68,7 @@ type Scope struct {
 // A table rename/move alias map is built first so a finding anchored to a renamed
 // table matches on either its old or new identity. Then, in order:
 //  1. include by IncludeObjectTypes
-//  2. include by IncludeTables (a nil AnchorTable never matches a non-empty list)
+//  2. include by IncludeTables (a finding with no derived anchor never matches a non-empty list)
 //  3. exclude by ExcludeObjectTypes
 //  4. exclude by ExcludeTables
 func FilterByScope(diffs []Difference, scope Scope) []Difference {
@@ -95,56 +101,56 @@ func FilterByScope(diffs []Difference, scope Scope) []Difference {
 	return out
 }
 
-// buildTableRenameAliases maps each table identity to the identities it aliases,
-// from TABLE_NAME_CHANGED (new name) and TABLE_SCHEMA_CHANGED (new schema)
-// findings, so either side of a rename/move can stand in during table matching.
-//
-// A table may change both name and schema in one interval; those arrive as two
-// findings sharing the same side-A anchor, so we group by the old ref and rebuild
-// the full new ref from whichever parts changed. Aliases accumulate ([]ObjectRef)
-// so chains like a→b, b→c don't clobber each other.
-func buildTableRenameAliases(diffs []Difference) map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef {
-	// Group the per-attribute identity changes by the side-A (old) ref so a
-	// rename-and-move pair is recombined into one old→new mapping.
-	type identityChange struct {
-		oldRef    schemasnapshot.ObjectRef
-		newSchema string // "" => schema unchanged
-		newName   string // "" => name unchanged
+// anchorTableOf returns the host table a finding filters under for --table-list,
+// derived from its identity: a table-scoped object (column/index) anchors to its
+// parent table; a TABLE anchors to itself; a top-level object (view/function) has
+// none. ok is false when there is no table anchor. Uses the side-A identity
+// (side-B for *_ADDED, where ObjectA is nil).
+func anchorTableOf(d Difference) (schemasnapshot.ObjectRef, bool) {
+	id := d.ObjectA
+	if id == nil {
+		id = d.ObjectB
 	}
-	changes := make(map[schemasnapshot.ObjectRef]*identityChange)
-	at := func(old schemasnapshot.ObjectRef) *identityChange {
-		c := changes[old]
-		if c == nil {
-			c = &identityChange{oldRef: old}
-			changes[old] = c
+	switch v := id.(type) {
+	case schemasnapshot.TableScopedRef:
+		return v.Table, true
+	case schemasnapshot.ObjectRef:
+		if d.ObjectType == ObjectTypeTable {
+			return v, true
 		}
-		return c
+	}
+	return schemasnapshot.ObjectRef{}, false
+}
+
+// buildTableRenameAliases maps each table identity to the identities it aliases,
+// from TABLE_NAME_CHANGED and TABLE_SCHEMA_CHANGED findings, so either side of a
+// rename/move can stand in during table matching. ObjectA/ObjectB now carry the
+// complete old/new refs directly (no reconstruction from OldValue/NewValue
+// strings needed). Aliases accumulate ([]ObjectRef) so chains like a→b, b→c
+// don't clobber each other, and dedup so a rename+move pair (which emits both a
+// NAME_CHANGED and a SCHEMA_CHANGED finding sharing the same old→new refs)
+// doesn't record the same alias twice.
+func buildTableRenameAliases(diffs []Difference) map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef {
+	aliases := make(map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef)
+	add := func(from, to schemasnapshot.ObjectRef) {
+		for _, x := range aliases[from] {
+			if x == to {
+				return
+			}
+		}
+		aliases[from] = append(aliases[from], to)
 	}
 	for _, d := range diffs {
-		switch d.Type {
-		case TableNameChanged:
-			if newName, ok := d.NewValue.(string); ok && newName != "" && d.AnchorTable != nil {
-				at(*d.AnchorTable).newName = newName
-			}
-		case TableSchemaChanged:
-			if newSchema, ok := d.NewValue.(string); ok && newSchema != "" && d.AnchorTable != nil {
-				at(*d.AnchorTable).newSchema = newSchema
-			}
+		if d.Type != TableNameChanged && d.Type != TableSchemaChanged {
+			continue
 		}
-	}
-
-	aliases := make(map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef)
-	for _, c := range changes {
-		newRef := c.oldRef
-		if c.newSchema != "" {
-			newRef.Schema = c.newSchema
+		oldRef, ok1 := d.ObjectA.(schemasnapshot.ObjectRef)
+		newRef, ok2 := d.ObjectB.(schemasnapshot.ObjectRef)
+		if !ok1 || !ok2 || oldRef == newRef {
+			continue
 		}
-		if c.newName != "" {
-			newRef.Name = c.newName
-		}
-		oldRef := c.oldRef
-		aliases[oldRef] = append(aliases[oldRef], newRef)
-		aliases[newRef] = append(aliases[newRef], oldRef)
+		add(oldRef, newRef)
+		add(newRef, oldRef)
 	}
 	return aliases
 }
@@ -155,8 +161,7 @@ func passesObjectTypeFilter(d Difference, includeTypes map[ObjectType]struct{}) 
 	if len(includeTypes) == 0 {
 		return true
 	}
-	bucket := diffTypeDefs[d.Type]
-	_, ok := includeTypes[bucket]
+	_, ok := includeTypes[d.ObjectType]
 	return ok
 }
 
@@ -166,23 +171,22 @@ func passesObjectTypeExcludeFilter(d Difference, excludeTypes map[ObjectType]str
 	if len(excludeTypes) == 0 {
 		return true
 	}
-	bucket := diffTypeDefs[d.Type]
-	_, excluded := excludeTypes[bucket]
+	_, excluded := excludeTypes[d.ObjectType]
 	return !excluded
 }
 
 // passesTableIncludeFilter keeps a finding under the Tables include filter:
 //   - empty list keeps all
-//   - nil AnchorTable never matches a non-empty list
+//   - no derived anchor never matches a non-empty list
 //   - otherwise keep if the anchor or any of its rename aliases is listed (either-side)
 func passesTableIncludeFilter(d Difference, includeTables map[schemasnapshot.ObjectRef]struct{}, aliases map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef) bool {
 	if len(includeTables) == 0 {
 		return true
 	}
-	if d.AnchorTable == nil {
+	anchor, ok := anchorTableOf(d)
+	if !ok {
 		return false
 	}
-	anchor := *d.AnchorTable
 
 	// Check the anchor itself.
 	if _, ok := includeTables[anchor]; ok {
@@ -201,16 +205,16 @@ func passesTableIncludeFilter(d Difference, includeTables map[schemasnapshot.Obj
 
 // passesTableExcludeFilter drops a finding under the ExcludeTables filter:
 //   - empty list excludes nothing
-//   - nil AnchorTable is never excluded
+//   - no derived anchor is never excluded
 //   - otherwise drop if the anchor or any of its rename aliases is listed (either-side)
 func passesTableExcludeFilter(d Difference, excludeTables map[schemasnapshot.ObjectRef]struct{}, aliases map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef) bool {
 	if len(excludeTables) == 0 {
 		return true
 	}
-	if d.AnchorTable == nil {
-		return true // nil anchor is never excluded by ExcludeTables
+	anchor, ok := anchorTableOf(d)
+	if !ok {
+		return true // no anchor is never excluded by ExcludeTables
 	}
-	anchor := *d.AnchorTable
 
 	if _, ok := excludeTables[anchor]; ok {
 		return false
