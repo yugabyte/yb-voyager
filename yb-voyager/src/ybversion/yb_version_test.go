@@ -29,6 +29,7 @@ func TestValidNewYBVersion(t *testing.T) {
 		"2024.1.1.0",
 		"2.20.7.0",
 		"2.21.2.1",
+		"2026.1.0.0",
 	}
 	for _, v := range validVersionStrings {
 		_, err := NewYBVersion(v)
@@ -57,6 +58,7 @@ func TestStableReleaseType(t *testing.T) {
 		"2024.1.0.0",
 		"2024.1.1.1",
 		"2024.2.2.3",
+		"2026.1.0.0",
 	}
 	for _, v := range stableVersionStrings {
 		ybVersion, _ := NewYBVersion(v)
