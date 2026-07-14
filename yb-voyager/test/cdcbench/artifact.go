@@ -61,12 +61,20 @@ type artifactManifest struct {
 	Events      int    `json:"events"`
 	GeneratedAt string `json:"generated_at"`
 	VoyagerBin  string `json:"voyager_bin"`
+	// UniqueIndexes holds, per table ("schema.table"), the unique
+	// indexes/constraints (each an ordered column list) captured from the
+	// SOURCE schema at generation time. Production fetches this live from the
+	// import target (which enforces the constraints after import schema); for
+	// replay the artifact's schema is the same authority, served through the
+	// mock's GetTableToUniqueIndexesMap.
+	UniqueIndexes map[string][][]string `json:"unique_indexes"`
 }
 
-// EnsureArtifact returns the pristine export-dir for the workload, generating
-// (and caching) it if needed. Skips the benchmark when generation
-// prerequisites (yb-voyager binary with Debezium, Docker) are unavailable.
-func EnsureArtifact(b *testing.B, w Workload) string {
+// EnsureArtifact returns the pristine export-dir for the workload and its
+// manifest, generating (and caching) the artifact if needed. Skips the
+// benchmark when generation prerequisites (yb-voyager binary with Debezium,
+// Docker) are unavailable.
+func EnsureArtifact(b *testing.B, w Workload) (string, artifactManifest) {
 	b.Helper()
 	root, err := artifactRoot()
 	if err != nil {
@@ -79,7 +87,7 @@ func EnsureArtifact(b *testing.B, w Workload) string {
 		var manifest artifactManifest
 		if raw, err := os.ReadFile(filepath.Join(dir, "manifest.json")); err == nil {
 			if json.Unmarshal(raw, &manifest) == nil && manifest.Hash == w.hash() {
-				return exportDir
+				return exportDir, manifest
 			}
 		}
 	}
@@ -94,11 +102,18 @@ func EnsureArtifact(b *testing.B, w Workload) string {
 	}
 
 	b.Logf("cdcbench: generating artifact for workload %q (%d events) — one-time, cached under %s", w.Name, w.ExpectedEvents, dir)
-	if err := generateArtifact(b, w, voyagerBin, dir, exportDir); err != nil {
+	// always generate into a clean dir: a stale export dir (e.g. from
+	// CDCBENCH_REGEN=1 or an aborted generation) makes export data resume the
+	// old migration instead of starting one
+	if err := os.RemoveAll(dir); err != nil {
+		b.Fatalf("cdcbench: clear stale artifact dir: %v", err)
+	}
+	manifest, err := generateArtifact(b, w, voyagerBin, dir, exportDir)
+	if err != nil {
 		os.RemoveAll(dir) // don't leave a half-built artifact behind
 		b.Fatalf("cdcbench: generating artifact for workload %q: %v", w.Name, err)
 	}
-	return exportDir
+	return exportDir, manifest
 }
 
 // shared source-PG container, started lazily on first generation and
@@ -143,22 +158,22 @@ func cleanupSourceContainer() {
 	}
 }
 
-func generateArtifact(b *testing.B, w Workload, voyagerBin, dir, exportDir string) error {
+func generateArtifact(b *testing.B, w Workload, voyagerBin, dir, exportDir string) (artifactManifest, error) {
 	pg := sourceContainer(b)
 	host, port, err := pg.GetHostPort()
 	if err != nil {
-		return fmt.Errorf("source container host/port: %w", err)
+		return artifactManifest{}, fmt.Errorf("source container host/port: %w", err)
 	}
 	config := pg.GetConfig()
 	dbName := benchDBPrefix + w.hash()
 
 	if err := os.MkdirAll(exportDir, 0755); err != nil {
-		return err
+		return artifactManifest{}, err
 	}
 	logPath := filepath.Join(dir, "export-data.log")
 	logFile, err := os.Create(logPath)
 	if err != nil {
-		return err
+		return artifactManifest{}, err
 	}
 	defer logFile.Close()
 
@@ -170,19 +185,19 @@ func generateArtifact(b *testing.B, w Workload, voyagerBin, dir, exportDir strin
 	// DROP/CREATE DATABASE must be single-statement calls: they cannot run inside
 	// the implicit transaction of a multi-statement simple-protocol script.
 	if err := execSQLScript(connStr(config.DBName), fmt.Sprintf("DROP DATABASE IF EXISTS %s WITH (FORCE)", dbName)); err != nil {
-		return fmt.Errorf("drop database %s: %w", dbName, err)
+		return artifactManifest{}, fmt.Errorf("drop database %s: %w", dbName, err)
 	}
 	if err := execSQLScript(connStr(config.DBName), fmt.Sprintf("CREATE DATABASE %s", dbName)); err != nil {
-		return fmt.Errorf("create database %s: %w", dbName, err)
+		return artifactManifest{}, fmt.Errorf("create database %s: %w", dbName, err)
 	}
 	// drop leftover inactive replication slots from previous generations (cluster-wide)
 	_ = execSQLScript(connStr(config.DBName),
 		"SELECT pg_drop_replication_slot(slot_name) FROM pg_replication_slots WHERE active = false;")
 	if err := execSQLScript(connStr(dbName), w.SchemaSQL); err != nil {
-		return fmt.Errorf("apply schema: %w", err)
+		return artifactManifest{}, fmt.Errorf("apply schema: %w", err)
 	}
 	if err := execSQLScript(connStr(dbName), w.SeedSQL); err != nil {
-		return fmt.Errorf("apply seed: %w", err)
+		return artifactManifest{}, fmt.Errorf("apply seed: %w", err)
 	}
 
 	// start real export data (snapshot-and-changes -> Debezium streaming)
@@ -204,7 +219,7 @@ func generateArtifact(b *testing.B, w Workload, voyagerBin, dir, exportDir strin
 	export.Stdout = logFile
 	export.Stderr = logFile
 	if err := export.Start(); err != nil {
-		return fmt.Errorf("start export data: %w", err)
+		return artifactManifest{}, fmt.Errorf("start export data: %w", err)
 	}
 	exportDone := make(chan error, 1)
 	go func() { exportDone <- export.Wait() }()
@@ -219,13 +234,13 @@ func generateArtifact(b *testing.B, w Workload, voyagerBin, dir, exportDir strin
 		matches, _ := filepath.Glob(queueGlob)
 		return len(matches) > 0, nil
 	}); err != nil {
-		return fail("waiting for streaming phase", err)
+		return artifactManifest{}, fail("waiting for streaming phase", err)
 	}
 	time.Sleep(5 * time.Second) // let debezium settle into streaming
 
 	b.Logf("cdcbench: [%s] streaming reached; running DML (%d events)...", w.Name, w.ExpectedEvents)
 	if err := execSQLScript(connStr(dbName), w.DMLSQL); err != nil {
-		return fail("apply DML", err)
+		return artifactManifest{}, fail("apply DML", err)
 	}
 
 	// wait for all events to drain into queue segments (count stable and >= expected)
@@ -243,7 +258,7 @@ func generateArtifact(b *testing.B, w Workload, voyagerBin, dir, exportDir strin
 		prev = count
 		return stable >= 3, nil
 	}); err != nil {
-		return fail(fmt.Sprintf("waiting for %d events to drain (last count %d)", w.ExpectedEvents, prev), err)
+		return artifactManifest{}, fail(fmt.Sprintf("waiting for %d events to drain (last count %d)", w.ExpectedEvents, prev), err)
 	}
 
 	// cutover terminates the queue with a cutover event and stops the exporter
@@ -253,12 +268,12 @@ func generateArtifact(b *testing.B, w Workload, voyagerBin, dir, exportDir strin
 	cutover.Stdout = logFile
 	cutover.Stderr = logFile
 	if err := cutover.Run(); err != nil {
-		return fail("initiate cutover to target", err)
+		return artifactManifest{}, fail("initiate cutover to target", err)
 	}
 	select {
 	case <-time.After(exportExitTimeout):
 		_ = export.Process.Kill()
-		return fail("export did not exit after cutover", fmt.Errorf("timeout after %s", exportExitTimeout))
+		return artifactManifest{}, fail("export did not exit after cutover", fmt.Errorf("timeout after %s", exportExitTimeout))
 	case err := <-exportDone:
 		if err != nil {
 			// exporter exiting non-zero after cutover is tolerated as long as the
@@ -269,21 +284,85 @@ func generateArtifact(b *testing.B, w Workload, voyagerBin, dir, exportDir strin
 
 	// make the artifact self-contained for the import side
 	if err := patchNameRegistryYBNames(exportDir); err != nil {
-		return fmt.Errorf("patch name registry: %w", err)
+		return artifactManifest{}, fmt.Errorf("patch name registry: %w", err)
+	}
+	// capture the unique-index metadata production would fetch live from the
+	// import target: the source schema is the same authority for the artifact
+	uniqueIndexes, err := queryUniqueIndexes(connStr(dbName), w.TableList)
+	if err != nil {
+		return artifactManifest{}, fmt.Errorf("capture unique indexes from source schema: %w", err)
 	}
 
 	manifest := artifactManifest{
-		Hash:        w.hash(),
-		Events:      w.ExpectedEvents,
-		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
-		VoyagerBin:  voyagerBin,
+		Hash:          w.hash(),
+		Events:        w.ExpectedEvents,
+		GeneratedAt:   time.Now().UTC().Format(time.RFC3339),
+		VoyagerBin:    voyagerBin,
+		UniqueIndexes: uniqueIndexes,
 	}
 	raw, _ := json.MarshalIndent(manifest, "", "  ")
 	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), raw, 0644); err != nil {
-		return err
+		return artifactManifest{}, err
 	}
 	b.Logf("cdcbench: [%s] artifact generated at %s", w.Name, dir)
-	return nil
+	return manifest, nil
+}
+
+// queryUniqueIndexes returns, per "schema.table", the table's unique
+// indexes/constraints as ordered column lists (primary keys excluded, partial
+// indexes included with their predicate dropped) — mirroring what the import
+// side fetches from the target for conflict detection.
+func queryUniqueIndexes(connStr string, tables []string) (map[string][][]string, error) {
+	ctx := context.Background()
+	conn, err := pgx.Connect(ctx, connStr)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close(ctx)
+
+	rows, err := conn.Query(ctx, `
+		SELECT n.nspname, t.relname, i.relname AS index_name, a.attname
+		FROM pg_index ix
+		JOIN pg_class i ON i.oid = ix.indexrelid
+		JOIN pg_class t ON t.oid = ix.indrelid
+		JOIN pg_namespace n ON n.oid = t.relnamespace
+		JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
+		LEFT JOIN pg_constraint c ON ix.indexrelid = c.conindid AND c.contype = 'p'
+		WHERE ix.indisunique AND c.oid IS NULL
+		  AND n.nspname = 'public' AND t.relname = ANY($1)
+		ORDER BY t.relname, i.relname, array_position(ix.indkey, a.attnum)`, tables)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	indexColumns := map[string]map[string][]string{} // table -> index -> ordered columns
+	var indexOrder = map[string][]string{}           // table -> index names in first-seen order
+	for rows.Next() {
+		var schema, table, index, column string
+		if err := rows.Scan(&schema, &table, &index, &column); err != nil {
+			return nil, err
+		}
+		key := schema + "." + table
+		if indexColumns[key] == nil {
+			indexColumns[key] = map[string][]string{}
+		}
+		if _, seen := indexColumns[key][index]; !seen {
+			indexOrder[key] = append(indexOrder[key], index)
+		}
+		indexColumns[key][index] = append(indexColumns[key][index], column)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	result := map[string][][]string{}
+	for table, order := range indexOrder {
+		for _, index := range order {
+			result[table] = append(result[table], indexColumns[table][index])
+		}
+	}
+	return result, nil
 }
 
 // execSQLScript runs a (possibly multi-statement, DO-block-containing) SQL

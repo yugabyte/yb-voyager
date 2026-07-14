@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS jobs CASCADE;
+CREATE TABLE jobs (id int PRIMARY KEY, job_key text CONSTRAINT jobs_key_uk UNIQUE, status text, c0 text);
+ALTER TABLE jobs REPLICA IDENTITY FULL;

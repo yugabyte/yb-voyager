@@ -22,7 +22,7 @@ cd yb-voyager
 go test -tags cdc_benchmark -run '^$' -bench CDCIngest -benchtime 1x -count 5 ./cmd/
 
 # a single workload
-go test -tags cdc_benchmark -run '^$' -bench 'CDCIngest/updates-uk-no-conflict' -benchtime 1x ./cmd/
+go test -tags cdc_benchmark -run '^$' -bench 'CDCIngest/edge-all-updates' -benchtime 1x ./cmd/
 
 # compare two checkouts
 go test -tags cdc_benchmark -run '^$' -bench CDCIngest -benchtime 1x -count 5 ./cmd/ > before.txt
@@ -62,34 +62,32 @@ execution (`b.N`, one "op" = one full artifact replay); `-count 5` runs each ben
 
 ## Adding a workload
 
-1. Create `testdata/<your_workload>/{schema,seed,dml}.sql`:
+1. Pick a name: `<category>-<description>` where category is one of `oltp-`
+   (realistic pattern), `schema-` (shape probe), `edge-` (op-mix corner case),
+   `conflict-` (engineered real conflicts). The name IS the testdata directory
+   and the benchmark sub-name — one string everywhere.
+2. Create `testdata/<name>/{schema,seed,dml}.sql`:
    - `schema.sql` — tables with PKs/unique constraints **and `ALTER TABLE ... REPLICA IDENTITY FULL`** (required for before-images);
    - `seed.sql` — initial rows (exported in the snapshot, not as change events);
    - `dml.sql` — runs while Debezium streams; every row change becomes one event.
-2. Register it (see `workloads_builtin.go`):
+3. Register it in `workloads_catalog.go`:
 
 ```go
-func init() {
-	Register(Workload{
-		Name:            "my-workload",
-		SchemaSQL:       mustRead("my_workload/schema.sql"),
-		SeedSQL:         mustRead("my_workload/seed.sql"),
-		DMLSQL:          mustRead("my_workload/dml.sql"),
-		TableList:       []string{"my_table"},
-		ExpectedEvents:  20_000, // must match dml.sql exactly
-		ExpectConflicts: false,
-	})
-}
+Register(testdataWorkload("oltp-my-workload", []string{"my_table"}, 20_000, false))
 ```
 
+(arguments: name, exported table list, exact event count of dml.sql, whether
+the workload expects conflict detections.)
+
 That's the whole cost: the workload is immediately runnable in isolation via
-`-bench 'CDCIngest/my-workload'`. Artifacts are cached keyed by a content hash of the
-workload definition, so editing any SQL auto-invalidates only that workload's artifact.
+`-bench 'CDCIngest/oltp-my-workload'`. Artifacts are cached keyed by a content
+hash of the workload definition, so editing any SQL auto-invalidates only that
+workload's artifact.
 
 Guidance for conflict-free workloads: make every unique-key value globally unique
 across seed **and** DML (`nil==nil` also counts as a conflict). For conflict workloads,
 engineer collisions where one event's after-image equals another in-flight event's
-before-image (see `conflict_pairs_uk/dml.sql`).
+before-image (see `conflict-update-pairs/dml.sql`).
 
 ## Architecture
 
