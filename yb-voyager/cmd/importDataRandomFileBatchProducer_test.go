@@ -726,9 +726,17 @@ func TestRandomBatchProducer_StashAndContinue(t *testing.T) {
 	assert.True(t, producer.Done(), "Done() should be true after producer finishes")
 }
 
+// Issue: this test was flaky because RandomBatchProducer returns batches in non-deterministic
+// order and NextBatch() does not block. The test assumed a fixed order (batch with 1 record
+// first, then empty) and called NextBatch() a second time without waiting, so it could fail
+// with RecordCount mismatches or "no batches available".
+//
+// Fix: use consumeAllBatches to wait for both batches, then assert the expected shape
+// order-independently. With maxBatchSizeBytes=15, header (7) + first data row (11) = 18
+// exceeds the limit, so the first batch is finalized empty and the first row is carried to
+// the last batch; the oversized second row is stashed against that last batch.
 func TestRandomBatchProducer_StashAndContinue_LastBatchHasAllErrors(t *testing.T) {
-	// Set max batch size in bytes to a small value to trigger the row-too-large error
-	maxBatchSizeBytes := int64(15) // deliberately small to trigger error
+	maxBatchSizeBytes := int64(15)
 	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(1000, maxBatchSizeBytes)
 	require.NoError(t, err)
 
@@ -742,43 +750,42 @@ func TestRandomBatchProducer_StashAndContinue_LastBatchHasAllErrors(t *testing.T
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	// The second row will be too large for the batch size
 	fileContents := `id,val
 1, "hello"
 2, "this row is too long and should trigger an error because it exceeds the max batch size"`
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	require.NoError(t, err)
 
-	// Create RandomBatchProducer
 	producer, err := NewRandomFileBatchProducer(task, state, false, scErrorHandler, progressReporter, createTestSemaphore())
 	require.NoError(t, err)
 	defer producer.Close()
 
-	// Wait for batch to become available
-	available := waitForBatchAvailable(producer, 5*time.Second)
-	require.True(t, available, "Batch should become available within timeout")
+	batches := consumeAllBatches(t, producer, 5*time.Second)
+	require.Len(t, batches, 2, "expected an empty first batch and a last batch with 1 record")
 
-	// Get the batch - should contain only the first row (second row is skipped due to error)
-	batch, err := producer.NextBatch()
-	require.NoError(t, err, "NextBatch() should not return error with stash-and-continue policy")
-	require.NotNil(t, batch, "Batch should not be nil")
-	assert.Equal(t, int64(1), batch.RecordCount, "Batch should contain 1 record (second row skipped due to error)")
+	var emptyBatch, lastBatch *Batch
+	for _, batch := range batches {
+		switch batch.RecordCount {
+		case 0:
+			emptyBatch = batch
+		case 1:
+			lastBatch = batch
+		default:
+			t.Fatalf("unexpected batch RecordCount=%d Number=%d", batch.RecordCount, batch.Number)
+		}
+	}
+	require.NotNil(t, emptyBatch, "expected an empty batch (header+row exceeded max batch size)")
+	require.NotNil(t, lastBatch, "expected a last batch with the carried-forward good row")
+	assert.Equal(t, int64(1), emptyBatch.Number, "empty batch should be the non-last first batch")
+	assert.Equal(t, int64(0), lastBatch.Number, "batch with the good row should be the last batch (number 0)")
 
-	batch2, err := producer.NextBatch()
-	require.NoError(t, err, "NextBatch() should not return error with stash-and-continue policy")
-	require.NotNil(t, batch2, "Batch should not be nil")
-	assert.Equal(t, int64(0), batch2.RecordCount, "Batch should contain 0 records (second row skipped due to error)")
-
-	// Verify error file contains the error for the second row
+	// Oversized row is stashed against the last batch (1 error row, 91 bytes, no trailing newline).
 	assertProcessingErrorBatchFileContains(t, lexportDir, task,
-		batch.Number, 1, 91,
+		lastBatch.Number, 1, 91,
 		"larger than max batch size",
 		"ROW: 2, \"this row is too long and should trigger an error because it exceeds the max batch size\"")
 
-	// Verify producer eventually completes
-	_ = waitForProducerDone(producer, 5*time.Second)
-	assert.True(t, producer.Done(), "Done() should be true after producer finishes")
-
+	assert.True(t, producer.Done(), "Done() should be true after consuming all batches")
 }
 
 // ================================ Resumption Tests ================================
