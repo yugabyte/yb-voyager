@@ -726,15 +726,6 @@ func TestRandomBatchProducer_StashAndContinue(t *testing.T) {
 	assert.True(t, producer.Done(), "Done() should be true after producer finishes")
 }
 
-// Issue: this test was flaky because RandomBatchProducer returns batches in non-deterministic
-// order and NextBatch() does not block. The test assumed a fixed order (batch with 1 record
-// first, then empty) and called NextBatch() a second time without waiting, so it could fail
-// with RecordCount mismatches or "no batches available".
-//
-// Fix: use consumeAllBatches to wait for both batches, then assert the expected shape
-// order-independently. With maxBatchSizeBytes=15, header (7) + first data row (11) = 18
-// exceeds the limit, so the first batch is finalized empty and the first row is carried to
-// the last batch; the oversized second row is stashed against that last batch.
 func TestRandomBatchProducer_StashAndContinue_LastBatchHasAllErrors(t *testing.T) {
 	maxBatchSizeBytes := int64(15)
 	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(1000, maxBatchSizeBytes)
