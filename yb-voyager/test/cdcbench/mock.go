@@ -43,7 +43,7 @@ type MockTargetDB struct {
 	// live-migration bookkeeping (see mock_metadata.go)
 	metadata *sql.DB
 	// uniqueIndexes: per "schema.table" unique indexes from the artifact manifest
-	uniqueIndexes map[string][][]string
+	uniqueIndexes map[string][]tgtdb.UniqueIndex
 
 	batches atomic.Int64
 	events  atomic.Int64
@@ -54,7 +54,7 @@ type MockTargetDB struct {
 // store. uniqueIndexes (per "schema.table", from the artifact manifest)
 // answers GetTableToUniqueIndexesMap, which production fetches live from the
 // import target for conflict detection.
-func NewMockTargetDB(execDelay time.Duration, uniqueIndexes map[string][][]string) (*MockTargetDB, error) {
+func NewMockTargetDB(execDelay time.Duration, uniqueIndexes map[string][]tgtdb.UniqueIndex) (*MockTargetDB, error) {
 	metadata, err := newMockMetadataStore()
 	if err != nil {
 		return nil, err
@@ -64,8 +64,8 @@ func NewMockTargetDB(execDelay time.Duration, uniqueIndexes map[string][][]strin
 
 // GetTableToUniqueIndexesMap serves the unique-index metadata captured in the
 // artifact manifest, keyed back onto the requested table tuples.
-func (m *MockTargetDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
-	result := utils.NewStructMap[sqlname.NameTuple, [][]string]()
+func (m *MockTargetDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex], error) {
+	result := utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]()
 	for _, table := range tableList {
 		if indexes, ok := m.uniqueIndexes[table.AsQualifiedCatalogName()]; ok {
 			result.Put(table, indexes)

@@ -303,11 +303,17 @@ func TestYugabyteGetPrimaryKeyConstraintNames(t *testing.T) {
 func TestYugabyteGetTableToUniqueIndexesMap(t *testing.T) {
 	testYugabyteDBTarget.ExecuteSqls(
 		`CREATE SCHEMA test_schema;`,
+		`CREATE SCHEMA other_schema;`,
 		`CREATE TABLE test_schema.unique_table (
 			id SERIAL PRIMARY KEY,
 			email VARCHAR(255) UNIQUE,
 			phone VARCHAR(20) UNIQUE,
 			address VARCHAR(255) UNIQUE
+		);`,
+		// Same table name in another schema: must not leak into results for test_schema.unique_table.
+		`CREATE TABLE other_schema.unique_table (
+			id SERIAL PRIMARY KEY,
+			other_col VARCHAR(255) UNIQUE
 		);`,
 		`CREATE TABLE test_schema.another_unique_table (
 			user_id SERIAL PRIMARY KEY,
@@ -338,10 +344,54 @@ func TestYugabyteGetTableToUniqueIndexesMap(t *testing.T) {
 		) PARTITION BY LIST (region);`,
 		`CREATE TABLE test_schema.part_table_r1 PARTITION OF test_schema.part_table FOR VALUES IN ('r1');`,
 		`CREATE TABLE test_schema.part_table_r2 PARTITION OF test_schema.part_table FOR VALUES IN ('r2');`,
-		`CREATE UNIQUE INDEX idx_part_table_r1_id1_id2 ON test_schema.part_table_r1 (id1, id2);`,
+		// r1's (id1, id2) index is NULLS NOT DISTINCT, r2's is the default NULLS DISTINCT.
+		// When merged into the root, the stricter NULLS NOT DISTINCT should win.
+		`CREATE UNIQUE INDEX idx_part_table_r1_id1_id2 ON test_schema.part_table_r1 (id1, id2) NULLS NOT DISTINCT;`,
 		`CREATE UNIQUE INDEX idx_part_table_r2_id1_id2 ON test_schema.part_table_r2 (id1, id2);`,
+		// NULLS NOT DISTINCT via: CREATE UNIQUE INDEX, table CONSTRAINT, and column-level UNIQUE.
+		`CREATE TABLE test_schema.nulls_not_distinct_table (
+			id SERIAL PRIMARY KEY,
+			token VARCHAR(100),
+			code VARCHAR(100),
+			sku VARCHAR(100),
+			product_no INT UNIQUE NULLS NOT DISTINCT,
+			CONSTRAINT unique_sku_nnd UNIQUE NULLS NOT DISTINCT (sku)
+		);`,
+		`CREATE UNIQUE INDEX idx_token_nnd ON test_schema.nulls_not_distinct_table(token) NULLS NOT DISTINCT;`,
+		`CREATE UNIQUE INDEX idx_code_default ON test_schema.nulls_not_distinct_table(code);`,
+		// case-sensitive table/column unique index
+		`CREATE TABLE test_schema."CaseTable" (
+			id SERIAL PRIMARY KEY,
+			"Id2" INT,
+			id3 INT
+		);`,
+		`CREATE UNIQUE INDEX idx_case_id2 ON test_schema."CaseTable" ("Id2");`,
+		`CREATE UNIQUE INDEX idx_case_id3 ON test_schema."CaseTable" (id3);`,
+		// partial unique index (WHERE clause) should still be discovered by column list
+		`CREATE TABLE test_schema.partial_unique_table (
+			id SERIAL PRIMARY KEY,
+			check_id INT,
+			most_recent BOOLEAN
+		);`,
+		`CREATE UNIQUE INDEX idx_partial_check_id ON test_schema.partial_unique_table (check_id) WHERE most_recent;`,
+		// expression-only unique index has no plain columns, so the table should not appear
+		`CREATE TABLE test_schema.expression_unique_table (
+			id SERIAL PRIMARY KEY,
+			email TEXT
+		);`,
+		`CREATE UNIQUE INDEX idx_expr_email ON test_schema.expression_unique_table (lower(email));`,
+		// mixed expression+column unique index should surface only the plain column
+		`CREATE TABLE test_schema.mixed_expression_unique_table (
+			id SERIAL PRIMARY KEY,
+			email TEXT,
+			code TEXT
+		);`,
+		`CREATE UNIQUE INDEX idx_mixed_expr ON test_schema.mixed_expression_unique_table (lower(email), code);`,
 	)
-	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+	defer testYugabyteDBTarget.ExecuteSqls(
+		`DROP SCHEMA test_schema CASCADE;`,
+		`DROP SCHEMA other_schema CASCADE;`,
+	)
 
 	tablesList := []sqlname.NameTuple{
 		testutils.CreateNameTupleWithTargetName("test_schema.unique_table", "public", YUGABYTEDB),
@@ -349,34 +399,56 @@ func TestYugabyteGetTableToUniqueIndexesMap(t *testing.T) {
 		testutils.CreateNameTupleWithTargetName("test_schema.composite_unique_table", "public", YUGABYTEDB),
 		testutils.CreateNameTupleWithTargetName("test_schema.pk_only_table", "public", YUGABYTEDB),
 		testutils.CreateNameTupleWithTargetName("test_schema.part_table", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.nulls_not_distinct_table", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.\"CaseTable\"", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.partial_unique_table", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.expression_unique_table", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.mixed_expression_unique_table", "public", YUGABYTEDB),
 	}
 
 	actualIndexes, err := testYugabyteDBTarget.GetTableToUniqueIndexesMap(tablesList)
 	require.NoError(t, err)
 
-	expectedIndexesByTable := utils.NewStructMap[sqlname.NameTuple, [][]string]()
-	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.unique_table", "public", YUGABYTEDB), [][]string{
-		{"email"},
-		{"phone"},
-		{"address"},
+	expectedIndexesByTable := utils.NewStructMap[sqlname.NameTuple, []UniqueIndex]()
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.unique_table", "public", YUGABYTEDB), []UniqueIndex{
+		{Columns: []string{"email"}},
+		{Columns: []string{"phone"}},
+		{Columns: []string{"address"}},
 	})
-	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.another_unique_table", "public", YUGABYTEDB), [][]string{
-		{"username"},
-		{"age"},
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.another_unique_table", "public", YUGABYTEDB), []UniqueIndex{
+		{Columns: []string{"username"}},
+		{Columns: []string{"age"}},
 	})
-	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.composite_unique_table", "public", YUGABYTEDB), [][]string{
-		{"first_name", "last_name"},
-		{"phone"},
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.composite_unique_table", "public", YUGABYTEDB), []UniqueIndex{
+		{Columns: []string{"first_name", "last_name"}},
+		{Columns: []string{"phone"}},
 	})
 	// The two leaf partitions each define the same (id1, id2) unique index; the merged,
-	// de-duplicated result is attributed to the root partitioned table.
-	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.part_table", "public", YUGABYTEDB), [][]string{
-		{"id1", "id2"},
+	// de-duplicated result is attributed to the root partitioned table. Since r1's index
+	// is NULLS NOT DISTINCT, the merged index is NULLS NOT DISTINCT.
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.part_table", "public", YUGABYTEDB), []UniqueIndex{
+		{Columns: []string{"id1", "id2"}, NullsNotDistinct: true},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.nulls_not_distinct_table", "public", YUGABYTEDB), []UniqueIndex{
+		{Columns: []string{"token"}, NullsNotDistinct: true},
+		{Columns: []string{"code"}, NullsNotDistinct: false},
+		{Columns: []string{"sku"}, NullsNotDistinct: true},
+		{Columns: []string{"product_no"}, NullsNotDistinct: true},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.\"CaseTable\"", "public", YUGABYTEDB), []UniqueIndex{
+		{Columns: []string{"Id2"}},
+		{Columns: []string{"id3"}},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.partial_unique_table", "public", YUGABYTEDB), []UniqueIndex{
+		{Columns: []string{"check_id"}},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.mixed_expression_unique_table", "public", YUGABYTEDB), []UniqueIndex{
+		{Columns: []string{"code"}},
 	})
 
 	assert.Equal(t, len(expectedIndexesByTable.Keys()), len(actualIndexes.Keys()), "Expected number of tables to match")
 
-	expectedIndexesByTable.IterKV(func(table sqlname.NameTuple, expectedIndexes [][]string) (bool, error) {
+	expectedIndexesByTable.IterKV(func(table sqlname.NameTuple, expectedIndexes []UniqueIndex) (bool, error) {
 		actualIndexesForTable, exists := actualIndexes.Get(table)
 		if !exists {
 			t.Errorf("Expected table %s not found in unique indexes map", table)
@@ -385,26 +457,52 @@ func TestYugabyteGetTableToUniqueIndexesMap(t *testing.T) {
 		assertEqualUniqueIndexes(t, expectedIndexes, actualIndexesForTable)
 		return true, nil
 	})
+
+	// pk-only and expression-only unique-index tables must be absent from the map
+	_, pkOnlyExists := actualIndexes.Get(testutils.CreateNameTupleWithTargetName("test_schema.pk_only_table", "public", YUGABYTEDB))
+	assert.False(t, pkOnlyExists, "pk_only_table should not appear in unique indexes map")
+	_, exprOnlyExists := actualIndexes.Get(testutils.CreateNameTupleWithTargetName("test_schema.expression_unique_table", "public", YUGABYTEDB))
+	assert.False(t, exprOnlyExists, "expression_unique_table should not appear (expression-only unique index)")
+
+	// subset tableList: only the requested table is returned, and other_schema does not leak
+	subsetList := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithTargetName("test_schema.unique_table", "public", YUGABYTEDB),
+	}
+	subsetIndexes, err := testYugabyteDBTarget.GetTableToUniqueIndexesMap(subsetList)
+	require.NoError(t, err)
+	assert.Equal(t, 1, len(subsetIndexes.Keys()))
+	subsetActual, exists := subsetIndexes.Get(subsetList[0])
+	require.True(t, exists)
+	assertEqualUniqueIndexes(t, []UniqueIndex{
+		{Columns: []string{"email"}},
+		{Columns: []string{"phone"}},
+		{Columns: []string{"address"}},
+	}, subsetActual)
+	_, otherSchemaExists := subsetIndexes.Get(testutils.CreateNameTupleWithTargetName("other_schema.unique_table", "public", YUGABYTEDB))
+	assert.False(t, otherSchemaExists, "other_schema.unique_table must not leak into subset results")
 }
 
 // assertEqualUniqueIndexes compares two lists of unique indexes irrespective of order,
 // matching each index by its ordered column signature.
-func assertEqualUniqueIndexes(t *testing.T, expected, actual [][]string) {
+func assertEqualUniqueIndexes(t *testing.T, expected, actual []UniqueIndex) {
 	t.Helper()
 	if len(expected) != len(actual) {
 		t.Fatalf("expected %d indexes, got %d", len(expected), len(actual))
 	}
-	expectedSigs := make(map[string][]string)
-	for _, idxColumns := range expected {
-		expectedSigs[strings.Join(idxColumns, ",")] = idxColumns
+	expectedSigs := make(map[string]UniqueIndex)
+	for _, idx := range expected {
+		expectedSigs[strings.Join(idx.Columns, ",")] = idx
 	}
-	for _, idxColumns := range actual {
-		sig := strings.Join(idxColumns, ",")
-		expCols, ok := expectedSigs[sig]
+	for _, idx := range actual {
+		sig := strings.Join(idx.Columns, ",")
+		expIdx, ok := expectedSigs[sig]
 		if !ok {
-			t.Fatalf("unexpected index columns %v", idxColumns)
+			t.Fatalf("unexpected index columns %v", idx.Columns)
 		}
-		testutils.AssertEqualStringSlices(t, expCols, idxColumns)
+		testutils.AssertEqualStringSlices(t, expIdx.Columns, idx.Columns)
+		if expIdx.NullsNotDistinct != idx.NullsNotDistinct {
+			t.Fatalf("index %v: expected NullsNotDistinct=%v, got %v", idx.Columns, expIdx.NullsNotDistinct, idx.NullsNotDistinct)
+		}
 	}
 }
 
