@@ -97,10 +97,8 @@ func init() {
 	// CUSTOMER PATTERN (reported in the field): records are INSERTed as drafts
 	// with NULL unique columns; the unique value is filled by a later UPDATE.
 	// SQL-semantically there are ZERO conflicts (NULLs are distinct in unique
-	// indexes), but detection currently treats nil==nil as a conflict, so
-	// concurrent drafts of DIFFERENT rows false-positive against each other.
-	// Flip ExpectConflicts to false when NULL-distinctness is fixed.
-	Register(testdataWorkload("oltp-insert-null-then-fill", []string{"uk_table"}, 20_000, true))
+	// indexes), 
+	Register(testdataWorkload("oltp-insert-null-then-fill", []string{"uk_table"}, 20_000, false))
 
 	// ---- schema: shape probes (index count, row width, key structure) ----
 
@@ -132,10 +130,8 @@ func init() {
 
 	// Composite key UNIQUE(folder_id, name) where every index tuple has a NULL
 	// component (unnamed drafts sharing a folder). Semantically ZERO conflicts
-	// — SQL treats NULLs as distinct — but detection compares tuples with
-	// nil==nil, so in-flight draft pairs false-positive against each other.
-	// Flip ExpectConflicts to false when NULL-distinctness is fixed.
-	Register(testdataWorkload("schema-composite-uk-null-component", []string{"docs"}, 20_000, true))
+	// — SQL treats NULLs as distinct —
+	Register(testdataWorkload("schema-composite-uk-null-component", []string{"docs"}, 20_000, false))
 
 	// Payload-only updates to soft-DELETED rows that legitimately share email
 	// values (the partial index UNIQUE(email) WHERE NOT deleted excludes
