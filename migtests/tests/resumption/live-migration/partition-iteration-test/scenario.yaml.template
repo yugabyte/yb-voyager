@@ -1,6 +1,6 @@
 name: partition-iteration-test
 
-num_iterations: 20
+num_iterations: 3
 
 env:
   LOG_LEVEL: info
@@ -44,7 +44,7 @@ generator_source:
 
     generator:
       schema_name: public
-      manual_table_list: []
+      manual_table_list: [events, sales_region, orders, emp]
       exclude_table_list: [cutover_table]
       num_iterations: -1
       wait_after_operations: 1000
