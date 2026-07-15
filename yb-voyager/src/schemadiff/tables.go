@@ -35,15 +35,17 @@ func diffTables(a, b *schemasnapshot.SnapshotContent) []Difference {
 func idOfTable(t schemasnapshot.Table) string { return t.ID }
 
 // emitTableDropped is the matchByKey onDropped callback for tables: it emits a
-// TABLE_DROPPED finding carrying the dropped table's columns.
+// TABLE_DROPPED finding carrying the whole dropped Table (columns plus kind,
+// partitioning, and inheritance metadata) as SideAValue.
 func emitTableDropped(t schemasnapshot.Table) []Difference {
-	return []Difference{newDifference(TableDropped, OpDropped, ObjectTypeTable, AttrNone, t.ObjectRef, nil, cloneColumns(t.Columns), nil)}
+	return []Difference{newDifference(TableDropped, OpDropped, ObjectTypeTable, AttrNone, t.ObjectRef, nil, cloneTable(t), nil)}
 }
 
 // emitTableAdded is the matchByKey onAdded callback for tables: it emits a
-// TABLE_ADDED finding carrying the added table's columns.
+// TABLE_ADDED finding carrying the whole added Table (columns plus kind,
+// partitioning, and inheritance metadata) as SideBValue.
 func emitTableAdded(t schemasnapshot.Table) []Difference {
-	return []Difference{newDifference(TableAdded, OpAdded, ObjectTypeTable, AttrNone, nil, t.ObjectRef, nil, cloneColumns(t.Columns))}
+	return []Difference{newDifference(TableAdded, OpAdded, ObjectTypeTable, AttrNone, nil, t.ObjectRef, nil, cloneTable(t))}
 }
 
 // compareMatchedTables returns the matchByKey onMatch callback for tables: it
@@ -151,4 +153,23 @@ func cloneColumns(cols []schemasnapshot.Column) []schemasnapshot.Column {
 	out := make([]schemasnapshot.Column, len(cols))
 	copy(out, cols)
 	return out
+}
+
+// cloneTable returns a copy of t whose every slice/pointer field is deep-copied,
+// so a TABLE_ADDED/TABLE_DROPPED finding carrying the whole Table never shares
+// backing storage with the input snapshot. t is received by value, so the scalar
+// and embedded ObjectRef fields are already copied; only the reference-typed
+// fields (Columns, the ObjectRef link slices, and the PartitionParent pointer)
+// need decoupling. Without this, a consumer mutating the finding's Table would
+// write through into the source snapshot.
+func cloneTable(t schemasnapshot.Table) schemasnapshot.Table {
+	t.Columns = cloneColumns(t.Columns)
+	t.PartitionChildren = cloneObjectRefs(t.PartitionChildren)
+	t.InheritsFrom = cloneObjectRefs(t.InheritsFrom)
+	t.InheritedBy = cloneObjectRefs(t.InheritedBy)
+	if t.PartitionParent != nil {
+		parent := *t.PartitionParent
+		t.PartitionParent = &parent
+	}
+	return t
 }

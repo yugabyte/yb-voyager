@@ -153,10 +153,10 @@ func TestDiff_EndToEnd(t *testing.T) {
 
 	// TableDropped for a wholly-dropped table carries its columns as OldValue,
 	// and those columns must NOT also appear as standalone ColumnDropped findings.
-	legacyCols, ok := legacyDropped[0].SideAValue.([]schemasnapshot.Column)
-	require.True(t, ok, "TableDropped.SideAValue must be []schemasnapshot.Column, got %T", legacyDropped[0].SideAValue)
+	legacyTbl, ok := legacyDropped[0].SideAValue.(schemasnapshot.Table)
+	require.True(t, ok, "TableDropped.SideAValue must be schemasnapshot.Table, got %T", legacyDropped[0].SideAValue)
 	var legacyColNames []string
-	for _, c := range legacyCols {
+	for _, c := range legacyTbl.Columns {
 		legacyColNames = append(legacyColNames, c.Name)
 	}
 	assert.ElementsMatch(t, []string{"a", "b"}, legacyColNames,
@@ -175,10 +175,10 @@ func TestDiff_EndToEnd(t *testing.T) {
 
 	// TableAdded for a wholly-added table carries its columns as NewValue, and
 	// those columns must NOT also appear as standalone ColumnAdded findings.
-	newbieCols, ok := newbieAdded[0].SideBValue.([]schemasnapshot.Column)
-	require.True(t, ok, "TableAdded.SideBValue must be []schemasnapshot.Column, got %T", newbieAdded[0].SideBValue)
+	newbieTbl, ok := newbieAdded[0].SideBValue.(schemasnapshot.Table)
+	require.True(t, ok, "TableAdded.SideBValue must be schemasnapshot.Table, got %T", newbieAdded[0].SideBValue)
 	var newbieColNames []string
-	for _, c := range newbieCols {
+	for _, c := range newbieTbl.Columns {
 		newbieColNames = append(newbieColNames, c.Name)
 	}
 	assert.ElementsMatch(t, []string{"x"}, newbieColNames,
@@ -233,7 +233,7 @@ func TestDiff_EndToEnd(t *testing.T) {
 	// The rename finding is anchored to old-name "diff_it.orders"; the alias map
 	// must bridge purchases ↔ orders so both names retain the rename finding.
 	scopedByNew := schemadiff.FilterByScope(diffs, schemadiff.Scope{
-		Tables: []schemasnapshot.ObjectRef{{Schema: driftSchema, Name: "purchases"}},
+		IncludeTables: []schemasnapshot.ObjectRef{{Schema: driftSchema, Name: "purchases"}},
 	})
 	t.Logf("Scoped by new name 'purchases': %d findings", len(scopedByNew))
 
@@ -258,7 +258,7 @@ func TestDiff_EndToEnd(t *testing.T) {
 
 	// ── 12. Scope filtering: Tables=["diff_it.orders"] (old name) ──────────────
 	scopedByOld := schemadiff.FilterByScope(diffs, schemadiff.Scope{
-		Tables: []schemasnapshot.ObjectRef{{Schema: driftSchema, Name: "orders"}},
+		IncludeTables: []schemasnapshot.ObjectRef{{Schema: driftSchema, Name: "orders"}},
 	})
 	t.Logf("Scoped by old name 'orders': %d findings", len(scopedByOld))
 

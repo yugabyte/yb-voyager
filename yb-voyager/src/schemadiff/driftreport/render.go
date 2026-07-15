@@ -464,8 +464,17 @@ func stringifyValue(attribute string, value any) string {
 		return strings.Join(parts, ", ")
 	case schemasnapshot.Column:
 		return stringifyColumnDef(v)
-	case []schemasnapshot.Column:
-		return fmt.Sprintf("%d columns", len(v))
+	case schemasnapshot.Table:
+		// TABLE_ADDED/DROPPED carry the whole Table; render its full column list
+		// ("id integer NOT NULL, email text, ...") rather than just a count.
+		if len(v.Columns) == 0 {
+			return "no columns"
+		}
+		parts := make([]string, len(v.Columns))
+		for i, c := range v.Columns {
+			parts[i] = c.Name + " " + stringifyColumnDef(c)
+		}
+		return strings.Join(parts, ", ")
 	default:
 		return fmt.Sprintf("%v", v)
 	}
