@@ -246,14 +246,14 @@ func parseCdcPartitionKeyOverrides(overrides string) (map[string]string, error) 
 			return nil, fmt.Errorf("invalid cdc-partition-key-overrides entry %q: table and strategy must both be non-empty", entry)
 		}
 		if strategy != PARTITION_BY_PK && strategy != PARTITION_BY_TABLE {
-			return nil, fmt.Errorf("invalid cdc-partition-key-overrides strategy %q for table %q: supported values are %s, %s",
+			return nil, goerrors.Errorf("invalid cdc-partition-key-overrides strategy %q for table %q: supported values are %s, %s",
 				strategy, tableName, PARTITION_BY_PK, PARTITION_BY_TABLE)
 		}
 		if _, exists := result[tableName]; exists {
 			if strings.EqualFold(strategy, result[tableName]) {
 				continue
 			}
-			return nil, fmt.Errorf("duplicate table %q in cdc-partition-key-overrides", tableName)
+			return nil, goerrors.Errorf("duplicate table %q in cdc-partition-key-overrides", tableName)
 		}
 		result[tableName] = strategy
 	}
@@ -276,15 +276,15 @@ func resolveCdcPartitionKeyOverrides(rawOverrides map[string]string, importTable
 	for tableSpec, strategy := range rawOverrides {
 		tuple, err := namereg.NameReg.LookupTableName(tableSpec)
 		if err != nil {
-			return nil, fmt.Errorf("cdc-partition-key-overrides: table %q not found in name registry: %w", tableSpec, err)
-		}
+			return nil, goerrors.Errorf("cdc-partition-key-overrides: table %q not found in name registry: %w", tableSpec, err)
+		}	
 		if _, ok := importTableSet.Get(tuple); !ok {
-			return nil, fmt.Errorf("cdc-partition-key-overrides: table %q is not in the import table list", tableSpec)
+			return nil, goerrors.Errorf("cdc-partition-key-overrides: table %q is not in the import table list", tableSpec)
 		}
 		// Detect duplicates on the resolved NameTuple so different spellings of the
 		// same table (casing/quoting/schema-qualification) don't silently overwrite.
 		if existing, ok := resolved.Get(tuple); ok && !strings.EqualFold(existing, strategy) {
-			return nil, fmt.Errorf("cdc-partition-key-overrides: table %q (resolved to %s) specified multiple times with conflicting strategies %q and %q",
+			return nil, goerrors.Errorf("cdc-partition-key-overrides: table %q (resolved to %s) specified multiple times with conflicting strategies %q and %q",
 				tableSpec, tuple.ForOutput(), existing, strategy)
 		}
 		resolved.Put(tuple, strategy)
