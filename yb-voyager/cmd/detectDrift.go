@@ -256,9 +256,28 @@ type driftTableCandidate struct {
 // matched by --exclude-table-list; only the historical snapshots know about it.
 // Entries are de-duplicated by (schema, name). Must be called after
 // source.Schemas has been resolved (it drives which schemas GetAllTableNames()
-// queries).
+// queries). It reads the package globals (source) and delegates the actual
+// union/dedup to the pure unionDriftTableCandidates.
 func buildDriftTableCandidates(snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent) []driftTableCandidate {
 	defaultSchema, _ := GetDefaultPGSchema(source.Schemas)
+	var liveRefs []schemasnapshot.ObjectRef
+	for _, n := range source.DB().GetAllTableNames() {
+		liveRefs = append(liveRefs, schemasnapshot.ObjectRef{Schema: n.SchemaName.Unquoted, Name: n.ObjectName.Unquoted})
+	}
+	return unionDriftTableCandidates(source.DBType, defaultSchema, liveRefs, snapshotContents, liveContent)
+}
+
+// unionDriftTableCandidates builds the deduped --table-list / --exclude-table-list
+// matching universe as the UNION of: the live source catalog (liveRefs), every table
+// appearing in each successfully-loaded historical snapshot (snapshotContents), and the
+// best-effort live capture (liveContent, nil if it failed or was skipped). This union --
+// not the live catalog alone -- matters because a table that has since been DROPPED from
+// the source is absent from the live catalog but may still need to be named in
+// --table-list (to see its drop reported) or matched by --exclude-table-list; only the
+// historical snapshots know about it. Entries are de-duplicated by (schema, name), in the
+// order live catalog -> snapshots (in order) -> live capture. It is pure (reads no package
+// globals) so the universe-union behavior is unit-testable.
+func unionDriftTableCandidates(dbType, defaultSchema string, liveRefs []schemasnapshot.ObjectRef, snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent) []driftTableCandidate {
 	seen := make(map[schemasnapshot.ObjectRef]bool)
 	var candidates []driftTableCandidate
 
@@ -268,13 +287,13 @@ func buildDriftTableCandidates(snapshotContents []*schemasnapshot.SnapshotConten
 			return
 		}
 		seen[ref] = true
-		objName := sqlname.NewObjectName(source.DBType, defaultSchema, schema, name)
+		objName := sqlname.NewObjectName(dbType, defaultSchema, schema, name)
 		candidates = append(candidates, driftTableCandidate{ref: ref, name: objName})
 	}
 
 	// 1. The live source catalog.
-	for _, n := range source.DB().GetAllTableNames() {
-		add(n.SchemaName.Unquoted, n.ObjectName.Unquoted)
+	for _, r := range liveRefs {
+		add(r.Schema, r.Name)
 	}
 	// 2. Every table in each successfully-loaded historical snapshot.
 	for _, c := range snapshotContents {

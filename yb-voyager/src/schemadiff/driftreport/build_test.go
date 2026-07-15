@@ -135,7 +135,9 @@ func TestBuildReport_EmptyIntervalsProduceNoEntriesButKeepSequencing(t *testing.
 	assert.Equal(t, "export data: running", report.Diffs[0].Phase)
 }
 
-func TestBuildReport_PlaceholderPairSkippedEntirely(t *testing.T) {
+func TestBuildReport_PlaceholderBridgesToNextContentBearingSnapshot(t *testing.T) {
+	// a and c differ (c adds a table); the placeholder sitting between them
+	// must not suppress that drift — it should be bridged across.
 	a := fixtureContent(fixtureTable("1", "public", "orders"))
 	c := fixtureContent(
 		fixtureTable("1", "public", "orders"),
@@ -152,8 +154,28 @@ func TestBuildReport_PlaceholderPairSkippedEntirely(t *testing.T) {
 
 	report := BuildReport(p)
 
-	assert.Empty(t, report.Diffs, "both pairs touching the placeholder must be skipped, even though a and c differ")
+	require.Len(t, report.Diffs, 1, "drift between a and c must be reported, bridged across the placeholder")
+	d := report.Diffs[0]
+	assert.Equal(t, string(schemadiff.TableAdded), d.Type)
+	assert.Equal(t, objRef("public", "customers"), d.Object)
+	assert.Equal(t, Window{From: t1(), To: t3()}, d.Window, "window must span from the pre-placeholder snapshot to the post-placeholder snapshot")
 	require.Len(t, report.Captures, 3, "the placeholder itself still appears as a capture point")
+}
+
+func TestBuildReport_PlaceholderAtChainEndProducesNoExtraEntries(t *testing.T) {
+	a := fixtureContent(fixtureTable("1", "public", "orders"))
+
+	p := BuildParams{
+		Snapshots: []SnapshotInput{
+			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a, Series: schemasnapshot.LabelExportSchema},
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: nil, Series: schemasnapshot.LabelExportDataFromSourceStart},
+		},
+	}
+
+	report := BuildReport(p)
+
+	assert.Empty(t, report.Diffs, "a trailing placeholder with nothing after it contributes no diffs")
+	require.Len(t, report.Captures, 2)
 }
 
 func TestBuildReport_SchemaScopeMismatchSkippedEntirely(t *testing.T) {
