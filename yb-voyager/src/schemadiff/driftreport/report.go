@@ -83,17 +83,19 @@ type Summary struct {
 // DiffEntry is a single schema change, enriched with severity classification,
 // human guidance, and the capture-pair window/phase it was detected in.
 type DiffEntry struct {
-	Seq       int                      `json:"seq"`
-	Type      string                   `json:"type"` // string(schemadiff.DiffType)
-	Object    schemasnapshot.ObjectRef `json:"object"`
-	SubObject string                   `json:"sub_object,omitempty"`
-	Status    string                   `json:"status"`
-	Property  string                   `json:"property,omitempty"`
-	OldValue  any                      `json:"old_value,omitempty"`
-	NewValue  any                      `json:"new_value,omitempty"`
-	Window    Window                   `json:"window"`
-	Phase     string                   `json:"phase,omitempty"`
-	Guidance  string                   `json:"guidance,omitempty"`
+	Seq        int                      `json:"seq"`
+	Type       string                   `json:"type"`                // string(schemadiff.DiffType)
+	Operation  string                   `json:"operation"`           // string(schemadiff.Operation): ADDED | DROPPED | CHANGED
+	ObjectType string                   `json:"object_type"`         // string(schemadiff.ObjectType): TABLE | COLUMN
+	Attribute  string                   `json:"attribute,omitempty"` // string(schemadiff.Attribute); "" for ADDED/DROPPED
+	Object     schemasnapshot.ObjectRef `json:"object"`
+	SubObject  string                   `json:"sub_object,omitempty"`
+	Status     string                   `json:"status"`
+	OldValue   any                      `json:"old_value,omitempty"`
+	NewValue   any                      `json:"new_value,omitempty"`
+	Window     Window                   `json:"window"`
+	Phase      string                   `json:"phase,omitempty"`
+	Guidance   string                   `json:"guidance,omitempty"`
 }
 
 // Capture is a single point on the report's timeline: either a stored

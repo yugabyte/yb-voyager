@@ -18,7 +18,6 @@ package schemadiff
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -32,29 +31,56 @@ import (
 
 // Note: ref(schema, name) is already declared in diff_test.go (same package).
 
-// tableDiff builds a Difference anchored to a table (AnchorTable == Object).
+// tableDiff builds a TABLE-level Difference anchored to itself (ObjectA == ObjectB,
+// both the table's ref). Used for non-rename table findings, where the table's
+// identity doesn't change across sides.
 func tableDiff(dt DiffType, schema, name string) Difference {
 	o := ref(schema, name)
-	return Difference{Type: dt, Object: o, AnchorTable: &o}
+	return Difference{Type: dt, ObjectType: ObjectTypeTable, ObjectA: o, ObjectB: o}
 }
 
-// nilAnchorDiff builds a Difference with a nil AnchorTable, using a kept
-// DiffType. This is used to test filter behaviour for nil-AnchorTable findings
-// without relying on removed object types.
-func nilAnchorDiff(dt DiffType, schema, name string) Difference {
-	return Difference{Type: dt, Object: ref(schema, name), AnchorTable: nil}
+// colDiff builds a COLUMN-level Difference anchored to its host table
+// (ObjectA == ObjectB, both the column's TableScopedRef). Used for non-rename
+// column findings.
+func colDiff(dt DiffType, table schemasnapshot.ObjectRef, column string) Difference {
+	ts := schemasnapshot.TableScopedRef{Table: table, Name: column}
+	return Difference{Type: dt, ObjectType: ObjectTypeColumn, ObjectA: ts, ObjectB: ts}
 }
 
-// nameChangedDiff builds a *_NAME_CHANGED finding with the given old and new names.
-// AnchorTable is set to the old ObjectRef (same as Object), per the spec.
+// noAnchorDiff builds a Difference whose derived anchor is absent: its identity
+// is a plain ObjectRef, but ObjectType is a placeholder non-table type ("VIEW" —
+// a raw cast; no such constant is declared yet), so anchorTableOf returns
+// ok=false. This replaces the old nil-AnchorTable synthetic findings used to
+// exercise the "no table anchor" filter path (top-level objects like views/
+// functions, not yet emitted by the diff engine).
+func noAnchorDiff(dt DiffType, schema, name string) Difference {
+	return Difference{Type: dt, ObjectType: ObjectType("VIEW"), ObjectA: ref(schema, name)}
+}
+
+// nameChangedDiff builds a TABLE_NAME_CHANGED finding with the given old and new
+// names: ObjectA is the old ref, ObjectB is the new ref (same schema).
 func nameChangedDiff(dt DiffType, schema, oldName, newName string) Difference {
-	o := ref(schema, oldName)
 	return Difference{
-		Type:        dt,
-		Object:      o,
-		AnchorTable: &o,
-		OldValue:    oldName,
-		NewValue:    newName,
+		Type:       dt,
+		ObjectType: ObjectTypeTable,
+		ObjectA:    ref(schema, oldName),
+		ObjectB:    ref(schema, newName),
+		SideAValue: oldName,
+		SideBValue: newName,
+	}
+}
+
+// schemaChangedDiff builds a TABLE_SCHEMA_CHANGED finding: a table moved from
+// oldSchema to newSchema, keeping the same name. ObjectA is the old ref, ObjectB
+// is the new ref, matching how compareMatchedTables emits it.
+func schemaChangedDiff(oldSchema, name, newSchema string) Difference {
+	return Difference{
+		Type:       TableSchemaChanged,
+		ObjectType: ObjectTypeTable,
+		ObjectA:    ref(oldSchema, name),
+		ObjectB:    ref(newSchema, name),
+		SideAValue: oldSchema,
+		SideBValue: newSchema,
 	}
 }
 
@@ -67,61 +93,15 @@ func collectTypes(diffs []Difference) map[DiffType]bool {
 	return m
 }
 
-// ─── DiffType coverage ───────────────────────────────────────────────────────
-
-// TestDiffTypeDefsRegistryIsExhaustive asserts that every DiffType constant
-// declared in difftypes.go appears in the diffTypeDefs registry. If a new
-// constant is added to difftypes.go without a corresponding registry entry,
-// this test fails.
-//
-// It also enforces a Property invariant: *_CHANGED DiffTypes must carry a
-// non-empty Property, and *_ADDED / *_DROPPED DiffTypes must carry an empty
-// Property.
-//
-// The set of all DiffType constants is enumerated manually here because Go has
-// no reflection-level "list all constants of type T" API; the list below must
-// stay in sync with difftypes.go.
-func TestDiffTypeDefsRegistryIsExhaustive(t *testing.T) {
-	// allDiffTypes must list every DiffType constant from difftypes.go.
-	// Only the 15 V1-emitted constants (tables + columns) are declared.
-	// Keeping this in sync is enforced by the test itself: a constant absent
-	// from this slice AND absent from diffTypeDefs passes silently — the
-	// failure only fires when a constant is here but not in the registry.
-	// Developers should add to this slice whenever they add to difftypes.go.
-	allDiffTypes := []DiffType{
-		// TABLE (9 constants)
-		TableAdded, TableDropped, TableNameChanged, TableSchemaChanged,
-		TableKindChanged, PartitionParentChanged, PartitionChildrenChanged,
-		TableInheritsChanged, TableInheritedByChanged,
-		// COLUMN (6 constants)
-		ColumnAdded, ColumnDropped, ColumnNameChanged, ColumnTypeChanged,
-		ColumnNullabilityChanged, ColumnDefaultChanged,
+// anchorDisplay renders a finding's derived anchor table for assertions; it
+// panics (via require semantics in the caller) is avoided by returning "" when
+// there is no anchor.
+func anchorDisplay(d Difference) (string, bool) {
+	anchor, ok := anchorTableOf(d)
+	if !ok {
+		return "", false
 	}
-
-	// Guard: the two lists must have the same length. If they diverge someone
-	// added a DiffType to one place but not the other.
-	assert.Equal(t, len(allDiffTypes), len(diffTypeDefs),
-		"allDiffTypes and diffTypeDefs have different lengths — when adding a DiffType constant, add it to BOTH the allDiffTypes slice in this test AND the diffTypeDefs registry in difftypes.go")
-
-	for _, dt := range allDiffTypes {
-		def, ok := diffTypeDefs[dt]
-		assert.True(t, ok, "DiffType %q is missing from diffTypeDefs — add an entry in difftypes.go", dt)
-		if !ok {
-			continue
-		}
-
-		// Property invariant: *_CHANGED must have a non-empty Property;
-		// *_ADDED and *_DROPPED must have an empty Property.
-		s := string(dt)
-		switch {
-		case strings.HasSuffix(s, "_CHANGED"):
-			assert.NotEmpty(t, def.Property,
-				"DiffType %q is a *_CHANGED type but has an empty Property in diffTypeDefs — add the canonical property name", dt)
-		case strings.HasSuffix(s, "_ADDED"), strings.HasSuffix(s, "_DROPPED"):
-			assert.Empty(t, def.Property,
-				"DiffType %q is a *_ADDED/*_DROPPED type but has a non-empty Property %q in diffTypeDefs — *_ADDED/*_DROPPED findings carry no Property", dt, def.Property)
-		}
-	}
+	return anchor.ForDisplay(constants.POSTGRESQL), true
 }
 
 // ─── Empty scope ─────────────────────────────────────────────────────────────
@@ -129,11 +109,12 @@ func TestDiffTypeDefsRegistryIsExhaustive(t *testing.T) {
 // TestFilterByScopeEmptyScopeKeepsEverything verifies that an empty Scope
 // (all lists nil/empty) passes every finding through unchanged.
 func TestFilterByScopeEmptyScopeKeepsEverything(t *testing.T) {
+	orders := ref("public", "orders")
 	diffs := []Difference{
 		tableDiff(TableAdded, "public", "orders"),
 		tableDiff(TableDropped, "public", "legacy"),
-		tableDiff(ColumnAdded, "public", "orders"),
-		tableDiff(ColumnDropped, "public", "orders"),
+		colDiff(ColumnAdded, orders, "email"),
+		colDiff(ColumnDropped, orders, "phone"),
 	}
 
 	got := FilterByScope(diffs, Scope{})
@@ -148,9 +129,9 @@ func TestFilterByScopeIsPure(t *testing.T) {
 	orders := ref("public", "orders")
 	orig := []Difference{
 		tableDiff(TableAdded, "public", "orders"),
-		// A finding with nil AnchorTable to verify it is excluded by a non-empty
-		// Tables filter without panicking. We use a kept DiffType here.
-		{Type: ColumnAdded, Object: orders, AnchorTable: nil, SubObject: "x"},
+		// A column finding to verify the TABLE include filter drops it (it maps
+		// to ObjectTypeColumn) without panicking.
+		colDiff(ColumnAdded, orders, "x"),
 	}
 	// Make a copy of the originals' JSON to compare after the call.
 	origJSON, err := json.Marshal(orig)
@@ -164,9 +145,10 @@ func TestFilterByScopeIsPure(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, string(origJSON), string(afterJSON), "FilterByScope must not mutate the input slice")
 
-	// Returned slice must be a new allocation (both findings are ObjectTypeTable,
-	// so both survive the include filter).
-	require.Len(t, got, 2)
+	// Returned slice must be a new allocation. Only the TableAdded finding
+	// survives the TABLE include filter — the ColumnAdded finding maps to
+	// ObjectTypeColumn and is dropped.
+	require.Len(t, got, 1)
 	assert.Equal(t, TableAdded, got[0].Type)
 
 	// Mutating the returned slice must not affect the input.
@@ -177,182 +159,136 @@ func TestFilterByScopeIsPure(t *testing.T) {
 // ─── ObjectTypes include filter ───────────────────────────────────────────────
 
 // TestFilterByScopeObjectTypeInclude verifies that only findings whose bucket
-// is listed in ObjectTypes are kept. In V1 all emitted DiffTypes map to
-// ObjectTypeTable, so an ObjectTypeTable filter keeps all findings and an
-// ObjectTypeIndex filter drops all of them (no V1 index findings exist).
+// is listed in ObjectTypes are kept. COLUMN is its own bucket (ObjectTypeColumn),
+// distinct from ObjectTypeTable, so a TABLE filter keeps only table findings and
+// a COLUMN filter keeps only column findings.
 func TestFilterByScopeObjectTypeInclude(t *testing.T) {
+	orders := ref("public", "orders")
 	diffs := []Difference{
 		tableDiff(TableAdded, "public", "orders"),
 		tableDiff(TableDropped, "public", "legacy"),
-		tableDiff(ColumnAdded, "public", "orders"),
-		tableDiff(ColumnTypeChanged, "public", "orders"),
+		colDiff(ColumnAdded, orders, "email"),
+		colDiff(ColumnTypeChanged, orders, "amount"),
 	}
 
-	// TABLE filter keeps all V1 findings (all map to ObjectTypeTable).
+	// TABLE filter keeps only the table-level findings; column findings map to
+	// ObjectTypeColumn and are dropped.
 	gotTable := FilterByScope(diffs, Scope{ObjectTypes: []ObjectType{ObjectTypeTable}})
-	assert.Len(t, gotTable, len(diffs), "TABLE filter must keep all V1 findings")
-
-	// INDEX filter drops all V1 findings (none are ObjectTypeIndex).
-	gotIndex := FilterByScope(diffs, Scope{ObjectTypes: []ObjectType{ObjectTypeIndex}})
-	assert.Empty(t, gotIndex, "INDEX filter must drop all V1 findings — no V1 index DiffTypes exist")
-
-	// SEQUENCE filter also drops all V1 findings.
-	gotSeq := FilterByScope(diffs, Scope{ObjectTypes: []ObjectType{ObjectTypeSequence}})
-	assert.Empty(t, gotSeq, "SEQUENCE filter must drop all V1 findings")
-}
-
-// TestFilterByScopeObjectTypeIncludeIndex verifies that INDEX is an
-// independently selectable object type. In V1 no index DiffTypes are emitted,
-// so an INDEX-only filter drops all table/column findings. This confirms that
-// INDEX is a valid (non-panicking) selector even with an empty result set.
-func TestFilterByScopeObjectTypeIncludeIndex(t *testing.T) {
-	diffs := []Difference{
-		tableDiff(TableAdded, "public", "orders"),
-		tableDiff(ColumnAdded, "public", "orders"),
+	require.Len(t, gotTable, 2, "TABLE filter must keep only table findings")
+	for _, d := range gotTable {
+		assert.Equal(t, ObjectTypeTable, d.ObjectType)
 	}
 
-	got := FilterByScope(diffs, Scope{ObjectTypes: []ObjectType{ObjectTypeIndex}})
+	// COLUMN filter keeps only the column-level findings.
+	gotColumn := FilterByScope(diffs, Scope{ObjectTypes: []ObjectType{ObjectTypeColumn}})
+	require.Len(t, gotColumn, 2, "COLUMN filter must keep only column findings")
+	for _, d := range gotColumn {
+		assert.Equal(t, ObjectTypeColumn, d.ObjectType)
+	}
+}
 
-	// INDEX is a valid selector but no V1 findings map to it, so the result is empty.
-	assert.Empty(t, got, "INDEX-only filter must drop all V1 table/column findings")
+// ─── COLUMN as a first-class object type ─────────────────────────────────────
 
-	// Cross-check: a TABLE filter keeps everything.
+// TestFilterByScopeColumnObjectTypeIsFirstClass verifies that COLUMN is a
+// directly-selectable object-type bucket in its own right — it is not swept in
+// under TABLE. Given a diff set containing both a table-level and a
+// column-level finding, each of ObjectTypes=[COLUMN] and ObjectTypes=[TABLE]
+// must isolate the expected finding.
+func TestFilterByScopeColumnObjectTypeIsFirstClass(t *testing.T) {
+	orders := ref("public", "orders")
+	tableFinding := tableDiff(TableAdded, "public", "orders")
+	columnFinding := colDiff(ColumnAdded, orders, "email")
+
+	diffs := []Difference{tableFinding, columnFinding}
+
+	// ObjectTypes: [COLUMN] returns only the column finding.
+	gotColumn := FilterByScope(diffs, Scope{ObjectTypes: []ObjectType{ObjectTypeColumn}})
+	require.Len(t, gotColumn, 1, "COLUMN include must keep only the column finding")
+	assert.Equal(t, ColumnAdded, gotColumn[0].Type)
+	assert.Equal(t, ObjectTypeColumn, gotColumn[0].ObjectType)
+
+	// ObjectTypes: [TABLE] returns only the table finding.
 	gotTable := FilterByScope(diffs, Scope{ObjectTypes: []ObjectType{ObjectTypeTable}})
-	assert.Len(t, gotTable, len(diffs), "TABLE filter must keep all V1 findings")
+	require.Len(t, gotTable, 1, "TABLE include must keep only the table finding")
+	assert.Equal(t, TableAdded, gotTable[0].Type)
+	assert.Equal(t, ObjectTypeTable, gotTable[0].ObjectType)
 }
 
-// TestFilterByScopeObjectTypeIncludeView verifies that VIEW is a valid
-// selectable object type that drops all V1 table/column findings (V1 emits no
-// view DiffTypes). The ObjectTypeView selector is kept in the vocabulary for
-// future use; this test confirms it is a valid no-op selector in V1.
-func TestFilterByScopeObjectTypeIncludeView(t *testing.T) {
-	diffs := []Difference{
-		tableDiff(TableAdded, "public", "orders"),
-		tableDiff(ColumnAdded, "public", "orders"),
-	}
+// TestFilterByScopeColumnAnchorsToHostTableForTableList verifies that the
+// object-type dimension is orthogonal to the table-list dimension: a column
+// finding still anchors to its host table for --table-list, even though it is
+// its own bucket for --object-type-list.
+func TestFilterByScopeColumnAnchorsToHostTableForTableList(t *testing.T) {
+	orders := ref("public", "orders")
+	columnFinding := colDiff(ColumnAdded, orders, "email")
 
-	got := FilterByScope(diffs, Scope{ObjectTypes: []ObjectType{ObjectTypeView}})
-
-	// VIEW is a valid selector but no V1 findings map to it.
-	assert.Empty(t, got, "VIEW-only filter must drop all V1 table/column findings")
-}
-
-// ─── ObjectTypes exclude filter ───────────────────────────────────────────────
-
-// TestFilterByScopeObjectTypeExclude verifies that findings in excluded buckets
-// are dropped. In V1 all findings map to ObjectTypeTable, so excluding
-// ObjectTypeTable drops everything; excluding ObjectTypeIndex (or any other
-// non-table type) is a no-op because no V1 findings map to those buckets.
-func TestFilterByScopeObjectTypeExclude(t *testing.T) {
-	diffs := []Difference{
-		tableDiff(TableAdded, "public", "orders"),
-		tableDiff(ColumnAdded, "public", "orders"),
-		tableDiff(TableDropped, "public", "legacy"),
-	}
-
-	// Excluding ObjectTypeTable drops all V1 findings.
-	gotExcludeTable := FilterByScope(diffs, Scope{ExcludeObjectTypes: []ObjectType{ObjectTypeTable}})
-	assert.Empty(t, gotExcludeTable, "excluding TABLE must drop all V1 findings")
-
-	// Excluding ObjectTypeIndex is a no-op: no V1 findings map to it.
-	gotExcludeIndex := FilterByScope(diffs, Scope{ExcludeObjectTypes: []ObjectType{ObjectTypeIndex}})
-	assert.Len(t, gotExcludeIndex, len(diffs), "excluding INDEX must keep all V1 findings")
-
-	// Excluding ObjectTypeView is also a no-op.
-	gotExcludeView := FilterByScope(diffs, Scope{ExcludeObjectTypes: []ObjectType{ObjectTypeView}})
-	assert.Len(t, gotExcludeView, len(diffs), "excluding VIEW must keep all V1 findings")
+	got := FilterByScope([]Difference{columnFinding}, Scope{Tables: []schemasnapshot.ObjectRef{orders}})
+	require.Len(t, got, 1, "column finding must be kept when its host table is in Tables")
+	assert.Equal(t, ObjectTypeColumn, got[0].ObjectType, "ObjectType stays COLUMN even though the derived anchor is the host table")
 }
 
 // ─── Tables include filter ────────────────────────────────────────────────────
 
-// TestFilterByScopeTableInclude verifies that only findings whose AnchorTable
-// is in the Tables list are kept. A nil-AnchorTable finding is dropped by a
-// non-empty Tables filter.
+// TestFilterByScopeTableInclude verifies that only findings whose derived
+// anchor table is in the Tables list are kept. A no-anchor finding is dropped
+// by a non-empty Tables filter.
 func TestFilterByScopeTableInclude(t *testing.T) {
 	orders := ref("public", "orders")
 	customers := ref("public", "customers")
 
 	diffs := []Difference{
-		{Type: TableAdded, Object: orders, AnchorTable: &orders},
-		{Type: ColumnAdded, Object: orders, AnchorTable: &orders, SubObject: "id"},
-		{Type: TableAdded, Object: customers, AnchorTable: &customers},
-		{Type: ColumnAdded, Object: customers, AnchorTable: &customers, SubObject: "name"},
-		// A synthetic nil-AnchorTable finding using a kept DiffType, to verify
-		// that nil-anchored entries are dropped by a Tables include filter.
-		{Type: TableNameChanged, Object: orders, AnchorTable: nil},
+		tableDiff(TableAdded, "public", "orders"),
+		colDiff(ColumnAdded, orders, "id"),
+		tableDiff(TableAdded, "public", "customers"),
+		colDiff(ColumnAdded, customers, "name"),
+		// A synthetic no-anchor finding, to verify that anchor-less entries are
+		// dropped by a Tables include filter.
+		noAnchorDiff(TableNameChanged, "public", "orders"),
 	}
 
 	got := FilterByScope(diffs, Scope{Tables: []schemasnapshot.ObjectRef{ref("public", "orders")}})
 
 	// Only orders-anchored findings should survive.
 	for _, d := range got {
-		if d.AnchorTable != nil {
-			assert.Equal(t, "public.orders", d.AnchorTable.ForDisplay(constants.POSTGRESQL),
-				"only public.orders-anchored findings should pass")
+		if disp, ok := anchorDisplay(d); ok {
+			assert.Equal(t, "public.orders", disp, "only public.orders-anchored findings should pass")
 		} else {
-			t.Errorf("nil-AnchorTable finding should have been dropped by Tables filter: %v", d)
+			t.Errorf("no-anchor finding should have been dropped by Tables filter: %v", d)
 		}
 	}
 	assert.Len(t, got, 2, "expect TableAdded and ColumnAdded for orders only")
 }
 
-// ─── Tables exclude filter ────────────────────────────────────────────────────
+// ─── no-anchor findings ───────────────────────────────────────────────────────
 
-// TestFilterByScopeTableExclude verifies that findings whose AnchorTable is in
-// ExcludeTables are dropped, and nil-AnchorTable findings survive.
-func TestFilterByScopeTableExclude(t *testing.T) {
-	orders := ref("public", "orders")
-	customers := ref("public", "customers")
-
+// TestFilterByScopeNoAnchorDroppedByTables verifies that a finding with no
+// derived anchor is dropped when Tables is non-empty, but passes through an
+// empty Scope (no filter applied). All findings are built via noAnchorDiff,
+// which forces an ObjectRef identity with a non-table ObjectType so
+// anchorTableOf returns ok=false.
+func TestFilterByScopeNoAnchorDroppedByTables(t *testing.T) {
 	diffs := []Difference{
-		{Type: TableAdded, Object: orders, AnchorTable: &orders},
-		{Type: TableAdded, Object: customers, AnchorTable: &customers},
-		// Synthetic nil-AnchorTable finding using a kept DiffType.
-		// The ExcludeTables filter must NOT drop it (nil anchor is never excluded).
-		nilAnchorDiff(TableNameChanged, "public", "some_obj"),
+		noAnchorDiff(TableAdded, "public", "t1"),
+		noAnchorDiff(ColumnAdded, "public", "t2"),
+		noAnchorDiff(TableDropped, "public", "t3"),
 	}
 
-	got := FilterByScope(diffs, Scope{ExcludeTables: []schemasnapshot.ObjectRef{ref("public", "orders")}})
-
-	gotTypes := collectTypes(got)
-	assert.False(t, func() bool {
-		for _, d := range got {
-			if d.AnchorTable != nil && d.AnchorTable.ForDisplay(constants.POSTGRESQL) == "public.orders" {
-				return true
-			}
-		}
-		return false
-	}(), "public.orders-anchored findings should be excluded")
-	assert.True(t, gotTypes[TableAdded], "public.customers TableAdded should remain")
-	assert.True(t, gotTypes[TableNameChanged], "nil-AnchorTable finding should not be dropped by ExcludeTables")
-	assert.Len(t, got, 2)
-}
-
-// ─── nil AnchorTable findings ─────────────────────────────────────────────────
-
-// TestFilterByScopeNilAnchorDroppedByTables verifies that a finding with a nil
-// AnchorTable is dropped when Tables is non-empty, but passes through an empty
-// Scope (no filter applied). All findings use kept DiffTypes; their AnchorTable
-// is set to nil synthetically to exercise the nil-anchor code path.
-func TestFilterByScopeNilAnchorDroppedByTables(t *testing.T) {
-	// Three synthetic nil-AnchorTable findings using kept DiffTypes.
-	diffs := []Difference{
-		nilAnchorDiff(TableAdded, "public", "t1"),
-		nilAnchorDiff(ColumnAdded, "public", "t2"),
-		nilAnchorDiff(TableDropped, "public", "t3"),
-	}
-
-	// Non-empty Tables list: nil-AnchorTable findings must be dropped.
+	// Non-empty Tables list: no-anchor findings must be dropped.
 	got := FilterByScope(diffs, Scope{Tables: []schemasnapshot.ObjectRef{ref("public", "orders")}})
-	assert.Empty(t, got, "nil-AnchorTable findings must be dropped when Tables is non-empty")
+	assert.Empty(t, got, "no-anchor findings must be dropped when Tables is non-empty")
 
-	// Empty scope: all pass through (nil-AnchorTable is not dropped by ObjectTypes alone).
+	// Empty scope: all pass through (no-anchor is not dropped by ObjectTypes alone).
 	got2 := FilterByScope(diffs, Scope{})
-	assert.Len(t, got2, 3, "nil-AnchorTable findings pass through an empty Scope")
+	assert.Len(t, got2, 3, "no-anchor findings pass through an empty Scope")
 
-	// TABLE object-type filter: all three pass (they all map to ObjectTypeTable).
+	// TABLE object-type filter: none of these findings are ObjectTypeTable — they
+	// use the placeholder "VIEW" ObjectType specifically to be anchor-less, since
+	// anchorTableOf's ObjectRef case treats "is a TABLE" and "has a self-anchor"
+	// as the same fact (a real TABLE finding always anchors to itself). So all
+	// three are dropped by an ObjectTypeTable-only include, unlike the old model
+	// where AnchorTable was an independently-settable nil field.
 	got3 := FilterByScope(diffs, Scope{ObjectTypes: []ObjectType{ObjectTypeTable}})
-	assert.Len(t, got3, 3, "nil-AnchorTable findings with TABLE DiffType pass ObjectTypeTable filter")
+	assert.Empty(t, got3, "no-anchor findings are never ObjectTypeTable, so the TABLE filter drops all of them")
 }
 
 // ─── Either-side NAME_CHANGED rule ───────────────────────────────────────────
@@ -396,13 +332,12 @@ func TestFilterByScopeAnchorRenameExtension(t *testing.T) {
 	// A column change anchored to the OLD table name (as the diff engine would emit it).
 	oldAnchor := ref("public", "orders")
 	colChange := Difference{
-		Type:        ColumnTypeChanged,
-		Object:      oldAnchor,
-		AnchorTable: &oldAnchor,
-		SubObject:   "amount",
-		Property:    "data_type",
-		OldValue:    "integer",
-		NewValue:    "bigint",
+		Type:       ColumnTypeChanged,
+		ObjectType: ObjectTypeColumn,
+		ObjectA:    schemasnapshot.TableScopedRef{Table: oldAnchor, Name: "amount"},
+		ObjectB:    schemasnapshot.TableScopedRef{Table: oldAnchor, Name: "amount"},
+		SideAValue: "integer",
+		SideBValue: "bigint",
 	}
 
 	diffs := []Difference{rename, colChange}
@@ -413,40 +348,19 @@ func TestFilterByScopeAnchorRenameExtension(t *testing.T) {
 	assert.Len(t, got, 2, "rename + column change should both be kept when new name is in Tables")
 }
 
-// TestFilterByScopeAnchorRenameExtensionExclude verifies that when a table is
-// renamed and a finding is anchored to the old name, ExcludeTables with the
-// new name still drops the finding (either-side rule applies to excludes too).
-func TestFilterByScopeAnchorRenameExtensionExclude(t *testing.T) {
-	rename := nameChangedDiff(TableNameChanged, "public", "orders", "purchase_orders")
-	oldAnchor := ref("public", "orders")
-	colChange := Difference{
-		Type:        ColumnTypeChanged,
-		Object:      oldAnchor,
-		AnchorTable: &oldAnchor,
-		SubObject:   "amount",
-	}
-
-	diffs := []Difference{rename, colChange}
-
-	// Excluding by the NEW name should drop findings whose anchor is the OLD name
-	// (because they are aliases via the rename map).
-	got := FilterByScope(diffs, Scope{ExcludeTables: []schemasnapshot.ObjectRef{ref("public", "purchase_orders")}})
-	assert.Empty(t, got, "findings anchored to old name should be excluded when new name is in ExcludeTables")
-}
-
-// TestFilterByScopeAliasMapCollision verifies that when two TABLE_NAME_CHANGED
-// entries share a name (e.g. "users→customers" and "customers→clients"), the
-// alias map correctly accumulates multiple aliases per name without the second
-// rename silently overwriting the first, so no finding is incorrectly dropped.
+// TestFilterByScopeAliasMapCollision verifies that two TABLE_NAME_CHANGED
+// entries sharing a name (e.g. "users→customers" and "customers→clients")
+// accumulate multiple aliases per name instead of the second rename
+// overwriting the first.
 //
 // Scenario:
 //
 //	rename1: users        → customers
 //	rename2: customers    → clients
 //
-// A column finding anchored to "users" must still be included when Tables
-// contains "customers" (transitively via rename1's alias), and must not be
-// silently dropped by a map-key collision between the two renames.
+// A column finding anchored to "users" must stay included when Tables contains
+// "customers" (via rename1's alias), without being dropped by the map-key
+// collision between the two renames.
 func TestFilterByScopeAliasMapCollision(t *testing.T) {
 	// Two renames where rename2's old name equals rename1's new name.
 	rename1 := nameChangedDiff(TableNameChanged, "public", "users", "customers")
@@ -454,12 +368,7 @@ func TestFilterByScopeAliasMapCollision(t *testing.T) {
 
 	// A column change anchored to the original "users" name.
 	usersRef := ref("public", "users")
-	colChange := Difference{
-		Type:        ColumnAdded,
-		Object:      usersRef,
-		AnchorTable: &usersRef,
-		SubObject:   "email",
-	}
+	colChange := colDiff(ColumnAdded, usersRef, "email")
 
 	diffs := []Difference{rename1, rename2, colChange}
 
@@ -467,18 +376,17 @@ func TestFilterByScopeAliasMapCollision(t *testing.T) {
 	//   - rename1: anchor "users" aliases "customers" ✓
 	//   - rename2: anchor "customers" direct match ✓
 	//   - colChange: anchor "users" aliases "customers" ✓
-	// The key concern is that the alias-map collision (rename1 and rename2 both
-	// touching "customers" as a key) must NOT cause rename1 or colChange to be
-	// silently dropped.
+	// The alias-map collision (both renames touching "customers" as a key) must
+	// not drop rename1 or colChange.
 	got := FilterByScope(diffs, Scope{Tables: []schemasnapshot.ObjectRef{ref("public", "customers")}})
 	gotTypes := collectTypes(got)
 	assert.True(t, gotTypes[TableNameChanged], "rename findings should be kept — 'customers' is an anchor or alias")
 	assert.True(t, gotTypes[ColumnAdded], "column change anchored to 'users' must NOT be dropped — 'users' aliases 'customers'")
 	assert.Len(t, got, 3, "all three findings should survive filtering by 'customers'")
 
-	// Filtering by "users" should include all three: rename1 (direct anchor),
-	// colChange (direct anchor), and rename2 (its anchor "customers" aliases
-	// "users" because rename1 recorded customers→users in both directions).
+	// Filtering by "users" should include all three: rename1 and colChange
+	// (direct anchor), and rename2 (anchor "customers" aliases "users" since
+	// rename1 recorded the alias in both directions).
 	got2 := FilterByScope(diffs, Scope{Tables: []schemasnapshot.ObjectRef{ref("public", "users")}})
 	got2Types := collectTypes(got2)
 	assert.True(t, got2Types[TableNameChanged], "rename findings should be kept — 'users' is an anchor or alias")
@@ -486,9 +394,8 @@ func TestFilterByScopeAliasMapCollision(t *testing.T) {
 	assert.Len(t, got2, 3, "all three findings are reachable from 'users'")
 
 	// Filtering by "clients" (rename2's new name) should keep rename2 only.
-	// rename1 (anchor "users") and colChange (anchor "users") must NOT be
-	// incorrectly included: aliases["public.users"] = ["public.customers"] only,
-	// not "public.clients" — so the alias-map collision fix is verified here.
+	// rename1 and colChange (anchor "users") must NOT be included:
+	// aliases["public.users"] = ["public.customers"] only, not "public.clients".
 	got3 := FilterByScope(diffs, Scope{Tables: []schemasnapshot.ObjectRef{ref("public", "clients")}})
 	got3Types := collectTypes(got3)
 	assert.True(t, got3Types[TableNameChanged], "rename2 (customers→clients) should be kept when Tables=['public.clients']")
@@ -497,22 +404,6 @@ func TestFilterByScopeAliasMapCollision(t *testing.T) {
 }
 
 // ─── Either-side rule across schema moves (SET SCHEMA) ───────────────────────
-
-// schemaChangedDiff builds a TABLE_SCHEMA_CHANGED finding: a table moved from
-// oldSchema to newSchema, keeping the same name. AnchorTable is the old ref,
-// matching how compareMatchedTables emits it (Object/AnchorTable = side-A ref,
-// OldValue/NewValue = the schema strings).
-func schemaChangedDiff(oldSchema, name, newSchema string) Difference {
-	o := ref(oldSchema, name)
-	return Difference{
-		Type:        TableSchemaChanged,
-		Object:      o,
-		AnchorTable: &o,
-		Property:    "schema",
-		OldValue:    oldSchema,
-		NewValue:    newSchema,
-	}
-}
 
 // TestFilterByScopeSchemaMoveNewIdentityInScope verifies the either-side rule
 // for a table moved to a new schema (TABLE_SCHEMA_CHANGED). A finding anchored
@@ -524,13 +415,12 @@ func TestFilterByScopeSchemaMoveNewIdentityInScope(t *testing.T) {
 	// A column change anchored to the OLD (schema, name).
 	oldAnchor := ref("old_s", "orders")
 	colChange := Difference{
-		Type:        ColumnTypeChanged,
-		Object:      oldAnchor,
-		AnchorTable: &oldAnchor,
-		SubObject:   "amount",
-		Property:    "data_type",
-		OldValue:    "integer",
-		NewValue:    "bigint",
+		Type:       ColumnTypeChanged,
+		ObjectType: ObjectTypeColumn,
+		ObjectA:    schemasnapshot.TableScopedRef{Table: oldAnchor, Name: "amount"},
+		ObjectB:    schemasnapshot.TableScopedRef{Table: oldAnchor, Name: "amount"},
+		SideAValue: "integer",
+		SideBValue: "bigint",
 	}
 
 	diffs := []Difference{move, colChange}
@@ -545,55 +435,36 @@ func TestFilterByScopeSchemaMoveNewIdentityInScope(t *testing.T) {
 	assert.Len(t, gotOld, 2, "both findings should be kept when the old identifier is in Tables")
 }
 
-// TestFilterByScopeSchemaMoveExclude verifies the either-side rule applies to
-// ExcludeTables for schema moves: excluding by the NEW identifier drops a
-// finding anchored to the OLD identifier.
-func TestFilterByScopeSchemaMoveExclude(t *testing.T) {
-	move := schemaChangedDiff("old_s", "orders", "new_s")
-	oldAnchor := ref("old_s", "orders")
-	colChange := Difference{
-		Type:        ColumnTypeChanged,
-		Object:      oldAnchor,
-		AnchorTable: &oldAnchor,
-		SubObject:   "amount",
-	}
-
-	diffs := []Difference{move, colChange}
-
-	got := FilterByScope(diffs, Scope{ExcludeTables: []schemasnapshot.ObjectRef{ref("new_s", "orders")}})
-	assert.Empty(t, got, "findings anchored to the old identifier should be excluded when the new identifier is in ExcludeTables")
-}
-
 // TestFilterByScopeRenameAndMove verifies the either-side rule when a table is
 // BOTH renamed and moved in the same interval. compareMatchedTables emits two
 // findings (TABLE_NAME_CHANGED and TABLE_SCHEMA_CHANGED) that share the same
-// side-A anchor; the new identity is (newSchema, newName). The alias must be
-// reconstructed from BOTH findings combined — not the old schema + new name.
+// side-A AND side-B identity — ObjectA is the complete old (schema, name) and
+// ObjectB is the complete new (schema, name). The alias must be built from
+// those complete refs directly — not reconstructed piecemeal from OldValue/
+// NewValue strings.
 func TestFilterByScopeRenameAndMove(t *testing.T) {
 	// "old_s.orders" → "new_s.purchase_orders" (rename + move).
-	oldAnchor := ref("old_s", "orders")
+	oldRef := ref("old_s", "orders")
+	newRef := ref("new_s", "purchase_orders")
 	rename := Difference{
-		Type:        TableNameChanged,
-		Object:      oldAnchor,
-		AnchorTable: &oldAnchor,
-		Property:    "name",
-		OldValue:    "orders",
-		NewValue:    "purchase_orders",
+		Type:       TableNameChanged,
+		ObjectType: ObjectTypeTable,
+		ObjectA:    oldRef,
+		ObjectB:    newRef,
+		SideAValue: "orders",
+		SideBValue: "purchase_orders",
 	}
 	move := Difference{
-		Type:        TableSchemaChanged,
-		Object:      oldAnchor,
-		AnchorTable: &oldAnchor,
-		Property:    "schema",
-		OldValue:    "old_s",
-		NewValue:    "new_s",
+		Type:       TableSchemaChanged,
+		ObjectType: ObjectTypeTable,
+		ObjectA:    oldRef,
+		ObjectB:    newRef,
+		SideAValue: "old_s",
+		SideBValue: "new_s",
 	}
-	colChange := Difference{
-		Type:        ColumnAdded,
-		Object:      oldAnchor,
-		AnchorTable: &oldAnchor,
-		SubObject:   "email",
-	}
+	// A column change anchored to the side-A (old) table ref, as the diff engine
+	// emits it (compareMatchedColumns anchors to cA.TableScopedRef).
+	colChange := colDiff(ColumnAdded, oldRef, "email")
 
 	diffs := []Difference{rename, move, colChange}
 
@@ -611,62 +482,39 @@ func TestFilterByScopeRenameAndMove(t *testing.T) {
 	assert.Empty(t, gotBogus, "the spurious old-schema+new-name identifier must not match — the table never had that identity")
 }
 
-// ─── Include-then-exclude interaction ────────────────────────────────────────
+// ─── ObjectTypes-and-Tables interaction ──────────────────────────────────────
 
-// TestFilterByScopeIncludeThenExclude verifies that the include filter runs
-// before the exclude filter and that their interaction is correct.
-// In V1 all DiffTypes map to ObjectTypeTable, so: include TABLE keeps everything,
-// then exclude TABLE drops everything; include INDEX keeps nothing, exclude TABLE
-// is then moot.
-func TestFilterByScopeIncludeThenExclude(t *testing.T) {
+// TestFilterByScopeObjectTypeAndTablesCombine verifies that the ObjectTypes and
+// Tables filters combine (both must pass): a TABLE-only ObjectTypes filter
+// drops the column finding before the Tables filter is even relevant, and a
+// Tables filter further narrows the surviving table findings to a single one.
+func TestFilterByScopeObjectTypeAndTablesCombine(t *testing.T) {
 	orders := ref("public", "orders")
-	customers := ref("public", "customers")
 
 	diffs := []Difference{
-		{Type: TableAdded, Object: orders, AnchorTable: &orders},
-		{Type: TableAdded, Object: customers, AnchorTable: &customers},
-		tableDiff(ColumnAdded, "public", "orders"),
+		tableDiff(TableAdded, "public", "orders"),
+		tableDiff(TableAdded, "public", "customers"),
+		colDiff(ColumnAdded, orders, "email"),
 	}
 
-	// Include TABLE, then exclude TABLE — exclude wins, result is empty.
-	gotBoth := FilterByScope(diffs, Scope{
-		ObjectTypes:        []ObjectType{ObjectTypeTable},
-		ExcludeObjectTypes: []ObjectType{ObjectTypeTable},
-	})
-	assert.Empty(t, gotBoth, "TABLE included then excluded — exclude wins, result must be empty")
-
-	// Include TABLE only: all V1 findings pass.
+	// ObjectTypes=[TABLE] only: both table findings pass; the column finding
+	// maps to ObjectTypeColumn and is dropped by the include filter.
 	gotIncludeTable := FilterByScope(diffs, Scope{
 		ObjectTypes: []ObjectType{ObjectTypeTable},
 	})
-	assert.Len(t, gotIncludeTable, len(diffs), "TABLE include keeps all V1 findings")
-
-	// Include INDEX only: no V1 findings map to INDEX, result is empty.
-	gotIncludeIndex := FilterByScope(diffs, Scope{
-		ObjectTypes: []ObjectType{ObjectTypeIndex},
-	})
-	assert.Empty(t, gotIncludeIndex, "INDEX include drops all V1 findings")
-}
-
-// TestFilterByScopeIncludeTableExcludeTable verifies that when a table appears
-// in both Tables and ExcludeTables, the exclude wins (exclude runs after include).
-func TestFilterByScopeIncludeTableExcludeTable(t *testing.T) {
-	orders := ref("public", "orders")
-	customers := ref("public", "customers")
-
-	diffs := []Difference{
-		{Type: TableAdded, Object: orders, AnchorTable: &orders},
-		{Type: TableAdded, Object: customers, AnchorTable: &customers},
+	assert.Len(t, gotIncludeTable, 2, "TABLE include keeps only table findings")
+	for _, d := range gotIncludeTable {
+		assert.Equal(t, ObjectTypeTable, d.ObjectType)
 	}
 
-	// Include both, then exclude orders.
+	// Tables=[customers] further narrows to only the customers table finding.
 	got := FilterByScope(diffs, Scope{
-		Tables:        []schemasnapshot.ObjectRef{ref("public", "orders"), ref("public", "customers")},
-		ExcludeTables: []schemasnapshot.ObjectRef{ref("public", "orders")},
+		Tables: []schemasnapshot.ObjectRef{ref("public", "customers")},
 	})
-
 	assert.Len(t, got, 1)
-	assert.Equal(t, "public.customers", got[0].AnchorTable.ForDisplay(constants.POSTGRESQL))
+	disp, ok := anchorDisplay(got[0])
+	require.True(t, ok, "surviving finding must have a derived anchor")
+	assert.Equal(t, "public.customers", disp)
 }
 
 // ─── Edge cases ───────────────────────────────────────────────────────────────

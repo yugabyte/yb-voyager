@@ -33,29 +33,36 @@ func objRef(schema, name string) schemasnapshot.ObjectRef {
 	return schemasnapshot.ObjectRef{Schema: schema, Name: name}
 }
 
-func fixtureTable(id, schema, name string) schemasnapshot.Table {
+// fixtureTable builds an ordinary table with the given ID/schema/name and,
+// optionally, its nested columns (the new SnapshotContent model has each
+// table carry its own Columns rather than a flat top-level list).
+func fixtureTable(id, schema, name string, cols ...schemasnapshot.Column) schemasnapshot.Table {
 	return schemasnapshot.Table{
 		ObjectRef: objRef(schema, name),
 		ID:        id,
 		Kind:      schemasnapshot.TableKindOrdinary,
+		Columns:   cols,
 	}
 }
 
-func fixtureColumn(schema, tableName, id, name, dataType string) schemasnapshot.Column {
+// fixtureColumn builds a column nested under (tableSchema, tableName), for
+// passing into fixtureTable's variadic cols.
+func fixtureColumn(tableSchema, tableName, id, name, dataType string) schemasnapshot.Column {
 	return schemasnapshot.Column{
-		Table:    objRef(schema, tableName),
+		TableScopedRef: schemasnapshot.TableScopedRef{
+			Table: objRef(tableSchema, tableName),
+			Name:  name,
+		},
 		ID:       id,
-		Name:     name,
 		DataType: dataType,
 	}
 }
 
-func fixtureContent(tables []schemasnapshot.Table, cols []schemasnapshot.Column) *schemasnapshot.SnapshotContent {
+func fixtureContent(tables ...schemasnapshot.Table) *schemasnapshot.SnapshotContent {
 	return &schemasnapshot.SnapshotContent{
 		Version:      1,
 		DatabaseType: "postgresql",
 		Tables:       tables,
-		Columns:      cols,
 	}
 }
 
@@ -76,11 +83,11 @@ func t4() time.Time { return time.Date(2026, 1, 1, 13, 0, 0, 0, time.UTC) }
 // ─── tests ────────────────────────────────────────────────────────────────
 
 func TestBuildReport_ConsecutivePairsProduceDiffEntries(t *testing.T) {
-	t1Content := fixtureContent([]schemasnapshot.Table{fixtureTable("1", "public", "orders")}, nil)
-	t2Content := fixtureContent([]schemasnapshot.Table{
+	t1Content := fixtureContent(fixtureTable("1", "public", "orders"))
+	t2Content := fixtureContent(
 		fixtureTable("1", "public", "orders"),
 		fixtureTable("2", "public", "customers"),
-	}, nil)
+	)
 
 	p := BuildParams{
 		Snapshots: []SnapshotInput{
@@ -104,11 +111,11 @@ func TestBuildReport_ConsecutivePairsProduceDiffEntries(t *testing.T) {
 }
 
 func TestBuildReport_EmptyIntervalsProduceNoEntriesButKeepSequencing(t *testing.T) {
-	base := fixtureContent([]schemasnapshot.Table{fixtureTable("1", "public", "orders")}, nil)
-	changed := fixtureContent([]schemasnapshot.Table{
+	base := fixtureContent(fixtureTable("1", "public", "orders"))
+	changed := fixtureContent(
 		fixtureTable("1", "public", "orders"),
 		fixtureTable("2", "public", "customers"),
-	}, nil)
+	)
 
 	p := BuildParams{
 		Snapshots: []SnapshotInput{
@@ -129,11 +136,11 @@ func TestBuildReport_EmptyIntervalsProduceNoEntriesButKeepSequencing(t *testing.
 }
 
 func TestBuildReport_PlaceholderPairSkippedEntirely(t *testing.T) {
-	a := fixtureContent([]schemasnapshot.Table{fixtureTable("1", "public", "orders")}, nil)
-	c := fixtureContent([]schemasnapshot.Table{
+	a := fixtureContent(fixtureTable("1", "public", "orders"))
+	c := fixtureContent(
 		fixtureTable("1", "public", "orders"),
 		fixtureTable("2", "public", "customers"),
-	}, nil)
+	)
 
 	p := BuildParams{
 		Snapshots: []SnapshotInput{
@@ -150,11 +157,11 @@ func TestBuildReport_PlaceholderPairSkippedEntirely(t *testing.T) {
 }
 
 func TestBuildReport_SchemaScopeMismatchSkippedEntirely(t *testing.T) {
-	a := fixtureContent([]schemasnapshot.Table{fixtureTable("1", "public", "orders")}, nil)
-	b := fixtureContent([]schemasnapshot.Table{
+	a := fixtureContent(fixtureTable("1", "public", "orders"))
+	b := fixtureContent(
 		fixtureTable("1", "public", "orders"),
 		fixtureTable("2", "public", "customers"),
-	}, nil)
+	)
 
 	p := BuildParams{
 		Snapshots: []SnapshotInput{
@@ -169,11 +176,11 @@ func TestBuildReport_SchemaScopeMismatchSkippedEntirely(t *testing.T) {
 }
 
 func TestBuildReport_SchemaScopeOrderInsensitive(t *testing.T) {
-	a := fixtureContent([]schemasnapshot.Table{fixtureTable("1", "public", "orders")}, nil)
-	b := fixtureContent([]schemasnapshot.Table{
+	a := fixtureContent(fixtureTable("1", "public", "orders"))
+	b := fixtureContent(
 		fixtureTable("1", "public", "orders"),
 		fixtureTable("2", "public", "customers"),
-	}, nil)
+	)
 
 	p := BuildParams{
 		Snapshots: []SnapshotInput{
@@ -188,11 +195,11 @@ func TestBuildReport_SchemaScopeOrderInsensitive(t *testing.T) {
 }
 
 func TestBuildReport_LivePairPhaseIsSinceLastCapture(t *testing.T) {
-	a := fixtureContent([]schemasnapshot.Table{fixtureTable("1", "public", "orders")}, nil)
-	live := fixtureContent([]schemasnapshot.Table{
+	a := fixtureContent(fixtureTable("1", "public", "orders"))
+	live := fixtureContent(
 		fixtureTable("1", "public", "orders"),
 		fixtureTable("2", "public", "customers"),
-	}, nil)
+	)
 
 	p := BuildParams{
 		Snapshots: []SnapshotInput{
@@ -212,16 +219,16 @@ func TestBuildReport_LivePairPhaseIsSinceLastCapture(t *testing.T) {
 }
 
 func TestBuildReport_SummaryCounts(t *testing.T) {
-	a := fixtureContent([]schemasnapshot.Table{fixtureTable("1", "public", "orders")}, nil)
-	b := fixtureContent([]schemasnapshot.Table{
+	a := fixtureContent(fixtureTable("1", "public", "orders"))
+	b := fixtureContent(
 		fixtureTable("1", "public", "orders"),
 		fixtureTable("2", "public", "customers"),
-	}, nil)
-	live := fixtureContent([]schemasnapshot.Table{
+	)
+	live := fixtureContent(
 		fixtureTable("1", "public", "orders"),
 		fixtureTable("2", "public", "customers"),
 		fixtureTable("3", "public", "invoices"),
-	}, nil)
+	)
 
 	p := BuildParams{
 		Snapshots: []SnapshotInput{
@@ -243,7 +250,7 @@ func TestBuildReport_SummaryCounts(t *testing.T) {
 }
 
 func TestBuildReport_SummaryLiveComparedFalseWhenNoLive(t *testing.T) {
-	a := fixtureContent([]schemasnapshot.Table{fixtureTable("1", "public", "orders")}, nil)
+	a := fixtureContent(fixtureTable("1", "public", "orders"))
 	p := BuildParams{
 		Snapshots: []SnapshotInput{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a, Series: schemasnapshot.LabelExportSchema},
@@ -257,9 +264,9 @@ func TestBuildReport_SummaryLiveComparedFalseWhenNoLive(t *testing.T) {
 }
 
 func TestBuildReport_WindowFromToReflectFirstAndLastCapture(t *testing.T) {
-	a := fixtureContent([]schemasnapshot.Table{fixtureTable("1", "public", "orders")}, nil)
-	b := fixtureContent([]schemasnapshot.Table{fixtureTable("1", "public", "orders")}, nil)
-	live := fixtureContent([]schemasnapshot.Table{fixtureTable("1", "public", "orders")}, nil)
+	a := fixtureContent(fixtureTable("1", "public", "orders"))
+	b := fixtureContent(fixtureTable("1", "public", "orders"))
+	live := fixtureContent(fixtureTable("1", "public", "orders"))
 
 	p := BuildParams{
 		Snapshots: []SnapshotInput{
@@ -293,19 +300,19 @@ func TestBuildReport_EmptyInputsProduceZeroValueWindowNoPanic(t *testing.T) {
 
 func TestBuildReport_GlobalSeqNumberingIsSequentialAcrossIntervals(t *testing.T) {
 	// interval 1: two new tables added
-	s1 := fixtureContent([]schemasnapshot.Table{fixtureTable("1", "public", "orders")}, nil)
-	s2 := fixtureContent([]schemasnapshot.Table{
+	s1 := fixtureContent(fixtureTable("1", "public", "orders"))
+	s2 := fixtureContent(
 		fixtureTable("1", "public", "orders"),
 		fixtureTable("2", "public", "customers"),
 		fixtureTable("3", "public", "invoices"),
-	}, nil)
+	)
 	// interval 2: one more table added
-	s3 := fixtureContent([]schemasnapshot.Table{
+	s3 := fixtureContent(
 		fixtureTable("1", "public", "orders"),
 		fixtureTable("2", "public", "customers"),
 		fixtureTable("3", "public", "invoices"),
 		fixtureTable("4", "public", "payments"),
-	}, nil)
+	)
 
 	p := BuildParams{
 		Snapshots: []SnapshotInput{
@@ -325,21 +332,23 @@ func TestBuildReport_GlobalSeqNumberingIsSequentialAcrossIntervals(t *testing.T)
 	assert.Equal(t, []int{1, 2, 3}, seqs)
 }
 
-func TestBuildReport_ScopeFilteringExcludesTable(t *testing.T) {
-	before := fixtureContent([]schemasnapshot.Table{
+func TestBuildReport_ScopeFilteringKeepsOnlyListedTable(t *testing.T) {
+	before := fixtureContent(
 		fixtureTable("1", "public", "orders"),
 		fixtureTable("2", "public", "customers"),
-	}, nil)
-	after := fixtureContent([]schemasnapshot.Table{
+	)
+	after := fixtureContent(
 		fixtureTable("1", "public", "orders"),
-		fixtureTable("2", "public", "customers"),
+		fixtureTable("2", "public", "customers", fixtureColumn("public", "customers", "2:2", "email", "text")),
 		fixtureTable("3", "public", "invoices"),
-	}, []schemasnapshot.Column{
-		fixtureColumn("public", "customers", "2:2", "email", "text"),
-	})
+	)
 
+	// Scope.Tables is a positive allow-list (there is no ExcludeTables
+	// anymore): listing only "invoices" keeps its TABLE_ADDED finding while
+	// filtering out customers' COLUMN_ADDED finding, even though customers
+	// also changed in this interval.
 	scope := schemadiff.Scope{
-		ExcludeTables: []schemasnapshot.ObjectRef{objRef("public", "customers")},
+		Tables: []schemasnapshot.ObjectRef{objRef("public", "invoices")},
 	}
 
 	p := BuildParams{
@@ -352,6 +361,6 @@ func TestBuildReport_ScopeFilteringExcludesTable(t *testing.T) {
 
 	report := BuildReport(p)
 
-	require.Len(t, report.Diffs, 1, "the excluded table's column-added finding must not appear")
+	require.Len(t, report.Diffs, 1, "only the allow-listed table's finding must appear")
 	assert.Equal(t, objRef("public", "invoices"), report.Diffs[0].Object)
 }

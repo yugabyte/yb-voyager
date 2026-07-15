@@ -101,18 +101,21 @@ func BuildReport(p BuildParams) Report {
 
 		for _, d := range differ.Diff(prev.Content, next.Content) {
 			seq++
+			obj, subObj := splitIdentity(displayIdentity(d))
 			diffs = append(diffs, DiffEntry{
-				Seq:       seq,
-				Type:      string(d.Type),
-				Object:    d.Object,
-				SubObject: d.SubObject,
-				Status:    string(Classify(d.Type)),
-				Property:  d.Property,
-				OldValue:  d.OldValue,
-				NewValue:  d.NewValue,
-				Window:    window,
-				Phase:     phase,
-				Guidance:  Guidance(d.Type),
+				Seq:        seq,
+				Type:       string(d.Type),
+				Operation:  string(d.Operation),
+				ObjectType: string(d.ObjectType),
+				Attribute:  string(d.Attribute),
+				Object:     obj,
+				SubObject:  subObj,
+				Status:     string(Classify(d.Type)),
+				OldValue:   d.SideAValue,
+				NewValue:   d.SideBValue,
+				Window:     window,
+				Phase:      phase,
+				Guidance:   Guidance(d.Type),
 			})
 		}
 	}
@@ -140,6 +143,34 @@ func BuildReport(p BuildParams) Report {
 		},
 		Diffs:    diffs,
 		Captures: captures,
+	}
+}
+
+// displayIdentity picks the finding's display identity: side-B (new) when
+// present, else side-A (old) — the same "prefer new, fall back to old"
+// convention Difference itself documents for ObjectA/ObjectB (nil ObjectB for
+// *_DROPPED, nil ObjectA for *_ADDED, both set for *_CHANGED where they may
+// differ, e.g. a rename).
+func displayIdentity(d schemadiff.Difference) schemadiff.ObjectIdent {
+	if d.ObjectB != nil {
+		return d.ObjectB
+	}
+	return d.ObjectA
+}
+
+// splitIdentity derives DiffEntry's Object/SubObject pair from a finding's
+// identity. A schema-level identity (schemasnapshot.ObjectRef, e.g. a table)
+// maps directly to Object with no SubObject. A table-scoped identity
+// (schemasnapshot.TableScopedRef, e.g. a column) maps to its parent table as
+// Object and its own name as SubObject.
+func splitIdentity(id schemadiff.ObjectIdent) (obj schemasnapshot.ObjectRef, subObject string) {
+	switch it := id.(type) {
+	case schemasnapshot.ObjectRef:
+		return it, ""
+	case schemasnapshot.TableScopedRef:
+		return it.Table, it.Name
+	default:
+		return schemasnapshot.ObjectRef{}, ""
 	}
 }
 

@@ -16,87 +16,54 @@ package schemadiff
 
 import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 
-// ObjectType is the user-facing object-type selector used in Scope filtering.
-// There are six declared selectors, matching the values accepted by
-// --object-type-list: TABLE, INDEX, SEQUENCE, VIEW, FUNCTION, TYPE.
-// Materialized views ride under VIEW (no separate selector).
+// ObjectType is the user-facing object-type selector for Scope filtering, matching
+// the values accepted by --object-type-list. v1 emits and filters TABLE and COLUMN
+// findings, so both are declared; the remaining selectors are re-enabled as the
+// engine starts emitting their findings.
+//
+// COLUMN is its own selector: a column change is filtered directly by
+// --object-type-list=COLUMN (it is NOT swept in under TABLE). Table-scoping is
+// orthogonal — a column finding still anchors to its host table for --table-list.
 type ObjectType string
 
 const (
-	ObjectTypeTable ObjectType = "TABLE"
-	// ObjectTypeIndex selects INDEX_* findings. Indexes are a first-class,
-	// independently selectable object type per the functional spec, so all
-	// INDEX_* DiffTypes classify here (not under ObjectTypeTable). An index
-	// still carries its host table in Difference.AnchorTable, so --table-list
-	// matches an index against its table independently of --object-type-list.
-	ObjectTypeIndex    ObjectType = "INDEX"
-	ObjectTypeSequence ObjectType = "SEQUENCE"
-	ObjectTypeView     ObjectType = "VIEW"
-	ObjectTypeFunction ObjectType = "FUNCTION"
-	ObjectTypeType     ObjectType = "TYPE"
+	ObjectTypeTable  ObjectType = "TABLE"
+	ObjectTypeColumn ObjectType = "COLUMN"
+	// Not yet emitted by the diff engine — uncomment each as its findings land
+	// (INDEX is its own selector but stays anchored to its host table for
+	// --table-list, like COLUMN):
+	// ObjectTypeIndex    ObjectType = "INDEX"
+	// ObjectTypeSequence ObjectType = "SEQUENCE"
+	// ObjectTypeView     ObjectType = "VIEW"
+	// ObjectTypeFunction ObjectType = "FUNCTION"
+	// ObjectTypeType     ObjectType = "TYPE"
 )
 
-// Scope describes the include/exclude filters applied by FilterByScope.
-//
-// Tables and ExcludeTables hold caller-RESOLVED catalog identities: the caller
-// resolves --table-list / --exclude-table-list globs and the default schema to
-// concrete ObjectRefs before calling FilterByScope. Matching here is exact,
-// case-sensitive struct equality against Difference.AnchorTable — no further
-// name resolution, quoting, or case-folding happens inside this package.
-// ObjectTypes and ExcludeObjectTypes match on the object-type bucket that each
-// DiffType belongs to. An empty list means "all".
-//
-// Scope is intentionally permissive and policy-free — it never errors:
-//   - Both an include and its exclude list may be non-empty at once. Overlap is
-//     resolved deterministically rather than rejected: exclude wins, because
-//     FilterByScope applies includes first and excludes last (a finding kept by
-//     an include is still dropped if it matches the corresponding exclude).
-//   - An entry that matches nothing in the diff is a silent no-op.
-//
-// Flag-level policy is deliberately left to the caller (the command), mirroring
-// where voyager validates such things. In particular, the convention that
-// --table-list and --exclude-table-list are mutually exclusive is the command's
-// to enforce at flag-parse time; the library does not, so that FilterByScope can
-// stay a pure, total function for any programmatic caller (a future Scope.Validate
-// could host such rules without making FilterByScope failable).
+// Scope describes the include filters applied by FilterByScope. Both lists are
+// caller-RESOLVED positive allow-lists (globs, default schema, and any exclude
+// semantics already expanded by the caller into a concrete set); an empty/nil
+// list means "all".
 type Scope struct {
-	Tables             []schemasnapshot.ObjectRef // empty = all; matched against AnchorTable
-	ExcludeTables      []schemasnapshot.ObjectRef // drop findings whose AnchorTable is in this list
-	ObjectTypes        []ObjectType               // empty = all
-	ExcludeObjectTypes []ObjectType
+	Tables      []schemasnapshot.ObjectRef // empty = all; matched against the finding's derived anchor table
+	ObjectTypes []ObjectType               // empty = all; matched against the finding's ObjectType
 }
 
-// FilterByScope returns the subset of diffs that fall within the given scope.
+// FilterByScope returns the subset of diffs within scope. It is pure: inputs are
+// never mutated and the result is a fresh slice; a name matching nothing is a
+// silent no-op (validation is the caller's job).
 //
-// Filtering is pure: diffs and scope are never mutated and the returned slice
-// is always a new allocation. A name matching nothing in the diff set is a
-// silent no-op — validation is the caller's responsibility.
-//
-// The algorithm (§8):
-//  1. Build an identity-alias map from TABLE_NAME_CHANGED and TABLE_SCHEMA_CHANGED
-//     findings so that a finding whose AnchorTable was itself renamed and/or
-//     moved is kept when either the old or new catalog identifier appears in
-//     Tables / ExcludeTables.
-//  2. Apply ObjectTypes (include) — keep if list is empty or bucket is listed.
-//  3. Apply Tables (include) — keep if list is empty or AnchorTable matches.
-//     A nil AnchorTable never matches a non-empty Tables list.
-//  4. Apply ExcludeObjectTypes — drop if bucket is listed.
-//  5. Apply ExcludeTables — drop if AnchorTable matches; nil is never dropped.
+// A table rename/move alias map is built first so a finding anchored to a renamed
+// table matches on either its old or new identity. Then, in order:
+//  1. include by ObjectTypes
+//  2. include by Tables (a finding with no derived anchor never matches a non-empty list)
 func FilterByScope(diffs []Difference, scope Scope) []Difference {
-	// Pre-pass: build a bidirectional alias map between each table's old and new
-	// catalog identifier from TABLE_NAME_CHANGED / TABLE_SCHEMA_CHANGED findings.
-	// This implements the anchor either-side rule: a finding whose AnchorTable was
-	// itself renamed and/or moved is kept when either the old or the new
-	// identifier is in scope.
-	//
-	// The map is keyed by ObjectRef (exact struct identity), not a string.
+	// Bidirectional old<->new alias map for renamed/moved tables, so a finding
+	// anchored to a renamed table matches on either identity (keyed by ObjectRef).
 	tableRenameAliases := buildTableRenameAliases(diffs)
 
-	// Pre-build lookup sets for the four lists to avoid O(n²) inner scans.
-	includeTypes := makeObjectTypeSet(scope.ObjectTypes)
-	excludeTypes := makeObjectTypeSet(scope.ExcludeObjectTypes)
-	includeTables := makeObjectRefSet(scope.Tables)
-	excludeTables := makeObjectRefSet(scope.ExcludeTables)
+	// Pre-build lookup sets for the two lists to avoid O(n²) inner scans.
+	includeTypes := toSet(scope.ObjectTypes)
+	includeTables := toSet(scope.Tables)
 
 	out := make([]Difference, 0, len(diffs))
 	for _, d := range diffs {
@@ -106,81 +73,61 @@ func FilterByScope(diffs []Difference, scope Scope) []Difference {
 		if !passesTableIncludeFilter(d, includeTables, tableRenameAliases) {
 			continue
 		}
-		if !passesObjectTypeExcludeFilter(d, excludeTypes) {
-			continue
-		}
-		if !passesTableExcludeFilter(d, excludeTables, tableRenameAliases) {
-			continue
-		}
 		out = append(out, d)
 	}
 	return out
 }
 
-// buildTableRenameAliases scans diffs for the findings that change a table's
-// catalog identity — TABLE_NAME_CHANGED (new name) and TABLE_SCHEMA_CHANGED (new
-// schema, i.e. SET SCHEMA) — and returns a map from each identity to all the
-// identities it is aliased to, so either side of an identity change can stand
-// in for the other during table-scope matching (the either-side rule, §8).
-//
-// A single table may change BOTH its name and schema in one interval. The diff
-// engine emits these as two separate findings that share the same side-A anchor
-// (compareMatchedTables builds both from the same base.Object). We therefore
-// group identity changes by the old ObjectRef and reconstruct the FULL new ref
-// by applying whichever of {schema, name} changed — never "old schema + new
-// name", which is not a real identity of the table on either side.
-//
-// The map accumulates multiple aliases per identity (a []ObjectRef) so rename
-// chains across distinct tables in one diff set (e.g. a→b and b→c) do not clobber
-// one another. Keys and values are ObjectRef structs (exact identity, no string
-// rendering involved).
-//
-// No-op changes (old == new) are skipped to keep the alias set clean.
-func buildTableRenameAliases(diffs []Difference) map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef {
-	// Group the per-attribute identity changes by the side-A (old) ref so a
-	// rename-and-move pair is recombined into one old→new mapping.
-	type identityChange struct {
-		oldRef    schemasnapshot.ObjectRef
-		newSchema string // "" => schema unchanged
-		newName   string // "" => name unchanged
+// anchorTableOf returns the host table a finding filters under for --table-list,
+// derived from its identity: a table-scoped object (column/index) anchors to its
+// parent table; a TABLE anchors to itself; a top-level object (view/function) has
+// none. ok is false when there is no table anchor. Uses the side-A identity
+// (side-B for *_ADDED, where ObjectA is nil).
+func anchorTableOf(d Difference) (schemasnapshot.ObjectRef, bool) {
+	id := d.ObjectA
+	if id == nil {
+		id = d.ObjectB
 	}
-	changes := make(map[schemasnapshot.ObjectRef]*identityChange)
-	at := func(old schemasnapshot.ObjectRef) *identityChange {
-		c := changes[old]
-		if c == nil {
-			c = &identityChange{oldRef: old}
-			changes[old] = c
+	switch v := id.(type) {
+	case schemasnapshot.TableScopedRef:
+		return v.Table, true
+	case schemasnapshot.ObjectRef:
+		if d.ObjectType == ObjectTypeTable {
+			return v, true
 		}
-		return c
+	}
+	return schemasnapshot.ObjectRef{}, false
+}
+
+// buildTableRenameAliases maps each table identity to the identities it aliases,
+// from TABLE_NAME_CHANGED and TABLE_SCHEMA_CHANGED findings, so either side of a
+// rename/move can stand in during table matching. ObjectA/ObjectB now carry the
+// complete old/new refs directly (no reconstruction from OldValue/NewValue
+// strings needed). Aliases accumulate ([]ObjectRef) so chains like a→b, b→c
+// don't clobber each other, and dedup so a rename+move pair (which emits both a
+// NAME_CHANGED and a SCHEMA_CHANGED finding sharing the same old→new refs)
+// doesn't record the same alias twice.
+func buildTableRenameAliases(diffs []Difference) map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef {
+	aliases := make(map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef)
+	add := func(from, to schemasnapshot.ObjectRef) {
+		for _, x := range aliases[from] {
+			if x == to {
+				return
+			}
+		}
+		aliases[from] = append(aliases[from], to)
 	}
 	for _, d := range diffs {
-		switch d.Type {
-		case TableNameChanged:
-			if newName, ok := d.NewValue.(string); ok && newName != "" {
-				at(d.Object).newName = newName
-			}
-		case TableSchemaChanged:
-			if newSchema, ok := d.NewValue.(string); ok && newSchema != "" {
-				at(d.Object).newSchema = newSchema
-			}
+		if d.Type != TableNameChanged && d.Type != TableSchemaChanged {
+			continue
 		}
-	}
-
-	aliases := make(map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef)
-	for _, c := range changes {
-		newRef := c.oldRef
-		if c.newSchema != "" {
-			newRef.Schema = c.newSchema
+		oldRef, ok1 := d.ObjectA.(schemasnapshot.ObjectRef)
+		newRef, ok2 := d.ObjectB.(schemasnapshot.ObjectRef)
+		if !ok1 || !ok2 || oldRef == newRef {
+			continue
 		}
-		if c.newName != "" {
-			newRef.Name = c.newName
-		}
-		oldRef := c.oldRef
-		if oldRef == newRef {
-			continue // no-op
-		}
-		aliases[oldRef] = append(aliases[oldRef], newRef)
-		aliases[newRef] = append(aliases[newRef], oldRef)
+		add(oldRef, newRef)
+		add(newRef, oldRef)
 	}
 	return aliases
 }
@@ -191,41 +138,22 @@ func passesObjectTypeFilter(d Difference, includeTypes map[ObjectType]struct{}) 
 	if len(includeTypes) == 0 {
 		return true
 	}
-	bucket := diffTypeDefs[d.Type].ObjectType
-	_, ok := includeTypes[bucket]
+	_, ok := includeTypes[d.ObjectType]
 	return ok
 }
 
-// passesObjectTypeExcludeFilter returns true if the finding is NOT in the
-// exclude list. An empty excludeTypes means "nothing excluded".
-func passesObjectTypeExcludeFilter(d Difference, excludeTypes map[ObjectType]struct{}) bool {
-	if len(excludeTypes) == 0 {
-		return true
-	}
-	bucket := diffTypeDefs[d.Type].ObjectType
-	_, excluded := excludeTypes[bucket]
-	return !excluded
-}
-
-// passesTableIncludeFilter returns true if the finding should be kept after
-// applying the Tables include filter.
-//
-// Rules:
-//   - Empty includeTables → keep everything.
-//   - nil AnchorTable → never matches; drop when list is non-empty.
-//   - Non-nil AnchorTable → keep if the anchor or any of its identity aliases
-//     appears in the list (either-side rule, §8). The alias map built from
-//     TABLE_NAME_CHANGED / TABLE_SCHEMA_CHANGED findings covers all either-side
-//     cases including the change finding itself (old and new identifiers are
-//     both recorded as aliases).
+// passesTableIncludeFilter keeps a finding under the Tables include filter:
+//   - empty list keeps all
+//   - no derived anchor never matches a non-empty list
+//   - otherwise keep if the anchor or any of its rename aliases is listed (either-side)
 func passesTableIncludeFilter(d Difference, includeTables map[schemasnapshot.ObjectRef]struct{}, aliases map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef) bool {
 	if len(includeTables) == 0 {
 		return true
 	}
-	if d.AnchorTable == nil {
+	anchor, ok := anchorTableOf(d)
+	if !ok {
 		return false
 	}
-	anchor := *d.AnchorTable
 
 	// Check the anchor itself.
 	if _, ok := includeTables[anchor]; ok {
@@ -242,59 +170,16 @@ func passesTableIncludeFilter(d Difference, includeTables map[schemasnapshot.Obj
 	return false
 }
 
-// passesTableExcludeFilter returns true if the finding should NOT be excluded
-// by the ExcludeTables filter.
-//
-// Rules:
-//   - Empty excludeTables → keep everything.
-//   - nil AnchorTable → never excluded by this filter.
-//   - Non-nil AnchorTable → drop if the anchor or any identity alias is in the list.
-//     The alias map covers TABLE_NAME_CHANGED / TABLE_SCHEMA_CHANGED either-side
-//     matching automatically.
-func passesTableExcludeFilter(d Difference, excludeTables map[schemasnapshot.ObjectRef]struct{}, aliases map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef) bool {
-	if len(excludeTables) == 0 {
-		return true
-	}
-	if d.AnchorTable == nil {
-		return true // nil anchor is never excluded by ExcludeTables
-	}
-	anchor := *d.AnchorTable
-
-	if _, ok := excludeTables[anchor]; ok {
-		return false
-	}
-
-	// Check all rename aliases of the anchor.
-	for _, alias := range aliases[anchor] {
-		if _, ok := excludeTables[alias]; ok {
-			return false
-		}
-	}
-
-	return true
-}
-
-// makeObjectTypeSet converts a []ObjectType into a map keyed by ObjectType for O(1) lookup.
-func makeObjectTypeSet(types []ObjectType) map[ObjectType]struct{} {
-	if len(types) == 0 {
+// toSet builds a lookup set from a slice for O(1) membership tests; returns nil
+// for an empty/nil input. For ObjectRef, membership is exact case-sensitive
+// struct equality.
+func toSet[T comparable](items []T) map[T]struct{} {
+	if len(items) == 0 {
 		return nil
 	}
-	m := make(map[ObjectType]struct{}, len(types))
-	for _, t := range types {
-		m[t] = struct{}{}
-	}
-	return m
-}
-
-// makeObjectRefSet converts a []schemasnapshot.ObjectRef into a map for O(1)
-// exact, case-sensitive struct-equality lookup.
-func makeObjectRefSet(refs []schemasnapshot.ObjectRef) map[schemasnapshot.ObjectRef]struct{} {
-	if len(refs) == 0 {
-		return nil
-	}
-	m := make(map[schemasnapshot.ObjectRef]struct{}, len(refs))
-	for _, r := range refs {
-		m[r] = struct{}{}
+	m := make(map[T]struct{}, len(items))
+	for _, x := range items {
+		m[x] = struct{}{}
 	}
 	return m
 }

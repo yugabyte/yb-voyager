@@ -33,12 +33,12 @@ func TestClassify_MappedTypes(t *testing.T) {
 		schemadiff.TableSchemaChanged: StatusBreaksRecoverable,
 		schemadiff.ColumnTypeChanged:  StatusBreaksRecoverable,
 
-		schemadiff.TableAdded:               StatusPotentialImpact,
-		schemadiff.ColumnAdded:              StatusPotentialImpact,
-		schemadiff.ColumnNullabilityChanged: StatusPotentialImpact,
-		schemadiff.TableKindChanged:         StatusPotentialImpact,
-		schemadiff.PartitionParentChanged:   StatusPotentialImpact,
-		schemadiff.PartitionChildrenChanged: StatusPotentialImpact,
+		schemadiff.TableAdded:                    StatusPotentialImpact,
+		schemadiff.ColumnAdded:                   StatusPotentialImpact,
+		schemadiff.ColumnNullabilityChanged:      StatusPotentialImpact,
+		schemadiff.TableKindChanged:              StatusPotentialImpact,
+		schemadiff.TablePartitionParentChanged:   StatusPotentialImpact,
+		schemadiff.TablePartitionChildrenChanged: StatusPotentialImpact,
 
 		schemadiff.ColumnDefaultChanged:    StatusAdvisory,
 		schemadiff.TableInheritsChanged:    StatusAdvisory,

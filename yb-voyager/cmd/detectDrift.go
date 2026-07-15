@@ -56,16 +56,15 @@ var driftValidOutputFormats = []string{"html", "json"}
 // driftObjectTypesByName maps the --object-type-list / --exclude-object-type-list
 // vocabulary (case-insensitive) onto schemadiff.ObjectType. This is intentionally
 // a different (smaller) vocabulary than export/analyze-schema's --object-type-list
-// (TRIGGER, EXTENSION, MVIEW, ...): schemadiff only ever classifies findings into
-// the six schemadiff.ObjectType buckets, so those are the only values detect-drift
-// accepts.
+// (TRIGGER, EXTENSION, MVIEW, ...): the diff engine only emits TABLE and COLUMN
+// findings in v1 (the remaining schemadiff.ObjectType buckets are commented out
+// in the engine until it starts emitting their findings), so those are the only
+// two values detect-drift accepts today. COLUMN is its own selector -- a column
+// change is picked directly by --object-type-list=COLUMN, it is not swept in
+// under TABLE.
 var driftObjectTypesByName = map[string]schemadiff.ObjectType{
-	"TABLE":    schemadiff.ObjectTypeTable,
-	"INDEX":    schemadiff.ObjectTypeIndex,
-	"SEQUENCE": schemadiff.ObjectTypeSequence,
-	"VIEW":     schemadiff.ObjectTypeView,
-	"FUNCTION": schemadiff.ObjectTypeFunction,
-	"TYPE":     schemadiff.ObjectTypeType,
+	"TABLE":  schemadiff.ObjectTypeTable,
+	"COLUMN": schemadiff.ObjectTypeColumn,
 }
 
 var detectDriftCmd = &cobra.Command{
@@ -122,9 +121,9 @@ func init() {
 		"comma-separated list of the tables to exclude from comparison (glob patterns allowed). Only one of --table-list and --exclude-table-list can be specified.")
 
 	detectDriftCmd.Flags().StringVar(&driftObjectTypeList, "object-type-list", "",
-		"comma-separated list of object types to compare: (TABLE, INDEX, SEQUENCE, VIEW, FUNCTION, TYPE). Only one of --object-type-list and --exclude-object-type-list can be specified.")
+		"comma-separated list of object types to compare: (TABLE, COLUMN). Only one of --object-type-list and --exclude-object-type-list can be specified.")
 	detectDriftCmd.Flags().StringVar(&driftExcludeObjectTypeList, "exclude-object-type-list", "",
-		"comma-separated list of object types to exclude from comparison: (TABLE, INDEX, SEQUENCE, VIEW, FUNCTION, TYPE). Only one of --object-type-list and --exclude-object-type-list can be specified.")
+		"comma-separated list of object types to exclude from comparison: (TABLE, COLUMN). Only one of --object-type-list and --exclude-object-type-list can be specified.")
 }
 
 // exitDriftOperationalError prints the given error to stderr (and the log) and
@@ -234,12 +233,12 @@ func parseDriftObjectTypeList(raw string) ([]schemadiff.ObjectType, error) {
 		out = append(out, ot)
 	}
 	if len(invalid) > 0 {
-		return nil, fmt.Errorf("unknown object type(s) %v; supported types: TABLE, INDEX, SEQUENCE, VIEW, FUNCTION, TYPE", invalid)
+		return nil, fmt.Errorf("unknown object type(s) %v; supported types: TABLE, COLUMN", invalid)
 	}
 	return out, nil
 }
 
-// driftTableCandidate pairs a catalog table's identity (for building
+// driftTableCandidate pairs a table's identity (for building
 // schemasnapshot.ObjectRef / Scope entries) with the sqlname.ObjectName view of
 // it (for --table-list / --exclude-table-list glob matching).
 type driftTableCandidate struct {
@@ -247,18 +246,52 @@ type driftTableCandidate struct {
 	name *sqlname.ObjectName
 }
 
-// buildDriftTableCandidates fetches every table in the source's current schema
-// scope and builds a matchable view of each. Must be called after source.Schemas
-// has been resolved (it drives which schemas GetAllTableNames() queries).
-func buildDriftTableCandidates() []driftTableCandidate {
+// buildDriftTableCandidates builds the --table-list / --exclude-table-list
+// matching universe as the UNION of: the live source catalog, every table
+// appearing in each successfully-loaded historical snapshot (snapshotContents),
+// and the best-effort live capture (liveContent, nil if it failed or was
+// skipped). This union -- not the live catalog alone -- matters because a table
+// that has since been DROPPED from the source is absent from the live catalog
+// but may still need to be named in --table-list (to see its drop reported) or
+// matched by --exclude-table-list; only the historical snapshots know about it.
+// Entries are de-duplicated by (schema, name). Must be called after
+// source.Schemas has been resolved (it drives which schemas GetAllTableNames()
+// queries).
+func buildDriftTableCandidates(snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent) []driftTableCandidate {
 	defaultSchema, _ := GetDefaultPGSchema(source.Schemas)
-	rawNames := source.DB().GetAllTableNames()
-	candidates := make([]driftTableCandidate, 0, len(rawNames))
-	for _, n := range rawNames {
-		ref := schemasnapshot.ObjectRef{Schema: n.SchemaName.Unquoted, Name: n.ObjectName.Unquoted}
-		objName := sqlname.NewObjectName(source.DBType, defaultSchema, n.SchemaName.Unquoted, n.ObjectName.Unquoted)
+	seen := make(map[schemasnapshot.ObjectRef]bool)
+	var candidates []driftTableCandidate
+
+	add := func(schema, name string) {
+		ref := schemasnapshot.ObjectRef{Schema: schema, Name: name}
+		if seen[ref] {
+			return
+		}
+		seen[ref] = true
+		objName := sqlname.NewObjectName(source.DBType, defaultSchema, schema, name)
 		candidates = append(candidates, driftTableCandidate{ref: ref, name: objName})
 	}
+
+	// 1. The live source catalog.
+	for _, n := range source.DB().GetAllTableNames() {
+		add(n.SchemaName.Unquoted, n.ObjectName.Unquoted)
+	}
+	// 2. Every table in each successfully-loaded historical snapshot.
+	for _, c := range snapshotContents {
+		if c == nil {
+			continue // placeholder / failed-to-load snapshot; nothing to contribute.
+		}
+		for _, t := range c.Tables {
+			add(t.Schema, t.Name)
+		}
+	}
+	// 3. The best-effort live capture, if it succeeded.
+	if liveContent != nil {
+		for _, t := range liveContent.Tables {
+			add(t.Schema, t.Name)
+		}
+	}
+
 	return candidates
 }
 
@@ -294,6 +327,44 @@ func resolveDriftTableRefs(candidates []driftTableCandidate, patternList string,
 	return lo.UniqBy(refs, func(r schemasnapshot.ObjectRef) string { return r.Schema + "." + r.Name }), nil
 }
 
+// complementDriftTableRefs returns every candidate ref NOT present in exclude --
+// the resolution of --exclude-table-list into the single positive allow-list the
+// collapsed schemadiff.Scope expects.
+func complementDriftTableRefs(candidates []driftTableCandidate, exclude []schemasnapshot.ObjectRef) []schemasnapshot.ObjectRef {
+	excludeSet := make(map[schemasnapshot.ObjectRef]bool, len(exclude))
+	for _, r := range exclude {
+		excludeSet[r] = true
+	}
+	var out []schemasnapshot.ObjectRef
+	for _, c := range candidates {
+		if !excludeSet[c.ref] {
+			out = append(out, c.ref)
+		}
+	}
+	return out
+}
+
+// allDriftObjectTypes is the full v1 object-type universe, used to resolve
+// --exclude-object-type-list into its complement (see complementDriftObjectTypes).
+var allDriftObjectTypes = []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn}
+
+// complementDriftObjectTypes returns every type in allDriftObjectTypes NOT
+// present in exclude -- the resolution of --exclude-object-type-list into the
+// single positive allow-list the collapsed schemadiff.Scope expects.
+func complementDriftObjectTypes(exclude []schemadiff.ObjectType) []schemadiff.ObjectType {
+	excludeSet := make(map[schemadiff.ObjectType]bool, len(exclude))
+	for _, t := range exclude {
+		excludeSet[t] = true
+	}
+	var out []schemadiff.ObjectType
+	for _, t := range allDriftObjectTypes {
+		if !excludeSet[t] {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
 // detectDrift is the full RunE body of `schema detect-drift`. Every operational
 // failure exits via exitDriftOperationalError (code 2). It returns normally
 // (exit 0) when the report was generated with zero diffs, and calls os.Exit(1)
@@ -323,40 +394,10 @@ func detectDrift() {
 	}
 	schemas := source.GetSchemaList()
 
-	// ─── Build the schemadiff.Scope from --table-list / --object-type-list ──────
-	var candidates []driftTableCandidate
-	if driftTableList != "" || driftExcludeTableList != "" {
-		candidates = buildDriftTableCandidates()
-	}
-	includeTables, err := resolveDriftTableRefs(candidates, driftTableList, "table-list")
-	if err != nil {
-		exitDriftOperationalError("%v", err)
-	}
-	excludeTables, err := resolveDriftTableRefs(candidates, driftExcludeTableList, "exclude-table-list")
-	if err != nil {
-		exitDriftOperationalError("%v", err)
-	}
-	// Already flag-format-validated in validateDetectDriftFlags; errors here can't happen.
-	objectTypes, _ := parseDriftObjectTypeList(driftObjectTypeList)
-	excludeObjectTypes, _ := parseDriftObjectTypeList(driftExcludeObjectTypeList)
-
-	scope := schemadiff.Scope{
-		Tables:             includeTables,
-		ExcludeTables:      excludeTables,
-		ObjectTypes:        objectTypes,
-		ExcludeObjectTypes: excludeObjectTypes,
-	}
-
-	var displayTables []string
-	if len(includeTables) > 0 {
-		displayTables = lo.Map(includeTables, func(r schemasnapshot.ObjectRef, _ int) string { return r.ForDisplay(source.DBType) })
-	}
-	var displayObjectTypes []string
-	if driftObjectTypeList != "" {
-		displayObjectTypes = utils.CsvStringToSlice(driftObjectTypeList)
-	}
-
 	// ─── Load stored snapshots (oldest-first) ───────────────────────────────────
+	// Moved ahead of Scope resolution: the candidate table universe (below) needs
+	// each snapshot's Content to include tables since dropped from the live
+	// catalog.
 	headers, err := schemasnapshot.ListSnapshots(metaDB)
 	if err != nil {
 		exitDriftOperationalError("failed to list schema snapshots: %v", err)
@@ -390,7 +431,73 @@ func detectDrift() {
 	}
 
 	// ─── Best-effort live read of the source ────────────────────────────────────
+	// Also moved ahead of Scope resolution, for the same reason: its Content (if
+	// the capture succeeded) contributes to the candidate table universe too.
 	live := captureLiveSnapshotForDrift(schemas)
+
+	// ─── Resolve the collapsed schemadiff.Scope from --table-list/
+	// --exclude-table-list and --object-type-list/--exclude-object-type-list.
+	// validateDetectDriftFlags already enforced that at most one flag per pair is
+	// set, so each dimension resolves to exactly one positive allow-list: either
+	// the directly-resolved include patterns, or the complement of the resolved
+	// exclude patterns against the full universe (all candidate tables / all v1
+	// object types). Neither flag set => nil ("all"). ──────────────────────────
+	var candidates []driftTableCandidate
+	if driftTableList != "" || driftExcludeTableList != "" {
+		snapshotContents := make([]*schemasnapshot.SnapshotContent, 0, len(snapshotInputs))
+		for _, si := range snapshotInputs {
+			snapshotContents = append(snapshotContents, si.Content)
+		}
+		var liveContent *schemasnapshot.SnapshotContent
+		if live != nil {
+			liveContent = live.Content
+		}
+		candidates = buildDriftTableCandidates(snapshotContents, liveContent)
+	}
+
+	var includeTables []schemasnapshot.ObjectRef
+	switch {
+	case driftTableList != "":
+		includeTables, err = resolveDriftTableRefs(candidates, driftTableList, "table-list")
+		if err != nil {
+			exitDriftOperationalError("%v", err)
+		}
+	case driftExcludeTableList != "":
+		excludeTables, err := resolveDriftTableRefs(candidates, driftExcludeTableList, "exclude-table-list")
+		if err != nil {
+			exitDriftOperationalError("%v", err)
+		}
+		includeTables = complementDriftTableRefs(candidates, excludeTables)
+	}
+
+	var objectTypes []schemadiff.ObjectType
+	switch {
+	case driftObjectTypeList != "":
+		// Already flag-format-validated in validateDetectDriftFlags; error can't happen.
+		objectTypes, _ = parseDriftObjectTypeList(driftObjectTypeList)
+	case driftExcludeObjectTypeList != "":
+		// Already flag-format-validated in validateDetectDriftFlags; error can't happen.
+		excludeObjectTypes, _ := parseDriftObjectTypeList(driftExcludeObjectTypeList)
+		objectTypes = complementDriftObjectTypes(excludeObjectTypes)
+	}
+
+	scope := schemadiff.Scope{
+		Tables:      includeTables,
+		ObjectTypes: objectTypes,
+	}
+
+	// displayTables/displayObjectTypes feed the report's "Comparing" banner only
+	// -- when only --exclude-table-list is set, displayTables stays nil (the
+	// banner renders "all") rather than enumerating the whole minus-excluded
+	// universe.
+	var displayTables []string
+	if driftTableList != "" && len(includeTables) > 0 {
+		displayTables = lo.Map(includeTables, func(r schemasnapshot.ObjectRef, _ int) string { return r.ForDisplay(source.DBType) })
+	}
+	var displayObjectTypes []string
+	if driftObjectTypeList != "" {
+		displayObjectTypes = utils.CsvStringToSlice(driftObjectTypeList)
+	}
 
 	report := driftreport.BuildReport(driftreport.BuildParams{
 		Source: driftreport.Source{
