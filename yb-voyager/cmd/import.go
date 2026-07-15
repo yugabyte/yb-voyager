@@ -238,12 +238,12 @@ func parseCdcPartitionKeyOverrides(overrides string) (map[string]string, error) 
 		}
 		parts := strings.SplitN(entry, ":", 2)
 		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid cdc-partition-key-overrides entry %q: expected format schema.table:pk|table", entry)
+			return nil, goerrors.Errorf("invalid cdc-partition-key-overrides entry %q: expected format schema.table:pk|table", entry)
 		}
 		tableName := strings.TrimSpace(parts[0])
 		strategy := strings.TrimSpace(parts[1])
 		if tableName == "" || strategy == "" {
-			return nil, fmt.Errorf("invalid cdc-partition-key-overrides entry %q: table and strategy must both be non-empty", entry)
+			return nil, goerrors.Errorf("invalid cdc-partition-key-overrides entry %q: table and strategy must both be non-empty", entry)
 		}
 		if strategy != PARTITION_BY_PK && strategy != PARTITION_BY_TABLE {
 			return nil, goerrors.Errorf("invalid cdc-partition-key-overrides strategy %q for table %q: supported values are %s, %s",

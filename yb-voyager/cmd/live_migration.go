@@ -240,11 +240,12 @@ func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.
 		return tableToPartitioningStrategyMap, nil
 	}
 
-	if sourceDBType == ORACLE {
+	if sourceDBType != POSTGRESQL {
 		//Oracle sources do not support unique-key conflict detection during live migration
 		//(we do not fetch unique indexes for Oracle). Force PARTITION_BY_TABLE so that all
 		//events of a table run sequentially on a single channel, which makes unique-key
 		//conflicts impossible and hence conflict detection unnecessary.
+		//anything other than PG is not supported for conflict and hence we force table partitioning
 		for _, t := range tableNames {
 			tableToPartitioningStrategyMap.Put(t, PARTITION_BY_TABLE)
 		}
