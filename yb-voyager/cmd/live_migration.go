@@ -550,7 +550,7 @@ func shouldFormatValues(event *tgtdb.Event) bool {
 	return false
 }
 
-func shouldHandleConflicts(event *tgtdb.Event, tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, [][]string], tableToPartitioningStrategyMap *utils.StructMap[sqlname.NameTuple, string]) (bool, error) {
+func shouldHandleConflicts(event *tgtdb.Event, tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex], tableToPartitioningStrategyMap *utils.StructMap[sqlname.NameTuple, string]) (bool, error) {
 	if tableToUniqueIndexes == nil {
 		return false, goerrors.Errorf("table to unique indexes is not initialized")
 	}

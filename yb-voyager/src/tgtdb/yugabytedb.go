@@ -633,7 +633,7 @@ func (yb *TargetYugabyteDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]str
 	return primaryKeyColumns, nil
 }
 
-func (yb *TargetYugabyteDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error) {
+func (yb *TargetYugabyteDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []UniqueIndex], error) {
 	log.Infof("getting unique indexes from target for tables: %v", tableList)
 
 	// Unique indexes on a partitioned table are often defined on its leaf partitions
@@ -661,7 +661,7 @@ func (yb *TargetYugabyteDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameT
 		rootCatalogToTuple[t.AsQualifiedCatalogName()] = t
 	}
 
-	result := utils.NewStructMap[sqlname.NameTuple, [][]string]()
+	result := utils.NewStructMap[sqlname.NameTuple, []UniqueIndex]()
 	for catalogName, indexes := range catalogToIndexes {
 		rootCatalogName, ok := tableToRootMap[catalogName]
 		if !ok {

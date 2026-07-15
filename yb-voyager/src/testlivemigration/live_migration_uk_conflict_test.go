@@ -621,7 +621,7 @@ func TestLiveMigrationWithUniqueKeyConflictWithTablePartitioning(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
 
-func TestLiveMigrationWithUniqueKeyConflictWithNullValuesDetectionCases(t *testing.T) {
+func TestLiveMigrationWithUniqueKeyConflictWithNullValuesDetectionCasesNULLSNOTDISTINCT(t *testing.T) {
 	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
@@ -778,7 +778,7 @@ FROM generate_series(1, 20) as i;`,
 
 }
 
-func TestLiveMigrationWithUniqueKeyConflictWithNullValuesDetectionCasesAndDisableNullConflicts(t *testing.T) {
+func TestLiveMigrationWithUniqueKeyConflictWithNullValuesCAseWithDefaultUniqueIndexNULLSDistinct(t *testing.T) {
 	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
@@ -895,9 +895,7 @@ FROM generate_series(1, 20) as i;`,
 	uniqueKeyConflictFailpointMarker := filepath.Join(
 		lm.GetCurrentExportDir(), "failpoints", "failpoint-unique-key-conflict-detected.log")
 
-	err = lm.StartImportDataWithEnv(true, map[string]string{
-		"--disable-null-conflicts": "true",
-	}, []string{uniqueKeyConflictFailpointEnv})
+	err = lm.StartImportDataWithEnv(true, nil, []string{uniqueKeyConflictFailpointEnv})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{

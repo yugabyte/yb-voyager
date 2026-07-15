@@ -31,6 +31,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 )
 
@@ -62,12 +63,12 @@ type artifactManifest struct {
 	GeneratedAt string `json:"generated_at"`
 	VoyagerBin  string `json:"voyager_bin"`
 	// UniqueIndexes holds, per table ("schema.table"), the unique
-	// indexes/constraints (each an ordered column list) captured from the
-	// SOURCE schema at generation time. Production fetches this live from the
-	// import target (which enforces the constraints after import schema); for
-	// replay the artifact's schema is the same authority, served through the
-	// mock's GetTableToUniqueIndexesMap.
-	UniqueIndexes map[string][][]string `json:"unique_indexes"`
+	// indexes/constraints (ordered columns + NULLS NOT DISTINCT) captured from
+	// the SOURCE schema at generation time. Production fetches this live from
+	// the import target (which enforces the constraints after import schema);
+	// for replay the artifact's schema is the same authority, served through
+	// the mock's GetTableToUniqueIndexesMap.
+	UniqueIndexes map[string][]tgtdb.UniqueIndex `json:"unique_indexes"`
 }
 
 // EnsureArtifact returns the pristine export-dir for the workload and its
@@ -309,10 +310,11 @@ func generateArtifact(b *testing.B, w Workload, voyagerBin, dir, exportDir strin
 }
 
 // queryUniqueIndexes returns, per "schema.table", the table's unique
-// indexes/constraints as ordered column lists (primary keys excluded, partial
-// indexes included with their predicate dropped) — mirroring what the import
-// side fetches from the target for conflict detection.
-func queryUniqueIndexes(connStr string, tables []string) (map[string][][]string, error) {
+// indexes/constraints as UniqueIndex values (ordered columns + NULLS NOT
+// DISTINCT; primary keys excluded, partial indexes included with their
+// predicate dropped) — mirroring what the import side fetches from the target
+// for conflict detection.
+func queryUniqueIndexes(connStr string, tables []string) (map[string][]tgtdb.UniqueIndex, error) {
 	ctx := context.Background()
 	conn, err := pgx.Connect(ctx, connStr)
 	if err != nil {
@@ -320,8 +322,10 @@ func queryUniqueIndexes(connStr string, tables []string) (map[string][][]string,
 	}
 	defer conn.Close(ctx)
 
+	// indnullsnotdistinct is PG 15+; read via to_jsonb so older catalogs yield false.
 	rows, err := conn.Query(ctx, `
-		SELECT n.nspname, t.relname, i.relname AS index_name, a.attname
+		SELECT n.nspname, t.relname, i.relname AS index_name, a.attname,
+		       COALESCE((to_jsonb(ix) ->> 'indnullsnotdistinct')::boolean, false) AS nulls_not_distinct
 		FROM pg_index ix
 		JOIN pg_class i ON i.oid = ix.indexrelid
 		JOIN pg_class t ON t.oid = ix.indrelid
@@ -337,18 +341,22 @@ func queryUniqueIndexes(connStr string, tables []string) (map[string][][]string,
 	defer rows.Close()
 
 	indexColumns := map[string]map[string][]string{} // table -> index -> ordered columns
+	indexNullsND := map[string]map[string]bool{}     // table -> index -> NULLS NOT DISTINCT
 	var indexOrder = map[string][]string{}           // table -> index names in first-seen order
 	for rows.Next() {
 		var schema, table, index, column string
-		if err := rows.Scan(&schema, &table, &index, &column); err != nil {
+		var nullsNotDistinct bool
+		if err := rows.Scan(&schema, &table, &index, &column, &nullsNotDistinct); err != nil {
 			return nil, err
 		}
 		key := schema + "." + table
 		if indexColumns[key] == nil {
 			indexColumns[key] = map[string][]string{}
+			indexNullsND[key] = map[string]bool{}
 		}
 		if _, seen := indexColumns[key][index]; !seen {
 			indexOrder[key] = append(indexOrder[key], index)
+			indexNullsND[key][index] = nullsNotDistinct
 		}
 		indexColumns[key][index] = append(indexColumns[key][index], column)
 	}
@@ -356,10 +364,13 @@ func queryUniqueIndexes(connStr string, tables []string) (map[string][][]string,
 		return nil, err
 	}
 
-	result := map[string][][]string{}
+	result := map[string][]tgtdb.UniqueIndex{}
 	for table, order := range indexOrder {
 		for _, index := range order {
-			result[table] = append(result[table], indexColumns[table][index])
+			result[table] = append(result[table], tgtdb.UniqueIndex{
+				Columns:          indexColumns[table][index],
+				NullsNotDistinct: indexNullsND[table][index],
+			})
 		}
 	}
 	return result, nil

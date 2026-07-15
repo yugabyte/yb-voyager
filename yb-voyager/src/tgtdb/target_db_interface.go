@@ -30,6 +30,15 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
+// UniqueIndex describes a single unique index/constraint on a table: its ordered
+// list of columns and whether it was declared with NULLS NOT DISTINCT (PG 15+).
+// When NullsNotDistinct is true, two NULL values are treated as equal (i.e. they
+// conflict); with the default NULLS DISTINCT semantics NULLs never conflict.
+type UniqueIndex struct {
+	Columns          []string
+	NullsNotDistinct bool
+}
+
 type TargetDB interface {
 	Init() error
 	Finalize()
@@ -46,14 +55,14 @@ type TargetDB interface {
 	GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error)
 	GetPrimaryKeyConstraintNames(tableNameTup sqlname.NameTuple) ([]string, error)
 	// GetTableToUniqueIndexesMap returns, for each table, the list of unique
-	// indexes/constraints (each an ordered column list), fetched live from the
-	// import target which is the DB that actually enforces the constraints. It is
-	// used by live-migration conflict detection. For partitioned tables the unique
-	// indexes defined on leaf partitions are merged into their root table (import
-	// events only reference the root). Oracle targets return an empty map: Oracle
-	// sources always use PARTITION_BY_TABLE during live migration, so conflict
-	// detection never runs for them.
-	GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, [][]string], error)
+	// indexes/constraints (each an ordered column list plus its NULLS NOT DISTINCT
+	// property), fetched live from the import target which is the DB that actually
+	// enforces the constraints. It is used by live-migration conflict detection. For
+	// partitioned tables the unique indexes defined on leaf partitions are merged
+	// into their root table (import events only reference the root). Oracle targets
+	// return an empty map: Oracle sources always use PARTITION_BY_TABLE during live
+	// migration, so conflict detection never runs for them.
+	GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []UniqueIndex], error)
 	ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error
 	GetListOfTableAttributes(tableNameTup sqlname.NameTuple) ([]string, error)
 	QuoteAttributeName(tableNameTup sqlname.NameTuple, columnName string) (string, error)
