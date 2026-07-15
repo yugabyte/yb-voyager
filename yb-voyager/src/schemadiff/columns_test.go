@@ -572,11 +572,12 @@ func TestDiff_TableAdded_SuppressesColumnAdds(t *testing.T) {
 	if identKey(got[0], "postgresql") != "public.orders" {
 		t.Errorf("expected Object.Key=public.orders, got %v", identKey(got[0], "postgresql"))
 	}
-	// The columns must survive on the TABLE_ADDED finding's NewValue.
-	cols, ok := got[0].SideBValue.([]schemasnapshot.Column)
+	// The columns must survive on the TABLE_ADDED finding's NewValue Table.
+	newTbl, ok := got[0].SideBValue.(schemasnapshot.Table)
 	if !ok {
-		t.Fatalf("expected NewValue to be []schemasnapshot.Column, got %T: %v", got[0].SideBValue, got[0].SideBValue)
+		t.Fatalf("expected NewValue to be schemasnapshot.Table, got %T: %v", got[0].SideBValue, got[0].SideBValue)
 	}
+	cols := newTbl.Columns
 	if len(cols) != 2 || cols[0] != colID || cols[1] != colEmail {
 		t.Errorf("expected NewValue=[%v, %v], got %v", colID, colEmail, cols)
 	}
@@ -612,11 +613,12 @@ func TestDiff_TableDropped_SuppressesColumnDrops(t *testing.T) {
 	if identKey(got[0], "postgresql") != "public.orders" {
 		t.Errorf("expected Object.Key=public.orders, got %v", identKey(got[0], "postgresql"))
 	}
-	// The columns must survive on the TABLE_DROPPED finding's OldValue.
-	cols, ok := got[0].SideAValue.([]schemasnapshot.Column)
+	// The columns must survive on the TABLE_DROPPED finding's OldValue Table.
+	oldTbl, ok := got[0].SideAValue.(schemasnapshot.Table)
 	if !ok {
-		t.Fatalf("expected OldValue to be []schemasnapshot.Column, got %T: %v", got[0].SideAValue, got[0].SideAValue)
+		t.Fatalf("expected OldValue to be schemasnapshot.Table, got %T: %v", got[0].SideAValue, got[0].SideAValue)
 	}
+	cols := oldTbl.Columns
 	if len(cols) != 2 || cols[0] != colID || cols[1] != colEmail {
 		t.Errorf("expected OldValue=[%v, %v], got %v", colID, colEmail, cols)
 	}

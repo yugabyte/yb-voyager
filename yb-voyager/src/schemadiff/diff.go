@@ -66,15 +66,16 @@ type Difference struct {
 
 	// SideAValue is the value on side A (nil for *_ADDED). For *_CHANGED it is the
 	// previous value of the changed attribute; for COLUMN_DROPPED the whole
-	// dropped Column; for TABLE_DROPPED the dropped table's []Column. Its dynamic
-	// type depends on Type (string, bool, schemasnapshot.ObjectRef,
-	// []schemasnapshot.ObjectRef, schemasnapshot.Column, or []schemasnapshot.Column).
+	// dropped Column; for TABLE_DROPPED the whole dropped Table (columns plus
+	// kind/partition/inheritance metadata). Its dynamic type depends on Type
+	// (string, bool, schemasnapshot.ObjectRef, []schemasnapshot.ObjectRef,
+	// schemasnapshot.Column, or schemasnapshot.Table).
 	SideAValue any
 
 	// SideBValue is the value on side B (nil for *_DROPPED). For *_CHANGED it is
 	// the new value of the changed attribute; for COLUMN_ADDED the whole added
-	// Column; for TABLE_ADDED the added table's []Column. Same dynamic-type rules
-	// as SideAValue.
+	// Column; for TABLE_ADDED the whole added Table (columns plus
+	// kind/partition/inheritance metadata). Same dynamic-type rules as SideAValue.
 	SideBValue any
 }
 

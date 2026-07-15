@@ -48,14 +48,14 @@ func TestDiffTables_TableAdded(t *testing.T) {
 	if d.SideAValue != nil {
 		t.Errorf("expected OldValue=nil, got %v", d.SideAValue)
 	}
-	// No columns were added alongside the table (snapWithTables sets no Columns),
-	// so NewValue must be an empty []schemasnapshot.Column.
-	newCols, ok := d.SideBValue.([]schemasnapshot.Column)
+	// NewValue must be the whole added Table; no columns were added alongside it
+	// (snapWithTables sets no Columns), so its Columns must be empty.
+	newTbl, ok := d.SideBValue.(schemasnapshot.Table)
 	if !ok {
-		t.Fatalf("expected NewValue to be []schemasnapshot.Column, got %T: %v", d.SideBValue, d.SideBValue)
+		t.Fatalf("expected NewValue to be schemasnapshot.Table, got %T: %v", d.SideBValue, d.SideBValue)
 	}
-	if len(newCols) != 0 {
-		t.Errorf("expected NewValue to be empty, got %v", newCols)
+	if len(newTbl.Columns) != 0 {
+		t.Errorf("expected NewValue.Columns to be empty, got %v", newTbl.Columns)
 	}
 }
 
@@ -82,14 +82,14 @@ func TestDiffTables_TableDropped(t *testing.T) {
 	if identKey(d, "postgresql") != "public.orders" {
 		t.Errorf("expected Object.Key=public.orders, got %v", identKey(d, "postgresql"))
 	}
-	// No columns existed on the dropped table (snapWithTables sets no Columns),
-	// so OldValue must be an empty []schemasnapshot.Column.
-	oldCols, ok := d.SideAValue.([]schemasnapshot.Column)
+	// OldValue must be the whole dropped Table; no columns existed on it
+	// (snapWithTables sets no Columns), so its Columns must be empty.
+	oldTblVal, ok := d.SideAValue.(schemasnapshot.Table)
 	if !ok {
-		t.Fatalf("expected OldValue to be []schemasnapshot.Column, got %T: %v", d.SideAValue, d.SideAValue)
+		t.Fatalf("expected OldValue to be schemasnapshot.Table, got %T: %v", d.SideAValue, d.SideAValue)
 	}
-	if len(oldCols) != 0 {
-		t.Errorf("expected OldValue to be empty, got %v", oldCols)
+	if len(oldTblVal.Columns) != 0 {
+		t.Errorf("expected OldValue.Columns to be empty, got %v", oldTblVal.Columns)
 	}
 	if d.SideBValue != nil {
 		t.Errorf("expected NewValue=nil, got %v", d.SideBValue)
@@ -121,10 +121,11 @@ func TestDiffTables_TableAdded_CarriesColumnsInOrder(t *testing.T) {
 	if d.SideAValue != nil {
 		t.Errorf("expected OldValue=nil, got %v", d.SideAValue)
 	}
-	cols, ok := d.SideBValue.([]schemasnapshot.Column)
+	newTbl2, ok := d.SideBValue.(schemasnapshot.Table)
 	if !ok {
-		t.Fatalf("expected NewValue to be []schemasnapshot.Column, got %T: %v", d.SideBValue, d.SideBValue)
+		t.Fatalf("expected NewValue to be schemasnapshot.Table, got %T: %v", d.SideBValue, d.SideBValue)
 	}
+	cols := newTbl2.Columns
 	wantCols := []schemasnapshot.Column{col1, col2, col3}
 	if len(cols) != len(wantCols) {
 		t.Fatalf("expected %d columns, got %d: %v", len(wantCols), len(cols), cols)
@@ -161,10 +162,11 @@ func TestDiffTables_TableDropped_CarriesColumnsInOrder(t *testing.T) {
 	if d.SideBValue != nil {
 		t.Errorf("expected NewValue=nil, got %v", d.SideBValue)
 	}
-	cols, ok := d.SideAValue.([]schemasnapshot.Column)
+	oldTblVal, ok := d.SideAValue.(schemasnapshot.Table)
 	if !ok {
-		t.Fatalf("expected OldValue to be []schemasnapshot.Column, got %T: %v", d.SideAValue, d.SideAValue)
+		t.Fatalf("expected OldValue to be schemasnapshot.Table, got %T: %v", d.SideAValue, d.SideAValue)
 	}
+	cols := oldTblVal.Columns
 	wantCols := []schemasnapshot.Column{col1, col2, col3}
 	if len(cols) != len(wantCols) {
 		t.Fatalf("expected %d columns, got %d: %v", len(wantCols), len(cols), cols)
@@ -176,9 +178,9 @@ func TestDiffTables_TableDropped_CarriesColumnsInOrder(t *testing.T) {
 	}
 }
 
-// TestCloneColumns_Independence verifies cloneColumns decouples the Difference's
-// column slice from the source snapshot: mutating the returned slice must not
-// write through into the snapshot's original Columns.
+// TestCloneColumns_Independence verifies cloneTable decouples the Difference's
+// Table payload from the source snapshot: mutating the returned Table's Columns
+// must not write through into the snapshot's original Columns.
 func TestCloneColumns_Independence(t *testing.T) {
 	newTbl := makeTable("42", "public", "users", schemasnapshot.TableKindOrdinary)
 	col1 := makeColumn("public", "users", "42:1", "id", "integer")
@@ -191,10 +193,11 @@ func TestCloneColumns_Independence(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
 	}
-	cols, ok := got[0].SideBValue.([]schemasnapshot.Column)
-	if !ok || len(cols) != 1 {
-		t.Fatalf("expected NewValue to be a 1-element []schemasnapshot.Column, got %T: %v", got[0].SideBValue, got[0].SideBValue)
+	tbl, ok := got[0].SideBValue.(schemasnapshot.Table)
+	if !ok || len(tbl.Columns) != 1 {
+		t.Fatalf("expected NewValue to be a schemasnapshot.Table with 1 column, got %T: %v", got[0].SideBValue, got[0].SideBValue)
 	}
+	cols := tbl.Columns
 	cols[0].Name = "mutated"
 	if b.Tables[0].Columns[0].Name != "id" {
 		t.Errorf("mutating the returned column slice must not affect the source snapshot; source became %v", b.Tables[0].Columns[0].Name)
