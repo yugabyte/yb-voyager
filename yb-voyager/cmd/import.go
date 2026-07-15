@@ -281,6 +281,12 @@ func resolveCdcPartitionKeyOverrides(rawOverrides map[string]string, importTable
 		if _, ok := importTableSet.Get(tuple); !ok {
 			return nil, fmt.Errorf("cdc-partition-key-overrides: table %q is not in the import table list", tableSpec)
 		}
+		// Detect duplicates on the resolved NameTuple so different spellings of the
+		// same table (casing/quoting/schema-qualification) don't silently overwrite.
+		if existing, ok := resolved.Get(tuple); ok && !strings.EqualFold(existing, strategy) {
+			return nil, fmt.Errorf("cdc-partition-key-overrides: table %q (resolved to %s) specified multiple times with conflicting strategies %q and %q",
+				tableSpec, tuple.ForOutput(), existing, strategy)
+		}
 		resolved.Put(tuple, strategy)
 	}
 	return resolved, nil
