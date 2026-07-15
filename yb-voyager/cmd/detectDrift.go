@@ -377,6 +377,13 @@ func detectDrift() {
 	// migration state (MigrationStatusRecord, table lists, etc.).
 	metaDB = CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
+	// sqlname.SourceDBType is a package global that sqlname's quoting/matching
+	// helpers read (e.g. via source.DB().GetAllTableNames() -> NewSourceName).
+	// Unlike export/import, detect-drift has no shared setup path that sets it,
+	// so set it here before any sqlname use; otherwise GetAllTableNames panics
+	// with "invalid source db type" on the --table-list/--exclude-table-list path.
+	sqlname.SourceDBType = source.DBType
+
 	if err := source.DB().Connect(); err != nil {
 		exitDriftOperationalError("failed to connect to source database: %v", err)
 	}
