@@ -53,9 +53,11 @@ func TestDiffer_ZeroConfig_EqualsRawDiff(t *testing.T) {
 
 	colA := makeColumn("public", "orders", "101:1", "amount", "integer", notNull())
 	colB := makeColumn("public", "orders", "101:1", "amount", "numeric", notNull()) // type changed
+	ordersA.Columns = []schemasnapshot.Column{colA}
+	ordersB.Columns = []schemasnapshot.Column{colB}
 
-	a := snapWithTablesAndColumns([]schemasnapshot.Table{ordersA, legacyA}, []schemasnapshot.Column{colA})
-	b := snapWithTablesAndColumns([]schemasnapshot.Table{ordersB}, []schemasnapshot.Column{colB})
+	a := snapWithTables(ordersA, legacyA)
+	b := snapWithTables(ordersB)
 
 	want := Diff(a, b)
 	got := NewDiffer(Config{}).Diff(a, b)
@@ -80,9 +82,13 @@ func TestDiffer_AppliesScope(t *testing.T) {
 	colOrdersB := makeColumn("public", "orders", "101:1", "price", "numeric") // type changed → COLUMN_TYPE_CHANGED on orders
 	colLegacyA := makeColumn("public", "legacy", "202:1", "old_col", "text")
 	colLegacyB := makeColumn("public", "legacy", "202:1", "old_col", "varchar") // type changed → COLUMN_TYPE_CHANGED on legacy
+	ordersA.Columns = []schemasnapshot.Column{colOrdersA}
+	ordersB.Columns = []schemasnapshot.Column{colOrdersB}
+	legacyA.Columns = []schemasnapshot.Column{colLegacyA}
+	legacyB.Columns = []schemasnapshot.Column{colLegacyB}
 
-	a := snapWithTablesAndColumns([]schemasnapshot.Table{ordersA, legacyA}, []schemasnapshot.Column{colOrdersA, colLegacyA})
-	b := snapWithTablesAndColumns([]schemasnapshot.Table{ordersB, legacyB}, []schemasnapshot.Column{colOrdersB, colLegacyB})
+	a := snapWithTables(ordersA, legacyA)
+	b := snapWithTables(ordersB, legacyB)
 
 	scope := Scope{Tables: []schemasnapshot.ObjectRef{ref("public", "orders")}}
 	d := NewDiffer(Config{Scope: scope})
@@ -102,7 +108,7 @@ func TestDiffer_AppliesScope(t *testing.T) {
 	// No finding must be anchored to public.legacy.
 	legacyRef := ref("public", "legacy")
 	for _, diff := range got {
-		if diff.AnchorTable != nil && *diff.AnchorTable == legacyRef {
+		if anchor, ok := anchorTableOf(diff); ok && anchor == legacyRef {
 			t.Errorf("unexpected legacy finding in scoped result: %v", diff)
 		}
 	}
@@ -110,8 +116,8 @@ func TestDiffer_AppliesScope(t *testing.T) {
 
 // ─── TestDiffer_ScopeRenameRetention ─────────────────────────────────────────
 // The façade preserves FilterByScope's rename-alias behaviour: filtering by the
-// NEW table name still returns the TABLE_NAME_CHANGED finding whose AnchorTable
-// carries the OLD name.
+// NEW table name still returns the TABLE_NAME_CHANGED finding whose derived
+// anchor carries the OLD name.
 
 func TestDiffer_ScopeRenameRetention(t *testing.T) {
 	// public.orders (ID "55") is renamed to public.purchases in b.
@@ -121,23 +127,26 @@ func TestDiffer_ScopeRenameRetention(t *testing.T) {
 	// Add a column present in both sides to make the snapshot non-trivial.
 	colA := makeColumn("public", "orders", "55:1", "id", "integer", notNull())
 	colB := makeColumn("public", "purchases", "55:1", "id", "integer", notNull())
+	ordersA.Columns = []schemasnapshot.Column{colA}
+	purchasesB.Columns = []schemasnapshot.Column{colB}
 
-	a := snapWithTablesAndColumns([]schemasnapshot.Table{ordersA}, []schemasnapshot.Column{colA})
-	b := snapWithTablesAndColumns([]schemasnapshot.Table{purchasesB}, []schemasnapshot.Column{colB})
+	a := snapWithTables(ordersA)
+	b := snapWithTables(purchasesB)
 
 	// Scope by the NEW name (public.purchases).
 	scope := Scope{Tables: []schemasnapshot.ObjectRef{ref("public", "purchases")}}
 	got := NewDiffer(Config{Scope: scope}).Diff(a, b)
 
-	// The TABLE_NAME_CHANGED finding must survive even though its AnchorTable is
-	// the old name (public.orders) — FilterByScope honours rename aliases.
+	// The TABLE_NAME_CHANGED finding must survive even though its derived anchor
+	// is the old name (public.orders) — FilterByScope honours rename aliases.
 	found := false
 	for _, diff := range got {
 		if diff.Type == TableNameChanged {
 			found = true
-			// AnchorTable is the old (side-A) ref.
-			if diff.AnchorTable == nil || diff.AnchorTable.Name != "orders" {
-				t.Errorf("TableNameChanged AnchorTable should be public.orders, got %v", diff.AnchorTable)
+			// The derived anchor is the old (side-A) ref.
+			anchor, ok := anchorTableOf(diff)
+			if !ok || anchor.Name != "orders" {
+				t.Errorf("TableNameChanged anchor should be public.orders, got %v (ok=%v)", anchor, ok)
 			}
 		}
 	}

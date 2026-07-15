@@ -17,6 +17,8 @@ package schemadiff
 import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 
 // Config configures a Differ. The zero value applies no filtering (pass-through).
+// Scope is the only knob today; future post-diff controls (e.g. IgnoreRules) will
+// land here as sibling fields, keeping NewDiffer's signature stable.
 type Config struct {
 	Scope Scope // post-diff table/object-type scope; zero value keeps everything
 }

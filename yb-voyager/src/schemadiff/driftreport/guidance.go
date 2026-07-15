@@ -20,15 +20,15 @@ import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
 // Provisional wording — to be reconciled with the DDL-scenario matrix in a
 // later PR. A DiffType with no entry yields "" from Guidance.
 var guidanceByDiffType = map[schemadiff.DiffType]string{
-	schemadiff.TableAdded:               "A new table was added on the source after this capture; it will not be migrated unless re-exported.",
-	schemadiff.TableDropped:             "A table was dropped on the source after this capture; the target may retain data that no longer exists on the source.",
-	schemadiff.TableNameChanged:         "A table was renamed on the source after this capture; the target still has it under the old name.",
-	schemadiff.TableSchemaChanged:       "A table moved to a different schema on the source after this capture; the target still has it under the old schema.",
-	schemadiff.TableKindChanged:         "A table's kind (ordinary/partitioned/foreign) changed on the source after this capture. Review before cutover.",
-	schemadiff.PartitionParentChanged:   "A partition's parent table changed on the source after this capture. Review the partitioning layout before cutover.",
-	schemadiff.PartitionChildrenChanged: "A partitioned table's set of child partitions changed on the source after this capture. Review before cutover.",
-	schemadiff.TableInheritsChanged:     "A table's INHERITS parent(s) changed on the source after this capture.",
-	schemadiff.TableInheritedByChanged:  "The set of tables inheriting from this table changed on the source after this capture.",
+	schemadiff.TableAdded:                    "A new table was added on the source after this capture; it will not be migrated unless re-exported.",
+	schemadiff.TableDropped:                  "A table was dropped on the source after this capture; the target may retain data that no longer exists on the source.",
+	schemadiff.TableNameChanged:              "A table was renamed on the source after this capture; the target still has it under the old name.",
+	schemadiff.TableSchemaChanged:            "A table moved to a different schema on the source after this capture; the target still has it under the old schema.",
+	schemadiff.TableKindChanged:              "A table's kind (ordinary/partitioned/foreign) changed on the source after this capture. Review before cutover.",
+	schemadiff.TablePartitionParentChanged:   "A partition's parent table changed on the source after this capture. Review the partitioning layout before cutover.",
+	schemadiff.TablePartitionChildrenChanged: "A partitioned table's set of child partitions changed on the source after this capture. Review before cutover.",
+	schemadiff.TableInheritsChanged:          "A table's INHERITS parent(s) changed on the source after this capture.",
+	schemadiff.TableInheritedByChanged:       "The set of tables inheriting from this table changed on the source after this capture.",
 
 	schemadiff.ColumnAdded:              "A new column was added on the source after this capture; it will not be migrated unless re-exported.",
 	schemadiff.ColumnDropped:            "A column was dropped on the source after this capture; the target may retain it. Review before cutover.",

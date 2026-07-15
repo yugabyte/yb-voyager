@@ -22,26 +22,26 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 )
 
-// snapWithColumns builds a SnapshotContent containing the given columns (no tables).
-// DatabaseType is set to "postgresql" because these helpers model PG snapshots
-// whose IDs (OIDs) are stable and comparable within the same engine.
-func snapWithColumns(cols ...schemasnapshot.Column) *schemasnapshot.SnapshotContent {
-	return &schemasnapshot.SnapshotContent{
-		Version:      1,
-		DatabaseType: "postgresql",
-		Columns:      cols,
+// tbl builds an ordinary Table with the given ID, schema, name, and nested columns.
+// It is the columns-focused counterpart of makeTable (tables_test.go), which takes
+// an explicit Kind; these tests only ever need TableKindOrdinary.
+func tbl(id, schema, name string, cols ...schemasnapshot.Column) schemasnapshot.Table {
+	return schemasnapshot.Table{
+		ObjectRef: schemasnapshot.ObjectRef{Schema: schema, Name: name},
+		ID:        id,
+		Kind:      schemasnapshot.TableKindOrdinary,
+		Columns:   cols,
 	}
 }
 
-// snapWithTablesAndColumns builds a SnapshotContent with both tables and columns.
-// DatabaseType is set to "postgresql" because these helpers model PG snapshots
-// whose IDs (OIDs) are stable and comparable within the same engine.
-func snapWithTablesAndColumns(tables []schemasnapshot.Table, cols []schemasnapshot.Column) *schemasnapshot.SnapshotContent {
+// snap builds a SnapshotContent containing the given tables (each carrying its own
+// nested columns). DatabaseType is set to "postgresql" because these helpers model
+// PG snapshots whose IDs (OIDs) are stable and comparable within the same engine.
+func snap(tables ...schemasnapshot.Table) *schemasnapshot.SnapshotContent {
 	return &schemasnapshot.SnapshotContent{
 		Version:      1,
 		DatabaseType: "postgresql",
 		Tables:       tables,
-		Columns:      cols,
 	}
 }
 
@@ -58,9 +58,11 @@ func withDefault(d string) colOpt { return func(c *schemasnapshot.Column) { c.De
 // Optional colOpts can be passed to set additional fields (e.g. notNull(), withDefault(...)).
 func makeColumn(tableSchema, tableName, id, name, dataType string, opts ...colOpt) schemasnapshot.Column {
 	c := schemasnapshot.Column{
-		Table:    schemasnapshot.ObjectRef{Schema: tableSchema, Name: tableName},
+		TableScopedRef: schemasnapshot.TableScopedRef{
+			Table: schemasnapshot.ObjectRef{Schema: tableSchema, Name: tableName},
+			Name:  name,
+		},
 		ID:       id,
-		Name:     name,
 		DataType: dataType,
 	}
 	for _, o := range opts {
@@ -74,9 +76,10 @@ func makeColumn(tableSchema, tableName, id, name, dataType string, opts ...colOp
 // ──────────────────────────────────────────────────────────────────────────────
 
 func TestDiffColumns_ColumnAdded(t *testing.T) {
-	newCol := makeColumn("public", "orders", "101:2", "email", "text")
-	a := snapWithColumns()
-	b := snapWithColumns(newCol)
+	newCol := makeColumn("public", "orders", "101:2", "email", "text", notNull(), withDefault("'unknown'"))
+	// Same parent table (id "101") on both sides so it matches; only the column differs.
+	a := snap(tbl("101", "public", "orders"))
+	b := snap(tbl("101", "public", "orders", newCol))
 
 	got := Diff(a, b)
 	if len(got) != 1 {
@@ -89,17 +92,27 @@ func TestDiffColumns_ColumnAdded(t *testing.T) {
 	if d.Type != ColumnAdded {
 		t.Errorf("expected ColumnAdded, got %v", d.Type)
 	}
-	if d.Object != ref("public", "orders") {
-		t.Errorf("expected Object=public.orders (parent table), got %v", d.Object)
+	if identKey(d, "postgresql") != "public.orders.email" {
+		t.Errorf("expected Object.Key=public.orders.email, got %v", identKey(d, "postgresql"))
 	}
-	if d.SubObject != "email" {
-		t.Errorf("expected SubObject='email', got %q", d.SubObject)
+	if d.SideAValue != nil {
+		t.Errorf("expected OldValue=nil, got %v", d.SideAValue)
 	}
-	if d.OldValue != nil {
-		t.Errorf("expected OldValue=nil, got %v", d.OldValue)
+	nv, ok := d.SideBValue.(schemasnapshot.Column)
+	if !ok {
+		t.Fatalf("expected NewValue to be a schemasnapshot.Column, got %T: %v", d.SideBValue, d.SideBValue)
 	}
-	if d.NewValue.(string) != "text" {
-		t.Errorf("expected NewValue='text', got %v", d.NewValue)
+	if nv != newCol {
+		t.Errorf("expected NewValue=%v, got %v", newCol, nv)
+	}
+	if nv.DataType != "text" {
+		t.Errorf("expected NewValue.DataType='text', got %v", nv.DataType)
+	}
+	if nv.NotNull != true {
+		t.Errorf("expected NewValue.NotNull=true, got %v", nv.NotNull)
+	}
+	if nv.Default != "'unknown'" {
+		t.Errorf("expected NewValue.Default=\"'unknown'\", got %v", nv.Default)
 	}
 }
 
@@ -108,9 +121,9 @@ func TestDiffColumns_ColumnAdded(t *testing.T) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 func TestDiffColumns_ColumnDropped(t *testing.T) {
-	oldCol := makeColumn("public", "orders", "101:3", "legacy_field", "integer")
-	a := snapWithColumns(oldCol)
-	b := snapWithColumns()
+	oldCol := makeColumn("public", "orders", "101:3", "legacy_field", "integer", notNull(), withDefault("0"))
+	a := snap(tbl("101", "public", "orders", oldCol))
+	b := snap(tbl("101", "public", "orders"))
 
 	got := Diff(a, b)
 	if len(got) != 1 {
@@ -123,17 +136,27 @@ func TestDiffColumns_ColumnDropped(t *testing.T) {
 	if d.Type != ColumnDropped {
 		t.Errorf("expected ColumnDropped, got %v", d.Type)
 	}
-	if d.Object != ref("public", "orders") {
-		t.Errorf("expected Object=public.orders, got %v", d.Object)
+	if identKey(d, "postgresql") != "public.orders.legacy_field" {
+		t.Errorf("expected Object.Key=public.orders.legacy_field, got %v", identKey(d, "postgresql"))
 	}
-	if d.SubObject != "legacy_field" {
-		t.Errorf("expected SubObject='legacy_field', got %q", d.SubObject)
+	ov, ok := d.SideAValue.(schemasnapshot.Column)
+	if !ok {
+		t.Fatalf("expected OldValue to be a schemasnapshot.Column, got %T: %v", d.SideAValue, d.SideAValue)
 	}
-	if d.OldValue.(string) != "integer" {
-		t.Errorf("expected OldValue='integer' (type), got %v", d.OldValue)
+	if ov != oldCol {
+		t.Errorf("expected OldValue=%v, got %v", oldCol, ov)
 	}
-	if d.NewValue != nil {
-		t.Errorf("expected NewValue=nil, got %v", d.NewValue)
+	if ov.DataType != "integer" {
+		t.Errorf("expected OldValue.DataType='integer', got %v", ov.DataType)
+	}
+	if ov.NotNull != true {
+		t.Errorf("expected OldValue.NotNull=true, got %v", ov.NotNull)
+	}
+	if ov.Default != "0" {
+		t.Errorf("expected OldValue.Default='0', got %v", ov.Default)
+	}
+	if d.SideBValue != nil {
+		t.Errorf("expected NewValue=nil, got %v", d.SideBValue)
 	}
 }
 
@@ -145,8 +168,8 @@ func TestDiffColumns_ColumnRenamed(t *testing.T) {
 	oldCol := makeColumn("public", "users", "200:1", "usr_name", "text")
 	newCol := makeColumn("public", "users", "200:1", "username", "text") // same ID, new name
 
-	a := snapWithColumns(oldCol)
-	b := snapWithColumns(newCol)
+	a := snap(tbl("200", "public", "users", oldCol))
+	b := snap(tbl("200", "public", "users", newCol))
 
 	got := Diff(a, b)
 
@@ -161,20 +184,14 @@ func TestDiffColumns_ColumnRenamed(t *testing.T) {
 	if d.Type != ColumnNameChanged {
 		t.Errorf("expected ColumnNameChanged, got %v", d.Type)
 	}
-	if d.Object != ref("public", "users") {
-		t.Errorf("expected Object=public.users, got %v", d.Object)
+	if identKey(d, "postgresql") != "public.users.usr_name" {
+		t.Errorf("expected Object.Key=public.users.usr_name (old name), got %v", identKey(d, "postgresql"))
 	}
-	if d.SubObject != "usr_name" {
-		t.Errorf("expected SubObject='usr_name' (old name), got %q", d.SubObject)
+	if d.SideAValue.(string) != "usr_name" {
+		t.Errorf("expected OldValue='usr_name', got %v", d.SideAValue)
 	}
-	if d.Property != "name" {
-		t.Errorf("expected Property='name', got %q", d.Property)
-	}
-	if d.OldValue.(string) != "usr_name" {
-		t.Errorf("expected OldValue='usr_name', got %v", d.OldValue)
-	}
-	if d.NewValue.(string) != "username" {
-		t.Errorf("expected NewValue='username', got %v", d.NewValue)
+	if d.SideBValue.(string) != "username" {
+		t.Errorf("expected NewValue='username', got %v", d.SideBValue)
 	}
 
 	// No ColumnAdded or ColumnDropped
@@ -193,8 +210,8 @@ func TestDiffColumns_ColumnTypeChanged(t *testing.T) {
 	oldCol := makeColumn("public", "products", "300:1", "price", "integer")
 	newCol := makeColumn("public", "products", "300:1", "price", "numeric(10,2)")
 
-	a := snapWithColumns(oldCol)
-	b := snapWithColumns(newCol)
+	a := snap(tbl("300", "public", "products", oldCol))
+	b := snap(tbl("300", "public", "products", newCol))
 
 	got := Diff(a, b)
 	if len(got) != 1 {
@@ -207,20 +224,14 @@ func TestDiffColumns_ColumnTypeChanged(t *testing.T) {
 	if d.Type != ColumnTypeChanged {
 		t.Errorf("expected ColumnTypeChanged, got %v", d.Type)
 	}
-	if d.Object != ref("public", "products") {
-		t.Errorf("expected Object=public.products, got %v", d.Object)
+	if identKey(d, "postgresql") != "public.products.price" {
+		t.Errorf("expected Object.Key=public.products.price, got %v", identKey(d, "postgresql"))
 	}
-	if d.SubObject != "price" {
-		t.Errorf("expected SubObject='price', got %q", d.SubObject)
+	if d.SideAValue.(string) != "integer" {
+		t.Errorf("expected OldValue='integer', got %v", d.SideAValue)
 	}
-	if d.Property != "data_type" {
-		t.Errorf("expected Property='data_type', got %q", d.Property)
-	}
-	if d.OldValue.(string) != "integer" {
-		t.Errorf("expected OldValue='integer', got %v", d.OldValue)
-	}
-	if d.NewValue.(string) != "numeric(10,2)" {
-		t.Errorf("expected NewValue='numeric(10,2)', got %v", d.NewValue)
+	if d.SideBValue.(string) != "numeric(10,2)" {
+		t.Errorf("expected NewValue='numeric(10,2)', got %v", d.SideBValue)
 	}
 }
 
@@ -234,8 +245,8 @@ func TestDiffColumns_ColumnNullabilityChanged_FalseToTrue(t *testing.T) {
 	newCol := makeColumn("public", "orders", "101:5", "qty", "integer")
 	newCol.NotNull = true
 
-	a := snapWithColumns(oldCol)
-	b := snapWithColumns(newCol)
+	a := snap(tbl("101", "public", "orders", oldCol))
+	b := snap(tbl("101", "public", "orders", newCol))
 
 	got := Diff(a, b)
 	if len(got) != 1 {
@@ -248,14 +259,11 @@ func TestDiffColumns_ColumnNullabilityChanged_FalseToTrue(t *testing.T) {
 	if d.Type != ColumnNullabilityChanged {
 		t.Errorf("expected ColumnNullabilityChanged, got %v", d.Type)
 	}
-	if d.Property != "not_null" {
-		t.Errorf("expected Property='not_null', got %q", d.Property)
+	if d.SideAValue.(bool) != false {
+		t.Errorf("expected OldValue=false, got %v", d.SideAValue)
 	}
-	if d.OldValue.(bool) != false {
-		t.Errorf("expected OldValue=false, got %v", d.OldValue)
-	}
-	if d.NewValue.(bool) != true {
-		t.Errorf("expected NewValue=true, got %v", d.NewValue)
+	if d.SideBValue.(bool) != true {
+		t.Errorf("expected NewValue=true, got %v", d.SideBValue)
 	}
 }
 
@@ -265,8 +273,8 @@ func TestDiffColumns_ColumnNullabilityChanged_TrueToFalse(t *testing.T) {
 	newCol := makeColumn("public", "orders", "101:5", "qty", "integer")
 	newCol.NotNull = false
 
-	a := snapWithColumns(oldCol)
-	b := snapWithColumns(newCol)
+	a := snap(tbl("101", "public", "orders", oldCol))
+	b := snap(tbl("101", "public", "orders", newCol))
 
 	got := Diff(a, b)
 	if len(got) != 1 {
@@ -279,11 +287,11 @@ func TestDiffColumns_ColumnNullabilityChanged_TrueToFalse(t *testing.T) {
 	if d.Type != ColumnNullabilityChanged {
 		t.Errorf("expected ColumnNullabilityChanged, got %v", d.Type)
 	}
-	if d.OldValue.(bool) != true {
-		t.Errorf("expected OldValue=true, got %v", d.OldValue)
+	if d.SideAValue.(bool) != true {
+		t.Errorf("expected OldValue=true, got %v", d.SideAValue)
 	}
-	if d.NewValue.(bool) != false {
-		t.Errorf("expected NewValue=false, got %v", d.NewValue)
+	if d.SideBValue.(bool) != false {
+		t.Errorf("expected NewValue=false, got %v", d.SideBValue)
 	}
 }
 
@@ -297,8 +305,8 @@ func TestDiffColumns_ColumnDefaultChanged_SetToNew(t *testing.T) {
 	newCol := makeColumn("public", "orders", "101:6", "status", "text")
 	newCol.Default = "active"
 
-	a := snapWithColumns(oldCol)
-	b := snapWithColumns(newCol)
+	a := snap(tbl("101", "public", "orders", oldCol))
+	b := snap(tbl("101", "public", "orders", newCol))
 
 	got := Diff(a, b)
 	if len(got) != 1 {
@@ -311,14 +319,11 @@ func TestDiffColumns_ColumnDefaultChanged_SetToNew(t *testing.T) {
 	if d.Type != ColumnDefaultChanged {
 		t.Errorf("expected ColumnDefaultChanged, got %v", d.Type)
 	}
-	if d.Property != "default" {
-		t.Errorf("expected Property='default', got %q", d.Property)
+	if d.SideAValue.(string) != "pending" {
+		t.Errorf("expected OldValue='pending', got %v", d.SideAValue)
 	}
-	if d.OldValue.(string) != "pending" {
-		t.Errorf("expected OldValue='pending', got %v", d.OldValue)
-	}
-	if d.NewValue.(string) != "active" {
-		t.Errorf("expected NewValue='active', got %v", d.NewValue)
+	if d.SideBValue.(string) != "active" {
+		t.Errorf("expected NewValue='active', got %v", d.SideBValue)
 	}
 }
 
@@ -328,8 +333,8 @@ func TestDiffColumns_ColumnDefaultChanged_EmptyToSet(t *testing.T) {
 	newCol := makeColumn("public", "orders", "101:7", "note", "text")
 	newCol.Default = "n/a"
 
-	a := snapWithColumns(oldCol)
-	b := snapWithColumns(newCol)
+	a := snap(tbl("101", "public", "orders", oldCol))
+	b := snap(tbl("101", "public", "orders", newCol))
 
 	got := Diff(a, b)
 	if len(got) != 1 {
@@ -350,8 +355,8 @@ func TestDiffColumns_ColumnDefaultChanged_SetToEmpty(t *testing.T) {
 	newCol := makeColumn("public", "orders", "101:8", "note2", "text")
 	newCol.Default = ""
 
-	a := snapWithColumns(oldCol)
-	b := snapWithColumns(newCol)
+	a := snap(tbl("101", "public", "orders", oldCol))
+	b := snap(tbl("101", "public", "orders", newCol))
 
 	got := Diff(a, b)
 	if len(got) != 1 {
@@ -375,8 +380,8 @@ func TestDiffColumns_IdenticalColumns_NoFindings(t *testing.T) {
 	col.NotNull = true
 	col.Default = "nextval('orders_id_seq')"
 
-	a := snapWithColumns(col)
-	b := snapWithColumns(col)
+	a := snap(tbl("101", "public", "orders", col))
+	b := snap(tbl("101", "public", "orders", col))
 
 	got := Diff(a, b)
 	if len(got) != 0 {
@@ -396,8 +401,8 @@ func TestDiffColumns_MultipleTablesSort(t *testing.T) {
 	colAlpha := makeColumn("public", "alpha", "10:1", "col1", "text")
 	colZeta := makeColumn("public", "zeta", "20:1", "col1", "text")
 
-	a := snapWithColumns()
-	b := snapWithColumns(colAlpha, colZeta)
+	a := snap(tbl("10", "public", "alpha"), tbl("20", "public", "zeta"))
+	b := snap(tbl("10", "public", "alpha", colAlpha), tbl("20", "public", "zeta", colZeta))
 
 	got := Diff(a, b)
 	if len(got) != 2 {
@@ -407,20 +412,20 @@ func TestDiffColumns_MultipleTablesSort(t *testing.T) {
 		assertAnchoredToObject(t, d)
 	}
 
-	// After sort: alpha comes before zeta (Object.Name = "alpha" < "zeta")
-	if got[0].Object.Name != "alpha" {
-		t.Errorf("expected first finding for 'alpha', got %q", got[0].Object.Name)
+	// After sort: alpha comes before zeta (Object.Key = "public.alpha..." < "public.zeta...")
+	if identKey(got[0], "postgresql") != "public.alpha.col1" {
+		t.Errorf("expected first finding for public.alpha.col1, got %q", identKey(got[0], "postgresql"))
 	}
-	if got[1].Object.Name != "zeta" {
-		t.Errorf("expected second finding for 'zeta', got %q", got[1].Object.Name)
+	if identKey(got[1], "postgresql") != "public.zeta.col1" {
+		t.Errorf("expected second finding for public.zeta.col1, got %q", identKey(got[1], "postgresql"))
 	}
 
-	// Within same table, SubObject sorts columns under their parent
+	// Within same table, the column tail of Object.Key sorts columns under their parent
 	colAlpha2 := makeColumn("public", "alpha", "10:2", "zzz", "text")
 	colAlpha3 := makeColumn("public", "alpha", "10:3", "aaa", "text")
 
-	a2 := snapWithColumns()
-	b2 := snapWithColumns(colAlpha2, colAlpha3)
+	a2 := snap(tbl("10", "public", "alpha"))
+	b2 := snap(tbl("10", "public", "alpha", colAlpha2, colAlpha3))
 
 	got2 := Diff(a2, b2)
 	if len(got2) != 2 {
@@ -430,38 +435,37 @@ func TestDiffColumns_MultipleTablesSort(t *testing.T) {
 		assertAnchoredToObject(t, d)
 	}
 	// aaa should come before zzz
-	if got2[0].SubObject != "aaa" {
-		t.Errorf("expected first SubObject='aaa', got %q", got2[0].SubObject)
+	if identKey(got2[0], "postgresql") != "public.alpha.aaa" {
+		t.Errorf("expected first Object.Key='public.alpha.aaa', got %q", identKey(got2[0], "postgresql"))
 	}
-	if got2[1].SubObject != "zzz" {
-		t.Errorf("expected second SubObject='zzz', got %q", got2[1].SubObject)
+	if identKey(got2[1], "postgresql") != "public.alpha.zzz" {
+		t.Errorf("expected second Object.Key='public.alpha.zzz', got %q", identKey(got2[1], "postgresql"))
 	}
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Test: Different DatabaseType gate — ID comparison is legal only when
-// a.DatabaseType == b.DatabaseType (same engine ⇒ IDs are stable and comparable).
-// When DatabaseType differs, ID matching must be skipped and matching falls
-// back to (table, name) composite key, so same-ID+different-Name produces
-// ColumnDropped+ColumnAdded instead of ColumnNameChanged.
+// Test: cross-engine gate — ID matching requires a.DatabaseType == b.DatabaseType.
+// When it differs, matching falls back to (table, name), so same-ID+different-
+// name produces ColumnDropped+ColumnAdded, not ColumnNameChanged.
 // ──────────────────────────────────────────────────────────────────────────────
 
-// TestDiffColumns_DifferentDatabaseType_RenameBecomesAddDrop: snapshots with the
-// same column ID on both sides but different DatabaseType must NOT produce
-// ColumnNameChanged. IDs are only comparable within one database type;
-// cross-type ID comparison is illegal, so matching falls back to name.
+// TestDiffColumns_DifferentDatabaseType_RenameBecomesAddDrop: same column ID on
+// both sides but different DatabaseType must NOT produce ColumnNameChanged —
+// cross-type ID comparison is illegal, so matching falls back to name. The
+// parent table (same schema.name on both sides) still matches by name, since
+// table matching is also gated by DatabaseType equality.
 func TestDiffColumns_DifferentDatabaseType_RenameBecomesAddDrop(t *testing.T) {
 	oldCol := makeColumn("public", "users", "200:1", "old_col", "text")
 	newCol := makeColumn("public", "users", "200:1", "new_col", "text") // same ID, different name
 	a := &schemasnapshot.SnapshotContent{
 		Version:      1,
 		DatabaseType: "postgresql",
-		Columns:      []schemasnapshot.Column{oldCol},
+		Tables:       []schemasnapshot.Table{tbl("200", "public", "users", oldCol)},
 	}
 	b := &schemasnapshot.SnapshotContent{
 		Version:      1,
 		DatabaseType: "mysql",
-		Columns:      []schemasnapshot.Column{newCol},
+		Tables:       []schemasnapshot.Table{tbl("200", "public", "users", newCol)},
 	}
 
 	got := Diff(a, b)
@@ -479,10 +483,10 @@ func TestDiffColumns_DifferentDatabaseType_RenameBecomesAddDrop(t *testing.T) {
 		if d.Type == ColumnNameChanged {
 			t.Errorf("unexpected ColumnNameChanged when DatabaseType differs: %v", d)
 		}
-		if d.Type == ColumnDropped && d.SubObject == "old_col" {
+		if d.Type == ColumnDropped && identKey(d, "postgresql") == "public.users.old_col" {
 			hasDropped = true
 		}
-		if d.Type == ColumnAdded && d.SubObject == "new_col" {
+		if d.Type == ColumnAdded && identKey(d, "postgresql") == "public.users.new_col" {
 			hasAdded = true
 		}
 	}
@@ -503,8 +507,8 @@ func TestDiffColumns_IDEmptyFallback_MatchedByTableAndName(t *testing.T) {
 	colA := makeColumn("public", "orders", "", "status", "text")
 	colB := makeColumn("public", "orders", "", "status", "text")
 
-	a := snapWithColumns(colA)
-	b := snapWithColumns(colB)
+	a := snap(tbl("101", "public", "orders", colA))
+	b := snap(tbl("101", "public", "orders", colB))
 
 	got := Diff(a, b)
 	if len(got) != 0 {
@@ -514,7 +518,7 @@ func TestDiffColumns_IDEmptyFallback_MatchedByTableAndName(t *testing.T) {
 	// Now change the type — should produce one finding
 	colBChanged := colB
 	colBChanged.DataType = "varchar(255)"
-	bChanged := snapWithColumns(colBChanged)
+	bChanged := snap(tbl("101", "public", "orders", colBChanged))
 
 	got2 := Diff(a, bChanged)
 	if len(got2) != 1 {
@@ -532,25 +536,26 @@ func TestDiffColumns_IDEmptyFallback_MatchedByTableAndName(t *testing.T) {
 // Tests: cross-engine gate for columns — ID matching only when DatabaseType matches
 // ──────────────────────────────────────────────────────────────────────────────
 
-// (The StableIdentity=false test has been deleted: the scenario it tested —
-// same DatabaseType but unstable identity — is no longer expressible after the API
-// refactor. The equivalent cross-engine behaviour (different DatabaseType → add+drop)
-// is fully covered by TestDiffColumns_DifferentDatabaseType_RenameBecomesAddDrop.)
+// (StableIdentity=false test deleted: unexpressible after the API refactor.
+// Cross-engine add+drop is covered by
+// TestDiffColumns_DifferentDatabaseType_RenameBecomesAddDrop.)
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Tests: suppressLifecycleTableColumns — per-column findings are suppressed when
-// the parent table itself is wholly added or dropped.
+// Tests: table-lifecycle column findings — a wholly added/dropped table carries
+// its columns on the TABLE_ADDED/TABLE_DROPPED finding, with NO separate
+// per-column COLUMN_ADDED/COLUMN_DROPPED findings (see emitTableAdded/
+// emitTableDropped in tables.go, which read the table's own nested Columns).
 // ──────────────────────────────────────────────────────────────────────────────
 
 // TestDiff_TableAdded_SuppressesColumnAdds: when a table is wholly new (TABLE_ADDED),
-// its per-column COLUMN_ADDED findings are redundant and must be suppressed.
+// its columns are carried on the TABLE_ADDED payload, not emitted as separate
+// per-column COLUMN_ADDED findings (diffColumnsIn never runs for an unmatched table).
 func TestDiff_TableAdded_SuppressesColumnAdds(t *testing.T) {
-	tbl := makeTable("200", "public", "orders", schemasnapshot.TableKindOrdinary)
 	colID := makeColumn("public", "orders", "200:1", "id", "integer")
 	colEmail := makeColumn("public", "orders", "200:2", "email", "text")
 
-	a := snapWithTablesAndColumns(nil, nil)
-	b := snapWithTablesAndColumns([]schemasnapshot.Table{tbl}, []schemasnapshot.Column{colID, colEmail})
+	a := snap()
+	b := snap(tbl("200", "public", "orders", colID, colEmail))
 
 	got := Diff(a, b)
 
@@ -564,8 +569,17 @@ func TestDiff_TableAdded_SuppressesColumnAdds(t *testing.T) {
 	if got[0].Type != TableAdded {
 		t.Errorf("expected TableAdded, got %v", got[0].Type)
 	}
-	if got[0].Object != ref("public", "orders") {
-		t.Errorf("expected Object=public.orders, got %v", got[0].Object)
+	if identKey(got[0], "postgresql") != "public.orders" {
+		t.Errorf("expected Object.Key=public.orders, got %v", identKey(got[0], "postgresql"))
+	}
+	// The columns must survive on the TABLE_ADDED finding's NewValue Table.
+	newTbl, ok := got[0].SideBValue.(schemasnapshot.Table)
+	if !ok {
+		t.Fatalf("expected NewValue to be schemasnapshot.Table, got %T: %v", got[0].SideBValue, got[0].SideBValue)
+	}
+	cols := newTbl.Columns
+	if len(cols) != 2 || cols[0] != colID || cols[1] != colEmail {
+		t.Errorf("expected NewValue=[%v, %v], got %v", colID, colEmail, cols)
 	}
 	for _, d := range got {
 		if d.Type == ColumnAdded {
@@ -575,14 +589,14 @@ func TestDiff_TableAdded_SuppressesColumnAdds(t *testing.T) {
 }
 
 // TestDiff_TableDropped_SuppressesColumnDrops: when a table is wholly dropped (TABLE_DROPPED),
-// its per-column COLUMN_DROPPED findings are redundant and must be suppressed.
+// its columns are carried on the TABLE_DROPPED payload, not emitted as separate
+// per-column COLUMN_DROPPED findings.
 func TestDiff_TableDropped_SuppressesColumnDrops(t *testing.T) {
-	tbl := makeTable("200", "public", "orders", schemasnapshot.TableKindOrdinary)
 	colID := makeColumn("public", "orders", "200:1", "id", "integer")
 	colEmail := makeColumn("public", "orders", "200:2", "email", "text")
 
-	a := snapWithTablesAndColumns([]schemasnapshot.Table{tbl}, []schemasnapshot.Column{colID, colEmail})
-	b := snapWithTablesAndColumns(nil, nil)
+	a := snap(tbl("200", "public", "orders", colID, colEmail))
+	b := snap()
 
 	got := Diff(a, b)
 
@@ -596,8 +610,17 @@ func TestDiff_TableDropped_SuppressesColumnDrops(t *testing.T) {
 	if got[0].Type != TableDropped {
 		t.Errorf("expected TableDropped, got %v", got[0].Type)
 	}
-	if got[0].Object != ref("public", "orders") {
-		t.Errorf("expected Object=public.orders, got %v", got[0].Object)
+	if identKey(got[0], "postgresql") != "public.orders" {
+		t.Errorf("expected Object.Key=public.orders, got %v", identKey(got[0], "postgresql"))
+	}
+	// The columns must survive on the TABLE_DROPPED finding's OldValue Table.
+	oldTbl, ok := got[0].SideAValue.(schemasnapshot.Table)
+	if !ok {
+		t.Fatalf("expected OldValue to be schemasnapshot.Table, got %T: %v", got[0].SideAValue, got[0].SideAValue)
+	}
+	cols := oldTbl.Columns
+	if len(cols) != 2 || cols[0] != colID || cols[1] != colEmail {
+		t.Errorf("expected OldValue=[%v, %v], got %v", colID, colEmail, cols)
 	}
 	for _, d := range got {
 		if d.Type == ColumnDropped {
@@ -609,14 +632,13 @@ func TestDiff_TableDropped_SuppressesColumnDrops(t *testing.T) {
 // TestDiff_ColumnAddedToExistingTable_NotSuppressed: when a column is added to a matched
 // (existing) table, the COLUMN_ADDED finding must NOT be suppressed — there is no TABLE_ADDED.
 func TestDiff_ColumnAddedToExistingTable_NotSuppressed(t *testing.T) {
-	tbl := makeTable("200", "public", "orders", schemasnapshot.TableKindOrdinary)
 	colID := makeColumn("public", "orders", "200:1", "id", "integer")
 	colEmail := makeColumn("public", "orders", "200:2", "email", "text")
 
 	// A: same table + only "id" column
-	a := snapWithTablesAndColumns([]schemasnapshot.Table{tbl}, []schemasnapshot.Column{colID})
+	a := snap(tbl("200", "public", "orders", colID))
 	// B: same table (matched) + both "id" and "email" columns
-	b := snapWithTablesAndColumns([]schemasnapshot.Table{tbl}, []schemasnapshot.Column{colID, colEmail})
+	b := snap(tbl("200", "public", "orders", colID, colEmail))
 
 	got := Diff(a, b)
 
@@ -630,22 +652,21 @@ func TestDiff_ColumnAddedToExistingTable_NotSuppressed(t *testing.T) {
 	if got[0].Type != ColumnAdded {
 		t.Errorf("expected ColumnAdded, got %v", got[0].Type)
 	}
-	if got[0].SubObject != "email" {
-		t.Errorf("expected SubObject='email', got %q", got[0].SubObject)
+	if identKey(got[0], "postgresql") != "public.orders.email" {
+		t.Errorf("expected Object.Key=public.orders.email, got %q", identKey(got[0], "postgresql"))
 	}
 }
 
 // TestDiff_ColumnDroppedFromExistingTable_NotSuppressed: when a column is dropped from a
 // matched (existing) table, the COLUMN_DROPPED finding must NOT be suppressed.
 func TestDiff_ColumnDroppedFromExistingTable_NotSuppressed(t *testing.T) {
-	tbl := makeTable("200", "public", "orders", schemasnapshot.TableKindOrdinary)
 	colID := makeColumn("public", "orders", "200:1", "id", "integer")
 	colEmail := makeColumn("public", "orders", "200:2", "email", "text")
 
 	// A: same table + both columns
-	a := snapWithTablesAndColumns([]schemasnapshot.Table{tbl}, []schemasnapshot.Column{colID, colEmail})
+	a := snap(tbl("200", "public", "orders", colID, colEmail))
 	// B: same table (matched) + only "id" column
-	b := snapWithTablesAndColumns([]schemasnapshot.Table{tbl}, []schemasnapshot.Column{colID})
+	b := snap(tbl("200", "public", "orders", colID))
 
 	got := Diff(a, b)
 
@@ -659,8 +680,8 @@ func TestDiff_ColumnDroppedFromExistingTable_NotSuppressed(t *testing.T) {
 	if got[0].Type != ColumnDropped {
 		t.Errorf("expected ColumnDropped, got %v", got[0].Type)
 	}
-	if got[0].SubObject != "email" {
-		t.Errorf("expected SubObject='email', got %q", got[0].SubObject)
+	if identKey(got[0], "postgresql") != "public.orders.email" {
+		t.Errorf("expected Object.Key=public.orders.email, got %q", identKey(got[0], "postgresql"))
 	}
 }
 
@@ -668,20 +689,17 @@ func TestDiff_ColumnDroppedFromExistingTable_NotSuppressed(t *testing.T) {
 // dropping table X must not suppress column findings on unrelated matched table Y.
 func TestDiff_TableDropped_PreservesOtherTableColumnChanges(t *testing.T) {
 	// Table X is dropped; table Y is present on both sides but has a column type change.
-	tblX := makeTable("300", "public", "x", schemasnapshot.TableKindOrdinary)
 	colXA := makeColumn("public", "x", "300:1", "a", "integer")
 
-	tblY := makeTable("400", "public", "y", schemasnapshot.TableKindOrdinary)
 	colYOld := makeColumn("public", "y", "400:1", "val", "integer")
 	colYNew := makeColumn("public", "y", "400:1", "val", "text") // type changed
 
-	a := snapWithTablesAndColumns(
-		[]schemasnapshot.Table{tblX, tblY},
-		[]schemasnapshot.Column{colXA, colYOld},
+	a := snap(
+		tbl("300", "public", "x", colXA),
+		tbl("400", "public", "y", colYOld),
 	)
-	b := snapWithTablesAndColumns(
-		[]schemasnapshot.Table{tblY},     // X dropped
-		[]schemasnapshot.Column{colYNew}, // Y's column type changed
+	b := snap(
+		tbl("400", "public", "y", colYNew), // X dropped, Y's column type changed
 	)
 
 	got := Diff(a, b)
@@ -696,10 +714,10 @@ func TestDiff_TableDropped_PreservesOtherTableColumnChanges(t *testing.T) {
 
 	var hasTableDropped, hasColTypeChanged bool
 	for _, d := range got {
-		if d.Type == TableDropped && d.Object.Name == "x" {
+		if d.Type == TableDropped && identKey(d, "postgresql") == "public.x" {
 			hasTableDropped = true
 		}
-		if d.Type == ColumnTypeChanged && d.SubObject == "val" && d.Object.Name == "y" {
+		if d.Type == ColumnTypeChanged && identKey(d, "postgresql") == "public.y.val" {
 			hasColTypeChanged = true
 		}
 		if d.Type == ColumnDropped {
@@ -716,75 +734,98 @@ func TestDiff_TableDropped_PreservesOtherTableColumnChanges(t *testing.T) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Test: ID matches but parent table was renamed — match by ID, Object = side-A Column.Table
+// Test: ID matches but parent table was renamed — under nesting, the table
+// itself is matched by ID (same ID both sides), so the rename surfaces as
+// TableNameChanged; the column is diffed within it and its finding's Object
+// is side-A's Column.Table.
 // ──────────────────────────────────────────────────────────────────────────────
 
 func TestDiffColumns_IDMatchTableRenamed_ObjectIsOldTable(t *testing.T) {
-	// Column with same ID but different Column.Table (parent was renamed)
+	// Column with same ID but different Column.Table (parent was renamed).
+	// The table itself keeps the same ID ("500") on both sides, so it matches
+	// as a rename (TableNameChanged) rather than a drop+add.
 	oldCol := makeColumn("public", "old_table", "500:1", "id", "integer")
 	newCol := makeColumn("public", "new_table", "500:1", "id", "integer") // parent renamed
 
-	a := snapWithColumns(oldCol)
-	b := snapWithColumns(newCol)
+	a := snap(tbl("500", "public", "old_table", oldCol))
+	b := snap(tbl("500", "public", "new_table", newCol))
 
-	// Identical column content (only parent table ref differs) → no column findings
+	// Identical column content (only parent table ref differs) → just the
+	// table-level rename, no column-level finding.
 	got := Diff(a, b)
-	if len(got) != 0 {
-		t.Errorf("expected no column-level differences (table rename tracked separately), got %d: %v", len(got), got)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 difference (TableNameChanged only), got %d: %v", len(got), got)
+	}
+	if got[0].Type != TableNameChanged {
+		t.Errorf("expected TableNameChanged, got %v", got[0].Type)
 	}
 
-	// Now change the type to get one finding; Object must be side-A's table
+	// Now change the type to get an additional column finding; its Object must
+	// be side-A's table.
 	newColChanged := newCol
 	newColChanged.DataType = "bigint"
-	bChanged := snapWithColumns(newColChanged)
+	bChanged := snap(tbl("500", "public", "new_table", newColChanged))
 
 	got2 := Diff(a, bChanged)
-	if len(got2) != 1 {
-		t.Fatalf("expected 1 difference, got %d: %v", len(got2), got2)
+	if len(got2) != 2 {
+		t.Fatalf("expected 2 differences (TableNameChanged + ColumnTypeChanged), got %d: %v", len(got2), got2)
 	}
 	for _, d := range got2 {
 		assertAnchoredToObject(t, d)
 	}
-	d := got2[0]
-	if d.Object != ref("public", "old_table") {
-		t.Errorf("expected Object=public.old_table (side-A), got %v", d.Object)
+	var foundColChange bool
+	for _, d := range got2 {
+		if d.Type == ColumnTypeChanged {
+			foundColChange = true
+			if identKey(d, "postgresql") != "public.old_table.id" {
+				t.Errorf("expected Object.Key=public.old_table.id (side-A), got %v", identKey(d, "postgresql"))
+			}
+		}
+	}
+	if !foundColChange {
+		t.Errorf("expected ColumnTypeChanged in %v", got2)
 	}
 }
 
-// IDMissingTableRenamed: without a stable column ID, a column on a renamed parent
-// table cannot be tracked across the rename — the name-fallback key embeds the
-// table name, so old/new keys differ. It degrades to COLUMN_DROPPED on the old
-// table + COLUMN_ADDED on the new table. Contrast
-// TestDiffColumns_IDMatchTableRenamed_ObjectIsOldTable, where the stable ID (the
-// table OID is unchanged by a rename) tracks the column across it.
+// IDMissingTableRenamed: without a stable column ID, a column on a renamed
+// parent table can't be tracked across the rename — the name-fallback key
+// embeds the table name, so old/new keys differ — and degrades to
+// COLUMN_DROPPED + COLUMN_ADDED. The parent table itself keeps a stable ID
+// so it still matches as a rename (TableNameChanged) alongside the column
+// drop+add. Contrast TestDiffColumns_IDMatchTableRenamed_ObjectIsOldTable,
+// where a stable column ID tracks the column across the rename.
 func TestDiffColumns_IDMissingTableRenamed_BecomesDropAdd(t *testing.T) {
 	oldCol := makeColumn("public", "old_table", "", "id", "integer") // empty ID
 	newCol := makeColumn("public", "new_table", "", "id", "integer") // parent renamed, still empty ID
 
-	got := Diff(snapWithColumns(oldCol), snapWithColumns(newCol))
-	if len(got) != 2 {
-		t.Fatalf("expected 2 findings (drop+add — rename untrackable without a stable ID), got %d: %v", len(got), got)
+	// Same table ID ("600") on both sides → table rename is tracked.
+	got := Diff(snap(tbl("600", "public", "old_table", oldCol)), snap(tbl("600", "public", "new_table", newCol)))
+	if len(got) != 3 {
+		t.Fatalf("expected 3 findings (TableNameChanged + drop+add — column rename untrackable without a stable ID), got %d: %v", len(got), got)
 	}
 	for _, d := range got {
 		assertAnchoredToObject(t, d)
 	}
-	objByType := map[DiffType]schemasnapshot.ObjectRef{}
+	objByType := map[DiffType]string{}
 	for _, d := range got {
-		objByType[d.Type] = d.Object
+		objByType[d.Type] = identKey(d, "postgresql")
 	}
-	if objByType[ColumnDropped] != ref("public", "old_table") {
-		t.Errorf("COLUMN_DROPPED should anchor to public.old_table, got %v", objByType[ColumnDropped])
+	if _, ok := objByType[TableNameChanged]; !ok {
+		t.Errorf("expected TableNameChanged, got: %v", got)
 	}
-	if objByType[ColumnAdded] != ref("public", "new_table") {
-		t.Errorf("COLUMN_ADDED should anchor to public.new_table, got %v", objByType[ColumnAdded])
+	if objByType[ColumnDropped] != "public.old_table.id" {
+		t.Errorf("COLUMN_DROPPED should anchor to public.old_table.id, got %v", objByType[ColumnDropped])
+	}
+	if objByType[ColumnAdded] != "public.new_table.id" {
+		t.Errorf("COLUMN_ADDED should anchor to public.new_table.id, got %v", objByType[ColumnAdded])
 	}
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Tests: hybrid ID-then-name matching for columns. A column whose stable ID is
-// present on one side but empty on the other must still be reconciled by name
-// (not surfaced as a spurious drop+add), while a genuine drop-and-recreate that
-// reuses the same table+name with a DIFFERENT id must stay an add+drop.
+// Tests: hybrid ID-then-name matching for columns. A column with a stable ID on
+// one side but empty on the other must reconcile by name (not a spurious
+// drop+add); a genuine drop-and-recreate reusing the table+name with a
+// DIFFERENT id stays an add+drop.
 // ──────────────────────────────────────────────────────────────────────────────
 
 // IDInAEmptyInB: same column (same table+name, type integer), ID "5:1" in A but
@@ -793,8 +834,8 @@ func TestDiffColumns_HybridResidue_IDInAEmptyInB_Matched(t *testing.T) {
 	cA := makeColumn("public", "orders", "5:1", "qty", "integer")
 	cB := makeColumn("public", "orders", "", "qty", "integer")
 
-	a := snapWithColumns(cA)
-	b := snapWithColumns(cB)
+	a := snap(tbl("101", "public", "orders", cA))
+	b := snap(tbl("101", "public", "orders", cB))
 
 	got := Diff(a, b)
 	if len(got) != 0 {
@@ -807,8 +848,8 @@ func TestDiffColumns_HybridResidue_EmptyInAIDInB_Matched(t *testing.T) {
 	cA := makeColumn("public", "orders", "", "qty", "integer")
 	cB := makeColumn("public", "orders", "5:1", "qty", "integer")
 
-	a := snapWithColumns(cA)
-	b := snapWithColumns(cB)
+	a := snap(tbl("101", "public", "orders", cA))
+	b := snap(tbl("101", "public", "orders", cB))
 
 	got := Diff(a, b)
 	if len(got) != 0 {
@@ -822,8 +863,8 @@ func TestDiffColumns_HybridResidue_MixedID_TypeChangeSurfaces(t *testing.T) {
 	cA := makeColumn("public", "orders", "5:1", "qty", "integer")
 	cB := makeColumn("public", "orders", "", "qty", "bigint")
 
-	a := snapWithColumns(cA)
-	b := snapWithColumns(cB)
+	a := snap(tbl("101", "public", "orders", cA))
+	b := snap(tbl("101", "public", "orders", cB))
 
 	got := Diff(a, b)
 	if len(got) != 1 {
@@ -835,11 +876,8 @@ func TestDiffColumns_HybridResidue_MixedID_TypeChangeSurfaces(t *testing.T) {
 	if got[0].Type != ColumnTypeChanged {
 		t.Errorf("expected ColumnTypeChanged, got %v", got[0].Type)
 	}
-	if got[0].SubObject != "qty" {
-		t.Errorf("expected SubObject='qty', got %q", got[0].SubObject)
-	}
-	if got[0].Object != ref("public", "orders") {
-		t.Errorf("expected Object=public.orders, got %v", got[0].Object)
+	if identKey(got[0], "postgresql") != "public.orders.qty" {
+		t.Errorf("expected Object.Key=public.orders.qty, got %q", identKey(got[0], "postgresql"))
 	}
 }
 
@@ -850,8 +888,8 @@ func TestDiffColumns_HybridResidue_DropRecreateSameNameDifferentID_NotCollapsed(
 	cA := makeColumn("public", "orders", "5:1", "qty", "integer")
 	cB := makeColumn("public", "orders", "5:2", "qty", "integer")
 
-	a := snapWithColumns(cA)
-	b := snapWithColumns(cB)
+	a := snap(tbl("101", "public", "orders", cA))
+	b := snap(tbl("101", "public", "orders", cB))
 
 	got := Diff(a, b)
 	if len(got) != 2 {
@@ -863,11 +901,8 @@ func TestDiffColumns_HybridResidue_DropRecreateSameNameDifferentID_NotCollapsed(
 	types := map[DiffType]int{}
 	for _, d := range got {
 		types[d.Type]++
-		if d.SubObject != "qty" {
-			t.Errorf("expected SubObject='qty', got %q", d.SubObject)
-		}
-		if d.Object != ref("public", "orders") {
-			t.Errorf("expected Object=public.orders, got %v", d.Object)
+		if identKey(d, "postgresql") != "public.orders.qty" {
+			t.Errorf("expected Object.Key=public.orders.qty, got %q", identKey(d, "postgresql"))
 		}
 	}
 	if types[ColumnDropped] != 1 || types[ColumnAdded] != 1 {

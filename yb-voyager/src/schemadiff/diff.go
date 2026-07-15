@@ -20,138 +20,89 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 )
 
+// ObjectIdent is the identity of the object a Difference is about. Both
+// schemasnapshot.ObjectRef (schema-level objects: tables, views, …) and
+// schemasnapshot.TableScopedRef (table-scoped objects: columns, indexes, …)
+// implement it, so ObjectA/ObjectB can hold either. Rendering is deferred and
+// engine-aware — call ForKey/ForDisplay with the side's dbType at report time.
+type ObjectIdent interface {
+	ForKey(dbType string) string
+	ForDisplay(dbType string) string
+}
+
 // Difference describes a single detected schema change between two snapshots,
 // where A is the old (side-A) snapshot and B is the new (side-B) snapshot. It is
 // the unit element of the slice Diff returns. One shape covers added, dropped, and
 // changed findings; which fields are populated depends on Type — see each field.
 type Difference struct {
 	// Type identifies what changed (e.g. TABLE_ADDED, COLUMN_TYPE_CHANGED). The
-	// trailing verb governs which fields below are set: *_ADDED is present only on
-	// B, *_DROPPED only on A, *_*CHANGED on both with Property naming the attribute.
+	// trailing verb governs which fields are set: *_ADDED uses ObjectB/SideBValue,
+	// *_DROPPED uses ObjectA/SideAValue, *_CHANGED uses both. Operation, ObjectType,
+	// and Attribute are Type's decomposed facets, provided so consumers can
+	// group/filter without parsing this string.
 	Type DiffType
 
-	// Object is the (schema, name) of the object the finding is reported against.
-	// For a table-level finding it is the table itself; for a column-level finding
-	// it is the column's PARENT table (the column name lives in SubObject).
-	// It is the side-A (old) ref for every finding EXCEPT *_ADDED, where the object
-	// exists only on B and so this is the side-B (new) ref. For a rename
-	// (*_NAME_CHANGED) it stays the OLD ref, with the new name carried in NewValue.
-	Object schemasnapshot.ObjectRef
+	// Operation is the verb: OpAdded, OpDropped, or OpChanged.
+	Operation Operation
 
-	// AnchorTable is the table this finding is scoped under by --table-list /
-	// --exclude-table-list (consumed by FilterByScope). For the table- and
-	// column-level findings v1 emits it points at the same table as Object. It is
-	// nil for findings anchored to no table — none in v1, reserved for future
-	// top-level objects (views, functions, sequences, types). A pointer so that
-	// "no anchor" (nil) is distinguishable from the zero ObjectRef.
-	AnchorTable *schemasnapshot.ObjectRef
+	// ObjectType is the honest object type of the changed object (TABLE, COLUMN,
+	// …). It is what --object-type-list matches against, so a column change is
+	// selected by COLUMN (not TABLE).
+	ObjectType ObjectType
 
-	// SubObject names the dependent object within Object that the finding concerns.
-	// In v1 this is a column name (e.g. "status") for column findings, and "" for
-	// table-level findings. (Future: constraint name, index column, enum value,
-	// type attribute.)
-	SubObject string
+	// Attribute names the changed attribute for OpChanged findings (NAME, TYPE,
+	// NULLABILITY, …); AttrNone for OpAdded/OpDropped.
+	Attribute Attribute
 
-	// Property names the single attribute that changed. Set ONLY for *_CHANGED
-	// findings; "" for object-level findings (*_ADDED / *_DROPPED). v1 values:
-	// "name", "schema", "kind" (table); "name", "data_type", "not_null", "default"
-	// (column); "partition_parent", "partition_children", "inherits_from",
-	// "inherited_by" (table links).
-	Property string
+	// ObjectA is the side-A (old) identity of the changed object — nil for
+	// *_ADDED, which has no side-A object. For a rename/move ObjectA is the OLD
+	// identity and ObjectB is the NEW one; they differ.
+	ObjectA ObjectIdent
 
-	// OldValue is the value on side A, or nil when the object/attribute is absent
-	// on A (always nil for *_ADDED). For *_CHANGED it is the previous value of
-	// Property; for COLUMN_DROPPED it is the dropped column's data type (string),
-	// while table-level drops leave it nil. Its dynamic type tracks Property:
-	// string for name/schema/kind/data_type/default, bool for not_null,
-	// schemasnapshot.ObjectRef for partition_parent, and []schemasnapshot.ObjectRef
-	// for partition_children / inherits_from / inherited_by.
-	OldValue any
+	// ObjectB is the side-B (new) identity of the changed object — nil for
+	// *_DROPPED, which has no side-B object. For a rename/move ObjectB is the NEW
+	// identity.
+	ObjectB ObjectIdent
 
-	// NewValue is the value on side B, or nil when the object/attribute is absent
-	// on B (always nil for *_DROPPED). For *_CHANGED it is the new value of
-	// Property; for COLUMN_ADDED it is the added column's data type (string), while
-	// table-level adds leave it nil. Same dynamic-type rules as OldValue.
-	NewValue any
+	// SideAValue is the value on side A (nil for *_ADDED). For *_CHANGED it is the
+	// previous value of the changed attribute; for COLUMN_DROPPED the whole
+	// dropped Column; for TABLE_DROPPED the whole dropped Table (columns plus
+	// kind/partition/inheritance metadata). Its dynamic type depends on Type
+	// (string, bool, schemasnapshot.ObjectRef, []schemasnapshot.ObjectRef,
+	// schemasnapshot.Column, or schemasnapshot.Table).
+	SideAValue any
+
+	// SideBValue is the value on side B (nil for *_DROPPED). For *_CHANGED it is
+	// the new value of the changed attribute; for COLUMN_ADDED the whole added
+	// Column; for TABLE_ADDED the whole added Table (columns plus
+	// kind/partition/inheritance metadata). Same dynamic-type rules as SideAValue.
+	SideBValue any
 }
 
 // Diff computes the schema differences between snapshot a (old/side-A) and b (new/side-B).
 // It returns a sorted slice of Difference values.
 func Diff(a, b *schemasnapshot.SnapshotContent) []Difference {
-	var diffs []Difference
-	diffs = append(diffs, diffTables(a, b)...)
-	diffs = append(diffs, diffColumns(a, b)...)
-	diffs = suppressLifecycleTableColumns(diffs)
-	sortDifferences(diffs)
+	diffs := diffTables(a, b)
+	sortDifferences(diffs, a.DatabaseType, b.DatabaseType)
 	return diffs
 }
 
-// suppressLifecycleTableColumns removes per-column COLUMN_ADDED and COLUMN_DROPPED
-// findings whose parent table is itself wholly added or dropped in the same diff.
-//
-// WHY: When a table is wholly added (TABLE_ADDED) or dropped (TABLE_DROPPED), every
-// column in that table appears as COLUMN_ADDED or COLUMN_DROPPED respectively. These
-// column-level findings are pure noise — the TABLE_ADDED / TABLE_DROPPED finding
-// already conveys the full change. Emitting both creates redundant, confusing output.
-//
-// A renamed table is a *matched* table (it emits TABLE_NAME_CHANGED, not TABLE_ADDED
-// or TABLE_DROPPED), so its real column-level changes (adds, drops, type changes, etc.)
-// are intentionally preserved: they describe actual mutations to an existing table.
-//
-// Only COLUMN_ADDED under TABLE_ADDED and COLUMN_DROPPED under TABLE_DROPPED are
-// suppressed; all other finding types (e.g. COLUMN_TYPE_CHANGED on matched tables,
-// TABLE_NAME_CHANGED, etc.) pass through unchanged.
-func suppressLifecycleTableColumns(diffs []Difference) []Difference {
-	// Build sets of table ObjectRefs for wholly added and wholly dropped tables.
-	added := make(map[schemasnapshot.ObjectRef]struct{})
-	dropped := make(map[schemasnapshot.ObjectRef]struct{})
-	for _, d := range diffs {
-		switch d.Type {
-		case TableAdded:
-			added[d.Object] = struct{}{}
-		case TableDropped:
-			dropped[d.Object] = struct{}{}
-		}
-	}
-	// Fast path: nothing to suppress.
-	if len(added) == 0 && len(dropped) == 0 {
-		return diffs
-	}
-	// Filter: drop redundant child findings into a fresh slice.
-	out := make([]Difference, 0, len(diffs))
-	for _, d := range diffs {
-		switch d.Type {
-		case ColumnAdded:
-			if _, ok := added[d.Object]; ok {
-				continue // suppress: parent table is wholly added
-			}
-		case ColumnDropped:
-			if _, ok := dropped[d.Object]; ok {
-				continue // suppress: parent table is wholly dropped
-			}
-		}
-		out = append(out, d)
-	}
-	return out
-}
-
 // sortDifferences sorts a slice of Difference values in place by a deterministic
-// key: Schema → Name → SubObject → Type → Property.
-func sortDifferences(diffs []Difference) {
+// key: the finding's side-A identity key (side-B for *_ADDED, where ObjectA is
+// nil), then Type. Grouping columns under their table still holds because
+// "public.orders" < "public.orders.email".
+func sortDifferences(diffs []Difference, dbTypeA, dbTypeB string) {
+	keyOf := func(d Difference) string {
+		if d.ObjectA != nil {
+			return d.ObjectA.ForKey(dbTypeA)
+		}
+		return d.ObjectB.ForKey(dbTypeB)
+	}
 	sort.Slice(diffs, func(i, j int) bool {
-		a, b := diffs[i], diffs[j]
-		if a.Object.Schema != b.Object.Schema {
-			return a.Object.Schema < b.Object.Schema
+		ki, kj := keyOf(diffs[i]), keyOf(diffs[j])
+		if ki != kj {
+			return ki < kj
 		}
-		if a.Object.Name != b.Object.Name {
-			return a.Object.Name < b.Object.Name
-		}
-		if a.SubObject != b.SubObject {
-			return a.SubObject < b.SubObject
-		}
-		if a.Type != b.Type {
-			return string(a.Type) < string(b.Type)
-		}
-		return a.Property < b.Property
+		return string(diffs[i].Type) < string(diffs[j].Type)
 	})
 }

@@ -42,12 +42,12 @@ var statusByDiffType = map[schemadiff.DiffType]Status{
 
 	// Potential impact: new objects/relaxed constraints that may need review
 	// but do not themselves indicate lost or renamed data.
-	schemadiff.TableAdded:               StatusPotentialImpact,
-	schemadiff.ColumnAdded:              StatusPotentialImpact,
-	schemadiff.ColumnNullabilityChanged: StatusPotentialImpact,
-	schemadiff.TableKindChanged:         StatusPotentialImpact,
-	schemadiff.PartitionParentChanged:   StatusPotentialImpact,
-	schemadiff.PartitionChildrenChanged: StatusPotentialImpact,
+	schemadiff.TableAdded:                    StatusPotentialImpact,
+	schemadiff.ColumnAdded:                   StatusPotentialImpact,
+	schemadiff.ColumnNullabilityChanged:      StatusPotentialImpact,
+	schemadiff.TableKindChanged:              StatusPotentialImpact,
+	schemadiff.TablePartitionParentChanged:   StatusPotentialImpact,
+	schemadiff.TablePartitionChildrenChanged: StatusPotentialImpact,
 
 	// Advisory: informational changes unlikely to affect migration mechanics.
 	schemadiff.ColumnDefaultChanged:    StatusAdvisory,

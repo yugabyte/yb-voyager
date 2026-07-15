@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 )
 
@@ -345,7 +346,7 @@ func newFindingView(d DiffEntry) findingView {
 	objQ, objS := objectPath(d)
 
 	fv := findingView{
-		KindClass:    kindClass(d.Type),
+		KindClass:    kindClass(d.Operation),
 		KindLabel:    kindLabel(d.Type),
 		ObjQ:         objQ,
 		ObjS:         objS,
@@ -353,31 +354,31 @@ func newFindingView(d DiffEntry) findingView {
 		Guidance:     d.Guidance,
 	}
 
-	switch {
-	case strings.HasSuffix(d.Type, "_ADDED"):
-		if def := stringifyValue(d.Property, d.NewValue); def != "" {
+	switch d.Operation {
+	case string(schemadiff.OpAdded):
+		if def := stringifyValue(d.Attribute, d.NewValue); def != "" {
 			fv.HasDef = true
 			fv.ValDef = def
 		}
-	case strings.HasSuffix(d.Type, "_DROPPED"):
+	case string(schemadiff.OpDropped):
 		// No value chip for drops, matching the mockup.
-	default: // *_CHANGED
+	default: // OpChanged
 		fv.HasChange = true
-		fv.ValOld = stringifyValue(d.Property, d.OldValue)
-		fv.ValNew = stringifyValue(d.Property, d.NewValue)
+		fv.ValOld = stringifyValue(d.Attribute, d.OldValue)
+		fv.ValNew = stringifyValue(d.Attribute, d.NewValue)
 	}
 
 	return fv
 }
 
-// kindClass classifies a DiffEntry.Type string into the CSS kind bucket used
-// for colour: k-add for *_ADDED, k-rem for *_DROPPED, k-chg for everything
-// else (the *_CHANGED findings).
-func kindClass(diffType string) string {
-	switch {
-	case strings.HasSuffix(diffType, "_ADDED"):
+// kindClass classifies a DiffEntry.Operation into the CSS kind bucket used
+// for colour: k-add for ADDED, k-rem for DROPPED, k-chg for everything else
+// (CHANGED findings).
+func kindClass(operation string) string {
+	switch operation {
+	case string(schemadiff.OpAdded):
 		return "k-add"
-	case strings.HasSuffix(diffType, "_DROPPED"):
+	case string(schemadiff.OpDropped):
 		return "k-rem"
 	default:
 		return "k-chg"
@@ -393,10 +394,10 @@ func kindLabel(diffType string) string {
 // objectPath splits a DiffEntry's object identity into the muted qualifier
 // prefix (q) and the highlighted subject (s), matching the mockup's
 // <span class="q">...</span><span class="s">...</span> split. A column-level
-// finding (SubObject set) qualifies down to the column; a table-level
+// finding (ObjectType == COLUMN) qualifies down to the column; a table-level
 // finding qualifies down to the table.
 func objectPath(d DiffEntry) (q, s string) {
-	if d.SubObject != "" {
+	if d.ObjectType == string(schemadiff.ObjectTypeColumn) {
 		return d.Object.Schema + "." + d.Object.Name + ".", d.SubObject
 	}
 	return d.Object.Schema + ".", d.Object.Name
@@ -421,23 +422,29 @@ func actionStatus(status string) string {
 }
 
 // stringifyValue renders a DiffEntry.OldValue/NewValue (an `any` whose
-// dynamic type tracks property, per Difference's field docs) as display
+// dynamic type tracks attribute, per Difference's field docs) as display
 // text:
-//   - nil                                -> ""
-//   - string                             -> as-is
-//   - bool, property == "not_null"       -> "NOT NULL" / "NULL"
-//   - bool, otherwise                    -> "true" / "false"
-//   - schemasnapshot.ObjectRef           -> "schema.name"
-//   - []schemasnapshot.ObjectRef         -> "schema.name, schema.name, ..."
-//   - anything else                      -> fmt.Sprintf("%v", value)
-func stringifyValue(property string, value any) string {
+//   - nil                                    -> ""
+//   - string                                 -> as-is
+//   - bool, attribute == AttrNullability      -> "NOT NULL" / "NULL"
+//   - bool, otherwise                        -> "true" / "false"
+//   - schemasnapshot.ObjectRef                -> "schema.name"
+//   - []schemasnapshot.ObjectRef              -> "schema.name, schema.name, ..."
+//   - schemasnapshot.Column                    -> the column's definition
+//     (COLUMN_ADDED/DROPPED's whole added/dropped column), e.g.
+//     "integer NOT NULL DEFAULT 0"
+//   - []schemasnapshot.Column                  -> a concise column-count
+//     summary (TABLE_ADDED/DROPPED's whole added/dropped table's columns),
+//     e.g. "3 columns"
+//   - anything else                          -> fmt.Sprintf("%v", value)
+func stringifyValue(attribute string, value any) string {
 	switch v := value.(type) {
 	case nil:
 		return ""
 	case string:
 		return v
 	case bool:
-		if property == "not_null" {
+		if attribute == string(schemadiff.AttrNullability) {
 			if v {
 				return "NOT NULL"
 			}
@@ -455,9 +462,37 @@ func stringifyValue(property string, value any) string {
 			parts[i] = ref.Schema + "." + ref.Name
 		}
 		return strings.Join(parts, ", ")
+	case schemasnapshot.Column:
+		return stringifyColumnDef(v)
+	case schemasnapshot.Table:
+		// TABLE_ADDED/DROPPED carry the whole Table; render its full column list
+		// ("id integer NOT NULL, email text, ...") rather than just a count.
+		if len(v.Columns) == 0 {
+			return "no columns"
+		}
+		parts := make([]string, len(v.Columns))
+		for i, c := range v.Columns {
+			parts[i] = c.Name + " " + stringifyColumnDef(c)
+		}
+		return strings.Join(parts, ", ")
 	default:
 		return fmt.Sprintf("%v", v)
 	}
+}
+
+// stringifyColumnDef renders a whole Column (COLUMN_ADDED's NewValue or
+// COLUMN_DROPPED's OldValue) as a concise, human-readable definition, e.g.
+// "integer NOT NULL DEFAULT 0".
+func stringifyColumnDef(c schemasnapshot.Column) string {
+	var b strings.Builder
+	b.WriteString(c.DataType)
+	if c.NotNull {
+		b.WriteString(" NOT NULL")
+	}
+	if c.Default != "" {
+		fmt.Fprintf(&b, " DEFAULT %s", c.Default)
+	}
+	return b.String()
 }
 
 // snapshotRows builds the footer's "Snapshots used" table rows from

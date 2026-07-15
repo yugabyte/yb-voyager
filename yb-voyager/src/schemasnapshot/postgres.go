@@ -128,14 +128,34 @@ func (p *postgresSnapshotProvider) TakeSnapshot(
 	}
 	snap.Tables = tables
 
-	// Load columns.
+	// Load columns and nest each under its parent table.
 	columns, err := loadColumns(ctx, p.db, placeholders, args)
 	if err != nil {
 		return nil, "", fmt.Errorf("postgres: loading columns: %w", err)
 	}
-	snap.Columns = columns
+	attachColumns(snap.Tables, columns)
 
 	return snap, dbVersion, nil
+}
+
+// attachColumns groups columns under their parent table (by parent OID, parsed
+// from the column's "{tableOID}:{attnum}" ID) and sets Table.Columns in place,
+// preserving each table's original column (attnum) order. Columns whose parent
+// table is not in scope are dropped.
+func attachColumns(tables []Table, columns []Column) {
+	oidToIdx := make(map[string]int, len(tables))
+	for i, t := range tables {
+		oidToIdx[t.ID] = i
+	}
+	for _, c := range columns {
+		tableOID := c.ID
+		if idx := strings.IndexByte(tableOID, ':'); idx >= 0 {
+			tableOID = tableOID[:idx]
+		}
+		if ti, ok := oidToIdx[tableOID]; ok {
+			tables[ti].Columns = append(tables[ti].Columns, c)
+		}
+	}
 }
 
 // ─── Helper functions ──────────────────────────────────────────────────────────
@@ -311,9 +331,11 @@ func loadColumns(ctx context.Context, db QueryExecutor, placeholders string, arg
 			return nil, fmt.Errorf("scan column row: %w", err)
 		}
 		col := Column{
-			Table:    ObjectRef{Schema: schema, Name: tableName},
+			TableScopedRef: TableScopedRef{
+				Table: ObjectRef{Schema: schema, Name: tableName},
+				Name:  colName,
+			},
 			ID:       tableOID + ":" + attnum,
-			Name:     colName,
 			DataType: dataType,
 			NotNull:  notNull,
 			Default:  colDefault,

@@ -66,11 +66,10 @@ const SideSource = "source"
 // The per-object lists are flat; each record keys back to its parent via an ObjectRef field.
 // v1 carries tables and columns only.
 type SnapshotContent struct {
-	Version      int        `json:"version"`           // format/compat gate
-	DatabaseType string     `json:"database_type"`     // engine; the diff reads this
-	DBMetadata   DBMetadata `json:"db_metadata"`       // display coordinates; provenance for reports
-	Tables       []Table    `json:"tables,omitempty"`  // captured tables (ordinary/partitioned/foreign).
-	Columns      []Column   `json:"columns,omitempty"` // captured columns; each keyed back to its parent table via Column.Table.
+	Version      int        `json:"version"`          // format/compat gate
+	DatabaseType string     `json:"database_type"`    // engine; the diff reads this
+	DBMetadata   DBMetadata `json:"db_metadata"`      // display coordinates; provenance for reports
+	Tables       []Table    `json:"tables,omitempty"` // captured tables (ordinary/partitioned/foreign), each carrying its own columns.
 }
 
 // DBMetadata holds the display coordinates of the captured database (for report generation).
@@ -87,8 +86,8 @@ type DBMetadata struct {
 //
 // Schema and Name hold the raw, unquoted catalog names exactly as returned by the
 // database catalog (e.g. pg_class.relname). Rendering and matching are engine-aware:
-// use ForDisplay(dbType) for human-facing output and ForKey(dbType) for collision-safe
-// map keys. The struct itself is comparable and can be used as a Go map key.
+// use ForDisplay(dbType) for human-facing output and ForKey(dbType) for a readable
+// canonical map key. The struct itself is comparable and can be used as a Go map key.
 type ObjectRef struct {
 	Schema string `json:"schema"` // schema (namespace) the object lives in, e.g. "public".
 	Name   string `json:"name"`   // object name within the schema, e.g. "orders".
@@ -106,13 +105,16 @@ func (o ObjectRef) sqlName(dbType string) *sqlname.ObjectName {
 // public."Orders".
 func (o ObjectRef) ForDisplay(dbType string) string { return o.sqlName(dbType).String() }
 
-// ForKey returns the case-sensitive, per-part-quoted, collision-safe canonical key
-// suitable for use as a string map key. For example: "public"."orders".
-// Two ObjectRefs that differ only in case produce different ForKey values, and two
-// refs that would naively produce the same "schema.name" join (e.g. schema "a.b" /
-// name "c" vs schema "a" / name "b.c") produce different ForKey values because each
-// part is independently double-quoted.
-func (o ObjectRef) ForKey(dbType string) string { return o.sqlName(dbType).Qualified.Quoted }
+// ForKey returns the case-preserving, unquoted, dot-joined canonical key suitable for
+// use as a string map key, via sqlname's Key(). For example: public.orders — and
+// public.Orders stays distinct from public.orders, since case is preserved. It reads
+// cleanly in logs and reports, unlike a per-part-quoted form.
+//
+// It inherits sqlname Key()'s limitations: an identifier that itself contains a dot can
+// collide with a different (schema, name) split, and reserved words / embedded quotes
+// are not escaped. These limitations apply to every use of the SQL name across the
+// codebase; when sqlname gains quoting-aware keys, this picks them up automatically.
+func (o ObjectRef) ForKey(dbType string) string { return o.sqlName(dbType).Key() }
 
 // TableKind maps pg_class.relkind to a portable enum value.
 type TableKind string
@@ -132,14 +134,40 @@ type Table struct {
 	PartitionChildren []ObjectRef `json:"partition_children,omitempty"` // set on a partitioned parent: its immediate partition children; nil otherwise
 	InheritsFrom      []ObjectRef `json:"inherits_from,omitempty"`      // legacy table inheritance (INHERITS): parent table(s) this table inherits from; can be multiple. Distinct from declarative partitioning.
 	InheritedBy       []ObjectRef `json:"inherited_by,omitempty"`       // legacy table inheritance (INHERITS): tables that inherit from this one.
+	Columns           []Column    `json:"columns,omitempty"`            // columns of this table, in attnum order.
+}
+
+// TableScopedRef is the identity of an object that lives under a table — a column
+// today, an index or constraint later. Table is the parent table's (schema, name);
+// Name is the object's own name within that table. A table-scoped object has no
+// independent schema — its schema is its table's schema.
+type TableScopedRef struct {
+	Table ObjectRef `json:"table"` // parent table identity
+	Name  string    `json:"name"`  // the object's own name within the table
+}
+
+// sqlName builds the sqlname view of this column's fully-qualified (schema, table,
+// column) identity. defaultSchema="" keeps it always fully qualified.
+func (r TableScopedRef) sqlName(dbType string) *sqlname.ObjectNameQualifiedWithTableName {
+	return sqlname.NewObjectNameQualifiedWithTableName(dbType, "", r.Name, r.Table.Schema, r.Table.Name)
+}
+
+// ForKey returns the case-preserving, unquoted, dot-joined canonical key for the
+// column, via sqlname's Key(): public.orders.Col. It shares the same limitations as
+// ObjectRef.ForKey (see there).
+func (r TableScopedRef) ForKey(dbType string) string { return r.sqlName(dbType).Key() }
+
+// ForDisplay returns the minimally-quoted, always-fully-qualified rendering of the
+// column for reports, logs, and user-facing SQL: public.orders."Col".
+func (r TableScopedRef) ForDisplay(dbType string) string {
+	return r.sqlName(dbType).MinQualified.MinQuoted
 }
 
 // Column represents a single column within a table.
 // ID encodes the parent table OID and the column attnum as "{parentTableOID}:{attnum}".
 type Column struct {
-	Table ObjectRef `json:"table"`        // identity of the parent table this column belongs to.
-	ID    string    `json:"id,omitempty"` // "{parentTableOID}:{attnum}"; matches the column across snapshots even after a rename.
-	Name  string    `json:"name"`         // column name.
+	TableScopedRef        // embeds Table + Name; JSON stays {"table":{...},"name":...}
+	ID             string `json:"id,omitempty"` // "{parentTableOID}:{attnum}"; matches the column across snapshots even after a rename.
 	// TODO(schemadiff): normalize the type before comparison in a future PR. Today
 	// this is source-vs-source (same engine's format_type() on both sides), so the
 	// raw string compares correctly. PG-vs-YB is also fine — YB shares PostgreSQL's
@@ -151,17 +179,3 @@ type Column struct {
 	NotNull  bool   `json:"not_null"`          // true when the column has a NOT NULL constraint.
 	Default  string `json:"default,omitempty"` // default expression text (pg_get_expr); "" when the column has no default.
 }
-
-// sqlName builds the sqlname view of this column's fully-qualified (schema, table,
-// column) identity. defaultSchema="" keeps it always fully qualified.
-func (c Column) sqlName(dbType string) *sqlname.ObjectNameQualifiedWithTableName {
-	return sqlname.NewObjectNameQualifiedWithTableName(dbType, "", c.Name, c.Table.Schema, c.Table.Name)
-}
-
-// ForKey returns a collision-safe, per-part-quoted canonical key for the column:
-// "public"."orders"."Col".
-func (c Column) ForKey(dbType string) string { return c.sqlName(dbType).Qualified.Quoted }
-
-// ForDisplay returns the minimally-quoted, always-fully-qualified rendering of the
-// column for reports, logs, and user-facing SQL: public.orders."Col".
-func (c Column) ForDisplay(dbType string) string { return c.sqlName(dbType).MinQualified.MinQuoted }

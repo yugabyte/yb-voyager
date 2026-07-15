@@ -22,7 +22,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 )
@@ -41,28 +40,42 @@ var exportDataExitSnapshotCaptured bool
 // --suppress-schema-snapshot-capture. PostgreSQL only (no-op with a log for
 // other engines). Callers are responsible for exporter-role gating.
 func captureSourceSchemaSnapshot(ctx context.Context, label, reason string, placeholderOnFailure bool) {
+	if source.DBType != POSTGRESQL {
+		log.Infof("schema-snapshot capture skipped for label %q: only PostgreSQL sources are supported", label)
+		return
+	}
 	if bool(suppressSchemaSnapshotCapture) {
 		log.Infof("schema-snapshot capture suppressed (--suppress-schema-snapshot-capture); skipping %s", label)
 		return
 	}
 	pg, ok := source.DB().(*srcdb.PostgreSQL)
 	if !ok {
-		log.Infof("schema-snapshot capture skipped for label %q: only PostgreSQL sources are supported", label)
+		log.Warnf("schema-snapshot capture skipped for label %q: PostgreSQL source lacks a *srcdb.PostgreSQL handle", label)
 		return
 	}
 	db := pg.GetDB()
 	if db == nil {
 		log.Warnf("schema-snapshot capture skipped for label %q: no active database handle", label)
+		if placeholderOnFailure {
+			// Still record the timeline marker so a lifecycle moment (e.g. an exit)
+			// isn't lost just because the DB handle is gone during teardown.
+			saveSourceSchemaSnapshotPlaceholder(label, reason)
+		}
 		return
 	}
+	captureParams := schemasnapshot.CaptureParams{
+		DatabaseType: source.DBType,
+		DBMetadata:   schemasnapshot.DBMetadata{Host: source.Host, Port: source.Port, Database: source.DBName, User: source.User},
+		Schemas:      source.GetSchemaList(),
+		Label:        label,
+		Reason:       reason,
+	}
+
+	// Every capture is persisted unconditionally — no dedup. Periodic snapshots record the
+	// source schema at each interval so the drift timeline shows exactly when a change
+	// appeared, even when consecutive snapshots are identical.
 	req := schemasnapshot.CaptureRequest{
-		CaptureParams: schemasnapshot.CaptureParams{
-			DatabaseType: source.DBType,
-			DBMetadata:   schemasnapshot.DBMetadata{Host: source.Host, Port: source.Port, Database: source.DBName, User: source.User},
-			Schemas:      source.GetSchemaList(),
-			Label:        label,
-			Reason:       reason,
-		},
+		CaptureParams:        captureParams,
 		PlaceholderOnFailure: placeholderOnFailure,
 	}
 	name, err := schemasnapshot.CaptureAndSaveSnapshot(ctx, db, metaDB, req)
@@ -75,12 +88,13 @@ func captureSourceSchemaSnapshot(ctx context.Context, label, reason string, plac
 
 // startPeriodicSourceSchemaSnapshotCapture launches a background ticker that
 // captures a source schema snapshot every --schema-snapshot-capture-interval
-// minutes while the export is in the snapshot phase (exportPhase == MODE_SNAPSHOT).
-// It returns a stop function to be invoked via defer. Best-effort and off the data
-// path: a no-op when suppressed, when the interval is <= 0, or when this is not the
-// source exporter; periodic capture failures are logged and never affect export.
+// minutes for the full duration of the export — both the snapshot and streaming
+// phases. It returns a stop function to be invoked via defer.
+// Best-effort and off the data path: a no-op when suppressed, when the interval is
+// <= 0, or when this is not the source exporter; periodic capture failures are
+// logged and never affect export.
 func startPeriodicSourceSchemaSnapshotCapture(ctx context.Context) func() {
-	if exporterRole != SOURCE_DB_EXPORTER_ROLE || bool(suppressSchemaSnapshotCapture) {
+	if exporterRole != SOURCE_DB_EXPORTER_ROLE || source.DBType != POSTGRESQL || bool(suppressSchemaSnapshotCapture) {
 		return func() {}
 	}
 	interval := time.Duration(schemaSnapshotCaptureInterval) * time.Minute
@@ -98,9 +112,7 @@ func startPeriodicSourceSchemaSnapshotCapture(ctx context.Context) func() {
 			case <-stop:
 				return
 			case <-ticker.C:
-				if exportPhase == dbzm.MODE_SNAPSHOT {
-					captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourcePeriodic, "", false)
-				}
+				captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourcePeriodic, "", false)
 			}
 		}
 	}()
@@ -112,10 +124,10 @@ func startPeriodicSourceSchemaSnapshotCapture(ctx context.Context) func() {
 // (no schema read) for a lifecycle moment we can't fully capture, e.g. an
 // error/interrupt exit. Best-effort; never fails the caller. Honors suppression.
 func saveSourceSchemaSnapshotPlaceholder(label, reason string) {
-	if bool(suppressSchemaSnapshotCapture) {
+	if source.DBType != POSTGRESQL {
 		return
 	}
-	if source.DBType != POSTGRESQL {
+	if bool(suppressSchemaSnapshotCapture) {
 		return
 	}
 	h := schemasnapshot.SnapshotHeader{

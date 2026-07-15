@@ -16,6 +16,98 @@ package schemadiff
 
 import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 
+// diffTables computes table-level differences between snapshots a and b. Tables
+// are matched by chooseMatchKeys: by stable OID when IDs are usable (same engine,
+// all present) so a rename surfaces as TABLE_NAME_CHANGED, else by the unquoted
+// dot-joined canonical key (see ObjectRef.ForKey and its dot-collision limitation).
+// Unmatched side-A tables become TABLE_DROPPED and unmatched side-B tables
+// TABLE_ADDED, each carrying the table's columns as payload.
+func diffTables(a, b *schemasnapshot.SnapshotContent) []Difference {
+	keyA, keyB := chooseMatchKeys(a.DatabaseType, b.DatabaseType, a.Tables, b.Tables,
+		idOfTable, schemasnapshot.Table.ForKey)
+
+	return matchByKey(a.Tables, b.Tables, keyA, keyB,
+		compareMatchedTables(a.DatabaseType, b.DatabaseType),
+		emitTableDropped, emitTableAdded)
+}
+
+// idOfTable extracts a table's stable ID (OID) for ID-based matching.
+func idOfTable(t schemasnapshot.Table) string { return t.ID }
+
+// emitTableDropped is the matchByKey onDropped callback for tables: it emits a
+// TABLE_DROPPED finding carrying the whole dropped Table (columns plus kind,
+// partitioning, and inheritance metadata) as SideAValue.
+func emitTableDropped(t schemasnapshot.Table) []Difference {
+	return []Difference{newDifference(TableDropped, OpDropped, ObjectTypeTable, AttrNone, t.ObjectRef, nil, cloneTable(t), nil)}
+}
+
+// emitTableAdded is the matchByKey onAdded callback for tables: it emits a
+// TABLE_ADDED finding carrying the whole added Table (columns plus kind,
+// partitioning, and inheritance metadata) as SideBValue.
+func emitTableAdded(t schemasnapshot.Table) []Difference {
+	return []Difference{newDifference(TableAdded, OpAdded, ObjectTypeTable, AttrNone, nil, t.ObjectRef, nil, cloneTable(t))}
+}
+
+// compareMatchedTables returns the matchByKey onMatch callback for tables: it
+// emits the table's field-level differences and then diffs its nested columns.
+// dbTypeA/dbTypeB select ID- vs name-based column matching (see diffColumnsIn).
+func compareMatchedTables(dbTypeA, dbTypeB string) func(tA, tB schemasnapshot.Table) []Difference {
+	return func(tA, tB schemasnapshot.Table) []Difference {
+		var diffs []Difference
+
+		if tA.Name != tB.Name {
+			diffs = append(diffs, newDifference(TableNameChanged, OpChanged, ObjectTypeTable, AttrName, tA.ObjectRef, tB.ObjectRef, tA.Name, tB.Name))
+		}
+
+		if tA.Schema != tB.Schema {
+			diffs = append(diffs, newDifference(TableSchemaChanged, OpChanged, ObjectTypeTable, AttrSchema, tA.ObjectRef, tB.ObjectRef, tA.Schema, tB.Schema))
+		}
+
+		if tA.Kind != tB.Kind {
+			diffs = append(diffs, newDifference(TableKindChanged, OpChanged, ObjectTypeTable, AttrKind, tA.ObjectRef, tB.ObjectRef, string(tA.Kind), string(tB.Kind)))
+		}
+
+		if !partitionParentEqual(tA.PartitionParent, tB.PartitionParent) {
+			var ov, nv any
+			if tA.PartitionParent != nil {
+				ov = *tA.PartitionParent
+			}
+			if tB.PartitionParent != nil {
+				nv = *tB.PartitionParent
+			}
+			diffs = append(diffs, newDifference(TablePartitionParentChanged, OpChanged, ObjectTypeTable, AttrPartitionParent, tA.ObjectRef, tB.ObjectRef, ov, nv))
+		}
+
+		if !objectRefSetEqual(tA.PartitionChildren, tB.PartitionChildren) {
+			diffs = append(diffs, newDifference(TablePartitionChildrenChanged, OpChanged, ObjectTypeTable, AttrPartitionChildren, tA.ObjectRef, tB.ObjectRef, cloneObjectRefs(tA.PartitionChildren), cloneObjectRefs(tB.PartitionChildren)))
+		}
+
+		if !objectRefSetEqual(tA.InheritsFrom, tB.InheritsFrom) {
+			diffs = append(diffs, newDifference(TableInheritsChanged, OpChanged, ObjectTypeTable, AttrInherits, tA.ObjectRef, tB.ObjectRef, cloneObjectRefs(tA.InheritsFrom), cloneObjectRefs(tB.InheritsFrom)))
+		}
+
+		if !objectRefSetEqual(tA.InheritedBy, tB.InheritedBy) {
+			diffs = append(diffs, newDifference(TableInheritedByChanged, OpChanged, ObjectTypeTable, AttrInheritedBy, tA.ObjectRef, tB.ObjectRef, cloneObjectRefs(tA.InheritedBy), cloneObjectRefs(tB.InheritedBy)))
+		}
+
+		diffs = append(diffs, diffColumnsIn(tA.Columns, tB.Columns, dbTypeA, dbTypeB)...)
+
+		return diffs
+	}
+}
+
+// partitionParentEqual compares two *ObjectRef values for equality.
+// Both nil → equal; one nil → not equal; both set → compare by value.
+func partitionParentEqual(a, b *schemasnapshot.ObjectRef) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
+}
+
 // objectRefSetEqual returns true when two []ObjectRef slices have the same members
 // regardless of order. Nil and empty slices are treated as equal.
 func objectRefSetEqual(a, b []schemasnapshot.ObjectRef) bool {
@@ -36,10 +128,10 @@ func objectRefSetEqual(a, b []schemasnapshot.ObjectRef) bool {
 }
 
 // cloneObjectRefs returns a fresh copy of an []ObjectRef so a Difference never
-// shares backing storage with the input snapshot. ObjectRef is a value type, so
-// a shallow copy fully decouples the result; a nil input stays nil (no needless
-// allocation). Without this, a consumer mutating a link finding's OldValue /
-// NewValue slice would write through into the source snapshot.
+// shares backing storage with the input snapshot — a shallow copy fully decouples
+// it since ObjectRef is a value type (nil input stays nil). Without this, a
+// consumer mutating a link finding's OldValue/NewValue slice would write through
+// into the source snapshot.
 func cloneObjectRefs(refs []schemasnapshot.ObjectRef) []schemasnapshot.ObjectRef {
 	if refs == nil {
 		return nil
@@ -49,186 +141,35 @@ func cloneObjectRefs(refs []schemasnapshot.ObjectRef) []schemasnapshot.ObjectRef
 	return out
 }
 
-// partitionParentEqual compares two *ObjectRef values for equality.
-// Both nil → equal; one nil → not equal; both set → compare by value.
-func partitionParentEqual(a, b *schemasnapshot.ObjectRef) bool {
-	if a == nil && b == nil {
-		return true
+// cloneColumns returns a fresh copy of a []Column so a Difference never shares
+// backing storage with the input snapshot — a shallow copy fully decouples it
+// since Column is a value type (nil input stays nil). Without this, a consumer
+// mutating a TABLE_ADDED/TABLE_DROPPED finding's OldValue/NewValue slice would
+// write through into the source snapshot.
+func cloneColumns(cols []schemasnapshot.Column) []schemasnapshot.Column {
+	if cols == nil {
+		return nil
 	}
-	if a == nil || b == nil {
-		return false
-	}
-	return *a == *b
+	out := make([]schemasnapshot.Column, len(cols))
+	copy(out, cols)
+	return out
 }
 
-// diffTables computes table-level differences between snapshots a and b using a
-// hybrid two-pass match:
-//
-//  1. ID pass — tables carrying a usable stable ID (OID) are matched by ID. This
-//     is enabled only when a.DatabaseType == b.DatabaseType — IDs (e.g. PG OIDs)
-//     are only comparable within the same database engine; cross-type ID comparison
-//     is illegal. Same engine ⇒ IDs are stable and comparable, so match by ID to
-//     detect renames; different engine ⇒ IDs aren't comparable, fall back to name
-//     matching. ID matching is what lets a rename surface as TABLE_NAME_CHANGED
-//     rather than an add+drop pair.
-//  2. Name pass — every table left unmatched by the ID pass (tables with no
-//     usable ID, PLUS any whose ID was present on one side but absent on the
-//     other) is reconciled by ObjectRef.ForKey(dbType), the collision-safe,
-//     case-sensitive, per-part-quoted canonical key (see diffTablesByName).
-//
-// Letting ID-unmatched tables fall through to the name pass — instead of
-// declaring them dropped/added immediately — is what keeps a table whose ID is
-// present on one side but missing on the other from surfacing as a spurious
-// drop+add. The name pass guards against the inverse mistake: two same-named
-// tables that each carry a real but DIFFERENT ID are a genuine drop-and-recreate
-// and stay an add+drop rather than collapsing into one match (see nameMatchAllowed).
-func diffTables(a, b *schemasnapshot.SnapshotContent) []Difference {
-	var diffs []Difference
-
-	// Same engine ⇒ IDs (e.g. PG OIDs) are stable and comparable, so match by ID
-	// to detect renames; different engine ⇒ IDs aren't comparable, fall back to name matching.
-	matchByID := a.DatabaseType == b.DatabaseType
-
-	// Pass 1: ID-based matching for tables that carry a usable stable ID.
-	// Tables without one start life in the name-pass residue.
-	byIDA := make(map[string]schemasnapshot.Table)
-	byIDB := make(map[string]schemasnapshot.Table)
-	var residueA, residueB []schemasnapshot.Table
-
-	for _, t := range a.Tables {
-		if matchByID && t.ID != "" {
-			byIDA[t.ID] = t
-		} else {
-			residueA = append(residueA, t)
-		}
+// cloneTable returns a copy of t whose every slice/pointer field is deep-copied,
+// so a TABLE_ADDED/TABLE_DROPPED finding carrying the whole Table never shares
+// backing storage with the input snapshot. t is received by value, so the scalar
+// and embedded ObjectRef fields are already copied; only the reference-typed
+// fields (Columns, the ObjectRef link slices, and the PartitionParent pointer)
+// need decoupling. Without this, a consumer mutating the finding's Table would
+// write through into the source snapshot.
+func cloneTable(t schemasnapshot.Table) schemasnapshot.Table {
+	t.Columns = cloneColumns(t.Columns)
+	t.PartitionChildren = cloneObjectRefs(t.PartitionChildren)
+	t.InheritsFrom = cloneObjectRefs(t.InheritsFrom)
+	t.InheritedBy = cloneObjectRefs(t.InheritedBy)
+	if t.PartitionParent != nil {
+		parent := *t.PartitionParent
+		t.PartitionParent = &parent
 	}
-	for _, t := range b.Tables {
-		if matchByID && t.ID != "" {
-			byIDB[t.ID] = t
-		} else {
-			residueB = append(residueB, t)
-		}
-	}
-
-	for id, tA := range byIDA {
-		if tB, ok := byIDB[id]; ok {
-			diffs = append(diffs, compareMatchedTables(tA, tB)...)
-		} else {
-			residueA = append(residueA, tA) // unmatched by ID → reconcile by name
-		}
-	}
-	for id, tB := range byIDB {
-		if _, ok := byIDA[id]; !ok {
-			residueB = append(residueB, tB) // unmatched by ID → reconcile by name
-		}
-	}
-
-	// Pass 2: name-based reconciliation of the residue.
-	diffs = append(diffs, diffTablesByName(residueA, residueB, matchByID, a.DatabaseType, b.DatabaseType)...)
-
-	return diffs
-}
-
-// diffTablesByName reconciles the tables left unmatched by the ID pass, keyed on
-// the collision-safe, case-sensitive, per-part-quoted canonical key returned by
-// ObjectRef.ForKey(dbType) (unique within a snapshot). A same-named pair is
-// treated as the same table only when nameMatchAllowed permits it; otherwise
-// the A-side is dropped and the B-side added.
-func diffTablesByName(residueA, residueB []schemasnapshot.Table, matchByID bool, dbTypeA, dbTypeB string) []Difference {
-	var diffs []Difference
-
-	// identity seam — the single point where a table's name-match key is derived.
-	// Today: the case-sensitive, collision-safe per-part-quoted key (ForKey). When
-	// cross-engine diffing lands, this becomes a NameRegistry-canonicalized handle —
-	// change only here; the match loop stays generic over the key string.
-	keyA := func(t schemasnapshot.Table) string { return t.ForKey(dbTypeA) }
-	keyB := func(t schemasnapshot.Table) string { return t.ForKey(dbTypeB) }
-
-	byNameA := make(map[string]schemasnapshot.Table, len(residueA))
-	byNameB := make(map[string]schemasnapshot.Table, len(residueB))
-	for _, t := range residueA {
-		byNameA[keyA(t)] = t
-	}
-	for _, t := range residueB {
-		byNameB[keyB(t)] = t
-	}
-
-	matchedB := make(map[string]bool, len(byNameB))
-	for name, tA := range byNameA {
-		if tB, ok := byNameB[name]; ok && nameMatchAllowed(matchByID, tA.ID, tB.ID) {
-			diffs = append(diffs, compareMatchedTables(tA, tB)...)
-			matchedB[name] = true
-			continue
-		}
-		// Only in A (or a name collision we must not collapse) → dropped.
-		diffs = append(diffs, newDifference(TableDropped, tA.ObjectRef, &tA.ObjectRef, "", nil, nil))
-	}
-	for name, tB := range byNameB {
-		if matchedB[name] {
-			continue
-		}
-		// Only in B (or the un-collapsed half of a drop-and-recreate) → added.
-		diffs = append(diffs, newDifference(TableAdded, tB.ObjectRef, &tB.ObjectRef, "", nil, nil))
-	}
-
-	return diffs
-}
-
-// nameMatchAllowed reports whether two same-named residue objects may be treated
-// as the same object during the name pass.
-//
-//   - When ID matching is off entirely (different DatabaseType, or a snapshot
-//     without stable identity), name is the only signal we have, so any
-//     same-named pair matches — the documented name-only fallback.
-//   - When ID matching is on, a residue pair is the same object only if at least
-//     one side lacked a usable ID (and so could not have been ID-matched). If
-//     BOTH sides carry real, distinct IDs that simply did not match, they are
-//     genuinely different objects — a drop-and-recreate that reused the name —
-//     and must stay an add + drop.
-func nameMatchAllowed(matchByID bool, idA, idB string) bool {
-	return !matchByID || idA == "" || idB == ""
-}
-
-// compareMatchedTables emits all field-level differences for a pair of tables
-// matched by ID (or name for the ID-empty fallback). Object in each Difference
-// is always the side-A (old) ObjectRef.
-func compareMatchedTables(tA, tB schemasnapshot.Table) []Difference {
-	var diffs []Difference
-
-	if tA.Name != tB.Name {
-		diffs = append(diffs, newDifference(TableNameChanged, tA.ObjectRef, &tA.ObjectRef, "", tA.Name, tB.Name))
-	}
-
-	if tA.Schema != tB.Schema {
-		diffs = append(diffs, newDifference(TableSchemaChanged, tA.ObjectRef, &tA.ObjectRef, "", tA.Schema, tB.Schema))
-	}
-
-	if tA.Kind != tB.Kind {
-		diffs = append(diffs, newDifference(TableKindChanged, tA.ObjectRef, &tA.ObjectRef, "", string(tA.Kind), string(tB.Kind)))
-	}
-
-	if !partitionParentEqual(tA.PartitionParent, tB.PartitionParent) {
-		var ov, nv any
-		if tA.PartitionParent != nil {
-			ov = *tA.PartitionParent
-		}
-		if tB.PartitionParent != nil {
-			nv = *tB.PartitionParent
-		}
-		diffs = append(diffs, newDifference(PartitionParentChanged, tA.ObjectRef, &tA.ObjectRef, "", ov, nv))
-	}
-
-	if !objectRefSetEqual(tA.PartitionChildren, tB.PartitionChildren) {
-		diffs = append(diffs, newDifference(PartitionChildrenChanged, tA.ObjectRef, &tA.ObjectRef, "", cloneObjectRefs(tA.PartitionChildren), cloneObjectRefs(tB.PartitionChildren)))
-	}
-
-	if !objectRefSetEqual(tA.InheritsFrom, tB.InheritsFrom) {
-		diffs = append(diffs, newDifference(TableInheritsChanged, tA.ObjectRef, &tA.ObjectRef, "", cloneObjectRefs(tA.InheritsFrom), cloneObjectRefs(tB.InheritsFrom)))
-	}
-
-	if !objectRefSetEqual(tA.InheritedBy, tB.InheritedBy) {
-		diffs = append(diffs, newDifference(TableInheritedByChanged, tA.ObjectRef, &tA.ObjectRef, "", cloneObjectRefs(tA.InheritedBy), cloneObjectRefs(tB.InheritedBy)))
-	}
-
-	return diffs
+	return t
 }
