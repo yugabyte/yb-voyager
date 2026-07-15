@@ -100,7 +100,8 @@ var enableRandomBatchProduction utils.BoolStr
 var maxConcurrentBatchProductionsConfig int = 10
 
 // live migration
-var cdcPartitioningStrategy string
+var cdcPartitionKey string
+var cdcPartitionKeyOverrides string
 
 var importDataCmd = &cobra.Command{
 	Use: "data",
@@ -263,9 +264,9 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		log.Debugf("Discovered import file tasks: %v", importFileTasks)
 	}
 
-	err = validateCdcPartitioningStrategyFlag(cmd)
+	err = validateCdcPartitionKeyFlags(cmd)
 	if err != nil {
-		utils.ErrExit("error validating --cdc-partitioning-strategy flag: %v", err)
+		utils.ErrExit("error validating cdc partition key flags: %v", err)
 	}
 
 	msr, err = metaDB.GetMigrationStatusRecord()
@@ -924,13 +925,14 @@ func setupImportDataObservability() error {
 	return nil
 }
 
-func updateImportDataStartedInMetaDB() error {
+func updateImportDataStartedAndSomeConfigsInMetaDB() error {
 	switch importerRole {
 	case TARGET_DB_IMPORTER_ROLE:
-		log.Infof("updating import data started in meta db with cdc partitioning strategy: %s", cdcPartitioningStrategy)
+		log.Infof("updating import data started in meta db with cdc-partition-key: %s, overrides: %q", cdcPartitionKey, cdcPartitionKeyOverrides)
 		err := metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
 			record.ImportDataStarted = true
-			record.CdcPartitioningStrategyConfig = cdcPartitioningStrategy
+			record.CdcPartitioningStrategyConfig = cdcPartitionKey
+			record.CdcPartitionKeyOverridesConfig = cdcPartitionKeyOverrides
 		})
 		if err != nil {
 			return goerrors.Errorf("Failed to update import data status record: %s", err)
@@ -1199,11 +1201,6 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		utils.ErrExit("Failed to setup import data observability: %s", err)
 	}
 
-	err = updateImportDataStartedInMetaDB()
-	if err != nil {
-		utils.ErrExit("Failed to update import data started in meta DB: %s", err)
-	}
-
 	errorHandler, err := initialiseErrorHandler(errorPolicy)
 	if err != nil {
 		utils.ErrExit("Failed to initialize error policy and error handler: %s", err)
@@ -1234,6 +1231,21 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	err = clearMigrationStateForImportDataStartClean(state, importFileTasks, errorHandler)
 	if err != nil {
 		utils.ErrExit("Failed to clean MigrationStatusRecord for import data start clean: %s", err)
+	}
+
+	// Validate/resolve cdc-partition-key (+ overrides) and persist the per-table map
+	// before snapshot so bad configs fail fast (not at streamChanges).
+	// Runs after start-clean so a cleared map is recomputed for the new run.
+	// Must run before updateImportDataStartedInMetaDB so a failed prepare does not
+	// lock change-guard / ImportDataStarted for a config that never took effect.
+	err = prepareCdcPartitionKey(importTableList)
+	if err != nil {
+		utils.ErrExit("Failed to prepare cdc-partition-key: %s", err)
+	}
+	//updating the metadb after the startclean clears any required metadb state
+	err = updateImportDataStartedAndSomeConfigsInMetaDB()
+	if err != nil {
+		utils.ErrExit("Failed to update import data started in meta DB: %s", err)
 	}
 
 	if state.HasExistingState() {
@@ -2422,12 +2434,18 @@ func clearMigrationStateForImportDataStartClean(state *ImportDataState, importFi
 		}
 	}
 
-	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.OnPrimaryKeyConflictAction = ""
 	})
+	if err != nil {
+		return goerrors.Errorf("failed to update migration status record: %s", err)
+	}
 	err = metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
 		record.TableToCDCPartitioningStrategyMap = nil
 	})
+	if err != nil {
+		return goerrors.Errorf("failed to update import data status record: %s", err)
+	}
 
 	err = handleStartCleanForSnapshot(state, importFileTasks, errorHandler)
 	if err != nil {

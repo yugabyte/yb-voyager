@@ -159,7 +159,7 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"adaptive-parallelism-frequency-seconds", "min-available-memory-threshold", "max-batch-size-bytes",
 	"ybvoyager-use-task-picker-for-import",
 
-	"cdc-partitioning-strategy", "disable-null-conflicts",
+	"cdc-partition-key", "cdc-partition-key-overrides", "disable-null-conflicts",
 )
 
 var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](

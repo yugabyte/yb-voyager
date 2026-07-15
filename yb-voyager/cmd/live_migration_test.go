@@ -22,6 +22,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	reporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/stats"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -211,4 +212,211 @@ func TestShouldWarnServerSeriesNewerThanConnector(t *testing.T) {
 			assert.Equal(t, tt.expectedWarn, warn)
 		})
 	}
+}
+
+func TestParseCdcPartitionKeyOverrides(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    map[string]string
+		wantErr string
+	}{
+		{
+			name:  "empty",
+			input: "",
+			want:  map[string]string{},
+		},
+		{
+			name:  "whitespace only",
+			input: "   ",
+			want:  map[string]string{},
+		},
+		{
+			name:  "single pk override",
+			input: "public.orders:pk",
+			want:  map[string]string{"public.orders": "pk"},
+		},
+		{
+			name:  "multiple overrides with semicolon",
+			input: "public.orders:table;sales.events:pk",
+			want: map[string]string{
+				"public.orders": "table",
+				"sales.events":  "pk",
+			},
+		},
+		{
+			name:  "trims whitespace around entries",
+			input: " public.orders : table ; sales.events : pk ",
+			want: map[string]string{
+				"public.orders": "table",
+				"sales.events":  "pk",
+			},
+		},
+		{
+			name:  "trailing semicolon ignored",
+			input: "public.orders:pk;",
+			want:  map[string]string{"public.orders": "pk"},
+		},
+		{
+			name:    "rejects auto strategy",
+			input:   "public.orders:auto",
+			wantErr: "supported values are pk, table",
+		},
+		{
+			name:    "rejects custom column list",
+			input:   "public.orders:customer_id,region",
+			wantErr: "supported values are pk, table",
+		},
+		{
+			name:    "rejects missing colon",
+			input:   "public.orders",
+			wantErr: "expected format",
+		},
+		{
+			name:    "rejects empty strategy",
+			input:   "public.orders:",
+			wantErr: "non-empty",
+		},
+		{
+			name:    "rejects duplicate table",
+			input:   "public.orders:pk;public.orders:table",
+			wantErr: "duplicate table",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseCdcPartitionKeyOverrides(tc.input)
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func testCdcPartitionNameTuple(schema, table string) sqlname.NameTuple {
+	oname := sqlname.NewObjectName(POSTGRESQL, "public", schema, table)
+	return sqlname.NameTuple{
+		CurrentName: oname,
+		SourceName:  oname,
+		TargetName:  oname,
+	}
+}
+
+func strategiesByTableName(m *utils.StructMap[sqlname.NameTuple, string]) map[string]string {
+	out := make(map[string]string)
+	_ = m.IterKV(func(k sqlname.NameTuple, v string) (bool, error) {
+		_, table := k.ForCatalogQuery()
+		out[table] = v
+		return true, nil
+	})
+	return out
+}
+
+func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
+	orders := testCdcPartitionNameTuple("test_schema", "orders")
+	events := testCdcPartitionNameTuple("test_schema", "events")
+	audit := testCdcPartitionNameTuple("test_schema", "audit")
+	tables := []sqlname.NameTuple{orders, events, audit}
+
+	t.Run("global pk applies to all", func(t *testing.T) {
+		got, err := resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_PK, nil, nil, false)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{
+			"orders": PARTITION_BY_PK,
+			"events": PARTITION_BY_PK,
+			"audit":  PARTITION_BY_PK,
+		}, strategiesByTableName(got))
+	})
+
+	t.Run("global table applies to all", func(t *testing.T) {
+		got, err := resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_TABLE, nil, nil, false)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{
+			"orders": PARTITION_BY_TABLE,
+			"events": PARTITION_BY_TABLE,
+			"audit":  PARTITION_BY_TABLE,
+		}, strategiesByTableName(got))
+	})
+
+	t.Run("auto uses pk except expression-UK tables", func(t *testing.T) {
+		exprUK := utils.NewStructMap[sqlname.NameTuple, bool]()
+		exprUK.Put(audit, true)
+		got, err := resolveEffectiveCdcPartitionKeys(tables, "auto", nil, exprUK, false)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{
+			"orders": PARTITION_BY_PK,
+			"events": PARTITION_BY_PK,
+			"audit":  PARTITION_BY_TABLE,
+		}, strategiesByTableName(got))
+	})
+
+	t.Run("auto on AMP forces table for all", func(t *testing.T) {
+		got, err := resolveEffectiveCdcPartitionKeys(tables, "auto", nil, nil, true)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{
+			"orders": PARTITION_BY_TABLE,
+			"events": PARTITION_BY_TABLE,
+			"audit":  PARTITION_BY_TABLE,
+		}, strategiesByTableName(got))
+	})
+
+	t.Run("overlay changes only listed tables", func(t *testing.T) {
+		overrides := utils.NewStructMap[sqlname.NameTuple, string]()
+		overrides.Put(orders, PARTITION_BY_TABLE)
+		got, err := resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_PK, overrides, nil, false)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{
+			"orders": PARTITION_BY_TABLE,
+			"events": PARTITION_BY_PK,
+			"audit":  PARTITION_BY_PK,
+		}, strategiesByTableName(got), "unlisted tables must keep global strategy")
+	})
+
+	t.Run("auto plus override pk on normal table", func(t *testing.T) {
+		overrides := utils.NewStructMap[sqlname.NameTuple, string]()
+		overrides.Put(events, PARTITION_BY_PK)
+		overrides.Put(orders, PARTITION_BY_TABLE)
+		got, err := resolveEffectiveCdcPartitionKeys(tables, "auto", overrides, nil, false)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{
+			"orders": PARTITION_BY_TABLE,
+			"events": PARTITION_BY_PK,
+			"audit":  PARTITION_BY_PK,
+		}, strategiesByTableName(got))
+	})
+
+	t.Run("rejects global pk on expression-UK table", func(t *testing.T) {
+		exprUK := utils.NewStructMap[sqlname.NameTuple, bool]()
+		exprUK.Put(audit, true)
+		_, err := resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_PK, nil, exprUK, false)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "expression-based unique index")
+		assert.Contains(t, err.Error(), "audit")
+	})
+
+	t.Run("rejects override pk on expression-UK table", func(t *testing.T) {
+		exprUK := utils.NewStructMap[sqlname.NameTuple, bool]()
+		exprUK.Put(audit, true)
+		overrides := utils.NewStructMap[sqlname.NameTuple, string]()
+		overrides.Put(audit, PARTITION_BY_PK)
+		_, err := resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_TABLE, overrides, exprUK, false)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "expression-based unique index")
+	})
+
+	t.Run("override table on expression-UK table is allowed", func(t *testing.T) {
+		exprUK := utils.NewStructMap[sqlname.NameTuple, bool]()
+		exprUK.Put(audit, true)
+		overrides := utils.NewStructMap[sqlname.NameTuple, string]()
+		overrides.Put(audit, PARTITION_BY_TABLE)
+		got, err := resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_PK, overrides, exprUK, false)
+		require.NoError(t, err)
+		assert.Equal(t, PARTITION_BY_TABLE, strategiesByTableName(got)["audit"])
+		assert.Equal(t, PARTITION_BY_PK, strategiesByTableName(got)["orders"])
+	})
 }

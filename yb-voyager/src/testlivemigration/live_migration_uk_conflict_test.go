@@ -581,7 +581,7 @@ func TestLiveMigrationWithUniqueKeyConflictWithTablePartitioning(t *testing.T) {
 		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
 
 	err = lm.StartImportDataWithEnv(true, map[string]string{
-		"--cdc-partitioning-strategy": "table",
+		"--cdc-partition-key": "table",
 	}, []string{uniqueKeyConflictCountFailpointEnv})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
