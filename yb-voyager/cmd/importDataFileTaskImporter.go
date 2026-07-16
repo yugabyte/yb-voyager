@@ -112,6 +112,8 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchProd
 	currentProgressAmount := getImportedProgressAmount(task, state)
 	progressReporter.AddProgressAmount(task, currentProgressAmount)
 
+	metrics.Get().SetImportTableStarted(importerRole, task.TableNameTup)
+
 	resumeInfoShown := false
 	if currentProgressAmount > 0 {
 		var resumeMsg string
@@ -342,6 +344,8 @@ func (fti *FileTaskImporter) PostProcess() {
 	}
 
 	fti.updateProgressInControlPlane(ROW_UPDATE_STATUS_COMPLETED)
+
+	metrics.Get().SetImportTableCompleted(importerRole, fti.task.TableNameTup)
 
 	fti.progressReporter.FileImportDone(fti.task) // Remove the progress-bar for the file.\
 }

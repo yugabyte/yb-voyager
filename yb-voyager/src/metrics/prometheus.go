@@ -5,6 +5,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -15,8 +16,11 @@ var errorLabels = append(append([]string{}, snapshotLabels...), "error_kind")
 var cdcRateLabels = []string{"migration_uuid", "session_id", "importer_role"}
 var cdcEventLabels = append(append([]string{}, cdcRateLabels...), "event_type")
 var exportRowLabels = []string{"migration_uuid", "session_id", "table_name", "schema_name"}
-var exportCDCLabels = []string{"migration_uuid", "session_id"}
+var exportCDCLabels = []string{"migration_uuid", "session_id", "exporter_role"}
 var nodeCPULabels = []string{"migration_uuid", "session_id", "node"}
+var exportErrorLabels = []string{"migration_uuid", "session_id", "operation"}
+var replicationSlotLabels = []string{"migration_uuid", "session_id", "slot_name"}
+var buildInfoLabels = []string{"migration_uuid", "session_id", "version", "commit"}
 
 var sessionID = time.Now().Format("20060102-150405")
 
@@ -48,6 +52,18 @@ type PrometheusRecorder struct {
 
 	exportSnapshotRows *prometheus.GaugeVec
 	exportCDCEvents    *prometheus.CounterVec
+	exportErrorsTotal  *prometheus.CounterVec
+
+	cdcEventsPending             *prometheus.GaugeVec
+	cdcEstimatedSecondsToCatchUp *prometheus.GaugeVec
+	cdcLastEventApplied          *prometheus.GaugeVec
+
+	importTableTotalRows   *prometheus.GaugeVec
+	importTableStartTS     *prometheus.GaugeVec
+	importTableCompletedTS *prometheus.GaugeVec
+
+	replicationSlotWAL *prometheus.GaugeVec
+	buildInfo          *prometheus.GaugeVec
 
 	parallelism   *prometheus.GaugeVec
 	parallelConns *prometheus.GaugeVec
@@ -57,7 +73,7 @@ type PrometheusRecorder struct {
 func NewPrometheusRecorder(migrationUUID, sessionID string) *PrometheusRecorder {
 	reg := prometheus.NewRegistry()
 	f := promauto.With(reg)
-	return &PrometheusRecorder{
+	rec := &PrometheusRecorder{
 		reg:           reg,
 		migrationUUID: migrationUUID,
 		sessionID:     sessionID,
@@ -123,6 +139,42 @@ func NewPrometheusRecorder(migrationUUID, sessionID string) *PrometheusRecorder 
 			Name: "yb_voyager_export_cdc_events_total",
 			Help: "Total CDC events exported during streaming",
 		}, exportCDCLabels),
+		exportErrorsTotal: f.NewCounterVec(prometheus.CounterOpts{
+			Name: "yb_voyager_export_errors_total",
+			Help: "Total errors encountered during export, by export flow/operation",
+		}, exportErrorLabels),
+		cdcEventsPending: f.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "yb_voyager_cdc_events_pending",
+			Help: "CDC events exported but not yet applied on the importer (exported minus imported)",
+		}, cdcRateLabels),
+		cdcEstimatedSecondsToCatchUp: f.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "yb_voyager_cdc_estimated_seconds_to_catch_up",
+			Help: "Estimated seconds for the importer to apply all pending CDC events at the current rate",
+		}, cdcRateLabels),
+		cdcLastEventApplied: f.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "yb_voyager_cdc_last_event_applied_timestamp_seconds",
+			Help: "Unix timestamp of the most recent successfully applied CDC event batch",
+		}, cdcRateLabels),
+		importTableTotalRows: f.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "yb_voyager_import_snapshot_table_total_rows",
+			Help: "Expected total rows for the table during snapshot import",
+		}, snapshotLabels),
+		importTableStartTS: f.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "yb_voyager_import_table_start_timestamp_seconds",
+			Help: "Unix timestamp when import of the table started",
+		}, snapshotLabels),
+		importTableCompletedTS: f.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "yb_voyager_import_table_completed_timestamp_seconds",
+			Help: "Unix timestamp when import of the table completed",
+		}, snapshotLabels),
+		replicationSlotWAL: f.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "yb_voyager_source_replication_slot_retained_wal_bytes",
+			Help: "Bytes of WAL retained by the source logical replication slot",
+		}, replicationSlotLabels),
+		buildInfo: f.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "yb_voyager_build_info",
+			Help: "Build identification for the running yb-voyager process (always 1)",
+		}, buildInfoLabels),
 		parallelism: f.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "yb_voyager_import_parallelism",
 			Help: "Current adaptive parallelism level",
@@ -134,9 +186,11 @@ func NewPrometheusRecorder(migrationUUID, sessionID string) *PrometheusRecorder 
 		// PromQL: max by (node) (yb_voyager_cluster_node_cpu_percent)
 		nodeCPU: f.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "yb_voyager_cluster_node_cpu_percent",
-			Help: "Per-node CPU usage percent of the target cluster",
+			Help: "Per-node CPU usage percent (user+system) of the target cluster; one series per node",
 		}, nodeCPULabels),
 	}
+	rec.buildInfo.WithLabelValues(migrationUUID, sessionID, utils.YB_VOYAGER_VERSION, utils.GitCommitHash()).Set(1)
+	return rec
 }
 
 // Registry exposes the recorder's registry for the HTTP handler.
@@ -189,9 +243,42 @@ func (p *PrometheusRecorder) SetExportedSnapshotRowCount(t sqlname.NameTuple, ro
 	p.exportSnapshotRows.WithLabelValues(p.migrationUUID, p.sessionID, table, schema).Set(float64(rows))
 }
 
-func (p *PrometheusRecorder) RecordExportedCDCEvents(events int64) {
-	p.exportCDCEvents.WithLabelValues(p.migrationUUID, p.sessionID).Add(float64(events))
+func (p *PrometheusRecorder) RecordExportedCDCEvents(role string, events int64) {
+	p.exportCDCEvents.WithLabelValues(p.migrationUUID, p.sessionID, role).Add(float64(events))
 }
+
+func (p *PrometheusRecorder) RecordExportError(operation string) {
+	p.exportErrorsTotal.WithLabelValues(p.migrationUUID, p.sessionID, operation).Inc()
+}
+
+func (p *PrometheusRecorder) SetCDCEventsPending(role string, pending int64) {
+	p.cdcEventsPending.WithLabelValues(p.migrationUUID, p.sessionID, role).Set(float64(pending))
+}
+
+func (p *PrometheusRecorder) SetCDCEstimatedSecondsToCatchUp(role string, seconds float64) {
+	p.cdcEstimatedSecondsToCatchUp.WithLabelValues(p.migrationUUID, p.sessionID, role).Set(seconds)
+}
+
+func (p *PrometheusRecorder) SetCDCLastEventApplied(role string) {
+	p.cdcLastEventApplied.WithLabelValues(p.migrationUUID, p.sessionID, role).Set(float64(time.Now().Unix()))
+}
+
+func (p *PrometheusRecorder) SetImportSnapshotTableTotalRows(role string, t sqlname.NameTuple, rows int64) {
+	p.importTableTotalRows.WithLabelValues(p.snapshotLabelValues(role, t)...).Set(float64(rows))
+}
+
+func (p *PrometheusRecorder) SetImportTableStarted(role string, t sqlname.NameTuple) {
+	p.importTableStartTS.WithLabelValues(p.snapshotLabelValues(role, t)...).Set(float64(time.Now().Unix()))
+}
+
+func (p *PrometheusRecorder) SetImportTableCompleted(role string, t sqlname.NameTuple) {
+	p.importTableCompletedTS.WithLabelValues(p.snapshotLabelValues(role, t)...).Set(float64(time.Now().Unix()))
+}
+
+func (p *PrometheusRecorder) SetSourceReplicationSlotRetainedWALBytes(slotName string, bytes int64) {
+	p.replicationSlotWAL.WithLabelValues(p.migrationUUID, p.sessionID, slotName).Set(float64(bytes))
+}
+
 func (p *PrometheusRecorder) SetParallelism(role string, level int) {
 	p.parallelism.WithLabelValues(p.migrationUUID, p.sessionID, role).Set(float64(level))
 }

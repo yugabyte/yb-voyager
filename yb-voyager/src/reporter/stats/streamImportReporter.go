@@ -157,6 +157,7 @@ func (s *StreamImportStatsReporter) BatchImported(numInserts, numUpdates, numDel
 	s.EventsImportRateLast3Min = s.getIngestionRateForLastNMinutes(3) / 60 // this is just used for call-home stats
 	metrics.Get().RecordCDCEventsImported(s.importerRole, numInserts, numUpdates, numDeletes)
 	metrics.Get().SetCDCImportRate(s.importerRole, float64(s.EventsImportRateLast3Min))
+	metrics.Get().SetCDCLastEventApplied(s.importerRole)
 }
 
 func (s *StreamImportStatsReporter) getIngestionRateForLastNMinutes(n int64) int64 {
@@ -185,4 +186,6 @@ func (s *StreamImportStatsReporter) UpdateRemainingEvents() {
 	if lastMinIngestionRate > 0 {
 		s.estimatedTimeToCatchUp = time.Duration(s.remainingEvents/lastMinIngestionRate) * time.Minute
 	}
+	metrics.Get().SetCDCEventsPending(s.importerRole, s.remainingEvents)
+	metrics.Get().SetCDCEstimatedSecondsToCatchUp(s.importerRole, s.estimatedTimeToCatchUp.Seconds())
 }

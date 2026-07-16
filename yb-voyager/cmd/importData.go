@@ -2418,6 +2418,7 @@ func createInitialImportDataTableMetrics(tasks []*ImportFileTask) []*cp.UpdateIm
 	for _, task := range tasks {
 		var schemaName, tableName string
 		schemaName, tableName = task.TableNameTup.ForKeyTableSchema()
+		metrics.Get().SetImportSnapshotTableTotalRows(importerRole, task.TableNameTup, getTotalProgressAmount(task))
 		tableMetrics := cp.UpdateImportedRowCountEvent{
 			BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
 				BaseEvent: cp.BaseEvent{

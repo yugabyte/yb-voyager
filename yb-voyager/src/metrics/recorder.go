@@ -31,10 +31,22 @@ type Recorder interface {
 	// cdc / streaming
 	RecordCDCEventsImported(role string, inserts, updates, deletes int64)
 	SetCDCImportRate(role string, eventsPerSec float64)
+	SetCDCEventsPending(role string, pending int64)
+	SetCDCEstimatedSecondsToCatchUp(role string, seconds float64)
+	SetCDCLastEventApplied(role string)
 
 	// export
 	SetExportedSnapshotRowCount(t sqlname.NameTuple, rows int64)
-	RecordExportedCDCEvents(events int64)
+	RecordExportedCDCEvents(role string, events int64)
+	RecordExportError(operation string)
+
+	// import progress / lifecycle
+	SetImportSnapshotTableTotalRows(role string, t sqlname.NameTuple, rows int64)
+	SetImportTableStarted(role string, t sqlname.NameTuple)
+	SetImportTableCompleted(role string, t sqlname.NameTuple)
+
+	// source health
+	SetSourceReplicationSlotRetainedWALBytes(slotName string, bytes int64)
 
 	// throughput / parallelism gauges
 	SetParallelism(role string, level int)

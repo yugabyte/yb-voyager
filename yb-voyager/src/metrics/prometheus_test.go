@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/assert"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -16,104 +17,142 @@ func newTupleForTest(schema, table string) sqlname.NameTuple {
 	return sqlname.NameTuple{CurrentName: obj, SourceName: obj, TargetName: obj}
 }
 
-func TestPrometheusRecorderSnapshotCounters(t *testing.T) {
-	r := NewPrometheusRecorder("uuid-1", "sess-1")
-	tup := newTupleForTest("public", "orders")
+func TestPrometheusRecorder(t *testing.T) {
+	t.Run("snapshot counters", func(t *testing.T) {
+		r := NewPrometheusRecorder("uuid-1", "sess-1")
+		tup := newTupleForTest("public", "orders")
 
-	r.RecordSnapshotBatchCreated("target_db_importer", tup)
-	r.RecordSnapshotBatchSubmitted("target_db_importer", tup)
-	r.RecordSnapshotBatchIngested("target_db_importer", tup, 10, 100)
+		r.RecordSnapshotBatchCreated("target_db_importer", tup)
+		r.RecordSnapshotBatchSubmitted("target_db_importer", tup)
+		r.RecordSnapshotBatchIngested("target_db_importer", tup, 10, 100)
 
-	expected := `
+		expected := `
 # HELP yb_voyager_import_snapshot_rows_total Total rows imported during snapshot
 # TYPE yb_voyager_import_snapshot_rows_total counter
 yb_voyager_import_snapshot_rows_total{importer_role="target_db_importer",migration_uuid="uuid-1",schema_name="public",session_id="sess-1",table_name="orders"} 10
 `
-	if err := testutil.CollectAndCompare(
-		r.importRowsTotal, strings.NewReader(expected),
-		"yb_voyager_import_snapshot_rows_total",
-	); err != nil {
-		t.Fatal(err)
-	}
-	if got := testutil.CollectAndCount(r.snapshotBatchIngested); got != 1 {
-		t.Fatalf("expected 1 ingested series, got %d", got)
-	}
-}
+		err := testutil.CollectAndCompare(
+			r.importRowsTotal, strings.NewReader(expected),
+			"yb_voyager_import_snapshot_rows_total",
+		)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, testutil.CollectAndCount(r.snapshotBatchIngested), "expected 1 ingested series")
+	})
 
-func TestPrometheusRecorderBatchSizeAndTimestamp(t *testing.T) {
-	r := NewPrometheusRecorder("uuid-1", "sess-1")
-	tup := newTupleForTest("public", "orders")
+	t.Run("batch size and timestamp", func(t *testing.T) {
+		r := NewPrometheusRecorder("uuid-1", "sess-1")
+		tup := newTupleForTest("public", "orders")
 
-	r.ObserveSnapshotBatchSize("target_db_importer", tup, 10, 100)
-	r.RecordSnapshotBatchIngested("target_db_importer", tup, 10, 100)
+		r.ObserveSnapshotBatchSize("target_db_importer", tup, 10, 100)
+		r.RecordSnapshotBatchIngested("target_db_importer", tup, 10, 100)
 
-	if got := testutil.CollectAndCount(r.batchSizeRows); got != 1 {
-		t.Fatalf("expected 1 batch_size_rows series, got %d", got)
-	}
-	if got := testutil.ToFloat64(r.lastBatchIngestedTS.WithLabelValues(
-		r.snapshotLabelValues("target_db_importer", tup)...)); got <= 0 {
-		t.Fatalf("last-ingested timestamp gauge not set, got %v", got)
-	}
-}
+		assert.Equal(t, 1, testutil.CollectAndCount(r.batchSizeRows), "expected 1 batch_size_rows series")
 
-func TestPrometheusRecorderImportErrors(t *testing.T) {
-	r := NewPrometheusRecorder("uuid-1", "sess-1")
-	tup := newTupleForTest("public", "orders")
+		val := testutil.ToFloat64(r.lastBatchIngestedTS.WithLabelValues(
+			r.snapshotLabelValues("target_db_importer", tup)...))
+		assert.Greater(t, val, float64(0), "last-ingested timestamp gauge not set")
+	})
 
-	r.RecordImportError("target_db_importer", tup, ErrorKindRowProcessing, 3, 30)
+	t.Run("import errors", func(t *testing.T) {
+		r := NewPrometheusRecorder("uuid-1", "sess-1")
+		tup := newTupleForTest("public", "orders")
 
-	m := r.importErrorsTotal.WithLabelValues(
-		"uuid-1", "sess-1", "target_db_importer", "orders", "public", string(ErrorKindRowProcessing))
-	if got := testutil.ToFloat64(m); got != 3 {
-		t.Fatalf("expected 3 error rows, got %v", got)
-	}
-}
+		r.RecordImportError("target_db_importer", tup, ErrorKindRowProcessing, 3, 30)
 
-func TestPrometheusRecorderCDC(t *testing.T) {
-	r := NewPrometheusRecorder("uuid-1", "sess-1")
-	r.RecordCDCEventsImported("target_db_importer", 5, 3, 2)
-	r.SetCDCImportRate("target_db_importer", 12.5)
+		m := r.importErrorsTotal.WithLabelValues(
+			"uuid-1", "sess-1", "target_db_importer", "orders", "public", string(ErrorKindRowProcessing))
+		assert.Equal(t, float64(3), testutil.ToFloat64(m), "expected 3 error rows")
+	})
 
-	ins := r.cdcEventsImported.WithLabelValues("uuid-1", "sess-1", "target_db_importer", "insert")
-	if got := testutil.ToFloat64(ins); got != 5 {
-		t.Fatalf("expected 5 inserts, got %v", got)
-	}
-	rate := r.cdcImportRate.WithLabelValues("uuid-1", "sess-1", "target_db_importer")
-	if got := testutil.ToFloat64(rate); got != 12.5 {
-		t.Fatalf("expected rate 12.5, got %v", got)
-	}
-}
+	t.Run("cdc", func(t *testing.T) {
+		r := NewPrometheusRecorder("uuid-1", "sess-1")
+		r.RecordCDCEventsImported("target_db_importer", 5, 3, 2)
+		r.SetCDCImportRate("target_db_importer", 12.5)
 
-func TestPrometheusRecorderExport(t *testing.T) {
-	r := NewPrometheusRecorder("uuid-1", "sess-1")
-	tup := newTupleForTest("public", "orders")
+		ins := r.cdcEventsImported.WithLabelValues("uuid-1", "sess-1", "target_db_importer", "insert")
+		assert.Equal(t, float64(5), testutil.ToFloat64(ins), "expected 5 inserts")
 
-	r.SetExportedSnapshotRowCount(tup, 1234)
-	r.RecordExportedCDCEvents(50)
+		rate := r.cdcImportRate.WithLabelValues("uuid-1", "sess-1", "target_db_importer")
+		assert.Equal(t, 12.5, testutil.ToFloat64(rate), "expected rate 12.5")
+	})
 
-	g := r.exportSnapshotRows.WithLabelValues("uuid-1", "sess-1", "orders", "public")
-	if got := testutil.ToFloat64(g); got != 1234 {
-		t.Fatalf("expected 1234 exported rows, got %v", got)
-	}
-	if got := testutil.ToFloat64(r.exportCDCEvents.WithLabelValues("uuid-1", "sess-1")); got != 50 {
-		t.Fatalf("expected 50 exported cdc events, got %v", got)
-	}
-}
+	t.Run("export", func(t *testing.T) {
+		r := NewPrometheusRecorder("uuid-1", "sess-1")
+		tup := newTupleForTest("public", "orders")
 
-func TestPrometheusRecorderThroughputGauges(t *testing.T) {
-	r := NewPrometheusRecorder("uuid-1", "sess-1")
+		r.SetExportedSnapshotRowCount(tup, 1234)
+		r.RecordExportedCDCEvents("source_db_exporter", 50)
 
-	r.SetParallelism("target_db_importer", 8)
-	r.SetParallelConnections("target_db_importer", 4)
-	r.SetNodeCPUPercent("node-1", 55.5)
+		g := r.exportSnapshotRows.WithLabelValues("uuid-1", "sess-1", "orders", "public")
+		assert.Equal(t, float64(1234), testutil.ToFloat64(g), "expected 1234 exported rows")
 
-	if got := testutil.ToFloat64(r.parallelism.WithLabelValues("uuid-1", "sess-1", "target_db_importer")); got != 8 {
-		t.Fatalf("parallelism = %v", got)
-	}
-	if got := testutil.ToFloat64(r.parallelConns.WithLabelValues("uuid-1", "sess-1", "target_db_importer")); got != 4 {
-		t.Fatalf("parallel_connections = %v", got)
-	}
-	if got := testutil.ToFloat64(r.nodeCPU.WithLabelValues("uuid-1", "sess-1", "node-1")); got != 55.5 {
-		t.Fatalf("node cpu = %v", got)
-	}
+		cdcEvents := r.exportCDCEvents.WithLabelValues("uuid-1", "sess-1", "source_db_exporter")
+		assert.Equal(t, float64(50), testutil.ToFloat64(cdcEvents), "expected 50 exported cdc events")
+	})
+
+	t.Run("throughput gauges", func(t *testing.T) {
+		r := NewPrometheusRecorder("uuid-1", "sess-1")
+
+		r.SetParallelism("target_db_importer", 8)
+		r.SetParallelConnections("target_db_importer", 4)
+		r.SetNodeCPUPercent("node-1", 55.5)
+
+		parallelism := r.parallelism.WithLabelValues("uuid-1", "sess-1", "target_db_importer")
+		assert.Equal(t, float64(8), testutil.ToFloat64(parallelism))
+
+		parallelConns := r.parallelConns.WithLabelValues("uuid-1", "sess-1", "target_db_importer")
+		assert.Equal(t, float64(4), testutil.ToFloat64(parallelConns))
+
+		nodeCPU := r.nodeCPU.WithLabelValues("uuid-1", "sess-1", "node-1")
+		assert.Equal(t, 55.5, testutil.ToFloat64(nodeCPU))
+	})
+
+	t.Run("cdc lag gauges", func(t *testing.T) {
+		r := NewPrometheusRecorder("uuid-1", "sess-1")
+		r.SetCDCEventsPending("target_db_importer", 42)
+		r.SetCDCEstimatedSecondsToCatchUp("target_db_importer", 12.5)
+		r.SetCDCLastEventApplied("target_db_importer")
+
+		pending := r.cdcEventsPending.WithLabelValues("uuid-1", "sess-1", "target_db_importer")
+		assert.Equal(t, float64(42), testutil.ToFloat64(pending), "expected 42 pending")
+		eta := r.cdcEstimatedSecondsToCatchUp.WithLabelValues("uuid-1", "sess-1", "target_db_importer")
+		assert.Equal(t, 12.5, testutil.ToFloat64(eta), "expected eta 12.5")
+		ts := r.cdcLastEventApplied.WithLabelValues("uuid-1", "sess-1", "target_db_importer")
+		assert.Greater(t, testutil.ToFloat64(ts), float64(0), "last-event-applied gauge not set")
+	})
+
+	t.Run("import progress and lifecycle", func(t *testing.T) {
+		r := NewPrometheusRecorder("uuid-1", "sess-1")
+		tup := newTupleForTest("public", "orders")
+		r.SetImportSnapshotTableTotalRows("target_db_importer", tup, 1000)
+		r.SetImportTableStarted("target_db_importer", tup)
+		r.SetImportTableCompleted("target_db_importer", tup)
+
+		total := r.importTableTotalRows.WithLabelValues(r.snapshotLabelValues("target_db_importer", tup)...)
+		assert.Equal(t, float64(1000), testutil.ToFloat64(total), "expected total 1000")
+		start := r.importTableStartTS.WithLabelValues(r.snapshotLabelValues("target_db_importer", tup)...)
+		assert.Greater(t, testutil.ToFloat64(start), float64(0), "start ts not set")
+		done := r.importTableCompletedTS.WithLabelValues(r.snapshotLabelValues("target_db_importer", tup)...)
+		assert.Greater(t, testutil.ToFloat64(done), float64(0), "completed ts not set")
+	})
+
+	t.Run("export errors and exporter_role on cdc events", func(t *testing.T) {
+		r := NewPrometheusRecorder("uuid-1", "sess-1")
+		r.RecordExportError("get_initial_table_list")
+		r.RecordExportedCDCEvents("source_db_exporter", 7)
+
+		errs := r.exportErrorsTotal.WithLabelValues("uuid-1", "sess-1", "get_initial_table_list")
+		assert.Equal(t, float64(1), testutil.ToFloat64(errs), "expected 1 export error")
+		ev := r.exportCDCEvents.WithLabelValues("uuid-1", "sess-1", "source_db_exporter")
+		assert.Equal(t, float64(7), testutil.ToFloat64(ev), "expected 7 exported events")
+	})
+
+	t.Run("replication slot wal and build info", func(t *testing.T) {
+		r := NewPrometheusRecorder("uuid-1", "sess-1")
+		r.SetSourceReplicationSlotRetainedWALBytes("voyager_slot", 4096)
+		wal := r.replicationSlotWAL.WithLabelValues("uuid-1", "sess-1", "voyager_slot")
+		assert.Equal(t, float64(4096), testutil.ToFloat64(wal), "expected 4096 wal bytes")
+		// build_info is always 1; label values come from the version package.
+		assert.Equal(t, 1, testutil.CollectAndCount(r.buildInfo), "expected 1 build_info series")
+	})
 }

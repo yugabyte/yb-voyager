@@ -502,7 +502,7 @@ func calculateStreamingProgress(ctx context.Context) {
 			utils.ErrExit("failed to get total exported count from metadb: %w", err)
 		}
 		if delta := totalEventCountRun - lastRecordedEventCount; delta > 0 {
-			metrics.Get().RecordExportedCDCEvents(delta)
+			metrics.Get().RecordExportedCDCEvents(exporterRole, delta)
 			lastRecordedEventCount = totalEventCountRun
 		}
 
