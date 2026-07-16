@@ -26,6 +26,8 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -119,6 +121,24 @@ func fetchClusterMetricsAndUpdateParallelism(yb TargetYugabyteDBWithConnectionPo
 	currentNumConnections := yb.GetNumConnectionsInPool()
 	if callhomeMetricsCollector != nil {
 		callhomeMetricsCollector.SetCurrentParallelConnections(currentNumConnections)
+	}
+	metrics.Get().SetParallelConnections(constants.TARGET_DB_IMPORTER_ROLE, currentNumConnections)
+	metrics.Get().SetParallelism(constants.TARGET_DB_IMPORTER_ROLE, currentNumConnections)
+	for node, nodeMetrics := range clusterMetrics {
+		if nodeMetrics.Status != "OK" {
+			continue
+		}
+		user, err := strconv.ParseFloat(nodeMetrics.Metrics[CPU_USAGE_USER_METRIC], 64)
+		if err != nil {
+			log.Warnf("adaptive: parsing cpu usage user as float for node %s: %v", node, err)
+			continue
+		}
+		sys, err := strconv.ParseFloat(nodeMetrics.Metrics[CPU_USAGE_SYSTEM_METRIC], 64)
+		if err != nil {
+			log.Warnf("adaptive: parsing cpu usage system as float for node %s: %v", node, err)
+			continue
+		}
+		metrics.Get().SetNodeCPUPercent(node, (user+sys)*100)
 	}
 
 	if cpuLoadHigh || memLoadHigh {

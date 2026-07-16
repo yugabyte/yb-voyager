@@ -30,6 +30,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -434,7 +435,7 @@ func (p *SequentialFileBatchProducer) finalizeBatch(batchWriter *BatchWriter, is
 		utils.ErrExit("finalizing batch %d: %s", batchNum, err)
 	}
 
-	importdata.RecordPrometheusSnapshotBatchCreated(p.task.TableNameTup, importerRole)
+	metrics.Get().RecordSnapshotBatchCreated(importerRole, p.task.TableNameTup)
 
 	batchWriter = nil
 	p.lastBatchNumber = batchNum

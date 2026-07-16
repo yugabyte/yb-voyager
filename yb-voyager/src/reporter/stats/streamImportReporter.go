@@ -30,6 +30,7 @@ import (
 	"github.com/samber/lo"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -154,6 +155,8 @@ func (s *StreamImportStatsReporter) BatchImported(numInserts, numUpdates, numDel
 	s.TotalEventsImported += total
 	s.eventsSlidingWindow[0] += total
 	s.EventsImportRateLast3Min = s.getIngestionRateForLastNMinutes(3) / 60 // this is just used for call-home stats
+	metrics.Get().RecordCDCEventsImported(s.importerRole, numInserts, numUpdates, numDeletes)
+	metrics.Get().SetCDCImportRate(s.importerRole, float64(s.EventsImportRateLast3Min))
 }
 
 func (s *StreamImportStatsReporter) getIngestionRateForLastNMinutes(n int64) int64 {

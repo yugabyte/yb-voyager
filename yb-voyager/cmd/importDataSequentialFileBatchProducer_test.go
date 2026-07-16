@@ -396,7 +396,7 @@ func TestFileBatchProducer_StashAndContinue_ConversionError(t *testing.T) {
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
 	testutils.FatalIfError(t, err)
 
 	fileContents := `id,val
@@ -441,7 +441,7 @@ func TestFileBatchProducer_AbortHandler_ConversionError(t *testing.T) {
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	abortErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.AbortErrorPolicy, getErrorsParentDir(lexportDir))
+	abortErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.AbortErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
 	testutils.FatalIfError(t, err)
 
 	fileContents := `id,val
@@ -477,7 +477,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError(t *testing.T) {
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
 	testutils.FatalIfError(t, err)
 
 	// The second row will be too large for the batch size
@@ -518,7 +518,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError_FirstRow(t *testing
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
 	testutils.FatalIfError(t, err)
 
 	// The first row will be too large for the batch size
@@ -555,7 +555,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError_FirstFiveRows(t *te
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
 	testutils.FatalIfError(t, err)
 
 	// The first 5 rows will be too large for the batch size
@@ -600,7 +600,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError_LastBatch(t *testin
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
 	testutils.FatalIfError(t, err)
 
 	// First batch: small rows that fit within 20 bytes
@@ -655,7 +655,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError_processingErrorFile
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
 	testutils.FatalIfError(t, err)
 
 	// The second row will be too large for the batch size
@@ -713,7 +713,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeErrorDoesNotCountTowardsB
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
 	testutils.FatalIfError(t, err)
 
 	// The second row will be too large for the batch size, but the third row is small enough to fit if the second is skipped
@@ -754,7 +754,7 @@ func TestFileBatchProducer_StashAndContinue_ConversionErrorDoesNotCountTowardsBa
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
 	testutils.FatalIfError(t, err)
 
 	// The second row will error (conversion error), but is large enough that if it counted, the third row would not fit
@@ -800,7 +800,7 @@ func TestFileBatchProducer_StashAndContinue_Resumption(t *testing.T) {
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
 	testutils.FatalIfError(t, err)
 
 	// The second row will be too large for the batch size
@@ -872,7 +872,7 @@ func TestFileBatchProducer_StashAndContinue_MultipleTasksSameTable(t *testing.T)
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
 	testutils.FatalIfError(t, err)
 
 	// The second row will error (conversion error), but is large enough that if it counted, the third row would not fit
@@ -1447,7 +1447,7 @@ func TestCumByteOffset_WithStashedErrors(t *testing.T) {
 	defer os.RemoveAll(ldataDir)
 	defer os.RemoveAll(lexportDir)
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
 	assert.NoError(t, err)
 
 	longVal := strings.Repeat("x", 220) // 220+ bytes, exceeds MaxBatchSizeInBytes of 200
@@ -1623,7 +1623,7 @@ func TestCumByteOffset_WithConversionErrors(t *testing.T) {
 	defer os.RemoveAll(ldataDir)
 	defer os.RemoveAll(lexportDir)
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
 	assert.NoError(t, err)
 
 	fileContents := `id,val

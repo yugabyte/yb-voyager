@@ -610,6 +610,10 @@ func packAndSendExportDataPayload(status string, errorMsg error) {
 }
 
 func exportData() bool {
+	if err := startMetricsServer(exporterRole, migrationUUID); err != nil {
+		utils.ErrExit("start metrics server: %v", err)
+	}
+
 	err := source.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source db: %w", err)

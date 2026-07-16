@@ -555,4 +555,7 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 	importDataFileCmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
 		"Port for Prometheus metrics server (default: 9102)")
 	importDataFileCmd.Flags().MarkHidden("prometheus-metrics-port")
+
+	importDataFileCmd.Flags().IntVar(&metricsPort, "metrics-port", 0,
+		"Port to expose Prometheus metrics on (0 disables). Serves GET /metrics.")
 }

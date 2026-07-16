@@ -104,7 +104,7 @@ func setupExportDirAndImportDependencies(batchSizeRows int64, batchSizeBytes int
 	TableNameToSchema = utils.NewStructMap[sqlname.NameTuple, map[string]map[string]string]()
 	importerRole = TARGET_DB_IMPORTER_ROLE
 
-	errorHandler, err := importdata.GetImportDataErrorHandler(importdata.AbortErrorPolicy, filepath.Join(lexportDir, "data"))
+	errorHandler, err := importdata.GetImportDataErrorHandler(importdata.AbortErrorPolicy, filepath.Join(lexportDir, "data"), importerRole)
 
 	if err != nil {
 		return "", "", nil, nil, nil, err

@@ -85,6 +85,7 @@ End-to-end migtests are invoked outside Go: `bash migtests/scripts/run-test.sh <
 - `src/dbzm/` — Debezium server lifecycle, status, and value conversion for live migration.
 - `src/metadb/` — SQLite-backed metadata store. `MigrationStatusRecord` in `migrationStatus.go` is the central serialized state — adding/removing JSON-tagged fields is a backward-compatibility concern (see below).
 - `src/namereg/` + `src/utils/sqlname/` — the only correct way to handle DB identifiers. `NameTuple`/`ObjectName` preserve case-sensitive (quoted) PG identifiers. Never concatenate schema/table names manually.
+- `src/metrics/` — Prometheus metrics surface. `Recorder` interface with a no-op default (`metrics.Get()`, safe when metrics are disabled) and a `PrometheusRecorder` implementation on its own registry (`metrics.NewPrometheusRecorder`). `metrics.NewServer` serves `/metrics` on a dedicated `http.ServeMux`, started via `--metrics-port` on import and export commands (`cmd/importData.go`'s `startMetricsServer`). Decoupled from `--profile` (pprof only); `--prometheus-metrics-port` is a deprecated hidden alias.
 - `src/query/queryissue/`, `src/query/queryparser/`, `src/query/sqltransformer/` — SQL parsing and schema-issue detection used by `analyze-schema` and `assess-migration`.
 - `src/migassessment/` — `assess-migration` engine: collects DB stats, sizing, replicas, permissions, produces the assessment DB and report. `cmd/templates/` holds the HTML/text report templates.
 - `src/callhome/` — anonymous telemetry payloads. Disabled with `YB_VOYAGER_SEND_DIAGNOSTICS=0` or `--send-diagnostics=false`.
@@ -114,6 +115,23 @@ Users routinely upgrade voyager mid-migration. The following surfaces are load-b
 - The assessment SQLite DB schema — when adding columns, use `ADD COLUMN IF NOT EXISTS` and write defensive queries; otherwise an older voyager run against the new schema will error.
 - Callhome / YugabyteD payload structs — bump the payload version constant when shape changes.
 - If a change cannot preserve compat, flag the next release as a breaking release.
+
+## Metrics
+
+`--metrics-port <port>` (default `0`, disabled) exposes a Prometheus registry at `GET http://<host>:<port>/metrics` on its own `http.ServeMux`, on both import (`import data`, `import data file`, `import data to target/source/source-replica`) and export (`export data from source/target`) commands. `--profile` starts the pprof server and is otherwise independent, but on import commands, if `--profile` is set and no `--metrics-port`/`--prometheus-metrics-port` is given, metrics still start on the role's legacy default port (9101 target/9102 import-file/9103 source-replica/9104 source, `cmd/importData.go`'s `legacyProfileDefaultMetricsPorts`) with a deprecation warning — this preserves pre-`--metrics-port` behavior. Export commands have no legacy default port and stay disabled unless a port is explicitly set. `--prometheus-metrics-port` is a deprecated hidden alias for `--metrics-port` (still works, logs a warning); `--metrics-port` wins if both are set.
+
+Metric catalogue (labels `migration_uuid, session_id` on every metric):
+- `yb_voyager_import_snapshot_rows_total`, `yb_voyager_import_snapshot_bytes_total` (counters) — rows/bytes imported during snapshot. Labels: `+ importer_role, table_name, schema_name`.
+- `yb_voyager_import_snapshot_batch_{created,submitted,ingested}_total` (counters) — batch lifecycle. Same labels as above.
+- `yb_voyager_import_snapshot_batch_size_{rows,bytes}` (histograms) — per-batch size distribution. Same labels.
+- `yb_voyager_import_table_last_batch_ingested_timestamp_seconds` (gauge) — Unix timestamp of the most recent ingest per table; used to detect stalls. Same labels.
+- `yb_voyager_import_errors_total`, `yb_voyager_import_error_bytes_total` (counters) — import errors by `error_kind` (`row_processing`, `batch_ingestion`). Same labels `+ error_kind`.
+- `yb_voyager_cdc_events_imported_total` (counter) — CDC events imported by `event_type` (`insert`/`update`/`delete`). Labels: `+ importer_role, event_type`.
+- `yb_voyager_cdc_import_rate_events_per_second` (gauge) — 3-minute average CDC import rate. Labels: `+ importer_role`.
+- `yb_voyager_export_snapshot_rows` (gauge) — exported snapshot rows per table. Labels: `+ table_name, schema_name`.
+- `yb_voyager_export_cdc_events_total` (counter) — total CDC events exported.
+- `yb_voyager_import_parallelism`, `yb_voyager_import_parallel_connections` (gauges) — adaptive parallelism level and current parallel connections. Labels: `+ importer_role`.
+- `yb_voyager_cluster_node_cpu_percent` (gauge) — per-node target cluster CPU usage. Labels: `+ node`.
 
 ## Gotchas
 

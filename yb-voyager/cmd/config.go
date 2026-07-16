@@ -116,7 +116,7 @@ var allowedExportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level", "run-guardrails-checks",
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
 	"table-list-file-path", "parallel-jobs", "export-type",
-	"allow-oracle-clob-data-export",
+	"allow-oracle-clob-data-export", "metrics-port",
 	// environment variables keys
 	"queue-segment-max-bytes", "debezium-dist-dir", "beta-fast-data-export",
 )
@@ -124,7 +124,7 @@ var allowedExportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 var allowedExportDataFromTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level",
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
-	"table-list-file-path", "transaction-ordering",
+	"table-list-file-path", "transaction-ordering", "metrics-port",
 	// environment variables keys
 	"yb-master-port", "queue-segment-max-bytes", "debezium-dist-dir",
 )
@@ -150,7 +150,7 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"max-concurrent-batch-productions", "enable-random-batch-production",
 	"skip-node-health-checks", "skip-disk-usage-health-checks",
 	"on-primary-key-conflict", "disable-transactional-writes",
-	"truncate-splits", "prometheus-metrics-port",
+	"truncate-splits", "prometheus-metrics-port", "metrics-port",
 	"use-partition-root", "disable-sequential-scan-on-update-deletes",
 
 	// environment variables keys
@@ -164,7 +164,7 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 
 var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level", "run-guardrails-checks",
-	"parallel-jobs", "disable-pb", "prometheus-metrics-port", "use-partition-root",
+	"parallel-jobs", "disable-pb", "prometheus-metrics-port", "metrics-port", "use-partition-root",
 	// environment variables keys
 	"num-event-channels", "event-channel-size", "max-events-per-batch",
 	"max-interval-between-batches", "max-batch-size-bytes",
@@ -174,7 +174,7 @@ var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
 var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level", "run-guardrails-checks",
 	"batch-size", "parallel-jobs", "truncate-tables", "disable-pb", "max-retries-streaming",
-	"prometheus-metrics-port",
+	"prometheus-metrics-port", "metrics-port",
 	// environment variables keys
 	"ybvoyager-max-colocated-batches-in-progress", "num-event-channels",
 	"event-channel-size", "max-events-per-batch", "max-interval-between-batches",
@@ -190,7 +190,7 @@ var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"disable-transactional-writes", "truncate-splits", "skip-replication-checks",
 	"skip-node-health-checks", "skip-disk-usage-health-checks", "on-primary-key-conflict",
 	"max-concurrent-batch-productions", "enable-random-batch-production",
-	"prometheus-metrics-port",
+	"prometheus-metrics-port", "metrics-port",
 	// environment variables keys
 	"csv-reader-max-buffer-size-bytes", "ybvoyager-max-colocated-batches-in-progress",
 	"max-cpu-threshold", "adaptive-parallelism-frequency-seconds",

@@ -31,6 +31,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/vbauerster/mpb/v8"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	pbreporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/pb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -232,6 +233,7 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 	go func() { //for continuously increasing PB percentage
 		for !pbr.IsComplete() {
 			pbr.SetExportedRowCount(tableMetadata.CountLiveRows)
+			metrics.Get().SetExportedSnapshotRowCount(tableMetadata.TableName, tableMetadata.CountLiveRows)
 			time.Sleep(time.Millisecond * 500)
 
 			if exporterRole == SOURCE_DB_EXPORTER_ROLE {

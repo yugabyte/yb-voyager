@@ -37,7 +37,8 @@ var targetDBPassword string
 var sourceDBType string
 var enableOrafce utils.BoolStr
 var importType string
-var prometheusMetricsPort int
+var prometheusMetricsPort int // deprecated alias for --metrics-port
+var metricsPort int           // bound to --metrics-port; 0 = disabled
 var importUsePartitionRoot utils.BoolStr // default is true for backward compatibility
 
 var supportedSSLModesOnTargetForImport = AllSSLModes // supported SSL modes for YugabyteDB is different for import VS export data from target(streaming phase)
@@ -520,6 +521,9 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 	BoolVar(cmd.Flags(), &tconf.DisableSequentialScanOnUpdateDeletes, "disable-sequential-scan-on-update-deletes", true,
 		"Disable sequential scan on update and delete operations to avoid retryable errors during concurrent writes in repeatable isolation level (default true)")
 	cmd.Flags().MarkHidden("disable-sequential-scan-on-update-deletes")
+
+	cmd.Flags().IntVar(&metricsPort, "metrics-port", 0,
+		"Port to expose Prometheus metrics on (0 disables). Serves GET /metrics.")
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {

@@ -29,6 +29,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -61,6 +62,8 @@ type ImportDataErrorHandler interface {
 type ErroredBatch interface {
 	GetFilePath() string
 	GetTableName() sqlname.NameTuple
+	GetRecordCount() int64
+	GetByteCount() int64
 	IsInterrupted() bool
 	MarkError(batchErr error, isPartialBatchIngestionPossible bool) error
 }
@@ -113,14 +116,16 @@ Stash the error to some file(s) with the relevant error information
 */
 type ImportDataStashAndContinueHandler struct {
 	dataDir                     string
+	importerRole                string
 	rowProcessingErrorFiles     map[string]*os.File // key is table-task-batch
 	rowProcessingErrorRowCount  map[string]int64    // key is table-task-batch
 	rowProcessingErrorByteCount map[string]int64    // key is table-task-batch
 }
 
-func NewImportDataStashAndContinueHandler(dataDir string) *ImportDataStashAndContinueHandler {
+func NewImportDataStashAndContinueHandler(dataDir string, importerRole string) *ImportDataStashAndContinueHandler {
 	return &ImportDataStashAndContinueHandler{
 		dataDir:                     dataDir,
+		importerRole:                importerRole,
 		rowProcessingErrorFiles:     make(map[string]*os.File),
 		rowProcessingErrorRowCount:  make(map[string]int64),
 		rowProcessingErrorByteCount: make(map[string]int64),
@@ -158,6 +163,7 @@ func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row s
 	}
 	handler.rowProcessingErrorRowCount[tableTaskBatchKey]++
 	handler.rowProcessingErrorByteCount[tableTaskBatchKey] += rowByteCount
+	metrics.Get().RecordImportError(handler.importerRole, tableName, metrics.ErrorKindRowProcessing, 1, rowByteCount)
 
 	/*
 		ERROR: <error message>
@@ -305,6 +311,7 @@ func (handler *ImportDataStashAndContinueHandler) HandleBatchIngestionError(batc
 	if err != nil {
 		return goerrors.Errorf("creating symlink in errors folder: %s", err)
 	}
+	metrics.Get().RecordImportError(handler.importerRole, batch.GetTableName(), metrics.ErrorKindBatchIngestion, batch.GetRecordCount(), batch.GetByteCount())
 	return nil
 }
 
@@ -360,12 +367,12 @@ func ComputePathHash(filePath string) string {
 
 // -----------------------------------------------------------------------------------------------------//
 
-func GetImportDataErrorHandler(errorPolicy ErrorPolicy, dataDir string) (ImportDataErrorHandler, error) {
+func GetImportDataErrorHandler(errorPolicy ErrorPolicy, dataDir string, importerRole string) (ImportDataErrorHandler, error) {
 	switch errorPolicy {
 	case AbortErrorPolicy:
 		return NewImportDataAbortHandler(), nil
 	case StashAndContinueErrorPolicy:
-		return NewImportDataStashAndContinueHandler(dataDir), nil
+		return NewImportDataStashAndContinueHandler(dataDir, importerRole), nil
 	default:
 		return nil, goerrors.Errorf("unknown error policy: %s", errorPolicy)
 	}

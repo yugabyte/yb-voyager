@@ -38,6 +38,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -494,10 +495,15 @@ func reportStreamingProgress(ctx context.Context) {
 
 func calculateStreamingProgress(ctx context.Context) {
 	var err error
+	var lastRecordedEventCount int64
 	for {
 		totalEventCount, totalEventCountRun, err = metaDB.GetTotalExportedEventsByExporterRole(exporterRole, runId)
 		if err != nil {
 			utils.ErrExit("failed to get total exported count from metadb: %w", err)
+		}
+		if delta := totalEventCountRun - lastRecordedEventCount; delta > 0 {
+			metrics.Get().RecordExportedCDCEvents(delta)
+			lastRecordedEventCount = totalEventCountRun
 		}
 
 		throughputInLast3Min, err = metaDB.GetExportedEventsRateInLastNMinutes(runId, 3)

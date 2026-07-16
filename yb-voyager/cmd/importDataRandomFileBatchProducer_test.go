@@ -639,7 +639,7 @@ func TestRandomBatchProducer_AbortHandler(t *testing.T) {
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	abortErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.AbortErrorPolicy, getErrorsParentDir(lexportDir))
+	abortErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.AbortErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
 	require.NoError(t, err)
 
 	fileContents := `id,val
@@ -690,7 +690,7 @@ func TestRandomBatchProducer_StashAndContinue(t *testing.T) {
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
 	require.NoError(t, err)
 
 	// The second row will be too large for the batch size
@@ -731,7 +731,7 @@ func TestRandomBatchProducer_StashAndContinue_LastBatchHasAllErrors(t *testing.T
 	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(1000, maxBatchSizeBytes)
 	require.NoError(t, err)
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
 	require.NoError(t, err)
 
 	if ldataDir != "" {
