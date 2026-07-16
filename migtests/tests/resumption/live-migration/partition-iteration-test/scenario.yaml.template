@@ -134,6 +134,7 @@ voyager:
   import_data:
     flags:
       use-partition-root: "false"
+      disable-sequential-scan-on-update-deletes: "true"
   import_to_source:
     flags:
       use-partition-root: "false"
