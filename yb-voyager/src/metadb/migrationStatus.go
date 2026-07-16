@@ -17,6 +17,7 @@ package metadb
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -119,7 +120,6 @@ type MigrationStatusRecord struct {
 	//Iteration specific details
 	ExportDataFromSourceStarted bool `json:"ExportDataFromSourceStarted"`
 	ImportDataToTargetStarted   bool `json:"ImportDataToTargetStarted"`
-
 }
 
 type CutoverTimingRecord struct {
@@ -146,7 +146,10 @@ type CutoverTimingRecord struct {
 	ExportFromTargetFallBackStartedAt    time.Time `json:"ExportFromTargetFallBackStartedAt,omitempty"`
 }
 
-const MIGRATION_STATUS_KEY = "migration_status"
+const (
+	MIGRATION_STATUS_KEY    = "migration_status"
+	migrationUUIDEnvVarName = "YB_VOYAGER_MIGRATION_UUID"
+)
 
 func (m *MetaDB) UpdateMigrationStatusRecord(updateFn func(*MigrationStatusRecord)) error {
 	return UpdateJsonObjectInMetaDB(m, MIGRATION_STATUS_KEY, updateFn)
@@ -177,8 +180,16 @@ func (m *MetaDB) InitMigrationStatusRecord(cfgFile string) error {
 			record.ConfigFile = cfgFile
 		}
 
-		record.MigrationUUID = uuid.New().String()
+		record.MigrationUUID = externalOrNewMigrationUUID()
 	})
+}
+
+func externalOrNewMigrationUUID() string {
+	migrationUUID, err := uuid.Parse(os.Getenv(migrationUUIDEnvVarName))
+	if err != nil {
+		return uuid.New().String()
+	}
+	return migrationUUID.String()
 }
 
 func (msr *MigrationStatusRecord) IsSnapshotExportedViaDebezium() bool {

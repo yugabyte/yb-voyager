@@ -24,6 +24,7 @@ variables=("BETA_FAST_DATA_EXPORT"
 "TARGET_DB_PASSWORD" 
 "SOURCE_REPLICA_DB_PASSWORD" 
 "YB_VOYAGER_SEND_DIAGNOSTICS" 
+"YB_VOYAGER_MIGRATION_UUID"
 "YB_MASTER_PORT" 
 "YB_TSERVER_PORT" 
 "QUEUE_SEGMENT_MAX_BYTES" 
@@ -256,14 +257,15 @@ fi
 if [[ ${command_name} == "end-migration" || ${command_name} == "export-data-from-target" || ${command_name} == "import-data-to-source" || ${command_name} == "get-data-migration-report" ]]
 then
     # There are multiple files saved in export dir which start with docker-metadata-*. Read each file and map the paths to the container.
-	for file in $(ls $export_dir/metainfo/docker-metadata-*)
+	for file in "$export_dir"/metainfo/docker-metadata-*
 	do
+		[ -e "$file" ] || continue
 		while read line
 		do
 			flag_name=$(echo $line | awk '{print $1}')
 			dir_path=$(echo $line | awk '{print $2}')
 			map_host_path_inside_container $flag_name $dir_path
-		done < $file
+		done < "$file"
 	done
 fi
 

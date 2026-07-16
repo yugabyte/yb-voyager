@@ -21,7 +21,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -39,20 +38,19 @@ import (
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
-func TestMain(m *testing.M) {
+func setupAssessMigrationTest(t *testing.T) {
+	t.Helper()
+
 	// set logging level to WARN
 	// to avoid info level logs flooding the test output
 	log.SetLevel(log.WarnLevel)
 
-	exitCode := m.Run()
-
-	// cleaning up all the running containers
-	testcontainers.TerminateAllContainers()
-
-	os.Exit(exitCode)
+	t.Cleanup(testcontainers.TerminateAllContainers)
 }
 
 func Test_AssessMigration(t *testing.T) {
+	setupAssessMigrationTest(t)
+
 	// create temp export dir and setting global exportDir variable
 	exportDir = testutils.CreateTempExportDir()
 	defer testutils.RemoveTempExportDir(exportDir)
@@ -197,6 +195,8 @@ func stringPtr(s string) *string {
 }
 
 func Test_AssessMigration_UsageCategory(t *testing.T) {
+	setupAssessMigrationTest(t)
+
 	// create temp export dir and setting global exportDir variable
 	exportDir = testutils.CreateTempExportDir()
 	// defer testutils.RemoveTempExportDir(exportDir)
@@ -331,6 +331,8 @@ END $$;`,
 }
 
 func Test_AssessMigration_RecommendedSQL_Datatypes(t *testing.T) {
+	setupAssessMigrationTest(t)
+
 	exportDir = testutils.CreateTempExportDir()
 	defer testutils.RemoveTempExportDir(exportDir)
 
@@ -515,6 +517,8 @@ func Test_AssessMigration_RecommendedSQL_Datatypes(t *testing.T) {
 }
 
 func Test_AssessMigration_RecommendedSQL_MultipleIssues(t *testing.T) {
+	setupAssessMigrationTest(t)
+
 	exportDir = testutils.CreateTempExportDir()
 	defer testutils.RemoveTempExportDir(exportDir)
 
