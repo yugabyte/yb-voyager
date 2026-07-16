@@ -53,6 +53,31 @@ const (
 	OpChanged Operation = "CHANGED"
 )
 
+// ObjectType is the honest object type of the changed object and the user-facing
+// selector matched by --object-type-list. It is the decomposed noun of Type
+// (e.g. COLUMN_TYPE_CHANGED → ObjectTypeColumn), a first-class facet alongside
+// Operation and Attribute. v1 emits and filters TABLE and COLUMN findings, so both
+// are declared; the remaining selectors are re-enabled as the engine starts
+// emitting their findings.
+//
+// COLUMN is its own selector: a column change is filtered directly by
+// --object-type-list=COLUMN (it is NOT swept in under TABLE). Table-scoping is
+// orthogonal — a column finding still anchors to its host table for --table-list.
+type ObjectType string
+
+const (
+	ObjectTypeTable  ObjectType = "TABLE"
+	ObjectTypeColumn ObjectType = "COLUMN"
+	// Not yet emitted by the diff engine — uncomment each as its findings land
+	// (INDEX is its own selector but stays anchored to its host table for
+	// --table-list, like COLUMN):
+	// ObjectTypeIndex    ObjectType = "INDEX"
+	// ObjectTypeSequence ObjectType = "SEQUENCE"
+	// ObjectTypeView     ObjectType = "VIEW"
+	// ObjectTypeFunction ObjectType = "FUNCTION"
+	// ObjectTypeType     ObjectType = "TYPE"
+)
+
 // Attribute names the specific object attribute a *_CHANGED finding is about
 // (e.g. COLUMN_TYPE_CHANGED → AttrType). It is AttrNone for ADDED/DROPPED
 // findings, which concern the whole object rather than one attribute.

@@ -16,29 +16,6 @@ package schemadiff
 
 import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 
-// ObjectType is the user-facing object-type selector for Scope filtering, matching
-// the values accepted by --object-type-list. v1 emits and filters TABLE and COLUMN
-// findings, so both are declared; the remaining selectors are re-enabled as the
-// engine starts emitting their findings.
-//
-// COLUMN is its own selector: a column change is filtered directly by
-// --object-type-list=COLUMN (it is NOT swept in under TABLE). Table-scoping is
-// orthogonal — a column finding still anchors to its host table for --table-list.
-type ObjectType string
-
-const (
-	ObjectTypeTable  ObjectType = "TABLE"
-	ObjectTypeColumn ObjectType = "COLUMN"
-	// Not yet emitted by the diff engine — uncomment each as its findings land
-	// (INDEX is its own selector but stays anchored to its host table for
-	// --table-list, like COLUMN):
-	// ObjectTypeIndex    ObjectType = "INDEX"
-	// ObjectTypeSequence ObjectType = "SEQUENCE"
-	// ObjectTypeView     ObjectType = "VIEW"
-	// ObjectTypeFunction ObjectType = "FUNCTION"
-	// ObjectTypeType     ObjectType = "TYPE"
-)
-
 // Scope describes the include/exclude filters applied by FilterByScope.
 //
 // IncludeTables/ExcludeTables hold caller-RESOLVED ObjectRefs (globs and the default
