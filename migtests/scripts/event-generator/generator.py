@@ -77,8 +77,8 @@ COLUMN_OVERRIDES = GEN.get("column_overrides", {})
 FORCE_CONFLICTS = GEN.get("force_conflicts") or {}
 FORCE_CONFLICTS_ENABLED = FORCE_CONFLICTS.get("enabled", False)
 FORCE_CONFLICTS_WEIGHT = FORCE_CONFLICTS.get("weight", 1)
-FORCE_CONFLICTS_FREE_VIA = FORCE_CONFLICTS.get("free_via", ["DELETE", "UPDATE"])
-FORCE_CONFLICTS_REUSE_VIA = FORCE_CONFLICTS.get("reuse_via", ["INSERT", "UPDATE"])
+FORCE_CONFLICTS_FREE_VIA = [str(v).upper() for v in FORCE_CONFLICTS.get("free_via", ["DELETE", "UPDATE"])]
+FORCE_CONFLICTS_REUSE_VIA = [str(v).upper() for v in FORCE_CONFLICTS.get("reuse_via", ["INSERT", "UPDATE"])]
 
 if FORCE_CONFLICTS_ENABLED:
     OPERATIONS.append("FORCE_CONFLICT")
