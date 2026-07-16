@@ -180,8 +180,10 @@ def faker_for_key(key: Any) -> Faker:
     regenerate the same fake payload associated with a given unique-key
     value, so induced conflicts are reproducible across runs/logs.
     """
+    import zlib
     f = Faker()
-    f.seed_instance(hash(str(key)))
+    seed = zlib.crc32(str(key).encode("utf-8"))
+    f.seed_instance(seed)
     return f
 
 
