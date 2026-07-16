@@ -1086,11 +1086,12 @@ def force_conflict_operation(
 
     cursor.execute(
         f"SELECT {pk_select}, {unique_col} FROM {table_name} "
-        f"WHERE {unique_col} IS NOT NULL ORDER BY random() LIMIT 1"
+        f"WHERE {unique_col} IS NOT NULL LIMIT 100"
     )
-    row = cursor.fetchone()
-    if not row:
+    rows = cursor.fetchall()
+    if not rows:
         return None
+    row = random.choice(rows)
     source_pk_values = list(row[:-1])
     conflict_value = row[-1]
 
