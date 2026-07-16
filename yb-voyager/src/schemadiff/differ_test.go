@@ -91,26 +91,26 @@ func TestDiffer_AppliesScope(t *testing.T) {
 	b := snapWithTables(ordersB, legacyB)
 
 	scope := Scope{IncludeTables: []schemasnapshot.ObjectRef{ref("public", "orders")}}
-	d := NewDiffer(Config{Scope: scope})
-	got := d.Diff(a, b)
+	got := NewDiffer(Config{Scope: scope}).Diff(a, b)
 
-	// The Differ result must equal FilterByScope(Diff(a,b), scope).
-	want := FilterByScope(Diff(a, b), scope)
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("scoped Differ diverged from FilterByScope(Diff(...))\ngot:  %v\nwant: %v", got, want)
+	// Assert the concrete expected result, independently of FilterByScope's
+	// implementation: only the orders column-type change survives; the legacy
+	// change is scoped out. Comparing against FilterByScope(Diff(...)) here would
+	// be circular — that is exactly what Differ.Diff runs internally, so a filter
+	// regression would corrupt both sides identically and still pass.
+	if len(got) != 1 {
+		t.Fatalf("expected exactly 1 finding (public.orders column type change), got %d: %v", len(got), got)
 	}
-
-	// There must be at least one finding (the orders column type change).
-	if len(got) == 0 {
-		t.Fatal("expected at least one finding for public.orders, got none")
+	only := got[0]
+	if only.Type != ColumnTypeChanged {
+		t.Errorf("expected ColumnTypeChanged, got %v", only.Type)
 	}
-
-	// No finding must be anchored to public.legacy.
-	legacyRef := ref("public", "legacy")
-	for _, diff := range got {
-		if anchor, ok := anchorTableOf(diff); ok && anchor == legacyRef {
-			t.Errorf("unexpected legacy finding in scoped result: %v", diff)
-		}
+	if key := identKey(only, "postgresql"); key != "public.orders.price" {
+		t.Errorf("expected finding on public.orders.price, got %v", key)
+	}
+	// And nothing anchored to the scoped-out legacy table.
+	if anchor, ok := anchorTableOf(only); ok && anchor == ref("public", "legacy") {
+		t.Errorf("unexpected legacy finding in scoped result: %v", only)
 	}
 }
 
