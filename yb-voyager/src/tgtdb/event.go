@@ -404,7 +404,7 @@ func (event *Event) getUpdateStmt(tdb TargetDB, usePartitionRoot bool, disableSe
 	}
 	stmt = fmt.Sprintf(updateTemplate, tableName.ForUserQuery(), setClause, whereClause)
 	if disableSequentialScanOnUpdateDeletes {
-		stmt = fmt.Sprintf("%s %s", stmt, DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT)
+		stmt = fmt.Sprintf("%s %s", DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT, stmt)
 	}
 	return stmt, nil
 }
@@ -429,7 +429,7 @@ func (event *Event) getDeleteStmt(tdb TargetDB, usePartitionRoot bool, disableSe
 	}
 	stmt = fmt.Sprintf(deleteTemplate, tableName.ForUserQuery(), whereClause)
 	if disableSequentialScanOnUpdateDeletes {
-		stmt = fmt.Sprintf("%s %s", stmt, DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT)
+		stmt = fmt.Sprintf("%s %s", DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT, stmt)
 	}
 	return stmt, nil
 }
@@ -499,7 +499,7 @@ func (event *Event) getPreparedUpdateStmt(tdb TargetDB, usePartitionRoot bool, d
 	}
 	stmt = fmt.Sprintf(updateTemplate, tableName.ForUserQuery(), setClause, whereClause)
 	if disableSequentialScanOnUpdateDeletes {
-		stmt = fmt.Sprintf("%s %s", stmt, DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT)
+		stmt = fmt.Sprintf("%s %s", DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT, stmt)
 	}
 	return stmt, nil
 }
@@ -522,7 +522,7 @@ func (event *Event) getPreparedDeleteStmt(tdb TargetDB, usePartitionRoot bool, d
 	}
 	stmt = fmt.Sprintf(deleteTemplate, tableName.ForUserQuery(), whereClause)
 	if disableSequentialScanOnUpdateDeletes {
-		stmt = fmt.Sprintf("%s %s", stmt, DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT)
+		stmt = fmt.Sprintf("%s %s", DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT, stmt)
 	}
 	return stmt, nil
 }

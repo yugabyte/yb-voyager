@@ -63,7 +63,7 @@ type TargetConf struct {
 	OnPrimaryKeyConflictAction           string                        `json:"on_primary_key_conflict_action"`
 	SessionVars                          []string                      `json:"session_vars"`
 	UsePartitionRoot                     bool                          `json:"use_partition_root"`
-	DisableSequentialScanOnUpdateDeletes bool                          `json:"disable_sequential_scan_on_update_deletes"`
+	DisableSequentialScanOnUpdateDeletes utils.BoolStr                 `json:"disable_sequential_scan_on_update_deletes"`
 }
 
 func (t *TargetConf) Clone() *TargetConf {
