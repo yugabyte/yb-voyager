@@ -521,14 +521,14 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 		var rowsAffectedInserts, rowsAffectedDeletes, rowsAffectedUpdates int64
 		for i := 0; i < len(batch.Events); i++ {
 			event := batch.Events[i]
-			stmt, err := event.GetSQLStmt(tdb, true)
+			stmt, err := event.GetSQLStmt(tdb, true, false)
 			if err != nil {
 				return false, fmt.Errorf("get sql stmt: %w", err)
 			}
 			if event.Op == "c" {
 				// converting to an UPSERT
 				event.Op = "u"
-				updateStmt, err := event.GetSQLStmt(tdb, true)
+				updateStmt, err := event.GetSQLStmt(tdb, true, false)
 				if err != nil {
 					return false, fmt.Errorf("get sql stmt: %w", err)
 				}

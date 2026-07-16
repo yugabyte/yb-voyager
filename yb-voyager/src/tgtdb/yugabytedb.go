@@ -60,6 +60,8 @@ const (
 	MEMORY_FREE_METRIC                     = "memory_free"
 	MEMORY_TOTAL_METRIC                    = "memory_total"
 	MEMORY_AVAILABLE_METRIC                = "memory_available"
+
+	DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT = "/*+ Set(enable_seqscan off) */"
 )
 
 type TargetYugabyteDB struct {
@@ -1173,7 +1175,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			   ingestion of UPDATE events via partition table on Target DB. and in other importers we are ingesting data via partition table.
 			   so use partition root table always for UPDATE events  in YB
 			*/
-			stmt, err := event.GetSQLStmt(yb, yb.tconf.UsePartitionRoot)
+			stmt, err := event.GetSQLStmt(yb, yb.tconf.UsePartitionRoot, yb.tconf.DisableSequentialScanOnUpdateDeletes)
 			if err != nil {
 				return fmt.Errorf("get sql stmt: %w", err)
 			}

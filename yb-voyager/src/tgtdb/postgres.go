@@ -760,7 +760,7 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	for i := 0; i < len(batch.Events); i++ {
 		event := batch.Events[i]
 		if event.Op == "u" {
-			stmt, err := event.GetSQLStmt(pg, pg.tconf.UsePartitionRoot)
+			stmt, err := event.GetSQLStmt(pg, pg.tconf.UsePartitionRoot, false)
 			if err != nil {
 				return fmt.Errorf("get sql stmt: %w", err)
 			}
