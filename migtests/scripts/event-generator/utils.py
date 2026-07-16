@@ -487,13 +487,13 @@ def _find_unique_columns(
         SELECT a.attname
         FROM pg_index i
         JOIN pg_class c ON c.oid = i.indrelid
-        JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = i.indkey[0]
+        JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = (i.indkey::smallint[])[1]
         WHERE c.oid = %s::regclass
           AND i.indisunique
           AND NOT i.indisprimary
           AND i.indpred IS NULL
-          AND array_length(i.indkey, 1) = 1
-          AND i.indkey[0] > 0
+          AND array_length(i.indkey::smallint[], 1) = 1
+          AND (i.indkey::smallint[])[1] > 0
     """
     cursor.execute(query, (regclass,))
     return [r[0] for r in cursor.fetchall()]
