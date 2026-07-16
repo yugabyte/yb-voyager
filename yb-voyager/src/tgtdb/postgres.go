@@ -767,7 +767,7 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			ybBatch.Queue(stmt)
 			log.Debugf("SQL statement: Batch(%s): Event(%d): [%s]", batch.ID(), event.Vsn, stmt)
 		} else {
-			stmt, err := event.GetPreparedSQLStmt(pg, pg.tconf.TargetDBType, pg.tconf.UsePartitionRoot)
+			stmt, err := event.GetPreparedSQLStmt(pg, pg.tconf.TargetDBType, pg.tconf.UsePartitionRoot, false)
 			if err != nil {
 				return fmt.Errorf("get prepared sql stmt: %w", err)
 			}

@@ -1182,7 +1182,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			ybBatch.Queue(stmt)
 			log.Debugf("SQL statement: Batch(%s): Event(%d): [%s]", batch.ID(), event.Vsn, stmt)
 		} else {
-			stmt, err := event.GetPreparedSQLStmt(yb, yb.Tconf.TargetDBType, yb.tconf.UsePartitionRoot)
+			stmt, err := event.GetPreparedSQLStmt(yb, yb.Tconf.TargetDBType, yb.tconf.UsePartitionRoot, yb.tconf.DisableSequentialScanOnUpdateDeletes)
 			if err != nil {
 				return fmt.Errorf("get prepared sql stmt: %w", err)
 			}
