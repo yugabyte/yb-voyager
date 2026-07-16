@@ -624,45 +624,29 @@ func TestDiffTables_DifferentDatabaseType_RenameBecomesAddDrop(t *testing.T) {
 	}
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Test: ID-empty fallback — matched by schema.name; name-only-in-A → TableDropped
-// ──────────────────────────────────────────────────────────────────────────────
-
-func TestDiffTables_IDEmptyFallback_MatchedByName(t *testing.T) {
-	// Table with empty ID, matched by name → should produce NO finding if identical
-	tblA := schemasnapshot.Table{
-		ObjectRef: ref("public", "shared"),
-		ID:        "",
-		Kind:      schemasnapshot.TableKindOrdinary,
-	}
-	tblB := schemasnapshot.Table{
-		ObjectRef: ref("public", "shared"),
-		ID:        "",
-		Kind:      schemasnapshot.TableKindOrdinary,
-	}
-	// Table only in A (ID="") → TableDropped
-	tblOnlyInA := schemasnapshot.Table{
-		ObjectRef: ref("public", "gone_table"),
-		ID:        "",
-		Kind:      schemasnapshot.TableKindOrdinary,
-	}
-
-	a := snapWithTables(tblA, tblOnlyInA)
-	b := snapWithTables(tblB)
+// TestDiffTables_SameEngineMySQL_FallsBackToName: two SAME-engine MySQL snapshots
+// must NOT match by ID (MySQL exposes no stable per-object IDs), so a same-ID
+// rename reads as TableDropped+TableAdded, not TableNameChanged. This locks the
+// capability gate: same engine alone is not enough — the engine must be
+// Postgres/YugabyteDB for ID-based matching.
+func TestDiffTables_SameEngineMySQL_FallsBackToName(t *testing.T) {
+	oldTbl := makeTable("5", "public", "old_name", schemasnapshot.TableKindOrdinary)
+	newTbl := makeTable("5", "public", "new_name", schemasnapshot.TableKindOrdinary)
+	a := &schemasnapshot.SnapshotContent{Version: 1, DatabaseType: "mysql", Tables: []schemasnapshot.Table{oldTbl}}
+	b := &schemasnapshot.SnapshotContent{Version: 1, DatabaseType: "mysql", Tables: []schemasnapshot.Table{newTbl}}
 
 	got := Diff(a, b)
-	if len(got) != 1 {
-		t.Fatalf("expected 1 difference (TableDropped for gone_table), got %d: %v", len(got), got)
+
+	if len(got) != 2 {
+		t.Fatalf("same-engine MySQL: expected 2 differences (TableDropped+TableAdded), got %d: %v", len(got), got)
 	}
 	for _, d := range got {
 		assertAnchoredToObject(t, d)
 	}
-	d := got[0]
-	if d.Type != TableDropped {
-		t.Errorf("expected TableDropped, got %v", d.Type)
-	}
-	if identKey(d, "postgresql") != "public.gone_table" {
-		t.Errorf("expected Object.Key=public.gone_table, got %v", identKey(d, "postgresql"))
+	for _, d := range got {
+		if d.Type == TableNameChanged {
+			t.Errorf("same-engine MySQL must not ID-match (no stable IDs); unexpected TableNameChanged: %v", got)
+		}
 	}
 }
 
@@ -671,50 +655,6 @@ func TestDiffTables_IDEmptyFallback_MatchedByName(t *testing.T) {
 // empty on the other must reconcile by name (not a spurious drop+add); a
 // genuine drop-and-recreate reusing a name with a DIFFERENT id stays add+drop.
 // ──────────────────────────────────────────────────────────────────────────────
-
-// IDInAEmptyInB: same table, ID "123" in A but empty in B; identical otherwise.
-// The hybrid residue pass must reconcile them by name → no findings.
-func TestDiffTables_HybridResidue_IDInAEmptyInB_Matched(t *testing.T) {
-	a := snapWithTables(makeTable("123", "public", "t", schemasnapshot.TableKindOrdinary))
-	b := snapWithTables(makeTable("", "public", "t", schemasnapshot.TableKindOrdinary))
-
-	got := Diff(a, b)
-	if len(got) != 0 {
-		t.Fatalf("expected 0 findings (table reconciled by name despite missing ID in B), got %d: %v", len(got), got)
-	}
-}
-
-// EmptyInAIDInB: the symmetric case — empty in A, ID in B.
-func TestDiffTables_HybridResidue_EmptyInAIDInB_Matched(t *testing.T) {
-	a := snapWithTables(makeTable("", "public", "t", schemasnapshot.TableKindOrdinary))
-	b := snapWithTables(makeTable("456", "public", "t", schemasnapshot.TableKindOrdinary))
-
-	got := Diff(a, b)
-	if len(got) != 0 {
-		t.Fatalf("expected 0 findings (table reconciled by name despite missing ID in A), got %d: %v", len(got), got)
-	}
-}
-
-// MixedID with a real property change: reconciled by name AND the change
-// surfaces as a single TABLE_KIND_CHANGED (proving it matched, not drop+add).
-func TestDiffTables_HybridResidue_MixedID_PropertyChangeSurfaces(t *testing.T) {
-	a := snapWithTables(makeTable("123", "public", "t", schemasnapshot.TableKindOrdinary))
-	b := snapWithTables(makeTable("", "public", "t", schemasnapshot.TableKindPartitioned))
-
-	got := Diff(a, b)
-	if len(got) != 1 {
-		t.Fatalf("expected exactly 1 finding (TABLE_KIND_CHANGED on the reconciled table), got %d: %v", len(got), got)
-	}
-	for _, d := range got {
-		assertAnchoredToObject(t, d)
-	}
-	if got[0].Type != TableKindChanged {
-		t.Errorf("expected TableKindChanged, got %v", got[0].Type)
-	}
-	if identKey(got[0], "postgresql") != "public.t" {
-		t.Errorf("expected Object.Key=public.t, got %v", identKey(got[0], "postgresql"))
-	}
-}
 
 // Drop-and-recreate guard: same name, DIFFERENT id, both ids present, matchByID
 // on. These are genuinely different objects and must NOT be collapsed into a

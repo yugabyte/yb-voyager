@@ -499,40 +499,6 @@ func TestDiffColumns_DifferentDatabaseType_RenameBecomesAddDrop(t *testing.T) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Test: ID-empty fallback — match by (table, name) composite key
-// ──────────────────────────────────────────────────────────────────────────────
-
-func TestDiffColumns_IDEmptyFallback_MatchedByTableAndName(t *testing.T) {
-	// Both sides have same table+name, empty ID → should match, no findings if identical.
-	colA := makeColumn("public", "orders", "", "status", "text")
-	colB := makeColumn("public", "orders", "", "status", "text")
-
-	a := snap(tbl("101", "public", "orders", colA))
-	b := snap(tbl("101", "public", "orders", colB))
-
-	got := Diff(a, b)
-	if len(got) != 0 {
-		t.Errorf("expected no differences for identical empty-ID columns matched by name, got %d: %v", len(got), got)
-	}
-
-	// Now change the type — should produce one finding
-	colBChanged := colB
-	colBChanged.DataType = "varchar(255)"
-	bChanged := snap(tbl("101", "public", "orders", colBChanged))
-
-	got2 := Diff(a, bChanged)
-	if len(got2) != 1 {
-		t.Fatalf("expected 1 difference for empty-ID columns with type change, got %d: %v", len(got2), got2)
-	}
-	for _, d := range got2 {
-		assertAnchoredToObject(t, d)
-	}
-	if got2[0].Type != ColumnTypeChanged {
-		t.Errorf("expected ColumnTypeChanged, got %v", got2[0].Type)
-	}
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
 // Tests: cross-engine gate for columns — ID matching only when DatabaseType matches
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -787,99 +753,12 @@ func TestDiffColumns_IDMatchTableRenamed_ObjectIsOldTable(t *testing.T) {
 	}
 }
 
-// IDMissingTableRenamed: without a stable column ID, a column on a renamed
-// parent table can't be tracked across the rename — the name-fallback key
-// embeds the table name, so old/new keys differ — and degrades to
-// COLUMN_DROPPED + COLUMN_ADDED. The parent table itself keeps a stable ID
-// so it still matches as a rename (TableNameChanged) alongside the column
-// drop+add. Contrast TestDiffColumns_IDMatchTableRenamed_ObjectIsOldTable,
-// where a stable column ID tracks the column across the rename.
-func TestDiffColumns_IDMissingTableRenamed_BecomesDropAdd(t *testing.T) {
-	oldCol := makeColumn("public", "old_table", "", "id", "integer") // empty ID
-	newCol := makeColumn("public", "new_table", "", "id", "integer") // parent renamed, still empty ID
-
-	// Same table ID ("600") on both sides → table rename is tracked.
-	got := Diff(snap(tbl("600", "public", "old_table", oldCol)), snap(tbl("600", "public", "new_table", newCol)))
-	if len(got) != 3 {
-		t.Fatalf("expected 3 findings (TableNameChanged + drop+add — column rename untrackable without a stable ID), got %d: %v", len(got), got)
-	}
-	for _, d := range got {
-		assertAnchoredToObject(t, d)
-	}
-	objByType := map[DiffType]string{}
-	for _, d := range got {
-		objByType[d.Type] = identKey(d, "postgresql")
-	}
-	if _, ok := objByType[TableNameChanged]; !ok {
-		t.Errorf("expected TableNameChanged, got: %v", got)
-	}
-	if objByType[ColumnDropped] != "public.old_table.id" {
-		t.Errorf("COLUMN_DROPPED should anchor to public.old_table.id, got %v", objByType[ColumnDropped])
-	}
-	if objByType[ColumnAdded] != "public.new_table.id" {
-		t.Errorf("COLUMN_ADDED should anchor to public.new_table.id, got %v", objByType[ColumnAdded])
-	}
-}
-
 // ──────────────────────────────────────────────────────────────────────────────
 // Tests: hybrid ID-then-name matching for columns. A column with a stable ID on
 // one side but empty on the other must reconcile by name (not a spurious
 // drop+add); a genuine drop-and-recreate reusing the table+name with a
 // DIFFERENT id stays an add+drop.
 // ──────────────────────────────────────────────────────────────────────────────
-
-// IDInAEmptyInB: same column (same table+name, type integer), ID "5:1" in A but
-// "" in B. The hybrid residue pass must reconcile them by name → 0 findings.
-func TestDiffColumns_HybridResidue_IDInAEmptyInB_Matched(t *testing.T) {
-	cA := makeColumn("public", "orders", "5:1", "qty", "integer")
-	cB := makeColumn("public", "orders", "", "qty", "integer")
-
-	a := snap(tbl("101", "public", "orders", cA))
-	b := snap(tbl("101", "public", "orders", cB))
-
-	got := Diff(a, b)
-	if len(got) != 0 {
-		t.Fatalf("expected 0 findings (column reconciled by name despite missing ID in B), got %d: %v", len(got), got)
-	}
-}
-
-// EmptyInAIDInB: symmetric — empty in A, ID in B → still reconciled by name → 0 findings.
-func TestDiffColumns_HybridResidue_EmptyInAIDInB_Matched(t *testing.T) {
-	cA := makeColumn("public", "orders", "", "qty", "integer")
-	cB := makeColumn("public", "orders", "5:1", "qty", "integer")
-
-	a := snap(tbl("101", "public", "orders", cA))
-	b := snap(tbl("101", "public", "orders", cB))
-
-	got := Diff(a, b)
-	if len(got) != 0 {
-		t.Fatalf("expected 0 findings (column reconciled by name despite missing ID in A), got %d: %v", len(got), got)
-	}
-}
-
-// MixedID with a type change: ID "5:1" in A, "" in B, type integer→bigint.
-// Reconciled by name AND the type change surfaces as exactly 1 ColumnTypeChanged.
-func TestDiffColumns_HybridResidue_MixedID_TypeChangeSurfaces(t *testing.T) {
-	cA := makeColumn("public", "orders", "5:1", "qty", "integer")
-	cB := makeColumn("public", "orders", "", "qty", "bigint")
-
-	a := snap(tbl("101", "public", "orders", cA))
-	b := snap(tbl("101", "public", "orders", cB))
-
-	got := Diff(a, b)
-	if len(got) != 1 {
-		t.Fatalf("expected exactly 1 finding (ColumnTypeChanged on reconciled column), got %d: %v", len(got), got)
-	}
-	for _, d := range got {
-		assertAnchoredToObject(t, d)
-	}
-	if got[0].Type != ColumnTypeChanged {
-		t.Errorf("expected ColumnTypeChanged, got %v", got[0].Type)
-	}
-	if identKey(got[0], "postgresql") != "public.orders.qty" {
-		t.Errorf("expected Object.Key=public.orders.qty, got %q", identKey(got[0], "postgresql"))
-	}
-}
 
 // DropRecreateSameNameDifferentID: same table+name, DIFFERENT non-empty IDs ("5:1"
 // vs "5:2"), matchByID on. These are genuinely different columns (drop-and-recreate)

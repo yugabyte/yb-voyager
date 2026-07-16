@@ -18,13 +18,13 @@ import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 
 // diffColumnsIn computes column-level differences between two column slices
 // (the nested columns of a matched table pair). Matched by chooseMatchKeys:
-// by stable "{tableOID}:{attnum}" ID when IDs are usable (same engine, all
-// present) so a rename surfaces as COLUMN_NAME_CHANGED, else by the unquoted
-// dot-joined composite key schema.table.col (see Column.ForKey and its
-// dot-collision limitation). Unmatched side-A columns become COLUMN_DROPPED
-// and unmatched side-B columns COLUMN_ADDED.
+// by stable "{tableOID}:{attnum}" ID for a same-engine Postgres/YugabyteDB diff
+// so a rename surfaces as COLUMN_NAME_CHANGED, else by the unquoted dot-joined
+// composite key schema.table.col (see Column.ForKey and its dot-collision
+// limitation). Unmatched side-A columns become COLUMN_DROPPED and unmatched
+// side-B columns COLUMN_ADDED.
 func diffColumnsIn(colsA, colsB []schemasnapshot.Column, dbTypeA, dbTypeB string) []Difference {
-	keyA, keyB := chooseMatchKeys(dbTypeA, dbTypeB, colsA, colsB,
+	keyA, keyB := chooseMatchKeys(dbTypeA, dbTypeB,
 		idOfColumn, schemasnapshot.Column.ForKey)
 
 	return matchByKey(colsA, colsB, keyA, keyB,

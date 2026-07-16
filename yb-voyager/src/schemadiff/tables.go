@@ -17,13 +17,13 @@ package schemadiff
 import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 
 // diffTables computes table-level differences between snapshots a and b. Tables
-// are matched by chooseMatchKeys: by stable OID when IDs are usable (same engine,
-// all present) so a rename surfaces as TABLE_NAME_CHANGED, else by the unquoted
+// are matched by chooseMatchKeys: by stable OID for a same-engine Postgres/
+// YugabyteDB diff so a rename surfaces as TABLE_NAME_CHANGED, else by the unquoted
 // dot-joined canonical key (see ObjectRef.ForKey and its dot-collision limitation).
 // Unmatched side-A tables become TABLE_DROPPED and unmatched side-B tables
 // TABLE_ADDED, each carrying the table's columns as payload.
 func diffTables(a, b *schemasnapshot.SnapshotContent) []Difference {
-	keyA, keyB := chooseMatchKeys(a.DatabaseType, b.DatabaseType, a.Tables, b.Tables,
+	keyA, keyB := chooseMatchKeys(a.DatabaseType, b.DatabaseType,
 		idOfTable, schemasnapshot.Table.ForKey)
 
 	return matchByKey(a.Tables, b.Tables, keyA, keyB,

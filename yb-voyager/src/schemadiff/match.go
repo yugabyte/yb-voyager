@@ -14,6 +14,8 @@
 
 package schemadiff
 
+import "github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+
 // matchByKey is the single object-matching primitive shared by table and column
 // diffing. It indexes A and B by a per-side key function, then:
 //   - key on both sides → onMatch(a, b)   (field-level comparison)
@@ -54,35 +56,27 @@ func matchByKey[T any](
 }
 
 // chooseMatchKeys selects how objects are matched between two snapshots:
-//   - stable-ID keys when IDs are USABLE — same engine (IDs compare only within
-//     an engine) AND every object on both sides has a non-empty ID. This is what
-//     lets a rename be detected (ID is stable across it) instead of drop+add.
-//   - name keys otherwise — cross-engine diffs, or same-engine sources with no
-//     stable per-object ID (e.g. MySQL). Renames then read as drop+add.
+//   - stable-ID keys when both sides are the same engine AND that engine exposes
+//     stable catalog IDs (Postgres/YugabyteDB: pg_class.oid, attnum). Matching by
+//     ID lets a rename be detected (the ID is stable across it) instead of
+//     surfacing as drop+add. An engine's objects uniformly carry IDs or uniformly
+//     don't, so this is a property of the engine, not something to check per object.
+//   - name keys otherwise — a cross-engine diff, or an engine without stable
+//     per-object IDs (e.g. MySQL). Renames then read as drop+add.
 //
-// The predicate is "IDs usable", NOT merely "same engine": a same-engine source
-// without IDs must still match by name, else every object collides on "".
+// TODO(schemadiff): also require the two snapshots to be from the SAME side/
+// instance before ID-matching — two different servers of the same engine have
+// independent OID spaces, so matching by ID across them is wrong. That needs
+// Side/instance identity plumbed from SnapshotHeader into Diff. Until then we
+// assume same-instance, which holds for detect-drift v1 (one source over time).
 func chooseMatchKeys[T any](
 	dbTypeA, dbTypeB string,
-	as, bs []T,
 	idOf func(T) string,
 	nameKey func(obj T, dbType string) string,
 ) (keyA, keyB func(T) string) {
-	if dbTypeA == dbTypeB && allHaveID(as, idOf) && allHaveID(bs, idOf) {
+	if dbTypeA == dbTypeB && (dbTypeA == constants.POSTGRESQL || dbTypeA == constants.YUGABYTEDB) {
 		return idOf, idOf
 	}
 	return func(t T) string { return nameKey(t, dbTypeA) },
 		func(t T) string { return nameKey(t, dbTypeB) }
-}
-
-// allHaveID reports whether every object carries a non-empty stable ID (empty set
-// is vacuously true). Falls back to name matching the moment any object lacks one,
-// rather than letting empty IDs collide.
-func allHaveID[T any](items []T, idOf func(T) string) bool {
-	for _, it := range items {
-		if idOf(it) == "" {
-			return false
-		}
-	}
-	return true
 }
