@@ -55,7 +55,7 @@ func TestSchemaSnapshotJSONRoundTrip(t *testing.T) {
 				Kind:      TableKindOrdinary,
 				Columns: []Column{
 					{
-						TableScopedRef: TableScopedRef{
+						TableScopedObjectRef: TableScopedObjectRef{
 							Table: ObjectRef{Schema: "public", Name: "orders"},
 							Name:  "id",
 						},
@@ -64,7 +64,7 @@ func TestSchemaSnapshotJSONRoundTrip(t *testing.T) {
 						NotNull:  true,
 					},
 					{
-						TableScopedRef: TableScopedRef{
+						TableScopedObjectRef: TableScopedObjectRef{
 							Table: ObjectRef{Schema: "public", Name: "orders"},
 							Name:  "customer_id",
 						},
@@ -176,7 +176,7 @@ func TestObjectRefForKeyCaseSensitivity(t *testing.T) {
 func TestColumnForKeyAndForDisplay(t *testing.T) {
 	const pg = constants.POSTGRESQL
 	col := Column{
-		TableScopedRef: TableScopedRef{
+		TableScopedObjectRef: TableScopedObjectRef{
 			Table: ObjectRef{Schema: "public", Name: "orders"},
 			Name:  "Col",
 		},

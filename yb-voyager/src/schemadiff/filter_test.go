@@ -40,10 +40,10 @@ func tableDiff(dt DiffType, schema, name string) Difference {
 }
 
 // colDiff builds a COLUMN-level Difference anchored to its host table
-// (ObjectA == ObjectB, both the column's TableScopedRef). Used for non-rename
+// (ObjectA == ObjectB, both the column's TableScopedObjectRef). Used for non-rename
 // column findings.
 func colDiff(dt DiffType, table schemasnapshot.ObjectRef, column string) Difference {
-	ts := schemasnapshot.TableScopedRef{Table: table, Name: column}
+	ts := schemasnapshot.TableScopedObjectRef{Table: table, Name: column}
 	return Difference{Type: dt, ObjectType: ObjectTypeColumn, ObjectA: ts, ObjectB: ts}
 }
 
@@ -397,8 +397,8 @@ func TestFilterByScopeAnchorRenameExtension(t *testing.T) {
 	colChange := Difference{
 		Type:       ColumnTypeChanged,
 		ObjectType: ObjectTypeColumn,
-		ObjectA:    schemasnapshot.TableScopedRef{Table: oldAnchor, Name: "amount"},
-		ObjectB:    schemasnapshot.TableScopedRef{Table: oldAnchor, Name: "amount"},
+		ObjectA:    schemasnapshot.TableScopedObjectRef{Table: oldAnchor, Name: "amount"},
+		ObjectB:    schemasnapshot.TableScopedObjectRef{Table: oldAnchor, Name: "amount"},
 		SideAValue: "integer",
 		SideBValue: "bigint",
 	}
@@ -420,8 +420,8 @@ func TestFilterByScopeAnchorRenameExtensionExclude(t *testing.T) {
 	colChange := Difference{
 		Type:       ColumnTypeChanged,
 		ObjectType: ObjectTypeColumn,
-		ObjectA:    schemasnapshot.TableScopedRef{Table: oldAnchor, Name: "amount"},
-		ObjectB:    schemasnapshot.TableScopedRef{Table: oldAnchor, Name: "amount"},
+		ObjectA:    schemasnapshot.TableScopedObjectRef{Table: oldAnchor, Name: "amount"},
+		ObjectB:    schemasnapshot.TableScopedObjectRef{Table: oldAnchor, Name: "amount"},
 	}
 
 	diffs := []Difference{rename, colChange}
@@ -501,8 +501,8 @@ func TestFilterByScopeSchemaMoveNewIdentityInScope(t *testing.T) {
 	colChange := Difference{
 		Type:       ColumnTypeChanged,
 		ObjectType: ObjectTypeColumn,
-		ObjectA:    schemasnapshot.TableScopedRef{Table: oldAnchor, Name: "amount"},
-		ObjectB:    schemasnapshot.TableScopedRef{Table: oldAnchor, Name: "amount"},
+		ObjectA:    schemasnapshot.TableScopedObjectRef{Table: oldAnchor, Name: "amount"},
+		ObjectB:    schemasnapshot.TableScopedObjectRef{Table: oldAnchor, Name: "amount"},
 		SideAValue: "integer",
 		SideBValue: "bigint",
 	}
@@ -528,8 +528,8 @@ func TestFilterByScopeSchemaMoveExclude(t *testing.T) {
 	colChange := Difference{
 		Type:       ColumnTypeChanged,
 		ObjectType: ObjectTypeColumn,
-		ObjectA:    schemasnapshot.TableScopedRef{Table: oldAnchor, Name: "amount"},
-		ObjectB:    schemasnapshot.TableScopedRef{Table: oldAnchor, Name: "amount"},
+		ObjectA:    schemasnapshot.TableScopedObjectRef{Table: oldAnchor, Name: "amount"},
+		ObjectB:    schemasnapshot.TableScopedObjectRef{Table: oldAnchor, Name: "amount"},
 	}
 
 	diffs := []Difference{move, colChange}
@@ -566,7 +566,7 @@ func TestFilterByScopeRenameAndMove(t *testing.T) {
 		SideBValue: "new_s",
 	}
 	// A column change anchored to the side-A (old) table ref, as the diff engine
-	// emits it (compareMatchedColumns anchors to cA.TableScopedRef).
+	// emits it (compareMatchedColumns anchors to cA.TableScopedObjectRef).
 	colChange := colDiff(ColumnAdded, oldRef, "email")
 
 	diffs := []Difference{rename, move, colChange}

@@ -137,37 +137,37 @@ type Table struct {
 	Columns           []Column    `json:"columns,omitempty"`            // columns of this table, in attnum order.
 }
 
-// TableScopedRef is the identity of an object that lives under a table — a column
+// TableScopedObjectRef is the identity of an object that lives under a table — a column
 // today, an index or constraint later. Table is the parent table's (schema, name);
 // Name is the object's own name within that table. A table-scoped object has no
 // independent schema — its schema is its table's schema.
-type TableScopedRef struct {
+type TableScopedObjectRef struct {
 	Table ObjectRef `json:"table"` // parent table identity
 	Name  string    `json:"name"`  // the object's own name within the table
 }
 
 // sqlName builds the sqlname view of this column's fully-qualified (schema, table,
 // column) identity. defaultSchema="" keeps it always fully qualified.
-func (r TableScopedRef) sqlName(dbType string) *sqlname.ObjectNameQualifiedWithTableName {
+func (r TableScopedObjectRef) sqlName(dbType string) *sqlname.ObjectNameQualifiedWithTableName {
 	return sqlname.NewObjectNameQualifiedWithTableName(dbType, "", r.Name, r.Table.Schema, r.Table.Name)
 }
 
 // ForKey returns the case-preserving, unquoted, dot-joined canonical key for the
 // column, via sqlname's Key(): public.orders.Col. It shares the same limitations as
 // ObjectRef.ForKey (see there).
-func (r TableScopedRef) ForKey(dbType string) string { return r.sqlName(dbType).Key() }
+func (r TableScopedObjectRef) ForKey(dbType string) string { return r.sqlName(dbType).Key() }
 
 // ForDisplay returns the minimally-quoted, always-fully-qualified rendering of the
 // column for reports, logs, and user-facing SQL: public.orders."Col".
-func (r TableScopedRef) ForDisplay(dbType string) string {
+func (r TableScopedObjectRef) ForDisplay(dbType string) string {
 	return r.sqlName(dbType).MinQualified.MinQuoted
 }
 
 // Column represents a single column within a table.
 // ID encodes the parent table OID and the column attnum as "{parentTableOID}:{attnum}".
 type Column struct {
-	TableScopedRef        // embeds Table + Name; JSON stays {"table":{...},"name":...}
-	ID             string `json:"id,omitempty"` // "{parentTableOID}:{attnum}"; matches the column across snapshots even after a rename.
+	TableScopedObjectRef        // embeds Table + Name; JSON stays {"table":{...},"name":...}
+	ID                   string `json:"id,omitempty"` // "{parentTableOID}:{attnum}"; matches the column across snapshots even after a rename.
 	// TODO(schemadiff): normalize the type before comparison in a future PR. Today
 	// this is source-vs-source (same engine's format_type() on both sides), so the
 	// raw string compares correctly. PG-vs-YB is also fine — YB shares PostgreSQL's

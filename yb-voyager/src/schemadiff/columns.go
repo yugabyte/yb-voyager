@@ -36,38 +36,38 @@ func idOfColumn(c schemasnapshot.Column) string { return c.ID }
 
 // emitColumnDropped is the matchByKey onDropped callback for columns: it emits a
 // COLUMN_DROPPED finding carrying the dropped column, identified by its
-// TableScopedRef.
+// TableScopedObjectRef.
 func emitColumnDropped(c schemasnapshot.Column) []Difference {
-	return []Difference{newDifference(ColumnDropped, OpDropped, ObjectTypeColumn, AttrNone, c.TableScopedRef, nil, c, nil)}
+	return []Difference{newDifference(ColumnDropped, OpDropped, ObjectTypeColumn, AttrNone, c.TableScopedObjectRef, nil, c, nil)}
 }
 
 // emitColumnAdded is the matchByKey onAdded callback for columns: it emits a
-// COLUMN_ADDED finding carrying the added column, identified by its TableScopedRef.
+// COLUMN_ADDED finding carrying the added column, identified by its TableScopedObjectRef.
 func emitColumnAdded(c schemasnapshot.Column) []Difference {
-	return []Difference{newDifference(ColumnAdded, OpAdded, ObjectTypeColumn, AttrNone, nil, c.TableScopedRef, nil, c)}
+	return []Difference{newDifference(ColumnAdded, OpAdded, ObjectTypeColumn, AttrNone, nil, c.TableScopedObjectRef, nil, c)}
 }
 
 // compareMatchedColumns is the matchByKey onMatch callback for columns: it emits
 // all field-level differences for a pair of columns matched by chooseMatchKeys
 // (ID or composite name key). ObjectA/ObjectB are the side-A/side-B columns'
-// TableScopedRef identities.
+// TableScopedObjectRef identities.
 func compareMatchedColumns(cA, cB schemasnapshot.Column) []Difference {
 	var diffs []Difference
 
 	if cA.Name != cB.Name {
-		diffs = append(diffs, newDifference(ColumnNameChanged, OpChanged, ObjectTypeColumn, AttrName, cA.TableScopedRef, cB.TableScopedRef, cA.Name, cB.Name))
+		diffs = append(diffs, newDifference(ColumnNameChanged, OpChanged, ObjectTypeColumn, AttrName, cA.TableScopedObjectRef, cB.TableScopedObjectRef, cA.Name, cB.Name))
 	}
 
 	if cA.DataType != cB.DataType {
-		diffs = append(diffs, newDifference(ColumnTypeChanged, OpChanged, ObjectTypeColumn, AttrType, cA.TableScopedRef, cB.TableScopedRef, cA.DataType, cB.DataType))
+		diffs = append(diffs, newDifference(ColumnTypeChanged, OpChanged, ObjectTypeColumn, AttrType, cA.TableScopedObjectRef, cB.TableScopedObjectRef, cA.DataType, cB.DataType))
 	}
 
 	if cA.NotNull != cB.NotNull {
-		diffs = append(diffs, newDifference(ColumnNullabilityChanged, OpChanged, ObjectTypeColumn, AttrNullability, cA.TableScopedRef, cB.TableScopedRef, cA.NotNull, cB.NotNull))
+		diffs = append(diffs, newDifference(ColumnNullabilityChanged, OpChanged, ObjectTypeColumn, AttrNullability, cA.TableScopedObjectRef, cB.TableScopedObjectRef, cA.NotNull, cB.NotNull))
 	}
 
 	if cA.Default != cB.Default {
-		diffs = append(diffs, newDifference(ColumnDefaultChanged, OpChanged, ObjectTypeColumn, AttrDefault, cA.TableScopedRef, cB.TableScopedRef, cA.Default, cB.Default))
+		diffs = append(diffs, newDifference(ColumnDefaultChanged, OpChanged, ObjectTypeColumn, AttrDefault, cA.TableScopedObjectRef, cB.TableScopedObjectRef, cA.Default, cB.Default))
 	}
 
 	return diffs

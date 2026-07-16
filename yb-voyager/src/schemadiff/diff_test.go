@@ -151,15 +151,15 @@ func TestDiff_DoesNotMutateInputs(t *testing.T) {
 func TestSortDifferences_Ordering(t *testing.T) {
 	// Build diffs that exercise both sort keys (ObjectA's key, then Type). Each
 	// identity below folds in what used to be a separate SubObject: a
-	// column-level identity is a TableScopedRef ("schema.table.column"); a
+	// column-level identity is a TableScopedObjectRef ("schema.table.column"); a
 	// table-level identity is an ObjectRef ("schema.table").
 	diffs := []Difference{
 		// same identity key; differ only on Type
-		{ObjectType: ObjectTypeColumn, ObjectA: schemasnapshot.TableScopedRef{Table: ref("z_schema", "z_name"), Name: "a_sub"}, Type: TableSchemaChanged},
-		{ObjectType: ObjectTypeColumn, ObjectA: schemasnapshot.TableScopedRef{Table: ref("z_schema", "z_name"), Name: "a_sub"}, Type: TableAdded},
+		{ObjectType: ObjectTypeColumn, ObjectA: schemasnapshot.TableScopedObjectRef{Table: ref("z_schema", "z_name"), Name: "a_sub"}, Type: TableSchemaChanged},
+		{ObjectType: ObjectTypeColumn, ObjectA: schemasnapshot.TableScopedObjectRef{Table: ref("z_schema", "z_name"), Name: "a_sub"}, Type: TableAdded},
 		// same schema/table; differ only on the column tail of the identity key
-		{ObjectType: ObjectTypeColumn, ObjectA: schemasnapshot.TableScopedRef{Table: ref("z_schema", "a_name"), Name: "z_sub"}, Type: TableAdded},
-		{ObjectType: ObjectTypeColumn, ObjectA: schemasnapshot.TableScopedRef{Table: ref("z_schema", "a_name"), Name: "a_sub"}, Type: TableAdded},
+		{ObjectType: ObjectTypeColumn, ObjectA: schemasnapshot.TableScopedObjectRef{Table: ref("z_schema", "a_name"), Name: "z_sub"}, Type: TableAdded},
+		{ObjectType: ObjectTypeColumn, ObjectA: schemasnapshot.TableScopedObjectRef{Table: ref("z_schema", "a_name"), Name: "a_sub"}, Type: TableAdded},
 		// same schema; differ only on the table-name portion of the identity key
 		{ObjectType: ObjectTypeTable, ObjectA: ref("a_schema", "z_name"), Type: TableAdded},
 		{ObjectType: ObjectTypeTable, ObjectA: ref("a_schema", "a_name"), Type: TableAdded},
@@ -170,10 +170,10 @@ func TestSortDifferences_Ordering(t *testing.T) {
 	want := []Difference{
 		{ObjectType: ObjectTypeTable, ObjectA: ref("a_schema", "a_name"), Type: TableAdded},
 		{ObjectType: ObjectTypeTable, ObjectA: ref("a_schema", "z_name"), Type: TableAdded},
-		{ObjectType: ObjectTypeColumn, ObjectA: schemasnapshot.TableScopedRef{Table: ref("z_schema", "a_name"), Name: "a_sub"}, Type: TableAdded},
-		{ObjectType: ObjectTypeColumn, ObjectA: schemasnapshot.TableScopedRef{Table: ref("z_schema", "a_name"), Name: "z_sub"}, Type: TableAdded},
-		{ObjectType: ObjectTypeColumn, ObjectA: schemasnapshot.TableScopedRef{Table: ref("z_schema", "z_name"), Name: "a_sub"}, Type: TableAdded},
-		{ObjectType: ObjectTypeColumn, ObjectA: schemasnapshot.TableScopedRef{Table: ref("z_schema", "z_name"), Name: "a_sub"}, Type: TableSchemaChanged},
+		{ObjectType: ObjectTypeColumn, ObjectA: schemasnapshot.TableScopedObjectRef{Table: ref("z_schema", "a_name"), Name: "a_sub"}, Type: TableAdded},
+		{ObjectType: ObjectTypeColumn, ObjectA: schemasnapshot.TableScopedObjectRef{Table: ref("z_schema", "a_name"), Name: "z_sub"}, Type: TableAdded},
+		{ObjectType: ObjectTypeColumn, ObjectA: schemasnapshot.TableScopedObjectRef{Table: ref("z_schema", "z_name"), Name: "a_sub"}, Type: TableAdded},
+		{ObjectType: ObjectTypeColumn, ObjectA: schemasnapshot.TableScopedObjectRef{Table: ref("z_schema", "z_name"), Name: "a_sub"}, Type: TableSchemaChanged},
 	}
 
 	if !reflect.DeepEqual(diffs, want) {

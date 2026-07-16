@@ -58,7 +58,7 @@ func withDefault(d string) colOpt { return func(c *schemasnapshot.Column) { c.De
 // Optional colOpts can be passed to set additional fields (e.g. notNull(), withDefault(...)).
 func makeColumn(tableSchema, tableName, id, name, dataType string, opts ...colOpt) schemasnapshot.Column {
 	c := schemasnapshot.Column{
-		TableScopedRef: schemasnapshot.TableScopedRef{
+		TableScopedObjectRef: schemasnapshot.TableScopedObjectRef{
 			Table: schemasnapshot.ObjectRef{Schema: tableSchema, Name: tableName},
 			Name:  name,
 		},

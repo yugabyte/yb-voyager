@@ -22,7 +22,7 @@ import (
 
 // ObjectIdent is the identity of the object a Difference is about. Both
 // schemasnapshot.ObjectRef (schema-level objects: tables, views, …) and
-// schemasnapshot.TableScopedRef (table-scoped objects: columns, indexes, …)
+// schemasnapshot.TableScopedObjectRef (table-scoped objects: columns, indexes, …)
 // implement it, so ObjectA/ObjectB can hold either. Rendering is deferred and
 // engine-aware — call ForKey/ForDisplay with the side's dbType at report time.
 type ObjectIdent interface {

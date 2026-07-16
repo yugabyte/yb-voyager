@@ -112,7 +112,7 @@ func anchorTableOf(d Difference) (schemasnapshot.ObjectRef, bool) {
 		id = d.ObjectB
 	}
 	switch v := id.(type) {
-	case schemasnapshot.TableScopedRef:
+	case schemasnapshot.TableScopedObjectRef:
 		return v.Table, true
 	case schemasnapshot.ObjectRef:
 		if d.ObjectType == ObjectTypeTable {
