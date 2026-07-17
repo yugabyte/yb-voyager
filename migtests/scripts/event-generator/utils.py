@@ -784,9 +784,9 @@ def generate_random_data(
 
         def gen_elem():
             if "int" in array_types:
-                return str(random.randint(0, 1_000_000))
+                return str(fake.random.randint(0, 1_000_000))
             elif "bool" in array_types:
-                return random.choice(["true", "false"])
+                return fake.random.choice(["true", "false"])
             elif "uuid" in array_types:
                 return f'"{fake.uuid4()}"'
             else:
@@ -812,9 +812,9 @@ def generate_random_data(
             value = ' '.join([fake.word() for _ in range(3)])
         return value
     elif "boolean" in data_type:
-        return random.choice(["true", "false"])
+        return fake.random.choice(["true", "false"])
     elif "USER-DEFINED" in data_type and enum_values:
-        val = random.choice(enum_values)
+        val = fake.random.choice(enum_values)
         return val
     elif "USER-DEFINED" in data_type and not enum_values:
         print(f"Inserting NULL since User-Defined type unknown for table: {table_name}")
@@ -830,36 +830,36 @@ def generate_random_data(
 
         floatStr=""
         for i in range(precision-scale):
-            floatStr+=random.choice(string.digits)
+            floatStr+=fake.random.choice(string.digits)
 
         decimalStr=""
         for i in range(scale):
-            decimalStr+=random.choice(string.digits)
+            decimalStr+=fake.random.choice(string.digits)
 
         num = decimal.Decimal(f"{floatStr}.{decimalStr}")
         return num
 
     elif "smallint" in data_type:
-        return random.randint(-1000, 1000)
+        return fake.random.randint(-1000, 1000)
     elif "integer" in data_type or "real" in data_type:
-        return random.randint(-200000000, 200000000)
+        return fake.random.randint(-200000000, 200000000)
     elif "bigint" in data_type:
-        return random.randint(-9223372000000000000, 9223372000000000000)
+        return fake.random.randint(-9223372000000000000, 9223372000000000000)
     elif "date" in data_type:
         return fake.date()
     elif "time" in data_type:
         return fake.time()
     elif "json" in data_type or "jsonb" in data_type:
         # Generate a random JSON object (customize based on your requirements)
-        json_data = {fake.word(): fake.word(), fake.word(): random.randint(-10000, 10000), fake.word(): fake.date()}
+        json_data = {fake.word(): fake.word(), fake.word(): fake.random.randint(-10000, 10000), fake.word(): fake.date()}
         return json.dumps(json_data)
     elif "inet" in data_type:
         # Generate a random IP address
-        return str(ipaddress.IPv4Address(random.randint(2**24, 2**32 - 1)))
+        return str(ipaddress.IPv4Address(fake.random.randint(2**24, 2**32 - 1)))
     elif "money" in data_type:
         precision, scale = 5, 2  # Adjust precision and scale as needed
         max_value = 10 ** (precision - scale)
-        money_value = random.randint(0, max_value * 100) / 100
+        money_value = fake.random.randint(0, max_value * 100) / 100
         return money_value
 
     elif "ARRAY" in data_type and array_types:
@@ -869,13 +869,14 @@ def generate_random_data(
             return '{' + ', '.join(result) + '}'
         elif "integer" in array_types:
             # Produce a deterministic, ordered array literal (not a Python set)
-            vals = [str(random.randint(-100000, 100000)) for _ in range(3)]
+            vals = [str(fake.random.randint(-100000, 100000)) for _ in range(3)]
             return '{' + ', '.join(vals) + '}'
         # Add more cases for other ARRAY data types as needed
 
     elif "uuid" in data_type:
-        # Use Faker's uuid4 which is seeded via set_faker_seed for determinism
-        return _fake.uuid4()
+        # Uses the resolved `fake` instance (module-level _fake, or a
+        # per-key seeded instance from faker_for_key) for determinism
+        return fake.uuid4()
     
     elif "tsvector" in data_type:
         words = [fake.word() for _ in range(5)]
