@@ -19,18 +19,29 @@ Data sources
    num_updates / num_deletes (cumulative, no timestamp). Cumulative imported
    events = SUM(num_inserts + num_updates + num_deletes) across rows.
 
+3. YB SLOT side (optional, --yb-dsn): the CDC *source* (YugabyteDB) replication
+   slot's read/confirm lag, i.e. how far behind the logical-replication
+   connector is in confirming YB's WAL. Sourced from `pg_replication_slots` on
+   YB as pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn) in BYTES,
+   summed over the Voyager slot(s). This is a *different* lag from the
+   export-minus-import event backlog above: it measures YB -> connector (and
+   thus governs YB WAL retention), whereas `lag` measures the queue -> target
+   apply backlog. Track both.
+
 Usage
 -----
     python3 migration_monitor.py --export-dir /path/to/export-dir \
         --exporter-role target_db_exporter_fb \
         --import-dsn "host=... port=... dbname=... user=... password=..." \
+        --yb-dsn "host=<YB> port=5433 dbname=... user=... password=..." \
         --interval 5 --duration 3600 --out migration-throughput.csv
 
     python3 migration_monitor.py --selftest
 
 Output CSV columns
 -------------------
-    epoch, t_seconds, exported_cum, export_evps, imported_cum, import_evps, lag
+    epoch, t_seconds, exported_cum, export_evps, imported_cum, import_evps, lag,
+    yb_slot_lag_bytes
 """
 
 import argparse
@@ -118,6 +129,26 @@ def compute_import_cumulative(cursor):
     if row is None or row[0] is None:
         return 0.0
     return float(row[0])
+
+
+def compute_slot_lag_from_rows(rows):
+    """Pure helper: sum the per-slot lag_bytes for the matched replication
+    slots into a single total (float).
+
+    `rows` is an iterable of (slot_name, lag_bytes) as returned by the YB
+    pg_replication_slots query. Returns None when no slot matched (nothing to
+    report), so the caller leaves the column blank rather than writing a
+    misleading 0. A row whose lag_bytes is NULL (e.g. a brand-new slot with no
+    confirmed_flush_lsn yet) contributes 0 to the sum.
+    """
+    if not rows:
+        return None
+    total = 0.0
+    for row in rows:
+        lag = row[1]
+        if lag is not None:
+            total += float(lag)
+    return total
 
 
 def compute_rate(prev_cum, cur_cum, elapsed_seconds):
@@ -216,23 +247,77 @@ def fetch_import_cumulative(dsn):
         conn.close()
 
 
+def fetch_yb_slot_lag(dsn, slot_name=None):
+    """Connect to the YB CDC source and return the total replication-slot lag
+    in BYTES = SUM(pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn))
+    over the Voyager slot(s).
+
+    - `slot_name` given -> match that slot exactly; otherwise match
+      slot_name LIKE 'voyager_%' (the Voyager fall-back slot).
+    - Connection failure -> returns None (skip this sample; one bad connection
+      shouldn't kill the monitor).
+    - LSN functions unavailable on this YB version, or no matching slot ->
+      returns None so the column is left blank rather than a misleading 0.
+    """
+    if psycopg2 is None:
+        print("[warn] psycopg2 not available; YB slot-lag tracking disabled", file=sys.stderr)
+        return None
+
+    try:
+        conn = psycopg2.connect(dsn)
+    except Exception as e:
+        print("[warn] YB (slot-lag) connection failed: %s" % e, file=sys.stderr)
+        return None
+
+    try:
+        conn.autocommit = True
+        cur = conn.cursor()
+        try:
+            select = (
+                "SELECT slot_name, "
+                "pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn) AS lag_bytes "
+                "FROM pg_replication_slots WHERE "
+            )
+            if slot_name:
+                cur.execute(select + "slot_name = %s", (slot_name,))
+            else:
+                cur.execute(select + "slot_name LIKE 'voyager_%'")
+            return compute_slot_lag_from_rows(cur.fetchall())
+        except psycopg2.Error as e:
+            # e.g. pg_current_wal_lsn()/pg_wal_lsn_diff() not supported on this
+            # YB version, or pg_replication_slots absent -> can't measure.
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            print("[warn] YB slot-lag query failed: %s" % e, file=sys.stderr)
+            return None
+        finally:
+            cur.close()
+    finally:
+        conn.close()
+
+
 # --------------------------------------------------------------------------
 # Main monitor loop
 # --------------------------------------------------------------------------
 
-def run_monitor(export_dir, role, import_dsn, interval, duration, out_path):
+def run_monitor(export_dir, role, import_dsn, interval, duration, out_path,
+                yb_dsn=None, yb_slot_name=None):
     db_path = os.path.join(export_dir, EXPORT_DB_SUBPATH)
 
     print("Monitoring Voyager CDC throughput:")
     print("  export metadb : %s (role=%s)" % (db_path, role))
     print("  import target : %s" % (import_dsn if import_dsn else "(not tracked)"))
+    print("  YB slot lag   : %s" % (yb_dsn if yb_dsn else "(not tracked)"))
     print("  interval      : %ss, duration: %ss" % (interval, duration))
     print("  output CSV    : %s" % out_path)
 
     f = open(out_path, "w", newline="")
     writer = csv.writer(f)
     writer.writerow(
-        ["epoch", "t_seconds", "exported_cum", "export_evps", "imported_cum", "import_evps", "lag"]
+        ["epoch", "t_seconds", "exported_cum", "export_evps", "imported_cum",
+         "import_evps", "lag", "yb_slot_lag_bytes"]
     )
     f.flush()
 
@@ -285,6 +370,12 @@ def run_monitor(export_dir, role, import_dsn, interval, duration, out_path):
                 # keep previous state so the next successful sample's delta is
                 # computed over the correct elapsed time.
 
+            yb_slot_lag_str = ""
+            if yb_dsn:
+                yb_lag = fetch_yb_slot_lag(yb_dsn, yb_slot_name)
+                if yb_lag is not None:
+                    yb_slot_lag_str = "%.0f" % yb_lag
+
             t_seconds = now_wall - start_wall
             writer.writerow(
                 [
@@ -295,12 +386,13 @@ def run_monitor(export_dir, role, import_dsn, interval, duration, out_path):
                     imported_cum_str,
                     import_evps_str,
                     lag_str,
+                    yb_slot_lag_str,
                 ]
             )
             f.flush()
 
             print(
-                "[t=%6.1fs] export_cum=%.0f export_evps=%.2f imported_cum=%s import_evps=%s lag=%s"
+                "[t=%6.1fs] export_cum=%.0f export_evps=%.2f imported_cum=%s import_evps=%s lag=%s yb_slot_lag_bytes=%s"
                 % (
                     t_seconds,
                     export_cum,
@@ -308,6 +400,7 @@ def run_monitor(export_dir, role, import_dsn, interval, duration, out_path):
                     imported_cum_str or "n/a",
                     import_evps_str or "n/a",
                     lag_str or "n/a",
+                    yb_slot_lag_str or "n/a",
                 )
             )
 
@@ -425,6 +518,23 @@ def run_selftest():
             result = fetch_import_cumulative(bad_dsn)
             self.assertIsNone(result)
 
+        def test_slot_lag_sums_matching_slots(self):
+            rows = [("voyager_a", 100), ("voyager_b", 250)]
+            self.assertEqual(compute_slot_lag_from_rows(rows), 350.0)
+
+        def test_slot_lag_treats_null_as_zero(self):
+            rows = [("voyager_a", None), ("voyager_b", 40)]
+            self.assertEqual(compute_slot_lag_from_rows(rows), 40.0)
+
+        def test_slot_lag_no_matching_slot_returns_none(self):
+            self.assertIsNone(compute_slot_lag_from_rows([]))
+
+        def test_yb_slot_lag_absent_connection_returns_none(self):
+            if psycopg2 is None:
+                self.skipTest("psycopg2 not installed")
+            bad_dsn = "host=127.0.0.1 port=1 dbname=nope connect_timeout=1"
+            self.assertIsNone(fetch_yb_slot_lag(bad_dsn))
+
     suite = unittest.TestLoader().loadTestsFromTestCase(MonitorSelfTest)
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
@@ -451,6 +561,17 @@ def build_arg_parser():
         help='psycopg2 DSN for the import-target DB, e.g. "host=... port=... dbname=... user=... password=...". '
         "If omitted, only export-side rates are tracked.",
     )
+    p.add_argument(
+        "--yb-dsn",
+        default=None,
+        help='psycopg2 DSN for the YB CDC source, to also track the replication-slot '
+        'read lag (YB -> connector) in bytes. If omitted, slot lag is not tracked.',
+    )
+    p.add_argument(
+        "--yb-slot-name",
+        default=None,
+        help="specific YB replication slot to measure; default matches slot_name LIKE 'voyager_%%'.",
+    )
     p.add_argument("--interval", type=int, default=5, help="poll interval in seconds (default: %(default)s)")
     p.add_argument("--duration", type=int, default=3600, help="total run duration in seconds (default: %(default)s)")
     p.add_argument("--out", default="migration-throughput.csv", help="output CSV path (default: %(default)s)")
@@ -476,6 +597,8 @@ def main():
         interval=args.interval,
         duration=args.duration,
         out_path=args.out,
+        yb_dsn=args.yb_dsn,
+        yb_slot_name=args.yb_slot_name,
     )
 
 
