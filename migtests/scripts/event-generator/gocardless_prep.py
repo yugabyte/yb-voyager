@@ -146,7 +146,7 @@ def prep(text, to_schema=None):
 
         # per-line rewrites
         new = ln
-        new, n = re.subn(r"schema_[0-9a-f]+\.type_[0-9a-f]+", "text", new); rpt["type"] += n
+        new, n = re.subn(r"\"?schema_[0-9a-f]+\"?\.\"?type_[0-9a-f]+\"?", "text", new); rpt["type"] += n
         if "pg_catalog.json" in new:
             rpt["json"] += new.count("pg_catalog.json"); new = new.replace("pg_catalog.json", "jsonb")
         new, n = re.subn(r"\s+opclass_[0-9a-f]+", "", new); rpt["opclass"] += n
@@ -162,7 +162,7 @@ def prep(text, to_schema=None):
 
         out.append(new)
 
-        m = re.match(r"CREATE TABLE (\S+) \((\w+)", s)
+        m = re.match(r"CREATE TABLE (\S+)\s*\(\s*\"?(\w+)\"?", s)
         if m:
             tables.append((m.group(1), m.group(2))); rpt["tables"] += 1
         if "PRIMARY KEY" in s.upper():
