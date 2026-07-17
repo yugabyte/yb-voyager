@@ -1122,8 +1122,9 @@ def force_conflict_operation(
         else:
             cursor.execute(
                 f"SELECT {pk_select} FROM {table_name} "
-                f"WHERE {unique_col} IS NULL OR {unique_col} != %s ORDER BY random() LIMIT 1",
-                [conflict_value],
+                f"WHERE ({unique_col} IS NULL OR {unique_col} != %s) AND NOT ({pk_where}) "
+                f"ORDER BY random() LIMIT 1",
+                [conflict_value] + source_pk_values,
             )
             target_row = cursor.fetchone()
             if not target_row:
