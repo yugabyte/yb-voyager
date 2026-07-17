@@ -53,10 +53,11 @@ type Scope struct {
 // anchor, not its old/new counterpart. Pending the cross-window alias decision.
 func FilterByScope(diffs []Difference, scope Scope) []Difference {
 	// Rename/move alias handling is temporarily disabled pending the cross-window
-	// alias decision (PR #3648 discussion). The builder (buildTableRenameAliases,
-	// below) and the alias branches in passesTable*Filter are preserved; re-enable
-	// by uncommenting the line below and passing tableRenameAliases — instead of
-	// nil — to the two passesTable*Filter calls.
+	// alias decision (PR #3648 discussion). Preserved for re-enable: the builder
+	// (buildTableRenameAliases, below) and the alias branches in passesTable*Filter.
+	// To re-enable: uncomment the builder line below, restore the `aliases`
+	// parameter + the commented alias block in both passesTable*Filter, and pass
+	// tableRenameAliases to those two calls.
 	// tableRenameAliases := buildTableRenameAliases(diffs)
 
 	// Pre-build lookup sets for the four lists to avoid O(n²) inner scans.
@@ -70,13 +71,13 @@ func FilterByScope(diffs []Difference, scope Scope) []Difference {
 		if !passesObjectTypeFilter(d, includeTypes) {
 			continue
 		}
-		if !passesTableIncludeFilter(d, includeTables, nil) { // nil aliases: rename-alias matching disabled
+		if !passesTableIncludeFilter(d, includeTables) {
 			continue
 		}
 		if !passesObjectTypeExcludeFilter(d, excludeTypes) {
 			continue
 		}
-		if !passesTableExcludeFilter(d, excludeTables, nil) { // nil aliases: rename-alias matching disabled
+		if !passesTableExcludeFilter(d, excludeTables) {
 			continue
 		}
 		out = append(out, d)
@@ -167,8 +168,11 @@ func passesObjectTypeExcludeFilter(d Difference, excludeTypes map[ObjectType]str
 // passesTableIncludeFilter keeps a finding under the Tables include filter:
 //   - empty list keeps all
 //   - no derived anchor never matches a non-empty list
-//   - otherwise keep if the anchor or any of its rename aliases is listed (either-side)
-func passesTableIncludeFilter(d Difference, includeTables map[schemasnapshot.ObjectRef]struct{}, aliases map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef) bool {
+//   - otherwise keep if the anchor is listed
+//
+// Rename-alias either-side matching is temporarily disabled (see FilterByScope).
+// Re-enable by restoring the `aliases map[...]` parameter and the commented block.
+func passesTableIncludeFilter(d Difference, includeTables map[schemasnapshot.ObjectRef]struct{}) bool {
 	if len(includeTables) == 0 {
 		return true
 	}
@@ -182,12 +186,13 @@ func passesTableIncludeFilter(d Difference, includeTables map[schemasnapshot.Obj
 		return true
 	}
 
-	// Check all rename aliases of the anchor.
-	for _, alias := range aliases[anchor] {
-		if _, ok := includeTables[alias]; ok {
-			return true
-		}
-	}
+	// Rename-alias matching disabled — see FilterByScope. Re-enable with an
+	// `aliases map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef` parameter:
+	// for _, alias := range aliases[anchor] {
+	// 	if _, ok := includeTables[alias]; ok {
+	// 		return true
+	// 	}
+	// }
 
 	return false
 }
@@ -195,8 +200,11 @@ func passesTableIncludeFilter(d Difference, includeTables map[schemasnapshot.Obj
 // passesTableExcludeFilter drops a finding under the ExcludeTables filter:
 //   - empty list excludes nothing
 //   - no derived anchor is never excluded
-//   - otherwise drop if the anchor or any of its rename aliases is listed (either-side)
-func passesTableExcludeFilter(d Difference, excludeTables map[schemasnapshot.ObjectRef]struct{}, aliases map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef) bool {
+//   - otherwise drop if the anchor is listed
+//
+// Rename-alias either-side matching is temporarily disabled (see FilterByScope).
+// Re-enable by restoring the `aliases map[...]` parameter and the commented block.
+func passesTableExcludeFilter(d Difference, excludeTables map[schemasnapshot.ObjectRef]struct{}) bool {
 	if len(excludeTables) == 0 {
 		return true
 	}
@@ -209,12 +217,13 @@ func passesTableExcludeFilter(d Difference, excludeTables map[schemasnapshot.Obj
 		return false
 	}
 
-	// Check all rename aliases of the anchor.
-	for _, alias := range aliases[anchor] {
-		if _, ok := excludeTables[alias]; ok {
-			return false
-		}
-	}
+	// Rename-alias matching disabled — see FilterByScope. Re-enable with an
+	// `aliases map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef` parameter:
+	// for _, alias := range aliases[anchor] {
+	// 	if _, ok := excludeTables[alias]; ok {
+	// 		return false
+	// 	}
+	// }
 
 	return true
 }
