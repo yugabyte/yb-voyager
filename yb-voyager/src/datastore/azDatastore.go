@@ -86,5 +86,20 @@ func (ds *AzDataStore) Open(objectPath string) (io.ReadCloser, error) {
 }
 
 func (ds *AzDataStore) OpenAt(objectPath string, offset int64) (io.ReadCloser, error) {
+	// Byte-offset seek resumption is disabled for Azure for now. Returning
+	// ErrOpenAtNotImplemented makes the caller fall back to the older
+	// SkipLines-based resumption path. The working implementation below is
+	// preserved intentionally — uncomment it (and delete the return above)
+	// to re-enable byte-offset seek resumption for Azure in the future.
+	// (Its helper az.NewObjectReaderAt is kept live in utils/az/azutils.go.)
 	return nil, ErrOpenAtNotImplemented
+
+	// if strings.HasPrefix(objectPath, "https://") {
+	// 	return az.NewObjectReaderAt(objectPath, offset)
+	// }
+	// resolvedPath, err := os.Readlink(objectPath)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("unable to resolve symlink: %v to azure resource: %w", objectPath, err)
+	// }
+	// return az.NewObjectReaderAt(resolvedPath, offset)
 }

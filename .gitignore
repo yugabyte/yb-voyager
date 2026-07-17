@@ -44,3 +44,5 @@ debezium-server-voyager/**/target/
 # Claude Code per-developer state
 .claude/settings.local.json
 .claude/worktrees/
+# cdcbench cached artifacts (regenerable; see yb-voyager/test/cdcbench/README.md)
+yb-voyager/test/cdcbench/artifacts/

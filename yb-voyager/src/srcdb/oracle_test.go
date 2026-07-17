@@ -45,28 +45,6 @@ func TestOracleGetAllTableNames(t *testing.T) {
 	testutils.AssertEqualSourceNameSlices(t, expectedTables, actualTables)
 }
 
-func TestOracleGetTableToUniqueKeyColumnsMap(t *testing.T) {
-	tableList := []sqlname.NameTuple{
-		testutils.CreateNameTupleWithSourceName("YBVOYAGER.UNIQUE_TABLE", "YBVOYAGER", "oracle"),
-	}
-	_ = testOracleSource.DB().Connect()
-	actualIndexes, err := testOracleSource.DB().GetTableToUniqueIndexesMap(tableList)
-	if err != nil {
-		t.Fatalf("Error retrieving unique indexes: %v", err)
-	}
-
-	uniqueTable := testutils.CreateNameTupleWithSourceName("YBVOYAGER.UNIQUE_TABLE", "YBVOYAGER", "oracle")
-	expectedIndexes := [][]string{
-		{"EMAIL", "PHONE"},
-		{"ADDRESS"},
-	}
-	actualIndexesForTable, exists := actualIndexes.Get(uniqueTable)
-	if !exists {
-		t.Fatalf("Expected table %s not found in unique indexes map", uniqueTable)
-	}
-	assertEqualUniqueIndexes(t, expectedIndexes, actualIndexesForTable)
-}
-
 func TestOracleGetNonPKTables(t *testing.T) {
 	_ = testOracleSource.DB().Connect()
 

@@ -39,7 +39,6 @@ var enableOrafce utils.BoolStr
 var importType string
 var prometheusMetricsPort int
 var importUsePartitionRoot utils.BoolStr // default is true for backward compatibility
-var disableNullConflicts utils.BoolStr   // default is false for backward compatibility
 
 var supportedSSLModesOnTargetForImport = AllSSLModes // supported SSL modes for YugabyteDB is different for import VS export data from target(streaming phase)
 var supportedSSLModesOnSourceOrSourceReplica = AllSSLModes
@@ -225,12 +224,17 @@ func validateCdcPartitioningStrategyFlag(cmd *cobra.Command) error {
 	if importerRole != TARGET_DB_IMPORTER_ROLE {
 		return nil
 	}
+	cdcPartitioningStrategyParameterPassed := cmd.Flags().Changed("cdc-partitioning-strategy")
 	if !changeStreamingIsEnabled(importType) {
-		if cmd.Flags().Changed("cdc-partitioning-strategy") {
+		if cdcPartitioningStrategyParameterPassed {
 			utils.ErrExit("--cdc-partitioning-strategy is not supported for offline migration. Re-run the command without this flag.")
 		}
 		return nil
 	}
+	if sourceDBType != POSTGRESQL && cdcPartitioningStrategyParameterPassed {
+		utils.ErrExit("--cdc-partitioning-strategy is only supported for PostgreSQL source")
+	}
+
 	if cdcPartitioningStrategy == "" {
 		utils.ErrExit("cdc partitioning strategy is required")
 	}
@@ -453,9 +457,6 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 		\tpk: Partition the cdc events by primary key.
 		\ttable: Partition the cdc events by table.`)
 	cmd.Flags().MarkHidden("cdc-partitioning-strategy")
-
-	BoolVar(cmd.Flags(), &disableNullConflicts, "disable-null-conflicts", false, "Disable conflict detection for null values during data import (default false), UNSAFE to use this flag if you have unique key constraints with NULLS NOT DISTINCT property")
-	cmd.Flags().MarkHidden("disable-null-conflicts")
 
 	cmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
 		"Port for Prometheus metrics server (default: 9101)")

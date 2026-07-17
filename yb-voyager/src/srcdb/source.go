@@ -262,8 +262,3 @@ func parseSSLString(source *Source) {
 		}
 	}
 }
-
-type tableIndexKey struct {
-	tableCatalogName string
-	indexKey         string
-}
