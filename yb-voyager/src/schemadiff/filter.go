@@ -42,16 +42,22 @@ type Scope struct {
 // never mutated and the result is a fresh slice; a name matching nothing is a
 // silent no-op (validation is the caller's job).
 //
-// A table rename/move alias map is built first so a finding anchored to a renamed
-// table matches on either its old or new identity. Then, in order:
+// Filtering applies, in order:
 //  1. include by IncludeObjectTypes
 //  2. include by IncludeTables (a finding with no derived anchor never matches a non-empty list)
 //  3. exclude by ExcludeObjectTypes
 //  4. exclude by ExcludeTables
+//
+// NOTE: table rename/move alias handling is temporarily disabled (see the body).
+// With it off, a finding anchored to a renamed table matches only its as-emitted
+// anchor, not its old/new counterpart. Pending the cross-window alias decision.
 func FilterByScope(diffs []Difference, scope Scope) []Difference {
-	// Bidirectional old<->new alias map for renamed/moved tables, so a finding
-	// anchored to a renamed table matches on either identity (keyed by ObjectRef).
-	tableRenameAliases := buildTableRenameAliases(diffs)
+	// Rename/move alias handling is temporarily disabled pending the cross-window
+	// alias decision (PR #3648 discussion). The builder (buildTableRenameAliases,
+	// below) and the alias branches in passesTable*Filter are preserved; re-enable
+	// by uncommenting the line below and passing tableRenameAliases — instead of
+	// nil — to the two passesTable*Filter calls.
+	// tableRenameAliases := buildTableRenameAliases(diffs)
 
 	// Pre-build lookup sets for the four lists to avoid O(n²) inner scans.
 	includeTypes := toSet(scope.IncludeObjectTypes)
@@ -64,13 +70,13 @@ func FilterByScope(diffs []Difference, scope Scope) []Difference {
 		if !passesObjectTypeFilter(d, includeTypes) {
 			continue
 		}
-		if !passesTableIncludeFilter(d, includeTables, tableRenameAliases) {
+		if !passesTableIncludeFilter(d, includeTables, nil) { // nil aliases: rename-alias matching disabled
 			continue
 		}
 		if !passesObjectTypeExcludeFilter(d, excludeTypes) {
 			continue
 		}
-		if !passesTableExcludeFilter(d, excludeTables, tableRenameAliases) {
+		if !passesTableExcludeFilter(d, excludeTables, nil) { // nil aliases: rename-alias matching disabled
 			continue
 		}
 		out = append(out, d)
@@ -107,6 +113,11 @@ func anchorTableOf(d Difference) (schemasnapshot.ObjectRef, bool) {
 // don't clobber each other, and dedup so a rename+move pair (which emits both a
 // NAME_CHANGED and a SCHEMA_CHANGED finding sharing the same old→new refs)
 // doesn't record the same alias twice.
+//
+// TEMPORARILY DISABLED (see FilterByScope): the whole function is commented out
+// while rename/move alias handling is off, pending the cross-window alias
+// decision. Preserved verbatim for re-enable — do not delete.
+/*
 func buildTableRenameAliases(diffs []Difference) map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef {
 	aliases := make(map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef)
 	add := func(from, to schemasnapshot.ObjectRef) {
@@ -131,6 +142,7 @@ func buildTableRenameAliases(diffs []Difference) map[schemasnapshot.ObjectRef][]
 	}
 	return aliases
 }
+*/
 
 // passesObjectTypeFilter returns true if the finding's object-type bucket is
 // allowed by the include list. An empty includeTypes means "all".
