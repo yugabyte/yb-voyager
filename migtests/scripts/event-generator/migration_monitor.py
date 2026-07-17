@@ -171,6 +171,44 @@ def fetch_export_cumulative(db_path, role, retries=5, retry_delay=0.2):
     )
 
 
+SLOT_LAG_QUERY = (
+    "SELECT COALESCE(MAX(pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn)), 0) "
+    "FROM pg_replication_slots"
+)
+
+
+def fetch_slot_lag_bytes(dsn):
+    """Connect to the CDC-source DB (where the replication slot lives) and return
+    how far the exporter's slot is behind the WAL, in bytes.
+
+    - Connection failure -> None (skip this sample's slot field; one bad
+      connection shouldn't kill the monitor).
+    - No slot yet (empty pg_replication_slots) -> 0.0 (valid early-run state).
+    - Other query errors -> None with a warning.
+    """
+    if psycopg2 is None:
+        return None
+    try:
+        conn = psycopg2.connect(dsn)
+    except Exception as e:
+        print("[warn] slot-lag DB connection failed: %s" % e, file=sys.stderr)
+        return None
+    try:
+        conn.autocommit = True
+        cur = conn.cursor()
+        try:
+            cur.execute(SLOT_LAG_QUERY)
+            row = cur.fetchone()
+            return float(row[0]) if row and row[0] is not None else 0.0
+        except psycopg2.Error as e:
+            print("[warn] slot-lag query failed: %s" % e, file=sys.stderr)
+            return None
+        finally:
+            cur.close()
+    finally:
+        conn.close()
+
+
 def fetch_import_cumulative(dsn):
     """Connect to the import-target DB via psycopg2 and return the
     cumulative imported-event count.
@@ -220,19 +258,21 @@ def fetch_import_cumulative(dsn):
 # Main monitor loop
 # --------------------------------------------------------------------------
 
-def run_monitor(export_dir, role, import_dsn, interval, duration, out_path):
+def run_monitor(export_dir, role, import_dsn, interval, duration, out_path, slot_dsn=None):
     db_path = os.path.join(export_dir, EXPORT_DB_SUBPATH)
 
     print("Monitoring Voyager CDC throughput:")
     print("  export metadb : %s (role=%s)" % (db_path, role))
     print("  import target : %s" % (import_dsn if import_dsn else "(not tracked)"))
+    print("  slot-lag DB   : %s" % (slot_dsn if slot_dsn else "(not tracked)"))
     print("  interval      : %ss, duration: %ss" % (interval, duration))
     print("  output CSV    : %s" % out_path)
 
     f = open(out_path, "w", newline="")
     writer = csv.writer(f)
     writer.writerow(
-        ["epoch", "t_seconds", "exported_cum", "export_evps", "imported_cum", "import_evps", "lag"]
+        ["epoch", "t_seconds", "exported_cum", "export_evps", "imported_cum", "import_evps", "lag",
+         "slot_lag_bytes"]
     )
     f.flush()
 
@@ -285,6 +325,12 @@ def run_monitor(export_dir, role, import_dsn, interval, duration, out_path):
                 # keep previous state so the next successful sample's delta is
                 # computed over the correct elapsed time.
 
+            slot_lag_str = ""
+            if slot_dsn:
+                slot_lag = fetch_slot_lag_bytes(slot_dsn)
+                if slot_lag is not None:
+                    slot_lag_str = "%.0f" % slot_lag
+
             t_seconds = now_wall - start_wall
             writer.writerow(
                 [
@@ -295,12 +341,13 @@ def run_monitor(export_dir, role, import_dsn, interval, duration, out_path):
                     imported_cum_str,
                     import_evps_str,
                     lag_str,
+                    slot_lag_str,
                 ]
             )
             f.flush()
 
             print(
-                "[t=%6.1fs] export_cum=%.0f export_evps=%.2f imported_cum=%s import_evps=%s lag=%s"
+                "[t=%6.1fs] export_cum=%.0f export_evps=%.2f imported_cum=%s import_evps=%s lag=%s slot_lag_bytes=%s"
                 % (
                     t_seconds,
                     export_cum,
@@ -308,6 +355,7 @@ def run_monitor(export_dir, role, import_dsn, interval, duration, out_path):
                     imported_cum_str or "n/a",
                     import_evps_str or "n/a",
                     lag_str or "n/a",
+                    slot_lag_str or "n/a",
                 )
             )
 
@@ -425,6 +473,13 @@ def run_selftest():
             result = fetch_import_cumulative(bad_dsn)
             self.assertIsNone(result)
 
+        def test_slot_lag_absent_connection_returns_none(self):
+            if psycopg2 is None:
+                self.skipTest("psycopg2 not installed")
+            bad_dsn = "host=127.0.0.1 port=1 dbname=nope connect_timeout=1"
+            result = fetch_slot_lag_bytes(bad_dsn)
+            self.assertIsNone(result)
+
     suite = unittest.TestLoader().loadTestsFromTestCase(MonitorSelfTest)
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
@@ -451,6 +506,14 @@ def build_arg_parser():
         help='psycopg2 DSN for the import-target DB, e.g. "host=... port=... dbname=... user=... password=...". '
         "If omitted, only export-side rates are tracked.",
     )
+    p.add_argument(
+        "--slot-dsn",
+        default=None,
+        help="psycopg2 DSN for the CDC-source DB (where the replication slot lives); "
+        "when given, each sample also records how many bytes the exporter's slot is "
+        "behind the WAL (pg_wal_lsn_diff vs confirmed_flush_lsn). "
+        "If omitted, slot lag is not tracked.",
+    )
     p.add_argument("--interval", type=int, default=5, help="poll interval in seconds (default: %(default)s)")
     p.add_argument("--duration", type=int, default=3600, help="total run duration in seconds (default: %(default)s)")
     p.add_argument("--out", default="migration-throughput.csv", help="output CSV path (default: %(default)s)")
@@ -476,6 +539,7 @@ def main():
         interval=args.interval,
         duration=args.duration,
         out_path=args.out,
+        slot_dsn=args.slot_dsn,
     )
 
 

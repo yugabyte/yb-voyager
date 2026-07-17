@@ -71,6 +71,54 @@ def generator_stop_action(stage: Dict[str, Any], ctx: Any) -> None:
     H.stop_generator(ctx.processes.pop(key, None), timeout)
 
 
+@action("monitor_start")
+def monitor_start_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Start migration_monitor.py to sample export/import rate + lag into a CSV.
+
+    Optional stage keys: exporter_role (default target_db_exporter_fb for the
+    fall-back leg), import_role (default source), interval_sec (default 60),
+    duration_sec (default 0 = run until monitor_stop), out (CSV filename).
+    """
+    cmd = H.build_monitor_cmd(
+        ctx,
+        exporter_role=stage.get("exporter_role", "target_db_exporter_fb"),
+        import_role=stage.get("import_role", "source"),
+        interval=int(stage.get("interval_sec", 60)),
+        duration=int(stage.get("duration_sec", 0)),
+        out_name=stage.get("out", "migration-throughput.csv"),
+    )
+    with ctx.process_lock:
+        ctx.processes["migration_monitor"] = H.spawn(cmd, ctx.env)
+
+
+@action("monitor_stop")
+def monitor_stop_action(stage: Dict[str, Any], ctx: Any) -> None:
+    timeout = int(stage.get("graceful_timeout_sec", 30))
+    H.kill(ctx.processes.pop("migration_monitor", None), timeout_sec=timeout)
+
+
+@action("plot_throughput")
+def plot_throughput_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Render the generator/export/import throughput + lag graph from the monitor
+    CSV and generator log into a self-contained, theme-aware HTML file."""
+    H.plot_throughput(
+        ctx.artifacts_dir,
+        csv_name=stage.get("csv", "migration-throughput.csv"),
+        generator_log=stage.get("generator_log", "generator-generator_target.log"),
+        out_name=stage.get("out", "spike-throughput.html"),
+    )
+
+
+@action("validate_recovery")
+def validate_recovery_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Assert lag rose during the spikes and recovered to ~0 by end-of-run."""
+    H.validate_recovery(
+        ctx.artifacts_dir,
+        csv_name=stage.get("csv", "migration-throughput.csv"),
+        recovery_threshold=stage.get("recovery_threshold"),
+    )
+
+
 @action("voyager_export_start")
 def export_start_action(_stage, ctx: Any) -> None:
     with ctx.process_lock:
