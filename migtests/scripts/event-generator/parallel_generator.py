@@ -300,8 +300,14 @@ def monitor(cursor, worker_procs, run_seconds, monitor_interval_seconds):
             interval = now - last_sample_time
             rate = (cur_sum - last_sum) / interval if interval > 0 else 0.0
             samples.append(rate)
+            # Stamp each sample with an absolute wall-clock time (epoch + UTC
+            # ISO) in addition to the relative t=, so this generator-side series
+            # (machine B) can be joined by timestamp against the monitor CSV and
+            # a Prometheus cdcsdk_flush_lag export (machine A / YB) after the run.
+            now_wall = time.time()
             print(
-                "[monitor] aggregate rate = {:.1f} ev/s (t={:.0f}s, total events so far: {})".format(
+                "[monitor] ts={:.3f} ({}) aggregate rate = {:.1f} ev/s (t={:.0f}s, total events so far: {})".format(
+                    now_wall, time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now_wall)),
                     rate, now - run_start, cur_sum
                 )
             )

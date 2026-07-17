@@ -38,7 +38,8 @@ class RateGovernor(object):
     """
 
     def __init__(self, rate_control, *, random_seed=None,
-                 clock=time.monotonic, sleep=time.sleep, log=print):
+                 clock=time.monotonic, sleep=time.sleep, log=print,
+                 wall_clock=time.time):
         self.default_events_per_second = rate_control["default_events_per_second"]
         self.report_interval = rate_control.get("report_interval_seconds", 0) or 0
         self.schedule = rate_control.get("schedule") or []
@@ -55,6 +56,11 @@ class RateGovernor(object):
         self._clock = clock
         self._sleep = sleep
         self._log = log
+        # Wall-clock (real epoch) source, separate from the pacing `clock`
+        # (monotonic). Only used to stamp report lines with an absolute time so
+        # they can be joined against other timestamped series (monitor CSV,
+        # Prometheus cdcsdk_flush_lag, ...) after the run. Injected for tests.
+        self._wall_clock = wall_clock
 
         # Pacing state.
         self.run_start = self._clock()
@@ -167,8 +173,10 @@ class RateGovernor(object):
         if self.report_interval > 0 and now - self.last_report >= self.report_interval:
             elapsed_since_report = now - self.last_report
             achieved = self.report_events / elapsed_since_report if elapsed_since_report > 0 else 0.0
+            wall = self._wall_clock()
             self._log(
-                "[rate_governor] achieved={:.1f} ev/s target={} total_events={}".format(
+                "[rate_governor] ts={:.3f} ({}) achieved={:.1f} ev/s target={} total_events={}".format(
+                    wall, time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(wall)),
                     achieved, self.current_target, self.total_events
                 )
             )
