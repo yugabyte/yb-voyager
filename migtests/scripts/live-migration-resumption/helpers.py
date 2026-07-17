@@ -1076,7 +1076,9 @@ def _throughput_html(gen, exp, imp, lag, spans, *, x_max, rate_max, lag_max, cei
     l_e.append('<text class="axis-title" x="490" y="188" text-anchor="middle">seconds into fall-back soak</text>')
     lag_svg = f'<svg viewBox="0 0 980 190" role="img" aria-label="lag timeline">{"".join(l_e)}</svg>'
 
-    # Optional replication-slot lag panel (MB behind WAL on the CDC-source side).
+    # Optional replication-slot flush-offset panel. NOTE: on YugabyteDB sources the
+    # slot LSNs are synthetic (no single physical WAL), so pg_wal_lsn_diff is a trend
+    # indicator, NOT literal bytes-behind-WAL — label accordingly; don't over-claim.
     slot_block = ""
     if slot and any(v > 0 for _, v in slot):
         slot_max = max(v for _, v in slot) * 1.15
@@ -1087,7 +1089,7 @@ def _throughput_html(gen, exp, imp, lag, spans, *, x_max, rate_max, lag_max, cei
         slot_block = (
             '<div class="legend" style="margin-top:14px"><span>'
             '<i class="sw" style="border-top-color:var(--s-slot)"></i>'
-            'Replication slot lag (MB behind WAL, CDC-source side)</span></div>'
+            'Replication slot flush offset (MB, trend only — YB LSNs are synthetic, not literal WAL bytes)</span></div>'
             f'<div class="chart">{slot_svg}</div>'
         )
 
