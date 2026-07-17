@@ -79,6 +79,7 @@ type TargetYugabyteDBWithConnectionPool interface {
 	GetClusterMetrics() (map[string]tgtdb.NodeMetrics, error) // node_uuid:metric_name:metric_value
 	GetNumConnectionsInPool() int
 	GetNumMaxConnectionsInPool() int
+	GetPendingConnsToCloseInPool() int
 	UpdateNumConnectionsInPool(int) error // (delta)
 }
 
@@ -124,6 +125,7 @@ func fetchClusterMetricsAndUpdateParallelism(yb TargetYugabyteDBWithConnectionPo
 	}
 	metrics.Get().SetParallelConnections(constants.TARGET_DB_IMPORTER_ROLE, currentNumConnections)
 	metrics.Get().SetParallelism(constants.TARGET_DB_IMPORTER_ROLE, currentNumConnections)
+	metrics.Get().SetPendingConnsToClose(constants.TARGET_DB_IMPORTER_ROLE, yb.GetPendingConnsToCloseInPool())
 	for node, nodeMetrics := range clusterMetrics {
 		if nodeMetrics.Status != "OK" {
 			continue

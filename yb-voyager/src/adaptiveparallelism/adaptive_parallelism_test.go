@@ -115,6 +115,10 @@ func (d *dummyTargetYugabyteDB) UpdateNumConnectionsInPool(delta int) error {
 	return nil
 }
 
+func (d *dummyTargetYugabyteDB) GetPendingConnsToCloseInPool() int {
+	return 0
+}
+
 func TestMain(m *testing.M) {
 	// set logging level to WARN
 	// to avoid info level logs flooding the test output

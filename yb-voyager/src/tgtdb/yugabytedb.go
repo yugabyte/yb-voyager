@@ -2074,6 +2074,10 @@ func (yb *TargetYugabyteDB) GetNumMaxConnectionsInPool() int {
 	return yb.connPool.params.NumMaxConnections
 }
 
+func (yb *TargetYugabyteDB) GetPendingConnsToCloseInPool() int {
+	return yb.connPool.GetPendingConnsToClose()
+}
+
 func (yb *TargetYugabyteDB) UpdateNumConnectionsInPool(delta int) error {
 	return yb.connPool.UpdateNumConnections(delta)
 }

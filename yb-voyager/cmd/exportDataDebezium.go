@@ -427,6 +427,7 @@ func debeziumExportData(config *dbzm.Config, tableNameToApproxRowCountMap map[st
 	var status *dbzm.ExportStatus
 	snapshotComplete := false
 	for debezium.IsRunning() {
+		metrics.Get().SetDebeziumUp(exporterRole, true)
 		status, err = debezium.GetExportStatus()
 		if err != nil {
 			return fmt.Errorf("failed to read export status: %w", err)
@@ -444,6 +445,7 @@ func debeziumExportData(config *dbzm.Config, tableNameToApproxRowCountMap map[st
 		}
 		time.Sleep(time.Millisecond * 500)
 	}
+	metrics.Get().SetDebeziumUp(exporterRole, false)
 	if err := debezium.Error(); err != nil {
 		return fmt.Errorf("debezium failed with error: %w", err)
 	}

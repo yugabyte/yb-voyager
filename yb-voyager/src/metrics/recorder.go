@@ -37,6 +37,7 @@ type Recorder interface {
 
 	// export
 	SetExportedSnapshotRowCount(t sqlname.NameTuple, rows int64)
+	SetExportSnapshotTableTotalRows(t sqlname.NameTuple, rows int64)
 	RecordExportedCDCEvents(role string, events int64)
 	RecordExportError(operation string)
 
@@ -51,7 +52,12 @@ type Recorder interface {
 	// throughput / parallelism gauges
 	SetParallelism(role string, level int)
 	SetParallelConnections(role string, n int)
+	SetPendingConnsToClose(role string, n int)
 	SetNodeCPUPercent(node string, pct float64)
+	SetExportParallelism(role string, level int)
+
+	// process liveness
+	SetDebeziumUp(role string, up bool)
 }
 
 // recorderHolder gives atomic.Value a single, consistent concrete type to

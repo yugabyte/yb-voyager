@@ -116,6 +116,12 @@ func (pool *ConnectionPool) GetNumConnections() int {
 	return pool.size
 }
 
+func (pool *ConnectionPool) GetPendingConnsToClose() int {
+	pool.pendingConnsToCloseLock.Lock()
+	defer pool.pendingConnsToCloseLock.Unlock()
+	return pool.pendingConnsToClose
+}
+
 func (pool *ConnectionPool) UpdateNumConnections(delta int) error {
 	pool.pendingConnsToCloseLock.Lock()
 	defer pool.pendingConnsToCloseLock.Unlock()

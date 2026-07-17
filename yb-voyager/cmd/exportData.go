@@ -183,6 +183,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	if err := startMetricsServer(exporterRole, migrationUUID); err != nil {
 		utils.ErrExit("start metrics server: %v", err)
 	}
+	metrics.Get().SetExportParallelism(exporterRole, source.NumConnections)
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {

@@ -155,4 +155,39 @@ yb_voyager_import_snapshot_rows_total{importer_role="target_db_importer",migrati
 		// build_info is always 1; label values come from the version package.
 		assert.Equal(t, 1, testutil.CollectAndCount(r.buildInfo), "expected 1 build_info series")
 	})
+
+	t.Run("batches in flight tracks submit/ingest lifecycle", func(t *testing.T) {
+		r := NewPrometheusRecorder("uuid-1", "sess-1")
+		tup := newTupleForTest("public", "orders")
+		lv := r.snapshotLabelValues("target_db_importer", tup)
+
+		r.RecordSnapshotBatchSubmitted("target_db_importer", tup)
+		r.RecordSnapshotBatchSubmitted("target_db_importer", tup)
+		inFlight := r.snapshotBatchesInFlight.WithLabelValues(lv...)
+		assert.Equal(t, float64(2), testutil.ToFloat64(inFlight), "expected 2 batches in flight after 2 submits")
+
+		r.RecordSnapshotBatchIngested("target_db_importer", tup, 10, 100)
+		assert.Equal(t, float64(1), testutil.ToFloat64(inFlight), "expected 1 batch in flight after 1 ingest")
+	})
+
+	t.Run("pending conns to close and export parallelism", func(t *testing.T) {
+		r := NewPrometheusRecorder("uuid-1", "sess-1")
+		r.SetPendingConnsToClose("target_db_importer", 3)
+		pending := r.pendingConnsToClose.WithLabelValues("uuid-1", "sess-1", "target_db_importer")
+		assert.Equal(t, float64(3), testutil.ToFloat64(pending), "expected 3 pending conns to close")
+
+		r.SetExportParallelism("source_db_exporter", 8)
+		parallelism := r.exportParallelism.WithLabelValues("uuid-1", "sess-1", "source_db_exporter")
+		assert.Equal(t, float64(8), testutil.ToFloat64(parallelism), "expected export parallelism 8")
+	})
+
+	t.Run("debezium liveness", func(t *testing.T) {
+		r := NewPrometheusRecorder("uuid-1", "sess-1")
+		r.SetDebeziumUp("source_db_exporter", true)
+		up := r.debeziumUp.WithLabelValues("uuid-1", "sess-1", "source_db_exporter")
+		assert.Equal(t, float64(1), testutil.ToFloat64(up), "expected debezium up=1")
+
+		r.SetDebeziumUp("source_db_exporter", false)
+		assert.Equal(t, float64(0), testutil.ToFloat64(up), "expected debezium up=0 after stop")
+	})
 }

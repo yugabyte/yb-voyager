@@ -21,6 +21,7 @@ var nodeCPULabels = []string{"migration_uuid", "session_id", "node"}
 var exportErrorLabels = []string{"migration_uuid", "session_id", "operation"}
 var replicationSlotLabels = []string{"migration_uuid", "session_id", "slot_name"}
 var buildInfoLabels = []string{"migration_uuid", "session_id", "version", "commit"}
+var roleLabels = []string{"migration_uuid", "session_id", "role"}
 
 var sessionID = time.Now().Format("20060102-150405")
 
@@ -34,11 +35,12 @@ type PrometheusRecorder struct {
 	migrationUUID string
 	sessionID     string
 
-	importRowsTotal        *prometheus.CounterVec
-	importBytesTotal       *prometheus.CounterVec
-	snapshotBatchCreated   *prometheus.CounterVec
-	snapshotBatchSubmitted *prometheus.CounterVec
-	snapshotBatchIngested  *prometheus.CounterVec
+	importRowsTotal         *prometheus.CounterVec
+	importBytesTotal        *prometheus.CounterVec
+	snapshotBatchCreated    *prometheus.CounterVec
+	snapshotBatchSubmitted  *prometheus.CounterVec
+	snapshotBatchIngested   *prometheus.CounterVec
+	snapshotBatchesInFlight *prometheus.GaugeVec
 
 	batchSizeRows       *prometheus.HistogramVec
 	batchSizeBytes      *prometheus.HistogramVec
@@ -50,9 +52,10 @@ type PrometheusRecorder struct {
 	cdcEventsImported *prometheus.CounterVec
 	cdcImportRate     *prometheus.GaugeVec
 
-	exportSnapshotRows *prometheus.GaugeVec
-	exportCDCEvents    *prometheus.CounterVec
-	exportErrorsTotal  *prometheus.CounterVec
+	exportSnapshotRows   *prometheus.GaugeVec
+	exportTableTotalRows *prometheus.GaugeVec
+	exportCDCEvents      *prometheus.CounterVec
+	exportErrorsTotal    *prometheus.CounterVec
 
 	cdcEventsPending             *prometheus.GaugeVec
 	cdcEstimatedSecondsToCatchUp *prometheus.GaugeVec
@@ -65,9 +68,13 @@ type PrometheusRecorder struct {
 	replicationSlotWAL *prometheus.GaugeVec
 	buildInfo          *prometheus.GaugeVec
 
-	parallelism   *prometheus.GaugeVec
-	parallelConns *prometheus.GaugeVec
-	nodeCPU       *prometheus.GaugeVec
+	parallelism         *prometheus.GaugeVec
+	parallelConns       *prometheus.GaugeVec
+	pendingConnsToClose *prometheus.GaugeVec
+	nodeCPU             *prometheus.GaugeVec
+	exportParallelism   *prometheus.GaugeVec
+
+	debeziumUp *prometheus.GaugeVec
 }
 
 func NewPrometheusRecorder(migrationUUID, sessionID string) *PrometheusRecorder {
@@ -96,6 +103,11 @@ func NewPrometheusRecorder(migrationUUID, sessionID string) *PrometheusRecorder 
 		snapshotBatchIngested: f.NewCounterVec(prometheus.CounterOpts{
 			Name: "yb_voyager_import_snapshot_batch_ingested_total",
 			Help: "Total number of batches successfully ingested",
+		}, snapshotLabels),
+		// PromQL: yb_voyager_import_snapshot_batches_in_flight > 0 for an extended period indicates a stall.
+		snapshotBatchesInFlight: f.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "yb_voyager_import_snapshot_batches_in_flight",
+			Help: "Batches submitted to the worker pool but not yet ingested",
 		}, snapshotLabels),
 		// PromQL: histogram_quantile(0.9, sum by (le) (rate(yb_voyager_import_snapshot_batch_size_rows_bucket[5m])))
 		batchSizeRows: f.NewHistogramVec(prometheus.HistogramOpts{
@@ -134,6 +146,10 @@ func NewPrometheusRecorder(migrationUUID, sessionID string) *PrometheusRecorder 
 		exportSnapshotRows: f.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "yb_voyager_export_snapshot_rows",
 			Help: "Exported snapshot rows per table",
+		}, exportRowLabels),
+		exportTableTotalRows: f.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "yb_voyager_export_snapshot_table_total_rows",
+			Help: "Expected total rows for the table during snapshot export",
 		}, exportRowLabels),
 		exportCDCEvents: f.NewCounterVec(prometheus.CounterOpts{
 			Name: "yb_voyager_export_cdc_events_total",
@@ -183,11 +199,23 @@ func NewPrometheusRecorder(migrationUUID, sessionID string) *PrometheusRecorder 
 			Name: "yb_voyager_import_parallel_connections",
 			Help: "Current number of parallel import connections",
 		}, cdcRateLabels),
+		pendingConnsToClose: f.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "yb_voyager_import_pool_pending_close_connections",
+			Help: "Connections the pool has been asked to close but has not yet closed (adaptive-parallelism scale-down in flight)",
+		}, cdcRateLabels),
 		// PromQL: max by (node) (yb_voyager_cluster_node_cpu_percent)
 		nodeCPU: f.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "yb_voyager_cluster_node_cpu_percent",
 			Help: "Per-node CPU usage percent (user+system) of the target cluster; one series per node",
 		}, nodeCPULabels),
+		exportParallelism: f.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "yb_voyager_export_parallelism",
+			Help: "Configured export parallelism (--parallel-jobs); static for the lifetime of the process",
+		}, roleLabels),
+		debeziumUp: f.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "yb_voyager_cdc_debezium_up",
+			Help: "Whether the Debezium change-data-capture process is currently running (1) or not (0)",
+		}, roleLabels),
 	}
 	rec.buildInfo.WithLabelValues(migrationUUID, sessionID, utils.YB_VOYAGER_VERSION, utils.GitCommitHash()).Set(1)
 	return rec
@@ -207,7 +235,9 @@ func (p *PrometheusRecorder) RecordSnapshotBatchCreated(role string, t sqlname.N
 }
 
 func (p *PrometheusRecorder) RecordSnapshotBatchSubmitted(role string, t sqlname.NameTuple) {
-	p.snapshotBatchSubmitted.WithLabelValues(p.snapshotLabelValues(role, t)...).Inc()
+	lv := p.snapshotLabelValues(role, t)
+	p.snapshotBatchSubmitted.WithLabelValues(lv...).Inc()
+	p.snapshotBatchesInFlight.WithLabelValues(lv...).Inc()
 }
 
 func (p *PrometheusRecorder) RecordSnapshotBatchIngested(role string, t sqlname.NameTuple, rows, bytes int64) {
@@ -216,6 +246,7 @@ func (p *PrometheusRecorder) RecordSnapshotBatchIngested(role string, t sqlname.
 	p.importBytesTotal.WithLabelValues(lv...).Add(float64(bytes))
 	p.snapshotBatchIngested.WithLabelValues(lv...).Inc()
 	p.lastBatchIngestedTS.WithLabelValues(lv...).Set(float64(time.Now().Unix()))
+	p.snapshotBatchesInFlight.WithLabelValues(lv...).Dec()
 }
 
 func (p *PrometheusRecorder) ObserveSnapshotBatchSize(role string, t sqlname.NameTuple, rows, bytes int64) {
@@ -241,6 +272,11 @@ func (p *PrometheusRecorder) SetCDCImportRate(role string, eventsPerSec float64)
 func (p *PrometheusRecorder) SetExportedSnapshotRowCount(t sqlname.NameTuple, rows int64) {
 	schema, table := t.ForKeyTableSchema()
 	p.exportSnapshotRows.WithLabelValues(p.migrationUUID, p.sessionID, table, schema).Set(float64(rows))
+}
+
+func (p *PrometheusRecorder) SetExportSnapshotTableTotalRows(t sqlname.NameTuple, rows int64) {
+	schema, table := t.ForKeyTableSchema()
+	p.exportTableTotalRows.WithLabelValues(p.migrationUUID, p.sessionID, table, schema).Set(float64(rows))
 }
 
 func (p *PrometheusRecorder) RecordExportedCDCEvents(role string, events int64) {
@@ -287,6 +323,22 @@ func (p *PrometheusRecorder) SetParallelConnections(role string, n int) {
 	p.parallelConns.WithLabelValues(p.migrationUUID, p.sessionID, role).Set(float64(n))
 }
 
+func (p *PrometheusRecorder) SetPendingConnsToClose(role string, n int) {
+	p.pendingConnsToClose.WithLabelValues(p.migrationUUID, p.sessionID, role).Set(float64(n))
+}
+
 func (p *PrometheusRecorder) SetNodeCPUPercent(node string, pct float64) {
 	p.nodeCPU.WithLabelValues(p.migrationUUID, p.sessionID, node).Set(pct)
+}
+
+func (p *PrometheusRecorder) SetExportParallelism(role string, level int) {
+	p.exportParallelism.WithLabelValues(p.migrationUUID, p.sessionID, role).Set(float64(level))
+}
+
+func (p *PrometheusRecorder) SetDebeziumUp(role string, up bool) {
+	v := 0.0
+	if up {
+		v = 1.0
+	}
+	p.debeziumUp.WithLabelValues(p.migrationUUID, p.sessionID, role).Set(v)
 }

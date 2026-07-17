@@ -202,6 +202,7 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 	pbr := pbreporter.NewExportPB(progressContainer, tableName, disablePb)
 	// initialize PB total with identified approx row count
 	pbr.SetTotalRowCount(tableMetadata.CountTotalRows, false)
+	metrics.Get().SetExportSnapshotTableTotalRows(tableMetadata.TableName, tableMetadata.CountTotalRows)
 
 	// parallel goroutine to calculate and set total to actual row count
 	go func() {
@@ -213,6 +214,7 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 		log.Infof("Replacing actualRowCount=%d inplace of expectedRowCount=%d for table=%s",
 			actualRowCount, tableMetadata.CountTotalRows, tableMetadata.TableName.ForUserQuery())
 		pbr.SetTotalRowCount(actualRowCount, false)
+		metrics.Get().SetExportSnapshotTableTotalRows(tableMetadata.TableName, actualRowCount)
 		tableMetadata.CountTotalRows = actualRowCount
 	}()
 
