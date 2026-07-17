@@ -866,8 +866,8 @@ def _read_monitor_csv(csv_path: str) -> Dict[str, list]:
     Blank import/lag cells (importer not started yet) are skipped for those series.
     """
     import csv as _csv
-    cols: Dict[str, list] = {"t": [], "export_evps": [], "import_evps": [], "lag": [],
-                             "slot_lag_bytes": []}
+    cols: Dict[str, list] = {"t": [], "epoch": [], "export_evps": [], "import_evps": [],
+                             "lag": [], "slot_lag_bytes": []}
     with open(csv_path, newline="") as f:
         for row in _csv.DictReader(f):
             try:
@@ -875,6 +875,7 @@ def _read_monitor_csv(csv_path: str) -> Dict[str, list]:
             except (KeyError, ValueError):
                 continue
             cols["t"].append(t)
+            cols["epoch"].append(_to_float_or_none(row.get("epoch")))
             cols["export_evps"].append(_to_float_or_none(row.get("export_evps")))
             cols["import_evps"].append(_to_float_or_none(row.get("import_evps")))
             cols["lag"].append(_to_float_or_none(row.get("lag")))
@@ -890,25 +891,32 @@ def _to_float_or_none(v) -> float | None:
         return None
 
 
-def _parse_generator_rate_log(log_path: str) -> tuple[list, list]:
-    """Parse parallel_generator's aggregate-rate lines
-    ('[monitor] aggregate rate = <n> ev/s (t=<s>s, ...)') into (t_seconds, rate)
-    lists. Returns empty lists if the file is missing or has no such lines.
+def _parse_generator_rate_log(log_path: str) -> tuple[list, list, list]:
+    """Parse parallel_generator's aggregate-rate lines into (t_seconds, rate, epoch)
+    lists. Supports both line formats:
+      old: '[monitor] aggregate rate = <n> ev/s (t=<s>s, ...)'
+      new: '[monitor] ts=<epoch> (<iso>) aggregate rate = <n> ev/s (t=<s>s, ...)'
+    epoch entries are None for old-format lines. Returns empty lists if the file
+    is missing or has no such lines.
     """
     import re as _re
-    pat = _re.compile(r"\[monitor\]\s+aggregate rate\s*=\s*([\d.]+)\s*ev/s\s*\(t=([\d.]+)s")
+    pat = _re.compile(
+        r"\[monitor\]\s+(?:ts=([\d.]+)\s+\([^)]*\)\s+)?"
+        r"aggregate rate\s*=\s*([\d.]+)\s*ev/s\s*\(t=([\d.]+)s")
     ts: list = []
     rates: list = []
+    epochs: list = []
     try:
         with open(log_path) as f:
             for line in f:
                 m = pat.search(line)
                 if m:
-                    rates.append(float(m.group(1)))
-                    ts.append(float(m.group(2)))
+                    epochs.append(float(m.group(1)) if m.group(1) else None)
+                    rates.append(float(m.group(2)))
+                    ts.append(float(m.group(3)))
     except FileNotFoundError:
         pass
-    return ts, rates
+    return ts, rates, epochs
 
 
 # CDC export-connector ceiling (ev/s): export from target plateaus around here, so
@@ -976,7 +984,7 @@ def plot_throughput(
         log(f"plot_throughput: no monitor CSV at {csv_path}; skipping plot")
         return
     cols = _read_monitor_csv(csv_path)
-    gen_t, gen_rate = _parse_generator_rate_log(os.path.join(artifacts_dir, generator_log))
+    gen_t, gen_rate, gen_epochs = _parse_generator_rate_log(os.path.join(artifacts_dir, generator_log))
 
     def pairs(ts, ys):
         return [(t, y) for t, y in zip(ts, ys) if y is not None]
@@ -987,9 +995,16 @@ def plot_throughput(
     # Replication-slot lag (bytes behind WAL on the CDC-source side), plotted in MB.
     # Optional: absent in CSVs from before the monitor learned --slot-dsn.
     slot = [(t, v / 1e6) for t, v in pairs(cols["t"], cols["slot_lag_bytes"])]
-    # Put the generator series on the monitor's clock (its own clock starts after
-    # calibration+analysis, ~150s later) so the spike band aligns with the response.
-    gen_t = _align_generator_to_monitor(gen_t, gen_rate, [t for t, _ in exp], [v for _, v in exp])
+    # Put the generator series on the monitor's clock. Preferred: join by absolute
+    # epoch (generator lines carry ts=<epoch> since the wall-clock stamping change;
+    # the monitor CSV has an epoch column) — exact, no heuristics. Fallback for old
+    # logs without ts=: anchor the generator's spike onset to the export response.
+    _mon_epoch0 = next(
+        (e - t for t, e in zip(cols["t"], cols["epoch"]) if e is not None), None)
+    if _mon_epoch0 is not None and gen_epochs and all(e is not None for e in gen_epochs):
+        gen_t = [e - _mon_epoch0 for e in gen_epochs]
+    else:
+        gen_t = _align_generator_to_monitor(gen_t, gen_rate, [t for t, _ in exp], [v for _, v in exp])
     gen = list(zip(gen_t, gen_rate))
     # Measured single-slot export ceiling for this run (the plateau the one slot holds).
     ceiling_evps = max([v for _, v in exp], default=CEILING_EVPS)
