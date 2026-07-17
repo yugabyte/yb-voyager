@@ -180,6 +180,9 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
+	if err := startMetricsServer(exporterRole, migrationUUID); err != nil {
+		utils.ErrExit("start metrics server: %v", err)
+	}
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
@@ -611,10 +614,6 @@ func packAndSendExportDataPayload(status string, errorMsg error) {
 }
 
 func exportData() bool {
-	if err := startMetricsServer(exporterRole, migrationUUID); err != nil {
-		utils.ErrExit("start metrics server: %v", err)
-	}
-
 	err := source.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source db: %w", err)

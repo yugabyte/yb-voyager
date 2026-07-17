@@ -206,6 +206,10 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	reportProgressInBytes = false
 	tconf.ImportMode = true
 
+	if err := setupImportDataObservability(); err != nil {
+		utils.ErrExit("Failed to setup import data observability: %s", err)
+	}
+
 	err := setImportTypeAndIdentityColumnMetaDBKeyForImporterRole(importerRole)
 	if err != nil {
 		utils.ErrExit("error while setting import type or identity column metadb key: %v", err)
@@ -1243,9 +1247,9 @@ func importSnapshotData(msr *metadb.MigrationStatusRecord, errorHandler importda
 }
 
 func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorPolicy) {
-	err := setupImportDataObservability()
+	err := updateImportDataStartedAndSomeConfigsInMetaDB()
 	if err != nil {
-		utils.ErrExit("Failed to setup import data observability: %s", err)
+		utils.ErrExit("Failed to update import data started in meta DB: %s", err)
 	}
 
 	errorHandler, err := initialiseErrorHandler(errorPolicy)
