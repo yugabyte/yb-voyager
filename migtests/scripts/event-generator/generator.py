@@ -7,6 +7,7 @@ from utils import (
     execute_with_retry,
     build_insert_values,
     build_update_values,
+    force_conflict_operation,
 )
 from utils import (
     run_index_operations,
@@ -71,6 +72,17 @@ INDEX_EVENTS_INTERVAL = GEN.get("index_events_interval", 5)
 
 # Column overrides for partition-aware value generation
 COLUMN_OVERRIDES = GEN.get("column_overrides", {})
+
+# Deliberate unique-key conflict forcing, to exercise CDC conflict detection
+FORCE_CONFLICTS = GEN.get("force_conflicts") or {}
+FORCE_CONFLICTS_ENABLED = FORCE_CONFLICTS.get("enabled", False)
+FORCE_CONFLICTS_WEIGHT = FORCE_CONFLICTS.get("weight", 1)
+FORCE_CONFLICTS_FREE_VIA = FORCE_CONFLICTS.get("free_via", ["DELETE", "UPDATE"])
+FORCE_CONFLICTS_REUSE_VIA = FORCE_CONFLICTS.get("reuse_via", ["INSERT", "UPDATE"])
+
+if FORCE_CONFLICTS_ENABLED:
+    OPERATIONS.append("FORCE_CONFLICT")
+    OPERATION_WEIGHTS.append(float(FORCE_CONFLICTS_WEIGHT))
 # ---------------------------------
 
 # Deterministic seeds from YAML
@@ -241,6 +253,22 @@ try:
                 cursor.execute(query_to_run, sampling_params)
 
                 conn.commit()
+
+            elif operation == "FORCE_CONFLICT":
+                result = force_conflict_operation(
+                    cursor,
+                    conn,
+                    table_schemas,
+                    table_name,
+                    column_overrides=COLUMN_OVERRIDES,
+                    free_via_choices=FORCE_CONFLICTS_FREE_VIA,
+                    reuse_via_choices=FORCE_CONFLICTS_REUSE_VIA,
+                )
+                if result:
+                    print(
+                        f"[FORCE_CONFLICT] table={result['table']} column={result['column']} "
+                        f"value={result['value']!r} {result['free_via']} -> {result['reuse_via']}"
+                    )
 
             if WAIT_AFTER_OPERATIONS and i % WAIT_AFTER_OPERATIONS == 0 and i != 0:
                 if WAIT_DURATION_SECONDS > 0:

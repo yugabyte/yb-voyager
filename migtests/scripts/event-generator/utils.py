@@ -54,6 +54,7 @@ CONFIG_SCHEMA: Dict[str, Dict[str, Any]] = {
         "enable_index_create_drop": bool,
         "index_events_interval": int,
         "column_overrides": dict,
+        "force_conflicts": dict,
     },
 }
 
@@ -75,7 +76,7 @@ def load_yaml_file(path: str) -> Dict[str, Any]:
 
 def validate_section(section: Dict[str, Any], schema: Dict[str, Any], section_name: str) -> None:
     # Optional fields that don't need to be present (for backward compatibility)
-    optional_fields = {"enable_index_create_drop","index_events_interval","column_overrides","min_col_size_bytes"}
+    optional_fields = {"enable_index_create_drop","index_events_interval","column_overrides","min_col_size_bytes","force_conflicts"}
     
     for key, expected_type in schema.items():
         if key not in section:
@@ -169,6 +170,19 @@ def get_estimated_row_count(
 
 def set_faker_seed(seed: int) -> None:
     _fake.seed_instance(seed)
+
+
+def faker_for_key(key: Any) -> Faker:
+    """Return a Faker instance seeded deterministically from `key`.
+
+    Calling this again later with the same key reproduces the identical
+    sequence of generated values. Used to make a later INSERT/UPDATE
+    regenerate the same fake payload associated with a given unique-key
+    value, so induced conflicts are reproducible across runs/logs.
+    """
+    f = Faker()
+    f.seed_instance(hash(str(key)))
+    return f
 
 
 # ----- Column override helpers -----
@@ -458,6 +472,33 @@ def _find_primary_key(
     return None
 
 
+def _find_unique_columns(
+    cursor: Any,
+    table_name: str,
+    schema_name: Optional[str],
+) -> List[str]:
+    """Return columns covered by a plain single-column UNIQUE index (excluding the PK).
+
+    Restricted to non-partial, non-expression, single-column unique indexes so
+    that forcing a value collision on one of them has an unambiguous meaning.
+    """
+    regclass = _qualify_regclass(table_name, schema_name)
+    query = """
+        SELECT a.attname
+        FROM pg_index i
+        JOIN pg_class c ON c.oid = i.indrelid
+        JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = i.indkey[0]
+        WHERE c.oid = %s::regclass
+          AND i.indisunique
+          AND NOT i.indisprimary
+          AND i.indpred IS NULL
+          AND array_length(i.indkey, 1) = 1
+          AND i.indkey[0] > 0
+    """
+    cursor.execute(query, (regclass,))
+    return [r[0] for r in cursor.fetchall()]
+
+
 def _build_enum_values(
     cursor: Any,
     table_name: str,
@@ -490,6 +531,7 @@ def convert_pg_table_description(
     array_types = _build_array_types(cursor, schema_name, table_name, columns)
     primary_key = _find_primary_key(cursor, table_name, schema_name)
     enum_values = _build_enum_values(cursor, table_name, schema_name, column_info)
+    unique_columns = _find_unique_columns(cursor, table_name, schema_name)
 
     result = {
         "columns": columns,
@@ -497,6 +539,7 @@ def convert_pg_table_description(
         "primary_key": primary_key,
         "enum_values": enum_values,
         "bit_info": bit_info,
+        "unique_columns": unique_columns,
     }
 
     return {table_name: result}
@@ -858,13 +901,31 @@ def build_insert_values(
     number_of_rows_to_insert: int,
     min_col_size_bytes: int = 0,
     column_overrides: Optional[Dict[str, Any]] = None,
+    forced_values: Optional[Dict[str, Any]] = None,
+    faker_instance: Optional[Faker] = None,
 ) -> str:
-    """Build VALUES list like (v1, v2), (v1, v2) for INSERT ... VALUES ..."""
+    """Build VALUES list like (v1, v2), (v1, v2) for INSERT ... VALUES ...
+
+    forced_values pins specific columns to exact values (applied to every row
+    built) - used to make a new row deliberately reuse a specific unique-key
+    value. faker_instance, when given, generates every other column instead
+    of the module-level Faker, so the rest of the row is reproducible from a
+    seed (see faker_for_key).
+    """
+    forced_values = forced_values or {}
     rows = []
     for _ in range(number_of_rows_to_insert):
         values = []
 
         for column_name, data_type in table_schemas[table_name]["columns"].items():
+            if column_name in forced_values:
+                value = forced_values[column_name]
+                if isinstance(value, str):
+                    escaped_value = value.replace("'", "''")
+                    values.append(f"'{escaped_value}'")
+                else:
+                    values.append(f"'{value}'" if value is not None else "NULL")
+                continue
             override_spec = get_column_override(column_overrides or {}, table_name, column_name)
             if override_spec:
                 value = generate_override_value(override_spec)
@@ -872,7 +933,7 @@ def build_insert_values(
             elif "bit" in data_type.lower():
                 values.append(build_bit_cast_expr(table_schemas, table_name, column_name))
             elif data_type != "USER-DEFINED" and data_type != "ARRAY":
-                value = generate_random_data(data_type, table_name, None, None, None, min_col_size_bytes)
+                value = generate_random_data(data_type, table_name, None, None, faker_instance, min_col_size_bytes)
                 if "bytea" in data_type and isinstance(value, bytes):
                     hex_value = value.hex()
                     values.append(f"'\\\\x{hex_value}'")
@@ -885,7 +946,7 @@ def build_insert_values(
             else:
                 enum_values = fetch_enum_values_for_column(table_schemas, table_name, column_name)
                 array_types = fetch_array_types_for_column(table_schemas, table_name, column_name)
-                value = generate_random_data(data_type, table_name, enum_values, array_types, None, min_col_size_bytes)
+                value = generate_random_data(data_type, table_name, enum_values, array_types, faker_instance, min_col_size_bytes)
                 if isinstance(value, str):
                     escaped_value = value.replace("'", "''")
                     values.append(f"'{escaped_value}'" if value is not None else "NULL")
@@ -903,19 +964,32 @@ def build_update_values(
     columns_to_update: List[str],
     min_col_size_bytes: int = 0,
     column_overrides: Optional[Dict[str, Any]] = None,
+    forced_values: Optional[Dict[str, Any]] = None,
+    faker_instance: Optional[Faker] = None,
 ) -> Tuple[str, List[Any]]:
     """Build a SET clause and params for UPDATE with type-aware handling.
 
     Returns a tuple of (set_clause, params), where set_clause is a comma-joined
     list of column assignments and params are the corresponding values for
-    non-bit columns.
+    non-bit columns. forced_values pins specific columns to exact values
+    (e.g. to reuse a unique-key value freed elsewhere); faker_instance, when
+    given, generates every other column instead of the module-level Faker.
     """
+    forced_values = forced_values or {}
     columns = table_schemas[table_name]["columns"]
     set_parts: List[str] = []
     params: List[Any] = []
 
     for col in columns_to_update:
         data_type = columns[col]
+        if col in forced_values:
+            value = forced_values[col]
+            if value is None:
+                set_parts.append(f"{col} = NULL")
+            else:
+                set_parts.append(f"{col} = %s")
+                params.append(value)
+            continue
         override_spec = get_column_override(column_overrides or {}, table_name, col)
         if override_spec:
             value = generate_override_value(override_spec)
@@ -930,10 +1004,10 @@ def build_update_values(
         else:
             if data_type == "USER-DEFINED":
                 enum_values = fetch_enum_values_for_column(table_schemas, table_name, col)
-                value = generate_random_data(data_type, table_name, enum_values, None, None, min_col_size_bytes)
+                value = generate_random_data(data_type, table_name, enum_values, None, faker_instance, min_col_size_bytes)
             else:
                 array_types = fetch_array_types_for_column(table_schemas, table_name, col)
-                value = generate_random_data(data_type, table_name, None, array_types, None, min_col_size_bytes)
+                value = generate_random_data(data_type, table_name, None, array_types, faker_instance, min_col_size_bytes)
             if value is None:
                 set_parts.append(f"{col} = NULL")
             else:
@@ -970,6 +1044,113 @@ def execute_with_retry(
             raise
     print("Reached maximum retry attempts. Skipping...")
     return False
+
+
+# ----- Conflict-forcing helpers -----
+
+def force_conflict_operation(
+    cursor: Any,
+    conn: Any,
+    table_schemas: Dict[str, Dict[str, Any]],
+    table_name: str,
+    column_overrides: Optional[Dict[str, Any]] = None,
+    free_via_choices: Optional[List[str]] = None,
+    reuse_via_choices: Optional[List[str]] = None,
+) -> Optional[Dict[str, Any]]:
+    """Deliberately force a unique-key value collision across two CDC events.
+
+    Frees a unique (non-PK) column's current value on one existing row via
+    DELETE or UPDATE, then immediately reuses that same value on a different
+    row via INSERT or UPDATE. Because the two rows have different primary
+    keys, the resulting CDC events can land on different parallel apply
+    channels and race - this is what yb-voyager's ConflictDetectionCache
+    (cmd/conflictDetectionCache.go) is designed to detect and serialize.
+
+    Returns a dict describing what was done (for logging/correlation), or
+    None if this table/round didn't support forcing a conflict.
+    """
+    unique_columns = table_schemas[table_name].get("unique_columns") or []
+    primary_key = table_schemas[table_name].get("primary_key")
+    if not unique_columns or not primary_key:
+        return None
+
+    pk_cols = primary_key if isinstance(primary_key, list) else [primary_key]
+    unique_col = random.choice(unique_columns)
+    free_via = random.choice(free_via_choices or ["DELETE", "UPDATE"])
+    reuse_via = random.choice(reuse_via_choices or ["INSERT", "UPDATE"])
+
+    pk_select = ", ".join(pk_cols)
+    pk_where = " AND ".join(f"{col} = %s" for col in pk_cols)
+
+    cursor.execute(
+        f"SELECT {pk_select}, {unique_col} FROM {table_name} "
+        f"WHERE {unique_col} IS NOT NULL ORDER BY random() LIMIT 1"
+    )
+    row = cursor.fetchone()
+    if not row:
+        return None
+    source_pk_values = list(row[:-1])
+    conflict_value = row[-1]
+
+    try:
+        if free_via == "DELETE":
+            cursor.execute(f"DELETE FROM {table_name} WHERE {pk_where}", source_pk_values)
+        else:
+            data_type = table_schemas[table_name]["columns"][unique_col]
+            new_value = generate_random_data(data_type, table_name)
+            cursor.execute(
+                f"UPDATE {table_name} SET {unique_col} = %s WHERE {pk_where}",
+                [new_value] + source_pk_values,
+            )
+        conn.commit()
+
+        fake = faker_for_key(conflict_value)
+        if reuse_via == "INSERT":
+            columns = ", ".join(table_schemas[table_name]["columns"].keys())
+            values_list = build_insert_values(
+                table_schemas,
+                table_name,
+                1,
+                column_overrides=column_overrides,
+                forced_values={unique_col: conflict_value},
+                faker_instance=fake,
+            )
+            cursor.execute(f"INSERT INTO {table_name} ({columns}) VALUES {values_list}")
+        else:
+            cursor.execute(
+                f"SELECT {pk_select} FROM {table_name} "
+                f"WHERE {unique_col} IS NULL OR {unique_col} != %s ORDER BY random() LIMIT 1",
+                [conflict_value],
+            )
+            target_row = cursor.fetchone()
+            if not target_row:
+                conn.commit()
+                return None
+            set_clause, params = build_update_values(
+                table_schemas,
+                table_name,
+                [unique_col],
+                column_overrides=column_overrides,
+                forced_values={unique_col: conflict_value},
+                faker_instance=fake,
+            )
+            cursor.execute(
+                f"UPDATE {table_name} SET {set_clause} WHERE {pk_where}",
+                params + list(target_row),
+            )
+        conn.commit()
+    except psycopg2.Error as e:
+        conn.rollback()
+        print(f"FORCE_CONFLICT failed on '{table_name}.{unique_col}': {e}")
+        return None
+
+    return {
+        "table": table_name,
+        "column": unique_col,
+        "value": conflict_value,
+        "free_via": free_via,
+        "reuse_via": reuse_via,
+    }
 
 
 # ----- Sampling helpers -----

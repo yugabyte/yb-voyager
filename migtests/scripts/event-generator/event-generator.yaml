@@ -60,3 +60,17 @@ generator:
 
   # Column min size in bytes (for text, json, jsonb, tsvector columns). Set to 0 to disable.
   min_col_size_bytes: 0
+
+  # Deliberately force unique-key value collisions to exercise CDC conflict
+  # detection (yb-voyager's ConflictDetectionCache). On a table with a plain
+  # single-column UNIQUE index (not the PK), frees that value on one existing
+  # row (DELETE or UPDATE) and immediately reuses it on a different row
+  # (INSERT or UPDATE) - the two resulting CDC events touch the same unique
+  # value from different primary keys, so they can race across parallel
+  # apply channels. Disabled by default; only applies to tables that have a
+  # qualifying unique index.
+  force_conflicts:
+    enabled: false
+    weight: 1                       # relative weight among operation_weights
+    free_via: [DELETE, UPDATE]       # how the value is freed on the source row
+    reuse_via: [INSERT, UPDATE]      # how the value is reused on a different row
