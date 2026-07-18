@@ -315,10 +315,6 @@ func validateCdcPartitionKeyFlags(cmd *cobra.Command) error {
 		utils.ErrExit("--cdc-partition-key / --cdc-partition-key-overrides are only supported for PostgreSQL source")
 	}
 
-	if !anyPassed {
-		return nil
-	}
-
 	if cdcPartitionKey == "" {
 		utils.ErrExit("cdc-partition-key is required")
 	}
