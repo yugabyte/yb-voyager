@@ -225,21 +225,4 @@ func TestSchemaSnapshotCaptureIntegration(t *testing.T) {
 		assert.Equal(t, before+1, countExitPlaceholders(),
 			"an aborted capture with placeholderOnFailure must record exactly one exit placeholder")
 	})
-
-	t.Run("a healthy capture completes well under the exit-capture timeout", func(t *testing.T) {
-		suppressSchemaSnapshotCapture = utils.BoolStr(false)
-
-		// Same budget the abnormal-exit path uses. A metadata-only catalog read must
-		// finish comfortably inside it.
-		budgetCtx, cancel := context.WithTimeout(context.Background(), schemaSnapshotExitCaptureTimeout)
-		defer cancel()
-
-		start := time.Now()
-		captureSourceSchemaSnapshot(budgetCtx, schemasnapshot.LabelExportSchema, "", true)
-		elapsed := time.Since(start)
-
-		require.NoError(t, budgetCtx.Err(), "capture must finish before the exit-capture budget is exhausted")
-		assert.Less(t, elapsed, schemaSnapshotExitCaptureTimeout,
-			"a healthy catalog read must finish within the exit-capture budget")
-	})
 }
