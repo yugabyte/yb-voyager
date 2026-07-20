@@ -53,6 +53,7 @@ except Exception:
         )
 
     utils.generate_table_schemas = _unset_generate_table_schemas
+    utils.generate_table_schemas_bulk = _unset_generate_table_schemas
     sys.modules["utils"] = utils
 
 import shared_cache
@@ -393,7 +394,7 @@ class TestBuildCacheCallsGenerateTableSchemas(BuildCacheTestBase):
         cursor = FakeCursor(catalog)
         table_list = ["users", "sessions", "accounts", "logs"]
 
-        with mock.patch.object(utils, "generate_table_schemas", return_value=schemas) as m:
+        with mock.patch.object(utils, "generate_table_schemas_bulk", return_value=schemas) as m:
             build_cache(cursor, "public", table_list, 1000, self.cache_dir)
 
         m.assert_called_once_with(cursor, schema_name="public", manual_table_list=table_list)
@@ -403,7 +404,7 @@ class TestBuildCacheCallsGenerateTableSchemas(BuildCacheTestBase):
         cursor = FakeCursor(catalog)
         table_list = list(schemas.keys())
 
-        with mock.patch.object(utils, "generate_table_schemas", return_value=schemas):
+        with mock.patch.object(utils, "generate_table_schemas_bulk", return_value=schemas):
             version = build_cache(cursor, None, table_list, 1000, self.cache_dir)
 
         loaded = load_schema(self.cache_dir, version)
@@ -424,7 +425,7 @@ class TestBuildCachePkSnapshotLogic(BuildCacheTestBase):
         super().setUp()
         self.schemas, self.catalog = _make_schemas_and_catalog()
         cursor = FakeCursor(self.catalog)
-        with mock.patch.object(utils, "generate_table_schemas", return_value=self.schemas):
+        with mock.patch.object(utils, "generate_table_schemas_bulk", return_value=self.schemas):
             self.version = build_cache(
                 cursor, None, ["users", "sessions", "accounts", "logs"], 1000, self.cache_dir
             )
@@ -476,7 +477,7 @@ class TestBuildCachePkSnapshotLogic(BuildCacheTestBase):
 
     def test_pk_pool_maxsize_bounds_seeded_snapshot(self):
         cursor = FakeCursor(self.catalog)
-        with mock.patch.object(utils, "generate_table_schemas", return_value=self.schemas):
+        with mock.patch.object(utils, "generate_table_schemas_bulk", return_value=self.schemas):
             version = build_cache(cursor, None, ["users"], 10, self.cache_dir)
         base = open_pk_base(self.cache_dir, version, "users")
         self.assertEqual(len(base), 10)
@@ -487,7 +488,7 @@ class TestVersioningAndAtomicFlip(BuildCacheTestBase):
     def test_two_builds_produce_two_versions_and_current_tracks_latest(self):
         schemas, catalog = _make_schemas_and_catalog()
         cursor1 = FakeCursor(catalog)
-        with mock.patch.object(utils, "generate_table_schemas", return_value=schemas):
+        with mock.patch.object(utils, "generate_table_schemas_bulk", return_value=schemas):
             v1 = build_cache(cursor1, None, ["users"], 1000, self.cache_dir)
         self.assertEqual(current_version(self.cache_dir), v1)
 
@@ -495,7 +496,7 @@ class TestVersioningAndAtomicFlip(BuildCacheTestBase):
         catalog2 = _make_schemas_and_catalog()[1]
         catalog2["users"]["rows"] = [(i,) for i in range(1, 101)]
         cursor2 = FakeCursor(catalog2)
-        with mock.patch.object(utils, "generate_table_schemas", return_value=schemas):
+        with mock.patch.object(utils, "generate_table_schemas_bulk", return_value=schemas):
             v2 = build_cache(cursor2, None, ["users"], 1000, self.cache_dir)
 
         self.assertNotEqual(v1, v2)
@@ -514,7 +515,7 @@ class TestVersioningAndAtomicFlip(BuildCacheTestBase):
     def test_current_file_contains_only_the_version_string(self):
         schemas, catalog = _make_schemas_and_catalog()
         cursor = FakeCursor(catalog)
-        with mock.patch.object(utils, "generate_table_schemas", return_value=schemas):
+        with mock.patch.object(utils, "generate_table_schemas_bulk", return_value=schemas):
             version = build_cache(cursor, None, ["users"], 1000, self.cache_dir)
         with open(os.path.join(self.cache_dir, "CURRENT")) as f:
             self.assertEqual(f.read().strip(), version)

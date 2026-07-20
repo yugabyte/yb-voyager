@@ -816,6 +816,136 @@ def generate_table_schemas(
     return table_schemas
 
 
+def generate_table_schemas_bulk(
+    cursor: Any,
+    schema_name: Optional[str] = None,
+    manual_table_list: Optional[List[str]] = None,
+    exclude_table_list: Optional[List[str]] = None,
+) -> Dict[str, Dict[str, Any]]:
+    """Same output as generate_table_schemas, but built with a handful of
+    schema-wide catalog queries instead of per-table/per-column queries.
+
+    The per-column information_schema queries in generate_table_schemas are
+    fatally slow at hundreds-of-tables scale on YugabyteDB (each query pays the
+    information_schema view-evaluation cost). This issues ~4 batched queries and
+    groups the results in Python. Output shape is identical:
+    {table: {columns, array_types, primary_key, enum_values, bit_info}}.
+    """
+    if manual_table_list:
+        table_list = list(manual_table_list)
+    else:
+        table_list = get_table_list(cursor, schema_name, exclude_table_list)
+    if not table_list:
+        return {}
+    table_set = set(table_list)
+    nsp = schema_name or "public"
+    where_prefix, where_params = _schema_filter(schema_name)
+
+    # 1) all columns (+ char length, numeric precision/scale, udt regtype) in one query
+    cols_by_table: Dict[str, List[Tuple[str, str]]] = {}
+    udt_regtype: Dict[Tuple[str, str], Optional[str]] = {}
+    cursor.execute(
+        f"""
+        SELECT table_name, column_name, data_type, character_maximum_length,
+               numeric_precision, numeric_scale, udt_name::regtype::text
+        FROM information_schema.columns
+        WHERE {where_prefix} table_name = ANY(%s)
+        ORDER BY table_name, ordinal_position
+        """,
+        where_params + (table_list,),
+    )
+    for tname, col, dtype, charmax, nprec, nscale, udt_rt in cursor.fetchall():
+        if tname not in table_set:
+            continue
+        dstr = dtype
+        if dtype in ("numeric", "decimal") and nprec is not None:
+            dstr = f"{dtype}({nprec},{nscale or 0})"
+        elif dtype in ("character varying", "varchar", "char", "character") and charmax:
+            dstr = f"{dtype}({charmax})"
+        cols_by_table.setdefault(tname, []).append((col, dstr))
+        udt_regtype[(tname, col)] = udt_rt
+
+    # 2) all primary keys in one query (attnum order, matching _find_primary_key)
+    pk_by_table: Dict[str, List[str]] = {}
+    cursor.execute(
+        """
+        SELECT c.relname, a.attname
+        FROM pg_index i
+        JOIN pg_class c ON c.oid = i.indrelid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
+        WHERE i.indisprimary AND n.nspname = %s AND c.relname = ANY(%s)
+        ORDER BY c.relname, a.attnum
+        """,
+        (nsp, table_list),
+    )
+    for tname, attname in cursor.fetchall():
+        pk_by_table.setdefault(tname, []).append(attname)
+
+    # 3) all enum / array-of-enum labels in one query
+    enum_by_table: Dict[str, Dict[str, List[str]]] = {}
+    cursor.execute(
+        """
+        SELECT c.relname, a.attname, e.enumlabel
+        FROM pg_attribute a
+        JOIN pg_class c ON c.oid = a.attrelid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        JOIN pg_type t ON t.oid = a.atttypid
+        JOIN pg_enum e ON e.enumtypid = CASE WHEN t.typelem <> 0 THEN t.typelem ELSE t.oid END
+        WHERE n.nspname = %s AND c.relname = ANY(%s) AND a.attnum > 0 AND NOT a.attisdropped
+        ORDER BY c.relname, a.attnum, e.enumsortorder
+        """,
+        (nsp, table_list),
+    )
+    for tname, attname, label in cursor.fetchall():
+        enum_by_table.setdefault(tname, {}).setdefault(attname, []).append(label)
+
+    # 4) all bit/varbit metadata in one query
+    bit_by_table: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    cursor.execute(
+        """
+        SELECT c.relname, a.attname, a.atttypmod, format_type(a.atttypid, NULL) AS ftype
+        FROM pg_attribute a
+        JOIN pg_class c ON c.oid = a.attrelid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = %s AND c.relname = ANY(%s) AND a.attnum > 0 AND NOT a.attisdropped
+          AND format_type(a.atttypid, NULL) IN ('bit', 'bit varying')
+        """,
+        (nsp, table_list),
+    )
+    for tname, attname, atttypmod, ftype in cursor.fetchall():
+        length = atttypmod if (atttypmod is not None and atttypmod > 0) else None
+        bit_by_table.setdefault(tname, {})[attname] = {
+            "varying": ftype == "bit varying",
+            "length": length,
+        }
+
+    table_schemas: Dict[str, Dict[str, Any]] = {}
+    for tname in table_list:
+        col_info = cols_by_table.get(tname)
+        if not col_info:
+            print(f"Table '{tname}' not found.")
+            continue
+        columns = {c: d for c, d in col_info}
+        array_types: Dict[str, str] = {}
+        for c, d in col_info:
+            if "ARRAY" in d.upper():
+                rt = udt_regtype.get((tname, c))
+                array_types[c] = rt if rt else d
+        primary_key = pk_by_table.get(tname)
+        if primary_key is None:
+            # rare: partitioned root with PK only on children -> per-table fallback
+            primary_key = _find_primary_key(cursor, tname, schema_name)
+        table_schemas[tname] = {
+            "columns": columns,
+            "array_types": array_types,
+            "primary_key": primary_key,
+            "enum_values": enum_by_table.get(tname, {}),
+            "bit_info": bit_by_table.get(tname, {}),
+        }
+    return table_schemas
+
+
 # ----- Data lookup helpers -----
 
 def fetch_enum_values_for_column(

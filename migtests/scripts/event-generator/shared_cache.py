@@ -109,7 +109,11 @@ def _write_json_atomic(path, obj):
     fd, tmp_path = tempfile.mkstemp(dir=directory, prefix=".tmp-", suffix=".json")
     try:
         with os.fdopen(fd, "w") as f:
-            json.dump(obj, f)
+            # default=str stringifies PK values that aren't JSON-native
+            # (datetime/date/time, Decimal, etc.) for timestamp/numeric PK
+            # columns; the worker passes them back as IN-clause params and YB
+            # casts. int PKs use the packed-int64 path, not this.
+            json.dump(obj, f, default=str)
         os.replace(tmp_path, path)
     except Exception:
         try:
@@ -210,7 +214,9 @@ def build_cache(cursor, schema_name, table_list, pk_pool_maxsize, cache_dir):
     # verbatim, complete capture -- workers reading it back via
     # load_schema() get a drop-in replacement for their own
     # generate_table_schemas() call, no per-worker catalog queries needed.
-    schemas = utils.generate_table_schemas(
+    # Batched (schema-wide) introspection -- per-table/per-column
+    # generate_table_schemas is fatally slow at hundreds-of-tables scale on YB.
+    schemas = utils.generate_table_schemas_bulk(
         cursor, schema_name=schema_name, manual_table_list=table_list
     )
 

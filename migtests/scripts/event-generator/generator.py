@@ -205,23 +205,34 @@ else:
 # Precompute estimated row counts once per table for sampling decisions
 ROW_ESTIMATES = {}
 
+# Row estimates come from pg_class.reltuples in ONE bulk catalog query --
+# instant, and only used to derive the random()<p sampling probability for
+# tables without a usable PK pool. We deliberately do NOT run ANALYZE (it can
+# fail on a busy cluster) nor count(*) per table: count(*) over hundreds of
+# large tables at startup takes minutes-to-hours and strands every worker
+# before it reaches the event loop.
+_DEFAULT_ROW_ESTIMATE = 100000
 try:
-    # Refresh planner statistics up front for better row estimates
-    cursor.execute("ANALYZE;")
-    conn.commit()
-    for table in table_schemas.keys():
-        ROW_ESTIMATES[table] = get_estimated_row_count(cursor, SCHEMA_NAME, table)
-except Exception as e:
-    print(f"Error refreshing planner statistics using ANALYZE: {e}. Getting row estimates using count(*).")
-    # Rollback the failed transaction before proceeding
-    conn.rollback()
-    # Using count(*) to get row estimates
-    for table in table_schemas.keys():
-        cursor.execute(f"SELECT COUNT(*) FROM {SCHEMA_NAME}.{table};")
-        ROW_ESTIMATES[table] = cursor.fetchone()[0]
+    _tnames = list(table_schemas.keys())
+    if _tnames:
+        cursor.execute(
+            """
+            SELECT c.relname, c.reltuples::bigint
+            FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE c.relkind = 'r' AND n.nspname = %s AND c.relname = ANY(%s)
+            """,
+            (SCHEMA_NAME or "public", _tnames),
+        )
+        for _relname, _est in cursor.fetchall():
+            ROW_ESTIMATES[_relname] = _est if (_est is not None and _est > 0) else _DEFAULT_ROW_ESTIMATE
         conn.commit()
+except Exception as e:
+    print(f"Row-estimate lookup failed ({e}); using defaults.")
+    conn.rollback()
+for _t in table_schemas.keys():
+    ROW_ESTIMATES.setdefault(_t, _DEFAULT_ROW_ESTIMATE)
 
-print("Row estimates: ", ROW_ESTIMATES)
+print(f"Row estimates ready for {len(ROW_ESTIMATES)} tables (via pg_class.reltuples)")
 
 # Build an in-memory PK pool per table that has a primary key, prefilled
 # with existing ids. This lets UPDATE/DELETE target explicit rows via
