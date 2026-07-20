@@ -55,6 +55,7 @@ import csv
 import math
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -643,6 +644,18 @@ def run_controller(base_config, rate_csv_path=None):
     if psycopg2 is None:
         print("ERROR: psycopg2 is required to run the controller against a live DB.")
         sys.exit(1)
+
+    # Convert SIGTERM into KeyboardInterrupt so a plain `kill`/`pkill` (or a job
+    # manager terminating the controller) still runs the finally block that reaps
+    # child workers. Without this, SIGTERM ends the process immediately and the
+    # workers are orphaned -- they keep writing to the target DB indefinitely.
+    def _sigterm_to_interrupt(signum, frame):
+        raise KeyboardInterrupt()
+    try:
+        signal.signal(signal.SIGTERM, _sigterm_to_interrupt)
+    except (ValueError, OSError):
+        # Not on the main thread (e.g. under some test harnesses); skip.
+        pass
     if utils is None:
         print("ERROR: the utils module could not be imported (required for config/DB helpers).")
         sys.exit(1)
