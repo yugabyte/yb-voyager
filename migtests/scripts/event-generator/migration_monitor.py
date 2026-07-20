@@ -19,18 +19,37 @@ Data sources
    num_updates / num_deletes (cumulative, no timestamp). Cumulative imported
    events = SUM(num_inserts + num_updates + num_deletes) across rows.
 
+3. PROMETHEUS side (optional, --prometheus-url): a YugabyteDB tserver's
+   `:9000/prometheus-metrics` text endpoint. We read two metrics:
+     - `cdcsdk_sent_lag_micros` (per tablet series) -> MAX across series,
+       converted micros -> seconds. This is the time-based CDC replication
+       lag and is the *correct* YB signal. (A byte-offset "slot lag" via
+       pg_wal_lsn_diff/confirmed_flush_lsn is NOT valid on YugabyteDB - LSN
+       there is not a byte offset and those functions are unsupported - so
+       this monitor does not compute anything of that kind.)
+     - `cdcsdk_change_event_count` (per tablet series, cumulative) -> SUM
+       across series, then differenced against the previous poll to get a
+       per-interval rate, as a cross-check against our own export/import
+       rates.
+
 Usage
 -----
     python3 migration_monitor.py --export-dir /path/to/export-dir \
         --exporter-role target_db_exporter_fb \
         --import-dsn "host=... port=... dbname=... user=... password=..." \
+        --prometheus-url http://10.9.101.88:9000/prometheus-metrics \
         --interval 5 --duration 3600 --out migration-throughput.csv
 
     python3 migration_monitor.py --selftest
 
 Output CSV columns
 -------------------
-    epoch, t_seconds, exported_cum, export_evps, imported_cum, import_evps, lag
+    epoch, t_seconds, exported_cum, export_evps, imported_cum, import_evps,
+    lag, cdc_sent_lag_seconds, cdc_change_evps
+
+The last two columns are blank whenever --prometheus-url is not given, or
+whenever a given poll's fetch/parse fails (the monitor never crashes on a
+bad Prometheus sample - it just leaves those two fields blank for that row).
 """
 
 import argparse
@@ -39,6 +58,8 @@ import os
 import sys
 import time
 import sqlite3
+import urllib.request
+import urllib.error
 
 try:
     import psycopg2
@@ -49,6 +70,11 @@ except ImportError:  # pragma: no cover - psycopg2 is required for --import-dsn
 
 DEFAULT_EXPORTER_ROLE = "target_db_exporter_fb"
 EXPORT_DB_SUBPATH = os.path.join("metainfo", "meta.db")
+
+# Prometheus metric names scraped from the tserver's :9000/prometheus-metrics
+# endpoint. See module docstring, point 3.
+CDC_SENT_LAG_METRIC = "cdcsdk_sent_lag_micros"
+CDC_CHANGE_EVENT_COUNT_METRIC = "cdcsdk_change_event_count"
 
 
 class ExportDBUnavailable(Exception):
@@ -128,6 +154,64 @@ def compute_rate(prev_cum, cur_cum, elapsed_seconds):
     return (cur_cum - prev_cum) / elapsed_seconds
 
 
+def parse_prometheus_metric(text, metric_name, agg="max"):
+    """Pure parser: given the raw text body of a Prometheus text-exposition
+    response, find every series for `metric_name` and aggregate their values.
+
+    agg: 'max' -> return the maximum value across series (used for a gauge
+         like a lag, where we want the worst tablet).
+         'sum' -> return the sum of values across series (used for a
+         cumulative counter, where we want the cluster-wide total).
+
+    Handles:
+      - '# HELP'/'# TYPE'/blank lines (skipped).
+      - Series with labels, e.g. `metric{a="b",c="d"} 123 1699999999999`:
+        the value is the first whitespace-separated token *after* the label
+        block; a trailing unix-ms timestamp token (if present) is ignored.
+        Labels are matched by splitting on the *last* '}' so label values
+        that happen to contain spaces don't confuse the split.
+      - Series with no labels, e.g. `metric 123`.
+      - Other metric names present in the same text (ignored).
+
+    Returns None if the metric has no matching series at all (e.g. it's
+    absent from the response, or every value failed to parse as a float).
+    """
+    if agg not in ("max", "sum"):
+        raise ValueError("agg must be 'max' or 'sum', got %r" % (agg,))
+
+    values = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+
+        if "{" in line:
+            name_part, _, rest = line.partition("{")
+            if name_part != metric_name:
+                continue
+            if "}" not in rest:
+                continue
+            _, _, after_labels = rest.rpartition("}")
+            tokens = after_labels.split()
+            if not tokens:
+                continue
+            value_str = tokens[0]
+        else:
+            tokens = line.split()
+            if len(tokens) < 2 or tokens[0] != metric_name:
+                continue
+            value_str = tokens[1]
+
+        try:
+            values.append(float(value_str))
+        except ValueError:
+            continue
+
+    if not values:
+        return None
+    return max(values) if agg == "max" else sum(values)
+
+
 # --------------------------------------------------------------------------
 # I/O wrappers: retries, read-only access, graceful degradation
 # --------------------------------------------------------------------------
@@ -169,44 +253,6 @@ def fetch_export_cumulative(db_path, role, retries=5, retry_delay=0.2):
     raise ExportDBUnavailable(
         "could not read %s after %d attempts: %s" % (db_path, retries, last_exc)
     )
-
-
-SLOT_LAG_QUERY = (
-    "SELECT COALESCE(MAX(pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn)), 0) "
-    "FROM pg_replication_slots"
-)
-
-
-def fetch_slot_lag_bytes(dsn):
-    """Connect to the CDC-source DB (where the replication slot lives) and return
-    how far the exporter's slot is behind the WAL, in bytes.
-
-    - Connection failure -> None (skip this sample's slot field; one bad
-      connection shouldn't kill the monitor).
-    - No slot yet (empty pg_replication_slots) -> 0.0 (valid early-run state).
-    - Other query errors -> None with a warning.
-    """
-    if psycopg2 is None:
-        return None
-    try:
-        conn = psycopg2.connect(dsn)
-    except Exception as e:
-        print("[warn] slot-lag DB connection failed: %s" % e, file=sys.stderr)
-        return None
-    try:
-        conn.autocommit = True
-        cur = conn.cursor()
-        try:
-            cur.execute(SLOT_LAG_QUERY)
-            row = cur.fetchone()
-            return float(row[0]) if row and row[0] is not None else 0.0
-        except psycopg2.Error as e:
-            print("[warn] slot-lag query failed: %s" % e, file=sys.stderr)
-            return None
-        finally:
-            cur.close()
-    finally:
-        conn.close()
 
 
 def fetch_import_cumulative(dsn):
@@ -254,17 +300,57 @@ def fetch_import_cumulative(dsn):
         conn.close()
 
 
+def fetch_prometheus_text(url, timeout=5):
+    """Fetch the raw text body of a Prometheus metrics endpoint using only
+    stdlib urllib. Returns None (and prints a one-line warning) on any
+    connection/HTTP/decode failure - never raises, so a flaky tserver never
+    takes the monitor down.
+    """
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            return resp.read().decode("utf-8", errors="replace")
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        print("[warn] prometheus fetch failed (%s): %s" % (url, e), file=sys.stderr)
+        return None
+
+
+def fetch_cdc_sent_lag_seconds(url, timeout=5):
+    """Fetch the endpoint and return MAX(cdcsdk_sent_lag_micros) across all
+    tablet series, converted to seconds. Returns None on fetch failure or if
+    the metric is absent (degrade gracefully - never raises).
+    """
+    text = fetch_prometheus_text(url, timeout=timeout)
+    if text is None:
+        return None
+    lag_micros = parse_prometheus_metric(text, CDC_SENT_LAG_METRIC, agg="max")
+    if lag_micros is None:
+        return None
+    return lag_micros / 1_000_000.0
+
+
+def fetch_cdc_change_event_count(url, timeout=5):
+    """Fetch the endpoint and return SUM(cdcsdk_change_event_count) across
+    all tablet series (a cumulative counter; the caller differences it
+    against a previous sample to get a rate). Returns None on fetch failure
+    or if the metric is absent.
+    """
+    text = fetch_prometheus_text(url, timeout=timeout)
+    if text is None:
+        return None
+    return parse_prometheus_metric(text, CDC_CHANGE_EVENT_COUNT_METRIC, agg="sum")
+
+
 # --------------------------------------------------------------------------
 # Main monitor loop
 # --------------------------------------------------------------------------
 
-def run_monitor(export_dir, role, import_dsn, interval, duration, out_path, slot_dsn=None):
+def run_monitor(export_dir, role, import_dsn, interval, duration, out_path, prometheus_url=None):
     db_path = os.path.join(export_dir, EXPORT_DB_SUBPATH)
 
     print("Monitoring Voyager CDC throughput:")
     print("  export metadb : %s (role=%s)" % (db_path, role))
     print("  import target : %s" % (import_dsn if import_dsn else "(not tracked)"))
-    print("  slot-lag DB   : %s" % (slot_dsn if slot_dsn else "(not tracked)"))
+    print("  prometheus    : %s" % (prometheus_url if prometheus_url else "(not tracked)"))
     print("  interval      : %ss, duration: %ss" % (interval, duration))
     print("  output CSV    : %s" % out_path)
 
@@ -272,7 +358,7 @@ def run_monitor(export_dir, role, import_dsn, interval, duration, out_path, slot
     writer = csv.writer(f)
     writer.writerow(
         ["epoch", "t_seconds", "exported_cum", "export_evps", "imported_cum", "import_evps", "lag",
-         "slot_lag_bytes"]
+         "cdc_sent_lag_seconds", "cdc_change_evps"]
     )
     f.flush()
 
@@ -283,6 +369,8 @@ def run_monitor(export_dir, role, import_dsn, interval, duration, out_path, slot
     export_prev_time = None
     import_prev_cum = None
     import_prev_time = None
+    cdc_change_prev_cum = None
+    cdc_change_prev_time = None
 
     try:
         next_tick = start_mono
@@ -325,11 +413,25 @@ def run_monitor(export_dir, role, import_dsn, interval, duration, out_path, slot
                 # keep previous state so the next successful sample's delta is
                 # computed over the correct elapsed time.
 
-            slot_lag_str = ""
-            if slot_dsn:
-                slot_lag = fetch_slot_lag_bytes(slot_dsn)
-                if slot_lag is not None:
-                    slot_lag_str = "%.0f" % slot_lag
+            cdc_sent_lag_str = ""
+            cdc_change_evps_str = ""
+            if prometheus_url:
+                sent_lag_seconds = fetch_cdc_sent_lag_seconds(prometheus_url)
+                if sent_lag_seconds is not None:
+                    cdc_sent_lag_str = "%.4f" % sent_lag_seconds
+
+                change_cum = fetch_cdc_change_event_count(prometheus_url)
+                if change_cum is not None:
+                    change_evps = compute_rate(
+                        cdc_change_prev_cum, change_cum,
+                        (now_wall - cdc_change_prev_time) if cdc_change_prev_time else None,
+                    )
+                    cdc_change_prev_cum = change_cum
+                    cdc_change_prev_time = now_wall
+                    cdc_change_evps_str = "%.4f" % change_evps
+                # else: fetch/parse failed this round - leave blank, keep
+                # previous cumulative/time so the next good sample's delta
+                # is computed over the correct elapsed time.
 
             t_seconds = now_wall - start_wall
             writer.writerow(
@@ -341,13 +443,15 @@ def run_monitor(export_dir, role, import_dsn, interval, duration, out_path, slot
                     imported_cum_str,
                     import_evps_str,
                     lag_str,
-                    slot_lag_str,
+                    cdc_sent_lag_str,
+                    cdc_change_evps_str,
                 ]
             )
             f.flush()
 
             print(
-                "[t=%6.1fs] export_cum=%.0f export_evps=%.2f imported_cum=%s import_evps=%s lag=%s slot_lag_bytes=%s"
+                "[t=%6.1fs] export_cum=%.0f export_evps=%.2f imported_cum=%s import_evps=%s lag=%s "
+                "cdc_sent_lag_s=%s cdc_change_evps=%s"
                 % (
                     t_seconds,
                     export_cum,
@@ -355,7 +459,8 @@ def run_monitor(export_dir, role, import_dsn, interval, duration, out_path, slot
                     imported_cum_str or "n/a",
                     import_evps_str or "n/a",
                     lag_str or "n/a",
-                    slot_lag_str or "n/a",
+                    cdc_sent_lag_str or "n/a",
+                    cdc_change_evps_str or "n/a",
                 )
             )
 
@@ -379,6 +484,22 @@ def run_monitor(export_dir, role, import_dsn, interval, duration, out_path, slot
 def run_selftest():
     import tempfile
     import unittest
+
+    SAMPLE_PROMETHEUS_TEXT = """\
+# HELP cdcsdk_sent_lag_micros CDC SDK sent lag in microseconds.
+# TYPE cdcsdk_sent_lag_micros gauge
+cdcsdk_sent_lag_micros{table_id="t1",stream_id="s1",metric_type="tablet"} 500000 1699999999000
+cdcsdk_sent_lag_micros{table_id="t2",stream_id="s1",metric_type="tablet"} 1500000 1699999999000
+cdcsdk_sent_lag_micros{table_id="t3",stream_id="s1",metric_type="tablet"} 250000
+# HELP cdcsdk_change_event_count CDC SDK change event count.
+# TYPE cdcsdk_change_event_count counter
+cdcsdk_change_event_count{table_id="t1",stream_id="s1",metric_type="tablet"} 1000
+cdcsdk_change_event_count{table_id="t2",stream_id="s1",metric_type="tablet"} 2500 1699999999000
+
+cdcsdk_change_event_count{table_id="t3",stream_id="s1",metric_type="tablet"} 500
+# some unrelated metric that should never match
+rocksdb_seek_count{table_id="t1"} 99999
+"""
 
     class MonitorSelfTest(unittest.TestCase):
         def setUp(self):
@@ -473,11 +594,72 @@ def run_selftest():
             result = fetch_import_cumulative(bad_dsn)
             self.assertIsNone(result)
 
-        def test_slot_lag_absent_connection_returns_none(self):
-            if psycopg2 is None:
-                self.skipTest("psycopg2 not installed")
-            bad_dsn = "host=127.0.0.1 port=1 dbname=nope connect_timeout=1"
-            result = fetch_slot_lag_bytes(bad_dsn)
+        # ---- Prometheus parser tests (pure, no network) ----
+
+        def test_parse_prometheus_metric_max_agg(self):
+            # cdcsdk_sent_lag_micros series: 500000, 1500000, 250000 -> max
+            val = parse_prometheus_metric(SAMPLE_PROMETHEUS_TEXT, CDC_SENT_LAG_METRIC, agg="max")
+            self.assertEqual(val, 1500000.0)
+
+        def test_parse_prometheus_metric_sum_agg(self):
+            # cdcsdk_change_event_count series: 1000, 2500, 500 -> sum
+            val = parse_prometheus_metric(
+                SAMPLE_PROMETHEUS_TEXT, CDC_CHANGE_EVENT_COUNT_METRIC, agg="sum"
+            )
+            self.assertEqual(val, 4000.0)
+
+        def test_parse_prometheus_metric_missing_metric_returns_none(self):
+            val = parse_prometheus_metric(SAMPLE_PROMETHEUS_TEXT, "no_such_metric", agg="max")
+            self.assertIsNone(val)
+
+        def test_parse_prometheus_metric_empty_text_returns_none(self):
+            self.assertIsNone(parse_prometheus_metric("", "anything", agg="sum"))
+
+        def test_parse_prometheus_metric_ignores_comments_and_blank_lines(self):
+            text = "\n".join(
+                [
+                    "# HELP foo bar",
+                    "# TYPE foo gauge",
+                    "",
+                    "foo 42",
+                    "",
+                ]
+            )
+            self.assertEqual(parse_prometheus_metric(text, "foo", agg="max"), 42.0)
+
+        def test_parse_prometheus_metric_no_labels(self):
+            text = "foo 10\nfoo 20\n"
+            self.assertEqual(parse_prometheus_metric(text, "foo", agg="sum"), 30.0)
+
+        def test_parse_prometheus_metric_invalid_agg_raises(self):
+            with self.assertRaises(ValueError):
+                parse_prometheus_metric(SAMPLE_PROMETHEUS_TEXT, CDC_SENT_LAG_METRIC, agg="avg")
+
+        def test_fetch_cdc_sent_lag_seconds_converts_micros_to_seconds(self):
+            # 1,500,000 micros (the max series) == 1.5 seconds. Patch by
+            # module object (not by dotted "migration_monitor.xxx" name) so
+            # this also works when the file is run directly as __main__.
+            import unittest.mock as mock
+
+            this_module = sys.modules[__name__]
+            with mock.patch.object(
+                this_module, "fetch_prometheus_text", return_value=SAMPLE_PROMETHEUS_TEXT
+            ):
+                val = fetch_cdc_sent_lag_seconds("http://ignored/prometheus-metrics")
+            self.assertAlmostEqual(val, 1.5)
+
+        def test_fetch_prometheus_text_bad_url_returns_none(self):
+            # Unroutable port with a short timeout - no real network access,
+            # connection is refused/times out almost immediately.
+            result = fetch_prometheus_text("http://127.0.0.1:1/prometheus-metrics", timeout=1)
+            self.assertIsNone(result)
+
+        def test_fetch_cdc_sent_lag_seconds_bad_url_returns_none(self):
+            result = fetch_cdc_sent_lag_seconds("http://127.0.0.1:1/prometheus-metrics", timeout=1)
+            self.assertIsNone(result)
+
+        def test_fetch_cdc_change_event_count_bad_url_returns_none(self):
+            result = fetch_cdc_change_event_count("http://127.0.0.1:1/prometheus-metrics", timeout=1)
             self.assertIsNone(result)
 
     suite = unittest.TestLoader().loadTestsFromTestCase(MonitorSelfTest)
@@ -507,12 +689,14 @@ def build_arg_parser():
         "If omitted, only export-side rates are tracked.",
     )
     p.add_argument(
-        "--slot-dsn",
+        "--prometheus-url",
         default=None,
-        help="psycopg2 DSN for the CDC-source DB (where the replication slot lives); "
-        "when given, each sample also records how many bytes the exporter's slot is "
-        "behind the WAL (pg_wal_lsn_diff vs confirmed_flush_lsn). "
-        "If omitted, slot lag is not tracked.",
+        help="YugabyteDB tserver Prometheus metrics endpoint, e.g. "
+        "http://10.9.101.88:9000/prometheus-metrics. When given, each sample also records "
+        "cdc_sent_lag_seconds (max cdcsdk_sent_lag_micros across tablets, in seconds - the "
+        "time-based CDC lag signal) and cdc_change_evps (per-interval rate of "
+        "cdcsdk_change_event_count, summed across tablets, as a cross-check against the "
+        "export/import rates). If omitted, both columns are left blank.",
     )
     p.add_argument("--interval", type=int, default=5, help="poll interval in seconds (default: %(default)s)")
     p.add_argument("--duration", type=int, default=3600, help="total run duration in seconds (default: %(default)s)")
@@ -539,7 +723,7 @@ def main():
         interval=args.interval,
         duration=args.duration,
         out_path=args.out,
-        slot_dsn=args.slot_dsn,
+        prometheus_url=args.prometheus_url,
     )
 
 

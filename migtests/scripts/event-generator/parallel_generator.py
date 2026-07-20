@@ -1,57 +1,122 @@
 """
-parallel_generator.py — parallel wrapper/orchestrator around generator.py.
+parallel_generator.py -- the reactive worker-pool controller for the event
+generator.
 
-The single-process event generator (generator.py) is left unmodified. This
-wrapper:
-  1. Loads one base config (a normal generator config plus a top-level
-     `parallel` block).
-  2. Runs a one-shot CALIBRATION: a single, uncapped generator.py worker,
-     measured via pg_stat_statements to find the per-worker throughput
-     ceiling.
-  3. DERIVES how many worker processes are needed to hit the desired total
-     rate (the `rate_control` block in the base config is the DESIRED TOTAL
-     across all workers).
-  4. SPAWNS N copies of generator.py, each with its own seed and a rate
-     scaled down by 1/N, via per-worker YAML config files written to a temp
-     directory.
-  5. MONITORS the DB-wide aggregate rate (pg_stat_statements already sums
-     across all worker connections) and prints it periodically.
-  6. SHUTS DOWN all workers cleanly on a time budget or Ctrl+C, cleans up
-     temp files, and prints a final summary.
+See ~/yb-ratetest/dynamic-worker-pool-design.md (sections 4-11) and
+IMPLEMENTATION_CONTRACTS.md ("Controller") for the full design and the
+exact contract this module implements. Summary:
 
-The pure functions below (compute_workers, peak_target, derive_worker_config)
-have no side effects and are unit-tested in test_parallel_generator.py.
+  1. CALIBRATION: spawn one uncapped worker for `calibration_seconds`,
+     measure the aggregate rate it produces (via pg_stat_statements) to
+     get `C`, the per-worker throughput ceiling.
+  2. Build the SHARED CACHE (schema metadata + PK snapshot, see
+     shared_cache.py) before spawning any run worker, so every spawn is a
+     fast, cache-backed start; refresh it in the background on a timer,
+     atomically flipping to a new version -- a refresh never blocks
+     spawning.
+  3. A monotonic, controller-owned WORKER-UID allocator hands every spawn
+     (including respawns) a fresh id, never reused for the life of the
+     run.
+  4. The CONTROL LOOP polls `schedule.target_at(now)` (the rate_control
+     schedule's baseline/spike target) every `control_interval_seconds`:
+       - on a PHASE CHANGE, it jumps the pool straight to the calibrated
+         mix (`plan_worker_counts`): `floor(target/C)` uncapped workers
+         plus, if a fractional remainder remains and `allow_throttle`, one
+         throttled "trimmer" worker carrying it;
+       - within a phase, it FINE-TRIMS reactively: add/kill one uncapped
+         worker if the achieved rate strays outside a deadband around
+         target, damped by a cooldown after any spawn/kill. Scale-down
+         always kills the newest uncapped worker (LIFO); the trimmer is
+         never touched by fine-trim, only by phase-change replanning
+         (respawned with a new throttle when the remainder changes).
+  5. Optionally RECALIBRATES `C` in stable windows (rolling EMA, clamped),
+     since the per-worker ceiling erodes over a multi-day run.
+  6. Stays LEAK-FREE across the ~hundreds of spawn/kill cycles a long run
+     produces: dead children are reaped every tick (no zombies), and a
+     bounded, reused set of per-slot config files stands in for a
+     fresh-tempfile-per-spawn.
+  7. Emits a timestamped rate CSV (epoch, t_seconds, target, achieved_evps,
+     n_uncapped, n_trimmer, C) so it joins the monitor/Prometheus series by
+     absolute time.
+
+The pure decision logic below -- worker-count/trimmer math, the reactive
+add/hold/kill decision, the worker_uid allocator, the roster's LIFO
+scale-down bookkeeping, the phase-change diff, EMA recalibration with its
+clamp, and `Schedule.target_at` -- has no I/O (no DB, no subprocess, no
+real clock) and is unit-tested directly in test_parallel_generator.py.
+Everything below "I/O helpers" is the impure orchestration that wires
+those pieces to real processes/connections and is exercised only in
+integration, per the testing rule in IMPLEMENTATION_CONTRACTS.md.
 """
 
 import argparse
 import copy
+import csv
 import math
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
-
-import psycopg2
 
 try:
     import yaml  # type: ignore
 except Exception:
     yaml = None
 
-from utils import load_event_generator_config, get_connection_kwargs_from_config
+try:
+    import psycopg2
+except ImportError:  # pragma: no cover - required only for a live DB run
+    psycopg2 = None
+
+try:
+    import utils
+except ImportError:  # pragma: no cover - utils.py requires psycopg2 today; see shared_cache.py
+    utils = None
+
+import shared_cache
+from rate_governor import RateGovernor
 
 
 # ---------------------------------------------------------------------------
-# Pure functions (no I/O, no subprocess, no DB) -- unit-tested directly.
+# Config defaults (the `parallel` block -- see IMPLEMENTATION_CONTRACTS.md)
+# ---------------------------------------------------------------------------
+
+DEFAULT_PARALLEL_CONFIG = {
+    "calibration_seconds": 30,
+    "max_workers": 8,
+    "control_interval_seconds": 5,
+    "deadband_pct": 10,
+    "cooldown_seconds": 10,
+    "allow_throttle": True,
+    "pk_pool_maxsize": 20000,
+    "snapshot_refresh_seconds": 10800,
+    "recalibrate": True,
+    "pk_stride": 100000,
+    "run_seconds": 604800,
+}
+
+
+def resolve_parallel_config(parallel_cfg):
+    """Merge a (possibly partial) `parallel` config block over
+    DEFAULT_PARALLEL_CONFIG. Never mutates the input; unknown keys in
+    `parallel_cfg` pass through untouched (forward-compatible)."""
+    cfg = dict(DEFAULT_PARALLEL_CONFIG)
+    cfg.update(parallel_cfg or {})
+    return cfg
+
+
+# ---------------------------------------------------------------------------
+# Pure functions -- no I/O, no subprocess, no DB, no real clock. Unit-tested
+# directly in test_parallel_generator.py.
 # ---------------------------------------------------------------------------
 
 def peak_target(rate_control):
     """Return the maximum events_per_second across the baseline
     (default_events_per_second) and every schedule entry in a rate_control
-    block, i.e. the highest rate any worker set must be able to serve (so a
-    spike is servable, not just the baseline).
+    block -- the highest rate the pool must ever be able to serve.
     """
     rates = [rate_control.get("default_events_per_second", 0)]
     for entry in (rate_control.get("schedule") or []):
@@ -59,70 +124,333 @@ def peak_target(rate_control):
     return max(rates)
 
 
-def compute_workers(peak_target_value, per_worker_ceiling, max_workers, margin):
-    """Derive how many worker processes are needed to serve `peak_target_value`
-    events/sec, given a measured `per_worker_ceiling` (events/sec a single
-    uncapped worker can sustain) and a safety `margin` (>1 inflates the
-    target so workers aren't run flat-out at their ceiling).
+class Schedule(object):
+    """Thin, pure wrapper around rate_governor.RateGovernor's piecewise
+    schedule + jitter math, exposing `target_at(now)` in absolute-clock
+    terms (`now` is the same clock the caller's `run_start` was taken
+    from). Decoupled from RateGovernor's pacing/sleep behavior -- this
+    never sleeps and never mutates pacing state, so it's safe to poll from
+    the control loop every tick.
 
-    Returns (workers, reachable):
-      - workers: max(1, ceil(peak_target_value * margin / per_worker_ceiling)),
-        clamped to max_workers.
-      - reachable: whether `workers` copies of a per_worker_ceiling worker can
-        serve peak_target_value (workers * per_worker_ceiling >= peak_target_value).
-        Always False if clamped by max_workers (unless that clamp happens to
-        still meet the raw target).
+    `target_at` is a pure function of (rate_control, random_seed, run_start,
+    now): reused verbatim from RateGovernor.target_rate_at, which is itself
+    already a pure function of elapsed time -- this wrapper only adds the
+    absolute-vs-elapsed bookkeeping the controller wants.
     """
-    if per_worker_ceiling <= 0:
-        raise ValueError("per_worker_ceiling must be > 0, got {!r}".format(per_worker_ceiling))
-    if max_workers <= 0:
-        raise ValueError("max_workers must be > 0, got {!r}".format(max_workers))
 
-    workers = max(1, math.ceil(peak_target_value * margin / per_worker_ceiling))
-    reachable = (workers * per_worker_ceiling >= peak_target_value)
+    def __init__(self, rate_control, random_seed, run_start=0.0):
+        # clock/sleep are irrelevant here (target_rate_at never calls
+        # either), but RateGovernor.__init__ requires clock to compute
+        # run_start/window_start book-keeping we simply never read.
+        self._governor = RateGovernor(
+            rate_control, random_seed=random_seed,
+            clock=lambda: 0.0, sleep=lambda seconds: None,
+        )
+        self.run_start = run_start
 
-    if workers > max_workers:
-        workers = max_workers
-        reachable = (workers * per_worker_ceiling >= peak_target_value)
-
-    return workers, reachable
+    def target_at(self, now):
+        """Effective target rate (events/sec) at absolute time `now`."""
+        return self._governor.target_rate_at(now - self.run_start)
 
 
-def derive_worker_config(base_config, worker_index, workers, base_seed):
-    """Build one worker's config from the base config.
+def plan_worker_counts(target, C, allow_throttle=True):
+    """Return {"n_full": int, "trimmer_rate": float} for the worker mix
+    needed to hit `target` events/sec given a per-worker ceiling `C`.
 
-    - Deep-copies base_config (never mutates the caller's dict).
-    - Removes the top-level `parallel` block (irrelevant to a single worker).
-    - Sets generator.random_seed and generator.faker_seed to
-      base_seed + worker_index, so each worker is deterministic and workers
-      don't reproduce identical event sequences.
-    - Divides generator.rate_control.default_events_per_second and every
-      schedule entry's events_per_second by `workers` (rounded to the
-      nearest int, floored at 1 so no worker is configured with a zero
-      rate). Batch sizes, operation weights, durations, offsets, and jitter
-      are left untouched -- only the target rate is split.
+    allow_throttle=True (default): n_full = floor(target / C) uncapped
+    workers; trimmer_rate = target - n_full*C is the fractional remainder
+    a single throttled "trimmer" worker should be paced to (0.0 when
+    target is an exact multiple of C -- no trimmer needed).
+
+    allow_throttle=False: round to the nearest whole worker
+    (n_full = round(target / C)); trimmer_rate is always 0.0. Raises
+    ValueError if that rounds to 0 workers for a target > 0 (unreachable
+    with a single whole worker and throttling disabled -- see
+    IMPLEMENTATION_CONTRACTS.md's error-handling guardrails).
+    """
+    if C <= 0:
+        raise ValueError("C (per-worker ceiling) must be > 0, got {!r}".format(C))
+    if target < 0:
+        raise ValueError("target must be >= 0, got {!r}".format(target))
+
+    if not allow_throttle:
+        if target <= 0:
+            return {"n_full": 0, "trimmer_rate": 0.0}
+        n_full = int(round(target / C))
+        if n_full <= 0:
+            raise ValueError(
+                "target {:.1f} ev/s is unreachable with a single whole worker "
+                "(per-worker ceiling {:.1f} ev/s) and allow_throttle=False".format(target, C)
+            )
+        return {"n_full": n_full, "trimmer_rate": 0.0}
+
+    n_full = int(math.floor(target / C))
+    trimmer_rate = target - n_full * C
+    if trimmer_rate < 1e-9:
+        trimmer_rate = 0.0
+    return {"n_full": n_full, "trimmer_rate": trimmer_rate}
+
+
+def diff_worker_counts(current_n_full, current_trimmer_rate, plan):
+    """Given the currently-running uncapped worker count and trimmer rate
+    (0.0 if no trimmer is running) and a target `plan` (from
+    plan_worker_counts), return the actions needed to converge:
+
+      - "uncapped_delta": positive => spawn this many uncapped workers;
+        negative => kill this many (LIFO, newest first -- the caller's
+        WorkerRoster.pop_newest_uncapped enforces the "newest first"
+        part).
+      - "trimmer_action": one of
+          "none"    -- leave the trimmer as-is (including "no trimmer
+                       either way"),
+          "spawn"   -- none running, one is now needed,
+          "kill"    -- one is running, no longer needed,
+          "respawn" -- one is running but at the wrong rate. Throttle is
+                       fixed at spawn time, so a rate change can only be
+                       applied by killing and replacing it.
+
+    This is what makes "keep the baseline trimmer alive across phases"
+    concrete: a phase change that happens to want the same trimmer rate as
+    before leaves it running untouched; the general case (rate differs)
+    respawns it. Either way the trimmer is never selected by the reactive
+    fine-trim's scale-down (that only ever pops uncapped workers).
+    """
+    target_n_full = plan["n_full"]
+    target_trimmer_rate = plan["trimmer_rate"]
+    uncapped_delta = target_n_full - current_n_full
+
+    have_trimmer = current_trimmer_rate > 0
+    want_trimmer = target_trimmer_rate > 0
+
+    if not have_trimmer and not want_trimmer:
+        trimmer_action = "none"
+    elif not have_trimmer and want_trimmer:
+        trimmer_action = "spawn"
+    elif have_trimmer and not want_trimmer:
+        trimmer_action = "kill"
+    elif abs(current_trimmer_rate - target_trimmer_rate) < 1e-6:
+        trimmer_action = "none"
+    else:
+        trimmer_action = "respawn"
+
+    return {"uncapped_delta": uncapped_delta, "trimmer_action": trimmer_action}
+
+
+def decide_adjustment(achieved, target, deadband_pct, seconds_since_last_adjust, cooldown_seconds):
+    """Return "add" | "kill" | "hold" for the within-phase reactive
+    fine-trim step.
+
+    Never adjusts within `cooldown_seconds` of the last spawn/kill
+    (`seconds_since_last_adjust` is None when there has been none yet, in
+    which case cooldown never suppresses). `deadband` is `deadband_pct`%
+    of `target` on both sides: achieved below target-deadband -> "add";
+    above target+deadband -> "kill"; otherwise -> "hold". Exactly-at-the-
+    edge (achieved == target +/- deadband) holds (strict comparisons),
+    matching the design's "correct for C being wrong or eroding" intent
+    without hair-triggering on rounding noise.
+    """
+    if seconds_since_last_adjust is not None and seconds_since_last_adjust < cooldown_seconds:
+        return "hold"
+
+    deadband = target * (deadband_pct / 100.0)
+    if achieved < target - deadband:
+        return "add"
+    if achieved > target + deadband:
+        return "kill"
+    return "hold"
+
+
+def compute_C_observed(achieved, trimmer_rate, n_uncapped):
+    """Return the observed per-worker ceiling implied by the current
+    achieved rate: (achieved - trimmer_rate) / n_uncapped, subtracting the
+    trimmer's own throttled contribution so the estimate reflects only the
+    uncapped workers. Returns None when there are no uncapped workers to
+    measure (nothing to observe -- skip recalibration at pure baseline).
+    """
+    if n_uncapped <= 0:
+        return None
+    return (achieved - trimmer_rate) / n_uncapped
+
+
+def recalibrate_C(C, C_observed, alpha=0.3, max_delta_pct=10.0):
+    """EMA-update C toward C_observed (`C_new = alpha*C_observed +
+    (1-alpha)*C`), then clamp the resulting change to at most
+    `max_delta_pct`% of C (up or down) so a transient reading can't thrash
+    the worker-count math across a multi-day run.
+    """
+    if C <= 0:
+        raise ValueError("C must be > 0, got {!r}".format(C))
+    if C_observed < 0:
+        raise ValueError("C_observed must be >= 0, got {!r}".format(C_observed))
+
+    ema = alpha * C_observed + (1 - alpha) * C
+    delta = ema - C
+    max_delta = C * (max_delta_pct / 100.0)
+    if delta > max_delta:
+        delta = max_delta
+    elif delta < -max_delta:
+        delta = -max_delta
+    return C + delta
+
+
+class WorkerUidAllocator(object):
+    """Monotonic, controller-owned worker_uid allocator: every call to
+    `allocate()` returns a fresh id, one higher than the last, for the
+    life of the run -- including across respawns after a kill or crash.
+    Ids are never reused; there is deliberately no "give an id back"
+    operation, since that's precisely the respawn seed-reuse collision
+    this allocator exists to prevent (see IMPLEMENTATION_CONTRACTS.md,
+    "Monotonic PK generation").
+    """
+
+    def __init__(self, start=0):
+        if start < 0:
+            raise ValueError("start must be >= 0, got {!r}".format(start))
+        self._next = start
+
+    def allocate(self):
+        uid = self._next
+        self._next += 1
+        return uid
+
+    @property
+    def next_uid(self):
+        return self._next
+
+
+class WorkerRoster(object):
+    """Pure bookkeeping of currently-running worker uids: an ordered list
+    of uncapped workers (append = spawn order, so the list's tail is
+    always the newest) plus at most one trimmer uid tracked separately.
+
+    `pop_newest_uncapped` is the "kill newest uncapped workers first
+    (LIFO)" scale-down policy from the design; it can never return the
+    trimmer, which is exactly what keeps the trimmer alive across
+    fine-trim scale-downs -- only phase-change replanning (via
+    diff_worker_counts) ever kills/respawns it.
+    """
+
+    def __init__(self):
+        self._uncapped = []
+        self.trimmer_uid = None
+
+    def add_uncapped(self, uid):
+        self._uncapped.append(uid)
+
+    def pop_newest_uncapped(self):
+        if not self._uncapped:
+            return None
+        return self._uncapped.pop()
+
+    def remove_uncapped(self, uid):
+        """Remove a specific uid wherever it is in the list (e.g. cleanup
+        after an unexpected worker crash, not a scale-down decision)."""
+        try:
+            self._uncapped.remove(uid)
+        except ValueError:
+            pass
+
+    def set_trimmer(self, uid):
+        self.trimmer_uid = uid
+
+    def clear_trimmer(self):
+        self.trimmer_uid = None
+
+    def n_uncapped(self):
+        return len(self._uncapped)
+
+    def n_trimmer(self):
+        return 1 if self.trimmer_uid is not None else 0
+
+    def all_uids(self):
+        uids = list(self._uncapped)
+        if self.trimmer_uid is not None:
+            uids.append(self.trimmer_uid)
+        return uids
+
+
+def derive_worker_runtime_config(base_config):
+    """Build the config file every spawned worker runs with: a deep copy
+    of `base_config` with the `parallel` block removed (irrelevant to a
+    single worker) and `generator.rate_control` removed (superseded by the
+    controller's per-worker `--throttle` CLI flag -- the aggregate rate is
+    now set by worker-count modulation, not per-worker rate_control
+    pacing). Never mutates `base_config`. Every worker gets the identical
+    result; only `--worker-uid`/`--throttle`/cache flags differ per spawn,
+    which is what lets a bounded, reused set of slot files stand in for a
+    fresh temp file per spawn (see SlotFilePool).
     """
     cfg = copy.deepcopy(base_config)
     cfg.pop("parallel", None)
-
-    gen = cfg["generator"]
-    gen["random_seed"] = base_seed + worker_index
-    gen["faker_seed"] = base_seed + worker_index
-
-    rate_control = gen.get("rate_control")
-    if rate_control:
-        default_rate = rate_control.get("default_events_per_second", 0)
-        rate_control["default_events_per_second"] = max(1, int(round(default_rate / workers)))
-        for entry in (rate_control.get("schedule") or []):
-            entry_rate = entry.get("events_per_second", 0)
-            entry["events_per_second"] = max(1, int(round(entry_rate / workers)))
-
+    gen = cfg.get("generator")
+    if gen is not None:
+        gen.pop("rate_control", None)
     return cfg
+
+
+def build_worker_argv(python_exe, generator_path, config_path, worker_uid, pk_stride,
+                       cache_dir, cache_version, throttle=0.0):
+    """Build the argv for one worker spawn, per IMPLEMENTATION_CONTRACTS.md's
+    "Worker CLI" contract: `-c`, `--worker-uid`, `--pk-stride`,
+    `--cache-dir`, `--cache-version`, and `--throttle` only when > 0
+    (0/absent means uncapped -- the worker must not engage rate_governor
+    at all in that case).
+    """
+    argv = [
+        python_exe, generator_path,
+        "-c", config_path,
+        "--worker-uid", str(worker_uid),
+        "--pk-stride", str(pk_stride),
+        "--cache-dir", cache_dir,
+        "--cache-version", cache_version,
+    ]
+    if throttle and throttle > 0:
+        argv += ["--throttle", str(throttle)]
+    return argv
+
+
+class SlotFilePool(object):
+    """A bounded, reused set of `size` config-file paths under `tmp_dir`.
+    Spawning hands out a free slot (`acquire`); the worker's exit returns
+    it (`release`). This is what keeps "write a new YAML per spawn" from
+    growing without bound across the ~hundreds of spawn/kill cycles a
+    multi-day run produces -- at most `size` files ever exist, and they're
+    simply overwritten in place on reuse.
+
+    Pure bookkeeping only -- no file I/O happens here; the caller writes
+    to (and the OS creates) the paths this hands out.
+    """
+
+    def __init__(self, tmp_dir, size):
+        if size <= 0:
+            raise ValueError("size must be > 0, got {!r}".format(size))
+        self._paths = [os.path.join(tmp_dir, "slot_{}.yaml".format(i)) for i in range(size)]
+        self._free = list(range(size))
+        self.size = size
+
+    def acquire(self):
+        if not self._free:
+            raise RuntimeError(
+                "no free config-file slots available (all {} in use); "
+                "increase max_workers headroom".format(self.size)
+            )
+        idx = self._free.pop()
+        return idx, self._paths[idx]
+
+    def release(self, idx):
+        if idx not in self._free:
+            self._free.append(idx)
+
+    def in_use_count(self):
+        return self.size - len(self._free)
 
 
 # ---------------------------------------------------------------------------
 # I/O helpers
 # ---------------------------------------------------------------------------
+
+GENERATOR_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generator.py")
+
 
 def write_yaml_config(data, path):
     if yaml is None:
@@ -135,7 +463,11 @@ def query_events_sum(cursor):
     """DB-wide count of rows touched by INSERT/UPDATE/DELETE statements,
     per pg_stat_statements, since the last pg_stat_statements_reset(). This
     already sums across every backend/connection, so it aggregates all
-    worker processes without any inter-process bookkeeping.
+    worker processes without any inter-process bookkeeping. Per
+    IMPLEMENTATION_CONTRACTS.md's error handling: a negative delta (e.g.
+    pg_stat_statements was reset by something else mid-run) is the
+    caller's job to clamp to 0, not this function's -- it only ever
+    returns the current cumulative sum.
     """
     cursor.execute(
         "SELECT COALESCE(SUM(rows), 0) FROM pg_stat_statements "
@@ -162,8 +494,9 @@ def reset_pg_stat_statements(cursor):
 
 def terminate_processes(procs, grace_seconds=5):
     """Terminate a list of subprocess.Popen (SIGTERM), then SIGKILL any
-    that are still alive after `grace_seconds`. Safe to call with already-
-    dead processes or an empty/None-containing list.
+    that are still alive after `grace_seconds`, waiting on (reaping) every
+    one of them. Safe to call with already-dead processes or an empty/
+    None-containing list.
     """
     procs = [p for p in procs if p is not None]
 
@@ -190,236 +523,430 @@ def terminate_processes(procs, grace_seconds=5):
                 p.kill()
             except OSError:
                 pass
-            try:
-                p.wait(timeout=5)
-            except Exception:
-                pass
+        try:
+            p.wait(timeout=5)
+        except Exception:
+            pass
 
 
-# ---------------------------------------------------------------------------
-# Orchestration
-# ---------------------------------------------------------------------------
-
-GENERATOR_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generator.py")
-
-# The calibration worker commits rows while probing; its seed must not coincide
-# with any run worker's seed (base_seed + i), or that worker would replay the
-# same id stream and collide on every INSERT. This offset keeps it clear.
-CALIBRATION_SEED_OFFSET = 1000000
-
-
-def run_calibration(base_config, tmp_dir, calibration_seconds, cursor):
-    """Run one uncapped generator.py worker for `calibration_seconds`,
-    measure the aggregate events/sec it produces via pg_stat_statements, and
-    return per_worker_ceiling (events/sec a single unpaced worker can
-    sustain against this DB/schema/config).
+def reap_dead(worker_procs):
+    """Poll every tracked worker; return [(uid, returncode), ...] for any
+    whose process has already exited. `Popen.poll()` itself performs the
+    non-blocking `waitpid(WNOHANG)` reap, so calling this every control-
+    loop tick is what prevents zombie accumulation across the ~hundreds of
+    spawn/kill cycles a multi-day run produces -- no separate SIGCHLD
+    handler is needed.
     """
-    calib_config = copy.deepcopy(base_config)
-    calib_config.pop("parallel", None)
-    calib_config["generator"].pop("rate_control", None)
-    calib_config["generator"]["num_iterations"] = -1
-    # Use a seed far outside the run-worker range (base_seed + i). The calibration
-    # worker commits rows during its probe; if it shared a seed with a run worker,
-    # that worker would replay the same id stream and collide on every INSERT.
-    _base_seed = calib_config["generator"].get(
-        "random_seed", calib_config["generator"].get("seed", 0)) or 0
-    calib_config["generator"]["random_seed"] = _base_seed + CALIBRATION_SEED_OFFSET
-    calib_config["generator"]["faker_seed"] = _base_seed + CALIBRATION_SEED_OFFSET
+    dead = []
+    for uid, entry in list(worker_procs.items()):
+        proc = entry["proc"]
+        if proc.poll() is not None:
+            dead.append((uid, proc.returncode))
+    return dead
 
-    calib_path = os.path.join(tmp_dir, "tmp_calib.yaml")
-    write_yaml_config(calib_config, calib_path)
 
+def resolve_table_list(cursor, gen):
+    """Return the concrete table list to build the shared cache for:
+    `generator.manual_table_list` if non-empty, else a schema scan via
+    utils.get_table_list (the same fallback generator.py itself uses).
+    """
+    manual = gen.get("manual_table_list")
+    if manual:
+        return list(manual)
+    if utils is None:
+        raise RuntimeError(
+            "the utils module is required to discover the table list (no "
+            "manual_table_list given) but could not be imported"
+        )
+    return utils.get_table_list(cursor, gen.get("schema_name"), gen.get("exclude_table_list"))
+
+
+def start_snapshot_refresh_thread(connection_kwargs, schema_name, table_list, pk_pool_maxsize,
+                                   cache_dir, snapshot_refresh_seconds, stop_event):
+    """Start a background thread that rebuilds the shared cache into a new
+    version every `snapshot_refresh_seconds`, atomically flipping CURRENT
+    (see shared_cache.build_cache) -- multi-day PK-snapshot freshness
+    (design doc section 11.2). Uses its own DB connection, entirely
+    separate from any worker's or the controller's own main cursor, and
+    never touches a running worker's delta/tombstones. A refresh failure
+    is logged and retried on the next tick; it never raises into the
+    control loop and never blocks spawning (spawns always just read
+    whatever CURRENT currently points at).
+    """
+    def loop():
+        while not stop_event.wait(snapshot_refresh_seconds):
+            conn = None
+            try:
+                conn = psycopg2.connect(**connection_kwargs)
+                conn.autocommit = True
+                cur = conn.cursor()
+                version = shared_cache.build_cache(
+                    cur, schema_name, table_list, pk_pool_maxsize, cache_dir
+                )
+                print("[cache] refreshed snapshot -> version {}".format(version))
+            except Exception as e:
+                print("[cache] WARNING: snapshot refresh failed: {}".format(e))
+            finally:
+                if conn is not None:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+
+    thread = threading.Thread(target=loop, name="snapshot-refresh", daemon=True)
+    thread.start()
+    return thread
+
+
+# ---------------------------------------------------------------------------
+# Orchestration (impure: subprocess, DB connections, real clock/sleep).
+# Exercised only in integration -- see IMPLEMENTATION_CONTRACTS.md's
+# testing rule; not run by this slice's unit tests.
+# ---------------------------------------------------------------------------
+
+def run_calibration(spawn_worker, kill_worker, cursor, calibration_seconds):
+    """Run one uncapped worker (spawned via the same `spawn_worker` the
+    main loop uses, so it goes through the identical shared-cache-backed
+    fast-start path) for `calibration_seconds`, measure the aggregate rate
+    it produces via pg_stat_statements, kill it, and return the measured
+    per-worker ceiling C.
+    """
     reset_pg_stat_statements(cursor)
-
     print("[calibration] starting 1 uncapped worker for {}s...".format(calibration_seconds))
-    calib_proc = subprocess.Popen([sys.executable, GENERATOR_PATH, "-c", calib_path])
+    uid, proc = spawn_worker(throttle=0.0)
     try:
         start_sum = query_events_sum(cursor)
-        start_time = time.monotonic()
+        start_t = time.monotonic()
         time.sleep(calibration_seconds)
         end_sum = query_events_sum(cursor)
-        elapsed = time.monotonic() - start_time
-
-        if calib_proc.poll() is not None:
+        elapsed = time.monotonic() - start_t
+        if proc.poll() is not None:
             print(
-                "[calibration] WARNING: calibration worker exited early with code {} "
-                "during calibration".format(calib_proc.returncode)
+                "[calibration] WARNING: worker exited early (code={}) during "
+                "calibration".format(proc.returncode)
             )
     finally:
-        terminate_processes([calib_proc])
+        kill_worker(uid)
 
     if elapsed <= 0:
         raise RuntimeError("calibration elapsed time was non-positive; cannot compute a ceiling")
 
-    per_worker_ceiling = (end_sum - start_sum) / elapsed
+    C = (end_sum - start_sum) / elapsed
     print(
-        "[calibration] measured per_worker_ceiling = {:.1f} ev/s "
-        "(delta={} rows over {:.1f}s)".format(per_worker_ceiling, end_sum - start_sum, elapsed)
+        "[calibration] measured C (per-worker ceiling) = {:.1f} ev/s "
+        "(delta={} rows over {:.1f}s)".format(C, end_sum - start_sum, elapsed)
     )
-    return per_worker_ceiling
+    return C
 
 
-def spawn_workers(base_config, workers, base_seed, tmp_dir):
-    worker_procs = []
-    for i in range(workers):
-        worker_cfg = derive_worker_config(base_config, i, workers, base_seed)
-        worker_path = os.path.join(tmp_dir, "worker_{}.yaml".format(i))
-        write_yaml_config(worker_cfg, worker_path)
-        proc = subprocess.Popen([sys.executable, GENERATOR_PATH, "-c", worker_path])
-        worker_procs.append(proc)
-    print("[spawn] launched {} worker process(es).".format(workers))
-    return worker_procs
+def run_controller(base_config, rate_csv_path=None):
+    if psycopg2 is None:
+        print("ERROR: psycopg2 is required to run the controller against a live DB.")
+        sys.exit(1)
+    if utils is None:
+        print("ERROR: the utils module could not be imported (required for config/DB helpers).")
+        sys.exit(1)
 
-
-def monitor(cursor, worker_procs, run_seconds, monitor_interval_seconds):
-    """Poll the DB-wide aggregate rate every monitor_interval_seconds until
-    run_seconds elapses or the caller is interrupted (Ctrl+C). Returns
-    (total_events, mean_rate, interrupted).
-    """
-    reset_pg_stat_statements(cursor)
-
-    run_start = time.monotonic()
-    last_sample_time = run_start
-    last_sum = query_events_sum(cursor)
-    samples = []
-    interrupted = False
-    dead_workers_reported = set()
-
-    try:
-        while True:
-            elapsed_total = time.monotonic() - run_start
-            if elapsed_total >= run_seconds:
-                break
-
-            sleep_for = min(monitor_interval_seconds, run_seconds - elapsed_total)
-            if sleep_for > 0:
-                time.sleep(sleep_for)
-
-            now = time.monotonic()
-            cur_sum = query_events_sum(cursor)
-            interval = now - last_sample_time
-            rate = (cur_sum - last_sum) / interval if interval > 0 else 0.0
-            samples.append(rate)
-            # Stamp each sample with an absolute wall-clock time (epoch + UTC
-            # ISO) in addition to the relative t=, so this generator-side series
-            # (machine B) can be joined by timestamp against the monitor CSV and
-            # a Prometheus cdcsdk_flush_lag export (machine A / YB) after the run.
-            now_wall = time.time()
-            print(
-                "[monitor] ts={:.3f} ({}) aggregate rate = {:.1f} ev/s (t={:.0f}s, total events so far: {})".format(
-                    now_wall, time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now_wall)),
-                    rate, now - run_start, cur_sum
-                )
-            )
-            last_sample_time = now
-            last_sum = cur_sum
-
-            for idx, p in enumerate(worker_procs):
-                if idx in dead_workers_reported:
-                    continue
-                if p.poll() is not None:
-                    print(
-                        "[monitor] WARNING: worker {} exited early with code {}".format(
-                            idx, p.returncode
-                        )
-                    )
-                    dead_workers_reported.add(idx)
-    except KeyboardInterrupt:
-        print("[monitor] received Ctrl+C, stopping all workers...")
-        interrupted = True
-
-    total_events = last_sum
-    mean_rate = sum(samples) / len(samples) if samples else 0.0
-    return total_events, mean_rate, interrupted
-
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="Parallel wrapper/orchestrator for the event generator"
-    )
-    parser.add_argument(
-        "-c",
-        "--config",
-        default=None,
-        help="Path to base event-generator YAML config (must include a top-level 'parallel' block)",
-    )
-    args = parser.parse_args()
-
-    base_config = load_event_generator_config(args.config)
     gen = base_config["generator"]
+    rate_control = gen.get("rate_control")
+    if not rate_control:
+        print(
+            "ERROR: base config must have a generator.rate_control block. "
+            "Its rates are the schedule the controller's worker-count modulation targets."
+        )
+        sys.exit(1)
+
+    parallel_cfg = resolve_parallel_config(base_config.get("parallel"))
+    max_workers = parallel_cfg["max_workers"]
+    calibration_seconds = parallel_cfg["calibration_seconds"]
+    control_interval = parallel_cfg["control_interval_seconds"]
+    deadband_pct = parallel_cfg["deadband_pct"]
+    cooldown_seconds = parallel_cfg["cooldown_seconds"]
+    allow_throttle = parallel_cfg["allow_throttle"]
+    pk_pool_maxsize = parallel_cfg["pk_pool_maxsize"]
+    snapshot_refresh_seconds = parallel_cfg["snapshot_refresh_seconds"]
+    recalibrate = parallel_cfg["recalibrate"]
+    pk_stride = parallel_cfg["pk_stride"]
+    run_seconds = parallel_cfg["run_seconds"]
 
     base_seed = gen.get("random_seed", gen.get("seed"))
     if base_seed is None:
         base_seed = 0
 
-    rate_control = gen.get("rate_control")
-    if not rate_control:
-        print(
-            "ERROR: base config must have a generator.rate_control block. "
-            "Its rates are treated as the DESIRED TOTAL across all workers."
-        )
-        sys.exit(1)
+    schema_name = gen["schema_name"]
+    conn_kwargs = utils.get_connection_kwargs_from_config(base_config)
 
-    parallel_cfg = base_config.get("parallel") or {}
-    max_workers = parallel_cfg.get("max_workers", 6)
-    calibration_seconds = parallel_cfg.get("calibration_seconds", 30)
-    margin = parallel_cfg.get("margin", 1.3)
-    run_seconds = parallel_cfg.get("run_seconds", 1800)
-    monitor_interval_seconds = parallel_cfg.get("monitor_interval_seconds", 5)
+    conn = psycopg2.connect(**conn_kwargs)
+    conn.autocommit = True
+    cursor = conn.cursor()
 
+    table_list = resolve_table_list(cursor, gen)
+
+    cache_dir = tempfile.mkdtemp(prefix="event_generator_cache_")
     tmp_dir = tempfile.mkdtemp(prefix="parallel_generator_")
-    conn = None
-    worker_procs = []
+    slot_pool = SlotFilePool(tmp_dir, max_workers + 1)  # +1 headroom for the trimmer
+    uid_allocator = WorkerUidAllocator()
+    worker_procs = {}  # worker_uid -> {"proc": Popen, "slot": int, "throttle": float}
+    roster = WorkerRoster()
+    runtime_cfg = derive_worker_runtime_config(base_config)
+    stop_refresh = threading.Event()
+    refresh_thread = None
+    csv_file = None
+    interrupted = False
+
+    def spawn_worker(throttle=0.0):
+        uid = uid_allocator.allocate()
+        slot_idx, slot_path = slot_pool.acquire()
+        write_yaml_config(runtime_cfg, slot_path)
+        cur_version = shared_cache.current_version(cache_dir)
+        argv = build_worker_argv(
+            sys.executable, GENERATOR_PATH, slot_path, uid, pk_stride,
+            cache_dir, cur_version, throttle,
+        )
+        proc = subprocess.Popen(argv)
+        worker_procs[uid] = {"proc": proc, "slot": slot_idx, "throttle": throttle}
+        return uid, proc
+
+    def kill_worker(uid):
+        entry = worker_procs.pop(uid, None)
+        if entry is None:
+            return
+        terminate_processes([entry["proc"]])
+        slot_pool.release(entry["slot"])
+
+    def apply_phase_plan(target, plan):
+        n_full = plan["n_full"]
+        trimmer_rate = plan["trimmer_rate"]
+
+        total_wanted = n_full + (1 if trimmer_rate > 0 else 0)
+        if total_wanted > max_workers:
+            allowed_full = max(0, max_workers - (1 if trimmer_rate > 0 else 0))
+            achievable = allowed_full * C_state["C"] + (trimmer_rate if trimmer_rate > 0 else 0.0)
+            print(
+                "[plan] WARNING: target {:.1f} ev/s needs {} workers > max_workers={}; "
+                "capping to {} full + trimmer, achievable ~{:.1f} ev/s".format(
+                    target, total_wanted, max_workers, allowed_full, achievable
+                )
+            )
+            n_full = allowed_full
+
+        current_trimmer_rate = 0.0
+        if roster.trimmer_uid is not None:
+            current_trimmer_rate = worker_procs.get(roster.trimmer_uid, {}).get("throttle", 0.0)
+
+        actions = diff_worker_counts(
+            roster.n_uncapped(), current_trimmer_rate, {"n_full": n_full, "trimmer_rate": trimmer_rate}
+        )
+
+        delta = actions["uncapped_delta"]
+        if delta > 0:
+            for _ in range(delta):
+                if len(worker_procs) >= max_workers:
+                    print("[plan] WARNING: at max_workers={}, cannot add more uncapped workers".format(max_workers))
+                    break
+                uid, _ = spawn_worker(throttle=0.0)
+                roster.add_uncapped(uid)
+        elif delta < 0:
+            for _ in range(-delta):
+                victim = roster.pop_newest_uncapped()
+                if victim is None:
+                    break
+                kill_worker(victim)
+
+        if actions["trimmer_action"] == "spawn":
+            uid, _ = spawn_worker(throttle=trimmer_rate)
+            roster.set_trimmer(uid)
+        elif actions["trimmer_action"] == "kill":
+            if roster.trimmer_uid is not None:
+                kill_worker(roster.trimmer_uid)
+                roster.clear_trimmer()
+        elif actions["trimmer_action"] == "respawn":
+            if roster.trimmer_uid is not None:
+                kill_worker(roster.trimmer_uid)
+            uid, _ = spawn_worker(throttle=trimmer_rate)
+            roster.set_trimmer(uid)
 
     try:
-        conn = psycopg2.connect(**get_connection_kwargs_from_config(base_config))
-        conn.autocommit = True
-        cursor = conn.cursor()
+        print("[cache] building initial shared cache for {} table(s)...".format(len(table_list)))
+        shared_cache.build_cache(cursor, schema_name, table_list, pk_pool_maxsize, cache_dir)
+        print("[cache] built version {}".format(shared_cache.current_version(cache_dir)))
 
-        try:
-            per_worker_ceiling = run_calibration(base_config, tmp_dir, calibration_seconds, cursor)
-        except RuntimeError as e:
-            print("ERROR: {}".format(e))
-            sys.exit(1)
-
-        target_peak = peak_target(rate_control)
-        workers, reachable = compute_workers(target_peak, per_worker_ceiling, max_workers, margin)
-        per_worker_target = rate_control.get("default_events_per_second", 0) / workers
-
-        print(
-            "[plan] per_worker_ceiling={:.1f} ev/s, workers={}, "
-            "per-worker baseline target~{:.1f} ev/s".format(
-                per_worker_ceiling, workers, per_worker_target
+        if snapshot_refresh_seconds and snapshot_refresh_seconds > 0:
+            refresh_thread = start_snapshot_refresh_thread(
+                conn_kwargs, schema_name, table_list, pk_pool_maxsize, cache_dir,
+                snapshot_refresh_seconds, stop_refresh,
             )
-        )
-        if not reachable:
-            achievable = workers * per_worker_ceiling
+
+        C = run_calibration(spawn_worker, kill_worker, cursor, calibration_seconds)
+        C_state = {"C": C}
+
+        peak = peak_target(rate_control)
+        if peak > max_workers * C:
+            achievable = max_workers * C
             print(
-                "[plan] WARNING: requested peak {:.1f} ev/s not reachable with "
-                "max_workers={}; achievable ~{:.1f} ev/s with {} workers".format(
-                    target_peak, max_workers, achievable, workers
+                "[plan] WARNING: peak target {:.1f} ev/s exceeds max_workers*C={:.1f}; "
+                "will cap at {} workers (~{:.1f} ev/s achievable)".format(
+                    peak, achievable, max_workers, achievable
                 )
             )
 
-        worker_procs = spawn_workers(base_config, workers, base_seed, tmp_dir)
+        schedule = Schedule(rate_control, random_seed=base_seed, run_start=0.0)
+        run_start = time.monotonic()
+        schedule.run_start = run_start
 
-        total_events, mean_rate, interrupted = monitor(
-            cursor, worker_procs, run_seconds, monitor_interval_seconds
-        )
+        rate_csv_path = rate_csv_path or "parallel_generator_rates_{}.csv".format(int(time.time()))
+        csv_file = open(rate_csv_path, "w", newline="")
+        writer = csv.writer(csv_file)
+        writer.writerow(["epoch", "t_seconds", "target", "achieved_evps", "n_uncapped", "n_trimmer", "C"])
+        print("[rates] writing timestamped rate CSV to {}".format(rate_csv_path))
 
-        print(
-            "[summary] total_events={} mean_aggregate_ev_s={:.1f} workers_used={}{}".format(
-                total_events, mean_rate, workers, " (interrupted)" if interrupted else ""
+        reset_pg_stat_statements(cursor)
+        last_sample_t = time.monotonic()
+        last_sum = query_events_sum(cursor)
+        current_target = None
+        last_adjust_t = None
+        end_time = run_start + run_seconds
+
+        while True:
+            now = time.monotonic()
+            if now >= end_time:
+                break
+            sleep_for = min(control_interval, end_time - now)
+            if sleep_for > 0:
+                time.sleep(sleep_for)
+
+            now = time.monotonic()
+
+            # Leak-free churn: reap anything that exited (crash, OOM, etc.)
+            # and respawn it (fresh worker_uid, current cache) preserving
+            # its role, so a lost worker doesn't silently shrink the pool.
+            for uid, code in reap_dead(worker_procs):
+                entry = worker_procs.get(uid) or {}
+                throttle = entry.get("throttle", 0.0)
+                was_trimmer = (roster.trimmer_uid == uid)
+                print(
+                    "[monitor] WARNING: worker uid={} exited unexpectedly (code={}); "
+                    "respawning".format(uid, code)
+                )
+                dead_entry = worker_procs.pop(uid, None)
+                if dead_entry is not None:
+                    slot_pool.release(dead_entry["slot"])
+                if was_trimmer:
+                    roster.clear_trimmer()
+                else:
+                    roster.remove_uncapped(uid)
+                new_uid, _ = spawn_worker(throttle=throttle)
+                if was_trimmer:
+                    roster.set_trimmer(new_uid)
+                else:
+                    roster.add_uncapped(new_uid)
+
+            cur_sum = query_events_sum(cursor)
+            interval = now - last_sample_t
+            delta = cur_sum - last_sum
+            if delta < 0:
+                # pg_stat_statements was reset out from under us; treat as
+                # a fresh baseline rather than reporting a negative rate.
+                delta = 0.0
+            achieved = delta / interval if interval > 0 else 0.0
+            last_sample_t, last_sum = now, cur_sum
+
+            target = schedule.target_at(now)
+
+            if current_target is None or target != current_target:
+                plan = plan_worker_counts(target, C_state["C"], allow_throttle)
+                apply_phase_plan(target, plan)
+                current_target = target
+                last_adjust_t = now
+            else:
+                seconds_since_last_adjust = (now - last_adjust_t) if last_adjust_t is not None else None
+                decision = decide_adjustment(
+                    achieved, target, deadband_pct, seconds_since_last_adjust, cooldown_seconds
+                )
+                if decision == "add":
+                    if len(worker_procs) < max_workers:
+                        uid, _ = spawn_worker(throttle=0.0)
+                        roster.add_uncapped(uid)
+                        last_adjust_t = now
+                    else:
+                        print("[control] want to add a worker but at max_workers={}".format(max_workers))
+                elif decision == "kill":
+                    victim = roster.pop_newest_uncapped()
+                    if victim is not None:
+                        kill_worker(victim)
+                        last_adjust_t = now
+
+                if recalibrate:
+                    n_unc = roster.n_uncapped()
+                    stable = (last_adjust_t is None) or ((now - last_adjust_t) >= cooldown_seconds)
+                    if stable and n_unc >= 1:
+                        trimmer_rate = 0.0
+                        if roster.trimmer_uid is not None:
+                            trimmer_rate = worker_procs.get(roster.trimmer_uid, {}).get("throttle", 0.0)
+                        c_obs = compute_C_observed(achieved, trimmer_rate, n_unc)
+                        if c_obs is not None and c_obs > 0:
+                            C_state["C"] = recalibrate_C(C_state["C"], c_obs)
+
+            wall = time.time()
+            t_seconds = now - run_start
+            writer.writerow([
+                "{:.3f}".format(wall), "{:.1f}".format(t_seconds), "{:.1f}".format(target),
+                "{:.1f}".format(achieved), roster.n_uncapped(), roster.n_trimmer(),
+                "{:.1f}".format(C_state["C"]),
+            ])
+            csv_file.flush()
+            print(
+                "[monitor] ts={:.3f} t={:.0f}s target={:.1f} achieved={:.1f} "
+                "n_uncapped={} n_trimmer={} C={:.1f}".format(
+                    wall, t_seconds, target, achieved, roster.n_uncapped(), roster.n_trimmer(), C_state["C"]
+                )
             )
-        )
+
+    except KeyboardInterrupt:
+        print("[monitor] received Ctrl+C, stopping all workers...")
+        interrupted = True
     finally:
-        terminate_processes(worker_procs)
-        if conn is not None:
+        stop_refresh.set()
+        if refresh_thread is not None:
+            refresh_thread.join(timeout=5)
+        terminate_processes([entry["proc"] for entry in worker_procs.values()])
+        if csv_file is not None:
             try:
-                conn.close()
+                csv_file.close()
             except Exception:
                 pass
+        try:
+            conn.close()
+        except Exception:
+            pass
         shutil.rmtree(tmp_dir, ignore_errors=True)
+        shutil.rmtree(cache_dir, ignore_errors=True)
+
+    print("[summary] run {}".format("interrupted" if interrupted else "completed"))
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Reactive worker-pool controller for the event generator"
+    )
+    parser.add_argument(
+        "-c", "--config", default=None,
+        help="Path to base event-generator YAML config (must include a top-level 'parallel' block)",
+    )
+    parser.add_argument(
+        "--rate-csv", default=None,
+        help="Path to write the timestamped rate CSV (default: parallel_generator_rates_<epoch>.csv)",
+    )
+    args = parser.parse_args()
+
+    base_config = utils.load_event_generator_config(args.config) if utils is not None \
+        else _fail_no_utils()
+    run_controller(base_config, rate_csv_path=args.rate_csv)
+
+
+def _fail_no_utils():
+    print("ERROR: the utils module could not be imported (required to load config).")
+    sys.exit(1)
 
 
 if __name__ == "__main__":
