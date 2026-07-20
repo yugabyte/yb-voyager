@@ -229,32 +229,43 @@ func TestDiff_EndToEnd(t *testing.T) {
 	})
 	require.Len(t, partChanged, 1, "expected exactly one TablePartitionChildrenChanged for diff_it.events")
 
-	// ── 11. Scope filtering: Tables=["diff_it.purchases"] ──────────────────────
-	// The rename finding is anchored to old-name "diff_it.orders"; the alias map
-	// must bridge purchases ↔ orders so both names retain the rename finding.
+	// ── 11. Scope filtering: Tables=["diff_it.purchases"] (new name) ───────────
+	// Rename/move alias handling is TEMPORARILY DISABLED in FilterByScope (see
+	// filter.go, pending the cross-window alias decision). With the alias off,
+	// scoping by a table name retains only findings whose OWN derived anchor is
+	// that table — the old↔new bridge is gone. So scoping by the new name
+	// "purchases" keeps the column finding anchored to purchases, but NOT the
+	// rename finding or the amount-drop finding, both of which anchor to the old
+	// name "orders".
+	//
+	// When the alias is re-enabled, the two assert.Empty checks below flip back to
+	// requiring exactly one retained finding (mirrors the skipped alias unit tests
+	// in filter_test.go / differ_test.go).
 	scopedByNew := schemadiff.FilterByScope(diffs, schemadiff.Scope{
 		IncludeTables: []schemasnapshot.ObjectRef{{Schema: driftSchema, Name: "purchases"}},
 	})
 	t.Logf("Scoped by new name 'purchases': %d findings", len(scopedByNew))
 
-	scopedRenameByNew := filterLocal(scopedByNew, func(d schemadiff.Difference) bool {
-		return d.Type == schemadiff.TableNameChanged && identKey(d, constants.POSTGRESQL) == driftSchema+".orders"
-	})
-	assert.Len(t, scopedRenameByNew, 1,
-		"TableNameChanged anchored to old name 'orders' must be retained when scoping by new name 'purchases'")
-
-	// Column findings on the renamed table must also survive scope by new name.
+	// Direct match: the added column lives on the new table, so it is retained.
 	scopedDiscountByNew := filterLocal(scopedByNew, func(d schemadiff.Difference) bool {
 		return d.Type == schemadiff.ColumnAdded && identKey(d, constants.POSTGRESQL) == driftSchema+".purchases.discount"
 	})
 	assert.Len(t, scopedDiscountByNew, 1,
-		"ColumnAdded(discount) must be retained under scope Tables=['diff_it.purchases']")
+		"ColumnAdded(discount) anchored to 'purchases' must be retained under scope Tables=['diff_it.purchases']")
 
+	// Alias OFF: rename finding anchors to old 'orders' and is NOT bridged to the new name.
+	scopedRenameByNew := filterLocal(scopedByNew, func(d schemadiff.Difference) bool {
+		return d.Type == schemadiff.TableNameChanged && identKey(d, constants.POSTGRESQL) == driftSchema+".orders"
+	})
+	assert.Empty(t, scopedRenameByNew,
+		"alias disabled: TableNameChanged anchored to old name 'orders' is NOT retained when scoping by new name 'purchases'")
+
+	// Alias OFF: the amount-drop finding also anchors to old 'orders' and is dropped.
 	scopedAmountByNew := filterLocal(scopedByNew, func(d schemadiff.Difference) bool {
 		return d.Type == schemadiff.ColumnDropped && identKey(d, constants.POSTGRESQL) == driftSchema+".orders.amount"
 	})
-	assert.Len(t, scopedAmountByNew, 1,
-		"ColumnDropped(amount) must be retained under scope Tables=['diff_it.purchases']")
+	assert.Empty(t, scopedAmountByNew,
+		"alias disabled: ColumnDropped(amount) anchored to old name 'orders' is NOT retained when scoping by new name 'purchases'")
 
 	// ── 12. Scope filtering: Tables=["diff_it.orders"] (old name) ──────────────
 	scopedByOld := schemadiff.FilterByScope(diffs, schemadiff.Scope{
@@ -262,17 +273,21 @@ func TestDiff_EndToEnd(t *testing.T) {
 	})
 	t.Logf("Scoped by old name 'orders': %d findings", len(scopedByOld))
 
+	// Direct match: the rename finding anchors to the old name, so it is retained
+	// without any alias.
 	scopedRenameByOld := filterLocal(scopedByOld, func(d schemadiff.Difference) bool {
 		return d.Type == schemadiff.TableNameChanged && identKey(d, constants.POSTGRESQL) == driftSchema+".orders"
 	})
 	assert.Len(t, scopedRenameByOld, 1,
-		"TableNameChanged must be retained when scoping by old name 'orders'")
+		"TableNameChanged anchored to 'orders' must be retained when scoping by old name 'orders'")
 
+	// Alias OFF: the added column lives on the new table 'purchases', so scoping by
+	// the old name 'orders' does NOT retain it.
 	scopedDiscountByOld := filterLocal(scopedByOld, func(d schemadiff.Difference) bool {
 		return d.Type == schemadiff.ColumnAdded && identKey(d, constants.POSTGRESQL) == driftSchema+".purchases.discount"
 	})
-	assert.Len(t, scopedDiscountByOld, 1,
-		"ColumnAdded(discount) must be retained under scope Tables=['diff_it.orders']")
+	assert.Empty(t, scopedDiscountByOld,
+		"alias disabled: ColumnAdded(discount) anchored to 'purchases' is NOT retained when scoping by old name 'orders'")
 }
 
 // filterLocal is a package-local helper mirroring findDiffs but operates on an
