@@ -5,8 +5,18 @@ import json
 import ipaddress
 import re
 import decimal
-import psycopg2
+try:
+    import psycopg2
+except ImportError:  # pragma: no cover - guarded so utils.py (and the
+    # pure logic it hosts: monotonic-PK formula, retry/backoff
+    # classification, CLI parsing) imports and is unit-testable on a
+    # machine without psycopg2 installed. Mirrors migration_monitor.py's
+    # guard. Anything that actually needs a live connection (run_index_operations,
+    # execute_with_retry's psycopg2-typed error paths) still requires
+    # psycopg2 to be installed at call time.
+    psycopg2 = None
 import time
+import argparse
 from typing import Any, Callable, Dict, List, Optional, Tuple
 import os
 import threading
@@ -224,6 +234,101 @@ def build_rate_governor(config: Dict[str, Any], **injectables) -> Any:
     return RateGovernor(rate_control, random_seed=random_seed, **injectables)
 
 
+def build_worker_governor(
+    config: Dict[str, Any],
+    throttle: float = 0.0,
+    worker_uid: Optional[int] = None,
+    **injectables,
+) -> Any:
+    """
+    Build the rate governor for a worker process launched via the dynamic
+    worker pool's CLI (see IMPLEMENTATION_CONTRACTS.md "Worker CLI").
+
+    - throttle > 0: engage a flat, single-worker cap of `throttle` events/sec
+      -- the reactive controller's "trimmer" role (worker-count modulation
+      does the coarse rate shaping; this is the only sleeping that
+      survives). This takes priority over any configured
+      'generator.rate_control', which the new controller model supersedes
+      for CLI-launched workers.
+    - throttle <= 0 (default/absent): legacy behavior -- delegates to
+      build_rate_governor(config), so an uncapped worker with no
+      'generator.rate_control' configured gets a NullGovernor (today's
+      unpaced default), while one with 'generator.rate_control' configured
+      keeps using it unchanged.
+    """
+    if throttle and throttle > 0:
+        rate_control = {"default_events_per_second": float(throttle)}
+        return RateGovernor(rate_control, random_seed=worker_uid, **injectables)
+    return build_rate_governor(config, **injectables)
+
+
+def build_worker_arg_parser() -> "argparse.ArgumentParser":
+    """
+    Build generator.py's CLI argument parser.
+
+    Lives in utils.py (psycopg2-optional, guarded above) rather than
+    generator.py so it -- along with the other pure logic below
+    (compute_monotonic_pk, classify_retry, compute_backoff_delay) -- stays
+    importable and unit-testable without psycopg2 or a DB connection.
+    generator.py itself always requires a live psycopg2 connection to run,
+    but never needs to be imported by a test for these pieces to be
+    covered.
+
+    All worker-pool args are optional; when absent, generator.py reproduces
+    today's legacy single-process, self-seeding, unpaced (or
+    rate_control-paced) behavior. See IMPLEMENTATION_CONTRACTS.md
+    "Worker CLI".
+    """
+    parser = argparse.ArgumentParser(description="Event Generator for PostgreSQL")
+    parser.add_argument(
+        "-c",
+        "--config",
+        default=None,
+        help="Path to event-generator YAML config (defaults to event-generator.yaml in this folder)",
+    )
+    parser.add_argument(
+        "--cache-dir",
+        default=None,
+        help="Shared cache directory (schema + PK snapshot) built by the controller "
+        "(shared_cache.build_cache). When given, schema + PK pools load from the cache "
+        "instead of per-table catalog/seed queries. Absent => legacy self-seeding.",
+    )
+    parser.add_argument(
+        "--cache-version",
+        default=None,
+        help="Cache version to load (see shared_cache.py). Defaults to the cache's current version.",
+    )
+    parser.add_argument(
+        "--worker-uid",
+        type=int,
+        default=None,
+        help="Unique worker id, monotonic and never reused across a run. Drives the "
+        "monotonic PK stride formula and the RNG/faker seed offset (base_seed + worker_uid). "
+        "Absent => legacy random PK generation.",
+    )
+    parser.add_argument(
+        "--pk-stride",
+        type=int,
+        default=100000,
+        help="Stride between worker_uids in the monotonic PK formula (default: %(default)s). "
+        "Must exceed the total number of workers ever spawned across the whole run.",
+    )
+    parser.add_argument(
+        "--throttle",
+        type=float,
+        default=0.0,
+        help="Single-worker events/sec cap (the reactive controller's 'trimmer' role). "
+        "0 or absent => uncapped; rate_governor is not engaged for this cap "
+        "(a configured generator.rate_control, if any, still applies).",
+    )
+    return parser
+
+
+def parse_worker_args(argv: Optional[List[str]] = None) -> "argparse.Namespace":
+    """Parse generator.py's CLI args. See build_worker_arg_parser."""
+    return build_worker_arg_parser().parse_args(argv)
+
+
 def get_connection_kwargs_from_config(config: Dict[str, Any]) -> Dict[str, Any]:
     """
     Return kwargs to pass to psycopg2.connect, strictly from config.
@@ -282,6 +387,77 @@ def get_estimated_row_count(
 
 def set_faker_seed(seed: int) -> None:
     _fake.seed_instance(seed)
+
+
+# ----- Monotonic PK generation (dynamic worker pool: --worker-uid) -----
+
+# Data types the monotonic PK formula can drive (matches
+# shared_cache._is_integer_type -- duplicated here rather than imported so
+# utils.py has no dependency on shared_cache.py).
+_INTEGER_PK_DATA_TYPES = frozenset(
+    [
+        "smallint",
+        "integer",
+        "bigint",
+        "int",
+        "int2",
+        "int4",
+        "int8",
+        "smallserial",
+        "serial",
+        "bigserial",
+    ]
+)
+
+
+def is_integer_pk_type(data_type: Optional[str]) -> bool:
+    """Return True if `data_type` is a single-column integer PK type the
+    monotonic PK formula can drive (see compute_monotonic_pk). Composite
+    keys, and non-integer single-column keys (uuid/text/...), fall back to
+    legacy random PK generation for that table -- there is no usable
+    integer ceiling to build a monotonic stride from.
+    """
+    if not data_type:
+        return False
+    return data_type.strip().lower() in _INTEGER_PK_DATA_TYPES
+
+
+def get_table_max_pk(
+    cursor: Any,
+    schema_name: Optional[str],
+    table_name: str,
+    pk_col: str,
+) -> Optional[int]:
+    """Return MAX(pk_col) for table_name, or None if the table is empty.
+
+    Used to seed monotonic PK generation (--worker-uid) in legacy/no-cache
+    mode, where shared_cache.table_max_pk() isn't available (that path is
+    the controller-built cache's job; this is the direct-query fallback for
+    a standalone worker with no --cache-dir).
+    """
+    qualified_table = f"{schema_name}.{table_name}" if schema_name else table_name
+    cursor.execute(f"SELECT MAX({pk_col}) FROM {qualified_table}")
+    row = cursor.fetchone()
+    if not row or row[0] is None:
+        return None
+    return int(row[0])
+
+
+def compute_monotonic_pk(max_pk: int, worker_uid: int, pk_stride: int, counter: int) -> int:
+    """Compute the deterministic INSERT primary-key value for a worker.
+
+    pk = max_pk + 1 + worker_uid + pk_stride * counter
+
+    where `counter` increments once per row this worker has inserted into
+    this table (starting at 0). Disjoint across worker_uids (each spawned
+    worker's range never overlaps another's, as long as worker_uid <
+    pk_stride for every worker -- the controller's global monotonic
+    worker_uid allocator plus a sufficiently large pk_stride guarantee
+    this), strictly increasing per worker, and always above the table's
+    recorded max(pk) at seed time. See IMPLEMENTATION_CONTRACTS.md
+    "Monotonic PK generation".
+    """
+    return max_pk + 1 + worker_uid + pk_stride * counter
 
 
 # ----- Column override helpers -----
@@ -971,6 +1147,7 @@ def build_insert_values(
     number_of_rows_to_insert: int,
     min_col_size_bytes: int = 0,
     column_overrides: Optional[Dict[str, Any]] = None,
+    pk_value_fn: Optional[Callable[[], Any]] = None,
 ) -> Tuple[str, List[Any]]:
     """Build VALUES list like (v1, v2), (v1, v2) for INSERT ... VALUES ...
 
@@ -982,6 +1159,15 @@ def build_insert_values(
         if the table has no primary key. Callers use this to refresh an
         in-memory PkPool after a successful INSERT, so later UPDATE/DELETE
         operations can target rows directly instead of scanning the table.
+
+    `pk_value_fn`, if given, is called with no arguments once per row to
+    compute that row's single-column primary-key value deterministically
+    (the dynamic worker pool's monotonic PK scheme -- see
+    compute_monotonic_pk), instead of generating it randomly. Only applies
+    when the table has exactly one PK column; composite keys and
+    PK-less tables ignore it and keep generating that column (if any) via
+    the normal type-aware path. A column override, if configured for the
+    PK column, still takes priority over `pk_value_fn`.
     """
     primary_key = table_schemas[table_name].get("primary_key")
     if isinstance(primary_key, str):
@@ -999,8 +1185,16 @@ def build_insert_values(
 
         for column_name, data_type in table_schemas[table_name]["columns"].items():
             override_spec = get_column_override(column_overrides or {}, table_name, column_name)
+            is_monotonic_pk_col = (
+                pk_value_fn is not None
+                and len(pk_cols) == 1
+                and column_name == pk_cols[0]
+            )
             if override_spec:
                 value = generate_override_value(override_spec)
+                values.append(f"'{value}'" if value is not None else "NULL")
+            elif is_monotonic_pk_col:
+                value = pk_value_fn()
                 values.append(f"'{value}'" if value is not None else "NULL")
             elif "bit" in data_type.lower():
                 values.append(build_bit_cast_expr(table_schemas, table_name, column_name))
@@ -1091,29 +1285,94 @@ def build_update_values(
 
 # ----- Execution utility -----
 
+# SQLSTATEs this module treats as retryable (see classify_retry). Values are
+# the PostgreSQL/YugabyteDB error codes, not psycopg2 exception class names,
+# so classification works on anything exposing a `.pgcode` attribute -- a
+# real psycopg2 error, or a plain fake in unit tests -- without requiring
+# psycopg2 to be installed.
+SQLSTATE_UNIQUE_VIOLATION = "23505"
+SQLSTATE_SERIALIZATION_FAILURE = "40001"  # serialization failure / read-restart
+SQLSTATE_DEADLOCK_DETECTED = "40P01"
+
+
+def classify_retry(exc: BaseException) -> Optional[str]:
+    """Classify `exc` for retry purposes by SQLSTATE (`.pgcode`).
+
+    Returns:
+      - "unique_violation" for SQLSTATE 23505 (retried immediately, with
+        regenerated values -- e.g. a fresh monotonic/random PK -- and no
+        backoff sleep; unchanged from before this existed).
+      - "conflict" for SQLSTATE 40001 (serialization failure / read-restart
+        -- YB throws this even for a single session reading recently-written
+        data across tablets) or 40P01 (deadlock detected); retried with
+        bounded exponential backoff (see compute_backoff_delay).
+      - None for anything else (including exceptions with no `.pgcode`,
+        e.g. a plain psycopg2.OperationalError from a dropped connection,
+        or a non-DB exception) -- not retryable here; the caller propagates.
+    """
+    pgcode = getattr(exc, "pgcode", None)
+    if pgcode == SQLSTATE_UNIQUE_VIOLATION:
+        return "unique_violation"
+    if pgcode in (SQLSTATE_SERIALIZATION_FAILURE, SQLSTATE_DEADLOCK_DETECTED):
+        return "conflict"
+    return None
+
+
+def compute_backoff_delay(attempt: int, base: float = 0.05, cap: float = 2.0) -> float:
+    """Bounded exponential backoff delay (seconds) for retry `attempt`
+    (1-indexed): base * 2**(attempt-1), capped at `cap`. Pure and
+    deterministic (no jitter, no clock access), so directly unit-testable.
+    """
+    if attempt < 1:
+        attempt = 1
+    return min(cap, base * (2 ** (attempt - 1)))
+
+
 def execute_with_retry(
     run_once_fn: Callable[[], None],
     rebuild_fn: Callable[[], None],
     rollback_fn: Callable[[], None],
     *,
     max_retries: int = 50,
+    backoff_base: float = 0.05,
+    backoff_cap: float = 2.0,
+    sleep_fn: Callable[[float], None] = time.sleep,
 ) -> bool:
-    """Execute write, retrying on UniqueViolation with regenerated values; return success."""
+    """Execute a write, retrying on:
+      - UniqueViolation (23505): immediate retry with regenerated values
+        (via `rebuild_fn`), no backoff sleep -- unchanged from before.
+      - Serialization/read-restart (40001) or deadlock (40P01): retried with
+        bounded exponential backoff (`compute_backoff_delay`), also calling
+        `rebuild_fn` (a safe no-op for callers whose values don't need
+        regenerating on a plain conflict retry).
+
+    Any other exception propagates after `rollback_fn()`, unchanged from
+    before. Returns True on success, False if max_retries is exhausted.
+    """
     retry_count = 0
     while retry_count <= max_retries:
         try:
             run_once_fn()
             return True
-        except psycopg2.errors.UniqueViolation as e:
+        except Exception as e:
+            kind = classify_retry(e)
+            if kind is None:
+                rollback_fn()
+                raise
             rollback_fn()
             retry_count += 1
-            print(f"Retrying operation after UniqueViolation (attempt {retry_count} of {max_retries})")
-            print(f"Error details: {e}")
+            if kind == "unique_violation":
+                print(f"Retrying operation after UniqueViolation (attempt {retry_count} of {max_retries})")
+                print(f"Error details: {e}")
+            else:
+                delay = compute_backoff_delay(retry_count, backoff_base, backoff_cap)
+                print(
+                    f"Retrying operation after {kind} ({getattr(e, 'pgcode', '?')}) "
+                    f"(attempt {retry_count} of {max_retries}), backing off {delay:.3f}s"
+                )
+                print(f"Error details: {e}")
+                sleep_fn(delay)
             rebuild_fn()
-        except Exception:
-            # For non-unique errors, propagate after rollback
-            rollback_fn()
-            raise
     print("Reached maximum retry attempts. Skipping...")
     return False
 
