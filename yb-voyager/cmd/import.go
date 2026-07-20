@@ -463,7 +463,7 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 	cmd.Flags().MarkHidden("prometheus-metrics-port")
 
 	BoolVar(cmd.Flags(), &tconf.DisableSequentialScanOnUpdateDeletes, "disable-sequential-scan-on-update-deletes", true,
-		"Disable sequential scan on update and delete operations so that concurrent writes in repeatable isoltation to avoid any retriable errors(default false)")
+		"Disable sequential scan on update and delete operations to avoid retryable errors during concurrent writes in repeatable isolation level (default true)")
 	cmd.Flags().MarkHidden("disable-sequential-scan-on-update-deletes")
 }
 
