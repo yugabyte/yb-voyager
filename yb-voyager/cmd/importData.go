@@ -1197,8 +1197,8 @@ func importSnapshotData(msr *metadb.MigrationStatusRecord, errorHandler importda
 	if err != nil {
 		utils.ErrExit("Failed to get max parallel connections: %s", err)
 	}
+	importDataAllTableMetrics := createInitialImportDataTableMetrics(pendingTasks)
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
-		importDataAllTableMetrics := createInitialImportDataTableMetrics(pendingTasks)
 		controlPlane.UpdateImportedRowCount(importDataAllTableMetrics)
 	}
 
@@ -2419,10 +2419,12 @@ func createSnapshotImportCompletedEvent() cp.SnapshotImportCompletedEvent {
 
 func createInitialImportDataTableMetrics(tasks []*ImportFileTask) []*cp.UpdateImportedRowCountEvent {
 	result := []*cp.UpdateImportedRowCountEvent{}
+	metrics.Get().SetSnapshotTablesTotal(importerRole, len(tasks))
 	for _, task := range tasks {
 		var schemaName, tableName string
 		schemaName, tableName = task.TableNameTup.ForKeyTableSchema()
 		metrics.Get().SetImportSnapshotTableTotalRows(importerRole, task.TableNameTup, getTotalProgressAmount(task))
+		metrics.Get().InitImportSnapshotTable(importerRole, task.TableNameTup)
 		tableMetrics := cp.UpdateImportedRowCountEvent{
 			BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
 				BaseEvent: cp.BaseEvent{

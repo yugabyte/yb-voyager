@@ -136,6 +136,18 @@ yb_voyager_import_snapshot_rows_total{importer_role="target_db_importer",migrati
 		assert.Greater(t, testutil.ToFloat64(done), float64(0), "completed ts not set")
 	})
 
+	t.Run("export table lifecycle timestamps", func(t *testing.T) {
+		r := NewPrometheusRecorder("uuid-1", "sess-1")
+		tup := newTupleForTest("public", "orders")
+		r.SetExportTableStarted(tup)
+		r.SetExportTableCompleted(tup)
+
+		start := r.exportTableStartTS.WithLabelValues("uuid-1", "sess-1", "orders", "public")
+		assert.Greater(t, testutil.ToFloat64(start), float64(0), "export start ts not set")
+		done := r.exportTableCompletedTS.WithLabelValues("uuid-1", "sess-1", "orders", "public")
+		assert.Greater(t, testutil.ToFloat64(done), float64(0), "export completed ts not set")
+	})
+
 	t.Run("export errors and exporter_role on cdc events", func(t *testing.T) {
 		r := NewPrometheusRecorder("uuid-1", "sess-1")
 		r.RecordExportError("get_initial_table_list")
@@ -190,4 +202,44 @@ yb_voyager_import_snapshot_rows_total{importer_role="target_db_importer",migrati
 		r.SetDebeziumUp("source_db_exporter", false)
 		assert.Equal(t, float64(0), testutil.ToFloat64(up), "expected debezium up=0 after stop")
 	})
+}
+
+func TestSnapshotTablesTotal(t *testing.T) {
+	rec := NewPrometheusRecorder("uuid-1", "sess-1")
+	rec.SetSnapshotTablesTotal("target_db_importer", 37)
+
+	mfs, err := rec.Registry().Gather()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+	var got float64 = -1
+	for _, mf := range mfs {
+		if mf.GetName() != "yb_voyager_snapshot_tables_total" {
+			continue
+		}
+		got = mf.GetMetric()[0].GetGauge().GetValue()
+	}
+	if got != 37 {
+		t.Fatalf("expected yb_voyager_snapshot_tables_total=37, got %v", got)
+	}
+}
+
+func TestInitImportSnapshotTableCreatesZeroSeries(t *testing.T) {
+	rec := NewPrometheusRecorder("uuid-1", "sess-1")
+	tup := newTupleForTest("public", "orders")
+	rec.InitImportSnapshotTable("target_db_importer", tup)
+
+	mfs, err := rec.Registry().Gather()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+	found := false
+	for _, mf := range mfs {
+		if mf.GetName() == "yb_voyager_import_snapshot_rows_total" && len(mf.GetMetric()) == 1 {
+			found = mf.GetMetric()[0].GetCounter().GetValue() == 0
+		}
+	}
+	if !found {
+		t.Fatalf("expected a zero-valued yb_voyager_import_snapshot_rows_total series for the table")
+	}
 }

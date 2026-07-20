@@ -11,9 +11,12 @@ type RecordingRecorder struct {
 	CDCEstimatedSeconds       map[string]float64
 	CDCLastEventAppliedCalls  map[string]int
 	ImportTableTotalRows      map[string]int64
+	ImportSnapshotTableInit   map[string]int
 	ExportTableTotalRows      map[string]int64
 	ImportTableStartedCalls   map[string]int
 	ImportTableCompletedCalls map[string]int
+	ExportTableStartedCalls   map[string]int
+	ExportTableCompletedCalls map[string]int
 	ExportErrors              map[string]int64
 	ExportedCDCEvents         map[string]int64
 	ReplicationSlotWALBytes   map[string]int64
@@ -21,18 +24,22 @@ type RecordingRecorder struct {
 	PendingConnsToClose       map[string]int64
 	ExportParallelism         map[string]int64
 	DebeziumUp                map[string]bool
+	SnapshotTablesTotal       map[string]int64
 }
 
 func NewRecordingRecorder() *RecordingRecorder {
 	return &RecordingRecorder{
 		CDCEventsPending: map[string]int64{}, CDCEstimatedSeconds: map[string]float64{},
 		CDCLastEventAppliedCalls: map[string]int{}, ImportTableTotalRows: map[string]int64{},
+		ImportSnapshotTableInit: map[string]int{},
 		ExportTableTotalRows:    map[string]int64{},
 		ImportTableStartedCalls: map[string]int{}, ImportTableCompletedCalls: map[string]int{},
+		ExportTableStartedCalls: map[string]int{}, ExportTableCompletedCalls: map[string]int{},
 		ExportErrors: map[string]int64{}, ExportedCDCEvents: map[string]int64{},
 		ReplicationSlotWALBytes: map[string]int64{},
 		SnapshotBatchesInFlight: map[string]int64{}, PendingConnsToClose: map[string]int64{},
 		ExportParallelism: map[string]int64{}, DebeziumUp: map[string]bool{},
+		SnapshotTablesTotal: map[string]int64{},
 	}
 }
 
@@ -62,12 +69,21 @@ func (r *RecordingRecorder) SetExportedSnapshotRowCount(t sqlname.NameTuple, row
 func (r *RecordingRecorder) SetExportSnapshotTableTotalRows(t sqlname.NameTuple, rows int64) {
 	r.ExportTableTotalRows[key(t)] = rows
 }
+func (r *RecordingRecorder) SetExportTableStarted(t sqlname.NameTuple) {
+	r.ExportTableStartedCalls[key(t)]++
+}
+func (r *RecordingRecorder) SetExportTableCompleted(t sqlname.NameTuple) {
+	r.ExportTableCompletedCalls[key(t)]++
+}
 func (r *RecordingRecorder) RecordExportedCDCEvents(role string, events int64) {
 	r.ExportedCDCEvents[role] += events
 }
 func (r *RecordingRecorder) RecordExportError(operation string) { r.ExportErrors[operation]++ }
 func (r *RecordingRecorder) SetImportSnapshotTableTotalRows(role string, t sqlname.NameTuple, rows int64) {
 	r.ImportTableTotalRows[key(t)] = rows
+}
+func (r *RecordingRecorder) InitImportSnapshotTable(role string, t sqlname.NameTuple) {
+	r.ImportSnapshotTableInit[key(t)]++
 }
 func (r *RecordingRecorder) SetImportTableStarted(role string, t sqlname.NameTuple) {
 	r.ImportTableStartedCalls[key(t)]++
@@ -83,6 +99,9 @@ func (r *RecordingRecorder) SetPendingConnsToClose(role string, n int) {
 func (r *RecordingRecorder) SetNodeCPUPercent(node string, pct float64) {}
 func (r *RecordingRecorder) SetExportParallelism(role string, level int) {
 	r.ExportParallelism[role] = int64(level)
+}
+func (r *RecordingRecorder) SetSnapshotTablesTotal(role string, count int) {
+	r.SnapshotTablesTotal[role] = int64(count)
 }
 func (r *RecordingRecorder) SetDebeziumUp(role string, up bool) { r.DebeziumUp[role] = up }
 func (r *RecordingRecorder) SetSourceReplicationSlotRetainedWALBytes(slotName string, bytes int64) {

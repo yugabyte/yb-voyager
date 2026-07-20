@@ -21,7 +21,10 @@ func (noopRecorder) RecordExportError(operation string)                         
 func (noopRecorder) SetCDCEventsPending(role string, pending int64)                            {}
 func (noopRecorder) SetCDCEstimatedSecondsToCatchUp(role string, seconds float64)              {}
 func (noopRecorder) SetCDCLastEventApplied(role string)                                        {}
+func (noopRecorder) SetExportTableStarted(t sqlname.NameTuple)                                 {}
+func (noopRecorder) SetExportTableCompleted(t sqlname.NameTuple)                               {}
 func (noopRecorder) SetImportSnapshotTableTotalRows(role string, t sqlname.NameTuple, r int64) {}
+func (noopRecorder) InitImportSnapshotTable(role string, t sqlname.NameTuple)                  {}
 func (noopRecorder) SetImportTableStarted(role string, t sqlname.NameTuple)                    {}
 func (noopRecorder) SetImportTableCompleted(role string, t sqlname.NameTuple)                  {}
 func (noopRecorder) SetSourceReplicationSlotRetainedWALBytes(slotName string, bytes int64)     {}
@@ -30,4 +33,5 @@ func (noopRecorder) SetParallelConnections(role string, n int)                  
 func (noopRecorder) SetPendingConnsToClose(role string, n int)                                 {}
 func (noopRecorder) SetNodeCPUPercent(node string, pct float64)                                {}
 func (noopRecorder) SetExportParallelism(role string, level int)                               {}
+func (noopRecorder) SetSnapshotTablesTotal(role string, count int)                              {}
 func (noopRecorder) SetDebeziumUp(role string, up bool)                                        {}

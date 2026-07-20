@@ -38,11 +38,14 @@ type Recorder interface {
 	// export
 	SetExportedSnapshotRowCount(t sqlname.NameTuple, rows int64)
 	SetExportSnapshotTableTotalRows(t sqlname.NameTuple, rows int64)
+	SetExportTableStarted(t sqlname.NameTuple)
+	SetExportTableCompleted(t sqlname.NameTuple)
 	RecordExportedCDCEvents(role string, events int64)
 	RecordExportError(operation string)
 
 	// import progress / lifecycle
 	SetImportSnapshotTableTotalRows(role string, t sqlname.NameTuple, rows int64)
+	InitImportSnapshotTable(role string, t sqlname.NameTuple)
 	SetImportTableStarted(role string, t sqlname.NameTuple)
 	SetImportTableCompleted(role string, t sqlname.NameTuple)
 
@@ -55,6 +58,9 @@ type Recorder interface {
 	SetPendingConnsToClose(role string, n int)
 	SetNodeCPUPercent(node string, pct float64)
 	SetExportParallelism(role string, level int)
+
+	// snapshot scope
+	SetSnapshotTablesTotal(role string, count int)
 
 	// process liveness
 	SetDebeziumUp(role string, up bool)

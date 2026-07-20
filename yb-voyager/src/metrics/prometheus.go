@@ -57,6 +57,9 @@ type PrometheusRecorder struct {
 	exportCDCEvents      *prometheus.CounterVec
 	exportErrorsTotal    *prometheus.CounterVec
 
+	exportTableStartTS     *prometheus.GaugeVec
+	exportTableCompletedTS *prometheus.GaugeVec
+
 	cdcEventsPending             *prometheus.GaugeVec
 	cdcEstimatedSecondsToCatchUp *prometheus.GaugeVec
 	cdcLastEventApplied          *prometheus.GaugeVec
@@ -73,6 +76,7 @@ type PrometheusRecorder struct {
 	pendingConnsToClose *prometheus.GaugeVec
 	nodeCPU             *prometheus.GaugeVec
 	exportParallelism   *prometheus.GaugeVec
+	snapshotTablesTotal *prometheus.GaugeVec
 
 	debeziumUp *prometheus.GaugeVec
 }
@@ -151,6 +155,14 @@ func NewPrometheusRecorder(migrationUUID, sessionID string) *PrometheusRecorder 
 			Name: "yb_voyager_export_snapshot_table_total_rows",
 			Help: "Expected total rows for the table during snapshot export",
 		}, exportRowLabels),
+		exportTableStartTS: f.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "yb_voyager_export_table_start_timestamp_seconds",
+			Help: "Unix timestamp when export of the table started",
+		}, exportRowLabels),
+		exportTableCompletedTS: f.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "yb_voyager_export_table_completed_timestamp_seconds",
+			Help: "Unix timestamp when export of the table completed",
+		}, exportRowLabels),
 		exportCDCEvents: f.NewCounterVec(prometheus.CounterOpts{
 			Name: "yb_voyager_export_cdc_events_total",
 			Help: "Total CDC events exported during streaming",
@@ -211,6 +223,10 @@ func NewPrometheusRecorder(migrationUUID, sessionID string) *PrometheusRecorder 
 		exportParallelism: f.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "yb_voyager_export_parallelism",
 			Help: "Configured export parallelism (--parallel-jobs); static for the lifetime of the process",
+		}, roleLabels),
+		snapshotTablesTotal: f.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "yb_voyager_snapshot_tables_total",
+			Help: "Number of tables in scope for the current snapshot phase, per role; set once at phase start",
 		}, roleLabels),
 		debeziumUp: f.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "yb_voyager_cdc_debezium_up",
@@ -279,6 +295,16 @@ func (p *PrometheusRecorder) SetExportSnapshotTableTotalRows(t sqlname.NameTuple
 	p.exportTableTotalRows.WithLabelValues(p.migrationUUID, p.sessionID, table, schema).Set(float64(rows))
 }
 
+func (p *PrometheusRecorder) SetExportTableStarted(t sqlname.NameTuple) {
+	schema, table := t.ForKeyTableSchema()
+	p.exportTableStartTS.WithLabelValues(p.migrationUUID, p.sessionID, table, schema).Set(float64(time.Now().Unix()))
+}
+
+func (p *PrometheusRecorder) SetExportTableCompleted(t sqlname.NameTuple) {
+	schema, table := t.ForKeyTableSchema()
+	p.exportTableCompletedTS.WithLabelValues(p.migrationUUID, p.sessionID, table, schema).Set(float64(time.Now().Unix()))
+}
+
 func (p *PrometheusRecorder) RecordExportedCDCEvents(role string, events int64) {
 	p.exportCDCEvents.WithLabelValues(p.migrationUUID, p.sessionID, role).Add(float64(events))
 }
@@ -301,6 +327,12 @@ func (p *PrometheusRecorder) SetCDCLastEventApplied(role string) {
 
 func (p *PrometheusRecorder) SetImportSnapshotTableTotalRows(role string, t sqlname.NameTuple, rows int64) {
 	p.importTableTotalRows.WithLabelValues(p.snapshotLabelValues(role, t)...).Set(float64(rows))
+}
+
+func (p *PrometheusRecorder) InitImportSnapshotTable(role string, t sqlname.NameTuple) {
+	lv := p.snapshotLabelValues(role, t)
+	p.importRowsTotal.WithLabelValues(lv...).Add(0)
+	p.importBytesTotal.WithLabelValues(lv...).Add(0)
 }
 
 func (p *PrometheusRecorder) SetImportTableStarted(role string, t sqlname.NameTuple) {
@@ -333,6 +365,10 @@ func (p *PrometheusRecorder) SetNodeCPUPercent(node string, pct float64) {
 
 func (p *PrometheusRecorder) SetExportParallelism(role string, level int) {
 	p.exportParallelism.WithLabelValues(p.migrationUUID, p.sessionID, role).Set(float64(level))
+}
+
+func (p *PrometheusRecorder) SetSnapshotTablesTotal(role string, count int) {
+	p.snapshotTablesTotal.WithLabelValues(p.migrationUUID, p.sessionID, role).Set(float64(count))
 }
 
 func (p *PrometheusRecorder) SetDebeziumUp(role string, up bool) {

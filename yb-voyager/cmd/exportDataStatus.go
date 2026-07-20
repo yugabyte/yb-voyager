@@ -117,6 +117,18 @@ func initializeExportTableMetadata(tableList []sqlname.NameTuple) {
 	}
 }
 
+// initExportSnapshotMetrics registers a Prometheus series for every in-scope
+// table before any data flows, so progress/remaining panels have a t0 baseline
+// and do not appear empty until a table happens to start.
+func initExportSnapshotMetrics(tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
+	rec := metrics.Get()
+	rec.SetSnapshotTablesTotal(exporterRole, len(tablesProgressMetadata))
+	for _, md := range tablesProgressMetadata {
+		rec.SetExportSnapshotTableTotalRows(md.TableName, md.CountTotalRows)
+		rec.SetExportedSnapshotRowCount(md.TableName, 0)
+	}
+}
+
 func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*utils.TableProgressMetadata, quitChan, exportSuccessChan chan bool, disablePb bool) {
 	defer utils.WaitGroup.Done()
 	go updateExportSnapshotStatus(ctx, tablesProgressMetadata)
@@ -138,6 +150,7 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 	}()
 
 	numTables := len(tablesProgressMetadata)
+	initExportSnapshotMetrics(tablesProgressMetadata)
 	progressContainer := mpb.NewWithContext(ctx)
 
 	doneCount := 0
@@ -203,6 +216,7 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 	// initialize PB total with identified approx row count
 	pbr.SetTotalRowCount(tableMetadata.CountTotalRows, false)
 	metrics.Get().SetExportSnapshotTableTotalRows(tableMetadata.TableName, tableMetadata.CountTotalRows)
+	metrics.Get().SetExportTableStarted(tableMetadata.TableName)
 
 	// parallel goroutine to calculate and set total to actual row count
 	go func() {
@@ -288,6 +302,11 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 		(Mainly for Oracle, MySQL)
 	*/
 	readLines()
+
+	// Land the exported gauge exactly on the table total so the "% complete"
+	// panel reaches 100% (the polling goroutine above can stop a few rows short).
+	metrics.Get().SetExportedSnapshotRowCount(tableMetadata.TableName, tableMetadata.CountTotalRows)
+	metrics.Get().SetExportTableCompleted(tableMetadata.TableName)
 
 	// PB will not change from "100%" -> "completed" until this function call is made
 	pbr.SetTotalRowCount(-1, true) // Completing remaining progress bar by setting current equal to total
