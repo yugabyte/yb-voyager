@@ -170,6 +170,82 @@ python3 generator.py --config ./configs/dev.yaml
 - DELETE: deletes rows sampled via `TABLESAMPLE SYSTEM_ROWS(delete_rows)`.
 - Optional throttling after a configured number of operations.
 
+### Unique-value generation and its caveats (parallel/dynamic-worker mode)
+
+In parallel mode (workers launched with `--worker-uid`, i.e. the dynamic worker
+pool), the generator produces **collision-free values for every single-column
+unique surface** — primary keys *and* secondary UNIQUE constraints/indexes —
+instead of generating them randomly and colliding as tables fill. This removes
+the retry storm that otherwise amplifies cluster load far beyond the achieved
+insert rate (a full node's worth of wasted execute/rollback churn). Each worker
+occupies a disjoint value range (`worker_uid` + `pk_stride`), so no two workers
+ever produce the same value.
+
+Coverage by column type (single-column unique surfaces):
+
+| Type | How a unique value is produced | Guaranteed unique? |
+| --- | --- | --- |
+| `integer` / `bigint` / `numeric` | monotonic: `max(col) + 1 + worker_uid + pk_stride*counter` | yes, until the column type's own max (then random fallback) |
+| `text` / `varchar` / `char` | worker-namespaced string `u<uid>_<counter>` (compact base36 form to fit small `char_max`) | yes |
+| `uuid` | `uuid5(NAMESPACE_OID, "<uid>:<counter>")` | yes |
+| anything else | falls back to normal random generation | best-effort (unique-violation retry still applies) |
+
+For a **composite** unique constraint, one representative column (preferring an
+integer-typed one) is made unique-safe, which guarantees the whole tuple is
+unique.
+
+#### Caveats (read before a long soak)
+
+1. **Narrow-integer unique columns are best-effort.** Past the column type's max
+   the scheme falls back to random. A UNIQUE `smallint` (max 32,767) can hold at
+   most ~65k distinct values and cannot grow beyond that regardless — it will
+   collide constantly on the random fallback. A UNIQUE `integer` degrades only at
+   hundreds of millions of rows; `bigint` has effectively unlimited headroom.
+   *Action:* scan a new source schema for **single-column** unique `smallint`
+   columns on tables meant to grow large, and exclude/prep those tables.
+2. **UPDATE never modifies unique columns.** To avoid re-introducing collisions,
+   unique columns (PK + secondary) are excluded from UPDATE `SET` lists. This is
+   realistic (apps rarely rewrite unique keys) but means CDC UPDATE events won't
+   carry changes to those columns, and a table whose only non-PK columns are all
+   unique is skipped for UPDATEs (INSERT/DELETE still run). **Open question:**
+   revisit whether some update-to-unique coverage is wanted (would require
+   generating unique-safe values in the UPDATE path too).
+3. **Composite uniques rely on one representative column.** If that column is a
+   narrow integer that falls back to random, the tuple's guarantee weakens to
+   best-effort. A composite made entirely of unhandled/exotic types has no
+   deterministic representative and is best-effort.
+4. **Exotic unique types fall back to random** (e.g. unique `timestamp`, `inet`,
+   `bytea`, `money`, arrays). Collision-prone but retry-covered, never fatal.
+5. **Tiny `char_max`** (roughly `varchar(<4)`) unique columns may not fit even the
+   compact encoding and fall back to random.
+6. **Seeds are point-in-time.** `MAX(col)` seeds are captured at cache-build time;
+   external writers or restarts with pre-existing higher values can make an
+   integer seed stale (retry-covered). Disjointness assumes `worker_uid <
+   pk_stride` (default 100,000) — safe unless a single run spawns ~100k workers.
+
+All fallback cases degrade *gracefully* to random-plus-retry (they cannot crash a
+worker or a node) — they just insert slightly slower on those specific columns.
+
+#### Reference: real GoCardless-style schema (341 tables) snapshot
+
+Unique-surface columns by type, as measured on the test schema — re-run this
+check when pointing at a new source to re-validate the caveats above:
+
+| Type | single-column unique | in composite unique |
+| --- | --- | --- |
+| varchar | 374 | 176 |
+| text | 42 | 104 |
+| integer | 1 | 42 |
+| bigint | 1 | 1 |
+| uuid | 1 | 0 |
+| smallint | **0** | 1 |
+| boolean / date / timestamp | 0 | 58 |
+
+Takeaway for this schema: **no single-column unique `smallint`** (caveat 1 does
+not bite), and every single-column unique surface is a fully-handled type. The
+lone smallint and the boolean/date/timestamp uniques appear only inside composite
+constraints, covered by their representative column.
+
 ### Type handling (high level)
 - Textual (`text`, `varchar`, `character varying`, `bytea`), booleans, integers, numeric/decimal (respects precision/scale), date/time/timestamp, `json/jsonb`, `inet`, `uuid`, `tsvector`.
 - Arrays: text and integer arrays supported out-of-the-box.
