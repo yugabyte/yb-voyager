@@ -477,6 +477,78 @@ def query_events_sum(cursor):
     return float(cursor.fetchone()[0])
 
 
+class CrossNodeEventMeter:
+    """Sum pg_stat_statements DML rows across ALL cluster nodes.
+
+    pg_stat_statements is per-node: each tserver's postgres counts only the
+    DML it coordinated. With smart-driver load balancing on, workers spread
+    across every node, so a single monitor connection sees only its own
+    node's slice -- which makes calibration and the rate loop read near-zero
+    even while the cluster is writing hundreds of thousands of rows. This
+    meter opens one DIRECT (non-load-balanced) connection per node discovered
+    via yb_servers() and sums each node's pg_stat_statements every poll.
+
+    Robust to this cluster's intermittent per-node heartbeat blips: a node
+    that fails to answer a poll contributes its last known value (not 0), so
+    the cluster-wide delta the controller computes never spikes or dips from
+    a transient node hiccup.
+    """
+
+    def __init__(self, direct_conn_kwargs, discover_cursor):
+        discover_cursor.execute("SELECT host, port FROM yb_servers()")
+        nodes = discover_cursor.fetchall()
+        self.conns = []
+        self.hosts = []
+        self.last = {}
+        for host, port in nodes:
+            try:
+                kw = dict(direct_conn_kwargs)
+                kw["host"] = host
+                kw["port"] = int(port)
+                c = psycopg2.connect(**kw)
+                c.autocommit = True
+                self.conns.append(c)
+                self.hosts.append(host)
+                self.last[host] = 0.0
+            except psycopg2.Error as e:
+                print("[meter] WARNING: no measurement connection to {} ({}); "
+                      "excluding it from rate totals".format(host, e))
+
+    def events_sum(self):
+        total = 0.0
+        for host, c in zip(self.hosts, self.conns):
+            try:
+                cur = c.cursor()
+                v = query_events_sum(cur)
+                cur.close()
+                self.last[host] = v
+            except psycopg2.Error:
+                v = self.last.get(host, 0.0)  # transient node hiccup: reuse last
+            total += v
+        return total
+
+    def reset(self):
+        for c in self.conns:
+            try:
+                cur = c.cursor()
+                cur.execute("SELECT pg_stat_statements_reset()")
+                cur.close()
+            except psycopg2.Error:
+                pass
+        for h in self.last:
+            self.last[h] = 0.0
+
+    def node_count(self):
+        return len(self.conns)
+
+    def close(self):
+        for c in self.conns:
+            try:
+                c.close()
+            except Exception:
+                pass
+
+
 def reset_pg_stat_statements(cursor):
     """Reset pg_stat_statements counters. Raises RuntimeError with a clear,
     actionable message if the extension is not installed/enabled.
@@ -605,21 +677,23 @@ def start_snapshot_refresh_thread(connection_kwargs, schema_name, table_list, pk
 # testing rule; not run by this slice's unit tests.
 # ---------------------------------------------------------------------------
 
-def run_calibration(spawn_worker, kill_worker, cursor, calibration_seconds):
+def run_calibration(spawn_worker, kill_worker, measure_fn, calibration_seconds, reset_fn=None):
     """Run one uncapped worker (spawned via the same `spawn_worker` the
     main loop uses, so it goes through the identical shared-cache-backed
     fast-start path) for `calibration_seconds`, measure the aggregate rate
-    it produces via pg_stat_statements, kill it, and return the measured
+    it produces via `measure_fn` (cluster-wide pg_stat_statements DML rows;
+    cross-node when load balancing is on), kill it, and return the measured
     per-worker ceiling C.
     """
-    reset_pg_stat_statements(cursor)
+    if reset_fn is not None:
+        reset_fn()
     print("[calibration] starting 1 uncapped worker for {}s...".format(calibration_seconds))
     uid, proc = spawn_worker(throttle=0.0)
     try:
-        start_sum = query_events_sum(cursor)
+        start_sum = measure_fn()
         start_t = time.monotonic()
         time.sleep(calibration_seconds)
-        end_sum = query_events_sum(cursor)
+        end_sum = measure_fn()
         elapsed = time.monotonic() - start_t
         if proc.poll() is not None:
             print(
@@ -716,6 +790,23 @@ def run_controller(base_config, rate_csv_path=None):
         raise
     conn.autocommit = True
     cursor = conn.cursor()
+
+    # Rate measurement. pg_stat_statements is per-node, so with load balancing
+    # on (writes spread across nodes) a single connection under-counts wildly;
+    # sum across all nodes via a CrossNodeEventMeter. Without load balancing all
+    # writes coordinate on the one connected node, so the single cursor suffices.
+    meter = None
+    if lb_on:
+        direct_kwargs = {k: v for k, v in conn_kwargs.items()
+                         if k not in ("load_balance", "topology_keys")}
+        meter = CrossNodeEventMeter(direct_kwargs, cursor)
+        print("[meter] cross-node rate measurement over {} node(s) "
+              "(pg_stat_statements is per-node under load balancing)".format(meter.node_count()))
+        measure_fn = meter.events_sum
+        reset_fn = meter.reset
+    else:
+        measure_fn = lambda: query_events_sum(cursor)
+        reset_fn = lambda: reset_pg_stat_statements(cursor)
 
     table_list = resolve_table_list(cursor, gen)
 
@@ -814,7 +905,7 @@ def run_controller(base_config, rate_csv_path=None):
                 snapshot_refresh_seconds, stop_refresh,
             )
 
-        C = run_calibration(spawn_worker, kill_worker, cursor, calibration_seconds)
+        C = run_calibration(spawn_worker, kill_worker, measure_fn, calibration_seconds, reset_fn=reset_fn)
         C_state = {"C": C}
 
         peak = peak_target(rate_control)
@@ -837,9 +928,9 @@ def run_controller(base_config, rate_csv_path=None):
         writer.writerow(["epoch", "t_seconds", "target", "achieved_evps", "n_uncapped", "n_trimmer", "C"])
         print("[rates] writing timestamped rate CSV to {}".format(rate_csv_path))
 
-        reset_pg_stat_statements(cursor)
+        reset_fn()
         last_sample_t = time.monotonic()
-        last_sum = query_events_sum(cursor)
+        last_sum = measure_fn()
         current_target = None
         last_adjust_t = None
         end_time = run_start + run_seconds
@@ -878,7 +969,7 @@ def run_controller(base_config, rate_csv_path=None):
                 else:
                     roster.add_uncapped(new_uid)
 
-            cur_sum = query_events_sum(cursor)
+            cur_sum = measure_fn()
             interval = now - last_sample_t
             delta = cur_sum - last_sum
             if delta < 0:
@@ -952,6 +1043,8 @@ def run_controller(base_config, rate_csv_path=None):
                 csv_file.close()
             except Exception:
                 pass
+        if meter is not None:
+            meter.close()
         try:
             conn.close()
         except Exception:
