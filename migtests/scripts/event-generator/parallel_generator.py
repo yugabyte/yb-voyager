@@ -101,6 +101,11 @@ DEFAULT_PARALLEL_CONFIG = {
     # Set false only if the nodes' direct host/port aren't reachable (e.g. a
     # VIP-only deployment) -- then all workers use the single configured host.
     "distribute_across_nodes": True,
+    # Backpressure: the reactive "add on low achieved" step may grow the
+    # uncapped pool to at most ceil(target/calibration_C) * reactive_margin.
+    # Beyond that, a below-target reading is cluster-bound, not worker-bound,
+    # so adding more workers only piles load on a struggling cluster.
+    "reactive_margin": 1.5,
 }
 
 
@@ -263,6 +268,26 @@ def decide_adjustment(achieved, target, deadband_pct, seconds_since_last_adjust,
     if achieved > target + deadband:
         return "kill"
     return "hold"
+
+
+def reactive_worker_cap(target, C, margin=1.5):
+    """Max uncapped workers the within-phase reactive loop may grow to.
+
+    The reactive "add on low achieved" step must not spiral: if achieved is
+    below target even with the workers the target theoretically needs, the
+    bottleneck is the cluster (or the measurement), not the worker count --
+    adding more only piles load on a struggling cluster. (Observed: a 10k
+    target with C~3300 ramped to 15 workers = ~5x the intended load, tipping
+    tservers into heartbeat timeout.) Cap growth at ceil(target/C) * margin.
+
+    `C` MUST be the stable calibration ceiling, never the live-recalibrated
+    C: a struggling cluster erodes the live C, which would inflate
+    ceil(target/C) and defeat the cap. Returns at least 1.
+    """
+    if C <= 0:
+        return 1
+    need = math.ceil(target / C)
+    return max(1, int(math.ceil(need * margin)))
 
 
 def compute_C_observed(achieved, trimmer_rate, n_uncapped):
@@ -771,6 +796,7 @@ def run_controller(base_config, rate_csv_path=None):
     recalibrate = parallel_cfg["recalibrate"]
     pk_stride = parallel_cfg["pk_stride"]
     run_seconds = parallel_cfg["run_seconds"]
+    reactive_margin = parallel_cfg.get("reactive_margin", 1.5)
 
     base_seed = gen.get("random_seed", gen.get("seed"))
     if base_seed is None:
@@ -916,6 +942,10 @@ def run_controller(base_config, rate_csv_path=None):
 
         C = run_calibration(spawn_worker, kill_worker, measure_fn, calibration_seconds, reset_fn=reset_fn)
         C_state = {"C": C}
+        # Stable calibration ceiling for the reactive backpressure cap. Never
+        # replaced by the live-recalibrated C (which erodes under cluster
+        # distress and would inflate the cap -- exactly the spiral we prevent).
+        calib_C = C
 
         peak = peak_target(rate_control)
         if peak > max_workers * C:
@@ -957,7 +987,13 @@ def run_controller(base_config, rate_csv_path=None):
             # Leak-free churn: reap anything that exited (crash, OOM, etc.)
             # and respawn it (fresh worker_uid, current cache) preserving
             # its role, so a lost worker doesn't silently shrink the pool.
+            # crashed_this_interval is a distress signal: while workers are
+            # dying (e.g. a tserver heartbeat-timing-out), the reactive loop
+            # must NOT add more workers -- that piles load on a struggling
+            # cluster. Respawning to hold the pool is fine; growing it is not.
+            crashed_this_interval = 0
             for uid, code in reap_dead(worker_procs):
+                crashed_this_interval += 1
                 entry = worker_procs.get(uid) or {}
                 throttle = entry.get("throttle", 0.0)
                 was_trimmer = (roster.trimmer_uid == uid)
@@ -1001,7 +1037,21 @@ def run_controller(base_config, rate_csv_path=None):
                     achieved, target, deadband_pct, seconds_since_last_adjust, cooldown_seconds
                 )
                 if decision == "add":
-                    if len(worker_procs) < max_workers:
+                    cap = reactive_worker_cap(target, calib_C, reactive_margin)
+                    if crashed_this_interval > 0:
+                        # Cluster distress: workers are dying. Adding more would
+                        # amplify the overload. Hold (respawns already keep the
+                        # pool level); let it recover.
+                        print("[backpressure] {} worker(s) crashed this interval; "
+                              "not adding (cluster distress)".format(crashed_this_interval))
+                    elif roster.n_uncapped() >= cap:
+                        # Below target despite having the workers the target
+                        # needs -> cluster-bound, not worker-bound. Adding more
+                        # only hurts. This is the anti-spiral cap.
+                        print("[backpressure] holding at n_uncapped={} (reactive cap {} "
+                              "for target={:.0f}, calibC={:.0f}); shortfall is cluster-bound"
+                              .format(roster.n_uncapped(), cap, target, calib_C))
+                    elif len(worker_procs) < max_workers:
                         uid, _ = spawn_worker(throttle=0.0)
                         roster.add_uncapped(uid)
                         last_adjust_t = now

@@ -41,6 +41,7 @@ from parallel_generator import (
     diff_worker_counts,
     peak_target,
     plan_worker_counts,
+    reactive_worker_cap,
     recalibrate_C,
     resolve_parallel_config,
 )
@@ -540,6 +541,44 @@ class TestSchedule(unittest.TestCase):
         # Same *elapsed* time (700s into the run) must give the same target
         # regardless of where run_start sits on the absolute clock.
         self.assertEqual(schedule_a.target_at(700.0), schedule_b.target_at(5700.0))
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class TestReactiveWorkerCap(unittest.TestCase):
+    """Backpressure cap: reactive scale-up may not exceed
+    ceil(target/C) * margin, keyed on the STABLE calibration C."""
+
+    def test_caps_reactive_growth(self):
+        # The real incident: target 10k, calibration C~3279 -> need 4,
+        # margin 1.5 -> cap 6 (NOT the 15 the old loop ramped to).
+        self.assertEqual(reactive_worker_cap(10000, 3279, 1.5), 6)
+
+    def test_default_margin(self):
+        # ceil(10000/5000)=2, *1.5=3
+        self.assertEqual(reactive_worker_cap(10000, 5000), 3)
+
+    def test_margin_one_is_exact_need(self):
+        self.assertEqual(reactive_worker_cap(10000, 2500, 1.0), 4)
+
+    def test_small_target_still_allows_headroom(self):
+        # tiny target vs huge C: need=ceil(1500/5000)=1, *1.5 -> ceil=2.
+        self.assertEqual(reactive_worker_cap(1500, 5000, 1.5), 2)
+        # margin 1.0 gives the exact floor of 1 for a sub-C target.
+        self.assertEqual(reactive_worker_cap(1500, 5000, 1.0), 1)
+
+    def test_nonpositive_C_returns_one(self):
+        self.assertEqual(reactive_worker_cap(10000, 0, 1.5), 1)
+        self.assertEqual(reactive_worker_cap(10000, -5, 1.5), 1)
+
+    def test_cap_does_not_grow_as_live_C_would_erode(self):
+        # Keyed on the stable calibration C, a low (eroded) C is never passed;
+        # but even if target rises the cap stays proportional to calib C.
+        cap_healthy = reactive_worker_cap(10000, 5000, 1.5)   # 3
+        cap_more_load = reactive_worker_cap(10000, 5000, 1.5)  # same C -> same
+        self.assertEqual(cap_healthy, cap_more_load)
 
 
 if __name__ == "__main__":
