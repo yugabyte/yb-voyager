@@ -330,61 +330,26 @@ def parse_worker_args(argv: Optional[List[str]] = None) -> "argparse.Namespace":
     return build_worker_arg_parser().parse_args(argv)
 
 
-def is_load_balance_enabled(conn: Dict[str, Any]) -> bool:
-    """True if connection.load_balance requests YugabyteDB smart-driver
-    connection load balancing. Accepts a bool, or a string (the smart
-    driver's own values: 'true'/'any'/'only-primary'/'prefer-primary'/...).
-    Absent, None, or a false-y string ('', 'false', '0', 'no', 'off')
-    means disabled -- the default, so stock psycopg2 is unaffected.
-    """
-    v = conn.get("load_balance")
-    if isinstance(v, bool):
-        return v
-    if v is None:
-        return False
-    return str(v).strip().lower() not in ("", "false", "0", "no", "off")
-
-
-def _load_balance_value(conn: Dict[str, Any]) -> str:
-    """Normalize connection.load_balance into the string the smart driver
-    expects: a bool True -> 'true'; a string (e.g. 'only-primary') passes
-    through verbatim so newer topology modes keep working.
-    """
-    v = conn.get("load_balance")
-    if isinstance(v, bool):
-        return "true"
-    return str(v).strip()
-
-
 def get_connection_kwargs_from_config(config: Dict[str, Any]) -> Dict[str, Any]:
     """
     Return kwargs to pass to psycopg2.connect, strictly from config.
 
-    YugabyteDB smart-driver load balancing: when connection.load_balance is
-    set, the returned kwargs include `load_balance` (and, if given,
-    `topology_keys`). These are understood only by the YB smart-driver build
-    of psycopg2 (which shadows `import psycopg2` once installed); they make
-    every connection spread across the cluster's tservers instead of piling
-    onto the single `host` node. With stock psycopg2, passing `load_balance`
-    fails with an "invalid connection option" error -- the controller's
-    startup connect turns that into a clear "install the smart driver"
-    message. Defaults (option absent) are unchanged, so stock psycopg2 keeps
-    working.
+    Connections go to exactly the configured host. Spreading load across a
+    multi-node cluster is done by the controller assigning each worker a
+    specific node (round-robin over yb_servers()) and overriding host/port in
+    that worker's config -- NOT by a driver-level load balancer, which cannot
+    help a fleet of single-connection worker processes (each process has its
+    own empty balancer and they all pick the same node). See the controller's
+    node-distribution logic.
     """
     conn = config.get("connection", {})
-    kwargs = {
+    return {
         "dbname": conn["database"],
         "user": conn["user"],
         "password": conn["password"],
         "host": conn["host"],
         "port": conn["port"],
     }
-    if is_load_balance_enabled(conn):
-        kwargs["load_balance"] = _load_balance_value(conn)
-        topology = conn.get("topology_keys")
-        if topology:
-            kwargs["topology_keys"] = str(topology)
-    return kwargs
 
 
 def detect_db_flavor(cursor: Any) -> str:

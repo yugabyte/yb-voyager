@@ -130,17 +130,40 @@ How it derives the worker count:
    `generator.random_seed`/`faker_seed` = base seed + worker index, and
    `rate_control` rates divided by `workers`) to a temp directory and
    launches one `generator.py -c <worker_i.yaml>` subprocess per config.
-4. **Monitor**: since `pg_stat_statements` counts DB-wide, the same
-   `SUM(rows)` query already aggregates every worker; it's sampled every
-   `monitor_interval_seconds` and printed as one combined events/sec figure.
-5. **Shutdown**: on `run_seconds` elapsed or Ctrl+C, all worker processes are
-   sent SIGTERM (then SIGKILL after a grace period), temp configs are
-   cleaned up, and a final summary (total events, mean aggregate ev/s,
-   workers used) is printed.
+4. **Monitor**: the achieved rate is `SUM(rows)` over insert/update/delete in
+   `pg_stat_statements`, sampled each control interval. `pg_stat_statements`
+   is **per-node**, so on a multi-node cluster the controller sums it across
+   every node (see "Multi-node clusters" below); a single-node read would
+   miss the workers on other nodes.
+5. **Shutdown**: on `run_seconds` elapsed or Ctrl+C (or SIGTERM), all worker
+   processes are sent SIGTERM (then SIGKILL after a grace period), temp
+   configs are cleaned up, and a final summary is printed.
 
 Requires `pg_stat_statements` (`shared_preload_libraries = 'pg_stat_statements'`
 plus `CREATE EXTENSION pg_stat_statements;`) -- calibration and monitoring
 fail fast with a clear message if it's unavailable.
+
+#### Multi-node clusters (node distribution)
+
+By default (`parallel.distribute_across_nodes: true`) the controller discovers
+every tserver via `yb_servers()` and **assigns each worker a specific node,
+round-robin**, overriding host/port in that worker's config so it connects
+directly to its node. This spreads write/coordination load evenly across the
+cluster instead of piling it onto the single configured host (which overloads
+that one node — a tserver heartbeat timeout — while the rest sit idle).
+
+This is done explicitly rather than via a driver-level connection load
+balancer (e.g. the YugabyteDB smart driver) on purpose: each worker is a
+**separate process opening a single connection**, so a per-process balancer has
+nothing to balance and every process independently lands on the same seed node.
+Explicit round-robin from the controller is the only thing that actually
+distributes a one-connection-per-process fleet.
+
+Because writes are then spread across nodes, the controller also sums
+`pg_stat_statements` across all nodes for its rate measurement. Set
+`distribute_across_nodes: false` only if the nodes' direct host/port aren't
+reachable (e.g. a VIP-only deployment) — then all workers use the one
+configured host.
 
 Run with:
 ```bash

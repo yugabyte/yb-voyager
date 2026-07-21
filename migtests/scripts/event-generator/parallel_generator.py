@@ -97,6 +97,10 @@ DEFAULT_PARALLEL_CONFIG = {
     "recalibrate": True,
     "pk_stride": 100000,
     "run_seconds": 604800,
+    # Round-robin workers across all tservers (discovered via yb_servers()).
+    # Set false only if the nodes' direct host/port aren't reachable (e.g. a
+    # VIP-only deployment) -- then all workers use the single configured host.
+    "distribute_across_nodes": True,
 }
 
 
@@ -477,16 +481,30 @@ def query_events_sum(cursor):
     return float(cursor.fetchone()[0])
 
 
+def discover_nodes(cursor):
+    """Return [(host, port), ...] for every live tserver via yb_servers().
+    Empty list if the query fails or returns nothing (caller falls back to
+    single-host mode). Used both to round-robin workers across nodes and to
+    build the cross-node rate meter.
+    """
+    try:
+        cursor.execute("SELECT host, port FROM yb_servers()")
+        return [(h, int(p)) for h, p in cursor.fetchall()]
+    except psycopg2.Error as e:
+        print("[dist] WARNING: yb_servers() failed ({}); using single host".format(e))
+        return []
+
+
 class CrossNodeEventMeter:
     """Sum pg_stat_statements DML rows across ALL cluster nodes.
 
     pg_stat_statements is per-node: each tserver's postgres counts only the
-    DML it coordinated. With smart-driver load balancing on, workers spread
-    across every node, so a single monitor connection sees only its own
-    node's slice -- which makes calibration and the rate loop read near-zero
-    even while the cluster is writing hundreds of thousands of rows. This
-    meter opens one DIRECT (non-load-balanced) connection per node discovered
-    via yb_servers() and sums each node's pg_stat_statements every poll.
+    DML it coordinated. Once workers are spread across nodes (the controller
+    round-robins them), a single monitor connection sees only its own node's
+    slice -- which makes calibration and the rate loop read near-zero even
+    while the cluster is writing hundreds of thousands of rows. This meter
+    opens one connection per node (from `nodes`) and sums each node's
+    pg_stat_statements every poll.
 
     Robust to this cluster's intermittent per-node heartbeat blips: a node
     that fails to answer a poll contributes its last known value (not 0), so
@@ -494,15 +512,13 @@ class CrossNodeEventMeter:
     a transient node hiccup.
     """
 
-    def __init__(self, direct_conn_kwargs, discover_cursor):
-        discover_cursor.execute("SELECT host, port FROM yb_servers()")
-        nodes = discover_cursor.fetchall()
+    def __init__(self, conn_kwargs, nodes):
         self.conns = []
         self.hosts = []
         self.last = {}
         for host, port in nodes:
             try:
-                kw = dict(direct_conn_kwargs)
+                kw = dict(conn_kwargs)
                 kw["host"] = host
                 kw["port"] = int(port)
                 c = psycopg2.connect(**kw)
@@ -762,46 +778,30 @@ def run_controller(base_config, rate_csv_path=None):
 
     schema_name = gen["schema_name"]
     conn_kwargs = utils.get_connection_kwargs_from_config(base_config)
-
-    lb_on = utils.is_load_balance_enabled(base_config.get("connection", {}))
-    if lb_on:
-        print("[conn] YugabyteDB smart-driver load balancing ON "
-              "(load_balance={}{}); connections distribute across all tservers.".format(
-                  conn_kwargs.get("load_balance"),
-                  ", topology_keys=" + conn_kwargs["topology_keys"] if "topology_keys" in conn_kwargs else ""))
-
-    try:
-        conn = psycopg2.connect(**conn_kwargs)
-    except psycopg2.Error as e:
-        # Stock psycopg2 rejects `load_balance` client-side as ProgrammingError
-        # ("invalid connection option"); a mismatched build may surface it as
-        # OperationalError. Catch the base class and key off the message.
-        if lb_on and "load_balance" in str(e):
-            print(
-                "ERROR: connection.load_balance is set, but the installed psycopg2 does not "
-                "support smart-driver load balancing.\n"
-                "       Install the YugabyteDB smart driver (its psycopg2 build shadows "
-                "`import psycopg2`):\n"
-                "         pip install psycopg2-yugabytedb-binary   # prebuilt, no compiler\n"
-                "         pip install psycopg2-yugabytedb          # source build (needs libpq-dev)\n"
-                "       or remove connection.load_balance to use stock psycopg2 (single-node)."
-            )
-            sys.exit(1)
-        raise
+    conn = psycopg2.connect(**conn_kwargs)
     conn.autocommit = True
     cursor = conn.cursor()
 
-    # Rate measurement. pg_stat_statements is per-node, so with load balancing
-    # on (writes spread across nodes) a single connection under-counts wildly;
-    # sum across all nodes via a CrossNodeEventMeter. Without load balancing all
-    # writes coordinate on the one connected node, so the single cursor suffices.
+    # Distribute workers across the cluster's tservers by assigning each worker
+    # a specific node (round-robin), overriding host/port in that worker's
+    # config. A driver-level connection load balancer cannot do this for us:
+    # each worker is a separate process opening a single connection, so every
+    # process starts with an empty balancer and they all pick the same node.
+    # nodes = [] means single-host mode (all workers use the configured host).
+    distribute = parallel_cfg.get("distribute_across_nodes", True)
+    nodes = discover_nodes(cursor) if distribute else []
+    if len(nodes) > 1:
+        print("[dist] distributing workers across {} tservers: {}".format(
+            len(nodes), ", ".join(h for h, _ in nodes)))
+
+    # Rate measurement. pg_stat_statements is per-node; once writes are spread
+    # across nodes a single connection under-counts wildly, so sum across all
+    # nodes via a CrossNodeEventMeter. With a single node the plain cursor is
+    # equivalent and cheaper.
     meter = None
-    if lb_on:
-        direct_kwargs = {k: v for k, v in conn_kwargs.items()
-                         if k not in ("load_balance", "topology_keys")}
-        meter = CrossNodeEventMeter(direct_kwargs, cursor)
-        print("[meter] cross-node rate measurement over {} node(s) "
-              "(pg_stat_statements is per-node under load balancing)".format(meter.node_count()))
+    if len(nodes) > 1:
+        meter = CrossNodeEventMeter(conn_kwargs, nodes)
+        print("[meter] cross-node rate measurement over {} node(s)".format(meter.node_count()))
         measure_fn = meter.events_sum
         reset_fn = meter.reset
     else:
@@ -825,7 +825,16 @@ def run_controller(base_config, rate_csv_path=None):
     def spawn_worker(throttle=0.0):
         uid = uid_allocator.allocate()
         slot_idx, slot_path = slot_pool.acquire()
-        write_yaml_config(runtime_cfg, slot_path)
+        # Assign this worker a specific node (round-robin) so load spreads
+        # evenly across the cluster; each worker connects directly to its node.
+        cfg = runtime_cfg
+        if nodes:
+            node_host, node_port = nodes[uid % len(nodes)]
+            cfg = copy.deepcopy(runtime_cfg)
+            cfg.setdefault("connection", {})
+            cfg["connection"]["host"] = node_host
+            cfg["connection"]["port"] = node_port
+        write_yaml_config(cfg, slot_path)
         cur_version = shared_cache.current_version(cache_dir)
         argv = build_worker_argv(
             sys.executable, GENERATOR_PATH, slot_path, uid, pk_stride,
