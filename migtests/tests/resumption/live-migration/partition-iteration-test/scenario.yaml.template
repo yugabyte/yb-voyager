@@ -1,6 +1,6 @@
 name: partition-iteration-test
 
-num_iterations: 5
+num_iterations: 20
 
 env:
   LOG_LEVEL: info
