@@ -1,6 +1,7 @@
 import random
 import itertools
 import psycopg2
+import re
 import threading
 from utils import generate_table_schemas
 from utils import (
@@ -9,6 +10,7 @@ from utils import (
     build_update_values,
     compute_backoff_delay,
     compute_monotonic_pk,
+    compute_unique_safe_value,
     is_integer_pk_type,
     get_table_max_pk,
     parse_worker_args,
@@ -285,6 +287,79 @@ if WORKER_UID is not None:
     print(f"Monotonic PK generation enabled for tables: {list(MAX_PK.keys())} "
           f"(worker_uid={WORKER_UID}, pk_stride={PK_STRIDE})")
 
+# UNIQUE_VALUE_FNS[table] = {col: zero-arg closure} covering every
+# single-column unique surface (PK, UNIQUE constraint, standalone unique
+# index) named in that table's "unique_columns" (see
+# utils.generate_table_schemas_bulk / compute_unique_safe_value) -- the
+# generalization of the monotonic-PK scheme above to every type and every
+# unique surface, not just single-column integer PKs. Only built in
+# parallel mode (--worker-uid); absent, build_insert_values falls back to
+# its legacy path (pk_value_fn for a single-column integer PK, else plain
+# random generation for that column) exactly as before. Each closure keeps
+# its own per-(table, column) counter, so the PK column -- naturally a
+# unique surface too -- gets a fn here that takes priority over
+# make_pk_value_fn's for the same column (build_insert_values' priority
+# order); make_pk_value_fn / MAX_PK / PK_COUNTERS are left in place
+# unchanged as the fallback for tables/columns unique_value_fns doesn't
+# cover, and are simply never invoked when both would apply to the same
+# column -- no double-generation.
+UNIQUE_VALUE_FNS = {}
+UNIQUE_VALUE_COUNTERS = {}
+_unique_surface_count = 0
+if WORKER_UID is not None:
+    for table in table_schemas.keys():
+        unique_columns = table_schemas[table].get("unique_columns") or []
+        if not unique_columns:
+            continue
+        columns_info = table_schemas[table]["columns"]
+        cached_max_seeds = table_schemas[table].get("unique_max_seeds") or {} if CACHE_DIR else {}
+
+        table_fns = {}
+        for col in unique_columns:
+            data_type = columns_info.get(col)
+            if not data_type:
+                continue
+
+            is_orderable = is_integer_pk_type(data_type) or data_type.strip().lower().startswith(
+                ("numeric", "decimal")
+            )
+            if not is_orderable:
+                max_seed = 0
+            elif CACHE_DIR:
+                max_seed = cached_max_seeds.get(col, 0)
+            else:
+                max_pk_val = get_table_max_pk(cursor, SCHEMA_NAME, table, col)
+                max_seed = max_pk_val if max_pk_val is not None else 0
+
+            char_max = None
+            length_match = re.search(r"\((\d+)\)", data_type)
+            if length_match:
+                char_max = int(length_match.group(1))
+
+            UNIQUE_VALUE_COUNTERS[(table, col)] = 0
+
+            def _make_unique_value_fn(table=table, col=col, data_type=data_type,
+                                       max_seed=max_seed, char_max=char_max):
+                def _next_unique_value():
+                    counter = UNIQUE_VALUE_COUNTERS[(table, col)]
+                    UNIQUE_VALUE_COUNTERS[(table, col)] = counter + 1
+                    return compute_unique_safe_value(
+                        data_type, WORKER_UID, PK_STRIDE, counter,
+                        max_seed=max_seed, char_max=char_max,
+                    )
+                return _next_unique_value
+
+            table_fns[col] = _make_unique_value_fn()
+            _unique_surface_count += 1
+
+        if table_fns:
+            UNIQUE_VALUE_FNS[table] = table_fns
+
+if WORKER_UID is not None:
+    print(f"Unique-safe value generation enabled for {_unique_surface_count} (table,column) "
+          f"surfaces across {len(UNIQUE_VALUE_FNS)} tables "
+          f"(worker_uid={WORKER_UID}, pk_stride={PK_STRIDE})")
+
 
 def make_pk_value_fn(table_name):
     """Return a zero-arg callable producing this worker's next monotonic PK
@@ -340,15 +415,21 @@ try:
             # retry budget exhausted) so we never re-count a stale cursor.rowcount.
             events_emitted = 0
             if operation == "INSERT":
-                # Generate random data and execute INSERT statement. The PK
-                # column uses the monotonic scheme (make_pk_value_fn) when
-                # eligible; otherwise build_insert_values falls back to its
-                # normal type-aware random generation, unchanged.
+                # Generate random data and execute INSERT statement. Every
+                # single-column unique surface (PK, UNIQUE constraint,
+                # standalone unique index) named in unique_columns uses the
+                # unique-safe scheme (UNIQUE_VALUE_FNS) when eligible; the
+                # PK column also keeps make_pk_value_fn as a fallback for
+                # when it isn't (unique_value_fns takes priority for the
+                # same column -- see build_insert_values). Anything neither
+                # covers falls back to normal type-aware random generation,
+                # unchanged.
                 columns = ", ".join(table_schemas[table_name]["columns"].keys())
                 pk_value_fn = make_pk_value_fn(table_name)
+                unique_value_fns = UNIQUE_VALUE_FNS.get(table_name)
                 init_values_list, init_pk_values = build_insert_values(
                     table_schemas, table_name, INSERT_ROWS, MIN_COL_SIZE_BYTES,
-                    COLUMN_OVERRIDES, pk_value_fn=pk_value_fn,
+                    COLUMN_OVERRIDES, pk_value_fn=pk_value_fn, unique_value_fns=unique_value_fns,
                 )
                 values_holder = {"values_list": init_values_list, "pk_values": init_pk_values}
 
@@ -358,13 +439,14 @@ try:
                     cursor.execute(query_to_run)
 
                 def rebuild():
-                    # Reuses the same pk_value_fn closure, so a retry (unique
-                    # violation safety net, or a 40001/40P01 conflict) simply
-                    # continues the per-table counter -- it can never repeat
-                    # or collide with a value already attempted.
+                    # Reuses the same pk_value_fn/unique_value_fns closures,
+                    # so a retry (unique violation safety net, or a
+                    # 40001/40P01 conflict) simply continues each per-table
+                    # counter -- it can never repeat or collide with a
+                    # value already attempted.
                     new_values_list, new_pk_values = build_insert_values(
                         table_schemas, table_name, INSERT_ROWS, MIN_COL_SIZE_BYTES,
-                        COLUMN_OVERRIDES, pk_value_fn=pk_value_fn,
+                        COLUMN_OVERRIDES, pk_value_fn=pk_value_fn, unique_value_fns=unique_value_fns,
                     )
                     values_holder["values_list"] = new_values_list
                     values_holder["pk_values"] = new_pk_values
@@ -388,10 +470,17 @@ try:
                 pk_set = set(primary_key) if isinstance(primary_key, list) else {primary_key}
                 columns = table_schemas[table_name]["columns"]
 
-                if len(columns) <= len(pk_set):
+                # Never UPDATE a unique-constrained column (PK or a secondary
+                # unique index) to a fresh random value -- that reintroduces
+                # the collision storm the unique-safe INSERT path removes, on
+                # columns whose values must stay unique. Exclude them from the
+                # SET list; the non-unique columns still get updated.
+                no_update = pk_set | set(table_schemas[table_name].get("unique_columns", []))
+
+                if len(columns) <= len(no_update):
                     continue
 
-                updateable_columns = [col for col in columns if col not in pk_set]
+                updateable_columns = [col for col in columns if col not in no_update]
                 if not updateable_columns:
                     print(f"No updateable columns found for table {table_name}. Skipping.")
                     continue
