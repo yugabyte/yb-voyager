@@ -30,6 +30,7 @@ except Exception:
     sys.modules["utils"] = _stub
 
 from parallel_generator import (
+    NodeResetTracker,
     Schedule,
     SlotFilePool,
     WorkerRoster,
@@ -543,10 +544,6 @@ class TestSchedule(unittest.TestCase):
         self.assertEqual(schedule_a.target_at(700.0), schedule_b.target_at(5700.0))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestReactiveWorkerCap(unittest.TestCase):
     """Backpressure cap: reactive scale-up may not exceed
     ceil(target/C) * margin, keyed on the STABLE calibration C."""
@@ -579,6 +576,76 @@ class TestReactiveWorkerCap(unittest.TestCase):
         cap_healthy = reactive_worker_cap(10000, 5000, 1.5)   # 3
         cap_more_load = reactive_worker_cap(10000, 5000, 1.5)  # same C -> same
         self.assertEqual(cap_healthy, cap_more_load)
+
+
+class TestNodeResetTracker(unittest.TestCase):
+    """The reset-safe accounting that stops one bouncing node from
+    manufacturing a cluster-wide false zero in the measured rate."""
+
+    def test_monotonic_growth_no_reset(self):
+        t = NodeResetTracker()
+        self.assertEqual(t.update("a", 100.0), 100.0)
+        self.assertEqual(t.update("a", 250.0), 250.0)
+        self.assertEqual(t.total(), 250.0)
+
+    def test_single_node_reset_banks_offset(self):
+        t = NodeResetTracker()
+        t.update("a", 300.0)
+        # counter drops (tserver restarted, pgss cleared): monotonic, not negative
+        self.assertEqual(t.update("a", 20.0), 320.0)
+        self.assertEqual(t.total(), 320.0)
+
+    def test_one_node_reset_does_not_zero_healthy_nodes(self):
+        # THE regression: node a bounces while b keeps writing. The cluster
+        # total must RISE (positive delta), never collapse to a false zero.
+        t = NodeResetTracker()
+        t.update("a", 300.0)
+        t.update("b", 200.0)
+        before = t.total()  # 500
+        t.update("a", 10.0)   # a restarted -> bank 300, monotonic 310
+        after_b = t.update("b", 260.0)  # b grew
+        self.assertEqual(after_b, 260.0)
+        total_after = t.total()  # a: 310, b: 260
+        self.assertEqual(before, 500.0)
+        self.assertEqual(total_after, 570.0)
+        self.assertGreater(total_after, before)  # delta stays positive
+
+    def test_current_does_not_advance_state(self):
+        # A failed poll reuses the last monotonic value without recording it.
+        t = NodeResetTracker()
+        t.update("a", 100.0)
+        self.assertEqual(t.current("a"), 100.0)
+        self.assertEqual(t.current("a"), 100.0)
+        self.assertEqual(t.update("a", 150.0), 150.0)
+
+    def test_current_unknown_host_is_zero(self):
+        t = NodeResetTracker()
+        self.assertEqual(t.current("never-seen"), 0.0)
+
+    def test_multiple_resets_accumulate_offset(self):
+        t = NodeResetTracker()
+        t.update("a", 100.0)
+        t.update("a", 10.0)   # reset 1: bank 100
+        self.assertEqual(t.update("a", 5.0), 115.0)  # reset 2: bank another 10
+        self.assertEqual(t.total(), 115.0)
+
+    def test_reset_clears_all_state(self):
+        # After an INTENTIONAL pg_stat_statements_reset(), the next reading is
+        # a fresh baseline, not banked as pre-reset history.
+        t = NodeResetTracker()
+        t.update("a", 300.0)
+        t.update("b", 200.0)
+        t.reset()
+        self.assertEqual(t.update("a", 50.0), 50.0)
+        self.assertEqual(t.total(), 50.0)
+
+    def test_reset_across_missed_polls_still_banks(self):
+        # Node restarts and regrows to below its prior reading while we weren't
+        # polling it: still detected as a reset, total = pre + post.
+        t = NodeResetTracker()
+        t.update("a", 300.0)
+        # next successful poll shows 250 (< 300) -> restart; true total 300+250
+        self.assertEqual(t.update("a", 250.0), 550.0)
 
 
 if __name__ == "__main__":
