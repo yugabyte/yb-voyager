@@ -30,7 +30,7 @@ except Exception:
     sys.modules["utils"] = _stub
 
 from parallel_generator import (
-    NodeResetTracker,
+    CrossNodeProgressTracker,
     Schedule,
     SlotFilePool,
     WorkerRoster,
@@ -578,74 +578,87 @@ class TestReactiveWorkerCap(unittest.TestCase):
         self.assertEqual(cap_healthy, cap_more_load)
 
 
-class TestNodeResetTracker(unittest.TestCase):
-    """The reset-safe accounting that stops one bouncing node from
-    manufacturing a cluster-wide false zero in the measured rate."""
+class TestCrossNodeProgressTracker(unittest.TestCase):
+    """Forward-progress accounting: counts only positive per-node deltas, so a
+    decrease (restart OR pg_stat_statements eviction) never inflates the total.
+    """
 
-    def test_monotonic_growth_no_reset(self):
-        t = NodeResetTracker()
-        self.assertEqual(t.update("a", 100.0), 100.0)
-        self.assertEqual(t.update("a", 250.0), 250.0)
-        self.assertEqual(t.total(), 250.0)
+    # The first reading of a host is a BASELINE (counts 0); subsequent
+    # readings count only their positive delta. pg_stat_statements is reset to
+    # ~0 at start, so counted() tracks real rows written since the run began.
 
-    def test_single_node_reset_banks_offset(self):
-        t = NodeResetTracker()
-        t.update("a", 300.0)
-        # counter drops (tserver restarted, pgss cleared): monotonic, not negative
-        self.assertEqual(t.update("a", 20.0), 320.0)
-        self.assertEqual(t.total(), 320.0)
+    def test_forward_progress_accumulates(self):
+        t = CrossNodeProgressTracker()
+        t.observe("a", 100.0)          # baseline
+        self.assertEqual(t.counted(), 0.0)
+        t.observe("a", 250.0)          # +150
+        self.assertEqual(t.counted(), 150.0)
+        t.observe("a", 300.0)          # +50
+        self.assertEqual(t.counted(), 200.0)
+
+    def test_eviction_partial_drop_does_not_inflate(self):
+        # THE bug: a partial drop (LRU eviction, not a reset) must NOT be
+        # banked. Old design turned 300 -> 295 into +295; forward-only adds 0.
+        t = CrossNodeProgressTracker()
+        t.observe("a", 100.0)          # baseline
+        t.observe("a", 300.0)          # +200
+        t.observe("a", 295.0)          # eviction drop -> +0
+        self.assertEqual(t.counted(), 200.0)
+        t.observe("a", 350.0)          # 295 -> 350 = +55
+        self.assertEqual(t.counted(), 255.0)   # NOT inflated by the dip
+
+    def test_repeated_evictions_do_not_runaway(self):
+        # The exact heavy-run failure mode: many small drops. Forward-only
+        # total stays bounded; old banking would explode into the millions.
+        t = CrossNodeProgressTracker()
+        t.observe("a", 50.0)           # baseline
+        t.observe("a", 100.0)          # +50
+        t.observe("a", 90.0)           # drop, +0 (re-base to 90)
+        t.observe("a", 95.0)           # +5
+        t.observe("a", 85.0)           # drop, +0 (re-base to 85)
+        t.observe("a", 120.0)          # 120-85 = +35
+        self.assertEqual(t.counted(), 90.0)   # bounded; old banking -> ~235+
+
+    def test_restart_to_zero_counts_only_new_progress(self):
+        t = CrossNodeProgressTracker()
+        t.observe("a", 100.0)          # baseline
+        t.observe("a", 300.0)          # +200
+        t.observe("a", 0.0)            # restart -> +0
+        self.assertEqual(t.counted(), 200.0)
+        t.observe("a", 50.0)           # new post-restart rows: +50
+        self.assertEqual(t.counted(), 250.0)
 
     def test_one_node_reset_does_not_zero_healthy_nodes(self):
-        # THE regression: node a bounces while b keeps writing. The cluster
-        # total must RISE (positive delta), never collapse to a false zero.
-        t = NodeResetTracker()
-        t.update("a", 300.0)
-        t.update("b", 200.0)
-        before = t.total()  # 500
-        t.update("a", 10.0)   # a restarted -> bank 300, monotonic 310
-        after_b = t.update("b", 260.0)  # b grew
-        self.assertEqual(after_b, 260.0)
-        total_after = t.total()  # a: 310, b: 260
-        self.assertEqual(before, 500.0)
-        self.assertEqual(total_after, 570.0)
-        self.assertGreater(total_after, before)  # delta stays positive
+        # The original goal, preserved: node a bounces while b keeps writing;
+        # the cluster total must still rise from b's progress, never collapse.
+        t = CrossNodeProgressTracker()
+        t.observe("a", 100.0)          # baselines
+        t.observe("b", 100.0)
+        t.observe("a", 300.0)          # +200
+        t.observe("b", 200.0)          # +100
+        self.assertEqual(t.counted(), 300.0)
+        t.observe("a", 0.0)            # a restarted: +0
+        t.observe("b", 260.0)          # b grew: +60
+        self.assertEqual(t.counted(), 360.0)   # rose, not zeroed
 
-    def test_current_does_not_advance_state(self):
-        # A failed poll reuses the last monotonic value without recording it.
-        t = NodeResetTracker()
-        t.update("a", 100.0)
-        self.assertEqual(t.current("a"), 100.0)
-        self.assertEqual(t.current("a"), 100.0)
-        self.assertEqual(t.update("a", 150.0), 150.0)
-
-    def test_current_unknown_host_is_zero(self):
-        t = NodeResetTracker()
-        self.assertEqual(t.current("never-seen"), 0.0)
-
-    def test_multiple_resets_accumulate_offset(self):
-        t = NodeResetTracker()
-        t.update("a", 100.0)
-        t.update("a", 10.0)   # reset 1: bank 100
-        self.assertEqual(t.update("a", 5.0), 115.0)  # reset 2: bank another 10
-        self.assertEqual(t.total(), 115.0)
+    def test_failed_poll_skipped_then_catches_up(self):
+        # A failed poll simply isn't observed; the next reading counts the real
+        # delta across the gap (no loss, no double-count).
+        t = CrossNodeProgressTracker()
+        t.observe("a", 100.0)          # baseline
+        t.observe("a", 150.0)          # +50
+        # (poll fails -> caller does not call observe)
+        t.observe("a", 230.0)          # +80 across the gap
+        self.assertEqual(t.counted(), 130.0)
 
     def test_reset_clears_all_state(self):
-        # After an INTENTIONAL pg_stat_statements_reset(), the next reading is
-        # a fresh baseline, not banked as pre-reset history.
-        t = NodeResetTracker()
-        t.update("a", 300.0)
-        t.update("b", 200.0)
+        t = CrossNodeProgressTracker()
+        t.observe("a", 100.0)
+        t.observe("a", 300.0)          # counted 200
         t.reset()
-        self.assertEqual(t.update("a", 50.0), 50.0)
-        self.assertEqual(t.total(), 50.0)
-
-    def test_reset_across_missed_polls_still_banks(self):
-        # Node restarts and regrows to below its prior reading while we weren't
-        # polling it: still detected as a reset, total = pre + post.
-        t = NodeResetTracker()
-        t.update("a", 300.0)
-        # next successful poll shows 250 (< 300) -> restart; true total 300+250
-        self.assertEqual(t.update("a", 250.0), 550.0)
+        t.observe("a", 50.0)           # fresh baseline
+        t.observe("a", 70.0)           # +20
+        self.assertEqual(t.counted(), 20.0)
 
 
 if __name__ == "__main__":
