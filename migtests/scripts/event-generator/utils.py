@@ -5,6 +5,7 @@ import json
 import ipaddress
 import re
 import decimal
+import uuid
 try:
     import psycopg2
 except ImportError:  # pragma: no cover - guarded so utils.py (and the
@@ -503,6 +504,123 @@ def compute_monotonic_pk(max_pk: int, worker_uid: int, pk_stride: int, counter: 
     return max_pk + 1 + worker_uid + pk_stride * counter
 
 
+# ----- Unique-safe value generation (any single-column unique surface) -----
+#
+# Today only single-column integer PKs get collision-free values (via
+# compute_monotonic_pk above); every other unique surface -- secondary
+# UNIQUE constraints/indexes, and non-integer PKs (varchar/uuid/...) --
+# falls back to plain random generation and collides heavily as tables
+# fill. compute_unique_safe_value generalizes the same idea (namespace by
+# worker_uid, advance a strictly-increasing per-(table,column) counter) to
+# every type generate_table_schemas_bulk's new "unique_columns" can name.
+
+# Per-width integer ceilings. compute_unique_safe_value returns None (caller
+# falls back to random generation) once the monotonic value would exceed the
+# column's own type max -- otherwise a plain `integer` column overflows int32
+# (SQLSTATE 22003 "value out of range") long before bigint's ceiling, which
+# hard-fails the whole INSERT batch instead of just retrying.
+_INT2_MAX = 32767
+_INT4_MAX = 2147483647
+_INT8_MAX = 9223372036854775807
+_UNIQUE_SAFE_INT_OVERFLOW_THRESHOLD = _INT8_MAX  # bigint/numeric ceiling
+
+
+def _integer_type_ceiling(dtype: str) -> int:
+    """Max value the monotonic scheme may emit for an integer/numeric column
+    of SQL type `dtype` (already lowercased). Narrow ints get their real
+    ceiling so we fall back to random before overflowing the column."""
+    if dtype in ("smallint", "int2", "smallserial"):
+        return _INT2_MAX
+    if dtype in ("integer", "int", "int4", "serial"):
+        return _INT4_MAX
+    return _INT8_MAX  # bigint/int8/bigserial, numeric/decimal
+
+_BASE36_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz"
+
+# Stride used only for the compact base36 text-encoding fallback below --
+# deliberately distinct from pk_stride (which governs the integer monotonic
+# formula this function also drives). Large enough that no single worker
+# will ever generate anywhere near this many values for one text column, so
+# each worker_uid's segment of the encoded space never collides with
+# another worker's.
+_TEXT_UNIQUE_STRIDE = 10 ** 9
+
+
+def _to_base36(n: int) -> str:
+    """Encode a non-negative int as a lowercase base36 string (no leading
+    zero-padding), for the compact unique text-column encoding below."""
+    if n == 0:
+        return "0"
+    digits = []
+    while n > 0:
+        n, rem = divmod(n, 36)
+        digits.append(_BASE36_ALPHABET[rem])
+    return "".join(reversed(digits))
+
+
+def compute_unique_safe_value(
+    data_type: Optional[str],
+    worker_uid: int,
+    pk_stride: int,
+    counter: int,
+    *,
+    max_seed: int = 0,
+    char_max: Optional[int] = None,
+) -> Any:
+    """Compute a guaranteed-unique value for one single-column unique
+    surface (PK, UNIQUE constraint, or standalone unique index), for this
+    worker/counter. Returns None when `data_type` isn't one this function
+    can drive deterministically, or the deterministic value it would
+    produce is unusable (bigint overflow; a compact text encoding that
+    still doesn't fit `char_max`) -- callers fall back to the normal
+    type-aware random-generation path for that column, unchanged (the
+    existing unique-violation retry safety net still covers it).
+
+    - integer family / numeric: `max_seed + 1 + worker_uid + pk_stride *
+      counter` -- same shape as compute_monotonic_pk, but seeded from a
+      plain `MAX(col)` (see generate_table_schemas_bulk's
+      "unique_max_seeds") instead of a primary key's max. None once the value
+      would exceed the column type's own max (int2/int4/int8), so a narrow
+      integer column falls back to random rather than overflowing.
+    - text/varchar/char: `f"u{worker_uid}_{counter}"` -- namespaced by
+      worker, strictly increasing per worker, so it never repeats across
+      any (worker_uid, counter) pair. If `char_max` is given and that
+      string is too long, falls back to a compact base36 encoding of
+      `worker_uid * _TEXT_UNIQUE_STRIDE + counter` (still unique for the
+      same reason: disjoint worker_uid segments, strictly-increasing
+      counter within each). None if even that can't fit `char_max`.
+    - uuid: `uuid.uuid5(uuid.NAMESPACE_OID, f"{worker_uid}:{counter}")` --
+      deterministic and unique for the same (worker_uid, counter)
+      uniqueness argument.
+    - anything else: None.
+    """
+    if not data_type:
+        return None
+    dtype = data_type.strip().lower()
+
+    if is_integer_pk_type(dtype) or dtype.startswith("numeric") or dtype.startswith("decimal"):
+        value = max_seed + 1 + worker_uid + pk_stride * counter
+        # Fall back to random once we'd exceed the column type's own max, not
+        # just bigint's -- an int4/int2 column overflows far sooner.
+        if value > _integer_type_ceiling(dtype):
+            return None
+        return value
+
+    if "uuid" in dtype:
+        return uuid.uuid5(uuid.NAMESPACE_OID, f"{worker_uid}:{counter}")
+
+    if any(token in dtype for token in ("varchar", "character varying", "text", "char", "character")):
+        full = f"u{worker_uid}_{counter}"
+        if char_max is None or len(full) <= char_max:
+            return full
+        compact = "u" + _to_base36(worker_uid * _TEXT_UNIQUE_STRIDE + counter)
+        if len(compact) <= char_max:
+            return compact
+        return None
+
+    return None
+
+
 # ----- Column override helpers -----
 
 def generate_override_value(override_spec: Dict[str, Any]) -> Any:
@@ -810,6 +928,58 @@ def _build_enum_values(
     return enum_values
 
 
+def _find_unique_columns(
+    cursor: Any,
+    table_name: str,
+    schema_name: Optional[str],
+    columns: Dict[str, str],
+) -> List[str]:
+    """Return one representative column per unique surface (PK, UNIQUE
+    constraint, or standalone unique index) on `table_name` -- every
+    single-column one, plus, for each multi-column one, an integer-typed
+    column if present, else the lowest-attnum column (making one component
+    of a unique tuple unique makes the whole tuple unique). Per-table
+    mirror of the schema-wide query in generate_table_schemas_bulk, for the
+    per-table fallback path (generate_table_schemas / convert_pg_table_description).
+
+    Expression-index members (attnum 0 in indkey) have no matching
+    pg_attribute row and are silently dropped by the join; partial indexes
+    are excluded explicitly.
+    """
+    regclass = _qualify_regclass(table_name, schema_name)
+    cursor.execute(
+        """
+        SELECT i.indexrelid, a.attname
+        FROM pg_index i
+        JOIN pg_class c ON c.oid = i.indrelid
+        JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
+        WHERE c.oid = %s::regclass
+          AND i.indisunique
+          AND i.indpred IS NULL
+        ORDER BY i.indexrelid, a.attnum
+        """,
+        (regclass,),
+    )
+    idx_cols_by_index: Dict[Any, List[str]] = {}
+    for indexrelid, attname in cursor.fetchall():
+        idx_cols_by_index.setdefault(indexrelid, []).append(attname)
+
+    seen = set()
+    unique_columns: List[str] = []
+    for idx_cols in idx_cols_by_index.values():
+        if len(idx_cols) == 1:
+            candidate = idx_cols[0]
+        else:
+            candidate = next(
+                (c for c in idx_cols if is_integer_pk_type(columns.get(c))),
+                idx_cols[0],
+            )
+        if candidate not in seen:
+            seen.add(candidate)
+            unique_columns.append(candidate)
+    return unique_columns
+
+
 def convert_pg_table_description(
     cursor: Any,
     column_info: List[Tuple[str, str]],
@@ -822,6 +992,7 @@ def convert_pg_table_description(
     array_types = _build_array_types(cursor, schema_name, table_name, columns)
     primary_key = _find_primary_key(cursor, table_name, schema_name)
     enum_values = _build_enum_values(cursor, table_name, schema_name, column_info)
+    unique_columns = _find_unique_columns(cursor, table_name, schema_name, columns)
 
     result = {
         "columns": columns,
@@ -829,6 +1000,7 @@ def convert_pg_table_description(
         "primary_key": primary_key,
         "enum_values": enum_values,
         "bit_info": bit_info,
+        "unique_columns": unique_columns,
     }
 
     return {table_name: result}
@@ -963,6 +1135,32 @@ def generate_table_schemas_bulk(
             "length": length,
         }
 
+    # 5) every unique surface (PK, UNIQUE constraint, standalone unique
+    # index) in one schema-wide query, resolved to column names via
+    # pg_attribute. An expression-index member (attnum 0 in indkey) has no
+    # matching pg_attribute row and is silently dropped by the join;
+    # partial indexes (indpred IS NOT NULL) are excluded explicitly. Rows
+    # are grouped below by (table, indexrelid) so a multi-column unique
+    # index contributes exactly ONE representative column (see Part 1 of
+    # the unique-safe-value-generation design: making one component of a
+    # unique tuple unique makes inserts collision-free for the whole row).
+    unique_idx_cols: Dict[str, Dict[Any, List[str]]] = {}
+    cursor.execute(
+        """
+        SELECT c.relname, i.indexrelid, a.attname
+        FROM pg_index i
+        JOIN pg_class c ON c.oid = i.indrelid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
+        WHERE i.indisunique AND i.indpred IS NULL
+          AND n.nspname = %s AND c.relname = ANY(%s)
+        ORDER BY c.relname, i.indexrelid, a.attnum
+        """,
+        (nsp, table_list),
+    )
+    for tname, indexrelid, attname in cursor.fetchall():
+        unique_idx_cols.setdefault(tname, {}).setdefault(indexrelid, []).append(attname)
+
     table_schemas: Dict[str, Dict[str, Any]] = {}
     for tname in table_list:
         col_info = cols_by_table.get(tname)
@@ -979,12 +1177,49 @@ def generate_table_schemas_bulk(
         if primary_key is None:
             # rare: partitioned root with PK only on children -> per-table fallback
             primary_key = _find_primary_key(cursor, tname, schema_name)
+
+        unique_columns: List[str] = []
+        seen_unique_cols = set()
+        for idx_cols in unique_idx_cols.get(tname, {}).values():
+            if len(idx_cols) == 1:
+                candidate = idx_cols[0]
+            else:
+                # multi-column unique index: prefer an integer-typed
+                # column, else the lowest-attnum (first) column
+                candidate = next(
+                    (c for c in idx_cols if is_integer_pk_type(columns.get(c))),
+                    idx_cols[0],
+                )
+            if candidate not in seen_unique_cols:
+                seen_unique_cols.add(candidate)
+                unique_columns.append(candidate)
+
+        # unique_max_seeds: for orderable (integer-family/numeric) unique
+        # columns only -- generated values there must exceed the current
+        # max already in the table. Text/uuid/other unique columns need no
+        # seed (they're namespaced by worker_uid+counter instead) and are
+        # omitted. These columns are indexed, so MAX is a cheap index scan.
+        unique_max_seeds: Dict[str, int] = {}
+        for col in unique_columns:
+            col_dtype = columns.get(col)
+            is_orderable = is_integer_pk_type(col_dtype) or (
+                (col_dtype or "").strip().lower().startswith(("numeric", "decimal"))
+            )
+            if not is_orderable:
+                continue
+            qualified = _qualify_regclass(tname, schema_name)
+            cursor.execute(f"SELECT MAX({col}) FROM {qualified}")
+            row = cursor.fetchone()
+            unique_max_seeds[col] = int(row[0]) if row and row[0] is not None else 0
+
         table_schemas[tname] = {
             "columns": columns,
             "array_types": array_types,
             "primary_key": primary_key,
             "enum_values": enum_by_table.get(tname, {}),
             "bit_info": bit_by_table.get(tname, {}),
+            "unique_columns": unique_columns,
+            "unique_max_seeds": unique_max_seeds,
         }
     return table_schemas
 
@@ -1321,6 +1556,7 @@ def build_insert_values(
     min_col_size_bytes: int = 0,
     column_overrides: Optional[Dict[str, Any]] = None,
     pk_value_fn: Optional[Callable[[], Any]] = None,
+    unique_value_fns: Optional[Dict[str, Callable[[], Any]]] = None,
 ) -> Tuple[str, List[Any]]:
     """Build VALUES list like (v1, v2), (v1, v2) for INSERT ... VALUES ...
 
@@ -1333,14 +1569,20 @@ def build_insert_values(
         in-memory PkPool after a successful INSERT, so later UPDATE/DELETE
         operations can target rows directly instead of scanning the table.
 
-    `pk_value_fn`, if given, is called with no arguments once per row to
-    compute that row's single-column primary-key value deterministically
-    (the dynamic worker pool's monotonic PK scheme -- see
-    compute_monotonic_pk), instead of generating it randomly. Only applies
-    when the table has exactly one PK column; composite keys and
-    PK-less tables ignore it and keep generating that column (if any) via
-    the normal type-aware path. A column override, if configured for the
-    PK column, still takes priority over `pk_value_fn`.
+    Per column, the value is picked with this priority:
+      1. `column_overrides`, if configured for that table.column.
+      2. `unique_value_fns[column_name]`, if given and it returns a
+         non-None value (see compute_unique_safe_value) -- guaranteed-unique
+         generation for any single-column unique surface (PK, UNIQUE
+         constraint, standalone unique index), any type. If the fn returns
+         None (type it can't drive, or an unusable encoding), falls through
+         to the next priority instead of using None as the value.
+      3. `pk_value_fn`, if given -- the dynamic worker pool's monotonic PK
+         scheme (see compute_monotonic_pk). Only applies to the table's
+         single PK column; composite keys and PK-less tables ignore it.
+         Kept for back-compat / callers that don't populate
+         `unique_value_fns` for the PK column.
+      4. normal type-aware random generation, unchanged.
     """
     primary_key = table_schemas[table_name].get("primary_key")
     if isinstance(primary_key, str):
@@ -1363,9 +1605,21 @@ def build_insert_values(
                 and len(pk_cols) == 1
                 and column_name == pk_cols[0]
             )
+
+            unique_fn = (unique_value_fns or {}).get(column_name)
+            unique_value = unique_fn() if (not override_spec and unique_fn is not None) else None
+            used_unique_value = unique_value is not None
+
             if override_spec:
                 value = generate_override_value(override_spec)
                 values.append(f"'{value}'" if value is not None else "NULL")
+            elif used_unique_value:
+                value = unique_value
+                if isinstance(value, str):
+                    escaped_value = value.replace("'", "''")
+                    values.append(f"'{escaped_value}'")
+                else:
+                    values.append(f"'{value}'")
             elif is_monotonic_pk_col:
                 value = pk_value_fn()
                 values.append(f"'{value}'" if value is not None else "NULL")

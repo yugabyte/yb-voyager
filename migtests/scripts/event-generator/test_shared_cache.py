@@ -420,6 +420,35 @@ class TestBuildCacheCallsGenerateTableSchemas(BuildCacheTestBase):
                 build_cache(cursor, None, list(schemas.keys()), 1000, self.cache_dir)
 
 
+class TestUniqueColumnsRoundTrip(BuildCacheTestBase):
+    """unique_columns / unique_max_seeds (additive keys generate_table_schemas_bulk
+    now includes, for unique-safe value generation) must survive build_cache
+    -> load_schema exactly like every other schema.json key -- build_cache
+    writes utils.generate_table_schemas_bulk's return value verbatim, so
+    these ride along with no shared_cache.py changes needed."""
+
+    def test_unique_columns_and_max_seeds_round_trip_verbatim(self):
+        schemas = {
+            "users": _full_schema_meta(
+                columns={"id": "integer", "email": "character varying(50)", "amount": "integer"},
+                primary_key=["id"],
+            ),
+        }
+        schemas["users"]["unique_columns"] = ["id", "email"]
+        schemas["users"]["unique_max_seeds"] = {"id": 42}
+        catalog = {"users": {"pk_cols": ["id"], "rows": [(i,) for i in range(1, 6)]}}
+        cursor = FakeCursor(catalog)
+
+        with mock.patch.object(utils, "generate_table_schemas_bulk", return_value=schemas):
+            version = build_cache(cursor, None, ["users"], 1000, self.cache_dir)
+
+        loaded = load_schema(self.cache_dir, version)
+        self.assertEqual(loaded["users"]["unique_columns"], ["id", "email"])
+        self.assertEqual(loaded["users"]["unique_max_seeds"], {"id": 42})
+        # And every pre-existing key is still there, unaffected.
+        self.assertEqual(loaded["users"]["primary_key"], ["id"])
+
+
 class TestBuildCachePkSnapshotLogic(BuildCacheTestBase):
     def setUp(self):
         super().setUp()

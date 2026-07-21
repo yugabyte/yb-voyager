@@ -29,6 +29,7 @@ from utils import (
     classify_retry,
     compute_backoff_delay,
     compute_monotonic_pk,
+    compute_unique_safe_value,
     execute_with_retry,
     get_table_max_pk,
     is_integer_pk_type,
@@ -430,6 +431,185 @@ class TestBuildWorkerGovernor(unittest.TestCase):
         self.assertEqual(governor.default_events_per_second, 777)
 
 
+# --------------------------------------------------------------------------
+# compute_unique_safe_value: unique-safe value generation for every
+# single-column unique surface (PK, UNIQUE constraint, standalone unique
+# index), any type -- Part 3 of the unique-safe-value-generation design.
+# --------------------------------------------------------------------------
+
+class TestComputeUniqueSafeValue(unittest.TestCase):
+    def test_integer_type_unique_across_counters(self):
+        values = {
+            compute_unique_safe_value("integer", worker_uid=3, pk_stride=100, counter=c, max_seed=0)
+            for c in range(50)
+        }
+        self.assertEqual(len(values), 50)
+
+    def test_integer_type_disjoint_across_worker_uids(self):
+        # worker_uid < pk_stride keeps per-worker ranges disjoint, exactly
+        # like compute_monotonic_pk.
+        seen = set()
+        for worker_uid in range(10):
+            for counter in range(20):
+                v = compute_unique_safe_value("bigint", worker_uid, pk_stride=100, counter=counter, max_seed=0)
+                self.assertNotIn(v, seen)
+                seen.add(v)
+
+    def test_integer_value_always_exceeds_max_seed(self):
+        for counter in range(10):
+            v = compute_unique_safe_value("integer", worker_uid=2, pk_stride=50, counter=counter, max_seed=1000)
+            self.assertGreater(v, 1000)
+
+    def test_numeric_type_uses_same_formula_as_integer(self):
+        v_int = compute_unique_safe_value("integer", 5, 100, 3, max_seed=10)
+        v_num = compute_unique_safe_value("numeric(10,2)", 5, 100, 3, max_seed=10)
+        self.assertEqual(v_int, v_num)
+
+    def test_bigint_overflow_returns_none(self):
+        # seed at the true bigint max so +1 overflows -> None (fall back to random)
+        v = compute_unique_safe_value(
+            "bigint", worker_uid=1, pk_stride=1, counter=1, max_seed=9_223_372_036_854_775_807
+        )
+        self.assertIsNone(v)
+
+    def test_varchar_no_char_max_returns_plain_worker_counter_encoding(self):
+        v = compute_unique_safe_value("text", worker_uid=7, pk_stride=100, counter=3)
+        self.assertEqual(v, "u7_3")
+
+    def test_varchar_result_length_within_char_max(self):
+        for counter in range(5):
+            v = compute_unique_safe_value(
+                "character varying(20)", worker_uid=12345, pk_stride=100, counter=counter, char_max=20
+            )
+            self.assertIsNotNone(v)
+            self.assertLessEqual(len(v), 20)
+
+    def test_varchar_falls_back_to_base36_when_plain_encoding_too_long(self):
+        # f"u999_123456" (len 12) exceeds char_max=10, forcing the compact
+        # base36-encoded path.
+        v = compute_unique_safe_value("varchar", worker_uid=999, pk_stride=100, counter=123456, char_max=10)
+        self.assertIsNotNone(v)
+        self.assertLessEqual(len(v), 10)
+        self.assertTrue(v.startswith("u"))
+
+    def test_varchar_unique_across_worker_uids_and_counters_with_tight_char_max(self):
+        seen = set()
+        for worker_uid in range(5):
+            for counter in range(5):
+                v = compute_unique_safe_value("varchar", worker_uid, pk_stride=100, counter=counter, char_max=8)
+                self.assertIsNotNone(v)
+                self.assertNotIn(v, seen)
+                seen.add(v)
+
+    def test_varchar_char_max_too_small_returns_none(self):
+        v = compute_unique_safe_value("varchar", worker_uid=1, pk_stride=100, counter=1, char_max=1)
+        self.assertIsNone(v)
+
+    def test_uuid_deterministic(self):
+        v1 = compute_unique_safe_value("uuid", worker_uid=4, pk_stride=100, counter=9)
+        v2 = compute_unique_safe_value("uuid", worker_uid=4, pk_stride=100, counter=9)
+        self.assertEqual(v1, v2)
+
+    def test_uuid_unique_across_counters_and_worker_uids(self):
+        seen = set()
+        for worker_uid in range(5):
+            for counter in range(5):
+                v = compute_unique_safe_value("uuid", worker_uid, pk_stride=100, counter=counter)
+                self.assertNotIn(v, seen)
+                seen.add(v)
+
+    def test_unsupported_type_returns_none(self):
+        self.assertIsNone(compute_unique_safe_value("boolean", worker_uid=1, pk_stride=1, counter=1))
+        self.assertIsNone(compute_unique_safe_value("date", worker_uid=1, pk_stride=1, counter=1))
+        self.assertIsNone(compute_unique_safe_value(None, worker_uid=1, pk_stride=1, counter=1))
+
+
+# --------------------------------------------------------------------------
+# build_insert_values' new unique_value_fns hook -- Part 4 of the
+# unique-safe-value-generation design.
+# --------------------------------------------------------------------------
+
+class TestBuildInsertValuesUniqueValueFns(unittest.TestCase):
+    def _schema(self):
+        return {
+            "widgets": {
+                "columns": {"id": "integer", "code": "character varying(20)", "amount": "integer"},
+                "primary_key": ["id"],
+                "array_types": {},
+                "enum_values": {},
+                "bit_info": {},
+            }
+        }
+
+    def test_unique_value_fn_used_for_configured_column(self):
+        schema = self._schema()
+        calls = {"n": 0}
+
+        def code_fn():
+            calls["n"] += 1
+            return f"code-{calls['n']}"
+
+        values_str, _ = build_insert_values(schema, "widgets", 2, unique_value_fns={"code": code_fn})
+        self.assertEqual(calls["n"], 2)
+        self.assertIn("'code-1'", values_str)
+        self.assertIn("'code-2'", values_str)
+
+    def test_column_override_takes_priority_over_unique_value_fn(self):
+        schema = self._schema()
+        called = {"n": 0}
+
+        def code_fn():
+            called["n"] += 1
+            return "should-not-be-used"
+
+        overrides = {"widgets": {"code": {"type": "choice", "values": ["fixed-value"]}}}
+        values_str, _ = build_insert_values(
+            schema, "widgets", 2, column_overrides=overrides, unique_value_fns={"code": code_fn},
+        )
+        self.assertEqual(called["n"], 0)
+        self.assertEqual(values_str.count("'fixed-value'"), 2)
+
+    def test_unique_value_fn_returning_none_falls_back_to_random(self):
+        schema = self._schema()
+
+        def code_fn():
+            return None
+
+        values_str, _ = build_insert_values(schema, "widgets", 1, unique_value_fns={"code": code_fn})
+        # Falls through to normal random varchar generation -- just confirm
+        # a value was produced for every column (no crash, no stray NULLs
+        # for a NOT-NULL-shaped varchar column).
+        self.assertEqual(values_str.count("'"), 6)  # 3 columns * 2 quotes each
+
+    def test_unique_value_fn_takes_priority_over_pk_value_fn_for_same_column(self):
+        schema = self._schema()
+        pk_calls = {"n": 0}
+
+        def pk_fn():
+            pk_calls["n"] += 1
+            return 999999
+
+        def id_unique_fn():
+            return 42
+
+        _, pk_values = build_insert_values(
+            schema, "widgets", 1, pk_value_fn=pk_fn, unique_value_fns={"id": id_unique_fn},
+        )
+        self.assertEqual(pk_calls["n"], 0)  # unique_value_fns wins; pk_value_fn never invoked
+        self.assertEqual(pk_values, [42])
+
+    def test_pk_value_fn_still_works_when_unique_value_fns_is_none(self):
+        schema = self._schema()
+        counter = {"n": 0}
+
+        def pk_fn():
+            counter["n"] += 1
+            return 500 + counter["n"]
+
+        _, pk_values = build_insert_values(schema, "widgets", 2, pk_value_fn=pk_fn, unique_value_fns=None)
+        self.assertEqual(pk_values, [501, 502])
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -475,3 +655,35 @@ class TestSmartDriverLoadBalance(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestUniqueSafeIntegerWidthOverflow(unittest.TestCase):
+    """compute_unique_safe_value must fall back (None) once the monotonic
+    value would exceed the column type's own integer ceiling, not just bigint's."""
+
+    def test_smallint_falls_back_past_int2_max(self):
+        # small counter fits; a large one blows past 32767 -> None
+        self.assertIsInstance(
+            utils.compute_unique_safe_value("smallint", 0, 100000, 0, max_seed=0), int)
+        self.assertIsNone(
+            utils.compute_unique_safe_value("smallint", 0, 100000, 1, max_seed=0))
+
+    def test_integer_falls_back_past_int4_max(self):
+        # 100000 * counter crosses 2_147_483_647 around counter ~21475
+        self.assertIsInstance(
+            utils.compute_unique_safe_value("integer", 0, 100000, 100, max_seed=0), int)
+        self.assertIsNone(
+            utils.compute_unique_safe_value("integer", 0, 100000, 30000, max_seed=0))
+
+    def test_bigint_still_has_wide_headroom(self):
+        # a value that overflows int4 is fine for bigint
+        v = utils.compute_unique_safe_value("bigint", 0, 100000, 30000, max_seed=0)
+        self.assertIsInstance(v, int)
+        self.assertGreater(v, 2147483647)
+
+    def test_returned_int_values_never_exceed_type_max(self):
+        for dtype, ceiling in (("smallint", 32767), ("integer", 2147483647)):
+            for counter in range(0, 40000, 137):
+                v = utils.compute_unique_safe_value(dtype, 3, 100000, counter, max_seed=5)
+                if v is not None:
+                    self.assertLessEqual(v, ceiling, (dtype, counter))
