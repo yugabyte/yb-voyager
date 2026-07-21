@@ -520,6 +520,70 @@ def discover_nodes(cursor):
         return []
 
 
+class NodeResetTracker:
+    """Turn per-node raw pg_stat_statements cumulative counts into per-node
+    MONOTONIC totals, immune to counter resets.
+
+    Why this exists: pg_stat_statements is cleared whenever a tserver's
+    postgres restarts -- and on a distressed cluster a node that
+    heartbeat-times-out *does* get restarted. Its raw cumulative sum then
+    drops from (say) 300k back to ~0. If the controller measures throughput as
+    one cluster-wide delta (`sum_now - sum_prev`), that single node's drop
+    outweighs every healthy node's growth, the delta goes negative, gets
+    clamped to 0, and the whole interval reports achieved=0 -- a *false zero*
+    that makes the reactive loop pile on workers into a cluster that was
+    actually keeping up. One bouncing node must not zero out the measured
+    throughput of the five healthy ones.
+
+    This tracker fixes that per node: when a node's fresh reading is below its
+    last reading, the node reset, so we bank the pre-reset value into a
+    per-node offset and keep going. `offset + raw` is therefore monotonic
+    across restarts, and summing it across nodes yields a cluster total that
+    only ever rises -- so `delta = total_now - total_prev` stays honest.
+
+    Pure and DB-free by design (no psycopg2, no clock) so it is unit-testable;
+    the meters below feed it raw readings.
+
+    Known limitation: reset detection is poll-based. If a node resets *and*
+    re-grows past its previous reading between two polls, the reset is
+    invisible and that epoch is undercounted. This needs missed polls across a
+    restart plus fast regrowth -- rare -- and is unavoidable without a
+    server-side generation counter.
+    """
+
+    def __init__(self):
+        self._last = {}    # host -> last raw reading seen
+        self._offset = {}  # host -> banked total from epochs before resets
+
+    def update(self, host, raw):
+        """Record a fresh raw reading for `host`; return its monotonic total."""
+        last = self._last.get(host)
+        if last is not None and raw < last:
+            # Counter went backwards -> the node restarted (pgss cleared).
+            # Bank everything it had accumulated before the reset.
+            self._offset[host] = self._offset.get(host, 0.0) + last
+        self._last[host] = raw
+        return self._offset.get(host, 0.0) + raw
+
+    def current(self, host):
+        """A node's last known monotonic total WITHOUT advancing its state.
+        Used when a poll fails: reuse the last value rather than counting 0.
+        """
+        return self._offset.get(host, 0.0) + self._last.get(host, 0.0)
+
+    def total(self):
+        """Monotonic cluster total across every node seen so far."""
+        return sum(self._offset.get(h, 0.0) + v for h, v in self._last.items())
+
+    def reset(self):
+        """Forget all state. Call after an *intentional*
+        pg_stat_statements_reset() so the next reading is a fresh baseline
+        (not mistaken for banked pre-reset history).
+        """
+        self._last.clear()
+        self._offset.clear()
+
+
 class CrossNodeEventMeter:
     """Sum pg_stat_statements DML rows across ALL cluster nodes.
 
@@ -535,12 +599,17 @@ class CrossNodeEventMeter:
     that fails to answer a poll contributes its last known value (not 0), so
     the cluster-wide delta the controller computes never spikes or dips from
     a transient node hiccup.
+
+    Reset-safe: per-node counter resets (a restarting tserver clears
+    pg_stat_statements) are absorbed by a NodeResetTracker, so one bouncing
+    node never drags the cluster-wide sum negative and manufactures a false
+    zero for the healthy nodes.
     """
 
     def __init__(self, conn_kwargs, nodes):
         self.conns = []
         self.hosts = []
-        self.last = {}
+        self._tracker = NodeResetTracker()
         for host, port in nodes:
             try:
                 kw = dict(conn_kwargs)
@@ -550,7 +619,6 @@ class CrossNodeEventMeter:
                 c.autocommit = True
                 self.conns.append(c)
                 self.hosts.append(host)
-                self.last[host] = 0.0
             except psycopg2.Error as e:
                 print("[meter] WARNING: no measurement connection to {} ({}); "
                       "excluding it from rate totals".format(host, e))
@@ -562,10 +630,10 @@ class CrossNodeEventMeter:
                 cur = c.cursor()
                 v = query_events_sum(cur)
                 cur.close()
-                self.last[host] = v
+                total += self._tracker.update(host, v)
             except psycopg2.Error:
-                v = self.last.get(host, 0.0)  # transient node hiccup: reuse last
-            total += v
+                # transient node hiccup: reuse last monotonic value, don't advance
+                total += self._tracker.current(host)
         return total
 
     def reset(self):
@@ -576,8 +644,7 @@ class CrossNodeEventMeter:
                 cur.close()
             except psycopg2.Error:
                 pass
-        for h in self.last:
-            self.last[h] = 0.0
+        self._tracker.reset()
 
     def node_count(self):
         return len(self.conns)
@@ -588,6 +655,39 @@ class CrossNodeEventMeter:
                 c.close()
             except Exception:
                 pass
+
+
+class SingleNodeEventMeter:
+    """Reset-safe rate source for the single-node path.
+
+    Wraps the controller's own cursor and routes its readings through a
+    NodeResetTracker, so a lone monitored node that restarts (clearing
+    pg_stat_statements) banks its pre-reset total instead of dropping an
+    interval to a false zero -- the same guarantee CrossNodeEventMeter gives
+    the multi-node path, minus the per-node fan-out.
+    """
+
+    _HOST = "local"
+
+    def __init__(self, cursor):
+        self.cursor = cursor
+        self._tracker = NodeResetTracker()
+
+    def events_sum(self):
+        try:
+            v = query_events_sum(self.cursor)
+        except psycopg2.Error:
+            return self._tracker.current(self._HOST)
+        return self._tracker.update(self._HOST, v)
+
+    def reset(self):
+        reset_pg_stat_statements(self.cursor)
+        self._tracker.reset()
+
+    def close(self):
+        # No-op: the wrapped cursor belongs to the controller's shared
+        # connection, which is closed by the caller, not here.
+        pass
 
 
 def reset_pg_stat_statements(cursor):
@@ -831,8 +931,9 @@ def run_controller(base_config, rate_csv_path=None):
         measure_fn = meter.events_sum
         reset_fn = meter.reset
     else:
-        measure_fn = lambda: query_events_sum(cursor)
-        reset_fn = lambda: reset_pg_stat_statements(cursor)
+        meter = SingleNodeEventMeter(cursor)
+        measure_fn = meter.events_sum
+        reset_fn = meter.reset
 
     table_list = resolve_table_list(cursor, gen)
 
