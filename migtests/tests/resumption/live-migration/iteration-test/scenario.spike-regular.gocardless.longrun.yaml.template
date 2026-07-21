@@ -55,7 +55,7 @@ generator_source:
     generator:
       schema_name: public
       manual_table_list: []
-      exclude_table_list: [cutover_table]
+      exclude_table_list: [cutover_table, migration_validate_segments]
       num_iterations: -1
       wait_after_operations: 200
       wait_duration_seconds: 1
@@ -80,7 +80,7 @@ generator_target:
     generator:
       schema_name: public
       manual_table_list: []
-      exclude_table_list: [cutover_table]
+      exclude_table_list: [cutover_table, migration_validate_segments]
       num_iterations: -1
       # Required by the generator config schema; inert when rate_control drives.
       wait_after_operations: 0
