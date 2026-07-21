@@ -93,17 +93,73 @@ run_ysql() {
 	PGPASSWORD="${TARGET_DB_ADMIN_PASSWORD}" psql -P pager=off -h ${TARGET_DB_HOST} -p ${TARGET_DB_PORT} -U ${TARGET_DB_ADMIN_USER} -d ${db_name} -c "${sql}"
 }
 
-# TODO: Remove this helper (and all its call-sites) once the underlying
+# Newer YB versions (2026.1+) no longer support concurrent CREATE DATABASE.
+# When parallel migtests create/drop databases on the same target at once, a
+# concurrent CREATE can partially apply and then abort with "Catalog Version
+# Mismatch", leaving an orphaned keyspace with no pg_database row. A later
+# DROP DATABASE IF EXISTS is then a no-op (nothing in the catalog to drop) and
+# the next CREATE fails with "Keyspace '<name>' already exists" — which retries
+# cannot recover from.
+#
+# So we serialize create/drop with a host-level file lock: only one test does a
+# create-or-drop DATABASE at a time, and the collision never happens. flock only
+# serializes processes that share this lockfile's filesystem (i.e. run on the
+# same agent), which our parallel migtests do. It does NOT serialize whole tests
+# — only the few seconds of create/drop.
+YB_DB_LOCK_FILE="${YB_DB_LOCK_FILE:-/tmp/yb_create_drop_database.lock}"
+
+# TODO: Remove this terminate step (and the DB-14314 note) once the underlying
 # Voyager bug is fixed: https://yugabyte.atlassian.net/browse/DB-14314
-# target-side disconnect() does not close the sql.DB handle, leaving
-# stale sessions that block DROP DATABASE.
-# Once that is fixed, a plain `DROP DATABASE IF EXISTS "<name>";` should
-# suffice and this workaround can be removed.
-ysql_terminate_and_drop_database() {
+# target-side disconnect() does not close the sql.DB handle, leaving stale
+# sessions that block DROP DATABASE. Once fixed, a plain
+# `DROP DATABASE IF EXISTS "<name>";` suffices and the terminate can be removed.
+#
+# Unlocked core: assumes the caller already holds YB_DB_LOCK_FILE.
+_ysql_terminate_and_drop_database_unlocked() {
 	local target_db_to_drop=$1
 	run_ysql yugabyte "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${target_db_to_drop}' AND pid != pg_backend_pid();" || true
 	sleep 1
 	run_ysql yugabyte "DROP DATABASE IF EXISTS \"${target_db_to_drop}\";"
+}
+
+# Public entrypoint for standalone drops (e.g. end-of-test cleanup). Takes the
+# same lock as create_target_database so create and drop are serialized together.
+ysql_terminate_and_drop_database() {
+	(
+		flock 200
+		_ysql_terminate_and_drop_database_unlocked "$1"
+	) 200>"${YB_DB_LOCK_FILE}"
+}
+
+# (Re)create the target database under the same lock. Holds the lock across the
+# drop+create so no other test can create/drop concurrently. Retries stay as a
+# cheap fallback for any residual transient failure (should be rare once
+# create/drop are serialized).
+# Usage: create_target_database <db_name> [colocated]   # colocated defaults to true
+create_target_database() {
+	local target_db=$1
+	local colocated=${2:-true}
+	local create_sql="CREATE DATABASE \"${target_db}\""
+	if [ "${colocated}" = "true" ]; then
+		create_sql="${create_sql} WITH COLOCATION=TRUE"
+	fi
+
+	(
+		flock 200
+		local max_attempts=5
+		local attempt=1
+		while [ ${attempt} -le ${max_attempts} ]; do
+			_ysql_terminate_and_drop_database_unlocked "${target_db}" || true
+			if run_ysql yugabyte "${create_sql}"; then
+				exit 0
+			fi
+			echo "CREATE DATABASE for '${target_db}' failed (attempt ${attempt}/${max_attempts}); retrying in 10s..."
+			sleep 10
+			attempt=$((attempt + 1))
+		done
+		echo "ERROR: CREATE DATABASE for '${target_db}' failed after ${max_attempts} attempts"
+		exit 1
+	) 200>"${YB_DB_LOCK_FILE}"
 }
 
 ysql_import_file() {

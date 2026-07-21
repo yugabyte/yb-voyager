@@ -98,8 +98,7 @@ main() {
 	compare_json_reports "${TEST_DIR}/expected_files/expected_schema_analysis_report.json" "${EXPORT_DIR}/reports/schema_analysis_report.json"
 
 	step "Create target database."
-	ysql_terminate_and_drop_database "${TARGET_DB_NAME}"
-	run_ysql yugabyte "CREATE DATABASE \"${TARGET_DB_NAME}\" with COLOCATION=TRUE"
+	create_target_database "${TARGET_DB_NAME}" true
 
 	step "Import schema."
 	import_schema --continue-on-error t

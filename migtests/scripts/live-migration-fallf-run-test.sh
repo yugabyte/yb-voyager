@@ -141,11 +141,10 @@ main() {
 	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.json
 
 	step "Create target database."
-	ysql_terminate_and_drop_database "${TARGET_DB_NAME}"
 	if [ "${SOURCE_DB_TYPE}" = "postgresql" ] || [ "${SOURCE_DB_TYPE}" = "oracle" ]; then
-		run_ysql yugabyte "CREATE DATABASE \"${TARGET_DB_NAME}\" with COLOCATION=TRUE"
+		create_target_database "${TARGET_DB_NAME}" true
 	else
-		run_ysql yugabyte "CREATE DATABASE \"${TARGET_DB_NAME}\""
+		create_target_database "${TARGET_DB_NAME}" false
 	fi
 
 	step "Import schema."
