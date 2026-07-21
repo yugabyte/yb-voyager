@@ -432,3 +432,46 @@ class TestBuildWorkerGovernor(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSmartDriverLoadBalance(unittest.TestCase):
+    """connection.load_balance -> YB smart-driver kwargs (is_load_balance_enabled,
+    _load_balance_value, get_connection_kwargs_from_config)."""
+
+    def _cfg(self, **conn_extra):
+        conn = {"database": "d", "user": "u", "password": "p",
+                "host": "h", "port": 5433}
+        conn.update(conn_extra)
+        return {"connection": conn}
+
+    def test_disabled_by_default(self):
+        self.assertFalse(utils.is_load_balance_enabled(self._cfg()["connection"]))
+        kw = utils.get_connection_kwargs_from_config(self._cfg())
+        self.assertNotIn("load_balance", kw)
+        self.assertNotIn("topology_keys", kw)
+        self.assertEqual(kw["host"], "h")
+
+    def test_falsey_strings_disabled(self):
+        for v in ("false", "0", "no", "off", ""):
+            self.assertFalse(utils.is_load_balance_enabled({"load_balance": v}), v)
+
+    def test_bool_true_becomes_string_true(self):
+        kw = utils.get_connection_kwargs_from_config(self._cfg(load_balance=True))
+        self.assertEqual(kw["load_balance"], "true")
+
+    def test_string_value_passes_through(self):
+        kw = utils.get_connection_kwargs_from_config(self._cfg(load_balance="only-primary"))
+        self.assertEqual(kw["load_balance"], "only-primary")
+
+    def test_topology_keys_included_only_when_lb_on(self):
+        kw = utils.get_connection_kwargs_from_config(
+            self._cfg(load_balance=True, topology_keys="aws.us-west-2.us-west-2a"))
+        self.assertEqual(kw["topology_keys"], "aws.us-west-2.us-west-2a")
+        # topology_keys without load_balance is ignored
+        kw2 = utils.get_connection_kwargs_from_config(
+            self._cfg(topology_keys="aws.us-west-2.us-west-2a"))
+        self.assertNotIn("topology_keys", kw2)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -689,7 +689,31 @@ def run_controller(base_config, rate_csv_path=None):
     schema_name = gen["schema_name"]
     conn_kwargs = utils.get_connection_kwargs_from_config(base_config)
 
-    conn = psycopg2.connect(**conn_kwargs)
+    lb_on = utils.is_load_balance_enabled(base_config.get("connection", {}))
+    if lb_on:
+        print("[conn] YugabyteDB smart-driver load balancing ON "
+              "(load_balance={}{}); connections distribute across all tservers.".format(
+                  conn_kwargs.get("load_balance"),
+                  ", topology_keys=" + conn_kwargs["topology_keys"] if "topology_keys" in conn_kwargs else ""))
+
+    try:
+        conn = psycopg2.connect(**conn_kwargs)
+    except psycopg2.Error as e:
+        # Stock psycopg2 rejects `load_balance` client-side as ProgrammingError
+        # ("invalid connection option"); a mismatched build may surface it as
+        # OperationalError. Catch the base class and key off the message.
+        if lb_on and "load_balance" in str(e):
+            print(
+                "ERROR: connection.load_balance is set, but the installed psycopg2 does not "
+                "support smart-driver load balancing.\n"
+                "       Install the YugabyteDB smart driver (its psycopg2 build shadows "
+                "`import psycopg2`):\n"
+                "         pip install psycopg2-yugabytedb-binary   # prebuilt, no compiler\n"
+                "         pip install psycopg2-yugabytedb          # source build (needs libpq-dev)\n"
+                "       or remove connection.load_balance to use stock psycopg2 (single-node)."
+            )
+            sys.exit(1)
+        raise
     conn.autocommit = True
     cursor = conn.cursor()
 
