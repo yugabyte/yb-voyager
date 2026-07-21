@@ -97,6 +97,16 @@ CREATE TABLE multi_unique_index_nulls_not_distinct (
 );
 CREATE UNIQUE INDEX idx_name_nnd ON multi_unique_index_nulls_not_distinct (first_name, last_name) NULLS NOT DISTINCT;
 
+-- Single-column unique index with the default NULLS DISTINCT: NULLs are all
+-- distinct, so multiple NULL rows coexist and a NULL free->reuse is NOT a conflict
+-- (contrast with single_unique_index_nulls_not_distinct above). Exercises the
+-- NULLS DISTINCT branch of the per-index conflict handling.
+CREATE TABLE single_unique_index_nulls_distinct (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255)
+);
+CREATE UNIQUE INDEX idx_email_nd ON single_unique_index_nulls_distinct (email);
+
 -- Partitioned table with a unique index. A unique key on a partitioned table
 -- must include the partition-key column, so the key is (email, region).
 CREATE TABLE partitioned_unique_conflict (
@@ -123,6 +133,7 @@ ALTER TABLE expression_based_unique_index REPLICA IDENTITY FULL;
 ALTER TABLE test_partial_unique_index REPLICA IDENTITY FULL;
 ALTER TABLE single_unique_index_nulls_not_distinct REPLICA IDENTITY FULL;
 ALTER TABLE multi_unique_index_nulls_not_distinct REPLICA IDENTITY FULL;
+ALTER TABLE single_unique_index_nulls_distinct REPLICA IDENTITY FULL;
 ALTER TABLE partitioned_unique_conflict_east REPLICA IDENTITY FULL;
 ALTER TABLE partitioned_unique_conflict_west REPLICA IDENTITY FULL;
 ALTER TABLE partitioned_unique_conflict_default REPLICA IDENTITY FULL;

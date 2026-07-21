@@ -342,3 +342,27 @@ INSERT INTO partitioned_unique_conflict (id, region, email) VALUES (:base + 8710
 UPDATE partitioned_unique_conflict SET email = ('tgt_puc_user3_moved@conflict.test' || :cycle) WHERE id = :base + 87003 AND region = 'west';
 INSERT INTO partitioned_unique_conflict (id, region, email) VALUES (:base + 87103, 'west', ('tgt_puc_user3@conflict.test' || :cycle));
 COMMIT;
+
+-- ============================================================
+-- 13. single_unique_index_nulls_distinct (id PK, UNIQUE INDEX(email) -- default NULLS DISTINCT)
+-- Under NULLS DISTINCT multiple NULLs coexist and a NULL free->reuse is NOT a conflict,
+-- so these NULL rows must import without being (wrongly) serialized. A non-null value
+-- conflict is included to confirm real conflicts still fire on this table.
+-- ============================================================
+BEGIN;
+-- Multiple NULL rows coexist under NULLS DISTINCT (no conflict, no violation)
+INSERT INTO single_unique_index_nulls_distinct (id, email) VALUES
+    (:base + 89001, NULL),
+    (:base + 89002, NULL),
+    (:base + 89003, NULL);
+
+-- NULL free->reuse: delete a NULL holder, insert another NULL. Under NULLS DISTINCT
+-- these NULLs do NOT conflict, so the cache must not serialize them.
+DELETE FROM single_unique_index_nulls_distinct WHERE id = :base + 89001;
+INSERT INTO single_unique_index_nulls_distinct (id, email) VALUES (:base + 89101, NULL);
+
+-- Non-null value free->reuse: a real conflict that must still be detected here.
+INSERT INTO single_unique_index_nulls_distinct (id, email) VALUES (:base + 89010, ('tgt_nd_user1@conflict.test' || :cycle));
+UPDATE single_unique_index_nulls_distinct SET email = ('tgt_nd_user1_moved@conflict.test' || :cycle) WHERE id = :base + 89010;
+INSERT INTO single_unique_index_nulls_distinct (id, email) VALUES (:base + 89110, ('tgt_nd_user1@conflict.test' || :cycle));
+COMMIT;
