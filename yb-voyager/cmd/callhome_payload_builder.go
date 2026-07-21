@@ -193,6 +193,7 @@ func anonymizeSourceDBDetails(source *srcdb.Source) callhome.SourceDBDetails {
 		DBSize:             source.DBSize,
 		DBSystemIdentifier: source.DBSystemIdentifier,
 		DBID:               source.DBID,
+		SourceDeployment:   source.SourceDeployment,
 		SchemaOids:         source.SchemaOids,
 	}
 

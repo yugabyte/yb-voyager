@@ -3219,7 +3219,7 @@
     "db_type": "postgresql",
     "db_version": "17.6 (Ubuntu 17.6-2.pgdg22.04+1)",
     "host": "",
-    "payload_version": 1.2,
+    "payload_version": 1.3,
     "schema_names": [
       "schema_a1717e859fc83d39",
       "schema_ae9b85f2c9255e63",

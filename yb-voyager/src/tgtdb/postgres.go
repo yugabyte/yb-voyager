@@ -379,6 +379,192 @@ func (pg *TargetPostgreSQL) GetPrimaryKeyConstraintNames(table sqlname.NameTuple
 	return nil, nil
 }
 
+func (pg *TargetPostgreSQL) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []UniqueIndex], error) {
+	log.Infof("getting unique indexes from target Postgres for tables: %v", tableList)
+	// Unique indexes on a partitioned table are often defined on its leaf partitions
+	// rather than the root (e.g. CREATE UNIQUE INDEX ... ON <leaf> (...)). Since import
+	// events only reference the root table, we discover the unique indexes of every leaf
+	// partition (and the root/normal tables themselves) and merge them into the root.
+	//
+	// getPartitionTableToRootTableMap returns, for every table whose root is in tableList,
+	// a mapping of its catalog name ("schema.table") to its root's catalog name. This
+	// includes each leaf partition -> root, and each root/normal table -> itself.
+	tableToRootMap, err := getPartitionTableToRootTableMap(pg.Query, tableList)
+	if err != nil {
+		return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
+	}
+
+	// Fetch unique indexes for all leaves + roots and key them by catalog name.
+	querySchemaList, queryTableList := catalogNamesToSchemaAndTableLists(lo.Keys(tableToRootMap))
+	catalogToIndexes, err := queryPGUniqueIndexesByCatalog(pg.Query, querySchemaList, queryTableList)
+	if err != nil {
+		return nil, err
+	}
+
+	rootCatalogToTuple := make(map[string]sqlname.NameTuple)
+	for _, t := range tableList {
+		rootCatalogToTuple[t.AsQualifiedCatalogName()] = t
+	}
+
+	result := utils.NewStructMap[sqlname.NameTuple, []UniqueIndex]()
+	for catalogName, indexes := range catalogToIndexes {
+		rootCatalogName, ok := tableToRootMap[catalogName]
+		if !ok {
+			// table not under any of the requested roots (possible cross-schema
+			// over-match from the query filter); skip it.
+			continue
+		}
+		rootTuple, ok := rootCatalogToTuple[rootCatalogName]
+		if !ok {
+			return nil, goerrors.Errorf("root table %s not found in requested table list", rootCatalogName)
+		}
+		existing, _ := result.Get(rootTuple)
+		result.Put(rootTuple, mergeUniqueIndexes(existing, indexes))
+	}
+
+	log.Infof("unique indexes from postgres for tables: %v", result)
+	return result, nil
+}
+
+// pgQueryTmplForUniqIndexes returns, for the given schema/table lists, every unique
+// constraint and unique index (excluding primary keys) with its ordered column list.
+// Unique constraints are included via their backing unique indexes in pg_index
+// (contype 'u'); only primary-key indexes (contype 'p') are excluded.
+// It is used for both PostgreSQL and YugabyteDB targets since YugabyteDB is
+// PG-compatible at the catalog level.
+const pgQueryTmplForUniqIndexes = `
+WITH unique_indexes AS (
+    SELECT
+        n.nspname AS table_schema,
+        t.relname AS table_name,
+        i.relname AS index_key,
+        a.attname AS column_name,
+        MIN(array_position(ix.indkey, a.attnum) + 1) AS ordinal_position,
+        -- UNIQUE constraints/indexes can be declared with NULLS NOT DISTINCT (PG 15+);
+        -- the flag lives on pg_index.indnullsnotdistinct.
+        bool_or(COALESCE((to_jsonb(ix) ->> 'indnullsnotdistinct')::boolean, false)) AS nulls_not_distinct
+    FROM
+        pg_index ix
+    JOIN
+        pg_class i ON i.oid = ix.indexrelid
+    JOIN
+        pg_class t ON t.oid = ix.indrelid
+    JOIN
+        pg_namespace n ON n.oid = t.relnamespace
+    JOIN
+        pg_attribute a ON a.attrelid = t.oid
+        AND a.attnum = ANY(ix.indkey)
+    LEFT JOIN
+        pg_constraint c ON ix.indexrelid = c.conindid AND c.contype = 'p'
+    WHERE
+        ix.indisunique = TRUE
+        AND c.contype IS NULL
+        AND n.nspname = ANY('{%s}')
+        AND t.relname = ANY('{%s}')
+    GROUP BY
+        n.nspname, t.relname, i.relname, a.attname
+)
+SELECT
+    table_schema,
+    table_name,
+    index_key,
+    array_agg(column_name ORDER BY ordinal_position) AS columns,
+    bool_or(nulls_not_distinct) AS nulls_not_distinct
+FROM unique_indexes
+GROUP BY table_schema, table_name, index_key
+ORDER BY table_schema, table_name, index_key;
+`
+
+// dedupeUniqueIndexes removes duplicate index definitions, keyed by the ordered
+// column signature. When the same column signature appears more than once (e.g.
+// merged from multiple leaf partitions), the NullsNotDistinct flags are OR-ed so
+// that a stricter (NULLS NOT DISTINCT) definition on any partition wins.
+func dedupeUniqueIndexes(indexes []UniqueIndex) []UniqueIndex {
+	indexByKey := make(map[string]int)
+	result := make([]UniqueIndex, 0, len(indexes))
+	for _, idx := range indexes {
+		key := strings.Join(idx.Columns, ",")
+		if pos, ok := indexByKey[key]; ok {
+			result[pos].NullsNotDistinct = result[pos].NullsNotDistinct || idx.NullsNotDistinct
+			continue
+		}
+		indexByKey[key] = len(result)
+		result = append(result, idx)
+	}
+	return result
+}
+
+// mergeUniqueIndexes merges two index lists, deduplicating by column signature.
+func mergeUniqueIndexes(existing, additional []UniqueIndex) []UniqueIndex {
+	return dedupeUniqueIndexes(append(existing, additional...))
+}
+
+// catalogNamesToSchemaAndTableLists splits a list of "schema.table" catalog names
+// into de-duplicated, parallel-usable schema and table lists suitable for the
+// pgQueryTmplForUniqIndexes filter (which filters schema and table independently).
+func catalogNamesToSchemaAndTableLists(catalogNames []string) (schemaList, tableList []string) {
+	for _, catalogName := range catalogNames {
+		parts := strings.SplitN(catalogName, ".", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		schemaList = append(schemaList, parts[0])
+		tableList = append(tableList, parts[1])
+	}
+	return lo.Uniq(schemaList), lo.Uniq(tableList)
+}
+
+
+// queryPGUniqueIndexesByCatalog runs the PG/YB unique-index discovery query for the
+// given schema/table filter lists and returns a map keyed by "schema.table" catalog
+// name to its list of unique indexes (each an ordered, de-duplicated column list).
+func queryPGUniqueIndexesByCatalog(queryFn func(query string) (*sql.Rows, error), schemaList, tableList []string) (map[string][]UniqueIndex, error) {
+	if len(schemaList) == 0 || len(tableList) == 0 {
+		return map[string][]UniqueIndex{}, nil
+	}
+
+	query := fmt.Sprintf(pgQueryTmplForUniqIndexes,
+		strings.Join(schemaList, ","), strings.Join(tableList, ","))
+	rows, err := queryFn(query)
+	if err != nil {
+		return nil, fmt.Errorf("querying unique indexes: %w", err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Errorf("closing rows for unique indexes: %v", closeErr)
+		}
+	}()
+
+	result := make(map[string][]UniqueIndex)
+	for rows.Next() {
+		var schemaName, tableName, indexKey string
+		var columnsPgTypeArray pgtype.TextArray
+		var nullsNotDistinct bool
+		err := rows.Scan(&schemaName, &tableName, &indexKey, &columnsPgTypeArray, &nullsNotDistinct)
+		if err != nil {
+			return nil, fmt.Errorf("scanning row for unique index: %w", err)
+		}
+		columns := utils.ConvertPgTextArrayToStringSlice(columnsPgTypeArray)
+		if len(columns) == 0 {
+			continue
+		}
+		catalogName := fmt.Sprintf("%s.%s", schemaName, tableName)
+		result[catalogName] = append(result[catalogName], UniqueIndex{
+			Columns:          columns,
+			NullsNotDistinct: nullsNotDistinct,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating rows for unique indexes: %w", err)
+	}
+
+	for catalogName, indexes := range result {
+		result[catalogName] = dedupeUniqueIndexes(indexes)
+	}
+	return result, nil
+}
+
 func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
 	result := []sqlname.NameTuple{}
 
@@ -1237,4 +1423,70 @@ func (pg *TargetPostgreSQL) GetEnabledTriggersAndFks() (enabledTriggers []string
 	}
 
 	return enabledTriggers, enabledFks, nil
+}
+
+// The three methods below satisfy namereg.YBDBInterface, which the name
+// registry requires of every import-to-target driver. They use standard
+// PostgreSQL catalog queries, so they are valid for any PostgreSQL-compatible
+// target — vanilla PostgreSQL and YugabyteDB AMP (which embeds this driver)
+// alike. TargetYugabyteDB keeps its own equivalents.
+
+func (pg *TargetPostgreSQL) GetAllSchemaNamesRaw() ([]string, error) {
+	query := "SELECT schema_name FROM information_schema.schemata"
+	rows, err := pg.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("querying target for schema names: %w", err)
+	}
+	defer rows.Close()
+
+	var schemaNames []string
+	for rows.Next() {
+		var schemaName string
+		if err = rows.Scan(&schemaName); err != nil {
+			return nil, fmt.Errorf("scanning schema name: %w", err)
+		}
+		schemaNames = append(schemaNames, schemaName)
+	}
+	return schemaNames, rows.Err()
+}
+
+func (pg *TargetPostgreSQL) GetAllTableNamesRaw(schemaName string) ([]string, error) {
+	query := fmt.Sprintf(`SELECT table_name
+			  FROM information_schema.tables
+			  WHERE table_type = 'BASE TABLE' AND
+			        table_schema = '%s';`, schemaName)
+	rows, err := pg.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("querying target (%q) for table names: %w", query, err)
+	}
+	defer rows.Close()
+
+	var tableNames []string
+	for rows.Next() {
+		var tableName string
+		if err = rows.Scan(&tableName); err != nil {
+			return nil, fmt.Errorf("scanning table name: %w", err)
+		}
+		tableNames = append(tableNames, tableName)
+	}
+	return tableNames, rows.Err()
+}
+
+func (pg *TargetPostgreSQL) GetAllSequencesRaw(schemaName string) ([]string, error) {
+	query := fmt.Sprintf(`SELECT sequencename FROM pg_sequences WHERE schemaname = '%s';`, schemaName)
+	rows, err := pg.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("querying target (%q) for sequence names: %w", query, err)
+	}
+	defer rows.Close()
+
+	var sequenceNames []string
+	for rows.Next() {
+		var sequenceName string
+		if err = rows.Scan(&sequenceName); err != nil {
+			return nil, fmt.Errorf("scanning sequence name: %w", err)
+		}
+		sequenceNames = append(sequenceNames, sequenceName)
+	}
+	return sequenceNames, rows.Err()
 }

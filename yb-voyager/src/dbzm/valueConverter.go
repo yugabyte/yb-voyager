@@ -113,7 +113,10 @@ func getDebeziumValueConverterSuite(tconf tgtdb.TargetConf) (map[string]tgtdbsui
 			}
 		}
 		return oraValueConverterSuite, nil
-	case tgtdb.YUGABYTEDB, tgtdb.POSTGRESQL:
+	case tgtdb.YUGABYTEDB, tgtdb.YUGABYTEDB_AMP, tgtdb.POSTGRESQL:
+		// yb-amp is a PostgreSQL-wire compute; it consumes the same Debezium
+		// value representations as PostgreSQL/YugabyteDB. Used by both the live
+		// snapshot and the CDC streaming value converters.
 		return tgtdbsuite.YBValueConverterSuite, nil
 	default:
 		return nil, goerrors.Errorf("no converter suite found for %s", tconf.TargetDBType)

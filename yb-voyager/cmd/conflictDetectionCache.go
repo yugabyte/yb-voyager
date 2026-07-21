@@ -125,12 +125,12 @@ type ConflictDetectionCache struct {
 	*/
 	m                    map[int64]*tgtdb.Event
 	cond                 *sync.Cond
-	tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, [][]string]
+	tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]
 	evChans              []chan *tgtdb.Event
 	sourceDBType         string
 }
 
-func NewConflictDetectionCache(tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, [][]string], evChans []chan *tgtdb.Event, sourceDBType string) *ConflictDetectionCache {
+func NewConflictDetectionCache(tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex], evChans []chan *tgtdb.Event, sourceDBType string) *ConflictDetectionCache {
 	c := &ConflictDetectionCache{}
 	c.m = make(map[int64]*tgtdb.Event)
 	c.cond = sync.NewCond(&c.Mutex)
@@ -168,6 +168,7 @@ retry:
 					log.Infof("channel %d is full with size %d, not sending FLUSH_BATCH_EVENT", i, len(c.evChans[i]))
 				}
 			}
+			injectUniqueKeyConflictDetectedFailpoint(cachedEvent, incomingEvent)
 			log.Infof("waiting for event(vsn=%d) to be complete before processing event(vsn=%d)", cachedEvent.Vsn, incomingEvent.Vsn)
 			// wait will release the lock and wait for a broadcast signal
 			c.cond.Wait()
@@ -303,9 +304,11 @@ DELETE-UPDATE
 	c.before-i.after
 
 
-TODO: partition by table - no need to do conflict detection
-TODO: optimization if no partial unique index then no need to check before fields
-TODO: prometheus metrics for unique conflict detection logic
+NOTE: tableToUniqueIndexes is fetched live from the import target DB (see initializeConflictDetectionCache),
+which is the DB that actually enforces the unique constraints. Oracle sources always use PARTITION_BY_TABLE
+during live migration, so conflict detection never runs for them.
+TODO: optimization if no partial unique index then no need to check before=before
+TODO: DO not add-to-cache OR check-for-conflicts if the UPDATE does not change UK columns or partial predicate columns
 */
 
 func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomingEvent *tgtdb.Event) bool {
@@ -320,8 +323,8 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 	uniqueIndexes, _ := c.tableToUniqueIndexes.Get(cachedEvent.TableNameTup)
 	if isTargetDBExporter(incomingEvent.ExporterRole) {
 		uniqueKeyColumns := make([]string, 0) // flattening the unique indexes to get the unique key columns
-		for _, indexColumns := range uniqueIndexes {
-			uniqueKeyColumns = append(uniqueKeyColumns, indexColumns...)
+		for _, index := range uniqueIndexes {
+			uniqueKeyColumns = append(uniqueKeyColumns, index.Columns...)
 		}
 		/*
 			Not checking for value of unique key values conflict in case of export from yb because of inconsistency issues in before values of events provided by yb-cdc
@@ -354,30 +357,31 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 		return conflict
 	}
 
-	for _, indexColumns := range uniqueIndexes {
-		if c.uniqueIndexConflicts(cachedEvent, incomingEvent, indexColumns) {
+	for _, index := range uniqueIndexes {
+		if c.uniqueIndexConflicts(cachedEvent, incomingEvent, index) {
 			return true
 		}
 	}
 	return false
 }
 
-func (c *ConflictDetectionCache) uniqueIndexConflicts(cachedEvent *tgtdb.Event, incomingEvent *tgtdb.Event, indexColumns []string) bool {
-	if c.checkUniqueIndexBeforeAfterConflict(cachedEvent, incomingEvent, indexColumns) {
+func (c *ConflictDetectionCache) uniqueIndexConflicts(cachedEvent *tgtdb.Event, incomingEvent *tgtdb.Event, index tgtdb.UniqueIndex) bool {
+	if c.checkUniqueIndexBeforeAfterConflict(cachedEvent, incomingEvent, index) {
 		return true
 	}
-	if c.checkUniqueIndexBeforeBeforeConflict(cachedEvent, incomingEvent, indexColumns) {
+	if c.checkUniqueIndexBeforeBeforeConflict(cachedEvent, incomingEvent, index) {
 		return true
 	}
 	return false
 }
 
-func (c *ConflictDetectionCache) checkUniqueIndexBeforeAfterConflict(cachedEvent *tgtdb.Event, incomingEvent *tgtdb.Event, indexColumns []string) bool {
+func (c *ConflictDetectionCache) checkUniqueIndexBeforeAfterConflict(cachedEvent *tgtdb.Event, incomingEvent *tgtdb.Event, index tgtdb.UniqueIndex) bool {
+	indexColumns := index.Columns
 	// Check conflict: cachedEvent.BeforeFields[index columns] == incomingEvent.Fields[index columns]
 	if !uniqueIndexColumnsExistInBothFields(cachedEvent.BeforeFields, incomingEvent.Fields, indexColumns) {
 		return false
 	}
-	if !uniqueIndexColumnValuesEqual(cachedEvent.BeforeFields, incomingEvent.Fields, indexColumns) {
+	if !uniqueIndexColumnValuesEqual(cachedEvent.BeforeFields, incomingEvent.Fields, indexColumns, index.NullsNotDistinct) {
 		return false
 	}
 
@@ -420,12 +424,13 @@ func (c *ConflictDetectionCache) checkUniqueIndexBeforeAfterConflict(cachedEvent
 	return true
 }
 
-func (c *ConflictDetectionCache) checkUniqueIndexBeforeBeforeConflict(cachedEvent *tgtdb.Event, incomingEvent *tgtdb.Event, indexColumns []string) bool {
+func (c *ConflictDetectionCache) checkUniqueIndexBeforeBeforeConflict(cachedEvent *tgtdb.Event, incomingEvent *tgtdb.Event, index tgtdb.UniqueIndex) bool {
+	indexColumns := index.Columns
 	// Check conflict: cachedEvent.BeforeFields[index columns] == incomingEvent.BeforeFields[index columns]
 	if !uniqueIndexColumnsExistInBothFields(cachedEvent.BeforeFields, incomingEvent.BeforeFields, indexColumns) {
 		return false
 	}
-	if !uniqueIndexColumnValuesEqual(cachedEvent.BeforeFields, incomingEvent.BeforeFields, indexColumns) {
+	if !uniqueIndexColumnValuesEqual(cachedEvent.BeforeFields, incomingEvent.BeforeFields, indexColumns, index.NullsNotDistinct) {
 		return false
 	}
 
@@ -486,12 +491,25 @@ func (c *ConflictDetectionCache) checkUniqueIndexBeforeBeforeConflict(cachedEven
 	return true
 }
 
-// uniqueKeyColumnValuesEqual applies the same nil/value equality check used for single-column unique keys.
-func uniqueKeyColumnValuesEqual(left, right *string) bool {
+// uniqueKeyColumnValuesEqual reports whether two values of a unique-index column
+// should be treated as equal (i.e. conflicting) for conflict detection.
+//
+// Two non-NULL values conflict when they are equal. NULL handling depends on the
+// index's NULLS [NOT] DISTINCT property:
+//   - nullsNotDistinct == true (UNIQUE ... NULLS NOT DISTINCT): two NULLs are treated
+//     as equal and therefore conflict.
+//   - nullsNotDistinct == false (default NULLS DISTINCT): NULLs are all distinct and
+//     never conflict with each other.
+func uniqueKeyColumnValuesEqual(left, right *string, nullsNotDistinct bool) bool {
 	bothNil := left == nil && right == nil
 	bothNotNil := left != nil && right != nil
 	valuesEqual := bothNotNil && *left == *right
-	return bothNil || valuesEqual
+	if nullsNotDistinct {
+		//NULLS NOT DISTINCT: two NULLs are equal and conflict.
+		return bothNil || valuesEqual
+	}
+	//Default NULLS DISTINCT: NULLs never conflict with each other.
+	return valuesEqual
 }
 
 func uniqueIndexColumnsExistInBothFields(leftFields, rightFields map[string]*string, indexColumns []string) bool {
@@ -505,9 +523,9 @@ func uniqueIndexColumnsExistInBothFields(leftFields, rightFields map[string]*str
 	return true
 }
 
-func uniqueIndexColumnValuesEqual(leftFields, rightFields map[string]*string, indexColumns []string) bool {
+func uniqueIndexColumnValuesEqual(leftFields, rightFields map[string]*string, indexColumns []string, nullsNotDistinct bool) bool {
 	for _, column := range indexColumns {
-		if !uniqueKeyColumnValuesEqual(leftFields[column], rightFields[column]) {
+		if !uniqueKeyColumnValuesEqual(leftFields[column], rightFields[column], nullsNotDistinct) {
 			return false
 		}
 	}

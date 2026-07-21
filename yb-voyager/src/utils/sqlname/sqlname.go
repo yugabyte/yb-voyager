@@ -286,7 +286,7 @@ func quote(s string, dbType string) string {
 		return s
 	}
 	switch dbType {
-	case constants.POSTGRESQL, constants.YUGABYTEDB:
+	case constants.POSTGRESQL, constants.YUGABYTEDB, constants.YUGABYTEDB_AMP:
 		return `"` + strings.ToLower(s) + `"`
 	case constants.MYSQL:
 		return s // TODO - learn the semantics of quoting in MySQL.
@@ -302,7 +302,7 @@ func unquote(s string, dbType string) string {
 		return s[1 : len(s)-1]
 	}
 	switch dbType {
-	case constants.POSTGRESQL, constants.YUGABYTEDB:
+	case constants.POSTGRESQL, constants.YUGABYTEDB, constants.YUGABYTEDB_AMP:
 		return strings.ToLower(s)
 	case constants.MYSQL:
 		return s
@@ -330,7 +330,7 @@ func SetDifference(a, b []*SourceName) []*SourceName {
 func minQuote(objectName, sourceDBType string) string {
 	objectName = unquote(objectName, sourceDBType)
 	switch sourceDBType {
-	case constants.YUGABYTEDB, constants.POSTGRESQL:
+	case constants.YUGABYTEDB, constants.POSTGRESQL, constants.YUGABYTEDB_AMP:
 		if IsAllLowercase(objectName) && !IsReservedKeywordPG(objectName) {
 			return objectName
 		} else {

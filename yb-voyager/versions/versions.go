@@ -113,3 +113,47 @@ func GetStaticcheckVersion() string {
 	config := LoadCIConfig()
 	return config.Versions.Staticcheck
 }
+
+// =============================== Connector Versions ===============================
+
+//go:embed yb-cdc-connector-versions.json
+var connectorVersionsJSON []byte
+
+// ConnectorVersionsData represents the structure of yb-cdc-connector-versions.json.
+// - LogicalConnector: logical-replication (debezium) connector
+// - GRPCConnector: gRPC connector (tag stored WITHOUT leading "v")
+type ConnectorVersionsData struct {
+	LogicalConnector struct {
+		Tag string `json:"tag"`
+	} `json:"logical_connector"`
+	GRPCConnector struct {
+		Tag string `json:"tag"`
+	} `json:"grpc_connector"`
+}
+
+// LoadConnectorVersions loads connector versions from the embedded yb-cdc-connector-versions.json.
+// Panics if the file cannot be parsed or required fields are missing.
+func LoadConnectorVersions() ConnectorVersionsData {
+	var cv ConnectorVersionsData
+	err := json.Unmarshal(connectorVersionsJSON, &cv)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to parse yb-cdc-connector-versions.json: %v", err))
+	}
+	if cv.LogicalConnector.Tag == "" {
+		panic("No tag found for logical_connector in yb-cdc-connector-versions.json")
+	}
+	if cv.GRPCConnector.Tag == "" {
+		panic("No tag found for grpc_connector in yb-cdc-connector-versions.json")
+	}
+	return cv
+}
+
+// GetLogicalConnectorTag returns the logical replication connector tag.
+func GetLogicalConnectorTag() string {
+	return LoadConnectorVersions().LogicalConnector.Tag
+}
+
+// GetGRPCConnectorTag returns the gRPC connector tag (without leading "v").
+func GetGRPCConnectorTag() string {
+	return LoadConnectorVersions().GRPCConnector.Tag
+}

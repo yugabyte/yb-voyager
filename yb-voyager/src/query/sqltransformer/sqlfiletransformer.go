@@ -37,6 +37,26 @@ const (
 	HASH_SPLITTING_SESSION_VARIABLE_OFF            = "set yb_use_hash_splitting_by_default=off;"
 )
 
+// EnsurePlainBackup creates the canonical backup_<base> sibling alongside `file`
+// and returns its path. It is the single place that produces a schema-file backup,
+// used by every step that mutates a schema file (the colocation recommender and the
+// file transformers) — each MUST call it BEFORE mutating `file`. Because the first
+// caller copies the still-pristine `file`, and it is skip-if-exists (never
+// overwrites an existing backup), backup_<base> always holds the plain,
+// pre-any-transformation pg_dump DDL. That is exactly what a PostgreSQL-compatible
+// target (yb-amp) imports.
+func EnsurePlainBackup(file string) (string, error) {
+	backUpFile := filepath.Join(filepath.Dir(file), fmt.Sprintf("backup_%s", filepath.Base(file)))
+	if utils.FileOrFolderExists(backUpFile) {
+		// Earliest (plain) backup wins; never clobber it.
+		return backUpFile, nil
+	}
+	if err := utils.CopyFile(file, backUpFile); err != nil {
+		return "", fmt.Errorf("failed to back up %s to %s: %w", file, backUpFile, err)
+	}
+	return backUpFile, nil
+}
+
 // =========================INDEX FILE TRANSFORMER=====================================
 type IndexFileTransformer struct {
 	//skipping the performance optimizations with this parameter
@@ -85,11 +105,10 @@ func (t *IndexFileTransformer) Transform(file string) (string, error) {
 
 	var err error
 	var parseTree *pg_query.ParseResult
-	backUpFile := filepath.Join(filepath.Dir(file), fmt.Sprintf("backup_%s", filepath.Base(file)))
-	//copy files
-	err = utils.CopyFile(file, backUpFile)
+	// Back up the pristine file before transforming it (skip-if-exists).
+	backUpFile, err := EnsurePlainBackup(file)
 	if err != nil {
-		return "", fmt.Errorf("failed to copy %s to %s: %w", file, backUpFile, err)
+		return "", err
 	}
 	parseTree, err = queryparser.ParseSqlFile(file)
 	if err != nil {
@@ -195,11 +214,12 @@ func NewTableFileTransformer(skipMergeConstraints bool, sourceDBType string, ski
 func (t *TableFileTransformer) Transform(file string) (string, error) {
 	var err error
 	var parseTree *pg_query.ParseResult
-	backUpFile := filepath.Join(filepath.Dir(file), fmt.Sprintf("backup_%s", filepath.Base(file)))
-	//copy files
-	err = utils.CopyFile(file, backUpFile)
+	// Back up the pristine file before transforming it. The colocation step, if it
+	// ran, already created backup_<base> from the plain pre-colocation file, so this
+	// is skip-if-exists and the backup stays plain.
+	backUpFile, err := EnsurePlainBackup(file)
 	if err != nil {
-		return "", fmt.Errorf("failed to copy %s to %s: %w", file, backUpFile, err)
+		return "", err
 	}
 
 	parseTree, err = queryparser.ParseSqlFile(file)
@@ -268,7 +288,13 @@ func NewMviewFileTransformer() *MviewFileTransformer {
 	return &MviewFileTransformer{}
 }
 
+// Transform does not modify the mview file content; mview mutations (colocation)
+// are applied by the colocation step, which also creates the plain backup_<base>
+// via EnsurePlainBackup before mutating. So this transformer is a pass-through.
 func (t *MviewFileTransformer) Transform(file string) (string, error) {
+	// The mview file is only ever mutated by the colocation step, which backs it up
+	// (EnsurePlainBackup) before mutating. This transformer applies no content
+	// changes of its own, so there is nothing to do here.
 	return file, nil
 }
 

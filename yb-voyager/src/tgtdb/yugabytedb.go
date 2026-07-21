@@ -135,6 +135,10 @@ func (yb *TargetYugabyteDB) Init() error {
 		return err
 	}
 
+	if err := yb.validateYugabyteDBTarget(); err != nil {
+		return err
+	}
+
 	if len(yb.Tconf.SessionVars) == 0 {
 		yb.Tconf.SessionVars = getYBSessionInitScript(yb.Tconf)
 	}
@@ -163,6 +167,29 @@ func (yb *TargetYugabyteDB) Init() error {
 		return goerrors.Errorf("schemas '%s' do not exist in target", strings.Join(notExistsSchemas, ","))
 	}
 	return nil
+}
+
+// validateYugabyteDBTarget confirms the connected endpoint is a genuine
+// YugabyteDB cluster, not a PostgreSQL-compatible look-alike. yb-amp and
+// plain PostgreSQL both speak the PG wire protocol, so without this a
+// mistyped --target-db-type would proceed and misbehave (YB-only GUCs,
+// colocation, adaptive parallelism). Names the right target type to use.
+func (yb *TargetYugabyteDB) validateYugabyteDBTarget() error {
+	isYB, err := endpointIsRealYugabyteDB(yb.db)
+	if err != nil {
+		return fmt.Errorf("validate target is YugabyteDB: %w", err)
+	}
+	if isYB {
+		return nil
+	}
+	if hasAmp, _ := endpointHasAmpGUCs(yb.db); hasAmp {
+		return goerrors.Errorf("the target at %s:%d is a YugabyteDB AMP (yb-amp) endpoint, not a standard YugabyteDB cluster. "+
+			"Use --target-db-type %s instead of %s",
+			yb.Tconf.Host, yb.Tconf.Port, YUGABYTEDB_AMP, YUGABYTEDB)
+	}
+	return goerrors.Errorf("the target at %s:%d does not look like a YugabyteDB cluster "+
+		"(no yb_servers() — it looks like plain PostgreSQL). Use the matching --target-db-type",
+		yb.Tconf.Host, yb.Tconf.Port)
 }
 
 func (yb *TargetYugabyteDB) Finalize() {
@@ -604,6 +631,54 @@ func (yb *TargetYugabyteDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]str
 	}
 
 	return primaryKeyColumns, nil
+}
+
+func (yb *TargetYugabyteDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []UniqueIndex], error) {
+	log.Infof("getting unique indexes from target for tables: %v", tableList)
+
+	// Unique indexes on a partitioned table are often defined on its leaf partitions
+	// rather than the root (e.g. CREATE UNIQUE INDEX ... ON <leaf> (...)). Since import
+	// events only reference the root table, we discover the unique indexes of every leaf
+	// partition (and the root/normal tables themselves) and merge them into the root.
+	//
+	// getPartitionTableToRootTableMap returns, for every table whose root is in tableList,
+	// a mapping of its catalog name ("schema.table") to its root's catalog name. This
+	// includes each leaf partition -> root, and each root/normal table -> itself.
+	tableToRootMap, err := getPartitionTableToRootTableMap(yb.Query, tableList)
+	if err != nil {
+		return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
+	}
+
+	// Fetch unique indexes for all leaves + roots and key them by catalog name.
+	querySchemaList, queryTableList := catalogNamesToSchemaAndTableLists(lo.Keys(tableToRootMap))
+	catalogToIndexes, err := queryPGUniqueIndexesByCatalog(yb.Query, querySchemaList, queryTableList)
+	if err != nil {
+		return nil, err
+	}
+
+	rootCatalogToTuple := make(map[string]sqlname.NameTuple)
+	for _, t := range tableList {
+		rootCatalogToTuple[t.AsQualifiedCatalogName()] = t
+	}
+
+	result := utils.NewStructMap[sqlname.NameTuple, []UniqueIndex]()
+	for catalogName, indexes := range catalogToIndexes {
+		rootCatalogName, ok := tableToRootMap[catalogName]
+		if !ok {
+			// table not under any of the requested roots (possible cross-schema
+			// over-match from the query filter); skip it.
+			continue
+		}
+		rootTuple, ok := rootCatalogToTuple[rootCatalogName]
+		if !ok {
+			return nil, goerrors.Errorf("root table %s not found in requested table list", rootCatalogName)
+		}
+		existing, _ := result.Get(rootTuple)
+		result.Put(rootTuple, mergeUniqueIndexes(existing, indexes))
+	}
+
+	log.Infof("unique indexes from target for tables: %v", result)
+	return result, nil
 }
 
 // GetPrimaryKeyConstraintName returns the name of the primary key constraint for the given table.
@@ -2346,7 +2421,7 @@ func (yb *TargetYugabyteDB) NumOfLogicalReplicationSlots() (int64, error) {
 func (yb *TargetYugabyteDB) GetTablesHavingExpressionUniqueIndexes(tableNames []sqlname.NameTuple, returnPartitionRootTable bool) ([]sqlname.NameTuple, error) {
 	log.Infof("getting leaf table to root table map")
 	//returns a map of catalog leaf table name to catalog root table name
-	leafTableToRootTableMap, err := yb.getPartitionTableToRootTableMap(tableNames)
+	leafTableToRootTableMap, err := getPartitionTableToRootTableMap(yb.Query, tableNames)
 	if err != nil {
 		return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
 	}
@@ -2429,7 +2504,7 @@ SELECT
 // for leaf table, returns leaf table name -> root table name
 // for any non-leaf partitioned table, returns non-leaf partitioned table -> root table
 // for any non-partitioned/normal table, returns normal table -> normal table
-func (yb *TargetYugabyteDB) getPartitionTableToRootTableMap(tableNames []sqlname.NameTuple) (map[string]string, error) {
+func getPartitionTableToRootTableMap(queryFn func(query string) (*sql.Rows, error), tableNames []sqlname.NameTuple) (map[string]string, error) {
 	tableNamesStr := strings.Join(lo.Map(tableNames, func(t sqlname.NameTuple, _ int) string {
 		schema, table := t.ForCatalogQuery()
 		return fmt.Sprintf("('%s','%s')", schema, table)
@@ -2485,7 +2560,7 @@ func (yb *TargetYugabyteDB) getPartitionTableToRootTableMap(tableNames []sqlname
 `, tableNamesStr)
 
 	log.Debugf("query: %s", query)
-	rows, err := yb.Query(query)
+	rows, err := queryFn(query)
 	if err != nil {
 		return nil, fmt.Errorf("error querying for leaf table to root table map: %w", err)
 	}

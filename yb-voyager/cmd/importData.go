@@ -115,8 +115,14 @@ var importDataCmd = &cobra.Command{
 		if importerRole == "" {
 			importerRole = TARGET_DB_IMPORTER_ROLE
 		}
-		if tconf.AdaptiveParallelismMode == "" {
-			tconf.AdaptiveParallelismMode = types.BalancedAdaptiveParallelismMode
+		validateTargetDBTypeFlag()
+
+		// Adaptive-parallelism default is per-target (Balanced for YugabyteDB,
+		// Disabled for yugabytedb-amp, which has no YB cluster control API so
+		// adaptive parallelism cannot work there). The explicit-flag guardrails
+		// for amp live in validateParallelismFlags (invoked via validateImportFlags).
+		if !cmd.Flags().Changed("adaptive-parallelism") {
+			tconf.AdaptiveParallelismMode = defaultAdaptiveParallelismMode(tconf.TargetDBType)
 		}
 
 		err := retrieveMigrationUUID()
@@ -124,6 +130,9 @@ var importDataCmd = &cobra.Command{
 			utils.ErrExit("failed to get migration UUID: %w", err)
 		}
 		sourceDBType = GetSourceDBTypeFromMSR()
+		// validateImportFlags runs the parallelism conflict check (validateParallelismFlags)
+		// and the amp source-compat check; the adaptive-parallelism default above must be
+		// resolved before this point.
 		err = validateImportFlags(cmd, importerRole)
 		if err != nil {
 			utils.ErrExit("Error validating import flags: %s", err.Error())
@@ -133,6 +142,11 @@ var importDataCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("Error validating import data flags: %s", err.Error())
 		}
+
+		// Reject the import-data flags that are not applicable for a yugabytedb-amp target.
+		// Run after validateImportDataFlags so --on-primary-key-conflict has been validated
+		// (the generic validity check) before we report it as not applicable for amp.
+		validateAmpUnsupportedFlags(cmd)
 
 		err = validateImportUsePartitionRootFlag()
 		if err != nil {
@@ -1568,10 +1582,11 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 	concurrentBatchProductionSem := semaphore.NewWeighted(int64(maxConcurrentBatchProductions))
 
 	var taskPicker FileTaskPicker
-	var yb *tgtdb.TargetYugabyteDB
-	var ok bool
-	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
-		yb, ok = tdb.(*tgtdb.TargetYugabyteDB)
+	// The colocation-aware task picker only applies to a real YugabyteDB
+	// target. yb-amp (PostgreSQL-compatible, no colocation/tablets) and the
+	// PG fall-forward/back roles use the sequential picker instead.
+	if (importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE) && tconf.TargetDBType == YUGABYTEDB {
+		yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
 		if !ok {
 			return goerrors.Errorf("expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
 		}
@@ -1676,6 +1691,12 @@ func getTableTypes(tasks []*ImportFileTask) (*utils.StructMap[sqlname.NameTuple,
 	if !slices.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, importerRole) {
 		return nil, nil
 	}
+	// Colocation is a YugabyteDB-only concept; table types are only meaningful
+	// for a real YugabyteDB target. Non-YB targets (yb-amp, etc.) use plain heap
+	// storage and the sequential task picker, which does not consult table types.
+	if tconf.TargetDBType != YUGABYTEDB {
+		return nil, nil
+	}
 
 	tableTypes := utils.NewStructMap[sqlname.NameTuple, string]()
 	yb, ok := tdb.(YbTargetDBColocatedChecker)
@@ -1718,7 +1739,14 @@ func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchI
 	var err error
 	var batchProducer FileBatchProducer
 
-	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
+	// tableTypes (the colocation map) is only populated for a real YugabyteDB
+	// target. For yb-amp (PostgreSQL-compatible, no colocation) and the PG
+	// fall-forward/back roles it is nil, so they take the plain sequential
+	// importer path below.
+	// The colocation-aware importer applies only to a real YugabyteDB target;
+	// tableTypes is populated (non-nil) exactly for that case (see getTableTypes).
+	// Non-YB targets (yb-amp, etc.) take the plain sequential importer below.
+	if (importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE) && tconf.TargetDBType == YUGABYTEDB {
 		tableType, ok := tableTypes.Get(task.TableNameTup)
 		if !ok {
 			return nil, goerrors.Errorf("table type not found for table: %s", task.TableNameTup.ForOutput())
@@ -1756,6 +1784,12 @@ func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchI
 
 func startMonitoringTargetYBHealth() error {
 	if !slices.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, importerRole) {
+		return nil
+	}
+	// Target health monitoring (node / disk-usage / replication metrics) is a
+	// YugabyteDB-cluster concept. Non-YB targets (yb-amp's stateless PG17 compute,
+	// etc.) expose no such API, so it does not apply.
+	if tconf.TargetDBType != YUGABYTEDB {
 		return nil
 	}
 	if skipNodeHealthChecks && skipDiskUsageHealthChecks && skipReplicationChecks {
@@ -2183,7 +2217,7 @@ func getTargetSchemaName(tableName string) string {
 	if len(parts) == 2 {
 		return parts[0]
 	}
-	if tconf.TargetDBType == POSTGRESQL {
+	if tconf.TargetDBType == POSTGRESQL || tconf.TargetDBType == YUGABYTEDB_AMP {
 		defaultSchema, noDefaultSchema := GetDefaultPGSchema(tconf.Schemas)
 		if noDefaultSchema {
 			utils.ErrExit("no default schema for table: %q ", tableName)
@@ -2298,6 +2332,8 @@ func init() {
 	importDataToTargetCmd.Flags().MarkHidden("continue-on-error")
 	registerTargetDBConnFlags(importDataCmd)
 	registerTargetDBConnFlags(importDataToTargetCmd)
+	registerTargetDBTypeFlag(importDataCmd)
+	registerTargetDBTypeFlag(importDataToTargetCmd)
 	registerImportDataCommonFlags(importDataCmd)
 	registerImportDataCommonFlags(importDataToTargetCmd)
 	registerImportUsePartitionRootFlagToTarget(importDataCmd)
@@ -2454,6 +2490,12 @@ func updateErrorPolicyInMetaDB(errorPolicy importdata.ErrorPolicy) error {
 }
 
 func BuildCallhomeYBClusterMetrics() (callhome.YBClusterMetrics, error) {
+	// YB cluster metrics only exist for a real YugabyteDB target. Non-YB targets
+	// (yb-amp's single-node PG-compatible compute, PG fall-back/forward roles)
+	// have no such API — return empty rather than a misleading type-assertion error.
+	if tconf.TargetDBType != YUGABYTEDB {
+		return callhome.YBClusterMetrics{}, nil
+	}
 	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
 	if !ok {
 		return callhome.YBClusterMetrics{}, goerrors.Errorf("importData: expected tdb to be of type TargetYugabyteDB, got: %T", tdb)

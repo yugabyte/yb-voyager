@@ -8,6 +8,7 @@
 
 - Never silently swallow errors. If a function returns an error, either handle it, return it, or log it with sufficient context. Do not `log.Warnf` and continue when the error indicates a real failure.
 - Do not call `utils.ErrExit` inside functions that are expected to return errors to their callers. `ErrExit` terminates the process and bypasses deferred cleanup, error wrapping, and caller-level recovery.
+- This applies to **newly-added leaf/helper functions even when the surrounding file (e.g. a `cmd/` command file) already uses `ErrExit` pervasively.** A new `save…`/`get…`/`build…` helper that returns nothing and calls `ErrExit` on failure should instead return a wrapped error and let its caller decide. Existing `ErrExit` usage in the file is not a license to add more.
 - When wrapping errors, include enough context to trace the source: table name, file path, operation attempted, etc.
 
 ## Nil and Boundary Checks
@@ -35,6 +36,7 @@
 ## Object Names
 
 - Use the `sqlname` package for all object name handling(table names especially). Do not construct qualified names via manual string concatenation.
+- When using a `NameTuple`/`ObjectName` as a **map key** or serialising it as a key (e.g. a metaDB JSON map keyed by table), use its canonical key method (`Key()` / `ForKey()`), **not** `AsQualifiedCatalogName()` or `String()`. 
 
 
 ## Flag and Config Handling
@@ -75,7 +77,8 @@
 - Use `assert.ElementsMatch` for unordered comparisons instead of manually sorting.
 - Prefer table-driven tests with `t.Run(name, func(t *testing.T) { ... })` for multiple scenarios.
 - Use `testify/require` for setup steps that must succeed for the test to be meaningful.
-- Each test should be self-contained: set up its schema objects, run assertions, and clean up.
+- Each test should be self-contained: set up its schema objects, run assertions, and clean up. If a test mutates shared/global state (e.g. reassigns a package-level `Schemas` field or a global), restore the original value on cleanup.
 - Integration tests that use testcontainers should clean up their own resources.
 - Always include test cases for case-sensitive table and column names, wherever applicable.
+- Prefer exercising the **exported/public API** (e.g. `eventsConflict()`) over calling unexported helpers (`uniqueIndexConflicts()`) directly, so tests validate the real entry point and survive internal refactors.
 - When testing error paths, verify the specific error type or message — not just that an error occurred.
