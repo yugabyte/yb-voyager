@@ -112,7 +112,7 @@ func BenchmarkCDCIngest(b *testing.B) {
 			}
 			c.Lock()
 			defer c.Unlock()
-			return len(c.m)
+			return len(c.m) + len(c.ukLookup)
 		},
 	})
 }

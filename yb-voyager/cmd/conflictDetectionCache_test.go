@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -455,4 +456,223 @@ func TestUniqueKeyConflictPairKey_OrdersVsns(t *testing.T) {
 	oname := sqlname.NewObjectName(YUGABYTEDB, "public", "public", "users")
 	table := sqlname.NameTuple{CurrentName: oname, TargetName: oname}.ForKey()
 	require.Equal(t, uniqueKeyConflictPairKey(table, 20, 10), uniqueKeyConflictPairKey(table, 10, 20))
+}
+
+// findConflictForTest exercises the lock-protected findConflictLocked without
+// invoking the blocking wait loop in WaitUntilNoConflict.
+func findConflictForTest(c *ConflictDetectionCache, incoming *tgtdb.Event) *tgtdb.Event {
+	c.Lock()
+	defer c.Unlock()
+	return c.findConflictLocked(incoming)
+}
+
+// The lookup index must find the same before-after conflict that a full scan would.
+func TestConflictLookup_FindsBeforeAfterConflict(t *testing.T) {
+	cache := newConflictCacheForTest([][]string{{"email"}})
+	cached := &tgtdb.Event{
+		Vsn:          1,
+		Op:           "d",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("1")},
+		BeforeFields: map[string]*string{"email": strPtr("a@example.com")},
+		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+	}
+	cache.Put(cached)
+
+	incoming := &tgtdb.Event{
+		Vsn:          2,
+		Op:           "c",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("2")},
+		Fields:       map[string]*string{"email": strPtr("a@example.com")},
+		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+	}
+	got := findConflictForTest(cache, incoming)
+	require.NotNil(t, got)
+	assert.Equal(t, int64(1), got.Vsn)
+}
+
+// A composite-index before-after conflict must be found via the lookup index.
+func TestConflictLookup_FindsCompositeConflict(t *testing.T) {
+	cache := newConflictCacheForTest([][]string{{"a", "b"}})
+	cached := &tgtdb.Event{
+		Vsn:          1,
+		Op:           "d",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("1")},
+		BeforeFields: map[string]*string{"a": strPtr("1"), "b": strPtr("2")},
+		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+	}
+	cache.Put(cached)
+
+	incoming := &tgtdb.Event{
+		Vsn:          2,
+		Op:           "c",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("2")},
+		Fields:       map[string]*string{"a": strPtr("1"), "b": strPtr("2")},
+		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+	}
+	got := findConflictForTest(cache, incoming)
+	require.NotNil(t, got)
+	assert.Equal(t, int64(1), got.Vsn)
+}
+
+// A NULLS NOT DISTINCT before-before conflict on NULL values must be found.
+func TestConflictLookup_FindsBeforeBeforeConflict_NullsNotDistinct(t *testing.T) {
+	cache := newConflictCacheForTestWithIndexes(uidxNND("check_id"))
+	cached := &tgtdb.Event{
+		Vsn:          1,
+		Op:           "u",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("1")},
+		BeforeFields: map[string]*string{"check_id": nil},
+		Fields:       map[string]*string{"check_id": strPtr("10")},
+		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+	}
+	cache.Put(cached)
+
+	incoming := &tgtdb.Event{
+		Vsn:          2,
+		Op:           "u",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("2")},
+		BeforeFields: map[string]*string{"check_id": nil},
+		Fields:       map[string]*string{"check_id": strPtr("20")},
+		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+	}
+	got := findConflictForTest(cache, incoming)
+	require.NotNil(t, got)
+	assert.Equal(t, int64(1), got.Vsn)
+}
+
+// Under default NULLS DISTINCT, a NULL index value is never indexed and never conflicts.
+func TestConflictLookup_NullsDistinctNotIndexed(t *testing.T) {
+	cache := newConflictCacheForTest([][]string{{"email"}})
+	cached := &tgtdb.Event{
+		Vsn:          1,
+		Op:           "d",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("1")},
+		BeforeFields: map[string]*string{"email": nil},
+		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+	}
+	cache.Put(cached)
+	assert.Empty(t, cache.ukLookup, "NULL value under NULLS DISTINCT must not be indexed")
+
+	incoming := &tgtdb.Event{
+		Vsn:          2,
+		Op:           "c",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("2")},
+		Fields:       map[string]*string{"email": nil},
+		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+	}
+	assert.Nil(t, findConflictForTest(cache, incoming))
+}
+
+// Same-PK candidates are gathered by the lookup but rejected by eventsConfict.
+func TestConflictLookup_SamePKNoConflict(t *testing.T) {
+	cache := newConflictCacheForTest([][]string{{"email"}})
+	key := map[string]*string{"id": strPtr("1")}
+	cached := &tgtdb.Event{
+		Vsn:          1,
+		Op:           "d",
+		TableNameTup: testTableTuple(),
+		Key:          key,
+		BeforeFields: map[string]*string{"email": strPtr("a@example.com")},
+		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+	}
+	cache.Put(cached)
+
+	incoming := &tgtdb.Event{
+		Vsn:          2,
+		Op:           "c",
+		TableNameTup: testTableTuple(),
+		Key:          key,
+		Fields:       map[string]*string{"email": strPtr("a@example.com")},
+		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+	}
+	assert.Nil(t, findConflictForTest(cache, incoming))
+}
+
+// A non-conflicting incoming event must not block or match.
+func TestConflictLookup_NoConflictDoesNotBlock(t *testing.T) {
+	cache := newConflictCacheForTest([][]string{{"email"}})
+	cached := &tgtdb.Event{
+		Vsn:          1,
+		Op:           "d",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("1")},
+		BeforeFields: map[string]*string{"email": strPtr("a@example.com")},
+		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+	}
+	cache.Put(cached)
+
+	incoming := &tgtdb.Event{
+		Vsn:          2,
+		Op:           "c",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("2")},
+		Fields:       map[string]*string{"email": strPtr("b@example.com")},
+		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+	}
+	assert.Nil(t, findConflictForTest(cache, incoming))
+
+	done := make(chan struct{})
+	go func() {
+		cache.WaitUntilNoConflict(incoming)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("WaitUntilNoConflict blocked despite no conflict")
+	}
+}
+
+// RemoveEvents must clear both the primary map and the lookup index.
+func TestConflictLookup_RemoveDeindexes(t *testing.T) {
+	cache := newConflictCacheForTest([][]string{{"email"}})
+	cached := &tgtdb.Event{
+		Vsn:          1,
+		Op:           "d",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("1")},
+		BeforeFields: map[string]*string{"email": strPtr("a@example.com")},
+		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+	}
+	cache.Put(cached)
+	require.NotEmpty(t, cache.ukLookup)
+	require.NotEmpty(t, cache.vsnToBuckets)
+
+	cache.RemoveEvents(cached)
+	assert.Empty(t, cache.m)
+	assert.Empty(t, cache.ukLookup)
+	assert.Empty(t, cache.vsnToBuckets)
+
+	incoming := &tgtdb.Event{
+		Vsn:          2,
+		Op:           "c",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("2")},
+		Fields:       map[string]*string{"email": strPtr("a@example.com")},
+		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+	}
+	assert.Nil(t, findConflictForTest(cache, incoming))
+}
+
+// computeConflictBucketKey must not collide for tuples that differ only in the
+// split of characters between adjacent columns.
+func TestComputeConflictBucketKey_NoAmbiguity(t *testing.T) {
+	idx := uidx("a", "b")
+	k1, ok1 := computeConflictBucketKey("public.users", 0, map[string]*string{"a": strPtr("ab"), "b": strPtr("")}, idx)
+	k2, ok2 := computeConflictBucketKey("public.users", 0, map[string]*string{"a": strPtr("a"), "b": strPtr("b")}, idx)
+	require.True(t, ok1)
+	require.True(t, ok2)
+	assert.NotEqual(t, k1, k2)
+
+	// missing column -> not indexable
+	_, ok3 := computeConflictBucketKey("public.users", 0, map[string]*string{"a": strPtr("a")}, idx)
+	assert.False(t, ok3)
 }
