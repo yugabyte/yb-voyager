@@ -123,11 +123,26 @@ _ysql_terminate_and_drop_database_unlocked() {
 }
 
 # Public entrypoint for standalone drops (e.g. end-of-test cleanup). Takes the
-# same lock as create_target_database so create and drop are serialized together.
+# same lock as create_target_database so create and drop are serialized together,
+# and retries the same way: on YB 2026.1+ a concurrent DDL elsewhere can still
+# bump the catalog version and make DROP DATABASE fail transiently with
+# "Restart read required", so retry a few times before giving up.
 ysql_terminate_and_drop_database() {
+	local target_db=$1
 	(
 		flock 200
-		_ysql_terminate_and_drop_database_unlocked "$1"
+		local max_attempts=5
+		local attempt=1
+		while [ ${attempt} -le ${max_attempts} ]; do
+			if _ysql_terminate_and_drop_database_unlocked "${target_db}"; then
+				exit 0
+			fi
+			echo "DROP DATABASE for '${target_db}' failed (attempt ${attempt}/${max_attempts}); retrying in 10s..."
+			sleep 10
+			attempt=$((attempt + 1))
+		done
+		echo "ERROR: DROP DATABASE for '${target_db}' failed after ${max_attempts} attempts"
+		exit 1
 	) 200>"${YB_DB_LOCK_FILE}"
 }
 
