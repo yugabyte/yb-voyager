@@ -87,6 +87,12 @@ from rate_governor import RateGovernor
 
 DEFAULT_PARALLEL_CONFIG = {
     "calibration_seconds": 30,
+    # calibration_warmup_seconds: let the single calibration worker run and
+    # warm up (JIT/connection-pool/shared-cache/DB-side state) for this long
+    # BEFORE the measurement window starts, so the measured C reflects
+    # steady-state throughput, not a cold start. 0 disables (legacy
+    # behavior: measure from the moment the worker is spawned).
+    "calibration_warmup_seconds": 20,
     "max_workers": 8,
     "control_interval_seconds": 5,
     "deadband_pct": 10,
@@ -454,6 +460,64 @@ def decide_coarse(n_full, trimmer_rate, achieved, target, C, cap,
         return "remove"
 
     return "hold"
+
+
+def decide_overshoot_shed(n_uncapped, achieved, trimmer_rate, target,
+                           overshoot_ticks, overshoot_ticks_needed=2,
+                           overshoot_pct=25.0, max_shed_frac=0.5):
+    """Fast correction for a large, sustained overshoot (e.g. after a
+    phase-change feed-forward jump provisioned too many workers because C was
+    calibrated cold). Returns (n_to_shed, C_snap):
+
+      n_to_shed: number of uncapped workers to remove THIS tick (0 = do nothing).
+      C_snap:    observed per-worker rate to snap C UP to, or None.
+
+    Fires only when ALL hold:
+      - n_uncapped >= 2 (never shed the last uncapped worker via this path),
+      - achieved > target * (1 + overshoot_pct/100),
+      - overshoot_ticks >= overshoot_ticks_needed  (sustained, not a blip).
+
+    When it fires:
+      C_obs = (achieved - trimmer_rate) / n_uncapped   (observed per-worker rate)
+      desired_n = floor(target / C_obs)  (clamped to >= 1)
+      raw_shed  = n_uncapped - desired_n
+      n_to_shed = clamp(raw_shed, 1, floor(n_uncapped * max_shed_frac))
+          # bounded per tick so we converge downward without overshooting into
+          # an undershoot; the loop calls this again next tick if still high.
+      C_snap = C_obs if C_obs > 0 else None
+    Otherwise returns (0, None).
+
+    High caution: only ever REDUCES workers; only ever snaps C UPWARD
+    (C_snap is the real observed rate, which is higher than the cold C that
+    caused the over-provision). Never touches the trimmer or the last worker.
+    """
+    if n_uncapped < 2:
+        return 0, None
+    if achieved <= target * (1 + overshoot_pct / 100.0):
+        return 0, None
+    if overshoot_ticks < overshoot_ticks_needed:
+        return 0, None
+
+    denom = achieved - trimmer_rate
+    if denom <= 0:
+        return 0, None
+
+    C_obs = denom / n_uncapped
+
+    desired_n = int(math.floor(target / C_obs)) if C_obs > 0 else 0
+    if desired_n < 1:
+        desired_n = 1
+
+    raw_shed = n_uncapped - desired_n
+    max_shed = int(math.floor(n_uncapped * max_shed_frac))
+    n_to_shed = raw_shed
+    if n_to_shed < 1:
+        n_to_shed = 1
+    if n_to_shed > max_shed:
+        n_to_shed = max_shed
+
+    C_snap = C_obs if C_obs > 0 else None
+    return n_to_shed, C_snap
 
 
 class TrailingRateWindow(object):
@@ -1050,19 +1114,31 @@ def start_snapshot_refresh_thread(connection_kwargs, schema_name, table_list, pk
 # testing rule; not run by this slice's unit tests.
 # ---------------------------------------------------------------------------
 
-def run_calibration(spawn_worker, kill_worker, measure_fn, calibration_seconds, reset_fn=None):
+def run_calibration(spawn_worker, kill_worker, measure_fn, calibration_seconds, reset_fn=None,
+                     warmup_seconds=0):
     """Run one uncapped worker (spawned via the same `spawn_worker` the
     main loop uses, so it goes through the identical shared-cache-backed
     fast-start path) for `calibration_seconds`, measure the aggregate rate
     it produces via `measure_fn` (cluster-wide pg_stat_statements DML rows;
     cross-node when load balancing is on), kill it, and return the measured
     per-worker ceiling C.
+
+    `warmup_seconds` (default 0, legacy behavior): if > 0, the worker is
+    allowed to run for `warmup_seconds` BEFORE the measurement window
+    starts, so the measured C reflects steady-state throughput (warm
+    JIT/connection-pools/shared-cache/DB-side state) rather than a cold
+    start. Rows produced during warmup are simply not part of the measured
+    window. `warmup_seconds=0` is byte-for-byte identical to the pre-warmup
+    behavior.
     """
     if reset_fn is not None:
         reset_fn()
     print("[calibration] starting 1 uncapped worker for {}s...".format(calibration_seconds))
     uid, proc = spawn_worker(throttle=0.0)
     try:
+        if warmup_seconds > 0:
+            print("[calibration] warming up for {}s before measuring...".format(warmup_seconds))
+            time.sleep(warmup_seconds)
         start_sum = measure_fn()
         start_t = time.monotonic()
         time.sleep(calibration_seconds)
@@ -1301,7 +1377,10 @@ def run_controller(base_config, rate_csv_path=None):
                 snapshot_refresh_seconds, stop_refresh,
             )
 
-        C = run_calibration(spawn_worker, kill_worker, measure_fn, calibration_seconds, reset_fn=reset_fn)
+        C = run_calibration(
+            spawn_worker, kill_worker, measure_fn, calibration_seconds, reset_fn=reset_fn,
+            warmup_seconds=parallel_cfg["calibration_warmup_seconds"],
+        )
         C_state = {"C": C}
         # Stable calibration ceiling for the reactive backpressure cap. Never
         # replaced by the live-recalibrated C (which erodes under cluster
@@ -1346,6 +1425,10 @@ def run_controller(base_config, rate_csv_path=None):
         trimmer_rate = 0.0
         sat_high_ticks = 0
         sat_low_ticks = 0
+        # Consecutive-tick counter for the overshoot fast-shed safety net
+        # (decide_overshoot_shed): counts sustained large overshoots so a
+        # single noisy-high reading never triggers a shed.
+        overshoot_ticks = 0
         last_written_trimmer_rate = None
 
         while True:
@@ -1468,6 +1551,7 @@ def run_controller(base_config, rate_csv_path=None):
 
                     sat_high_ticks = 0
                     sat_low_ticks = 0
+                    overshoot_ticks = 0
                     current_target = target
                     last_adjust_t = now
                 else:
@@ -1475,67 +1559,101 @@ def run_controller(base_config, rate_csv_path=None):
                     n_unc = roster.n_uncapped()
                     stable = (last_adjust_t is None) or ((now - last_adjust_t) >= cooldown_seconds)
 
-                    # (a) Recalibrate BEFORE coarse -- order matters (a
-                    # stale C would otherwise let decide_coarse hunt).
-                    if recalibrate and stable and n_unc >= 1:
-                        c_obs = compute_C_observed(achieved, trimmer_rate, n_unc)
-                        if c_obs is not None and c_obs > 0:
-                            C_state["C"] = recalibrate_C(C_state["C"], c_obs)
-
-                    C_live = C_state["C"]
-
-                    # (b) Coarse: update saturation counters every tick, but
-                    # only ever act past the cooldown.
-                    high_sat = trimmer_rate >= C_live * (high_sat_pct / 100.0)
-                    low_sat = trimmer_rate <= C_live * (low_sat_pct / 100.0)
-                    sat_high_ticks = sat_high_ticks + 1 if high_sat else 0
-                    sat_low_ticks = sat_low_ticks + 1 if low_sat else 0
-
-                    if stable:
-                        cap = reactive_worker_cap(target, calib_C, reactive_margin)
-                        coarse_decision = decide_coarse(
-                            n_unc, trimmer_rate, achieved, target, C_live, cap,
-                            sat_high_ticks, sat_low_ticks, sat_ticks_needed=sat_ticks_needed,
-                        )
-                        if coarse_decision == "add":
-                            if crashed_this_interval > 0:
-                                # Cluster distress: workers are dying. Adding
-                                # more would amplify the overload.
-                                print("[backpressure] {} worker(s) crashed this interval; "
-                                      "not adding (cluster distress)".format(crashed_this_interval))
-                            elif len(worker_procs) >= max_workers:
-                                print("[control] want to add a worker but at "
-                                      "max_workers={}".format(max_workers))
-                            else:
-                                uid, _ = spawn_worker(throttle=0.0)
-                                roster.add_uncapped(uid)
-                                # Feed-forward (bumpless handoff): the new
-                                # full worker takes over ~C of what the
-                                # trimmer was carrying.
-                                trimmer_rate = max(0.0, min(C_live, trimmer_rate - C_live))
-                                sat_high_ticks = 0
-                                sat_low_ticks = 0
-                                last_adjust_t = now
-                        elif coarse_decision == "remove":
+                    # (0) Overshoot fast-shed safety net: a phase-change
+                    # feed-forward jump can over-provision workers if C was
+                    # calibrated cold (see decide_overshoot_shed). Update the
+                    # sustained-overshoot counter every tick, and -- if it
+                    # fires -- shed workers and snap C up THIS tick, skipping
+                    # the normal (a)/(b) recalibrate/coarse steps below (they'd
+                    # otherwise fight the shed with a stale, too-low C).
+                    overshoot_pct = 25.0
+                    overshoot_ticks = (
+                        overshoot_ticks + 1 if achieved > target * (1 + overshoot_pct / 100.0) else 0
+                    )
+                    n_shed, c_snap = decide_overshoot_shed(
+                        n_unc, achieved, trimmer_rate, target, overshoot_ticks,
+                    )
+                    did_overshoot_shed = n_shed > 0
+                    if did_overshoot_shed:
+                        if c_snap and c_snap > C_state["C"]:
+                            C_state["C"] = c_snap
+                        for _ in range(n_shed):
                             victim = roster.pop_newest_uncapped()
                             if victim is not None:
                                 kill_worker(victim)
-                                # Feed-forward: the trimmer picks back up the
-                                # ~C the removed worker was carrying.
-                                trimmer_rate = max(0.0, min(C_live, trimmer_rate + C_live))
-                                sat_high_ticks = 0
-                                sat_low_ticks = 0
-                                last_adjust_t = now
+                            else:
+                                break
+                        sat_high_ticks = 0
+                        sat_low_ticks = 0
+                        overshoot_ticks = 0
+                        last_adjust_t = now
+                        print(
+                            "[overshoot] achieved={:.0f} >> target={:.0f}; shed {} worker(s), "
+                            "snapped C->{:.0f}".format(achieved, target, n_shed, C_state["C"])
+                        )
+                    else:
+                        # (a) Recalibrate BEFORE coarse -- order matters (a
+                        # stale C would otherwise let decide_coarse hunt).
+                        if recalibrate and stable and n_unc >= 1:
+                            c_obs = compute_C_observed(achieved, trimmer_rate, n_unc)
+                            if c_obs is not None and c_obs > 0:
+                                C_state["C"] = recalibrate_C(C_state["C"], c_obs)
+
+                        C_live = C_state["C"]
+
+                        # (b) Coarse: update saturation counters every tick, but
+                        # only ever act past the cooldown.
+                        high_sat = trimmer_rate >= C_live * (high_sat_pct / 100.0)
+                        low_sat = trimmer_rate <= C_live * (low_sat_pct / 100.0)
+                        sat_high_ticks = sat_high_ticks + 1 if high_sat else 0
+                        sat_low_ticks = sat_low_ticks + 1 if low_sat else 0
+
+                        if stable:
+                            cap = reactive_worker_cap(target, calib_C, reactive_margin)
+                            coarse_decision = decide_coarse(
+                                n_unc, trimmer_rate, achieved, target, C_live, cap,
+                                sat_high_ticks, sat_low_ticks, sat_ticks_needed=sat_ticks_needed,
+                            )
+                            if coarse_decision == "add":
+                                if crashed_this_interval > 0:
+                                    # Cluster distress: workers are dying. Adding
+                                    # more would amplify the overload.
+                                    print("[backpressure] {} worker(s) crashed this interval; "
+                                          "not adding (cluster distress)".format(crashed_this_interval))
+                                elif len(worker_procs) >= max_workers:
+                                    print("[control] want to add a worker but at "
+                                          "max_workers={}".format(max_workers))
+                                else:
+                                    uid, _ = spawn_worker(throttle=0.0)
+                                    roster.add_uncapped(uid)
+                                    # Feed-forward (bumpless handoff): the new
+                                    # full worker takes over ~C of what the
+                                    # trimmer was carrying.
+                                    trimmer_rate = max(0.0, min(C_live, trimmer_rate - C_live))
+                                    sat_high_ticks = 0
+                                    sat_low_ticks = 0
+                                    last_adjust_t = now
+                            elif coarse_decision == "remove":
+                                victim = roster.pop_newest_uncapped()
+                                if victim is not None:
+                                    kill_worker(victim)
+                                    # Feed-forward: the trimmer picks back up the
+                                    # ~C the removed worker was carrying.
+                                    trimmer_rate = max(0.0, min(C_live, trimmer_rate + C_live))
+                                    sat_high_ticks = 0
+                                    sat_low_ticks = 0
+                                    last_adjust_t = now
 
                     # (c) Fine: the integral knob cleans up the residual
-                    # every tick, including the one a coarse action just
-                    # fired on. During the post-spawn cooldown (recomputed
-                    # here so it also covers a coarse action taken THIS tick,
-                    # which just set last_adjust_t=now), freeze fine-knob
-                    # INCREASES: a just-spawned uncapped worker is still
-                    # ramping, so raising the trimmer now would wind up and
-                    # overshoot when the worker reaches full. Decreases (to
-                    # correct an overshoot) stay allowed.
+                    # every tick, including the one a coarse action (or the
+                    # overshoot shed above) just fired on. During the
+                    # post-spawn cooldown (recomputed here so it also covers
+                    # an action taken THIS tick, which just set
+                    # last_adjust_t=now), freeze fine-knob INCREASES: a
+                    # just-spawned uncapped worker is still ramping, so
+                    # raising the trimmer now would wind up and overshoot
+                    # when the worker reaches full. Decreases (to correct an
+                    # overshoot) stay allowed.
                     in_cooldown = (
                         last_adjust_t is not None
                         and (now - last_adjust_t) < cooldown_seconds
@@ -1543,7 +1661,7 @@ def run_controller(base_config, rate_csv_path=None):
                     trimmer_rate = fine_trim(
                         trimmer_rate, achieved, target, C_state["C"],
                         kp=fine_kp, deadband_pct=fine_deadband_pct, slew_pct=fine_slew_pct,
-                        freeze_increase=in_cooldown,
+                        freeze_increase=(in_cooldown or did_overshoot_shed),
                     )
                     write_trimmer_rate(trimmer_rate)
             else:
