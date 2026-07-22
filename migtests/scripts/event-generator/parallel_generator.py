@@ -418,6 +418,26 @@ def derive_worker_runtime_config(base_config):
     return cfg
 
 
+def _set_worker_pdeathsig():
+    """preexec_fn for worker subprocesses.
+
+    On Linux, ask the kernel to send SIGKILL to this worker the moment its
+    parent (the controller) dies -- for ANY reason, including the controller
+    being SIGKILLed or crashing, which no Python-level `finally`/atexit/signal
+    handler can catch. Without this, hard-killing the controller (e.g.
+    `pkill -9 parallel_generator.py`) orphans the workers: they keep writing
+    to the target cluster indefinitely (a heavy-schema run this way filled the
+    cluster disk overnight). Runs after fork, before exec, so PR_SET_PDEATHSIG
+    is preserved across the exec into generator.py. No-op on non-Linux.
+    """
+    try:
+        import ctypes
+        PR_SET_PDEATHSIG = 1
+        ctypes.CDLL("libc.so.6", use_errno=True).prctl(PR_SET_PDEATHSIG, signal.SIGKILL)
+    except Exception:
+        pass
+
+
 def build_worker_argv(python_exe, generator_path, config_path, worker_uid, pk_stride,
                        cache_dir, cache_version, throttle=0.0):
     """Build the argv for one worker spawn, per IMPLEMENTATION_CONTRACTS.md's
@@ -964,7 +984,10 @@ def run_controller(base_config, rate_csv_path=None):
             sys.executable, GENERATOR_PATH, slot_path, uid, pk_stride,
             cache_dir, cur_version, throttle,
         )
-        proc = subprocess.Popen(argv)
+        # preexec_fn sets PR_SET_PDEATHSIG so the kernel kills this worker if
+        # the controller dies for any reason (incl. SIGKILL/crash) -- prevents
+        # orphaned workers that keep writing after the controller is gone.
+        proc = subprocess.Popen(argv, preexec_fn=_set_worker_pdeathsig)
         worker_procs[uid] = {"proc": proc, "slot": slot_idx, "throttle": throttle}
         return uid, proc
 
