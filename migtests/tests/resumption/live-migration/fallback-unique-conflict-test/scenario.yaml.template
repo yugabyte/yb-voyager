@@ -61,12 +61,6 @@ generator_source:
 # source_dml.sql on a loop throughout streaming, in parallel with generator_source.
 conflict_generator_source:
   config_inline:
-    connection:
-      host: 127.0.0.1
-      port: 5432
-      database: test_db
-      user: postgres
-      password: postgres
     conflict:
       sql_path: ./source_dml.sql
       interval_seconds: 10
@@ -103,12 +97,6 @@ generator_target:
 # target_dml.sql on a loop throughout fallback streaming, in parallel with generator_target.
 conflict_generator_target:
   config_inline:
-    connection:
-      host: ${TARGET_DB_HOST}
-      port: ${TARGET_DB_PORT}
-      database: test_db
-      user: ${TARGET_DB_USER}
-      password: ${TARGET_DB_PASSWORD}
     conflict:
       sql_path: ./target_dml.sql
       interval_seconds: 10
@@ -219,6 +207,13 @@ stages:
     action: wait_for
     condition: remaining_events_eq_0
     timeout_sec: 1200
+
+  # Confirm the conflict-detection cache actually fired on the forward (PG->YB)
+  # import, not just that row_count/row_hash matched.
+  - name: validate_conflicts_detected
+    action: validate_conflicts_detected
+    log: yb-voyager-import-data.log
+    min_count: 1
 
   - name: cutover_to_target
     action: cutover_to_target

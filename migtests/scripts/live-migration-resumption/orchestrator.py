@@ -2,6 +2,7 @@
 
 import os
 import sys
+import glob
 import argparse
 import random
 import subprocess
@@ -94,6 +95,21 @@ def conflict_generator_start_action(stage: Dict[str, Any], ctx: Any) -> None:
     inline = cfg_block.get("config_inline") or cfg_block.get("config") or {}
     connection = inline.get("connection") or {}
     conflict_cfg = inline.get("conflict") or {}
+
+    # If no explicit connection is given, reuse the top-level source/target
+    # connection (admin creds) so the block need not duplicate it --
+    # conflict_generator_source -> source, conflict_generator_target -> target.
+    if not connection:
+        role = "target" if key.endswith("_target") else "source"
+        top = ctx.cfg.get(role) or {}
+        admin = top.get("admin") or {}
+        connection = {
+            "host": top.get("host"),
+            "port": top.get("port"),
+            "database": top.get("database"),
+            "user": admin.get("user") or top.get("user"),
+            "password": admin.get("password") or top.get("password"),
+        }
 
     sql_path = conflict_cfg.get("sql_path")
     if not sql_path:
@@ -274,6 +290,31 @@ def row_hash_validations_action(stage: Dict[str, Any], ctx: Any) -> None:
         H.run_sql_file(ctx, sql_path, target=role, use_admin=False)
 
     H.run_segment_hash_validations(ctx, left_role, right_role)
+
+
+@action("validate_conflicts_detected")
+def validate_conflicts_detected_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Assert the import-data log recorded unique-key conflict detections.
+
+    row_count/row_hash prove the data ended up correct; this proves the
+    conflict-detection cache actually fired -- otherwise a run could pass
+    without ever exercising it. Meaningful on the forward leg
+    (yb-voyager-import-data.log); the fallback leg's import-to-source forces
+    PARTITION_BY_TABLE and logs 0 conflicts by design, so don't assert there.
+    """
+    log_dir = os.path.join(ctx.iteration_export_dir, "logs")
+    name = stage.get("log", "yb-voyager-import-data.log")
+    min_count = int(stage.get("min_count", 1))
+    count = 0
+    for p in glob.glob(os.path.join(log_dir, name + "*")):
+        with open(p, errors="ignore") as f:
+            count += sum(1 for line in f if "conflict detected" in line)
+    if count < min_count:
+        raise RuntimeError(
+            f"validate_conflicts_detected: expected >= {min_count} 'conflict detected' "
+            f"in {name}, found {count} (dir={log_dir})"
+        )
+    H.log(f"validate_conflicts_detected: {count} conflicts detected in {name}")
 
 
 @action("start_resumptions")

@@ -3,10 +3,10 @@
 -- and cover every unique-key shape the streaming-phase conflict-detection cache
 -- (yb-voyager/cmd/conflictDetectionCache.go) reasons about.
 --
--- REPLICA IDENTITY FULL is set on every table so that Debezium captures the
--- before-image of UPDATE/DELETE rows. The conflict-detection cache compares the
--- before-values of unique-key columns (incl. partial-index predicate columns),
--- so without full before-images the DELETE-*/UPDATE-* conflicts cannot be detected.
+-- REPLICA IDENTITY FULL (so Debezium captures before-images of UPDATE/DELETE rows,
+-- which the conflict-detection cache needs) is set on all tables by the grant step
+-- (yb-voyager-pg-grant-migration-permissions.sql run by grant_source_permissions),
+-- so it is not set here.
 
 -- Table with Single Column Unique Constraint
 CREATE TABLE single_unique_constraint (
@@ -119,21 +119,3 @@ CREATE TABLE partitioned_unique_conflict_east PARTITION OF partitioned_unique_co
 CREATE TABLE partitioned_unique_conflict_west PARTITION OF partitioned_unique_conflict FOR VALUES IN ('west');
 CREATE TABLE partitioned_unique_conflict_default PARTITION OF partitioned_unique_conflict DEFAULT;
 CREATE UNIQUE INDEX idx_partitioned_unique_email ON partitioned_unique_conflict (email, region);
-
-
--- Full before-images are required for unique-conflict detection during streaming.
-ALTER TABLE single_unique_constraint REPLICA IDENTITY FULL;
-ALTER TABLE multi_unique_constraint REPLICA IDENTITY FULL;
-ALTER TABLE single_unique_index REPLICA IDENTITY FULL;
-ALTER TABLE multi_unique_index REPLICA IDENTITY FULL;
-ALTER TABLE same_column_unique_constraint_and_index REPLICA IDENTITY FULL;
-ALTER TABLE different_columns_unique_constraint_and_index REPLICA IDENTITY FULL;
-ALTER TABLE subset_columns_unique_constraint_and_index REPLICA IDENTITY FULL;
-ALTER TABLE expression_based_unique_index REPLICA IDENTITY FULL;
-ALTER TABLE test_partial_unique_index REPLICA IDENTITY FULL;
-ALTER TABLE single_unique_index_nulls_not_distinct REPLICA IDENTITY FULL;
-ALTER TABLE multi_unique_index_nulls_not_distinct REPLICA IDENTITY FULL;
-ALTER TABLE single_unique_index_nulls_distinct REPLICA IDENTITY FULL;
-ALTER TABLE partitioned_unique_conflict_east REPLICA IDENTITY FULL;
-ALTER TABLE partitioned_unique_conflict_west REPLICA IDENTITY FULL;
-ALTER TABLE partitioned_unique_conflict_default REPLICA IDENTITY FULL;
