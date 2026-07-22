@@ -224,6 +224,64 @@ class TestJitter(unittest.TestCase):
         self.assertNotEqual(jitters1, jitters2)
 
 
+class TestSetRate(unittest.TestCase):
+    """Unit tests for RateGovernor.set_rate -- the runtime-adjustable
+    throttle the cascade trimmer controller uses to command a persistent
+    trimmer worker without a respawn. See
+    docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md.
+    """
+
+    def test_set_rate_changes_effective_target(self):
+        gov, clock, sleep, log = make_governor({"default_events_per_second": 100})
+        self.assertEqual(gov.target_rate_at(0), 100)
+
+        gov.set_rate(500)
+
+        self.assertEqual(gov.default_events_per_second, 500.0)
+        self.assertEqual(gov.target_rate_at(0), 500)
+
+    def test_set_rate_is_pure_float_conversion_no_io(self):
+        gov, clock, sleep, log = make_governor({"default_events_per_second": 100})
+        gov.set_rate(250)
+        self.assertIsInstance(gov.default_events_per_second, float)
+        self.assertEqual(sleep.calls, [])
+        self.assertEqual(log.messages, [])
+
+    def test_next_pace_resets_window_on_rate_change(self):
+        gov, clock, sleep, log = make_governor({"default_events_per_second": 100})
+
+        # Warm up the window at the original rate.
+        gov.pace(10)
+        clock.advance(1.0)
+        gov.pace(10)
+        self.assertNotEqual(gov.window_events, 0)
+        old_window_start = gov.window_start
+
+        gov.set_rate(500)
+        # The rate change alone doesn't touch pacing state...
+        self.assertEqual(gov.window_start, old_window_start)
+
+        # ...but the very next pace() call sees target != current_target and
+        # resets window_start/window_events exactly like a schedule-driven
+        # target transition does.
+        clock.advance(0.001)
+        gov.pace(0)
+        self.assertEqual(gov.current_target, 500.0)
+        self.assertEqual(gov.window_start, clock.now)
+        self.assertEqual(gov.window_events, 0)
+
+    def test_rate_zero_does_not_turn_governor_uncapped(self):
+        gov, clock, sleep, log = make_governor({"default_events_per_second": 100})
+        gov.set_rate(0)
+
+        # The governor stays engaged (a real RateGovernor instance, never
+        # swapped for a NullGovernor) -- "uncapped" never applies here, only
+        # the caller's epsilon-floor policy decides what rate is actually
+        # commanded (see generator.py's pause-semantics wiring).
+        self.assertIsInstance(gov, RateGovernor)
+        self.assertEqual(gov.default_events_per_second, 0.0)
+
+
 class TestReporting(unittest.TestCase):
     def test_report_fires_once_per_interval_with_achieved_rate(self):
         rate_control = {
@@ -265,6 +323,39 @@ class TestReporting(unittest.TestCase):
         for _ in range(50):
             gov.pace(10)
         self.assertEqual(log.messages, [])
+
+
+class TestMaxSingleSleep(unittest.TestCase):
+    """max_single_sleep_seconds caps any single pace() sleep, so a very low
+    commanded rate combined with a large per-operation batch cannot freeze the
+    worker for minutes (the trimmer-stuck-at-0 bug)."""
+
+    def _gov(self, rate, cap):
+        clock = FakeClock(0.0)
+        sleep = FakeSleep(clock)
+        gov = RateGovernor({"default_events_per_second": rate},
+                           clock=clock, sleep=sleep, log=RecordingLog(),
+                           max_single_sleep_seconds=cap)
+        return gov, sleep
+
+    def test_uncapped_low_rate_large_batch_sleeps_minutes(self):
+        # Baseline: a 300-event batch at 1 ev/s would sleep ~300s uncapped.
+        gov, sleep = self._gov(1.0, None)
+        gov.pace(300)
+        self.assertGreater(max(sleep.calls), 100.0)
+
+    def test_cap_bounds_the_sleep(self):
+        gov, sleep = self._gov(1.0, 3.0)
+        gov.pace(300)
+        self.assertTrue(sleep.calls)
+        self.assertLessEqual(max(sleep.calls), 3.0)
+
+    def test_cap_leaves_normal_rates_untouched(self):
+        # 300 events at 1500 ev/s needs only 0.2s -- well under the cap.
+        gov, sleep = self._gov(1500.0, 3.0)
+        gov.pace(300)
+        if sleep.calls:
+            self.assertLess(max(sleep.calls), 1.0)
 
 
 if __name__ == "__main__":

@@ -25,6 +25,7 @@ from utils import (
     build_worker_governor,
     build_pk_in_condition,
     seed_pk_pool,
+    read_control_rate,
 )
 from pk_pool import PkPool
 import shared_cache
@@ -103,6 +104,33 @@ if args.throttle and args.throttle > 0:
           f"(overrides generator.rate_control, if configured)")
 elif RATE_CONTROL:
     print("rate_control is configured: ignoring wait_after_operations/wait_duration_seconds (legacy throttle)")
+
+# Cascade trimmer controller: runtime-adjustable throttle (Option B). Only
+# the persistent "trimmer" worker is launched with --control-file; every
+# other worker (uncapped or unset) leaves this None and the block below is
+# a no-op. See docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md.
+#
+# Re-read at most once per ~CONTROL_FILE_POLL_SECONDS, immediately before
+# GOVERNOR.pace() in the main loop, so a changed commanded rate takes
+# effect on the very next pacing decision. `_last_control_rate` seeds from
+# the already-engaged --throttle (the trimmer is always spawned with a
+# throttle > 0 precisely so this starting point is never 0/uncapped).
+CONTROL_FILE = args.control_file
+CONTROL_FILE_POLL_SECONDS = 1.0
+# A commanded rate <= 0 means PAUSE: the loop skips the DML op entirely and
+# idles for CONTROL_FILE_POLL_SECONDS, re-reading each iteration. This replaces
+# the old "floor to a 1 ev/s epsilon and keep running full batches" behavior,
+# which froze the worker: one 300-row batch at 1 ev/s makes the governor sleep
+# ~300s, during which it can never re-read the control file to see the rate rise
+# again (observed: trimmer stuck at 0 through an entire baseline recovery).
+_last_control_rate = float(args.throttle) if args.throttle and args.throttle > 0 else 0.0
+_last_control_read_t = 0.0
+# Defense in depth against the same freeze for tiny (but > 0) commanded rates:
+# cap any single governor sleep. Never triggers at real trimmer rates
+# (hundreds+ ev/s -> sub-second pacing); only bounds pathological low rates.
+CONTROL_FILE_MAX_SLEEP_SECONDS = 3.0
+if CONTROL_FILE and hasattr(GOVERNOR, "max_single_sleep_seconds"):
+    GOVERNOR.max_single_sleep_seconds = CONTROL_FILE_MAX_SLEEP_SECONDS
 
 # Index events flag
 ENABLE_INDEX_CREATE_DROP = GEN.get("enable_index_create_drop", False)
@@ -401,6 +429,23 @@ iteration_iter = itertools.count(1) if NUM_ITERATIONS == -1 else range(1, NUM_IT
 
 try:
     for i in iteration_iter:
+        # Cascade trimmer control (trimmer worker only): re-read the commanded
+        # rate at the TOP of the loop, time-gated. A changed rate > 0 is pushed
+        # to the governor for this tick's pacing; a rate <= 0 means PAUSE -- skip
+        # this iteration's DML entirely and idle briefly, re-reading next pass.
+        if CONTROL_FILE:
+            _now = time.monotonic()
+            if _now - _last_control_read_t >= CONTROL_FILE_POLL_SECONDS:
+                _last_control_read_t = _now
+                _r = read_control_rate(CONTROL_FILE, _last_control_rate)
+                if _r != _last_control_rate:
+                    _last_control_rate = _r
+                    if _r > 0:
+                        GOVERNOR.set_rate(_r)
+            if _last_control_rate <= 0:
+                time.sleep(CONTROL_FILE_POLL_SECONDS)
+                continue
+
         # Choose a random table
         table_name = random.choices(
             list(RESOLVED_TABLE_WEIGHTS.keys()),
