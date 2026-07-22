@@ -39,16 +39,19 @@ from parallel_generator import (
     compute_C_observed,
     decide_adjustment,
     decide_coarse,
+    decide_overshoot_shed,
     derive_worker_runtime_config,
     diff_worker_counts,
     fine_trim,
     peak_target,
     plan_worker_counts,
     reactive_worker_cap,
+    run_calibration,
     TrailingRateWindow,
     recalibrate_C,
     resolve_parallel_config,
 )
+import parallel_generator
 
 
 class TestPeakTarget(unittest.TestCase):
@@ -94,6 +97,8 @@ class TestResolveParallelConfig(unittest.TestCase):
         self.assertEqual(cfg["sat_ticks_needed"], 2)
         self.assertEqual(cfg["high_sat_pct"], 98.0)
         self.assertEqual(cfg["low_sat_pct"], 2.0)
+
+        self.assertEqual(cfg["calibration_warmup_seconds"], 20)
 
     def test_none_treated_as_empty(self):
         cfg = resolve_parallel_config(None)
@@ -1139,6 +1144,174 @@ class TestTrailingRateWindow(unittest.TestCase):
             TrailingRateWindow(0)
         with self.assertRaises(ValueError):
             TrailingRateWindow(-5)
+
+
+class TestDecideOvershootShed(unittest.TestCase):
+    """decide_overshoot_shed: the cautious fast-shed safety net for a large,
+    sustained overshoot (e.g. after a cold-C phase-change over-provision)."""
+
+    def test_no_fire_when_not_enough_overshoot_ticks(self):
+        n_shed, c_snap = decide_overshoot_shed(
+            n_uncapped=22, achieved=24000.0, trimmer_rate=0.0, target=10000.0,
+            overshoot_ticks=1, overshoot_ticks_needed=2,
+        )
+        self.assertEqual(n_shed, 0)
+        self.assertIsNone(c_snap)
+
+    def test_no_fire_when_within_overshoot_threshold(self):
+        # achieved = 1.1 * target -- under the default 25% threshold.
+        n_shed, c_snap = decide_overshoot_shed(
+            n_uncapped=22, achieved=11000.0, trimmer_rate=0.0, target=10000.0,
+            overshoot_ticks=5, overshoot_ticks_needed=2,
+        )
+        self.assertEqual(n_shed, 0)
+        self.assertIsNone(c_snap)
+
+    def test_no_fire_when_fewer_than_two_uncapped(self):
+        n_shed, c_snap = decide_overshoot_shed(
+            n_uncapped=1, achieved=24000.0, trimmer_rate=0.0, target=10000.0,
+            overshoot_ticks=5, overshoot_ticks_needed=2,
+        )
+        self.assertEqual(n_shed, 0)
+        self.assertIsNone(c_snap)
+
+    def test_fires_on_sustained_large_overshoot_bounded_by_max_shed_frac(self):
+        # n_uncapped=10, C_obs = 24000/10 = 2400; desired_n = floor(10000/2400)
+        # = 4; raw_shed = 6; max_shed = floor(10*0.5) = 5 -> bounded to 5.
+        n_shed, c_snap = decide_overshoot_shed(
+            n_uncapped=10, achieved=24000.0, trimmer_rate=0.0, target=10000.0,
+            overshoot_ticks=2, overshoot_ticks_needed=2,
+        )
+        self.assertEqual(n_shed, 5)
+        self.assertAlmostEqual(c_snap, 2400.0)
+
+    def test_incident_realistic_case(self):
+        # Mirrors the incident: cold C over-provisioned 22 workers for a
+        # 10k target; achieved overshoots to 24000.
+        n_shed, c_snap = decide_overshoot_shed(
+            n_uncapped=22, achieved=24000.0, trimmer_rate=0.0, target=10000.0,
+            overshoot_ticks=2, overshoot_ticks_needed=2,
+        )
+        self.assertGreater(n_shed, 0)
+        self.assertLessEqual(n_shed, 11)  # floor(22 * 0.5)
+        self.assertAlmostEqual(c_snap, 24000.0 / 22.0)
+
+    def test_division_by_zero_guard(self):
+        # achieved - trimmer_rate <= 0 (trimmer alone accounts for all of it,
+        # or more) -- must not raise, must return (0, None).
+        n_shed, c_snap = decide_overshoot_shed(
+            n_uncapped=5, achieved=13000.0, trimmer_rate=13000.0, target=10000.0,
+            overshoot_ticks=5, overshoot_ticks_needed=2,
+        )
+        self.assertEqual(n_shed, 0)
+        self.assertIsNone(c_snap)
+
+        n_shed2, c_snap2 = decide_overshoot_shed(
+            n_uncapped=5, achieved=13000.0, trimmer_rate=14000.0, target=10000.0,
+            overshoot_ticks=5, overshoot_ticks_needed=2,
+        )
+        self.assertEqual(n_shed2, 0)
+        self.assertIsNone(c_snap2)
+
+
+class _FakeProc(object):
+    """Minimal Popen stand-in: never exits during calibration."""
+
+    def poll(self):
+        return None
+
+
+class TestRunCalibrationWarmup(unittest.TestCase):
+    """run_calibration: the warmup-before-measuring behavior.
+    `parallel_generator.time.sleep`/`time.monotonic` are monkeypatched to
+    fake, controlled values so the test doesn't actually sleep and the
+    ordering of warmup-sleep vs. the measurement window can be asserted
+    directly, per IMPLEMENTATION_CONTRACTS.md's testing rule (no real clock).
+    """
+
+    def setUp(self):
+        self._orig_sleep = parallel_generator.time.sleep
+        self._orig_monotonic = parallel_generator.time.monotonic
+        self.calls = []
+
+        def fake_sleep(seconds):
+            self.calls.append(("sleep", seconds))
+
+        parallel_generator.time.sleep = fake_sleep
+        self._monotonic_values = iter([100.0, 130.0])
+        parallel_generator.time.monotonic = lambda: next(self._monotonic_values)
+
+    def tearDown(self):
+        parallel_generator.time.sleep = self._orig_sleep
+        parallel_generator.time.monotonic = self._orig_monotonic
+
+    def _make_spawn_kill(self):
+        spawned = []
+        killed = []
+
+        def spawn_worker(throttle=0.0):
+            uid = 1
+            spawned.append(uid)
+            return uid, _FakeProc()
+
+        def kill_worker(uid):
+            killed.append(uid)
+
+        return spawn_worker, kill_worker, spawned, killed
+
+    def test_warmup_zero_is_legacy_behavior(self):
+        spawn_worker, kill_worker, spawned, killed = self._make_spawn_kill()
+        measure_values = iter([1000.0, 2500.0])
+
+        def measure_fn():
+            v = next(measure_values)
+            self.calls.append(("measure", v))
+            return v
+
+        C = run_calibration(
+            spawn_worker, kill_worker, measure_fn, calibration_seconds=30,
+            warmup_seconds=0,
+        )
+
+        # (2500 - 1000) / (130 - 100) = 50.0
+        self.assertAlmostEqual(C, 50.0)
+        # Exactly one sleep call, for calibration_seconds -- no warmup sleep.
+        self.assertEqual(self.calls, [
+            ("measure", 1000.0),
+            ("sleep", 30),
+            ("measure", 2500.0),
+        ])
+        self.assertEqual(spawned, [1])
+        self.assertEqual(killed, [1])
+
+    def test_warmup_positive_sleeps_before_measuring(self):
+        spawn_worker, kill_worker, spawned, killed = self._make_spawn_kill()
+        # Post-warmup samples only: the pre-warmup rows the cold worker
+        # produced are never observed by measure_fn at all.
+        measure_values = iter([5000.0, 6500.0])
+
+        def measure_fn():
+            v = next(measure_values)
+            self.calls.append(("measure", v))
+            return v
+
+        C = run_calibration(
+            spawn_worker, kill_worker, measure_fn, calibration_seconds=30,
+            warmup_seconds=20,
+        )
+
+        self.assertAlmostEqual(C, 50.0)
+        # Warmup sleep happens first, THEN start_sum is measured, THEN the
+        # calibration sleep, THEN end_sum -- proving the measurement window
+        # starts only after the worker has warmed up.
+        self.assertEqual(self.calls, [
+            ("sleep", 20),
+            ("measure", 5000.0),
+            ("sleep", 30),
+            ("measure", 6500.0),
+        ])
+        self.assertEqual(spawned, [1])
+        self.assertEqual(killed, [1])
 
 
 if __name__ == "__main__":
