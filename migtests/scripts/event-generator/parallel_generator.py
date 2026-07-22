@@ -106,6 +106,31 @@ DEFAULT_PARALLEL_CONFIG = {
     # Beyond that, a below-target reading is cluster-bound, not worker-bound,
     # so adding more workers only piles load on a struggling cluster.
     "reactive_margin": 1.5,
+    # ---- Cascade trimmer controller (allow_throttle=True path only) ----
+    # Distinct names from the legacy `deadband_pct`/`cooldown_seconds` above
+    # (which the allow_throttle=False bang-bang path keeps using unchanged)
+    # -- see docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md.
+    # fine_kp: proportional gain of the integral fine knob (fine_trim).
+    # Stability requires 0 < fine_kp <= 1 (error decays by (1-kp)/tick).
+    "fine_kp": 0.6,
+    # fine_deadband_pct: %-of-target band around target where the fine knob
+    # holds (no twitch on noise).
+    "fine_deadband_pct": 2.0,
+    # fine_slew_pct: max single-tick trimmer_rate step, as a %-of-C.
+    "fine_slew_pct": 50.0,
+    # sat_ticks_needed: consecutive high/low-saturated ticks required before
+    # the coarse knob (decide_coarse) acts, so a coarse add/remove is never
+    # triggered on the fine knob's transient settling.
+    "sat_ticks_needed": 2,
+    # high_sat_pct / low_sat_pct: %-of-C thresholds for "pinned high"
+    # ("pinned low") saturation of the trimmer rate.
+    "high_sat_pct": 98.0,
+    "low_sat_pct": 2.0,
+    # meter_window_seconds: trailing window over which the raw meter counter is
+    # averaged into the `achieved` rate the controller acts on (TrailingRateWindow).
+    # Denoises the jumpy 5s pg_stat_statements reading so the fine knob doesn't
+    # thrash and recalibrate doesn't erode C. Keep >= a few control intervals.
+    "meter_window_seconds": 15.0,
 }
 
 
@@ -323,6 +348,158 @@ def recalibrate_C(C, C_observed, alpha=0.3, max_delta_pct=10.0):
     return C + delta
 
 
+def fine_trim(trimmer_rate, achieved, target, C, kp=0.6, deadband_pct=2.0, slew_pct=50.0,
+              freeze_increase=False):
+    """The cascade trimmer controller's integral fine knob: return the new
+    commanded trimmer rate (events/sec) for the persistent throttled
+    "trimmer" worker.
+
+    See docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md
+    ("fine_trim"). This is the control variable the within-phase loop
+    steers continuously; whole (uncapped) workers only change via
+    decide_coarse when this saturates.
+
+    ```
+    error = target - achieved
+    if abs(error) <= target * deadband_pct/100:  return trimmer_rate   # hold
+    step = kp * error
+    max_step = C * slew_pct/100
+    step = clamp(step, -max_step, +max_step)      # slew limit
+    new = trimmer_rate + step
+    return clamp(new, 0.0, C)                      # anti-windup
+    ```
+
+    Stability: in the unsaturated region, `error_next = (1-kp)*error` --
+    monotone decay for `0 < kp <= 1`. Callers must keep `kp <= 1`.
+
+    `freeze_increase` (anti-windup during actuator ramp): when True, the
+    knob may still DECREASE (correct an overshoot) but never INCREASE. The
+    loop sets this during the post-spawn cooldown window -- right after a
+    phase-change feed-forward jump or a coarse add/remove -- because a
+    just-spawned uncapped worker is still ramping toward full throughput.
+    Raising the trimmer while `achieved` is transiently low (workers not yet
+    at full) would wind the knob up and overshoot the instant the worker
+    reaches full (observed: a 35% one-tick overshoot on every spike onset).
+    """
+    error = target - achieved
+    if abs(error) <= target * (deadband_pct / 100.0):
+        return trimmer_rate
+
+    step = kp * error
+    max_step = C * (slew_pct / 100.0)
+    if step > max_step:
+        step = max_step
+    elif step < -max_step:
+        step = -max_step
+
+    new = trimmer_rate + step
+    if new < 0.0:
+        new = 0.0
+    elif new > C:
+        new = C
+
+    if freeze_increase and new > trimmer_rate:
+        return trimmer_rate
+    return new
+
+
+def decide_coarse(n_full, trimmer_rate, achieved, target, C, cap,
+                   sat_high_ticks, sat_low_ticks, sat_ticks_needed=2):
+    """The cascade trimmer controller's coarse base-knob decision: whether
+    to add/remove one whole uncapped worker, driven by the fine knob
+    (trimmer_rate) saturating against its own ceiling `C`.
+
+    See docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md
+    ("decide_coarse"). `sat_high_ticks`/`sat_low_ticks` are consecutive-tick
+    saturation counters the caller maintains (reset to 0 on any coarse
+    action, incremented/reset each tick based on the current trimmer_rate
+    vs C).
+
+    ```
+    high_sat = trimmer_rate >= C * 0.98
+    low_sat  = trimmer_rate <= C * 0.02
+    under = achieved < target
+    over  = achieved > target
+
+    # ADD: fine knob pinned high and still under target, room under cap.
+    if high_sat and under and sat_high_ticks >= sat_ticks_needed and n_full < cap:
+        return "add"
+
+    # REMOVE: fine knob pinned low and still over target, AND removing
+    # keeps the target reachable: after removal, max achievable =
+    # (n_full-1)*C + C = n_full*C.
+    if low_sat and over and sat_low_ticks >= sat_ticks_needed and n_full > 0 \
+       and (n_full * C) >= target:
+        return "remove"
+
+    return "hold"
+    ```
+
+    The `(n_full * C) >= target` guard is the ANTI-HUNT guard: it refuses
+    to remove a worker when the target would land in the unreachable gap
+    between "trimmer-only max C" and "one more full worker". In that case
+    the loop holds at a bounded overshoot and relies on recalibration to
+    raise C.
+    """
+    high_sat = trimmer_rate >= C * 0.98
+    low_sat = trimmer_rate <= C * 0.02
+    under = achieved < target
+    over = achieved > target
+
+    if high_sat and under and sat_high_ticks >= sat_ticks_needed and n_full < cap:
+        return "add"
+
+    if low_sat and over and sat_low_ticks >= sat_ticks_needed and n_full > 0 \
+            and (n_full * C) >= target:
+        return "remove"
+
+    return "hold"
+
+
+class TrailingRateWindow(object):
+    """Moving-average throughput over a trailing time window, to denoise the
+    meter reading before it drives the controller.
+
+    The raw meter (pg_stat_statements summed across nodes) is jumpy at a 5s
+    control interval -- +/-50% swings around the true rate are common from
+    cross-node counter-update skew and LRU-eviction catch-up. Fed straight to
+    the integral fine knob it thrashes; and with recalibrate on, the low
+    readings drag the per-worker ceiling C down toward the noise floor, which
+    makes the coarse knob over-add workers and overshoot the target (observed
+    on bisect100: C 8469 -> 4801, real throughput to ~2x target). Averaging the
+    cumulative counter over ~15s removes this. No error is banked: the input
+    counter is monotonic (see CrossNodeProgressTracker), so the windowed delta
+    is always >= 0.
+
+    Pure -- the caller supplies the clock reading and the cumulative counter.
+    """
+
+    def __init__(self, window_seconds):
+        if window_seconds <= 0:
+            raise ValueError("window_seconds must be > 0, got {!r}".format(window_seconds))
+        self._window = window_seconds
+        self._samples = []  # (t, cumulative), oldest first
+
+    def update(self, t, cumulative):
+        """Record (t, cumulative); return the average rate over the trailing
+        window = (cumulative - oldest_in_window) / (t - t_oldest_in_window).
+        Returns 0.0 until two samples span a positive interval. During warmup
+        (fewer than window_seconds of history) it averages over what exists."""
+        self._samples.append((t, cumulative))
+        # Keep the oldest sample no more than ~window old (but always >= 2
+        # samples so a rate is always computable).
+        while len(self._samples) > 2 and (t - self._samples[0][0]) > self._window:
+            self._samples.pop(0)
+        t0, c0 = self._samples[0]
+        dt = t - t0
+        if dt <= 0:
+            return 0.0
+        delta = cumulative - c0
+        if delta < 0:
+            delta = 0.0
+        return delta / dt
+
+
 class WorkerUidAllocator(object):
     """Monotonic, controller-owned worker_uid allocator: every call to
     `allocate()` returns a fresh id, one higher than the last, for the
@@ -439,12 +616,18 @@ def _set_worker_pdeathsig():
 
 
 def build_worker_argv(python_exe, generator_path, config_path, worker_uid, pk_stride,
-                       cache_dir, cache_version, throttle=0.0):
+                       cache_dir, cache_version, throttle=0.0, control_file=None):
     """Build the argv for one worker spawn, per IMPLEMENTATION_CONTRACTS.md's
     "Worker CLI" contract: `-c`, `--worker-uid`, `--pk-stride`,
     `--cache-dir`, `--cache-version`, and `--throttle` only when > 0
     (0/absent means uncapped -- the worker must not engage rate_governor
     at all in that case).
+
+    `control_file` is only ever passed for the cascade trimmer controller's
+    persistent "trimmer" worker (see
+    docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md):
+    `--control-file` is appended only when it's truthy. Uncapped workers
+    must never receive it.
     """
     argv = [
         python_exe, generator_path,
@@ -456,6 +639,8 @@ def build_worker_argv(python_exe, generator_path, config_path, worker_uid, pk_st
     ]
     if throttle and throttle > 0:
         argv += ["--throttle", str(throttle)]
+    if control_file:
+        argv += ["--control-file", control_file]
     return argv
 
 
@@ -501,12 +686,42 @@ class SlotFilePool(object):
 
 GENERATOR_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generator.py")
 
+# The cascade trimmer controller's persistent trimmer is ALWAYS spawned with
+# an initial --throttle > 0 (never the literal 0 a freshly-computed
+# trimmer_rate might be) so it starts in governed mode; the control file
+# then commands it down (including to a pause) without the spawn-time
+# --throttle=0 == uncapped footgun ever applying. See
+# docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md.
+TRIMMER_SPAWN_EPSILON = 1.0
+
 
 def write_yaml_config(data, path):
     if yaml is None:
         raise RuntimeError("PyYAML is required to write worker configs. Install with: pip install PyYAML")
     with open(path, "w") as f:
         yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
+
+
+def write_control_file_atomic(path, rate):
+    """Atomically (re)write the cascade trimmer controller's control file at
+    `path` with a single float `rate` (events/sec): write to a temp file in
+    the same directory, then `os.replace` it into place, so the trimmer
+    worker's `utils.read_control_rate` (re-read on its own timer) never
+    observes a partial write -- only the old value or the new one, never a
+    half-written one.
+    """
+    directory = os.path.dirname(path) or "."
+    fd, tmp_path = tempfile.mkstemp(prefix=".trimmer_rate_", dir=directory)
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write("{:.4f}".format(rate))
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def query_events_sum(cursor):
@@ -914,6 +1129,16 @@ def run_controller(base_config, rate_csv_path=None):
     pk_stride = parallel_cfg["pk_stride"]
     run_seconds = parallel_cfg["run_seconds"]
     reactive_margin = parallel_cfg.get("reactive_margin", 1.5)
+    # Cascade trimmer controller knobs (allow_throttle=True path only;
+    # distinct names from deadband_pct/cooldown_seconds above, which the
+    # allow_throttle=False bang-bang path keeps using unchanged).
+    fine_kp = parallel_cfg["fine_kp"]
+    fine_deadband_pct = parallel_cfg["fine_deadband_pct"]
+    fine_slew_pct = parallel_cfg["fine_slew_pct"]
+    sat_ticks_needed = parallel_cfg["sat_ticks_needed"]
+    high_sat_pct = parallel_cfg["high_sat_pct"]
+    low_sat_pct = parallel_cfg["low_sat_pct"]
+    meter_window_seconds = parallel_cfg["meter_window_seconds"]
 
     base_seed = gen.get("random_seed", gen.get("seed"))
     if base_seed is None:
@@ -956,9 +1181,14 @@ def run_controller(base_config, rate_csv_path=None):
 
     cache_dir = tempfile.mkdtemp(prefix="event_generator_cache_")
     tmp_dir = tempfile.mkdtemp(prefix="parallel_generator_")
+    # Stable, persistent control-file path for the cascade trimmer
+    # controller's single trimmer worker (allow_throttle=True path only).
+    # Never varies across the run, including across a crash/respawn, so a
+    # respawned trimmer resumes reading the same commanded rate.
+    trimmer_control_file = os.path.join(tmp_dir, "trimmer_rate.txt")
     slot_pool = SlotFilePool(tmp_dir, max_workers + 1)  # +1 headroom for the trimmer
     uid_allocator = WorkerUidAllocator()
-    worker_procs = {}  # worker_uid -> {"proc": Popen, "slot": int, "throttle": float}
+    worker_procs = {}  # worker_uid -> {"proc": Popen, "slot": int, "throttle": float, "control_file": Optional[str]}
     roster = WorkerRoster()
     runtime_cfg = derive_worker_runtime_config(base_config)
     stop_refresh = threading.Event()
@@ -966,7 +1196,7 @@ def run_controller(base_config, rate_csv_path=None):
     csv_file = None
     interrupted = False
 
-    def spawn_worker(throttle=0.0):
+    def spawn_worker(throttle=0.0, control_file=None):
         uid = uid_allocator.allocate()
         slot_idx, slot_path = slot_pool.acquire()
         # Assign this worker a specific node (round-robin) so load spreads
@@ -982,13 +1212,13 @@ def run_controller(base_config, rate_csv_path=None):
         cur_version = shared_cache.current_version(cache_dir)
         argv = build_worker_argv(
             sys.executable, GENERATOR_PATH, slot_path, uid, pk_stride,
-            cache_dir, cur_version, throttle,
+            cache_dir, cur_version, throttle, control_file=control_file,
         )
         # preexec_fn sets PR_SET_PDEATHSIG so the kernel kills this worker if
         # the controller dies for any reason (incl. SIGKILL/crash) -- prevents
         # orphaned workers that keep writing after the controller is gone.
         proc = subprocess.Popen(argv, preexec_fn=_set_worker_pdeathsig)
-        worker_procs[uid] = {"proc": proc, "slot": slot_idx, "throttle": throttle}
+        worker_procs[uid] = {"proc": proc, "slot": slot_idx, "throttle": throttle, "control_file": control_file}
         return uid, proc
 
     def kill_worker(uid):
@@ -997,6 +1227,16 @@ def run_controller(base_config, rate_csv_path=None):
             return
         terminate_processes([entry["proc"]])
         slot_pool.release(entry["slot"])
+
+    def write_trimmer_rate(rate):
+        """Push a new commanded rate to the persistent trimmer's control
+        file (allow_throttle=True / cascade path only) -- atomically, and
+        only when it actually changed, per the design doc's step 5."""
+        nonlocal last_written_trimmer_rate
+        if last_written_trimmer_rate is not None and abs(last_written_trimmer_rate - rate) < 1e-9:
+            return
+        write_control_file_atomic(trimmer_control_file, rate)
+        last_written_trimmer_rate = rate
 
     def apply_phase_plan(target, plan):
         n_full = plan["n_full"]
@@ -1085,15 +1325,28 @@ def run_controller(base_config, rate_csv_path=None):
         rate_csv_path = rate_csv_path or "parallel_generator_rates_{}.csv".format(int(time.time()))
         csv_file = open(rate_csv_path, "w", newline="")
         writer = csv.writer(csv_file)
-        writer.writerow(["epoch", "t_seconds", "target", "achieved_evps", "n_uncapped", "n_trimmer", "C"])
+        writer.writerow(["epoch", "t_seconds", "target", "achieved_evps", "n_uncapped", "n_trimmer", "C", "trimmer_rate"])
         print("[rates] writing timestamped rate CSV to {}".format(rate_csv_path))
 
         reset_fn()
-        last_sample_t = time.monotonic()
-        last_sum = measure_fn()
+        # Trailing-window meter: the controller acts on a ~meter_window_seconds
+        # moving average of the (monotonic) cumulative counter, not the jumpy
+        # single-interval delta -- see TrailingRateWindow.
+        rate_window = TrailingRateWindow(meter_window_seconds)
+        rate_window.update(time.monotonic(), measure_fn())
         current_target = None
         last_adjust_t = None
         end_time = run_start + run_seconds
+
+        # Cascade trimmer controller state (allow_throttle=True path only;
+        # unused/inert when False). trimmer_rate is the live commanded rate
+        # for the persistent trimmer; sat_*_ticks are decide_coarse's
+        # consecutive-saturation counters; last_written_trimmer_rate lets
+        # write_trimmer_rate skip a no-op rewrite.
+        trimmer_rate = 0.0
+        sat_high_ticks = 0
+        sat_low_ticks = 0
+        last_written_trimmer_rate = None
 
         while True:
             now = time.monotonic()
@@ -1117,6 +1370,7 @@ def run_controller(base_config, rate_csv_path=None):
                 crashed_this_interval += 1
                 entry = worker_procs.get(uid) or {}
                 throttle = entry.get("throttle", 0.0)
+                control_file = entry.get("control_file")
                 was_trimmer = (roster.trimmer_uid == uid)
                 print(
                     "[monitor] WARNING: worker uid={} exited unexpectedly (code={}); "
@@ -1129,84 +1383,234 @@ def run_controller(base_config, rate_csv_path=None):
                     roster.clear_trimmer()
                 else:
                     roster.remove_uncapped(uid)
-                new_uid, _ = spawn_worker(throttle=throttle)
                 if was_trimmer:
+                    # Respawn with the freshest known commanded rate (not the
+                    # stale spawn-time throttle) so the replacement trimmer
+                    # starts as close as possible to where the dead one left
+                    # off; it also resumes reading the same control-file path,
+                    # per the design doc's "reap respawns it" contract.
+                    respawn_throttle = (
+                        last_written_trimmer_rate
+                        if last_written_trimmer_rate and last_written_trimmer_rate > 0
+                        else TRIMMER_SPAWN_EPSILON
+                    )
+                    new_uid, _ = spawn_worker(throttle=respawn_throttle, control_file=control_file)
                     roster.set_trimmer(new_uid)
                 else:
+                    new_uid, _ = spawn_worker(throttle=throttle)
                     roster.add_uncapped(new_uid)
 
-            cur_sum = measure_fn()
-            interval = now - last_sample_t
-            delta = cur_sum - last_sum
-            if delta < 0:
-                # pg_stat_statements was reset out from under us; treat as
-                # a fresh baseline rather than reporting a negative rate.
-                delta = 0.0
-            achieved = delta / interval if interval > 0 else 0.0
-            last_sample_t, last_sum = now, cur_sum
+            # Trailing-window average of the monotonic cumulative counter --
+            # denoises the meter so the fine knob doesn't chase 5s jitter and
+            # recalibrate doesn't erode C. (The underlying tracker is already
+            # reset-safe/monotonic, so no negative-delta handling is needed here.)
+            achieved = rate_window.update(now, measure_fn())
 
             target = schedule.target_at(now)
 
-            if current_target is None or target != current_target:
-                plan = plan_worker_counts(target, C_state["C"], allow_throttle)
-                apply_phase_plan(target, plan)
-                current_target = target
-                last_adjust_t = now
-            else:
-                seconds_since_last_adjust = (now - last_adjust_t) if last_adjust_t is not None else None
-                decision = decide_adjustment(
-                    achieved, target, deadband_pct, seconds_since_last_adjust, cooldown_seconds
-                )
-                if decision == "add":
-                    cap = reactive_worker_cap(target, calib_C, reactive_margin)
-                    if crashed_this_interval > 0:
-                        # Cluster distress: workers are dying. Adding more would
-                        # amplify the overload. Hold (respawns already keep the
-                        # pool level); let it recover.
-                        print("[backpressure] {} worker(s) crashed this interval; "
-                              "not adding (cluster distress)".format(crashed_this_interval))
-                    elif roster.n_uncapped() >= cap:
-                        # Below target despite having the workers the target
-                        # needs -> cluster-bound, not worker-bound. Adding more
-                        # only hurts. This is the anti-spiral cap.
-                        print("[backpressure] holding at n_uncapped={} (reactive cap {} "
-                              "for target={:.0f}, calibC={:.0f}); shortfall is cluster-bound"
-                              .format(roster.n_uncapped(), cap, target, calib_C))
-                    elif len(worker_procs) < max_workers:
-                        uid, _ = spawn_worker(throttle=0.0)
-                        roster.add_uncapped(uid)
-                        last_adjust_t = now
-                    else:
-                        print("[control] want to add a worker but at max_workers={}".format(max_workers))
-                elif decision == "kill":
-                    victim = roster.pop_newest_uncapped()
-                    if victim is not None:
-                        kill_worker(victim)
-                        last_adjust_t = now
+            if allow_throttle:
+                # ---------------------------------------------------------
+                # Cascade trimmer controller path. See
+                # docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md
+                # ("Controller loop rewiring") for the per-tick order this
+                # mirrors exactly: phase-change feed-forward jump, or (within
+                # phase) recalibrate -> coarse -> fine, in that order.
+                # ---------------------------------------------------------
+                if current_target is None or target != current_target:
+                    # Phase change: feed-forward jump straight to the
+                    # calibrated mix instead of a slow integral ramp.
+                    C_live = C_state["C"]
+                    n_full_target = int(math.floor(target / C_live)) if C_live > 0 else 0
+                    # Always reserve 1 slot for the persistent trimmer (it
+                    # is never fully torn down -- see below).
+                    max_full = max(0, max_workers - 1)
+                    if n_full_target > max_full:
+                        print(
+                            "[plan] WARNING: target {:.1f} ev/s needs more full workers than "
+                            "max_workers={} allows (reserving 1 for the trimmer); capping "
+                            "n_full to {}".format(target, max_workers, max_full)
+                        )
+                        n_full_target = max_full
 
-                if recalibrate:
+                    uncapped_delta = n_full_target - roster.n_uncapped()
+                    if uncapped_delta > 0:
+                        for _ in range(uncapped_delta):
+                            if len(worker_procs) >= max_workers:
+                                print("[plan] WARNING: at max_workers={}, cannot add more "
+                                      "uncapped workers".format(max_workers))
+                                break
+                            uid, _ = spawn_worker(throttle=0.0)
+                            roster.add_uncapped(uid)
+                    elif uncapped_delta < 0:
+                        for _ in range(-uncapped_delta):
+                            victim = roster.pop_newest_uncapped()
+                            if victim is None:
+                                break
+                            kill_worker(victim)
+
+                    # Ensure the persistent trimmer exists. Spawned once for
+                    # the life of the run; never killed by phase changes or
+                    # by the coarse knob -- only a crash (reaped above) ever
+                    # respawns it, at the same control-file path. Always an
+                    # initial throttle > 0 (TRIMMER_SPAWN_EPSILON when the
+                    # freshly-computed rate below would be 0) so it starts
+                    # in governed mode; the control file then commands the
+                    # real rate, including down to a pause.
+                    if roster.trimmer_uid is None:
+                        uid, _ = spawn_worker(
+                            throttle=TRIMMER_SPAWN_EPSILON, control_file=trimmer_control_file
+                        )
+                        roster.set_trimmer(uid)
+
+                    trimmer_rate = (target - n_full_target * C_live) if C_live > 0 else 0.0
+                    trimmer_rate = max(0.0, min(C_live, trimmer_rate)) if C_live > 0 else 0.0
+                    write_trimmer_rate(trimmer_rate)
+
+                    sat_high_ticks = 0
+                    sat_low_ticks = 0
+                    current_target = target
+                    last_adjust_t = now
+                else:
+                    # Within phase.
                     n_unc = roster.n_uncapped()
                     stable = (last_adjust_t is None) or ((now - last_adjust_t) >= cooldown_seconds)
-                    if stable and n_unc >= 1:
-                        trimmer_rate = 0.0
-                        if roster.trimmer_uid is not None:
-                            trimmer_rate = worker_procs.get(roster.trimmer_uid, {}).get("throttle", 0.0)
+
+                    # (a) Recalibrate BEFORE coarse -- order matters (a
+                    # stale C would otherwise let decide_coarse hunt).
+                    if recalibrate and stable and n_unc >= 1:
                         c_obs = compute_C_observed(achieved, trimmer_rate, n_unc)
                         if c_obs is not None and c_obs > 0:
                             C_state["C"] = recalibrate_C(C_state["C"], c_obs)
+
+                    C_live = C_state["C"]
+
+                    # (b) Coarse: update saturation counters every tick, but
+                    # only ever act past the cooldown.
+                    high_sat = trimmer_rate >= C_live * (high_sat_pct / 100.0)
+                    low_sat = trimmer_rate <= C_live * (low_sat_pct / 100.0)
+                    sat_high_ticks = sat_high_ticks + 1 if high_sat else 0
+                    sat_low_ticks = sat_low_ticks + 1 if low_sat else 0
+
+                    if stable:
+                        cap = reactive_worker_cap(target, calib_C, reactive_margin)
+                        coarse_decision = decide_coarse(
+                            n_unc, trimmer_rate, achieved, target, C_live, cap,
+                            sat_high_ticks, sat_low_ticks, sat_ticks_needed=sat_ticks_needed,
+                        )
+                        if coarse_decision == "add":
+                            if crashed_this_interval > 0:
+                                # Cluster distress: workers are dying. Adding
+                                # more would amplify the overload.
+                                print("[backpressure] {} worker(s) crashed this interval; "
+                                      "not adding (cluster distress)".format(crashed_this_interval))
+                            elif len(worker_procs) >= max_workers:
+                                print("[control] want to add a worker but at "
+                                      "max_workers={}".format(max_workers))
+                            else:
+                                uid, _ = spawn_worker(throttle=0.0)
+                                roster.add_uncapped(uid)
+                                # Feed-forward (bumpless handoff): the new
+                                # full worker takes over ~C of what the
+                                # trimmer was carrying.
+                                trimmer_rate = max(0.0, min(C_live, trimmer_rate - C_live))
+                                sat_high_ticks = 0
+                                sat_low_ticks = 0
+                                last_adjust_t = now
+                        elif coarse_decision == "remove":
+                            victim = roster.pop_newest_uncapped()
+                            if victim is not None:
+                                kill_worker(victim)
+                                # Feed-forward: the trimmer picks back up the
+                                # ~C the removed worker was carrying.
+                                trimmer_rate = max(0.0, min(C_live, trimmer_rate + C_live))
+                                sat_high_ticks = 0
+                                sat_low_ticks = 0
+                                last_adjust_t = now
+
+                    # (c) Fine: the integral knob cleans up the residual
+                    # every tick, including the one a coarse action just
+                    # fired on. During the post-spawn cooldown (recomputed
+                    # here so it also covers a coarse action taken THIS tick,
+                    # which just set last_adjust_t=now), freeze fine-knob
+                    # INCREASES: a just-spawned uncapped worker is still
+                    # ramping, so raising the trimmer now would wind up and
+                    # overshoot when the worker reaches full. Decreases (to
+                    # correct an overshoot) stay allowed.
+                    in_cooldown = (
+                        last_adjust_t is not None
+                        and (now - last_adjust_t) < cooldown_seconds
+                    )
+                    trimmer_rate = fine_trim(
+                        trimmer_rate, achieved, target, C_state["C"],
+                        kp=fine_kp, deadband_pct=fine_deadband_pct, slew_pct=fine_slew_pct,
+                        freeze_increase=in_cooldown,
+                    )
+                    write_trimmer_rate(trimmer_rate)
+            else:
+                # ---------------------------------------------------------
+                # Legacy bang-bang path (allow_throttle=False) -- UNCHANGED.
+                # ---------------------------------------------------------
+                if current_target is None or target != current_target:
+                    plan = plan_worker_counts(target, C_state["C"], allow_throttle)
+                    apply_phase_plan(target, plan)
+                    current_target = target
+                    last_adjust_t = now
+                else:
+                    seconds_since_last_adjust = (now - last_adjust_t) if last_adjust_t is not None else None
+                    decision = decide_adjustment(
+                        achieved, target, deadband_pct, seconds_since_last_adjust, cooldown_seconds
+                    )
+                    if decision == "add":
+                        cap = reactive_worker_cap(target, calib_C, reactive_margin)
+                        if crashed_this_interval > 0:
+                            # Cluster distress: workers are dying. Adding more would
+                            # amplify the overload. Hold (respawns already keep the
+                            # pool level); let it recover.
+                            print("[backpressure] {} worker(s) crashed this interval; "
+                                  "not adding (cluster distress)".format(crashed_this_interval))
+                        elif roster.n_uncapped() >= cap:
+                            # Below target despite having the workers the target
+                            # needs -> cluster-bound, not worker-bound. Adding more
+                            # only hurts. This is the anti-spiral cap.
+                            print("[backpressure] holding at n_uncapped={} (reactive cap {} "
+                                  "for target={:.0f}, calibC={:.0f}); shortfall is cluster-bound"
+                                  .format(roster.n_uncapped(), cap, target, calib_C))
+                        elif len(worker_procs) < max_workers:
+                            uid, _ = spawn_worker(throttle=0.0)
+                            roster.add_uncapped(uid)
+                            last_adjust_t = now
+                        else:
+                            print("[control] want to add a worker but at max_workers={}".format(max_workers))
+                    elif decision == "kill":
+                        victim = roster.pop_newest_uncapped()
+                        if victim is not None:
+                            kill_worker(victim)
+                            last_adjust_t = now
+
+                    if recalibrate:
+                        n_unc = roster.n_uncapped()
+                        stable = (last_adjust_t is None) or ((now - last_adjust_t) >= cooldown_seconds)
+                        if stable and n_unc >= 1:
+                            trimmer_rate_legacy = 0.0
+                            if roster.trimmer_uid is not None:
+                                trimmer_rate_legacy = worker_procs.get(roster.trimmer_uid, {}).get("throttle", 0.0)
+                            c_obs = compute_C_observed(achieved, trimmer_rate_legacy, n_unc)
+                            if c_obs is not None and c_obs > 0:
+                                C_state["C"] = recalibrate_C(C_state["C"], c_obs)
 
             wall = time.time()
             t_seconds = now - run_start
             writer.writerow([
                 "{:.3f}".format(wall), "{:.1f}".format(t_seconds), "{:.1f}".format(target),
                 "{:.1f}".format(achieved), roster.n_uncapped(), roster.n_trimmer(),
-                "{:.1f}".format(C_state["C"]),
+                "{:.1f}".format(C_state["C"]), "{:.1f}".format(trimmer_rate),
             ])
             csv_file.flush()
             print(
                 "[monitor] ts={:.3f} t={:.0f}s target={:.1f} achieved={:.1f} "
-                "n_uncapped={} n_trimmer={} C={:.1f}".format(
-                    wall, t_seconds, target, achieved, roster.n_uncapped(), roster.n_trimmer(), C_state["C"]
+                "n_uncapped={} n_trimmer={} C={:.1f} trimmer_rate={:.1f}".format(
+                    wall, t_seconds, target, achieved, roster.n_uncapped(), roster.n_trimmer(),
+                    C_state["C"], trimmer_rate,
                 )
             )
 

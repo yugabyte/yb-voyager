@@ -39,7 +39,16 @@ class RateGovernor(object):
 
     def __init__(self, rate_control, *, random_seed=None,
                  clock=time.monotonic, sleep=time.sleep, log=print,
-                 wall_clock=time.time):
+                 wall_clock=time.time, max_single_sleep_seconds=None):
+        # Cap on any single pace() sleep. Defense against a very low commanded
+        # rate combined with a large per-operation batch (e.g. a 300-row INSERT
+        # at 1 ev/s would otherwise sleep ~300s) freezing the worker so it can
+        # never re-read its control file to see the rate go back up. None = no
+        # cap (unit tests / legacy). The dynamic-worker trimmer sets a few
+        # seconds. A capped sleep may over-produce at sub-cap rates, but the
+        # controller measures that and steers the command down (to pause) --
+        # far better than a multi-minute freeze.
+        self.max_single_sleep_seconds = max_single_sleep_seconds
         self.default_events_per_second = rate_control["default_events_per_second"]
         self.report_interval = rate_control.get("report_interval_seconds", 0) or 0
         self.schedule = rate_control.get("schedule") or []
@@ -142,6 +151,32 @@ class RateGovernor(object):
             return max(active_rates)
         return self.default_events_per_second
 
+    # ----- runtime-adjustable throttle (cascade trimmer controller) -----
+
+    def set_rate(self, rate):
+        """Set the governor's baseline target to `rate` (events/sec).
+
+        Pure; no I/O, no clock access. Used by the cascade trimmer
+        controller's persistent "trimmer" worker (Option B: runtime-
+        adjustable throttle via a control file re-read in the worker loop --
+        see docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md)
+        to change the commanded rate without a respawn: the next `pace()`
+        call sees `target_rate_at` return this new value, which differs
+        from `self.current_target`, so the existing reset branch clears
+        `window_start`/`window_events` and the new rate takes effect
+        cleanly. A trimmer never carries a schedule, so only
+        `default_events_per_second` matters here.
+
+        `rate` may be 0. This does NOT turn the governor uncapped/disengaged
+        -- it stays a RateGovernor, just targeting 0. Callers that want
+        "pause" semantics (emit ~nothing, but never uncapped, never exit)
+        must floor the commanded rate to a small positive epsilon before
+        calling this -- see generator.py's control-file wiring -- since
+        `pace()`'s own `target > 0` guard skips rate enforcement entirely
+        when the target is exactly 0.
+        """
+        self.default_events_per_second = float(rate)
+
     # ----- pacing -----
 
     def pace(self, events_emitted):
@@ -163,6 +198,8 @@ class RateGovernor(object):
             allowed = target * window_elapsed
             if self.window_events > allowed:
                 sleep_needed = self.window_events / target - window_elapsed
+                if self.max_single_sleep_seconds is not None:
+                    sleep_needed = min(sleep_needed, self.max_single_sleep_seconds)
                 if sleep_needed > 0:
                     self._sleep(sleep_needed)
 

@@ -322,6 +322,16 @@ def build_worker_arg_parser() -> "argparse.ArgumentParser":
         "0 or absent => uncapped; rate_governor is not engaged for this cap "
         "(a configured generator.rate_control, if any, still applies).",
     )
+    parser.add_argument(
+        "--control-file",
+        default=None,
+        help="Path to a control file the cascade trimmer controller periodically rewrites "
+        "with a single float events/sec rate. Only the persistent 'trimmer' worker gets "
+        "this flag; when set, the worker loop re-reads it (at most once per ~1s) and calls "
+        "rate_governor.set_rate on any change -- see "
+        "docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md. "
+        "Absent (default) => no runtime rate re-reading (uncapped workers never get this).",
+    )
     return parser
 
 
@@ -1718,6 +1728,31 @@ def compute_backoff_delay(attempt: int, base: float = 0.05, cap: float = 2.0) ->
     if attempt < 1:
         attempt = 1
     return min(cap, base * (2 ** (attempt - 1)))
+
+
+def read_control_rate(path: Optional[str], last: float) -> float:
+    """Read the single float control rate from `path` for the cascade
+    trimmer controller's runtime-adjustable throttle (Option B -- see
+    docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md).
+
+    On success, returns the parsed float. On `path` being None/empty,
+    missing file, empty/whitespace-only content, a parse error, or any
+    other exception (e.g. a transient read racing the controller's atomic
+    replace), returns `last` (hold the previous commanded rate) -- this
+    function never raises. Negative values are returned as-is; interpreting
+    a rate <= 0 as "pause" is the caller's (generator.py's) job, not this
+    function's.
+    """
+    if not path:
+        return last
+    try:
+        with open(path, "r") as f:
+            content = f.read().strip()
+        if not content:
+            return last
+        return float(content)
+    except Exception:
+        return last
 
 
 def execute_with_retry(

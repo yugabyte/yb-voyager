@@ -38,11 +38,14 @@ from parallel_generator import (
     build_worker_argv,
     compute_C_observed,
     decide_adjustment,
+    decide_coarse,
     derive_worker_runtime_config,
     diff_worker_counts,
+    fine_trim,
     peak_target,
     plan_worker_counts,
     reactive_worker_cap,
+    TrailingRateWindow,
     recalibrate_C,
     resolve_parallel_config,
 )
@@ -82,6 +85,15 @@ class TestResolveParallelConfig(unittest.TestCase):
         self.assertTrue(cfg["recalibrate"])
         self.assertEqual(cfg["pk_stride"], 100000)
         self.assertEqual(cfg["run_seconds"], 604800)
+        # Cascade trimmer controller's fine-knob constants (distinct from
+        # the legacy bang-bang `deadband_pct`/`cooldown_seconds` above,
+        # which the allow_throttle=False path keeps using unchanged).
+        self.assertEqual(cfg["fine_kp"], 0.6)
+        self.assertEqual(cfg["fine_deadband_pct"], 2.0)
+        self.assertEqual(cfg["fine_slew_pct"], 50.0)
+        self.assertEqual(cfg["sat_ticks_needed"], 2)
+        self.assertEqual(cfg["high_sat_pct"], 98.0)
+        self.assertEqual(cfg["low_sat_pct"], 2.0)
 
     def test_none_treated_as_empty(self):
         cfg = resolve_parallel_config(None)
@@ -438,6 +450,36 @@ class TestBuildWorkerArgv(unittest.TestCase):
         idx = argv.index("-c")
         self.assertEqual(argv[idx + 1], "/tmp/slot_2.yaml")
 
+    def test_uncapped_worker_gets_no_control_file_flag(self):
+        # Uncapped workers never get --control-file, even if a path is
+        # passed by mistake with throttle=0 -- only a throttled (trimmer)
+        # spawn should ever carry it.
+        argv = build_worker_argv(
+            "python3", "/path/generator.py", "/tmp/slot_3.yaml", worker_uid=1,
+            pk_stride=100000, cache_dir="/tmp/cache", cache_version="v1", throttle=0.0,
+            control_file=None,
+        )
+        self.assertNotIn("--control-file", argv)
+
+    def test_trimmer_worker_includes_control_file_flag(self):
+        argv = build_worker_argv(
+            "python3", "/path/generator.py", "/tmp/slot_4.yaml", worker_uid=2,
+            pk_stride=100000, cache_dir="/tmp/cache", cache_version="v1", throttle=1.0,
+            control_file="/tmp/parallel_generator_xyz/trimmer_rate.txt",
+        )
+        self.assertIn("--control-file", argv)
+        self.assertEqual(
+            argv[argv.index("--control-file") + 1],
+            "/tmp/parallel_generator_xyz/trimmer_rate.txt",
+        )
+
+    def test_control_file_default_is_absent(self):
+        argv = build_worker_argv(
+            "python3", "/path/generator.py", "/tmp/slot_5.yaml", worker_uid=3,
+            pk_stride=100000, cache_dir="/tmp/cache", cache_version="v1", throttle=1.0,
+        )
+        self.assertNotIn("--control-file", argv)
+
 
 class TestSlotFilePool(unittest.TestCase):
     def test_acquire_returns_distinct_paths_up_to_size(self):
@@ -578,6 +620,386 @@ class TestReactiveWorkerCap(unittest.TestCase):
         self.assertEqual(cap_healthy, cap_more_load)
 
 
+# ---------------------------------------------------------------------------
+# Cascade trimmer controller -- pure decision functions.
+# See docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md.
+# ---------------------------------------------------------------------------
+
+class TestFineTrim(unittest.TestCase):
+    """fine_trim: the integral fine knob driving the persistent trimmer's
+    commanded rate. error = target - achieved; hold inside the deadband;
+    otherwise a kp-scaled, slew-clamped step; anti-windup clamps the result
+    to [0, C]."""
+
+    def test_hold_within_deadband(self):
+        # target=10000, deadband_pct=2 -> deadband=200 -> [9800,10200] holds.
+        self.assertEqual(fine_trim(600.0, 9900.0, 10000.0, 7000.0), 600.0)
+        self.assertEqual(fine_trim(600.0, 10100.0, 10000.0, 7000.0), 600.0)
+        self.assertEqual(fine_trim(600.0, 10000.0, 10000.0, 7000.0), 600.0)
+
+    def test_exactly_at_deadband_edge_holds(self):
+        # Spec uses <=, so exactly at the edge still holds.
+        self.assertEqual(fine_trim(600.0, 9800.0, 10000.0, 7000.0), 600.0)
+        self.assertEqual(fine_trim(600.0, 10200.0, 10000.0, 7000.0), 600.0)
+
+    def test_proportional_step_below_target(self):
+        # error = 10000-9000 = 1000, outside deadband(200). step = kp*error
+        # = 0.6*1000 = 600. max_step = C*0.5 = 3500 -> not clamped.
+        # new = 600 (current) + 600 = 1200, within [0, 7000].
+        result = fine_trim(600.0, 9000.0, 10000.0, 7000.0)
+        self.assertAlmostEqual(result, 1200.0)
+
+    def test_proportional_step_above_target(self):
+        # error = 10000-11000 = -1000. step = 0.6*-1000 = -600.
+        # new = 600 - 600 = 0.
+        result = fine_trim(600.0, 11000.0, 10000.0, 7000.0)
+        self.assertAlmostEqual(result, 0.0)
+
+    def test_slew_clamp_positive_side(self):
+        # Huge undershoot: error=10000-100=9900. step=0.6*9900=5940 >
+        # max_step=C*0.5=3500 -> clamped to +3500. new=600+3500=4100.
+        result = fine_trim(600.0, 100.0, 10000.0, 7000.0)
+        self.assertAlmostEqual(result, 4100.0)
+
+    def test_slew_clamp_negative_side(self):
+        # Huge overshoot: error=10000-30000=-20000. step=0.6*-20000=-12000 <
+        # -max_step=-3500 -> clamped to -3500. new=4000-3500=500.
+        result = fine_trim(4000.0, 30000.0, 10000.0, 7000.0)
+        self.assertAlmostEqual(result, 500.0)
+
+    def test_anti_windup_clamps_to_C_upper_bound(self):
+        # trimmer already near C; a further undershoot step must not push
+        # it above C.
+        result = fine_trim(6900.0, 100.0, 10000.0, 7000.0, slew_pct=200.0)
+        self.assertAlmostEqual(result, 7000.0)
+
+    def test_anti_windup_clamps_to_zero_lower_bound(self):
+        # trimmer already near 0; a further overshoot step must not push it
+        # negative.
+        result = fine_trim(100.0, 30000.0, 10000.0, 7000.0, slew_pct=200.0)
+        self.assertAlmostEqual(result, 0.0)
+
+    def test_zero_target_drives_toward_zero(self):
+        # target=0 -> deadband=0; any positive achieved is "over" -> steps
+        # trimmer down, clamped at 0.
+        result = fine_trim(500.0, 400.0, 0.0, 7000.0)
+        self.assertLess(result, 500.0)
+        self.assertGreaterEqual(result, 0.0)
+
+    def test_converges_monotonically_over_several_ticks(self):
+        # Closed-loop simulation: achieved = base + trimmer (fake plant),
+        # base fixed (e.g. contribution from full workers), only the
+        # trimmer is adjusted. With deadband effectively disabled and no
+        # slew/anti-windup engaged, error should decay geometrically by
+        # (1 - kp) every tick -- monotone decay for 0 < kp <= 1.
+        kp = 0.5
+        C = 10000.0
+        target = 1000.0
+        base = 0.0
+        trimmer_rate = 0.0
+
+        prev_abs_error = None
+        for _ in range(8):
+            achieved = base + trimmer_rate
+            error = target - achieved
+            if prev_abs_error is not None:
+                # Strictly decreasing in magnitude (until it gets very
+                # close to target, at which point later assertions below
+                # confirm convergence).
+                self.assertLessEqual(abs(error), prev_abs_error + 1e-9)
+            prev_abs_error = abs(error)
+            trimmer_rate = fine_trim(
+                trimmer_rate, achieved, target, C, kp=kp, deadband_pct=0.0, slew_pct=200.0
+            )
+
+        final_achieved = base + trimmer_rate
+        self.assertAlmostEqual(final_achieved, target, delta=target * 0.05)
+
+    def test_never_returns_negative_or_above_C(self):
+        for achieved in (0.0, 5000.0, 50000.0):
+            for trimmer_rate in (0.0, 3500.0, 7000.0):
+                result = fine_trim(trimmer_rate, achieved, 10000.0, 7000.0)
+                self.assertGreaterEqual(result, 0.0)
+                self.assertLessEqual(result, 7000.0)
+
+    def test_freeze_increase_blocks_upward_step(self):
+        # Under target (would normally step UP), but freeze_increase=True ->
+        # the knob must NOT rise. This is the anti-windup guard the loop
+        # applies during the post-spawn cooldown while a worker is ramping.
+        without = fine_trim(3000.0, 3000.0, 10000.0, 7000.0)
+        self.assertGreater(without, 3000.0)  # sanity: normally rises
+        with_freeze = fine_trim(3000.0, 3000.0, 10000.0, 7000.0, freeze_increase=True)
+        self.assertEqual(with_freeze, 3000.0)
+
+    def test_freeze_increase_still_allows_decrease(self):
+        # Over target: the knob must still be free to step DOWN even with
+        # freeze_increase=True (correcting an overshoot is always safe).
+        result = fine_trim(4000.0, 12000.0, 10000.0, 7000.0, freeze_increase=True)
+        self.assertLess(result, 4000.0)
+
+    def test_freeze_increase_holds_within_deadband(self):
+        # Inside the deadband it holds regardless of freeze_increase.
+        self.assertEqual(
+            fine_trim(600.0, 10000.0, 10000.0, 7000.0, freeze_increase=True), 600.0
+        )
+
+    def test_freeze_increase_prevents_spike_onset_overshoot(self):
+        # Regression: phase-change baseline->spike with a 1-tick worker-ramp
+        # lag. Without the guard the trimmer winds up while the new uncapped
+        # worker ramps, then both land -> a large one-tick overshoot. With
+        # freeze_increase during the ramp window, peak achieved stays at or
+        # below target.
+        PW = 7000.0        # per-uncapped-worker real rate
+        C = 7000.0
+        target = 10000.0
+
+        def run(guard):
+            n_full = 1
+            trimmer = 3000.0          # phase-change FF jump remainder
+            ramp_left = 1             # the freshly-spawned worker ramps 1 tick
+            peak = 0.0
+            for _ in range(6):
+                eff = n_full - (1 if ramp_left > 0 else 0)
+                achieved = eff * PW + min(trimmer, PW)
+                peak = max(peak, achieved)
+                in_cooldown = ramp_left > 0
+                if ramp_left > 0:
+                    ramp_left -= 1
+                trimmer = fine_trim(
+                    trimmer, achieved, target, C,
+                    freeze_increase=(guard and in_cooldown),
+                )
+            return peak
+
+        self.assertGreater(run(guard=False), target * 1.10)   # >10% overshoot unguarded
+        self.assertLessEqual(run(guard=True), target + 1e-6)  # no overshoot guarded
+
+
+class TestDecideCoarse(unittest.TestCase):
+    """decide_coarse: the coarse base-knob decision (add/remove/hold a
+    whole uncapped worker) driven by the fine knob's saturation state, with
+    the anti-hunt guard on removal."""
+
+    def test_add_when_high_sat_under_and_room(self):
+        # trimmer pinned high (>=98% of C), achieved under target, enough
+        # consecutive saturated ticks, and room under cap.
+        decision = decide_coarse(
+            n_full=1, trimmer_rate=6900.0, achieved=9000.0, target=10000.0, C=7000.0,
+            cap=5, sat_high_ticks=2, sat_low_ticks=0, sat_ticks_needed=2,
+        )
+        self.assertEqual(decision, "add")
+
+    def test_no_add_when_not_enough_saturated_ticks(self):
+        decision = decide_coarse(
+            n_full=1, trimmer_rate=6900.0, achieved=9000.0, target=10000.0, C=7000.0,
+            cap=5, sat_high_ticks=1, sat_low_ticks=0, sat_ticks_needed=2,
+        )
+        self.assertEqual(decision, "hold")
+
+    def test_no_add_when_at_cap(self):
+        decision = decide_coarse(
+            n_full=5, trimmer_rate=6900.0, achieved=9000.0, target=10000.0, C=7000.0,
+            cap=5, sat_high_ticks=2, sat_low_ticks=0, sat_ticks_needed=2,
+        )
+        self.assertEqual(decision, "hold")
+
+    def test_no_add_when_achieved_not_under_target(self):
+        decision = decide_coarse(
+            n_full=1, trimmer_rate=6900.0, achieved=10500.0, target=10000.0, C=7000.0,
+            cap=5, sat_high_ticks=2, sat_low_ticks=0, sat_ticks_needed=2,
+        )
+        self.assertEqual(decision, "hold")
+
+    def test_remove_when_low_sat_over_and_guard_passes(self):
+        # n_full=2, C=5000 -> n_full*C=10000 >= target=9000, so removing
+        # still leaves the target reachable.
+        decision = decide_coarse(
+            n_full=2, trimmer_rate=50.0, achieved=9500.0, target=9000.0, C=5000.0,
+            cap=5, sat_high_ticks=0, sat_low_ticks=2, sat_ticks_needed=2,
+        )
+        self.assertEqual(decision, "remove")
+
+    def test_anti_hunt_no_remove_when_n_full_times_C_below_target(self):
+        # The critical anti-hunt case from the spec: n_full=1, C=5000 ->
+        # n_full*C=5000 < target=9000 -- removing would collapse to a
+        # trimmer-only max of C, well under target. Must hold even though
+        # low_sat + over + enough ticks are all true.
+        decision = decide_coarse(
+            n_full=1, trimmer_rate=50.0, achieved=9500.0, target=9000.0, C=5000.0,
+            cap=5, sat_high_ticks=0, sat_low_ticks=2, sat_ticks_needed=2,
+        )
+        self.assertEqual(decision, "hold")
+
+    def test_no_remove_when_n_full_is_zero(self):
+        # Can't remove below 0 full workers.
+        decision = decide_coarse(
+            n_full=0, trimmer_rate=50.0, achieved=9500.0, target=9000.0, C=5000.0,
+            cap=5, sat_high_ticks=0, sat_low_ticks=2, sat_ticks_needed=2,
+        )
+        self.assertEqual(decision, "hold")
+
+    def test_no_remove_when_not_enough_saturated_ticks(self):
+        decision = decide_coarse(
+            n_full=2, trimmer_rate=50.0, achieved=9500.0, target=9000.0, C=5000.0,
+            cap=5, sat_high_ticks=0, sat_low_ticks=1, sat_ticks_needed=2,
+        )
+        self.assertEqual(decision, "hold")
+
+    def test_no_remove_when_achieved_not_over_target(self):
+        decision = decide_coarse(
+            n_full=2, trimmer_rate=50.0, achieved=8500.0, target=9000.0, C=5000.0,
+            cap=5, sat_high_ticks=0, sat_low_ticks=2, sat_ticks_needed=2,
+        )
+        self.assertEqual(decision, "hold")
+
+    def test_hold_when_neither_saturated(self):
+        # trimmer sitting mid-range -- not pinned high or low.
+        decision = decide_coarse(
+            n_full=1, trimmer_rate=3500.0, achieved=8000.0, target=10000.0, C=7000.0,
+            cap=5, sat_high_ticks=5, sat_low_ticks=5, sat_ticks_needed=2,
+        )
+        self.assertEqual(decision, "hold")
+
+    def test_high_and_low_sat_mutually_exclusive(self):
+        # For any C > 0, a single trimmer_rate can never satisfy both
+        # >= 0.98*C and <= 0.02*C simultaneously -- no flapping between
+        # add/remove within one call.
+        for trimmer_rate in (0.0, 50.0, 3500.0, 6900.0, 7000.0):
+            high_sat = trimmer_rate >= 7000.0 * 0.98
+            low_sat = trimmer_rate <= 7000.0 * 0.02
+            self.assertFalse(high_sat and low_sat)
+
+
+class TestCascadeClosedLoopConvergence(unittest.TestCase):
+    """Pure, fake-plant integration test wiring fine_trim + decide_coarse +
+    compute_C_observed + recalibrate_C together exactly as the cascade
+    controller's per-tick order prescribes (recalibrate BEFORE coarse),
+    with NO real clock, DB, or subprocess -- just the pure functions.
+    """
+
+    def _simulate(self, real_per_worker, target, C_initial, cap, ticks=40,
+                  sat_ticks_needed=2, cluster_ceiling=None):
+        """Drive the cascade loop against a fake plant:
+        achieved = n_full * real_per_worker + trimmer_rate (optionally
+        capped at `cluster_ceiling`, modeling a cluster-bound bottleneck
+        that doesn't scale with worker count).
+
+        Mirrors run_controller's per-tick order: reap (n/a, pure sim),
+        measure achieved, recalibrate (if n_full>=1), coarse (update sat
+        counters, decide, apply feed-forward), fine (fine_trim). Per the
+        spec, a phase change's initial n_full_target also respects the
+        reactive cap, so the simulated starting point is capped too.
+        Returns the list of achieved values, one per tick, for the caller
+        to assert convergence/no-oscillation on.
+        """
+        n_full = min(int(target // C_initial), cap)
+        trimmer_rate = max(0.0, min(C_initial, target - n_full * C_initial))
+        C = C_initial
+        sat_high_ticks = 0
+        sat_low_ticks = 0
+        achieved_history = []
+        decisions_history = []
+
+        for _ in range(ticks):
+            achieved = n_full * real_per_worker + trimmer_rate
+            if cluster_ceiling is not None:
+                achieved = min(achieved, cluster_ceiling)
+
+            # (a) Recalibrate BEFORE coarse, only when there's something to
+            # observe.
+            if n_full >= 1:
+                c_obs = compute_C_observed(achieved, trimmer_rate, n_full)
+                if c_obs is not None and c_obs > 0:
+                    C = recalibrate_C(C, c_obs)
+
+            # (b) Coarse.
+            high_sat = trimmer_rate >= C * 0.98
+            low_sat = trimmer_rate <= C * 0.02
+            sat_high_ticks = sat_high_ticks + 1 if high_sat else 0
+            sat_low_ticks = sat_low_ticks + 1 if low_sat else 0
+
+            decision = decide_coarse(
+                n_full, trimmer_rate, achieved, target, C, cap,
+                sat_high_ticks, sat_low_ticks, sat_ticks_needed=sat_ticks_needed,
+            )
+            decisions_history.append(decision)
+            if decision == "add":
+                n_full += 1
+                trimmer_rate = max(0.0, min(C, trimmer_rate - C))
+                sat_high_ticks = 0
+                sat_low_ticks = 0
+            elif decision == "remove":
+                n_full -= 1
+                trimmer_rate = max(0.0, min(C, trimmer_rate + C))
+                sat_high_ticks = 0
+                sat_low_ticks = 0
+
+            # (c) Fine.
+            trimmer_rate = fine_trim(trimmer_rate, achieved, target, C)
+
+            achieved_history.append(achieved)
+
+        return achieved_history, decisions_history, n_full, trimmer_rate, C
+
+    def test_bisect100_scenario_converges_without_sustained_oscillation(self):
+        # The motivating incident: C is underestimated (9400) vs the real
+        # per-worker throughput (10400), target 10000. The old bang-bang
+        # loop limit-cycled (kill -> collapse to trimmer-only -> add ->
+        # overshoot -> kill). The cascade loop must settle down.
+        achieved_history, decisions_history, n_full, trimmer_rate, C = self._simulate(
+            real_per_worker=10400.0, target=10000.0, C_initial=9400.0, cap=5,
+        )
+
+        final_achieved = achieved_history[-1]
+        self.assertLess(abs(final_achieved - 10000.0), 10000.0 * 0.05)
+
+        # No sustained oscillation: the tail of the run should be a tight
+        # band, not swinging between overshoot/undershoot extremes.
+        tail = achieved_history[-8:]
+        self.assertLess(max(tail) - min(tail), 10000.0 * 0.05)
+
+        # No repeated add/remove flapping in the tail (a coarse action is
+        # fine once while settling, but not a sustained back-and-forth).
+        tail_decisions = decisions_history[-8:]
+        flips = sum(
+            1 for a, b in zip(tail_decisions, tail_decisions[1:])
+            if {a, b} == {"add", "remove"}
+        )
+        self.assertEqual(flips, 0)
+
+    def test_cluster_bound_holds_at_cap_without_spiral(self):
+        # achieved permanently stuck low (cluster-bound, not worker-bound):
+        # model a real cluster ceiling that doesn't scale with worker count
+        # (the real incident: target 10k, calibration C~3279, cluster
+        # tips over well below what the math says n_full should achieve).
+        # The coarse knob should wind up to the reactive cap and then HOLD
+        # -- never spiral past it -- exactly the anti-spiral property
+        # reactive_worker_cap exists for.
+        achieved_history, decisions_history, n_full, trimmer_rate, C = self._simulate(
+            real_per_worker=3279.0, target=10000.0, C_initial=3279.0, cap=6,
+            cluster_ceiling=3300.0, ticks=60,
+        )
+        # Bounded: never exceeds the cap.
+        self.assertLessEqual(n_full, 6)
+        # Once at the cap, no further coarse action fires (reported
+        # honestly at a bounded shortfall rather than spiraling).
+        self.assertEqual(n_full, 6)
+        self.assertEqual(decisions_history[-5:], ["hold"] * 5)
+        # No add/remove flapping anywhere in the run -- only "add"s (winding
+        # up to the cap) ever fire, never a "remove" chasing it back down.
+        self.assertNotIn("remove", decisions_history)
+
+    def test_target_below_C_uses_pure_trimmer_no_coarse_action(self):
+        # target < C: 0 full workers, trimmer converges toward target via
+        # the integral loop alone; no coarse action should ever fire.
+        achieved_history, decisions_history, n_full, trimmer_rate, C = self._simulate(
+            real_per_worker=7000.0, target=1500.0, C_initial=7000.0, cap=5, ticks=15,
+        )
+        self.assertEqual(n_full, 0)
+        self.assertTrue(all(d == "hold" for d in decisions_history))
+        self.assertLess(abs(achieved_history[-1] - 1500.0), 1500.0 * 0.05)
+
+
 class TestCrossNodeProgressTracker(unittest.TestCase):
     """Forward-progress accounting: counts only positive per-node deltas, so a
     decrease (restart OR pg_stat_statements eviction) never inflates the total.
@@ -659,6 +1081,64 @@ class TestCrossNodeProgressTracker(unittest.TestCase):
         t.observe("a", 50.0)           # fresh baseline
         t.observe("a", 70.0)           # +20
         self.assertEqual(t.counted(), 20.0)
+
+
+class TestTrailingRateWindow(unittest.TestCase):
+    """TrailingRateWindow: moving-average rate over a trailing window of a
+    monotonic cumulative counter -- denoises the meter before it drives the
+    controller."""
+
+    def test_first_sample_returns_zero(self):
+        w = TrailingRateWindow(15.0)
+        self.assertEqual(w.update(0.0, 1000.0), 0.0)
+
+    def test_steady_rate(self):
+        # 1000 ev per 5s = 200 ev/s, constant.
+        w = TrailingRateWindow(15.0)
+        w.update(0.0, 0.0)
+        self.assertAlmostEqual(w.update(5.0, 1000.0), 200.0)
+        self.assertAlmostEqual(w.update(10.0, 2000.0), 200.0)
+        self.assertAlmostEqual(w.update(15.0, 3000.0), 200.0)
+
+    def test_smooths_a_spike_in_one_interval(self):
+        # A single jumpy interval is averaged over the window rather than
+        # reported at its raw instantaneous value.
+        w = TrailingRateWindow(15.0)
+        w.update(0.0, 0.0)
+        w.update(5.0, 1000.0)      # 200/s
+        w.update(10.0, 2000.0)     # 200/s
+        # A big jump this interval: +4000 in 5s = 4000/s instantaneous...
+        smoothed = w.update(15.0, 6000.0)
+        # ...but windowed over 15s it is 6000/15 = 400/s, far below 4000.
+        self.assertAlmostEqual(smoothed, 400.0)
+        self.assertLess(smoothed, 4000.0)
+
+    def test_window_drops_old_samples(self):
+        # After enough time, only ~window_seconds of history is used.
+        w = TrailingRateWindow(15.0)
+        for i in range(0, 40, 5):
+            w.update(float(i), float(i) * 200.0)  # steady 200/s
+        # Steady input -> steady output regardless of how many samples elapsed.
+        self.assertAlmostEqual(w.update(40.0, 8000.0), 200.0)
+        # Oldest retained sample should be within ~one interval of the window.
+        self.assertLessEqual(40.0 - w._samples[0][0], 15.0 + 5.0)
+
+    def test_never_negative_on_flat_counter(self):
+        w = TrailingRateWindow(15.0)
+        w.update(0.0, 5000.0)
+        self.assertEqual(w.update(5.0, 5000.0), 0.0)  # no progress -> 0, not negative
+
+    def test_warmup_averages_available_history(self):
+        # Before a full window exists, it averages over what it has.
+        w = TrailingRateWindow(60.0)
+        w.update(0.0, 0.0)
+        self.assertAlmostEqual(w.update(5.0, 500.0), 100.0)  # 500/5s
+
+    def test_rejects_nonpositive_window(self):
+        with self.assertRaises(ValueError):
+            TrailingRateWindow(0)
+        with self.assertRaises(ValueError):
+            TrailingRateWindow(-5)
 
 
 if __name__ == "__main__":

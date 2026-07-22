@@ -18,7 +18,9 @@ present here.
 """
 
 import importlib
+import os
 import sys
+import tempfile
 import unittest
 
 import utils
@@ -34,6 +36,7 @@ from utils import (
     get_table_max_pk,
     is_integer_pk_type,
     parse_worker_args,
+    read_control_rate,
 )
 from rate_governor import NullGovernor, RateGovernor
 
@@ -301,6 +304,7 @@ class TestWorkerArgParser(unittest.TestCase):
         self.assertIsNone(args.worker_uid)
         self.assertEqual(args.pk_stride, 100000)
         self.assertEqual(args.throttle, 0.0)
+        self.assertIsNone(args.control_file)
 
     def test_overrides(self):
         args = parse_worker_args([
@@ -310,6 +314,7 @@ class TestWorkerArgParser(unittest.TestCase):
             "--worker-uid", "7",
             "--pk-stride", "50000",
             "--throttle", "1500.5",
+            "--control-file", "/tmp/trimmer_rate.txt",
         ])
         self.assertEqual(args.config, "/tmp/my.yaml")
         self.assertEqual(args.cache_dir, "/tmp/cache")
@@ -317,6 +322,7 @@ class TestWorkerArgParser(unittest.TestCase):
         self.assertEqual(args.worker_uid, 7)
         self.assertEqual(args.pk_stride, 50000)
         self.assertEqual(args.throttle, 1500.5)
+        self.assertEqual(args.control_file, "/tmp/trimmer_rate.txt")
 
     def test_worker_uid_and_pk_stride_are_ints(self):
         args = parse_worker_args(["--worker-uid", "3", "--pk-stride", "9"])
@@ -328,8 +334,72 @@ class TestWorkerArgParser(unittest.TestCase):
         flags = set()
         for action in parser._actions:
             flags.update(action.option_strings)
-        for expected in ("--cache-dir", "--cache-version", "--worker-uid", "--pk-stride", "--throttle"):
+        for expected in ("--cache-dir", "--cache-version", "--worker-uid", "--pk-stride", "--throttle",
+                         "--control-file"):
             self.assertIn(expected, flags)
+
+
+class TestReadControlRate(unittest.TestCase):
+    """Unit tests for read_control_rate -- the pure(ish) helper the worker
+    loop uses to periodically re-read the cascade trimmer controller's
+    control file. Never raises; falls back to `last` on any failure. See
+    docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md.
+    """
+
+    def setUp(self):
+        self._tmpdir = tempfile.mkdtemp(prefix="read_control_rate_test_")
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    def _write(self, content):
+        path = os.path.join(self._tmpdir, "control.txt")
+        with open(path, "w") as f:
+            f.write(content)
+        return path
+
+    def test_valid_float_is_parsed(self):
+        path = self._write("1234.5\n")
+        self.assertEqual(read_control_rate(path, last=999.0), 1234.5)
+
+    def test_valid_int_like_content(self):
+        path = self._write("500")
+        self.assertEqual(read_control_rate(path, last=999.0), 500.0)
+
+    def test_missing_file_returns_last(self):
+        missing_path = os.path.join(self._tmpdir, "does_not_exist.txt")
+        self.assertEqual(read_control_rate(missing_path, last=42.0), 42.0)
+
+    def test_empty_content_returns_last(self):
+        path = self._write("")
+        self.assertEqual(read_control_rate(path, last=42.0), 42.0)
+
+    def test_whitespace_only_content_returns_last(self):
+        path = self._write("   \n\t\n")
+        self.assertEqual(read_control_rate(path, last=42.0), 42.0)
+
+    def test_garbage_content_returns_last(self):
+        path = self._write("not-a-number")
+        self.assertEqual(read_control_rate(path, last=42.0), 42.0)
+
+    def test_negative_value_returned_as_is(self):
+        # Negative is not clamped here -- the caller (generator.py) treats
+        # <= 0 as pause; this helper just reads the float verbatim.
+        path = self._write("-5.0")
+        self.assertEqual(read_control_rate(path, last=42.0), -5.0)
+
+    def test_zero_value_returned_as_is(self):
+        path = self._write("0")
+        self.assertEqual(read_control_rate(path, last=42.0), 0.0)
+
+    def test_never_raises_on_directory_path(self):
+        # Passing a directory instead of a file is a plausible misuse; must
+        # still fall back to `last`, never raise.
+        self.assertEqual(read_control_rate(self._tmpdir, last=7.0), 7.0)
+
+    def test_none_path_returns_last(self):
+        self.assertEqual(read_control_rate(None, last=13.0), 13.0)
 
 
 # --------------------------------------------------------------------------
