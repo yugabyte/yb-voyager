@@ -332,6 +332,16 @@ def build_worker_arg_parser() -> "argparse.ArgumentParser":
         "docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md. "
         "Absent (default) => no runtime rate re-reading (uncapped workers never get this).",
     )
+    parser.add_argument(
+        "--run-id",
+        default="",
+        help="Per-run token (short string, timestamp-derived, not persisted) folded into "
+        "the text/uuid unique-value encodings (see compute_unique_safe_value) so a re-run "
+        "-- whose worker_uid/counter both restart at 0 -- can't regenerate a value that "
+        "collides with a previous run's rows. Absent/empty (default) => legacy encoding, "
+        "unchanged. Never applied to the integer branch (worker_uid feeds an arithmetic "
+        "formula there; a run_id would risk overflowing narrow int columns).",
+    )
     return parser
 
 
@@ -541,6 +551,7 @@ def compute_unique_safe_value(
     *,
     max_seed: int = 0,
     char_max: Optional[int] = None,
+    run_id: str = "",
 ) -> Any:
     """Compute a guaranteed-unique value for one single-column unique
     surface (PK, UNIQUE constraint, or standalone unique index), for this
@@ -556,17 +567,29 @@ def compute_unique_safe_value(
       plain `MAX(col)` (see generate_table_schemas_bulk's
       "unique_max_seeds") instead of a primary key's max. None once the value
       would exceed the column type's own max (int2/int4/int8), so a narrow
-      integer column falls back to random rather than overflowing.
+      integer column falls back to random rather than overflowing. `run_id`
+      is ignored here -- worker_uid feeds this arithmetic formula directly,
+      and folding in a run-scoped token would risk overflowing narrow int
+      columns. This branch is already re-run-safe: it seeds from MAX(col),
+      which only grows across runs.
     - text/varchar/char: `f"u{worker_uid}_{counter}"` -- namespaced by
       worker, strictly increasing per worker, so it never repeats across
       any (worker_uid, counter) pair. If `char_max` is given and that
       string is too long, falls back to a compact base36 encoding of
       `worker_uid * _TEXT_UNIQUE_STRIDE + counter` (still unique for the
       same reason: disjoint worker_uid segments, strictly-increasing
-      counter within each). None if even that can't fit `char_max`.
+      counter within each). None if even that can't fit `char_max`. When
+      `run_id` is truthy it's folded into both forms (`f"u{run_id}_{worker_uid}_{counter}"`
+      / `"u" + run_id + _to_base36(...)`) so a re-run (which restarts
+      worker_uid/counter from scratch) can't regenerate a value that
+      collides with a previous run's rows. Falsy `run_id` (default) is
+      byte-identical to the legacy encoding.
     - uuid: `uuid.uuid5(uuid.NAMESPACE_OID, f"{worker_uid}:{counter}")` --
       deterministic and unique for the same (worker_uid, counter)
-      uniqueness argument.
+      uniqueness argument. When `run_id` is truthy, it's folded into the
+      uuid5 name (`f"{run_id}:{worker_uid}:{counter}"`) for the same
+      cross-run anti-collision reason as the text branch; falsy `run_id`
+      (default) is byte-identical to the legacy encoding.
     - anything else: None.
     """
     if not data_type:
@@ -582,13 +605,19 @@ def compute_unique_safe_value(
         return value
 
     if "uuid" in dtype:
+        if run_id:
+            return uuid.uuid5(uuid.NAMESPACE_OID, f"{run_id}:{worker_uid}:{counter}")
         return uuid.uuid5(uuid.NAMESPACE_OID, f"{worker_uid}:{counter}")
 
     if any(token in dtype for token in ("varchar", "character varying", "text", "char", "character")):
-        full = f"u{worker_uid}_{counter}"
+        full = f"u{run_id}_{worker_uid}_{counter}" if run_id else f"u{worker_uid}_{counter}"
         if char_max is None or len(full) <= char_max:
             return full
-        compact = "u" + _to_base36(worker_uid * _TEXT_UNIQUE_STRIDE + counter)
+        compact = (
+            "u" + run_id + _to_base36(worker_uid * _TEXT_UNIQUE_STRIDE + counter)
+            if run_id
+            else "u" + _to_base36(worker_uid * _TEXT_UNIQUE_STRIDE + counter)
+        )
         if len(compact) <= char_max:
             return compact
         return None

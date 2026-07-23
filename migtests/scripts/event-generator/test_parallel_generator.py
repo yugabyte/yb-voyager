@@ -485,6 +485,30 @@ class TestBuildWorkerArgv(unittest.TestCase):
         )
         self.assertNotIn("--control-file", argv)
 
+    def test_run_id_flag_appended_when_given(self):
+        argv = build_worker_argv(
+            "python3", "/path/generator.py", "/tmp/slot_6.yaml", worker_uid=4,
+            pk_stride=100000, cache_dir="/tmp/cache", cache_version="v1",
+            run_id="abc123",
+        )
+        self.assertIn("--run-id", argv)
+        self.assertEqual(argv[argv.index("--run-id") + 1], "abc123")
+
+    def test_run_id_default_is_absent(self):
+        argv = build_worker_argv(
+            "python3", "/path/generator.py", "/tmp/slot_7.yaml", worker_uid=5,
+            pk_stride=100000, cache_dir="/tmp/cache", cache_version="v1",
+        )
+        self.assertNotIn("--run-id", argv)
+
+    def test_run_id_empty_string_omits_flag(self):
+        argv = build_worker_argv(
+            "python3", "/path/generator.py", "/tmp/slot_8.yaml", worker_uid=6,
+            pk_stride=100000, cache_dir="/tmp/cache", cache_version="v1",
+            run_id="",
+        )
+        self.assertNotIn("--run-id", argv)
+
 
 class TestSlotFilePool(unittest.TestCase):
     def test_acquire_returns_distinct_paths_up_to_size(self):
