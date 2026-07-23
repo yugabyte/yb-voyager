@@ -49,21 +49,41 @@ var exportDataExitSnapshotCaptured atomic.Bool
 // context timeout is a sufficient bound here.
 const schemaSnapshotExitCaptureTimeout = 10 * time.Second
 
+// captureExportDataExitSnapshot captures the export-data exit snapshot for the given
+// reason and marks it captured, so no later exit-capture site (in particular the atexit
+// hook) fires a second, degraded capture. Uses the caller-provided context — the live
+// run context on a normal completion/cutover. Source-exporter only.
+func captureExportDataExitSnapshot(ctx context.Context, reason string) {
+	if exporterRole != SOURCE_DB_EXPORTER_ROLE {
+		return
+	}
+	captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourceExit, reason, true)
+	exportDataExitSnapshotCaptured.Store(true)
+}
+
+// captureExportDataExitSnapshotBounded is captureExportDataExitSnapshot with a fresh,
+// bounded context, for exit sites where the run's own context may already be cancelled:
+// the error `return false` paths — which must capture inline, while the source connection
+// is still open, because exportData's deferred Disconnect closes it before the atexit
+// hook runs — and the atexit fallback itself. The timeout caps how long a wedged or
+// unreachable source DB delays the exit.
+func captureExportDataExitSnapshotBounded(reason string) {
+	exitCtx, cancel := context.WithTimeout(context.Background(), schemaSnapshotExitCaptureTimeout)
+	defer cancel()
+	captureExportDataExitSnapshot(exitCtx, reason)
+}
+
 // registerExportDataExitSnapshotHook registers an atexit handler that captures the
-// source schema snapshot on an abnormal export-data exit (error or signal), unless
-// the normal complete/cutover path already recorded one (exportDataExitSnapshotCaptured).
-// The exit reason is derived from the shutdown flags. The run's own context is already
-// cancelled by exit time, so the capture uses a fresh, bounded context. Source-exporter
-// only; the caller gates on exporterRole.
+// source schema snapshot on exit paths that don't capture inline — SIGINT/SIGTERM
+// interrupts and utils.ErrExit exits (whose os.Exit bypasses exportData's deferred
+// Disconnect, so the source connection is still open). The normal completion/cutover
+// paths and the error `return false` paths capture inline and set the flag, so this
+// hook no-ops for them. The exit reason is derived from the shutdown flags.
 func registerExportDataExitSnapshotHook() {
 	atexit.Register(func() {
 		if exportDataExitSnapshotCaptured.Load() {
-			return // normal complete/cutover path already recorded the exit
+			return // an inline capture (completion, cutover, or error path) already recorded the exit
 		}
-		// Abnormal exit (error or signal). Attempt a full capture so a drift-caused
-		// failure records the drifted end-state schema; captureSourceSchemaSnapshot
-		// falls back to a placeholder if the schema can't be read. The run's own ctx
-		// is already cancelled by now, so use a fresh, bounded context.
 		reason := schemasnapshot.ReasonError
 		if ProcessShutdownRequested {
 			// SIGINT/SIGTERM is a user interrupt; SIGUSR2 is the end-migration
@@ -73,9 +93,7 @@ func registerExportDataExitSnapshotHook() {
 				reason = schemasnapshot.ReasonComplete
 			}
 		}
-		exitCtx, cancel := context.WithTimeout(context.Background(), schemaSnapshotExitCaptureTimeout)
-		defer cancel()
-		captureSourceSchemaSnapshot(exitCtx, schemasnapshot.LabelExportDataFromSourceExit, reason, true)
+		captureExportDataExitSnapshotBounded(reason)
 	})
 }
 
