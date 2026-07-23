@@ -798,6 +798,9 @@ func exportData() bool {
 		err = startDebeziumAsPerExportTypeIfRequired(ctx, cancel, finalTableList, tablesColumnList, leafPartitions, partitionsToRootTableMap)
 		if err != nil {
 			log.Errorf("Failed to start debezium: %v", err)
+			// Capture the drifted end-state schema inline while the source connection is
+			// still open; exportData's deferred Disconnect closes it before the atexit hook.
+			captureExportDataExitSnapshotBounded(schemasnapshot.ReasonError)
 			return false
 		}
 		utils.PrintAndLogfInfo("Processing cutover initiate request...\n")
@@ -849,16 +852,12 @@ func exportData() bool {
 			utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
 
-			if exporterRole == SOURCE_DB_EXPORTER_ROLE {
-				captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourceExit, schemasnapshot.ReasonCutover, true)
-				exportDataExitSnapshotCaptured.Store(true)
-			}
-		} else if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+			captureExportDataExitSnapshot(ctx, schemasnapshot.ReasonCutover)
+		} else {
 			// useDebezium && !changeStreamingIsEnabled(exportType): snapshot-only
 			// export via debezium. No change streaming happened, so no cutover
 			// was processed above; this is a plain completion, not a cutover.
-			captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourceExit, schemasnapshot.ReasonComplete, true)
-			exportDataExitSnapshotCaptured.Store(true)
+			captureExportDataExitSnapshot(ctx, schemasnapshot.ReasonComplete)
 		}
 		return true
 	} else {
@@ -870,12 +869,12 @@ func exportData() bool {
 		err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, "")
 		if err != nil {
 			log.Errorf("Export Data failed: %v", err)
+			// Capture the drifted end-state schema inline while the source connection is
+			// still open; exportData's deferred Disconnect closes it before the atexit hook.
+			captureExportDataExitSnapshotBounded(schemasnapshot.ReasonError)
 			return false
 		}
-		if exporterRole == SOURCE_DB_EXPORTER_ROLE {
-			captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourceExit, schemasnapshot.ReasonComplete, true)
-			exportDataExitSnapshotCaptured.Store(true)
-		}
+		captureExportDataExitSnapshot(ctx, schemasnapshot.ReasonComplete)
 		return true
 	}
 }
