@@ -2,11 +2,6 @@
 -- Tables are copied from migtests/tests/pg/unique-key-conflicts-test/snapshot_schema.sql
 -- and cover every unique-key shape the streaming-phase conflict-detection cache
 -- (yb-voyager/cmd/conflictDetectionCache.go) reasons about.
---
--- REPLICA IDENTITY FULL (so Debezium captures before-images of UPDATE/DELETE rows,
--- which the conflict-detection cache needs) is set on all tables by the grant step
--- (yb-voyager-pg-grant-migration-permissions.sql run by grant_source_permissions),
--- so it is not set here.
 
 -- Table with Single Column Unique Constraint
 CREATE TABLE single_unique_constraint (
