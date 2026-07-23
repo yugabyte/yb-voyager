@@ -851,14 +851,14 @@ func exportData() bool {
 
 			if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 				captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourceExit, schemasnapshot.ReasonCutover, true)
-				exportDataExitSnapshotCaptured = true
+				exportDataExitSnapshotCaptured.Store(true)
 			}
 		} else if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 			// useDebezium && !changeStreamingIsEnabled(exportType): snapshot-only
 			// export via debezium. No change streaming happened, so no cutover
 			// was processed above; this is a plain completion, not a cutover.
 			captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourceExit, schemasnapshot.ReasonComplete, true)
-			exportDataExitSnapshotCaptured = true
+			exportDataExitSnapshotCaptured.Store(true)
 		}
 		return true
 	} else {
@@ -874,7 +874,7 @@ func exportData() bool {
 		}
 		if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 			captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourceExit, schemasnapshot.ReasonComplete, true)
-			exportDataExitSnapshotCaptured = true
+			exportDataExitSnapshotCaptured.Store(true)
 		}
 		return true
 	}
