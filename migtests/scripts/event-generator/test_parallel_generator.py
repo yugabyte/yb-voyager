@@ -651,7 +651,7 @@ class TestReactiveWorkerCap(unittest.TestCase):
 
 # ---------------------------------------------------------------------------
 # Cascade trimmer controller -- pure decision functions.
-# See docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md.
+# See ARCHITECTURE.md.
 # ---------------------------------------------------------------------------
 
 class TestFineTrim(unittest.TestCase):

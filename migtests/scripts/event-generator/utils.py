@@ -329,7 +329,7 @@ def build_worker_arg_parser() -> "argparse.ArgumentParser":
         "with a single float events/sec rate. Only the persistent 'trimmer' worker gets "
         "this flag; when set, the worker loop re-reads it (at most once per ~1s) and calls "
         "rate_governor.set_rate on any change -- see "
-        "docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md. "
+        "ARCHITECTURE.md. "
         "Absent (default) => no runtime rate re-reading (uncapped workers never get this).",
     )
     parser.add_argument(
@@ -1762,7 +1762,7 @@ def compute_backoff_delay(attempt: int, base: float = 0.05, cap: float = 2.0) ->
 def read_control_rate(path: Optional[str], last: float) -> float:
     """Read the single float control rate from `path` for the cascade
     trimmer controller's runtime-adjustable throttle (Option B -- see
-    docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md).
+    ARCHITECTURE.md).
 
     On success, returns the parsed float. On `path` being None/empty,
     missing file, empty/whitespace-only content, a parse error, or any

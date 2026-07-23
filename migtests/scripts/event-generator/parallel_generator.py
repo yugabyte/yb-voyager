@@ -115,7 +115,7 @@ DEFAULT_PARALLEL_CONFIG = {
     # ---- Cascade trimmer controller (allow_throttle=True path only) ----
     # Distinct names from the legacy `deadband_pct`/`cooldown_seconds` above
     # (which the allow_throttle=False bang-bang path keeps using unchanged)
-    # -- see docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md.
+    # -- see ARCHITECTURE.md.
     # fine_kp: proportional gain of the integral fine knob (fine_trim).
     # Stability requires 0 < fine_kp <= 1 (error decays by (1-kp)/tick).
     "fine_kp": 0.6,
@@ -360,7 +360,7 @@ def fine_trim(trimmer_rate, achieved, target, C, kp=0.6, deadband_pct=2.0, slew_
     commanded trimmer rate (events/sec) for the persistent throttled
     "trimmer" worker.
 
-    See docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md
+    See ARCHITECTURE.md
     ("fine_trim"). This is the control variable the within-phase loop
     steers continuously; whole (uncapped) workers only change via
     decide_coarse when this saturates.
@@ -415,7 +415,7 @@ def decide_coarse(n_full, trimmer_rate, achieved, target, C, cap,
     to add/remove one whole uncapped worker, driven by the fine knob
     (trimmer_rate) saturating against its own ceiling `C`.
 
-    See docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md
+    See ARCHITECTURE.md
     ("decide_coarse"). `sat_high_ticks`/`sat_low_ticks` are consecutive-tick
     saturation counters the caller maintains (reset to 0 on any coarse
     action, incremented/reset each tick based on the current trimmer_rate
@@ -689,7 +689,7 @@ def build_worker_argv(python_exe, generator_path, config_path, worker_uid, pk_st
 
     `control_file` is only ever passed for the cascade trimmer controller's
     persistent "trimmer" worker (see
-    docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md):
+    ARCHITECTURE.md):
     `--control-file` is appended only when it's truthy. Uncapped workers
     must never receive it.
 
@@ -763,7 +763,7 @@ GENERATOR_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gener
 # trimmer_rate might be) so it starts in governed mode; the control file
 # then commands it down (including to a pause) without the spawn-time
 # --throttle=0 == uncapped footgun ever applying. See
-# docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md.
+# ARCHITECTURE.md.
 TRIMMER_SPAWN_EPSILON = 1.0
 
 
@@ -1511,7 +1511,7 @@ def run_controller(base_config, rate_csv_path=None):
             if allow_throttle:
                 # ---------------------------------------------------------
                 # Cascade trimmer controller path. See
-                # docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md
+                # ARCHITECTURE.md
                 # ("Controller loop rewiring") for the per-tick order this
                 # mirrors exactly: phase-change feed-forward jump, or (within
                 # phase) recalibrate -> coarse -> fine, in that order.

@@ -346,7 +346,7 @@ class TestReadControlRate(unittest.TestCase):
     """Unit tests for read_control_rate -- the pure(ish) helper the worker
     loop uses to periodically re-read the cascade trimmer controller's
     control file. Never raises; falls back to `last` on any failure. See
-    docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md.
+    ARCHITECTURE.md.
     """
 
     def setUp(self):
