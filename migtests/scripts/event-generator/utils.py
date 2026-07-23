@@ -5,8 +5,19 @@ import json
 import ipaddress
 import re
 import decimal
-import psycopg2
+import uuid
+try:
+    import psycopg2
+except ImportError:  # pragma: no cover - guarded so utils.py (and the
+    # pure logic it hosts: monotonic-PK formula, retry/backoff
+    # classification, CLI parsing) imports and is unit-testable on a
+    # machine without psycopg2 installed. Mirrors migration_monitor.py's
+    # guard. Anything that actually needs a live connection (run_index_operations,
+    # execute_with_retry's psycopg2-typed error paths) still requires
+    # psycopg2 to be installed at call time.
+    psycopg2 = None
 import time
+import argparse
 from typing import Any, Callable, Dict, List, Optional, Tuple
 import os
 import threading
@@ -224,9 +235,132 @@ def build_rate_governor(config: Dict[str, Any], **injectables) -> Any:
     return RateGovernor(rate_control, random_seed=random_seed, **injectables)
 
 
+def build_worker_governor(
+    config: Dict[str, Any],
+    throttle: float = 0.0,
+    worker_uid: Optional[int] = None,
+    **injectables,
+) -> Any:
+    """
+    Build the rate governor for a worker process launched via the dynamic
+    worker pool's CLI (see IMPLEMENTATION_CONTRACTS.md "Worker CLI").
+
+    - throttle > 0: engage a flat, single-worker cap of `throttle` events/sec
+      -- the reactive controller's "trimmer" role (worker-count modulation
+      does the coarse rate shaping; this is the only sleeping that
+      survives). This takes priority over any configured
+      'generator.rate_control', which the new controller model supersedes
+      for CLI-launched workers.
+    - throttle <= 0 (default/absent): legacy behavior -- delegates to
+      build_rate_governor(config), so an uncapped worker with no
+      'generator.rate_control' configured gets a NullGovernor (today's
+      unpaced default), while one with 'generator.rate_control' configured
+      keeps using it unchanged.
+    """
+    if throttle and throttle > 0:
+        rate_control = {"default_events_per_second": float(throttle)}
+        return RateGovernor(rate_control, random_seed=worker_uid, **injectables)
+    return build_rate_governor(config, **injectables)
+
+
+def build_worker_arg_parser() -> "argparse.ArgumentParser":
+    """
+    Build generator.py's CLI argument parser.
+
+    Lives in utils.py (psycopg2-optional, guarded above) rather than
+    generator.py so it -- along with the other pure logic below
+    (compute_monotonic_pk, classify_retry, compute_backoff_delay) -- stays
+    importable and unit-testable without psycopg2 or a DB connection.
+    generator.py itself always requires a live psycopg2 connection to run,
+    but never needs to be imported by a test for these pieces to be
+    covered.
+
+    All worker-pool args are optional; when absent, generator.py reproduces
+    today's legacy single-process, self-seeding, unpaced (or
+    rate_control-paced) behavior. See IMPLEMENTATION_CONTRACTS.md
+    "Worker CLI".
+    """
+    parser = argparse.ArgumentParser(description="Event Generator for PostgreSQL")
+    parser.add_argument(
+        "-c",
+        "--config",
+        default=None,
+        help="Path to event-generator YAML config (defaults to event-generator.yaml in this folder)",
+    )
+    parser.add_argument(
+        "--cache-dir",
+        default=None,
+        help="Shared cache directory (schema + PK snapshot) built by the controller "
+        "(shared_cache.build_cache). When given, schema + PK pools load from the cache "
+        "instead of per-table catalog/seed queries. Absent => legacy self-seeding.",
+    )
+    parser.add_argument(
+        "--cache-version",
+        default=None,
+        help="Cache version to load (see shared_cache.py). Defaults to the cache's current version.",
+    )
+    parser.add_argument(
+        "--worker-uid",
+        type=int,
+        default=None,
+        help="Unique worker id, monotonic and never reused across a run. Drives the "
+        "monotonic PK stride formula and the RNG/faker seed offset (base_seed + worker_uid). "
+        "Absent => legacy random PK generation.",
+    )
+    parser.add_argument(
+        "--pk-stride",
+        type=int,
+        default=100000,
+        help="Stride between worker_uids in the monotonic PK formula (default: %(default)s). "
+        "Must exceed the total number of workers ever spawned across the whole run.",
+    )
+    parser.add_argument(
+        "--throttle",
+        type=float,
+        default=0.0,
+        help="Single-worker events/sec cap (the reactive controller's 'trimmer' role). "
+        "0 or absent => uncapped; rate_governor is not engaged for this cap "
+        "(a configured generator.rate_control, if any, still applies).",
+    )
+    parser.add_argument(
+        "--control-file",
+        default=None,
+        help="Path to a control file the cascade trimmer controller periodically rewrites "
+        "with a single float events/sec rate. Only the persistent 'trimmer' worker gets "
+        "this flag; when set, the worker loop re-reads it (at most once per ~1s) and calls "
+        "rate_governor.set_rate on any change -- see "
+        "ARCHITECTURE.md. "
+        "Absent (default) => no runtime rate re-reading (uncapped workers never get this).",
+    )
+    parser.add_argument(
+        "--run-id",
+        default="",
+        help="Per-run token (short string, timestamp-derived, not persisted) folded into "
+        "the text/uuid unique-value encodings (see compute_unique_safe_value) so a re-run "
+        "-- whose worker_uid/counter both restart at 0 -- can't regenerate a value that "
+        "collides with a previous run's rows. Absent/empty (default) => legacy encoding, "
+        "unchanged. Never applied to the integer branch (worker_uid feeds an arithmetic "
+        "formula there; a run_id would risk overflowing narrow int columns).",
+    )
+    return parser
+
+
+def parse_worker_args(argv: Optional[List[str]] = None) -> "argparse.Namespace":
+    """Parse generator.py's CLI args. See build_worker_arg_parser."""
+    return build_worker_arg_parser().parse_args(argv)
+
+
 def get_connection_kwargs_from_config(config: Dict[str, Any]) -> Dict[str, Any]:
     """
     Return kwargs to pass to psycopg2.connect, strictly from config.
+
+    Connections go to exactly the configured host. Spreading load across a
+    multi-node cluster is done by the controller assigning each worker a
+    specific node (round-robin over yb_servers()) and overriding host/port in
+    that worker's config -- NOT by a driver-level load balancer, which cannot
+    help a fleet of single-connection worker processes (each process has its
+    own empty balancer and they all pick the same node). See the controller's
+    node-distribution logic.
     """
     conn = config.get("connection", {})
     return {
@@ -282,6 +416,213 @@ def get_estimated_row_count(
 
 def set_faker_seed(seed: int) -> None:
     _fake.seed_instance(seed)
+
+
+# ----- Monotonic PK generation (dynamic worker pool: --worker-uid) -----
+
+# Data types the monotonic PK formula can drive (matches
+# shared_cache._is_integer_type -- duplicated here rather than imported so
+# utils.py has no dependency on shared_cache.py).
+_INTEGER_PK_DATA_TYPES = frozenset(
+    [
+        "smallint",
+        "integer",
+        "bigint",
+        "int",
+        "int2",
+        "int4",
+        "int8",
+        "smallserial",
+        "serial",
+        "bigserial",
+    ]
+)
+
+
+def is_integer_pk_type(data_type: Optional[str]) -> bool:
+    """Return True if `data_type` is a single-column integer PK type the
+    monotonic PK formula can drive (see compute_monotonic_pk). Composite
+    keys, and non-integer single-column keys (uuid/text/...), fall back to
+    legacy random PK generation for that table -- there is no usable
+    integer ceiling to build a monotonic stride from.
+    """
+    if not data_type:
+        return False
+    return data_type.strip().lower() in _INTEGER_PK_DATA_TYPES
+
+
+def get_table_max_pk(
+    cursor: Any,
+    schema_name: Optional[str],
+    table_name: str,
+    pk_col: str,
+) -> Optional[int]:
+    """Return MAX(pk_col) for table_name, or None if the table is empty.
+
+    Used to seed monotonic PK generation (--worker-uid) in legacy/no-cache
+    mode, where shared_cache.table_max_pk() isn't available (that path is
+    the controller-built cache's job; this is the direct-query fallback for
+    a standalone worker with no --cache-dir).
+    """
+    qualified_table = f"{schema_name}.{table_name}" if schema_name else table_name
+    cursor.execute(f"SELECT MAX({pk_col}) FROM {qualified_table}")
+    row = cursor.fetchone()
+    if not row or row[0] is None:
+        return None
+    return int(row[0])
+
+
+def compute_monotonic_pk(max_pk: int, worker_uid: int, pk_stride: int, counter: int) -> int:
+    """Compute the deterministic INSERT primary-key value for a worker.
+
+    pk = max_pk + 1 + worker_uid + pk_stride * counter
+
+    where `counter` increments once per row this worker has inserted into
+    this table (starting at 0). Disjoint across worker_uids (each spawned
+    worker's range never overlaps another's, as long as worker_uid <
+    pk_stride for every worker -- the controller's global monotonic
+    worker_uid allocator plus a sufficiently large pk_stride guarantee
+    this), strictly increasing per worker, and always above the table's
+    recorded max(pk) at seed time. See IMPLEMENTATION_CONTRACTS.md
+    "Monotonic PK generation".
+    """
+    return max_pk + 1 + worker_uid + pk_stride * counter
+
+
+# ----- Unique-safe value generation (any single-column unique surface) -----
+#
+# Today only single-column integer PKs get collision-free values (via
+# compute_monotonic_pk above); every other unique surface -- secondary
+# UNIQUE constraints/indexes, and non-integer PKs (varchar/uuid/...) --
+# falls back to plain random generation and collides heavily as tables
+# fill. compute_unique_safe_value generalizes the same idea (namespace by
+# worker_uid, advance a strictly-increasing per-(table,column) counter) to
+# every type generate_table_schemas_bulk's new "unique_columns" can name.
+
+# Per-width integer ceilings. compute_unique_safe_value returns None (caller
+# falls back to random generation) once the monotonic value would exceed the
+# column's own type max -- otherwise a plain `integer` column overflows int32
+# (SQLSTATE 22003 "value out of range") long before bigint's ceiling, which
+# hard-fails the whole INSERT batch instead of just retrying.
+_INT2_MAX = 32767
+_INT4_MAX = 2147483647
+_INT8_MAX = 9223372036854775807
+_UNIQUE_SAFE_INT_OVERFLOW_THRESHOLD = _INT8_MAX  # bigint/numeric ceiling
+
+
+def _integer_type_ceiling(dtype: str) -> int:
+    """Max value the monotonic scheme may emit for an integer/numeric column
+    of SQL type `dtype` (already lowercased). Narrow ints get their real
+    ceiling so we fall back to random before overflowing the column."""
+    if dtype in ("smallint", "int2", "smallserial"):
+        return _INT2_MAX
+    if dtype in ("integer", "int", "int4", "serial"):
+        return _INT4_MAX
+    return _INT8_MAX  # bigint/int8/bigserial, numeric/decimal
+
+_BASE36_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz"
+
+# Stride used only for the compact base36 text-encoding fallback below --
+# deliberately distinct from pk_stride (which governs the integer monotonic
+# formula this function also drives). Large enough that no single worker
+# will ever generate anywhere near this many values for one text column, so
+# each worker_uid's segment of the encoded space never collides with
+# another worker's.
+_TEXT_UNIQUE_STRIDE = 10 ** 9
+
+
+def _to_base36(n: int) -> str:
+    """Encode a non-negative int as a lowercase base36 string (no leading
+    zero-padding), for the compact unique text-column encoding below."""
+    if n == 0:
+        return "0"
+    digits = []
+    while n > 0:
+        n, rem = divmod(n, 36)
+        digits.append(_BASE36_ALPHABET[rem])
+    return "".join(reversed(digits))
+
+
+def compute_unique_safe_value(
+    data_type: Optional[str],
+    worker_uid: int,
+    pk_stride: int,
+    counter: int,
+    *,
+    max_seed: int = 0,
+    char_max: Optional[int] = None,
+    run_id: str = "",
+) -> Any:
+    """Compute a guaranteed-unique value for one single-column unique
+    surface (PK, UNIQUE constraint, or standalone unique index), for this
+    worker/counter. Returns None when `data_type` isn't one this function
+    can drive deterministically, or the deterministic value it would
+    produce is unusable (bigint overflow; a compact text encoding that
+    still doesn't fit `char_max`) -- callers fall back to the normal
+    type-aware random-generation path for that column, unchanged (the
+    existing unique-violation retry safety net still covers it).
+
+    - integer family / numeric: `max_seed + 1 + worker_uid + pk_stride *
+      counter` -- same shape as compute_monotonic_pk, but seeded from a
+      plain `MAX(col)` (see generate_table_schemas_bulk's
+      "unique_max_seeds") instead of a primary key's max. None once the value
+      would exceed the column type's own max (int2/int4/int8), so a narrow
+      integer column falls back to random rather than overflowing. `run_id`
+      is ignored here -- worker_uid feeds this arithmetic formula directly,
+      and folding in a run-scoped token would risk overflowing narrow int
+      columns. This branch is already re-run-safe: it seeds from MAX(col),
+      which only grows across runs.
+    - text/varchar/char: `f"u{worker_uid}_{counter}"` -- namespaced by
+      worker, strictly increasing per worker, so it never repeats across
+      any (worker_uid, counter) pair. If `char_max` is given and that
+      string is too long, falls back to a compact base36 encoding of
+      `worker_uid * _TEXT_UNIQUE_STRIDE + counter` (still unique for the
+      same reason: disjoint worker_uid segments, strictly-increasing
+      counter within each). None if even that can't fit `char_max`. When
+      `run_id` is truthy it's folded into both forms (`f"u{run_id}_{worker_uid}_{counter}"`
+      / `"u" + run_id + _to_base36(...)`) so a re-run (which restarts
+      worker_uid/counter from scratch) can't regenerate a value that
+      collides with a previous run's rows. Falsy `run_id` (default) is
+      byte-identical to the legacy encoding.
+    - uuid: `uuid.uuid5(uuid.NAMESPACE_OID, f"{worker_uid}:{counter}")` --
+      deterministic and unique for the same (worker_uid, counter)
+      uniqueness argument. When `run_id` is truthy, it's folded into the
+      uuid5 name (`f"{run_id}:{worker_uid}:{counter}"`) for the same
+      cross-run anti-collision reason as the text branch; falsy `run_id`
+      (default) is byte-identical to the legacy encoding.
+    - anything else: None.
+    """
+    if not data_type:
+        return None
+    dtype = data_type.strip().lower()
+
+    if is_integer_pk_type(dtype) or dtype.startswith("numeric") or dtype.startswith("decimal"):
+        value = max_seed + 1 + worker_uid + pk_stride * counter
+        # Fall back to random once we'd exceed the column type's own max, not
+        # just bigint's -- an int4/int2 column overflows far sooner.
+        if value > _integer_type_ceiling(dtype):
+            return None
+        return value
+
+    if "uuid" in dtype:
+        if run_id:
+            return uuid.uuid5(uuid.NAMESPACE_OID, f"{run_id}:{worker_uid}:{counter}")
+        return uuid.uuid5(uuid.NAMESPACE_OID, f"{worker_uid}:{counter}")
+
+    if any(token in dtype for token in ("varchar", "character varying", "text", "char", "character")):
+        full = f"u{run_id}_{worker_uid}_{counter}" if run_id else f"u{worker_uid}_{counter}"
+        if char_max is None or len(full) <= char_max:
+            return full
+        compact = (
+            "u" + run_id + _to_base36(worker_uid * _TEXT_UNIQUE_STRIDE + counter)
+            if run_id
+            else "u" + _to_base36(worker_uid * _TEXT_UNIQUE_STRIDE + counter)
+        )
+        if len(compact) <= char_max:
+            return compact
+        return None
+
+    return None
 
 
 # ----- Column override helpers -----
@@ -591,6 +932,58 @@ def _build_enum_values(
     return enum_values
 
 
+def _find_unique_columns(
+    cursor: Any,
+    table_name: str,
+    schema_name: Optional[str],
+    columns: Dict[str, str],
+) -> List[str]:
+    """Return one representative column per unique surface (PK, UNIQUE
+    constraint, or standalone unique index) on `table_name` -- every
+    single-column one, plus, for each multi-column one, an integer-typed
+    column if present, else the lowest-attnum column (making one component
+    of a unique tuple unique makes the whole tuple unique). Per-table
+    mirror of the schema-wide query in generate_table_schemas_bulk, for the
+    per-table fallback path (generate_table_schemas / convert_pg_table_description).
+
+    Expression-index members (attnum 0 in indkey) have no matching
+    pg_attribute row and are silently dropped by the join; partial indexes
+    are excluded explicitly.
+    """
+    regclass = _qualify_regclass(table_name, schema_name)
+    cursor.execute(
+        """
+        SELECT i.indexrelid, a.attname
+        FROM pg_index i
+        JOIN pg_class c ON c.oid = i.indrelid
+        JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
+        WHERE c.oid = %s::regclass
+          AND i.indisunique
+          AND i.indpred IS NULL
+        ORDER BY i.indexrelid, a.attnum
+        """,
+        (regclass,),
+    )
+    idx_cols_by_index: Dict[Any, List[str]] = {}
+    for indexrelid, attname in cursor.fetchall():
+        idx_cols_by_index.setdefault(indexrelid, []).append(attname)
+
+    seen = set()
+    unique_columns: List[str] = []
+    for idx_cols in idx_cols_by_index.values():
+        if len(idx_cols) == 1:
+            candidate = idx_cols[0]
+        else:
+            candidate = next(
+                (c for c in idx_cols if is_integer_pk_type(columns.get(c))),
+                idx_cols[0],
+            )
+        if candidate not in seen:
+            seen.add(candidate)
+            unique_columns.append(candidate)
+    return unique_columns
+
+
 def convert_pg_table_description(
     cursor: Any,
     column_info: List[Tuple[str, str]],
@@ -603,6 +996,7 @@ def convert_pg_table_description(
     array_types = _build_array_types(cursor, schema_name, table_name, columns)
     primary_key = _find_primary_key(cursor, table_name, schema_name)
     enum_values = _build_enum_values(cursor, table_name, schema_name, column_info)
+    unique_columns = _find_unique_columns(cursor, table_name, schema_name, columns)
 
     result = {
         "columns": columns,
@@ -610,6 +1004,7 @@ def convert_pg_table_description(
         "primary_key": primary_key,
         "enum_values": enum_values,
         "bit_info": bit_info,
+        "unique_columns": unique_columns,
     }
 
     return {table_name: result}
@@ -637,6 +1032,199 @@ def generate_table_schemas(
         else:
             print(f"Table '{table_name}' not found.")
 
+    return table_schemas
+
+
+def generate_table_schemas_bulk(
+    cursor: Any,
+    schema_name: Optional[str] = None,
+    manual_table_list: Optional[List[str]] = None,
+    exclude_table_list: Optional[List[str]] = None,
+) -> Dict[str, Dict[str, Any]]:
+    """Same output as generate_table_schemas, but built with a handful of
+    schema-wide catalog queries instead of per-table/per-column queries.
+
+    The per-column information_schema queries in generate_table_schemas are
+    fatally slow at hundreds-of-tables scale on YugabyteDB (each query pays the
+    information_schema view-evaluation cost). This issues ~4 batched queries and
+    groups the results in Python. Output shape is identical:
+    {table: {columns, array_types, primary_key, enum_values, bit_info}}.
+    """
+    if manual_table_list:
+        table_list = list(manual_table_list)
+    else:
+        table_list = get_table_list(cursor, schema_name, exclude_table_list)
+    if not table_list:
+        return {}
+    table_set = set(table_list)
+    nsp = schema_name or "public"
+    where_prefix, where_params = _schema_filter(schema_name)
+
+    # 1) all columns (+ char length, numeric precision/scale, udt regtype) in one query
+    cols_by_table: Dict[str, List[Tuple[str, str]]] = {}
+    udt_regtype: Dict[Tuple[str, str], Optional[str]] = {}
+    cursor.execute(
+        f"""
+        SELECT table_name, column_name, data_type, character_maximum_length,
+               numeric_precision, numeric_scale, udt_name::regtype::text
+        FROM information_schema.columns
+        WHERE {where_prefix} table_name = ANY(%s)
+        ORDER BY table_name, ordinal_position
+        """,
+        where_params + (table_list,),
+    )
+    for tname, col, dtype, charmax, nprec, nscale, udt_rt in cursor.fetchall():
+        if tname not in table_set:
+            continue
+        dstr = dtype
+        if dtype in ("numeric", "decimal") and nprec is not None:
+            dstr = f"{dtype}({nprec},{nscale or 0})"
+        elif dtype in ("character varying", "varchar", "char", "character") and charmax:
+            dstr = f"{dtype}({charmax})"
+        cols_by_table.setdefault(tname, []).append((col, dstr))
+        udt_regtype[(tname, col)] = udt_rt
+
+    # 2) all primary keys in one query (attnum order, matching _find_primary_key)
+    pk_by_table: Dict[str, List[str]] = {}
+    cursor.execute(
+        """
+        SELECT c.relname, a.attname
+        FROM pg_index i
+        JOIN pg_class c ON c.oid = i.indrelid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
+        WHERE i.indisprimary AND n.nspname = %s AND c.relname = ANY(%s)
+        ORDER BY c.relname, a.attnum
+        """,
+        (nsp, table_list),
+    )
+    for tname, attname in cursor.fetchall():
+        pk_by_table.setdefault(tname, []).append(attname)
+
+    # 3) all enum / array-of-enum labels in one query
+    enum_by_table: Dict[str, Dict[str, List[str]]] = {}
+    cursor.execute(
+        """
+        SELECT c.relname, a.attname, e.enumlabel
+        FROM pg_attribute a
+        JOIN pg_class c ON c.oid = a.attrelid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        JOIN pg_type t ON t.oid = a.atttypid
+        JOIN pg_enum e ON e.enumtypid = CASE WHEN t.typelem <> 0 THEN t.typelem ELSE t.oid END
+        WHERE n.nspname = %s AND c.relname = ANY(%s) AND a.attnum > 0 AND NOT a.attisdropped
+        ORDER BY c.relname, a.attnum, e.enumsortorder
+        """,
+        (nsp, table_list),
+    )
+    for tname, attname, label in cursor.fetchall():
+        enum_by_table.setdefault(tname, {}).setdefault(attname, []).append(label)
+
+    # 4) all bit/varbit metadata in one query
+    bit_by_table: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    cursor.execute(
+        """
+        SELECT c.relname, a.attname, a.atttypmod, format_type(a.atttypid, NULL) AS ftype
+        FROM pg_attribute a
+        JOIN pg_class c ON c.oid = a.attrelid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = %s AND c.relname = ANY(%s) AND a.attnum > 0 AND NOT a.attisdropped
+          AND format_type(a.atttypid, NULL) IN ('bit', 'bit varying')
+        """,
+        (nsp, table_list),
+    )
+    for tname, attname, atttypmod, ftype in cursor.fetchall():
+        length = atttypmod if (atttypmod is not None and atttypmod > 0) else None
+        bit_by_table.setdefault(tname, {})[attname] = {
+            "varying": ftype == "bit varying",
+            "length": length,
+        }
+
+    # 5) every unique surface (PK, UNIQUE constraint, standalone unique
+    # index) in one schema-wide query, resolved to column names via
+    # pg_attribute. An expression-index member (attnum 0 in indkey) has no
+    # matching pg_attribute row and is silently dropped by the join;
+    # partial indexes (indpred IS NOT NULL) are excluded explicitly. Rows
+    # are grouped below by (table, indexrelid) so a multi-column unique
+    # index contributes exactly ONE representative column (see Part 1 of
+    # the unique-safe-value-generation design: making one component of a
+    # unique tuple unique makes inserts collision-free for the whole row).
+    unique_idx_cols: Dict[str, Dict[Any, List[str]]] = {}
+    cursor.execute(
+        """
+        SELECT c.relname, i.indexrelid, a.attname
+        FROM pg_index i
+        JOIN pg_class c ON c.oid = i.indrelid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
+        WHERE i.indisunique AND i.indpred IS NULL
+          AND n.nspname = %s AND c.relname = ANY(%s)
+        ORDER BY c.relname, i.indexrelid, a.attnum
+        """,
+        (nsp, table_list),
+    )
+    for tname, indexrelid, attname in cursor.fetchall():
+        unique_idx_cols.setdefault(tname, {}).setdefault(indexrelid, []).append(attname)
+
+    table_schemas: Dict[str, Dict[str, Any]] = {}
+    for tname in table_list:
+        col_info = cols_by_table.get(tname)
+        if not col_info:
+            print(f"Table '{tname}' not found.")
+            continue
+        columns = {c: d for c, d in col_info}
+        array_types: Dict[str, str] = {}
+        for c, d in col_info:
+            if "ARRAY" in d.upper():
+                rt = udt_regtype.get((tname, c))
+                array_types[c] = rt if rt else d
+        primary_key = pk_by_table.get(tname)
+        if primary_key is None:
+            # rare: partitioned root with PK only on children -> per-table fallback
+            primary_key = _find_primary_key(cursor, tname, schema_name)
+
+        unique_columns: List[str] = []
+        seen_unique_cols = set()
+        for idx_cols in unique_idx_cols.get(tname, {}).values():
+            if len(idx_cols) == 1:
+                candidate = idx_cols[0]
+            else:
+                # multi-column unique index: prefer an integer-typed
+                # column, else the lowest-attnum (first) column
+                candidate = next(
+                    (c for c in idx_cols if is_integer_pk_type(columns.get(c))),
+                    idx_cols[0],
+                )
+            if candidate not in seen_unique_cols:
+                seen_unique_cols.add(candidate)
+                unique_columns.append(candidate)
+
+        # unique_max_seeds: for orderable (integer-family/numeric) unique
+        # columns only -- generated values there must exceed the current
+        # max already in the table. Text/uuid/other unique columns need no
+        # seed (they're namespaced by worker_uid+counter instead) and are
+        # omitted. These columns are indexed, so MAX is a cheap index scan.
+        unique_max_seeds: Dict[str, int] = {}
+        for col in unique_columns:
+            col_dtype = columns.get(col)
+            is_orderable = is_integer_pk_type(col_dtype) or (
+                (col_dtype or "").strip().lower().startswith(("numeric", "decimal"))
+            )
+            if not is_orderable:
+                continue
+            qualified = _qualify_regclass(tname, schema_name)
+            cursor.execute(f"SELECT MAX({col}) FROM {qualified}")
+            row = cursor.fetchone()
+            unique_max_seeds[col] = int(row[0]) if row and row[0] is not None else 0
+
+        table_schemas[tname] = {
+            "columns": columns,
+            "array_types": array_types,
+            "primary_key": primary_key,
+            "enum_values": enum_by_table.get(tname, {}),
+            "bit_info": bit_by_table.get(tname, {}),
+            "unique_columns": unique_columns,
+            "unique_max_seeds": unique_max_seeds,
+        }
     return table_schemas
 
 
@@ -971,6 +1559,8 @@ def build_insert_values(
     number_of_rows_to_insert: int,
     min_col_size_bytes: int = 0,
     column_overrides: Optional[Dict[str, Any]] = None,
+    pk_value_fn: Optional[Callable[[], Any]] = None,
+    unique_value_fns: Optional[Dict[str, Callable[[], Any]]] = None,
 ) -> Tuple[str, List[Any]]:
     """Build VALUES list like (v1, v2), (v1, v2) for INSERT ... VALUES ...
 
@@ -982,6 +1572,21 @@ def build_insert_values(
         if the table has no primary key. Callers use this to refresh an
         in-memory PkPool after a successful INSERT, so later UPDATE/DELETE
         operations can target rows directly instead of scanning the table.
+
+    Per column, the value is picked with this priority:
+      1. `column_overrides`, if configured for that table.column.
+      2. `unique_value_fns[column_name]`, if given and it returns a
+         non-None value (see compute_unique_safe_value) -- guaranteed-unique
+         generation for any single-column unique surface (PK, UNIQUE
+         constraint, standalone unique index), any type. If the fn returns
+         None (type it can't drive, or an unusable encoding), falls through
+         to the next priority instead of using None as the value.
+      3. `pk_value_fn`, if given -- the dynamic worker pool's monotonic PK
+         scheme (see compute_monotonic_pk). Only applies to the table's
+         single PK column; composite keys and PK-less tables ignore it.
+         Kept for back-compat / callers that don't populate
+         `unique_value_fns` for the PK column.
+      4. normal type-aware random generation, unchanged.
     """
     primary_key = table_schemas[table_name].get("primary_key")
     if isinstance(primary_key, str):
@@ -999,8 +1604,28 @@ def build_insert_values(
 
         for column_name, data_type in table_schemas[table_name]["columns"].items():
             override_spec = get_column_override(column_overrides or {}, table_name, column_name)
+            is_monotonic_pk_col = (
+                pk_value_fn is not None
+                and len(pk_cols) == 1
+                and column_name == pk_cols[0]
+            )
+
+            unique_fn = (unique_value_fns or {}).get(column_name)
+            unique_value = unique_fn() if (not override_spec and unique_fn is not None) else None
+            used_unique_value = unique_value is not None
+
             if override_spec:
                 value = generate_override_value(override_spec)
+                values.append(f"'{value}'" if value is not None else "NULL")
+            elif used_unique_value:
+                value = unique_value
+                if isinstance(value, str):
+                    escaped_value = value.replace("'", "''")
+                    values.append(f"'{escaped_value}'")
+                else:
+                    values.append(f"'{value}'")
+            elif is_monotonic_pk_col:
+                value = pk_value_fn()
                 values.append(f"'{value}'" if value is not None else "NULL")
             elif "bit" in data_type.lower():
                 values.append(build_bit_cast_expr(table_schemas, table_name, column_name))
@@ -1091,29 +1716,119 @@ def build_update_values(
 
 # ----- Execution utility -----
 
+# SQLSTATEs this module treats as retryable (see classify_retry). Values are
+# the PostgreSQL/YugabyteDB error codes, not psycopg2 exception class names,
+# so classification works on anything exposing a `.pgcode` attribute -- a
+# real psycopg2 error, or a plain fake in unit tests -- without requiring
+# psycopg2 to be installed.
+SQLSTATE_UNIQUE_VIOLATION = "23505"
+SQLSTATE_SERIALIZATION_FAILURE = "40001"  # serialization failure / read-restart
+SQLSTATE_DEADLOCK_DETECTED = "40P01"
+
+
+def classify_retry(exc: BaseException) -> Optional[str]:
+    """Classify `exc` for retry purposes by SQLSTATE (`.pgcode`).
+
+    Returns:
+      - "unique_violation" for SQLSTATE 23505 (retried immediately, with
+        regenerated values -- e.g. a fresh monotonic/random PK -- and no
+        backoff sleep; unchanged from before this existed).
+      - "conflict" for SQLSTATE 40001 (serialization failure / read-restart
+        -- YB throws this even for a single session reading recently-written
+        data across tablets) or 40P01 (deadlock detected); retried with
+        bounded exponential backoff (see compute_backoff_delay).
+      - None for anything else (including exceptions with no `.pgcode`,
+        e.g. a plain psycopg2.OperationalError from a dropped connection,
+        or a non-DB exception) -- not retryable here; the caller propagates.
+    """
+    pgcode = getattr(exc, "pgcode", None)
+    if pgcode == SQLSTATE_UNIQUE_VIOLATION:
+        return "unique_violation"
+    if pgcode in (SQLSTATE_SERIALIZATION_FAILURE, SQLSTATE_DEADLOCK_DETECTED):
+        return "conflict"
+    return None
+
+
+def compute_backoff_delay(attempt: int, base: float = 0.05, cap: float = 2.0) -> float:
+    """Bounded exponential backoff delay (seconds) for retry `attempt`
+    (1-indexed): base * 2**(attempt-1), capped at `cap`. Pure and
+    deterministic (no jitter, no clock access), so directly unit-testable.
+    """
+    if attempt < 1:
+        attempt = 1
+    return min(cap, base * (2 ** (attempt - 1)))
+
+
+def read_control_rate(path: Optional[str], last: float) -> float:
+    """Read the single float control rate from `path` for the cascade
+    trimmer controller's runtime-adjustable throttle (Option B -- see
+    ARCHITECTURE.md).
+
+    On success, returns the parsed float. On `path` being None/empty,
+    missing file, empty/whitespace-only content, a parse error, or any
+    other exception (e.g. a transient read racing the controller's atomic
+    replace), returns `last` (hold the previous commanded rate) -- this
+    function never raises. Negative values are returned as-is; interpreting
+    a rate <= 0 as "pause" is the caller's (generator.py's) job, not this
+    function's.
+    """
+    if not path:
+        return last
+    try:
+        with open(path, "r") as f:
+            content = f.read().strip()
+        if not content:
+            return last
+        return float(content)
+    except Exception:
+        return last
+
+
 def execute_with_retry(
     run_once_fn: Callable[[], None],
     rebuild_fn: Callable[[], None],
     rollback_fn: Callable[[], None],
     *,
     max_retries: int = 50,
+    backoff_base: float = 0.05,
+    backoff_cap: float = 2.0,
+    sleep_fn: Callable[[float], None] = time.sleep,
 ) -> bool:
-    """Execute write, retrying on UniqueViolation with regenerated values; return success."""
+    """Execute a write, retrying on:
+      - UniqueViolation (23505): immediate retry with regenerated values
+        (via `rebuild_fn`), no backoff sleep -- unchanged from before.
+      - Serialization/read-restart (40001) or deadlock (40P01): retried with
+        bounded exponential backoff (`compute_backoff_delay`), also calling
+        `rebuild_fn` (a safe no-op for callers whose values don't need
+        regenerating on a plain conflict retry).
+
+    Any other exception propagates after `rollback_fn()`, unchanged from
+    before. Returns True on success, False if max_retries is exhausted.
+    """
     retry_count = 0
     while retry_count <= max_retries:
         try:
             run_once_fn()
             return True
-        except psycopg2.errors.UniqueViolation as e:
+        except Exception as e:
+            kind = classify_retry(e)
+            if kind is None:
+                rollback_fn()
+                raise
             rollback_fn()
             retry_count += 1
-            print(f"Retrying operation after UniqueViolation (attempt {retry_count} of {max_retries})")
-            print(f"Error details: {e}")
+            if kind == "unique_violation":
+                print(f"Retrying operation after UniqueViolation (attempt {retry_count} of {max_retries})")
+                print(f"Error details: {e}")
+            else:
+                delay = compute_backoff_delay(retry_count, backoff_base, backoff_cap)
+                print(
+                    f"Retrying operation after {kind} ({getattr(e, 'pgcode', '?')}) "
+                    f"(attempt {retry_count} of {max_retries}), backing off {delay:.3f}s"
+                )
+                print(f"Error details: {e}")
+                sleep_fn(delay)
             rebuild_fn()
-        except Exception:
-            # For non-unique errors, propagate after rollback
-            rollback_fn()
-            raise
     print("Reached maximum retry attempts. Skipping...")
     return False
 

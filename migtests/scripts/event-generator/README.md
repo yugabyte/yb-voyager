@@ -1,6 +1,6 @@
-## Event Generator (PostgreSQL)
+## Event Generator (PostgreSQL / YugabyteDB)
 
-Generates randomized INSERT/UPDATE/DELETE traffic against PostgreSQL tables for testing and migration exercises. Configuration-driven, reproducible when seeded, and type-aware (arrays, enums, bit/varbit, numeric precision/scale, etc.).
+Generates randomized INSERT/UPDATE/DELETE traffic against PostgreSQL **or YugabyteDB** tables for testing and migration exercises — driving load on a source before/during export, or on a target during live-migration cutover/fall-back. Configuration-driven, reproducible when seeded, and type-aware (arrays, enums, bit/varbit, numeric precision/scale, etc.). Runs single-process (`generator.py`) or as a rate-controlled dynamic worker pool (`parallel_generator.py`) that can sustain 10k+ events/sec across a multi-node cluster.
 
 ### Prerequisites
 - Python 3.8+
@@ -97,50 +97,72 @@ the combined throughput. `generator.py` itself is never changed.
 
 Add a top-level `parallel` block to a normal config (connection + generator,
 including a `rate_control` block whose rates are the **desired TOTAL across
-all workers**, not per-worker):
+all workers**, not per-worker). A fully-commented template of every field is
+in `event-generator.yaml`; the most common ones:
 ```yaml
 parallel:
-  max_workers: 6              # hard cap on worker processes; if the peak target
-                              #   needs more, worker count is clamped here and the
-                              #   shortfall ("requested X, achievable ~Y") is logged
-  calibration_seconds: 30     # length of the one-shot uncapped probe that measures
-                              #   the per-worker throughput ceiling (bigger = steadier
-                              #   estimate, but delays the run start)
-  margin: 1.3                 # headroom factor: size workers for peak_target * margin
-                              #   so each worker sits below its ceiling and the governor
-                              #   throttles down rather than running flat-out
-  run_seconds: 1800           # total run duration after calibration; workers are
-                              #   stopped when this elapses (Ctrl+C also stops cleanly)
-  monitor_interval_seconds: 5 # how often the aggregate events/sec (summed across all
-                              #   workers via pg_stat_statements) is sampled and printed
+  run_seconds: 1800            # total run duration after calibration (Ctrl+C/SIGTERM also stop)
+  max_workers: 8               # hard cap on worker processes (shortfall is logged if the peak
+                               #   target needs more)
+  calibration_seconds: 30      # length of the per-worker-ceiling (C) measurement window
+  calibration_warmup_seconds: 20  # warm the probe worker before measuring C (avoids a cold,
+                               #   ~3-4x-too-low C that causes spike overshoot)
+  allow_throttle: true         # cascade controller: whole-worker coarse knob + one fractional
+                               #   trimmer worker for fine adjustment
+  distribute_across_nodes: true   # round-robin workers across all tservers (via yb_servers())
 ```
 
-How it derives the worker count:
-1. **Calibrate**: runs a single uncapped worker (no `rate_control`) for
-   `calibration_seconds`, measuring events/sec via `pg_stat_statements`
-   (`SUM(rows)` over insert/update/delete statements) to get a per-worker
-   throughput ceiling.
-2. **Derive**: takes the peak target -- the max of
-   `rate_control.default_events_per_second` and every `schedule` entry's
-   `events_per_second`, so a spike is servable -- and computes
-   `workers = ceil(peak * margin / per_worker_ceiling)`, clamped to
-   `max_workers`. If the clamp bites, it prints the requested vs. achievable
-   rate.
-3. **Spawn**: writes `workers` per-worker YAML configs (each with
-   `generator.random_seed`/`faker_seed` = base seed + worker index, and
-   `rate_control` rates divided by `workers`) to a temp directory and
-   launches one `generator.py -c <worker_i.yaml>` subprocess per config.
-4. **Monitor**: since `pg_stat_statements` counts DB-wide, the same
-   `SUM(rows)` query already aggregates every worker; it's sampled every
-   `monitor_interval_seconds` and printed as one combined events/sec figure.
-5. **Shutdown**: on `run_seconds` elapsed or Ctrl+C, all worker processes are
-   sent SIGTERM (then SIGKILL after a grace period), temp configs are
-   cleaned up, and a final summary (total events, mean aggregate ev/s,
-   workers used) is printed.
+How the reactive controller works (unlike the older fixed-count model, worker
+count is **not** computed up front — it adapts during the run):
+1. **Calibrate**: warms one probe worker for `calibration_warmup_seconds`, then
+   measures its steady-state throughput over `calibration_seconds` to get the
+   per-worker ceiling **C** (events/sec), via `pg_stat_statements`
+   (`SUM(rows)` over insert/update/delete). Warm-up matters: a cold C reads
+   3-4x low and makes the feed-forward step over-provision, overshooting a spike.
+2. **Feed-forward**: on each target change (baseline↔spike) it jumps the worker
+   count to `ceil(target / C)` so it reaches the new rate fast instead of
+   ramping one worker at a time.
+3. **React** (every `control_interval_seconds`): compares the achieved rate
+   (a `meter_window_seconds` trailing average) to target and adjusts — a
+   **coarse** knob adds/removes whole workers, and (when `allow_throttle`) a
+   **fine** trimmer throttles a single worker for sub-worker precision. A
+   backpressure cap (`reactive_margin`) stops it piling workers on a
+   cluster-bound target. C is re-estimated over the run (`recalibrate`).
+4. **Distribute**: with `distribute_across_nodes`, each worker is pinned to a
+   specific tserver round-robin (see "Multi-node clusters" below).
+5. **Shutdown**: on `run_seconds` elapsed or Ctrl+C/SIGTERM, all workers are
+   reaped (SIGTERM then SIGKILL; workers also die automatically if the
+   controller is killed), and a `--rate-csv` time series is written if given.
 
 Requires `pg_stat_statements` (`shared_preload_libraries = 'pg_stat_statements'`
 plus `CREATE EXTENSION pg_stat_statements;`) -- calibration and monitoring
-fail fast with a clear message if it's unavailable.
+fail fast with a clear message if it's unavailable. Full controller internals
+(the cascade math, recalibration, overshoot-shed) are in `ARCHITECTURE.md`.
+
+Write a per-second throughput CSV with `--rate-csv <path>` (columns:
+epoch, t_seconds, target, achieved, n_uncapped_workers, trimmer, C, trimmer_rate).
+
+#### Multi-node clusters (node distribution)
+
+By default (`parallel.distribute_across_nodes: true`) the controller discovers
+every tserver via `yb_servers()` and **assigns each worker a specific node,
+round-robin**, overriding host/port in that worker's config so it connects
+directly to its node. This spreads write/coordination load evenly across the
+cluster instead of piling it onto the single configured host (which overloads
+that one node — a tserver heartbeat timeout — while the rest sit idle).
+
+This is done explicitly rather than via a driver-level connection load
+balancer (e.g. the YugabyteDB smart driver) on purpose: each worker is a
+**separate process opening a single connection**, so a per-process balancer has
+nothing to balance and every process independently lands on the same seed node.
+Explicit round-robin from the controller is the only thing that actually
+distributes a one-connection-per-process fleet.
+
+Because writes are then spread across nodes, the controller also sums
+`pg_stat_statements` across all nodes for its rate measurement. Set
+`distribute_across_nodes: false` only if the nodes' direct host/port aren't
+reachable (e.g. a VIP-only deployment) — then all workers use the one
+configured host.
 
 Run with:
 ```bash
@@ -169,6 +191,82 @@ python3 generator.py --config ./configs/dev.yaml
 - UPDATE: picks 1..N non-PK columns, generates a type-aware SET clause, and targets rows using `TABLESAMPLE SYSTEM_ROWS(update_rows)`.
 - DELETE: deletes rows sampled via `TABLESAMPLE SYSTEM_ROWS(delete_rows)`.
 - Optional throttling after a configured number of operations.
+
+### Unique-value generation and its caveats (parallel/dynamic-worker mode)
+
+In parallel mode (workers launched with `--worker-uid`, i.e. the dynamic worker
+pool), the generator produces **collision-free values for every single-column
+unique surface** — primary keys *and* secondary UNIQUE constraints/indexes —
+instead of generating them randomly and colliding as tables fill. This removes
+the retry storm that otherwise amplifies cluster load far beyond the achieved
+insert rate (a full node's worth of wasted execute/rollback churn). Each worker
+occupies a disjoint value range (`worker_uid` + `pk_stride`), so no two workers
+ever produce the same value.
+
+Coverage by column type (single-column unique surfaces):
+
+| Type | How a unique value is produced | Guaranteed unique? |
+| --- | --- | --- |
+| `integer` / `bigint` / `numeric` | monotonic: `max(col) + 1 + worker_uid + pk_stride*counter` | yes, until the column type's own max (then random fallback) |
+| `text` / `varchar` / `char` | worker-namespaced string `u<uid>_<counter>` (compact base36 form to fit small `char_max`) | yes |
+| `uuid` | `uuid5(NAMESPACE_OID, "<uid>:<counter>")` | yes |
+| anything else | falls back to normal random generation | best-effort (unique-violation retry still applies) |
+
+For a **composite** unique constraint, one representative column (preferring an
+integer-typed one) is made unique-safe, which guarantees the whole tuple is
+unique.
+
+#### Caveats (read before a long soak)
+
+1. **Narrow-integer unique columns are best-effort.** Past the column type's max
+   the scheme falls back to random. A UNIQUE `smallint` (max 32,767) can hold at
+   most ~65k distinct values and cannot grow beyond that regardless — it will
+   collide constantly on the random fallback. A UNIQUE `integer` degrades only at
+   hundreds of millions of rows; `bigint` has effectively unlimited headroom.
+   *Action:* scan a new source schema for **single-column** unique `smallint`
+   columns on tables meant to grow large, and exclude/prep those tables.
+2. **UPDATE never modifies unique columns.** To avoid re-introducing collisions,
+   unique columns (PK + secondary) are excluded from UPDATE `SET` lists. This is
+   realistic (apps rarely rewrite unique keys) but means CDC UPDATE events won't
+   carry changes to those columns, and a table whose only non-PK columns are all
+   unique is skipped for UPDATEs (INSERT/DELETE still run). **Open question:**
+   revisit whether some update-to-unique coverage is wanted (would require
+   generating unique-safe values in the UPDATE path too).
+3. **Composite uniques rely on one representative column.** If that column is a
+   narrow integer that falls back to random, the tuple's guarantee weakens to
+   best-effort. A composite made entirely of unhandled/exotic types has no
+   deterministic representative and is best-effort.
+4. **Exotic unique types fall back to random** (e.g. unique `timestamp`, `inet`,
+   `bytea`, `money`, arrays). Collision-prone but retry-covered, never fatal.
+5. **Tiny `char_max`** (roughly `varchar(<4)`) unique columns may not fit even the
+   compact encoding and fall back to random.
+6. **Seeds are point-in-time.** `MAX(col)` seeds are captured at cache-build time;
+   external writers or restarts with pre-existing higher values can make an
+   integer seed stale (retry-covered). Disjointness assumes `worker_uid <
+   pk_stride` (default 100,000) — safe unless a single run spawns ~100k workers.
+
+All fallback cases degrade *gracefully* to random-plus-retry (they cannot crash a
+worker or a node) — they just insert slightly slower on those specific columns.
+
+#### Reference: real GoCardless-style schema (341 tables) snapshot
+
+Unique-surface columns by type, as measured on the test schema — re-run this
+check when pointing at a new source to re-validate the caveats above:
+
+| Type | single-column unique | in composite unique |
+| --- | --- | --- |
+| varchar | 374 | 176 |
+| text | 42 | 104 |
+| integer | 1 | 42 |
+| bigint | 1 | 1 |
+| uuid | 1 | 0 |
+| smallint | **0** | 1 |
+| boolean / date / timestamp | 0 | 58 |
+
+Takeaway for this schema: **no single-column unique `smallint`** (caveat 1 does
+not bite), and every single-column unique surface is a fully-handled type. The
+lone smallint and the boolean/date/timestamp uniques appear only inside composite
+constraints, covered by their representative column.
 
 ### Type handling (high level)
 - Textual (`text`, `varchar`, `character varying`, `bytea`), booleans, integers, numeric/decimal (respects precision/scale), date/time/timestamp, `json/jsonb`, `inet`, `uuid`, `tsvector`.

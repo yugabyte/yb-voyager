@@ -129,3 +129,63 @@ generator:
   #                                 # by random_seed) of spike start time and
   #                                 # rate; default 0, must be 0..50.
   # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Parallel / dynamic-worker controller (optional, top-level block).
+#
+# `generator.py` is a single process. To reach rates one process can't push,
+# run `parallel_generator.py` instead: it launches N copies of generator.py
+# and adjusts N at runtime with a reactive controller so the AGGREGATE
+# achieved rate tracks the `generator.rate_control` target (whose numbers are
+# now interpreted as the TOTAL across all workers, not per-worker).
+#
+# How it works (short version): it first calibrates the per-worker throughput
+# ceiling C (one warmed-up probe worker), then adds/removes whole workers to
+# hit the target, with one fractional "trimmer" worker for fine adjustment.
+# It re-measures C over the run and spreads workers across cluster nodes.
+# Full internals: see ARCHITECTURE.md in this directory.
+#
+# Omit this block to run single-process (generator.py). Include it and run
+# `python3 parallel_generator.py -c <this-file>` to run the pool.
+#
+# parallel:
+#   # --- run control ---
+#   run_seconds: 1800            # total run duration after calibration (s).
+#                                #   default 604800 (7 days). Ctrl+C/SIGTERM also stop cleanly.
+#   max_workers: 8               # hard cap on worker processes. If the peak target needs more,
+#                                #   the count is clamped here and the shortfall is logged.
+#
+#   # --- calibration (measuring the per-worker ceiling C) ---
+#   calibration_seconds: 30      # length of the measurement window (s). Bigger = steadier C.
+#   calibration_warmup_seconds: 20  # warm the probe worker this long BEFORE measuring, so C
+#                                #   reflects steady state not a cold start. 0 = legacy (measure
+#                                #   from spawn). Cold C reads ~3-4x low and causes spike overshoot.
+#   recalibrate: true            # re-estimate C during the run (clamped EMA) to track drift.
+#
+#   # --- reactive control loop ---
+#   control_interval_seconds: 5  # how often the controller samples achieved rate and acts.
+#   allow_throttle: true         # true = cascade controller (coarse whole-worker knob + a fine
+#                                #   throttled trimmer worker). false = bang-bang (whole workers only,
+#                                #   uses deadband_pct/cooldown_seconds below).
+#   reactive_margin: 1.5         # backpressure cap: never grow the pool beyond
+#                                #   ceil(target/C) * this. Past it, a low reading is cluster-bound
+#                                #   (adding workers just piles load on a struggling cluster).
+#   meter_window_seconds: 15.0   # trailing window the raw meter is averaged over before the
+#                                #   controller acts. Denoises the 5s pg_stat_statements reading.
+#   deadband_pct: 10             # (bang-bang path only) +/-% band around target where it holds.
+#   cooldown_seconds: 10         # (bang-bang path only) min seconds between worker add/remove.
+#
+#   # --- PK pool / unique-value generation ---
+#   pk_pool_maxsize: 20000       # per-table in-memory PK pool size for fast UPDATE/DELETE targeting.
+#   pk_stride: 100000            # per-worker value stride for collision-free unique generation.
+#                                #   Must exceed the max worker count in a run (safe unless ~100k workers).
+#   snapshot_refresh_seconds: 10800  # how often the shared PK/schema cache is rebuilt (s).
+#
+#   # --- multi-node ---
+#   distribute_across_nodes: true  # round-robin workers across all tservers (via yb_servers()).
+#                                #   Set false only if node host/ports aren't directly reachable.
+#
+#   # --- advanced cascade-trimmer tuning (rarely changed; see ARCHITECTURE.md) ---
+#   # fine_kp: 0.6  fine_deadband_pct: 2.0  fine_slew_pct: 50.0
+#   # sat_ticks_needed: 2  high_sat_pct: 98.0  low_sat_pct: 2.0
+# ---------------------------------------------------------------------------
