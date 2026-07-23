@@ -86,6 +86,11 @@ WAIT_DURATION_SECONDS = GEN["wait_duration_seconds"]
 WORKER_UID = args.worker_uid
 PK_STRIDE = args.pk_stride
 CACHE_DIR = args.cache_dir
+# Per-run token (see parallel_generator.run_controller); folded into the
+# text/uuid unique-value encodings only (see compute_unique_safe_value) so a
+# re-run's restarted worker_uid/counter can't collide with a previous run's
+# rows. Absent/empty (legacy standalone invocation) => unchanged encoding.
+RUN_ID = args.run_id
 PK_POOL_MAXSIZE = PARALLEL_CONFIG.get("pk_pool_maxsize", 20000)
 
 # Rate governor: paces the aggregate events/sec. Two independent knobs can
@@ -373,7 +378,7 @@ if WORKER_UID is not None:
                     UNIQUE_VALUE_COUNTERS[(table, col)] = counter + 1
                     return compute_unique_safe_value(
                         data_type, WORKER_UID, PK_STRIDE, counter,
-                        max_seed=max_seed, char_max=char_max,
+                        max_seed=max_seed, char_max=char_max, run_id=RUN_ID,
                     )
                 return _next_unique_value
 

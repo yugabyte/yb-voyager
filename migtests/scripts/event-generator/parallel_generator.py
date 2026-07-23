@@ -680,7 +680,7 @@ def _set_worker_pdeathsig():
 
 
 def build_worker_argv(python_exe, generator_path, config_path, worker_uid, pk_stride,
-                       cache_dir, cache_version, throttle=0.0, control_file=None):
+                       cache_dir, cache_version, throttle=0.0, control_file=None, run_id=""):
     """Build the argv for one worker spawn, per IMPLEMENTATION_CONTRACTS.md's
     "Worker CLI" contract: `-c`, `--worker-uid`, `--pk-stride`,
     `--cache-dir`, `--cache-version`, and `--throttle` only when > 0
@@ -692,6 +692,12 @@ def build_worker_argv(python_exe, generator_path, config_path, worker_uid, pk_st
     docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md):
     `--control-file` is appended only when it's truthy. Uncapped workers
     must never receive it.
+
+    `run_id` is a per-run token (see run_controller) threaded into the
+    text/uuid unique-value encodings so a re-run's restarted worker_uid/
+    counter can't regenerate a value that collides with a previous run's
+    rows. `--run-id` is appended only when truthy (empty/absent preserves
+    today's legacy encoding).
     """
     argv = [
         python_exe, generator_path,
@@ -705,6 +711,8 @@ def build_worker_argv(python_exe, generator_path, config_path, worker_uid, pk_st
         argv += ["--throttle", str(throttle)]
     if control_file:
         argv += ["--control-file", control_file]
+    if run_id:
+        argv += ["--run-id", str(run_id)]
     return argv
 
 
@@ -1263,6 +1271,14 @@ def run_controller(base_config, rate_csv_path=None):
     # respawned trimmer resumes reading the same commanded rate.
     trimmer_control_file = os.path.join(tmp_dir, "trimmer_rate.txt")
     slot_pool = SlotFilePool(tmp_dir, max_workers + 1)  # +1 headroom for the trimmer
+    # Per-run token folded into workers' text/uuid unique-value encodings
+    # (see utils.compute_unique_safe_value) so a re-run -- whose
+    # WorkerUidAllocator restarts worker_uid at 0, and whose workers restart
+    # their own per-table counters at 0 -- can't regenerate a value
+    # identical to one left by a previous run. Deliberately NOT persisted
+    # across runs (timestamp-derived, differs every run); never fed into
+    # the integer branch (see compute_unique_safe_value's docstring).
+    run_id = utils._to_base36(int(time.time()))
     uid_allocator = WorkerUidAllocator()
     worker_procs = {}  # worker_uid -> {"proc": Popen, "slot": int, "throttle": float, "control_file": Optional[str]}
     roster = WorkerRoster()
@@ -1289,6 +1305,7 @@ def run_controller(base_config, rate_csv_path=None):
         argv = build_worker_argv(
             sys.executable, GENERATOR_PATH, slot_path, uid, pk_stride,
             cache_dir, cur_version, throttle, control_file=control_file,
+            run_id=run_id,
         )
         # preexec_fn sets PR_SET_PDEATHSIG so the kernel kills this worker if
         # the controller dies for any reason (incl. SIGKILL/crash) -- prevents

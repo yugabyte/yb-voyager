@@ -305,6 +305,7 @@ class TestWorkerArgParser(unittest.TestCase):
         self.assertEqual(args.pk_stride, 100000)
         self.assertEqual(args.throttle, 0.0)
         self.assertIsNone(args.control_file)
+        self.assertEqual(args.run_id, "")
 
     def test_overrides(self):
         args = parse_worker_args([
@@ -315,6 +316,7 @@ class TestWorkerArgParser(unittest.TestCase):
             "--pk-stride", "50000",
             "--throttle", "1500.5",
             "--control-file", "/tmp/trimmer_rate.txt",
+            "--run-id", "abc123",
         ])
         self.assertEqual(args.config, "/tmp/my.yaml")
         self.assertEqual(args.cache_dir, "/tmp/cache")
@@ -323,6 +325,7 @@ class TestWorkerArgParser(unittest.TestCase):
         self.assertEqual(args.pk_stride, 50000)
         self.assertEqual(args.throttle, 1500.5)
         self.assertEqual(args.control_file, "/tmp/trimmer_rate.txt")
+        self.assertEqual(args.run_id, "abc123")
 
     def test_worker_uid_and_pk_stride_are_ints(self):
         args = parse_worker_args(["--worker-uid", "3", "--pk-stride", "9"])
@@ -335,7 +338,7 @@ class TestWorkerArgParser(unittest.TestCase):
         for action in parser._actions:
             flags.update(action.option_strings)
         for expected in ("--cache-dir", "--cache-version", "--worker-uid", "--pk-stride", "--throttle",
-                         "--control-file"):
+                         "--control-file", "--run-id"):
             self.assertIn(expected, flags)
 
 
@@ -592,6 +595,77 @@ class TestComputeUniqueSafeValue(unittest.TestCase):
         self.assertIsNone(compute_unique_safe_value("boolean", worker_uid=1, pk_stride=1, counter=1))
         self.assertIsNone(compute_unique_safe_value("date", worker_uid=1, pk_stride=1, counter=1))
         self.assertIsNone(compute_unique_safe_value(None, worker_uid=1, pk_stride=1, counter=1))
+
+
+# --------------------------------------------------------------------------
+# compute_unique_safe_value run_id: threads a per-run token into the
+# text/uuid encodings so a re-run (whose worker_uid/counter both restart at
+# 0) can't regenerate a value colliding with a previous run's rows. The
+# integer branch ignores run_id entirely (already re-run-safe via max_seed).
+# Falsy run_id (the default) must remain byte-identical to legacy output.
+# --------------------------------------------------------------------------
+
+class TestComputeUniqueSafeValueRunId(unittest.TestCase):
+    def test_text_with_run_id(self):
+        v = compute_unique_safe_value("text", worker_uid=3, pk_stride=100, counter=5, run_id="abc")
+        self.assertEqual(v, "uabc_3_5")
+
+    def test_text_without_run_id_is_legacy(self):
+        v = compute_unique_safe_value("text", worker_uid=3, pk_stride=100, counter=5, run_id="")
+        self.assertEqual(v, "u3_5")
+        # And matches the no-run_id-arg-at-all call, i.e. true backward compat.
+        self.assertEqual(v, compute_unique_safe_value("text", worker_uid=3, pk_stride=100, counter=5))
+
+    def test_uuid_with_run_id_differs_from_without(self):
+        with_run = compute_unique_safe_value("uuid", worker_uid=4, pk_stride=100, counter=9, run_id="abc")
+        without_run = compute_unique_safe_value("uuid", worker_uid=4, pk_stride=100, counter=9, run_id="")
+        self.assertNotEqual(with_run, without_run)
+
+    def test_uuid_with_run_id_is_deterministic(self):
+        v1 = compute_unique_safe_value("uuid", worker_uid=4, pk_stride=100, counter=9, run_id="abc")
+        v2 = compute_unique_safe_value("uuid", worker_uid=4, pk_stride=100, counter=9, run_id="abc")
+        self.assertEqual(v1, v2)
+
+    def test_uuid_without_run_id_matches_legacy_uuid5(self):
+        v = compute_unique_safe_value("uuid", worker_uid=4, pk_stride=100, counter=9, run_id="")
+        self.assertEqual(v, utils.uuid.uuid5(utils.uuid.NAMESPACE_OID, "4:9"))
+
+    def test_integer_branch_ignores_run_id(self):
+        for run_id in ("", "abc", "xyz123"):
+            v = compute_unique_safe_value(
+                "integer", worker_uid=2, pk_stride=50, counter=3, max_seed=1000, run_id=run_id
+            )
+            self.assertEqual(v, 1000 + 1 + 2 + 50 * 3)
+
+    def test_char_max_compact_fallback_includes_run_id_and_differs_across_run_ids(self):
+        # Same setup as test_varchar_falls_back_to_base36_when_plain_encoding_too_long:
+        # f"u999_123456" (len 12) exceeds char_max=10, forcing the compact path.
+        v1 = compute_unique_safe_value(
+            "varchar", worker_uid=999, pk_stride=100, counter=123456, char_max=12, run_id="a1"
+        )
+        v2 = compute_unique_safe_value(
+            "varchar", worker_uid=999, pk_stride=100, counter=123456, char_max=12, run_id="b2"
+        )
+        self.assertIsNotNone(v1)
+        self.assertIsNotNone(v2)
+        self.assertNotEqual(v1, v2)
+        self.assertTrue(v1.startswith("ua1"))
+        self.assertTrue(v2.startswith("ub2"))
+
+    def test_char_max_compact_fallback_none_when_nothing_fits_with_run_id(self):
+        v = compute_unique_safe_value(
+            "varchar", worker_uid=999, pk_stride=100, counter=123456, char_max=1, run_id="abc"
+        )
+        self.assertIsNone(v)
+
+    def test_different_run_ids_yield_different_text_and_uuid_for_same_uid_counter(self):
+        text_a = compute_unique_safe_value("text", worker_uid=3, pk_stride=100, counter=5, run_id="run1")
+        text_b = compute_unique_safe_value("text", worker_uid=3, pk_stride=100, counter=5, run_id="run2")
+        self.assertNotEqual(text_a, text_b)
+
+        uuid_a = compute_unique_safe_value("uuid", worker_uid=3, pk_stride=100, counter=5, run_id="run1")
+        uuid_b = compute_unique_safe_value("uuid", worker_uid=3, pk_stride=100, counter=5, run_id="run2")
+        self.assertNotEqual(uuid_a, uuid_b)
 
 
 # --------------------------------------------------------------------------

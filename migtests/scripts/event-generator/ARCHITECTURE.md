@@ -203,6 +203,18 @@ Per-worker throughput is dominated by **Python row generation (Faker) + CPU**,
 not DB latency — so `C` scales with the generator box's CPU, and the target DB is
 usually *not* the bottleneck for reaching a given rate (see §9).
 
+**Unique-value generation & `run_id` (collision safety).** For unique columns the
+worker generates guaranteed-unique values (`utils.compute_unique_safe_value`):
+integer/numeric columns seed from `MAX(col)+1+worker_uid+pk_stride*counter` (so
+they sit *above* any pre-existing rows — inherently safe against a snapshot-loaded
+target and across re-runs); text/varchar use `f"u{run_id}_{worker_uid}_{counter}"`;
+uuid uses `uuid5(NAMESPACE_OID, f"{run_id}:{worker_uid}:{counter}")`. `run_id` is a
+per-run token — `base36(epoch)`, computed once by the controller and passed to each
+worker via `--run-id` — that makes the text/uuid values **disjoint across runs**.
+Without it, `worker_uid`+`counter` restart at 0 each run and regenerate identical
+text/uuid values that collide with a prior run's rows (see §9). With `run_id=""`
+(no controller / legacy) the values are exactly the pre-`run_id` form.
+
 ---
 
 ## 8. Configuration reference (`parallel` block)
@@ -239,15 +251,19 @@ The **schedule** lives in `generator.rate_control` (a baseline
   stays ~flat (≈22ms) from baseline to a 10k spike. To reach a higher sustained
   rate, add generator CPU (bigger/more boxes) — not just more workers on an
   already-saturated box (that just drives `C` down as workers fight for cores).
-- **Per-spike cold-start ramp (known limitation).** The pool is torn down at
-  baseline and respawned cold at each spike onset. Those fresh workers cold-start
-  slowly under mutual CPU contention (`C` transiently collapses), so a short
-  (~300s) spike can spend its first ~2–3 min ramping before it reaches target.
-  The `calibration_warmup_seconds` fix makes the *initial provisioning* correct
-  (right worker count, no giant overshoot), but does not warm the per-spike
-  workers. Holding target for the *whole* spike would require keeping a warm pool
-  of workers alive across baseline (persistent throttled workers) rather than
-  respawning them — a candidate future change.
+- **Re-run collision ramp (diagnosed & fixed — see §7 `run_id`).** A spike used to
+  spend its first ~2–3 min ramping (achieved crawling up, `C` collapsing to ~200)
+  when run against a DB that already held rows from a *previous run* of the
+  generator. This looked like a "cold worker warm-up" but was measured
+  (single-worker probe) to be a **unique-value retry storm**: `worker_uid` and the
+  per-column counter both restart at 0 each run, so a re-run regenerated the *same*
+  text/uuid unique values and collided with the prior run's rows → duplicate-key
+  retries on nearly every insert until the counter climbed past the old data. A
+  single worker on a **truncated** DB hits full rate instantly (no ramp); on a
+  dirty DB it ramped. The `run_id` fix (§7) makes text/uuid values run-unique, so a
+  fresh worker never collides — proven: on a 57k-rows/table DB the spike now holds
+  ~10k from t=0 with `C` steady ~2,200 (vs ~200 collapse before). This matters for
+  live-migration cutover, where the target already holds the imported snapshot.
 - **Overshoot vs undershoot.** With a warm `C`, the feed-forward jump lands near
   the right worker count; the overshoot-shed (§5.0) is the guard for the residual
   case where workers warm past expectation. With a cold `C`, the jump
