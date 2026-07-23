@@ -18,6 +18,7 @@ package cmd
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -32,7 +33,11 @@ import (
 // snapshot via the normal complete/cutover code path. The atexit-registered
 // error/interrupt handler checks this flag so it doesn't also fire a
 // placeholder for a run that already exited cleanly.
-var exportDataExitSnapshotCaptured bool
+//
+// It is atomic because the atexit handler can run on the signal goroutine
+// (main.go's signal handler calls atexit.Exit) concurrently with the main
+// export goroutine still writing it — a plain bool would be a data race.
+var exportDataExitSnapshotCaptured atomic.Bool
 
 // schemaSnapshotExitCaptureTimeout bounds the best-effort schema capture attempted on
 // an abnormal export-data exit (error/signal). The run's own context is already
@@ -52,7 +57,7 @@ const schemaSnapshotExitCaptureTimeout = 10 * time.Second
 // only; the caller gates on exporterRole.
 func registerExportDataExitSnapshotHook() {
 	atexit.Register(func() {
-		if exportDataExitSnapshotCaptured {
+		if exportDataExitSnapshotCaptured.Load() {
 			return // normal complete/cutover path already recorded the exit
 		}
 		// Abnormal exit (error or signal). Attempt a full capture so a drift-caused
