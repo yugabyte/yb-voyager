@@ -228,7 +228,7 @@ class TestSetRate(unittest.TestCase):
     """Unit tests for RateGovernor.set_rate -- the runtime-adjustable
     throttle the cascade trimmer controller uses to command a persistent
     trimmer worker without a respawn. See
-    docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md.
+    ARCHITECTURE.md.
     """
 
     def test_set_rate_changes_effective_target(self):

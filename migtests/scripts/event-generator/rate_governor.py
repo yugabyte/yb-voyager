@@ -159,7 +159,7 @@ class RateGovernor(object):
         Pure; no I/O, no clock access. Used by the cascade trimmer
         controller's persistent "trimmer" worker (Option B: runtime-
         adjustable throttle via a control file re-read in the worker loop --
-        see docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md)
+        see ARCHITECTURE.md)
         to change the commanded rate without a respawn: the next `pace()`
         call sees `target_rate_at` return this new value, which differs
         from `self.current_target`, so the existing reset branch clears

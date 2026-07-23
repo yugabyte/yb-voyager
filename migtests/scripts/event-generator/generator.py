@@ -113,7 +113,7 @@ elif RATE_CONTROL:
 # Cascade trimmer controller: runtime-adjustable throttle (Option B). Only
 # the persistent "trimmer" worker is launched with --control-file; every
 # other worker (uncapped or unset) leaves this None and the block below is
-# a no-op. See docs/superpowers/specs/2026-07-22-cascade-trimmer-controller-design.md.
+# a no-op. See ARCHITECTURE.md.
 #
 # Re-read at most once per ~CONTROL_FILE_POLL_SECONDS, immediately before
 # GOVERNOR.pace() in the main loop, so a changed commanded rate takes
