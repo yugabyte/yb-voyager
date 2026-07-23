@@ -163,7 +163,7 @@ stages:
     action: start_resumptions
     resumption:
       import_data:
-        max_restarts: 25
+        max_restarts: 100
         min_interrupt_seconds: 15
         max_interrupt_seconds: 60
         min_restart_wait_seconds: 5
@@ -178,7 +178,7 @@ stages:
     action: start_resumptions
     resumption:
       export_data:
-        max_restarts: 25
+        max_restarts: 100
         min_interrupt_seconds: 15
         max_interrupt_seconds: 60
         min_restart_wait_seconds: 5
@@ -186,7 +186,7 @@ stages:
 
   - name: soak_with_resumptions
     action: sleep
-    seconds: 400
+    seconds: 3000
 
   - name: stop_conflict_generator
     action: conflict_generator_stop
@@ -285,7 +285,7 @@ stages:
   # here; raise it if a longer fallback resumption soak is needed.
   - name: soak_fallback_with_resumptions
     action: sleep
-    seconds: 400
+    seconds: 3000
 
   - name: stop_target_conflict_generator
     action: conflict_generator_stop
