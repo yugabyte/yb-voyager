@@ -790,27 +790,7 @@ func exportData() bool {
 
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 		captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourceStart, snapshotStartReason, true)
-		atexit.Register(func() {
-			if exportDataExitSnapshotCaptured {
-				return // normal complete/cutover path already recorded the exit
-			}
-			// Abnormal exit (error or signal). Attempt a full capture so a drift-caused
-			// failure records the drifted end-state schema; captureSourceSchemaSnapshot
-			// falls back to a placeholder if the schema can't be read. The run's own ctx
-			// is already cancelled by now, so use a fresh, bounded context.
-			reason := schemasnapshot.ReasonError
-			if ProcessShutdownRequested {
-				// SIGINT/SIGTERM is a user interrupt; SIGUSR2 is the end-migration
-				// command's controlled teardown, treated as a clean exit.
-				reason = schemasnapshot.ReasonInterrupt
-				if EndMigrationStopRequested {
-					reason = schemasnapshot.ReasonComplete
-				}
-			}
-			exitCtx, cancel := context.WithTimeout(context.Background(), schemaSnapshotExitCaptureTimeout)
-			defer cancel()
-			captureSourceSchemaSnapshot(exitCtx, schemasnapshot.LabelExportDataFromSourceExit, reason, true)
-		})
+		registerExportDataExitSnapshotHook()
 	}
 
 	if changeStreamingIsEnabled(exportType) || useDebezium {
