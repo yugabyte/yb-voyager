@@ -21,6 +21,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/tebeka/atexit"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
@@ -42,6 +43,36 @@ var exportDataExitSnapshotCaptured bool
 // interrupted promptly — no dependence on reaching the dead host — which is why a plain
 // context timeout is a sufficient bound here.
 const schemaSnapshotExitCaptureTimeout = 10 * time.Second
+
+// registerExportDataExitSnapshotHook registers an atexit handler that captures the
+// source schema snapshot on an abnormal export-data exit (error or signal), unless
+// the normal complete/cutover path already recorded one (exportDataExitSnapshotCaptured).
+// The exit reason is derived from the shutdown flags. The run's own context is already
+// cancelled by exit time, so the capture uses a fresh, bounded context. Source-exporter
+// only; the caller gates on exporterRole.
+func registerExportDataExitSnapshotHook() {
+	atexit.Register(func() {
+		if exportDataExitSnapshotCaptured {
+			return // normal complete/cutover path already recorded the exit
+		}
+		// Abnormal exit (error or signal). Attempt a full capture so a drift-caused
+		// failure records the drifted end-state schema; captureSourceSchemaSnapshot
+		// falls back to a placeholder if the schema can't be read. The run's own ctx
+		// is already cancelled by now, so use a fresh, bounded context.
+		reason := schemasnapshot.ReasonError
+		if ProcessShutdownRequested {
+			// SIGINT/SIGTERM is a user interrupt; SIGUSR2 is the end-migration
+			// command's controlled teardown, treated as a clean exit.
+			reason = schemasnapshot.ReasonInterrupt
+			if EndMigrationStopRequested {
+				reason = schemasnapshot.ReasonComplete
+			}
+		}
+		exitCtx, cancel := context.WithTimeout(context.Background(), schemaSnapshotExitCaptureTimeout)
+		defer cancel()
+		captureSourceSchemaSnapshot(exitCtx, schemasnapshot.LabelExportDataFromSourceExit, reason, true)
+	})
+}
 
 // captureSourceSchemaSnapshot captures the source schema and persists it as a
 // snapshot for the given label/reason. It is BEST-EFFORT and off the data path:
