@@ -320,6 +320,12 @@ stages:
     command: import_to_source
     timeout_sec: 60
 
+  # Fallback (YB->PG) import-to-source forces PARTITION_BY_TABLE and skips
+  # conflict detection, so its log must record 0 conflicts -- guard that.
+  - name: validate_no_conflicts_detected
+    action: validate_no_conflicts_detected
+    log: yb-voyager-import-data-to-source.log
+
   # Phase 3: cutover back to source and validation
   - name: cutover_to_source
     action: cutover_to_source

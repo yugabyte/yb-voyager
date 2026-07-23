@@ -93,23 +93,20 @@ def conflict_generator_start_action(stage: Dict[str, Any], ctx: Any) -> None:
     key = stage.get("generator_key", "conflict_generator")
     cfg_block = ctx.cfg.get(key) or {}
     inline = cfg_block.get("config_inline") or cfg_block.get("config") or {}
-    connection = inline.get("connection") or {}
     conflict_cfg = inline.get("conflict") or {}
 
-    # If no explicit connection is given, reuse the top-level source/target
-    # connection (admin creds) so the block need not duplicate it --
+    # Always take the connection from the top-level source/target (admin creds);
     # conflict_generator_source -> source, conflict_generator_target -> target.
-    if not connection:
-        role = "target" if key.endswith("_target") else "source"
-        top = ctx.cfg.get(role) or {}
-        admin = top.get("admin") or {}
-        connection = {
-            "host": top.get("host"),
-            "port": top.get("port"),
-            "database": top.get("database"),
-            "user": admin.get("user") or top.get("user"),
-            "password": admin.get("password") or top.get("password"),
-        }
+    role = "target" if key.endswith("_target") else "source"
+    top = ctx.cfg.get(role) or {}
+    admin = top.get("admin") or {}
+    connection = {
+        "host": top.get("host"),
+        "port": top.get("port"),
+        "database": top.get("database"),
+        "user": admin.get("user") or top.get("user"),
+        "password": admin.get("password") or top.get("password"),
+    }
 
     sql_path = conflict_cfg.get("sql_path")
     if not sql_path:
@@ -315,6 +312,28 @@ def validate_conflicts_detected_action(stage: Dict[str, Any], ctx: Any) -> None:
             f"in {name}, found {count} (dir={log_dir})"
         )
     H.log(f"validate_conflicts_detected: {count} conflicts detected in {name}")
+
+
+@action("validate_no_conflicts_detected")
+def validate_no_conflicts_detected_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Assert an import log recorded NO conflict detections.
+
+    Used on the fallback leg (yb-voyager-import-data-to-source.log): the
+    source-importer forces PARTITION_BY_TABLE and skips conflict detection, so
+    the log must have 0 'conflict detected' -- this guards that the skip holds.
+    """
+    log_dir = os.path.join(ctx.iteration_export_dir, "logs")
+    name = stage.get("log", "yb-voyager-import-data-to-source.log")
+    count = 0
+    for p in glob.glob(os.path.join(log_dir, name + "*")):
+        with open(p, errors="ignore") as f:
+            count += sum(1 for line in f if "conflict detected" in line)
+    if count != 0:
+        raise RuntimeError(
+            f"validate_no_conflicts_detected: expected 0 'conflict detected' "
+            f"in {name}, found {count} (dir={log_dir})"
+        )
+    H.log(f"validate_no_conflicts_detected: 0 conflicts detected in {name} (as expected)")
 
 
 @action("start_resumptions")
