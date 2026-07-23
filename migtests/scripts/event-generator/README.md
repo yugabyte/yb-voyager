@@ -1,6 +1,6 @@
-## Event Generator (PostgreSQL)
+## Event Generator (PostgreSQL / YugabyteDB)
 
-Generates randomized INSERT/UPDATE/DELETE traffic against PostgreSQL tables for testing and migration exercises. Configuration-driven, reproducible when seeded, and type-aware (arrays, enums, bit/varbit, numeric precision/scale, etc.).
+Generates randomized INSERT/UPDATE/DELETE traffic against PostgreSQL **or YugabyteDB** tables for testing and migration exercises — driving load on a source before/during export, or on a target during live-migration cutover/fall-back. Configuration-driven, reproducible when seeded, and type-aware (arrays, enums, bit/varbit, numeric precision/scale, etc.). Runs single-process (`generator.py`) or as a rate-controlled dynamic worker pool (`parallel_generator.py`) that can sustain 10k+ events/sec across a multi-node cluster.
 
 ### Prerequisites
 - Python 3.8+
@@ -97,51 +97,50 @@ the combined throughput. `generator.py` itself is never changed.
 
 Add a top-level `parallel` block to a normal config (connection + generator,
 including a `rate_control` block whose rates are the **desired TOTAL across
-all workers**, not per-worker):
+all workers**, not per-worker). A fully-commented template of every field is
+in `event-generator.yaml`; the most common ones:
 ```yaml
 parallel:
-  max_workers: 6              # hard cap on worker processes; if the peak target
-                              #   needs more, worker count is clamped here and the
-                              #   shortfall ("requested X, achievable ~Y") is logged
-  calibration_seconds: 30     # length of the one-shot uncapped probe that measures
-                              #   the per-worker throughput ceiling (bigger = steadier
-                              #   estimate, but delays the run start)
-  margin: 1.3                 # headroom factor: size workers for peak_target * margin
-                              #   so each worker sits below its ceiling and the governor
-                              #   throttles down rather than running flat-out
-  run_seconds: 1800           # total run duration after calibration; workers are
-                              #   stopped when this elapses (Ctrl+C also stops cleanly)
-  monitor_interval_seconds: 5 # how often the aggregate events/sec (summed across all
-                              #   workers via pg_stat_statements) is sampled and printed
+  run_seconds: 1800            # total run duration after calibration (Ctrl+C/SIGTERM also stop)
+  max_workers: 8               # hard cap on worker processes (shortfall is logged if the peak
+                               #   target needs more)
+  calibration_seconds: 30      # length of the per-worker-ceiling (C) measurement window
+  calibration_warmup_seconds: 20  # warm the probe worker before measuring C (avoids a cold,
+                               #   ~3-4x-too-low C that causes spike overshoot)
+  allow_throttle: true         # cascade controller: whole-worker coarse knob + one fractional
+                               #   trimmer worker for fine adjustment
+  distribute_across_nodes: true   # round-robin workers across all tservers (via yb_servers())
 ```
 
-How it derives the worker count:
-1. **Calibrate**: runs a single uncapped worker (no `rate_control`) for
-   `calibration_seconds`, measuring events/sec via `pg_stat_statements`
-   (`SUM(rows)` over insert/update/delete statements) to get a per-worker
-   throughput ceiling.
-2. **Derive**: takes the peak target -- the max of
-   `rate_control.default_events_per_second` and every `schedule` entry's
-   `events_per_second`, so a spike is servable -- and computes
-   `workers = ceil(peak * margin / per_worker_ceiling)`, clamped to
-   `max_workers`. If the clamp bites, it prints the requested vs. achievable
-   rate.
-3. **Spawn**: writes `workers` per-worker YAML configs (each with
-   `generator.random_seed`/`faker_seed` = base seed + worker index, and
-   `rate_control` rates divided by `workers`) to a temp directory and
-   launches one `generator.py -c <worker_i.yaml>` subprocess per config.
-4. **Monitor**: the achieved rate is `SUM(rows)` over insert/update/delete in
-   `pg_stat_statements`, sampled each control interval. `pg_stat_statements`
-   is **per-node**, so on a multi-node cluster the controller sums it across
-   every node (see "Multi-node clusters" below); a single-node read would
-   miss the workers on other nodes.
-5. **Shutdown**: on `run_seconds` elapsed or Ctrl+C (or SIGTERM), all worker
-   processes are sent SIGTERM (then SIGKILL after a grace period), temp
-   configs are cleaned up, and a final summary is printed.
+How the reactive controller works (unlike the older fixed-count model, worker
+count is **not** computed up front — it adapts during the run):
+1. **Calibrate**: warms one probe worker for `calibration_warmup_seconds`, then
+   measures its steady-state throughput over `calibration_seconds` to get the
+   per-worker ceiling **C** (events/sec), via `pg_stat_statements`
+   (`SUM(rows)` over insert/update/delete). Warm-up matters: a cold C reads
+   3-4x low and makes the feed-forward step over-provision, overshooting a spike.
+2. **Feed-forward**: on each target change (baseline↔spike) it jumps the worker
+   count to `ceil(target / C)` so it reaches the new rate fast instead of
+   ramping one worker at a time.
+3. **React** (every `control_interval_seconds`): compares the achieved rate
+   (a `meter_window_seconds` trailing average) to target and adjusts — a
+   **coarse** knob adds/removes whole workers, and (when `allow_throttle`) a
+   **fine** trimmer throttles a single worker for sub-worker precision. A
+   backpressure cap (`reactive_margin`) stops it piling workers on a
+   cluster-bound target. C is re-estimated over the run (`recalibrate`).
+4. **Distribute**: with `distribute_across_nodes`, each worker is pinned to a
+   specific tserver round-robin (see "Multi-node clusters" below).
+5. **Shutdown**: on `run_seconds` elapsed or Ctrl+C/SIGTERM, all workers are
+   reaped (SIGTERM then SIGKILL; workers also die automatically if the
+   controller is killed), and a `--rate-csv` time series is written if given.
 
 Requires `pg_stat_statements` (`shared_preload_libraries = 'pg_stat_statements'`
 plus `CREATE EXTENSION pg_stat_statements;`) -- calibration and monitoring
-fail fast with a clear message if it's unavailable.
+fail fast with a clear message if it's unavailable. Full controller internals
+(the cascade math, recalibration, overshoot-shed) are in `ARCHITECTURE.md`.
+
+Write a per-second throughput CSV with `--rate-csv <path>` (columns:
+epoch, t_seconds, target, achieved, n_uncapped_workers, trimmer, C, trimmer_rate).
 
 #### Multi-node clusters (node distribution)
 
