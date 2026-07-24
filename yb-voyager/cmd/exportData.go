@@ -1799,7 +1799,9 @@ func handleGetInitialTableListError(err error) {
 }
 
 func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string) error {
-	defer startPeriodicSourceSchemaSnapshotCapture(ctx)()
+	// Periodic capture runs until ctx is cancelled; the caller (exportData) owns ctx
+	// and cancels it via its defer cancel() when the export finishes.
+	startPeriodicSourceSchemaSnapshotCapture(ctx)
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 		exportDataStartEvent := createSnapshotExportStartedEvent()
 		controlPlane.SnapshotExportStarted(&exportDataStartEvent)
