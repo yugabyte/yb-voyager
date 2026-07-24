@@ -2,6 +2,7 @@
 
 import os
 import sys
+import glob
 import argparse
 import random
 import subprocess
@@ -69,6 +70,71 @@ def generator_stop_action(stage: Dict[str, Any], ctx: Any) -> None:
     key = stage.get("generator_key", "generator")
     timeout = int(stage.get("graceful_timeout_sec", 60))
     H.stop_generator(ctx.processes.pop(key, None), timeout)
+
+
+@action("conflict_generator_start")
+def conflict_generator_start_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Start the conflict generator, modeled on `generator_start`.
+
+    Reads a config block named by `generator_key` (default: conflict_generator),
+    e.g.
+
+        conflict_generator_source:
+          config_inline:
+            connection: { host, port, database, user, password }
+            conflict:
+              sql_path: ./source_dml.sql
+              interval_seconds: 10
+
+    The conflict generator re-applies the conflict-DML file every
+    `interval_seconds` until stopped, passing `-v cycle=N` so each cycle hits a
+    fresh set of rows.
+    """
+    key = stage.get("generator_key", "conflict_generator")
+    cfg_block = ctx.cfg.get(key) or {}
+    inline = cfg_block.get("config_inline") or cfg_block.get("config") or {}
+    conflict_cfg = inline.get("conflict") or {}
+
+    # Always take the connection from the top-level source/target (admin creds);
+    # conflict_generator_source -> source, conflict_generator_target -> target.
+    role = "target" if key.endswith("_target") else "source"
+    top = ctx.cfg.get(role) or {}
+    admin = top.get("admin") or {}
+    connection = {
+        "host": top.get("host"),
+        "port": top.get("port"),
+        "database": top.get("database"),
+        "user": admin.get("user") or top.get("user"),
+        "password": admin.get("password") or top.get("password"),
+    }
+
+    sql_path = conflict_cfg.get("sql_path")
+    if not sql_path:
+        raise ValueError(f"conflict_generator_start: '{key}.config_inline.conflict.sql_path' is required")
+    if ctx.test_root and not os.path.isabs(sql_path):
+        sql_path = os.path.join(ctx.test_root, sql_path)
+    if not os.path.isfile(sql_path):
+        raise FileNotFoundError(f"conflict_generator_start: SQL file not found at '{sql_path}'")
+    interval = float(conflict_cfg.get("interval_seconds", 3))
+    if interval <= 0:
+        raise ValueError(f"conflict_generator_start: 'interval_seconds' must be positive, got {interval}")
+
+    # Label distinguishes the phase in the logs (e.g. conflict_generator_source
+    # = forward leg, conflict_generator_target = fallback leg), and includes the
+    # loop iteration so per-iteration counts are readable in iterated tests.
+    label = f"conflict-gen[{key} iter={ctx.loop_iteration}]"
+    gen = H.ConflictGenerator(connection, sql_path, interval, ctx.env, label=label)
+    gen.start()
+    ctx.conflict_generators[key] = gen
+
+
+@action("conflict_generator_stop")
+def conflict_generator_stop_action(stage: Dict[str, Any], ctx: Any) -> None:
+    key = stage.get("generator_key", "conflict_generator")
+    timeout = int(stage.get("graceful_timeout_sec", 60))
+    gen = ctx.conflict_generators.pop(key, None)
+    if gen:
+        gen.stop(timeout_sec=timeout)
 
 
 @action("voyager_export_start")
@@ -221,6 +287,53 @@ def row_hash_validations_action(stage: Dict[str, Any], ctx: Any) -> None:
         H.run_sql_file(ctx, sql_path, target=role, use_admin=False)
 
     H.run_segment_hash_validations(ctx, left_role, right_role)
+
+
+@action("validate_conflicts_detected")
+def validate_conflicts_detected_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Assert the import-data log recorded unique-key conflict detections.
+
+    row_count/row_hash prove the data ended up correct; this proves the
+    conflict-detection cache actually fired -- otherwise a run could pass
+    without ever exercising it. Meaningful on the forward leg
+    (yb-voyager-import-data.log); the fallback leg's import-to-source forces
+    PARTITION_BY_TABLE and logs 0 conflicts by design, so don't assert there.
+    """
+    log_dir = os.path.join(ctx.iteration_export_dir, "logs")
+    name = stage.get("log", "yb-voyager-import-data.log")
+    min_count = int(stage.get("min_count", 1))
+    count = 0
+    for p in glob.glob(os.path.join(log_dir, name + "*")):
+        with open(p, errors="ignore") as f:
+            count += sum(1 for line in f if "conflict detected" in line)
+    if count < min_count:
+        raise RuntimeError(
+            f"validate_conflicts_detected: expected >= {min_count} 'conflict detected' "
+            f"in {name}, found {count} (dir={log_dir})"
+        )
+    H.log(f"validate_conflicts_detected: {count} conflicts detected in {name}")
+
+
+@action("validate_no_conflicts_detected")
+def validate_no_conflicts_detected_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Assert an import log recorded NO conflict detections.
+
+    Used on the fallback leg (yb-voyager-import-data-to-source.log): the
+    source-importer forces PARTITION_BY_TABLE and skips conflict detection, so
+    the log must have 0 'conflict detected' -- this guards that the skip holds.
+    """
+    log_dir = os.path.join(ctx.iteration_export_dir, "logs")
+    name = stage.get("log", "yb-voyager-import-data-to-source.log")
+    count = 0
+    for p in glob.glob(os.path.join(log_dir, name + "*")):
+        with open(p, errors="ignore") as f:
+            count += sum(1 for line in f if "conflict detected" in line)
+    if count != 0:
+        raise RuntimeError(
+            f"validate_no_conflicts_detected: expected 0 'conflict detected' "
+            f"in {name}, found {count} (dir={log_dir})"
+        )
+    H.log(f"validate_no_conflicts_detected: 0 conflicts detected in {name} (as expected)")
 
 
 @action("start_resumptions")
@@ -385,6 +498,15 @@ def main() -> None:
             for r in resumers:
                 try:
                     r.stop(timeout_sec=60)
+                except Exception:
+                    pass
+
+            # Stop any still-running conflict generators so they don't outlive the run.
+            conflict_generators = list(ctx.conflict_generators.values())
+            ctx.conflict_generators.clear()
+            for gen in conflict_generators:
+                try:
+                    gen.stop(timeout_sec=60)
                 except Exception:
                     pass
 
