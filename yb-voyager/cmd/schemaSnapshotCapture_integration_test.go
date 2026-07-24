@@ -306,3 +306,109 @@ END $$;`, numTables, schemaName)
 	assert.GreaterOrEqual(t, len(content.Tables), numTables,
 		"captured snapshot must include all %d seeded tables", numTables)
 }
+
+// TestStartPeriodicSourceSchemaSnapshotCapture exercises the periodic-capture ticker
+// directly, with the interval passed as a parameter (the reason the interval is now an
+// argument rather than a global read): a sub-minute value is impossible via the real
+// --schema-snapshot-capture-interval flag, which is in minutes with a 1-minute floor.
+// This covers the ticker's gating (interval<=0 / suppressed / non-source), that it fires
+// at the injected interval, and that it stops when the context is cancelled — cheaply,
+// without the ~90s live-migration path.
+func TestStartPeriodicSourceSchemaSnapshotCapture(t *testing.T) {
+	const schemaName = "tickerschema"
+	testPostgresSource.ExecuteSqls(
+		fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS %s`, schemaName),
+		fmt.Sprintf(`CREATE TABLE %s.t1 (id int primary key, v text)`, schemaName),
+	)
+	t.Cleanup(func() { testPostgresSource.ExecuteSqls(fmt.Sprintf(`DROP SCHEMA IF EXISTS %s CASCADE`, schemaName)) })
+
+	sqlname.SourceDBType = testPostgresSource.DBType
+	testPostgresSource.Schemas = sqlname.ParseIdentifiersFromString(constants.POSTGRESQL, schemaName, "|")
+	require.NoError(t, testPostgresSource.DB().Connect(), "connect to postgres source")
+	t.Cleanup(func() { testPostgresSource.DB().Disconnect() })
+
+	testExportDir, err := os.MkdirTemp("", "schemasnapshot-ticker-test-*")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(testExportDir) })
+
+	source = *testPostgresSource.Source
+	metaDB = initMetaDB(testExportDir)
+	exporterRole = SOURCE_DB_EXPORTER_ROLE
+	suppressSchemaSnapshotCapture = utils.BoolStr(false)
+	t.Cleanup(func() {
+		source = srcdb.Source{}
+		metaDB = nil
+		exporterRole = SOURCE_DB_EXPORTER_ROLE
+		suppressSchemaSnapshotCapture = utils.BoolStr(false)
+	})
+
+	countPeriodic := func() int {
+		headers, err := schemasnapshot.ListSnapshots(metaDB)
+		require.NoError(t, err)
+		n := 0
+		for _, h := range headers {
+			if h.Label == schemasnapshot.LabelExportDataFromSourcePeriodic {
+				n++
+			}
+		}
+		return n
+	}
+
+	// gatedOffCase asserts that startPeriodic starts no ticker (no snapshots appear) for a
+	// gated-off condition set up by prepare().
+	gatedOffCase := func(t *testing.T, prepare func() func()) {
+		restore := prepare()
+		defer restore()
+		before := countPeriodic()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		startPeriodicSourceSchemaSnapshotCapture(ctx, 20*time.Millisecond)
+		time.Sleep(250 * time.Millisecond) // more than a dozen 20ms ticks, had it started
+		assert.Equal(t, before, countPeriodic(), "gated-off condition must not start a ticker")
+	}
+
+	t.Run("no-op when interval is non-positive", func(t *testing.T) {
+		before := countPeriodic()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		startPeriodicSourceSchemaSnapshotCapture(ctx, 0)
+		time.Sleep(250 * time.Millisecond)
+		assert.Equal(t, before, countPeriodic(), "interval <= 0 must not start a ticker")
+	})
+
+	t.Run("no-op when suppressed", func(t *testing.T) {
+		gatedOffCase(t, func() func() {
+			suppressSchemaSnapshotCapture = utils.BoolStr(true)
+			return func() { suppressSchemaSnapshotCapture = utils.BoolStr(false) }
+		})
+	})
+
+	t.Run("no-op for a non-source exporter", func(t *testing.T) {
+		gatedOffCase(t, func() func() {
+			exporterRole = TARGET_DB_EXPORTER_FF_ROLE
+			return func() { exporterRole = SOURCE_DB_EXPORTER_ROLE }
+		})
+	})
+
+	t.Run("fires at the injected interval and stops on context cancel", func(t *testing.T) {
+		before := countPeriodic()
+		ctx, cancel := context.WithCancel(context.Background())
+
+		startPeriodicSourceSchemaSnapshotCapture(ctx, 50*time.Millisecond)
+
+		// Snapshot names are second-granularity, so at most ~one periodic snapshot persists
+		// per wall-clock second (same-second ticks collide on the UNIQUE name and are
+		// swallowed). So "fired repeatedly" is observed across seconds, not per-tick.
+		require.Eventually(t, func() bool { return countPeriodic() >= before+2 },
+			5*time.Second, 100*time.Millisecond,
+			"ticker must fire and persist periodic snapshots at the injected interval")
+
+		cancel()
+		time.Sleep(300 * time.Millisecond) // let the goroutine observe cancellation and exit
+		stopped := countPeriodic()
+		// If the ticker were still running, crossing into the next wall-clock second would
+		// persist a new (distinct-name) snapshot; a stable count proves it stopped.
+		time.Sleep(1300 * time.Millisecond)
+		assert.Equal(t, stopped, countPeriodic(), "ticker must stop after context cancel")
+	})
+}

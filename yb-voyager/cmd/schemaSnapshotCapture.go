@@ -153,20 +153,20 @@ func captureSourceSchemaSnapshot(ctx context.Context, label, reason string, plac
 	log.Infof("captured schema snapshot %q", name)
 }
 
-// startPeriodicSourceSchemaSnapshotCapture launches a background ticker that
-// captures a source schema snapshot every --schema-snapshot-capture-interval
-// minutes for the full duration of the export — both the snapshot and streaming
-// phases. The ticker goroutine runs until ctx is cancelled, so the caller stops
-// it simply by cancelling the context it already owns (its defer cancel()); no
-// separate stop function is needed.
+// startPeriodicSourceSchemaSnapshotCapture launches a background ticker that captures a
+// source schema snapshot every `interval` for the full duration of the export — both the
+// snapshot and streaming phases. The caller passes the interval (derived from
+// --schema-snapshot-capture-interval) rather than this function reading the global, which
+// keeps it testable with a small interval. The ticker goroutine runs until ctx is
+// cancelled, so the caller stops it simply by cancelling the context it already owns (its
+// defer cancel()); no separate stop function is needed.
 // Best-effort and off the data path: a no-op when suppressed, when the interval is
 // <= 0, or when this is not the source exporter; periodic capture failures are
 // logged and never affect export.
-func startPeriodicSourceSchemaSnapshotCapture(ctx context.Context) {
+func startPeriodicSourceSchemaSnapshotCapture(ctx context.Context, interval time.Duration) {
 	if exporterRole != SOURCE_DB_EXPORTER_ROLE || source.DBType != POSTGRESQL || bool(suppressSchemaSnapshotCapture) {
 		return
 	}
-	interval := time.Duration(schemaSnapshotCaptureInterval) * time.Minute
 	if interval <= 0 {
 		return
 	}
