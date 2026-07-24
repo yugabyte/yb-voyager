@@ -344,7 +344,7 @@ func TestCapturePersistRoundTrip(t *testing.T) {
 	// use a label that carries a reason (export_data_from_source_exit + cutover).
 	snap.Header.Label = schemasnapshot.LabelExportDataFromSourceExit
 	snap.Header.Reason = schemasnapshot.ReasonCutover
-	name, err := schemasnapshot.SaveSnapshot(mdb, snap)
+	name, err := schemasnapshot.SaveSnapshot(context.Background(), mdb, snap)
 	require.NoError(t, err, "SaveSnapshot must succeed")
 	assert.NotEmpty(t, name)
 

@@ -17,6 +17,7 @@
 package metadb
 
 import (
+	"context"
 	"database/sql"
 	"os"
 	"path/filepath"
@@ -94,7 +95,7 @@ func TestListSchemaSnapshotsSubSecondOrder(t *testing.T) {
 		makeSchemaSnapshotRow("snap_t1", t1),
 	}
 	for _, r := range rows {
-		require.NoError(t, mdb.InsertSchemaSnapshot(r))
+		require.NoError(t, mdb.InsertSchemaSnapshot(context.Background(), r))
 	}
 
 	list, err := mdb.ListSchemaSnapshots()
@@ -120,11 +121,11 @@ func TestListSchemaSnapshotsIsPlaceholder(t *testing.T) {
 
 	// Insert a full snapshot (snapshot_json is set).
 	fullRow := makeSchemaSnapshotRow("snap_full", t1)
-	require.NoError(t, mdb.InsertSchemaSnapshot(fullRow))
+	require.NoError(t, mdb.InsertSchemaSnapshot(context.Background(), fullRow))
 
 	// Insert a placeholder row (snapshot_json NULL).
 	placeholderRow := makeSchemaSnapshotRow("snap_placeholder", t2)
-	require.NoError(t, mdb.InsertSchemaSnapshotPlaceholder(placeholderRow))
+	require.NoError(t, mdb.InsertSchemaSnapshotPlaceholder(context.Background(), placeholderRow))
 
 	list, err := mdb.ListSchemaSnapshots()
 	require.NoError(t, err)

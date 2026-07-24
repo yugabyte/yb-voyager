@@ -41,12 +41,16 @@ var exportDataExitSnapshotCaptured atomic.Bool
 
 // schemaSnapshotExitCaptureTimeout bounds the best-effort schema capture attempted on
 // an abnormal export-data exit (error/signal). The run's own context is already
-// cancelled by then, so this fresh budget lets a healthy catalog read finish (a
-// metadata-only read is well under this) while capping how long a wedged or
-// unreachable source DB delays the exit. The pgx driver honors the deadline by setting
-// a deadline on the underlying connection, so even a silently-hung socket is
-// interrupted promptly — no dependence on reaching the dead host — which is why a plain
-// context timeout is a sufficient bound here.
+// cancelled by then, so this fresh budget lets a healthy capture finish (a metadata-only
+// read plus a small metaDB insert is well under this) while capping how long the exit is
+// delayed. It bounds BOTH I/O steps of the capture, since the context now flows all the
+// way through:
+//   - the source catalog read — the pgx driver sets the deadline on the underlying
+//     connection, so even a silently-hung socket is interrupted promptly; and
+//   - the metaDB write — InsertSchemaSnapshot uses ExecContext, so a contended SQLite
+//     write lock (on the signal path the exit handler races the still-live main
+//     goroutine, which is subject to a 30s busy timeout) is cancelled at this budget
+//     instead of stalling the exit for up to that timeout.
 const schemaSnapshotExitCaptureTimeout = 10 * time.Second
 
 // captureExportDataExitSnapshot captures the export-data exit snapshot for the given
@@ -123,7 +127,7 @@ func captureSourceSchemaSnapshot(ctx context.Context, label, reason string, plac
 		if placeholderOnFailure {
 			// Still record the timeline marker so a lifecycle moment (e.g. an exit)
 			// isn't lost just because the DB handle is gone during teardown.
-			saveSourceSchemaSnapshotPlaceholder(label, reason)
+			saveSourceSchemaSnapshotPlaceholder(ctx, label, reason)
 		}
 		return
 	}
@@ -187,7 +191,7 @@ func startPeriodicSourceSchemaSnapshotCapture(ctx context.Context) func() {
 // saveSourceSchemaSnapshotPlaceholder records a metadata-only timeline marker
 // (no schema read) for a lifecycle moment we can't fully capture, e.g. an
 // error/interrupt exit. Best-effort; never fails the caller. Honors suppression.
-func saveSourceSchemaSnapshotPlaceholder(label, reason string) {
+func saveSourceSchemaSnapshotPlaceholder(ctx context.Context, label, reason string) {
 	if source.DBType != POSTGRESQL {
 		return
 	}
@@ -202,7 +206,7 @@ func saveSourceSchemaSnapshotPlaceholder(label, reason string) {
 		Schemas:       source.GetSchemaList(),
 		IsPlaceholder: true,
 	}
-	if _, err := schemasnapshot.SavePlaceholder(metaDB, h); err != nil {
+	if _, err := schemasnapshot.SavePlaceholder(ctx, metaDB, h); err != nil {
 		log.Warnf("schema-snapshot placeholder for label %q failed: %v", label, err)
 	}
 }
