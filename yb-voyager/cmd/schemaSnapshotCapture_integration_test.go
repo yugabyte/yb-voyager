@@ -71,7 +71,7 @@ func TestSchemaSnapshotCaptureIntegration(t *testing.T) {
 	require.NoError(t, err, "connect to postgres source")
 	t.Cleanup(func() { testPostgresSource.DB().Disconnect() })
 
-	testExportDir, err := os.MkdirTemp("/tmp", "schemasnapshot-capture-test-*")
+	testExportDir, err := os.MkdirTemp("", "schemasnapshot-capture-test-*")
 	require.NoError(t, err)
 	t.Cleanup(func() { os.RemoveAll(testExportDir) })
 
