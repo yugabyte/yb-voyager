@@ -38,24 +38,16 @@ import (
 // export goroutine still writing it — a plain bool would be a data race.
 var exportDataExitSnapshotCaptured atomic.Bool
 
-// schemaSnapshotExitCaptureTimeout bounds the best-effort schema capture attempted on
-// an abnormal export-data exit (error/signal). The run's own context is already
-// cancelled by then, so this fresh budget lets a healthy capture finish (a metadata-only
-// read plus a small metaDB insert is well under this) while capping how long the exit is
-// delayed. It bounds BOTH I/O steps of the capture, since the context now flows all the
-// way through:
-//   - the source catalog read — the pgx driver sets the deadline on the underlying
-//     connection, so even a silently-hung socket is interrupted promptly; and
-//   - the metaDB write — InsertSchemaSnapshot uses ExecContext, so a contended SQLite
-//     write lock (on the signal path the exit handler races the still-live main
-//     goroutine, which is subject to a 30s busy timeout) is cancelled at this budget
-//     instead of stalling the exit for up to that timeout.
-const schemaSnapshotExitCaptureTimeout = 10 * time.Second
+// The best-effort capture budget lives in one place — schemasnapshot.CaptureTimeout —
+// and is applied both here (the capture wrap and the source-side placeholder) and in the
+// schemasnapshot package (its fallback placeholder). See its doc for the rationale.
 
 // captureExportDataExitSnapshot captures the export-data exit snapshot for the given
 // reason and marks it captured, so no later exit-capture site (in particular the atexit
-// hook) fires a second, degraded capture. Uses the caller-provided context — the live
-// run context on a normal completion/cutover. Source-exporter only.
+// hook) fires a second, degraded capture. Source-exporter only. The context comes from
+// the caller: success/cutover paths pass the run context; the error and atexit paths
+// pass a fresh one via captureExportDataExitSnapshotFresh (the run context is dead by
+// then). Either way captureSourceSchemaSnapshot caps it at schemasnapshot.CaptureTimeout.
 func captureExportDataExitSnapshot(ctx context.Context, reason string) {
 	if exporterRole != SOURCE_DB_EXPORTER_ROLE {
 		return
@@ -64,16 +56,15 @@ func captureExportDataExitSnapshot(ctx context.Context, reason string) {
 	exportDataExitSnapshotCaptured.Store(true)
 }
 
-// captureExportDataExitSnapshotBounded is captureExportDataExitSnapshot with a fresh,
-// bounded context, for exit sites where the run's own context may already be cancelled:
-// the error `return false` paths — which must capture inline, while the source connection
-// is still open, because exportData's deferred Disconnect closes it before the atexit
-// hook runs — and the atexit fallback itself. The timeout caps how long a wedged or
-// unreachable source DB delays the exit.
-func captureExportDataExitSnapshotBounded(reason string) {
-	exitCtx, cancel := context.WithTimeout(context.Background(), schemaSnapshotExitCaptureTimeout)
-	defer cancel()
-	captureExportDataExitSnapshot(exitCtx, reason)
+// captureExportDataExitSnapshotFresh is captureExportDataExitSnapshot on a fresh
+// context, for exit sites where the run's own context may already be cancelled: the
+// error `return false` paths — which must capture inline, while the source connection is
+// still open, because exportData's deferred Disconnect closes it before the atexit hook
+// runs — and the atexit fallback itself. The capture's time bound is applied inside
+// captureSourceSchemaSnapshot (schemasnapshot.CaptureTimeout), which caps how long a
+// wedged or unreachable source DB can delay the exit.
+func captureExportDataExitSnapshotFresh(reason string) {
+	captureExportDataExitSnapshot(context.Background(), reason)
 }
 
 // registerExportDataExitSnapshotHook registers an atexit handler that captures the
@@ -96,7 +87,7 @@ func registerExportDataExitSnapshotHook() {
 				reason = schemasnapshot.ReasonComplete
 			}
 		}
-		captureExportDataExitSnapshotBounded(reason)
+		captureExportDataExitSnapshotFresh(reason)
 	})
 }
 
@@ -115,6 +106,15 @@ func captureSourceSchemaSnapshot(ctx context.Context, label, reason string, plac
 		log.Infof("schema-snapshot capture suppressed (--suppress-schema-snapshot-capture); skipping %s", label)
 		return
 	}
+
+	// Bound the capture (catalog read + real metaDB write) so a slow or wedged source DB
+	// can never block the migration on this best-effort work. WithTimeout keeps the
+	// earlier deadline, so a caller that passed a tighter context still wins. (The
+	// db == nil placeholder path below deliberately uses its own fresh context, not this
+	// one — see saveSourceSchemaSnapshotPlaceholder.)
+	ctx, cancel := context.WithTimeout(ctx, schemasnapshot.CaptureTimeout)
+	defer cancel()
+
 	pg, ok := source.DB().(*srcdb.PostgreSQL)
 	if !ok {
 		log.Warnf("schema-snapshot capture skipped for label %q: PostgreSQL source lacks a *srcdb.PostgreSQL handle", label)
@@ -126,7 +126,7 @@ func captureSourceSchemaSnapshot(ctx context.Context, label, reason string, plac
 		if placeholderOnFailure {
 			// Still record the timeline marker so a lifecycle moment (e.g. an exit)
 			// isn't lost just because the DB handle is gone during teardown.
-			saveSourceSchemaSnapshotPlaceholder(ctx, label, reason)
+			saveSourceSchemaSnapshotPlaceholder(label, reason)
 		}
 		return
 	}
@@ -187,13 +187,21 @@ func startPeriodicSourceSchemaSnapshotCapture(ctx context.Context) {
 // saveSourceSchemaSnapshotPlaceholder records a metadata-only timeline marker
 // (no schema read) for a lifecycle moment we can't fully capture, e.g. an
 // error/interrupt exit. Best-effort; never fails the caller. Honors suppression.
-func saveSourceSchemaSnapshotPlaceholder(ctx context.Context, label, reason string) {
+//
+// It uses its OWN fresh, bounded context rather than the capture context: this is a
+// fallback marker written when the real capture can't happen, and the capture context
+// may be exactly what died (deadline exceeded / cancelled) — reusing it would drop the
+// marker just when it is needed. The fresh budget still bounds the metaDB write so it
+// can't hang on a contended lock.
+func saveSourceSchemaSnapshotPlaceholder(label, reason string) {
 	if source.DBType != POSTGRESQL {
 		return
 	}
 	if bool(suppressSchemaSnapshotCapture) {
 		return
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), schemasnapshot.CaptureTimeout)
+	defer cancel()
 	h := schemasnapshot.SnapshotHeader{
 		Label:         label,
 		Reason:        reason,

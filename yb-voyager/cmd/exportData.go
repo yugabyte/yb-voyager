@@ -800,7 +800,7 @@ func exportData() bool {
 			log.Errorf("Failed to start debezium: %v", err)
 			// Capture the drifted end-state schema inline while the source connection is
 			// still open; exportData's deferred Disconnect closes it before the atexit hook.
-			captureExportDataExitSnapshotBounded(schemasnapshot.ReasonError)
+			captureExportDataExitSnapshotFresh(schemasnapshot.ReasonError)
 			return false
 		}
 		utils.PrintAndLogfInfo("Processing cutover initiate request...\n")
@@ -871,7 +871,7 @@ func exportData() bool {
 			log.Errorf("Export Data failed: %v", err)
 			// Capture the drifted end-state schema inline while the source connection is
 			// still open; exportData's deferred Disconnect closes it before the atexit hook.
-			captureExportDataExitSnapshotBounded(schemasnapshot.ReasonError)
+			captureExportDataExitSnapshotFresh(schemasnapshot.ReasonError)
 			return false
 		}
 		captureExportDataExitSnapshot(ctx, schemasnapshot.ReasonComplete)
