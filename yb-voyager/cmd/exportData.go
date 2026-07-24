@@ -1935,22 +1935,28 @@ func validateAndExtractTableNamesFromFile(filePath string, flagName string) (str
 // producing the reason recorded on the LabelExportDataFromSourceStart snapshot.
 //
 // The classification answers a single question — does export-data already have prior
-// output? — from the same data-directory signal the guard uses:
-//   - startClean:   prior state is being discarded → re-capturing fresh → clean_restart
-//   - empty dir:    no prior run's output → genuine first run           → initial
-//   - non-empty:    a prior run's output is present → continuing it      → resume
+// output that is being (or would be) discarded? — decided from the actual
+// data-directory state FIRST, and only then the --start-clean flag:
+//   - empty dir:               no prior export-data output → genuine first run → initial
+//     (an empty dir is "initial" even under --start-clean; the flag then cleans nothing.
+//     This covers passing --start-clean on the very first run — it is not a "restart".)
+//   - start-clean + non-empty: prior output is being discarded → re-capturing  → clean_restart
+//   - non-empty (no clean):    a prior run's output is present → continuing it  → resume
+//
+// State-before-flag matters: clean_restart should mean prior output was actually
+// discarded, so a --start-clean run against a fresh export dir is "initial", not a
+// mislabeled "clean_restart".
 //
 // Admissibility is a SEPARATE concern owned by clearMigrationStateIfRequired (the
-// guard), which runs immediately after: it ErrExits a non-empty, non-start-clean
-// offline or mid-snapshot rerun (pg_dump can't resume), so the only non-empty run that
-// actually reaches this capture is the streaming-continue resume — for which "resume"
-// is the correct label.
+// guard): it ErrExits a non-empty, non-start-clean offline or mid-snapshot rerun
+// (pg_dump can't resume), so the only non-empty run that actually reaches "resume" here
+// is the streaming-continue resume — for which "resume" is the correct label.
 func snapshotStartReasonFor(startClean, dataDirEmpty bool) string {
 	switch {
-	case startClean:
-		return schemasnapshot.ReasonCleanRestart
 	case dataDirEmpty:
 		return schemasnapshot.ReasonInitial
+	case startClean:
+		return schemasnapshot.ReasonCleanRestart
 	default:
 		return schemasnapshot.ReasonResume
 	}
