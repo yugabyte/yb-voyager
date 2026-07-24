@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-gocardless_prep.py — turn the Voyager callhome anonymized GoCardless DDL into a
+wide_schema_prep.py — turn an anonymized wide-schema DDL dump into a
 schema that loads on YB *and* can be driven by the random event generator.
 
-The raw callhome DDL is one SQL statement per line. It is faithful to a real
+The raw anonymized DDL is one SQL statement per line. It is faithful to a real
 production schema, which means it carries a lot that a random-IUD generator and
 a fresh YB target cannot handle. This tool strips exactly those things and
 nothing else.
@@ -38,7 +38,7 @@ Transforms (all line-oriented; each statement is a single line in the dump):
       row-count validators — the existing live-migration flow then works with no
       harness changes (generator schema_name stays `public`).
 
-Usage:  python3 gocardless_prep.py in.sql [--schema public] > out.sql   (report on stderr)
+Usage:  python3 wide_schema_prep.py in.sql [--schema public] > out.sql   (report on stderr)
 """
 import re
 import sys
@@ -173,7 +173,7 @@ def prep(text, to_schema=None):
     add = [f"ALTER TABLE {n} ADD PRIMARY KEY ({c});" for n, c in tables if n not in pk_tables]
     rpt["pk_added"] = len(add)
     if add:
-        out += ["", "-- gocardless_prep: synthetic PKs for base tables missing one"] + add
+        out += ["", "-- schema-prep: synthetic PKs for base tables missing one"] + add
 
     result = "\n".join(out) + "\n"
     rpt["remapped_from"] = None
@@ -190,7 +190,7 @@ def main():
         to_schema = args[i + 1]
         del args[i:i + 2]
     if len(args) != 1:
-        sys.exit("usage: gocardless_prep.py in.sql [--schema NAME] > out.sql")
+        sys.exit("usage: wide_schema_prep.py in.sql [--schema NAME] > out.sql")
     with open(args[0]) as f:
         sql, rpt, n_children = prep(f.read(), to_schema=to_schema)
     sys.stdout.write(sql)

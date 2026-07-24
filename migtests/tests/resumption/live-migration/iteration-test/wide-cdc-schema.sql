@@ -1,7 +1,6 @@
--- SANITIZED loadable schema (PostgreSQL 14) from Voyager callhome anonymized DDL
--- migration uuid: 930d6898-aa72-4d3a-8ed7-3cdb93678a94  snapshot: 20260707T195631
+-- SANITIZED loadable schema (PostgreSQL 14) — anonymized wide-CDC schema (synthetic table/column names).
 -- Transforms: dropped 45 SET; stripped anonymized typmods; removed DEFAULT clauses; dropped 3 dangling ALTER..SET.
--- ABSENT (not in callhome): FUNCTIONS, VIEWS, TRIGGERS, MVIEWS, custom TYPES/DOMAINS. Partitioned tables may not fully reproduce.
+-- ABSENT (not in the dump): FUNCTIONS, VIEWS, TRIGGERS, MVIEWS, custom TYPES/DOMAINS. Partitioned tables may not fully reproduce.
 
 CREATE EXTENSION IF NOT EXISTS hstore SCHEMA public;
 CREATE SEQUENCE public.seq_858939de519a10f2 START 1 INCREMENT 1 NO MINVALUE NO MAXVALUE CACHE 1;
@@ -1656,6 +1655,6 @@ CREATE UNIQUE INDEX index_94b4a686cdb1961d ON public.table_847573b27f164799 USIN
 CREATE UNIQUE INDEX index_a628cf0f23715130 ON public.table_4bd457e31a34976f USING btree (col_05bb4f8d25fdb5e3);
 CREATE INDEX index_13027b13edae9811 ON public.table_f1140b8d1d57dff1 USING btree (col_65a796c9b5d0e944);
 
--- gocardless_prep: synthetic PKs for base tables missing one
+-- schema-prep: synthetic PKs for base tables missing one
 ALTER TABLE public.table_c24c64a2f0c61453 ADD PRIMARY KEY (col_11ecce4c6f17d239);
 ALTER TABLE public.table_a29ab30646af0afb ADD PRIMARY KEY (col_11ecce4c6f17d239);
