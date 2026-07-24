@@ -248,7 +248,7 @@ unique.
 All fallback cases degrade *gracefully* to random-plus-retry (they cannot crash a
 worker or a node) — they just insert slightly slower on those specific columns.
 
-#### Reference: real anonymized-style schema (341 tables) snapshot
+#### Reference: real anonymized real-world schema (341 tables) snapshot
 
 Unique-surface columns by type, as measured on the test schema — re-run this
 check when pointing at a new source to re-validate the caveats above:
