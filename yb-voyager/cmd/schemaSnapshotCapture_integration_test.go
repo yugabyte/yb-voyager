@@ -19,6 +19,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -139,7 +140,7 @@ func TestSchemaSnapshotCaptureIntegration(t *testing.T) {
 		before, err := schemasnapshot.ListSnapshots(metaDB)
 		require.NoError(t, err)
 
-		saveSourceSchemaSnapshotPlaceholder(ctx, schemasnapshot.LabelExportDataFromSourceExit, schemasnapshot.ReasonError)
+		saveSourceSchemaSnapshotPlaceholder(schemasnapshot.LabelExportDataFromSourceExit, schemasnapshot.ReasonError)
 
 		after, err := schemasnapshot.ListSnapshots(metaDB)
 		require.NoError(t, err)
@@ -225,4 +226,83 @@ func TestSchemaSnapshotCaptureIntegration(t *testing.T) {
 		assert.Equal(t, before+1, countExitPlaceholders(),
 			"an aborted capture with placeholderOnFailure must record exactly one exit placeholder")
 	})
+}
+
+// TestSchemaSnapshotCaptureLargeSchema verifies that the schema-snapshot capture budget
+// (schemasnapshot.CaptureTimeout) is enough to capture AND persist a large schema — the
+// only case where capture size matters (the fallback placeholder is metadata-only and
+// does not scale). It seeds a schema with many tables/columns, runs the real capture, and
+// asserts a REAL snapshot (not a placeholder) lands with every table: because the capture
+// is bounded by CaptureTimeout, a real snapshot is itself proof the budget sufficed for
+// this size — had it been exceeded, the capture would have degraded to a placeholder and
+// this test would fail. The elapsed time is logged so the headroom below the budget is
+// visible.
+//
+// Note: on a healthy testcontainer this proves "the budget is ample for size", not
+// "the budget survives a slow/loaded/high-latency source" — that adverse case isn't
+// deterministically reproducible here and is a manual/load-test concern.
+func TestSchemaSnapshotCaptureLargeSchema(t *testing.T) {
+	ctx := context.Background()
+
+	const (
+		schemaName   = "bigschema"
+		numTables    = 1000
+		colsPerTable = 10 // id + 9 columns => ~10k columns total
+	)
+
+	// One DO block creates all tables server-side (far faster than numTables round-trips).
+	createTables := fmt.Sprintf(`DO $$ BEGIN
+  FOR i IN 1..%d LOOP
+    EXECUTE format('CREATE TABLE %s.t%%s (id int primary key, c1 text, c2 text, c3 int, c4 numeric, c5 timestamptz, c6 boolean, c7 text, c8 int)', i);
+  END LOOP;
+END $$;`, numTables, schemaName)
+
+	testPostgresSource.ExecuteSqls(fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS %s`, schemaName), createTables)
+	t.Cleanup(func() { testPostgresSource.ExecuteSqls(fmt.Sprintf(`DROP SCHEMA IF EXISTS %s CASCADE`, schemaName)) })
+
+	sqlname.SourceDBType = testPostgresSource.DBType
+	testPostgresSource.Schemas = sqlname.ParseIdentifiersFromString(constants.POSTGRESQL, schemaName, "|")
+
+	require.NoError(t, testPostgresSource.DB().Connect(), "connect to postgres source")
+	t.Cleanup(func() { testPostgresSource.DB().Disconnect() })
+
+	testExportDir, err := os.MkdirTemp("", "schemasnapshot-large-test-*")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(testExportDir) })
+
+	source = *testPostgresSource.Source
+	metaDB = initMetaDB(testExportDir)
+	exporterRole = SOURCE_DB_EXPORTER_ROLE
+	suppressSchemaSnapshotCapture = utils.BoolStr(false)
+	t.Cleanup(func() {
+		source = srcdb.Source{}
+		metaDB = nil
+		exporterRole = SOURCE_DB_EXPORTER_ROLE
+		suppressSchemaSnapshotCapture = utils.BoolStr(false)
+	})
+
+	require.Equal(t, []string{schemaName}, source.GetSchemaList())
+
+	start := time.Now()
+	captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportSchema, "", true)
+	elapsed := time.Since(start)
+	t.Logf("captured %d-table / ~%d-column schema in %s (budget %s)",
+		numTables, numTables*colsPerTable, elapsed, schemasnapshot.CaptureTimeout)
+
+	headers, err := schemasnapshot.ListSnapshots(metaDB)
+	require.NoError(t, err)
+	require.Len(t, headers, 1, "exactly one snapshot must be persisted")
+
+	// The load-bearing assertion: a REAL snapshot, not a placeholder. A placeholder would
+	// mean the capture+save did not finish within schemasnapshot.CaptureTimeout for this
+	// schema size.
+	require.False(t, headers[0].IsPlaceholder,
+		"capture of a %d-table schema must complete and persist within %s; got a placeholder (budget exceeded)",
+		numTables, schemasnapshot.CaptureTimeout)
+
+	content, err := schemasnapshot.LoadSnapshotByName(metaDB, headers[0].Name())
+	require.NoError(t, err)
+	require.NotNil(t, content)
+	assert.GreaterOrEqual(t, len(content.Tables), numTables,
+		"captured snapshot must include all %d seeded tables", numTables)
 }
