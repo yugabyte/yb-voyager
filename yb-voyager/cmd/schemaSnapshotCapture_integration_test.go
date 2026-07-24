@@ -139,7 +139,7 @@ func TestSchemaSnapshotCaptureIntegration(t *testing.T) {
 		before, err := schemasnapshot.ListSnapshots(metaDB)
 		require.NoError(t, err)
 
-		saveSourceSchemaSnapshotPlaceholder(schemasnapshot.LabelExportDataFromSourceExit, schemasnapshot.ReasonError)
+		saveSourceSchemaSnapshotPlaceholder(ctx, schemasnapshot.LabelExportDataFromSourceExit, schemasnapshot.ReasonError)
 
 		after, err := schemasnapshot.ListSnapshots(metaDB)
 		require.NoError(t, err)

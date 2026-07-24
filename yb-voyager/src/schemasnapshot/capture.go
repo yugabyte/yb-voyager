@@ -119,14 +119,14 @@ func CaptureAndSaveSnapshot(ctx context.Context, db *sql.DB, mdb *metadb.MetaDB,
 			h := newHeader(req.CaptureParams, time.Now().UTC(), "", true)
 			// Best-effort timeline marker: we still return the original capture error,
 			// but a failed placeholder insert must not vanish silently (BUGBOT.md).
-			if _, perr := SavePlaceholder(mdb, h); perr != nil {
+			if _, perr := SavePlaceholder(ctx, mdb, h); perr != nil {
 				log.Warnf("schemasnapshot: failed to write placeholder marker for label %q: %v", req.Label, perr)
 			}
 		}
 		return "", captureErr
 	}
 
-	return SaveSnapshot(mdb, snap)
+	return SaveSnapshot(ctx, mdb, snap)
 }
 
 // newHeader builds a SnapshotHeader from capture params + the capture-time facts.

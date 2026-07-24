@@ -16,6 +16,7 @@ limitations under the License.
 package metadb
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -68,7 +69,7 @@ type SchemaSnapshotListRow struct {
 // (without this table) and then upgraded mid-flight would never get it. Creating on
 // first write makes the table appear regardless of which binary initialized the metadb,
 // and keeps it out of metadbs for migrations that never capture a snapshot.
-func (m *MetaDB) createSchemaSnapshotsTable() error {
+func (m *MetaDB) createSchemaSnapshotsTable(ctx context.Context) error {
 	// The PRIMARY KEY is the composite logical identity (side, label, captured_at):
 	// a given side capturing a given label at a given time. name is kept as a UNIQUE
 	// secondary key because it is the derived public handle
@@ -89,7 +90,7 @@ func (m *MetaDB) createSchemaSnapshotsTable() error {
 		snapshot_json    TEXT,
 		PRIMARY KEY (side, label, captured_at)
 	);`, schemaSnapshotsTableName)
-	_, err := m.db.Exec(query)
+	_, err := m.db.ExecContext(ctx, query)
 	if err != nil {
 		return fmt.Errorf("create schema_snapshots table: %w", err)
 	}
@@ -99,15 +100,15 @@ func (m *MetaDB) createSchemaSnapshotsTable() error {
 
 // InsertSchemaSnapshot inserts a full snapshot row (snapshot_json is set).
 // Returns an error if the name (primary key) already exists.
-func (m *MetaDB) InsertSchemaSnapshot(row SchemaSnapshotRow) error {
-	if err := m.createSchemaSnapshotsTable(); err != nil {
+func (m *MetaDB) InsertSchemaSnapshot(ctx context.Context, row SchemaSnapshotRow) error {
+	if err := m.createSchemaSnapshotsTable(ctx); err != nil {
 		return err
 	}
 	capturedAtStr := row.CapturedAt.UTC().Format(capturedAtLayout)
 	query := fmt.Sprintf(`INSERT INTO %s
 		(name, label, reason, side, captured_at, database_version, schemas, is_placeholder, snapshot_json)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`, schemaSnapshotsTableName)
-	_, err := m.db.Exec(query,
+	_, err := m.db.ExecContext(ctx, query,
 		row.Name,
 		row.Label,
 		row.Reason,
@@ -128,10 +129,10 @@ func (m *MetaDB) InsertSchemaSnapshot(row SchemaSnapshotRow) error {
 
 // InsertSchemaSnapshotPlaceholder inserts a placeholder row (snapshot_json NULL, is_placeholder=1).
 // Returns an error if the name (primary key) already exists.
-func (m *MetaDB) InsertSchemaSnapshotPlaceholder(row SchemaSnapshotRow) error {
+func (m *MetaDB) InsertSchemaSnapshotPlaceholder(ctx context.Context, row SchemaSnapshotRow) error {
 	row.SnapshotJSON = sql.NullString{Valid: false}
 	row.IsPlaceholder = true
-	return m.InsertSchemaSnapshot(row)
+	return m.InsertSchemaSnapshot(ctx, row)
 }
 
 // ListSchemaSnapshots returns lightweight list rows ordered oldest-first by captured_at.
