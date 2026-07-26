@@ -28,11 +28,9 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var targetDBPassword string
@@ -260,66 +258,34 @@ func parseCdcPartitionKeyOverrides(overrides string) (map[string]string, error) 
 	return result, nil
 }
 
-// resolveCdcPartitionKeyOverrides looks up override table names in namereg and
-// validates each is present in importTableList. Returns a map keyed by NameTuple.
-func resolveCdcPartitionKeyOverrides(rawOverrides map[string]string, importTableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, string], error) {
-	resolved := utils.NewStructMap[sqlname.NameTuple, string]()
-	if len(rawOverrides) == 0 {
-		return resolved, nil
-	}
-
-	importTableSet := utils.NewStructMap[sqlname.NameTuple, bool]()
-	for _, t := range importTableList {
-		importTableSet.Put(t, true)
-	}
-
-	for tableSpec, strategy := range rawOverrides {
-		tuple, err := namereg.NameReg.LookupTableName(tableSpec)
-		if err != nil {
-			return nil, goerrors.Errorf("cdc-partition-key-overrides: table %q not found in name registry: %w", tableSpec, err)
-		}	
-		if _, ok := importTableSet.Get(tuple); !ok {
-			return nil, goerrors.Errorf("cdc-partition-key-overrides: table %q is not in the import table list", tableSpec)
-		}
-		// Detect duplicates on the resolved NameTuple so different spellings of the
-		// same table (casing/quoting/schema-qualification) don't silently overwrite.
-		if existing, ok := resolved.Get(tuple); ok && !strings.EqualFold(existing, strategy) {
-			return nil, goerrors.Errorf("cdc-partition-key-overrides: table %q (resolved to %s) specified multiple times with conflicting strategies %q and %q",
-				tableSpec, tuple.ForOutput(), existing, strategy)
-		}
-		resolved.Put(tuple, strategy)
-	}
-	return resolved, nil
-}
-
 func validateCdcPartitionKeyFlags(cmd *cobra.Command) error {
 	globalPassed := cmd.Flags().Changed("cdc-partition-key")
 	overridesPassed := cmd.Flags().Changed("cdc-partition-key-overrides")
 	anyPassed := globalPassed || overridesPassed
 
-	if importerRole != TARGET_DB_IMPORTER_ROLE {
+	if importerRole != TARGET_DB_IMPORTER_ROLE && tconf.TargetDBType != YUGABYTEDB_AMP {
 		if anyPassed {
-			utils.ErrExit("--cdc-partition-key / --cdc-partition-key-overrides are only supported for import data to target")
+			return goerrors.Errorf("--cdc-partition-key / --cdc-partition-key-overrides are only supported for import data to target")
 		}
 		return nil
 	}
 
 	if !changeStreamingIsEnabled(importType) {
 		if anyPassed {
-			utils.ErrExit("--cdc-partition-key / --cdc-partition-key-overrides are not supported for offline migration. Re-run the command without these flags.")
+			return goerrors.Errorf("--cdc-partition-key / --cdc-partition-key-overrides are not supported for offline migration. Re-run the command without these flags.")
 		}
 		return nil
 	}
 
 	if sourceDBType != POSTGRESQL && anyPassed {
-		utils.ErrExit("--cdc-partition-key / --cdc-partition-key-overrides are only supported for PostgreSQL source")
+		return goerrors.Errorf("--cdc-partition-key / --cdc-partition-key-overrides are only supported for PostgreSQL source")
 	}
 
 	if cdcPartitionKey == "" {
-		utils.ErrExit("cdc-partition-key is required")
+		return goerrors.Errorf("cdc-partition-key is required")
 	}
 	if !lo.Contains(validCdcPartitionKeys, cdcPartitionKey) {
-		utils.ErrExit("invalid cdc-partition-key: %s. Supported values are: %s", cdcPartitionKey, strings.Join(validCdcPartitionKeys, ", "))
+		return goerrors.Errorf("invalid cdc-partition-key: %s. Supported values are: %s", cdcPartitionKey, strings.Join(validCdcPartitionKeys, ", "))
 	}
 
 	// Syntax-only parse of overrides (table list / namereg / expr-UK validated in prepareCdcPartitionKey before snapshot).
@@ -336,14 +302,14 @@ func validateCdcPartitionKeyFlags(cmd *cobra.Command) error {
 		return nil
 	}
 	if importDataStatus.CdcPartitioningStrategyConfig == "" {
-		utils.ErrExit("Resuming from an earlier version of yb-voyager is not supported as cdc partition key was not set. Use --start-clean to start a fresh import with the new yb-voyager version.")
+		return goerrors.Errorf("Resuming from an earlier version of yb-voyager is not supported as cdc partition key was not set. Use --start-clean to start a fresh import with the new yb-voyager version.")
 	}
 	if cdcPartitionKey != importDataStatus.CdcPartitioningStrategyConfig {
-		utils.ErrExit("changing cdc-partition-key is not allowed after the import data has started. Current: %s, new: %s\n Use --start-clean to start a fresh import with the new partition key.", importDataStatus.CdcPartitioningStrategyConfig, cdcPartitionKey)
+		return goerrors.Errorf("changing cdc-partition-key is not allowed after the import data has started. Current: %s, new: %s\n Use --start-clean to start a fresh import with the new partition key.", importDataStatus.CdcPartitioningStrategyConfig, cdcPartitionKey)
 	}
 	storedOverrides := importDataStatus.CdcPartitionKeyOverridesConfig //TODO: just checking the string equality is not enough, we might need to compare the overrides by properly
 	if cdcPartitionKeyOverrides != storedOverrides {
-		utils.ErrExit("changing cdc-partition-key-overrides is not allowed after the import data has started. Current: %q, new: %q\n Use --start-clean to start a fresh import with the new overrides.", storedOverrides, cdcPartitionKeyOverrides)
+		return goerrors.Errorf("changing cdc-partition-key-overrides is not allowed after the import data has started. Current: %q, new: %q\n Use --start-clean to start a fresh import with the new overrides.", storedOverrides, cdcPartitionKeyOverrides)
 	}
 	log.Infof("cdc-partition-key: %s, cdc-partition-key-overrides: %q", cdcPartitionKey, cdcPartitionKeyOverrides)
 	return nil
