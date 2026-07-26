@@ -112,7 +112,16 @@ func BenchmarkCDCIngest(b *testing.B) {
 			}
 			c.Lock()
 			defer c.Unlock()
-			return len(c.m) + len(c.ukLookup)
+			return len(c.m) + cacheDepth(c.ukLookup)
 		},
 	})
+}
+
+
+func cacheDepth(ukLookup map[string]map[int64]*tgtdb.Event) int {
+	var depth int
+	for _, events := range ukLookup {
+		depth += len(events)
+	}
+	return depth
 }

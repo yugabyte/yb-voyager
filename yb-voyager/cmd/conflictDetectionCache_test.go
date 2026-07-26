@@ -460,7 +460,7 @@ func TestUniqueKeyConflictPairKey_OrdersVsns(t *testing.T) {
 
 // findConflictForTest exercises the lock-protected findConflictLocked without
 // invoking the blocking wait loop in WaitUntilNoConflict.
-func findConflictForTest(c *ConflictDetectionCache, incoming *tgtdb.Event) *tgtdb.Event {
+func findConflictForTest(c *ConflictDetectionCache, incoming *tgtdb.Event) []*tgtdb.Event {
 	c.Lock()
 	defer c.Unlock()
 	return c.findConflictLocked(incoming)
@@ -488,8 +488,8 @@ func TestConflictLookup_FindsBeforeAfterConflict(t *testing.T) {
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
 	got := findConflictForTest(cache, incoming)
-	require.NotNil(t, got)
-	assert.Equal(t, int64(1), got.Vsn)
+	require.Len(t, got, 1)
+	assert.Equal(t, int64(1), got[0].Vsn)
 }
 
 // A composite-index before-after conflict must be found via the lookup index.
@@ -514,8 +514,8 @@ func TestConflictLookup_FindsCompositeConflict(t *testing.T) {
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
 	got := findConflictForTest(cache, incoming)
-	require.NotNil(t, got)
-	assert.Equal(t, int64(1), got.Vsn)
+	require.Len(t, got, 1)
+	assert.Equal(t, int64(1), got[0].Vsn)
 }
 
 // A NULLS NOT DISTINCT before-before conflict on NULL values must be found.
@@ -542,8 +542,8 @@ func TestConflictLookup_FindsBeforeBeforeConflict_NullsNotDistinct(t *testing.T)
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
 	got := findConflictForTest(cache, incoming)
-	require.NotNil(t, got)
-	assert.Equal(t, int64(1), got.Vsn)
+	require.Len(t, got, 1)
+	assert.Equal(t, int64(1), got[0].Vsn)
 }
 
 // Under default NULLS DISTINCT, a NULL index value is never indexed and never conflicts.
@@ -568,7 +568,7 @@ func TestConflictLookup_NullsDistinctNotIndexed(t *testing.T) {
 		Fields:       map[string]*string{"email": nil},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
-	assert.Nil(t, findConflictForTest(cache, incoming))
+	assert.Empty(t, findConflictForTest(cache, incoming))
 }
 
 // Same-PK candidates are gathered by the lookup but rejected by eventsConfict.
@@ -593,7 +593,7 @@ func TestConflictLookup_SamePKNoConflict(t *testing.T) {
 		Fields:       map[string]*string{"email": strPtr("a@example.com")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
-	assert.Nil(t, findConflictForTest(cache, incoming))
+	assert.Empty(t, findConflictForTest(cache, incoming))
 }
 
 // A non-conflicting incoming event must not block or match.
@@ -617,7 +617,7 @@ func TestConflictLookup_NoConflictDoesNotBlock(t *testing.T) {
 		Fields:       map[string]*string{"email": strPtr("b@example.com")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
-	assert.Nil(t, findConflictForTest(cache, incoming))
+	assert.Empty(t, findConflictForTest(cache, incoming))
 
 	done := make(chan struct{})
 	go func() {
@@ -659,7 +659,7 @@ func TestConflictLookup_RemoveDeindexes(t *testing.T) {
 		Fields:       map[string]*string{"email": strPtr("a@example.com")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
-	assert.Nil(t, findConflictForTest(cache, incoming))
+	assert.Empty(t, findConflictForTest(cache, incoming))
 }
 
 // computeConflictBucketKey must not collide for tuples that differ only in the
