@@ -218,29 +218,79 @@ func validateImportUsePartitionRootFlag() error {
 	})
 }
 
-var validCdcPartitioningStrategies = []string{"pk", "table", "auto"}
+var validCdcPartitionKeys = []string{PARTITION_BY_PK, PARTITION_BY_TABLE, "auto"}
 
-func validateCdcPartitioningStrategyFlag(cmd *cobra.Command) error {
-	if importerRole != TARGET_DB_IMPORTER_ROLE {
-		return nil
+// parseCdcPartitionKeyOverrides parses "schema.table:pk;schema.other:table".
+// Only pk and table are supported as override strategies (not auto or custom columns).
+func parseCdcPartitionKeyOverrides(overrides string) (map[string]string, error) {
+	result := make(map[string]string)
+	overrides = strings.TrimSpace(overrides)
+	if overrides == "" {
+		return result, nil
 	}
-	cdcPartitioningStrategyParameterPassed := cmd.Flags().Changed("cdc-partitioning-strategy")
-	if !changeStreamingIsEnabled(importType) {
-		if cdcPartitioningStrategyParameterPassed {
-			utils.ErrExit("--cdc-partitioning-strategy is not supported for offline migration. Re-run the command without this flag.")
+
+	for _, entry := range strings.Split(overrides, ";") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		parts := strings.SplitN(entry, ":", 2)
+		if len(parts) != 2 {
+			return nil, goerrors.Errorf("invalid cdc-partition-key-overrides entry %q: expected format schema.table:pk|table", entry)
+		}
+		tableName := strings.TrimSpace(parts[0])
+		strategy := strings.TrimSpace(parts[1])
+		if tableName == "" || strategy == "" {
+			return nil, goerrors.Errorf("invalid cdc-partition-key-overrides entry %q: table and strategy must both be non-empty", entry)
+		}
+		if strategy != PARTITION_BY_PK && strategy != PARTITION_BY_TABLE {
+			return nil, goerrors.Errorf("invalid cdc-partition-key-overrides strategy %q for table %q: supported values are %s, %s",
+				strategy, tableName, PARTITION_BY_PK, PARTITION_BY_TABLE)
+		}
+		if _, exists := result[tableName]; exists {
+			if strings.EqualFold(strategy, result[tableName]) {
+				continue
+			}
+			return nil, goerrors.Errorf("duplicate table %q in cdc-partition-key-overrides", tableName)
+		}
+		result[tableName] = strategy
+	}
+	return result, nil
+}
+
+func validateCdcPartitionKeyFlags(cmd *cobra.Command) error {
+	globalPassed := cmd.Flags().Changed("cdc-partition-key")
+	overridesPassed := cmd.Flags().Changed("cdc-partition-key-overrides")
+	anyPassed := globalPassed || overridesPassed
+
+	if importerRole != TARGET_DB_IMPORTER_ROLE || tconf.TargetDBType != YUGABYTEDB {
+		if anyPassed {
+			return goerrors.Errorf("--cdc-partition-key / --cdc-partition-key-overrides are only supported for import data to target")
 		}
 		return nil
 	}
-	if sourceDBType != POSTGRESQL && cdcPartitioningStrategyParameterPassed {
-		utils.ErrExit("--cdc-partitioning-strategy is only supported for PostgreSQL source")
+
+	if !changeStreamingIsEnabled(importType) {
+		if anyPassed {
+			return goerrors.Errorf("--cdc-partition-key / --cdc-partition-key-overrides are not supported for offline migration. Re-run the command without these flags.")
+		}
+		return nil
 	}
 
-	if cdcPartitioningStrategy == "" {
-		utils.ErrExit("cdc partitioning strategy is required")
+	if sourceDBType != POSTGRESQL && anyPassed {
+		return goerrors.Errorf("--cdc-partition-key / --cdc-partition-key-overrides are only supported for PostgreSQL source")
 	}
 
-	if !lo.Contains(validCdcPartitioningStrategies, cdcPartitioningStrategy) {
-		utils.ErrExit("invalid cdc partitioning strategy: %s. Supported values are: %s", cdcPartitioningStrategy, strings.Join(validCdcPartitioningStrategies, ", "))
+	if cdcPartitionKey == "" {
+		return goerrors.Errorf("cdc-partition-key is required")
+	}
+	if !lo.Contains(validCdcPartitionKeys, cdcPartitionKey) {
+		return goerrors.Errorf("invalid cdc-partition-key: %s. Supported values are: %s", cdcPartitionKey, strings.Join(validCdcPartitionKeys, ", "))
+	}
+
+	// Syntax-only parse of overrides (table list / namereg / expr-UK validated in prepareCdcPartitionKey before snapshot).
+	if _, err := parseCdcPartitionKeyOverrides(cdcPartitionKeyOverrides); err != nil {
+		utils.ErrExit("%v", err)
 	}
 
 	importDataStatus, err := metaDB.GetImportDataStatusRecord()
@@ -249,19 +299,19 @@ func validateCdcPartitioningStrategyFlag(cmd *cobra.Command) error {
 	}
 
 	if importDataStatus == nil || !importDataStatus.ImportDataStarted || bool(startClean) {
-		//if import data has not started or start-clean flag is used, allow the change in cdc partitioning strategy
 		return nil
 	}
 	if importDataStatus.CdcPartitioningStrategyConfig == "" {
-		//if not a first run and the cdc partitioning strategy is not set
-		//this can be the case when the import data is resumed from an earlier version of yb-voyager
-		//So we should use the cdc partitioning strategy as pk to be upgrade safe
-		utils.ErrExit("Resuming from an earlier version of yb-voyager is not supported as cdc partition strategy was not set. Use --start-clean to start a fresh import with the new yb-voyager version.")
+		return goerrors.Errorf("Resuming from an earlier version of yb-voyager is not supported as cdc partition key was not set. Use --start-clean to start a fresh import with the new yb-voyager version.")
 	}
-	if cdcPartitioningStrategy != importDataStatus.CdcPartitioningStrategyConfig {
-		utils.ErrExit("changing the cdc partitioning strategy is not allowed after the import data has started. Current strategy: %s, new strategy: %s\n Use --start-clean to start a fresh import with the new strategy.", importDataStatus.CdcPartitioningStrategyConfig, cdcPartitioningStrategy)
+	if cdcPartitionKey != importDataStatus.CdcPartitioningStrategyConfig {
+		return goerrors.Errorf("changing cdc-partition-key is not allowed after the import data has started. Current: %s, new: %s\n Use --start-clean to start a fresh import with the new partition key.", importDataStatus.CdcPartitioningStrategyConfig, cdcPartitionKey)
 	}
-	log.Infof("cdc partitioning strategy: %s", cdcPartitioningStrategy)
+	storedOverrides := importDataStatus.CdcPartitionKeyOverridesConfig //TODO: just checking the string equality is not enough, we might need to compare the overrides by properly
+	if cdcPartitionKeyOverrides != storedOverrides {
+		return goerrors.Errorf("changing cdc-partition-key-overrides is not allowed after the import data has started. Current: %q, new: %q\n Use --start-clean to start a fresh import with the new overrides.", storedOverrides, cdcPartitionKeyOverrides)
+	}
+	log.Infof("cdc-partition-key: %s, cdc-partition-key-overrides: %q", cdcPartitionKey, cdcPartitionKeyOverrides)
 	return nil
 }
 
@@ -451,12 +501,17 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 	BoolVar(cmd.Flags(), &enableRandomBatchProduction, "enable-random-batch-production", true, "Enable random batch production during data import (default true)")
 	cmd.Flags().MarkHidden("enable-random-batch-production")
 
-	cmd.Flags().StringVar(&cdcPartitioningStrategy, "cdc-partitioning-strategy", "auto",
-		`The desired partitioning strategy to use while importing cdc events parallelly. The supported values are: pk, table. (default auto-detect)
-		\tauto: Automatically detect the partitioning strategy based on the table having expression or normal unique indexes.
-		\tpk: Partition the cdc events by primary key.
-		\ttable: Partition the cdc events by table.`)
-	cmd.Flags().MarkHidden("cdc-partitioning-strategy")
+	cmd.Flags().StringVar(&cdcPartitionKey, "cdc-partition-key", "auto",
+		`Global strategy for how CDC events are hashed across parallel channels. Supported values: auto, pk, table.
+		\tauto: Automatically pick pk or table per table (expression unique-index tables use table).
+		\tpk: Partition CDC events by primary key.
+		\ttable: Partition CDC events by table (all events for a table share one channel).`)
+	cmd.Flags().MarkHidden("cdc-partition-key")
+
+	cmd.Flags().StringVar(&cdcPartitionKeyOverrides, "cdc-partition-key-overrides", "",
+		`Optional per-table CDC partition-key overrides as schema.table:pk|table pairs, separated by ';'.
+		Example: public.orders:table;sales.events:pk. Unlisted tables keep the global --cdc-partition-key.`)
+	cmd.Flags().MarkHidden("cdc-partition-key-overrides")
 
 	cmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
 		"Port for Prometheus metrics server (default: 9101)")

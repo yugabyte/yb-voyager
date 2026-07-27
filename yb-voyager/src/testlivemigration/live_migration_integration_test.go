@@ -1032,10 +1032,10 @@ FROM generate_series(1, 10);`,
 	testutils.FatalIfError(t, err, "failed to stop import data")
 
 	err = lm.ResumeImportData(false, map[string]string{
-		"--cdc-partitioning-strategy": "pk",
+		"--cdc-partition-key": "pk",
 	})
 
-	assert.True(t, strings.Contains(lm.GetImportCommandStderr(), "changing the cdc partitioning strategy is not allowed after the import data has started. Current strategy: auto, new strategy: pk"))
+	assert.True(t, strings.Contains(lm.GetImportCommandStderr(), "changing cdc-partition-key is not allowed after the import data has started. Current: auto, new: pk"))
 
 	err = lm.InitMetaDB()
 	testutils.FatalIfError(t, err, "failed to initialize meta db")
@@ -1065,8 +1065,8 @@ FROM generate_series(1, 10);`,
 	})
 
 	err = lm.ResumeImportData(true, map[string]string{
-		"--cdc-partitioning-strategy": "pk",
-		"--start-clean":               "true",
+		"--cdc-partition-key": "pk",
+		"--start-clean":       "true",
 	})
 	testutils.FatalIfError(t, err, "failed to resume import data")
 

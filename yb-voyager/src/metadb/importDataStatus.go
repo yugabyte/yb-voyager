@@ -29,11 +29,16 @@ type ImportDataStatusRecord struct {
 	*/
 	TableToCDCPartitioningStrategyMap map[string]string `json:"tableToCDCPartitioningStrategyMap"`
 	/*
-		cdc partitioning strategy config for the import data auto, pk or table
+		global cdc-partition-key for the import data: auto, pk or table
+		(JSON tag kept for backward compatibility with older voyager versions)
 	*/
 	CdcPartitioningStrategyConfig string `json:"cdcPartitioningStrategyConfig"`
+	/*
+		raw cdc-partition-key-overrides string; empty means no per-table overrides
+	*/
+	CdcPartitionKeyOverridesConfig string `json:"cdcPartitionKeyOverridesConfig"`
 
-	TargetUsePartitionRoot        bool `json:"TargetUsePartitionRoot"`        // false - use leaf table for partitions, true - use root table for partitions; default is true
+	TargetUsePartitionRoot bool `json:"TargetUsePartitionRoot"` // false - use leaf table for partitions, true - use root table for partitions; default is true
 }
 
 const IMPORT_DATA_STATUS_KEY = "import_data_status"

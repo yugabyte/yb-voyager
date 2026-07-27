@@ -189,139 +189,6 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error
 	return nil
 }
 
-/*
-This function is used to fetch the CDC partitioning strategy for each table
-if the import data is the first run, it will be set to the default strategy.
-The default strategy is auto which will set the strategy (PK / table) per table based on some criteria.
-PK for normal tables and table for tables having expression based unique indexes
-
-If its not the first run, it will fetch the strategy from the metadb key IMPORT_DATA_STATUS_KEY
-
-the CDC Partitioning strategy can be overriden by flag --cdc-partitioning-strategy with values auto, pk or table
-
-TODO: handle upgrade scenario for PG/Oracle pk->table change
-*/
-func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, string], error) {
-	tableToPartitioningStrategyMap := utils.NewStructMap[sqlname.NameTuple, string]()
-
-	if importerRole != TARGET_DB_IMPORTER_ROLE {
-		//For PG/ORacle source/source-replica, using partitioning by table since there won't be any huge difference in
-		// performance between the two strategies for single node databases like PG/Oracle
-		//and Parititon by table is better from data correctness perspective
-		for _, t := range tableNames {
-			tableToPartitioningStrategyMap.Put(t, PARTITION_BY_TABLE)
-		}
-		return tableToPartitioningStrategyMap, nil
-	}
-
-	if sourceDBType == ORACLE {
-		//Oracle sources do not support unique-key conflict detection during live migration
-		//(we do not fetch unique indexes for Oracle). Force PARTITION_BY_TABLE so that all
-		//events of a table run sequentially on a single channel, which makes unique-key
-		//conflicts impossible and hence conflict detection unnecessary.
-		for _, t := range tableNames {
-			tableToPartitioningStrategyMap.Put(t, PARTITION_BY_TABLE)
-		}
-		return tableToPartitioningStrategyMap, nil
-	}
-
-	// target db importer
-	//fetch and check if metadb key IMPORT_DATA_STATUS_KEY is present and has TableToPartitioningStrategyMap
-	importDataStatus, err := metaDB.GetImportDataStatusRecord()
-	if err != nil {
-		return nil, fmt.Errorf("error getting cdc partitioning strategy: %w", err)
-	}
-	if importDataStatus == nil {
-		return nil, goerrors.Errorf("import data status record not found")
-	}
-	if importDataStatus.TableToCDCPartitioningStrategyMap != nil {
-		log.Infof("cdc partitioning strategy found in metadb: %v, strategy: %v", metadb.IMPORT_DATA_STATUS_KEY, importDataStatus.TableToCDCPartitioningStrategyMap)
-		//if found already in metadb key, use it to update tableToPartitioningStrategyMap
-		for tableName, strategy := range importDataStatus.TableToCDCPartitioningStrategyMap {
-			tuple, err := namereg.NameReg.LookupTableName(tableName)
-			if err != nil {
-				return nil, fmt.Errorf("error looking up table name: %w", err)
-			}
-			tableToPartitioningStrategyMap.Put(tuple, strategy)
-		}
-		//if strategy is not present for any table in the stored map, error out
-		for _, t := range tableNames {
-			if _, ok := tableToPartitioningStrategyMap.Get(t); !ok {
-				return nil, goerrors.Errorf("cdc partitioning strategy not found for table: %s", t.ForKey())
-			}
-		}
-		return tableToPartitioningStrategyMap, nil
-	}
-
-	switch cdcPartitioningStrategy {
-	case "auto":
-		if tconf.TargetDBType == YUGABYTEDB_AMP {
-			// yb-amp is a single-node PostgreSQL-compatible compute (no YB
-			// tablets / colocation), so — exactly like the PG/Oracle
-			// source/source-replica case above — PARTITION_BY_TABLE has no real
-			// throughput downside and is safer for correctness. It also sidesteps
-			// getExpressionUniqueIndexTables(), which is implemented only on the
-			// TargetYugabyteDB driver. (Explicit --cdc-partitioning-strategy
-			// pk/table still flows through the default branch below.)
-			for _, t := range tableNames {
-				tableToPartitioningStrategyMap.Put(t, PARTITION_BY_TABLE)
-			}
-			break
-		}
-		//if not found in metadb key, use the auto strategy
-		//find the tables having expression or normal unique indexes since the conflicts on these expression based unique indexes can't be detected easily as it require
-		//evaluating the expression for each event to detect the conflicts so we are running all the events of those tables sequentially by marking these table as partition by table
-		expressionUniqueIndexTables, err := getExpressionUniqueIndexTables(tableNames)
-		if err != nil {
-			return nil, fmt.Errorf("error getting expression unique index tables: %w", err)
-		}
-
-		for _, t := range tableNames {
-			if lo.Contains(expressionUniqueIndexTables, t) {
-				tableToPartitioningStrategyMap.Put(t, PARTITION_BY_TABLE)
-			} else {
-				tableToPartitioningStrategyMap.Put(t, PARTITION_BY_PK)
-			}
-		}
-	default:
-		//If the cdc partitioning strategy is not auto, use the strategy specified in the flag
-		for _, t := range tableNames {
-			tableToPartitioningStrategyMap.Put(t, cdcPartitioningStrategy)
-		}
-
-	}
-
-	//save the tableToPartitioningStrategyMap to metadb key
-	metadbMap := make(map[string]string)
-	tableToPartitioningStrategyMap.IterKV(func(key sqlname.NameTuple, value string) (bool, error) {
-		metadbMap[key.ForKey()] = value
-		return true, nil
-	})
-	err = metaDB.UpdateImportDataStatusRecord(func(obj *metadb.ImportDataStatusRecord) {
-		obj.TableToCDCPartitioningStrategyMap = metadbMap
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error updating cdc partitioning strategy in metadb: %w", err)
-	}
-	log.Infof("updated cdc partitioning strategy in metadb: %v", metadb.IMPORT_DATA_STATUS_KEY)
-	return tableToPartitioningStrategyMap, nil
-}
-
-func getExpressionUniqueIndexTables(tableNames []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
-	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
-	if !ok {
-		return nil, goerrors.Errorf("target db is not a YugabyteDB")
-	}
-
-	//returns a list of catalog table names, in case partitions it return catalog leaf partitions names and root table names
-	expressionUniqueIndexTables, err := yb.GetTablesHavingExpressionUniqueIndexes(tableNames, true)
-	if err != nil {
-		return nil, fmt.Errorf("error getting tables having expression or normal unique indexes: %w", err)
-	}
-
-	return expressionUniqueIndexTables, nil
-}
-
 // used to determine if cache reinitialization is needed
 var prevExporterRole = ""
 
@@ -666,8 +533,8 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 // target DB (the DB that actually enforces unique constraints). Oracle import targets
 // always use PARTITION_BY_TABLE (see getCdcPartitioningStrategyPerTable), so conflict
 // detection never runs for them and their target driver returns an empty map.
-//Attribute name registry is not required here as for the PG->YB migrations the attribute name is same in both the places - event's fields coming from source and unique-index-column mapping coming from target and 
-//And this path is only for PG->YB migrations as of now.
+// Attribute name registry is not required here as for the PG->YB migrations the attribute name is same in both the places - event's fields coming from source and unique-index-column mapping coming from target and
+// And this path is only for PG->YB migrations as of now.
 // This path assumes that the column name remains same in PG->YB migrations.
 func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, sourceDBTypeForConflictCache string, importTableList []sqlname.NameTuple) error {
 	log.Infof("fetching table to unique indexes map from import target (%s)", tconf.TargetDBType)
