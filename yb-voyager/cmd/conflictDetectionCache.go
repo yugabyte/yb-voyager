@@ -300,10 +300,10 @@ func (c *ConflictDetectionCache) findValueConflictLocked(incomingEvent *tgtdb.Ev
 		if key, ok := computeConflictBucketKey(table, i, incomingEvent.Fields, index); ok {
 			cachedEvents := c.getNonSamePKEventsWithSameBucketKey(key, incomingEvent)
 			for _, cachedEvent := range cachedEvents {
-				log.Infof("conflict detected for table %s, index columns %v, between before value of cached-event1(vsn=%d, colVal=%s) and before value of incoming-event2(vsn=%d, colVal=%s)",
+				log.Infof("conflict detected for table %s, index columns %v, between before value of cached-event1(vsn=%d, colVal=%s) and after value of incoming-event2(vsn=%d, colVal=%s)",
 					table, index.Columns,
 					cachedEvent.Vsn, formatUniqueIndexColumnValuesForLog(cachedEvent.BeforeFields, index.Columns),
-					incomingEvent.Vsn, formatUniqueIndexColumnValuesForLog(incomingEvent.BeforeFields, index.Columns))
+					incomingEvent.Vsn, formatUniqueIndexColumnValuesForLog(incomingEvent.Fields, index.Columns))
 			}
 			if len(cachedEvents) > 0 {
 				//If before-after conflict is detected, then return the cached events
