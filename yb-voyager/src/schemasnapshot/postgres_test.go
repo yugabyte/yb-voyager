@@ -97,17 +97,21 @@ func TestTakeSnapshotLoadsTablesAndColumns(t *testing.T) {
 	assert.Equal(t, "foreign_t", snap.Tables[2].Name)
 	assert.Equal(t, TableKindForeign, snap.Tables[2].Kind)
 
-	require.Len(t, snap.Columns, 2)
-	assert.Equal(t, "id", snap.Columns[0].Name)
-	assert.Equal(t, "bigint", snap.Columns[0].DataType)
-	assert.True(t, snap.Columns[0].NotNull)
-	assert.Equal(t, "16420:1", snap.Columns[0].ID)
+	// Both columns belong to "orders" (oid 16420) and are nested under it, in
+	// attnum order; "shipments" and "foreign_t" have no columns in this test.
+	require.Len(t, snap.Tables[0].Columns, 2)
+	assert.Equal(t, "id", snap.Tables[0].Columns[0].Name)
+	assert.Equal(t, "bigint", snap.Tables[0].Columns[0].DataType)
+	assert.True(t, snap.Tables[0].Columns[0].NotNull)
+	assert.Equal(t, "16420:1", snap.Tables[0].Columns[0].ID)
 
-	assert.Equal(t, "amount", snap.Columns[1].Name)
-	assert.Equal(t, "numeric", snap.Columns[1].DataType)
-	assert.False(t, snap.Columns[1].NotNull)
-	assert.Equal(t, "0", snap.Columns[1].Default)
-	assert.Equal(t, "16420:2", snap.Columns[1].ID)
+	assert.Equal(t, "amount", snap.Tables[0].Columns[1].Name)
+	assert.Equal(t, "numeric", snap.Tables[0].Columns[1].DataType)
+	assert.False(t, snap.Tables[0].Columns[1].NotNull)
+	assert.Equal(t, "0", snap.Tables[0].Columns[1].Default)
+	assert.Equal(t, "16420:2", snap.Tables[0].Columns[1].ID)
+	assert.Empty(t, snap.Tables[1].Columns)
+	assert.Empty(t, snap.Tables[2].Columns)
 
 	require.NoError(t, mock.ExpectationsWereMet())
 }

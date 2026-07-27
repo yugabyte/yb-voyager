@@ -68,7 +68,7 @@ func BenchmarkCDCIngest(b *testing.B) {
 			disablePb = true
 			// production default resolution for tables without expression-based
 			// unique indexes; avoids the target-DB query of the "auto" path
-			cdcPartitioningStrategy = "pk"
+			cdcPartitionKey = "pk"
 			tconf = tgtdb.TargetConf{TargetDBType: YUGABYTEDB, SchemaConfig: "public"}
 			tconf.Schemas = sqlname.ParseIdentifiersFromString(tconf.TargetDBType, tconf.SchemaConfig, ",")
 

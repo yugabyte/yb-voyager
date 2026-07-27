@@ -35,6 +35,12 @@ def has_pg15_merge(version_string):
 	return (major == 2 and minor >= 25) or (major >= 2025 and minor >= 1)
 
 
+def get_three_dot_version(version_string):
+	# Extract the YB three-dot version (e.g. "2025.2.4") from a version() string.
+	match = re.search(r'YB-([0-9]+\.[0-9]+\.[0-9])', version_string or "")
+	return match.group(1) if match else ""
+
+
 def run_checks(checkFn, db_type="yb"):
 	if db_type == "source_replica":
 		tgt = new_source_replica_db()

@@ -2262,22 +2262,27 @@ func TestFindImportTimeFromExpDataLoadTime_SizePreferredIfRowsAreSame(t *testing
 */
 // closest version to respective targetYbVersion should be actual closest or default
 func TestFindClosestVersion(t *testing.T) {
-	defaultYbVersionId := 2
+	defaultYbVersionId := 3
 	targetVersionAndClosest := map[string]int64{
 		"2024.1.0.0": 1,
 		"2024.1.2.0": 1,
 		"2024.2.0.0": 2,
 		"2024.2.3.0": 2,
+		"2025.2.0.0": 3,
+		"2025.2.3.0": 3,
+		// target between two datasets falls back to the closest at-or-below it
+		"2025.1.0.0": 2,
 		// in case of no closest found, default should be used
-		"2.21.0.0": 2,
-		"2.23.0.0": 2,
-		"2.25.0.0": 2,
-		"2.14.1.0": 2,
-		"2.18.2.0": 2,
-		"2.20.1.2": 2,
+		"2.21.0.0": 3,
+		"2.23.0.0": 3,
+		"2.25.0.0": 3,
+		"2.14.1.0": 3,
+		"2.18.2.0": 3,
+		"2.20.1.2": 3,
 	}
 	version20241, _ := ybversion.NewYBVersion("2024.1.0.0")
 	version20242, _ := ybversion.NewYBVersion("2024.2.0.0")
+	version20252, _ := ybversion.NewYBVersion("2025.2.0.0")
 
 	experimentDataAvailableVersions := []ExperimentDataAvailableYbVersion{
 		{
@@ -2288,6 +2293,11 @@ func TestFindClosestVersion(t *testing.T) {
 		{
 			versionId:        2,
 			expDataYbVersion: version20242,
+			expDataIsDefault: false,
+		},
+		{
+			versionId:        3,
+			expDataYbVersion: version20252,
 			expDataIsDefault: true,
 		},
 	}

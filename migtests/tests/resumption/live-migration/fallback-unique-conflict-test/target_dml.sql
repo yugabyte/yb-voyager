@@ -1,46 +1,56 @@
 -- Deterministic unique-conflict DML for the FALLBACK (target -> source) leg.
--- Runs ONCE at the start of the fallback streaming phase on the YugabyteDB
--- target, while the target-side random generator also produces traffic.
+-- Re-applied on a loop throughout fallback streaming by the orchestrator's
+-- conflict generator (conflict_generator_target), in parallel with the
+-- target-side random generator, so conflicts are produced continuously.
+--
+-- DYNAMIC per cycle: the generator passes `-v cycle=N`; ids = :base + offset
+-- (:base = 950000000 + cycle*100000) and unique-key values are suffixed with
+-- :cycle, so each cycle hits a FRESH set of rows (the freeing + reusing events
+-- within a cycle still share that cycle's value, so the conflict is preserved).
+-- The 950,000,000 base keeps these rows clear of the forward-migrated rows
+-- (900,000,000 base) and the random generator (integers in -2e8 .. 2e8).
+-- Run standalone (no -v cycle) it defaults to cycle 0.
 --
 -- Same four conflict types as the forward leg (DELETE-INSERT, DELETE-UPDATE,
 -- UPDATE-INSERT, UPDATE-UPDATE). For an export-from-target source the
 -- conflict-detection cache cannot rely on YB-CDC before-images, so it falls
 -- back to a coarser rule (cached DELETE => conflict; cached UPDATE touching the
 -- same unique-key columns => conflict). These scenarios exercise that path.
---
--- Id / numeric-unique-key base is 950,000,000 so the rows never collide with:
---   * source-origin rows replicated forward (900,000,000 base),
---   * target-side generator rows (random integers in -2e8 .. 2e8).
--- Each table's seed + conflicts run in one transaction to stay isolated from
--- the concurrent generator.
+-- Each table's seed + conflicts run in one transaction.
 
 -- ============================================================
 -- 1. single_unique_constraint (id PK, email UNIQUE)
 -- ============================================================
+\if :{?cycle}
+\else
+  \set cycle 0
+\endif
+\set base (950000000 + :cycle * 100000)
+
 BEGIN;
 INSERT INTO single_unique_constraint (id, email) VALUES
-    (950000001, 'tgt_suc_user1@conflict.test'),
-    (950000002, 'tgt_suc_user2@conflict.test'),
-    (950000003, 'tgt_suc_user3@conflict.test'),
-    (950000004, 'tgt_suc_user4@conflict.test'),
-    (950000005, 'tgt_suc_user5@conflict.test'),
-    (950000006, 'tgt_suc_user6@conflict.test');
+    (:base + 1, ('tgt_suc_user1@conflict.test' || :cycle)),
+    (:base + 2, ('tgt_suc_user2@conflict.test' || :cycle)),
+    (:base + 3, ('tgt_suc_user3@conflict.test' || :cycle)),
+    (:base + 4, ('tgt_suc_user4@conflict.test' || :cycle)),
+    (:base + 5, ('tgt_suc_user5@conflict.test' || :cycle)),
+    (:base + 6, ('tgt_suc_user6@conflict.test' || :cycle));
 
 -- DELETE-INSERT
-DELETE FROM single_unique_constraint WHERE id = 950000001;
-INSERT INTO single_unique_constraint (id, email) VALUES (950000101, 'tgt_suc_user1@conflict.test');
+DELETE FROM single_unique_constraint WHERE id = :base + 1;
+INSERT INTO single_unique_constraint (id, email) VALUES (:base + 101, ('tgt_suc_user1@conflict.test' || :cycle));
 
 -- DELETE-UPDATE
-DELETE FROM single_unique_constraint WHERE id = 950000002;
-UPDATE single_unique_constraint SET email = 'tgt_suc_user2@conflict.test' WHERE id = 950000003;
+DELETE FROM single_unique_constraint WHERE id = :base + 2;
+UPDATE single_unique_constraint SET email = ('tgt_suc_user2@conflict.test' || :cycle) WHERE id = :base + 3;
 
 -- UPDATE-INSERT
-UPDATE single_unique_constraint SET email = 'tgt_suc_user4_moved@conflict.test' WHERE id = 950000004;
-INSERT INTO single_unique_constraint (id, email) VALUES (950000102, 'tgt_suc_user4@conflict.test');
+UPDATE single_unique_constraint SET email = ('tgt_suc_user4_moved@conflict.test' || :cycle) WHERE id = :base + 4;
+INSERT INTO single_unique_constraint (id, email) VALUES (:base + 102, ('tgt_suc_user4@conflict.test' || :cycle));
 
 -- UPDATE-UPDATE
-UPDATE single_unique_constraint SET email = 'tgt_suc_user5_moved@conflict.test' WHERE id = 950000005;
-UPDATE single_unique_constraint SET email = 'tgt_suc_user5@conflict.test' WHERE id = 950000006;
+UPDATE single_unique_constraint SET email = ('tgt_suc_user5_moved@conflict.test' || :cycle) WHERE id = :base + 5;
+UPDATE single_unique_constraint SET email = ('tgt_suc_user5@conflict.test' || :cycle) WHERE id = :base + 6;
 COMMIT;
 
 -- ============================================================
@@ -48,28 +58,28 @@ COMMIT;
 -- ============================================================
 BEGIN;
 INSERT INTO multi_unique_constraint (id, first_name, last_name) VALUES
-    (950010001, 'TgtJohn',  'Doe'),
-    (950010002, 'TgtJane',  'Smith'),
-    (950010003, 'TgtBob',   'Jones'),
-    (950010004, 'TgtAlice', 'Williams'),
-    (950010005, 'TgtTom',   'Clark'),
-    (950010006, 'TgtEve',   'Davis');
+    (:base + 10001, ('TgtJohn' || :cycle),  ('Doe' || :cycle)),
+    (:base + 10002, ('TgtJane' || :cycle),  ('Smith' || :cycle)),
+    (:base + 10003, ('TgtBob' || :cycle),   ('Jones' || :cycle)),
+    (:base + 10004, ('TgtAlice' || :cycle), ('Williams' || :cycle)),
+    (:base + 10005, ('TgtTom' || :cycle),   ('Clark' || :cycle)),
+    (:base + 10006, ('TgtEve' || :cycle),   ('Davis' || :cycle));
 
 -- DELETE-INSERT
-DELETE FROM multi_unique_constraint WHERE id = 950010001;
-INSERT INTO multi_unique_constraint (id, first_name, last_name) VALUES (950010101, 'TgtJohn', 'Doe');
+DELETE FROM multi_unique_constraint WHERE id = :base + 10001;
+INSERT INTO multi_unique_constraint (id, first_name, last_name) VALUES (:base + 10101, ('TgtJohn' || :cycle), ('Doe' || :cycle));
 
 -- DELETE-UPDATE
-DELETE FROM multi_unique_constraint WHERE id = 950010002;
-UPDATE multi_unique_constraint SET first_name = 'TgtJane', last_name = 'Smith' WHERE id = 950010003;
+DELETE FROM multi_unique_constraint WHERE id = :base + 10002;
+UPDATE multi_unique_constraint SET first_name = ('TgtJane' || :cycle), last_name = ('Smith' || :cycle) WHERE id = :base + 10003;
 
 -- UPDATE-INSERT
-UPDATE multi_unique_constraint SET first_name = 'TgtAlice_moved' WHERE id = 950010004;
-INSERT INTO multi_unique_constraint (id, first_name, last_name) VALUES (950010102, 'TgtAlice', 'Williams');
+UPDATE multi_unique_constraint SET first_name = ('TgtAlice_moved' || :cycle) WHERE id = :base + 10004;
+INSERT INTO multi_unique_constraint (id, first_name, last_name) VALUES (:base + 10102, ('TgtAlice' || :cycle), ('Williams' || :cycle));
 
 -- UPDATE-UPDATE
-UPDATE multi_unique_constraint SET first_name = 'TgtTom_moved' WHERE id = 950010005;
-UPDATE multi_unique_constraint SET first_name = 'TgtTom', last_name = 'Clark' WHERE id = 950010006;
+UPDATE multi_unique_constraint SET first_name = ('TgtTom_moved' || :cycle) WHERE id = :base + 10005;
+UPDATE multi_unique_constraint SET first_name = ('TgtTom' || :cycle), last_name = ('Clark' || :cycle) WHERE id = :base + 10006;
 COMMIT;
 
 -- ============================================================
@@ -77,28 +87,28 @@ COMMIT;
 -- ============================================================
 BEGIN;
 INSERT INTO same_column_unique_constraint_and_index (id, email) VALUES
-    (950020001, 'tgt_scuci_user1@conflict.test'),
-    (950020002, 'tgt_scuci_user2@conflict.test'),
-    (950020003, 'tgt_scuci_user3@conflict.test'),
-    (950020004, 'tgt_scuci_user4@conflict.test'),
-    (950020005, 'tgt_scuci_user5@conflict.test'),
-    (950020006, 'tgt_scuci_user6@conflict.test');
+    (:base + 20001, ('tgt_scuci_user1@conflict.test' || :cycle)),
+    (:base + 20002, ('tgt_scuci_user2@conflict.test' || :cycle)),
+    (:base + 20003, ('tgt_scuci_user3@conflict.test' || :cycle)),
+    (:base + 20004, ('tgt_scuci_user4@conflict.test' || :cycle)),
+    (:base + 20005, ('tgt_scuci_user5@conflict.test' || :cycle)),
+    (:base + 20006, ('tgt_scuci_user6@conflict.test' || :cycle));
 
 -- DELETE-INSERT
-DELETE FROM same_column_unique_constraint_and_index WHERE id = 950020001;
-INSERT INTO same_column_unique_constraint_and_index (id, email) VALUES (950020101, 'tgt_scuci_user1@conflict.test');
+DELETE FROM same_column_unique_constraint_and_index WHERE id = :base + 20001;
+INSERT INTO same_column_unique_constraint_and_index (id, email) VALUES (:base + 20101, ('tgt_scuci_user1@conflict.test' || :cycle));
 
 -- DELETE-UPDATE
-DELETE FROM same_column_unique_constraint_and_index WHERE id = 950020002;
-UPDATE same_column_unique_constraint_and_index SET email = 'tgt_scuci_user2@conflict.test' WHERE id = 950020003;
+DELETE FROM same_column_unique_constraint_and_index WHERE id = :base + 20002;
+UPDATE same_column_unique_constraint_and_index SET email = ('tgt_scuci_user2@conflict.test' || :cycle) WHERE id = :base + 20003;
 
 -- UPDATE-INSERT
-UPDATE same_column_unique_constraint_and_index SET email = 'tgt_scuci_user4_moved@conflict.test' WHERE id = 950020004;
-INSERT INTO same_column_unique_constraint_and_index (id, email) VALUES (950020102, 'tgt_scuci_user4@conflict.test');
+UPDATE same_column_unique_constraint_and_index SET email = ('tgt_scuci_user4_moved@conflict.test' || :cycle) WHERE id = :base + 20004;
+INSERT INTO same_column_unique_constraint_and_index (id, email) VALUES (:base + 20102, ('tgt_scuci_user4@conflict.test' || :cycle));
 
 -- UPDATE-UPDATE
-UPDATE same_column_unique_constraint_and_index SET email = 'tgt_scuci_user5_moved@conflict.test' WHERE id = 950020005;
-UPDATE same_column_unique_constraint_and_index SET email = 'tgt_scuci_user5@conflict.test' WHERE id = 950020006;
+UPDATE same_column_unique_constraint_and_index SET email = ('tgt_scuci_user5_moved@conflict.test' || :cycle) WHERE id = :base + 20005;
+UPDATE same_column_unique_constraint_and_index SET email = ('tgt_scuci_user5@conflict.test' || :cycle) WHERE id = :base + 20006;
 COMMIT;
 
 -- ============================================================
@@ -106,28 +116,28 @@ COMMIT;
 -- ============================================================
 BEGIN;
 INSERT INTO single_unique_index (id, "Ssn") VALUES
-    (950030001, 'TGT-SSN-1'),
-    (950030002, 'TGT-SSN-2'),
-    (950030003, 'TGT-SSN-3'),
-    (950030004, 'TGT-SSN-4'),
-    (950030005, 'TGT-SSN-5'),
-    (950030006, 'TGT-SSN-6');
+    (:base + 30001, ('TGT-SSN-1' || :cycle)),
+    (:base + 30002, ('TGT-SSN-2' || :cycle)),
+    (:base + 30003, ('TGT-SSN-3' || :cycle)),
+    (:base + 30004, ('TGT-SSN-4' || :cycle)),
+    (:base + 30005, ('TGT-SSN-5' || :cycle)),
+    (:base + 30006, ('TGT-SSN-6' || :cycle));
 
 -- DELETE-INSERT
-DELETE FROM single_unique_index WHERE id = 950030001;
-INSERT INTO single_unique_index (id, "Ssn") VALUES (950030101, 'TGT-SSN-1');
+DELETE FROM single_unique_index WHERE id = :base + 30001;
+INSERT INTO single_unique_index (id, "Ssn") VALUES (:base + 30101, ('TGT-SSN-1' || :cycle));
 
 -- DELETE-UPDATE
-DELETE FROM single_unique_index WHERE id = 950030002;
-UPDATE single_unique_index SET "Ssn" = 'TGT-SSN-2' WHERE id = 950030003;
+DELETE FROM single_unique_index WHERE id = :base + 30002;
+UPDATE single_unique_index SET "Ssn" = ('TGT-SSN-2' || :cycle) WHERE id = :base + 30003;
 
 -- UPDATE-INSERT
-UPDATE single_unique_index SET "Ssn" = 'TGT-SSN-4-moved' WHERE id = 950030004;
-INSERT INTO single_unique_index (id, "Ssn") VALUES (950030102, 'TGT-SSN-4');
+UPDATE single_unique_index SET "Ssn" = ('TGT-SSN-4-moved' || :cycle) WHERE id = :base + 30004;
+INSERT INTO single_unique_index (id, "Ssn") VALUES (:base + 30102, ('TGT-SSN-4' || :cycle));
 
 -- UPDATE-UPDATE
-UPDATE single_unique_index SET "Ssn" = 'TGT-SSN-5-moved' WHERE id = 950030005;
-UPDATE single_unique_index SET "Ssn" = 'TGT-SSN-5' WHERE id = 950030006;
+UPDATE single_unique_index SET "Ssn" = ('TGT-SSN-5-moved' || :cycle) WHERE id = :base + 30005;
+UPDATE single_unique_index SET "Ssn" = ('TGT-SSN-5' || :cycle) WHERE id = :base + 30006;
 COMMIT;
 
 -- ============================================================
@@ -135,28 +145,28 @@ COMMIT;
 -- ============================================================
 BEGIN;
 INSERT INTO multi_unique_index (id, first_name, last_name) VALUES
-    (950040001, 'TgtIdxJohn',  'Doe'),
-    (950040002, 'TgtIdxJane',  'Smith'),
-    (950040003, 'TgtIdxBob',   'Jones'),
-    (950040004, 'TgtIdxAlice', 'Williams'),
-    (950040005, 'TgtIdxTom',   'Clark'),
-    (950040006, 'TgtIdxEve',   'Davis');
+    (:base + 40001, ('TgtIdxJohn' || :cycle),  ('Doe' || :cycle)),
+    (:base + 40002, ('TgtIdxJane' || :cycle),  ('Smith' || :cycle)),
+    (:base + 40003, ('TgtIdxBob' || :cycle),   ('Jones' || :cycle)),
+    (:base + 40004, ('TgtIdxAlice' || :cycle), ('Williams' || :cycle)),
+    (:base + 40005, ('TgtIdxTom' || :cycle),   ('Clark' || :cycle)),
+    (:base + 40006, ('TgtIdxEve' || :cycle),   ('Davis' || :cycle));
 
 -- DELETE-INSERT
-DELETE FROM multi_unique_index WHERE id = 950040001;
-INSERT INTO multi_unique_index (id, first_name, last_name) VALUES (950040101, 'TgtIdxJohn', 'Doe');
+DELETE FROM multi_unique_index WHERE id = :base + 40001;
+INSERT INTO multi_unique_index (id, first_name, last_name) VALUES (:base + 40101, ('TgtIdxJohn' || :cycle), ('Doe' || :cycle));
 
 -- DELETE-UPDATE
-DELETE FROM multi_unique_index WHERE id = 950040002;
-UPDATE multi_unique_index SET first_name = 'TgtIdxJane', last_name = 'Smith' WHERE id = 950040003;
+DELETE FROM multi_unique_index WHERE id = :base + 40002;
+UPDATE multi_unique_index SET first_name = ('TgtIdxJane' || :cycle), last_name = ('Smith' || :cycle) WHERE id = :base + 40003;
 
 -- UPDATE-INSERT
-UPDATE multi_unique_index SET first_name = 'TgtIdxAlice_moved' WHERE id = 950040004;
-INSERT INTO multi_unique_index (id, first_name, last_name) VALUES (950040102, 'TgtIdxAlice', 'Williams');
+UPDATE multi_unique_index SET first_name = ('TgtIdxAlice_moved' || :cycle) WHERE id = :base + 40004;
+INSERT INTO multi_unique_index (id, first_name, last_name) VALUES (:base + 40102, ('TgtIdxAlice' || :cycle), ('Williams' || :cycle));
 
 -- UPDATE-UPDATE
-UPDATE multi_unique_index SET first_name = 'TgtIdxTom_moved' WHERE id = 950040005;
-UPDATE multi_unique_index SET first_name = 'TgtIdxTom', last_name = 'Clark' WHERE id = 950040006;
+UPDATE multi_unique_index SET first_name = ('TgtIdxTom_moved' || :cycle) WHERE id = :base + 40005;
+UPDATE multi_unique_index SET first_name = ('TgtIdxTom' || :cycle), last_name = ('Clark' || :cycle) WHERE id = :base + 40006;
 COMMIT;
 
 -- ============================================================
@@ -165,28 +175,28 @@ COMMIT;
 -- ============================================================
 BEGIN;
 INSERT INTO different_columns_unique_constraint_and_index (id, email, phone_number) VALUES
-    (950050001, 'tgt_dcuci_user1@conflict.test', 'tgtdcph-1'),
-    (950050002, 'tgt_dcuci_user2@conflict.test', 'tgtdcph-2'),
-    (950050003, 'tgt_dcuci_user3@conflict.test', 'tgtdcph-3'),
-    (950050004, 'tgt_dcuci_user4@conflict.test', 'tgtdcph-4'),
-    (950050005, 'tgt_dcuci_user5@conflict.test', 'tgtdcph-5'),
-    (950050006, 'tgt_dcuci_user6@conflict.test', 'tgtdcph-6');
+    (:base + 50001, ('tgt_dcuci_user1@conflict.test' || :cycle), ('tgtdcph-1' || :cycle)),
+    (:base + 50002, ('tgt_dcuci_user2@conflict.test' || :cycle), ('tgtdcph-2' || :cycle)),
+    (:base + 50003, ('tgt_dcuci_user3@conflict.test' || :cycle), ('tgtdcph-3' || :cycle)),
+    (:base + 50004, ('tgt_dcuci_user4@conflict.test' || :cycle), ('tgtdcph-4' || :cycle)),
+    (:base + 50005, ('tgt_dcuci_user5@conflict.test' || :cycle), ('tgtdcph-5' || :cycle)),
+    (:base + 50006, ('tgt_dcuci_user6@conflict.test' || :cycle), ('tgtdcph-6' || :cycle));
 
 -- DELETE-INSERT (conflict on both email and phone_number)
-DELETE FROM different_columns_unique_constraint_and_index WHERE id = 950050001;
-INSERT INTO different_columns_unique_constraint_and_index (id, email, phone_number) VALUES (950050101, 'tgt_dcuci_user1@conflict.test', 'tgtdcph-1');
+DELETE FROM different_columns_unique_constraint_and_index WHERE id = :base + 50001;
+INSERT INTO different_columns_unique_constraint_and_index (id, email, phone_number) VALUES (:base + 50101, ('tgt_dcuci_user1@conflict.test' || :cycle), ('tgtdcph-1' || :cycle));
 
 -- DELETE-UPDATE (conflict on phone_number unique index)
-DELETE FROM different_columns_unique_constraint_and_index WHERE id = 950050002;
-UPDATE different_columns_unique_constraint_and_index SET phone_number = 'tgtdcph-2' WHERE id = 950050003;
+DELETE FROM different_columns_unique_constraint_and_index WHERE id = :base + 50002;
+UPDATE different_columns_unique_constraint_and_index SET phone_number = ('tgtdcph-2' || :cycle) WHERE id = :base + 50003;
 
 -- UPDATE-INSERT (conflict on email unique constraint)
-UPDATE different_columns_unique_constraint_and_index SET email = 'tgt_dcuci_user4_moved@conflict.test' WHERE id = 950050004;
-INSERT INTO different_columns_unique_constraint_and_index (id, email, phone_number) VALUES (950050102, 'tgt_dcuci_user4@conflict.test', 'tgtdcph-104');
+UPDATE different_columns_unique_constraint_and_index SET email = ('tgt_dcuci_user4_moved@conflict.test' || :cycle) WHERE id = :base + 50004;
+INSERT INTO different_columns_unique_constraint_and_index (id, email, phone_number) VALUES (:base + 50102, ('tgt_dcuci_user4@conflict.test' || :cycle), ('tgtdcph-104' || :cycle));
 
 -- UPDATE-UPDATE (conflict on phone_number unique index)
-UPDATE different_columns_unique_constraint_and_index SET phone_number = 'tgtdcph-5-moved' WHERE id = 950050005;
-UPDATE different_columns_unique_constraint_and_index SET phone_number = 'tgtdcph-5' WHERE id = 950050006;
+UPDATE different_columns_unique_constraint_and_index SET phone_number = ('tgtdcph-5-moved' || :cycle) WHERE id = :base + 50005;
+UPDATE different_columns_unique_constraint_and_index SET phone_number = ('tgtdcph-5' || :cycle) WHERE id = :base + 50006;
 COMMIT;
 
 -- ============================================================
@@ -195,28 +205,28 @@ COMMIT;
 -- ============================================================
 BEGIN;
 INSERT INTO subset_columns_unique_constraint_and_index (id, first_name, last_name, phone_number) VALUES
-    (950060001, 'TgtSubJohn',  'Doe',      'tgtsubph-1'),
-    (950060002, 'TgtSubJane',  'Smith',    'tgtsubph-2'),
-    (950060003, 'TgtSubBob',   'Jones',    'tgtsubph-3'),
-    (950060004, 'TgtSubAlice', 'Williams', 'tgtsubph-4'),
-    (950060005, 'TgtSubTom',   'Clark',    'tgtsubph-5'),
-    (950060006, 'TgtSubEve',   'Davis',    'tgtsubph-6');
+    (:base + 60001, ('TgtSubJohn' || :cycle),  ('Doe' || :cycle),      ('tgtsubph-1' || :cycle)),
+    (:base + 60002, ('TgtSubJane' || :cycle),  ('Smith' || :cycle),    ('tgtsubph-2' || :cycle)),
+    (:base + 60003, ('TgtSubBob' || :cycle),   ('Jones' || :cycle),    ('tgtsubph-3' || :cycle)),
+    (:base + 60004, ('TgtSubAlice' || :cycle), ('Williams' || :cycle), ('tgtsubph-4' || :cycle)),
+    (:base + 60005, ('TgtSubTom' || :cycle),   ('Clark' || :cycle),    ('tgtsubph-5' || :cycle)),
+    (:base + 60006, ('TgtSubEve' || :cycle),   ('Davis' || :cycle),    ('tgtsubph-6' || :cycle));
 
 -- DELETE-INSERT
-DELETE FROM subset_columns_unique_constraint_and_index WHERE id = 950060001;
-INSERT INTO subset_columns_unique_constraint_and_index (id, first_name, last_name, phone_number) VALUES (950060101, 'TgtSubJohn', 'Doe', 'tgtsubph-101');
+DELETE FROM subset_columns_unique_constraint_and_index WHERE id = :base + 60001;
+INSERT INTO subset_columns_unique_constraint_and_index (id, first_name, last_name, phone_number) VALUES (:base + 60101, ('TgtSubJohn' || :cycle), ('Doe' || :cycle), ('tgtsubph-101' || :cycle));
 
 -- DELETE-UPDATE
-DELETE FROM subset_columns_unique_constraint_and_index WHERE id = 950060002;
-UPDATE subset_columns_unique_constraint_and_index SET first_name = 'TgtSubJane', last_name = 'Smith' WHERE id = 950060003;
+DELETE FROM subset_columns_unique_constraint_and_index WHERE id = :base + 60002;
+UPDATE subset_columns_unique_constraint_and_index SET first_name = ('TgtSubJane' || :cycle), last_name = ('Smith' || :cycle) WHERE id = :base + 60003;
 
 -- UPDATE-INSERT
-UPDATE subset_columns_unique_constraint_and_index SET first_name = 'TgtSubAlice_moved' WHERE id = 950060004;
-INSERT INTO subset_columns_unique_constraint_and_index (id, first_name, last_name, phone_number) VALUES (950060102, 'TgtSubAlice', 'Williams', 'tgtsubph-102');
+UPDATE subset_columns_unique_constraint_and_index SET first_name = ('TgtSubAlice_moved' || :cycle) WHERE id = :base + 60004;
+INSERT INTO subset_columns_unique_constraint_and_index (id, first_name, last_name, phone_number) VALUES (:base + 60102, ('TgtSubAlice' || :cycle), ('Williams' || :cycle), ('tgtsubph-102' || :cycle));
 
 -- UPDATE-UPDATE
-UPDATE subset_columns_unique_constraint_and_index SET first_name = 'TgtSubTom_moved' WHERE id = 950060005;
-UPDATE subset_columns_unique_constraint_and_index SET first_name = 'TgtSubTom', last_name = 'Clark' WHERE id = 950060006;
+UPDATE subset_columns_unique_constraint_and_index SET first_name = ('TgtSubTom_moved' || :cycle) WHERE id = :base + 60005;
+UPDATE subset_columns_unique_constraint_and_index SET first_name = ('TgtSubTom' || :cycle), last_name = ('Clark' || :cycle) WHERE id = :base + 60006;
 COMMIT;
 
 -- ============================================================
@@ -224,28 +234,28 @@ COMMIT;
 -- ============================================================
 BEGIN;
 INSERT INTO expression_based_unique_index (id, email) VALUES
-    (950070001, 'Tgt_Expr_User1@conflict.test'),
-    (950070002, 'Tgt_Expr_User2@conflict.test'),
-    (950070003, 'Tgt_Expr_User3@conflict.test'),
-    (950070004, 'Tgt_Expr_User4@conflict.test'),
-    (950070005, 'Tgt_Expr_User5@conflict.test'),
-    (950070006, 'Tgt_Expr_User6@conflict.test');
+    (:base + 70001, ('Tgt_Expr_User1@conflict.test' || :cycle)),
+    (:base + 70002, ('Tgt_Expr_User2@conflict.test' || :cycle)),
+    (:base + 70003, ('Tgt_Expr_User3@conflict.test' || :cycle)),
+    (:base + 70004, ('Tgt_Expr_User4@conflict.test' || :cycle)),
+    (:base + 70005, ('Tgt_Expr_User5@conflict.test' || :cycle)),
+    (:base + 70006, ('Tgt_Expr_User6@conflict.test' || :cycle));
 
 -- DELETE-INSERT (LOWER(email) collision)
-DELETE FROM expression_based_unique_index WHERE id = 950070001;
-INSERT INTO expression_based_unique_index (id, email) VALUES (950070101, 'TGT_EXPR_USER1@conflict.test');
+DELETE FROM expression_based_unique_index WHERE id = :base + 70001;
+INSERT INTO expression_based_unique_index (id, email) VALUES (:base + 70101, ('TGT_EXPR_USER1@conflict.test' || :cycle));
 
 -- DELETE-UPDATE
-DELETE FROM expression_based_unique_index WHERE id = 950070002;
-UPDATE expression_based_unique_index SET email = 'TGT_EXPR_USER2@conflict.test' WHERE id = 950070003;
+DELETE FROM expression_based_unique_index WHERE id = :base + 70002;
+UPDATE expression_based_unique_index SET email = ('TGT_EXPR_USER2@conflict.test' || :cycle) WHERE id = :base + 70003;
 
 -- UPDATE-INSERT
-UPDATE expression_based_unique_index SET email = 'Tgt_Expr_User4_moved@conflict.test' WHERE id = 950070004;
-INSERT INTO expression_based_unique_index (id, email) VALUES (950070102, 'tgt_expr_user4@conflict.test');
+UPDATE expression_based_unique_index SET email = ('Tgt_Expr_User4_moved@conflict.test' || :cycle) WHERE id = :base + 70004;
+INSERT INTO expression_based_unique_index (id, email) VALUES (:base + 70102, ('tgt_expr_user4@conflict.test' || :cycle));
 
 -- UPDATE-UPDATE
-UPDATE expression_based_unique_index SET email = 'Tgt_Expr_User5_moved@conflict.test' WHERE id = 950070005;
-UPDATE expression_based_unique_index SET email = 'TGT_EXPR_user5@conflict.test' WHERE id = 950070006;
+UPDATE expression_based_unique_index SET email = ('Tgt_Expr_User5_moved@conflict.test' || :cycle) WHERE id = :base + 70005;
+UPDATE expression_based_unique_index SET email = ('TGT_EXPR_user5@conflict.test' || :cycle) WHERE id = :base + 70006;
 COMMIT;
 
 -- ============================================================
@@ -253,26 +263,106 @@ COMMIT;
 -- ============================================================
 BEGIN;
 INSERT INTO test_partial_unique_index (id, check_id, most_recent) VALUES
-    (950080001, 950000091, true),
-    (950080002, 950000092, true),
-    (950080003, 950000093, true),
-    (950080004, 950000093, false),
-    (950080005, 950000094, true),
-    (950080006, 950000094, false);
+    (:base + 80001, :base + 91, true),
+    (:base + 80002, :base + 92, true),
+    (:base + 80003, :base + 93, true),
+    (:base + 80004, :base + 93, false),
+    (:base + 80005, :base + 94, true),
+    (:base + 80006, :base + 94, false);
 
 -- UPDATE-INSERT
-UPDATE test_partial_unique_index SET most_recent = false WHERE id = 950080001;
-INSERT INTO test_partial_unique_index (id, check_id, most_recent) VALUES (950080101, 950000091, true);
+UPDATE test_partial_unique_index SET most_recent = false WHERE id = :base + 80001;
+INSERT INTO test_partial_unique_index (id, check_id, most_recent) VALUES (:base + 80101, :base + 91, true);
 
 -- DELETE-INSERT
-DELETE FROM test_partial_unique_index WHERE id = 950080002;
-INSERT INTO test_partial_unique_index (id, check_id, most_recent) VALUES (950080102, 950000092, true);
+DELETE FROM test_partial_unique_index WHERE id = :base + 80002;
+INSERT INTO test_partial_unique_index (id, check_id, most_recent) VALUES (:base + 80102, :base + 92, true);
 
 -- DELETE-UPDATE
-DELETE FROM test_partial_unique_index WHERE id = 950080003;
-UPDATE test_partial_unique_index SET most_recent = true WHERE id = 950080004;
+DELETE FROM test_partial_unique_index WHERE id = :base + 80003;
+UPDATE test_partial_unique_index SET most_recent = true WHERE id = :base + 80004;
 
 -- UPDATE-UPDATE
-UPDATE test_partial_unique_index SET most_recent = false WHERE id = 950080005;
-UPDATE test_partial_unique_index SET most_recent = true WHERE id = 950080006;
+UPDATE test_partial_unique_index SET most_recent = false WHERE id = :base + 80005;
+UPDATE test_partial_unique_index SET most_recent = true WHERE id = :base + 80006;
+COMMIT;
+
+-- ============================================================
+-- 10. single_unique_index_nulls_not_distinct (id PK, UNIQUE INDEX(email) NULLS NOT DISTINCT)
+-- Under NULLS NOT DISTINCT two NULLs are equal, so a NULL free->reuse across PKs is a
+-- real conflict. Only one NULL can exist at a time, so the NULL is moved off at the end
+-- of the block, leaving none behind for the next cycle.
+-- ============================================================
+BEGIN;
+-- UPDATE-INSERT (non-null value)
+INSERT INTO single_unique_index_nulls_not_distinct (id, email) VALUES (:base + 85001, ('tgt_nnd1_user1@conflict.test' || :cycle));
+UPDATE single_unique_index_nulls_not_distinct SET email = ('tgt_nnd1_user1_moved@conflict.test' || :cycle) WHERE id = :base + 85001;
+INSERT INTO single_unique_index_nulls_not_distinct (id, email) VALUES (:base + 85101, ('tgt_nnd1_user1@conflict.test' || :cycle));
+
+-- NULL free->reuse: free the NULL by moving base+85010 off it, reuse NULL on base+85011
+-- (conflict under NULLS NOT DISTINCT), then move base+85011 off NULL to leave none behind.
+INSERT INTO single_unique_index_nulls_not_distinct (id, email) VALUES (:base + 85010, NULL);
+UPDATE single_unique_index_nulls_not_distinct SET email = ('tgt_nnd1_wasnull_a@conflict.test' || :cycle) WHERE id = :base + 85010;
+INSERT INTO single_unique_index_nulls_not_distinct (id, email) VALUES (:base + 85011, NULL);
+UPDATE single_unique_index_nulls_not_distinct SET email = ('tgt_nnd1_wasnull_b@conflict.test' || :cycle) WHERE id = :base + 85011;
+COMMIT;
+
+-- ============================================================
+-- 11. multi_unique_index_nulls_not_distinct (id PK, UNIQUE INDEX(first_name, last_name) NULLS NOT DISTINCT)
+-- ============================================================
+BEGIN;
+-- UPDATE-INSERT (non-null values)
+INSERT INTO multi_unique_index_nulls_not_distinct (id, first_name, last_name) VALUES (:base + 86001, ('tgt_nnd2First' || :cycle), ('tgt_nnd2Last' || :cycle));
+UPDATE multi_unique_index_nulls_not_distinct SET first_name = ('tgt_nnd2First_moved' || :cycle) WHERE id = :base + 86001;
+INSERT INTO multi_unique_index_nulls_not_distinct (id, first_name, last_name) VALUES (:base + 86101, ('tgt_nnd2First' || :cycle), ('tgt_nnd2Last' || :cycle));
+
+-- (NULL, NULL) free->reuse: two all-NULL rows conflict under NULLS NOT DISTINCT.
+INSERT INTO multi_unique_index_nulls_not_distinct (id, first_name, last_name) VALUES (:base + 86010, NULL, NULL);
+UPDATE multi_unique_index_nulls_not_distinct SET first_name = ('tgt_nnd2wasnull_a' || :cycle) WHERE id = :base + 86010;
+INSERT INTO multi_unique_index_nulls_not_distinct (id, first_name, last_name) VALUES (:base + 86011, NULL, NULL);
+UPDATE multi_unique_index_nulls_not_distinct SET first_name = ('tgt_nnd2wasnull_b' || :cycle) WHERE id = :base + 86011;
+COMMIT;
+
+-- ============================================================
+-- 12. partitioned_unique_conflict (PK(id, region), UNIQUE INDEX(email, region), PARTITION BY LIST(region))
+-- The unique key includes the partition-key column; conflicts are exercised within a partition.
+-- ============================================================
+BEGIN;
+INSERT INTO partitioned_unique_conflict (id, region, email) VALUES
+    (:base + 87001, 'east', ('tgt_puc_user1@conflict.test' || :cycle)),
+    (:base + 87002, 'east', ('tgt_puc_user2@conflict.test' || :cycle)),
+    (:base + 87003, 'west', ('tgt_puc_user3@conflict.test' || :cycle)),
+    (:base + 87004, 'west', ('tgt_puc_user4@conflict.test' || :cycle));
+
+-- DELETE-INSERT within the 'east' partition: free (puc_user1, east), reuse on a new PK
+DELETE FROM partitioned_unique_conflict WHERE id = :base + 87001 AND region = 'east';
+INSERT INTO partitioned_unique_conflict (id, region, email) VALUES (:base + 87101, 'east', ('tgt_puc_user1@conflict.test' || :cycle));
+
+-- UPDATE-INSERT within the 'west' partition: free (puc_user3, west) by moving it, reuse on a new PK
+UPDATE partitioned_unique_conflict SET email = ('tgt_puc_user3_moved@conflict.test' || :cycle) WHERE id = :base + 87003 AND region = 'west';
+INSERT INTO partitioned_unique_conflict (id, region, email) VALUES (:base + 87103, 'west', ('tgt_puc_user3@conflict.test' || :cycle));
+COMMIT;
+
+-- ============================================================
+-- 13. single_unique_index_nulls_distinct (id PK, UNIQUE INDEX(email) -- default NULLS DISTINCT)
+-- Under NULLS DISTINCT multiple NULLs coexist and a NULL free->reuse is NOT a conflict,
+-- so these NULL rows must import without being (wrongly) serialized. A non-null value
+-- conflict is included to confirm real conflicts still fire on this table.
+-- ============================================================
+BEGIN;
+-- Multiple NULL rows coexist under NULLS DISTINCT (no conflict, no violation)
+INSERT INTO single_unique_index_nulls_distinct (id, email) VALUES
+    (:base + 89001, NULL),
+    (:base + 89002, NULL),
+    (:base + 89003, NULL);
+
+-- NULL free->reuse: delete a NULL holder, insert another NULL. Under NULLS DISTINCT
+-- these NULLs do NOT conflict, so the cache must not serialize them.
+DELETE FROM single_unique_index_nulls_distinct WHERE id = :base + 89001;
+INSERT INTO single_unique_index_nulls_distinct (id, email) VALUES (:base + 89101, NULL);
+
+-- Non-null value free->reuse: a real conflict that must still be detected here.
+INSERT INTO single_unique_index_nulls_distinct (id, email) VALUES (:base + 89010, ('tgt_nd_user1@conflict.test' || :cycle));
+UPDATE single_unique_index_nulls_distinct SET email = ('tgt_nd_user1_moved@conflict.test' || :cycle) WHERE id = :base + 89010;
+INSERT INTO single_unique_index_nulls_distinct (id, email) VALUES (:base + 89110, ('tgt_nd_user1@conflict.test' || :cycle));
 COMMIT;

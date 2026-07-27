@@ -57,6 +57,14 @@ generator_source:
       insert_max_retries: 5
       update_max_retries: 1
 
+# Forward (source) conflict generator: re-applies this test's own dynamic
+# source_dml.sql on a loop throughout streaming, in parallel with generator_source.
+conflict_generator_source:
+  config_inline:
+    conflict:
+      sql_path: ./source_dml.sql
+      interval_seconds: 10
+
 # Fallback (target) event generator configuration.
 # This will be used later when we start a generator on the target side.
 generator_target:
@@ -84,6 +92,14 @@ generator_target:
       delete_rows: 2
       insert_max_retries: 5
       update_max_retries: 1
+
+# Fallback (target) conflict generator: re-applies this test's own dynamic
+# target_dml.sql on a loop throughout fallback streaming, in parallel with generator_target.
+conflict_generator_target:
+  config_inline:
+    conflict:
+      sql_path: ./target_dml.sql
+      interval_seconds: 10
 
 voyager:
   cutover_to_target:
@@ -129,18 +145,25 @@ stages:
   - name: start_importer
     action: voyager_import_start
 
-    # Deterministic edge-case DML (boundary values, TOAST, cross-partition, LIST, HASH)
+    # Deterministic unique-conflict DML applied once up-front for an immediate
+    # conflict burst as soon as streaming starts.
   - name: run_source_dml
     action: run_sql
     target: source
     sql_path: ./source_dml.sql
     use_admin: true
 
+  # Conflict generator: then re-applies source_dml.sql continuously throughout
+  # streaming, in parallel with the random event generator, for sustained conflicts.
+  - name: start_conflict_generator
+    action: conflict_generator_start
+    generator_key: conflict_generator_source
+
   - name: start_import_resumptions
     action: start_resumptions
     resumption:
       import_data:
-        max_restarts: 25
+        max_restarts: 100
         min_interrupt_seconds: 15
         max_interrupt_seconds: 60
         min_restart_wait_seconds: 5
@@ -155,15 +178,20 @@ stages:
     action: start_resumptions
     resumption:
       export_data:
-        max_restarts: 25
+        max_restarts: 100
         min_interrupt_seconds: 15
         max_interrupt_seconds: 60
         min_restart_wait_seconds: 5
         max_restart_wait_seconds: 30
 
-  - name: small_sleep_for_some_events_to_be_generated
+  - name: soak_with_resumptions
     action: sleep
-    seconds: 30
+    seconds: 3000
+
+  - name: stop_conflict_generator
+    action: conflict_generator_stop
+    generator_key: conflict_generator_source
+    graceful_timeout_sec: 60
 
   - name: stop_event_generator
     action: generator_stop
@@ -179,6 +207,13 @@ stages:
     action: wait_for
     condition: remaining_events_eq_0
     timeout_sec: 1200
+
+  # Confirm the conflict-detection cache actually fired on the forward (PG->YB)
+  # import, not just that row_count/row_hash matched.
+  - name: validate_conflicts_detected
+    action: validate_conflicts_detected
+    log: yb-voyager-import-data.log
+    min_count: 1
 
   - name: cutover_to_target
     action: cutover_to_target
@@ -205,12 +240,18 @@ stages:
   - name: start_fallback_importer_to_source
     action: voyager_import_to_source_start
 
-    # Deterministic edge-case DML (boundary values, TOAST, cross-partition, LIST, HASH)
+    # Deterministic unique-conflict DML applied once up-front on the target.
   - name: run_target_dml
     action: run_sql
     target: target
     sql_path: ./target_dml.sql
     use_admin: true
+
+  # Conflict generator on the target: then re-applies target_dml.sql continuously
+  # throughout fallback streaming, in parallel with the target-side generator.
+  - name: start_target_conflict_generator
+    action: conflict_generator_start
+    generator_key: conflict_generator_target
 
 
   # Start a generator on the target side to simulate ongoing writes during fallback.
@@ -238,9 +279,18 @@ stages:
         min_restart_wait_seconds: 5
         max_restart_wait_seconds: 30
 
+  # Kept symmetric with the forward soak (both 400s, matching iteration-test) so
+  # conflict injection and resumption restarts are balanced across the two legs
+  # rather than heavily fallback-weighted. 400s yields dozens of restart cycles
+  # here; raise it if a longer fallback resumption soak is needed.
   - name: soak_fallback_with_resumptions
     action: sleep
     seconds: 3000
+
+  - name: stop_target_conflict_generator
+    action: conflict_generator_stop
+    generator_key: conflict_generator_target
+    graceful_timeout_sec: 60
 
   - name: stop_target_event_generator
     action: generator_stop
@@ -269,6 +319,12 @@ stages:
     action: voyager_stop_resumptions
     command: import_to_source
     timeout_sec: 60
+
+  # Fallback (YB->PG) import-to-source forces PARTITION_BY_TABLE and skips
+  # conflict detection, so its log must record 0 conflicts -- guard that.
+  - name: validate_no_conflicts_detected
+    action: validate_no_conflicts_detected
+    log: yb-voyager-import-data-to-source.log
 
   # Phase 3: cutover back to source and validation
   - name: cutover_to_source
