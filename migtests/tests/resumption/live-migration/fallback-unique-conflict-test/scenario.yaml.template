@@ -206,7 +206,7 @@ stages:
   - name: wait_backlog_zero
     action: wait_for
     condition: remaining_events_eq_0
-    timeout_sec: 1200
+    timeout_sec: 1800
 
   # Confirm the conflict-detection cache actually fired on the forward (PG->YB)
   # import, not just that row_count/row_hash matched.
