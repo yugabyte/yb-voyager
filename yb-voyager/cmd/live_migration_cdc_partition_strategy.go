@@ -125,7 +125,7 @@ func resolveEffectiveCdcPartitionKeys(
 	globalKey string,
 	overrides *utils.StructMap[sqlname.NameTuple, string],
 	exprUKSet *utils.StructMap[sqlname.NameTuple, bool],
-	isAMP bool,
+	targetDBType string,
 ) (*utils.StructMap[sqlname.NameTuple, string], error) {
 	result := utils.NewStructMap[sqlname.NameTuple, string]()
 	if overrides == nil {
@@ -137,7 +137,7 @@ func resolveEffectiveCdcPartitionKeys(
 
 	switch globalKey {
 	case "auto":
-		if isAMP {
+		if targetDBType == YUGABYTEDB_AMP {
 			// yb-amp is a single-node PostgreSQL-compatible compute (no YB
 			// tablets / colocation), so — exactly like the PG/Oracle
 			// source/source-replica case — PARTITION_BY_TABLE has no real
@@ -261,7 +261,7 @@ func computeAndPersistCdcPartitioningStrategyPerTable(tableNames []sqlname.NameT
 	}
 
 	tableToPartitioningStrategyMap, err := resolveEffectiveCdcPartitionKeys(
-		tableNames, cdcPartitionKey, overrides, exprUKSet, tconf.TargetDBType == YUGABYTEDB_AMP)
+		tableNames, cdcPartitionKey, overrides, exprUKSet, tconf.TargetDBType)
 	if err != nil {
 		return nil, err
 	}

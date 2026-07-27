@@ -263,7 +263,7 @@ func validateCdcPartitionKeyFlags(cmd *cobra.Command) error {
 	overridesPassed := cmd.Flags().Changed("cdc-partition-key-overrides")
 	anyPassed := globalPassed || overridesPassed
 
-	if importerRole != TARGET_DB_IMPORTER_ROLE && tconf.TargetDBType != YUGABYTEDB_AMP {
+	if importerRole != TARGET_DB_IMPORTER_ROLE || tconf.TargetDBType != YUGABYTEDB {
 		if anyPassed {
 			return goerrors.Errorf("--cdc-partition-key / --cdc-partition-key-overrides are only supported for import data to target")
 		}
