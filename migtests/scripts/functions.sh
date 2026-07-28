@@ -478,49 +478,62 @@ analyze_schema() {
 }
 
 import_schema() {
-    if [ "${run_via_config_file}" = "true" ]; then
-        # Run using the generated config file
-        yb-voyager import schema -c "${GENERATED_CONFIG}" --yes
-        return $?
-    fi
+    # Serialize schema DDL under the same lock as create/drop database. On YB
+    # 2026.1+ concurrent DDL anywhere on the cluster contends on one global
+    # catalog version, so a CREATE TABLE/INDEX here can fail (or make another
+    # test's create/drop database fail) with "already exists" / catalog mismatch.
+    # Holding the lock across import schema keeps only one test doing DDL at a time.
+    (
+        flock 200
+        if [ "${run_via_config_file}" = "true" ]; then
+            # Run using the generated config file
+            yb-voyager import schema -c "${GENERATED_CONFIG}" --yes
+            exit $?
+        fi
 
-    args="--export-dir ${EXPORT_DIR}
-        --target-db-host ${TARGET_DB_HOST}
-        --target-db-port ${TARGET_DB_PORT}
-        --target-db-user ${TARGET_DB_USER}
-        --target-db-password ${TARGET_DB_PASSWORD:-''}
-        --target-db-name ${TARGET_DB_NAME}
-        --yes
-        --send-diagnostics=false
-    "
-    if [ "${SOURCE_DB_TYPE}" != "postgresql" ]; then
-        args="${args} --target-db-schema ${TARGET_DB_SCHEMA}"
-    fi
+        args="--export-dir ${EXPORT_DIR}
+            --target-db-host ${TARGET_DB_HOST}
+            --target-db-port ${TARGET_DB_PORT}
+            --target-db-user ${TARGET_DB_USER}
+            --target-db-password ${TARGET_DB_PASSWORD:-''}
+            --target-db-name ${TARGET_DB_NAME}
+            --yes
+            --send-diagnostics=false
+        "
+        if [ "${SOURCE_DB_TYPE}" != "postgresql" ]; then
+            args="${args} --target-db-schema ${TARGET_DB_SCHEMA}"
+        fi
 
-    yb-voyager import schema ${args} "$@"
+        yb-voyager import schema ${args} "$@"
+    ) 200>"${YB_DB_LOCK_FILE}"
 }
 
 finalize_schema_post_data_import() {
-    if [ "${run_via_config_file}" = "true" ]; then
-        yb-voyager finalize-schema-post-data-import -c "${GENERATED_CONFIG}" --yes
-        return $?
-    fi
+    # Also DDL-heavy (indexes, FKs, triggers) - take the same lock as import schema
+    # so it doesn't contend with other tests' DDL on the global catalog version.
+    (
+        flock 200
+        if [ "${run_via_config_file}" = "true" ]; then
+            yb-voyager finalize-schema-post-data-import -c "${GENERATED_CONFIG}" --yes
+            exit $?
+        fi
 
-    args="--export-dir ${EXPORT_DIR} 
-        --target-db-host ${TARGET_DB_HOST} 
-        --target-db-port ${TARGET_DB_PORT} 
-        --target-db-user ${TARGET_DB_USER} 
-        --target-db-password ${TARGET_DB_PASSWORD:-''} 
-        --target-db-name ${TARGET_DB_NAME}	
-        --yes
-        --send-diagnostics=false
-        --refresh-mviews true
-    "
-    if [ "${SOURCE_DB_TYPE}" != "postgresql" ]; then
-        args="${args} --target-db-schema ${TARGET_DB_SCHEMA}"
-    fi
+        args="--export-dir ${EXPORT_DIR}
+            --target-db-host ${TARGET_DB_HOST}
+            --target-db-port ${TARGET_DB_PORT}
+            --target-db-user ${TARGET_DB_USER}
+            --target-db-password ${TARGET_DB_PASSWORD:-''}
+            --target-db-name ${TARGET_DB_NAME}
+            --yes
+            --send-diagnostics=false
+            --refresh-mviews true
+        "
+        if [ "${SOURCE_DB_TYPE}" != "postgresql" ]; then
+            args="${args} --target-db-schema ${TARGET_DB_SCHEMA}"
+        fi
 
-    yb-voyager finalize-schema-post-data-import ${args} "$@"
+        yb-voyager finalize-schema-post-data-import ${args} "$@"
+    ) 200>"${YB_DB_LOCK_FILE}"
 }
 
 import_data() {
