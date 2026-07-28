@@ -463,7 +463,8 @@ func TestUniqueKeyConflictPairKey_OrdersVsns(t *testing.T) {
 func findConflictForTest(c *ConflictDetectionCache, incoming *tgtdb.Event) []*tgtdb.Event {
 	c.Lock()
 	defer c.Unlock()
-	return c.findConflictLocked(incoming)
+	events, _ := c.findConflictLocked(incoming)
+	return events
 }
 
 // The lookup index must find the same before-after conflict that a full scan would.
