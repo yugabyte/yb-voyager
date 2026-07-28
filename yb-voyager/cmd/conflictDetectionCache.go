@@ -224,7 +224,7 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 
 	conflictLogged := false
 	for {
-		cachedEvents := c.findConflictLocked(incomingEvent)
+		cachedEvents, info := c.findConflictLocked(incomingEvent)
 		if len(cachedEvents) == 0 {
 			return
 		}
@@ -254,8 +254,8 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 		if isTargetDBExporter(incomingEvent.ExporterRole) {
 			log.Debugf("event(vsn=%d) waiting for in-flight event(s) %v to be applied", incomingEvent.Vsn, cachedVsns)
 		} else if !conflictLogged {
-			log.Infof("conflict detected event(vsn=%d) on table %s waiting for in-flight event(s) %v to be applied",
-				incomingEvent.Vsn, incomingEvent.TableNameTup.ForKey(), cachedVsns)
+			log.Infof("conflict detected: event(vsn=%d) on table %s, unique index columns %v with matched value %s (%s conflict) waiting for in-flight event(s) %v to be applied",
+				incomingEvent.Vsn, incomingEvent.TableNameTup.ForKey(), info.indexColumns, info.matchedValue, info.matchType, cachedVsns)
 			conflictLogged = true
 		} else {
 			log.Debugf("still waiting: event(vsn=%d) blocked by in-flight event(s) %v", incomingEvent.Vsn, cachedVsns)
@@ -268,21 +268,29 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 	}
 }
 
+// conflictInfo describes the unique-index match that caused a value-path conflict.
+type conflictInfo struct {
+	indexColumns []string // matched unique-index columns
+	matchType    string   // "before-after" or "before-before"
+	matchedValue string   // formatted incoming-side index-column values (shared by all cached events)
+}
+
 // findConflictLocked returns the cached events that conflict with the incoming event,
-// or an empty slice if there is none. Caller must hold the lock.
+// or an empty slice if there is none, along with detail describing the value-path match
+// (empty conflictInfo on the target-DB-exporter path). Caller must hold the lock.
 //
 // For the target-DB-exporter path (fall-back/fall-forward) conflicts are table-level
 // and value-agnostic (see eventsConfict), so we retain the full scan over the cache.
 // For the normal source path we use the value-keyed lookup index (findValueConflictLocked).
-func (c *ConflictDetectionCache) findConflictLocked(incomingEvent *tgtdb.Event) []*tgtdb.Event {
+func (c *ConflictDetectionCache) findConflictLocked(incomingEvent *tgtdb.Event) ([]*tgtdb.Event, conflictInfo) {
 	if isTargetDBExporter(incomingEvent.ExporterRole) {
 		for _, cachedEvent := range c.m {
 			log.Debugf("checking conflict for event(vsn=%d) and event(vsn=%d)", cachedEvent.Vsn, incomingEvent.Vsn)
 			if c.eventsConfict(cachedEvent, incomingEvent) {
-				return []*tgtdb.Event{cachedEvent}
+				return []*tgtdb.Event{cachedEvent}, conflictInfo{}
 			}
 		}
-		return []*tgtdb.Event{}
+		return []*tgtdb.Event{}, conflictInfo{}
 	}
 
 	return c.findValueConflictLocked(incomingEvent)
@@ -304,10 +312,10 @@ func (c *ConflictDetectionCache) findConflictLocked(incomingEvent *tgtdb.Event) 
 // All unique indexes and both checks (before-after, before-before) are evaluated so the
 // incoming event can wait on the complete set of conflicting cached events at once. The
 // result is de-duplicated by VSN, since a single cached event can match several indexes.
-func (c *ConflictDetectionCache) findValueConflictLocked(incomingEvent *tgtdb.Event) []*tgtdb.Event {
+func (c *ConflictDetectionCache) findValueConflictLocked(incomingEvent *tgtdb.Event) ([]*tgtdb.Event, conflictInfo) {
 	uniqueIndexes, _ := c.tableToUniqueIndexes.Get(incomingEvent.TableNameTup)
 	if len(uniqueIndexes) == 0 {
-		return nil
+		return nil, conflictInfo{}
 	}
 	table := incomingEvent.TableNameTup.ForKey()
 	for i, index := range uniqueIndexes {
@@ -322,7 +330,11 @@ func (c *ConflictDetectionCache) findValueConflictLocked(incomingEvent *tgtdb.Ev
 			}
 			if len(cachedEvents) > 0 {
 				//If before-after conflict is detected, then return the cached events
-				return cachedEvents
+				return cachedEvents, conflictInfo{
+					indexColumns: index.Columns,
+					matchType:    "before-after",
+					matchedValue: formatUniqueIndexColumnValuesForLog(incomingEvent.Fields, index.Columns),
+				}
 			}
 		}
 		// before-before conflict: cachedEvent.BeforeFields == incomingEvent.BeforeFields
@@ -336,11 +348,15 @@ func (c *ConflictDetectionCache) findValueConflictLocked(incomingEvent *tgtdb.Ev
 			}
 			if len(cachedEvents) > 0 {
 				//else if before-before conflict is detected, then return the cached events
-				return cachedEvents
+				return cachedEvents, conflictInfo{
+					indexColumns: index.Columns,
+					matchType:    "before-before",
+					matchedValue: formatUniqueIndexColumnValuesForLog(incomingEvent.BeforeFields, index.Columns),
+				}
 			}
 		}
 	}
-	return []*tgtdb.Event{}
+	return []*tgtdb.Event{}, conflictInfo{}
 }
 
 // getNonSamePKEventsWithSameBucketKey returns all cached events in the given lookup
