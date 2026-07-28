@@ -372,14 +372,20 @@ func handleEvent(event *tgtdb.Event,
 	}
 	if ok {
 		if event.Op == "d" {
-			conflictDetectionCache.Put(event)
+			err = conflictDetectionCache.Put(event)
+			if err != nil {
+				return goerrors.Errorf("error putting event into conflict detection cache: %v", err)
+			}
 		} else { // "i" or "u"
 			conflictDetectionCache.WaitUntilNoConflict(event)
 			if event.Op == "u" {
 				// Adding all the update events to the conflict detection cache since we need to check detect the conflicts in cases where
 				// unique key column is not changed in addition to unique key column is actually changed
 				// since the unique key is removed the index even if the column is actually changed because of partial predicate
-				conflictDetectionCache.Put(event)
+				err = conflictDetectionCache.Put(event)
+				if err != nil {
+					return goerrors.Errorf("error putting event into conflict detection cache: %v", err)
+				}
 			}
 		}
 	}

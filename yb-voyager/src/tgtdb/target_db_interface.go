@@ -35,6 +35,7 @@ import (
 // When NullsNotDistinct is true, two NULL values are treated as equal (i.e. they
 // conflict); with the default NULLS DISTINCT semantics NULLs never conflict.
 type UniqueIndex struct {
+	IndexName        string
 	Columns          []string
 	NullsNotDistinct bool
 }

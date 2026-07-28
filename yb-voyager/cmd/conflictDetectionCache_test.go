@@ -463,7 +463,18 @@ func TestUniqueKeyConflictPairKey_OrdersVsns(t *testing.T) {
 func findConflictForTest(c *ConflictDetectionCache, incoming *tgtdb.Event) []*tgtdb.Event {
 	c.Lock()
 	defer c.Unlock()
-	events, _ := c.findConflictLocked(incoming)
+	conflicts := c.findConflictLocked(incoming)
+	var events []*tgtdb.Event
+	seen := make(map[int64]bool)
+	for _, conflict := range conflicts {
+		for _, e := range conflict.eventsConflicting {
+			if seen[e.Vsn] {
+				continue
+			}
+			seen[e.Vsn] = true
+			events = append(events, e)
+		}
+	}
 	return events
 }
 

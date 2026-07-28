@@ -551,6 +551,7 @@ func queryPGUniqueIndexesByCatalog(queryFn func(query string) (*sql.Rows, error)
 		}
 		catalogName := fmt.Sprintf("%s.%s", schemaName, tableName)
 		result[catalogName] = append(result[catalogName], UniqueIndex{
+			IndexName:        indexKey,
 			Columns:          columns,
 			NullsNotDistinct: nullsNotDistinct,
 		})

@@ -20,6 +20,7 @@ import (
 	"strings"
 	"sync"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
@@ -159,15 +160,23 @@ func NewConflictDetectionCache(tableToUniqueIndexes *utils.StructMap[sqlname.Nam
 	return c
 }
 
-func (c *ConflictDetectionCache) Put(event *tgtdb.Event) {
+func (c *ConflictDetectionCache) Put(event *tgtdb.Event) error {
+	if event.BeforeFields == nil || event.Op == "i" {
+		//put can only insert an event in the cache if its delete/update event
+		return goerrors.Errorf("before fields are nil for event vsn(%d)", event.Vsn)
+	}
 	c.Lock()
 	defer c.Unlock()
 	// caches a separate copy of the event, not a pointer, otherwise it will be modified
 	// by ConvertEvent() causing issues in events comparison for conflict detection.
 	cachedEvent := event.Copy()
-	c.m[cachedEvent.Vsn] = cachedEvent
-	c.indexEventLocked(cachedEvent)
+	if isTargetDBExporter(event.ExporterRole) {
+		c.m[cachedEvent.Vsn] = cachedEvent
+	} else {
+		c.indexEventLocked(cachedEvent)
+	}
 	log.Infof("adding event vsn(%d) to conflict cache", event.Vsn)
+	return nil
 }
 
 // indexEventLocked adds the cached event to the value-keyed lookup index for every
@@ -175,16 +184,12 @@ func (c *ConflictDetectionCache) Put(event *tgtdb.Event) {
 // event's BeforeFields. It is a no-op for events with nil/empty BeforeFields (e.g.
 // target-DB-exporter events). Caller must hold the lock.
 func (c *ConflictDetectionCache) indexEventLocked(event *tgtdb.Event) {
-	if event.BeforeFields == nil {
-		return
-	}
 	uniqueIndexes, _ := c.tableToUniqueIndexes.Get(event.TableNameTup)
 	if len(uniqueIndexes) == 0 {
 		return
 	}
-	table := event.TableNameTup.ForKey()
-	for i, index := range uniqueIndexes {
-		key, ok := computeConflictBucketKey(table, i, event.BeforeFields, index)
+	for _, index := range uniqueIndexes {
+		key, ok := computeConflictBucketKey(event.TableNameTup, index.IndexName, event.BeforeFields, index)
 		if !ok {
 			continue
 		}
@@ -224,8 +229,8 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 
 	conflictLogged := false
 	for {
-		cachedEvents, info := c.findConflictLocked(incomingEvent)
-		if len(cachedEvents) == 0 {
+		conflictInfo := c.findConflictLocked(incomingEvent)
+		if len(conflictInfo) == 0 {
 			return
 		}
 
@@ -242,23 +247,25 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 				log.Debugf("channel %d is full with size %d, not sending FLUSH_BATCH_EVENT", i, len(c.evChans[i]))
 			}
 		}
-		for _, cachedEvent := range cachedEvents {
-			injectUniqueKeyConflictDetectedFailpoint(cachedEvent, incomingEvent)
-		}
 
-		// Concise INFO once per blocked incoming event; the per-index/column-value
-		// detail is logged at DEBUG in findValueConflictLocked. The target-DB-exporter
-		// path already emits its own "conflict detected" INFO in eventsConfict, so here
-		// we only log at DEBUG for that path to avoid double counting.
-		cachedVsns := lo.Map(cachedEvents, func(e *tgtdb.Event, _ int) int64 { return e.Vsn })
-		if isTargetDBExporter(incomingEvent.ExporterRole) {
-			log.Debugf("event(vsn=%d) waiting for in-flight event(s) %v to be applied", incomingEvent.Vsn, cachedVsns)
-		} else if !conflictLogged {
-			log.Infof("conflict detected: event(vsn=%d) on table %s, unique index columns %v with matched value %s (%s conflict) waiting for in-flight event(s) %v to be applied",
-				incomingEvent.Vsn, incomingEvent.TableNameTup.ForKey(), info.indexColumns, info.matchedValue, info.matchType, cachedVsns)
-			conflictLogged = true
-		} else {
-			log.Debugf("still waiting: event(vsn=%d) blocked by in-flight event(s) %v", incomingEvent.Vsn, cachedVsns)
+		for _, info := range conflictInfo {
+			for _, cachedEvent := range info.eventsConflicting {
+				injectUniqueKeyConflictDetectedFailpoint(cachedEvent, incomingEvent)
+			}
+			// Concise INFO once per blocked incoming event; the per-index/column-value
+			// detail is logged at DEBUG in findValueConflictLocked. The target-DB-exporter
+			// path already emits its own "conflict detected" INFO in eventsConfict, so here
+			// we only log at DEBUG for that path to avoid double counting.
+			cachedVsns := lo.Map(info.eventsConflicting, func(e *tgtdb.Event, _ int) int64 { return e.Vsn })
+			if isTargetDBExporter(incomingEvent.ExporterRole) {
+				log.Debugf("event(vsn=%d) waiting for in-flight event(s) %v to be applied", incomingEvent.Vsn, cachedVsns)
+			} else if !conflictLogged {
+				log.Infof("conflict detected: event(vsn=%d) on table %s, unique index columns %v with matched value %s (%s conflict) waiting for in-flight event(s) %v to be applied",
+					incomingEvent.Vsn, incomingEvent.TableNameTup.ForKey(), info.indexColumns, info.matchedValue, info.matchType, cachedVsns)
+				conflictLogged = true
+			} else {
+				log.Debugf("still waiting: event(vsn=%d) blocked by in-flight event(s) %v", incomingEvent.Vsn, cachedVsns)
+			}
 		}
 		// cond.Wait releases the lock and blocks until RemoveEvents broadcasts (some
 		// cached event was applied/removed). We then loop and re-check, because one
@@ -268,11 +275,13 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 	}
 }
 
-// conflictInfo describes the unique-index match that caused a value-path conflict.
-type conflictInfo struct {
-	indexColumns []string // matched unique-index columns
-	matchType    string   // "before-after" or "before-before"
-	matchedValue string   // formatted incoming-side index-column values (shared by all cached events)
+// Conflict describes the unique-index match that caused a value-path conflict.
+type Conflict struct {
+	indexName         string         // name of the unique index that caused the conflict
+	eventsConflicting []*tgtdb.Event // events that caused the conflict
+	indexColumns      []string       // columns of the unique index that caused the conflict
+	matchType         string         // "before-after" or "before-before"
+	matchedValue      string         // formatted incoming-side index-column values (shared by all cached events)
 }
 
 // findConflictLocked returns the cached events that conflict with the incoming event,
@@ -282,15 +291,21 @@ type conflictInfo struct {
 // For the target-DB-exporter path (fall-back/fall-forward) conflicts are table-level
 // and value-agnostic (see eventsConfict), so we retain the full scan over the cache.
 // For the normal source path we use the value-keyed lookup index (findValueConflictLocked).
-func (c *ConflictDetectionCache) findConflictLocked(incomingEvent *tgtdb.Event) ([]*tgtdb.Event, conflictInfo) {
+func (c *ConflictDetectionCache) findConflictLocked(incomingEvent *tgtdb.Event) []Conflict {
 	if isTargetDBExporter(incomingEvent.ExporterRole) {
 		for _, cachedEvent := range c.m {
 			log.Debugf("checking conflict for event(vsn=%d) and event(vsn=%d)", cachedEvent.Vsn, incomingEvent.Vsn)
 			if c.eventsConfict(cachedEvent, incomingEvent) {
-				return []*tgtdb.Event{cachedEvent}, conflictInfo{}
+				return []Conflict{{
+					indexName:         "",
+					eventsConflicting: []*tgtdb.Event{cachedEvent},
+					indexColumns:      []string{},
+					matchType:         "",
+					matchedValue:      "",
+				}}
 			}
 		}
-		return []*tgtdb.Event{}, conflictInfo{}
+		return []Conflict{}
 	}
 
 	return c.findValueConflictLocked(incomingEvent)
@@ -312,51 +327,57 @@ func (c *ConflictDetectionCache) findConflictLocked(incomingEvent *tgtdb.Event) 
 // All unique indexes and both checks (before-after, before-before) are evaluated so the
 // incoming event can wait on the complete set of conflicting cached events at once. The
 // result is de-duplicated by VSN, since a single cached event can match several indexes.
-func (c *ConflictDetectionCache) findValueConflictLocked(incomingEvent *tgtdb.Event) ([]*tgtdb.Event, conflictInfo) {
+func (c *ConflictDetectionCache) findValueConflictLocked(incomingEvent *tgtdb.Event) []Conflict {
 	uniqueIndexes, _ := c.tableToUniqueIndexes.Get(incomingEvent.TableNameTup)
 	if len(uniqueIndexes) == 0 {
-		return nil, conflictInfo{}
+		return []Conflict{}
 	}
-	table := incomingEvent.TableNameTup.ForKey()
-	for i, index := range uniqueIndexes {
+	totalConflictInfo := make([]Conflict, 0)
+	for _, index := range uniqueIndexes {
 		// before-after conflict: cachedEvent.BeforeFields == incomingEvent.Fields
-		if key, ok := computeConflictBucketKey(table, i, incomingEvent.Fields, index); ok {
+		if key, ok := computeConflictBucketKey(incomingEvent.TableNameTup, index.IndexName, incomingEvent.Fields, index); ok {
 			cachedEvents := c.getNonSamePKEventsWithSameBucketKey(key, incomingEvent)
 			for _, cachedEvent := range cachedEvents {
 				log.Debugf("conflict detected for table %s, index columns %v, between before value of cached-event1(vsn=%d, colVal=%s) and after value of incoming-event2(vsn=%d, colVal=%s)",
-					table, index.Columns,
+					incomingEvent.TableNameTup.ForKey(), index.Columns,
 					cachedEvent.Vsn, formatUniqueIndexColumnValuesForLog(cachedEvent.BeforeFields, index.Columns),
 					incomingEvent.Vsn, formatUniqueIndexColumnValuesForLog(incomingEvent.Fields, index.Columns))
 			}
 			if len(cachedEvents) > 0 {
-				//If before-after conflict is detected, then return the cached events
-				return cachedEvents, conflictInfo{
-					indexColumns: index.Columns,
-					matchType:    "before-after",
-					matchedValue: formatUniqueIndexColumnValuesForLog(incomingEvent.Fields, index.Columns),
-				}
+				totalConflictInfo = append(totalConflictInfo, Conflict{
+					indexName:         index.IndexName,
+					eventsConflicting: cachedEvents,
+					indexColumns:      index.Columns,
+					matchType:         "before-after",
+					matchedValue:      formatUniqueIndexColumnValuesForLog(incomingEvent.Fields, index.Columns),
+				})
 			}
 		}
+		if incomingEvent.Op == "i" {
+			//as for the insert event we don't have before fields so we don't need to check for before-before conflict
+			continue
+		}
 		// before-before conflict: cachedEvent.BeforeFields == incomingEvent.BeforeFields
-		if key, ok := computeConflictBucketKey(table, i, incomingEvent.BeforeFields, index); ok {
+		if key, ok := computeConflictBucketKey(incomingEvent.TableNameTup, index.IndexName, incomingEvent.BeforeFields, index); ok {
 			cachedEvents := c.getNonSamePKEventsWithSameBucketKey(key, incomingEvent)
 			for _, cachedEvent := range cachedEvents {
 				log.Debugf("conflict detected for table %s, index columns %v, between before value of cached-event1(vsn=%d, colVal=%s) and before value of incoming-event2(vsn=%d, colVal=%s)",
-					table, index.Columns,
+					incomingEvent.TableNameTup.ForKey(), index.Columns,
 					cachedEvent.Vsn, formatUniqueIndexColumnValuesForLog(cachedEvent.BeforeFields, index.Columns),
 					incomingEvent.Vsn, formatUniqueIndexColumnValuesForLog(incomingEvent.BeforeFields, index.Columns))
 			}
 			if len(cachedEvents) > 0 {
-				//else if before-before conflict is detected, then return the cached events
-				return cachedEvents, conflictInfo{
-					indexColumns: index.Columns,
-					matchType:    "before-before",
-					matchedValue: formatUniqueIndexColumnValuesForLog(incomingEvent.BeforeFields, index.Columns),
-				}
+				totalConflictInfo = append(totalConflictInfo, Conflict{
+					indexName:         index.IndexName,
+					eventsConflicting: cachedEvents,
+					indexColumns:      index.Columns,
+					matchType:         "before-before",
+					matchedValue:      formatUniqueIndexColumnValuesForLog(incomingEvent.BeforeFields, index.Columns),
+				})
 			}
 		}
 	}
-	return []*tgtdb.Event{}, conflictInfo{}
+	return totalConflictInfo
 }
 
 // getNonSamePKEventsWithSameBucketKey returns all cached events in the given lookup
@@ -391,32 +412,30 @@ const (
 //
 // Values are length-prefixed so distinct tuples never collide (e.g. {"ab",""} vs
 // {"a","b"}); NULLs under NULLS NOT DISTINCT use a dedicated sentinel.
-func computeConflictBucketKey(table string, indexPos int, fields map[string]*string, index tgtdb.UniqueIndex) (string, bool) {
-	if fields == nil {
-		return "", false
-	}
+func computeConflictBucketKey(table sqlname.NameTuple, indexName string, fields map[string]*string, index tgtdb.UniqueIndex) (string, bool) {
 	var b strings.Builder
-	b.WriteString(table)
-	b.WriteByte(0)
-	b.WriteString(strconv.Itoa(indexPos))
+	b.WriteString(table.ForKey())
+	b.WriteByte(0) //separator for the table name and index name
+	b.WriteString(indexName)
 	for _, column := range index.Columns {
 		val, exists := fields[column]
 		if !exists {
+			//In case the incoming event like update is not having this field in after fields then it is not indexable as the unique key is not changed so it won't conflict with anything
 			return "", false
 		}
-		b.WriteByte(0)
+		b.WriteByte(0) //separator for the field name and value
 		if val == nil {
 			if !index.NullsNotDistinct {
 				// default NULLS DISTINCT: NULLs never conflict, so this tuple is not indexable.
 				return "", false
 			}
-			b.WriteString(conflictBucketNull)
+			b.WriteString(conflictBucketNull) //placeholder for the null value
 			continue
 		}
-		b.WriteString(conflictBucketValue)
-		b.WriteString(strconv.Itoa(len(*val)))
-		b.WriteByte(':')
-		b.WriteString(*val)
+		b.WriteString(conflictBucketValue)     //placeholder for the non-null value
+		b.WriteString(strconv.Itoa(len(*val))) //length of the value
+		b.WriteByte(':')                       //separator for the length and value
+		b.WriteString(*val)                    //value
 	}
 	return b.String(), true
 }
@@ -428,7 +447,11 @@ func (c *ConflictDetectionCache) RemoveEvents(events ...*tgtdb.Event) {
 
 	for _, event := range events {
 		if _, ok := c.m[event.Vsn]; ok {
+			//event is in main cache
 			delete(c.m, event.Vsn)
+			eventsRemoved = true
+		} else if _, ok := c.vsnToBuckets[event.Vsn]; ok {
+			//event is in lookup index
 			c.deindexEventLocked(event.Vsn)
 			eventsRemoved = true
 		}

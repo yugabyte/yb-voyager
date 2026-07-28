@@ -115,7 +115,7 @@ func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.
 		}
 		return tableToPartitioningStrategyMap, nil
 	}
-	return nil, goerrors.Errorf("cdc partitioning strategy not found in metadb")
+	return nil, goerrors.Errorf("cdc partitioning strategy per table not found in metadb")
 }
 
 // resolveEffectiveCdcPartitionKeys applies global strategy, then per-table overlays,
