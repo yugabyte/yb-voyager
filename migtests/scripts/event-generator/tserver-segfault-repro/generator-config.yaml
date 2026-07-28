@@ -1,0 +1,79 @@
+connection:
+  host: <YB_TSERVER_HOST>       # any tserver node of the YugabyteDB cluster under test
+  port: 5433
+  database: test_db
+  user: <YSQL_USER>
+  password: <YSQL_PASSWORD>
+generator:
+  schema_name: public
+  manual_table_list: []
+  exclude_table_list:
+  - cutover_table
+  - migration_validate_segments
+  num_iterations: -1
+  wait_after_operations: 0
+  wait_duration_seconds: 0
+  table_weights:
+    table_017d77bfa1eae59d: 100
+    table_01b166ea768098a2: 81
+    table_0212e6da9ca746bc: 80
+    table_028550ca941cb442: 80
+    table_039e819fbffd6f7d: 77
+    table_03f86ebc4c0593d8: 65
+    table_04c4c2caaebdc62d: 51
+    table_052d762fb20c1c2a: 18
+    table_057c259e690ef255: 18
+    table_064efb48ef43191d: 14
+    table_06ab17adea443e04: 13
+    table_0720e4a45aa6974d: 13
+    table_07336e32ea21b4b8: 9
+    table_0747e9e9ea3c0a5d: 8
+    table_07fe435a8c212bdb: 7
+    table_080c5b2ff3611298: 6
+    table_0931a9825cc585d6: 5
+    table_0991d0da4fc8dac0: 5
+    table_09a465856531b439: 5
+    table_0aa72fe24569eb52: 5
+    table_0aafd7f4a3234115: 4
+    table_0b131bb9457188ac: 4
+    table_0b243ef8cb6da8d4: 4
+    table_0ba2c4755b4978df: 3
+    table_0d1147a0a3c8436e: 3
+    table_0da90d2791dce2ca: 3
+    table_0e2bf67d74b0aa11: 3
+    table_0e8752d52216d0a3: 3
+    table_0ea8eb5b98b302a1: 3
+    table_0fa9e09e40bf748d: 3
+    table_1042e9a572eb1e58: 3
+    table_1184bf309828ad0d: 3
+  operation_weights:
+    INSERT: 3
+    UPDATE: 2
+    DELETE: 1
+  random_seed: 456
+  faker_seed: 456
+  insert_rows: 25
+  update_rows: 12
+  delete_rows: 6
+  insert_max_retries: 5
+  update_max_retries: 1
+  rate_control:
+    default_events_per_second: 1500
+    report_interval_seconds: 60
+    schedule:
+    - events_per_second: 10000
+      duration_seconds: 300
+      every_seconds: 1800
+      offset_seconds: 300
+      jitter_pct: 0
+parallel:
+  run_seconds: 262800
+  max_workers: 36
+  calibration_seconds: 120
+  calibration_warmup_seconds: 30
+  reactive_margin: 1.5
+  control_interval_seconds: 5
+  recalibrate: true
+  allow_throttle: true
+  distribute_across_nodes: true
+  meter_window_seconds: 15
