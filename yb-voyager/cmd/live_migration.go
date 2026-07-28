@@ -153,10 +153,10 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error
 		return fmt.Errorf("error handling cdc partitioning strategy: %w", err)
 	}
 
-	if !disablePb {
+	{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		go statsReporter.ReportStats(ctx)
+		go statsReporter.ReportStats(ctx, !bool(disablePb))
 		defer statsReporter.Finalize()
 	}
 

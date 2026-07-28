@@ -6,32 +6,43 @@ import "github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 // Every method is a no-op with no heap allocations on hot paths.
 type noopRecorder struct{}
 
-func (noopRecorder) RecordSnapshotBatchCreated(role string, t sqlname.NameTuple)              {}
-func (noopRecorder) RecordSnapshotBatchSubmitted(role string, t sqlname.NameTuple)            {}
-func (noopRecorder) RecordSnapshotBatchIngested(role string, t sqlname.NameTuple, r, b int64) {}
-func (noopRecorder) ObserveSnapshotBatchSize(role string, t sqlname.NameTuple, r, b int64)    {}
-func (noopRecorder) RecordImportError(role string, t sqlname.NameTuple, k ErrorKind, r, b int64) {
+// import snapshot
+func (noopRecorder) RecordImportSnapshotBatchCreated(importerRole string, t sqlname.NameTuple)   {}
+func (noopRecorder) RecordImportSnapshotBatchSubmitted(importerRole string, t sqlname.NameTuple) {}
+func (noopRecorder) RecordImportSnapshotBatchIngested(importerRole string, t sqlname.NameTuple, rows, bytes int64) {
 }
-func (noopRecorder) RecordCDCEventsImported(role string, i, u, d int64)                        {}
-func (noopRecorder) SetCDCImportRate(role string, eventsPerSec float64)                        {}
-func (noopRecorder) SetExportedSnapshotRowCount(t sqlname.NameTuple, rows int64)               {}
-func (noopRecorder) SetExportSnapshotTableTotalRows(t sqlname.NameTuple, rows int64)           {}
-func (noopRecorder) RecordExportedCDCEvents(role string, events int64)                         {}
-func (noopRecorder) RecordExportError(operation string)                                        {}
-func (noopRecorder) SetCDCEventsPending(role string, pending int64)                            {}
-func (noopRecorder) SetCDCEstimatedSecondsToCatchUp(role string, seconds float64)              {}
-func (noopRecorder) SetCDCLastEventApplied(role string)                                        {}
-func (noopRecorder) SetExportTableStarted(t sqlname.NameTuple)                                 {}
-func (noopRecorder) SetExportTableCompleted(t sqlname.NameTuple)                               {}
-func (noopRecorder) SetImportSnapshotTableTotalRows(role string, t sqlname.NameTuple, r int64) {}
-func (noopRecorder) InitImportSnapshotTable(role string, t sqlname.NameTuple)                  {}
-func (noopRecorder) SetImportTableStarted(role string, t sqlname.NameTuple)                    {}
-func (noopRecorder) SetImportTableCompleted(role string, t sqlname.NameTuple)                  {}
-func (noopRecorder) SetSourceReplicationSlotRetainedWALBytes(slotName string, bytes int64)     {}
-func (noopRecorder) SetParallelism(role string, level int)                                     {}
-func (noopRecorder) SetParallelConnections(role string, n int)                                 {}
-func (noopRecorder) SetPendingConnsToClose(role string, n int)                                 {}
-func (noopRecorder) SetNodeCPUPercent(node string, pct float64)                                {}
-func (noopRecorder) SetExportParallelism(role string, level int)                               {}
-func (noopRecorder) SetSnapshotTablesTotal(role string, count int)                              {}
-func (noopRecorder) SetDebeziumUp(role string, up bool)                                        {}
+func (noopRecorder) ObserveImportSnapshotBatchSize(importerRole string, t sqlname.NameTuple, rows, bytes int64) {
+}
+func (noopRecorder) RecordImportError(importerRole string, t sqlname.NameTuple, kind ErrorKind, rows, bytes int64) {
+}
+func (noopRecorder) SetImportSnapshotTableExpectedRows(importerRole string, t sqlname.NameTuple, rows int64) {
+}
+func (noopRecorder) InitImportSnapshotTable(importerRole string, t sqlname.NameTuple, seedRows, seedBytes int64) {
+}
+func (noopRecorder) SetImportSnapshotTableStarted(importerRole string, t sqlname.NameTuple)   {}
+func (noopRecorder) SetImportSnapshotTableCompleted(importerRole string, t sqlname.NameTuple) {}
+func (noopRecorder) SetImportSnapshotTablesTotal(importerRole string, count int)              {}
+
+// import CDC
+func (noopRecorder) RecordImportCDCEvents(importerRole string, inserts, updates, deletes int64) {}
+func (noopRecorder) SetImportCDCEventsPending(importerRole string, pending int64)               {}
+func (noopRecorder) SetImportCDCEstimatedSecondsToCatchUp(importerRole string, seconds float64) {}
+func (noopRecorder) SetImportCDCLastEventApplied(importerRole string)                           {}
+
+// export snapshot
+func (noopRecorder) RecordExportSnapshotRowCount(exporterRole string, t sqlname.NameTuple, cumulative int64) {
+}
+func (noopRecorder) SetExportSnapshotTableExpectedRows(exporterRole string, t sqlname.NameTuple, rows int64) {
+}
+func (noopRecorder) SetExportSnapshotTableStarted(exporterRole string, t sqlname.NameTuple)   {}
+func (noopRecorder) SetExportSnapshotTableCompleted(exporterRole string, t sqlname.NameTuple) {}
+func (noopRecorder) SetExportSnapshotTablesTotal(exporterRole string, count int)              {}
+
+// export CDC
+func (noopRecorder) RecordExportCDCEvents(exporterRole string, events int64) {}
+
+// misc
+func (noopRecorder) SetSourceReplicationSlotRetainedWALBytes(slotName string, bytes int64) {}
+func (noopRecorder) SetImportParallelism(importerRole string, level int)                   {}
+func (noopRecorder) SetExportParallelism(exporterRole string, level int)                   {}
+func (noopRecorder) SetNodeCPUPercent(node string, pct float64)                            {}

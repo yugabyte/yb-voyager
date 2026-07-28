@@ -20,7 +20,7 @@ func TestStreamImportStatsReporterMetrics(t *testing.T) {
 		s := NewStreamImportStatsReporter("target_db_importer")
 		s.BatchImported(2, 1, 1)
 
-		assert.Equal(t, 1, rec.CDCLastEventAppliedCalls["target_db_importer"],
+		assert.Equal(t, 1, rec.ImportCDCLastEventApplied["target_db_importer"],
 			"BatchImported should set the last-event-applied gauge once")
 	})
 }

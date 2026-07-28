@@ -35,7 +35,7 @@ func TestInitExportSnapshotMetrics_RegistersAllTables(t *testing.T) {
 
 	initExportSnapshotMetrics(md)
 
-	assert.Equal(t, int64(1000), rec.ExportTableTotalRows["public.orders"])
-	assert.Equal(t, int64(0), rec.ExportTableTotalRows["public.payments"])
-	assert.Equal(t, int64(2), rec.SnapshotTablesTotal[SOURCE_DB_EXPORTER_ROLE])
+	assert.Equal(t, int64(1000), rec.ExportTableExpectedRows["public.orders"])
+	assert.Equal(t, int64(0), rec.ExportTableExpectedRows["public.payments"])
+	assert.Equal(t, int64(2), rec.ExportSnapshotTablesTotal[SOURCE_DB_EXPORTER_ROLE])
 }

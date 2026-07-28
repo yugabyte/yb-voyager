@@ -1197,7 +1197,12 @@ func importSnapshotData(msr *metadb.MigrationStatusRecord, errorHandler importda
 	if err != nil {
 		utils.ErrExit("Failed to get max parallel connections: %s", err)
 	}
-	importDataAllTableMetrics := createInitialImportDataTableMetrics(pendingTasks)
+	if !tconf.AdaptiveParallelismMode.IsEnabled() {
+		// Adaptive parallelism emits this gauge itself once it starts polling;
+		// for a fixed --parallel-jobs run there's no such poller, so emit once here.
+		metrics.Get().SetImportParallelism(importerRole, maxParallelConns)
+	}
+	importDataAllTableMetrics := createInitialImportDataTableMetrics(state, importFileTasks, pendingTasks)
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
 		controlPlane.UpdateImportedRowCount(importDataAllTableMetrics)
 	}
@@ -2417,14 +2422,32 @@ func createSnapshotImportCompletedEvent() cp.SnapshotImportCompletedEvent {
 	return result
 }
 
-func createInitialImportDataTableMetrics(tasks []*ImportFileTask) []*cp.UpdateImportedRowCountEvent {
+// createInitialImportDataTableMetrics sets table-scope metrics (totals, expected
+// rows, seeded counters) from allTasks so they stay accurate on resume, when
+// pendingTasks alone would under-report tables already completed in a prior run.
+// The control-plane event list is still built from pendingTasks only (unchanged
+// behaviour: the control plane only expects updates for tables being worked on
+// in this run).
+func createInitialImportDataTableMetrics(state *ImportDataState, allTasks, pendingTasks []*ImportFileTask) []*cp.UpdateImportedRowCountEvent {
+	metrics.Get().SetImportSnapshotTablesTotal(importerRole, len(allTasks))
+	for _, task := range allTasks {
+		metrics.Get().SetImportSnapshotTableExpectedRows(importerRole, task.TableNameTup, getTotalProgressAmount(task))
+		seedRows, err := state.GetImportedRowCount(task.FilePath, task.TableNameTup)
+		if err != nil { // best-effort; do not abort migration for a metric seed
+			log.Warnf("failed to read imported row count for %s, seeding metric at 0: %v", task.TableNameTup, err)
+			seedRows = 0
+		}
+		seedBytes, err := state.GetImportedByteCount(task.FilePath, task.TableNameTup)
+		if err != nil {
+			log.Warnf("failed to read imported byte count for %s, seeding metric at 0: %v", task.TableNameTup, err)
+			seedBytes = 0
+		}
+		metrics.Get().InitImportSnapshotTable(importerRole, task.TableNameTup, seedRows, seedBytes)
+	}
+
 	result := []*cp.UpdateImportedRowCountEvent{}
-	metrics.Get().SetSnapshotTablesTotal(importerRole, len(tasks))
-	for _, task := range tasks {
-		var schemaName, tableName string
-		schemaName, tableName = task.TableNameTup.ForKeyTableSchema()
-		metrics.Get().SetImportSnapshotTableTotalRows(importerRole, task.TableNameTup, getTotalProgressAmount(task))
-		metrics.Get().InitImportSnapshotTable(importerRole, task.TableNameTup)
+	for _, task := range pendingTasks {
+		schemaName, tableName := task.TableNameTup.ForKeyTableSchema()
 		tableMetrics := cp.UpdateImportedRowCountEvent{
 			BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
 				BaseEvent: cp.BaseEvent{

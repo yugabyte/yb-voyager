@@ -122,10 +122,10 @@ func initializeExportTableMetadata(tableList []sqlname.NameTuple) {
 // and do not appear empty until a table happens to start.
 func initExportSnapshotMetrics(tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	rec := metrics.Get()
-	rec.SetSnapshotTablesTotal(exporterRole, len(tablesProgressMetadata))
+	rec.SetExportSnapshotTablesTotal(exporterRole, len(tablesProgressMetadata))
 	for _, md := range tablesProgressMetadata {
-		rec.SetExportSnapshotTableTotalRows(md.TableName, md.CountTotalRows)
-		rec.SetExportedSnapshotRowCount(md.TableName, 0)
+		rec.SetExportSnapshotTableExpectedRows(exporterRole, md.TableName, md.CountTotalRows)
+		rec.RecordExportSnapshotRowCount(exporterRole, md.TableName, 0)
 	}
 }
 
@@ -215,8 +215,8 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 	pbr := pbreporter.NewExportPB(progressContainer, tableName, disablePb)
 	// initialize PB total with identified approx row count
 	pbr.SetTotalRowCount(tableMetadata.CountTotalRows, false)
-	metrics.Get().SetExportSnapshotTableTotalRows(tableMetadata.TableName, tableMetadata.CountTotalRows)
-	metrics.Get().SetExportTableStarted(tableMetadata.TableName)
+	metrics.Get().SetExportSnapshotTableExpectedRows(exporterRole, tableMetadata.TableName, tableMetadata.CountTotalRows)
+	metrics.Get().SetExportSnapshotTableStarted(exporterRole, tableMetadata.TableName)
 
 	// parallel goroutine to calculate and set total to actual row count
 	go func() {
@@ -228,7 +228,7 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 		log.Infof("Replacing actualRowCount=%d inplace of expectedRowCount=%d for table=%s",
 			actualRowCount, tableMetadata.CountTotalRows, tableMetadata.TableName.ForUserQuery())
 		pbr.SetTotalRowCount(actualRowCount, false)
-		metrics.Get().SetExportSnapshotTableTotalRows(tableMetadata.TableName, actualRowCount)
+		metrics.Get().SetExportSnapshotTableExpectedRows(exporterRole, tableMetadata.TableName, actualRowCount)
 		tableMetadata.CountTotalRows = actualRowCount
 	}()
 
@@ -249,7 +249,7 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 	go func() { //for continuously increasing PB percentage
 		for !pbr.IsComplete() {
 			pbr.SetExportedRowCount(tableMetadata.CountLiveRows)
-			metrics.Get().SetExportedSnapshotRowCount(tableMetadata.TableName, tableMetadata.CountLiveRows)
+			metrics.Get().RecordExportSnapshotRowCount(exporterRole, tableMetadata.TableName, tableMetadata.CountLiveRows)
 			time.Sleep(time.Millisecond * 500)
 
 			if exporterRole == SOURCE_DB_EXPORTER_ROLE {
@@ -305,8 +305,8 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 
 	// Land the exported gauge exactly on the table total so the "% complete"
 	// panel reaches 100% (the polling goroutine above can stop a few rows short).
-	metrics.Get().SetExportedSnapshotRowCount(tableMetadata.TableName, tableMetadata.CountTotalRows)
-	metrics.Get().SetExportTableCompleted(tableMetadata.TableName)
+	metrics.Get().RecordExportSnapshotRowCount(exporterRole, tableMetadata.TableName, tableMetadata.CountTotalRows)
+	metrics.Get().SetExportSnapshotTableCompleted(exporterRole, tableMetadata.TableName)
 
 	// PB will not change from "100%" -> "completed" until this function call is made
 	pbr.SetTotalRowCount(-1, true) // Completing remaining progress bar by setting current equal to total

@@ -123,25 +123,7 @@ func fetchClusterMetricsAndUpdateParallelism(yb TargetYugabyteDBWithConnectionPo
 	if callhomeMetricsCollector != nil {
 		callhomeMetricsCollector.SetCurrentParallelConnections(currentNumConnections)
 	}
-	metrics.Get().SetParallelConnections(constants.TARGET_DB_IMPORTER_ROLE, currentNumConnections)
-	metrics.Get().SetParallelism(constants.TARGET_DB_IMPORTER_ROLE, currentNumConnections)
-	metrics.Get().SetPendingConnsToClose(constants.TARGET_DB_IMPORTER_ROLE, yb.GetPendingConnsToCloseInPool())
-	for node, nodeMetrics := range clusterMetrics {
-		if nodeMetrics.Status != "OK" {
-			continue
-		}
-		user, err := strconv.ParseFloat(nodeMetrics.Metrics[CPU_USAGE_USER_METRIC], 64)
-		if err != nil {
-			log.Warnf("adaptive: parsing cpu usage user as float for node %s: %v", node, err)
-			continue
-		}
-		sys, err := strconv.ParseFloat(nodeMetrics.Metrics[CPU_USAGE_SYSTEM_METRIC], 64)
-		if err != nil {
-			log.Warnf("adaptive: parsing cpu usage system as float for node %s: %v", node, err)
-			continue
-		}
-		metrics.Get().SetNodeCPUPercent(node, (user+sys)*100)
-	}
+	emitParallelismMetrics(currentNumConnections, clusterMetrics)
 
 	if cpuLoadHigh || memLoadHigh {
 		deltaParallelism := -1
@@ -173,6 +155,29 @@ func fetchClusterMetricsAndUpdateParallelism(yb TargetYugabyteDBWithConnectionPo
 		}
 	}
 	return nil
+}
+
+// emitParallelismMetrics is the single place adaptive parallelism reports its
+// gauges, so the same connection count is never recorded under two calls with
+// diverging values.
+func emitParallelismMetrics(currentNumConnections int, clusterMetrics map[string]tgtdb.NodeMetrics) {
+	metrics.Get().SetImportParallelism(constants.TARGET_DB_IMPORTER_ROLE, currentNumConnections)
+	for node, nodeMetrics := range clusterMetrics {
+		if nodeMetrics.Status != "OK" {
+			continue
+		}
+		user, err := strconv.ParseFloat(nodeMetrics.Metrics[CPU_USAGE_USER_METRIC], 64)
+		if err != nil {
+			log.Warnf("adaptive: parsing cpu usage user as float for node %s: %v", node, err)
+			continue
+		}
+		sys, err := strconv.ParseFloat(nodeMetrics.Metrics[CPU_USAGE_SYSTEM_METRIC], 64)
+		if err != nil {
+			log.Warnf("adaptive: parsing cpu usage system as float for node %s: %v", node, err)
+			continue
+		}
+		metrics.Get().SetNodeCPUPercent(node, (user+sys)*100)
+	}
 }
 
 func isCpuLoadHigh(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error) {

@@ -1746,7 +1746,6 @@ func propagateIfExportDataError(err error, currentFlow string) error {
 func handleGetInitialTableListError(err error) {
 	var exportErr *errs.ExportDataError
 	if errors.As(err, &exportErr) {
-		metrics.Get().RecordExportError(exportErr.CurrentFlow())
 		utils.ErrExit("%s", err.Error())
 	}
 	utils.ErrExit("error in get initial table list: %w", err)

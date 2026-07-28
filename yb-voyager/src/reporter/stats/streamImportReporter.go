@@ -65,29 +65,38 @@ func (s *StreamImportStatsReporter) Init(migrationUUID uuid.UUID, metaDB *metadb
 
 func (s *StreamImportStatsReporter) Finalize() {
 	s.refreshStats()
-	s.uitable.Stop()
+	if s.uitable != nil {
+		s.uitable.Stop()
+	}
 }
 
 var headerRow, seperator1, seperator2, seperator3, row1, row2, row3, row4, row5, row6, displayExtraInfo, timerRow io.Writer
 
-func (s *StreamImportStatsReporter) ReportStats(ctx context.Context) {
+// ReportStats periodically refreshes CDC stats (metric emission included) for
+// the lifetime of ctx. The console progress table only renders when
+// displayEnabled, but metric emission must keep running regardless so
+// yb_voyager_import_data_cdc_* stay accurate with --disable-pb.
+func (s *StreamImportStatsReporter) ReportStats(ctx context.Context, displayEnabled bool) {
 	displayTicker := time.NewTicker(10 * time.Second)
 	defer displayTicker.Stop()
-	s.uitable = uilive.New()
-	headerRow = s.uitable.Newline()
-	seperator1 = s.uitable.Newline()
-	seperator2 = s.uitable.Newline()
-	seperator3 = s.uitable.Newline()
-	row1 = s.uitable.Newline()
-	row2 = s.uitable.Newline()
-	row3 = s.uitable.Newline()
-	row4 = s.uitable.Newline()
-	row5 = s.uitable.Newline()
-	row6 = s.uitable.Newline()
-	displayExtraInfo = s.uitable.Newline()
-	timerRow = s.uitable.Newline()
 
-	s.uitable.Start()
+	if displayEnabled {
+		s.uitable = uilive.New()
+		headerRow = s.uitable.Newline()
+		seperator1 = s.uitable.Newline()
+		seperator2 = s.uitable.Newline()
+		seperator3 = s.uitable.Newline()
+		row1 = s.uitable.Newline()
+		row2 = s.uitable.Newline()
+		row3 = s.uitable.Newline()
+		row4 = s.uitable.Newline()
+		row5 = s.uitable.Newline()
+		row6 = s.uitable.Newline()
+		displayExtraInfo = s.uitable.Newline()
+		timerRow = s.uitable.Newline()
+
+		s.uitable.Start()
+	}
 
 	for range displayTicker.C {
 		select {
@@ -103,6 +112,9 @@ func (s *StreamImportStatsReporter) refreshStats() {
 	elapsedTime := math.Round(time.Since(s.startTime).Minutes()*100) / 100
 	s.slideWindow()
 	s.UpdateRemainingEvents()
+	if s.uitable == nil {
+		return
+	}
 	fmt.Fprint(seperator1, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
 	fmt.Fprint(headerRow, color.GreenString("| %-30s | %30s |\n", "Metric", "Value"))
 	fmt.Fprint(seperator2, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
@@ -155,9 +167,8 @@ func (s *StreamImportStatsReporter) BatchImported(numInserts, numUpdates, numDel
 	s.TotalEventsImported += total
 	s.eventsSlidingWindow[0] += total
 	s.EventsImportRateLast3Min = s.getIngestionRateForLastNMinutes(3) / 60 // this is just used for call-home stats
-	metrics.Get().RecordCDCEventsImported(s.importerRole, numInserts, numUpdates, numDeletes)
-	metrics.Get().SetCDCImportRate(s.importerRole, float64(s.EventsImportRateLast3Min))
-	metrics.Get().SetCDCLastEventApplied(s.importerRole)
+	metrics.Get().RecordImportCDCEvents(s.importerRole, numInserts, numUpdates, numDeletes)
+	metrics.Get().SetImportCDCLastEventApplied(s.importerRole)
 }
 
 func (s *StreamImportStatsReporter) getIngestionRateForLastNMinutes(n int64) int64 {
@@ -186,6 +197,6 @@ func (s *StreamImportStatsReporter) UpdateRemainingEvents() {
 	if lastMinIngestionRate > 0 {
 		s.estimatedTimeToCatchUp = time.Duration(s.remainingEvents/lastMinIngestionRate) * time.Minute
 	}
-	metrics.Get().SetCDCEventsPending(s.importerRole, s.remainingEvents)
-	metrics.Get().SetCDCEstimatedSecondsToCatchUp(s.importerRole, s.estimatedTimeToCatchUp.Seconds())
+	metrics.Get().SetImportCDCEventsPending(s.importerRole, s.remainingEvents)
+	metrics.Get().SetImportCDCEstimatedSecondsToCatchUp(s.importerRole, s.estimatedTimeToCatchUp.Seconds())
 }

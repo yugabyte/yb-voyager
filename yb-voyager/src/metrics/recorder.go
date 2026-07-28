@@ -6,7 +6,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-// ErrorKind classifies import errors for the yb_voyager_import_errors_total label.
+// ErrorKind classifies import errors for the yb_voyager_import_data_errors_total label.
 type ErrorKind string
 
 const (
@@ -17,53 +17,39 @@ const (
 // Recorder is the only type metrics call sites depend on. A no-op implementation
 // is the default so call sites never need to check whether metrics are enabled.
 type Recorder interface {
-	// snapshot import counters (existing metric names, preserved)
-	RecordSnapshotBatchCreated(role string, t sqlname.NameTuple)
-	RecordSnapshotBatchSubmitted(role string, t sqlname.NameTuple)
-	RecordSnapshotBatchIngested(role string, t sqlname.NameTuple, rows, bytes int64)
+	// import snapshot
+	RecordImportSnapshotBatchCreated(importerRole string, t sqlname.NameTuple)
+	RecordImportSnapshotBatchSubmitted(importerRole string, t sqlname.NameTuple)
+	RecordImportSnapshotBatchIngested(importerRole string, t sqlname.NameTuple, rows, bytes int64)
+	ObserveImportSnapshotBatchSize(importerRole string, t sqlname.NameTuple, rows, bytes int64)
+	RecordImportError(importerRole string, t sqlname.NameTuple, kind ErrorKind, rows, bytes int64)
+	SetImportSnapshotTableExpectedRows(importerRole string, t sqlname.NameTuple, rows int64)
+	InitImportSnapshotTable(importerRole string, t sqlname.NameTuple, seedRows, seedBytes int64)
+	SetImportSnapshotTableStarted(importerRole string, t sqlname.NameTuple)
+	SetImportSnapshotTableCompleted(importerRole string, t sqlname.NameTuple)
+	SetImportSnapshotTablesTotal(importerRole string, count int)
 
-	// batch-size distribution
-	ObserveSnapshotBatchSize(role string, t sqlname.NameTuple, rows, bytes int64)
+	// import CDC
+	RecordImportCDCEvents(importerRole string, inserts, updates, deletes int64)
+	SetImportCDCEventsPending(importerRole string, pending int64)
+	SetImportCDCEstimatedSecondsToCatchUp(importerRole string, seconds float64)
+	SetImportCDCLastEventApplied(importerRole string)
 
-	// import errors
-	RecordImportError(role string, t sqlname.NameTuple, kind ErrorKind, rows, bytes int64)
+	// export snapshot
+	RecordExportSnapshotRowCount(exporterRole string, t sqlname.NameTuple, cumulative int64)
+	SetExportSnapshotTableExpectedRows(exporterRole string, t sqlname.NameTuple, rows int64)
+	SetExportSnapshotTableStarted(exporterRole string, t sqlname.NameTuple)
+	SetExportSnapshotTableCompleted(exporterRole string, t sqlname.NameTuple)
+	SetExportSnapshotTablesTotal(exporterRole string, count int)
 
-	// cdc / streaming
-	RecordCDCEventsImported(role string, inserts, updates, deletes int64)
-	SetCDCImportRate(role string, eventsPerSec float64)
-	SetCDCEventsPending(role string, pending int64)
-	SetCDCEstimatedSecondsToCatchUp(role string, seconds float64)
-	SetCDCLastEventApplied(role string)
+	// export CDC
+	RecordExportCDCEvents(exporterRole string, events int64)
 
-	// export
-	SetExportedSnapshotRowCount(t sqlname.NameTuple, rows int64)
-	SetExportSnapshotTableTotalRows(t sqlname.NameTuple, rows int64)
-	SetExportTableStarted(t sqlname.NameTuple)
-	SetExportTableCompleted(t sqlname.NameTuple)
-	RecordExportedCDCEvents(role string, events int64)
-	RecordExportError(operation string)
-
-	// import progress / lifecycle
-	SetImportSnapshotTableTotalRows(role string, t sqlname.NameTuple, rows int64)
-	InitImportSnapshotTable(role string, t sqlname.NameTuple)
-	SetImportTableStarted(role string, t sqlname.NameTuple)
-	SetImportTableCompleted(role string, t sqlname.NameTuple)
-
-	// source health
+	// misc
 	SetSourceReplicationSlotRetainedWALBytes(slotName string, bytes int64)
-
-	// throughput / parallelism gauges
-	SetParallelism(role string, level int)
-	SetParallelConnections(role string, n int)
-	SetPendingConnsToClose(role string, n int)
+	SetImportParallelism(importerRole string, level int)
+	SetExportParallelism(exporterRole string, level int)
 	SetNodeCPUPercent(node string, pct float64)
-	SetExportParallelism(role string, level int)
-
-	// snapshot scope
-	SetSnapshotTablesTotal(role string, count int)
-
-	// process liveness
-	SetDebeziumUp(role string, up bool)
 }
 
 // recorderHolder gives atomic.Value a single, consistent concrete type to

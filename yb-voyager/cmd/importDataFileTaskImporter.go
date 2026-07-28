@@ -112,7 +112,7 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchProd
 	currentProgressAmount := getImportedProgressAmount(task, state)
 	progressReporter.AddProgressAmount(task, currentProgressAmount)
 
-	metrics.Get().SetImportTableStarted(importerRole, task.TableNameTup)
+	metrics.Get().SetImportSnapshotTableStarted(importerRole, task.TableNameTup)
 
 	resumeInfoShown := false
 	if currentProgressAmount > 0 {
@@ -205,7 +205,7 @@ func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 		fti.workerPool.Go(importBatchFunc)
 	}
 
-	metrics.Get().RecordSnapshotBatchSubmitted(importerRole, fti.task.TableNameTup)
+	metrics.Get().RecordImportSnapshotBatchSubmitted(importerRole, fti.task.TableNameTup)
 
 	log.Infof("Queued batch: %s", spew.Sdump(batch))
 	return nil
@@ -334,8 +334,8 @@ func (fti *FileTaskImporter) updateProgressForCompletedBatch(batch *Batch) {
 		fti.callhomeMetricsCollector.IncrementSnapshotProgress(batch.RecordCount, batch.ByteCount)
 	}
 
-	metrics.Get().RecordSnapshotBatchIngested(importerRole, fti.task.TableNameTup, batch.RecordCount, batch.ByteCount)
-	metrics.Get().ObserveSnapshotBatchSize(importerRole, fti.task.TableNameTup, batch.RecordCount, batch.ByteCount)
+	metrics.Get().RecordImportSnapshotBatchIngested(importerRole, fti.task.TableNameTup, batch.RecordCount, batch.ByteCount)
+	metrics.Get().ObserveImportSnapshotBatchSize(importerRole, fti.task.TableNameTup, batch.RecordCount, batch.ByteCount)
 }
 
 func (fti *FileTaskImporter) PostProcess() {
@@ -345,7 +345,7 @@ func (fti *FileTaskImporter) PostProcess() {
 
 	fti.updateProgressInControlPlane(ROW_UPDATE_STATUS_COMPLETED)
 
-	metrics.Get().SetImportTableCompleted(importerRole, fti.task.TableNameTup)
+	metrics.Get().SetImportSnapshotTableCompleted(importerRole, fti.task.TableNameTup)
 
 	fti.progressReporter.FileImportDone(fti.task) // Remove the progress-bar for the file.\
 }

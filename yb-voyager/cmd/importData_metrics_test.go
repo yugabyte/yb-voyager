@@ -42,9 +42,10 @@ func TestCreateInitialImportDataTableMetrics_SetsTotalRows(t *testing.T) {
 		},
 	}
 
-	createInitialImportDataTableMetrics(tasks)
+	state := NewImportDataState(t.TempDir())
+	createInitialImportDataTableMetrics(state, tasks, tasks)
 
-	assert.Equal(t, int64(1000), rec.ImportTableTotalRows["public.orders"])
-	assert.Equal(t, int64(1), rec.SnapshotTablesTotal[TARGET_DB_IMPORTER_ROLE])
+	assert.Equal(t, int64(1000), rec.ImportTableExpectedRows["public.orders"])
+	assert.Equal(t, int64(1), rec.ImportSnapshotTablesTotal[TARGET_DB_IMPORTER_ROLE])
 	assert.Equal(t, 1, rec.ImportSnapshotTableInit["public.orders"])
 }

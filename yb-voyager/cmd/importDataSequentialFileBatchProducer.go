@@ -46,12 +46,12 @@ type SequentialFileBatchProducer struct {
 	fileFullySplit  bool     // if the file is fully split into batches
 	completed       bool     // if all batches have been produced
 
-	dataFile               datafile.DataFile
-	header                 string
-	headerByteCount        int64
-	numLinesTaken          int64 // number of lines read from the file
+	dataFile                  datafile.DataFile
+	header                    string
+	headerByteCount           int64
+	numLinesTaken             int64 // number of lines read from the file
 	lastBatchCumByteOffsetEnd int64 // cumulative byte offset end recovered from the last batch's state
-	cumByteOffsetEnd         int64 // running cumulative byte offset end tracking absolute file position
+	cumByteOffsetEnd          int64 // running cumulative byte offset end tracking absolute file position
 	// line that was read from file while producing the previous batch
 	// but not added to the batch because adding it would breach size/row based thresholds.
 	lineFromPreviousBatch string
@@ -107,8 +107,8 @@ func NewSequentialFileBatchProducer(task *ImportFileTask, state *ImportDataState
 		fileFullySplit:              fileFullySplit,
 		completed:                   completed,
 		numLinesTaken:               lastOffset,
-		lastBatchCumByteOffsetEnd:      lastBatchCumByteOffsetEnd,
-		cumByteOffsetEnd:               lastBatchCumByteOffsetEnd,
+		lastBatchCumByteOffsetEnd:   lastBatchCumByteOffsetEnd,
+		cumByteOffsetEnd:            lastBatchCumByteOffsetEnd,
 		errorHandler:                errorHandler,
 		progressReporter:            progressReporter,
 		isRowTransformationRequired: isRowTransformationRequired,
@@ -435,7 +435,7 @@ func (p *SequentialFileBatchProducer) finalizeBatch(batchWriter *BatchWriter, is
 		utils.ErrExit("finalizing batch %d: %s", batchNum, err)
 	}
 
-	metrics.Get().RecordSnapshotBatchCreated(importerRole, p.task.TableNameTup)
+	metrics.Get().RecordImportSnapshotBatchCreated(importerRole, p.task.TableNameTup)
 
 	batchWriter = nil
 	p.lastBatchNumber = batchNum

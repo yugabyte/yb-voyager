@@ -13,7 +13,7 @@ import (
 
 func TestServerServesMetrics(t *testing.T) {
 	r := NewPrometheusRecorder("uuid-1", "sess-1")
-	r.RecordSnapshotBatchIngested("target_db_importer", newTupleForTest("public", "orders"), 5, 50)
+	r.RecordImportSnapshotBatchIngested("target_db_importer", newTupleForTest("public", "orders"), 5, 50)
 
 	srv := NewServer(0, r.Registry()) // port 0 -> OS assigns a free port
 	if err := srv.Start(); err != nil {
@@ -37,7 +37,7 @@ func TestServerServesMetrics(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
-	if !strings.Contains(string(body), "yb_voyager_import_snapshot_rows_total") {
+	if !strings.Contains(string(body), "yb_voyager_import_data_snapshot_rows_total") {
 		t.Fatalf("metrics body missing expected metric:\n%s", body)
 	}
 }
