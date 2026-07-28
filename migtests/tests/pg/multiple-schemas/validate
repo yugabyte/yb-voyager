@@ -181,8 +181,10 @@ def migration_completed_checks(tgt):
 				expectedExtensions.extend(["pg_parquet"])
 
 		if Version(threeDotVersion) >= Version("2025.2.3"):
-			expectedExtensions.extend(["age","pg_dist_rag"])
-			
+			# 'age' is reported as 'mage' from YB 2026.1
+			age_ext = "mage" if Version(threeDotVersion) >= Version("2026.1") else "age"
+			expectedExtensions.extend([age_ext, "pg_dist_rag"])
+
 		for extension in expectedExtensions:
 			assert extension in extensions, f"expected extension is not reported: {extension}"
 		
