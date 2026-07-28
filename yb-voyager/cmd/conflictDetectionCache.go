@@ -222,6 +222,7 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 	c.Lock()
 	defer c.Unlock()
 
+	conflictLogged := false
 	for {
 		cachedEvents := c.findConflictLocked(incomingEvent)
 		if len(cachedEvents) == 0 {
@@ -238,12 +239,26 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 			default:
 				// channel is full, so it's okay not to send FLUSH_BATCH_EVENT
 				// because MAX_EVENTS_PER_BATCH would likely be reached in the next batch.
-				log.Infof("channel %d is full with size %d, not sending FLUSH_BATCH_EVENT", i, len(c.evChans[i]))
+				log.Debugf("channel %d is full with size %d, not sending FLUSH_BATCH_EVENT", i, len(c.evChans[i]))
 			}
 		}
 		for _, cachedEvent := range cachedEvents {
 			injectUniqueKeyConflictDetectedFailpoint(cachedEvent, incomingEvent)
-			log.Infof("waiting for event(vsn=%d) to be complete before processing event(vsn=%d)", cachedEvent.Vsn, incomingEvent.Vsn)
+		}
+
+		// Concise INFO once per blocked incoming event; the per-index/column-value
+		// detail is logged at DEBUG in findValueConflictLocked. The target-DB-exporter
+		// path already emits its own "conflict detected" INFO in eventsConfict, so here
+		// we only log at DEBUG for that path to avoid double counting.
+		cachedVsns := lo.Map(cachedEvents, func(e *tgtdb.Event, _ int) int64 { return e.Vsn })
+		if isTargetDBExporter(incomingEvent.ExporterRole) {
+			log.Debugf("event(vsn=%d) waiting for in-flight event(s) %v to be applied", incomingEvent.Vsn, cachedVsns)
+		} else if !conflictLogged {
+			log.Infof("conflict detected event(vsn=%d) on table %s waiting for in-flight event(s) %v to be applied",
+				incomingEvent.Vsn, incomingEvent.TableNameTup.ForKey(), cachedVsns)
+			conflictLogged = true
+		} else {
+			log.Debugf("still waiting: event(vsn=%d) blocked by in-flight event(s) %v", incomingEvent.Vsn, cachedVsns)
 		}
 		// cond.Wait releases the lock and blocks until RemoveEvents broadcasts (some
 		// cached event was applied/removed). We then loop and re-check, because one
@@ -300,7 +315,7 @@ func (c *ConflictDetectionCache) findValueConflictLocked(incomingEvent *tgtdb.Ev
 		if key, ok := computeConflictBucketKey(table, i, incomingEvent.Fields, index); ok {
 			cachedEvents := c.getNonSamePKEventsWithSameBucketKey(key, incomingEvent)
 			for _, cachedEvent := range cachedEvents {
-				log.Infof("conflict detected for table %s, index columns %v, between before value of cached-event1(vsn=%d, colVal=%s) and after value of incoming-event2(vsn=%d, colVal=%s)",
+				log.Debugf("conflict detected for table %s, index columns %v, between before value of cached-event1(vsn=%d, colVal=%s) and after value of incoming-event2(vsn=%d, colVal=%s)",
 					table, index.Columns,
 					cachedEvent.Vsn, formatUniqueIndexColumnValuesForLog(cachedEvent.BeforeFields, index.Columns),
 					incomingEvent.Vsn, formatUniqueIndexColumnValuesForLog(incomingEvent.Fields, index.Columns))
@@ -314,7 +329,7 @@ func (c *ConflictDetectionCache) findValueConflictLocked(incomingEvent *tgtdb.Ev
 		if key, ok := computeConflictBucketKey(table, i, incomingEvent.BeforeFields, index); ok {
 			cachedEvents := c.getNonSamePKEventsWithSameBucketKey(key, incomingEvent)
 			for _, cachedEvent := range cachedEvents {
-				log.Infof("conflict detected for table %s, index columns %v, between before value of cached-event1(vsn=%d, colVal=%s) and before value of incoming-event2(vsn=%d, colVal=%s)",
+				log.Debugf("conflict detected for table %s, index columns %v, between before value of cached-event1(vsn=%d, colVal=%s) and before value of incoming-event2(vsn=%d, colVal=%s)",
 					table, index.Columns,
 					cachedEvent.Vsn, formatUniqueIndexColumnValuesForLog(cachedEvent.BeforeFields, index.Columns),
 					incomingEvent.Vsn, formatUniqueIndexColumnValuesForLog(incomingEvent.BeforeFields, index.Columns))
