@@ -344,6 +344,10 @@ func TestLiveMigrationWithMultiColumnUniqueIndexConflictDetectionCases(t *testin
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
 
+	require.LessOrEqual(t, conflictStats.Total, 6000, "true-positive delta should produce at most 6000 UK conflicts")
+	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index"`], 3000, "test_multi_column_unique_index should have at most 3000 UK conflicts")
+	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index_part"`], 3000, "test_multi_column_unique_index_part should have at most 3000 UK conflicts")
+
 	require.GreaterOrEqual(t, conflictStats.Total, 0, "true-positive delta should produce at least 3000 UK conflicts")
 	require.GreaterOrEqual(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index"`], 0, "test_multi_column_unique_index should have at least 1500 UK conflicts")
 	require.GreaterOrEqual(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index_part"`], 0, "test_multi_column_unique_index_part should have at least 1500 UK conflicts")
@@ -762,9 +766,9 @@ FROM generate_series(1, 20) as i;`,
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	fmt.Println("conflictStats", conflictStats)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
-	require.GreaterOrEqual(t, conflictStats.Total, 0,
-		"null unique delta should produce 2500 UK conflicts (5 per loop x 500 loops)")
-	require.GreaterOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live_null_unique_values"`], 0)
+	require.GreaterOrEqual(t, conflictStats.Total, 2000,
+		"null unique delta should produce 2000 UK conflicts (5 per loop x 400 loops)")
+	require.GreaterOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live_null_unique_values"`], 2000)
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live_null_unique_values"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -1080,8 +1084,8 @@ FROM generate_series(1, 20) as i;`,
 
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
-	require.GreaterOrEqual(t, conflictStats.Total, 0, "partial unique delta should produce at least 0 UK conflicts")
-	require.GreaterOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live_null_partial_unique_values"`], 0, "test_live_null_partial_unique_values should have at least 0 UK conflicts")
+	require.GreaterOrEqual(t, conflictStats.Total, 2500, "partial unique delta should produce at least 2500 UK conflicts")
+	require.GreaterOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live_null_partial_unique_values"`], 2500, "test_live_null_partial_unique_values should have at least 2500 UK conflicts")
 
 	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_live_null_partial_unique_values"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -1226,9 +1230,9 @@ func TestLiveMigrationWithUniqueKeyConflictsOnCaseSensitiveColumns(t *testing.T)
 
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
-	require.GreaterOrEqual(t, conflictStats.Total, 0,
+	require.GreaterOrEqual(t, conflictStats.Total, 500,
 		"case-sensitive UK delta should produce unique-key conflicts")
-	require.GreaterOrEqual(t, conflictStats.ByTable[table], 0,
+	require.GreaterOrEqual(t, conflictStats.ByTable[table], 1,
 		"case-sensitive UK conflicts should be attributed to the table")
 
 	err = liveMigrationTest.ValidateDataConsistency([]string{table}, "id")

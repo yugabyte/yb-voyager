@@ -28,6 +28,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -460,10 +461,13 @@ func TestUniqueKeyConflictPairKey_OrdersVsns(t *testing.T) {
 
 // findConflictForTest exercises the lock-protected findConflictLocked without
 // invoking the blocking wait loop in WaitUntilNoConflict.
-func findConflictForTest(c *ConflictDetectionCache, incoming *tgtdb.Event) []*tgtdb.Event {
+func findConflictForTest(t *testing.T, c *ConflictDetectionCache, incoming *tgtdb.Event) []*tgtdb.Event {
 	c.Lock()
 	defer c.Unlock()
-	conflicts := c.findConflictLocked(incoming)
+	conflicts, err := c.findConflictLocked(incoming)
+	if err != nil {
+		testutils.FatalIfError(t, err)
+	}
 	var events []*tgtdb.Event
 	seen := make(map[int64]bool)
 	for _, conflict := range conflicts {
@@ -499,7 +503,7 @@ func TestConflictLookup_FindsBeforeAfterConflict(t *testing.T) {
 		Fields:       map[string]*string{"email": strPtr("a@example.com")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
-	got := findConflictForTest(cache, incoming)
+	got := findConflictForTest(t, cache, incoming)
 	require.Len(t, got, 1)
 	assert.Equal(t, int64(1), got[0].Vsn)
 }
@@ -525,7 +529,7 @@ func TestConflictLookup_FindsCompositeConflict(t *testing.T) {
 		Fields:       map[string]*string{"a": strPtr("1"), "b": strPtr("2")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
-	got := findConflictForTest(cache, incoming)
+	got := findConflictForTest(t, cache, incoming)
 	require.Len(t, got, 1)
 	assert.Equal(t, int64(1), got[0].Vsn)
 }
@@ -553,7 +557,7 @@ func TestConflictLookup_FindsBeforeBeforeConflict_NullsNotDistinct(t *testing.T)
 		Fields:       map[string]*string{"check_id": strPtr("20")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
-	got := findConflictForTest(cache, incoming)
+	got := findConflictForTest(t, cache, incoming)
 	require.Len(t, got, 1)
 	assert.Equal(t, int64(1), got[0].Vsn)
 }
@@ -580,7 +584,7 @@ func TestConflictLookup_NullsDistinctNotIndexed(t *testing.T) {
 		Fields:       map[string]*string{"email": nil},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
-	assert.Empty(t, findConflictForTest(cache, incoming))
+	assert.Empty(t, findConflictForTest(t, cache, incoming))
 }
 
 // Same-PK candidates are gathered by the lookup but rejected by eventsConfict.
@@ -605,7 +609,7 @@ func TestConflictLookup_SamePKNoConflict(t *testing.T) {
 		Fields:       map[string]*string{"email": strPtr("a@example.com")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
-	assert.Empty(t, findConflictForTest(cache, incoming))
+	assert.Empty(t, findConflictForTest(t, cache, incoming))
 }
 
 // A non-conflicting incoming event must not block or match.
@@ -629,7 +633,7 @@ func TestConflictLookup_NoConflictDoesNotBlock(t *testing.T) {
 		Fields:       map[string]*string{"email": strPtr("b@example.com")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
-	assert.Empty(t, findConflictForTest(cache, incoming))
+	assert.Empty(t, findConflictForTest(t, cache, incoming))
 
 	done := make(chan struct{})
 	go func() {
@@ -671,20 +675,29 @@ func TestConflictLookup_RemoveDeindexes(t *testing.T) {
 		Fields:       map[string]*string{"email": strPtr("a@example.com")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
-	assert.Empty(t, findConflictForTest(cache, incoming))
+	assert.Empty(t, findConflictForTest(t, cache, incoming))
 }
 
 // computeConflictBucketKey must not collide for tuples that differ only in the
 // split of characters between adjacent columns.
 func TestComputeConflictBucketKey_NoAmbiguity(t *testing.T) {
 	idx := uidx("a", "b")
-	k1, ok1 := computeConflictBucketKey("public.users", 0, map[string]*string{"a": strPtr("ab"), "b": strPtr("")}, idx)
-	k2, ok2 := computeConflictBucketKey("public.users", 0, map[string]*string{"a": strPtr("a"), "b": strPtr("b")}, idx)
+	k1, ok1, err := computeConflictBucketKey(testutils.CreateNameTupleWithTargetName("public.users", "", POSTGRESQL), map[string]*string{"a": strPtr("ab"), "b": strPtr("")}, idx)
+	if err != nil {
+		t.Fatalf("error computing conflict bucket key: %v", err)
+	}
+	k2, ok2, err := computeConflictBucketKey(testutils.CreateNameTupleWithTargetName("public.users", "", POSTGRESQL), map[string]*string{"a": strPtr("a"), "b": strPtr("b")}, idx)
+	if err != nil {
+		t.Fatalf("error computing conflict bucket key: %v", err)
+	}
 	require.True(t, ok1)
 	require.True(t, ok2)
 	assert.NotEqual(t, k1, k2)
 
 	// missing column -> not indexable
-	_, ok3 := computeConflictBucketKey("public.users", 0, map[string]*string{"a": strPtr("a")}, idx)
+	_, ok3, err := computeConflictBucketKey(testutils.CreateNameTupleWithTargetName("public.users", "", POSTGRESQL), map[string]*string{"a": strPtr("a")}, idx)
+	if err != nil {
+		t.Fatalf("error computing conflict bucket key: %v", err)
+	}
 	assert.False(t, ok3)
 }
