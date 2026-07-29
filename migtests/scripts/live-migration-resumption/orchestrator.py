@@ -6,6 +6,7 @@ import argparse
 import random
 import subprocess
 import time
+import re
 from typing import Any, Dict, Callable
 import helpers as H
 
@@ -56,6 +57,65 @@ def export_schema_action(_stage, ctx: Any) -> None:
 @action("voyager_import_schema")
 def import_schema_action(_stage, ctx: Any) -> None:
     H.import_schema(ctx.cfg, ctx.env)
+
+
+@action("presplit_tables")
+def presplit_tables_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Append ``SPLIT INTO <n> TABLETS`` to selected tables' CREATE statements in the
+    EXPORTED schema, to run BETWEEN export-schema and import-schema so the target
+    creates those tables pre-split. Voyager emits one inline-PK ``CREATE TABLE ... );``
+    per line, so the clause is inserted immediately before the terminating semicolon.
+    Idempotent (skips a table already carrying SPLIT INTO); fails loudly if a named
+    table is missing or its CREATE is not a single terminated statement.
+
+    Two modes:
+      * uniform  -- ``tables`` (list[str]) + ``tablets`` (int, default 6): same n for all
+      * per-table-- ``table_tablets`` (dict[str,int]): each table its own tablet count
+    Optional ``schema_file`` (default ``schema/tables/table.sql``, relative to export_dir).
+    """
+    tt = stage.get("table_tablets") or {}
+    if tt:
+        want = {str(k): int(v) for k, v in tt.items()}
+    else:
+        tables = stage.get("tables") or []
+        if not tables:
+            raise ValueError("presplit_tables requires 'tables' or 'table_tablets'")
+        n = int(stage.get("tablets", 6))
+        want = {t: n for t in tables}
+
+    export_dir = ctx.cfg["export_dir"]
+    if ctx.test_root and not os.path.isabs(export_dir):
+        export_dir = os.path.join(ctx.test_root, export_dir)
+    rel = stage.get("schema_file", os.path.join("schema", "tables", "table.sql"))
+    path = os.path.join(export_dir, rel)
+
+    with open(path) as f:
+        lines = f.readlines()
+
+    patched: set = set()
+    for i, line in enumerate(lines):
+        for t in [x for x in want if x not in patched]:
+            if re.match(rf'\s*CREATE TABLE\s+(public\.)?{re.escape(t)}\s*\(', line):
+                if "SPLIT INTO" in line:
+                    patched.add(t)
+                    break
+                body = line.rstrip("\n").rstrip()
+                if not body.endswith(";"):
+                    raise ValueError(
+                        f"presplit_tables: CREATE TABLE for {t} is not a single "
+                        f"terminated statement; refusing to patch")
+                lines[i] = body[:-1] + f" SPLIT INTO {want[t]} TABLETS;" + "\n"
+                patched.add(t)
+                break
+
+    missing = set(want) - patched
+    if missing:
+        raise ValueError(
+            f"presplit_tables: tables not found in {path}: {sorted(missing)}")
+
+    with open(path, "w") as f:
+        f.writelines(lines)
+    H.log(f"presplit_tables: SPLIT INTO applied to {len(patched)} table(s) in {path}")
 
 
 @action("generator_start")
