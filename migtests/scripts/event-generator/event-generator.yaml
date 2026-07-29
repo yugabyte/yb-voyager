@@ -130,6 +130,43 @@ generator:
   #                                 # rate; default 0, must be 0..50.
   # ---------------------------------------------------------------------------
 
+  # ---------------------------------------------------------------------------
+  # Transaction mode (optional). Default OFF ('enabled: false' or the whole
+  # block absent) -- the generator then runs today's single-op-per-iteration
+  # loop exactly as before. When enabled, each iteration executes ONE
+  # multi-statement transaction (BEGIN ... [SAVEPOINT ... RELEASE SAVEPOINT
+  # ...] ... COMMIT) instead of one op, split into single-row statements
+  # against a small "hot" set of tables plus the normal weighted pool of
+  # everything else. Each committed statement counts as one event (rate
+  # governor target is statements/sec here, not rows/sec).
+  #
+  # transaction_mode:
+  #   enabled: false
+  #   # Tables hammered every transaction, regardless of table_weights.
+  #   # Generic placeholders below -- replace with real table names from
+  #   # your own schema; never leave example names active in a real run.
+  #   hot_tables: [table_a, table_b]
+  #   # Total statements per transaction: T, sampled from [min, max].
+  #   statements_per_txn: { min: 4, max: 12 }
+  #   # Of T, how many target a hot_tables entry (H) vs. everything else (O).
+  #   # H and O are each sampled from their own [min, max], then reconciled
+  #   # so H + O == T (O is adjusted first, then H, staying within their own
+  #   # ranges and within statements_per_txn's range) -- so these three
+  #   # ranges should be "compatible" (statements_per_txn.min <=
+  #   # hot_statements_per_txn.min + other_statements_per_txn.min, and
+  #   # statements_per_txn.max >= the two maxes summed).
+  #   hot_statements_per_txn: { min: 2, max: 6 }
+  #   other_statements_per_txn: { min: 2, max: 6 }
+  #   # Number of SAVEPOINT/RELEASE SAVEPOINT pairs wrapped around random
+  #   # contiguous sub-runs of the transaction's statements (clamped to the
+  #   # actual statement count -- a pair needs at least one statement).
+  #   savepoint_pairs_per_txn: { min: 0, max: 3 }
+  #   # Per-statement operation weights, same shape as operation_weights
+  #   # above, but separate for hot vs. other statements.
+  #   hot_op_weights: { INSERT: 3, UPDATE: 2, DELETE: 1 }
+  #   other_op_weights: { INSERT: 3, UPDATE: 2, DELETE: 1 }
+  # ---------------------------------------------------------------------------
+
 # ---------------------------------------------------------------------------
 # Parallel / dynamic-worker controller (optional, top-level block).
 #

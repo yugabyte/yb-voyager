@@ -125,6 +125,10 @@ def load_event_generator_config(path_override: Optional[str] = None) -> Dict[str
     if rate_control is not None:
         validate_rate_control(rate_control)
 
+    transaction_mode = config.get("generator", {}).get("transaction_mode")
+    if transaction_mode is not None:
+        validate_transaction_mode(transaction_mode)
+
     return config
 
 
@@ -216,6 +220,109 @@ def validate_rate_control(rc: Dict[str, Any]) -> None:
                 f"rate_control.schedule[{idx}]: offset_seconds + duration_seconds "
                 f"({offset_seconds + duration_seconds}) must be <= every_seconds ({every_seconds})"
             )
+
+
+
+# ---------------------
+# Transaction mode config (optional, default OFF)
+# ---------------------
+#
+# Known keys for the optional 'generator.transaction_mode' block (see
+# transaction_mode.py for the planning/execution logic it feeds). Anything
+# else is a likely typo: warn but don't fail, same policy as rate_control.
+_TRANSACTION_MODE_KEYS = {
+    "enabled",
+    "hot_tables",
+    "statements_per_txn",
+    "hot_statements_per_txn",
+    "other_statements_per_txn",
+    "savepoint_pairs_per_txn",
+    "hot_op_weights",
+    "other_op_weights",
+}
+_TRANSACTION_MODE_RANGE_KEYS = (
+    "statements_per_txn",
+    "hot_statements_per_txn",
+    "other_statements_per_txn",
+    "savepoint_pairs_per_txn",
+)
+
+
+def validate_transaction_mode(tm: Dict[str, Any]) -> None:
+    """
+    Validate a 'generator.transaction_mode' block.
+
+    Lives in utils.py (rather than transaction_mode.py, which needs to
+    import build_insert_values/build_update_values/etc. from here) so
+    load_event_generator_config can call it directly with no import cycle.
+
+    Only enforces the full shape when 'enabled' is true (fails fast at
+    startup with a clear message): a minimal or stale block with
+    enabled: false (or the key simply absent) is a no-op beyond a type
+    check on 'enabled' itself -- the legacy single-op path never reads any
+    other key in this block, so it must never be broken by one.
+
+      - hot_tables must be a non-empty list of table name strings.
+      - statements_per_txn / hot_statements_per_txn /
+        other_statements_per_txn / savepoint_pairs_per_txn must each be a
+        mapping with integer 'min'/'max', 0 <= min <= max.
+      - hot_op_weights / other_op_weights must be mappings with numeric,
+        non-negative INSERT/UPDATE/DELETE weights, at least one > 0.
+    Unknown keys print a non-fatal warning (typo guard) rather than raising.
+    """
+    if not isinstance(tm, dict):
+        raise ValueError("transaction_mode must be a mapping/object")
+
+    for key in tm:
+        if key not in _TRANSACTION_MODE_KEYS:
+            print(f"Warning: unknown key '{key}' in 'transaction_mode' (ignored)")
+
+    enabled = tm.get("enabled", False)
+    if not isinstance(enabled, bool):
+        raise ValueError(f"transaction_mode.enabled must be a bool, got {enabled!r}")
+    if not enabled:
+        return
+
+    hot_tables = tm.get("hot_tables")
+    if (
+        not isinstance(hot_tables, list)
+        or not hot_tables
+        or not all(isinstance(t, str) for t in hot_tables)
+    ):
+        raise ValueError(
+            "transaction_mode.hot_tables must be a non-empty list of table names when enabled"
+        )
+
+    for key in _TRANSACTION_MODE_RANGE_KEYS:
+        _validate_transaction_mode_range(tm, key)
+
+    for key in ("hot_op_weights", "other_op_weights"):
+        _validate_transaction_mode_op_weights(tm, key)
+
+
+def _validate_transaction_mode_range(tm: Dict[str, Any], key: str) -> None:
+    rng = tm.get(key)
+    if not isinstance(rng, dict) or "min" not in rng or "max" not in rng:
+        raise ValueError(f"transaction_mode.{key} is required (with 'min'/'max') when enabled")
+    lo, hi = rng["min"], rng["max"]
+    if isinstance(lo, bool) or isinstance(hi, bool) or not isinstance(lo, int) or not isinstance(hi, int):
+        raise ValueError(f"transaction_mode.{key}.min/max must be integers, got min={lo!r}, max={hi!r}")
+    if lo < 0 or hi < lo:
+        raise ValueError(f"transaction_mode.{key} must satisfy 0 <= min <= max, got min={lo}, max={hi}")
+
+
+def _validate_transaction_mode_op_weights(tm: Dict[str, Any], key: str) -> None:
+    weights = tm.get(key)
+    if not isinstance(weights, dict):
+        raise ValueError(f"transaction_mode.{key} is required (a mapping) when enabled")
+    total = 0.0
+    for op in ("INSERT", "UPDATE", "DELETE"):
+        w = weights.get(op, 0)
+        if isinstance(w, bool) or not isinstance(w, (int, float)) or w < 0:
+            raise ValueError(f"transaction_mode.{key}.{op} must be a number >= 0, got {w!r}")
+        total += w
+    if total <= 0:
+        raise ValueError(f"transaction_mode.{key} must have at least one operation with weight > 0")
 
 
 def build_rate_governor(config: Dict[str, Any], **injectables) -> Any:

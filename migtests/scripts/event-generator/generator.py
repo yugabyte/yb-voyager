@@ -32,6 +32,11 @@ import shared_cache
 import time
 from utils import set_faker_seed
 from rate_governor import NullGovernor
+from transaction_mode import (
+    is_transaction_mode_enabled,
+    build_transaction_plan,
+    run_transaction,
+)
 
 # ----- CLI arguments -----
 # Parser lives in utils.py (build_worker_arg_parser/parse_worker_args) so the
@@ -417,6 +422,23 @@ RESOLVED_TABLE_WEIGHTS = dict(TABLE_WEIGHTS)
 for table in table_schemas.keys():
     RESOLVED_TABLE_WEIGHTS.setdefault(table, 1)
 
+# ----- Transaction mode (optional, default OFF; see transaction_mode.py) -----
+# Absent 'generator.transaction_mode' block, or 'enabled: false', means the
+# main loop below runs its legacy single-op path exactly as before --
+# HOT_TABLES/OTHER_TABLE_WEIGHTS are simply never read in that case.
+TRANSACTION_MODE_CFG = GEN.get("transaction_mode")
+TRANSACTION_MODE_ENABLED = is_transaction_mode_enabled(TRANSACTION_MODE_CFG)
+HOT_TABLES: list = []
+OTHER_TABLE_WEIGHTS: dict = {}
+if TRANSACTION_MODE_ENABLED:
+    HOT_TABLES = list(TRANSACTION_MODE_CFG["hot_tables"])
+    _hot_set = set(HOT_TABLES)
+    OTHER_TABLE_WEIGHTS = {t: w for t, w in RESOLVED_TABLE_WEIGHTS.items() if t not in _hot_set}
+    print(
+        f"Transaction mode enabled: {len(HOT_TABLES)} hot table(s), "
+        f"{len(OTHER_TABLE_WEIGHTS)} other table(s) eligible"
+    )
+
 # Start index operations thread if enabled
 stop_index_thread = None
 index_thread = None
@@ -451,171 +473,186 @@ try:
                 time.sleep(CONTROL_FILE_POLL_SECONDS)
                 continue
 
-        # Choose a random table
-        table_name = random.choices(
-            list(RESOLVED_TABLE_WEIGHTS.keys()),
-            weights=list(RESOLVED_TABLE_WEIGHTS.values()),
-        )[0]
-        # Generate a random operation
-        operation = random.choices(OPERATIONS, weights=OPERATION_WEIGHTS)[0]
-
         try:
             # Rows actually changed this iteration. Set only when a statement really
             # executes; stays 0 if the op is skipped (no PK, no updateable columns,
             # retry budget exhausted) so we never re-count a stale cursor.rowcount.
             events_emitted = 0
-            if operation == "INSERT":
-                # Generate random data and execute INSERT statement. Every
-                # single-column unique surface (PK, UNIQUE constraint,
-                # standalone unique index) named in unique_columns uses the
-                # unique-safe scheme (UNIQUE_VALUE_FNS) when eligible; the
-                # PK column also keeps make_pk_value_fn as a fallback for
-                # when it isn't (unique_value_fns takes priority for the
-                # same column -- see build_insert_values). Anything neither
-                # covers falls back to normal type-aware random generation,
-                # unchanged.
-                columns = ", ".join(table_schemas[table_name]["columns"].keys())
-                pk_value_fn = make_pk_value_fn(table_name)
-                unique_value_fns = UNIQUE_VALUE_FNS.get(table_name)
-                init_values_list, init_pk_values = build_insert_values(
-                    table_schemas, table_name, INSERT_ROWS, MIN_COL_SIZE_BYTES,
-                    COLUMN_OVERRIDES, pk_value_fn=pk_value_fn, unique_value_fns=unique_value_fns,
+            if TRANSACTION_MODE_ENABLED:
+                # One multi-statement transaction (BEGIN ... [SAVEPOINT ...
+                # RELEASE SAVEPOINT ...] ... COMMIT) instead of one op -- see
+                # transaction_mode.py. Each committed STATEMENT counts as one
+                # event (rows are always 1 here), matching GOVERNOR.pace below.
+                plan = build_transaction_plan(
+                    TRANSACTION_MODE_CFG, HOT_TABLES, OTHER_TABLE_WEIGHTS, random,
                 )
-                values_holder = {"values_list": init_values_list, "pk_values": init_pk_values}
+                events_emitted = run_transaction(
+                    conn, cursor, plan, table_schemas, POOLS, DB_FLAVOR, ROW_ESTIMATES,
+                    COLUMN_OVERRIDES, MIN_COL_SIZE_BYTES,
+                    pk_value_fn_for_table=make_pk_value_fn,
+                    unique_value_fns_for_table=UNIQUE_VALUE_FNS.get,
+                )
+            else:
+                # Choose a random table
+                table_name = random.choices(
+                    list(RESOLVED_TABLE_WEIGHTS.keys()),
+                    weights=list(RESOLVED_TABLE_WEIGHTS.values()),
+                )[0]
+                # Generate a random operation
+                operation = random.choices(OPERATIONS, weights=OPERATION_WEIGHTS)[0]
 
-                # Prepare callbacks for retryable execution
-                def run_once():
-                    query_to_run = f"INSERT INTO {table_name} ({columns}) VALUES {values_holder['values_list']}"
-                    cursor.execute(query_to_run)
-
-                def rebuild():
-                    # Reuses the same pk_value_fn/unique_value_fns closures,
-                    # so a retry (unique violation safety net, or a
-                    # 40001/40P01 conflict) simply continues each per-table
-                    # counter -- it can never repeat or collide with a
-                    # value already attempted.
-                    new_values_list, new_pk_values = build_insert_values(
+                if operation == "INSERT":
+                    # Generate random data and execute INSERT statement. Every
+                    # single-column unique surface (PK, UNIQUE constraint,
+                    # standalone unique index) named in unique_columns uses the
+                    # unique-safe scheme (UNIQUE_VALUE_FNS) when eligible; the
+                    # PK column also keeps make_pk_value_fn as a fallback for
+                    # when it isn't (unique_value_fns takes priority for the
+                    # same column -- see build_insert_values). Anything neither
+                    # covers falls back to normal type-aware random generation,
+                    # unchanged.
+                    columns = ", ".join(table_schemas[table_name]["columns"].keys())
+                    pk_value_fn = make_pk_value_fn(table_name)
+                    unique_value_fns = UNIQUE_VALUE_FNS.get(table_name)
+                    init_values_list, init_pk_values = build_insert_values(
                         table_schemas, table_name, INSERT_ROWS, MIN_COL_SIZE_BYTES,
                         COLUMN_OVERRIDES, pk_value_fn=pk_value_fn, unique_value_fns=unique_value_fns,
                     )
-                    values_holder["values_list"] = new_values_list
-                    values_holder["pk_values"] = new_pk_values
+                    values_holder = {"values_list": init_values_list, "pk_values": init_pk_values}
 
-                success = execute_with_retry(run_once, rebuild, conn.rollback, max_retries=INSERT_MAX_RETRIES)
-                if success:
-                    conn.commit()
-                    events_emitted = max(cursor.rowcount or 0, 0)
-                    # Refresh the PK pool (if any) with the ids we just inserted,
-                    # so subsequent UPDATE/DELETE can target them directly.
+                    # Prepare callbacks for retryable execution
+                    def run_once():
+                        query_to_run = f"INSERT INTO {table_name} ({columns}) VALUES {values_holder['values_list']}"
+                        cursor.execute(query_to_run)
+
+                    def rebuild():
+                        # Reuses the same pk_value_fn/unique_value_fns closures,
+                        # so a retry (unique violation safety net, or a
+                        # 40001/40P01 conflict) simply continues each per-table
+                        # counter -- it can never repeat or collide with a
+                        # value already attempted.
+                        new_values_list, new_pk_values = build_insert_values(
+                            table_schemas, table_name, INSERT_ROWS, MIN_COL_SIZE_BYTES,
+                            COLUMN_OVERRIDES, pk_value_fn=pk_value_fn, unique_value_fns=unique_value_fns,
+                        )
+                        values_holder["values_list"] = new_values_list
+                        values_holder["pk_values"] = new_pk_values
+
+                    success = execute_with_retry(run_once, rebuild, conn.rollback, max_retries=INSERT_MAX_RETRIES)
+                    if success:
+                        conn.commit()
+                        events_emitted = max(cursor.rowcount or 0, 0)
+                        # Refresh the PK pool (if any) with the ids we just inserted,
+                        # so subsequent UPDATE/DELETE can target them directly.
+                        pool = POOLS.get(table_name)
+                        if pool is not None:
+                            pool.add_many([pk for pk in values_holder["pk_values"] if pk is not None])
+
+                elif operation == "UPDATE":
+                    primary_key = table_schemas[table_name]["primary_key"]
+                    if not primary_key:
+                        print(f"Skipping UPDATE on '{table_name}': no primary key found")
+                        continue
+
+                    pk_set = set(primary_key) if isinstance(primary_key, list) else {primary_key}
+                    columns = table_schemas[table_name]["columns"]
+
+                    # Never UPDATE a unique-constrained column (PK or a secondary
+                    # unique index) to a fresh random value -- that reintroduces
+                    # the collision storm the unique-safe INSERT path removes, on
+                    # columns whose values must stay unique. Exclude them from the
+                    # SET list; the non-unique columns still get updated.
+                    no_update = pk_set | set(table_schemas[table_name].get("unique_columns", []))
+
+                    if len(columns) <= len(no_update):
+                        continue
+
+                    updateable_columns = [col for col in columns if col not in no_update]
+                    if not updateable_columns:
+                        print(f"No updateable columns found for table {table_name}. Skipping.")
+                        continue
+
                     pool = POOLS.get(table_name)
-                    if pool is not None:
-                        pool.add_many([pk for pk in values_holder["pk_values"] if pk is not None])
+                    query_holder = {}
 
-            elif operation == "UPDATE":
-                primary_key = table_schemas[table_name]["primary_key"]
-                if not primary_key:
-                    print(f"Skipping UPDATE on '{table_name}': no primary key found")
-                    continue
+                    def build_update_query_and_params():
+                        num_columns_to_update = random.randint(1, len(updateable_columns))
+                        columns_to_update = random.sample(updateable_columns, num_columns_to_update)
+                        set_clause, params = build_update_values(table_schemas, table_name, columns_to_update, MIN_COL_SIZE_BYTES, COLUMN_OVERRIDES)
 
-                pk_set = set(primary_key) if isinstance(primary_key, list) else {primary_key}
-                columns = table_schemas[table_name]["columns"]
+                        # Prefer targeting explicit ids from the in-memory PK pool
+                        # (indexed point lookup) over the full-table-scan fallback.
+                        # UPDATE never removes ids from the pool -- rows stay live.
+                        pool_ids = pool.sample(UPDATE_ROWS) if pool is not None and len(pool) > 0 else []
+                        if pool_ids:
+                            where_clause, sampling_params = build_pk_in_condition(primary_key, pool_ids)
+                        else:
+                            where_clause, sampling_params = build_sampling_condition(
+                                db_flavor=DB_FLAVOR,
+                                table_name=table_name,
+                                primary_key=primary_key,
+                                target_row_count=UPDATE_ROWS,
+                                estimated_row_count=ROW_ESTIMATES.get(table_name),
+                            )
+                        query = f"UPDATE {table_name} SET {set_clause} WHERE {where_clause}"
+                        return query, params + sampling_params
 
-                # Never UPDATE a unique-constrained column (PK or a secondary
-                # unique index) to a fresh random value -- that reintroduces
-                # the collision storm the unique-safe INSERT path removes, on
-                # columns whose values must stay unique. Exclude them from the
-                # SET list; the non-unique columns still get updated.
-                no_update = pk_set | set(table_schemas[table_name].get("unique_columns", []))
+                    query_holder["query"], query_holder["params"] = build_update_query_and_params()
 
-                if len(columns) <= len(no_update):
-                    continue
+                    def run_once():
+                        cursor.execute(query_holder["query"], query_holder["params"])
 
-                updateable_columns = [col for col in columns if col not in no_update]
-                if not updateable_columns:
-                    print(f"No updateable columns found for table {table_name}. Skipping.")
-                    continue
+                    def rebuild():
+                        query_holder["query"], query_holder["params"] = build_update_query_and_params()
 
-                pool = POOLS.get(table_name)
-                query_holder = {}
+                    success = execute_with_retry(run_once, rebuild, conn.rollback, max_retries=UPDATE_MAX_RETRIES)
+                    if success:
+                        conn.commit()
+                        events_emitted = max(cursor.rowcount or 0, 0)
 
-                def build_update_query_and_params():
-                    num_columns_to_update = random.randint(1, len(updateable_columns))
-                    columns_to_update = random.sample(updateable_columns, num_columns_to_update)
-                    set_clause, params = build_update_values(table_schemas, table_name, columns_to_update, MIN_COL_SIZE_BYTES, COLUMN_OVERRIDES)
+                elif operation == "DELETE":
+                    primary_key = table_schemas[table_name]["primary_key"]
+                    if not primary_key:
+                        print(f"Skipping DELETE on '{table_name}': no primary key found")
+                        continue
 
                     # Prefer targeting explicit ids from the in-memory PK pool
                     # (indexed point lookup) over the full-table-scan fallback.
-                    # UPDATE never removes ids from the pool -- rows stay live.
-                    pool_ids = pool.sample(UPDATE_ROWS) if pool is not None and len(pool) > 0 else []
-                    if pool_ids:
-                        where_clause, sampling_params = build_pk_in_condition(primary_key, pool_ids)
-                    else:
-                        where_clause, sampling_params = build_sampling_condition(
-                            db_flavor=DB_FLAVOR,
-                            table_name=table_name,
-                            primary_key=primary_key,
-                            target_row_count=UPDATE_ROWS,
-                            estimated_row_count=ROW_ESTIMATES.get(table_name),
-                        )
-                    query = f"UPDATE {table_name} SET {set_clause} WHERE {where_clause}"
-                    return query, params + sampling_params
+                    pool = POOLS.get(table_name)
+                    query_holder = {}
 
-                query_holder["query"], query_holder["params"] = build_update_query_and_params()
+                    def build_delete_query_and_params():
+                        pool_ids = pool.sample(DELETE_ROWS) if pool is not None and len(pool) > 0 else []
+                        if pool_ids:
+                            where_clause, sampling_params = build_pk_in_condition(primary_key, pool_ids)
+                        else:
+                            where_clause, sampling_params = build_sampling_condition(
+                                db_flavor=DB_FLAVOR,
+                                table_name=table_name,
+                                primary_key=primary_key,
+                                target_row_count=DELETE_ROWS,
+                                estimated_row_count=ROW_ESTIMATES.get(table_name),
+                            )
+                        query = f"DELETE FROM {table_name} WHERE {where_clause}"
+                        return query, sampling_params, pool_ids
 
-                def run_once():
-                    cursor.execute(query_holder["query"], query_holder["params"])
-
-                def rebuild():
-                    query_holder["query"], query_holder["params"] = build_update_query_and_params()
-
-                success = execute_with_retry(run_once, rebuild, conn.rollback, max_retries=UPDATE_MAX_RETRIES)
-                if success:
-                    conn.commit()
-                    events_emitted = max(cursor.rowcount or 0, 0)
-
-            elif operation == "DELETE":
-                primary_key = table_schemas[table_name]["primary_key"]
-                if not primary_key:
-                    print(f"Skipping DELETE on '{table_name}': no primary key found")
-                    continue
-
-                # Prefer targeting explicit ids from the in-memory PK pool
-                # (indexed point lookup) over the full-table-scan fallback.
-                pool = POOLS.get(table_name)
-                query_holder = {}
-
-                def build_delete_query_and_params():
-                    pool_ids = pool.sample(DELETE_ROWS) if pool is not None and len(pool) > 0 else []
-                    if pool_ids:
-                        where_clause, sampling_params = build_pk_in_condition(primary_key, pool_ids)
-                    else:
-                        where_clause, sampling_params = build_sampling_condition(
-                            db_flavor=DB_FLAVOR,
-                            table_name=table_name,
-                            primary_key=primary_key,
-                            target_row_count=DELETE_ROWS,
-                            estimated_row_count=ROW_ESTIMATES.get(table_name),
-                        )
-                    query = f"DELETE FROM {table_name} WHERE {where_clause}"
-                    return query, sampling_params, pool_ids
-
-                query_holder["query"], query_holder["params"], query_holder["pool_ids"] = build_delete_query_and_params()
-
-                def run_once():
-                    cursor.execute(query_holder["query"], query_holder["params"])
-
-                def rebuild():
                     query_holder["query"], query_holder["params"], query_holder["pool_ids"] = build_delete_query_and_params()
 
-                success = execute_with_retry(run_once, rebuild, conn.rollback, max_retries=DELETE_MAX_RETRIES)
-                if success:
-                    conn.commit()
-                    events_emitted = max(cursor.rowcount or 0, 0)
+                    def run_once():
+                        cursor.execute(query_holder["query"], query_holder["params"])
 
-                    # Delete succeeded -- these ids are no longer live.
-                    pool_ids = query_holder["pool_ids"]
-                    if pool_ids and pool is not None:
-                        pool.remove_many(pool_ids)
+                    def rebuild():
+                        query_holder["query"], query_holder["params"], query_holder["pool_ids"] = build_delete_query_and_params()
+
+                    success = execute_with_retry(run_once, rebuild, conn.rollback, max_retries=DELETE_MAX_RETRIES)
+                    if success:
+                        conn.commit()
+                        events_emitted = max(cursor.rowcount or 0, 0)
+
+                        # Delete succeeded -- these ids are no longer live.
+                        pool_ids = query_holder["pool_ids"]
+                        if pool_ids and pool is not None:
+                            pool.remove_many(pool_ids)
 
             if not GOVERNOR_ACTIVE and WAIT_AFTER_OPERATIONS and i % WAIT_AFTER_OPERATIONS == 0 and i != 0:
                 if WAIT_DURATION_SECONDS > 0:
