@@ -402,9 +402,9 @@ func TestEventsConflict_BeforeBeforeConflictOnly(t *testing.T) {
 		BeforeFields: map[string]*string{"check_id": strPtr("10")},
 		Fields:       map[string]*string{"check_id": strPtr("20")},
 	}
-	assert.False(t, cache.checkUniqueIndexBeforeAfterConflict(cached, incoming, uidx("check_id")))
-	assert.True(t, cache.checkUniqueIndexBeforeBeforeConflict(cached, incoming, uidx("check_id")))
-	assert.True(t, cache.eventsConfict(cached, incoming))
+	conflicts := findConflictForTest(t, cache, incoming)
+	require.Len(t, conflicts, 1)
+	assert.Equal(t, int64(1), conflicts[0].Vsn)
 }
 
 func TestEventsConflict_BeforeBeforeNoConflictWhenValuesDiffer(t *testing.T) {
