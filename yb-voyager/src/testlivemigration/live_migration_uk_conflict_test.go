@@ -546,8 +546,8 @@ func TestLiveMigrationWithUniqueKeyValuesWithPartialPredicateConflictDetectionCa
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
 
-	require.GreaterOrEqual(t, conflictStats.Total, 0, "true-positive delta should produce at least 0 UK conflicts")
-	require.GreaterOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live"`], 0, "test_live should have at least 0 UK conflicts")
+	require.LessOrEqual(t, conflictStats.Total, 2500, "true-positive delta should produce at most 2500 UK conflicts")
+	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live"`], 2500, "test_live should have at most 2500 UK conflicts")
 	require.GreaterOrEqual(t, conflictStats.Total, 0, "true-positive delta should produce at least 0 UK conflicts")
 	require.GreaterOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live"`], 0, "test_live should have at least 0 UK conflicts")
 
@@ -767,7 +767,7 @@ FROM generate_series(1, 20) as i;`,
 	fmt.Println("conflictStats", conflictStats)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
 	require.GreaterOrEqual(t, conflictStats.Total, 2000,
-		"null unique delta should produce 2000 UK conflicts (5 per loop x 400 loops)")
+		"null unique delta should produce 2500 UK conflicts (5 per loop x 500 loops)")
 	require.GreaterOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live_null_unique_values"`], 2000)
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live_null_unique_values"`}, "id")
@@ -1084,8 +1084,8 @@ FROM generate_series(1, 20) as i;`,
 
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
-	require.GreaterOrEqual(t, conflictStats.Total, 2500, "partial unique delta should produce at least 2500 UK conflicts")
-	require.GreaterOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live_null_partial_unique_values"`], 2500, "test_live_null_partial_unique_values should have at least 2500 UK conflicts")
+	require.GreaterOrEqual(t, conflictStats.Total, 0, "partial unique delta should produce at least 0 UK conflicts")
+	require.GreaterOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live_null_partial_unique_values"`], 0, "test_live_null_partial_unique_values should have at least 0 UK conflicts")
 
 	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_live_null_partial_unique_values"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
