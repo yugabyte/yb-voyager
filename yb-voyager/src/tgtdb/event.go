@@ -180,7 +180,7 @@ func (e *Event) shouldUsePartitionTable(usePartitionRoot bool) bool {
 	return !usePartitionRoot //if usePartitionRoot is false, then we need to use the partition table
 }
 
-func (e *Event) GetSQLStmt(tdb TargetDB, usePartitionRoot bool, disableSequentialScanOnUpdateDeletes bool) (string, error) {
+func (e *Event) GetSQLStmt(tdb TargetDB, usePartitionRoot bool) (string, error) {
 	var err error
 	if e.shouldUsePartitionTable(usePartitionRoot) {
 		e.PartitionTableTup, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", e.partitionSchemaName, e.partitionTableName))
@@ -194,15 +194,15 @@ func (e *Event) GetSQLStmt(tdb TargetDB, usePartitionRoot bool, disableSequentia
 	case "c":
 		return e.getInsertStmt(tdb, usePartitionRoot)
 	case "u":
-		return e.getUpdateStmt(tdb, usePartitionRoot, disableSequentialScanOnUpdateDeletes)
+		return e.getUpdateStmt(tdb, usePartitionRoot)
 	case "d":
-		return e.getDeleteStmt(tdb, usePartitionRoot, disableSequentialScanOnUpdateDeletes)
+		return e.getDeleteStmt(tdb, usePartitionRoot)
 	default:
 		panic("unknown op: " + e.Op)
 	}
 }
 
-func (e *Event) GetPreparedSQLStmt(tdb TargetDB, targetDBType string, usePartitionRoot bool, disableSequentialScanOnUpdateDeletes bool) (string, error) {
+func (e *Event) GetPreparedSQLStmt(tdb TargetDB, targetDBType string, usePartitionRoot bool) (string, error) {
 	var err error
 	if e.shouldUsePartitionTable(usePartitionRoot) {
 		e.PartitionTableTup, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", e.partitionSchemaName, e.partitionTableName))
@@ -227,12 +227,12 @@ func (e *Event) GetPreparedSQLStmt(tdb TargetDB, targetDBType string, usePartiti
 			return "", fmt.Errorf("get prepared insert stmt: %w", err)
 		}
 	case "u":
-		ps, err = e.getPreparedUpdateStmt(tdb, usePartitionRoot, disableSequentialScanOnUpdateDeletes)
+		ps, err = e.getPreparedUpdateStmt(tdb, usePartitionRoot)
 		if err != nil {
 			return "", fmt.Errorf("get prepared update stmt: %w", err)
 		}
 	case "d":
-		ps, err = e.getPreparedDeleteStmt(tdb, usePartitionRoot, disableSequentialScanOnUpdateDeletes)
+		ps, err = e.getPreparedDeleteStmt(tdb, usePartitionRoot)
 		if err != nil {
 			return "", fmt.Errorf("get prepared delete stmt: %w", err)
 		}
@@ -370,7 +370,7 @@ func (event *Event) getInsertStmt(tdb TargetDB, usePartitionRoot bool) (string, 
 	return stmt, nil
 }
 
-func (event *Event) getUpdateStmt(tdb TargetDB, usePartitionRoot bool, disableSequentialScanOnUpdateDeletes bool) (string, error) {
+func (event *Event) getUpdateStmt(tdb TargetDB, usePartitionRoot bool) (string, error) {
 	setClauses := make([]string, 0, len(event.Fields))
 	for column, value := range event.Fields {
 		column, err := tdb.QuoteAttributeName(event.TableNameTup, column)
@@ -403,13 +403,10 @@ func (event *Event) getUpdateStmt(tdb TargetDB, usePartitionRoot bool, disableSe
 		return "", err
 	}
 	stmt = fmt.Sprintf(updateTemplate, tableName.ForUserQuery(), setClause, whereClause)
-	if disableSequentialScanOnUpdateDeletes {
-		stmt = fmt.Sprintf("%s %s", DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT, stmt)
-	}
 	return stmt, nil
 }
 
-func (event *Event) getDeleteStmt(tdb TargetDB, usePartitionRoot bool, disableSequentialScanOnUpdateDeletes bool) (string, error) {
+func (event *Event) getDeleteStmt(tdb TargetDB, usePartitionRoot bool) (string, error) {
 	whereClauses := make([]string, 0, len(event.Key))
 	for column, value := range event.Key {
 		if value == nil { // value can't be nil for keys
@@ -428,9 +425,6 @@ func (event *Event) getDeleteStmt(tdb TargetDB, usePartitionRoot bool, disableSe
 		return "", err
 	}
 	stmt = fmt.Sprintf(deleteTemplate, tableName.ForUserQuery(), whereClause)
-	if disableSequentialScanOnUpdateDeletes {
-		stmt = fmt.Sprintf("%s %s", DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT, stmt)
-	}
 	return stmt, nil
 }
 
@@ -469,7 +463,7 @@ func (event *Event) getPreparedInsertStmt(tdb TargetDB, targetDBType string, use
 }
 
 // NOTE: PS for each event of same table can be different as it depends on columns being updated
-func (event *Event) getPreparedUpdateStmt(tdb TargetDB, usePartitionRoot bool, disableSequentialScanOnUpdateDeletes bool) (string, error) {
+func (event *Event) getPreparedUpdateStmt(tdb TargetDB, usePartitionRoot bool) (string, error) {
 	setClauses := make([]string, 0, len(event.Fields))
 	keys := utils.GetMapKeysSorted(event.Fields)
 	for pos, key := range keys {
@@ -498,13 +492,10 @@ func (event *Event) getPreparedUpdateStmt(tdb TargetDB, usePartitionRoot bool, d
 		return "", err
 	}
 	stmt = fmt.Sprintf(updateTemplate, tableName.ForUserQuery(), setClause, whereClause)
-	if disableSequentialScanOnUpdateDeletes {
-		stmt = fmt.Sprintf("%s %s", DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT, stmt)
-	}
 	return stmt, nil
 }
 
-func (event *Event) getPreparedDeleteStmt(tdb TargetDB, usePartitionRoot bool, disableSequentialScanOnUpdateDeletes bool) (string, error) {
+func (event *Event) getPreparedDeleteStmt(tdb TargetDB, usePartitionRoot bool) (string, error) {
 	whereClauses := make([]string, 0, len(event.Key))
 	keys := utils.GetMapKeysSorted(event.Key)
 	for pos, key := range keys {
@@ -521,9 +512,6 @@ func (event *Event) getPreparedDeleteStmt(tdb TargetDB, usePartitionRoot bool, d
 		return "", err
 	}
 	stmt = fmt.Sprintf(deleteTemplate, tableName.ForUserQuery(), whereClause)
-	if disableSequentialScanOnUpdateDeletes {
-		stmt = fmt.Sprintf("%s %s", DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT, stmt)
-	}
 	return stmt, nil
 }
 

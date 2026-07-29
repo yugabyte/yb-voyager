@@ -1175,16 +1175,22 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			   ingestion of UPDATE events via partition table on Target DB. and in other importers we are ingesting data via partition table.
 			   so use partition root table always for UPDATE events  in YB
 			*/
-			stmt, err := event.GetSQLStmt(yb, yb.tconf.UsePartitionRoot, bool(yb.tconf.DisableSequentialScanOnUpdateDeletes))
+			stmt, err := event.GetSQLStmt(yb, yb.tconf.UsePartitionRoot)
 			if err != nil {
 				return fmt.Errorf("get sql stmt: %w", err)
+			}
+			if yb.tconf.DisableSequentialScanOnUpdateDeletes {
+				stmt = DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT + stmt
 			}
 			ybBatch.Queue(stmt)
 			log.Debugf("SQL statement: Batch(%s): Event(%d): [%s]", batch.ID(), event.Vsn, stmt)
 		} else {
-			stmt, err := event.GetPreparedSQLStmt(yb, yb.Tconf.TargetDBType, yb.tconf.UsePartitionRoot, bool(yb.tconf.DisableSequentialScanOnUpdateDeletes))
+			stmt, err := event.GetPreparedSQLStmt(yb, yb.Tconf.TargetDBType, yb.tconf.UsePartitionRoot)
 			if err != nil {
 				return fmt.Errorf("get prepared sql stmt: %w", err)
+			}
+			if event.Op == "d" && yb.tconf.DisableSequentialScanOnUpdateDeletes {
+				stmt = DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT + stmt
 			}
 			psName, err := event.GetPreparedStmtName(yb.tconf.UsePartitionRoot)
 			if err != nil {

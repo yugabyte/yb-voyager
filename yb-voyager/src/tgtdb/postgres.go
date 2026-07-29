@@ -514,7 +514,6 @@ func catalogNamesToSchemaAndTableLists(catalogNames []string) (schemaList, table
 	return lo.Uniq(schemaList), lo.Uniq(tableList)
 }
 
-
 // queryPGUniqueIndexesByCatalog runs the PG/YB unique-index discovery query for the
 // given schema/table filter lists and returns a map keyed by "schema.table" catalog
 // name to its list of unique indexes (each an ordered, de-duplicated column list).
@@ -760,14 +759,14 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	for i := 0; i < len(batch.Events); i++ {
 		event := batch.Events[i]
 		if event.Op == "u" {
-			stmt, err := event.GetSQLStmt(pg, pg.tconf.UsePartitionRoot, false)
+			stmt, err := event.GetSQLStmt(pg, pg.tconf.UsePartitionRoot)
 			if err != nil {
 				return fmt.Errorf("get sql stmt: %w", err)
 			}
 			ybBatch.Queue(stmt)
 			log.Debugf("SQL statement: Batch(%s): Event(%d): [%s]", batch.ID(), event.Vsn, stmt)
 		} else {
-			stmt, err := event.GetPreparedSQLStmt(pg, pg.tconf.TargetDBType, pg.tconf.UsePartitionRoot, false)
+			stmt, err := event.GetPreparedSQLStmt(pg, pg.tconf.TargetDBType, pg.tconf.UsePartitionRoot)
 			if err != nil {
 				return fmt.Errorf("get prepared sql stmt: %w", err)
 			}
