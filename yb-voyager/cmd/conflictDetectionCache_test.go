@@ -20,6 +20,7 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,8 +29,8 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	"github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 func strPtr(v string) *string {
@@ -38,12 +39,12 @@ func strPtr(v string) *string {
 
 // uidx builds a default (NULLS DISTINCT) unique index for tests.
 func uidx(columns ...string) tgtdb.UniqueIndex {
-	return tgtdb.UniqueIndex{Columns: columns}
+	return tgtdb.UniqueIndex{Columns: columns, IndexName: "idx_" + strings.Join(columns, "_")}
 }
 
 // uidxNND builds a NULLS NOT DISTINCT unique index for tests.
 func uidxNND(columns ...string) tgtdb.UniqueIndex {
-	return tgtdb.UniqueIndex{Columns: columns, NullsNotDistinct: true}
+	return tgtdb.UniqueIndex{Columns: columns, NullsNotDistinct: true, IndexName: "idx_nnd_" + strings.Join(columns, "_")}
 }
 
 // newConflictCacheForTest builds a cache with default (NULLS DISTINCT) unique
@@ -80,6 +81,8 @@ func TestIndexTupleConflicts_CompositeTrueConflict(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"a": strPtr("1"), "b": strPtr("2")},
 	}
+	err := cache.Put(cached)
+	require.NoError(t, err)
 	incoming := &tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
@@ -87,7 +90,9 @@ func TestIndexTupleConflicts_CompositeTrueConflict(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"a": strPtr("1"), "b": strPtr("2")},
 	}
-	assert.True(t, cache.eventsConfict(cached, incoming))
+	conflicts := findConflictForTest(t, cache, incoming)
+	require.Len(t, conflicts, 1)
+	assert.Equal(t, int64(1), conflicts[0].Vsn)
 }
 
 func TestIndexTupleConflicts_CompositeFalsePositiveFix(t *testing.T) {
@@ -99,6 +104,8 @@ func TestIndexTupleConflicts_CompositeFalsePositiveFix(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"a": strPtr("1"), "b": strPtr("2")},
 	}
+	err := cache.Put(cached)
+	require.NoError(t, err)
 	incoming := &tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
@@ -106,7 +113,8 @@ func TestIndexTupleConflicts_CompositeFalsePositiveFix(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"a": strPtr("1"), "b": strPtr("9")},
 	}
-	assert.False(t, cache.eventsConfict(cached, incoming))
+	conflicts := findConflictForTest(t, cache, incoming)
+	require.Len(t, conflicts, 0)
 }
 
 func TestEventsConfict_TwoCompositeIndexes(t *testing.T) {
@@ -122,6 +130,8 @@ func TestEventsConfict_TwoCompositeIndexes(t *testing.T) {
 		BeforeFields: map[string]*string{"a": strPtr("1"), "b": strPtr("2"), "c": strPtr("3"), "d": strPtr("4")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
+	err := cache.Put(cached)
+	require.NoError(t, err)
 	incoming := &tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
@@ -130,7 +140,9 @@ func TestEventsConfict_TwoCompositeIndexes(t *testing.T) {
 		Fields:       map[string]*string{"a": strPtr("1"), "b": strPtr("9"), "c": strPtr("3"), "d": strPtr("4")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
-	assert.True(t, cache.eventsConfict(cached, incoming))
+	conflicts := findConflictForTest(t, cache, incoming)
+	require.Len(t, conflicts, 1)
+	assert.Equal(t, int64(1), conflicts[0].Vsn)
 }
 
 func TestEventsConfict_MissingColumnInEvent(t *testing.T) {
@@ -143,6 +155,8 @@ func TestEventsConfict_MissingColumnInEvent(t *testing.T) {
 		BeforeFields: map[string]*string{"a": strPtr("1"), "b": strPtr("2")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
+	err := cache.Put(cached)
+	require.NoError(t, err)
 	incoming := &tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
@@ -151,7 +165,8 @@ func TestEventsConfict_MissingColumnInEvent(t *testing.T) {
 		Fields:       map[string]*string{"a": strPtr("1")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
-	assert.False(t, cache.eventsConfict(cached, incoming))
+	conflicts := findConflictForTest(t, cache, incoming)
+	require.Len(t, conflicts, 0)
 }
 
 func TestEventsConfict_SamePKNoConflict(t *testing.T) {
@@ -165,6 +180,8 @@ func TestEventsConfict_SamePKNoConflict(t *testing.T) {
 		BeforeFields: map[string]*string{"email": strPtr("a@example.com")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
+	err := cache.Put(cached)
+	require.NoError(t, err)
 	incoming := &tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
@@ -173,7 +190,8 @@ func TestEventsConfict_SamePKNoConflict(t *testing.T) {
 		Fields:       map[string]*string{"email": strPtr("a@example.com")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
-	assert.False(t, cache.eventsConfict(cached, incoming))
+	conflicts := findConflictForTest(t, cache, incoming)
+	require.Len(t, conflicts, 0)
 }
 
 // With NULLS NOT DISTINCT, two NULL values are treated as equal and therefore conflict.
@@ -186,6 +204,8 @@ func TestEventsConfict_BothNilBeforeAfter_NullsNotDistinct(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"email": nil},
 	}
+	err := cache.Put(cached)
+	require.NoError(t, err)
 	incoming := &tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
@@ -193,8 +213,9 @@ func TestEventsConfict_BothNilBeforeAfter_NullsNotDistinct(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"email": nil},
 	}
-	assert.True(t, cache.checkUniqueIndexBeforeAfterConflict(cached, incoming, uidxNND("email")))
-	assert.True(t, cache.eventsConfict(cached, incoming))
+	conflicts := findConflictForTest(t, cache, incoming)
+	require.Len(t, conflicts, 1)
+	assert.Equal(t, int64(1), conflicts[0].Vsn)
 }
 
 // With the default NULLS DISTINCT, two NULL values are distinct and never conflict.
@@ -207,6 +228,8 @@ func TestEventsConfict_BothNilBeforeAfter_NullsDistinct(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"email": nil},
 	}
+	err := cache.Put(cached)
+	require.NoError(t, err)
 	incoming := &tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
@@ -214,8 +237,8 @@ func TestEventsConfict_BothNilBeforeAfter_NullsDistinct(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"email": nil},
 	}
-	assert.False(t, cache.checkUniqueIndexBeforeAfterConflict(cached, incoming, uidx("email")))
-	assert.False(t, cache.eventsConfict(cached, incoming))
+	conflicts := findConflictForTest(t, cache, incoming)
+	require.Len(t, conflicts, 0)
 }
 
 func TestEventsConflict_OneNilOneValueBeforeAfter(t *testing.T) {
@@ -227,6 +250,8 @@ func TestEventsConflict_OneNilOneValueBeforeAfter(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"email": nil},
 	}
+	err := cache.Put(cached)
+	require.NoError(t, err)
 	incoming := &tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
@@ -234,8 +259,8 @@ func TestEventsConflict_OneNilOneValueBeforeAfter(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"email": strPtr("a@example.com")},
 	}
-	assert.False(t, cache.checkUniqueIndexBeforeAfterConflict(cached, incoming, uidx("email")))
-	assert.False(t, cache.eventsConfict(cached, incoming))
+	conflicts := findConflictForTest(t, cache, incoming)
+	require.Len(t, conflicts, 0)
 }
 
 // Composite NULLS NOT DISTINCT: all-NULL column values are treated as equal and conflict.
@@ -248,6 +273,8 @@ func TestEventsConflict_CompositeBothNil_NullsNotDistinct(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"a": nil, "b": nil},
 	}
+	err := cache.Put(cached)
+	require.NoError(t, err)
 	incoming := &tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
@@ -255,7 +282,9 @@ func TestEventsConflict_CompositeBothNil_NullsNotDistinct(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"a": nil, "b": nil},
 	}
-	assert.True(t, cache.eventsConfict(cached, incoming))
+	conflicts := findConflictForTest(t, cache, incoming)
+	require.Len(t, conflicts, 1)
+	assert.Equal(t, int64(1), conflicts[0].Vsn)
 }
 
 // Composite default NULLS DISTINCT: all-NULL column values are distinct and never conflict.
@@ -268,6 +297,8 @@ func TestEventsConflict_CompositeBothNil_NullsDistinct(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"a": nil, "b": nil},
 	}
+	err := cache.Put(cached)
+	require.NoError(t, err)
 	incoming := &tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
@@ -275,7 +306,8 @@ func TestEventsConflict_CompositeBothNil_NullsDistinct(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"a": nil, "b": nil},
 	}
-	assert.False(t, cache.eventsConfict(cached, incoming))
+	conflicts := findConflictForTest(t, cache, incoming)
+	require.Len(t, conflicts, 0)
 }
 
 func TestEventsConflict_CompositeMixedNil(t *testing.T) {
@@ -287,6 +319,8 @@ func TestEventsConflict_CompositeMixedNil(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"a": nil, "b": nil},
 	}
+	err := cache.Put(cached)
+	require.NoError(t, err)
 	incoming := &tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
@@ -294,7 +328,8 @@ func TestEventsConflict_CompositeMixedNil(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"a": nil, "b": strPtr("2")},
 	}
-	assert.False(t, cache.eventsConfict(cached, incoming))
+	conflicts := findConflictForTest(t, cache, incoming)
+	require.Len(t, conflicts, 0)
 }
 
 // With NULLS NOT DISTINCT, two NULL before-values conflict (before-before check).
@@ -308,6 +343,8 @@ func TestEventsConflict_BothNilBeforeBefore_NullsNotDistinct(t *testing.T) {
 		BeforeFields: map[string]*string{"check_id": nil},
 		Fields:       map[string]*string{"check_id": strPtr("10")},
 	}
+	err := cache.Put(cached)
+	require.NoError(t, err)
 	incoming := &tgtdb.Event{
 		Vsn:          2,
 		Op:           "u",
@@ -316,9 +353,9 @@ func TestEventsConflict_BothNilBeforeBefore_NullsNotDistinct(t *testing.T) {
 		BeforeFields: map[string]*string{"check_id": nil},
 		Fields:       map[string]*string{"check_id": strPtr("20")},
 	}
-	assert.False(t, cache.checkUniqueIndexBeforeAfterConflict(cached, incoming, uidxNND("check_id")))
-	assert.True(t, cache.checkUniqueIndexBeforeBeforeConflict(cached, incoming, uidxNND("check_id")))
-	assert.True(t, cache.eventsConfict(cached, incoming))
+	foundConflicts := findConflictForTest(t, cache, incoming)
+	require.Len(t, foundConflicts, 1)
+	assert.Equal(t, int64(1), foundConflicts[0].Vsn)
 }
 
 // With the default NULLS DISTINCT, two NULL before-values do not conflict (before-before check).
@@ -332,6 +369,8 @@ func TestEventsConflict_BothNilBeforeBefore_NullsDistinct(t *testing.T) {
 		BeforeFields: map[string]*string{"check_id": nil},
 		Fields:       map[string]*string{"check_id": strPtr("10")},
 	}
+	err := cache.Put(cached)
+	require.NoError(t, err)
 	incoming := &tgtdb.Event{
 		Vsn:          2,
 		Op:           "u",
@@ -340,9 +379,8 @@ func TestEventsConflict_BothNilBeforeBefore_NullsDistinct(t *testing.T) {
 		BeforeFields: map[string]*string{"check_id": nil},
 		Fields:       map[string]*string{"check_id": strPtr("20")},
 	}
-	assert.False(t, cache.checkUniqueIndexBeforeAfterConflict(cached, incoming, uidx("check_id")))
-	assert.False(t, cache.checkUniqueIndexBeforeBeforeConflict(cached, incoming, uidx("check_id")))
-	assert.False(t, cache.eventsConfict(cached, incoming))
+	foundConflicts := findConflictForTest(t, cache, incoming)
+	require.Len(t, foundConflicts, 0)
 }
 
 func TestEventsConflict_BeforeBeforeConflictOnly(t *testing.T) {
@@ -354,6 +392,8 @@ func TestEventsConflict_BeforeBeforeConflictOnly(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"check_id": strPtr("10")},
 	}
+	err := cache.Put(cached)
+	require.NoError(t, err)
 	incoming := &tgtdb.Event{
 		Vsn:          2,
 		Op:           "u",
@@ -377,6 +417,8 @@ func TestEventsConflict_BeforeBeforeNoConflictWhenValuesDiffer(t *testing.T) {
 		BeforeFields: map[string]*string{"check_id": strPtr("10")},
 		Fields:       map[string]*string{"check_id": strPtr("11")},
 	}
+	err := cache.Put(cached)
+	require.NoError(t, err)
 	incoming := &tgtdb.Event{
 		Vsn:          2,
 		Op:           "u",
@@ -385,8 +427,8 @@ func TestEventsConflict_BeforeBeforeNoConflictWhenValuesDiffer(t *testing.T) {
 		BeforeFields: map[string]*string{"check_id": strPtr("20")},
 		Fields:       map[string]*string{"check_id": strPtr("21")},
 	}
-	assert.False(t, cache.checkUniqueIndexBeforeBeforeConflict(cached, incoming, uidx("check_id")))
-	assert.False(t, cache.eventsConfict(cached, incoming))
+	foundConflicts := findConflictForTest(t, cache, incoming)
+	require.Len(t, foundConflicts, 0)
 }
 
 func TestEventsConflict_BeforeBeforeMissingColumn(t *testing.T) {
@@ -398,6 +440,7 @@ func TestEventsConflict_BeforeBeforeMissingColumn(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"a": strPtr("1"), "b": strPtr("2")},
 	}
+	cache.Put(cached)
 	incoming := &tgtdb.Event{
 		Vsn:          2,
 		Op:           "u",
@@ -406,7 +449,9 @@ func TestEventsConflict_BeforeBeforeMissingColumn(t *testing.T) {
 		BeforeFields: map[string]*string{"a": strPtr("1")},
 		Fields:       map[string]*string{"a": strPtr("9"), "b": strPtr("2")},
 	}
-	assert.False(t, cache.checkUniqueIndexBeforeBeforeConflict(cached, incoming, uidx("a", "b")))
+	foundConflicts := findConflictForTest(t, cache, incoming)
+	require.Len(t, foundConflicts, 0)
+
 }
 
 func TestEventsConfict_BeforeBeforeConflict(t *testing.T) {
@@ -419,6 +464,8 @@ func TestEventsConfict_BeforeBeforeConflict(t *testing.T) {
 		BeforeFields: map[string]*string{"check_id": strPtr("10")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
+	err := cache.Put(cached)
+	require.NoError(t, err)
 	incoming := &tgtdb.Event{
 		Vsn:          2,
 		Op:           "u",
@@ -428,7 +475,9 @@ func TestEventsConfict_BeforeBeforeConflict(t *testing.T) {
 		Fields:       map[string]*string{"check_id": strPtr("20")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	}
-	assert.True(t, cache.eventsConfict(cached, incoming))
+	foundConflicts := findConflictForTest(t, cache, incoming)
+	require.Len(t, foundConflicts, 1)
+	assert.Equal(t, int64(1), foundConflicts[0].Vsn)
 }
 
 func TestRecordUniqueKeyConflictCount_DedupesEventPair(t *testing.T) {
@@ -700,4 +749,43 @@ func TestComputeConflictBucketKey_NoAmbiguity(t *testing.T) {
 		t.Fatalf("error computing conflict bucket key: %v", err)
 	}
 	assert.False(t, ok3)
+}
+
+func TestConflictWithMultipleIndexes(t *testing.T) {
+	cache := newConflictCacheForTestWithIndexes(uidx("a", "b"), uidxNND("c", "d"))
+	cached := &tgtdb.Event{
+		Vsn:          1,
+		Op:           "d",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("1")},
+		BeforeFields: map[string]*string{"a": strPtr("1"), "b": strPtr("2"), "c": strPtr("3"), "d": strPtr("4")},
+	}
+	err := cache.Put(cached)
+	require.NoError(t, err)
+	incoming := &tgtdb.Event{
+		Vsn:          2,
+		Op:           "c",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("2")},
+		Fields:       map[string]*string{"a": strPtr("1"), "b": strPtr("3"), "c": strPtr("3"), "d": strPtr("4")},
+	}
+	conflicts := findConflictForTest(t, cache, incoming)
+	require.Len(t, conflicts, 1)
+	assert.Equal(t, int64(1), conflicts[0].Vsn)
+
+	incoming = &tgtdb.Event{
+		Vsn:          3,
+		Op:           "c",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("3")},
+		Fields:       map[string]*string{"a": strPtr("1"), "b": strPtr("2"), "c": strPtr("3"), "d": strPtr("4")},
+	}
+	conflicts = findConflictForTest(t, cache, incoming)
+	require.Len(t, conflicts, 1)
+
+	actualConflicts, err := cache.findConflictLocked(incoming)
+	require.NoError(t, err)
+	require.Len(t, actualConflicts, 2)
+	assert.Equal(t, "idx_a_b", actualConflicts[0].indexName)
+	assert.Equal(t, "idx_nnd_c_d", actualConflicts[1].indexName)
 }

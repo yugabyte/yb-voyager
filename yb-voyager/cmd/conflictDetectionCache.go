@@ -171,6 +171,7 @@ func (c *ConflictDetectionCache) Put(event *tgtdb.Event) error {
 	// by ConvertEvent() causing issues in events comparison for conflict detection.
 	cachedEvent := event.Copy()
 	if isTargetDBExporter(event.ExporterRole) {
+		//TODO: see if we should remove this now as per PARTITION_BY_TABLE
 		c.m[cachedEvent.Vsn] = cachedEvent
 	} else {
 		err := c.indexEventLocked(cachedEvent)
@@ -272,11 +273,11 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 			} else if !conflictLogged {
 				log.Infof("conflict detected: event(vsn=%d) on table %s, unique index columns %v with matched value %s (%s conflict) waiting for in-flight event(s) %v to be applied",
 					incomingEvent.Vsn, incomingEvent.TableNameTup.ForKey(), info.indexColumns, info.matchedValue, info.matchType, cachedVsns)
-				conflictLogged = true
 			} else {
 				log.Debugf("still waiting: event(vsn=%d) blocked by in-flight event(s) %v", incomingEvent.Vsn, cachedVsns)
 			}
 		}
+		conflictLogged = true
 		// cond.Wait releases the lock and blocks until RemoveEvents broadcasts (some
 		// cached event was applied/removed). We then loop and re-check, because one
 		// incoming event can conflict with multiple cached events that clear at
@@ -430,6 +431,41 @@ const (
 //
 // Values are length-prefixed so distinct tuples never collide (e.g. {"ab",""} vs
 // {"a","b"}); NULLs under NULLS NOT DISTINCT use a dedicated sentinel.
+
+/*
+TODO: to arrange it in this manner 
+Put()
+	if ! U/D 
+		return 
+	if U: 
+		if changedColumns <intersection> (UK columns <union> predictate columns) == EMPTY: 
+			return 
+		add-to-cache (uklookup) <---- computeKey (beforeFields) (all columns should be present)
+
+FindConflicts()
+	for each unique index:
+		if D:
+			skip-check 
+		if I: 
+			if uniqueINdex.NullsDistinct AND ANY unique key column value is NULL: 
+				skip-check
+			check before-after conflicts; <---- computeKey (afterFields) (all columns should be present)
+			 no before-before
+		if U: 
+			
+			if changedColumns <intersection> (UK columns <union> predictate columns) == EMPTY: 
+				skip-check 
+			before-after:
+				if uniqueINdex.NullsDistinct AND ANY unique key column value (after fields) is NULL: 
+					skip-check 
+				check before-after conflicts <---- computeKey (afterFields) (possible that only a subset of columns are present)
+			
+			if uniqueIndex has partial predicate: (before-before)
+				if uniqueINdex.NullsDistinct AND ANY unique key column value (before fields) is NULL: 
+					skip-check 
+				check before-before conflicts.  <---- computeKey (beforeFields) (all columns should be present)
+
+*/
 func computeConflictBucketKey(table sqlname.NameTuple, fields map[string]*string, index tgtdb.UniqueIndex) (string, bool, error) {
 	if fields == nil {
 		return "", false, goerrors.Errorf("fields are nil")
