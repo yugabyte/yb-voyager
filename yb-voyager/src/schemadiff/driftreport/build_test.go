@@ -370,7 +370,7 @@ func TestBuildReport_ScopeFilteringKeepsOnlyListedTable(t *testing.T) {
 	// "invoices" keeps its TABLE_ADDED finding while filtering out customers'
 	// COLUMN_ADDED finding, even though customers also changed in this interval.
 	scope := schemadiff.Scope{
-		IncludeTables: []schemasnapshot.ObjectRef{objRef("public", "invoices")},
+		Tables: []schemasnapshot.ObjectRef{objRef("public", "invoices")},
 	}
 
 	p := BuildParams{
