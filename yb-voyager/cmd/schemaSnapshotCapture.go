@@ -67,6 +67,32 @@ func captureExportDataExitSnapshotFresh(reason string) {
 	captureExportDataExitSnapshot(context.Background(), reason)
 }
 
+// exportDataExitReason classifies an abnormal export-data exit from the shutdown
+// flags: a signal-driven shutdown is an interrupt (SIGINT/SIGTERM), or a clean
+// completion when it is the end-migration command's controlled teardown (SIGUSR2);
+// anything else is a genuine error.
+//
+// Both the atexit hook and the inline `return false` error paths must use this
+// rather than assuming ReasonError. A signal kills the in-flight dump/streaming
+// child, so the export reports failure and reaches `return false` FIRST — that
+// inline capture then sets exportDataExitSnapshotCaptured and the atexit hook
+// no-ops, so hardcoding ReasonError there would record every Ctrl-C as an error
+// and lose the interrupt/complete distinction the drift report renders.
+//
+// It reads the shutdown flags written by main.go's signal goroutine. That race is
+// pre-existing and benign here: the flags are only ever set (never cleared), and
+// the worst case is classifying a signal that landed in the same instant as an
+// error — exactly today's unconditional behaviour.
+func exportDataExitReason() string {
+	if !ProcessShutdownRequested {
+		return schemasnapshot.ReasonError
+	}
+	if EndMigrationStopRequested {
+		return schemasnapshot.ReasonComplete
+	}
+	return schemasnapshot.ReasonInterrupt
+}
+
 // registerExportDataExitSnapshotHook registers an atexit handler that captures the
 // source schema snapshot on exit paths that don't capture inline — SIGINT/SIGTERM
 // interrupts and utils.ErrExit exits (whose os.Exit bypasses exportData's deferred
@@ -78,16 +104,7 @@ func registerExportDataExitSnapshotHook() {
 		if exportDataExitSnapshotCaptured.Load() {
 			return // an inline capture (completion, cutover, or error path) already recorded the exit
 		}
-		reason := schemasnapshot.ReasonError
-		if ProcessShutdownRequested {
-			// SIGINT/SIGTERM is a user interrupt; SIGUSR2 is the end-migration
-			// command's controlled teardown, treated as a clean exit.
-			reason = schemasnapshot.ReasonInterrupt
-			if EndMigrationStopRequested {
-				reason = schemasnapshot.ReasonComplete
-			}
-		}
-		captureExportDataExitSnapshotFresh(reason)
+		captureExportDataExitSnapshotFresh(exportDataExitReason())
 	})
 }
 
