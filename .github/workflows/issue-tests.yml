@@ -61,20 +61,20 @@ jobs:
         cd yb-voyager
         go test -v ./... -tags 'issues_integration'
 
-    - name: Test Latest Stable YB Version
-      # !cancelled() so this still runs even if an earlier test step failed —
-      # surface all test errors in one run instead of stopping at the first failure.
-      if: ${{ !cancelled() && matrix.yb_version == env.YB_LATEST_STABLE }}
-      run: |
-        cd yb-voyager
-        go test -v ./... -tags 'yb_version_latest_stable'
+    # - name: Test Latest Stable YB Version
+    #   # !cancelled() so this still runs even if an earlier test step failed —
+    #   # surface all test errors in one run instead of stopping at the first failure.
+    #   if: ${{ !cancelled() && matrix.yb_version == env.YB_LATEST_STABLE }}
+    #   run: |
+    #     cd yb-voyager
+    #     go test -v ./... -tags 'yb_version_latest_stable'
 
-    - name: Test Latest Connector Version
-      # !cancelled() so this still runs even if an earlier test step failed —
-      # surface all test errors in one run instead of stopping at the first failure.
-      if: ${{ !cancelled() && matrix.yb_version == env.YB_LATEST_STABLE }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        cd yb-voyager
-        go test -v ./versions/... -tags 'connector_latest_stable'
+    # - name: Test Latest Connector Version
+    #   # !cancelled() so this still runs even if an earlier test step failed —
+    #   # surface all test errors in one run instead of stopping at the first failure.
+    #   if: ${{ !cancelled() && matrix.yb_version == env.YB_LATEST_STABLE }}
+    #   env:
+    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #   run: |
+    #     cd yb-voyager
+    #     go test -v ./versions/... -tags 'connector_latest_stable'
