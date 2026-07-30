@@ -431,7 +431,11 @@ func detectDrift() {
 	if err != nil {
 		exitDriftOperationalError("%v", err)
 	}
-	schemas := source.GetSchemaList()
+	// Raw (unquoted) names: these are compared against catalog values by the live
+	// capture and against each snapshot's recorded schema scope, never interpolated
+	// into SQL as identifiers. The quoted form silently matches nothing for a schema
+	// needing quotes -- see srcdb.Source.GetSchemaListUnquoted.
+	schemas := source.GetSchemaListUnquoted()
 
 	// ─── Load stored snapshots (oldest-first) ───────────────────────────────────
 	// Moved ahead of Scope resolution: the candidate table universe (below) needs
