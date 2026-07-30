@@ -48,3 +48,34 @@ func TestSnapshotStartReasonFor(t *testing.T) {
 		})
 	}
 }
+
+// TestExportDataExitReason pins the abnormal-exit reason classification. This is
+// shared by the atexit hook AND the inline `return false` error paths: a signal
+// kills the in-flight dump/streaming child, so the export reports failure and hits
+// the inline path first. Verified end-to-end against PostgreSQL — before this was
+// shared, SIGINT/SIGTERM/SIGUSR2 all recorded reason=error.
+func TestExportDataExitReason(t *testing.T) {
+	origShutdown, origEndMigration := ProcessShutdownRequested, EndMigrationStopRequested
+	t.Cleanup(func() {
+		ProcessShutdownRequested, EndMigrationStopRequested = origShutdown, origEndMigration
+	})
+
+	tests := []struct {
+		name             string
+		shutdownReq      bool
+		endMigrationStop bool
+		want             string
+	}{
+		{"no signal: a genuine failure is an error", false, false, schemasnapshot.ReasonError},
+		{"SIGINT/SIGTERM is a user interrupt", true, false, schemasnapshot.ReasonInterrupt},
+		{"SIGUSR2 (end migration teardown) is a clean completion", true, true, schemasnapshot.ReasonComplete},
+		{"end-migration flag without a shutdown request stays an error", false, true, schemasnapshot.ReasonError},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ProcessShutdownRequested = tt.shutdownReq
+			EndMigrationStopRequested = tt.endMigrationStop
+			assert.Equal(t, tt.want, exportDataExitReason())
+		})
+	}
+}
