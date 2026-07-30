@@ -181,8 +181,8 @@ def migration_completed_checks(tgt):
 				expectedExtensions.extend(["pg_parquet"])
 
 		if Version(threeDotVersion) >= Version("2025.2.3"):
-			# 'age' is reported as 'mage' from YB 2026.1
-			age_ext = "mage" if Version(threeDotVersion) >= Version("2026.1") else "age"
+			# 'age' was renamed to 'mage' in builds newer than 2025.2.3
+			age_ext = "mage" if Version(threeDotVersion) > Version("2025.2.3") else "age"
 			expectedExtensions.extend([age_ext, "pg_dist_rag"])
 
 		for extension in expectedExtensions:
