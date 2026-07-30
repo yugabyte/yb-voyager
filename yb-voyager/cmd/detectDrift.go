@@ -349,6 +349,10 @@ func resolveDriftTableRefs(candidates []driftTableCandidate, patternList string,
 // complementDriftTableRefs returns every candidate ref NOT present in exclude --
 // the resolution of --exclude-table-list into the single positive allow-list the
 // collapsed schemadiff.Scope expects.
+//
+// An EMPTY result means "select nothing" and callers MUST reject it rather than
+// forward it: schemadiff.Scope reads an empty list as "all", so passing it on
+// would invert the exclusion into comparing everything.
 func complementDriftTableRefs(candidates []driftTableCandidate, exclude []schemasnapshot.ObjectRef) []schemasnapshot.ObjectRef {
 	excludeSet := make(map[schemasnapshot.ObjectRef]bool, len(exclude))
 	for _, r := range exclude {
@@ -370,6 +374,9 @@ var allDriftObjectTypes = []schemadiff.ObjectType{schemadiff.ObjectTypeTable, sc
 // complementDriftObjectTypes returns every type in allDriftObjectTypes NOT
 // present in exclude -- the resolution of --exclude-object-type-list into the
 // single positive allow-list the collapsed schemadiff.Scope expects.
+//
+// As with complementDriftTableRefs, an EMPTY result means "select nothing" and
+// must be rejected by the caller, not forwarded to Scope (where empty = all).
 func complementDriftObjectTypes(exclude []schemadiff.ObjectType) []schemadiff.ObjectType {
 	excludeSet := make(map[schemadiff.ObjectType]bool, len(exclude))
 	for _, t := range exclude {
@@ -494,6 +501,13 @@ func detectDrift() {
 			exitDriftOperationalError("%v", err)
 		}
 		includeTables = complementDriftTableRefs(candidates, excludeTables)
+		// An empty keep-set cannot be handed to Scope: there, empty means "all", so
+		// excluding every table would silently invert into comparing every table.
+		// Selecting nothing is treated as an operational error, consistent with a
+		// --table-list pattern that matches no table.
+		if len(includeTables) == 0 {
+			exitDriftOperationalError("--exclude-table-list %q excludes every table in the comparison; nothing left to compare", driftExcludeTableList)
+		}
 	}
 
 	var objectTypes []schemadiff.ObjectType
@@ -505,13 +519,23 @@ func detectDrift() {
 		// Already flag-format-validated in validateDetectDriftFlags; error can't happen.
 		excludeObjectTypes, _ := parseDriftObjectTypeList(driftExcludeObjectTypeList)
 		objectTypes = complementDriftObjectTypes(excludeObjectTypes)
+		// Same trap as --exclude-table-list above: an empty keep-set would read as
+		// "all object types" inside Scope, inverting the exclusion.
+		if len(objectTypes) == 0 {
+			supported := lo.Map(allDriftObjectTypes, func(t schemadiff.ObjectType, _ int) string { return string(t) })
+			exitDriftOperationalError("--exclude-object-type-list %q excludes every supported object type (%s); nothing left to compare",
+				driftExcludeObjectTypeList, strings.Join(supported, ", "))
+		}
 	}
 
-	// Both --exclude-* forms are resolved into positive allow-lists above, so only
-	// the engine's include lists are ever populated (an empty list means "all").
+	// schemadiff.Scope takes one positive allow-list per dimension (empty = all).
+	// Resolving the --exclude-* forms into those keep-sets is this layer's job:
+	// only the command knows the universe to subtract from (buildDriftTableCandidates
+	// above) and only the command expands globs, so the engine never has to model
+	// two filtering directions. See schemadiff.Scope's doc.
 	scope := schemadiff.Scope{
-		IncludeTables:      includeTables,
-		IncludeObjectTypes: objectTypes,
+		Tables:      includeTables,
+		ObjectTypes: objectTypes,
 	}
 
 	// displayTables/displayObjectTypes feed the report's "Comparing" banner only
