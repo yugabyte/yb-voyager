@@ -1,0 +1,414 @@
+//go:build integration
+
+/*
+Copyright (c) YugabyteDB, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+package cmd
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+)
+
+// TestSchemaSnapshotCaptureIntegration exercises captureSourceSchemaSnapshot and
+// saveSourceSchemaSnapshotPlaceholder end-to-end against a REAL PostgreSQL
+// database and a REAL metaDB.
+//
+// It reuses the postgres container + srcdb.Source already spun up by this
+// package's TestMain (see cmd/exportData_test.go) rather than starting a
+// second container, mirroring the exact idiom used by the other integration
+// tests in this package (setupPostgreDBAndExportDependencies /
+// TestTableListInFreshRunOfExportDataBasicPG etc.): connect
+// testPostgresSource.DB(), then copy *testPostgresSource.Source into the
+// package-level `source` global so captureSourceSchemaSnapshot's
+// `source.DB().(*srcdb.PostgreSQL)` type assertion resolves to the same,
+// already-connected handle.
+//
+// Run with: go test -tags integration -run TestSchemaSnapshotCaptureIntegration ./cmd/...
+func TestSchemaSnapshotCaptureIntegration(t *testing.T) {
+	ctx := context.Background()
+
+	seedSqls := []string{
+		`CREATE TABLE public.orders(id int primary key, amount numeric)`,
+		`CREATE TABLE public.customers(id int primary key, name text)`,
+	}
+	cleanupSqls := []string{
+		`DROP TABLE IF EXISTS public.orders`,
+		`DROP TABLE IF EXISTS public.customers`,
+	}
+
+	testPostgresSource.ExecuteSqls(seedSqls...)
+	t.Cleanup(func() { testPostgresSource.ExecuteSqls(cleanupSqls...) })
+
+	sqlname.SourceDBType = testPostgresSource.DBType
+	testPostgresSource.Schemas = sqlname.ParseIdentifiersFromString(constants.POSTGRESQL, "public", "|")
+
+	err := testPostgresSource.DB().Connect()
+	require.NoError(t, err, "connect to postgres source")
+	t.Cleanup(func() { testPostgresSource.DB().Disconnect() })
+
+	testExportDir, err := os.MkdirTemp("", "schemasnapshot-capture-test-*")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(testExportDir) })
+
+	mdb := initMetaDB(testExportDir)
+
+	// Populate the package globals consumed by captureSourceSchemaSnapshot /
+	// saveSourceSchemaSnapshotPlaceholder. `source` is a value copy of
+	// *testPostgresSource.Source taken AFTER Connect(), so source.DB() returns
+	// the same already-connected *srcdb.PostgreSQL handle.
+	source = *testPostgresSource.Source
+	metaDB = mdb
+	exporterRole = SOURCE_DB_EXPORTER_ROLE
+	suppressSchemaSnapshotCapture = utils.BoolStr(false)
+
+	t.Cleanup(func() {
+		source = srcdb.Source{}
+		metaDB = nil
+		exporterRole = SOURCE_DB_EXPORTER_ROLE
+		suppressSchemaSnapshotCapture = utils.BoolStr(false)
+	})
+
+	require.Equal(t, []string{"public"}, source.GetSchemaList(), "source must be scoped to the public schema")
+
+	t.Run("happy path captures and persists a real snapshot", func(t *testing.T) {
+		suppressSchemaSnapshotCapture = utils.BoolStr(false)
+
+		captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportSchema, "", true)
+
+		headers, err := schemasnapshot.ListSnapshots(metaDB)
+		require.NoError(t, err)
+		require.Len(t, headers, 1, "exactly one snapshot must have been persisted")
+
+		h := headers[0]
+		assert.Equal(t, schemasnapshot.LabelExportSchema, h.Label)
+		assert.False(t, h.IsPlaceholder, "a successful capture must not be a placeholder")
+
+		content, err := schemasnapshot.LoadSnapshotByName(metaDB, h.Name())
+		require.NoError(t, err)
+		require.NotNil(t, content)
+
+		tableNames := make(map[string]bool, len(content.Tables))
+		for _, tb := range content.Tables {
+			tableNames[tb.Name] = true
+		}
+		assert.True(t, tableNames["orders"], "captured schema content must include the seeded 'orders' table")
+		assert.True(t, tableNames["customers"], "captured schema content must include the seeded 'customers' table")
+	})
+
+	t.Run("suppression is honored and results in a no-op", func(t *testing.T) {
+		before, err := schemasnapshot.ListSnapshots(metaDB)
+		require.NoError(t, err)
+
+		suppressSchemaSnapshotCapture = utils.BoolStr(true)
+		t.Cleanup(func() { suppressSchemaSnapshotCapture = utils.BoolStr(false) })
+
+		captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourcePeriodic, "", true)
+
+		after, err := schemasnapshot.ListSnapshots(metaDB)
+		require.NoError(t, err)
+		assert.Equal(t, len(before), len(after), "a suppressed capture must not add a snapshot row")
+	})
+
+	t.Run("placeholder writes a metadata-only marker", func(t *testing.T) {
+		suppressSchemaSnapshotCapture = utils.BoolStr(false)
+
+		before, err := schemasnapshot.ListSnapshots(metaDB)
+		require.NoError(t, err)
+
+		saveSourceSchemaSnapshotPlaceholder(schemasnapshot.LabelExportDataFromSourceExit, schemasnapshot.ReasonError)
+
+		after, err := schemasnapshot.ListSnapshots(metaDB)
+		require.NoError(t, err)
+		require.Len(t, after, len(before)+1, "the placeholder must add exactly one snapshot row")
+
+		var placeholder *schemasnapshot.SnapshotHeader
+		for i := range after {
+			if after[i].Label == schemasnapshot.LabelExportDataFromSourceExit {
+				placeholder = &after[i]
+				break
+			}
+		}
+		require.NotNil(t, placeholder, "a header with the exit label must be present")
+		assert.True(t, placeholder.IsPlaceholder, "the marker must be flagged as a placeholder")
+		assert.Equal(t, schemasnapshot.ReasonError, placeholder.Reason)
+	})
+
+	t.Run("periodic capture persists on every tick, even for an unchanged schema (no dedup)", func(t *testing.T) {
+		suppressSchemaSnapshotCapture = utils.BoolStr(false)
+
+		countPeriodicSnapshots := func() int {
+			headers, err := schemasnapshot.ListSnapshots(metaDB)
+			require.NoError(t, err)
+			n := 0
+			for _, h := range headers {
+				if h.Label == schemasnapshot.LabelExportDataFromSourcePeriodic {
+					n++
+				}
+			}
+			return n
+		}
+
+		before := countPeriodicSnapshots()
+
+		// Every periodic capture is persisted unconditionally — no dedup — so the drift
+		// timeline records the source schema at each interval even when it hasn't changed.
+		// The schema is NOT altered between these captures, so under the old dedup logic the
+		// 2nd and 3rd would have been skipped; here all three must persist.
+		//
+		// Snapshot names are second-granularity ({label}_{YYYYMMDDThhmmssZ}); this test fires
+		// captures back-to-back, so a >=1s wait between them avoids a UNIQUE-name collision.
+		// Not a real-run concern: periodic captures are >=1 minute apart.
+		const captures = 3
+		for i := 0; i < captures; i++ {
+			if i > 0 {
+				time.Sleep(time.Second)
+			}
+			captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourcePeriodic, "", false)
+		}
+
+		assert.Equal(t, before+captures, countPeriodicSnapshots(),
+			"every periodic capture must persist a new snapshot, even with an unchanged schema")
+	})
+
+	t.Run("an expired context aborts the capture fast and falls back to a placeholder", func(t *testing.T) {
+		suppressSchemaSnapshotCapture = utils.BoolStr(false)
+
+		countExitPlaceholders := func() int {
+			headers, err := schemasnapshot.ListSnapshots(metaDB)
+			require.NoError(t, err)
+			n := 0
+			for _, h := range headers {
+				if h.Label == schemasnapshot.LabelExportDataFromSourceExit && h.IsPlaceholder {
+					n++
+				}
+			}
+			return n
+		}
+		before := countExitPlaceholders()
+
+		// A context whose deadline has already passed. The capture must not run a real
+		// query and must not hang; with placeholderOnFailure=true (as the abnormal-exit
+		// path uses) it falls back to a metadata-only marker.
+		expiredCtx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
+		defer cancel()
+		time.Sleep(time.Millisecond) // ensure the deadline has elapsed
+
+		start := time.Now()
+		captureSourceSchemaSnapshot(expiredCtx, schemasnapshot.LabelExportDataFromSourceExit, schemasnapshot.ReasonError, true)
+		elapsed := time.Since(start)
+
+		assert.Less(t, elapsed, 3*time.Second, "an expired context must abort the capture promptly, not hang")
+		assert.Equal(t, before+1, countExitPlaceholders(),
+			"an aborted capture with placeholderOnFailure must record exactly one exit placeholder")
+	})
+}
+
+// TestSchemaSnapshotCaptureLargeSchema verifies that the schema-snapshot capture budget
+// (schemasnapshot.CaptureTimeout) is enough to capture AND persist a large schema — the
+// only case where capture size matters (the fallback placeholder is metadata-only and
+// does not scale). It seeds a schema with many tables/columns, runs the real capture, and
+// asserts a REAL snapshot (not a placeholder) lands with every table: because the capture
+// is bounded by CaptureTimeout, a real snapshot is itself proof the budget sufficed for
+// this size — had it been exceeded, the capture would have degraded to a placeholder and
+// this test would fail. The elapsed time is logged so the headroom below the budget is
+// visible.
+//
+// Note: on a healthy testcontainer this proves "the budget is ample for size", not
+// "the budget survives a slow/loaded/high-latency source" — that adverse case isn't
+// deterministically reproducible here and is a manual/load-test concern.
+func TestSchemaSnapshotCaptureLargeSchema(t *testing.T) {
+	ctx := context.Background()
+
+	const (
+		schemaName   = "bigschema"
+		numTables    = 1000
+		colsPerTable = 10 // id + 9 columns => ~10k columns total
+	)
+
+	// One DO block creates all tables server-side (far faster than numTables round-trips).
+	createTables := fmt.Sprintf(`DO $$ BEGIN
+  FOR i IN 1..%d LOOP
+    EXECUTE format('CREATE TABLE %s.t%%s (id int primary key, c1 text, c2 text, c3 int, c4 numeric, c5 timestamptz, c6 boolean, c7 text, c8 int)', i);
+  END LOOP;
+END $$;`, numTables, schemaName)
+
+	testPostgresSource.ExecuteSqls(fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS %s`, schemaName), createTables)
+	t.Cleanup(func() { testPostgresSource.ExecuteSqls(fmt.Sprintf(`DROP SCHEMA IF EXISTS %s CASCADE`, schemaName)) })
+
+	sqlname.SourceDBType = testPostgresSource.DBType
+	testPostgresSource.Schemas = sqlname.ParseIdentifiersFromString(constants.POSTGRESQL, schemaName, "|")
+
+	require.NoError(t, testPostgresSource.DB().Connect(), "connect to postgres source")
+	t.Cleanup(func() { testPostgresSource.DB().Disconnect() })
+
+	testExportDir, err := os.MkdirTemp("", "schemasnapshot-large-test-*")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(testExportDir) })
+
+	source = *testPostgresSource.Source
+	metaDB = initMetaDB(testExportDir)
+	exporterRole = SOURCE_DB_EXPORTER_ROLE
+	suppressSchemaSnapshotCapture = utils.BoolStr(false)
+	t.Cleanup(func() {
+		source = srcdb.Source{}
+		metaDB = nil
+		exporterRole = SOURCE_DB_EXPORTER_ROLE
+		suppressSchemaSnapshotCapture = utils.BoolStr(false)
+	})
+
+	require.Equal(t, []string{schemaName}, source.GetSchemaList())
+
+	start := time.Now()
+	captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportSchema, "", true)
+	elapsed := time.Since(start)
+	t.Logf("captured %d-table / ~%d-column schema in %s (budget %s)",
+		numTables, numTables*colsPerTable, elapsed, schemasnapshot.CaptureTimeout)
+
+	headers, err := schemasnapshot.ListSnapshots(metaDB)
+	require.NoError(t, err)
+	require.Len(t, headers, 1, "exactly one snapshot must be persisted")
+
+	// The load-bearing assertion: a REAL snapshot, not a placeholder. A placeholder would
+	// mean the capture+save did not finish within schemasnapshot.CaptureTimeout for this
+	// schema size.
+	require.False(t, headers[0].IsPlaceholder,
+		"capture of a %d-table schema must complete and persist within %s; got a placeholder (budget exceeded)",
+		numTables, schemasnapshot.CaptureTimeout)
+
+	content, err := schemasnapshot.LoadSnapshotByName(metaDB, headers[0].Name())
+	require.NoError(t, err)
+	require.NotNil(t, content)
+	assert.GreaterOrEqual(t, len(content.Tables), numTables,
+		"captured snapshot must include all %d seeded tables", numTables)
+}
+
+// TestStartPeriodicSourceSchemaSnapshotCapture exercises the periodic-capture ticker
+// directly, with the interval passed as a parameter (the reason the interval is now an
+// argument rather than a global read): a sub-minute value is impossible via the real
+// --schema-snapshot-capture-interval flag, which is in minutes with a 1-minute floor.
+// This covers the ticker's gating (interval<=0 / suppressed / non-source), that it fires
+// at the injected interval, and that it stops when the context is cancelled — cheaply,
+// without the ~90s live-migration path.
+func TestStartPeriodicSourceSchemaSnapshotCapture(t *testing.T) {
+	const schemaName = "tickerschema"
+	testPostgresSource.ExecuteSqls(
+		fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS %s`, schemaName),
+		fmt.Sprintf(`CREATE TABLE %s.t1 (id int primary key, v text)`, schemaName),
+	)
+	t.Cleanup(func() { testPostgresSource.ExecuteSqls(fmt.Sprintf(`DROP SCHEMA IF EXISTS %s CASCADE`, schemaName)) })
+
+	sqlname.SourceDBType = testPostgresSource.DBType
+	testPostgresSource.Schemas = sqlname.ParseIdentifiersFromString(constants.POSTGRESQL, schemaName, "|")
+	require.NoError(t, testPostgresSource.DB().Connect(), "connect to postgres source")
+	t.Cleanup(func() { testPostgresSource.DB().Disconnect() })
+
+	testExportDir, err := os.MkdirTemp("", "schemasnapshot-ticker-test-*")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(testExportDir) })
+
+	source = *testPostgresSource.Source
+	metaDB = initMetaDB(testExportDir)
+	exporterRole = SOURCE_DB_EXPORTER_ROLE
+	suppressSchemaSnapshotCapture = utils.BoolStr(false)
+	t.Cleanup(func() {
+		source = srcdb.Source{}
+		metaDB = nil
+		exporterRole = SOURCE_DB_EXPORTER_ROLE
+		suppressSchemaSnapshotCapture = utils.BoolStr(false)
+	})
+
+	countPeriodic := func() int {
+		headers, err := schemasnapshot.ListSnapshots(metaDB)
+		require.NoError(t, err)
+		n := 0
+		for _, h := range headers {
+			if h.Label == schemasnapshot.LabelExportDataFromSourcePeriodic {
+				n++
+			}
+		}
+		return n
+	}
+
+	// gatedOffCase asserts that startPeriodic starts no ticker (no snapshots appear) for a
+	// gated-off condition set up by prepare().
+	gatedOffCase := func(t *testing.T, prepare func() func()) {
+		restore := prepare()
+		defer restore()
+		before := countPeriodic()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		startPeriodicSourceSchemaSnapshotCapture(ctx, 20*time.Millisecond)
+		time.Sleep(250 * time.Millisecond) // more than a dozen 20ms ticks, had it started
+		assert.Equal(t, before, countPeriodic(), "gated-off condition must not start a ticker")
+	}
+
+	t.Run("no-op when interval is non-positive", func(t *testing.T) {
+		before := countPeriodic()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		startPeriodicSourceSchemaSnapshotCapture(ctx, 0)
+		time.Sleep(250 * time.Millisecond)
+		assert.Equal(t, before, countPeriodic(), "interval <= 0 must not start a ticker")
+	})
+
+	t.Run("no-op when suppressed", func(t *testing.T) {
+		gatedOffCase(t, func() func() {
+			suppressSchemaSnapshotCapture = utils.BoolStr(true)
+			return func() { suppressSchemaSnapshotCapture = utils.BoolStr(false) }
+		})
+	})
+
+	t.Run("no-op for a non-source exporter", func(t *testing.T) {
+		gatedOffCase(t, func() func() {
+			exporterRole = TARGET_DB_EXPORTER_FF_ROLE
+			return func() { exporterRole = SOURCE_DB_EXPORTER_ROLE }
+		})
+	})
+
+	t.Run("fires at the injected interval and stops on context cancel", func(t *testing.T) {
+		before := countPeriodic()
+		ctx, cancel := context.WithCancel(context.Background())
+
+		startPeriodicSourceSchemaSnapshotCapture(ctx, 50*time.Millisecond)
+
+		// Snapshot names are second-granularity, so at most ~one periodic snapshot persists
+		// per wall-clock second (same-second ticks collide on the UNIQUE name and are
+		// swallowed). So "fired repeatedly" is observed across seconds, not per-tick.
+		require.Eventually(t, func() bool { return countPeriodic() >= before+2 },
+			5*time.Second, 100*time.Millisecond,
+			"ticker must fire and persist periodic snapshots at the injected interval")
+
+		cancel()
+		time.Sleep(300 * time.Millisecond) // let the goroutine observe cancellation and exit
+		stopped := countPeriodic()
+		// If the ticker were still running, crossing into the next wall-clock second would
+		// persist a new (distinct-name) snapshot; a stable count proves it stopped.
+		time.Sleep(1300 * time.Millisecond)
+		assert.Equal(t, stopped, countPeriodic(), "ticker must stop after context cancel")
+	})
+}
