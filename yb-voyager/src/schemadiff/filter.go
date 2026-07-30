@@ -52,6 +52,26 @@ type Scope struct {
 // NOTE: table rename/move alias handling is temporarily disabled (see the body).
 // With it off, a finding anchored to a renamed table matches only its as-emitted
 // anchor, not its old/new counterpart. Pending the cross-window alias decision.
+//
+// KNOWN GAP (confirmed end-to-end against PostgreSQL, 2026-07-30): this makes
+// `schema detect-drift --table-list` unable to return a renamed table's full drift
+// history, whichever name is given. anchorTableOf derives the anchor from ObjectA
+// (falling back to ObjectB), so a TABLE_NAME_CHANGED anchors to the OLD ref while
+// every later finding on that table anchors to the NEW ref — and with the alias off,
+// nothing bridges the two. Renaming sales."Mixed Case Tbl" to sales."MixedCase" and
+// then adding a column to it yields:
+//
+//	--table-list sales.MixedCase          -> COLUMN_ADDED only (rename dropped)
+//	--table-list 'sales.Mixed Case Tbl'   -> TABLE_NAME_CHANGED only (column add dropped)
+//
+// Unfiltered runs are unaffected: both findings are always reported.
+//
+// Re-enabling the alias below fixes this only WITHIN one window. driftreport
+// diffs each consecutive snapshot pair and calls FilterByScope per pair, so the
+// rename lives in exactly one window and cannot alias findings in the others. A
+// real fix needs either a rename alias map built across all windows before
+// filtering, or a canonical anchor keyed by stable table OID with --table-list
+// names resolved to OIDs.
 func FilterByScope(diffs []Difference, scope Scope) []Difference {
 	// Rename/move alias handling is temporarily disabled pending the cross-window
 	// alias decision (PR #3648 discussion). Preserved for re-enable: the builder
