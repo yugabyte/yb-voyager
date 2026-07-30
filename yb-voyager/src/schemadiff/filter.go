@@ -16,26 +16,29 @@ package schemadiff
 
 import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 
-// Scope describes the include/exclude filters applied by FilterByScope.
+// Scope is the caller-resolved filter applied by FilterByScope. Both lists are
+// positive allow-lists and an empty (or nil) list means "all".
 //
-// IncludeTables/ExcludeTables hold caller-RESOLVED ObjectRefs (globs and the default
-// schema already expanded); matching is exact, case-sensitive struct equality
-// against the finding's anchor table, derived from its identity by anchorTableOf.
-// IncludeObjectTypes/ExcludeObjectTypes match a finding's object-type bucket. An
-// empty include list means "all".
+// There is deliberately no exclude counterpart. Exclude-style user input — e.g.
+// --exclude-table-list — is resolved by the command layer into the concrete set of
+// objects to KEEP before it reaches the engine, because only the command knows the
+// universe to subtract from (the tables present across the compared snapshots plus
+// the live read) and only the command expands globs. Keeping one filtering
+// direction here means there is no include-vs-exclude precedence rule to define,
+// and no second code path that production never exercises.
 //
-// Scope is permissive and total — it never errors:
-//   - If an include and its exclude are both set, exclude wins (includes apply
-//     first, excludes last).
-//   - An entry that matches nothing is a silent no-op.
+// Tables holds caller-RESOLVED ObjectRefs (globs and the default schema already
+// expanded); matching is exact, case-sensitive struct equality against the
+// finding's anchor table, derived from its identity by anchorTableOf. ObjectTypes
+// matches a finding's object-type bucket.
 //
-// Flag-level policy — e.g. --table-list and --exclude-table-list being mutually
-// exclusive — is the command's to enforce, so FilterByScope stays pure for any caller.
+// Scope is permissive and total — it never errors, and an entry that matches
+// nothing is a silent no-op. Flag-level policy — e.g. --table-list and
+// --exclude-table-list being mutually exclusive — is the command's to enforce, so
+// FilterByScope stays pure for any caller.
 type Scope struct {
-	IncludeTables      []schemasnapshot.ObjectRef // empty = all; matched against the finding's derived anchor table
-	ExcludeTables      []schemasnapshot.ObjectRef // drop findings whose derived anchor table is in this list
-	IncludeObjectTypes []ObjectType               // empty = all
-	ExcludeObjectTypes []ObjectType
+	Tables      []schemasnapshot.ObjectRef // empty = all; matched against the finding's derived anchor table
+	ObjectTypes []ObjectType               // empty = all; matched against the finding's ObjectType
 }
 
 // FilterByScope returns the subset of diffs within scope. It is pure: inputs are
@@ -43,10 +46,8 @@ type Scope struct {
 // silent no-op (validation is the caller's job).
 //
 // Filtering applies, in order:
-//  1. include by IncludeObjectTypes
-//  2. include by IncludeTables (a finding with no derived anchor never matches a non-empty list)
-//  3. exclude by ExcludeObjectTypes
-//  4. exclude by ExcludeTables
+//  1. ObjectTypes
+//  2. Tables (a finding with no derived anchor never matches a non-empty list)
 //
 // NOTE: table rename/move alias handling is temporarily disabled (see the body).
 // With it off, a finding anchored to a renamed table matches only its as-emitted
@@ -54,30 +55,22 @@ type Scope struct {
 func FilterByScope(diffs []Difference, scope Scope) []Difference {
 	// Rename/move alias handling is temporarily disabled pending the cross-window
 	// alias decision (PR #3648 discussion). Preserved for re-enable: the builder
-	// (buildTableRenameAliases, below) and the alias branches in passesTable*Filter.
+	// (buildTableRenameAliases, below) and the alias branch in passesTableFilter.
 	// To re-enable: uncomment the builder line below, restore the `aliases`
-	// parameter + the commented alias block in both passesTable*Filter, and pass
-	// tableRenameAliases to those two calls.
+	// parameter + the commented alias block in passesTableFilter, and pass
+	// tableRenameAliases to that call.
 	// tableRenameAliases := buildTableRenameAliases(diffs)
 
-	// Pre-build lookup sets for the four lists to avoid O(n²) inner scans.
-	includeTypes := toSet(scope.IncludeObjectTypes)
-	excludeTypes := toSet(scope.ExcludeObjectTypes)
-	includeTables := toSet(scope.IncludeTables)
-	excludeTables := toSet(scope.ExcludeTables)
+	// Pre-build lookup sets for both lists to avoid O(n²) inner scans.
+	includeTypes := toSet(scope.ObjectTypes)
+	includeTables := toSet(scope.Tables)
 
 	out := make([]Difference, 0, len(diffs))
 	for _, d := range diffs {
 		if !passesObjectTypeFilter(d, includeTypes) {
 			continue
 		}
-		if !passesTableIncludeFilter(d, includeTables) {
-			continue
-		}
-		if !passesObjectTypeExcludeFilter(d, excludeTypes) {
-			continue
-		}
-		if !passesTableExcludeFilter(d, excludeTables) {
+		if !passesTableFilter(d, includeTables) {
 			continue
 		}
 		out = append(out, d)
@@ -155,24 +148,14 @@ func passesObjectTypeFilter(d Difference, includeTypes map[ObjectType]struct{}) 
 	return ok
 }
 
-// passesObjectTypeExcludeFilter returns true if the finding is NOT in the
-// exclude list. An empty excludeTypes means "nothing excluded".
-func passesObjectTypeExcludeFilter(d Difference, excludeTypes map[ObjectType]struct{}) bool {
-	if len(excludeTypes) == 0 {
-		return true
-	}
-	_, excluded := excludeTypes[d.ObjectType]
-	return !excluded
-}
-
-// passesTableIncludeFilter keeps a finding under the Tables include filter:
+// passesTableFilter keeps a finding under the Tables filter:
 //   - empty list keeps all
 //   - no derived anchor never matches a non-empty list
 //   - otherwise keep if the anchor is listed
 //
 // Rename-alias either-side matching is temporarily disabled (see FilterByScope).
 // Re-enable by restoring the `aliases map[...]` parameter and the commented block.
-func passesTableIncludeFilter(d Difference, includeTables map[schemasnapshot.ObjectRef]struct{}) bool {
+func passesTableFilter(d Difference, includeTables map[schemasnapshot.ObjectRef]struct{}) bool {
 	if len(includeTables) == 0 {
 		return true
 	}
@@ -195,37 +178,6 @@ func passesTableIncludeFilter(d Difference, includeTables map[schemasnapshot.Obj
 	// }
 
 	return false
-}
-
-// passesTableExcludeFilter drops a finding under the ExcludeTables filter:
-//   - empty list excludes nothing
-//   - no derived anchor is never excluded
-//   - otherwise drop if the anchor is listed
-//
-// Rename-alias either-side matching is temporarily disabled (see FilterByScope).
-// Re-enable by restoring the `aliases map[...]` parameter and the commented block.
-func passesTableExcludeFilter(d Difference, excludeTables map[schemasnapshot.ObjectRef]struct{}) bool {
-	if len(excludeTables) == 0 {
-		return true
-	}
-	anchor, ok := anchorTableOf(d)
-	if !ok {
-		return true // no anchor is never excluded by ExcludeTables
-	}
-
-	if _, ok := excludeTables[anchor]; ok {
-		return false
-	}
-
-	// Rename-alias matching disabled — see FilterByScope. Re-enable with an
-	// `aliases map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef` parameter:
-	// for _, alias := range aliases[anchor] {
-	// 	if _, ok := excludeTables[alias]; ok {
-	// 		return false
-	// 	}
-	// }
-
-	return true
 }
 
 // toSet builds a lookup set from a slice for O(1) membership tests; returns nil
