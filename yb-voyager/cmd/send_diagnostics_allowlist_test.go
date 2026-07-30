@@ -50,6 +50,7 @@ func TestSendDiagnosticsAllowlistMatchesRegisteredCommands(t *testing.T) {
 		"end migration":                    true,
 		"archive changes":                  true,
 		"assess-migration-bulk":            true,
+		"schema detect-drift":              true,
 	}
 
 	for cmd := range registered {
