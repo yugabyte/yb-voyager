@@ -40,6 +40,7 @@ var commandsUsingSourceConfig = []string{
 	"export-data",
 	"export-data-from-source",
 	"import-data-to-source",
+	"schema-detect-drift",
 }
 var commandsUsingTargetConfig = []string{
 	"import-schema",
@@ -207,6 +208,13 @@ var allowedInitCutoverToTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 var allowedInitCutoverToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"restart-data-migration-source-target",
 )
+var allowedSchemaDetectDriftConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level",
+	"output-format",
+	"table-list", "exclude-table-list",
+	"object-type-list", "exclude-object-type-list",
+)
+
 var allowedArchiveChangesConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level",
 	"policy", "archive-dir", "fs-utilization-threshold",
@@ -242,6 +250,7 @@ var allowedConfigSections = map[string]mapset.Set[string]{
 	"initiate-cutover-to-source":       allowedInitCutoverToSourceConfigKeys,
 	"archive-changes":                  allowedArchiveChangesConfigKeys,
 	"end-migration":                    allowedEndMigrationConfigKeys,
+	"schema-detect-drift":              allowedSchemaDetectDriftConfigKeys,
 }
 
 // Define mutually exclusive section groups
