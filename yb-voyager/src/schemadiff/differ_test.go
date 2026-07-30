@@ -90,7 +90,7 @@ func TestDiffer_AppliesScope(t *testing.T) {
 	a := snapWithTables(ordersA, legacyA)
 	b := snapWithTables(ordersB, legacyB)
 
-	scope := Scope{IncludeTables: []schemasnapshot.ObjectRef{ref("public", "orders")}}
+	scope := Scope{Tables: []schemasnapshot.ObjectRef{ref("public", "orders")}}
 	got := NewDiffer(Config{Scope: scope}).Diff(a, b)
 
 	// Assert the concrete expected result, independently of FilterByScope's
@@ -135,7 +135,7 @@ func TestDiffer_ScopeRenameRetention(t *testing.T) {
 	b := snapWithTables(purchasesB)
 
 	// Scope by the NEW name (public.purchases).
-	scope := Scope{IncludeTables: []schemasnapshot.ObjectRef{ref("public", "purchases")}}
+	scope := Scope{Tables: []schemasnapshot.ObjectRef{ref("public", "purchases")}}
 	got := NewDiffer(Config{Scope: scope}).Diff(a, b)
 
 	// The TABLE_NAME_CHANGED finding must survive even though its derived anchor
