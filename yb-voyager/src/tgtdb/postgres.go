@@ -514,7 +514,6 @@ func catalogNamesToSchemaAndTableLists(catalogNames []string) (schemaList, table
 	return lo.Uniq(schemaList), lo.Uniq(tableList)
 }
 
-
 // queryPGUniqueIndexesByCatalog runs the PG/YB unique-index discovery query for the
 // given schema/table filter lists and returns a map keyed by "schema.table" catalog
 // name to its list of unique indexes (each an ordered, de-duplicated column list).

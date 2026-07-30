@@ -151,7 +151,7 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"skip-node-health-checks", "skip-disk-usage-health-checks",
 	"on-primary-key-conflict", "disable-transactional-writes",
 	"truncate-splits", "prometheus-metrics-port",
-	"use-partition-root",
+	"use-partition-root", "disable-sequential-scan-on-update-deletes",
 
 	// environment variables keys
 	"csv-reader-max-buffer-size-bytes", "ybvoyager-max-colocated-batches-in-progress", "num-event-channels", "event-channel-size",

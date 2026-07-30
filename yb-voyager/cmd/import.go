@@ -516,6 +516,10 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 	cmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
 		"Port for Prometheus metrics server (default: 9101)")
 	cmd.Flags().MarkHidden("prometheus-metrics-port")
+
+	BoolVar(cmd.Flags(), &tconf.DisableSequentialScanOnUpdateDeletes, "disable-sequential-scan-on-update-deletes", true,
+		"Disable sequential scan on update and delete operations to avoid retryable errors during concurrent writes in repeatable isolation level (default true)")
+	cmd.Flags().MarkHidden("disable-sequential-scan-on-update-deletes")
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {

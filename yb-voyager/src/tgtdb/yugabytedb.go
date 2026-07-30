@@ -60,6 +60,8 @@ const (
 	MEMORY_FREE_METRIC                     = "memory_free"
 	MEMORY_TOTAL_METRIC                    = "memory_total"
 	MEMORY_AVAILABLE_METRIC                = "memory_available"
+
+	DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT = "/*+ Set(enable_seqscan off) */"
 )
 
 type TargetYugabyteDB struct {
@@ -1177,12 +1179,18 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			if err != nil {
 				return fmt.Errorf("get sql stmt: %w", err)
 			}
+			if yb.tconf.DisableSequentialScanOnUpdateDeletes {
+				stmt = DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT + stmt
+			}
 			ybBatch.Queue(stmt)
 			log.Debugf("SQL statement: Batch(%s): Event(%d): [%s]", batch.ID(), event.Vsn, stmt)
 		} else {
 			stmt, err := event.GetPreparedSQLStmt(yb, yb.Tconf.TargetDBType, yb.tconf.UsePartitionRoot)
 			if err != nil {
 				return fmt.Errorf("get prepared sql stmt: %w", err)
+			}
+			if event.Op == "d" && yb.tconf.DisableSequentialScanOnUpdateDeletes {
+				stmt = DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT + stmt
 			}
 			psName, err := event.GetPreparedStmtName(yb.tconf.UsePartitionRoot)
 			if err != nil {
