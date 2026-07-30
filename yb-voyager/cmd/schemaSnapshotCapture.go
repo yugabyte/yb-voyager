@@ -150,7 +150,7 @@ func captureSourceSchemaSnapshot(ctx context.Context, label, reason string, plac
 	captureParams := schemasnapshot.CaptureParams{
 		DatabaseType: source.DBType,
 		DBMetadata:   schemasnapshot.DBMetadata{Host: source.Host, Port: source.Port, Database: source.DBName, User: source.User},
-		Schemas:      source.GetSchemaList(),
+		Schemas:      source.GetSchemaListUnquoted(),
 		Label:        label,
 		Reason:       reason,
 	}
@@ -224,7 +224,7 @@ func saveSourceSchemaSnapshotPlaceholder(label, reason string) {
 		Reason:        reason,
 		Side:          schemasnapshot.SideSource,
 		CapturedAt:    time.Now().UTC(),
-		Schemas:       source.GetSchemaList(),
+		Schemas:       source.GetSchemaListUnquoted(),
 		IsPlaceholder: true,
 	}
 	if _, err := schemasnapshot.SavePlaceholder(ctx, metaDB, h); err != nil {
