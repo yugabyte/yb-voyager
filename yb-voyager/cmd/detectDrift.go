@@ -115,6 +115,12 @@ func init() {
 	detectDriftCmd.Flags().StringVar(&driftOutputFormat, "output-format", "html,json",
 		"comma-separated list of report formats to generate: ('html', 'json')")
 
+	// KNOWN GAP: for a table that was RENAMED inside the compared window, neither
+	// the old nor the new name returns its full drift history -- the rename finding
+	// anchors to the old identity and everything after it to the new one, and the
+	// engine's bridging alias is currently disabled. An unfiltered run always shows
+	// both. See the KNOWN GAP note on schemadiff.FilterByScope for the repro and the
+	// two possible fixes.
 	detectDriftCmd.Flags().StringVar(&driftTableList, "table-list", "",
 		"comma-separated list of the tables to compare (glob patterns allowed). Only one of --table-list and --exclude-table-list can be specified.")
 	detectDriftCmd.Flags().StringVar(&driftExcludeTableList, "exclude-table-list", "",
