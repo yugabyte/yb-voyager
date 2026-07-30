@@ -141,6 +141,65 @@ func TestRenderHTML(t *testing.T) {
 	assert.Contains(t, html, "does not apply any of these changes", "standing disclaimer banner should appear")
 }
 
+// TestObjectPathMinQuotesIdentifiers pins that rendered object identities are
+// minimally quoted: a case-sensitive or space-containing identifier must render
+// as valid, copy-pasteable SQL (sales."MixedCase"), never as the ambiguous
+// sales.MixedCase, while an all-lowercase name stays unquoted.
+func TestObjectPathMinQuotesIdentifiers(t *testing.T) {
+	tests := []struct {
+		name  string
+		entry DiffEntry
+		wantQ string
+		wantS string
+	}{
+		{
+			name: "lowercase table needs no quoting",
+			entry: DiffEntry{
+				ObjectType: string(schemadiff.ObjectTypeTable),
+				Object:     schemasnapshot.ObjectRef{Schema: "sales", Name: "orders"},
+			},
+			wantQ: "sales.", wantS: "orders",
+		},
+		{
+			name: "mixed-case table is quoted",
+			entry: DiffEntry{
+				ObjectType: string(schemadiff.ObjectTypeTable),
+				Object:     schemasnapshot.ObjectRef{Schema: "sales", Name: "MixedCase"},
+			},
+			wantQ: "sales.", wantS: `"MixedCase"`,
+		},
+		{
+			name: "column with a space, under a mixed-case table, quotes both parts",
+			entry: DiffEntry{
+				ObjectType: string(schemadiff.ObjectTypeColumn),
+				Object:     schemasnapshot.ObjectRef{Schema: "sales", Name: "MixedCase"},
+				SubObject:  "Extra Col",
+			},
+			wantQ: `sales."MixedCase".`, wantS: `"Extra Col"`,
+		},
+		{
+			name: "lowercase column under a lowercase table stays unquoted",
+			entry: DiffEntry{
+				ObjectType: string(schemadiff.ObjectTypeColumn),
+				Object:     schemasnapshot.ObjectRef{Schema: "sales", Name: "orders"},
+				SubObject:  "discount",
+			},
+			wantQ: "sales.orders.", wantS: "discount",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			q, s := objectPath(tt.entry, "postgresql")
+			assert.Equal(t, tt.wantQ, q)
+			assert.Equal(t, tt.wantS, s)
+			// q+s must equal the ref's own ForDisplay rendering.
+			if tt.entry.ObjectType == string(schemadiff.ObjectTypeTable) {
+				assert.Equal(t, tt.entry.Object.ForDisplay("postgresql"), q+s)
+			}
+		})
+	}
+}
+
 func TestRenderHTML_EmptyReportDoesNotPanic(t *testing.T) {
 	require.NotPanics(t, func() {
 		out, err := RenderHTML(Report{Report: "schema_drift", Version: 1})
