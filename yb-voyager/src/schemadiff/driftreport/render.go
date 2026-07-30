@@ -24,6 +24,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 //go:embed templates/drift_report.html
@@ -155,7 +156,7 @@ func newReportView(r Report) reportView {
 		ComparingSummary: comparingSummary(r.Comparing),
 		ComparingScope:   comparingScope(r.Comparing),
 
-		Timeline: buildTimeline(r.Captures, groupsByWindow),
+		Timeline: buildTimeline(r.Captures, groupsByWindow, r.Source.DatabaseType),
 
 		Snapshots: snapshotRows(r.Captures),
 	}
@@ -257,7 +258,7 @@ type intervalGroup struct {
 // always matches a consecutive capture pair and groupByInterval only
 // includes windows that actually have diffs (so a diff-less pair
 // contributes no interval, matching the mockup's skipped spans).
-func buildTimeline(captures []Capture, groupsByWindow map[Window]intervalGroup) []timelineEntry {
+func buildTimeline(captures []Capture, groupsByWindow map[Window]intervalGroup, dbType string) []timelineEntry {
 	var timeline []timelineEntry
 	for i, c := range captures {
 		if ev, ok := deriveEvent(c); ok {
@@ -269,7 +270,7 @@ func buildTimeline(captures []Capture, groupsByWindow map[Window]intervalGroup) 
 		next := captures[i+1]
 		w := Window{From: c.CapturedAt, To: next.CapturedAt}
 		if g, ok := groupsByWindow[w]; ok {
-			iv := newIntervalView(g, next)
+			iv := newIntervalView(g, next, dbType)
 			timeline = append(timeline, timelineEntry{Interval: &iv})
 		}
 	}
@@ -312,7 +313,7 @@ func deriveEvent(c Capture) (eventView, bool) {
 // newIntervalView builds the display view for one interval group. next is
 // the capture that closes the interval's window (the "to" side of the
 // pair); the interval is "live" when next is the live read of the source.
-func newIntervalView(g intervalGroup, next Capture) intervalView {
+func newIntervalView(g intervalGroup, next Capture, dbType string) intervalView {
 	live := next.Series == SeriesSourceLive
 	count := changeCountLabel(len(g.Diffs))
 	if live {
@@ -321,7 +322,7 @@ func newIntervalView(g intervalGroup, next Capture) intervalView {
 
 	findings := make([]findingView, len(g.Diffs))
 	for i, d := range g.Diffs {
-		findings[i] = newFindingView(d)
+		findings[i] = newFindingView(d, dbType)
 	}
 
 	return intervalView{
@@ -342,8 +343,8 @@ func changeCountLabel(n int) string {
 }
 
 // newFindingView builds the display view for a single DiffEntry.
-func newFindingView(d DiffEntry) findingView {
-	objQ, objS := objectPath(d)
+func newFindingView(d DiffEntry, dbType string) findingView {
+	objQ, objS := objectPath(d, dbType)
 
 	fv := findingView{
 		KindClass:    kindClass(d.Operation),
@@ -356,7 +357,7 @@ func newFindingView(d DiffEntry) findingView {
 
 	switch d.Operation {
 	case string(schemadiff.OpAdded):
-		if def := stringifyValue(d.Attribute, d.NewValue); def != "" {
+		if def := stringifyValue(d.Attribute, d.NewValue, dbType); def != "" {
 			fv.HasDef = true
 			fv.ValDef = def
 		}
@@ -364,8 +365,8 @@ func newFindingView(d DiffEntry) findingView {
 		// No value chip for drops, matching the mockup.
 	default: // OpChanged
 		fv.HasChange = true
-		fv.ValOld = stringifyValue(d.Attribute, d.OldValue)
-		fv.ValNew = stringifyValue(d.Attribute, d.NewValue)
+		fv.ValOld = stringifyValue(d.Attribute, d.OldValue, dbType)
+		fv.ValNew = stringifyValue(d.Attribute, d.NewValue, dbType)
 	}
 
 	return fv
@@ -396,11 +397,25 @@ func kindLabel(diffType string) string {
 // <span class="q">...</span><span class="s">...</span> split. A column-level
 // finding (ObjectType == COLUMN) qualifies down to the column; a table-level
 // finding qualifies down to the table.
-func objectPath(d DiffEntry) (q, s string) {
+//
+// Every part is minimally quoted for dbType, so a case-sensitive or otherwise
+// special identifier renders as valid, copy-pasteable SQL — sales."MixedCase"
+// rather than the ambiguous sales.MixedCase. Concatenating q+s therefore yields
+// exactly the ref's ForDisplay rendering.
+func objectPath(d DiffEntry, dbType string) (q, s string) {
 	if d.ObjectType == string(schemadiff.ObjectTypeColumn) {
-		return d.Object.Schema + "." + d.Object.Name + ".", d.SubObject
+		return d.Object.ForDisplay(dbType) + ".", minQuoted(d.SubObject, dbType)
 	}
-	return d.Object.Schema + ".", d.Object.Name
+	return minQuoted(d.Object.Schema, dbType) + ".", minQuoted(d.Object.Name, dbType)
+}
+
+// minQuoted renders a single identifier part with quotes only where they are
+// needed for dbType (e.g. mixed case, embedded spaces, reserved words).
+func minQuoted(name, dbType string) string {
+	if name == "" {
+		return ""
+	}
+	return sqlname.NewIdentifier(dbType, name).MinQuoted
 }
 
 // actionStatusText maps each Status to its emoji + severity label, as shown
@@ -437,7 +452,7 @@ func actionStatus(status string) string {
 //     summary (TABLE_ADDED/DROPPED's whole added/dropped table's columns),
 //     e.g. "3 columns"
 //   - anything else                          -> fmt.Sprintf("%v", value)
-func stringifyValue(attribute string, value any) string {
+func stringifyValue(attribute string, value any, dbType string) string {
 	switch v := value.(type) {
 	case nil:
 		return ""
@@ -455,11 +470,11 @@ func stringifyValue(attribute string, value any) string {
 		}
 		return "false"
 	case schemasnapshot.ObjectRef:
-		return v.Schema + "." + v.Name
+		return v.ForDisplay(dbType)
 	case []schemasnapshot.ObjectRef:
 		parts := make([]string, len(v))
 		for i, ref := range v {
-			parts[i] = ref.Schema + "." + ref.Name
+			parts[i] = ref.ForDisplay(dbType)
 		}
 		return strings.Join(parts, ", ")
 	case schemasnapshot.Column:
