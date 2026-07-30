@@ -94,6 +94,10 @@ func TestComplementDriftObjectTypes(t *testing.T) {
 			want:    []schemadiff.ObjectType{schemadiff.ObjectTypeTable},
 		},
 		{
+			// Empty means "select nothing", NOT "all" -- detectDrift rejects this
+			// with an operational error rather than forwarding it to
+			// schemadiff.Scope, where an empty list would mean "all" and silently
+			// invert the exclusion.
 			name:    "exclude both yields empty",
 			exclude: []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn},
 			want:    nil,
