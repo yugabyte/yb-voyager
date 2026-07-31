@@ -1557,3 +1557,107 @@ func TestLiveMigrationCdcPartitionKeyRejectsPkOnExpressionUniqueIndex(t *testing
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 }
+
+func TestLiveMigrationWithCoveringUniqueKeyIndex(t *testing.T) {
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "covering_uk",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "covering_uk",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.users (
+				id int PRIMARY KEY,
+				email TEXT
+			);
+			CREATE UNIQUE INDEX users_lower_email_uidx ON test_schema.users (email) INCLUDE (id);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.users REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.users (id, email) SELECT i, 'user_' || i || '@example.com' FROM generate_series(1, 10) i;`,
+		},
+		SourceDeltaSQL: []string{
+			`
+		  DO $$
+		  BEGIN
+			FOR i IN 11..510 LOOP
+			  UPDATE test_schema.users SET email = 'user_' || i || '@example.com' WHERE id = i-1;
+			  INSERT INTO test_schema.users (id, email) SELECT i, 'user_' || 10 || '@example.com';
+
+			  DELETE FROM test_schema.users WHERE id = i-1;
+			  UPDATE test_schema.users SET email = 'user_' || i || '@example.com' WHERE id = i;
+
+			  INSERT INTO test_schema.users (id, email) SELECT i-1, 'user_' || 10 || '@example.com';
+
+			  DELETE FROM test_schema.users WHERE id = i;
+			  UPDATE test_schema.users SET email = 'user_' || i || '@example.com' WHERE id = i-1;
+			  INSERT INTO test_schema.users (id, email) SELECT i, 'user_' || 10 || '@example.com';
+
+			END LOOP;
+		  END $$;
+		  `,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+	)
+	uniqueKeyConflictStatsPath := filepath.Join(
+		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = lm.StartImportDataWithEnv(true, nil, []string{uniqueKeyConflictCountFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."users"`: 10,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."users"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."users"`: {Inserts: 1500,Updates: 1500, Deletes: 1000},
+	}, 60, 1)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
+	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
+	require.GreaterOrEqual(t, conflictStats.Total, 1500,
+		"covering UK delta should produce unique-key conflicts")
+	require.GreaterOrEqual(t, conflictStats.ByTable[`"test_schema"."users"`], 1,
+		"covering UK conflicts should be attributed to the table")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."users"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
