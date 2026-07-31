@@ -280,6 +280,7 @@ func TestPostgresTargetGetTableToUniqueIndexesMap(t *testing.T) {
 			code TEXT
 		);`,
 		`CREATE UNIQUE INDEX idx_mixed_expr ON test_schema.mixed_expression_unique_table (lower(email), code);`,
+		`CREATE UNIQUE INDEX idx_including_unique ON test_schema.mixed_expression_unique_table (email) INCLUDE (code);`,
 	)
 	defer testPostgresTarget.ExecuteSqls(
 		`DROP SCHEMA test_schema CASCADE;`,
@@ -334,6 +335,7 @@ func TestPostgresTargetGetTableToUniqueIndexesMap(t *testing.T) {
 	})
 	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.mixed_expression_unique_table", "public", POSTGRESQL), []UniqueIndex{
 		{Columns: []string{"code"}},
+		{Columns: []string{"email"}},
 	})
 
 	assert.Equal(t, len(expectedIndexesByTable.Keys()), len(actualIndexes.Keys()), "Expected number of tables to match")
