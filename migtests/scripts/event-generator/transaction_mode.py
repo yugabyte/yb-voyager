@@ -47,6 +47,7 @@ from utils import (
     build_pk_in_condition,
     build_sampling_condition,
     build_update_values,
+    get_insert_column_list,
 )
 
 _OPS = ("INSERT", "UPDATE", "DELETE")
@@ -253,11 +254,17 @@ def execute_single_statement(
     pool = pools.get(table_name) if pools else None
 
     if operation == "INSERT":
-        columns = ", ".join(schema["columns"].keys())
         pk_value_fn = pk_value_fn_for_table(table_name) if pk_value_fn_for_table else None
         unique_value_fns = (
             unique_value_fns_for_table(table_name) if unique_value_fns_for_table else None
         )
+        # Any column still unsynthesizable is omitted from the column list
+        # entirely (see get_insert_column_list) so its DEFAULT applies,
+        # instead of an explicit NULL that would violate a NOT NULL
+        # constraint -- same fix as generator.py's legacy INSERT branch.
+        columns = ", ".join(get_insert_column_list(
+            table_schemas, table_name, column_overrides, unique_value_fns, pk_value_fn,
+        ))
         values_list, pk_values = build_insert_values(
             table_schemas,
             table_name,

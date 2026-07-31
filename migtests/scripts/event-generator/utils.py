@@ -910,6 +910,53 @@ def _build_columns_dict(column_info: List[Tuple[str, str]]) -> Dict[str, str]:
     return {column_name: data_type for column_name, data_type in column_info}
 
 
+def _is_hstore_udt(udt_name: Optional[str]) -> bool:
+    """True if `udt_name` (information_schema.columns.udt_name, or a
+    udt_name::regtype::text) names the hstore extension type. Handles a
+    possible schema-qualified/quoted form (e.g. 'public.hstore') by
+    checking the unqualified suffix rather than requiring an exact match.
+    """
+    if not udt_name:
+        return False
+    unqualified = udt_name.strip().strip('"').lower().rsplit(".", 1)[-1]
+    return unqualified == "hstore"
+
+
+def _resolve_hstore_columns(
+    cursor: Any,
+    table_name: str,
+    schema_name: Optional[str],
+    columns: Dict[str, str],
+) -> None:
+    """Relabel USER-DEFINED columns backed by the hstore extension type from
+    'USER-DEFINED' to the literal type string 'hstore' in `columns` (in
+    place), so generate_random_data can synthesize a real hstore literal
+    for them instead of falling into the generic "unknown USER-DEFINED
+    type" NULL/omit path. hstore is reported by information_schema.columns
+    as data_type='USER-DEFINED' with udt_name='hstore' -- indistinguishable
+    from any other extension scalar type (or a genuinely unresolvable one)
+    without this extra per-column udt_name lookup. Per-table path
+    (convert_pg_table_description) only -- generate_table_schemas_bulk does
+    the equivalent inline using its already-fetched udt_regtype map, no
+    extra queries needed there.
+    """
+    where_prefix, where_params = _schema_filter(schema_name)
+    for column_name, data_type in list(columns.items()):
+        if data_type != "USER-DEFINED":
+            continue
+        cursor.execute(
+            f"""
+            SELECT udt_name
+            FROM information_schema.columns
+            WHERE {where_prefix} table_name = %s AND column_name = %s
+            """,
+            where_params + (table_name, column_name),
+        )
+        row = cursor.fetchone()
+        if row and _is_hstore_udt(row[0]):
+            columns[column_name] = "hstore"
+
+
 def _build_bit_info(
     cursor: Any,
     table_name: str,
@@ -1099,6 +1146,7 @@ def convert_pg_table_description(
 ) -> Dict[str, Dict[str, Any]]:
     """Convert column info into a schema dict (columns, arrays, PK, enums, bit/varbit)."""
     columns = _build_columns_dict(column_info)
+    _resolve_hstore_columns(cursor, table_name, schema_name, columns)
     bit_info = _build_bit_info(cursor, table_name, schema_name, columns)
     array_types = _build_array_types(cursor, schema_name, table_name, columns)
     primary_key = _find_primary_key(cursor, table_name, schema_name)
@@ -1279,6 +1327,13 @@ def generate_table_schemas_bulk(
             print(f"Table '{tname}' not found.")
             continue
         columns = {c: d for c, d in col_info}
+        # Relabel USER-DEFINED hstore columns to the literal type string
+        # 'hstore' (see _resolve_hstore_columns / _is_hstore_udt -- same
+        # detection, reusing udt_regtype instead of an extra per-column
+        # query since it's already fetched for every column above).
+        for c, d in col_info:
+            if d == "USER-DEFINED" and _is_hstore_udt(udt_regtype.get((tname, c))):
+                columns[c] = "hstore"
         array_types: Dict[str, str] = {}
         for c, d in col_info:
             if "ARRAY" in d.upper():
@@ -1504,6 +1559,104 @@ def build_bit_cast_expr(
         return f"CAST('{bit_str}' AS bit({fixed_len}))"
 
 
+def generate_hstore_value(
+    faker_instance: Optional[Faker] = None,
+    min_pairs: int = 1,
+    max_pairs: int = 3,
+) -> str:
+    """Generate a valid hstore text literal, e.g. 'k_0=>v1,k_1=>v2' -- a few
+    random key=>value pairs. Faker's word() never contains '=>', ',', or
+    whitespace, so neither side needs quoting. An empty hstore ('') is also
+    valid Postgres input, but we always emit at least one pair for a
+    livelier data distribution. Keys are suffixed with their index so two
+    pairs never collapse into one via a duplicate key.
+    """
+    fake = faker_instance or _fake
+    num_pairs = random.randint(min_pairs, max_pairs)
+    return ",".join(f"{fake.word()}_{i}=>{fake.word()}" for i in range(num_pairs))
+
+
+# Element types generate_array_literal knows how to produce a valid, safely
+# quoted/unquoted literal for. Anything else (date/timestamp/json/geometric/
+# composite/enum elements, ...) is deliberately left unhandled -- guessing a
+# literal for a type we don't recognize risks an invalid-syntax error, worse
+# than the omit-for-default fallback this enables (see
+# get_insert_column_list).
+_ARRAY_NUMERIC_ELEMENT_TYPES = frozenset(
+    ["smallint", "integer", "bigint", "numeric", "decimal", "real", "double precision", "money"]
+)
+_ARRAY_STRING_ELEMENT_PREFIXES = ("character", "varchar", "text", "citext", "bpchar")
+
+
+def _classify_array_element(element_type: Optional[str]) -> Optional[str]:
+    """Classify an ARRAY column's element type into 'bool' / 'uuid' /
+    'numeric' / 'string' for generate_array_literal, or None if it isn't
+    one recognized.
+
+    `element_type` is the regtype text Postgres reports for the column's
+    OWN array type (get_array_element_type / generate_table_schemas_bulk's
+    udt_regtype both resolve `udt_name::regtype`, where udt_name for an
+    ARRAY column is the array type's own name, e.g. '_int4' or
+    '_varchar') -- regtype's output function special-cases arrays and
+    renders that as "<element type>[]" (e.g. 'integer[]', 'character
+    varying[]', 'boolean[]'), NOT the bare element type. A trailing '[]' is
+    stripped before classifying so exact-name checks (the numeric set
+    below) match regardless -- confirmed against a live Postgres
+    (varchar[]/int4[]/bool[] columns) during manual verification of this
+    fix; the bool/uuid/string checks below happen to tolerate the
+    unstripped suffix too (startswith), but stripping it up front is the
+    correct, non-coincidental fix.
+    """
+    et = (element_type or "").strip().lower()
+    if et.endswith("[]"):
+        et = et[:-2].strip()
+    if et.startswith("bool"):
+        return "bool"
+    if et.startswith("uuid"):
+        return "uuid"
+    if et in _ARRAY_NUMERIC_ELEMENT_TYPES:
+        return "numeric"
+    if et.startswith(_ARRAY_STRING_ELEMENT_PREFIXES):
+        return "string"
+    return None
+
+
+def generate_array_literal(
+    element_type: Optional[str],
+    faker_instance: Optional[Faker] = None,
+    min_elements: int = 1,
+    max_elements: int = 3,
+) -> Optional[str]:
+    """Build a valid PostgreSQL array literal, e.g. '{"a","b"}' or
+    '{1,2,3}', for an ARRAY column whose element type is `element_type`.
+    String-like elements are double-quoted (safe for any word Faker
+    produces, or a uuid); numeric/bool elements are emitted bare/unquoted.
+
+    Returns None if `element_type` isn't recognized (see
+    _classify_array_element) -- callers (generate_random_data,
+    get_insert_column_list) treat that exactly like any other
+    unsynthesizable type: omit the column from the INSERT rather than risk
+    an invalid literal or an explicit NULL that could violate a NOT NULL
+    constraint.
+    """
+    fake = faker_instance or _fake
+    kind = _classify_array_element(element_type)
+    if kind is None:
+        return None
+
+    if kind == "bool":
+        gen_elem = lambda: random.choice(["true", "false"])
+    elif kind == "uuid":
+        gen_elem = lambda: f'"{fake.uuid4()}"'
+    elif kind == "numeric":
+        gen_elem = lambda: str(random.randint(-100000, 100000))
+    else:  # "string"
+        gen_elem = lambda: f'"{fake.word()}"'
+
+    num_elements = random.randint(min_elements, max_elements)
+    return "{" + ",".join(gen_elem() for _ in range(num_elements)) + "}"
+
+
 def generate_random_data(
     data_type: str,
     table_name: str,
@@ -1576,6 +1729,13 @@ def generate_random_data(
         return value
     elif "boolean" in data_type:
         return random.choice(["true", "false"])
+    elif data_type == "hstore":
+        # hstore columns are reported by information_schema as
+        # data_type='USER-DEFINED'; the schema builders (see
+        # _resolve_hstore_columns / generate_table_schemas_bulk) relabel
+        # them to the literal string 'hstore' so they land here instead of
+        # the generic "unknown USER-DEFINED type" NULL path below.
+        return generate_hstore_value(fake)
     elif "USER-DEFINED" in data_type and enum_values:
         val = random.choice(enum_values)
         return val
@@ -1626,15 +1786,18 @@ def generate_random_data(
         return money_value
 
     elif "ARRAY" in data_type and array_types:
-        # Handle ARRAY data type based on the specific array element type
-        if "varchar" in array_types or "text" in array_types:
-            result = [f'"{fake.word()}"' for _ in range(3)] # Change 3 to the desired number of words
-            return '{' + ', '.join(result) + '}'
-        elif "integer" in array_types:
-            # Produce a deterministic, ordered array literal (not a Python set)
-            vals = [str(random.randint(-100000, 100000)) for _ in range(3)]
-            return '{' + ', '.join(vals) + '}'
-        # Add more cases for other ARRAY data types as needed
+        # Delegates to generate_array_literal, which covers string/numeric/
+        # bool/uuid element types generically -- including 'character
+        # varying' (the regtype text for varchar[]/character varying[]
+        # columns), which the old "varchar"/"text" substring checks here
+        # missed (neither is a substring of "character varying"), silently
+        # falling through with no return -- i.e. an implicit NULL -- and
+        # violating NOT NULL constraints on columns like a NOT NULL
+        # varchar[] with a DEFAULT. Returns None for element types it
+        # doesn't recognize (date/timestamp/json/geometric/...), same as
+        # any other unsynthesizable type -- see get_insert_column_list's
+        # omit-for-default fallback.
+        return generate_array_literal(array_types, fake)
 
     elif "uuid" in data_type:
         # Use Faker's uuid4 which is seeded via set_faker_seed for determinism
@@ -1658,6 +1821,88 @@ def generate_random_data(
     else:
         print(f"No handling for data type: {data_type}")
         return None
+
+
+def _column_value_is_synthesizable(
+    data_type: str,
+    enum_values: Optional[List[str]],
+    array_types: Optional[str],
+) -> bool:
+    """Return False for exactly the (data_type, enum_values, array_types)
+    combinations generate_random_data is documented to return None for --
+    a USER-DEFINED type with no known enum labels (hstore is relabeled to
+    the literal type string 'hstore' by the schema builders, so a real
+    hstore column never reaches this check as 'USER-DEFINED'), or an ARRAY
+    column whose element type _classify_array_element doesn't recognize.
+    Used by get_insert_column_list (and, through it, build_insert_values)
+    to decide -- once per column, before generating any rows -- whether to
+    omit that column from the INSERT's column list entirely rather than
+    ever attempt to generate (and fall back to an explicit SQL NULL for) a
+    value it cannot produce for that type.
+    """
+    if data_type == "USER-DEFINED":
+        return bool(enum_values)
+    if "ARRAY" in data_type:
+        return _classify_array_element(array_types) is not None
+    return True
+
+
+def get_insert_column_list(
+    table_schemas: Dict[str, Dict[str, Any]],
+    table_name: str,
+    column_overrides: Optional[Dict[str, Any]] = None,
+    unique_value_fns: Optional[Dict[str, Callable[[], Any]]] = None,
+    pk_value_fn: Optional[Callable[[], Any]] = None,
+) -> List[str]:
+    """Return the ordered column-name list build_insert_values will actually
+    populate for `table_name`'s INSERT -- every column except ones that are
+    BOTH (a) not covered by column_overrides / unique_value_fns /
+    pk_value_fn (those priorities always produce a value, or an explicit
+    NULL the caller configured -- left exactly as before), AND (b) a type
+    generate_random_data cannot synthesize a value for (see
+    _column_value_is_synthesizable).
+
+    Omitted columns let the table's own DEFAULT apply at INSERT time,
+    instead of an explicit SQL NULL -- which overrides a NOT NULL column's
+    DEFAULT and raises a not-null violation (the bug this fixes: e.g. a NOT
+    NULL hstore/array column with a DEFAULT). If such a column also has no
+    DEFAULT, the INSERT still fails on the NOT NULL constraint -- expected
+    and acceptable (see build_insert_values docstring, part 2).
+
+    Callers MUST build their INSERT statement's column list from this --
+    NOT directly from table_schemas[table]['columns'].keys() -- so the
+    column list matches exactly what build_insert_values emits per row.
+    See generator.py / transaction_mode.py's INSERT branches.
+    """
+    primary_key = table_schemas[table_name].get("primary_key")
+    if isinstance(primary_key, str):
+        pk_cols = [primary_key]
+    elif isinstance(primary_key, list):
+        pk_cols = primary_key
+    else:
+        pk_cols = []
+
+    result: List[str] = []
+    for column_name, data_type in table_schemas[table_name]["columns"].items():
+        if get_column_override(column_overrides or {}, table_name, column_name):
+            result.append(column_name)
+            continue
+        if (unique_value_fns or {}).get(column_name) is not None:
+            result.append(column_name)
+            continue
+        if pk_value_fn is not None and len(pk_cols) == 1 and column_name == pk_cols[0]:
+            result.append(column_name)
+            continue
+        if "bit" in data_type.lower():
+            result.append(column_name)
+            continue
+
+        enum_values = fetch_enum_values_for_column(table_schemas, table_name, column_name)
+        array_types = fetch_array_types_for_column(table_schemas, table_name, column_name)
+        if _column_value_is_synthesizable(data_type, enum_values, array_types):
+            result.append(column_name)
+        # else: omitted -- see docstring above.
+    return result
 
 
 def build_insert_values(
@@ -1694,6 +1939,16 @@ def build_insert_values(
          Kept for back-compat / callers that don't populate
          `unique_value_fns` for the PK column.
       4. normal type-aware random generation, unchanged.
+
+    Part 2 -- omit-for-default fallback: any column NOT covered by
+    priorities 1-3, whose type generate_random_data still cannot produce a
+    value for (see get_insert_column_list), is skipped entirely here --
+    no entry is added to this row's value tuple for it. Callers must build
+    their INSERT's column list via get_insert_column_list (not
+    table_schemas[table]['columns'].keys()) so the two stay in sync. This
+    replaces the old behavior of emitting an explicit SQL NULL for such a
+    column, which overrides a NOT-NULL-with-DEFAULT column's DEFAULT and
+    raises a not-null violation that used to kill the whole worker process.
     """
     primary_key = table_schemas[table_name].get("primary_key")
     if isinstance(primary_key, str):
@@ -1703,6 +1958,10 @@ def build_insert_values(
     else:
         pk_cols = []
 
+    insertable_columns = set(
+        get_insert_column_list(table_schemas, table_name, column_overrides, unique_value_fns, pk_value_fn)
+    )
+
     rows = []
     pk_values: List[Any] = []
     for _ in range(number_of_rows_to_insert):
@@ -1710,6 +1969,13 @@ def build_insert_values(
         row_pk_captured: Dict[str, Any] = {}
 
         for column_name, data_type in table_schemas[table_name]["columns"].items():
+            if column_name not in insertable_columns:
+                # Type generate_random_data can't synthesize a value for,
+                # and not covered by an override/unique/monotonic-pk hook --
+                # omit it from this row entirely (see get_insert_column_list
+                # and this function's docstring, part 2).
+                continue
+
             override_spec = get_column_override(column_overrides or {}, table_name, column_name)
             is_monotonic_pk_col = (
                 pk_value_fn is not None

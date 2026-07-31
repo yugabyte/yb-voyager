@@ -7,6 +7,7 @@ from utils import generate_table_schemas
 from utils import (
     execute_with_retry,
     build_insert_values,
+    get_insert_column_list,
     build_update_values,
     compute_backoff_delay,
     compute_monotonic_pk,
@@ -510,10 +511,16 @@ try:
                     # when it isn't (unique_value_fns takes priority for the
                     # same column -- see build_insert_values). Anything neither
                     # covers falls back to normal type-aware random generation,
-                    # unchanged.
-                    columns = ", ".join(table_schemas[table_name]["columns"].keys())
+                    # unchanged. Any column still unsynthesizable (e.g. an
+                    # exotic type) is omitted from the column list entirely
+                    # (see get_insert_column_list) so its DEFAULT applies,
+                    # instead of an explicit NULL that would violate a NOT
+                    # NULL constraint.
                     pk_value_fn = make_pk_value_fn(table_name)
                     unique_value_fns = UNIQUE_VALUE_FNS.get(table_name)
+                    columns = ", ".join(get_insert_column_list(
+                        table_schemas, table_name, COLUMN_OVERRIDES, unique_value_fns, pk_value_fn,
+                    ))
                     init_values_list, init_pk_values = build_insert_values(
                         table_schemas, table_name, INSERT_ROWS, MIN_COL_SIZE_BYTES,
                         COLUMN_OVERRIDES, pk_value_fn=pk_value_fn, unique_value_fns=unique_value_fns,
