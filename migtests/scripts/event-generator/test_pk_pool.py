@@ -165,9 +165,9 @@ class TestDeterminism(unittest.TestCase):
 
 
 class TestDequeEviction(unittest.TestCase):
-    def test_delta_is_backed_by_a_deque(self):
+    def test_eviction_order_is_backed_by_a_deque(self):
         pool = PkPool()
-        self.assertIsInstance(pool._delta_deque, deque)
+        self.assertIsInstance(pool._order, deque)
 
     def test_o1_fifo_eviction_still_correct_at_scale(self):
         pool = PkPool(maxsize=100)
@@ -175,6 +175,46 @@ class TestDequeEviction(unittest.TestCase):
         self.assertEqual(len(pool), 100)
         live = set(pool.sample(1000))
         self.assertEqual(live, set(range(9900, 10000)))
+
+
+class TestIndexedDeltaInternals(unittest.TestCase):
+    def _assert_ids_index_consistent(self, pool):
+        self.assertEqual(len(pool._ids), len(pool._index))
+        self.assertEqual(len(pool._ids), len(set(pool._ids)))  # no dupes
+        for pos, pk in enumerate(pool._ids):
+            self.assertEqual(pool._index[pk], pos)
+        for pk, pos in pool._index.items():
+            self.assertEqual(pool._ids[pos], pk)
+
+    def test_ids_index_consistent_after_interleaved_add_remove(self):
+        pool = PkPool(maxsize=8)
+        pool.add_many(range(5))  # 0..4
+        self._assert_ids_index_consistent(pool)
+        pool.remove_many([1, 3])  # swap-pop removals
+        self._assert_ids_index_consistent(pool)
+        pool.add_many([10, 11, 12])  # fills back up, still <= maxsize
+        self._assert_ids_index_consistent(pool)
+        pool.remove_many([0, 10])
+        self._assert_ids_index_consistent(pool)
+        pool.add_many([20, 21, 22, 23, 24])  # forces eviction
+        self._assert_ids_index_consistent(pool)
+        self.assertLessEqual(len(pool._ids), pool.maxsize)
+
+    def test_eviction_skips_stale_order_entries_and_evicts_oldest_live(self):
+        pool = PkPool(maxsize=3)
+        pool.add_many([1, 2, 3])  # order: 1, 2, 3
+        pool.remove_many([1])  # 1 removed from _ids/_index; _order still has it
+        pool.add_many([4])  # 4 added; still <= maxsize (2,3,4), no eviction yet
+        self._assert_ids_index_consistent(pool)
+        self.assertEqual(set(pool._ids), {2, 3, 4})
+
+        pool.add_many([5])  # over maxsize -> evict oldest *live* id (skip stale 1)
+        self._assert_ids_index_consistent(pool)
+        self.assertEqual(len(pool._ids), 3)
+        # 2 was the oldest still-live id (1 was already removed, so it's
+        # skipped as a stale _order entry rather than evicted again).
+        self.assertNotIn(2, pool._ids)
+        self.assertEqual(set(pool._ids), {3, 4, 5})
 
 
 class TestBaseDeltaTombstoneSampling(unittest.TestCase):
@@ -213,7 +253,7 @@ class TestBaseDeltaTombstoneSampling(unittest.TestCase):
         pool.add_many([1])
         pool.remove_many([1])
         self.assertNotIn(1, pool._tombstones)
-        self.assertNotIn(1, pool._delta_set)
+        self.assertNotIn(1, pool._index)
 
     def test_remove_many_on_id_in_neither_is_noop(self):
         base = FakeBase([1, 2, 3])
