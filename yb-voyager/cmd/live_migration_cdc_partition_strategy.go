@@ -309,16 +309,33 @@ func computeAndPersistCdcPartitioningStrategyPerTable(tableNames []sqlname.NameT
 // capture) so resume never silently applies a changed cdc-partition-key /
 // cdc-partition-key-overrides.
 func validateCdcPartitioningStrategyUnchanged(tableNames []sqlname.NameTuple, importDataStatus *metadb.ImportDataStatusRecord) error {
+
+	exprUKSet := utils.NewStructMap[sqlname.NameTuple, bool]()
+	storedOverrides := importDataStatus.CdcPartitionKeyOverridesConfig
+	if importDataStatus.CdcExpressionUniqueIndexTables == nil {
+		//In case the expression-UK tables were not captured on the first run, then it is only possible that its a resume with upgrade scenario so lets keep it simple
+		//so keeping the old string check for the overrides
+		if storedOverrides != cdcPartitionKeyOverrides {
+			return goerrors.Errorf("changing cdc-partition-key-overrides is not allowed after the import data has started. Current: %q, new: %q\n Use --start-clean to start a fresh import with the new overrides.", storedOverrides, cdcPartitionKeyOverrides)
+		}
+	}
+	if storedOverrides == cdcPartitionKeyOverrides {
+		//No changes in the overrides so we can continue
+		return nil
+	}
+	for _, key := range importDataStatus.CdcExpressionUniqueIndexTables {
+		tuple, err := namereg.NameReg.LookupTableName(key)
+		if err != nil {
+			return goerrors.Errorf("error looking up expression-unique-index table %q: %w", key, err)
+		}
+		exprUKSet.Put(tuple, true)
+	}
+
 	rawOverrides, err := parseCdcPartitionKeyOverrides(cdcPartitionKeyOverrides)
 	if err != nil {
 		return err
 	}
 	overrides, err := resolveCdcPartitionKeyOverrides(rawOverrides, tableNames)
-	if err != nil {
-		return err
-	}
-
-	exprUKSet, err := resolveResumeExprUKSet(tableNames, overrides, importDataStatus)
 	if err != nil {
 		return err
 	}
@@ -329,44 +346,6 @@ func validateCdcPartitioningStrategyUnchanged(tableNames []sqlname.NameTuple, im
 	}
 
 	return diffCdcPartitioningStrategy(resolved, importDataStatus.TableToCDCPartitioningStrategyMap)
-}
-
-// resolveResumeExprUKSet returns the set of expression-UK tables to use when re-resolving
-// the strategy on resume. It prefers the set captured on the first run
-// (importDataStatus.CdcExpressionUniqueIndexTables). For older records that never captured
-// it, it re-queries the target DB, but only when the current flags actually need the
-// expression-UK check.
-func resolveResumeExprUKSet(tableNames []sqlname.NameTuple, overrides *utils.StructMap[sqlname.NameTuple, string], importDataStatus *metadb.ImportDataStatusRecord) (*utils.StructMap[sqlname.NameTuple, bool], error) {
-	exprUKSet := utils.NewStructMap[sqlname.NameTuple, bool]()
-
-	if importDataStatus.CdcExpressionUniqueIndexTables != nil {
-		for _, key := range importDataStatus.CdcExpressionUniqueIndexTables {
-			tuple, err := namereg.NameReg.LookupTableName(key)
-			if err != nil {
-				return nil, fmt.Errorf("error looking up expression-unique-index table %q: %w", key, err)
-			}
-			exprUKSet.Put(tuple, true)
-		}
-		return exprUKSet, nil
-	}
-
-	// Older record: the map was persisted before the expression-UK set was captured. Only
-	// re-query the target DB when the current flags need the expression-UK check.
-	needsExprUKCheck, err := checkIfNeedsExprUKCheck(cdcPartitionKey, overrides)
-	if err != nil {
-		return nil, err
-	}
-	if !needsExprUKCheck {
-		return exprUKSet, nil
-	}
-	tables, err := getExpressionUniqueIndexTables(tableNames)
-	if err != nil {
-		return nil, fmt.Errorf("error getting expression unique index tables: %w", err)
-	}
-	for _, t := range tables {
-		exprUKSet.Put(t, true)
-	}
-	return exprUKSet, nil
 }
 
 // diffCdcPartitioningStrategy compares a freshly-resolved per-table strategy map against
