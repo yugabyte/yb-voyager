@@ -1290,6 +1290,9 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		}
 
 		updateVsnQuery := batch.GetChannelMetadataUpdateQuery(migrationUUID)
+		if yb.tconf.DisableSequentialScanOnUpdateDeletes {
+			updateVsnQuery = DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT + updateVsnQuery
+		}
 		res, err = tx.Exec(context.Background(), updateVsnQuery)
 		if err != nil || res.RowsAffected() == 0 {
 			log.Errorf("error executing stmt for batch(%s): %v, rowsAffected: %v", batch.ID(), err, res.RowsAffected())
@@ -1301,6 +1304,9 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		tableNames := batch.GetTableNames()
 		for _, tableName := range tableNames {
 			updateTableStatsQuery := batch.GetQueriesToUpdateEventStatsByTable(migrationUUID, tableName)
+			if yb.tconf.DisableSequentialScanOnUpdateDeletes {
+				updateTableStatsQuery = DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT + updateTableStatsQuery
+			}
 			res, err = tx.Exec(context.Background(), updateTableStatsQuery)
 			if err != nil {
 				log.Errorf("error executing stmt: %v, rowsAffected: %v", err, res.RowsAffected())
