@@ -1378,14 +1378,18 @@ func TestLiveMigrationCdcPartitionKeyConfigs(t *testing.T) {
 	err = lm.StopImportData()
 	testutils.FatalIfError(t, err, "failed to stop import data")
 
-	// Resume without start-clean must reject newly introduced overrides.
+	// Resume without start-clean must reject newly introduced overrides. The change is
+	// caught by the semantic per-table comparison in prepareCdcPartitionKey (orders flips
+	// pk -> table), not a raw string compare.
 	_ = lm.ResumeImportData(false, map[string]string{
 		"--cdc-partition-key":           "pk",
 		"--cdc-partition-key-overrides": "test_schema.orders:table",
 	})
+	rejectOutput := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
 	assert.True(t,
-		strings.Contains(lm.GetImportCommandStderr(), "changing cdc-partition-key-overrides is not allowed"),
-		"expected overrides change-guard error, got: %s", lm.GetImportCommandStderr())
+		strings.Contains(rejectOutput, "changing cdc-partition-key") &&
+			strings.Contains(rejectOutput, "is not allowed"),
+		"expected overrides change-guard error, got: %s", rejectOutput)
 
 	// Case 3: mixed strategies — global pk, override orders to table.
 	mixedOverrides := "test_schema.orders:table;test_schema.events:pk"
@@ -1443,6 +1447,151 @@ func assertStrategyInMap(t *testing.T, strategyMap map[string]string, tableSubst
 		}
 	}
 	t.Fatalf("table %q not found in strategy map: %v", tableSubstring, strategyMap)
+}
+
+// TestLiveMigrationCdcPartitionKeyOverridesEquivalentOnResume verifies the semantic
+// resume guard for cdc-partition-key-overrides: resuming (without --start-clean) with an
+// overrides string written differently (quoting / whitespace) but resolving to the SAME
+// effective per-table strategy must be ACCEPTED. A raw string compare (the old behaviour)
+// would have wrongly rejected it; prepareCdcPartitionKey now compares the resolved
+// per-table map instead.
+func TestLiveMigrationCdcPartitionKeyOverridesEquivalentOnResume(t *testing.T) {
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "cdc_part_key_equiv",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "cdc_part_key_equiv",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.orders (
+				id SERIAL PRIMARY KEY,
+				name TEXT
+			);
+			CREATE TABLE test_schema.events (
+				id SERIAL PRIMARY KEY,
+				payload TEXT
+			);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.orders REPLICA IDENTITY FULL;
+			ALTER TABLE test_schema.events REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.orders (name) SELECT md5(random()::text) FROM generate_series(1, 10);`,
+			`INSERT INTO test_schema.events (payload) SELECT md5(random()::text) FROM generate_series(1, 10);`,
+		},
+		SourceDeltaSQL: []string{
+			`INSERT INTO test_schema.orders (name) SELECT md5(random()::text) FROM generate_series(1, 5);`,
+			`INSERT INTO test_schema.events (payload) SELECT md5(random()::text) FROM generate_series(1, 5);`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	// First run: global pk, override orders -> table (events keeps pk).
+	err = lm.StartImportData(true, map[string]string{
+		"--cdc-partition-key":           "pk",
+		"--cdc-partition-key-overrides": "test_schema.orders:table",
+	})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."orders"`: 10,
+		`"test_schema"."events"`: 10,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.InitMetaDB()
+	testutils.FatalIfError(t, err, "failed to initialize meta db")
+
+	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
+	testutils.FatalIfError(t, err, "failed to get import data status record")
+	assert.Equal(t, "pk", importDataStatus.CdcPartitioningStrategyConfig)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitioningStrategyMap, "orders", cmd.PARTITION_BY_TABLE)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitioningStrategyMap, "events", cmd.PARTITION_BY_PK)
+	// Expression-UK tables are captured on the first run (none here, but non-nil) so the
+	// resume comparison needs no target-DB re-query.
+	require.NotNil(t, importDataStatus.CdcExpressionUniqueIndexTables,
+		"expression-UK tables should be captured on the first prepare")
+
+	err = lm.StopImportData()
+	testutils.FatalIfError(t, err, "failed to stop import data")
+
+	// Case 1 (reject): resume WITHOUT start-clean flipping the strategies
+	// (orders -> pk, events -> table) differs from the persisted map (orders -> table,
+	// events -> pk), so the semantic change-guard must reject it.
+	_ = lm.ResumeImportData(false, map[string]string{
+		"--cdc-partition-key":           "pk",
+		"--cdc-partition-key-overrides": "test_schema.orders:pk;test_schema.events:table",
+	})
+	flipRejectOutput := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
+	assert.True(t,
+		strings.Contains(flipRejectOutput, "changing cdc-partition-key") &&
+			strings.Contains(flipRejectOutput, "is not allowed"),
+		"flipped strategies must trip the resume change-guard, got: %s", flipRejectOutput)
+
+	// Case 2 (accept): resume WITHOUT start-clean with a differently-written but
+	// semantically-equivalent overrides string (quoted identifiers, reordered, extra
+	// whitespace). Same effective strategy (orders -> table, events -> pk), so it must be
+	// accepted and streaming resumes.
+	equivalentOverrides := ` "test_schema"."events":pk ; "test_schema"."orders":table `
+	err = lm.ResumeImportData(true, map[string]string{
+		"--cdc-partition-key":           "pk",
+		"--cdc-partition-key-overrides": equivalentOverrides,
+	})
+	testutils.FatalIfError(t, err, "resume with semantically-equivalent overrides should succeed")
+
+	// Give the resumed import time to run prepareCdcPartitionKey; it must not trip the
+	// change-guard for an equivalent overrides string.
+	time.Sleep(15 * time.Second)
+	resumeOutput := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
+	assert.NotContains(t, resumeOutput, "is not allowed",
+		"semantically-equivalent overrides must not trip the resume change-guard, got: %s", resumeOutput)
+
+	// The effective per-table map is preserved across the resume.
+	importDataStatus, err = lm.GetMetaDB().GetImportDataStatusRecord()
+	testutils.FatalIfError(t, err, "failed to get import data status record after resume")
+	assert.Equal(t, "pk", importDataStatus.CdcPartitioningStrategyConfig)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitioningStrategyMap, "orders", cmd.PARTITION_BY_TABLE)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitioningStrategyMap, "events", cmd.PARTITION_BY_PK)
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."orders"`, `"test_schema"."events"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency after resume")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."orders"`: {Inserts: 5},
+		`"test_schema"."events"`: {Inserts: 5},
+	}, 60, 1)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."orders"`, `"test_schema"."events"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
 
 // TestLiveMigrationCdcPartitionKeyRejectsPkOnExpressionUniqueIndex verifies the
@@ -1535,6 +1684,27 @@ func TestLiveMigrationCdcPartitionKeyRejectsPkOnExpressionUniqueIndex(t *testing
 	testutils.FatalIfError(t, err, "failed to get import data status record")
 	require.Equal(t, "auto", importDataStatus.CdcPartitioningStrategyConfig)
 	assertStrategyInMap(t, importDataStatus.TableToCDCPartitioningStrategyMap, "users", cmd.PARTITION_BY_TABLE)
+
+	// Resume WITHOUT start-clean trying to switch the expression-UK table from table to pk
+	// must be rejected: pk-partitioning cannot detect unique-key conflicts on an expression
+	// unique index. The expression-UK set captured on the first run (global auto) drives the
+	// same guard on resume, so no target-DB re-query is needed.
+	err = lm.StopImportData()
+	testutils.FatalIfError(t, err, "failed to stop import data before pk-on-expr-UK resume")
+
+	_ = lm.ResumeImportData(false, map[string]string{
+		"--cdc-partition-key-overrides": "test_schema.users:pk",
+	})
+	pkOnExprRejectOutput := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
+	assert.Contains(t, pkOnExprRejectOutput, "expression-based unique index",
+		"pk on an expression-UK table must be rejected on resume, got: %s", pkOnExprRejectOutput)
+
+	// Resume back to the valid table strategy to continue the migration.
+	err = lm.ResumeImportData(true, map[string]string{
+		"--cdc-partition-key-overrides": "test_schema.users:table",
+	})
+	testutils.FatalIfError(t, err, "failed to resume import data back to table strategy")
+	time.Sleep(15 * time.Second)
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."users"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
