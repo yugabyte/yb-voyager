@@ -14,20 +14,26 @@ When enabled, each main-loop iteration builds one "transaction plan"
 
     BEGIN
     [SAVEPOINT sp_k ... RELEASE SAVEPOINT sp_k]*   (release = success)
-    <H single-row statements against a random 'hot' table>
-    <O single-row statements against a non-hot table, existing table_weights>
+    <H statements against a random 'hot' table>
+    <O statements against a non-hot table, existing table_weights>
     COMMIT
 
 interleaved in one shuffled order, with savepoint pairs wrapping random
-contiguous sub-runs of that order. Every statement is single-row (row
-count fixed at 1), reusing the same builders (build_insert_values /
+contiguous sub-runs of that order. INSERT is always single-row. UPDATE and
+DELETE are single-row by default too, but can each affect up to k rows in
+one statement when the optional 'rows_per_statement' config key is set
+(k sampled per statement from its [min, max]) -- see execute_single_statement.
+All statements reuse the same builders (build_insert_values /
 build_update_values / build_pk_in_condition / build_sampling_condition) and
-PK-pool-first targeting the legacy single-op path in generator.py uses --
-see execute_single_statement.
+PK-pool-first targeting the legacy single-op path in generator.py uses.
 
-Rate accounting: each COMMITTED STATEMENT counts as one event (not each
-row -- rows are always 1 here anyway, so the two coincide), matching
-generator.py's GOVERNOR.pace(events_emitted) call for the legacy path.
+Rate accounting: each COMMITTED ROW counts as one event -- a k-row
+UPDATE/DELETE statement contributes k events, not 1. (When
+'rows_per_statement' is absent/default, every statement is single-row, so
+this coincides with "one event per statement", matching the pre-existing
+behavior byte-for-byte.) This matches generator.py's
+GOVERNOR.pace(events_emitted) call for the legacy path, which is also
+rows (max(cursor.rowcount, 0)), not statements.
 
 Error handling: run_transaction does not catch anything itself. If any
 statement raises, the (already open) DB transaction is simply abandoned
@@ -48,6 +54,7 @@ from utils import (
     build_sampling_condition,
     build_update_values,
     get_insert_column_list,
+    quote_ident,
 )
 
 _OPS = ("INSERT", "UPDATE", "DELETE")
@@ -232,14 +239,21 @@ def execute_single_statement(
     unique_value_fns_for_table: Optional[Callable[[str], Optional[Dict[str, Callable[[], Any]]]]],
     table_name: str,
     operation: str,
+    rows_per_statement: Tuple[int, int] = (1, 1),
 ) -> Tuple[int, Tuple[List[Any], List[Any]]]:
-    """Execute one SINGLE-ROW INSERT/UPDATE/DELETE for `table_name` on
-    `cursor`, mirroring generator.py's legacy per-operation branch (same
-    builders, same PK-pool-first targeting) but with row count fixed at 1
-    and no per-statement retry (see module docstring: a mid-transaction
-    error aborts the whole transaction via the caller's existing handler,
-    rather than being retried in place like the legacy path's
-    execute_with_retry).
+    """Execute one INSERT/UPDATE/DELETE for `table_name` on `cursor`,
+    mirroring generator.py's legacy per-operation branch (same builders,
+    same PK-pool-first targeting) but with no per-statement retry (see
+    module docstring: a mid-transaction error aborts the whole transaction
+    via the caller's existing handler, rather than being retried in place
+    like the legacy path's execute_with_retry).
+
+    INSERT is always single-row (rows_per_statement is ignored for it).
+    UPDATE and DELETE each affect k rows, k = rng.randint(*rows_per_statement)
+    drawn fresh per call from the module-level `_random_module` (matching how
+    the UPDATE column-count pick already draws from `_random_module` directly
+    rather than the plan-building rng) -- k collapses to 1 under the default
+    (1, 1), the original single-row behavior.
 
     Returns (rowcount, (pool_add_ids, pool_remove_ids)) -- rowcount is
     cursor.rowcount floored at 0; pool_add_ids/pool_remove_ids are ids the
@@ -262,7 +276,7 @@ def execute_single_statement(
         # entirely (see get_insert_column_list) so its DEFAULT applies,
         # instead of an explicit NULL that would violate a NOT NULL
         # constraint -- same fix as generator.py's legacy INSERT branch.
-        columns = ", ".join(get_insert_column_list(
+        columns = ", ".join(quote_ident(c) for c in get_insert_column_list(
             table_schemas, table_name, column_overrides, unique_value_fns, pk_value_fn,
         ))
         values_list, pk_values = build_insert_values(
@@ -274,7 +288,7 @@ def execute_single_statement(
             pk_value_fn=pk_value_fn,
             unique_value_fns=unique_value_fns,
         )
-        cursor.execute(f"INSERT INTO {table_name} ({columns}) VALUES {values_list}")
+        cursor.execute(f"INSERT INTO {quote_ident(table_name)} ({columns}) VALUES {values_list}")
         rowcount = max(cursor.rowcount or 0, 0)
         add_ids = [pk for pk in pk_values if pk is not None]
         return rowcount, (add_ids, [])
@@ -300,7 +314,9 @@ def execute_single_statement(
             table_schemas, table_name, columns_to_update, min_col_size_bytes, column_overrides
         )
 
-        pool_ids = pool.sample(1) if pool is not None and len(pool) > 0 else []
+        rmin, rmax = rows_per_statement
+        k = _random_module.randint(rmin, rmax)
+        pool_ids = pool.sample(k) if pool is not None and len(pool) > 0 else []
         if pool_ids:
             where_clause, sampling_params = build_pk_in_condition(primary_key, pool_ids)
         else:
@@ -308,10 +324,10 @@ def execute_single_statement(
                 db_flavor=db_flavor,
                 table_name=table_name,
                 primary_key=primary_key,
-                target_row_count=1,
+                target_row_count=k,
                 estimated_row_count=(row_estimates or {}).get(table_name),
             )
-        query = f"UPDATE {table_name} SET {set_clause} WHERE {where_clause}"
+        query = f"UPDATE {quote_ident(table_name)} SET {set_clause} WHERE {where_clause}"
         cursor.execute(query, params + sampling_params)
         rowcount = max(cursor.rowcount or 0, 0)
         return rowcount, ([], [])
@@ -321,7 +337,9 @@ def execute_single_statement(
         if not primary_key:
             return 0, ([], [])
 
-        pool_ids = pool.sample(1) if pool is not None and len(pool) > 0 else []
+        rmin, rmax = rows_per_statement
+        k = _random_module.randint(rmin, rmax)
+        pool_ids = pool.sample(k) if pool is not None and len(pool) > 0 else []
         if pool_ids:
             where_clause, sampling_params = build_pk_in_condition(primary_key, pool_ids)
         else:
@@ -329,13 +347,16 @@ def execute_single_statement(
                 db_flavor=db_flavor,
                 table_name=table_name,
                 primary_key=primary_key,
-                target_row_count=1,
+                target_row_count=k,
                 estimated_row_count=(row_estimates or {}).get(table_name),
             )
-        query = f"DELETE FROM {table_name} WHERE {where_clause}"
+        query = f"DELETE FROM {quote_ident(table_name)} WHERE {where_clause}"
         cursor.execute(query, sampling_params)
         rowcount = max(cursor.rowcount or 0, 0)
-        return rowcount, ([], pool_ids)
+        # remove_ids must be ALL k sampled ids (pool_ids, already a list) --
+        # every one of them was just deleted.
+        remove_ids = pool_ids
+        return rowcount, ([], remove_ids)
 
     raise ValueError(f"Unknown operation: {operation!r}")
 
@@ -354,17 +375,26 @@ def run_transaction(
     unique_value_fns_for_table: Optional[
         Callable[[str], Optional[Dict[str, Callable[[], Any]]]]
     ] = None,
+    rows_per_statement: Tuple[int, int] = (1, 1),
 ) -> int:
     """Execute one full transaction from `plan` (see build_transaction_plan)
     against a live cursor/connection: explicit BEGIN, each planned
     statement in order (opening/closing any configured savepoint ranges
     around it), then conn.commit().
 
-    Returns the number of statements committed (== len(plan["statements"])
-    -- reached only once conn.commit() has returned without raising). Each
-    committed STATEMENT counts as one event for the rate governor (not each
-    row -- every statement here is single-row anyway), matching
-    generator.py's `GOVERNOR.pace(events_emitted)` call.
+    `rows_per_statement` is threaded straight through to every statement's
+    execute_single_statement call (see there -- it only affects UPDATE/
+    DELETE; INSERT stays single-row regardless).
+
+    Returns the SUM of each statement's rowcount (reached only once
+    conn.commit() has returned without raising) -- i.e. the number of rows
+    actually changed across the whole transaction, not the number of
+    statements. Each committed ROW counts as one event for the rate
+    governor, matching generator.py's `GOVERNOR.pace(events_emitted)` call
+    (which is likewise rows, not statements, on the legacy single-op path).
+    Under the default rows_per_statement of (1, 1) every statement is
+    single-row, so this sum equals len(plan["statements"]) exactly --
+    unchanged from the pre-existing behavior.
 
     Raises on any error (BEGIN/SAVEPOINT/a statement/RELEASE
     SAVEPOINT/commit) -- see module docstring: no rollback happens here,
@@ -391,13 +421,14 @@ def run_transaction(
     # right after each conn.commit()) -- a rolled-back id must never be
     # marked live/dead in the pool.
     pool_updates: List[Tuple[str, List[Any], List[Any]]] = []
+    total_rows = 0
 
     for idx, stmt in enumerate(statements):
         for kind, name in boundary_at.get(idx, ()):
             if kind == "open":
                 cursor.execute(f"SAVEPOINT {name}")
 
-        _rowcount, (add_ids, remove_ids) = execute_single_statement(
+        rowcount, (add_ids, remove_ids) = execute_single_statement(
             cursor,
             table_schemas,
             pools,
@@ -409,7 +440,9 @@ def run_transaction(
             unique_value_fns_for_table,
             stmt["table"],
             stmt["operation"],
+            rows_per_statement,
         )
+        total_rows += rowcount
         if add_ids or remove_ids:
             pool_updates.append((stmt["table"], add_ids, remove_ids))
 
@@ -429,4 +462,4 @@ def run_transaction(
             if remove_ids:
                 pool.remove_many(remove_ids)
 
-    return len(statements)
+    return total_rows

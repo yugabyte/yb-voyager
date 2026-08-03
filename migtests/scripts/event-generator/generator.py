@@ -15,6 +15,7 @@ from utils import (
     is_integer_pk_type,
     get_table_max_pk,
     parse_worker_args,
+    quote_ident,
 )
 from utils import (
     run_index_operations,
@@ -431,10 +432,20 @@ TRANSACTION_MODE_CFG = GEN.get("transaction_mode")
 TRANSACTION_MODE_ENABLED = is_transaction_mode_enabled(TRANSACTION_MODE_CFG)
 HOT_TABLES: list = []
 OTHER_TABLE_WEIGHTS: dict = {}
+# (min, max) rows a single UPDATE/DELETE statement affects in transaction
+# mode (INSERT is unaffected -- always single-row). Default (1, 1) is
+# today's single-row-per-statement behavior; overridden below from the
+# optional 'transaction_mode.rows_per_statement' config key.
+TRANSACTION_MODE_ROWS_PER_STATEMENT = (1, 1)
 if TRANSACTION_MODE_ENABLED:
     HOT_TABLES = list(TRANSACTION_MODE_CFG["hot_tables"])
     _hot_set = set(HOT_TABLES)
     OTHER_TABLE_WEIGHTS = {t: w for t, w in RESOLVED_TABLE_WEIGHTS.items() if t not in _hot_set}
+    _rows_per_stmt_cfg = TRANSACTION_MODE_CFG.get("rows_per_statement", {"min": 1, "max": 1})
+    TRANSACTION_MODE_ROWS_PER_STATEMENT = (
+        _rows_per_stmt_cfg.get("min", 1),
+        _rows_per_stmt_cfg.get("max", 1),
+    )
     print(
         f"Transaction mode enabled: {len(HOT_TABLES)} hot table(s), "
         f"{len(OTHER_TABLE_WEIGHTS)} other table(s) eligible"
@@ -482,8 +493,10 @@ try:
             if TRANSACTION_MODE_ENABLED:
                 # One multi-statement transaction (BEGIN ... [SAVEPOINT ...
                 # RELEASE SAVEPOINT ...] ... COMMIT) instead of one op -- see
-                # transaction_mode.py. Each committed STATEMENT counts as one
-                # event (rows are always 1 here), matching GOVERNOR.pace below.
+                # transaction_mode.py. Each committed ROW counts as one event
+                # (a k-row UPDATE/DELETE statement, per rows_per_statement,
+                # contributes k events; INSERT always contributes 1),
+                # matching GOVERNOR.pace below.
                 plan = build_transaction_plan(
                     TRANSACTION_MODE_CFG, HOT_TABLES, OTHER_TABLE_WEIGHTS, random,
                 )
@@ -492,6 +505,7 @@ try:
                     COLUMN_OVERRIDES, MIN_COL_SIZE_BYTES,
                     pk_value_fn_for_table=make_pk_value_fn,
                     unique_value_fns_for_table=UNIQUE_VALUE_FNS.get,
+                    rows_per_statement=TRANSACTION_MODE_ROWS_PER_STATEMENT,
                 )
             else:
                 # Choose a random table
@@ -518,7 +532,7 @@ try:
                     # NULL constraint.
                     pk_value_fn = make_pk_value_fn(table_name)
                     unique_value_fns = UNIQUE_VALUE_FNS.get(table_name)
-                    columns = ", ".join(get_insert_column_list(
+                    columns = ", ".join(quote_ident(c) for c in get_insert_column_list(
                         table_schemas, table_name, COLUMN_OVERRIDES, unique_value_fns, pk_value_fn,
                     ))
                     init_values_list, init_pk_values = build_insert_values(
@@ -529,7 +543,7 @@ try:
 
                     # Prepare callbacks for retryable execution
                     def run_once():
-                        query_to_run = f"INSERT INTO {table_name} ({columns}) VALUES {values_holder['values_list']}"
+                        query_to_run = f"INSERT INTO {quote_ident(table_name)} ({columns}) VALUES {values_holder['values_list']}"
                         cursor.execute(query_to_run)
 
                     def rebuild():
@@ -601,7 +615,7 @@ try:
                                 target_row_count=UPDATE_ROWS,
                                 estimated_row_count=ROW_ESTIMATES.get(table_name),
                             )
-                        query = f"UPDATE {table_name} SET {set_clause} WHERE {where_clause}"
+                        query = f"UPDATE {quote_ident(table_name)} SET {set_clause} WHERE {where_clause}"
                         return query, params + sampling_params
 
                     query_holder["query"], query_holder["params"] = build_update_query_and_params()
@@ -640,7 +654,7 @@ try:
                                 target_row_count=DELETE_ROWS,
                                 estimated_row_count=ROW_ESTIMATES.get(table_name),
                             )
-                        query = f"DELETE FROM {table_name} WHERE {where_clause}"
+                        query = f"DELETE FROM {quote_ident(table_name)} WHERE {where_clause}"
                         return query, sampling_params, pool_ids
 
                     query_holder["query"], query_holder["params"], query_holder["pool_ids"] = build_delete_query_and_params()

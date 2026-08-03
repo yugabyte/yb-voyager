@@ -26,6 +26,9 @@ import unittest
 import utils
 from utils import (
     build_insert_values,
+    build_pk_in_condition,
+    build_sampling_condition,
+    build_update_values,
     build_worker_arg_parser,
     build_worker_governor,
     classify_retry,
@@ -36,6 +39,7 @@ from utils import (
     get_table_max_pk,
     is_integer_pk_type,
     parse_worker_args,
+    quote_ident,
     read_control_rate,
 )
 from rate_governor import NullGovernor, RateGovernor
@@ -150,8 +154,8 @@ class TestGetTableMaxPk(unittest.TestCase):
         cur = FakeCursor((42,))
         result = get_table_max_pk(cur, "public", "orders", "id")
         self.assertEqual(result, 42)
-        self.assertIn("public.orders", cur.executed)
-        self.assertIn("MAX(id)", cur.executed)
+        self.assertIn('"public"."orders"', cur.executed)
+        self.assertIn('MAX("id")', cur.executed)
 
     def test_returns_none_for_empty_table(self):
         cur = FakeCursor((None,))
@@ -160,7 +164,7 @@ class TestGetTableMaxPk(unittest.TestCase):
     def test_qualifies_without_schema(self):
         cur = FakeCursor((1,))
         get_table_max_pk(cur, None, "orders", "id")
-        self.assertIn("FROM orders", cur.executed)
+        self.assertIn('FROM "orders"', cur.executed)
         self.assertNotIn("None.orders", cur.executed)
 
 
@@ -784,6 +788,138 @@ class TestUniqueSafeIntegerWidthOverflow(unittest.TestCase):
                 v = utils.compute_unique_safe_value(dtype, 3, 100000, counter, max_seed=5)
                 if v is not None:
                     self.assertLessEqual(v, ceiling, (dtype, counter))
+
+
+# --------------------------------------------------------------------------
+# quote_ident + SQL-identifier quoting at the builder level (Bug 1: raw,
+# unquoted identifiers cause 'syntax error at or near "primary"' for a
+# reserved-word column/table name).
+# --------------------------------------------------------------------------
+
+class TestQuoteIdent(unittest.TestCase):
+    def test_basic_identifier(self):
+        self.assertEqual(quote_ident("orders"), '"orders"')
+
+    def test_reserved_word(self):
+        self.assertEqual(quote_ident("primary"), '"primary"')
+
+    def test_embedded_double_quote_is_escaped(self):
+        self.assertEqual(quote_ident('we"ird'), '"we""ird"')
+
+    def test_non_string_input_is_stringified(self):
+        self.assertEqual(quote_ident(123), '"123"')
+
+
+class TestBuildUpdateValuesQuotesColumns(unittest.TestCase):
+    def _schema(self):
+        return {
+            "orders": {
+                "columns": {"id": "integer", "primary": "boolean"},
+                "primary_key": ["id"],
+                "unique_columns": [],
+            }
+        }
+
+    def test_reserved_word_column_is_quoted_not_bare(self):
+        schema = self._schema()
+        set_clause, _params = build_update_values(schema, "orders", ["primary"])
+        self.assertIn('"primary"', set_clause)
+        unquoted = set_clause.replace('"primary"', "")
+        self.assertNotIn("primary", unquoted)
+
+
+class TestBuildPkInConditionQuotesColumns(unittest.TestCase):
+    def test_single_column_reserved_word_pk_is_quoted(self):
+        where_clause, params = build_pk_in_condition("primary", [1, 2, 3])
+        self.assertIn('"primary" IN', where_clause)
+        unquoted = where_clause.replace('"primary"', "")
+        self.assertNotIn("primary", unquoted)
+        self.assertEqual(params, [1, 2, 3])
+
+    def test_composite_pk_columns_are_quoted(self):
+        where_clause, params = build_pk_in_condition(["primary", "order_id"], [(1, 2), (3, 4)])
+        self.assertIn('"primary"', where_clause)
+        self.assertIn('"order_id"', where_clause)
+        unquoted = where_clause.replace('"primary"', "").replace('"order_id"', "")
+        self.assertNotIn("primary", unquoted)
+        self.assertNotIn("order_id", unquoted)
+
+
+class TestBuildSamplingConditionQuotesIdentifiers(unittest.TestCase):
+    def test_postgres_quotes_table_and_reserved_word_pk(self):
+        where_clause, params = build_sampling_condition(
+            db_flavor="POSTGRES",
+            table_name="orders",
+            primary_key="primary",
+            target_row_count=5,
+            estimated_row_count=None,
+        )
+        self.assertIn('"primary"', where_clause)
+        self.assertIn('"orders"', where_clause)
+        unquoted = where_clause.replace('"primary"', "").replace('"orders"', "")
+        self.assertNotIn("primary", unquoted)
+        self.assertNotIn("orders", unquoted)
+        self.assertEqual(params, [5])
+
+    def test_yugabyte_quotes_table_and_reserved_word_pk(self):
+        where_clause, params = build_sampling_condition(
+            db_flavor="YUGABYTE",
+            table_name="orders",
+            primary_key="primary",
+            target_row_count=5,
+            estimated_row_count=1000,
+        )
+        self.assertIn('"primary"', where_clause)
+        self.assertIn('"orders"', where_clause)
+        unquoted = where_clause.replace('"primary"', "").replace('"orders"', "")
+        self.assertNotIn("primary", unquoted)
+        self.assertNotIn("orders", unquoted)
+
+
+# --------------------------------------------------------------------------
+# Bug 2: partial unique indexes must now be included in unique-column
+# detection (they used to be excluded via 'AND i.indpred IS NULL').
+# --------------------------------------------------------------------------
+
+class FakeUniqueIndexCursor:
+    """Minimal cursor double for _find_unique_columns: records the executed
+    SQL text and returns a canned set of (indexrelid, attname) rows on
+    fetchall(). There's no real catalog/regclass resolution happening here
+    -- the fake doesn't model indpred at all, so what these tests actually
+    verify is (a) the SQL text no longer has an indpred filter, and (b)
+    whatever the query returns is included in the result (previously, a
+    partial index's rows would never have reached here at all, because the
+    old SQL's own 'AND i.indpred IS NULL' filtered them out upstream)."""
+
+    def __init__(self, rows):
+        self._rows = rows
+        self.executed_sql = None
+
+    def execute(self, sql, params=None):
+        self.executed_sql = sql
+
+    def fetchall(self):
+        return self._rows
+
+
+class TestFindUniqueColumnsIncludesPartialIndexes(unittest.TestCase):
+    def test_query_no_longer_filters_on_indpred(self):
+        cur = FakeUniqueIndexCursor([])
+        utils._find_unique_columns(cur, "orders", "public", {"id": "integer"})
+        self.assertNotIn("indpred", cur.executed_sql)
+
+    def test_single_column_partial_unique_index_is_returned(self):
+        # e.g. CREATE UNIQUE INDEX ... ON users (email) WHERE email IS NOT NULL
+        cur = FakeUniqueIndexCursor([(1, "email")])
+        result = utils._find_unique_columns(cur, "users", "public", {"email": "text"})
+        self.assertEqual(result, ["email"])
+
+    def test_multi_column_partial_unique_index_prefers_integer_column(self):
+        cur = FakeUniqueIndexCursor([(1, "tenant_id"), (1, "email")])
+        result = utils._find_unique_columns(
+            cur, "users", "public", {"tenant_id": "integer", "email": "text"}
+        )
+        self.assertEqual(result, ["tenant_id"])
 
 
 if __name__ == "__main__":

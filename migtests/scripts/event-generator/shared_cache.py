@@ -165,13 +165,20 @@ def _new_version_id():
 # build_cache below) -- only the PK-values/max(pk) queries stay local here.
 # --------------------------------------------------------------------------
 
+def _quote(name):
+    # Double-quote a SQL identifier so reserved words (e.g. "primary") and
+    # special characters (e.g. dash-named partition children) are valid in
+    # raw SQL. Kept local so this PK-snapshot section stays self-contained.
+    return '"' + str(name).replace('"', '""') + '"'
+
+
 def _qualify(table_name, schema_name):
-    return "%s.%s" % (schema_name, table_name) if schema_name else table_name
+    return "%s.%s" % (_quote(schema_name), _quote(table_name)) if schema_name else _quote(table_name)
 
 
 def _query_max_pk(cursor, table_name, schema_name, pk_col):
     qualified = _qualify(table_name, schema_name)
-    cursor.execute("SELECT MAX(%s) FROM %s" % (pk_col, qualified))
+    cursor.execute("SELECT MAX(%s) FROM %s" % (_quote(pk_col), qualified))
     row = cursor.fetchone()
     if not row or row[0] is None:
         return None
@@ -180,7 +187,7 @@ def _query_max_pk(cursor, table_name, schema_name, pk_col):
 
 def _query_pk_values(cursor, table_name, schema_name, pk_cols, limit):
     qualified = _qualify(table_name, schema_name)
-    cols_sql = ", ".join(pk_cols)
+    cols_sql = ", ".join(_quote(c) for c in pk_cols)
     cursor.execute(
         "SELECT %s FROM %s LIMIT %%s" % (cols_sql, qualified),
         (limit,),

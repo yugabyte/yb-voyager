@@ -18,10 +18,16 @@ Covers:
   (d) hot statements only ever hit hot_tables; other statements never do.
   (e) savepoint pair count within range; every SAVEPOINT has a matching
       RELEASE SAVEPOINT, correctly nested inside BEGIN...COMMIT.
-  (f) every statement is single-row.
+  (f) every statement is single-row by default (rows_per_statement absent).
+  (g) rows_per_statement (optional): UPDATE/DELETE can batch k rows into one
+      statement (pk IN (<k ids>)), events summed as rows not statements,
+      DELETE removes all k sampled ids from the pool, INSERT stays
+      single-row regardless, and validate_transaction_mode's acceptance/
+      rejection of the new config key.
 """
 
 import random
+import re
 import unittest
 
 from pk_pool import PkPool
@@ -118,8 +124,18 @@ class FakeConnCursor:
             raise RuntimeError(f"simulated failure on: {sql}")
         self.calls.append(sql.strip())
         upper = sql.strip().upper()
-        if upper.startswith(("INSERT", "UPDATE", "DELETE")):
+        if upper.startswith("INSERT"):
             self.rowcount = 1
+        elif upper.startswith(("UPDATE", "DELETE")):
+            # Mirror build_pk_in_condition's "... IN (%s, %s, %s)" shape:
+            # rows "affected" equal the number of explicit ids targeted, so
+            # a k-row rows_per_statement batch reports rowcount k, same as a
+            # real DB would for a pk-list WHERE clause. The scan-based
+            # TABLESAMPLE/random() fallback (build_sampling_condition)
+            # doesn't produce that pure-%s-list shape, so it falls back to
+            # 1 -- no test here asserts an exact rowcount on that path.
+            m = re.search(r"IN \(((?:%s,\s*)*%s)\)", sql)
+            self.rowcount = m.group(1).count("%s") if m else 1
         else:
             self.rowcount = 0
 
@@ -133,9 +149,9 @@ class FakeConnCursor:
         self.rollbacks += 1
 
 
-def run_txn_with_fake(plan, pools=None, fail_on_call_containing=None):
+def run_txn_with_fake(plan, pools=None, fail_on_call_containing=None, rows_per_statement=(1, 1)):
     fc = FakeConnCursor(fail_on_call_containing=fail_on_call_containing)
-    committed = run_transaction(
+    events = run_transaction(
         fc,
         fc,
         plan,
@@ -147,8 +163,9 @@ def run_txn_with_fake(plan, pools=None, fail_on_call_containing=None):
         0,
         pk_value_fn_for_table=lambda t: None,
         unique_value_fns_for_table=lambda t: None,
+        rows_per_statement=rows_per_statement,
     )
-    return fc, committed
+    return fc, events
 
 
 # --------------------------------------------------------------------------
@@ -445,10 +462,10 @@ class TestRunTransactionSequencing(unittest.TestCase):
             "savepoint_ranges": [],
         }
         with self.assertRaises(RuntimeError):
-            run_txn_with_fake(plan, fail_on_call_containing="INSERT INTO hot_b")
+            run_txn_with_fake(plan, fail_on_call_containing='INSERT INTO "hot_b"')
         # No leaked FakeConnCursor to inspect after the raise (it's local to
         # the helper), so re-run manually to inspect calls up to the error.
-        fc = FakeConnCursor(fail_on_call_containing="INSERT INTO hot_b")
+        fc = FakeConnCursor(fail_on_call_containing='INSERT INTO "hot_b"')
         with self.assertRaises(RuntimeError):
             run_transaction(
                 fc, fc, plan, TABLE_SCHEMAS, make_pools(), "POSTGRES", {}, {}, 0,
@@ -498,6 +515,115 @@ class TestExecuteSingleStatementIsSingleRow(unittest.TestCase):
 
 
 # --------------------------------------------------------------------------
+# (g) rows_per_statement: optional k-row batching for UPDATE/DELETE
+# --------------------------------------------------------------------------
+
+class TestRowsPerStatementBatching(unittest.TestCase):
+    """rows_per_statement (see event-generator.yaml's transaction_mode
+    template) lets a single UPDATE/DELETE statement affect k rows instead of
+    1, amortizing the round trip. INSERT is never affected. Absent config
+    (the default (1, 1) execute_single_statement/run_transaction fall back
+    to) must reproduce today's single-row behavior byte-for-byte."""
+
+    def test_absent_rows_per_statement_is_single_row(self):
+        # No rows_per_statement arg at all -- exercises the (1, 1) default.
+        pools = make_pools()
+        fc = FakeConnCursor()
+        rowcount, (add_ids, remove_ids) = execute_single_statement(
+            fc, TABLE_SCHEMAS, pools, "POSTGRES", {}, {}, 0,
+            lambda t: None, lambda t: None,
+            "other_x", "UPDATE",
+        )
+        self.assertEqual(rowcount, 1)
+        self.assertIn("IN (%s)", fc.calls[-1])
+
+    def test_update_batches_to_k_ids_when_configured(self):
+        pools = make_pools()
+        fc = FakeConnCursor()
+        rowcount, (add_ids, remove_ids) = execute_single_statement(
+            fc, TABLE_SCHEMAS, pools, "POSTGRES", {}, {}, 0,
+            lambda t: None, lambda t: None,
+            "other_x", "UPDATE", (3, 3),
+        )
+        update_sql = fc.calls[-1]
+        self.assertIn("IN (%s, %s, %s)", update_sql)
+        self.assertEqual(rowcount, 3)
+        # UPDATE never removes ids from the pool -- rows stay live.
+        self.assertEqual((add_ids, remove_ids), ([], []))
+
+    def test_delete_batches_to_k_ids_and_removes_all_k_from_pool(self):
+        pools = make_pools()
+        pool = pools["other_y"]
+        before_len = len(pool)
+
+        fc = FakeConnCursor()
+        rowcount, (add_ids, remove_ids) = execute_single_statement(
+            fc, TABLE_SCHEMAS, pools, "POSTGRES", {}, {}, 0,
+            lambda t: None, lambda t: None,
+            "other_y", "DELETE", (3, 3),
+        )
+        delete_sql = fc.calls[-1]
+        self.assertIn("IN (%s, %s, %s)", delete_sql)
+        self.assertEqual(rowcount, 3)
+        self.assertEqual(len(remove_ids), 3)
+        self.assertEqual(add_ids, [])
+        # execute_single_statement itself never touches the pool (bookkeeping
+        # is deferred to run_transaction, after commit) -- drive it through
+        # run_transaction to confirm ALL k sampled ids actually disappear.
+        plan = {
+            "statements": [{"table": "other_y", "operation": "DELETE", "hot": False}],
+            "savepoint_ranges": [],
+        }
+        _fc2, events = run_txn_with_fake(plan, pools=pools, rows_per_statement=(3, 3))
+        self.assertEqual(events, 3)
+        self.assertEqual(len(pool), before_len - 3)
+
+    def test_insert_stays_single_row_regardless_of_rows_per_statement(self):
+        pools = make_pools()
+        fc = FakeConnCursor()
+        rowcount, (add_ids, remove_ids) = execute_single_statement(
+            fc, TABLE_SCHEMAS, pools, "POSTGRES", {}, {}, 0,
+            lambda t: None, lambda t: None,
+            "hot_a", "INSERT", (5, 5),
+        )
+        self.assertEqual(rowcount, 1)
+        self.assertEqual(len(add_ids), 1)
+        self.assertEqual(remove_ids, [])
+        insert_sql = fc.calls[-1]
+        self.assertNotIn("), (", insert_sql)  # still exactly one VALUES row
+
+    def test_run_transaction_events_are_summed_rowcounts_not_statement_count(self):
+        plan = {
+            "statements": [
+                {"table": "hot_a", "operation": "INSERT", "hot": True},
+                {"table": "other_x", "operation": "UPDATE", "hot": False},
+                {"table": "other_y", "operation": "DELETE", "hot": False},
+            ],
+            "savepoint_ranges": [],
+        }
+        _fc, events = run_txn_with_fake(plan, rows_per_statement=(4, 4))
+        # INSERT always contributes 1; UPDATE and DELETE each contribute 4.
+        self.assertEqual(events, 1 + 4 + 4)
+
+    def test_default_rows_per_statement_events_equal_statement_count(self):
+        # Back-compat: absent/default rows_per_statement means events ==
+        # statement count exactly, as before this feature existed.
+        plan = {
+            "statements": [
+                {"table": "hot_a", "operation": "INSERT", "hot": True},
+                {"table": "other_x", "operation": "UPDATE", "hot": False},
+                {"table": "other_y", "operation": "DELETE", "hot": False},
+            ],
+            "savepoint_ranges": [],
+        }
+        fc, events = run_txn_with_fake(plan)
+        self.assertEqual(events, len(plan["statements"]))
+        for sql in fc.calls:
+            if sql.upper().startswith(("UPDATE", "DELETE")):
+                self.assertIn("IN (%s)", sql)
+
+
+# --------------------------------------------------------------------------
 # Pool bookkeeping is deferred until after commit
 # --------------------------------------------------------------------------
 
@@ -519,7 +645,7 @@ class TestPoolBookkeepingAfterCommit(unittest.TestCase):
             "savepoint_ranges": [],
         }
         before_len = len(pools["hot_a"])
-        fc = FakeConnCursor(fail_on_call_containing="INSERT INTO hot_a")
+        fc = FakeConnCursor(fail_on_call_containing='INSERT INTO "hot_a"')
         with self.assertRaises(RuntimeError):
             run_transaction(
                 fc, fc, plan, TABLE_SCHEMAS, pools, "POSTGRES", {}, {}, 0,
@@ -532,6 +658,71 @@ class TestPoolBookkeepingAfterCommit(unittest.TestCase):
 # --------------------------------------------------------------------------
 # validate_transaction_mode
 # --------------------------------------------------------------------------
+
+class TestReservedWordColumnIsQuoted(unittest.TestCase):
+    """A column literally named 'primary' (a SQL reserved word) used to
+    trigger 'syntax error at or near "primary"' because
+    execute_single_statement built raw, unquoted SQL. quote_ident (see
+    utils.py) fixes this by double-quoting every identifier at the point
+    it's written into a SQL string -- never on a name still used as a dict
+    key or builder input. Here 'primary' is also the table's PK, so it
+    shows up in INSERT's column list AND in UPDATE/DELETE's WHERE clause
+    (via build_pk_in_condition)."""
+
+    SCHEMA = {
+        "widgets": {
+            "columns": {"primary": "integer", "val": "text"},
+            "primary_key": ["primary"],
+            "unique_columns": [],
+        }
+    }
+
+    def _pools(self):
+        pool = PkPool()
+        pool.add_many(range(100))
+        return {"widgets": pool}
+
+    def _assert_quoted_not_bare(self, sql):
+        self.assertIn('"primary"', sql)
+        self.assertIn('"widgets"', sql)
+        # No occurrence of the bare (unquoted) identifier once every quoted
+        # occurrence is stripped out.
+        unquoted = sql.replace('"primary"', "")
+        self.assertNotIn("primary", unquoted)
+
+    def test_insert_quotes_reserved_word_column(self):
+        fc = FakeConnCursor()
+        execute_single_statement(
+            fc, self.SCHEMA, self._pools(), "POSTGRES", {}, {}, 0,
+            lambda t: None, lambda t: None,
+            "widgets", "INSERT",
+        )
+        sql = fc.calls[-1]
+        self.assertTrue(sql.upper().startswith("INSERT"))
+        self._assert_quoted_not_bare(sql)
+
+    def test_update_quotes_reserved_word_pk_in_where(self):
+        fc = FakeConnCursor()
+        execute_single_statement(
+            fc, self.SCHEMA, self._pools(), "POSTGRES", {}, {}, 0,
+            lambda t: None, lambda t: None,
+            "widgets", "UPDATE",
+        )
+        sql = fc.calls[-1]
+        self.assertTrue(sql.upper().startswith("UPDATE"))
+        self._assert_quoted_not_bare(sql)
+
+    def test_delete_quotes_reserved_word_pk_in_where(self):
+        fc = FakeConnCursor()
+        execute_single_statement(
+            fc, self.SCHEMA, self._pools(), "POSTGRES", {}, {}, 0,
+            lambda t: None, lambda t: None,
+            "widgets", "DELETE",
+        )
+        sql = fc.calls[-1]
+        self.assertTrue(sql.upper().startswith("DELETE"))
+        self._assert_quoted_not_bare(sql)
+
 
 class TestValidateTransactionMode(unittest.TestCase):
     def test_disabled_minimal_block_is_valid(self):
@@ -562,6 +753,35 @@ class TestValidateTransactionMode(unittest.TestCase):
     def test_not_a_mapping_raises(self):
         with self.assertRaises(ValueError):
             validate_transaction_mode([])
+
+    def test_rows_per_statement_absent_is_valid(self):
+        cfg = make_tm_cfg()
+        self.assertNotIn("rows_per_statement", cfg)
+        validate_transaction_mode(cfg)  # must not raise
+
+    def test_rows_per_statement_valid_ranges_accepted(self):
+        validate_transaction_mode(make_tm_cfg(rows_per_statement={"min": 1, "max": 5}))
+        validate_transaction_mode(make_tm_cfg(rows_per_statement={"min": 3, "max": 3}))
+
+    def test_rows_per_statement_rejects_min_below_one(self):
+        with self.assertRaises(ValueError):
+            validate_transaction_mode(make_tm_cfg(rows_per_statement={"min": 0, "max": 5}))
+
+    def test_rows_per_statement_rejects_max_below_min(self):
+        with self.assertRaises(ValueError):
+            validate_transaction_mode(make_tm_cfg(rows_per_statement={"min": 5, "max": 2}))
+
+    def test_rows_per_statement_rejects_non_int(self):
+        with self.assertRaises(ValueError):
+            validate_transaction_mode(make_tm_cfg(rows_per_statement={"min": 1.5, "max": 5}))
+        with self.assertRaises(ValueError):
+            validate_transaction_mode(make_tm_cfg(rows_per_statement={"min": True, "max": 5}))
+
+    def test_rows_per_statement_rejects_missing_min_or_max(self):
+        with self.assertRaises(ValueError):
+            validate_transaction_mode(make_tm_cfg(rows_per_statement={"min": 1}))
+        with self.assertRaises(ValueError):
+            validate_transaction_mode(make_tm_cfg(rows_per_statement={"max": 5}))
 
 
 if __name__ == "__main__":

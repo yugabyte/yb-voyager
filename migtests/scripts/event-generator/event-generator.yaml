@@ -135,10 +135,11 @@ generator:
   # block absent) -- the generator then runs today's single-op-per-iteration
   # loop exactly as before. When enabled, each iteration executes ONE
   # multi-statement transaction (BEGIN ... [SAVEPOINT ... RELEASE SAVEPOINT
-  # ...] ... COMMIT) instead of one op, split into single-row statements
+  # ...] ... COMMIT) instead of one op, split into statements (single-row by
+  # default, or batched via rows_per_statement below for UPDATE/DELETE)
   # against a small "hot" set of tables plus the normal weighted pool of
-  # everything else. Each committed statement counts as one event (rate
-  # governor target is statements/sec here, not rows/sec).
+  # everything else. Each committed ROW counts as one event (rate governor
+  # target is rows/sec, same as the legacy single-op path).
   #
   # transaction_mode:
   #   enabled: false
@@ -165,6 +166,14 @@ generator:
   #   # above, but separate for hot vs. other statements.
   #   hot_op_weights: { INSERT: 3, UPDATE: 2, DELETE: 1 }
   #   other_op_weights: { INSERT: 3, UPDATE: 2, DELETE: 1 }
+  #   # OPTIONAL. Rows a single UPDATE/DELETE statement affects, sampled per
+  #   # statement from [min, max] (INSERT is unaffected -- always single-row).
+  #   # Batches U/D rows onto one round trip instead of one row per round
+  #   # trip, amortizing statement/network latency; each changed ROW still
+  #   # counts as one event (not each statement) for the rate governor.
+  #   # Absent key defaults to { min: 1, max: 1 } -- today's single-row
+  #   # behavior, unchanged.
+  #   rows_per_statement: { min: 1, max: 5 }
   # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------

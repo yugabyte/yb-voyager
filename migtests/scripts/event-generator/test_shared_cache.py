@@ -324,8 +324,8 @@ class FakeCursor(object):
         stripped = sql.strip()
 
         if stripped.upper().startswith("SELECT MAX("):
-            col = stripped.split("MAX(", 1)[1].split(")", 1)[0]
-            table_name = stripped.split("FROM", 1)[1].strip().split(".")[-1].strip()
+            col = stripped.split("MAX(", 1)[1].split(")", 1)[0].strip().strip('"')
+            table_name = stripped.split("FROM", 1)[1].strip().split(".")[-1].strip().strip('"')
             rows = self.catalog[table_name]["rows"]
             pk_cols = self.catalog[table_name]["pk_cols"]
             col_idx = pk_cols.index(col)
@@ -334,7 +334,7 @@ class FakeCursor(object):
             return
 
         # PK-values seeding query: "SELECT c1, c2 FROM t LIMIT %s"
-        table_name = stripped.split("FROM", 1)[1].split("LIMIT")[0].strip().split(".")[-1].strip()
+        table_name = stripped.split("FROM", 1)[1].split("LIMIT")[0].strip().split(".")[-1].strip().strip('"')
         limit = params[0]
         rows = self.catalog[table_name]["rows"]
         self._result = rows[:limit]

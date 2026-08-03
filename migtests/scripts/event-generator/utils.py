@@ -31,6 +31,23 @@ from rate_governor import RateGovernor, NullGovernor
 # Module-level Faker instance for reuse; can be overridden via function parameter
 _fake = Faker()
 
+# ----- SQL identifier quoting -----
+
+def quote_ident(name: Any) -> str:
+    """Double-quote a SQL identifier (table/column name) for safe embedding
+    in a raw SQL string, escaping any embedded double quote by doubling it
+    (standard SQL identifier-quoting rule). Use this ONLY at the point a
+    name is written into a SQL string -- never on a name still used as a
+    Python dict key or passed into a value/column builder, since that would
+    make it stop matching table_schemas' unquoted keys.
+
+    Fixes queries against a column/table named with a reserved word (e.g.
+    'primary') or containing special characters, which otherwise fail with
+    a syntax error when embedded unquoted.
+    """
+    return '"' + str(name).replace('"', '""') + '"'
+
+
 # ----- Configuration loading  -----
 
 """
@@ -239,6 +256,7 @@ _TRANSACTION_MODE_KEYS = {
     "savepoint_pairs_per_txn",
     "hot_op_weights",
     "other_op_weights",
+    "rows_per_statement",
 }
 _TRANSACTION_MODE_RANGE_KEYS = (
     "statements_per_txn",
@@ -268,6 +286,10 @@ def validate_transaction_mode(tm: Dict[str, Any]) -> None:
         mapping with integer 'min'/'max', 0 <= min <= max.
       - hot_op_weights / other_op_weights must be mappings with numeric,
         non-negative INSERT/UPDATE/DELETE weights, at least one > 0.
+      - rows_per_statement (OPTIONAL, UPDATE/DELETE only -- INSERT stays
+        single-row) must, when present, be a mapping with integer
+        'min'/'max', 1 <= min <= max. Absent key defaults to {min: 1, max: 1}
+        -- today's single-row-per-statement behavior, byte-for-byte.
     Unknown keys print a non-fatal warning (typo guard) rather than raising.
     """
     if not isinstance(tm, dict):
@@ -299,6 +321,8 @@ def validate_transaction_mode(tm: Dict[str, Any]) -> None:
     for key in ("hot_op_weights", "other_op_weights"):
         _validate_transaction_mode_op_weights(tm, key)
 
+    _validate_transaction_mode_rows_per_statement(tm)
+
 
 def _validate_transaction_mode_range(tm: Dict[str, Any], key: str) -> None:
     rng = tm.get(key)
@@ -323,6 +347,35 @@ def _validate_transaction_mode_op_weights(tm: Dict[str, Any], key: str) -> None:
         total += w
     if total <= 0:
         raise ValueError(f"transaction_mode.{key} must have at least one operation with weight > 0")
+
+
+def _validate_transaction_mode_rows_per_statement(tm: Dict[str, Any]) -> None:
+    """Validate the OPTIONAL 'rows_per_statement' key: a {min, max} range
+    bounding how many rows a single UPDATE/DELETE statement affects (INSERT
+    is never affected -- it stays single-row unconditionally).
+
+    Absent key is valid -- callers treat it as {min: 1, max: 1}, i.e. today's
+    single-row-per-statement behavior, unchanged. When present, same
+    {min,max} shape as the other ranges above, except min must be >= 1 (a
+    statement targeting 0 rows makes no sense here, unlike e.g.
+    savepoint_pairs_per_txn where 0 is a valid pair count).
+    """
+    if "rows_per_statement" not in tm:
+        return
+    rng = tm["rows_per_statement"]
+    if not isinstance(rng, dict) or "min" not in rng or "max" not in rng:
+        raise ValueError(
+            "transaction_mode.rows_per_statement must be a mapping with 'min'/'max' when present"
+        )
+    lo, hi = rng["min"], rng["max"]
+    if isinstance(lo, bool) or isinstance(hi, bool) or not isinstance(lo, int) or not isinstance(hi, int):
+        raise ValueError(
+            f"transaction_mode.rows_per_statement.min/max must be integers, got min={lo!r}, max={hi!r}"
+        )
+    if lo < 1 or hi < lo:
+        raise ValueError(
+            f"transaction_mode.rows_per_statement must satisfy 1 <= min <= max, got min={lo}, max={hi}"
+        )
 
 
 def build_rate_governor(config: Dict[str, Any], **injectables) -> Any:
@@ -571,8 +624,8 @@ def get_table_max_pk(
     the controller-built cache's job; this is the direct-query fallback for
     a standalone worker with no --cache-dir).
     """
-    qualified_table = f"{schema_name}.{table_name}" if schema_name else table_name
-    cursor.execute(f"SELECT MAX({pk_col}) FROM {qualified_table}")
+    qualified_table = f"{quote_ident(schema_name)}.{quote_ident(table_name)}" if schema_name else quote_ident(table_name)
+    cursor.execute(f"SELECT MAX({quote_ident(pk_col)}) FROM {qualified_table}")
     row = cursor.fetchone()
     if not row or row[0] is None:
         return None
@@ -1093,16 +1146,21 @@ def _find_unique_columns(
     columns: Dict[str, str],
 ) -> List[str]:
     """Return one representative column per unique surface (PK, UNIQUE
-    constraint, or standalone unique index) on `table_name` -- every
-    single-column one, plus, for each multi-column one, an integer-typed
-    column if present, else the lowest-attnum column (making one component
-    of a unique tuple unique makes the whole tuple unique). Per-table
-    mirror of the schema-wide query in generate_table_schemas_bulk, for the
-    per-table fallback path (generate_table_schemas / convert_pg_table_description).
+    constraint, standalone unique index, OR partial unique index) on
+    `table_name` -- every single-column one, plus, for each multi-column
+    one, an integer-typed column if present, else the lowest-attnum column
+    (making one component of a unique tuple unique makes the whole tuple
+    unique). Per-table mirror of the schema-wide query in
+    generate_table_schemas_bulk, for the per-table fallback path
+    (generate_table_schemas / convert_pg_table_description).
 
     Expression-index members (attnum 0 in indkey) have no matching
-    pg_attribute row and are silently dropped by the join; partial indexes
-    are excluded explicitly.
+    pg_attribute row and are silently dropped by the join. Partial unique
+    indexes (e.g. `... WHERE col IS NOT NULL`) are INCLUDED: making the
+    representative column globally unique makes the (partial) unique index
+    unviolatable too, since global uniqueness implies uniqueness over any
+    subset of rows -- so routing it through the same unique-value machinery
+    is always safe, even though the index itself only constrains a subset.
     """
     regclass = _qualify_regclass(table_name, schema_name)
     cursor.execute(
@@ -1113,7 +1171,6 @@ def _find_unique_columns(
         JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
         WHERE c.oid = %s::regclass
           AND i.indisunique
-          AND i.indpred IS NULL
         ORDER BY i.indexrelid, a.attnum
         """,
         (regclass,),
@@ -1295,13 +1352,16 @@ def generate_table_schemas_bulk(
         }
 
     # 5) every unique surface (PK, UNIQUE constraint, standalone unique
-    # index) in one schema-wide query, resolved to column names via
-    # pg_attribute. An expression-index member (attnum 0 in indkey) has no
-    # matching pg_attribute row and is silently dropped by the join;
-    # partial indexes (indpred IS NOT NULL) are excluded explicitly. Rows
-    # are grouped below by (table, indexrelid) so a multi-column unique
-    # index contributes exactly ONE representative column (see Part 1 of
-    # the unique-safe-value-generation design: making one component of a
+    # index, OR partial unique index) in one schema-wide query, resolved to
+    # column names via pg_attribute. An expression-index member (attnum 0
+    # in indkey) has no matching pg_attribute row and is silently dropped
+    # by the join. Partial unique indexes (indpred IS NOT NULL) are
+    # INCLUDED: making the representative column globally unique makes the
+    # (partial) unique index unviolatable too, since global uniqueness
+    # implies uniqueness over any subset of rows. Rows are grouped below by
+    # (table, indexrelid) so a multi-column unique index contributes
+    # exactly ONE representative column (see Part 1 of the
+    # unique-safe-value-generation design: making one component of a
     # unique tuple unique makes inserts collision-free for the whole row).
     unique_idx_cols: Dict[str, Dict[Any, List[str]]] = {}
     cursor.execute(
@@ -1311,7 +1371,7 @@ def generate_table_schemas_bulk(
         JOIN pg_class c ON c.oid = i.indrelid
         JOIN pg_namespace n ON n.oid = c.relnamespace
         JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
-        WHERE i.indisunique AND i.indpred IS NULL
+        WHERE i.indisunique
           AND n.nspname = %s AND c.relname = ANY(%s)
         ORDER BY c.relname, i.indexrelid, a.attnum
         """,
@@ -1374,7 +1434,7 @@ def generate_table_schemas_bulk(
             if not is_orderable:
                 continue
             qualified = _qualify_regclass(tname, schema_name)
-            cursor.execute(f"SELECT MAX({col}) FROM {qualified}")
+            cursor.execute(f"SELECT MAX({quote_ident(col)}) FROM {qualified}")
             row = cursor.fetchone()
             unique_max_seeds[col] = int(row[0]) if row and row[0] is not None else 0
 
@@ -2060,17 +2120,18 @@ def build_update_values(
 
     for col in columns_to_update:
         data_type = columns[col]
+        quoted_col = quote_ident(col)
         override_spec = get_column_override(column_overrides or {}, table_name, col)
         if override_spec:
             value = generate_override_value(override_spec)
             if value is None:
-                set_parts.append(f"{col} = NULL")
+                set_parts.append(f"{quoted_col} = NULL")
             else:
-                set_parts.append(f"{col} = %s")
+                set_parts.append(f"{quoted_col} = %s")
                 params.append(value)
         elif "bit" in data_type.lower():
             expr = build_bit_cast_expr(table_schemas, table_name, col)
-            set_parts.append(f"{col} = {expr}")
+            set_parts.append(f"{quoted_col} = {expr}")
         else:
             if data_type == "USER-DEFINED":
                 enum_values = fetch_enum_values_for_column(table_schemas, table_name, col)
@@ -2079,9 +2140,9 @@ def build_update_values(
                 array_types = fetch_array_types_for_column(table_schemas, table_name, col)
                 value = generate_random_data(data_type, table_name, None, array_types, None, min_col_size_bytes)
             if value is None:
-                set_parts.append(f"{col} = NULL")
+                set_parts.append(f"{quoted_col} = NULL")
             else:
-                set_parts.append(f"{col} = %s")
+                set_parts.append(f"{quoted_col} = %s")
                 params.append(value)
 
     set_clause = ", ".join(set_parts)
@@ -2233,17 +2294,18 @@ def build_sampling_condition(
     else:
         pk_cols = primary_key
 
+    quoted_table = quote_ident(table_name)
     if len(pk_cols) == 1:
-        pk_select = pk_cols[0]
-        pk_where = pk_cols[0]
+        pk_select = quote_ident(pk_cols[0])
+        pk_where = quote_ident(pk_cols[0])
     else:
-        pk_select = ", ".join(pk_cols)
+        pk_select = ", ".join(quote_ident(c) for c in pk_cols)
         pk_where = f"({pk_select})"
 
     if db_flavor == "POSTGRES":
         where_clause = (
             f"{pk_where} IN ("
-            f"SELECT {pk_select} FROM {table_name} TABLESAMPLE SYSTEM_ROWS(%s))"
+            f"SELECT {pk_select} FROM {quoted_table} TABLESAMPLE SYSTEM_ROWS(%s))"
         )
         return where_clause, [target_row_count]
 
@@ -2254,7 +2316,7 @@ def build_sampling_condition(
 
     where_clause = (
         f"{pk_where} IN ("
-        f"SELECT {pk_select} FROM {table_name} WHERE random() < %s)"
+        f"SELECT {pk_select} FROM {quoted_table} WHERE random() < %s)"
     )
     return where_clause, [p]
 
@@ -2292,10 +2354,10 @@ def build_pk_in_condition(
 
     if len(pk_cols) == 1:
         placeholders = ", ".join(["%s"] * len(ids))
-        where_clause = f"{pk_cols[0]} IN ({placeholders})"
+        where_clause = f"{quote_ident(pk_cols[0])} IN ({placeholders})"
         return where_clause, list(ids)
 
-    pk_where = "(" + ", ".join(pk_cols) + ")"
+    pk_where = "(" + ", ".join(quote_ident(c) for c in pk_cols) + ")"
     row_placeholder = "(" + ", ".join(["%s"] * len(pk_cols)) + ")"
     placeholders = ", ".join([row_placeholder] * len(ids))
     where_clause = f"{pk_where} IN ({placeholders})"
@@ -2330,6 +2392,6 @@ def seed_pk_pool(
     else:
         return
 
-    qualified_table = f"{schema_name}.{table_name}" if schema_name else table_name
-    cursor.execute(f"SELECT {pk_col} FROM {qualified_table} LIMIT %s", (limit,))
+    qualified_table = f"{quote_ident(schema_name)}.{quote_ident(table_name)}" if schema_name else quote_ident(table_name)
+    cursor.execute(f"SELECT {quote_ident(pk_col)} FROM {qualified_table} LIMIT %s", (limit,))
     pool.add_many([row[0] for row in cursor.fetchall()])
