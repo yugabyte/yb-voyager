@@ -123,7 +123,7 @@ Users routinely upgrade voyager mid-migration. The following surfaces are load-b
 Metric names follow the `yb_voyager_<import|export>_data_<snapshot|cdc>_*` scheme; direction is encoded in the name, so import metrics carry `importer_role` and export metrics carry `exporter_role` (no generic `role` label). `migration_uuid, session_id` are on every metric.
 
 Metric catalogue:
-- `yb_voyager_import_data_snapshot_rows_total`, `yb_voyager_import_data_snapshot_bytes_total` (counters) — rows/bytes imported during snapshot. Labels: `+ importer_role, table_name, schema_name`. Seeded from the persisted per-table imported row/byte counts on resume, so they never reset to 0 mid-migration.
+- `yb_voyager_import_data_snapshot_rows_total`, `yb_voyager_import_data_snapshot_bytes_total` (counters) — rows/bytes imported during snapshot. Labels: `+ importer_role, table_name, schema_name`. Pre-registered at 0 per table so panels aren't empty before the first batch; not seeded from persisted per-table totals, so they reset to 0 on every process restart (use `rate()`/`increase()` for a per-run view). A gauge-based cross-resume cumulative view is planned for a future PR.
 - `yb_voyager_import_data_snapshot_batch_{created,submitted,ingested}_total` (counters) — batch lifecycle. Same labels as above. (The in-flight gauge derived from submitted-minus-ingested was dropped; compute it in PromQL instead.)
 - `yb_voyager_import_data_snapshot_batch_size_{rows,bytes}` (histograms) — per-batch size distribution. Same labels.
 - `yb_voyager_import_data_snapshot_table_last_batch_ingested_timestamp_seconds` (gauge) — Unix timestamp of the most recent ingest per table; used to detect stalls. Same labels.

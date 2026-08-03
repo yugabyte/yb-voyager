@@ -116,12 +116,10 @@ func TestInitialImportMetricsUsesAllTasks(t *testing.T) {
 	metrics.SetRecorder(rec)
 	defer metrics.SetRecorder(prev)
 
-	state := NewImportDataState(t.TempDir())
-
 	all := makeTasksForTest(3)
 	pending := all[2:] // 2 tables already completed in a prior run, 1 pending
 
-	result := createInitialImportDataTableMetrics(state, all, pending)
+	result := createInitialImportDataTableMetrics(all, pending)
 
 	assert.Equal(t, int64(3), rec.ImportSnapshotTablesTotal[importerRole])
 	assert.Len(t, rec.ImportSnapshotTableInit, 3)

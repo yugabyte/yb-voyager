@@ -12,7 +12,6 @@ type RecordingRecorder struct {
 	ImportCDCLastEventApplied map[string]int
 	ImportTableExpectedRows   map[string]int64
 	ImportSnapshotTableInit   map[string]int
-	ImportSnapshotTableSeeds  map[string][2]int64 // key -> [seedRows, seedBytes]
 	ExportTableExpectedRows   map[string]int64
 	ImportTableStartedCalls   map[string]int
 	ImportTableCompletedCalls map[string]int
@@ -32,7 +31,6 @@ func NewRecordingRecorder() *RecordingRecorder {
 		ImportCDCLastEventApplied: map[string]int{},
 		ImportTableExpectedRows:   map[string]int64{},
 		ImportSnapshotTableInit:   map[string]int{},
-		ImportSnapshotTableSeeds:  map[string][2]int64{},
 		ExportTableExpectedRows:   map[string]int64{},
 		ImportTableStartedCalls:   map[string]int{},
 		ImportTableCompletedCalls: map[string]int{},
@@ -62,9 +60,8 @@ func (r *RecordingRecorder) RecordImportError(importerRole string, t sqlname.Nam
 func (r *RecordingRecorder) SetImportSnapshotTableExpectedRows(importerRole string, t sqlname.NameTuple, rows int64) {
 	r.ImportTableExpectedRows[key(t)] = rows
 }
-func (r *RecordingRecorder) InitImportSnapshotTable(importerRole string, t sqlname.NameTuple, seedRows, seedBytes int64) {
+func (r *RecordingRecorder) InitImportSnapshotTable(importerRole string, t sqlname.NameTuple) {
 	r.ImportSnapshotTableInit[key(t)]++
-	r.ImportSnapshotTableSeeds[key(t)] = [2]int64{seedRows, seedBytes}
 }
 func (r *RecordingRecorder) SetImportSnapshotTableStarted(importerRole string, t sqlname.NameTuple) {
 	r.ImportTableStartedCalls[key(t)]++

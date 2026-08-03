@@ -42,8 +42,7 @@ func TestCreateInitialImportDataTableMetrics_SetsTotalRows(t *testing.T) {
 		},
 	}
 
-	state := NewImportDataState(t.TempDir())
-	createInitialImportDataTableMetrics(state, tasks, tasks)
+	createInitialImportDataTableMetrics(tasks, tasks)
 
 	assert.Equal(t, int64(1000), rec.ImportTableExpectedRows["public.orders"])
 	assert.Equal(t, int64(1), rec.ImportSnapshotTablesTotal[TARGET_DB_IMPORTER_ROLE])

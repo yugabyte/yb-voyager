@@ -936,8 +936,12 @@ func initPGLiveMigrationAndExportSnapshotIfRequired(ctx context.Context, cancel 
 	config.PublicationName = msr.PGPublicationName
 	config.InitSequenceMaxMapping = sequenceInitValues.String()
 
-	pgDB := source.DB().(*srcdb.PostgreSQL)
-	startReplicationSlotWALMonitor(ctx, pgDB, msr.PGReplicationSlotName)
+	pgDB, ok := source.DB().(*srcdb.PostgreSQL)
+	if !ok {
+		log.Warnf("replication-slot WAL monitor: source is not PostgreSQL (%T); skipping", source.DB())
+	} else {
+		startReplicationSlotWALMonitor(ctx, pgDB, msr.PGReplicationSlotName)
+	}
 	return nil
 }
 

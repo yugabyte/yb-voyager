@@ -228,7 +228,9 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 		log.Infof("Replacing actualRowCount=%d inplace of expectedRowCount=%d for table=%s",
 			actualRowCount, tableMetadata.CountTotalRows, tableMetadata.TableName.ForUserQuery())
 		pbr.SetTotalRowCount(actualRowCount, false)
-		metrics.Get().SetExportSnapshotTableExpectedRows(exporterRole, tableMetadata.TableName, actualRowCount)
+		// Not fed into the expected-rows metric: for live migration this count(*) runs
+		// after pg_dump has already taken its consistent snapshot, so it can overcount
+		// vs what pg_dump actually exports.
 		tableMetadata.CountTotalRows = actualRowCount
 	}()
 
@@ -303,9 +305,11 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 	*/
 	readLines()
 
-	// Land the exported gauge exactly on the table total so the "% complete"
-	// panel reaches 100% (the polling goroutine above can stop a few rows short).
-	metrics.Get().RecordExportSnapshotRowCount(exporterRole, tableMetadata.TableName, tableMetadata.CountTotalRows)
+	// Land the exported counter and expected-rows gauge on CountLiveRows, the true
+	// exported row count, rather than CountTotalRows (only ever an estimate), so the
+	// "% complete" panel reaches 100% (the polling goroutine above can stop a few rows short).
+	metrics.Get().RecordExportSnapshotRowCount(exporterRole, tableMetadata.TableName, tableMetadata.CountLiveRows)
+	metrics.Get().SetExportSnapshotTableExpectedRows(exporterRole, tableMetadata.TableName, tableMetadata.CountLiveRows)
 	metrics.Get().SetExportSnapshotTableCompleted(exporterRole, tableMetadata.TableName)
 
 	// PB will not change from "100%" -> "completed" until this function call is made

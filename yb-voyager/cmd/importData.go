@@ -29,7 +29,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
-	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
@@ -927,55 +926,6 @@ func setupImportDataObservability() error {
 	return nil
 }
 
-// legacyProfileDefaultMetricsPorts are the fixed per-role ports that --profile used to
-// start metrics on before --metrics-port existed. Preserved so --profile alone (with no
-// --metrics-port/--prometheus-metrics-port) keeps working, behind a deprecation warning.
-var legacyProfileDefaultMetricsPorts = map[string]int{
-	constants.TARGET_DB_IMPORTER_ROLE:         9101,
-	constants.IMPORT_FILE_ROLE:                9102,
-	constants.SOURCE_REPLICA_DB_IMPORTER_ROLE: 9103,
-	constants.SOURCE_DB_IMPORTER_ROLE:         9104,
-}
-
-// resolveMetricsPort decides whether metrics are enabled and on which port.
-// A non-zero override enables metrics on that port and always wins. Otherwise, if
-// legacyProfileFallback is set (--profile with no explicit port), fall back to the
-// role's legacy default port. Returns disabled if neither applies.
-func resolveMetricsPort(role string, override int, legacyProfileFallback bool) (int, bool) {
-	if override != 0 {
-		return override, true
-	}
-	if legacyProfileFallback {
-		if port, ok := legacyProfileDefaultMetricsPorts[role]; ok {
-			return port, true
-		}
-	}
-	return 0, false
-}
-
-// startMetricsServer installs a PrometheusRecorder and starts serving /metrics
-// when --metrics-port (or the deprecated --prometheus-metrics-port, or --profile's
-// legacy default port) resolves to a non-zero port. It is a no-op when metrics are
-// disabled. Shared by import and export commands.
-func startMetricsServer(role string, migrationUUID uuid.UUID) error {
-	override := metricsPort
-	if override == 0 && prometheusMetricsPort != 0 {
-		log.Warn("--prometheus-metrics-port is deprecated; use --metrics-port")
-		override = prometheusMetricsPort
-	}
-	port, enabled := resolveMetricsPort(role, override, bool(perfProfile))
-	if !enabled {
-		return nil
-	}
-	if override == 0 {
-		log.Warnf("starting metrics on default port %d because --profile is set; this fallback is deprecated, use --metrics-port %d explicitly instead", port, port)
-	}
-	rec := metrics.NewPrometheusRecorder(migrationUUID.String(), metrics.SessionID())
-	metrics.SetRecorder(rec)
-	srv := metrics.NewServer(port, rec.Registry())
-	return srv.Start()
-}
-
 func updateImportDataStartedAndSomeConfigsInMetaDB() error {
 	switch importerRole {
 	case TARGET_DB_IMPORTER_ROLE:
@@ -1202,7 +1152,7 @@ func importSnapshotData(msr *metadb.MigrationStatusRecord, errorHandler importda
 		// for a fixed --parallel-jobs run there's no such poller, so emit once here.
 		metrics.Get().SetImportParallelism(importerRole, maxParallelConns)
 	}
-	importDataAllTableMetrics := createInitialImportDataTableMetrics(state, importFileTasks, pendingTasks)
+	importDataAllTableMetrics := createInitialImportDataTableMetrics(importFileTasks, pendingTasks)
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
 		controlPlane.UpdateImportedRowCount(importDataAllTableMetrics)
 	}
@@ -2423,26 +2373,16 @@ func createSnapshotImportCompletedEvent() cp.SnapshotImportCompletedEvent {
 }
 
 // createInitialImportDataTableMetrics sets table-scope metrics (totals, expected
-// rows, seeded counters) from allTasks so they stay accurate on resume, when
-// pendingTasks alone would under-report tables already completed in a prior run.
-// The control-plane event list is still built from pendingTasks only (unchanged
-// behaviour: the control plane only expects updates for tables being worked on
-// in this run).
-func createInitialImportDataTableMetrics(state *ImportDataState, allTasks, pendingTasks []*ImportFileTask) []*cp.UpdateImportedRowCountEvent {
+// rows, pre-registered per-table series) from allTasks so they stay accurate on
+// resume, when pendingTasks alone would under-report tables already completed in
+// a prior run. The control-plane event list is still built from pendingTasks only
+// (unchanged behaviour: the control plane only expects updates for tables being
+// worked on in this run).
+func createInitialImportDataTableMetrics(allTasks, pendingTasks []*ImportFileTask) []*cp.UpdateImportedRowCountEvent {
 	metrics.Get().SetImportSnapshotTablesTotal(importerRole, len(allTasks))
 	for _, task := range allTasks {
-		metrics.Get().SetImportSnapshotTableExpectedRows(importerRole, task.TableNameTup, getTotalProgressAmount(task))
-		seedRows, err := state.GetImportedRowCount(task.FilePath, task.TableNameTup)
-		if err != nil { // best-effort; do not abort migration for a metric seed
-			log.Warnf("failed to read imported row count for %s, seeding metric at 0: %v", task.TableNameTup, err)
-			seedRows = 0
-		}
-		seedBytes, err := state.GetImportedByteCount(task.FilePath, task.TableNameTup)
-		if err != nil {
-			log.Warnf("failed to read imported byte count for %s, seeding metric at 0: %v", task.TableNameTup, err)
-			seedBytes = 0
-		}
-		metrics.Get().InitImportSnapshotTable(importerRole, task.TableNameTup, seedRows, seedBytes)
+		metrics.Get().SetImportSnapshotTableExpectedRows(importerRole, task.TableNameTup, task.RowCount)
+		metrics.Get().InitImportSnapshotTable(importerRole, task.TableNameTup)
 	}
 
 	result := []*cp.UpdateImportedRowCountEvent{}

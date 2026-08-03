@@ -27,7 +27,7 @@ func TestRecorder(t *testing.T) {
 		r.ObserveImportSnapshotBatchSize("target_db_importer", tup, 10, 100)
 		r.RecordImportError("target_db_importer", tup, ErrorKindRowProcessing, 1, 5)
 		r.SetImportSnapshotTableExpectedRows("target_db_importer", tup, 1000)
-		r.InitImportSnapshotTable("target_db_importer", tup, 0, 0)
+		r.InitImportSnapshotTable("target_db_importer", tup)
 		r.SetImportSnapshotTableStarted("target_db_importer", tup)
 		r.SetImportSnapshotTableCompleted("target_db_importer", tup)
 		r.SetImportSnapshotTablesTotal("target_db_importer", 10)

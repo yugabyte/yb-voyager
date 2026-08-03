@@ -79,7 +79,6 @@ type TargetYugabyteDBWithConnectionPool interface {
 	GetClusterMetrics() (map[string]tgtdb.NodeMetrics, error) // node_uuid:metric_name:metric_value
 	GetNumConnectionsInPool() int
 	GetNumMaxConnectionsInPool() int
-	GetPendingConnsToCloseInPool() int
 	UpdateNumConnectionsInPool(int) error // (delta)
 }
 

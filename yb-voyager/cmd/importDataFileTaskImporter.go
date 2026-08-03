@@ -112,7 +112,9 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchProd
 	currentProgressAmount := getImportedProgressAmount(task, state)
 	progressReporter.AddProgressAmount(task, currentProgressAmount)
 
-	metrics.Get().SetImportSnapshotTableStarted(importerRole, task.TableNameTup)
+	if currentProgressAmount == 0 {
+		metrics.Get().SetImportSnapshotTableStarted(importerRole, task.TableNameTup)
+	}
 
 	resumeInfoShown := false
 	if currentProgressAmount > 0 {

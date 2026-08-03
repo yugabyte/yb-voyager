@@ -304,13 +304,13 @@ func (p *PrometheusRecorder) SetImportSnapshotTableExpectedRows(importerRole str
 	p.importTableExpectedRows.WithLabelValues(p.snapshotLabelValues(importerRole, t)...).Set(float64(rows))
 }
 
-// InitImportSnapshotTable registers the table's series at zero so they appear
-// before the first batch, then seeds already-imported totals (read from the
-// persisted metaDB state by the caller) so counters survive process restarts.
-func (p *PrometheusRecorder) InitImportSnapshotTable(importerRole string, t sqlname.NameTuple, seedRows, seedBytes int64) {
+// InitImportSnapshotTable pre-registers the table's rows/bytes/batch series at
+// zero so panels aren't empty before the first batch is ingested. Counters are
+// not seeded with any cross-resume total; they reset to 0 per process.
+func (p *PrometheusRecorder) InitImportSnapshotTable(importerRole string, t sqlname.NameTuple) {
 	lv := p.snapshotLabelValues(importerRole, t)
-	p.importRowsTotal.WithLabelValues(lv...).Add(float64(seedRows))
-	p.importBytesTotal.WithLabelValues(lv...).Add(float64(seedBytes))
+	p.importRowsTotal.WithLabelValues(lv...)
+	p.importBytesTotal.WithLabelValues(lv...)
 	p.importSnapshotBatchCreated.WithLabelValues(lv...)
 	p.importSnapshotBatchSubmitted.WithLabelValues(lv...)
 	p.importSnapshotBatchIngested.WithLabelValues(lv...)

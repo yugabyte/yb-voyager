@@ -24,7 +24,11 @@ type Recorder interface {
 	ObserveImportSnapshotBatchSize(importerRole string, t sqlname.NameTuple, rows, bytes int64)
 	RecordImportError(importerRole string, t sqlname.NameTuple, kind ErrorKind, rows, bytes int64)
 	SetImportSnapshotTableExpectedRows(importerRole string, t sqlname.NameTuple, rows int64)
-	InitImportSnapshotTable(importerRole string, t sqlname.NameTuple, seedRows, seedBytes int64)
+	// InitImportSnapshotTable pre-registers the table's rows/bytes/batch series at
+	// zero so panels aren't empty before the first batch. It does not seed any
+	// cross-resume totals; counters reset to 0 per process (see rows_total/bytes_total
+	// docs) and a gauge-based cross-resume view is planned for a future PR.
+	InitImportSnapshotTable(importerRole string, t sqlname.NameTuple)
 	SetImportSnapshotTableStarted(importerRole string, t sqlname.NameTuple)
 	SetImportSnapshotTableCompleted(importerRole string, t sqlname.NameTuple)
 	SetImportSnapshotTablesTotal(importerRole string, count int)

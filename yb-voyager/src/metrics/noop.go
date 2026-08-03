@@ -17,8 +17,7 @@ func (noopRecorder) RecordImportError(importerRole string, t sqlname.NameTuple, 
 }
 func (noopRecorder) SetImportSnapshotTableExpectedRows(importerRole string, t sqlname.NameTuple, rows int64) {
 }
-func (noopRecorder) InitImportSnapshotTable(importerRole string, t sqlname.NameTuple, seedRows, seedBytes int64) {
-}
+func (noopRecorder) InitImportSnapshotTable(importerRole string, t sqlname.NameTuple) {}
 func (noopRecorder) SetImportSnapshotTableStarted(importerRole string, t sqlname.NameTuple)   {}
 func (noopRecorder) SetImportSnapshotTableCompleted(importerRole string, t sqlname.NameTuple) {}
 func (noopRecorder) SetImportSnapshotTablesTotal(importerRole string, count int)              {}

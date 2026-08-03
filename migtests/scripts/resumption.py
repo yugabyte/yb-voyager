@@ -7,9 +7,6 @@ import time
 import random
 import sys
 import select
-import re
-import urllib.request
-import urllib.error
 import yaml
 sys.path.append(os.path.join(os.getcwd(), 'migtests/lib'))
 import yb
@@ -51,27 +48,6 @@ target_db_schema = ''
 target_db_name = ''
 data_dir = ''
 varying_flags = {}
-
-# Metrics scraping configuration.
-# Fixed port for the yb-voyager --metrics-port Prometheus server started by
-# the import commands under test. Chosen to avoid clashing with the legacy
-# profile default metrics ports (9101-9104).
-METRICS_PORT = 9201
-METRICS_SCRAPE_TIMEOUT_SECONDS = 2
-SNAPSHOT_ROWS_TOTAL_METRIC = 'yb_voyager_import_data_snapshot_rows_total'
-SNAPSHOT_TABLES_TOTAL_METRIC = 'yb_voyager_import_data_snapshot_tables_total'
-
-# How long to let a `--start-clean` re-run go before interrupting it to
-# sample the snapshot counters (see run_start_clean_check).
-START_CLEAN_CHECK_SECONDS = 10
-# Fraction of the total expected row count that a start-clean run is allowed
-# to have imported by the time we sample it, while still counting as "reset".
-START_CLEAN_ROWS_SANITY_RATIO = 0.1
-
-# Baseline table count observed from the first metrics snapshot of the run.
-# Used to assert that yb_voyager_import_data_snapshot_tables_total stays
-# stable across resumes and start-clean re-runs.
-expected_table_count = None
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="YB Voyager Resumption Test")
@@ -141,7 +117,6 @@ def prepare_import_data_file_command():
         '--data-dir', data_dir,
         '--file-table-map', file_table_map,
         '--skip-replication-checks', 'true',
-        '--metrics-port', str(METRICS_PORT),
     ]
 
     if run_without_adaptive_parallelism:
@@ -170,9 +145,8 @@ def prepare_import_data_command():
         '--disable-pb', 'true',
         '--send-diagnostics', 'false',
         '--skip-replication-checks', 'true',
-        '--metrics-port', str(METRICS_PORT),
     ]
-
+    
     if source_db_type != 'postgresql':
         args.extend(['--target-db-schema', target_db_schema])
 
@@ -200,108 +174,7 @@ def inject_varying_flags_values(command):
 
     return command
 
-
-_METRIC_LINE_RE = re.compile(
-    r'^(?P<name>[a-zA-Z_:][a-zA-Z0-9_:]*)(\{(?P<labels>[^}]*)\})?\s+(?P<value>\S+)\s*$'
-)
-_LABEL_RE = re.compile(r'(?P<key>[a-zA-Z_][a-zA-Z0-9_]*)="(?P<value>(?:[^"\\]|\\.)*)"')
-
-
-def parse_prometheus_text(text):
-    """
-    Minimal parser for the Prometheus text exposition format.
-
-    Returns a dict of {metric_name: [(labels_dict, value_float), ...]}.
-    Comment/HELP/TYPE lines are ignored; malformed lines are skipped.
-    """
-    metrics = {}
-    for line in text.splitlines():
-        line = line.strip()
-        if not line or line.startswith('#'):
-            continue
-        match = _METRIC_LINE_RE.match(line)
-        if not match:
-            continue
-        try:
-            value = float(match.group('value'))
-        except ValueError:
-            continue
-
-        labels = {}
-        if match.group('labels'):
-            for label_match in _LABEL_RE.finditer(match.group('labels')):
-                labels[label_match.group('key')] = label_match.group('value').replace('\\"', '"')
-
-        metrics.setdefault(match.group('name'), []).append((labels, value))
-    return metrics
-
-
-def scrape_metrics(port=METRICS_PORT, timeout=METRICS_SCRAPE_TIMEOUT_SECONDS):
-    """
-    Scrapes GET http://127.0.0.1:<port>/metrics and parses it.
-
-    Returns the parsed metrics dict, or None if the endpoint could not be
-    reached (e.g. the server hasn't started yet, or the process has already
-    exited). Callers should treat None as "no snapshot available" rather
-    than a hard error, since scraping races with process startup/shutdown.
-    """
-    url = f"http://127.0.0.1:{port}/metrics"
-    try:
-        with urllib.request.urlopen(url, timeout=timeout) as response:
-            text = response.read().decode('utf-8')
-    except (urllib.error.URLError, ConnectionError, TimeoutError, OSError):
-        return None
-    return parse_prometheus_text(text)
-
-
-def sum_metric_value(metrics, name):
-    """Sums the values of all label-series for a metric. Returns 0 if absent."""
-    if metrics is None:
-        return 0
-    return sum(value for _, value in metrics.get(name, []))
-
-
-def assert_metrics_snapshot(label, metrics, min_rows_total=None):
-    """
-    Validates a single metrics snapshot against the running invariants:
-      - yb_voyager_import_data_snapshot_tables_total must match the baseline
-        `expected_table_count` captured from the first snapshot of the run
-        (it must not fluctuate across resumes).
-      - yb_voyager_import_data_snapshot_rows_total (summed across all table
-        series) must never regress below `min_rows_total`, if given -- a
-        resumed run must seed its counters from the persisted per-table
-        imported counts, not restart from zero.
-
-    Returns the summed rows_total from this snapshot, to be used as the
-    `min_rows_total` baseline for the next call. Exits the process on any
-    violation, consistent with the rest of this script's error handling.
-    """
-    global expected_table_count
-
-    if metrics is None:
-        print(f"\u274C [{label}] Could not scrape metrics; is --metrics-port wired up and reachable?", flush=True)
-        sys.exit(1)
-
-    tables_total = sum_metric_value(metrics, SNAPSHOT_TABLES_TOTAL_METRIC)
-    rows_total = sum_metric_value(metrics, SNAPSHOT_ROWS_TOTAL_METRIC)
-
-    print(f"[{label}] {SNAPSHOT_TABLES_TOTAL_METRIC}={tables_total}, {SNAPSHOT_ROWS_TOTAL_METRIC}={rows_total}", flush=True)
-
-    if expected_table_count is None:
-        expected_table_count = tables_total
-        print(f"[{label}] Recorded baseline table count: {expected_table_count}", flush=True)
-    elif tables_total != expected_table_count:
-        print(f"\u274C [{label}] {SNAPSHOT_TABLES_TOTAL_METRIC} changed: expected {expected_table_count}, got {tables_total}", flush=True)
-        sys.exit(1)
-
-    if min_rows_total is not None and rows_total < min_rows_total:
-        print(f"\u274C [{label}] {SNAPSHOT_ROWS_TOTAL_METRIC} went backwards: expected >= {min_rows_total}, got {rows_total}", flush=True)
-        sys.exit(1)
-
-    return rows_total
-
-
-def run_command(command, allow_interruption=False, interrupt_after=None, metrics_port=None):
+def run_command(command, allow_interruption=False, interrupt_after=None):
     with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
         process = subprocess.Popen(
             command, stdout=stdout_file, stderr=stderr_file, text=True
@@ -309,18 +182,8 @@ def run_command(command, allow_interruption=False, interrupt_after=None, metrics
         start_time = time.time()
         interrupted = False
         chosen_signal = None
-        # Latest successfully scraped /metrics snapshot. Refreshed on every
-        # poll iteration, so it reflects the state just before we send an
-        # interrupt signal, or the last observable state before the process
-        # exits on its own.
-        latest_metrics = None
 
         while process.poll() is None:
-            if metrics_port is not None:
-                snapshot = scrape_metrics(port=metrics_port)
-                if snapshot is not None:
-                    latest_metrics = snapshot
-
             if allow_interruption and interrupt_after is not None:
                 elapsed_time = time.time() - start_time
                 if elapsed_time > interrupt_after:
@@ -383,28 +246,16 @@ def run_command(command, allow_interruption=False, interrupt_after=None, metrics
                 sys.exit(1)
 
         completed = process.returncode == 0 and not interrupted
-        return completed, stdout, stderr, latest_metrics
+        return completed, stdout, stderr
 
 
 def run_and_resume_voyager(base_command):
     """
     Handles the interruption logic and manages retries for the command.
 
-    After every attempt, scrapes /metrics (see scrape_metrics) and validates,
-    via assert_metrics_snapshot, that yb_voyager_import_data_snapshot_tables_total
-    stays constant and yb_voyager_import_data_snapshot_rows_total never
-    regresses across the resume/restart cycle -- the counters must be seeded
-    from the persisted per-table imported counts on resume, not reset.
-
     Args:
         base_command (list): The base command to execute.
-
-    Returns:
-        int: the final summed yb_voyager_import_data_snapshot_rows_total,
-        captured just before the import completed.
     """
-    min_rows_total = None
-
     for attempt in range(1, max_restarts + 1):
         print(f"\n--- Attempt {attempt} of {max_restarts} ---")
 
@@ -420,11 +271,7 @@ def run_and_resume_voyager(base_command):
         print(f"\nRunning command: {' '.join(command)}", flush=True)
         print(f"\nInterrupting the command in {interruption_time // 60}m {interruption_time % 60}s...", flush=True)
 
-        completed, stdout, stderr, metrics = run_command(
-            command, allow_interruption=True, interrupt_after=interruption_time, metrics_port=METRICS_PORT
-        )
-
-        min_rows_total = assert_metrics_snapshot(f"attempt {attempt}, pre-interrupt", metrics, min_rows_total)
+        completed, stdout, stderr = run_command(command, allow_interruption=True, interrupt_after=interruption_time)
 
         print("Process was interrupted. Preparing to resume...", flush=True)
         restart_wait_time_seconds = random.randint(min_restart_wait_seconds, max_restart_wait_seconds)
@@ -437,16 +284,13 @@ def run_and_resume_voyager(base_command):
 
     # Inject final set of varying flags before final run
     command = inject_varying_flags_values(base_command.copy())
-    completed, stdout, stderr, metrics = run_command(command, allow_interruption=False, metrics_port=METRICS_PORT)
+    completed, stdout, stderr = run_command(command, allow_interruption=False)
 
     if not completed:
         print("\nCommand failed on the final attempt.", flush=True)
         sys.exit(1)
 
-    min_rows_total = assert_metrics_snapshot("final attempt, last observed before completion", metrics, min_rows_total)
-
     print("\nCommand completed successfully on the final attempt.", flush=True)
-    return min_rows_total
 
 def validate_row_counts():
     """
@@ -493,79 +337,12 @@ def validate_row_counts():
     else:
         print("\nAll table row counts validated successfully.")
 
-def validate_final_snapshot_rows_total(final_rows_total):
-    """
-    Validates that the final yb_voyager_import_data_snapshot_rows_total scraped
-    from /metrics (summed across all table series) matches the expected total
-    row count, reusing the same `row_count` map that validate_row_counts()
-    already validates against the target database -- no separately-tracked
-    total is maintained.
-    """
-    expected_total_rows = sum(row_count.values())
-    print(f"\nValidating final snapshot rows total: expected {expected_total_rows}, got {final_rows_total}", flush=True)
-
-    if final_rows_total != expected_total_rows:
-        print(f"\u274C {SNAPSHOT_ROWS_TOTAL_METRIC} mismatch: expected {expected_total_rows}, got {final_rows_total}", flush=True)
-        sys.exit(1)
-
-    print(f"\u2714 {SNAPSHOT_ROWS_TOTAL_METRIC} matches expected total row count.", flush=True)
-
-
-def run_start_clean_check(base_command):
-    """
-    Runs a fresh `--start-clean true` import of the same base command after
-    the main resumption flow has already fully imported all the data, and
-    asserts that the snapshot counters reset rather than resume from the
-    prior (fully-imported) metaDB state.
-
-    The run is interrupted shortly after starting (START_CLEAN_CHECK_SECONDS)
-    purely to sample /metrics; the harness's own cleanup (drop DB, remove
-    export-dir) takes care of tearing the partially re-imported state down.
-    """
-    command = inject_varying_flags_values(base_command.copy())
-    command.extend(['--start-clean', 'true'])
-
-    print(f"\n--- Start-clean check: {' '.join(command)} ---", flush=True)
-    completed, stdout, stderr, metrics = run_command(
-        command,
-        allow_interruption=True,
-        interrupt_after=START_CLEAN_CHECK_SECONDS,
-        metrics_port=METRICS_PORT,
-    )
-
-    if metrics is None:
-        print("\u274C [start-clean] Could not scrape metrics before interrupting.", flush=True)
-        sys.exit(1)
-
-    tables_total = sum_metric_value(metrics, SNAPSHOT_TABLES_TOTAL_METRIC)
-    rows_total = sum_metric_value(metrics, SNAPSHOT_ROWS_TOTAL_METRIC)
-    print(f"[start-clean] {SNAPSHOT_TABLES_TOTAL_METRIC}={tables_total}, {SNAPSHOT_ROWS_TOTAL_METRIC}={rows_total}", flush=True)
-
-    if expected_table_count is not None and tables_total != expected_table_count:
-        print(f"\u274C [start-clean] {SNAPSHOT_TABLES_TOTAL_METRIC} expected {expected_table_count}, got {tables_total} "
-              f"-- the full table set should be re-registered after --start-clean.", flush=True)
-        sys.exit(1)
-
-    sanity_threshold = sum(row_count.values()) * START_CLEAN_ROWS_SANITY_RATIO
-    if rows_total > sanity_threshold:
-        print(f"\u274C [start-clean] {SNAPSHOT_ROWS_TOTAL_METRIC}={rows_total} exceeds sanity threshold {sanity_threshold}; "
-              f"--start-clean does not appear to have reset the snapshot counters.", flush=True)
-        sys.exit(1)
-
-    print("\u2714 [start-clean] Snapshot counters reset as expected after --start-clean.", flush=True)
-
-
 def run_import_with_resumption():
     """
     Runs the import process with resumption logic based on the provided configuration.
 
     Args:
         config (dict): The configuration dictionary loaded from the YAML file.
-
-    Returns:
-        tuple: (base_command, final_rows_total) so callers can validate the
-        final snapshot total and/or reuse the base command for a subsequent
-        --start-clean check.
     """
 
     if import_type == 'file':
@@ -576,8 +353,7 @@ def run_import_with_resumption():
         raise ValueError(f"Unsupported import_type: {import_type}")
         sys.exit(1)
 
-    final_rows_total = run_and_resume_voyager(command)
-    return command, final_rows_total
+    run_and_resume_voyager(command)
 
 
 if __name__ == "__main__":
@@ -589,14 +365,10 @@ if __name__ == "__main__":
         print(f"Loaded configuration from {args.config_file}")
 
         # Run import process
-        base_command, final_rows_total = run_import_with_resumption()
+        run_import_with_resumption()
 
         # Validate rows
         validate_row_counts()
-        validate_final_snapshot_rows_total(final_rows_total)
-
-        # Validate that a fresh --start-clean run resets the snapshot counters
-        run_start_clean_check(base_command)
 
     except Exception as e:
         print(f"Test failed: {e}")

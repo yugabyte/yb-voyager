@@ -153,12 +153,10 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error
 		return fmt.Errorf("error handling cdc partitioning strategy: %w", err)
 	}
 
-	{
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		go statsReporter.ReportStats(ctx, !bool(disablePb))
-		defer statsReporter.Finalize()
-	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go statsReporter.ReportStats(ctx, !bool(disablePb))
+	defer statsReporter.Finalize()
 
 	eventQueue = NewEventQueue(exportDir)
 	// setup target event channels

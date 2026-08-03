@@ -167,13 +167,13 @@ yb_voyager_import_data_snapshot_rows_total{importer_role="target_db_importer",mi
 		assert.Equal(t, float64(8), testutil.ToFloat64(parallelism), "expected export parallelism 8")
 	})
 
-	t.Run("init seeds cumulative rows and bytes on resume", func(t *testing.T) {
+	t.Run("init pre-registers rows and bytes series at zero", func(t *testing.T) {
 		r := NewPrometheusRecorder("uuid-1", "sess-1")
 		tup := newTupleForTest("public", "orders")
-		r.InitImportSnapshotTable("target_db_importer", tup, 500, 5000)
+		r.InitImportSnapshotTable("target_db_importer", tup)
 		lv := r.snapshotLabelValues("target_db_importer", tup)
-		assert.Equal(t, float64(500), testutil.ToFloat64(r.importRowsTotal.WithLabelValues(lv...)))
-		assert.Equal(t, float64(5000), testutil.ToFloat64(r.importBytesTotal.WithLabelValues(lv...)))
+		assert.Equal(t, float64(0), testutil.ToFloat64(r.importRowsTotal.WithLabelValues(lv...)))
+		assert.Equal(t, float64(0), testutil.ToFloat64(r.importBytesTotal.WithLabelValues(lv...)))
 	})
 }
 
@@ -191,7 +191,7 @@ func TestImportExportSnapshotTablesTotal(t *testing.T) {
 func TestInitImportSnapshotTableCreatesZeroSeriesWithoutSeed(t *testing.T) {
 	rec := NewPrometheusRecorder("uuid-1", "sess-1")
 	tup := newTupleForTest("public", "orders")
-	rec.InitImportSnapshotTable("target_db_importer", tup, 0, 0)
+	rec.InitImportSnapshotTable("target_db_importer", tup)
 
 	lv := rec.snapshotLabelValues("target_db_importer", tup)
 	assert.Equal(t, float64(0), testutil.ToFloat64(rec.importRowsTotal.WithLabelValues(lv...)))

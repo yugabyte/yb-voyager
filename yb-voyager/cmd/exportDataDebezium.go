@@ -33,7 +33,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -518,12 +517,7 @@ func calculateStreamingProgress(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			if disablePb && callhome.SendDiagnostics {
-				// to not do unneccessary frequent calls to metadb in case we only require this info for callhome
-				time.Sleep(12 * time.Minute)
-			} else {
-				time.Sleep(10 * time.Second)
-			}
+			time.Sleep(10 * time.Second)
 		}
 	}
 
