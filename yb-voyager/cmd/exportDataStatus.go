@@ -286,7 +286,7 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 				utils.ErrExit("Error while reading file: %s: %v", tableDataFile.Name(), err)
 			}
 			if isDataLine(line, source.DBType, &insideCopyStmt) {
-				tableMetadata.CountLiveRows += 1 
+				tableMetadata.CountLiveRows += 1
 			}
 			if source.DBType == "postgresql" && strings.HasPrefix(line, "\\.") {
 				break
