@@ -19,16 +19,22 @@ When enabled, each main-loop iteration builds one "transaction plan"
     COMMIT
 
 interleaved in one shuffled order, with savepoint pairs wrapping random
-contiguous sub-runs of that order. INSERT is always single-row. UPDATE and
-DELETE are single-row by default too, but can each affect up to k rows in
-one statement when the optional 'rows_per_statement' config key is set
-(k sampled per statement from its [min, max]) -- see execute_single_statement.
-All statements reuse the same builders (build_insert_values /
-build_update_values / build_pk_in_condition / build_sampling_condition) and
-PK-pool-first targeting the legacy single-op path in generator.py uses.
+contiguous sub-runs of that order. INSERT, UPDATE, and DELETE are all
+single-row by default, but each op can independently affect/insert up to k
+rows in one statement via the optional 'rows_per_statement' config key (k
+sampled per statement from that op's own [min, max]) -- see
+resolve_rows_per_statement and execute_single_statement. 'rows_per_statement'
+accepts two shapes (see resolve_rows_per_statement for the exact rules):
+a single shared {min, max} (back-compat -- applies to UPDATE/DELETE only,
+INSERT stays single-row), or a per-op {INSERT: {min,max}, UPDATE: {...},
+DELETE: {...}} mapping where each op batches independently and any omitted
+op defaults to single-row. All statements reuse the same builders
+(build_insert_values / build_update_values / build_pk_in_condition /
+build_sampling_condition) and PK-pool-first targeting the legacy single-op
+path in generator.py uses.
 
 Rate accounting: each COMMITTED ROW counts as one event -- a k-row
-UPDATE/DELETE statement contributes k events, not 1. (When
+INSERT/UPDATE/DELETE statement contributes k events, not 1. (When
 'rows_per_statement' is absent/default, every statement is single-row, so
 this coincides with "one event per statement", matching the pre-existing
 behavior byte-for-byte.) This matches generator.py's
@@ -81,6 +87,48 @@ def _weighted_ops(op_weights: Dict[str, Any]) -> Tuple[List[str], List[float]]:
             names.append(op)
             weights.append(w)
     return names, weights
+
+
+def resolve_rows_per_statement(
+    rps_cfg: Optional[Dict[str, Any]],
+) -> Dict[str, Tuple[int, int]]:
+    """Resolve the optional 'transaction_mode.rows_per_statement' config
+    value into a per-op {"INSERT": (min,max), "UPDATE": (min,max),
+    "DELETE": (min,max)} mapping. Pure -- no DB access, no randomness.
+
+    Accepts three input shapes (see utils._validate_transaction_mode_rows_per_statement
+    for the matching validation rules):
+
+      1. None/absent -> every op defaults to (1, 1), i.e. single-row --
+         today's behavior, unchanged.
+      2. Shared form {"min": lo, "max": hi} (back-compat) -> applies to
+         UPDATE and DELETE only; INSERT stays (1, 1) regardless. This is
+         the ORIGINAL shape this config key shipped with, and must keep
+         behaving byte-for-byte identically.
+      3. Per-op form {"INSERT": {min,max}, "UPDATE": {...}, "DELETE": {...}}
+         -- each present op gets its own (min, max); any of the three keys
+         that's omitted defaults to (1, 1) (single-row) for that op alone.
+
+    The two forms are told apart by looking for "min"/"max" directly on
+    `rps_cfg` (shared form) vs. an INSERT/UPDATE/DELETE key (per-op form) --
+    validate_transaction_mode rejects any config that mixes the two, so
+    resolution here never has to arbitrate between them.
+    """
+    default: Dict[str, Tuple[int, int]] = {"INSERT": (1, 1), "UPDATE": (1, 1), "DELETE": (1, 1)}
+    if not rps_cfg:
+        return default
+
+    if "min" in rps_cfg or "max" in rps_cfg:
+        lo = rps_cfg.get("min", 1)
+        hi = rps_cfg.get("max", 1)
+        return {"INSERT": (1, 1), "UPDATE": (lo, hi), "DELETE": (lo, hi)}
+
+    resolved = dict(default)
+    for op in _OPS:
+        if op in rps_cfg:
+            op_rng = rps_cfg[op]
+            resolved[op] = (op_rng.get("min", 1), op_rng.get("max", 1))
+    return resolved
 
 
 def resolve_txn_counts(tm_cfg: Dict[str, Any], rng: Any) -> Tuple[int, int, int]:
@@ -239,7 +287,7 @@ def execute_single_statement(
     unique_value_fns_for_table: Optional[Callable[[str], Optional[Dict[str, Callable[[], Any]]]]],
     table_name: str,
     operation: str,
-    rows_per_statement: Tuple[int, int] = (1, 1),
+    rows_per_statement_by_op: Optional[Dict[str, Tuple[int, int]]] = None,
 ) -> Tuple[int, Tuple[List[Any], List[Any]]]:
     """Execute one INSERT/UPDATE/DELETE for `table_name` on `cursor`,
     mirroring generator.py's legacy per-operation branch (same builders,
@@ -248,12 +296,16 @@ def execute_single_statement(
     via the caller's existing handler, rather than being retried in place
     like the legacy path's execute_with_retry).
 
-    INSERT is always single-row (rows_per_statement is ignored for it).
-    UPDATE and DELETE each affect k rows, k = rng.randint(*rows_per_statement)
-    drawn fresh per call from the module-level `_random_module` (matching how
-    the UPDATE column-count pick already draws from `_random_module` directly
-    rather than the plan-building rng) -- k collapses to 1 under the default
-    (1, 1), the original single-row behavior.
+    Each op (INSERT, UPDATE, DELETE) independently affects/inserts k rows in
+    this one statement, k = rng.randint(*rows_per_statement_by_op[OP]) drawn
+    fresh per call from the module-level `_random_module` (matching how the
+    UPDATE column-count pick already draws from `_random_module` directly
+    rather than the plan-building rng). `rows_per_statement_by_op` is a
+    {"INSERT": (min,max), "UPDATE": (min,max), "DELETE": (min,max)} mapping
+    -- see resolve_rows_per_statement, which is what callers should use to
+    build it from the raw config. `None` (the default) is treated as if
+    every op were absent, i.e. every op collapses to (1, 1) -- the original
+    single-row-per-statement behavior for all three ops.
 
     Returns (rowcount, (pool_add_ids, pool_remove_ids)) -- rowcount is
     cursor.rowcount floored at 0; pool_add_ids/pool_remove_ids are ids the
@@ -266,8 +318,12 @@ def execute_single_statement(
     """
     schema = table_schemas[table_name]
     pool = pools.get(table_name) if pools else None
+    by_op = rows_per_statement_by_op or {}
 
     if operation == "INSERT":
+        imin, imax = by_op.get("INSERT", (1, 1))
+        k = _random_module.randint(imin, imax)
+
         pk_value_fn = pk_value_fn_for_table(table_name) if pk_value_fn_for_table else None
         unique_value_fns = (
             unique_value_fns_for_table(table_name) if unique_value_fns_for_table else None
@@ -282,7 +338,7 @@ def execute_single_statement(
         values_list, pk_values = build_insert_values(
             table_schemas,
             table_name,
-            1,
+            k,
             min_col_size_bytes,
             column_overrides,
             pk_value_fn=pk_value_fn,
@@ -314,7 +370,7 @@ def execute_single_statement(
             table_schemas, table_name, columns_to_update, min_col_size_bytes, column_overrides
         )
 
-        rmin, rmax = rows_per_statement
+        rmin, rmax = by_op.get("UPDATE", (1, 1))
         k = _random_module.randint(rmin, rmax)
         pool_ids = pool.sample(k) if pool is not None and len(pool) > 0 else []
         if pool_ids:
@@ -337,7 +393,7 @@ def execute_single_statement(
         if not primary_key:
             return 0, ([], [])
 
-        rmin, rmax = rows_per_statement
+        rmin, rmax = by_op.get("DELETE", (1, 1))
         k = _random_module.randint(rmin, rmax)
         pool_ids = pool.sample(k) if pool is not None and len(pool) > 0 else []
         if pool_ids:
@@ -375,16 +431,19 @@ def run_transaction(
     unique_value_fns_for_table: Optional[
         Callable[[str], Optional[Dict[str, Callable[[], Any]]]]
     ] = None,
-    rows_per_statement: Tuple[int, int] = (1, 1),
+    rows_per_statement_by_op: Optional[Dict[str, Tuple[int, int]]] = None,
 ) -> int:
     """Execute one full transaction from `plan` (see build_transaction_plan)
     against a live cursor/connection: explicit BEGIN, each planned
     statement in order (opening/closing any configured savepoint ranges
     around it), then conn.commit().
 
-    `rows_per_statement` is threaded straight through to every statement's
-    execute_single_statement call (see there -- it only affects UPDATE/
-    DELETE; INSERT stays single-row regardless).
+    `rows_per_statement_by_op` is threaded straight through to every
+    statement's execute_single_statement call (see there and
+    resolve_rows_per_statement) -- a {"INSERT": (min,max), "UPDATE": (...),
+    "DELETE": (...)} mapping, each op batching independently. `None` (the
+    default) means every op is single-row, same as passing
+    {"INSERT": (1, 1), "UPDATE": (1, 1), "DELETE": (1, 1)}.
 
     Returns the SUM of each statement's rowcount (reached only once
     conn.commit() has returned without raising) -- i.e. the number of rows
@@ -392,9 +451,9 @@ def run_transaction(
     statements. Each committed ROW counts as one event for the rate
     governor, matching generator.py's `GOVERNOR.pace(events_emitted)` call
     (which is likewise rows, not statements, on the legacy single-op path).
-    Under the default rows_per_statement of (1, 1) every statement is
-    single-row, so this sum equals len(plan["statements"]) exactly --
-    unchanged from the pre-existing behavior.
+    Under the default (every op single-row) this sum equals
+    len(plan["statements"]) exactly -- unchanged from the pre-existing
+    behavior.
 
     Raises on any error (BEGIN/SAVEPOINT/a statement/RELEASE
     SAVEPOINT/commit) -- see module docstring: no rollback happens here,
@@ -440,7 +499,7 @@ def run_transaction(
             unique_value_fns_for_table,
             stmt["table"],
             stmt["operation"],
-            rows_per_statement,
+            rows_per_statement_by_op,
         )
         total_rows += rowcount
         if add_ids or remove_ids:

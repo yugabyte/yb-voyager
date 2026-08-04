@@ -19,11 +19,13 @@ Covers:
   (e) savepoint pair count within range; every SAVEPOINT has a matching
       RELEASE SAVEPOINT, correctly nested inside BEGIN...COMMIT.
   (f) every statement is single-row by default (rows_per_statement absent).
-  (g) rows_per_statement (optional): UPDATE/DELETE can batch k rows into one
-      statement (pk IN (<k ids>)), events summed as rows not statements,
-      DELETE removes all k sampled ids from the pool, INSERT stays
-      single-row regardless, and validate_transaction_mode's acceptance/
-      rejection of the new config key.
+  (g) rows_per_statement (optional, two shapes): resolve_rows_per_statement's
+      resolution of the shared {min,max} form (UPDATE/DELETE only,
+      back-compat) and the per-op {INSERT,UPDATE,DELETE} form; per-op
+      INSERT/UPDATE/DELETE batching k rows into one statement (multi-row
+      INSERT VALUES, or pk IN (<k ids>) for UPDATE/DELETE), events summed as
+      rows not statements, DELETE removes all k sampled ids from the pool,
+      and validate_transaction_mode's acceptance/rejection of both shapes.
 """
 
 import random
@@ -37,6 +39,7 @@ from transaction_mode import (
     choose_savepoint_ranges,
     execute_single_statement,
     is_transaction_mode_enabled,
+    resolve_rows_per_statement,
     resolve_txn_counts,
     run_transaction,
 )
@@ -125,7 +128,12 @@ class FakeConnCursor:
         self.calls.append(sql.strip())
         upper = sql.strip().upper()
         if upper.startswith("INSERT"):
-            self.rowcount = 1
+            # Mirror build_insert_values's "(...), (...), ..." VALUES shape:
+            # k inserted rows means k parenthesized row-tuples, joined by
+            # "), (" between consecutive tuples -- so a real DB's rowcount
+            # for a k-row INSERT is k, same count.
+            values_part = sql.split("VALUES", 1)[1] if "VALUES" in sql else sql
+            self.rowcount = values_part.count("), (") + 1
         elif upper.startswith(("UPDATE", "DELETE")):
             # Mirror build_pk_in_condition's "... IN (%s, %s, %s)" shape:
             # rows "affected" equal the number of explicit ids targeted, so
@@ -149,7 +157,9 @@ class FakeConnCursor:
         self.rollbacks += 1
 
 
-def run_txn_with_fake(plan, pools=None, fail_on_call_containing=None, rows_per_statement=(1, 1)):
+def run_txn_with_fake(
+    plan, pools=None, fail_on_call_containing=None, rows_per_statement_by_op=None
+):
     fc = FakeConnCursor(fail_on_call_containing=fail_on_call_containing)
     events = run_transaction(
         fc,
@@ -163,7 +173,7 @@ def run_txn_with_fake(plan, pools=None, fail_on_call_containing=None, rows_per_s
         0,
         pk_value_fn_for_table=lambda t: None,
         unique_value_fns_for_table=lambda t: None,
-        rows_per_statement=rows_per_statement,
+        rows_per_statement_by_op=rows_per_statement_by_op,
     )
     return fc, events
 
@@ -515,18 +525,70 @@ class TestExecuteSingleStatementIsSingleRow(unittest.TestCase):
 
 
 # --------------------------------------------------------------------------
-# (g) rows_per_statement: optional k-row batching for UPDATE/DELETE
+# (g) rows_per_statement: optional per-op k-row batching
 # --------------------------------------------------------------------------
 
+class TestResolveRowsPerStatement(unittest.TestCase):
+    """resolve_rows_per_statement turns the raw 'rows_per_statement' config
+    value into a per-op {"INSERT": (min,max), "UPDATE": (...), "DELETE": (...)}
+    mapping, for all three accepted input shapes."""
+
+    def test_none_defaults_every_op_to_single_row(self):
+        self.assertEqual(
+            resolve_rows_per_statement(None),
+            {"INSERT": (1, 1), "UPDATE": (1, 1), "DELETE": (1, 1)},
+        )
+
+    def test_empty_dict_defaults_every_op_to_single_row(self):
+        self.assertEqual(
+            resolve_rows_per_statement({}),
+            {"INSERT": (1, 1), "UPDATE": (1, 1), "DELETE": (1, 1)},
+        )
+
+    def test_shared_form_applies_to_update_delete_only(self):
+        # Back-compat: INSERT stays single-row regardless of the shared range.
+        self.assertEqual(
+            resolve_rows_per_statement({"min": 2, "max": 5}),
+            {"INSERT": (1, 1), "UPDATE": (2, 5), "DELETE": (2, 5)},
+        )
+
+    def test_per_op_form_full(self):
+        self.assertEqual(
+            resolve_rows_per_statement(
+                {
+                    "INSERT": {"min": 25, "max": 25},
+                    "UPDATE": {"min": 12, "max": 12},
+                    "DELETE": {"min": 6, "max": 6},
+                }
+            ),
+            {"INSERT": (25, 25), "UPDATE": (12, 12), "DELETE": (6, 6)},
+        )
+
+    def test_per_op_form_partial_omitted_ops_default_single_row(self):
+        self.assertEqual(
+            resolve_rows_per_statement({"INSERT": {"min": 3, "max": 3}}),
+            {"INSERT": (3, 3), "UPDATE": (1, 1), "DELETE": (1, 1)},
+        )
+        self.assertEqual(
+            resolve_rows_per_statement({"UPDATE": {"min": 4, "max": 4}}),
+            {"INSERT": (1, 1), "UPDATE": (4, 4), "DELETE": (1, 1)},
+        )
+        self.assertEqual(
+            resolve_rows_per_statement({"DELETE": {"min": 2, "max": 2}}),
+            {"INSERT": (1, 1), "UPDATE": (1, 1), "DELETE": (2, 2)},
+        )
+
+
 class TestRowsPerStatementBatching(unittest.TestCase):
-    """rows_per_statement (see event-generator.yaml's transaction_mode
-    template) lets a single UPDATE/DELETE statement affect k rows instead of
-    1, amortizing the round trip. INSERT is never affected. Absent config
-    (the default (1, 1) execute_single_statement/run_transaction fall back
-    to) must reproduce today's single-row behavior byte-for-byte."""
+    """rows_per_statement_by_op (see resolve_rows_per_statement, and
+    event-generator.yaml's transaction_mode template for the raw config
+    shapes it's built from) lets a single INSERT/UPDATE/DELETE statement
+    affect/insert k rows instead of 1, amortizing the round trip. `None`
+    (the default) must reproduce today's single-row behavior byte-for-byte
+    for every op."""
 
     def test_absent_rows_per_statement_is_single_row(self):
-        # No rows_per_statement arg at all -- exercises the (1, 1) default.
+        # No rows_per_statement_by_op arg at all -- exercises the None default.
         pools = make_pools()
         fc = FakeConnCursor()
         rowcount, (add_ids, remove_ids) = execute_single_statement(
@@ -543,7 +605,7 @@ class TestRowsPerStatementBatching(unittest.TestCase):
         rowcount, (add_ids, remove_ids) = execute_single_statement(
             fc, TABLE_SCHEMAS, pools, "POSTGRES", {}, {}, 0,
             lambda t: None, lambda t: None,
-            "other_x", "UPDATE", (3, 3),
+            "other_x", "UPDATE", {"UPDATE": (3, 3)},
         )
         update_sql = fc.calls[-1]
         self.assertIn("IN (%s, %s, %s)", update_sql)
@@ -560,7 +622,7 @@ class TestRowsPerStatementBatching(unittest.TestCase):
         rowcount, (add_ids, remove_ids) = execute_single_statement(
             fc, TABLE_SCHEMAS, pools, "POSTGRES", {}, {}, 0,
             lambda t: None, lambda t: None,
-            "other_y", "DELETE", (3, 3),
+            "other_y", "DELETE", {"DELETE": (3, 3)},
         )
         delete_sql = fc.calls[-1]
         self.assertIn("IN (%s, %s, %s)", delete_sql)
@@ -574,23 +636,56 @@ class TestRowsPerStatementBatching(unittest.TestCase):
             "statements": [{"table": "other_y", "operation": "DELETE", "hot": False}],
             "savepoint_ranges": [],
         }
-        _fc2, events = run_txn_with_fake(plan, pools=pools, rows_per_statement=(3, 3))
+        _fc2, events = run_txn_with_fake(
+            plan, pools=pools, rows_per_statement_by_op={"DELETE": (3, 3)}
+        )
         self.assertEqual(events, 3)
         self.assertEqual(len(pool), before_len - 3)
 
-    def test_insert_stays_single_row_regardless_of_rows_per_statement(self):
+    def test_insert_stays_single_row_when_only_update_delete_configured(self):
+        # Back-compat: the shared {min,max} form (resolved to only UPDATE/
+        # DELETE keys) must leave INSERT untouched even when passed through
+        # execute_single_statement directly.
         pools = make_pools()
         fc = FakeConnCursor()
         rowcount, (add_ids, remove_ids) = execute_single_statement(
             fc, TABLE_SCHEMAS, pools, "POSTGRES", {}, {}, 0,
             lambda t: None, lambda t: None,
-            "hot_a", "INSERT", (5, 5),
+            "hot_a", "INSERT", {"UPDATE": (5, 5), "DELETE": (5, 5)},
         )
         self.assertEqual(rowcount, 1)
         self.assertEqual(len(add_ids), 1)
         self.assertEqual(remove_ids, [])
         insert_sql = fc.calls[-1]
         self.assertNotIn("), (", insert_sql)  # still exactly one VALUES row
+
+    def test_insert_batches_to_k_rows_when_configured(self):
+        # Per-op form: INSERT can now batch too.
+        pools = make_pools()
+        fc = FakeConnCursor()
+        rowcount, (add_ids, remove_ids) = execute_single_statement(
+            fc, TABLE_SCHEMAS, pools, "POSTGRES", {}, {}, 0,
+            lambda t: None, lambda t: None,
+            "hot_a", "INSERT", {"INSERT": (3, 3)},
+        )
+        insert_sql = fc.calls[-1]
+        self.assertEqual(insert_sql.count("), ("), 2)  # 3 rows -> 2 separators
+        self.assertEqual(rowcount, 3)
+        self.assertEqual(len(add_ids), 3)
+        self.assertEqual(remove_ids, [])
+
+    def test_insert_batching_contributes_k_events_via_run_transaction(self):
+        plan = {
+            "statements": [{"table": "hot_a", "operation": "INSERT", "hot": True}],
+            "savepoint_ranges": [],
+        }
+        pools = make_pools()
+        before_len = len(pools["hot_a"])
+        _fc, events = run_txn_with_fake(
+            plan, pools=pools, rows_per_statement_by_op={"INSERT": (3, 3)}
+        )
+        self.assertEqual(events, 3)
+        self.assertEqual(len(pools["hot_a"]), before_len + 3)
 
     def test_run_transaction_events_are_summed_rowcounts_not_statement_count(self):
         plan = {
@@ -601,13 +696,35 @@ class TestRowsPerStatementBatching(unittest.TestCase):
             ],
             "savepoint_ranges": [],
         }
-        _fc, events = run_txn_with_fake(plan, rows_per_statement=(4, 4))
-        # INSERT always contributes 1; UPDATE and DELETE each contribute 4.
+        _fc, events = run_txn_with_fake(
+            plan, rows_per_statement_by_op={"UPDATE": (4, 4), "DELETE": (4, 4)}
+        )
+        # INSERT stays 1 (not in the per-op mapping); UPDATE and DELETE each
+        # contribute 4.
         self.assertEqual(events, 1 + 4 + 4)
 
+    def test_per_op_form_all_three_ops_batch_independently(self):
+        plan = {
+            "statements": [
+                {"table": "hot_a", "operation": "INSERT", "hot": True},
+                {"table": "other_x", "operation": "UPDATE", "hot": False},
+                {"table": "other_y", "operation": "DELETE", "hot": False},
+            ],
+            "savepoint_ranges": [],
+        }
+        _fc, events = run_txn_with_fake(
+            plan,
+            rows_per_statement_by_op={
+                "INSERT": (25, 25),
+                "UPDATE": (12, 12),
+                "DELETE": (6, 6),
+            },
+        )
+        self.assertEqual(events, 25 + 12 + 6)
+
     def test_default_rows_per_statement_events_equal_statement_count(self):
-        # Back-compat: absent/default rows_per_statement means events ==
-        # statement count exactly, as before this feature existed.
+        # Back-compat: absent/default rows_per_statement_by_op means events
+        # == statement count exactly, as before this feature existed.
         plan = {
             "statements": [
                 {"table": "hot_a", "operation": "INSERT", "hot": True},
@@ -621,6 +738,8 @@ class TestRowsPerStatementBatching(unittest.TestCase):
         for sql in fc.calls:
             if sql.upper().startswith(("UPDATE", "DELETE")):
                 self.assertIn("IN (%s)", sql)
+            elif sql.upper().startswith("INSERT"):
+                self.assertNotIn("), (", sql)
 
 
 # --------------------------------------------------------------------------
@@ -782,6 +901,62 @@ class TestValidateTransactionMode(unittest.TestCase):
             validate_transaction_mode(make_tm_cfg(rows_per_statement={"min": 1}))
         with self.assertRaises(ValueError):
             validate_transaction_mode(make_tm_cfg(rows_per_statement={"max": 5}))
+
+    # -- per-op form --
+
+    def test_rows_per_statement_per_op_form_accepted(self):
+        validate_transaction_mode(
+            make_tm_cfg(
+                rows_per_statement={
+                    "INSERT": {"min": 25, "max": 25},
+                    "UPDATE": {"min": 12, "max": 12},
+                    "DELETE": {"min": 6, "max": 6},
+                }
+            )
+        )  # must not raise
+
+    def test_rows_per_statement_per_op_form_partial_subset_accepted(self):
+        validate_transaction_mode(make_tm_cfg(rows_per_statement={"INSERT": {"min": 3, "max": 3}}))
+        validate_transaction_mode(make_tm_cfg(rows_per_statement={"UPDATE": {"min": 2, "max": 4}}))
+        validate_transaction_mode(make_tm_cfg(rows_per_statement={"DELETE": {"min": 1, "max": 1}}))
+
+    def test_rows_per_statement_per_op_form_rejects_min_below_one(self):
+        with self.assertRaises(ValueError):
+            validate_transaction_mode(
+                make_tm_cfg(rows_per_statement={"INSERT": {"min": 0, "max": 5}})
+            )
+
+    def test_rows_per_statement_per_op_form_rejects_max_below_min(self):
+        with self.assertRaises(ValueError):
+            validate_transaction_mode(
+                make_tm_cfg(rows_per_statement={"UPDATE": {"min": 5, "max": 2}})
+            )
+
+    def test_rows_per_statement_per_op_form_rejects_non_int(self):
+        with self.assertRaises(ValueError):
+            validate_transaction_mode(
+                make_tm_cfg(rows_per_statement={"DELETE": {"min": 1.5, "max": 5}})
+            )
+
+    def test_rows_per_statement_rejects_mixed_shared_and_per_op_keys(self):
+        with self.assertRaises(ValueError):
+            validate_transaction_mode(
+                make_tm_cfg(rows_per_statement={"min": 1, "max": 5, "UPDATE": {"min": 2, "max": 2}})
+            )
+
+    def test_rows_per_statement_rejects_unknown_key(self):
+        with self.assertRaises(ValueError):
+            validate_transaction_mode(make_tm_cfg(rows_per_statement={"UPSERT": {"min": 1, "max": 1}}))
+        with self.assertRaises(ValueError):
+            validate_transaction_mode(make_tm_cfg(rows_per_statement={"minimum": 1, "max": 5}))
+
+    def test_rows_per_statement_rejects_empty_dict(self):
+        with self.assertRaises(ValueError):
+            validate_transaction_mode(make_tm_cfg(rows_per_statement={}))
+
+    def test_rows_per_statement_rejects_not_a_mapping(self):
+        with self.assertRaises(ValueError):
+            validate_transaction_mode(make_tm_cfg(rows_per_statement=[1, 5]))
 
 
 if __name__ == "__main__":

@@ -286,10 +286,16 @@ def validate_transaction_mode(tm: Dict[str, Any]) -> None:
         mapping with integer 'min'/'max', 0 <= min <= max.
       - hot_op_weights / other_op_weights must be mappings with numeric,
         non-negative INSERT/UPDATE/DELETE weights, at least one > 0.
-      - rows_per_statement (OPTIONAL, UPDATE/DELETE only -- INSERT stays
-        single-row) must, when present, be a mapping with integer
-        'min'/'max', 1 <= min <= max. Absent key defaults to {min: 1, max: 1}
-        -- today's single-row-per-statement behavior, byte-for-byte.
+      - rows_per_statement (OPTIONAL) accepts two shapes:
+          * shared {min, max} (back-compat) -- UPDATE/DELETE only, INSERT
+            stays single-row; integer min/max, 1 <= min <= max.
+          * per-op {INSERT: {min,max}, UPDATE: {...}, DELETE: {...}} -- a
+            non-empty subset of those three keys, each an integer {min,max}
+            with the same 1 <= min <= max rule; an omitted op defaults to
+            single-row. Mixing 'min'/'max' with an op key, or any key
+            outside {min, max, INSERT, UPDATE, DELETE}, is rejected.
+        Absent key defaults to every op single-row -- today's behavior,
+        byte-for-byte.
     Unknown keys print a non-fatal warning (typo guard) rather than raising.
     """
     if not isinstance(tm, dict):
@@ -349,33 +355,73 @@ def _validate_transaction_mode_op_weights(tm: Dict[str, Any], key: str) -> None:
         raise ValueError(f"transaction_mode.{key} must have at least one operation with weight > 0")
 
 
-def _validate_transaction_mode_rows_per_statement(tm: Dict[str, Any]) -> None:
-    """Validate the OPTIONAL 'rows_per_statement' key: a {min, max} range
-    bounding how many rows a single UPDATE/DELETE statement affects (INSERT
-    is never affected -- it stays single-row unconditionally).
+_ROWS_PER_STATEMENT_OPS = ("INSERT", "UPDATE", "DELETE")
 
-    Absent key is valid -- callers treat it as {min: 1, max: 1}, i.e. today's
-    single-row-per-statement behavior, unchanged. When present, same
-    {min,max} shape as the other ranges above, except min must be >= 1 (a
-    statement targeting 0 rows makes no sense here, unlike e.g.
-    savepoint_pairs_per_txn where 0 is a valid pair count).
+
+def _validate_rows_per_statement_range(rng: Any, label: str) -> None:
+    """Shared {min,max} shape check used by both rows_per_statement forms:
+    integer min/max, 1 <= min <= max (min must be >= 1 -- a statement
+    targeting 0 rows makes no sense here, unlike e.g.
+    savepoint_pairs_per_txn where 0 is a valid pair count)."""
+    if not isinstance(rng, dict) or "min" not in rng or "max" not in rng:
+        raise ValueError(f"{label} must be a mapping with 'min'/'max' when present")
+    lo, hi = rng["min"], rng["max"]
+    if isinstance(lo, bool) or isinstance(hi, bool) or not isinstance(lo, int) or not isinstance(hi, int):
+        raise ValueError(f"{label}.min/max must be integers, got min={lo!r}, max={hi!r}")
+    if lo < 1 or hi < lo:
+        raise ValueError(f"{label} must satisfy 1 <= min <= max, got min={lo}, max={hi}")
+
+
+def _validate_transaction_mode_rows_per_statement(tm: Dict[str, Any]) -> None:
+    """Validate the OPTIONAL 'rows_per_statement' key. Two accepted shapes
+    (see resolve_rows_per_statement in transaction_mode.py, which consumes
+    whichever shape passes here):
+
+      1. Shared form (back-compat) -- a {min, max} range applied to
+         UPDATE/DELETE only; INSERT stays single-row regardless.
+      2. Per-op form -- a mapping whose keys are a non-empty subset of
+         {"INSERT", "UPDATE", "DELETE"}, each value its own {min, max}
+         range; any of the three keys that's omitted defaults to
+         single-row for that op alone.
+
+    Absent key is valid -- callers treat it as every op at {min: 1, max: 1},
+    i.e. today's single-row-per-statement behavior, unchanged. A dict that
+    mixes 'min'/'max' with an op key, or contains any key outside
+    {min, max, INSERT, UPDATE, DELETE}, is rejected as ambiguous/typo'd.
     """
     if "rows_per_statement" not in tm:
         return
     rng = tm["rows_per_statement"]
-    if not isinstance(rng, dict) or "min" not in rng or "max" not in rng:
+    if not isinstance(rng, dict):
+        raise ValueError("transaction_mode.rows_per_statement must be a mapping when present")
+
+    has_shared_keys = "min" in rng or "max" in rng
+    has_op_keys = any(op in rng for op in _ROWS_PER_STATEMENT_OPS)
+    unknown_keys = set(rng) - {"min", "max", *_ROWS_PER_STATEMENT_OPS}
+
+    if unknown_keys:
         raise ValueError(
-            "transaction_mode.rows_per_statement must be a mapping with 'min'/'max' when present"
+            f"transaction_mode.rows_per_statement has unknown key(s): {sorted(unknown_keys)!r}"
         )
-    lo, hi = rng["min"], rng["max"]
-    if isinstance(lo, bool) or isinstance(hi, bool) or not isinstance(lo, int) or not isinstance(hi, int):
+    if has_shared_keys and has_op_keys:
         raise ValueError(
-            f"transaction_mode.rows_per_statement.min/max must be integers, got min={lo!r}, max={hi!r}"
+            "transaction_mode.rows_per_statement must not mix 'min'/'max' with "
+            "INSERT/UPDATE/DELETE keys -- use one shape or the other"
         )
-    if lo < 1 or hi < lo:
+    if not has_shared_keys and not has_op_keys:
         raise ValueError(
-            f"transaction_mode.rows_per_statement must satisfy 1 <= min <= max, got min={lo}, max={hi}"
+            "transaction_mode.rows_per_statement must be either a {min,max} mapping or a "
+            "mapping with at least one of INSERT/UPDATE/DELETE"
         )
+
+    if has_shared_keys:
+        _validate_rows_per_statement_range(rng, "transaction_mode.rows_per_statement")
+    else:
+        for op in _ROWS_PER_STATEMENT_OPS:
+            if op in rng:
+                _validate_rows_per_statement_range(
+                    rng[op], f"transaction_mode.rows_per_statement.{op}"
+                )
 
 
 def build_rate_governor(config: Dict[str, Any], **injectables) -> Any:

@@ -166,14 +166,27 @@ generator:
   #   # above, but separate for hot vs. other statements.
   #   hot_op_weights: { INSERT: 3, UPDATE: 2, DELETE: 1 }
   #   other_op_weights: { INSERT: 3, UPDATE: 2, DELETE: 1 }
-  #   # OPTIONAL. Rows a single UPDATE/DELETE statement affects, sampled per
-  #   # statement from [min, max] (INSERT is unaffected -- always single-row).
-  #   # Batches U/D rows onto one round trip instead of one row per round
-  #   # trip, amortizing statement/network latency; each changed ROW still
-  #   # counts as one event (not each statement) for the rate governor.
-  #   # Absent key defaults to { min: 1, max: 1 } -- today's single-row
-  #   # behavior, unchanged.
-  #   rows_per_statement: { min: 1, max: 5 }
+  #   # OPTIONAL. Rows a single statement affects/inserts, sampled per
+  #   # statement from [min, max]. Batches rows onto one round trip instead
+  #   # of one row per round trip, amortizing statement/network latency;
+  #   # each changed/inserted ROW still counts as one event (not each
+  #   # statement) for the rate governor. Absent key means every op is
+  #   # single-row -- today's behavior, unchanged. Two accepted shapes:
+  #   #
+  #   # 1. Shared form (back-compat): a single { min, max } range applied to
+  #   #    UPDATE and DELETE only -- INSERT stays single-row regardless, for
+  #   #    byte-for-byte compatibility with configs written before per-op
+  #   #    batching existed.
+  #   #      rows_per_statement: { min: 1, max: 5 }
+  #   #
+  #   # 2. Per-op form: independent { min, max } ranges for INSERT, UPDATE,
+  #   #    and DELETE. Any of the three keys may be omitted -- an omitted
+  #   #    op defaults to single-row. INSERT batching (multi-row INSERT ...
+  #   #    VALUES (...), (...), ...) is ONLY available in this form.
+  #   #      rows_per_statement: { INSERT: {min: 25, max: 25}, UPDATE: {min: 12, max: 12}, DELETE: {min: 6, max: 6} }
+  #   #
+  #   # The two forms cannot be mixed in one block (e.g. 'min' alongside
+  #   # 'UPDATE') -- pick one.
   # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------

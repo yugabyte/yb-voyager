@@ -37,6 +37,7 @@ from rate_governor import NullGovernor
 from transaction_mode import (
     is_transaction_mode_enabled,
     build_transaction_plan,
+    resolve_rows_per_statement,
     run_transaction,
 )
 
@@ -432,19 +433,20 @@ TRANSACTION_MODE_CFG = GEN.get("transaction_mode")
 TRANSACTION_MODE_ENABLED = is_transaction_mode_enabled(TRANSACTION_MODE_CFG)
 HOT_TABLES: list = []
 OTHER_TABLE_WEIGHTS: dict = {}
-# (min, max) rows a single UPDATE/DELETE statement affects in transaction
-# mode (INSERT is unaffected -- always single-row). Default (1, 1) is
+# Per-op (min, max) rows a single INSERT/UPDATE/DELETE statement
+# affects/inserts in transaction mode. Default is every op at (1, 1) --
 # today's single-row-per-statement behavior; overridden below from the
-# optional 'transaction_mode.rows_per_statement' config key.
-TRANSACTION_MODE_ROWS_PER_STATEMENT = (1, 1)
+# optional 'transaction_mode.rows_per_statement' config key, which accepts
+# either the original shared {min,max} form (UPDATE/DELETE only, INSERT
+# stays single-row) or a per-op {INSERT:{...}, UPDATE:{...}, DELETE:{...}}
+# form -- see resolve_rows_per_statement.
+TRANSACTION_MODE_RPS_BY_OP = resolve_rows_per_statement(None)
 if TRANSACTION_MODE_ENABLED:
     HOT_TABLES = list(TRANSACTION_MODE_CFG["hot_tables"])
     _hot_set = set(HOT_TABLES)
     OTHER_TABLE_WEIGHTS = {t: w for t, w in RESOLVED_TABLE_WEIGHTS.items() if t not in _hot_set}
-    _rows_per_stmt_cfg = TRANSACTION_MODE_CFG.get("rows_per_statement", {"min": 1, "max": 1})
-    TRANSACTION_MODE_ROWS_PER_STATEMENT = (
-        _rows_per_stmt_cfg.get("min", 1),
-        _rows_per_stmt_cfg.get("max", 1),
+    TRANSACTION_MODE_RPS_BY_OP = resolve_rows_per_statement(
+        TRANSACTION_MODE_CFG.get("rows_per_statement")
     )
     print(
         f"Transaction mode enabled: {len(HOT_TABLES)} hot table(s), "
@@ -494,9 +496,9 @@ try:
                 # One multi-statement transaction (BEGIN ... [SAVEPOINT ...
                 # RELEASE SAVEPOINT ...] ... COMMIT) instead of one op -- see
                 # transaction_mode.py. Each committed ROW counts as one event
-                # (a k-row UPDATE/DELETE statement, per rows_per_statement,
-                # contributes k events; INSERT always contributes 1),
-                # matching GOVERNOR.pace below.
+                # (a k-row statement, per rows_per_statement's per-op ranges,
+                # contributes k events for that op), matching GOVERNOR.pace
+                # below.
                 plan = build_transaction_plan(
                     TRANSACTION_MODE_CFG, HOT_TABLES, OTHER_TABLE_WEIGHTS, random,
                 )
@@ -505,7 +507,7 @@ try:
                     COLUMN_OVERRIDES, MIN_COL_SIZE_BYTES,
                     pk_value_fn_for_table=make_pk_value_fn,
                     unique_value_fns_for_table=UNIQUE_VALUE_FNS.get,
-                    rows_per_statement=TRANSACTION_MODE_ROWS_PER_STATEMENT,
+                    rows_per_statement_by_op=TRANSACTION_MODE_RPS_BY_OP,
                 )
             else:
                 # Choose a random table
