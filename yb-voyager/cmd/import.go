@@ -503,15 +503,13 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 
 	cmd.Flags().StringVar(&cdcPartitionKey, "cdc-partition-key", "auto",
 		`Global strategy for how CDC events are hashed across parallel channels. Supported values: auto, pk, table.
-		\tauto: Automatically pick pk or table per table (expression unique-index tables use table).
-		\tpk: Partition CDC events by primary key.
-		\ttable: Partition CDC events by table (all events for a table share one channel).`)
-	cmd.Flags().MarkHidden("cdc-partition-key")
+		auto: Automatically pick pk or table per table (expression unique-index tables use table).
+		pk: Partition CDC events by primary key.
+		table: Partition CDC events by table (all events for a table share one channel).`)
 
 	cmd.Flags().StringVar(&cdcPartitionKeyOverrides, "cdc-partition-key-overrides", "",
 		`Optional per-table CDC partition-key overrides as schema.table:pk|table pairs, separated by ';'.
 		Example: public.orders:table;sales.events:pk. Unlisted tables keep the global --cdc-partition-key.`)
-	cmd.Flags().MarkHidden("cdc-partition-key-overrides")
 
 	cmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
 		"Port for Prometheus metrics server (default: 9101)")
