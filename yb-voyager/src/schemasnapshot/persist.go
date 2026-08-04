@@ -15,6 +15,7 @@
 package schemasnapshot
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -37,7 +38,7 @@ var (
 // SaveSnapshot persists a fully-populated SchemaSnapshot (header + schema content) to the
 // metadata database. The header must have a non-empty Label. Returns the derived
 // name "{label}_{second-precision-timestamp}" on success.
-func SaveSnapshot(mdb *metadb.MetaDB, snap *SchemaSnapshot) (string, error) {
+func SaveSnapshot(ctx context.Context, mdb *metadb.MetaDB, snap *SchemaSnapshot) (string, error) {
 	if snap.Header.Label == "" {
 		return "", goerrors.Errorf("schemasnapshot: snapshot has no label; cannot persist")
 	}
@@ -65,7 +66,7 @@ func SaveSnapshot(mdb *metadb.MetaDB, snap *SchemaSnapshot) (string, error) {
 		SnapshotJSON:    sql.NullString{String: string(data), Valid: true},
 	}
 
-	if err := mdb.InsertSchemaSnapshot(row); err != nil {
+	if err := mdb.InsertSchemaSnapshot(ctx, row); err != nil {
 		return "", err
 	}
 	return name, nil
@@ -75,7 +76,7 @@ func SaveSnapshot(mdb *metadb.MetaDB, snap *SchemaSnapshot) (string, error) {
 // attempt fails mid-process but the lifecycle moment still needs a timeline marker.
 // h.Side defaults to SideSource if empty. An empty DatabaseVersion is accepted.
 // Returns the derived name on success.
-func SavePlaceholder(mdb *metadb.MetaDB, h SnapshotHeader) (string, error) {
+func SavePlaceholder(ctx context.Context, mdb *metadb.MetaDB, h SnapshotHeader) (string, error) {
 	if h.Label == "" {
 		return "", goerrors.Errorf("schemasnapshot: placeholder has no label; cannot persist")
 	}
@@ -97,7 +98,7 @@ func SavePlaceholder(mdb *metadb.MetaDB, h SnapshotHeader) (string, error) {
 		SnapshotJSON:    sql.NullString{Valid: false},
 	}
 
-	if err := mdb.InsertSchemaSnapshotPlaceholder(row); err != nil {
+	if err := mdb.InsertSchemaSnapshotPlaceholder(ctx, row); err != nil {
 		return "", err
 	}
 	return name, nil

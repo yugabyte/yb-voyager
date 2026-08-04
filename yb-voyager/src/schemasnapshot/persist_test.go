@@ -17,6 +17,7 @@
 package schemasnapshot
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -90,7 +91,7 @@ func TestSaveSnapshotRoundTrip(t *testing.T) {
 	capturedAt := time.Date(2026, 5, 12, 10, 0, 0, 0, time.UTC)
 	snap := makeSnapshot(capturedAt, LabelExportDataFromSourceExit, ReasonCutover, SideSource)
 
-	name, err := SaveSnapshot(mdb, snap)
+	name, err := SaveSnapshot(context.Background(), mdb, snap)
 	require.NoError(t, err)
 	assert.Equal(t, "export_data_from_source_exit_20260512T100000Z", name)
 
@@ -114,10 +115,10 @@ func TestListSnapshotsOrder(t *testing.T) {
 	t3 := time.Date(2026, 5, 12, 10, 0, 0, 0, time.UTC)
 
 	// Insert in non-chronological order.
-	_, err := SaveSnapshot(mdb, makeSnapshot(t3, LabelExportDataFromSourceExit, ReasonComplete, SideSource))
+	_, err := SaveSnapshot(context.Background(), mdb, makeSnapshot(t3, LabelExportDataFromSourceExit, ReasonComplete, SideSource))
 	require.NoError(t, err)
 
-	_, err = SavePlaceholder(mdb, SnapshotHeader{
+	_, err = SavePlaceholder(context.Background(), mdb, SnapshotHeader{
 		Label:           LabelExportDataFromSourceStart,
 		Reason:          ReasonInitial,
 		Side:            SideSource,
@@ -127,7 +128,7 @@ func TestListSnapshotsOrder(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = SaveSnapshot(mdb, makeSnapshot(t2, LabelExportDataFromSourcePeriodic, "", SideSource))
+	_, err = SaveSnapshot(context.Background(), mdb, makeSnapshot(t2, LabelExportDataFromSourcePeriodic, "", SideSource))
 	require.NoError(t, err)
 
 	list, err := ListSnapshots(mdb)
@@ -180,7 +181,7 @@ func TestLoadPlaceholderReturnsError(t *testing.T) {
 		CapturedAt: capturedAt,
 		Schemas:    []string{"public"},
 	}
-	name, err := SavePlaceholder(mdb, h)
+	name, err := SavePlaceholder(context.Background(), mdb, h)
 	require.NoError(t, err)
 
 	_, err = LoadSnapshotByName(mdb, name)
@@ -194,7 +195,7 @@ func TestLoadMissingNameReturnsNotFound(t *testing.T) {
 
 	// Save one snapshot so the schema_snapshots table exists, then look up a
 	// different name: this exercises the "table present, row absent" path.
-	_, err := SaveSnapshot(mdb, makeSnapshot(time.Date(2026, 5, 12, 10, 0, 0, 0, time.UTC), LabelExportDataFromSourceExit, ReasonCutover, SideSource))
+	_, err := SaveSnapshot(context.Background(), mdb, makeSnapshot(time.Date(2026, 5, 12, 10, 0, 0, 0, time.UTC), LabelExportDataFromSourceExit, ReasonCutover, SideSource))
 	require.NoError(t, err)
 
 	_, err = LoadSnapshotByName(mdb, "no_such_name")
@@ -261,12 +262,12 @@ func TestSaveSnapshotNameCollision(t *testing.T) {
 	capturedAt := time.Date(2026, 5, 12, 10, 0, 0, 0, time.UTC)
 
 	snap1 := makeSnapshot(capturedAt, LabelExportSchema, "", SideSource)
-	_, err := SaveSnapshot(mdb, snap1)
+	_, err := SaveSnapshot(context.Background(), mdb, snap1)
 	require.NoError(t, err)
 
 	// Same label + same second → same derived name → collision.
 	snap2 := makeSnapshot(capturedAt, LabelExportSchema, "", SideSource)
-	_, err = SaveSnapshot(mdb, snap2)
+	_, err = SaveSnapshot(context.Background(), mdb, snap2)
 	require.Error(t, err)
 }
 
@@ -283,7 +284,7 @@ func TestSavePlaceholderEmptyDbVersion(t *testing.T) {
 		CapturedAt: capturedAt,
 		Schemas:    []string{"public", "sales"},
 	}
-	name, err := SavePlaceholder(mdb, h)
+	name, err := SavePlaceholder(context.Background(), mdb, h)
 	require.NoError(t, err)
 	assert.NotEmpty(t, name)
 
@@ -317,7 +318,7 @@ func TestSaveSnapshotEmptySideDefaultsSideToSource(t *testing.T) {
 	}
 	snap := &SchemaSnapshot{Header: h, Content: makeSchema()}
 
-	name, err := SaveSnapshot(mdb, snap)
+	name, err := SaveSnapshot(context.Background(), mdb, snap)
 	require.NoError(t, err)
 	assert.NotEmpty(t, name)
 
@@ -347,7 +348,7 @@ func TestSaveSnapshotEmptyLabelReturnsError(t *testing.T) {
 		Header:  SnapshotHeader{}, // Label intentionally empty
 		Content: makeSchema(),
 	}
-	_, err := SaveSnapshot(mdb, snap)
+	_, err := SaveSnapshot(context.Background(), mdb, snap)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no label")
 }
@@ -359,7 +360,7 @@ func TestSavePlaceholderRecordsRole(t *testing.T) {
 		mdb := newTestMetaDB(t)
 		capturedAt := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
 
-		_, err := SavePlaceholder(mdb, SnapshotHeader{
+		_, err := SavePlaceholder(context.Background(), mdb, SnapshotHeader{
 			Label:      LabelExportSchema,
 			Side:       "target",
 			CapturedAt: capturedAt,
@@ -377,7 +378,7 @@ func TestSavePlaceholderRecordsRole(t *testing.T) {
 		mdb := newTestMetaDB(t)
 		capturedAt := time.Date(2026, 6, 2, 12, 0, 0, 0, time.UTC)
 
-		_, err := SavePlaceholder(mdb, SnapshotHeader{
+		_, err := SavePlaceholder(context.Background(), mdb, SnapshotHeader{
 			Label:      LabelExportSchema,
 			Side:       "", // empty — should default
 			CapturedAt: capturedAt,
