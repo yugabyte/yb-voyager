@@ -392,6 +392,13 @@ func TestYugabyteGetTableToUniqueIndexesMap(t *testing.T) {
 
 		`CREATE UNIQUE INDEX idx_including_unique ON test_schema.mixed_expression_unique_table (email) INCLUDE (code);`,
 
+		`CREATE TABLE test_schema.unique_table_with_include (
+			id SERIAL PRIMARY KEY,
+			email TEXT,
+			code TEXT,
+			UNIQUE (code) INCLUDE (email)
+		);`,
+
 	)
 	defer testYugabyteDBTarget.ExecuteSqls(
 		`DROP SCHEMA test_schema CASCADE;`,
@@ -409,6 +416,7 @@ func TestYugabyteGetTableToUniqueIndexesMap(t *testing.T) {
 		testutils.CreateNameTupleWithTargetName("test_schema.partial_unique_table", "public", YUGABYTEDB),
 		testutils.CreateNameTupleWithTargetName("test_schema.expression_unique_table", "public", YUGABYTEDB),
 		testutils.CreateNameTupleWithTargetName("test_schema.mixed_expression_unique_table", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.unique_table_with_include", "public", YUGABYTEDB),
 	}
 
 	actualIndexes, err := testYugabyteDBTarget.GetTableToUniqueIndexesMap(tablesList)
@@ -452,6 +460,10 @@ func TestYugabyteGetTableToUniqueIndexesMap(t *testing.T) {
 		{Columns: []string{"email"}},
 	})
 
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.unique_table_with_include", "public", YUGABYTEDB), []UniqueIndex{
+		{Columns: []string{"code"}},
+	})
+
 	assert.Equal(t, len(expectedIndexesByTable.Keys()), len(actualIndexes.Keys()), "Expected number of tables to match")
 
 	expectedIndexesByTable.IterKV(func(table sqlname.NameTuple, expectedIndexes []UniqueIndex) (bool, error) {
@@ -460,6 +472,9 @@ func TestYugabyteGetTableToUniqueIndexesMap(t *testing.T) {
 			t.Errorf("Expected table %s not found in unique indexes map", table)
 			return true, nil
 		}
+		t.Logf("table: %s", table)
+		t.Logf("expectedIndexes: %v", expectedIndexes)
+		t.Logf("actualIndexesForTable: %v", actualIndexesForTable)
 		assertEqualUniqueIndexes(t, expectedIndexes, actualIndexesForTable)
 		return true, nil
 	})
