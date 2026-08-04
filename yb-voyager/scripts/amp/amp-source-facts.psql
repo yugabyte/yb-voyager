@@ -1,0 +1,26 @@
+-- Collects everything the AMP assessment needs from the source PostgreSQL in a
+-- single round trip.
+--
+-- Safe on a locked-down managed instance: every pg_settings lookup is wrapped in
+-- coalesce() so a missing parameter yields a parseable value rather than an
+-- empty field that would shift every value after it.
+--
+-- Emits one pipe-separated row (psql -tA). Field order is load-bearing; the
+-- driver script reads it positionally.
+SELECT
+    -- 1..3  capability probe: reading /proc needs BOTH pg_read_server_files AND
+    --       EXECUTE on the specific pg_read_file overload.
+    current_setting('is_superuser'),
+    pg_has_role(current_user, 'pg_read_server_files', 'USAGE')::text,
+    has_function_privilege(current_user, 'pg_read_file(text,bigint,bigint,boolean)', 'EXECUTE')::text,
+
+    -- 4..5  vCPU-derived GUCs, inverted by the driver's `high` tier
+    coalesce((SELECT setting FROM pg_settings WHERE name = 'max_worker_processes'), '0'),
+    coalesce((SELECT setting FROM pg_settings WHERE name = 'max_parallel_workers'), '0'),
+
+    -- 6..10 identity, for the control-plane row columns and TotalDBSize
+    current_database(),
+    current_setting('server_version'),
+    coalesce(host(inet_server_addr())::text, ''),
+    current_setting('port'),
+    pg_database_size(current_database())::text;
