@@ -83,30 +83,48 @@ def presplit_tables_action(stage: Dict[str, Any], ctx: Any) -> None:
         n = int(stage.get("tablets", 6))
         want = {t: n for t in tables}
 
+    # Optional: split EVERY base table (cold ones get this default); and split
+    # secondary indexes too (per-table via index_tablets, cold via
+    # default_index_tablets) so the target comes up with the full production
+    # tablet layout, not just the hot base tables.
+    default_table = stage.get("default_table_tablets")
+    index_tablets = {str(k): int(v) for k, v in (stage.get("index_tablets") or {}).items()}
+    default_index = stage.get("default_index_tablets")
+
     export_dir = ctx.cfg["export_dir"]
     if ctx.test_root and not os.path.isabs(export_dir):
         export_dir = os.path.join(ctx.test_root, export_dir)
     rel = stage.get("schema_file", os.path.join("schema", "tables", "table.sql"))
     path = os.path.join(export_dir, rel)
 
+    def split_before_semi_or_where(body: str, n: int) -> str:
+        # SPLIT INTO must precede a partial index's WHERE clause.
+        b = body[:-1]  # drop trailing ';'
+        w = b.find(" WHERE ")
+        clause = f" SPLIT INTO {n} TABLETS"
+        return (b[:w] + clause + b[w:] + ";") if w != -1 else (b + clause + ";")
+
     with open(path) as f:
         lines = f.readlines()
 
     patched: set = set()
     for i, line in enumerate(lines):
-        for t in [x for x in want if x not in patched]:
-            if re.match(rf'\s*CREATE TABLE\s+(public\.)?{re.escape(t)}\s*\(', line):
-                if "SPLIT INTO" in line:
-                    patched.add(t)
-                    break
-                body = line.rstrip("\n").rstrip()
-                if not body.endswith(";"):
-                    raise ValueError(
-                        f"presplit_tables: CREATE TABLE for {t} is not a single "
-                        f"terminated statement; refusing to patch")
-                lines[i] = body[:-1] + f" SPLIT INTO {want[t]} TABLETS;" + "\n"
+        m = re.match(r'\s*CREATE TABLE\s+(?:public\.)?(\w+)\s*\(', line)
+        if not m:
+            continue
+        t = m.group(1)
+        n = want.get(t, default_table)
+        if n is None or "SPLIT INTO" in line:
+            if t in want:
                 patched.add(t)
-                break
+            continue
+        body = line.rstrip("\n").rstrip()
+        if not body.endswith(";"):
+            raise ValueError(
+                f"presplit_tables: CREATE TABLE for {t} is not a single "
+                f"terminated statement; refusing to patch")
+        lines[i] = split_before_semi_or_where(body, int(n)) + "\n"
+        patched.add(t)
 
     missing = set(want) - patched
     if missing:
@@ -116,6 +134,31 @@ def presplit_tables_action(stage: Dict[str, Any], ctx: Any) -> None:
     with open(path, "w") as f:
         f.writelines(lines)
     H.log(f"presplit_tables: SPLIT INTO applied to {len(patched)} table(s) in {path}")
+
+    # ---- indexes ----
+    if index_tablets or default_index is not None:
+        irel = stage.get("index_file", os.path.join("schema", "tables", "INDEXES_table.sql"))
+        ipath = os.path.join(export_dir, irel)
+        if os.path.exists(ipath):
+            with open(ipath) as f:
+                ilines = f.readlines()
+            n_idx = 0
+            for i, line in enumerate(ilines):
+                m = re.match(r'\s*CREATE\s+(?:UNIQUE\s+)?INDEX\s+\S+\s+ON\s+(?:ONLY\s+)?(?:public\.)?(\w+)\s', line)
+                if not m or "SPLIT INTO" in line:
+                    continue
+                n = index_tablets.get(m.group(1), default_index)
+                if n is None:
+                    continue
+                body = line.rstrip("\n").rstrip()
+                if body.endswith(";"):
+                    ilines[i] = split_before_semi_or_where(body, int(n)) + "\n"
+                    n_idx += 1
+            with open(ipath, "w") as f:
+                f.writelines(ilines)
+            H.log(f"presplit_tables: SPLIT INTO applied to {n_idx} index(es) in {ipath}")
+        else:
+            H.log(f"presplit_tables: index file {ipath} not found; skipping index split")
 
 
 @action("generator_start")
