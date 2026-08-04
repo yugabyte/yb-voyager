@@ -432,6 +432,7 @@ func (pg *TargetPostgreSQL) GetTableToUniqueIndexesMap(tableList []sqlname.NameT
 // (contype 'u'); only primary-key indexes (contype 'p') are excluded.
 // It is used for both PostgreSQL and YugabyteDB targets since YugabyteDB is
 // PG-compatible at the catalog level.
+//Note: this query doesn't include the key columns having expression in it.
 const pgQueryTmplForUniqIndexes = `
 WITH unique_indexes AS (
     SELECT

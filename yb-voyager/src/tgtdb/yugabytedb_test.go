@@ -472,9 +472,6 @@ func TestYugabyteGetTableToUniqueIndexesMap(t *testing.T) {
 			t.Errorf("Expected table %s not found in unique indexes map", table)
 			return true, nil
 		}
-		t.Logf("table: %s", table)
-		t.Logf("expectedIndexes: %v", expectedIndexes)
-		t.Logf("actualIndexesForTable: %v", actualIndexesForTable)
 		assertEqualUniqueIndexes(t, expectedIndexes, actualIndexesForTable)
 		return true, nil
 	})
