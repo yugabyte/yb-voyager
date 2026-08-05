@@ -47,11 +47,18 @@ type BuildParams struct {
 	// Live is the optional live read of the source, appended after the last
 	// stored snapshot. nil if the source was unreachable or the caller chose
 	// to skip it.
-	Live        *SnapshotInput
-	Scope       schemadiff.Scope
-	Tables      []string // comparing.tables (display names); nil => all
-	ObjectTypes []string // comparing.object_types; nil => all
-	GeneratedAt time.Time
+	Live  *SnapshotInput
+	Scope schemadiff.Scope
+	// Tables and ObjectTypes are the EFFECTIVE sets actually compared (display
+	// names), always populated: the whole compared universe when no filter was
+	// given, or the resolved keep-set when one was. The *Filtered flags record
+	// which of the two, so the report can distinguish "all there was" from
+	// "what you asked for". See Comparing.
+	Tables              []string
+	TablesFiltered      bool
+	ObjectTypes         []string
+	ObjectTypesFiltered bool
+	GeneratedAt         time.Time
 }
 
 // BuildReport assembles a Report from p. It performs no I/O: every diff is
@@ -127,7 +134,8 @@ func BuildReport(p BuildParams) Report {
 				NewValue:   d.SideBValue,
 				Window:     window,
 				Phase:      phase,
-				Guidance:   Guidance(d.Type),
+				Impact:     GuidanceFor(d.Type).Impact,
+				Action:     GuidanceFor(d.Type).Action,
 			})
 		}
 		prevIdx = i
@@ -145,9 +153,11 @@ func BuildReport(p BuildParams) Report {
 		Source:      p.Source,
 		Window:      window,
 		Comparing: Comparing{
-			Schemas:     p.Schemas,
-			Tables:      p.Tables,
-			ObjectTypes: p.ObjectTypes,
+			Schemas:             p.Schemas,
+			Tables:              p.Tables,
+			TablesFiltered:      p.TablesFiltered,
+			ObjectTypes:         p.ObjectTypes,
+			ObjectTypesFiltered: p.ObjectTypesFiltered,
 		},
 		Summary: Summary{
 			ChangeCount:  len(diffs),
