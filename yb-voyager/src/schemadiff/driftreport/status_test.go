@@ -24,23 +24,32 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
 )
 
+// TestClassify_MappedTypes pins the severity policy against the design mockup.
+// Severity answers "what does the migration do", not "how alarming is the DDL":
+// an ADDED column can fail import data (recoverable), a DROPPED column cannot
+// (it only leaves the target with an extra column), and dropping or renaming a
+// captured table makes export data unrestartable.
 func TestClassify_MappedTypes(t *testing.T) {
 	cases := map[schemadiff.DiffType]Status{
-		schemadiff.TableDropped:       StatusBreaksRecoverable,
-		schemadiff.ColumnDropped:      StatusBreaksRecoverable,
-		schemadiff.ColumnNameChanged:  StatusBreaksRecoverable,
-		schemadiff.TableNameChanged:   StatusBreaksRecoverable,
-		schemadiff.TableSchemaChanged: StatusBreaksRecoverable,
-		schemadiff.ColumnTypeChanged:  StatusBreaksRecoverable,
+		// export data cannot be restarted afterwards -> restart from scratch.
+		schemadiff.TableDropped:       StatusBreaksUnrecoverable,
+		schemadiff.TableNameChanged:   StatusBreaksUnrecoverable,
+		schemadiff.TableSchemaChanged: StatusBreaksUnrecoverable,
 
+		// import data can fail until the DDL is applied on the target.
+		schemadiff.ColumnAdded:              StatusBreaksRecoverable,
+		schemadiff.ColumnNameChanged:        StatusBreaksRecoverable,
+		schemadiff.ColumnTypeChanged:        StatusBreaksRecoverable,
+		schemadiff.ColumnNullabilityChanged: StatusBreaksRecoverable,
+
+		// Migration unaffected, but source and target diverge.
 		schemadiff.TableAdded:                    StatusPotentialImpact,
-		schemadiff.ColumnAdded:                   StatusPotentialImpact,
-		schemadiff.ColumnNullabilityChanged:      StatusPotentialImpact,
+		schemadiff.ColumnDropped:                 StatusPotentialImpact,
+		schemadiff.ColumnDefaultChanged:          StatusPotentialImpact,
 		schemadiff.TableKindChanged:              StatusPotentialImpact,
 		schemadiff.TablePartitionParentChanged:   StatusPotentialImpact,
 		schemadiff.TablePartitionChildrenChanged: StatusPotentialImpact,
 
-		schemadiff.ColumnDefaultChanged:    StatusAdvisory,
 		schemadiff.TableInheritsChanged:    StatusAdvisory,
 		schemadiff.TableInheritedByChanged: StatusAdvisory,
 	}
