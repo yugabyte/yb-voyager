@@ -1202,11 +1202,6 @@ func importSnapshotData(msr *metadb.MigrationStatusRecord, errorHandler importda
 }
 
 func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorPolicy) {
-	err := updateImportDataStartedAndSomeConfigsInMetaDB()
-	if err != nil {
-		utils.ErrExit("Failed to update import data started in meta DB: %s", err)
-	}
-
 	errorHandler, err := initialiseErrorHandler(errorPolicy)
 	if err != nil {
 		utils.ErrExit("Failed to initialize error policy and error handler: %s", err)
