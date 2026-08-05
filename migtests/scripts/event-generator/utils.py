@@ -474,31 +474,38 @@ def _find_primary_key(
     return None
 
 
-def _find_unique_columns(
+def _find_unique_indexes(
     cursor: Any,
     table_name: str,
     schema_name: Optional[str],
-) -> List[str]:
-    """Return columns covered by a plain single-column UNIQUE index (excluding the PK).
+) -> List[Dict[str, Any]]:
+    """Return UNIQUE indexes on plain columns (excluding the PK), one dict per index:
+    {"columns": [col, ...], "predicate": <partial-index WHERE text, or None>}.
 
-    Restricted to non-partial, non-expression, single-column unique indexes so
-    that forcing a value collision on one of them has an unambiguous meaning.
+    Supports single- and multi-column (composite) unique indexes, and partial
+    unique indexes (predicate is returned so callers can scope row selection
+    to it - a value freed/reused outside the predicate's scope wouldn't
+    actually violate the constraint). Expression indexes are excluded: there's
+    no general way to pick an underlying-column value that reproduces a given
+    expression result on a different row, so a collision can't be forced on
+    one reliably.
     """
     regclass = _qualify_regclass(table_name, schema_name)
     query = """
-        SELECT a.attname
+        SELECT array_agg(a.attname ORDER BY k.ord) AS columns,
+               pg_get_expr(i.indpred, i.indrelid) AS predicate
         FROM pg_index i
         JOIN pg_class c ON c.oid = i.indrelid
-        JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = (i.indkey::smallint[])[1]
+        CROSS JOIN LATERAL unnest(i.indkey::smallint[]) WITH ORDINALITY AS k(attnum, ord)
+        JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = k.attnum
         WHERE c.oid = %s::regclass
           AND i.indisunique
           AND NOT i.indisprimary
-          AND i.indpred IS NULL
-          AND array_length(i.indkey::smallint[], 1) = 1
-          AND (i.indkey::smallint[])[1] > 0
+          AND NOT EXISTS (SELECT 1 FROM unnest(i.indkey::smallint[]) x WHERE x = 0)
+        GROUP BY i.indexrelid, i.indpred, i.indrelid
     """
     cursor.execute(query, (regclass,))
-    return [r[0] for r in cursor.fetchall()]
+    return [{"columns": list(cols), "predicate": predicate} for cols, predicate in cursor.fetchall()]
 
 
 def _build_enum_values(
@@ -533,7 +540,7 @@ def convert_pg_table_description(
     array_types = _build_array_types(cursor, schema_name, table_name, columns)
     primary_key = _find_primary_key(cursor, table_name, schema_name)
     enum_values = _build_enum_values(cursor, table_name, schema_name, column_info)
-    unique_columns = _find_unique_columns(cursor, table_name, schema_name)
+    unique_indexes = _find_unique_indexes(cursor, table_name, schema_name)
 
     result = {
         "columns": columns,
@@ -541,7 +548,7 @@ def convert_pg_table_description(
         "primary_key": primary_key,
         "enum_values": enum_values,
         "bit_info": bit_info,
-        "unique_columns": unique_columns,
+        "unique_indexes": unique_indexes,
     }
 
     return {table_name: result}
@@ -1062,49 +1069,71 @@ def force_conflict_operation(
 ) -> Optional[Dict[str, Any]]:
     """Deliberately force a unique-key value collision across two CDC events.
 
-    Frees a unique (non-PK) column's current value on one existing row via
-    DELETE or UPDATE, then immediately reuses that same value on a different
-    row via INSERT or UPDATE. Because the two rows have different primary
-    keys, the resulting CDC events can land on different parallel apply
-    channels and race - this is what yb-voyager's ConflictDetectionCache
-    (cmd/conflictDetectionCache.go) is designed to detect and serialize.
+    Frees a UNIQUE index's current value (single- or multi-column, optionally
+    partial) on one existing row via DELETE or UPDATE, then immediately
+    reuses that same value on a different row via INSERT or UPDATE. Because
+    the two rows have different primary keys, the resulting CDC events can
+    land on different parallel apply channels and race - this is what
+    yb-voyager's ConflictDetectionCache (cmd/conflictDetectionCache.go) is
+    designed to detect and serialize.
+
+    Expression indexes are not supported (see _find_unique_indexes). For a
+    partial index, row selection is scoped to its predicate throughout, since
+    a value freed/reused outside that scope wouldn't violate the constraint -
+    except for an INSERT-based reuse, where the new row's non-forced columns
+    are generated independently and aren't guaranteed to satisfy the
+    predicate; prefer reuse_via=["UPDATE"] for tables with partial indexes if
+    that matters.
 
     Returns a dict describing what was done (for logging/correlation), or
     None if this table/round didn't support forcing a conflict.
     """
-    unique_columns = table_schemas[table_name].get("unique_columns") or []
+    unique_indexes = table_schemas[table_name].get("unique_indexes") or []
     primary_key = table_schemas[table_name].get("primary_key")
-    if not unique_columns or not primary_key:
+    if not unique_indexes or not primary_key:
         return None
 
     pk_cols = primary_key if isinstance(primary_key, list) else [primary_key]
-    unique_col = random.choice(unique_columns)
+    index = random.choice(unique_indexes)
+    unique_cols = index["columns"]
+    predicate = index.get("predicate")
     free_via = random.choice(free_via_choices or ["DELETE", "UPDATE"])
     reuse_via = random.choice(reuse_via_choices or ["INSERT", "UPDATE"])
 
     pk_select = ", ".join(pk_cols)
     pk_where = " AND ".join(f"{col} = %s" for col in pk_cols)
+    uniq_select = ", ".join(unique_cols)
+    scope_clause = " AND ".join(f"{col} IS NOT NULL" for col in unique_cols)
+    if predicate:
+        scope_clause += f" AND ({predicate})"
 
     cursor.execute(
-        f"SELECT {pk_select}, {unique_col} FROM {table_name} "
-        f"WHERE {unique_col} IS NOT NULL LIMIT 100"
+        f"SELECT {pk_select}, {uniq_select} FROM {table_name} "
+        f"WHERE {scope_clause} LIMIT 100"
     )
     rows = cursor.fetchall()
     if not rows:
         return None
     row = random.choice(rows)
-    source_pk_values = list(row[:-1])
-    conflict_value = row[-1]
+    n_pk = len(pk_cols)
+    source_pk_values = list(row[:n_pk])
+    conflict_values = list(row[n_pk:])
+    forced_values = dict(zip(unique_cols, conflict_values))
+    key = tuple(conflict_values) if len(conflict_values) > 1 else conflict_values[0]
+    label = "+".join(unique_cols)
 
     try:
         if free_via == "DELETE":
             cursor.execute(f"DELETE FROM {table_name} WHERE {pk_where}", source_pk_values)
         else:
-            data_type = table_schemas[table_name]["columns"][unique_col]
-            new_value = generate_random_data(data_type, table_name)
+            new_values = [
+                generate_random_data(table_schemas[table_name]["columns"][col], table_name)
+                for col in unique_cols
+            ]
+            set_clause = ", ".join(f"{col} = %s" for col in unique_cols)
             cursor.execute(
-                f"UPDATE {table_name} SET {unique_col} = %s WHERE {pk_where}",
-                [new_value] + source_pk_values,
+                f"UPDATE {table_name} SET {set_clause} WHERE {pk_where}",
+                new_values + source_pk_values,
             )
         # Deliberately not committed here: the free and reuse statements must
         # land in the same source transaction so they're exported at the same
@@ -1112,7 +1141,7 @@ def force_conflict_operation(
         # separately-committed transactions could straddle an export batch
         # boundary and never actually race. See PR #3675 review discussion.
 
-        fake = faker_for_key(conflict_value)
+        fake = faker_for_key(key)
         if reuse_via == "INSERT":
             columns = ", ".join(table_schemas[table_name]["columns"].keys())
             values_list = build_insert_values(
@@ -1120,16 +1149,22 @@ def force_conflict_operation(
                 table_name,
                 1,
                 column_overrides=column_overrides,
-                forced_values={unique_col: conflict_value},
+                forced_values=forced_values,
                 faker_instance=fake,
             )
             cursor.execute(f"INSERT INTO {table_name} ({columns}) VALUES {values_list}")
         else:
+            # A candidate target must differ from the conflict tuple on at
+            # least one column (else forcing it would be a no-op), and stay
+            # within the partial index's scope so the collision is genuine.
+            mismatch_clause = " OR ".join(f"{col} IS DISTINCT FROM %s" for col in unique_cols)
+            target_where = f"({mismatch_clause}) AND NOT ({pk_where})"
+            if predicate:
+                target_where += f" AND ({predicate})"
             cursor.execute(
                 f"SELECT {pk_select} FROM {table_name} "
-                f"WHERE ({unique_col} IS NULL OR {unique_col} != %s) AND NOT ({pk_where}) "
-                f"ORDER BY random() LIMIT 1",
-                [conflict_value] + source_pk_values,
+                f"WHERE {target_where} ORDER BY random() LIMIT 1",
+                conflict_values + source_pk_values,
             )
             target_row = cursor.fetchone()
             if not target_row:
@@ -1140,9 +1175,9 @@ def force_conflict_operation(
             set_clause, params = build_update_values(
                 table_schemas,
                 table_name,
-                [unique_col],
+                unique_cols,
                 column_overrides=column_overrides,
-                forced_values={unique_col: conflict_value},
+                forced_values=forced_values,
                 faker_instance=fake,
             )
             cursor.execute(
@@ -1152,13 +1187,13 @@ def force_conflict_operation(
         conn.commit()
     except psycopg2.Error as e:
         conn.rollback()
-        print(f"FORCE_CONFLICT failed on '{table_name}.{unique_col}': {e}")
+        print(f"FORCE_CONFLICT failed on '{table_name}.{label}': {e}")
         return None
 
     return {
         "table": table_name,
-        "column": unique_col,
-        "value": conflict_value,
+        "column": label,
+        "value": key,
         "free_via": free_via,
         "reuse_via": reuse_via,
     }
