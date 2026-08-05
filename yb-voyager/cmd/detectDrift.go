@@ -447,10 +447,10 @@ func detectDrift() {
 	}
 	switch len(headers) {
 	case 0:
-		utils.PrintAndLogf("Note: no historical schema snapshots found in this export directory's metadata; " +
+		utils.PrintAndLogfWarning("Note: no historical schema snapshots found in this export directory's metadata; " +
 			"the report will only reflect the live source read (if available), with no drift against history.\n")
 	case 1:
-		utils.PrintAndLogf("Note: only one historical schema snapshot found; drift can only be reported for the " +
+		utils.PrintAndLogfWarning("Note: only one historical schema snapshot found; drift can only be reported for the " +
 			"single interval between it and the live read (if available).\n")
 	}
 
@@ -458,16 +458,16 @@ func detectDrift() {
 	for _, h := range headers {
 		var content *schemasnapshot.SnapshotContent
 		if h.IsPlaceholder {
-			utils.PrintAndLogf("Note: snapshot %q is a placeholder (its capture failed at the time); skipping it in the diff chain.\n", h.Name())
+			utils.PrintAndLogfWarning("Note: snapshot %q is a placeholder (its capture failed at the time); skipping it in the diff chain.\n", h.Name())
 		} else {
 			c, lerr := schemasnapshot.LoadSnapshotByName(metaDB, h.Name())
 			switch {
 			case lerr == nil:
 				content = c
 			case errors.Is(lerr, schemasnapshot.ErrPlaceholderSnapshot), errors.Is(lerr, schemasnapshot.ErrSnapshotNotFound):
-				utils.PrintAndLogf("Note: could not load snapshot %q (%v); skipping it in the diff chain.\n", h.Name(), lerr)
+				utils.PrintAndLogfWarning("Note: could not load snapshot %q (%v); skipping it in the diff chain.\n", h.Name(), lerr)
 			default:
-				utils.PrintAndLogf("Note: error loading snapshot %q (%v); skipping it in the diff chain.\n", h.Name(), lerr)
+				utils.PrintAndLogfWarning("Note: error loading snapshot %q (%v); skipping it in the diff chain.\n", h.Name(), lerr)
 			}
 		}
 		snapshotInputs = append(snapshotInputs, driftreport.SnapshotInput{Header: h, Content: content, Series: h.Label})
@@ -485,18 +485,19 @@ func detectDrift() {
 	// the directly-resolved include patterns, or the complement of the resolved
 	// exclude patterns against the full universe (all candidate tables / all v1
 	// object types). Neither flag set => nil ("all"). ──────────────────────────
-	var candidates []driftTableCandidate
-	if driftTableList != "" || driftExcludeTableList != "" {
-		snapshotContents := make([]*schemasnapshot.SnapshotContent, 0, len(snapshotInputs))
-		for _, si := range snapshotInputs {
-			snapshotContents = append(snapshotContents, si.Content)
-		}
-		var liveContent *schemasnapshot.SnapshotContent
-		if live != nil {
-			liveContent = live.Content
-		}
-		candidates = buildDriftTableCandidates(snapshotContents, liveContent)
+	// The candidate universe is built unconditionally, not just when a filter is
+	// given: besides being the set to subtract an --exclude-table-list from, it IS
+	// the set of tables actually compared, which the report states verbatim. (It is
+	// derived from snapshot content already in memory, so it costs no extra I/O.)
+	snapshotContents := make([]*schemasnapshot.SnapshotContent, 0, len(snapshotInputs))
+	for _, si := range snapshotInputs {
+		snapshotContents = append(snapshotContents, si.Content)
 	}
+	var liveContent *schemasnapshot.SnapshotContent
+	if live != nil {
+		liveContent = live.Content
+	}
+	candidates := buildDriftTableCandidates(snapshotContents, liveContent)
 
 	var includeTables []schemasnapshot.ObjectRef
 	switch {
@@ -548,18 +549,30 @@ func detectDrift() {
 		ObjectTypes: objectTypes,
 	}
 
-	// displayTables/displayObjectTypes feed the report's "Comparing" banner only
-	// -- when only --exclude-table-list is set, displayTables stays nil (the
-	// banner renders "all") rather than enumerating the whole minus-excluded
-	// universe.
-	var displayTables []string
-	if driftTableList != "" && len(includeTables) > 0 {
-		displayTables = lo.Map(includeTables, func(r schemasnapshot.ObjectRef, _ int) string { return r.ForDisplay(source.DBType) })
+	// The report's "Comparing" section states the tables and object types actually
+	// compared, so both lists are ALWAYS populated -- previously they were filled in
+	// only when the matching --*-list flag was given, so an unfiltered run rendered
+	// the self-contradictory "Tables (0) ... all".
+	//
+	// Unfiltered, the effective set is the whole candidate universe (every table
+	// seen across the compared captures and the live read) / every v1 object type.
+	// Filtered, it is the resolved keep-set -- which is what the engine received,
+	// including the complement computed for an --exclude-* form.
+	tablesFiltered := driftTableList != "" || driftExcludeTableList != ""
+	effectiveTables := includeTables
+	if !tablesFiltered {
+		effectiveTables = lo.Map(candidates, func(c driftTableCandidate, _ int) schemasnapshot.ObjectRef { return c.ref })
 	}
-	var displayObjectTypes []string
-	if driftObjectTypeList != "" {
-		displayObjectTypes = utils.CsvStringToSlice(driftObjectTypeList)
+	displayTables := lo.Map(effectiveTables, func(r schemasnapshot.ObjectRef, _ int) string {
+		return r.ForDisplay(source.DBType)
+	})
+
+	objectTypesFiltered := driftObjectTypeList != "" || driftExcludeObjectTypeList != ""
+	effectiveObjectTypes := objectTypes
+	if !objectTypesFiltered {
+		effectiveObjectTypes = allDriftObjectTypes
 	}
+	displayObjectTypes := lo.Map(effectiveObjectTypes, func(t schemadiff.ObjectType, _ int) string { return string(t) })
 
 	report := driftreport.BuildReport(driftreport.BuildParams{
 		Source: driftreport.Source{
@@ -569,13 +582,15 @@ func detectDrift() {
 			Database:        source.DBName,
 			DatabaseVersion: source.DBVersion,
 		},
-		Schemas:     schemas,
-		Snapshots:   snapshotInputs,
-		Live:        live,
-		Scope:       scope,
-		Tables:      displayTables,
-		ObjectTypes: displayObjectTypes,
-		GeneratedAt: time.Now().UTC(),
+		Schemas:             schemas,
+		Snapshots:           snapshotInputs,
+		Live:                live,
+		Scope:               scope,
+		Tables:              displayTables,
+		TablesFiltered:      tablesFiltered,
+		ObjectTypes:         displayObjectTypes,
+		ObjectTypesFiltered: objectTypesFiltered,
+		GeneratedAt:         time.Now().UTC(),
 	})
 
 	writtenPaths, err := writeDriftReports(report, driftOutputFormat)
@@ -601,12 +616,12 @@ func detectDrift() {
 func captureLiveSnapshotForDrift(schemas []string) *driftreport.SnapshotInput {
 	pg, ok := source.DB().(*srcdb.PostgreSQL)
 	if !ok {
-		utils.PrintAndLogf("Note: live schema capture is only supported for PostgreSQL sources; skipping live comparison.\n")
+		utils.PrintAndLogfWarning("Note: live schema capture is only supported for PostgreSQL sources; skipping live comparison.\n")
 		return nil
 	}
 	db := pg.GetDB()
 	if db == nil {
-		utils.PrintAndLogf("Note: no active database handle for live schema capture; skipping live comparison.\n")
+		utils.PrintAndLogfWarning("Note: no active database handle for live schema capture; skipping live comparison.\n")
 		return nil
 	}
 	snap, err := schemasnapshot.Capture(context.Background(), db, schemasnapshot.CaptureParams{
@@ -616,7 +631,7 @@ func captureLiveSnapshotForDrift(schemas []string) *driftreport.SnapshotInput {
 		Label:        schemasnapshot.LabelDetectDrift,
 	})
 	if err != nil {
-		utils.PrintAndLogf("Note: could not capture live schema for comparison: %v; continuing with snapshot-only comparison.\n", err)
+		utils.PrintAndLogfWarning("Note: could not capture live schema for comparison: %v; continuing with snapshot-only comparison.\n", err)
 		return nil
 	}
 	return &driftreport.SnapshotInput{Header: snap.Header, Content: snap.Content, Series: driftreport.SeriesSourceLive}
@@ -665,16 +680,57 @@ func writeDriftReports(report driftreport.Report, formatSpec string) ([]string, 
 // run: the comparison window, how many captures were compared (and whether the
 // live source was among them), the schemas in scope, the total change count,
 // and the paths of the report files just written.
+// Colouring follows the conventions in src/utils/logging.go, as used by export
+// schema and cutover status: PrintAndLogfPhase for the section header, green for
+// a clean result, yellow when there is something to look at, and utils.Path for
+// file paths. The colour is applied only to the console — the log file records
+// the plain message.
 func printDriftSummary(report driftreport.Report, writtenPaths []string) {
-	utils.PrintAndLogf("\nSchema drift comparison window: %s -> %s\n",
+	utils.PrintAndLogfPhase("\nSchema drift summary")
+
+	utils.PrintAndLogf("Comparison window : %s -> %s\n",
 		formatDriftTimestamp(report.Window.From), formatDriftTimestamp(report.Window.To))
 	utils.PrintAndLogf("Snapshots compared: %d (live source comparison: %t)\n",
 		report.Summary.CaptureCount, report.Summary.LiveCompared)
-	utils.PrintAndLogf("Schemas: %s\n", joinOrAllDrift(report.Comparing.Schemas))
-	utils.PrintAndLogf("Changes detected: %d\n", report.Summary.ChangeCount)
-	for _, p := range writtenPaths {
-		fmt.Printf("-- find schema drift report at: %s\n", p)
+	utils.PrintAndLogf("Schemas           : %s\n", joinOrAllDrift(report.Comparing.Schemas))
+	utils.PrintAndLogf("Tables            : %s\n",
+		driftScopeLine(report.Comparing.Tables, report.Comparing.TablesFiltered))
+
+	// The headline number carries the verdict, so colour it like one: green when
+	// the source still matches what was captured, yellow when it does not.
+	if report.Summary.ChangeCount == 0 {
+		utils.PrintAndLogfSuccess("Changes detected  : 0 (no schema drift)\n")
+	} else {
+		utils.PrintAndLogfWarning("Changes detected  : %d\n", report.Summary.ChangeCount)
 	}
+
+	for _, p := range writtenPaths {
+		utils.PrintAndLogf("Refer to the schema drift report: %s\n", utils.Path.Sprint(p))
+	}
+}
+
+// maxDriftScopeNamesInSummary caps how many table names the terminal summary
+// spells out. The full list always lives in the report; a 1000-table schema must
+// not turn one summary line into a wall of text.
+const maxDriftScopeNamesInSummary = 5
+
+// driftScopeLine renders the summary's scope line: a leading count that says
+// whether this is everything there was or the result of a filter, then the names
+// themselves while they still fit.
+func driftScopeLine(names []string, filtered bool) string {
+	if len(names) == 0 {
+		return "none"
+	}
+	head := fmt.Sprintf("all %d", len(names))
+	if filtered {
+		head = fmt.Sprintf("%d (filtered)", len(names))
+	}
+	if len(names) <= maxDriftScopeNamesInSummary {
+		return fmt.Sprintf("%s — %s", head, strings.Join(names, ", "))
+	}
+	return fmt.Sprintf("%s — %s, ... (+%d more; see the report)",
+		head, strings.Join(names[:maxDriftScopeNamesInSummary], ", "),
+		len(names)-maxDriftScopeNamesInSummary)
 }
 
 // formatDriftTimestamp renders t for the terminal summary, matching the "-" for
