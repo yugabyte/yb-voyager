@@ -223,54 +223,73 @@ func TestParseCdcPartitionKeyOverrides(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   string
-		want    map[string]string
+		want    map[string]cdcPartitionKeyOverride
 		wantErr string
 	}{
 		{
 			name:  "empty",
 			input: "",
-			want:  map[string]string{},
+			want:  map[string]cdcPartitionKeyOverride{},
 		},
 		{
 			name:  "whitespace only",
 			input: "   ",
-			want:  map[string]string{},
+			want:  map[string]cdcPartitionKeyOverride{},
 		},
 		{
 			name:  "single pk override",
 			input: "public.orders:pk",
-			want:  map[string]string{"public.orders": "pk"},
+			want:  map[string]cdcPartitionKeyOverride{"public.orders": {Strategy: PARTITION_BY_PK}},
 		},
 		{
 			name:  "multiple overrides with semicolon",
 			input: "public.orders:table;sales.events:pk",
-			want: map[string]string{
-				"public.orders": "table",
-				"sales.events":  "pk",
+			want: map[string]cdcPartitionKeyOverride{
+				"public.orders": {Strategy: PARTITION_BY_TABLE},
+				"sales.events":  {Strategy: PARTITION_BY_PK},
 			},
 		},
 		{
 			name:  "trims whitespace around entries",
 			input: " public.orders : table ; sales.events : pk ",
-			want: map[string]string{
-				"public.orders": "table",
-				"sales.events":  "pk",
+			want: map[string]cdcPartitionKeyOverride{
+				"public.orders": {Strategy: PARTITION_BY_TABLE},
+				"sales.events":  {Strategy: PARTITION_BY_PK},
 			},
 		},
 		{
 			name:  "trailing semicolon ignored",
 			input: "public.orders:pk;",
-			want:  map[string]string{"public.orders": "pk"},
+			want:  map[string]cdcPartitionKeyOverride{"public.orders": {Strategy: PARTITION_BY_PK}},
 		},
 		{
-			name:    "rejects auto strategy",
-			input:   "public.orders:auto",
-			wantErr: "supported values are pk, table",
+			name:  "single custom column",
+			input: "public.orders:customer_id",
+			want: map[string]cdcPartitionKeyOverride{
+				"public.orders": {Strategy: PARTITION_BY_CUSTOM, Columns: []string{"customer_id"}},
+			},
 		},
 		{
-			name:    "rejects custom column list",
-			input:   "public.orders:customer_id,region",
-			wantErr: "supported values are pk, table",
+			name:  "multi custom columns",
+			input: "public.orders:customer_id,region",
+			want: map[string]cdcPartitionKeyOverride{
+				"public.orders": {Strategy: PARTITION_BY_CUSTOM, Columns: []string{"customer_id", "region"}},
+			},
+		},
+		{
+			name:  "custom columns trim inner whitespace and preserve order",
+			input: "public.orders: region , customer_id ",
+			want: map[string]cdcPartitionKeyOverride{
+				"public.orders": {Strategy: PARTITION_BY_CUSTOM, Columns: []string{"region", "customer_id"}},
+			},
+		},
+		{
+			name:  "custom mixed with pk override",
+			input: "public.orders:customer_id;sales.events:pk",
+			want: map[string]cdcPartitionKeyOverride{
+				"public.orders": {Strategy: PARTITION_BY_CUSTOM, Columns: []string{"customer_id"}},
+				"sales.events":  {Strategy: PARTITION_BY_PK},
+			},
 		},
 		{
 			name:    "rejects missing colon",
@@ -283,9 +302,26 @@ func TestParseCdcPartitionKeyOverrides(t *testing.T) {
 			wantErr: "non-empty",
 		},
 		{
-			name:    "rejects duplicate table",
+			name:    "rejects empty column in custom key",
+			input:   "public.orders:customer_id,,region",
+			wantErr: "empty column name",
+		},
+		{
+			name:    "rejects duplicate column in custom key",
+			input:   "public.orders:customer_id,customer_id",
+			wantErr: "duplicate column",
+		},
+		{
+			name:    "rejects duplicate table with conflicting values",
 			input:   "public.orders:pk;public.orders:table",
 			wantErr: "duplicate table",
+		},
+		{
+			name:  "dedups duplicate table with same value",
+			input: "public.orders:customer_id;public.orders:customer_id",
+			want: map[string]cdcPartitionKeyOverride{
+				"public.orders": {Strategy: PARTITION_BY_CUSTOM, Columns: []string{"customer_id"}},
+			},
 		},
 	}
 
@@ -315,6 +351,16 @@ func testCdcPartitionNameTuple(schema, table string) sqlname.NameTuple {
 func strategiesByTableName(m *utils.StructMap[sqlname.NameTuple, string]) map[string]string {
 	out := make(map[string]string)
 	_ = m.IterKV(func(k sqlname.NameTuple, v string) (bool, error) {
+		_, table := k.ForCatalogQuery()
+		out[table] = v
+		return true, nil
+	})
+	return out
+}
+
+func overrideSpecsByTableName(m *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride]) map[string]cdcPartitionKeyOverride {
+	out := make(map[string]cdcPartitionKeyOverride)
+	_ = m.IterKV(func(k sqlname.NameTuple, v cdcPartitionKeyOverride) (bool, error) {
 		_, table := k.ForCatalogQuery()
 		out[table] = v
 		return true, nil
@@ -477,48 +523,55 @@ func TestResolveCdcPartitionKeyOverrides(t *testing.T) {
 
 	t.Run("valid override resolves", func(t *testing.T) {
 		got, err := resolveCdcPartitionKeyOverrides(
-			map[string]string{"test_schema.orders": PARTITION_BY_TABLE}, importList)
+			map[string]cdcPartitionKeyOverride{"test_schema.orders": {Strategy: PARTITION_BY_TABLE}}, importList)
 		require.NoError(t, err)
-		assert.Equal(t, map[string]string{"orders": PARTITION_BY_TABLE}, strategiesByTableName(got))
+		assert.Equal(t, map[string]cdcPartitionKeyOverride{"orders": {Strategy: PARTITION_BY_TABLE}}, overrideSpecsByTableName(got))
+	})
+
+	t.Run("custom override resolves with columns", func(t *testing.T) {
+		got, err := resolveCdcPartitionKeyOverrides(
+			map[string]cdcPartitionKeyOverride{"test_schema.orders": {Strategy: PARTITION_BY_CUSTOM, Columns: []string{"customer_id"}}}, importList)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]cdcPartitionKeyOverride{"orders": {Strategy: PARTITION_BY_CUSTOM, Columns: []string{"customer_id"}}}, overrideSpecsByTableName(got))
 	})
 
 	t.Run("empty overrides returns empty", func(t *testing.T) {
-		got, err := resolveCdcPartitionKeyOverrides(map[string]string{}, importList)
+		got, err := resolveCdcPartitionKeyOverrides(map[string]cdcPartitionKeyOverride{}, importList)
 		require.NoError(t, err)
-		assert.Empty(t, strategiesByTableName(got))
+		assert.Empty(t, overrideSpecsByTableName(got))
 	})
 
 	t.Run("rejects table not found in name registry", func(t *testing.T) {
 		_, err := resolveCdcPartitionKeyOverrides(
-			map[string]string{"test_schema.missing": PARTITION_BY_PK}, importList)
+			map[string]cdcPartitionKeyOverride{"test_schema.missing": {Strategy: PARTITION_BY_PK}}, importList)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found in name registry")
 	})
 
 	t.Run("rejects table not in import table list", func(t *testing.T) {
 		_, err := resolveCdcPartitionKeyOverrides(
-			map[string]string{"test_schema.events": PARTITION_BY_PK},
+			map[string]cdcPartitionKeyOverride{"test_schema.events": {Strategy: PARTITION_BY_PK}},
 			[]sqlname.NameTuple{orders}) // events excluded from import list
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "is not in the import table list")
 	})
 
-	t.Run("rejects conflicting strategies across different spellings", func(t *testing.T) {
-		_, err := resolveCdcPartitionKeyOverrides(map[string]string{
-			"test_schema.orders":     PARTITION_BY_PK,
-			`"test_schema"."orders"`: PARTITION_BY_TABLE,
+	t.Run("rejects conflicting values across different spellings", func(t *testing.T) {
+		_, err := resolveCdcPartitionKeyOverrides(map[string]cdcPartitionKeyOverride{
+			"test_schema.orders":     {Strategy: PARTITION_BY_PK},
+			`"test_schema"."orders"`: {Strategy: PARTITION_BY_TABLE},
 		}, importList)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "specified multiple times with conflicting strategies")
+		assert.Contains(t, err.Error(), "specified multiple times with conflicting values")
 	})
 
-	t.Run("dedups same strategy across different spellings", func(t *testing.T) {
-		got, err := resolveCdcPartitionKeyOverrides(map[string]string{
-			"test_schema.orders": PARTITION_BY_PK,
-			"orders":             PARTITION_BY_PK, // unqualified resolves to default schema
+	t.Run("dedups same value across different spellings", func(t *testing.T) {
+		got, err := resolveCdcPartitionKeyOverrides(map[string]cdcPartitionKeyOverride{
+			"test_schema.orders": {Strategy: PARTITION_BY_PK},
+			"orders":             {Strategy: PARTITION_BY_PK}, // unqualified resolves to default schema
 		}, importList)
 		require.NoError(t, err)
-		assert.Equal(t, map[string]string{"orders": PARTITION_BY_PK}, strategiesByTableName(got))
+		assert.Equal(t, map[string]cdcPartitionKeyOverride{"orders": {Strategy: PARTITION_BY_PK}}, overrideSpecsByTableName(got))
 	})
 }
 
@@ -613,7 +666,9 @@ func mustResolveOverrides(t *testing.T, raw string, tableNames []sqlname.NameTup
 	require.NoError(t, err)
 	resolved, err := resolveCdcPartitionKeyOverrides(parsed, tableNames)
 	require.NoError(t, err)
-	return resolved
+	strategyOverrides, _, err := splitResolvedOverrides(resolved)
+	require.NoError(t, err)
+	return strategyOverrides
 }
 
 // TestValidateCdcPartitionKeyFlags covers the flag-level guardrails in
@@ -793,5 +848,194 @@ func TestValidateCdcPartitionKeyFlags(t *testing.T) {
 		cmd := newCmd()
 		cdcPartitionKey = PARTITION_BY_PK
 		require.NoError(t, validateCdcPartitionKeyFlags(cmd))
+	})
+}
+
+// TestHashEventCustomKey covers PARTITION_BY_CUSTOM routing in hashEvent: events of the
+// same row (insert/update/delete) route to the same channel via the immutable custom key
+// (read from BeforeFields for update/delete, Fields for insert), multi-column ordering is
+// respected, NULLs are handled deterministically, and a missing key column errors.
+func TestHashEventCustomKey(t *testing.T) {
+	sp := func(s string) *string { return &s }
+
+	orders := testCdcPartitionNameTuple("test_schema", "orders")
+	strategyMap := utils.NewStructMap[sqlname.NameTuple, string]()
+	strategyMap.Put(orders, PARTITION_BY_CUSTOM)
+
+	singleColMap := utils.NewStructMap[sqlname.NameTuple, []string]()
+	singleColMap.Put(orders, []string{"customer_id"})
+
+	// insert: key value in Fields (BeforeFields nil)
+	insertEvent := &tgtdb.Event{
+		Vsn: 1, Op: "c", TableNameTup: orders,
+		Key:    map[string]*string{"id": sp("1")},
+		Fields: map[string]*string{"id": sp("1"), "customer_id": sp("C1"), "amount": sp("10")},
+	}
+	// update on the same row: key value only in BeforeFields (immutable key not in Fields)
+	updateEvent := &tgtdb.Event{
+		Vsn: 2, Op: "u", TableNameTup: orders,
+		Key:          map[string]*string{"id": sp("1")},
+		Fields:       map[string]*string{"id": sp("1"), "amount": sp("20")},
+		BeforeFields: map[string]*string{"id": sp("1"), "customer_id": sp("C1"), "amount": sp("10")},
+	}
+	// delete on the same row: Fields carries PK only, BeforeFields has the full row
+	deleteEvent := &tgtdb.Event{
+		Vsn: 3, Op: "d", TableNameTup: orders,
+		Key:          map[string]*string{"id": sp("1")},
+		Fields:       map[string]*string{"id": sp("1")},
+		BeforeFields: map[string]*string{"id": sp("1"), "customer_id": sp("C1"), "amount": sp("10")},
+	}
+
+	insertHash, err := hashEvent(insertEvent, strategyMap, singleColMap)
+	require.NoError(t, err)
+	updateHash, err := hashEvent(updateEvent, strategyMap, singleColMap)
+	require.NoError(t, err)
+	deleteHash, err := hashEvent(deleteEvent, strategyMap, singleColMap)
+	require.NoError(t, err)
+
+	assert.Equal(t, insertHash, updateHash, "same custom key value must route to same channel (insert vs update)")
+	assert.Equal(t, insertHash, deleteHash, "same custom key value must route to same channel (insert vs delete)")
+	assert.GreaterOrEqual(t, insertHash, 0)
+	assert.Less(t, insertHash, NUM_EVENT_CHANNELS)
+
+	t.Run("multi-column order is respected", func(t *testing.T) {
+		multiColMap := utils.NewStructMap[sqlname.NameTuple, []string]()
+		multiColMap.Put(orders, []string{"customer_id", "region"})
+
+		ev := &tgtdb.Event{
+			Vsn: 10, Op: "c", TableNameTup: orders,
+			Fields: map[string]*string{"customer_id": sp("C1"), "region": sp("US")},
+		}
+		h1, err := hashEvent(ev, strategyMap, multiColMap)
+		require.NoError(t, err)
+		// deterministic for the same input
+		h2, err := hashEvent(ev, strategyMap, multiColMap)
+		require.NoError(t, err)
+		assert.Equal(t, h1, h2)
+
+		// reversed column order is a different key ordering; usually a different channel.
+		reversedColMap := utils.NewStructMap[sqlname.NameTuple, []string]()
+		reversedColMap.Put(orders, []string{"region", "customer_id"})
+		hRev, err := hashEvent(ev, strategyMap, reversedColMap)
+		require.NoError(t, err)
+		_ = hRev // no strict inequality assertion to avoid rare hash collisions
+	})
+
+	t.Run("null key value is handled deterministically", func(t *testing.T) {
+		ev := &tgtdb.Event{
+			Vsn: 20, Op: "c", TableNameTup: orders,
+			Fields: map[string]*string{"customer_id": nil, "amount": sp("5")},
+		}
+		h1, err := hashEvent(ev, strategyMap, singleColMap)
+		require.NoError(t, err)
+		h2, err := hashEvent(ev, strategyMap, singleColMap)
+		require.NoError(t, err)
+		assert.Equal(t, h1, h2)
+	})
+
+	t.Run("missing custom key column errors", func(t *testing.T) {
+		ev := &tgtdb.Event{
+			Vsn: 30, Op: "c", TableNameTup: orders,
+			Fields: map[string]*string{"id": sp("1"), "amount": sp("5")}, // no customer_id anywhere
+		}
+		_, err := hashEvent(ev, strategyMap, singleColMap)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "customer_id")
+		assert.Contains(t, err.Error(), "REPLICA IDENTITY FULL")
+	})
+
+	t.Run("missing custom columns map entry errors", func(t *testing.T) {
+		emptyColMap := utils.NewStructMap[sqlname.NameTuple, []string]()
+		_, err := hashEvent(insertEvent, strategyMap, emptyColMap)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "custom partition key columns not found")
+	})
+}
+
+func TestUniqueIndexCoversColumns(t *testing.T) {
+	idx := func(cols ...string) tgtdb.UniqueIndex {
+		return tgtdb.UniqueIndex{IndexName: "idx", Columns: cols}
+	}
+
+	// custom key is a subset of the index columns -> covered
+	assert.True(t, uniqueIndexCoversColumns(idx("payment_id", "seq"), []string{"payment_id"}))
+	// custom key equals the index columns -> covered
+	assert.True(t, uniqueIndexCoversColumns(idx("email"), []string{"email"}))
+	// multi-column custom key fully contained (order-independent) -> covered
+	assert.True(t, uniqueIndexCoversColumns(idx("a", "b", "c"), []string{"b", "a"}))
+
+	// custom key column not present in the index -> not covered
+	assert.False(t, uniqueIndexCoversColumns(idx("email"), []string{"phone"}))
+	// partial overlap: one custom column missing from the index -> not covered
+	assert.False(t, uniqueIndexCoversColumns(idx("a", "b"), []string{"a", "z"}))
+}
+
+func TestPruneUniqueIndexesCoveredByCustomKey(t *testing.T) {
+	orders := testCdcPartitionNameTuple("test_schema", "orders")
+	events := testCdcPartitionNameTuple("test_schema", "events")
+
+	idx := func(name string, cols ...string) tgtdb.UniqueIndex {
+		return tgtdb.UniqueIndex{IndexName: name, Columns: cols}
+	}
+
+	t.Run("nil custom map is a no-op", func(t *testing.T) {
+		tableToUniqueIndexes := utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]()
+		tableToUniqueIndexes.Put(orders, []tgtdb.UniqueIndex{idx("uk_orders", "payment_id")})
+		err := pruneUniqueIndexesCoveredByCustomKey(tableToUniqueIndexes, nil)
+		require.NoError(t, err)
+		got, _ := tableToUniqueIndexes.Get(orders)
+		assert.Len(t, got, 1)
+	})
+
+	t.Run("prunes only covered indexes, leaves others intact", func(t *testing.T) {
+		tableToUniqueIndexes := utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]()
+		// orders: one covered (payment_id ⊆ {payment_id,seq}), one not covered (email only)
+		tableToUniqueIndexes.Put(orders, []tgtdb.UniqueIndex{
+			idx("uk_orders_payment", "payment_id", "seq"),
+			idx("uk_orders_email", "email"),
+		})
+		// events: no custom key configured -> untouched
+		tableToUniqueIndexes.Put(events, []tgtdb.UniqueIndex{idx("uk_events", "event_id")})
+
+		customCols := utils.NewStructMap[sqlname.NameTuple, []string]()
+		customCols.Put(orders, []string{"payment_id"})
+
+		err := pruneUniqueIndexesCoveredByCustomKey(tableToUniqueIndexes, customCols)
+		require.NoError(t, err)
+
+		ordersIdx, _ := tableToUniqueIndexes.Get(orders)
+		require.Len(t, ordersIdx, 1)
+		assert.Equal(t, "uk_orders_email", ordersIdx[0].IndexName)
+
+		eventsIdx, _ := tableToUniqueIndexes.Get(events)
+		assert.Len(t, eventsIdx, 1, "table without a custom key must be untouched")
+	})
+
+	t.Run("all indexes pruned when custom key covers every unique index", func(t *testing.T) {
+		tableToUniqueIndexes := utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]()
+		tableToUniqueIndexes.Put(orders, []tgtdb.UniqueIndex{
+			idx("uk1", "payment_id", "a"),
+			idx("uk2", "payment_id", "b"),
+		})
+		customCols := utils.NewStructMap[sqlname.NameTuple, []string]()
+		customCols.Put(orders, []string{"payment_id"})
+
+		err := pruneUniqueIndexesCoveredByCustomKey(tableToUniqueIndexes, customCols)
+		require.NoError(t, err)
+
+		ordersIdx, _ := tableToUniqueIndexes.Get(orders)
+		assert.Empty(t, ordersIdx, "when every unique index is covered, none should remain (detection effectively off)")
+	})
+
+	t.Run("empty custom columns entry is skipped", func(t *testing.T) {
+		tableToUniqueIndexes := utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]()
+		tableToUniqueIndexes.Put(orders, []tgtdb.UniqueIndex{idx("uk", "payment_id")})
+		customCols := utils.NewStructMap[sqlname.NameTuple, []string]()
+		customCols.Put(orders, []string{})
+
+		err := pruneUniqueIndexesCoveredByCustomKey(tableToUniqueIndexes, customCols)
+		require.NoError(t, err)
+		ordersIdx, _ := tableToUniqueIndexes.Get(orders)
+		assert.Len(t, ordersIdx, 1)
 	})
 }

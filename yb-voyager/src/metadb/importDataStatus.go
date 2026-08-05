@@ -45,6 +45,11 @@ type ImportDataStatusRecord struct {
 		older voyager, or a first run that did not need the expression-UK check).
 	*/
 	CdcExpressionUniqueIndexTables []string `json:"cdcExpressionUniqueIndexTables"`
+	/*
+		per-table custom cdc partition key columns (ForKey table name -> ordered column list),
+		set only for tables whose strategy in TableToCDCPartitioningStrategyMap is "custom".
+	*/
+	TableToCustomPartitionKeyColumns map[string][]string `json:"tableToCustomPartitionKeyColumns"`
 
 	TargetUsePartitionRoot bool `json:"TargetUsePartitionRoot"` // false - use leaf table for partitions, true - use root table for partitions; default is true
 }

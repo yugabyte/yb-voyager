@@ -1831,3 +1831,120 @@ func TestLiveMigrationWithCoveringUniqueKeyIndex(t *testing.T) {
 	err = lm.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
+
+// TestLiveMigrationWithCustomCdcPartitionKey is a basic end-to-end live migration that
+// mixes CDC partition strategies via --cdc-partition-key-overrides: the "orders" table is
+// routed by a custom column (customer_id) while "events" uses the global auto strategy
+// (which resolves to pk). It asserts the persisted per-table strategy + custom-columns
+// maps, then streams snapshot + CDC (custom key column customer_id is kept immutable in
+// the delta) and verifies target data matches source after cutover.
+func TestLiveMigrationWithCustomCdcPartitionKey(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_custom_key",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_custom_key",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.orders (
+				id SERIAL PRIMARY KEY,
+				customer_id TEXT NOT NULL,
+				amount INT
+			);
+			CREATE TABLE test_schema.events (
+				id SERIAL PRIMARY KEY,
+				name TEXT,
+				value INT
+			);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.orders REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.events REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			// customer_id has cardinality 5 (C1..C5); id 1..10
+			`INSERT INTO test_schema.orders (customer_id, amount)
+			 SELECT 'C' || ((i % 5) + 1), i * 10 FROM generate_series(1, 10) i;`,
+			`INSERT INTO test_schema.events (name, value)
+			 SELECT 'evt_' || i, i FROM generate_series(1, 10) i;`,
+		},
+		SourceDeltaSQL: []string{
+			// orders: 5 inserts, 5 updates (amount only - customer_id is immutable), 2 deletes
+			`INSERT INTO test_schema.orders (customer_id, amount)
+			 SELECT 'C' || ((i % 5) + 1), 1000 + i FROM generate_series(11, 15) i;`,
+			`UPDATE test_schema.orders SET amount = amount + 5000 WHERE id BETWEEN 1 AND 5;`,
+			`DELETE FROM test_schema.orders WHERE id BETWEEN 6 AND 7;`,
+			// events: 5 inserts, 5 updates, 2 deletes
+			`INSERT INTO test_schema.events (name, value)
+			 SELECT 'evt_' || i, i FROM generate_series(11, 15) i;`,
+			`UPDATE test_schema.events SET value = value + 5000 WHERE id BETWEEN 1 AND 5;`,
+			`DELETE FROM test_schema.events WHERE id BETWEEN 6 AND 7;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = lm.StartImportData(true, map[string]string{
+		"--cdc-partition-key":           "auto",
+		"--cdc-partition-key-overrides": "test_schema.orders:customer_id",
+	})
+	testutils.FatalIfError(t, err, "failed to start import data")
+	defer lm.StopImportData()
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."orders"`: 10,
+		`"test_schema"."events"`: 10,
+	}, 120)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	// Assert the persisted per-table strategy + custom-columns maps.
+	err = lm.InitMetaDB()
+	testutils.FatalIfError(t, err, "failed to initialize meta db")
+	testMetaDB := lm.GetMetaDB()
+	importDataStatus, err := testMetaDB.GetImportDataStatusRecord()
+	testutils.FatalIfError(t, err, "failed to get import data status record")
+
+	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitioningStrategyMap[`"test_schema"."orders"`],
+		"orders should use the custom partition strategy")
+	assert.Equal(t, cmd.PARTITION_BY_PK, importDataStatus.TableToCDCPartitioningStrategyMap[`"test_schema"."events"`],
+		"events should resolve to pk under auto")
+	assert.Equal(t, []string{"customer_id"}, importDataStatus.TableToCustomPartitionKeyColumns[`"test_schema"."orders"`],
+		"orders custom key columns should be persisted")
+
+	// Stream CDC changes and validate.
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."orders"`: {Inserts: 5, Updates: 5, Deletes: 2},
+		`"test_schema"."events"`: {Inserts: 5, Updates: 5, Deletes: 2},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."orders"`, `"test_schema"."events"`}, "id")
+	testutils.FatalIfError(t, err, "target does not match source after streaming")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
