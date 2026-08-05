@@ -36,6 +36,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ux"
 )
 
 // DRIFT_REPORT_FILE_NAME is the basename (without extension) of the report
@@ -688,25 +689,82 @@ func writeDriftReports(report driftreport.Report, formatSpec string) ([]string, 
 func printDriftSummary(report driftreport.Report, writtenPaths []string) {
 	utils.PrintAndLogfPhase("\nSchema drift summary")
 
-	utils.PrintAndLogf("Comparison window : %s -> %s\n",
-		formatDriftTimestamp(report.Window.From), formatDriftTimestamp(report.Window.To))
-	utils.PrintAndLogf("Snapshots compared: %d (live source comparison: %t)\n",
-		report.Summary.CaptureCount, report.Summary.LiveCompared)
-	utils.PrintAndLogf("Schemas           : %s\n", joinOrAllDrift(report.Comparing.Schemas))
-	utils.PrintAndLogf("Tables            : %s\n",
+	printDriftSummaryField("Comparison window", utils.PrintAndLogf,
+		"%s -> %s", formatDriftTimestamp(report.Window.From), formatDriftTimestamp(report.Window.To))
+	printDriftSummaryField("Snapshots compared", utils.PrintAndLogf,
+		"%d (live source comparison: %t)", report.Summary.CaptureCount, report.Summary.LiveCompared)
+	printDriftSummaryField("Schemas", utils.PrintAndLogf, "%s", joinOrAllDrift(report.Comparing.Schemas))
+	printDriftSummaryField("Tables", utils.PrintAndLogf, "%s",
 		driftScopeLine(report.Comparing.Tables, report.Comparing.TablesFiltered))
 
 	// The headline number carries the verdict, so colour it like one: green when
 	// the source still matches what was captured, yellow when it does not.
 	if report.Summary.ChangeCount == 0 {
-		utils.PrintAndLogfSuccess("Changes detected  : 0 (no schema drift)\n")
+		printDriftSummaryField("Changes detected", utils.PrintAndLogfSuccess, "0 (no schema drift)")
 	} else {
-		utils.PrintAndLogfWarning("Changes detected  : %d\n", report.Summary.ChangeCount)
+		printDriftSummaryField("Changes detected", utils.PrintAndLogfWarning, "%d", report.Summary.ChangeCount)
 	}
 
-	for _, p := range writtenPaths {
-		utils.PrintAndLogf("Refer to the schema drift report: %s\n", utils.Path.Sprint(p))
+	// Report paths get their own indented lines rather than a label column. A path
+	// is one unbreakable token, so starting it 20 columns in all but guarantees an
+	// ugly wrap on a standard-width terminal; from a 2-space indent it has the whole
+	// line to fit in.
+	if len(writtenPaths) > 0 {
+		utils.PrintAndLogf("Reports:\n")
+		for _, p := range writtenPaths {
+			utils.PrintAndLogf("  %s\n", utils.Path.Sprint(p))
+		}
 	}
+}
+
+// driftSummaryLabelWidth is the column the summary's values start in, wide enough
+// for the longest label ("Snapshots compared").
+const driftSummaryLabelWidth = 18
+
+// printDriftSummaryField prints one "label : value" row of the summary so the whole
+// thing reads as a single block: a value too long for the terminal wraps with a
+// HANGING INDENT to the value column instead of restarting at the left margin,
+// which would break the alignment the block is made of.
+//
+// printFn is the utils logging helper used for every line of the row, so a row can
+// carry its own colour (green/yellow verdict) while the value stays plain text —
+// colouring the value itself would make its escape bytes count towards the wrap
+// width. A value with no spaces to break on (a report path) is left intact on one
+// line rather than split mid-token.
+func printDriftSummaryField(label string, printFn func(string, ...interface{}), format string, args ...interface{}) {
+	indent := strings.Repeat(" ", driftSummaryLabelWidth+2) // label column + ": "
+	lines := wrapDriftValue(fmt.Sprintf(format, args...), ux.GetTerminalWidth()-len(indent))
+	if len(lines) == 0 {
+		lines = []string{""}
+	}
+	printFn("%-*s: %s\n", driftSummaryLabelWidth, label, lines[0])
+	for _, l := range lines[1:] {
+		printFn("%s%s\n", indent, l)
+	}
+}
+
+// wrapDriftValue greedily wraps s to width on whitespace. A single word longer
+// than width is emitted whole on its own line: breaking a qualified table name or
+// a filesystem path mid-token would make it unusable to copy.
+func wrapDriftValue(s string, width int) []string {
+	words := strings.Fields(s)
+	if len(words) == 0 {
+		return nil
+	}
+	if width <= 0 {
+		return []string{strings.Join(words, " ")}
+	}
+	var lines []string
+	cur := words[0]
+	for _, w := range words[1:] {
+		if len(cur)+1+len(w) <= width {
+			cur += " " + w
+			continue
+		}
+		lines = append(lines, cur)
+		cur = w
+	}
+	return append(lines, cur)
 }
 
 // maxDriftScopeNamesInSummary caps how many table names the terminal summary
