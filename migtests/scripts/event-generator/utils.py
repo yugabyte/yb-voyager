@@ -1106,7 +1106,11 @@ def force_conflict_operation(
                 f"UPDATE {table_name} SET {unique_col} = %s WHERE {pk_where}",
                 [new_value] + source_pk_values,
             )
-        conn.commit()
+        # Deliberately not committed here: the free and reuse statements must
+        # land in the same source transaction so they're exported at the same
+        # time and only then raced against each other in parallel import - two
+        # separately-committed transactions could straddle an export batch
+        # boundary and never actually race. See PR #3675 review discussion.
 
         fake = faker_for_key(conflict_value)
         if reuse_via == "INSERT":
@@ -1129,7 +1133,9 @@ def force_conflict_operation(
             )
             target_row = cursor.fetchone()
             if not target_row:
-                conn.commit()
+                # No reuse target: roll back the free too, so an incomplete
+                # round doesn't leave a stray free-only mutation committed.
+                conn.rollback()
                 return None
             set_clause, params = build_update_values(
                 table_schemas,
