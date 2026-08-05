@@ -716,8 +716,15 @@ def build_bit_cast_expr(
     table_schemas: Dict[str, Dict[str, Any]],
     table_name: str,
     column_name: str,
+    faker_instance: Optional[Faker] = None,
 ) -> str:
-    """Construct a CAST expression for a valid bit/varbit literal for the column."""
+    """Construct a CAST expression for a valid bit/varbit literal for the column.
+
+    faker_instance, when given, is used as the RNG source instead of the
+    module-level Faker, so the generated bit string is reproducible from a
+    seed (see faker_for_key) just like the other column types.
+    """
+    rng = (faker_instance or _fake).random
     info = fetch_bit_info_for_column(table_schemas, table_name, column_name)
     # Default safe lengths if metadata missing
     is_varying = False
@@ -728,8 +735,8 @@ def build_bit_cast_expr(
     # Determine length to generate
     if is_varying:
         # Choose length within max if specified, else up to 64
-        chosen_len = random.randint(1, max_len if isinstance(max_len, int) and max_len > 0 else 64)
-        bit_str = ''.join(random.choice(['0', '1']) for _ in range(chosen_len))
+        chosen_len = rng.randint(1, max_len if isinstance(max_len, int) and max_len > 0 else 64)
+        bit_str = ''.join(rng.choice(['0', '1']) for _ in range(chosen_len))
         if isinstance(max_len, int) and max_len > 0:
             return f"CAST('{bit_str}' AS varbit({max_len}))"
         else:
@@ -737,7 +744,7 @@ def build_bit_cast_expr(
     else:
         # Fixed bit(n); if no length, default to 8
         fixed_len = max_len if isinstance(max_len, int) and max_len > 0 else 8
-        bit_str = ''.join(random.choice(['0', '1']) for _ in range(fixed_len))
+        bit_str = ''.join(rng.choice(['0', '1']) for _ in range(fixed_len))
         return f"CAST('{bit_str}' AS bit({fixed_len}))"
 
 
@@ -934,7 +941,7 @@ def build_insert_values(
                 value = generate_override_value(override_spec)
                 values.append(f"'{value}'" if value is not None else "NULL")
             elif "bit" in data_type.lower():
-                values.append(build_bit_cast_expr(table_schemas, table_name, column_name))
+                values.append(build_bit_cast_expr(table_schemas, table_name, column_name, faker_instance))
             elif data_type != "USER-DEFINED" and data_type != "ARRAY":
                 value = generate_random_data(data_type, table_name, None, None, faker_instance, min_col_size_bytes)
                 if "bytea" in data_type and isinstance(value, bytes):
@@ -1002,7 +1009,7 @@ def build_update_values(
                 set_parts.append(f"{col} = %s")
                 params.append(value)
         elif "bit" in data_type.lower():
-            expr = build_bit_cast_expr(table_schemas, table_name, col)
+            expr = build_bit_cast_expr(table_schemas, table_name, col, faker_instance)
             set_parts.append(f"{col} = {expr}")
         else:
             if data_type == "USER-DEFINED":
