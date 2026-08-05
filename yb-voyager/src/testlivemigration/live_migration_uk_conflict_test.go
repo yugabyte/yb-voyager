@@ -1886,6 +1886,33 @@ func TestLiveMigrationWithCustomCdcPartitionKey(t *testing.T) {
 			 SELECT 'evt_' || i, i FROM generate_series(11, 15) i;`,
 			`UPDATE test_schema.events SET value = value + 5000 WHERE id BETWEEN 1 AND 5;`,
 			`DELETE FROM test_schema.events WHERE id BETWEEN 6 AND 7;`,
+			// High-churn loop (500 iterations) to stress the custom-key routing and generate
+			// heavy same-key traffic/conflicts. Each iteration touches one order and one event
+			// with an insert -> update -> delete on the same row. customer_id is chosen from the
+			// low-cardinality set C1..C5 and is NEVER changed by the update (custom key must stay
+			// immutable), so all three events for an order share the same customer_id and route to
+			// the same channel where queue order serializes them. Explicit ids (1000+i) are used so
+			// each iteration's events target a single row deterministically.
+			// Net effect on both tables is zero rows added; per table this adds exactly
+			// 500 inserts, 500 updates and 500 deletes.
+			`DO $$
+			DECLARE
+				i INTEGER;
+			BEGIN
+				FOR i IN 1..500 LOOP
+					-- orders: insert -> update amount (customer_id immutable) -> delete, same row
+					INSERT INTO test_schema.orders (id, customer_id, amount)
+						VALUES (1000 + i, 'C' || ((i % 5) + 1), i);
+					UPDATE test_schema.orders SET amount = amount + 1 WHERE id = 1000 + i;
+					DELETE FROM test_schema.orders WHERE id = 1000 + i;
+
+					-- events: insert -> update value -> delete, same row (pk-routed)
+					INSERT INTO test_schema.events (id, name, value)
+						VALUES (1000 + i, 'evt_' || i, i);
+					UPDATE test_schema.events SET value = value + 1 WHERE id = 1000 + i;
+					DELETE FROM test_schema.events WHERE id = 1000 + i;
+				END LOOP;
+			END $$;`,
 		},
 		CleanupSQL: []string{
 			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
@@ -1933,10 +1960,12 @@ func TestLiveMigrationWithCustomCdcPartitionKey(t *testing.T) {
 	err = lm.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
+	// Base delta (5 ins / 5 upd / 2 del per table) plus the 500-iteration churn loop
+	// (500 ins / 500 upd / 500 del per table) => 505 / 505 / 502 per table.
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`"test_schema"."orders"`: {Inserts: 5, Updates: 5, Deletes: 2},
-		`"test_schema"."events"`: {Inserts: 5, Updates: 5, Deletes: 2},
-	}, 120, 5)
+		`"test_schema"."orders"`: {Inserts: 505, Updates: 505, Deletes: 502},
+		`"test_schema"."events"`: {Inserts: 505, Updates: 505, Deletes: 502},
+	}, 180, 5)
 	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."orders"`, `"test_schema"."events"`}, "id")
