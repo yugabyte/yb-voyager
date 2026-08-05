@@ -220,7 +220,8 @@
           {{if .HasChange}}<div class="val"><span class="chiplet v-old">{{.ValOld}}</span><span class="arrow">→</span><span class="chiplet v-new">{{.ValNew}}</span></div>{{end}}
           <div class="action"><span class="action-h">Impact &amp; action</span>
             <p class="action-status">{{.ActionStatus}}</p>
-            {{if .Guidance}}<p class="action-t">{{.Guidance}}</p>{{end}}</div>
+            {{if .Impact}}<p class="action-t">{{.Impact}}</p>{{end}}
+            {{if .Action}}<p class="action-t">{{.Action}}</p>{{end}}</div>
         </details>
         {{end}}
       </div>

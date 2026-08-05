@@ -63,7 +63,8 @@ func fixtureReport() Report {
 				Status:     string(StatusPotentialImpact),
 				Window:     Window{From: from, To: to},
 				Phase:      "export data: running",
-				Guidance:   Guidance(schemadiff.TableAdded),
+				Impact:     GuidanceFor(schemadiff.TableAdded).Impact,
+				Action:     GuidanceFor(schemadiff.TableAdded).Action,
 			},
 			{
 				Seq:        2,
@@ -78,7 +79,8 @@ func fixtureReport() Report {
 				NewValue:   "numeric",
 				Window:     Window{From: from, To: to},
 				Phase:      "export data: running",
-				Guidance:   Guidance(schemadiff.ColumnTypeChanged),
+				Impact:     GuidanceFor(schemadiff.ColumnTypeChanged).Impact,
+				Action:     GuidanceFor(schemadiff.ColumnTypeChanged).Action,
 			},
 		},
 		Captures: []Capture{
