@@ -538,6 +538,20 @@ import-data-to-target:
   ### Default - true
   # use-partition-root: true
 
+  ### Global strategy for how CDC events are hashed across parallel channels. Supported values: auto, pk, table.
+  ### auto: Automatically pick pk or table per table (expression unique-index tables use table).
+  ### pk: Partition CDC events by primary key.
+  ### table: Partition CDC events by table (all events for a table share one channel).
+  ### Accepted values: auto, pk, table
+  ### Default - auto
+  # cdc-partition-key: auto
+
+  ### Optional per-table CDC partition-key overrides as schema.table:pk|table pairs, separated by ';'.
+  ### Example: public.orders:table;sales.events:pk. Unlisted tables keep the global --cdc-partition-key.
+  ### Accepted values: schema.table:pk|table pairs, separated by ';'
+  ### Default - empty
+  # cdc-partition-key-overrides: public.orders:table;sales.events:pk
+
 # ---------------------------------------------------------
 # Import data to source-replica
 # ---------------------------------------------------------
