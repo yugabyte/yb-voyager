@@ -33,11 +33,11 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -494,10 +494,15 @@ func reportStreamingProgress(ctx context.Context) {
 
 func calculateStreamingProgress(ctx context.Context) {
 	var err error
+	var lastRecordedEventCount int64
 	for {
 		totalEventCount, totalEventCountRun, err = metaDB.GetTotalExportedEventsByExporterRole(exporterRole, runId)
 		if err != nil {
 			utils.ErrExit("failed to get total exported count from metadb: %w", err)
+		}
+		if delta := totalEventCountRun - lastRecordedEventCount; delta > 0 {
+			metrics.Get().RecordExportCDCEvents(exporterRole, delta)
+			lastRecordedEventCount = totalEventCountRun
 		}
 
 		throughputInLast3Min, err = metaDB.GetExportedEventsRateInLastNMinutes(runId, 3)
@@ -512,12 +517,7 @@ func calculateStreamingProgress(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			if disablePb && callhome.SendDiagnostics {
-				// to not do unneccessary frequent calls to metadb in case we only require this info for callhome
-				time.Sleep(12 * time.Minute)
-			} else {
-				time.Sleep(10 * time.Second)
-			}
+			time.Sleep(10 * time.Second)
 		}
 	}
 
@@ -592,9 +592,7 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 		}
 
 		utils.PrintAndLogfInfo("streaming changes to a local queue file...")
-		if !disablePb || callhome.SendDiagnostics {
-			go calculateStreamingProgress(ctx)
-		}
+		go calculateStreamingProgress(ctx)
 		if !disablePb {
 			go reportStreamingProgress(ctx)
 		}

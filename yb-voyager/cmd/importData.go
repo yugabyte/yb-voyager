@@ -46,6 +46,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/monitor"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -203,6 +204,10 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 
 	reportProgressInBytes = false
 	tconf.ImportMode = true
+
+	if err := setupImportDataObservability(); err != nil {
+		utils.ErrExit("Failed to setup import data observability: %s", err)
+	}
 
 	err := setImportTypeAndIdentityColumnMetaDBKeyForImporterRole(importerRole)
 	if err != nil {
@@ -912,12 +917,8 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 }
 
 func setupImportDataObservability() error {
-	if perfProfile {
-		// Start Prometheus metrics server
-		err := importdata.StartPrometheusMetricsServer(importerRole, migrationUUID, prometheusMetricsPort)
-		if err != nil {
-			return goerrors.Errorf("Failed to start Prometheus metrics server: %v", err)
-		}
+	if err := startMetricsServer(importerRole, migrationUUID); err != nil {
+		return goerrors.Errorf("Failed to start metrics server: %v", err)
 	}
 	if callhome.SendDiagnostics {
 		callhomeMetricsCollector = callhome.NewImportDataMetricsCollector()
@@ -964,7 +965,7 @@ func updateImportDataStartedAndSomeConfigsInMetaDB() error {
 
 func initialiseErrorHandler(errorPolicy importdata.ErrorPolicy) (importdata.ImportDataErrorHandler, error) {
 	exportDirDataDir := filepath.Join(exportDir, "data")
-	errorHandler, err := importdata.GetImportDataErrorHandler(errorPolicy, exportDirDataDir)
+	errorHandler, err := importdata.GetImportDataErrorHandler(errorPolicy, exportDirDataDir, importerRole)
 	if err != nil {
 		return nil, goerrors.Errorf("Failed to initialize error handler: %v", err)
 	}
@@ -1146,8 +1147,13 @@ func importSnapshotData(msr *metadb.MigrationStatusRecord, errorHandler importda
 	if err != nil {
 		utils.ErrExit("Failed to get max parallel connections: %s", err)
 	}
+	if !tconf.AdaptiveParallelismMode.IsEnabled() {
+		// Adaptive parallelism emits this gauge itself once it starts polling;
+		// for a fixed --parallel-jobs run there's no such poller, so emit once here.
+		metrics.Get().SetImportParallelism(importerRole, maxParallelConns)
+	}
+	importDataAllTableMetrics := createInitialImportDataTableMetrics(importFileTasks, pendingTasks)
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
-		importDataAllTableMetrics := createInitialImportDataTableMetrics(pendingTasks)
 		controlPlane.UpdateImportedRowCount(importDataAllTableMetrics)
 	}
 
@@ -1196,11 +1202,6 @@ func importSnapshotData(msr *metadb.MigrationStatusRecord, errorHandler importda
 }
 
 func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorPolicy) {
-	err := setupImportDataObservability()
-	if err != nil {
-		utils.ErrExit("Failed to setup import data observability: %s", err)
-	}
-
 	errorHandler, err := initialiseErrorHandler(errorPolicy)
 	if err != nil {
 		utils.ErrExit("Failed to initialize error policy and error handler: %s", err)
@@ -2366,11 +2367,22 @@ func createSnapshotImportCompletedEvent() cp.SnapshotImportCompletedEvent {
 	return result
 }
 
-func createInitialImportDataTableMetrics(tasks []*ImportFileTask) []*cp.UpdateImportedRowCountEvent {
+// createInitialImportDataTableMetrics sets table-scope metrics (totals, expected
+// rows, pre-registered per-table series) from allTasks so they stay accurate on
+// resume, when pendingTasks alone would under-report tables already completed in
+// a prior run. The control-plane event list is still built from pendingTasks only
+// (unchanged behaviour: the control plane only expects updates for tables being
+// worked on in this run).
+func createInitialImportDataTableMetrics(allTasks, pendingTasks []*ImportFileTask) []*cp.UpdateImportedRowCountEvent {
+	metrics.Get().SetImportSnapshotTablesTotal(importerRole, len(allTasks))
+	for _, task := range allTasks {
+		metrics.Get().SetImportSnapshotTableExpectedRows(importerRole, task.TableNameTup, task.RowCount)
+		metrics.Get().InitImportSnapshotTable(importerRole, task.TableNameTup)
+	}
+
 	result := []*cp.UpdateImportedRowCountEvent{}
-	for _, task := range tasks {
-		var schemaName, tableName string
-		schemaName, tableName = task.TableNameTup.ForKeyTableSchema()
+	for _, task := range pendingTasks {
+		schemaName, tableName := task.TableNameTup.ForKeyTableSchema()
 		tableMetrics := cp.UpdateImportedRowCountEvent{
 			BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
 				BaseEvent: cp.BaseEvent{

@@ -1038,6 +1038,14 @@ func (batch *Batch) GetTableName() sqlname.NameTuple {
 	return batch.TableNameTup
 }
 
+func (batch *Batch) GetRecordCount() int64 {
+	return batch.RecordCount
+}
+
+func (batch *Batch) GetByteCount() int64 {
+	return batch.ByteCount
+}
+
 func (batch *Batch) getInProgressFilePath() string {
 	return batch.FilePath[0:len(batch.FilePath)-1] + "P" // *.C -> *.P
 }

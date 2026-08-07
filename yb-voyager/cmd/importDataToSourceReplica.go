@@ -74,6 +74,9 @@ func init() {
 	importDataToSourceReplicaCmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
 		"Port for Prometheus metrics server (default: 9103)")
 	importDataToSourceReplicaCmd.Flags().MarkHidden("prometheus-metrics-port")
+
+	importDataToSourceReplicaCmd.Flags().IntVar(&metricsPort, "metrics-port", 0,
+		"Port to expose Prometheus metrics on (0 disables). Serves GET /metrics.")
 }
 
 func registerStartCleanFlags(cmd *cobra.Command) {

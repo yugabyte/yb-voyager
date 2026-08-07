@@ -33,6 +33,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -110,6 +111,10 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchProd
 	progressReporter.ImportFileStarted(task, totalProgressAmount)
 	currentProgressAmount := getImportedProgressAmount(task, state)
 	progressReporter.AddProgressAmount(task, currentProgressAmount)
+
+	if currentProgressAmount == 0 {
+		metrics.Get().SetImportSnapshotTableStarted(importerRole, task.TableNameTup)
+	}
 
 	resumeInfoShown := false
 	if currentProgressAmount > 0 {
@@ -202,7 +207,7 @@ func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 		fti.workerPool.Go(importBatchFunc)
 	}
 
-	importdata.RecordPrometheusSnapshotBatchSubmitted(fti.task.TableNameTup, importerRole)
+	metrics.Get().RecordImportSnapshotBatchSubmitted(importerRole, fti.task.TableNameTup)
 
 	log.Infof("Queued batch: %s", spew.Sdump(batch))
 	return nil
@@ -331,7 +336,8 @@ func (fti *FileTaskImporter) updateProgressForCompletedBatch(batch *Batch) {
 		fti.callhomeMetricsCollector.IncrementSnapshotProgress(batch.RecordCount, batch.ByteCount)
 	}
 
-	importdata.RecordPrometheusSnapshotBatchIngested(fti.task.TableNameTup, importerRole, batch.RecordCount, batch.ByteCount)
+	metrics.Get().RecordImportSnapshotBatchIngested(importerRole, fti.task.TableNameTup, batch.RecordCount, batch.ByteCount)
+	metrics.Get().ObserveImportSnapshotBatchSize(importerRole, fti.task.TableNameTup, batch.RecordCount, batch.ByteCount)
 }
 
 func (fti *FileTaskImporter) PostProcess() {
@@ -340,6 +346,8 @@ func (fti *FileTaskImporter) PostProcess() {
 	}
 
 	fti.updateProgressInControlPlane(ROW_UPDATE_STATUS_COMPLETED)
+
+	metrics.Get().SetImportSnapshotTableCompleted(importerRole, fti.task.TableNameTup)
 
 	fti.progressReporter.FileImportDone(fti.task) // Remove the progress-bar for the file.\
 }

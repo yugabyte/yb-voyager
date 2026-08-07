@@ -354,7 +354,7 @@ func getImportDataErrorHandlerUsed() (importdata.ImportDataErrorHandler, error) 
 		return nil, fmt.Errorf("error while initializing error policy: %w", err)
 	}
 	dataDir := filepath.Join(exportDir, "data")
-	return importdata.GetImportDataErrorHandler(errorPolicyUsed, dataDir)
+	return importdata.GetImportDataErrorHandler(errorPolicyUsed, dataDir, importerRole)
 }
 
 /*
@@ -377,5 +377,5 @@ func getImportDataFileErrorHandlerUsed() (importdata.ImportDataErrorHandler, err
 		return nil, fmt.Errorf("error while initializing error policy: %w", err)
 	}
 	dataDir := filepath.Join(exportDir, "data")
-	return importdata.GetImportDataErrorHandler(errorPolicyUsed, dataDir)
+	return importdata.GetImportDataErrorHandler(errorPolicyUsed, dataDir, importerRole)
 }

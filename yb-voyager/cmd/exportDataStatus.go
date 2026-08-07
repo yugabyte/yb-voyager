@@ -31,6 +31,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/vbauerster/mpb/v8"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	pbreporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/pb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -116,6 +117,18 @@ func initializeExportTableMetadata(tableList []sqlname.NameTuple) {
 	}
 }
 
+// initExportSnapshotMetrics registers a Prometheus series for every in-scope
+// table before any data flows, so progress/remaining panels have a t0 baseline
+// and do not appear empty until a table happens to start.
+func initExportSnapshotMetrics(tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
+	rec := metrics.Get()
+	rec.SetExportSnapshotTablesTotal(exporterRole, len(tablesProgressMetadata))
+	for _, md := range tablesProgressMetadata {
+		rec.SetExportSnapshotTableExpectedRows(exporterRole, md.TableName, md.CountTotalRows)
+		rec.RecordExportSnapshotRowCount(exporterRole, md.TableName, 0)
+	}
+}
+
 func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*utils.TableProgressMetadata, quitChan, exportSuccessChan chan bool, disablePb bool) {
 	defer utils.WaitGroup.Done()
 	go updateExportSnapshotStatus(ctx, tablesProgressMetadata)
@@ -137,6 +150,7 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 	}()
 
 	numTables := len(tablesProgressMetadata)
+	initExportSnapshotMetrics(tablesProgressMetadata)
 	progressContainer := mpb.NewWithContext(ctx)
 
 	doneCount := 0
@@ -201,6 +215,8 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 	pbr := pbreporter.NewExportPB(progressContainer, tableName, disablePb)
 	// initialize PB total with identified approx row count
 	pbr.SetTotalRowCount(tableMetadata.CountTotalRows, false)
+	metrics.Get().SetExportSnapshotTableExpectedRows(exporterRole, tableMetadata.TableName, tableMetadata.CountTotalRows)
+	metrics.Get().SetExportSnapshotTableStarted(exporterRole, tableMetadata.TableName)
 
 	// parallel goroutine to calculate and set total to actual row count
 	go func() {
@@ -212,6 +228,9 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 		log.Infof("Replacing actualRowCount=%d inplace of expectedRowCount=%d for table=%s",
 			actualRowCount, tableMetadata.CountTotalRows, tableMetadata.TableName.ForUserQuery())
 		pbr.SetTotalRowCount(actualRowCount, false)
+		// Not fed into the expected-rows metric: for live migration this count(*) runs
+		// after pg_dump has already taken its consistent snapshot, so it can overcount
+		// vs what pg_dump actually exports.
 		tableMetadata.CountTotalRows = actualRowCount
 	}()
 
@@ -232,6 +251,7 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 	go func() { //for continuously increasing PB percentage
 		for !pbr.IsComplete() {
 			pbr.SetExportedRowCount(tableMetadata.CountLiveRows)
+			metrics.Get().RecordExportSnapshotRowCount(exporterRole, tableMetadata.TableName, tableMetadata.CountLiveRows)
 			time.Sleep(time.Millisecond * 500)
 
 			if exporterRole == SOURCE_DB_EXPORTER_ROLE {
@@ -284,6 +304,13 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 		(Mainly for Oracle, MySQL)
 	*/
 	readLines()
+
+	// Land the exported counter and expected-rows gauge on CountLiveRows, the true
+	// exported row count, rather than CountTotalRows (only ever an estimate), so the
+	// "% complete" panel reaches 100% (the polling goroutine above can stop a few rows short).
+	metrics.Get().RecordExportSnapshotRowCount(exporterRole, tableMetadata.TableName, tableMetadata.CountLiveRows)
+	metrics.Get().SetExportSnapshotTableExpectedRows(exporterRole, tableMetadata.TableName, tableMetadata.CountLiveRows)
+	metrics.Get().SetExportSnapshotTableCompleted(exporterRole, tableMetadata.TableName)
 
 	// PB will not change from "100%" -> "completed" until this function call is made
 	pbr.SetTotalRowCount(-1, true) // Completing remaining progress bar by setting current equal to total

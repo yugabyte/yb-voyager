@@ -93,7 +93,7 @@ func assertBatchErrorFileContents(t *testing.T, batch *Batch, lexportDir string,
 func TestBasicTaskImportStachAndContinueErrorPolicy(t *testing.T) {
 	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
 	testutils.FatalIfError(t, err)
 	// t.Cleanup(func() { cleanupExportDirDataDir(ldataDir, lexportDir) })
 
@@ -147,7 +147,7 @@ func TestBasicTaskImportStachAndContinueErrorPolicy(t *testing.T) {
 func TestTaskImportStachAndContinueErrorPolicy_NoErrors(t *testing.T) {
 	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
 	testutils.FatalIfError(t, err)
 	t.Cleanup(func() { cleanupExportDirDataDir(ldataDir, lexportDir) })
 
@@ -193,7 +193,7 @@ func TestTaskImportStachAndContinueErrorPolicy_NoErrors(t *testing.T) {
 func TestTaskImportStachAndContinueErrorPolicy_SingleBatchWithError(t *testing.T) {
 	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
 	testutils.FatalIfError(t, err)
 	t.Cleanup(func() { cleanupExportDirDataDir(ldataDir, lexportDir) })
 
@@ -245,7 +245,7 @@ func TestTaskImportStachAndContinueErrorPolicy_SingleBatchWithError(t *testing.T
 func TestTaskImportStachAndContinueErrorPolicy_SingleBatch_OnPkConflictIgnore(t *testing.T) {
 	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
 	testutils.FatalIfError(t, err)
 	t.Cleanup(func() { cleanupExportDirDataDir(ldataDir, lexportDir) })
 
@@ -307,7 +307,7 @@ func TestTaskImportStachAndContinueErrorPolicy_MultipleBatchesWithDifferentError
 	COPY_MAX_RETRY_COUNT = 1 // Disable retry for COPY command to test error handling
 	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
 	testutils.FatalIfError(t, err)
 	t.Cleanup(func() { cleanupExportDirDataDir(ldataDir, lexportDir) })
 
@@ -393,7 +393,7 @@ func TestTaskImportStachAndContinueErrorPolicy_MultipleBatchesWithDifferentError
 func TestTaskImportStachAndContinueErrorPolicy_TaskResumptionAfterBatchError(t *testing.T) {
 	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
 	testutils.FatalIfError(t, err)
 	t.Cleanup(func() { cleanupExportDirDataDir(ldataDir, lexportDir) })
 
