@@ -131,6 +131,13 @@ type ConflictDetectionCache struct {
 	evChans              []chan *tgtdb.Event
 	sourceDBType         string
 
+	// Partitioning strategy + custom key columns per table, used to compute an event's
+	// partition key (see GetEventPartitionKey). Two events with the same partition key are
+	// routed to the same channel and applied in commit order, so they are excluded from
+	// conflict detection (they can never race).
+	tableToPartitioningStrategyMap *utils.StructMap[sqlname.NameTuple, string]
+	tableToCustomKeyColumnsMap     *utils.StructMap[sqlname.NameTuple, []string]
+
 	/*
 		ukLookup is a value-keyed secondary index over the cached events used to avoid
 		scanning the entire cache on every incoming event (see WaitUntilNoConflict).
@@ -148,7 +155,7 @@ type ConflictDetectionCache struct {
 	vsnToBuckets map[int64][]string
 }
 
-func NewConflictDetectionCache(tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex], evChans []chan *tgtdb.Event, sourceDBType string) *ConflictDetectionCache {
+func NewConflictDetectionCache(tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex], evChans []chan *tgtdb.Event, sourceDBType string, tableToPartitioningStrategyMap *utils.StructMap[sqlname.NameTuple, string], tableToCustomKeyColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) *ConflictDetectionCache {
 	c := &ConflictDetectionCache{}
 	c.m = make(map[int64]*tgtdb.Event)
 	c.cond = sync.NewCond(&c.Mutex)
@@ -157,6 +164,8 @@ func NewConflictDetectionCache(tableToUniqueIndexes *utils.StructMap[sqlname.Nam
 	c.evChans = evChans
 	c.ukLookup = make(map[string]map[int64]*tgtdb.Event)
 	c.vsnToBuckets = make(map[int64][]string)
+	c.tableToPartitioningStrategyMap = tableToPartitioningStrategyMap
+	c.tableToCustomKeyColumnsMap = tableToCustomKeyColumnsMap
 	return c
 }
 
@@ -328,12 +337,14 @@ func (c *ConflictDetectionCache) findConflictLocked(incomingEvent *tgtdb.Event) 
 //
 // A cached event conflicts when, for some unique index, its BeforeFields equal the
 // incoming event's Fields (before-after) or BeforeFields (before-before) AND the two
-// events have different PKs. The exact value equality (including column existence and
-// NULLS [NOT] DISTINCT semantics) is already guaranteed by the bucket-key match built
-// in computeConflictBucketKey, so - unlike the full-scan target path - this does not
-// re-run eventsConfict. The only residual filter is the same-PK exclusion: same-PK
-// events are routed to the same channel and applied in order, so they are never
-// cross-channel conflicts.
+// events have different partition keys. The exact value equality (including column
+// existence and NULLS [NOT] DISTINCT semantics) is already guaranteed by the bucket-key
+// match built in computeConflictBucketKey, so - unlike the full-scan target path - this
+// does not re-run eventsConfict. The only residual filter is the partition-key exclusion
+// (getEventsWithDifferentPartitionKey): events that share the incoming event's partition
+// key are routed to the same channel and applied in order, so they are never
+// cross-channel conflicts. The partition key is the PK under PARTITION_BY_PK and the
+// custom key columns under PARTITION_BY_CUSTOM.
 //
 // All unique indexes and both checks (before-after, before-before) are evaluated so the
 // incoming event can wait on the complete set of conflicting cached events at once. The
@@ -351,7 +362,10 @@ func (c *ConflictDetectionCache) findValueConflictLocked(incomingEvent *tgtdb.Ev
 			return []Conflict{}, err
 		}
 		if ok {
-			cachedEvents := c.getNonSamePKEventsWithSameBucketKey(key, incomingEvent)
+			cachedEvents, err := c.getEventsWithDifferentPartitionKey(key, incomingEvent)
+			if err != nil {
+				return []Conflict{}, err
+			}
 			if len(cachedEvents) > 0 {
 				for _, cachedEvent := range cachedEvents {
 					log.Debugf("conflict detected for table %s, index columns %v, between before value of cached-event1(vsn=%d, colVal=%s) and after value of incoming-event2(vsn=%d, colVal=%s)",
@@ -378,7 +392,10 @@ func (c *ConflictDetectionCache) findValueConflictLocked(incomingEvent *tgtdb.Ev
 			return []Conflict{}, err
 		}
 		if ok {
-			cachedEvents := c.getNonSamePKEventsWithSameBucketKey(key, incomingEvent)
+			cachedEvents, err := c.getEventsWithDifferentPartitionKey(key, incomingEvent)
+			if err != nil {
+				return []Conflict{}, err
+			}
 			if len(cachedEvents) > 0 {
 				for _, cachedEvent := range cachedEvents {
 					log.Debugf("conflict detected for table %s, index columns %v, between before value of cached-event1(vsn=%d, colVal=%s) and before value of incoming-event2(vsn=%d, colVal=%s)",
@@ -399,19 +416,30 @@ func (c *ConflictDetectionCache) findValueConflictLocked(incomingEvent *tgtdb.Ev
 	return totalConflictInfo, nil
 }
 
-// getNonSamePKEventsWithSameBucketKey returns all cached events in the given lookup
-// bucket whose PK differs from the incoming event's PK (nil if none). Same-PK events
-// are excluded because they are routed to the same channel and applied in order.
-// Caller must hold the lock.
-func (c *ConflictDetectionCache) getNonSamePKEventsWithSameBucketKey(key string, incomingEvent *tgtdb.Event) []*tgtdb.Event {
+// getEventsWithDifferentPartitionKey returns all cached events in the given lookup bucket
+// whose partition key differs from the incoming event's (nil if none). Events sharing the
+// incoming event's partition key are excluded because they route to the same channel (see
+// GetEventPartitionKey / hashEvent) and are therefore applied in commit order - they can
+// never be a cross-channel conflict. This generalizes the same-PK exclusion: the partition
+// key is the primary key under PARTITION_BY_PK and the custom key columns under
+// PARTITION_BY_CUSTOM. Caller must hold the lock.
+func (c *ConflictDetectionCache) getEventsWithDifferentPartitionKey(key string, incomingEvent *tgtdb.Event) ([]*tgtdb.Event, error) {
+	incomingPartitionKey, err := GetEventPartitionKey(incomingEvent, c.tableToPartitioningStrategyMap, c.tableToCustomKeyColumnsMap)
+	if err != nil {
+		return nil, goerrors.Errorf("error computing partition key for incoming event(vsn=%d): %v", incomingEvent.Vsn, err)
+	}
 	var cachedEventsMatchingKey []*tgtdb.Event
 	for _, cachedEvent := range c.ukLookup[key] {
-		if c.sameTableEventsHaveSamePK(cachedEvent, incomingEvent) {
+		cachedPartitionKey, err := GetEventPartitionKey(cachedEvent, c.tableToPartitioningStrategyMap, c.tableToCustomKeyColumnsMap)
+		if err != nil {
+			return nil, goerrors.Errorf("error computing partition key for cached event(vsn=%d): %v", cachedEvent.Vsn, err)
+		}
+		if cachedPartitionKey == incomingPartitionKey {
 			continue
 		}
 		cachedEventsMatchingKey = append(cachedEventsMatchingKey, cachedEvent)
 	}
-	return cachedEventsMatchingKey
+	return cachedEventsMatchingKey, nil
 }
 
 const (

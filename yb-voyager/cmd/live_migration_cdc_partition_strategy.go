@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -402,13 +403,25 @@ func validateCdcPartitioningStrategyUnchanged(tableNames []sqlname.NameTuple, im
 	if err != nil {
 		return fmt.Errorf("error computing cdc partitioning strategy per table: %w", err)
 	}
-	return diffCdcPartitioningStrategy(resolvedTableToPartitioningStrategyMap, importDataStatus.TableToCDCPartitioningStrategyMap)
+	return diffCdcPartitioningStrategy(resolvedTableToPartitioningStrategyMap, importDataStatus.TableToCDCPartitioningStrategyMap,
+		resolvedCustomColumns, importDataStatus.TableToCustomPartitionKeyColumns)
 }
 
 // diffCdcPartitioningStrategy compares a freshly-resolved per-table strategy map against
 // the one persisted on the first run and returns an actionable error listing the tables
 // whose effective strategy changed.
-func diffCdcPartitioningStrategy(resolved *utils.StructMap[sqlname.NameTuple, string], stored map[string]string) error {
+//
+// For PARTITION_BY_CUSTOM tables the strategy string ("custom") stays the same even when
+// the routing columns change, so the custom key column lists are compared explicitly.
+// Column order is significant because hashEvent hashes the values in that order, so a
+// reordering is treated as a change. resolvedCustomColumns / storedCustomColumns are the
+// resolved and persisted custom key columns keyed the same way as the strategy maps.
+func diffCdcPartitioningStrategy(
+	resolved *utils.StructMap[sqlname.NameTuple, string],
+	stored map[string]string,
+	resolvedCustomColumns *utils.StructMap[sqlname.NameTuple, []string],
+	storedCustomColumns map[string][]string,
+) error {
 	var changed []string
 	var missingInStored []string
 	err := resolved.IterKV(func(t sqlname.NameTuple, strategy string) (bool, error) {
@@ -417,6 +430,19 @@ func diffCdcPartitioningStrategy(resolved *utils.StructMap[sqlname.NameTuple, st
 			missingInStored = append(missingInStored, t.ForKey())
 		} else if storedStrategy != strategy {
 			changed = append(changed, fmt.Sprintf("%s (persisted: %q, new: %q)", t.ForOutput(), storedStrategy, strategy))
+			return true, nil
+		}
+		// Strategy is unchanged. For a custom key the strategy string alone cannot capture
+		// a change in the routing columns, so compare the column lists (order-sensitive).
+		if strategy == PARTITION_BY_CUSTOM {
+			var newColumns []string
+			if resolvedCustomColumns != nil {
+				newColumns, _ = resolvedCustomColumns.Get(t)
+			}
+			oldColumns := storedCustomColumns[t.ForKey()]
+			if !slices.Equal(oldColumns, newColumns) {
+				changed = append(changed, fmt.Sprintf("%s (persisted custom key columns: %v, new: %v)", t.ForOutput(), oldColumns, newColumns))
+			}
 		}
 		return true, nil
 	})

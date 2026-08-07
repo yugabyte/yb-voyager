@@ -20,6 +20,7 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -50,7 +51,7 @@ func TestProcessEventsBasic(t *testing.T) {
 	statsReporter := &reporter.StreamImportStatsReporter{}
 	state := NewImportDataState(exportDir)
 	tdb = &mockYugabyteDB{}
-	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex](), []chan *tgtdb.Event{evChan}, POSTGRESQL)
+	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex](), []chan *tgtdb.Event{evChan}, POSTGRESQL, utils.NewStructMap[sqlname.NameTuple, string](), utils.NewStructMap[sqlname.NameTuple, []string]())
 
 	oname := sqlname.NewObjectName(YUGABYTEDB, "public", "public", "users")
 	evChan <- &tgtdb.Event{
@@ -77,7 +78,7 @@ func TestProcessEventsRemovesEventFromConflicDetectionCache(t *testing.T) {
 	statsReporter := &reporter.StreamImportStatsReporter{}
 	state := NewImportDataState(exportDir)
 	tdb = &mockYugabyteDB{}
-	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex](), []chan *tgtdb.Event{evChan}, POSTGRESQL)
+	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex](), []chan *tgtdb.Event{evChan}, POSTGRESQL, utils.NewStructMap[sqlname.NameTuple, string](), utils.NewStructMap[sqlname.NameTuple, []string]())
 
 	oname := sqlname.NewObjectName(YUGABYTEDB, "public", "public", "users")
 	e := &tgtdb.Event{
@@ -114,7 +115,7 @@ func TestProcessEventsRemovesIgnoredEventFromConflicDetectionCache(t *testing.T)
 	statsReporter := &reporter.StreamImportStatsReporter{}
 	state := NewImportDataState(exportDir)
 	tdb = &mockYugabyteDB{}
-	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex](), []chan *tgtdb.Event{evChan}, POSTGRESQL)
+	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex](), []chan *tgtdb.Event{evChan}, POSTGRESQL, utils.NewStructMap[sqlname.NameTuple, string](), utils.NewStructMap[sqlname.NameTuple, []string]())
 
 	oname := sqlname.NewObjectName(YUGABYTEDB, "public", "public", "users")
 	e1 := &tgtdb.Event{
@@ -658,6 +659,56 @@ func TestValidateCdcPartitioningStrategyUnchanged(t *testing.T) {
 		assert.Contains(t, err.Error(), "changing cdc-partition-key")
 		assert.Contains(t, err.Error(), "orders")
 	})
+
+	// Custom-key resume guard: the strategy string ("custom") is unchanged across these
+	// cases, so the guard must compare the persisted vs new custom key column lists.
+	customStatus := func(columns ...string) *metadb.ImportDataStatusRecord {
+		return &metadb.ImportDataStatusRecord{
+			ImportDataStarted:              true,
+			CdcPartitioningStrategyConfig:  PARTITION_BY_PK,
+			CdcPartitionKeyOverridesConfig: "test_schema.orders:" + strings.Join(columns, ","),
+			TableToCDCPartitioningStrategyMap: map[string]string{
+				orders.ForKey(): PARTITION_BY_CUSTOM,
+				events.ForKey(): PARTITION_BY_PK,
+			},
+			TableToCustomPartitionKeyColumns: map[string][]string{
+				orders.ForKey(): columns,
+			},
+			CdcExpressionUniqueIndexTables: []string{},
+		}
+	}
+
+	t.Run("custom key: same columns (equivalent spelling) pass", func(t *testing.T) {
+		cdcPartitionKey = PARTITION_BY_PK
+		cdcPartitionKeyOverrides = `"test_schema"."orders":customer_id`
+		require.NoError(t, validateCdcPartitioningStrategyUnchanged(tableNames, customStatus("customer_id")))
+	})
+
+	t.Run("custom key: changed column is rejected", func(t *testing.T) {
+		cdcPartitionKey = PARTITION_BY_PK
+		cdcPartitionKeyOverrides = "test_schema.orders:region"
+		err := validateCdcPartitioningStrategyUnchanged(tableNames, customStatus("customer_id"))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "changing cdc-partition-key")
+		assert.Contains(t, err.Error(), "custom key columns")
+		assert.Contains(t, err.Error(), "orders")
+	})
+
+	t.Run("custom key: reordered multi-columns are rejected (order is significant)", func(t *testing.T) {
+		cdcPartitionKey = PARTITION_BY_PK
+		cdcPartitionKeyOverrides = "test_schema.orders:region,customer_id"
+		err := validateCdcPartitioningStrategyUnchanged(tableNames, customStatus("customer_id", "region"))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "custom key columns")
+	})
+
+	t.Run("custom key: added column is rejected", func(t *testing.T) {
+		cdcPartitionKey = PARTITION_BY_PK
+		cdcPartitionKeyOverrides = "test_schema.orders:customer_id,region"
+		err := validateCdcPartitioningStrategyUnchanged(tableNames, customStatus("customer_id"))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "custom key columns")
+	})
 }
 
 func mustResolveOverrides(t *testing.T, raw string, tableNames []sqlname.NameTuple) *utils.StructMap[sqlname.NameTuple, string] {
@@ -952,90 +1003,82 @@ func TestHashEventCustomKey(t *testing.T) {
 	})
 }
 
-func TestUniqueIndexCoversColumns(t *testing.T) {
-	idx := func(cols ...string) tgtdb.UniqueIndex {
-		return tgtdb.UniqueIndex{IndexName: "idx", Columns: cols}
-	}
-
-	// custom key is a subset of the index columns -> covered
-	assert.True(t, uniqueIndexCoversColumns(idx("payment_id", "seq"), []string{"payment_id"}))
-	// custom key equals the index columns -> covered
-	assert.True(t, uniqueIndexCoversColumns(idx("email"), []string{"email"}))
-	// multi-column custom key fully contained (order-independent) -> covered
-	assert.True(t, uniqueIndexCoversColumns(idx("a", "b", "c"), []string{"b", "a"}))
-
-	// custom key column not present in the index -> not covered
-	assert.False(t, uniqueIndexCoversColumns(idx("email"), []string{"phone"}))
-	// partial overlap: one custom column missing from the index -> not covered
-	assert.False(t, uniqueIndexCoversColumns(idx("a", "b"), []string{"a", "z"}))
-}
-
-func TestPruneUniqueIndexesCoveredByCustomKey(t *testing.T) {
+func TestGetEventPartitionKey(t *testing.T) {
+	sp := func(s string) *string { return &s }
 	orders := testCdcPartitionNameTuple("test_schema", "orders")
-	events := testCdcPartitionNameTuple("test_schema", "events")
 
-	idx := func(name string, cols ...string) tgtdb.UniqueIndex {
-		return tgtdb.UniqueIndex{IndexName: name, Columns: cols}
-	}
+	pkMap := utils.NewStructMap[sqlname.NameTuple, string]()
+	pkMap.Put(orders, PARTITION_BY_PK)
+	tableMap := utils.NewStructMap[sqlname.NameTuple, string]()
+	tableMap.Put(orders, PARTITION_BY_TABLE)
+	customMap := utils.NewStructMap[sqlname.NameTuple, string]()
+	customMap.Put(orders, PARTITION_BY_CUSTOM)
 
-	t.Run("nil custom map is a no-op", func(t *testing.T) {
-		tableToUniqueIndexes := utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]()
-		tableToUniqueIndexes.Put(orders, []tgtdb.UniqueIndex{idx("uk_orders", "payment_id")})
-		err := pruneUniqueIndexesCoveredByCustomKey(tableToUniqueIndexes, nil)
+	customCols := utils.NewStructMap[sqlname.NameTuple, []string]()
+	customCols.Put(orders, []string{"customer_id"})
+
+	t.Run("pk: same PK -> same key, different PK -> different key", func(t *testing.T) {
+		e1 := &tgtdb.Event{Vsn: 1, Op: "u", TableNameTup: orders, Key: map[string]*string{"id": sp("1")}}
+		e2 := &tgtdb.Event{Vsn: 2, Op: "u", TableNameTup: orders, Key: map[string]*string{"id": sp("1")}}
+		e3 := &tgtdb.Event{Vsn: 3, Op: "u", TableNameTup: orders, Key: map[string]*string{"id": sp("2")}}
+		k1, err := GetEventPartitionKey(e1, pkMap, nil)
 		require.NoError(t, err)
-		got, _ := tableToUniqueIndexes.Get(orders)
-		assert.Len(t, got, 1)
+		k2, err := GetEventPartitionKey(e2, pkMap, nil)
+		require.NoError(t, err)
+		k3, err := GetEventPartitionKey(e3, pkMap, nil)
+		require.NoError(t, err)
+		assert.Equal(t, k1, k2)
+		assert.NotEqual(t, k1, k3)
 	})
 
-	t.Run("prunes only covered indexes, leaves others intact", func(t *testing.T) {
-		tableToUniqueIndexes := utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]()
-		// orders: one covered (payment_id ⊆ {payment_id,seq}), one not covered (email only)
-		tableToUniqueIndexes.Put(orders, []tgtdb.UniqueIndex{
-			idx("uk_orders_payment", "payment_id", "seq"),
-			idx("uk_orders_email", "email"),
-		})
-		// events: no custom key configured -> untouched
-		tableToUniqueIndexes.Put(events, []tgtdb.UniqueIndex{idx("uk_events", "event_id")})
-
-		customCols := utils.NewStructMap[sqlname.NameTuple, []string]()
-		customCols.Put(orders, []string{"payment_id"})
-
-		err := pruneUniqueIndexesCoveredByCustomKey(tableToUniqueIndexes, customCols)
+	t.Run("table: all events share one key", func(t *testing.T) {
+		e1 := &tgtdb.Event{Vsn: 1, Op: "u", TableNameTup: orders, Key: map[string]*string{"id": sp("1")}}
+		e2 := &tgtdb.Event{Vsn: 2, Op: "u", TableNameTup: orders, Key: map[string]*string{"id": sp("999")}}
+		k1, err := GetEventPartitionKey(e1, tableMap, nil)
 		require.NoError(t, err)
-
-		ordersIdx, _ := tableToUniqueIndexes.Get(orders)
-		require.Len(t, ordersIdx, 1)
-		assert.Equal(t, "uk_orders_email", ordersIdx[0].IndexName)
-
-		eventsIdx, _ := tableToUniqueIndexes.Get(events)
-		assert.Len(t, eventsIdx, 1, "table without a custom key must be untouched")
+		k2, err := GetEventPartitionKey(e2, tableMap, nil)
+		require.NoError(t, err)
+		assert.Equal(t, k1, k2)
 	})
 
-	t.Run("all indexes pruned when custom key covers every unique index", func(t *testing.T) {
-		tableToUniqueIndexes := utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]()
-		tableToUniqueIndexes.Put(orders, []tgtdb.UniqueIndex{
-			idx("uk1", "payment_id", "a"),
-			idx("uk2", "payment_id", "b"),
-		})
-		customCols := utils.NewStructMap[sqlname.NameTuple, []string]()
-		customCols.Put(orders, []string{"payment_id"})
-
-		err := pruneUniqueIndexesCoveredByCustomKey(tableToUniqueIndexes, customCols)
+	t.Run("custom: same custom value -> same key regardless of PK/op", func(t *testing.T) {
+		insert := &tgtdb.Event{Vsn: 1, Op: "c", TableNameTup: orders,
+			Key:    map[string]*string{"id": sp("1")},
+			Fields: map[string]*string{"id": sp("1"), "customer_id": sp("C1")}}
+		update := &tgtdb.Event{Vsn: 2, Op: "u", TableNameTup: orders,
+			Key:          map[string]*string{"id": sp("2")},
+			Fields:       map[string]*string{"id": sp("2"), "amount": sp("5")},
+			BeforeFields: map[string]*string{"id": sp("2"), "customer_id": sp("C1")}}
+		different := &tgtdb.Event{Vsn: 3, Op: "c", TableNameTup: orders,
+			Key:    map[string]*string{"id": sp("3")},
+			Fields: map[string]*string{"id": sp("3"), "customer_id": sp("C2")}}
+		kInsert, err := GetEventPartitionKey(insert, customMap, customCols)
 		require.NoError(t, err)
-
-		ordersIdx, _ := tableToUniqueIndexes.Get(orders)
-		assert.Empty(t, ordersIdx, "when every unique index is covered, none should remain (detection effectively off)")
+		kUpdate, err := GetEventPartitionKey(update, customMap, customCols)
+		require.NoError(t, err)
+		kDifferent, err := GetEventPartitionKey(different, customMap, customCols)
+		require.NoError(t, err)
+		assert.Equal(t, kInsert, kUpdate, "same custom key value must yield the same partition key")
+		assert.NotEqual(t, kInsert, kDifferent)
 	})
 
-	t.Run("empty custom columns entry is skipped", func(t *testing.T) {
-		tableToUniqueIndexes := utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]()
-		tableToUniqueIndexes.Put(orders, []tgtdb.UniqueIndex{idx("uk", "payment_id")})
-		customCols := utils.NewStructMap[sqlname.NameTuple, []string]()
-		customCols.Put(orders, []string{})
+	t.Run("custom: missing column errors", func(t *testing.T) {
+		ev := &tgtdb.Event{Vsn: 1, Op: "c", TableNameTup: orders,
+			Fields: map[string]*string{"id": sp("1")}}
+		_, err := GetEventPartitionKey(ev, customMap, customCols)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "customer_id")
+	})
 
-		err := pruneUniqueIndexesCoveredByCustomKey(tableToUniqueIndexes, customCols)
+	t.Run("hashEvent routes identically to partition key equality", func(t *testing.T) {
+		e1 := &tgtdb.Event{Vsn: 1, Op: "c", TableNameTup: orders,
+			Key: map[string]*string{"id": sp("1")}, Fields: map[string]*string{"customer_id": sp("C1")}}
+		e2 := &tgtdb.Event{Vsn: 2, Op: "u", TableNameTup: orders,
+			Key: map[string]*string{"id": sp("2")}, BeforeFields: map[string]*string{"customer_id": sp("C1")}}
+		h1, err := hashEvent(e1, customMap, customCols)
 		require.NoError(t, err)
-		ordersIdx, _ := tableToUniqueIndexes.Get(orders)
-		assert.Len(t, ordersIdx, 1)
+		h2, err := hashEvent(e2, customMap, customCols)
+		require.NoError(t, err)
+		assert.Equal(t, h1, h2, "same custom partition key must route to the same channel")
 	})
 }
