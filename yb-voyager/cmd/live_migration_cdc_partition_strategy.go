@@ -280,7 +280,7 @@ func checkIfNeedsExprUKCheck(cdcPartitionKey string, overrides *utils.StructMap[
 // computeAndPersistCdcPartitioningStrategyPerTable resolves global + overrides + auto/expr-UK
 // rules and writes TableToCDCPartitioningStrategyMap to metaDB.
 func computeAndPersistCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple, importDataStatus *metadb.ImportDataStatusRecord) (*utils.StructMap[sqlname.NameTuple, string], error) {
-	tableToPartitioningStrategyMap, exprUKKeysForStorage, err := computeCdcPartitioningStrategyPerTable(tableNames, true, importDataStatus)
+	tableToPartitioningStrategyMap, exprUKKeysForStorage, customColumns, err := computeCdcPartitioningStrategyPerTable(tableNames, true, importDataStatus)
 	if err != nil {
 		return nil, fmt.Errorf("error computing cdc partitioning strategy per table: %w", err)
 	}
@@ -315,30 +315,35 @@ func computeAndPersistCdcPartitioningStrategyPerTable(tableNames []sqlname.NameT
 	return tableToPartitioningStrategyMap, nil
 }
 
-func computeCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple, isFirstRun bool, importDataStatus *metadb.ImportDataStatusRecord) (*utils.StructMap[sqlname.NameTuple, string], []string, error) {
+func computeCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple, isFirstRun bool, importDataStatus *metadb.ImportDataStatusRecord) (*utils.StructMap[sqlname.NameTuple, string], []string, *utils.StructMap[sqlname.NameTuple, []string], error) {
 	rawOverrides, err := parseCdcPartitionKeyOverrides(cdcPartitionKeyOverrides)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	overrides, err := resolveCdcPartitionKeyOverrides(rawOverrides, tableNames)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	exprUKSet, err := getExpressionUniqueIndexTablesIfRequired(tableNames, overrides, cdcPartitionKey, isFirstRun, importDataStatus)
+	strategyOverrides, customColumns, err := splitResolvedOverrides(overrides)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	tableToPartitioningStrategyMap, err := resolveEffectiveCdcPartitionKeys(tableNames, cdcPartitionKey, overrides, exprUKSet, tconf.TargetDBType)
+
+	exprUKSet, err := getExpressionUniqueIndexTablesIfRequired(tableNames, strategyOverrides, cdcPartitionKey, isFirstRun, importDataStatus)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	tableToPartitioningStrategyMap, err := resolveEffectiveCdcPartitionKeys(tableNames, cdcPartitionKey, strategyOverrides, exprUKSet, tconf.TargetDBType)
 
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	exprUKKeysForStorage := make([]string, 0, len(exprUKSet.Keys()))
 	for _, t := range exprUKSet.Keys() {
 		exprUKKeysForStorage = append(exprUKKeysForStorage, t)
 	}
-	return tableToPartitioningStrategyMap, exprUKKeysForStorage, nil
+	return tableToPartitioningStrategyMap, exprUKKeysForStorage, customColumns, nil
 }
 
 func getExpressionUniqueIndexTablesIfRequired(tableNames []sqlname.NameTuple, overrides *utils.StructMap[sqlname.NameTuple, string], cdcPartitionKey string, isFirstRun bool, importDataStatus *metadb.ImportDataStatusRecord) (*utils.StructMap[sqlname.NameTuple, bool], error) {
@@ -399,7 +404,7 @@ func validateCdcPartitioningStrategyUnchanged(tableNames []sqlname.NameTuple, im
 		return nil
 	}
 
-	resolvedTableToPartitioningStrategyMap, _, err := computeCdcPartitioningStrategyPerTable(tableNames, false, importDataStatus)
+	resolvedTableToPartitioningStrategyMap, _, resolvedCustomColumns, err := computeCdcPartitioningStrategyPerTable(tableNames, false, importDataStatus)
 	if err != nil {
 		return fmt.Errorf("error computing cdc partitioning strategy per table: %w", err)
 	}
