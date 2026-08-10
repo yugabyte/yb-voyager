@@ -622,12 +622,6 @@ func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, sourceDBTypeF
 	}
 
 	log.Infof("initializing conflict detection cache")
-	// The partitioning strategy + custom key columns maps let the cache exclude cached
-	// events that share the incoming event's partition key (same channel -> applied in
-	// order -> cannot race). This subsumes any per-index pruning: a unique index whose
-	// columns contain the custom key is automatically covered since conflicting pairs on it
-	// share the custom key value and are excluded, while partially-overlapping indexes are
-	// still detected.
 	conflictDetectionCache = NewConflictDetectionCache(tableToUniqueIndexes, evChans, sourceDBTypeForConflictCache, tableToPartitioningStrategyMap, tableToCustomKeyColumnsMap)
 	return nil
 }
