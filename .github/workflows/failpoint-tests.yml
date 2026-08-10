@@ -2,7 +2,7 @@ name: Failpoint Tests
 
 on:
   pull_request:
-    branches: [main]
+    branches: [priyanshi/enhancement-DB-22597]
   push:
     branches: [ main, '*.*-dev', '*.*.*-dev' ]
 
