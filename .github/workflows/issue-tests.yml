@@ -4,7 +4,7 @@ on:
   push:
     branches: ['main', '*.*-dev', '*.*.*-dev']
   pull_request:
-    branches: [priyanshi/enhancement-DB-22597]
+    branches: [main]
 
 jobs:
   prepare-versions:
