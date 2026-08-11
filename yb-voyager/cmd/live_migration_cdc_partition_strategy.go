@@ -403,7 +403,7 @@ func diffCdcPartitioningStrategy(resolved *utils.StructMap[sqlname.NameTuple, st
 		errorMsg += fmt.Sprintf("changing cdc-partition-key / cdc-partition-key-overrides is not allowed after the import data has started; effective strategy changed for: %s.\nUse --start-clean to start a fresh import with the new configuration.", strings.Join(changed, "; "))
 	}
 	if errorMsg != "" {
-		return goerrors.Errorf(errorMsg)
+		return goerrors.Errorf("change in cdc-partition-key-overrides in between runs detected: %s", errorMsg)
 	}
 	return nil
 }
