@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	goerrors "github.com/go-errors/errors"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -320,6 +321,9 @@ func getExpressionUniqueIndexTablesIfRequired(tableNames []sqlname.NameTuple, ov
 		if importDataStatus == nil {
 			return nil, goerrors.Errorf("import data status record not found")
 		}
+		if importDataStatus.CdcExpressionUniqueIndexTables == nil {
+			return nil, goerrors.Errorf("cdc expression unique index tables not found in import data status record")
+		}
 		for _, key := range importDataStatus.CdcExpressionUniqueIndexTables {
 			tuple, err := namereg.NameReg.LookupTableName(key)
 			if err != nil {
@@ -361,11 +365,11 @@ func validateCdcPartitioningStrategyUnchanged(tableNames []sqlname.NameTuple, im
 // whose effective strategy changed.
 func diffCdcPartitioningStrategy(resolved *utils.StructMap[sqlname.NameTuple, string], stored map[string]string) error {
 	var changed []string
-	var missing []string
+	var missingInStored []string
 	err := resolved.IterKV(func(t sqlname.NameTuple, strategy string) (bool, error) {
 		storedStrategy, ok := stored[t.ForKey()]
 		if !ok {
-			missing = append(missing, t.ForKey())
+			missingInStored = append(missingInStored, t.ForKey())
 		} else if storedStrategy != strategy {
 			changed = append(changed, fmt.Sprintf("%s (persisted: %q, new: %q)", t.ForOutput(), storedStrategy, strategy))
 		}
@@ -374,13 +378,32 @@ func diffCdcPartitioningStrategy(resolved *utils.StructMap[sqlname.NameTuple, st
 	if err != nil {
 		return err
 	}
-	if len(missing) > 0 {
-		sort.Strings(missing)
-		return goerrors.Errorf("cdc-partition-key-overrides: table %q is not in the import table list", strings.Join(missing, ", "))
+	var missingInResolved []string
+	storedTables := lo.Keys(stored)
+	for _, storedTable := range storedTables {
+		tuple, err := namereg.NameReg.LookupTableName(storedTable)
+		if err != nil {
+			return fmt.Errorf("error looking up table name: %w", err)
+		}
+		if _, ok := resolved.Get(tuple); !ok {
+			missingInResolved = append(missingInResolved, storedTable)
+		}
+	}
+	errorMsg := ""
+	if len(missingInStored) > 0 {
+		sort.Strings(missingInStored)
+		errorMsg += fmt.Sprintf("cdc-partition-key-overrides: table %q is in the current import table list but was not part of the original import; use --start-clean to start a fresh import with the new configuration\n", strings.Join(missingInStored, ", "))
+	}
+	if len(missingInResolved) > 0 {
+		sort.Strings(missingInResolved)
+		errorMsg += fmt.Sprintf("cdc-partition-key-overrides: table %q was part of the original import but is missing from the current import table list; use --start-clean to start a fresh import with the new configuration\n", strings.Join(missingInResolved, ", "))
 	}
 	if len(changed) > 0 {
 		sort.Strings(changed)
-		return goerrors.Errorf("changing cdc-partition-key / cdc-partition-key-overrides is not allowed after the import data has started; effective strategy changed for: %s.\nUse --start-clean to start a fresh import with the new configuration.", strings.Join(changed, "; "))
+		errorMsg += fmt.Sprintf("changing cdc-partition-key / cdc-partition-key-overrides is not allowed after the import data has started; effective strategy changed for: %s.\nUse --start-clean to start a fresh import with the new configuration.", strings.Join(changed, "; "))
+	}
+	if errorMsg != "" {
+		return goerrors.Errorf(errorMsg)
 	}
 	return nil
 }
