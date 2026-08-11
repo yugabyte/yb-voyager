@@ -21,13 +21,22 @@ import (
 	goerrors "github.com/go-errors/errors"
 )
 
+// CDCPartitionKey is the persisted per-table CDC partition key: the routing strategy
+// (pk/table/custom) and, only for custom, the ordered custom key columns used to hash
+// events. It mirrors the in-memory cdcPartitionKeyOverride used during streaming.
+type CDCPartitionKey struct {
+	Strategy string   `json:"strategy"`
+	Columns  []string `json:"columns,omitempty"`
+}
+
 type ImportDataStatusRecord struct {
 	ErrorPolicySnapshot string `json:"errorPolicySnapshot"`
 	ImportDataStarted   bool   `json:"importDataStarted"`
 	/*
-		map of table and live migration cdc partitioning strategy per table (pk or table)
+		per-table live-migration cdc partition key (strategy pk/table/custom, plus the
+		ordered custom key columns when strategy is custom), keyed by ForKey table name.
 	*/
-	TableToCDCPartitioningStrategyMap map[string]string `json:"tableToCDCPartitioningStrategyMap"`
+	TableToCDCPartitionKey map[string]CDCPartitionKey `json:"tableToCDCPartitionKey"`
 	/*
 		global cdc-partition-key for the import data: auto, pk or table
 		(JSON tag kept for backward compatibility with older voyager versions)
@@ -45,11 +54,6 @@ type ImportDataStatusRecord struct {
 		older voyager, or a first run that did not need the expression-UK check).
 	*/
 	CdcExpressionUniqueIndexTables []string `json:"cdcExpressionUniqueIndexTables"`
-	/*
-		per-table custom cdc partition key columns (ForKey table name -> ordered column list),
-		set only for tables whose strategy in TableToCDCPartitioningStrategyMap is "custom".
-	*/
-	TableToCustomPartitionKeyColumns map[string][]string `json:"tableToCustomPartitionKeyColumns"`
 
 	TargetUsePartitionRoot bool `json:"TargetUsePartitionRoot"` // false - use leaf table for partitions, true - use root table for partitions; default is true
 }

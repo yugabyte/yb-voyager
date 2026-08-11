@@ -51,7 +51,7 @@ func TestProcessEventsBasic(t *testing.T) {
 	statsReporter := &reporter.StreamImportStatsReporter{}
 	state := NewImportDataState(exportDir)
 	tdb = &mockYugabyteDB{}
-	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex](), []chan *tgtdb.Event{evChan}, POSTGRESQL, utils.NewStructMap[sqlname.NameTuple, string](), utils.NewStructMap[sqlname.NameTuple, []string]())
+	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex](), []chan *tgtdb.Event{evChan}, POSTGRESQL, utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]())
 
 	oname := sqlname.NewObjectName(YUGABYTEDB, "public", "public", "users")
 	evChan <- &tgtdb.Event{
@@ -78,7 +78,7 @@ func TestProcessEventsRemovesEventFromConflicDetectionCache(t *testing.T) {
 	statsReporter := &reporter.StreamImportStatsReporter{}
 	state := NewImportDataState(exportDir)
 	tdb = &mockYugabyteDB{}
-	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex](), []chan *tgtdb.Event{evChan}, POSTGRESQL, utils.NewStructMap[sqlname.NameTuple, string](), utils.NewStructMap[sqlname.NameTuple, []string]())
+	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex](), []chan *tgtdb.Event{evChan}, POSTGRESQL, utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]())
 
 	oname := sqlname.NewObjectName(YUGABYTEDB, "public", "public", "users")
 	e := &tgtdb.Event{
@@ -115,7 +115,7 @@ func TestProcessEventsRemovesIgnoredEventFromConflicDetectionCache(t *testing.T)
 	statsReporter := &reporter.StreamImportStatsReporter{}
 	state := NewImportDataState(exportDir)
 	tdb = &mockYugabyteDB{}
-	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex](), []chan *tgtdb.Event{evChan}, POSTGRESQL, utils.NewStructMap[sqlname.NameTuple, string](), utils.NewStructMap[sqlname.NameTuple, []string]())
+	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex](), []chan *tgtdb.Event{evChan}, POSTGRESQL, utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]())
 
 	oname := sqlname.NewObjectName(YUGABYTEDB, "public", "public", "users")
 	e1 := &tgtdb.Event{
@@ -611,17 +611,17 @@ func TestValidateCdcPartitioningStrategyUnchanged(t *testing.T) {
 		utils.NewStructMap[sqlname.NameTuple, bool](), YUGABYTEDB)
 	require.NoError(t, err)
 
-	storedMap := make(map[string]string)
+	storedMap := make(map[string]metadb.CDCPartitionKey)
 	require.NoError(t, firstRun.IterKV(func(k sqlname.NameTuple, v string) (bool, error) {
-		storedMap[k.ForKey()] = v
+		storedMap[k.ForKey()] = metadb.CDCPartitionKey{Strategy: v}
 		return true, nil
 	}))
 	importDataStatus := &metadb.ImportDataStatusRecord{
-		ImportDataStarted:                 true,
-		CdcPartitioningStrategyConfig:     PARTITION_BY_PK,
-		CdcPartitionKeyOverridesConfig:    "test_schema.orders:table",
-		TableToCDCPartitioningStrategyMap: storedMap,
-		CdcExpressionUniqueIndexTables:    []string{}, // captured, none
+		ImportDataStarted:              true,
+		CdcPartitioningStrategyConfig:  PARTITION_BY_PK,
+		CdcPartitionKeyOverridesConfig: "test_schema.orders:table",
+		TableToCDCPartitionKey:         storedMap,
+		CdcExpressionUniqueIndexTables: []string{}, // captured, none
 	}
 
 	t.Run("same config passes", func(t *testing.T) {
@@ -667,12 +667,9 @@ func TestValidateCdcPartitioningStrategyUnchanged(t *testing.T) {
 			ImportDataStarted:              true,
 			CdcPartitioningStrategyConfig:  PARTITION_BY_PK,
 			CdcPartitionKeyOverridesConfig: "test_schema.orders:" + strings.Join(columns, ","),
-			TableToCDCPartitioningStrategyMap: map[string]string{
-				orders.ForKey(): PARTITION_BY_CUSTOM,
-				events.ForKey(): PARTITION_BY_PK,
-			},
-			TableToCustomPartitionKeyColumns: map[string][]string{
-				orders.ForKey(): columns,
+			TableToCDCPartitionKey: map[string]metadb.CDCPartitionKey{
+				orders.ForKey(): {Strategy: PARTITION_BY_CUSTOM, Columns: columns},
+				events.ForKey(): {Strategy: PARTITION_BY_PK},
 			},
 			CdcExpressionUniqueIndexTables: []string{},
 		}
@@ -910,11 +907,8 @@ func TestHashEventCustomKey(t *testing.T) {
 	sp := func(s string) *string { return &s }
 
 	orders := testCdcPartitionNameTuple("test_schema", "orders")
-	strategyMap := utils.NewStructMap[sqlname.NameTuple, string]()
-	strategyMap.Put(orders, PARTITION_BY_CUSTOM)
-
-	singleColMap := utils.NewStructMap[sqlname.NameTuple, []string]()
-	singleColMap.Put(orders, []string{"customer_id"})
+	singleColMap := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
+	singleColMap.Put(orders, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"customer_id"}})
 
 	// insert: key value in Fields (BeforeFields nil)
 	insertEvent := &tgtdb.Event{
@@ -937,11 +931,11 @@ func TestHashEventCustomKey(t *testing.T) {
 		BeforeFields: map[string]*string{"id": sp("1"), "customer_id": sp("C1"), "amount": sp("10")},
 	}
 
-	insertHash, err := hashEvent(insertEvent, strategyMap, singleColMap)
+	insertHash, err := hashEvent(insertEvent, singleColMap)
 	require.NoError(t, err)
-	updateHash, err := hashEvent(updateEvent, strategyMap, singleColMap)
+	updateHash, err := hashEvent(updateEvent, singleColMap)
 	require.NoError(t, err)
-	deleteHash, err := hashEvent(deleteEvent, strategyMap, singleColMap)
+	deleteHash, err := hashEvent(deleteEvent, singleColMap)
 	require.NoError(t, err)
 
 	assert.Equal(t, insertHash, updateHash, "same custom key value must route to same channel (insert vs update)")
@@ -950,24 +944,24 @@ func TestHashEventCustomKey(t *testing.T) {
 	assert.Less(t, insertHash, NUM_EVENT_CHANNELS)
 
 	t.Run("multi-column order is respected", func(t *testing.T) {
-		multiColMap := utils.NewStructMap[sqlname.NameTuple, []string]()
-		multiColMap.Put(orders, []string{"customer_id", "region"})
+		multiColMap := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
+		multiColMap.Put(orders, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"customer_id", "region"}})
 
 		ev := &tgtdb.Event{
 			Vsn: 10, Op: "c", TableNameTup: orders,
 			Fields: map[string]*string{"customer_id": sp("C1"), "region": sp("US")},
 		}
-		h1, err := hashEvent(ev, strategyMap, multiColMap)
+		h1, err := hashEvent(ev, multiColMap)
 		require.NoError(t, err)
 		// deterministic for the same input
-		h2, err := hashEvent(ev, strategyMap, multiColMap)
+		h2, err := hashEvent(ev, multiColMap)
 		require.NoError(t, err)
 		assert.Equal(t, h1, h2)
 
 		// reversed column order is a different key ordering; usually a different channel.
-		reversedColMap := utils.NewStructMap[sqlname.NameTuple, []string]()
-		reversedColMap.Put(orders, []string{"region", "customer_id"})
-		hRev, err := hashEvent(ev, strategyMap, reversedColMap)
+		reversedColMap := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
+		reversedColMap.Put(orders, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"region", "customer_id"}})
+		hRev, err := hashEvent(ev, reversedColMap)
 		require.NoError(t, err)
 		_ = hRev // no strict inequality assertion to avoid rare hash collisions
 	})
@@ -977,9 +971,9 @@ func TestHashEventCustomKey(t *testing.T) {
 			Vsn: 20, Op: "c", TableNameTup: orders,
 			Fields: map[string]*string{"customer_id": nil, "amount": sp("5")},
 		}
-		h1, err := hashEvent(ev, strategyMap, singleColMap)
+		h1, err := hashEvent(ev, singleColMap)
 		require.NoError(t, err)
-		h2, err := hashEvent(ev, strategyMap, singleColMap)
+		h2, err := hashEvent(ev, singleColMap)
 		require.NoError(t, err)
 		assert.Equal(t, h1, h2)
 	})
@@ -989,15 +983,16 @@ func TestHashEventCustomKey(t *testing.T) {
 			Vsn: 30, Op: "c", TableNameTup: orders,
 			Fields: map[string]*string{"id": sp("1"), "amount": sp("5")}, // no customer_id anywhere
 		}
-		_, err := hashEvent(ev, strategyMap, singleColMap)
+		_, err := hashEvent(ev, singleColMap)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "customer_id")
 		assert.Contains(t, err.Error(), "REPLICA IDENTITY FULL")
 	})
 
 	t.Run("missing custom columns map entry errors", func(t *testing.T) {
-		emptyColMap := utils.NewStructMap[sqlname.NameTuple, []string]()
-		_, err := hashEvent(insertEvent, strategyMap, emptyColMap)
+		emptyColMap := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
+		emptyColMap.Put(orders, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM})
+		_, err := hashEvent(insertEvent, emptyColMap)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "custom partition key columns not found")
 	})
@@ -1007,25 +1002,22 @@ func TestGetEventPartitionKey(t *testing.T) {
 	sp := func(s string) *string { return &s }
 	orders := testCdcPartitionNameTuple("test_schema", "orders")
 
-	pkMap := utils.NewStructMap[sqlname.NameTuple, string]()
-	pkMap.Put(orders, PARTITION_BY_PK)
-	tableMap := utils.NewStructMap[sqlname.NameTuple, string]()
-	tableMap.Put(orders, PARTITION_BY_TABLE)
-	customMap := utils.NewStructMap[sqlname.NameTuple, string]()
-	customMap.Put(orders, PARTITION_BY_CUSTOM)
-
-	customCols := utils.NewStructMap[sqlname.NameTuple, []string]()
-	customCols.Put(orders, []string{"customer_id"})
+	pkMap := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
+	pkMap.Put(orders, cdcPartitionKeyOverride{Strategy: PARTITION_BY_PK})
+	tableMap := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
+	tableMap.Put(orders, cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE})
+	customMap := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
+	customMap.Put(orders, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"customer_id"}})
 
 	t.Run("pk: same PK -> same key, different PK -> different key", func(t *testing.T) {
 		e1 := &tgtdb.Event{Vsn: 1, Op: "u", TableNameTup: orders, Key: map[string]*string{"id": sp("1")}}
 		e2 := &tgtdb.Event{Vsn: 2, Op: "u", TableNameTup: orders, Key: map[string]*string{"id": sp("1")}}
 		e3 := &tgtdb.Event{Vsn: 3, Op: "u", TableNameTup: orders, Key: map[string]*string{"id": sp("2")}}
-		k1, err := GetEventPartitionKey(e1, pkMap, nil)
+		k1, err := GetEventPartitionKey(e1, pkMap)
 		require.NoError(t, err)
-		k2, err := GetEventPartitionKey(e2, pkMap, nil)
+		k2, err := GetEventPartitionKey(e2, pkMap)
 		require.NoError(t, err)
-		k3, err := GetEventPartitionKey(e3, pkMap, nil)
+		k3, err := GetEventPartitionKey(e3, pkMap)
 		require.NoError(t, err)
 		assert.Equal(t, k1, k2)
 		assert.NotEqual(t, k1, k3)
@@ -1034,9 +1026,9 @@ func TestGetEventPartitionKey(t *testing.T) {
 	t.Run("table: all events share one key", func(t *testing.T) {
 		e1 := &tgtdb.Event{Vsn: 1, Op: "u", TableNameTup: orders, Key: map[string]*string{"id": sp("1")}}
 		e2 := &tgtdb.Event{Vsn: 2, Op: "u", TableNameTup: orders, Key: map[string]*string{"id": sp("999")}}
-		k1, err := GetEventPartitionKey(e1, tableMap, nil)
+		k1, err := GetEventPartitionKey(e1, tableMap)
 		require.NoError(t, err)
-		k2, err := GetEventPartitionKey(e2, tableMap, nil)
+		k2, err := GetEventPartitionKey(e2, tableMap)
 		require.NoError(t, err)
 		assert.Equal(t, k1, k2)
 	})
@@ -1052,11 +1044,11 @@ func TestGetEventPartitionKey(t *testing.T) {
 		different := &tgtdb.Event{Vsn: 3, Op: "c", TableNameTup: orders,
 			Key:    map[string]*string{"id": sp("3")},
 			Fields: map[string]*string{"id": sp("3"), "customer_id": sp("C2")}}
-		kInsert, err := GetEventPartitionKey(insert, customMap, customCols)
+		kInsert, err := GetEventPartitionKey(insert, customMap)
 		require.NoError(t, err)
-		kUpdate, err := GetEventPartitionKey(update, customMap, customCols)
+		kUpdate, err := GetEventPartitionKey(update, customMap)
 		require.NoError(t, err)
-		kDifferent, err := GetEventPartitionKey(different, customMap, customCols)
+		kDifferent, err := GetEventPartitionKey(different, customMap)
 		require.NoError(t, err)
 		assert.Equal(t, kInsert, kUpdate, "same custom key value must yield the same partition key")
 		assert.NotEqual(t, kInsert, kDifferent)
@@ -1065,7 +1057,7 @@ func TestGetEventPartitionKey(t *testing.T) {
 	t.Run("custom: missing column errors", func(t *testing.T) {
 		ev := &tgtdb.Event{Vsn: 1, Op: "c", TableNameTup: orders,
 			Fields: map[string]*string{"id": sp("1")}}
-		_, err := GetEventPartitionKey(ev, customMap, customCols)
+		_, err := GetEventPartitionKey(ev, customMap)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "customer_id")
 	})
@@ -1075,9 +1067,9 @@ func TestGetEventPartitionKey(t *testing.T) {
 			Key: map[string]*string{"id": sp("1")}, Fields: map[string]*string{"customer_id": sp("C1")}}
 		e2 := &tgtdb.Event{Vsn: 2, Op: "u", TableNameTup: orders,
 			Key: map[string]*string{"id": sp("2")}, BeforeFields: map[string]*string{"customer_id": sp("C1")}}
-		h1, err := hashEvent(e1, customMap, customCols)
+		h1, err := hashEvent(e1, customMap)
 		require.NoError(t, err)
-		h2, err := hashEvent(e2, customMap, customCols)
+		h2, err := hashEvent(e2, customMap)
 		require.NoError(t, err)
 		assert.Equal(t, h1, h2, "same custom partition key must route to the same channel")
 	})

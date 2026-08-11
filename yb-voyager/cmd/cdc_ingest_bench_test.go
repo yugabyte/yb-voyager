@@ -89,9 +89,9 @@ func BenchmarkCDCIngest(b *testing.B) {
 
 			err = metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
 				record.CdcPartitioningStrategyConfig = "auto"
-				record.TableToCDCPartitioningStrategyMap = make(map[string]string)
+				record.TableToCDCPartitionKey = make(map[string]metadb.CDCPartitionKey)
 				for _, table := range run.tableList {
-					record.TableToCDCPartitioningStrategyMap[table.ForKey()] = "pk"
+					record.TableToCDCPartitionKey[table.ForKey()] = metadb.CDCPartitionKey{Strategy: "pk"}
 				}
 			})
 			if err != nil {

@@ -35,7 +35,7 @@ import (
 /*
 prepareCdcPartitionKey validates overrides against the import table list, resolves
 per-table strategies (global --cdc-partition-key + --cdc-partition-key-overrides +
-auto/expr-UK rules), and persists TableToCDCPartitioningStrategyMap.
+auto/expr-UK rules), and persists TableToCDCPartitionKey.
 
 It is intentionally called before snapshot import so bad configs fail fast.
 On resume (map already in metaDB) this is a no-op.
@@ -52,7 +52,7 @@ func prepareCdcPartitionKey(tableNames []sqlname.NameTuple) error {
 	if importDataStatus == nil {
 		return goerrors.Errorf("import data status record not found")
 	}
-	if importDataStatus.TableToCDCPartitioningStrategyMap != nil {
+	if importDataStatus.TableToCDCPartitionKey != nil {
 		// On resume the per-table strategy map is already persisted. Rather than trusting
 		// a raw string comparison of the flags (done for the global key in
 		// validateCdcPartitionKeyFlags), re-resolve the effective per-table strategy from
@@ -79,18 +79,17 @@ Non-target and Oracle source paths force PARTITION_BY_TABLE in-memory (not persi
 
 TODO: handle upgrade scenario for PG/Oracle pk->table change
 */
-func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, string], *utils.StructMap[sqlname.NameTuple, []string], error) {
-	tableToPartitioningStrategyMap := utils.NewStructMap[sqlname.NameTuple, string]()
-	tableToCustomKeyColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
+func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], error) {
+	tablePartitionKeyMap := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 
 	if importerRole != TARGET_DB_IMPORTER_ROLE {
 		//For PG/ORacle source/source-replica, using partitioning by table since there won't be any huge difference in
 		// performance between the two strategies for single node databases like PG/Oracle
 		//and Parititon by table is better from data correctness perspective
 		for _, t := range tableNames {
-			tableToPartitioningStrategyMap.Put(t, PARTITION_BY_TABLE)
+			tablePartitionKeyMap.Put(t, cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE})
 		}
-		return tableToPartitioningStrategyMap, tableToCustomKeyColumnsMap, nil
+		return tablePartitionKeyMap, nil
 	}
 
 	if sourceDBType != POSTGRESQL {
@@ -100,49 +99,40 @@ func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.
 		//conflicts impossible and hence conflict detection unnecessary.
 		//anything other than PG is not supported for conflict and hence we force table partitioning
 		for _, t := range tableNames {
-			tableToPartitioningStrategyMap.Put(t, PARTITION_BY_TABLE)
+			tablePartitionKeyMap.Put(t, cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE})
 		}
-		return tableToPartitioningStrategyMap, tableToCustomKeyColumnsMap, nil
+		return tablePartitionKeyMap, nil
 	}
 
 	importDataStatus, err := metaDB.GetImportDataStatusRecord()
 	if err != nil {
-		return nil, nil, fmt.Errorf("error getting cdc partitioning strategy: %w", err)
+		return nil, fmt.Errorf("error getting cdc partitioning strategy: %w", err)
 	}
 	if importDataStatus == nil {
-		return nil, nil, goerrors.Errorf("import data status record not found")
+		return nil, goerrors.Errorf("import data status record not found")
 	}
-	if importDataStatus.TableToCDCPartitioningStrategyMap != nil {
-		log.Infof("cdc partitioning strategy found in metadb: %v, strategy: %v, custom key columns: %v", metadb.IMPORT_DATA_STATUS_KEY, importDataStatus.TableToCDCPartitioningStrategyMap, importDataStatus.TableToCustomPartitionKeyColumns)
-		for tableName, strategy := range importDataStatus.TableToCDCPartitioningStrategyMap {
-			tuple, err := namereg.NameReg.LookupTableName(tableName)
-			if err != nil {
-				return nil, nil, fmt.Errorf("error looking up table name: %w", err)
-			}
-			tableToPartitioningStrategyMap.Put(tuple, strategy)
-		}
-		for tableName, columns := range importDataStatus.TableToCustomPartitionKeyColumns {
-			tuple, err := namereg.NameReg.LookupTableName(tableName)
-			if err != nil {
-				return nil, nil, fmt.Errorf("error looking up table name: %w", err)
-			}
-			tableToCustomKeyColumnsMap.Put(tuple, columns)
-		}
-		for _, t := range tableNames {
-			strategy, ok := tableToPartitioningStrategyMap.Get(t)
-			if !ok {
-				return nil, nil, goerrors.Errorf("cdc partitioning strategy not found for table: %s", t.ForKey())
-			}
-			if strategy == PARTITION_BY_CUSTOM {
-				columns, ok := tableToCustomKeyColumnsMap.Get(t)
-				if !ok || len(columns) == 0 {
-					return nil, nil, goerrors.Errorf("cdc custom partition key columns not found for table: %s", t.ForKey())
-				}
-			}
-		}
-		return tableToPartitioningStrategyMap, tableToCustomKeyColumnsMap, nil
+	if importDataStatus.TableToCDCPartitionKey == nil {
+		return nil, goerrors.Errorf("cdc partitioning strategy per table not found in metadb")
 	}
-	return nil, nil, goerrors.Errorf("cdc partitioning strategy per table not found in metadb")
+
+	log.Infof("cdc partition key found in metadb: %v, value: %v", metadb.IMPORT_DATA_STATUS_KEY, importDataStatus.TableToCDCPartitionKey)
+	for tableName, partitionKey := range importDataStatus.TableToCDCPartitionKey {
+		tuple, err := namereg.NameReg.LookupTableName(tableName)
+		if err != nil {
+			return nil, fmt.Errorf("error looking up table name: %w", err)
+		}
+		tablePartitionKeyMap.Put(tuple, cdcPartitionKeyOverride{Strategy: partitionKey.Strategy, Columns: partitionKey.Columns})
+	}
+	for _, t := range tableNames {
+		partitionKey, ok := tablePartitionKeyMap.Get(t)
+		if !ok {
+			return nil, goerrors.Errorf("cdc partitioning strategy not found for table: %s", t.ForKey())
+		}
+		if partitionKey.Strategy == PARTITION_BY_CUSTOM && len(partitionKey.Columns) == 0 {
+			return nil, goerrors.Errorf("cdc custom partition key columns not found for table: %s", t.ForKey())
+		}
+	}
+	return tablePartitionKeyMap, nil
 }
 
 // resolveEffectiveCdcPartitionKeys applies global strategy, then per-table overlays,
@@ -278,40 +268,36 @@ func checkIfNeedsExprUKCheck(cdcPartitionKey string, overrides *utils.StructMap[
 }
 
 // computeAndPersistCdcPartitioningStrategyPerTable resolves global + overrides + auto/expr-UK
-// rules and writes TableToCDCPartitioningStrategyMap to metaDB.
+// rules and writes TableToCDCPartitionKey to metaDB.
 func computeAndPersistCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple, importDataStatus *metadb.ImportDataStatusRecord) (*utils.StructMap[sqlname.NameTuple, string], error) {
 	tableToPartitioningStrategyMap, exprUKKeysForStorage, customColumns, err := computeCdcPartitioningStrategyPerTable(tableNames, true, importDataStatus)
 	if err != nil {
 		return nil, fmt.Errorf("error computing cdc partitioning strategy per table: %w", err)
 	}
 
-	metadbMap := make(map[string]string)
-	err = tableToPartitioningStrategyMap.IterKV(func(key sqlname.NameTuple, value string) (bool, error) {
-		metadbMap[key.ForKey()] = value
+	// Combine strategy + custom key columns into the single persisted per-table map.
+	metadbMap := make(map[string]metadb.CDCPartitionKey)
+	err = tableToPartitioningStrategyMap.IterKV(func(key sqlname.NameTuple, strategy string) (bool, error) {
+		partitionKey := metadb.CDCPartitionKey{Strategy: strategy}
+		if strategy == PARTITION_BY_CUSTOM {
+			columns, _ := customColumns.Get(key)
+			partitionKey.Columns = columns
+		}
+		metadbMap[key.ForKey()] = partitionKey
 		return true, nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error building cdc partitioning strategy map: %w", err)
-	}
-
-	customColumnsMetadbMap := make(map[string][]string)
-	err = customColumns.IterKV(func(key sqlname.NameTuple, columns []string) (bool, error) {
-		customColumnsMetadbMap[key.ForKey()] = columns
-		return true, nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error building cdc custom partition key columns map: %w", err)
+		return nil, fmt.Errorf("error building cdc partition key map: %w", err)
 	}
 
 	err = metaDB.UpdateImportDataStatusRecord(func(obj *metadb.ImportDataStatusRecord) {
-		obj.TableToCDCPartitioningStrategyMap = metadbMap
+		obj.TableToCDCPartitionKey = metadbMap
 		obj.CdcExpressionUniqueIndexTables = exprUKKeysForStorage
-		obj.TableToCustomPartitionKeyColumns = customColumnsMetadbMap
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error updating cdc partitioning strategy in metadb: %w", err)
+		return nil, fmt.Errorf("error updating cdc partition key in metadb: %w", err)
 	}
-	log.Infof("updated cdc partitioning strategy in metadb: %v with strategy values: %v, custom key columns: %v", metadb.IMPORT_DATA_STATUS_KEY, metadbMap, customColumnsMetadbMap)
+	log.Infof("updated cdc partition key in metadb: %v with values: %v", metadb.IMPORT_DATA_STATUS_KEY, metadbMap)
 	return tableToPartitioningStrategyMap, nil
 }
 
@@ -408,8 +394,7 @@ func validateCdcPartitioningStrategyUnchanged(tableNames []sqlname.NameTuple, im
 	if err != nil {
 		return fmt.Errorf("error computing cdc partitioning strategy per table: %w", err)
 	}
-	return diffCdcPartitioningStrategy(resolvedTableToPartitioningStrategyMap, importDataStatus.TableToCDCPartitioningStrategyMap,
-		resolvedCustomColumns, importDataStatus.TableToCustomPartitionKeyColumns)
+	return diffCdcPartitioningStrategy(resolvedTableToPartitioningStrategyMap, resolvedCustomColumns, importDataStatus.TableToCDCPartitionKey)
 }
 
 // diffCdcPartitioningStrategy compares a freshly-resolved per-table strategy map against
@@ -419,22 +404,21 @@ func validateCdcPartitioningStrategyUnchanged(tableNames []sqlname.NameTuple, im
 // For PARTITION_BY_CUSTOM tables the strategy string ("custom") stays the same even when
 // the routing columns change, so the custom key column lists are compared explicitly.
 // Column order is significant because hashEvent hashes the values in that order, so a
-// reordering is treated as a change. resolvedCustomColumns / storedCustomColumns are the
-// resolved and persisted custom key columns keyed the same way as the strategy maps.
+// reordering is treated as a change. resolvedCustomColumns are the resolved custom key
+// columns; stored is the persisted per-table CDC partition key (strategy + columns).
 func diffCdcPartitioningStrategy(
 	resolved *utils.StructMap[sqlname.NameTuple, string],
-	stored map[string]string,
 	resolvedCustomColumns *utils.StructMap[sqlname.NameTuple, []string],
-	storedCustomColumns map[string][]string,
+	stored map[string]metadb.CDCPartitionKey,
 ) error {
 	var changed []string
 	var missingInStored []string
 	err := resolved.IterKV(func(t sqlname.NameTuple, strategy string) (bool, error) {
-		storedStrategy, ok := stored[t.ForKey()]
+		storedPartitionKey, ok := stored[t.ForKey()]
 		if !ok {
 			missingInStored = append(missingInStored, t.ForKey())
-		} else if storedStrategy != strategy {
-			changed = append(changed, fmt.Sprintf("%s (persisted: %q, new: %q)", t.ForOutput(), storedStrategy, strategy))
+		} else if storedPartitionKey.Strategy != strategy {
+			changed = append(changed, fmt.Sprintf("%s (persisted: %q, new: %q)", t.ForOutput(), storedPartitionKey.Strategy, strategy))
 			return true, nil
 		}
 		// Strategy is unchanged. For a custom key the strategy string alone cannot capture
@@ -444,7 +428,7 @@ func diffCdcPartitioningStrategy(
 			if resolvedCustomColumns != nil {
 				newColumns, _ = resolvedCustomColumns.Get(t)
 			}
-			oldColumns := storedCustomColumns[t.ForKey()]
+			oldColumns := storedPartitionKey.Columns
 			if !slices.Equal(oldColumns, newColumns) {
 				changed = append(changed, fmt.Sprintf("%s (persisted custom key columns: %v, new: %v)", t.ForOutput(), oldColumns, newColumns))
 			}

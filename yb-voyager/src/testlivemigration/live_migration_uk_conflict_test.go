@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/cmd"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
@@ -1372,8 +1373,8 @@ func TestLiveMigrationCdcPartitionKeyConfigs(t *testing.T) {
 
 	assert.Equal(t, "pk", importDataStatus.CdcPartitioningStrategyConfig)
 	assert.Equal(t, "", importDataStatus.CdcPartitionKeyOverridesConfig)
-	assertStrategyInMap(t, importDataStatus.TableToCDCPartitioningStrategyMap, "orders", cmd.PARTITION_BY_PK)
-	assertStrategyInMap(t, importDataStatus.TableToCDCPartitioningStrategyMap, "events", cmd.PARTITION_BY_PK)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "orders", cmd.PARTITION_BY_PK)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "events", cmd.PARTITION_BY_PK)
 
 	err = lm.StopImportData()
 	testutils.FatalIfError(t, err, "failed to stop import data")
@@ -1413,8 +1414,8 @@ func TestLiveMigrationCdcPartitionKeyConfigs(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to get import data status record")
 	assert.Equal(t, "pk", importDataStatus.CdcPartitioningStrategyConfig)
 	assert.Equal(t, mixedOverrides, importDataStatus.CdcPartitionKeyOverridesConfig)
-	assertStrategyInMap(t, importDataStatus.TableToCDCPartitioningStrategyMap, "orders", cmd.PARTITION_BY_TABLE)
-	assertStrategyInMap(t, importDataStatus.TableToCDCPartitioningStrategyMap, "events", cmd.PARTITION_BY_PK)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "orders", cmd.PARTITION_BY_TABLE)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "events", cmd.PARTITION_BY_PK)
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."orders"`, `"test_schema"."events"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
@@ -1438,15 +1439,15 @@ func TestLiveMigrationCdcPartitionKeyConfigs(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
 
-func assertStrategyInMap(t *testing.T, strategyMap map[string]string, tableSubstring, want string) {
+func assertStrategyInMap(t *testing.T, partitionKeyMap map[string]metadb.CDCPartitionKey, tableSubstring, want string) {
 	t.Helper()
-	for key, strategy := range strategyMap {
+	for key, partitionKey := range partitionKeyMap {
 		if strings.Contains(strings.ToLower(key), strings.ToLower(tableSubstring)) {
-			require.Equal(t, want, strategy, "strategy for key %q", key)
+			require.Equal(t, want, partitionKey.Strategy, "strategy for key %q", key)
 			return
 		}
 	}
-	t.Fatalf("table %q not found in strategy map: %v", tableSubstring, strategyMap)
+	t.Fatalf("table %q not found in partition key map: %v", tableSubstring, partitionKeyMap)
 }
 
 // TestLiveMigrationCdcPartitionKeyOverridesEquivalentOnResume verifies the semantic
@@ -1524,8 +1525,8 @@ func TestLiveMigrationCdcPartitionKeyOverridesEquivalentOnResume(t *testing.T) {
 	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
 	testutils.FatalIfError(t, err, "failed to get import data status record")
 	assert.Equal(t, "pk", importDataStatus.CdcPartitioningStrategyConfig)
-	assertStrategyInMap(t, importDataStatus.TableToCDCPartitioningStrategyMap, "orders", cmd.PARTITION_BY_TABLE)
-	assertStrategyInMap(t, importDataStatus.TableToCDCPartitioningStrategyMap, "events", cmd.PARTITION_BY_PK)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "orders", cmd.PARTITION_BY_TABLE)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "events", cmd.PARTITION_BY_PK)
 	// Expression-UK tables are captured on the first run (none here, but non-nil) so the
 	// resume comparison needs no target-DB re-query.
 	require.NotNil(t, importDataStatus.CdcExpressionUniqueIndexTables,
@@ -1569,8 +1570,8 @@ func TestLiveMigrationCdcPartitionKeyOverridesEquivalentOnResume(t *testing.T) {
 	importDataStatus, err = lm.GetMetaDB().GetImportDataStatusRecord()
 	testutils.FatalIfError(t, err, "failed to get import data status record after resume")
 	assert.Equal(t, "pk", importDataStatus.CdcPartitioningStrategyConfig)
-	assertStrategyInMap(t, importDataStatus.TableToCDCPartitioningStrategyMap, "orders", cmd.PARTITION_BY_TABLE)
-	assertStrategyInMap(t, importDataStatus.TableToCDCPartitioningStrategyMap, "events", cmd.PARTITION_BY_PK)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "orders", cmd.PARTITION_BY_TABLE)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "events", cmd.PARTITION_BY_PK)
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."orders"`, `"test_schema"."events"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency after resume")
@@ -1683,7 +1684,7 @@ func TestLiveMigrationCdcPartitionKeyRejectsPkOnExpressionUniqueIndex(t *testing
 	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
 	testutils.FatalIfError(t, err, "failed to get import data status record")
 	require.Equal(t, "auto", importDataStatus.CdcPartitioningStrategyConfig)
-	assertStrategyInMap(t, importDataStatus.TableToCDCPartitioningStrategyMap, "users", cmd.PARTITION_BY_TABLE)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "users", cmd.PARTITION_BY_TABLE)
 
 	// Resume WITHOUT start-clean trying to switch the expression-UK table from table to pk
 	// must be rejected: pk-partitioning cannot detect unique-key conflicts on an expression
@@ -1949,11 +1950,11 @@ func TestLiveMigrationWithCustomCdcPartitionKey(t *testing.T) {
 	importDataStatus, err := testMetaDB.GetImportDataStatusRecord()
 	testutils.FatalIfError(t, err, "failed to get import data status record")
 
-	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitioningStrategyMap[`"test_schema"."orders"`],
+	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."orders"`].Strategy,
 		"orders should use the custom partition strategy")
-	assert.Equal(t, cmd.PARTITION_BY_PK, importDataStatus.TableToCDCPartitioningStrategyMap[`"test_schema"."events"`],
+	assert.Equal(t, cmd.PARTITION_BY_PK, importDataStatus.TableToCDCPartitionKey[`"test_schema"."events"`].Strategy,
 		"events should resolve to pk under auto")
-	assert.Equal(t, []string{"customer_id"}, importDataStatus.TableToCustomPartitionKeyColumns[`"test_schema"."orders"`],
+	assert.Equal(t, []string{"customer_id"}, importDataStatus.TableToCDCPartitionKey[`"test_schema"."orders"`].Columns,
 		"orders custom key columns should be persisted")
 
 	// Stream CDC changes and validate.
