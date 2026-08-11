@@ -1932,7 +1932,7 @@ func TestLiveMigrationWithCustomCdcPartitionKey(t *testing.T) {
 
 	err = lm.StartImportData(true, map[string]string{
 		"--cdc-partition-key":           "auto",
-		"--cdc-partition-key-overrides": "test_schema.orders:customer_id",
+		"--cdc-partition-key-overrides": "test_schema.orders:(customer_id)",
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
 	defer lm.StopImportData()

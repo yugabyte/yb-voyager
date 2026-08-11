@@ -230,8 +230,9 @@ type cdcPartitionKeyOverride struct {
 	Columns  []string
 }
 
-// parseCdcPartitionKeyOverrides parses "schema.table:pk;schema.other:col1,col2".
-// Each value is either pk, table, or a comma-separated custom column list (custom key).
+// parseCdcPartitionKeyOverrides parses "schema.table:pk;schema.other:(col1,col2)".
+// Each value is either pk, table, or a parenthesized comma-separated custom column
+// list (custom key), e.g. (col1,col2).
 func parseCdcPartitionKeyOverrides(overrides string) (map[string]cdcPartitionKeyOverride, error) {
 	result := make(map[string]cdcPartitionKeyOverride)
 	overrides = strings.TrimSpace(overrides)
@@ -246,7 +247,7 @@ func parseCdcPartitionKeyOverrides(overrides string) (map[string]cdcPartitionKey
 		}
 		parts := strings.SplitN(entry, ":", 2)
 		if len(parts) != 2 {
-			return nil, goerrors.Errorf("invalid cdc-partition-key-overrides entry %q: expected format schema.table:pk|table|<col1,col2,...>", entry)
+			return nil, goerrors.Errorf("invalid cdc-partition-key-overrides entry %q: expected format schema.table:pk|table|(col1,col2,...)", entry)
 		}
 		tableName := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])
@@ -259,11 +260,8 @@ func parseCdcPartitionKeyOverrides(overrides string) (map[string]cdcPartitionKey
 			return nil, err
 		}
 
-		if existing, exists := result[tableName]; exists {
-			if cdcPartitionKeyOverridesEqual(existing, override) {
-				continue
-			}
-			return nil, goerrors.Errorf("duplicate table %q in cdc-partition-key-overrides with conflicting values", tableName)
+		if _, exists := result[tableName]; exists {
+			return nil, goerrors.Errorf("duplicate table %q in cdc-partition-key-overrides", tableName)
 		}
 		result[tableName] = override
 	}
@@ -271,8 +269,8 @@ func parseCdcPartitionKeyOverrides(overrides string) (map[string]cdcPartitionKey
 }
 
 // parseCdcPartitionKeyOverrideValue interprets a single override value. "pk" and
-// "table" map to the corresponding strategy; anything else is treated as a
-// comma-separated custom column list (PARTITION_BY_CUSTOM).
+// "table" map to the corresponding strategy; a custom key column list must be wrapped
+// in parentheses, e.g. (col1,col2), and maps to PARTITION_BY_CUSTOM.
 func parseCdcPartitionKeyOverrideValue(tableName, value string) (cdcPartitionKeyOverride, error) {
 	switch value {
 	case PARTITION_BY_PK:
@@ -281,7 +279,16 @@ func parseCdcPartitionKeyOverrideValue(tableName, value string) (cdcPartitionKey
 		return cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE}, nil
 	}
 
-	utils.PrintAndLogfWarning("[Tech Preview] Using custom cdc partition key for table %q: %s", tableName, value)
+	// A custom key column list must be parenthesized: (col1,col2,...).
+	if !strings.HasPrefix(value, "(") || !strings.HasSuffix(value, ")") {
+		return cdcPartitionKeyOverride{}, goerrors.Errorf("invalid cdc-partition-key-overrides value %q for table %q: expected pk, table, or a parenthesized custom key column list like (col1,col2)", value, tableName)
+	}
+	value = strings.TrimSpace(value[1 : len(value)-1])
+	if value == "" {
+		return cdcPartitionKeyOverride{}, goerrors.Errorf("invalid cdc-partition-key-overrides value for table %q: custom key column list is empty", tableName)
+	}
+
+	utils.PrintAndLogfWarning("[Tech Preview] Using custom cdc partition key for table %q: (%s)", tableName, value)
 	rawColumns := strings.Split(value, ",")
 	columns := make([]string, 0, len(rawColumns))
 	seen := make(map[string]bool)
@@ -567,8 +574,9 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 		table: Partition CDC events by table (all events for a table share one channel).`)
 
 	cmd.Flags().StringVar(&cdcPartitionKeyOverrides, "cdc-partition-key-overrides", "",
-		`Optional per-table CDC partition-key overrides as schema.table:pk|table pairs, separated by ';'.
-		Example: public.orders:table;sales.events:pk. Unlisted tables keep the global --cdc-partition-key.`)
+		`Optional per-table CDC partition-key overrides as schema.table:pk|table|(col1,col2,...) pairs, separated by ';'.
+		A custom key column list must be wrapped in parentheses. Example: public.orders:table;sales.events:pk;public.payments:(customer_id,region).
+		Unlisted tables keep the global --cdc-partition-key.`)
 
 	cmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
 		"Port for Prometheus metrics server (default: 9101)")

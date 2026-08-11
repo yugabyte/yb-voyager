@@ -82,22 +82,10 @@ TODO: handle upgrade scenario for PG/Oracle pk->table change
 func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], error) {
 	tablePartitionKeyMap := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 
-	if importerRole != TARGET_DB_IMPORTER_ROLE {
+	if shouldForceTablePartitioning(importerRole, sourceDBType) {
 		//For PG/ORacle source/source-replica, using partitioning by table since there won't be any huge difference in
 		// performance between the two strategies for single node databases like PG/Oracle
 		//and Parititon by table is better from data correctness perspective
-		for _, t := range tableNames {
-			tablePartitionKeyMap.Put(t, cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE})
-		}
-		return tablePartitionKeyMap, nil
-	}
-
-	if sourceDBType != POSTGRESQL {
-		//Oracle sources do not support unique-key conflict detection during live migration
-		//(we do not fetch unique indexes for Oracle). Force PARTITION_BY_TABLE so that all
-		//events of a table run sequentially on a single channel, which makes unique-key
-		//conflicts impossible and hence conflict detection unnecessary.
-		//anything other than PG is not supported for conflict and hence we force table partitioning
 		for _, t := range tableNames {
 			tablePartitionKeyMap.Put(t, cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE})
 		}
@@ -133,6 +121,10 @@ func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.
 		}
 	}
 	return tablePartitionKeyMap, nil
+}
+
+func shouldForceTablePartitioning(importerRole string, sourceDBType string) bool {
+	return importerRole != TARGET_DB_IMPORTER_ROLE || sourceDBType != POSTGRESQL
 }
 
 // resolveEffectiveCdcPartitionKeys applies global strategy, then per-table overlays,

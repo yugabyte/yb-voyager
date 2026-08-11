@@ -459,12 +459,16 @@ func GetEventPartitionKey(e *tgtdb.Event, tablePartitionKeyMap *utils.StructMap[
 		if len(columns) == 0 {
 			return "", goerrors.Errorf("custom partition key columns not found for table %v", e.TableNameTup)
 		}
+		sort.Strings(columns)
 		// Custom key columns are immutable (guardrail enforced separately), so a row's
 		// key value is the same in BeforeFields (update/delete) and Fields (insert).
 		// Prefer BeforeFields (present for update/delete under REPLICA IDENTITY FULL);
 		// fall back to Fields for inserts.
 		for _, col := range columns {
-			val, ok := customPartitionKeyColumnValue(e, col)
+			val, ok, err := customPartitionKeyColumnValue(e, col)
+			if err != nil {
+				return "", err
+			}
 			if !ok {
 				return "", goerrors.Errorf("custom partition key column %q not found in event(vsn=%d) for table %v; ensure REPLICA IDENTITY FULL is set", col, e.Vsn, e.TableNameTup)
 			}
@@ -491,23 +495,39 @@ func hashEvent(e *tgtdb.Event, tablePartitionKeyMap *utils.StructMap[sqlname.Nam
 	return int(hash.Sum64() % (uint64(NUM_EVENT_CHANNELS))), nil
 }
 
-// customPartitionKeyColumnValue returns the value of a custom partition key column for the event,
-// preferring BeforeFields (full row image for update/delete under REPLICA IDENTITY FULL)
-// and falling back to Fields (inserts). The second return is false if the column is
-// present in neither map.
-func customPartitionKeyColumnValue(e *tgtdb.Event, col string) (*string, bool) {
-	if e.BeforeFields != nil {
-		if val, ok := e.BeforeFields[col]; ok {
-			return val, true
+// customPartitionKeyColumnValue returns the value as per the event operation for the custom partition key column
+// if the column is not found, the second return is false
+
+func customPartitionKeyColumnValue(e *tgtdb.Event, col string) (*string, bool, error) {
+	switch e.Op {
+	case "i":
+		val, ok := e.Fields[col]
+		if ok {
+			return val, true, nil
+		} else {
+			return nil, false, goerrors.Errorf("custom partition key column %q not found in event(vsn=%d) for table %v", col, e.Vsn, e.TableNameTup)
+		}
+	case "u":
+		_, ok := e.Fields[col]
+		if ok {
+			return nil, false, goerrors.Errorf("custom partition key column %q is required to be immutable, it is changing in update event(vsn=%d) for table %v", col, e.Vsn, e.TableNameTup)
+		}
+		val, ok := e.BeforeFields[col]
+		if ok {
+			return val, true, nil
+		} else {
+			return nil, false, goerrors.Errorf("custom partition key column %q not found in event(vsn=%d) for table %v; ensure REPLICA IDENTITY FULL is set", col, e.Vsn, e.TableNameTup)
+		}
+	case "d":
+		val, ok := e.BeforeFields[col]
+		if ok {
+			return val, true, nil
+		} else {
+			return nil, false, goerrors.Errorf("custom partition key column %q not found in event(vsn=%d) for table %v;", col, e.Vsn, e.TableNameTup)
 		}
 	}
-	if val, ok := e.Fields[col]; ok {
-		return val, true
-	}
-	return nil, false
+	return nil, false, nil
 }
-
-// TODO: return err instead of ErrExit so that we can test better.
 func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, done chan bool, statsReporter *reporter.StreamImportStatsReporter, state *ImportDataState) {
 	endOfProcessing := false
 	for !endOfProcessing {
