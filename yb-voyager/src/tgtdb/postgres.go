@@ -432,6 +432,7 @@ func (pg *TargetPostgreSQL) GetTableToUniqueIndexesMap(tableList []sqlname.NameT
 // (contype 'u'); only primary-key indexes (contype 'p') are excluded.
 // It is used for both PostgreSQL and YugabyteDB targets since YugabyteDB is
 // PG-compatible at the catalog level.
+//Note: this query doesn't include the key columns having expression in it.
 const pgQueryTmplForUniqIndexes = `
 WITH unique_indexes AS (
     SELECT
@@ -459,6 +460,10 @@ WITH unique_indexes AS (
     WHERE
         ix.indisunique = TRUE
         AND c.contype IS NULL
+        -- indkey (int2vector) is 0-indexed, so array_position returns a 0-based position
+        -- (matching the "+ 1" used for ordinal_position above). Only the first indnkeyatts
+        -- entries are key columns; the rest are INCLUDE (covering) columns, so exclude them.
+        AND array_position(ix.indkey, a.attnum) + 1 <= ix.indnkeyatts
         AND n.nspname = ANY('{%s}')
         AND t.relname = ANY('{%s}')
     GROUP BY

@@ -268,6 +268,7 @@ func TestPostgresTargetGetTableToUniqueIndexesMap(t *testing.T) {
 		);`,
 		`CREATE UNIQUE INDEX idx_partial_check_id ON test_schema.partial_unique_table (check_id) WHERE most_recent;`,
 		// expression-only unique index has no plain columns, so the table should not appear
+		`CREATE UNIQUE INDEX idx_partial_check_id_include ON test_schema.partial_unique_table ((check_id+id)) INCLUDE (most_recent);`, //this won't reflect in the query results as we don't really fetch indexes properly that have expressions in the key
 		`CREATE TABLE test_schema.expression_unique_table (
 			id SERIAL PRIMARY KEY,
 			email TEXT
@@ -280,6 +281,13 @@ func TestPostgresTargetGetTableToUniqueIndexesMap(t *testing.T) {
 			code TEXT
 		);`,
 		`CREATE UNIQUE INDEX idx_mixed_expr ON test_schema.mixed_expression_unique_table (lower(email), code);`,
+		`CREATE UNIQUE INDEX idx_including_unique ON test_schema.mixed_expression_unique_table (email) INCLUDE (code);`,
+		`CREATE TABLE test_schema.unique_table_with_include (
+			id SERIAL PRIMARY KEY,
+			email TEXT,
+			code TEXT,
+			UNIQUE (code) INCLUDE (email)
+		);`,
 	)
 	defer testPostgresTarget.ExecuteSqls(
 		`DROP SCHEMA test_schema CASCADE;`,
@@ -297,6 +305,7 @@ func TestPostgresTargetGetTableToUniqueIndexesMap(t *testing.T) {
 		testutils.CreateNameTupleWithTargetName("test_schema.partial_unique_table", "public", POSTGRESQL),
 		testutils.CreateNameTupleWithTargetName("test_schema.expression_unique_table", "public", POSTGRESQL),
 		testutils.CreateNameTupleWithTargetName("test_schema.mixed_expression_unique_table", "public", POSTGRESQL),
+		testutils.CreateNameTupleWithTargetName("test_schema.unique_table_with_include", "public", YUGABYTEDB),
 	}
 
 	actualIndexes, err := testPostgresTarget.GetTableToUniqueIndexesMap(tablesList)
@@ -333,6 +342,10 @@ func TestPostgresTargetGetTableToUniqueIndexesMap(t *testing.T) {
 		{Columns: []string{"check_id"}},
 	})
 	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.mixed_expression_unique_table", "public", POSTGRESQL), []UniqueIndex{
+		{Columns: []string{"code"}},
+		{Columns: []string{"email"}},
+	})
+	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.unique_table_with_include", "public", YUGABYTEDB), []UniqueIndex{
 		{Columns: []string{"code"}},
 	})
 
