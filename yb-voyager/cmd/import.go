@@ -37,8 +37,8 @@ var targetDBPassword string
 var sourceDBType string
 var enableOrafce utils.BoolStr
 var importType string
-var prometheusMetricsPort int // deprecated alias for --metrics-port
-var metricsPort int           // bound to --metrics-port; 0 = disabled
+var prometheusMetricsPort int            // deprecated alias for --metrics-port
+var metricsPort int                      // bound to --metrics-port; 0 = disabled
 var importUsePartitionRoot utils.BoolStr // default is true for backward compatibility
 
 var supportedSSLModesOnTargetForImport = AllSSLModes // supported SSL modes for YugabyteDB is different for import VS export data from target(streaming phase)
@@ -281,6 +281,7 @@ func parseCdcPartitionKeyOverrideValue(tableName, value string) (cdcPartitionKey
 		return cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE}, nil
 	}
 
+	utils.PrintAndLogfWarning("[Tech Preview] Using custom cdc partition key for table %q: %s", tableName, value)
 	rawColumns := strings.Split(value, ",")
 	columns := make([]string, 0, len(rawColumns))
 	seen := make(map[string]bool)
