@@ -579,8 +579,8 @@ func TestResolveCdcPartitionKeyOverrides(t *testing.T) {
 			"test_schema.orders": {Strategy: PARTITION_BY_PK},
 			"orders":             {Strategy: PARTITION_BY_PK}, // unqualified resolves to default schema
 		}, importList)
-		require.NoError(t, err)
-		assert.Equal(t, map[string]cdcPartitionKeyOverride{"orders": {Strategy: PARTITION_BY_PK}}, overrideSpecsByTableName(got))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "specified multiple times")
 	})
 }
 
