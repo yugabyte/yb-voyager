@@ -500,7 +500,7 @@ func hashEvent(e *tgtdb.Event, tablePartitionKeyMap *utils.StructMap[sqlname.Nam
 
 func customPartitionKeyColumnValue(e *tgtdb.Event, col string) (*string, bool, error) {
 	switch e.Op {
-	case "i":
+	case "c":
 		val, ok := e.Fields[col]
 		if ok {
 			return val, true, nil

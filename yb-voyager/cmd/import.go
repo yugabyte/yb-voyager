@@ -306,23 +306,6 @@ func parseCdcPartitionKeyOverrideValue(tableName, value string) (cdcPartitionKey
 	return cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: columns}, nil
 }
 
-// cdcPartitionKeyOverridesEqual reports whether two parsed overrides are equivalent
-// (same strategy and, for custom, the same ordered column list).
-func cdcPartitionKeyOverridesEqual(a, b cdcPartitionKeyOverride) bool {
-	if !strings.EqualFold(a.Strategy, b.Strategy) {
-		return false
-	}
-	if len(a.Columns) != len(b.Columns) {
-		return false
-	}
-	for i := range a.Columns {
-		if a.Columns[i] != b.Columns[i] {
-			return false
-		}
-	}
-	return true
-}
-
 func validateCdcPartitionKeyFlags(cmd *cobra.Command) error {
 	globalPassed := cmd.Flags().Changed("cdc-partition-key")
 	overridesPassed := cmd.Flags().Changed("cdc-partition-key-overrides")
@@ -574,9 +557,8 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 		table: Partition CDC events by table (all events for a table share one channel).`)
 
 	cmd.Flags().StringVar(&cdcPartitionKeyOverrides, "cdc-partition-key-overrides", "",
-		`Optional per-table CDC partition-key overrides as schema.table:pk|table|(col1,col2,...) pairs, separated by ';'.
-		A custom key column list must be wrapped in parentheses. Example: public.orders:table;sales.events:pk;public.payments:(customer_id,region).
-		Unlisted tables keep the global --cdc-partition-key.`)
+		`Optional per-table CDC partition-key overrides as schema.table:pk|table pairs, separated by ';'.
+		Example: public.orders:table;sales.events:pk. Unlisted tables keep the global --cdc-partition-key.`)
 
 	cmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
 		"Port for Prometheus metrics server (default: 9101)")

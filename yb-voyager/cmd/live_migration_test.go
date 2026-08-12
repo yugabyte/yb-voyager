@@ -357,11 +357,11 @@ func testCdcPartitionNameTuple(schema, table string) sqlname.NameTuple {
 	}
 }
 
-func strategiesByTableName(m *utils.StructMap[sqlname.NameTuple, string]) map[string]string {
+func strategiesByTableName(m *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride]) map[string]string {
 	out := make(map[string]string)
-	_ = m.IterKV(func(k sqlname.NameTuple, v string) (bool, error) {
+	_ = m.IterKV(func(k sqlname.NameTuple, v cdcPartitionKeyOverride) (bool, error) {
 		_, table := k.ForCatalogQuery()
-		out[table] = v
+		out[table] = v.Strategy
 		return true, nil
 	})
 	return out
@@ -426,8 +426,8 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 	})
 
 	t.Run("overlay changes only listed tables", func(t *testing.T) {
-		overrides := utils.NewStructMap[sqlname.NameTuple, string]()
-		overrides.Put(orders, PARTITION_BY_TABLE)
+		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
+		overrides.Put(orders, cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE})
 		got, err := resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_PK, overrides, nil, YUGABYTEDB)
 		require.NoError(t, err)
 		assert.Equal(t, map[string]string{
@@ -438,9 +438,9 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 	})
 
 	t.Run("auto plus override pk on normal table", func(t *testing.T) {
-		overrides := utils.NewStructMap[sqlname.NameTuple, string]()
-		overrides.Put(events, PARTITION_BY_PK)
-		overrides.Put(orders, PARTITION_BY_TABLE)
+		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
+		overrides.Put(events, cdcPartitionKeyOverride{Strategy: PARTITION_BY_PK})
+		overrides.Put(orders, cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE})
 		got, err := resolveEffectiveCdcPartitionKeys(tables, "auto", overrides, nil, YUGABYTEDB)
 		require.NoError(t, err)
 		assert.Equal(t, map[string]string{
@@ -462,8 +462,8 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 	t.Run("rejects override pk on expression-UK table", func(t *testing.T) {
 		exprUK := utils.NewStructMap[sqlname.NameTuple, bool]()
 		exprUK.Put(audit, true)
-		overrides := utils.NewStructMap[sqlname.NameTuple, string]()
-		overrides.Put(audit, PARTITION_BY_PK)
+		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
+		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_PK})
 		_, err := resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_TABLE, overrides, exprUK, YUGABYTEDB)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "expression-based unique index")
@@ -472,8 +472,8 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 	t.Run("override table on expression-UK table is allowed", func(t *testing.T) {
 		exprUK := utils.NewStructMap[sqlname.NameTuple, bool]()
 		exprUK.Put(audit, true)
-		overrides := utils.NewStructMap[sqlname.NameTuple, string]()
-		overrides.Put(audit, PARTITION_BY_TABLE)
+		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
+		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE})
 		got, err := resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_PK, overrides, exprUK, YUGABYTEDB)
 		require.NoError(t, err)
 		assert.Equal(t, PARTITION_BY_TABLE, strategiesByTableName(got)["audit"])
@@ -620,8 +620,8 @@ func TestValidateCdcPartitioningStrategyUnchanged(t *testing.T) {
 	require.NoError(t, err)
 
 	storedMap := make(map[string]metadb.CDCPartitionKey)
-	require.NoError(t, firstRun.IterKV(func(k sqlname.NameTuple, v string) (bool, error) {
-		storedMap[k.ForKey()] = metadb.CDCPartitionKey{Strategy: v}
+	require.NoError(t, firstRun.IterKV(func(k sqlname.NameTuple, v cdcPartitionKeyOverride) (bool, error) {
+		storedMap[k.ForKey()] = metadb.CDCPartitionKey{Strategy: v.Strategy, Columns: v.Columns}
 		return true, nil
 	}))
 	importDataStatus := &metadb.ImportDataStatusRecord{
@@ -716,15 +716,13 @@ func TestValidateCdcPartitioningStrategyUnchanged(t *testing.T) {
 	})
 }
 
-func mustResolveOverrides(t *testing.T, raw string, tableNames []sqlname.NameTuple) *utils.StructMap[sqlname.NameTuple, string] {
+func mustResolveOverrides(t *testing.T, raw string, tableNames []sqlname.NameTuple) *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride] {
 	t.Helper()
 	parsed, err := parseCdcPartitionKeyOverrides(raw)
 	require.NoError(t, err)
 	resolved, err := resolveCdcPartitionKeyOverrides(parsed, tableNames)
 	require.NoError(t, err)
-	strategyOverrides, _, err := splitResolvedOverrides(resolved)
-	require.NoError(t, err)
-	return strategyOverrides
+	return resolved
 }
 
 // TestValidateCdcPartitionKeyFlags covers the flag-level guardrails in

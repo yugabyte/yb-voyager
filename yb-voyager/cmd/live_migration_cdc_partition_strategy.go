@@ -213,8 +213,8 @@ func resolveCdcPartitionKeyOverrides(rawOverrides map[string]cdcPartitionKeyOver
 		}
 		// Detect duplicates on the resolved NameTuple so different spellings of the
 		// same table (casing/quoting/schema-qualification) don't silently overwrite.
-		if existing, ok := resolved.Get(tuple); ok && !cdcPartitionKeyOverridesEqual(existing, override) {
-			return nil, goerrors.Errorf("cdc-partition-key-overrides: table %q (resolved to %s) specified multiple times with conflicting values",
+		if _, ok := resolved.Get(tuple); ok {
+			return nil, goerrors.Errorf("cdc-partition-key-overrides: table %q (resolved to %s) specified multiple times",
 				tableSpec, tuple.ForOutput())
 		}
 		resolved.Put(tuple, override)
