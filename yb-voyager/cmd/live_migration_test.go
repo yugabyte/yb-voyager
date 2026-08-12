@@ -575,7 +575,7 @@ func TestResolveCdcPartitionKeyOverrides(t *testing.T) {
 	})
 
 	t.Run("dedups same value across different spellings", func(t *testing.T) {
-		got, err := resolveCdcPartitionKeyOverrides(map[string]cdcPartitionKeyOverride{
+		_, err := resolveCdcPartitionKeyOverrides(map[string]cdcPartitionKeyOverride{
 			"test_schema.orders": {Strategy: PARTITION_BY_PK},
 			"orders":             {Strategy: PARTITION_BY_PK}, // unqualified resolves to default schema
 		}, importList)
