@@ -37,6 +37,14 @@ type ImportDataStatusRecord struct {
 		raw cdc-partition-key-overrides string; empty means no per-table overrides
 	*/
 	CdcPartitionKeyOverridesConfig string `json:"cdcPartitionKeyOverridesConfig"`
+	/*
+		ForKey names of tables that have an expression-based unique index, captured on
+		the first prepare of the cdc partitioning strategy. It lets resume re-resolve the
+		effective per-table strategy (and validate the config is unchanged) without
+		re-querying the target DB. nil means it was not captured (record written by an
+		older voyager, or a first run that did not need the expression-UK check).
+	*/
+	CdcExpressionUniqueIndexTables []string `json:"cdcExpressionUniqueIndexTables"`
 
 	TargetUsePartitionRoot bool `json:"TargetUsePartitionRoot"` // false - use leaf table for partitions, true - use root table for partitions; default is true
 }

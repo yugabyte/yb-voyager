@@ -522,6 +522,100 @@ func TestResolveCdcPartitionKeyOverrides(t *testing.T) {
 	})
 }
 
+// TestValidateCdcPartitioningStrategyUnchanged covers the semantic resume guard: the
+// current flags are re-resolved into an effective per-table strategy and compared against
+// the map persisted on the first run. Semantically-equivalent overrides (different
+// spelling/quoting/ordering/whitespace) must pass, while any change to the effective
+// per-table strategy must be rejected.
+func TestValidateCdcPartitioningStrategyUnchanged(t *testing.T) {
+	setupCdcOverridesNameRegistry(t)
+
+	origKey := cdcPartitionKey
+	origOverrides := cdcPartitionKeyOverrides
+	origTargetDBType := tconf.TargetDBType
+	t.Cleanup(func() {
+		cdcPartitionKey = origKey
+		cdcPartitionKeyOverrides = origOverrides
+		tconf.TargetDBType = origTargetDBType
+	})
+	tconf.TargetDBType = YUGABYTEDB
+
+	lookup := func(name string) sqlname.NameTuple {
+		nt, err := namereg.NameReg.LookupTableName(name)
+		require.NoError(t, err)
+		return nt
+	}
+	orders := lookup("test_schema.orders")
+	events := lookup("test_schema.events")
+	tableNames := []sqlname.NameTuple{orders, events}
+
+	// First-run config: global pk with an override putting orders on table. No
+	// expression-UK tables (captured as a non-nil empty slice on the first run).
+	firstRun, err := resolveEffectiveCdcPartitionKeys(
+		tableNames, PARTITION_BY_PK,
+		mustResolveOverrides(t, "test_schema.orders:table", tableNames),
+		utils.NewStructMap[sqlname.NameTuple, bool](), YUGABYTEDB)
+	require.NoError(t, err)
+
+	storedMap := make(map[string]string)
+	require.NoError(t, firstRun.IterKV(func(k sqlname.NameTuple, v string) (bool, error) {
+		storedMap[k.ForKey()] = v
+		return true, nil
+	}))
+	importDataStatus := &metadb.ImportDataStatusRecord{
+		ImportDataStarted:                 true,
+		CdcPartitioningStrategyConfig:     PARTITION_BY_PK,
+		CdcPartitionKeyOverridesConfig:    "test_schema.orders:table",
+		TableToCDCPartitioningStrategyMap: storedMap,
+		CdcExpressionUniqueIndexTables:    []string{}, // captured, none
+	}
+
+	t.Run("same config passes", func(t *testing.T) {
+		cdcPartitionKey = PARTITION_BY_PK
+		cdcPartitionKeyOverrides = "test_schema.orders:table"
+		require.NoError(t, validateCdcPartitioningStrategyUnchanged(tableNames, importDataStatus))
+	})
+
+	t.Run("semantically-equivalent overrides (quoting) pass", func(t *testing.T) {
+		cdcPartitionKey = PARTITION_BY_PK
+		cdcPartitionKeyOverrides = `"test_schema"."orders":table`
+		require.NoError(t, validateCdcPartitioningStrategyUnchanged(tableNames, importDataStatus))
+	})
+
+	t.Run("semantically-equivalent overrides (whitespace) pass", func(t *testing.T) {
+		cdcPartitionKey = PARTITION_BY_PK
+		cdcPartitionKeyOverrides = "  test_schema.orders:table ; "
+		require.NoError(t, validateCdcPartitioningStrategyUnchanged(tableNames, importDataStatus))
+	})
+
+	t.Run("changed override target table is rejected", func(t *testing.T) {
+		cdcPartitionKey = PARTITION_BY_PK
+		cdcPartitionKeyOverrides = "test_schema.events:table"
+		err := validateCdcPartitioningStrategyUnchanged(tableNames, importDataStatus)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "changing cdc-partition-key")
+		assert.Contains(t, err.Error(), "events")
+	})
+
+	t.Run("removed override is rejected", func(t *testing.T) {
+		cdcPartitionKey = PARTITION_BY_PK
+		cdcPartitionKeyOverrides = ""
+		err := validateCdcPartitioningStrategyUnchanged(tableNames, importDataStatus)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "changing cdc-partition-key")
+		assert.Contains(t, err.Error(), "orders")
+	})
+}
+
+func mustResolveOverrides(t *testing.T, raw string, tableNames []sqlname.NameTuple) *utils.StructMap[sqlname.NameTuple, string] {
+	t.Helper()
+	parsed, err := parseCdcPartitionKeyOverrides(raw)
+	require.NoError(t, err)
+	resolved, err := resolveCdcPartitionKeyOverrides(parsed, tableNames)
+	require.NoError(t, err)
+	return resolved
+}
+
 // TestValidateCdcPartitionKeyFlags covers the flag-level guardrails in
 // validateCdcPartitionKeyFlags: context restrictions (target/YB/PG/streaming),
 // value validation, and the resume change-guards (including the positive
@@ -672,20 +766,9 @@ func TestValidateCdcPartitionKeyFlags(t *testing.T) {
 		assert.Contains(t, err.Error(), "changing cdc-partition-key is not allowed")
 	})
 
-	t.Run("resume rejects changed overrides", func(t *testing.T) {
-		setValidContext()
-		seedMetaDB(t, func(r *metadb.ImportDataStatusRecord) {
-			r.ImportDataStarted = true
-			r.CdcPartitioningStrategyConfig = PARTITION_BY_PK
-			r.CdcPartitionKeyOverridesConfig = ""
-		})
-		cmd := newCmd()
-		cdcPartitionKey = PARTITION_BY_PK
-		cdcPartitionKeyOverrides = "test_schema.orders:table"
-		err := validateCdcPartitionKeyFlags(cmd)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "changing cdc-partition-key-overrides is not allowed")
-	})
+	// NOTE: changed cdc-partition-key-overrides is no longer rejected here by a raw string
+	// compare; the semantic per-table comparison is covered by
+	// TestValidateCdcPartitioningStrategyUnchanged.
 
 	t.Run("resume from older version without stored strategy is rejected", func(t *testing.T) {
 		setValidContext()

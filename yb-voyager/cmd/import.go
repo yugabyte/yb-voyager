@@ -308,10 +308,11 @@ func validateCdcPartitionKeyFlags(cmd *cobra.Command) error {
 	if cdcPartitionKey != importDataStatus.CdcPartitioningStrategyConfig {
 		return goerrors.Errorf("changing cdc-partition-key is not allowed after the import data has started. Current: %s, new: %s\n Use --start-clean to start a fresh import with the new partition key.", importDataStatus.CdcPartitioningStrategyConfig, cdcPartitionKey)
 	}
-	storedOverrides := importDataStatus.CdcPartitionKeyOverridesConfig //TODO: just checking the string equality is not enough, we might need to compare the overrides by properly
-	if cdcPartitionKeyOverrides != storedOverrides {
-		return goerrors.Errorf("changing cdc-partition-key-overrides is not allowed after the import data has started. Current: %q, new: %q\n Use --start-clean to start a fresh import with the new overrides.", storedOverrides, cdcPartitionKeyOverrides)
-	}
+	// cdc-partition-key-overrides is intentionally NOT compared here as a raw string: two
+	// different strings (ordering, quoting/casing, whitespace) can resolve to the same
+	// effective per-table strategy. The semantic comparison against the persisted per-table
+	// map is done in prepareCdcPartitionKey, which has the import table list + name registry
+	// needed to resolve overrides into effective per-table strategies.
 	log.Infof("cdc-partition-key: %s, cdc-partition-key-overrides: %q", cdcPartitionKey, cdcPartitionKeyOverrides)
 	return nil
 }
