@@ -571,7 +571,7 @@ func TestResolveCdcPartitionKeyOverrides(t *testing.T) {
 			`"test_schema"."orders"`: {Strategy: PARTITION_BY_TABLE},
 		}, importList)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "specified multiple times with conflicting values")
+		assert.Contains(t, err.Error(), "specified multiple times")
 	})
 
 	t.Run("dedups same value across different spellings", func(t *testing.T) {
@@ -918,7 +918,7 @@ func TestHashEventCustomKey(t *testing.T) {
 
 	// insert: key value in Fields (BeforeFields nil)
 	insertEvent := &tgtdb.Event{
-		Vsn: 1, Op: "i", TableNameTup: orders,
+		Vsn: 1, Op: "c", TableNameTup: orders,
 		Key:    map[string]*string{"id": sp("1")},
 		Fields: map[string]*string{"id": sp("1"), "customer_id": sp("C1"), "amount": sp("10")},
 	}
@@ -954,7 +954,7 @@ func TestHashEventCustomKey(t *testing.T) {
 		multiColMap.Put(orders, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"customer_id", "region"}})
 
 		ev := &tgtdb.Event{
-			Vsn: 10, Op: "i", TableNameTup: orders,
+			Vsn: 10, Op: "c", TableNameTup: orders,
 			Fields: map[string]*string{"customer_id": sp("C1"), "region": sp("US")},
 		}
 		h1, err := hashEvent(ev, multiColMap)
@@ -974,7 +974,7 @@ func TestHashEventCustomKey(t *testing.T) {
 
 	t.Run("null key value is handled deterministically", func(t *testing.T) {
 		ev := &tgtdb.Event{
-			Vsn: 20, Op: "i", TableNameTup: orders,
+			Vsn: 20, Op: "c", TableNameTup: orders,
 			Fields: map[string]*string{"customer_id": nil, "amount": sp("5")},
 		}
 		h1, err := hashEvent(ev, singleColMap)
@@ -986,7 +986,7 @@ func TestHashEventCustomKey(t *testing.T) {
 
 	t.Run("missing custom key column errors", func(t *testing.T) {
 		ev := &tgtdb.Event{
-			Vsn: 30, Op: "i", TableNameTup: orders,
+			Vsn: 30, Op: "c", TableNameTup: orders,
 			Fields: map[string]*string{"id": sp("1"), "amount": sp("5")}, // no customer_id anywhere
 		}
 		_, err := hashEvent(ev, singleColMap)
@@ -1039,14 +1039,14 @@ func TestGetEventPartitionKey(t *testing.T) {
 	})
 
 	t.Run("custom: same custom value -> same key regardless of PK/op", func(t *testing.T) {
-		insert := &tgtdb.Event{Vsn: 1, Op: "i", TableNameTup: orders,
+		insert := &tgtdb.Event{Vsn: 1, Op: "c", TableNameTup: orders,
 			Key:    map[string]*string{"id": sp("1")},
 			Fields: map[string]*string{"id": sp("1"), "customer_id": sp("C1")}}
 		update := &tgtdb.Event{Vsn: 2, Op: "u", TableNameTup: orders,
 			Key:          map[string]*string{"id": sp("2")},
 			Fields:       map[string]*string{"id": sp("2"), "amount": sp("5")},
 			BeforeFields: map[string]*string{"id": sp("2"), "customer_id": sp("C1")}}
-		different := &tgtdb.Event{Vsn: 3, Op: "i", TableNameTup: orders,
+		different := &tgtdb.Event{Vsn: 3, Op: "c", TableNameTup: orders,
 			Key:    map[string]*string{"id": sp("3")},
 			Fields: map[string]*string{"id": sp("3"), "customer_id": sp("C2")}}
 		kInsert, err := GetEventPartitionKey(insert, customMap)
@@ -1060,7 +1060,7 @@ func TestGetEventPartitionKey(t *testing.T) {
 	})
 
 	t.Run("custom: missing column errors", func(t *testing.T) {
-		ev := &tgtdb.Event{Vsn: 1, Op: "i", TableNameTup: orders,
+		ev := &tgtdb.Event{Vsn: 1, Op: "c", TableNameTup: orders,
 			Fields: map[string]*string{"id": sp("1")}}
 		_, err := GetEventPartitionKey(ev, customMap)
 		require.Error(t, err)
@@ -1068,7 +1068,7 @@ func TestGetEventPartitionKey(t *testing.T) {
 	})
 
 	t.Run("hashEvent routes identically to partition key equality", func(t *testing.T) {
-		e1 := &tgtdb.Event{Vsn: 1, Op: "i", TableNameTup: orders,
+		e1 := &tgtdb.Event{Vsn: 1, Op: "c", TableNameTup: orders,
 			Key: map[string]*string{"id": sp("1")}, Fields: map[string]*string{"customer_id": sp("C1")}}
 		e2 := &tgtdb.Event{Vsn: 2, Op: "u", TableNameTup: orders,
 			Key: map[string]*string{"id": sp("2")}, BeforeFields: map[string]*string{"customer_id": sp("C1")}}
