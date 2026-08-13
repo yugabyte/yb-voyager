@@ -20,12 +20,8 @@ import io.debezium.spi.converter.CustomConverter;
 import io.debezium.spi.converter.RelationalColumn;
 
 /**
- * Tests that {@link PostgresToYbValueConverter} passes hstore columns through as postgres'
- * own text representation instead of letting debezium decode them into a Kafka Connect MAP.
- *
- * This matters because postgres' text form is the only representation that distinguishes a
- * SQL NULL entry value ('k=>NULL') from an empty string ('k=>""'), and because postgres has
- * already applied hstore's quoting/escaping rules correctly.
+ * Tests that {@link PostgresToYbValueConverter} passes hstore through as postgres' own text
+ * instead of letting debezium decode it into a Kafka Connect MAP.
  */
 public class PostgresToYbValueConverterTest {
 
@@ -122,10 +118,7 @@ public class PostgresToYbValueConverterTest {
     // hstore is routed to the string pass-through.
     // ---------------------------------------------------------------------
 
-    /**
-     * postgres reports hstore with JDBC type OTHER (1111). Registering a STRING schema is what
-     * keeps the value out of DebeziumRecordTransformer's MAP branch entirely.
-     */
+    /** A STRING schema is what keeps the value out of the MAP branch. */
     @Test
     public void hstoreColumnRegistersStringSchema() {
         CapturingRegistration reg = convertFor("hstore", Types.OTHER);
@@ -134,9 +127,7 @@ public class PostgresToYbValueConverterTest {
         assertThat(reg.schema.build().type()).isEqualTo(Schema.Type.STRING);
     }
 
-    /**
-     * The whole point: a SQL NULL entry value must survive untouched as an unquoted NULL.
-     */
+    /** A SQL NULL entry value must survive untouched as an unquoted NULL. */
     @Test
     public void hstorePassThroughPreservesNullEntryValue() {
         CapturingRegistration reg = convertFor("hstore", Types.OTHER);
@@ -145,10 +136,7 @@ public class PostgresToYbValueConverterTest {
                 .isEqualTo("\"source\"=>\"import\", \"MY_CUSTOM\"=>NULL");
     }
 
-    /**
-     * NULL, empty string, and the literal string "NULL" are three distinct hstore values and
-     * must stay distinct through the pass-through.
-     */
+    /** NULL, empty string and the literal string "NULL" are three distinct values. */
     @Test
     public void hstorePassThroughKeepsNullEmptyAndLiteralNullDistinct() {
         CapturingRegistration reg = convertFor("hstore", Types.OTHER);
@@ -158,9 +146,7 @@ public class PostgresToYbValueConverterTest {
         assertThat(reg.converter.convert("\"k\"=>\"NULL\"")).isEqualTo("\"k\"=>\"NULL\"");
     }
 
-    /**
-     * Escaping is postgres' job; the pass-through must not re-escape or unescape anything.
-     */
+    /** Escaping is postgres' job; the pass-through must not touch it. */
     @Test
     public void hstorePassThroughDoesNotReEscapeQuotesOrBackslashes() {
         CapturingRegistration reg = convertFor("hstore", Types.OTHER);
@@ -196,10 +182,7 @@ public class PostgresToYbValueConverterTest {
         assertThat(convertFor("tsquery", Types.OTHER).registered()).isTrue();
     }
 
-    /**
-     * Guard against the type match accidentally broadening: an ordinary text column must be
-     * left alone for debezium to handle.
-     */
+    /** Guards against the type match broadening to unrelated columns. */
     @Test
     public void ordinaryTextColumnIsNotRegistered() {
         assertThat(convertFor("text", Types.VARCHAR).registered()).isFalse();

@@ -99,17 +99,9 @@ public class DebeziumRecordTransformer implements RecordTransformer {
                     LOGGER.debug("[MAP] after transforming value - {}", val);
 
                     /*
-                     A map value is allowed to be SQL NULL - for hstore that is 'k=>NULL', a distinct
-                     value from both an absent key and an empty string, which debezium represents as a
-                     null entry (hence the map's value schema being optional). It has to be written out
-                     as an unquoted NULL. Substituting anything else would silently corrupt the data:
-                     - "NULL" (quoted) would be read back as the literal 4-character string NULL
-                     - "" would be read back as an empty string
-
-                     Note hstore columns no longer reach this branch - PostgresToYbValueConverter
-                     registers a string pass-through for them. This is kept as a backstop for the case
-                     where that registration does not happen, so a null value degrades to correct output
-                     rather than an NPE that permanently stalls streaming.
+                     A null value is SQL NULL ('k=>NULL'), written unquoted. Quoting it would give the
+                     literal string "NULL"; "" would give an empty string. Both are distinct values.
+                     Backstop only - hstore reaches PostgresToYbValueConverter's pass-through instead.
                      */
                     if (val == null) {
                         mapString.append(String.format("\"%s\" => NULL,", key));

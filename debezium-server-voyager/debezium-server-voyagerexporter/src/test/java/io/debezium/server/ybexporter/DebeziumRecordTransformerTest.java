@@ -19,14 +19,8 @@ import org.junit.jupiter.api.Test;
 /**
  * Regression tests for {@link DebeziumRecordTransformer}'s MAP branch.
  *
- * NOTE: hstore columns no longer reach this branch in normal operation.
- * {@link PostgresToYbValueConverter} registers a string pass-through for hstore, so the
- * column's schema is STRING and postgres' own text representation is forwarded untouched
- * - see PostgresToYbValueConverterTest.
- *
- * This branch is nonetheless kept null-safe as a backstop: if that registration ever does
- * not happen (e.g. the column's typeName does not match), a null map value should produce
- * correct hstore text rather than an NPE that permanently stalls streaming.
+ * hstore normally reaches {@link PostgresToYbValueConverter}'s pass-through instead, so this
+ * branch is a backstop: a null map value must still serialize rather than throw.
  */
 public class DebeziumRecordTransformerTest {
 
