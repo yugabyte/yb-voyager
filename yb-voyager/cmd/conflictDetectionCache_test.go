@@ -64,7 +64,11 @@ func newConflictCacheForTestWithIndexes(indexes ...tgtdb.UniqueIndex) *ConflictD
 	oname := sqlname.NewObjectName(YUGABYTEDB, "public", "public", "users")
 	table := sqlname.NameTuple{CurrentName: oname, TargetName: oname}
 	tableToIndexes.Put(table, indexes)
-	return NewConflictDetectionCache(tableToIndexes, []chan *tgtdb.Event{make(chan *tgtdb.Event, 1)}, POSTGRESQL)
+	// Default the test table to PARTITION_BY_PK so the partition-key exclusion behaves
+	// like the previous same-PK exclusion (routing by primary key).
+	tablePartitionKeyMap := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
+	tablePartitionKeyMap.Put(table, cdcPartitionKeyOverride{Strategy: PARTITION_BY_PK})
+	return NewConflictDetectionCache(tableToIndexes, []chan *tgtdb.Event{make(chan *tgtdb.Event, 1)}, POSTGRESQL, tablePartitionKeyMap)
 }
 
 func testTableTuple() sqlname.NameTuple {

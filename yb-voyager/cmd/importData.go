@@ -2453,7 +2453,7 @@ func clearMigrationStateForImportDataStartClean(state *ImportDataState, importFi
 		return goerrors.Errorf("failed to update migration status record: %s", err)
 	}
 	err = metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
-		record.TableToCDCPartitioningStrategyMap = nil
+		record.TableToCDCPartitionKey = nil
 	})
 	if err != nil {
 		return goerrors.Errorf("failed to update import data status record: %s", err)
