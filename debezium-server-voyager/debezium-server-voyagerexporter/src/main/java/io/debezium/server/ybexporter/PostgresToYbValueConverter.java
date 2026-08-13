@@ -43,14 +43,8 @@ public class PostgresToYbValueConverter implements CustomConverter<SchemaBuilder
             case "varbit":
             case "tsvector":
             case "tsquery":
-            /*
-             * hstore: pass through postgres' own text representation (e.g. "key"=>"value", "k2"=>NULL)
-             * rather than letting debezium decode it into a Map (hstore.handling.mode=map) which we
-             * would then have to re-serialize by hand. Postgres has already done the quoting and
-             * escaping correctly, and it is the only representation that can express a SQL NULL entry
-             * value distinctly from an empty string. Re-serializing a decoded Map re-does that escaping
-             * and previously threw an NPE on null entry values.
-             */
+            // hstore: pass postgres' own text through (e.g. "k"=>"v", "k2"=>NULL) instead of
+            // letting debezium decode it to a Map that we would have to re-escape by hand.
             case "hstore":
                 LOGGER.info("Configuring stringify converter for column: {}, type: {}, JDBC type: {}", column.name(), column.typeName(), column.jdbcType());
                 registration.register(SchemaBuilder.string(), this::stringify);
