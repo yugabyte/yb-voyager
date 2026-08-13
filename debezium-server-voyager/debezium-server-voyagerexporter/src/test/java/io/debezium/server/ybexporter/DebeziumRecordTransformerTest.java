@@ -19,15 +19,14 @@ import org.junit.jupiter.api.Test;
 /**
  * Regression tests for {@link DebeziumRecordTransformer}'s MAP branch.
  *
- * NOTE: hstore columns no longer reach this branch. {@link PostgresToYbValueConverter}
- * registers a string pass-through for hstore, so the column's schema is STRING and
- * postgres' own text representation is forwarded untouched - see
- * PostgresToYbValueConverterTest. These tests remain to pin the existing behaviour of
- * the MAP branch itself, which is still reachable for any other MAP-typed value.
+ * NOTE: hstore columns no longer reach this branch in normal operation.
+ * {@link PostgresToYbValueConverter} registers a string pass-through for hstore, so the
+ * column's schema is STRING and postgres' own text representation is forwarded untouched
+ * - see PostgresToYbValueConverterTest.
  *
- * Because of that, this branch is deliberately NOT null-safe: an entry whose value is
- * null still throws NullPointerException here. That case is prevented upstream by the
- * pass-through rather than handled here.
+ * This branch is nonetheless kept null-safe as a backstop: if that registration ever does
+ * not happen (e.g. the column's typeName does not match), a null map value should produce
+ * correct hstore text rather than an NPE that permanently stalls streaming.
  */
 public class DebeziumRecordTransformerTest {
 
@@ -62,6 +61,42 @@ public class DebeziumRecordTransformerTest {
         transformer.transformRecord(r);
         return (String) r.afterValueValues.get(0);
     }
+
+    // ---------------------------------------------------------------------
+    // Backstop: a null map value must serialize, not throw.
+    // ---------------------------------------------------------------------
+
+    @Test
+    public void mapEntryWithNullValueIsSerializedAsUnquotedNull() {
+        HashMap<String, String> map = new HashMap<>();
+        map.put("MY_CUSTOM", null);
+
+        assertThat(transformMap(map)).isEqualTo("\"MY_CUSTOM\" => NULL");
+    }
+
+    @Test
+    public void mapWithNullValueAmongOtherEntriesSerializesAllEntries() {
+        HashMap<String, String> map = new LinkedHashMap<>();
+        map.put("source_system", "legacy");
+        map.put("MY_CUSTOM", null);
+        map.put("region", "eu-west");
+
+        assertThat(transformMap(map))
+                .isEqualTo("\"source_system\" => \"legacy\",\"MY_CUSTOM\" => NULL,\"region\" => \"eu-west\"");
+    }
+
+    @Test
+    public void mapWithOnlyNullValuesSerializesAllEntries() {
+        HashMap<String, String> map = new LinkedHashMap<>();
+        map.put("a", null);
+        map.put("b", null);
+
+        assertThat(transformMap(map)).isEqualTo("\"a\" => NULL,\"b\" => NULL");
+    }
+
+    // ---------------------------------------------------------------------
+    // Existing behaviour, and guards against collapsing the three states.
+    // ---------------------------------------------------------------------
 
     @Test
     public void mapEntryWithOrdinaryValueIsQuoted() {

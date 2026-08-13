@@ -89,14 +89,33 @@ public class DebeziumRecordTransformer implements RecordTransformer {
                      e.g. key - "a\"b" -> (first escaping) -> "a\\"b" -> (second escaping) -> "a\\\"b"
                      */
                     key = key.replace("\\", "\\\\"); // escaping backslash \ -> \\ ( "a\b" -> "a\\b" ) "
-                    val = val.replace("\\", "\\\\");
                     key = key.replace("\"", "\\\""); // escaping double quotes " -> \" ( "a"b" -> "a\"b" ) "
-                    val = val.replace("\"", "\\\"");
+                    if (val != null) { // a null val is a SQL NULL map value, handled separately below
+                        val = val.replace("\\", "\\\\");
+                        val = val.replace("\"", "\\\"");
+                    }
 
 		            LOGGER.debug("[MAP] after transforming key - {}", key);
                     LOGGER.debug("[MAP] after transforming value - {}", val);
-                    
-                    mapString.append(String.format("\"%s\" => \"%s\",", key, val));
+
+                    /*
+                     A map value is allowed to be SQL NULL - for hstore that is 'k=>NULL', a distinct
+                     value from both an absent key and an empty string, which debezium represents as a
+                     null entry (hence the map's value schema being optional). It has to be written out
+                     as an unquoted NULL. Substituting anything else would silently corrupt the data:
+                     - "NULL" (quoted) would be read back as the literal 4-character string NULL
+                     - "" would be read back as an empty string
+
+                     Note hstore columns no longer reach this branch - PostgresToYbValueConverter
+                     registers a string pass-through for them. This is kept as a backstop for the case
+                     where that registration does not happen, so a null value degrades to correct output
+                     rather than an NPE that permanently stalls streaming.
+                     */
+                    if (val == null) {
+                        mapString.append(String.format("\"%s\" => NULL,", key));
+                    } else {
+                        mapString.append(String.format("\"%s\" => \"%s\",", key, val));
+                    }
                 }
 		        if(mapString.length() == 0) {
                     return "";
