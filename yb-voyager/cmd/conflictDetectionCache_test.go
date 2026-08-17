@@ -793,3 +793,22 @@ func TestConflictWithMultipleIndexes(t *testing.T) {
 	assert.Equal(t, "idx_a_b", actualConflicts[0].indexName)
 	assert.Equal(t, "idx_nnd_c_d", actualConflicts[1].indexName)
 }
+
+// An incoming UPDATE with nil BeforeFields (e.g. replica identity not FULL)
+// makes the before-before probe fail; WaitUntilNoConflict must surface that
+// error so handleEvent aborts the import instead of silently skipping
+// conflict detection for the event.
+func TestWaitUntilNoConflictPropagatesBeforeFieldsError(t *testing.T) {
+	cache := newConflictCacheForTest([][]string{{"a", "b"}})
+	incoming := &tgtdb.Event{
+		Vsn:          2,
+		Op:           "u",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("2")},
+		Fields:       map[string]*string{"a": strPtr("1"), "b": strPtr("2")},
+		BeforeFields: nil,
+	}
+	err := cache.WaitUntilNoConflict(incoming)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "fields are nil")
+}
