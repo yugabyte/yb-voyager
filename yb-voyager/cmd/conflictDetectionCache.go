@@ -374,18 +374,31 @@ func (c *ConflictDetectionCache) uniqueIndexConflicts(cachedEvent *tgtdb.Event, 
 	return false
 }
 
+func anyIndexColumnsChanged(fields map[string]*string, indexColumns []string) bool {
+	for _, column := range indexColumns {
+		if fields[column] != nil {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *ConflictDetectionCache) checkUniqueIndexBeforeAfterConflict(cachedEvent *tgtdb.Event, incomingEvent *tgtdb.Event, indexColumns []string) bool {
-	// Check conflict: cachedEvent.BeforeFields[index columns] == incomingEvent.Fields[index columns]
-	if !uniqueIndexColumnsExistInBothFields(cachedEvent.BeforeFields, incomingEvent.Fields, indexColumns) {
+	if incomingEvent.Op == "u" && !anyIndexColumnsChanged(incomingEvent.Fields, indexColumns) {
 		return false
 	}
-	if !uniqueIndexColumnValuesEqual(cachedEvent.BeforeFields, incomingEvent.Fields, indexColumns) {
+
+	// Check conflict: cachedEvent.BeforeFields[index columns] == incomingEvent.Fields[index columns]
+	if !uniqueIndexColumnsExistInBothFields(cachedEvent.BeforeFields, incomingEvent.AfterFields, indexColumns) {
+		return false
+	}
+	if !uniqueIndexColumnValuesEqual(cachedEvent.BeforeFields, incomingEvent.AfterFields, indexColumns) {
 		return false
 	}
 
 	//for logging purposes
 	cachedEventBeforeVal := formatUniqueIndexColumnValuesForLog(cachedEvent.BeforeFields, indexColumns)
-	incomingEventAfterVal := formatUniqueIndexColumnValuesForLog(incomingEvent.Fields, indexColumns)
+	incomingEventAfterVal := formatUniqueIndexColumnValuesForLog(incomingEvent.AfterFields, indexColumns)
 	/*
 		If uk column is changes then it is a pure conflict
 		Handles all cases of UPDATE-UPDATE, UPDATE-INSERT, DELETE-INSERT, DELETE-UPDATE
