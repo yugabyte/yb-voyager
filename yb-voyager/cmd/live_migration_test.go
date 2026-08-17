@@ -469,6 +469,17 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 		assert.Contains(t, err.Error(), "expression-based unique index")
 	})
 
+	t.Run("rejects override custom on expression-UK table", func(t *testing.T) {
+		exprUK := utils.NewStructMap[sqlname.NameTuple, bool]()
+		exprUK.Put(audit, true)
+		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
+		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"col1"}})
+		_, err := resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_TABLE, overrides, exprUK, YUGABYTEDB)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "expression-based unique index")
+		assert.Contains(t, err.Error(), PARTITION_BY_CUSTOM)
+	})
+
 	t.Run("override table on expression-UK table is allowed", func(t *testing.T) {
 		exprUK := utils.NewStructMap[sqlname.NameTuple, bool]()
 		exprUK.Put(audit, true)
@@ -518,6 +529,31 @@ func setupCdcOverridesNameRegistry(t *testing.T) {
 // TestResolveCdcPartitionKeyOverrides covers the semantic override validation done
 // before snapshot (namereg lookup, import-table-list membership, and duplicate
 // detection on the resolved NameTuple across different spellings of the same table).
+// TestCustomKeyCoversUniqueIndex covers the Follow-up 1.4.1 coverage check: a custom key
+// "covers" a unique index only when every custom key column is one of the index columns
+// (so two rows equal on the index columns are necessarily equal on the custom key columns
+// and route to the same channel).
+func TestCustomKeyCoversUniqueIndex(t *testing.T) {
+	tests := []struct {
+		name         string
+		customKey    []string
+		indexColumns []string
+		covers       bool
+	}{
+		{"key equals index", []string{"customer_id"}, []string{"customer_id"}, true},
+		{"key is prefix of composite index", []string{"customer_id"}, []string{"customer_id", "order_no"}, true},
+		{"key is subset (unordered) of index", []string{"region", "customer_id"}, []string{"customer_id", "region", "order_no"}, true},
+		{"key not in index", []string{"customer_id"}, []string{"order_no"}, false},
+		{"multi-col key partially in index", []string{"customer_id", "region"}, []string{"customer_id"}, false},
+		{"empty index columns", []string{"customer_id"}, []string{}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.covers, customKeyCoversUniqueIndex(tt.customKey, tt.indexColumns))
+		})
+	}
+}
+
 func TestResolveCdcPartitionKeyOverrides(t *testing.T) {
 	setupCdcOverridesNameRegistry(t)
 
