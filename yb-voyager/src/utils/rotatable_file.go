@@ -16,10 +16,10 @@ limitations under the License.
 package utils
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
+	goerrors "github.com/go-errors/errors"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -51,7 +51,7 @@ func NewRotatableFile(filename string, maxFileSize int64) (*RotatableFile, error
 		maxFileSize = defaultRotatorMaxBytes
 	}
 	if maxFileSize >= lumberjackMaxMB*1024*1024 {
-		return nil, errors.New(fmt.Sprintf("maxFileSize must be less than %d MB", lumberjackMaxMB))
+		return nil, goerrors.Errorf("maxFileSize must be less than %d MB", lumberjackMaxMB)
 	}
 
 	// update curFileSize if the file already exists. Needed for resumption scenario.
