@@ -78,6 +78,9 @@ func (yb *YugabyteDB) Connect() error {
 		log.Info("Reconnecting to the source database")
 	}
 	db, err := sql.Open("pgx", yb.getConnectionUri())
+	if err != nil {
+		return fmt.Errorf("open connection to source database: %w", err)
+	}
 	db.SetMaxOpenConns(yb.source.NumConnections)
 	db.SetConnMaxIdleTime(5 * time.Minute)
 	yb.db = db

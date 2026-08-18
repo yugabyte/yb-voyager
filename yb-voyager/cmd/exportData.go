@@ -1933,6 +1933,9 @@ func clearMigrationStateIfRequired() {
 			record.TargetRenameTablesMap = nil
 			record.ExportTypeFromSource = ""
 		})
+		if err != nil {
+			utils.ErrExit("Failed to update migration status record: %w", err)
+		}
 
 		err = metadb.TruncateTablesInMetaDb(exportDir, []string{metadb.QUEUE_SEGMENT_META_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME})
 		if err != nil {

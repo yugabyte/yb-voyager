@@ -117,12 +117,12 @@ func (ms *MysqlContainer) Stop(ctx context.Context) error {
 }
 
 func (ms *MysqlContainer) Terminate(ctx context.Context) {
-	ms.mutex.Lock()
-	defer ms.mutex.Unlock()
-
 	if ms == nil {
 		return
 	}
+
+	ms.mutex.Lock()
+	defer ms.mutex.Unlock()
 
 	err := ms.container.Terminate(ctx)
 	if err != nil {
