@@ -116,12 +116,12 @@ func (ora *OracleContainer) Stop(ctx context.Context) error {
 }
 
 func (ora *OracleContainer) Terminate(ctx context.Context) {
-	ora.mutex.Lock()
-	defer ora.mutex.Unlock()
-
 	if ora == nil {
 		return
 	}
+
+	ora.mutex.Lock()
+	defer ora.mutex.Unlock()
 
 	err := ora.container.Terminate(ctx)
 	if err != nil {

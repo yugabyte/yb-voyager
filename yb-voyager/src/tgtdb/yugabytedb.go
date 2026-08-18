@@ -901,7 +901,13 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 
 	// 2. setting the schema so that COPY command can acesss the table
 	// Q: If we set the schema for this batch on this conn, will it impact others using the same conn from pool later?
-	yb.setTargetSchema(conn)
+	err = yb.setTargetSchema(conn)
+	if err != nil {
+		err = newImportBatchErrorPgYb(err, batch,
+			lo.Ternary(args.ShouldUseFastPath(), errs.IMPORT_BATCH_ERROR_FLOW_COPY_FAST, errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL),
+			errs.IMPORT_BATCH_ERROR_STEP_SET_TARGET_SCHEMA, nil)
+		return 0, err
+	}
 
 	// 3. Check if the split is already imported.
 	alreadyImported, rowsAffected, err := yb.isBatchAlreadyImported(conn, batch)

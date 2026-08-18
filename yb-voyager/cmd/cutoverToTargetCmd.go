@@ -126,7 +126,9 @@ var cutoverToTargetCmd = &cobra.Command{
 			utils.ErrExit("get migration status record: %w", err)
 		}
 		if msr == nil {
+			// utils.ErrExit is a patchable func variable, so it is not provably terminating; return explicitly.
 			utils.ErrExit("migration status record not found")
+			return
 		}
 		// yb-amp supports plain live migration only. Fall-back / fall-forward
 		// require streaming changes *out of* the target via YugabyteDB CDC, which
