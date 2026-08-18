@@ -44,6 +44,7 @@ type Event struct {
 	Key                 map[string]*string
 	Fields              map[string]*string //all the column values of the row - worst
 	BeforeFields        map[string]*string //all the column values of the row - worst
+	AfterFields         map[string]*string //all the column values of the row - worst //all fields of the row adn columns that are chnges in fields are updated to fields value
 	ExporterRole        string
 }
 
@@ -87,6 +88,7 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	e.Fields = rawEvent.Fields
 	e.BeforeFields = rawEvent.BeforeFields
 	e.ExporterRole = rawEvent.ExporterRole
+	e.AfterFields = mergeBeforeAndChangedFields(e.Op, e.BeforeFields, e.Fields)
 	e.partitionSchemaName = rawEvent.PartitionSchemaName
 	e.partitionTableName = rawEvent.PartitionTableName
 	if !e.IsCutoverEvent() {
@@ -96,6 +98,25 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 		}
 	}
 
+	return nil
+}
+
+func mergeBeforeAndChangedFields(op string, beforeFields, changeFields map[string]*string) map[string]*string {
+	switch op {
+	case "c":
+		return changeFields
+	case "u":
+		allAfterFields := make(map[string]*string)
+		for column, value := range beforeFields {
+			allAfterFields[column] = value
+		}
+		for column, value := range changeFields {
+			allAfterFields[column] = value
+		}
+		return allAfterFields
+	case "d":
+		return nil
+	}
 	return nil
 }
 
