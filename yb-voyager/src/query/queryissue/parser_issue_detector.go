@@ -862,9 +862,9 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		return fmt.Errorf("error parsing DDL: %w", err)
 	}
 
-	switch ddlObj.(type) {
+	switch ddlObj := ddlObj.(type) {
 	case *queryparser.AlterTable:
-		alter, _ := ddlObj.(*queryparser.AlterTable)
+		alter := ddlObj
 
 		if alter.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE {
 			//For the case ALTER and CREATE are not not is expected order where ALTER is before CREATE
@@ -927,7 +927,7 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		}
 
 	case *queryparser.Table:
-		table, _ := ddlObj.(*queryparser.Table)
+		table := ddlObj
 
 		tableName := table.GetObjectName()
 
@@ -1005,14 +1005,14 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		// Process primary keys and unique constraints as indexes for foreign key detection
 		p.processTableConstraintsAsIndexes(table)
 	case *queryparser.CreateType:
-		typeObj, _ := ddlObj.(*queryparser.CreateType)
+		typeObj := ddlObj
 		if typeObj.IsEnum {
 			p.enumTypes = append(p.enumTypes, typeObj.GetObjectName())
 		} else {
 			p.compositeTypes = append(p.compositeTypes, typeObj.GetObjectName())
 		}
 	case *queryparser.Index:
-		index, _ := ddlObj.(*queryparser.Index)
+		index := ddlObj
 		if index.AccessMethod == queryparser.GIN_ACCESS_METHOD {
 			p.isGinIndexPresentInSchema = true
 		}
@@ -1020,8 +1020,7 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		// Process index for foreign key detection
 		p.addIndexToCoverage(index)
 	case *queryparser.Function:
-		fn, _ := ddlObj.(*queryparser.Function)
-		p.functionObjects = append(p.functionObjects, fn)
+		p.functionObjects = append(p.functionObjects, ddlObj)
 	}
 	return nil
 }

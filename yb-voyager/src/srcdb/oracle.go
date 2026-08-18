@@ -92,7 +92,7 @@ func (ora *Oracle) Query(query string) (*sql.Rows, error) {
 
 func (ora *Oracle) GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, error) {
 	schemas := make([]sqlname.Identifier, 0)
-	query := fmt.Sprintf("SELECT username FROM ALL_USERS")
+	query := "SELECT username FROM ALL_USERS"
 	rows, err := ora.db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error in querying source database for schema names: %q: %w\n", query, err)
