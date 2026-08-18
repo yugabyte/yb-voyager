@@ -43,8 +43,6 @@ public class PostgresToYbValueConverter implements CustomConverter<SchemaBuilder
             case "varbit":
             case "tsvector":
             case "tsquery":
-            // hstore: pass postgres' own text through (e.g. "k"=>"v", "k2"=>NULL) instead of
-            // letting debezium decode it to a Map that we would have to re-escape by hand.
             case "hstore":
                 LOGGER.info("Configuring stringify converter for column: {}, type: {}, JDBC type: {}", column.name(), column.typeName(), column.jdbcType());
                 registration.register(SchemaBuilder.string(), this::stringify);
