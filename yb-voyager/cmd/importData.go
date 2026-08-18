@@ -1825,9 +1825,11 @@ func startMonitoringTargetYBHealth() error {
 			displayMonitoringInformationOnTheConsole(info)
 		})
 
-		// StartMonitoring runs an endless monitoring loop; it returns only on a (non-nil) error.
 		err = monitorTDBHealth.StartMonitoring()
-		log.Errorf("error monitoring the target health: %v", err)
+		//lint:ignore SA4023 StartMonitoring currently only returns on error; keep the conventional check
+		if err != nil {
+			log.Errorf("error monitoring the target health: %v", err)
+		}
 	}()
 	return nil
 }

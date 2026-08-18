@@ -870,14 +870,13 @@ func GetSourceDBTypeFromMSR() string {
 		utils.ErrExit("get migration status record: %v", err)
 	}
 	if msr == nil {
-		// utils.ErrExit is a patchable func variable, so it is not provably terminating; return explicitly.
 		utils.ErrExit("migration status record not found")
-		return ""
 	}
+	//lint:ignore SA5011 utils.ErrExit always exits
 	if msr.SourceDBConf == nil {
 		utils.ErrExit("source DB conf not found in migration status record")
-		return ""
 	}
+	//lint:ignore SA5011 utils.ErrExit always exits
 	return msr.SourceDBConf.DBType
 }
 
