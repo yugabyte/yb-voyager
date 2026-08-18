@@ -69,13 +69,17 @@ jobs:
         cd yb-voyager
         go test -v ./... -tags 'unit'
         
+    # Run vet/staticcheck both without tags (the shipped build) and with -tags unit
+    # (unit-tagged test and helper files are otherwise never analyzed).
     - name: Vet
       run: |
         cd yb-voyager
         go vet ./...
+        go vet -tags unit ./...
 
     - name: Run staticcheck
       run: |
         cd yb-voyager
         go install honnef.co/go/tools/cmd/staticcheck@${{ needs.prepare-versions.outputs.staticcheck_version }}
         staticcheck ./...
+        staticcheck -tags unit ./...

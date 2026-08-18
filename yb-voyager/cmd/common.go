@@ -1330,7 +1330,6 @@ type NoteInfo struct {
 
 // MarshalJSON implements custom JSON marshaling for NoteInfo to strip HTML tags from Text field
 func (ni NoteInfo) MarshalJSON() ([]byte, error) {
-	type Alias NoteInfo
 	return json.Marshal(&struct {
 		Type NoteType `json:"Type"`
 		Text string   `json:"Text"`

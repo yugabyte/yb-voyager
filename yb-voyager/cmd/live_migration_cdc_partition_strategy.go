@@ -302,9 +302,7 @@ func computeCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple, isFi
 	}
 
 	exprUKKeysForStorage := make([]string, 0, len(exprUKSet.Keys()))
-	for _, t := range exprUKSet.Keys() {
-		exprUKKeysForStorage = append(exprUKKeysForStorage, t)
-	}
+	exprUKKeysForStorage = append(exprUKKeysForStorage, exprUKSet.Keys()...)
 	return tableToPartitionKeyOverrideMap, exprUKKeysForStorage, nil
 }
 
