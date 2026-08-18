@@ -126,13 +126,12 @@ var cutoverToTargetCmd = &cobra.Command{
 			utils.ErrExit("get migration status record: %w", err)
 		}
 		if msr == nil {
-			// utils.ErrExit is a patchable func variable, so it is not provably terminating; return explicitly.
 			utils.ErrExit("migration status record not found")
-			return
 		}
 		// yb-amp supports plain live migration only. Fall-back / fall-forward
 		// require streaming changes *out of* the target via YugabyteDB CDC, which
 		// a yb-amp compute does not provide. Fail fast with a clear message.
+		//lint:ignore SA5011 utils.ErrExit always exits
 		if msr.TargetDBConf != nil && msr.TargetDBConf.TargetDBType == YUGABYTEDB_AMP {
 			if bool(prepareForFallBack) || msr.FallForwardEnabled {
 				utils.ErrExit("fall-back / fall-forward are not supported for --target-db-type %s (yb-amp cannot stream changes out via YugabyteDB CDC). Use plain live migration: re-run cutover with --prepare-for-fall-back no", YUGABYTEDB_AMP)
