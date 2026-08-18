@@ -187,4 +187,14 @@ public class PostgresToYbValueConverterTest {
     public void ordinaryTextColumnIsNotRegistered() {
         assertThat(convertFor("text", Types.VARCHAR).registered()).isFalse();
     }
+
+    /**
+     * A DOMAIN over hstore reports the domain's own name, so it is NOT matched here and keeps
+     * the MAP schema debezium derives from its base type - i.e. it still goes through
+     * DebeziumRecordTransformer's MAP branch, which must therefore stay null-safe.
+     */
+    @Test
+    public void domainOverHstoreIsNotRegisteredAndStillNeedsTheMapBranch() {
+        assertThat(convertFor("meta_map", Types.OTHER).registered()).isFalse();
+    }
 }
