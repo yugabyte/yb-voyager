@@ -174,7 +174,7 @@ Put()
 		return
 	if U:
 		if changedColumns <intersection> (UK columns <union> predictate columns) == EMPTY:
-		Can't add this check until we have predicate columns as we still need the event in index even if its unique columns are unchanged for predicate cases 
+		Can't add this check until we have predicate columns as we still need the event in index even if its unique columns are unchanged for predicate cases
 			return
 		if uniqueINdex.NullsDistinct AND ANY unique key column value is NULL:
 			return
@@ -430,63 +430,6 @@ func (c *ConflictDetectionCache) findValueConflictLocked(incomingEvent *tgtdb.Ev
 				totalConflictInfo = append(totalConflictInfo, conflict)
 			}
 		}
-		// if (incomingEvent.Op == "u" && anyUniqueIndexColumnChanged(incomingEvent.AfterFields, index.Columns)) || incomingEvent.Op == "c" {
-		// 	key, ok, err := computeConflictBucketKey(incomingEvent.TableNameTup, incomingEvent.AfterFields, index)
-		// 	if err != nil {
-		// 		return []Conflict{}, err
-		// 	}
-		// 	if ok {
-		// 		cachedEvents, err := c.getConflictingEventsWithDifferentPartitionKey(key, incomingEvent)
-		// 		if err != nil {
-		// 			return []Conflict{}, err
-		// 		}
-		// 		if len(cachedEvents) > 0 {
-		// 			for _, cachedEvent := range cachedEvents {
-		// 				log.Debugf("conflict detected for table %s, index columns %v, between before value of cached-event1(vsn=%d, colVal=%s) and after value of incoming-event2(vsn=%d, colVal=%s)",
-		// 					incomingEvent.TableNameTup.ForKey(), index.Columns,
-		// 					cachedEvent.Vsn, formatUniqueIndexColumnValuesForLog(cachedEvent.BeforeFields, index.Columns),
-		// 					incomingEvent.Vsn, formatUniqueIndexColumnValuesForLog(incomingEvent.AfterFields, index.Columns))
-		// 			}
-		// 			totalConflictInfo = append(totalConflictInfo, Conflict{
-		// 				indexName:         index.IndexName,
-		// 				eventsConflicting: cachedEvents,
-		// 				indexColumns:      index.Columns,
-		// 				matchType:         "before-after",
-		// 				matchedValue:      formatUniqueIndexColumnValuesForLog(incomingEvent.AfterFields, index.Columns),
-		// 			})
-		// 		}
-		// 	}
-		// }
-		// if incomingEvent.Op == "c" {
-		// 	//as for the insert event we don't have before fields so we don't need to check for before-before conflict
-		// 	continue
-		// }
-		// // before-before conflict: cachedEvent.BeforeFields == incomingEvent.BeforeFields
-		// key, ok, err := computeConflictBucketKey(incomingEvent.TableNameTup, incomingEvent.BeforeFields, index)
-		// if err != nil {
-		// 	return []Conflict{}, err
-		// }
-		// if ok {
-		// 	cachedEvents, err := c.getConflictingEventsWithDifferentPartitionKey(key, incomingEvent)
-		// 	if err != nil {
-		// 		return []Conflict{}, err
-		// 	}
-		// 	if len(cachedEvents) > 0 {
-		// 		for _, cachedEvent := range cachedEvents {
-		// 			log.Debugf("conflict detected for table %s, index columns %v, between before value of cached-event1(vsn=%d, colVal=%s) and before value of incoming-event2(vsn=%d, colVal=%s)",
-		// 				incomingEvent.TableNameTup.ForKey(), index.Columns,
-		// 				cachedEvent.Vsn, formatUniqueIndexColumnValuesForLog(cachedEvent.BeforeFields, index.Columns),
-		// 				incomingEvent.Vsn, formatUniqueIndexColumnValuesForLog(incomingEvent.BeforeFields, index.Columns))
-		// 		}
-		// 		totalConflictInfo = append(totalConflictInfo, Conflict{
-		// 			indexName:         index.IndexName,
-		// 			eventsConflicting: cachedEvents,
-		// 			indexColumns:      index.Columns,
-		// 			matchType:         "before-before",
-		// 			matchedValue:      formatUniqueIndexColumnValuesForLog(incomingEvent.BeforeFields, index.Columns),
-		// 		})
-		// 	}
-		// }
 	}
 	return totalConflictInfo, nil
 }

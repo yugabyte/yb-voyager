@@ -76,24 +76,34 @@ func testTableTuple() sqlname.NameTuple {
 	return sqlname.NameTuple{CurrentName: oname, TargetName: oname}
 }
 
+// withAfterFields sets AfterFields the same way Event.UnmarshalJSON does:
+// insert ("c") -> Fields, update ("u") -> BeforeFields merged with Fields, delete ("d") -> nil.
+func withAfterFields(e *tgtdb.Event) *tgtdb.Event {
+	if e == nil {
+		return e
+	}
+	e.AfterFields = tgtdb.MergeBeforeAndChangedFields(e.Op, e.BeforeFields, e.Fields)
+	return e
+}
+
 func TestIndexTupleConflicts_CompositeTrueConflict(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"a", "b"}})
-	cached := &tgtdb.Event{
+	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"a": strPtr("1"), "b": strPtr("2")},
-	}
+	})
 	err := cache.Put(cached)
 	require.NoError(t, err)
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"a": strPtr("1"), "b": strPtr("2")},
-	}
+	})
 	conflicts := findConflictForTest(t, cache, incoming)
 	require.Len(t, conflicts, 1)
 	assert.Equal(t, int64(1), conflicts[0].Vsn)
@@ -101,22 +111,22 @@ func TestIndexTupleConflicts_CompositeTrueConflict(t *testing.T) {
 
 func TestIndexTupleConflicts_CompositeFalsePositiveFix(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"a", "b"}})
-	cached := &tgtdb.Event{
+	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"a": strPtr("1"), "b": strPtr("2")},
-	}
+	})
 	err := cache.Put(cached)
 	require.NoError(t, err)
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"a": strPtr("1"), "b": strPtr("9")},
-	}
+	})
 	conflicts := findConflictForTest(t, cache, incoming)
 	require.Len(t, conflicts, 0)
 }
@@ -126,24 +136,24 @@ func TestEventsConfict_TwoCompositeIndexes(t *testing.T) {
 		{"a", "b"},
 		{"c", "d"},
 	})
-	cached := &tgtdb.Event{
+	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"a": strPtr("1"), "b": strPtr("2"), "c": strPtr("3"), "d": strPtr("4")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
+	})
 	err := cache.Put(cached)
 	require.NoError(t, err)
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"a": strPtr("1"), "b": strPtr("9"), "c": strPtr("3"), "d": strPtr("4")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
+	})
 	conflicts := findConflictForTest(t, cache, incoming)
 	require.Len(t, conflicts, 1)
 	assert.Equal(t, int64(1), conflicts[0].Vsn)
@@ -151,49 +161,50 @@ func TestEventsConfict_TwoCompositeIndexes(t *testing.T) {
 
 func TestEventsConfict_MissingColumnInEvent(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"a", "b"}})
-	cached := &tgtdb.Event{
+	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"a": strPtr("1"), "b": strPtr("2")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
+	})
 	err := cache.Put(cached)
 	require.NoError(t, err)
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"a": strPtr("1")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
-	conflicts := findConflictForTest(t, cache, incoming)
-	require.Len(t, conflicts, 0)
+	})
+	_, err = cache.findConflictLocked(incoming)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "column b is missing from fields")
 }
 
 func TestEventsConfict_SamePKNoConflict(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"email"}})
 	key := map[string]*string{"id": strPtr("1")}
-	cached := &tgtdb.Event{
+	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
 		TableNameTup: testTableTuple(),
 		Key:          key,
 		BeforeFields: map[string]*string{"email": strPtr("a@example.com")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
+	})
 	err := cache.Put(cached)
 	require.NoError(t, err)
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
 		TableNameTup: testTableTuple(),
 		Key:          key,
 		Fields:       map[string]*string{"email": strPtr("a@example.com")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
+	})
 	conflicts := findConflictForTest(t, cache, incoming)
 	require.Len(t, conflicts, 0)
 }
@@ -201,22 +212,22 @@ func TestEventsConfict_SamePKNoConflict(t *testing.T) {
 // With NULLS NOT DISTINCT, two NULL values are treated as equal and therefore conflict.
 func TestEventsConfict_BothNilBeforeAfter_NullsNotDistinct(t *testing.T) {
 	cache := newConflictCacheForTestWithIndexes(uidxNND("email"))
-	cached := &tgtdb.Event{
+	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"email": nil},
-	}
+	})
 	err := cache.Put(cached)
 	require.NoError(t, err)
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"email": nil},
-	}
+	})
 	conflicts := findConflictForTest(t, cache, incoming)
 	require.Len(t, conflicts, 1)
 	assert.Equal(t, int64(1), conflicts[0].Vsn)
@@ -225,44 +236,44 @@ func TestEventsConfict_BothNilBeforeAfter_NullsNotDistinct(t *testing.T) {
 // With the default NULLS DISTINCT, two NULL values are distinct and never conflict.
 func TestEventsConfict_BothNilBeforeAfter_NullsDistinct(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"email"}})
-	cached := &tgtdb.Event{
+	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"email": nil},
-	}
+	})
 	err := cache.Put(cached)
 	require.NoError(t, err)
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"email": nil},
-	}
+	})
 	conflicts := findConflictForTest(t, cache, incoming)
 	require.Len(t, conflicts, 0)
 }
 
 func TestEventsConflict_OneNilOneValueBeforeAfter(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"email"}})
-	cached := &tgtdb.Event{
+	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"email": nil},
-	}
+	})
 	err := cache.Put(cached)
 	require.NoError(t, err)
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"email": strPtr("a@example.com")},
-	}
+	})
 	conflicts := findConflictForTest(t, cache, incoming)
 	require.Len(t, conflicts, 0)
 }
@@ -270,22 +281,22 @@ func TestEventsConflict_OneNilOneValueBeforeAfter(t *testing.T) {
 // Composite NULLS NOT DISTINCT: all-NULL column values are treated as equal and conflict.
 func TestEventsConflict_CompositeBothNil_NullsNotDistinct(t *testing.T) {
 	cache := newConflictCacheForTestWithIndexes(uidxNND("a", "b"))
-	cached := &tgtdb.Event{
+	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"a": nil, "b": nil},
-	}
+	})
 	err := cache.Put(cached)
 	require.NoError(t, err)
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"a": nil, "b": nil},
-	}
+	})
 	conflicts := findConflictForTest(t, cache, incoming)
 	require.Len(t, conflicts, 1)
 	assert.Equal(t, int64(1), conflicts[0].Vsn)
@@ -294,44 +305,44 @@ func TestEventsConflict_CompositeBothNil_NullsNotDistinct(t *testing.T) {
 // Composite default NULLS DISTINCT: all-NULL column values are distinct and never conflict.
 func TestEventsConflict_CompositeBothNil_NullsDistinct(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"a", "b"}})
-	cached := &tgtdb.Event{
+	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"a": nil, "b": nil},
-	}
+	})
 	err := cache.Put(cached)
 	require.NoError(t, err)
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"a": nil, "b": nil},
-	}
+	})
 	conflicts := findConflictForTest(t, cache, incoming)
 	require.Len(t, conflicts, 0)
 }
 
 func TestEventsConflict_CompositeMixedNil(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"a", "b"}})
-	cached := &tgtdb.Event{
+	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"a": nil, "b": nil},
-	}
+	})
 	err := cache.Put(cached)
 	require.NoError(t, err)
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"a": nil, "b": strPtr("2")},
-	}
+	})
 	conflicts := findConflictForTest(t, cache, incoming)
 	require.Len(t, conflicts, 0)
 }
@@ -339,24 +350,24 @@ func TestEventsConflict_CompositeMixedNil(t *testing.T) {
 // With NULLS NOT DISTINCT, two NULL before-values conflict (before-before check).
 func TestEventsConflict_BothNilBeforeBefore_NullsNotDistinct(t *testing.T) {
 	cache := newConflictCacheForTestWithIndexes(uidxNND("check_id"))
-	cached := &tgtdb.Event{
+	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "u",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"check_id": nil},
 		Fields:       map[string]*string{"check_id": strPtr("10")},
-	}
+	})
 	err := cache.Put(cached)
 	require.NoError(t, err)
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "u",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		BeforeFields: map[string]*string{"check_id": nil},
 		Fields:       map[string]*string{"check_id": strPtr("20")},
-	}
+	})
 	foundConflicts := findConflictForTest(t, cache, incoming)
 	require.Len(t, foundConflicts, 1)
 	assert.Equal(t, int64(1), foundConflicts[0].Vsn)
@@ -365,47 +376,47 @@ func TestEventsConflict_BothNilBeforeBefore_NullsNotDistinct(t *testing.T) {
 // With the default NULLS DISTINCT, two NULL before-values do not conflict (before-before check).
 func TestEventsConflict_BothNilBeforeBefore_NullsDistinct(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"check_id"}})
-	cached := &tgtdb.Event{
+	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "u",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"check_id": nil},
 		Fields:       map[string]*string{"check_id": strPtr("10")},
-	}
+	})
 	err := cache.Put(cached)
 	require.NoError(t, err)
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "u",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		BeforeFields: map[string]*string{"check_id": nil},
 		Fields:       map[string]*string{"check_id": strPtr("20")},
-	}
+	})
 	foundConflicts := findConflictForTest(t, cache, incoming)
 	require.Len(t, foundConflicts, 0)
 }
 
 func TestEventsConflict_BeforeBeforeConflictOnly(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"check_id"}})
-	cached := &tgtdb.Event{
+	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"check_id": strPtr("10")},
-	}
+	})
 	err := cache.Put(cached)
 	require.NoError(t, err)
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "u",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		BeforeFields: map[string]*string{"check_id": strPtr("10")},
 		Fields:       map[string]*string{"check_id": strPtr("20")},
-	}
+	})
 	conflicts := findConflictForTest(t, cache, incoming)
 	require.Len(t, conflicts, 1)
 	assert.Equal(t, int64(1), conflicts[0].Vsn)
@@ -413,64 +424,64 @@ func TestEventsConflict_BeforeBeforeConflictOnly(t *testing.T) {
 
 func TestEventsConflict_BeforeBeforeNoConflictWhenValuesDiffer(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"check_id"}})
-	cached := &tgtdb.Event{
+	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "u",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"check_id": strPtr("10")},
 		Fields:       map[string]*string{"check_id": strPtr("11")},
-	}
+	})
 	err := cache.Put(cached)
 	require.NoError(t, err)
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "u",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		BeforeFields: map[string]*string{"check_id": strPtr("20")},
 		Fields:       map[string]*string{"check_id": strPtr("21")},
-	}
+	})
 	foundConflicts := findConflictForTest(t, cache, incoming)
 	require.Len(t, foundConflicts, 0)
 }
 
 func TestEventsConflict_BeforeBeforeMissingColumn(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"a", "b"}})
-	cached := &tgtdb.Event{
+	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "u",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"a": strPtr("1"), "b": strPtr("2")},
-	}
+	})
 	cache.Put(cached)
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "u",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		BeforeFields: map[string]*string{"a": strPtr("1")},
 		Fields:       map[string]*string{"a": strPtr("9"), "b": strPtr("2")},
-	}
-	foundConflicts := findConflictForTest(t, cache, incoming)
-	require.Len(t, foundConflicts, 0)
-
+	})
+	_, err := cache.findConflictLocked(incoming)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "column b is missing from fields")
 }
 
 func TestEventsConfict_BeforeBeforeConflict(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"check_id"}})
-	cached := &tgtdb.Event{
+	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"check_id": strPtr("10")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
+	})
 	err := cache.Put(cached)
 	require.NoError(t, err)
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "u",
 		TableNameTup: testTableTuple(),
@@ -478,7 +489,7 @@ func TestEventsConfict_BeforeBeforeConflict(t *testing.T) {
 		BeforeFields: map[string]*string{"check_id": strPtr("10")},
 		Fields:       map[string]*string{"check_id": strPtr("20")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
+	})
 	foundConflicts := findConflictForTest(t, cache, incoming)
 	require.Len(t, foundConflicts, 1)
 	assert.Equal(t, int64(1), foundConflicts[0].Vsn)
@@ -490,8 +501,8 @@ func TestRecordUniqueKeyConflictCount_DedupesEventPair(t *testing.T) {
 	ukConflictSeen = nil
 
 	table := testTableTuple()
-	cached := &tgtdb.Event{Vsn: 10, TableNameTup: table}
-	incoming := &tgtdb.Event{Vsn: 20, TableNameTup: table}
+	cached := withAfterFields(&tgtdb.Event{Vsn: 10, TableNameTup: table})
+	incoming := withAfterFields(&tgtdb.Event{Vsn: 20, TableNameTup: table})
 
 	recordUniqueKeyConflictCount(cached, incoming)
 	recordUniqueKeyConflictCount(cached, incoming)
@@ -538,24 +549,24 @@ func findConflictForTest(t *testing.T, c *ConflictDetectionCache, incoming *tgtd
 // The lookup index must find the same before-after conflict that a full scan would.
 func TestConflictLookup_FindsBeforeAfterConflict(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"email"}})
-	cached := &tgtdb.Event{
+	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"email": strPtr("a@example.com")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
+	})
 	cache.Put(cached)
 
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"email": strPtr("a@example.com")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
+	})
 	got := findConflictForTest(t, cache, incoming)
 	require.Len(t, got, 1)
 	assert.Equal(t, int64(1), got[0].Vsn)
@@ -564,24 +575,24 @@ func TestConflictLookup_FindsBeforeAfterConflict(t *testing.T) {
 // A composite-index before-after conflict must be found via the lookup index.
 func TestConflictLookup_FindsCompositeConflict(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"a", "b"}})
-	cached := &tgtdb.Event{
+	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"a": strPtr("1"), "b": strPtr("2")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
+	})
 	cache.Put(cached)
 
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"a": strPtr("1"), "b": strPtr("2")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
+	})
 	got := findConflictForTest(t, cache, incoming)
 	require.Len(t, got, 1)
 	assert.Equal(t, int64(1), got[0].Vsn)
@@ -590,7 +601,7 @@ func TestConflictLookup_FindsCompositeConflict(t *testing.T) {
 // A NULLS NOT DISTINCT before-before conflict on NULL values must be found.
 func TestConflictLookup_FindsBeforeBeforeConflict_NullsNotDistinct(t *testing.T) {
 	cache := newConflictCacheForTestWithIndexes(uidxNND("check_id"))
-	cached := &tgtdb.Event{
+	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "u",
 		TableNameTup: testTableTuple(),
@@ -598,10 +609,10 @@ func TestConflictLookup_FindsBeforeBeforeConflict_NullsNotDistinct(t *testing.T)
 		BeforeFields: map[string]*string{"check_id": nil},
 		Fields:       map[string]*string{"check_id": strPtr("10")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
+	})
 	cache.Put(cached)
 
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "u",
 		TableNameTup: testTableTuple(),
@@ -609,7 +620,7 @@ func TestConflictLookup_FindsBeforeBeforeConflict_NullsNotDistinct(t *testing.T)
 		BeforeFields: map[string]*string{"check_id": nil},
 		Fields:       map[string]*string{"check_id": strPtr("20")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
+	})
 	got := findConflictForTest(t, cache, incoming)
 	require.Len(t, got, 1)
 	assert.Equal(t, int64(1), got[0].Vsn)
@@ -618,25 +629,25 @@ func TestConflictLookup_FindsBeforeBeforeConflict_NullsNotDistinct(t *testing.T)
 // Under default NULLS DISTINCT, a NULL index value is never indexed and never conflicts.
 func TestConflictLookup_NullsDistinctNotIndexed(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"email"}})
-	cached := &tgtdb.Event{
+	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"email": nil},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
+	})
 	cache.Put(cached)
 	assert.Empty(t, cache.ukLookup, "NULL value under NULLS DISTINCT must not be indexed")
 
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"email": nil},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
+	})
 	assert.Empty(t, findConflictForTest(t, cache, incoming))
 }
 
@@ -644,48 +655,48 @@ func TestConflictLookup_NullsDistinctNotIndexed(t *testing.T) {
 func TestConflictLookup_SamePKNoConflict(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"email"}})
 	key := map[string]*string{"id": strPtr("1")}
-	cached := &tgtdb.Event{
+	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
 		TableNameTup: testTableTuple(),
 		Key:          key,
 		BeforeFields: map[string]*string{"email": strPtr("a@example.com")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
+	})
 	cache.Put(cached)
 
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
 		TableNameTup: testTableTuple(),
 		Key:          key,
 		Fields:       map[string]*string{"email": strPtr("a@example.com")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
+	})
 	assert.Empty(t, findConflictForTest(t, cache, incoming))
 }
 
 // A non-conflicting incoming event must not block or match.
 func TestConflictLookup_NoConflictDoesNotBlock(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"email"}})
-	cached := &tgtdb.Event{
+	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"email": strPtr("a@example.com")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
+	})
 	cache.Put(cached)
 
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"email": strPtr("b@example.com")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
+	})
 	assert.Empty(t, findConflictForTest(t, cache, incoming))
 
 	done := make(chan struct{})
@@ -703,14 +714,14 @@ func TestConflictLookup_NoConflictDoesNotBlock(t *testing.T) {
 // RemoveEvents must clear both the primary map and the lookup index.
 func TestConflictLookup_RemoveDeindexes(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"email"}})
-	cached := &tgtdb.Event{
+	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"email": strPtr("a@example.com")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
+	})
 	cache.Put(cached)
 	require.NotEmpty(t, cache.ukLookup)
 	require.NotEmpty(t, cache.vsnToBuckets)
@@ -720,14 +731,14 @@ func TestConflictLookup_RemoveDeindexes(t *testing.T) {
 	assert.Empty(t, cache.ukLookup)
 	assert.Empty(t, cache.vsnToBuckets)
 
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"email": strPtr("a@example.com")},
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	}
+	})
 	assert.Empty(t, findConflictForTest(t, cache, incoming))
 }
 
@@ -747,43 +758,42 @@ func TestComputeConflictBucketKey_NoAmbiguity(t *testing.T) {
 	require.True(t, ok2)
 	assert.NotEqual(t, k1, k2)
 
-	// missing column -> not indexable
+	// missing column is not indexable and is reported as an error
 	_, ok3, err := computeConflictBucketKey(testutils.CreateNameTupleWithTargetName("public.users", "", POSTGRESQL), map[string]*string{"a": strPtr("a")}, idx)
-	if err != nil {
-		t.Fatalf("error computing conflict bucket key: %v", err)
-	}
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "column b is missing from fields")
 	assert.False(t, ok3)
 }
 
 func TestConflictWithMultipleIndexes(t *testing.T) {
 	cache := newConflictCacheForTestWithIndexes(uidx("a", "b"), uidxNND("c", "d"))
-	cached := &tgtdb.Event{
+	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"a": strPtr("1"), "b": strPtr("2"), "c": strPtr("3"), "d": strPtr("4")},
-	}
+	})
 	err := cache.Put(cached)
 	require.NoError(t, err)
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"a": strPtr("1"), "b": strPtr("3"), "c": strPtr("3"), "d": strPtr("4")},
-	}
+	})
 	conflicts := findConflictForTest(t, cache, incoming)
 	require.Len(t, conflicts, 1)
 	assert.Equal(t, int64(1), conflicts[0].Vsn)
 
-	incoming = &tgtdb.Event{
+	incoming = withAfterFields(&tgtdb.Event{
 		Vsn:          3,
 		Op:           "c",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("3")},
 		Fields:       map[string]*string{"a": strPtr("1"), "b": strPtr("2"), "c": strPtr("3"), "d": strPtr("4")},
-	}
+	})
 	conflicts = findConflictForTest(t, cache, incoming)
 	require.Len(t, conflicts, 1)
 
@@ -800,14 +810,14 @@ func TestConflictWithMultipleIndexes(t *testing.T) {
 // conflict detection for the event.
 func TestWaitUntilNoConflictPropagatesBeforeFieldsError(t *testing.T) {
 	cache := newConflictCacheForTest([][]string{{"a", "b"}})
-	incoming := &tgtdb.Event{
+	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "u",
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"a": strPtr("1"), "b": strPtr("2")},
 		BeforeFields: nil,
-	}
+	})
 	err := cache.WaitUntilNoConflict(incoming)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "fields are nil")

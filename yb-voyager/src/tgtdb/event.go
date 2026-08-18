@@ -88,7 +88,7 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	e.Fields = rawEvent.Fields
 	e.BeforeFields = rawEvent.BeforeFields
 	e.ExporterRole = rawEvent.ExporterRole
-	e.AfterFields = mergeBeforeAndChangedFields(e.Op, e.BeforeFields, e.Fields)
+	e.AfterFields = MergeBeforeAndChangedFields(e.Op, e.BeforeFields, e.Fields)
 	e.partitionSchemaName = rawEvent.PartitionSchemaName
 	e.partitionTableName = rawEvent.PartitionTableName
 	if !e.IsCutoverEvent() {
@@ -101,7 +101,9 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func mergeBeforeAndChangedFields(op string, beforeFields, changeFields map[string]*string) map[string]*string {
+// MergeBeforeAndChangedFields builds the after-image of a CDC event:
+// insert ("c") is Fields, update ("u") is BeforeFields overlaid with changed Fields, delete ("d") is nil.
+func MergeBeforeAndChangedFields(op string, beforeFields, changeFields map[string]*string) map[string]*string {
 	switch op {
 	case "c":
 		return changeFields
