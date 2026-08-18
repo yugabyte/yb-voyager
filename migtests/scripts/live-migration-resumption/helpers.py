@@ -293,6 +293,40 @@ def backlog_marker_present(export_dir: str) -> bool:
         return False
 
 
+_IMPORTER_CAUGHT_UP_PREDICATES = {
+    # cutover-to-target waits on the target importer draining source-exported segments
+    "forward": "exporter_role = 'source_db_exporter' AND imported_by_target_db_importer = 0",
+    # cutover-to-source waits on the source importer draining target-exported segments
+    "fallback": "exporter_role LIKE 'target_db_exporter%' AND imported_by_source_db_importer = 0",
+}
+
+
+def importer_caught_up(export_dir: str, leg: str) -> bool:
+    """
+    Return True once the streaming importer for *leg* ("forward" or "fallback") has
+    applied every closed queue segment, i.e. at most one segment is still pending.
+
+    backlog_marker_present() only proves the EXPORTER wrote the cutover marker into
+    the queue; the importer can still be far behind, and cutover cannot complete
+    until it drains. This checks the importer side via queue_segment_meta's
+    per-segment imported flags (mirrors MetaDB.GetPendingSegments). The threshold
+    is <= 1, not 0: voyager finalizes the last open segment only during cutover,
+    so it stays unimported until then.
+    """
+    meta_db = os.path.join(export_dir, "metainfo", "meta.db")
+    query = (
+        "select count(*) from queue_segment_meta "
+        f"where {_IMPORTER_CAUGHT_UP_PREDICATES[leg]};"
+    )
+    proc = subprocess.run(["sqlite3", meta_db, query], capture_output=True, text=True)
+    if proc.returncode != 0:
+        return False
+    try:
+        return int(proc.stdout.strip()) <= 1
+    except ValueError:
+        return False
+
+
 # -------------------------
 # Process utilities
 # -------------------------

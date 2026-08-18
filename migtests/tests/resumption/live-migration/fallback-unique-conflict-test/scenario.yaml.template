@@ -208,6 +208,13 @@ stages:
     condition: remaining_events_eq_0
     timeout_sec: 1800
 
+  # wait_backlog_zero only proves the exporter wrote the cutover marker; wait for
+  # the importer to drain the queue too, so cutover completes within its timeout.
+  - name: wait_importer_caught_up
+    action: wait_for
+    condition: forward_importer_caught_up
+    timeout_sec: 1800
+
   # Confirm the conflict-detection cache actually fired on the forward (PG->YB)
   # import, not just that row_count/row_hash matched.
   - name: validate_conflicts_detected
@@ -319,6 +326,12 @@ stages:
     action: voyager_stop_resumptions
     command: import_to_source
     timeout_sec: 60
+
+  # Same importer-drain wait as the forward leg, for cutover-to-source.
+  - name: wait_fallback_importer_caught_up
+    action: wait_for
+    condition: fallback_importer_caught_up
+    timeout_sec: 1800
 
   # Fallback (YB->PG) import-to-source forces PARTITION_BY_TABLE and skips
   # conflict detection, so its log must record 0 conflicts -- guard that.
