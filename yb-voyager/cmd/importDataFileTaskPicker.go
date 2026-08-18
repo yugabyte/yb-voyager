@@ -694,4 +694,3 @@ func (c *ColocatedCappedRandomTaskPicker) MarkTaskAsDone(task *ImportFileTask) e
 	}
 	return goerrors.Errorf("task [%v] not found in inProgressTasks: %v", task, c.InProgressTasks())
 }
-
