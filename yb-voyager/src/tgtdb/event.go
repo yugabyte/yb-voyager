@@ -88,7 +88,7 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	e.Fields = rawEvent.Fields
 	e.BeforeFields = rawEvent.BeforeFields
 	e.ExporterRole = rawEvent.ExporterRole
-	e.AfterFields = mergeBeforeAndAfterFields(e.BeforeFields, e.Fields)
+	e.AfterFields = mergeBeforeAndChangedFields(e.Op, e.BeforeFields, e.Fields)
 	e.partitionSchemaName = rawEvent.PartitionSchemaName
 	e.partitionTableName = rawEvent.PartitionTableName
 	if !e.IsCutoverEvent() {
@@ -101,15 +101,23 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func mergeBeforeAndAfterFields(beforeFields, afterFields map[string]*string) map[string]*string {
-	fullFields := make(map[string]*string)
-	for column, value := range beforeFields {
-		fullFields[column] = value
+func mergeBeforeAndChangedFields(op string, beforeFields, changeFields map[string]*string) map[string]*string {
+	switch op {
+	case "c":
+		return changeFields
+	case "u":
+		allAfterFields := make(map[string]*string)
+		for column, value := range beforeFields {
+			allAfterFields[column] = value
+		}
+		for column, value := range changeFields {
+			allAfterFields[column] = value
+		}
+		return allAfterFields
+	case "d":
+		return nil
 	}
-	for column, value := range afterFields {
-		fullFields[column] = value
-	}
-	return fullFields
+	return nil
 }
 
 var cachePreparedStmt = sync.Map{}

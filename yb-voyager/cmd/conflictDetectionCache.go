@@ -376,7 +376,8 @@ func (c *ConflictDetectionCache) uniqueIndexConflicts(cachedEvent *tgtdb.Event, 
 
 func anyIndexColumnsChanged(fields map[string]*string, indexColumns []string) bool {
 	for _, column := range indexColumns {
-		if fields[column] != nil {
+		_, ok := fields[column]
+		if ok {
 			return true
 		}
 	}
