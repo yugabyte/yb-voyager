@@ -309,9 +309,7 @@ def importer_caught_up(export_dir: str, leg: str) -> bool:
     backlog_marker_present() only proves the EXPORTER wrote the cutover marker into
     the queue; the importer can still be far behind, and cutover cannot complete
     until it drains. This checks the importer side via queue_segment_meta's
-    per-segment imported flags (mirrors MetaDB.GetPendingSegments). The threshold
-    is <= 1, not 0: voyager finalizes the last open segment only during cutover,
-    so it stays unimported until then.
+    per-segment imported flags (mirrors MetaDB.GetPendingSegments).
     """
     meta_db = os.path.join(export_dir, "metainfo", "meta.db")
     query = (
@@ -322,7 +320,7 @@ def importer_caught_up(export_dir: str, leg: str) -> bool:
     if proc.returncode != 0:
         return False
     try:
-        return int(proc.stdout.strip()) <= 1
+        return int(proc.stdout.strip()) == 0
     except ValueError:
         return False
 
