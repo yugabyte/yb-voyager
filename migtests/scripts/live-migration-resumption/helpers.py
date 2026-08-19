@@ -304,14 +304,16 @@ _IMPORTER_CAUGHT_UP_PREDICATES = {
 def importer_caught_up(export_dir: str, leg: str) -> bool:
     """
     Return True once the streaming importer for *leg* ("forward" or "fallback") has
-    applied every closed queue segment, i.e. at most one segment is still pending.
+    applied every queue segment, i.e. no segments are left pending.
 
     backlog_marker_present() only proves the EXPORTER wrote the cutover marker into
     the queue; the importer can still be far behind, and cutover cannot complete
     until it drains. This checks the importer side via queue_segment_meta's
-    per-segment imported flags (mirrors MetaDB.GetPendingSegments). The threshold
-    is <= 1, not 0: voyager finalizes the last open segment only during cutover,
-    so it stays unimported until then.
+    per-segment imported flags (mirrors MetaDB.GetPendingSegments).
+
+    Must run AFTER cutover is initiated: a segment is only marked imported once it
+    is closed and fully read, and the final open segment is closed only by cutover.
+    Before cutover the pending count has a floor of 1, so this would never pass.
     """
     meta_db = os.path.join(export_dir, "metainfo", "meta.db")
     query = (
@@ -322,7 +324,7 @@ def importer_caught_up(export_dir: str, leg: str) -> bool:
     if proc.returncode != 0:
         return False
     try:
-        return int(proc.stdout.strip()) <= 1
+        return int(proc.stdout.strip()) == 0
     except ValueError:
         return False
 
