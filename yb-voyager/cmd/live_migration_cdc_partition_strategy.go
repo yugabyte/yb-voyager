@@ -486,7 +486,7 @@ func validateCustomPartitionKeyTables(tableToPartitionKeyOverrideMap *utils.Stru
 		return nil
 	}
 
-	// Follow-up 1.3: every custom key column must exist on the table.
+	// every custom key column must exist on the table.
 	for _, t := range customTables {
 		override, _ := tableToPartitionKeyOverrideMap.Get(t)
 		tableColumns, err := tdb.GetListOfTableAttributes(t)
@@ -507,38 +507,5 @@ func validateCustomPartitionKeyTables(tableToPartitionKeyOverrideMap *utils.Stru
 			return goerrors.Errorf("cdc-partition-key-overrides: custom key column(s) %v do not exist on table %s (available columns: %v)", missing, t.ForOutput(), tableColumns)
 		}
 	}
-
-	// Follow-up 1.4.1: warn when the custom key does not cover a (non-PK) unique index.
-	tableToUniqueIndexes, err := tdb.GetTableToUniqueIndexesMap(customTables)
-	if err != nil {
-		return fmt.Errorf("error getting unique indexes for custom cdc-partition-key validation: %w", err)
-	}
-	for _, t := range customTables {
-		override, _ := tableToPartitionKeyOverrideMap.Get(t)
-		uniqueIndexes, _ := tableToUniqueIndexes.Get(t)
-		for _, index := range uniqueIndexes {
-			if !customKeyCoversUniqueIndex(override.Columns, index.Columns) {
-				utils.PrintAndLogfWarning("cdc-partition-key-overrides: custom key %v for table %s does not cover unique index %q (columns %v); conflicts on this index will be serialized by conflict detection instead of being parallelized by the custom key",
-					override.Columns, t.ForOutput(), index.IndexName, index.Columns)
-			}
-		}
-	}
 	return nil
-}
-
-// customKeyCoversUniqueIndex reports whether every custom key column is one of the unique
-// index's columns. When true, two rows equal on the index columns are necessarily equal on
-// the custom key columns too, so they route to the same channel and conflicts on that index
-// are naturally serialized (never a cross-channel conflict).
-func customKeyCoversUniqueIndex(customKeyColumns []string, indexColumns []string) bool {
-	indexColumnSet := make(map[string]bool, len(indexColumns))
-	for _, c := range indexColumns {
-		indexColumnSet[c] = true
-	}
-	for _, c := range customKeyColumns {
-		if !indexColumnSet[c] {
-			return false
-		}
-	}
-	return true
 }
