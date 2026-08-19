@@ -186,7 +186,7 @@ func resolveEffectiveCdcPartitionKeys(
 		// output, not a stored column), so neither strategy is safe on such tables.
 		if override.Strategy == PARTITION_BY_PK || override.Strategy == PARTITION_BY_CUSTOM {
 			if _, isExprUK := exprUKSet.Get(t); isExprUK {
-				return nil, goerrors.Errorf("cdc-partition-key %s is not allowed for table %s because it has an expression-based unique index; use table (via --cdc-partition-key or --cdc-partition-key-overrides)", override.Strategy, t.ForOutput())
+				return nil, goerrors.Errorf("cdc-partition-key %s is not allowed for table '%s' because it has an expression-based unique index; use table (via --cdc-partition-key or --cdc-partition-key-overrides)", override.Strategy, t.ForOutput())
 			}
 		}
 	}
@@ -504,7 +504,9 @@ func validateCustomPartitionKeyTables(tableToPartitionKeyOverrideMap *utils.Stru
 			}
 		}
 		if len(missing) > 0 {
-			return goerrors.Errorf("cdc-partition-key-overrides: custom key column(s) %v do not exist on table %s (available columns: %v)", missing, t.ForOutput(), tableColumns)
+			sort.Strings(missing)
+			sort.Strings(tableColumns)
+			return goerrors.Errorf("cdc-partition-key-overrides: custom key column(s) '%v' do not exist on table '%s' (available columns: %v)", missing, t.ForOutput(), tableColumns)
 		}
 	}
 	return nil

@@ -2177,10 +2177,8 @@ func TestLiveMigrationCdcPartitionKeyRejectsCustomOnExpressionUniqueIndex(t *tes
 	})
 	require.Error(t, err, "import with custom partition-key on expression-UK table should fail")
 	output := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
-	assert.Contains(t, output, "expression-based unique index",
+	assert.Contains(t, output, "cdc-partition-key custom is not allowed for table 'test_schema.users' because it has an expression-based unique index; use table (via --cdc-partition-key or --cdc-partition-key-overrides)",
 		"expected expression-UK rejection, got: %s", output)
-	assert.Contains(t, output, cmd.PARTITION_BY_CUSTOM,
-		"rejection should name the custom strategy, got: %s", output)
 
 	err = lm.StartImportData(true, map[string]string{
 		"--cdc-partition-key": "table",
@@ -2271,10 +2269,8 @@ func TestLiveMigrationCdcPartitionKeyRejectsCustomKeyColumnNotOnTable(t *testing
 	})
 	require.Error(t, err, "import with a non-existent custom key column should fail")
 	output := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
-	assert.Contains(t, output, "do not exist on table",
+	assert.Contains(t, output, "cdc-partition-key-overrides: custom key column(s) '[nonexistent_col]' do not exist on table 'test_schema.orders' (available columns: [amount customer_id id]",
 		"expected missing-column rejection, got: %s", output)
-	assert.Contains(t, output, "nonexistent_col",
-		"rejection should name the missing column, got: %s", output)
 
 	err = lm.StartImportData(true, map[string]string{
 		"--cdc-partition-key": "table",
