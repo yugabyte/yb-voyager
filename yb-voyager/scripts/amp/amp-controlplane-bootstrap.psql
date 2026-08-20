@@ -1,0 +1,32 @@
+-- Control-plane bootstrap, byte-for-byte what voyager's yugabyted control plane
+-- issues in setupDatabase() (yb-voyager/src/cp/yugabyted/yugabyted.go). Kept
+-- identical so a database bootstrapped by this script and one bootstrapped by
+-- voyager are indistinguishable, in either order.
+--
+-- The ALTERs are separate statements that voyager runs after the CREATE TABLE,
+-- which is why host_ip/port/db_version/voyager_info are added rather than being
+-- part of the original column list.
+CREATE SCHEMA IF NOT EXISTS ybvoyager_visualizer;
+
+CREATE TABLE IF NOT EXISTS ybvoyager_visualizer.ybvoyager_visualizer_metadata (
+    migration_uuid UUID,
+    migration_phase INT,
+    invocation_sequence INT,
+    migration_dir VARCHAR(250),
+    database_name VARCHAR(250),
+    schema_name VARCHAR(250),
+    payload TEXT,
+    complexity VARCHAR(30),
+    db_type VARCHAR(30),
+    status VARCHAR(30),
+    invocation_timestamp TIMESTAMPTZ,
+    PRIMARY KEY (migration_uuid, migration_phase, invocation_sequence)
+);
+
+ALTER TABLE ybvoyager_visualizer.ybvoyager_visualizer_metadata ADD COLUMN IF NOT EXISTS host_ip VARCHAR;
+ALTER TABLE ybvoyager_visualizer.ybvoyager_visualizer_metadata ADD COLUMN IF NOT EXISTS port INT;
+ALTER TABLE ybvoyager_visualizer.ybvoyager_visualizer_metadata ADD COLUMN IF NOT EXISTS db_version VARCHAR(250);
+ALTER TABLE ybvoyager_visualizer.ybvoyager_visualizer_metadata ADD COLUMN IF NOT EXISTS voyager_info VARCHAR;
+ALTER TABLE ybvoyager_visualizer.ybvoyager_visualizer_metadata ALTER COLUMN migration_dir TYPE TEXT;
+ALTER TABLE ybvoyager_visualizer.ybvoyager_visualizer_metadata ALTER COLUMN database_name TYPE TEXT;
+ALTER TABLE ybvoyager_visualizer.ybvoyager_visualizer_metadata ALTER COLUMN schema_name TYPE TEXT;

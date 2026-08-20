@@ -1,0 +1,41 @@
+-- Reads the real CPU count off the source host, for the `exact` confidence tier.
+-- Only run when amp-source-facts.psql reported that both pg_read_server_files
+-- and EXECUTE on pg_read_file are held.
+--
+-- Two things make the naive read wrong:
+--   1. /proc is host-scoped. Inside a container limited to 1.5 CPUs, /proc/cpuinfo
+--      still reports every host core. Cpus_allowed_list and the cgroup quota carry
+--      the truth.
+--   2. cgroup cpu.max is not at /sys/fs/cgroup/ for a process in a non-root
+--      cgroup, so the path is rebuilt from /proc/self/cgroup.
+--
+-- cgroup v1 is not handled; such hosts fall back to Cpus_allowed_list, which is
+-- still cpuset-correct and only misses a CFS quota.
+--
+-- pg_read_file's 4-arg form takes missing_ok, so absent paths return NULL rather
+-- than raising. Reads are length-bounded because the buffer is palloc'd up front.
+--
+-- Emits one pipe-separated row (psql -tA), read positionally by the driver.
+WITH cg AS (
+    SELECT
+        CASE WHEN pg_read_file('/sys/fs/cgroup/cgroup.controllers', 0, 4096, true) IS NOT NULL
+             -- rtrim the trailing slash so a root path does not yield '//cpu.max'
+             THEN rtrim(coalesce((regexp_match(
+                      coalesce(pg_read_file('/proc/self/cgroup', 0, 65536, true), ''),
+                      '(?m)^0::(.*)$'))[1], ''), '/')
+        END AS v2path
+)
+SELECT
+    -- "150000 100000" => 1.5 cores; "max 100000" => no quota
+    btrim(coalesce(pg_read_file('/sys/fs/cgroup' || v2path || '/cpu.max', 0, 128, true), ''), E' \t\n\r'),
+    -- cpuset-aware core list for this backend, e.g. "0-3,8"
+    coalesce((regexp_match(coalesce(pg_read_file('/proc/self/status', 0, 65536, true), ''),
+                           '(?m)^Cpus_allowed_list:\s+(\S+)'))[1], ''),
+    -- host-wide fallback
+    (SELECT count(*)
+       FROM regexp_split_to_table(coalesce(pg_read_file('/proc/cpuinfo', 0, 1048576, true), ''), E'\n') l
+      WHERE l ~ '^processor')::text,
+    -- informational only; the RAM recommendation is a fixed constant
+    coalesce((regexp_match(coalesce(pg_read_file('/proc/meminfo', 0, 65536, true), ''),
+                           'MemTotal:\s+(\d+) kB'))[1], '')
+FROM cg;
