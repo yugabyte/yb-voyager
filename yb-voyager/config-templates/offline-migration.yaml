@@ -378,6 +378,10 @@ export-data:
   ### Default - false
   # allow-oracle-clob-data-export: true
 
+  ### Port to expose Prometheus metrics on (0 disables). Serves GET /metrics.
+  ### Default - 0
+  # metrics-port: 9105
+
 # ---------------------------------------------------------
 # Import Data Configuration
 # ---------------------------------------------------------
@@ -488,6 +492,10 @@ import-data:
   ### Accepted values - (trace, debug, info, warn, error, fatal, panic) 
   ### Default - info
   # log-level: info                                                                 
+
+  ### Port to expose Prometheus metrics on (0 disables). Serves GET /metrics.
+  ### Default - 0
+  # metrics-port: 9101
 
 # ---------------------------------------------------------
 # Finalize Schema Post Data Import Configuration
