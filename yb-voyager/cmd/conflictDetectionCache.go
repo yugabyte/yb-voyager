@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"sync"
@@ -438,20 +439,22 @@ func (c *ConflictDetectionCache) checkBeforeAfterConflict(incomingEvent *tgtdb.E
 	}
 	key, err := computeConflictBucketKey(incomingEvent.TableNameTup, incomingEvent.AfterFields, index)
 	if err != nil {
-		return Conflict{}, err
+		return Conflict{}, fmt.Errorf("error computing conflict bucket key for before-after conflict for incoming event(vsn=%d) and index %s: %w", incomingEvent.Vsn, index.IndexName, err)
 	}
 	cachedEvents, err := c.getConflictingEventsWithDifferentPartitionKey(key, incomingEvent)
 	if err != nil {
-		return Conflict{}, err
+		return Conflict{}, fmt.Errorf("error getting conflicting events with different partition key for before-after conflict for incoming event(vsn=%d) and index %s: %w", incomingEvent.Vsn, index.IndexName, err)
 	}
-	if len(cachedEvents) > 0 {
-		for _, cachedEvent := range cachedEvents {
-			log.Debugf("conflict detected for table %s, index columns %v, between before value of cached-event1(vsn=%d, colVal=%s) and after value of incoming-event2(vsn=%d, colVal=%s)",
-				incomingEvent.TableNameTup.ForKey(), index.Columns,
-				cachedEvent.Vsn, formatUniqueIndexColumnValuesForLog(cachedEvent.BeforeFields, index.Columns),
-				incomingEvent.Vsn, formatUniqueIndexColumnValuesForLog(incomingEvent.AfterFields, index.Columns))
-		}
+	if len(cachedEvents) == 0 {
+		return Conflict{}, nil
 	}
+	for _, cachedEvent := range cachedEvents {
+		log.Debugf("conflict detected for table %s, index columns %v, between before value of cached-event1(vsn=%d, colVal=%s) and after value of incoming-event2(vsn=%d, colVal=%s)",
+			incomingEvent.TableNameTup.ForKey(), index.Columns,
+			cachedEvent.Vsn, formatUniqueIndexColumnValuesForLog(cachedEvent.BeforeFields, index.Columns),
+			incomingEvent.Vsn, formatUniqueIndexColumnValuesForLog(incomingEvent.AfterFields, index.Columns))
+	}
+
 	return Conflict{
 		indexName:         index.IndexName,
 		eventsConflicting: cachedEvents,
@@ -469,19 +472,20 @@ func (c *ConflictDetectionCache) checkBeforeBeforeConflict(incomingEvent *tgtdb.
 	}
 	key, err := computeConflictBucketKey(incomingEvent.TableNameTup, incomingEvent.BeforeFields, index)
 	if err != nil {
-		return Conflict{}, err
+		return Conflict{}, fmt.Errorf("error computing conflict bucket key for before-before conflict for incoming event(vsn=%d) and index %s: %w", incomingEvent.Vsn, index.IndexName, err)
 	}
 	cachedEvents, err := c.getConflictingEventsWithDifferentPartitionKey(key, incomingEvent)
 	if err != nil {
-		return Conflict{}, err
+		return Conflict{}, fmt.Errorf("error getting conflicting events with different partition key for before-before conflict for incoming event(vsn=%d) and index %s: %w", incomingEvent.Vsn, index.IndexName, err)
 	}
-	if len(cachedEvents) > 0 {
-		for _, cachedEvent := range cachedEvents {
-			log.Debugf("conflict detected for table %s, index columns %v, between before value of cached-event1(vsn=%d, colVal=%s) and before value of incoming-event2(vsn=%d, colVal=%s)",
-				incomingEvent.TableNameTup.ForKey(), index.Columns,
-				cachedEvent.Vsn, formatUniqueIndexColumnValuesForLog(cachedEvent.BeforeFields, index.Columns),
-				incomingEvent.Vsn, formatUniqueIndexColumnValuesForLog(incomingEvent.BeforeFields, index.Columns))
-		}
+	if len(cachedEvents) == 0 {
+		return Conflict{}, nil
+	}
+	for _, cachedEvent := range cachedEvents {
+		log.Debugf("conflict detected for table %s, index columns %v, between before value of cached-event1(vsn=%d, colVal=%s) and before value of incoming-event2(vsn=%d, colVal=%s)",
+			incomingEvent.TableNameTup.ForKey(), index.Columns,
+			cachedEvent.Vsn, formatUniqueIndexColumnValuesForLog(cachedEvent.BeforeFields, index.Columns),
+			incomingEvent.Vsn, formatUniqueIndexColumnValuesForLog(incomingEvent.BeforeFields, index.Columns))
 	}
 	return Conflict{
 		indexName:         index.IndexName,
@@ -567,7 +571,8 @@ func computeConflictBucketKey(table sqlname.NameTuple, fields map[string]*string
 	for _, column := range index.Columns {
 		val, exists := fields[column]
 		if !exists {
-			//In case the incoming event like update is not having this field in after fields then it is not indexable as the unique key is not changed so it won't conflict with anything
+			//this is not expected as now eveyrthing should be present in the fields as we pass before/after fields which are all column values so we should have that
+			//hence erroring out here
 			return "", goerrors.Errorf("column %s is missing from fields", column)
 		}
 		b.WriteByte(0) //separator for the field name and value

@@ -142,8 +142,8 @@ func (e *Event) String() string {
 	if e.IsPartitionEvent() {
 		partitionInfo = fmt.Sprintf(", partition=%v", e.PartitionTableTup)
 	}
-	return fmt.Sprintf("Event{vsn=%v, op=%v, table=%v%s, key=%v, before_fields=%v, fields=%v, exporter_role=%v}",
-		e.Vsn, e.Op, e.TableNameTup, partitionInfo, mapStr(e.Key), mapStr(e.BeforeFields), mapStr(e.Fields), e.ExporterRole)
+	return fmt.Sprintf("Event{vsn=%v, op=%v, table=%v%s, key=%v, before_fields=%v, fields=%v, after_fields=%v, exporter_role=%v}",
+		e.Vsn, e.Op, e.TableNameTup, partitionInfo, mapStr(e.Key), mapStr(e.BeforeFields), mapStr(e.Fields), mapStr(e.AfterFields), e.ExporterRole)
 }
 
 func (e *Event) Copy() *Event {
@@ -160,6 +160,7 @@ func (e *Event) Copy() *Event {
 		Key:                 lo.MapEntries(e.Key, idFn),
 		Fields:              lo.MapEntries(e.Fields, idFn),
 		BeforeFields:        lo.MapEntries(e.BeforeFields, idFn),
+		AfterFields:         lo.MapEntries(e.AfterFields, idFn),
 		ExporterRole:        e.ExporterRole,
 	}
 }

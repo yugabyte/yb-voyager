@@ -819,3 +819,31 @@ func TestWaitUntilNoConflictPropagatesBeforeFieldsError(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "fields are nil")
 }
+
+// Incoming UPDATE changes only a subset of a composite unique index. The unchanged
+// column is reconstructed from BeforeFields into AfterFields so the before-after
+// check still matches the cached event's before-tuple. Pre-fix this returned 0
+// conflicts because Fields alone could not build the index key.
+func TestEventsConflict_SubsetOfCompositeUKColumnsChanged(t *testing.T) {
+	cache := newConflictCacheForTest([][]string{{"c1", "c2"}})
+	cached := withAfterFields(&tgtdb.Event{
+		Vsn:          1,
+		Op:           "u",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("1")},
+		BeforeFields: map[string]*string{"c1": strPtr("100"), "c2": strPtr("1000")},
+		Fields:       map[string]*string{"most_recent": strPtr("false")},
+	})
+	require.NoError(t, cache.Put(cached))
+	incoming := withAfterFields(&tgtdb.Event{
+		Vsn:          2,
+		Op:           "u",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("2")},
+		BeforeFields: map[string]*string{"c1": strPtr("100"), "c2": strPtr("21")},
+		Fields:       map[string]*string{"c2": strPtr("1000"), "most_recent": strPtr("true")},
+	})
+	conflicts := findConflictForTest(t, cache, incoming)
+	require.Len(t, conflicts, 1)
+	assert.Equal(t, int64(1), conflicts[0].Vsn)
+}
