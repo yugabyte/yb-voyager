@@ -28,12 +28,12 @@ type Issue struct {
 	Type string
 
 	// readable name for the issue; used in UI, logs or any print statements
-	Name                   	 string
+	Name                     string
 	Description              string
 	Impact                   string
 	Suggestion               string
 	GH                       string
-	DocsLink               	 string
+	DocsLink                 string
 	MinimumVersionsFixedIn   map[string]*ybversion.YBVersion // key: series; GA
 	MinimumVersionsFixedInTP map[string]*ybversion.YBVersion // key: series; available as Tech Preview
 	MinimumVersionsFixedInEA map[string]*ybversion.YBVersion // key: series; available as Early Access

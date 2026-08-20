@@ -159,7 +159,7 @@ END $$;`)
 	// running the command
 	_, err = testutils.RunVoyagerCommand(postgresContainer, "assess-migration", []string{
 		"--source-db-schema", "test_schema", // overriding the flag value
-		"--iops-capture-interval", "20",     // Increased for better test reliability
+		"--iops-capture-interval", "20", // Increased for better test reliability
 		"--export-dir", exportDir,
 		"--yes",
 	}, doDuringCmd, false)
@@ -446,29 +446,29 @@ func Test_AssessMigration_RecommendedSQL_Datatypes(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to parse assessment report")
 
 	indexToDataType := map[string]string{
-		"idx_mf_c_text":        "text",
-		"idx_mf_c_char":        "character",
-		"idx_mf_c_varchar":     "character varying",
-		"idx_mf_c_int":         "integer",
-		"idx_mf_c_int2":        "int2",
-		"idx_mf_c_int8":        "int8",
-		"idx_mf_c_numeric":     "numeric",
-		"idx_mf_c_real":        "real",
-		"idx_mf_c_float8":      "float8",
-		"idx_mf_c_bool":        "boolean",
-		"idx_mf_c_date":        "date",
-		"idx_mf_c_timestamp":   "timestamp",
-		"idx_mf_c_timestamptz": "timestamptz",
-		"idx_mf_c_uuid":        "uuid",
-		"idx_mf_c_jsonb":       "jsonb",
-		"idx_mf_c_bytea":       "bytea",
-		"idx_mf_c_money":       "money",
-		"idx_mf_c_text_array":  "text[]",
-		"idx_mf_c_time":        "time without time zone",
-		"idx_mf_c_serial":      "integer",
-		"idx_mf_c_smallserial": "smallint",
-		"idx_mf_c_bigserial":        "bigint",
-		"idx_mf_c_case_sensitive_text":   "text",
+		"idx_mf_c_text":                "text",
+		"idx_mf_c_char":                "character",
+		"idx_mf_c_varchar":             "character varying",
+		"idx_mf_c_int":                 "integer",
+		"idx_mf_c_int2":                "int2",
+		"idx_mf_c_int8":                "int8",
+		"idx_mf_c_numeric":             "numeric",
+		"idx_mf_c_real":                "real",
+		"idx_mf_c_float8":              "float8",
+		"idx_mf_c_bool":                "boolean",
+		"idx_mf_c_date":                "date",
+		"idx_mf_c_timestamp":           "timestamp",
+		"idx_mf_c_timestamptz":         "timestamptz",
+		"idx_mf_c_uuid":                "uuid",
+		"idx_mf_c_jsonb":               "jsonb",
+		"idx_mf_c_bytea":               "bytea",
+		"idx_mf_c_money":               "money",
+		"idx_mf_c_text_array":          "text[]",
+		"idx_mf_c_time":                "time without time zone",
+		"idx_mf_c_serial":              "integer",
+		"idx_mf_c_smallserial":         "smallint",
+		"idx_mf_c_bigserial":           "bigint",
+		"idx_mf_c_case_sensitive_text": "text",
 	}
 
 	mfIssues := lo.Filter(report.Issues, func(issue AssessmentIssue, _ int) bool {
@@ -503,7 +503,7 @@ func Test_AssessMigration_RecommendedSQL_Datatypes(t *testing.T) {
 
 		_, err = ybConn.Exec(recommendedSQL)
 
-	    // check for array type and unsupported index datatypes
+		// check for array type and unsupported index datatypes
 		if slices.Contains(queryissue.UnsupportedIndexDatatypes, dataType) || strings.HasSuffix(dataType, "[]") {
 			if assert.Errorf(t, err, "expected recommended SQL to fail for unsupported datatype index %s: %s", objectName, recommendedSQL) {
 				assert.Contains(t, strings.ToLower(err.Error()), "not yet supported", "unexpected error for unsupported datatype index %s", objectName)

@@ -61,13 +61,11 @@ func validateYBVersionForLogicalConnector(tconf *tgtdb.TargetConf) error {
 		return fmt.Errorf("failed to parse current YugabyteDB version '%s': %w.", ybVersion, err)
 	}
 
-	var minSupportedLogicalConnectorVersion *ybversion.YBVersion
 	// We dont support old format of YugabyteDB stable versions for logical connector i.e. 2.20 etc. and we dont support preview versions < 2.29.0.0
 	// But 2.29.0.0 is not released yet, so we don't support any preview versions either for now.
 	// So, we only support stable versions >= 2024.2.4.0
 	// TODO: Once 2.29.0.0 is released, add support for preview versions >= 2.29.0.0
-
-	minSupportedLogicalConnectorVersion = ybversion.V2024_2_4_0
+	minSupportedLogicalConnectorVersion := ybversion.V2024_2_4_0
 
 	// Common error message components
 	docsURL := utils.InfoColor.Add(color.Underline).Sprint("https://docs.yugabyte.com/preview/yugabyte-voyager/reference/cutover-archive/cutover/#yugabytedb-grpc-vs-yugabytedb-connector")

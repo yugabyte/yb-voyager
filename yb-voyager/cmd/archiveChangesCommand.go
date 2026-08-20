@@ -235,10 +235,6 @@ func workflowEndedForDB(db *metadb.MetaDB, dir string) bool {
 	return true
 }
 
-func waitForWorkflowEnd(cleaner *archivechanges.SegmentCleaner, ctx context.Context) {
-	waitForWorkflowEndForDB(cleaner, ctx, metaDB, exportDir)
-}
-
 func waitForWorkflowEndForDB(cleaner *archivechanges.SegmentCleaner, ctx context.Context, db *metadb.MetaDB, dir string) {
 	for {
 		select {

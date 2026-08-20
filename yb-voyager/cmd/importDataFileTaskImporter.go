@@ -296,8 +296,7 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 
 		// Handle the error
 		log.Errorf("Handling error for batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
-		var err2 error
-		err2 = fti.errorHandler.HandleBatchIngestionError(batch, fti.task.FilePath, err, isPartialBatchIngestionPossibleOnError)
+		err2 := fti.errorHandler.HandleBatchIngestionError(batch, fti.task.FilePath, err, isPartialBatchIngestionPossibleOnError)
 		if err2 != nil {
 			utils.ErrExit("handling error for batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err2)
 		}

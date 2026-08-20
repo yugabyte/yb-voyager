@@ -530,34 +530,6 @@ func (yb *YugabyteDB) getAllUserDefinedTypesInSchema(schemaName string) []string
 	return enumTypes
 }
 
-func (yb *YugabyteDB) getAllEnumTypesInSchema(schemaName string) []string {
-	query := fmt.Sprintf(`SELECT typname
-						FROM pg_type t
-						JOIN pg_namespace n ON t.typnamespace = n.oid
-						WHERE n.nspname = '%s'
-						AND t.typcategory = 'E';`, schemaName)
-	rows, err := yb.db.Query(query)
-	if err != nil {
-		utils.ErrExit("error in querying source database for enum types: %q: %w\n", query, err)
-	}
-	defer func() {
-		closeErr := rows.Close()
-		if closeErr != nil {
-			log.Warnf("close rows for query %q: %v", query, closeErr)
-		}
-	}()
-	var enumTypes []string
-	for rows.Next() {
-		var enumType string
-		err = rows.Scan(&enumType)
-		if err != nil {
-			utils.ErrExit("error in scanning query rows for enum types: %w\n", err)
-		}
-		enumTypes = append(enumTypes, enumType)
-	}
-	return enumTypes
-}
-
 func (yb *YugabyteDB) getTypesOfAllArraysInATable(schemaName, tableName string) []string {
 	query := fmt.Sprintf(`SELECT udt_name FROM information_schema.columns 
 						WHERE table_schema = '%s' 

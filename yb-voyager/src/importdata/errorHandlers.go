@@ -47,7 +47,7 @@ const (
 		"  2. Grant permission: GRANT SET ON PARAMETER session_replication_role TO <username> (YugabyteDB v2025.1+).\n" +
 		"  3. Manually disable triggers and drop foreign keys before import, then recreate them afterwards.\n" +
 		"     Refer to: https://docs.yugabyte.com/stable/yugabyte-voyager/reference/non-superuser/"
-	)
+)
 
 type ImportDataErrorHandler interface {
 	ShouldAbort() bool
