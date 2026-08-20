@@ -82,7 +82,7 @@ func withAfterFields(e *tgtdb.Event) *tgtdb.Event {
 	if e == nil {
 		return e
 	}
-	e.AfterFields = tgtdb.MergeBeforeAndChangedFields(e.Op, e.BeforeFields, e.Fields)
+	e.AfterFields = tgtdb.GenerateAfterFields(e.Op, e.BeforeFields, e.Fields)
 	return e
 }
 
