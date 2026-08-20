@@ -217,12 +217,9 @@ func (c *ConflictDetectionCache) indexEventLocked(event *tgtdb.Event) error {
 			//		if uniqueINdex.NullsDistinct AND ANY unique key column value is NULL:
 			continue
 		}
-		key, ok, err := computeConflictBucketKey(event.TableNameTup, event.BeforeFields, index)
+		key, err := computeConflictBucketKey(event.TableNameTup, event.BeforeFields, index)
 		if err != nil {
 			return goerrors.Errorf("error computing conflict bucket key for table %s, index %s: %v", event.TableNameTup.ForKey(), index.IndexName, err)
-		}
-		if !ok {
-			continue
 		}
 		bucket := c.ukLookup[key]
 		if bucket == nil {
@@ -394,7 +391,7 @@ FindConflicts()
 */
 func (c *ConflictDetectionCache) findValueConflictLocked(incomingEvent *tgtdb.Event) ([]Conflict, error) {
 	if incomingEvent.Op == "d" {
-		return []Conflict{}, nil
+		return []Conflict{}, goerrors.Errorf("incoming event is a delete event")
 	}
 	uniqueIndexes, _ := c.tableToUniqueIndexes.Get(incomingEvent.TableNameTup)
 	if len(uniqueIndexes) == 0 {
@@ -439,12 +436,9 @@ func (c *ConflictDetectionCache) checkBeforeAfterConflict(incomingEvent *tgtdb.E
 		//		if uniqueINdex.NullsDistinct AND ANY unique key column value is NULL:
 		return Conflict{}, nil
 	}
-	key, ok, err := computeConflictBucketKey(incomingEvent.TableNameTup, incomingEvent.AfterFields, index)
+	key, err := computeConflictBucketKey(incomingEvent.TableNameTup, incomingEvent.AfterFields, index)
 	if err != nil {
 		return Conflict{}, err
-	}
-	if !ok {
-		return Conflict{}, nil
 	}
 	cachedEvents, err := c.getConflictingEventsWithDifferentPartitionKey(key, incomingEvent)
 	if err != nil {
@@ -473,12 +467,9 @@ func (c *ConflictDetectionCache) checkBeforeBeforeConflict(incomingEvent *tgtdb.
 		//		if uniqueINdex.NullsDistinct AND ANY unique key column value is NULL:
 		return Conflict{}, nil
 	}
-	key, ok, err := computeConflictBucketKey(incomingEvent.TableNameTup, incomingEvent.BeforeFields, index)
+	key, err := computeConflictBucketKey(incomingEvent.TableNameTup, incomingEvent.BeforeFields, index)
 	if err != nil {
 		return Conflict{}, err
-	}
-	if !ok {
-		return Conflict{}, nil
 	}
 	cachedEvents, err := c.getConflictingEventsWithDifferentPartitionKey(key, incomingEvent)
 	if err != nil {
@@ -565,9 +556,9 @@ const (
 //
 // Values are length-prefixed so distinct tuples never collide (e.g. {"ab",""} vs
 // {"a","b"}); NULLs under NULLS NOT DISTINCT use a dedicated sentinel.
-func computeConflictBucketKey(table sqlname.NameTuple, fields map[string]*string, index tgtdb.UniqueIndex) (string, bool, error) {
+func computeConflictBucketKey(table sqlname.NameTuple, fields map[string]*string, index tgtdb.UniqueIndex) (string, error) {
 	if fields == nil {
-		return "", false, goerrors.Errorf("fields are nil")
+		return "", goerrors.Errorf("fields are nil")
 	}
 	var b strings.Builder
 	b.WriteString(table.ForKey())
@@ -577,13 +568,13 @@ func computeConflictBucketKey(table sqlname.NameTuple, fields map[string]*string
 		val, exists := fields[column]
 		if !exists {
 			//In case the incoming event like update is not having this field in after fields then it is not indexable as the unique key is not changed so it won't conflict with anything
-			return "", false, goerrors.Errorf("column %s is missing from fields", column)
+			return "", goerrors.Errorf("column %s is missing from fields", column)
 		}
 		b.WriteByte(0) //separator for the field name and value
 		if val == nil {
 			if !index.NullsNotDistinct {
 				// default NULLS DISTINCT: NULLs never conflict,so it should never come into this compute
-				return "", false, goerrors.Errorf("column %s has null value but index is not NULLS NOT DISTINCT", column)
+				return "", goerrors.Errorf("column %s has null value but index is not NULLS NOT DISTINCT", column)
 			}
 			b.WriteString(conflictBucketNull) //placeholder for the null value
 			continue
@@ -593,7 +584,7 @@ func computeConflictBucketKey(table sqlname.NameTuple, fields map[string]*string
 		b.WriteByte(':')                       //separator for the length and value
 		b.WriteString(*val)                    //value
 	}
-	return b.String(), true, nil
+	return b.String(), nil
 }
 
 func (c *ConflictDetectionCache) RemoveEvents(events ...*tgtdb.Event) {
