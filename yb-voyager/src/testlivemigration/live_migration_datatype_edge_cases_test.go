@@ -2644,6 +2644,16 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				map_domain = 'dfrom_null=>NULL'::test_schema.meta_map
 			WHERE id = 6 AND map_simple IS NULL;`,
 
+			// the literal string "NULL", an '@' value and a path, next to a real
+			// SQL NULL in the same value. Both images of the UPDATE carry all four,
+			// so a regression in escaping cannot pass by keeping them distinct only
+			// on INSERT.
+			`UPDATE test_schema.map_edge_cases
+			SET map_special_chars = '"email" => "sda@sdf.com", "path" => "/U://dasa/dasda/"',
+				map_null_values = '"lit" => "NULL", "real" => NULL, "email" => "sda@sdf.com", "path" => "/U://dasa/dasda/"',
+				map_domain = '"dlit" => "NULL", "dreal" => NULL, "demail" => "sda@sdf.com", "dpath" => "/U://dasa/dasda/"'::test_schema.meta_map
+			WHERE id = 4;`,
+
 			`DELETE FROM test_schema.map_edge_cases WHERE id = 3;`,
 
 			// ======================================================================
@@ -3569,6 +3579,14 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				map_domain = NULL
 			WHERE id = 6;`,
 
+			// same shapes as the forward delta, on the fall-back path: literal
+			// "NULL", an '@' value and a path, next to a real SQL NULL
+			`UPDATE test_schema.map_edge_cases
+			SET map_special_chars = '"fb_email" => "sda@sdf.com", "fb_path" => "/U://dasa/dasda/"',
+				map_null_values = '"fb_lit" => "NULL", "fb_real" => NULL, "fb_email" => "sda@sdf.com", "fb_path" => "/U://dasa/dasda/"',
+				map_domain = '"fb_dlit" => "NULL", "fb_dreal" => NULL, "fb_demail" => "sda@sdf.com", "fb_dpath" => "/U://dasa/dasda/"'::test_schema.meta_map
+			WHERE id = 7;`,
+
 			`DELETE FROM test_schema.map_edge_cases WHERE id = 4;`,
 
 			// ======================================================================
@@ -3789,7 +3807,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 		},
 		`"test_schema"."map_edge_cases"`: {
 			Inserts: 2, // 2 INSERT operations: MAP/HSTORE with arrow operator and quotes + 1 with NULLs
-			Updates: 4, // 4 UPDATE operations: 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
+			Updates: 5, // 5 UPDATE operations: 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value) + 1 row 4 (literal "NULL"/'@'/path)
 			Deletes: 1, // 1 DELETE operation: delete MAP row 3
 		},
 		`"test_schema"."interval_edge_cases"`: {
@@ -3907,7 +3925,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 		},
 		`"test_schema"."map_edge_cases"`: {
 			Inserts: 2, // 1 basic + 1 with NULLs
-			Updates: 4, // 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
+			Updates: 5, // 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value) + 1 row 4 (literal "NULL"/'@'/path)
 			Deletes: 1,
 		},
 		`"test_schema"."interval_edge_cases"`: {
@@ -3990,7 +4008,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 		},
 		`"test_schema"."map_edge_cases"`: {
 			Inserts: 2, // 1 basic + 1 with NULLs
-			Updates: 4, // 2 regular + 1 row 5 (NULL→value) + 1 row 6 (value→NULL)
+			Updates: 5, // 2 regular + 1 row 5 (NULL→value) + 1 row 6 (value→NULL) + 1 row 7 (literal "NULL"/'@'/path)
 			Deletes: 1,
 		},
 		`"test_schema"."interval_edge_cases"`: {
