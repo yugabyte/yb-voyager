@@ -207,6 +207,15 @@ When the user asks to update an existing PR description:
    )"
    ```
 
+   `gh pr edit` can fail on this repo with a GraphQL error about Projects
+   (classic) being deprecated. The edit does not go through when that happens.
+   Fall back to the REST API, and check the body afterwards either way:
+
+   ```bash
+   gh api -X PATCH repos/yugabyte/yb-voyager/pulls/<number> -F body=@body.md
+   gh api repos/yugabyte/yb-voyager/pulls/<number> --jq '.body'
+   ```
+
 8. Confirm the update was applied and show the PR URL.
 
 ## Writing Guidelines
