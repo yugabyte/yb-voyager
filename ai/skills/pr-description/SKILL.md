@@ -25,6 +25,9 @@ A PR description is skimmed in under a minute. Optimize for that, always.
 - **Simple language.** Plain words, active voice, present tense. Write "fixes a
   crash when a table has no primary key", not "addresses a suboptimal behavioral
   characteristic in the primary-key-less code path".
+- **One idea per sentence.** Aim for about 20 words. Don't chain facts together
+  with commas, semicolons, or "and". Split them instead — a bullet that needs a
+  semicolon is two bullets. Two plain sentences beat one clause-stacked one.
 - **No filler.** Drop "this PR", "in order to", "it is worth noting that",
   "comprehensive", "robust", "leverage", "various", "as mentioned above".
 - **No diff narration.** The reviewer can see the file list. Don't walk through
@@ -101,9 +104,9 @@ Too long — narrates the diff, pads with filler, explains nothing new:
 Right size — one problem, one fix, one consequence:
 
 > ### Describe the changes in this pull request
-> `handleEvent` silently dropped the error from `WaitUntilNoConflict`, so an
-> import kept applying events after a conflict wait failed. It now propagates the
-> error, and the import fails fast instead of writing bad data.
+> `handleEvent` silently dropped the error from `WaitUntilNoConflict`. An import
+> then kept applying events after a conflict wait had failed. It now propagates
+> the error, so the import fails fast instead of writing bad data.
 
 An example earns its place when a sentence can't show the shape of the change:
 
@@ -118,12 +121,13 @@ A large PR — a lede, then one line per reviewable piece, still scannable:
 > ### Describe the changes in this pull request
 > Adds resumable data export to the fall-back flow.
 >
-> - **Export** — writes a per-tablet checkpoint after each batch; on restart it
->   resumes from the last checkpoint instead of re-exporting the snapshot.
-> - **State** — new `export_checkpoint` table in MetaDB, created lazily on first
->   checkpoint so existing export dirs keep working.
-> - **CLI** — `export data --resume` replaces `--restart-if-interrupted`, which is
->   now a hidden alias.
+> - **Export** — writes a per-tablet checkpoint after each batch.
+> - **Restart** — resumes from the last checkpoint instead of re-exporting the
+>   whole snapshot.
+> - **State** — new `export_checkpoint` table in MetaDB. It is created lazily, so
+>   existing export dirs keep working.
+> - **CLI** — `export data --resume` replaces `--restart-if-interrupted`. The old
+>   flag stays as a hidden alias.
 > - **Not in this PR** — resumption for `export data from target` (DB-1234).
 
 ## Workflow: Create a PR
@@ -213,6 +217,9 @@ When the user asks to update an existing PR description:
   commits or say "in commit X, we did Y".
 - **Simple words**: Explain it the way you would to a teammate in chat. No
   marketing adjectives, no abstract noun where a verb works.
+- **Low density**: One fact per sentence. A reader should never have to unpack a
+  sentence twice. Short sentences are what make a short description readable —
+  cramming the same content into fewer, denser lines defeats the point.
 - **Why over what**: One clause of motivation beats a paragraph of mechanics.
 - **Be specific in testing**: Name actual tests, commands, or scenarios — not
   just "tested manually".
@@ -228,6 +235,9 @@ Before showing any description to the user, delete:
 - any example that only repeats what the prose already said
 - any background the team already knows
 - restated headings ("This section describes the changes...")
+
+Then split: any sentence carrying two facts becomes two sentences, and any bullet
+with a semicolon becomes two bullets.
 
 Then check it against the length budget for this PR's size. If it's over, cut
 again — a large PR is a licence for more bullets, not for padding. Never pad a
