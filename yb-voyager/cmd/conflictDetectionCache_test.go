@@ -746,23 +746,20 @@ func TestConflictLookup_RemoveDeindexes(t *testing.T) {
 // split of characters between adjacent columns.
 func TestComputeConflictBucketKey_NoAmbiguity(t *testing.T) {
 	idx := uidx("a", "b")
-	k1, ok1, err := computeConflictBucketKey(testutils.CreateNameTupleWithTargetName("public.users", "", POSTGRESQL), map[string]*string{"a": strPtr("ab"), "b": strPtr("")}, idx)
+	k1, err := computeConflictBucketKey(testutils.CreateNameTupleWithTargetName("public.users", "", POSTGRESQL), map[string]*string{"a": strPtr("ab"), "b": strPtr("")}, idx)
 	if err != nil {
 		t.Fatalf("error computing conflict bucket key: %v", err)
 	}
-	k2, ok2, err := computeConflictBucketKey(testutils.CreateNameTupleWithTargetName("public.users", "", POSTGRESQL), map[string]*string{"a": strPtr("a"), "b": strPtr("b")}, idx)
+	k2, err := computeConflictBucketKey(testutils.CreateNameTupleWithTargetName("public.users", "", POSTGRESQL), map[string]*string{"a": strPtr("a"), "b": strPtr("b")}, idx)
 	if err != nil {
 		t.Fatalf("error computing conflict bucket key: %v", err)
 	}
-	require.True(t, ok1)
-	require.True(t, ok2)
 	assert.NotEqual(t, k1, k2)
 
 	// missing column is not indexable and is reported as an error
-	_, ok3, err := computeConflictBucketKey(testutils.CreateNameTupleWithTargetName("public.users", "", POSTGRESQL), map[string]*string{"a": strPtr("a")}, idx)
+	_, err := computeConflictBucketKey(testutils.CreateNameTupleWithTargetName("public.users", "", POSTGRESQL), map[string]*string{"a": strPtr("a")}, idx)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "column b is missing from fields")
-	assert.False(t, ok3)
 }
 
 func TestConflictWithMultipleIndexes(t *testing.T) {
