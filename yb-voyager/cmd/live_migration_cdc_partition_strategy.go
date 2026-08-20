@@ -181,9 +181,12 @@ func resolveEffectiveCdcPartitionKeys(
 
 	for _, t := range tableNames {
 		override, _ := result.Get(t)
-		if override.Strategy == PARTITION_BY_PK {
+		// Both pk and custom route by column *values*; an expression-based unique index
+		// cannot be protected by value routing (its conflicting value is the expression
+		// output, not a stored column), so neither strategy is safe on such tables.
+		if override.Strategy != PARTITION_BY_TABLE {
 			if _, isExprUK := exprUKSet.Get(t); isExprUK {
-				return nil, goerrors.Errorf("cdc-partition-key pk is not allowed for table %s because it has an expression-based unique index; use table (via --cdc-partition-key or --cdc-partition-key-overrides)", t.ForOutput())
+				return nil, goerrors.Errorf("cdc-partition-key %s is not allowed for table '%s' because it has an expression-based unique index; use table (via --cdc-partition-key or --cdc-partition-key-overrides)", override.Strategy, t.ForOutput())
 			}
 		}
 	}
@@ -288,6 +291,17 @@ func computeCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple, isFi
 	if err != nil {
 		return nil, nil, err
 	}
+
+	// Import-start guardrails for custom-key tables (column existence + coverage warning).
+	// These query the target DB, so only run them on the first import; on resume the config
+	// is unchanged (enforced by validateCdcPartitioningStrategyUnchanged) and re-querying is
+	// unnecessary.
+	if isFirstRun {
+		if err := validateCustomPartitionKeyTables(tableToPartitionKeyOverrideMap); err != nil {
+			return nil, nil, err
+		}
+	}
+
 	exprUKKeysForStorage := make([]string, 0, len(exprUKSet.Keys()))
 	for _, t := range exprUKSet.Keys() {
 		exprUKKeysForStorage = append(exprUKKeysForStorage, t)
@@ -446,4 +460,54 @@ func getExpressionUniqueIndexTables(tableNames []sqlname.NameTuple) ([]sqlname.N
 	}
 
 	return expressionUniqueIndexTables, nil
+}
+
+// validateCustomPartitionKeyTables runs the import-start guardrails for tables routed by a
+// custom partition key (see cdc_partition_key_followups.md, Follow-up 1):
+//   - hard-fail if any custom key column does not exist on the table, so misconfiguration is
+//     caught up front instead of erroring per-event in hashEvent, and
+//   - warn (do not refuse) when the custom key does not cover a unique index worth protecting:
+//     conflicts on such an index can be between rows with different custom keys, so they are
+//     serialized by conflict detection rather than co-located onto one channel by the key.
+//
+// It queries the target DB, so callers should only invoke it on the first import (not resume).
+func validateCustomPartitionKeyTables(tableToPartitionKeyOverrideMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride]) error {
+	var customTables []sqlname.NameTuple
+	err := tableToPartitionKeyOverrideMap.IterKV(func(t sqlname.NameTuple, override cdcPartitionKeyOverride) (bool, error) {
+		if override.Strategy == PARTITION_BY_CUSTOM {
+			customTables = append(customTables, t)
+		}
+		return true, nil
+	})
+	if err != nil {
+		return err
+	}
+	if len(customTables) == 0 {
+		return nil
+	}
+
+	// every custom key column must exist on the table.
+	for _, t := range customTables {
+		override, _ := tableToPartitionKeyOverrideMap.Get(t)
+		tableColumns, err := tdb.GetListOfTableAttributes(t)
+		if err != nil {
+			return fmt.Errorf("error getting columns of table %s for custom cdc-partition-key validation: %w", t.ForOutput(), err)
+		}
+		columnSet := make(map[string]bool, len(tableColumns))
+		for _, c := range tableColumns {
+			columnSet[c] = true
+		}
+		var missing []string
+		for _, c := range override.Columns {
+			if !columnSet[c] {
+				missing = append(missing, c)
+			}
+		}
+		if len(missing) > 0 {
+			sort.Strings(missing)
+			sort.Strings(tableColumns)
+			return goerrors.Errorf("cdc-partition-key-overrides: custom key column(s) '%v' do not exist on table '%s' (available columns: %v)", missing, t.ForOutput(), tableColumns)
+		}
+	}
+	return nil
 }
