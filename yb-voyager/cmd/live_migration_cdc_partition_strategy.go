@@ -184,7 +184,7 @@ func resolveEffectiveCdcPartitionKeys(
 		// Both pk and custom route by column *values*; an expression-based unique index
 		// cannot be protected by value routing (its conflicting value is the expression
 		// output, not a stored column), so neither strategy is safe on such tables.
-		if override.Strategy == PARTITION_BY_PK || override.Strategy == PARTITION_BY_CUSTOM {
+		if override.Strategy != PARTITION_BY_TABLE {
 			if _, isExprUK := exprUKSet.Get(t); isExprUK {
 				return nil, goerrors.Errorf("cdc-partition-key %s is not allowed for table '%s' because it has an expression-based unique index; use table (via --cdc-partition-key or --cdc-partition-key-overrides)", override.Strategy, t.ForOutput())
 			}
