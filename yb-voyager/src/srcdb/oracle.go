@@ -60,6 +60,9 @@ func (ora *Oracle) Connect() error {
 	}
 
 	db, err := sql.Open("godror", ora.getConnectionUri())
+	if err != nil {
+		return fmt.Errorf("open connection to source database: %w", err)
+	}
 	db.SetMaxOpenConns(ora.source.NumConnections)
 	db.SetConnMaxIdleTime(5 * time.Minute)
 	ora.db = db

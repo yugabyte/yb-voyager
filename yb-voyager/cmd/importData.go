@@ -1721,7 +1721,8 @@ func getTableTypes(tasks []*ImportFileTask) (*utils.StructMap[sqlname.NameTuple,
 		return nil, fmt.Errorf("checking if db is colocated: %w", err)
 	}
 	for _, task := range tasks {
-		if tableType, ok := tableTypes.Get(task.TableNameTup); !ok {
+		if _, ok := tableTypes.Get(task.TableNameTup); !ok {
+			var tableType string
 			if !isDBColocated {
 				tableType = SHARDED
 			} else {
@@ -1825,6 +1826,7 @@ func startMonitoringTargetYBHealth() error {
 		})
 
 		err = monitorTDBHealth.StartMonitoring()
+		//lint:ignore SA4023 StartMonitoring currently only returns on error; keep the conventional check
 		if err != nil {
 			log.Errorf("error monitoring the target health: %v", err)
 		}
