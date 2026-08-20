@@ -17,9 +17,11 @@ Descriptions summarize the **entire PR diff as a whole** — not individual comm
 
 A PR description is skimmed in under a minute. Optimize for that, always.
 
-- **Hard cap: ~150 words** for the whole description (the template's reference
-  table doesn't count). Over budget means cut content, not reformat it.
-- **Every section is 1-3 lines.** Prefer a couple of short bullets to a paragraph.
+- **Match the length to the PR** — see "Length budget" below. Spend the budget on
+  distinct facts, never on longer sentences.
+- **Short answers stay one line.** The callhome and on-disk questions, and the
+  user-facing section when nothing applies, are one line each no matter how large
+  the PR is. Testing is 1-3 lines.
 - **Simple language.** Plain words, active voice, present tense. Write "fixes a
   crash when a table has no primary key", not "addresses a suboptimal behavioral
   characteristic in the primary-key-less code path".
@@ -30,6 +32,25 @@ A PR description is skimmed in under a minute. Optimize for that, always.
 - **Examples only when they earn their place.** One short snippet — a command, a
   config line, a before/after — when it is genuinely clearer than a sentence.
   At most one per PR, at most ~5 lines. Otherwise skip it.
+
+### Length budget
+
+| PR size | "Describe the changes" | Whole description |
+| :-- | :-- | :-- |
+| Small — one fix, 1-3 files | 2-3 bullets, or 2-3 sentences | ~100 words |
+| Typical — one feature or fix, a handful of files | 3-5 bullets | ~200 words |
+| Large — new feature, refactor, or several subsystems | one-sentence lede + one bullet per reviewable piece (usually 6-10) | ~350 words |
+
+**Big PRs get more lines, not longer lines.** For a large PR:
+
+1. Open with one sentence saying what the PR delivers as a whole.
+2. Then one bullet per independently reviewable piece, one line each. A 15-file
+   PR earns 8 bullets; it never earns 8 paragraphs.
+3. Group the bullets under bold labels once there are more than about six.
+4. Name anything deliberately left for a follow-up, in one line.
+
+If a PR genuinely can't be explained in ~350 words, say so and suggest splitting
+it — don't quietly write 800.
 
 ## PR Description Template
 
@@ -42,11 +63,11 @@ your descriptions will automatically stay in sync.
 
 When populating the template, follow these instructions for each section:
 
-- **Describe the changes in this pull request** — **2-4 short bullets, or 2-3
-  sentences.** What was broken or missing, and what the PR does about it. Add the
-  *why* only when it isn't obvious from the *what*. Mention a design decision only
-  if a reviewer would otherwise question the approach. No commit-by-commit
-  breakdown.
+- **Describe the changes in this pull request** — Size it from the length budget
+  above: 2-3 bullets for a small PR, up to ~10 for a large one. Say what was
+  broken or missing and what the PR does about it. Add the *why* only when it
+  isn't obvious from the *what*. Mention a design decision only if a reviewer
+  would otherwise question the approach. No commit-by-commit breakdown.
 
 - **Describe if there are any user-facing changes** — One line per question that
   actually applies (command line, configuration, installation, reports). Show the
@@ -91,6 +112,19 @@ An example earns its place when a sentence can't show the shape of the change:
 > ```
 > --on-conflict-wait-timeout 30s
 > ```
+
+A large PR — a lede, then one line per reviewable piece, still scannable:
+
+> ### Describe the changes in this pull request
+> Adds resumable data export to the fall-back flow.
+>
+> - **Export** — writes a per-tablet checkpoint after each batch; on restart it
+>   resumes from the last checkpoint instead of re-exporting the snapshot.
+> - **State** — new `export_checkpoint` table in MetaDB, created lazily on first
+>   checkpoint so existing export dirs keep working.
+> - **CLI** — `export data --resume` replaces `--restart-if-interrupted`, which is
+>   now a hidden alias.
+> - **Not in this PR** — resumption for `export data from target` (DB-1234).
 
 ## Workflow: Create a PR
 
@@ -195,6 +229,6 @@ Before showing any description to the user, delete:
 - any background the team already knows
 - restated headings ("This section describes the changes...")
 
-Then check: is the whole thing under ~150 words, and is every section 1-3 lines?
-If not, cut again. Never pad a section to look thorough — "No user-facing
-changes." is a complete answer.
+Then check it against the length budget for this PR's size. If it's over, cut
+again — a large PR is a licence for more bullets, not for padding. Never pad a
+section to look thorough: "No user-facing changes." is a complete answer.
