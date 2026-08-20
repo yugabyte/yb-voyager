@@ -757,7 +757,7 @@ func TestComputeConflictBucketKey_NoAmbiguity(t *testing.T) {
 	assert.NotEqual(t, k1, k2)
 
 	// missing column is not indexable and is reported as an error
-	_, err := computeConflictBucketKey(testutils.CreateNameTupleWithTargetName("public.users", "", POSTGRESQL), map[string]*string{"a": strPtr("a")}, idx)
+	_, err = computeConflictBucketKey(testutils.CreateNameTupleWithTargetName("public.users", "", POSTGRESQL), map[string]*string{"a": strPtr("a")}, idx)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "column b is missing from fields")
 }
