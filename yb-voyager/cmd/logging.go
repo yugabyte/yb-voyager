@@ -22,7 +22,10 @@ import (
 	"path/filepath"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
 	"gopkg.in/natefinch/lumberjack.v2"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 )
 
 type MyFormatter struct{}
@@ -48,19 +51,30 @@ func (mf *MyFormatter) Format(entry *log.Entry) ([]byte, error) {
 	return []byte(msg), nil
 }
 
-func InitLogging(logDir string, logLevel string, disableLogging bool, cmdName string) error {
+// logFileSettings groups the log file destination and rotation settings used by InitLogging.
+type logFileSettings struct {
+	Dir        string
+	MaxSizeMB  int
+	MaxBackups int
+}
+
+func InitLogging(exportDir string, logLevel string, disableLogging bool, cmdName string, fileSettings logFileSettings) error {
 	// Redirect log messages to ${logDir}/yb-voyager.log if not a status command.
 	if disableLogging {
 		log.SetOutput(io.Discard)
 		return nil
 	}
-	logFileName := filepath.Join(logDir, "logs", fmt.Sprintf("yb-voyager-%s.log", cmdName))
+	logDir := fileSettings.Dir
+	if logDir == "" {
+		logDir = filepath.Join(exportDir, "logs")
+	}
+	logFileName := filepath.Join(logDir, fmt.Sprintf("yb-voyager-%s.log", cmdName))
 
-	// logRotator handles scenario where "logs" folder, or yb-voyager.log file does not exist.
+	// logRotator handles scenario where the log directory, or yb-voyager.log file does not exist.
 	logRotator := &lumberjack.Logger{
 		Filename:   logFileName,
-		MaxSize:    200, // 200 MB log size before rotation
-		MaxBackups: 10,  // Allow upto 10 logs at once before deleting oldest logs.
+		MaxSize:    fileSettings.MaxSizeMB,
+		MaxBackups: fileSettings.MaxBackups,
 	}
 	log.SetOutput(logRotator)
 	level, err := log.ParseLevel(logLevel)
@@ -76,6 +90,43 @@ func InitLogging(logDir string, logLevel string, disableLogging bool, cmdName st
 	log.Infof("Args: %v", os.Args)
 	log.Infof("\n%s", getVersionInfo())
 	return nil
+}
+
+// currentLogFileSettings builds a logFileSettings from the CLI/config-resolved values.
+func currentLogFileSettings() logFileSettings {
+	return logFileSettings{
+		Dir:        config.LogDir,
+		MaxSizeMB:  config.LogMaxSizeMB,
+		MaxBackups: config.LogMaxBackups,
+	}
+}
+
+// logFileSettingsCLIArgs returns the current log-dir/log-max-size-mb/log-max-backups
+// settings as CLI args, for forwarding to a spawned yb-voyager subprocess (e.g. the next
+// iteration of an iterative cutover) that isn't already inheriting them via a shared
+// config file. Mirrors how --log-level is forwarded alongside these at every call site.
+func logFileSettingsCLIArgs() []string {
+	args := []string{
+		"--log-max-size-mb", fmt.Sprintf("%d", config.LogMaxSizeMB),
+		"--log-max-backups", fmt.Sprintf("%d", config.LogMaxBackups),
+	}
+	if config.LogDir != "" {
+		args = append(args, "--log-dir", config.LogDir)
+	}
+	return args
+}
+
+// registerLogFlags registers the CLI flags that control yb-voyager's logging behavior
+// (level, destination directory, and rotation) on the given command.
+func registerLogFlags(cmd *cobra.Command) {
+	cmd.PersistentFlags().StringVarP(&config.LogLevel, "log-level", "l", "info",
+		"log level for yb-voyager. Accepted values: (trace, debug, info, warn, error, fatal, panic)")
+	cmd.PersistentFlags().StringVar(&config.LogDir, "log-dir", "",
+		"directory to store yb-voyager log files (default: <export-dir>/logs)")
+	cmd.PersistentFlags().IntVar(&config.LogMaxSizeMB, "log-max-size-mb", config.DefaultLogMaxSizeMB,
+		"maximum size in MB of a log file before it is rotated")
+	cmd.PersistentFlags().IntVar(&config.LogMaxBackups, "log-max-backups", config.DefaultLogMaxBackups,
+		"maximum number of rotated log files to retain")
 }
 
 func redactPasswordFromArgs() {

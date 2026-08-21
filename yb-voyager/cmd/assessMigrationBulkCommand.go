@@ -104,8 +104,7 @@ func init() {
 		"assume answer as yes for all questions during migration (default false)")
 	BoolVar(assessMigrationBulkCmd.Flags(), &callhome.SendDiagnostics, "send-diagnostics", true,
 		"enable or disable the 'send-diagnostics' feature that sends analytics data to YugabyteDB.(default true)")
-	assessMigrationBulkCmd.PersistentFlags().StringVarP(&config.LogLevel, "log-level", "l", "info",
-		"log level for yb-voyager. Accepted values: (trace, debug, info, warn, error, fatal, panic)")
+	registerLogFlags(assessMigrationBulkCmd)
 
 	const fleetConfigFileHelp = `
 Path to the CSV file with connection parameters for schema(s) to be assessed.
