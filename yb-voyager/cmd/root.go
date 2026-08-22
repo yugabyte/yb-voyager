@@ -122,12 +122,17 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 				// logging is not initialized yet
 				utils.ErrExitPreLog("ERROR: %v", err)
 			}
+			err = config.ValidateLogSettings()
+			if err != nil {
+				// logging is not initialized yet
+				utils.ErrExitPreLog("ERROR: %v", err)
+			}
 			if shouldLock(cmd) {
 				lockFPath := filepath.Join(bulkAssessmentDir, fmt.Sprintf(".%sLockfile.lck", GetCommandID(cmd)))
 				lockFile = lockfile.NewLockfile(lockFPath)
 				lockFile.Lock()
 			}
-			err = InitLogging(bulkAssessmentDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
+			err = InitLogging(bulkAssessmentDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd), currentLogFileSettings())
 			if err != nil {
 				// InitLogging failed, so use ErrExitPreLog to avoid printing twice.
 				utils.ErrExitPreLog("ERROR: Failed to initialize logging: %v", err)
@@ -152,13 +157,18 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 				// logging is not initialized yet
 				utils.ErrExitPreLog("ERROR: %v", err)
 			}
+			err = config.ValidateLogSettings()
+			if err != nil {
+				// logging is not initialized yet
+				utils.ErrExitPreLog("ERROR: %v", err)
+			}
 			schemaDir = filepath.Join(exportDir, "schema")
 			if shouldLock(cmd) {
 				lockFPath := filepath.Join(exportDir, fmt.Sprintf(".%sLockfile.lck", GetCommandID(cmd)))
 				lockFile = lockfile.NewLockfile(lockFPath)
 				lockFile.Lock()
 			}
-			err = InitLogging(exportDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
+			err = InitLogging(exportDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd), currentLogFileSettings())
 			if err != nil {
 				// InitLogging failed, so use ErrExitPreLog to avoid printing twice.
 				utils.ErrExitPreLog("ERROR: Failed to initialize logging: %v", err)
@@ -260,7 +270,7 @@ func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
 		return nil
 	}
 	//this is just for any logs that might be printed before the iteration export dir is resolved
-	err := InitLogging(exportDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
+	err := InitLogging(exportDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd), currentLogFileSettings())
 	if err != nil {
 		// InitLogging failed, so use ErrExitPreLog to avoid printing twice.
 		utils.ErrExitPreLog("ERROR: Failed to initialize logging: %v", err)
@@ -458,9 +468,8 @@ func registerCommonGlobalFlags(cmd *cobra.Command) {
 	registerConfigFileFlag(cmd)
 	globalFlags = append(globalFlags, "config-file")
 
-	cmd.PersistentFlags().StringVarP(&config.LogLevel, "log-level", "l", "info",
-		"log level for yb-voyager. Accepted values: (trace, debug, info, warn, error, fatal, panic)")
-	globalFlags = append(globalFlags, "log-level")
+	registerLogFlags(cmd)
+	globalFlags = append(globalFlags, "log-level", "log-dir", "log-max-size-mb", "log-max-backups")
 
 	cmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,
 		"assume answer as yes for all questions during migration (default false)")

@@ -413,6 +413,7 @@ func startExportDataFromSourceOnNextIteration() {
 		}
 		cmd = append(cmd, fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics))
 		cmd = append(cmd, "--log-level", config.LogLevel)
+		cmd = append(cmd, logFileSettingsCLIArgs()...)
 		cmd = append(cmd, "--export-type", CHANGES_ONLY)
 		//TODO: see if we can do better, but these params are required for import data to target cmd
 		cmd = append(cmd, "--source-db-type", currentMsr.SourceDBConf.DBType)

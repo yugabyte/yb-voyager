@@ -52,7 +52,7 @@ var commandsUsingTargetConfig = []string{
 }
 
 var allowedGlobalConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"export-dir", "log-level", "send-diagnostics",
+	"export-dir", "log-level", "log-dir", "log-max-size-mb", "log-max-backups", "send-diagnostics",
 	"profile",
 	// environment variables keys
 	"control-plane-type", "java-home",

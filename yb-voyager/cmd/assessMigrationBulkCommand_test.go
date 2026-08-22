@@ -23,6 +23,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 )
 
 func createTempFleetConfigFile(t *testing.T, content string) *os.File {
@@ -171,6 +173,29 @@ oracle,user3,schema3,db3`,
 			}
 		})
 	}
+}
+
+// buildCommandArguments spawns a per-schema "assess-migration" child process, which should
+// inherit the parent's log-max-size-mb/log-max-backups rotation settings, but must keep its own
+// default <export-dir>/logs location rather than sharing the parent's --log-dir across schemas
+// (see GetAssessmentLogFilePath and the comment in buildCommandArguments).
+func TestBuildCommandArguments_ForwardsLogRotationButNotLogDir(t *testing.T) {
+	origLogDir, origMaxSize, origMaxBackups := config.LogDir, config.LogMaxSizeMB, config.LogMaxBackups
+	t.Cleanup(func() {
+		config.LogDir, config.LogMaxSizeMB, config.LogMaxBackups = origLogDir, origMaxSize, origMaxBackups
+	})
+
+	config.LogDir = "/custom/shared/log/dir"
+	config.LogMaxSizeMB = 77
+	config.LogMaxBackups = 3
+
+	args := buildCommandArguments(AssessMigrationDBConfig{DbType: "oracle", Schema: "schema1"}, "/export/dir/schema1")
+
+	assert.Contains(t, args, "--log-max-size-mb", "log-max-size-mb should be forwarded to the child process")
+	assert.Contains(t, args, "77")
+	assert.Contains(t, args, "--log-max-backups", "log-max-backups should be forwarded to the child process")
+	assert.Contains(t, args, "3")
+	assert.NotContains(t, args, "--log-dir", "log-dir should not be forwarded, so each schema keeps its own default log location")
 }
 
 func TestParseFleetConfigFile(t *testing.T) {

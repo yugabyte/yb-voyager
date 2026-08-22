@@ -21,13 +21,16 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/natefinch/lumberjack.v2"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
@@ -1021,6 +1024,136 @@ analyze-schema:
 	assert.Equal(t, tmpExportDir, exportDir, "Export directory should match the global section config")
 	assert.Equal(t, "debug", config.LogLevel, "Log level should match the command section config")
 	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the global section config")
+}
+
+////////////////////////////// Log Settings Tests //////////////////////////////
+
+func TestLogSettings_ConfigFileBinding(t *testing.T) {
+	tmpExportDir := setupExportDir(t)
+	defer os.RemoveAll(tmpExportDir)
+	resetCmdAndEnvVars(analyzeSchemaCmd)
+	defer resetFlags(analyzeSchemaCmd)
+
+	tmpLogDir, err := os.MkdirTemp("/tmp", "log-dir-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpLogDir)
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+log-level: info
+log-dir: %s
+log-max-size-mb: 42
+log-max-backups: 5
+`, tmpExportDir, tmpLogDir)
+
+	configFile, configDir := setupConfigFile(t, configContent)
+	defer os.RemoveAll(configDir)
+
+	rootCmd.SetArgs([]string{
+		"analyze-schema",
+		"--config-file", configFile,
+	})
+
+	err = rootCmd.Execute()
+	require.NoError(t, err)
+
+	assert.Equal(t, tmpLogDir, config.LogDir, "log-dir should match the config file")
+	assert.Equal(t, 42, config.LogMaxSizeMB, "log-max-size-mb should match the config file")
+	assert.Equal(t, 5, config.LogMaxBackups, "log-max-backups should match the config file")
+}
+
+func TestLogSettings_CLIOverridesConfig(t *testing.T) {
+	tmpExportDir := setupExportDir(t)
+	defer os.RemoveAll(tmpExportDir)
+	resetCmdAndEnvVars(analyzeSchemaCmd)
+	defer resetFlags(analyzeSchemaCmd)
+
+	tmpLogDir, err := os.MkdirTemp("/tmp", "log-dir-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpLogDir)
+
+	cliLogDir, err := os.MkdirTemp("/tmp", "cli-log-dir-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(cliLogDir)
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+log-level: info
+log-dir: %s
+log-max-size-mb: 42
+log-max-backups: 5
+`, tmpExportDir, tmpLogDir)
+
+	configFile, configDir := setupConfigFile(t, configContent)
+	defer os.RemoveAll(configDir)
+
+	rootCmd.SetArgs([]string{
+		"analyze-schema",
+		"--config-file", configFile,
+		"--log-dir", cliLogDir,
+		"--log-max-size-mb", "99",
+		"--log-max-backups", "1",
+	})
+
+	err = rootCmd.Execute()
+	require.NoError(t, err)
+
+	assert.Equal(t, cliLogDir, config.LogDir, "log-dir should be overridden by CLI")
+	assert.Equal(t, 99, config.LogMaxSizeMB, "log-max-size-mb should be overridden by CLI")
+	assert.Equal(t, 1, config.LogMaxBackups, "log-max-backups should be overridden by CLI")
+}
+
+func TestLogSettings_DefaultsWhenUnset(t *testing.T) {
+	resetLogOutput(t)
+	tmpExportDir := setupExportDir(t)
+	defer os.RemoveAll(tmpExportDir)
+	resetCmdAndEnvVars(analyzeSchemaCmd)
+	defer resetFlags(analyzeSchemaCmd)
+
+	rootCmd.SetArgs([]string{
+		"analyze-schema",
+		"--export-dir", tmpExportDir,
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+
+	// Flags/config vars should retain their zero-value defaults when nothing sets them.
+	assert.Equal(t, "", config.LogDir, "log-dir should default to empty (resolved to <export-dir>/logs)")
+	assert.Equal(t, config.DefaultLogMaxSizeMB, config.LogMaxSizeMB, "log-max-size-mb should default to DefaultLogMaxSizeMB")
+	assert.Equal(t, config.DefaultLogMaxBackups, config.LogMaxBackups, "log-max-backups should default to DefaultLogMaxBackups")
+
+	// And InitLogging should actually have wired those defaults through to the log
+	// rotator and file location exactly as it did before these settings were configurable.
+	rotator, ok := log.StandardLogger().Out.(*lumberjack.Logger)
+	require.True(t, ok, "logrus output should be a *lumberjack.Logger")
+	assert.Equal(t, 200, rotator.MaxSize, "default rotation size should remain 200MB")
+	assert.Equal(t, 10, rotator.MaxBackups, "default rotation backup count should remain 10")
+	assert.Equal(t, filepath.Join(tmpExportDir, "logs", "yb-voyager-analyze-schema.log"), rotator.Filename,
+		"log file should default to <export-dir>/logs/yb-voyager-<cmd>.log")
+}
+
+func TestLogSettings_InvalidLogMaxSizeMB_HaltsViaErrExitPreLog(t *testing.T) {
+	tmpExportDir := setupExportDir(t)
+	defer os.RemoveAll(tmpExportDir)
+	resetCmdAndEnvVars(analyzeSchemaCmd)
+	defer resetFlags(analyzeSchemaCmd)
+
+	testutils.MonkeyPatchUtilsErrExitPreLogWithPanic()
+	defer testutils.RestoreUtilsErrExitPreLog()
+
+	rootCmd.SetArgs([]string{
+		"analyze-schema",
+		"--export-dir", tmpExportDir,
+		"--log-max-size-mb", "0",
+	})
+
+	assert.PanicsWithValue(t,
+		"utils.ErrExitPreLog was called with: ERROR: invalid log-max-size-mb: 0. Must be a positive integer",
+		func() {
+			_ = rootCmd.Execute()
+		},
+	)
 }
 
 ////////////////////////////// Export Data Tests ////////////////////////////////

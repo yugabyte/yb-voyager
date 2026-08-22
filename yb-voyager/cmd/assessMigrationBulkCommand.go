@@ -104,8 +104,7 @@ func init() {
 		"assume answer as yes for all questions during migration (default false)")
 	BoolVar(assessMigrationBulkCmd.Flags(), &callhome.SendDiagnostics, "send-diagnostics", true,
 		"enable or disable the 'send-diagnostics' feature that sends analytics data to YugabyteDB.(default true)")
-	assessMigrationBulkCmd.PersistentFlags().StringVarP(&config.LogLevel, "log-level", "l", "info",
-		"log level for yb-voyager. Accepted values: (trace, debug, info, warn, error, fatal, panic)")
+	registerLogFlags(assessMigrationBulkCmd)
 
 	const fleetConfigFileHelp = `
 Path to the CSV file with connection parameters for schema(s) to be assessed.
@@ -227,6 +226,12 @@ func buildCommandArguments(dbConfig AssessMigrationDBConfig, exportDirPath strin
 		"--source-db-schema", dbConfig.Schema,
 		"--export-dir", exportDirPath,
 		"--log-level", config.LogLevel,
+		// --log-dir is deliberately not forwarded: each schema's assess-migration
+		// child must keep its own default <export-dir>/logs location (matching
+		// GetAssessmentLogFilePath()), since a shared --log-dir would make every
+		// schema in the fleet write to the same yb-voyager-assess-migration.log.
+		"--log-max-size-mb", fmt.Sprintf("%d", config.LogMaxSizeMB),
+		"--log-max-backups", fmt.Sprintf("%d", config.LogMaxBackups),
 	}
 
 	if dbConfig.User != "" {

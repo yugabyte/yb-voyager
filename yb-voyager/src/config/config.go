@@ -30,10 +30,24 @@ const (
 	ERROR = "error"
 	FATAL = "fatal"
 	PANIC = "panic"
+
+	// DefaultLogMaxSizeMB and DefaultLogMaxBackups match lumberjack's pre-existing hardcoded
+	// values in InitLogging, kept as the defaults now that they are configurable.
+	DefaultLogMaxSizeMB  = 200
+	DefaultLogMaxBackups = 10
+
+	// LogMaxBackupsUnlimited is the sentinel value for --log-max-backups that means
+	// "never delete rotated log files". Chosen instead of allowing 0 for this because
+	// lumberjack.Logger itself treats MaxBackups == 0 as "unlimited", which would
+	// silently contradict a user's intent to disable rotation retention.
+	LogMaxBackupsUnlimited = -1
 )
 
 var (
 	LogLevel       string
+	LogDir         string
+	LogMaxSizeMB   int
+	LogMaxBackups  int
 	validLogLevels = []string{TRACE, DEBUG, INFO, WARN, ERROR, FATAL, PANIC}
 )
 
@@ -41,6 +55,16 @@ func ValidateLogLevel() error {
 	LogLevel = strings.ToLower(LogLevel)
 	if !lo.Contains(validLogLevels, LogLevel) {
 		return goerrors.Errorf("invalid log level: %s. Valid log levels = %v", LogLevel, validLogLevels)
+	}
+	return nil
+}
+
+func ValidateLogSettings() error {
+	if LogMaxSizeMB <= 0 {
+		return goerrors.Errorf("invalid log-max-size-mb: %d. Must be a positive integer", LogMaxSizeMB)
+	}
+	if LogMaxBackups != LogMaxBackupsUnlimited && LogMaxBackups <= 0 {
+		return goerrors.Errorf("invalid log-max-backups: %d. Must be a positive integer, or %d to retain all rotated files", LogMaxBackups, LogMaxBackupsUnlimited)
 	}
 	return nil
 }

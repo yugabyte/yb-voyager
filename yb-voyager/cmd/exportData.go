@@ -326,6 +326,7 @@ func startNextIterationImportDataToTarget() {
 		}
 		cmd = append(cmd, fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics))
 		cmd = append(cmd, "--log-level", config.LogLevel)
+		cmd = append(cmd, logFileSettingsCLIArgs()...)
 		//TODO: see if we can do better, but these params are required for import data to target cmd
 		cmd = append(cmd, "--target-db-name", currentMsr.TargetDBConf.DBName)
 		cmd = append(cmd, "--target-db-user", currentMsr.TargetDBConf.User)
@@ -2117,6 +2118,7 @@ func generateGlobalExportImportArguments() []string {
 	} else {
 		//else set some overrides for the command
 		arguments = append(arguments, "--log-level", config.LogLevel)
+		arguments = append(arguments, logFileSettingsCLIArgs()...)
 		arguments = append(arguments, "--export-dir", lo.Ternary(msr.IsParentMigration(), exportDir, msr.ParentExportDir))
 		if bool(disablePb) {
 			arguments = append(arguments, "--disable-pb=true")
