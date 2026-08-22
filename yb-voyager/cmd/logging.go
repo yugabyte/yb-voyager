@@ -70,11 +70,18 @@ func InitLogging(exportDir string, logLevel string, disableLogging bool, cmdName
 	}
 	logFileName := filepath.Join(logDir, fmt.Sprintf("yb-voyager-%s.log", cmdName))
 
+	// lumberjack has no "-1" concept of its own; it treats MaxBackups == 0 as
+	// "retain all", so translate our unlimited sentinel to that.
+	maxBackups := fileSettings.MaxBackups
+	if maxBackups == config.LogMaxBackupsUnlimited {
+		maxBackups = 0
+	}
+
 	// logRotator handles scenario where the log directory, or yb-voyager.log file does not exist.
 	logRotator := &lumberjack.Logger{
 		Filename:   logFileName,
 		MaxSize:    fileSettings.MaxSizeMB,
-		MaxBackups: fileSettings.MaxBackups,
+		MaxBackups: maxBackups,
 	}
 	log.SetOutput(logRotator)
 	level, err := log.ParseLevel(logLevel)
@@ -126,7 +133,7 @@ func registerLogFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().IntVar(&config.LogMaxSizeMB, "log-max-size-mb", config.DefaultLogMaxSizeMB,
 		"maximum size in MB of a log file before it is rotated")
 	cmd.PersistentFlags().IntVar(&config.LogMaxBackups, "log-max-backups", config.DefaultLogMaxBackups,
-		"maximum number of rotated log files to retain")
+		"maximum number of rotated log files to retain (-1 to retain all)")
 }
 
 func redactPasswordFromArgs() {

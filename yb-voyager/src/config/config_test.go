@@ -61,10 +61,11 @@ func TestValidateLogSettings(t *testing.T) {
 		wantErr    string
 	}{
 		{"defaults are valid", DefaultLogMaxSizeMB, DefaultLogMaxBackups, ""},
-		{"positive maxSizeMB and zero maxBackups are valid", 50, 0, ""},
+		{"unlimited maxBackups sentinel is valid", 50, LogMaxBackupsUnlimited, ""},
 		{"zero maxSizeMB is invalid", 0, DefaultLogMaxBackups, "invalid log-max-size-mb: 0. Must be a positive integer"},
-		{"negative maxSizeMB is invalid", -1, DefaultLogMaxBackups, "invalid log-max-size-mb: -1. Must be a positive integer"},
-		{"negative maxBackups is invalid", DefaultLogMaxSizeMB, -1, "invalid log-max-backups: -1. Must be a non-negative integer"},
+		{"negative maxSizeMB is invalid", -2, DefaultLogMaxBackups, "invalid log-max-size-mb: -2. Must be a positive integer"},
+		{"zero maxBackups is invalid", DefaultLogMaxSizeMB, 0, "invalid log-max-backups: 0. Must be a positive integer, or -1 to retain all rotated files"},
+		{"negative maxBackups other than the unlimited sentinel is invalid", DefaultLogMaxSizeMB, -2, "invalid log-max-backups: -2. Must be a positive integer, or -1 to retain all rotated files"},
 	}
 
 	for _, tt := range tests {

@@ -24,6 +24,7 @@ log-level: info
 
 ### Maximum number of rotated log files to retain
 ### Default - 10
+### Use -1 to retain all rotated files
 # log-max-backups: 10
 
 ### *********** Control Plane Configuration ************

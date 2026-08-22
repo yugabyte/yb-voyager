@@ -226,6 +226,12 @@ func buildCommandArguments(dbConfig AssessMigrationDBConfig, exportDirPath strin
 		"--source-db-schema", dbConfig.Schema,
 		"--export-dir", exportDirPath,
 		"--log-level", config.LogLevel,
+		// --log-dir is deliberately not forwarded: each schema's assess-migration
+		// child must keep its own default <export-dir>/logs location (matching
+		// GetAssessmentLogFilePath()), since a shared --log-dir would make every
+		// schema in the fleet write to the same yb-voyager-assess-migration.log.
+		"--log-max-size-mb", fmt.Sprintf("%d", config.LogMaxSizeMB),
+		"--log-max-backups", fmt.Sprintf("%d", config.LogMaxBackups),
 	}
 
 	if dbConfig.User != "" {

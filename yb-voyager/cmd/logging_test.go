@@ -108,6 +108,24 @@ func TestInitLogging_RotationSettingsApplied(t *testing.T) {
 	assert.Equal(t, 3, rotator.MaxBackups)
 }
 
+// lumberjack has no "-1" concept of its own; it treats MaxBackups == 0 as "retain
+// all", so our unlimited sentinel must be translated to that at the InitLogging boundary.
+func TestInitLogging_UnlimitedMaxBackupsSentinelTranslatesToLumberjackZero(t *testing.T) {
+	resetLogOutput(t)
+	exportDir := t.TempDir()
+
+	err := InitLogging(exportDir, "info", false, "test-cmd", logFileSettings{
+		Dir:        "",
+		MaxSizeMB:  config.DefaultLogMaxSizeMB,
+		MaxBackups: config.LogMaxBackupsUnlimited,
+	})
+	require.NoError(t, err)
+
+	rotator, ok := log.StandardLogger().Out.(*lumberjack.Logger)
+	require.True(t, ok, "logrus output should be a *lumberjack.Logger")
+	assert.Equal(t, 0, rotator.MaxBackups, "lumberjack's MaxBackups should be 0 (its own 'retain all') when ours is set to unlimited")
+}
+
 func TestInitLogging_InvalidLogLevel(t *testing.T) {
 	resetLogOutput(t)
 	exportDir := t.TempDir()
