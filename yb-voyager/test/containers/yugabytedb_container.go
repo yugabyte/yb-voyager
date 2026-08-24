@@ -92,7 +92,10 @@ func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 	// TODO: Ideally we should test with 3 Node RF-3 cluster
 	req := testcontainers.ContainerRequest{
 		Image:        fmt.Sprintf("yugabytedb/yugabyte:%s", yb.DBVersion),
-		ExposedPorts: []string{"5433/tcp", "15433/tcp", "7000/tcp", "9000/tcp", "9042/tcp"},
+		// 7100 (master RPC) and 9100 (tserver RPC) are needed by the YugabyteDB
+		// gRPC CDC connector, which export-data-from-target uses when
+		// --use-yb-grpc-connector=true.
+		ExposedPorts: []string{"5433/tcp", "15433/tcp", "7000/tcp", "9000/tcp", "9042/tcp", "7100/tcp", "9100/tcp"},
 		Cmd: []string{
 			"bin/yugabyted",
 			"start",

@@ -21,6 +21,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -63,6 +64,11 @@ type LiveMigrationTest struct {
 	metaDB                 *metadb.MetaDB
 	ctx                    context.Context
 	t                      *testing.T
+
+	// importStdin optionally replaces the stdin handed to `import data`. See
+	// SetImportDataStdin.
+	importStdin    io.Reader
+	importStdinSet bool
 }
 
 // TestConfig holds all configuration upfront
@@ -332,6 +338,14 @@ func (lm *LiveMigrationTest) StartImportDataWithEnv(async bool, extraArgs map[st
 }
 
 // StartImportDataWithNoPrompt starts import data with no prompt
+// SetImportDataStdin overrides the stdin handed to `import data`. Pass nil to restore
+// the default ("Y\n"). Because import data execs into `export data from target` with
+// syscall.Exec, whatever is set here is also the stdin of the reverse-direction export.
+func (lm *LiveMigrationTest) SetImportDataStdin(r io.Reader) {
+	lm.importStdin = r
+	lm.importStdinSet = true
+}
+
 func (lm *LiveMigrationTest) StartImportDataWithPromptAnswerNo(async bool, extraArgs map[string]string) error {
 	return lm.startImportData(async, extraArgs, nil, false)
 }
@@ -362,7 +376,11 @@ func (lm *LiveMigrationTest) startImportData(async bool, extraArgs map[string]st
 	if !promptAnswer {
 		answer = "N\n"
 	}
-	lm.importCmd = testutils.NewVoyagerCommandRunner(lm.targetContainer, "import data", args, onStart, async).WithEnv(env...).WithT(lm.t).WithStdin(strings.NewReader(answer))
+	var stdin io.Reader = strings.NewReader(answer)
+	if lm.importStdinSet {
+		stdin = lm.importStdin
+	}
+	lm.importCmd = testutils.NewVoyagerCommandRunner(lm.targetContainer, "import data", args, onStart, async).WithEnv(env...).WithT(lm.t).WithStdin(stdin)
 	err := lm.importCmd.Run()
 	if err != nil {
 		return goerrors.Errorf("failed to start import data: %w", err)
@@ -1488,7 +1506,10 @@ func (lm *LiveMigrationTest) GetDataMigrationReport() (*DataMigrationReport, err
 		}
 	}
 
-	maxRetry := 5
+	// The report cannot be produced until debezium has booted and written
+	// data/export_status.json. On a loaded workstation the JVM boot can take
+	// well over 10s, so allow ~60s instead of ~10s before giving up.
+	maxRetry := 30
 	for {
 		reportArgs := []string{
 			"--export-dir", lm.exportDir,
