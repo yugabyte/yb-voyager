@@ -35,7 +35,7 @@ import (
 /*
 prepareCdcPartitionKey validates overrides against the import table list, resolves
 per-table strategies (global --cdc-partition-key + --cdc-partition-key-overrides +
-auto/expr-UK rules), and persists TableToCDCPartitionKey.
+auto/expr-UK/generated-stored-column rules), and persists TableToCDCPartitionKey.
 
 It is intentionally called before snapshot import so bad configs fail fast.
 On resume (map already in metaDB) this is a no-op.
@@ -56,10 +56,10 @@ func prepareCdcPartitionKey(tableNames []sqlname.NameTuple) error {
 		// On resume the per-table strategy map is already persisted. Rather than trusting
 		// a raw string comparison of the flags (done for the global key in
 		// validateCdcPartitionKeyFlags), re-resolve the effective per-table strategy from
-		// the current flags — reusing the expression-UK tables captured on the first run so
-		// no target-DB re-query is needed — and reject if it differs from what was
-		// persisted. This catches semantically-different overrides that a plain string
-		// compare would miss (ordering, spelling/quoting, whitespace).
+		// the current flags — reusing the expression-UK and generated-stored-column tables
+		// captured on the first run so no target-DB re-query is needed — and reject if it
+		// differs from what was persisted. This catches semantically-different overrides
+		// that a plain string compare would miss (ordering, spelling/quoting, whitespace).
 		if err := validateCdcPartitioningStrategyUnchanged(tableNames, importDataStatus); err != nil {
 			return err
 		}
@@ -128,12 +128,15 @@ func shouldForceTablePartitioning(importerRole string, sourceDBType string) bool
 }
 
 // resolveEffectiveCdcPartitionKeys applies global strategy, then per-table overlays,
-// then rejects effective pk for expression-UK tables. Pure helper for unit tests.
+// then rejects effective pk/custom for expression-UK tables, tables with a unique index
+// on a generated stored column, and custom keys that name a generated stored column.
+// Pure helper for unit tests.
 func resolveEffectiveCdcPartitionKeys(
 	tableNames []sqlname.NameTuple,
 	globalKey string,
 	overrides *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride],
 	exprUKSet *utils.StructMap[sqlname.NameTuple, bool],
+	generatedStoredCols *utils.StructMap[sqlname.NameTuple, []tgtdb.GeneratedStoredColumn],
 	targetDBType string,
 ) (*utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], error) {
 	result := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
@@ -142,6 +145,9 @@ func resolveEffectiveCdcPartitionKeys(
 	}
 	if exprUKSet == nil {
 		exprUKSet = utils.NewStructMap[sqlname.NameTuple, bool]()
+	}
+	if generatedStoredCols == nil {
+		generatedStoredCols = utils.NewStructMap[sqlname.NameTuple, []tgtdb.GeneratedStoredColumn]()
 	}
 
 	switch globalKey {
@@ -159,6 +165,10 @@ func resolveEffectiveCdcPartitionKeys(
 		} else {
 			for _, t := range tableNames {
 				if _, ok := exprUKSet.Get(t); ok {
+					result.Put(t, cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE})
+				} else if tableHasUniqueIndexOnGenerated(generatedStoredCols, t) {
+					// Generated UK values are absent from Debezium pgoutput events, so
+					// pk/custom routing and conflict detection cannot see them.
 					result.Put(t, cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE})
 				} else {
 					result.Put(t, cdcPartitionKeyOverride{Strategy: PARTITION_BY_PK})
@@ -181,13 +191,52 @@ func resolveEffectiveCdcPartitionKeys(
 
 	for _, t := range tableNames {
 		override, _ := result.Get(t)
-		if override.Strategy == PARTITION_BY_PK {
-			if _, isExprUK := exprUKSet.Get(t); isExprUK {
-				return nil, goerrors.Errorf("cdc-partition-key pk is not allowed for table %s because it has an expression-based unique index; use table (via --cdc-partition-key or --cdc-partition-key-overrides)", t.ForOutput())
+		if override.Strategy != PARTITION_BY_PK && override.Strategy != PARTITION_BY_CUSTOM {
+			continue
+		}
+		if _, isExprUK := exprUKSet.Get(t); isExprUK {
+			return nil, goerrors.Errorf("cdc-partition-key %s is not allowed for table %s because it has an expression-based unique index; use table (via --cdc-partition-key or --cdc-partition-key-overrides)", override.Strategy, t.ForOutput())
+		}
+		if tableHasUniqueIndexOnGenerated(generatedStoredCols, t) {
+			return nil, goerrors.Errorf("cdc-partition-key %s is not allowed for table %s because it has a unique index on a stored generated column; use table (via --cdc-partition-key or --cdc-partition-key-overrides)", override.Strategy, t.ForOutput())
+		}
+		if override.Strategy == PARTITION_BY_CUSTOM {
+			if col, ok := customKeyGeneratedColumn(override.Columns, generatedStoredCols, t); ok {
+				return nil, goerrors.Errorf("cdc-partition-key custom is not allowed for table %s because custom key column %q is a stored generated column (not present in Debezium events); use table or pk (via --cdc-partition-key or --cdc-partition-key-overrides)", t.ForOutput(), col)
 			}
 		}
 	}
 	return result, nil
+}
+
+func tableHasUniqueIndexOnGenerated(generatedStoredCols *utils.StructMap[sqlname.NameTuple, []tgtdb.GeneratedStoredColumn], t sqlname.NameTuple) bool {
+	cols, ok := generatedStoredCols.Get(t)
+	if !ok {
+		return false
+	}
+	for _, col := range cols {
+		if col.InUniqueIndex {
+			return true
+		}
+	}
+	return false
+}
+
+func customKeyGeneratedColumn(customCols []string, generatedStoredCols *utils.StructMap[sqlname.NameTuple, []tgtdb.GeneratedStoredColumn], t sqlname.NameTuple) (string, bool) {
+	generated, ok := generatedStoredCols.Get(t)
+	if !ok {
+		return "", false
+	}
+	generatedNames := make(map[string]struct{}, len(generated))
+	for _, col := range generated {
+		generatedNames[col.Name] = struct{}{}
+	}
+	for _, customCol := range customCols {
+		if _, isGenerated := generatedNames[customCol]; isGenerated {
+			return customCol, true
+		}
+	}
+	return "", false
 }
 
 // resolveCdcPartitionKeyOverrides looks up override table names in namereg and
@@ -223,8 +272,9 @@ func resolveCdcPartitionKeyOverrides(rawOverrides map[string]cdcPartitionKeyOver
 }
 
 func checkIfNeedsExprUKCheck(cdcPartitionKey string, overrides *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride]) (bool, error) {
-	// Collect expression-UK tables whenever we need them for auto resolution or pk-on-expr-UK validation.
-	needsExprUKCheck := cdcPartitionKey == "auto" || cdcPartitionKey == PARTITION_BY_PK
+	// Collect expression-UK / generated-stored-column tables whenever we need them for
+	// auto resolution or pk/custom validation.
+	needsExprUKCheck := cdcPartitionKey == "auto" || cdcPartitionKey == PARTITION_BY_PK || cdcPartitionKey == PARTITION_BY_CUSTOM
 	if !needsExprUKCheck {
 		err := overrides.IterKV(func(_ sqlname.NameTuple, override cdcPartitionKeyOverride) (bool, error) {
 			if override.Strategy != PARTITION_BY_TABLE {
@@ -240,10 +290,10 @@ func checkIfNeedsExprUKCheck(cdcPartitionKey string, overrides *utils.StructMap[
 	return needsExprUKCheck, nil
 }
 
-// computeAndPersistCdcPartitioningStrategyPerTable resolves global + overrides + auto/expr-UK
-// rules and writes TableToCDCPartitionKey to metaDB.
+// computeAndPersistCdcPartitioningStrategyPerTable resolves global + overrides +
+// auto/expr-UK/generated-stored-column rules and writes TableToCDCPartitionKey to metaDB.
 func computeAndPersistCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple, importDataStatus *metadb.ImportDataStatusRecord) (*utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], error) {
-	tableToPartitionKeyOverrideMap, exprUKKeysForStorage, err := computeCdcPartitioningStrategyPerTable(tableNames, true, importDataStatus)
+	tableToPartitionKeyOverrideMap, exprUKKeysForStorage, generatedStoredColsForStorage, err := computeCdcPartitioningStrategyPerTable(tableNames, true, importDataStatus)
 	if err != nil {
 		return nil, fmt.Errorf("error computing cdc partitioning strategy per table: %w", err)
 	}
@@ -261,6 +311,7 @@ func computeAndPersistCdcPartitioningStrategyPerTable(tableNames []sqlname.NameT
 	err = metaDB.UpdateImportDataStatusRecord(func(obj *metadb.ImportDataStatusRecord) {
 		obj.TableToCDCPartitionKey = metadbMap
 		obj.CdcExpressionUniqueIndexTables = exprUKKeysForStorage
+		obj.CdcGeneratedStoredColumns = generatedStoredColsForStorage
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error updating cdc partition key in metadb: %w", err)
@@ -269,30 +320,41 @@ func computeAndPersistCdcPartitioningStrategyPerTable(tableNames []sqlname.NameT
 	return tableToPartitionKeyOverrideMap, nil
 }
 
-func computeCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple, isFirstRun bool, importDataStatus *metadb.ImportDataStatusRecord) (*utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], []string, error) {
+func computeCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple, isFirstRun bool, importDataStatus *metadb.ImportDataStatusRecord) (*utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], []string, map[string][]metadb.GeneratedStoredColumn, error) {
 	rawOverrides, err := parseCdcPartitionKeyOverrides(cdcPartitionKeyOverrides)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	overrides, err := resolveCdcPartitionKeyOverrides(rawOverrides, tableNames)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	exprUKSet, err := getExpressionUniqueIndexTablesIfRequired(tableNames, overrides, cdcPartitionKey, isFirstRun, importDataStatus)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	tableToPartitionKeyOverrideMap, err := resolveEffectiveCdcPartitionKeys(tableNames, cdcPartitionKey, overrides, exprUKSet, tconf.TargetDBType)
+	generatedStoredCols, err := getGeneratedStoredColumnsIfRequired(tableNames, overrides, cdcPartitionKey, isFirstRun, importDataStatus)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	tableToPartitionKeyOverrideMap, err := resolveEffectiveCdcPartitionKeys(tableNames, cdcPartitionKey, overrides, exprUKSet, generatedStoredCols, tconf.TargetDBType)
 
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	exprUKKeysForStorage := make([]string, 0, len(exprUKSet.Keys()))
-	for _, t := range exprUKSet.Keys() {
-		exprUKKeysForStorage = append(exprUKKeysForStorage, t)
+	return tableToPartitionKeyOverrideMap, structMapKeysOrEmpty(exprUKSet), generatedStoredColumnsToMetaDB(generatedStoredCols), nil
+}
+
+func structMapKeysOrEmpty(set *utils.StructMap[sqlname.NameTuple, bool]) []string {
+	if set == nil {
+		return []string{}
 	}
-	return tableToPartitionKeyOverrideMap, exprUKKeysForStorage, nil
+	keys := set.Keys()
+	if keys == nil {
+		return []string{}
+	}
+	return keys
 }
 
 func getExpressionUniqueIndexTablesIfRequired(tableNames []sqlname.NameTuple, overrides *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], cdcPartitionKey string, isFirstRun bool, importDataStatus *metadb.ImportDataStatusRecord) (*utils.StructMap[sqlname.NameTuple, bool], error) {
@@ -339,11 +401,64 @@ func getExpressionUniqueIndexTablesIfRequired(tableNames []sqlname.NameTuple, ov
 	return exprUKSet, nil
 }
 
+func getGeneratedStoredColumnsIfRequired(tableNames []sqlname.NameTuple, overrides *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], cdcPartitionKey string, isFirstRun bool, importDataStatus *metadb.ImportDataStatusRecord) (*utils.StructMap[sqlname.NameTuple, []tgtdb.GeneratedStoredColumn], error) {
+	generatedStoredCols := utils.NewStructMap[sqlname.NameTuple, []tgtdb.GeneratedStoredColumn]()
+
+	needsCheck, err := checkIfNeedsExprUKCheck(cdcPartitionKey, overrides)
+	if err != nil {
+		return nil, err
+	}
+	if !needsCheck {
+		return generatedStoredCols, nil
+	}
+
+	if isFirstRun {
+		return getGeneratedStoredColumns(tableNames)
+	}
+
+	// Resume: reuse the map captured on the first run. nil means an older voyager
+	// record that never captured this set — treat as empty so resume still works.
+	if importDataStatus == nil {
+		return nil, goerrors.Errorf("import data status record not found")
+	}
+	if importDataStatus.CdcGeneratedStoredColumns == nil {
+		return generatedStoredCols, nil
+	}
+	for key, cols := range importDataStatus.CdcGeneratedStoredColumns {
+		tuple, err := namereg.NameReg.LookupTableName(key)
+		if err != nil {
+			return nil, fmt.Errorf("error looking up generated-stored-column table %q: %w", key, err)
+		}
+		tgtdbCols := make([]tgtdb.GeneratedStoredColumn, len(cols))
+		for i, col := range cols {
+			tgtdbCols[i] = tgtdb.GeneratedStoredColumn{Name: col.Name, InUniqueIndex: col.InUniqueIndex}
+		}
+		generatedStoredCols.Put(tuple, tgtdbCols)
+	}
+	return generatedStoredCols, nil
+}
+
+func generatedStoredColumnsToMetaDB(cols *utils.StructMap[sqlname.NameTuple, []tgtdb.GeneratedStoredColumn]) map[string][]metadb.GeneratedStoredColumn {
+	result := make(map[string][]metadb.GeneratedStoredColumn)
+	if cols == nil {
+		return result
+	}
+	_ = cols.IterKV(func(t sqlname.NameTuple, generated []tgtdb.GeneratedStoredColumn) (bool, error) {
+		stored := make([]metadb.GeneratedStoredColumn, len(generated))
+		for i, col := range generated {
+			stored[i] = metadb.GeneratedStoredColumn{Name: col.Name, InUniqueIndex: col.InUniqueIndex}
+		}
+		result[t.ForKey()] = stored
+		return true, nil
+	})
+	return result
+}
+
 // validateCdcPartitioningStrategyUnchanged re-resolves the effective per-table CDC
 // partitioning strategy from the current flags and fails if it differs from the map
-// persisted on the first run. It reuses the expression-UK tables captured on the first
-// run (falling back to a target-DB lookup only for older records that predate that
-// capture) so resume never silently applies a changed cdc-partition-key /
+// persisted on the first run. It reuses the expression-UK and generated-stored-column
+// tables captured on the first run (treating a missing generated-stored set as empty for
+// older records) so resume never silently applies a changed cdc-partition-key /
 // cdc-partition-key-overrides.
 func validateCdcPartitioningStrategyUnchanged(tableNames []sqlname.NameTuple, importDataStatus *metadb.ImportDataStatusRecord) error {
 
@@ -353,7 +468,7 @@ func validateCdcPartitioningStrategyUnchanged(tableNames []sqlname.NameTuple, im
 		return nil
 	}
 
-	resolvedTableToPartitionKeyOverrideMap, _, err := computeCdcPartitioningStrategyPerTable(tableNames, false, importDataStatus)
+	resolvedTableToPartitionKeyOverrideMap, _, _, err := computeCdcPartitioningStrategyPerTable(tableNames, false, importDataStatus)
 	if err != nil {
 		return fmt.Errorf("error computing cdc partitioning strategy per table: %w", err)
 	}
@@ -446,4 +561,24 @@ func getExpressionUniqueIndexTables(tableNames []sqlname.NameTuple) ([]sqlname.N
 	}
 
 	return expressionUniqueIndexTables, nil
+}
+
+func getGeneratedStoredColumns(tableNames []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []tgtdb.GeneratedStoredColumn], error) {
+	empty := utils.NewStructMap[sqlname.NameTuple, []tgtdb.GeneratedStoredColumn]()
+	if tconf.TargetDBType != YUGABYTEDB {
+		return empty, nil
+	}
+	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+	if !ok {
+		return nil, goerrors.Errorf("target db is not a YugabyteDB")
+	}
+
+	generatedStoredCols, err := yb.GetGeneratedStoredColumns(tableNames, true)
+	if err != nil {
+		return nil, fmt.Errorf("error getting stored generated columns: %w", err)
+	}
+	if generatedStoredCols == nil {
+		return empty, nil
+	}
+	return generatedStoredCols, nil
 }

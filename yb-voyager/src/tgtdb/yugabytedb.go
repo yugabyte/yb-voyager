@@ -2514,6 +2514,127 @@ SELECT
 	}), nil
 }
 
+// GeneratedStoredColumn is a STORED generated column (attgenerated = 's') on a table,
+// plus whether it appears in any unique index (including a primary key). Expression
+// unique indexes are not counted here (indexprs IS NOT NULL); those are handled by
+// GetTablesHavingExpressionUniqueIndexes.
+type GeneratedStoredColumn struct {
+	Name          string
+	InUniqueIndex bool
+}
+
+// GetGeneratedStoredColumns returns, for tables in tableNames that have STORED generated
+// columns, the list of those columns and whether each appears in a unique index.
+//
+// If returnPartitionRootTable is true, leaf partitions with generated stored columns are
+// mapped to their root table (import events only reference the root). When merging leaves
+// into a root, columns are unioned by name and InUniqueIndex is OR'd. Otherwise only
+// tables in tableNames themselves are considered.
+func (yb *TargetYugabyteDB) GetGeneratedStoredColumns(tableNames []sqlname.NameTuple, returnPartitionRootTable bool) (*utils.StructMap[sqlname.NameTuple, []GeneratedStoredColumn], error) {
+	log.Infof("getting generated stored columns")
+	result := utils.NewStructMap[sqlname.NameTuple, []GeneratedStoredColumn]()
+	if len(tableNames) == 0 {
+		return result, nil
+	}
+
+	leafTableToRootTableMap, err := getPartitionTableToRootTableMap(yb.Query, tableNames)
+	if err != nil {
+		return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
+	}
+
+	tableCatalogNameToTuple := make(map[string]sqlname.NameTuple)
+	for _, t := range tableNames {
+		tableCatalogNameToTuple[t.AsQualifiedCatalogName()] = t
+	}
+
+	catalogTableNames := make([]string, 0)
+	catalogTableNames = append(catalogTableNames, lo.Keys(tableCatalogNameToTuple)...) // all normal tables/root tables
+	if returnPartitionRootTable {
+		catalogTableNames = append(catalogTableNames, lo.Keys(leafTableToRootTableMap)...) // all partitions
+	}
+	catalogTableNames = lo.Uniq(catalogTableNames)
+	if len(catalogTableNames) == 0 {
+		return result, nil
+	}
+
+	tableNamesStr := strings.Join(lo.Map(catalogTableNames, func(table string, _ int) string {
+		return fmt.Sprintf("('%s')", table)
+	}), ",")
+
+	query := fmt.Sprintf(`
+	SELECT
+		n.nspname AS table_schema,
+		t.relname AS table_name,
+		a.attname AS column_name,
+		EXISTS (
+			SELECT 1 FROM pg_index idx
+			WHERE idx.indrelid = t.oid
+				AND idx.indisunique
+				AND a.attnum = ANY(idx.indkey)
+		) AS in_unique_index
+	FROM pg_class t
+	JOIN pg_namespace n ON t.relnamespace = n.oid
+	JOIN pg_attribute a ON t.oid = a.attrelid
+	WHERE t.relkind IN ('r', 'p')
+		AND a.attnum > 0
+		AND NOT a.attisdropped
+		AND a.attgenerated = 's'
+		AND (n.nspname || '.' || t.relname) IN (%s);`, tableNamesStr)
+	log.Debugf("query: %s", query)
+	rows, err := yb.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying for generated stored columns: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var schemaName, tableName, columnName string
+		var inUniqueIndex bool
+		err := rows.Scan(&schemaName, &tableName, &columnName, &inUniqueIndex)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning row for generated stored columns: %w", err)
+		}
+		catalogName := fmt.Sprintf("%s.%s", schemaName, tableName)
+		log.Infof("table: %s has generated stored column %s in_unique_index=%v", catalogName, columnName, inUniqueIndex)
+
+		tuple, err := resolveCatalogTableToTuple(catalogName, tableCatalogNameToTuple, leafTableToRootTableMap)
+		if err != nil {
+			return nil, err
+		}
+		existing, _ := result.Get(tuple)
+		result.Put(tuple, mergeGeneratedStoredColumn(existing, GeneratedStoredColumn{
+			Name:          columnName,
+			InUniqueIndex: inUniqueIndex,
+		}))
+	}
+	return result, nil
+}
+
+func resolveCatalogTableToTuple(catalogName string, tableCatalogNameToTuple map[string]sqlname.NameTuple, leafTableToRootTableMap map[string]string) (sqlname.NameTuple, error) {
+	if rootTable, ok := leafTableToRootTableMap[catalogName]; ok {
+		tuple, ok := tableCatalogNameToTuple[rootTable]
+		if !ok {
+			return sqlname.NameTuple{}, goerrors.Errorf("root table %s not found in table catalog name to tuple map", rootTable)
+		}
+		return tuple, nil
+	}
+	tuple, ok := tableCatalogNameToTuple[catalogName]
+	if !ok {
+		return sqlname.NameTuple{}, goerrors.Errorf("table %s not found in table catalog name to tuple map", catalogName)
+	}
+	return tuple, nil
+}
+
+func mergeGeneratedStoredColumn(existing []GeneratedStoredColumn, col GeneratedStoredColumn) []GeneratedStoredColumn {
+	for i, e := range existing {
+		if e.Name == col.Name {
+			existing[i].InUniqueIndex = existing[i].InUniqueIndex || col.InUniqueIndex
+			return existing
+		}
+	}
+	return append(existing, col)
+}
+
 // returns map of table name to its root table name in catalog qualified name format
 // for leaf table, returns leaf table name -> root table name
 // for any non-leaf partitioned table, returns non-leaf partitioned table -> root table
