@@ -405,7 +405,7 @@ func (c *ConflictDetectionCache) findValueConflictLocked(incomingEvent *tgtdb.Ev
 		case "c":
 			conflict, err := c.checkBeforeAfterConflict(incomingEvent, index)
 			if err != nil {
-				return []Conflict{}, err
+				return []Conflict{}, fmt.Errorf("error checking before-after conflict for incoming event(vsn=%d) and index %s: %w", incomingEvent.Vsn, index.IndexName, err)
 			}
 			if len(conflict.eventsConflicting) > 0 {
 				totalConflictInfo = append(totalConflictInfo, conflict)
@@ -414,7 +414,7 @@ func (c *ConflictDetectionCache) findValueConflictLocked(incomingEvent *tgtdb.Ev
 			if anyUniqueIndexColumnChanged(incomingEvent.Fields, index.Columns) {
 				conflict, err := c.checkBeforeAfterConflict(incomingEvent, index)
 				if err != nil {
-					return []Conflict{}, err
+					return []Conflict{}, fmt.Errorf("error checking before-after conflict for incoming event(vsn=%d) and index %s: %w", incomingEvent.Vsn, index.IndexName, err)
 				}
 				if len(conflict.eventsConflicting) > 0 {
 					totalConflictInfo = append(totalConflictInfo, conflict)
@@ -422,7 +422,7 @@ func (c *ConflictDetectionCache) findValueConflictLocked(incomingEvent *tgtdb.Ev
 			}
 			conflict, err := c.checkBeforeBeforeConflict(incomingEvent, index)
 			if err != nil {
-				return []Conflict{}, err
+				return []Conflict{}, fmt.Errorf("error checking before-before conflict for incoming event(vsn=%d) and index %s: %w", incomingEvent.Vsn, index.IndexName, err)
 			}
 			if len(conflict.eventsConflicting) > 0 {
 				totalConflictInfo = append(totalConflictInfo, conflict)
