@@ -16,12 +16,16 @@ import org.slf4j.LoggerFactory;
  * <p><b>Does {@code source.ts_ms} carry the transaction COMMIT time, or merely the
  * time the walsender emitted the record?</b>
  *
- * <p>Two intervals are recorded per event:
+ * <p>Three intervals are recorded per event:
  * <ul>
  * <li>{@code src_to_dbz} = envelope {@code ts_ms} - source {@code ts_ms} — how long
  * YugabyteDB took to get the change to the connector.
  * <li>{@code dbz_to_now} = now - envelope {@code ts_ms} — how long it then spent
  * inside this exporter before being parsed.
+ * <li>{@code src_to_now} = now - source {@code ts_ms} — total end-to-end staleness.
+ * Tracked separately rather than derived, because while the mean of a sum is the sum
+ * of the means, the min and max are not; and this is the figure directly comparable
+ * to the server-side {@code cdcsdk_sent_lag_micros}.
  * </ul>
  *
  * <p><b>How to read the result.</b> If {@code source.ts_ms} is the commit time, then
@@ -79,6 +83,14 @@ final class CdcLagSpike {
     private static long dbzToNowMin = Long.MAX_VALUE;
     private static long dbzToNowMax = Long.MIN_VALUE;
     private static long dbzToNowSum = 0L;
+    // End-to-end staleness, tracked in its own right rather than derived: the mean
+    // of a sum is the sum of the means, but the MIN and MAX are not, so
+    // max(src_to_dbz) + max(dbz_to_now) would overstate the real worst case. This
+    // is also the figure directly comparable to the server-side
+    // cdcsdk_sent_lag_micros, which makes it the headline number of the spike.
+    private static long srcToNowMin = Long.MAX_VALUE;
+    private static long srcToNowMax = Long.MIN_VALUE;
+    private static long srcToNowSum = 0L;
     private static long measured = 0L;
 
     static boolean enabled() {
@@ -119,9 +131,11 @@ final class CdcLagSpike {
             if (!isSnapshot && srcTs != null && envTs != null) {
                 long srcToDbz = envTs - srcTs;
                 long dbzToNow = now - envTs;
+                long srcToNow = now - srcTs;
                 measured++;
                 srcToDbzSum += srcToDbz;
                 dbzToNowSum += dbzToNow;
+                srcToNowSum += srcToNow;
                 if (srcToDbz < srcToDbzMin) {
                     srcToDbzMin = srcToDbz;
                 }
@@ -134,11 +148,17 @@ final class CdcLagSpike {
                 if (dbzToNow > dbzToNowMax) {
                     dbzToNowMax = dbzToNow;
                 }
+                if (srcToNow < srcToNowMin) {
+                    srcToNowMin = srcToNow;
+                }
+                if (srcToNow > srcToNowMax) {
+                    srcToNowMax = srcToNow;
+                }
 
                 if (SAMPLE_EVERY > 0 && measured % SAMPLE_EVERY == 0) {
                     LOGGER.info("cdc-lag-spike sample op={} src_ts={} dbz_ts={} now={} "
-                            + "src_to_dbz_ms={} dbz_to_now_ms={} total_ms={}",
-                            op, srcTs, envTs, now, srcToDbz, dbzToNow, now - srcTs);
+                            + "src_to_dbz_ms={} dbz_to_now_ms={} src_to_now_ms={}",
+                            op, srcTs, envTs, now, srcToDbz, dbzToNow, srcToNow);
                 }
             }
 
@@ -157,10 +177,11 @@ final class CdcLagSpike {
         if (measured > 0) {
             LOGGER.info("cdc-lag-spike SUMMARY window_ms={} events={} measured={} snapshot={} "
                     + "missing_src_ts={} missing_env_ts={} | src_to_dbz_ms min={} avg={} max={} "
-                    + "| dbz_to_now_ms min={} avg={} max={}",
+                    + "| dbz_to_now_ms min={} avg={} max={} | src_to_now_ms min={} avg={} max={}",
                     windowMs, seen, measured, snapshotEvents, missingSourceTs, missingEnvelopeTs,
                     srcToDbzMin, srcToDbzSum / measured, srcToDbzMax,
-                    dbzToNowMin, dbzToNowSum / measured, dbzToNowMax);
+                    dbzToNowMin, dbzToNowSum / measured, dbzToNowMax,
+                    srcToNowMin, srcToNowSum / measured, srcToNowMax);
         }
         else {
             LOGGER.info("cdc-lag-spike SUMMARY window_ms={} events={} measured=0 snapshot={} "
@@ -179,6 +200,9 @@ final class CdcLagSpike {
         dbzToNowMin = Long.MAX_VALUE;
         dbzToNowMax = Long.MIN_VALUE;
         dbzToNowSum = 0L;
+        srcToNowMin = Long.MAX_VALUE;
+        srcToNowMax = Long.MIN_VALUE;
+        srcToNowSum = 0L;
     }
 
     /** Read an int64 field, tolerating an absent field or a null value. */
