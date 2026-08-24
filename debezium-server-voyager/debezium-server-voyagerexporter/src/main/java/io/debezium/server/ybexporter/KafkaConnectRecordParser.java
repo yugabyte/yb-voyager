@@ -133,6 +133,9 @@ class KafkaConnectRecordParser implements RecordParser {
             r.op = value.getString("op");
             r.snapshot = source.getString("snapshot");
 
+            // Throwaway diagnostic, inert unless YB_CDC_LAG_SPIKE is set. See CdcLagSpike.
+            CdcLagSpike.observe(value, source, r.op, r.snapshot);
+
             parseEventId(value, r);
 
             // Parse table/schema the first time to be able to format specific field values
