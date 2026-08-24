@@ -853,8 +853,11 @@ def build_monitor_cmd(
         "--export-dir", ctx.export_dir_base,
         "--exporter-role", exporter_role,
         "--import-dsn", source_dsn_string(ctx.cfg, import_role),
-        # Replication slot lives on the CDC-source side of this leg (fall-back = target).
-        "--slot-dsn", source_dsn_string(ctx.cfg, "target"),
+        # CDC lag on YB is time-based (cdcsdk_sent_lag_micros), scraped from a
+        # tserver's :9000 endpoint. Byte-LSN slot lag is invalid on YB, so the
+        # monitor takes --prometheus-url (not --slot-dsn). CDC source of this leg
+        # = target (fall-back).
+        "--prometheus-url", f"http://{ctx.cfg['target']['host']}:9000/prometheus-metrics",
         "--interval", str(int(interval)),
         "--duration", str(int(duration)),
         "--out", os.path.join(ctx.artifacts_dir, out_name),
