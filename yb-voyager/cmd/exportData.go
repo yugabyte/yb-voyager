@@ -135,18 +135,10 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 	}
 }
 
-/*
-BETA_FAST_DATA_EXPORT routes the snapshot export through debezium instead of the source's
-native dump tool. It is a beta feature for Oracle and MySQL only.
-
-On postgresql that path mis-encodes some datatypes, because debezium hands the value
-converters a JDBC object rather than postgres' own text form. hstore, for instance, arrives
-as a java.util.Map and gets serialized as "{k=v}", which no longer parses as hstore on
-import. Refuse the combination rather than exporting values that fail or land wrong.
-
-The flag only takes effect for a snapshot export; live migration always uses debezium, so
-setting it there changes nothing and is left alone.
-*/
+// BETA_FAST_DATA_EXPORT routes the snapshot export through debezium and is only supported for
+// Oracle and MySQL. On postgresql debezium hands the converters a JDBC object instead of
+// postgres' text, so hstore arrives as a java.util.Map and serializes to "{k=v}", which fails
+// to import. Live migration always uses debezium, so the flag is a no-op there.
 func validateBetaFastDataExportSupportedForSource(dbType string, exportType string, useDebezium bool) error {
 	if !useDebezium || changeStreamingIsEnabled(exportType) {
 		return nil
