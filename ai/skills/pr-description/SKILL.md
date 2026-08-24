@@ -13,9 +13,13 @@ description: >-
 This skill creates and updates GitHub PR descriptions for the yb-voyager project.
 Descriptions summarize the **entire PR diff as a whole** — not individual commits.
 
-## Core rule: the shortest description that still explains the change
+## Core rule: the shortest, most pragmatic description that completely explains the change
 
 A PR description is skimmed in under a minute. Optimize for that, always.
+
+Completeness is the floor, not the goal. The description has to cover everything a
+reviewer needs to judge the change. Shortness is how it gets there — cut words,
+never facts.
 
 - **Match the length to the PR** — see "Length budget" below. Spend the budget on
   distinct facts, never on longer sentences.
@@ -222,8 +226,9 @@ When the user asks to update an existing PR description:
 
 ## Writing Guidelines
 
-- **Short beats complete**: A short description that gets read fully is worth more
-  than a thorough one that gets skipped. When in doubt, cut.
+- **Short, not partial**: A short description that gets read fully is worth more
+  than a thorough one that gets skipped. So cut hard — but cut words, filler, and
+  anything the diff already says, never a fact the reviewer needs.
 - **Holistic, not granular**: Describe the PR as one cohesive change. Don't list
   commits or say "in commit X, we did Y".
 - **Simple words**: Explain it the way you would to a teammate in chat. No
