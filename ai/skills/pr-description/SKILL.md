@@ -212,7 +212,9 @@ When the user asks to update an existing PR description:
    Fall back to the REST API, and check the body afterwards either way:
 
    ```bash
-   gh api -X PATCH repos/yugabyte/yb-voyager/pulls/<number> -F body=@body.md
+   gh api -X PATCH repos/yugabyte/yb-voyager/pulls/<number> -F body=@- <<'EOF'
+   <filled template>
+   EOF
    gh api repos/yugabyte/yb-voyager/pulls/<number> --jq '.body'
    ```
 
