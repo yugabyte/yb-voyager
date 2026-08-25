@@ -2583,6 +2583,14 @@ func (yb *TargetYugabyteDB) GetGeneratedStoredColumns(tableNames []sqlname.NameT
 	log.Debugf("query: %s", query)
 	rows, err := yb.Query(query)
 	if err != nil {
+		// pg_attribute.attgenerated was introduced in PostgreSQL 12 and is not available on
+		// YugabyteDB 2024.2 and lower. Those versions do not support STORED generated columns,
+		// so a missing-column error here is expected and simply means there are none.
+		// Error message: ERROR: column a.attgenerated does not exist
+		if strings.Contains(err.Error(), "attgenerated does not exist") {
+			log.Infof("attgenerated column not available (YugabyteDB version <= 2024.2); assuming no generated stored columns")
+			return result, nil
+		}
 		return nil, fmt.Errorf("error querying for generated stored columns: %w", err)
 	}
 	defer rows.Close()
