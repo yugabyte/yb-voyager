@@ -332,15 +332,15 @@ func (s *ImportDataState) getBatches(filePath string, tableNameTup sqlname.NameT
 				continue
 			}
 			batch := &Batch{
-				SchemaName:    "",
-				TableNameTup:  tableNameTup,
-				FilePath:      filepath.Join(fileStateDir, file.Name()),
-				BaseFilePath:  filePath,
-				Number:        batchNum,
-				LineOffsetStart: offsetEnd - recordCount,
-				LineOffsetEnd:   offsetEnd,
-				ByteCount:     byteCount,
-				RecordCount:   recordCount,
+				SchemaName:       "",
+				TableNameTup:     tableNameTup,
+				FilePath:         filepath.Join(fileStateDir, file.Name()),
+				BaseFilePath:     filePath,
+				Number:           batchNum,
+				LineOffsetStart:  offsetEnd - recordCount,
+				LineOffsetEnd:    offsetEnd,
+				ByteCount:        byteCount,
+				RecordCount:      recordCount,
 				CumByteOffsetEnd: cumByteOffsetEnd,
 			}
 			result = append(result, batch)
@@ -862,15 +862,15 @@ func (bw *BatchWriter) Done(isLastBatch bool, offsetEnd int64, byteCount int64, 
 		return nil, goerrors.Errorf("rename %q to %q: %s", tmpFileName, batchFilePath, err)
 	}
 	batch := &Batch{
-		SchemaName:    "",
-		TableNameTup:  bw.tableName,
-		FilePath:      batchFilePath,
-		BaseFilePath:  bw.filePath,
-		Number:        batchNumber,
-		LineOffsetStart: offsetEnd - bw.NumRecordsWritten,
-		LineOffsetEnd:   offsetEnd,
-		RecordCount:   bw.NumRecordsWritten,
-		ByteCount:     byteCount,
+		SchemaName:       "",
+		TableNameTup:     bw.tableName,
+		FilePath:         batchFilePath,
+		BaseFilePath:     bw.filePath,
+		Number:           batchNumber,
+		LineOffsetStart:  offsetEnd - bw.NumRecordsWritten,
+		LineOffsetEnd:    offsetEnd,
+		RecordCount:      bw.NumRecordsWritten,
+		ByteCount:        byteCount,
 		CumByteOffsetEnd: cumByteOffsetEnd,
 	}
 	return batch, nil
@@ -884,17 +884,17 @@ const (
 )
 
 type Batch struct {
-	Number        int64
-	TableNameTup  sqlname.NameTuple
-	SchemaName    string
-	FilePath      string // Path of the batch file.
-	BaseFilePath  string // Path of the original data file.
-	LineOffsetStart int64
-	LineOffsetEnd   int64
-	RecordCount   int64
-	ByteCount     int64
+	Number           int64
+	TableNameTup     sqlname.NameTuple
+	SchemaName       string
+	FilePath         string // Path of the batch file.
+	BaseFilePath     string // Path of the original data file.
+	LineOffsetStart  int64
+	LineOffsetEnd    int64
+	RecordCount      int64
+	ByteCount        int64
 	CumByteOffsetEnd int64 // Absolute byte position in the original data file after this batch.
-	Interrupted   bool
+	Interrupted      bool
 }
 
 func (batch *Batch) Open() (*os.File, error) {

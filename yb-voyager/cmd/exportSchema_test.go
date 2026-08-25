@@ -539,23 +539,22 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 		`CREATE INDEX idx_test_data_id1 ON test_schema.test_data (value_2 DESC, id1);`,
 
 		/*
-		a->b
-		b->a
+			a->b
+			b->a
 
-		so one is redundant of the other
-		so we should remove one of them
+			so one is redundant of the other
+			so we should remove one of them
 		*/
 		`CREATE INDEX idx_test_data_value_4 ON test_schema.test_data (id3, value_2) INCLUDE (id1, val3);`,
 		`CREATE INDEX idx_test_data_value_5 ON test_schema.test_data (id3, value_2) INCLUDE (val3, id1);`,
 
-
 		/*
-		a->b
-		b->c
-		c->d
-		d->b
+			a->b
+			b->c
+			c->d
+			d->b
 
-		7 is the redundant index of the 6,8,9
+			7 is the redundant index of the 6,8,9
 
 		*/
 		`CREATE INDEX idx_test_data_value_6 ON test_schema.test_data (id3, val3);`,
@@ -565,8 +564,6 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 
 		`CREATE INDEX idx_test_data_val_10 ON test_schema.test_data (val3) WHERE val4 IS NOT NULL;`,
 		`CREATE INDEX idx_test_data_val_11 ON test_schema.test_data (val3) WHERE value IS NOT NULL;`,
-
-
 	)
 	if err != nil {
 		t.Errorf("Failed to create test table: %v", err)
@@ -618,8 +615,8 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 	assert.Equal(t, 1, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap))
 	expectedRemovedIndexes := []string{
 		"idx_test_data_value_5",
-        "idx_test_data_value_6",
-        "idx_test_data_value_8",
+		"idx_test_data_value_6",
+		"idx_test_data_value_8",
 		"idx_test_data_value_9",
 		"idx_test_data_value",
 		"idx_test_data_value_2",

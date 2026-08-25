@@ -70,7 +70,6 @@ func (df *SqlDataFile) ResetBytesRead(bytes int64) {
 	df.bytesRead = bytes
 }
 
-
 func (df *SqlDataFile) isDataLine(line string) bool {
 	emptyLine := (len(line) == 0)
 	newLineChar := (line == "\n")

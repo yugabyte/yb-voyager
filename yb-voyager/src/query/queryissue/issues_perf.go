@@ -220,7 +220,7 @@ func NewMostFrequentValueIndexesIssue(objectType string, objectName string, sqlS
 		COLUMN_NAME:        columnName,
 	}
 	internalDetails := map[string]interface{}{
-		COLUMN_TYPE:        columnType,
+		COLUMN_TYPE: columnType,
 	}
 
 	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, internalDetails, usageCategory)

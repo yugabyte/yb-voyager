@@ -42,5 +42,5 @@ func init() {
 	registerConfigFileFlag(cutoverToSourceCmd)
 	BoolVar(cutoverToSourceCmd.Flags(), &restartSourceToTargetNextIteration, "restart-data-migration-source-target", false,
 		"Restart source to target live data migration to prepare to cutover to target. Not applicable for fall-forward workflow.")
-	
+
 }

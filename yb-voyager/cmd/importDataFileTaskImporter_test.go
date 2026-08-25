@@ -1,4 +1,5 @@
 //go:build integration
+
 /*
 Copyright (c) YugabyteDB, Inc.
 
@@ -560,16 +561,16 @@ func createBatchFromData(t *testing.T, data string, tableName sqlname.NameTuple)
 	require.NoError(t, err, "Failed to create batch file")
 
 	batch := &Batch{
-		Number:       1,
-		TableNameTup: tableName,
-		SchemaName:   tableName.CurrentName.SchemaName.Unquoted,
-		FilePath:     batchFilePath,
-		BaseFilePath: batchFilePath,
+		Number:          1,
+		TableNameTup:    tableName,
+		SchemaName:      tableName.CurrentName.SchemaName.Unquoted,
+		FilePath:        batchFilePath,
+		BaseFilePath:    batchFilePath,
 		LineOffsetStart: 0,
 		LineOffsetEnd:   int64(len(data)),
-		RecordCount:  1,
-		ByteCount:    int64(len(data)),
-		Interrupted:  false,
+		RecordCount:     1,
+		ByteCount:       int64(len(data)),
+		Interrupted:     false,
 	}
 
 	args := &tgtdb.ImportBatchArgs{

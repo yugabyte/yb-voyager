@@ -731,7 +731,6 @@ func TestMatchesPattern(t *testing.T) {
 				{pattern: `public.Table2`, table1Match: false, table2Match: true},
 				{pattern: `public."Table*"`, table1Match: false, table2Match: false},
 				{pattern: `"Public"."Table1"`, table1Match: false, table2Match: false},
-
 			},
 		},
 		{
