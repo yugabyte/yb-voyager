@@ -466,10 +466,6 @@ func getExpressionUniqueIndexTables(tableNames []sqlname.NameTuple) ([]sqlname.N
 // custom partition key (see cdc_partition_key_followups.md, Follow-up 1):
 //   - hard-fail if any custom key column does not exist on the table, so misconfiguration is
 //     caught up front instead of erroring per-event in hashEvent, and
-//   - warn (do not refuse) when the custom key does not cover a unique index worth protecting:
-//     conflicts on such an index can be between rows with different custom keys, so they are
-//     serialized by conflict detection rather than co-located onto one channel by the key.
-//
 // It queries the target DB, so callers should only invoke it on the first import (not resume).
 func validateCustomPartitionKeyTables(tableToPartitionKeyOverrideMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride]) error {
 	var customTables []sqlname.NameTuple
