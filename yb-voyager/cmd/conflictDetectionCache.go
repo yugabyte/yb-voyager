@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"sync"
@@ -167,6 +168,19 @@ func NewConflictDetectionCache(tableToUniqueIndexes *utils.StructMap[sqlname.Nam
 	return c
 }
 
+/*
+Put()
+
+	if ! U/D
+		return
+	if U:
+		if changedColumns <intersection> (UK columns <union> predictate columns) == EMPTY:
+		Can't add this check until we have predicate columns as we still need the event in index even if its unique columns are unchanged for predicate cases
+			return
+		if uniqueINdex.NullsDistinct AND ANY unique key column value is NULL:
+			return
+		add-to-cache (uklookup) <---- computeKey (beforeFields) (all columns should be present)
+*/
 func (c *ConflictDetectionCache) Put(event *tgtdb.Event) error {
 	if event.BeforeFields == nil || event.Op == "c" {
 		//put can only insert an event in the cache if its delete/update event
@@ -200,12 +214,13 @@ func (c *ConflictDetectionCache) indexEventLocked(event *tgtdb.Event) error {
 		return nil
 	}
 	for _, index := range uniqueIndexes {
-		key, ok, err := computeConflictBucketKey(event.TableNameTup, event.BeforeFields, index)
+		if !index.NullsNotDistinct && anyUniqueIndexColumnValueIsNull(event.BeforeFields, index.Columns) {
+			//		if uniqueINdex.NullsDistinct AND ANY unique key column value is NULL:
+			continue
+		}
+		key, err := computeConflictBucketKey(event.TableNameTup, event.BeforeFields, index)
 		if err != nil {
 			return goerrors.Errorf("error computing conflict bucket key for table %s, index %s: %v", event.TableNameTup.ForKey(), index.IndexName, err)
-		}
-		if !ok {
-			continue
 		}
 		bucket := c.ukLookup[key]
 		if bucket == nil {
@@ -347,7 +362,38 @@ func (c *ConflictDetectionCache) findConflictLocked(incomingEvent *tgtdb.Event) 
 // All unique indexes and both checks (before-after, before-before) are evaluated so the
 // incoming event can wait on the complete set of conflicting cached events at once. The
 // result is de-duplicated by VSN, since a single cached event can match several indexes.
+
+/*
+TODO: to arrange it in this manner
+
+FindConflicts()
+
+	for each unique index:
+		if D:
+			skip-check
+		if I:
+			if uniqueINdex.NullsDistinct AND ANY unique key column value is NULL:
+				skip-check
+			check before-after conflicts; <---- computeKey (afterFields) (all columns should be present)
+			 no before-before
+		if U:
+
+			if changedColumns <intersection> (UK columns <union> predictate columns) == EMPTY:
+				skip-check
+			before-after:
+				if uniqueINdex.NullsDistinct AND ANY unique key column value (after fields) is NULL:
+					skip-check
+				check before-after conflicts <---- computeKey (afterFields) (possible that only a subset of columns are present)
+
+			if uniqueIndex has partial predicate: (before-before)
+				if uniqueINdex.NullsDistinct AND ANY unique key column value (before fields) is NULL:
+					skip-check
+				check before-before conflicts.  <---- computeKey (beforeFields) (all columns should be present)
+*/
 func (c *ConflictDetectionCache) findValueConflictLocked(incomingEvent *tgtdb.Event) ([]Conflict, error) {
+	if incomingEvent.Op == "d" {
+		return []Conflict{}, goerrors.Errorf("incoming event is a delete event")
+	}
 	uniqueIndexes, _ := c.tableToUniqueIndexes.Get(incomingEvent.TableNameTup)
 	if len(uniqueIndexes) == 0 {
 		return []Conflict{}, nil
@@ -355,63 +401,120 @@ func (c *ConflictDetectionCache) findValueConflictLocked(incomingEvent *tgtdb.Ev
 	totalConflictInfo := make([]Conflict, 0)
 	for _, index := range uniqueIndexes {
 		// before-after conflict: cachedEvent.BeforeFields == incomingEvent.Fields
-		key, ok, err := computeConflictBucketKey(incomingEvent.TableNameTup, incomingEvent.Fields, index)
-		if err != nil {
-			return []Conflict{}, err
-		}
-		if ok {
-			cachedEvents, err := c.getConflictingEventsWithDifferentPartitionKey(key, incomingEvent)
+		switch incomingEvent.Op {
+		case "c":
+			conflict, err := c.checkBeforeAfterConflict(incomingEvent, index)
 			if err != nil {
-				return []Conflict{}, err
+				return []Conflict{}, fmt.Errorf("error checking before-after conflict for incoming event(vsn=%d) and index %s: %w", incomingEvent.Vsn, index.IndexName, err)
 			}
-			if len(cachedEvents) > 0 {
-				for _, cachedEvent := range cachedEvents {
-					log.Debugf("conflict detected for table %s, index columns %v, between before value of cached-event1(vsn=%d, colVal=%s) and after value of incoming-event2(vsn=%d, colVal=%s)",
-						incomingEvent.TableNameTup.ForKey(), index.Columns,
-						cachedEvent.Vsn, formatUniqueIndexColumnValuesForLog(cachedEvent.BeforeFields, index.Columns),
-						incomingEvent.Vsn, formatUniqueIndexColumnValuesForLog(incomingEvent.Fields, index.Columns))
+			if len(conflict.eventsConflicting) > 0 {
+				totalConflictInfo = append(totalConflictInfo, conflict)
+			}
+		case "u":
+			if anyUniqueIndexColumnChanged(incomingEvent.Fields, index.Columns) {
+				conflict, err := c.checkBeforeAfterConflict(incomingEvent, index)
+				if err != nil {
+					return []Conflict{}, fmt.Errorf("error checking before-after conflict for incoming event(vsn=%d) and index %s: %w", incomingEvent.Vsn, index.IndexName, err)
 				}
-				totalConflictInfo = append(totalConflictInfo, Conflict{
-					indexName:         index.IndexName,
-					eventsConflicting: cachedEvents,
-					indexColumns:      index.Columns,
-					matchType:         "before-after",
-					matchedValue:      formatUniqueIndexColumnValuesForLog(incomingEvent.Fields, index.Columns),
-				})
+				if len(conflict.eventsConflicting) > 0 {
+					totalConflictInfo = append(totalConflictInfo, conflict)
+				}
 			}
-		}
-		if incomingEvent.Op == "c" {
-			//as for the insert event we don't have before fields so we don't need to check for before-before conflict
-			continue
-		}
-		// before-before conflict: cachedEvent.BeforeFields == incomingEvent.BeforeFields
-		key, ok, err = computeConflictBucketKey(incomingEvent.TableNameTup, incomingEvent.BeforeFields, index)
-		if err != nil {
-			return []Conflict{}, err
-		}
-		if ok {
-			cachedEvents, err := c.getConflictingEventsWithDifferentPartitionKey(key, incomingEvent)
+			conflict, err := c.checkBeforeBeforeConflict(incomingEvent, index)
 			if err != nil {
-				return []Conflict{}, err
+				return []Conflict{}, fmt.Errorf("error checking before-before conflict for incoming event(vsn=%d) and index %s: %w", incomingEvent.Vsn, index.IndexName, err)
 			}
-			if len(cachedEvents) > 0 {
-				for _, cachedEvent := range cachedEvents {
-					log.Debugf("conflict detected for table %s, index columns %v, between before value of cached-event1(vsn=%d, colVal=%s) and before value of incoming-event2(vsn=%d, colVal=%s)",
-						incomingEvent.TableNameTup.ForKey(), index.Columns,
-						cachedEvent.Vsn, formatUniqueIndexColumnValuesForLog(cachedEvent.BeforeFields, index.Columns),
-						incomingEvent.Vsn, formatUniqueIndexColumnValuesForLog(incomingEvent.BeforeFields, index.Columns))
-				}
-				totalConflictInfo = append(totalConflictInfo, Conflict{
-					indexName:         index.IndexName,
-					eventsConflicting: cachedEvents,
-					indexColumns:      index.Columns,
-					matchType:         "before-before",
-					matchedValue:      formatUniqueIndexColumnValuesForLog(incomingEvent.BeforeFields, index.Columns),
-				})
+			if len(conflict.eventsConflicting) > 0 {
+				totalConflictInfo = append(totalConflictInfo, conflict)
 			}
 		}
 	}
 	return totalConflictInfo, nil
+}
+
+func (c *ConflictDetectionCache) checkBeforeAfterConflict(incomingEvent *tgtdb.Event, index tgtdb.UniqueIndex) (Conflict, error) {
+	if !index.NullsNotDistinct && anyUniqueIndexColumnValueIsNull(incomingEvent.AfterFields, index.Columns) {
+		//		if uniqueINdex.NullsDistinct AND ANY unique key column value is NULL:
+		return Conflict{}, nil
+	}
+	key, err := computeConflictBucketKey(incomingEvent.TableNameTup, incomingEvent.AfterFields, index)
+	if err != nil {
+		return Conflict{}, fmt.Errorf("error computing conflict bucket key for before-after conflict for incoming event(vsn=%d) and index %s: %w", incomingEvent.Vsn, index.IndexName, err)
+	}
+	cachedEvents, err := c.getConflictingEventsWithDifferentPartitionKey(key, incomingEvent)
+	if err != nil {
+		return Conflict{}, fmt.Errorf("error getting conflicting events with different partition key for before-after conflict for incoming event(vsn=%d) and index %s: %w", incomingEvent.Vsn, index.IndexName, err)
+	}
+	if len(cachedEvents) == 0 {
+		return Conflict{}, nil
+	}
+	for _, cachedEvent := range cachedEvents {
+		log.Debugf("conflict detected for table %s, index columns %v, between before value of cached-event1(vsn=%d, colVal=%s) and after value of incoming-event2(vsn=%d, colVal=%s)",
+			incomingEvent.TableNameTup.ForKey(), index.Columns,
+			cachedEvent.Vsn, formatUniqueIndexColumnValuesForLog(cachedEvent.BeforeFields, index.Columns),
+			incomingEvent.Vsn, formatUniqueIndexColumnValuesForLog(incomingEvent.AfterFields, index.Columns))
+	}
+
+	return Conflict{
+		indexName:         index.IndexName,
+		eventsConflicting: cachedEvents,
+		indexColumns:      index.Columns,
+		matchType:         "before-after",
+		matchedValue:      formatUniqueIndexColumnValuesForLog(incomingEvent.AfterFields, index.Columns),
+	}, nil
+}
+
+func (c *ConflictDetectionCache) checkBeforeBeforeConflict(incomingEvent *tgtdb.Event, index tgtdb.UniqueIndex) (Conflict, error) {
+
+	if !index.NullsNotDistinct && anyUniqueIndexColumnValueIsNull(incomingEvent.BeforeFields, index.Columns) {
+		//		if uniqueINdex.NullsDistinct AND ANY unique key column value is NULL:
+		return Conflict{}, nil
+	}
+	key, err := computeConflictBucketKey(incomingEvent.TableNameTup, incomingEvent.BeforeFields, index)
+	if err != nil {
+		return Conflict{}, fmt.Errorf("error computing conflict bucket key for before-before conflict for incoming event(vsn=%d) and index %s: %w", incomingEvent.Vsn, index.IndexName, err)
+	}
+	cachedEvents, err := c.getConflictingEventsWithDifferentPartitionKey(key, incomingEvent)
+	if err != nil {
+		return Conflict{}, fmt.Errorf("error getting conflicting events with different partition key for before-before conflict for incoming event(vsn=%d) and index %s: %w", incomingEvent.Vsn, index.IndexName, err)
+	}
+	if len(cachedEvents) == 0 {
+		return Conflict{}, nil
+	}
+	for _, cachedEvent := range cachedEvents {
+		log.Debugf("conflict detected for table %s, index columns %v, between before value of cached-event1(vsn=%d, colVal=%s) and before value of incoming-event2(vsn=%d, colVal=%s)",
+			incomingEvent.TableNameTup.ForKey(), index.Columns,
+			cachedEvent.Vsn, formatUniqueIndexColumnValuesForLog(cachedEvent.BeforeFields, index.Columns),
+			incomingEvent.Vsn, formatUniqueIndexColumnValuesForLog(incomingEvent.BeforeFields, index.Columns))
+	}
+	return Conflict{
+		indexName:         index.IndexName,
+		eventsConflicting: cachedEvents,
+		indexColumns:      index.Columns,
+		matchType:         "before-before",
+		matchedValue:      formatUniqueIndexColumnValuesForLog(incomingEvent.BeforeFields, index.Columns),
+	}, nil
+
+}
+
+func anyUniqueIndexColumnChanged(fields map[string]*string, indexColumns []string) bool {
+	for _, column := range indexColumns {
+		_, ok := fields[column]
+		if ok {
+			return true
+		}
+	}
+	return false
+}
+
+func anyUniqueIndexColumnValueIsNull(fields map[string]*string, indexColumns []string) bool {
+	for _, column := range indexColumns {
+		val, exists := fields[column]
+		if exists && val == nil {
+			return true
+		}
+	}
+	return false
 }
 
 // getConflictingEventsWithDifferentPartitionKey returns all cached events in the given lookup bucket
@@ -457,44 +560,9 @@ const (
 //
 // Values are length-prefixed so distinct tuples never collide (e.g. {"ab",""} vs
 // {"a","b"}); NULLs under NULLS NOT DISTINCT use a dedicated sentinel.
-
-/*
-TODO: to arrange it in this manner 
-Put()
-	if ! U/D 
-		return 
-	if U: 
-		if changedColumns <intersection> (UK columns <union> predictate columns) == EMPTY: 
-			return 
-		add-to-cache (uklookup) <---- computeKey (beforeFields) (all columns should be present)
-
-FindConflicts()
-	for each unique index:
-		if D:
-			skip-check 
-		if I: 
-			if uniqueINdex.NullsDistinct AND ANY unique key column value is NULL: 
-				skip-check
-			check before-after conflicts; <---- computeKey (afterFields) (all columns should be present)
-			 no before-before
-		if U: 
-			
-			if changedColumns <intersection> (UK columns <union> predictate columns) == EMPTY: 
-				skip-check 
-			before-after:
-				if uniqueINdex.NullsDistinct AND ANY unique key column value (after fields) is NULL: 
-					skip-check 
-				check before-after conflicts <---- computeKey (afterFields) (possible that only a subset of columns are present)
-			
-			if uniqueIndex has partial predicate: (before-before)
-				if uniqueINdex.NullsDistinct AND ANY unique key column value (before fields) is NULL: 
-					skip-check 
-				check before-before conflicts.  <---- computeKey (beforeFields) (all columns should be present)
-
-*/
-func computeConflictBucketKey(table sqlname.NameTuple, fields map[string]*string, index tgtdb.UniqueIndex) (string, bool, error) {
+func computeConflictBucketKey(table sqlname.NameTuple, fields map[string]*string, index tgtdb.UniqueIndex) (string, error) {
 	if fields == nil {
-		return "", false, goerrors.Errorf("fields are nil")
+		return "", goerrors.Errorf("fields are nil")
 	}
 	var b strings.Builder
 	b.WriteString(table.ForKey())
@@ -503,14 +571,15 @@ func computeConflictBucketKey(table sqlname.NameTuple, fields map[string]*string
 	for _, column := range index.Columns {
 		val, exists := fields[column]
 		if !exists {
-			//In case the incoming event like update is not having this field in after fields then it is not indexable as the unique key is not changed so it won't conflict with anything
-			return "", false, nil
+			//this is not expected as now eveyrthing should be present in the fields as we pass before/after fields which are all column values so we should have that
+			//hence erroring out here
+			return "", goerrors.Errorf("column %s is missing from fields", column)
 		}
 		b.WriteByte(0) //separator for the field name and value
 		if val == nil {
 			if !index.NullsNotDistinct {
-				// default NULLS DISTINCT: NULLs never conflict, so this tuple is not indexable.
-				return "", false, nil
+				// default NULLS DISTINCT: NULLs never conflict,so it should never come into this compute
+				return "", goerrors.Errorf("column %s has null value but index is not NULLS NOT DISTINCT", column)
 			}
 			b.WriteString(conflictBucketNull) //placeholder for the null value
 			continue
@@ -520,7 +589,7 @@ func computeConflictBucketKey(table sqlname.NameTuple, fields map[string]*string
 		b.WriteByte(':')                       //separator for the length and value
 		b.WriteString(*val)                    //value
 	}
-	return b.String(), true, nil
+	return b.String(), nil
 }
 
 func (c *ConflictDetectionCache) RemoveEvents(events ...*tgtdb.Event) {

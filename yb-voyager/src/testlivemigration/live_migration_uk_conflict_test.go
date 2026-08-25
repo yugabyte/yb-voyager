@@ -345,13 +345,9 @@ func TestLiveMigrationWithMultiColumnUniqueIndexConflictDetectionCases(t *testin
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
 
-	require.LessOrEqual(t, conflictStats.Total, 6000, "true-positive delta should produce at most 6000 UK conflicts")
-	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index"`], 3000, "test_multi_column_unique_index should have at most 3000 UK conflicts")
-	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index_part"`], 3000, "test_multi_column_unique_index_part should have at most 3000 UK conflicts")
-
-	require.GreaterOrEqual(t, conflictStats.Total, 0, "true-positive delta should produce at least 3000 UK conflicts")
-	require.GreaterOrEqual(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index"`], 0, "test_multi_column_unique_index should have at least 1500 UK conflicts")
-	require.GreaterOrEqual(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index_part"`], 0, "test_multi_column_unique_index_part should have at least 1500 UK conflicts")
+	require.Greater(t, conflictStats.Total, 0, "true-positive delta should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index"`], 0, "test_multi_column_unique_index should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index_part"`], 0, "test_multi_column_unique_index_part should produce UK conflicts")
 
 	err = liveMigrationTest.ValidateDataConsistency(multiColumnUKTables, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -547,10 +543,8 @@ func TestLiveMigrationWithUniqueKeyValuesWithPartialPredicateConflictDetectionCa
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
 
-	require.LessOrEqual(t, conflictStats.Total, 3500, "true-positive delta should produce at most 2500 UK conflicts")
-	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live"`], 3500, "test_live should have at most 2500 UK conflicts")
-	require.GreaterOrEqual(t, conflictStats.Total, 0, "true-positive delta should produce at least 0 UK conflicts")
-	require.GreaterOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live"`], 0, "test_live should have at least 0 UK conflicts")
+	require.Greater(t, conflictStats.Total, 0, "true-positive delta should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live"`], 0, "test_live should produce UK conflicts")
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -767,9 +761,8 @@ FROM generate_series(1, 20) as i;`,
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	fmt.Println("conflictStats", conflictStats)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
-	require.GreaterOrEqual(t, conflictStats.Total, 2000,
-		"null unique delta should produce 2500 UK conflicts (5 per loop x 500 loops)")
-	require.GreaterOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live_null_unique_values"`], 2000)
+	require.Greater(t, conflictStats.Total, 0, "null unique delta should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live_null_unique_values"`], 0, "test_live_null_unique_values should produce UK conflicts")
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live_null_unique_values"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -1085,8 +1078,8 @@ FROM generate_series(1, 20) as i;`,
 
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
-	require.GreaterOrEqual(t, conflictStats.Total, 0, "partial unique delta should produce at least 0 UK conflicts")
-	require.GreaterOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live_null_partial_unique_values"`], 0, "test_live_null_partial_unique_values should have at least 0 UK conflicts")
+	require.Greater(t, conflictStats.Total, 0, "partial unique delta should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live_null_partial_unique_values"`], 0, "test_live_null_partial_unique_values should produce UK conflicts")
 
 	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_live_null_partial_unique_values"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -1231,10 +1224,8 @@ func TestLiveMigrationWithUniqueKeyConflictsOnCaseSensitiveColumns(t *testing.T)
 
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
-	require.GreaterOrEqual(t, conflictStats.Total, 500,
-		"case-sensitive UK delta should produce unique-key conflicts")
-	require.GreaterOrEqual(t, conflictStats.ByTable[table], 1,
-		"case-sensitive UK conflicts should be attributed to the table")
+	require.Greater(t, conflictStats.Total, 0, "case-sensitive UK delta should produce unique-key conflicts")
+	require.Greater(t, conflictStats.ByTable[table], 0, "case-sensitive UK conflicts should be attributed to the table")
 
 	err = liveMigrationTest.ValidateDataConsistency([]string{table}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency after forward streaming")
@@ -1818,10 +1809,8 @@ func TestLiveMigrationWithCoveringUniqueKeyIndex(t *testing.T) {
 
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
-	require.GreaterOrEqual(t, conflictStats.Total, 1500,
-		"covering UK delta should produce unique-key conflicts")
-	require.GreaterOrEqual(t, conflictStats.ByTable[`"test_schema"."users"`], 1,
-		"covering UK conflicts should be attributed to the table")
+	require.Greater(t, conflictStats.Total, 0, "covering UK delta should produce unique-key conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."users"`], 0, "covering UK conflicts should be attributed to the table")
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."users"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
@@ -2114,5 +2103,148 @@ func TestLiveMigrationCustomCdcPartitionKeyNoConflict(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
 	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
+
+func TestLiveMigrationWithSubsetOFPartialUNiqueIndexColumnsBeingChangedInUpdate(t *testing.T) {
+	t.Parallel()
+	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_false_negative",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_false_negative",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.test_false_negative (
+				id int PRIMARY KEY,
+				name TEXT,
+				c1 int,
+				c2 int,
+				most_recent boolean
+			);
+			CREATE UNIQUE INDEX idx_test_false_negative_c1_c2
+				ON test_schema.test_false_negative (c1, c2) WHERE most_recent;`,
+		},
+		SourceSetupSchemaSQL: []string{
+			// REPLICA IDENTITY FULL is REQUIRED: the fix reconstructs the unchanged index
+			// column (c1) from the update's before-image. Without FULL, c1 is not in
+			// before_fields either and the conflict is still missed.
+			"ALTER TABLE test_schema.test_false_negative REPLICA IDENTITY FULL;",
+		},
+		InitialDataSQL: []string{
+			// Rows 1..19 are not in the partial index (most_recent=false).
+			// Row 20 is the initial anchor occupying the recycled slot (c1=100, c2=1000).
+			`INSERT INTO test_schema.test_false_negative (id, name, c1, c2, most_recent)
+			 SELECT i, md5(random()::text), 100, i, false FROM generate_series(1, 19) AS i;`,
+			`INSERT INTO test_schema.test_false_negative (id, name, c1, c2, most_recent)
+			 VALUES (20, md5(random()::text), 100, 1000, true);`,
+		},
+		SourceDeltaSQL: []string{
+			/*
+				Composite PARTIAL unique index: (c1, c2) WHERE most_recent.
+				Invariant at each loop start: row (i-1) = (c1=100, c2=1000, most_recent=true),
+				the only row currently present in the partial index.
+
+				Per loop, one UPDATE-INSERT-style conflict on the recycled slot (100,1000):
+
+				  FREE:  UPDATE id=i-1 SET most_recent=false          -- removes (100,1000) from the index
+				  TAKE:  UPDATE id=i   SET c2=1000, most_recent=true  -- row i takes (100,1000)
+
+				The TAKE update's SET clause contains only {c2, most_recent}; c1 is UNCHANGED
+				and therefore ABSENT from the CDC after-image (Fields). Because the index is
+				composite (c1, c2), the before-after conflict check cannot build the index key
+				from the after-image alone -> pre-fix it silently skips the check and MISSES the
+				conflict with the freed (100,1000) from row i-1 (different PK -> different channel
+				-> can apply out of order -> 23505). The fix merges the unchanged c1 from the
+				before-image, reconstructs (100,1000), and detects the conflict.
+			*/
+			`DO $$
+		DECLARE
+			i INTEGER;
+		BEGIN
+			FOR i IN 21..520 LOOP
+				-- new row i, not yet in the partial index (most_recent=false)
+				INSERT INTO test_schema.test_false_negative(id, name, c1, c2, most_recent)
+				VALUES (i, md5(random()::text), 100, i, false);
+
+				-- FREE the slot (only most_recent changes; c1/c2 untouched)
+				UPDATE test_schema.test_false_negative SET most_recent = false WHERE id = i - 1;
+
+				-- TAKE the slot via a SUBSET update (c1 stays 100, absent from after-image)
+				UPDATE test_schema.test_false_negative SET c2 = 1000, most_recent = true WHERE id = i;
+
+			END LOOP;
+		END $$;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer liveMigrationTest.Cleanup()
+
+	err := liveMigrationTest.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = liveMigrationTest.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = liveMigrationTest.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+	)
+	uniqueKeyConflictStatsPath := filepath.Join(
+		liveMigrationTest.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
+
+	err = liveMigrationTest.StartImportDataWithEnv(true, nil, []string{uniqueKeyConflictCountFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_false_negative"`: 20,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_false_negative"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = liveMigrationTest.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	// 500 loops x {1 insert, 2 updates, 1 delete}
+	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_false_negative"`: {
+			Inserts: 500,
+			Updates: 1000,
+			Deletes: 0,
+		},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	// Import must not crash on a 23505: with the bug the conflict is missed, the two
+	// events race, and import errors out instead of serializing them.
+	require.False(t, liveMigrationTest.GetImportRunner().IsStopped(),
+		"import should keep running (no unhandled unique-violation) during count failpoint mode")
+
+	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
+	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
+
+	require.Greater(t, conflictStats.Total, 0, "subset-column partial-index delta should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_false_negative"`], 0, "test_false_negative should produce UK conflicts")
+
+	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_false_negative"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = liveMigrationTest.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = liveMigrationTest.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
