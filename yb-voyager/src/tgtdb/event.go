@@ -44,6 +44,7 @@ type Event struct {
 	Key                 map[string]*string
 	Fields              map[string]*string //all the column values of the row - worst
 	BeforeFields        map[string]*string //all the column values of the row - worst
+	AfterFields         map[string]*string //all the column values of the row - worst //all fields of the row adn columns that are chnges in fields are updated to fields value
 	ExporterRole        string
 }
 
@@ -87,6 +88,7 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	e.Fields = rawEvent.Fields
 	e.BeforeFields = rawEvent.BeforeFields
 	e.ExporterRole = rawEvent.ExporterRole
+	e.AfterFields = GenerateAfterFields(e.Op, e.BeforeFields, e.Fields)
 	e.partitionSchemaName = rawEvent.PartitionSchemaName
 	e.partitionTableName = rawEvent.PartitionTableName
 	if !e.IsCutoverEvent() {
@@ -96,6 +98,27 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 		}
 	}
 
+	return nil
+}
+
+// GenerateAfterFields builds the after-image of a CDC event:
+// insert ("c") is Fields, update ("u") is BeforeFields overlaid with changed Fields, delete ("d") is nil.
+func GenerateAfterFields(op string, beforeFields, changeFields map[string]*string) map[string]*string {
+	switch op {
+	case "c":
+		return changeFields
+	case "u":
+		allAfterFields := make(map[string]*string)
+		for column, value := range beforeFields {
+			allAfterFields[column] = value
+		}
+		for column, value := range changeFields {
+			allAfterFields[column] = value
+		}
+		return allAfterFields
+	case "d":
+		return nil
+	}
 	return nil
 }
 
@@ -119,8 +142,8 @@ func (e *Event) String() string {
 	if e.IsPartitionEvent() {
 		partitionInfo = fmt.Sprintf(", partition=%v", e.PartitionTableTup)
 	}
-	return fmt.Sprintf("Event{vsn=%v, op=%v, table=%v%s, key=%v, before_fields=%v, fields=%v, exporter_role=%v}",
-		e.Vsn, e.Op, e.TableNameTup, partitionInfo, mapStr(e.Key), mapStr(e.BeforeFields), mapStr(e.Fields), e.ExporterRole)
+	return fmt.Sprintf("Event{vsn=%v, op=%v, table=%v%s, key=%v, before_fields=%v, fields=%v, after_fields=%v, exporter_role=%v}",
+		e.Vsn, e.Op, e.TableNameTup, partitionInfo, mapStr(e.Key), mapStr(e.BeforeFields), mapStr(e.Fields), mapStr(e.AfterFields), e.ExporterRole)
 }
 
 func (e *Event) Copy() *Event {
@@ -137,6 +160,7 @@ func (e *Event) Copy() *Event {
 		Key:                 lo.MapEntries(e.Key, idFn),
 		Fields:              lo.MapEntries(e.Fields, idFn),
 		BeforeFields:        lo.MapEntries(e.BeforeFields, idFn),
+		AfterFields:         lo.MapEntries(e.AfterFields, idFn),
 		ExporterRole:        e.ExporterRole,
 	}
 }
