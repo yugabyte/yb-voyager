@@ -137,6 +137,11 @@ debezium.source.converters=postgres_to_yb_converter
 debezium.source.postgres_to_yb_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
 debezium.source.provide.transaction.metadata=true
 debezium.source.publication.autocreate.mode=disabled
+# Arm SO_KEEPALIVE on the replication connection.
+# Without it a silently-dropped TCP connection (NAT/firewall reap, peer
+# reboot) leaves the streaming reader blocked forever: there is no read
+# timeout, so export stalls with no error logged and no retry.
+debezium.source.database.tcpKeepAlive=true
 `
 
 var postgresSSLConfigTemplate = `
@@ -262,6 +267,11 @@ debezium.source.decimal.handling.mode=string
 debezium.source.converters=postgres_source_converter
 debezium.source.postgres_source_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
 debezium.source.grpc.connector.enabled=false
+# Arm SO_KEEPALIVE on the replication connection.
+# Without it a silently-dropped TCP connection (NAT/firewall reap, peer
+# reboot) leaves the streaming reader blocked forever: there is no read
+# timeout, so export stalls with no error logged and no retry.
+debezium.source.database.tcpKeepAlive=true
 `
 
 var yugabyteLogicalReplicationSlotNameTemplate = `
