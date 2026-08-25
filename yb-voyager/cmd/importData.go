@@ -1432,12 +1432,13 @@ func runPKConflictModeGuardrails(state *ImportDataState, allTasks []*ImportFileT
 		return nil
 	}
 
+	tableToPKColumns, err := tdb.GetPrimaryKeyColumnsForTables(nonEmptyTables)
+	if err != nil {
+		return fmt.Errorf("failed to get primary key columns for tables: %w", err)
+	}
 	var nonEmptyTablesWithPK []sqlname.NameTuple
 	for _, table := range nonEmptyTables {
-		colList, err := tdb.GetPrimaryKeyColumns(table)
-		if err != nil {
-			return fmt.Errorf("failed to get primary key columns for table %s: %w", table.ForOutput(), err)
-		}
+		colList, _ := tableToPKColumns.Get(table)
 		if len(colList) > 0 { // table has PK
 			nonEmptyTablesWithPK = append(nonEmptyTablesWithPK, table)
 		}

@@ -639,9 +639,102 @@ func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, sourceDBTypeF
 		return fmt.Errorf("get table unique indexes map from target: %w", err)
 	}
 
+	// For custom-key tables the primary key must join the checked constraints (see
+	// cdc_partition_key_followups.md, Follow-up 3.2). GetTableToUniqueIndexesMap deliberately
+	// excludes the primary key (filters out contype='p'): under pk routing same-PK events
+	// always co-locate on one channel, so a recycled PK (DELETE id=5 then INSERT id=5) can
+	// never race. Under custom routing those two events can carry different custom keys, route
+	// to different channels, and apply out of order (duplicate primary key). Adding the PK as a
+	// synthetic unique index makes conflict detection serialize such PK-recycle races.
+	if err := addPrimaryKeyToConflictSetForCustomTables(tableToUniqueIndexes, importTableList, tablePartitionKeyMap); err != nil {
+		return err
+	}
+
 	log.Infof("initializing conflict detection cache")
 	conflictDetectionCache = NewConflictDetectionCache(tableToUniqueIndexes, evChans, sourceDBTypeForConflictCache, tablePartitionKeyMap)
 	return nil
+}
+
+// addPrimaryKeyToConflictSetForCustomTables appends the primary key as a synthetic unique
+// index to the per-table conflict-detection set for every table routed by a custom partition
+// key. This is required for correctness under custom routing (see
+// initializeConflictDetectionCache and cdc_partition_key_followups.md, Follow-up 3.2); it is
+// a no-op for pk/table routing where the primary key never needs cross-channel conflict
+// detection.
+func addPrimaryKeyToConflictSetForCustomTables(
+	tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex],
+	importTableList []sqlname.NameTuple,
+	tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride],
+) error {
+	var customTables []sqlname.NameTuple
+	for _, table := range importTableList {
+		partitionKey, ok := tablePartitionKeyMap.Get(table)
+		if !ok {
+			return fmt.Errorf("table partition key map does not contain table %v", table)
+		}
+		if partitionKey.Strategy == PARTITION_BY_CUSTOM {
+			customTables = append(customTables, table)
+		}
+	}
+	if len(customTables) == 0 {
+		return nil
+	}
+
+	tableToPKColumns, err := tdb.GetPrimaryKeyColumnsForTables(customTables)
+	if err != nil {
+		return fmt.Errorf("get primary key columns for custom-key tables: %w", err)
+	}
+
+	for _, table := range customTables {
+		pkColumns, _ := tableToPKColumns.Get(table)
+		if len(pkColumns) == 0 {
+			// Live migration requires a primary key, so this is not expected; fail rather than
+			// adding an empty-column index that would match every row.
+			return fmt.Errorf("no primary key columns found for custom-key table %s", table.ForOutput())
+		}
+		existingIndexes, _ := tableToUniqueIndexes.Get(table)
+		if uniqueIndexWithSameColumnsExists(existingIndexes, pkColumns) {
+			// A unique index already covers exactly the PK columns, so the PK-recycle race is
+			// already detected; avoid adding a redundant synthetic index.
+			continue
+		}
+		pkIndex := tgtdb.UniqueIndex{
+			IndexName: fmt.Sprintf("%s_pk_conflict_guard", table.ForKey()),
+			Columns:   pkColumns,
+			// Primary-key columns are NOT NULL, so NULLS [NOT] DISTINCT handling is not possible; set
+			// true so the null-skip path in conflict detection never bypasses the PK check.
+			NullsNotDistinct: true,
+		}
+		tableToUniqueIndexes.Put(table, append(existingIndexes, pkIndex))
+		log.Infof("added primary key %v as synthetic unique index to conflict set for custom-key table %s", pkColumns, table.ForOutput())
+	}
+	return nil
+}
+
+// uniqueIndexWithSameColumnsExists reports whether indexes already contains a unique index
+// whose column set equals columns (order-insensitive), used to avoid adding a redundant
+// synthetic primary-key index.
+func uniqueIndexWithSameColumnsExists(indexes []tgtdb.UniqueIndex, columns []string) bool {
+	want := make(map[string]bool, len(columns))
+	for _, c := range columns {
+		want[c] = true
+	}
+	for _, index := range indexes {
+		if len(index.Columns) != len(want) {
+			continue
+		}
+		allMatch := true
+		for _, c := range index.Columns {
+			if !want[c] {
+				allMatch = false
+				break
+			}
+		}
+		if allMatch {
+			return true
+		}
+	}
+	return false
 }
 
 func checkifEventBatchAlreadyImported(state *ImportDataState, eventBatch *tgtdb.EventBatch, migrationUUID uuid.UUID) (bool, error) {

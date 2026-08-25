@@ -2300,3 +2300,142 @@ func TestLiveMigrationCdcPartitionKeyRejectsCustomKeyColumnNotOnTable(t *testing
 	err = lm.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
+
+// TestLiveMigrationCustomCdcPartitionKeyPKRecycleConflict verifies the primary-key guard for
+// custom-key tables (Follow-up 3.2): the primary key is added to the conflict set so a
+// recycled primary key across *different* custom keys is detected and serialized.
+//
+// test_live (id PK, region, val) is routed by the custom key (region) and has NO other unique
+// index. A single-transaction delta recycles each primary key with a new region:
+//
+//	DELETE id=1 (region 'r_old_1'); INSERT (1, 'r_new_1', ...);
+//	DELETE id=2 (region 'r_old_2'); INSERT (2, 'r_new_2', ...); ...
+//
+// The DELETE (before-image region 'r_old_i') and the re-INSERT (region 'r_new_i') carry
+// different custom keys, so under custom routing they hash to (potentially) different channels
+// and could apply out of order — a duplicate primary key. GetTableToUniqueIndexesMap excludes
+// the primary key, so WITHOUT the guard this table would have an empty conflict set and the
+// race would go undetected. WITH the guard the PK is a synthetic unique index: conflict
+// detection sees the incoming INSERT (id=i) collide with the cached DELETE (id=i) on the PK
+// and — because the two events have different custom keys — flags it. The count failpoint must
+// therefore record a NON-ZERO number of detected conflicts, and the target must stay
+// consistent.
+func TestLiveMigrationCustomCdcPartitionKeyPKRecycleConflict(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_custom_key_pk_recycle",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_custom_key_pk_recycle",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			-- No unique index other than the primary key: the PK-recycle race is only detectable
+			-- because Follow-up 3.2 adds the primary key to the conflict set for custom tables.
+			CREATE TABLE test_schema.test_live (
+				id int PRIMARY KEY,
+				region text,
+				val int
+			);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			// REPLICA IDENTITY FULL so the DELETE event carries the region (custom key) before
+			// image, which custom-key routing needs to place the delete on its channel.
+			`ALTER TABLE test_schema.test_live REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.test_live (id, region, val)
+			 SELECT i, 'r_old_' || i, i FROM generate_series(1, 5) i;`,
+		},
+		SourceDeltaSQL: []string{
+			// Single transaction: recycle each PK with a new region (a new custom key). Each
+			// DELETE+INSERT pair on the same id is a PK-recycle across different custom keys.
+			`DO $$
+			BEGIN
+				DELETE FROM test_schema.test_live WHERE id = 1;
+				INSERT INTO test_schema.test_live (id, region, val) VALUES (1, 'r_new_1', 101);
+				DELETE FROM test_schema.test_live WHERE id = 2;
+				INSERT INTO test_schema.test_live (id, region, val) VALUES (2, 'r_new_2', 102);
+				DELETE FROM test_schema.test_live WHERE id = 3;
+				INSERT INTO test_schema.test_live (id, region, val) VALUES (3, 'r_new_3', 103);
+				DELETE FROM test_schema.test_live WHERE id = 4;
+				INSERT INTO test_schema.test_live (id, region, val) VALUES (4, 'r_new_4', 104);
+				DELETE FROM test_schema.test_live WHERE id = 5;
+				INSERT INTO test_schema.test_live (id, region, val) VALUES (5, 'r_new_5', 105);
+			END $$;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	// count-only failpoint: any detected UK conflict is recorded in the stats file.
+	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+	)
+	uniqueKeyConflictStatsPath := filepath.Join(
+		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
+
+	err = lm.StartImportDataWithEnv(true, map[string]string{
+		"--cdc-partition-key":           "auto",
+		"--cdc-partition-key-overrides": "test_schema.test_live:(region)",
+	}, []string{uniqueKeyConflictCountFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import data")
+	defer lm.StopImportData()
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_live"`: 5,
+	}, 120)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	// Assert the persisted per-table custom strategy + columns.
+	err = lm.InitMetaDB()
+	testutils.FatalIfError(t, err, "failed to initialize meta db")
+	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
+	testutils.FatalIfError(t, err, "failed to get import data status record")
+	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Strategy,
+		"test_live should use the custom partition strategy")
+	assert.Equal(t, []string{"region"}, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Columns,
+		"test_live custom key columns should be persisted")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	// Delta: 5 inserts, 0 updates, 5 deletes.
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live"`: {Inserts: 5, Updates: 0, Deletes: 5},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	// The PK-recycle race must be detected: each re-INSERT collides with the cached DELETE on
+	// the (synthetic) primary-key index, and the two events carry different custom keys.
+	conflicts, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
+	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
+	require.NotNil(t, conflicts, "PK-recycle across different custom keys must be detected")
+	assert.Greater(t, conflicts.Total, 0,
+		"expected at least one detected PK conflict, got stats: %+v", conflicts)
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "target does not match source after streaming")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
