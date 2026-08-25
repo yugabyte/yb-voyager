@@ -142,6 +142,13 @@ debezium.source.publication.autocreate.mode=disabled
 # reboot) leaves the streaming reader blocked forever: there is no read
 # timeout, so export stalls with no error logged and no retry.
 debezium.source.database.tcpKeepAlive=true
+# Bound a blocked read. Keepalive alone leaves detection at the kernel's
+# tcp_keepalive_time (7200s by default), which is far too slow. The stream
+# is never actually silent -- the walsender keeps sending protocol
+# keepalives every few seconds even while no rows are produced, measured
+# even during post-restart WAL replay -- so a 300s read timeout has a wide
+# margin and never tears down a healthy connection.
+debezium.source.database.socketTimeout=300
 `
 
 var postgresSSLConfigTemplate = `
@@ -272,6 +279,13 @@ debezium.source.grpc.connector.enabled=false
 # reboot) leaves the streaming reader blocked forever: there is no read
 # timeout, so export stalls with no error logged and no retry.
 debezium.source.database.tcpKeepAlive=true
+# Bound a blocked read. Keepalive alone leaves detection at the kernel's
+# tcp_keepalive_time (7200s by default), which is far too slow. The stream
+# is never actually silent -- the walsender keeps sending protocol
+# keepalives every few seconds even while no rows are produced, measured
+# even during post-restart WAL replay -- so a 300s read timeout has a wide
+# margin and never tears down a healthy connection.
+debezium.source.database.socketTimeout=300
 `
 
 var yugabyteLogicalReplicationSlotNameTemplate = `
