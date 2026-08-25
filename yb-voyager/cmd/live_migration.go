@@ -378,6 +378,9 @@ func handleEvent(event *tgtdb.Event,
 			}
 		} else { // "i" or "u"
 			err = conflictDetectionCache.WaitUntilNoConflict(event)
+			if err != nil {
+				return goerrors.Errorf("error waiting for conflicts to clear for event vsn(%d): %v", event.Vsn, err)
+			}
 			if event.Op == "u" {
 				// Adding all the update events to the conflict detection cache since we need to check detect the conflicts in cases where
 				// unique key column is not changed in addition to unique key column is actually changed
