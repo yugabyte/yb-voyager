@@ -23,7 +23,7 @@ Supporting trees:
 - **Go 1.24.2** — required by `go.mod`.
 - **JDK 17** (not 21+) — the installer script enforces Java 17–19 for the Debezium build. Set `JAVA_HOME` accordingly.
 - **Maven 3.8.4** — auto-installed by the installer.
-- **PostgreSQL client 17** — provides `pg_dump`/`pg_restore`.
+- **PostgreSQL client 18** — provides `pg_dump`/`pg_restore`.
 - **YugabyteDB** — target database.
 - **`rsync`** — required by the installer's `-l` (local build) flag.
 
