@@ -385,16 +385,16 @@ func queryPGPrimaryKeyColumnsByCatalog(queryFn func(query string) (*sql.Rows, er
 		return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
 	}
 
-	var fullTables []string
+	var fullTableList []string
 	for _, table := range tables {
-		fullTables = append(fullTables, table.AsQualifiedCatalogName())
+		fullTableList = append(fullTableList, table.AsQualifiedCatalogName())
 	}
 
 	for leaf, _ := range tableToRootMap {
-		fullTables = append(fullTables, leaf)
+		fullTableList = append(fullTableList, leaf)
 	}
 
-	tableListStr := strings.Join(fullTables, "','")
+	tableListStr := strings.Join(fullTableList, "','")
 
 	query := fmt.Sprintf(pgQueryTmplPKColumnsForTables, tableListStr)
 	rows, err := queryFn(query)
