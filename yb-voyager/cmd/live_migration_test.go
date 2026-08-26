@@ -469,6 +469,17 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 		assert.Contains(t, err.Error(), "expression-based unique index")
 	})
 
+	t.Run("rejects override custom on expression-UK table", func(t *testing.T) {
+		exprUK := utils.NewStructMap[sqlname.NameTuple, bool]()
+		exprUK.Put(audit, true)
+		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
+		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"col1"}})
+		_, err := resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_TABLE, overrides, exprUK, YUGABYTEDB)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "expression-based unique index")
+		assert.Contains(t, err.Error(), PARTITION_BY_CUSTOM)
+	})
+
 	t.Run("override table on expression-UK table is allowed", func(t *testing.T) {
 		exprUK := utils.NewStructMap[sqlname.NameTuple, bool]()
 		exprUK.Put(audit, true)
@@ -515,9 +526,6 @@ func setupCdcOverridesNameRegistry(t *testing.T) {
 	}))
 }
 
-// TestResolveCdcPartitionKeyOverrides covers the semantic override validation done
-// before snapshot (namereg lookup, import-table-list membership, and duplicate
-// detection on the resolved NameTuple across different spellings of the same table).
 func TestResolveCdcPartitionKeyOverrides(t *testing.T) {
 	setupCdcOverridesNameRegistry(t)
 
