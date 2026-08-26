@@ -108,7 +108,7 @@ func cutoverInitiatedAndCutoverEventProcessed() (bool, error) {
 	return false, nil
 }
 
-func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error {
+func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple, tableToPKColumns *utils.StructMap[sqlname.NameTuple, []string]) error {
 	waitForDebeziumStartIfRequired()
 	importPhase = dbzm.MODE_STREAMING
 	utils.PrintAndLogfInfo("streaming changes to %s...", tconf.TargetDBType)
@@ -181,7 +181,7 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error
 		}
 		log.Infof("got next segment to stream: %v", segment)
 
-		err = streamChangesFromSegment(segment, evChans, processingDoneChans, eventChannelsMetaInfo, statsReporter, state, streamingPhaseValueConverter, tablePartitionKeyMap, tableNames)
+		err = streamChangesFromSegment(segment, evChans, processingDoneChans, eventChannelsMetaInfo, statsReporter, state, streamingPhaseValueConverter, tablePartitionKeyMap, tableToPKColumns, tableNames)
 		if err != nil {
 			return goerrors.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
 		}
@@ -201,6 +201,7 @@ func streamChangesFromSegment(
 	state *ImportDataState,
 	streamingPhaseValueConverter dbzm.StreamingPhaseValueConverter,
 	tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride],
+	tableToPKColumns *utils.StructMap[sqlname.NameTuple, []string],
 	importTableList []sqlname.NameTuple) error {
 
 	err := segment.Open()
@@ -240,7 +241,7 @@ func streamChangesFromSegment(
 				we need to use the actual source db type at the moment.
 			*/
 			sourceDBTypeForConflictCache := lo.Ternary(isTargetDBExporter(event.ExporterRole), YUGABYTEDB, sourceDBType)
-			err = initializeConflictDetectionCache(evChans, sourceDBTypeForConflictCache, importTableList, tablePartitionKeyMap)
+			err = initializeConflictDetectionCache(evChans, sourceDBTypeForConflictCache, importTableList, tablePartitionKeyMap, tableToPKColumns)
 			if err != nil {
 				return fmt.Errorf("error initializing conflict detection cache: %w", err)
 			}
@@ -632,21 +633,24 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 // Attribute name registry is not required here as for the PG->YB migrations the attribute name is same in both the places - event's fields coming from source and unique-index-column mapping coming from target and
 // And this path is only for PG->YB migrations as of now.
 // This path assumes that the column name remains same in PG->YB migrations.
-func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, sourceDBTypeForConflictCache string, importTableList []sqlname.NameTuple, tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride]) error {
+func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, sourceDBTypeForConflictCache string, importTableList []sqlname.NameTuple, tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], tableToPKColumns *utils.StructMap[sqlname.NameTuple, []string]) error {
 	log.Infof("fetching table to unique indexes map from import target (%s)", tconf.TargetDBType)
 	tableToUniqueIndexes, err := tdb.GetTableToUniqueIndexesMap(importTableList)
 	if err != nil {
 		return fmt.Errorf("get table unique indexes map from target: %w", err)
 	}
 
-	// For custom-key tables the primary key must join the checked constraints (see
-	// cdc_partition_key_followups.md, Follow-up 3.2). GetTableToUniqueIndexesMap deliberately
-	// excludes the primary key (filters out contype='p'): under pk routing same-PK events
-	// always co-locate on one channel, so a recycled PK (DELETE id=5 then INSERT id=5) can
-	// never race. Under custom routing those two events can carry different custom keys, route
-	// to different channels, and apply out of order (duplicate primary key). Adding the PK as a
-	// synthetic unique index makes conflict detection serialize such PK-recycle races.
-	if err := addPrimaryKeyToConflictSetForCustomTables(tableToUniqueIndexes, importTableList, tablePartitionKeyMap); err != nil {
+	// For custom-key tables the primary key must join the unique indexes to be able to detect PK-recycle races. 
+	// GetTableToUniqueIndexesMap deliberately excludes the primary key (filters out contype='p'): under default pk routing,
+	// same-PK events always co-locate on one channel, so a recycled PK
+	// example - table(id pk, c1 unique) partition-key (c1)
+	//DELETE id=2 c1=1 // channel 1
+	//INSERT id=2 c1=2 // channel 2
+	//so we need add the PK to the unique index
+	// Under custom routing those two events can carry different custom keys, route to different channels, and apply out of order (duplicate primary key).
+	// Adding the PK as a synthetic unique index makes conflict detection serialize such PK-recycle races. The PK
+	// columns were fetched and validated before snapshot (getPrimaryKeyColumnsForImportTables, called from importData) and passed in here, so this does not re-query the target DB.
+	if err := addPrimaryKeyToConflictSetForCustomTables(tableToUniqueIndexes, importTableList, tablePartitionKeyMap, tableToPKColumns); err != nil {
 		return err
 	}
 
@@ -665,6 +669,7 @@ func addPrimaryKeyToConflictSetForCustomTables(
 	tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex],
 	importTableList []sqlname.NameTuple,
 	tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride],
+	tableToPKColumns *utils.StructMap[sqlname.NameTuple, []string],
 ) error {
 	var customTables []sqlname.NameTuple
 	for _, table := range importTableList {
@@ -680,16 +685,13 @@ func addPrimaryKeyToConflictSetForCustomTables(
 		return nil
 	}
 
-	tableToPKColumns, err := tdb.GetPrimaryKeyColumnsForTables(customTables)
-	if err != nil {
-		return fmt.Errorf("get primary key columns for custom-key tables: %w", err)
-	}
-
 	for _, table := range customTables {
-		pkColumns, _ := tableToPKColumns.Get(table)
-		if len(pkColumns) == 0 {
-			// Live migration requires a primary key, so this is not expected; fail rather than
-			// adding an empty-column index that would match every row.
+		// The PK columns were fetched and validated before snapshot in
+		// getPrimaryKeyColumnsForImportTables (which hard-fails a custom-key table with no PK)
+		// and passed in, so a missing entry here indicates an internal inconsistency; fail
+		// rather than adding an empty-column index that would match every row.
+		pkColumns, ok := tableToPKColumns.Get(table)
+		if !ok || len(pkColumns) == 0 {
 			return goerrors.Errorf("no primary key columns found for custom-key table %s", table.ForOutput())
 		}
 		existingIndexes, _ := tableToUniqueIndexes.Get(table)

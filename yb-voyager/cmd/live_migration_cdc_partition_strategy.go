@@ -72,6 +72,49 @@ func prepareCdcPartitionKey(tableNames []sqlname.NameTuple) error {
 }
 
 /*
+getPrimaryKeyColumnsForImportTables fetches the primary-key columns of every import table
+from the target DB (in one batched query) so they can be threaded into the streaming
+conflict-detection cache.
+
+It is called once near the start of importData (for the target PG→YB live path only; other
+paths return an empty map since conflict detection does not run for them). Because importData
+runs in the same process before streamChanges on both the first run and resume, the map does
+not need to be persisted in metaDB.
+
+It also fails fast, before the snapshot import, if a table routed by a custom partition key
+has no primary key on the target: custom routing adds the PK as a synthetic unique index for
+conflict detection (a recycled PK across different custom keys must be serialized), so a
+custom-key table without a PK cannot be made correct. This is scoped to custom-key tables so
+that legitimately PK-less tables under pk/table routing (e.g. partitioned roots imported via
+--use-partition-root) are not blocked.
+*/
+func getPrimaryKeyColumnsForImportTables(tableNames []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	tableToPKColumns := utils.NewStructMap[sqlname.NameTuple, []string]()
+
+	// Only the target PG→YB live streaming path runs conflict detection and needs primary keys.
+	if importerRole != TARGET_DB_IMPORTER_ROLE || !changeStreamingIsEnabled(importType) || sourceDBType != POSTGRESQL {
+		return tableToPKColumns, nil
+	}
+
+	tableToPKColumns, err := tdb.GetPrimaryKeyColumnsForTables(tableNames)
+	if err != nil {
+		return nil, fmt.Errorf("error getting primary key columns for import tables: %w", err)
+	}
+
+	var tablesWithoutPK []sqlname.NameTuple
+	for _, t := range tableNames {
+		if pkColumns, _ := tableToPKColumns.Get(t); len(pkColumns) == 0 {
+			tablesWithoutPK = append(tablesWithoutPK, t)
+		}
+	}
+	if len(tablesWithoutPK) > 0 {
+		return nil, goerrors.Errorf("cdc-partition-key-overrides: table(s) %v have no primary key on the target; a custom partition key requires one so that PK-recycle conflicts can be detected. Use the 'table' strategy for these tables instead", tablesWithoutPK)
+	}
+
+	return tableToPKColumns, nil
+}
+
+/*
 getCdcPartitioningStrategyPerTable loads the per-table CDC partition strategy for streaming.
 
 For target PG→YB live import the map is prepared before snapshot via prepareCdcPartitionKey.
@@ -292,10 +335,9 @@ func computeCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple, isFi
 		return nil, nil, err
 	}
 
-	// Import-start guardrails for custom-key tables (column existence + coverage warning).
-	// These query the target DB, so only run them on the first import; on resume the config
-	// is unchanged (enforced by validateCdcPartitioningStrategyUnchanged) and re-querying is
-	// unnecessary.
+	// Import-start guardrails for custom-key tables (custom key column existence). These query
+	// the target DB, so only run them on the first import; on resume the config is unchanged
+	// (enforced by validateCdcPartitioningStrategyUnchanged) and re-querying is unnecessary.
 	if isFirstRun {
 		if err := validateCustomPartitionKeyTables(tableToPartitionKeyOverrideMap); err != nil {
 			return nil, nil, err
@@ -465,8 +507,12 @@ func getExpressionUniqueIndexTables(tableNames []sqlname.NameTuple) ([]sqlname.N
 // validateCustomPartitionKeyTables runs the import-start guardrails for tables routed by a
 // custom partition key (see cdc_partition_key_followups.md, Follow-up 1):
 //   - hard-fail if any custom key column does not exist on the table, so misconfiguration is
-//     caught up front instead of erroring per-event in hashEvent, and
+//     caught up front instead of erroring per-event in hashEvent.
+//
 // It queries the target DB, so callers should only invoke it on the first import (not resume).
+// (Primary-key existence for custom-key tables is validated separately in
+// validatePrimaryKeysForConflictDetection, which fetches the PK columns for the whole import
+// table list once in importData.)
 func validateCustomPartitionKeyTables(tableToPartitionKeyOverrideMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride]) error {
 	var customTables []sqlname.NameTuple
 	err := tableToPartitionKeyOverrideMap.IterKV(func(t sqlname.NameTuple, override cdcPartitionKeyOverride) (bool, error) {

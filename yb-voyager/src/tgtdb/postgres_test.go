@@ -91,22 +91,38 @@ func TestCreateVoyagerSchemaPG(t *testing.T) {
 	}
 }
 
-func TestPostgresGetPrimaryKeyColumns(t *testing.T) {
+func TestPostgresGetPrimaryKeyColumnsForTables(t *testing.T) {
 	testPostgresTarget.ExecuteSqls(
 		`CREATE SCHEMA test_schema;`,
+		// composite primary key: column order must follow the PK definition.
 		`CREATE TABLE test_schema.foo (
 			id INT,
 			category TEXT,
 			name TEXT,
 			PRIMARY KEY (id, category)
 		);`,
+		// single-column primary key.
 		`CREATE TABLE test_schema.bar (
 			id INT PRIMARY KEY,
 			name TEXT
 		);`,
+		// no primary key: should be absent from the result map.
 		`CREATE TABLE test_schema.baz (
 			id INT,
 			name TEXT
+		);`,
+		// composite primary key declared in non-attnum order: proves the declared key order
+		// (category, id) is preserved rather than sorted by attnum.
+		`CREATE TABLE test_schema.reversed_pk (
+			id INT,
+			category TEXT,
+			PRIMARY KEY (category, id)
+		);`,
+		// covering primary key: INCLUDE columns must be excluded (indnkeyatts filter).
+		`CREATE TABLE test_schema.covering_pk (
+			id INT,
+			name TEXT,
+			PRIMARY KEY (id) INCLUDE (name)
 		);`,
 	)
 	defer testPostgresTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
@@ -127,13 +143,35 @@ func TestPostgresGetPrimaryKeyColumns(t *testing.T) {
 			table:          testutils.CreateNameTupleWithTargetName("test_schema.baz", "public", POSTGRESQL),
 			expectedPKCols: nil,
 		},
+		{
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.reversed_pk", "public", POSTGRESQL),
+			expectedPKCols: []string{"category", "id"},
+		},
+		{
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.covering_pk", "public", POSTGRESQL),
+			expectedPKCols: []string{"id"},
+		},
 	}
 
+	var tablesList []sqlname.NameTuple
 	for _, tt := range tests {
-		pkCols, err := testPostgresTarget.GetPrimaryKeyColumns(tt.table)
-		assert.NoError(t, err)
+		tablesList = append(tablesList, tt.table)
+	}
+
+	// Batched: fetch primary keys for all tables in a single call.
+	result, err := testPostgresTarget.GetPrimaryKeyColumnsForTables(tablesList)
+	require.NoError(t, err)
+
+	for _, tt := range tests {
+		pkCols, _ := result.Get(tt.table)
 		testutils.AssertEqualStringSlices(t, tt.expectedPKCols, pkCols)
 	}
+
+	// Empty input returns an empty (non-nil) map without querying.
+	emptyResult, err := testPostgresTarget.GetPrimaryKeyColumnsForTables(nil)
+	require.NoError(t, err)
+	require.NotNil(t, emptyResult)
+	require.Equal(t, 0, len(emptyResult.Keys()))
 }
 
 func TestPostgresGetNonEmptyTables(t *testing.T) {

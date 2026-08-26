@@ -1243,6 +1243,14 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	if err != nil {
 		utils.ErrExit("Failed to prepare cdc-partition-key: %s", err)
 	}
+
+	// Fetch the primary-key columns of the import tables from the target (before snapshot) so
+	// they can be passed to streamChanges and the conflict-detection cache without re-querying
+	// during streaming. Also fails fast if a custom-partition-key table has no primary key.
+	importTableToPKColumns, err := getPrimaryKeyColumnsForImportTables(importTableList)
+	if err != nil {
+		utils.ErrExit("Failed to get primary key columns for import tables: %s", err)
+	}
 	//updating the metadb after the startclean clears any required metadb state
 	err = updateImportDataStartedAndSomeConfigsInMetaDB()
 	if err != nil {
@@ -1289,7 +1297,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		if importSnapshotRequired() {
 			displayImportedRowCountSnapshot(state, importFileTasks, errorHandler)
 		}
-		err = streamChanges(state, importTableList)
+		err = streamChanges(state, importTableList, importTableToPKColumns)
 		if err != nil {
 			utils.ErrExit("Failed to stream changes to %s: %s", tconf.TargetDBType, err)
 		}

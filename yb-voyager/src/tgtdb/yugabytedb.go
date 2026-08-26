@@ -600,62 +600,11 @@ outer:
 	return nil
 }
 
-// ybTargetQueryGetPrimaryKeyColumnsForTables returns the PK columns of all tables in the
-// given list. ORDER BY array_position(indkey, attnum) is essential: (id, region) and
-// (region, id) are different keys, and the PK column order is used to build conflict-bucket
-// keys during live-migration conflict detection.
-var ybTargetQueryGetPrimaryKeyColumnsForTables = `
-SELECT n.nspname, c.relname, a.attname
-FROM pg_index i
-JOIN pg_class      c ON c.oid = i.indrelid
-JOIN pg_namespace  n ON n.oid = c.relnamespace
-JOIN pg_attribute  a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
-WHERE (n.nspname, c.relname) IN (%s)
-  AND i.indisprimary
-ORDER BY array_position(i.indkey, a.attnum);`
-
 // GetPrimaryKeyColumnsForTables returns, for each requested table, its primary-key columns
-// in PK-definition order.
+// in PK-definition order. It delegates to the shared PG/YB helper (queryPGPrimaryKeyColumnsByCatalog)
+// so the query and scan logic live in one place for both target drivers.
 func (yb *TargetYugabyteDB) GetPrimaryKeyColumnsForTables(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
-	result := utils.NewStructMap[sqlname.NameTuple, []string]()
-	if len(tables) == 0 {
-		return result, nil
-	}
-
-	catalogTableToTuple := make(map[string]sqlname.NameTuple, len(tables))
-	for _, table := range tables {
-		catalogTableToTuple[table.AsQualifiedCatalogName()] = table
-	}
-
-	queryTablesString := strings.Join(lo.Map(tables, func(table sqlname.NameTuple, _ int) string {
-		schema, tableName := table.ForCatalogQuery()
-		return fmt.Sprintf("('%s', '%s')", schema, tableName)
-	}), ", ")
-	query := fmt.Sprintf(ybTargetQueryGetPrimaryKeyColumnsForTables, queryTablesString)
-
-	rows, err := yb.Query(query)
-	if err != nil {
-		return nil, fmt.Errorf("query PK columns for tables %v: %w", tables, err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var schema, table, col string
-		if err := rows.Scan(&schema, &table, &col); err != nil {
-			return nil, fmt.Errorf("scan PK column row: %w", err)
-		}
-		tableTuple, ok := catalogTableToTuple[fmt.Sprintf("%s.%s", schema, table)]
-		if !ok {
-			return nil, goerrors.Errorf("PK query returned unexpected table %s.%s not in requested list", schema, table)
-		}
-		cols, _ := result.Get(tableTuple)
-		result.Put(tableTuple, append(cols, col))
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate PK column rows: %w", err)
-	}
-
-	return result, nil
+	return queryPGPrimaryKeyColumnsByCatalog(yb.Query, tables)
 }
 
 func (yb *TargetYugabyteDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []UniqueIndex], error) {

@@ -337,11 +337,15 @@ outer:
 	return nil
 }
 
-// pgTargetQueryGetPrimaryKeyColumnsForTables returns the PK columns of all tables in the
-// given list. ORDER BY array_position(indkey, attnum) is essential: (id, region) and
-// (region, id) are different keys, and the PK column order is used to build conflict-bucket
-// keys during live-migration conflict detection.
-var pgTargetQueryGetPrimaryKeyColumnsForTables = `
+// pgQueryTmplPKColumnsForTables returns the PK columns of all tables in the given list.
+// Only key columns are returned: indkey also holds INCLUDE (covering) columns
+// (e.g. PRIMARY KEY (id) INCLUDE (region)), which are filtered out via indnkeyatts.
+// ORDER BY array_position(indkey, attnum) is essential: (id, region) and (region, id) are
+// different keys, and the PK column order is used to build conflict-bucket keys during
+// live-migration conflict detection.
+// It is used for both PostgreSQL and YugabyteDB targets since YugabyteDB is PG-compatible
+// at the catalog level.
+const pgQueryTmplPKColumnsForTables = `
 SELECT n.nspname, c.relname, a.attname
 FROM pg_index i
 JOIN pg_class      c ON c.oid = i.indrelid
@@ -349,13 +353,14 @@ JOIN pg_namespace  n ON n.oid = c.relnamespace
 JOIN pg_attribute  a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
 WHERE (n.nspname, c.relname) IN (%s)
   AND i.indisprimary
-ORDER BY array_position(i.indkey, a.attnum);`
+  AND array_position(i.indkey, a.attnum) + 1 <= i.indnkeyatts -- indkey is 0-indexed; exclude INCLUDE columns
+ORDER BY n.nspname, c.relname, array_position(i.indkey, a.attnum);`
 
-// GetPrimaryKeyColumnsForTables returns, for each requested table, its primary-key columns
-// in PK-definition order.
-// Implementing this for completion but not used in Postgres fall-forward/fall-back;
-// this info is only used in fast path import of batches (Target YugabyteDB).
-func (pg *TargetPostgreSQL) GetPrimaryKeyColumnsForTables(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+// queryPGPrimaryKeyColumnsByCatalog runs the PG/YB primary-key discovery query for the
+// given tables and returns a map keyed by table to its primary-key columns in
+// PK-definition order. Shared by the PostgreSQL and YugabyteDB target drivers (each passes
+// its own Query function) so the query and scan logic live in exactly one place.
+func queryPGPrimaryKeyColumnsByCatalog(queryFn func(query string) (*sql.Rows, error), tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
 	result := utils.NewStructMap[sqlname.NameTuple, []string]()
 	if len(tables) == 0 {
 		return result, nil
@@ -370,9 +375,9 @@ func (pg *TargetPostgreSQL) GetPrimaryKeyColumnsForTables(tables []sqlname.NameT
 		schema, tableName := table.ForCatalogQuery()
 		return fmt.Sprintf("('%s', '%s')", schema, tableName)
 	}), ", ")
-	query := fmt.Sprintf(pgTargetQueryGetPrimaryKeyColumnsForTables, queryTablesString)
+	query := fmt.Sprintf(pgQueryTmplPKColumnsForTables, queryTablesString)
 
-	rows, err := pg.Query(query)
+	rows, err := queryFn(query)
 	if err != nil {
 		return nil, fmt.Errorf("query PK columns for tables %v: %w", tables, err)
 	}
@@ -397,6 +402,13 @@ func (pg *TargetPostgreSQL) GetPrimaryKeyColumnsForTables(tables []sqlname.NameT
 	return result, nil
 }
 
+// GetPrimaryKeyColumnsForTables returns, for each requested table, its primary-key columns
+// in PK-definition order.
+// Implementing this for completion but not used in Postgres fall-forward/fall-back;
+// this info is only used in fast path import of batches (Target YugabyteDB).
+func (pg *TargetPostgreSQL) GetPrimaryKeyColumnsForTables(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	return queryPGPrimaryKeyColumnsByCatalog(pg.Query, tables)
+}
 
 // No need to implement GetPrimaryKeyColumns for Postgres fall-forward/fall-back as fast path is not valid there
 func (pg *TargetPostgreSQL) GetPrimaryKeyConstraintNames(table sqlname.NameTuple) ([]string, error) {
@@ -456,7 +468,7 @@ func (pg *TargetPostgreSQL) GetTableToUniqueIndexesMap(tableList []sqlname.NameT
 // (contype 'u'); only primary-key indexes (contype 'p') are excluded.
 // It is used for both PostgreSQL and YugabyteDB targets since YugabyteDB is
 // PG-compatible at the catalog level.
-//Note: this query doesn't include the key columns having expression in it.
+// Note: this query doesn't include the key columns having expression in it.
 const pgQueryTmplForUniqIndexes = `
 WITH unique_indexes AS (
     SELECT
