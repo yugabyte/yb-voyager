@@ -124,6 +124,38 @@ func TestPostgresGetPrimaryKeyColumnsForTables(t *testing.T) {
 			name TEXT,
 			PRIMARY KEY (id) INCLUDE (name)
 		);`,
+		// partitioned table with the primary key declared on the root: every leaf inherits it.
+		// Import references only the root, so the root's own PK must be returned.
+		`CREATE TABLE test_schema.test_part (
+			id INT,
+			region TEXT,
+			PRIMARY KEY (id, region)
+		) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema.test_part_r1 PARTITION OF test_schema.test_part FOR VALUES IN ('r1');`,
+		`CREATE TABLE test_schema.test_part_r2 PARTITION OF test_schema.test_part FOR VALUES IN ('r2');`,
+		// partitioned table whose primary key exists only on the leaf partitions (the root has
+		// no PK of its own, e.g. imported via --use-partition-root). Import references only the
+		// root, so the PK must be discovered from a leaf and attributed to the root.
+		`CREATE TABLE test_schema.test_part1 (
+			id INT,
+			region TEXT
+		) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema.test_part1_r1 PARTITION OF test_schema.test_part1 FOR VALUES IN ('r1');`,
+		`CREATE TABLE test_schema.test_part1_r2 PARTITION OF test_schema.test_part1 FOR VALUES IN ('r2');`,
+		`ALTER TABLE test_schema.test_part1_r1 ADD PRIMARY KEY (id);`,
+		`ALTER TABLE test_schema.test_part1_r2 ADD PRIMARY KEY (id);`,
+
+		// partitioned table whose primary key exists only on the leaf partitions (the root has
+		// no PK of its own, e.g. imported via --use-partition-root). Import references only the
+		// root, so the PK must be discovered from a leaf and attributed to the root.
+		`CREATE TABLE test_schema.test_part2 (
+			id INT,
+			region TEXT
+		) PARTITION BY LIST (region);`,
+		`CREATE TABLE public.test_part2_r1 PARTITION OF test_schema.test_part2 FOR VALUES IN ('r1');`,
+		`CREATE TABLE test_schema.test_part2_r2 PARTITION OF test_schema.test_part2 FOR VALUES IN ('r2');`,
+		`ALTER TABLE public.test_part2_r1 ADD PRIMARY KEY (id);`,
+		`ALTER TABLE test_schema.test_part2_r2 ADD PRIMARY KEY (id);`,
 	)
 	defer testPostgresTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
@@ -149,6 +181,21 @@ func TestPostgresGetPrimaryKeyColumnsForTables(t *testing.T) {
 		},
 		{
 			table:          testutils.CreateNameTupleWithTargetName("test_schema.covering_pk", "public", POSTGRESQL),
+			expectedPKCols: []string{"id"},
+		},
+		{
+			// partitioned root with PK declared at the root.
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.test_part", "public", POSTGRESQL),
+			expectedPKCols: []string{"id", "region"},
+		},
+		{
+			// partitioned root whose PK lives only on the leaf partitions.
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.test_part1", "public", POSTGRESQL),
+			expectedPKCols: []string{"id"},
+		},
+		{
+			// partitioned root whose PK lives only on the leaf partitions.
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.test_part2", "public", POSTGRESQL),
 			expectedPKCols: []string{"id"},
 		},
 	}

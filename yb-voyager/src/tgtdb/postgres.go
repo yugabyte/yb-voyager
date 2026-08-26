@@ -337,12 +337,16 @@ outer:
 	return nil
 }
 
-// pgQueryTmplPKColumnsForTables returns the PK columns of all tables in the given list.
+// pgQueryTmplPKColumnsForTables returns the PK columns of all tables matching the given
+// schema/table filter lists.
 // Only key columns are returned: indkey also holds INCLUDE (covering) columns
 // (e.g. PRIMARY KEY (id) INCLUDE (region)), which are filtered out via indnkeyatts.
 // ORDER BY array_position(indkey, attnum) is essential: (id, region) and (region, id) are
 // different keys, and the PK column order is used to build conflict-bucket keys during
 // live-migration conflict detection.
+// The schema and table filters are applied independently (like pgQueryTmplForUniqIndexes),
+// so a cross-schema over-match is possible; callers map results back via the
+// partition->root catalog map and drop anything not under a requested root.
 // It is used for both PostgreSQL and YugabyteDB targets since YugabyteDB is PG-compatible
 // at the catalog level.
 const pgQueryTmplPKColumnsForTables = `
@@ -351,7 +355,7 @@ FROM pg_index i
 JOIN pg_class      c ON c.oid = i.indrelid
 JOIN pg_namespace  n ON n.oid = c.relnamespace
 JOIN pg_attribute  a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
-WHERE (n.nspname, c.relname) IN (%s)
+WHERE (n.nspname || '.' || c.relname) IN ('%s')
   AND i.indisprimary
   AND array_position(i.indkey, a.attnum) + 1 <= i.indnkeyatts -- indkey is 0-indexed; exclude INCLUDE columns
 ORDER BY n.nspname, c.relname, array_position(i.indkey, a.attnum);`
@@ -360,43 +364,88 @@ ORDER BY n.nspname, c.relname, array_position(i.indkey, a.attnum);`
 // given tables and returns a map keyed by table to its primary-key columns in
 // PK-definition order. Shared by the PostgreSQL and YugabyteDB target drivers (each passes
 // its own Query function) so the query and scan logic live in exactly one place.
+//
+// A partitioned table's primary key can live only on its leaf partitions when the root has
+// no primary key of its own (e.g. children carry PKs, imported via --use-partition-root).
+// Import events reference the root, so we discover the PK of every leaf partition (and the
+// root/normal tables themselves) and attribute it to the root. A root's own primary key is
+// authoritative; a leaf's PK is used only when the root has none (partitions of the same
+// table share the same PK definition).
 func queryPGPrimaryKeyColumnsByCatalog(queryFn func(query string) (*sql.Rows, error), tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
 	result := utils.NewStructMap[sqlname.NameTuple, []string]()
 	if len(tables) == 0 {
 		return result, nil
 	}
 
-	catalogTableToTuple := make(map[string]sqlname.NameTuple, len(tables))
-	for _, table := range tables {
-		catalogTableToTuple[table.AsQualifiedCatalogName()] = table
+	// getPartitionTableToRootTableMap returns, for every table whose root is in tables, a
+	// mapping of its catalog name ("schema.table") to its root's catalog name. This includes
+	// each leaf partition -> root, and each root/normal table -> itself.
+	tableToRootMap, err := getPartitionTableToRootTableMap(queryFn, tables)
+	if err != nil {
+		return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
 	}
 
-	queryTablesString := strings.Join(lo.Map(tables, func(table sqlname.NameTuple, _ int) string {
-		schema, tableName := table.ForCatalogQuery()
-		return fmt.Sprintf("('%s', '%s')", schema, tableName)
-	}), ", ")
-	query := fmt.Sprintf(pgQueryTmplPKColumnsForTables, queryTablesString)
+	var fullTables []string
+	for _, table := range tables {
+		fullTables = append(fullTables, table.AsQualifiedCatalogName())
+	}
 
+	for leaf, _ := range tableToRootMap {
+		fullTables = append(fullTables, leaf)
+	}
+
+	tableListStr := strings.Join(fullTables, "','")
+
+	query := fmt.Sprintf(pgQueryTmplPKColumnsForTables, tableListStr)
 	rows, err := queryFn(query)
 	if err != nil {
 		return nil, fmt.Errorf("query PK columns for tables %v: %w", tables, err)
 	}
 	defer rows.Close()
 
+	// PK columns per catalog table, in PK-definition order (query is ordered by array_position).
+	catalogToPKColumns := make(map[string][]string)
 	for rows.Next() {
 		var schema, table, col string
 		if err := rows.Scan(&schema, &table, &col); err != nil {
 			return nil, fmt.Errorf("scan PK column row: %w", err)
 		}
-		tableTuple, ok := catalogTableToTuple[fmt.Sprintf("%s.%s", schema, table)]
-		if !ok {
-			return nil, goerrors.Errorf("PK query returned unexpected table %s.%s not in requested list", schema, table)
-		}
-		cols, _ := result.Get(tableTuple)
-		result.Put(tableTuple, append(cols, col))
+		catalogName := fmt.Sprintf("%s.%s", schema, table)
+		catalogToPKColumns[catalogName] = append(catalogToPKColumns[catalogName], col)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate PK column rows: %w", err)
+	}
+
+	rootCatalogToTuple := make(map[string]sqlname.NameTuple, len(tables))
+	for _, t := range tables {
+		rootCatalogToTuple[t.AsQualifiedCatalogName()] = t
+	}
+
+	// Attribute each table's PK to its root, preferring the root's own PK over a leaf's.
+	rootHasOwnPK := make(map[string]bool)
+	for catalogName, pkColumns := range catalogToPKColumns {
+		rootCatalogName, ok := tableToRootMap[catalogName]
+		if !ok {
+			// table not under any requested root (cross-schema over-match from the filter); skip.
+			continue
+		}
+		rootTuple, ok := rootCatalogToTuple[rootCatalogName]
+		if !ok {
+			return nil, goerrors.Errorf("root table %s not found in requested table list", rootCatalogName)
+		}
+		if catalogName == rootCatalogName {
+			// Root's own PK is authoritative; overwrite any PK previously taken from a leaf.
+			result.Put(rootTuple, pkColumns)
+			rootHasOwnPK[rootCatalogName] = true
+			continue
+		}
+		if rootHasOwnPK[rootCatalogName] {
+			continue
+		}
+		if _, alreadySet := result.Get(rootTuple); !alreadySet {
+			result.Put(rootTuple, pkColumns)
+		}
 	}
 
 	return result, nil
