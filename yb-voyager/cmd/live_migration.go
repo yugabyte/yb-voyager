@@ -670,7 +670,7 @@ func addPrimaryKeyToConflictSetForCustomTables(
 	for _, table := range importTableList {
 		partitionKey, ok := tablePartitionKeyMap.Get(table)
 		if !ok {
-			return fmt.Errorf("table partition key map does not contain table %v", table)
+			return goerrors.Errorf("table partition key map does not contain table %v", table)
 		}
 		if partitionKey.Strategy == PARTITION_BY_CUSTOM {
 			customTables = append(customTables, table)
@@ -690,7 +690,7 @@ func addPrimaryKeyToConflictSetForCustomTables(
 		if len(pkColumns) == 0 {
 			// Live migration requires a primary key, so this is not expected; fail rather than
 			// adding an empty-column index that would match every row.
-			return fmt.Errorf("no primary key columns found for custom-key table %s", table.ForOutput())
+			return goerrors.Errorf("no primary key columns found for custom-key table %s", table.ForOutput())
 		}
 		existingIndexes, _ := tableToUniqueIndexes.Get(table)
 		if uniqueIndexWithSameColumnsExists(existingIndexes, pkColumns) {

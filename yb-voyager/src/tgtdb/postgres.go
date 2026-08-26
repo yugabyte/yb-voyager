@@ -385,7 +385,7 @@ func (pg *TargetPostgreSQL) GetPrimaryKeyColumnsForTables(tables []sqlname.NameT
 		}
 		tableTuple, ok := catalogTableToTuple[fmt.Sprintf("%s.%s", schema, table)]
 		if !ok {
-			return nil, fmt.Errorf("PK query returned unexpected table %s.%s not in requested list", schema, table)
+			return nil, goerrors.Errorf("PK query returned unexpected table %s.%s not in requested list", schema, table)
 		}
 		cols, _ := result.Get(tableTuple)
 		result.Put(tableTuple, append(cols, col))
