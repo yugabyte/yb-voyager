@@ -69,6 +69,12 @@ def check_validations_per_schema(tgt, schema_name, threeDotVersion):
 	print(f"count of fetched procedures/functions - {len(fetched_procedures_functions)}")
 	# an extra routine ships from YB 2025.2.4, bumping the count from 40 to 41
 	schema2_count = 41 if (threeDotVersion and Version(threeDotVersion) >= Version("2025.2.4")) else 40
+	# pgcrypto ships an extra function on PG 18, so the fall-forward/fallback
+	# checks against the source/source-replica also see 41 (threeDotVersion is
+	# empty there — it is derived from the YB-x.y.z token, absent on plain PG)
+	version_string = tgt.get_target_version()
+	if "YB" not in version_string and int(version_string.split()[1].split(".")[0]) >= 18:
+		schema2_count = 41
 	chk_conditions = (len(fetched_procedures_functions) == schema2_count and schema_name == 'schema2') or (len(fetched_procedures_functions) == 4 and schema_name == 'public')
 	assert chk_conditions == True
 
