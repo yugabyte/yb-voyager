@@ -118,6 +118,10 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 		useDebezium = true
 	}
 
+	if err := validateBetaFastDataExportSupportedForSource(source.DBType, exportType, useDebezium); err != nil {
+		utils.ErrExit("%s", color.RedString("%s", err.Error()))
+	}
+
 	if bool(source.AllowOracleClobDataExport) {
 		if source.DBType != ORACLE {
 			utils.ErrExit("%s", color.RedString("allow-oracle-clob-data-export is only valid with source db type oracle. Remove this flag and retry."))
@@ -129,6 +133,19 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 			utils.PrintAndLog(color.YellowString("Note: Experimental CLOB export is enabled for Oracle offline export."))
 		}
 	}
+}
+
+// BETA_FAST_DATA_EXPORT routes the snapshot export through debezium and is only supported for
+// Oracle and MySQL.
+func validateBetaFastDataExportSupportedForSource(dbType string, exportType string, useDebezium bool) error {
+	if !useDebezium || changeStreamingIsEnabled(exportType) {
+		return nil
+	}
+	if dbType == POSTGRESQL {
+		return goerrors.Errorf("BETA_FAST_DATA_EXPORT is not supported for source database type %q. "+
+			"It is available only for oracle and mysql. Unset the BETA_FAST_DATA_EXPORT environment variable and retry.", dbType)
+	}
+	return nil
 }
 
 func handleCutoverAlreadyProcessedForExportData() {
