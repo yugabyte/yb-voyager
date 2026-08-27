@@ -129,6 +129,9 @@ var xmlFunctionsIssue = issue.Issue{
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/1043",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2026_1: ybversion.V2026_1_0_0,
+	},
 }
 
 func NewXmlFunctionsIssue(objectType string, objectName string, sqlStatement string) QueryIssue {

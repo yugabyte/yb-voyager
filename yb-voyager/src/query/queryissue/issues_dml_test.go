@@ -32,6 +32,22 @@ import (
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
+// makeCopyFileAvailable writes csvData to a temp file on the host and, when the tests run
+// against a spawned testcontainer (rather than an external YB_CONN_STR pointing at a local
+// YB), copies the same bytes into the container at the identical path. Server-side
+// COPY FROM '<file>' reads from the YB node's own filesystem, so once a COPY construct
+// becomes supported (e.g. COPY ... WHERE in 2026.1) the statement actually opens the file;
+// on unsupported versions it fails at parse time before the file is ever read.
+func makeCopyFileAvailable(t *testing.T, csvData string) string {
+	fileName, err := testutils.CreateTempFile("/tmp", csvData, "csv")
+	assert.NoError(t, err)
+	if testYugabytedbContainer != nil {
+		err = testYugabytedbContainer.CopyToContainer(context.Background(), []byte(csvData), fileName, 0o644)
+		assert.NoError(t, err)
+	}
+	return fileName
+}
+
 func testXMLFunctionIssue(t *testing.T) {
 	ctx := context.Background()
 	conn, err := getConn()
@@ -218,8 +234,7 @@ func testCopyFromWhereIssue(t *testing.T) {
 9,Item9,90
 10,Item10,100`
 
-	fileName, err := testutils.CreateTempFile("/tmp", csvData, "csv")
-	assert.NoError(t, err)
+	fileName := makeCopyFileAvailable(t, csvData)
 
 	defer conn.Close(context.Background())
 	_, err = conn.Exec(ctx, fmt.Sprintf(`
