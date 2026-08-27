@@ -33,9 +33,8 @@ import (
 // transaction for longer than idle_in_transaction_session_timeout.
 const sqlStateIdleInTxnTimeout = "25P03"
 
-// The unit tests cover how the session script is composed; this covers the part
-// that only a real target can show: that a connection handed out by the import
-// pool actually carries the timeout.
+// Covers what only a real target can show: that a connection handed out by the
+// import pool actually carries the timeout.
 func TestPooledConnectionHasIdleInTransactionTimeoutSet(t *testing.T) {
 	yb, ok := testYugabyteDBTarget.TargetDB.(*TargetYugabyteDB)
 	require.True(t, ok, "expected a *TargetYugabyteDB")
