@@ -99,7 +99,11 @@ def check_validations_per_schema(tgt,schema_name):
 
 	fetched_procedures_functions = tgt.fetch_all_procedures(schema_name)
 	print(f"count of fetched procedures/functions - {len(fetched_procedures_functions)}")
-	chk_conditions = (len(fetched_procedures_functions) == 40 and schema_name == 'schema2') or (len(fetched_procedures_functions) == 4 and schema_name == 'public')
+	# pgcrypto ships an extra function on PG 18, so the fall-forward/fallback
+	# checks against the source/source-replica see 41 routines in schema2
+	version_string = tgt.get_target_version()
+	schema2_count = 41 if ("YB" not in version_string and int(version_string.split()[1].split(".")[0]) >= 18) else 40
+	chk_conditions = (len(fetched_procedures_functions) == schema2_count and schema_name == 'schema2') or (len(fetched_procedures_functions) == 4 and schema_name == 'public')
 	assert chk_conditions == True
 
 	res_total_proc = tgt.execute_query(f"select total();")
