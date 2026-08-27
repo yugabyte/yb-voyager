@@ -662,7 +662,7 @@ func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, sourceDBTypeF
 // addPrimaryKeyToConflictSetForCustomTables appends the primary key as a synthetic unique
 // index to the per-table conflict-detection set for every table routed by a custom partition
 // key. This is required for correctness under custom routing (see
-// initializeConflictDetectionCache and cdc_partition_key_followups.md, Follow-up 3.2); it is
+// initializeConflictDetectionCache) it is
 // a no-op for pk/table routing where the primary key never needs cross-channel conflict
 // detection.
 func addPrimaryKeyToConflictSetForCustomTables(
