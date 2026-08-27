@@ -292,10 +292,9 @@ func computeCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple, isFi
 		return nil, nil, err
 	}
 
-	// Import-start guardrails for custom-key tables (column existence + coverage warning).
-	// These query the target DB, so only run them on the first import; on resume the config
-	// is unchanged (enforced by validateCdcPartitioningStrategyUnchanged) and re-querying is
-	// unnecessary.
+	// Import-start guardrails for custom-key tables (custom key column existence). These query
+	// the target DB, so only run them on the first import; on resume the config is unchanged
+	// (enforced by validateCdcPartitioningStrategyUnchanged) and re-querying is unnecessary.
 	if isFirstRun {
 		if err := validateCustomPartitionKeyTables(tableToPartitionKeyOverrideMap); err != nil {
 			return nil, nil, err
@@ -465,8 +464,12 @@ func getExpressionUniqueIndexTables(tableNames []sqlname.NameTuple) ([]sqlname.N
 // validateCustomPartitionKeyTables runs the import-start guardrails for tables routed by a
 // custom partition key (see cdc_partition_key_followups.md, Follow-up 1):
 //   - hard-fail if any custom key column does not exist on the table, so misconfiguration is
-//     caught up front instead of erroring per-event in hashEvent, and
+//     caught up front instead of erroring per-event in hashEvent.
+//
 // It queries the target DB, so callers should only invoke it on the first import (not resume).
+// (Primary-key existence for custom-key tables is validated separately in
+// validatePrimaryKeysForConflictDetection, which fetches the PK columns for the whole import
+// table list once in importData.)
 func validateCustomPartitionKeyTables(tableToPartitionKeyOverrideMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride]) error {
 	var customTables []sqlname.NameTuple
 	err := tableToPartitionKeyOverrideMap.IterKV(func(t sqlname.NameTuple, override cdcPartitionKeyOverride) (bool, error) {
