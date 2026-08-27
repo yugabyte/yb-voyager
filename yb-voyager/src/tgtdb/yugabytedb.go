@@ -1674,11 +1674,20 @@ const (
 	SET_YB_FAST_PATH_FOR_COLOCATED_COPY   = "SET yb_fast_path_for_colocated_copy=true"
 	// The "SELECT 1" workaround introduced in ExecuteBatch does not work if isolation level is read_committed. Therefore, for now, we are forcing REPEATABLE READ.
 	SET_DEFAULT_ISOLATION_LEVEL_REPEATABLE_READ = "SET default_transaction_isolation = 'repeatable read'"
-	ERROR_MSG_PERMISSION_DENIED                 = "permission denied"
+	// If voyager exits abruptly mid-transaction, the target backend keeps holding that
+	// transaction's locks until TCP keepalive reaps it (~2h), wedging later imports. Bound it
+	// so voyager's own sessions are self-limiting; 5min is far above any gap voyager can
+	// produce inside a transaction. Override via /etc/yb-voyager/ybSessionVariables.sql.
+	SET_IDLE_IN_TRANSACTION_SESSION_TIMEOUT = "SET idle_in_transaction_session_timeout = '5min'"
+	ERROR_MSG_PERMISSION_DENIED             = "permission denied"
 )
 
 func getPGSessionInitScript(tconf *TargetConf) []string {
 	var sessionVars []string
+	// first, so a permission-denied error on a later var cannot make initSession() skip it
+	if checkSessionVariableSupport(tconf, SET_IDLE_IN_TRANSACTION_SESSION_TIMEOUT) {
+		sessionVars = append(sessionVars, SET_IDLE_IN_TRANSACTION_SESSION_TIMEOUT)
+	}
 	if checkSessionVariableSupport(tconf, SET_CLIENT_ENCODING_TO_UTF8) {
 		sessionVars = append(sessionVars, SET_CLIENT_ENCODING_TO_UTF8)
 	}
@@ -1690,6 +1699,10 @@ func getPGSessionInitScript(tconf *TargetConf) []string {
 
 func getYBSessionInitScript(tconf *TargetConf) []string {
 	var sessionVars []string
+	// first, so a permission-denied error on a later var cannot make initSession() skip it
+	if checkSessionVariableSupport(tconf, SET_IDLE_IN_TRANSACTION_SESSION_TIMEOUT) {
+		sessionVars = append(sessionVars, SET_IDLE_IN_TRANSACTION_SESSION_TIMEOUT)
+	}
 	if checkSessionVariableSupport(tconf, SET_CLIENT_ENCODING_TO_UTF8) {
 		sessionVars = append(sessionVars, SET_CLIENT_ENCODING_TO_UTF8)
 	}
