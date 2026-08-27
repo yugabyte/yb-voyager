@@ -479,7 +479,7 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
 			OptimizationType: MVIEW_COLOCATION_RECOMMENDATION_CHANGE_TYPE,
 			IsApplied:        schemaOptimizationReport.MviewColocationRecommendation.IsApplied,
-			Objects:          schemaOptimizationReport.MviewColocationRecommendation.ShardedObjects,
+			Objects:          objects,
 		})
 	}
 	if schemaOptimizationReport.SecondaryIndexToRangeChange != nil {

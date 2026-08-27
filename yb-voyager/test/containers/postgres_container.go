@@ -130,12 +130,12 @@ func (pg *PostgresContainer) Stop(ctx context.Context) error {
 }
 
 func (pg *PostgresContainer) Terminate(ctx context.Context) {
-	pg.mutex.Lock()
-	defer pg.mutex.Unlock()
-
 	if pg == nil {
 		return
 	}
+
+	pg.mutex.Lock()
+	defer pg.mutex.Unlock()
 
 	err := pg.container.Terminate(ctx)
 	if err != nil {
