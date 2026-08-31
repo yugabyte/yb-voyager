@@ -226,6 +226,14 @@ main() {
             ;;
     esac
 
+    # The coverage guard is a catalogue check, not a probe run: it never emits
+    # PROBE-RESULT lines, so asking the collector for results would fail a run
+    # that actually succeeded.
+    if [ "${what}" = "coverage" ]; then
+        log "coverage guard only - no probe results to collect"
+        return 0
+    fi
+
     collect_results
 }
 
