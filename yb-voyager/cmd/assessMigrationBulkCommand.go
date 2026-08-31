@@ -99,7 +99,7 @@ func init() {
 	// register common global flags
 	BoolVar(assessMigrationBulkCmd.Flags(), &perfProfile, "profile", false,
 		"profile yb-voyager for performance analysis")
-	assessMigrationBulkCmd.Flags().MarkHidden("profile")
+	mustMarkFlagHidden(assessMigrationBulkCmd, "profile")
 	assessMigrationBulkCmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,
 		"assume answer as yes for all questions during migration (default false)")
 	BoolVar(assessMigrationBulkCmd.Flags(), &callhome.SendDiagnostics, "send-diagnostics", true,
@@ -128,8 +128,8 @@ Sample fleet_config_file:
 	BoolVar(assessMigrationBulkCmd.Flags(), &startClean, "start-clean", false, "Cleans up all the export-dirs in bulk assessment directory to start everything from scratch")
 
 	// marking mandatory flags
-	assessMigrationBulkCmd.MarkFlagRequired("fleet-config-file")
-	assessMigrationBulkCmd.MarkFlagRequired("bulk-assessment-dir")
+	mustMarkFlagRequired(assessMigrationBulkCmd, "fleet-config-file")
+	mustMarkFlagRequired(assessMigrationBulkCmd, "bulk-assessment-dir")
 }
 
 func assessMigrationBulk() error {

@@ -503,19 +503,13 @@ func init() {
 			"\tfor AWS S3, e.g. s3://<bucket-name>/<path-to-data-dir>\n"+
 			"\tfor GCS buckets, e.g. gs://<bucket-name>/<path-to-data-dir>\n"+
 			"\tfor Azure blob storage, e.g. https://<account_name>.blob.core.windows.net/<container_name>/<path-to-data-dir>")
-	err := importDataFileCmd.MarkFlagRequired("data-dir")
-	if err != nil {
-		utils.ErrExit("mark 'data-dir' flag required: %v", err)
-	}
+	mustMarkFlagRequired(importDataFileCmd, "data-dir")
 
 	importDataFileCmd.Flags().StringVar(&fileTableMapping, "file-table-map", "",
 		"comma separated list of mapping between file name in '--data-dir' to a table in database\n"+
 			"You can import multiple files in one table either by providing one entry for each file 'fileName1:tableName,fileName2:tableName' OR by passing a glob expression in place of the file name. 'fileName*:tableName'")
 
-	err = importDataFileCmd.MarkFlagRequired("file-table-map")
-	if err != nil {
-		utils.ErrExit("mark 'file-table-map' flag required: %v", err)
-	}
+	mustMarkFlagRequired(importDataFileCmd, "file-table-map")
 	BoolVar(importDataFileCmd.Flags(), &hasHeader, "has-header", false,
 		"Indicate that the first line of data file is a header row (default false)\n"+
 			"(Note: only works for csv file type)")
@@ -532,7 +526,7 @@ func init() {
 		2. quote_char: 	character used to quote the values (default double quotes '"')
 		for eg: --file-opts "escape_char=\",quote_char=\"" or --file-opts 'escape_char=",quote_char="'`)
 
-	importDataFileCmd.Flags().MarkDeprecated("file-opts", "use --escape-char and --quote-char flags instead")
+	mustMarkFlagDeprecated(importDataFileCmd, "file-opts", "use --escape-char and --quote-char flags instead")
 
 	importDataFileCmd.Flags().StringVar(&nullString, "null-string", "",
 		`string that represents null value in the data file (default for csv: ""(empty string), for text: '\N')`)
@@ -550,14 +544,14 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 			"\tabort: immediately abort the process. (default)\n"+
 			"\tstash-and-continue: stash the errored rows to a file and continue with the import")
 
-	importDataFileCmd.Flags().MarkHidden("table-list")
-	importDataFileCmd.Flags().MarkHidden("exclude-table-list")
-	importDataFileCmd.Flags().MarkHidden("table-list-file-path")
-	importDataFileCmd.Flags().MarkHidden("exclude-table-list-file-path")
+	mustMarkFlagHidden(importDataFileCmd, "table-list")
+	mustMarkFlagHidden(importDataFileCmd, "exclude-table-list")
+	mustMarkFlagHidden(importDataFileCmd, "table-list-file-path")
+	mustMarkFlagHidden(importDataFileCmd, "exclude-table-list-file-path")
 
 	importDataFileCmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
 		"Port for Prometheus metrics server (default: 9102)")
-	importDataFileCmd.Flags().MarkHidden("prometheus-metrics-port")
+	mustMarkFlagHidden(importDataFileCmd, "prometheus-metrics-port")
 
 	importDataFileCmd.Flags().IntVar(&metricsPort, "metrics-port", 0,
 		"Port to expose Prometheus metrics on (0 disables). Serves GET /metrics.")
