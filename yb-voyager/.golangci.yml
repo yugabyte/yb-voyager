@@ -1,0 +1,107 @@
+# golangci-lint v2 configuration — the single lint entry point for this module.
+# CI runs it once per build-tag group (see .github/workflows/lint.yml); the tag
+# groups cannot be combined because test files of different tags redeclare
+# symbols (e.g. TestMain) in the same package.
+#
+# The errcheck exclude-functions list below is deliberate policy, not noise
+# suppression: an entry means "this method's error is safely ignorable at every
+# call site", with the rationale alongside. Anything not listed must handle its
+# error explicitly (check it, or `_ =` with a why-comment).
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    # TODO(lint): enable the next-wave linters, one PR each, after sweeping
+    # that linter's remaining findings (measured Aug 2026: errorlint ~15,
+    # rowserrcheck ~40, sqlclosecheck ~8). Nothing prevents enabling them
+    # today except that the gate must be green the day a linter turns on.
+    # - errorlint
+    # - rowserrcheck
+    # - sqlclosecheck
+  settings:
+    staticcheck:
+      # Mirrors staticcheck's defaults (all minus the default ST excludes), plus:
+      # -S1008:  allow explicit boolean returns.
+      # -ST1005: user-facing CLI error strings are deliberately capitalized/punctuated.
+      checks:
+        - all
+        - -ST1000
+        - -ST1003
+        - -ST1005
+        - -ST1016
+        - -ST1020
+        - -ST1021
+        - -ST1022
+        - -ST1023
+        - -S1008
+        # QF* (quickfix) checks are not shipped by standalone staticcheck
+        # 2025.1.1 at all; excluded defensively for future golangci-bundled
+        # versions. ST1000/1003/1016/1020/1021/1022/1023 above mirror the
+        # standalone default set (ST1023 verified default-off in 2025.1.1);
+        # ST1005/S1008 are the project's pre-existing opt-outs.
+        - -QF*
+    errcheck:
+      exclude-functions:
+        # Read-path/teardown closes: real failures surface via rows.Err()/Scan,
+        # which are checked; nothing actionable on close.
+        - (*database/sql.Rows).Close
+        - (*database/sql.DB).Close
+        - (*database/sql.Conn).Close
+        - (*database/sql.Stmt).Close
+        - (*github.com/jackc/pgx/v4.Conn).Close
+        - (*github.com/jackc/pgx/v5.Conn).Close
+        - (*github.com/jackc/pgx/v5/pgconn.PgConn).Close
+        # Deferred rollback-after-commit idiom: returns sql.ErrTxDone on the
+        # success path by design.
+        - (*database/sql.Tx).Rollback
+        # resp.Body and similar read-only bodies.
+        - (io.ReadCloser).Close
+        # Console report/status rendering (verified: every production use
+        # writes to tabwriter/uilive buffers or stderr); buffered errors
+        # surface at Flush, which is handled at the call sites.
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        # Console UX color printers (fatih/color, incl. the ux package aliases).
+        - (*github.com/fatih/color.Color).Print
+        - (*github.com/fatih/color.Color).Printf
+        - (*github.com/fatih/color.Color).Println
+        - (*github.com/fatih/color.Color).Fprint
+        - (*github.com/fatih/color.Color).Fprintf
+        - (*github.com/fatih/color.Color).Fprintln
+        # Documented to never return an error.
+        - (hash.Hash).Write
+        - (hash.Hash32).Write
+  exclusions:
+    rules:
+      # TEMPORARY (removed by the test-modernization PR): test files carry
+      # ~380 legacy errcheck findings, dominated by os.Setenv / os.RemoveAll
+      # patterns that will become t.Setenv / t.TempDir. Production code is
+      # fully enforced.
+      - path: _test\.go
+        linters:
+          - errcheck
+      # Shared test helpers consumed by tests of DIFFERENT build tags; under
+      # any single tag some helpers legitimately look unused, so `unused`
+      # cannot evaluate these files meaningfully in a per-tag lint run.
+      - path: cmd/importData(Integration)?TestUtils\.go
+        linters:
+          - unused
+      - path: src/testlivemigration/live_migration_test_helpers\.go
+        linters:
+          - unused
+      # golangci's staticcheck integration computes interprocedural facts
+      # differently from the standalone tool and flags these five defensive
+      # protoreflect nil-checks as SA4023 ("never true"); standalone
+      # staticcheck 2025.1.1 is clean on the identical code. Scoped to this
+      # file + check so SA4023 stays enforced everywhere else.
+      - path: src/query/queryparser/helpers_protomsg\.go
+        text: "SA4023"
+        linters:
+          - staticcheck

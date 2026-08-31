@@ -15,9 +15,9 @@ on:
       java_version:
         description: "Java version from ci-config.json"
         value: ${{ jobs.prepare-versions.outputs.java_version }}
-      staticcheck_version:
-        description: "Staticcheck version from ci-config.json"
-        value: ${{ jobs.prepare-versions.outputs.staticcheck_version }}
+      golangci_lint_version:
+        description: "golangci-lint version from ci-config.json"
+        value: ${{ jobs.prepare-versions.outputs.golangci_lint_version }}
 
 jobs:
   prepare-versions:
@@ -27,7 +27,7 @@ jobs:
       yb_latest_stable: ${{ steps.extract-versions.outputs.yb_latest_stable }}
       go_version: ${{ steps.extract-versions.outputs.go_version }}
       java_version: ${{ steps.extract-versions.outputs.java_version }}
-      staticcheck_version: ${{ steps.extract-versions.outputs.staticcheck_version }}
+      golangci_lint_version: ${{ steps.extract-versions.outputs.golangci_lint_version }}
     steps:
       - uses: actions/checkout@v4
       - name: Extracting versions from central registry
@@ -57,15 +57,15 @@ jobs:
           # Extract CI versions from ci-config.json
           go_version=$(jq -r '.versions.go' yb-voyager/versions/ci-config.json)
           java_version=$(jq -r '.versions.java' yb-voyager/versions/ci-config.json)
-          staticcheck_version=$(jq -r '.versions.staticcheck' yb-voyager/versions/ci-config.json)
+          golangci_lint_version=$(jq -r '.versions.golangci_lint' yb-voyager/versions/ci-config.json)
           
           echo "Go Version: $go_version"
           echo "Java Version: $java_version"
-          echo "Staticcheck Version: $staticcheck_version"
+          echo "golangci-lint Version: $golangci_lint_version"
           
           echo "go_version=$go_version" >> $GITHUB_OUTPUT
           echo "java_version=$java_version" >> $GITHUB_OUTPUT
-          echo "staticcheck_version=$staticcheck_version" >> $GITHUB_OUTPUT
+          echo "golangci_lint_version=$golangci_lint_version" >> $GITHUB_OUTPUT
       
       - name: Validate Go Version Consistency
         run: |

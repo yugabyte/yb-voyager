@@ -1869,9 +1869,9 @@ func startMonitoringTargetYBHealth() error {
 			displayMonitoringInformationOnTheConsole(info)
 		})
 
-		err = monitorTDBHealth.StartMonitoring()
-		//lint:ignore SA4023 StartMonitoring currently only returns on error; keep the conventional check
-		if err != nil {
+		// SA4023: StartMonitoring currently only returns on error; keep the conventional check anyway.
+		err = monitorTDBHealth.StartMonitoring() //nolint:staticcheck
+		if err != nil {                          //nolint:staticcheck
 			log.Errorf("error monitoring the target health: %v", err)
 		}
 	}()

@@ -65,7 +65,7 @@ The Go module uses build tags to separate test tiers. From `yb-voyager/`:
 
 Single test: `go test -tags unit -run TestName ./yb-voyager/cmd/...`
 
-Lint (from `yb-voyager/`), matching CI (`go.yml`): `go vet ./...`, `go vet -tags unit ./...`, `staticcheck ./...`, and `staticcheck -tags unit ./...` (pin the staticcheck version from `versions/ci-config.json`). `staticcheck.conf` disables `S1008` (explicit boolean returns) and `ST1005` (user-facing error strings are deliberately capitalized/punctuated) — when editing it, keep `"inherit"` as the first entry or every check is silently disabled. Also keep the tree `gofmt`-clean.
+Lint: `bash yb-voyager/scripts/lint.sh` runs golangci-lint over every build-tag group, exactly mirroring CI (`.github/workflows/lint.yml`); a single group is `golangci-lint run --build-tags unit ./...` from `yb-voyager/`. Config lives in `yb-voyager/.golangci.yml` (errcheck + govet + staticcheck + ineffassign + unused; the errcheck `exclude-functions` list is deliberate policy — read the comments before touching it), version pin in `versions/ci-config.json` (`golangci_lint`). `staticcheck.conf` remains for running standalone staticcheck and must stay in sync with the yaml's staticcheck checks — keep `"inherit"` as its first entry or every check is silently disabled. Keep new/edited files `gofmt`-clean (the tree still has legacy drift; a sweep is planned).
 
 End-to-end migtests are invoked outside Go: `bash migtests/scripts/run-test.sh <test-name> [env.sh]`. They build/use the installed `yb-voyager` binary and a real source DB + YugabyteDB target.
 
