@@ -235,6 +235,14 @@ string behind:
 | `guardrail_action_fallback` | `srcdb.GetYugabyteUnsupportedDatatypesDbzm(false)` and the gRPC list, for `export data from target` |
 | `reported_by_docs` | **hardcoded** (`docsUnsupportedTypes`), with the doc URL beside it — the only column that cannot be derived |
 
+A probe may pin any of the first three, plus the docs column, with the optional
+`ReportedByAssess` / `ReportedByAnalyze` / `GuardrailAction` / `ReportedByDocs` fields.
+**Empty means derive**, which is right for almost every probe. A pinned cell is rendered
+with a `[pinned by the probe, not derived]` suffix, so a stale hand-written string can
+never masquerade as a live derivation — which is the failure this generation step exists
+to remove. Only pin one when the name-based derivation is demonstrably wrong, and say why
+in `Note`.
+
 The matching semantics are copied from the product deliberately, warts included. The
 guardrail matches `pg_type.typname`, which for an array column is the **array** type's own
 name (`_xml`, not `xml`), so an array of an unsupported type is reported as *not* excluded
@@ -260,8 +268,9 @@ newer differ.
 | `mode` | `OFFLINE` / `LIVE` / `FALL-BACK` / `FALL-FORWARD` |
 | `verdict` | the vocabulary above |
 | `evidence` | the classifier's reason: the diff, the repeated import error, the warning text |
-| `source_value`, `target_value` | verbatim value on each side, when the harness recorded one |
+| `source_value`, `target_value` | verbatim value on each side, from the harness's own `PROBE-VALUES:` line (a structured field, not scraped out of the prose evidence). Pipes, newlines and tabs are escaped reversibly so a value containing one is recorded rather than rewritten |
 | `run_status` | `OK` / `INVALID` / `FLAKE` / `POISON` — **anything but `OK` must not be published** |
+| `sqlstate` | the SQLSTATE from the importer error, when there was one. `import data` failures carry the real database error (`importAbortReason`), so a diff can report "same verdict, different SQLSTATE" — the shape a fix that only *moved* the error takes |
 
 ### Reading a diff
 
@@ -287,6 +296,9 @@ IMPROVEMENTS (2)
   `SKIPPED`/`INCONCLUSIVE`. Treated as seriously as a regression: it usually means an
   extension went missing or a probe silently stopped running.
 - **COVERAGE GAINED** — newly measured.
+
+- **SAME VERDICT, DIFFERENT SQLSTATE** — the outcome did not change but the reason did.
+  Reportable, never a gate.
 
 Moves into or out of `SKIPPED`/`INCONCLUSIVE` are never reported as regressions or
 improvements: they are not product verdicts. Rows with `run_status != OK` are dropped from
@@ -357,6 +369,7 @@ directly, handle them yourself.
 | **An older installed `yb-voyager` on PATH** | Verdicts look plausible but describe someone else's build. | Build from the worktree and put it **first** on `PATH`. The script does this; `SKIP_BUILD=1` opts out. |
 | **`PG_VERSION` newer than the local `pg_dump`** | `export data` fails immediately: pg_dump refuses a newer server. | Pin `PG_VERSION` to a patch not newer than `pg_dump --version`. |
 | **Missing `DEBEZIUM_DIST_DIR`** | Live / fall-back / fall-forward cannot start. | Point it at the built Debezium server distribution. |
+| **A memory-starved host** | Every live run times out with failing controls, so whole batches are discarded — it looks exactly like a product stall. Observed at 21 MB free with 3.1 GB swapped: the Debezium JVM is starved and never reaches streaming mode. Five batches were lost to this before it was recognised. | Check free memory and swap BEFORE a live run. Verdicts from a starved host are worthless; the control gate will (correctly) mark the run `INVALID`, so do not record them. |
 | **Stale lockfiles** | Re-runs refuse to start after a killed process. | Delete `<exportDir>/.*Lockfile.lck`. |
 | **Concurrent sweeps** | Two runs fight over which database the shared container singleton points at. | Never run two sweeps at once; the tests deliberately do not call `t.Parallel()`. |
 | **Plain `postgres:17` image** | Every postgis/pgvector probe reports `SKIPPED`. | Correct behaviour, not a failure. Use `PG_VERSION=17.8-ext` for the extension image. |
@@ -389,6 +402,55 @@ go test ./src/testlivemigration/sweepreport/
 ```
 
 ---
+
+## Biggest weakness: failure is diagnosed by timeout, not by evidence
+
+**This is the main cost of running the suite, and the top thing to fix.**
+
+Every wait in the runner is *positive-signal*: it waits for the expected event counts to
+arrive, and concludes only when the clock runs out. So the suite is fast when everything
+works and pathologically slow exactly when it finds something — the cost of a run scales
+with the number of *failures*, which is backwards for a tool whose purpose is finding them.
+
+The numbers, from the constants in `datatype_sweep_probe.go`:
+
+| Situation | Cost |
+| --- | --- |
+| A healthy probe | ~50 s |
+| A failing probe, solo run | **240 s** (`sweepSoloStreamingTimeout`) |
+| A failing probe, batched run | **900 s** (`sweepStreamingTimeout`) |
+| A flaked batch, re-run before recording | ×2 on all of the above |
+| A batch poisoned by one wedged value | ~48 min, then **discarded entirely** — the control gate correctly invalidates every verdict in it |
+
+That last row is the worst of it: three quarters of an hour of container time to produce
+*nothing*, because one value wedged the channel and the controls came out broken.
+
+### The fix, for whoever picks this up
+
+**A crash-loop is identifiable in about 20 seconds, and does not need a timeout at all.**
+A wedged importer does not go quiet — it *repeats the same error* every few seconds as it
+retries the same batch. So the signal to watch for is a **repeating** error line in the
+import log, not a count that will never arrive.
+
+The machinery already exists: `mostRepeatedError(text, mustContain)` returns the most
+repeated error and its count, and `importAbortReason` already uses it. What is missing is
+using it as a **wait terminator** rather than only as post-hoc evidence:
+
+1. In `waitBounded`, poll the import log alongside the counts.
+2. Conclude early as soon as the same import-failure signature has appeared, say, three
+   times with the counts not advancing — that is a crash-loop, and the verdict is `STUCK`
+   with the repeated error as its evidence.
+3. Keep the long timeout only as the genuine last resort, for a stall that logs nothing.
+
+Expected effect: a failing probe costs ~20 s instead of 240–900 s, and a poisoned batch
+is identified and abandoned in seconds rather than after 48 minutes. That turns the
+fall-back sweep from a weekly job into something runnable on demand, which is the
+difference between this suite being used and being skipped.
+
+A second, smaller win in the same area: the poison probe currently has to be *known* in
+advance (the `Poison` field) to be kept out of a batch. With early crash-loop detection
+the runner could discover it, quarantine it, and re-run the rest of the batch without it —
+so a newly poisonous type costs one batch instead of a manual bisect.
 
 ## Exit codes
 

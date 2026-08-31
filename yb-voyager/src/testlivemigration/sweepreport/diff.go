@@ -72,10 +72,17 @@ func (c Change) String() string {
 }
 
 type DiffResult struct {
-	Regressions   []Change
-	Improvements  []Change
-	CoverageGain  []Change // newly measured, or moved out of SKIPPED/INCONCLUSIVE
-	CoverageLoss  []Change // no longer measured, or moved into SKIPPED/INCONCLUSIVE
+	Regressions  []Change
+	Improvements []Change
+	CoverageGain []Change // newly measured, or moved out of SKIPPED/INCONCLUSIVE
+	CoverageLoss []Change // no longer measured, or moved into SKIPPED/INCONCLUSIVE
+
+	// ErrorCodeChanges are pairs whose VERDICT is identical but whose SQLSTATE moved.
+	// Not a regression - the outcome is the same - but it means the type is now failing
+	// for a different reason, which is how a fix that only moved the error shows up.
+	// Reportable rather than gating.
+	ErrorCodeChanges []Change
+
 	Unchanged     int
 	SkippedOldBad int // rows in the old file whose run did not pass its gates
 	SkippedNewBad int // ditto for the new file
@@ -133,6 +140,13 @@ func Diff(old, new []Row) DiffResult {
 		}
 
 		if o.Verdict == n.Verdict {
+			if o.SQLState != n.SQLState && (o.SQLState != "" || n.SQLState != "") {
+				c := change(n, o.Verdict, n.Verdict, n.Evidence)
+				c.Old, c.New = orDash(o.SQLState), orDash(n.SQLState)
+				c.Detail = "verdict unchanged (" + n.Verdict + "); " + c.Detail
+				res.ErrorCodeChanges = append(res.ErrorCodeChanges, c)
+				continue
+			}
 			res.Unchanged++
 			continue
 		}
@@ -168,6 +182,13 @@ func change(r Row, oldV, newV, detail string) Change {
 	}
 }
 
+func orDash(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return s
+}
+
 func trimTo(s string, n int) string {
 	s = strings.Join(strings.Fields(s), " ")
 	if len(s) <= n {
@@ -197,6 +218,7 @@ func PrintDiff(w io.Writer, d DiffResult, oldPath, newPath string) {
 	section("IMPROVEMENTS", d.Improvements)
 	section("COVERAGE LOST", d.CoverageLoss)
 	section("COVERAGE GAINED", d.CoverageGain)
+	section("SAME VERDICT, DIFFERENT SQLSTATE", d.ErrorCodeChanges)
 
 	fmt.Fprintf(w, "unchanged: %d\n", d.Unchanged)
 	if d.SkippedOldBad > 0 || d.SkippedNewBad > 0 {

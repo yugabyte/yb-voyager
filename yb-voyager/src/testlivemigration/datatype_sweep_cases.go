@@ -1522,6 +1522,10 @@ func sweepBatches() []sweepBatch {
 		{Name: "misc", Probes: miscTypeProbes()},
 		{Name: "values", Probes: valueEdgeProbes()},
 		{Name: "postgis", Probes: postgisProbes()},
+		// The PostGIS/raster/topology internal types, kept in their own batch so the
+		// report renders them as one collapsible block rather than 17 rows of noise.
+		// See datatype_sweep_cases_postgis_internal.go.
+		{Name: "postgis-internal", Probes: postgisInternalProbes()},
 		{Name: "arraydelim", Probes: arrayDelimiterProbes()},
 		{Name: "pgvector", Probes: pgvectorProbes()},
 	}

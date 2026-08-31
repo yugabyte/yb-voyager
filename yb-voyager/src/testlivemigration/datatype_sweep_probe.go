@@ -251,6 +251,24 @@ type datatypeProbe struct {
 	// op, does not force these types out of the audit entirely.
 	NullOnly bool
 
+	// ---- Reporting-layer OVERRIDES ------------------------------------------------
+	//
+	// The published report's per-type columns are DERIVED, not typed in: see
+	// datatype_report_meta.go, which computes them from voyager's own variables
+	// (srcdb.PostgresUnsupportedDataTypes and friends, plus the runtime typtype='r'
+	// filter) so that editing one of those lists changes the report on the next run.
+	//
+	// These four exist only for the cases where the derivation cannot be right, because
+	// it works from a type NAME and some behaviour is not name-driven. EMPTY MEANS
+	// DERIVE, which is the correct value for almost every probe. Setting one pins that
+	// cell to a hand-written string, so it can go stale exactly like the hand-maintained
+	// table this suite replaced - only do it when the derivation is demonstrably wrong,
+	// and say why in Note.
+	ReportedByAssess  string
+	ReportedByAnalyze string
+	GuardrailAction   string
+	ReportedByDocs    string
+
 	// ExpectVerdict, when set, is enforced after the run as a harness sanity check
 	// (PROBE_SPEC.md §"Known-answer checks"). Used by the int/text controls.
 	ExpectVerdict string
@@ -500,6 +518,17 @@ type probeObservation struct {
 	// destSample is the verbatim destination text of the value under test, recorded
 	// only for probes with RecordDestValue.
 	destSample string
+
+	// srcValue and dstValue are the verbatim baseline-row texts on each side, recorded
+	// for EVERY probe rather than only the RecordDestValue ones, and emitted on their own
+	// PROBE-VALUES line. They exist so the audit tooling reads the two values it needs as
+	// fields instead of regex-scraping them back out of the prose detail - the detail is
+	// for a human, and its wording is free to change.
+	//
+	// Only the FORWARD direction (source -> target) is recorded, and a later phase
+	// overwrites an earlier one, so these are "what the target ended up holding".
+	srcValue string
+	dstValue string
 
 	runAbort string
 }
@@ -1144,6 +1173,12 @@ func (r *sweepRun) compareInto(from, to dbSide, phase comparePhase) {
 		if p.RecordDestValue && dstErr == nil {
 			o.destSample = sampleValues(src, dst)
 		}
+		// Structured values for the PROBE-VALUES line. Forward direction only: in
+		// FALL-BACK/FALL-FORWARD compareInto is also called with from=target, and
+		// labelling the target's own value "source" would invert the report's columns.
+		if from == sideSource && srcErr == nil && dstErr == nil {
+			o.srcValue, o.dstValue = baselineValues(src, dst)
+		}
 		if verdict == "" {
 			continue
 		}
@@ -1184,6 +1219,35 @@ func rowLabel(id int) string {
 	default:
 		return "snapshot"
 	}
+}
+
+// baselineValues returns the raw source and destination text of the value under test for
+// the baseline row, using the same vocabulary as sampleValues ("NULL" for a SQL NULL,
+// "<row absent>" for a row that is not there) so a reader of either does not have to
+// learn two conventions.
+//
+// Unlike sampleValues this returns the two texts UNQUOTED and separate, because they are
+// destined for their own fields on the PROBE-VALUES line rather than for prose.
+func baselineValues(src, dst map[int]probeRow) (string, string) {
+	render := func(m map[int]probeRow, id int) string {
+		row, ok := m[id]
+		if !ok {
+			return "<row absent>"
+		}
+		if !row.value.Valid {
+			return "NULL"
+		}
+		return row.value.String
+	}
+	for _, id := range []int{rowBaseline, revBaseline} {
+		_, inSrc := src[id]
+		_, inDst := dst[id]
+		if !inSrc && !inDst {
+			continue
+		}
+		return render(src, id), render(dst, id)
+	}
+	return "", ""
 }
 
 // sampleValues renders the verbatim source and destination text of the value under test
@@ -1861,12 +1925,23 @@ func (r *sweepRun) emitAll() {
 
 	inconclusive := 0
 	for _, p := range r.probes {
-		verdict, detail := decideVerdict(r.mode, *r.observe(p))
+		o := r.observe(p)
+		verdict, detail := decideVerdict(r.mode, *o)
 		if p.Note != "" {
 			detail = detail + " [" + p.Note + "]"
 		}
 		fmt.Printf("PROBE-RESULT: %s | %s | %s | %s | %s\n",
 			p.ID, p.TypeName, r.mode, verdict, sanitizeDetail(detail))
+
+		// The two values as FIELDS, on their own line, so the audit tooling never has to
+		// parse them back out of the human-readable detail. Emitted only when the run
+		// actually read both sides; an absent line means "not measured", which is a
+		// different statement from "measured and empty".
+		if o.srcValue != "" || o.dstValue != "" {
+			fmt.Printf("PROBE-VALUES: %s | %s | %s | %s\n",
+				p.ID, r.mode, sanitizeValue(o.srcValue), sanitizeValue(o.dstValue))
+		}
+
 		if verdict == verdictInconclusive {
 			inconclusive++
 		}
@@ -1918,6 +1993,24 @@ func (r *sweepRun) emitAll() {
 		fmt.Printf("PROBE-RUN-FLAKE: %s | %s | %d inconclusive | %s\n",
 			r.batch, r.mode, inconclusive, reason)
 	}
+}
+
+// sanitizeValue makes a VALUE safe for a one-line, pipe-separated field without
+// corrupting it.
+//
+// sanitizeDetail rewrites "|" to "/" and collapses runs of whitespace, which is fine for
+// prose but not for a value: a text probe may legitimately contain a pipe, a newline or a
+// run of spaces, and silently rewriting those would falsify the very bytes the field
+// exists to record. So the structural characters are escaped REVERSIBLY instead.
+func sanitizeValue(s string) string {
+	s = strings.NewReplacer(
+		`\`, `\\`,
+		"|", `\x7c`,
+		"\n", `\n`,
+		"\r", `\r`,
+		"\t", `\t`,
+	).Replace(s)
+	return truncate(s, 400)
 }
 
 // sanitizeDetail keeps the detail field on one line and free of the field separator.

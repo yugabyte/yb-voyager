@@ -123,19 +123,22 @@ func buildProbeCatalog() []probeCatalogEntry {
 		assess, analyze := voyagerSchemaReporting(base, kind)
 
 		entries = append(entries, probeCatalogEntry{
-			ProbeID:                 p.ID,
-			TypeName:                p.TypeName,
-			Group:                   groups[p.ID],
-			ColumnDDL:               p.ColumnDDL,
-			BaseTypeName:            base,
-			Kind:                    kind,
-			Extensions:              p.Extensions,
-			Poison:                  p.Poison,
-			ReportedByAssess:        assess,
-			ReportedByAnalyze:       analyze,
-			GuardrailAction:         exportGuardrailAction(base, kind),
+			ProbeID:      p.ID,
+			TypeName:     p.TypeName,
+			Group:        groups[p.ID],
+			ColumnDDL:    p.ColumnDDL,
+			BaseTypeName: base,
+			Kind:         kind,
+			Extensions:   p.Extensions,
+			Poison:       p.Poison,
+			// Derived unless the probe pins the cell. An empty override field means
+			// "derive", which is what almost every probe wants; see the field comments
+			// on datatypeProbe.
+			ReportedByAssess:        orDerived(p.ReportedByAssess, assess),
+			ReportedByAnalyze:       orDerived(p.ReportedByAnalyze, analyze),
+			GuardrailAction:         orDerived(p.GuardrailAction, exportGuardrailAction(base, kind)),
 			GuardrailActionFallback: fallbackGuardrailAction(base, kind),
-			ReportedByDocs:          docsMention(base, p),
+			ReportedByDocs:          orDerived(p.ReportedByDocs, docsMention(base, p)),
 			Note:                    catalogNote(p),
 		})
 	}
@@ -146,6 +149,17 @@ func buildProbeCatalog() []probeCatalogEntry {
 		return entries[i].ProbeID < entries[j].ProbeID
 	})
 	return entries
+}
+
+// orDerived prefers a probe's hand-written override, falling back to the derived value.
+// The override is marked in the report so a reader can tell a pinned cell from a computed
+// one - otherwise a stale hand-written string is indistinguishable from a live derivation,
+// which is the failure this whole generation step exists to remove.
+func orDerived(override, derived string) string {
+	if strings.TrimSpace(override) == "" {
+		return derived
+	}
+	return override + " [pinned by the probe, not derived]"
 }
 
 // probeGroups maps every probe id to the group the report renders it under: its batch

@@ -108,6 +108,88 @@ func TestParseLogPrefersCatalogCategory(t *testing.T) {
 	}
 }
 
+// TestParseLogPrefersStructuredValues pins that the PROBE-VALUES line wins over the
+// regex scrape of the prose detail, and that the escaping survives the round trip.
+func TestParseLogPrefersStructuredValues(t *testing.T) {
+	log := `=== RUN   TestDatatypeSweepLive/core
+PROBE-RESULT: CORE-001 | text | LIVE | SILENT_WRONG | mismatch; verbatim: id=1 source="from-the-prose" destination="also-prose"
+PROBE-VALUES: CORE-001 | LIVE | a\x7cb | c\nd
+PROBE-RESULT: CORE-002 | int | LIVE | SILENT_WRONG | mismatch; verbatim: id=1 source="only-prose" destination=NULL
+`
+	rows, err := ParseLog(strings.NewReader(log), RunMeta{}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog: %v", err)
+	}
+	byKey := map[string]Row{}
+	for _, r := range rows {
+		byKey[r.Key()] = r
+	}
+
+	got := byKey["CORE-001|LIVE"]
+	if got.SourceValue != "a|b" {
+		t.Errorf("source = %q, want the unescaped %q from PROBE-VALUES, not the prose", got.SourceValue, "a|b")
+	}
+	if got.TargetValue != "c\nd" {
+		t.Errorf("target = %q, want the unescaped newline from PROBE-VALUES", got.TargetValue)
+	}
+
+	// Without a PROBE-VALUES line the prose scrape is still the fallback.
+	if fb := byKey["CORE-002|LIVE"]; fb.SourceValue != "only-prose" || fb.TargetValue != "NULL" {
+		t.Errorf("fallback scrape broke: source=%q target=%q", fb.SourceValue, fb.TargetValue)
+	}
+}
+
+// TestUnescapeValueIsAFaithfulInverse is the property that matters: whatever the harness
+// writes, the collector must read back byte-for-byte. The escaping exists so that a value
+// containing a pipe is recorded rather than rewritten.
+func TestUnescapeValueIsAFaithfulInverse(t *testing.T) {
+	// sanitizeValue in the harness, reproduced here so the test states the contract
+	// rather than importing across the build tag.
+	sanitize := func(s string) string {
+		return strings.NewReplacer(
+			`\`, `\\`,
+			"|", `\x7c`,
+			"\n", `\n`,
+			"\r", `\r`,
+			"\t", `\t`,
+		).Replace(s)
+	}
+
+	for _, original := range []string{
+		"plain",
+		"a|b",
+		"line1\nline2",
+		"tab\there",
+		`literal backslash \ here`,
+		// The adversarial one: text that already looks like the pipe escape. A decoder
+		// using chained replacements turns this into "a|b".
+		`a\x7cb`,
+		`\\x7c`,
+		`trailing backslash \`,
+		"",
+		"{\"k\": \"v|w\"}",
+	} {
+		if got := unescapeValue(sanitize(original)); got != original {
+			t.Errorf("round trip changed the value:\n original %q\n escaped  %q\n decoded  %q",
+				original, sanitize(original), got)
+		}
+	}
+}
+
+func TestSQLStateExtraction(t *testing.T) {
+	cases := map[string]string{
+		`import data failed; importer error (x14): ERROR: cannot accept a value of type gtsvector (SQLSTATE 0A000)`: "0A000",
+		`ERROR: invalid input syntax for type integer (22P02)`:                                                      "22P02",
+		`snapshot source->target: [insert] id=6 row absent`:                                                         "",
+		`SQLSTATE: 42883 function does not exist`:                                                                   "42883",
+	}
+	for detail, want := range cases {
+		if got := sqlStateOf(detail); got != want {
+			t.Errorf("sqlStateOf(%q) = %q, want %q", detail, got, want)
+		}
+	}
+}
+
 func TestCSVRoundTrip(t *testing.T) {
 	rows := []Row{
 		{ProbeID: "A-001", TypeName: "int", Mode: "LIVE", Verdict: "WORKS", Evidence: "fine", RunStatus: statusOK},
@@ -178,6 +260,34 @@ func TestDiffClassifiesChanges(t *testing.T) {
 	PrintDiff(&buf, d, "old.csv", "new.csv")
 	if !strings.Contains(buf.String(), "REGRESSIONS (1)") {
 		t.Errorf("PrintDiff output missing the regression section:\n%s", buf.String())
+	}
+}
+
+// TestDiffReportsSQLStateMoveWithoutCallingItARegression: the outcome is the same, but
+// the type is failing for a different reason. That is reportable and must not be folded
+// into the unchanged count, nor gate a release.
+func TestDiffReportsSQLStateMoveWithoutCallingItARegression(t *testing.T) {
+	old := []Row{
+		{ProbeID: "P-1", Mode: "OFFLINE", Verdict: "BLOCKS", SQLState: "0A000", RunStatus: statusOK},
+		{ProbeID: "P-2", Mode: "OFFLINE", Verdict: "BLOCKS", SQLState: "0A000", RunStatus: statusOK},
+	}
+	nw := []Row{
+		{ProbeID: "P-1", Mode: "OFFLINE", Verdict: "BLOCKS", SQLState: "22P02", RunStatus: statusOK},
+		{ProbeID: "P-2", Mode: "OFFLINE", Verdict: "BLOCKS", SQLState: "0A000", RunStatus: statusOK},
+	}
+
+	d := Diff(old, nw)
+	if len(d.ErrorCodeChanges) != 1 || d.ErrorCodeChanges[0].ProbeID != "P-1" {
+		t.Fatalf("error-code changes = %v, want exactly P-1", d.ErrorCodeChanges)
+	}
+	if got := d.ErrorCodeChanges[0]; got.Old != "0A000" || got.New != "22P02" {
+		t.Errorf("change should carry the two SQLSTATEs, got %s -> %s", got.Old, got.New)
+	}
+	if d.Unchanged != 1 {
+		t.Errorf("unchanged = %d, want 1 (only P-2)", d.Unchanged)
+	}
+	if len(d.Regressions) != 0 || d.HasRegressions() {
+		t.Error("a SQLSTATE move with an unchanged verdict must not gate a release")
 	}
 }
 

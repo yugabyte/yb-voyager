@@ -43,25 +43,9 @@ them into an exclusion list.
 They are grouped as one batch, "postgis-internal", so the report renders them as a single
 collapsible block instead of 17 lines of noise.
 
---------------------------------------------------------------------------------
-PENDING - these probes are NOT REGISTERED YET, and cannot be until two things land in
-datatype_sweep_probe.go / datatype_sweep_cases.go (both currently held by another agent):
-
- 1. A `NullOnly bool` field on datatypeProbe, and an exemption for it in
-    assertUniqueProbeIDs' "InitialValue == AltValue" check. A NULL-only column has
-    exactly one possible value, so demanding two distinct ones is unsatisfiable. The
-    field should also trim Ops to the set that means anything for such a column
-    (opInsertRow, opUpdateOther, opDeleteRow - not opUpdateSelf/opNullToValue/opValueToNull).
-
- 2. One line in sweepBatches():
-
-    {Name: "postgis-internal", Probes: postgisInternalProbes()},
-
-Until (1) exists, registering this batch fails loudly and correctly with
-"probe POSTGIS-INT-001 has InitialValue == AltValue, so its update op proves nothing".
-That is the intended fail-loud state, not something to work around by inventing a second
-literal that happens to differ textually while meaning the same thing.
---------------------------------------------------------------------------------
+Registered as the "postgis-internal" batch in sweepBatches(). Every probe sets NullOnly,
+which exempts it from the "InitialValue must differ from AltValue" guard: a NULL-only
+column has exactly one possible value, so demanding two distinct ones is unsatisfiable.
 
 Why NULL-only, and how to upgrade them:
 
@@ -71,12 +55,18 @@ composites it was partly an artifact of the guard's generic literal list, which 
 literal of the right arity; that is now fixed (compositeAllNullLiteral builds the
 all-NULL-fields row "(,)" for any arity, which is a genuine non-NULL value).
 
-So: re-run the guard on the -ext image, and any of these that now report "full value
-probe" come back with the exact literal that was accepted. Swap that literal in as
-InitialValue, pick a second distinct one, and drop NullOnly for that probe. Deliberately
-NOT guessing the field lists of geometry_dump, summarystats and friends here - a wrong
-guess makes the probe report SKIPPED("initial data rejected"), which is a case-table bug
-wearing the costume of a product finding.
+So the upgrade path is mechanical and NOT yet walked: re-run the coverage guard on the
+-ext image, and any of these that now report "full value probe" come back with the exact
+literal that was accepted. Swap that literal in as InitialValue, pick a second distinct
+one, and drop NullOnly for that probe.
+
+Deliberately NOT guessing the field lists of geometry_dump, summarystats and friends here.
+A wrong guess makes the probe report SKIPPED("initial data rejected"), which is a
+case-table bug wearing the costume of a product finding - and NullOnly is documented as
+something a probe may only claim after the literal has actually been refused at run time.
+For box2df and gidx that refusal is on record; for the other fifteen it is the guard's
+generic-literal verdict, which the arity fix may well overturn. Until that re-run happens
+these fifteen are honest but provisional, and the Note on each says so.
 */
 
 // postgisInternalProbes covers the PostGIS/raster/topology internal types.
@@ -94,8 +84,19 @@ func postgisInternalProbes() []datatypeProbe {
 			ColumnDDL:    ddl,
 			InitialValue: "NULL::" + ddl,
 			AltValue:     "NULL::" + ddl,
+			NullOnly:     true,
 			Note:         note,
 		}
+	}
+
+	// provisional wraps nullOnly for the types whose NULL-only status rests on the
+	// coverage guard's GENERIC literal list rather than on a recorded refusal. The
+	// arity-derived composite literal may well overturn it, so the caveat travels with
+	// the probe into the report instead of living only in this file's header.
+	provisional := func(id, name, ext, ddl, note string) datatypeProbe {
+		return nullOnly(id, name, ext, ddl, note+
+			"; PROVISIONAL NULL-only - no literal was accepted by the coverage guard's generic list, "+
+			"re-check with the arity-derived composite literal and upgrade to a full-value probe if one is accepted")
 	}
 
 	return []datatypeProbe{
@@ -108,44 +109,44 @@ func postgisInternalProbes() []datatypeProbe {
 		// --- spheroid: has an input function, but of a shape the guard's generic
 		// --- literal list does not cover. Left NULL-only until the guard reports the
 		// --- literal it accepts.
-		nullOnly("POSTGIS-INT-003", "spheroid", "postgis", "spheroid",
+		provisional("POSTGIS-INT-003", "spheroid", "postgis", "spheroid",
 			"parameterises geodetic calculations; the guard reported NULL-only - re-check, spheroid does have an input function of the form SPHEROID[\"name\",a,rf]"),
 
 		// --- PostGIS composite return types ---------------------------------------
-		nullOnly("POSTGIS-INT-004", "geometry_dump", "postgis", "geometry_dump",
+		provisional("POSTGIS-INT-004", "geometry_dump", "postgis", "geometry_dump",
 			"composite returned by ST_Dump; a user can persist one in a column"),
-		nullOnly("POSTGIS-INT-005", "geomval", "postgis", "geomval",
+		provisional("POSTGIS-INT-005", "geomval", "postgis", "geomval",
 			"composite (geometry, value) returned by the raster/vector conversions"),
-		nullOnly("POSTGIS-INT-006", "valid_detail", "postgis", "valid_detail",
+		provisional("POSTGIS-INT-006", "valid_detail", "postgis", "valid_detail",
 			"composite returned by ST_IsValidDetail"),
 
 		// --- postgis_raster composite types ----------------------------------------
-		nullOnly("POSTGIS-INT-007", "addbandarg", "postgis_raster", "addbandarg",
+		provisional("POSTGIS-INT-007", "addbandarg", "postgis_raster", "addbandarg",
 			"composite argument type for ST_AddBand"),
-		nullOnly("POSTGIS-INT-008", "agg_count", "postgis_raster", "agg_count",
+		provisional("POSTGIS-INT-008", "agg_count", "postgis_raster", "agg_count",
 			"composite used by the raster aggregate machinery"),
-		nullOnly("POSTGIS-INT-009", "agg_samealignment", "postgis_raster", "agg_samealignment",
+		provisional("POSTGIS-INT-009", "agg_samealignment", "postgis_raster", "agg_samealignment",
 			"composite used by the raster alignment aggregate"),
-		nullOnly("POSTGIS-INT-010", "rastbandarg", "postgis_raster", "rastbandarg",
+		provisional("POSTGIS-INT-010", "rastbandarg", "postgis_raster", "rastbandarg",
 			"composite (raster, band index) argument type"),
-		nullOnly("POSTGIS-INT-011", "reclassarg", "postgis_raster", "reclassarg",
+		provisional("POSTGIS-INT-011", "reclassarg", "postgis_raster", "reclassarg",
 			"composite argument type for ST_Reclass"),
-		nullOnly("POSTGIS-INT-012", "summarystats", "postgis_raster", "summarystats",
+		provisional("POSTGIS-INT-012", "summarystats", "postgis_raster", "summarystats",
 			"composite returned by ST_SummaryStats; a plausible thing to persist"),
-		nullOnly("POSTGIS-INT-013", "unionarg", "postgis_raster", "unionarg",
+		provisional("POSTGIS-INT-013", "unionarg", "postgis_raster", "unionarg",
 			"composite argument type for ST_Union"),
 
 		// --- postgis_topology types ------------------------------------------------
-		nullOnly("POSTGIS-INT-014", "topology.getfaceedges_returntype", "postgis_topology",
+		provisional("POSTGIS-INT-014", "topology.getfaceedges_returntype", "postgis_topology",
 			"topology.getfaceedges_returntype",
 			"composite returned by topology.GetFaceEdges"),
-		nullOnly("POSTGIS-INT-015", "topology.topoelement", "postgis_topology",
+		provisional("POSTGIS-INT-015", "topology.topoelement", "postgis_topology",
 			"topology.topoelement",
 			"DOMAIN over integer[] with a CHECK; the domain form is exactly the shape that has bypassed name-equality guardrails before"),
-		nullOnly("POSTGIS-INT-016", "topology.topoelementarray", "postgis_topology",
+		provisional("POSTGIS-INT-016", "topology.topoelementarray", "postgis_topology",
 			"topology.topoelementarray",
 			"DOMAIN over a two-dimensional integer[]"),
-		nullOnly("POSTGIS-INT-017", "topology.validatetopology_returntype", "postgis_topology",
+		provisional("POSTGIS-INT-017", "topology.validatetopology_returntype", "postgis_topology",
 			"topology.validatetopology_returntype",
 			"composite returned by topology.ValidateTopology"),
 	}

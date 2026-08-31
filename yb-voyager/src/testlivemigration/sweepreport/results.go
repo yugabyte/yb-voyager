@@ -63,6 +63,9 @@ var csvHeader = []string{
 	"source_value",
 	"target_value",
 	"run_status",
+	// Appended after the first release of this format. Readers look columns up by name,
+	// so an older CSV simply reports "" here rather than failing to parse.
+	"sqlstate",
 }
 
 // Run status values. Anything other than statusOK means the run that produced the row
@@ -89,6 +92,13 @@ type Row struct {
 	SourceValue   string `json:"source_value"`
 	TargetValue   string `json:"target_value"`
 	RunStatus     string `json:"run_status"`
+
+	// SQLState is the five-character SQLSTATE lifted out of the evidence when the
+	// importer recorded one. sweepRun.importAbortReason now quotes the real database
+	// error rather than a bare exit status, so a genuine product stall carries its code.
+	// It gets its own column because "same verdict, different SQLSTATE" between two
+	// releases is a real change that a prose diff of the evidence would bury.
+	SQLState string `json:"sqlstate,omitempty"`
 }
 
 // Key identifies a row across runs. A results file holds at most one row per key.
@@ -98,7 +108,7 @@ func (r Row) record() []string {
 	return []string{
 		r.RunTimestamp, r.VoyagerCommit, r.PGVersion, r.YBVersion,
 		r.ProbeID, r.TypeName, r.Category, r.Mode, r.Verdict,
-		r.Evidence, r.SourceValue, r.TargetValue, r.RunStatus,
+		r.Evidence, r.SourceValue, r.TargetValue, r.RunStatus, r.SQLState,
 	}
 }
 
@@ -125,6 +135,7 @@ func rowFromRecord(header []string, rec []string) Row {
 		SourceValue:   get("source_value"),
 		TargetValue:   get("target_value"),
 		RunStatus:     get("run_status"),
+		SQLState:      get("sqlstate"),
 	}
 }
 
@@ -149,8 +160,15 @@ var (
 	// probe lines that follow. The sweep never calls t.Parallel(), so subtests do not
 	// interleave and "most recent RUN line wins" is exact.
 	goTestRunRe = regexp.MustCompile(`=== RUN\s+TestDatatypeSweep(\w+)/([\w.\-]+)`)
-	// Values the harness embeds in the detail for the baseline row.
+	// PROBE-VALUES: <id> | <mode> | <source> | <destination>
+	// The structured form, preferred over verbatimRe below.
+	probeValuesRe = regexp.MustCompile(`PROBE-VALUES:\s*(.*)$`)
+	// Values the harness embeds in the PROSE detail for the baseline row. This is the
+	// FALLBACK, kept so logs from before the PROBE-VALUES line still yield values.
 	verbatimRe = regexp.MustCompile(`id=\d+ source=(NULL|<row absent>|"(?:[^"]*)") destination=(NULL|<row absent>|"(?:[^"]*)")`)
+	// A PostgreSQL SQLSTATE as it appears in an importer error, e.g. "(0A000)" or
+	// "SQLSTATE 22P02". Five characters, digits and upper-case letters, first a digit.
+	sqlStateRe = regexp.MustCompile(`(?:SQLSTATE:?\s*|\()([0-9][0-9A-Z]{4})\b`)
 )
 
 // ParseLog turns a captured `go test` log into rows.
@@ -197,6 +215,26 @@ func ParseLog(r io.Reader, meta RunMeta, categoryFor func(probeID string) string
 			continue
 		}
 
+		// The structured values line. It follows its own PROBE-RESULT line, so the row
+		// is already in `rows` and is patched in place.
+		if m := probeValuesRe.FindStringSubmatch(line); m != nil {
+			f := splitPipes(m[1])
+			if len(f) < 4 {
+				return nil, fmt.Errorf("malformed PROBE-VALUES line (want 4 pipe-separated fields): %q", line)
+			}
+			id, mode := f[0], f[1]
+			if mode == "" {
+				mode = curMode
+			}
+			for i := range rows {
+				if rows[i].ProbeID == id && rows[i].Mode == mode {
+					rows[i].SourceValue = unescapeValue(f[2])
+					rows[i].TargetValue = unescapeValue(f[3])
+				}
+			}
+			continue
+		}
+
 		m := probeResultRe.FindStringSubmatch(line)
 		if m == nil {
 			continue
@@ -224,6 +262,7 @@ func ParseLog(r io.Reader, meta RunMeta, categoryFor func(probeID string) string
 			SourceValue:   src,
 			TargetValue:   dst,
 			RunStatus:     statusOK,
+			SQLState:      sqlStateOf(detail),
 		}
 		if categoryFor != nil {
 			row.Category = categoryFor(row.ProbeID)
@@ -285,6 +324,59 @@ func verbatimValues(detail string) (string, string) {
 		return "", ""
 	}
 	return strings.Trim(m[1], `"`), strings.Trim(m[2], `"`)
+}
+
+// unescapeValue reverses sanitizeValue in the harness, which escapes rather than rewrites
+// the structural characters so a value containing a pipe or a newline survives the round
+// trip byte-for-byte.
+//
+// This has to be a single left-to-right scan, not chained replacements. The harness
+// escapes the backslash first, so a value that literally contains `\x7c` is emitted as
+// `\\x7c` - and any decoder that looks for `\x7c` anywhere in the string finds it at
+// offset 1 and turns a literal backslash-x-7-c into a pipe. Scanning consumes the
+// backslash escape before it can be misread as the start of another one.
+func unescapeValue(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); {
+		if s[i] != '\\' {
+			b.WriteByte(s[i])
+			i++
+			continue
+		}
+		switch {
+		case strings.HasPrefix(s[i:], `\\`):
+			b.WriteByte('\\')
+			i += 2
+		case strings.HasPrefix(s[i:], `\x7c`):
+			b.WriteByte('|')
+			i += 4
+		case strings.HasPrefix(s[i:], `\n`):
+			b.WriteByte('\n')
+			i += 2
+		case strings.HasPrefix(s[i:], `\r`):
+			b.WriteByte('\r')
+			i += 2
+		case strings.HasPrefix(s[i:], `\t`):
+			b.WriteByte('\t')
+			i += 2
+		default:
+			// A lone backslash the harness did not write. Pass it through rather than
+			// guessing, so an unknown escape is visible instead of silently eaten.
+			b.WriteByte('\\')
+			i++
+		}
+	}
+	return b.String()
+}
+
+// sqlStateOf lifts a SQLSTATE out of the evidence, or "" when there is none.
+func sqlStateOf(detail string) string {
+	m := sqlStateRe.FindStringSubmatch(detail)
+	if m == nil {
+		return ""
+	}
+	return m[1]
 }
 
 // dedupe keeps the LAST row for a key. A re-run of a batch inside the same log (the
