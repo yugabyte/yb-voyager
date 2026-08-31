@@ -77,7 +77,7 @@ func (reg *AttributeNameRegistry) QuoteAttributeName(tableNameTup sqlname.NameTu
 		reg.attrNames.Put(tableNameTup, targetColumns)
 	}
 	reg.mu.Unlock()
-	c, err := reg.findBestMatchingColumnName(columnName, targetColumns)
+	c, err := reg.FindBestMatchingColumnName(columnName, targetColumns)
 	if err != nil {
 		return "", goerrors.Errorf("find best matching column name for %q in table %s: %w", columnName, tableNameTup, err)
 	}
@@ -100,7 +100,7 @@ func (reg *AttributeNameRegistry) QuoteAttributeNames(tableNameTup sqlname.NameT
 	return result, nil
 }
 
-func (reg *AttributeNameRegistry) findBestMatchingColumnName(colName string, targetColumns []string) (string, error) {
+func (reg *AttributeNameRegistry) FindBestMatchingColumnName(colName string, targetColumns []string) (string, error) {
 	if colName[0] == '"' && colName[len(colName)-1] == '"' {
 		colName = colName[1 : len(colName)-1]
 	}

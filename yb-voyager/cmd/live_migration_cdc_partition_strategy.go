@@ -466,6 +466,7 @@ func getExpressionUniqueIndexTables(tableNames []sqlname.NameTuple) ([]sqlname.N
 // custom partition key (see cdc_partition_key_followups.md, Follow-up 1):
 //   - hard-fail if any custom key column does not exist on the table, so misconfiguration is
 //     caught up front instead of erroring per-event in hashEvent, and
+//
 // It queries the target DB, so callers should only invoke it on the first import (not resume).
 func validateCustomPartitionKeyTables(tableToPartitionKeyOverrideMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride]) error {
 	var customTables []sqlname.NameTuple
@@ -481,6 +482,7 @@ func validateCustomPartitionKeyTables(tableToPartitionKeyOverrideMap *utils.Stru
 	if len(customTables) == 0 {
 		return nil
 	}
+	attributeNameRegistry := tgtdb.NewAttributeNameRegistry(tdb, &tconf)
 
 	// every custom key column must exist on the table.
 	for _, t := range customTables {
@@ -489,20 +491,27 @@ func validateCustomPartitionKeyTables(tableToPartitionKeyOverrideMap *utils.Stru
 		if err != nil {
 			return fmt.Errorf("error getting columns of table %s for custom cdc-partition-key validation: %w", t.ForOutput(), err)
 		}
-		columnSet := make(map[string]bool, len(tableColumns))
-		for _, c := range tableColumns {
-			columnSet[c] = true
-		}
+		// columnSet := make(map[string]bool, len(tableColumns))
+		// for _, c := range tableColumns {
+		// 	columnSet[c] = true
+		// }
+		overrideColumns := make([]string, 0, len(override.Columns))
 		var missing []string
 		for _, c := range override.Columns {
-			if !columnSet[c] {
+			bestMatchingColumnName, err := attributeNameRegistry.FindBestMatchingColumnName(c, tableColumns)
+			if err != nil {
 				missing = append(missing, c)
+				continue
 			}
+			overrideColumns = append(overrideColumns, bestMatchingColumnName)
 		}
 		if len(missing) > 0 {
 			sort.Strings(missing)
 			sort.Strings(tableColumns)
 			return goerrors.Errorf("cdc-partition-key-overrides: custom key column(s) '%v' do not exist on table '%s' (available columns: %v)", missing, t.ForOutput(), tableColumns)
+		} else {
+			override.Columns = overrideColumns
+			tableToPartitionKeyOverrideMap.Put(t, override)
 		}
 	}
 	return nil
