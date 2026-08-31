@@ -1318,8 +1318,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 }
 
 func postSnapshotImportProcessing(msr *metadb.MigrationStatusRecord, importTableList []sqlname.NameTuple) error {
-	var err error
-	err = restoreSequencesInOfflineMigration(msr, importTableList)
+	err := restoreSequencesInOfflineMigration(msr, importTableList)
 	if err != nil {
 		return goerrors.Errorf("failed to restore sequences: %s", err)
 	}
@@ -1585,10 +1584,7 @@ func waitIfNoBatchAvailableForAllTasks(taskPicker FileTaskPicker, taskImporters 
 	if allTasksBatchNotAvailable {
 		log.Infof("No batches available for all in-progress tasks. Waiting for batch production.")
 		time.Sleep(100 * time.Millisecond)
-		return
 	}
-
-	return
 }
 
 func waitIfAllBatchesSubmittedForAllTasks(taskPicker FileTaskPicker, taskImporters map[int]*FileTaskImporter) {
@@ -1615,10 +1611,7 @@ func waitIfAllBatchesSubmittedForAllTasks(taskPicker FileTaskPicker, taskImporte
 	if allTasksAllBatchesSubmitted {
 		log.Infof("All batches submitted for all in-progress tasks. Waiting for import completion.")
 		time.Sleep(100 * time.Millisecond)
-		return
 	}
-
-	return
 }
 
 /*
@@ -1740,11 +1733,8 @@ func setupWorkerPoolAndQueue(maxParallelConns int, maxColocatedBatchesInProgress
 		colocatedBatchImportQueueConsumer := func() {
 			// just read from channel and submit to the worker pool.
 			// worker pool has a max size of maxColocatedBatchesInProgress, so it will block if all workers are busy.
-			for {
-				select {
-				case f := <-colocatedBatchImportQueue:
-					colocatedBatchImportPool.Go(f)
-				}
+			for f := range colocatedBatchImportQueue {
+				colocatedBatchImportPool.Go(f)
 			}
 		}
 		go colocatedBatchImportQueueConsumer()

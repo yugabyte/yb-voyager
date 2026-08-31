@@ -511,17 +511,6 @@ func TestDiffTables_InheritedByChanged(t *testing.T) {
 // Tests: cross-engine gate — ID-based matching only when DatabaseType matches.
 // ──────────────────────────────────────────────────────────────────────────────
 
-// crossEngineSnapWithTables builds a SnapshotContent with DatabaseType="mysql" for
-// use in tests that need two snapshots with differing DatabaseType values to verify
-// that ID-based matching is disabled across engines.
-func crossEngineSnapWithTables(tables ...schemasnapshot.Table) *schemasnapshot.SnapshotContent {
-	return &schemasnapshot.SnapshotContent{
-		Version:      1,
-		DatabaseType: "mysql",
-		Tables:       tables,
-	}
-}
-
 // Note: TestDiffTables_UnstableIdentity_RenameBecomesAddDrop and
 // TestDiffTables_UnstableIdentity_SameNameMatches were deleted — "same
 // DatabaseType but StableIdentity=false" is unexpressible after the API

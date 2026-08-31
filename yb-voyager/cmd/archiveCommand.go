@@ -18,12 +18,7 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
-
-var moveDestination string
-var deleteSegments utils.BoolStr
-var utilizationThreshold int
 
 var archiveCmd = &cobra.Command{
 	Use:   "archive",
