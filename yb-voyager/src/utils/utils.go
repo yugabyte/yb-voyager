@@ -389,7 +389,7 @@ func GetLocalIP() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }() // udp probe teardown; close error is not actionable
 
 	localAddress := conn.LocalAddr().(*net.UDPAddr)
 	return localAddress.IP.String(), nil

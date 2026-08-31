@@ -50,7 +50,7 @@ var importDataStatusCmd = &cobra.Command{
 			utils.ErrExit("error while checking streaming mode: %w\n", err)
 		}
 		if streamChanges {
-			utils.ErrExit("\nNote: Run the following command to get the report of live migration:\n" +
+			utils.ErrExit("%s", "\nNote: Run the following command to get the report of live migration:\n"+
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
 		}
 		dataFileDescriptorPath := filepath.Join(exportDir, datafile.DESCRIPTOR_PATH)

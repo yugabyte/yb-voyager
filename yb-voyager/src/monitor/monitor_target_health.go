@@ -245,7 +245,7 @@ func (m *MonitorTargetYBHealth) monitorReplicationOnTarget() error {
 		return goerrors.Errorf("error fetching logical replication slots for checking if replication enabled - %s", err)
 	}
 	if numOfSlots > 0 {
-		utils.ErrExit(color.RedString("%s Found replication slot(s): %d.", REPLICATION_GUARDRAIL_ALERT_MSG, numOfSlots))
+		utils.ErrExit("%s", color.RedString("%s Found replication slot(s): %d.", REPLICATION_GUARDRAIL_ALERT_MSG, numOfSlots))
 	}
 	if m.loadBalancerEnabled {
 		//No need to do the ybClient check in this load balancer case or deployements where nodes/ports are not accessible e.g. YBM
@@ -256,7 +256,7 @@ func (m *MonitorTargetYBHealth) monitorReplicationOnTarget() error {
 		return goerrors.Errorf("error fetching num of replication streams: %v", err)
 	}
 	if numOfStreams > 0 {
-		utils.ErrExit(color.RedString("%s Found replication stream(s): %d.", REPLICATION_GUARDRAIL_ALERT_MSG, numOfStreams))
+		utils.ErrExit("%s", color.RedString("%s Found replication stream(s): %d.", REPLICATION_GUARDRAIL_ALERT_MSG, numOfStreams))
 	}
 	return nil
 }

@@ -311,7 +311,7 @@ func (pg *PostgresContainer) Query(sql string, args ...interface{}) (*sql.Rows, 
 		return nil, fmt.Errorf("failed to get connection for postgres query: %w", err)
 	}
 	defer conn.Close()
-	rows, err := conn.Query(sql, args...)
+	rows, err := conn.Query(sql, args...) //nolint:sqlclosecheck // rows are returned to and closed by the caller
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query '%s': %w", sql, err)
 	}

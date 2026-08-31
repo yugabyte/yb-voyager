@@ -39,6 +39,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"github.com/yugabyte/yb-voyager/yb-voyager/test/cdcbench"
 )
@@ -114,7 +115,9 @@ func BenchmarkCDCIngest(b *testing.B) {
 		// metadata (answered by the mock's metadata store), conflict cache,
 		// stats reporter, and the segment loop
 		StreamAll: func() error {
-			return streamChanges(run.state, run.tableList)
+			// bench workloads use default pk partitioning; no per-table PK-column
+			// overrides are needed (parameter added for custom partition keys)
+			return streamChanges(run.state, run.tableList, utils.NewStructMap[sqlname.NameTuple, []string]())
 		},
 
 		CacheDepth: func() int {

@@ -392,6 +392,9 @@ func fetchObjectUsageStats() ([]*types.ObjectUsageStats, error) {
 		}
 		objectUsagesStats = append(objectUsagesStats, &objectUsage)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating object usage stats: %w", err)
+	}
 	return objectUsagesStats, nil
 }
 
@@ -652,6 +655,9 @@ func fetchRedundantIndexInfoFromAssessmentDB() ([]utils.RedundantIndexesInfo, er
 		redundantIndex.DBType = source.DBType
 		redundantIndexesInfo = append(redundantIndexesInfo, redundantIndex)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating redundant indexes: %w", err)
+	}
 
 	resolvedRedundantIndexes := getResolvedRedundantIndexes(redundantIndexesInfo)
 
@@ -729,6 +735,9 @@ func fetchColumnStatisticsInfo() ([]utils.ColumnStatistics, error) {
 		}
 		stat.DBType = source.DBType
 		columnStats = append(columnStats, stat)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating column statistics: %w", err)
 	}
 	return columnStats, nil
 }

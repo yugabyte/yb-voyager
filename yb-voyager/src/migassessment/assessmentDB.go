@@ -280,6 +280,7 @@ func (adb *AssessmentDB) BulkInsert(table string, records [][]string) error {
 	if err != nil {
 		return fmt.Errorf("error preparing statement for bulk insert into %s: %w", table, err)
 	}
+	defer stmt.Close()
 
 	for rowNum := 1; rowNum < len(records); rowNum++ {
 		row := utils.ConvertStringSliceToInterface(records[rowNum])

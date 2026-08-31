@@ -116,7 +116,7 @@ func (s *SchemaOptimizationReport) Summary() string {
 	}
 	if s.UKRangeShardingChange != nil {
 		summary += fmt.Sprintf("%d. %s\n", idx, s.UKRangeShardingChange.Summary())
-		idx++
+		// idx deliberately not incremented after the last section; re-add when appending sections
 	}
 	return summary
 }

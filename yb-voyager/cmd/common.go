@@ -653,7 +653,7 @@ func detectVersionCompatibility(msrVoyagerVersionString string, migrationExportD
 				"Either use a compatible version to continue the migration or start afresh with a new export-dir. ",
 				migrationExportDir, utils.YB_VOYAGER_VERSION, utils.PREVIOUS_BREAKING_CHANGE_VERSION)
 		}
-		utils.ErrExit(userFacingMsg)
+		utils.ErrExit("%s", userFacingMsg)
 	}
 }
 

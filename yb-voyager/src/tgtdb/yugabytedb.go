@@ -960,7 +960,7 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 	}
 	for {
 		line, _, readLinErr := df.NextLine()
-		if readLinErr != nil && readLinErr != io.EOF {
+		if readLinErr != nil && !errors.Is(readLinErr, io.EOF) {
 			return 0, newImportBatchErrorPgYb(err, batch,
 				errs.IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER,
 				errs.IMPORT_BATCH_ERROR_STEP_READ_LINE_BATCH, nil)
@@ -972,7 +972,7 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 			2. line!=""(last line) + EOF error
 		*/
 		if line == "" { // handles case 1
-			if readLinErr == io.EOF {
+			if errors.Is(readLinErr, io.EOF) {
 				break
 			} else {
 				// skipping if any empty line (not expected from batch file)
@@ -1197,7 +1197,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		}
 		defer func() {
 			errRollBack := tx.Rollback(ctx)
-			if errRollBack != nil && errRollBack != pgx.ErrTxClosed {
+			if errRollBack != nil && !errors.Is(errRollBack, pgx.ErrTxClosed) {
 				log.Errorf("error rolling back tx for batch id (%s): %v", batch.ID(), err)
 			}
 		}()
@@ -1431,7 +1431,7 @@ func (yb *TargetYugabyteDB) GetYBServers() (bool, []*TargetConf, error) {
 						msg = fmt.Sprintf("public ip is not available for host: %s but private ip are available. "+
 							"Either refer to help for how to enable public ip or remove --use-public-up flag and restart the import", host)
 					}
-					utils.ErrExit(msg)
+					utils.ErrExit("%s", msg)
 				}
 			} else {
 				clone.Host = host

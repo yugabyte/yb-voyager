@@ -19,6 +19,7 @@ import (
 	"bufio"
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -533,7 +534,7 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 		}
 		defer func() {
 			errRollBack := tx.Rollback()
-			if errRollBack != nil && errRollBack != sql.ErrTxDone {
+			if errRollBack != nil && !errors.Is(errRollBack, sql.ErrTxDone) {
 				log.Errorf("error rolling back tx for batch id (%s): %v", batch.ID(), err)
 			}
 		}()
