@@ -2113,11 +2113,11 @@ func TestLiveMigrationCustomCaseSensitiveCdcPartitionKeyNoConflict(t *testing.T)
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
 			ForLive:      true,
-			DatabaseName: "test_custom_key_no_conflict",
+			DatabaseName: "test_custom_key_case_sensitive_no_conflict",
 		},
 		TargetDB: ContainerConfig{
 			Type:         "yugabytedb",
-			DatabaseName: "test_custom_key_no_conflict",
+			DatabaseName: "test_custom_key_case_sensitive_no_conflict",
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
