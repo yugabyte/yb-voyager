@@ -140,10 +140,16 @@ jobs:
           migtests/scripts/run-datatype-sweep.sh "${{ inputs.modes || 'default' }}"
 
       - name: Diff against the previous run
-        continue-on-error: true
         run: |
+          # A coverage-only dispatch produces no results CSV at all, and a run whose
+          # modes all failed may produce none either. Neither is a diff failure - but
+          # neither may silently look like a clean diff, so say which case it is.
+          latest=$(ls -1t datatype-sweep-results/datatype-sweep-*.csv 2>/dev/null | head -1 || true)
+          if [ -z "${latest}" ]; then
+            echo "no results CSV produced by this run (coverage-only dispatch?); nothing to diff"
+            exit 0
+          fi
           baseline=$(ls -1 datatype-sweep-baseline/*.csv 2>/dev/null | head -1 || true)
-          latest=$(ls -1t datatype-sweep-results/datatype-sweep-*.csv | head -1)
           if [ -z "${baseline}" ]; then
             echo "no baseline yet; this run becomes the baseline"
             exit 0
@@ -166,6 +172,10 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      # Deliberately only on success: the baseline advances only after a CLEAN diff, so a
+      # regression keeps failing every night until someone fixes it. Advancing the
+      # baseline unconditionally would report a regression once and then absorb it into
+      # the new normal, which for a datatype-support suite is the failure mode to avoid.
       - name: Save this run as the next baseline
         if: success()
         run: |

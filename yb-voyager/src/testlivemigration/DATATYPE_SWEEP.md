@@ -56,6 +56,7 @@ Every invocation ends by writing, under `datatype-sweep-results/` (override with
 | `datatype_sweep_probe.go` | the runner: DDL, deltas, comparison, verdict classifier |
 | `datatype_sweep_test.go` | entry points: one test per mode, plus the single-probe runner |
 | `datatype_coverage_test.go` | **the coverage guard** and the report round-trip assertion |
+| `datatype_sweep_cases_postgis_internal.go` | the `postgis-internal` batch: the 17 gaps the coverage guard found (pending registration) |
 | `datatype_report_meta.go` | the probe catalog: per-type report columns, derived from voyager's own lists |
 | `datatype_report_test.go` | emits `probe-catalog.json`; unit-tests the derivations |
 | `sweepreport/` | standalone tool: `collect`, `report`, `diff` (no build tag, no Docker) |
@@ -182,7 +183,23 @@ representative literals. That classification is advice for the probe author, nev
 The one hand-maintained map, `deliberateNonMigrationTypes`, is for a genuinely different
 case: a type that exists, accepts a column, and that the suite consciously does not
 migrate **for a stated product reason**. Every entry carries a written justification and
-the whole map is printed on every run. It is empty on purpose.
+the whole map is printed on every run. It is empty on purpose, and the intent is that it
+stays that way.
+
+It stayed empty on its first real test. Run against the `17.8-ext` image the guard failed
+with 17 missing PostGIS/raster/topology internal types (`box2df`, `gidx`, `spheroid`,
+`geometry_dump`, `geomval`, the `postgis_raster` composites, the `topology.*` types).
+"PostGIS helper types are not real columns" is the same shape of category judgement that
+the empirical rule exists to prevent, so they got probes instead — see the
+`postgis-internal` batch in `datatype_sweep_cases_postgis_internal.go`. Their verdict comes
+out as the *target* rejecting the type, because YugabyteDB cannot install PostGIS at all;
+that is a measurement, not an assumption.
+
+For each missing type the guard also prints the literal it managed to insert, so upgrading
+a NULL-only probe to a full-value one is a copy-paste. Composite types get an arity-derived
+all-NULL-fields row literal (`(,)`), which is a genuine non-NULL value — without it every
+composite of arity ≥ 2 was misreported as NULL-only, an artifact of the harness presented
+as a fact about the type.
 
 While extending the case table, `SWEEP_COVERAGE_MODE=report` prints the gaps without
 failing.
@@ -306,6 +323,12 @@ both sides before comparing, and the count of dropped rows is printed.
    - Want the exact bytes in the report even on a pass? Set `RecordDestValue`.
    - Known to wedge the channel? Set `Poison` **and** `PoisonNote` saying which mode
      established it and with what error.
+   - Type can only ever hold NULL (a GiST index support type such as `box2df`)? It needs
+     the `NullOnly` field, which is **not implemented yet** — see the header of
+     `datatype_sweep_cases_postgis_internal.go`. A NULL-only column has exactly one
+     possible value, so `assertUniqueProbeIDs`' "InitialValue must differ from AltValue"
+     rule is unsatisfiable for it and must exempt such probes. Do not work around it by
+     inventing a second spelling of NULL.
 
 3. Run it alone:
 
@@ -366,6 +389,25 @@ go test ./src/testlivemigration/sweepreport/
 ```
 
 ---
+
+## Exit codes
+
+`run-datatype-sweep.sh` exits non-zero if **any** `go test` invocation it ran failed, and
+prints a `FAILED (n):` summary naming them — after writing the artefacts, so a failed run
+still leaves its log, results and report behind.
+
+A failing mode does not stop the later modes: a sweep's output *is* its verdicts, and a
+mode that fails still produced them. But the failure is recorded and propagated rather
+than swallowed. Both halves matter, and getting either wrong is the same bug:
+
+- swallow the exit code and a coverage guard whose entire purpose is to fail reports
+  success — the per-PR job goes green on exactly the gap it exists to catch;
+- abort on the first failure and you lose the verdicts from every later mode, plus the
+  summary that says why.
+
+The nightly workflow advances its diff baseline **only after a clean diff**, so a
+regression keeps failing every night until someone fixes it rather than being absorbed
+into the new normal after one report.
 
 ## CI
 

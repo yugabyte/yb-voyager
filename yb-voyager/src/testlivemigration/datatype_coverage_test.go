@@ -88,7 +88,10 @@ func coverageExtensions() []string {
 	for _, e := range []string{
 		"hstore", "citext", "ltree", "cube", "seg", "isn", "intarray",
 		"pg_trgm", "btree_gist", "btree_gin", "earthdistance", "tablefunc", "lo",
-		"postgis", "vector",
+		// postgis_raster and postgis_topology carry a large family of their own types
+		// (rastbandarg, topology.topoelement, ...). Installing them here rather than
+		// relying on the image having done it keeps the guard's scope explicit.
+		"postgis", "postgis_raster", "postgis_topology", "vector",
 	} {
 		wanted[e] = true
 	}
@@ -117,7 +120,32 @@ var deliberateNonMigrationTypes = map[string]string{}
 // expect a full value probe or a NULL-only one. It never gates the test, because a type
 // this list happens not to have a literal for still needs a probe.
 var coverageProbeLiterals = []string{
-	"1", "0", "a", "", "{}", "()", "t", "2024-01-01", "(0,0)", "1.5", "<a>1</a>",
+	"1", "0", "a", "", "{}", "{1,2}", "{{1,2}}", "()", "t", "2024-01-01", "(0,0)", "1.5", "<a>1</a>",
+}
+
+// compositeAllNullLiteral builds the one literal that is valid for ANY composite type of
+// a given arity: a row whose every field is NULL, e.g. "(,)" for a two-field type. The
+// row itself is NOT NULL, so it is a real value and distinguishable from NULL.
+//
+// Without this, every composite of arity >= 2 was classified NULL-only purely because the
+// generic literal list happens not to contain a row literal of the right shape - an
+// artifact of the harness, reported as a fact about the type.
+func compositeAllNullLiteral(arity int) string {
+	if arity < 1 {
+		return ""
+	}
+	return "(" + strings.Repeat(",", arity-1) + ")"
+}
+
+// compositeArity counts a composite type's live attributes.
+func compositeArity(db *sql.DB, oid uint32) (int, error) {
+	var n int
+	err := db.QueryRow(`
+		SELECT count(*)
+		FROM pg_attribute a
+		JOIN pg_type t ON t.typrelid = a.attrelid
+		WHERE t.oid = $1 AND a.attnum > 0 AND NOT a.attisdropped`, int64(oid)).Scan(&n)
+	return n, err
 }
 
 // Value classes reported for a type that needs a probe.
@@ -361,7 +389,19 @@ func annotateColumnability(t *testing.T, db *sql.DB, types []pgCatalogType) {
 		if _, err := db.Exec(fmt.Sprintf("INSERT INTO %s VALUES (NULL)", table)); err == nil {
 			c.ValueClass = valueClassNull
 		}
-		for _, lit := range coverageProbeLiterals {
+
+		// A composite's all-NULL-fields row literal is tried first and is arity-derived,
+		// so it is right for every composite rather than only the one-field ones the
+		// generic list happens to cover.
+		literals := coverageProbeLiterals
+		if c.TypType == "c" {
+			if arity, err := compositeArity(db, c.OID); err == nil {
+				if lit := compositeAllNullLiteral(arity); lit != "" {
+					literals = append([]string{lit}, literals...)
+				}
+			}
+		}
+		for _, lit := range literals {
 			_, err := db.Exec(fmt.Sprintf("INSERT INTO %s VALUES ($1)", table), lit)
 			if err == nil {
 				c.ValueClass = valueClassFull

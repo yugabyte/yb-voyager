@@ -108,9 +108,21 @@ build_voyager() {
 }
 
 # ---------------------------------------------------------------------------
-# Run one `go test` selector, appending to the run log. A failing mode must not stop the
-# other modes: a sweep's output IS its verdicts, and a mode that fails still produced them.
+# FAILED_RUNS records every `go test` invocation that did not pass, so that a failing
+# mode does not stop the other modes AND the script still exits non-zero at the end.
+#
+# Both halves matter. Continuing is right because a sweep's output IS its verdicts, and a
+# mode that fails still produced them. But swallowing the exit code outright is how a
+# guard whose entire purpose is to fail ends up reporting success: with `run_go_test`
+# returning 0 unconditionally, `run-datatype-sweep.sh coverage` exited 0 even when the
+# coverage guard failed listing missing types, so the cheap per-PR job would have gone
+# green on exactly the failure it exists to catch. Record, continue, then propagate.
 # ---------------------------------------------------------------------------
+# A counter plus a newline-joined string rather than an array: `set -u` and bash 3.2
+# (still the default /bin/bash on macOS) disagree about expanding an empty array.
+FAILED_COUNT=0
+FAILED_LIST=""
+
 run_go_test() {
     local name="$1" selector="$2"
     log "running ${name}  (-run '${selector}')"
@@ -121,45 +133,74 @@ run_go_test() {
     set -e
     if [ "${rc}" -ne 0 ]; then
         log "${name} exited ${rc} (verdicts are still recorded; check the control gate below)"
+        FAILED_COUNT=$((FAILED_COUNT + 1))
+        FAILED_LIST="${FAILED_LIST}  ${name} (exit ${rc})
+"
     fi
     return 0
 }
 
 generate_catalog() {
     log "generating the probe catalog (the report's static half)"
-    ( cd "${MODULE_DIR}" && SWEEP_CATALOG_OUT="${CATALOG_JSON}" \
-        VOYAGER_COMMIT="$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo unknown)" \
-        go test -tags integration_live_migration ./src/testlivemigration/ \
-        -run 'TestDatatypeSweepCatalog|TestDatatypeReportCoversEveryProbe' -v ) 2>&1 | tee -a "${RUN_LOG}"
+    export SWEEP_CATALOG_OUT="${CATALOG_JSON}"
+    export VOYAGER_COMMIT="$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+    run_go_test "probe catalog + report round-trip" \
+        'TestDatatypeSweepCatalog|TestDatatypeReportCoversEveryProbe'
+}
+
+# finish is the single exit path. It runs after the artefacts are written, so a failing
+# run still leaves its log, results and report behind to look at.
+finish() {
+    if [ "${FAILED_COUNT}" -eq 0 ]; then
+        log "all runs passed"
+        return 0
+    fi
+    log "FAILED (${FAILED_COUNT}):"
+    printf '%s' "${FAILED_LIST}"
+    echo
+    echo "Artefacts are still in ${RESULTS_DIR}; the full output is in ${RUN_LOG}."
+    return 1
 }
 
 collect_results() {
     log "collecting results"
-    ( cd "${MODULE_DIR}" && go run ./src/testlivemigration/sweepreport collect \
+    # Record-and-continue rather than abort: when a mode has already failed there may be
+    # no PROBE-RESULT lines to collect, and dying here would hide the failure summary
+    # that says WHY. The exit code is carried by finish() either way.
+    if ! ( cd "${MODULE_DIR}" && go run ./src/testlivemigration/sweepreport collect \
         -log "${RUN_LOG}" \
         -out "${RESULTS_CSV}" \
         -catalog "${CATALOG_JSON}" \
         -commit "$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo unknown)" \
         -pg-version "${PG_VERSION}" \
-        -yb-version "${YB_VERSION}" )
+        -yb-version "${YB_VERSION}" ); then
+        FAILED_COUNT=$((FAILED_COUNT + 1))
+        FAILED_LIST="${FAILED_LIST}  collecting results
+"
+        return 0
+    fi
 
     log "generating the report rows from those results"
-    ( cd "${MODULE_DIR}" && go run ./src/testlivemigration/sweepreport report \
+    if ! ( cd "${MODULE_DIR}" && go run ./src/testlivemigration/sweepreport report \
         -results "${RESULTS_CSV}" \
         -catalog "${CATALOG_JSON}" \
         -out "${RESULTS_DIR}/report-rows.json" \
-        -csv "${RESULTS_DIR}/report-rows.csv" )
+        -csv "${RESULTS_DIR}/report-rows.csv" ); then
+        FAILED_COUNT=$((FAILED_COUNT + 1))
+        FAILED_LIST="${FAILED_LIST}  generating report rows
+"
+    fi
 
     # The control gate: a run whose known-good int/text controls did not come out WORKS
     # is an INVALID run and none of its verdicts may be published.
-    if grep -q '^PROBE-RUN-INVALID' "${RUN_LOG}"; then
+    if grep -qa '^PROBE-RUN-INVALID' "${RUN_LOG}"; then
         log "CONTROL GATE FAILED - these batches produced unusable verdicts:"
-        grep '^PROBE-RUN-INVALID' "${RUN_LOG}" || true
+        grep -a '^PROBE-RUN-INVALID' "${RUN_LOG}" || true
         echo "Their rows are marked run_status=INVALID in ${RESULTS_CSV} and are excluded from diffs."
     fi
-    if grep -q '^PROBE-RUN-FLAKE' "${RUN_LOG}"; then
+    if grep -qa '^PROBE-RUN-FLAKE' "${RUN_LOG}"; then
         log "flaked batches (re-run these before recording anything):"
-        grep '^PROBE-RUN-FLAKE' "${RUN_LOG}" || true
+        grep -a '^PROBE-RUN-FLAKE' "${RUN_LOG}" || true
     fi
 
     log "artefacts"
@@ -228,13 +269,16 @@ main() {
 
     # The coverage guard is a catalogue check, not a probe run: it never emits
     # PROBE-RESULT lines, so asking the collector for results would fail a run
-    # that actually succeeded.
+    # that actually succeeded. Skip the collector - but still go through finish(),
+    # or a guard that failed listing missing types would report success.
     if [ "${what}" = "coverage" ]; then
         log "coverage guard only - no probe results to collect"
-        return 0
+        finish
+        return
     fi
 
     collect_results
+    finish
 }
 
 main "$@"

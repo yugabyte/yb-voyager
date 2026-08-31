@@ -235,6 +235,55 @@ func TestFallbackGuardrailUsesTheYugabyteList(t *testing.T) {
 	}
 }
 
+// TestPostgisInternalProbesAreWellFormed keeps the 17 PostGIS/raster/topology probes
+// honest while they wait for the `NullOnly` framework field (see the header of
+// datatype_sweep_cases_postgis_internal.go).
+//
+// It also states the rule they exist to enforce: none of them may be resolved by adding
+// an entry to deliberateNonMigrationTypes instead. They are column-able, so they get
+// probes, and their verdict is a measurement rather than a category judgement.
+func TestPostgisInternalProbesAreWellFormed(t *testing.T) {
+	probes := postgisInternalProbes()
+	if len(probes) != 17 {
+		t.Fatalf("expected 17 probes for the 17 gaps the coverage guard found, got %d", len(probes))
+	}
+
+	seen := map[string]bool{}
+	for _, p := range probes {
+		if seen[p.ID] {
+			t.Errorf("duplicate probe id %q", p.ID)
+		}
+		seen[p.ID] = true
+
+		if len(p.Extensions) != 1 {
+			t.Errorf("probe %s must declare exactly the one extension that owns its type, got %v",
+				p.ID, p.Extensions)
+		}
+		if p.ColumnDDL == "" || p.Note == "" {
+			t.Errorf("probe %s needs both a ColumnDDL and a note saying what the type is", p.ID)
+		}
+		// NULL-only: identical values are correct here, and are what the pending
+		// NullOnly field will exempt from the distinctness check.
+		if p.InitialValue != p.AltValue {
+			t.Errorf("probe %s is a NULL-only probe, so InitialValue and AltValue must match; "+
+				"if this type can hold a real value, give it one and drop the NULL-only note", p.ID)
+		}
+		if p.InitialValue != "NULL::"+p.ColumnDDL {
+			t.Errorf("probe %s: NULL-only value should be %q, got %q",
+				p.ID, "NULL::"+p.ColumnDDL, p.InitialValue)
+		}
+
+		// The whole point: none of these may be routed into the exclusion map instead.
+		for _, key := range []string{p.ColumnDDL, "public." + p.ColumnDDL} {
+			if why, excluded := deliberateNonMigrationTypes[key]; excluded {
+				t.Errorf("type %q has BOTH a probe (%s) and a deliberateNonMigrationTypes entry (%q). "+
+					"A column-able type gets a probe; the exclusion map is not an escape hatch "+
+					"for types that look internal.", key, p.ID, why)
+			}
+		}
+	}
+}
+
 func TestProbeGroupsCoverEveryProbe(t *testing.T) {
 	groups := probeGroups()
 	for _, p := range allSweepProbes() {
