@@ -77,9 +77,9 @@ var ciConfigJSON []byte
 // CIConfigData represents the structure of ci-config.json
 type CIConfigData struct {
 	Versions struct {
-		Go          string `json:"go"`
-		Java        string `json:"java"`
-		Staticcheck string `json:"staticcheck"`
+		Go           string `json:"go"`
+		Java         string `json:"java"`
+		GolangciLint string `json:"golangci_lint"`
 	} `json:"versions"`
 	Runner struct {
 		Ubuntu string `json:"ubuntu"`
@@ -108,10 +108,10 @@ func GetJavaVersion() string {
 	return config.Versions.Java
 }
 
-// GetStaticcheckVersion returns the Staticcheck version from ci-config.json
-func GetStaticcheckVersion() string {
+// GetGolangciLintVersion returns the golangci-lint version from ci-config.json
+func GetGolangciLintVersion() string {
 	config := LoadCIConfig()
-	return config.Versions.Staticcheck
+	return config.Versions.GolangciLint
 }
 
 // =============================== Connector Versions ===============================
