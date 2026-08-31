@@ -391,7 +391,7 @@ func queryPGPrimaryKeyColumnsByCatalog(queryFn func(query string) (*sql.Rows, er
 		fullTableList = append(fullTableList, table.AsQualifiedCatalogName())
 	}
 
-	for leaf, _ := range tableToRootMap {
+	for leaf := range tableToRootMap {
 		fullTableList = append(fullTableList, leaf)
 	}
 
