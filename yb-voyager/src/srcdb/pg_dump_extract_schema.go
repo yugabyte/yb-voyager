@@ -119,7 +119,7 @@ func readSchemaFile(path string) []string {
 	if err != nil {
 		utils.ErrExit("error in opening schema file: %s: %w", path, err)
 	}
-	defer file.Close()
+	defer utils.CloseAndLogOnError(path, file)
 	var lines []string
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {

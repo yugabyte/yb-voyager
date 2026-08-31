@@ -65,7 +65,7 @@ func (ds *LocalDataStore) OpenAt(filePath string, offset int64) (io.ReadCloser, 
 	}
 	_, err = file.Seek(offset, io.SeekStart)
 	if err != nil {
-		file.Close()
+		_ = file.Close() // best-effort cleanup on the error path
 		return nil, err
 	}
 	return file, nil

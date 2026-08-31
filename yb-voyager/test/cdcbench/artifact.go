@@ -176,7 +176,7 @@ func generateArtifact(b *testing.B, w Workload, voyagerBin, dir, exportDir strin
 	if err != nil {
 		return artifactManifest{}, err
 	}
-	defer logFile.Close()
+	defer func() { _ = logFile.Close() }() // bench log capture; close error is not actionable
 
 	connStr := func(db string) string {
 		return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?sslmode=disable", config.User, config.Password, host, port, db)

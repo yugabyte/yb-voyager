@@ -244,7 +244,7 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 		quitChan <- true
 		runtime.Goexit()
 	}
-	defer tableDataFile.Close()
+	defer utils.CloseAndLogOnError(tableDataFileName, tableDataFile)
 
 	reader := bufio.NewReader(tableDataFile)
 

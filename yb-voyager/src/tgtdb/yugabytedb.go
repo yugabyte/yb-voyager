@@ -869,7 +869,7 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 			errs.IMPORT_BATCH_ERROR_STEP_OPEN_BATCH, nil)
 		return 0, err
 	}
-	defer file.Close()
+	defer utils.CloseAndLogOnError(batch.GetFilePath(), file)
 
 	// 2. setting the schema so that COPY command can acesss the table
 	// Q: If we set the schema for this batch on this conn, will it impact others using the same conn from pool later?
@@ -1721,7 +1721,7 @@ func getYBSessionInitScript(tconf *TargetConf) []string {
 		log.Infof("YBSessionInitScript: %v\n", sessionVars)
 		return sessionVars
 	}
-	defer varsFile.Close()
+	defer utils.CloseAndLogOnError(sessionVarsPath, varsFile)
 	fileScanner := bufio.NewScanner(varsFile)
 
 	var curLine string

@@ -53,7 +53,7 @@ func countEventsInNDJSONSegmentFile(filePath string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }() // read path; close error is not actionable
 
 	scanner := bufio.NewScanner(file)
 	count := 0

@@ -67,7 +67,10 @@ func (df *CsvDataFile) NextLine() (string, int64, error) {
 }
 
 func (df *CsvDataFile) Close() {
-	df.reader.Close()
+	err := df.reader.Close()
+	if err != nil {
+		log.Warnf("closing csv data file reader: %v", err)
+	}
 }
 
 func (df *CsvDataFile) GetBytesRead() int64 {
