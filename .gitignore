@@ -46,3 +46,7 @@ debezium-server-voyager/**/target/
 .claude/worktrees/
 # cdcbench cached artifacts (regenerable; see yb-voyager/test/cdcbench/README.md)
 yb-voyager/test/cdcbench/artifacts/
+
+# datatype sweep artefacts (regenerable; see yb-voyager/src/testlivemigration/DATATYPE_SWEEP.md)
+datatype-sweep-results/
+yb-voyager/src/testlivemigration/results/

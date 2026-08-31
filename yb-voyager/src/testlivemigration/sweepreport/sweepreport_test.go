@@ -1,0 +1,263 @@
+/*
+Copyright (c) YugabyteDB, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package main
+
+// These tests need neither Docker nor a build tag:
+//
+//	go test ./src/testlivemigration/sweepreport/
+
+import (
+	"bytes"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+const sampleLog = `
+=== RUN   TestDatatypeSweepLive
+=== RUN   TestDatatypeSweepLive/ranges
+    datatype_sweep_probe.go:100: setting up containers
+PROBE-RESULT: CTRL-001 | int | LIVE | WORKS | snapshot + delta identical
+PROBE-RESULT: RANGE-001 | int4range | LIVE | WORKS | snapshot + delta identical
+PROBE-RESULT: RANGE-009 | CREATE TYPE AS RANGE | LIVE | QUIET_DROP | column absent from the event stream; verbatim: id=1 source="[1,5)" destination=NULL
+--- PASS: TestDatatypeSweepLive/ranges (61.00s)
+=== RUN   TestDatatypeSweepLive/hstore
+PROBE-RESULT: CTRL-001 | int | LIVE | STUCK | importer repeats: cannot parse
+PROBE-RESULT: HSTORE-001 | hstore | LIVE | STUCK | importer repeats: cannot parse
+PROBE-RUN-INVALID: hstore | LIVE | known-good control CTRL-001 came out STUCK, not WORKS - the whole run is invalid
+--- FAIL: TestDatatypeSweepLive/hstore (90.00s)
+`
+
+func TestParseLogExtractsRowsAndGates(t *testing.T) {
+	meta := RunMeta{Timestamp: "2026-08-31T00:00:00Z", VoyagerCommit: "abc123", PGVersion: "17.8", YBVersion: "2025.2.1.0"}
+	rows, err := ParseLog(strings.NewReader(sampleLog), meta, nil)
+	if err != nil {
+		t.Fatalf("ParseLog: %v", err)
+	}
+
+	byKey := map[string]Row{}
+	for _, r := range rows {
+		byKey[r.Key()] = r
+	}
+
+	// A duplicated probe id (CTRL-001 appears in both batches) keeps the LAST occurrence.
+	ctrl, ok := byKey["CTRL-001|LIVE"]
+	if !ok {
+		t.Fatalf("no row for CTRL-001|LIVE; got %v", byKey)
+	}
+	if ctrl.Verdict != "STUCK" {
+		t.Errorf("CTRL-001 verdict = %q, want the later STUCK", ctrl.Verdict)
+	}
+	if ctrl.RunStatus != statusInvalid {
+		t.Errorf("CTRL-001 run_status = %q, want %q", ctrl.RunStatus, statusInvalid)
+	}
+
+	rng := byKey["RANGE-001|LIVE"]
+	if rng.Category != "ranges" {
+		t.Errorf("RANGE-001 category = %q, want %q (from the === RUN subtest name)", rng.Category, "ranges")
+	}
+	if rng.RunStatus != statusOK {
+		t.Errorf("RANGE-001 run_status = %q, want %q: the ranges batch passed its gate", rng.RunStatus, statusOK)
+	}
+	if rng.PGVersion != "17.8" || rng.VoyagerCommit != "abc123" {
+		t.Errorf("run metadata not stamped onto the row: %+v", rng)
+	}
+
+	drop := byKey["RANGE-009|LIVE"]
+	if drop.SourceValue != "[1,5)" || drop.TargetValue != "NULL" {
+		t.Errorf("verbatim values not lifted out of the detail: source=%q target=%q", drop.SourceValue, drop.TargetValue)
+	}
+
+	hstore := byKey["HSTORE-001|LIVE"]
+	if hstore.RunStatus != statusInvalid {
+		t.Errorf("HSTORE-001 run_status = %q, want %q", hstore.RunStatus, statusInvalid)
+	}
+}
+
+func TestParseLogPrefersCatalogCategory(t *testing.T) {
+	rows, err := ParseLog(strings.NewReader(sampleLog), RunMeta{}, func(id string) string {
+		if id == "RANGE-001" {
+			return "from-catalog"
+		}
+		return ""
+	})
+	if err != nil {
+		t.Fatalf("ParseLog: %v", err)
+	}
+	for _, r := range rows {
+		if r.ProbeID == "RANGE-001" && r.Category != "from-catalog" {
+			t.Fatalf("catalog group should win over the subtest name, got %q", r.Category)
+		}
+		if r.ProbeID == "RANGE-009" && r.Category != "ranges" {
+			t.Fatalf("without a catalog group the subtest name is the fallback, got %q", r.Category)
+		}
+	}
+}
+
+func TestCSVRoundTrip(t *testing.T) {
+	rows := []Row{
+		{ProbeID: "A-001", TypeName: "int", Mode: "LIVE", Verdict: "WORKS", Evidence: "fine", RunStatus: statusOK},
+		{ProbeID: "B-001", TypeName: "hstore, with comma", Mode: "OFFLINE", Verdict: "SILENT_LOSS", Evidence: `has "quotes"`, RunStatus: statusOK},
+	}
+	path := filepath.Join(t.TempDir(), "out.csv")
+	if err := WriteCSV(path, rows); err != nil {
+		t.Fatalf("WriteCSV: %v", err)
+	}
+	got, err := ReadCSV(path)
+	if err != nil {
+		t.Fatalf("ReadCSV: %v", err)
+	}
+	if len(got) != len(rows) {
+		t.Fatalf("round trip changed the row count: %d -> %d", len(rows), len(got))
+	}
+	for i := range rows {
+		if got[i] != rows[i] {
+			t.Errorf("row %d changed:\n got %+v\nwant %+v", i, got[i], rows[i])
+		}
+	}
+}
+
+func TestDiffClassifiesChanges(t *testing.T) {
+	old := []Row{
+		{ProbeID: "P-1", Mode: "LIVE", Verdict: "WORKS", RunStatus: statusOK},
+		{ProbeID: "P-2", Mode: "LIVE", Verdict: "QUIET_DROP", RunStatus: statusOK},
+		{ProbeID: "P-3", Mode: "LIVE", Verdict: "WORKS", RunStatus: statusOK},
+		{ProbeID: "P-4", Mode: "LIVE", Verdict: "SKIPPED", RunStatus: statusOK},
+		{ProbeID: "P-6", Mode: "LIVE", Verdict: "WORKS", RunStatus: statusInvalid},
+	}
+	nw := []Row{
+		{ProbeID: "P-1", Mode: "LIVE", Verdict: "SILENT_LOSS", RunStatus: statusOK},   // regression
+		{ProbeID: "P-2", Mode: "LIVE", Verdict: "EXCLUDED_TOLD", RunStatus: statusOK}, // improvement
+		{ProbeID: "P-3", Mode: "LIVE", Verdict: "WORKS", RunStatus: statusOK},         // unchanged
+		{ProbeID: "P-4", Mode: "LIVE", Verdict: "WORKS", RunStatus: statusOK},         // coverage gain
+		{ProbeID: "P-5", Mode: "LIVE", Verdict: "WORKS", RunStatus: statusOK},         // new probe
+		{ProbeID: "P-6", Mode: "LIVE", Verdict: "SILENT_LOSS", RunStatus: statusOK},   // old side invalid -> gain, not regression
+	}
+
+	d := Diff(old, nw)
+	if len(d.Regressions) != 1 || d.Regressions[0].ProbeID != "P-1" {
+		t.Errorf("regressions = %v, want exactly P-1", d.Regressions)
+	}
+	if len(d.Improvements) != 1 || d.Improvements[0].ProbeID != "P-2" {
+		t.Errorf("improvements = %v, want exactly P-2", d.Improvements)
+	}
+	if d.Unchanged != 1 {
+		t.Errorf("unchanged = %d, want 1", d.Unchanged)
+	}
+	gains := map[string]bool{}
+	for _, c := range d.CoverageGain {
+		gains[c.ProbeID] = true
+	}
+	for _, want := range []string{"P-4", "P-5", "P-6"} {
+		if !gains[want] {
+			t.Errorf("expected %s in coverage gains, got %v", want, d.CoverageGain)
+		}
+	}
+	if d.SkippedOldBad != 1 {
+		t.Errorf("rows from an invalid run must be excluded, counted %d", d.SkippedOldBad)
+	}
+	if !d.HasRegressions() {
+		t.Error("HasRegressions should be true when there is a regression")
+	}
+
+	var buf bytes.Buffer
+	PrintDiff(&buf, d, "old.csv", "new.csv")
+	if !strings.Contains(buf.String(), "REGRESSIONS (1)") {
+		t.Errorf("PrintDiff output missing the regression section:\n%s", buf.String())
+	}
+}
+
+func TestDiffTreatsLostMeasurementAsCoverageLoss(t *testing.T) {
+	d := Diff(
+		[]Row{{ProbeID: "P-1", Mode: "LIVE", Verdict: "WORKS", RunStatus: statusOK}},
+		nil,
+	)
+	if len(d.CoverageLoss) != 1 {
+		t.Fatalf("coverage loss = %v, want one entry", d.CoverageLoss)
+	}
+	if !d.HasRegressions() {
+		t.Error("lost coverage must fail the same gate as a regression")
+	}
+}
+
+func TestBuildReportIsAViewOverTheSuite(t *testing.T) {
+	cat := &Catalog{
+		GeneratedAt: "2026-08-31T00:00:00Z",
+		Entries: []CatalogEntry{
+			{ProbeID: "P-1", TypeName: "int4range", Group: "ranges", ReportedByAssess: "no", GuardrailAction: "no action"},
+			{ProbeID: "P-2", TypeName: "xml", Group: "core", ReportedByAssess: "unsupported (offline and live)"},
+		},
+	}
+	rows := []Row{
+		{ProbeID: "P-1", Mode: "OFFLINE", Verdict: "WORKS", RunStatus: statusOK},
+		{ProbeID: "P-1", Mode: "LIVE", Verdict: "QUIET_DROP", Evidence: "column absent", RunStatus: statusOK},
+		{ProbeID: "P-9", Mode: "LIVE", Verdict: "WORKS", RunStatus: statusOK}, // orphan
+	}
+
+	doc, problems := BuildReport(cat, rows, []string{"OFFLINE"})
+	if len(doc.Rows) != 2 {
+		t.Fatalf("report must have exactly one row per catalog entry, got %d", len(doc.Rows))
+	}
+
+	byID := map[string]ReportRow{}
+	for _, r := range doc.Rows {
+		byID[r.ProbeID] = r
+	}
+	if byID["P-1"].Live.Verdict != "QUIET_DROP" || byID["P-1"].Offline.Verdict != "WORKS" {
+		t.Errorf("P-1 cells wrong: %+v", byID["P-1"])
+	}
+	if byID["P-1"].FallBack.Verdict != verdictNotTested {
+		t.Errorf("an unmeasured mode must read %s, got %q", verdictNotTested, byID["P-1"].FallBack.Verdict)
+	}
+	if byID["P-2"].ReportedByAssess != "unsupported (offline and live)" {
+		t.Errorf("reporting-layer columns must come through from the catalog: %+v", byID["P-2"])
+	}
+	if byID["P-1"].Live.Evidence != "column absent" {
+		t.Errorf("evidence must be carried into the report cell: %+v", byID["P-1"].Live)
+	}
+
+	joined := strings.Join(problems, "\n")
+	if !strings.Contains(joined, "P-9") {
+		t.Errorf("a result with no catalog entry is drift and must be reported: %v", problems)
+	}
+	if !strings.Contains(joined, "P-2") {
+		t.Errorf("a catalog entry with no measurement in a required mode must be reported: %v", problems)
+	}
+
+	// bestEvidence prefers the worst product verdict's evidence.
+	if got := bestEvidence(byID["P-1"]); got != "column absent" {
+		t.Errorf("bestEvidence = %q, want the QUIET_DROP evidence", got)
+	}
+}
+
+func TestWriteReportCSVHasOneRowPerProbe(t *testing.T) {
+	doc := &ReportDoc{Rows: []ReportRow{
+		{ProbeID: "P-1", TypeName: "int", Group: "core", Offline: ModeResult{Verdict: "WORKS"}},
+		{ProbeID: "P-2", TypeName: "xml", Group: "core", Offline: ModeResult{Verdict: "BLOCKS"}},
+	}}
+	path := filepath.Join(t.TempDir(), "report.csv")
+	if err := WriteReportCSV(path, doc); err != nil {
+		t.Fatalf("WriteReportCSV: %v", err)
+	}
+	got, err := ReadCSV(path) // reuses the generic reader only to count lines
+	if err != nil {
+		t.Fatalf("ReadCSV: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("report CSV has %d data rows, want 2", len(got))
+	}
+}

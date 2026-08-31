@@ -1,0 +1,193 @@
+name: Datatype Sweep
+
+# Deliberately NOT per-PR. The cheap half of this suite (the probe catalog, the report
+# round-trip, the sweepreport unit tests) runs in seconds and could be folded into go.yml
+# later; the sweeps themselves are tens of minutes to hours and belong on a schedule.
+#
+# See yb-voyager/src/testlivemigration/DATATYPE_SWEEP.md for what the suite measures and
+# how to read its output.
+on:
+  workflow_dispatch:
+    inputs:
+      modes:
+        description: "What to run: default (coverage+offline+live), all, coverage, offline, live, fallback, fallforward"
+        required: true
+        default: "default"
+        type: string
+      pg_version:
+        description: "Source PostgreSQL image tag (must not be newer than the runner's pg_dump)"
+        required: false
+        default: "17"
+        type: string
+  schedule:
+    # 02:30 UTC nightly.
+    - cron: "30 2 * * *"
+
+jobs:
+  prepare-versions:
+    uses: ./.github/workflows/prepare-versions.yml
+
+  # ---------------------------------------------------------------------------
+  # The cheap half: no Docker, no containers, seconds. This is the part that keeps
+  # the published report and the case table from drifting apart.
+  # ---------------------------------------------------------------------------
+  report-guards:
+    needs: [prepare-versions]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ needs.prepare-versions.outputs.go_version }}
+
+      - name: sweepreport unit tests (no build tag)
+        run: |
+          cd yb-voyager
+          go test ./src/testlivemigration/sweepreport/
+
+      - name: Probe catalog and report round-trip
+        run: |
+          cd yb-voyager
+          SWEEP_CATALOG_OUT="${GITHUB_WORKSPACE}/datatype-sweep-results/probe-catalog.json" \
+          VOYAGER_COMMIT="${GITHUB_SHA::8}" \
+          go test -tags integration_live_migration ./src/testlivemigration/ -v \
+            -run 'TestDatatypeSweepCatalog|TestDatatypeReportCoversEveryProbe|TestProbeGroupsCoverEveryProbe|TestProbeBaseTypeNameNormalisation|TestProbeTypeKindFromPreDDL|TestReportingColumnsTrackVoyagersLists|TestFallbackGuardrailUsesTheYugabyteList|TestClassifyCoverage'
+
+      - name: Upload the probe catalog
+        uses: actions/upload-artifact@v4
+        with:
+          name: probe-catalog
+          path: datatype-sweep-results/probe-catalog.json
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # The sweep itself. One PostgreSQL container for the coverage guard, plus a
+  # YugabyteDB container for every mode that migrates anything.
+  # ---------------------------------------------------------------------------
+  sweep:
+    needs: [prepare-versions, report-guards]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+
+    env:
+      YB_VOYAGER_SEND_DIAGNOSTICS: 0
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The nightly diff needs the previous run's commit for provenance.
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: ${{ needs.prepare-versions.outputs.java_version }}
+          check-latest: true
+
+      - name: Cache local Maven repository
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ needs.prepare-versions.outputs.go_version }}
+
+      - name: Install voyager and its dependencies from local source
+        run: |
+          cd installer_scripts
+          yes | ./install-yb-voyager --install-from-local-source
+          sudo rm /usr/bin/pg_dump
+          sudo ln -s /usr/lib/postgresql/17/bin/pg_dump /usr/bin/pg_dump
+          sudo rm /usr/bin/pg_restore
+          sudo ln -s /usr/lib/postgresql/17/bin/pg_restore /usr/bin/pg_restore
+          pg_dump --version
+        env:
+          ON_INSTALLER_ERROR_OUTPUT_LOG: Y
+
+      - name: Free disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          df -h /
+
+      - name: Restore the previous run's results (for the regression diff)
+        id: baseline
+        uses: actions/cache/restore@v4
+        with:
+          path: datatype-sweep-baseline
+          key: datatype-sweep-baseline-${{ github.ref_name }}
+          restore-keys: datatype-sweep-baseline-
+
+      - name: Run the sweep
+        env:
+          # PG_VERSION must not be newer than the pg_dump linked above.
+          PG_VERSION: ${{ inputs.pg_version || '17' }}
+          YB_VERSION: ${{ needs.prepare-versions.outputs.yb_latest_stable }}
+          DEBEZIUM_DIST_DIR: /opt/yb-voyager/debezium-server
+          # An expired kubeconfig silently kills the Debezium JVM; give it an empty one.
+          KUBECONFIG: /tmp/empty-kubeconfig
+          RESULTS_DIR: ${{ github.workspace }}/datatype-sweep-results
+          SKIP_BUILD: "1" # the installer already built and installed the binary
+        run: |
+          : > /tmp/empty-kubeconfig
+          migtests/scripts/run-datatype-sweep.sh "${{ inputs.modes || 'default' }}"
+
+      - name: Diff against the previous run
+        continue-on-error: true
+        run: |
+          baseline=$(ls -1 datatype-sweep-baseline/*.csv 2>/dev/null | head -1 || true)
+          latest=$(ls -1t datatype-sweep-results/datatype-sweep-*.csv | head -1)
+          if [ -z "${baseline}" ]; then
+            echo "no baseline yet; this run becomes the baseline"
+            exit 0
+          fi
+          cd yb-voyager
+          go run ./src/testlivemigration/sweepreport diff \
+            -old "../${baseline}" -new "../${latest}" \
+            -json "../datatype-sweep-results/diff.json" \
+            -fail-on-regression | tee "../datatype-sweep-results/diff.txt"
+
+      - name: Publish the diff to the job summary
+        if: always()
+        run: |
+          if [ -f datatype-sweep-results/diff.txt ]; then
+            {
+              echo '## Datatype sweep diff'
+              echo '```'
+              cat datatype-sweep-results/diff.txt
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Save this run as the next baseline
+        if: success()
+        run: |
+          rm -rf datatype-sweep-baseline
+          mkdir -p datatype-sweep-baseline
+          cp "$(ls -1t datatype-sweep-results/datatype-sweep-*.csv | head -1)" datatype-sweep-baseline/
+
+      - name: Cache the new baseline
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: datatype-sweep-baseline
+          key: datatype-sweep-baseline-${{ github.ref_name }}-${{ github.run_id }}
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: datatype-sweep-results
+          path: |
+            datatype-sweep-results/*.csv
+            datatype-sweep-results/*.json
+            datatype-sweep-results/*.txt
+            datatype-sweep-results/run-*.log
+          retention-days: 30
