@@ -91,23 +91,71 @@ func TestCreateVoyagerSchemaPG(t *testing.T) {
 	}
 }
 
-func TestPostgresGetPrimaryKeyColumns(t *testing.T) {
+func TestPostgresGetPrimaryKeyColumnsForTables(t *testing.T) {
 	testPostgresTarget.ExecuteSqls(
 		`CREATE SCHEMA test_schema;`,
+		// composite primary key: column order must follow the PK definition.
 		`CREATE TABLE test_schema.foo (
 			id INT,
 			category TEXT,
 			name TEXT,
 			PRIMARY KEY (id, category)
 		);`,
+		// single-column primary key.
 		`CREATE TABLE test_schema.bar (
 			id INT PRIMARY KEY,
 			name TEXT
 		);`,
+		// no primary key: should be absent from the result map.
 		`CREATE TABLE test_schema.baz (
 			id INT,
 			name TEXT
 		);`,
+		// composite primary key declared in non-attnum order: proves the declared key order
+		// (category, id) is preserved rather than sorted by attnum.
+		`CREATE TABLE test_schema.reversed_pk (
+			id INT,
+			category TEXT,
+			PRIMARY KEY (category, id)
+		);`,
+		// covering primary key: INCLUDE columns must be excluded (indnkeyatts filter).
+		`CREATE TABLE test_schema.covering_pk (
+			id INT,
+			name TEXT,
+			PRIMARY KEY (id) INCLUDE (name)
+		);`,
+		// partitioned table with the primary key declared on the root: every leaf inherits it.
+		// Import references only the root, so the root's own PK must be returned.
+		`CREATE TABLE test_schema.test_part (
+			id INT,
+			region TEXT,
+			PRIMARY KEY (id, region)
+		) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema.test_part_r1 PARTITION OF test_schema.test_part FOR VALUES IN ('r1');`,
+		`CREATE TABLE test_schema.test_part_r2 PARTITION OF test_schema.test_part FOR VALUES IN ('r2');`,
+		// partitioned table whose primary key exists only on the leaf partitions (the root has
+		// no PK of its own, e.g. imported via --use-partition-root). Import references only the
+		// root, so the PK must be discovered from a leaf and attributed to the root.
+		`CREATE TABLE test_schema.test_part1 (
+			id INT,
+			region TEXT
+		) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema.test_part1_r1 PARTITION OF test_schema.test_part1 FOR VALUES IN ('r1');`,
+		`CREATE TABLE test_schema.test_part1_r2 PARTITION OF test_schema.test_part1 FOR VALUES IN ('r2');`,
+		`ALTER TABLE test_schema.test_part1_r1 ADD PRIMARY KEY (id);`,
+		`ALTER TABLE test_schema.test_part1_r2 ADD PRIMARY KEY (id);`,
+
+		// partitioned table whose primary key exists only on the leaf partitions (the root has
+		// no PK of its own, e.g. imported via --use-partition-root). Import references only the
+		// root, so the PK must be discovered from a leaf and attributed to the root.
+		`CREATE TABLE test_schema.test_part2 (
+			id INT,
+			region TEXT
+		) PARTITION BY LIST (region);`,
+		`CREATE TABLE public.test_part2_r1 PARTITION OF test_schema.test_part2 FOR VALUES IN ('r1');`,
+		`CREATE TABLE test_schema.test_part2_r2 PARTITION OF test_schema.test_part2 FOR VALUES IN ('r2');`,
+		`ALTER TABLE public.test_part2_r1 ADD PRIMARY KEY (id);`,
+		`ALTER TABLE test_schema.test_part2_r2 ADD PRIMARY KEY (id);`,
 	)
 	defer testPostgresTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
@@ -127,13 +175,50 @@ func TestPostgresGetPrimaryKeyColumns(t *testing.T) {
 			table:          testutils.CreateNameTupleWithTargetName("test_schema.baz", "public", POSTGRESQL),
 			expectedPKCols: nil,
 		},
+		{
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.reversed_pk", "public", POSTGRESQL),
+			expectedPKCols: []string{"category", "id"},
+		},
+		{
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.covering_pk", "public", POSTGRESQL),
+			expectedPKCols: []string{"id"},
+		},
+		{
+			// partitioned root with PK declared at the root.
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.test_part", "public", POSTGRESQL),
+			expectedPKCols: []string{"id", "region"},
+		},
+		{
+			// partitioned root whose PK lives only on the leaf partitions.
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.test_part1", "public", POSTGRESQL),
+			expectedPKCols: []string{"id"},
+		},
+		{
+			// partitioned root whose PK lives only on the leaf partitions.
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.test_part2", "public", POSTGRESQL),
+			expectedPKCols: []string{"id"},
+		},
 	}
 
+	var tablesList []sqlname.NameTuple
 	for _, tt := range tests {
-		pkCols, err := testPostgresTarget.GetPrimaryKeyColumns(tt.table)
-		assert.NoError(t, err)
+		tablesList = append(tablesList, tt.table)
+	}
+
+	// Batched: fetch primary keys for all tables in a single call.
+	result, err := testPostgresTarget.GetPrimaryKeyColumnsForTables(tablesList)
+	require.NoError(t, err)
+
+	for _, tt := range tests {
+		pkCols, _ := result.Get(tt.table)
 		testutils.AssertEqualStringSlices(t, tt.expectedPKCols, pkCols)
 	}
+
+	// Empty input returns an empty (non-nil) map without querying.
+	emptyResult, err := testPostgresTarget.GetPrimaryKeyColumnsForTables(nil)
+	require.NoError(t, err)
+	require.NotNil(t, emptyResult)
+	require.Equal(t, 0, len(emptyResult.Keys()))
 }
 
 func TestPostgresGetNonEmptyTables(t *testing.T) {

@@ -202,6 +202,21 @@ func (tdb *TargetOracleDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]stri
 	return columns, nil
 }
 
+// GetPrimaryKeyColumnsForTables returns per-table primary-key columns. Implemented for
+// completion (Oracle targets are only used in fall-forward/fall-back where the fast path is
+// not valid); it delegates to the single-table variant.
+func (tdb *TargetOracleDB) GetPrimaryKeyColumnsForTables(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
+	for _, table := range tables {
+		cols, err := tdb.GetPrimaryKeyColumns(table)
+		if err != nil {
+			return nil, err
+		}
+		result.Put(table, cols)
+	}
+	return result, nil
+}
+
 // No need to implement GetPrimaryKeyColumns for Oracle fall-forward/fall-back as fast path is not valid there
 func (tdb *TargetOracleDB) GetPrimaryKeyConstraintNames(table sqlname.NameTuple) ([]string, error) {
 	return nil, nil

@@ -412,21 +412,6 @@ var noPersistentPreRunNeededList = []string{
 	"yb-voyager end",
 }
 
-// used for registering the --config-file flag
-var offlineCommands = []string{
-	"yb-voyager assess-migration",
-	"yb-voyager export schema",
-	"yb-voyager analyze-schema",
-	"yb-voyager import schema",
-	"yb-voyager export data",
-	"yb-voyager export data from source",
-	"yb-voyager import data",
-	"yb-voyager import data to target",
-	"yb-voyager finalize-schema-post-data-import",
-	"yb-voyager end migration",
-	"yb-voyager compare-performance",
-}
-
 func shouldLock(cmd *cobra.Command) bool {
 	return !slices.Contains(noLockNeededList, cmd.CommandPath())
 }

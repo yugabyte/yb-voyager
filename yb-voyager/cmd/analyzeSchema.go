@@ -120,7 +120,6 @@ var (
 	analyzeSchemaReportFormat string
 	sourceObjList             []string
 	schemaAnalysisReport      utils.SchemaReport
-	partitionTablesMap        = make(map[string]bool)
 	// key is partitioned table, value is sqlInfo (sqlstmt, fpath) where the ADD PRIMARY KEY statement resides
 	summaryMap          = make(map[string]*summaryInfo)
 	parserIssueDetector = queryissue.NewParserIssueDetector()

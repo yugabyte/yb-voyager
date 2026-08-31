@@ -1243,6 +1243,14 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	if err != nil {
 		utils.ErrExit("Failed to prepare cdc-partition-key: %s", err)
 	}
+
+	// Fetch the primary-key columns of the import tables from the target (before snapshot) so
+	// they can be passed to streamChanges and the conflict-detection cache without re-querying
+	// during streaming. Also fails fast if a custom-partition-key table has no primary key.
+	importTableToPKColumns, err := getPrimaryKeyColumnsForImportTables(importTableList)
+	if err != nil {
+		utils.ErrExit("Failed to get primary key columns for import tables: %s", err)
+	}
 	//updating the metadb after the startclean clears any required metadb state
 	err = updateImportDataStartedAndSomeConfigsInMetaDB()
 	if err != nil {
@@ -1289,7 +1297,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		if importSnapshotRequired() {
 			displayImportedRowCountSnapshot(state, importFileTasks, errorHandler)
 		}
-		err = streamChanges(state, importTableList)
+		err = streamChanges(state, importTableList, importTableToPKColumns)
 		if err != nil {
 			utils.ErrExit("Failed to stream changes to %s: %s", tconf.TargetDBType, err)
 		}
@@ -1310,8 +1318,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 }
 
 func postSnapshotImportProcessing(msr *metadb.MigrationStatusRecord, importTableList []sqlname.NameTuple) error {
-	var err error
-	err = restoreSequencesInOfflineMigration(msr, importTableList)
+	err := restoreSequencesInOfflineMigration(msr, importTableList)
 	if err != nil {
 		return goerrors.Errorf("failed to restore sequences: %s", err)
 	}
@@ -1407,6 +1414,49 @@ func waitUntilCutoverProcessedByCorrespondingExporterForImporter(importerRole st
 	}
 }
 
+/*
+getPrimaryKeyColumnsForImportTables fetches the primary-key columns of every import table
+from the target DB (in one batched query) so they can be threaded into the streaming
+conflict-detection cache.
+
+It is called once near the start of importData (for the target PG→YB live path only; other
+paths return an empty map since conflict detection does not run for them). Because importData
+runs in the same process before streamChanges on both the first run and resume, the map does
+not need to be persisted in metaDB.
+
+It also fails fast, before the snapshot import, if a table routed by a custom partition key
+has no primary key on the target: custom routing adds the PK as a synthetic unique index for
+conflict detection (a recycled PK across different custom keys must be serialized), so a
+custom-key table without a PK cannot be made correct. This is scoped to custom-key tables so
+that legitimately PK-less tables under pk/table routing (e.g. partitioned roots imported via
+--use-partition-root) are not blocked.
+*/
+func getPrimaryKeyColumnsForImportTables(tableNames []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	tableToPKColumns := utils.NewStructMap[sqlname.NameTuple, []string]()
+
+	// Only the target PG→YB live streaming path runs conflict detection and needs primary keys.
+	if importerRole != TARGET_DB_IMPORTER_ROLE || !changeStreamingIsEnabled(importType) || sourceDBType != POSTGRESQL {
+		return tableToPKColumns, nil
+	}
+
+	tableToPKColumns, err := tdb.GetPrimaryKeyColumnsForTables(tableNames)
+	if err != nil {
+		return nil, fmt.Errorf("error getting primary key columns for import tables: %w", err)
+	}
+
+	var tablesWithoutPK []sqlname.NameTuple
+	for _, t := range tableNames {
+		if pkColumns, _ := tableToPKColumns.Get(t); len(pkColumns) == 0 {
+			tablesWithoutPK = append(tablesWithoutPK, t)
+		}
+	}
+	if len(tablesWithoutPK) > 0 {
+		return nil, goerrors.Errorf("table(s) %v have no primary key on the target; live migration is not allowed for these tables", tablesWithoutPK)
+	}
+
+	return tableToPKColumns, nil
+}
+
 // For a fresh start but non empty tables in tableList && OnPrimaryKeyConflict is set to IGNORE -> notify user
 func runPKConflictModeGuardrails(state *ImportDataState, allTasks []*ImportFileTask) error {
 	// in case of ERROR mode, no need to check for non-empty tables
@@ -1432,12 +1482,13 @@ func runPKConflictModeGuardrails(state *ImportDataState, allTasks []*ImportFileT
 		return nil
 	}
 
+	tableToPKColumns, err := tdb.GetPrimaryKeyColumnsForTables(nonEmptyTables)
+	if err != nil {
+		return fmt.Errorf("failed to get primary key columns for tables: %w", err)
+	}
 	var nonEmptyTablesWithPK []sqlname.NameTuple
 	for _, table := range nonEmptyTables {
-		colList, err := tdb.GetPrimaryKeyColumns(table)
-		if err != nil {
-			return fmt.Errorf("failed to get primary key columns for table %s: %w", table.ForOutput(), err)
-		}
+		colList, _ := tableToPKColumns.Get(table)
 		if len(colList) > 0 { // table has PK
 			nonEmptyTablesWithPK = append(nonEmptyTablesWithPK, table)
 		}
@@ -1533,10 +1584,7 @@ func waitIfNoBatchAvailableForAllTasks(taskPicker FileTaskPicker, taskImporters 
 	if allTasksBatchNotAvailable {
 		log.Infof("No batches available for all in-progress tasks. Waiting for batch production.")
 		time.Sleep(100 * time.Millisecond)
-		return
 	}
-
-	return
 }
 
 func waitIfAllBatchesSubmittedForAllTasks(taskPicker FileTaskPicker, taskImporters map[int]*FileTaskImporter) {
@@ -1563,10 +1611,7 @@ func waitIfAllBatchesSubmittedForAllTasks(taskPicker FileTaskPicker, taskImporte
 	if allTasksAllBatchesSubmitted {
 		log.Infof("All batches submitted for all in-progress tasks. Waiting for import completion.")
 		time.Sleep(100 * time.Millisecond)
-		return
 	}
-
-	return
 }
 
 /*
@@ -1688,11 +1733,8 @@ func setupWorkerPoolAndQueue(maxParallelConns int, maxColocatedBatchesInProgress
 		colocatedBatchImportQueueConsumer := func() {
 			// just read from channel and submit to the worker pool.
 			// worker pool has a max size of maxColocatedBatchesInProgress, so it will block if all workers are busy.
-			for {
-				select {
-				case f := <-colocatedBatchImportQueue:
-					colocatedBatchImportPool.Go(f)
-				}
+			for f := range colocatedBatchImportQueue {
+				colocatedBatchImportPool.Go(f)
 			}
 		}
 		go colocatedBatchImportQueueConsumer()
@@ -1721,7 +1763,8 @@ func getTableTypes(tasks []*ImportFileTask) (*utils.StructMap[sqlname.NameTuple,
 		return nil, fmt.Errorf("checking if db is colocated: %w", err)
 	}
 	for _, task := range tasks {
-		if tableType, ok := tableTypes.Get(task.TableNameTup); !ok {
+		if _, ok := tableTypes.Get(task.TableNameTup); !ok {
+			var tableType string
 			if !isDBColocated {
 				tableType = SHARDED
 			} else {
@@ -1825,6 +1868,7 @@ func startMonitoringTargetYBHealth() error {
 		})
 
 		err = monitorTDBHealth.StartMonitoring()
+		//lint:ignore SA4023 StartMonitoring currently only returns on error; keep the conventional check
 		if err != nil {
 			log.Errorf("error monitoring the target health: %v", err)
 		}

@@ -738,13 +738,6 @@ func getFinalRowCount(row RowData) int64 {
 	return row.ImportedSnapshotRows + row.ImportedInserts + row.ExportedInserts - row.ImportedDeletes - row.ExportedDeletes
 }
 
-func getFinalRowCountWithSnapshotRows(row RowData, exportSnapshotRows int64, importSnapshotRows int64) int64 {
-	if row.DBType == "source" {
-		return exportSnapshotRows + row.ExportedInserts + row.ImportedInserts - row.ExportedDeletes - row.ImportedDeletes
-	}
-	return importSnapshotRows + row.ImportedInserts + row.ExportedInserts - row.ImportedDeletes - row.ExportedDeletes
-}
-
 func init() {
 	getCommand.AddCommand(getDataMigrationReportCmd)
 	registerExportDirFlag(getDataMigrationReportCmd)

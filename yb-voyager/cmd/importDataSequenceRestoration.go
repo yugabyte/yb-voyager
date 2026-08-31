@@ -201,7 +201,6 @@ func fetchSequenceToTableListMap(msr *metadb.MigrationStatusRecord) (*utils.Stru
 		if err != nil {
 			return nil, fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
 		}
-		sequenceName = sequenceTuple.ForKey()
 		tableList, ok := sequenceNameToTableMap.Get(sequenceTuple)
 		if ok {
 			tableList = append(tableList, tableNameTuple)

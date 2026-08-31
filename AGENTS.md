@@ -65,7 +65,7 @@ The Go module uses build tags to separate test tiers. From `yb-voyager/`:
 
 Single test: `go test -tags unit -run TestName ./yb-voyager/cmd/...`
 
-Lint (from `yb-voyager/`): `go vet ./...` and `staticcheck -tags unit ./...`. `staticcheck.conf` disables `S1008`.
+Lint (from `yb-voyager/`), matching CI (`go.yml`): `go vet ./...`, `go vet -tags unit ./...`, `staticcheck ./...`, and `staticcheck -tags unit ./...` (pin the staticcheck version from `versions/ci-config.json`). `staticcheck.conf` disables `S1008` (explicit boolean returns) and `ST1005` (user-facing error strings are deliberately capitalized/punctuated) — when editing it, keep `"inherit"` as the first entry or every check is silently disabled. Also keep the tree `gofmt`-clean.
 
 End-to-end migtests are invoked outside Go: `bash migtests/scripts/run-test.sh <test-name> [env.sh]`. They build/use the installed `yb-voyager` binary and a real source DB + YugabyteDB target.
 

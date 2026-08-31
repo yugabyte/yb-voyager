@@ -625,17 +625,6 @@ func (adb *AssessmentDB) CheckIfTableExists(tableName string) error {
 	return nil
 }
 
-// columnExists checks if a column exists in a SQLite table (for backward compatibility checks)
-func (adb *AssessmentDB) columnExists(tableName, columnName string) (bool, error) {
-	query := `SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?`
-	var count int
-	err := adb.db.QueryRow(query, tableName, columnName).Scan(&count)
-	if err != nil {
-		return false, fmt.Errorf("failed to check if column %s exists in table %s: %w", columnName, tableName, err)
-	}
-	return count > 0, nil
-}
-
 // HasSourceQueryStats checks if query stats data exists in the assessment database (source-db type agnostic)
 func (adb *AssessmentDB) HasSourceQueryStats() (bool, error) {
 	log.Infof("checking if query stats data exists in the assessment database")

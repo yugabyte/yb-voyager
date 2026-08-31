@@ -135,7 +135,6 @@ func PrintAndLogFormatted(OutputLogLevel OutputLogLevel, formatString string, ar
 	} else {
 		printer.Print(message)
 	}
-	return
 }
 
 func PrintFormatted(OutputLogLevel OutputLogLevel, formatString string, args ...interface{}) {
