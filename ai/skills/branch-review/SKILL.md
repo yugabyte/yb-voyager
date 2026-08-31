@@ -108,9 +108,12 @@ Evaluate every change against the BUGBOT hierarchy (4a) and the review lenses (4
 
 For each changed file, take the union of all `BUGBOT.md` / `.cursor/BUGBOT.md` files from that file's directory through the repo root (Step 1). Walk each rule and actively look for a violation in the diff — do not just confirm you read it.
 
-
-
 **Turn each lexically-detectable rule into a search over the *added* (`+`) lines** — do not rely on reading comprehension alone. A rule you only *read* is a rule you will miss; a rule you *grep for* is one you enforce.
+
+**Mandatory mechanical checks** — run these on the changed files, always (they are cheap and have caught real regressions):
+
+- `go vet` on the changed packages (with the appropriate build tags) when it runs in a few seconds.
+- Grep the added lines for: `utils.ErrExit` inside functions that return `error` (or inside new helper functions); new `TODO`/`FIXME`; commented-out code; `time.Sleep` in tests; single-value map reads (`m[k]` without `, ok`) where a missing key is meaningful; new or changed `json:` tags on persisted structs (→ raise the backward-compatibility question).
 
 
 #### 4b. Review lenses
@@ -120,13 +123,15 @@ For each changed file, take the union of all `BUGBOT.md` / `.cursor/BUGBOT.md` f
 | **Correctness** | Logic errors, off-by-one, **inverted / negated conditions** (`!found`, a flipped `<`/`>`, a wrong `!`), nil/null handling, race conditions, edge cases. |
 | **Scope & necessity** | Is every hunk needed *for this PR*? Flag speculative code, unused fields/params/abstractions added "for a later PR" with no caller, and **incidental changes unrelated to the stated goal** —  a needless new file, drive-by reformatting. AI-generated diffs routinely carry this noise; make the author justify each such change or drop it. |
 | **Design & maintainability** | Especially for new packages/interfaces/abstractions: unnecessary indirection, **YAGNI** , **layering** (each layer does only its job), redundant concepts (two fields meaning the same thing), and two-sources-of-truth for one fact. |
+| **Placement & naming** | Does each new function live in the right file/package? New feature-area helpers belong in their own file, not appended to an already-large command file; logic reachable from multiple commands belongs in a shared location. Long new blocks inside an existing function should be extracted. Names must be self-describing; several parallel maps/params keyed by the same thing usually want a struct. |
+| **Error-handling doctrine** | Unexpected state must fail loudly: no warn-and-continue, no silent fallback to a weaker mechanism, no in-band sentinel values (empty string / zero / nil carrying two meanings). For every `log.Warn` + continue or defensive skip on a "shouldn't happen" branch, ask: should this be an error? Errors must be wrapped with enough context (operation, object) to act on. |
 | **Hot-path performance** | *First decide whether the change is on a performance-critical path* — per-event / CDC / conflict-detection, the per-row import-data loop, per-tuple value conversion (see root BUGBOT "Performance-Critical (Hot) Paths").  |
 | **Simplification** | Is there a materially simpler implementation?  |
 | **Security** | Injection, hardcoded secrets, auth gaps, input validation. |
-| **Tests** | New logic has tests that actually assert behavior; edge cases covered. |
+| **Tests** | New logic has tests that actually assert behavior; edge cases covered. **Test quality**: no fixed sleeps or timing-dependent assertions; count assertions on asynchronous work need justified bounds on *both* sides (a vacuous lower bound like `>= 0` asserts nothing; a missing upper bound misses over-triggering); no reads of state a concurrent process is still writing. **Coverage variants** the repo's BUGBOT rules require (e.g. case-sensitive identifiers, partitioned tables, expression indexes) must be checked explicitly, not assumed. |
 | **Documentation** | Public APIs documented; non-obvious gating/branching logic commented with *why* and *when it applies*; genuinely unclear concepts (new fields, enums, labels) explained — if you can't tell what a field is for, ask. |
 
-Severity is not tied to lens: a hot-path regression or an inverted condition is Critical/Warning, not a nitpick. Design, scope, and clarity concerns that need author input but aren't defects go in the **Question** class (Step 5) — surface them, but don't invent a "bug" to justify them.
+Severity is not tied to lens: a hot-path regression or an inverted condition is Critical/Warning, not a nitpick. A concrete violation of a written BUGBOT rule defaults to **Warning**, not Suggestion. Design, scope, and clarity concerns that need author input but aren't defects go in the **Question** class (Step 5) — surface them, but don't invent a "bug" to justify them.
 
 ### Step 5: Present findings
 
@@ -176,7 +181,7 @@ Format:
 ```
 
 #### Question — Needs author input
-Not a defect, but something where intent or necessity is unclear and the author should respond: a design/scope concern (unnecessary abstraction, YAGNI field, layering, naming), an incidental change with no obvious reason, a "why is this nil / why this dedupe / why a separate file" doubt, or a request to confirm untested source paths were manually verified. Many of a human reviewer's most valuable comments are questions — do not suppress them just because they aren't bugs. (Note: these are surfaced in the review but are *not* auto-posted by the `post-pr-review` skill, which only posts Critical/Warning.)
+Not a defect, but something where intent or necessity is unclear and the author should respond: a design/scope concern (unnecessary abstraction, YAGNI field, layering, naming), an incidental change with no obvious reason, a "why is this nil / why this dedupe / why a separate file" doubt, or a request to confirm untested source paths were manually verified. Many of a human reviewer's most valuable comments are questions — do not suppress them just because they aren't bugs.
 
 Format:
 ```

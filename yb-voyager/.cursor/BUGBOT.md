@@ -82,3 +82,11 @@
 - Always include test cases for case-sensitive table and column names, wherever applicable.
 - Prefer exercising the **exported/public API** (e.g. `eventsConflict()`) over calling unexported helpers (`uniqueIndexConflicts()`) directly, so tests validate the real entry point and survive internal refactors.
 - When testing error paths, verify the specific error type or message — not just that an error occurred.
+
+## Test Determinism and Flakiness
+
+- No fixed `time.Sleep` to wait for asynchronous work — poll for the condition with a timeout, and comment what is being waited for.
+- Count assertions on asynchronous/streamed work need a justified bound on **both** sides: a vacuous lower bound (`>= 0`, `>= 1` on a count expected in the hundreds) asserts nothing, and a missing upper bound lets over-triggering pass. Derive the bounds from the workload and say so in a comment.
+- Do not assert exact counts on timing-dependent outcomes (retries, conflicts, batch splits) — use justified ranges.
+- Do not read state (buffers, files, DB rows) that a still-running concurrent process is writing; wait for it to finish or poll a synchronized signal.
+- Assert on the strongest available signal: prefer exact values or whole-map/whole-slice equality over substring containment.
