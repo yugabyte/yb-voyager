@@ -38,10 +38,21 @@ import (
 
 type mockYugabyteDB struct {
 	tgtdb.TargetYugabyteDB // to satisfy interface
+	// tableAttrs lets unit tests stub GetListOfTableAttributes (keyed by NameTuple.ForKey())
+	// so custom cdc-partition-key column validation/normalization can run without a live
+	// target DB.
+	tableAttrs map[string][]string
 }
 
 func (myb *mockYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *tgtdb.EventBatch) error {
 	return nil
+}
+
+func (myb *mockYugabyteDB) GetListOfTableAttributes(tableNameTup sqlname.NameTuple) ([]string, error) {
+	if myb.tableAttrs == nil {
+		return nil, nil
+	}
+	return myb.tableAttrs[tableNameTup.ForKey()], nil
 }
 
 func TestProcessEventsBasic(t *testing.T) {
@@ -603,10 +614,12 @@ func TestValidateCdcPartitioningStrategyUnchanged(t *testing.T) {
 	origKey := cdcPartitionKey
 	origOverrides := cdcPartitionKeyOverrides
 	origTargetDBType := tconf.TargetDBType
+	origTdb := tdb
 	t.Cleanup(func() {
 		cdcPartitionKey = origKey
 		cdcPartitionKeyOverrides = origOverrides
 		tconf.TargetDBType = origTargetDBType
+		tdb = origTdb
 	})
 	tconf.TargetDBType = YUGABYTEDB
 
@@ -618,6 +631,15 @@ func TestValidateCdcPartitioningStrategyUnchanged(t *testing.T) {
 	orders := lookup("test_schema.orders")
 	events := lookup("test_schema.events")
 	tableNames := []sqlname.NameTuple{orders, events}
+
+	// validateCustomPartitionKeyTables (invoked on both first-run and resume) resolves custom
+	// key columns against the target table's attributes, so stub them for the custom-key
+	// resume-guard subtests below. Only "orders" is ever routed by a custom key here.
+	tdb = &mockYugabyteDB{
+		tableAttrs: map[string][]string{
+			orders.ForKey(): {"id", "customer_id", "region"},
+		},
+	}
 
 	// First-run config: global pk with an override putting orders on table. No
 	// expression-UK tables (captured as a non-nil empty slice on the first run).
