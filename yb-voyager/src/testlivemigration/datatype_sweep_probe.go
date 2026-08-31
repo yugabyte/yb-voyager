@@ -238,6 +238,19 @@ type datatypeProbe struct {
 	// non-comma array delimiter survived the round-trip.
 	RecordDestValue bool
 
+	// NullOnly marks a type whose column can be created and whose rows can be migrated,
+	// but for which no literal is storable at all - PostgreSQL's input function for the
+	// type raises "cannot accept a value of type <t>". Only NULL can ever be written, so
+	// InitialValue and AltValue are both NULL and the update op cannot change the value.
+	// That is still a real migration path: the type has to exist on the target, the
+	// column has to survive the snapshot, and the rows have to travel through CDC.
+	//
+	// A probe is only allowed to claim this after the literal has actually been refused
+	// at run time, and PoisonNote/Note must quote the error. It exists so the
+	// InitialValue != AltValue guard, which is there to stop a silently useless update
+	// op, does not force these types out of the audit entirely.
+	NullOnly bool
+
 	// ExpectVerdict, when set, is enforced after the run as a harness sanity check
 	// (PROBE_SPEC.md §"Known-answer checks"). Used by the int/text controls.
 	ExpectVerdict string
@@ -911,7 +924,7 @@ func (r *sweepRun) runOffline() {
 		return
 	}
 	if err := r.lm.StartImportData(false, map[string]string{"--log-level": "debug"}); err != nil {
-		r.abortAll(fmt.Sprintf("import data failed: %v", err))
+		r.abortAll(r.importAbortReason("import data failed", err))
 		return
 	}
 	// No snapshot wait here. `import data` was started with async=false, so the call
@@ -1022,7 +1035,7 @@ func (r *sweepRun) startForwardMigration() bool {
 		return false
 	}
 	if err := r.lm.StartImportData(true, map[string]string{"--log-level": "debug"}); err != nil {
-		r.abortAll(fmt.Sprintf("import data failed to start: %v", err))
+		r.abortAll(r.importAbortReason("import data failed to start", err))
 		return false
 	}
 	return true
@@ -1793,6 +1806,28 @@ func (r *sweepRun) markExportNeverStreamed(reason string) {
 		o.exportNeverStreamed = true
 		o.flakeDetail = reason
 	}
+}
+
+// importAbortReason turns a bare "import data failed" into a reason that names the
+// actual database error.
+//
+// A non-zero exit from `import data` says only that the command exited; the cause lives
+// in the importer's own output and in <export-dir>/logs. Reporting the exit status alone
+// reproduces, inside the audit tooling, exactly the failure mode this audit exists to
+// find: a failure that is real but leaves nothing quotable, and is therefore
+// indistinguishable from noise. So the importer log is scanned with the same signature
+// matcher used for wedged-importer evidence, and when nothing matches, the detail says
+// so explicitly instead of leaving it implied.
+func (r *sweepRun) importAbortReason(what string, err error) string {
+	reason := fmt.Sprintf("%s: %v", what, err)
+	if quoted, n := mostRepeatedError(r.importLogText(), ""); quoted != "" {
+		if n > 1 {
+			return fmt.Sprintf("%s; importer error (x%d): %s", reason, n, quoted)
+		}
+		return fmt.Sprintf("%s; importer error: %s", reason, quoted)
+	}
+	return reason + "; NO error line matching an import-failure signature was found in " +
+		"the import command stdout/stderr or <export-dir>/logs - the cause is unrecorded"
 }
 
 func (r *sweepRun) abortAll(reason string) {

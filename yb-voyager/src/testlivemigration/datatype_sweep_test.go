@@ -147,7 +147,10 @@ func assertUniqueProbeIDs(t *testing.T) {
 		if p.InitialValue == "" || p.AltValue == "" {
 			t.Fatalf("probe %q must set both InitialValue and AltValue", p.ID)
 		}
-		if p.InitialValue == p.AltValue {
+		// A NullOnly probe is exempt: its type has no storable literal at all, so both
+		// values are NULL by necessity and the update op is knowingly a no-op. The
+		// probe still proves the type survives DDL, snapshot and CDC.
+		if p.InitialValue == p.AltValue && !p.NullOnly {
 			t.Fatalf("probe %q has InitialValue == AltValue, so its update op proves nothing", p.ID)
 		}
 	}
