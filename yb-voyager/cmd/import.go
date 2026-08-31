@@ -288,7 +288,6 @@ func parseCdcPartitionKeyOverrideValue(tableName, value string) (cdcPartitionKey
 		return cdcPartitionKeyOverride{}, goerrors.Errorf("invalid cdc-partition-key-overrides value for table %q: custom key column list is empty", tableName)
 	}
 
-	utils.PrintAndLogfWarning("[Tech Preview] Using custom cdc partition key for table %q: (%s)", tableName, value)
 	rawColumns := strings.Split(value, ",")
 	columns := make([]string, 0, len(rawColumns))
 	seen := make(map[string]bool)
@@ -557,8 +556,12 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 		table: Partition CDC events by table (all events for a table share one channel).`)
 
 	cmd.Flags().StringVar(&cdcPartitionKeyOverrides, "cdc-partition-key-overrides", "",
-		`Optional per-table CDC partition-key overrides as schema.table:pk|table pairs, separated by ';'.
-		Example: public.orders:table;sales.events:pk. Unlisted tables keep the global --cdc-partition-key.`)
+		`Optional per-table CDC partition-key overrides as schema.table:strategy pairs, separated by ';'.
+		strategy is one of: pk, table, or a custom key column list wrapped in parentheses (col1,col2).
+		pk: Partition CDC events by primary key.
+		table: Partition CDC events by table (all events for a table share one channel).
+		(col1,col2): Partition CDC events by the given column values (immutable columns).
+		Example: public.orders:table;sales.events:pk;public.payments:(customer_id,region). Unlisted tables keep the global --cdc-partition-key.`)
 
 	cmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
 		"Port for Prometheus metrics server (default: 9101)")
