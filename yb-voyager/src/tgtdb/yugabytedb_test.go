@@ -174,8 +174,6 @@ func TestYugabyteGetPrimaryKeyColumnsForTables(t *testing.T) {
 		`CREATE TABLE test_schema.test_part2_r2 PARTITION OF test_schema.test_part2 FOR VALUES IN ('r2');`,
 		`ALTER TABLE public.test_part2_r1 ADD PRIMARY KEY (id);`,
 		`ALTER TABLE test_schema.test_part2_r2 ADD PRIMARY KEY (id);`,
-
-
 	)
 	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
@@ -501,7 +499,6 @@ func TestYugabyteGetTableToUniqueIndexesMap(t *testing.T) {
 			code TEXT,
 			UNIQUE (code) INCLUDE (email)
 		);`,
-
 	)
 	defer testYugabyteDBTarget.ExecuteSqls(
 		`DROP SCHEMA test_schema CASCADE;`,

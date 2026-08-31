@@ -380,7 +380,7 @@ func queryPGPrimaryKeyColumnsByCatalog(queryFn func(query string) (*sql.Rows, er
 	// getPartitionTableToRootTableMap returns, for every table whose root is in tables, a
 	// mapping of its catalog name ("schema.table") to its root's catalog name. This includes
 	// each leaf partition -> root, and each root/normal table -> itself.
-	//TODO: need to separate this out of this function 
+	//TODO: need to separate this out of this function
 	tableToRootMap, err := getPartitionTableToRootTableMap(queryFn, tables)
 	if err != nil {
 		return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)

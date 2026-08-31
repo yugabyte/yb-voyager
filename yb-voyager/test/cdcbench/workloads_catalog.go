@@ -97,7 +97,7 @@ func init() {
 	// CUSTOMER PATTERN (reported in the field): records are INSERTed as drafts
 	// with NULL unique columns; the unique value is filled by a later UPDATE.
 	// SQL-semantically there are ZERO conflicts (NULLs are distinct in unique
-	// indexes), 
+	// indexes),
 	Register(testdataWorkload("oltp-insert-null-then-fill", []string{"uk_table"}, 20_000, false))
 
 	// ---- schema: shape probes (index count, row width, key structure) ----

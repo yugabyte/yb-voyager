@@ -913,7 +913,6 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 	require.NoError(t, err)
 }
 
-
 // getReportCDCCounts extracts the total imported and exported CDC event counts for a
 // table from a DataMigrationReport. The tableName must be in the quoted format
 // returned by testutils.ReportTableName().

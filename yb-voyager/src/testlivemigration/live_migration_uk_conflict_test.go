@@ -2290,7 +2290,7 @@ func TestLiveMigrationCdcPartitionKeyRejectsCustomKeyColumnNotOnTable(t *testing
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
 
-func TestLiveMigrationWithSubsetOFPartialUNiqueIndexColumnsBeingChangedInUpdate(t *testing.T) {  
+func TestLiveMigrationWithSubsetOFPartialUNiqueIndexColumnsBeingChangedInUpdate(t *testing.T) {
 	t.Parallel()
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
@@ -2431,7 +2431,6 @@ func TestLiveMigrationWithSubsetOFPartialUNiqueIndexColumnsBeingChangedInUpdate(
 	err = liveMigrationTest.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
-
 
 // TestLiveMigrationCustomCdcPartitionKeyPKRecycleConflict verifies the primary-key guard for
 // custom-key tables (Follow-up 3.2): the primary key is added to the conflict set so a
@@ -2723,7 +2722,6 @@ func TestLiveMigrationPartitionedTableWithCustomCdcPartitionKeyNoConflict(t *tes
 	}
 	require.Nil(t, conflicts, "no unique-key conflicts should be detected: all r1 events share the custom key => same channel")
 
-	
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "target does not match source after streaming")
 

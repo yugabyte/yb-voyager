@@ -456,7 +456,7 @@ func DeparseParseTree(parseTree *pg_query.ParseResult) (string, error) {
 	return deparsedStmt, nil
 }
 
-//Deparses with semicolon at the end
+// Deparses with semicolon at the end
 func Deparse(parseTree *pg_query.ParseResult) (string, error) {
 	if parseTree == nil || len(parseTree.Stmts) == 0 {
 		return "", goerrors.Errorf("parse tree is empty or invalid")
@@ -471,7 +471,7 @@ func Deparse(parseTree *pg_query.ParseResult) (string, error) {
 }
 
 func CloneParseTree(parseTree *pg_query.ParseResult) *pg_query.ParseResult {
-    return proto.Clone(parseTree).(*pg_query.ParseResult)
+	return proto.Clone(parseTree).(*pg_query.ParseResult)
 }
 
 func getAConstValue(node *pg_query.Node) string {

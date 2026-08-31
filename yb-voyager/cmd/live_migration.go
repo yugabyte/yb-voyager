@@ -640,7 +640,7 @@ func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, sourceDBTypeF
 		return fmt.Errorf("get table unique indexes map from target: %w", err)
 	}
 
-	// For custom-key tables the primary key must join the unique indexes to be able to detect PK-recycle races. 
+	// For custom-key tables the primary key must join the unique indexes to be able to detect PK-recycle races.
 	// GetTableToUniqueIndexesMap deliberately excludes the primary key (filters out contype='p'): under default pk routing,
 	// same-PK events always co-locate on one channel, so a recycled PK
 	// example - table(id pk, c1 unique) partition-key (c1)

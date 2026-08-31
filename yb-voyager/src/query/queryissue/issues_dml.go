@@ -226,7 +226,7 @@ func NewJsonQueryFunctionIssue(objectType string, objectName string, sqlStatemen
 	details := map[string]interface{}{
 		FUNCTION_NAMES: funcNames, //TODO USE it later when we start putting these in reports
 	}
-	return newQueryIssue(jsonQueryFunctionIssue, objectType, objectName, sqlStatement, details, map[string]interface{}{})	
+	return newQueryIssue(jsonQueryFunctionIssue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var loFunctionsIssue = issue.Issue{
