@@ -715,7 +715,7 @@ func exportData() bool {
 	finalTableList, tablesColumnList := finalizeTableAndColumnList(finalTableList, partitionsToRootTableMap)
 	handleEmptyTableListForExport(finalTableList)
 
-	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		switch source.DBType {
 		case POSTGRESQL:
 			record.SourceRenameTablesMap = partitionsToRootTableMap
@@ -728,6 +728,9 @@ func exportData() bool {
 			})
 		}
 	})
+	if err != nil {
+		utils.ErrExit("failed to update rename-tables map in migration status record: %w", err)
+	}
 
 	msr, err = metaDB.GetMigrationStatusRecord()
 	if err != nil {
@@ -943,7 +946,8 @@ func initPGLiveMigrationAndExportSnapshotIfRequired(ctx context.Context, cancel 
 	}
 
 	var sequenceInitValues strings.Builder
-	sequenceValueMap.IterKV(func(seqName sqlname.NameTuple, seqValue int64) (bool, error) {
+	// the callback never returns an error
+	_ = sequenceValueMap.IterKV(func(seqName sqlname.NameTuple, seqValue int64) (bool, error) {
 		sequenceInitValues.WriteString(fmt.Sprintf("%s:%d,", seqName.ForKey(), seqValue))
 		return true, nil
 	})
@@ -1457,13 +1461,16 @@ func fetchTablesNamesFromSourceAndFilterTableList() (map[string]string, []sqlnam
 		isTableListModified = len(sqlname.SetDifferenceNameTuples(nameTupleTableListFromDB, tableListInFirstRun)) != 0
 	}
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
-		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			if isTableListModified {
 				record.IsExportTableListSet = true
 			} else {
 				record.IsExportTableListSet = false
 			}
 		})
+		if err != nil {
+			utils.ErrExit("failed to update IsExportTableListSet in migration status record: %w", err)
+		}
 	}
 
 	var partitionsToRootTableMap map[string]string
@@ -2317,7 +2324,8 @@ func reportLeafPartitionsWithMismatchedPrimaryKeys(
 		return a.AsQualifiedCatalogName() < b.AsQualifiedCatalogName()
 	}
 	utils.PrintAndLogfInfo("Partitioned tables with inconsistent primary keys across leaf partitions:")
-	mismatches.IterKVSorted(sortFn, func(root sqlname.NameTuple, pks []string) (bool, error) {
+	// display-only iteration right before ErrExit; the callback never returns an error
+	_ = mismatches.IterKVSorted(sortFn, func(root sqlname.NameTuple, pks []string) (bool, error) {
 		utils.PrintAndLogf("- %s: (%s)\n", root.ForOutput(), strings.Join(pks, "), ("))
 		return true, nil
 	})
@@ -2357,7 +2365,8 @@ func handleUnsupportedColumnsInExportData(unsupportedTableColumnsMap *utils.Stru
 
 	var unsupportedColsMsg strings.Builder
 	unsupportedColsMsg.WriteString("The following columns data export is unsupported:\n")
-	unsupportedTableColumnsMap.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
+	// message assembly; the callback never returns an error
+	_ = unsupportedTableColumnsMap.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
 		if len(v) != 0 {
 			unsupportedColsMsg.WriteString(fmt.Sprintf("%s: %s\n", k.ForOutput(), v))
 		}
@@ -2431,12 +2440,15 @@ func saveSourceDBConfInMSR() {
 	if exporterRole != SOURCE_DB_EXPORTER_ROLE {
 		return
 	}
-	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		// overriding the current value of SourceDBConf
 		record.SourceDBConf = source.Clone()
 		record.SourceDBConf.Password = ""
 		record.SourceDBConf.Uri = ""
 	})
+	if err != nil {
+		utils.ErrExit("failed to save source DB conf in migration status record: %w", err)
+	}
 }
 
 func createSnapshotExportStartedEvent() cp.SnapshotExportStartedEvent {

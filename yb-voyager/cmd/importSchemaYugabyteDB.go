@@ -291,17 +291,27 @@ func executeSqlStmtWithRetries(tgtConn **ImportSchemaTargetConn, sqlInfo sqlInfo
 		return goerrors.Errorf("error applying session variable: %v", err)
 	}
 
-	defer func(conn *ImportSchemaTargetConn) error {
-		if conn != nil {
+	// NOTE (errcheck): the closure's error return has always been discarded — a
+	// deferred call's return value cannot be observed. Made explicit with `_ =`
+	// below. `(*tgtConn)` MUST stay a defer-time argument (evaluated eagerly,
+	// always non-nil here): reading it at exit time would arm the closure body
+	// on the error paths that set `(*tgtConn) = nil`, nil-dereferencing in
+	// ResetSessionVariables. Pre-existing oddity flagged for a follow-up: the
+	// `conn != nil` early-return means the reset body only ever runs when conn
+	// is nil, so the closure has always been a no-op.
+	defer func(conn *ImportSchemaTargetConn) {
+		_ = func() error {
+			if conn != nil {
+				return nil
+			}
+			// Reset all session variables on the connection for next stmt
+			log.Infof("Resetting all session variables on the connection for next stmt")
+			err = conn.ResetSessionVariables(sessionVariables)
+			if err != nil {
+				return goerrors.Errorf("error resetting all session variables on connection: %v", err)
+			}
 			return nil
-		}
-		// Reset all session variables on the connection for next stmt
-		log.Infof("Resetting all session variables on the connection for next stmt")
-		err = conn.ResetSessionVariables(sessionVariables)
-		if err != nil {
-			return goerrors.Errorf("error resetting all session variables on connection: %v", err)
-		}
-		return nil
+		}()
 	}((*tgtConn))
 
 	for retryCount := 0; retryCount <= DDL_MAX_RETRY_COUNT; retryCount++ {

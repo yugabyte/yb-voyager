@@ -241,7 +241,10 @@ func parseSchemaFile(exportDir string, schemaDir string, exportObjectTypesList [
 		msg := fmt.Sprintf("\nIMPORTANT NOTE: Please, review and manually import the DDL statements from the %q\n", filePath)
 		color.Red(msg)
 		log.Info(msg)
-		os.WriteFile(filePath, []byte(setSessionVariables.String()+uncategorizedSqls.String()), 0644)
+		err := os.WriteFile(filePath, []byte(setSessionVariables.String()+uncategorizedSqls.String()), 0644)
+		if err != nil {
+			utils.ErrExit("failed to write %q: %w", filePath, err)
+		}
 		return 1
 	}
 

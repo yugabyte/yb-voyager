@@ -109,7 +109,9 @@ func cutoverInitiatedAndCutoverEventProcessed() (bool, error) {
 }
 
 func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple, tableToPKColumns *utils.StructMap[sqlname.NameTuple, []string]) error {
-	waitForDebeziumStartIfRequired()
+	if err := waitForDebeziumStartIfRequired(); err != nil {
+		return fmt.Errorf("waiting for debezium to start: %w", err)
+	}
 	importPhase = dbzm.MODE_STREAMING
 	utils.PrintAndLogfInfo("streaming changes to %s...", tconf.TargetDBType)
 	streamingPhaseValueConverter, err := dbzm.NewStreamingPhaseDebeziumValueConverter(tableNames, exportDir, tconf, importerRole, sourceDBType)

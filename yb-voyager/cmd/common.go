@@ -193,7 +193,10 @@ func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[
 	}
 
 	//extracted SQL for setval() and put it into a postexport.sql file
-	os.WriteFile(filepath.Join(dataDirPath, "postdata.sql"), []byte(sequencesPostData.String()), 0644)
+	err = os.WriteFile(filepath.Join(dataDirPath, "postdata.sql"), []byte(sequencesPostData.String()), 0644)
+	if err != nil {
+		utils.ErrExit("failed to write postdata.sql: %w", err)
+	}
 	return tableNameVsFileNameMap
 }
 
@@ -400,7 +403,8 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 	}
 
 	keys := make([]sqlname.NameTuple, 0, len(snapshotRowCount.Keys()))
-	snapshotRowCount.IterKV(func(k sqlname.NameTuple, v RowCountPair) (bool, error) {
+	// the callback never returns an error
+	_ = snapshotRowCount.IterKV(func(k sqlname.NameTuple, v RowCountPair) (bool, error) {
 		keys = append(keys, k)
 		return true, nil
 	})
@@ -1937,7 +1941,8 @@ func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDa
 				if err != nil {
 					log.Infof("callhome: error while getting exported snapshot rows map: %v", err)
 				}
-				exportedSnapshotRow.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
+				// callhome payload assembly; the callback never returns an error
+				_ = exportedSnapshotRow.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
 					exportDataPayload.TotalRows += value
 					if value >= exportDataPayload.LargestTableRows {
 						exportDataPayload.LargestTableRows = value
