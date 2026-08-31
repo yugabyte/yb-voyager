@@ -292,14 +292,9 @@ func computeCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple, isFi
 		return nil, nil, err
 	}
 
-	// Import-start guardrails for custom-key tables (column existence + coverage warning).
-	// These query the target DB, so only run them on the first import; on resume the config
-	// is unchanged (enforced by validateCdcPartitioningStrategyUnchanged) and re-querying is
-	// unnecessary.
-	if isFirstRun {
-		if err := validateCustomPartitionKeyTables(tableToPartitionKeyOverrideMap); err != nil {
-			return nil, nil, err
-		}
+	err = validateCustomPartitionKeyTables(tableToPartitionKeyOverrideMap)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	exprUKKeysForStorage := make([]string, 0, len(exprUKSet.Keys()))
@@ -491,13 +486,10 @@ func validateCustomPartitionKeyTables(tableToPartitionKeyOverrideMap *utils.Stru
 		if err != nil {
 			return fmt.Errorf("error getting columns of table %s for custom cdc-partition-key validation: %w", t.ForOutput(), err)
 		}
-		// columnSet := make(map[string]bool, len(tableColumns))
-		// for _, c := range tableColumns {
-		// 	columnSet[c] = true
-		// }
 		overrideColumns := make([]string, 0, len(override.Columns))
 		var missing []string
 		for _, c := range override.Columns {
+			
 			bestMatchingColumnName, err := attributeNameRegistry.FindBestMatchingColumnName(c, tableColumns)
 			if err != nil {
 				missing = append(missing, c)

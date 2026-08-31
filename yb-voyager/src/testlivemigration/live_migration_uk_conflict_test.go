@@ -2255,6 +2255,24 @@ func TestLiveMigrationCustomCaseSensitiveCdcPartitionKeyNoConflict(t *testing.T)
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`, `"test_schema"."test_live_multi_case"`}, "id")
 	testutils.FatalIfError(t, err, "target does not match source after streaming")
 
+	err = lm.StopImportData()
+	testutils.FatalIfError(t, err, "failed to stop import data")
+
+	err = lm.StartImportData(false, map[string]string{
+		"--cdc-partition-key":           "auto",
+		"--cdc-partition-key-overrides": "test_schema.test_live:(custom_key);test_schema.test_live_multi_case:(customkey,customKey1)",
+	})
+	require.Error(t, err, "import with a non-existent custom key column should fail")
+	output := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
+	require.Contains(t, output, "cdc-partition-key-overrides: custom key column(s) '[custom_key]' do not exist on table 'test_schema.test_live' (available columns: [CustomKey id most_recent]",
+		"expected missing-column rejection, got: %s", output)
+
+	err = lm.StartImportData(true, map[string]string{
+		"--cdc-partition-key":           "auto",
+		"--cdc-partition-key-overrides": "test_schema.test_live:(Customkey);test_schema.test_live_multi_case:(customkey,customKey1)",
+	})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
 	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
