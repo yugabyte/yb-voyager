@@ -661,6 +661,13 @@ func (ora *Oracle) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.Stru
 	panic("not implemented")
 }
 
+// GetGeneratedStoredColumns is a no-op for Oracle: STORED generated columns and the CDC
+// custom/pk partitioning that consumes this info are only supported for a PostgreSQL source
+// (Oracle live migration always uses PARTITION_BY_TABLE).
+func (ora *Oracle) GetGeneratedStoredColumns(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	return utils.NewStructMap[sqlname.NameTuple, []string](), nil
+}
+
 func (ora *Oracle) GetNonPKTables() ([]string, error) {
 	query := fmt.Sprintf(`SELECT NVL(pk_count.count, 0) AS pk_count, at.table_name
 	FROM ALL_TABLES at

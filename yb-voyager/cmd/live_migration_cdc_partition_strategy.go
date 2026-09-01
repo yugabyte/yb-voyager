@@ -40,7 +40,7 @@ auto/expr-UK/generated-stored-column rules), and persists TableToCDCPartitionKey
 It is intentionally called before snapshot import so bad configs fail fast.
 On resume (map already in metaDB) this is a no-op.
 */
-func prepareCdcPartitionKey(tableNames []sqlname.NameTuple) error {
+func prepareCdcPartitionKey(tableNames []sqlname.NameTuple, tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]) error {
 	if importerRole != TARGET_DB_IMPORTER_ROLE || !changeStreamingIsEnabled(importType) || sourceDBType != POSTGRESQL {
 		return nil
 	}
@@ -60,14 +60,14 @@ func prepareCdcPartitionKey(tableNames []sqlname.NameTuple) error {
 		// captured on the first run so no target-DB re-query is needed — and reject if it
 		// differs from what was persisted. This catches semantically-different overrides
 		// that a plain string compare would miss (ordering, spelling/quoting, whitespace).
-		if err := validateCdcPartitioningStrategyUnchanged(tableNames, importDataStatus); err != nil {
+		if err := validateCdcPartitioningStrategyUnchanged(tableNames, importDataStatus, tableToUniqueIndexes); err != nil {
 			return err
 		}
 		log.Infof("cdc partition key already prepared in metadb and unchanged; skipping recompute")
 		return nil
 	}
 
-	_, err = computeAndPersistCdcPartitioningStrategyPerTable(tableNames, importDataStatus)
+	_, err = computeAndPersistCdcPartitioningStrategyPerTable(tableNames, importDataStatus, tableToUniqueIndexes)
 	return err
 }
 
@@ -136,7 +136,7 @@ func resolveEffectiveCdcPartitionKeys(
 	globalKey string,
 	overrides *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride],
 	exprUKSet *utils.StructMap[sqlname.NameTuple, bool],
-	generatedStoredCols *utils.StructMap[sqlname.NameTuple, []tgtdb.GeneratedStoredColumn],
+	generatedStoredCols *utils.StructMap[sqlname.NameTuple, []GeneratedStoredColumn],
 	targetDBType string,
 ) (*utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], error) {
 	result := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
@@ -147,7 +147,7 @@ func resolveEffectiveCdcPartitionKeys(
 		exprUKSet = utils.NewStructMap[sqlname.NameTuple, bool]()
 	}
 	if generatedStoredCols == nil {
-		generatedStoredCols = utils.NewStructMap[sqlname.NameTuple, []tgtdb.GeneratedStoredColumn]()
+		generatedStoredCols = utils.NewStructMap[sqlname.NameTuple, []GeneratedStoredColumn]()
 	}
 
 	switch globalKey {
@@ -197,19 +197,15 @@ func resolveEffectiveCdcPartitionKeys(
 		if _, isExprUK := exprUKSet.Get(t); isExprUK {
 			return nil, goerrors.Errorf("cdc-partition-key %s is not allowed for table %s because it has an expression-based unique index; use table (via --cdc-partition-key or --cdc-partition-key-overrides)", override.Strategy, t.ForOutput())
 		}
-		if tableHasUniqueIndexOnGenerated(generatedStoredCols, t) {
-			return nil, goerrors.Errorf("cdc-partition-key %s is not allowed for table %s because it has a unique index on a stored generated column; use table (via --cdc-partition-key or --cdc-partition-key-overrides)", override.Strategy, t.ForOutput())
-		}
-		if override.Strategy == PARTITION_BY_CUSTOM {
-			if col, ok := customKeyGeneratedColumn(override.Columns, generatedStoredCols, t); ok {
-				return nil, goerrors.Errorf("cdc-partition-key custom is not allowed for table %s because custom key column %q is a stored generated column (not present in Debezium events); use table or pk (via --cdc-partition-key or --cdc-partition-key-overrides)", t.ForOutput(), col)
-			}
+		cols, ok := tableHasGeneratedColumn(generatedStoredCols, t, override.Columns)
+		if ok {
+			return nil, goerrors.Errorf("cdc-partition-key %s is not allowed for table %s because custom key column(s) - [%s] are a stored generated column(s); use table (via --cdc-partition-key or --cdc-partition-key-overrides)", override.Strategy, t.ForOutput(), strings.Join(cols, ", "))
 		}
 	}
 	return result, nil
 }
 
-func tableHasUniqueIndexOnGenerated(generatedStoredCols *utils.StructMap[sqlname.NameTuple, []tgtdb.GeneratedStoredColumn], t sqlname.NameTuple) bool {
+func tableHasUniqueIndexOnGenerated(generatedStoredCols *utils.StructMap[sqlname.NameTuple, []GeneratedStoredColumn], t sqlname.NameTuple) bool {
 	cols, ok := generatedStoredCols.Get(t)
 	if !ok {
 		return false
@@ -222,21 +218,20 @@ func tableHasUniqueIndexOnGenerated(generatedStoredCols *utils.StructMap[sqlname
 	return false
 }
 
-func customKeyGeneratedColumn(customCols []string, generatedStoredCols *utils.StructMap[sqlname.NameTuple, []tgtdb.GeneratedStoredColumn], t sqlname.NameTuple) (string, bool) {
-	generated, ok := generatedStoredCols.Get(t)
+func tableHasGeneratedColumn(generatedStoredCols *utils.StructMap[sqlname.NameTuple, []GeneratedStoredColumn], t sqlname.NameTuple, overrideColumns []string) ([]string, bool) {
+	cols, ok := generatedStoredCols.Get(t)
 	if !ok {
-		return "", false
+		return nil, false
 	}
-	generatedNames := make(map[string]struct{}, len(generated))
-	for _, col := range generated {
-		generatedNames[col.Name] = struct{}{}
-	}
-	for _, customCol := range customCols {
-		if _, isGenerated := generatedNames[customCol]; isGenerated {
-			return customCol, true
+	generatedCustomCols := make([]string, 0)
+	for _, col := range overrideColumns {
+		if lo.ContainsBy(cols, func(c GeneratedStoredColumn) bool {
+			return c.Name == col
+		}) {
+			generatedCustomCols = append(generatedCustomCols, col)
 		}
 	}
-	return "", false
+	return generatedCustomCols, len(generatedCustomCols) > 0
 }
 
 // resolveCdcPartitionKeyOverrides looks up override table names in namereg and
@@ -292,8 +287,8 @@ func checkIfNeedsExprUKCheck(cdcPartitionKey string, overrides *utils.StructMap[
 
 // computeAndPersistCdcPartitioningStrategyPerTable resolves global + overrides +
 // auto/expr-UK/generated-stored-column rules and writes TableToCDCPartitionKey to metaDB.
-func computeAndPersistCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple, importDataStatus *metadb.ImportDataStatusRecord) (*utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], error) {
-	tableToPartitionKeyOverrideMap, exprUKKeysForStorage, generatedStoredColsForStorage, err := computeCdcPartitioningStrategyPerTable(tableNames, true, importDataStatus)
+func computeAndPersistCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple, importDataStatus *metadb.ImportDataStatusRecord, tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]) (*utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], error) {
+	tableToPartitionKeyOverrideMap, exprUKKeysForStorage, err := computeCdcPartitioningStrategyPerTable(tableNames, true, importDataStatus, tableToUniqueIndexes)
 	if err != nil {
 		return nil, fmt.Errorf("error computing cdc partitioning strategy per table: %w", err)
 	}
@@ -311,7 +306,6 @@ func computeAndPersistCdcPartitioningStrategyPerTable(tableNames []sqlname.NameT
 	err = metaDB.UpdateImportDataStatusRecord(func(obj *metadb.ImportDataStatusRecord) {
 		obj.TableToCDCPartitionKey = metadbMap
 		obj.CdcExpressionUniqueIndexTables = exprUKKeysForStorage
-		obj.CdcGeneratedStoredColumns = generatedStoredColsForStorage
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error updating cdc partition key in metadb: %w", err)
@@ -320,30 +314,32 @@ func computeAndPersistCdcPartitioningStrategyPerTable(tableNames []sqlname.NameT
 	return tableToPartitionKeyOverrideMap, nil
 }
 
-func computeCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple, isFirstRun bool, importDataStatus *metadb.ImportDataStatusRecord) (*utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], []string, map[string][]metadb.GeneratedStoredColumn, error) {
+func computeCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple, isFirstRun bool, importDataStatus *metadb.ImportDataStatusRecord, tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]) (*utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], []string, error) {
 	rawOverrides, err := parseCdcPartitionKeyOverrides(cdcPartitionKeyOverrides)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	overrides, err := resolveCdcPartitionKeyOverrides(rawOverrides, tableNames)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	exprUKSet, err := getExpressionUniqueIndexTablesIfRequired(tableNames, overrides, cdcPartitionKey, isFirstRun, importDataStatus)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
-	generatedStoredCols, err := getGeneratedStoredColumnsIfRequired(tableNames, overrides, cdcPartitionKey, isFirstRun, importDataStatus)
+	// Generated stored columns are recomputed from the source-captured metaDB record on every
+	// run (not persisted in the import status record), so this is independent of isFirstRun.
+	generatedStoredCols, err := getGeneratedStoredColumnsIfRequired(tableNames, overrides, cdcPartitionKey, tableToUniqueIndexes)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	tableToPartitionKeyOverrideMap, err := resolveEffectiveCdcPartitionKeys(tableNames, cdcPartitionKey, overrides, exprUKSet, generatedStoredCols, tconf.TargetDBType)
 
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
-	return tableToPartitionKeyOverrideMap, structMapKeysOrEmpty(exprUKSet), generatedStoredColumnsToMetaDB(generatedStoredCols), nil
+	return tableToPartitionKeyOverrideMap, structMapKeysOrEmpty(exprUKSet), nil
 }
 
 func structMapKeysOrEmpty(set *utils.StructMap[sqlname.NameTuple, bool]) []string {
@@ -401,57 +397,19 @@ func getExpressionUniqueIndexTablesIfRequired(tableNames []sqlname.NameTuple, ov
 	return exprUKSet, nil
 }
 
-func getGeneratedStoredColumnsIfRequired(tableNames []sqlname.NameTuple, overrides *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], cdcPartitionKey string, isFirstRun bool, importDataStatus *metadb.ImportDataStatusRecord) (*utils.StructMap[sqlname.NameTuple, []tgtdb.GeneratedStoredColumn], error) {
-	generatedStoredCols := utils.NewStructMap[sqlname.NameTuple, []tgtdb.GeneratedStoredColumn]()
-
+// getGeneratedStoredColumnsIfRequired resolves the per-table STORED generated columns needed
+// for the CDC partitioning decision. It is intentionally NOT persisted in the import status
+// record: it is recomputed from the source-captured metaDB record (+ target UK/PK) on every
+// run (first run and resume alike) via getGeneratedStoredColumnsHybrid.
+func getGeneratedStoredColumnsIfRequired(tableNames []sqlname.NameTuple, overrides *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], cdcPartitionKey string, tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]) (*utils.StructMap[sqlname.NameTuple, []GeneratedStoredColumn], error) {
 	needsCheck, err := checkIfNeedsExprUKCheck(cdcPartitionKey, overrides)
 	if err != nil {
 		return nil, err
 	}
 	if !needsCheck {
-		return generatedStoredCols, nil
+		return utils.NewStructMap[sqlname.NameTuple, []GeneratedStoredColumn](), nil
 	}
-
-	if isFirstRun {
-		return getGeneratedStoredColumns(tableNames)
-	}
-
-	// Resume: reuse the map captured on the first run. nil means an older voyager
-	// record that never captured this set — treat as empty so resume still works.
-	if importDataStatus == nil {
-		return nil, goerrors.Errorf("import data status record not found")
-	}
-	if importDataStatus.CdcGeneratedStoredColumns == nil {
-		return generatedStoredCols, nil
-	}
-	for key, cols := range importDataStatus.CdcGeneratedStoredColumns {
-		tuple, err := namereg.NameReg.LookupTableName(key)
-		if err != nil {
-			return nil, fmt.Errorf("error looking up generated-stored-column table %q: %w", key, err)
-		}
-		tgtdbCols := make([]tgtdb.GeneratedStoredColumn, len(cols))
-		for i, col := range cols {
-			tgtdbCols[i] = tgtdb.GeneratedStoredColumn{Name: col.Name, InUniqueIndex: col.InUniqueIndex}
-		}
-		generatedStoredCols.Put(tuple, tgtdbCols)
-	}
-	return generatedStoredCols, nil
-}
-
-func generatedStoredColumnsToMetaDB(cols *utils.StructMap[sqlname.NameTuple, []tgtdb.GeneratedStoredColumn]) map[string][]metadb.GeneratedStoredColumn {
-	result := make(map[string][]metadb.GeneratedStoredColumn)
-	if cols == nil {
-		return result
-	}
-	_ = cols.IterKV(func(t sqlname.NameTuple, generated []tgtdb.GeneratedStoredColumn) (bool, error) {
-		stored := make([]metadb.GeneratedStoredColumn, len(generated))
-		for i, col := range generated {
-			stored[i] = metadb.GeneratedStoredColumn{Name: col.Name, InUniqueIndex: col.InUniqueIndex}
-		}
-		result[t.ForKey()] = stored
-		return true, nil
-	})
-	return result
+	return getGeneratedStoredColumnsHybrid(tableNames, tableToUniqueIndexes)
 }
 
 // validateCdcPartitioningStrategyUnchanged re-resolves the effective per-table CDC
@@ -460,7 +418,7 @@ func generatedStoredColumnsToMetaDB(cols *utils.StructMap[sqlname.NameTuple, []t
 // tables captured on the first run (treating a missing generated-stored set as empty for
 // older records) so resume never silently applies a changed cdc-partition-key /
 // cdc-partition-key-overrides.
-func validateCdcPartitioningStrategyUnchanged(tableNames []sqlname.NameTuple, importDataStatus *metadb.ImportDataStatusRecord) error {
+func validateCdcPartitioningStrategyUnchanged(tableNames []sqlname.NameTuple, importDataStatus *metadb.ImportDataStatusRecord, tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]) error {
 
 	cdcPartitionKeyOverridesStored := importDataStatus.CdcPartitionKeyOverridesConfig
 	if cdcPartitionKeyOverridesStored == cdcPartitionKeyOverrides {
@@ -468,7 +426,7 @@ func validateCdcPartitioningStrategyUnchanged(tableNames []sqlname.NameTuple, im
 		return nil
 	}
 
-	resolvedTableToPartitionKeyOverrideMap, _, _, err := computeCdcPartitioningStrategyPerTable(tableNames, false, importDataStatus)
+	resolvedTableToPartitionKeyOverrideMap, _, err := computeCdcPartitioningStrategyPerTable(tableNames, false, importDataStatus, tableToUniqueIndexes)
 	if err != nil {
 		return fmt.Errorf("error computing cdc partitioning strategy per table: %w", err)
 	}
@@ -563,22 +521,83 @@ func getExpressionUniqueIndexTables(tableNames []sqlname.NameTuple) ([]sqlname.N
 	return expressionUniqueIndexTables, nil
 }
 
-func getGeneratedStoredColumns(tableNames []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []tgtdb.GeneratedStoredColumn], error) {
-	empty := utils.NewStructMap[sqlname.NameTuple, []tgtdb.GeneratedStoredColumn]()
-	if tconf.TargetDBType != YUGABYTEDB {
-		return empty, nil
+// getGeneratedStoredColumnsHybrid resolves per-table STORED generated columns for the CDC
+// partitioning decision using the hybrid model:
+//   - which columns are generated: authoritative SOURCE facts captured at export
+//     (metaDB export_data_source_db_exporter_status; generated column values are absent from
+//     the change events), and
+//   - which of those columns participate in a unique index (so a collision would throw 23505
+//     under pk/custom routing): the TARGET catalog (the same UK set conflict detection uses,
+//     GetTableToUniqueIndexesMap).
+//
+// InUniqueIndex is set when a source-generated column is in that target unique-index set.
+//
+// NOTE: the primary key is intentionally NOT considered here. A primary key that includes a
+// STORED generated column is a broader, unsupported case for live migration (the event's
+// routing key itself is missing the generated value), which must be handled separately - not
+// papered over by forcing PARTITION_BY_TABLE. See the caveat documented at the capture site
+// (captureSourceGeneratedStoredColumns in exportData.go).
+//
+// If the source capture is absent (export written by an older voyager, or capture not yet
+// persisted), it falls back to the legacy target-only detection (getGeneratedStoredColumns).
+func getGeneratedStoredColumnsHybrid(tableNames []sqlname.NameTuple, tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]) (*utils.StructMap[sqlname.NameTuple, []GeneratedStoredColumn], error) {
+	result := utils.NewStructMap[sqlname.NameTuple, []GeneratedStoredColumn]()
+
+	exportStatus, err := metaDB.GetExportDataSourceDBExporterStatusRecord()
+	if err != nil {
+		return nil, fmt.Errorf("error getting export data source db exporter status record: %w", err)
 	}
-	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
-	if !ok {
-		return nil, goerrors.Errorf("target db is not a YugabyteDB")
+	if exportStatus == nil {
+		return nil, nil
 	}
 
-	generatedStoredCols, err := yb.GetGeneratedStoredColumns(tableNames, true)
-	if err != nil {
-		return nil, fmt.Errorf("error getting stored generated columns: %w", err)
+	// Restrict to the tables that actually have source generated columns. When none do
+	// (the common case), skip the target UK/PK queries entirely.
+	tablesWithGeneratedCols := lo.Filter(tableNames, func(t sqlname.NameTuple, _ int) bool {
+		return len(exportStatus.TableToGeneratedStoredColumns[t.ForKey()]) > 0
+	})
+	if len(tablesWithGeneratedCols) == 0 {
+		return result, nil
 	}
-	if generatedStoredCols == nil {
-		return empty, nil
+
+	for _, t := range tablesWithGeneratedCols {
+		sourceGenCols := exportStatus.TableToGeneratedStoredColumns[t.ForKey()]
+
+		// Columns whose collision matters for routing/conflict detection: the target's
+		// unique-index columns (the primary key is excluded from this set and is handled
+		// separately - see the function-level NOTE and captureSourceGeneratedStoredColumns).
+		hasUniqueIndexOnTarget := make(map[string]bool)
+		if uniqueIndexes, ok := tableToUniqueIndexes.Get(t); ok {
+			for _, idx := range uniqueIndexes {
+				for _, col := range idx.Columns {
+					hasUniqueIndexOnTarget[col] = true
+				}
+			}
+		}
+
+		cols := buildGeneratedStoredColumns(sourceGenCols, hasUniqueIndexOnTarget)
+		result.Put(t, cols)
+		log.Infof("table %s: source generated columns %v resolved to %v (target unique-index protected set)", t.ForOutput(), sourceGenCols, cols)
 	}
-	return generatedStoredCols, nil
+	return result, nil
+}
+
+// buildGeneratedStoredColumns marks each source-generated column with whether it is
+// "protected" on the target (a member of hasUniqueIndexOnTarget). A protected generated
+// column forces PARTITION_BY_TABLE; a non-protected one is still tracked so a custom key
+// naming it can be rejected.
+func buildGeneratedStoredColumns(sourceGenCols []string, hasUniqueIndexOnTarget map[string]bool) []GeneratedStoredColumn {
+	cols := make([]GeneratedStoredColumn, 0, len(sourceGenCols))
+	for _, name := range sourceGenCols {
+		cols = append(cols, GeneratedStoredColumn{
+			Name:          name,
+			InUniqueIndex: hasUniqueIndexOnTarget[name],
+		})
+	}
+	return cols
+}
+
+type GeneratedStoredColumn struct {
+	Name          string
+	InUniqueIndex bool
 }

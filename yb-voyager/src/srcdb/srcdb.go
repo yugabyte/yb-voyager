@@ -55,6 +55,11 @@ type SourceDB interface {
 	ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error
 	GetNonPKTables() ([]string, error)
 	GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error)
+	// GetGeneratedStoredColumns returns, per table, the names of its STORED generated
+	// columns on the source. Used during live migration to decide the CDC partitioning
+	// strategy: a table whose unique index / primary key covers a generated column must be
+	// PARTITION_BY_TABLE, because generated column values are absent from the change events.
+	GetGeneratedStoredColumns(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error)
 	GetDatabaseSize() (int64, error)
 	CheckSourceDBVersion(exportType string) error
 	GetMissingExportSchemaPermissions(queryTableList string) ([]string, error)

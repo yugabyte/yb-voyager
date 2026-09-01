@@ -1234,12 +1234,17 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		utils.ErrExit("Failed to clean MigrationStatusRecord for import data start clean: %s", err)
 	}
 
+	tableToUniqueIndexes, err := tdb.GetTableToUniqueIndexesMap(importTableList)
+	if err != nil {
+		utils.ErrExit("Failed to get table unique indexes map from target: %s", err)
+	}
+
 	// Validate/resolve cdc-partition-key (+ overrides) and persist the per-table map
 	// before snapshot so bad configs fail fast (not at streamChanges).
 	// Runs after start-clean so a cleared map is recomputed for the new run.
 	// Must run before updateImportDataStartedInMetaDB so a failed prepare does not
 	// lock change-guard / ImportDataStarted for a config that never took effect.
-	err = prepareCdcPartitionKey(importTableList)
+	err = prepareCdcPartitionKey(importTableList, tableToUniqueIndexes)
 	if err != nil {
 		utils.ErrExit("Failed to prepare cdc-partition-key: %s", err)
 	}
@@ -1289,7 +1294,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		if importSnapshotRequired() {
 			displayImportedRowCountSnapshot(state, importFileTasks, errorHandler)
 		}
-		err = streamChanges(state, importTableList)
+		err = streamChanges(state, importTableList, tableToUniqueIndexes)
 		if err != nil {
 			utils.ErrExit("Failed to stream changes to %s: %s", tconf.TargetDBType, err)
 		}

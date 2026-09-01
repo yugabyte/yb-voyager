@@ -1935,7 +1935,7 @@ func TestLiveMigrationWithCustomCdcPartitionKey(t *testing.T) {
 		"--cdc-partition-key-overrides": "test_schema.orders:(customer_id)",
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
-	defer lm.StopImportData()
+	
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."orders"`: 10,
@@ -2075,7 +2075,7 @@ func TestLiveMigrationCustomCdcPartitionKeyNoConflict(t *testing.T) {
 		"--cdc-partition-key-overrides": "test_schema.test_live:(custom_key)",
 	}, []string{uniqueKeyConflictCountFailpointEnv})
 	testutils.FatalIfError(t, err, "failed to start import data")
-	defer lm.StopImportData()
+	
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_live"`: 5,
@@ -2187,7 +2187,7 @@ func TestLiveMigrationCdcPartitionKeyRejectsCustomOnGeneratedStoredColumnUniqueI
 		"--cdc-partition-key": "table",
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
-	defer lm.StopImportData()
+	
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."orders"`: 10,
@@ -2274,14 +2274,11 @@ func TestLiveMigrationCdcPartitionKeyRejectsCustomKeyOnGeneratedStoredColumn(t *
 	})
 	require.Error(t, err, "import with a generated-column custom key should fail")
 	output := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
-	assert.Contains(t, output, `custom key column "bucket" is a stored generated column`,
+	require.Contains(t, output, `custom key column(s) - [bucket] are a stored generated column(s)`,
 		"expected generated-column custom-key rejection, got: %s", output)
 
-	err = lm.StartImportData(true, map[string]string{
-		"--cdc-partition-key": "table",
-	})
+	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
-	defer lm.StopImportData()
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."orders"`: 10,

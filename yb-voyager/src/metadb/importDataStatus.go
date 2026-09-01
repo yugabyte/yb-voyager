@@ -29,14 +29,6 @@ type CDCPartitionKey struct {
 	Columns  []string `json:"columns,omitempty"`
 }
 
-// GeneratedStoredColumn is a STORED generated column captured for CDC partition-key
-// resolution: the catalog column name and whether it appears in a unique index
-// (including a primary key).
-type GeneratedStoredColumn struct {
-	Name          string `json:"name"`
-	InUniqueIndex bool   `json:"inUniqueIndex"`
-}
-
 type ImportDataStatusRecord struct {
 	ErrorPolicySnapshot string `json:"errorPolicySnapshot"`
 	ImportDataStarted   bool   `json:"importDataStarted"`
@@ -62,15 +54,6 @@ type ImportDataStatusRecord struct {
 		older voyager, or a first run that did not need the expression-UK check).
 	*/
 	CdcExpressionUniqueIndexTables []string `json:"cdcExpressionUniqueIndexTables"`
-	/*
-		Per-table STORED generated columns (catalog name + whether each appears in a
-		unique index), keyed by ForKey table name. Captured on the first prepare of the
-		cdc partitioning strategy so resume can re-resolve (UK-on-generated => table-only;
-		custom key naming a generated column is rejected) without re-querying the target
-		DB. nil means it was not captured (record written by an older voyager, or a first
-		run that did not need the generated-column check).
-	*/
-	CdcGeneratedStoredColumns map[string][]GeneratedStoredColumn `json:"cdcGeneratedStoredColumns"`
 
 	TargetUsePartitionRoot bool `json:"TargetUsePartitionRoot"` // false - use leaf table for partitions, true - use root table for partitions; default is true
 }

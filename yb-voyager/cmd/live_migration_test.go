@@ -492,7 +492,7 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 	})
 
 	t.Run("generated column without UK: auto stays pk and global pk is allowed", func(t *testing.T) {
-		generated := generatedStoredColMap(audit, tgtdb.GeneratedStoredColumn{Name: "amount", InUniqueIndex: false})
+		generated := generatedStoredColMap(audit, GeneratedStoredColumn{Name: "amount", InUniqueIndex: false})
 		got, err := resolveEffectiveCdcPartitionKeys(tables, "auto", nil, nil, generated, YUGABYTEDB)
 		require.NoError(t, err)
 		assert.Equal(t, map[string]string{
@@ -507,7 +507,7 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 	})
 
 	t.Run("UK on generated: auto uses table; pk and custom rejected; override table allowed", func(t *testing.T) {
-		generated := generatedStoredColMap(audit, tgtdb.GeneratedStoredColumn{Name: "amount", InUniqueIndex: true})
+		generated := generatedStoredColMap(audit, GeneratedStoredColumn{Name: "amount", InUniqueIndex: true})
 		got, err := resolveEffectiveCdcPartitionKeys(tables, "auto", nil, nil, generated, YUGABYTEDB)
 		require.NoError(t, err)
 		assert.Equal(t, map[string]string{
@@ -537,7 +537,7 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 	})
 
 	t.Run("custom key is a generated column without UK: custom rejected; pk allowed", func(t *testing.T) {
-		generated := generatedStoredColMap(audit, tgtdb.GeneratedStoredColumn{Name: "amount", InUniqueIndex: false})
+		generated := generatedStoredColMap(audit, GeneratedStoredColumn{Name: "amount", InUniqueIndex: false})
 		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"amount"}})
 		_, err := resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_PK, overrides, nil, generated, YUGABYTEDB)
@@ -551,7 +551,7 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 	})
 
 	t.Run("custom key is a regular column and generated column unused by UK: custom allowed", func(t *testing.T) {
-		generated := generatedStoredColMap(audit, tgtdb.GeneratedStoredColumn{Name: "amount", InUniqueIndex: false})
+		generated := generatedStoredColMap(audit, GeneratedStoredColumn{Name: "amount", InUniqueIndex: false})
 		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"id"}})
 		got, err := resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_PK, overrides, nil, generated, YUGABYTEDB)
@@ -561,8 +561,8 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 	})
 }
 
-func generatedStoredColMap(t sqlname.NameTuple, cols ...tgtdb.GeneratedStoredColumn) *utils.StructMap[sqlname.NameTuple, []tgtdb.GeneratedStoredColumn] {
-	m := utils.NewStructMap[sqlname.NameTuple, []tgtdb.GeneratedStoredColumn]()
+func generatedStoredColMap(t sqlname.NameTuple, cols ...GeneratedStoredColumn) *utils.StructMap[sqlname.NameTuple, []GeneratedStoredColumn] {
+	m := utils.NewStructMap[sqlname.NameTuple, []GeneratedStoredColumn]()
 	m.Put(t, cols)
 	return m
 }
@@ -677,6 +677,23 @@ func TestResolveCdcPartitionKeyOverrides(t *testing.T) {
 // per-table strategy must be rejected.
 func TestValidateCdcPartitioningStrategyUnchanged(t *testing.T) {
 	setupCdcOverridesNameRegistry(t)
+
+	// The resume path recomputes the strategy (including generated-stored columns) from the
+	// source-captured metaDB record on every run. Provide an empty (captured) record so it
+	// resolves to no generated columns instead of falling back to the target-based path.
+	metaExportDir, err := os.MkdirTemp("", "cdcpk-metadb-*")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(metaExportDir) })
+	origMetaDB := metaDB
+	metaDB = initMetaDB(metaExportDir)
+	t.Cleanup(func() { metaDB = origMetaDB })
+	require.NoError(t, metaDB.UpdateExportDataSourceDBExporterStatusRecord(func(r *metadb.ExportDataSourceDBExporterStatusRecord) {
+		r.TableToGeneratedStoredColumns = map[string][]string{}
+	}))
+
+	// Target unique indexes are passed in by the caller; these tables have no generated
+	// columns, so an empty map is sufficient for the resume-recompute in this test.
+	emptyUK := utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]()
 
 	origKey := cdcPartitionKey
 	origOverrides := cdcPartitionKeyOverrides
@@ -1163,5 +1180,36 @@ func TestGetEventPartitionKey(t *testing.T) {
 		h2, err := hashEvent(e2, customMap)
 		require.NoError(t, err)
 		assert.Equal(t, h1, h2, "same custom partition key must route to the same channel")
+	})
+}
+
+func TestBuildGeneratedStoredColumns(t *testing.T) {
+	t.Run("protected via unique index or primary key -> InUniqueIndex true", func(t *testing.T) {
+		// protected = UK columns ∪ PK columns
+		protected := map[string]bool{"email": true, "id": true}
+		got := buildGeneratedStoredColumns([]string{"email", "id", "full_name"}, protected)
+		assert.ElementsMatch(t, []GeneratedStoredColumn{
+			{Name: "email", InUniqueIndex: true},      // in a unique index
+			{Name: "id", InUniqueIndex: true},         // in the primary key
+			{Name: "full_name", InUniqueIndex: false}, // generated but not protected
+		}, got)
+	})
+
+	t.Run("no protected columns -> all InUniqueIndex false", func(t *testing.T) {
+		got := buildGeneratedStoredColumns([]string{"a", "b"}, map[string]bool{})
+		assert.Equal(t, []GeneratedStoredColumn{
+			{Name: "a", InUniqueIndex: false},
+			{Name: "b", InUniqueIndex: false},
+		}, got)
+	})
+
+	t.Run("empty source generated columns -> empty result", func(t *testing.T) {
+		got := buildGeneratedStoredColumns(nil, map[string]bool{"x": true})
+		assert.Empty(t, got)
+	})
+
+	t.Run("membership is exact (case-sensitive) match", func(t *testing.T) {
+		got := buildGeneratedStoredColumns([]string{"Email"}, map[string]bool{"email": true})
+		assert.Equal(t, []GeneratedStoredColumn{{Name: "Email", InUniqueIndex: false}}, got)
 	})
 }

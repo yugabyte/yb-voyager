@@ -809,6 +809,72 @@ func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 	return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
 }
 
+// GetGeneratedStoredColumns returns, per table in tableList, the names of its STORED
+// generated columns (pg_attribute.attgenerated = 's').
+//
+// The result is keyed by NameTuple so the caller can persist it (by ForKey) for the import
+// side to consume. For partitioned tables a STORED generated column is inherited by every
+// partition, so it is reported on the partitioned root (relkind 'p') as well as on the
+// leaves; callers that key by the root table therefore find it without any leaf->root
+// remapping here. attgenerated exists on PG 12+, and generated columns require PG 12+, so on
+// older sources this simply returns an empty map.
+func (pg *PostgreSQL) GetGeneratedStoredColumns(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
+	if len(tableList) == 0 {
+		return result, nil
+	}
+
+	catalogNameToTuple := make(map[string]sqlname.NameTuple, len(tableList))
+	for _, t := range tableList {
+		catalogNameToTuple[t.AsQualifiedCatalogName()] = t
+	}
+	tableNamesStr := strings.Join(lo.Map(tableList, func(t sqlname.NameTuple, _ int) string {
+		return fmt.Sprintf("('%s')", t.AsQualifiedCatalogName())
+	}), ",")
+
+	query := fmt.Sprintf(`
+SELECT
+    n.nspname AS table_schema,
+    t.relname AS table_name,
+    a.attname AS column_name
+FROM pg_class t
+JOIN pg_namespace n ON t.relnamespace = n.oid
+JOIN pg_attribute a ON t.oid = a.attrelid
+WHERE t.relkind IN ('r', 'p')
+    AND a.attnum > 0
+    AND NOT a.attisdropped
+    AND a.attgenerated = 's'
+    AND (n.nspname || '.' || t.relname) IN (%s);`, tableNamesStr)
+	log.Debugf("query for source generated stored columns: %s", query)
+
+	rows, err := pg.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying source generated stored columns: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var schemaName, tableName, columnName string
+		if err := rows.Scan(&schemaName, &tableName, &columnName); err != nil {
+			return nil, fmt.Errorf("error scanning source generated stored column row: %w", err)
+		}
+		catalogName := fmt.Sprintf("%s.%s", schemaName, tableName)
+		tuple, ok := catalogNameToTuple[catalogName]
+		if !ok {
+			// Should not happen: every returned table was in the IN-list.
+			log.Warnf("source generated stored column: table %s not found in requested table list; skipping", catalogName)
+			continue
+		}
+		existing, _ := result.Get(tuple)
+		result.Put(tuple, append(existing, columnName))
+		log.Infof("source table %s has STORED generated column %s", catalogName, columnName)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating source generated stored column rows: %w", err)
+	}
+	return result, nil
+}
+
 func (pg *PostgreSQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 	var parentTable string
 
