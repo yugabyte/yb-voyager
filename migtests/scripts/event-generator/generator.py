@@ -71,6 +71,10 @@ INDEX_EVENTS_INTERVAL = GEN.get("index_events_interval", 5)
 
 # Column overrides for partition-aware value generation
 COLUMN_OVERRIDES = GEN.get("column_overrides", {})
+
+# Columns that must never appear in an UPDATE's SET list, per table (e.g. a
+# custom cdc-partition-key column, which the importer requires to be immutable).
+EXCLUDE_COLUMNS_FROM_UPDATE = GEN.get("exclude_columns_from_update", {})
 # ---------------------------------
 
 # Deterministic seeds from YAML
@@ -189,14 +193,15 @@ try:
                     continue
 
                 pk_set = set(primary_key) if isinstance(primary_key, list) else {primary_key}
+                excluded_columns = pk_set | set(EXCLUDE_COLUMNS_FROM_UPDATE.get(table_name, []))
 
                 for _ in range(UPDATE_MAX_RETRIES):
                     columns = table_schemas[table_name]["columns"]
 
-                    if len(columns) <= len(pk_set):
+                    if len(columns) <= len(excluded_columns):
                         break
 
-                    updateable_columns = [col for col in columns if col not in pk_set]
+                    updateable_columns = [col for col in columns if col not in excluded_columns]
 
                     if not updateable_columns:
                         print(f"No updateable columns found for table {table_name}. Retrying...")

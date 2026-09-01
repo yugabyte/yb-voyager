@@ -54,6 +54,7 @@ CONFIG_SCHEMA: Dict[str, Dict[str, Any]] = {
         "enable_index_create_drop": bool,
         "index_events_interval": int,
         "column_overrides": dict,
+        "exclude_columns_from_update": dict,
     },
 }
 
@@ -75,7 +76,7 @@ def load_yaml_file(path: str) -> Dict[str, Any]:
 
 def validate_section(section: Dict[str, Any], schema: Dict[str, Any], section_name: str) -> None:
     # Optional fields that don't need to be present (for backward compatibility)
-    optional_fields = {"enable_index_create_drop","index_events_interval","column_overrides","min_col_size_bytes"}
+    optional_fields = {"enable_index_create_drop","index_events_interval","column_overrides","min_col_size_bytes","exclude_columns_from_update"}
     
     for key, expected_type in schema.items():
         if key not in section:

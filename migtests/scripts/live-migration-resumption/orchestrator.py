@@ -289,6 +289,31 @@ def row_hash_validations_action(stage: Dict[str, Any], ctx: Any) -> None:
     H.run_segment_hash_validations(ctx, left_role, right_role)
 
 
+def _conflict_log_table_marker(table: str | None) -> str | None:
+    """Build the substring that identifies `table` in a "conflict detected" log
+    line, e.g. "public.orders" -> 'table "public"."orders"' (conflictDetectionCache.go
+    renders TableNameTup.ForKey() with each identifier quoted)."""
+    if table is None:
+        return None
+    schema, sep, name = table.partition(".")
+    if not sep:
+        raise ValueError(f"_conflict_log_table_marker: 'table' must be schema-qualified (e.g. 'public.orders'), got {table!r}")
+    return f'table "{schema}"."{name}"'
+
+
+def _count_conflict_log_lines(log_dir: str, name: str, table: str | None) -> int:
+    """Count "conflict detected" lines in `log_dir`/`name`* log files, optionally
+    scoped to one table (see `_conflict_log_table_marker`)."""
+    table_marker = _conflict_log_table_marker(table)
+    count = 0
+    for p in glob.glob(os.path.join(log_dir, name + "*")):
+        with open(p, errors="ignore") as f:
+            for line in f:
+                if "conflict detected" in line and (table_marker is None or table_marker in line):
+                    count += 1
+    return count
+
+
 @action("validate_conflicts_detected")
 def validate_conflicts_detected_action(stage: Dict[str, Any], ctx: Any) -> None:
     """Assert the import-data log recorded unique-key conflict detections.
@@ -298,20 +323,25 @@ def validate_conflicts_detected_action(stage: Dict[str, Any], ctx: Any) -> None:
     without ever exercising it. Meaningful on the forward leg
     (yb-voyager-import-data.log); the fallback leg's import-to-source forces
     PARTITION_BY_TABLE and logs 0 conflicts by design, so don't assert there.
+
+    Optional stage key:
+      - table: schema-qualified table name (e.g. "public.orders"); when set,
+        only counts lines also mentioning that table -- lets a run that mixes
+        custom-cdc-partition-key tables (expected to log 0 conflicts) with
+        normally-routed tables (expected to keep logging some) assert both
+        against the same log file.
     """
     log_dir = os.path.join(ctx.iteration_export_dir, "logs")
     name = stage.get("log", "yb-voyager-import-data.log")
     min_count = int(stage.get("min_count", 1))
-    count = 0
-    for p in glob.glob(os.path.join(log_dir, name + "*")):
-        with open(p, errors="ignore") as f:
-            count += sum(1 for line in f if "conflict detected" in line)
+    table = stage.get("table")
+    count = _count_conflict_log_lines(log_dir, name, table)
     if count < min_count:
         raise RuntimeError(
             f"validate_conflicts_detected: expected >= {min_count} 'conflict detected' "
-            f"in {name}, found {count} (dir={log_dir})"
+            f"in {name}{f' for table {table}' if table else ''}, found {count} (dir={log_dir})"
         )
-    H.log(f"validate_conflicts_detected: {count} conflicts detected in {name}")
+    H.log(f"validate_conflicts_detected: {count} conflicts detected in {name}" + (f" for table {table}" if table else ""))
 
 
 @action("validate_no_conflicts_detected")
@@ -321,19 +351,109 @@ def validate_no_conflicts_detected_action(stage: Dict[str, Any], ctx: Any) -> No
     Used on the fallback leg (yb-voyager-import-data-to-source.log): the
     source-importer forces PARTITION_BY_TABLE and skips conflict detection, so
     the log must have 0 'conflict detected' -- this guards that the skip holds.
+
+    Optional stage key:
+      - table: schema-qualified table name (e.g. "public.orders"); when set,
+        only counts lines also mentioning that table -- lets this assert 0
+        conflicts for one table (e.g. a custom-cdc-partition-key table)
+        within a log that also has real conflicts logged for other tables.
     """
     log_dir = os.path.join(ctx.iteration_export_dir, "logs")
     name = stage.get("log", "yb-voyager-import-data-to-source.log")
-    count = 0
-    for p in glob.glob(os.path.join(log_dir, name + "*")):
-        with open(p, errors="ignore") as f:
-            count += sum(1 for line in f if "conflict detected" in line)
+    table = stage.get("table")
+    count = _count_conflict_log_lines(log_dir, name, table)
     if count != 0:
         raise RuntimeError(
             f"validate_no_conflicts_detected: expected 0 'conflict detected' "
-            f"in {name}, found {count} (dir={log_dir})"
+            f"in {name}{f' for table {table}' if table else ''}, found {count} (dir={log_dir})"
         )
-    H.log(f"validate_no_conflicts_detected: 0 conflicts detected in {name} (as expected)")
+    H.log(f"validate_no_conflicts_detected: 0 conflicts detected in {name}" + (f" for table {table}" if table else "") + " (as expected)")
+
+
+@action("pick_random_custom_key")
+def pick_random_custom_key_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Randomly select one table/column(s) to route by `--cdc-partition-key-overrides`
+    instead of the hardcoded default, and wire that pick through everywhere it
+    needs to land:
+
+      - appends to `voyager.import_data.flags.cdc-partition-key-overrides`.
+      - adds the picked column(s) to the named generator's
+        `exclude_columns_from_update[table]`, so the random generator never
+        updates them (the importer requires custom key columns to be immutable).
+
+    Must run before `start_event_generator`/`start_importer` -- both read
+    `ctx.cfg` at start time, so mutating it here beforehand is sufficient; no
+    orchestrator plumbing changes are needed for the pick to take effect.
+
+    Required stage key:
+      - candidates: list of {table: "schema.table", columns: [col, ...]}. Every
+        candidate's conflict DML must already be safe to route by those
+        columns (i.e. never appears in an UPDATE for that table) -- this
+        action only performs the pick and the wiring, not that verification.
+
+    Optional stage key:
+      - generator_key: which generator config block to inject
+        exclude_columns_from_update into (default: "generator").
+
+    The pick is stored on `ctx.picked_custom_key` (`{"table", "columns"}`) for
+    `validate_no_conflicts_for_picked_custom_key` to consume later.
+    """
+    if ctx.picked_custom_key is not None:
+        raise RuntimeError(
+            "pick_random_custom_key: ctx.picked_custom_key is already set "
+            f"(previous pick: {ctx.picked_custom_key}) -- this action does not support "
+            "running more than once per scenario (e.g. inside a loop_start/loop_end block), "
+            "since a second pick would silently stack onto cdc-partition-key-overrides via "
+            "';' while ctx.picked_custom_key would only reflect the newest pick."
+        )
+
+    candidates = stage.get("candidates")
+    if not candidates:
+        raise ValueError("pick_random_custom_key: 'candidates' stage key is required and must be non-empty")
+
+    choice = random.choice(candidates)
+    table = choice["table"]
+    columns = choice["columns"]
+    ctx.picked_custom_key = {"table": table, "columns": columns}
+    H.log(f"pick_random_custom_key: selected table={table} columns={columns} (out of {len(candidates)} candidates)")
+
+    override = f"{table}:({','.join(columns)})"
+    flags = ctx.cfg.setdefault("voyager", {}).setdefault("import_data", {}).setdefault("flags", {})
+    existing = flags.get("cdc-partition-key-overrides")
+    flags["cdc-partition-key-overrides"] = f"{existing};{override}" if existing else override
+
+    generator_key = stage.get("generator_key", "generator")
+    _, _, bare_table = table.partition(".")
+    gen_cfg_block = ctx.cfg[generator_key]
+    if "config_inline" not in gen_cfg_block:
+        raise ValueError(
+            f"pick_random_custom_key: generator block '{generator_key}' must use 'config_inline' "
+            "(not 'config_path') -- a config_path generator loads a static file this action cannot mutate at run time"
+        )
+    gen_section = gen_cfg_block["config_inline"]["generator"]
+    exclude_map = gen_section.setdefault("exclude_columns_from_update", {})
+    excluded_for_table = exclude_map.setdefault(bare_table, [])
+    for col in columns:
+        if col not in excluded_for_table:
+            excluded_for_table.append(col)
+
+
+@action("validate_no_conflicts_for_picked_custom_key")
+def validate_no_conflicts_for_picked_custom_key_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """`validate_no_conflicts_detected`, scoped to whatever table
+    `pick_random_custom_key` selected earlier in this run -- lets the scenario
+    assert 0 conflicts for the picked table without knowing in advance which
+    one that will be.
+    """
+    picked = ctx.picked_custom_key
+    if not picked:
+        raise RuntimeError(
+            "validate_no_conflicts_for_picked_custom_key: ctx.picked_custom_key is unset "
+            "-- run 'pick_random_custom_key' earlier in this scenario"
+        )
+    scoped_stage = dict(stage)
+    scoped_stage["table"] = picked["table"]
+    validate_no_conflicts_detected_action(scoped_stage, ctx)
 
 
 @action("start_resumptions")
