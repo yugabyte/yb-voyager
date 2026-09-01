@@ -58,13 +58,26 @@ export YB_VERSION="${YB_VERSION:-2026.1.0.0-b118}"
 #               distribution. Live, fall-back and fall-forward modes cannot run without it.
 export DEBEZIUM_DIST_DIR="${DEBEZIUM_DIST_DIR:-/opt/yb-voyager/debezium-server}"
 
-# KUBECONFIG  - HARD-WON: an EXPIRED Teleport kubeconfig kills voyager's Debezium JVM at
-#               startup with no error in any voyager log (an ANSI escape byte in
-#               ~/.kube/config breaks snakeyaml before the connector starts). It presents
-#               as a flaky run that exports zero events. Point KUBECONFIG at an empty file
-#               so nothing can read a stale one.
-if [ -z "${KUBECONFIG:-}" ] || [ ! -s "${KUBECONFIG}" ]; then
+# KUBECONFIG  - HARD-WON, TWICE. The Debezium server is a Quarkus app and its
+#   kubernetes-config extension reads ~/.kube/config at JVM startup. With an expired
+#   Teleport session the exec plugin prints an ANSI-coloured error, snakeyaml rejects
+#   the escape byte, and the JVM aborts before reading a single row - with nothing in
+#   any voyager log. It presents as a run that exports zero events.
+#
+#   An EMPTY file is NOT the fix: a zero-byte kubeconfig merely swaps that error for
+#   `NullPointerException: Cannot invoke Config.getContexts() because "kubeConfig" is
+#   null` and the JVM still dies. It needs a minimally VALID stub, so write one.
+if [ -z "${KUBECONFIG:-}" ] || ! grep -q 'kind: Config' "${KUBECONFIG}" 2>/dev/null; then
     NEUTRAL_KUBECONFIG="$(mktemp -t voyager-sweep-kubeconfig.XXXXXX)"
+    cat > "${NEUTRAL_KUBECONFIG}" <<'NEUTRAL_KUBE'
+apiVersion: v1
+kind: Config
+preferences: {}
+clusters: []
+contexts: []
+users: []
+current-context: ""
+NEUTRAL_KUBE
     export KUBECONFIG="${NEUTRAL_KUBECONFIG}"
 fi
 
