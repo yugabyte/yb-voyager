@@ -146,11 +146,42 @@ Related markers:
   An exporter that dies at startup takes the **whole** run down, so every other probe is
   collateral and comes out `INCONCLUSIVE`; re-running the batch unchanged only reproduces
   it.
+- `PROBE-PUBLISHABLE` — the one row that survives its run's failed gate: an attributed
+  export death. See [The one carve-out](#the-one-carve-out-an-attributed-export-death).
 - `PROBE-WAIT` — one line per bounded wait: how long it took, out of what budget, and why
-  it ended (`counts-satisfied` / `repeating-error` / `exporter-died` / `timeout`).
+  it ended (`counts-satisfied` / `repeating-error` / `exporter-died` / `no-output` /
+  `timeout`).
 
 Every classifier bug found so far — the false `WORKS` on an unmeasured run, the empty-error
 `STUCK`, the config-field `STUCK` — showed up **first** as a control coming out wrong.
+
+### The one carve-out: an attributed export death
+
+The gate exists to catch a **broken measurement**. An attributed `EXPORTER_CRASHES` is not
+one — it *is* the finding, and the controls coming out `INCONCLUSIVE` is a **consequence**
+of it (the exporter they needed was dead) rather than evidence against it. Requiring a
+human to promote that row by hand would make the audit's most severe verdict the only one
+that cannot be recorded automatically.
+
+So the harness emits
+
+```
+PROBE-PUBLISHABLE: <id> | <mode> | EXPORTER_CRASHES | <why>
+```
+
+and `sweepreport collect` marks **that row only** `run_status=OK`, overriding the run's
+`INVALID`. Every clause is load-bearing (`publishableReason`, and
+`TestExportDeathVerdictIsPublishable`):
+
+- the probe must **be** the attributed culprit — a batch-mate was never measured;
+- the verdict actually reached must be `EXPORTER_CRASHES` — the marker never promotes a
+  verdict the classifier did not produce, and the parser re-checks the verdict on the row
+  before honouring it;
+- there must be a quotable cause — no evidence, no publication.
+
+An **unattributed** death promotes nothing. The run-level `PROBE-RUN-EXPORT-DIED` line is
+the record and a human writes that row from it: one row written by hand beats a wrong row
+written automatically.
 
 ---
 
@@ -297,7 +328,7 @@ newer differ.
 | `verdict` | the vocabulary above |
 | `evidence` | the classifier's reason: the diff, the repeated import error, the warning text |
 | `source_value`, `target_value` | verbatim value on each side, from the harness's own `PROBE-VALUES:` line (a structured field, not scraped out of the prose evidence). Pipes, newlines and tabs are escaped reversibly so a value containing one is recorded rather than rewritten |
-| `run_status` | `OK` / `INVALID` / `FLAKE` / `POISON` — **anything but `OK` must not be published** |
+| `run_status` | `OK` / `INVALID` / `FLAKE` / `POISON` — **anything but `OK` must not be published**. One row per run can be `OK` inside an `INVALID` run: an attributed export death, promoted by its `PROBE-PUBLISHABLE` line |
 | `sqlstate` | the SQLSTATE from the importer error, when there was one. `import data` failures carry the real database error (`importAbortReason`), so a diff can report "same verdict, different SQLSTATE" — the shape a fix that only *moved* the error takes |
 
 ### Reading a diff
@@ -525,10 +556,57 @@ The wait concludes on the first poll that sees a death — no repeat count, beca
 connector that reported itself completed-with-failure does not un-complete — so a run
 killed at export startup costs seconds instead of the full 900 s budget.
 
-The control gate is untouched, exactly as with quarantine: the collateral probes are
-`INCONCLUSIVE`, `INCONCLUSIVE` is not `WORKS`, so the run is still `PROBE-RUN-INVALID` and
-none of its verdicts are published. A confirmed `EXPORTER_CRASHES` therefore still has to
-be recorded from a run whose controls passed, or promoted by hand.
+The run as a whole still fails its control gate — the collateral probes are `INCONCLUSIVE`
+and `INCONCLUSIVE` is not `WORKS` — but an **attributed** `EXPORTER_CRASHES` row is
+published anyway, via `PROBE-PUBLISHABLE`. See
+[The one carve-out](#the-one-carve-out-an-attributed-export-death) for why, and for the
+three conditions that keep it from becoming a way past the gate.
+
+### The third hang: a poll that never returns
+
+A wait loop is only as bounded as the slowest thing inside one poll, and one poll shells
+out to `get data-migration-report`.
+
+`VoyagerCommandRunner` hands the child an `io.MultiWriter` for stdout and stderr. Because
+that is not an `*os.File`, `os/exec` creates an OS pipe and a copier goroutine, and
+`Cmd.Wait()` then blocks until the pipe reaches **EOF** — which needs every descendant that
+inherited the write end to exit, not just the process that was started. One wedged
+grandchild (the Debezium JVM is the obvious candidate) blocks the reader indefinitely, in
+`goroutine [IO wait]`, with the voyager process itself already dead. The framework already
+documents the same hazard on `WaitForAsyncCompletion`.
+
+When that happens inside a poll it takes the whole loop with it: no polling, no crash-loop
+detection, no export-death detection, and — because `PROBE-WAIT` is only printed when a
+wait *ends* — **not one line of output**. A `catalogstats` live batch spent 13 minutes
+exactly that way.
+
+Two changes bound it:
+
+- **`boundedFetcher`** (`TestBoundedFetcherSurvivesAWedgedCommand`). At most one fetch is
+  outstanding, so a wedged one leaks a single goroutine rather than one per poll. The first
+  poll to exceed `sweepReportFetchBudget` (2 min) gives up and reports the counts as
+  unreadable — which the loop already handles, since `satisfied(nil)` is false and the
+  fingerprint becomes `<report-unavailable>`. Every later poll checks that same outstanding
+  fetch **without blocking**, so the loop keeps its 2 s cadence instead of paying the
+  budget again and again; and if the fetch ever completes the fetcher resets. The leaked
+  goroutine logs through `t`, so the run drains it from `t.Cleanup`, which runs before the
+  test is marked complete.
+- **`waitNoOutput`** (`TestSweepWaitConcludesOnTotalSilence`). When *nothing* moves — not
+  the counts, not the import log, not the export log — for `sweepSilenceGrace` (5 min), the
+  wait concludes instead of sitting out the rest of its budget. It classifies
+  `INCONCLUSIVE`: a pipeline that wrote nothing down says nothing about a datatype. The
+  activity check **hashes** both logs rather than measuring them, because both are read as
+  a 512 KiB tail — once a log passes that size its length stops changing while its content
+  does not, and a length-only check would call a crash-looping importer silent
+  (`TestSweepWaitSilenceDoesNotFireOnABusyPipeline`).
+
+**What is still unbounded.** `Cmd.Wait()` is reached from more than the report fetch:
+`GracefulStop` waits on `stopChan` with no bound *after* its SIGKILL, and a synchronous
+`Run()` (offline's `export data` / `import data`) blocks in it directly. SIGKILL does not
+reach the Debezium JVM, so both can still hang on the same pipe. Fixing that properly means
+either giving the child an `*os.File` (a real pipe the harness closes itself) or killing
+the whole process group — a change to shared framework code that every live test depends
+on, so it wants its own PR and a real run behind it.
 
 ### Seeing the saving
 

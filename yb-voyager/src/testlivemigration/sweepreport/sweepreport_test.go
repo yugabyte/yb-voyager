@@ -42,6 +42,81 @@ PROBE-RUN-INVALID: hstore | LIVE | known-good control CTRL-001 came out STUCK, n
 --- FAIL: TestDatatypeSweepLive/hstore (90.00s)
 `
 
+// An export-death run: the connector died, so the controls could not be measured and the
+// run fails its gate - but the death itself was attributed, quoted, and is the finding.
+const exportDeathLog = `
+=== RUN   TestDatatypeSweepLive
+=== RUN   TestDatatypeSweepLive/domains
+PROBE-RESULT: CTRL-001 | int | LIVE | INCONCLUSIVE | the exporter died before this probe was measured
+PROBE-RESULT: CTRL-002 | text | LIVE | INCONCLUSIVE | the exporter died before this probe was measured
+PROBE-RESULT: DOM-005 | domain(enum) | LIVE | EXPORTER_CRASHES | the export side died: Connector completed: success = 'false' - io.debezium.DebeziumException: no converter for sweep_schema.p_dom_005.v
+PROBE-PUBLISHABLE: DOM-005 | LIVE | EXPORTER_CRASHES | the exporter died with a quotable cause attributed to this probe
+PROBE-RUN-EXPORT-DIED: domains | LIVE | DOM-005 killed the exporter
+PROBE-RUN-INVALID: domains | LIVE | known-good control CTRL-001 came out INCONCLUSIVE, not WORKS
+PROBE-RUN-FLAKE: domains | LIVE | 2 inconclusive | the exporter died during this run
+--- FAIL: TestDatatypeSweepLive/domains (12.00s)
+`
+
+// TestPublishableMarkerPromotesOnlyItsRow pins the one carve-out from the control gate.
+// The gate catches a BROKEN MEASUREMENT; an attributed export death is not one, it is the
+// finding, and the controls going inconclusive is a consequence of it. So that row - and
+// strictly only that row - survives its run's INVALID status.
+func TestPublishableMarkerPromotesOnlyItsRow(t *testing.T) {
+	rows, err := ParseLog(strings.NewReader(exportDeathLog), RunMeta{}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog: %v", err)
+	}
+	byKey := map[string]Row{}
+	for _, r := range rows {
+		byKey[r.Key()] = r
+	}
+
+	dom, ok := byKey["DOM-005|LIVE"]
+	if !ok {
+		t.Fatalf("no row for DOM-005|LIVE; got %v", byKey)
+	}
+	if dom.RunStatus != statusOK {
+		t.Errorf("DOM-005 run_status = %q, want %q: an attributed export death is publishable",
+			dom.RunStatus, statusOK)
+	}
+	if dom.Verdict != "EXPORTER_CRASHES" {
+		t.Errorf("DOM-005 verdict = %q, want EXPORTER_CRASHES", dom.Verdict)
+	}
+
+	// The batch-mates were never measured. They must stay unpublishable, or the report
+	// would show an inconclusive row as a result.
+	for _, id := range []string{"CTRL-001", "CTRL-002"} {
+		row := byKey[id+"|LIVE"]
+		if row.RunStatus == statusOK {
+			t.Errorf("%s run_status = %q, want anything but OK: it was never measured",
+				id, row.RunStatus)
+		}
+	}
+}
+
+// TestPublishableMarkerCannotPromoteAnotherVerdict: the marker names the verdict it is
+// promoting, and a row whose verdict does not match keeps its run's status. Without that,
+// a stale or mis-emitted marker could launder an unproven verdict past the gate.
+func TestPublishableMarkerCannotPromoteAnotherVerdict(t *testing.T) {
+	log := `
+=== RUN   TestDatatypeSweepLive/domains
+PROBE-RESULT: DOM-005 | domain(enum) | LIVE | SILENT_LOSS | zero events for this table
+PROBE-PUBLISHABLE: DOM-005 | LIVE | EXPORTER_CRASHES | attributed export death
+PROBE-RUN-INVALID: domains | LIVE | control failed
+`
+	rows, err := ParseLog(strings.NewReader(log), RunMeta{}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("got %d rows, want 1", len(rows))
+	}
+	if rows[0].RunStatus != statusInvalid {
+		t.Errorf("run_status = %q, want %q: the marker names a different verdict than the row",
+			rows[0].RunStatus, statusInvalid)
+	}
+}
+
 func TestParseLogExtractsRowsAndGates(t *testing.T) {
 	meta := RunMeta{Timestamp: "2026-08-31T00:00:00Z", VoyagerCommit: "abc123", PGVersion: "17.8", YBVersion: "2025.2.1.0"}
 	rows, err := ParseLog(strings.NewReader(sampleLog), meta, nil)

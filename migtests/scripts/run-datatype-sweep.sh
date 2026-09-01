@@ -222,6 +222,15 @@ collect_results() {
     if grep -qa '^PROBE-RUN-EXPORT-DIED' "${RUN_LOG}"; then
         log "EXPORTER DIED - nothing was produced in these batches:"
         grep -a '^PROBE-RUN-EXPORT-DIED' "${RUN_LOG}" || true
+        echo "An ATTRIBUTED death is published as EXPORTER_CRASHES for the named probe (see"
+        echo "PROBE-PUBLISHABLE below); an unattributed one needs its row written by hand."
+    fi
+
+    # The one row that survives its run's failed control gate. The gate catches a broken
+    # measurement; an attributed export death is the finding, not a broken measurement.
+    if grep -qa '^PROBE-PUBLISHABLE' "${RUN_LOG}"; then
+        log "published despite the run's gate (attributed export deaths):"
+        grep -a '^PROBE-PUBLISHABLE' "${RUN_LOG}" || true
     fi
 
     # What every bounded wait actually cost, and why it ended. This is where the

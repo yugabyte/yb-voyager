@@ -35,7 +35,9 @@ None of these need Docker, a database or real time.
 */
 
 import (
+	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -408,5 +410,245 @@ func TestExportAndImportFailuresStayDistinguishable(t *testing.T) {
 	if len(outcomes) != 3 {
 		t.Fatalf("the three wait endings collapsed into %d labels: %s / %s / %s",
 			len(outcomes), crash.outcome, died.outcome, quiet.outcome)
+	}
+}
+
+// ============================================================
+// PUBLISHING AN ATTRIBUTED EXPORT DEATH
+// ============================================================
+
+// TestExportDeathVerdictIsPublishable pins the one carve-out from the control gate.
+//
+// The gate exists to catch a BROKEN MEASUREMENT. An attributed export death is not one: it
+// IS the finding, and the controls going inconclusive is a consequence of it (the exporter
+// they needed was dead) rather than evidence against it. So that single row is publishable
+// while every other row from the same run is not.
+//
+// Every clause of the carve-out is tested, because each one is what stops it from becoming
+// a way to launder an unproven verdict past the gate.
+func TestExportDeathVerdictIsPublishable(t *testing.T) {
+	cause, _ := exportFailureEvidence(exporterDeathLog)
+
+	cases := []struct {
+		name             string
+		probeID, verdict string
+		culprit, cause   string
+		wantPublishable  bool
+	}{
+		{
+			name: "the attributed culprit is publishable", probeID: "DOM-005",
+			verdict: verdictExporterCrashes, culprit: "DOM-005", cause: cause,
+			wantPublishable: true,
+		},
+		{
+			// It was never measured: publishing its INCONCLUSIVE would say nothing, and
+			// publishing anything else would be a claim about an unexercised type.
+			name: "a batch-mate is not", probeID: "CORE-001",
+			verdict: verdictInconclusive, culprit: "DOM-005", cause: cause,
+		},
+		{
+			// The marker must never promote a verdict the classifier did not produce.
+			name: "the culprit with some other verdict is not", probeID: "DOM-005",
+			verdict: verdictSilentLoss, culprit: "DOM-005", cause: cause,
+		},
+		{
+			// The real DOM-005 NullPointerException names neither table nor type. The
+			// run-level marker is the record, and a human writes that row from it.
+			name: "an unattributed death promotes nothing", probeID: "DOM-005",
+			verdict: verdictExporterCrashes, culprit: "", cause: cause,
+		},
+		{
+			// The same rule that governs the verdict itself: no evidence, no claim.
+			name: "no quotable cause, no publication", probeID: "DOM-005",
+			verdict: verdictExporterCrashes, culprit: "DOM-005", cause: "   ",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			why := publishableReason(tc.probeID, tc.verdict, tc.culprit, tc.cause)
+			if tc.wantPublishable {
+				if why == "" {
+					t.Fatal("verdict is not publishable, want publishable")
+				}
+				if !strings.Contains(why, "NullPointerException") {
+					t.Errorf("the publishable reason does not carry the cause: %q", why)
+				}
+				return
+			}
+			if why != "" {
+				t.Fatalf("verdict is publishable (%q), want not publishable", why)
+			}
+		})
+	}
+}
+
+// ============================================================
+// THE POLL ITSELF MUST BE BOUNDED
+// ============================================================
+
+// TestBoundedFetcherSurvivesAWedgedCommand is the fix for a hang the wait loop could not
+// see: `get data-migration-report` blocked in pipe I/O takes the whole poll with it, so
+// there is no polling, no crash-loop detection, no export-death detection and - because
+// PROBE-WAIT is only printed when a wait ENDS - no output at all. A catalogstats live batch
+// spent 13 minutes exactly that way.
+func TestBoundedFetcherSurvivesAWedgedCommand(t *testing.T) {
+	// A fetch that never returns, the way Cmd.Wait() never returns while a grandchild
+	// still holds the command's stdout pipe.
+	block := make(chan struct{})
+	defer close(block)
+	// Atomic because the counter is written by the (deliberately stuck) fetch goroutine
+	// and read by the test while it is still stuck - that is the whole point of it.
+	var calls atomic.Int64
+	b := &boundedFetcher{fetch: func() (*DataMigrationReport, error) {
+		calls.Add(1)
+		<-block
+		return nil, nil
+	}}
+
+	// The first poll pays the budget once, then gives up.
+	start := time.Now()
+	report, stalled, err := b.get(30 * time.Millisecond)
+	if !stalled || report != nil || err != nil {
+		t.Fatalf("first poll = (%v, stalled=%v, %v), want (nil, true, nil)", report, stalled, err)
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("first poll blocked for %s, want about the 30ms budget", elapsed)
+	}
+
+	// Every later poll checks that SAME outstanding fetch without blocking, so the loop
+	// keeps its cadence instead of paying the budget again on every poll...
+	for i := 0; i < 5; i++ {
+		start = time.Now()
+		if _, stalled, _ := b.get(30 * time.Second); !stalled {
+			t.Fatalf("poll %d reported the fetch as healthy while it is still wedged", i+2)
+		}
+		if elapsed := time.Since(start); elapsed > time.Second {
+			t.Fatalf("poll %d blocked for %s despite an already-stalled fetch", i+2, elapsed)
+		}
+	}
+
+	// ...and exactly one goroutine is leaked, however many polls happen.
+	if n := calls.Load(); n != 1 {
+		t.Errorf("started %d fetches, want exactly 1 while the first is outstanding", n)
+	}
+	if b.stalls != 1 {
+		t.Errorf("recorded %d stalls, want 1", b.stalls)
+	}
+	if b.drain(20 * time.Millisecond) {
+		t.Error("drain reported success while the fetch is still wedged")
+	}
+}
+
+// TestBoundedFetcherRecoversWhenTheCommandReturns: the bound must not be one-way. A slow
+// fetch that eventually completes has to put the fetcher straight back to normal, or a
+// single slow poll would blind the loop to the counts for the rest of the run.
+func TestBoundedFetcherRecoversWhenTheCommandReturns(t *testing.T) {
+	release := make(chan struct{})
+	want := &DataMigrationReport{}
+	b := &boundedFetcher{fetch: func() (*DataMigrationReport, error) {
+		<-release
+		return want, nil
+	}}
+
+	if _, stalled, _ := b.get(20 * time.Millisecond); !stalled {
+		t.Fatal("a fetch that had not returned was reported healthy")
+	}
+	close(release)
+
+	// Poll until the outstanding fetch is picked up - non-blocking, as the loop does.
+	var got *DataMigrationReport
+	for i := 0; i < 200; i++ {
+		rep, stalled, err := b.get(0)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stalled {
+			got = rep
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if got != want {
+		t.Fatalf("the completed fetch was never picked up (got %v)", got)
+	}
+	if b.stalled || b.pending != nil {
+		t.Errorf("fetcher did not reset after the fetch completed (stalled=%v)", b.stalled)
+	}
+	// And a healthy fetch afterwards is served normally.
+	if rep, stalled, err := b.get(time.Second); stalled || err != nil || rep != want {
+		t.Errorf("next fetch = (%v, stalled=%v, %v), want the report", rep, stalled, err)
+	}
+}
+
+// TestSweepWaitConcludesOnTotalSilence: a pipeline that writes NOTHING - no counts, no
+// import log, no export log - for the grace period is concluded rather than sat out. This
+// is the "no output for N minutes" case, and it stays a separate label from a budget that
+// simply ran out so the run log can say whether the budget mattered.
+func TestSweepWaitConcludesOnTotalSilence(t *testing.T) {
+	budget := seconds(sweepStreamingTimeout) // 900 s, comfortably longer than the grace
+	res := runWaitWithLogs(budget, "same log, forever\n", exporterHealthyLog)
+
+	if res.outcome != waitNoOutput {
+		t.Fatalf("outcome = %s, want %s (summary: %s)", res.outcome, waitNoOutput, res.summary())
+	}
+	if res.silence < sweepSilenceGrace {
+		t.Errorf("concluded after %s of silence, want at least the %s grace", res.silence, sweepSilenceGrace)
+	}
+	if res.elapsed >= budget {
+		t.Errorf("elapsed %s, want well short of the %s budget", res.elapsed, budget)
+	}
+	if res.saved() <= 0 {
+		t.Error("a silent-pipeline conclusion saved nothing")
+	}
+	if s := res.summary(); !strings.Contains(s, "logged nothing") {
+		t.Errorf("summary does not say the pipeline logged nothing: %q", s)
+	}
+	// It is an environment fact, never a datatype verdict.
+	verdict, detail := decideVerdict(modeLive, probeObservation{
+		snapshotCompared: true, streamCompared: true,
+		eventsForTable: 0, waitTimedOut: true,
+		waitNote: "forward streaming wait concluded early after 300s of total silence",
+	})
+	if verdict != verdictInconclusive {
+		t.Fatalf("a silent pipeline classified %s, want %s (%s)", verdict, verdictInconclusive, detail)
+	}
+}
+
+// TestSweepWaitSilenceDoesNotFireOnABusyPipeline is the other half. A crash-looping
+// importer is NOISY - it rewrites the same error every few seconds - but the log is only
+// ever read as a 512 KiB tail, so once it passes that size it stops changing LENGTH while
+// its content still changes. Measure activity by length alone and the busiest possible
+// pipeline reads as silent.
+func TestSweepWaitSilenceDoesNotFireOnABusyPipeline(t *testing.T) {
+	clock := newFakeClock()
+	poll := 0
+	res := waitForSignalOrCrashLoop(seconds(sweepStreamingTimeout), sweepWaitPoll, func() waitSample {
+		poll++
+		// Same length every time, different bytes every time: a rolling tail.
+		return waitSample{
+			progress: "frozen",
+			logText:  fmt.Sprintf("%08d writing away\n", poll) + strings.Repeat("x", 100),
+		}
+	}, clock.now, clock.sleep)
+
+	if res.outcome == waitNoOutput {
+		t.Fatalf("a log that changes content at constant length was read as silence after %s",
+			res.silence)
+	}
+	if res.outcome != waitTimeout {
+		t.Fatalf("outcome = %s, want %s", res.outcome, waitTimeout)
+	}
+
+	// And the signature itself: same length, different bytes, must differ.
+	a := activitySignature(waitSample{progress: "p", logText: "aaaa"})
+	b := activitySignature(waitSample{progress: "p", logText: "bbbb"})
+	if a == b {
+		t.Error("activitySignature cannot tell two same-length logs apart")
+	}
+	// A changing export log is activity too, even with the import side frozen.
+	c := activitySignature(waitSample{progress: "p", logText: "aaaa", exportText: "x"})
+	if a == c {
+		t.Error("activitySignature ignores the export log")
 	}
 }

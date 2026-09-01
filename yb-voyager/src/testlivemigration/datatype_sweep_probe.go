@@ -50,6 +50,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -213,6 +215,40 @@ const (
 	// sweepWaitPoll is a REAL duration: the sweep drives its own wait loop rather than
 	// handing a seconds-count to utils.RetryWorkWithTimeout.
 	sweepWaitPoll time.Duration = 2 * time.Second
+
+	// sweepSilenceGrace is the third negative signal: NOTHING moved anywhere - not the
+	// migration-report counts, not the import log, not the export log - for this long.
+	// A healthy pipeline is never silent for five minutes; both voyager processes log
+	// continuously, and the importer runs at --log-level debug.
+	//
+	// This is the "no output for N minutes" case, and it is CONCLUDED rather than sat
+	// out. It stays a separate outcome from waitTimeout on purpose: "silent for 5 of
+	// the 15 minutes I was willing to give it" and "silent for all 15" are the same
+	// finding, but only the first one says so while there is still budget left, and a
+	// run log that cannot tell them apart cannot say whether the budget mattered.
+	//
+	// Like waitTimeout it is an ENVIRONMENT fact and classifies INCONCLUSIVE. Nothing
+	// about a datatype can be concluded from a pipeline that wrote nothing down.
+	sweepSilenceGrace time.Duration = 5 * time.Minute
+
+	// sweepReportFetchBudget bounds ONE poll's `get data-migration-report`.
+	//
+	// Every poll shells out to that command, and VoyagerCommandRunner gives the child an
+	// io.MultiWriter for stdout/stderr - which makes exec create an OS pipe and makes
+	// Cmd.Wait() block until the pipe reaches EOF. EOF needs EVERY descendant that
+	// inherited the fd to exit, so one wedged grandchild blocks the reader forever, in
+	// `goroutine [IO wait]`, with the voyager process itself already dead. The framework
+	// already documents this hazard on WaitForAsyncCompletion.
+	//
+	// A blocked fetch used to take the whole wait loop down with it: no poll, no
+	// crash-loop detection, no export-death detection and - because PROBE-WAIT is only
+	// printed when a wait ENDS - not one line of output saying so. Bounding it turns
+	// that into a report this poll could not read, which the loop already handles.
+	sweepReportFetchBudget time.Duration = 2 * time.Minute
+	// sweepFetchDrainBudget is how long the run waits, at test cleanup, for a fetch that
+	// was still outstanding. It runs from t.Cleanup - i.e. before the test is marked
+	// complete - so a late goroutine can still log without panicking.
+	sweepFetchDrainBudget time.Duration = 30 * time.Second
 )
 
 // seconds converts one of the seconds-as-Duration constants above into a real duration.
@@ -621,12 +657,19 @@ type sweepRun struct {
 	// Non-empty means every measurement after that point is worthless: the exporter is
 	// gone, so nothing further was produced for anybody.
 	exportDeath string
+	// exportDeathCulprit is the probe that death was attributed to, or "" when the
+	// failure named none. Only an attributed death is publishable.
+	exportDeathCulprit string
 
 	probes   []datatypeProbe // every probe asked for, in order (all get a result line)
 	active   []datatypeProbe // probes whose DDL + data actually landed
 	obs      map[string]*probeObservation
 	emitted  bool
 	extAvail map[string]bool // "<side>/<ext>" -> installable
+
+	// reports bounds the per-poll `get data-migration-report`, so one command stuck in
+	// pipe I/O can no longer take the whole wait loop down with it.
+	reports *boundedFetcher
 }
 
 func newSweepRun(t *testing.T, mode sweepMode, batchName string, probes []datatypeProbe) *sweepRun {
@@ -668,6 +711,17 @@ func newSweepRun(t *testing.T, mode sweepMode, batchName string, probes []dataty
 	for _, p := range probes {
 		r.obs[p.ID] = &probeObservation{}
 	}
+	r.reports = &boundedFetcher{fetch: r.lm.GetDataMigrationReport}
+	// A fetch that outlived its budget is still running and still logging through t.
+	// t.Cleanup runs before the test is marked complete, so this is the last point at
+	// which that goroutine can be given a chance to finish safely.
+	t.Cleanup(func() {
+		if !r.reports.drain(sweepFetchDrainBudget) {
+			t.Logf("a `get data-migration-report` was still stuck in pipe I/O after %s; "+
+				"its process, or a grandchild holding its stdout pipe, never exited",
+				sweepFetchDrainBudget)
+		}
+	})
 	return r
 }
 
@@ -1220,6 +1274,12 @@ const (
 	// unlike a crash-loop this needs no repeat count: a connector that reported itself
 	// completed-with-failure does not un-complete.
 	waitExportDied waitOutcome = "exporter-died"
+	// waitNoOutput - nothing anywhere moved for sweepSilenceGrace: not the counts, not
+	// the import log, not the export log. Something upstream is wedged in a way that
+	// writes nothing down, which is an environment fact and classifies INCONCLUSIVE.
+	// It exists so that "produced no output for five minutes" is CONCLUDED rather than
+	// sat out, and so the run log says which of the two silences it was.
+	waitNoOutput waitOutcome = "no-output"
 	// waitTimeout - neither signal arrived within the budget: a stall that logs nothing.
 	// A genuinely different case from waitRepeatingError, and it must stay distinguishable:
 	// it classifies INCONCLUSIVE, never STUCK.
@@ -1248,12 +1308,31 @@ type waitResult struct {
 	polls       int
 	quotedError string // set for waitRepeatingError: the error, with its SQLSTATE
 	repeats     int
+	silence     time.Duration // set for waitNoOutput: how long nothing moved
+}
+
+// activitySignature renders everything the pipeline could possibly have produced since the
+// last poll: the counts, and both logs.
+//
+// The logs are HASHED rather than measured. importLogFileText and exportLogFileText both
+// return only a 512 KiB tail, so once a log passes that size its length stops changing
+// while its content still does - and a length-only check would call a busy, crash-looping
+// pipeline silent.
+func activitySignature(s waitSample) string {
+	return fmt.Sprintf("%s|%d:%x|%d:%x",
+		s.progress, len(s.logText), hashText(s.logText), len(s.exportText), hashText(s.exportText))
+}
+
+func hashText(s string) uint64 {
+	h := fnv.New64a()
+	_, _ = io.WriteString(h, s)
+	return h.Sum64()
 }
 
 // saved is the wait budget the early conclusion did not have to spend. Both negative
 // signals save it: a wedged importer and a dead exporter are equally pointless to sit out.
 func (w waitResult) saved() time.Duration {
-	if w.outcome != waitRepeatingError && w.outcome != waitExportDied {
+	if w.outcome != waitRepeatingError && w.outcome != waitExportDied && w.outcome != waitNoOutput {
 		return 0
 	}
 	if w.elapsed > w.budget {
@@ -1276,6 +1355,12 @@ func (w waitResult) summary() string {
 		return fmt.Sprintf("the export side is dead - %s; no event can arrive from a dead "+
 			"exporter, so the remaining %ds of the budget was not waited out",
 			w.quotedError, int(w.saved().Seconds()))
+	case waitNoOutput:
+		return fmt.Sprintf("nothing moved anywhere for %.0fs - not the migration-report counts, "+
+			"not the import log, not the export log: a pipeline that logged nothing at all, "+
+			"which is an environment fact and not a datatype verdict; concluded without "+
+			"waiting out the remaining %ds of the budget",
+			w.silence.Seconds(), int(w.saved().Seconds()))
 	default:
 		return "budget exhausted with no repeating importer error in the log: a stall that " +
 			"logged nothing, which is an environment fact and not a datatype verdict"
@@ -1294,7 +1379,8 @@ func waitForSignalOrCrashLoop(
 	sleep func(time.Duration),
 ) waitResult {
 	start := now()
-	var lastSignature, lastProgress string
+	var lastSignature, lastProgress, lastActivity string
+	quietSince := start
 	signaturePolls := 0
 	firstSample := true
 	polls := 0
@@ -1303,6 +1389,13 @@ func waitForSignalOrCrashLoop(
 		s := sample()
 		polls++
 		elapsed := now().Sub(start)
+
+		// Anything at all that the pipeline could have produced since the last poll.
+		// Checked before the early returns so that a poll which DID see movement never
+		// leaves a stale silence clock behind it.
+		if act := activitySignature(s); firstSample || act != lastActivity {
+			lastActivity, quietSince = act, now()
+		}
 
 		if s.satisfied {
 			return waitResult{outcome: waitSatisfied, elapsed: elapsed, budget: budget, polls: polls}
@@ -1344,6 +1437,15 @@ func waitForSignalOrCrashLoop(
 			lastSignature, signaturePolls = "", 0
 		}
 
+		// Nothing anywhere has moved for the grace period. There is no point sitting out
+		// the rest of a budget for a pipeline that is writing nothing down.
+		if silence := now().Sub(quietSince); silence >= sweepSilenceGrace {
+			return waitResult{
+				outcome: waitNoOutput, elapsed: elapsed, budget: budget,
+				polls: polls, silence: silence,
+			}
+		}
+
 		if elapsed >= budget {
 			return waitResult{outcome: waitTimeout, elapsed: elapsed, budget: budget, polls: polls}
 		}
@@ -1371,6 +1473,106 @@ func reportFingerprint(report *DataMigrationReport) string {
 	return strings.Join(rows, "|")
 }
 
+// ============================================================
+// THE POLL ITSELF MUST BE BOUNDED
+// ============================================================
+
+/*
+A wait loop is only as bounded as the slowest thing inside one poll, and one poll shells
+out to `get data-migration-report`.
+
+VoyagerCommandRunner hands the child an io.MultiWriter for stdout and stderr. Because that
+is not an *os.File, os/exec creates an OS pipe and a copier goroutine, and Cmd.Wait() then
+blocks until the pipe reaches EOF - which requires every descendant that inherited the
+write end to exit, not just the process that was started. One wedged grandchild (the
+Debezium JVM is the obvious candidate) therefore blocks the reader indefinitely, in
+`goroutine [IO wait]`, even with the voyager process itself already dead. The framework
+documents the same hazard on WaitForAsyncCompletion.
+
+When that happened inside a poll it took the entire wait loop down with it: no polling, no
+crash-loop detection, no export-death detection, and - because PROBE-WAIT is only printed
+when a wait ENDS - not one line of output saying anything was wrong. A `catalogstats` live
+batch spent 13 minutes that way and emitted nothing.
+
+boundedFetcher makes the fetch unable to do that:
+
+  - at most ONE fetch is outstanding at a time, so a wedged one leaks a single goroutine
+    instead of one per poll;
+  - the first poll to exceed the budget gives up and reports the report as unreadable,
+    which the loop already handles (satisfied(nil) is false, and the fingerprint becomes
+    "<report-unavailable>");
+  - every later poll checks that same outstanding fetch WITHOUT blocking, so the loop keeps
+    its 2 s cadence instead of paying the budget again and again;
+  - if the wedged fetch ever completes, the fetcher goes straight back to normal.
+
+The leaked goroutine writes to a buffered channel, so it can always finish. It logs through
+t, so the run drains it from t.Cleanup - which runs before the test is marked complete and
+therefore before logging from it would panic.
+*/
+
+type reportResult struct {
+	report *DataMigrationReport
+	err    error
+}
+
+type boundedFetcher struct {
+	fetch   func() (*DataMigrationReport, error)
+	pending chan reportResult
+	stalled bool
+	stalls  int
+}
+
+// get returns the report, or nil when this poll could not read one within budget. The
+// bool reports whether the fetch is currently stalled.
+func (b *boundedFetcher) get(budget time.Duration) (*DataMigrationReport, bool, error) {
+	if b.pending == nil {
+		ch := make(chan reportResult, 1)
+		b.pending = ch
+		go func() {
+			rep, err := b.fetch()
+			ch <- reportResult{report: rep, err: err}
+		}()
+	}
+	// A fetch already known to be stuck is never waited on again: checking it costs
+	// nothing, and paying the budget once per poll would be its own kind of hang.
+	if b.stalled {
+		budget = 0
+	}
+
+	var res reportResult
+	if budget <= 0 {
+		select {
+		case res = <-b.pending:
+		default:
+			return nil, true, nil
+		}
+	} else {
+		select {
+		case res = <-b.pending:
+		case <-time.After(budget):
+			b.stalled = true
+			b.stalls++
+			return nil, true, nil
+		}
+	}
+	b.pending, b.stalled = nil, false
+	return res.report, false, res.err
+}
+
+// drain gives an outstanding fetch a bounded chance to finish. Called from t.Cleanup.
+func (b *boundedFetcher) drain(budget time.Duration) bool {
+	if b.pending == nil {
+		return true
+	}
+	select {
+	case <-b.pending:
+		b.pending, b.stalled = nil, false
+		return true
+	case <-time.After(budget):
+		return false
+	}
+}
+
 // waitBounded runs one bounded wait, watching the import log for a crash-loop alongside
 // the counts. A wait that ends without its positive signal never aborts the run: it is
 // recorded on every active probe and fed into classification, because "the counts never
@@ -1380,8 +1582,17 @@ func reportFingerprint(report *DataMigrationReport) string {
 // it could not be read; a predicate that needs the report must return false for nil.
 func (r *sweepRun) waitBounded(what string, budget time.Duration, satisfied func(*DataMigrationReport) bool) {
 	sample := func() waitSample {
-		report, err := r.lm.GetDataMigrationReport()
-		if err != nil {
+		report, stalled, err := r.reports.get(sweepReportFetchBudget)
+		switch {
+		case stalled:
+			// Not an error the run can act on, and not a reason to stop polling: the
+			// other two signals (the logs) are still readable, and they are the ones
+			// that identify a wedged importer or a dead exporter anyway.
+			r.t.Logf("wait %q: `get data-migration-report` has not returned within %s and is "+
+				"being polled without blocking; the counts are unavailable until it does",
+				what, sweepReportFetchBudget)
+			report = nil
+		case err != nil:
 			r.t.Logf("wait %q: cannot read the data-migration report: %v", what, err)
 			report = nil
 		}
@@ -1423,11 +1634,19 @@ func (r *sweepRun) applyWaitResult(what string, res waitResult) {
 		return
 	}
 
-	// A wait that ran out of clock is the other place a dead exporter used to hide: zero
-	// events and no importer error reads as "nothing happened" whichever way the run
-	// actually went, so the export side is inspected before that conclusion is drawn.
-	if res.outcome == waitTimeout {
-		r.exportDiedDuring(fmt.Sprintf("found after the %s wait expired", what))
+	// A wait that ran out of clock, or one that gave up on a silent pipeline, is the
+	// other place a dead exporter used to hide: zero events and no importer error reads
+	// as "nothing happened" whichever way the run actually went, so the export side is
+	// inspected before that conclusion is drawn.
+	if res.outcome == waitTimeout || res.outcome == waitNoOutput {
+		if r.exportDiedDuring(fmt.Sprintf("found after the %s wait ended as %s", what, res.outcome)) {
+			for _, p := range r.active {
+				o := r.observe(p)
+				o.waitTimedOut = true
+				o.waitNote = appendNote(o.waitNote, fmt.Sprintf("%s wait ended as %s", what, res.outcome))
+			}
+			return
+		}
 	}
 
 	// Read the importer's output once and reuse it for every probe; each probe needs a
@@ -1435,8 +1654,12 @@ func (r *sweepRun) applyWaitResult(what string, res waitResult) {
 	logText := r.importLogText()
 	repeated, count := mostRepeatedError(logText, "")
 	how := what + " wait expired"
-	if res.outcome == waitRepeatingError {
+	switch res.outcome {
+	case waitRepeatingError:
 		how = fmt.Sprintf("%s wait concluded early after %.0fs on a repeating importer error", what, res.elapsed.Seconds())
+	case waitNoOutput:
+		how = fmt.Sprintf("%s wait concluded early after %.0fs of total silence from every "+
+			"command in the pipeline", what, res.silence.Seconds())
 	}
 
 	// Attribution first: if exactly one probe's table is named by the repeating error,
@@ -2346,6 +2569,7 @@ func (r *sweepRun) recordExportDeath(cause, how string) {
 	detail := fmt.Sprintf("the export side died (%s): %s", how, cause)
 
 	if attributed {
+		r.exportDeathCulprit = culprit
 		fmt.Printf("PROBE-RUN-EXPORT-DIED: %s | %s | %s killed the exporter: %s; "+
 			"every other probe in this batch is collateral and must be re-run without it. "+
 			"Measure it on its own with PROBE_ID=%s PROBE_MODE=%s -run TestDatatypeSweepSuspect\n",
@@ -2365,6 +2589,41 @@ func (r *sweepRun) recordExportDeath(cause, how string) {
 		}
 		o.exporterDiedInRun = detail
 	}
+}
+
+// publishableReason returns why one probe's verdict may be recorded even though the run as
+// a whole failed its control gate, or "" when it may not be.
+//
+// The control gate exists to catch a BROKEN MEASUREMENT: a known-good control coming out
+// wrong means the harness, containers or environment were wrong, so nothing that run
+// measured can be trusted. An attributed export death is a different thing entirely. It is
+// not a broken measurement, it IS the finding - and the controls going inconclusive is a
+// CONSEQUENCE of that finding (the exporter they needed was dead), not evidence against
+// it. Requiring a human to promote such a row by hand would mean the audit's most severe
+// verdict is the only one that cannot be recorded automatically.
+//
+// The carve-out is deliberately narrow, and every clause is load-bearing:
+//
+//   - the probe must BE the attributed culprit. A batch-mate was never measured, so it
+//     stays INCONCLUSIVE and stays unpublishable;
+//   - the verdict actually reached must be EXPORTER_CRASHES. The marker never promotes a
+//     verdict the classifier did not produce;
+//   - there must be a quotable cause. No evidence, no publication - the same rule that
+//     governs the verdict itself.
+//
+// An UNATTRIBUTED death promotes nothing: the run-level PROBE-RUN-EXPORT-DIED line is the
+// record, and a human writes that row from it. One row written by hand beats a wrong row
+// written automatically.
+func publishableReason(probeID, verdict, culprit, cause string) string {
+	if culprit == "" || probeID != culprit || verdict != verdictExporterCrashes {
+		return ""
+	}
+	if strings.TrimSpace(cause) == "" {
+		return ""
+	}
+	return "the exporter died with a quotable cause attributed to this probe, so this " +
+		"verdict stands on its own evidence; the control gate failing is a consequence of " +
+		"this finding rather than evidence against it: " + cause
 }
 
 // exportDiedDuring inspects the export side after something went wrong and, if the death
@@ -2710,6 +2969,14 @@ func (r *sweepRun) emitAll() {
 		if o.srcValue != "" || o.dstValue != "" {
 			fmt.Printf("PROBE-VALUES: %s | %s | %s | %s\n",
 				p.ID, r.mode, sanitizeValue(o.srcValue), sanitizeValue(o.dstValue))
+		}
+
+		// The one carve-out from the control gate: an attributed export death is the
+		// finding, not a broken measurement, so its own row is publishable even though
+		// every other row from this run is not. See publishableReason.
+		if why := publishableReason(p.ID, verdict, r.exportDeathCulprit, r.exportDeath); why != "" {
+			fmt.Printf("PROBE-PUBLISHABLE: %s | %s | %s | %s\n",
+				p.ID, r.mode, verdict, sanitizeDetail(why))
 		}
 
 		if verdict == verdictInconclusive {

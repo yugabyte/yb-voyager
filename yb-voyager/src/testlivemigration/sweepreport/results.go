@@ -29,6 +29,10 @@ plus per-run gate lines
 	PROBE-RUN-FLAKE:   <batch> | <mode> | ...
 	PROBE-RUN-POISON:  <batch> | <mode> | ...
 
+and, for the one verdict that survives its own run's gate failure,
+
+	PROBE-PUBLISHABLE: <id> | <mode> | <verdict> | <why>
+
 This file turns that text into a stable, diffable CSV. Nothing here talks to a database
 or imports voyager, so it builds and tests without Docker and without a build tag.
 */
@@ -163,6 +167,8 @@ var (
 	// PROBE-VALUES: <id> | <mode> | <source> | <destination>
 	// The structured form, preferred over verbatimRe below.
 	probeValuesRe = regexp.MustCompile(`PROBE-VALUES:\s*(.*)$`)
+	// PROBE-PUBLISHABLE: <id> | <mode> | <verdict> | <why>
+	probePublishableRe = regexp.MustCompile(`PROBE-PUBLISHABLE:\s*(.*)$`)
 	// Values the harness embeds in the PROSE detail for the baseline row. This is the
 	// FALLBACK, kept so logs from before the PROBE-VALUES line still yield values.
 	verbatimRe = regexp.MustCompile(`id=\d+ source=(NULL|<row absent>|"(?:[^"]*)") destination=(NULL|<row absent>|"(?:[^"]*)")`)
@@ -185,6 +191,10 @@ func ParseLog(r io.Reader, meta RunMeta, categoryFor func(probeID string) string
 	runStatus := map[string]string{}
 	// rows are attributed to a batch so a later gate line can retro-mark them.
 	rowBatch := map[int]string{}
+	// "<id>|<mode>" -> the verdict the harness declared publishable despite its run's
+	// gate. Keyed by verdict as well as by row so a marker can never promote a verdict
+	// the classifier did not actually produce.
+	publishable := map[string]string{}
 	curBatch := ""
 	curMode := ""
 
@@ -212,6 +222,19 @@ func ParseLog(r io.Reader, meta RunMeta, categoryFor func(probeID string) string
 					runStatus[key] = statusFlake
 				}
 			}
+			continue
+		}
+
+		if m := probePublishableRe.FindStringSubmatch(line); m != nil {
+			f := splitPipes(m[1])
+			if len(f) < 3 {
+				return nil, fmt.Errorf("malformed PROBE-PUBLISHABLE line (want 4 pipe-separated fields): %q", line)
+			}
+			mode := f[1]
+			if mode == "" {
+				mode = curMode
+			}
+			publishable[f[0]+"|"+mode] = f[2]
 			continue
 		}
 
@@ -283,6 +306,15 @@ func ParseLog(r io.Reader, meta RunMeta, categoryFor func(probeID string) string
 	for i := range rows {
 		if st, ok := runStatus[rowBatch[i]]; ok {
 			rows[i].RunStatus = st
+		}
+		// The carve-out, applied AFTER the run status so it can override it. An
+		// attributed export death is the finding rather than a broken measurement, and
+		// the controls going inconclusive is a consequence of it - so that one row is
+		// publishable even though its run is not. It promotes only the exact
+		// (probe, mode, verdict) the harness named; every other row from the run keeps
+		// the run's status and stays out of the report and the differ.
+		if v, ok := publishable[rows[i].Key()]; ok && v == rows[i].Verdict {
+			rows[i].RunStatus = statusOK
 		}
 	}
 	return dedupe(rows), nil

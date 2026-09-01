@@ -69,6 +69,10 @@ type LiveMigrationTest struct {
 	// SetImportDataStdin.
 	importStdin    io.Reader
 	importStdinSet bool
+
+	// syncCommandTimeout bounds a command started with async=false; 0 means unbounded.
+	// See SetSyncCommandTimeout.
+	syncCommandTimeout time.Duration
 }
 
 // TestConfig holds all configuration upfront
@@ -304,7 +308,7 @@ func (lm *LiveMigrationTest) startExportData(async bool, extraArgs map[string]st
 	}
 
 	lm.exportCmd = testutils.NewVoyagerCommandRunner(lm.sourceContainer, "export data", args, onStart, async).WithEnv(env...).WithT(lm.t)
-	err := lm.exportCmd.Run()
+	err := lm.runStart(lm.exportCmd, async)
 	if err != nil {
 		return goerrors.Errorf("failed to start export data: %w", err)
 	}
@@ -381,7 +385,7 @@ func (lm *LiveMigrationTest) startImportData(async bool, extraArgs map[string]st
 		stdin = lm.importStdin
 	}
 	lm.importCmd = testutils.NewVoyagerCommandRunner(lm.targetContainer, "import data", args, onStart, async).WithEnv(env...).WithT(lm.t).WithStdin(stdin)
-	err := lm.importCmd.Run()
+	err := lm.runStart(lm.importCmd, async)
 	if err != nil {
 		return goerrors.Errorf("failed to start import data: %w", err)
 	}
@@ -814,6 +818,71 @@ func (lm *LiveMigrationTest) ReadMigrationUUID() (string, error) {
 		return "", goerrors.Errorf("migration status record not found")
 	}
 	return msr.MigrationUUID, nil
+}
+
+// MigrationCommand pairs a started migration command with the role it is currently
+// playing. The role is not fixed for the life of a process: at cutover the running
+// `import data` exec's into `export data from target`, so the same runner answers to a
+// different name afterwards.
+type MigrationCommand struct {
+	Name   string
+	Runner *testutils.VoyagerCommandRunner
+}
+
+// StartedCommands returns every migration command this fixture has started, deduplicated
+// by process. It exists so a wait can ask the obvious question - is the thing I am waiting
+// for still running - instead of waiting out a budget for counts from a dead process.
+//
+// Handles are walked oldest role first and the LATEST role wins the name, because after a
+// cutover exportFromTargetCmd and importCmd are the same runner and "export data from
+// target" is what that process actually is by then.
+func (lm *LiveMigrationTest) StartedCommands() []MigrationCommand {
+	ordered := []MigrationCommand{
+		{"export data", lm.exportCmd},
+		{"import data", lm.importCmd},
+		{"import data to source-replica", lm.sourceReplicaImportCmd},
+		{"export data from target", lm.exportFromTargetCmd},
+		{"import data to source", lm.importToSourceCmd},
+	}
+	var out []MigrationCommand
+	at := map[*testutils.VoyagerCommandRunner]int{}
+	for _, c := range ordered {
+		if c.Runner == nil {
+			continue
+		}
+		if i, seen := at[c.Runner]; seen {
+			out[i].Name = c.Name
+			continue
+		}
+		at[c.Runner] = len(out)
+		out = append(out, c)
+	}
+	return out
+}
+
+// SetSyncCommandTimeout puts a ceiling on a command started with async=false. Zero (the
+// default) leaves it unbounded, which is the historical behaviour.
+//
+// A synchronous start blocks in exec.Cmd.Wait, which returns only when the process has
+// exited AND its output pipes are closed - so a voyager command whose Debezium grandchild
+// holds the inherited pipe open parks the caller in an I/O wait indefinitely, with nothing
+// in the test output to say what happened. A harness whose job is to measure migrations
+// has to conclude on that rather than hang inside it.
+func (lm *LiveMigrationTest) SetSyncCommandTimeout(d time.Duration) {
+	lm.syncCommandTimeout = d
+}
+
+// runStart starts one migration command, applying syncCommandTimeout to a synchronous
+// start. An async start is already non-blocking, so it is left alone.
+func (lm *LiveMigrationTest) runStart(runner *testutils.VoyagerCommandRunner, async bool) error {
+	if async || lm.syncCommandTimeout <= 0 {
+		return runner.Run()
+	}
+	return runner.RunBounded(lm.syncCommandTimeout, 30*time.Second)
+}
+
+func (lm *LiveMigrationTest) GetExportRunner() *testutils.VoyagerCommandRunner {
+	return lm.exportCmd
 }
 
 func (lm *LiveMigrationTest) GetImportRunner() *testutils.VoyagerCommandRunner {
@@ -1557,6 +1626,9 @@ func (lm *LiveMigrationTest) GetDataMigrationReport() (*DataMigrationReport, err
 		if lm.sourceReplicaContainer != nil {
 			reportArgs = append(reportArgs, "--source-replica-db-password", lm.sourceReplicaContainer.GetConfig().Password)
 		}
+		// Started with async=true and deliberately not waited on: the loop below polls for
+		// the report FILE instead, so one slow or hung invocation cannot block the caller.
+		// Its Wait runs on the runner's own goroutine, which also reaps it.
 		err := testutils.NewVoyagerCommandRunner(nil, "get data-migration-report", reportArgs, nil, true).WithT(lm.t).Run()
 		if err != nil {
 			return nil, goerrors.Errorf("get data-migration-report command failed: %w", err)
