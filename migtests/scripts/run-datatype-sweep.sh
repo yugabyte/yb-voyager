@@ -215,6 +215,15 @@ collect_results() {
         grep -a '^PROBE-RUN-QUARANTINE' "${RUN_LOG}" || true
     fi
 
+    # The exporter died. Nothing migrated at all in that run, and `initiate cutover`
+    # would have hung forever - the most severe outcome in the audit, and the one that
+    # used to be reported as "inconclusive". The line quotes the cause and, when the
+    # failure names a probe, which probe to measure on its own.
+    if grep -qa '^PROBE-RUN-EXPORT-DIED' "${RUN_LOG}"; then
+        log "EXPORTER DIED - nothing was produced in these batches:"
+        grep -a '^PROBE-RUN-EXPORT-DIED' "${RUN_LOG}" || true
+    fi
+
     # What every bounded wait actually cost, and why it ended. This is where the
     # crash-loop detector's saving is visible: a "repeating-error" line says how much of
     # the budget was not spent, and a "timeout" line is a stall that logged nothing.

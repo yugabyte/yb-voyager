@@ -65,7 +65,7 @@ Every invocation ends by writing, under `datatype-sweep-results/` (override with
 
 ## Verdict vocabulary
 
-Worst to best. The first seven are product verdicts; the last two are facts about the
+Worst to best. The first eight are product verdicts; the last two are facts about the
 harness or the environment and are never published as product findings.
 
 | Verdict | Plain English | What it means operationally |
@@ -73,7 +73,8 @@ harness or the environment and are never published as product findings.
 | `SILENT_LOSS` | **Value silently lost.** | The column exists on the target but the value is gone (or NULL) and nothing warned. The worst outcome: a user discovers it in production. |
 | `SILENT_WRONG` | **Wrong value.** | The value arrived but is not the value that was written — a truncation, a timezone shift, a re-formatted array. Also silent. |
 | `QUIET_DROP` | **Column dropped.** | Voyager excluded the column from the migration and did not tell the user in a way they would notice. Data loss with a paper trail nobody reads. |
-| `STUCK` | **Importer stops / exporter crashes.** | The value wedges the pipeline: the importer crash-loops on the batch, or the exporter dies. Migration does not complete. One such value blocks every later event in its channel. |
+| `EXPORTER_CRASHES` | **Export fails.** | `export data` dies — usually the Debezium connector, at startup, before a single row is read. **Nothing** migrates, and `initiate cutover` then waits forever. |
+| `STUCK` | **Import fails.** | The value wedges the import channel: the importer crash-loops on the batch and cannot get past it. One such value blocks every later event in its channel. |
 | `BLOCKS` | **Migration refuses to proceed.** | Voyager stops up front with a clear error. Bad, but honest and actionable. |
 | `EXCLUDED_TOLD` | **Column excluded, user told.** | The guardrail dropped the column *and* reported it. The documented, intended behaviour for an unsupported type. |
 | `WORKS` | **Works.** | Snapshot and every delta operation round-tripped byte-for-byte, and the column was present in the event stream. |
@@ -82,6 +83,21 @@ harness or the environment and are never published as product findings.
 
 The report adds one label of its own, `NOT_TESTED`, for a probe that exists but that the
 run being reported did not measure (e.g. a fall-back column in an offline-only run).
+
+### `STUCK` and `EXPORTER_CRASHES` are a pair, and must never collapse
+
+They are the same shape — the migration does not complete — and the only difference is
+which process dies. That difference is the whole finding:
+
+- **`STUCK`** means a value could not be **applied**. It was produced, exported and
+  delivered; the target refused it. Everything ahead of it in the channel did migrate.
+- **`EXPORTER_CRASHES`** means nothing was ever **produced**. There is no event stream at
+  all, so nothing migrated and `initiate cutover` hangs.
+
+`EXPORTER_CRASHES` therefore ranks *below* `STUCK` in the differ, and a type moving from
+one to the other is a real change rather than noise. `DOM-005` (`domain(enum)`) is the
+established instance: the Debezium connector throws a `NullPointerException` in
+`TypeRegistry.prime` while building its type registry, at startup.
 
 ### Why `INCONCLUSIVE` exists
 
@@ -125,8 +141,13 @@ Related markers:
   It names the probe, quotes the error, and prints the solo command. Its batch-mates are
   collateral: their events were stuck behind it, so they come out `INCONCLUSIVE` and the
   batch has to be re-run without the named probe.
+- `PROBE-RUN-EXPORT-DIED` — the export side died during the run. It quotes the cause and,
+  when the failure names exactly one probe, names the culprit and prints the solo command.
+  An exporter that dies at startup takes the **whole** run down, so every other probe is
+  collateral and comes out `INCONCLUSIVE`; re-running the batch unchanged only reproduces
+  it.
 - `PROBE-WAIT` — one line per bounded wait: how long it took, out of what budget, and why
-  it ended (`counts-satisfied` / `repeating-error` / `timeout`).
+  it ended (`counts-satisfied` / `repeating-error` / `exporter-died` / `timeout`).
 
 Every classifier bug found so far — the false `WORKS` on an unmeasured run, the empty-error
 `STUCK`, the config-field `STUCK` — showed up **first** as a control coming out wrong.
@@ -460,6 +481,55 @@ nothing quotable in the log is a stall that logged *nothing* — an environment 
 datatype verdict. It classifies `INCONCLUSIVE`, and the two outcomes must never collapse
 into one label (`TestWaitOutcomesStayDistinguishable`).
 
+### The second negative signal: a dead exporter
+
+The crash-loop detector watches the **import** log, which is also the only place the
+post-hoc evidence used to look. That left the export side with no detector at all, and it
+hid the most severe outcome in the audit behind the blandest label in the vocabulary.
+
+When `export data` dies it prints exactly one thing —
+`Export of data failed! Check <dir>/logs for more details.` — and exits. From the import
+side that is indistinguishable from a healthy run in which nothing happened: zero events,
+no repeating importer error, no value difference to compare. So it classified
+`INCONCLUSIVE`, meaning "the run was healthy and nothing conclusive happened", for a run in
+which *nothing would have migrated*.
+
+So every wait now also polls `<export-dir>/logs/debezium-<role>.log` and
+`yb-voyager-export-data.log`, and every place that was about to conclude "nothing
+happened" reads the export side first (`exportDiedDuring`). The rules mirror the import
+side's exactly:
+
+- **A terminal marker is required.** `Connector completed: success = 'false'`,
+  `Unable to initialize and start connector's task class`, or `Export of data failed`. A
+  Java exception on its own is *not* enough — Debezium logs exceptions it then recovers
+  from, and a verdict off one of those would record a guess as a finding.
+- **The cause is quoted, narrowed rather than truncated.** Debezium's `ConnectorLifecycle`
+  line carries the throwable at the very end, behind the whole connector config, so the
+  evidence is cut from the exception's class name onwards. Truncating instead would throw
+  the exception away *and* feed the config's `table.include.list` — which names every probe
+  in the batch — into attribution.
+- **No cause, no verdict.** `export data` failing with nothing usable in any log is a
+  run-level abort whose reason says so in as many words (`exportAbortReason`).
+- **Attribution is exact-one, as with quarantine.** If the failure names exactly one active
+  probe (by table or by type) that probe gets `EXPORTER_CRASHES`; otherwise the finding is
+  reported against the **run** and every active probe is `INCONCLUSIVE`. The real DOM-005
+  `NullPointerException` names neither a table nor a type, so it lands in the second case.
+- **Batch-mates are never a product verdict.** An exporter that dies at startup takes the
+  whole run down, so its batch-mates were never measured: `INCONCLUSIVE` with "the exporter
+  died before this probe was measured", never `WORKS` and never a failure of their own.
+- **The import side is not shadowed.** A wedged importer's error was produced *by* this
+  value reaching the target, so the import side has already measured that type; the export
+  process dying afterwards does not erase it. `STUCK` wins whenever both are present.
+
+The wait concludes on the first poll that sees a death — no repeat count, because a
+connector that reported itself completed-with-failure does not un-complete — so a run
+killed at export startup costs seconds instead of the full 900 s budget.
+
+The control gate is untouched, exactly as with quarantine: the collateral probes are
+`INCONCLUSIVE`, `INCONCLUSIVE` is not `WORKS`, so the run is still `PROBE-RUN-INVALID` and
+none of its verdicts are published. A confirmed `EXPORTER_CRASHES` therefore still has to
+be recorded from a run whose controls passed, or promoted by hand.
+
 ### Seeing the saving
 
 Every wait prints its own accounting line, so the next person can read the saving instead
@@ -468,6 +538,7 @@ of trusting it:
 ```
 PROBE-WAIT: ranges | LIVE | forward streaming | counts-satisfied | 31.9s of 900s | expected counts reached after 16 polls
 PROBE-WAIT: json | LIVE | forward streaming | repeating-error | 2.0s of 900s | SQLSTATE 22P02: [import data] error executing batch on channel 3: ... repeated x5 with the observed counts frozen across 2 polls; concluded without waiting out the remaining 898s of the budget
+PROBE-WAIT: domains | LIVE | forward streaming | exporter-died | 0.0s of 900s | the export side is dead - Connector completed: success = 'false' - java.lang.NullPointerException: Cannot invoke "java.sql.Array.getArray()" ...; no event can arrive from a dead exporter, so the remaining 900s of the budget was not waited out
 PROBE-WAIT: geo | LIVE | forward streaming | timeout | 900.0s of 900s | budget exhausted with no repeating importer error in the log: a stall that logged nothing, which is an environment fact and not a datatype verdict
 ```
 

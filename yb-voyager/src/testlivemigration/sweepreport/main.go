@@ -167,7 +167,7 @@ func cmdCollect(args []string) error {
 
 func renderCounts(counts map[string]int) string {
 	order := []string{
-		"WORKS", "EXCLUDED_TOLD", "BLOCKS", "STUCK",
+		"WORKS", "EXCLUDED_TOLD", "BLOCKS", "STUCK", "EXPORTER_CRASHES",
 		"QUIET_DROP", "SILENT_WRONG", "SILENT_LOSS", "SKIPPED", "INCONCLUSIVE",
 	}
 	var parts []string

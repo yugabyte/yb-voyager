@@ -37,14 +37,20 @@ import (
 // SKIPPED and INCONCLUSIVE are deliberately absent: they are harness/environment facts,
 // not product verdicts, so a move into or out of them is reported as a coverage change
 // rather than as a regression or an improvement.
+// EXPORTER_CRASHES ranks BELOW STUCK because a wedged importer still delivered everything
+// ahead of the poison value, while a dead exporter produced nothing at all and leaves
+// `initiate cutover` waiting forever. The two are separate ranks, never one label: import
+// failure means a value could not be APPLIED, export failure means nothing was ever
+// PRODUCED, and a fix that moves a type from one to the other has changed something real.
 var verdictRank = map[string]int{
-	"SILENT_LOSS":   0, // value silently lost
-	"SILENT_WRONG":  1, // value silently altered
-	"QUIET_DROP":    2, // column dropped with no user-visible warning
-	"STUCK":         3, // importer/exporter wedges on the value
-	"BLOCKS":        4, // migration refuses to proceed
-	"EXCLUDED_TOLD": 5, // column excluded AND the user was told
-	"WORKS":         6, // full fidelity round trip
+	"SILENT_LOSS":      0, // value silently lost
+	"SILENT_WRONG":     1, // value silently altered
+	"QUIET_DROP":       2, // column dropped with no user-visible warning
+	"EXPORTER_CRASHES": 3, // the exporter dies: nothing is produced at all
+	"STUCK":            4, // the importer wedges on the value
+	"BLOCKS":           5, // migration refuses to proceed
+	"EXCLUDED_TOLD":    6, // column excluded AND the user was told
+	"WORKS":            7, // full fidelity round trip
 }
 
 // rank returns the verdict's ordering position and whether it is a product verdict.

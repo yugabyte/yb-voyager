@@ -842,6 +842,26 @@ func (lm *LiveMigrationTest) GetExportCommandStdout() string {
 	return lm.exportCmd.Stdout()
 }
 
+// GetExportFromTargetCommandStdout gets stdout from the `export data from target` command.
+// Before cutover there is no such command and this returns "". After a fall-back cutover
+// the running `import data` process HAS BECOME `export data from target`, so this returns
+// that process's output - which is exactly what a caller looking for the target-side
+// exporter's failure wants.
+func (lm *LiveMigrationTest) GetExportFromTargetCommandStdout() string {
+	if lm.exportFromTargetCmd == nil {
+		return ""
+	}
+	return lm.exportFromTargetCmd.Stdout()
+}
+
+// GetExportFromTargetCommandStderr gets stderr from the `export data from target` command.
+func (lm *LiveMigrationTest) GetExportFromTargetCommandStderr() string {
+	if lm.exportFromTargetCmd == nil {
+		return ""
+	}
+	return lm.exportFromTargetCmd.Stderr()
+}
+
 // GetImportCommandStderr gets stderr from import command
 func (lm *LiveMigrationTest) GetImportCommandStderr() string {
 	if lm.importCmd == nil {

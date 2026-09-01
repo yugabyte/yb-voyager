@@ -81,6 +81,19 @@ const (
 	verdictWorks        = "WORKS"
 	verdictSkipped      = "SKIPPED"
 
+	// verdictExporterCrashes is STUCK's export-side twin, and the two must never be
+	// collapsed into one label. STUCK means the importer could not APPLY a value: the
+	// value was produced, exported and delivered, and the target refused it.
+	// EXPORTER_CRASHES means nothing was ever PRODUCED - `export data` (or the Debezium
+	// connector inside it) died, usually at startup and before a single row was read, so
+	// there is no event stream at all and `initiate cutover` then waits forever.
+	//
+	// It is at least as severe as STUCK (a wedged channel still delivers everything
+	// ahead of the poison value; a dead exporter delivers nothing), and it is a PRODUCT
+	// verdict: it says a datatype killed voyager's exporter. That is precisely why it
+	// must not be reported without a quotable cause - see exportFailureEvidence.
+	verdictExporterCrashes = "EXPORTER_CRASHES"
+
 	// verdictInconclusive is not a product verdict either: it means the run did not
 	// actually exercise the probe, so neither a pass nor a failure can be claimed.
 	// It exists because an empty observation must never read as a clean WORKS - a
@@ -550,6 +563,19 @@ type probeObservation struct {
 	// re-run without it.
 	channelWedgedBy string
 
+	// exporterDied records that the EXPORT side demonstrably failed and that this probe
+	// is the one it can be attributed to. exporterDetail carries the quotable cause: the
+	// Java exception, the `Connector completed: success = 'false'` line, or
+	// `Export of data failed!`. Never set without one - see exportFailureEvidence.
+	exporterDied   bool
+	exporterDetail string
+
+	// exporterDiedInRun is the collateral half, exactly parallel to channelWedgedBy: the
+	// exporter died during this run but the failure did not name this probe, so this type
+	// was never measured. An exporter that dies at startup takes the WHOLE run down, so
+	// its batch-mates have no verdict of any kind - INCONCLUSIVE, never a product claim.
+	exporterDiedInRun string
+
 	// exportNeverStreamed records that `export data` never reached streaming mode, so
 	// the change ops were never observable by anything. That is an environment flake
 	// (a slow or dead Debezium JVM), emphatically not a product stall, and it must
@@ -590,6 +616,11 @@ type sweepRun struct {
 	// quarantined lists the probes caught crash-looping the import channel during this
 	// run. Everything else in the batch is collateral and has to be re-run without them.
 	quarantined []string
+
+	// exportDeath is the quoted cause of an export-side death, once one has been seen.
+	// Non-empty means every measurement after that point is worthless: the exporter is
+	// gone, so nothing further was produced for anybody.
+	exportDeath string
 
 	probes   []datatypeProbe // every probe asked for, in order (all get a result line)
 	active   []datatypeProbe // probes whose DDL + data actually landed
@@ -1015,7 +1046,7 @@ func (r *sweepRun) fallForwardRowCountsMatch(tables []string) bool {
 // literal so the two stay in sync.
 func (r *sweepRun) runOffline() {
 	if err := r.lm.StartExportData(false, map[string]string{"--export-type": cmd.SNAPSHOT_ONLY}); err != nil {
-		r.abortAll(fmt.Sprintf("snapshot-only export data failed: %v", err))
+		r.abortExport("snapshot-only export data failed", err)
 		return
 	}
 	if err := r.lm.StartImportData(false, map[string]string{"--log-level": "debug"}); err != nil {
@@ -1128,7 +1159,7 @@ func (r *sweepRun) runFallForward() {
 // mode. Returns false if the run cannot continue.
 func (r *sweepRun) startForwardMigration() bool {
 	if err := r.lm.StartExportData(true, nil); err != nil {
-		r.abortAll(fmt.Sprintf("export data failed to start: %v", err))
+		r.abortExport("export data failed to start", err)
 		return false
 	}
 	if err := r.lm.StartImportData(true, map[string]string{"--log-level": "debug"}); err != nil {
@@ -1184,6 +1215,11 @@ const (
 	// waitRepeatingError - the negative signal arrived: the importer is crash-looping on
 	// one error and the counts are frozen. This is the whole point of the loop.
 	waitRepeatingError waitOutcome = "repeating-error"
+	// waitExportDied - the OTHER negative signal: the export side is gone. There is no
+	// point waiting out a streaming budget for events from a process that is dead, and
+	// unlike a crash-loop this needs no repeat count: a connector that reported itself
+	// completed-with-failure does not un-complete.
+	waitExportDied waitOutcome = "exporter-died"
 	// waitTimeout - neither signal arrived within the budget: a stall that logs nothing.
 	// A genuinely different case from waitRepeatingError, and it must stay distinguishable:
 	// it classifies INCONCLUSIVE, never STUCK.
@@ -1198,6 +1234,11 @@ type waitSample struct {
 	// pipeline is moving, which rules out a crash-loop no matter what the log holds.
 	progress string
 	logText  string
+	// exportText is the export side's log, watched alongside the import side's. Without
+	// it the loop can only ever conclude something about the importer, which is how an
+	// exporter that died at startup used to cost a full 900 s budget and then report
+	// nothing at all.
+	exportText string
 }
 
 type waitResult struct {
@@ -1209,9 +1250,13 @@ type waitResult struct {
 	repeats     int
 }
 
-// saved is the wait budget the early conclusion did not have to spend.
+// saved is the wait budget the early conclusion did not have to spend. Both negative
+// signals save it: a wedged importer and a dead exporter are equally pointless to sit out.
 func (w waitResult) saved() time.Duration {
-	if w.outcome != waitRepeatingError || w.elapsed > w.budget {
+	if w.outcome != waitRepeatingError && w.outcome != waitExportDied {
+		return 0
+	}
+	if w.elapsed > w.budget {
 		return 0
 	}
 	return w.budget - w.elapsed
@@ -1227,6 +1272,10 @@ func (w waitResult) summary() string {
 		return fmt.Sprintf("%s repeated x%d with the observed counts frozen across %d polls; "+
 			"concluded without waiting out the remaining %ds of the budget",
 			w.quotedError, w.repeats, sweepCrashLoopPolls, int(w.saved().Seconds()))
+	case waitExportDied:
+		return fmt.Sprintf("the export side is dead - %s; no event can arrive from a dead "+
+			"exporter, so the remaining %ds of the budget was not waited out",
+			w.quotedError, int(w.saved().Seconds()))
 	default:
 		return "budget exhausted with no repeating importer error in the log: a stall that " +
 			"logged nothing, which is an environment fact and not a datatype verdict"
@@ -1257,6 +1306,17 @@ func waitForSignalOrCrashLoop(
 
 		if s.satisfied {
 			return waitResult{outcome: waitSatisfied, elapsed: elapsed, budget: budget, polls: polls}
+		}
+
+		// The export side is checked BEFORE the import side because a dead exporter
+		// explains an idle importer, and never the other way round. It is checked after
+		// the positive signal, though: if the counts already arrived, whatever the
+		// exporter did on its way out is not this wait's business.
+		if cause, dead := exportFailureEvidence(s.exportText); dead {
+			return waitResult{
+				outcome: waitExportDied, elapsed: elapsed, budget: budget,
+				polls: polls, quotedError: cause,
+			}
 		}
 
 		quoted, signature, repeats := mostRepeatedErrorDetail(s.logText, "")
@@ -1326,9 +1386,10 @@ func (r *sweepRun) waitBounded(what string, budget time.Duration, satisfied func
 			report = nil
 		}
 		return waitSample{
-			satisfied: satisfied(report),
-			progress:  reportFingerprint(report),
-			logText:   r.importLogFileText(),
+			satisfied:  satisfied(report),
+			progress:   reportFingerprint(report),
+			logText:    r.importLogFileText(),
+			exportText: r.exportLogFileText(),
 		}
 	}
 	r.applyWaitResult(what, waitForSignalOrCrashLoop(budget, sweepWaitPoll, sample, time.Now, time.Sleep))
@@ -1345,6 +1406,29 @@ func (r *sweepRun) applyWaitResult(what string, res waitResult) {
 		return
 	}
 	r.t.Logf("bounded wait %q ended as %s after %s: %s", what, res.outcome, res.elapsed, res.summary())
+
+	// The export side died. There is nothing for the import-side attribution below to
+	// work with - a dead exporter produces no events, so the import log has nothing to
+	// say about any type in this batch - and running it anyway would pin an unrelated
+	// leftover error on a probe as a STUCK verdict.
+	if res.outcome == waitExportDied {
+		r.recordExportDeath(res.quotedError, fmt.Sprintf(
+			"detected during the %s wait after %.0fs", what, res.elapsed.Seconds()))
+		for _, p := range r.active {
+			o := r.observe(p)
+			o.waitTimedOut = true
+			o.waitNote = appendNote(o.waitNote, fmt.Sprintf(
+				"%s wait concluded early on a dead exporter", what))
+		}
+		return
+	}
+
+	// A wait that ran out of clock is the other place a dead exporter used to hide: zero
+	// events and no importer error reads as "nothing happened" whichever way the run
+	// actually went, so the export side is inspected before that conclusion is drawn.
+	if res.outcome == waitTimeout {
+		r.exportDiedDuring(fmt.Sprintf("found after the %s wait expired", what))
+	}
 
 	// Read the importer's output once and reuse it for every probe; each probe needs a
 	// different slice of the same text.
@@ -2011,6 +2095,306 @@ func mostRepeatedErrorDetail(text, mustContain string) (string, string, int) {
 }
 
 // ============================================================
+// MEASUREMENT: did the EXPORTER die?
+// ============================================================
+
+/*
+The import side has had a failure detector since the crash-loop work; the export side had
+none, and that was a hole big enough to hide the worst outcome in the audit in.
+
+When the exporter dies, `export data` prints exactly one thing:
+
+	Export of data failed! Check <dir>/logs for more details.
+
+and exits. Every downstream measurement then reads as "nothing happened": zero events, no
+repeating importer error, no value difference to compare. So the classifier concluded
+INCONCLUSIVE - "the run was healthy and nothing conclusive happened" - for a run in which
+voyager's exporter was killed by a datatype and NOTHING would have migrated. DOM-005
+(domain over an enum) is the known instance: the Debezium connector throws
+
+	java.lang.NullPointerException: Cannot invoke "java.sql.Array.getArray()" because the
+	return value of "java.sql.ResultSet.getArray(String)" is null
+	  at io.debezium.connector.postgresql.TypeRegistry.createTypeBuilderFromResultSet
+
+while priming its type registry, at startup, before a single row is read - and
+`initiate cutover` then hangs forever.
+
+The evidence rules are the import side's, unchanged: no EXPORTER_CRASHES verdict without a
+quotable cause, and "export failed but nothing usable is in any log" is said out loud
+rather than dressed up as either a verdict or a clean run.
+*/
+
+var (
+	// Terminal markers. Each one means the export side is GONE, not degraded: the
+	// connector task ended in failure, or `export data` printed its own death notice.
+	// Only these establish a death - a Java exception on its own does not, because
+	// Debezium logs retriable exceptions it then recovers from, and quarantining a
+	// datatype on one of those would record a guess as a finding.
+	exportConnectorFailedRe = regexp.MustCompile(`(?i)Connector completed:\s*success\s*=\s*'false'`)
+	exportTaskFailedRe      = regexp.MustCompile(`(?i)Unable to initialize and start connector's task class`)
+	exportFailedRe          = regexp.MustCompile(`(?i)Export of data failed`)
+
+	// A fully-qualified Java throwable: at least one lower-case package segment, then a
+	// capitalised class ending in Exception/Error/Throwable. The package requirement is
+	// what keeps prose ("...if the exception is retried...") out, and the \b at the end
+	// is what keeps `ExceptionHandler` out.
+	javaExceptionRe = regexp.MustCompile(`\b(?:[a-z][A-Za-z0-9_]*\.)+[A-Z][A-Za-z0-9_$]*(?:Exception|Error|Throwable)\b`)
+
+	// Context that marks a line as reporting the throwable rather than merely naming it.
+	exportErrorContextRe = regexp.MustCompile(`(?i)(\berror\b|\bfatal\b|\bsevere\b|caused by|error\s*=)`)
+)
+
+// exportLogFileText is the ON-DISK export-side evidence: <export-dir>/logs, restricted to
+// the export and Debezium logs. The Debezium one is the important half - the connector
+// writes its startup exception to debezium-<role>.log (source_db_exporter for the forward
+// direction, target_db_exporter_fb/_ff after cutover) and `export data` itself only says
+// "check the logs".
+//
+// Like importLogFileText this reads FILES only, with no in-memory command buffers, because
+// the wait loop calls it every two seconds while the command's copier goroutine is
+// appending to those buffers, and a torn read would corrupt the very exception text the
+// verdict is quoted from.
+func (r *sweepRun) exportLogFileText() string {
+	var b strings.Builder
+	logDir := filepath.Join(r.lm.GetCurrentExportDir(), "logs")
+	files, err := filepath.Glob(filepath.Join(logDir, "*.log"))
+	if err != nil {
+		return b.String()
+	}
+	sort.Strings(files)
+	for _, f := range files {
+		base := strings.ToLower(filepath.Base(f))
+		if !strings.Contains(base, "export") && !strings.Contains(base, "debezium") {
+			continue
+		}
+		data, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+		// A connector that dies at startup does so near the START of its log, and it
+		// then writes nothing more - but a connector that dies after hours of streaming
+		// dies at the END. Both tails are cheap, so take a generous one.
+		const tail = 512 * 1024
+		if len(data) > tail {
+			data = data[len(data)-tail:]
+		}
+		b.Write(data)
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+// exportLogText is the full export-side evidence: the captured stdout/stderr of both
+// export commands plus the on-disk logs. Used post-hoc, where a torn buffer read cannot
+// corrupt a live wait.
+func (r *sweepRun) exportLogText() string {
+	var b strings.Builder
+	b.WriteString(r.lm.GetExportCommandStdout())
+	b.WriteString("\n")
+	b.WriteString(r.lm.GetExportCommandStderr())
+	b.WriteString("\n")
+	b.WriteString(r.lm.GetExportFromTargetCommandStdout())
+	b.WriteString("\n")
+	b.WriteString(r.lm.GetExportFromTargetCommandStderr())
+	b.WriteString("\n")
+	b.WriteString(r.exportLogFileText())
+	return b.String()
+}
+
+// isExportCauseLine reports whether a line names the throwable that killed the exporter,
+// and may therefore be quoted as the cause. A bare class name in a class-path dump is not
+// enough: the line must either report it (ERROR / Caused by / error = ...) or BE the
+// stack-trace header, which starts with the throwable itself.
+func isExportCauseLine(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	if spewTypeRe.MatchString(trimmed) || spewFieldRe.MatchString(trimmed) {
+		return false
+	}
+	loc := javaExceptionRe.FindStringIndex(trimmed)
+	if loc == nil {
+		return false
+	}
+	return loc[0] == 0 || strings.HasPrefix(trimmed, "Caused by:") || exportErrorContextRe.MatchString(trimmed)
+}
+
+// exportFailureEvidence extracts the export side's cause of death from any mixture of
+// command output and log files, and reports whether a death was established at all.
+//
+// The two halves are deliberately separate:
+//
+//   - a TERMINAL MARKER is what establishes the death. Without one there is no verdict,
+//     however alarming the log looks - Debezium logs exceptions it recovers from.
+//   - a CAUSE LINE is what gets quoted. The real NullPointerException carries the class
+//     and the message, which is the whole value of the finding; falling back to the
+//     marker alone ("Export of data failed!") says only that something died.
+//
+// The marker line frequently IS the cause line (Debezium's ConnectorLifecycle line
+// carries error = 'java.lang.NullPointerException: ...'), in which case one quote does
+// both jobs.
+func exportFailureEvidence(text string) (string, bool) {
+	var label, markerLine, markerCause, firstCause string
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if l := exportMarkerLabel(line); l != "" && label == "" {
+			label, markerLine = l, line
+			// Debezium's ConnectorLifecycle line IS both marker and cause, but the
+			// cause sits at the END of it, behind the whole connector config, so
+			// quoting the line raw and truncating would throw the exception away.
+			if isExportCauseLine(line) {
+				markerCause = exportCauseText(line)
+			}
+		}
+		if firstCause == "" && isExportCauseLine(line) {
+			firstCause = exportCauseText(line)
+		}
+	}
+	if label == "" {
+		return "", false
+	}
+	// The connector's own account of what killed it beats anything found loose in the
+	// log; failing that, the FIRST throwable is the root cause and the ones after it are
+	// the shutdown path reacting to it.
+	cause := markerCause
+	if cause == "" {
+		cause = firstCause
+	}
+	if cause == "" {
+		return truncate(markerLine, 400), true
+	}
+	return truncate(label+" - "+truncate(cause, 320), 400), true
+}
+
+// exportMarkerLabel returns the terminal-failure marker a line carries, or "".
+func exportMarkerLabel(line string) string {
+	if spewTypeRe.MatchString(line) || spewFieldRe.MatchString(line) {
+		return ""
+	}
+	for _, re := range []*regexp.Regexp{exportConnectorFailedRe, exportTaskFailedRe, exportFailedRe} {
+		if m := re.FindString(line); m != "" {
+			return m
+		}
+	}
+	return ""
+}
+
+// exportCauseText narrows a line down to the throwable it carries: the class name and
+// everything after it. Everything before is a log prefix and, on the ConnectorLifecycle
+// line, the connector's entire config - noise that would push the actual exception past
+// any sane truncation limit.
+func exportCauseText(line string) string {
+	line = strings.TrimSpace(line)
+	if loc := javaExceptionRe.FindStringIndex(line); loc != nil && loc[0] > 0 {
+		return strings.TrimRight(strings.TrimSpace(line[loc[0]:]), `'"`)
+	}
+	return line
+}
+
+// attributeExportFailure names the probe an export death can be blamed on, which is
+// possible only when the failure text names EXACTLY ONE active probe - by its table or by
+// its type. Two matches (or none) means the failure does not identify a culprit, and a
+// guess here is worse than no attribution at all: it would pin a product verdict, the
+// harshest in the vocabulary, on an innocent type.
+//
+// It is handed the failure EVIDENCE, never the whole log: a Debezium log routinely names
+// every captured table, so matching over the log would "attribute" the death to whichever
+// probe happened to sort first.
+func attributeExportFailure(probes []datatypeProbe, evidence string) (string, bool) {
+	lower := strings.ToLower(evidence)
+	var matched []string
+	for _, p := range probes {
+		if p.ExpectVerdict != "" {
+			continue // never blame a known-good control
+		}
+		names := []string{p.tableName(), p.TypeName}
+		for _, n := range names {
+			n = strings.TrimSpace(strings.ToLower(n))
+			// Single-character or trivially short type names would match anything.
+			if len(n) < 4 {
+				continue
+			}
+			if strings.Contains(lower, n) {
+				matched = append(matched, p.ID)
+				break
+			}
+		}
+	}
+	if len(matched) != 1 {
+		return "", false
+	}
+	return matched[0], true
+}
+
+// recordExportDeath is the export-side twin of quarantine + applyWaitResult's attribution
+// step: it pins the verdict on the culprit when the failure names one, and marks every
+// other active probe INCONCLUSIVE because an exporter that dies at startup takes the whole
+// run down and nothing behind it was ever measured.
+//
+// It is idempotent: the first death is the one that killed the run, and a later poll
+// re-reading the same log must not overwrite it.
+func (r *sweepRun) recordExportDeath(cause, how string) {
+	if r.exportDeath != "" {
+		return
+	}
+	r.exportDeath = cause
+	r.flaked = true
+	r.t.Logf("EXPORT DIED (%s): %s", how, cause)
+
+	culprit, attributed := attributeExportFailure(r.active, cause)
+	detail := fmt.Sprintf("the export side died (%s): %s", how, cause)
+
+	if attributed {
+		fmt.Printf("PROBE-RUN-EXPORT-DIED: %s | %s | %s killed the exporter: %s; "+
+			"every other probe in this batch is collateral and must be re-run without it. "+
+			"Measure it on its own with PROBE_ID=%s PROBE_MODE=%s -run TestDatatypeSweepSuspect\n",
+			r.batch, r.mode, culprit, sanitizeDetail(cause), culprit, r.mode)
+	} else {
+		fmt.Printf("PROBE-RUN-EXPORT-DIED: %s | %s | the exporter died and the failure names no "+
+			"probe, so it is reported against the RUN and every probe in it is inconclusive: %s\n",
+			r.batch, r.mode, sanitizeDetail(cause))
+	}
+
+	for _, p := range r.active {
+		o := r.observe(p)
+		if attributed && p.ID == culprit {
+			o.exporterDied = true
+			o.exporterDetail = detail
+			continue
+		}
+		o.exporterDiedInRun = detail
+	}
+}
+
+// exportDiedDuring inspects the export side after something went wrong and, if the death
+// can be quoted, records it. Returns whether it did.
+//
+// Every caller that is about to conclude "nothing happened" goes through here first. That
+// is the entire fix: the old code reached its conclusion from the IMPORT log alone, where
+// a dead exporter is indistinguishable from a quiet run.
+func (r *sweepRun) exportDiedDuring(how string) bool {
+	cause, ok := exportFailureEvidence(r.exportLogText())
+	if !ok {
+		return false
+	}
+	r.recordExportDeath(cause, how)
+	return true
+}
+
+// exportAbortReason is importAbortReason's mirror: it turns a bare "export data failed"
+// into a reason that names the actual cause, and says so explicitly when it cannot.
+//
+// Used only for the paths where no export death could be established, so that the run
+// still records WHY it is refusing to claim one.
+func (r *sweepRun) exportAbortReason(what string, err error) string {
+	return fmt.Sprintf("%s: %v; NO export-side death marker (a failed connector, a Java "+
+		"exception or 'Export of data failed') was found in the export command "+
+		"stdout/stderr, <export-dir>/logs/yb-voyager-export-data.log or the Debezium "+
+		"exporter log - the cause is unrecorded", what, err)
+}
+
+// ============================================================
 // CLASSIFICATION
 // ============================================================
 
@@ -2030,6 +2414,34 @@ func decideVerdictCore(mode sweepMode, o probeObservation) (string, string) {
 	if o.settledVerdict != "" {
 		return o.settledVerdict, o.settledDetail
 	}
+
+	// 0. The EXPORT side died. This is checked before everything below because a dead
+	//    exporter makes every later signal meaningless in the same direction: no events,
+	//    no importer error, no value difference. Read from the import side alone that is
+	//    indistinguishable from a healthy run in which nothing interesting happened,
+	//    which is exactly how the worst outcome in the audit used to come out
+	//    INCONCLUSIVE. It also outranks runAbort (BLOCKS is "voyager stopped up front
+	//    with a clear error", and a connector dying on a NullPointerException is not
+	//    that) and exportNeverStreamed (a JVM that never came up says nothing about a
+	//    type - but one that came up and then threw says a great deal).
+	//
+	//    The ONE thing it does not outrank is a wedged importer. If the importer is
+	//    crash-looping on a quotable error, that error was produced BY this value
+	//    reaching the target, so the import side has already measured this type and its
+	//    verdict stands; the export process dying afterwards does not erase it.
+	importWedged := o.waitTimedOut && o.stuckDetail != ""
+	if !importWedged {
+		if o.exporterDied {
+			return verdictExporterCrashes, withNote(o.exporterDetail, o.queueScanNote, o.waitNote)
+		}
+		if o.exporterDiedInRun != "" {
+			return verdictInconclusive, withNote(
+				"the exporter died before this probe was measured, so nothing was ever produced "+
+					"for this type and no claim can be made about it: "+o.exporterDiedInRun,
+				o.queueScanNote, o.waitNote)
+		}
+	}
+
 	if o.runAbort != "" {
 		return verdictBlocks, o.runAbort
 	}
@@ -2200,6 +2612,14 @@ func (r *sweepRun) settle(p datatypeProbe, verdict, detail string) {
 // It deliberately does NOT use abortAll: BLOCKS is a product verdict ("this type stops
 // the migration"), and a JVM that did not come up says nothing about any type.
 func (r *sweepRun) markExportNeverStreamed(reason string) {
+	// ...unless it DID come up and then died. "The JVM never started" and "the connector
+	// threw while priming its type registry" produce the same symptom here - streaming
+	// mode is never reached - and only the export log tells them apart. Calling the
+	// second one a flake is how an exporter killed by a datatype was reported as an
+	// environment problem.
+	if r.exportDiedDuring("found while diagnosing why the export never reached streaming mode") {
+		return
+	}
 	r.flaked = true
 	r.t.Logf("EXPORT NEVER STREAMED: %s", reason)
 	for _, p := range r.active {
@@ -2229,6 +2649,19 @@ func (r *sweepRun) importAbortReason(what string, err error) string {
 	}
 	return reason + "; NO error line matching an import-failure signature was found in " +
 		"the import command stdout/stderr or <export-dir>/logs - the cause is unrecorded"
+}
+
+// abortExport handles a failing `export data` command. A non-zero exit says only that the
+// command exited; whether that was a datatype killing the connector or the environment
+// falling over is decided by the export logs, so they are read BEFORE anything is
+// concluded. When they carry a death marker this is an EXPORTER_CRASHES finding; when they
+// carry nothing usable it is a run-level abort whose reason says so in as many words,
+// rather than a failure that is real but leaves nothing quotable.
+func (r *sweepRun) abortExport(what string, err error) {
+	if r.exportDiedDuring(fmt.Sprintf("%s: %v", what, err)) {
+		return
+	}
+	r.abortAll(r.exportAbortReason(what, err))
 }
 
 func (r *sweepRun) abortAll(reason string) {
@@ -2330,6 +2763,13 @@ func (r *sweepRun) emitAll() {
 		if len(r.quarantined) > 0 {
 			reason = fmt.Sprintf("import channel wedged by %s; re-run this batch without it",
 				strings.Join(r.quarantined, ", "))
+		}
+		// An export death outranks both of the above as the reason: it takes the whole
+		// run down, so every other probe's INCONCLUSIVE is its collateral and re-running
+		// the batch unchanged will only reproduce it.
+		if r.exportDeath != "" {
+			reason = "the exporter died during this run, so nothing was produced for any " +
+				"probe behind it: " + r.exportDeath
 		}
 		fmt.Printf("PROBE-RUN-FLAKE: %s | %s | %d inconclusive | %s\n",
 			r.batch, r.mode, inconclusive, reason)
