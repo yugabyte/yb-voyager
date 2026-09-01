@@ -69,13 +69,26 @@ var driftObjectTypesByName = map[string]schemadiff.ObjectType{
 }
 
 var detectDriftCmd = &cobra.Command{
-	Use:   "detect-drift",
-	Short: "Compare the current source schema against historical schema snapshots and report drift",
-	Long: `Connects to the PostgreSQL source database, compares its current schema against the
-historical schema snapshots recorded in this export directory's metadata (plus, best-effort,
-a live read of the source), and writes a schema drift report (HTML/JSON) under
-<export-dir>/reports/. It is read-only: it never modifies migration state, it only writes
-report files.
+	Use: "detect-drift",
+	Short: "Report source schema changes made during the migration, and what to do about each one " +
+		"(needs --suppress-schema-snapshot-capture=false on the export commands)",
+	Long: `Reports how the PostgreSQL source schema changed while the migration was running, and
+what to do about each change.
+
+Voyager records a schema snapshot at each migration milestone -- export schema, export data
+start, periodically during export data, and export data exit. This command diffs consecutive
+snapshots, plus a final comparison against a live read of the source, and writes the result
+to <export-dir>/reports/. It is read-only: it never modifies migration state and never
+applies anything on the target, it only writes report files.
+
+PREREQUISITE: those snapshots are only recorded when capture is enabled, which is currently
+off by default. Pass --suppress-schema-snapshot-capture=false to export schema and export
+data. Without it this command has no history to compare against and reports no drift.
+
+The report groups each change by the interval between the two captures that bracket it, and
+labels the interval with what Voyager was doing at the time (for example "export data:
+running"). Every change carries a severity, what the migration will do if the change is not
+reconciled on the target, and the corrective step.
 
 Exit codes: 0 = success, no drift found; 1 = success, drift found; 2 = operational error
 (bad flags, unreachable source, unsupported source type, etc.).`,
