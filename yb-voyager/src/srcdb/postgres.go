@@ -163,6 +163,9 @@ func (pg *PostgreSQL) Connect() error {
 		log.Info("Reconnecting to the source database")
 	}
 	db, err := sql.Open("pgx", pg.getConnectionUri())
+	if err != nil {
+		return fmt.Errorf("open connection to source database: %w", err)
+	}
 	db.SetMaxOpenConns(pg.source.NumConnections)
 	db.SetConnMaxIdleTime(5 * time.Minute)
 	pg.db = db

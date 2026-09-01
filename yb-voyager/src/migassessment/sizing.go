@@ -1409,56 +1409,6 @@ func findImportTimeFromExpDataLoadTime(loadTimes []ExpDataLoadTime, objectSize f
 }
 
 /*
-getMultiplicationFactorForImportTimeBasedOnIndexes calculates the multiplication factor for import time based on number
-of indexes on the table.
-
-Parameters:
-
-	table: Metadata for the database table for which the multiplication factor is to be calculated.
-	sourceUniqueIndexesMetadata: A slice containing metadata for the unique indexes in the database.
-	indexImpacts: Experimental data containing impact of indexes on load time.
-	objectType: COLOCATED or SHARDED
-
-Returns:
-
-	float64: The multiplication factor for import time based on the number of indexes on the table.
-*/
-func getMultiplicationFactorForImportTimeBasedOnIndexes(table SourceDBMetadata, sourceUniqueIndexesMetadata []SourceDBMetadata,
-	indexImpacts []ExpDataLoadTimeIndexImpact, objectType string) float64 {
-	var numberOfIndexesOnTable float64 = 0
-	var multiplicationFactor float64 = 1
-
-	for _, index := range sourceUniqueIndexesMetadata {
-		if index.ParentTableName.Valid && index.ParentTableName.String == (table.SchemaName+"."+table.ObjectName) {
-			numberOfIndexesOnTable += 1
-		}
-	}
-	if numberOfIndexesOnTable == 0 {
-		// if there are no indexes on table, return 1 immediately
-		return 1
-	} else {
-		closest := indexImpacts[0]
-		minDiff := math.Abs(numberOfIndexesOnTable - closest.numIndexes.Float64)
-
-		for _, indexImpactData := range indexImpacts {
-			diff := math.Abs(numberOfIndexesOnTable - indexImpactData.numIndexes.Float64)
-			if diff < minDiff {
-				minDiff = diff
-				closest = indexImpactData
-			}
-		}
-		// impact on load time for given table would be relative to the closest record's impact
-		if objectType == COLOCATED {
-			multiplicationFactor = (closest.multiplicationFactorColocated.Float64 / closest.numIndexes.Float64) * numberOfIndexesOnTable
-		} else if objectType == SHARDED {
-			multiplicationFactor = (closest.multiplicationFactorSharded.Float64 / closest.numIndexes.Float64) * numberOfIndexesOnTable
-		}
-
-		return multiplicationFactor
-	}
-}
-
-/*
 getMultiplicationFactorForImportTimeBasedOnIndexesFromMap is an optimized version that uses a pre-built lookup map.
 It calculates the multiplication factor for import time based on number of indexes on the table.
 
@@ -1763,43 +1713,9 @@ func getSourceMetadataRedundantIndexes(sourceDB *sql.DB, sourceTableName string,
 }
 
 /*
-checkAndFetchIndexes checks for indexes associated with a specific database table and fetches their metadata.
-It iterates through a slice of index metadata and selects indexes that belong to the specified table by comparing
-their parent table names. The function returns a slice containing metadata for indexes associated with the table
-and the total size of those indexes.
-Parameters:
-
-	table: Metadata for the database table for which indexes are to be checked.
-	indexes: A slice containing metadata for all indexes in the database.
-
-Returns:
-
-	[]SourceDBMetadata: Metadata for indexes associated with the specified table.
-	float64: The total size of indexes associated with the specified table.
-	int64 : sum of read ops per second for all indexes of the table
-	int64 : sum of write ops per second for all indexes of the table
-*/
-func checkAndFetchIndexes(table SourceDBMetadata, indexes []SourceDBMetadata) ([]SourceDBMetadata, float64, int64, int64) {
-	indexesOfTable := make([]SourceDBMetadata, 0)
-	var indexesSizeSum float64 = 0
-	var cumulativeSelectOpsPerSecIdx int64 = 0
-	var cumulativeInsertOpsPerSecIdx int64 = 0
-	for _, index := range indexes {
-		if index.ParentTableName.Valid && (index.ParentTableName.String == (table.SchemaName + "." + table.ObjectName)) {
-			indexesOfTable = append(indexesOfTable, index)
-			indexesSizeSum += lo.Ternary(index.Size.Valid, index.Size.Float64, 0)
-			cumulativeSelectOpsPerSecIdx += lo.Ternary(index.ReadsPerSec.Valid, index.ReadsPerSec.Int64, 0)
-			cumulativeInsertOpsPerSecIdx += lo.Ternary(index.ReadsPerSec.Valid, index.ReadsPerSec.Int64, 0)
-		}
-	}
-
-	return indexesOfTable, indexesSizeSum, cumulativeSelectOpsPerSecIdx, cumulativeInsertOpsPerSecIdx
-}
-
-/*
 buildIndexLookupMap creates a map from parent table name to a list of indexes for O(1) lookup.
 This optimization is critical when dealing with large numbers of indexes (15,000+).
-Without this, checkAndFetchIndexes becomes O(n*m) where n=tables and m=indexes.
+Without this, the per-table index scan becomes O(n*m) where n=tables and m=indexes.
 
 Parameters:
 
@@ -1821,7 +1737,7 @@ func buildIndexLookupMap(indexes []SourceDBMetadata) map[string][]SourceDBMetada
 }
 
 /*
-checkAndFetchIndexesFromMap is an optimized version of checkAndFetchIndexes that uses a pre-built lookup map.
+checkAndFetchIndexesFromMap fetches a table's indexes and their metadata using a pre-built lookup map.
 This provides O(1) lookup instead of O(n) scanning, critical for large datasets (15,000+ indexes).
 
 Parameters:

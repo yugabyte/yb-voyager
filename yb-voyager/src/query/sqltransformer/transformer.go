@@ -265,9 +265,9 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 		if err != nil {
 			return nil, nil, nil, goerrors.Errorf("failed to process ddl: %v", err)
 		}
-		switch ddlObject.(type) {
+		switch ddlObject := ddlObject.(type) {
 		case *queryparser.Table:
-			table, _ := ddlObject.(*queryparser.Table)
+			table := ddlObject
 			tableName := table.GetObjectName()
 			pkConstraint := table.GetPKConstraint()
 			if pkConstraint.ConstraintName == "" {
@@ -287,7 +287,7 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 				createAndAlterTableWithPK = append(createAndAlterTableWithPK, stmt)
 			}
 		case *queryparser.AlterTable:
-			alterTable, _ := ddlObject.(*queryparser.AlterTable)
+			alterTable := ddlObject
 			switch alterTable.ConstraintType {
 			case queryparser.PRIMARY_CONSTR_TYPE:
 				table, ok := tablesMap[alterTable.GetObjectName()]
@@ -357,11 +357,9 @@ func getTablesMap(stmts []*pg_query.RawStmt) (map[string]*queryparser.Table, err
 		if err != nil {
 			return nil, goerrors.Errorf("failed to process ddl: %v", err)
 		}
-		switch ddlObject.(type) {
+		switch ddlObject := ddlObject.(type) {
 		case *queryparser.Table:
-			table, _ := ddlObject.(*queryparser.Table)
-			tableName := table.GetObjectName()
-			tablesMap[tableName] = table
+			tablesMap[ddlObject.GetObjectName()] = ddlObject
 		}
 	}
 	return tablesMap, nil

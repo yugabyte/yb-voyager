@@ -146,7 +146,7 @@ EXPECTED_DISTINCT_VALUES_FF = {
 
 # Base expected hstore values (for gRPC connector and regular live migration)
 EXPECTED_HSTORE_VALUES = [
-    '"key1"=>"value1", "key2"=>"value2", "key3"=>"value3"',
+    '"key1"=>"value1", "key2"=>"value2", "key3"=>"value3", "key_with_null_value"=>NULL',
     None,
     '',
     '"{\\"key1=value1, key2=value2\\"}"=>"{\\"key1=value1, key2={\\"key1=value1, key2=value2\\"}\\"}"',
@@ -173,7 +173,7 @@ EXPECTED_HSTORE_VALUES = [
 
 # Logical replication hstore values for fall-forward/fall-back scenarios
 EXPECTED_HSTORE_VALUES_LOGICAL_FF_FB = [
-    '"key1"=>"value1", "key2"=>"value2", "key3"=>"value3"',
+    '"key1"=>"value1", "key2"=>"value2", "key3"=>"value3", "key_with_null_value"=>NULL',
     None,
     '',
     '"{\\"key1=value1, key2=value2\\"}"=>"{\\"key1=value1, key2={\\"key1=value1, key2=value2\\"}\\"}"',

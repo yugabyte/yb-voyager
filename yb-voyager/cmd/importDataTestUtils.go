@@ -1,3 +1,5 @@
+//go:build unit || integration || integration_voyager_command
+
 /*
 Copyright (c) YugabyteDB, Inc.
 
@@ -16,13 +18,8 @@ limitations under the License.
 package cmd
 
 import (
-	"context"
-	"database/sql"
 	"os"
 	"path/filepath"
-	"testing"
-
-	"github.com/stretchr/testify/assert"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -32,7 +29,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
@@ -43,43 +39,6 @@ type dummyTDB struct {
 
 func (d *dummyTDB) MaxBatchSizeInBytes() int64 {
 	return d.maxSizeBytes
-}
-
-type TestTargetDB struct {
-	Tconf tgtdb.TargetConf
-	testcontainers.TestContainer
-	tgtdb.TargetDB
-}
-
-var testYugabyteDBTarget *TestTargetDB
-
-func setupYugabyteTestDb(t *testing.T) {
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
-	err := yugabytedbContainer.Start(context.Background())
-	testutils.FatalIfError(t, err)
-	host, port, err := yugabytedbContainer.GetHostPort()
-	testutils.FatalIfError(t, err)
-	testYugabyteDBTarget = &TestTargetDB{
-		TestContainer: yugabytedbContainer,
-		TargetDB: tgtdb.NewTargetDB(&tgtdb.TargetConf{
-			TargetDBType: "yugabytedb",
-			DBVersion:    yugabytedbContainer.GetConfig().DBVersion,
-			User:         yugabytedbContainer.GetConfig().User,
-			Password:     yugabytedbContainer.GetConfig().Password,
-			Schemas:      []sqlname.Identifier{sqlname.NewIdentifier(constants.YUGABYTEDB, yugabytedbContainer.GetConfig().Schema)},
-			DBName:       yugabytedbContainer.GetConfig().DBName,
-			Host:         host,
-			Port:         port,
-		}),
-	}
-
-	tdb = testYugabyteDBTarget.TargetDB
-	err = tdb.Init()
-	testutils.FatalIfError(t, err)
-	err = tdb.CreateVoyagerSchema()
-	testutils.FatalIfError(t, err)
-	err = tdb.InitConnPool()
-	testutils.FatalIfError(t, err)
 }
 
 func setupExportDirAndImportDependencies(batchSizeRows int64, batchSizeBytes int64) (string, string, *ImportDataState, importdata.ImportDataErrorHandler, *ImportDataProgressReporter, error) {
@@ -138,17 +97,4 @@ func createFileAndTask(lexportDir string, fileContents string, ldataDir string, 
 		RowCount:     1,
 	}
 	return tempFile, task, nil
-}
-
-func assertIdentityColumnIsAlways(t *testing.T, conn *sql.DB, schema, table, column string) {
-	t.Helper()
-	var identityGeneration string
-	err := conn.QueryRow(
-		`SELECT identity_generation FROM information_schema.columns
-		 WHERE table_schema = $1 AND table_name = $2 AND column_name = $3`,
-		schema, table, column,
-	).Scan(&identityGeneration)
-	assert.NoError(t, err, "querying identity_generation for %s.%s.%s", schema, table, column)
-	assert.Equal(t, "ALWAYS", identityGeneration,
-		"expected identity_generation=ALWAYS for %s.%s.%s, got %q", schema, table, column, identityGeneration)
 }

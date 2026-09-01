@@ -99,23 +99,83 @@ func TestCreateVoyagerSchemaYB(t *testing.T) {
 	}
 }
 
-func TestYugabyteGetPrimaryKeyColumns(t *testing.T) {
+func TestYugabyteGetPrimaryKeyColumnsForTables(t *testing.T) {
 	testYugabyteDBTarget.ExecuteSqls(
 		`CREATE SCHEMA test_schema;`,
+		// composite primary key: column order must follow the PK definition, not attnum order.
 		`CREATE TABLE test_schema.foo (
 			id INT,
 			category TEXT,
 			name TEXT,
 			PRIMARY KEY (id, category)
 		);`,
+		// single-column primary key.
 		`CREATE TABLE test_schema.bar (
 			id INT PRIMARY KEY,
 			name TEXT
 		);`,
+		// no primary key: should be absent from the result map.
 		`CREATE TABLE test_schema.baz (
 			id INT,
 			name TEXT
 		);`,
+		// composite primary key declared in non-attnum order: proves ORDER BY
+		// array_position(indkey, attnum) preserves the declared key order (category, id)
+		// rather than sorting by attnum (id, category).
+		`CREATE TABLE test_schema.reversed_pk (
+			id INT,
+			category TEXT,
+			PRIMARY KEY (category, id)
+		);`,
+		// covering primary key: INCLUDE columns are part of indkey but not key columns, so
+		// only the key column (id) must be returned (indnkeyatts filter regression).
+		`CREATE TABLE test_schema.covering_pk (
+			id INT,
+			name TEXT,
+			PRIMARY KEY (id) INCLUDE (name)
+		);`,
+		// case-sensitive (quoted) primary-key column name.
+		`CREATE TABLE test_schema."CaseTable" (
+			"Id" INT,
+			name TEXT,
+			PRIMARY KEY ("Id")
+		);`,
+
+		// partitioned table with the primary key declared on the root: every leaf inherits it.
+		// Import references only the root, so the root's own PK must be returned.
+		`CREATE TABLE test_schema.test_part(
+			id INT,
+			region TEXT,
+			PRIMARY KEY (id, region)
+		) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema.test_part_r1 PARTITION OF test_schema.test_part FOR VALUES IN ('r1');`,
+		`CREATE TABLE test_schema.test_part_r2 PARTITION OF test_schema.test_part FOR VALUES IN ('r2');`,
+
+		// partitioned table whose primary key exists only on the leaf partitions (the root has
+		// no PK of its own, e.g. imported via --use-partition-root). Import references only the
+		// root, so the PK must be discovered from a leaf and attributed to the root.
+		`CREATE TABLE test_schema.test_part1 (
+			id INT, 
+			region TEXT
+	    )PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema.test_part1_r1 PARTITION OF test_schema.test_part1 FOR VALUES IN ('r1');`,
+		`CREATE TABLE test_schema.test_part1_r2 PARTITION OF test_schema.test_part1 FOR VALUES IN ('r2');`,
+		`ALTER TABLE test_schema.test_part1_r1 ADD PRIMARY KEY (id);`,
+		`ALTER TABLE test_schema.test_part1_r2 ADD PRIMARY KEY (id);`,
+
+		// partitioned table whose primary key exists only on the leaf partitions (the root has
+		// no PK of its own, e.g. imported via --use-partition-root). Import references only the
+		// root, so the PK must be discovered from a leaf and attributed to the root.
+		`CREATE TABLE test_schema.test_part2 (
+			id INT, 
+			region TEXT
+	    )PARTITION BY LIST (region);`,
+		`CREATE TABLE public.test_part2_r1 PARTITION OF test_schema.test_part2 FOR VALUES IN ('r1');`,
+		`CREATE TABLE test_schema.test_part2_r2 PARTITION OF test_schema.test_part2 FOR VALUES IN ('r2');`,
+		`ALTER TABLE public.test_part2_r1 ADD PRIMARY KEY (id);`,
+		`ALTER TABLE test_schema.test_part2_r2 ADD PRIMARY KEY (id);`,
+
+
 	)
 	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
@@ -124,24 +184,67 @@ func TestYugabyteGetPrimaryKeyColumns(t *testing.T) {
 		expectedPKCols []string
 	}{
 		{
-			table:          testutils.CreateNameTupleWithTargetName("test_schema.foo", "public", POSTGRESQL),
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.foo", "public", YUGABYTEDB),
 			expectedPKCols: []string{"id", "category"},
 		},
 		{
-			table:          testutils.CreateNameTupleWithTargetName("test_schema.bar", "public", POSTGRESQL),
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.bar", "public", YUGABYTEDB),
 			expectedPKCols: []string{"id"},
 		},
 		{
-			table:          testutils.CreateNameTupleWithTargetName("test_schema.baz", "public", POSTGRESQL),
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.baz", "public", YUGABYTEDB),
 			expectedPKCols: nil,
+		},
+		{
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.reversed_pk", "public", YUGABYTEDB),
+			expectedPKCols: []string{"category", "id"},
+		},
+		{
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.covering_pk", "public", YUGABYTEDB),
+			expectedPKCols: []string{"id"},
+		},
+		{
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.\"CaseTable\"", "public", YUGABYTEDB),
+			expectedPKCols: []string{"Id"},
+		},
+		{
+			// partitioned root with PK declared at the root.
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.test_part", "public", YUGABYTEDB),
+			expectedPKCols: []string{"id", "region"},
+		},
+		{
+			// partitioned root whose PK lives only on the leaf partitions.
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.test_part1", "public", YUGABYTEDB),
+			expectedPKCols: []string{"id"},
+		},
+		{
+			// partitioned root whose PK lives only on the leaf partitions.
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.test_part2", "public", YUGABYTEDB),
+			expectedPKCols: []string{"id"},
 		},
 	}
 
+	tablesList := lo.Map(tests, func(tt struct {
+		table          sqlname.NameTuple
+		expectedPKCols []string
+	}, _ int) sqlname.NameTuple {
+		return tt.table
+	})
+
+	// Batched: fetch primary keys for all tables in a single call.
+	result, err := testYugabyteDBTarget.GetPrimaryKeyColumnsForTables(tablesList)
+	require.NoError(t, err)
+
 	for _, tt := range tests {
-		pkCols, err := testYugabyteDBTarget.GetPrimaryKeyColumns(tt.table)
-		assert.NoError(t, err)
+		pkCols, _ := result.Get(tt.table)
 		testutils.AssertEqualStringSlices(t, tt.expectedPKCols, pkCols)
 	}
+
+	// Empty input returns an empty (non-nil) map without querying.
+	emptyResult, err := testYugabyteDBTarget.GetPrimaryKeyColumnsForTables(nil)
+	require.NoError(t, err)
+	require.NotNil(t, emptyResult)
+	require.Equal(t, 0, len(emptyResult.Keys()))
 }
 
 func TestYugabyteGetNonEmptyTables(t *testing.T) {

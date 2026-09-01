@@ -59,6 +59,9 @@ func (ms *MySQL) Connect() error {
 	}
 
 	db, err := sql.Open("mysql", ms.getConnectionUri())
+	if err != nil {
+		return fmt.Errorf("open connection to source database: %w", err)
+	}
 	db.SetMaxOpenConns(ms.source.NumConnections)
 	db.SetConnMaxIdleTime(5 * time.Minute)
 	ms.db = db
