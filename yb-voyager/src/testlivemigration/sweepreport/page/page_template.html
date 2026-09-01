@@ -127,17 +127,24 @@ footer{border-top:1px solid var(--rule);padding-top:20px;font-size:.83rem;color:
 <section>
   <h2>Every type</h2>
 
-  <p class="note" style="margin:0 0 10px"><strong>Six of these seven labels mean the type was probed.</strong> Only the last one means we have not run it yet.</p>
+  <h3 style="margin-top:0">What happened to the data</h3>
+  <p class="note" style="margin:0 0 10px">Seven outcomes. Every one of these means the type was probed and we saw what it does.</p>
   <div class="legend">
-    <div><span class="pill v-works">Works</span><span><strong>Probed.</strong> Correct after snapshot, insert, update, delete and NULL changes.</span></div>
-    <div><span class="pill v-drop">Column dropped</span><span><strong>Probed.</strong> Excluded from the change stream on purpose. One warning line; <code>--yes</code> accepts it for you. Snapshot rows keep their old values, so the table goes stale rather than empty.</span></div>
-    <div><span class="pill v-imp">Import stops</span><span><strong>Probed.</strong> <code>import data</code> hits a value it cannot apply, reports an error and exits. The migration halts.</span></div>
-    <div><span class="pill v-exp">Export crashes</span><span><strong>Probed.</strong> <code>export data</code> dies, usually before any row moves. Only message: “Export of data failed! Check logs”.</span></div>
-    <div><span class="pill v-wrong">Wrong value</span><span><strong>Probed.</strong> A different value lands on the target, or a row goes missing. No error anywhere.</span></div>
-    <div><span class="pill v-reject">Target can't hold it</span><span><strong>Probed.</strong> YugabyteDB will not create a column of this type at all, so nothing can migrate. A finding, not a gap.</span></div>
-    <div><span class="pill v-disc">Probed, result discarded</span><span><strong>Probed.</strong> The run produced a verdict, but its known-good control probes failed, so the number is not trustworthy and is not shown. Needs a clean re-run.</span></div>
-    <div><span class="pill v-incon">Ran, no result</span><span><strong>Probed.</strong> The run was healthy but nothing conclusive happened — no events and no error.</span></div>
-    <div><span class="pill v-none">Not run yet</span><span>The only label that means untested. This combination of type and mode has not been attempted.</span></div>
+    <div><span class="pill v-works">Works</span><span>Arrives correct, across snapshot, insert, update, delete and NULL changes.</span></div>
+    <div><span class="pill v-drop">Dropped</span><span>The column is deliberately excluded from the change stream. You get one warning line, and a question <code>--yes</code> answers for you. Snapshot rows keep their old values, so the table goes stale rather than empty.</span></div>
+    <div><span class="pill v-wrong">Silently wrong</span><span>A different value arrives. No error anywhere.</span></div>
+    <div><span class="pill v-wrong">Silently lost</span><span>The data never arrives. No error anywhere.</span></div>
+    <div><span class="pill v-imp">Import fails</span><span><code>import data</code> hits a value it cannot apply, reports an error and exits. The migration halts.</span></div>
+    <div><span class="pill v-exp">Export fails</span><span><code>export data</code> dies, usually before any row moves. Its only message is “Export of data failed! Check logs”.</span></div>
+    <div><span class="pill v-reject">Rejected by target</span><span>YugabyteDB will not create a column of this type at all, so nothing can migrate. A finding, not a gap.</span></div>
+  </div>
+
+  <h3>What we know</h3>
+  <p class="note" style="margin:0 0 10px">Three states, about the measurement rather than the product. One word each, so they can never be mistaken for an outcome.</p>
+  <div class="legend">
+    <div><span class="pill v-disc">Discarded</span><span><strong>Probed.</strong> A verdict was produced, but the run's known-good control probes failed, so it is not trustworthy and is not shown. Needs a clean re-run.</span></div>
+    <div><span class="pill v-incon">Inconclusive</span><span><strong>Probed.</strong> The run was healthy but nothing conclusive happened — no events and no error — or the channel was already wedged by another type.</span></div>
+    <div><span class="pill v-none">Not run</span><span>The only label meaning untested. This combination of type and mode has not been attempted.</span></div>
   </div>
 
   <div class="controls" id="controls"></div>

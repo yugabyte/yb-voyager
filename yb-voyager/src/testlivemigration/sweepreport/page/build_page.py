@@ -13,19 +13,34 @@ import json, sys, html, datetime
 # never attempted, attempted but the column cannot exist, and attempted but the
 # measurement was thrown away — which made the report look less thorough than it
 # was and hid the ones that genuinely still need running.
+# The vocabulary is deliberately two-tier and grammatically parallel, because a
+# reader scans a column vertically and should not have to switch frame of
+# reference on every row.
+#
+#   Tier 1 - WHAT HAPPENED TO THE DATA. Seven labels, all outcomes.
+#     Works · Dropped · Silently wrong · Silently lost · Import fails ·
+#     Export fails · Rejected by target
+#     "Silently wrong" and "Silently lost" are worded as a pair on purpose: they
+#     are the same family (no error is raised) and the silence is the finding.
+#     "Import fails" and "Export fails" are a pair for the same reason - same
+#     shape, and the only difference is which process dies.
+#
+#   Tier 2 - WHAT WE KNOW. Three labels, all about the measurement, never the
+#     product. One word each so they cannot be mistaken for an outcome.
+#     Discarded · Inconclusive · Not run
 VERDICT = {                       # suite verdict -> (label shown, css class)
     "WORKS":            ("Works",              "v-works"),
-    "QUIET_DROP":       ("Column dropped",     "v-drop"),
-    "IMPORTER_STOPS":   ("Import stops",       "v-imp"),
-    "BLOCKS":           ("Import stops",       "v-imp"),
-    "EXPORTER_CRASHES": ("Export crashes",     "v-exp"),
-    "STUCK":            ("Import stops",       "v-imp"),
-    "SILENT_WRONG":     ("Wrong value",        "v-wrong"),
-    "SILENT_LOSS":      ("Data lost",          "v-wrong"),
-    "TARGET_REJECTS":   ("Target can't hold it","v-reject"),
-    "INCONCLUSIVE":     ("Ran, no result",     "v-incon"),
-    "NOT_TESTED":       ("Not run yet",        "v-none"),
-    "":                 ("Not run yet",        "v-none"),
+    "QUIET_DROP":       ("Dropped",            "v-drop"),
+    "IMPORTER_STOPS":   ("Import fails",       "v-imp"),
+    "BLOCKS":           ("Import fails",       "v-imp"),
+    "STUCK":            ("Import fails",       "v-imp"),
+    "EXPORTER_CRASHES": ("Export fails",       "v-exp"),
+    "SILENT_WRONG":     ("Silently wrong",     "v-wrong"),
+    "SILENT_LOSS":      ("Silently lost",      "v-wrong"),
+    "TARGET_REJECTS":   ("Rejected by target", "v-reject"),
+    "INCONCLUSIVE":     ("Inconclusive",       "v-incon"),
+    "NOT_TESTED":       ("Not run",            "v-none"),
+    "":                 ("Not run",            "v-none"),
 }
 
 def skipped_label(ev):
@@ -34,10 +49,10 @@ def skipped_label(ev):
     never got to it' mean completely different things to a reader."""
     e = (ev or "").lower()
     if "on target" in e or "target:" in e:
-        return "Target can't hold it", "v-reject"
+        return "Rejected by target", "v-reject"
     if "on source" in e or "source:" in e:
-        return "Source can't hold it", "v-reject"
-    return "Column can't exist", "v-reject"
+        return "Rejected by source", "v-reject"
+    return "Rejected", "v-reject"
 
 def cell(mode):
     """One mode's verdict, refusing anything whose run failed the control gate."""
@@ -55,7 +70,7 @@ def cell(mode):
         # We DID probe this. The run's known-good control probes failed, so the
         # verdict it produced cannot be trusted — but saying "not tested" would
         # both understate the work and hide that this one needs re-running.
-        return ("Probed, result discarded", "v-disc",
+        return ("Discarded", "v-disc",
                 f"a verdict of {v.replace('_',' ').lower()} was produced but the run's "
                 f"control probes failed ({status.lower()}), so it is not reported. "
                 f"Needs a clean re-run. " + (ev or ""))
