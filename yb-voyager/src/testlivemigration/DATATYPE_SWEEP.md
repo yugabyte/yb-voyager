@@ -120,6 +120,13 @@ Related markers:
 - `PROBE-RUN-POISON` — the run deliberately contains a poison probe, so a wedged control
   is expected collateral and the gate does not apply.
 - `PROBE-RUN-EXCLUDED` — a known-poison probe was left out of a batch; run it solo.
+- `PROBE-RUN-QUARANTINE` — a probe was caught crash-looping the import channel *during*
+  the run (see [Failure is detected, not waited out](#failure-is-detected-not-waited-out)).
+  It names the probe, quotes the error, and prints the solo command. Its batch-mates are
+  collateral: their events were stuck behind it, so they come out `INCONCLUSIVE` and the
+  batch has to be re-run without the named probe.
+- `PROBE-WAIT` — one line per bounded wait: how long it took, out of what budget, and why
+  it ended (`counts-satisfied` / `repeating-error` / `timeout`).
 
 Every classifier bug found so far — the false `WORKS` on an unmeasured run, the empty-error
 `STUCK`, the config-field `STUCK` — showed up **first** as a control coming out wrong.
@@ -403,54 +410,121 @@ go test ./src/testlivemigration/sweepreport/
 
 ---
 
-## Biggest weakness: failure is diagnosed by timeout, not by evidence
+## Failure is detected, not waited out
 
-**This is the main cost of running the suite, and the top thing to fix.**
+This used to be the suite's biggest weakness, and the section is kept as the record of
+what it cost and what was done about it.
 
-Every wait in the runner is *positive-signal*: it waits for the expected event counts to
-arrive, and concludes only when the clock runs out. So the suite is fast when everything
-works and pathologically slow exactly when it finds something — the cost of a run scales
-with the number of *failures*, which is backwards for a tool whose purpose is finding them.
+Every wait was *positive-signal*: it waited for the expected event counts to arrive and
+could only conclude when the clock ran out. So the suite was fast when everything worked
+and pathologically slow exactly when it found something — the cost of a run scaled with
+the number of *failures*, which is backwards for a tool whose purpose is finding them.
 
-The numbers, from the constants in `datatype_sweep_probe.go`:
+| Situation | Was | Now |
+| --- | --- | --- |
+| A healthy probe | ~50 s | ~50 s (unchanged: the positive signal still wins) |
+| A failing probe, solo run | **240 s** (`sweepSoloStreamingTimeout`) | **~4 s** |
+| A failing probe, batched run | **900 s** (`sweepStreamingTimeout`) | **~4 s** |
+| A batch poisoned by one wedged value | ~48 min, then **discarded entirely** | seconds, and the culprit is named |
+| A stall that logs nothing | the full budget | the full budget — **deliberately unchanged** |
 
-| Situation | Cost |
-| --- | --- |
-| A healthy probe | ~50 s |
-| A failing probe, solo run | **240 s** (`sweepSoloStreamingTimeout`) |
-| A failing probe, batched run | **900 s** (`sweepStreamingTimeout`) |
-| A flaked batch, re-run before recording | ×2 on all of the above |
-| A batch poisoned by one wedged value | ~48 min, then **discarded entirely** — the control gate correctly invalidates every verdict in it |
+### The negative signal
 
-That last row is the worst of it: three quarters of an hour of container time to produce
-*nothing*, because one value wedged the channel and the controls came out broken.
+**A wedged importer does not go quiet.** It retries the same batch and logs the *same
+error* every few seconds. That is a signal that arrives in seconds, unlike a count that
+will never arrive at all — so `waitBounded` now watches for it alongside the counts.
 
-### The fix, for whoever picks this up
+`waitForSignalOrCrashLoop` (in `datatype_sweep_probe.go`) polls every 2 s and concludes
+early when **all three** hold:
 
-**A crash-loop is identifiable in about 20 seconds, and does not need a timeout at all.**
-A wedged importer does not go quiet — it *repeats the same error* every few seconds as it
-retries the same batch. So the signal to watch for is a **repeating** error line in the
-import log, not a count that will never arrive.
+1. the same import-failure signature has been logged `sweepCrashLoopRepeats` (3) times;
+2. it was still the most repeated signature `sweepCrashLoopPolls` (2) polls running;
+3. the observed counts did not advance across those polls.
 
-The machinery already exists: `mostRepeatedError(text, mustContain)` returns the most
-repeated error and its count, and `importAbortReason` already uses it. What is missing is
-using it as a **wait terminator** rather than only as post-hoc evidence:
+All three are load-bearing. The repeat count alone fires on a transient error the importer
+then gets past; frozen counts alone are just a slow pipeline; and the *signature* test is
+`isImportFailureSignature`, the same function the post-hoc evidence uses — so a spew dump
+or a config field whose value merely contains the word `ERROR` can no more terminate a
+wait than it can produce a `STUCK` verdict. The evidence rules are unchanged: a failure
+verdict still requires a quotable error with a real signature, and zero events with no
+error is still `INCONCLUSIVE`.
 
-1. In `waitBounded`, poll the import log alongside the counts.
-2. Conclude early as soon as the same import-failure signature has appeared, say, three
-   times with the counts not advancing — that is a crash-loop, and the verdict is `STUCK`
-   with the repeated error as its evidence.
-3. Keep the long timeout only as the genuine last resort, for a stall that logs nothing.
+The counts come from one `get data-migration-report` per poll, fingerprinted by
+`reportFingerprint`, which the completion predicate and the progress check share
+(`snapshotComplete` / `streamingComplete` were split out of the framework's
+`snapshotPhaseCompleted` / `streamingPhaseCompleted` for exactly this, so the sweep reuses
+the framework's definition of "complete" instead of drifting from a copy of it).
 
-Expected effect: a failing probe costs ~20 s instead of 240–900 s, and a poisoned batch
-is identified and abandoned in seconds rather than after 48 minutes. That turns the
-fall-back sweep from a weekly job into something runnable on demand, which is the
-difference between this suite being used and being skipped.
+**The long timeout is kept, and means something different.** A wait that expires with
+nothing quotable in the log is a stall that logged *nothing* — an environment fact, not a
+datatype verdict. It classifies `INCONCLUSIVE`, and the two outcomes must never collapse
+into one label (`TestWaitOutcomesStayDistinguishable`).
 
-A second, smaller win in the same area: the poison probe currently has to be *known* in
-advance (the `Poison` field) to be kept out of a batch. With early crash-loop detection
-the runner could discover it, quarantine it, and re-run the rest of the batch without it —
-so a newly poisonous type costs one batch instead of a manual bisect.
+### Seeing the saving
+
+Every wait prints its own accounting line, so the next person can read the saving instead
+of trusting it:
+
+```
+PROBE-WAIT: ranges | LIVE | forward streaming | counts-satisfied | 31.9s of 900s | expected counts reached after 16 polls
+PROBE-WAIT: json | LIVE | forward streaming | repeating-error | 2.0s of 900s | SQLSTATE 22P02: [import data] error executing batch on channel 3: ... repeated x5 with the observed counts frozen across 2 polls; concluded without waiting out the remaining 898s of the budget
+PROBE-WAIT: geo | LIVE | forward streaming | timeout | 900.0s of 900s | budget exhausted with no repeating importer error in the log: a stall that logged nothing, which is an environment fact and not a datatype verdict
+```
+
+`run-datatype-sweep.sh` greps them into a "wait accounting" block at the end of a run.
+
+### Quarantine: what is done, and what is left
+
+When a crash-loop is detected, the runner attributes it: if the repeated error names
+**exactly one** active probe's table, that probe is the culprit (`attributeCrashLoop` —
+two matches or none means no attribution, because a guess would quarantine an innocent
+type *and record the guess as a finding*). A control is never a candidate.
+
+What happens then:
+
+- the culprit gets `STUCK` with the error and its SQLSTATE quoted;
+- every batch-mate gets `INCONCLUSIVE` with `channelWedgedBy` naming the culprit — they
+  were stuck behind it in the ordered channel and were never measured, so neither `STUCK`
+  (that blames them for another type's poison) nor their truncated value comparison (that
+  manufactures a `SILENT_LOSS`) may be claimed;
+- `PROBE-RUN-QUARANTINE` names the culprit, the error, and the solo command;
+- the control gate is untouched: `INCONCLUSIVE` is not `WORKS`, so the run is still
+  `PROBE-RUN-INVALID` and none of its verdicts are published.
+
+**What is NOT done: automatically re-running the rest of the batch in the same test.** It
+was left out deliberately, not forgotten. Once a value has wedged the ordered channel its
+event sits at the head of the queue and the importer retries it forever, so the surviving
+probes cannot be measured by anything short of a *fresh migration*. Precisely what that
+would take:
+
+1. **Restructure `runDatatypeSweep` into an attempt loop.** The `defer r.lm.Cleanup()` /
+   `defer r.emitAll()` pair is function-scoped, so one attempt has to become its own
+   function — `runSweepAttempt(t, mode, batch, probes) []string` returning
+   `r.quarantined` — called at most twice, with the second call's probe list being the
+   first's minus the quarantined ids. `emitAll` must fire for the culprit on attempt 1 and
+   for the survivors on attempt 2, and exactly once per probe id in total, or the results
+   CSV gets two rows for one (probe, mode) and the differ sees a phantom.
+2. **Prove a second `LiveMigrationTest` in one test is safe.** Each attempt gets a fresh
+   export dir (`CreateTempExportDir`) but the *same* derived database name, and the
+   containers are shared singletons that are not restarted. The two known hazards are
+   (a) `Cleanup`'s `DropDatabase` failing while a logical replication slot from the first
+   attempt still exists on the source — the error is only logged, so attempt 2 would
+   silently start against a half-cleaned database; and (b) the wedged `import data`
+   process from attempt 1 having to be fully dead before attempt 2 starts, which
+   `Cleanup`'s 20 s `GracefulStop` should handle but has never been checked with a
+   crash-looping importer. Both need a real live run to establish, which is why this half
+   was not shipped blind: a re-run path that fails intermittently costs *two* batches
+   instead of saving one.
+3. **Decide the attempt budget.** One retry, not a bisect: a second poison probe in the
+   surviving set would wedge attempt 2 as well, and at that point the batch is a manual
+   job. Attempt 2's `PROBE-RUN-QUARANTINE` line is what says so.
+
+Until then the loop is: the run names the culprit in seconds, and the batch is re-run
+without it — the manual bisect it replaces used to cost ~48 min *per poison probe*.
+
+The `Poison` field stays useful even with detection: a probe already *known* to wedge a
+channel should not be put in a batch at all, and `excludeBatchedPoison` still keeps it out
+before a container is even started.
 
 ## Exit codes
 

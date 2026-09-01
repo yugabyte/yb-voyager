@@ -55,6 +55,16 @@ jobs:
           go test -tags integration_live_migration ./src/testlivemigration/ -v \
             -run 'TestDatatypeSweepCatalog|TestDatatypeReportCoversEveryProbe|TestProbeGroupsCoverEveryProbe|TestProbeBaseTypeNameNormalisation|TestProbeTypeKindFromPreDDL|TestReportingColumnsTrackVoyagersLists|TestFallbackGuardrailUsesTheYugabyteList|TestClassifyCoverage'
 
+      # The classifier and the crash-loop-aware wait. Both are container-free: the wait is
+      # driven with an injected clock and a synthetic import log, so a 900 s budget is
+      # exercised in microseconds. These are the guards on "a failure verdict needs a
+      # quotable error" and "a spew line never ends a wait", so they belong per-PR.
+      - name: Classifier and wait-loop guards
+        run: |
+          cd yb-voyager
+          go test -tags integration_live_migration ./src/testlivemigration/ -v \
+            -run 'TestSweepClassifierRequiresEvidence|TestSweepClassifierFlakeIsNotStuck|TestSweepClassifierCollateralIsInconclusive|TestImportFailureSignature|TestSweepWait|TestCrashLoopAttribution|TestReportFingerprintTracksProgress|TestWaitOutcomesStayDistinguishable'
+
       - name: Upload the probe catalog
         uses: actions/upload-artifact@v4
         with:

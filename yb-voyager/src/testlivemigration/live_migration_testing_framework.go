@@ -1290,6 +1290,16 @@ func (lm *LiveMigrationTest) snapshotPhaseCompleted(expectedData map[string]int6
 	if err != nil {
 		return false, goerrors.Errorf("failed to get data migration report: %w", err)
 	}
+	return snapshotComplete(report, expectedData), nil
+}
+
+// snapshotComplete is the pure predicate behind snapshotPhaseCompleted: it takes a report
+// that has already been fetched instead of fetching one. Split out so a caller that wants
+// BOTH "is it done" and "did the numbers move since last time" out of one report - the
+// datatype sweep's crash-loop-aware wait - does not have to shell out to
+// `get data-migration-report` twice per poll, and does not have to reimplement (and then
+// drift from) this definition of "complete".
+func snapshotComplete(report *DataMigrationReport, expectedData map[string]int64) bool {
 	allMatches := true
 	for tableName, expectedRows := range expectedData {
 		exportSnapshot := int64(0)
@@ -1311,7 +1321,7 @@ func (lm *LiveMigrationTest) snapshotPhaseCompleted(expectedData map[string]int6
 			break
 		}
 	}
-	return allMatches, nil
+	return allMatches
 }
 
 type ChangesCount struct {
@@ -1327,7 +1337,12 @@ func (lm *LiveMigrationTest) streamingPhaseCompleted(changesCount map[string]Cha
 	if err != nil {
 		return false, goerrors.Errorf("failed to get data migration report: %w", err)
 	}
+	return streamingComplete(report, changesCount, exportFrom, importTo), nil
+}
 
+// streamingComplete is the pure predicate behind streamingPhaseCompleted. See
+// snapshotComplete for why it is split out.
+func streamingComplete(report *DataMigrationReport, changesCount map[string]ChangesCount, exportFrom string, importTo string) bool {
 	allMatches := true
 	for tableName, changesCount := range changesCount {
 		exportInserts := int64(0)
@@ -1364,7 +1379,7 @@ func (lm *LiveMigrationTest) streamingPhaseCompleted(changesCount map[string]Cha
 		}
 	}
 
-	return allMatches, nil
+	return allMatches
 }
 
 // GetCutoverStatusForIteration gets the current cutover status for the given iteration.

@@ -61,6 +61,7 @@ import (
 	goerrors "github.com/go-errors/errors"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/cmd"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 // ============================================================
@@ -161,7 +162,6 @@ const (
 	// does so immediately. The long batch wait only exists to absorb slow-but-healthy
 	// streaming across many tables, which a solo run does not have.
 	sweepSoloStreamingTimeout time.Duration = 240
-	sweepStreamingPoll        time.Duration = 2
 	sweepCutoverTimeout       time.Duration = 300
 	sweepFallForwardWait      time.Duration = 300
 	sweepExportStartWait      time.Duration = 300
@@ -174,6 +174,39 @@ const (
 	sweepStreamingModeWait time.Duration = 8 * time.Minute
 	sweepStreamingModePoll time.Duration = 2 * time.Second
 )
+
+// Crash-loop detection. The bounded waits above are POSITIVE-signal waits: they watch for
+// the expected counts to arrive and can only conclude by running out of clock. That makes
+// the suite fast when everything works and slowest exactly when it finds something, which
+// is backwards for a tool whose job is finding failures.
+//
+// A wedged importer does not go quiet, though: it retries the same batch and logs the SAME
+// error every few seconds. So the negative signal is a REPEATING error, and it is readable
+// in seconds rather than in the 240-900 s the positive signal is given. The wait therefore
+// also polls the import log, and concludes early when
+//
+//	the same import-failure signature has been logged sweepCrashLoopRepeats times, AND
+//	that signature was still the most repeated one sweepCrashLoopPolls polls running, AND
+//	the observed counts did not advance across those polls.
+//
+// All three are required. The repeat count alone would fire on a transient error that the
+// importer then got past; the frozen counts alone are just a slow pipeline; and the
+// signature test (isImportFailureSignature) is what keeps a spew dump or a config field
+// out of it. The long timeout is kept for the genuinely different case of a stall that
+// logs NOTHING at all - which classifies as INCONCLUSIVE, never STUCK.
+const (
+	sweepCrashLoopRepeats = 3
+	sweepCrashLoopPolls   = 2
+	// sweepWaitPoll is a REAL duration: the sweep drives its own wait loop rather than
+	// handing a seconds-count to utils.RetryWorkWithTimeout.
+	sweepWaitPoll time.Duration = 2 * time.Second
+)
+
+// seconds converts one of the seconds-as-Duration constants above into a real duration.
+// The framework's wait helpers multiply by time.Second internally; the sweep's own loop
+// does not, so the conversion has to happen somewhere and doing it at the call site keeps
+// the constants readable next to the helpers that still consume them raw.
+func seconds(n time.Duration) time.Duration { return n * time.Second }
 
 // ============================================================
 // THE PROBE
@@ -508,6 +541,15 @@ type probeObservation struct {
 	waitNote     string
 	stuckDetail  string
 
+	// channelWedgedBy names the OTHER probe whose value crash-looped the import channel
+	// during this run. The channel is ordered, so once one value wedges it every later
+	// event - including every batch-mate's - is stuck behind it. Such a probe was not
+	// measured at all: reporting it STUCK would blame it for someone else's poison, and
+	// reporting its (necessarily incomplete) value comparison would manufacture a
+	// SILENT_LOSS. It is INCONCLUSIVE, and the culprit is named so the batch can be
+	// re-run without it.
+	channelWedgedBy string
+
 	// exportNeverStreamed records that `export data` never reached streaming mode, so
 	// the change ops were never observable by anything. That is an environment flake
 	// (a slow or dead Debezium JVM), emphatically not a product stall, and it must
@@ -544,6 +586,10 @@ type sweepRun struct {
 	// flaked records that this run hit the Debezium-boot flake, so the runner knows to
 	// re-run it rather than record its verdicts.
 	flaked bool
+
+	// quarantined lists the probes caught crash-looping the import channel during this
+	// run. Everything else in the batch is collateral and has to be re-run without them.
+	quarantined []string
 
 	probes   []datatypeProbe // every probe asked for, in order (all get a result line)
 	active   []datatypeProbe // probes whose DDL + data actually landed
@@ -940,6 +986,26 @@ func (r *sweepRun) activeTableKeys() []string {
 	return keys
 }
 
+// fallForwardRowCountsMatch is the fall-forward wait's positive signal: every probe table
+// holds the same number of rows on the target and on the source-replica. It mirrors
+// LiveMigrationTest.WaitForFallForwardStreamingComplete's condition, which the sweep can
+// no longer call directly because it drives its own crash-loop-aware loop.
+func (r *sweepRun) fallForwardRowCountsMatch(tables []string) bool {
+	allMatch := true
+	err := r.lm.WithTargetConn(func(targetConn *sql.DB) error {
+		return r.lm.WithSourceReplicaConn(func(replicaConn *sql.DB) error {
+			for _, table := range tables {
+				if err := testutils.CompareRowCount(context.Background(), targetConn, replicaConn, table); err != nil {
+					allMatch = false
+					return nil
+				}
+			}
+			return nil
+		})
+	})
+	return err == nil && allMatch
+}
+
 // runOffline: export data (snapshot-only) -> import data. The datatype filter does not
 // run in this mode, so the interesting question is purely snapshot fidelity.
 //
@@ -1005,8 +1071,9 @@ func (r *sweepRun) runFallback() {
 	}
 	r.applyDelta(sideTarget, true)
 	r.confirmDeltaApplied(sideTarget, true)
-	r.waitBounded("fall-back streaming", func() error {
-		return r.lm.WaitForFallbackStreamingComplete(r.changeExpectations(), r.streamingTimeout(), sweepStreamingPoll)
+	expected := r.changeExpectations()
+	r.waitBounded("fall-back streaming", seconds(r.streamingTimeout()), func(report *DataMigrationReport) bool {
+		return report != nil && streamingComplete(report, expected, "target", "source")
 	})
 	r.recordExportWarnings()
 	r.recordQueueColumnPresence()
@@ -1048,8 +1115,9 @@ func (r *sweepRun) runFallForward() {
 	// The fixture's fall-forward wait compares ROW COUNTS target vs source-replica; it
 	// has no per-table change-count equivalent. Value fidelity is checked separately by
 	// compareInto below, so a passing wait is a precondition and not the assertion.
-	r.waitBounded("fall-forward streaming", func() error {
-		return r.lm.WaitForFallForwardStreamingComplete(r.activeTableKeys(), r.streamingTimeout(), sweepStreamingPoll)
+	tables := r.activeTableKeys()
+	r.waitBounded("fall-forward streaming", seconds(r.streamingTimeout()), func(*DataMigrationReport) bool {
+		return r.fallForwardRowCountsMatch(tables)
 	})
 	r.recordExportWarnings()
 	r.recordQueueColumnPresence()
@@ -1073,8 +1141,9 @@ func (r *sweepRun) startForwardMigration() bool {
 // forwardSnapshotAndStream drives snapshot -> compare -> forward deltas -> stream ->
 // compare, recording rather than aborting on any expired wait.
 func (r *sweepRun) forwardSnapshotAndStream() {
-	r.waitBounded("snapshot", func() error {
-		return r.lm.WaitForSnapshotComplete(r.snapshotExpectations(), sweepSnapshotTimeout)
+	expectedRows := r.snapshotExpectations()
+	r.waitBounded("snapshot", seconds(sweepSnapshotTimeout), func(report *DataMigrationReport) bool {
+		return report != nil && snapshotComplete(report, expectedRows)
 	})
 	r.recordExportWarnings()
 	r.compareInto(sideSource, sideTarget, phaseSnapshot)
@@ -1092,38 +1161,269 @@ func (r *sweepRun) forwardSnapshotAndStream() {
 
 	r.applyDelta(sideSource, false)
 	r.confirmDeltaApplied(sideSource, false)
-	r.waitBounded("forward streaming", func() error {
-		return r.lm.WaitForForwardStreamingComplete(r.changeExpectations(), r.streamingTimeout(), sweepStreamingPoll)
+	expected := r.changeExpectations()
+	r.waitBounded("forward streaming", seconds(r.streamingTimeout()), func(report *DataMigrationReport) bool {
+		return report != nil && streamingComplete(report, expected, "source", "target")
 	})
 	r.recordExportWarnings()
 	r.recordQueueColumnPresence()
 	r.compareInto(sideSource, sideTarget, phaseStreaming)
 }
 
-// waitBounded runs one bounded wait. An expired wait is recorded on every active probe
-// (with the import log's repeated error, if any) and never aborts the run - a stall is
-// a verdict, not a test failure.
-func (r *sweepRun) waitBounded(what string, wait func() error) {
-	err := wait()
-	if err == nil {
+// ============================================================
+// BOUNDED WAITS WITH CRASH-LOOP DETECTION
+// ============================================================
+
+// waitOutcome says WHY a bounded wait ended. It is printed on the PROBE-WAIT line so the
+// cost of every wait, and the reason it was paid, is visible in the run output.
+type waitOutcome string
+
+const (
+	// waitSatisfied - the positive signal arrived: the expected counts were reached.
+	waitSatisfied waitOutcome = "counts-satisfied"
+	// waitRepeatingError - the negative signal arrived: the importer is crash-looping on
+	// one error and the counts are frozen. This is the whole point of the loop.
+	waitRepeatingError waitOutcome = "repeating-error"
+	// waitTimeout - neither signal arrived within the budget: a stall that logs nothing.
+	// A genuinely different case from waitRepeatingError, and it must stay distinguishable:
+	// it classifies INCONCLUSIVE, never STUCK.
+	waitTimeout waitOutcome = "timeout"
+)
+
+// waitSample is one observation of the pipeline: has the positive signal arrived, what do
+// the counts look like right now, and what has the importer been saying.
+type waitSample struct {
+	satisfied bool
+	// progress is a fingerprint of the numbers being waited on. Any change means the
+	// pipeline is moving, which rules out a crash-loop no matter what the log holds.
+	progress string
+	logText  string
+}
+
+type waitResult struct {
+	outcome     waitOutcome
+	elapsed     time.Duration
+	budget      time.Duration
+	polls       int
+	quotedError string // set for waitRepeatingError: the error, with its SQLSTATE
+	repeats     int
+}
+
+// saved is the wait budget the early conclusion did not have to spend.
+func (w waitResult) saved() time.Duration {
+	if w.outcome != waitRepeatingError || w.elapsed > w.budget {
+		return 0
+	}
+	return w.budget - w.elapsed
+}
+
+// summary is the human half of the PROBE-WAIT line: what ended the wait, and what that
+// cost or saved. Kept pure so the wording is unit-testable without a container.
+func (w waitResult) summary() string {
+	switch w.outcome {
+	case waitSatisfied:
+		return fmt.Sprintf("expected counts reached after %d polls", w.polls)
+	case waitRepeatingError:
+		return fmt.Sprintf("%s repeated x%d with the observed counts frozen across %d polls; "+
+			"concluded without waiting out the remaining %ds of the budget",
+			w.quotedError, w.repeats, sweepCrashLoopPolls, int(w.saved().Seconds()))
+	default:
+		return "budget exhausted with no repeating importer error in the log: a stall that " +
+			"logged nothing, which is an environment fact and not a datatype verdict"
+	}
+}
+
+// waitForSignalOrCrashLoop is the wait loop, with the clock and the pipeline both injected
+// so it can be exercised end-to-end with no containers and no real time.
+//
+// It ends on the FIRST of: the positive signal (counts satisfied), the negative signal (a
+// repeating import failure with frozen counts), or the budget.
+func waitForSignalOrCrashLoop(
+	budget, poll time.Duration,
+	sample func() waitSample,
+	now func() time.Time,
+	sleep func(time.Duration),
+) waitResult {
+	start := now()
+	var lastSignature, lastProgress string
+	signaturePolls := 0
+	firstSample := true
+	polls := 0
+
+	for {
+		s := sample()
+		polls++
+		elapsed := now().Sub(start)
+
+		if s.satisfied {
+			return waitResult{outcome: waitSatisfied, elapsed: elapsed, budget: budget, polls: polls}
+		}
+
+		quoted, signature, repeats := mostRepeatedErrorDetail(s.logText, "")
+		advanced := !firstSample && s.progress != lastProgress
+		lastProgress, firstSample = s.progress, false
+
+		switch {
+		case advanced:
+			// The counts moved. Whatever the log says, nothing is wedged: an importer
+			// that is still ingesting is not stuck on a batch it cannot get past.
+			lastSignature, signaturePolls = "", 0
+		case signature != "" && repeats >= sweepCrashLoopRepeats:
+			if signature == lastSignature {
+				signaturePolls++
+			} else {
+				lastSignature, signaturePolls = signature, 1
+			}
+			if signaturePolls >= sweepCrashLoopPolls {
+				return waitResult{
+					outcome: waitRepeatingError, elapsed: elapsed, budget: budget,
+					polls: polls, quotedError: quoted, repeats: repeats,
+				}
+			}
+		default:
+			lastSignature, signaturePolls = "", 0
+		}
+
+		if elapsed >= budget {
+			return waitResult{outcome: waitTimeout, elapsed: elapsed, budget: budget, polls: polls}
+		}
+		sleep(poll)
+	}
+}
+
+// reportFingerprint renders every count the waits care about into one comparable string.
+// Any advance anywhere in it means the pipeline moved. It deliberately covers ALL the
+// tables in the report rather than only the expected ones: a batch-mate still making
+// progress is just as good a proof that the channel is not wedged.
+func reportFingerprint(report *DataMigrationReport) string {
+	if report == nil {
+		return "<report-unavailable>"
+	}
+	rows := make([]string, 0, len(report.RowData))
+	for _, row := range report.RowData {
+		rows = append(rows, fmt.Sprintf("%s/%s:%d,%d,%d,%d,%d,%d,%d,%d",
+			row.TableName, row.DBType,
+			row.ExportedSnapshotRows, row.ImportedSnapshotRows,
+			row.ExportedInserts, row.ExportedUpdates, row.ExportedDeletes,
+			row.ImportedInserts, row.ImportedUpdates, row.ImportedDeletes))
+	}
+	sort.Strings(rows)
+	return strings.Join(rows, "|")
+}
+
+// waitBounded runs one bounded wait, watching the import log for a crash-loop alongside
+// the counts. A wait that ends without its positive signal never aborts the run: it is
+// recorded on every active probe and fed into classification, because "the counts never
+// arrived and the import log keeps repeating one error" IS the STUCK verdict.
+//
+// satisfied is handed the data-migration report already fetched for this poll, or nil when
+// it could not be read; a predicate that needs the report must return false for nil.
+func (r *sweepRun) waitBounded(what string, budget time.Duration, satisfied func(*DataMigrationReport) bool) {
+	sample := func() waitSample {
+		report, err := r.lm.GetDataMigrationReport()
+		if err != nil {
+			r.t.Logf("wait %q: cannot read the data-migration report: %v", what, err)
+			report = nil
+		}
+		return waitSample{
+			satisfied: satisfied(report),
+			progress:  reportFingerprint(report),
+			logText:   r.importLogFileText(),
+		}
+	}
+	r.applyWaitResult(what, waitForSignalOrCrashLoop(budget, sweepWaitPoll, sample, time.Now, time.Sleep))
+}
+
+// applyWaitResult records one wait's outcome: the greppable PROBE-WAIT line, and, when the
+// wait did not get its positive signal, the per-probe evidence classification will use.
+func (r *sweepRun) applyWaitResult(what string, res waitResult) {
+	fmt.Printf("PROBE-WAIT: %s | %s | %s | %s | %.1fs of %.0fs | %s\n",
+		r.batch, r.mode, what, res.outcome,
+		res.elapsed.Seconds(), res.budget.Seconds(), sanitizeDetail(res.summary()))
+
+	if res.outcome == waitSatisfied {
 		return
 	}
-	r.t.Logf("bounded wait %q expired: %v", what, err)
+	r.t.Logf("bounded wait %q ended as %s after %s: %s", what, res.outcome, res.elapsed, res.summary())
+
 	// Read the importer's output once and reuse it for every probe; each probe needs a
 	// different slice of the same text.
 	logText := r.importLogText()
 	repeated, count := mostRepeatedError(logText, "")
+	how := what + " wait expired"
+	if res.outcome == waitRepeatingError {
+		how = fmt.Sprintf("%s wait concluded early after %.0fs on a repeating importer error", what, res.elapsed.Seconds())
+	}
+
+	// Attribution first: if exactly one probe's table is named by the repeating error,
+	// that probe is the poison and everyone else is collateral.
+	culprit := ""
+	if res.outcome == waitRepeatingError {
+		if id, ok := attributeCrashLoop(r.active, res.quotedError); ok {
+			culprit = id
+			r.quarantine(id, res)
+		}
+	}
+
 	for _, p := range r.active {
 		o := r.observe(p)
 		o.waitTimedOut = true
-		o.waitNote = appendNote(o.waitNote, what+" wait expired")
+		o.waitNote = appendNote(o.waitNote, how)
+		if culprit != "" && p.ID != culprit {
+			o.channelWedgedBy = culprit
+			continue
+		}
 		// Prefer an error that names this probe's table: that attributes the stall.
 		if perTable, n := mostRepeatedError(logText, p.tableName()); n >= 2 {
-			o.stuckDetail = fmt.Sprintf("%s repeated x%d after %s wait expired", perTable, n, what)
-		} else if repeated != "" && count >= 3 {
-			o.stuckDetail = fmt.Sprintf("%s repeated x%d after %s wait expired", repeated, count, what)
+			o.stuckDetail = fmt.Sprintf("%s repeated x%d after %s", perTable, n, how)
+		} else if repeated != "" && count >= sweepCrashLoopRepeats {
+			o.stuckDetail = fmt.Sprintf("%s repeated x%d after %s", repeated, count, how)
 		}
 	}
+}
+
+// attributeCrashLoop names the probe responsible for a repeating error, which is possible
+// only when EXACTLY ONE active probe's table appears in it. Two matches (or none) means
+// the error does not identify a culprit, and guessing one would quarantine an innocent
+// type - worse than not quarantining at all, because the guess is recorded as a finding.
+func attributeCrashLoop(probes []datatypeProbe, errText string) (string, bool) {
+	lower := strings.ToLower(errText)
+	var matched []string
+	for _, p := range probes {
+		if p.ExpectVerdict != "" {
+			continue // never blame a known-good control
+		}
+		if strings.Contains(lower, strings.ToLower(p.tableName())) {
+			matched = append(matched, p.ID)
+		}
+	}
+	if len(matched) != 1 {
+		return "", false
+	}
+	return matched[0], true
+}
+
+// quarantine records that one probe wedged the channel: greppable for the runner, and the
+// exact command that measures it in isolation.
+//
+// It does NOT re-run the rest of the batch in-process. Once a value has wedged the ordered
+// channel, its event is still at the head of the queue and the importer will retry it
+// forever, so the remaining probes can only be measured by a FRESH migration - see
+// "Quarantine and continue" in DATATYPE_SWEEP.md for exactly what that would take.
+func (r *sweepRun) quarantine(probeID string, res waitResult) {
+	r.quarantined = append(r.quarantined, probeID)
+	typeName := probeID
+	for _, p := range r.active {
+		if p.ID == probeID {
+			typeName = p.TypeName
+		}
+	}
+	fmt.Printf("PROBE-RUN-QUARANTINE: %s | %s | %s (%s) wedged the import channel after %.0fs: %s; "+
+		"every other probe in this batch is collateral and must be re-run without it. "+
+		"Measure it on its own with PROBE_ID=%s PROBE_MODE=%s -run TestDatatypeSweepSuspect\n",
+		r.batch, r.mode, probeID, typeName, res.elapsed.Seconds(),
+		sanitizeDetail(res.quotedError), probeID, r.mode)
+	r.t.Logf("quarantined probe %s: it crash-looped the import channel", probeID)
 }
 
 // ============================================================
@@ -1585,7 +1885,22 @@ func (r *sweepRun) importLogText() string {
 	b.WriteString("\n")
 	b.WriteString(r.lm.GetImportToSourceCommandStderr())
 	b.WriteString("\n")
+	b.WriteString(r.importLogFileText())
+	return b.String()
+}
 
+// importLogFileText is the ON-DISK half of importLogText: <export-dir>/logs only, with the
+// in-memory command buffers left out.
+//
+// The wait loop uses this one rather than importLogText because it reads the log every two
+// seconds for as long as the wait lasts, and VoyagerCommandRunner.Stdout()/Stderr() return
+// bytes.Buffer.String() on a buffer that the running command's copier goroutine is
+// concurrently appending to. Reading it a handful of times after a wait (which is what the
+// post-hoc evidence does) is one thing; reading it 450 times during one is another, and a
+// torn read would corrupt the very error text the verdict is quoted from. The importer
+// writes the same batch errors to its own log file, so nothing is lost.
+func (r *sweepRun) importLogFileText() string {
+	var b strings.Builder
 	logDir := filepath.Join(r.lm.GetCurrentExportDir(), "logs")
 	files, err := filepath.Glob(filepath.Join(logDir, "*.log"))
 	if err != nil {
@@ -1642,7 +1957,17 @@ func isImportFailureSignature(line string) bool {
 	return pgErrorRe.MatchString(line) && importContextRe.MatchString(line)
 }
 
+// mostRepeatedError returns the quoted text of the most repeated error and its count.
 func mostRepeatedError(text, mustContain string) (string, int) {
+	quoted, _, n := mostRepeatedErrorDetail(text, mustContain)
+	return quoted, n
+}
+
+// mostRepeatedErrorDetail also returns the NOISE-STRIPPED signature the group was keyed
+// on. The wait loop compares that across polls rather than the quoted sample: the sample
+// is one raw line and carries its own timestamp and batch numbers, so two polls looking at
+// the same crash-loop would otherwise compare unequal the moment the log tail rolls.
+func mostRepeatedErrorDetail(text, mustContain string) (string, string, int) {
 	counts := map[string]int{}
 	sample := map[string]string{}
 	needle := strings.ToLower(mustContain)
@@ -1676,13 +2001,13 @@ func mostRepeatedError(text, mustContain string) (string, int) {
 		}
 	}
 	if bestN == 0 {
-		return "", 0
+		return "", "", 0
 	}
 	raw := sample[best]
 	if m := sqlstateRe.FindStringSubmatch(raw); m != nil {
-		return fmt.Sprintf("SQLSTATE %s: %s", m[1], truncate(raw, 200)), bestN
+		return fmt.Sprintf("SQLSTATE %s: %s", m[1], truncate(raw, 200)), best, bestN
 	}
-	return truncate(raw, 220), bestN
+	return truncate(raw, 220), best, bestN
 }
 
 // ============================================================
@@ -1735,6 +2060,18 @@ func decideVerdictCore(mode sweepMode, o probeObservation) (string, string) {
 			return verdictExcludedTold, "exclusion notice printed and confirmed before continuing; " + o.snapshotDetail
 		}
 		return verdictQuietDrop, "exclusion notice printed but auto-accepted by --yes; " + o.snapshotDetail
+	}
+
+	// 2b. Someone ELSE's value wedged the ordered import channel. Every event behind it -
+	//     including all of this probe's - is stuck there, so nothing was measured about
+	//     this type. Neither STUCK (that blames it for another type's poison) nor a value
+	//     verdict (the comparison only shows how far the channel got) may be claimed.
+	if o.channelWedgedBy != "" {
+		return verdictInconclusive, withNote(fmt.Sprintf(
+			"the import channel was crash-looped by probe %s during this run, so every event for "+
+				"this table was stuck behind it and this type was never actually exercised; "+
+				"re-run the batch without %s", o.channelWedgedBy, o.channelWedgedBy),
+			o.queueScanNote, o.waitNote)
 	}
 
 	// 3. Wedged importer: a bounded wait expired AND the import log keeps repeating one
@@ -1989,6 +2326,10 @@ func (r *sweepRun) emitAll() {
 		reason := "probes came out INCONCLUSIVE"
 		if r.flaked {
 			reason = "export never reached streaming mode"
+		}
+		if len(r.quarantined) > 0 {
+			reason = fmt.Sprintf("import channel wedged by %s; re-run this batch without it",
+				strings.Join(r.quarantined, ", "))
 		}
 		fmt.Printf("PROBE-RUN-FLAKE: %s | %s | %d inconclusive | %s\n",
 			r.batch, r.mode, inconclusive, reason)
