@@ -608,7 +608,7 @@ func (yb *TargetYugabyteDB) GetPrimaryKeyColumnsForTables(tables []sqlname.NameT
 }
 
 func (yb *TargetYugabyteDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []UniqueIndex], error) {
-	log.Infof("getting unique indexes from target for tables: %v", tableList)
+	log.Infof("getting unique indexes from target for tables: %s", strings.Join(sqlname.NameTupleListToStrings(tableList), ", "))
 
 	// Unique indexes on a partitioned table are often defined on its leaf partitions
 	// rather than the root (e.g. CREATE UNIQUE INDEX ... ON <leaf> (...)). Since import
@@ -651,7 +651,7 @@ func (yb *TargetYugabyteDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameT
 		result.Put(rootTuple, mergeUniqueIndexes(existing, indexes))
 	}
 
-	log.Infof("unique indexes from target for tables: %v", result)
+	log.Infof("unique indexes from target for tables: %s", formatTableToUniqueIndexesForLog(result))
 	return result, nil
 }
 

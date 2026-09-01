@@ -466,7 +466,7 @@ func (pg *TargetPostgreSQL) GetPrimaryKeyConstraintNames(table sqlname.NameTuple
 }
 
 func (pg *TargetPostgreSQL) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []UniqueIndex], error) {
-	log.Infof("getting unique indexes from target Postgres for tables: %v", tableList)
+	log.Infof("getting unique indexes from target Postgres for tables: %s", strings.Join(sqlname.NameTupleListToStrings(tableList), ", "))
 	// Unique indexes on a partitioned table are often defined on its leaf partitions
 	// rather than the root (e.g. CREATE UNIQUE INDEX ... ON <leaf> (...)). Since import
 	// events only reference the root table, we discover the unique indexes of every leaf
@@ -508,7 +508,7 @@ func (pg *TargetPostgreSQL) GetTableToUniqueIndexesMap(tableList []sqlname.NameT
 		result.Put(rootTuple, mergeUniqueIndexes(existing, indexes))
 	}
 
-	log.Infof("unique indexes from postgres for tables: %v", result)
+	log.Infof("unique indexes from postgres for tables: %s", formatTableToUniqueIndexesForLog(result))
 	return result, nil
 }
 
@@ -583,6 +583,26 @@ func dedupeUniqueIndexes(indexes []UniqueIndex) []UniqueIndex {
 		result = append(result, idx)
 	}
 	return result
+}
+
+// formatTableToUniqueIndexesForLog renders the unique indexes of each table as
+// "table: index(col1, col2) [nulls not distinct]; table2: ...", sorted by table name.
+func formatTableToUniqueIndexesForLog(tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []UniqueIndex]) string {
+	var tableEntries []string
+	// the callback never returns an error, so IterKVSorted cannot fail here.
+	_ = tableToUniqueIndexes.IterKVSorted(func(a, b sqlname.NameTuple) bool {
+		return a.ForOutput() < b.ForOutput()
+	}, func(table sqlname.NameTuple, indexes []UniqueIndex) (bool, error) {
+		indexEntries := lo.Map(indexes, func(index UniqueIndex, _ int) string {
+			return index.String()
+		})
+		tableEntries = append(tableEntries, fmt.Sprintf("%s: %s", table.ForOutput(), strings.Join(indexEntries, ", ")))
+		return true, nil
+	})
+	if len(tableEntries) == 0 {
+		return "none"
+	}
+	return strings.Join(tableEntries, "; ")
 }
 
 // mergeUniqueIndexes merges two index lists, deduplicating by column signature.
