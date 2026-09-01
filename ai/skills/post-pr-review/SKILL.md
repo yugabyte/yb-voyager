@@ -31,7 +31,7 @@ Copy this checklist and track progress in your response:
 ```
 - [ ] Step 1: Identify the PR (number, owner, repo)
 - [ ] Step 2: Collect findings from the conversation
-- [ ] Step 3: Filter to Critical + Warning only
+- [ ] Step 3: Normalize severities (map to Critical / Warning / Suggestion / Question; drop only praise)
 - [ ] Step 4: Verify each finding has a file path and anchor line
 - [ ] Step 5: Build the review JSON payload
 - [ ] Step 6: Show the user a summary and confirm

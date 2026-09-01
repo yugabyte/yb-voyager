@@ -88,9 +88,9 @@ gh pr view $N --json headRefOid --jq .headRefOid
 Decision (take the most recent of the review/marker timestamps as `LAST_AI`):
 
 - **No AI review or marker** → full review.
-- **Head commit == last AI-reviewed `commit_id`** → `skipped (already reviewed, no new commits)`.
-- **New commits since the last AI review, and `LAST_AI` more than 24h ago** → **incremental re-review** of the range `<last AI commit_id>..head` (see Step 4). If the last AI activity was only a marker (no `commit_id`) or the old commit is gone (force-push), do a full re-review instead.
-- **New commits but `LAST_AI` within the last 24h** → `skipped (re-reviewed recently)` — it will be picked up by a later run.
+- **No new commits since `LAST_AI`** (head commit == last AI-reviewed `commit_id`, or — when the last AI activity was a marker with no `commit_id` — the head commit's committer date <= `LAST_AI`) → `skipped (already reviewed, no new commits)`.
+- **New commits, and `LAST_AI` more than 24h ago** → **incremental re-review** of the range `<last AI commit_id>..head` (see Step 4). If the last AI activity was only a marker (no `commit_id`) or the old commit is gone (force-push), do a full re-review instead.
+- **New commits, but `LAST_AI` within the last 24h** → `skipped (re-reviewed recently)` — it will be picked up by a later run.
 
 In explicit-PR mode this logic is bypassed entirely (always a full review).
 
@@ -136,7 +136,8 @@ Repo root: <REPO_ROOT>. Base branch: <BASE>.
    commits; do not re-report a finding that is already posted and still
    anchored to unchanged code.
 
-4. Cleanup: git worktree remove --force /tmp/pr-review-sweep-<N>
+4. Do NOT remove the worktree — the posting step needs it to verify
+   comment anchors against the PR head. Cleanup happens after posting.
 
 5. Your final message is the complete findings report (every Critical,
    Warning, Suggestion, and Question with file:line), plus the change
@@ -148,6 +149,10 @@ Repo root: <REPO_ROOT>. Base branch: <BASE>.
 ```
 Post this review to GitHub PR #<N> in <OWNER_REPO>. Work non-interactively.
 
+The PR head is checked out in the worktree /tmp/pr-review-sweep-<N>; run
+the anchor-verification `git show HEAD:...` checks from inside it so line
+numbers are verified against the PR head, not the main checkout.
+
 Read <REPO_ROOT>/ai/skills/post-pr-review/SKILL.md and apply it, with ONE
 override: skip Step 6 (user confirmation) — post immediately after building
 and validating the payload. Zero findings → post the "no findings" marker
@@ -155,7 +160,12 @@ comment exactly as that skill's Step 3 specifies.
 All other rules in that skill (COMMENT event, [AI][<Severity>] prefixes,
 JSON via --input file, anchor verification) apply unchanged. If a 422 says
 a comment line is not part of the diff, drop or re-anchor that finding and
-retry once. Clean up /tmp/pr-review-<N>*.json afterwards.
+retry once.
+
+Cleanup (always, even on failure):
+  cd <REPO_ROOT>
+  git worktree remove --force /tmp/pr-review-sweep-<N>
+  rm -f /tmp/pr-review-<N>.json /tmp/pr-review-<N>-response.json
 
 Findings report:
 <REVIEWER REPORT>
@@ -166,7 +176,7 @@ Your final message must be exactly one of:
   FAILED <one-line reason>
 ```
 
-Failure policy: a `FAILED` PR never aborts the sweep — record it and continue with the next PR. Do not retry within the run; a failed PR stays unmarked, so the next scheduled run retries it naturally.
+Failure policy: a `FAILED` PR never aborts the sweep — record it and continue with the next PR. Do not retry within the run; a failed PR stays unmarked, so the next scheduled run retries it naturally. If the reviewer fails (so the poster never runs), the sweep itself removes `/tmp/pr-review-sweep-<N>` before moving on.
 
 ### Step 5: Run summary
 
