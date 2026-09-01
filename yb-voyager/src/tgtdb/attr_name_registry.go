@@ -127,8 +127,25 @@ func (reg *AttributeNameRegistry) FindBestMatchingColumnName(colName string, tar
 				return strings.ToUpper(colName), nil
 			}
 		}
-		return "", goerrors.Errorf("ambiguous column name %q in target table: found column names: %s",
-			colName, strings.Join(candidates, ", "))
+		return "", &ErrAmbiguousColumnName{colName: colName, candidates: candidates}
 	}
-	return "", goerrors.Errorf("column %q not found amongst table columns %v", colName, targetColumns)
+	return "", &ErrColumnNameNotFound{colName: colName, targetColumns: targetColumns}
+}
+
+type ErrAmbiguousColumnName struct {
+	colName    string
+	candidates []string
+}
+
+func (e *ErrAmbiguousColumnName) Error() string {
+	return fmt.Sprintf("ambiguous column name %q in target table: found column names: %s", e.colName, strings.Join(e.candidates, ", "))
+}
+
+type ErrColumnNameNotFound struct {
+	colName       string
+	targetColumns []string
+}
+
+func (e *ErrColumnNameNotFound) Error() string {
+	return fmt.Sprintf("column name %q not found amongst table columns %v", e.colName, e.targetColumns)
 }

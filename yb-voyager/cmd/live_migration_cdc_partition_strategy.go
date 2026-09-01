@@ -478,9 +478,14 @@ func validateCustomPartitionKeyTables(tableToPartitionKeyOverrideMap *utils.Stru
 	if len(customTables) == 0 {
 		return nil
 	}
-	attributeNameRegistry := tgtdb.NewAttributeNameRegistry(tdb, &tconf)
-
+	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+	if !ok {
+		return goerrors.Errorf("target db is not a YugabyteDB")
+	}
 	// every custom key column must exist on the table.
+	missingColumnsOnTables := make(map[string][]string)
+	ambiguousColumnsOnTables := make(map[string][]string)
+	tableToColumns := make(map[string][]string)
 	for _, t := range customTables {
 		override, _ := tableToPartitionKeyOverrideMap.Get(t)
 		tableColumns, err := tdb.GetListOfTableAttributes(t)
@@ -489,23 +494,49 @@ func validateCustomPartitionKeyTables(tableToPartitionKeyOverrideMap *utils.Stru
 		}
 		overrideColumns := make([]string, 0, len(override.Columns))
 		var missing []string
+		var ambiguous []string
 		for _, c := range override.Columns {
 
-			bestMatchingColumnName, err := attributeNameRegistry.FindBestMatchingColumnName(c, tableColumns)
+			bestMatchingColumnName, err := yb.FindBestMatchingColumnName(c, tableColumns)
 			if err != nil {
-				missing = append(missing, c)
-				continue
+				if _, ok := err.(*tgtdb.ErrAmbiguousColumnName); ok {
+					ambiguous = append(ambiguous, c)
+					continue
+				}
+				if _, ok := err.(*tgtdb.ErrColumnNameNotFound); ok {
+					missing = append(missing, c)
+					continue
+				}
+				return err
 			}
 			overrideColumns = append(overrideColumns, bestMatchingColumnName)
 		}
+		sort.Strings(tableColumns)
+		tableToColumns[t.ForOutput()] = tableColumns
 		if len(missing) > 0 {
 			sort.Strings(missing)
-			sort.Strings(tableColumns)
-			return goerrors.Errorf("cdc-partition-key-overrides: custom key column(s) '%v' do not exist on table '%s' (available columns: %v)", missing, t.ForOutput(), tableColumns)
+			missingColumnsOnTables[t.ForOutput()] = missing
+		} else if len(ambiguous) > 0 {
+			sort.Strings(ambiguous)
+			ambiguousColumnsOnTables[t.ForOutput()] = ambiguous
 		} else {
 			override.Columns = overrideColumns
 			tableToPartitionKeyOverrideMap.Put(t, override)
 		}
+	}
+	errMsg := ""
+	if len(missingColumnsOnTables) > 0 {
+		for table, columns := range missingColumnsOnTables {
+			errMsg += fmt.Sprintf("custom key column(s) '%v' do not exist on table '%s' (available columns: %v)\n", columns, table, tableToColumns[table])
+		}
+	}
+	if len(ambiguousColumnsOnTables) > 0 {
+		for table, columns := range ambiguousColumnsOnTables {
+			errMsg += fmt.Sprintf("custom key column(s) '%v' are ambiguous on table '%s' (available columns: %v)\n", columns, table, tableToColumns[table])
+		}
+	}
+	if errMsg != "" {
+		return goerrors.Errorf(errMsg)
 	}
 	return nil
 }

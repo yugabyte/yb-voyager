@@ -2106,7 +2106,6 @@ func TestLiveMigrationCustomCdcPartitionKeyNoConflict(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
 
-
 func TestLiveMigrationCustomCaseSensitiveCdcPartitionKeyNoConflict(t *testing.T) {
 	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
@@ -2138,18 +2137,36 @@ func TestLiveMigrationCustomCaseSensitiveCdcPartitionKeyNoConflict(t *testing.T)
 			-- key => same channel, so conflict detection must skip them.
 			CREATE UNIQUE INDEX idx_test_live_custom_key ON test_schema.test_live ("CustomKey") WHERE most_recent;`,
 			`CREATE UNIQUE INDEX idx_test_live_multi_case_custom_key ON test_schema.test_live_multi_case ("customKey","customKey1") WHERE most_recent;`,
+
+			`CREATE TABLE test_schema.test_partitioned_case_sensitive (
+				id int,
+				"CustomKey" int,
+				most_recent boolean,
+				region text,
+				PRIMARY KEY (id, region)
+			) PARTITION BY LIST (region);
+			CREATE UNIQUE INDEX idx_test_partitioned_case_sensitive_custom_key ON test_schema.test_partitioned_case_sensitive ("CustomKey",region) WHERE most_recent;`,
+			`CREATE TABLE test_schema.test_partitioned_case_sensitive_us PARTITION OF test_schema.test_partitioned_case_sensitive FOR VALUES IN ('us');`,
+			`CREATE TABLE test_schema.test_partitioned_case_sensitive_eu PARTITION OF test_schema.test_partitioned_case_sensitive FOR VALUES IN ('eu');`,
 		},
 		SourceSetupSchemaSQL: []string{
 			`ALTER TABLE test_schema.test_live REPLICA IDENTITY FULL;`,
 			`ALTER TABLE test_schema.test_live_multi_case REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.test_partitioned_case_sensitive REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.test_partitioned_case_sensitive_us REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.test_partitioned_case_sensitive_eu REPLICA IDENTITY FULL;`,
 		},
 		InitialDataSQL: []string{
 			// Snapshot rows with distinct custom_keys and most_recent=false so they don't occupy
 			// the partial unique index and don't collide with the delta's ids/custom_key.
 			`INSERT INTO test_schema.test_live (id, "CustomKey", most_recent)
 			 SELECT i, i, false FROM generate_series(100, 104) i;`,
-			 `INSERT INTO test_schema.test_live_multi_case (id, "customKey", "customKey1", most_recent)
+			`INSERT INTO test_schema.test_live_multi_case (id, "customKey", "customKey1", most_recent)
 			 SELECT i, i, i, false FROM generate_series(100, 104) i;`,
+			`INSERT INTO test_schema.test_partitioned_case_sensitive (id, "CustomKey", most_recent, region)	
+			SELECT i, i, false, 'us' FROM generate_series(100, 104) i;`,
+			`INSERT INTO test_schema.test_partitioned_case_sensitive(id, "CustomKey", most_recent, region)	
+			SELECT i, i, false, 'eu' FROM generate_series(105, 109) i;`,
 		},
 		SourceDeltaSQL: []string{
 			// Single transaction (DO block): all events share custom_key=1.
@@ -2186,6 +2203,23 @@ func TestLiveMigrationCustomCaseSensitiveCdcPartitionKeyNoConflict(t *testing.T)
 				UPDATE test_schema.test_live_multi_case SET most_recent = false WHERE id = 6;
 				INSERT INTO test_schema.test_live_multi_case (id, "customKey", "customKey1", most_recent) VALUES (7, 1, 1, true);
 			END $$;`,
+
+			`DO $$	
+			BEGIN
+				INSERT INTO test_schema.test_partitioned_case_sensitive (id, "CustomKey", most_recent, region) VALUES (1, 1, true, 'us');
+				UPDATE test_schema.test_partitioned_case_sensitive SET most_recent = false WHERE id = 1;
+				INSERT INTO test_schema.test_partitioned_case_sensitive (id, "CustomKey", most_recent, region) VALUES (2, 1, true, 'us');
+				UPDATE test_schema.test_partitioned_case_sensitive SET most_recent = false WHERE id = 2;
+				INSERT INTO test_schema.test_partitioned_case_sensitive (id, "CustomKey", most_recent, region) VALUES (3, 1, true, 'us');
+				UPDATE test_schema.test_partitioned_case_sensitive SET most_recent = false WHERE id = 3;
+				INSERT INTO test_schema.test_partitioned_case_sensitive (id, "CustomKey", most_recent, region) VALUES (4, 1, true, 'us');
+				UPDATE test_schema.test_partitioned_case_sensitive SET most_recent = false WHERE id = 4;
+				INSERT INTO test_schema.test_partitioned_case_sensitive (id, "CustomKey", most_recent, region) VALUES (5, 1, true, 'us');
+				UPDATE test_schema.test_partitioned_case_sensitive SET most_recent = false WHERE id = 5;
+				INSERT INTO test_schema.test_partitioned_case_sensitive (id, "CustomKey", most_recent, region) VALUES (6, 1, true, 'us');
+				UPDATE test_schema.test_partitioned_case_sensitive SET most_recent = false WHERE id = 6;
+				INSERT INTO test_schema.test_partitioned_case_sensitive (id, "CustomKey", most_recent, region) VALUES (7, 1, true, 'us');
+			END $$;`,
 		},
 		CleanupSQL: []string{
 			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
@@ -2211,14 +2245,15 @@ func TestLiveMigrationCustomCaseSensitiveCdcPartitionKeyNoConflict(t *testing.T)
 
 	err = lm.StartImportDataWithEnv(true, map[string]string{
 		"--cdc-partition-key":           "auto",
-		"--cdc-partition-key-overrides": "test_schema.test_live:(\"CustomKey\");test_schema.test_live_multi_case:(customkey,customKey1)",
+		"--cdc-partition-key-overrides": "test_schema.test_live:(\"CustomKey\");test_schema.test_live_multi_case:(customkey,customKey1);test_schema.test_partitioned_case_sensitive:(CustomKey)",
 	}, []string{uniqueKeyConflictCountFailpointEnv})
 	testutils.FatalIfError(t, err, "failed to start import data")
 	defer lm.StopImportData()
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		`"test_schema"."test_live"`: 5,
-		`"test_schema"."test_live_multi_case"`: 5,
+		`"test_schema"."test_live"`:                       5,
+		`"test_schema"."test_live_multi_case"`:            5,
+		`"test_schema"."test_partitioned_case_sensitive"`: 10,
 	}, 120)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
@@ -2241,8 +2276,9 @@ func TestLiveMigrationCustomCaseSensitiveCdcPartitionKeyNoConflict(t *testing.T)
 
 	// Delta: 7 inserts, 6 updates, 0 deletes.
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`"test_schema"."test_live"`: {Inserts: 7, Updates: 6, Deletes: 0},
-		`"test_schema"."test_live_multi_case"`: {Inserts: 7, Updates: 6, Deletes: 0},
+		`"test_schema"."test_live"`:                       {Inserts: 7, Updates: 6, Deletes: 0},
+		`"test_schema"."test_live_multi_case"`:            {Inserts: 7, Updates: 6, Deletes: 0},
+		`"test_schema"."test_partitioned_case_sensitive"`: {Inserts: 7, Updates: 6, Deletes: 0},
 	}, 120, 5)
 	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
 
@@ -2260,16 +2296,19 @@ func TestLiveMigrationCustomCaseSensitiveCdcPartitionKeyNoConflict(t *testing.T)
 
 	err = lm.StartImportData(false, map[string]string{
 		"--cdc-partition-key":           "auto",
-		"--cdc-partition-key-overrides": "test_schema.test_live:(custom_key);test_schema.test_live_multi_case:(customkey,customKey1)",
+		"--cdc-partition-key-overrides": "test_schema.test_live:(custom_key);test_schema.test_live_multi_case:(customkey,customKey1);test_schema.test_partitioned_case_sensitive:(customPkey)",
 	})
 	require.Error(t, err, "import with a non-existent custom key column should fail")
 	output := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
-	require.Contains(t, output, "cdc-partition-key-overrides: custom key column(s) '[custom_key]' do not exist on table 'test_schema.test_live' (available columns: [CustomKey id most_recent]",
+	require.Contains(t, output, "custom key column(s) '[custom_key]' do not exist on table 'test_schema.test_live' (available columns: [CustomKey id most_recent]",
+		"expected missing-column rejection, got: %s", output)
+
+	require.Contains(t, output, "custom key column(s) '[customPkey]' do not exist on table 'test_schema.test_partitioned_case_sensitive' (available columns: [CustomKey id most_recent region]",
 		"expected missing-column rejection, got: %s", output)
 
 	err = lm.StartImportData(true, map[string]string{
 		"--cdc-partition-key":           "auto",
-		"--cdc-partition-key-overrides": "test_schema.test_live:(Customkey);test_schema.test_live_multi_case:(customkey,customKey1)",
+		"--cdc-partition-key-overrides": "test_schema.test_live:(Customkey);test_schema.test_live_multi_case:(customkey,customKey1);test_schema.test_partitioned_case_sensitive:(Customkey)",
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
@@ -2279,7 +2318,6 @@ func TestLiveMigrationCustomCaseSensitiveCdcPartitionKeyNoConflict(t *testing.T)
 	err = lm.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
-
 
 // TestLiveMigrationCdcPartitionKeyRejectsCustomOnExpressionUniqueIndex verifies the
 // expression-UK guardrail for a custom partition key (Follow-up 1.1): a custom key routes
@@ -2465,7 +2503,7 @@ func TestLiveMigrationCdcPartitionKeyRejectsCustomKeyColumnNotOnTable(t *testing
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
 
-func TestLiveMigrationWithSubsetOFPartialUNiqueIndexColumnsBeingChangedInUpdate(t *testing.T) {  
+func TestLiveMigrationWithSubsetOFPartialUNiqueIndexColumnsBeingChangedInUpdate(t *testing.T) {
 	t.Parallel()
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
@@ -2606,7 +2644,6 @@ func TestLiveMigrationWithSubsetOFPartialUNiqueIndexColumnsBeingChangedInUpdate(
 	err = liveMigrationTest.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
-
 
 // TestLiveMigrationCustomCdcPartitionKeyPKRecycleConflict verifies the primary-key guard for
 // custom-key tables (Follow-up 3.2): the primary key is added to the conflict set so a
@@ -2898,7 +2935,6 @@ func TestLiveMigrationPartitionedTableWithCustomCdcPartitionKeyNoConflict(t *tes
 	}
 	require.Nil(t, conflicts, "no unique-key conflicts should be detected: all r1 events share the custom key => same channel")
 
-	
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "target does not match source after streaming")
 
