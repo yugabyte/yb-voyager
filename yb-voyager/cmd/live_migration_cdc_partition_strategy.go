@@ -536,7 +536,7 @@ func validateCustomPartitionKeyTables(tableToPartitionKeyOverrideMap *utils.Stru
 		}
 	}
 	if errMsg != "" {
-		return goerrors.Errorf(errMsg)
+		return goerrors.Errorf("cdc-partition-key-overrides: %s", errMsg)
 	}
 	return nil
 }
