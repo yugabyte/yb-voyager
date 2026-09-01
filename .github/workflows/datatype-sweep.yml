@@ -63,7 +63,15 @@ jobs:
         run: |
           cd yb-voyager
           go test -tags integration_live_migration ./src/testlivemigration/ -v \
-            -run 'TestSweepClassifierRequiresEvidence|TestSweepClassifierFlakeIsNotStuck|TestSweepClassifierCollateralIsInconclusive|TestImportFailureSignature|TestSweepWait|TestCrashLoopAttribution|TestReportFingerprintTracksProgress|TestWaitOutcomesStayDistinguishable'
+            -run 'TestSweepClassifier|TestImportFailureSignature|TestSweepWait|TestCrashLoopAttribution|TestReportFingerprintTracksProgress|TestWaitOutcomesStayDistinguishable|TestExportFailure|TestExportAndImportFailuresStayDistinguishable|TestExportDeathVerdictIsPublishable|TestImportCrashLoopSurvivesExportDetection|TestBoundedFetcher'
+
+      # Liveness bookkeeping on the shared command runner: HasExited must be poll-safe
+      # and IsStopped must not consume the async stop channel. A wait loop that asks
+      # liveness every two seconds depends on both.
+      - name: Command runner liveness guards
+        run: |
+          cd yb-voyager
+          go test ./test/utils/ -run 'TestHasExited|TestIsStopped|TestRecordExit' -v
 
       - name: Upload the probe catalog
         uses: actions/upload-artifact@v4

@@ -238,6 +238,193 @@ func TestSweepWaitStopsWhenCountsSatisfied(t *testing.T) {
 	}
 }
 
+// ============================================================
+// LIVENESS: the wait must not outlive the process it is waiting on
+// ============================================================
+
+// The one-shot death this whole path exists for: PostgreSQL refuses to accept a value of
+// the type at all, `import data` says so ONCE, and the process exits. There is no
+// crash-loop to count, so the repeat threshold never trips.
+const oneShotDeathLine = `[import data] error executing batch on channel 1: error preparing statements ` +
+	`for events in batch (1:12): ERROR: cannot accept a value of type pg_node_tree ` +
+	`(SQLSTATE 0A000) table=sweep_schema.p_catalog_004`
+
+// runWaitWithDeadCommand drives the loop against a pipeline whose command has exited at a
+// chosen poll. exitErr nil means it exited cleanly.
+func runWaitWithDeadCommand(budget time.Duration, logText, command string, exitErr error, deadFrom int) waitResult {
+	clock := newFakeClock()
+	poll := 0
+	return waitForSignalOrCrashLoop(budget, sweepWaitPoll, func() waitSample {
+		poll++
+		s := waitSample{progress: "frozen", logText: logText}
+		if poll >= deadFrom {
+			s.goneCommand, s.goneErr = command, exitErr
+		}
+		return s
+	}, clock.now, clock.sleep)
+}
+
+// TestSweepWaitTerminatesOnAnExitedImporter: the process is gone, so the counts are never
+// coming. No repeat count, no signature, no threshold - just liveness.
+func TestSweepWaitTerminatesOnAnExitedImporter(t *testing.T) {
+	budget := seconds(sweepStreamingTimeout) // 900 s
+	res := runWaitWithDeadCommand(budget, oneShotDeathLine+"\n", "import data",
+		fmt.Errorf("command failed: exit status 1"), 1)
+
+	if res.outcome != waitProcessGone {
+		t.Fatalf("outcome = %s, want %s (summary: %s)", res.outcome, waitProcessGone, res.summary())
+	}
+	// One detecting poll plus one confirming poll, and a single sleep between them.
+	if res.polls != 2 {
+		t.Errorf("concluded after %d polls, want 2", res.polls)
+	}
+	if res.elapsed != sweepWaitPoll {
+		t.Errorf("elapsed = %s, want %s", res.elapsed, sweepWaitPoll)
+	}
+	if res.saved() != budget-res.elapsed {
+		t.Errorf("saved = %s, want %s", res.saved(), budget-res.elapsed)
+	}
+	if s := res.summary(); !strings.Contains(s, "import data") ||
+		!strings.Contains(s, "exit status 1") || !strings.Contains(s, "898s") {
+		t.Errorf("summary does not name the command, its exit and the saving: %q", s)
+	}
+	// The single occurrence is what makes this case different from a crash-loop: the
+	// repeat-count path could not have concluded here.
+	if crash := runWaitWithLog(20*time.Second, oneShotDeathLine+"\n"); crash.outcome != waitTimeout {
+		t.Errorf("a single occurrence with a LIVE importer ended the wait as %s; only "+
+			"liveness may conclude on one occurrence", crash.outcome)
+	}
+}
+
+// TestSweepWaitExitedImporterQuotesTheError: the verdict a one-shot death produces. The
+// error is quotable, so it is STUCK with the SQLSTATE - the same evidence bar as the
+// crash-loop path, met by a single occurrence because the process only got to say it once.
+func TestSweepWaitExitedImporterQuotesTheError(t *testing.T) {
+	quoted, _, n := mostRepeatedErrorDetail(oneShotDeathLine, "")
+	if quoted == "" || n != 1 {
+		t.Fatalf("the one-shot death line is not quotable: %q x%d", quoted, n)
+	}
+	if !strings.Contains(quoted, "0A000") {
+		t.Errorf("quoted error lost its SQLSTATE: %q", quoted)
+	}
+
+	verdict, detail := decideVerdict(modeLive, probeObservation{
+		snapshotCompared: true, streamCompared: true,
+		eventsForTable: 2, columnSeenInEvents: true,
+		waitTimedOut: true, commandExited: true,
+		commandExitDetail: "import data exited during the forward streaming wait after 2s",
+		stuckDetail:       quoted + " (x1) - import data exited during the forward streaming wait after 2s",
+	})
+	if verdict != verdictStuck {
+		t.Fatalf("an importer that exited on a quotable error classified %s, want %s (%s)",
+			verdict, verdictStuck, detail)
+	}
+	if !strings.Contains(detail, "0A000") {
+		t.Errorf("the STUCK detail does not quote the SQLSTATE: %s", detail)
+	}
+}
+
+// TestSweepWaitCleanExitIsInconclusive: a process that finished and left is a reason to
+// stop waiting, never evidence against a datatype.
+func TestSweepWaitCleanExitIsInconclusive(t *testing.T) {
+	res := runWaitWithDeadCommand(20*time.Second, "nothing interesting\n", "import data", nil, 1)
+	if res.outcome != waitProcessGone {
+		t.Fatalf("outcome = %s, want %s", res.outcome, waitProcessGone)
+	}
+	if !strings.Contains(res.summary(), "exited cleanly") {
+		t.Errorf("a clean exit is not described as one: %q", res.summary())
+	}
+
+	// What recordCommandExit records for it: commandExited, and nothing quotable.
+	verdict, detail := decideVerdict(modeLive, probeObservation{
+		snapshotCompared: true, streamCompared: true,
+		eventsForTable: 2, columnSeenInEvents: true,
+		waitTimedOut: true, commandExited: true,
+		commandExitDetail: "import data exited during the forward streaming wait after 2s, " +
+			"before the expected counts arrived; a clean exit is not a failure, so nothing " +
+			"is claimed about this type",
+	})
+	if verdict != verdictInconclusive {
+		t.Fatalf("a clean exit classified %s, want %s (%s)", verdict, verdictInconclusive, detail)
+	}
+	if verdict == verdictStuck || verdict == verdictSilentLoss {
+		t.Fatal("a clean exit must never produce a failure verdict")
+	}
+}
+
+// TestSweepWaitUnquotableExitIsInconclusive: the process died for a reason nothing in the
+// log can be quoted for. Real, but not attributable to a datatype - so it is INCONCLUSIVE,
+// exactly as the "wait expired with nothing quotable" case is.
+func TestSweepWaitUnquotableExitIsInconclusive(t *testing.T) {
+	verdict, detail := decideVerdict(modeLive, probeObservation{
+		snapshotCompared: true, streamCompared: true,
+		eventsForTable: 2, columnSeenInEvents: true,
+		waitTimedOut: true, commandExited: true,
+		commandExitDetail: "import data exited during the snapshot wait after 4s: exit status 1; " +
+			"NO error line matching an import-failure signature was found",
+	})
+	if verdict != verdictInconclusive {
+		t.Fatalf("an unexplained exit classified %s, want %s (%s)", verdict, verdictInconclusive, detail)
+	}
+}
+
+// TestSweepWaitLiveCommandsKeepTheirBudget: the two cases that must NOT be disturbed by
+// liveness - a live but wedged importer still takes the crash-loop path, and a live, quiet
+// pipeline still spends its budget.
+func TestSweepWaitLiveCommandsKeepTheirBudget(t *testing.T) {
+	wedged := runWaitWithLog(900*time.Second, strings.Repeat(crashLoopLine+"\n", 6))
+	if wedged.outcome != waitRepeatingError {
+		t.Errorf("a live, wedged importer ended as %s, want %s", wedged.outcome, waitRepeatingError)
+	}
+	quiet := runWaitWithLog(20*time.Second, "Waiting for streaming mode\n")
+	if quiet.outcome != waitTimeout {
+		t.Errorf("a live, quiet pipeline ended as %s, want %s", quiet.outcome, waitTimeout)
+	}
+}
+
+// TestSweepWaitConfirmsBeforeCallingACommandDead guards the race the confirming poll
+// exists for: a command that wrote its last events and then exited has SUCCEEDED, and must
+// not be reported as having died without a result.
+func TestSweepWaitConfirmsBeforeCallingACommandDead(t *testing.T) {
+	clock := newFakeClock()
+	poll := 0
+	res := waitForSignalOrCrashLoop(900*time.Second, sweepWaitPoll, func() waitSample {
+		poll++
+		return waitSample{
+			// The counts land on the confirming poll, one after the exit is noticed.
+			satisfied:   poll >= 2,
+			progress:    "frozen",
+			goneCommand: "import data",
+			goneErr:     fmt.Errorf("command failed: exit status 1"),
+		}
+	}, clock.now, clock.sleep)
+
+	if res.outcome != waitSatisfied {
+		t.Fatalf("outcome = %s, want %s: a command that finished its work and then exited "+
+			"must not be reported as dead-without-result", res.outcome, waitSatisfied)
+	}
+}
+
+// TestSweepWaitExporterLogBeatsBareLiveness: when the export side is dead AND its log says
+// why, the log wins - "the connector threw a NullPointerException" is a finding, "the
+// process is gone" is only a fact.
+func TestSweepWaitExporterLogBeatsBareLiveness(t *testing.T) {
+	clock := newFakeClock()
+	res := waitForSignalOrCrashLoop(900*time.Second, sweepWaitPoll, func() waitSample {
+		return waitSample{
+			progress:    "frozen",
+			exportText:  exporterDeathLog,
+			goneCommand: "export data",
+			goneErr:     fmt.Errorf("command failed: exit status 1"),
+		}
+	}, clock.now, clock.sleep)
+
+	if res.outcome != waitExportDied {
+		t.Fatalf("outcome = %s, want %s: an export death with a quotable cause must not be "+
+			"downgraded to bare liveness", res.outcome, waitExportDied)
+	}
+}
+
 // TestReportFingerprintTracksProgress pins what "the counts advanced" means: any exported
 // or imported number moving, on any table, in either direction.
 func TestReportFingerprintTracksProgress(t *testing.T) {

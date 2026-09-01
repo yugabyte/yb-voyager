@@ -216,6 +216,12 @@ const (
 	// handing a seconds-count to utils.RetryWorkWithTimeout.
 	sweepWaitPoll time.Duration = 2 * time.Second
 
+	// sweepSyncCommandTimeout bounds a command the fixture starts SYNCHRONOUSLY - the
+	// offline flow's export and import. Seconds, like the other budgets in this block.
+	// See SetSyncCommandTimeout: a synchronous start blocks on the output pipes as well
+	// as on the process, and offline has no bounded wait of its own to notice.
+	sweepSyncCommandTimeout time.Duration = 900
+
 	// sweepSilenceGrace is the third negative signal: NOTHING moved anywhere - not the
 	// migration-report counts, not the import log, not the export log - for this long.
 	// A healthy pipeline is never silent for five minutes; both voyager processes log
@@ -598,6 +604,17 @@ type probeObservation struct {
 	// SILENT_LOSS. It is INCONCLUSIVE, and the culprit is named so the batch can be
 	// re-run without it.
 	channelWedgedBy string
+	// channelWedgedHow says what the culprit actually did, since the two shapes want
+	// different words: it either crash-looped the channel (the importer is alive and
+	// retrying) or killed the process outright. Empty means the crash-loop.
+	channelWedgedHow string
+
+	// commandExited records that a command the wait depended on was no longer running.
+	// It is an environment fact on its own - a process that has exited produces no more
+	// counts - and becomes a datatype verdict only via stuckDetail, when the log carries
+	// a quotable reason for the exit.
+	commandExited     bool
+	commandExitDetail string
 
 	// exporterDied records that the EXPORT side demonstrably failed and that this probe
 	// is the one it can be attributed to. exporterDetail carries the quotable cause: the
@@ -711,6 +728,13 @@ func newSweepRun(t *testing.T, mode sweepMode, batchName string, probes []dataty
 	for _, p := range probes {
 		r.obs[p.ID] = &probeObservation{}
 	}
+	// The offline flow starts its export and import SYNCHRONOUSLY, and a synchronous start
+	// blocks in exec.Cmd.Wait until the output pipes close as well as until the process
+	// exits - so a wedged grandchild holding the inherited pipe parks the harness in an
+	// I/O wait with no output at all. Offline runs no bounded wait of its own, so this
+	// ceiling is the only thing between it and a hang.
+	r.lm.SetSyncCommandTimeout(seconds(sweepSyncCommandTimeout))
+
 	r.reports = &boundedFetcher{fetch: r.lm.GetDataMigrationReport}
 	// A fetch that outlived its budget is still running and still logging through t.
 	// t.Cleanup runs before the test is marked complete, so this is the last point at
@@ -1274,6 +1298,18 @@ const (
 	// unlike a crash-loop this needs no repeat count: a connector that reported itself
 	// completed-with-failure does not un-complete.
 	waitExportDied waitOutcome = "exporter-died"
+	// waitProcessGone - the strongest of the negative signals, because it needs no
+	// heuristic at all: a command the wait depends on is NO LONGER RUNNING. Event counts
+	// cannot arrive from a process that has exited, so waiting out the budget for them is
+	// pointless by definition.
+	//
+	// It is also the commonest failure shape in this suite. A type the importer cannot
+	// bind on the target - `cannot accept a value of type pg_node_tree` (SQLSTATE 0A000),
+	// and the same for tid and regclass - makes `import data` report the error ONCE and
+	// exit. There is no crash-loop to count, so the repeat threshold never trips, and
+	// before this outcome existed a batch of such types (catalogstats) sat out its whole
+	// budget and emitted nothing.
+	waitProcessGone waitOutcome = "process-exited"
 	// waitNoOutput - nothing anywhere moved for sweepSilenceGrace: not the counts, not
 	// the import log, not the export log. Something upstream is wedged in a way that
 	// writes nothing down, which is an environment fact and classifies INCONCLUSIVE.
@@ -1299,6 +1335,13 @@ type waitSample struct {
 	// exporter that died at startup used to cost a full 900 s budget and then report
 	// nothing at all.
 	exportText string
+
+	// goneCommand names a migration command that is no longer running, and goneErr is the
+	// error its Wait returned (nil for a clean exit). Empty means everything the wait
+	// depends on is still alive. This is liveness, not log-reading: it is true or false,
+	// with no threshold to tune and no signature to match.
+	goneCommand string
+	goneErr     error
 }
 
 type waitResult struct {
@@ -1309,6 +1352,18 @@ type waitResult struct {
 	quotedError string // set for waitRepeatingError: the error, with its SQLSTATE
 	repeats     int
 	silence     time.Duration // set for waitNoOutput: how long nothing moved
+	goneCommand string        // set for waitProcessGone: the command that is no longer running
+	goneErr     error         // its exit error, nil for a clean exit
+}
+
+// exitDescription renders a dead command's exit for the PROBE-WAIT line. A clean exit is
+// called out explicitly because it is NOT a failure: a command that finished and left is a
+// reason to stop waiting, not evidence against a datatype.
+func (w waitResult) exitDescription() string {
+	if w.goneErr == nil {
+		return "it exited cleanly"
+	}
+	return "it exited with: " + w.goneErr.Error()
 }
 
 // activitySignature renders everything the pipeline could possibly have produced since the
@@ -1332,7 +1387,9 @@ func hashText(s string) uint64 {
 // saved is the wait budget the early conclusion did not have to spend. Both negative
 // signals save it: a wedged importer and a dead exporter are equally pointless to sit out.
 func (w waitResult) saved() time.Duration {
-	if w.outcome != waitRepeatingError && w.outcome != waitExportDied && w.outcome != waitNoOutput {
+	switch w.outcome {
+	case waitRepeatingError, waitExportDied, waitNoOutput, waitProcessGone:
+	default:
 		return 0
 	}
 	if w.elapsed > w.budget {
@@ -1355,6 +1412,10 @@ func (w waitResult) summary() string {
 		return fmt.Sprintf("the export side is dead - %s; no event can arrive from a dead "+
 			"exporter, so the remaining %ds of the budget was not waited out",
 			w.quotedError, int(w.saved().Seconds()))
+	case waitProcessGone:
+		return fmt.Sprintf("%s is no longer running - %s; event counts cannot arrive from a "+
+			"process that has exited, so the remaining %ds of the budget was not waited out",
+			w.goneCommand, w.exitDescription(), int(w.saved().Seconds()))
 	case waitNoOutput:
 		return fmt.Sprintf("nothing moved anywhere for %.0fs - not the migration-report counts, "+
 			"not the import log, not the export log: a pipeline that logged nothing at all, "+
@@ -1409,6 +1470,29 @@ func waitForSignalOrCrashLoop(
 			return waitResult{
 				outcome: waitExportDied, elapsed: elapsed, budget: budget,
 				polls: polls, quotedError: cause,
+			}
+		}
+
+		// Liveness. Checked after the export log because a log that says WHY the exporter
+		// died is a better finding than "the process is gone", and before everything
+		// below because no amount of log-reading changes the fact that nothing more is
+		// coming from a process that has exited.
+		if s.goneCommand != "" {
+			// One confirming sample, one poll interval later. The counts are read at the
+			// top of a poll, so a command that wrote its last events and then exited
+			// would otherwise be called dead-without-result a poll too early; the pause
+			// is what gives the report - and a fetch that was stalled on this poll - time
+			// to catch up rather than re-reading the same stale numbers immediately.
+			sleep(poll)
+			confirm := sample()
+			polls++
+			elapsed = now().Sub(start)
+			if confirm.satisfied {
+				return waitResult{outcome: waitSatisfied, elapsed: elapsed, budget: budget, polls: polls}
+			}
+			return waitResult{
+				outcome: waitProcessGone, elapsed: elapsed, budget: budget, polls: polls,
+				goneCommand: s.goneCommand, goneErr: s.goneErr,
 			}
 		}
 
@@ -1596,14 +1680,37 @@ func (r *sweepRun) waitBounded(what string, budget time.Duration, satisfied func
 			r.t.Logf("wait %q: cannot read the data-migration report: %v", what, err)
 			report = nil
 		}
+		gone, goneErr := r.firstExitedCommand()
 		return waitSample{
-			satisfied:  satisfied(report),
-			progress:   reportFingerprint(report),
-			logText:    r.importLogFileText(),
-			exportText: r.exportLogFileText(),
+			satisfied:   satisfied(report),
+			progress:    reportFingerprint(report),
+			logText:     r.importLogFileText(),
+			exportText:  r.exportLogFileText(),
+			goneCommand: gone,
+			goneErr:     goneErr,
 		}
 	}
 	r.applyWaitResult(what, waitForSignalOrCrashLoop(budget, sweepWaitPoll, sample, time.Now, time.Sleep))
+}
+
+// firstExitedCommand reports the first migration command this fixture started that is no
+// longer running, together with the error its Wait returned.
+//
+// Every command the sweep starts is supposed to be running for the whole of every wait:
+// `export data` and `import data` stream until cutover (and at cutover they EXEC into
+// their fall-back roles, keeping the same process), and `import data to source-replica`
+// streams until a cutover the sweep never performs. So any of them being gone during a
+// wait is by construction an end to that wait.
+//
+// It asks HasExited rather than IsStopped's old channel peek, because this runs on a timer
+// and the answer has to be repeatable.
+func (r *sweepRun) firstExitedCommand() (string, error) {
+	for _, c := range r.lm.StartedCommands() {
+		if exited, err := c.Runner.HasExited(); exited {
+			return c.Name, err
+		}
+	}
+	return "", nil
 }
 
 // applyWaitResult records one wait's outcome: the greppable PROBE-WAIT line, and, when the
@@ -1631,6 +1738,13 @@ func (r *sweepRun) applyWaitResult(what string, res waitResult) {
 			o.waitNote = appendNote(o.waitNote, fmt.Sprintf(
 				"%s wait concluded early on a dead exporter", what))
 		}
+		return
+	}
+
+	// A command the wait depended on is gone. Which log holds the reason depends on which
+	// side died, and a clean exit has no reason to look for at all.
+	if res.outcome == waitProcessGone {
+		r.recordCommandExit(what, res)
 		return
 	}
 
@@ -1689,6 +1803,102 @@ func (r *sweepRun) applyWaitResult(what string, res waitResult) {
 	}
 }
 
+// recordCommandExit turns "a command this wait depended on is gone" into per-probe
+// evidence. The evidence rules are the harness's usual ones, applied to a new signal:
+//
+//   - a CLEAN exit is not a failure. Nothing about a datatype follows from a process that
+//     finished and left, so every probe is INCONCLUSIVE and nothing is quoted.
+//   - an UNCLEAN exit is a failure of the pipeline, but it is a failure of a DATATYPE only
+//     if the log carries a quotable import-failure signature. Same rule as the crash-loop
+//     path, with one difference that is the entire point of this path: the required repeat
+//     count is ONE, because a process that dies on the first value it cannot bind reports
+//     that value exactly once before it goes.
+//   - an export-side death is routed through the export machinery, so it reaches the same
+//     EXPORTER_CRASHES verdict and the same publish rules as one found in the log.
+func (r *sweepRun) recordCommandExit(what string, res waitResult) {
+	how := fmt.Sprintf("%s exited during the %s wait after %.0fs",
+		res.goneCommand, what, res.elapsed.Seconds())
+
+	if res.goneErr == nil {
+		r.markCommandExited(fmt.Sprintf("%s, before the expected counts arrived; a clean exit "+
+			"is not a failure, so nothing is claimed about this type", how), how)
+		return
+	}
+
+	if strings.Contains(strings.ToLower(res.goneCommand), "export") {
+		// exportDiedDuring establishes the death from the export log and records it
+		// against the culprit, exactly as a death found by the log-watching path is.
+		if r.exportDiedDuring(how) {
+			for _, p := range r.active {
+				o := r.observe(p)
+				o.waitTimedOut = true
+				o.waitNote = appendNote(o.waitNote, how)
+			}
+			return
+		}
+		r.markCommandExited(r.exportAbortReason(how, res.goneErr), how)
+		return
+	}
+
+	logText := r.importLogText()
+	quoted, count := mostRepeatedError(logText, "")
+	reason := r.importAbortReason(how, res.goneErr)
+	if quoted == "" {
+		// The process died and left nothing quotable. Real, but not attributable to a
+		// datatype - and importAbortReason says so in as many words.
+		r.markCommandExited(reason, how)
+		return
+	}
+
+	culprit := ""
+	if id, ok := attributeCrashLoop(r.active, quoted); ok {
+		culprit = id
+		r.quarantine(id, res)
+	}
+	for _, p := range r.active {
+		o := r.observe(p)
+		o.waitTimedOut = true
+		o.commandExited = true
+		o.commandExitDetail = reason
+		o.waitNote = appendNote(o.waitNote, how)
+		if culprit != "" && p.ID != culprit {
+			o.channelWedgedBy, o.channelWedgedHow = culprit, "killed "+res.goneCommand
+			continue
+		}
+		if perTable, n := mostRepeatedError(logText, p.tableName()); n >= 1 {
+			o.stuckDetail = fmt.Sprintf("%s (x%d) - %s", perTable, n, how)
+		} else if culprit == "" {
+			// The error names no probe's table, so it is recorded against every probe
+			// rather than pinned on one that may have nothing to do with it.
+			o.stuckDetail = fmt.Sprintf("%s (x%d) - %s", quoted, count, how)
+		}
+	}
+}
+
+// markCommandExited records a command's exit as an environment fact on every active probe:
+// the wait is over, but nothing about any datatype follows from it.
+func (r *sweepRun) markCommandExited(detail, how string) {
+	r.t.Logf("COMMAND EXITED: %s", detail)
+	for _, p := range r.active {
+		o := r.observe(p)
+		o.waitTimedOut = true
+		o.commandExited = true
+		o.commandExitDetail = detail
+		o.waitNote = appendNote(o.waitNote, how)
+	}
+}
+
+// probeTableOf returns the table name of one probe id, or "" when the batch has no such
+// probe - used to narrow a log scan to the probe under discussion.
+func probeTableOf(probes []datatypeProbe, probeID string) string {
+	for _, p := range probes {
+		if p.ID == probeID {
+			return p.tableName()
+		}
+	}
+	return ""
+}
+
 // attributeCrashLoop names the probe responsible for a repeating error, which is possible
 // only when EXACTLY ONE active probe's table appears in it. Two matches (or none) means
 // the error does not identify a culprit, and guessing one would quarantine an innocent
@@ -1725,12 +1935,23 @@ func (r *sweepRun) quarantine(probeID string, res waitResult) {
 			typeName = p.TypeName
 		}
 	}
-	fmt.Printf("PROBE-RUN-QUARANTINE: %s | %s | %s (%s) wedged the import channel after %.0fs: %s; "+
+	// What the culprit did, in the words that fit: a wedged channel is still being
+	// retried by a live importer, whereas a killed command is simply gone.
+	did, cause := "wedged the import channel", res.quotedError
+	if res.outcome == waitProcessGone {
+		did = "killed " + res.goneCommand
+		if quoted, _ := mostRepeatedError(r.importLogText(), probeTableOf(r.active, probeID)); quoted != "" {
+			cause = quoted
+		} else {
+			cause = res.exitDescription()
+		}
+	}
+	fmt.Printf("PROBE-RUN-QUARANTINE: %s | %s | %s (%s) %s after %.0fs: %s; "+
 		"every other probe in this batch is collateral and must be re-run without it. "+
 		"Measure it on its own with PROBE_ID=%s PROBE_MODE=%s -run TestDatatypeSweepSuspect\n",
-		r.batch, r.mode, probeID, typeName, res.elapsed.Seconds(),
-		sanitizeDetail(res.quotedError), probeID, r.mode)
-	r.t.Logf("quarantined probe %s: it crash-looped the import channel", probeID)
+		r.batch, r.mode, probeID, typeName, did, res.elapsed.Seconds(),
+		sanitizeDetail(cause), probeID, r.mode)
+	r.t.Logf("quarantined probe %s: it %s", probeID, did)
 }
 
 // ============================================================
@@ -2738,10 +2959,14 @@ func decideVerdictCore(mode sweepMode, o probeObservation) (string, string) {
 	//     this type. Neither STUCK (that blames it for another type's poison) nor a value
 	//     verdict (the comparison only shows how far the channel got) may be claimed.
 	if o.channelWedgedBy != "" {
+		how := o.channelWedgedHow
+		if how == "" {
+			how = "crash-looped the import channel"
+		}
 		return verdictInconclusive, withNote(fmt.Sprintf(
-			"the import channel was crash-looped by probe %s during this run, so every event for "+
-				"this table was stuck behind it and this type was never actually exercised; "+
-				"re-run the batch without %s", o.channelWedgedBy, o.channelWedgedBy),
+			"probe %s %s during this run, so every event for this table was stuck behind it "+
+				"and this type was never actually exercised; re-run the batch without %s",
+			o.channelWedgedBy, how, o.channelWedgedBy),
 			o.queueScanNote, o.waitNote)
 	}
 
@@ -2750,6 +2975,15 @@ func decideVerdictCore(mode sweepMode, o probeObservation) (string, string) {
 	//    "the wait expired" on its own is equally consistent with nothing having run.
 	if o.waitTimedOut && o.stuckDetail != "" {
 		return verdictStuck, o.stuckDetail
+	}
+	// 3a. A command the wait depended on is gone, and nothing quotable explains it (a
+	//     clean exit, or an unclean one that left no import-failure signature). The wait
+	//     rightly stopped - no counts can arrive from a dead process - but a dead process
+	//     is not a datatype verdict, and everything measured after it stopped shows only
+	//     how far the pipeline got. This is placed after 3 on purpose: when the log DOES
+	//     carry the reason, that reason is the finding.
+	if o.commandExited {
+		return verdictInconclusive, withNote(o.commandExitDetail, o.queueScanNote, o.waitNote)
 	}
 	// 3b. Wait expired, no events at all, and no quotable importer error: nothing was
 	//     retrying a bad event, there simply were no events. Environment, not product.

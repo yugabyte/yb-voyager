@@ -100,6 +100,37 @@ type VoyagerCommandRunner struct {
 	stopChan chan error
 
 	stdin io.Reader
+
+	// exitMu guards the exit record below. Wait() runs on the async goroutine, so a test
+	// goroutine asking "has this command finished" must not read exitCode/ProcessState
+	// directly - both are written by that goroutine.
+	exitMu  sync.Mutex
+	exited  bool
+	exitErr error
+}
+
+// recordExit stores the outcome of the one and only Wait() this command will ever get.
+func (v *VoyagerCommandRunner) recordExit(err error) {
+	v.exitMu.Lock()
+	defer v.exitMu.Unlock()
+	if !v.exited {
+		v.exited, v.exitErr = true, err
+	}
+}
+
+// HasExited reports whether the command's process has finished, together with the error
+// its Wait returned (nil for a clean exit).
+//
+// It is the POLL-SAFE liveness check, and IsStopped is not: IsStopped receives from the
+// single-buffered stop channel, so asking it twice reports a finished command as still
+// running and leaves a later GracefulStop or WaitForAsyncCompletion with nothing to
+// receive. HasExited reads a mutex-guarded record instead, so it can be asked on a timer -
+// which is what a bounded wait needs in order to stop waiting on a process that is already
+// gone.
+func (v *VoyagerCommandRunner) HasExited() (bool, error) {
+	v.exitMu.Lock()
+	defer v.exitMu.Unlock()
+	return v.exited, v.exitErr
 }
 
 // WithEnv adds custom environment variables to the command.
@@ -310,16 +341,41 @@ func (v *VoyagerCommandRunner) Run() error {
 	return nil
 }
 
-func (v *VoyagerCommandRunner) IsStopped() bool {
-	if v.stopChan != nil {
-		select {
-		case <-v.stopChan:
-			return true
-		default:
-			return false
-		}
+// RunBounded runs a command to completion like a synchronous Run(), but with a ceiling on
+// how long that may take. It starts the command asynchronously and then waits through
+// WaitForAsyncCompletion, which SIGKILLs the child if primaryTimeout elapses and gives up
+// afterKillTimeout later.
+//
+// A plain synchronous Run() has no such ceiling, and the ceiling is not theoretical:
+// exec.Cmd.Wait blocks until the output pipes are closed as well as until the process
+// exits, so a voyager command whose grandchild (the Debezium JVM) holds the inherited pipe
+// open wedges the caller in an I/O wait with nothing in the log to say so. A harness that
+// is measuring migrations must conclude on that rather than hang inside it.
+func (v *VoyagerCommandRunner) RunBounded(primaryTimeout, afterKillTimeout time.Duration) error {
+	wasAsync := v.isAsync
+	v.isAsync = true
+	defer func() { v.isAsync = wasAsync }()
+
+	if err := v.Run(); err != nil {
+		return err
 	}
-	// Synchronous Run() never sets stopChan; ProcessState is set after Wait returns.
+	return v.WaitForAsyncCompletion(primaryTimeout, afterKillTimeout)
+}
+
+// IsStopped reports whether the command has finished.
+//
+// It used to answer that by RECEIVING from the async stop channel, which made the answer
+// destructive: the channel holds exactly one value, so the second caller saw a finished
+// command as running, and a GracefulStop that then reached its SIGKILL branch blocked
+// forever on a channel nothing would ever send to again. Two callers on one runner is not
+// hypothetical - after cutover the fixture points two handles (importCmd and
+// exportFromTargetCmd) at the same runner, and Cleanup walks both. The exit record that
+// Wait now writes answers the same question without consuming anything.
+func (v *VoyagerCommandRunner) IsStopped() bool {
+	if exited, _ := v.HasExited(); exited {
+		return true
+	}
+	// Belt and braces for a command whose Wait was never routed through this type.
 	if v.Cmd != nil && v.Cmd.ProcessState != nil {
 		return true
 	}
@@ -354,7 +410,11 @@ func (v *VoyagerCommandRunner) WaitForAsyncCompletion(primaryTimeout, afterKillT
 	}
 }
 
-func (v *VoyagerCommandRunner) Wait() error {
+func (v *VoyagerCommandRunner) Wait() (retErr error) {
+	// Recorded for HasExited, on every path out of here, so a poller can see that this
+	// command is gone without racing the goroutine that is running this Wait.
+	defer func() { v.recordExit(retErr) }()
+
 	err := v.Cmd.Wait()
 	if v.logWriter != nil {
 		v.logWriter.Flush()

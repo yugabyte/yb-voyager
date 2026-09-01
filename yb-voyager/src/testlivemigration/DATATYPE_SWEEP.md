@@ -149,8 +149,8 @@ Related markers:
 - `PROBE-PUBLISHABLE` — the one row that survives its run's failed gate: an attributed
   export death. See [The one carve-out](#the-one-carve-out-an-attributed-export-death).
 - `PROBE-WAIT` — one line per bounded wait: how long it took, out of what budget, and why
-  it ended (`counts-satisfied` / `repeating-error` / `exporter-died` / `no-output` /
-  `timeout`).
+  it ended (`counts-satisfied` / `repeating-error` / `process-exited` / `exporter-died` /
+  `no-output` / `timeout`).
 
 Every classifier bug found so far — the false `WORKS` on an unmeasured run, the empty-error
 `STUCK`, the config-field `STUCK` — showed up **first** as a control coming out wrong.
@@ -472,13 +472,19 @@ could only conclude when the clock ran out. So the suite was fast when everythin
 and pathologically slow exactly when it found something — the cost of a run scaled with
 the number of *failures*, which is backwards for a tool whose purpose is finding them.
 
-| Situation | Was | Now |
-| --- | --- | --- |
-| A healthy probe | ~50 s | ~50 s (unchanged: the positive signal still wins) |
-| A failing probe, solo run | **240 s** (`sweepSoloStreamingTimeout`) | **~4 s** |
-| A failing probe, batched run | **900 s** (`sweepStreamingTimeout`) | **~4 s** |
-| A batch poisoned by one wedged value | ~48 min, then **discarded entirely** | seconds, and the culprit is named |
-| A stall that logs nothing | the full budget | the full budget — **deliberately unchanged** |
+"A failing probe" is not one case, and an earlier version of this table wrongly quoted the
+crash-loop figure for all of them. A failure ends a wait in one of four distinguishable
+ways, and only the last one still costs the budget:
+
+| How the pipeline fails | Signal | Was | Now |
+| --- | --- | --- | --- |
+| A healthy probe | counts arrive | ~50 s | ~50 s — the positive signal still wins |
+| **Wedged and repeating** — the importer is alive, retrying one batch, logging the same error | `repeating-error` | 240 s solo / **900 s** batched | **~4 s** (3 occurrences, 2 polls) |
+| **Exited** — `import data` reports `cannot accept a value of type <t>` (SQLSTATE 0A000) ONCE and dies; `tid`, `regclass`, `pg_node_tree`, `pg_ndistinct`, `pg_dependencies`, `pg_mcv_list` all fail this way | `process-exited` | **the whole budget** — no repeat to count, so this was the case the crash-loop detector missed (a `catalogstats` live batch spent 781 s and emitted nothing) | **~4 s** (detect + one confirming poll) |
+| **Exporter died** — the connector threw and `export data` is gone | `exporter-died` | the whole budget | seconds, with the exception quoted |
+| **Alive, silent, producing nothing** — nothing writes anything anywhere | `no-output` | the whole budget | `sweepSilenceGrace` (5 min), then concluded |
+| **Alive, still logging, still not finishing** | `timeout` | the full budget | the full budget — **deliberately unchanged** |
+| A batch poisoned by one wedged value | — | ~48 min, then **discarded entirely** | seconds, and the culprit is named |
 
 ### The negative signal
 
@@ -562,6 +568,56 @@ published anyway, via `PROBE-PUBLISHABLE`. See
 [The one carve-out](#the-one-carve-out-an-attributed-export-death) for why, and for the
 three conditions that keep it from becoming a way past the gate.
 
+### The strongest signal: the process is gone
+
+The two detectors above read *logs*. This one asks a question that needs no heuristic, no
+threshold and no signature at all:
+
+> **Is the process we are waiting on still running?**
+
+Event counts cannot arrive from a command that has exited, so waiting out a 900 s budget
+for them is pointless by definition. And this is the **commonest** failure shape in the
+suite, not an exotic one: a type the importer cannot bind on the target —
+`ERROR: cannot accept a value of type pg_node_tree (SQLSTATE 0A000)`, and the same for
+`tid` and `regclass` — makes `import data` report the error **once** and exit. There is no
+crash-loop, so `sweepCrashLoopRepeats` never trips. A `catalogstats` live batch ran 781 s,
+polled `get data-migration-report` the whole time, and emitted no `PROBE-WAIT` line at all,
+because the loop was healthy and the thing it was waiting for was dead.
+
+Each poll now asks `LiveMigrationTest.StartedCommands()` whether any command it started has
+finished. Every one of them is supposed to be running for the whole of every wait —
+`export data` and `import data` stream until cutover, and at cutover they **exec** into
+their fall-back roles, keeping the same process — so any of them being gone during a wait
+ends that wait (`process-exited`).
+
+- **Liveness is asked with `HasExited`, not `IsStopped`.** `IsStopped` used to answer by
+  *receiving* from the single-buffered async stop channel, which made the answer
+  destructive: the second caller saw a finished command as still running, and a later
+  `GracefulStop` that reached its SIGKILL branch blocked forever on a channel nothing would
+  send to again. Two callers on one runner is the normal case, not a corner one — after a
+  cutover two handles point at the same runner and `Cleanup` walks both. `Wait` now records
+  its outcome under a mutex, `HasExited` reads that record, and `IsStopped` consults it
+  instead of consuming anything (`TestIsStoppedDoesNotConsumeTheStopChannel`).
+- **A confirming poll comes first.** The counts are read at the top of a poll, so a command
+  that wrote its last events and *then* exited would otherwise be called
+  dead-without-result one poll too early. The loop takes one more sample, one interval
+  later, and a run whose counts land in it is `counts-satisfied`
+  (`TestSweepWaitConfirmsBeforeCallingACommandDead`).
+- **The evidence rules do not move.** An unclean exit is a datatype verdict only if the log
+  carries a quotable import-failure signature — the same `isImportFailureSignature` bar as
+  everywhere else, met by a **single** occurrence, because a process that dies on the first
+  value it cannot bind only ever says so once. That is `STUCK`, with the SQLSTATE quoted,
+  attributed and quarantined exactly as a crash-loop is.
+- **A clean exit is never a failure.** Nothing about a datatype follows from a process that
+  finished and left: every probe is `INCONCLUSIVE` and nothing is quoted. So is an unclean
+  exit that left nothing quotable — real, but not attributable to a type, and
+  `importAbortReason` says so in as many words.
+- **A dead exporter still goes through the export path.** Liveness is checked *after* the
+  export log, because "the connector threw a NullPointerException" is a finding while "the
+  process is gone" is only a fact. An export command that exited with a quotable cause
+  therefore reaches `EXPORTER_CRASHES`, not `process-exited`
+  (`TestSweepWaitExporterLogBeatsBareLiveness`).
+
 ### The third hang: a poll that never returns
 
 A wait loop is only as bounded as the slowest thing inside one poll, and one poll shells
@@ -600,13 +656,19 @@ Two changes bound it:
   does not, and a length-only check would call a crash-looping importer silent
   (`TestSweepWaitSilenceDoesNotFireOnABusyPipeline`).
 
-**What is still unbounded.** `Cmd.Wait()` is reached from more than the report fetch:
-`GracefulStop` waits on `stopChan` with no bound *after* its SIGKILL, and a synchronous
-`Run()` (offline's `export data` / `import data`) blocks in it directly. SIGKILL does not
-reach the Debezium JVM, so both can still hang on the same pipe. Fixing that properly means
-either giving the child an `*os.File` (a real pipe the harness closes itself) or killing
-the whole process group — a change to shared framework code that every live test depends
-on, so it wants its own PR and a real run behind it.
+**Synchronous starts are bounded too.** A synchronous `Run()` — offline's `export data`
+and `import data`, which run no bounded wait of their own — blocks in `Cmd.Wait()` on the
+same pipe. `SetSyncCommandTimeout` (the sweep sets `sweepSyncCommandTimeout`, 900 s) routes
+those through `RunBounded`, which starts the command asynchronously and hands it to
+`WaitForAsyncCompletion`: SIGKILL at the ceiling, and a further 30 s before it gives up.
+The command then fails with a reason rather than hanging with none.
+
+**What is still unbounded.** `GracefulStop` waits on `stopChan` with no bound *after* its
+SIGKILL, and SIGKILL does not reach the Debezium JVM, so a grandchild holding the pipe can
+still park a cleanup. Fixing that properly means either giving the child an `*os.File` (a
+real pipe the harness closes itself) or killing the whole process group — a change to
+shared framework code that every live test depends on, so it wants its own PR and a real
+run behind it.
 
 ### Seeing the saving
 
@@ -617,6 +679,7 @@ of trusting it:
 PROBE-WAIT: ranges | LIVE | forward streaming | counts-satisfied | 31.9s of 900s | expected counts reached after 16 polls
 PROBE-WAIT: json | LIVE | forward streaming | repeating-error | 2.0s of 900s | SQLSTATE 22P02: [import data] error executing batch on channel 3: ... repeated x5 with the observed counts frozen across 2 polls; concluded without waiting out the remaining 898s of the budget
 PROBE-WAIT: domains | LIVE | forward streaming | exporter-died | 0.0s of 900s | the export side is dead - Connector completed: success = 'false' - java.lang.NullPointerException: Cannot invoke "java.sql.Array.getArray()" ...; no event can arrive from a dead exporter, so the remaining 900s of the budget was not waited out
+PROBE-WAIT: catalogstats | LIVE | forward streaming | process-exited | 2.0s of 900s | import data is no longer running - it exited with: command failed: exit status 1; event counts cannot arrive from a process that has exited, so the remaining 898s of the budget was not waited out
 PROBE-WAIT: geo | LIVE | forward streaming | timeout | 900.0s of 900s | budget exhausted with no repeating importer error in the log: a stall that logged nothing, which is an environment fact and not a datatype verdict
 ```
 
@@ -624,7 +687,8 @@ PROBE-WAIT: geo | LIVE | forward streaming | timeout | 900.0s of 900s | budget e
 
 ### Quarantine: what is done, and what is left
 
-When a crash-loop is detected, the runner attributes it: if the repeated error names
+When a crash-loop is detected - or an importer exit whose log carries a quotable error -
+the runner attributes it: if the error names
 **exactly one** active probe's table, that probe is the culprit (`attributeCrashLoop` —
 two matches or none means no attribution, because a guess would quarantine an innocent
 type *and record the guess as a finding*). A control is never a candidate.
