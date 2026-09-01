@@ -136,6 +136,7 @@ footer{border-top:1px solid var(--rule);padding-top:20px;font-size:.83rem;color:
     <div><span class="pill v-wrong">Silently lost</span><span>The data never arrives. No error anywhere.</span></div>
     <div><span class="pill v-imp">Import fails</span><span><code>import data</code> hits a value it cannot apply, reports an error and exits. The migration halts.</span></div>
     <div><span class="pill v-exp">Export fails</span><span><code>export data</code> dies, usually before any row moves. Its only message is “Export of data failed! Check logs”.</span></div>
+    <div><span class="pill v-imp">Cutover fails</span><span>Fall-back only: the forward migration never reached cutover, so the return trip never existed. The safety net is missing precisely when you would need it.</span></div>
     <div><span class="pill v-reject">Rejected by target</span><span>YugabyteDB will not create a column of this type at all, so nothing can migrate. A finding, not a gap.</span></div>
   </div>
 

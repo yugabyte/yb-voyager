@@ -66,6 +66,15 @@ def cell(mode):
     if v == "SKIPPED":
         label, css = skipped_label(ev)
         return label, css, ev
+    # A fall-back run that never got past cutover is not a lost measurement: it is
+    # the finding. Fall-back only exists after a successful cutover, so a type that
+    # kills the forward migration makes the return trip UNREACHABLE. Reporting that
+    # as "discarded" would hide the most important thing about it - the safety net
+    # is missing exactly when you would need it.
+    if "cutover" in (ev or "").lower() and "not complete" in (ev or "").lower():
+        return ("Cutover fails", "v-imp",
+                "the forward migration never reached cutover, so the return trip "
+                "never existed. " + (ev or ""))
     if status not in ("", "OK"):
         # We DID probe this. The run's known-good control probes failed, so the
         # verdict it produced cannot be trusted — but saying "not tested" would
