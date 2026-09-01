@@ -171,7 +171,7 @@ Findings report:
 <REVIEWER REPORT>
 
 Your final message must be exactly one of:
-  POSTED <review html_url> (<c> critical, <w> warning, <s> suggestion, <q> question)
+  POSTED <review html_url> (<c> critical, <w> warning, <s> suggestion)
   MARKER (no findings)
   FAILED <one-line reason>
 ```

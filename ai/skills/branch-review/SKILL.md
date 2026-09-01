@@ -169,7 +169,7 @@ Format:
 ```
 
 #### Suggestion — Nice to have
-Style improvements, minor refactors, optional enhancements.
+Style improvements, minor refactors, optional enhancements. **Suggestions must stay within the scope of the diff**: anchor them to code this branch adds or modifies, and suggest only changes the author could reasonably make in this PR. Do not suggest refactors or improvements to untouched code (pre-existing issues worth tracking belong in a Question, or are simply out of scope) — the goal is not to overwhelm the author.
 
 Format:
 ```
@@ -181,7 +181,7 @@ Format:
 ```
 
 #### Question — Needs author input
-Not a defect, but something where intent or necessity is unclear and the author should respond: a design/scope concern (unnecessary abstraction, YAGNI field, layering, naming), an incidental change with no obvious reason, a "why is this nil / why this dedupe / why a separate file" doubt, or a request to confirm untested source paths were manually verified. Many of a human reviewer's most valuable comments are questions — do not suppress them just because they aren't bugs.
+Not a defect, but something where intent or necessity is unclear and the author should respond: a design/scope concern (unnecessary abstraction, YAGNI field, layering, naming), an incidental change with no obvious reason, a "why is this nil / why this dedupe / why a separate file" doubt, or a request to confirm untested source paths were manually verified. Many of a human reviewer's most valuable comments are questions — do not suppress them just because they aren't bugs. (Note: Questions are surfaced in this review for the user but are *not* posted to GitHub by the `post-pr-review` skill, which posts Critical/Warning/Suggestion only.)
 
 Format:
 ```
