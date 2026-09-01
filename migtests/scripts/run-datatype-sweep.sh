@@ -48,7 +48,11 @@ set -euo pipefail
 export PG_VERSION="${PG_VERSION:-17.8}"
 
 # YB_VERSION  - target YugabyteDB image tag.
-export YB_VERSION="${YB_VERSION:-2025.2.1.0}"
+# Must be a tag that actually exists on Docker Hub, including its build suffix —
+# yugabytedb/yugabyte publishes 2026.1.0.0-b118, not a bare 2026.1.0.0. A tag with
+# no build number fails at container start with "manifest unknown", which the
+# harness reports as a container-setup failure on every probe in the run.
+export YB_VERSION="${YB_VERSION:-2026.1.0.0-b118}"
 
 # DEBEZIUM_DIST_DIR - where the live-migration framework finds the Debezium server
 #               distribution. Live, fall-back and fall-forward modes cannot run without it.
@@ -203,11 +207,47 @@ collect_results() {
         grep -a '^PROBE-RUN-FLAKE' "${RUN_LOG}" || true
     fi
 
+    # A probe caught crash-looping the import channel. Its batch-mates are collateral:
+    # their events were stuck behind it, so they were never measured and have to be
+    # re-run WITHOUT it. The line names the probe and the command that measures it alone.
+    if grep -qa '^PROBE-RUN-QUARANTINE' "${RUN_LOG}"; then
+        log "QUARANTINED probes - each one wedged its batch; re-run the batch without it:"
+        grep -a '^PROBE-RUN-QUARANTINE' "${RUN_LOG}" || true
+    fi
+
+    # What every bounded wait actually cost, and why it ended. This is where the
+    # crash-loop detector's saving is visible: a "repeating-error" line says how much of
+    # the budget was not spent, and a "timeout" line is a stall that logged nothing.
+    if grep -qa '^PROBE-WAIT' "${RUN_LOG}"; then
+        log "wait accounting (elapsed / budget / why it ended):"
+        grep -a '^PROBE-WAIT' "${RUN_LOG}" || true
+    fi
+
+    # Render the shareable page from those same rows. The page is a VIEW over the
+    # results: if a verdict is not in the CSV it cannot appear on the page, and a
+    # verdict from a run that failed its control gate is shown as discarded rather
+    # than as a result. Python is optional - the JSON/CSV above are the real output.
+    local page_dir="${MODULE_DIR}/src/testlivemigration/sweepreport/page"
+    if command -v python3 >/dev/null 2>&1 && [ -f "${page_dir}/build_page.py" ]; then
+        log "rendering the report page"
+        if ! python3 "${page_dir}/build_page.py" \
+            "${RESULTS_DIR}/report-rows.json" \
+            "${RESULTS_DIR}/datatype-survival-map.html" \
+            "${page_dir}/page_template.html"; then
+            FAILED_COUNT=$((FAILED_COUNT + 1))
+            FAILED_LIST="${FAILED_LIST}  rendering the report page
+"
+        fi
+    else
+        log "python3 not found - skipping the HTML page (JSON and CSV are still written)"
+    fi
+
     log "artefacts"
     echo "  log      ${RUN_LOG}"
     echo "  results  ${RESULTS_CSV}"
     echo "  catalog  ${CATALOG_JSON}"
     echo "  report   ${RESULTS_DIR}/report-rows.json (+ .csv)"
+    echo "  page     ${RESULTS_DIR}/datatype-survival-map.html"
 }
 
 usage() {

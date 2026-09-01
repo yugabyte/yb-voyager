@@ -1,0 +1,320 @@
+<title>Datatype Survival Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+:root{
+  --paper:#F4F6F8; --card:#FFFFFF; --ink:#141A21; --ink-2:#4C5866; --ink-3:#77828F;
+  --rule:#DBE1E8; --rule-strong:#C3CCD6; --accent:#2946C4; --accent-soft:#E5E9FA;
+  --crit:#A3232B; --crit-bg:#FBE9E9; --warn:#8A6100; --warn-bg:#FBF1DC;
+  --ok:#20693C; --ok-bg:#E4F1E8; --mute:#5B6673; --mute-bg:#EBEFF3; --code-bg:#EDF1F5;
+  --band:#EDF1F5; --field:#FFFFFF;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#101418; --card:#171D23; --ink:#E7ECF1; --ink-2:#A9B4C0; --ink-3:#7C8895;
+    --rule:#28313A; --rule-strong:#3A4550; --accent:#8CA2F5; --accent-soft:#1B2340;
+    --crit:#F2A0A0; --crit-bg:#3A1B1D; --warn:#E0BC77; --warn-bg:#352A14;
+    --ok:#86CFA0; --ok-bg:#16301F; --mute:#9AA5B1; --mute-bg:#222A32; --code-bg:#1E252C;
+    --band:#1B2228; --field:#1B2228;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#101418; --card:#171D23; --ink:#E7ECF1; --ink-2:#A9B4C0; --ink-3:#7C8895;
+  --rule:#28313A; --rule-strong:#3A4550; --accent:#8CA2F5; --accent-soft:#1B2340;
+  --crit:#F2A0A0; --crit-bg:#3A1B1D; --warn:#E0BC77; --warn-bg:#352A14;
+  --ok:#86CFA0; --ok-bg:#16301F; --mute:#9AA5B1; --mute-bg:#222A32; --code-bg:#1E252C;
+  --band:#1B2228; --field:#1B2228;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:"Source Serif 4",Georgia,serif;font-size:17px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1000px;margin:0 auto;padding:52px 24px 88px;display:flex;flex-direction:column;gap:34px}
+h1,h2,h3,.eyebrow,th,.pill,.runcard dt,label,button,select,input{font-family:Archivo,"Helvetica Neue",Arial,sans-serif}
+h1{font-size:clamp(2rem,5vw,2.8rem);line-height:1.08;margin:0;font-weight:700;letter-spacing:-.02em}
+h2{font-size:1.35rem;font-weight:600;margin:0 0 12px;letter-spacing:-.01em}
+h3{font-size:1rem;font-weight:600;margin:20px 0 8px}
+p{margin:0 0 12px;max-width:66ch}
+ul,ol{margin:0 0 12px;padding-left:20px;max-width:66ch}
+li{margin-bottom:6px}
+code,.mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-size:.85em}
+code{background:var(--code-bg);padding:.1em .32em;border-radius:3px}
+.eyebrow{font-size:.7rem;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--accent);margin:0 0 10px}
+header .sub{font-size:1.05rem;color:var(--ink-2);max-width:62ch;margin-top:12px}
+.runcard{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;
+  background:var(--rule);border:1px solid var(--rule);border-radius:6px;overflow:hidden;margin:0}
+.runcard div{background:var(--card);padding:10px 13px}
+.runcard dt{font-size:.63rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin:0 0 3px;font-weight:600}
+.runcard dd{margin:0;font-size:.8rem;font-family:"IBM Plex Mono",monospace}
+section{border-top:1px solid var(--rule);padding-top:26px}
+section.plain{border-top:none;padding-top:0}
+.pill{display:inline-block;font-size:.66rem;font-weight:600;padding:.18em .5em;border-radius:3px;white-space:nowrap}
+.v-works{background:var(--ok-bg);color:var(--ok)}
+.v-drop{background:var(--warn-bg);color:var(--warn)}
+.v-imp,.v-exp,.v-wrong{background:var(--crit-bg);color:var(--crit)}
+.v-reject{background:var(--mute-bg);color:var(--mute);border:1px solid var(--rule-strong)}
+.v-disc{background:transparent;color:var(--warn);border:1px dashed var(--warn)}
+.v-incon{background:transparent;color:var(--mute);border:1px dashed var(--rule-strong)}
+.v-none{background:var(--mute-bg);color:var(--mute)}
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:7px 24px;margin:0 0 6px}
+.legend div{display:flex;gap:9px;align-items:baseline;font-size:.88rem;color:var(--ink-2)}
+.legend .pill{flex:0 0 auto}
+.controls{display:flex;flex-wrap:wrap;gap:9px;align-items:flex-end;margin:0 0 12px;
+  background:var(--card);border:1px solid var(--rule);border-radius:6px;padding:12px 14px}
+.controls .fld{display:flex;flex-direction:column;gap:4px}
+.controls label{font-size:.62rem;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+select,input[type=search]{font-size:.82rem;padding:5px 7px;border:1px solid var(--rule-strong);
+  border-radius:4px;background:var(--field);color:var(--ink);min-width:128px}
+input[type=search]{min-width:190px}
+button{font-size:.78rem;font-weight:600;padding:6px 12px;border:1px solid var(--rule-strong);
+  border-radius:4px;background:var(--field);color:var(--ink);cursor:pointer}
+button:hover{border-color:var(--accent);color:var(--accent)}
+.count{font-family:"IBM Plex Mono",monospace;font-size:.76rem;color:var(--ink-3);margin-left:auto;align-self:center}
+.tscroll{overflow-x:auto;border:1px solid var(--rule);border-radius:6px;background:var(--card)}
+table{border-collapse:collapse;width:100%;font-size:.85rem;min-width:1160px}
+th{text-align:left;font-size:.62rem;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--ink-3);padding:10px 12px 8px;border-bottom:1px solid var(--rule-strong);
+  white-space:nowrap;background:var(--card);position:sticky;top:0;z-index:2}
+td{padding:7px 12px;border-bottom:1px solid var(--rule);vertical-align:top}
+td.t{font-family:"IBM Plex Mono",monospace;font-size:.79rem;white-space:nowrap}
+td.g{font-size:.8rem;color:var(--ink-2)}
+td.e{font-size:.78rem;color:var(--ink-3);min-width:260px}
+tbody tr:hover td{background:var(--band)}
+tr.grp td{background:var(--band);font-family:Archivo,sans-serif;font-size:.66rem;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);padding:9px 12px 7px}
+.hint{font-size:.78rem;color:var(--ink-3);margin:6px 0 0}
+.note{font-size:.87rem;color:var(--ink-2);max-width:66ch;margin:8px 0 0}
+.callout{background:var(--card);border:1px solid var(--rule);border-left:3px solid var(--crit);
+  border-radius:0 5px 5px 0;padding:14px 16px}
+.callout.acc{border-left-color:var(--accent)}
+.callout h3{margin:0 0 6px;font-size:.98rem}
+.callout p:last-child{margin-bottom:0}
+footer{border-top:1px solid var(--rule);padding-top:20px;font-size:.83rem;color:var(--ink-3)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+
+<header class="plain">
+  <p class="eyebrow">yb-voyager · datatype audit</p>
+  <h1>Datatype Survival Map</h1>
+  <p class="sub">Every PostgreSQL type, what happens to it when you migrate to YugabyteDB, and which layer — if any — tells the user. Every row below was measured; this page is generated from the test suite's own results.</p>
+</header>
+
+<section class="plain">
+  <dl class="runcard">
+    <div><dt>Voyager</dt><dd>main @ b41ffe81</dd></div>
+    <div><dt>Source</dt><dd>PostgreSQL 17.8</dd></div>
+    <div><dt>Target</dt><dd>YugabyteDB 2026.1</dd></div>
+    <div><dt>Types covered</dt><dd>__NTYPES__</dd></div>
+    <div><dt>Generated</dt><dd>__GENERATED__</dd></div>
+  </dl>
+</section>
+
+<section>
+  <h2>Only three things go wrong</h2>
+  <p>The long list of broken types comes down to three causes, and each needs a different fix.</p>
+  <ol>
+    <li><strong>The type is on the exclusion list</strong> — the column is removed from the change stream. You get one warning line, and a question that <code>--yes</code> answers for you.</li>
+    <li><strong>The type is on no list and has no conversion rule</strong> — the value reaches the target in a form it cannot read, and the import or the export process dies.</li>
+    <li><strong>The type is on no list and converts wrongly</strong> — a different value lands, and nothing is logged at all.</li>
+  </ol>
+  <p>A fourth case sits outside all three: an <strong>array</strong> of an excluded type is never matched by the guardrail, so it is never dropped — and then usually migrates perfectly, which shows the exclusion was not needed in the first place.</p>
+</section>
+
+<section>
+  <h2>Every type</h2>
+
+  <p class="note" style="margin:0 0 10px"><strong>Six of these seven labels mean the type was probed.</strong> Only the last one means we have not run it yet.</p>
+  <div class="legend">
+    <div><span class="pill v-works">Works</span><span><strong>Probed.</strong> Correct after snapshot, insert, update, delete and NULL changes.</span></div>
+    <div><span class="pill v-drop">Column dropped</span><span><strong>Probed.</strong> Excluded from the change stream on purpose. One warning line; <code>--yes</code> accepts it for you. Snapshot rows keep their old values, so the table goes stale rather than empty.</span></div>
+    <div><span class="pill v-imp">Import stops</span><span><strong>Probed.</strong> <code>import data</code> hits a value it cannot apply, reports an error and exits. The migration halts.</span></div>
+    <div><span class="pill v-exp">Export crashes</span><span><strong>Probed.</strong> <code>export data</code> dies, usually before any row moves. Only message: “Export of data failed! Check logs”.</span></div>
+    <div><span class="pill v-wrong">Wrong value</span><span><strong>Probed.</strong> A different value lands on the target, or a row goes missing. No error anywhere.</span></div>
+    <div><span class="pill v-reject">Target can't hold it</span><span><strong>Probed.</strong> YugabyteDB will not create a column of this type at all, so nothing can migrate. A finding, not a gap.</span></div>
+    <div><span class="pill v-disc">Probed, result discarded</span><span><strong>Probed.</strong> The run produced a verdict, but its known-good control probes failed, so the number is not trustworthy and is not shown. Needs a clean re-run.</span></div>
+    <div><span class="pill v-incon">Ran, no result</span><span><strong>Probed.</strong> The run was healthy but nothing conclusive happened — no events and no error.</span></div>
+    <div><span class="pill v-none">Not run yet</span><span>The only label that means untested. This combination of type and mode has not been attempted.</span></div>
+  </div>
+
+  <div class="controls" id="controls"></div>
+  <div class="tscroll">
+    <table id="tbl"><thead><tr id="hrow"></tr></thead><tbody id="tbody"></tbody></table>
+  </div>
+  <p class="hint">The table scrolls sideways. Filters combine, and the search box matches any column including the error text.</p>
+</section>
+
+<section>
+  <h2>What's actually broken</h2>
+  <ol>
+    <li><strong>Ranges and multiranges are dropped and barely announced.</strong> The snapshot keeps the old values, so the table looks full while going stale. An update touching only a range column produces no event at all — the log sequence jumped 748 → 750. Nothing in assess-migration, analyze-schema or the docs mentions ranges.</li>
+    <li><strong>Two unhandled null pointers kill the exporter, and say nothing.</strong> An hstore containing a NULL value crashes it while serializing the row; a domain over an enum crashes it while listing the database's types, before reading anything. Both print only <code>Export of data failed! Check logs for more details.</code> Neither names a column, a type or a reason — and because the exporter is gone, <code>initiate cutover</code> then hangs forever instead of failing.</li>
+    <li><strong>Domains are invisible until they stop the migration.</strong> Every layer matches the domain's own name and never looks at what it wraps, so a domain over <code>xml</code> is unmentioned everywhere while bare <code>xml</code> is flagged.</li>
+    <li><strong>Values are pasted into SQL instead of passed as parameters.</strong> Hence <code>column "nan" does not exist</code> — a float value read as a column name.</li>
+    <li><strong>Unknown types are sent as hex, and the target is left to guess.</strong> The value's text form is put on the wire as raw bytes and arrives as a hex string. Every one of these is the same bug wearing a different error:
+      <ul>
+        <li><code>tid</code> → <code>\x2831372c3529</code> = <code>(17,5)</code> — invalid input syntax</li>
+        <li><code>regclass</code> → <code>\x70675f74797065</code> = <code>pg_type</code> — relation does not exist</li>
+        <li><code>regproc</code> → <code>\x76657273696f6e</code> = <code>version</code> — function does not exist</li>
+        <li><code>regoper</code> → <code>\x7c2f</code> = <code>|/</code> — operator does not exist</li>
+        <li><code>regnamespace</code> → <code>\x7075626c6963</code> = <code>public</code> — schema does not exist</li>
+        <li><code>pg_snapshot</code>, <code>regconfig</code>, <code>regdictionary</code>, <code>regrole</code>, <code>regcollation</code> — same shape, each naming its own hex</li>
+      </ul>
+      These all stop the import only because their target types have strict parsers. <strong>Where the target type is text-like, the hex is accepted and stored.</strong> That is not a worry, it is measured: <code>refcursor</code> arrived as <code>\x6f746865725f637572736f72</code> — the string <code>other_cursor</code> — and was stored without complaint. Same defect, no error, permanent corruption.</li>
+    <li><strong>Dates travel as integers with no range check.</strong> <code>date 'infinity'</code> arrives as <code>-5877611-06-21</code>. <code>timestamptz</code> travels as a string and handles the same values correctly, so the right pattern already exists in the codebase.</li>
+    <li><strong>Cutover asks a question nobody can answer.</strong> With standard input from <code>/dev/null</code> it panicked in 5 seconds; with an unfed pipe it waited indefinitely. Only an operator at a terminal can answer it, and by then production is on YugabyteDB.</li>
+    <li><strong>A dead migration reports as healthy.</strong> After a bad value killed <code>import data</code>, <code>get data-migration-report</code> kept returning success with stale counts for 15 minutes.</li>
+    <li><strong>A newer target gets fewer warnings.</strong> The same schema produced 25 findings against YugabyteDB 2024.2 and 19 against 2025.2. The six that vanished were the multiranges — whose columns <code>export data</code> still drops.</li>
+    <li><strong>The offline list is stale in both directions.</strong> <code>pg_lsn</code> and <code>txid_snapshot</code> are flagged as unsupported but migrate fine offline; <code>xid8</code> is flagged nowhere and corrupts silently.</li>
+  </ol>
+</section>
+
+<section>
+  <h2>What to fix</h2>
+  <h3>First — stop losing data quietly</h3>
+  <ul>
+    <li><strong>Carry ranges, or say so up front.</strong> The array form already migrates perfectly, which proves the text form survives the pipeline. Registering the range types for the same string passthrough is the small fix; adding them to assess-migration is the minimum.</li>
+    <li><strong><code>--yes</code> must stop meaning “agree to lose columns.”</strong> Dropping data should require its own flag.</li>
+    <li><strong>Make “excluded” mean one thing.</strong> Excluded columns are still copied by <code>pg_dump</code>, so you get correct old rows and frozen new ones — harder to notice than an empty column.</li>
+    <li><strong>Separate “YugabyteDB supports it” from “we can carry it.”</strong> Conflating those is what hides the multirange warning on new targets.</li>
+    <li><strong>Quote and cast every value.</strong> Nothing should be concatenated into a statement because its type has no rule.</li>
+    <li><strong>Guard the exporter against nulls</strong>, and make its failures name the table, column and type instead of pointing at a log directory.</li>
+    <li><strong>Warn when an update diffs to nothing</strong> on a <code>REPLICA IDENTITY FULL</code> table. That DEBUG line is why range-only updates vanish without trace.</li>
+    <li><strong>Say when the importer has died.</strong> The status report should not keep answering normally after the import has exited.</li>
+  </ul>
+  <h3>Then — close the reporting holes</h3>
+  <ul>
+    <li>Teach assess-migration the shapes it cannot see: ranges, domains resolved to their base type, and <code>xid8</code>.</li>
+    <li>One list, consumed by both assess and <code>export data</code>, resolved through <code>typelem</code> and <code>typbasetype</code>, so arrays and domains can never disagree again.</li>
+    <li>Make assess respect the connector actually in use; today it assumes the logical one and never mentions the gRPC-only exclusions.</li>
+    <li>Give <code>analyze-schema</code> a non-interactive path — it currently panics when there is no terminal.</li>
+    <li>Range-check the datetime converters, or move date and timestamp to the string path <code>timestamptz</code> already uses.</li>
+    <li>Define “skips” in the docs. It currently means three different things.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>How this was measured</h2>
+  <p>The type list is not hand-written. A coverage guard reads <code>pg_type</code> on a live server, and for every candidate attempts to declare a column of that type. Anything that can be a column and has no probe <strong>fails the build</strong> — so a new PostgreSQL version or a newly installed extension surfaces as a test failure instead of a silent gap. The only permitted exclusion is a type whose column declaration is refused, recorded with the server's own error.</p>
+  <p>Each probe is one table run through insert, update-this-column, update-a-different-column, delete, and NULL transitions. Verdicts come from comparing rows and reading the exported event stream on disk, not from the migration's own report. Every batch carries <code>int</code> and <code>text</code> control probes, and any run whose controls fail is discarded — this page will not display a verdict from such a run.</p>
+  <p>The suite is repeatable: <code>migtests/scripts/run-datatype-sweep.sh</code> runs it, writes a results CSV per run, and <code>sweepreport diff</code> compares two runs so “what changed in datatype support this release?” is a mechanical answer.</p>
+
+  <div class="callout acc">
+    <h3>Why the control probes matter</h3>
+    <p>Roughly a fifth of all runs failed identically: the snapshot finished, no events followed, nothing logged an error. It looked like an overloaded machine. In fact the change-capture engine reads the machine's Kubernetes config at startup, that file delegates to a corporate login helper, and an expired session made the helper print a <em>coloured</em> error. The escape characters break the YAML parser and the process aborts before reading a row.</p>
+    <p>A harness that retries and treats “failed the same way twice” as a result would have turned that into confident false findings — it briefly did, including a claim that a column containing an empty string blocks a migration. Every one was withdrawn. The lesson generalises to the product: <strong>a failure that logs nothing is indistinguishable from success.</strong> A dropped column, a stalled importer and a dead exporter all present as silence.</p>
+  </div>
+
+  <h3>Not tested, and why</h3>
+  <ul>
+    <li><strong>PostGIS types end to end.</strong> A PostgreSQL image with PostGIS 3.6.4 was built for this and the source side works, but YugabyteDB 2026.1 cannot install the extension, so the column cannot exist on the target. <code>vector</code> (pgvector) <em>is</em> available on YugabyteDB and was tested.</li>
+    <li><strong>The gRPC connector</strong> — the test container does not publish the cluster's internal RPC ports.</li>
+    <li><strong>Fall-forward</strong> — needs a third database container, which does not fit in the available memory.</li>
+    <li><strong>Most families in fall-back.</strong> Ranges and multiranges were measured there and behave exactly as in live migration.</li>
+    <li><strong>Live verdicts for several families</strong> — the object-identifier types, the index-support types, the extension types and the catalogue-statistics types. Their runs are recorded but their control probes failed, so nothing is shown. The cause was the test machine, not the product: it dropped to about 60&nbsp;MB of free memory with several gigabytes swapped, which starves the change-capture JVM and makes every run time out. The mechanism for the object-identifier family is nonetheless established — each type produced its own hex-encoded error naming its own value.</li>
+  </ul>
+
+  <h3>Where this disagrees with the earlier audit</h3>
+  <p>That audit called built-in ranges the worst case: silently missing from every event, in no list, invisible everywhere. The data loss is real and reproduced here. The mechanism is not — ranges are matched deliberately by a catalogue query and excluded on purpose, and <code>export data</code> does print a warning naming the columns. It also claimed ranges and <code>tsquery</code> deadlock cutover, which did not reproduce. Its domain-over-point finding was correct, including the struct-JSON detail.</p>
+</section>
+
+<footer>
+  <p>yb-voyager <code>main</code> @ <code>b41ffe81</code> · PostgreSQL 17.8 → YugabyteDB 2026.1.0.0-b118 · generated from the sweep's results CSV · suite on branch <code>shivansh/datatype-sweep-harness</code>.</p>
+</footer>
+
+</div>
+
+<script>
+const ROWS = /*__ROWS__*/[];
+
+const COLS = [
+  {k:"t",  label:"Type",                   type:"text"},
+  {k:"g",  label:"Group",                  type:"filter"},
+  {k:"o",  label:"Offline",                type:"verdict"},
+  {k:"l",  label:"Live",                   type:"verdict"},
+  {k:"f",  label:"Fall-back",              type:"verdict"},
+  {k:"a",  label:"assess-migration",       type:"filter"},
+  {k:"n",  label:"analyze-schema",         type:"filter"},
+  {k:"gr", label:"export data guardrail",  type:"filter"},
+  {k:"d",  label:"Docs",                   type:"filter"},
+  {k:"e",  label:"What happens",           type:"ev"},
+];
+
+const hrow = document.getElementById('hrow');
+COLS.forEach(c => { const th = document.createElement('th'); th.textContent = c.label; hrow.appendChild(th); });
+
+const controls = document.getElementById('controls');
+const state = {};
+
+const sf = document.createElement('div'); sf.className = 'fld';
+const sl = document.createElement('label'); sl.textContent = 'Search'; sl.htmlFor = 'q'; sf.appendChild(sl);
+const qi = document.createElement('input'); qi.type = 'search'; qi.id = 'q';
+qi.placeholder = 'type name, error, anything'; qi.addEventListener('input', render);
+sf.appendChild(qi); controls.appendChild(sf);
+
+COLS.forEach(c => {
+  if (c.type !== 'filter' && c.type !== 'verdict') return;
+  const vals = [...new Set(ROWS.map(r => c.type === 'verdict' ? (r[c.k]||[])[0] : r[c.k]))].filter(Boolean).sort();
+  if (!vals.length) return;
+  const d = document.createElement('div'); d.className = 'fld';
+  const lb = document.createElement('label'); lb.textContent = c.label; lb.htmlFor = 'f_' + c.k; d.appendChild(lb);
+  const s = document.createElement('select'); s.id = 'f_' + c.k;
+  const all = document.createElement('option'); all.value = ''; all.textContent = 'All'; s.appendChild(all);
+  vals.forEach(v => { const o = document.createElement('option'); o.textContent = v; s.appendChild(o); });
+  s.addEventListener('change', () => { state[c.k] = s.value; render(); });
+  d.appendChild(s); controls.appendChild(d);
+});
+
+const reset = document.createElement('button');
+reset.textContent = 'Reset';
+reset.addEventListener('click', () => {
+  qi.value = '';
+  Object.keys(state).forEach(k => state[k] = '');
+  controls.querySelectorAll('select').forEach(s => s.value = '');
+  render();
+});
+controls.appendChild(reset);
+const count = document.createElement('span'); count.className = 'count'; controls.appendChild(count);
+
+function textOf(r, c) {
+  return c.type === 'verdict' ? (r[c.k] || [])[0] || '' : String(r[c.k] == null ? '' : r[c.k]);
+}
+
+function render() {
+  const q = qi.value.trim().toLowerCase();
+  const body = document.getElementById('tbody');
+  body.innerHTML = '';
+  let shown = 0, lastGroup = null;
+  ROWS.forEach(r => {
+    for (const k in state) {
+      if (!state[k]) continue;
+      const col = COLS.find(c => c.k === k);
+      if (textOf(r, col) !== state[k]) return;
+    }
+    if (q && !COLS.map(c => textOf(r, c)).join(' ').toLowerCase().includes(q)) return;
+    if (r.g !== lastGroup && !state.g) {
+      const g = document.createElement('tr'); g.className = 'grp';
+      const td = document.createElement('td'); td.colSpan = COLS.length; td.textContent = r.g;
+      g.appendChild(td); body.appendChild(g); lastGroup = r.g;
+    }
+    const tr = document.createElement('tr');
+    COLS.forEach(c => {
+      const td = document.createElement('td');
+      if (c.type === 'verdict') {
+        const v = r[c.k] || ['Not tested', 'v-none'];
+        const s = document.createElement('span'); s.className = 'pill ' + v[1]; s.textContent = v[0];
+        td.appendChild(s);
+      } else if (c.k === 't') { td.className = 't'; td.textContent = r.t; }
+      else if (c.type === 'ev') { td.className = 'e'; td.textContent = r.e || ''; }
+      else { td.className = 'g'; td.textContent = textOf(r, c); }
+      tr.appendChild(td);
+    });
+    body.appendChild(tr); shown++;
+  });
+  count.textContent = shown + ' of ' + ROWS.length + ' types';
+}
+render();
+</script>
