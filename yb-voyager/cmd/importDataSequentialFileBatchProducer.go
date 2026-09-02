@@ -78,12 +78,12 @@ func NewSequentialFileBatchProducer(task *ImportFileTask, state *ImportDataState
 
 	err := state.PrepareForFileImport(task.FilePath, task.TableNameTup)
 	if err != nil {
-		return nil, goerrors.Errorf("preparing for file import: %s", err)
+		return nil, goerrors.Errorf("preparing for file import: %w", err)
 	}
 
 	pendingBatches, lastBatchNumber, lastOffset, lastBatchCumByteOffsetEnd, fileFullySplit, err := state.Recover(task.FilePath, task.TableNameTup)
 	if err != nil {
-		return nil, goerrors.Errorf("recovering state for table: %q: %s", task.TableNameTup, err)
+		return nil, goerrors.Errorf("recovering state for table: %q: %w", task.TableNameTup, err)
 	}
 	completed := len(pendingBatches) == 0 && fileFullySplit
 
@@ -168,7 +168,7 @@ func (p *SequentialFileBatchProducer) produceNextBatch() (*Batch, error) {
 	if p.lineFromPreviousBatch != "" {
 		err = batchWriter.WriteRecord(p.lineFromPreviousBatch)
 		if err != nil {
-			return nil, goerrors.Errorf("Write to batch %d: %s", batchNum, err)
+			return nil, goerrors.Errorf("Write to batch %d: %w", batchNum, err)
 		}
 		p.lineFromPreviousBatch = ""
 	}
@@ -209,7 +209,7 @@ func (p *SequentialFileBatchProducer) produceNextBatch() (*Batch, error) {
 			lineBeforeConversion := line
 			line, err = p.transformRow(line, columnNames)
 			if err != nil {
-				errMsg := goerrors.Errorf("transforming line number=%d for table: %q in file %s: %s", p.numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, err)
+				errMsg := goerrors.Errorf("transforming line number=%d for table: %q in file %s: %w", p.numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, err)
 				if p.errorHandler.ShouldAbort() {
 					return nil, fmt.Errorf("%w\n%s", errMsg, color.YellowString(importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE))
 				}
@@ -247,7 +247,7 @@ func (p *SequentialFileBatchProducer) produceNextBatch() (*Batch, error) {
 			// Write the record to the current batch
 			err = batchWriter.WriteRecord(line)
 			if err != nil {
-				return nil, goerrors.Errorf("Write to batch %d: %s", batchNum, err)
+				return nil, goerrors.Errorf("Write to batch %d: %w", batchNum, err)
 			}
 
 			// TODO: fix. After writing the record, we should ideally check for
@@ -267,7 +267,7 @@ func (p *SequentialFileBatchProducer) produceNextBatch() (*Batch, error) {
 			p.dataFile.ResetBytesRead(0)
 			return batch, nil
 		} else if readLineErr != nil {
-			return nil, goerrors.Errorf("read line from data file: %q: %s", p.task.FilePath, readLineErr)
+			return nil, goerrors.Errorf("read line from data file: %q: %w", p.task.FilePath, readLineErr)
 		}
 	}
 	// ideally should not reach here
@@ -312,13 +312,13 @@ func (p *SequentialFileBatchProducer) openDataFile() error {
 func (p *SequentialFileBatchProducer) openDataFileAndReadHeaderIfRequired() (datafile.DataFile, error) {
 	reader, err := dataStore.Open(p.task.FilePath)
 	if err != nil {
-		return nil, goerrors.Errorf("preparing reader for file: %q: %v", p.task.FilePath, err)
+		return nil, goerrors.Errorf("preparing reader for file: %q: %w", p.task.FilePath, err)
 	}
 
 	df, err := datafile.NewDataFile(p.task.FilePath, reader, dataFileDescriptor, 0)
 	if err != nil {
 		reader.Close()
-		return nil, goerrors.Errorf("open datafile: %q: %v", p.task.FilePath, err)
+		return nil, goerrors.Errorf("open datafile: %q: %w", p.task.FilePath, err)
 	}
 
 	if dataFileDescriptor.HasHeader {
@@ -349,7 +349,7 @@ func (p *SequentialFileBatchProducer) openDataFileAtByteOffset() error {
 			log.Warnf("OpenAt not implemented for current datastore, falling back to SkipLines for %q", p.task.FilePath)
 			return p.openDataFileAndSkipLines()
 		}
-		return goerrors.Errorf("seeking to byte offset %d in file %q: %v", p.lastBatchCumByteOffsetEnd, p.task.FilePath, err)
+		return goerrors.Errorf("seeking to byte offset %d in file %q: %w", p.lastBatchCumByteOffsetEnd, p.task.FilePath, err)
 	}
 
 	// Build a fresh DataFile on the seeked reader, passing the offset so that
@@ -357,7 +357,7 @@ func (p *SequentialFileBatchProducer) openDataFileAtByteOffset() error {
 	dataFile, err := datafile.NewDataFile(p.task.FilePath, reader, dataFileDescriptor, p.lastBatchCumByteOffsetEnd)
 	if err != nil {
 		reader.Close()
-		return goerrors.Errorf("open datafile after seek: %q: %v", p.task.FilePath, err)
+		return goerrors.Errorf("open datafile after seek: %q: %w", p.task.FilePath, err)
 	}
 	p.dataFile = dataFile
 
@@ -378,7 +378,7 @@ func (p *SequentialFileBatchProducer) openDataFileAndSkipLines() error {
 	p.progressReporter.AddResumeInformation(p.task, fmt.Sprintf("Resuming from %d lines", p.lastOffset))
 	err = df.SkipLines(p.lastOffset)
 	if err != nil {
-		return goerrors.Errorf("skipping line for offset=%d: %v", p.lastOffset, err)
+		return goerrors.Errorf("skipping line for offset=%d: %w", p.lastOffset, err)
 	}
 	p.progressReporter.RemoveResumeInformation(p.task)
 	return nil
@@ -400,13 +400,13 @@ func (p *SequentialFileBatchProducer) newBatchWriter() (*BatchWriter, error) {
 	batchWriter := p.state.NewBatchWriter(p.task.FilePath, p.task.TableNameTup, batchNum)
 	err := batchWriter.Init()
 	if err != nil {
-		return nil, goerrors.Errorf("initializing batch writer for table: %q: %s", p.task.TableNameTup, err)
+		return nil, goerrors.Errorf("initializing batch writer for table: %q: %w", p.task.TableNameTup, err)
 	}
 	// Write the header if necessary
 	if p.header != "" && dataFileDescriptor.FileFormat == datafile.CSV {
 		err = batchWriter.WriteHeader(p.header)
 		if err != nil {
-			utils.ErrExit("writing header for table: %q: %s", p.task.TableNameTup, err)
+			utils.ErrExit("writing header for table: %q: %w", p.task.TableNameTup, err)
 		}
 	}
 	return batchWriter, nil
@@ -432,7 +432,7 @@ func (p *SequentialFileBatchProducer) finalizeBatch(batchWriter *BatchWriter, is
 	}
 	batch, err := batchWriter.Done(isLastBatch, offsetEnd, bytesInBatch, cumByteOffsetEnd)
 	if err != nil {
-		utils.ErrExit("finalizing batch %d: %s", batchNum, err)
+		utils.ErrExit("finalizing batch %d: %w", batchNum, err)
 	}
 
 	metrics.Get().RecordImportSnapshotBatchCreated(importerRole, p.task.TableNameTup)

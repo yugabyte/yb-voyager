@@ -235,7 +235,7 @@ func getParsedJsonMap(query string) (string, map[string]interface{}, error) {
 	log.Debugf("parsing the json string-%s of stmt-%s", parsedJson, query)
 	err = json.Unmarshal([]byte(parsedJson), &parsedJsonMapList)
 	if err != nil {
-		return parsedJson, nil, goerrors.Errorf("error parsing the json string of stmt-%s: %v", query, err)
+		return parsedJson, nil, goerrors.Errorf("error parsing the json string of stmt-%s: %w", query, err)
 	}
 
 	if len(parsedJsonMapList) == 0 {

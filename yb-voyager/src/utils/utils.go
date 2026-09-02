@@ -202,7 +202,7 @@ func FileOrFolderExists(path string) bool {
 		if os.IsNotExist(err) {
 			return false
 		} else {
-			ErrExit("check if %q exists: %s", path, err)
+			ErrExit("check if %q exists: %w", path, err)
 		}
 	} else {
 		return true
@@ -213,7 +213,7 @@ func FileOrFolderExists(path string) bool {
 func FileOrFolderExistsWithGlobPattern(path string) bool {
 	files, err := filepath.Glob(path)
 	if err != nil {
-		ErrExit("Error while reading %q: %s", path, err)
+		ErrExit("Error while reading %q: %w", path, err)
 	}
 	return len(files) > 0
 }
@@ -236,7 +236,7 @@ func CleanDir(dir string) {
 		for _, file := range files {
 			err := os.RemoveAll(file)
 			if err != nil {
-				ErrExit("clean dir %q: %s", dir, err)
+				ErrExit("clean dir %q: %w", dir, err)
 			}
 		}
 	}
@@ -431,7 +431,7 @@ func WaitForLineInLogFile(filePath string, message string, timeoutDuration time.
 
 	file, err := os.Open(filePath)
 	if err != nil {
-		return goerrors.Errorf("error opening file %s: %v", filePath, err)
+		return goerrors.Errorf("error opening file %s: %w", filePath, err)
 	}
 
 	defer file.Close()
@@ -442,7 +442,7 @@ func WaitForLineInLogFile(filePath string, message string, timeoutDuration time.
 			line, err := reader.ReadString('\n')
 
 			if err != nil && err != io.EOF {
-				return goerrors.Errorf("error reading line from file %s: %v", filePath, err)
+				return goerrors.Errorf("error reading line from file %s: %w", filePath, err)
 			}
 
 			if strings.Contains(string(line), message) {
@@ -553,7 +553,7 @@ func ForEachMatchingLineInFile(filePath string, re *regexp.Regexp, callback func
 func ForEachLineInFile(filePath string, callback func(line string) bool) error {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return goerrors.Errorf("error opening file %s: %v", filePath, err)
+		return goerrors.Errorf("error opening file %s: %w", filePath, err)
 	}
 	defer file.Close()
 
@@ -566,7 +566,7 @@ func ForEachLineInFile(filePath string, callback func(line string) bool) error {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return goerrors.Errorf("error reading file %s: %v", filePath, err)
+		return goerrors.Errorf("error reading file %s: %w", filePath, err)
 	}
 	return nil
 }
@@ -626,7 +626,7 @@ func GetFSUtilizationPercentage(path string) (int, error) {
 	var stats syscall.Statfs_t
 	err := syscall.Statfs(path, &stats)
 	if err != nil {
-		return -1, goerrors.Errorf("error while getting disk stats for %q: %v", path, err)
+		return -1, goerrors.Errorf("error while getting disk stats for %q: %w", path, err)
 	}
 
 	percUtilization := 100 - int((stats.Bavail*100)/stats.Blocks)
@@ -637,7 +637,7 @@ func GetFSUtilizationPercentage(path string) (int, error) {
 func ReadTableNameListFromFile(filePath string) ([]string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return nil, goerrors.Errorf("error opening file %s: %v", filePath, err)
+		return nil, goerrors.Errorf("error opening file %s: %w", filePath, err)
 	}
 	defer file.Close()
 	var list []string
@@ -649,7 +649,7 @@ func ReadTableNameListFromFile(filePath string) ([]string, error) {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, goerrors.Errorf("error reading file %s: %v", filePath, err)
+		return nil, goerrors.Errorf("error reading file %s: %w", filePath, err)
 	}
 	return list, nil
 }
@@ -743,7 +743,7 @@ func GetFreePort() (int, error) {
 	// Listen on port 0, which tells the OS to assign an available port
 	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
-		return 0, goerrors.Errorf("failed to listen on a port: %v", err)
+		return 0, goerrors.Errorf("failed to listen on a port: %w", err)
 	}
 	defer listener.Close()
 
@@ -835,7 +835,7 @@ func MatchesFormatString(format, final string) (bool, error) {
 
 	re, err := regexp.Compile(regexPattern)
 	if err != nil {
-		return false, goerrors.Errorf("failed to compile regex pattern: %v", err)
+		return false, goerrors.Errorf("failed to compile regex pattern: %w", err)
 	}
 
 	return re.MatchString(final), nil
@@ -898,7 +898,7 @@ func ObfuscateFormatDetails(format, final, obfuscateWith string) (string, error)
 
 	re, err := regexp.Compile(regexPattern)
 	if err != nil {
-		return "", goerrors.Errorf("failed to compile regex pattern: %v", err)
+		return "", goerrors.Errorf("failed to compile regex pattern: %w", err)
 	}
 
 	// Find the indexes of all capture groups using FindStringSubmatchIndex to get positions.

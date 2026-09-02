@@ -127,7 +127,7 @@ func (pg *TargetPostgreSQL) Init() error {
 		schemaList)
 	rows, err := pg.Query(checkSchemaExistsQuery)
 	if err != nil {
-		return goerrors.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, pg.tconf.Host, err)
+		return goerrors.Errorf("run query %q on target %q to check schema exists: %w", checkSchemaExistsQuery, pg.tconf.Host, err)
 	}
 	var returnedSchemas []string
 	defer rows.Close()

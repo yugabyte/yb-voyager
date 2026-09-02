@@ -220,7 +220,7 @@ func (c *ConflictDetectionCache) indexEventLocked(event *tgtdb.Event) error {
 		}
 		key, err := computeConflictBucketKey(event.TableNameTup, event.BeforeFields, index)
 		if err != nil {
-			return goerrors.Errorf("error computing conflict bucket key for table %s, index %s: %v", event.TableNameTup.ForKey(), index.IndexName, err)
+			return goerrors.Errorf("error computing conflict bucket key for table %s, index %s: %w", event.TableNameTup.ForKey(), index.IndexName, err)
 		}
 		bucket := c.ukLookup[key]
 		if bucket == nil {
@@ -527,13 +527,13 @@ func anyUniqueIndexColumnValueIsNull(fields map[string]*string, indexColumns []s
 func (c *ConflictDetectionCache) getConflictingEventsWithDifferentPartitionKey(key string, incomingEvent *tgtdb.Event) ([]*tgtdb.Event, error) {
 	incomingPartitionKey, err := GetEventPartitionKey(incomingEvent, c.tablePartitionKeyMap)
 	if err != nil {
-		return nil, goerrors.Errorf("error computing partition key for incoming event(vsn=%d): %v", incomingEvent.Vsn, err)
+		return nil, goerrors.Errorf("error computing partition key for incoming event(vsn=%d): %w", incomingEvent.Vsn, err)
 	}
 	var cachedEventsMatchingKey []*tgtdb.Event
 	for _, cachedEvent := range c.ukLookup[key] {
 		cachedPartitionKey, err := GetEventPartitionKey(cachedEvent, c.tablePartitionKeyMap)
 		if err != nil {
-			return nil, goerrors.Errorf("error computing partition key for cached event(vsn=%d): %v", cachedEvent.Vsn, err)
+			return nil, goerrors.Errorf("error computing partition key for cached event(vsn=%d): %w", cachedEvent.Vsn, err)
 		}
 		if cachedPartitionKey == incomingPartitionKey {
 			continue

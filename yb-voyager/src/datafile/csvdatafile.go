@@ -93,7 +93,7 @@ func (df *CsvDataFile) GetHeader() string {
 
 	line, _, err := df.NextLine()
 	if err != nil {
-		utils.ErrExit("finding header for csvdata file: %v", err)
+		utils.ErrExit("finding header for csvdata file: %w", err)
 	}
 
 	df.Header = line

@@ -557,7 +557,7 @@ func createTargetSchemas(conn *pgx.Conn) {
 				utils.PrintAndLogf("dropping schema '%s' in target database", targetSchema.MinQuoted)
 				_, err := conn.Exec(context.Background(), dropSchemaQuery)
 				if err != nil {
-					utils.ErrExit("Failed to drop schema: %q: %s", targetSchema, err)
+					utils.ErrExit("Failed to drop schema: %q: %w", targetSchema, err)
 				}
 			} else {
 				utils.PrintAndLogf("schema '%s' already present in target database, continuing with it..\n", targetSchema.MinQuoted)
@@ -575,7 +575,7 @@ func createTargetSchemas(conn *pgx.Conn) {
 				utils.PrintAndLogf("creating schema '%s' in target database...", targetSchema.MinQuoted)
 				_, err := conn.Exec(context.Background(), createSchemaQuery)
 				if err != nil {
-					utils.ErrExit("Failed to create schema in the target DB: %q: %s", targetSchema, err)
+					utils.ErrExit("Failed to create schema in the target DB: %q: %w", targetSchema, err)
 				}
 			}
 
@@ -596,7 +596,7 @@ func checkIfTargetSchemaExists(conn *pgx.Conn, targetSchema sqlname.Identifier) 
 	if err != nil && (strings.Contains(err.Error(), "no rows in result set") && fetchedSchema == "") {
 		return false
 	} else if err != nil {
-		utils.ErrExit("Failed to check if schema exists: %q: %s", targetSchema, err)
+		utils.ErrExit("Failed to check if schema exists: %q: %w", targetSchema, err)
 	}
 
 	return fetchedSchema == targetSchema.Unquoted

@@ -88,7 +88,7 @@ func (df *TextDataFile) GetHeader() string {
 
 	line, _, err := df.NextLine()
 	if err != nil {
-		utils.ErrExit("finding header for text data file: %v", err)
+		utils.ErrExit("finding header for text data file: %w", err)
 	}
 
 	df.Header = line

@@ -170,7 +170,7 @@ func (pg *PostgresContainer) GetConnectionString() string {
 	config := pg.GetConfig()
 	host, port, err := pg.GetHostPort()
 	if err != nil {
-		utils.ErrExit("failed to get host port for postgres connection string: %v", err)
+		utils.ErrExit("failed to get host port for postgres connection string: %w", err)
 	}
 
 	return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?sslmode=disable", config.User, config.Password, host, port, config.DBName)

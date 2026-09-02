@@ -46,7 +46,7 @@ var importDataToSourceReplicaCmd = &cobra.Command{
 func setTargetConfSpecifics(cmd *cobra.Command) {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("get migration status record: %v", err)
+		utils.ErrExit("get migration status record: %w", err)
 	}
 	sconf := msr.SourceDBConf
 	tconf.TargetDBType = sconf.DBType
@@ -95,7 +95,7 @@ func updateFallForwardEnabledInMetaDB() {
 		record.FallForwardEnabled = true
 	})
 	if err != nil {
-		utils.ErrExit("error while updating fall forward db exists in meta db: %v", err)
+		utils.ErrExit("error while updating fall forward db exists in meta db: %w", err)
 	}
 }
 

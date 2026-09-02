@@ -62,7 +62,7 @@ func (ybc *YugabyteDBCDCClient) Init() error {
 	err := FindDebeziumDistribution("yugabytedb", true)
 	if err != nil {
 		// Adding suggestion to install debezium-server if it is not found
-		return goerrors.Errorf("finding debezium distribution: %s. Either install debezium-server or provide its path in the DEBEZIUM_DIST_DIR env variable", err)
+		return goerrors.Errorf("finding debezium distribution: %w. Either install debezium-server or provide its path in the DEBEZIUM_DIST_DIR env variable", err)
 	}
 	ybc.ybCdcClientJarPath = fmt.Sprintf("%s/yb-client-cdc-stream-wrapper.jar", DEBEZIUM_DIST_DIR)
 	return nil
@@ -93,7 +93,7 @@ func (ybc *YugabyteDBCDCClient) GenerateAndStoreStreamID() (string, error) {
 
 	stdout, err := ybc.runCommand(args)
 	if err != nil {
-		return "", goerrors.Errorf("running command with args: %s, error: %s", args, err)
+		return "", goerrors.Errorf("running command with args: %s, error: %w", args, err)
 	}
 	//stdout - CDC Stream ID: <stream_id>
 	streamID := ""
@@ -139,7 +139,7 @@ func (ybc *YugabyteDBCDCClient) DeleteStreamID() error {
 
 	_, err = ybc.runCommand(args)
 	if err != nil {
-		return goerrors.Errorf("running command with args: %s, error: %s", args, err)
+		return goerrors.Errorf("running command with args: %s, error: %w", args, err)
 	}
 	err = ybc.metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.YBCDCStreamID = ""
@@ -161,7 +161,7 @@ func (ybc *YugabyteDBCDCClient) ListMastersNodes() (string, error) {
 
 	stdout, err := ybc.runCommand(args)
 	if err != nil {
-		return "", goerrors.Errorf("running command with args: %s, error: %s", args, err)
+		return "", goerrors.Errorf("running command with args: %s, error: %w", args, err)
 	}
 	//stdout - Master Addresses: <comma_separated_list_addresses>
 	masterAddresses := ""
@@ -185,7 +185,7 @@ func (ybc *YugabyteDBCDCClient) GetNumOfReplicationStreams() (int, error) {
 
 	stdout, err := ybc.runCommand(args)
 	if err != nil {
-		return 0, goerrors.Errorf("running command with args: %s, error: %s", args, err)
+		return 0, goerrors.Errorf("running command with args: %s, error: %w", args, err)
 	}
 	//stdout - Streams: <num_of_streams>
 	numOfStreams := 0
@@ -193,7 +193,7 @@ func (ybc *YugabyteDBCDCClient) GetNumOfReplicationStreams() (int, error) {
 	if len(stdoutSplits) == 2 {
 		numOfStreams, err = strconv.Atoi(strings.Trim(stdoutSplits[1], " \n"))
 		if err != nil {
-			return 0, goerrors.Errorf("error parsing the output[%v] of cmd with args[%v] : %v", stdout, args, err)
+			return 0, goerrors.Errorf("error parsing the output[%v] of cmd with args[%v] : %w", stdout, args, err)
 		}
 	} else {
 		return 0, goerrors.Errorf("error expected the stdout to be in format 'Streams: <num>' but its not: %s", stdout)

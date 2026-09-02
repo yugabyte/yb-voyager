@@ -267,7 +267,7 @@ func readSequenceLastValueFromPostDataSql(sequenceFilePath string, sourceDBType 
 	for _, sqlInfo := range sqlInfoArr {
 		parseTree, err := queryparser.Parse(sqlInfo.stmt)
 		if err != nil {
-			return nil, goerrors.Errorf("error parsing the ddl[%s]: %v", sqlInfo.stmt, err)
+			return nil, goerrors.Errorf("error parsing the ddl[%s]: %w", sqlInfo.stmt, err)
 		}
 		var sequenceName string
 		var lastValue int64

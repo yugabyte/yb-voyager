@@ -338,7 +338,7 @@ func validateCdcPartitionKeyFlags(cmd *cobra.Command) error {
 
 	// Syntax-only parse of overrides (table list / namereg / expr-UK validated in prepareCdcPartitionKey before snapshot).
 	if _, err := parseCdcPartitionKeyOverrides(cdcPartitionKeyOverrides); err != nil {
-		utils.ErrExit("%v", err)
+		utils.ErrExit("%w", err)
 	}
 
 	importDataStatus, err := metaDB.GetImportDataStatusRecord()
