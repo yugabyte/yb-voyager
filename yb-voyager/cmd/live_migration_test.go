@@ -474,7 +474,7 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 		exprUK.Put(audit, true)
 		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"col1"}})
-		_, err := resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_TABLE, overrides, exprUK, YUGABYTEDB)
+		_, err := resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_TABLE, overrides, exprUK, nil, YUGABYTEDB)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "expression-based unique index")
 		assert.Contains(t, err.Error(), PARTITION_BY_CUSTOM)
@@ -746,25 +746,25 @@ func TestValidateCdcPartitioningStrategyUnchanged(t *testing.T) {
 	t.Run("same config passes", func(t *testing.T) {
 		cdcPartitionKey = PARTITION_BY_PK
 		cdcPartitionKeyOverrides = "test_schema.orders:table"
-		require.NoError(t, validateCdcPartitioningStrategyUnchanged(tableNames, importDataStatus))
+		require.NoError(t, validateCdcPartitioningStrategyUnchanged(tableNames, importDataStatus, emptyUK))
 	})
 
 	t.Run("semantically-equivalent overrides (quoting) pass", func(t *testing.T) {
 		cdcPartitionKey = PARTITION_BY_PK
 		cdcPartitionKeyOverrides = `"test_schema"."orders":table`
-		require.NoError(t, validateCdcPartitioningStrategyUnchanged(tableNames, importDataStatus))
+		require.NoError(t, validateCdcPartitioningStrategyUnchanged(tableNames, importDataStatus, emptyUK))
 	})
 
 	t.Run("semantically-equivalent overrides (whitespace) pass", func(t *testing.T) {
 		cdcPartitionKey = PARTITION_BY_PK
 		cdcPartitionKeyOverrides = "  test_schema.orders:table ; "
-		require.NoError(t, validateCdcPartitioningStrategyUnchanged(tableNames, importDataStatus))
+		require.NoError(t, validateCdcPartitioningStrategyUnchanged(tableNames, importDataStatus, emptyUK))
 	})
 
 	t.Run("changed override target table is rejected", func(t *testing.T) {
 		cdcPartitionKey = PARTITION_BY_PK
 		cdcPartitionKeyOverrides = "test_schema.events:table"
-		err := validateCdcPartitioningStrategyUnchanged(tableNames, importDataStatus)
+		err := validateCdcPartitioningStrategyUnchanged(tableNames, importDataStatus, emptyUK)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "changing cdc-partition-key")
 		assert.Contains(t, err.Error(), "events")
@@ -773,7 +773,7 @@ func TestValidateCdcPartitioningStrategyUnchanged(t *testing.T) {
 	t.Run("removed override is rejected", func(t *testing.T) {
 		cdcPartitionKey = PARTITION_BY_PK
 		cdcPartitionKeyOverrides = ""
-		err := validateCdcPartitioningStrategyUnchanged(tableNames, importDataStatus)
+		err := validateCdcPartitioningStrategyUnchanged(tableNames, importDataStatus, emptyUK)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "changing cdc-partition-key")
 		assert.Contains(t, err.Error(), "orders")
@@ -797,13 +797,13 @@ func TestValidateCdcPartitioningStrategyUnchanged(t *testing.T) {
 	t.Run("custom key: same columns (equivalent spelling) pass", func(t *testing.T) {
 		cdcPartitionKey = PARTITION_BY_PK
 		cdcPartitionKeyOverrides = `"test_schema"."orders":(customer_id)`
-		require.NoError(t, validateCdcPartitioningStrategyUnchanged(tableNames, customStatus("customer_id")))
+		require.NoError(t, validateCdcPartitioningStrategyUnchanged(tableNames, customStatus("customer_id"), emptyUK))
 	})
 
 	t.Run("custom key: changed column is rejected", func(t *testing.T) {
 		cdcPartitionKey = PARTITION_BY_PK
 		cdcPartitionKeyOverrides = "test_schema.orders:(region)"
-		err := validateCdcPartitioningStrategyUnchanged(tableNames, customStatus("customer_id"))
+		err := validateCdcPartitioningStrategyUnchanged(tableNames, customStatus("customer_id"), emptyUK)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "changing cdc-partition-key")
 		assert.Contains(t, err.Error(), "custom key columns")
@@ -813,7 +813,7 @@ func TestValidateCdcPartitioningStrategyUnchanged(t *testing.T) {
 	t.Run("custom key: reordered multi-columns are rejected (order is significant)", func(t *testing.T) {
 		cdcPartitionKey = PARTITION_BY_PK
 		cdcPartitionKeyOverrides = "test_schema.orders:(region,customer_id)"
-		err := validateCdcPartitioningStrategyUnchanged(tableNames, customStatus("customer_id", "region"))
+		err := validateCdcPartitioningStrategyUnchanged(tableNames, customStatus("customer_id", "region"), emptyUK)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "custom key columns")
 	})
@@ -821,7 +821,7 @@ func TestValidateCdcPartitioningStrategyUnchanged(t *testing.T) {
 	t.Run("custom key: added column is rejected", func(t *testing.T) {
 		cdcPartitionKey = PARTITION_BY_PK
 		cdcPartitionKeyOverrides = "test_schema.orders:(customer_id,region)"
-		err := validateCdcPartitioningStrategyUnchanged(tableNames, customStatus("customer_id"))
+		err := validateCdcPartitioningStrategyUnchanged(tableNames, customStatus("customer_id"), emptyUK)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "custom key columns")
 	})
