@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	goerrors "github.com/go-errors/errors"
@@ -76,8 +77,9 @@ var eventQueue *EventQueue
 var statsReporter *reporter.StreamImportStatsReporter
 
 const (
-	PARTITION_BY_PK    = "pk"
-	PARTITION_BY_TABLE = "table"
+	PARTITION_BY_PK     = "pk"
+	PARTITION_BY_TABLE  = "table"
+	PARTITION_BY_CUSTOM = "custom"
 )
 
 func init() {
@@ -106,7 +108,7 @@ func cutoverInitiatedAndCutoverEventProcessed() (bool, error) {
 	return false, nil
 }
 
-func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error {
+func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple, tableToPKColumns *utils.StructMap[sqlname.NameTuple, []string]) error {
 	waitForDebeziumStartIfRequired()
 	importPhase = dbzm.MODE_STREAMING
 	utils.PrintAndLogfInfo("streaming changes to %s...", tconf.TargetDBType)
@@ -148,17 +150,15 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error
 		return fmt.Errorf("failed to initialize stats reporter: %w", err)
 	}
 
-	tableToPartitioningStrategyMap, err := getCdcPartitioningStrategyPerTable(tableNames)
+	tablePartitionKeyMap, err := getCdcPartitioningStrategyPerTable(tableNames)
 	if err != nil {
 		return fmt.Errorf("error handling cdc partitioning strategy: %w", err)
 	}
 
-	if !disablePb {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		go statsReporter.ReportStats(ctx)
-		defer statsReporter.Finalize()
-	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go statsReporter.ReportStats(ctx, !bool(disablePb))
+	defer statsReporter.Finalize()
 
 	eventQueue = NewEventQueue(exportDir)
 	// setup target event channels
@@ -181,7 +181,7 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error
 		}
 		log.Infof("got next segment to stream: %v", segment)
 
-		err = streamChangesFromSegment(segment, evChans, processingDoneChans, eventChannelsMetaInfo, statsReporter, state, streamingPhaseValueConverter, tableToPartitioningStrategyMap, tableNames)
+		err = streamChangesFromSegment(segment, evChans, processingDoneChans, eventChannelsMetaInfo, statsReporter, state, streamingPhaseValueConverter, tablePartitionKeyMap, tableToPKColumns, tableNames)
 		if err != nil {
 			return goerrors.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
 		}
@@ -200,7 +200,8 @@ func streamChangesFromSegment(
 	statsReporter *reporter.StreamImportStatsReporter,
 	state *ImportDataState,
 	streamingPhaseValueConverter dbzm.StreamingPhaseValueConverter,
-	tableToPartitioningStrategyMap *utils.StructMap[sqlname.NameTuple, string],
+	tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride],
+	tableToPKColumns *utils.StructMap[sqlname.NameTuple, []string],
 	importTableList []sqlname.NameTuple) error {
 
 	err := segment.Open()
@@ -240,7 +241,7 @@ func streamChangesFromSegment(
 				we need to use the actual source db type at the moment.
 			*/
 			sourceDBTypeForConflictCache := lo.Ternary(isTargetDBExporter(event.ExporterRole), YUGABYTEDB, sourceDBType)
-			err = initializeConflictDetectionCache(evChans, sourceDBTypeForConflictCache, importTableList)
+			err = initializeConflictDetectionCache(evChans, sourceDBTypeForConflictCache, importTableList, tablePartitionKeyMap, tableToPKColumns)
 			if err != nil {
 				return fmt.Errorf("error initializing conflict detection cache: %w", err)
 			}
@@ -274,7 +275,7 @@ func streamChangesFromSegment(
 			break
 		}
 
-		err = handleEvent(event, evChans, streamingPhaseValueConverter, tableToPartitioningStrategyMap)
+		err = handleEvent(event, evChans, streamingPhaseValueConverter, tablePartitionKeyMap)
 		if err != nil {
 			return goerrors.Errorf("error handling event: %v", err)
 		}
@@ -321,20 +322,20 @@ func shouldFormatValues(event *tgtdb.Event) bool {
 	return false
 }
 
-func shouldHandleConflicts(event *tgtdb.Event, tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex], tableToPartitioningStrategyMap *utils.StructMap[sqlname.NameTuple, string]) (bool, error) {
+func shouldHandleConflicts(event *tgtdb.Event, tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex], tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride]) (bool, error) {
 	if tableToUniqueIndexes == nil {
 		return false, goerrors.Errorf("table to unique indexes is not initialized")
 	}
-	if tableToPartitioningStrategyMap == nil {
-		return false, goerrors.Errorf("table to partitioning strategy map is not initialized")
+	if tablePartitionKeyMap == nil {
+		return false, goerrors.Errorf("table partition key map is not initialized")
 	}
 	uniqueIndexes, _ := tableToUniqueIndexes.Get(event.TableNameTup)
 
-	partitioningStrategy, ok := tableToPartitioningStrategyMap.Get(event.TableNameTup)
+	partitionKey, ok := tablePartitionKeyMap.Get(event.TableNameTup)
 	if !ok {
-		return false, goerrors.Errorf("table to partitioning strategy map does not contain table %v", event.TableNameTup)
+		return false, goerrors.Errorf("table partition key map does not contain table %v", event.TableNameTup)
 	}
-	if len(uniqueIndexes) == 0 || partitioningStrategy == PARTITION_BY_TABLE {
+	if len(uniqueIndexes) == 0 || partitionKey.Strategy == PARTITION_BY_TABLE {
 		//for the partition by table strategy, we don't need to handle conflicts
 		//since the events of the same table will be executed sequentially on a single channel
 		//hence the conflicts will never happen
@@ -346,7 +347,7 @@ func shouldHandleConflicts(event *tgtdb.Event, tableToUniqueIndexes *utils.Struc
 func handleEvent(event *tgtdb.Event,
 	evChans []chan *tgtdb.Event,
 	streamingPhaseValueConverter dbzm.StreamingPhaseValueConverter,
-	tableToPartitioningStrategyMap *utils.StructMap[sqlname.NameTuple, string]) error {
+	tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride]) error {
 	if event.IsCutoverEvent() {
 		// nil in case of cutover or fall_forward events for unconcerned importer
 		return nil
@@ -357,7 +358,7 @@ func handleEvent(event *tgtdb.Event,
 	// Note: hash the event before running the keys/values through the value converter.
 	// This is because the value converter can generate different values (formatting vs no formatting) for the same key
 	// which will affect hash value.
-	h, err := hashEvent(event, tableToPartitioningStrategyMap)
+	h, err := hashEvent(event, tablePartitionKeyMap)
 	if err != nil {
 		return goerrors.Errorf("error hashing event: %v", err)
 	}
@@ -366,20 +367,29 @@ func handleEvent(event *tgtdb.Event,
 		Checking for all possible conflicts among events
 		For more details about ConflictDetectionCache see the related comment in [conflictDetectionCache.go](../conflictDetectionCache.go)
 	*/
-	ok, err := shouldHandleConflicts(event, conflictDetectionCache.tableToUniqueIndexes, tableToPartitioningStrategyMap)
+	ok, err := shouldHandleConflicts(event, conflictDetectionCache.tableToUniqueIndexes, tablePartitionKeyMap)
 	if err != nil {
 		return goerrors.Errorf("error checking if should handle conflicts: %v", err)
 	}
 	if ok {
 		if event.Op == "d" {
-			conflictDetectionCache.Put(event)
+			err = conflictDetectionCache.Put(event)
+			if err != nil {
+				return goerrors.Errorf("error putting event into conflict detection cache: %v", err)
+			}
 		} else { // "i" or "u"
-			conflictDetectionCache.WaitUntilNoConflict(event)
+			err = conflictDetectionCache.WaitUntilNoConflict(event)
+			if err != nil {
+				return goerrors.Errorf("error waiting for conflicts to clear for event vsn(%d): %v", event.Vsn, err)
+			}
 			if event.Op == "u" {
 				// Adding all the update events to the conflict detection cache since we need to check detect the conflicts in cases where
 				// unique key column is not changed in addition to unique key column is actually changed
 				// since the unique key is removed the index even if the column is actually changed because of partial predicate
-				conflictDetectionCache.Put(event)
+				err = conflictDetectionCache.Put(event)
+				if err != nil {
+					return goerrors.Errorf("error putting event into conflict detection cache: %v", err)
+				}
 			}
 		}
 	}
@@ -399,42 +409,129 @@ func handleEvent(event *tgtdb.Event,
 	return nil
 }
 
-// Returns a hash value between 0..NUM_EVENT_CHANNELS
-func hashEvent(e *tgtdb.Event, tableToPartitioningStrategyMap *utils.StructMap[sqlname.NameTuple, string]) (int, error) {
-	hash := fnv.New64a()
+// customKeyNullSentinel is written to the partition key for a NULL-valued custom key
+// column so NULLs route deterministically (and cannot collide with any real value).
+const customKeyNullSentinel = "\x00NULL\x00"
 
-	if tableToPartitioningStrategyMap == nil {
-		return 0, goerrors.Errorf("table to partitioning strategy map is not initialized")
+// GetEventPartitionKey returns a deterministic string that identifies the routing
+// partition of an event under its table's CDC partitioning strategy:
+//   - PARTITION_BY_PK:     table + primary-key column values
+//   - PARTITION_BY_TABLE:  table only (all events of the table share one partition)
+//   - PARTITION_BY_CUSTOM: table + custom key column values (immutable; NULL -> sentinel)
+//
+// This single function is the source of truth for both routing and conflict exclusion:
+//   - hashEvent hashes the partition key to pick the event's channel.
+//   - the conflict cache excludes cached events that share the incoming event's partition
+//     key, because equal partition keys hash to the same channel and are therefore applied
+//     in commit order and can never race.
+//
+// Because the same string drives both, "same partition key" always implies "same channel"
+// by construction, so the exclusion is always safe regardless of value encoding.
+//
+// Note: the byte layout (table prefix followed by the raw values, no separators) is kept
+// identical to the previous hashEvent implementation so channel assignment - which is
+// baked into per-channel resumption state - does not change across upgrades for existing
+// pk/table migrations.
+func GetEventPartitionKey(e *tgtdb.Event, tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride]) (string, error) {
+	if tablePartitionKeyMap == nil {
+		return "", goerrors.Errorf("table partition key map is not initialized")
 	}
-
-	strategy, ok := tableToPartitioningStrategyMap.Get(e.TableNameTup)
+	partitionKey, ok := tablePartitionKeyMap.Get(e.TableNameTup)
 	if !ok {
-		return 0, goerrors.Errorf("table to partitioning strategy map does not contain table %v", e.TableNameTup)
+		return "", goerrors.Errorf("table partition key map does not contain table %v", e.TableNameTup)
 	}
 
-	switch strategy {
+	var b strings.Builder
+	// Prefix with the table so events of different tables never share a partition key.
+	b.WriteString(e.TableNameTup.ForKey())
+
+	switch partitionKey.Strategy {
 	case PARTITION_BY_PK:
-		hash.Write([]byte(e.TableNameTup.ForKey()))
-		//include key columns in the hash
-		keyColumns := make([]string, 0)
+		// include primary-key column values, sorted by column name for a stable order.
+		keyColumns := make([]string, 0, len(e.Key))
 		for k := range e.Key {
 			keyColumns = append(keyColumns, k)
 		}
-
-		// sort to ensure input to hash is consistent.
 		sort.Strings(keyColumns)
 		for _, k := range keyColumns {
-			hash.Write([]byte(*e.Key[k]))
+			b.WriteString(*e.Key[k])
 		}
 	case PARTITION_BY_TABLE:
-		hash.Write([]byte(e.TableNameTup.ForKey()))
+		// table prefix alone is the partition key.
+	case PARTITION_BY_CUSTOM:
+		columns := partitionKey.Columns
+		if len(columns) == 0 {
+			return "", goerrors.Errorf("custom partition key columns not found for table %v", e.TableNameTup)
+		}
+		sort.Strings(columns)
+		// Custom key columns are immutable (guardrail enforced separately), so a row's
+		// key value is the same in BeforeFields (update/delete) and Fields (insert).
+		// Prefer BeforeFields (present for update/delete under REPLICA IDENTITY FULL);
+		// fall back to Fields for inserts.
+		for _, col := range columns {
+			val, ok, err := customPartitionKeyColumnValue(e, col)
+			if err != nil {
+				return "", err
+			}
+			if !ok {
+				return "", goerrors.Errorf("custom partition key column %q not found in event(vsn=%d) for table %v; ensure REPLICA IDENTITY FULL is set", col, e.Vsn, e.TableNameTup)
+			}
+			if val == nil {
+				b.WriteString(customKeyNullSentinel)
+			} else {
+				b.WriteString(*val)
+			}
+		}
 	default:
-		return 0, goerrors.Errorf("invalid partitioning strategy: %s", strategy)
+		return "", goerrors.Errorf("invalid partitioning strategy: %s", partitionKey.Strategy)
 	}
+	return b.String(), nil
+}
+
+// Returns a hash value between 0..NUM_EVENT_CHANNELS
+func hashEvent(e *tgtdb.Event, tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride]) (int, error) {
+	partitionKey, err := GetEventPartitionKey(e, tablePartitionKeyMap)
+	if err != nil {
+		return 0, err
+	}
+	hash := fnv.New64a()
+	hash.Write([]byte(partitionKey))
 	return int(hash.Sum64() % (uint64(NUM_EVENT_CHANNELS))), nil
 }
 
-// TODO: return err instead of ErrExit so that we can test better.
+// customPartitionKeyColumnValue returns the value as per the event operation for the custom partition key column
+// if the column is not found, the second return is false
+
+func customPartitionKeyColumnValue(e *tgtdb.Event, col string) (*string, bool, error) {
+	switch e.Op {
+	case "c":
+		val, ok := e.Fields[col]
+		if ok {
+			return val, true, nil
+		} else {
+			return nil, false, goerrors.Errorf("custom partition key column %q not found in event(vsn=%d) for table %v", col, e.Vsn, e.TableNameTup)
+		}
+	case "u":
+		_, ok := e.Fields[col]
+		if ok {
+			return nil, false, goerrors.Errorf("custom partition key column %q is required to be immutable, it is changing in update event(vsn=%d) for table %v", col, e.Vsn, e.TableNameTup)
+		}
+		val, ok := e.BeforeFields[col]
+		if ok {
+			return val, true, nil
+		} else {
+			return nil, false, goerrors.Errorf("custom partition key column %q not found in event(vsn=%d) for table %v; ensure REPLICA IDENTITY FULL is set", col, e.Vsn, e.TableNameTup)
+		}
+	case "d":
+		val, ok := e.BeforeFields[col]
+		if ok {
+			return val, true, nil
+		} else {
+			return nil, false, goerrors.Errorf("custom partition key column %q not found in event(vsn=%d) for table %v;", col, e.Vsn, e.TableNameTup)
+		}
+	}
+	return nil, false, nil
+}
 func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, done chan bool, statsReporter *reporter.StreamImportStatsReporter, state *ImportDataState) {
 	endOfProcessing := false
 	for !endOfProcessing {
@@ -536,15 +633,110 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 // Attribute name registry is not required here as for the PG->YB migrations the attribute name is same in both the places - event's fields coming from source and unique-index-column mapping coming from target and
 // And this path is only for PG->YB migrations as of now.
 // This path assumes that the column name remains same in PG->YB migrations.
-func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, sourceDBTypeForConflictCache string, importTableList []sqlname.NameTuple) error {
+func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, sourceDBTypeForConflictCache string, importTableList []sqlname.NameTuple, tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], tableToPKColumns *utils.StructMap[sqlname.NameTuple, []string]) error {
 	log.Infof("fetching table to unique indexes map from import target (%s)", tconf.TargetDBType)
 	tableToUniqueIndexes, err := tdb.GetTableToUniqueIndexesMap(importTableList)
 	if err != nil {
 		return fmt.Errorf("get table unique indexes map from target: %w", err)
 	}
+
+	// For custom-key tables the primary key must join the unique indexes to be able to detect PK-recycle races. 
+	// GetTableToUniqueIndexesMap deliberately excludes the primary key (filters out contype='p'): under default pk routing,
+	// same-PK events always co-locate on one channel, so a recycled PK
+	// example - table(id pk, c1 unique) partition-key (c1)
+	//DELETE id=2 c1=1 // channel 1
+	//INSERT id=2 c1=2 // channel 2
+	//so we need add the PK to the unique index
+	// Under custom routing those two events can carry different custom keys, route to different channels, and apply out of order (duplicate primary key).
+	// Adding the PK as a synthetic unique index makes conflict detection serialize such PK-recycle races. The PK
+	// columns were fetched and validated before snapshot (getPrimaryKeyColumnsForImportTables, called from importData) and passed in here, so this does not re-query the target DB.
+	if err := addPrimaryKeyToConflictSetForCustomTables(tableToUniqueIndexes, importTableList, tablePartitionKeyMap, tableToPKColumns); err != nil {
+		return err
+	}
+
 	log.Infof("initializing conflict detection cache")
-	conflictDetectionCache = NewConflictDetectionCache(tableToUniqueIndexes, evChans, sourceDBTypeForConflictCache)
+	conflictDetectionCache = NewConflictDetectionCache(tableToUniqueIndexes, evChans, sourceDBTypeForConflictCache, tablePartitionKeyMap)
 	return nil
+}
+
+// addPrimaryKeyToConflictSetForCustomTables appends the primary key as a synthetic unique
+// index to the per-table conflict-detection set for every table routed by a custom partition
+// key. This is required for correctness under custom routing (see
+// initializeConflictDetectionCache) it is
+// a no-op for pk/table routing where the primary key never needs cross-channel conflict
+// detection.
+func addPrimaryKeyToConflictSetForCustomTables(
+	tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex],
+	importTableList []sqlname.NameTuple,
+	tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride],
+	tableToPKColumns *utils.StructMap[sqlname.NameTuple, []string],
+) error {
+	var customTables []sqlname.NameTuple
+	for _, table := range importTableList {
+		partitionKey, ok := tablePartitionKeyMap.Get(table)
+		if !ok {
+			return goerrors.Errorf("table partition key map does not contain table %v", table)
+		}
+		if partitionKey.Strategy == PARTITION_BY_CUSTOM {
+			customTables = append(customTables, table)
+		}
+	}
+	if len(customTables) == 0 {
+		return nil
+	}
+
+	for _, table := range customTables {
+		// The PK columns were fetched and validated before snapshot in
+		// getPrimaryKeyColumnsForImportTables (which hard-fails a custom-key table with no PK)
+		// and passed in, so a missing entry here indicates an internal inconsistency; fail
+		// rather than adding an empty-column index that would match every row.
+		pkColumns, ok := tableToPKColumns.Get(table)
+		if !ok || len(pkColumns) == 0 {
+			return goerrors.Errorf("no primary key columns found for custom-key table %s", table.ForOutput())
+		}
+		existingIndexes, _ := tableToUniqueIndexes.Get(table)
+		if uniqueIndexWithSameColumnsExists(existingIndexes, pkColumns) {
+			// A unique index already covers exactly the PK columns, so the PK-recycle race is
+			// already detected; avoid adding a redundant synthetic index.
+			continue
+		}
+		pkIndex := tgtdb.UniqueIndex{
+			IndexName: fmt.Sprintf("%s_pk_conflict_guard", table.ForKey()),
+			Columns:   pkColumns,
+			// Primary-key columns are NOT NULL, so NULLS [NOT] DISTINCT handling is not possible; set
+			// true so the null-skip path in conflict detection never bypasses the PK check.
+			NullsNotDistinct: true,
+		}
+		tableToUniqueIndexes.Put(table, append(existingIndexes, pkIndex))
+		log.Infof("added primary key %v as synthetic unique index to conflict set for custom-key table %s", pkColumns, table.ForOutput())
+	}
+	return nil
+}
+
+// uniqueIndexWithSameColumnsExists reports whether indexes already contains a unique index
+// whose column set equals columns (order-insensitive), used to avoid adding a redundant
+// synthetic primary-key index.
+func uniqueIndexWithSameColumnsExists(indexes []tgtdb.UniqueIndex, columns []string) bool {
+	want := make(map[string]bool, len(columns))
+	for _, c := range columns {
+		want[c] = true
+	}
+	for _, index := range indexes {
+		if len(index.Columns) != len(want) {
+			continue
+		}
+		allMatch := true
+		for _, c := range index.Columns {
+			if !want[c] {
+				allMatch = false
+				break
+			}
+		}
+		if allMatch {
+			return true
+		}
+	}
+	return false
 }
 
 func checkifEventBatchAlreadyImported(state *ImportDataState, eventBatch *tgtdb.EventBatch, migrationUUID uuid.UUID) (bool, error) {

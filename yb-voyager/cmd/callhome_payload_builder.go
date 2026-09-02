@@ -479,7 +479,7 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
 			OptimizationType: MVIEW_COLOCATION_RECOMMENDATION_CHANGE_TYPE,
 			IsApplied:        schemaOptimizationReport.MviewColocationRecommendation.IsApplied,
-			Objects:          schemaOptimizationReport.MviewColocationRecommendation.ShardedObjects,
+			Objects:          objects,
 		})
 	}
 	if schemaOptimizationReport.SecondaryIndexToRangeChange != nil {
@@ -513,19 +513,6 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 	return schemaOptimizationChanges
 }
 
-func getAnonymizedConstraintNamesFromConstraints(constraints []string) []string {
-	anonymizedConstraints := make([]string, 0)
-	for _, constraint := range constraints {
-		anonymizedConstraint, err := anonymizer.AnonymizeConstraintName(constraint)
-		if err != nil {
-			log.Errorf("callhome: failed to anonymise constraint-%s: %v", constraint, err)
-			anonymizedConstraints = append(anonymizedConstraints, constants.OBFUSCATE_STRING)
-			continue
-		}
-		anonymizedConstraints = append(anonymizedConstraints, anonymizedConstraint)
-	}
-	return anonymizedConstraints
-}
 func getAnonymizedIndexObjectsFromIndexToTableMap(indexToTableMap map[string][]string) []string {
 	objects := make([]string, 0)
 	for tbl, indexes := range indexToTableMap {

@@ -35,6 +35,7 @@ import (
 // When NullsNotDistinct is true, two NULL values are treated as equal (i.e. they
 // conflict); with the default NULLS DISTINCT semantics NULLs never conflict.
 type UniqueIndex struct {
+	IndexName        string
 	Columns          []string
 	NullsNotDistinct bool
 }
@@ -52,7 +53,9 @@ type TargetDB interface {
 	IsNonRetryableCopyError(err error) bool
 	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error, bool)
 	QuoteAttributeNames(tableNameTup sqlname.NameTuple, columns []string) ([]string, error)
-	GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error)
+	// GetPrimaryKeyColumnsForTables returns, for each requested table, its primary-key
+	// columns in PK-definition order (batched single-query variant of GetPrimaryKeyColumns).
+	GetPrimaryKeyColumnsForTables(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error)
 	GetPrimaryKeyConstraintNames(tableNameTup sqlname.NameTuple) ([]string, error)
 	// GetTableToUniqueIndexesMap returns, for each table, the list of unique
 	// indexes/constraints (each an ordered column list plus its NULLS NOT DISTINCT

@@ -32,6 +32,7 @@ import (
 )
 
 var defaultSessionVars = []string{
+	SET_IDLE_IN_TRANSACTION_SESSION_TIMEOUT,
 	"SET client_encoding to 'UTF-8'",
 	"SET session_replication_role to replica",
 }

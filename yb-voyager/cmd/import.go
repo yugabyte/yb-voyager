@@ -37,7 +37,8 @@ var targetDBPassword string
 var sourceDBType string
 var enableOrafce utils.BoolStr
 var importType string
-var prometheusMetricsPort int
+var prometheusMetricsPort int            // deprecated alias for --metrics-port
+var metricsPort int                      // bound to --metrics-port; 0 = disabled
 var importUsePartitionRoot utils.BoolStr // default is true for backward compatibility
 
 var supportedSSLModesOnTargetForImport = AllSSLModes // supported SSL modes for YugabyteDB is different for import VS export data from target(streaming phase)
@@ -220,10 +221,20 @@ func validateImportUsePartitionRootFlag() error {
 
 var validCdcPartitionKeys = []string{PARTITION_BY_PK, PARTITION_BY_TABLE, "auto"}
 
-// parseCdcPartitionKeyOverrides parses "schema.table:pk;schema.other:table".
-// Only pk and table are supported as override strategies (not auto or custom columns).
-func parseCdcPartitionKeyOverrides(overrides string) (map[string]string, error) {
-	result := make(map[string]string)
+// cdcPartitionKeyOverride is a single parsed per-table override from
+// --cdc-partition-key-overrides. Strategy is one of PARTITION_BY_PK,
+// PARTITION_BY_TABLE or PARTITION_BY_CUSTOM. Columns is set (non-empty, in the
+// user-specified order) only when Strategy == PARTITION_BY_CUSTOM.
+type cdcPartitionKeyOverride struct {
+	Strategy string
+	Columns  []string
+}
+
+// parseCdcPartitionKeyOverrides parses "schema.table:pk;schema.other:(col1,col2)".
+// Each value is either pk, table, or a parenthesized comma-separated custom column
+// list (custom key), e.g. (col1,col2).
+func parseCdcPartitionKeyOverrides(overrides string) (map[string]cdcPartitionKeyOverride, error) {
+	result := make(map[string]cdcPartitionKeyOverride)
 	overrides = strings.TrimSpace(overrides)
 	if overrides == "" {
 		return result, nil
@@ -236,26 +247,63 @@ func parseCdcPartitionKeyOverrides(overrides string) (map[string]string, error) 
 		}
 		parts := strings.SplitN(entry, ":", 2)
 		if len(parts) != 2 {
-			return nil, goerrors.Errorf("invalid cdc-partition-key-overrides entry %q: expected format schema.table:pk|table", entry)
+			return nil, goerrors.Errorf("invalid cdc-partition-key-overrides entry %q: expected format schema.table:pk|table|(col1,col2,...)", entry)
 		}
 		tableName := strings.TrimSpace(parts[0])
-		strategy := strings.TrimSpace(parts[1])
-		if tableName == "" || strategy == "" {
-			return nil, goerrors.Errorf("invalid cdc-partition-key-overrides entry %q: table and strategy must both be non-empty", entry)
+		value := strings.TrimSpace(parts[1])
+		if tableName == "" || value == "" {
+			return nil, goerrors.Errorf("invalid cdc-partition-key-overrides entry %q: table and strategy/columns must both be non-empty", entry)
 		}
-		if strategy != PARTITION_BY_PK && strategy != PARTITION_BY_TABLE {
-			return nil, goerrors.Errorf("invalid cdc-partition-key-overrides strategy %q for table %q: supported values are %s, %s",
-				strategy, tableName, PARTITION_BY_PK, PARTITION_BY_TABLE)
+
+		override, err := parseCdcPartitionKeyOverrideValue(tableName, value)
+		if err != nil {
+			return nil, err
 		}
+
 		if _, exists := result[tableName]; exists {
-			if strings.EqualFold(strategy, result[tableName]) {
-				continue
-			}
 			return nil, goerrors.Errorf("duplicate table %q in cdc-partition-key-overrides", tableName)
 		}
-		result[tableName] = strategy
+		result[tableName] = override
 	}
 	return result, nil
+}
+
+// parseCdcPartitionKeyOverrideValue interprets a single override value. "pk" and
+// "table" map to the corresponding strategy; a custom key column list must be wrapped
+// in parentheses, e.g. (col1,col2), and maps to PARTITION_BY_CUSTOM.
+func parseCdcPartitionKeyOverrideValue(tableName, value string) (cdcPartitionKeyOverride, error) {
+	switch value {
+	case PARTITION_BY_PK:
+		return cdcPartitionKeyOverride{Strategy: PARTITION_BY_PK}, nil
+	case PARTITION_BY_TABLE:
+		return cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE}, nil
+	}
+
+	// A custom key column list must be parenthesized: (col1,col2,...).
+	if !strings.HasPrefix(value, "(") || !strings.HasSuffix(value, ")") {
+		return cdcPartitionKeyOverride{}, goerrors.Errorf("invalid cdc-partition-key-overrides value %q for table %q: expected pk, table, or a parenthesized custom key column list like (col1,col2)", value, tableName)
+	}
+	value = strings.TrimSpace(value[1 : len(value)-1])
+	if value == "" {
+		return cdcPartitionKeyOverride{}, goerrors.Errorf("invalid cdc-partition-key-overrides value for table %q: custom key column list is empty", tableName)
+	}
+
+	utils.PrintAndLogfWarning("[Tech Preview] Using custom cdc partition key for table %q: (%s)", tableName, value)
+	rawColumns := strings.Split(value, ",")
+	columns := make([]string, 0, len(rawColumns))
+	seen := make(map[string]bool)
+	for _, col := range rawColumns {
+		col = strings.TrimSpace(col)
+		if col == "" {
+			return cdcPartitionKeyOverride{}, goerrors.Errorf("invalid cdc-partition-key-overrides value %q for table %q: empty column name in custom key", value, tableName)
+		}
+		if seen[col] {
+			return cdcPartitionKeyOverride{}, goerrors.Errorf("invalid cdc-partition-key-overrides value %q for table %q: duplicate column %q in custom key", value, tableName, col)
+		}
+		seen[col] = true
+		columns = append(columns, col)
+	}
+	return cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: columns}, nil
 }
 
 func validateCdcPartitionKeyFlags(cmd *cobra.Command) error {
@@ -307,10 +355,11 @@ func validateCdcPartitionKeyFlags(cmd *cobra.Command) error {
 	if cdcPartitionKey != importDataStatus.CdcPartitioningStrategyConfig {
 		return goerrors.Errorf("changing cdc-partition-key is not allowed after the import data has started. Current: %s, new: %s\n Use --start-clean to start a fresh import with the new partition key.", importDataStatus.CdcPartitioningStrategyConfig, cdcPartitionKey)
 	}
-	storedOverrides := importDataStatus.CdcPartitionKeyOverridesConfig //TODO: just checking the string equality is not enough, we might need to compare the overrides by properly
-	if cdcPartitionKeyOverrides != storedOverrides {
-		return goerrors.Errorf("changing cdc-partition-key-overrides is not allowed after the import data has started. Current: %q, new: %q\n Use --start-clean to start a fresh import with the new overrides.", storedOverrides, cdcPartitionKeyOverrides)
-	}
+	// cdc-partition-key-overrides is intentionally NOT compared here as a raw string: two
+	// different strings (ordering, quoting/casing, whitespace) can resolve to the same
+	// effective per-table strategy. The semantic comparison against the persisted per-table
+	// map is done in prepareCdcPartitionKey, which has the import table list + name registry
+	// needed to resolve overrides into effective per-table strategies.
 	log.Infof("cdc-partition-key: %s, cdc-partition-key-overrides: %q", cdcPartitionKey, cdcPartitionKeyOverrides)
 	return nil
 }
@@ -503,19 +552,24 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 
 	cmd.Flags().StringVar(&cdcPartitionKey, "cdc-partition-key", "auto",
 		`Global strategy for how CDC events are hashed across parallel channels. Supported values: auto, pk, table.
-		\tauto: Automatically pick pk or table per table (expression unique-index tables use table).
-		\tpk: Partition CDC events by primary key.
-		\ttable: Partition CDC events by table (all events for a table share one channel).`)
-	cmd.Flags().MarkHidden("cdc-partition-key")
+		auto: Automatically pick pk or table per table (expression unique-index tables use table).
+		pk: Partition CDC events by primary key.
+		table: Partition CDC events by table (all events for a table share one channel).`)
 
 	cmd.Flags().StringVar(&cdcPartitionKeyOverrides, "cdc-partition-key-overrides", "",
 		`Optional per-table CDC partition-key overrides as schema.table:pk|table pairs, separated by ';'.
 		Example: public.orders:table;sales.events:pk. Unlisted tables keep the global --cdc-partition-key.`)
-	cmd.Flags().MarkHidden("cdc-partition-key-overrides")
 
 	cmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
 		"Port for Prometheus metrics server (default: 9101)")
 	cmd.Flags().MarkHidden("prometheus-metrics-port")
+
+	BoolVar(cmd.Flags(), &tconf.DisableSequentialScanOnUpdateDeletes, "disable-sequential-scan-on-update-deletes", true,
+		"Disable sequential scan on update and delete operations to avoid retryable errors during concurrent writes in repeatable isolation level (default true)")
+	cmd.Flags().MarkHidden("disable-sequential-scan-on-update-deletes")
+
+	cmd.Flags().IntVar(&metricsPort, "metrics-port", 0,
+		"Port to expose Prometheus metrics on (0 disables). Serves GET /metrics.")
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {

@@ -61,13 +61,11 @@ func validateYBVersionForLogicalConnector(tconf *tgtdb.TargetConf) error {
 		return fmt.Errorf("failed to parse current YugabyteDB version '%s': %w.", ybVersion, err)
 	}
 
-	var minSupportedLogicalConnectorVersion *ybversion.YBVersion
 	// We dont support old format of YugabyteDB stable versions for logical connector i.e. 2.20 etc. and we dont support preview versions < 2.29.0.0
 	// But 2.29.0.0 is not released yet, so we don't support any preview versions either for now.
 	// So, we only support stable versions >= 2024.2.4.0
 	// TODO: Once 2.29.0.0 is released, add support for preview versions >= 2.29.0.0
-
-	minSupportedLogicalConnectorVersion = ybversion.V2024_2_4_0
+	minSupportedLogicalConnectorVersion := ybversion.V2024_2_4_0
 
 	// Common error message components
 	docsURL := utils.InfoColor.Add(color.Underline).Sprint("https://docs.yugabyte.com/preview/yugabyte-voyager/reference/cutover-archive/cutover/#yugabytedb-grpc-vs-yugabytedb-connector")
@@ -131,6 +129,7 @@ var cutoverToTargetCmd = &cobra.Command{
 		// yb-amp supports plain live migration only. Fall-back / fall-forward
 		// require streaming changes *out of* the target via YugabyteDB CDC, which
 		// a yb-amp compute does not provide. Fail fast with a clear message.
+		//lint:ignore SA5011 utils.ErrExit always exits
 		if msr.TargetDBConf != nil && msr.TargetDBConf.TargetDBType == YUGABYTEDB_AMP {
 			if bool(prepareForFallBack) || msr.FallForwardEnabled {
 				utils.ErrExit("fall-back / fall-forward are not supported for --target-db-type %s (yb-amp cannot stream changes out via YugabyteDB CDC). Use plain live migration: re-run cutover with --prepare-for-fall-back no", YUGABYTEDB_AMP)

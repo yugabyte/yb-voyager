@@ -33,6 +33,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -110,6 +111,10 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchProd
 	progressReporter.ImportFileStarted(task, totalProgressAmount)
 	currentProgressAmount := getImportedProgressAmount(task, state)
 	progressReporter.AddProgressAmount(task, currentProgressAmount)
+
+	if currentProgressAmount == 0 {
+		metrics.Get().SetImportSnapshotTableStarted(importerRole, task.TableNameTup)
+	}
 
 	resumeInfoShown := false
 	if currentProgressAmount > 0 {
@@ -202,7 +207,7 @@ func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 		fti.workerPool.Go(importBatchFunc)
 	}
 
-	importdata.RecordPrometheusSnapshotBatchSubmitted(fti.task.TableNameTup, importerRole)
+	metrics.Get().RecordImportSnapshotBatchSubmitted(importerRole, fti.task.TableNameTup)
 
 	log.Infof("Queued batch: %s", spew.Sdump(batch))
 	return nil
@@ -291,8 +296,7 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 
 		// Handle the error
 		log.Errorf("Handling error for batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
-		var err2 error
-		err2 = fti.errorHandler.HandleBatchIngestionError(batch, fti.task.FilePath, err, isPartialBatchIngestionPossibleOnError)
+		err2 := fti.errorHandler.HandleBatchIngestionError(batch, fti.task.FilePath, err, isPartialBatchIngestionPossibleOnError)
 		if err2 != nil {
 			utils.ErrExit("handling error for batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err2)
 		}
@@ -331,7 +335,8 @@ func (fti *FileTaskImporter) updateProgressForCompletedBatch(batch *Batch) {
 		fti.callhomeMetricsCollector.IncrementSnapshotProgress(batch.RecordCount, batch.ByteCount)
 	}
 
-	importdata.RecordPrometheusSnapshotBatchIngested(fti.task.TableNameTup, importerRole, batch.RecordCount, batch.ByteCount)
+	metrics.Get().RecordImportSnapshotBatchIngested(importerRole, fti.task.TableNameTup, batch.RecordCount, batch.ByteCount)
+	metrics.Get().ObserveImportSnapshotBatchSize(importerRole, fti.task.TableNameTup, batch.RecordCount, batch.ByteCount)
 }
 
 func (fti *FileTaskImporter) PostProcess() {
@@ -340,6 +345,8 @@ func (fti *FileTaskImporter) PostProcess() {
 	}
 
 	fti.updateProgressInControlPlane(ROW_UPDATE_STATUS_COMPLETED)
+
+	metrics.Get().SetImportSnapshotTableCompleted(importerRole, fti.task.TableNameTup)
 
 	fti.progressReporter.FileImportDone(fti.task) // Remove the progress-bar for the file.\
 }
@@ -415,10 +422,11 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		  Hence query is made on root tables which will fetch all the constraints names(parent and all children)
 	*/
 	// TODO: Optimize this by fetching the primary key columns and constraint names in one go for all tables
-	pkColumns, err := tdb.GetPrimaryKeyColumns(tableNameTup)
+	tableToPKColumns, err := tdb.GetPrimaryKeyColumnsForTables([]sqlname.NameTuple{tableNameTup})
 	if err != nil {
 		utils.ErrExit("getting primary key columns for table %s: %s", tableNameTup.ForMinOutput(), err)
 	}
+	pkColumns, _ := tableToPKColumns.Get(tableNameTup)
 	pkColumns, err = tdb.QuoteAttributeNames(tableNameTup, pkColumns)
 	if err != nil {
 		utils.ErrExit("if required quote primary key column names: %s", err)

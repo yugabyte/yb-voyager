@@ -37,6 +37,7 @@ import (
 	"testing"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"github.com/yugabyte/yb-voyager/yb-voyager/test/cdcbench"
@@ -86,6 +87,17 @@ func BenchmarkCDCIngest(b *testing.B) {
 			run.state = NewImportDataState(exportDir)
 			tdb = mock
 
+			err = metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
+				record.CdcPartitioningStrategyConfig = "auto"
+				record.TableToCDCPartitionKey = make(map[string]metadb.CDCPartitionKey)
+				for _, table := range run.tableList {
+					record.TableToCDCPartitionKey[table.ForKey()] = metadb.CDCPartitionKey{Strategy: "pk"}
+				}
+			})
+			if err != nil {
+				return fmt.Errorf("update import data status record: %w", err)
+			}
+
 			// reset streaming globals so this run initializes them afresh, as
 			// production does on the first event of a stream. The framework's
 			// depth sampler reads the conflictDetectionCache pointer while the
@@ -112,7 +124,15 @@ func BenchmarkCDCIngest(b *testing.B) {
 			}
 			c.Lock()
 			defer c.Unlock()
-			return len(c.m)
+			return len(c.m) + cacheDepth(c.ukLookup)
 		},
 	})
+}
+
+func cacheDepth(ukLookup map[string]map[int64]*tgtdb.Event) int {
+	var depth int
+	for _, events := range ukLookup {
+		depth += len(events)
+	}
+	return depth
 }

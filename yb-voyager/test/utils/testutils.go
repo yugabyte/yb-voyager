@@ -191,7 +191,7 @@ func CheckTableStructurePG(t *testing.T, db *sql.DB, schema, table string, expec
 	// Check for extra columns
 	for actualName := range actualColumns {
 		found := false
-		for expectedName, _ := range expectedColumns {
+		for expectedName := range expectedColumns {
 			if actualName == expectedName {
 				found = true
 				break

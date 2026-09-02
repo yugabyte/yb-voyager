@@ -163,6 +163,9 @@ func (pg *PostgreSQL) Connect() error {
 		log.Info("Reconnecting to the source database")
 	}
 	db, err := sql.Open("pgx", pg.getConnectionUri())
+	if err != nil {
+		return fmt.Errorf("open connection to source database: %w", err)
+	}
 	db.SetMaxOpenConns(pg.source.NumConnections)
 	db.SetConnMaxIdleTime(5 * time.Minute)
 	pg.db = db
@@ -1001,6 +1004,19 @@ func (pg *PostgreSQL) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicatio
 		}
 	}
 	return nil
+}
+
+// GetReplicationSlotRetainedWALBytes returns WAL bytes retained by the given slot
+// (pg_current_wal_lsn - restart_lsn). Returns 0 if the slot has no restart_lsn yet.
+func (pg *PostgreSQL) GetReplicationSlotRetainedWALBytes(slotName string) (int64, error) {
+	query := `SELECT COALESCE(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn), 0)::bigint
+	          FROM pg_replication_slots WHERE slot_name = $1`
+	var bytes int64
+	err := pg.db.QueryRow(query, slotName).Scan(&bytes)
+	if err != nil {
+		return 0, fmt.Errorf("query retained WAL for slot %q: %w", slotName, err)
+	}
+	return bytes, nil
 }
 
 func (pg *PostgreSQL) CreatePublication(conn *pgconn.PgConn, publicationName string, tableList []sqlname.NameTuple, dropIfAlreadyExists bool, leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) error {

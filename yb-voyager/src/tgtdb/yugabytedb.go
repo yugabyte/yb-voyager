@@ -60,6 +60,8 @@ const (
 	MEMORY_FREE_METRIC                     = "memory_free"
 	MEMORY_TOTAL_METRIC                    = "memory_total"
 	MEMORY_AVAILABLE_METRIC                = "memory_available"
+
+	DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT = "/*+ Set(enable_seqscan off) */"
 )
 
 type TargetYugabyteDB struct {
@@ -598,39 +600,11 @@ outer:
 	return nil
 }
 
-// GetPrimaryKeyColumns returns the subset of `columns` that belong to the
-// primary‑key definition of the given table.
-func (yb *TargetYugabyteDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error) {
-	var primaryKeyColumns []string
-	schemaName, tableName := table.ForCatalogQuery()
-	query := fmt.Sprintf(`
-		SELECT a.attname
-		FROM pg_index i
-		JOIN pg_class      c ON c.oid = i.indrelid
-		JOIN pg_namespace  n ON n.oid = c.relnamespace
-		JOIN pg_attribute  a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
-		WHERE n.nspname = '%s'
-			AND c.relname  = '%s'
-			AND i.indisprimary;`, schemaName, tableName)
-
-	rows, err := yb.Query(query)
-	if err != nil {
-		return nil, fmt.Errorf("query PK columns for %s.%s: %w", schemaName, tableName, err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var col string
-		if err := rows.Scan(&col); err != nil {
-			return nil, fmt.Errorf("scan PK column: %w", err)
-		}
-		primaryKeyColumns = append(primaryKeyColumns, col)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return primaryKeyColumns, nil
+// GetPrimaryKeyColumnsForTables returns, for each requested table, its primary-key columns
+// in PK-definition order. It delegates to the shared PG/YB helper (queryPGPrimaryKeyColumnsByCatalog)
+// so the query and scan logic live in one place for both target drivers.
+func (yb *TargetYugabyteDB) GetPrimaryKeyColumnsForTables(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	return queryPGPrimaryKeyColumnsByCatalog(yb.Query, tables)
 }
 
 func (yb *TargetYugabyteDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []UniqueIndex], error) {
@@ -899,7 +873,13 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 
 	// 2. setting the schema so that COPY command can acesss the table
 	// Q: If we set the schema for this batch on this conn, will it impact others using the same conn from pool later?
-	yb.setTargetSchema(conn)
+	err = yb.setTargetSchema(conn)
+	if err != nil {
+		err = newImportBatchErrorPgYb(err, batch,
+			lo.Ternary(args.ShouldUseFastPath(), errs.IMPORT_BATCH_ERROR_FLOW_COPY_FAST, errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL),
+			errs.IMPORT_BATCH_ERROR_STEP_SET_TARGET_SCHEMA, nil)
+		return 0, err
+	}
 
 	// 3. Check if the split is already imported.
 	alreadyImported, rowsAffected, err := yb.isBatchAlreadyImported(conn, batch)
@@ -1177,12 +1157,18 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			if err != nil {
 				return fmt.Errorf("get sql stmt: %w", err)
 			}
+			if yb.tconf.DisableSequentialScanOnUpdateDeletes {
+				stmt = DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT + stmt
+			}
 			ybBatch.Queue(stmt)
 			log.Debugf("SQL statement: Batch(%s): Event(%d): [%s]", batch.ID(), event.Vsn, stmt)
 		} else {
 			stmt, err := event.GetPreparedSQLStmt(yb, yb.Tconf.TargetDBType, yb.tconf.UsePartitionRoot)
 			if err != nil {
 				return fmt.Errorf("get prepared sql stmt: %w", err)
+			}
+			if event.Op == "d" && yb.tconf.DisableSequentialScanOnUpdateDeletes {
+				stmt = DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT + stmt
 			}
 			psName, err := event.GetPreparedStmtName(yb.tconf.UsePartitionRoot)
 			if err != nil {
@@ -1282,6 +1268,9 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		}
 
 		updateVsnQuery := batch.GetChannelMetadataUpdateQuery(migrationUUID)
+		if yb.tconf.DisableSequentialScanOnUpdateDeletes {
+			updateVsnQuery = DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT + updateVsnQuery
+		}
 		res, err = tx.Exec(context.Background(), updateVsnQuery)
 		if err != nil || res.RowsAffected() == 0 {
 			log.Errorf("error executing stmt for batch(%s): %v, rowsAffected: %v", batch.ID(), err, res.RowsAffected())
@@ -1293,6 +1282,9 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		tableNames := batch.GetTableNames()
 		for _, tableName := range tableNames {
 			updateTableStatsQuery := batch.GetQueriesToUpdateEventStatsByTable(migrationUUID, tableName)
+			if yb.tconf.DisableSequentialScanOnUpdateDeletes {
+				updateTableStatsQuery = DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT + updateTableStatsQuery
+			}
 			res, err = tx.Exec(context.Background(), updateTableStatsQuery)
 			if err != nil {
 				log.Errorf("error executing stmt: %v, rowsAffected: %v", err, res.RowsAffected())
@@ -1654,11 +1646,20 @@ const (
 	SET_YB_FAST_PATH_FOR_COLOCATED_COPY   = "SET yb_fast_path_for_colocated_copy=true"
 	// The "SELECT 1" workaround introduced in ExecuteBatch does not work if isolation level is read_committed. Therefore, for now, we are forcing REPEATABLE READ.
 	SET_DEFAULT_ISOLATION_LEVEL_REPEATABLE_READ = "SET default_transaction_isolation = 'repeatable read'"
-	ERROR_MSG_PERMISSION_DENIED                 = "permission denied"
+	// If voyager exits abruptly mid-transaction, the target backend keeps holding that
+	// transaction's locks until TCP keepalive reaps it (~2h), wedging later imports. Bound it
+	// so voyager's own sessions are self-limiting; 5min is far above any gap voyager can
+	// produce inside a transaction. Override via /etc/yb-voyager/ybSessionVariables.sql.
+	SET_IDLE_IN_TRANSACTION_SESSION_TIMEOUT = "SET idle_in_transaction_session_timeout = '5min'"
+	ERROR_MSG_PERMISSION_DENIED             = "permission denied"
 )
 
 func getPGSessionInitScript(tconf *TargetConf) []string {
 	var sessionVars []string
+	// first, so a permission-denied error on a later var cannot make initSession() skip it
+	if checkSessionVariableSupport(tconf, SET_IDLE_IN_TRANSACTION_SESSION_TIMEOUT) {
+		sessionVars = append(sessionVars, SET_IDLE_IN_TRANSACTION_SESSION_TIMEOUT)
+	}
 	if checkSessionVariableSupport(tconf, SET_CLIENT_ENCODING_TO_UTF8) {
 		sessionVars = append(sessionVars, SET_CLIENT_ENCODING_TO_UTF8)
 	}
@@ -1670,6 +1671,10 @@ func getPGSessionInitScript(tconf *TargetConf) []string {
 
 func getYBSessionInitScript(tconf *TargetConf) []string {
 	var sessionVars []string
+	// first, so a permission-denied error on a later var cannot make initSession() skip it
+	if checkSessionVariableSupport(tconf, SET_IDLE_IN_TRANSACTION_SESSION_TIMEOUT) {
+		sessionVars = append(sessionVars, SET_IDLE_IN_TRANSACTION_SESSION_TIMEOUT)
+	}
 	if checkSessionVariableSupport(tconf, SET_CLIENT_ENCODING_TO_UTF8) {
 		sessionVars = append(sessionVars, SET_CLIENT_ENCODING_TO_UTF8)
 	}

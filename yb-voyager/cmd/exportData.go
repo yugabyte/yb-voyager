@@ -49,6 +49,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/export"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -117,6 +118,10 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 		useDebezium = true
 	}
 
+	if err := validateBetaFastDataExportSupportedForSource(source.DBType, exportType, useDebezium); err != nil {
+		utils.ErrExit("%s", color.RedString("%s", err.Error()))
+	}
+
 	if bool(source.AllowOracleClobDataExport) {
 		if source.DBType != ORACLE {
 			utils.ErrExit("%s", color.RedString("allow-oracle-clob-data-export is only valid with source db type oracle. Remove this flag and retry."))
@@ -128,6 +133,19 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 			utils.PrintAndLog(color.YellowString("Note: Experimental CLOB export is enabled for Oracle offline export."))
 		}
 	}
+}
+
+// BETA_FAST_DATA_EXPORT routes the snapshot export through debezium and is only supported for
+// Oracle and MySQL.
+func validateBetaFastDataExportSupportedForSource(dbType string, exportType string, useDebezium bool) error {
+	if !useDebezium || changeStreamingIsEnabled(exportType) {
+		return nil
+	}
+	if dbType == POSTGRESQL {
+		return goerrors.Errorf("BETA_FAST_DATA_EXPORT is not supported for source database type %q. "+
+			"It is available only for oracle and mysql. Unset the BETA_FAST_DATA_EXPORT environment variable and retry.", dbType)
+	}
+	return nil
 }
 
 func handleCutoverAlreadyProcessedForExportData() {
@@ -179,6 +197,10 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
+	if err := startMetricsServer(exporterRole, migrationUUID); err != nil {
+		utils.ErrExit("start metrics server: %v", err)
+	}
+	metrics.Get().SetExportParallelism(exporterRole, source.NumConnections)
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
@@ -681,11 +703,7 @@ func exportData() bool {
 	// get initial table list
 	partitionsToRootTableMap, finalTableList, err := getInitialTableList()
 	if err != nil {
-		var exportErr *errs.ExportDataError
-		if errors.As(err, &exportErr) {
-			utils.ErrExit("%s", err.Error())
-		}
-		utils.ErrExit("error in get initial table list: %w", err)
+		handleGetInitialTableListError(err)
 	}
 
 	// Check if source DB has required permissions for export data
@@ -934,7 +952,37 @@ func initPGLiveMigrationAndExportSnapshotIfRequired(ctx context.Context, cancel 
 	config.ReplicationSlotName = msr.PGReplicationSlotName
 	config.PublicationName = msr.PGPublicationName
 	config.InitSequenceMaxMapping = sequenceInitValues.String()
+
+	pgDB, ok := source.DB().(*srcdb.PostgreSQL)
+	if !ok {
+		log.Warnf("replication-slot WAL monitor: source is not PostgreSQL (%T); skipping", source.DB())
+	} else {
+		startReplicationSlotWALMonitor(ctx, pgDB, msr.PGReplicationSlotName)
+	}
 	return nil
+}
+
+// startReplicationSlotWALMonitor periodically polls and reports the WAL bytes
+// retained by the given replication slot for as long as ctx is active, so that
+// operators can be alerted before the slot causes the source to run out of disk.
+func startReplicationSlotWALMonitor(ctx context.Context, pg *srcdb.PostgreSQL, slotName string) {
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				bytes, err := pg.GetReplicationSlotRetainedWALBytes(slotName)
+				if err != nil {
+					log.Warnf("replication-slot WAL monitor: %v", err)
+					continue
+				}
+				metrics.Get().SetSourceReplicationSlotRetainedWALBytes(slotName, bytes)
+			}
+		}
+	}()
 }
 
 func checkExportDataPermissions(finalTableList []sqlname.NameTuple) {
@@ -1713,6 +1761,17 @@ func propagateIfExportDataError(err error, currentFlow string) error {
 
 }
 
+// handleGetInitialTableListError reports the terminal error from getInitialTableList.
+// The metric is recorded exactly once here rather than in the errs.ExportDataError
+// constructors, since a single failure is re-wrapped at every propagation hop.
+func handleGetInitialTableListError(err error) {
+	var exportErr *errs.ExportDataError
+	if errors.As(err, &exportErr) {
+		utils.ErrExit("%s", err.Error())
+	}
+	utils.ErrExit("error in get initial table list: %w", err)
+}
+
 func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string) error {
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 		exportDataStartEvent := createSnapshotExportStartedEvent()
@@ -1891,6 +1950,9 @@ func clearMigrationStateIfRequired() {
 			record.TargetRenameTablesMap = nil
 			record.ExportTypeFromSource = ""
 		})
+		if err != nil {
+			utils.ErrExit("Failed to update migration status record: %w", err)
+		}
 
 		err = metadb.TruncateTablesInMetaDb(exportDir, []string{metadb.QUEUE_SEGMENT_META_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME})
 		if err != nil {

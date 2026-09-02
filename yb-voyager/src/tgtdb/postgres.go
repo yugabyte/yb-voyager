@@ -337,41 +337,127 @@ outer:
 	return nil
 }
 
-// GetPrimaryKeyColumns returns the subset of `columns` that belong to the
-// primary‑key definition of the given table.
-// Implementing this for completion but not used in Postgres fall-forward/fall-back
-// This info is only used in fast path import of batches(Target YugabyteDB)
-func (pg *TargetPostgreSQL) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error) {
-	var primaryKeyColumns []string
-	schemaName, tableName := table.ForCatalogQuery()
-	query := fmt.Sprintf(`
-		SELECT a.attname
-		FROM pg_index i
-		JOIN pg_class      c ON c.oid = i.indrelid
-		JOIN pg_namespace  n ON n.oid = c.relnamespace
-		JOIN pg_attribute  a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
-		WHERE n.nspname = '%s'
-			AND c.relname  = '%s'
-			AND i.indisprimary;`, schemaName, tableName)
+// pgQueryTmplPKColumnsForTables returns the PK columns of all tables matching the given
+// schema/table filter lists.
+// Only key columns are returned: indkey also holds INCLUDE (covering) columns
+// (e.g. PRIMARY KEY (id) INCLUDE (region)), which are filtered out via indnkeyatts.
+// ORDER BY array_position(indkey, attnum) is essential: (id, region) and (region, id) are
+// different keys, and the PK column order is used to build conflict-bucket keys during
+// live-migration conflict detection.
+// The schema and table filters are applied independently (like pgQueryTmplForUniqIndexes),
+// so a cross-schema over-match is possible; callers map results back via the
+// partition->root catalog map and drop anything not under a requested root.
+// It is used for both PostgreSQL and YugabyteDB targets since YugabyteDB is PG-compatible
+// at the catalog level.
+const pgQueryTmplPKColumnsForTables = `
+SELECT n.nspname, c.relname, a.attname
+FROM pg_index i
+JOIN pg_class      c ON c.oid = i.indrelid
+JOIN pg_namespace  n ON n.oid = c.relnamespace
+JOIN pg_attribute  a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
+WHERE (n.nspname || '.' || c.relname) IN ('%s')
+  AND i.indisprimary
+  AND array_position(i.indkey, a.attnum) + 1 <= i.indnkeyatts -- indkey is 0-indexed; exclude INCLUDE columns
+ORDER BY n.nspname, c.relname, array_position(i.indkey, a.attnum);`
 
-	rows, err := pg.Query(query)
+// queryPGPrimaryKeyColumnsByCatalog runs the PG/YB primary-key discovery query for the
+// given tables and returns a map keyed by table to its primary-key columns in
+// PK-definition order. Shared by the PostgreSQL and YugabyteDB target drivers (each passes
+// its own Query function) so the query and scan logic live in exactly one place.
+//
+// A partitioned table's primary key can live only on its leaf partitions when the root has
+// no primary key of its own (e.g. children carry PKs, imported via --use-partition-root).
+// Import events reference the root, so we discover the PK of every leaf partition (and the
+// root/normal tables themselves) and attribute it to the root. A root's own primary key is
+// authoritative; a leaf's PK is used only when the root has none (partitions of the same
+// table share the same PK definition).
+func queryPGPrimaryKeyColumnsByCatalog(queryFn func(query string) (*sql.Rows, error), tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
+	if len(tables) == 0 {
+		return result, nil
+	}
+
+	// getPartitionTableToRootTableMap returns, for every table whose root is in tables, a
+	// mapping of its catalog name ("schema.table") to its root's catalog name. This includes
+	// each leaf partition -> root, and each root/normal table -> itself.
+	//TODO: need to separate this out of this function 
+	tableToRootMap, err := getPartitionTableToRootTableMap(queryFn, tables)
 	if err != nil {
-		return nil, fmt.Errorf("query PK columns for %s.%s: %w", schemaName, tableName, err)
+		return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
+	}
+
+	var fullTableList []string
+	for _, table := range tables {
+		fullTableList = append(fullTableList, table.AsQualifiedCatalogName())
+	}
+
+	for leaf := range tableToRootMap {
+		fullTableList = append(fullTableList, leaf)
+	}
+
+	tableListStr := strings.Join(fullTableList, "','")
+
+	query := fmt.Sprintf(pgQueryTmplPKColumnsForTables, tableListStr)
+	rows, err := queryFn(query)
+	if err != nil {
+		return nil, fmt.Errorf("query PK columns for tables %v: %w", tables, err)
 	}
 	defer rows.Close()
 
+	// PK columns per catalog table, in PK-definition order (query is ordered by array_position).
+	catalogToPKColumns := make(map[string][]string)
 	for rows.Next() {
-		var col string
-		if err := rows.Scan(&col); err != nil {
-			return nil, fmt.Errorf("scan PK column: %w", err)
+		var schema, table, col string
+		if err := rows.Scan(&schema, &table, &col); err != nil {
+			return nil, fmt.Errorf("scan PK column row: %w", err)
 		}
-		primaryKeyColumns = append(primaryKeyColumns, col)
+		catalogName := fmt.Sprintf("%s.%s", schema, table)
+		catalogToPKColumns[catalogName] = append(catalogToPKColumns[catalogName], col)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("iterate PK column rows: %w", err)
 	}
 
-	return primaryKeyColumns, nil
+	rootCatalogToTuple := make(map[string]sqlname.NameTuple, len(tables))
+	for _, t := range tables {
+		rootCatalogToTuple[t.AsQualifiedCatalogName()] = t
+	}
+
+	// Attribute each table's PK to its root, preferring the root's own PK over a leaf's.
+	rootHasOwnPK := make(map[string]bool)
+	for catalogName, pkColumns := range catalogToPKColumns {
+		rootCatalogName, ok := tableToRootMap[catalogName]
+		if !ok {
+			// table not under any requested root (cross-schema over-match from the filter); skip.
+			continue
+		}
+		rootTuple, ok := rootCatalogToTuple[rootCatalogName]
+		if !ok {
+			return nil, goerrors.Errorf("root table %s not found in requested table list", rootCatalogName)
+		}
+		if catalogName == rootCatalogName {
+			// Root's own PK is authoritative; overwrite any PK previously taken from a leaf.
+			result.Put(rootTuple, pkColumns)
+			rootHasOwnPK[rootCatalogName] = true
+			continue
+		}
+		if rootHasOwnPK[rootCatalogName] {
+			continue
+		}
+		if _, alreadySet := result.Get(rootTuple); !alreadySet {
+			result.Put(rootTuple, pkColumns)
+		}
+	}
+
+	return result, nil
+}
+
+// GetPrimaryKeyColumnsForTables returns, for each requested table, its primary-key columns
+// in PK-definition order.
+// Implementing this for completion but not used in Postgres fall-forward/fall-back;
+// this info is only used in fast path import of batches (Target YugabyteDB).
+func (pg *TargetPostgreSQL) GetPrimaryKeyColumnsForTables(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	return queryPGPrimaryKeyColumnsByCatalog(pg.Query, tables)
 }
 
 // No need to implement GetPrimaryKeyColumns for Postgres fall-forward/fall-back as fast path is not valid there
@@ -432,6 +518,7 @@ func (pg *TargetPostgreSQL) GetTableToUniqueIndexesMap(tableList []sqlname.NameT
 // (contype 'u'); only primary-key indexes (contype 'p') are excluded.
 // It is used for both PostgreSQL and YugabyteDB targets since YugabyteDB is
 // PG-compatible at the catalog level.
+// Note: this query doesn't include the key columns having expression in it.
 const pgQueryTmplForUniqIndexes = `
 WITH unique_indexes AS (
     SELECT
@@ -459,6 +546,10 @@ WITH unique_indexes AS (
     WHERE
         ix.indisunique = TRUE
         AND c.contype IS NULL
+        -- indkey (int2vector) is 0-indexed, so array_position returns a 0-based position
+        -- (matching the "+ 1" used for ordinal_position above). Only the first indnkeyatts
+        -- entries are key columns; the rest are INCLUDE (covering) columns, so exclude them.
+        AND array_position(ix.indkey, a.attnum) + 1 <= ix.indnkeyatts
         AND n.nspname = ANY('{%s}')
         AND t.relname = ANY('{%s}')
     GROUP BY
@@ -514,7 +605,6 @@ func catalogNamesToSchemaAndTableLists(catalogNames []string) (schemaList, table
 	return lo.Uniq(schemaList), lo.Uniq(tableList)
 }
 
-
 // queryPGUniqueIndexesByCatalog runs the PG/YB unique-index discovery query for the
 // given schema/table filter lists and returns a map keyed by "schema.table" catalog
 // name to its list of unique indexes (each an ordered, de-duplicated column list).
@@ -551,6 +641,7 @@ func queryPGUniqueIndexesByCatalog(queryFn func(query string) (*sql.Rows, error)
 		}
 		catalogName := fmt.Sprintf("%s.%s", schemaName, tableName)
 		result[catalogName] = append(result[catalogName], UniqueIndex{
+			IndexName:        indexKey,
 			Columns:          columns,
 			NullsNotDistinct: nullsNotDistinct,
 		})

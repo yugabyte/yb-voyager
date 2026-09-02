@@ -53,16 +53,17 @@ type TargetConf struct {
 	DBVersion            string               `json:"db_version"`
 	RunGuardrailsChecks  utils.BoolStr        `json:"run_guardrails_checks"`
 
-	TargetEndpoints            string                        `json:"target_endpoints"`
-	UsePublicIP                utils.BoolStr                 `json:"use_public_ip"`
-	EnableUpsert               utils.BoolStr                 `json:"enable_upsert"`
-	DisableTransactionalWrites utils.BoolStr                 `json:"disable_transactional_writes"`
-	Parallelism                int                           `json:"parallelism"`
-	AdaptiveParallelismMode    types.AdaptiveParallelismMode `json:"adaptive_parallelism_mode"`
-	MaxParallelism             int                           `json:"max_parallelism"` // in case adaptive parallelism is enabled.
-	OnPrimaryKeyConflictAction string                        `json:"on_primary_key_conflict_action"`
-	SessionVars                []string                      `json:"session_vars"`
-	UsePartitionRoot           bool                          `json:"use_partition_root"`
+	TargetEndpoints                      string                        `json:"target_endpoints"`
+	UsePublicIP                          utils.BoolStr                 `json:"use_public_ip"`
+	EnableUpsert                         utils.BoolStr                 `json:"enable_upsert"`
+	DisableTransactionalWrites           utils.BoolStr                 `json:"disable_transactional_writes"`
+	Parallelism                          int                           `json:"parallelism"`
+	AdaptiveParallelismMode              types.AdaptiveParallelismMode `json:"adaptive_parallelism_mode"`
+	MaxParallelism                       int                           `json:"max_parallelism"` // in case adaptive parallelism is enabled.
+	OnPrimaryKeyConflictAction           string                        `json:"on_primary_key_conflict_action"`
+	SessionVars                          []string                      `json:"session_vars"`
+	UsePartitionRoot                     bool                          `json:"use_partition_root"`
+	DisableSequentialScanOnUpdateDeletes utils.BoolStr                 `json:"disable_sequential_scan_on_update_deletes"`
 }
 
 func (t *TargetConf) Clone() *TargetConf {

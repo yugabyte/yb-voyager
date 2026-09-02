@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/cmd"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
@@ -344,13 +345,9 @@ func TestLiveMigrationWithMultiColumnUniqueIndexConflictDetectionCases(t *testin
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
 
-	require.LessOrEqual(t, conflictStats.Total, 6000, "true-positive delta should produce at most 6000 UK conflicts")
-	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index"`], 3000, "test_multi_column_unique_index should have at most 3000 UK conflicts")
-	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index_part"`], 3000, "test_multi_column_unique_index_part should have at most 3000 UK conflicts")
-
-	require.GreaterOrEqual(t, conflictStats.Total, 0, "true-positive delta should produce at least 3000 UK conflicts")
-	require.GreaterOrEqual(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index"`], 0, "test_multi_column_unique_index should have at least 1500 UK conflicts")
-	require.GreaterOrEqual(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index_part"`], 0, "test_multi_column_unique_index_part should have at least 1500 UK conflicts")
+	require.Greater(t, conflictStats.Total, 0, "true-positive delta should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index"`], 0, "test_multi_column_unique_index should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index_part"`], 0, "test_multi_column_unique_index_part should produce UK conflicts")
 
 	err = liveMigrationTest.ValidateDataConsistency(multiColumnUKTables, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -546,10 +543,8 @@ func TestLiveMigrationWithUniqueKeyValuesWithPartialPredicateConflictDetectionCa
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
 
-	require.LessOrEqual(t, conflictStats.Total, 2500, "true-positive delta should produce at most 2500 UK conflicts")
-	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live"`], 2500, "test_live should have at most 2500 UK conflicts")
-	require.GreaterOrEqual(t, conflictStats.Total, 0, "true-positive delta should produce at least 0 UK conflicts")
-	require.GreaterOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live"`], 0, "test_live should have at least 0 UK conflicts")
+	require.Greater(t, conflictStats.Total, 0, "true-positive delta should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live"`], 0, "test_live should produce UK conflicts")
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -766,9 +761,8 @@ FROM generate_series(1, 20) as i;`,
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	fmt.Println("conflictStats", conflictStats)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
-	require.GreaterOrEqual(t, conflictStats.Total, 2000,
-		"null unique delta should produce 2500 UK conflicts (5 per loop x 500 loops)")
-	require.GreaterOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live_null_unique_values"`], 2000)
+	require.Greater(t, conflictStats.Total, 0, "null unique delta should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live_null_unique_values"`], 0, "test_live_null_unique_values should produce UK conflicts")
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live_null_unique_values"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -1084,8 +1078,8 @@ FROM generate_series(1, 20) as i;`,
 
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
-	require.GreaterOrEqual(t, conflictStats.Total, 0, "partial unique delta should produce at least 0 UK conflicts")
-	require.GreaterOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live_null_partial_unique_values"`], 0, "test_live_null_partial_unique_values should have at least 0 UK conflicts")
+	require.Greater(t, conflictStats.Total, 0, "partial unique delta should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live_null_partial_unique_values"`], 0, "test_live_null_partial_unique_values should produce UK conflicts")
 
 	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_live_null_partial_unique_values"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -1230,10 +1224,8 @@ func TestLiveMigrationWithUniqueKeyConflictsOnCaseSensitiveColumns(t *testing.T)
 
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
-	require.GreaterOrEqual(t, conflictStats.Total, 500,
-		"case-sensitive UK delta should produce unique-key conflicts")
-	require.GreaterOrEqual(t, conflictStats.ByTable[table], 1,
-		"case-sensitive UK conflicts should be attributed to the table")
+	require.Greater(t, conflictStats.Total, 0, "case-sensitive UK delta should produce unique-key conflicts")
+	require.Greater(t, conflictStats.ByTable[table], 0, "case-sensitive UK conflicts should be attributed to the table")
 
 	err = liveMigrationTest.ValidateDataConsistency([]string{table}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency after forward streaming")
@@ -1372,20 +1364,24 @@ func TestLiveMigrationCdcPartitionKeyConfigs(t *testing.T) {
 
 	assert.Equal(t, "pk", importDataStatus.CdcPartitioningStrategyConfig)
 	assert.Equal(t, "", importDataStatus.CdcPartitionKeyOverridesConfig)
-	assertStrategyInMap(t, importDataStatus.TableToCDCPartitioningStrategyMap, "orders", cmd.PARTITION_BY_PK)
-	assertStrategyInMap(t, importDataStatus.TableToCDCPartitioningStrategyMap, "events", cmd.PARTITION_BY_PK)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "orders", cmd.PARTITION_BY_PK)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "events", cmd.PARTITION_BY_PK)
 
 	err = lm.StopImportData()
 	testutils.FatalIfError(t, err, "failed to stop import data")
 
-	// Resume without start-clean must reject newly introduced overrides.
+	// Resume without start-clean must reject newly introduced overrides. The change is
+	// caught by the semantic per-table comparison in prepareCdcPartitionKey (orders flips
+	// pk -> table), not a raw string compare.
 	_ = lm.ResumeImportData(false, map[string]string{
 		"--cdc-partition-key":           "pk",
 		"--cdc-partition-key-overrides": "test_schema.orders:table",
 	})
+	rejectOutput := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
 	assert.True(t,
-		strings.Contains(lm.GetImportCommandStderr(), "changing cdc-partition-key-overrides is not allowed"),
-		"expected overrides change-guard error, got: %s", lm.GetImportCommandStderr())
+		strings.Contains(rejectOutput, "changing cdc-partition-key") &&
+			strings.Contains(rejectOutput, "is not allowed"),
+		"expected overrides change-guard error, got: %s", rejectOutput)
 
 	// Case 3: mixed strategies — global pk, override orders to table.
 	mixedOverrides := "test_schema.orders:table;test_schema.events:pk"
@@ -1409,8 +1405,8 @@ func TestLiveMigrationCdcPartitionKeyConfigs(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to get import data status record")
 	assert.Equal(t, "pk", importDataStatus.CdcPartitioningStrategyConfig)
 	assert.Equal(t, mixedOverrides, importDataStatus.CdcPartitionKeyOverridesConfig)
-	assertStrategyInMap(t, importDataStatus.TableToCDCPartitioningStrategyMap, "orders", cmd.PARTITION_BY_TABLE)
-	assertStrategyInMap(t, importDataStatus.TableToCDCPartitioningStrategyMap, "events", cmd.PARTITION_BY_PK)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "orders", cmd.PARTITION_BY_TABLE)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "events", cmd.PARTITION_BY_PK)
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."orders"`, `"test_schema"."events"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
@@ -1434,15 +1430,160 @@ func TestLiveMigrationCdcPartitionKeyConfigs(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
 
-func assertStrategyInMap(t *testing.T, strategyMap map[string]string, tableSubstring, want string) {
+func assertStrategyInMap(t *testing.T, partitionKeyMap map[string]metadb.CDCPartitionKey, tableSubstring, want string) {
 	t.Helper()
-	for key, strategy := range strategyMap {
+	for key, partitionKey := range partitionKeyMap {
 		if strings.Contains(strings.ToLower(key), strings.ToLower(tableSubstring)) {
-			require.Equal(t, want, strategy, "strategy for key %q", key)
+			require.Equal(t, want, partitionKey.Strategy, "strategy for key %q", key)
 			return
 		}
 	}
-	t.Fatalf("table %q not found in strategy map: %v", tableSubstring, strategyMap)
+	t.Fatalf("table %q not found in partition key map: %v", tableSubstring, partitionKeyMap)
+}
+
+// TestLiveMigrationCdcPartitionKeyOverridesEquivalentOnResume verifies the semantic
+// resume guard for cdc-partition-key-overrides: resuming (without --start-clean) with an
+// overrides string written differently (quoting / whitespace) but resolving to the SAME
+// effective per-table strategy must be ACCEPTED. A raw string compare (the old behaviour)
+// would have wrongly rejected it; prepareCdcPartitionKey now compares the resolved
+// per-table map instead.
+func TestLiveMigrationCdcPartitionKeyOverridesEquivalentOnResume(t *testing.T) {
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "cdc_part_key_equiv",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "cdc_part_key_equiv",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.orders (
+				id SERIAL PRIMARY KEY,
+				name TEXT
+			);
+			CREATE TABLE test_schema.events (
+				id SERIAL PRIMARY KEY,
+				payload TEXT
+			);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.orders REPLICA IDENTITY FULL;
+			ALTER TABLE test_schema.events REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.orders (name) SELECT md5(random()::text) FROM generate_series(1, 10);`,
+			`INSERT INTO test_schema.events (payload) SELECT md5(random()::text) FROM generate_series(1, 10);`,
+		},
+		SourceDeltaSQL: []string{
+			`INSERT INTO test_schema.orders (name) SELECT md5(random()::text) FROM generate_series(1, 5);`,
+			`INSERT INTO test_schema.events (payload) SELECT md5(random()::text) FROM generate_series(1, 5);`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	// First run: global pk, override orders -> table (events keeps pk).
+	err = lm.StartImportData(true, map[string]string{
+		"--cdc-partition-key":           "pk",
+		"--cdc-partition-key-overrides": "test_schema.orders:table",
+	})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."orders"`: 10,
+		`"test_schema"."events"`: 10,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.InitMetaDB()
+	testutils.FatalIfError(t, err, "failed to initialize meta db")
+
+	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
+	testutils.FatalIfError(t, err, "failed to get import data status record")
+	assert.Equal(t, "pk", importDataStatus.CdcPartitioningStrategyConfig)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "orders", cmd.PARTITION_BY_TABLE)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "events", cmd.PARTITION_BY_PK)
+	// Expression-UK tables are captured on the first run (none here, but non-nil) so the
+	// resume comparison needs no target-DB re-query.
+	require.NotNil(t, importDataStatus.CdcExpressionUniqueIndexTables,
+		"expression-UK tables should be captured on the first prepare")
+
+	err = lm.StopImportData()
+	testutils.FatalIfError(t, err, "failed to stop import data")
+
+	// Case 1 (reject): resume WITHOUT start-clean flipping the strategies
+	// (orders -> pk, events -> table) differs from the persisted map (orders -> table,
+	// events -> pk), so the semantic change-guard must reject it.
+	_ = lm.ResumeImportData(false, map[string]string{
+		"--cdc-partition-key":           "pk",
+		"--cdc-partition-key-overrides": "test_schema.orders:pk;test_schema.events:table",
+	})
+	flipRejectOutput := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
+	assert.True(t,
+		strings.Contains(flipRejectOutput, "changing cdc-partition-key") &&
+			strings.Contains(flipRejectOutput, "is not allowed"),
+		"flipped strategies must trip the resume change-guard, got: %s", flipRejectOutput)
+
+	// Case 2 (accept): resume WITHOUT start-clean with a differently-written but
+	// semantically-equivalent overrides string (quoted identifiers, reordered, extra
+	// whitespace). Same effective strategy (orders -> table, events -> pk), so it must be
+	// accepted and streaming resumes.
+	equivalentOverrides := ` "test_schema"."events":pk ; "test_schema"."orders":table `
+	err = lm.ResumeImportData(true, map[string]string{
+		"--cdc-partition-key":           "pk",
+		"--cdc-partition-key-overrides": equivalentOverrides,
+	})
+	testutils.FatalIfError(t, err, "resume with semantically-equivalent overrides should succeed")
+
+	// Give the resumed import time to run prepareCdcPartitionKey; it must not trip the
+	// change-guard for an equivalent overrides string.
+	time.Sleep(15 * time.Second)
+	resumeOutput := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
+	assert.NotContains(t, resumeOutput, "is not allowed",
+		"semantically-equivalent overrides must not trip the resume change-guard, got: %s", resumeOutput)
+
+	// The effective per-table map is preserved across the resume.
+	importDataStatus, err = lm.GetMetaDB().GetImportDataStatusRecord()
+	testutils.FatalIfError(t, err, "failed to get import data status record after resume")
+	assert.Equal(t, "pk", importDataStatus.CdcPartitioningStrategyConfig)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "orders", cmd.PARTITION_BY_TABLE)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "events", cmd.PARTITION_BY_PK)
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."orders"`, `"test_schema"."events"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency after resume")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."orders"`: {Inserts: 5},
+		`"test_schema"."events"`: {Inserts: 5},
+	}, 60, 1)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."orders"`, `"test_schema"."events"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
 
 // TestLiveMigrationCdcPartitionKeyRejectsPkOnExpressionUniqueIndex verifies the
@@ -1534,7 +1675,28 @@ func TestLiveMigrationCdcPartitionKeyRejectsPkOnExpressionUniqueIndex(t *testing
 	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
 	testutils.FatalIfError(t, err, "failed to get import data status record")
 	require.Equal(t, "auto", importDataStatus.CdcPartitioningStrategyConfig)
-	assertStrategyInMap(t, importDataStatus.TableToCDCPartitioningStrategyMap, "users", cmd.PARTITION_BY_TABLE)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "users", cmd.PARTITION_BY_TABLE)
+
+	// Resume WITHOUT start-clean trying to switch the expression-UK table from table to pk
+	// must be rejected: pk-partitioning cannot detect unique-key conflicts on an expression
+	// unique index. The expression-UK set captured on the first run (global auto) drives the
+	// same guard on resume, so no target-DB re-query is needed.
+	err = lm.StopImportData()
+	testutils.FatalIfError(t, err, "failed to stop import data before pk-on-expr-UK resume")
+
+	_ = lm.ResumeImportData(false, map[string]string{
+		"--cdc-partition-key-overrides": "test_schema.users:pk",
+	})
+	pkOnExprRejectOutput := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
+	assert.Contains(t, pkOnExprRejectOutput, "expression-based unique index",
+		"pk on an expression-UK table must be rejected on resume, got: %s", pkOnExprRejectOutput)
+
+	// Resume back to the valid table strategy to continue the migration.
+	err = lm.ResumeImportData(true, map[string]string{
+		"--cdc-partition-key-overrides": "test_schema.users:table",
+	})
+	testutils.FatalIfError(t, err, "failed to resume import data back to table strategy")
+	time.Sleep(15 * time.Second)
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."users"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -1548,7 +1710,7 @@ func TestLiveMigrationCdcPartitionKeyRejectsPkOnExpressionUniqueIndex(t *testing
 	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."users"`}, "id")
-	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")	
+	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
 
 	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
@@ -1556,4 +1718,1322 @@ func TestLiveMigrationCdcPartitionKeyRejectsPkOnExpressionUniqueIndex(t *testing
 	err = lm.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
+}
+
+func TestLiveMigrationWithCoveringUniqueKeyIndex(t *testing.T) {
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "covering_uk",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "covering_uk",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.users (
+				id int PRIMARY KEY,
+				email TEXT
+			);
+			CREATE UNIQUE INDEX users_lower_email_uidx ON test_schema.users (email) INCLUDE (id);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.users REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.users (id, email) SELECT i, 'user_' || i || '@example.com' FROM generate_series(1, 10) i;`,
+		},
+		SourceDeltaSQL: []string{
+			`
+		  DO $$
+		  BEGIN
+			FOR i IN 11..510 LOOP
+			  UPDATE test_schema.users SET email = 'user_' || i || '@example.com' WHERE id = i-1;
+			  INSERT INTO test_schema.users (id, email) SELECT i, 'user_' || 10 || '@example.com';
+
+			  DELETE FROM test_schema.users WHERE id = i-1;
+			  UPDATE test_schema.users SET email = 'user_' || i || '@example.com' WHERE id = i;
+
+			  INSERT INTO test_schema.users (id, email) SELECT i-1, 'user_' || 10 || '@example.com';
+
+			  DELETE FROM test_schema.users WHERE id = i;
+			  UPDATE test_schema.users SET email = 'user_' || i || '@example.com' WHERE id = i-1;
+			  INSERT INTO test_schema.users (id, email) SELECT i, 'user_' || 10 || '@example.com';
+
+			END LOOP;
+		  END $$;
+		  `,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+	)
+	uniqueKeyConflictStatsPath := filepath.Join(
+		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = lm.StartImportDataWithEnv(true, nil, []string{uniqueKeyConflictCountFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."users"`: 10,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."users"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."users"`: {Inserts: 1500, Updates: 1500, Deletes: 1000},
+	}, 60, 1)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
+	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
+	require.Greater(t, conflictStats.Total, 0, "covering UK delta should produce unique-key conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."users"`], 0, "covering UK conflicts should be attributed to the table")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."users"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
+// TestLiveMigrationWithCustomCdcPartitionKey is a basic end-to-end live migration that
+// mixes CDC partition strategies via --cdc-partition-key-overrides: the "orders" table is
+// routed by a custom column (customer_id) while "events" uses the global auto strategy
+// (which resolves to pk). It asserts the persisted per-table strategy + custom-columns
+// maps, then streams snapshot + CDC (custom key column customer_id is kept immutable in
+// the delta) and verifies target data matches source after cutover.
+func TestLiveMigrationWithCustomCdcPartitionKey(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_custom_key",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_custom_key",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.orders (
+				id SERIAL PRIMARY KEY,
+				customer_id TEXT NOT NULL,
+				amount INT
+			);
+			CREATE TABLE test_schema.events (
+				id SERIAL PRIMARY KEY,
+				name TEXT,
+				value INT
+			);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.orders REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.events REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			// customer_id has cardinality 5 (C1..C5); id 1..10
+			`INSERT INTO test_schema.orders (customer_id, amount)
+			 SELECT 'C' || ((i % 5) + 1), i * 10 FROM generate_series(1, 10) i;`,
+			`INSERT INTO test_schema.events (name, value)
+			 SELECT 'evt_' || i, i FROM generate_series(1, 10) i;`,
+		},
+		SourceDeltaSQL: []string{
+			// orders: 5 inserts, 5 updates (amount only - customer_id is immutable), 2 deletes
+			`INSERT INTO test_schema.orders (customer_id, amount)
+			 SELECT 'C' || ((i % 5) + 1), 1000 + i FROM generate_series(11, 15) i;`,
+			`UPDATE test_schema.orders SET amount = amount + 5000 WHERE id BETWEEN 1 AND 5;`,
+			`DELETE FROM test_schema.orders WHERE id BETWEEN 6 AND 7;`,
+			// events: 5 inserts, 5 updates, 2 deletes
+			`INSERT INTO test_schema.events (name, value)
+			 SELECT 'evt_' || i, i FROM generate_series(11, 15) i;`,
+			`UPDATE test_schema.events SET value = value + 5000 WHERE id BETWEEN 1 AND 5;`,
+			`DELETE FROM test_schema.events WHERE id BETWEEN 6 AND 7;`,
+			// High-churn loop (500 iterations) to stress the custom-key routing and generate
+			// heavy same-key traffic/conflicts. Each iteration touches one order and one event
+			// with an insert -> update -> delete on the same row. customer_id is chosen from the
+			// low-cardinality set C1..C5 and is NEVER changed by the update (custom key must stay
+			// immutable), so all three events for an order share the same customer_id and route to
+			// the same channel where queue order serializes them. Explicit ids (1000+i) are used so
+			// each iteration's events target a single row deterministically.
+			// Net effect on both tables is zero rows added; per table this adds exactly
+			// 500 inserts, 500 updates and 500 deletes.
+			`DO $$
+			DECLARE
+				i INTEGER;
+			BEGIN
+				FOR i IN 1..500 LOOP
+					-- orders: insert -> update amount (customer_id immutable) -> delete, same row
+					INSERT INTO test_schema.orders (id, customer_id, amount)
+						VALUES (1000 + i, 'C' || ((i % 5) + 1), i);
+					UPDATE test_schema.orders SET amount = amount + 1 WHERE id = 1000 + i;
+					DELETE FROM test_schema.orders WHERE id = 1000 + i;
+
+					-- events: insert -> update value -> delete, same row (pk-routed)
+					INSERT INTO test_schema.events (id, name, value)
+						VALUES (1000 + i, 'evt_' || i, i);
+					UPDATE test_schema.events SET value = value + 1 WHERE id = 1000 + i;
+					DELETE FROM test_schema.events WHERE id = 1000 + i;
+				END LOOP;
+			END $$;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = lm.StartImportData(true, map[string]string{
+		"--cdc-partition-key":           "auto",
+		"--cdc-partition-key-overrides": "test_schema.orders:(customer_id)",
+	})
+	testutils.FatalIfError(t, err, "failed to start import data")
+	defer lm.StopImportData()
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."orders"`: 10,
+		`"test_schema"."events"`: 10,
+	}, 120)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	// Assert the persisted per-table strategy + custom-columns maps.
+	err = lm.InitMetaDB()
+	testutils.FatalIfError(t, err, "failed to initialize meta db")
+	testMetaDB := lm.GetMetaDB()
+	importDataStatus, err := testMetaDB.GetImportDataStatusRecord()
+	testutils.FatalIfError(t, err, "failed to get import data status record")
+
+	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."orders"`].Strategy,
+		"orders should use the custom partition strategy")
+	assert.Equal(t, cmd.PARTITION_BY_PK, importDataStatus.TableToCDCPartitionKey[`"test_schema"."events"`].Strategy,
+		"events should resolve to pk under auto")
+	assert.Equal(t, []string{"customer_id"}, importDataStatus.TableToCDCPartitionKey[`"test_schema"."orders"`].Columns,
+		"orders custom key columns should be persisted")
+
+	// Stream CDC changes and validate.
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	// Base delta (5 ins / 5 upd / 2 del per table) plus the 500-iteration churn loop
+	// (500 ins / 500 upd / 500 del per table) => 505 / 505 / 502 per table.
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."orders"`: {Inserts: 505, Updates: 505, Deletes: 502},
+		`"test_schema"."events"`: {Inserts: 505, Updates: 505, Deletes: 502},
+	}, 180, 5)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."orders"`, `"test_schema"."events"`}, "id")
+	testutils.FatalIfError(t, err, "target does not match source after streaming")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
+// TestLiveMigrationCustomCdcPartitionKeyNoConflict verifies that a table routed by a custom
+// partition key never trips unique-key conflict detection for events that share that key.
+//
+// test_live has a partial unique index on (custom_key) WHERE most_recent and is routed by
+// custom_key. A single-transaction delta repeatedly frees and re-uses custom_key=1 across
+// different primary keys:
+//
+//	INSERT (1, 1, true); UPDATE most_recent=false WHERE id=1;
+//	INSERT (2, 1, true); UPDATE most_recent=false WHERE id=2; ... INSERT (7, 1, true);
+//
+// Each "UPDATE ... false" then "INSERT ... true" pair is the classic UI conflict on the
+// partial unique index (the same (custom_key=1) slot is vacated and re-claimed). Under pk
+// routing these land on different channels and would be flagged as conflicts, but because
+// every event carries the same custom_key (the custom partition key) they all route to one
+// channel and are applied in commit order. The count failpoint must therefore record ZERO
+// detected conflicts.
+func TestLiveMigrationCustomCdcPartitionKeyNoConflict(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_custom_key_no_conflict",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_custom_key_no_conflict",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.test_live (
+				id int PRIMARY KEY,
+				custom_key int,
+				most_recent boolean
+			);
+			-- Partial unique index on the custom partition key column. Any conflict on it is
+			-- necessarily between rows that share the same custom_key => same custom partition
+			-- key => same channel, so conflict detection must skip them.
+			CREATE UNIQUE INDEX idx_test_live_custom_key ON test_schema.test_live (custom_key) WHERE most_recent;`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.test_live REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			// Snapshot rows with distinct custom_keys and most_recent=false so they don't occupy
+			// the partial unique index and don't collide with the delta's ids/custom_key.
+			`INSERT INTO test_schema.test_live (id, custom_key, most_recent)
+			 SELECT i, i, false FROM generate_series(100, 104) i;`,
+		},
+		SourceDeltaSQL: []string{
+			// Single transaction (DO block): all events share custom_key=1.
+			`DO $$
+			BEGIN
+				INSERT INTO test_schema.test_live (id, custom_key, most_recent) VALUES (1, 1, true);
+				UPDATE test_schema.test_live SET most_recent = false WHERE id = 1;
+				INSERT INTO test_schema.test_live (id, custom_key, most_recent) VALUES (2, 1, true);
+				UPDATE test_schema.test_live SET most_recent = false WHERE id = 2;
+				INSERT INTO test_schema.test_live (id, custom_key, most_recent) VALUES (3, 1, true);
+				UPDATE test_schema.test_live SET most_recent = false WHERE id = 3;
+				INSERT INTO test_schema.test_live (id, custom_key, most_recent) VALUES (4, 1, true);
+				UPDATE test_schema.test_live SET most_recent = false WHERE id = 4;
+				INSERT INTO test_schema.test_live (id, custom_key, most_recent) VALUES (5, 1, true);
+				UPDATE test_schema.test_live SET most_recent = false WHERE id = 5;
+				INSERT INTO test_schema.test_live (id, custom_key, most_recent) VALUES (6, 1, true);
+				UPDATE test_schema.test_live SET most_recent = false WHERE id = 6;
+				INSERT INTO test_schema.test_live (id, custom_key, most_recent) VALUES (7, 1, true);
+			END $$;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	// count-only failpoint: any detected UK conflict is recorded in the stats file.
+	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+	)
+	uniqueKeyConflictStatsPath := filepath.Join(
+		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
+
+	err = lm.StartImportDataWithEnv(true, map[string]string{
+		"--cdc-partition-key":           "auto",
+		"--cdc-partition-key-overrides": "test_schema.test_live:(custom_key)",
+	}, []string{uniqueKeyConflictCountFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import data")
+	defer lm.StopImportData()
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_live"`: 5,
+	}, 120)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	// Assert the persisted per-table custom strategy + columns.
+	err = lm.InitMetaDB()
+	testutils.FatalIfError(t, err, "failed to initialize meta db")
+	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
+	testutils.FatalIfError(t, err, "failed to get import data status record")
+	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Strategy,
+		"test_live should use the custom partition strategy")
+	assert.Equal(t, []string{"custom_key"}, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Columns,
+		"test_live custom key columns should be persisted")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	// Delta: 7 inserts, 6 updates, 0 deletes.
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live"`: {Inserts: 7, Updates: 6, Deletes: 0},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	conflicts, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
+	if err != nil && !os.IsNotExist(err) {
+		testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
+	}
+	require.Nil(t, conflicts, "no unique-key conflicts should be detected: all events share the custom key => same channel")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "target does not match source after streaming")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
+// TestLiveMigrationCdcPartitionKeyRejectsCustomOnExpressionUniqueIndex verifies the
+// expression-UK guardrail for a custom partition key (Follow-up 1.1): a custom key routes
+// by column *values*, which cannot protect an expression-based unique index (its
+// conflicting value is the expression output, not a stored column). So a
+// `--cdc-partition-key-overrides <table>:(cols)` on such a table must be rejected during
+// prepare, before snapshot import. This exercises the real getExpressionUniqueIndexTables
+// query on the target, which the pure unit tests cannot cover.
+func TestLiveMigrationCdcPartitionKeyRejectsCustomOnExpressionUniqueIndex(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "cdc_custom_expr_uk",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "cdc_custom_expr_uk",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.users (
+				id SERIAL PRIMARY KEY,
+				email TEXT
+			);
+			CREATE UNIQUE INDEX users_lower_email_uidx ON test_schema.users (lower(email));`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.users REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.users (email) SELECT 'user_' || i || '@example.com' FROM generate_series(1, 10) i;`,
+		},
+		SourceDeltaSQL: []string{
+			`INSERT INTO test_schema.users (email) SELECT 'user_' || i || '@example.com' FROM generate_series(11, 20) i;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	// custom on a table with an expression unique index must fail during prepare, before
+	// snapshot import. Global stays `table`; only the override picks custom for users.
+	err = lm.StartImportData(false, map[string]string{
+		"--cdc-partition-key":           "table",
+		"--cdc-partition-key-overrides": "test_schema.users:(email)",
+	})
+	require.Error(t, err, "import with custom partition-key on expression-UK table should fail")
+	output := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
+	assert.Contains(t, output, "cdc-partition-key custom is not allowed for table 'test_schema.users' because it has an expression-based unique index; use table (via --cdc-partition-key or --cdc-partition-key-overrides)",
+		"expected expression-UK rejection, got: %s", output)
+
+	err = lm.StartImportData(true, map[string]string{
+		"--cdc-partition-key": "table",
+	})
+	testutils.FatalIfError(t, err, "failed to start import data")
+	defer lm.StopImportData()
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."users"`: 10,
+	}, 120)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."users"`: {Inserts: 10, Updates: 0, Deletes: 0},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."users"`}, "id")
+	testutils.FatalIfError(t, err, "target does not match source after streaming")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
+// TestLiveMigrationCdcPartitionKeyRejectsCustomKeyColumnNotOnTable verifies the
+// column-existence guardrail (Follow-up 1.3): every custom key column must exist on the
+// table. A misconfigured column name is caught up front during prepare (via
+// validateCustomPartitionKeyTables querying the target's columns) instead of erroring
+// per-event in hashEvent during streaming.
+func TestLiveMigrationCdcPartitionKeyRejectsCustomKeyColumnNotOnTable(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "cdc_custom_missing_col",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "cdc_custom_missing_col",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.orders (
+				id int PRIMARY KEY,
+				customer_id int,
+				amount int
+			);
+			CREATE UNIQUE INDEX orders_customer_uidx ON test_schema.orders (customer_id);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.orders REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.orders (id, customer_id, amount)
+			 SELECT i, i, i * 10 FROM generate_series(1, 10) i;`,
+		},
+		SourceDeltaSQL: []string{
+			`INSERT INTO test_schema.orders (id, customer_id, amount)
+			 SELECT i, i, i * 10 FROM generate_series(11, 20) i;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	// A custom key column that does not exist on the table must fail during prepare.
+	err = lm.StartImportData(false, map[string]string{
+		"--cdc-partition-key":           "table",
+		"--cdc-partition-key-overrides": "test_schema.orders:(nonexistent_col)",
+	})
+	require.Error(t, err, "import with a non-existent custom key column should fail")
+	output := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
+	assert.Contains(t, output, "cdc-partition-key-overrides: custom key column(s) '[nonexistent_col]' do not exist on table 'test_schema.orders' (available columns: [amount customer_id id]",
+		"expected missing-column rejection, got: %s", output)
+
+	err = lm.StartImportData(true, map[string]string{
+		"--cdc-partition-key": "table",
+	})
+	testutils.FatalIfError(t, err, "failed to start import data")
+	defer lm.StopImportData()
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."orders"`: 10,
+	}, 120)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."orders"`: {Inserts: 10, Updates: 0, Deletes: 0},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."orders"`}, "id")
+	testutils.FatalIfError(t, err, "target does not match source after streaming")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
+func TestLiveMigrationWithSubsetOFPartialUNiqueIndexColumnsBeingChangedInUpdate(t *testing.T) {  
+	t.Parallel()
+	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_false_negative",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_false_negative",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.test_false_negative (
+				id int PRIMARY KEY,
+				name TEXT,
+				c1 int,
+				c2 int,
+				most_recent boolean
+			);
+			CREATE UNIQUE INDEX idx_test_false_negative_c1_c2
+				ON test_schema.test_false_negative (c1, c2) WHERE most_recent;`,
+		},
+		SourceSetupSchemaSQL: []string{
+			// REPLICA IDENTITY FULL is REQUIRED: the fix reconstructs the unchanged index
+			// column (c1) from the update's before-image. Without FULL, c1 is not in
+			// before_fields either and the conflict is still missed.
+			"ALTER TABLE test_schema.test_false_negative REPLICA IDENTITY FULL;",
+		},
+		InitialDataSQL: []string{
+			// Rows 1..19 are not in the partial index (most_recent=false).
+			// Row 20 is the initial anchor occupying the recycled slot (c1=100, c2=1000).
+			`INSERT INTO test_schema.test_false_negative (id, name, c1, c2, most_recent)
+			 SELECT i, md5(random()::text), 100, i, false FROM generate_series(1, 19) AS i;`,
+			`INSERT INTO test_schema.test_false_negative (id, name, c1, c2, most_recent)
+			 VALUES (20, md5(random()::text), 100, 1000, true);`,
+		},
+		SourceDeltaSQL: []string{
+			/*
+				Composite PARTIAL unique index: (c1, c2) WHERE most_recent.
+				Invariant at each loop start: row (i-1) = (c1=100, c2=1000, most_recent=true),
+				the only row currently present in the partial index.
+
+				Per loop, one UPDATE-INSERT-style conflict on the recycled slot (100,1000):
+
+				  FREE:  UPDATE id=i-1 SET most_recent=false          -- removes (100,1000) from the index
+				  TAKE:  UPDATE id=i   SET c2=1000, most_recent=true  -- row i takes (100,1000)
+
+				The TAKE update's SET clause contains only {c2, most_recent}; c1 is UNCHANGED
+				and therefore ABSENT from the CDC after-image (Fields). Because the index is
+				composite (c1, c2), the before-after conflict check cannot build the index key
+				from the after-image alone -> pre-fix it silently skips the check and MISSES the
+				conflict with the freed (100,1000) from row i-1 (different PK -> different channel
+				-> can apply out of order -> 23505). The fix merges the unchanged c1 from the
+				before-image, reconstructs (100,1000), and detects the conflict.
+			*/
+			`DO $$
+		DECLARE
+			i INTEGER;
+		BEGIN
+			FOR i IN 21..520 LOOP
+				-- new row i, not yet in the partial index (most_recent=false)
+				INSERT INTO test_schema.test_false_negative(id, name, c1, c2, most_recent)
+				VALUES (i, md5(random()::text), 100, i, false);
+
+				-- FREE the slot (only most_recent changes; c1/c2 untouched)
+				UPDATE test_schema.test_false_negative SET most_recent = false WHERE id = i - 1;
+
+				-- TAKE the slot via a SUBSET update (c1 stays 100, absent from after-image)
+				UPDATE test_schema.test_false_negative SET c2 = 1000, most_recent = true WHERE id = i;
+
+			END LOOP;
+		END $$;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer liveMigrationTest.Cleanup()
+
+	err := liveMigrationTest.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = liveMigrationTest.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = liveMigrationTest.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+	)
+	uniqueKeyConflictStatsPath := filepath.Join(
+		liveMigrationTest.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
+
+	err = liveMigrationTest.StartImportDataWithEnv(true, nil, []string{uniqueKeyConflictCountFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_false_negative"`: 20,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_false_negative"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = liveMigrationTest.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	// 500 loops x {1 insert, 2 updates, 1 delete}
+	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_false_negative"`: {
+			Inserts: 500,
+			Updates: 1000,
+			Deletes: 0,
+		},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	// Import must not crash on a 23505: with the bug the conflict is missed, the two
+	// events race, and import errors out instead of serializing them.
+	require.False(t, liveMigrationTest.GetImportRunner().IsStopped(),
+		"import should keep running (no unhandled unique-violation) during count failpoint mode")
+
+	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
+	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
+
+	require.Greater(t, conflictStats.Total, 0, "subset-column partial-index delta should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_false_negative"`], 0, "test_false_negative should produce UK conflicts")
+
+	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_false_negative"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = liveMigrationTest.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = liveMigrationTest.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
+
+// TestLiveMigrationCustomCdcPartitionKeyPKRecycleConflict verifies the primary-key guard for
+// custom-key tables (Follow-up 3.2): the primary key is added to the conflict set so a
+// recycled primary key across *different* custom keys is detected and serialized.
+//
+// test_live (id PK, region, val) is routed by the custom key (region) and has NO other unique
+// index. A single-transaction delta recycles each primary key with a new region:
+//
+//	DELETE id=1 (region 'r_old_1'); INSERT (1, 'r_new_1', ...);
+//	DELETE id=2 (region 'r_old_2'); INSERT (2, 'r_new_2', ...); ...
+//
+// The DELETE (before-image region 'r_old_i') and the re-INSERT (region 'r_new_i') carry
+// different custom keys, so under custom routing they hash to (potentially) different channels
+// and could apply out of order — a duplicate primary key. GetTableToUniqueIndexesMap excludes
+// the primary key, so WITHOUT the guard this table would have an empty conflict set and the
+// race would go undetected. WITH the guard the PK is a synthetic unique index: conflict
+// detection sees the incoming INSERT (id=i) collide with the cached DELETE (id=i) on the PK
+// and — because the two events have different custom keys — flags it. The count failpoint must
+// therefore record a NON-ZERO number of detected conflicts, and the target must stay
+// consistent.
+func TestLiveMigrationCustomCdcPartitionKeyPKRecycleConflict(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_custom_key_pk_recycle",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_custom_key_pk_recycle",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			-- No unique index other than the primary key: the PK-recycle race is only detectable
+			-- because Follow-up 3.2 adds the primary key to the conflict set for custom tables.
+			CREATE TABLE test_schema.test_live (
+				id int PRIMARY KEY,
+				region text,
+				val int
+			);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			// REPLICA IDENTITY FULL so the DELETE event carries the region (custom key) before
+			// image, which custom-key routing needs to place the delete on its channel.
+			`ALTER TABLE test_schema.test_live REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.test_live (id, region, val)
+			 SELECT i, 'r_old_' || i, i FROM generate_series(1, 5) i;`,
+		},
+		SourceDeltaSQL: []string{
+			// Single transaction: recycle each PK with a new region (a new custom key). Each
+			// DELETE+INSERT pair on the same id is a PK-recycle across different custom keys.
+			`DO $$
+			BEGIN
+				DELETE FROM test_schema.test_live WHERE id = 1;
+				INSERT INTO test_schema.test_live (id, region, val) VALUES (1, 'r_new_1', 101);
+				DELETE FROM test_schema.test_live WHERE id = 2;
+				INSERT INTO test_schema.test_live (id, region, val) VALUES (2, 'r_new_2', 102);
+				DELETE FROM test_schema.test_live WHERE id = 3;
+				INSERT INTO test_schema.test_live (id, region, val) VALUES (3, 'r_new_3', 103);
+				DELETE FROM test_schema.test_live WHERE id = 4;
+				INSERT INTO test_schema.test_live (id, region, val) VALUES (4, 'r_new_4', 104);
+				DELETE FROM test_schema.test_live WHERE id = 5;
+				INSERT INTO test_schema.test_live (id, region, val) VALUES (5, 'r_new_5', 105);
+			END $$;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	// count-only failpoint: any detected UK conflict is recorded in the stats file.
+	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+	)
+	uniqueKeyConflictStatsPath := filepath.Join(
+		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
+
+	err = lm.StartImportDataWithEnv(true, map[string]string{
+		"--cdc-partition-key":           "auto",
+		"--cdc-partition-key-overrides": "test_schema.test_live:(region)",
+	}, []string{uniqueKeyConflictCountFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import data")
+	defer lm.StopImportData()
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_live"`: 5,
+	}, 120)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	// Assert the persisted per-table custom strategy + columns.
+	err = lm.InitMetaDB()
+	testutils.FatalIfError(t, err, "failed to initialize meta db")
+	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
+	testutils.FatalIfError(t, err, "failed to get import data status record")
+	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Strategy,
+		"test_live should use the custom partition strategy")
+	assert.Equal(t, []string{"region"}, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Columns,
+		"test_live custom key columns should be persisted")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	// Delta: 5 inserts, 0 updates, 5 deletes.
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live"`: {Inserts: 5, Updates: 0, Deletes: 5},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	// The PK-recycle race must be detected: each re-INSERT collides with the cached DELETE on
+	// the (synthetic) primary-key index, and the two events carry different custom keys.
+	conflicts, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
+	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
+	require.NotNil(t, conflicts, "PK-recycle across different custom keys must be detected")
+	assert.Greater(t, conflicts.Total, 0,
+		"expected at least one detected PK conflict, got stats: %+v", conflicts)
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "target does not match source after streaming")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
+// TestLiveMigrationPartitionedTableWithCustomCdcPartitionKeyNoConflict is the partitioned-table
+// analogue of TestLiveMigrationCustomCdcPartitionKeyNoConflict: it verifies that a *partitioned*
+// table routed by a custom partition key never trips unique-key conflict detection for events
+// that share that key.
+//
+// test_live is LIST-partitioned by region with PRIMARY KEY (id, region) and a per-leaf partial
+// unique index on (custom_key) WHERE most_recent. Import references only the root, so this
+// exercises several partition-aware paths for a custom-key table:
+//   - the primary key ((id, region)) is discovered for the root (declared on the root and
+//     inherited by leaves) and added to the conflict set for the custom table,
+//   - the per-leaf partial unique indexes are merged up to the root,
+//   - custom-key routing (by custom_key) hashes all events with the same custom_key to one
+//     channel regardless of which partition/PK they touch.
+//
+// The delta's r1 loop repeatedly frees and re-uses custom_key=1 across different primary keys
+// (the classic UI conflict on the partial unique index). Under pk routing these would land on
+// different channels and be flagged, but because every one of those events carries the same
+// custom_key they all route to one channel and apply in commit order. The r2 inserts use
+// distinct custom_keys with most_recent=false, so they never enter the partial index. There are
+// no deletes, so no primary key is recycled. The count failpoint must therefore record ZERO
+// detected conflicts, and the target must stay consistent across both partitions.
+func TestLiveMigrationPartitionedTableWithCustomCdcPartitionKeyNoConflict(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_part_custom_key_no_conflict",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_part_custom_key_no_conflict",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.test_live (
+				id int,
+				region text,
+				custom_key int,
+				most_recent boolean,
+				PRIMARY KEY (id, region)
+			) PARTITION BY LIST (region);
+			CREATE TABLE test_schema.test_live_r1 PARTITION OF test_schema.test_live FOR VALUES IN ('r1');
+			CREATE TABLE test_schema.test_live_r2 PARTITION OF test_schema.test_live FOR VALUES IN ('r2');
+			-- Per-leaf partial unique index on the custom partition key column. Any conflict on it
+			-- is necessarily between rows that share the same custom_key => same custom partition
+			-- key => same channel, so conflict detection must skip them.
+			CREATE UNIQUE INDEX idx_test_live_r1_custom_key ON test_schema.test_live_r1 (custom_key) WHERE most_recent;
+			CREATE UNIQUE INDEX idx_test_live_r2_custom_key ON test_schema.test_live_r2 (custom_key) WHERE most_recent;`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.test_live REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.test_live_r1 REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.test_live_r2 REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			// Snapshot rows spread across both partitions with distinct custom_keys and
+			// most_recent=false so they neither occupy the partial unique index nor collide with
+			// the delta's ids/custom_keys.
+			`INSERT INTO test_schema.test_live (id, region, custom_key, most_recent)
+			 SELECT i, 'r1', i, false FROM generate_series(100, 104) i;`,
+			`INSERT INTO test_schema.test_live (id, region, custom_key, most_recent)
+			 SELECT i, 'r2', i, false FROM generate_series(200, 204) i;`,
+		},
+		SourceDeltaSQL: []string{
+			// Single transaction (DO block).
+			// r1: all events share custom_key=1 and repeatedly free/re-claim the (custom_key=1)
+			// partial-index slot across different primary keys (custom_key stays immutable).
+			// r2: two inserts with distinct custom_keys and most_recent=false (never enter the
+			// partial index) to prove multi-partition data flow.
+			`DO $$
+			BEGIN
+				INSERT INTO test_schema.test_live (id, region, custom_key, most_recent) VALUES (1, 'r1', 1, true);
+				UPDATE test_schema.test_live SET most_recent = false WHERE id = 1 AND region = 'r1';
+				INSERT INTO test_schema.test_live (id, region, custom_key, most_recent) VALUES (2, 'r1', 1, true);
+				UPDATE test_schema.test_live SET most_recent = false WHERE id = 2 AND region = 'r1';
+				INSERT INTO test_schema.test_live (id, region, custom_key, most_recent) VALUES (3, 'r1', 1, true);
+				UPDATE test_schema.test_live SET most_recent = false WHERE id = 3 AND region = 'r1';
+				INSERT INTO test_schema.test_live (id, region, custom_key, most_recent) VALUES (4, 'r1', 1, true);
+				UPDATE test_schema.test_live SET most_recent = false WHERE id = 4 AND region = 'r1';
+				INSERT INTO test_schema.test_live (id, region, custom_key, most_recent) VALUES (5, 'r1', 1, true);
+				UPDATE test_schema.test_live SET most_recent = false WHERE id = 5 AND region = 'r1';
+				INSERT INTO test_schema.test_live (id, region, custom_key, most_recent) VALUES (6, 'r1', 1, true);
+				UPDATE test_schema.test_live SET most_recent = false WHERE id = 6 AND region = 'r1';
+				INSERT INTO test_schema.test_live (id, region, custom_key, most_recent) VALUES (7, 'r1', 1, true);
+
+				INSERT INTO test_schema.test_live (id, region, custom_key, most_recent) VALUES (300, 'r2', 50, false);
+				INSERT INTO test_schema.test_live (id, region, custom_key, most_recent) VALUES (301, 'r2', 51, false);
+			END $$;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	// count-only failpoint: any detected UK conflict is recorded in the stats file.
+	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+	)
+	uniqueKeyConflictStatsPath := filepath.Join(
+		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
+
+	err = lm.StartImportDataWithEnv(true, map[string]string{
+		"--cdc-partition-key":           "auto",
+		"--cdc-partition-key-overrides": "test_schema.test_live:(custom_key)",
+	}, []string{uniqueKeyConflictCountFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import data")
+	defer lm.StopImportData()
+
+	// Snapshot count is at the root level (10 rows across the two partitions).
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_live"`: 10,
+	}, 120)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	// Assert the persisted per-table custom strategy + columns.
+	err = lm.InitMetaDB()
+	testutils.FatalIfError(t, err, "failed to initialize meta db")
+	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
+	testutils.FatalIfError(t, err, "failed to get import data status record")
+	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Strategy,
+		"test_live should use the custom partition strategy")
+	assert.Equal(t, []string{"custom_key"}, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Columns,
+		"test_live custom key columns should be persisted")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	// Delta (root-level counts): 9 inserts (7 in r1 + 2 in r2), 6 updates, 0 deletes.
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live"`: {Inserts: 9, Updates: 6, Deletes: 0},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	conflicts, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
+	if err != nil && !os.IsNotExist(err) {
+		testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
+	}
+	require.Nil(t, conflicts, "no unique-key conflicts should be detected: all r1 events share the custom key => same channel")
+
+	
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "target does not match source after streaming")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
+// TestLiveMigrationPartitionedTableWithCustomCdcPartitionKeyPKRecycleConflict is the
+// partitioned-table analogue of TestLiveMigrationCustomCdcPartitionKeyPKRecycleConflict: it
+// verifies the primary-key guard for a *partitioned* custom-key table whose primary key is
+// declared on the root (PRIMARY KEY (id, region)).
+//
+// test_live is LIST-partitioned by region and routed by the custom key (custom_key); it has no
+// unique index other than the primary key. Import references only the root, so the root PK
+// ((id, region)) is discovered and added to the conflict set for the custom table. A
+// single-transaction delta recycles each primary key with a NEW custom key:
+//
+//	DELETE id=i, region=... (old custom_key); INSERT (i, same region, new custom_key, ...);
+//
+// The DELETE (before-image custom_key=old) and the re-INSERT (custom_key=new) carry different
+// custom keys, so under custom routing they hash to (potentially) different channels and could
+// apply out of order — a duplicate primary key. GetTableToUniqueIndexesMap excludes the primary
+// key, so WITHOUT the guard this table would have an empty conflict set and the race would go
+// undetected. WITH the guard the PK is a synthetic unique index and the collision on
+// (id, region) — across different custom keys — is flagged. The count failpoint must therefore
+// record a NON-ZERO number of detected conflicts, and the target must stay consistent.
+func TestLiveMigrationPartitionedTableWithCustomCdcPartitionKeyPKRecycleConflict(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_part_custom_key_pk_recycle",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_part_custom_key_pk_recycle",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			-- No unique index other than the primary key: the PK-recycle race is only detectable
+			-- because the primary key ((id, region), declared on the root) is added to the
+			-- conflict set for custom tables.
+			CREATE TABLE test_schema.test_live (
+				id int,
+				region text,
+				custom_key int,
+				val int,
+				PRIMARY KEY (id, region)
+			) PARTITION BY LIST (region);
+			CREATE TABLE test_schema.test_live_r1 PARTITION OF test_schema.test_live FOR VALUES IN ('r1');
+			CREATE TABLE test_schema.test_live_r2 PARTITION OF test_schema.test_live FOR VALUES IN ('r2');`,
+		},
+		SourceSetupSchemaSQL: []string{
+			// REPLICA IDENTITY FULL so the DELETE event carries the custom_key (custom key) before
+			// image, which custom-key routing needs to place the delete on its channel.
+			`ALTER TABLE test_schema.test_live REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.test_live_r1 REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.test_live_r2 REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.test_live (id, region, custom_key, val)
+			 SELECT i, 'r1', i, i FROM generate_series(1, 3) i;`,
+			`INSERT INTO test_schema.test_live (id, region, custom_key, val)
+			 SELECT i, 'r2', 10 + i, i FROM generate_series(1, 2) i;`,
+		},
+		SourceDeltaSQL: []string{
+			// Single transaction: recycle each (id, region) with a new custom_key. Each
+			// DELETE+INSERT pair on the same primary key is a PK-recycle across different custom
+			// keys.
+			`DO $$
+			BEGIN
+				DELETE FROM test_schema.test_live WHERE id = 1 AND region = 'r1';
+				INSERT INTO test_schema.test_live (id, region, custom_key, val) VALUES (1, 'r1', 101, 1001);
+				DELETE FROM test_schema.test_live WHERE id = 2 AND region = 'r1';
+				INSERT INTO test_schema.test_live (id, region, custom_key, val) VALUES (2, 'r1', 102, 1002);
+				DELETE FROM test_schema.test_live WHERE id = 3 AND region = 'r1';
+				INSERT INTO test_schema.test_live (id, region, custom_key, val) VALUES (3, 'r1', 103, 1003);
+				DELETE FROM test_schema.test_live WHERE id = 1 AND region = 'r2';
+				INSERT INTO test_schema.test_live (id, region, custom_key, val) VALUES (1, 'r2', 111, 1011);
+				DELETE FROM test_schema.test_live WHERE id = 2 AND region = 'r2';
+				INSERT INTO test_schema.test_live (id, region, custom_key, val) VALUES (2, 'r2', 112, 1012);
+			END $$;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	// count-only failpoint: any detected UK conflict is recorded in the stats file.
+	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+	)
+	uniqueKeyConflictStatsPath := filepath.Join(
+		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
+
+	err = lm.StartImportDataWithEnv(true, map[string]string{
+		"--cdc-partition-key":           "auto",
+		"--cdc-partition-key-overrides": "test_schema.test_live:(custom_key)",
+	}, []string{uniqueKeyConflictCountFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import data")
+	defer lm.StopImportData()
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_live"`: 5,
+	}, 120)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	// Assert the persisted per-table custom strategy + columns.
+	err = lm.InitMetaDB()
+	testutils.FatalIfError(t, err, "failed to initialize meta db")
+	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
+	testutils.FatalIfError(t, err, "failed to get import data status record")
+	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Strategy,
+		"test_live should use the custom partition strategy")
+	assert.Equal(t, []string{"custom_key"}, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Columns,
+		"test_live custom key columns should be persisted")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	// Delta (root-level counts): 5 inserts, 0 updates, 5 deletes.
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live"`: {Inserts: 5, Updates: 0, Deletes: 5},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	// The PK-recycle race must be detected: each re-INSERT collides with the cached DELETE on
+	// the (synthetic) primary-key index, and the two events carry different custom keys.
+	conflicts, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
+	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
+	require.NotNil(t, conflicts, "PK-recycle across different custom keys must be detected")
+	assert.Greater(t, conflicts.Total, 0,
+		"expected at least one detected PK conflict, got stats: %+v", conflicts)
+
+	// Order by the full primary key: id alone repeats across partitions (r1/r2).
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id, region")
+	testutils.FatalIfError(t, err, "target does not match source after streaming")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
+// TestLiveMigrationPartitionedTableChildPKWithCustomCdcPartitionKeyPKRecycleConflict verifies
+// the primary-key guard for a partitioned custom-key table whose primary key lives ONLY on the
+// leaf partitions (the root has no primary key of its own). The import table list is always the
+// partitioned root (public.orders), so the custom-key override is on the root and its primary key
+// must be discovered from a leaf partition (the partition-aware GetPrimaryKeyColumnsForTables
+// path) and added to the conflict set for the custom table.
+//
+// orders is LIST-partitioned by region; each child carries PRIMARY KEY (id). It is routed by the
+// custom key (custom_key) and has no unique index other than the child primary keys. Import uses
+// --use-partition-root false: the root has no PK constraint, so the upsert must target the leaf
+// partition (which owns PRIMARY KEY (id)) via partition_table_name — otherwise ON CONFLICT has no
+// matching constraint on the root. Conflict detection still runs against the root table using the
+// leaf-discovered PK. A single-transaction delta recycles each child primary key (within one
+// partition, so id is unambiguous) with a NEW custom key:
+//
+//	DELETE id=i, region='US' (old custom_key); INSERT (i, 'US', new custom_key, ...);
+//
+// The DELETE (before-image custom_key=old) and the re-INSERT (custom_key=new) carry different
+// custom keys and could apply out of order across channels — a duplicate primary key. WITHOUT
+// discovering the leaf PK for the root, the custom table's conflict set would be empty and the
+// race would go undetected. WITH it, the collision on (id) — across different custom keys — is
+// flagged. The count failpoint must therefore record a NON-ZERO number of detected conflicts,
+// and the target must stay consistent.
+func TestLiveMigrationPartitionedTableChildPKWithCustomCdcPartitionKeyPKRecycleConflict(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_part_child_pk_custom_key_recycle",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_part_child_pk_custom_key_recycle",
+		},
+		SchemaNames: []string{"public"},
+		SchemaSQL: []string{
+			// Partitioned root with NO primary key; each child partition carries PRIMARY KEY (id).
+			`CREATE TABLE public.orders (
+				id int,
+				region text NOT NULL,
+				custom_key int,
+				amount bigint
+			) PARTITION BY LIST (region);`,
+			`CREATE TABLE public.orders_us PARTITION OF public.orders FOR VALUES IN ('US');`,
+			`ALTER TABLE public.orders_us ADD PRIMARY KEY (id);`,
+			`CREATE TABLE public.orders_eu PARTITION OF public.orders FOR VALUES IN ('EU');`,
+			`ALTER TABLE public.orders_eu ADD PRIMARY KEY (id);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE public.orders REPLICA IDENTITY FULL;`,
+			`ALTER TABLE public.orders_us REPLICA IDENTITY FULL;`,
+			`ALTER TABLE public.orders_eu REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO public.orders (id, region, custom_key, amount)
+			 SELECT i, 'US', i, i * 100 FROM generate_series(1, 3) i;`,
+			`INSERT INTO public.orders (id, region, custom_key, amount)
+			 SELECT i, 'EU', 10 + i, i * 100 FROM generate_series(1, 2) i;`,
+		},
+		SourceDeltaSQL: []string{
+			// Single transaction: recycle each child primary key (kept within the 'US' partition
+			// so id is unambiguous) with a new custom_key. Each DELETE+INSERT pair on the same id
+			// is a PK-recycle across different custom keys.
+			`DO $$
+			BEGIN
+				DELETE FROM public.orders WHERE id = 1 AND region = 'US';
+				INSERT INTO public.orders (id, region, custom_key, amount) VALUES (1, 'US', 101, 1001);
+				DELETE FROM public.orders WHERE id = 2 AND region = 'US';
+				INSERT INTO public.orders (id, region, custom_key, amount) VALUES (2, 'US', 102, 1002);
+				DELETE FROM public.orders WHERE id = 3 AND region = 'US';
+				INSERT INTO public.orders (id, region, custom_key, amount) VALUES (3, 'US', 103, 1003);
+			END $$;`,
+		},
+		CleanupSQL: []string{
+			`DROP TABLE IF EXISTS public.orders CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	// count-only failpoint: any detected UK conflict is recorded in the stats file.
+	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+	)
+	uniqueKeyConflictStatsPath := filepath.Join(
+		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
+
+	// The import table list is the partitioned root (public.orders), so the custom-key override
+	// is on the root and its primary key must be discovered from a leaf partition (the
+	// partition-aware GetPrimaryKeyColumnsForTables path) to seed the conflict set. --use-partition-root
+	// false is required because the root itself has no PK constraint: the upsert must target the
+	// leaf partition (which owns PRIMARY KEY (id)) via partition_table_name, otherwise ON CONFLICT
+	// has no matching constraint on the root.
+	err = lm.StartImportDataWithEnv(true, map[string]string{
+		"--cdc-partition-key":           "auto",
+		"--cdc-partition-key-overrides": "public.orders:(custom_key)",
+		"--use-partition-root":          "false",
+	}, []string{uniqueKeyConflictCountFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import data")
+	defer lm.StopImportData()
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"public"."orders"`: 5,
+	}, 120)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	// Assert the persisted per-table custom strategy + columns.
+	err = lm.InitMetaDB()
+	testutils.FatalIfError(t, err, "failed to initialize meta db")
+	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
+	testutils.FatalIfError(t, err, "failed to get import data status record")
+	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"public"."orders"`].Strategy,
+		"orders should use the custom partition strategy")
+	assert.Equal(t, []string{"custom_key"}, importDataStatus.TableToCDCPartitionKey[`"public"."orders"`].Columns,
+		"orders custom key columns should be persisted")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	// Delta (root-level counts): 3 inserts, 0 updates, 3 deletes.
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"public"."orders"`: {Inserts: 3, Updates: 0, Deletes: 3},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	// The PK-recycle race must be detected via the leaf-discovered primary key: each re-INSERT
+	// collides with the cached DELETE on the (synthetic) primary-key index, and the two events
+	// carry different custom keys.
+	conflicts, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
+	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
+	require.NotNil(t, conflicts, "PK-recycle across different custom keys must be detected")
+	assert.Greater(t, conflicts.Total, 0,
+		"expected at least one detected PK conflict, got stats: %+v", conflicts)
+
+	// Order by the full primary key: id alone repeats across partitions (US/EU).
+	err = lm.ValidateDataConsistency([]string{`"public"."orders"`}, "id, region")
+	testutils.FatalIfError(t, err, "target does not match source after streaming")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }

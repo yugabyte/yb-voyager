@@ -35,7 +35,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 )
 
-const cacheDepthSampleInterval = 100 * time.Millisecond
+const cacheDepthSampleInterval = 20 * time.Millisecond
 
 // Hooks are the cmd-package internals the framework cannot reach itself,
 // injected as closures by the benchmark shim in cmd.
