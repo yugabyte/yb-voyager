@@ -197,9 +197,20 @@ func resolveEffectiveCdcPartitionKeys(
 		if _, isExprUK := exprUKSet.Get(t); isExprUK {
 			return nil, goerrors.Errorf("cdc-partition-key %s is not allowed for table %s because it has an expression-based unique index; use table (via --cdc-partition-key or --cdc-partition-key-overrides)", override.Strategy, t.ForOutput())
 		}
-		cols, ok := tableHasGeneratedColumn(generatedStoredCols, t, override.Columns)
-		if ok {
-			return nil, goerrors.Errorf("cdc-partition-key %s is not allowed for table %s because custom key column(s) - [%s] are a stored generated column(s); use table (via --cdc-partition-key or --cdc-partition-key-overrides)", override.Strategy, t.ForOutput(), strings.Join(cols, ", "))
+		switch override.Strategy {
+		case PARTITION_BY_PK:
+			//For PK, we need to check if the table has a unique index on a stored generated column
+			//and if so, we need to reject the strategy
+			if tableHasUniqueIndexOnGenerated(generatedStoredCols, t) {
+				return nil, goerrors.Errorf("cdc-partition-key %s is not allowed for table %s because it has an unique index on a stored generated column; use table (via --cdc-partition-key or --cdc-partition-key-overrides)", override.Strategy, t.ForOutput())
+			}
+		case PARTITION_BY_CUSTOM:
+			//For CUSTOM, we need to check if the custom key column(s) are a stored generated column(s)
+			//and if so, we need to reject the strategy
+			cols, ok := tableHasGeneratedColumn(generatedStoredCols, t, override.Columns)
+			if ok {
+				return nil, goerrors.Errorf("cdc-partition-key %s is not allowed for table %s because custom key column(s) - [%s] are a stored generated column(s); use table (via --cdc-partition-key or --cdc-partition-key-overrides)", override.Strategy, t.ForOutput(), strings.Join(cols, ", "))
+			}
 		}
 	}
 	return result, nil

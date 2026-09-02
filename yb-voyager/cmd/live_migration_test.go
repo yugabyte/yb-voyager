@@ -529,15 +529,13 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 
 		_, err = resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_PK, nil, nil, generated, YUGABYTEDB)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "unique index on a stored generated column")
+		assert.Contains(t, err.Error(), "has an unique index on a stored generated column")
 		assert.Contains(t, err.Error(), "audit")
 
 		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"id"}})
 		_, err = resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_TABLE, overrides, nil, generated, YUGABYTEDB)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "unique index on a stored generated column")
-		assert.Contains(t, err.Error(), "custom")
+		require.NoError(t, err)
 
 		overrides = utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE})
@@ -553,7 +551,7 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"amount"}})
 		_, err := resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_PK, overrides, nil, generated, YUGABYTEDB)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "custom key column \"amount\" is a stored generated column")
+		assert.Contains(t, err.Error(), "custom key column(s) - [amount] are a stored generated column(s)")
 		assert.Contains(t, err.Error(), "audit")
 
 		got, err := resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_PK, nil, nil, generated, YUGABYTEDB)
