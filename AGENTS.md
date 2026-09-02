@@ -16,7 +16,14 @@ This repo ships two artifacts that together form YugabyteDB Voyager:
 Supporting trees:
 - `installer_scripts/install-yb-voyager` — the canonical build/install entry. Handles Go build, Debezium Maven build, ora2pg setup, and dependency provisioning. Has interactive prompts (ora2pg license, bashrc) — pipe `yes` to accept non-interactively.
 - `migtests/` — end-to-end migration tests driven by shell + Python (`run-test.sh`, `live-migration-*-run-test.sh`, scripts under `migtests/scripts/`). Tests live under `migtests/tests/<source>/<scenario>/`.
-- `.cursor/BUGBOT.md` — product-level review rules. Treat these as load-bearing; see "Product invariants" below.
+
+## Engineering standards (per-directory `AGENTS.md`)
+
+Standards live in an `AGENTS.md` file in the directory they govern, from this file down to individual packages. They are **authoring** standards first and review criteria second — read the ones covering the code you are about to change, before you change it.
+
+Each such directory carries three entries for the same content: `AGENTS.md` (the real file), `CLAUDE.md` (symlink — Claude Code reads `CLAUDE.md`, not `AGENTS.md`), and `.cursor/BUGBOT.md` (symlink — Cursor Bugbot reads only this name). Edit `AGENTS.md`; never edit a symlink. When adding standards for a new subtree, create all three.
+
+Current scopes: repo root (this file), `debezium-server-voyager/`, `migtests/`, `yb-voyager/`, `yb-voyager/cmd/`, `yb-voyager/src/`, and the `src/` packages `anon`, `callhome`, `errs`, `metadb`, `metrics`, `migassessment`, `query/queryissue`, `srcdb`, `testlivemigration`, `tgtdb`, `utils`.
 
 ## Key environment requirements
 
@@ -80,17 +87,13 @@ End-to-end migtests are invoked outside Go: `bash migtests/scripts/run-test.sh <
 
 ## Source / target packages
 
-- `src/srcdb/` — source DB drivers (`postgres.go`, `oracle.go`, `mysql.go`, `yugabytedb.go`). Each implements the `SourceDB` interface in `srcdb.go`. `pg_dump.go` and `ora2pg.go` wrap the external dump tools.
-- `src/tgtdb/` — target DB drivers (`yugabytedb.go`, `postgres.go`, `oracle.go`) implementing `TargetDB` from `target_db_interface.go`. `conn_pool.go` is the import connection pool; `event.go` is the live-migration event model.
-- `src/dbzm/` — Debezium server lifecycle, status, and value conversion for live migration.
-- `src/metadb/` — SQLite-backed metadata store. `MigrationStatusRecord` in `migrationStatus.go` is the central serialized state — adding/removing JSON-tagged fields is a backward-compatibility concern (see below).
+`yb-voyager/src/AGENTS.md` holds the full package directory and the rule for where new code belongs. Only the entry points and cross-package invariants are repeated here:
+
+- `src/srcdb/` — each driver implements the `SourceDB` interface in `srcdb.go`. `pg_dump.go` and `ora2pg.go` wrap the external dump tools.
+- `src/tgtdb/` — each driver implements `TargetDB` from `target_db_interface.go`. `conn_pool.go` is the import connection pool; `event.go` is the live-migration event model.
+- `src/metadb/` — `MigrationStatusRecord` in `migrationStatus.go` is the central serialized state; adding/removing JSON-tagged fields is a backward-compatibility concern (see below).
 - `src/namereg/` + `src/utils/sqlname/` — the only correct way to handle DB identifiers. `NameTuple`/`ObjectName` preserve case-sensitive (quoted) PG identifiers. Never concatenate schema/table names manually.
-- `src/metrics/` — Prometheus metrics surface. `Recorder` interface with a no-op default (`metrics.Get()`, safe when metrics are disabled) and a `PrometheusRecorder` implementation on its own registry (`metrics.NewPrometheusRecorder`). `metrics.NewServer` serves `/metrics` on a dedicated `http.ServeMux`, started via `--metrics-port` on import and export commands (`cmd/importData.go`'s `startMetricsServer`). Decoupled from `--profile` (pprof only); `--prometheus-metrics-port` is a deprecated hidden alias.
-- `src/query/queryissue/`, `src/query/queryparser/`, `src/query/sqltransformer/` — SQL parsing and schema-issue detection used by `analyze-schema` and `assess-migration`.
-- `src/migassessment/` — `assess-migration` engine: collects DB stats, sizing, replicas, permissions, produces the assessment DB and report. `cmd/templates/` holds the HTML/text report templates.
-- `src/callhome/` — anonymous telemetry payloads. Disabled with `YB_VOYAGER_SEND_DIAGNOSTICS=0` or `--send-diagnostics=false`.
-- `src/cp/` — control-plane abstractions (`noopcp`, `yugabyted`, `ybaeon`).
-- `src/anon/`, `src/errs/`, `src/errorpolicy/`, `src/adaptiveparallelism/`, `src/importdata/`, `src/lockfile/`, `src/datafile/`, `src/datastore/`, `src/reporter/`, `src/monitor/`, `src/version/`, `src/ybversion/` — focused helpers; names are descriptive.
+- `src/metrics/` — Prometheus metrics surface. `Recorder` interface with a no-op default (`metrics.Get()`, safe when metrics are disabled) and a `PrometheusRecorder` on its own registry; `metrics.NewServer` serves `/metrics` on a dedicated `http.ServeMux`, started from `cmd/importData.go`'s `startMetricsServer`. See `src/metrics/AGENTS.md` for the flags, naming scheme, and catalogue.
 
 Test infrastructure for Go integration tests lives in `yb-voyager/test/containers/` (testcontainers wrappers for PG/MySQL/Oracle/YB) and `yb-voyager/test/utils/` (failpoint helpers, command runners, schema helpers).
 
@@ -99,47 +102,127 @@ Test infrastructure for Go integration tests lives in `yb-voyager/test/container
 When changing anything in export/import/cutover or schema handling, evaluate against **all** migration flows — they are not symmetric:
 
 - **Offline:** export-schema → import-schema → export-data (snapshot via `pg_dump`/`ora2pg`) → import-data → post-data import-schema.
-- **Live (snapshot + changes):** snapshot + Debezium streaming.
-- **Live with fall-back:** after cutover-to-target, data flows back to the original source.
-- **Live with fall-forward:** after cutover-to-target, data flows to a standby replica.
-- **Changes-only:** no snapshot. Skips `pg_dump`, so sequence values, table-list init, and start-clean semantics differ.
-- **Iterative cutover (cutover-to-source with restart):** multiple iterations; each spawns a new metaDB and iteration export-dir. Flag propagation across iterations is fragile.
+- **Live (snapshot + changes):** export-schema → import-schema → export-data (snapshot + streaming via Debezium) → import-data → cutover-to-target → end-migration.
+- **Live with fall-back:** as above, then export-data-from-target → import-data-to-source. After cutover-to-target, data flows back to the original source so users can roll back.
+- **Live with fall-forward:** as above, then export-data-from-target → import-data-to-source-replica. After cutover-to-target, data flows to a standby replica.
+- **Changes-only:** no snapshot — streams CDC changes only. Skips `pg_dump`, so sequence handling, start-clean semantics, and table-list initialization all differ from the snapshot-and-changes path.
+- **Iterative cutover (cutover-to-source with restart):** multiple cutover iterations between source and target. Each iteration creates a new metaDB and iteration export-dir, spawns new exporter/importer processes, and must propagate all flags correctly.
 
-Source heterogeneity: PG is primary, Oracle/MySQL also supported as sources, YugabyteDB as source for fall-back/fall-forward. Use source-agnostic naming (`GetQueryStats`, not `GetPgStatStatements`). Unsupported-datatype lists, permission checks, and schema-extraction queries are per-source — changing one usually means changing all.
+If a change touches export-data, import-data, or cutover logic, ask: does this work correctly in **each** of the above flows?
+
+### Source database types
+
+PG is primary, but Oracle and MySQL are also supported as sources, and YugabyteDB as source for fall-back/fall-forward.
+
+- Use source-agnostic names for functions and variables. Prefer `GetQueryStats` over `GetPgStatStatements`.
+- Unsupported-datatype lists, permission checks, and schema-extraction queries differ per source. When changing one source implementation, check whether the same change is needed in the others.
+- Features gated by source type (e.g. `changes-only` only for PG/YB, CLOB export only for Oracle) must have explicit validation or guardrails.
+
+### Partitioned tables
+
+A frequent source of missed edge cases:
+
+- Schema queries return both root and leaf partitions. The caller must decide which to use and resolve leaf→root mappings explicitly.
+- Issues detected on partitioned tables must consider the full hierarchy: root → intermediate → leaf.
+- Foreign keys and indexes on partitioned tables have different semantics than on regular tables.
+- Always test with partitioned tables and multi-level partition hierarchies when changing table-handling logic.
+
+### Sequences
+
+Sequence handling varies significantly across code paths:
+
+- Offline: `pg_dump` captures sequence last-values at snapshot time.
+- Live (snapshot + changes): same as offline for initial values; Debezium streams ongoing changes.
+- Changes-only: no `pg_dump`, so sequence values must be fetched separately before streaming begins.
+- Sequence association types (SERIAL, BIGSERIAL, explicit `DEFAULT nextval(...)`, `GENERATED ALWAYS AS IDENTITY`, `ALTER SEQUENCE ... OWNED BY`) must all be handled consistently. Changes to sequence queries should be tested against all association types.
+
+### Case-sensitive identifiers
+
+PostgreSQL allows case-sensitive (quoted) identifiers. All object-name handling must go through the `sqlname` package (`NameTuple` or `ObjectName`), never manual string concatenation. Always test new table/column/schema handling with case-sensitive names.
 
 ## Serialized-state backward compatibility
 
-Users routinely upgrade voyager mid-migration. The following surfaces are load-bearing across versions:
+Users routinely upgrade voyager mid-migration, so serialized state must remain compatible to the best of your ability:
 
-- `MigrationStatusRecord` JSON in `metainfo/meta.db` — removing/renaming `json:"..."` tags can break older binaries reading the same export dir. Prefer additive changes.
+- `MigrationStatusRecord` JSON in `metainfo/meta.db` — removing/renaming `json:"..."` tags, or removing fields, can break older binaries reading the same export dir. Prefer additive changes. The same applies to the assessment report and callhome payload structs.
 - The assessment SQLite DB schema — when adding columns, use `ADD COLUMN IF NOT EXISTS` and write defensive queries; otherwise an older voyager run against the new schema will error.
-- Callhome / YugabyteD payload structs — bump the payload version constant when shape changes.
-- If a change cannot preserve compat, flag the next release as a breaking release.
+- Callhome / YugabyteD payload structs — bump the payload version constant when the shape changes.
+- If preserving backward compatibility is too complicated, say so explicitly: the next release then has to be marked a breaking release.
+
+## Performance-critical (hot) paths
+
+Some code runs once per migration; some runs once per row or per change event and dominates throughput. Treat the latter as hot paths and hold them to a higher standard:
+
+- **Per-event / CDC processing during live migration** — event decoding, conflict detection (`conflictDetectionCache`), and everything on the import-data event loop run for every streamed change. This path has regressed before; a small per-event allocation multiplies by millions of events.
+- **The per-row import-data loop and per-tuple value conversion** — batching, type conversion, and name lookups here run per row.
+
+On a hot path:
+
+- Avoid per-iteration heap allocations. Build strings with a single `strings.Builder`, writing each component directly (`b.WriteString(col); b.WriteString("=<missing>")`) — do **not** construct temporary strings with `+` and then `WriteString` them.
+- Hoist invariant work out of the loop: pre-compile regexes, reuse buffers, compute lookups once.
+- Avoid re-doing map/JSON/marshal work per event when it can be cached or done once.
+- For non-trivial changes to a hot path, add or update a benchmark and report before/after numbers rather than eyeballing it.
+
+If you are unsure whether a path is hot, ask; do not assume it is cold.
+
+## Design and abstraction
+
+Applies especially to new packages, interfaces, and abstractions:
+
+- **Favor simplicity over abstraction.** Introduce layers, interfaces, factories, registries, or other indirection only when they provide a clear benefit or there is strong evidence that upcoming scale or feature growth will require them.
+- **YAGNI.** Do not add fields, parameters, or extension seams that nothing consumes yet. Pull unused surface out until the consumer lands.
+- **Respect layering.** Each layer does only its job — for example, populate domain data before entering the persistence layer.
+- **Name to avoid collisions and ambiguity.** A field named `Role` next to Postgres roles, or two fields that mean the same thing, will confuse readers. Prefer qualified, single-purpose names.
+- **One source of truth.** Do not persist the same fact two ways.
+
+## Fail loudly on unexpected state
+
+- When code reaches a state that "shouldn't happen", return an error — do not log a warning and continue, and do not silently skip the work.
+- Do not silently fall back to a weaker mechanism (e.g. matching by name because an ID is missing, or using a default because a lookup failed). Either the fallback is a designed, documented behavior, or the missing input is an error.
+- Avoid in-band sentinel values: an empty string, zero, or nil must not carry two different meanings (e.g. "not set" vs "legitimately empty"). Use an explicit flag or a distinct representation.
+- For each new defensive branch, ask: when is this reachable, and is tolerating it correct? If the answer is "never", error out.
+
+## Generic coding practices
+
+- Keep code simple. Use early returns to reduce nesting. Prefer flat `if err != nil { return err }` over deeply nested success paths.
+- Prefer letting the database do set-oriented work (ordering, aggregation, grouping, deduplication) in SQL rather than post-processing rows in Go, when it does not hurt readability.
+- Use self-describing variable and function names. Avoid `rec1`/`rec2` — prefer `recCombined`/`recSharded`.
+- Remove dead code, unused functions, and leftover debugging artifacts before merging.
+- Consolidate duplicate logic into shared helpers rather than copy-pasting across switch cases or source-type implementations.
+- Anything fed into a hash, fingerprint, or serialized key must be built in a deterministic order (sort map keys and column lists first).
+
+## Comments
+
+**Default: no comments.** Not "a few short ones" — none. The code, the function and variable names, the log messages, and the error strings already say *what* the code does; a comment that repeats them is noise, and it rots at the next edit while looking authoritative.
+
+Everything below is the narrow exception. Before adding any comment or doc-comment line, write it, delete it, and add it back only if you can finish this sentence with something concrete:
+
+> "Without this line, a reader would wrongly conclude ______."
+
+If you cannot name the specific wrong conclusion, it is narration — leave it out. "It documents intent", "it adds useful context", "it helps explain" do not pass. When in doubt, it fails.
+
+What passes is always a non-obvious **why**, never a **what**:
+
+- An invariant or ordering the code cannot show — which process/role sets an MSR flag, that a value only takes effect after a restart, why a global is set and restored.
+- Behaviour that differs across migration flows, where the code path looks flow-agnostic but isn't.
+- A workaround for a specific product bug or an enforced PG/YB rule — name it, with the issue number.
+- Why a branch exists at all, when the reason is outside the function — e.g. why detection skips partitioned tables.
+- A non-obvious clause, join, or filter condition inside a multi-line SQL string.
+- Anything a narrower `AGENTS.md` explicitly requires. Several packages mandate specific comments — MSR field semantics and which role sets them, callhome payload version history, the DDL pattern each `anon` handler processes. The inner scope wins; do not delete those in the name of this default.
+
+Never write these — delete on sight, no judgement call:
+
+- A line that paraphrases the code it sits on ("read from config", "group by table", "create user on target").
+- A restatement of a function, field, or constant name, or of an error message.
+- Change context — `// fix for #1234`, `// added after the failed run`, `// from triage`. That belongs in the commit message or PR body.
+
+When a refactor renames or restructures something, sweep the surrounding comments and error messages for the old names. A stale comment is worse than no comment: it reads as authoritative while describing code that no longer exists.
+
+A surviving comment is one or two lines. If it needs a paragraph, the explanation is wrong or the code is: shorten it, restructure the code, or move the prose to the PR description. This does not override doc comments on exported Go identifiers, which follow normal Go convention.
 
 ## Metrics
 
-`--metrics-port <port>` (default `0`, disabled) exposes a Prometheus registry at `GET http://<host>:<port>/metrics` on its own `http.ServeMux`, on both import (`import data`, `import data file`, `import data to target/source/source-replica`) and export (`export data from source/target`) commands. `--profile` starts the pprof server and is otherwise independent, but on import commands, if `--profile` is set and no `--metrics-port`/`--prometheus-metrics-port` is given, metrics still start on the role's legacy default port (9101 target/9102 import-file/9103 source-replica/9104 source, `cmd/importData.go`'s `legacyProfileDefaultMetricsPorts`) with a deprecation warning — this preserves pre-`--metrics-port` behavior. Export commands have no legacy default port and stay disabled unless a port is explicitly set. `--prometheus-metrics-port` is a deprecated hidden alias for `--metrics-port` (still works, logs a warning); `--metrics-port` wins if both are set.
-
-Metric names follow the `yb_voyager_<import|export>_data_<snapshot|cdc>_*` scheme; direction is encoded in the name, so import metrics carry `importer_role` and export metrics carry `exporter_role` (no generic `role` label). `migration_uuid, session_id` are on every metric.
-
-Metric catalogue:
-- `yb_voyager_import_data_snapshot_rows_total`, `yb_voyager_import_data_snapshot_bytes_total` (counters) — rows/bytes imported during snapshot. Labels: `+ importer_role, table_name, schema_name`. Pre-registered at 0 per table so panels aren't empty before the first batch; not seeded from persisted per-table totals, so they reset to 0 on every process restart (use `rate()`/`increase()` for a per-run view). A gauge-based cross-resume cumulative view is planned for a future PR.
-- `yb_voyager_import_data_snapshot_batch_{created,submitted,ingested}_total` (counters) — batch lifecycle. Same labels as above. (The in-flight gauge derived from submitted-minus-ingested was dropped; compute it in PromQL instead.)
-- `yb_voyager_import_data_snapshot_batch_size_{rows,bytes}` (histograms) — per-batch size distribution. Same labels.
-- `yb_voyager_import_data_snapshot_table_last_batch_ingested_timestamp_seconds` (gauge) — Unix timestamp of the most recent ingest per table; used to detect stalls. Same labels.
-- `yb_voyager_import_data_snapshot_table_expected_rows` (gauge) — expected total rows for the table (the denominator); stays a gauge (it's a target, not a cumulative count — distinct from `..._rows_total`). Same labels.
-- `yb_voyager_import_data_snapshot_tables_total` (gauge), `yb_voyager_export_data_snapshot_tables_total` (gauge) — number of tables in scope for the snapshot phase; set once from all tasks (not just pending ones), so it stays accurate across resume. Labels: `+ importer_role` / `+ exporter_role` respectively.
-- `yb_voyager_import_data_errors_total`, `yb_voyager_import_data_error_bytes_total` (counters) — import errors by `error_kind` (`row_processing`, `batch_ingestion`). Same labels `+ error_kind`.
-- `yb_voyager_import_data_cdc_events_total` (counter) — CDC events imported by `event_type` (`insert`/`update`/`delete`). Labels: `+ importer_role, event_type`. (Use `rate()` for an events/sec view; the separate rate gauge was dropped.)
-- `yb_voyager_import_data_cdc_events_pending`, `yb_voyager_import_data_cdc_estimated_seconds_to_catch_up` (gauges) — CDC lag and ETA. Labels: `+ importer_role`.
-- `yb_voyager_export_data_snapshot_rows_total` (counter) — exported snapshot rows per table; a delta-tracking counter fed by the export status reporter's cumulative counts (was a gauge). Labels: `+ exporter_role, table_name, schema_name`.
-- `yb_voyager_export_data_snapshot_table_expected_rows` (gauge) — expected total rows for the table during snapshot export. Same labels.
-- `yb_voyager_export_data_cdc_events_total` (counter) — total CDC events exported. Labels: `+ exporter_role`.
-- `yb_voyager_import_data_parallelism` (gauge) — current import parallelism (adaptive level, or the fixed `--parallel-jobs` value emitted once when adaptive parallelism is disabled). Labels: `+ importer_role`.
-- `yb_voyager_export_data_parallelism` (gauge) — configured export parallelism. Labels: `+ exporter_role`.
-- `yb_voyager_cluster_node_cpu_percent` (gauge) — per-node target cluster CPU usage. Labels: `+ node`.
-
-Dropped (see PR review): `yb_voyager_import_snapshot_batches_in_flight` (derive via PromQL), `yb_voyager_cdc_import_rate_events_per_second` (use `rate()`), `yb_voyager_export_errors_total`, `yb_voyager_import_pool_pending_close_connections`, `yb_voyager_cdc_debezium_up` (deferred to a future PR exposing Debezium's own metrics).
+`--metrics-port <port>` (default `0`, disabled) exposes a Prometheus registry at `GET http://<host>:<port>/metrics` on the import and export data commands; `--profile` (pprof) is independent of it. Full flag semantics including the legacy `--profile` default ports, the metric naming scheme and label conventions, the metric catalogue, and the list of deliberately dropped metrics live in `yb-voyager/src/metrics/AGENTS.md`.
 
 ## Gotchas
 

@@ -1,6 +1,6 @@
 ---
 name: branch-review
-description: Review all code changes on the current branch compared to main, applying hierarchical BUGBOT.md and .cursor/BUGBOT.md guidelines from each changed file's directory up to the repo root. Use when the user asks to review a branch, review changes, compare against main, do a code review, or check branch diff.
+description: Review all code changes on the current branch compared to main, applying the hierarchical AGENTS.md engineering standards from each changed file's directory up to the repo root. Use when the user asks to review a branch, review changes, compare against main, do a code review, or check branch diff.
 ---
 
 # Branch Code Review
@@ -36,24 +36,23 @@ If the diff is very large, review file-by-file using:
 git diff $MERGE_BASE..HEAD -- <filepath>
 ```
 
-#### BUGBOT.md review guidelines (hierarchical)
+#### AGENTS.md engineering standards (hierarchical)
 
-Many repositories keep extra review rules in `BUGBOT.md` files. They may live directly in a directory as `BUGBOT.md` or under `.cursor/BUGBOT.md` (both conventions are valid—check **both** at each level).
+Standards live in an `AGENTS.md` file in the directory they govern. They are authoring standards as well as review criteria, so the author's agent and this review read the same text.
 
-**For each changed file** (added, modified, or renamed—use its path on the branch under review; for deleted files, use the path from the diff so ancestor rules still apply), treat **every** applicable BUGBOT file as mandatory review guidance:
+**For each changed file** (added, modified, or renamed—use its path on the branch under review; for deleted files, use the path from the diff so ancestor rules still apply), treat **every** applicable standards file as mandatory review guidance:
 
 1. Resolve the repository root: `REPO_ROOT=$(git rev-parse --show-toplevel)`.
 2. Let `DIR` be the directory of the changed file relative to `REPO_ROOT` (e.g. for `yb-voyager/cmd/foo.go`, start at `yb-voyager/cmd`). If the file is at the repo root, `DIR` is `.`.
-3. Walk **from `DIR` up to the repository root** (including `DIR` and the root). At **each** ancestor directory `D`, if either file exists under `$REPO_ROOT/$D`, read it and fold it into the review:
-   - `$REPO_ROOT/$D/BUGBOT.md`
-   - `$REPO_ROOT/$D/.cursor/BUGBOT.md`
-4. **Deduplicate** paths (the same file must not be applied twice if multiple changed files share an ancestor).
-5. **Reading order**: Process guidelines from **repository root downward** toward the file’s directory (outer → inner). Outer files set broad product or repo-wide rules; inner files add package- or subtree-specific rules.
-6. **Conflicts**: If two levels disagree, treat the **inner** (closer to the changed file) guideline as **more specific** and take precedence for that file’s review. You must still honor **all non-conflicting** rules from outer levels.
+3. Walk **from `DIR` up to the repository root** (including `DIR` and the root). At **each** ancestor directory `D`, read `$REPO_ROOT/$D/AGENTS.md` if it exists and fold it into the review.
+4. **Do not also read `$D/CLAUDE.md` or `$D/.cursor/BUGBOT.md`** — both are symlinks to the same `AGENTS.md`, and reading them duplicates the rules. Only if `$D/AGENTS.md` is absent (an older branch predating the migration) fall back to `$D/BUGBOT.md` or `$D/.cursor/BUGBOT.md`.
+5. **Deduplicate** paths (the same file must not be applied twice if multiple changed files share an ancestor).
+6. **Reading order**: Process standards from **repository root downward** toward the file’s directory (outer → inner). Outer files set broad product or repo-wide rules; inner files add package- or subtree-specific rules.
+7. **Conflicts**: If two levels disagree, treat the **inner** (closer to the changed file) standard as **more specific** and take precedence for that file’s review. You must still honor **all non-conflicting** rules from outer levels.
 
-When presenting findings, **cite which BUGBOT scope informed a finding** when it is not obvious (e.g. “Per `yb-voyager/cmd/.cursor/BUGBOT.md` …”).
+When presenting findings, **cite which standards scope informed a finding** when it is not obvious (e.g. “Per `yb-voyager/cmd/AGENTS.md` …”).
 
-You may collect all unique BUGBOT paths that apply to the branch’s changed files with a small script or by walking paths logically; a one-liner is not required as long as the walk matches the rules above.
+You may collect all unique `AGENTS.md` paths that apply to the branch’s changed files with a small script or by walking paths logically; a one-liner is not required as long as the walk matches the rules above.
 
 ### Step 2: High-level change summary
 
@@ -99,14 +98,16 @@ For each modified file, read the full current version to understand surrounding 
 
 ### Step 4: Review each change
 
-Evaluate every change against the BUGBOT hierarchy (4a) and the review lenses (4b). Two failure modes have caused this skill to miss important findings in the past — avoid both:
+Evaluate every change against the standards hierarchy (4a) and the review lenses (4b). Two failure modes have caused this skill to miss important findings in the past — avoid both:
 
 - **Only flagging the obvious bugs.** Swallowed errors, bad SQL, and nil derefs are easy to spot and this skill already finds them. The higher-value findings a human reviewer catches are usually about **scope, design, hot-path cost, simplification, and test coverage** — apply *every* lens below, not just Correctness/Security.
-- **Reading BUGBOT rules but not enforcing them.** Most previously-missed findings mapped to a rule that was *already loaded* from an applicable BUGBOT.md. Loading a rule is not reviewing against it. Treat the loaded rules as an active checklist and scan the diff for a concrete violation of each one.
+- **Reading the standards but not enforcing them.** Most previously-missed findings mapped to a rule that was *already loaded* from an applicable `AGENTS.md`. Loading a rule is not reviewing against it. Treat the loaded rules as an active checklist and scan the diff for a concrete violation of each one.
 
-#### 4a. Apply the BUGBOT hierarchy as an active checklist
+#### 4a. Apply the standards hierarchy as an active checklist
 
-For each changed file, take the union of all `BUGBOT.md` / `.cursor/BUGBOT.md` files from that file's directory through the repo root (Step 1). Walk each rule and actively look for a violation in the diff — do not just confirm you read it.
+For each changed file, take the union of all `AGENTS.md` files from that file's directory through the repo root (Step 1). Walk each rule and actively look for a violation in the diff — do not just confirm you read it.
+
+Because these are authoring standards, the author's agent may already have had them in context. That does **not** make the check redundant: standards are guidance, not enforcement, and a rule the author saw is still a rule the diff can violate.
 
 **Turn each lexically-detectable rule into a search over the *added* (`+`) lines** — do not rely on reading comprehension alone. A rule you only *read* is a rule you will miss; a rule you *grep for* is one you enforce.
 
@@ -125,10 +126,10 @@ For each changed file, take the union of all `BUGBOT.md` / `.cursor/BUGBOT.md` f
 | **Design & maintainability** | Especially for new packages/interfaces/abstractions: unnecessary indirection, **YAGNI** , **layering** (each layer does only its job), redundant concepts (two fields meaning the same thing), and two-sources-of-truth for one fact. |
 | **Placement & naming** | Does each new function live in the right file/package? New feature-area helpers belong in their own file, not appended to an already-large command file; logic reachable from multiple commands belongs in a shared location. Long new blocks inside an existing function should be extracted. Names must be self-describing; several parallel maps/params keyed by the same thing usually want a struct. |
 | **Error-handling doctrine** | Unexpected state must fail loudly: no warn-and-continue, no silent fallback to a weaker mechanism, no in-band sentinel values (empty string / zero / nil carrying two meanings). For every `log.Warn` + continue or defensive skip on a "shouldn't happen" branch, ask: should this be an error? Errors must be wrapped with enough context (operation, object) to act on. |
-| **Hot-path performance** | *First decide whether the change is on a performance-critical path* — per-event / CDC / conflict-detection, the per-row import-data loop, per-tuple value conversion (see root BUGBOT "Performance-Critical (Hot) Paths").  |
+| **Hot-path performance** | *First decide whether the change is on a performance-critical path* — per-event / CDC / conflict-detection, the per-row import-data loop, per-tuple value conversion (see root `AGENTS.md` "Performance-critical (hot) paths").  |
 | **Simplification** | Is there a materially simpler implementation?  |
 | **Security** | Injection, hardcoded secrets, auth gaps, input validation. |
-| **Tests** | New logic has tests that actually assert behavior; edge cases covered. **Test quality**: no fixed sleeps or timing-dependent assertions; count assertions on asynchronous work need justified bounds on *both* sides (a vacuous lower bound like `>= 0` asserts nothing; a missing upper bound misses over-triggering); no reads of state a concurrent process is still writing. **Coverage variants** the repo's BUGBOT rules require (e.g. case-sensitive identifiers, partitioned tables, expression indexes) must be checked explicitly, not assumed. |
+| **Tests** | New logic has tests that actually assert behavior; edge cases covered. **Test quality**: no fixed sleeps or timing-dependent assertions; count assertions on asynchronous work need justified bounds on *both* sides (a vacuous lower bound like `>= 0` asserts nothing; a missing upper bound misses over-triggering); no reads of state a concurrent process is still writing. **Coverage variants** the repo's `AGENTS.md` standards require (e.g. case-sensitive identifiers, partitioned tables, expression indexes) must be checked explicitly, not assumed. |
 | **Documentation** | Public APIs documented; non-obvious gating/branching logic commented with *why* and *when it applies*; genuinely unclear concepts (new fields, enums, labels) explained — if you can't tell what a field is for, ask. |
 
 Severity is not tied to lens: a hot-path regression or an inverted condition is Critical/Warning, not a nitpick. A concrete violation of a written BUGBOT rule defaults to **Warning**, not Suggestion. Design, scope, and clarity concerns that need author input but aren't defects go in the **Question** class (Step 5) — surface them, but don't invent a "bug" to justify them.
@@ -209,8 +210,8 @@ End with a brief summary:
 
 ## Guidelines
 
-- Load and apply **BUGBOT.md** / **.cursor/BUGBOT.md** per changed file using the directory walk to repo root (Step 1), as an *active checklist* (Step 4a) — do not skip because the repo has many such files, and do not treat "I read it" as "I applied it."
-- Apply **all** of the Step 4b lenses, not just Correctness/Security. The findings this skill has historically missed were scope, design, hot-path, simplification, and test-coverage issues — many of which were already covered by a loaded BUGBOT rule.
+- Load and apply **AGENTS.md** per changed file using the directory walk to repo root (Step 1), as an *active checklist* (Step 4a) — do not skip because the repo has many such files, and do not treat "I read it" as "I applied it."
+- Apply **all** of the Step 4b lenses, not just Correctness/Security. The findings this skill has historically missed were scope, design, hot-path, simplification, and test-coverage issues — many of which were already covered by a loaded standard.
 - Be specific — always reference file and line number.
 - Suggest fixes, not just problems.
 - Acknowledge good patterns and clean code briefly.
