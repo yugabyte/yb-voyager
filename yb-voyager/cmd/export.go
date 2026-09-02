@@ -367,9 +367,9 @@ func getAndStoreTargetDBPasswordInSourceConf(cmd *cobra.Command) {
 func markFlagsRequired(cmd *cobra.Command) {
 	// `export data from target` borrows exportDataCmd's PreRun but registers no
 	// source-* connection flags; its connection info comes from the MSR. Matched
-	// by name: referencing exportDataFromTargetCmd here would create a package
-	// initialization cycle back through exportDataCmd.
-	if cmd.Name() == "target" {
+	// by path literal: referencing exportDataFromTargetCmd here would create a
+	// package initialization cycle back through exportDataCmd.
+	if cmd.CommandPath() == "yb-voyager export data from target" {
 		return
 	}
 	// mandatory for all
