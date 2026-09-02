@@ -478,10 +478,6 @@ func validateCustomPartitionKeyTables(tableToPartitionKeyOverrideMap *utils.Stru
 	if len(customTables) == 0 {
 		return nil
 	}
-	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
-	if !ok {
-		return goerrors.Errorf("target db is not a YugabyteDB")
-	}
 	// every custom key column must exist on the table.
 	missingColumnsOnTables := make(map[string][]string)
 	ambiguousColumnsOnTables := make(map[string][]string)
@@ -496,8 +492,7 @@ func validateCustomPartitionKeyTables(tableToPartitionKeyOverrideMap *utils.Stru
 		var missing []string
 		var ambiguous []string
 		for _, c := range override.Columns {
-
-			bestMatchingColumnName, err := yb.FindBestMatchingColumnName(c, tableColumns)
+			bestMatchingColumnName, err := tdb.FindBestMatchingTargetColumnName(c, tableColumns)
 			if err != nil {
 				if _, ok := err.(*tgtdb.ErrAmbiguousColumnName); ok {
 					ambiguous = append(ambiguous, c)

@@ -55,6 +55,10 @@ func (myb *mockYugabyteDB) GetListOfTableAttributes(tableNameTup sqlname.NameTup
 	return myb.tableAttrs[tableNameTup.ForKey()], nil
 }
 
+func (myb *mockYugabyteDB) FindBestMatchingTargetColumnName(columnName string, targetTableColumns []string) (string, error) {
+	return myb.FindBestMatchingColumnName(columnName, targetTableColumns)
+}
+
 func TestProcessEventsBasic(t *testing.T) {
 	evChan := make(chan *tgtdb.Event, EVENT_CHANNEL_SIZE)
 	lastAppliedVsn := int64(0)

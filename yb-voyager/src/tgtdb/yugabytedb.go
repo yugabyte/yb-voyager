@@ -1092,6 +1092,11 @@ func (yb *TargetYugabyteDB) GetListOfTableAttributes(nt sqlname.NameTuple) ([]st
 	return result, nil
 }
 
+func (yb *TargetYugabyteDB) FindBestMatchingTargetColumnName(columnName string, targetTableColumns []string) (string, error) {
+	return yb.FindBestMatchingColumnName(columnName, targetTableColumns)
+
+}
+
 func (yb *TargetYugabyteDB) RestoreSequences(sequencesLastVal *utils.StructMap[sqlname.NameTuple, int64]) error {
 	log.Infof("restoring sequences on target")
 	batch := pgx.Batch{}

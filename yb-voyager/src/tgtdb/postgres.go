@@ -787,6 +787,10 @@ func (pg *TargetPostgreSQL) GetListOfTableAttributes(nt sqlname.NameTuple) ([]st
 	return result, nil
 }
 
+func (pg *TargetPostgreSQL) FindBestMatchingTargetColumnName(columnName string, targetTableColumns []string) (string, error) {
+	return pg.FindBestMatchingColumnName(columnName, targetTableColumns)
+}
+
 func (pg *TargetPostgreSQL) IsNonRetryableCopyError(err error) bool {
 	if err == nil {
 		return false

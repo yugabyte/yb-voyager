@@ -518,6 +518,10 @@ func (tdb *TargetOracleDB) GetListOfTableAttributes(tableNameTup sqlname.NameTup
 	return columns, nil
 }
 
+func (tdb *TargetOracleDB) FindBestMatchingTargetColumnName(columnName string, targetTableColumns []string) (string, error) {
+	return tdb.FindBestMatchingColumnName(columnName, targetTableColumns)
+}
+
 // execute all events sequentially one by one in a single transaction
 func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error {
 	// TODO: figure out how to avoid round trips to Oracle DB
