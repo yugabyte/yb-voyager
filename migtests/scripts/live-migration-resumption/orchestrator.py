@@ -372,9 +372,9 @@ def validate_no_conflicts_detected_action(stage: Dict[str, Any], ctx: Any) -> No
 
 @action("pick_random_custom_key")
 def pick_random_custom_key_action(stage: Dict[str, Any], ctx: Any) -> None:
-    """Randomly select one table/column(s) to route by `--cdc-partition-key-overrides`
-    instead of the hardcoded default, and wire that pick through everywhere it
-    needs to land:
+    """Randomly select ONE table/column(s) to route by `--cdc-partition-key-overrides`
+    this run -- mirroring how a real user opts specific tables into custom-key
+    routing -- and wire that pick through everywhere it needs to land:
 
       - appends to `voyager.import_data.flags.cdc-partition-key-overrides`.
       - adds the picked column(s) to the named generator's
@@ -386,17 +386,22 @@ def pick_random_custom_key_action(stage: Dict[str, Any], ctx: Any) -> None:
     orchestrator plumbing changes are needed for the pick to take effect.
 
     Required stage key:
-      - candidates: list of {table: "schema.table", columns: [col, ...]}. Every
-        candidate's conflict DML must already be safe to route by those
-        columns (i.e. never appears in an UPDATE for that table) -- this
-        action only performs the pick and the wiring, not that verification.
+      - candidates: list of {table: "schema.table", columns: [col, ...],
+        expect_conflicts: bool (optional, default false)}. Every candidate's
+        conflict DML must already be safe to route by those columns (i.e.
+        never appears in an UPDATE for that table) -- this action only
+        performs the pick and the wiring, not that verification.
+        `expect_conflicts: true` marks a candidate whose DML deliberately
+        creates conflicts that MUST still be detected when it is picked (e.g.
+        a PK-recycle pattern); `validate_picked_custom_key_conflicts` uses it
+        to decide which assertion to run.
 
     Optional stage key:
       - generator_key: which generator config block to inject
         exclude_columns_from_update into (default: "generator").
 
-    The pick is stored on `ctx.picked_custom_key` (`{"table", "columns"}`) for
-    `validate_no_conflicts_for_picked_custom_key` to consume later.
+    The pick is stored on `ctx.picked_custom_key` for
+    `validate_picked_custom_key_conflicts` to consume later.
     """
     if ctx.picked_custom_key is not None:
         raise RuntimeError(
@@ -414,8 +419,12 @@ def pick_random_custom_key_action(stage: Dict[str, Any], ctx: Any) -> None:
     choice = random.choice(candidates)
     table = choice["table"]
     columns = choice["columns"]
-    ctx.picked_custom_key = {"table": table, "columns": columns}
-    H.log(f"pick_random_custom_key: selected table={table} columns={columns} (out of {len(candidates)} candidates)")
+    expect_conflicts = bool(choice.get("expect_conflicts", False))
+    ctx.picked_custom_key = {"table": table, "columns": columns, "expect_conflicts": expect_conflicts}
+    H.log(
+        f"pick_random_custom_key: selected table={table} columns={columns} "
+        f"expect_conflicts={expect_conflicts} (out of {len(candidates)} candidates)"
+    )
 
     override = f"{table}:({','.join(columns)})"
     flags = ctx.cfg.setdefault("voyager", {}).setdefault("import_data", {}).setdefault("flags", {})
@@ -438,22 +447,31 @@ def pick_random_custom_key_action(stage: Dict[str, Any], ctx: Any) -> None:
             excluded_for_table.append(col)
 
 
-@action("validate_no_conflicts_for_picked_custom_key")
-def validate_no_conflicts_for_picked_custom_key_action(stage: Dict[str, Any], ctx: Any) -> None:
-    """`validate_no_conflicts_detected`, scoped to whatever table
-    `pick_random_custom_key` selected earlier in this run -- lets the scenario
-    assert 0 conflicts for the picked table without knowing in advance which
-    one that will be.
+@action("validate_picked_custom_key_conflicts")
+def validate_picked_custom_key_conflicts_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Run the right conflict assertion for whatever table `pick_random_custom_key`
+    selected earlier in this run:
+
+      - expect_conflicts false (the usual case): the picked table's conflicts all
+        share its custom key's value, so they land on one channel already and the
+        conflict-detection cache must never fire for it -- assert 0.
+      - expect_conflicts true (e.g. a PK-recycle candidate, where the SAME PK is
+        reused with a DIFFERENT custom-key value -- a real cross-channel race
+        custom-key routing does not eliminate): the synthetic-PK guard must still
+        catch it -- assert >= min_count (default 1).
     """
     picked = ctx.picked_custom_key
     if not picked:
         raise RuntimeError(
-            "validate_no_conflicts_for_picked_custom_key: ctx.picked_custom_key is unset "
+            "validate_picked_custom_key_conflicts: ctx.picked_custom_key is unset "
             "-- run 'pick_random_custom_key' earlier in this scenario"
         )
     scoped_stage = dict(stage)
     scoped_stage["table"] = picked["table"]
-    validate_no_conflicts_detected_action(scoped_stage, ctx)
+    if picked["expect_conflicts"]:
+        validate_conflicts_detected_action(scoped_stage, ctx)
+    else:
+        validate_no_conflicts_detected_action(scoped_stage, ctx)
 
 
 @action("start_resumptions")

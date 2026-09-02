@@ -11,19 +11,28 @@
 -- cycle 0.
 --
 -- Derived from fallback-unique-conflict-test/source_dml.sql, but reshaped for
--- pick_random_custom_key (orchestrator.py): that action randomly selects one
--- (table, columns) pair as this run's `--cdc-partition-key-overrides`, and the
--- importer requires a custom key column to be immutable (never appear in an
--- UPDATE). Since the pick happens at run time, EVERY candidate table's DML
--- must already satisfy that regardless of which one gets picked -- so tables
--- 1-7 and 10/11/13 below keep ONLY DELETE-based free/reuse (free a unique
--- value via DELETE, reuse it via INSERT on a different PK) and drop any
--- UPDATE that would touch the column(s) that might be this run's custom key.
--- Tables 9 and 12 need no changes: their existing DML already never updates
--- check_id/region. Only table 8 (expression-based unique index -- the
--- importer rejects pk/custom routing on these outright, a hard guardrail, not
--- a DML limitation) is excluded from the candidate pool and keeps its
--- original, fuller DML, always PK-routed.
+-- pick_random_custom_key (orchestrator.py): that action randomly selects ONE
+-- (table, columns) candidate as this run's `--cdc-partition-key-overrides`,
+-- and the importer requires a custom key column to be immutable (never appear
+-- in an UPDATE). Since the pick happens at run time, EVERY candidate table's
+-- DML must already satisfy that regardless of which one gets picked -- so
+-- tables 2-7 and 10/11/13 below keep ONLY DELETE-based free/reuse (free a
+-- unique value via DELETE, reuse it via INSERT on a different PK) and drop
+-- any UPDATE that would touch the column(s) that might be this run's custom
+-- key. Tables 9 and 12 need no changes: their existing DML already never
+-- updates check_id/region.
+--
+-- Table 1 is the deliberate exception among the candidates: instead of a
+-- same-value free/reuse (a no-false-negative case, like every other
+-- candidate), it reuses the SAME PK with a DIFFERENT custom-key value. When
+-- it is picked, that exercises the synthetic-PK-as-unique-index guard added
+-- for custom-key tables (PR #3746) and conflicts MUST still be detected
+-- (expect_conflicts: true in the scenario); when not picked, the same PK
+-- always routes to the same channel under pk routing, so the pattern is
+-- simply inert. Table 8 (expression-based unique index -- the importer
+-- rejects pk/custom routing on these outright, a hard guardrail, not a DML
+-- limitation) is never a candidate and keeps its original, fuller DML,
+-- always PK-routed.
 
 \if :{?cycle}
 \else
@@ -32,15 +41,24 @@
 \set base (900000000 + :cycle * 100000)
 
 -- ============================================================
--- 1. single_unique_constraint (id PK, email UNIQUE) -- custom-key candidate: (email)
+-- 1. single_unique_constraint (id PK, email UNIQUE) -- custom-key candidate: (email).
+-- PK-RECYCLE case, not a no-false-negative case like every other candidate:
+-- when picked, it exercises the synthetic-PK-as-unique-index guard added for
+-- custom-key tables (PR #3746, live_migration.go
+-- addPrimaryKeyToConflictSetForCustomTables). DELETE frees id=:base+1
+-- (email=A); a NEW row then reuses the SAME id with a DIFFERENT email (B).
+-- Because A != B, these two events route to DIFFERENT channels under
+-- custom-key routing even though they share a PK -- without the synthetic
+-- PK-index guard they could apply out of order on the target and violate the
+-- primary key. So when this table is picked, conflicts MUST still be
+-- detected (expect_conflicts: true in the scenario); when not picked, the
+-- same PK always routes to the same channel under pk routing and the
+-- pattern is simply inert.
 -- ============================================================
 BEGIN;
-INSERT INTO single_unique_constraint (id, email) VALUES
-    (:base + 1, ('suc_user1@conflict.test' || :cycle));
-
--- DELETE-INSERT: free suc_user1, reuse it on a new PK
+INSERT INTO single_unique_constraint (id, email) VALUES (:base + 1, ('suc_pkrecycle_a@conflict.test' || :cycle));
 DELETE FROM single_unique_constraint WHERE id = :base + 1;
-INSERT INTO single_unique_constraint (id, email) VALUES (:base + 101, ('suc_user1@conflict.test' || :cycle));
+INSERT INTO single_unique_constraint (id, email) VALUES (:base + 1, ('suc_pkrecycle_b@conflict.test' || :cycle));
 COMMIT;
 
 -- ============================================================

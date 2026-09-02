@@ -30,8 +30,8 @@ target:
     user: ${TARGET_DB_ADMIN_USER}
     password: ${TARGET_DB_ADMIN_PASSWORD}
 
-# Random event generator. Whichever table/column(s) pick_random_custom_key
-# selects below gets added to exclude_columns_from_update at run time, so the
+# Random event generator. Every table select_custom_keys routes by a custom
+# key below gets added to exclude_columns_from_update at run time, so the
 # generator never updates that custom key column (the importer requires it to
 # be immutable) while still touching that table's other columns normally.
 generator:
@@ -90,16 +90,21 @@ stages:
   - name: grant_source_permissions
     action: grant_source_permissions
 
-  # Randomly select one (table, columns) pair to route by
-  # --cdc-partition-key-overrides for this run, instead of a fixed pair --
-  # every candidate's conflict DML (source_dml.sql) is already immutability-safe
-  # for whichever one gets picked. Also injects the pick into the generator's
+  # Randomly select ONE (table, columns) pair to route by
+  # --cdc-partition-key-overrides this run -- mirroring how a real user opts a
+  # specific table into custom-key routing. Every candidate's conflict DML
+  # (source_dml.sql) is already immutability-safe for whichever one gets
+  # picked. Also injects the pick into the generator's
   # exclude_columns_from_update so the random generator respects it too.
+  # single_unique_constraint's DML is a deliberate PK-recycle pattern (see
+  # source_dml.sql section 1), so when IT is picked, conflicts MUST still be
+  # detected (expect_conflicts: true) -- every other candidate must show none.
   - name: pick_random_custom_key
     action: pick_random_custom_key
     candidates:
       - table: public.single_unique_constraint
         columns: [email]
+        expect_conflicts: true
       - table: public.multi_unique_constraint
         columns: [first_name, last_name]
       - table: public.same_column_unique_constraint_and_index
@@ -214,12 +219,15 @@ stages:
     command: import_data
     timeout_sec: 60
 
-  # The table pick_random_custom_key selected is routed by its custom key, and
-  # source_dml.sql's conflicts on that table always share that key's value --
-  # so those events land on the same channel already and the conflict-detection
-  # cache must never need to serialize them.
-  - name: validate_no_conflicts_for_picked_custom_key
-    action: validate_no_conflicts_for_picked_custom_key
+  # For the picked table: if it's a normal candidate, its conflicts always
+  # share its custom key's value, so those events land on the same channel
+  # already and the conflict-detection cache must never fire for it (assert
+  # 0). If it's the PK-recycle candidate (expect_conflicts: true), the SAME PK
+  # is reused with a DIFFERENT custom-key value -- a real cross-channel race
+  # custom-key routing does NOT eliminate -- so the synthetic-PK guard added
+  # for custom-key tables (PR #3746) must still catch it (assert >= 1).
+  - name: validate_picked_custom_key_conflicts
+    action: validate_picked_custom_key_conflicts
     log: yb-voyager-import-data.log
 
   # The other tables are still PK-routed, so conflict detection must keep
