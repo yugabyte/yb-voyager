@@ -2164,12 +2164,10 @@ func TestLiveMigrationCdcPartitionKeyRejectsCustomOnExpressionUniqueIndex(t *tes
 	})
 	require.Error(t, err, "import with custom partition-key on expression-UK table should fail")
 	output := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
-	assert.Contains(t, output, "cdc-partition-key custom is not allowed for table 'test_schema.users' because it has an expression-based unique index; use table (via --cdc-partition-key or --cdc-partition-key-overrides)",
+	require.Contains(t, output, "cdc-partition-key custom is not allowed for table test_schema.users because it has an expression-based unique index; use table (via --cdc-partition-key or --cdc-partition-key-overrides)",
 		"expected expression-UK rejection, got: %s", output)
 
-	err = lm.StartImportData(true, map[string]string{
-		"--cdc-partition-key": "table",
-	})
+	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
