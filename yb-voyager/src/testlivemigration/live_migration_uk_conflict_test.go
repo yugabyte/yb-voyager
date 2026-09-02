@@ -1924,7 +1924,6 @@ func TestLiveMigrationWithCustomCdcPartitionKey(t *testing.T) {
 		"--cdc-partition-key-overrides": "test_schema.orders:(customer_id)",
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
-	
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."orders"`: 10,
@@ -2064,7 +2063,6 @@ func TestLiveMigrationCustomCdcPartitionKeyNoConflict(t *testing.T) {
 		"--cdc-partition-key-overrides": "test_schema.test_live:(custom_key)",
 	}, []string{uniqueKeyConflictCountFailpointEnv})
 	testutils.FatalIfError(t, err, "failed to start import data")
-	
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_live"`: 5,
@@ -2123,24 +2121,11 @@ func TestLiveMigrationCdcPartitionKeyRejectsCustomOnExpressionUniqueIndex(t *tes
 		},
 		TargetDB: ContainerConfig{
 			Type:         "yugabytedb",
-			CREATE TABLE test_schema.orders (
-				id int PRIMARY KEY,
-				customer_id int,
-				doubled int GENERATED ALWAYS AS (customer_id * 2) STORED
-			);
-			CREATE UNIQUE INDEX orders_doubled_uidx ON test_schema.orders (doubled);`,
+			DatabaseName: "cdc_custom_expr_uk",
 		},
-		SourceSetupSchemaSQL: []string{
-			`ALTER TABLE test_schema.orders REPLICA IDENTITY FULL;`,
-		},
-		InitialDataSQL: []string{
-			`INSERT INTO test_schema.orders (id, customer_id)
-			 SELECT i, i FROM generate_series(1, 10) i;`,
-		},
-		SourceDeltaSQL: []string{
-			`INSERT INTO test_schema.orders (id, customer_id)
-			 SELECT i, i FROM generate_series(11, 20) i;`,
-=======
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
 			CREATE TABLE test_schema.users (
 				id SERIAL PRIMARY KEY,
 				email TEXT
@@ -2186,7 +2171,6 @@ func TestLiveMigrationCdcPartitionKeyRejectsCustomOnExpressionUniqueIndex(t *tes
 		"--cdc-partition-key": "table",
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
-	
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."users"`: 10,
@@ -2278,7 +2262,6 @@ func TestLiveMigrationCdcPartitionKeyRejectsCustomKeyColumnNotOnTable(t *testing
 		"--cdc-partition-key": "table",
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
-	
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."orders"`: 10,
@@ -2303,7 +2286,7 @@ func TestLiveMigrationCdcPartitionKeyRejectsCustomKeyColumnNotOnTable(t *testing
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
 
-func TestLiveMigrationWithSubsetOFPartialUNiqueIndexColumnsBeingChangedInUpdate(t *testing.T) {  
+func TestLiveMigrationWithSubsetOFPartialUNiqueIndexColumnsBeingChangedInUpdate(t *testing.T) {
 	t.Parallel()
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
@@ -2445,7 +2428,6 @@ func TestLiveMigrationWithSubsetOFPartialUNiqueIndexColumnsBeingChangedInUpdate(
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
 
-
 // TestLiveMigrationCustomCdcPartitionKeyPKRecycleConflict verifies the primary-key guard for
 // custom-key tables (Follow-up 3.2): the primary key is added to the conflict set so a
 // recycled primary key across *different* custom keys is detected and serialized.
@@ -2541,7 +2523,6 @@ func TestLiveMigrationCustomCdcPartitionKeyPKRecycleConflict(t *testing.T) {
 		"--cdc-partition-key-overrides": "test_schema.test_live:(region)",
 	}, []string{uniqueKeyConflictCountFailpointEnv})
 	testutils.FatalIfError(t, err, "failed to start import data")
-	
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_live"`: 5,
@@ -2703,7 +2684,6 @@ func TestLiveMigrationPartitionedTableWithCustomCdcPartitionKeyNoConflict(t *tes
 		"--cdc-partition-key-overrides": "test_schema.test_live:(custom_key)",
 	}, []string{uniqueKeyConflictCountFailpointEnv})
 	testutils.FatalIfError(t, err, "failed to start import data")
-	
 
 	// Snapshot count is at the root level (10 rows across the two partitions).
 	err = lm.WaitForSnapshotComplete(map[string]int64{
@@ -2736,7 +2716,6 @@ func TestLiveMigrationPartitionedTableWithCustomCdcPartitionKeyNoConflict(t *tes
 	}
 	require.Nil(t, conflicts, "no unique-key conflicts should be detected: all r1 events share the custom key => same channel")
 
-	
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "target does not match source after streaming")
 
@@ -2852,7 +2831,6 @@ func TestLiveMigrationPartitionedTableWithCustomCdcPartitionKeyPKRecycleConflict
 		"--cdc-partition-key-overrides": "test_schema.test_live:(custom_key)",
 	}, []string{uniqueKeyConflictCountFailpointEnv})
 	testutils.FatalIfError(t, err, "failed to start import data")
-	
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_live"`: 5,
@@ -3005,7 +2983,6 @@ func TestLiveMigrationPartitionedTableChildPKWithCustomCdcPartitionKeyPKRecycleC
 		"--use-partition-root":          "false",
 	}, []string{uniqueKeyConflictCountFailpointEnv})
 	testutils.FatalIfError(t, err, "failed to start import data")
-	
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"public"."orders"`: 5,
