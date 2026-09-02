@@ -176,6 +176,10 @@ import (
 // Empty value                        | ✓        | ✓       | ✓        | "key"=>""
 // Multiple pairs                     | ✓        | ✓       | ✓        | k1=>v1, k2=>v2
 // NULL transitions                   | ✓        | ✓       | ✓        | NULL↔non-NULL
+// SQL NULL entry value               | ✓        | ✓       | ✓        | "k"=>NULL
+// NULL vs empty vs literal "NULL"    | ✓        | ✓       | ✓        | all three distinct
+// NULL↔empty entry swap              |          | ✓       | ✓        | in one statement
+// DOMAIN over hstore                  | ✓        | ✓       | ✓        | bypasses pass-through
 //
 // Operations: 6 rows snapshot, 2 INSERTs, 4 UPDATEs, 1 DELETE (Forward)
 //             2 INSERTs, 4 UPDATEs, 1 DELETE (Fallback)
@@ -393,6 +397,9 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 
 			CREATE EXTENSION IF NOT EXISTS hstore;
 
+			-- a domain over hstore reports the domain's name, not "hstore"
+			CREATE DOMAIN test_schema.meta_map AS HSTORE;
+
 			CREATE TABLE test_schema.map_edge_cases (
 				id SERIAL PRIMARY KEY,
 				map_simple HSTORE,
@@ -400,7 +407,10 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				map_with_quotes HSTORE,
 				map_empty_values HSTORE,
 				map_multiple_pairs HSTORE,
-				map_special_chars HSTORE
+				map_special_chars HSTORE,
+				-- 'k=>NULL': distinct from an absent key and from an empty string
+				map_null_values HSTORE,
+				map_domain test_schema.meta_map
 			);
 
 			CREATE TABLE test_schema.interval_edge_cases (
@@ -1501,7 +1511,9 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				map_with_quotes,
 				map_empty_values,
 				map_multiple_pairs,
-				map_special_chars
+				map_special_chars,
+				map_null_values,
+				map_domain
 			) VALUES
 			(
 				'"key1" => "value1"',
@@ -1509,7 +1521,9 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				'"key" => "it''s"',
 				'"" => "value"',
 				'"a" => "1", "b" => "2", "c" => "3"',
-				'"special" => "test@email.com"'
+				'"special" => "test@email.com"',
+				'"nk" => NULL',
+				'"dk" => NULL'::test_schema.meta_map
 			);`,
 
 			`INSERT INTO test_schema.map_edge_cases (
@@ -1518,7 +1532,9 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				map_with_quotes,
 				map_empty_values,
 				map_multiple_pairs,
-				map_special_chars
+				map_special_chars,
+				map_null_values,
+				map_domain
 			) VALUES
 			(
 				'"name" => "John"',
@@ -1526,7 +1542,9 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				'"name" => "O''Reilly"',
 				'"key" => ""',
 				'"x" => "10", "y" => "20", "z" => "30"',
-				'"path" => "C:\\Users\\test"'
+				'"path" => "C:\\Users\\test"',
+				'"nk" => NULL, "ek" => "", "vk" => "v"',
+				'"dk" => NULL, "de" => ""'::test_schema.meta_map
 			);`,
 
 			`INSERT INTO test_schema.map_edge_cases (
@@ -1535,7 +1553,9 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				map_with_quotes,
 				map_empty_values,
 				map_multiple_pairs,
-				map_special_chars
+				map_special_chars,
+				map_null_values,
+				map_domain
 			) VALUES
 			(
 				'"status" => "active"',
@@ -1543,7 +1563,9 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				'"text" => "It''s a test"',
 				'"empty" => ""',
 				'"one" => "1", "two" => "2"',
-				'"data" => "value"'
+				'"data" => "value"',
+				'"a" => NULL, "b" => NULL',
+				'"a" => NULL, "b" => NULL'::test_schema.meta_map
 			);`,
 
 			`INSERT INTO test_schema.map_edge_cases (
@@ -1552,7 +1574,9 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				map_with_quotes,
 				map_empty_values,
 				map_multiple_pairs,
-				map_special_chars
+				map_special_chars,
+				map_null_values,
+				map_domain
 			) VALUES
 			(
 				'"id" => "123"',
@@ -1560,7 +1584,9 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				'"name" => "John''s"',
 				'"blank" => ""',
 				'"r" => "red", "g" => "green", "b" => "blue"',
-				'"email" => "test@domain.com"'
+				'"email" => "test@domain.com"',
+				'"lit" => "NULL"',
+				'"dlit" => "NULL"'::test_schema.meta_map
 			);`,
 
 			`INSERT INTO test_schema.map_edge_cases (
@@ -1569,7 +1595,9 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				map_with_quotes,
 				map_empty_values,
 				map_multiple_pairs,
-				map_special_chars
+				map_special_chars,
+				map_null_values,
+				map_domain
 			) VALUES
 			(
 				'"type" => "test"',
@@ -1577,7 +1605,9 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				'"title" => "Test''s Title"',
 				'"null" => ""',
 				'"first" => "1st", "second" => "2nd", "third" => "3rd"',
-				'"url" => "http://example.com"'
+				'"url" => "http://example.com"',
+				'"n" => NULL, "quoted" => "NULL"',
+				'"dn" => NULL, "dq" => "NULL"'::test_schema.meta_map
 			);`,
 
 			`INSERT INTO test_schema.map_edge_cases (
@@ -1586,7 +1616,9 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				map_with_quotes,
 				map_empty_values,
 				map_multiple_pairs,
-				map_special_chars
+				map_special_chars,
+				map_null_values,
+				map_domain
 			) VALUES
 			(
 				NULL,                                   -- will be set to non-NULL then back to NULL
@@ -1594,7 +1626,9 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				'"a"=>"b"',
 				'"a"=>""',
 				'"a"=>"1", "b"=>"2"',
-				'"x"=>"y"'
+				'"x"=>"y"',
+				NULL,
+				NULL
 			);`,
 
 			// ======================================================================
@@ -2545,7 +2579,9 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				map_with_quotes,
 				map_empty_values,
 				map_multiple_pairs,
-				map_special_chars
+				map_special_chars,
+				map_null_values,
+				map_domain
 			) VALUES
 			(
 				'"stream" => "data"',
@@ -2553,7 +2589,9 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				'"quote" => "test''s"',
 				'"" => "empty"',
 				'"s1" => "v1", "s2" => "v2"',
-				'"special" => "data"'
+				'"special" => "data"',
+				'"stream_null" => NULL',
+				'"stream_dom" => NULL'::test_schema.meta_map
 			);`,
 
 			`INSERT INTO test_schema.map_edge_cases (
@@ -2562,7 +2600,9 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				map_with_quotes,
 				map_empty_values,
 				map_multiple_pairs,
-				map_special_chars
+				map_special_chars,
+				map_null_values,
+				map_domain
 			) VALUES
 			(
 				NULL,                                  -- INSERT with NULL during streaming
@@ -2570,28 +2610,49 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				NULL,                                  -- INSERT with NULL during streaming
 				'"empty" => ""',
 				NULL,
-				'"test" => "value"'
+				'"test" => "value"',
+				NULL,
+				NULL
 			);`,
 
 			`UPDATE test_schema.map_edge_cases
 			SET map_simple = '"updated" => "value"',
-			    map_with_arrow = '"arrow=>test" => "updated"'
+			    map_with_arrow = '"arrow=>test" => "updated"',
+			    map_null_values = '"upd" => NULL, "kept" => "v"',
+			    map_domain = '"dupd" => NULL, "kept" => "v"'::test_schema.meta_map
 			WHERE id = 1;`,
 
+			// swaps NULL and empty-string entry values in one statement
 			`UPDATE test_schema.map_edge_cases
 			SET map_with_quotes = '"name" => "O''Brien"',
-			    map_multiple_pairs = '"x" => "100", "y" => "200"'
+			    map_multiple_pairs = '"x" => "100", "y" => "200"',
+			    map_null_values = '"nk" => "", "ek" => NULL, "vk" => "v"',
+			    map_domain = '"dnk" => "", "dek" => NULL'::test_schema.meta_map
 			WHERE id = 2;`,
 
 			`UPDATE test_schema.map_edge_cases
 			SET map_empty_values = NULL,
-				map_multiple_pairs = NULL
+				map_multiple_pairs = NULL,
+				map_null_values = NULL,
+				map_domain = NULL
 			WHERE id = 5;`,
 
 			`UPDATE test_schema.map_edge_cases
 			SET map_simple = 'from_null=>yes',
-				map_with_arrow = 'also=>from_null'
+				map_with_arrow = 'also=>from_null',
+				map_null_values = 'from_null=>NULL',
+				map_domain = 'dfrom_null=>NULL'::test_schema.meta_map
 			WHERE id = 6 AND map_simple IS NULL;`,
+
+			// the literal string "NULL", an '@' value and a path, next to a real
+			// SQL NULL in the same value. Both images of the UPDATE carry all four,
+			// so a regression in escaping cannot pass by keeping them distinct only
+			// on INSERT.
+			`UPDATE test_schema.map_edge_cases
+			SET map_special_chars = '"email" => "sda@sdf.com", "path" => "/U://dasa/dasda/"',
+				map_null_values = '"lit" => "NULL", "real" => NULL, "email" => "sda@sdf.com", "path" => "/U://dasa/dasda/"',
+				map_domain = '"dlit" => "NULL", "dreal" => NULL, "demail" => "sda@sdf.com", "dpath" => "/U://dasa/dasda/"'::test_schema.meta_map
+			WHERE id = 4;`,
 
 			`DELETE FROM test_schema.map_edge_cases WHERE id = 3;`,
 
@@ -3455,14 +3516,18 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				map_with_quotes,
 				map_empty_values,
 				map_multiple_pairs,
-				map_special_chars
+				map_special_chars,
+				map_null_values,
+				map_domain
 			) VALUES (
 				'"fallback" => "data"',
 				'"fb=>key" => "testval"',
 				'"fb" => "O''Reilly"',
 				'"" => "fb"',
 				'"fb1" => "v1", "fb2" => "v2", "fb3" => "v3"',
-				'"special" => "test@fb.com"'
+				'"special" => "test@fb.com"',
+				'"fb_null" => NULL, "fb_empty" => ""',
+				'"fb_dom" => NULL, "fb_e" => ""'::test_schema.meta_map
 			);`,
 
 			`INSERT INTO test_schema.map_edge_cases (
@@ -3471,35 +3536,56 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				map_with_quotes,
 				map_empty_values,
 				map_multiple_pairs,
-				map_special_chars
+				map_special_chars,
+				map_null_values,
+				map_domain
 			) VALUES (
 				NULL,                                  -- INSERT with NULL during streaming (fallback)
 				'"key=>val" => "test"',
 				NULL,                                  -- INSERT with NULL during streaming (fallback)
 				'"empty" => ""',
 				NULL,
-				'"test" => "value"'
+				'"test" => "value"',
+				NULL,
+				NULL
 			);`,
 
 			`UPDATE test_schema.map_edge_cases
 			SET map_simple = '"updated" => "fb"',
-				map_with_arrow = '"update=>key" => "fb"'
+				map_with_arrow = '"update=>key" => "fb"',
+				map_null_values = '"fb_upd" => NULL, "kept" => "v"',
+				map_domain = '"fb_dupd" => NULL'::test_schema.meta_map
 			WHERE id = 1;`,
 
+			// swaps NULL and empty-string entry values in one statement
 			`UPDATE test_schema.map_edge_cases
 			SET map_with_quotes = '"fb" => "O''Brien"',
-				map_multiple_pairs = '"x" => "99", "y" => "88"'
+				map_multiple_pairs = '"x" => "99", "y" => "88"',
+				map_null_values = '"nk" => "", "ek" => NULL',
+				map_domain = '"dnk" => "", "dek" => NULL'::test_schema.meta_map
 			WHERE id = 2;`,
 
 			`UPDATE test_schema.map_edge_cases
 			SET map_empty_values = '"fallback" => "value"',
-				map_multiple_pairs = '"a" => "1", "b" => "2"'
+				map_multiple_pairs = '"a" => "1", "b" => "2"',
+				map_null_values = '"back" => NULL',
+				map_domain = '"dback" => NULL'::test_schema.meta_map
 			WHERE id = 5 AND map_empty_values IS NULL;`,
 
 			`UPDATE test_schema.map_edge_cases
 			SET map_simple = NULL,
-				map_with_arrow = NULL
+				map_with_arrow = NULL,
+				map_null_values = NULL,
+				map_domain = NULL
 			WHERE id = 6;`,
+
+			// same shapes as the forward delta, on the fall-back path: literal
+			// "NULL", an '@' value and a path, next to a real SQL NULL
+			`UPDATE test_schema.map_edge_cases
+			SET map_special_chars = '"fb_email" => "sda@sdf.com", "fb_path" => "/U://dasa/dasda/"',
+				map_null_values = '"fb_lit" => "NULL", "fb_real" => NULL, "fb_email" => "sda@sdf.com", "fb_path" => "/U://dasa/dasda/"',
+				map_domain = '"fb_dlit" => "NULL", "fb_dreal" => NULL, "fb_demail" => "sda@sdf.com", "fb_dpath" => "/U://dasa/dasda/"'::test_schema.meta_map
+			WHERE id = 7;`,
 
 			`DELETE FROM test_schema.map_edge_cases WHERE id = 4;`,
 
@@ -3721,7 +3807,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 		},
 		`"test_schema"."map_edge_cases"`: {
 			Inserts: 2, // 2 INSERT operations: MAP/HSTORE with arrow operator and quotes + 1 with NULLs
-			Updates: 4, // 4 UPDATE operations: 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
+			Updates: 5, // 5 UPDATE operations: 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value) + 1 row 4 (literal "NULL"/'@'/path)
 			Deletes: 1, // 1 DELETE operation: delete MAP row 3
 		},
 		`"test_schema"."interval_edge_cases"`: {
@@ -3839,7 +3925,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 		},
 		`"test_schema"."map_edge_cases"`: {
 			Inserts: 2, // 1 basic + 1 with NULLs
-			Updates: 4, // 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
+			Updates: 5, // 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value) + 1 row 4 (literal "NULL"/'@'/path)
 			Deletes: 1,
 		},
 		`"test_schema"."interval_edge_cases"`: {
@@ -3922,7 +4008,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 		},
 		`"test_schema"."map_edge_cases"`: {
 			Inserts: 2, // 1 basic + 1 with NULLs
-			Updates: 4, // 2 regular + 1 row 5 (NULL→value) + 1 row 6 (value→NULL)
+			Updates: 5, // 2 regular + 1 row 5 (NULL→value) + 1 row 6 (value→NULL) + 1 row 7 (literal "NULL"/'@'/path)
 			Deletes: 1,
 		},
 		`"test_schema"."interval_edge_cases"`: {

@@ -600,43 +600,15 @@ outer:
 	return nil
 }
 
-// GetPrimaryKeyColumns returns the subset of `columns` that belong to the
-// primary‑key definition of the given table.
-func (yb *TargetYugabyteDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error) {
-	var primaryKeyColumns []string
-	schemaName, tableName := table.ForCatalogQuery()
-	query := fmt.Sprintf(`
-		SELECT a.attname
-		FROM pg_index i
-		JOIN pg_class      c ON c.oid = i.indrelid
-		JOIN pg_namespace  n ON n.oid = c.relnamespace
-		JOIN pg_attribute  a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
-		WHERE n.nspname = '%s'
-			AND c.relname  = '%s'
-			AND i.indisprimary;`, schemaName, tableName)
-
-	rows, err := yb.Query(query)
-	if err != nil {
-		return nil, fmt.Errorf("query PK columns for %s.%s: %w", schemaName, tableName, err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var col string
-		if err := rows.Scan(&col); err != nil {
-			return nil, fmt.Errorf("scan PK column: %w", err)
-		}
-		primaryKeyColumns = append(primaryKeyColumns, col)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return primaryKeyColumns, nil
+// GetPrimaryKeyColumnsForTables returns, for each requested table, its primary-key columns
+// in PK-definition order. It delegates to the shared PG/YB helper (queryPGPrimaryKeyColumnsByCatalog)
+// so the query and scan logic live in one place for both target drivers.
+func (yb *TargetYugabyteDB) GetPrimaryKeyColumnsForTables(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	return queryPGPrimaryKeyColumnsByCatalog(yb.Query, tables)
 }
 
 func (yb *TargetYugabyteDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []UniqueIndex], error) {
-	log.Infof("getting unique indexes from target for tables: %v", tableList)
+	log.Infof("getting unique indexes from target for tables: %s", strings.Join(sqlname.NameTupleListToStrings(tableList), ", "))
 
 	// Unique indexes on a partitioned table are often defined on its leaf partitions
 	// rather than the root (e.g. CREATE UNIQUE INDEX ... ON <leaf> (...)). Since import
@@ -679,7 +651,7 @@ func (yb *TargetYugabyteDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameT
 		result.Put(rootTuple, mergeUniqueIndexes(existing, indexes))
 	}
 
-	log.Infof("unique indexes from target for tables: %v", result)
+	log.Infof("unique indexes from target for tables: %s", formatTableToUniqueIndexesForLog(result))
 	return result, nil
 }
 
@@ -901,7 +873,13 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 
 	// 2. setting the schema so that COPY command can acesss the table
 	// Q: If we set the schema for this batch on this conn, will it impact others using the same conn from pool later?
-	yb.setTargetSchema(conn)
+	err = yb.setTargetSchema(conn)
+	if err != nil {
+		err = newImportBatchErrorPgYb(err, batch,
+			lo.Ternary(args.ShouldUseFastPath(), errs.IMPORT_BATCH_ERROR_FLOW_COPY_FAST, errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL),
+			errs.IMPORT_BATCH_ERROR_STEP_SET_TARGET_SCHEMA, nil)
+		return 0, err
+	}
 
 	// 3. Check if the split is already imported.
 	alreadyImported, rowsAffected, err := yb.isBatchAlreadyImported(conn, batch)
@@ -1668,11 +1646,20 @@ const (
 	SET_YB_FAST_PATH_FOR_COLOCATED_COPY   = "SET yb_fast_path_for_colocated_copy=true"
 	// The "SELECT 1" workaround introduced in ExecuteBatch does not work if isolation level is read_committed. Therefore, for now, we are forcing REPEATABLE READ.
 	SET_DEFAULT_ISOLATION_LEVEL_REPEATABLE_READ = "SET default_transaction_isolation = 'repeatable read'"
-	ERROR_MSG_PERMISSION_DENIED                 = "permission denied"
+	// If voyager exits abruptly mid-transaction, the target backend keeps holding that
+	// transaction's locks until TCP keepalive reaps it (~2h), wedging later imports. Bound it
+	// so voyager's own sessions are self-limiting; 5min is far above any gap voyager can
+	// produce inside a transaction. Override via /etc/yb-voyager/ybSessionVariables.sql.
+	SET_IDLE_IN_TRANSACTION_SESSION_TIMEOUT = "SET idle_in_transaction_session_timeout = '5min'"
+	ERROR_MSG_PERMISSION_DENIED             = "permission denied"
 )
 
 func getPGSessionInitScript(tconf *TargetConf) []string {
 	var sessionVars []string
+	// first, so a permission-denied error on a later var cannot make initSession() skip it
+	if checkSessionVariableSupport(tconf, SET_IDLE_IN_TRANSACTION_SESSION_TIMEOUT) {
+		sessionVars = append(sessionVars, SET_IDLE_IN_TRANSACTION_SESSION_TIMEOUT)
+	}
 	if checkSessionVariableSupport(tconf, SET_CLIENT_ENCODING_TO_UTF8) {
 		sessionVars = append(sessionVars, SET_CLIENT_ENCODING_TO_UTF8)
 	}
@@ -1684,6 +1671,10 @@ func getPGSessionInitScript(tconf *TargetConf) []string {
 
 func getYBSessionInitScript(tconf *TargetConf) []string {
 	var sessionVars []string
+	// first, so a permission-denied error on a later var cannot make initSession() skip it
+	if checkSessionVariableSupport(tconf, SET_IDLE_IN_TRANSACTION_SESSION_TIMEOUT) {
+		sessionVars = append(sessionVars, SET_IDLE_IN_TRANSACTION_SESSION_TIMEOUT)
+	}
 	if checkSessionVariableSupport(tconf, SET_CLIENT_ENCODING_TO_UTF8) {
 		sessionVars = append(sessionVars, SET_CLIENT_ENCODING_TO_UTF8)
 	}

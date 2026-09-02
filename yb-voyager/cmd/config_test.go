@@ -3947,9 +3947,7 @@ func setupControlPlaneConfigContext(t *testing.T) *testContext {
 	tmpExportDir := setupExportDir(t)
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
-	var configContent string
-
-	configContent = fmt.Sprintf(`
+	configContent := fmt.Sprintf(`
 export-dir: %s
 control-plane-type: ybm
 ybaeon-control-plane:

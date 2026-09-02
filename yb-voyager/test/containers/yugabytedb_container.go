@@ -170,12 +170,12 @@ func (yb *YugabyteDBContainer) Stop(ctx context.Context) error {
 }
 
 func (yb *YugabyteDBContainer) Terminate(ctx context.Context) {
-	yb.mutex.Lock()
-	defer yb.mutex.Unlock()
-
 	if yb == nil {
 		return
 	}
+
+	yb.mutex.Lock()
+	defer yb.mutex.Unlock()
 
 	if yb.external {
 		return

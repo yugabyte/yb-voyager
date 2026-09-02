@@ -89,14 +89,25 @@ public class DebeziumRecordTransformer implements RecordTransformer {
                      e.g. key - "a\"b" -> (first escaping) -> "a\\"b" -> (second escaping) -> "a\\\"b"
                      */
                     key = key.replace("\\", "\\\\"); // escaping backslash \ -> \\ ( "a\b" -> "a\\b" ) "
-                    val = val.replace("\\", "\\\\");
                     key = key.replace("\"", "\\\""); // escaping double quotes " -> \" ( "a"b" -> "a\"b" ) "
-                    val = val.replace("\"", "\\\"");
+                    if (val != null) { // a null val is a SQL NULL map value, handled separately below
+                        val = val.replace("\\", "\\\\");
+                        val = val.replace("\"", "\\\"");
+                    }
 
 		            LOGGER.debug("[MAP] after transforming key - {}", key);
                     LOGGER.debug("[MAP] after transforming value - {}", val);
-                    
-                    mapString.append(String.format("\"%s\" => \"%s\",", key, val));
+
+                    /*
+                     A null value is SQL NULL ('k=>NULL'), written unquoted. Quoting it would give the
+                     literal string "NULL"; "" would give an empty string. Both are distinct values.
+                     Backstop only - hstore reaches PostgresToYbValueConverter's pass-through instead.
+                     */
+                    if (val == null) {
+                        mapString.append(String.format("\"%s\" => NULL,", key));
+                    } else {
+                        mapString.append(String.format("\"%s\" => \"%s\",", key, val));
+                    }
                 }
 		        if(mapString.length() == 0) {
                     return "";

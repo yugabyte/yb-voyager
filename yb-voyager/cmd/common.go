@@ -872,9 +872,11 @@ func GetSourceDBTypeFromMSR() string {
 	if msr == nil {
 		utils.ErrExit("migration status record not found")
 	}
+	//lint:ignore SA5011 utils.ErrExit always exits
 	if msr.SourceDBConf == nil {
 		utils.ErrExit("source DB conf not found in migration status record")
 	}
+	//lint:ignore SA5011 utils.ErrExit always exits
 	return msr.SourceDBConf.DBType
 }
 
@@ -1328,7 +1330,6 @@ type NoteInfo struct {
 
 // MarshalJSON implements custom JSON marshaling for NoteInfo to strip HTML tags from Text field
 func (ni NoteInfo) MarshalJSON() ([]byte, error) {
-	type Alias NoteInfo
 	return json.Marshal(&struct {
 		Type NoteType `json:"Type"`
 		Text string   `json:"Text"`

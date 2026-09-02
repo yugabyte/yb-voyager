@@ -43,6 +43,7 @@ public class PostgresToYbValueConverter implements CustomConverter<SchemaBuilder
             case "varbit":
             case "tsvector":
             case "tsquery":
+            case "hstore":
                 LOGGER.info("Configuring stringify converter for column: {}, type: {}, JDBC type: {}", column.name(), column.typeName(), column.jdbcType());
                 registration.register(SchemaBuilder.string(), this::stringify);
                 break;

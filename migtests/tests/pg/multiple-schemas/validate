@@ -176,16 +176,27 @@ def migration_completed_checks(tgt):
 			expectedExtensions.extend(["yb_ycql_utils"])
 
 		if "2025.2" in tgtVersion:
-			# pg_parquet is only available in 2025.2.0–2025.2.2, not in 2025.2.3+
-			if threeDotVersion and Version(threeDotVersion) < Version("2025.2.3"):
+			# pg_parquet ships in 2025.2.0–2025.2.2, is absent in 2025.2.3–2025.2.4,
+			# and is back from 2025.2.5
+			if threeDotVersion and (Version(threeDotVersion) < Version("2025.2.3") or Version(threeDotVersion) >= Version("2025.2.5")):
 				expectedExtensions.extend(["pg_parquet"])
 
 		if Version(threeDotVersion) >= Version("2025.2.3"):
-			expectedExtensions.extend(["age","pg_dist_rag"])
-			
+			expectedExtensions.append("pg_dist_rag")
+			# The graph extension ships as 'age' in some builds, 'mage' in others,
+			# and is absent in a few (e.g. 2025.2.5). Only assert it when actually
+			# reported, so the check doesn't break as YB renames it.
+			for age_ext in ("age", "mage"):
+				if age_ext in extensions:
+					expectedExtensions.append(age_ext)
+
+		if Version(threeDotVersion) >= Version("2026.1"):
+			expectedExtensions.extend(["anon", "dummy_seclabel", "documentdb", "documentdb_core",
+				"documentdb_distributed", "documentdb_extended_rum", "xml2"])
+
 		for extension in expectedExtensions:
 			assert extension in extensions, f"expected extension is not reported: {extension}"
-		
+
 		# Check for extra/unexpected extensions
 		extra_extensions = set(extensions) - set(expectedExtensions)
 		if extra_extensions:
