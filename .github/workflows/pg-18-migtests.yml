@@ -1,4 +1,4 @@
-name: "PG 17: Migration Tests (Config File Workflow)"
+name: "PG 18: Migration Tests (Config File Workflow)"
 
 on:
   push:
@@ -10,21 +10,27 @@ jobs:
   prepare-versions:
     uses: ./.github/workflows/prepare-versions.yml
 
-  run-pg-17-migration-tests:
+  run-pg-18-migration-tests:
     needs: [prepare-versions]
     strategy:
       matrix:
         yb_version: ${{ fromJSON(needs.prepare-versions.outputs.yb_versions) }}
+        BETA_FAST_DATA_EXPORT: [0, 1]
         test_group:
           - offline
           - live-migration
+        exclude:
+          # Exclude BETA_FAST_DATA_EXPORT=1 for live migration tests (redundant/not-required)
+          - BETA_FAST_DATA_EXPORT: 1
+            test_group: live-migration
 
     env:
+      BETA_FAST_DATA_EXPORT: ${{ matrix.BETA_FAST_DATA_EXPORT }}
       YB_VOYAGER_SEND_DIAGNOSTICS: 0
     runs-on: ubuntu-22.04
     services:
       postgres:
-        image: postgres:17
+        image: postgres:18
         env:
           POSTGRES_PASSWORD: postgres
         # Set health checks to wait until postgres has started
@@ -56,15 +62,17 @@ jobs:
 
       - name: "Enable postgres with wal_level as logical and install postgis"
         run: |
-          docker exec ${{ job.services.postgres.id }} sh -c "echo 'wal_level=logical' >> /var/lib/postgresql/data/postgresql.conf"
-          docker exec ${{ job.services.postgres.id }} sh -c "apt-get update && apt-get install -y postgresql-17-postgis-3 postgresql-contrib-17"
+          # postgres:18 images moved the data dir (/var/lib/postgresql/18/docker), so use the container's $PGDATA
+          docker exec ${{ job.services.postgres.id }} sh -c "echo 'wal_level=logical' >> \$PGDATA/postgresql.conf"
+          # contrib (pg_stat_statements) is part of the postgresql-18 package already shipped in the image
+          docker exec ${{ job.services.postgres.id }} sh -c "apt-get update && apt-get install -y postgresql-18-postgis-3"
           # adding pg_stat_statements to shared_preload_libraries to enable the extension
-          docker exec ${{ job.services.postgres.id }} sh -c "echo \"shared_preload_libraries = 'pg_stat_statements'\" >> /var/lib/postgresql/data/postgresql.conf"
+          docker exec ${{ job.services.postgres.id }} sh -c "echo \"shared_preload_libraries = 'pg_stat_statements'\" >> \$PGDATA/postgresql.conf"
           docker restart ${{ job.services.postgres.id }}
-          
+
           # Wait for PostgreSQL to be ready with health check instead of fixed sleep
           echo "Waiting for PostgreSQL to be ready after restart..."
-          timeout 30s bash -c 'until docker exec ${{ job.services.postgres.id }} pg_isready > /dev/null 2>&1; do 
+          timeout 30s bash -c 'until docker exec ${{ job.services.postgres.id }} pg_isready > /dev/null 2>&1; do
             echo "PostgreSQL not ready yet, waiting 1 second..."
             sleep 1
           done'
@@ -102,11 +110,11 @@ jobs:
         run: |
           docker run -d --network=host --name yugabytedb --hostname yb-cluster-test\
             yugabytedb/yugabyte:${{ matrix.yb_version }} \
-            bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --advertise_address=localhost --background=false --ui=false --callhome=false 
-          
+            bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --advertise_address=localhost --background=false --ui=false --callhome=false
+
           # Wait for YugabyteDB to be ready with health check
           echo "Waiting for YugabyteDB to be ready..."
-          timeout 60s bash -c 'until psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT 1" > /dev/null 2>&1; do 
+          timeout 60s bash -c 'until psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT 1" > /dev/null 2>&1; do
             echo "YugabyteDB not ready yet, waiting 2 seconds..."
             sleep 2
           done'
