@@ -26,40 +26,30 @@ const (
 	StatusBreaksUnrecoverable Status = "breaks_migration_unrecoverable"
 )
 
-// statusByDiffType is the severity policy, aligned with the design mockup and
-// the DDL-scenario matrix. The question each level answers is what the migration
-// does, NOT how alarming the DDL sounds:
+// statusByDiffType is the severity policy, from the design mockup and the
+// DDL-scenario matrix. Each level says what the MIGRATION does, not how alarming
+// the DDL sounds:
 //
-//   - Unrecoverable: the pipeline cannot be resumed; the migration must be
-//     restarted from scratch (P0 in the matrix).
-//   - Recoverable: `import data` can fail, but applying the DDL on the target and
-//     re-running clears it (P1).
-//   - Potential impact: the migration runs fine, yet source and target diverge in
-//     a way that matters after cutover (P2).
+//   - Unrecoverable: pipeline cannot be resumed; restart from scratch (P0).
+//   - Recoverable: `import data` can fail until the DDL is applied on the target (P1).
+//   - Potential impact: migration runs fine, but source and target diverge (P2).
 //   - Advisory: informational only.
 //
-// Read against that definition, four of these deliberately differ from an earlier
-// draft: a dropped COLUMN does not break anything (it only leaves the target with
-// an extra column) so it is Potential impact, while an ADDED column can fail
-// `import data` and so is Recoverable — the opposite of the intuitive reading. A
-// dropped or renamed captured table is Unrecoverable because `export data` cannot
-// be restarted afterwards. Any DiffType not present here classifies as
-// StatusAdvisory (the safe default) via Classify.
+// So an ADDED column is Recoverable while a DROPPED one is only Potential impact —
+// the opposite of the intuitive reading. Unmapped types default to Advisory.
 var statusByDiffType = map[schemadiff.DiffType]Status{
 	// Unrecoverable: export data cannot be restarted; restart from scratch.
 	schemadiff.TableDropped:       StatusBreaksUnrecoverable,
 	schemadiff.TableNameChanged:   StatusBreaksUnrecoverable,
 	schemadiff.TableSchemaChanged: StatusBreaksUnrecoverable,
 
-	// Recoverable: import data can fail until the DDL is applied on the target,
-	// then re-running import data clears it.
+	// Recoverable: import data can fail until the DDL is applied on the target.
 	schemadiff.ColumnAdded:              StatusBreaksRecoverable,
 	schemadiff.ColumnNameChanged:        StatusBreaksRecoverable,
 	schemadiff.ColumnTypeChanged:        StatusBreaksRecoverable,
 	schemadiff.ColumnNullabilityChanged: StatusBreaksRecoverable,
 
-	// Potential impact: the migration is unaffected, but source and target
-	// diverge in a way that matters at or after cutover.
+	// Potential impact: migration unaffected, but the schemas diverge.
 	schemadiff.TableAdded:                    StatusPotentialImpact,
 	schemadiff.ColumnDropped:                 StatusPotentialImpact,
 	schemadiff.ColumnDefaultChanged:          StatusPotentialImpact,

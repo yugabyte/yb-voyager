@@ -129,9 +129,7 @@ type findingView struct {
 	ValNew    string
 
 	ActionStatus string // emoji + severity label, e.g. "⚠️ Potential impact"
-	// The two halves of the "Impact & action" note, rendered as separate
-	// paragraphs exactly as the mockup does. Pre-escaped HTML because the source
-	// text uses `backticks` for inline code — see codeSpans.
+	// Rendered as two paragraphs, per the mockup. Pre-escaped HTML; see codeSpans.
 	Impact template.HTML
 	Action template.HTML
 }
@@ -195,12 +193,9 @@ func sourceLine(s Source) string {
 	return b.String()
 }
 
-// comparingSummary renders the banner's collapsed "Comparing" summary line,
-// e.g. "public · all 12 tables · all 2 object types", or
-// "public · 3 of 12 tables · 1 of 2 object types" when a --*-list narrowed it.
-//
-// It reports counts rather than a bare "all tables": the sets are now always
-// populated (see Comparing), so the reader learns how much was actually looked at.
+// comparingSummary renders the banner's collapsed summary line, e.g.
+// "public · all 12 tables · all 2 object types". Counts rather than a bare "all",
+// so the reader learns how much was actually compared.
 func comparingSummary(c Comparing) string {
 	return strings.Join([]string{
 		joinOrAll(c.Schemas),
@@ -209,9 +204,8 @@ func comparingSummary(c Comparing) string {
 	}, " · ")
 }
 
-// scopeCountLabel renders one dimension of the Comparing line: "all 12 tables"
-// when nothing narrowed it, "12 tables (filtered)" when something did. An empty
-// set degrades to "no tables" rather than claiming "all".
+// scopeCountLabel renders one dimension: "all 12 tables", or "12 tables (filtered)".
+// An empty set reads "no tables" rather than claiming "all".
 func scopeCountLabel(n int, filtered bool, noun string) string {
 	plural := noun + "s"
 	if n == 1 {
@@ -241,15 +235,12 @@ func joinOrAll(items []string) string {
 	return listOrAllLabel(items, "all")
 }
 
-// maxScopeChips caps how many names the "Comparing" dropdown enumerates before
-// collapsing the rest into a "+N more" chip. A 1000-table schema would otherwise
-// render 1000 chips and bury the rest of the report.
+// maxScopeChips caps the names the dropdown enumerates; a 1000-table schema would
+// otherwise bury the rest of the report.
 const maxScopeChips = 50
 
-// comparingScope builds the expandable "Comparing" dropdown body rows: one for
-// tables, one for object types. Both enumerate the names actually compared —
-// previously an unfiltered run showed the contradictory "Tables (0)" with a lone
-// "all" chip, because the lists were only populated when a --*-list was given.
+// comparingScope builds the "Comparing" dropdown rows, one per dimension. Both
+// enumerate the names actually compared.
 func comparingScope(c Comparing) []scopeRow {
 	return []scopeRow{
 		{Label: scopeRowLabel("Tables", len(c.Tables), c.TablesFiltered), Chips: cappedChips(c.Tables)},
@@ -257,8 +248,7 @@ func comparingScope(c Comparing) []scopeRow {
 	}
 }
 
-// scopeRowLabel names a dropdown row, marking whether the count is everything
-// there was or the result of a filter.
+// scopeRowLabel marks whether the count is everything there was, or a filter's result.
 func scopeRowLabel(title string, n int, filtered bool) string {
 	if filtered {
 		return fmt.Sprintf("%s (%d, filtered)", title, n)
@@ -266,8 +256,7 @@ func scopeRowLabel(title string, n int, filtered bool) string {
 	return fmt.Sprintf("%s (%d)", title, n)
 }
 
-// cappedChips returns items truncated to maxScopeChips, with a trailing
-// "+N more" chip when it truncated.
+// cappedChips truncates to maxScopeChips, appending a "+N more" chip.
 func cappedChips(items []string) []string {
 	if len(items) <= maxScopeChips {
 		return items
@@ -445,16 +434,12 @@ func kindLabel(diffType string) string {
 	return strings.ToLower(strings.ReplaceAll(diffType, "_", " "))
 }
 
-// objectPath splits a DiffEntry's object identity into the muted qualifier
-// prefix (q) and the highlighted subject (s), matching the mockup's
-// <span class="q">...</span><span class="s">...</span> split. A column-level
-// finding (ObjectType == COLUMN) qualifies down to the column; a table-level
-// finding qualifies down to the table.
+// objectPath splits an object identity into the muted qualifier (q) and the
+// highlighted subject (s), per the mockup. A COLUMN finding qualifies down to the
+// column, a table-level one to the table.
 //
-// Every part is minimally quoted for dbType, so a case-sensitive or otherwise
-// special identifier renders as valid, copy-pasteable SQL — sales."MixedCase"
-// rather than the ambiguous sales.MixedCase. Concatenating q+s therefore yields
-// exactly the ref's ForDisplay rendering.
+// Every part is minimally quoted, so a special identifier renders as valid SQL
+// (sales."MixedCase", not the ambiguous sales.MixedCase). q+s equals ForDisplay.
 func objectPath(d DiffEntry, dbType string) (q, s string) {
 	if d.ObjectType == string(schemadiff.ObjectTypeColumn) {
 		return d.Object.ForDisplay(dbType) + ".", minQuoted(d.SubObject, dbType)
@@ -471,13 +456,10 @@ func minQuoted(name, dbType string) string {
 	return sqlname.NewIdentifier(dbType, name).MinQuoted
 }
 
-// codeSpans turns `backticked` runs in guidance text into <code> elements, so
-// command names and flags read as code in the report the way the mockup shows
-// them ("`import data` can fail if …").
+// codeSpans turns `backticked` runs in guidance text into <code> elements.
 //
-// Everything is HTML-escaped FIRST and only the backtick delimiters are then
-// replaced, so the guidance text can never inject markup. An unpaired trailing
-// backtick is left escaped rather than opening a dangling element.
+// Everything is HTML-escaped FIRST and only the delimiters are then replaced, so
+// guidance text can never inject markup. Unpaired backticks are left escaped.
 func codeSpans(s string) template.HTML {
 	escaped := template.HTMLEscapeString(s)
 	parts := strings.Split(escaped, "`")

@@ -54,15 +54,10 @@ var (
 // driftValidOutputFormats are the report formats detect-drift can render.
 var driftValidOutputFormats = []string{"html", "json"}
 
-// driftObjectTypesByName maps the --object-type-list / --exclude-object-type-list
-// vocabulary (case-insensitive) onto schemadiff.ObjectType. This is intentionally
-// a different (smaller) vocabulary than export/analyze-schema's --object-type-list
-// (TRIGGER, EXTENSION, MVIEW, ...): the diff engine only emits TABLE and COLUMN
-// findings in v1 (the remaining schemadiff.ObjectType buckets are commented out
-// in the engine until it starts emitting their findings), so those are the only
-// two values detect-drift accepts today. COLUMN is its own selector -- a column
-// change is picked directly by --object-type-list=COLUMN, it is not swept in
-// under TABLE.
+// driftObjectTypesByName maps the --object-type-list vocabulary onto
+// schemadiff.ObjectType. Deliberately smaller than export/analyze-schema's
+// --object-type-list: the engine only emits TABLE and COLUMN findings in v1.
+// COLUMN is its own selector, not swept in under TABLE.
 var driftObjectTypesByName = map[string]schemadiff.ObjectType{
 	"TABLE":  schemadiff.ObjectTypeTable,
 	"COLUMN": schemadiff.ObjectTypeColumn,
@@ -129,12 +124,9 @@ func init() {
 	detectDriftCmd.Flags().StringVar(&driftOutputFormat, "output-format", "html,json",
 		"comma-separated list of report formats to generate: ('html', 'json')")
 
-	// KNOWN GAP: for a table that was RENAMED inside the compared window, neither
-	// the old nor the new name returns its full drift history -- the rename finding
-	// anchors to the old identity and everything after it to the new one, and the
-	// engine's bridging alias is currently disabled. An unfiltered run always shows
-	// both. See the KNOWN GAP note on schemadiff.FilterByScope for the repro and the
-	// two possible fixes.
+	// KNOWN GAP: for a table renamed inside the compared window, neither name returns
+	// its full history; an unfiltered run shows both findings. See the KNOWN GAP note
+	// on schemadiff.FilterByScope.
 	detectDriftCmd.Flags().StringVar(&driftTableList, "table-list", "",
 		"comma-separated list of the tables to compare (glob patterns allowed). Only one of --table-list and --exclude-table-list can be specified.")
 	detectDriftCmd.Flags().StringVar(&driftExcludeTableList, "exclude-table-list", "",
@@ -445,10 +437,8 @@ func detectDrift() {
 	if err != nil {
 		exitDriftOperationalError("%v", err)
 	}
-	// Raw (unquoted) names: these are compared against catalog values by the live
-	// capture and against each snapshot's recorded schema scope, never interpolated
-	// into SQL as identifiers. The quoted form silently matches nothing for a schema
-	// needing quotes -- see srcdb.Source.GetSchemaListUnquoted.
+	// Raw (unquoted) names: compared against catalog values, never interpolated into
+	// SQL. The quoted form matches nothing -- see srcdb.Source.GetSchemaListUnquoted.
 	schemas := source.GetSchemaListUnquoted()
 
 	// ─── Load stored snapshots (oldest-first) ───────────────────────────────────
@@ -499,10 +489,8 @@ func detectDrift() {
 	// the directly-resolved include patterns, or the complement of the resolved
 	// exclude patterns against the full universe (all candidate tables / all v1
 	// object types). Neither flag set => nil ("all"). ──────────────────────────
-	// The candidate universe is built unconditionally, not just when a filter is
-	// given: besides being the set to subtract an --exclude-table-list from, it IS
-	// the set of tables actually compared, which the report states verbatim. (It is
-	// derived from snapshot content already in memory, so it costs no extra I/O.)
+	// Built unconditionally: besides being the set to subtract --exclude-table-list
+	// from, it IS the set of tables compared, which the report states. Costs no I/O.
 	snapshotContents := make([]*schemasnapshot.SnapshotContent, 0, len(snapshotInputs))
 	for _, si := range snapshotInputs {
 		snapshotContents = append(snapshotContents, si.Content)
@@ -526,10 +514,8 @@ func detectDrift() {
 			exitDriftOperationalError("%v", err)
 		}
 		includeTables = complementDriftTableRefs(candidates, excludeTables)
-		// An empty keep-set cannot be handed to Scope: there, empty means "all", so
-		// excluding every table would silently invert into comparing every table.
-		// Selecting nothing is treated as an operational error, consistent with a
-		// --table-list pattern that matches no table.
+		// Empty means "all" inside Scope, so excluding everything would invert into
+		// comparing everything. Selecting nothing is an operational error instead.
 		if len(includeTables) == 0 {
 			exitDriftOperationalError("--exclude-table-list %q excludes every table in the comparison; nothing left to compare", driftExcludeTableList)
 		}
@@ -544,8 +530,7 @@ func detectDrift() {
 		// Already flag-format-validated in validateDetectDriftFlags; error can't happen.
 		excludeObjectTypes, _ := parseDriftObjectTypeList(driftExcludeObjectTypeList)
 		objectTypes = complementDriftObjectTypes(excludeObjectTypes)
-		// Same trap as --exclude-table-list above: an empty keep-set would read as
-		// "all object types" inside Scope, inverting the exclusion.
+		// Same trap as --exclude-table-list above.
 		if len(objectTypes) == 0 {
 			supported := lo.Map(allDriftObjectTypes, func(t schemadiff.ObjectType, _ int) string { return string(t) })
 			exitDriftOperationalError("--exclude-object-type-list %q excludes every supported object type (%s); nothing left to compare",
@@ -553,25 +538,16 @@ func detectDrift() {
 		}
 	}
 
-	// schemadiff.Scope takes one positive allow-list per dimension (empty = all).
-	// Resolving the --exclude-* forms into those keep-sets is this layer's job:
-	// only the command knows the universe to subtract from (buildDriftTableCandidates
-	// above) and only the command expands globs, so the engine never has to model
-	// two filtering directions. See schemadiff.Scope's doc.
+	// Scope takes one positive allow-list per dimension (empty = all); resolving the
+	// --exclude-* forms into keep-sets is this layer's job. See schemadiff.Scope.
 	scope := schemadiff.Scope{
 		Tables:      includeTables,
 		ObjectTypes: objectTypes,
 	}
 
-	// The report's "Comparing" section states the tables and object types actually
-	// compared, so both lists are ALWAYS populated -- previously they were filled in
-	// only when the matching --*-list flag was given, so an unfiltered run rendered
-	// the self-contradictory "Tables (0) ... all".
-	//
-	// Unfiltered, the effective set is the whole candidate universe (every table
-	// seen across the compared captures and the live read) / every v1 object type.
-	// Filtered, it is the resolved keep-set -- which is what the engine received,
-	// including the complement computed for an --exclude-* form.
+	// Both lists are ALWAYS populated, so "Comparing" can state what was actually
+	// compared: the whole candidate universe when unfiltered, else the resolved
+	// keep-set the engine received (including an --exclude-* complement).
 	tablesFiltered := driftTableList != "" || driftExcludeTableList != ""
 	effectiveTables := includeTables
 	if !tablesFiltered {
@@ -694,11 +670,8 @@ func writeDriftReports(report driftreport.Report, formatSpec string) ([]string, 
 // run: the comparison window, how many captures were compared (and whether the
 // live source was among them), the schemas in scope, the total change count,
 // and the paths of the report files just written.
-// Colouring follows the conventions in src/utils/logging.go, as used by export
-// schema and cutover status: PrintAndLogfPhase for the section header, green for
-// a clean result, yellow when there is something to look at, and utils.Path for
-// file paths. The colour is applied only to the console — the log file records
-// the plain message.
+// Colouring follows src/utils/logging.go, as export schema and cutover status do.
+// Console only; the log file records the plain message.
 func printDriftSummary(report driftreport.Report, writtenPaths []string) {
 	utils.PrintAndLogfPhase("\nSchema drift summary")
 
@@ -718,10 +691,8 @@ func printDriftSummary(report driftreport.Report, writtenPaths []string) {
 		printDriftSummaryField("Changes detected", utils.PrintAndLogfWarning, "%d", report.Summary.ChangeCount)
 	}
 
-	// Report paths get their own indented lines rather than a label column. A path
-	// is one unbreakable token, so starting it 20 columns in all but guarantees an
-	// ugly wrap on a standard-width terminal; from a 2-space indent it has the whole
-	// line to fit in.
+	// Paths get their own indented lines: one unbreakable token starting 20 columns in
+	// would wrap on a standard terminal.
 	if len(writtenPaths) > 0 {
 		utils.PrintAndLogf("Reports:\n")
 		for _, p := range writtenPaths {
@@ -734,16 +705,11 @@ func printDriftSummary(report driftreport.Report, writtenPaths []string) {
 // for the longest label ("Snapshots compared").
 const driftSummaryLabelWidth = 18
 
-// printDriftSummaryField prints one "label : value" row of the summary so the whole
-// thing reads as a single block: a value too long for the terminal wraps with a
-// HANGING INDENT to the value column instead of restarting at the left margin,
-// which would break the alignment the block is made of.
+// printDriftSummaryField prints one "label : value" row, wrapping a long value with a
+// HANGING INDENT to the value column so the block keeps its alignment.
 //
-// printFn is the utils logging helper used for every line of the row, so a row can
-// carry its own colour (green/yellow verdict) while the value stays plain text —
-// colouring the value itself would make its escape bytes count towards the wrap
-// width. A value with no spaces to break on (a report path) is left intact on one
-// line rather than split mid-token.
+// printFn colours the whole row, so the value stays plain text: colouring it would
+// make its escape bytes count towards the wrap width.
 func printDriftSummaryField(label string, printFn func(string, ...interface{}), format string, args ...interface{}) {
 	indent := strings.Repeat(" ", driftSummaryLabelWidth+2) // label column + ": "
 	lines := wrapDriftValue(fmt.Sprintf(format, args...), ux.GetTerminalWidth()-len(indent))
@@ -756,9 +722,8 @@ func printDriftSummaryField(label string, printFn func(string, ...interface{}), 
 	}
 }
 
-// wrapDriftValue greedily wraps s to width on whitespace. A single word longer
-// than width is emitted whole on its own line: breaking a qualified table name or
-// a filesystem path mid-token would make it unusable to copy.
+// wrapDriftValue greedily wraps on whitespace. An over-long word is emitted whole:
+// breaking a table name or path mid-token would make it uncopyable.
 func wrapDriftValue(s string, width int) []string {
 	words := strings.Fields(s)
 	if len(words) == 0 {
@@ -780,14 +745,12 @@ func wrapDriftValue(s string, width int) []string {
 	return append(lines, cur)
 }
 
-// maxDriftScopeNamesInSummary caps how many table names the terminal summary
-// spells out. The full list always lives in the report; a 1000-table schema must
-// not turn one summary line into a wall of text.
+// maxDriftScopeNamesInSummary caps the names the summary spells out; the full list
+// lives in the report.
 const maxDriftScopeNamesInSummary = 5
 
-// driftScopeLine renders the summary's scope line: a leading count that says
-// whether this is everything there was or the result of a filter, then the names
-// themselves while they still fit.
+// driftScopeLine renders the scope line: a count saying whether this is everything
+// or a filter's result, then the names while they fit.
 func driftScopeLine(names []string, filtered bool) string {
 	if len(names) == 0 {
 		return "none"

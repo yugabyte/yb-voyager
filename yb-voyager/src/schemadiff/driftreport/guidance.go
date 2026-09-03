@@ -16,40 +16,26 @@ package driftreport
 
 import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
 
-// Guidance is a finding's "Impact & action" note, split exactly as the design
-// mockup renders it: one paragraph saying what the migration will actually do if
-// the change is not reconciled on the target, then one paragraph giving the
+// Guidance is a finding's "Impact & action" note, as the design mockup renders it:
+// what the migration does if the change is not reconciled on the target, then the
 // corrective step.
 //
-// Wording rules taken from the mockup, because they are what make the note
-// useful rather than a restatement of the header:
+// Wording rules, which are what keep the note from restating the header:
 //
-//   - Impact names the affected command concretely — "`import data` can fail
-//     if …" — or states plainly that the migration is unaffected AND why the
-//     change still matters ("…but inserts relying on the default will diverge
-//     between source and target after cutover").
-//   - Action is an instruction, not "review before cutover": what to change on
-//     the target, and how to get the pipeline moving again if it already failed.
-//   - Voyager never applies any of this automatically; say so where a reader
-//     might assume otherwise.
+//   - Impact names the affected command ("`import data` can fail if …"), or says
+//     the migration is unaffected AND why the change still matters.
+//   - Action is an instruction, not "review before cutover".
 //
-// Text in `backticks` renders as inline code in the HTML report (see
-// codeSpans in render.go) and stays literal in the JSON report.
+// `backticks` render as inline code in HTML (see codeSpans) and stay literal in JSON.
 type Guidance struct {
 	Impact string `json:"impact"`
 	Action string `json:"action"`
 }
 
-// guidanceByDiffType holds the Impact & action note per DiffType.
-//
-// The entries for the cases the design mockup covers use its wording verbatim.
-// The remaining v1 DiffTypes follow the same pattern, derived from the
-// DDL-scenario matrix (severity P0/P1/P2 and the "Complete Flow" column):
-// a rename or schema move of a captured table is P0 because export data cannot
-// be restarted afterwards, while nullability/default changes are parity concerns.
-//
-// A DiffType with no entry yields the zero Guidance, and the report omits the
-// note entirely.
+// guidanceByDiffType holds the Impact & action note per DiffType. Cases the design
+// mockup covers use its wording verbatim; the rest follow the same pattern, derived
+// from the DDL-scenario matrix. An unmapped type yields the zero Guidance and the
+// report omits the note.
 var guidanceByDiffType = map[schemadiff.DiffType]Guidance{
 	schemadiff.TableAdded: {
 		Impact: "If a table is added while `export data` is running, the migration does not pick up the newly added table — Voyager does not change the scope of a data migration mid-migration, so this table's data is not migrated.",
