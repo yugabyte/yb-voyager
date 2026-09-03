@@ -38,7 +38,7 @@
             "Reason": "IS JSON predicate expressions are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE TABLE public.json_data (\n    id SERIAL PRIMARY KEY,\n    data_column TEXT NOT NULL CHECK (data_column IS JSON)\n);",
             "Suggestion": "",
-             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": null
         },
@@ -69,7 +69,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "public.xml_data_example",
             "Reason": "IS JSON predicate expressions are not yet supported in YugabyteDB.",
-            "SqlStatement": " CREATE TABLE public.xml_data_example (\n    id SERIAL PRIMARY KEY,\n    name VARCHAR(255),\n    description XML DEFAULT xmlparse(document '\u003cproduct\u003e\u003cname\u003eDefault Product\u003c/name\u003e\u003cprice\u003e100.00\u003c/price\u003e\u003ccategory\u003eElectronics\u003c/category\u003e\u003c/product\u003e'),\n    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,\n    unique_keys_column TEXT CHECK (unique_keys_column IS JSON WITH UNIQUE KEYS)\n);",
+            "SqlStatement": " CREATE TABLE public.xml_data_example (\n    id SERIAL PRIMARY KEY,\n    name VARCHAR(255),\n    description XML DEFAULT xmlparse(document '<product><name>Default Product</name><price>100.00</price><category>Electronics</category></product>'),\n    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,\n    unique_keys_column TEXT CHECK (unique_keys_column IS JSON WITH UNIQUE KEYS)\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
@@ -142,25 +142,14 @@
             "MinimumVersionsFixedIn": null
         },
         {
-            "IssueType": "unsupported_features",
+            "IssueType": "migration_caveats",
             "ObjectType": "TABLE",
             "ObjectName": "public.xml_data_example",
-            "Reason": "XML functions are not yet supported in YugabyteDB.",
-            "SqlStatement": " CREATE TABLE public.xml_data_example (\n    id SERIAL PRIMARY KEY,\n    name VARCHAR(255),\n    description XML DEFAULT xmlparse(document '\u003cproduct\u003e\u003cname\u003eDefault Product\u003c/name\u003e\u003cprice\u003e100.00\u003c/price\u003e\u003ccategory\u003eElectronics\u003c/category\u003e\u003c/product\u003e'),\n    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,\n    unique_keys_column TEXT CHECK (unique_keys_column IS JSON WITH UNIQUE KEYS)\n);",
+            "Reason": "XML datatype not yet supported by voyager in live migration. Affected column: description. This column will be excluded when exporting and importing data in live migration workflows.",
+            "SqlStatement": " CREATE TABLE public.xml_data_example (\n    id SERIAL PRIMARY KEY,\n    name VARCHAR(255),\n    description XML DEFAULT xmlparse(document '<product><name>Default Product</name><price>100.00</price><category>Electronics</category></product>'),\n    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,\n    unique_keys_column TEXT CHECK (unique_keys_column IS JSON WITH UNIQUE KEYS)\n);",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_datatypes",
-            "ObjectType": "TABLE",
-            "ObjectName": "public.xml_data_example",
-            "Reason": "XML datatype is not yet supported in YugabyteDB. Affected column: description.",
-            "SqlStatement": " CREATE TABLE public.xml_data_example (\n    id SERIAL PRIMARY KEY,\n    name VARCHAR(255),\n    description XML DEFAULT xmlparse(document '\u003cproduct\u003e\u003cname\u003eDefault Product\u003c/name\u003e\u003cprice\u003e100.00\u003c/price\u003e\u003ccategory\u003eElectronics\u003c/category\u003e\u003c/product\u003e'),\n    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,\n    unique_keys_column TEXT CHECK (unique_keys_column IS JSON WITH UNIQUE KEYS)\n);",
-            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -419,7 +408,7 @@
             "ObjectType": "VIEW",
             "ObjectName": "v1",
             "Reason": "Schema containing VIEW WITH CHECK OPTION is not supported yet.",
-            "SqlStatement": "CREATE VIEW v1 AS SELECT * FROM t1 WHERE a \u003c 2\nWITH CHECK OPTION;",
+            "SqlStatement": "CREATE VIEW v1 AS SELECT * FROM t1 WHERE a < 2\nWITH CHECK OPTION;",
             "Suggestion": "Use Trigger with INSTEAD OF clause on INSERT/UPDATE on view to get this functionality",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#view-with-check-option-is-not-supported",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/22716",
@@ -430,7 +419,7 @@
             "ObjectType": "VIEW",
             "ObjectName": "v2",
             "Reason": "Schema containing VIEW WITH CHECK OPTION is not supported yet.",
-            "SqlStatement": "CREATE VIEW v2 AS SELECT * FROM t1 WHERE a \u003c 2\nWITH LOCAL CHECK OPTION;",
+            "SqlStatement": "CREATE VIEW v2 AS SELECT * FROM t1 WHERE a < 2\nWITH LOCAL CHECK OPTION;",
             "Suggestion": "Use Trigger with INSTEAD OF clause on INSERT/UPDATE on view to get this functionality",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#view-with-check-option-is-not-supported",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/22716",
@@ -494,7 +483,7 @@
             "SqlStatement": "CREATE TRIGGER transfer_insert\n    AFTER INSERT ON transfer\n    REFERENCING NEW TABLE AS inserted\n    FOR EACH STATEMENT\n    EXECUTE FUNCTION check_transfer_balances_to_zero();",
             "Suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1668",
-            "DocsLink":"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#referencing-clause-for-triggers",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#referencing-clause-for-triggers",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1112,9 +1101,9 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "INDEX",
-            "ObjectName": "idx\u0026_enum2 ON test_udt",
+            "ObjectName": "idx&_enum2 ON test_udt",
             "Reason": "Indexes on columns with user defined data types are not yet supported in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX \"idx\u0026_enum2\" on test_udt((some_field::non_public.enum_test));",
+            "SqlStatement": "CREATE INDEX \"idx&_enum2\" on test_udt((some_field::non_public.enum_test));",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
@@ -1205,14 +1194,14 @@
             "MinimumVersionsFixedIn": null
         },
         {
-            "IssueType": "unsupported_datatypes",
+            "IssueType": "migration_caveats",
             "ObjectType": "TABLE",
             "ObjectName": "test_xml_type",
-            "Reason": "XML datatype is not yet supported in YugabyteDB. Affected column: data.",
+            "Reason": "XML datatype not yet supported by voyager in live migration. Affected column: data. This column will be excluded when exporting and importing data in live migration workflows.",
             "SqlStatement": "CREATE TABLE test_xml_type(id int, data xml);",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
-            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1363,7 +1352,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "public.meeting, constraint: (no_time_overlap)",
             "Reason": "Exclusion constraints are not yet supported in YugabyteDB.",
-            "SqlStatement": "ALTER TABLE ONLY public.meeting\n    ADD CONSTRAINT no_time_overlap EXCLUDE USING gist (room_id WITH =, time_range WITH \u0026\u0026);",
+            "SqlStatement": "ALTER TABLE ONLY public.meeting\n    ADD CONSTRAINT no_time_overlap EXCLUDE USING gist (room_id WITH =, time_range WITH &&);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944",
@@ -1374,7 +1363,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "Test, constraint: (no_time_overlap_constr)",
             "Reason": "Exclusion constraints are not yet supported in YugabyteDB.",
-            "SqlStatement": "CREATE TABLE \"Test\"(\n\tid int,\n\troom_id int,\n\ttime_range trange,\n\troomid int,\n\ttimerange tsrange,\n\tEXCLUDE USING gist (room_id WITH =, time_range WITH \u0026\u0026),\n\tCONSTRAINT no_time_overlap_constr EXCLUDE USING gist (roomid WITH =, timerange WITH \u0026\u0026)\n);",
+            "SqlStatement": "CREATE TABLE \"Test\"(\n\tid int,\n\troom_id int,\n\ttime_range trange,\n\troomid int,\n\ttimerange tsrange,\n\tEXCLUDE USING gist (room_id WITH =, time_range WITH &&),\n\tCONSTRAINT no_time_overlap_constr EXCLUDE USING gist (roomid WITH =, timerange WITH &&)\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
@@ -1385,7 +1374,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "Test, constraint: (Test_room_id_time_range_excl)",
             "Reason": "Exclusion constraints are not yet supported in YugabyteDB.",
-            "SqlStatement": "CREATE TABLE \"Test\"(\n\tid int,\n\troom_id int,\n\ttime_range trange,\n\troomid int,\n\ttimerange tsrange,\n\tEXCLUDE USING gist (room_id WITH =, time_range WITH \u0026\u0026),\n\tCONSTRAINT no_time_overlap_constr EXCLUDE USING gist (roomid WITH =, timerange WITH \u0026\u0026)\n);",
+            "SqlStatement": "CREATE TABLE \"Test\"(\n\tid int,\n\troom_id int,\n\ttime_range trange,\n\troomid int,\n\ttimerange tsrange,\n\tEXCLUDE USING gist (room_id WITH =, time_range WITH &&),\n\tCONSTRAINT no_time_overlap_constr EXCLUDE USING gist (roomid WITH =, timerange WITH &&)\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944",
@@ -1603,17 +1592,6 @@
             "IssueType": "unsupported_plpgsql_objects",
             "ObjectType": "FUNCTION",
             "ObjectName": "create_and_populate_tables",
-            "Reason": "XML functions are not yet supported in YugabyteDB.",
-            "SqlStatement": "SELECT id, xpath('/person/name/text()', data) AS name FROM test_xml_type;",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_plpgsql_objects",
-            "ObjectType": "FUNCTION",
-            "ObjectName": "create_and_populate_tables",
             "Reason": "System column 'xmax' is not yet supported in YugabyteDB.",
             "SqlStatement": "SELECT * FROM employees e WHERE e.xmax = (SELECT MAX(xmax) FROM employees WHERE department = e.department);",
             "Suggestion": "",
@@ -1630,28 +1608,6 @@
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/24843",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_plpgsql_objects",
-            "ObjectType": "PROCEDURE",
-            "ObjectName": "add_employee",
-            "Reason": "XML functions are not yet supported in YugabyteDB.",
-            "SqlStatement": "SELECT e.id, x.employee_xml\n        FROM employees e\n        JOIN (\n            SELECT xmlelement(name \"employee\", xmlattributes(e.id AS \"id\"), e.name) AS employee_xml\n            FROM employees e\n        ) x ON x.employee_xml IS NOT NULL\n        WHERE xmlexists('//employee[name=\"John Doe\"]' PASSING BY REF x.employee_xml);",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_features",
-            "ObjectType": "MVIEW",
-            "ObjectName": "public.sample_data_view",
-            "Reason": "XML functions are not yet supported in YugabyteDB.",
-            "SqlStatement": "CREATE MATERIALIZED VIEW public.sample_data_view AS\n SELECT sample_data.id,\n    sample_data.name,\n    sample_data.description,\n    XMLFOREST(sample_data.name AS name, sample_data.description AS description) AS xml_data,\n    pg_try_advisory_lock((sample_data.id)::bigint) AS lock_acquired,\n    sample_data.ctid AS row_ctid,\n    sample_data.xmin AS xmin_value\n   FROM public.sample_data\n  WITH NO DATA;",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1674,17 +1630,6 @@
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/24843",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_features",
-            "ObjectType": "VIEW",
-            "ObjectName": "public.orders_view",
-            "Reason": "XML functions are not yet supported in YugabyteDB.",
-            "SqlStatement": "CREATE VIEW public.orders_view AS\n SELECT orders.order_id,\n    orders.customer_name,\n    orders.product_name,\n    orders.quantity,\n    orders.price,\n    XMLELEMENT(NAME \"OrderDetails\", XMLELEMENT(NAME \"Customer\", orders.customer_name), XMLELEMENT(NAME \"Product\", orders.product_name), XMLELEMENT(NAME \"Quantity\", orders.quantity), XMLELEMENT(NAME \"TotalPrice\", (orders.price * (orders.quantity)::numeric))) AS order_xml,\n    XMLCONCAT(XMLELEMENT(NAME \"Customer\", orders.customer_name), XMLELEMENT(NAME \"Product\", orders.product_name)) AS summary_xml,\n    pg_try_advisory_lock((hashtext((orders.customer_name || orders.product_name)))::bigint) AS lock_acquired,\n    orders.ctid AS row_ctid,\n    orders.xmin AS transaction_id\n   FROM public.orders;",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
             "MinimumVersionsFixedIn": null
         },
         {
