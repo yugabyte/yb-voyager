@@ -268,17 +268,17 @@ func checkDataDirFlag() {
 	}
 	if strings.HasPrefix(dataDir, "s3://") {
 		if err := s3.ValidateObjectURL(dataDir); err != nil {
-			utils.ErrExit("invalid s3 data-dir %q: %v", dataDir, err)
+			utils.ErrExit("invalid s3 data-dir %q: %w", dataDir, err)
 		}
 		return
 	} else if strings.HasPrefix(dataDir, "gs://") {
 		if err := gcs.ValidateObjectURL(dataDir); err != nil {
-			utils.ErrExit("invalid gcs data-dir %q: %v", dataDir, err)
+			utils.ErrExit("invalid gcs data-dir %q: %w", dataDir, err)
 		}
 		return
 	} else if strings.HasPrefix(dataDir, "https://") {
 		if err := az.ValidateObjectURL(dataDir); err != nil {
-			utils.ErrExit("invalid azure data-dir %q: %v", dataDir, err)
+			utils.ErrExit("invalid azure data-dir %q: %w", dataDir, err)
 		}
 		return
 	}
