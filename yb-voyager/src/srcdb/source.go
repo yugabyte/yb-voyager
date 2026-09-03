@@ -130,14 +130,12 @@ func (s *Source) GetSchemaList() []string {
 	return sqlname.ExtractIdentifiersMinQuoted(s.Schemas)
 }
 
-// GetSchemaListUnquoted returns the schema names as RAW identifier values — the form
-// stored in the catalog (e.g. pg_namespace.nspname), with no quoting applied.
+// GetSchemaListUnquoted returns the schema names as RAW catalog values (no quoting).
 //
-// Use this whenever the names are compared against catalog values as data (a
-// `nspname IN (...)` predicate, a bind parameter, a recorded scope). GetSchemaList
-// returns the min-QUOTED form, which is correct only when the name is interpolated
-// into SQL as an identifier: for a schema needing quotes it yields `"Odd Schema"`,
-// and comparing that against nspname `Odd Schema` matches nothing.
+// Use it whenever the names are compared against catalog data (an `nspname IN (...)`
+// predicate, a bind parameter). GetSchemaList returns the min-QUOTED form, correct
+// only when interpolating into SQL as an identifier — `"Odd Schema"` matches no
+// nspname.
 func (s *Source) GetSchemaListUnquoted() []string {
 	return sqlname.ExtractIdentifiersUnquoted(s.Schemas)
 }
