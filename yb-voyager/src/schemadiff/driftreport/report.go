@@ -67,13 +67,10 @@ type Window struct {
 
 // Comparing describes the scope the report was generated over. Empty
 // Tables/ObjectTypes mean "all" (no filtering was applied).
-// Comparing states what was actually in scope for this report, not what the user
-// typed. Tables and ObjectTypes are the EFFECTIVE sets: unfiltered they enumerate
-// the whole compared universe (every table seen across the captures and the live
-// read / every object type the engine emits), and when a --*-list or --exclude-*-list
-// narrowed things they hold the resolved keep-set. The *Filtered flags say which of
-// the two it was, so a reader can tell "these are all the tables there were" from
-// "these are the tables you asked for".
+// Comparing states what was actually in scope, not what the user typed. Tables and
+// ObjectTypes are the EFFECTIVE sets — the whole compared universe when unfiltered,
+// the resolved keep-set when a --*-list narrowed it. The *Filtered flags say which,
+// so "all the tables there were" is distinguishable from "the ones you asked for".
 type Comparing struct {
 	Schemas             []string `json:"schemas"`
 	Tables              []string `json:"tables"`
@@ -104,9 +101,7 @@ type DiffEntry struct {
 	NewValue   any                      `json:"new_value,omitempty"`
 	Window     Window                   `json:"window"`
 	Phase      string                   `json:"phase,omitempty"`
-	// Impact and Action are the two halves of the "Impact & action" note: what
-	// the migration does if this change is not reconciled on the target, then
-	// the corrective step. See Guidance.
+	// The two halves of the "Impact & action" note; see Guidance.
 	Impact string `json:"impact,omitempty"`
 	Action string `json:"action,omitempty"`
 }

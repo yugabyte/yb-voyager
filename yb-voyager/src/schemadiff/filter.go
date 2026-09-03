@@ -17,25 +17,14 @@ package schemadiff
 import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 
 // Scope is the caller-resolved filter applied by FilterByScope. Both lists are
-// positive allow-lists and an empty (or nil) list means "all".
+// positive allow-lists; empty means "all". Refs must already be resolved (globs and
+// the default schema expanded) — matching is exact struct equality.
 //
-// There is deliberately no exclude counterpart. Exclude-style user input — e.g.
-// --exclude-table-list — is resolved by the command layer into the concrete set of
-// objects to KEEP before it reaches the engine, because only the command knows the
-// universe to subtract from (the tables present across the compared snapshots plus
-// the live read) and only the command expands globs. Keeping one filtering
-// direction here means there is no include-vs-exclude precedence rule to define,
-// and no second code path that production never exercises.
+// There is deliberately no exclude counterpart: only the command knows the universe
+// to subtract from, so it resolves --exclude-* into a keep-set before calling here.
 //
-// Tables holds caller-RESOLVED ObjectRefs (globs and the default schema already
-// expanded); matching is exact, case-sensitive struct equality against the
-// finding's anchor table, derived from its identity by anchorTableOf. ObjectTypes
-// matches a finding's object-type bucket.
-//
-// Scope is permissive and total — it never errors, and an entry that matches
-// nothing is a silent no-op. Flag-level policy — e.g. --table-list and
-// --exclude-table-list being mutually exclusive — is the command's to enforce, so
-// FilterByScope stays pure for any caller.
+// Never errors; an entry matching nothing is a no-op. Flag-level policy (e.g.
+// --table-list vs --exclude-table-list) is the command's to enforce.
 type Scope struct {
 	Tables      []schemasnapshot.ObjectRef // empty = all; matched against the finding's derived anchor table
 	ObjectTypes []ObjectType               // empty = all; matched against the finding's ObjectType
@@ -53,25 +42,13 @@ type Scope struct {
 // With it off, a finding anchored to a renamed table matches only its as-emitted
 // anchor, not its old/new counterpart. Pending the cross-window alias decision.
 //
-// KNOWN GAP (confirmed end-to-end against PostgreSQL, 2026-07-30): this makes
-// `schema detect-drift --table-list` unable to return a renamed table's full drift
-// history, whichever name is given. anchorTableOf derives the anchor from ObjectA
-// (falling back to ObjectB), so a TABLE_NAME_CHANGED anchors to the OLD ref while
-// every later finding on that table anchors to the NEW ref — and with the alias off,
-// nothing bridges the two. Renaming sales."Mixed Case Tbl" to sales."MixedCase" and
-// then adding a column to it yields:
+// KNOWN GAP: with the alias off, --table-list cannot return a renamed table's full
+// history — TABLE_NAME_CHANGED anchors to the old ref, later findings to the new one,
+// and neither name matches both. Unfiltered runs report both.
 //
-//	--table-list sales.MixedCase          -> COLUMN_ADDED only (rename dropped)
-//	--table-list 'sales.Mixed Case Tbl'   -> TABLE_NAME_CHANGED only (column add dropped)
-//
-// Unfiltered runs are unaffected: both findings are always reported.
-//
-// Re-enabling the alias below fixes this only WITHIN one window. driftreport
-// diffs each consecutive snapshot pair and calls FilterByScope per pair, so the
-// rename lives in exactly one window and cannot alias findings in the others. A
-// real fix needs either a rename alias map built across all windows before
-// filtering, or a canonical anchor keyed by stable table OID with --table-list
-// names resolved to OIDs.
+// Re-enabling the alias below only fixes this within one window, since driftreport
+// filters each snapshot pair separately. A real fix needs a cross-window alias map,
+// or anchors keyed by stable table OID.
 func FilterByScope(diffs []Difference, scope Scope) []Difference {
 	// Rename/move alias handling is temporarily disabled pending the cross-window
 	// alias decision (PR #3648 discussion). Preserved for re-enable: the builder
