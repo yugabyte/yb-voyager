@@ -267,8 +267,14 @@ func (crp *CsvRowProcessor) ReadRow(row string) ([]string, error) {
 func (crp *CsvRowProcessor) WriteRow(columnValues []string) (string, error) {
 	crp.bufWriter.Reset(crp.wbuf)
 	csvWriter := csv.NewWriter(crp.bufWriter)
-	csvWriter.Write(columnValues)
+	err := csvWriter.Write(columnValues)
+	if err != nil {
+		return "", fmt.Errorf("writing csv row: %w", err)
+	}
 	csvWriter.Flush()
+	if err := csvWriter.Error(); err != nil {
+		return "", fmt.Errorf("flushing csv row: %w", err)
+	}
 	row := strings.TrimSuffix(crp.wbuf.String(), "\n")
 	crp.wbuf.Reset()
 	return row, nil

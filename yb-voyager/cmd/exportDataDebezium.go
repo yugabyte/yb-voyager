@@ -83,7 +83,8 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		}
 	}
 
-	tablesColumnList.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
+	// column-list assembly for the Debezium config; the callback never returns an error
+	_ = tablesColumnList.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
 		for _, column := range v {
 			columnName := fmt.Sprintf("%s.%s", k.AsQualifiedCatalogName(), column)
 			if column == "*" {

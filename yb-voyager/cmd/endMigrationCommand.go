@@ -87,7 +87,10 @@ var endMigrationCmd = &cobra.Command{
 
 		//if parent with iterations
 		//backup the data migration report with detailed report for all iterations
-		saveDataMigrationReportForAllIterationsFn(msr)
+		err = saveDataMigrationReportForAllIterationsFn(msr)
+		if err != nil {
+			utils.ErrExit("failed to save data migration report for all iterations: %w", err)
+		}
 		currMetaDB := metaDB
 		currBackupDir := backupDir
 		currExportDir := exportDir
@@ -1032,11 +1035,15 @@ func stopDataExportCommand(lockFile *lockfile.Lockfile) {
 		return
 	}
 
-	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		// dbzm plugin detects this MSR flag, and stops the data export gracefully
 		// so that the ongoing segment in closed and can be processed -> archived -> deleted
 		record.EndMigrationRequested = true
 	})
+	if err != nil {
+		// if this flag is not persisted, the export never learns it should stop
+		utils.ErrExit("failed to set EndMigrationRequested in migration status record: %w", err)
+	}
 
 	ongoingCmd := lockFile.GetCmdName()
 	ongoingCmdPID, err := lockFile.GetCmdPID()

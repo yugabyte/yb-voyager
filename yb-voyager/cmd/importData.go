@@ -528,7 +528,8 @@ func checkPartitionConsistency(msr *metadb.MigrationStatusRecord, importTableLis
 	}
 	// Check each source partition exists on target
 	missingRootToLeafPartitions := utils.NewStructMap[sqlname.NameTuple, []string]()
-	rootToLeafPartitions.IterKV(func(root sqlname.NameTuple, leaves []string) (bool, error) {
+	// the callback never returns an error
+	_ = rootToLeafPartitions.IterKV(func(root sqlname.NameTuple, leaves []string) (bool, error) {
 		if !lo.ContainsBy(importTableList, func(t sqlname.NameTuple) bool {
 			return t.Equals(root)
 		}) {
@@ -565,7 +566,8 @@ func checkPartitionConsistency(msr *metadb.MigrationStatusRecord, importTableLis
 
 func printMissingRootToLeafPartitions(missingRootToLeafPartitions *utils.StructMap[sqlname.NameTuple, []string]) {
 	sortFn := func(a, b sqlname.NameTuple) bool { return a.AsQualifiedCatalogName() < b.AsQualifiedCatalogName() }
-	missingRootToLeafPartitions.IterKVSorted(sortFn, func(root sqlname.NameTuple, leaves []string) (bool, error) {
+	// display-only iteration; the callback never returns an error
+	_ = missingRootToLeafPartitions.IterKVSorted(sortFn, func(root sqlname.NameTuple, leaves []string) (bool, error) {
 		utils.PrintAndLogfInfo("  - %s:", root.ForOutput())
 		sort.Slice(leaves, func(i, j int) bool { return leaves[i] < leaves[j] })
 		utils.PrintAndLogfInfo("    - %s", strings.Join(leaves, ", "))
@@ -1980,7 +1982,8 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 	if err != nil {
 		log.Infof("callhome: error in getting the import data: %v", err)
 	} else {
-		importRowsMap.IterKV(func(key sqlname.NameTuple, value RowCountPair) (bool, error) {
+		// callhome payload assembly; the callback never returns an error
+		_ = importRowsMap.IterKV(func(key sqlname.NameTuple, value RowCountPair) (bool, error) {
 			dataMetrics.MigrationSnapshotTotalRows += value.Imported
 			if value.Imported > dataMetrics.MigrationSnapshotLargestTableRows {
 				dataMetrics.MigrationSnapshotLargestTableRows = value.Imported
@@ -2070,10 +2073,13 @@ func fetchAndStoreGeneratedAlwaysIdentityColumnsInMetadb(tables []sqlname.NameTu
 		return fmt.Errorf("failed to get identity(%s) columns for tables: %w", constants.IDENTITY_GENERATION_ALWAYS, err)
 	}
 
-	TableToIdentityColumnNames.IterKV(func(key sqlname.NameTuple, value []string) (bool, error) {
+	err = TableToIdentityColumnNames.IterKV(func(key sqlname.NameTuple, value []string) (bool, error) {
 		tableKeyToIdentityColumnNames[key.ForKey()] = value
 		return true, nil
 	})
+	if err != nil {
+		return fmt.Errorf("failed to iterate identity column names: %w", err)
+	}
 	err = metaDB.InsertJsonObject(nil, identityColumnsMetaDBKey, tableKeyToIdentityColumnNames)
 	if err != nil {
 		return goerrors.Errorf("failed to insert into the key '%s': %w", identityColumnsMetaDBKey, err)
@@ -2451,9 +2457,12 @@ func saveOnPrimaryKeyConflictActionInMSR() {
 		return
 	}
 
-	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.OnPrimaryKeyConflictAction = tconf.OnPrimaryKeyConflictAction
 	})
+	if err != nil {
+		utils.ErrExit("failed to save on-primary-key-conflict action in migration status record: %w", err)
+	}
 }
 
 func clearMigrationStateForImportDataStartClean(state *ImportDataState, importFileTasks []*ImportFileTask, errorHandler importdata.ImportDataErrorHandler) error {

@@ -128,7 +128,8 @@ func packAndSendImportDataToSrcReplicaPayload(status string, errorMsg error) {
 	if err != nil {
 		log.Infof("callhome: error in getting the import data: %v", err)
 	} else {
-		importRowsMap.IterKV(func(key sqlname.NameTuple, value RowCountPair) (bool, error) {
+		// callhome payload assembly; the callback never returns an error
+		_ = importRowsMap.IterKV(func(key sqlname.NameTuple, value RowCountPair) (bool, error) {
 			dataMetrics.MigrationSnapshotTotalRows += value.Imported
 			if value.Imported > dataMetrics.MigrationSnapshotLargestTableRows {
 				dataMetrics.MigrationSnapshotLargestTableRows = value.Imported

@@ -136,7 +136,10 @@ func (reg *NameRegistry) registerNames() (bool, error) {
 			targetSchema = reg.params.TargetDBSchema[0]
 		}
 		defaultSchema := lo.Ternary(reg.SourceDBType == constants.POSTGRESQL, reg.DefaultSourceDBSchemaName, targetSchema)
-		reg.setDefaultSourceReplicaDBSchemaName(defaultSchema)
+		err := reg.setDefaultSourceReplicaDBSchemaName(defaultSchema)
+		if err != nil {
+			return false, fmt.Errorf("set default source-replica schema name: %w", err)
+		}
 		return true, nil
 	}
 	log.Infof("no name registry update required: mode %q", reg.params.Role)
@@ -148,8 +151,7 @@ func (reg *NameRegistry) UnRegisterYBNames() error {
 	reg.YBTableNames = nil
 	reg.YBSchemaNames = nil
 	reg.DefaultYBSchemaName = ""
-	reg.save()
-	return nil
+	return reg.save()
 }
 
 func (reg *NameRegistry) registerSourceNames() (bool, error) {

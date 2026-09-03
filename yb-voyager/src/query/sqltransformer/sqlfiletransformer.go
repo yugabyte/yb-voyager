@@ -158,7 +158,7 @@ func (t *IndexFileTransformer) GetBackupFilePath() string {
 func (t *IndexFileTransformer) writeRemovedRedundantIndexesToFile(removedIndexToStmtMap *utils.StructMap[*sqlname.ObjectNameQualifiedWithTableName, *pg_query.RawStmt]) error {
 	var removedSqlStmts []string
 	var err error
-	removedIndexToStmtMap.IterKV(func(key *sqlname.ObjectNameQualifiedWithTableName, value *pg_query.RawStmt) (bool, error) {
+	err = removedIndexToStmtMap.IterKV(func(key *sqlname.ObjectNameQualifiedWithTableName, value *pg_query.RawStmt) (bool, error) {
 		//Add the existing index ddl in the comments for the individual redundant index
 		stmtStr, err := queryparser.DeparseRawStmt(value)
 		if err != nil {
@@ -171,6 +171,9 @@ func (t *IndexFileTransformer) writeRemovedRedundantIndexesToFile(removedIndexTo
 		removedSqlStmts = append(removedSqlStmts, stmtStr)
 		return true, nil
 	})
+	if err != nil {
+		return fmt.Errorf("failed to collect removed redundant index statements: %w", err)
+	}
 
 	if len(removedSqlStmts) > 0 {
 		// Write the removed indexes to a file

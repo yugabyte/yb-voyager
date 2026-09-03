@@ -83,14 +83,21 @@ func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("the streaming phase of export data has not started yet — archive changes can only be run after streaming begins")
 	}
 
-	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.ArchivingEnabled = true
 		record.SegmentCleanupRunning = true
 	})
+	if err != nil {
+		utils.ErrExit("failed to mark archiving enabled in migration status record: %w", err)
+	}
 	resetArchiveChangesRunning := func() {
-		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			record.SegmentCleanupRunning = false
 		})
+		if err != nil {
+			// cleanup path: log instead of exiting mid-shutdown
+			log.Errorf("failed to reset SegmentCleanupRunning in migration status record: %v", err)
+		}
 	}
 	defer resetArchiveChangesRunning()
 
