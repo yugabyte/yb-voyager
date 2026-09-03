@@ -1,21 +1,43 @@
 # golangci-lint v2 configuration — the single lint entry point for this module.
-# CI runs it once per build-tag group (see .github/workflows/lint.yml); the tag
-# groups cannot be combined because test files of different tags redeclare
-# symbols (e.g. TestMain) in the same package.
+# The binary is pinned in versions/ci-config.json (`golangci_lint`).
+#
+# CI (.github/workflows/lint.yml) and scripts/lint.sh run it once per build-tag
+# group; the tag groups cannot be combined into one run because test files of
+# different tags redeclare symbols (e.g. TestMain) in the same package, so a
+# combined-tags build does not compile. The union of the groups covers every Go
+# file in the module.
 #
 # The errcheck exclude-functions list below is deliberate policy, not noise
 # suppression: an entry means "this method's error is safely ignorable at every
 # call site", with the rationale alongside. Anything not listed must handle its
 # error explicitly (check it, or `_ =` with a why-comment).
+
+# Config schema version for the golangci-lint v2.x binary (a v1 config is
+# rejected at startup).
 version: "2"
 
 linters:
+  # Deny-by-default: `none` plus an explicit enable list means upgrading
+  # golangci-lint can never silently add or remove linters from the gate.
+  # The gate is exactly the set below until someone edits this file.
   default: none
   enable:
+    # A bare call statement that drops an error return (the PR #3714 bug
+    # class) is caught by no other tool. Also makes void->error signature
+    # widenings unlandable without updating every call site.
     - errcheck
+    # Previously go.yml's standalone `go vet` step; runs inside the gate now.
     - govet
+    # Ineffectual assignments; overlaps staticcheck's SA4006 but catches
+    # shapes it misses, and is essentially free.
     - ineffassign
+    # The SA bug class (incl. SA4006 "err assigned, never read"). Replaces
+    # the standalone staticcheck CI step; check selection is under
+    # settings.staticcheck below.
     - staticcheck
+    # Dead-code detection (U1000). Standalone staticcheck bundles this in its
+    # default run, but golangci splits it into a separate linter — enabling
+    # staticcheck alone would silently narrow the gate vs. the standalone tool.
     - unused
     # TODO(lint): enable the next-wave linters, one PR each, after sweeping
     # that linter's remaining findings (measured Aug 2026: errorlint ~15,
@@ -26,30 +48,50 @@ linters:
     # - sqlclosecheck
   settings:
     staticcheck:
-      # Mirrors staticcheck's defaults (all minus the default ST excludes), plus:
-      # -S1008:  allow explicit boolean returns.
-      # -ST1005: user-facing CLI error strings are deliberately capitalized/punctuated.
+      # Goal: parity with the standalone staticcheck gate this replaces —
+      # neither wider nor narrower. golangci's default check selection for
+      # staticcheck differs from the standalone tool's defaults, so the list
+      # is spelled out explicitly.
       checks:
         - all
+        # ST1000/ST1003/ST1016/ST1020/ST1021/ST1022/ST1023 are default-OFF in
+        # standalone staticcheck 2025.1.1 (ST1023 verified empirically: a
+        # pre-existing violation sits on a staticcheck-green main). Excluded
+        # here to keep parity. Note SA4023 is deliberately NOT excluded — it
+        # is default-ON in the standalone tool.
         - -ST1000
         - -ST1003
+        # ST1005 and S1008 (below) are the project's two pre-existing
+        # opt-outs, carried over from staticcheck.conf:
+        # -ST1005: user-facing CLI error strings are deliberately
+        #          capitalized/punctuated.
         - -ST1005
         - -ST1016
         - -ST1020
         - -ST1021
         - -ST1022
         - -ST1023
+        # -S1008: explicit boolean returns are allowed for readability.
         - -S1008
         # QF* (quickfix) checks are not shipped by standalone staticcheck
-        # 2025.1.1 at all; excluded defensively for future golangci-bundled
-        # versions. ST1000/1003/1016/1020/1021/1022/1023 above mirror the
-        # standalone default set (ST1023 verified default-off in 2025.1.1);
-        # ST1005/S1008 are the project's pre-existing opt-outs.
+        # 2025.1.1 at all; excluded defensively so a future golangci-bundled
+        # staticcheck version cannot add checks the project never opted into.
         - -QF*
     errcheck:
+      # The bar for an entry here: the error must be safely ignorable at
+      # EVERY possible call site, not just the current ones. Deliberately NOT
+      # excluded (each call site handles these on its merits instead):
+      #   - (*os.File).Close — a write-path close error is a data-loss bug in
+      #     a migration tool; read-path defers use explicit `_ =`.
+      #   - cobra MarkFlagRequired/MarkHidden/MarkDeprecated — a typo'd flag
+      #     name must not silently no-op; see the mustMarkFlag* helpers.
+      #   - os.WriteFile / os.Remove / os.RemoveAll and similar — checked or
+      #     explicitly dismissed per site.
       exclude-functions:
         # Read-path/teardown closes: real failures surface via rows.Err()/Scan,
-        # which are checked; nothing actionable on close.
+        # which are checked; nothing actionable on close. Exclusions match on
+        # the exact receiver type, which is why pgx v4, pgx v5, and pgconn are
+        # all listed — the codebase uses all three.
         - (*database/sql.Rows).Close
         - (*database/sql.DB).Close
         - (*database/sql.Conn).Close
@@ -79,17 +121,22 @@ linters:
         - (hash.Hash).Write
         - (hash.Hash32).Write
   exclusions:
+    # Each rule below is scoped as narrowly as possible: to specific paths,
+    # to a single linter, and (where supported) to a message text — so the
+    # excluded check stays enforced everywhere else.
     rules:
       # TEMPORARY (removed by the test-modernization PR): test files carry
       # ~380 legacy errcheck findings, dominated by os.Setenv / os.RemoveAll
       # patterns that will become t.Setenv / t.TempDir. Production code is
-      # fully enforced.
+      # fully enforced, and staticcheck/govet/ineffassign/unused still run on
+      # test files — only errcheck is deferred.
       - path: _test\.go
         linters:
           - errcheck
       # Shared test helpers consumed by tests of DIFFERENT build tags; under
       # any single tag some helpers legitimately look unused, so `unused`
-      # cannot evaluate these files meaningfully in a per-tag lint run.
+      # cannot evaluate these files meaningfully in a per-tag lint run. All
+      # other linters still apply to them.
       - path: cmd/importData(Integration)?TestUtils\.go
         linters:
           - unused
