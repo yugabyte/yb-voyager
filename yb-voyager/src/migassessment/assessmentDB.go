@@ -468,7 +468,7 @@ func (adb *AssessmentDB) LoadCSVFileIntoTable(filePath, tableName string) error 
 	if err != nil {
 		return fmt.Errorf("error opening file %s: %w", filePath, err)
 	}
-	defer file.Close()
+	defer utils.CloseAndLogOnError(filePath, file)
 
 	csvReader := csv.NewReader(file)
 	csvReader.ReuseRecord = true

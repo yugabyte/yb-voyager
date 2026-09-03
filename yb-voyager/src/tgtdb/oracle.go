@@ -341,7 +341,7 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 	if err != nil {
 		return 0, fmt.Errorf("open batch file %q: %w", batch.GetFilePath(), err)
 	}
-	defer file.Close()
+	defer utils.CloseAndLogOnError(batch.GetFilePath(), file)
 
 	//setting the schema so that the table is created in the correct schema
 	tdb.setTargetSchema(conn)
@@ -398,7 +398,7 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 	if err != nil {
 		return 0, err
 	}
-	defer sqlldrLogFile.Close()
+	defer utils.CloseAndLogOnError(sqlldrLogFilePath, sqlldrLogFile)
 
 	user := tdb.tconf.User
 	password := tdb.tconf.Password
@@ -516,6 +516,10 @@ func (tdb *TargetOracleDB) GetListOfTableAttributes(tableNameTup sqlname.NameTup
 		columns = append(columns, column)
 	}
 	return columns, nil
+}
+
+func (tdb *TargetOracleDB) FindBestMatchingTargetColumnName(columnName string, targetTableColumns []string) (string, error) {
+	return tdb.FindBestMatchingColumnName(columnName, targetTableColumns)
 }
 
 // execute all events sequentially one by one in a single transaction

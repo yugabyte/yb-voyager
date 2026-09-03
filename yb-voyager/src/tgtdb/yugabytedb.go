@@ -608,7 +608,7 @@ func (yb *TargetYugabyteDB) GetPrimaryKeyColumnsForTables(tables []sqlname.NameT
 }
 
 func (yb *TargetYugabyteDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []UniqueIndex], error) {
-	log.Infof("getting unique indexes from target for tables: %v", tableList)
+	log.Infof("getting unique indexes from target for tables: %s", strings.Join(sqlname.NameTupleListToStrings(tableList), ", "))
 
 	// Unique indexes on a partitioned table are often defined on its leaf partitions
 	// rather than the root (e.g. CREATE UNIQUE INDEX ... ON <leaf> (...)). Since import
@@ -651,7 +651,7 @@ func (yb *TargetYugabyteDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameT
 		result.Put(rootTuple, mergeUniqueIndexes(existing, indexes))
 	}
 
-	log.Infof("unique indexes from target for tables: %v", result)
+	log.Infof("unique indexes from target for tables: %s", formatTableToUniqueIndexesForLog(result))
 	return result, nil
 }
 
@@ -869,7 +869,7 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 			errs.IMPORT_BATCH_ERROR_STEP_OPEN_BATCH, nil)
 		return 0, err
 	}
-	defer file.Close()
+	defer utils.CloseAndLogOnError(batch.GetFilePath(), file)
 
 	// 2. setting the schema so that COPY command can acesss the table
 	// Q: If we set the schema for this batch on this conn, will it impact others using the same conn from pool later?
@@ -1090,6 +1090,11 @@ func (yb *TargetYugabyteDB) GetListOfTableAttributes(nt sqlname.NameTuple) ([]st
 		result = append(result, colName)
 	}
 	return result, nil
+}
+
+func (yb *TargetYugabyteDB) FindBestMatchingTargetColumnName(columnName string, targetTableColumns []string) (string, error) {
+	return yb.FindBestMatchingColumnName(columnName, targetTableColumns)
+
 }
 
 func (yb *TargetYugabyteDB) RestoreSequences(sequencesLastVal *utils.StructMap[sqlname.NameTuple, int64]) error {
@@ -1721,7 +1726,7 @@ func getYBSessionInitScript(tconf *TargetConf) []string {
 		log.Infof("YBSessionInitScript: %v\n", sessionVars)
 		return sessionVars
 	}
-	defer varsFile.Close()
+	defer utils.CloseAndLogOnError(sessionVarsPath, varsFile)
 	fileScanner := bufio.NewScanner(varsFile)
 
 	var curLine string

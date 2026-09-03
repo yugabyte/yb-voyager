@@ -61,7 +61,7 @@ func ReadExportStatus(statusFilePath string) (*ExportStatus, error) {
 		}
 		return nil, goerrors.Errorf("failed to open file %s: %w", statusFilePath, err)
 	}
-	defer file.Close()
+	defer utils.CloseAndLogOnError(statusFilePath, file)
 
 	var status ExportStatus
 	err = json.NewDecoder(file).Decode(&status)

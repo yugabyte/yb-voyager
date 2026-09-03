@@ -365,16 +365,23 @@ func getAndStoreTargetDBPasswordInSourceConf(cmd *cobra.Command) {
 }
 
 func markFlagsRequired(cmd *cobra.Command) {
+	// `export data from target` borrows exportDataCmd's PreRun but registers no
+	// source-* connection flags; its connection info comes from the MSR. Matched
+	// by path literal: referencing exportDataFromTargetCmd here would create a
+	// package initialization cycle back through exportDataCmd.
+	if cmd.CommandPath() == "yb-voyager export data from target" {
+		return
+	}
 	// mandatory for all
-	cmd.MarkFlagRequired("source-db-type")
-	cmd.MarkFlagRequired("source-db-user")
+	mustMarkFlagRequired(cmd, "source-db-type")
+	mustMarkFlagRequired(cmd, "source-db-user")
 
 	switch source.DBType {
 	case POSTGRESQL, ORACLE: // schema and database names are mandatory
-		cmd.MarkFlagRequired("source-db-name")
-		cmd.MarkFlagRequired("source-db-schema")
+		mustMarkFlagRequired(cmd, "source-db-name")
+		mustMarkFlagRequired(cmd, "source-db-schema")
 	case MYSQL:
-		cmd.MarkFlagRequired("source-db-name")
+		mustMarkFlagRequired(cmd, "source-db-name")
 	}
 }
 

@@ -76,7 +76,7 @@ func (m *MockTargetDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple)
 
 func (m *MockTargetDB) Close() {
 	if m.metadata != nil {
-		m.metadata.Close()
+		_ = m.metadata.Close() // mock teardown; close error is not actionable
 	}
 }
 

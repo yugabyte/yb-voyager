@@ -428,6 +428,10 @@ func CreateTempFile(dir string, fileContents string, fileFormat string) (string,
 		return "", err
 	}
 
+	err = file.Close()
+	if err != nil {
+		return "", err
+	}
 	return file.Name(), nil
 }
 

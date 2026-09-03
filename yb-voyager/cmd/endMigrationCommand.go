@@ -1108,11 +1108,11 @@ func init() {
 	endMigrationCmd.Flags().StringVar(&backupDir, "backup-dir", "", "backup directory is where all the backup files of schema, data, logs and reports will be saved")
 
 	registerCommonGlobalFlags(endMigrationCmd)
-	endMigrationCmd.Flags().MarkHidden("send-diagnostics")
+	mustMarkFlagHidden(endMigrationCmd, "send-diagnostics")
 
-	endMigrationCmd.MarkFlagRequired("backup-schema-files")
-	endMigrationCmd.MarkFlagRequired("backup-data-files")
-	endMigrationCmd.MarkFlagRequired("save-migration-reports")
-	endMigrationCmd.MarkFlagRequired("backup-log-files")
-	endMigrationCmd.MarkFlagRequired("export-dir")
+	mustMarkFlagRequired(endMigrationCmd, "backup-schema-files")
+	mustMarkFlagRequired(endMigrationCmd, "backup-data-files")
+	mustMarkFlagRequired(endMigrationCmd, "save-migration-reports")
+	mustMarkFlagRequired(endMigrationCmd, "backup-log-files")
+	mustMarkPersistentFlagRequired(endMigrationCmd, "export-dir")
 }

@@ -208,7 +208,7 @@ func streamChangesFromSegment(
 	if err != nil {
 		return err
 	}
-	defer segment.Close()
+	defer utils.CloseAndLogOnError("event queue segment", segment)
 
 	// start target event channel processors
 	for i := 0; i < NUM_EVENT_CHANNELS; i++ {

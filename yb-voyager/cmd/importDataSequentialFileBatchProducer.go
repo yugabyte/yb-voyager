@@ -317,7 +317,7 @@ func (p *SequentialFileBatchProducer) openDataFileAndReadHeaderIfRequired() (dat
 
 	df, err := datafile.NewDataFile(p.task.FilePath, reader, dataFileDescriptor, 0)
 	if err != nil {
-		reader.Close()
+		_ = reader.Close() // best-effort cleanup on the error path
 		return nil, goerrors.Errorf("open datafile: %q: %w", p.task.FilePath, err)
 	}
 
@@ -356,7 +356,7 @@ func (p *SequentialFileBatchProducer) openDataFileAtByteOffset() error {
 	// format-specific logic (e.g., SQL assuming mid-COPY) is handled internally.
 	dataFile, err := datafile.NewDataFile(p.task.FilePath, reader, dataFileDescriptor, p.lastBatchCumByteOffsetEnd)
 	if err != nil {
-		reader.Close()
+		_ = reader.Close() // best-effort cleanup on the error path
 		return goerrors.Errorf("open datafile after seek: %q: %w", p.task.FilePath, err)
 	}
 	p.dataFile = dataFile

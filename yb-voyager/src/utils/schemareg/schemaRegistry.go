@@ -163,7 +163,7 @@ func (sreg *SchemaRegistry) Init() error {
 			return goerrors.Errorf("table %s is not present in the target database", table)
 		}
 		sreg.TableNameToSchema.Put(table, &tableSchema)
-		schemaFile.Close()
+		utils.CloseAndLogOnError(schemaFilePath, schemaFile)
 	}
 	return nil
 }

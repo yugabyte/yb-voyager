@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
@@ -200,7 +201,7 @@ func (c *ConflictDetectionCache) Put(event *tgtdb.Event) error {
 			return err
 		}
 	}
-	log.Debugf("adding event vsn(%d) to conflict cache for table %s", event.Vsn, event.TableNameTup.ForKey())
+	log.Debugf("adding event vsn(%d) to conflict cache for table %s", event.Vsn, event.TableNameTup.ForOutput())
 	return nil
 }
 
@@ -257,6 +258,7 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 	c.Lock()
 	defer c.Unlock()
 
+	waitStartTime := time.Now()
 	conflictLogged := false
 	for {
 		conflictInfo, err := c.findConflictLocked(incomingEvent)
@@ -264,7 +266,7 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 			return err
 		}
 		if len(conflictInfo) == 0 {
-			return nil
+			break
 		}
 
 		// flushing all the batches in channels instead of waiting for MAX_INTERVAL_BETWEEN_BATCHES
@@ -293,8 +295,8 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 			if isTargetDBExporter(incomingEvent.ExporterRole) {
 				log.Debugf("event(vsn=%d) waiting for in-flight event(s) %v to be applied", incomingEvent.Vsn, cachedVsns)
 			} else if !conflictLogged {
-				log.Infof("conflict detected: event(vsn=%d) on table %s, unique index columns %v with matched value %s (%s conflict) waiting for in-flight event(s) %v to be applied",
-					incomingEvent.Vsn, incomingEvent.TableNameTup.ForKey(), info.indexColumns, info.matchedValue, info.matchType, cachedVsns)
+				log.Infof("conflict detected: event(vsn=%d) on table %s, unique index %s (columns %s) with matched value [%s] (%s conflict) waiting for in-flight event(s) %v to be applied",
+					incomingEvent.Vsn, incomingEvent.TableNameTup.ForOutput(), info.indexName, strings.Join(info.indexColumns, ", "), info.matchedValue, info.matchType, cachedVsns)
 			} else {
 				log.Debugf("still waiting: event(vsn=%d) blocked by in-flight event(s) %v", incomingEvent.Vsn, cachedVsns)
 			}
@@ -306,6 +308,14 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 		// different times (e.g. a table with several unique indexes).
 		c.cond.Wait()
 	}
+
+	if conflictLogged {
+		// Report how long the event stayed blocked, so that a slow conflict is
+		// distinguishable from one that never clears.
+		log.Infof("conflict cleared: event(vsn=%d) on table %s proceeding after waiting %s",
+			incomingEvent.Vsn, incomingEvent.TableNameTup.ForOutput(), time.Since(waitStartTime).Round(time.Millisecond))
+	}
+	return nil
 }
 
 // Conflict describes the unique-index match that caused a value-path conflict.
@@ -449,8 +459,8 @@ func (c *ConflictDetectionCache) checkBeforeAfterConflict(incomingEvent *tgtdb.E
 		return Conflict{}, nil
 	}
 	for _, cachedEvent := range cachedEvents {
-		log.Debugf("conflict detected for table %s, index columns %v, between before value of cached-event1(vsn=%d, colVal=%s) and after value of incoming-event2(vsn=%d, colVal=%s)",
-			incomingEvent.TableNameTup.ForKey(), index.Columns,
+		log.Debugf("conflict detected for table %s, unique index %s, between before value of cached-event1(vsn=%d, colVal=[%s]) and after value of incoming-event2(vsn=%d, colVal=[%s])",
+			incomingEvent.TableNameTup.ForOutput(), index.String(),
 			cachedEvent.Vsn, formatUniqueIndexColumnValuesForLog(cachedEvent.BeforeFields, index.Columns),
 			incomingEvent.Vsn, formatUniqueIndexColumnValuesForLog(incomingEvent.AfterFields, index.Columns))
 	}
@@ -482,8 +492,8 @@ func (c *ConflictDetectionCache) checkBeforeBeforeConflict(incomingEvent *tgtdb.
 		return Conflict{}, nil
 	}
 	for _, cachedEvent := range cachedEvents {
-		log.Debugf("conflict detected for table %s, index columns %v, between before value of cached-event1(vsn=%d, colVal=%s) and before value of incoming-event2(vsn=%d, colVal=%s)",
-			incomingEvent.TableNameTup.ForKey(), index.Columns,
+		log.Debugf("conflict detected for table %s, unique index %s, between before value of cached-event1(vsn=%d, colVal=[%s]) and before value of incoming-event2(vsn=%d, colVal=[%s])",
+			incomingEvent.TableNameTup.ForOutput(), index.String(),
 			cachedEvent.Vsn, formatUniqueIndexColumnValuesForLog(cachedEvent.BeforeFields, index.Columns),
 			incomingEvent.Vsn, formatUniqueIndexColumnValuesForLog(incomingEvent.BeforeFields, index.Columns))
 	}
@@ -769,7 +779,7 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 		}
 
 		if conflict {
-			log.Infof("conflict detected for table %s, between event1(vsn=%d) and event2(vsn=%d)", cachedEvent.TableNameTup, cachedEvent.Vsn, incomingEvent.Vsn)
+			log.Infof("conflict detected for table %s, between event1(vsn=%d) and event2(vsn=%d)", cachedEvent.TableNameTup.ForOutput(), cachedEvent.Vsn, incomingEvent.Vsn)
 		}
 		return conflict
 	}
@@ -949,9 +959,14 @@ func uniqueIndexColumnValuesEqual(leftFields, rightFields map[string]*string, in
 	return true
 }
 
+// formatUniqueIndexColumnValuesForLog renders the values of the given index columns
+// as "col1=val1, col2=val2".
 func formatUniqueIndexColumnValuesForLog(fields map[string]*string, indexColumns []string) string {
 	var logStr strings.Builder
-	for _, column := range indexColumns {
+	for i, column := range indexColumns {
+		if i > 0 {
+			logStr.WriteString(", ")
+		}
 		val, ok := fields[column]
 		if !ok {
 			logStr.WriteString(column + "=<missing>")

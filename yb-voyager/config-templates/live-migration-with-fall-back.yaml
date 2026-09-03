@@ -489,7 +489,11 @@ import-data-to-target:
 
   ### Optional per-table CDC partition-key overrides as schema.table:pk|table pairs, separated by ';'.
   ### Example: public.orders:table;sales.events:pk. Unlisted tables keep the global --cdc-partition-key.
-  ### Accepted values: schema.table:pk|table pairs, separated by ';'
+  ### Accepted values: schema.table:strategy pairs, separated by ';'.
+  ### strategy is one of: pk, table, or a custom key column list wrapped in parentheses (col1,col2).
+  ### pk: Partition CDC events by primary key.
+  ### table: Partition CDC events by table (all events for a table share one channel).
+  ### (col1,col2): Partition CDC events by the given column values (immutable columns).
   ### Default - empty
   # cdc-partition-key-overrides: public.orders:table;sales.events:pk
 

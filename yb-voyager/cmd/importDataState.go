@@ -982,10 +982,14 @@ func (batch *Batch) MarkError(batchErr error, isPartialBatchIngestionPossible bo
 	if err != nil {
 		return goerrors.Errorf("open file for appending error %q: %w", batch.FilePath, err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }() // backstop; the success path checks Close below
 	_, err = file.WriteString(errorString)
 	if err != nil {
 		return goerrors.Errorf("write error message to %q: %w", batch.FilePath, err)
+	}
+	err = file.Close()
+	if err != nil {
+		return goerrors.Errorf("close %q after appending error: %s", batch.FilePath, err)
 	}
 	return nil
 }

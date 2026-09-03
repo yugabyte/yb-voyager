@@ -140,7 +140,8 @@ func (s *StreamImportStatsReporter) refreshStats() {
 	if s.displayExtraInfo != "" {
 		fmt.Fprint(displayExtraInfo, color.RedString(s.displayExtraInfo))
 	}
-	s.uitable.Flush()
+	// console status table redraw; nothing actionable on a flush error
+	_ = s.uitable.Flush()
 }
 
 func (s *StreamImportStatsReporter) DisplayInformation(info string) {
