@@ -126,7 +126,7 @@ Rules for comment bodies:
 
 - **Prefix**: begins with `[AI][<Severity>] ` exactly once, where `<Severity>` is one of `Critical`, `Warning`, `Suggestion`. Never `[ai]`, never `**[AI]**`, never `(AI)`.
 - **Title**: the one-line finding title should be **bolded** on the first line after the prefix, e.g. `[AI][Warning] **Double-close race in stopSpinnerLocked.**`
-- **Body**: separate from the title by a blank line. May include code blocks, file paths in backticks, and quoted BUGBOT rules when they motivated the finding.
+- **Body**: separate from the title by a blank line. May include code blocks, file paths in backticks, and quoted `AGENTS.md` standards when they motivated the finding.
 - **Keep it self-contained**: the reader on GitHub may not have the chat context. Include the "why" and a concrete suggested fix.
 - **No emojis** unless the user explicitly asked the `branch-review` to use them.
 
@@ -208,7 +208,7 @@ rm -f /tmp/pr-review-<pull_number>.json /tmp/pr-review-<pull_number>-response.js
 
 - **Never stringify JSON in the shell.** Always `--input <file>`. Shell-quoting bugs have silently dropped inline comments before.
 - **Never use `REQUEST_CHANGES` or `APPROVE`.** The agent does not have the standing to block or approve a human's PR.
-- **Never omit the `[AI][<Severity>]` prefix**, even when the comment quotes a BUGBOT rule or references another comment. The `[AI]` prefix is the contract with the human reviewers.
+- **Never omit the `[AI][<Severity>]` prefix**, even when the comment quotes an `AGENTS.md` standard or references another comment. The `[AI]` prefix is the contract with the human reviewers.
 - **Never re-run `branch-review` to get findings.** If the conversation already produced findings, reuse them. Re-running wastes tokens and produces noise.
 - **Never invent line numbers.** If you can't anchor a finding, drop it or ask the user where to anchor it.
 
