@@ -19,9 +19,14 @@ limitations under the License.
 // report's row data, and diffs two result sets.
 //
 //	go run ./src/testlivemigration/sweepreport collect -log run.log -out results/run.csv
+//	go run ./src/testlivemigration/sweepreport collect -log a.log -log b.log -logs 'more/*.log' -out results/run.csv
 //	go run ./src/testlivemigration/sweepreport report  -results results/run.csv \
 //	        -catalog results/probe-catalog.json -out results/report-rows.json
 //	go run ./src/testlivemigration/sweepreport diff    -old results/v1.csv -new results/v2.csv
+//
+// collect's -log flag is repeatable and combines with -logs (a glob); each log is parsed
+// as its own run and the results are merged, so multiple sweep runs no longer need to be
+// `cat`-ed together before collecting (see cmdCollect for why that matters).
 //
 // It imports nothing from voyager and needs no build tag, so it runs anywhere.
 package main
@@ -29,10 +34,27 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
+
+// stringSlice implements flag.Value so a flag can be repeated on the command line, each
+// occurrence appending rather than overwriting. Used by collect's -log flag: before this,
+// -log accepted exactly one path, which forced callers to `cat` several go-test logs
+// together before handing them to `collect` - and concatenating logs destroys the run
+// boundary ParseLog relies on for its control gate (see cmdCollect).
+type stringSlice []string
+
+func (s *stringSlice) String() string { return strings.Join(*s, ",") }
+
+func (s *stringSlice) Set(v string) error {
+	*s = append(*s, v)
+	return nil
+}
 
 func main() {
 	if len(os.Args) < 2 {
@@ -77,7 +99,9 @@ Run "sweepreport <command> -h" for the flags of one command.
 
 func cmdCollect(args []string) error {
 	fs := flag.NewFlagSet("collect", flag.ExitOnError)
-	logPath := fs.String("log", "-", "go test log to parse ('-' for stdin)")
+	var logPaths stringSlice
+	fs.Var(&logPaths, "log", "go test log to parse ('-' for stdin); repeat to merge several runs")
+	logsGlob := fs.String("logs", "", "glob matching several go test logs to parse (e.g. 'results/*.log'); merged with -log")
 	out := fs.String("out", "", "results CSV to write (default results/datatype-sweep-<timestamp>.csv)")
 	outDir := fs.String("dir", "results", "directory for the default -out path")
 	jsonOut := fs.String("json", "", "also write the rows as JSON to this path")
@@ -114,22 +138,51 @@ func cmdCollect(args []string) error {
 		categoryFor = func(id string) string { return groups[id] }
 	}
 
-	in := os.Stdin
-	if *logPath != "-" {
-		f, err := os.Open(*logPath)
+	// Build the full list of logs to parse: explicit -log occurrences first, then -logs
+	// glob matches, sorted so a rebuilt result set is byte-stable. When neither is given,
+	// fall back to a single "-" (stdin), exactly the old default.
+	paths := append([]string{}, logPaths...)
+	if *logsGlob != "" {
+		matches, err := filepath.Glob(*logsGlob)
 		if err != nil {
-			return err
+			return fmt.Errorf("bad -logs glob %q: %w", *logsGlob, err)
 		}
-		defer f.Close()
-		in = f
+		if len(matches) == 0 {
+			return fmt.Errorf("-logs glob %q matched no files", *logsGlob)
+		}
+		sort.Strings(matches)
+		paths = append(paths, matches...)
+	}
+	if len(paths) == 0 {
+		paths = []string{"-"}
 	}
 
-	rows, err := ParseLog(in, meta, categoryFor)
-	if err != nil {
-		return err
+	// Each log is ONE test run and is parsed by its OWN ParseLog call, independently of
+	// every other log. This is the fix for the reason multi-log support exists at all:
+	// ParseLog tracks the control gate per run (see the ctrlBad / runStatus bookkeeping in
+	// results.go), so feeding it the concatenation of several `cat`-ed-together logs lets a
+	// single PROBE-RUN-INVALID line - or a single failed control - taint every row parsed
+	// after it, including rows from runs that have nothing to do with the failure. Parsing
+	// file-by-file keeps that contamination inside the file it belongs to; only the merge
+	// below (dedupe, via its trust-ranked preference) lets a good run's row win over a bad
+	// run's row for the same probe.
+	var allRows []Row
+	for _, p := range paths {
+		rc, err := openLog(p)
+		if err != nil {
+			return fmt.Errorf("opening %s: %w", p, err)
+		}
+		fileRows, err := ParseLog(rc, meta, categoryFor)
+		rc.Close()
+		if err != nil {
+			return fmt.Errorf("parsing %s: %w", p, err)
+		}
+		allRows = append(allRows, fileRows...)
 	}
+	rows := dedupe(allRows)
 	if len(rows) == 0 {
-		return fmt.Errorf("no PROBE-RESULT lines found in %s; did the run produce any output?", *logPath)
+		return fmt.Errorf("no PROBE-RESULT lines found in %s; did the run produce any output?",
+			strings.Join(paths, ", "))
 	}
 
 	path := *out
@@ -149,20 +202,35 @@ func cmdCollect(args []string) error {
 	counts := map[string]int{}
 	for _, r := range rows {
 		counts[r.Verdict]++
-		if r.RunStatus != statusOK {
+		// ATTRIBUTED counts as published-quality here, same as OK: it is the carve-out
+		// that pins a control failure on the one probe that could have caused it (see
+		// statusAttributed), not a broken measurement. POISON is deliberately NOT included
+		// - a poison-isolation run still trips this warning today, and that is unrelated to
+		// this fix, so it is left alone.
+		if r.RunStatus != statusOK && r.RunStatus != statusAttributed {
 			bad++
 		}
 	}
-	fmt.Printf("wrote %d rows to %s\n", len(rows), path)
+	fmt.Printf("wrote %d rows to %s (from %d log(s))\n", len(rows), path, len(paths))
 	fmt.Printf("verdicts: %s\n", renderCounts(counts))
 	if bad > 0 {
 		fmt.Printf("WARNING: %d rows come from runs that did not pass their control gate "+
-			"(run_status != OK) and must not be published\n", bad)
+			"(run_status != OK/ATTRIBUTED) and must not be published\n", bad)
 		if *failOnInvalid {
 			return fmt.Errorf("%d rows from invalid runs", bad)
 		}
 	}
 	return nil
+}
+
+// openLog opens one collect input, treating "-" as stdin. Returned for a uniform
+// io.ReadCloser so cmdCollect's per-file loop doesn't special-case stdin's lack of a Close
+// worth calling.
+func openLog(path string) (io.ReadCloser, error) {
+	if path == "-" {
+		return io.NopCloser(os.Stdin), nil
+	}
+	return os.Open(path)
 }
 
 func renderCounts(counts map[string]int) string {

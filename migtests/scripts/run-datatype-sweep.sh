@@ -181,11 +181,30 @@ finish() {
 
 collect_results() {
     log "collecting results"
+    # Every run log in RESULTS_DIR, not just this invocation's, and each one passed as
+    # its OWN -log so the collector sees the run boundaries.
+    #
+    # NEVER concatenate run logs before collecting. The control gate is per run, so a
+    # single PROBE-RUN-INVALID line in a concatenated file marks every row parsed after
+    # it - including rows from later, perfectly clean runs. That silently discarded ~120
+    # good measurements and, worse, paired one run's verdict with another run's status,
+    # which is how a passing probe came to be published as a failure.
+    local -a log_args=()
+    local lf
+    for lf in "${RESULTS_DIR}"/run-*.log; do
+        [ -f "${lf}" ] || continue
+        grep -qa '^PROBE-RESULT' "${lf}" 2>/dev/null && log_args+=(-log "${lf}")
+    done
+    if [ ${#log_args[@]} -eq 0 ]; then
+        log_args=(-log "${RUN_LOG}")
+    fi
+    log "collecting $(( ${#log_args[@]} / 2 )) run log(s) separately"
+
     # Record-and-continue rather than abort: when a mode has already failed there may be
     # no PROBE-RESULT lines to collect, and dying here would hide the failure summary
     # that says WHY. The exit code is carried by finish() either way.
     if ! ( cd "${MODULE_DIR}" && go run ./src/testlivemigration/sweepreport collect \
-        -log "${RUN_LOG}" \
+        "${log_args[@]}" \
         -out "${RESULTS_CSV}" \
         -catalog "${CATALOG_JSON}" \
         -commit "$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo unknown)" \

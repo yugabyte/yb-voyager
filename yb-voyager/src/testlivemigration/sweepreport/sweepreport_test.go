@@ -22,6 +22,7 @@ package main
 
 import (
 	"bytes"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -129,24 +130,36 @@ func TestParseLogExtractsRowsAndGates(t *testing.T) {
 		byKey[r.Key()] = r
 	}
 
-	// A duplicated probe id (CTRL-001 appears in both batches) keeps the LAST occurrence.
+	// CTRL-001 appears in BOTH batches of this file - WORKS in ranges (whose own gate
+	// passed) and STUCK in hstore (whose own gate failed). Row.Key() is (probe_id, mode)
+	// only, so these two rows collide, and the dedupe merge preference (Defect 3) must pick
+	// the row from the TRUSTED batch over the one from the untrusted batch, regardless of
+	// which one was parsed later - the old "last occurrence wins" behavior is exactly the
+	// bug Defect 3 removed.
 	ctrl, ok := byKey["CTRL-001|LIVE"]
 	if !ok {
 		t.Fatalf("no row for CTRL-001|LIVE; got %v", byKey)
 	}
-	if ctrl.Verdict != "STUCK" {
-		t.Errorf("CTRL-001 verdict = %q, want the later STUCK", ctrl.Verdict)
+	if ctrl.Verdict != "WORKS" {
+		t.Errorf("CTRL-001 verdict = %q, want WORKS: the trusted (ranges) measurement must win over "+
+			"the untrusted (hstore) one, even though hstore was parsed later", ctrl.Verdict)
 	}
-	if ctrl.RunStatus != statusInvalid {
-		t.Errorf("CTRL-001 run_status = %q, want %q", ctrl.RunStatus, statusInvalid)
+	if ctrl.RunStatus != statusOK {
+		t.Errorf("CTRL-001 run_status = %q, want %q", ctrl.RunStatus, statusOK)
 	}
 
 	rng := byKey["RANGE-001|LIVE"]
 	if rng.Category != "ranges" {
 		t.Errorf("RANGE-001 category = %q, want %q (from the === RUN subtest name)", rng.Category, "ranges")
 	}
+	// The data-derived control gate (Defect 2) is scoped to (file, batch, mode) - the same
+	// key the marker gate already uses, built from the row's own "=== RUN" attribution
+	// rather than from a marker line's text - so a control failing in the UNRELATED hstore
+	// batch must never touch the ranges batch, whose own CTRL-001 came out WORKS. Grouping
+	// by mode alone (ignoring batch) was tried and is wrong: it lets one batch's failure
+	// contaminate an unrelated batch sharing only the same mode.
 	if rng.RunStatus != statusOK {
-		t.Errorf("RANGE-001 run_status = %q, want %q: the ranges batch passed its gate", rng.RunStatus, statusOK)
+		t.Errorf("RANGE-001 run_status = %q, want %q: the ranges batch passed its own gate", rng.RunStatus, statusOK)
 	}
 	if rng.PGVersion != "17.8" || rng.VoyagerCommit != "abc123" {
 		t.Errorf("run metadata not stamped onto the row: %+v", rng)
@@ -157,9 +170,15 @@ func TestParseLogExtractsRowsAndGates(t *testing.T) {
 		t.Errorf("verbatim values not lifted out of the detail: source=%q target=%q", drop.SourceValue, drop.TargetValue)
 	}
 
+	// HSTORE-001 is the ONLY non-control probe in the hstore batch, and that batch's own
+	// CTRL-001 failed (STUCK) right alongside it: the hstore value wedged the shared
+	// importer connector and took the control down with it. Nothing else in this batch
+	// could have caused that failure, so this is exactly the solo carve-out (see
+	// statusAttributed): ATTRIBUTED, not INVALID.
 	hstore := byKey["HSTORE-001|LIVE"]
-	if hstore.RunStatus != statusInvalid {
-		t.Errorf("HSTORE-001 run_status = %q, want %q", hstore.RunStatus, statusInvalid)
+	if hstore.RunStatus != statusAttributed {
+		t.Errorf("HSTORE-001 run_status = %q, want %q: it is the sole probe in a batch whose own control failed",
+			hstore.RunStatus, statusAttributed)
 	}
 }
 
@@ -427,6 +446,533 @@ func TestBuildReportIsAViewOverTheSuite(t *testing.T) {
 	if got := bestEvidence(byID["P-1"]); got != "column absent" {
 		t.Errorf("bestEvidence = %q, want the QUIET_DROP evidence", got)
 	}
+}
+
+// ============================================================
+// Defects 1-3: multi-log collect, the data-derived control gate (including its
+// solo-probe/ATTRIBUTED carve-out), and the trust-ranked dedupe merge preference.
+// ============================================================
+
+// TestSweepMergeAcrossLogsPrefersCleanRun is requirement (a): two logs, one whose control
+// gate failed and one whose control gate passed, measuring the same probe. Each log is
+// parsed on its own (Defect 1), so run A's failure never touches run B's rows - and the
+// merge (Defect 3) must keep run B's clean measurement rather than whichever log happened
+// to be parsed last.
+func TestSweepMergeAcrossLogsPrefersCleanRun(t *testing.T) {
+	// Two non-control probes share the batch, so this run's failure is definitely
+	// collateral (INVALID), not the solo/ATTRIBUTED carve-out - keeping this test about
+	// the merge, not about which gate outcome produced the INVALID.
+	logA := `
+=== RUN   TestDatatypeSweepLive/mixed
+PROBE-RESULT: CTRL-001 | int | LIVE | STUCK | importer wedged
+PROBE-RESULT: RANGE-001 | int4range | LIVE | SILENT_LOSS | value dropped
+PROBE-RESULT: OTHER-001 | foo | LIVE | WORKS | fine
+PROBE-RUN-INVALID: mixed | LIVE | control failed
+`
+	logB := `
+=== RUN   TestDatatypeSweepLive/mixed
+PROBE-RESULT: CTRL-001 | int | LIVE | WORKS | fine
+PROBE-RESULT: RANGE-001 | int4range | LIVE | WORKS | fine
+`
+	rowsA, err := ParseLog(strings.NewReader(logA), RunMeta{Timestamp: "2026-08-01T00:00:00Z"}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog A: %v", err)
+	}
+	rowsB, err := ParseLog(strings.NewReader(logB), RunMeta{Timestamp: "2026-08-02T00:00:00Z"}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog B: %v", err)
+	}
+
+	// Setup sanity: confirm each file's own gate came out as expected before merging.
+	find := func(rows []Row, key string) Row {
+		for _, r := range rows {
+			if r.Key() == key {
+				return r
+			}
+		}
+		t.Fatalf("no row for %s", key)
+		return Row{}
+	}
+	if got := find(rowsA, "RANGE-001|LIVE").RunStatus; got != statusInvalid {
+		t.Fatalf("setup: run A's RANGE-001 run_status = %q, want %q", got, statusInvalid)
+	}
+	if got := find(rowsB, "RANGE-001|LIVE").RunStatus; got != statusOK {
+		t.Fatalf("setup: run B's RANGE-001 run_status = %q, want %q", got, statusOK)
+	}
+
+	merged := dedupe(append(append([]Row{}, rowsA...), rowsB...))
+	got := find(merged, "RANGE-001|LIVE")
+	if got.Verdict != "WORKS" || got.RunStatus != statusOK {
+		t.Errorf("merged RANGE-001 = verdict %q run_status %q, want WORKS/%s (run B's clean measurement, not run A's)",
+			got.Verdict, got.RunStatus, statusOK)
+	}
+}
+
+// TestSweepBatchControlFailureInvalidatesWithoutMarker is requirement (b) / Defect 2: a
+// control verdict other than WORKS must invalidate its (file, mode), even with no
+// PROBE-RUN-INVALID marker line at all - the marker is not the only signal, and here it is
+// the ONLY signal missing. This run has two non-control probes, so it is a BATCH run and
+// nothing in it is attributable to any single probe (see TestSweepSoloRunWithFailedControlIsAttributed
+// for the one-probe case, which comes out differently).
+func TestSweepBatchControlFailureInvalidatesWithoutMarker(t *testing.T) {
+	log := `
+=== RUN   TestDatatypeSweepLive/batch
+PROBE-RESULT: CTRL-001 | int | LIVE | STUCK | importer wedged
+PROBE-RESULT: A-001 | foo | LIVE | WORKS | fine
+PROBE-RESULT: B-001 | bar | LIVE | WORKS | fine
+`
+	rows, err := ParseLog(strings.NewReader(log), RunMeta{}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog: %v", err)
+	}
+	for _, r := range rows {
+		if r.RunStatus != statusInvalid {
+			t.Errorf("%s run_status = %q, want %q: no marker line fired, but the control failed",
+				r.Key(), r.RunStatus, statusInvalid)
+		}
+	}
+}
+
+// TestSweepSoloRunWithFailedControlIsAttributed is requirement (e): a datatype that wedges
+// the importer also wedges the shared controls riding the same connector, so a solo probe
+// of such a type can NEVER pass its own control gate. A blunt gate would make that finding
+// unreportable by construction. When this probe is the ONLY non-control probe in its
+// (file, mode), nothing else could have caused the control failure, so its own row is
+// ATTRIBUTED - trustworthy - even though the run's controls did not come out WORKS.
+func TestSweepSoloRunWithFailedControlIsAttributed(t *testing.T) {
+	log := `
+=== RUN   TestDatatypeSweepLive/solo
+PROBE-RESULT: CTRL-001 | int | LIVE | STUCK | importer wedged by the probe under test
+PROBE-RESULT: WEDGE-001 | poisontype | LIVE | STUCK | importer wedges on this value
+`
+	rows, err := ParseLog(strings.NewReader(log), RunMeta{}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog: %v", err)
+	}
+	byKey := map[string]Row{}
+	for _, r := range rows {
+		byKey[r.Key()] = r
+	}
+
+	wedge, ok := byKey["WEDGE-001|LIVE"]
+	if !ok {
+		t.Fatalf("no row for WEDGE-001|LIVE; got %v", byKey)
+	}
+	if wedge.RunStatus != statusAttributed {
+		t.Errorf("WEDGE-001 run_status = %q, want %q: it was the only probe in this run, so the "+
+			"control failure is attributable to it, not evidence of a broken measurement", wedge.RunStatus, statusAttributed)
+	}
+	if !isTrustedStatus(wedge.RunStatus) {
+		t.Errorf("%q must be a trusted status: an ATTRIBUTED row is real evidence, not noise", wedge.RunStatus)
+	}
+	if wedge.Verdict != "STUCK" {
+		t.Errorf("WEDGE-001 verdict = %q, want STUCK: ATTRIBUTED must not change what was observed", wedge.Verdict)
+	}
+
+	// The control's OWN row is a different story: CTRL-001 itself was never actually
+	// measured (it wedged too), so it does not get the solo carve-out - only the probe
+	// under test does.
+	if ctrl := byKey["CTRL-001|LIVE"]; ctrl.RunStatus != statusInvalid {
+		t.Errorf("CTRL-001 run_status = %q, want %q: the control itself was never measured, "+
+			"so it is not promoted even when its probe is", ctrl.RunStatus, statusInvalid)
+	}
+}
+
+// TestSweepBatchRunWithFailedControlStaysInvalid is requirement (f): three probes sharing
+// one (file, mode) whose controls failed. Any one of the three could have wedged the
+// shared channel, so the failure cannot be pinned on any single row - all three (and the
+// controls) must stay INVALID rather than being promoted.
+func TestSweepBatchRunWithFailedControlStaysInvalid(t *testing.T) {
+	log := `
+=== RUN   TestDatatypeSweepLive/batch3
+PROBE-RESULT: CTRL-001 | int | LIVE | STUCK | importer wedged
+PROBE-RESULT: A-001 | foo | LIVE | STUCK | maybe this one wedged it
+PROBE-RESULT: B-001 | bar | LIVE | WORKS | fine
+PROBE-RESULT: C-001 | baz | LIVE | WORKS | fine
+`
+	rows, err := ParseLog(strings.NewReader(log), RunMeta{}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog: %v", err)
+	}
+	if len(rows) != 4 {
+		t.Fatalf("got %d rows, want 4", len(rows))
+	}
+	for _, r := range rows {
+		if r.RunStatus != statusInvalid {
+			t.Errorf("%s run_status = %q, want %q: three non-control probes shared this run, "+
+				"so the control failure cannot be pinned on any one of them", r.Key(), r.RunStatus, statusInvalid)
+		}
+	}
+}
+
+// TestSweepBatchInvalidRowDoesNotBeatCleanRunAcrossLogs is requirement (g): the same probe
+// appears in a contaminated BATCH run (INVALID, per (f) above) in one log and in a clean
+// run in another log. The merge must keep the clean run's row.
+func TestSweepBatchInvalidRowDoesNotBeatCleanRunAcrossLogs(t *testing.T) {
+	dirty := `
+=== RUN   TestDatatypeSweepLive/batch3
+PROBE-RESULT: CTRL-001 | int | LIVE | STUCK | importer wedged
+PROBE-RESULT: A-001 | foo | LIVE | STUCK | collateral damage
+PROBE-RESULT: B-001 | bar | LIVE | WORKS | fine
+PROBE-RESULT: C-001 | baz | LIVE | WORKS | fine
+`
+	clean := `
+=== RUN   TestDatatypeSweepLive/batch3
+PROBE-RESULT: CTRL-001 | int | LIVE | WORKS | fine
+PROBE-RESULT: A-001 | foo | LIVE | WORKS | fine
+`
+	rowsDirty, err := ParseLog(strings.NewReader(dirty), RunMeta{Timestamp: "2026-08-01T00:00:00Z"}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog dirty: %v", err)
+	}
+	rowsClean, err := ParseLog(strings.NewReader(clean), RunMeta{Timestamp: "2026-08-02T00:00:00Z"}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog clean: %v", err)
+	}
+
+	merged := dedupe(append(append([]Row{}, rowsDirty...), rowsClean...))
+	var got Row
+	for _, r := range merged {
+		if r.Key() == "A-001|LIVE" {
+			got = r
+		}
+	}
+	if got.Verdict != "WORKS" || got.RunStatus != statusOK {
+		t.Errorf("merged A-001 = verdict %q run_status %q, want WORKS/%s (the clean run, not the batch-contaminated one)",
+			got.Verdict, got.RunStatus, statusOK)
+	}
+}
+
+// TestSweepBatchGateIsPerSubtestNotPerMode is requirement (h): the regression this fix
+// exists for. ONE log contains TWO batches in the SAME mode - batch A's controls fail,
+// batch B's controls pass, exactly like a real multi-batch OFFLINE log (e.g.
+// coverage/off_wave2c.log's catalogstats/exttypes/indexkeys subtests). Grouping the
+// data-derived gate by (file, mode) instead of (file, batch, mode) gets this wrong in one
+// of two directions: either A's failure contaminates B's good rows (too strict), or B's
+// pass blesses A's bad rows (too lenient, and exactly the mirror-image bug an independent
+// reimplementation of this gate produced). Neither is acceptable: A's rows must be
+// INVALID and B's rows must be OK, asserted on the specific probe rows.
+func TestSweepBatchGateIsPerSubtestNotPerMode(t *testing.T) {
+	log := `
+=== RUN   TestDatatypeSweepOffline
+=== RUN   TestDatatypeSweepOffline/batch-a
+PROBE-RESULT: CTRL-001 | int | OFFLINE | BLOCKS | control probe itself was blocked
+PROBE-RESULT: A-001 | foo | OFFLINE | BLOCKS | migration refuses to proceed
+PROBE-RESULT: A-002 | bar | OFFLINE | BLOCKS | migration refuses to proceed
+PROBE-RUN-INVALID: batch-a | OFFLINE | known-good control CTRL-001 came out BLOCKS, not WORKS
+=== RUN   TestDatatypeSweepOffline/batch-b
+PROBE-RESULT: CTRL-001 | int | OFFLINE | WORKS | fine
+PROBE-RESULT: B-001 | baz | OFFLINE | WORKS | fine
+`
+	rows, err := ParseLog(strings.NewReader(log), RunMeta{}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog: %v", err)
+	}
+	byKeyAndCategory := map[string]Row{}
+	for _, r := range rows {
+		byKeyAndCategory[r.Category+"/"+r.Key()] = r
+	}
+
+	for _, id := range []string{"A-001", "A-002"} {
+		row, ok := byKeyAndCategory["batch-a/"+id+"|OFFLINE"]
+		if !ok {
+			t.Fatalf("no row for batch-a/%s|OFFLINE; got %v", id, byKeyAndCategory)
+		}
+		if row.RunStatus != statusInvalid {
+			t.Errorf("%s (batch-a) run_status = %q, want %q: its OWN batch's control failed",
+				id, row.RunStatus, statusInvalid)
+		}
+	}
+
+	b1, ok := byKeyAndCategory["batch-b/B-001|OFFLINE"]
+	if !ok {
+		t.Fatalf("no row for batch-b/B-001|OFFLINE; got %v", byKeyAndCategory)
+	}
+	if b1.RunStatus != statusOK {
+		t.Errorf("B-001 (batch-b) run_status = %q, want %q: batch-b's OWN control passed - "+
+			"batch-a's unrelated failure in the same mode must not contaminate it", b1.RunStatus, statusOK)
+	}
+}
+
+// TestSweepSoloCountIsPerBatchNotPerMode is requirement (i): batch A has three probes with
+// failed controls (collateral, INVALID); batch B, in the SAME mode and the SAME file, has
+// exactly one probe with its own failed controls. Batch B's probe must be recognised as
+// solo WITHIN ITS OWN BATCH and come out ATTRIBUTED, even though the file as a whole has
+// more than one non-control probe across both batches - proving the solo count is scoped
+// per (batch, mode), not per (file, mode).
+func TestSweepSoloCountIsPerBatchNotPerMode(t *testing.T) {
+	log := `
+=== RUN   TestDatatypeSweepLive/batch-a
+PROBE-RESULT: CTRL-001 | int | LIVE | STUCK | importer wedged
+PROBE-RESULT: A-001 | foo | LIVE | STUCK | collateral damage
+PROBE-RESULT: A-002 | bar | LIVE | WORKS | fine
+PROBE-RESULT: A-003 | baz | LIVE | WORKS | fine
+=== RUN   TestDatatypeSweepLive/batch-b
+PROBE-RESULT: CTRL-001 | int | LIVE | STUCK | importer wedged by the solo probe under test
+PROBE-RESULT: WEDGE-001 | poisontype | LIVE | STUCK | importer wedges on this value
+`
+	rows, err := ParseLog(strings.NewReader(log), RunMeta{}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog: %v", err)
+	}
+	byKeyAndCategory := map[string]Row{}
+	for _, r := range rows {
+		byKeyAndCategory[r.Category+"/"+r.Key()] = r
+	}
+
+	for _, id := range []string{"A-001", "A-002", "A-003"} {
+		row, ok := byKeyAndCategory["batch-a/"+id+"|LIVE"]
+		if !ok {
+			t.Fatalf("no row for batch-a/%s|LIVE; got %v", id, byKeyAndCategory)
+		}
+		if row.RunStatus != statusInvalid {
+			t.Errorf("%s (batch-a, 3 probes) run_status = %q, want %q: the failure cannot be pinned "+
+				"on any one of three probes sharing the batch", id, row.RunStatus, statusInvalid)
+		}
+	}
+
+	wedge, ok := byKeyAndCategory["batch-b/WEDGE-001|LIVE"]
+	if !ok {
+		t.Fatalf("no row for batch-b/WEDGE-001|LIVE; got %v", byKeyAndCategory)
+	}
+	if wedge.RunStatus != statusAttributed {
+		t.Errorf("WEDGE-001 (batch-b, solo) run_status = %q, want %q: it is the sole probe in ITS OWN "+
+			"batch, even though batch-a (same file, same mode) has three - the solo count must be per "+
+			"batch, not per (file, mode)", wedge.RunStatus, statusAttributed)
+	}
+}
+
+// TestSweepDedupePreferenceOrder is requirement (c): the three-step preference dedupe uses
+// to pick a winner between two rows sharing a (probe_id, mode) key, tested directly against
+// preferRow so each rule is pinned in isolation.
+func TestSweepDedupePreferenceOrder(t *testing.T) {
+	cases := []struct {
+		name            string
+		incumbent       Row
+		candidate       Row
+		wantCandWins    bool
+		wantCandWinsWhy string
+	}{
+		{
+			name:            "trust beats a later, more severe verdict",
+			incumbent:       Row{Verdict: "WORKS", RunStatus: statusOK, RunTimestamp: "2026-01-01T00:00:00Z"},
+			candidate:       Row{Verdict: "SILENT_LOSS", RunStatus: statusInvalid, RunTimestamp: "2099-01-01T00:00:00Z"},
+			wantCandWins:    false,
+			wantCandWinsWhy: "a WORKS row from a passing run must never be displaced by a failing row from a run that didn't pass its own gate, no matter when the failing row was parsed",
+		},
+		{
+			name:            "trust beats an earlier verdict too, in the other direction",
+			incumbent:       Row{Verdict: "SILENT_LOSS", RunStatus: statusInvalid, RunTimestamp: "2099-01-01T00:00:00Z"},
+			candidate:       Row{Verdict: "WORKS", RunStatus: statusOK, RunTimestamp: "2026-01-01T00:00:00Z"},
+			wantCandWins:    true,
+			wantCandWinsWhy: "a trustworthy row replaces an untrustworthy one even if it is chronologically older",
+		},
+		{
+			name:            "ATTRIBUTED is trusted, same as OK",
+			incumbent:       Row{Verdict: "STUCK", RunStatus: statusInvalid, RunTimestamp: "2026-01-01T00:00:00Z"},
+			candidate:       Row{Verdict: "STUCK", RunStatus: statusAttributed, RunTimestamp: "2026-01-01T00:00:00Z"},
+			wantCandWins:    true,
+			wantCandWinsWhy: "ATTRIBUTED must be trusted everywhere OK is trusted",
+		},
+		{
+			name:            "an observation beats INCONCLUSIVE at equal trust",
+			incumbent:       Row{Verdict: "INCONCLUSIVE", RunStatus: statusOK, RunTimestamp: "2026-01-01T00:00:00Z"},
+			candidate:       Row{Verdict: "STUCK", RunStatus: statusOK, RunTimestamp: "2020-01-01T00:00:00Z"},
+			wantCandWins:    true,
+			wantCandWinsWhy: "an actual observation beats \"we could not tell\", even one recorded earlier",
+		},
+		{
+			name:            "INCONCLUSIVE does not beat an observation at equal trust",
+			incumbent:       Row{Verdict: "STUCK", RunStatus: statusOK, RunTimestamp: "2020-01-01T00:00:00Z"},
+			candidate:       Row{Verdict: "INCONCLUSIVE", RunStatus: statusOK, RunTimestamp: "2099-01-01T00:00:00Z"},
+			wantCandWins:    false,
+			wantCandWinsWhy: "a later INCONCLUSIVE must not displace an earlier real observation",
+		},
+		{
+			name:            "later run_timestamp wins the final tiebreak",
+			incumbent:       Row{Verdict: "WORKS", RunStatus: statusOK, RunTimestamp: "2026-01-01T00:00:00Z"},
+			candidate:       Row{Verdict: "SILENT_LOSS", RunStatus: statusOK, RunTimestamp: "2026-06-01T00:00:00Z"},
+			wantCandWins:    true,
+			wantCandWinsWhy: "a later re-run supersedes what it re-ran, even to a worse verdict - that is a deliberate rule, not the SQLSTATE bug",
+		},
+		{
+			name:            "a tied timestamp (same log) keeps the later-parsed row",
+			incumbent:       Row{Verdict: "WORKS", RunStatus: statusOK, RunTimestamp: "2026-01-01T00:00:00Z"},
+			candidate:       Row{Verdict: "SILENT_LOSS", RunStatus: statusOK, RunTimestamp: "2026-01-01T00:00:00Z"},
+			wantCandWins:    true,
+			wantCandWinsWhy: "same-timestamp rows come from the same log, and the later one in parse order is the final attempt",
+		},
+		{
+			name: "SQLSTATE presence is not a tiebreaker",
+			incumbent: Row{Verdict: "SILENT_LOSS", RunStatus: statusOK, RunTimestamp: "2026-01-01T00:00:00Z",
+				SQLState: "0A000"},
+			candidate:       Row{Verdict: "SILENT_LOSS", RunStatus: statusOK, RunTimestamp: "2026-01-01T00:00:00Z"},
+			wantCandWins:    true,
+			wantCandWinsWhy: "the candidate has no SQLSTATE at all, yet still wins the tied timestamp - carrying a SQLSTATE must give a row no edge, in either direction",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := preferRow(tc.incumbent, tc.candidate); got != tc.wantCandWins {
+				t.Errorf("preferRow(incumbent, candidate) = %v, want %v: %s", got, tc.wantCandWins, tc.wantCandWinsWhy)
+			}
+		})
+	}
+}
+
+// TestSweepPoisonSurvivesTheDataDerivedGate is requirement (d), the POISON half: a
+// poison-isolation run's control gate is N/A by design (its whole point is a control
+// probe dying next to a deliberately poisonous one), so the Defect 2 data-derived gate -
+// which would otherwise treat that exact shape as an untrustworthy run - must never
+// overwrite a marker-declared POISON status. POISON must also be trusted the same as OK
+// in the dedupe merge preference.
+func TestSweepPoisonSurvivesTheDataDerivedGate(t *testing.T) {
+	log := `
+=== RUN   TestDatatypeSweepLive/poison
+PROBE-RESULT: CTRL-001 | int | LIVE | STUCK | importer wedged by the poison probe
+PROBE-RESULT: POISON-001 | badtype | LIVE | BLOCKS | deliberate poison probe
+PROBE-RUN-POISON: poison | LIVE | deliberate poison probe in this batch; control gate N/A
+`
+	rows, err := ParseLog(strings.NewReader(log), RunMeta{}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog: %v", err)
+	}
+	byKey := map[string]Row{}
+	for _, r := range rows {
+		byKey[r.Key()] = r
+	}
+	for _, key := range []string{"CTRL-001|LIVE", "POISON-001|LIVE"} {
+		if got := byKey[key].RunStatus; got != statusPoison {
+			t.Errorf("%s run_status = %q, want %q: the data-derived gate must not override a marker-declared POISON run",
+				key, got, statusPoison)
+		}
+	}
+
+	// POISON must be trusted like OK for the merge: an INVALID row for the same probe,
+	// even a chronologically later one, must not displace it.
+	laterInvalid := Row{ProbeID: "POISON-001", Mode: "LIVE", Verdict: "SILENT_LOSS",
+		RunStatus: statusInvalid, RunTimestamp: "2099-01-01T00:00:00Z"}
+	if preferRow(byKey["POISON-001|LIVE"], laterInvalid) {
+		t.Error("an INVALID row must not displace a trusted POISON row in the dedupe merge")
+	}
+}
+
+// TestSweepPublishableSurvivesTheDataDerivedGate is requirement (d), the PROBE-PUBLISHABLE
+// half, exercised together with a solo-run data-derived gate rather than the marker-only
+// scenario the older TestPublishableMarker* tests cover: the promotion must win even when
+// the data-derived gate (not just the marker) is what put the row at risk.
+func TestSweepPublishableSurvivesTheDataDerivedGate(t *testing.T) {
+	log := `
+=== RUN   TestDatatypeSweepLive/domains
+PROBE-RESULT: CTRL-001 | int | LIVE | INCONCLUSIVE | the exporter died before this probe was measured
+PROBE-RESULT: DOM-005 | domain(enum) | LIVE | EXPORTER_CRASHES | the export side died
+PROBE-PUBLISHABLE: DOM-005 | LIVE | EXPORTER_CRASHES | the exporter died with a quotable cause attributed to this probe
+`
+	// Deliberately NO PROBE-RUN-INVALID marker line: only the data-derived gate is in play.
+	rows, err := ParseLog(strings.NewReader(log), RunMeta{}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog: %v", err)
+	}
+	byKey := map[string]Row{}
+	for _, r := range rows {
+		byKey[r.Key()] = r
+	}
+	dom, ok := byKey["DOM-005|LIVE"]
+	if !ok {
+		t.Fatalf("no row for DOM-005|LIVE; got %v", byKey)
+	}
+	// Without the PUBLISHABLE marker this row would land on ATTRIBUTED (solo run, dead
+	// control) rather than INVALID - but PUBLISHABLE promotes explicitly to OK, and that
+	// promotion must still win.
+	if dom.RunStatus != statusOK {
+		t.Errorf("DOM-005 run_status = %q, want %q: PROBE-PUBLISHABLE must promote to OK even when "+
+			"the data-derived gate (not the marker) is what put the row at risk", dom.RunStatus, statusOK)
+	}
+}
+
+// TestSweepCollectAcceptsRepeatedLogFlag exercises the actual `collect` CLI surface for
+// Defect 1: -log is now flag.Var-backed and repeatable, rather than a single flag.String
+// that forced callers to `cat` logs together (which destroys the run boundary ParseLog's
+// gate relies on). Two real files, one dirty and one clean, must merge the same way the
+// lower-level ParseLog+dedupe tests above already verified.
+func TestSweepCollectAcceptsRepeatedLogFlag(t *testing.T) {
+	dir := t.TempDir()
+	logA := filepath.Join(dir, "a.log")
+	logB := filepath.Join(dir, "b.log")
+	writeLog(t, logA, `
+=== RUN   TestDatatypeSweepLive/mixed
+PROBE-RESULT: CTRL-001 | int | LIVE | STUCK | importer wedged
+PROBE-RESULT: RANGE-001 | int4range | LIVE | SILENT_LOSS | value dropped
+PROBE-RESULT: OTHER-001 | foo | LIVE | WORKS | fine
+PROBE-RUN-INVALID: mixed | LIVE | control failed
+`)
+	writeLog(t, logB, `
+=== RUN   TestDatatypeSweepLive/mixed
+PROBE-RESULT: CTRL-001 | int | LIVE | WORKS | fine
+PROBE-RESULT: RANGE-001 | int4range | LIVE | WORKS | fine
+`)
+
+	out := filepath.Join(dir, "out.csv")
+	if err := cmdCollect([]string{"-log", logA, "-log", logB, "-out", out}); err != nil {
+		t.Fatalf("cmdCollect: %v", err)
+	}
+	got := readRow(t, out, "RANGE-001|LIVE")
+	if got.Verdict != "WORKS" || got.RunStatus != statusOK {
+		t.Errorf("collect -log %s -log %s: RANGE-001 = verdict %q run_status %q, want WORKS/%s",
+			logA, logB, got.Verdict, got.RunStatus, statusOK)
+	}
+}
+
+// TestSweepCollectLogsGlobMergesFiles covers the -logs glob form of Defect 1, and that it
+// composes with a single -log path rather than replacing it.
+func TestSweepCollectLogsGlobMergesFiles(t *testing.T) {
+	dir := t.TempDir()
+	writeLog(t, filepath.Join(dir, "run-1.log"), `
+=== RUN   TestDatatypeSweepLive/mixed
+PROBE-RESULT: CTRL-001 | int | LIVE | STUCK | importer wedged
+PROBE-RESULT: RANGE-001 | int4range | LIVE | SILENT_LOSS | value dropped
+PROBE-RESULT: OTHER-001 | foo | LIVE | WORKS | fine
+PROBE-RUN-INVALID: mixed | LIVE | control failed
+`)
+	extra := filepath.Join(dir, "extra.log")
+	writeLog(t, extra, `
+=== RUN   TestDatatypeSweepLive/mixed
+PROBE-RESULT: CTRL-001 | int | LIVE | WORKS | fine
+PROBE-RESULT: RANGE-001 | int4range | LIVE | WORKS | fine
+`)
+
+	out := filepath.Join(dir, "out.csv")
+	glob := filepath.Join(dir, "run-*.log")
+	if err := cmdCollect([]string{"-logs", glob, "-log", extra, "-out", out}); err != nil {
+		t.Fatalf("cmdCollect: %v", err)
+	}
+	got := readRow(t, out, "RANGE-001|LIVE")
+	if got.Verdict != "WORKS" || got.RunStatus != statusOK {
+		t.Errorf("collect -logs %s -log %s: RANGE-001 = verdict %q run_status %q, want WORKS/%s",
+			glob, extra, got.Verdict, got.RunStatus, statusOK)
+	}
+}
+
+func writeLog(t *testing.T, path, contents string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
+		t.Fatalf("writing %s: %v", path, err)
+	}
+}
+
+func readRow(t *testing.T, csvPath, key string) Row {
+	t.Helper()
+	rows, err := ReadCSV(csvPath)
+	if err != nil {
+		t.Fatalf("ReadCSV %s: %v", csvPath, err)
+	}
+	for _, r := range rows {
+		if r.Key() == key {
+			return r
+		}
+	}
+	t.Fatalf("no row for %s in %s", key, csvPath)
+	return Row{}
 }
 
 func TestWriteReportCSVHasOneRowPerProbe(t *testing.T) {

@@ -50,3 +50,6 @@ yb-voyager/test/cdcbench/artifacts/
 # datatype sweep artefacts (regenerable; see yb-voyager/src/testlivemigration/DATATYPE_SWEEP.md)
 datatype-sweep-results/
 yb-voyager/src/testlivemigration/results/
+
+# `go build` in the sweepreport dir drops a 3.7 MB binary named after its package.
+yb-voyager/src/testlivemigration/sweepreport/sweepreport

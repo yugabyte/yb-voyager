@@ -128,6 +128,59 @@ and `sweepreport collect` marks every row from that batch `run_status=INVALID`. 
 excludes such rows from both sides, so an invalid run cannot manufacture a phantom
 regression. The runner script greps for the line and shouts about it at the end.
 
+### The gate is derived from the rows, not just the marker line
+
+`collect` does not rely on the `PROBE-RUN-INVALID` line alone. It also reads the `CTRL-*`
+verdicts in each run and applies the gate itself, taking whichever signal is stronger.
+
+The marker line only attaches if its `<batch> | <mode>` key matches the key recorded for
+the rows. When those disagreed — a solo run whose subtest name did not match — rows from
+runs whose controls had *failed* came out `run_status=OK` and were published as findings.
+Deriving the gate from the data as well makes the key a redundancy rather than a
+single point of failure.
+
+**The group key is `(log file, batch, mode)`, and it must stay that precise.** One log
+file can hold several batches in the same mode:
+
+```
+=== RUN   TestDatatypeSweepOffline/catalogstats     <- controls failed
+=== RUN   TestDatatypeSweepOffline/exttypes         <- controls passed
+=== RUN   TestDatatypeSweepOffline/indexkeys        <- controls passed
+```
+
+Grouping by `(file, mode)` lets one batch's outcome contaminate its neighbours in
+whichever direction the implementation happens to lean: too strict discards 29 good
+`exttypes` measurements, too lenient publishes the spoiled `catalogstats` ones. Both
+mistakes were made, in two different implementations, before the key was tightened.
+
+### `ATTRIBUTED`: why a blunt gate deletes the findings that matter
+
+A datatype that wedges the importer wedges **the controls too** — they share the channel.
+So a run probing such a type can never pass its own gate, and under a blunt gate
+*"this datatype kills the importer"* is unreportable **by construction**. That is exactly
+backwards for a suite whose job is finding such types. It silently suppressed 44 real
+import failures, including the whole hex-encoding family (`tid`, `regclass`,
+`regnamespace`).
+
+The resolution is to ask what *else* could have caused the failure:
+
+| Run shape | Controls | Verdict is | Why |
+| --- | --- | --- | --- |
+| any | survived | `OK` | nothing to explain away |
+| **solo** — exactly one non-control probe in that `(file, batch, mode)` | died | `ATTRIBUTED` | nothing else could have done it; the control's death is the expected consequence of the probe under test |
+| **batch** — two or more | died | `INVALID` | any one of them could have wedged the channel, so it cannot be pinned on a particular probe |
+
+`ATTRIBUTED` is trusted everywhere `OK` is. Two constraints on it:
+
+- **It never promotes a control.** A control is instrumentation, never a subject, so
+  "nothing else could have caused this" does not apply to it. Without that carve-out a
+  solo run's dead control gets published as a finding about `int`, and the report ends up
+  claiming PostgreSQL integers do not migrate. That shipped once.
+- **Solo is counted per batch**, not per file — see the group-key note above.
+
+If you are tempted to simplify this back to a single boolean gate: don't. It reads as
+tighter rigour and is in fact a silent deletion of the harness's most important output.
+
 Related markers:
 
 - `PROBE-RUN-FLAKE` — the export never reached streaming mode, or probes came out
@@ -294,6 +347,46 @@ string behind:
 | `guardrail_action_fallback` | `srcdb.GetYugabyteUnsupportedDatatypesDbzm(false)` and the gRPC list, for `export data from target` |
 | `reported_by_docs` | **hardcoded** (`docsUnsupportedTypes`), with the doc URL beside it — the only column that cannot be derived |
 
+### The published page's label vocabulary
+
+`sweepreport/page/build_page.py` renders the page. Its labels are deliberately NOT the
+suite's verdict names, because a reader of the page is asking a different question than a
+reader of the CSV. Two tiers, and the tier is the point:
+
+**Tier 1 — what happened to the data.** Each label names the *process* that fails, because
+"blocks" never said whether the importer or the exporter dies, and those page different
+people.
+
+| Suite verdict | Page label |
+| --- | --- |
+| `WORKS` | Works |
+| `QUIET_DROP` | Column dropped |
+| `SILENT_WRONG` | Wrong value |
+| `SILENT_LOSS` | Data lost |
+| `BLOCKS`, `STUCK` | Import stops |
+| `EXPORTER_CRASHES` | Export crashes |
+| `SKIPPED` (target refused) | Target rejects type |
+| `SKIPPED` (source refused) | Source rejects value |
+
+**Tier 2 — what we could not find out.** Never a verdict, and never to be read as one.
+
+| Situation | Page label |
+| --- | --- |
+| this type stops the forward migration, so the mode was unreachable | Not reachable |
+| another type in the same run broke it first; not attributable | Not measured |
+| run was healthy but produced no events and no error | No result |
+| never attempted | Not run |
+
+**The order of the checks in `cell()` is load-bearing.** Gate first, *then* the type's own
+result. Checking a verdict before the gate is what published 87 spoiled runs as a finding
+called "Cutover fails" — a label that asserted a cause the run had never established. A
+cutover timeout is now never a verdict about a type: either the type's own live failure
+explains it (**Not reachable**) or nothing does (**Not measured**).
+
+The control probes are **excluded from the type table** and rendered as a self-check line
+instead. They are instrumentation, not subjects; listing them as rows told readers that
+`int` and `text` do not migrate.
+
 A probe may pin any of the first three, plus the docs column, with the optional
 `ReportedByAssess` / `ReportedByAnalyze` / `GuardrailAction` / `ReportedByDocs` fields.
 **Empty means derive**, which is right for almost every probe. A pinned cell is rendered
@@ -328,7 +421,7 @@ newer differ.
 | `verdict` | the vocabulary above |
 | `evidence` | the classifier's reason: the diff, the repeated import error, the warning text |
 | `source_value`, `target_value` | verbatim value on each side, from the harness's own `PROBE-VALUES:` line (a structured field, not scraped out of the prose evidence). Pipes, newlines and tabs are escaped reversibly so a value containing one is recorded rather than rewritten |
-| `run_status` | `OK` / `INVALID` / `FLAKE` / `POISON` — **anything but `OK` must not be published**. One row per run can be `OK` inside an `INVALID` run: an attributed export death, promoted by its `PROBE-PUBLISHABLE` line |
+| `run_status` | `OK` / `ATTRIBUTED` / `POISON` are trustworthy; `INVALID` / `FLAKE` **must not be published**. `ATTRIBUTED` is a solo run whose controls died as collateral of the one probe under test (see the control-gate section). One row per run can also be trusted inside an `INVALID` run: an attributed export death, promoted by its `PROBE-PUBLISHABLE` line |
 | `sqlstate` | the SQLSTATE from the importer error, when there was one. `import data` failures carry the real database error (`importAbortReason`), so a diff can report "same verdict, different SQLSTATE" — the shape a fix that only *moved* the error takes |
 
 ### Reading a diff

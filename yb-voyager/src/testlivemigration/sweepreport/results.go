@@ -72,14 +72,61 @@ var csvHeader = []string{
 	"sqlstate",
 }
 
-// Run status values. Anything other than statusOK means the run that produced the row
-// did not satisfy the harness's own gates, so the verdict must not be published.
+// Run status values. Anything other than statusOK/statusAttributed means the run that
+// produced the row did not satisfy the harness's own gates, so the verdict must not be
+// published.
 const (
 	statusOK      = "OK"      // controls passed, no flake marker
 	statusInvalid = "INVALID" // a known-good control did not come out WORKS
 	statusFlake   = "FLAKE"   // export never streamed, or probes came out INCONCLUSIVE
 	statusPoison  = "POISON"  // deliberate poison-isolation run; control gate N/A
+
+	// statusAttributed is the other side of the control gate's most important exception.
+	//
+	// A datatype that wedges the importer (or the exporter) also wedges the shared
+	// CONTROLS running in the same batch - CTRL-001/CTRL-002 ride the same connector and
+	// the same import pipeline as every other probe in the run. So a run that probes such
+	// a type can NEVER pass its own control gate: the very thing worth finding makes the
+	// gate fail. Under a gate that treats every control failure as "untrustworthy run",
+	// that finding is unreportable by construction - which is exactly backwards for a tool
+	// whose entire job is finding types that do this.
+	//
+	// The fix asks what ELSE could have caused the control failure, which depends on the
+	// run's shape:
+	//   - a SOLO run (this probe is the only non-control probe in its go-test subtest, i.e.
+	//     its (batch, mode)) has no other suspect. The controls dying is the expected
+	//     consequence of the probe under test, not evidence of a broken harness, so the
+	//     verdict is ATTRIBUTED: trustworthy, but flagged as reached via the solo carve-out
+	//     rather than a clean gate pass.
+	//   - a BATCH run (two or more non-control probes sharing the run) has no way to pin
+	//     the failure on any one of them, so it stays statusInvalid: collateral damage,
+	//     not attributable to any single probe's row.
+	//
+	// DO NOT collapse this back into a blunt "any control failure -> INVALID" gate. That
+	// was tried; it silently discarded every solo-probe finding of exactly the kind this
+	// harness exists to surface (measured in production: ~96 rows). If a future reader
+	// looks at this and wants to "simplify", the simplification is the bug.
+	statusAttributed = "ATTRIBUTED"
 )
+
+// isTrustedStatus reports whether a row's run_status means the measurement stands: either
+// the run's gate genuinely passed (OK), the row was reached through the one carve-out that
+// pins a control failure on the sole probe that could have caused it (ATTRIBUTED), or the
+// gate does not apply (POISON, a deliberate poison-isolation run). INVALID and FLAKE are
+// the only untrustworthy statuses. Used wherever "OK" alone used to be the bar - the merge
+// preference in dedupe, most notably - so that a trustworthy row is never displaced by an
+// untrustworthy one just because the latter happens to carry a different label than OK.
+//
+// An EMPTY status counts as trusted. ParseLog never produces one (Row is built with
+// statusOK and the gates only ever narrow it), but ReadCSV can: a results CSV written
+// before this column existed, or one edited by hand, leaves the field blank. "Absent"
+// has always meant "no gate ever objected" - the report generator reads it that way too
+// (`run_status or "OK"` in page/build_page.py) - and treating blank as UNtrusted here
+// instead would make `diff` silently drop every row of such a CSV, reporting a clean
+// no-change run where the truth is that nothing was compared at all.
+func isTrustedStatus(status string) bool {
+	return status == "" || status == statusOK || status == statusPoison || status == statusAttributed
+}
 
 // Row is one measured (probe, mode) pair.
 type Row struct {
@@ -303,16 +350,95 @@ func ParseLog(r io.Reader, meta RunMeta, categoryFor func(probeID string) string
 		return nil, fmt.Errorf("reading test log: %w", err)
 	}
 
+	// The marker line's key (<batch>|<mode>, copied by the harness into text) can
+	// silently fail to match rowBatch's key built from the "=== RUN" line - a batch-name
+	// formatting difference between the two lines has been observed in practice - and
+	// when the keys don't match, a run whose control genuinely failed is left at
+	// run_status=OK because runStatus[rowBatch[i]] simply misses. A silent miss like that
+	// is worse than a marker that never fires at all: nothing downstream can tell the
+	// difference between "the gate passed" and "the gate never ran".
+	//
+	// So the gate is ALSO derived straight from the row data, which cannot go out of sync
+	// with itself the way two independently-formatted strings can: for each (batch, mode)
+	// group, if any of that group's CTRL-* rows came out something other than WORKS, every
+	// row in the group is untrustworthy - marker or no marker, matching key or not. A
+	// SKIPPED control is not a failure (it means the mode was never exercised, which is a
+	// coverage fact, not a broken measurement), so it is ignored here.
+	//
+	// The group key is rowBatch[i] - the SAME "<batch>|<mode>" key the marker gate already
+	// uses, built from the row's own "=== RUN" attribution rather than from a marker line's
+	// text. This has to be (file, batch, mode), not (file, mode): a single log routinely
+	// contains SEVERAL batches in the same mode (e.g. three "=== RUN
+	// TestDatatypeSweepOffline/<batch>" subtests in one OFFLINE log), each batch its own
+	// go-test subtest with its own control probes. Grouping by mode alone was tried and is
+	// wrong in BOTH directions: a bad batch's failure would contaminate its unrelated
+	// neighbours in the same mode (discarding good measurements), or - if the gate instead
+	// only required ONE passing control anywhere in the mode - a spoiled batch could be
+	// blessed by a clean neighbour's controls (publishing bad ones). Keying on the same
+	// per-row batch attribution the marker gate uses keeps each subtest's verdict from
+	// leaking into any other subtest's, in either direction.
+	//
+	// Rows with no recorded batch (curBatch == "", e.g. a hand-trimmed fixture or a stdin
+	// fragment with no "=== RUN" line at all) get rowBatch[i] == "|"+mode for every such
+	// row, which groups them together by mode alone rather than merging them into whatever
+	// real batch happens to be currently open - this is the deliberate, documented fallback
+	// for that degenerate case, not an oversight.
+	//
+	// A control dying is not always collateral damage, though: see statusAttributed's doc
+	// for the SOLO-run carve-out this gate must make before it lands on statusInvalid. That
+	// needs to know how many DISTINCT non-control probes shared this (batch, mode) group -
+	// one means there was nothing else that could have caused the control failure, two or
+	// more means the failure cannot be pinned on any single one of them. This count is
+	// PER GROUP: a 3-probe batch is never "solo" just because it shares a file with two
+	// other batches in the same mode.
+	ctrlBad := map[string]bool{}                  // "<batch>|<mode>" -> a CTRL-* row in that group failed
+	nonCtrlProbes := map[string]map[string]bool{} // "<batch>|<mode>" -> set of distinct non-CTRL-* probe ids
+	for i, r := range rows {
+		key := rowBatch[i]
+		if strings.HasPrefix(r.ProbeID, "CTRL-") {
+			if r.Verdict != "WORKS" && r.Verdict != "SKIPPED" {
+				ctrlBad[key] = true
+			}
+			continue
+		}
+		if nonCtrlProbes[key] == nil {
+			nonCtrlProbes[key] = map[string]bool{}
+		}
+		nonCtrlProbes[key][r.ProbeID] = true
+	}
+
 	for i := range rows {
 		if st, ok := runStatus[rowBatch[i]]; ok {
 			rows[i].RunStatus = st
 		}
-		// The carve-out, applied AFTER the run status so it can override it. An
-		// attributed export death is the finding rather than a broken measurement, and
-		// the controls going inconclusive is a consequence of it - so that one row is
-		// publishable even though its run is not. It promotes only the exact
-		// (probe, mode, verdict) the harness named; every other row from the run keeps
-		// the run's status and stays out of the report and the differ.
+		// The data-derived gate, applied after the marker so it can catch what the marker
+		// missed - but never applied to a POISON run: a poison-isolation run's control
+		// gate is N/A by design (see statusPoison), so a control coming out non-WORKS
+		// there is expected, not evidence the run is untrustworthy.
+		//
+		// Three-way, not binary: when this (batch, mode) group had exactly one non-control
+		// probe, that probe was the ONLY thing that could have caused its controls to die,
+		// so ITS row is ATTRIBUTED rather than INVALID - see statusAttributed. The controls'
+		// OWN rows do not get this promotion even in that case: CTRL-001/002 still came out
+		// something other than WORKS, so they were never actually measured and stay
+		// INVALID, exactly as they would in a run with no carve-out at all. Two or more
+		// non-control probes means the failure cannot be pinned on any one of them, so
+		// nothing in that group is attributable: everything stays INVALID.
+		group := rowBatch[i]
+		if rows[i].RunStatus != statusPoison && ctrlBad[group] {
+			if !strings.HasPrefix(rows[i].ProbeID, "CTRL-") && len(nonCtrlProbes[group]) == 1 {
+				rows[i].RunStatus = statusAttributed
+			} else {
+				rows[i].RunStatus = statusInvalid
+			}
+		}
+		// The PROBE-PUBLISHABLE carve-out, applied AFTER both run-status signals so it can
+		// override either of them. An attributed export death is the finding rather than a
+		// broken measurement, and the controls going inconclusive is a consequence of it -
+		// so that one row is publishable even though its run (and its mode, under the
+		// data-derived gate above) is not. It promotes only the exact (probe, mode,
+		// verdict) the harness named; every other row from the run keeps its status and
+		// stays out of the report and the differ.
 		if v, ok := publishable[rows[i].Key()]; ok && v == rows[i].Verdict {
 			rows[i].RunStatus = statusOK
 		}
@@ -411,14 +537,46 @@ func sqlStateOf(detail string) string {
 	return m[1]
 }
 
-// dedupe keeps the LAST row for a key. A re-run of a batch inside the same log (the
-// harness re-runs a flaked batch) should be represented by its final attempt.
+// dedupe collapses a row set down to one row per (probe_id, mode) key, keeping the BEST
+// row for that key rather than blindly keeping whichever one was seen first or last.
+//
+// This one function merges two different situations under one rule:
+//   - reruns WITHIN one log (the harness re-runs a batch that flaked), and
+//   - independent runs ACROSS MULTIPLE logs supplied to `collect` (see the collect -log /
+//     -logs flags): each log is parsed on its own by its own ParseLog call, and the
+//     per-file row sets are concatenated and land here to be merged.
+//
+// The preference order, evaluated in this sequence and stopping at the first strict
+// winner - see preferRow:
+//
+//  1. A trustworthy row beats an untrustworthy one (isTrustedStatus). This is the fix for
+//     the historical bug here: dedupe used to do `out[i] = r` unconditionally on a repeat
+//     key, so whichever row was parsed LAST won regardless of quality - a row from a run
+//     whose controls FAILED could silently overwrite a row from a run whose controls
+//     PASSED. A WORKS verdict from a clean run must never be displaced by a worse verdict
+//     from a run that did not pass its own gate, no matter which one was parsed later.
+//  2. Between two rows of equal trust, an actual observation beats "we could not tell": a
+//     non-INCONCLUSIVE verdict wins over INCONCLUSIVE.
+//  3. Otherwise the row with the later (or equal) run_timestamp wins - a re-run supersedes
+//     what it re-ran. Rows from the same log share a timestamp, so on a true tie this falls
+//     back to "the later one in parse order wins", which is exactly the within-log rerun
+//     behavior dedupe has always had.
+//
+// Deliberately absent: any preference keyed on SQLState, and any preference for a FAILURE
+// over a WORKS. An earlier version of this merge preferred whichever row carried a
+// SQLSTATE, on the theory that a row with more detail is more informative - but SQLSTATE
+// only appears on failures, so that rule quietly rewrote "keep the best evidence" into
+// "keep the worst outcome": every probe's merged row became its worst run instead of its
+// representative one. Do not resurrect that rule.
 func dedupe(rows []Row) []Row {
 	idx := map[string]int{}
 	var out []Row
 	for _, r := range rows {
 		if i, seen := idx[r.Key()]; seen {
-			out[i] = r
+			if preferRow(out[i], r) {
+				out[i] = r // rows move WHOLE: never splice a verdict from one row onto
+				// the run_status or sqlstate of another.
+			}
 			continue
 		}
 		idx[r.Key()] = len(out)
@@ -431,6 +589,23 @@ func dedupe(rows []Row) []Row {
 		return out[i].Mode < out[j].Mode
 	})
 	return out
+}
+
+// preferRow reports whether candidate should replace incumbent under the same
+// (probe_id, mode) key. See dedupe for the full rule and why it is ordered this way.
+func preferRow(incumbent, candidate Row) bool {
+	incTrusted, candTrusted := isTrustedStatus(incumbent.RunStatus), isTrustedStatus(candidate.RunStatus)
+	if incTrusted != candTrusted {
+		return candTrusted
+	}
+
+	incInconclusive := strings.EqualFold(incumbent.Verdict, "INCONCLUSIVE")
+	candInconclusive := strings.EqualFold(candidate.Verdict, "INCONCLUSIVE")
+	if incInconclusive != candInconclusive {
+		return !candInconclusive
+	}
+
+	return candidate.RunTimestamp >= incumbent.RunTimestamp
 }
 
 // ============================================================
