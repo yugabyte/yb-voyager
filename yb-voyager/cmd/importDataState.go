@@ -989,7 +989,7 @@ func (batch *Batch) MarkError(batchErr error, isPartialBatchIngestionPossible bo
 	}
 	err = file.Close()
 	if err != nil {
-		return goerrors.Errorf("close %q after appending error: %s", batch.FilePath, err)
+		return goerrors.Errorf("close %q after appending error: %w", batch.FilePath, err)
 	}
 	return nil
 }
