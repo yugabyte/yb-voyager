@@ -278,7 +278,7 @@ func runWorkload(b *testing.B, w Workload, hooks Hooks) workloadResult {
 			depthAvgSum += int64(sum / len(samples))
 		}
 
-		os.RemoveAll(runDir)
+		_ = os.RemoveAll(runDir) // best-effort bench-run cleanup
 	}
 
 	// benchstat-compatible metrics: totals normalized per iteration ("op" =

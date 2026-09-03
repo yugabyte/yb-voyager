@@ -686,7 +686,8 @@ func (eb *EventBatch) GetQueriesToInsertEventStatsByTable(migrationUUID uuid.UUI
 
 func (eb *EventBatch) GetTableNames() []sqlname.NameTuple {
 	tablenames := []sqlname.NameTuple{}
-	eb.EventCountsByTable.IterKV(func(nt sqlname.NameTuple, ec *EventCounter) (bool, error) {
+	// the callback never returns an error
+	_ = eb.EventCountsByTable.IterKV(func(nt sqlname.NameTuple, ec *EventCounter) (bool, error) {
 		tablenames = append(tablenames, nt)
 		return true, nil
 	})

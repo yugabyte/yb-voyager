@@ -109,7 +109,9 @@ func cutoverInitiatedAndCutoverEventProcessed() (bool, error) {
 }
 
 func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple, tableToPKColumns *utils.StructMap[sqlname.NameTuple, []string], tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]) error {
-	waitForDebeziumStartIfRequired()
+	if err := waitForDebeziumStartIfRequired(); err != nil {
+		return fmt.Errorf("waiting for debezium to start: %w", err)
+	}
 	importPhase = dbzm.MODE_STREAMING
 	utils.PrintAndLogfInfo("streaming changes to %s...", tconf.TargetDBType)
 	streamingPhaseValueConverter, err := dbzm.NewStreamingPhaseDebeziumValueConverter(tableNames, exportDir, tconf, importerRole, sourceDBType)
@@ -636,7 +638,7 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 // This path assumes that the column name remains same in PG->YB migrations.
 func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, sourceDBTypeForConflictCache string, importTableList []sqlname.NameTuple, tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], tableToPKColumns *utils.StructMap[sqlname.NameTuple, []string], tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]) error {
 
-	// For custom-key tables the primary key must join the unique indexes to be able to detect PK-recycle races. 
+	// For custom-key tables the primary key must join the unique indexes to be able to detect PK-recycle races.
 	// GetTableToUniqueIndexesMap deliberately excludes the primary key (filters out contype='p'): under default pk routing,
 	// same-PK events always co-locate on one channel, so a recycled PK
 	// example - table(id pk, c1 unique) partition-key (c1)

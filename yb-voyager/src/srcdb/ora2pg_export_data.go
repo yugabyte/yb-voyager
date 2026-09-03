@@ -45,7 +45,8 @@ func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir stri
 	conf := getDefaultOra2pgConfig(source)
 	conf.DisablePartition = "1"
 	conf.Allow = fmt.Sprintf("TABLE%v", tableList)
-	tablesColumnList.IterKV(func(tableName sqlname.NameTuple, columnList []string) (bool, error) {
+	// conf assembly; the callback never returns an error
+	_ = tablesColumnList.IterKV(func(tableName sqlname.NameTuple, columnList []string) (bool, error) {
 		_, tname := tableName.ForCatalogQuery()
 		allColumns := "*"
 		if len(columnList) == 1 && columnList[0] == allColumns {
@@ -107,7 +108,10 @@ func extractAlterSequenceStatements(exportDir string) {
 		}
 	}
 
-	os.WriteFile(filepath.Join(exportDir, "data", "postdata.sql"), []byte(requiredLines.String()), 0644)
+	err = os.WriteFile(filepath.Join(exportDir, "data", "postdata.sql"), []byte(requiredLines.String()), 0644)
+	if err != nil {
+		utils.ErrExit("failed to write postdata.sql: %w", err)
+	}
 }
 
 // extract all identity column names from ALTER SEQUENCE IF EXISTS statements in postdata.sql
