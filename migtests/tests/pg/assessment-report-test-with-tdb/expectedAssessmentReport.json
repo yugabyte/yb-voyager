@@ -778,7 +778,9 @@
             "ObjectName": "public.ordersentry_view",
             "SqlStatement": "CREATE VIEW public.ordersentry_view AS\n SELECT order_id,\n    customer_name,\n    product_name,\n    quantity,\n    price,\n    XMLELEMENT(NAME \"OrderDetails\", XMLELEMENT(NAME \"Customer\", customer_name), XMLELEMENT(NAME \"Product\", product_name), XMLELEMENT(NAME \"Quantity\", quantity), XMLELEMENT(NAME \"TotalPrice\", (price * (quantity)::numeric))) AS order_xml,\n    XMLCONCAT(XMLELEMENT(NAME \"Customer\", customer_name), XMLELEMENT(NAME \"Product\", product_name)) AS summary_xml,\n    pg_try_advisory_lock((hashtext((customer_name || product_name)))::bigint) AS lock_acquired,\n    ctid AS row_ctid,\n    xmin AS transaction_id\n   FROM public.ordersentry;",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2026.1": "2026.1.0.0"
+            }
         },
         {
             "Category": "unsupported_features",
@@ -1111,7 +1113,9 @@
             "ObjectName": "",
             "SqlStatement": "SELECT\n    s.section_name,\n    b.title,\n    b.author\nFROM\n    library_nested l,\n    XMLTABLE(\n        $1\n        PASSING l.lib_data\n        COLUMNS\n            section_name TEXT PATH $2,\n            books XML PATH $3\n    ) AS s,\n    XMLTABLE(\n        $4\n        PASSING s.books\n        COLUMNS\n            title TEXT PATH $5,\n            author TEXT PATH $6\n) AS b",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2026.1": "2026.1.0.0"
+            }
         },
         {
             "Category": "unsupported_query_constructs",
@@ -1124,7 +1128,9 @@
             "ObjectName": "",
             "SqlStatement": "SELECT *\nFROM xmltable(\n    $1\n    PASSING $2\n    COLUMNS \n        name TEXT PATH $3\n)",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2026.1": "2026.1.0.0"
+            }
         },
         {
             "Category": "unsupported_query_constructs",
@@ -1137,7 +1143,9 @@
             "ObjectName": "",
             "SqlStatement": "SELECT table_to_xml($1, $2, $3, $4)",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2026.1": "2026.1.0.0"
+            }
         },
         {
             "Category": "unsupported_query_constructs",
@@ -1150,7 +1158,9 @@
             "ObjectName": "",
             "SqlStatement": "SELECT xmlelement(name root, xmlelement(name child, $1))",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2026.1": "2026.1.0.0"
+            }
         },
         {
             "Category": "unsupported_query_constructs",
@@ -1163,7 +1173,9 @@
             "ObjectName": "",
             "SqlStatement": "SELECT\n    o.order_id,\n    items.product,\n    items.quantity::INT\nFROM\n    orders_lateral o\n    CROSS JOIN LATERAL XMLTABLE(\n        $1\n        PASSING o.order_details\n        COLUMNS\n            product TEXT PATH $2,\n            quantity TEXT PATH $3\n) AS items",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2026.1": "2026.1.0.0"
+            }
         },
         {
             "Category": "unsupported_query_constructs",
@@ -1209,7 +1221,9 @@
             "ObjectName": "",
             "SqlStatement": "SELECT xml_is_well_formed($1)",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2026.1": "2026.1.0.0"
+            }
         },
         {
             "Category": "unsupported_query_constructs",
@@ -1222,7 +1236,9 @@
             "ObjectName": "",
             "SqlStatement": "SELECT xmlparse(document $1) as xmldata",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2026.1": "2026.1.0.0"
+            }
         },
         {
             "Category": "unsupported_query_constructs",
@@ -1255,7 +1271,9 @@
             "ObjectName": "",
             "SqlStatement": "SELECT xmlforest(first_name AS element1, last_name AS element2) FROM employees2",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2026.1": "2026.1.0.0"
+            }
         },
         {
             "Category": "unsupported_query_constructs",

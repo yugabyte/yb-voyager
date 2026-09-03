@@ -192,11 +192,8 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 
 		}
 	}
-	fmt.Println("d.targetDbVersion", d.targetDbVersion)
 	unsupportedDatatypes := GetPGUnsupportedDatatypes(d.targetDbVersion)
-	fmt.Println("unsupportedDatatypes", unsupportedDatatypes)
 	liveUnsupportedDatatypes := GetPGLiveMigrationUnsupportedDatatypes(d.targetDbVersion)
-	fmt.Println("liveUnsupportedDatatypes", liveUnsupportedDatatypes)
 	liveWithFfOrFbUnsupportedDatatypes := srcdb.GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes()
 	for _, col := range table.Columns {
 		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(unsupportedDatatypes, col.TypeName)
