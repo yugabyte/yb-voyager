@@ -2972,7 +2972,6 @@ target:
   ssl-crl: /path/to/ssl-crl
 export-data-from-target:
   disable-pb: true
-  schema-snapshot-capture-interval: 10
   exclude-table-list: table1,table2
   table-list: table3,table4
   exclude-table-list-file-path: /tmp/exclude-tables.txt
@@ -3018,7 +3017,6 @@ func TestExportDataFromTargetConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, "/path/to/ssl-root-cert", source.SSLRootCert, "Target SSL root cert should match the config")
 	// Assertions on export-data config
 	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
-	assert.Equal(t, 10, schemaSnapshotCaptureInterval, "schema-snapshot-capture-interval should match the config")
 	assert.Equal(t, "table1,table2", source.ExcludeTableList, "Exclude table list should match the config")
 	assert.Equal(t, "table3,table4", source.TableList, "Table list should match the config")
 	assert.Equal(t, "/tmp/exclude-tables.txt", excludeTableListFilePath, "Exclude table list file path should match the config")
@@ -3045,7 +3043,6 @@ func TestExportDataFromTargetConfigBinding_CLIOverridesConfig(t *testing.T) {
 		"--send-diagnostics", "false",
 		"--profile", "false",
 		"--disable-pb", "false",
-		"--schema-snapshot-capture-interval", "20",
 		"--exclude-table-list", "table5,table6",
 		"--table-list", "table7,table8",
 		"--exclude-table-list-file-path", "/tmp/new-exclude-tables.txt",
@@ -3076,7 +3073,6 @@ func TestExportDataFromTargetConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, "/path/to/root2.pem", source.SSLRootCert, "Target SSL root cert should be overridden by CLI")
 	// Assertions on export-data config
 	assert.Equal(t, utils.BoolStr(false), disablePb, "Disable PB should match the config")
-	assert.Equal(t, 20, schemaSnapshotCaptureInterval, "CLI should override schema-snapshot-capture-interval")
 	assert.Equal(t, "table5,table6", source.ExcludeTableList, "Exclude table list should match the config")
 	assert.Equal(t, "table7,table8", source.TableList, "Table list should match the config")
 	assert.Equal(t, "/tmp/new-exclude-tables.txt", excludeTableListFilePath, "Exclude table list file path should match the config")

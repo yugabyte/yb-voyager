@@ -105,6 +105,9 @@ func init() {
 	registerSourceDBConnFlags(exportDataFromSrcCmd, true, true)
 	registerExportDataFlags(exportDataCmd)
 	registerExportDataFlags(exportDataFromSrcCmd)
+	// Source-side only; see registerSchemaSnapshotIntervalFlag.
+	registerSchemaSnapshotIntervalFlag(exportDataCmd)
+	registerSchemaSnapshotIntervalFlag(exportDataFromSrcCmd)
 }
 
 func exportDataCommandPreRun(cmd *cobra.Command, args []string) {

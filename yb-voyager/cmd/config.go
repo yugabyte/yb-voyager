@@ -127,7 +127,6 @@ var allowedExportDataFromTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level",
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
 	"table-list-file-path", "transaction-ordering", "metrics-port",
-	"schema-snapshot-capture-interval",
 	// environment variables keys
 	"yb-master-port", "queue-segment-max-bytes", "debezium-dist-dir",
 )
