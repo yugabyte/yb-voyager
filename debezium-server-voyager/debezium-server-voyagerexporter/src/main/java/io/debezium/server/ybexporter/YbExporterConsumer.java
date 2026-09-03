@@ -376,10 +376,10 @@ public class YbExporterConsumer extends BaseChangeConsumer {
 
     /**
      * Commits debezium offsets for the batch: marks each event processed, then flushes those
-     * offsets. Extracted from handleBatch so it can be unit-tested; touches no instance state,
-     * relying only on its two params, LOGGER and isReplicationStreamClosed.
+     * offsets. Split out of handleBatch to keep the tablet-split guard below readable; touches
+     * no instance state, relying only on its two params, LOGGER and isReplicationStreamClosed.
      */
-    void commitBatchOffsets(List<ChangeEvent<Object, Object>> changeEvents,
+    private void commitBatchOffsets(List<ChangeEvent<Object, Object>> changeEvents,
             DebeziumEngine.RecordCommitter<ChangeEvent<Object, Object>> committer)
             throws InterruptedException {
         try {
