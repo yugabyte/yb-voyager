@@ -20,6 +20,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/tebeka/atexit"
 
@@ -41,7 +42,7 @@ func captureExportDataExitSnapshot(ctx context.Context, reason string) {
 	if exporterRole != SOURCE_DB_EXPORTER_ROLE {
 		return
 	}
-	captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourceExit, reason, true)
+	captureSourceSchemaSnapshotBestEffort(ctx, schemasnapshot.LabelExportDataFromSourceExit, reason, true)
 	exportDataExitSnapshotCaptured.Store(true)
 }
 
@@ -86,20 +87,35 @@ func registerExportDataExitSnapshotHook() {
 	})
 }
 
-// captureSourceSchemaSnapshot captures the source schema and persists it as a
-// snapshot for the given label/reason. It is BEST-EFFORT and off the data path:
-// it never returns an error and never blocks the migration — every failure is
-// logged and swallowed.
-// Honors --suppress-schema-snapshot-capture. PostgreSQL only (no-op with a log for
-// other engines). Callers are responsible for exporter-role gating.
-func captureSourceSchemaSnapshot(ctx context.Context, label, reason string, placeholderOnFailure bool) {
+// captureSourceSchemaSnapshotBestEffort is captureSourceSchemaSnapshot with the
+// policy the export hooks need: a failed snapshot is logged and swallowed, never
+// surfaced. Schema capture is off the data path, so an export must not fail or stall
+// because a snapshot could not be taken.
+//
+// Every export hook goes through here. Anything that genuinely wants to act on a
+// failure calls captureSourceSchemaSnapshot directly and handles the error.
+func captureSourceSchemaSnapshotBestEffort(ctx context.Context, label, reason string, placeholderOnFailure bool) {
+	if err := captureSourceSchemaSnapshot(ctx, label, reason, placeholderOnFailure); err != nil {
+		log.Warnf("schema-snapshot capture for label %q failed (continuing, migration unaffected): %v", label, err)
+	}
+}
+
+// captureSourceSchemaSnapshot captures the source schema and persists it as a snapshot
+// for the given label/reason, returning why it could not.
+//
+// A skip is not an error: a non-PostgreSQL source or --suppress-schema-snapshot-capture
+// returns nil, since nothing went wrong. Honors exporter-role gating in the caller.
+//
+// Callers decide what a failure means. The export hooks want it swallowed, so they use
+// captureSourceSchemaSnapshotBestEffort.
+func captureSourceSchemaSnapshot(ctx context.Context, label, reason string, placeholderOnFailure bool) error {
 	if source.DBType != POSTGRESQL {
 		log.Infof("schema-snapshot capture skipped for label %q: only PostgreSQL sources are supported", label)
-		return
+		return nil
 	}
 	if bool(suppressSchemaSnapshotCapture) {
 		log.Infof("schema-snapshot capture suppressed (--suppress-schema-snapshot-capture); skipping %s", label)
-		return
+		return nil
 	}
 
 	// Bound the catalog read and the metaDB write together, so a wedged source can
@@ -110,18 +126,16 @@ func captureSourceSchemaSnapshot(ctx context.Context, label, reason string, plac
 
 	pg, ok := source.DB().(*srcdb.PostgreSQL)
 	if !ok {
-		log.Warnf("schema-snapshot capture skipped for label %q: PostgreSQL source lacks a *srcdb.PostgreSQL handle", label)
-		return
+		return goerrors.Errorf("PostgreSQL source lacks a *srcdb.PostgreSQL handle")
 	}
 	db := pg.GetDB()
 	if db == nil {
-		log.Warnf("schema-snapshot capture skipped for label %q: no active database handle", label)
 		if placeholderOnFailure {
 			// Still record the timeline marker so a lifecycle moment (e.g. an exit)
 			// isn't lost just because the DB handle is gone during teardown.
 			saveSourceSchemaSnapshotPlaceholder(label, reason)
 		}
-		return
+		return goerrors.Errorf("no active database handle")
 	}
 	captureParams := schemasnapshot.CaptureParams{
 		DatabaseType: source.DBType,
@@ -140,10 +154,10 @@ func captureSourceSchemaSnapshot(ctx context.Context, label, reason string, plac
 	}
 	name, err := schemasnapshot.CaptureAndSaveSnapshot(ctx, db, metaDB, req)
 	if err != nil {
-		log.Warnf("schema-snapshot capture for label %q failed (continuing, migration unaffected): %v", label, err)
-		return
+		return err
 	}
 	log.Infof("captured schema snapshot %q", name)
+	return nil
 }
 
 // startPeriodicSourceSchemaSnapshotCapture tickers a capture every `interval` for the
@@ -167,7 +181,7 @@ func startPeriodicSourceSchemaSnapshotCapture(ctx context.Context, interval time
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourcePeriodic, "", false)
+				captureSourceSchemaSnapshotBestEffort(ctx, schemasnapshot.LabelExportDataFromSourcePeriodic, "", false)
 			}
 		}
 	}()

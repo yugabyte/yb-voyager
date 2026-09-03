@@ -792,7 +792,7 @@ func exportData() bool {
 	//finalTableList is with leaf partitions and root tables after this in the whole export flow to make all the catalog queries work fine
 
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
-		captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourceStart, snapshotStartReason, true)
+		captureSourceSchemaSnapshotBestEffort(ctx, schemasnapshot.LabelExportDataFromSourceStart, snapshotStartReason, true)
 		registerExportDataExitSnapshotHook()
 	}
 
