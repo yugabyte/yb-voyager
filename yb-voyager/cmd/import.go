@@ -392,7 +392,7 @@ func registerTargetDBConnFlags(cmd *cobra.Command) {
 
 	cmd.Flags().StringVar(&tconf.User, "target-db-user", "",
 		"username with which to connect to the target YugabyteDB server")
-	cmd.MarkFlagRequired("target-db-user")
+	mustMarkFlagRequired(cmd, "target-db-user")
 
 	cmd.Flags().StringVar(&tconf.Password, "target-db-password", "",
 		"password with which to connect to the target YugabyteDB server. Alternatively, you can also specify the password by setting the environment variable TARGET_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
@@ -435,7 +435,7 @@ func registerSourceReplicaDBAsTargetConnFlags(cmd *cobra.Command) {
 
 	cmd.Flags().StringVar(&tconf.User, "source-replica-db-user", "",
 		"username with which to connect to the Source-Replica DB server")
-	cmd.MarkFlagRequired("source-replica-db-user")
+	mustMarkFlagRequired(cmd, "source-replica-db-user")
 
 	cmd.Flags().StringVar(&tconf.Password, "source-replica-db-password", "",
 		"password with which to connect to the Source-Replica DB server. Alternatively, you can also specify the password by setting the environment variable SOURCE_REPLICA_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
@@ -509,11 +509,11 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 		"Disable transactional writes in tables for faster data ingestion (default false)\n"+
 			"(Note: this is a interim flag until the issues related to 'yb_disable_transactional_writes' session variable are fixed. Refer: https://github.com/yugabyte/yugabyte-db/issues/12464)")
 	// Hidden for beta2.0 release (and onwards until further notice).
-	cmd.Flags().MarkHidden("disable-transactional-writes")
+	mustMarkFlagHidden(cmd, "disable-transactional-writes")
 
 	BoolVar(cmd.Flags(), &truncateSplits, "truncate-splits", true,
 		"Truncate splits after importing")
-	cmd.Flags().MarkHidden("truncate-splits")
+	mustMarkFlagHidden(cmd, "truncate-splits")
 }
 
 func registerImportUsePartitionRootFlagToTarget(cmd *cobra.Command) {
@@ -545,10 +545,10 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 			"\tstash-and-continue: stash the errored rows to a file and continue with the import")
 
 	cmd.Flags().IntVar(&maxConcurrentBatchProductionsConfig, "max-concurrent-batch-productions", 10, "Maximum number of concurrent batch productions to allow while importing data (default 10)")
-	cmd.Flags().MarkHidden("max-concurrent-batch-productions")
+	mustMarkFlagHidden(cmd, "max-concurrent-batch-productions")
 
 	BoolVar(cmd.Flags(), &enableRandomBatchProduction, "enable-random-batch-production", true, "Enable random batch production during data import (default true)")
-	cmd.Flags().MarkHidden("enable-random-batch-production")
+	mustMarkFlagHidden(cmd, "enable-random-batch-production")
 
 	cmd.Flags().StringVar(&cdcPartitionKey, "cdc-partition-key", "auto",
 		`Global strategy for how CDC events are hashed across parallel channels. Supported values: auto, pk, table.
@@ -562,11 +562,11 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 
 	cmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
 		"Port for Prometheus metrics server (default: 9101)")
-	cmd.Flags().MarkHidden("prometheus-metrics-port")
+	mustMarkFlagHidden(cmd, "prometheus-metrics-port")
 
 	BoolVar(cmd.Flags(), &tconf.DisableSequentialScanOnUpdateDeletes, "disable-sequential-scan-on-update-deletes", true,
 		"Disable sequential scan on update and delete operations to avoid retryable errors during concurrent writes in repeatable isolation level (default true)")
-	cmd.Flags().MarkHidden("disable-sequential-scan-on-update-deletes")
+	mustMarkFlagHidden(cmd, "disable-sequential-scan-on-update-deletes")
 
 	cmd.Flags().IntVar(&metricsPort, "metrics-port", 0,
 		"Port to expose Prometheus metrics on (0 disables). Serves GET /metrics.")
@@ -592,9 +592,9 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 
 	// --post-snapshot-import and --refresh-mviews flags will now be handled by the command post-data-import-finalize-schema
 	// Not removing these flags and just deprecating them for backward compatibility.
-	cmd.Flags().MarkDeprecated("post-snapshot-import",
+	mustMarkFlagDeprecated(cmd, "post-snapshot-import",
 		"use the command 'finalize-schema-post-data-import' instead. \nFor more details, refer to the documentation: \nhttps://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/finalize-schema-post-data-import/\n")
-	cmd.Flags().MarkDeprecated("refresh-mviews",
+	mustMarkFlagDeprecated(cmd, "refresh-mviews",
 		"it is no longer supported in the 'import schema' command. Use the 'finalize-schema-post-data-import' command instead. \nFor more details, refer to the documentation: \nhttps://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/finalize-schema-post-data-import/\n")
 
 }
@@ -760,8 +760,8 @@ Supported values:
 ERROR-POLICY(default): Handle error as per configured error-policy, if any primary key conflict is encountered.
 IGNORE		: Skip rows where the primary key already exists and continue importing remaining data.`)
 
-	cmd.Flags().MarkHidden("skip-disk-usage-health-checks")
-	cmd.Flags().MarkHidden("skip-node-health-checks")
+	mustMarkFlagHidden(cmd, "skip-disk-usage-health-checks")
+	mustMarkFlagHidden(cmd, "skip-node-health-checks")
 }
 
 func registerFlagsForSourceAndSourceReplica(cmd *cobra.Command) {

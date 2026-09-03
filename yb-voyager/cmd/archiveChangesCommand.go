@@ -256,8 +256,8 @@ func init() {
 
 	archiveChangesCmd.Flags().StringVar(&cleanupPolicy, "policy", "",
 		fmt.Sprintf("cleanup policy for processed segments; accepted values: %s (required)", strings.Join(archivechanges.ValidPolicyNames, ", ")))
-	archiveChangesCmd.MarkFlagRequired("policy")
-	archiveChangesCmd.MarkPersistentFlagRequired("export-dir")
+	mustMarkFlagRequired(archiveChangesCmd, "policy")
+	mustMarkPersistentFlagRequired(archiveChangesCmd, "export-dir")
 
 	archiveChangesCmd.Flags().StringVar(&cleanupArchiveDir, "archive-dir", "",
 		"directory to archive processed segments to (required when --policy=archive)")
