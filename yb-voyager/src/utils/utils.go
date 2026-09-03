@@ -185,7 +185,7 @@ func IsFileEmpty(fpath string) bool {
 		log.Errorf("IsFileEmpty: file open: %v", err)
 		return false
 	}
-	defer file.Close()
+	defer CloseAndLogOnError(fpath, file)
 
 	fileInfo, err := file.Stat()
 	if err != nil {
@@ -289,18 +289,32 @@ func CopyFile(src, dst string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open source file %q: %w", src, err)
 	}
-	defer srcFile.Close()
+	defer CloseAndLogOnError(src, srcFile)
 	dstFile, err := os.Create(dst)
 	if err != nil {
 		return fmt.Errorf("failed to create destination file %q: %w", dst, err)
 	}
-	defer dstFile.Close()
+	defer func() { _ = dstFile.Close() }() // backstop; the success path checks Close below
 	_, err = io.Copy(dstFile, srcFile)
 	if err != nil {
 		return fmt.Errorf("failed to copy from %q to %q: %w", src, dst, err)
 	}
 
+	err = dstFile.Close()
+	if err != nil {
+		return fmt.Errorf("failed to close destination file %q: %w", dst, err)
+	}
 	return nil
+}
+
+// CloseAndLogOnError closes c and logs a warning if closing fails. Use it for
+// read-path and teardown closes where the error is not actionable. Write-path
+// closes must be checked explicitly instead — a failed close there can mean
+// lost data.
+func CloseAndLogOnError(what string, c io.Closer) {
+	if err := c.Close(); err != nil {
+		log.Warnf("closing %s: %v", what, err)
+	}
 }
 
 func GetObjectFilePath(schemaDirPath string, objType string) string {
@@ -434,7 +448,7 @@ func WaitForLineInLogFile(filePath string, message string, timeoutDuration time.
 		return goerrors.Errorf("error opening file %s: %v", filePath, err)
 	}
 
-	defer file.Close()
+	defer CloseAndLogOnError(filePath, file)
 
 	for {
 		reader := bufio.NewReader(file)
@@ -555,7 +569,7 @@ func ForEachLineInFile(filePath string, callback func(line string) bool) error {
 	if err != nil {
 		return goerrors.Errorf("error opening file %s: %v", filePath, err)
 	}
-	defer file.Close()
+	defer CloseAndLogOnError(filePath, file)
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -639,7 +653,7 @@ func ReadTableNameListFromFile(filePath string) ([]string, error) {
 	if err != nil {
 		return nil, goerrors.Errorf("error opening file %s: %v", filePath, err)
 	}
-	defer file.Close()
+	defer CloseAndLogOnError(filePath, file)
 	var list []string
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -745,7 +759,7 @@ func GetFreePort() (int, error) {
 	if err != nil {
 		return 0, goerrors.Errorf("failed to listen on a port: %v", err)
 	}
-	defer listener.Close()
+	defer CloseAndLogOnError("port-probe listener", listener)
 
 	// Retrieve the assigned port
 	addr := listener.Addr().(*net.TCPAddr)

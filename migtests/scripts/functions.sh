@@ -101,9 +101,24 @@ run_ysql() {
 # suffice and this workaround can be removed.
 ysql_terminate_and_drop_database() {
 	local target_db_to_drop=$1
-	run_ysql yugabyte "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${target_db_to_drop}' AND pid != pg_backend_pid();" || true
-	sleep 1
-	run_ysql yugabyte "DROP DATABASE IF EXISTS \"${target_db_to_drop}\";"
+	# A session can reappear between the terminate and the drop (the DB-14314
+	# race), failing the drop with "is being accessed by other users" - retry
+	# the terminate+drop as a unit so each attempt clears fresh sessions.
+	local max_attempts=5
+	local attempt=1
+	while [ ${attempt} -le ${max_attempts} ]; do
+		run_ysql yugabyte "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${target_db_to_drop}' AND pid != pg_backend_pid();" || true
+		sleep 1
+		if run_ysql yugabyte "DROP DATABASE IF EXISTS \"${target_db_to_drop}\";"; then
+			return 0
+		fi
+		echo "DROP DATABASE for '${target_db_to_drop}' failed (attempt ${attempt}/${max_attempts}); retrying in 10s..."
+		sleep 10
+		attempt=$((attempt + 1))
+	done
+
+	echo "ERROR: DROP DATABASE for '${target_db_to_drop}' failed after ${max_attempts} attempts"
+	return 1
 }
 
 ysql_import_file() {

@@ -40,6 +40,16 @@ type UniqueIndex struct {
 	NullsNotDistinct bool
 }
 
+// String renders the index as "index_name(col1, col2)", suffixed with
+// "[nulls not distinct]" when NULLS NOT DISTINCT is set.
+func (u UniqueIndex) String() string {
+	s := fmt.Sprintf("%s(%s)", u.IndexName, strings.Join(u.Columns, ", "))
+	if u.NullsNotDistinct {
+		s += " [nulls not distinct]"
+	}
+	return s
+}
+
 type TargetDB interface {
 	Init() error
 	Finalize()
@@ -68,6 +78,7 @@ type TargetDB interface {
 	GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []UniqueIndex], error)
 	ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error
 	GetListOfTableAttributes(tableNameTup sqlname.NameTuple) ([]string, error)
+	FindBestMatchingTargetColumnName(columnName string, targetTableColumns []string) (string, error)
 	QuoteAttributeName(tableNameTup sqlname.NameTuple, columnName string) (string, error)
 	MaxBatchSizeInBytes() int64
 	RestoreSequences(sequencesNameToLastValue *utils.StructMap[sqlname.NameTuple, int64]) error

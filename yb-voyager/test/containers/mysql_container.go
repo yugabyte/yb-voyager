@@ -51,7 +51,7 @@ func (ms *MysqlContainer) Start(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to create temp schema file: %w", err)
 	}
-	defer tmpFile.Close()
+	defer utils.CloseAndLogOnError(tmpFile.Name(), tmpFile)
 
 	if _, err := tmpFile.Write(mysqlInitSchemaFile); err != nil {
 		return fmt.Errorf("failed to write to temp schema file: %w", err)

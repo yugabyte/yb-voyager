@@ -41,10 +41,14 @@ func CreateSqlldrControlFile(exportDir string, tableNameTup sqlname.NameTuple, s
 	if err != nil {
 		return "", fmt.Errorf("create sqlldr control file %q: %w", sqlldrControlFilePath, err)
 	}
-	defer sqlldrControlFile.Close()
+	defer func() { _ = sqlldrControlFile.Close() }() // backstop; the success path checks Close below
 	_, err = sqlldrControlFile.WriteString(sqlldrConfig)
 	if err != nil {
 		return "", fmt.Errorf("write sqlldr control file %q: %w", sqlldrControlFilePath, err)
+	}
+	err = sqlldrControlFile.Close()
+	if err != nil {
+		return "", fmt.Errorf("close sqlldr control file %q: %w", sqlldrControlFilePath, err)
 	}
 	return sqlldrControlFilePath, nil
 }

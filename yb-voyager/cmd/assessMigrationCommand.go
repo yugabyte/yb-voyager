@@ -105,10 +105,10 @@ var assessMigrationCmd = &cobra.Command{
 				}
 			}
 		} else {
-			cmd.MarkFlagRequired("source-db-user")
-			cmd.MarkFlagRequired("source-db-name")
+			mustMarkFlagRequired(cmd, "source-db-user")
+			mustMarkFlagRequired(cmd, "source-db-name")
 			//Update this later as per db-types TODO
-			cmd.MarkFlagRequired("source-db-schema")
+			mustMarkFlagRequired(cmd, "source-db-schema")
 		}
 	},
 
@@ -125,7 +125,7 @@ func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&source.DBType, "source-db-type", "",
 		fmt.Sprintf("source database type: (%s)\n", strings.Join(assessMigrationSupportedDBTypes, ", ")))
 
-	cmd.MarkFlagRequired("source-db-type")
+	mustMarkFlagRequired(cmd, "source-db-type")
 
 	cmd.Flags().StringVar(&source.Host, "source-db-host", "localhost",
 		"source database server host")
@@ -197,7 +197,7 @@ func init() {
 
 	BoolVar(assessMigrationCmd.Flags(), &invokedByExportSchema, "invoked-by-export-schema", false,
 		"Flag to indicate if the assessment is invoked by export schema command. ")
-	assessMigrationCmd.Flags().MarkHidden("invoked-by-export-schema") // mark hidden
+	mustMarkFlagHidden(assessMigrationCmd, "invoked-by-export-schema") // mark hidden
 
 	assessMigrationCmd.Flags().StringVar(&sourceReadReplicaEndpoints, "source-read-replica-endpoints", "",
 		"Comma-separated list of read replica endpoints. Each endpoint is host:port. Default port 5432. "+

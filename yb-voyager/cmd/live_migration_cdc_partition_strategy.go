@@ -351,13 +351,9 @@ func computeCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple, isFi
 		return nil, nil, err
 	}
 
-	// Import-start guardrails for custom-key tables (custom key column existence). These query
-	// the target DB, so only run them on the first import; on resume the config is unchanged
-	// (enforced by validateCdcPartitioningStrategyUnchanged) and re-querying is unnecessary.
-	if isFirstRun {
-		if err := validateCustomPartitionKeyTables(tableToPartitionKeyOverrideMap); err != nil {
-			return nil, nil, err
-		}
+	err = validateCustomPartitionKeyTables(tableToPartitionKeyOverrideMap)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	exprUKKeysForStorage := make([]string, 0, len(exprUKSet.Keys()))
@@ -637,29 +633,60 @@ func validateCustomPartitionKeyTables(tableToPartitionKeyOverrideMap *utils.Stru
 	if len(customTables) == 0 {
 		return nil
 	}
-
 	// every custom key column must exist on the table.
+	missingColumnsOnTables := make(map[string][]string)
+	ambiguousColumnsOnTables := make(map[string][]string)
+	tableToColumns := make(map[string][]string)
 	for _, t := range customTables {
 		override, _ := tableToPartitionKeyOverrideMap.Get(t)
 		tableColumns, err := tdb.GetListOfTableAttributes(t)
 		if err != nil {
 			return fmt.Errorf("error getting columns of table %s for custom cdc-partition-key validation: %w", t.ForOutput(), err)
 		}
-		columnSet := make(map[string]bool, len(tableColumns))
-		for _, c := range tableColumns {
-			columnSet[c] = true
-		}
+		overrideColumns := make([]string, 0, len(override.Columns))
 		var missing []string
+		var ambiguous []string
 		for _, c := range override.Columns {
-			if !columnSet[c] {
-				missing = append(missing, c)
+			bestMatchingColumnName, err := tdb.FindBestMatchingTargetColumnName(c, tableColumns)
+			if err != nil {
+				if _, ok := err.(*tgtdb.ErrAmbiguousColumnName); ok {
+					ambiguous = append(ambiguous, c)
+					continue
+				}
+				if _, ok := err.(*tgtdb.ErrColumnNameNotFound); ok {
+					missing = append(missing, c)
+					continue
+				}
+				return err
 			}
+			overrideColumns = append(overrideColumns, bestMatchingColumnName)
 		}
+		sort.Strings(tableColumns)
+		tableToColumns[t.ForOutput()] = tableColumns
 		if len(missing) > 0 {
 			sort.Strings(missing)
-			sort.Strings(tableColumns)
-			return goerrors.Errorf("cdc-partition-key-overrides: custom key column(s) '%v' do not exist on table '%s' (available columns: %v)", missing, t.ForOutput(), tableColumns)
+			missingColumnsOnTables[t.ForOutput()] = missing
+		} else if len(ambiguous) > 0 {
+			sort.Strings(ambiguous)
+			ambiguousColumnsOnTables[t.ForOutput()] = ambiguous
+		} else {
+			override.Columns = overrideColumns
+			tableToPartitionKeyOverrideMap.Put(t, override)
 		}
+	}
+	errMsg := ""
+	if len(missingColumnsOnTables) > 0 {
+		for table, columns := range missingColumnsOnTables {
+			errMsg += fmt.Sprintf("custom key column(s) '%v' do not exist on table '%s' (available columns: %v)\n", columns, table, tableToColumns[table])
+		}
+	}
+	if len(ambiguousColumnsOnTables) > 0 {
+		for table, columns := range ambiguousColumnsOnTables {
+			errMsg += fmt.Sprintf("custom key column(s) '%v' are ambiguous on table '%s' (available columns: %v)\n", columns, table, tableToColumns[table])
+		}
+	}
+	if errMsg != "" {
+		return goerrors.Errorf("cdc-partition-key-overrides: %s", errMsg)
 	}
 	return nil
 }
