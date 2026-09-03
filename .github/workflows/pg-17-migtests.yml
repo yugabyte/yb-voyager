@@ -48,13 +48,11 @@ jobs:
 
       - name: Compute Maven cache key
         id: maven-cache-key
-        # Computed once, before the build: the Debezium build creates
-        # debezium-server-voyager/target/, so recomputing this hash afterwards would
-        # yield a different key and save under one that no restore ever looks for.
-        # Keyed on install-yb-voyager, not **/pom.xml: the Debezium fork's poms are
-        # downloaded at runtime, so the pinned DEBEZIUM_LOCAL_REF* SHAs that decide
-        # what actually gets built live in that script and **/pom.xml misses them.
-        run: echo "key=${{ runner.os }}-maven-${{ hashFiles('installer_scripts/install-yb-voyager', 'debezium-server-voyager/**', 'yb-voyager/versions/yb-cdc-connector-versions.json') }}" >> "$GITHUB_OUTPUT"
+        # Computed once, before the build, so the restore and save steps agree on it.
+        # The Debezium build writes into debezium-server-voyager/target/, and
+        # hashFiles() is evaluated over the workspace, so re-evaluating it after the
+        # installer has run risks saving under a key no restore ever looks for.
+        run: echo "key=${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}" >> "$GITHUB_OUTPUT"
 
       - name: Restore local Maven repository
         id: maven-cache
