@@ -2916,14 +2916,17 @@ func TestXMLDatatypeVersionGate(t *testing.T) {
 	stmt := `CREATE TABLE test_xml_gate(id int, data xml);`
 
 	// Below 2026.1: the offline unsupported-datatype issue, no live caveat.
-	issues, err := NewParserIssueDetector().GetDDLIssues(stmt, ybversion.V2025_2_0_0)
+	parser := NewParserIssueDetector()
+	parser.SetTargetDbVersion(ybversion.V2025_2_0_0)
+	issues, err := parser.GetDDLIssues(stmt, ybversion.V2025_2_0_0)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(issues))
 	assert.True(t, cmp.Equal(NewXMLDatatypeIssue("TABLE", "test_xml_gate", stmt, "XML", "data"), issues[0]),
 		"expected offline xml datatype issue, got: %v", issues[0])
 
 	// From 2026.1: only the live-migration caveat.
-	issues, err = NewParserIssueDetector().GetDDLIssues(stmt, ybversion.V2026_1_0_0)
+	parser.SetTargetDbVersion(ybversion.V2026_1_0_0)
+	issues, err = parser.GetDDLIssues(stmt, ybversion.V2026_1_0_0)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(issues))
 	assert.True(t, cmp.Equal(NewXMLLiveMigrationDatatypeIssue("TABLE", "test_xml_gate", stmt, "XML", "data"), issues[0]),
