@@ -234,7 +234,10 @@ func (handler *ImportDataStashAndContinueHandler) FinalizeRowProcessingErrorsFor
 		return nil
 	}
 	if errorFile != nil {
-		errorFile.Close()
+		err := errorFile.Close()
+		if err != nil {
+			return fmt.Errorf("close error file for batch %d: %w", batchNumber, err)
+		}
 	}
 
 	// Delete old error files potentially left over from previous run.

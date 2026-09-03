@@ -126,7 +126,10 @@ func parseAndCreateTocTextFile(dataDirPath string) {
 	if err != nil {
 		utils.ErrExit("flush toc.txt: %w", err)
 	}
-	tocTextFile.Close()
+	err = tocTextFile.Close()
+	if err != nil {
+		utils.ErrExit("close toc.txt: %w", err)
+	}
 }
 
 func createTableListPatterns(tableList []sqlname.NameTuple) string {

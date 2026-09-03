@@ -62,7 +62,10 @@ func (df *TextDataFile) NextLine() (string, int64, error) {
 }
 
 func (df *TextDataFile) Close() {
-	df.closer.Close()
+	err := df.closer.Close()
+	if err != nil {
+		log.Warnf("closing text data file reader: %v", err)
+	}
 }
 
 func (df *TextDataFile) GetBytesRead() int64 {

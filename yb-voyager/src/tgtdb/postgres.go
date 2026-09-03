@@ -726,7 +726,7 @@ func (pg *TargetPostgreSQL) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 	if err != nil {
 		return 0, fmt.Errorf("open file %s: %w", batch.GetFilePath(), err)
 	}
-	defer file.Close()
+	defer utils.CloseAndLogOnError(batch.GetFilePath(), file)
 
 	//setting the schema so that COPY command can acesss the table
 	pg.setTargetSchema(conn)
