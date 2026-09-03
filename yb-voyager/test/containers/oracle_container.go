@@ -156,7 +156,7 @@ func (ora *OracleContainer) GetConnectionString() string {
 	config := ora.GetConfig()
 	host, port, err := ora.GetHostPort()
 	if err != nil {
-		utils.ErrExit("failed to get host port for oracle connection string: %v", err)
+		utils.ErrExit("failed to get host port for oracle connection string: %w", err)
 	}
 
 	connectString := fmt.Sprintf(`(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = %s)(PORT = %d))(CONNECT_DATA = (SERVICE_NAME = %s)))`,

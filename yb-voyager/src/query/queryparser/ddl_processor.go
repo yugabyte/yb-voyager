@@ -1244,7 +1244,7 @@ func (cp *CollationProcessor) Process(parseTree *pg_query.ParseResult) (DDLObjec
 	schema, colName := getSchemaAndObjectName(defineStmt.Defnames)
 	defNamesWithValues, err := TraverseAndExtractDefNamesFromDefElem(defineStmt.ProtoReflect())
 	if err != nil {
-		return nil, goerrors.Errorf("error getting the defElems in collation: %v", err)
+		return nil, goerrors.Errorf("error getting the defElems in collation: %w", err)
 	}
 	collation := Collation{
 		SchemaName:    schema,
@@ -1326,7 +1326,7 @@ func (ep *ExtensionProcessor) Process(parseTree *pg_query.ParseResult) (DDLObjec
 	*/
 	defNames, err := TraverseAndExtractDefNamesFromDefElem(extensionNode.CreateExtensionStmt.ProtoReflect())
 	if err != nil {
-		return nil, goerrors.Errorf("error getting the defElems in extension: %v", err)
+		return nil, goerrors.Errorf("error getting the defElems in extension: %w", err)
 	}
 
 	extension := &Extension{

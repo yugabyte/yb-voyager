@@ -92,7 +92,7 @@ retry:
 			if err == io.EOF {
 				r.eof = true
 			} else {
-				return "", skippedByteCount, goerrors.Errorf("error reading file %s (line %d): %v", r.fileName, r.lineCount, err)
+				return "", skippedByteCount, goerrors.Errorf("error reading file %s (line %d): %w", r.fileName, r.lineCount, err)
 			}
 		}
 		r.remainingBuf = r.buf[:n] // Consume the valid bytes from the buffer.

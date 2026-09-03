@@ -271,7 +271,7 @@ func isCutoverAlreadyProcessed(importerOrExporterRole string) bool {
 
 	record, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("error getting migration status record to check cutover: %s", err)
+		utils.ErrExit("error getting migration status record to check cutover: %w", err)
 	}
 	switch importerOrExporterRole {
 	case SOURCE_DB_EXPORTER_ROLE:

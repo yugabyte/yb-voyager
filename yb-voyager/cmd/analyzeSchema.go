@@ -292,7 +292,7 @@ func addSummaryDetailsForIndexes() {
 	var indexesInfo []utils.IndexInfo
 	found, err := metaDB.GetJsonObject(nil, metadb.SOURCE_INDEXES_INFO_KEY, &indexesInfo)
 	if err != nil {
-		utils.ErrExit("failed to analyze schema while loading indexes info: %s", err)
+		utils.ErrExit("failed to analyze schema while loading indexes info: %w", err)
 	}
 	if !found {
 		return
@@ -342,7 +342,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string, d
 
 		err = parserIssueDetector.ParseAndProcessDDL(sqlStmtInfo.formattedStmt)
 		if err != nil {
-			utils.ErrExit("error parsing stmt: [%s]: %v", sqlStmtInfo.formattedStmt, err)
+			utils.ErrExit("error parsing stmt: [%s]: %w", sqlStmtInfo.formattedStmt, err)
 		}
 		if parserIssueDetector.IsGinIndexPresentInSchema() {
 			summaryMap["INDEX"].details[GIN_INDEX_DETAILS] = true
@@ -360,7 +360,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string, d
 	for _, sqlStmtInfo := range sqlInfoArr {
 		ddlIssues, err := parserIssueDetector.GetDDLIssues(sqlStmtInfo.formattedStmt, targetDbVersion)
 		if err != nil {
-			utils.ErrExit("error getting ddl issues for stmt: [%s]: %v", sqlStmtInfo.formattedStmt, err)
+			utils.ErrExit("error getting ddl issues for stmt: [%s]: %w", sqlStmtInfo.formattedStmt, err)
 		}
 		for _, i := range ddlIssues {
 			if !detectPerfOptimizationIssues && slices.Contains(queryissue.PerformanceOptimizationIssues, i.Type) {
@@ -895,7 +895,7 @@ func parseSqlFileForObjectType(path string, objType string) []sqlInfo {
 	reportNextSql := 0
 	file, err := os.ReadFile(path)
 	if err != nil {
-		utils.ErrExit("Error while reading file: %q: %s", path, err)
+		utils.ErrExit("Error while reading file: %q: %w", path, err)
 	}
 
 	lines := strings.Split(string(file), "\n")
@@ -1136,7 +1136,7 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source, detectIssues bool, detect
 		schemaAnalysisReport.Issues = lo.Filter(schemaAnalysisReport.Issues, func(i utils.AnalyzeSchemaIssue, index int) bool {
 			fixed, err := i.IsFixedIn(targetDbVersion)
 			if err != nil {
-				utils.ErrExit("error checking if analyze issue is supported: issue[%v]: %v", i, err)
+				utils.ErrExit("error checking if analyze issue is supported: issue[%v]: %w", i, err)
 			}
 			return !fixed
 		})
@@ -1171,7 +1171,7 @@ func checkConversions(sqlInfoArr []sqlInfo, filePath string) {
 	for _, sqlStmtInfo := range sqlInfoArr {
 		parseTree, err := pg_query.Parse(sqlStmtInfo.stmt)
 		if err != nil {
-			utils.ErrExit("failed to parse the stmt: %v: %v", sqlStmtInfo.stmt, err)
+			utils.ErrExit("failed to parse the stmt: %v: %w", sqlStmtInfo.stmt, err)
 		}
 
 		createConvNode, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateConversionStmt)
@@ -1209,7 +1209,7 @@ func analyzeSchema() {
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("failed to get the migration status record: %s", err)
+		utils.ErrExit("failed to get the migration status record: %w", err)
 	}
 	//Not populate any perfomance optimizations in analyze-schema report with false for detect Performance optimizations
 	analyzeSchemaInternal(msr.SourceDBConf, true, false)
@@ -1217,16 +1217,16 @@ func analyzeSchema() {
 	if analyzeSchemaReportFormat != "" {
 		err = generateAnalyzeSchemaReport(msr, analyzeSchemaReportFormat, true)
 		if err != nil {
-			utils.ErrExit("failed to generate analyze schema report: %s", err)
+			utils.ErrExit("failed to generate analyze schema report: %w", err)
 		}
 	} else {
 		err = generateAnalyzeSchemaReport(msr, HTML, true)
 		if err != nil {
-			utils.ErrExit("failed to generate analyze schema report: %s", err)
+			utils.ErrExit("failed to generate analyze schema report: %w", err)
 		}
 		err = generateAnalyzeSchemaReport(msr, JSON, true)
 		if err != nil {
-			utils.ErrExit("failed to generate analyze schema report: %s", err)
+			utils.ErrExit("failed to generate analyze schema report: %w", err)
 		}
 	}
 
@@ -1247,25 +1247,25 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 		}
 		finalReport, err = applyTemplate(schemaAnalysisReport, schemaAnalysisHtmlTmpl)
 		if err != nil {
-			return goerrors.Errorf("failed to apply template for html schema analysis report: %v", err)
+			return goerrors.Errorf("failed to apply template for html schema analysis report: %w", err)
 		}
 		// restorting the value in struct for generating other format reports
 		schemaAnalysisReport.SchemaSummary.SchemaNames = schemaNames
 	case "json":
 		jsonReportBytes, err := json.MarshalIndent(schemaAnalysisReport, "", "    ")
 		if err != nil {
-			return goerrors.Errorf("failed to marshal the report struct into json schema analysis report: %v", err)
+			return goerrors.Errorf("failed to marshal the report struct into json schema analysis report: %w", err)
 		}
 		finalReport = string(jsonReportBytes)
 	case "txt":
 		finalReport, err = applyTemplate(schemaAnalysisReport, schemaAnalysisTxtTmpl)
 		if err != nil {
-			return goerrors.Errorf("failed to apply template for txt schema analysis report: %v", err)
+			return goerrors.Errorf("failed to apply template for txt schema analysis report: %w", err)
 		}
 	case "xml":
 		xmlReportBytes, err := xml.MarshalIndent(schemaAnalysisReport, "", "\t")
 		if err != nil {
-			return goerrors.Errorf("failed to marshal the report struct into xml schema analysis report: %v", err)
+			return goerrors.Errorf("failed to marshal the report struct into xml schema analysis report: %w", err)
 		}
 		finalReport = string(xmlReportBytes)
 	default:
@@ -1281,7 +1281,7 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 
 	file, err := os.OpenFile(reportPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		return goerrors.Errorf("Error while opening: %q: %s", reportPath, err)
+		return goerrors.Errorf("Error while opening: %q: %w", reportPath, err)
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
@@ -1291,7 +1291,7 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 
 	_, err = file.WriteString(finalReport)
 	if err != nil {
-		return goerrors.Errorf("failed to write report to: %q: %s", reportPath, err)
+		return goerrors.Errorf("failed to write report to: %q: %w", reportPath, err)
 	}
 	if printReportPath {
 		fmt.Printf("-- find schema analysis report at: %s\n", reportPath)
@@ -1368,7 +1368,7 @@ var analyzeSchemaCmd = &cobra.Command{
 		validateReportOutputFormat(validOutputFormats, analyzeSchemaReportFormat)
 		err = validateAndSetTargetDbVersionFlag()
 		if err != nil {
-			utils.ErrExit("failed to validate target db version: %v", err)
+			utils.ErrExit("failed to validate target db version: %w", err)
 		}
 	},
 

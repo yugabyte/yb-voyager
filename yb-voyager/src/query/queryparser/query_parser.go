@@ -59,7 +59,7 @@ func ParseSqlFile(filePath string) (*pg_query.ParseResult, error) {
 	log.Debugf("parsing the file %q", filePath)
 	bytes, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, goerrors.Errorf("reading file failed: %v", err)
+		return nil, goerrors.Errorf("reading file failed: %w", err)
 	}
 
 	tree, err := pg_query.Parse(string(bytes))
@@ -74,12 +74,12 @@ func ParseSqlFile(filePath string) (*pg_query.ParseResult, error) {
 func ProcessDDL(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	processor, err := GetDDLProcessor(parseTree)
 	if err != nil {
-		return nil, goerrors.Errorf("getting processor failed: %v", err)
+		return nil, goerrors.Errorf("getting processor failed: %w", err)
 	}
 
 	ddlObject, err := processor.Process(parseTree)
 	if err != nil {
-		return nil, goerrors.Errorf("parsing DDL failed: %v", err)
+		return nil, goerrors.Errorf("parsing DDL failed: %w", err)
 	}
 
 	return ddlObject, nil

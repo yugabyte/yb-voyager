@@ -198,7 +198,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 	if err := startMetricsServer(exporterRole, migrationUUID); err != nil {
-		utils.ErrExit("start metrics server: %v", err)
+		utils.ErrExit("start metrics server: %w", err)
 	}
 	metrics.Get().SetExportParallelism(exporterRole, source.NumConnections)
 
@@ -689,7 +689,7 @@ func exportData() bool {
 
 	if source.RunGuardrailsChecks {
 		if err := srcdb.CheckSchemasHaveUsagePermissions(&source, export.ChangeStreamingIsEnabled(exportType)); err != nil {
-			utils.ErrExit("schema usage permission check failed: %s", err)
+			utils.ErrExit("schema usage permission check failed: %w", err)
 		}
 	}
 
@@ -919,7 +919,7 @@ func initPGLiveMigrationAndExportSnapshotIfRequired(ctx context.Context, cancel 
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("get migration status record: %v", err)
+		utils.ErrExit("get migration status record: %w", err)
 	}
 
 	isActive, err := checkIfReplicationSlotIsActive(msr.PGReplicationSlotName)

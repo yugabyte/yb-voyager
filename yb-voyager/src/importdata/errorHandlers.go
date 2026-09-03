@@ -308,11 +308,11 @@ func (handler *ImportDataStashAndContinueHandler) HandleBatchIngestionError(batc
 
 	err := batch.MarkError(batchErr, isPartialBatchIngestionPossible)
 	if err != nil {
-		return goerrors.Errorf("marking batch as errored: %s", err)
+		return goerrors.Errorf("marking batch as errored: %w", err)
 	}
 	err = handler.createBatchSymlinkInErrorsFolder(batch, taskFilePath)
 	if err != nil {
-		return goerrors.Errorf("creating symlink in errors folder: %s", err)
+		return goerrors.Errorf("creating symlink in errors folder: %w", err)
 	}
 	metrics.Get().RecordImportError(handler.importerRole, batch.GetTableName(), metrics.ErrorKindBatchIngestion, batch.GetRecordCount(), batch.GetByteCount())
 	return nil
@@ -324,13 +324,13 @@ func (handler *ImportDataStashAndContinueHandler) createBatchSymlinkInErrorsFold
 	errorsFolderPathForTableTask := handler.getErrorsFolderPathForTableTask(batch.GetTableName(), taskFilePath)
 	err := os.MkdirAll(errorsFolderPathForTableTask, os.ModePerm)
 	if err != nil {
-		return goerrors.Errorf("creating errors folder: %s", err)
+		return goerrors.Errorf("creating errors folder: %w", err)
 	}
 
 	symlinkFileName := fmt.Sprintf("%s.%s", INGESTION_ERROR_PREFIX, filepath.Base(batch.GetFilePath()))
 	err = os.Symlink(batch.GetFilePath(), filepath.Join(errorsFolderPathForTableTask, symlinkFileName))
 	if err != nil {
-		return goerrors.Errorf("creating symlink: %s", err)
+		return goerrors.Errorf("creating symlink: %w", err)
 	}
 	return nil
 }
@@ -351,7 +351,7 @@ func (handler *ImportDataStashAndContinueHandler) CleanUpStoredErrors(tableName 
 
 	err := os.RemoveAll(handler.getErrorsFolderPathForTableTask(tableName, taskFilePath))
 	if err != nil {
-		return goerrors.Errorf("removing errors folder for table : %s", err)
+		return goerrors.Errorf("removing errors folder for table : %w", err)
 	}
 	return nil
 }

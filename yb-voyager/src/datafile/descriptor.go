@@ -69,12 +69,12 @@ func OpenDescriptor(exportDir string) *Descriptor {
 	log.Infof("loading DataFileDescriptor from %q", filePath)
 	dfdJson, err := os.ReadFile(filePath)
 	if err != nil {
-		utils.ErrExit("load data descriptor file: %v", err)
+		utils.ErrExit("load data descriptor file: %w", err)
 	}
 
 	err = json.Unmarshal(dfdJson, &dfd)
 	if err != nil {
-		utils.ErrExit("unmarshal dfd: %v", err)
+		utils.ErrExit("unmarshal dfd: %w", err)
 	}
 
 	// Prefix the export dir to the file paths, if the paths are not absolute.
@@ -97,13 +97,13 @@ func (dfd *Descriptor) Save() {
 
 	bytes, err := json.MarshalIndent(dfd, "", "\t")
 	if err != nil {
-		utils.ErrExit("marshalling the dfd struct: %v", err)
+		utils.ErrExit("marshalling the dfd struct: %w", err)
 	}
 
 	err = os.WriteFile(filePath, bytes, 0644)
 	if err != nil {
 		fmt.Printf("%+v\n", dfd)
-		utils.ErrExit("writing DataFileDescriptor: %v", err)
+		utils.ErrExit("writing DataFileDescriptor: %w", err)
 	}
 }
 

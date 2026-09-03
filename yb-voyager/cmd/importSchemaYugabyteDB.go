@@ -140,11 +140,11 @@ func generateAnalyzeReport(targetYBDBVersion string) (string, error) {
 func isNotValidConstraint(stmt string) (bool, error) {
 	parseTree, err := queryparser.Parse(stmt)
 	if err != nil {
-		return false, goerrors.Errorf("error parsing the ddl[%s]: %v", stmt, err)
+		return false, goerrors.Errorf("error parsing the ddl[%s]: %w", stmt, err)
 	}
 	ddlObj, err := queryparser.ProcessDDL(parseTree)
 	if err != nil {
-		return false, goerrors.Errorf("error in process DDL[%s]:%v", stmt, err)
+		return false, goerrors.Errorf("error in process DDL[%s]:%w", stmt, err)
 	}
 	alter, ok := ddlObj.(*queryparser.AlterTable)
 	if !ok {
@@ -197,7 +197,7 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 		// Check if the statement should be skipped
 		skip, err := shouldSkipDDL(sqlInfo.stmt, objType)
 		if err != nil {
-			return goerrors.Errorf("error checking whether to skip DDL for statement [%s]: %v", sqlInfo.stmt, err)
+			return goerrors.Errorf("error checking whether to skip DDL for statement [%s]: %w", sqlInfo.stmt, err)
 		}
 		if skip {
 			log.Infof("Skipping DDL: %s", sqlInfo.stmt)
@@ -206,7 +206,7 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 
 		ok, err := isSessionVariable(sqlInfo.stmt)
 		if err != nil {
-			return goerrors.Errorf("error checking whether statement is a session variable: %v", err)
+			return goerrors.Errorf("error checking whether statement is a session variable: %w", err)
 		}
 		if ok {
 			sessionVariables = append(sessionVariables, sqlInfo)
@@ -268,7 +268,7 @@ func shouldSkipDDL(stmt string, objType string) (bool, error) {
 	}
 	isNotValid, err := isNotValidConstraint(stmt)
 	if err != nil {
-		return false, goerrors.Errorf("error checking whether stmt is to add not valid constraint: %v", err)
+		return false, goerrors.Errorf("error checking whether stmt is to add not valid constraint: %w", err)
 	}
 	skipNotValidWithoutPostImport := isNotValid && !bool(flagPostSnapshotImport)
 	skipOtherDDLsWithPostImport := (bool(flagPostSnapshotImport) && !isNotValid)
@@ -288,7 +288,7 @@ func executeSqlStmtWithRetries(tgtConn **ImportSchemaTargetConn, sqlInfo sqlInfo
 
 	err = (*tgtConn).ApplySessionVariables(sessionVariables)
 	if err != nil {
-		return goerrors.Errorf("error applying session variable: %v", err)
+		return goerrors.Errorf("error applying session variable: %w", err)
 	}
 
 	// NOTE (errcheck): the closure's error return has always been discarded — a
@@ -308,7 +308,7 @@ func executeSqlStmtWithRetries(tgtConn **ImportSchemaTargetConn, sqlInfo sqlInfo
 			log.Infof("Resetting all session variables on the connection for next stmt")
 			err = conn.ResetSessionVariables(sessionVariables)
 			if err != nil {
-				return goerrors.Errorf("error resetting all session variables on connection: %v", err)
+				return goerrors.Errorf("error resetting all session variables on connection: %w", err)
 			}
 			return nil
 		}()
@@ -353,7 +353,7 @@ func executeSqlStmtWithRetries(tgtConn **ImportSchemaTargetConn, sqlInfo sqlInfo
 			if err != nil {
 				_ = (*tgtConn).Close(context.Background()) // conn is being discarded
 				(*tgtConn) = nil
-				return goerrors.Errorf("extract qualified index name from DDL [%v]: %v", sqlInfo.stmt, err)
+				return goerrors.Errorf("extract qualified index name from DDL [%v]: %w", sqlInfo.stmt, err)
 			}
 
 			// DROP INDEX in case INVALID index got created
@@ -604,7 +604,7 @@ func (tc *ImportSchemaTargetConn) ResetSessionVariables(sessionVariables []sqlIn
 	for _, sessionVariable := range sessionVariables {
 		sessionVarName, err := queryparser.GetSessionVariableName(sessionVariable.stmt)
 		if err != nil {
-			return goerrors.Errorf("error getting session variable name: %v", err)
+			return goerrors.Errorf("error getting session variable name: %w", err)
 		}
 		resetSessionVariable := fmt.Sprintf("RESET %s", sessionVarName)
 		_, err = (*tc.conn).Exec(context.Background(), resetSessionVariable)
@@ -614,7 +614,7 @@ func (tc *ImportSchemaTargetConn) ResetSessionVariables(sessionVariables []sqlIn
 				log.Warnf("Skipping resetting unrecognized configuration: %s", sessionVariable.stmt)
 				continue
 			}
-			return goerrors.Errorf("error resetting session variable: %v", err)
+			return goerrors.Errorf("error resetting session variable: %w", err)
 		}
 	}
 	return nil
@@ -628,7 +628,7 @@ func (tc *ImportSchemaTargetConn) ApplySessionVariables(sessionVariables []sqlIn
 				log.Warnf("Skipping unrecognized configuration: %s", sessionVariable.stmt)
 				return nil
 			}
-			return goerrors.Errorf("run query: %q on target %q: %s", sessionVariable.stmt, tconf.Host, err)
+			return goerrors.Errorf("run query: %q on target %q: %w", sessionVariable.stmt, tconf.Host, err)
 		}
 	}
 	return nil
@@ -675,7 +675,7 @@ func newTargetConn() *ImportSchemaTargetConn {
 		if err != nil {
 			utils.WaitChannel <- 1
 			<-utils.WaitChannel
-			utils.ErrExit("connect to target db: %s", err)
+			utils.ErrExit("connect to target db: %w", err)
 		}
 	}
 
@@ -714,7 +714,7 @@ func setTargetSchema(conn *pgx.Conn) {
 	var cntSchemaName int
 
 	if err := conn.QueryRow(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
-		utils.ErrExit("run query: %q on target %q to check schema exists: %s", checkSchemaExistsQuery, tconf.Host, err)
+		utils.ErrExit("run query: %q on target %q to check schema exists: %w", checkSchemaExistsQuery, tconf.Host, err)
 	} else if cntSchemaName < len(tconf.Schemas) {
 		utils.ErrExit("schemas do not exist in target: %q", schemas)
 	}
@@ -723,7 +723,7 @@ func setTargetSchema(conn *pgx.Conn) {
 	setSchemaQuery := fmt.Sprintf("SET SEARCH_PATH TO %s", setSchemas)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
-		utils.ErrExit("run query: %q on target %q: %s", setSchemaQuery, tconf.Host, err)
+		utils.ErrExit("run query: %q on target %q: %w", setSchemaQuery, tconf.Host, err)
 	}
 }
 
@@ -732,6 +732,6 @@ func setOrafceSearchPath(conn *pgx.Conn) {
 	updateSearchPath := `SELECT set_config('search_path', current_setting('search_path') || ', oracle', false)`
 	_, err := conn.Exec(context.Background(), updateSearchPath)
 	if err != nil {
-		utils.ErrExit("unable to update search_path for orafce extension: %v", err)
+		utils.ErrExit("unable to update search_path for orafce extension: %w", err)
 	}
 }

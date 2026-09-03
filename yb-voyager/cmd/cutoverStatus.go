@@ -52,7 +52,7 @@ var cutoverStatusCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		msr, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
-			utils.ErrExit("error getting migration status record: %s", err)
+			utils.ErrExit("error getting migration status record: %w", err)
 		}
 		if msr == nil {
 			utils.ErrExit("migration status record not found; has the migration been started?")
@@ -83,7 +83,7 @@ var cutoverStatusCmd = &cobra.Command{
 func CollectCutoverStatusRowsForAllIterations(exportDir string, metaDB *metadb.MetaDB) map[int][]CutoverStatusRow {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("error getting migration status record: %s", err)
+		utils.ErrExit("error getting migration status record: %w", err)
 	}
 	if msr.LatestIterationNumber == 0 {
 		return nil
@@ -99,7 +99,7 @@ func CollectCutoverStatusRowsForAllIterations(exportDir string, metaDB *metadb.M
 		iterationExportDir := GetIterationExportDir(iterationsDir, i)
 		iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
 		if err != nil {
-			utils.ErrExit("error getting iteration meta db: %s", err)
+			utils.ErrExit("error getting iteration meta db: %w", err)
 		}
 		rows := collectCutoverStatusRows(iterationExportDir, iterationMetaDB)
 		iterationToRows[i] = rows
@@ -116,7 +116,7 @@ func init() {
 func collectCutoverStatusRows(exportDir string, metaDB *metadb.MetaDB) []CutoverStatusRow {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("error getting migration status record: %s", err)
+		utils.ErrExit("error getting migration status record: %w", err)
 	}
 
 	var rows []CutoverStatusRow

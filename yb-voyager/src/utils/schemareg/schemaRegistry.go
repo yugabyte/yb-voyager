@@ -115,7 +115,7 @@ func (sreg *SchemaRegistry) GetColumnType(tableNameTup sqlname.NameTuple, column
 
 		err = sreg.Init()
 		if err != nil {
-			return "", nil, goerrors.Errorf("re-init of registry : %v", err)
+			return "", nil, goerrors.Errorf("re-init of registry : %w", err)
 		}
 		tableSchema, found = sreg.TableNameToSchema.Get(tableNameTup)
 		if !found || tableSchema == nil {
@@ -150,7 +150,7 @@ func (sreg *SchemaRegistry) Init() error {
 		//using this function and checking if this is actually excluded in list
 		table, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tableName)
 		if err != nil {
-			return goerrors.Errorf("lookup %s from name registry: %v", tableName, err)
+			return goerrors.Errorf("lookup %s from name registry: %w", tableName, err)
 		}
 		if !lo.ContainsBy(sreg.tableList, func(t sqlname.NameTuple) bool {
 			return t.ForKey() == table.ForKey()
