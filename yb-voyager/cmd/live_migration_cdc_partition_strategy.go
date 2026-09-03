@@ -128,9 +128,6 @@ func shouldForceTablePartitioning(importerRole string, sourceDBType string) bool
 }
 
 // resolveEffectiveCdcPartitionKeys applies global strategy, then per-table overlays,
-// then rejects effective pk/custom for expression-UK tables, tables with a unique index
-// on a generated stored column, and custom keys that name a generated stored column.
-// Pure helper for unit tests.
 func resolveEffectiveCdcPartitionKeys(
 	tableNames []sqlname.NameTuple,
 	globalKey string,
@@ -327,7 +324,7 @@ func computeCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple, isFi
 		return nil, nil, err
 	}
 
-	err = validateCDCPartitonKeysPerTable(tableToPartitionKeyOverrideMap, tableNames, exprUKSet, generatedStoredCols)
+	err = validateAndFinalizeCDCPartitionKeysPerTable(tableToPartitionKeyOverrideMap, tableNames, exprUKSet, generatedStoredCols)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -532,7 +529,11 @@ func getGeneratedStoredColumnsHybrid(tableNames []sqlname.NameTuple, tableToUniq
 		return nil, fmt.Errorf("error getting export data source db exporter status record: %w", err)
 	}
 	if exportStatus == nil {
-		return nil, nil
+		// Export dir written by a voyager that predates source capture: we cannot know the
+		// generated columns. Resolve to empty (no forced table) — or fail/force-table if
+		// under-protection is unacceptable.
+		log.Warnf("source generated stored columns not captured at export (older voyager export dir); generated-column guardrails are skipped")
+		return result, nil
 	}
 
 	// Restrict to the tables that actually have source generated columns. When none do
@@ -586,16 +587,19 @@ type GeneratedStoredColumn struct {
 	InUniqueIndex bool
 }
 
-// validateCDCPartitonKeysPerTable runs the import-start guardrails for tables routed by a
+// validateAndFinalizeCDCPartitionKeysPerTable runs the import-start guardrails for tables routed by a
 // custom partition key (see cdc_partition_key_followups.md, Follow-up 1):
 //   - hard-fail if any custom key column does not exist on the table, so misconfiguration is
 //     caught up front instead of erroring per-event in hashEvent.
+//   - mutates the tableToPartitionKeyOverrideMap to include the finalized custom key column casing
 //
 // It queries the target DB, so callers should only invoke it on the first import (not resume).
 // (Primary-key existence for custom-key tables is validated separately in
 // validatePrimaryKeysForConflictDetection, which fetches the PK columns for the whole import
 // table list once in importData.)
-func validateCDCPartitonKeysPerTable(tableToPartitionKeyOverrideMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], tableNames []sqlname.NameTuple, exprUKSet *utils.StructMap[sqlname.NameTuple, bool], generatedStoredCols *utils.StructMap[sqlname.NameTuple, []GeneratedStoredColumn]) error {
+//rejects the PK/Custom strategy on the tables having expression-based unique index or a unique index on a stored generated column
+//custom key columns can't be a stored generated column
+func validateAndFinalizeCDCPartitionKeysPerTable(tableToPartitionKeyOverrideMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], tableNames []sqlname.NameTuple, exprUKSet *utils.StructMap[sqlname.NameTuple, bool], generatedStoredCols *utils.StructMap[sqlname.NameTuple, []GeneratedStoredColumn]) error {
 	var customTables []sqlname.NameTuple
 	err := tableToPartitionKeyOverrideMap.IterKV(func(t sqlname.NameTuple, override cdcPartitionKeyOverride) (bool, error) {
 		if override.Strategy == PARTITION_BY_CUSTOM {
@@ -643,6 +647,7 @@ func validateCDCPartitonKeysPerTable(tableToPartitionKeyOverrideMap *utils.Struc
 			sort.Strings(ambiguous)
 			ambiguousColumnsOnTables[t.ForOutput()] = ambiguous
 		} else {
+			//once we have finalized the custom key column casing, now we can put the override back into the map
 			override.Columns = overrideColumns
 			tableToPartitionKeyOverrideMap.Put(t, override)
 		}
