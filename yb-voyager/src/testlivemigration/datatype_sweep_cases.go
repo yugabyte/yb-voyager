@@ -132,6 +132,30 @@ func rangeProbes() []datatypeProbe {
 			AltValue:     "ARRAY['[100,200)'::int4range]",
 			Note:         "contrast case for RANGE-010: array of a BUILT-IN range rather than a user-defined one",
 		},
+		{
+			ID: "RANGE-012", Name: "array of built-in range (numrange)", TypeName: "numrange[]",
+			ColumnDDL:    "numrange[]",
+			InitialValue: "ARRAY['[1.5,2.5)'::numrange, '(0.10,0.20]'::numrange]",
+			AltValue:     "ARRAY['[100.5,200.5)'::numrange]",
+			Note: "contrast case alongside RANGE-011 (int4range[]): does the runtime typtype='r' " +
+				"catalogue filter also miss the array form of every OTHER built-in range?",
+		},
+		{
+			ID: "RANGE-013", Name: "array of built-in range (daterange)", TypeName: "daterange[]",
+			ColumnDDL:    "daterange[]",
+			InitialValue: "ARRAY['[2024-01-01,2024-02-01)'::daterange, '[2000-01-01,2000-12-31]'::daterange]",
+			AltValue:     "ARRAY['[1999-01-01,1999-02-01)'::daterange]",
+			Note: "contrast case alongside RANGE-011 (int4range[]): does the runtime typtype='r' " +
+				"catalogue filter also miss the array form of every OTHER built-in range?",
+		},
+		{
+			ID: "RANGE-014", Name: "array of built-in range (int8range)", TypeName: "int8range[]",
+			ColumnDDL:    "int8range[]",
+			InitialValue: "ARRAY['[1,9223372036854775806)'::int8range, '[0,10)'::int8range]",
+			AltValue:     "ARRAY['[100,200)'::int8range]",
+			Note: "contrast case alongside RANGE-011 (int4range[]): does the runtime typtype='r' " +
+				"catalogue filter also miss the array form of every OTHER built-in range?",
+		},
 	}
 }
 
@@ -182,6 +206,15 @@ func multirangeProbes() []datatypeProbe {
 			InitialValue: "'{[1,5),[10,20)}'::{{schema}}.{{p}}_mr",
 			AltValue:     "'{[42,43)}'::{{schema}}.{{p}}_mr",
 			Note:         "multirange auto-created alongside a user-defined range",
+		},
+		{
+			ID: "MRANGE-008", Name: "array of built-in multirange", TypeName: "int4multirange[]",
+			ColumnDDL:    "int4multirange[]",
+			InitialValue: "ARRAY['{[1,5),[10,20)}'::int4multirange, '{[100,200)}'::int4multirange]",
+			AltValue:     "ARRAY['{[42,43)}'::int4multirange]",
+			Note: "int4multirange is on srcdb.PostgresUnsupportedDataTypes (all modes) matched by " +
+				"the SCALAR type's own name; the array type's own name (_int4multirange) never equals " +
+				"that list entry, so the array form should bypass it",
 		},
 	}
 }
@@ -248,6 +281,103 @@ func domainProbes() []datatypeProbe {
 			ColumnDDL:    "{{schema}}.{{p}}_d[]",
 			InitialValue: "ARRAY[1,2,3]::{{schema}}.{{p}}_d[]", AltValue: "ARRAY[9]::{{schema}}.{{p}}_d[]",
 		},
+		{
+			ID: "DOM-008", Name: "domain over hstore", TypeName: "domain(hstore)",
+			Extensions:   []string{"hstore"},
+			PreDDL:       []string{"CREATE DOMAIN {{schema}}.{{p}}_d AS hstore"},
+			ColumnDDL:    "{{schema}}.{{p}}_d",
+			InitialValue: "'a=>1, b=>2'::hstore", AltValue: "'c=>3'::hstore",
+			Note: "hstore is on the gRPC connector's name-matched exclusion list; does the domain " +
+				"wrapper (typtype='d', base type resolved only by name) bypass that guardrail?",
+		},
+		{
+			ID: "DOM-009", Name: "domain over tsvector", TypeName: "domain(tsvector)",
+			PreDDL:       []string{"CREATE DOMAIN {{schema}}.{{p}}_d AS tsvector"},
+			ColumnDDL:    "{{schema}}.{{p}}_d",
+			InitialValue: "'a b c'::tsvector", AltValue: "'x:1 y:2'::tsvector",
+			Note: "tsvector is on the gRPC connector's name-matched exclusion list; does the domain " +
+				"wrapper bypass it?",
+		},
+		{
+			ID: "DOM-010", Name: "domain over citext", TypeName: "domain(citext)",
+			Extensions:   []string{"citext"},
+			PreDDL:       []string{"CREATE DOMAIN {{schema}}.{{p}}_d AS citext"},
+			ColumnDDL:    "{{schema}}.{{p}}_d",
+			InitialValue: "'MixedCase'::citext", AltValue: "'OTHER value'::citext",
+			Note: "citext is on the gRPC connector's name-matched exclusion list; does the domain " +
+				"wrapper bypass it?",
+		},
+		{
+			ID: "DOM-011", Name: "domain over ltree", TypeName: "domain(ltree)",
+			Extensions:   []string{"ltree"},
+			PreDDL:       []string{"CREATE DOMAIN {{schema}}.{{p}}_d AS ltree"},
+			ColumnDDL:    "{{schema}}.{{p}}_d",
+			InitialValue: "'Top.Science.Astronomy'::ltree", AltValue: "'Top.Art'::ltree",
+			Note: "ltree is on the gRPC connector's name-matched exclusion list; does the domain " +
+				"wrapper bypass it?",
+		},
+		{
+			ID: "DOM-012", Name: "domain over timetz", TypeName: "domain(timetz)",
+			PreDDL:       []string{"CREATE DOMAIN {{schema}}.{{p}}_d AS timetz"},
+			ColumnDDL:    "{{schema}}.{{p}}_d",
+			InitialValue: "'12:34:56.789+05:30'::timetz", AltValue: "'23:59:59.999999-08:00'::timetz",
+			Note: "timetz is on the logical connector's name-matched exclusion list and the bare " +
+				"scalar column is dropped (MISC-012, ExpectExcluded); does the domain wrapper bypass it?",
+		},
+		{
+			ID: "DOM-013", Name: "domain over pg_lsn", TypeName: "domain(pg_lsn)",
+			PreDDL:       []string{"CREATE DOMAIN {{schema}}.{{p}}_d AS pg_lsn"},
+			ColumnDDL:    "{{schema}}.{{p}}_d",
+			InitialValue: "'16/B374D848'::pg_lsn", AltValue: "'0/0'::pg_lsn",
+			Note: "pg_lsn is on srcdb.PostgresUnsupportedDataTypes (unsupported for ALL modes, by " +
+				"name) and the bare scalar column is dropped (SYS-008); does the domain wrapper bypass it?",
+		},
+		{
+			ID: "DOM-014", Name: "domain over xid8", TypeName: "domain(xid8)",
+			PreDDL:       []string{"CREATE DOMAIN {{schema}}.{{p}}_d AS xid8"},
+			ColumnDDL:    "{{schema}}.{{p}}_d",
+			InitialValue: "'123456789'::xid8", AltValue: "'42'::xid8",
+			Note: "bare xid8 (SYS-002) silently corrupts its value (123456789 arrives as " +
+				"124953606999317); does the domain wrapper share that corruption or take a different path?",
+		},
+		{
+			ID: "DOM-015", Name: "domain over regclass", TypeName: "domain(regclass)",
+			PreDDL:       []string{"CREATE DOMAIN {{schema}}.{{p}}_d AS regclass"},
+			ColumnDDL:    "{{schema}}.{{p}}_d",
+			InitialValue: "'pg_class'::regclass", AltValue: "'pg_type'::regclass",
+			Note: "bare regclass (SYS-004) is poison - the hex-encoded OID reference stops the " +
+				"import with SQLSTATE 42P01; does that same hex-encoding path still fire through a domain?",
+		},
+		{
+			ID: "DOM-016", Name: "domain over int4range", TypeName: "domain(int4range)",
+			PreDDL:       []string{"CREATE DOMAIN {{schema}}.{{p}}_d AS int4range"},
+			ColumnDDL:    "{{schema}}.{{p}}_d",
+			InitialValue: "'[1,10)'::int4range", AltValue: "'[5,20]'::int4range",
+			Note: "bare int4range is dropped by the runtime typtype='r' filter in " +
+				"PostgreSQL.getAllUserDefinedRangeTypes; a domain has typtype='d', so it should bypass " +
+				"that catalogue query and the range data should then flow",
+		},
+		{
+			ID: "DOM-017", Name: "array of domain over point", TypeName: "domain(point)[]",
+			PreDDL:       []string{"CREATE DOMAIN {{schema}}.{{p}}_d AS point"},
+			ColumnDDL:    "{{schema}}.{{p}}_d[]",
+			InitialValue: "ARRAY['(1.5,-2.5)'::point, '(0,0)'::point]::{{schema}}.{{p}}_d[]",
+			AltValue:     "ARRAY['(3,4)'::point]::{{schema}}.{{p}}_d[]",
+			Note: "double wrapper over point (bare point is dropped): does resolution recurse " +
+				"through both typelem (array) and typbasetype (domain), or does a single-hop check catch it?",
+		},
+		{
+			ID: "DOM-018", Name: "domain over domain over xml", TypeName: "domain(domain(xml))",
+			PreDDL: []string{
+				"CREATE DOMAIN {{schema}}.{{p}}_d1 AS xml",
+				"CREATE DOMAIN {{schema}}.{{p}}_d2 AS {{schema}}.{{p}}_d1",
+			},
+			ColumnDDL:    "{{schema}}.{{p}}_d2",
+			InitialValue: `'<a attr="1">text</a>'::xml`, AltValue: `'<b/>'::xml`,
+			Note: "nested domain over xml (single-level domain(xml) is DOM-003, a deterministic " +
+				"poison): does resolving typbasetype only one level deep still miss xml, or does " +
+				"resolution recurse through both domain levels?",
+		},
 	}
 }
 
@@ -286,6 +416,34 @@ func compositeProbes() []datatypeProbe {
 			ColumnDDL:    "{{schema}}.{{p}}_c",
 			InitialValue: "ROW(1, NULL)::{{schema}}.{{p}}_c", AltValue: "ROW(NULL, 'z')::{{schema}}.{{p}}_c",
 			Note: "a NULL *inside* a composite is distinct from a NULL composite",
+		},
+		{
+			ID: "COMP-005", Name: "composite with a point field", TypeName: "composite(point field)",
+			PreDDL:       []string{"CREATE TYPE {{schema}}.{{p}}_c AS (x integer, loc point)"},
+			ColumnDDL:    "{{schema}}.{{p}}_c",
+			InitialValue: "ROW(1, '(1.5,-2.5)'::point)::{{schema}}.{{p}}_c",
+			AltValue:     "ROW(2, '(0,0)'::point)::{{schema}}.{{p}}_c",
+			Note: "the guardrail matches the COMPOSITE's own typname, never a field's; does a point " +
+				"field inside a composite bypass the exclusion that catches a bare point column?",
+		},
+		{
+			ID: "COMP-006", Name: "composite with an hstore field", TypeName: "composite(hstore field)",
+			Extensions:   []string{"hstore"},
+			PreDDL:       []string{"CREATE TYPE {{schema}}.{{p}}_c AS (x integer, kv hstore)"},
+			ColumnDDL:    "{{schema}}.{{p}}_c",
+			InitialValue: "ROW(1, 'a=>1, b=>2'::hstore)::{{schema}}.{{p}}_c",
+			AltValue:     "ROW(2, 'c=>3'::hstore)::{{schema}}.{{p}}_c",
+			Note: "hstore is on the gRPC connector's name-matched exclusion list; the guardrail " +
+				"matches the composite's own typname, so an hstore field should bypass it",
+		},
+		{
+			ID: "COMP-007", Name: "composite with an int4range field", TypeName: "composite(int4range field)",
+			PreDDL:       []string{"CREATE TYPE {{schema}}.{{p}}_c AS (x integer, span int4range)"},
+			ColumnDDL:    "{{schema}}.{{p}}_c",
+			InitialValue: "ROW(1, '[1,10)'::int4range)::{{schema}}.{{p}}_c",
+			AltValue:     "ROW(2, '[5,20]'::int4range)::{{schema}}.{{p}}_c",
+			Note: "bare int4range is dropped by the runtime typtype='r' catalogue filter; a " +
+				"composite's own typtype is 'c', so an int4range field should bypass that filter entirely",
 		},
 	}
 }
@@ -378,6 +536,88 @@ func arrayProbes() []datatypeProbe {
 			InitialValue: "'[3:5]={1,2,3}'::int[]",
 			AltValue:     "'[0:2]={9,8,7}'::int[]",
 			Note:         "PG keeps explicit array bounds; losing them shifts every subscript",
+		},
+		{
+			ID: "ARR-008", Name: "citext array", TypeName: "citext[]",
+			Extensions:   []string{"citext"},
+			ColumnDDL:    "citext[]",
+			InitialValue: "ARRAY['MixedCase','OTHER value']::citext[]",
+			AltValue:     "ARRAY['third']::citext[]",
+			Note: "citext is on the gRPC connector's name-matched exclusion list; does the ARRAY " +
+				"form bypass it via typelem?",
+		},
+		{
+			ID: "ARR-009", Name: "ltree array", TypeName: "ltree[]",
+			Extensions:   []string{"ltree"},
+			ColumnDDL:    "ltree[]",
+			InitialValue: "ARRAY['Top.Science.Astronomy','Top.Art']::ltree[]",
+			AltValue:     "ARRAY['Top.Music']::ltree[]",
+			Note: "ltree is on the gRPC connector's name-matched exclusion list; does the ARRAY " +
+				"form bypass it via typelem?",
+		},
+		{
+			ID: "ARR-010", Name: "tsvector array", TypeName: "tsvector[]",
+			ColumnDDL:    "tsvector[]",
+			InitialValue: "ARRAY['a b c','x:1 y:2']::tsvector[]",
+			AltValue:     "ARRAY['p q']::tsvector[]",
+			Note: "tsvector is on the gRPC connector's name-matched exclusion list; does the ARRAY " +
+				"form bypass it via typelem?",
+		},
+		{
+			ID: "ARR-011", Name: "tsquery array", TypeName: "tsquery[]",
+			ColumnDDL:    "tsquery[]",
+			InitialValue: "ARRAY['fat & rat','cat | dog']::tsquery[]",
+			AltValue:     "ARRAY['bird & fish']::tsquery[]",
+			Note: "tsquery is on both connectors' name-matched exclusion lists; does the ARRAY " +
+				"form bypass it via typelem?",
+		},
+		{
+			ID: "ARR-012", Name: "pg_lsn array", TypeName: "pg_lsn[]",
+			ColumnDDL:    "pg_lsn[]",
+			InitialValue: "ARRAY['16/B374D848','0/0']::pg_lsn[]",
+			AltValue:     "ARRAY['1/1']::pg_lsn[]",
+			Note: "pg_lsn is on srcdb.PostgresUnsupportedDataTypes (all modes, by name) and the " +
+				"bare scalar column is dropped (SYS-008); does the ARRAY form bypass it via typelem?",
+		},
+		{
+			ID: "ARR-013", Name: "txid_snapshot array", TypeName: "txid_snapshot[]",
+			ColumnDDL:    "txid_snapshot[]",
+			InitialValue: "ARRAY['10:20:14,15','30:40:']::txid_snapshot[]",
+			AltValue:     "ARRAY['50:60:']::txid_snapshot[]",
+			Note: "txid_snapshot is on srcdb.PostgresUnsupportedDataTypes (all modes, by name); " +
+				"does the ARRAY form bypass it via typelem?",
+		},
+		{
+			ID: "ARR-014", Name: "xid8 array", TypeName: "xid8[]",
+			ColumnDDL:    "xid8[]",
+			InitialValue: "ARRAY['123456789','42']::xid8[]",
+			AltValue:     "ARRAY['999999999']::xid8[]",
+			Note: "bare xid8 (SYS-002) silently corrupts its value; does the ARRAY form share that " +
+				"corruption or take a different transport path?",
+		},
+		{
+			ID: "ARR-015", Name: "refcursor array", TypeName: "refcursor[]",
+			ColumnDDL:    "refcursor[]",
+			InitialValue: "ARRAY['mycursor','other_cursor']::refcursor[]",
+			AltValue:     "ARRAY['third_cursor']::refcursor[]",
+			Note: "paired with xid8[] as another array of a bare, only lightly characterised " +
+				"scalar type (CAT-003); does the ARRAY form change the outcome from the bare form?",
+		},
+		{
+			ID: "ARR-016", Name: "regclass array", TypeName: "regclass[]",
+			ColumnDDL:    "regclass[]",
+			InitialValue: "ARRAY['pg_class','pg_type']::regclass[]",
+			AltValue:     "ARRAY['pg_attribute']::regclass[]",
+			Note: "bare regclass (SYS-004) is poison - it stops the import with SQLSTATE 42P01; " +
+				"does the ARRAY form still hit that hex-encoding path via typelem?",
+		},
+		{
+			ID: "ARR-017", Name: "tid array", TypeName: "tid[]",
+			ColumnDDL:    "tid[]",
+			InitialValue: "ARRAY['(0,1)','(17,5)']::tid[]",
+			AltValue:     "ARRAY['(1,1)']::tid[]",
+			Note: "bare tid (SYS-003) is poison - the import rejects it with SQLSTATE 22P02; does " +
+				"the ARRAY form still hit that same rejection via typelem?",
 		},
 	}
 }
@@ -993,6 +1233,14 @@ func coreScalarProbes() []datatypeProbe {
 			InitialValue: "'1 year 2 mons 3 days 04:05:06.789'::interval",
 			AltValue:     "'-15 days'::interval",
 			Note:         "all three interval fields (months, days, microseconds) populated at once",
+		},
+		{
+			ID: "CORE-020", Name: "xml", TypeName: "xml",
+			ColumnDDL:    "xml",
+			InitialValue: `'<a attr="1">text</a>'::xml`, AltValue: `'<b/>'::xml`,
+			Note: "xml is on srcdb.PostgresUnsupportedDataTypes (all modes) but had no bare-type " +
+				"probe at all; this establishes the baseline bare-column outcome that every xml " +
+				"wrapper probe (ARR-003, DOM-003, DOM-018) is measured against",
 		},
 	}
 }
