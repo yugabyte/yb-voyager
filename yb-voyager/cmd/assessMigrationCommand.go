@@ -97,6 +97,7 @@ var assessMigrationCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("failed to validate target db version: %w", err)
 		}
+		parserIssueDetector.SetTargetDbVersion(targetDbVersion)
 		if cmd.Flags().Changed("assessment-metadata-dir") {
 			validateAssessmentMetadataDirFlag()
 			for _, f := range sourceConnectionFlags {
@@ -1239,8 +1240,10 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 
 	switch source.DBType {
 	case POSTGRESQL:
-		sourceUnsupportedDatatypes = srcdb.PostgresUnsupportedDataTypes
-		liveUnsupportedDatatypes = srcdb.GetPGLiveMigrationUnsupportedDatatypes()
+		// Version-aware lists: a datatype fixed in the target version (e.g. xml from 2026.1)
+		// moves from the unsupported-datatypes list to the live-migration caveat list.
+		sourceUnsupportedDatatypes = queryissue.GetPGUnsupportedDatatypes(targetDbVersion)
+		liveUnsupportedDatatypes = queryissue.GetPGLiveMigrationUnsupportedDatatypes(targetDbVersion)
 		liveWithFForFBUnsupportedDatatypes = srcdb.GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes()
 	case ORACLE:
 		sourceUnsupportedDatatypes = srcdb.OracleUnsupportedDataTypes

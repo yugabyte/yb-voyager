@@ -552,7 +552,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "table_1",
-            "Reason": "Table inheritance is not yet supported in YugabyteDB. This feature is available as Tech Preview (TP) in the target version (2025.2.3.0) — subject to change and not covered by SLA, and is not enabled by default. Enable with the flag(s): ysql_enable_inheritance.",
+            "Reason": "Table inheritance is not yet supported in YugabyteDB. This feature is available as Tech Preview (TP) in the target version — subject to change and not covered by SLA, and is not enabled by default. Enable with the flag(s): ysql_enable_inheritance.",
             "SqlStatement": "CREATE TABLE table_1 () INHERITS (xyz);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "Suggestion": "",

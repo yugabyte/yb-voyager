@@ -280,6 +280,13 @@ type ParserIssueDetector struct {
 
 	// Track if SAVEPOINT usage was detected across all queries
 	isSavepointUsed bool
+
+	// Target YugabyteDB version the issues are being detected for. Set by the
+	// public Get*Issues entry points before detection runs; DDL detectors read it
+	// to classify version-gated datatypes (e.g. xml: unsupported datatype below
+	// 2026.1, live-migration caveat from 2026.1). nil means "no target version":
+	// version-gated datatypes are treated as unsupported.
+	targetDbVersion *ybversion.YBVersion
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -294,6 +301,10 @@ func NewParserIssueDetector() *ParserIssueDetector {
 		jsonbColumns:                            make([]string, 0),
 		tablesMetadata:                          make(map[string]*TableMetadata),
 	}
+}
+
+func (p *ParserIssueDetector) SetTargetDbVersion(targetDbVersion *ybversion.YBVersion) {
+	p.targetDbVersion = targetDbVersion
 }
 
 // Helper methods for ParserIssueDetector to work with TableMetadata

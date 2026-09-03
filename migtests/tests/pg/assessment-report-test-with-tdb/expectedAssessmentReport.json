@@ -2,7 +2,7 @@
     "VoyagerVersion": "main",
     "TargetDBVersion": "2.25.1.0",
     "MigrationComplexity": "HIGH",
-    "MigrationComplexityExplanation": "Found 39 Level 2 issue(s) and 16 Level 3 issue(s), resulting in HIGH migration complexity",
+    "MigrationComplexityExplanation": "Found 39 Level 2 issue(s) and 23 Level 3 issue(s), resulting in HIGH migration complexity",
     "SchemaSummary": {
         "Description": "Objects that will be created on the target YugabyteDB.",
         "DbName": "pg_assessment_report",
@@ -228,30 +228,34 @@
     },
     "AssessmentIssues": [
         {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XML",
-            "Name": "Unsupported datatype for Live migration - xml",
-            "Description": "XML datatype not yet supported by voyager in live migration. Affected column: xml_data. This column will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
+            "Category": "unsupported_datatypes",
+            "CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
+            "Type": "UNSUPPORTED_DATATYPE_XML",
+            "Name": "Unsupported datatype - xml",
+            "Description": "XML datatype is not yet supported in YugabyteDB. Affected column: xml_data. Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
+            "Impact": "LEVEL_3",
             "ObjectType": "COLUMN",
             "ObjectName": "public.combined_tbl.xml_data",
             "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
+            "MinimumVersionsFixedIn": {
+                "2026.1": "2026.1.0.0"
+            }
         },
         {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XML",
-            "Name": "Unsupported datatype for Live migration - xml",
-            "Description": "XML datatype not yet supported by voyager in live migration. Affected column: data. This column will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
+            "Category": "unsupported_datatypes",
+            "CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
+            "Type": "UNSUPPORTED_DATATYPE_XML",
+            "Name": "Unsupported datatype - xml",
+            "Description": "XML datatype is not yet supported in YugabyteDB. Affected column: data. Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
+            "Impact": "LEVEL_3",
             "ObjectType": "COLUMN",
             "ObjectName": "public.test_xml_type.data",
             "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
+            "MinimumVersionsFixedIn": {
+                "2026.1": "2026.1.0.0"
+            }
         },
         {
             "Category": "unsupported_datatypes",
@@ -267,17 +271,19 @@
             "MinimumVersionsFixedIn": null
         },
         {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XML",
-            "Name": "Unsupported datatype for Live migration - xml",
-            "Description": "XML datatype not yet supported by voyager in live migration. Affected column: summary_xml. This column will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
+            "Category": "unsupported_datatypes",
+            "CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
+            "Type": "UNSUPPORTED_DATATYPE_XML",
+            "Name": "Unsupported datatype - xml",
+            "Description": "XML datatype is not yet supported in YugabyteDB. Affected column: summary_xml. Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
+            "Impact": "LEVEL_3",
             "ObjectType": "COLUMN",
             "ObjectName": "public.ordersentry_view.summary_xml",
             "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
+            "MinimumVersionsFixedIn": {
+                "2026.1": "2026.1.0.0"
+            }
         },
         {
             "Category": "unsupported_datatypes",
@@ -306,17 +312,19 @@
             "MinimumVersionsFixedIn": null
         },
         {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XML",
-            "Name": "Unsupported datatype for Live migration - xml",
-            "Description": "XML datatype not yet supported by voyager in live migration. Affected column: order_xml. This column will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
+            "Category": "unsupported_datatypes",
+            "CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
+            "Type": "UNSUPPORTED_DATATYPE_XML",
+            "Name": "Unsupported datatype - xml",
+            "Description": "XML datatype is not yet supported in YugabyteDB. Affected column: order_xml. Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
+            "Impact": "LEVEL_3",
             "ObjectType": "COLUMN",
             "ObjectName": "public.ordersentry_view.order_xml",
             "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
+            "MinimumVersionsFixedIn": {
+                "2026.1": "2026.1.0.0"
+            }
         },
         {
             "Category": "unsupported_datatypes",
@@ -345,30 +353,34 @@
             "MinimumVersionsFixedIn": null
         },
         {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XML",
-            "Name": "Unsupported datatype for Live migration - xml",
-            "Description": "XML datatype not yet supported by voyager in live migration. Affected column: data. This column will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
+            "Category": "unsupported_datatypes",
+            "CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
+            "Type": "UNSUPPORTED_DATATYPE_XML",
+            "Name": "Unsupported datatype - xml",
+            "Description": "XML datatype is not yet supported in YugabyteDB. Affected column: data. Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
+            "Impact": "LEVEL_3",
             "ObjectType": "COLUMN",
             "ObjectName": "schema2.test_xml_type.data",
             "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
+            "MinimumVersionsFixedIn": {
+                "2026.1": "2026.1.0.0"
+            }
         },
         {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XML",
-            "Name": "Unsupported datatype for Live migration - xml",
-            "Description": "XML datatype not yet supported by voyager in live migration. Affected column: lib_data. This column will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
+            "Category": "unsupported_datatypes",
+            "CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
+            "Type": "UNSUPPORTED_DATATYPE_XML",
+            "Name": "Unsupported datatype - xml",
+            "Description": "XML datatype is not yet supported in YugabyteDB. Affected column: lib_data. Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
+            "Impact": "LEVEL_3",
             "ObjectType": "COLUMN",
             "ObjectName": "public.library_nested.lib_data",
             "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
+            "MinimumVersionsFixedIn": {
+                "2026.1": "2026.1.0.0"
+            }
         },
         {
             "Category": "unsupported_datatypes",
@@ -384,17 +396,19 @@
             "MinimumVersionsFixedIn": null
         },
         {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XML",
-            "Name": "Unsupported datatype for Live migration - xml",
-            "Description": "XML datatype not yet supported by voyager in live migration. Affected column: order_details. This column will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
+            "Category": "unsupported_datatypes",
+            "CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
+            "Type": "UNSUPPORTED_DATATYPE_XML",
+            "Name": "Unsupported datatype - xml",
+            "Description": "XML datatype is not yet supported in YugabyteDB. Affected column: order_details. Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
+            "Impact": "LEVEL_3",
             "ObjectType": "COLUMN",
             "ObjectName": "public.orders_lateral.order_details",
             "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
+            "MinimumVersionsFixedIn": {
+                "2026.1": "2026.1.0.0"
+            }
         },
         {
             "Category": "unsupported_datatypes",

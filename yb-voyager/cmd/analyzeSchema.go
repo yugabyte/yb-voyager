@@ -1370,6 +1370,8 @@ var analyzeSchemaCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("failed to validate target db version: %v", err)
 		}
+		parserIssueDetector.SetTargetDbVersion(targetDbVersion)
+
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {

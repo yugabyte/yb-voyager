@@ -375,6 +375,9 @@ var xmlDatatypeIssue = issue.Issue{
 	Suggestion:  XML_DATATYPE_ISSUE_SUGGESTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/1043",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2026_1: ybversion.V2026_1_0_0,
+	},
 }
 
 // ============================= Unsupported Datatypes Issues ========================================

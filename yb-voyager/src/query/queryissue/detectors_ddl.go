@@ -25,9 +25,11 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 // DDLIssueDetector interface defines methods for detecting issues in DDL objects
@@ -190,11 +192,14 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 
 		}
 	}
+	fmt.Println("d.targetDbVersion", d.targetDbVersion)
+	unsupportedDatatypes := GetPGUnsupportedDatatypes(d.targetDbVersion)
+	fmt.Println("unsupportedDatatypes", unsupportedDatatypes)
+	liveUnsupportedDatatypes := GetPGLiveMigrationUnsupportedDatatypes(d.targetDbVersion)
+	fmt.Println("liveUnsupportedDatatypes", liveUnsupportedDatatypes)
+	liveWithFfOrFbUnsupportedDatatypes := srcdb.GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes()
 	for _, col := range table.Columns {
-		liveUnsupportedDatatypes := srcdb.GetPGLiveMigrationUnsupportedDatatypes()
-		liveWithFfOrFbUnsupportedDatatypes := srcdb.GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes()
-
-		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(srcdb.PostgresUnsupportedDataTypes, col.TypeName)
+		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(unsupportedDatatypes, col.TypeName)
 		isUnsupportedDatatypeInLive := utils.ContainsAnyStringFromSlice(liveUnsupportedDatatypes, col.TypeName)
 
 		isUnsupportedDatatypeInLiveWithFFOrFBList := utils.ContainsAnyStringFromSlice(liveWithFfOrFbUnsupportedDatatypes, col.TypeName)
@@ -349,6 +354,41 @@ func detectHotspotIssueOnConstraint(isPartitionedTable bool, constraintType stri
 		return nil, nil
 	}
 	return reportHotspotsOnTimestampTypes(hotspotTypeName, obj.GetObjectType(), obj.GetObjectName(), col, false, usageCategory)
+}
+
+// versionGatedOfflineDatatypeIssues maps a base type name from srcdb.PostgresUnsupportedDataTypes
+// to its offline unsupported-datatype issue, for the types whose support in YugabyteDB is
+// version-gated (has MinimumVersionsFixedIn). Types absent here are unsupported on all versions.
+var versionGatedOfflineDatatypeIssues = map[string]issue.Issue{
+	"XML": xmlDatatypeIssue,
+}
+
+// GetPGUnsupportedDatatypes returns the datatypes unsupported on the target YugabyteDB version:
+// srcdb.PostgresUnsupportedDataTypes minus the types whose datatype issue is already fixed in
+// targetDbVersion. A nil targetDbVersion returns the full static list.
+func GetPGUnsupportedDatatypes(targetDbVersion *ybversion.YBVersion) []string {
+	return lo.Filter(srcdb.PostgresUnsupportedDataTypes, func(typeName string, _ int) bool {
+		gatedIssue, ok := versionGatedOfflineDatatypeIssues[typeName]
+		if !ok || targetDbVersion == nil {
+			return true
+		}
+		fixed, err := gatedIssue.IsFixedIn(targetDbVersion)
+		if err != nil {
+			log.Warnf("checking if datatype %s issue is fixed in %s: %v", typeName, targetDbVersion, err)
+			return true
+		}
+		return !fixed
+	})
+}
+
+// GetPGLiveMigrationUnsupportedDatatypes returns the datatypes that only block live migration
+// (the CDC connector cannot stream them) on the target YugabyteDB version: the debezium
+// unsupported list minus the offline-unsupported list. A type fixed in the target version
+// (e.g. xml from 2026.1) moves from the offline list to this one and is reported as a
+// migration caveat instead.
+func GetPGLiveMigrationUnsupportedDatatypes(targetDbVersion *ybversion.YBVersion) []string {
+	liveMigrationUnsupportedDataTypes, _ := lo.Difference(srcdb.PostgresUnsupportedDataTypesForDbzm, GetPGUnsupportedDatatypes(targetDbVersion))
+	return liveMigrationUnsupportedDataTypes
 }
 
 func ReportUnsupportedDatatypes(baseTypeName string, columnName string, objType string, objName string) QueryIssue {
@@ -631,6 +671,9 @@ func (f *ForeignTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 	))
 
 	for _, col := range foreignTable.Columns {
+		// Static list is fine here: version-gated datatypes (e.g. xml) get dropped by the
+		// fixed-in filter, and foreign tables don't get the live-migration caveat since
+		// they are not live-migrated.
 		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(srcdb.PostgresUnsupportedDataTypes, col.TypeName)
 		if isUnsupportedDatatype {
 			issues = append(issues, ReportUnsupportedDatatypes(col.TypeName, col.ColumnName, obj.GetObjectType(), foreignTable.GetObjectName()))
