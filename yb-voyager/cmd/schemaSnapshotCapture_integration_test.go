@@ -98,7 +98,7 @@ func TestSchemaSnapshotCaptureIntegration(t *testing.T) {
 	t.Run("happy path captures and persists a real snapshot", func(t *testing.T) {
 		suppressSchemaSnapshotCapture = utils.BoolStr(false)
 
-		captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportSchema, "", true)
+		require.NoError(t, captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportSchema, "", true))
 
 		headers, err := schemasnapshot.ListSnapshots(metaDB)
 		require.NoError(t, err)
@@ -188,7 +188,7 @@ func TestSchemaSnapshotCaptureIntegration(t *testing.T) {
 			if i > 0 {
 				time.Sleep(time.Second)
 			}
-			captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourcePeriodic, "", false)
+			require.NoError(t, captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourcePeriodic, "", false))
 		}
 
 		assert.Equal(t, before+captures, countPeriodicSnapshots(),
@@ -219,9 +219,10 @@ func TestSchemaSnapshotCaptureIntegration(t *testing.T) {
 		time.Sleep(time.Millisecond) // ensure the deadline has elapsed
 
 		start := time.Now()
-		captureSourceSchemaSnapshot(expiredCtx, schemasnapshot.LabelExportDataFromSourceExit, schemasnapshot.ReasonError, true)
+		err := captureSourceSchemaSnapshot(expiredCtx, schemasnapshot.LabelExportDataFromSourceExit, schemasnapshot.ReasonError, true)
 		elapsed := time.Since(start)
 
+		assert.Error(t, err, "an aborted capture must report why it failed, not swallow it")
 		assert.Less(t, elapsed, 3*time.Second, "an expired context must abort the capture promptly, not hang")
 		assert.Equal(t, before+1, countExitPlaceholders(),
 			"an aborted capture with placeholderOnFailure must record exactly one exit placeholder")
@@ -284,7 +285,7 @@ END $$;`, numTables, schemaName)
 	require.Equal(t, []string{schemaName}, source.GetSchemaList())
 
 	start := time.Now()
-	captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportSchema, "", true)
+	require.NoError(t, captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportSchema, "", true))
 	elapsed := time.Since(start)
 	t.Logf("captured %d-table / ~%d-column schema in %s (budget %s)",
 		numTables, numTables*colsPerTable, elapsed, schemasnapshot.CaptureTimeout)

@@ -239,7 +239,7 @@ func exportSchema(cmd *cobra.Command) error {
 	saveSourceDBConfInMSR()
 	setSchemaIsExported()
 
-	captureSourceSchemaSnapshot(context.Background(), schemasnapshot.LabelExportSchema, "", true)
+	captureSourceSchemaSnapshotBestEffort(context.Background(), schemasnapshot.LabelExportSchema, "", true)
 
 	exportSchemaCompleteEvent := createExportSchemaCompletedEvent()
 	controlPlane.ExportSchemaCompleted(&exportSchemaCompleteEvent)
