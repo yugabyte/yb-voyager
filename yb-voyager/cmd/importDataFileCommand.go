@@ -267,13 +267,19 @@ func checkDataDirFlag() {
 		utils.ErrExit(`Error required flag "data-dir" not set`)
 	}
 	if strings.HasPrefix(dataDir, "s3://") {
-		s3.ValidateObjectURL(dataDir)
+		if err := s3.ValidateObjectURL(dataDir); err != nil {
+			utils.ErrExit("invalid s3 data-dir %q: %v", dataDir, err)
+		}
 		return
 	} else if strings.HasPrefix(dataDir, "gs://") {
-		gcs.ValidateObjectURL(dataDir)
+		if err := gcs.ValidateObjectURL(dataDir); err != nil {
+			utils.ErrExit("invalid gcs data-dir %q: %v", dataDir, err)
+		}
 		return
 	} else if strings.HasPrefix(dataDir, "https://") {
-		az.ValidateObjectURL(dataDir)
+		if err := az.ValidateObjectURL(dataDir); err != nil {
+			utils.ErrExit("invalid azure data-dir %q: %v", dataDir, err)
+		}
 		return
 	}
 	if !utils.FileOrFolderExists(dataDir) {
@@ -393,7 +399,8 @@ func packAndSendImportDataFilePayload(status string, errorMsg error) {
 	if err != nil {
 		log.Infof("callhome: error in getting the import data: %v", err)
 	} else if importSizeMap != nil {
-		importSizeMap.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
+		// callhome payload assembly; the callback never returns an error
+		_ = importSizeMap.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
 			dataMetrics.MigrationSnapshotTotalBytes += value
 			if value > dataMetrics.MigrationSnapshotLargestTableBytes {
 				dataMetrics.MigrationSnapshotLargestTableBytes = value

@@ -831,7 +831,8 @@ func (pg *TargetPostgreSQL) RestoreSequences(sequencesLastVal *utils.StructMap[s
 	log.Infof("restoring sequences on target")
 	batch := pgx.Batch{}
 	restoreStmt := "SELECT pg_catalog.setval('%s', %d, true)"
-	sequencesLastVal.IterKV(func(sequenceTuple sqlname.NameTuple, lastValue int64) (bool, error) {
+	// batch assembly; the callback never returns an error
+	_ = sequencesLastVal.IterKV(func(sequenceTuple sqlname.NameTuple, lastValue int64) (bool, error) {
 		if lastValue == 0 {
 			// TODO: can be valid for cases like cyclic sequences
 			return true, nil
@@ -948,7 +949,7 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 					errorMsg = fmt.Sprintf("error executing stmt for event with vsn(%d) in batch(%s)", batch.Events[i].Vsn, batch.ID())
 				}
 				log.Errorf("%s : %v", errorMsg, err)
-				closeBatch()
+				_ = closeBatch() // best-effort; the original error below takes precedence
 				return false, fmt.Errorf("%s: %w", errorMsg, err)
 			}
 			switch true {
