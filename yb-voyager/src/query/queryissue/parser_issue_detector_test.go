@@ -2917,7 +2917,6 @@ func TestXMLDatatypeVersionGate(t *testing.T) {
 
 	// Below 2026.1: the offline unsupported-datatype issue, no live caveat.
 	parser := NewParserIssueDetector()
-	parser.SetTargetDbVersion(ybversion.V2025_2_0_0)
 	issues, err := parser.GetDDLIssues(stmt, ybversion.V2025_2_0_0)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(issues))
@@ -2925,7 +2924,6 @@ func TestXMLDatatypeVersionGate(t *testing.T) {
 		"expected offline xml datatype issue, got: %v", issues[0])
 
 	// From 2026.1: only the live-migration caveat.
-	parser.SetTargetDbVersion(ybversion.V2026_1_0_0)
 	issues, err = parser.GetDDLIssues(stmt, ybversion.V2026_1_0_0)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(issues))

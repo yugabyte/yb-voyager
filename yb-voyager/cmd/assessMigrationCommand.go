@@ -97,7 +97,6 @@ var assessMigrationCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("failed to validate target db version: %w", err)
 		}
-		parserIssueDetector.SetTargetDbVersion(targetDbVersion)
 		if cmd.Flags().Changed("assessment-metadata-dir") {
 			validateAssessmentMetadataDirFlag()
 			for _, f := range sourceConnectionFlags {

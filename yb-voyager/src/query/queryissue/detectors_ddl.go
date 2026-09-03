@@ -58,7 +58,9 @@ func (p *ParserIssueDetector) GetDDLDetector(obj queryparser.DDLObject) (DDLIssu
 			ParserIssueDetector: *p,
 		}, nil
 	case *queryparser.ForeignTable:
-		return &ForeignTableIssueDetector{}, nil
+		return &ForeignTableIssueDetector{
+			ParserIssueDetector: *p,
+		}, nil
 	case *queryparser.View:
 		return &ViewIssueDetector{}, nil
 	case *queryparser.MView:
@@ -356,6 +358,7 @@ func detectHotspotIssueOnConstraint(isPartitionedTable bool, constraintType stri
 // versionGatedOfflineDatatypeIssues maps a base type name from srcdb.PostgresUnsupportedDataTypes
 // to its offline unsupported-datatype issue, for the types whose support in YugabyteDB is
 // version-gated (has MinimumVersionsFixedIn). Types absent here are unsupported on all versions.
+// Keys must use the exact casing of the entries in srcdb.PostgresUnsupportedDataTypes.
 var versionGatedOfflineDatatypeIssues = map[string]issue.Issue{
 	"XML": xmlDatatypeIssue,
 }
@@ -651,7 +654,9 @@ func ReportUnsupportedDatatypesInLiveWithFFOrFB(baseTypeName string, columnName 
 
 //ForeignTableIssueDetector handles detection Foreign table issues
 
-type ForeignTableIssueDetector struct{}
+type ForeignTableIssueDetector struct {
+	ParserIssueDetector
+}
 
 func (f *ForeignTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	foreignTable, ok := obj.(*queryparser.ForeignTable)
@@ -671,7 +676,7 @@ func (f *ForeignTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 		// Static list is fine here: version-gated datatypes (e.g. xml) get dropped by the
 		// fixed-in filter, and foreign tables don't get the live-migration caveat since
 		// they are not live-migrated.
-		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(srcdb.PostgresUnsupportedDataTypes, col.TypeName)
+		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(GetPGUnsupportedDatatypes(f.targetDbVersion), col.TypeName)
 		if isUnsupportedDatatype {
 			issues = append(issues, ReportUnsupportedDatatypes(col.TypeName, col.ColumnName, obj.GetObjectType(), foreignTable.GetObjectName()))
 		}

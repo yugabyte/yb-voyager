@@ -383,6 +383,7 @@ func (p *ParserIssueDetector) GetEnumTypes() []string {
 }
 
 func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {
+	p.SetTargetDbVersion(targetDbVersion)
 	issues, err := p.getAllIssues(query)
 	if err != nil {
 		return issues, err
@@ -597,6 +598,7 @@ func CheckIssueSupportMaturityInTDBVersion(issueInstance QueryIssue, targetDbVer
 }
 
 func (p *ParserIssueDetector) GetAllPLPGSQLIssues(query string, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {
+	p.SetTargetDbVersion(targetDbVersion)
 	issues, err := p.getPLPGSQLIssues(query)
 	if err != nil {
 		return issues, nil
@@ -1037,6 +1039,7 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 }
 
 func (p *ParserIssueDetector) GetDDLIssues(query string, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {
+	p.SetTargetDbVersion(targetDbVersion)
 	issues, err := p.getDDLIssues(query)
 	if err != nil {
 		return issues, nil
@@ -1136,6 +1139,7 @@ func (p *ParserIssueDetector) getDDLIssues(query string) ([]QueryIssue, error) {
 }
 
 func (p *ParserIssueDetector) GetDMLIssues(query string, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {
+	p.SetTargetDbVersion(targetDbVersion)
 	issues, err := p.getDMLIssues(query)
 	if err != nil {
 		return issues, err
