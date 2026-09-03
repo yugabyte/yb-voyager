@@ -99,6 +99,7 @@ func (cluster *YugabyteDBClusterContainer) createNode(ctx context.Context, nodeI
 	if masterJoinAddress != "" {
 		cmd = append(cmd, "--join", masterJoinAddress)
 	}
+	cmd = appendConcurrentDDLFlags(cmd, cluster.DBVersion)
 
 	req := testcontainers.ContainerRequest{
 		Image: fmt.Sprintf("yugabytedb/yugabyte:%s", cluster.DBVersion),

@@ -4,7 +4,7 @@
   "migration_type": "",
   "migration_uuid": "12f9a356-decf-47ab-b329-52054a038b1d",
   "phase_payload": {
-    "payload_version": 2.0,
+    "payload_version": 2,
     "target_db_version": "2025.1.0.0",
     "anonymized_ddls": [
       "ALTER INDEX schema_a1717e859fc83d39.table_6d83e0e549809e8e ATTACH PARTITION schema_a1717e859fc83d39.table_4b49c9db08a1bca3",
@@ -802,67 +802,67 @@
         "type": "UNSUPPORTED_DATATYPE_XID"
       },
       {
-        "category": "unsupported_datatypes",
-        "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
-        "impact": "LEVEL_3",
-        "name": "Unsupported datatype - xml",
-        "object_name": "schema_a1717e859fc83d39.table_4729835644e61bf5.col_afe436b0d9baf3e0",
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - xml",
+        "object_name": "",
         "object_type": "COLUMN",
-        "type": "UNSUPPORTED_DATATYPE_XML"
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XML"
       },
       {
-        "category": "unsupported_datatypes",
-        "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
-        "impact": "LEVEL_3",
-        "name": "Unsupported datatype - xml",
-        "object_name": "schema_d7108fd530c9b1c2.table_4729835644e61bf5.col_afe436b0d9baf3e0",
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - xml",
+        "object_name": "",
         "object_type": "COLUMN",
-        "type": "UNSUPPORTED_DATATYPE_XML"
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XML"
       },
       {
-        "category": "unsupported_datatypes",
-        "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
-        "impact": "LEVEL_3",
-        "name": "Unsupported datatype - xml",
-        "object_name": "schema_d7108fd530c9b1c2.table_6bb1c595362ac906.col_520ba31098d10801",
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - xml",
+        "object_name": "",
         "object_type": "COLUMN",
-        "type": "UNSUPPORTED_DATATYPE_XML"
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XML"
       },
       {
-        "category": "unsupported_datatypes",
-        "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
-        "impact": "LEVEL_3",
-        "name": "Unsupported datatype - xml",
-        "object_name": "schema_d7108fd530c9b1c2.table_8e843153cfb385fb.col_1f6e746c000fd39a",
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - xml",
+        "object_name": "",
         "object_type": "COLUMN",
-        "type": "UNSUPPORTED_DATATYPE_XML"
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XML"
       },
       {
-        "category": "unsupported_datatypes",
-        "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
-        "impact": "LEVEL_3",
-        "name": "Unsupported datatype - xml",
-        "object_name": "schema_d7108fd530c9b1c2.table_a84d78d2ae709c44.col_be768810d9e2d20a",
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - xml",
+        "object_name": "",
         "object_type": "COLUMN",
-        "type": "UNSUPPORTED_DATATYPE_XML"
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XML"
       },
       {
-        "category": "unsupported_datatypes",
-        "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
-        "impact": "LEVEL_3",
-        "name": "Unsupported datatype - xml",
-        "object_name": "schema_d7108fd530c9b1c2.table_c395f750ef950af4.col_1e5e4013d294f986",
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - xml",
+        "object_name": "",
         "object_type": "COLUMN",
-        "type": "UNSUPPORTED_DATATYPE_XML"
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XML"
       },
       {
-        "category": "unsupported_datatypes",
-        "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
-        "impact": "LEVEL_3",
-        "name": "Unsupported datatype - xml",
-        "object_name": "schema_d7108fd530c9b1c2.table_c395f750ef950af4.col_21277e15eb34abcd",
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - xml",
+        "object_name": "",
         "object_type": "COLUMN",
-        "type": "UNSUPPORTED_DATATYPE_XML"
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XML"
       },
       {
         "category": "unsupported_features",
@@ -1238,15 +1238,6 @@
       {
         "category": "unsupported_features",
         "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-        "impact": "LEVEL_2",
-        "name": "XML Functions",
-        "object_name": "",
-        "object_type": "VIEW",
-        "type": "XML_FUNCTIONS"
-      },
-      {
-        "category": "unsupported_features",
-        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
         "impact": "LEVEL_3",
         "name": "Deferrable Constraints",
         "object_name": "",
@@ -1495,78 +1486,6 @@
         "object_name": "",
         "object_type": "",
         "type": "SYSTEM_COLUMN_XMIN"
-      },
-      {
-        "category": "unsupported_query_constructs",
-        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-        "impact": "LEVEL_2",
-        "name": "XML Functions",
-        "object_name": "",
-        "object_type": "",
-        "type": "XML_FUNCTIONS"
-      },
-      {
-        "category": "unsupported_query_constructs",
-        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-        "impact": "LEVEL_2",
-        "name": "XML Functions",
-        "object_name": "",
-        "object_type": "",
-        "type": "XML_FUNCTIONS"
-      },
-      {
-        "category": "unsupported_query_constructs",
-        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-        "impact": "LEVEL_2",
-        "name": "XML Functions",
-        "object_name": "",
-        "object_type": "",
-        "type": "XML_FUNCTIONS"
-      },
-      {
-        "category": "unsupported_query_constructs",
-        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-        "impact": "LEVEL_2",
-        "name": "XML Functions",
-        "object_name": "",
-        "object_type": "",
-        "type": "XML_FUNCTIONS"
-      },
-      {
-        "category": "unsupported_query_constructs",
-        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-        "impact": "LEVEL_2",
-        "name": "XML Functions",
-        "object_name": "",
-        "object_type": "",
-        "type": "XML_FUNCTIONS"
-      },
-      {
-        "category": "unsupported_query_constructs",
-        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-        "impact": "LEVEL_2",
-        "name": "XML Functions",
-        "object_name": "",
-        "object_type": "",
-        "type": "XML_FUNCTIONS"
-      },
-      {
-        "category": "unsupported_query_constructs",
-        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-        "impact": "LEVEL_2",
-        "name": "XML Functions",
-        "object_name": "",
-        "object_type": "",
-        "type": "XML_FUNCTIONS"
-      },
-      {
-        "category": "unsupported_query_constructs",
-        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-        "impact": "LEVEL_2",
-        "name": "XML Functions",
-        "object_name": "",
-        "object_type": "",
-        "type": "XML_FUNCTIONS"
       }
     ],
     "control_plane_type": "",
@@ -2296,8 +2215,7 @@
     ],
     "iops_interval": 0,
     "migration_complexity": "HIGH",
-    "migration_complexity_explanation": "Found 32 Level 2 issue(s) and 23 Level 3 issue(s), resulting in HIGH migration complexity",
-    "payload_version": 2,
+    "migration_complexity_explanation": "Found 23 Level 2 issue(s) and 16 Level 3 issue(s), resulting in HIGH migration complexity",
     "schema_summary": {
       "DatabaseObjects": [
         {

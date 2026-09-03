@@ -2810,21 +2810,19 @@ func TestGetSupportedVersions(t *testing.T) {
 }
 
 func TestBuildExperimentalMaturityAnnotation(t *testing.T) {
-	v := ybversion.V2025_2_0_0
-
 	// TP, with flags.
 	assert.Equal(t,
-		fmt.Sprintf("This feature is available as Tech Preview (TP) in the target version (2025.2.0.0) — %s, and is not enabled by default. Enable with the flag(s): yb_enable_foo=true, yb_bar=64.", constants.TP_MATURITY_CAVEAT),
-		buildExperimentalMaturityAnnotation(constants.MATURITY_TP, v, []string{"yb_enable_foo=true", "yb_bar=64"}))
+		fmt.Sprintf("This feature is available as Tech Preview (TP) in the target version — %s, and is not enabled by default. Enable with the flag(s): yb_enable_foo=true, yb_bar=64.", constants.TP_MATURITY_CAVEAT),
+		buildExperimentalMaturityAnnotation(constants.MATURITY_TP, []string{"yb_enable_foo=true", "yb_bar=64"}))
 
 	// EA, no flags -> no "Enable with" sentence.
 	assert.Equal(t,
-		fmt.Sprintf("This feature is available as Early Access (EA) in the target version (2025.2.0.0) — %s, and is not enabled by default.", constants.EA_MATURITY_CAVEAT),
-		buildExperimentalMaturityAnnotation(constants.MATURITY_EA, v, nil))
+		fmt.Sprintf("This feature is available as Early Access (EA) in the target version — %s, and is not enabled by default.", constants.EA_MATURITY_CAVEAT),
+		buildExperimentalMaturityAnnotation(constants.MATURITY_EA, nil))
 
 	// Non-experimental maturities produce no annotation.
-	assert.Empty(t, buildExperimentalMaturityAnnotation(constants.MATURITY_GA, v, nil))
-	assert.Empty(t, buildExperimentalMaturityAnnotation(constants.MATURITY_UNSUPPORTED, v, nil))
+	assert.Empty(t, buildExperimentalMaturityAnnotation(constants.MATURITY_GA, nil))
+	assert.Empty(t, buildExperimentalMaturityAnnotation(constants.MATURITY_UNSUPPORTED, nil))
 }
 
 func TestBuildNativeResolutionRecommendation(t *testing.T) {
@@ -2832,17 +2830,17 @@ func TestBuildNativeResolutionRecommendation(t *testing.T) {
 
 	// Resolution is TP in the target version.
 	assert.Equal(t,
-		fmt.Sprintf("Consider using bucket-based indexes — available as Tech Preview (TP) in the target version (2025.2.1.0) — %s, and is not enabled by default. Enable with the flag(s): yb_enable_derived_saops=true, yb_max_saop_merge_streams=64.", constants.TP_MATURITY_CAVEAT),
-		buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_TP, ybversion.V2025_2_1_0, "", flags))
+		fmt.Sprintf("Consider using bucket-based indexes — available as Tech Preview (TP) in the target version — %s, and is not enabled by default. Enable with the flag(s): yb_enable_derived_saops=true, yb_max_saop_merge_streams=64.", constants.TP_MATURITY_CAVEAT),
+		buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_TP, "", flags))
 
 	// Resolution not in target yet, but available later (UNSUPPORTED maturity + supportedVersions).
 	assert.Equal(t,
 		"Consider using bucket-based indexes — available in >=2025.2.1.0 (2025.2 series) (TP). Enable with the flag(s): yb_enable_derived_saops=true, yb_max_saop_merge_streams=64.",
-		buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_UNSUPPORTED, ybversion.V2024_2_0_0, ">=2025.2.1.0 (2025.2 series) (TP)", flags))
+		buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_UNSUPPORTED, ">=2025.2.1.0 (2025.2 series) (TP)", flags))
 
 	// No resolution name, or unsupported with no later versions -> empty.
-	assert.Empty(t, buildNativeResolutionRecommendation("", constants.MATURITY_TP, ybversion.V2025_2_1_0, "", flags))
-	assert.Empty(t, buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_UNSUPPORTED, ybversion.V2024_2_0_0, "", flags))
+	assert.Empty(t, buildNativeResolutionRecommendation("", constants.MATURITY_TP, "", flags))
+	assert.Empty(t, buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_UNSUPPORTED, "", flags))
 }
 
 func TestCheckIssueSupportMaturityInTDBVersionFeature(t *testing.T) {
@@ -2864,7 +2862,7 @@ func TestCheckIssueSupportMaturityInTDBVersionFeature(t *testing.T) {
 
 	// TP-in-target -> experimental annotation (composed via the same helper).
 	assert.Equal(t,
-		buildExperimentalMaturityAnnotation(constants.MATURITY_TP, ybversion.V2025_2_0_0, []string{"yb_enable_some_tp_feature=true"}),
+		buildExperimentalMaturityAnnotation(constants.MATURITY_TP, []string{"yb_enable_some_tp_feature=true"}),
 		CheckIssueSupportMaturityInTDBVersion(qi, ybversion.V2025_2_0_0))
 
 	// No target version -> nothing to add.
@@ -2896,11 +2894,39 @@ func TestCheckIssueSupportMaturityInTDBVersionPerf(t *testing.T) {
 
 	// Resolution available (TP) in the target version: native-resolution recommendation.
 	assert.Equal(t,
-		buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_TP, ybversion.V2025_2_1_0, supportedVersions, flags),
+		buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_TP, supportedVersions, flags),
 		CheckIssueSupportMaturityInTDBVersion(newQi(), ybversion.V2025_2_1_0))
 
 	// Older target: resolution not in target yet, recommendation lists where it lands.
 	assert.Equal(t,
-		buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_UNSUPPORTED, ybversion.V2024_2_0_0, supportedVersions, flags),
+		buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_UNSUPPORTED, supportedVersions, flags),
 		CheckIssueSupportMaturityInTDBVersion(newQi(), ybversion.V2024_2_0_0))
+}
+
+// XML is unsupported as a datatype below 2026.1 and becomes a live-migration-only
+// caveat from 2026.1 (YB supports the type, the CDC connector cannot stream it).
+func TestXMLDatatypeVersionGate(t *testing.T) {
+	// List classification.
+	assert.Contains(t, GetPGUnsupportedDatatypes(nil), "XML")
+	assert.Contains(t, GetPGUnsupportedDatatypes(ybversion.V2025_2_0_0), "XML")
+	assert.NotContains(t, GetPGUnsupportedDatatypes(ybversion.V2026_1_0_0), "XML")
+	assert.NotContains(t, GetPGLiveMigrationUnsupportedDatatypes(ybversion.V2025_2_0_0), "XML")
+	assert.Contains(t, GetPGLiveMigrationUnsupportedDatatypes(ybversion.V2026_1_0_0), "XML")
+
+	stmt := `CREATE TABLE test_xml_gate(id int, data xml);`
+
+	// Below 2026.1: the offline unsupported-datatype issue, no live caveat.
+	parser := NewParserIssueDetector()
+	issues, err := parser.GetDDLIssues(stmt, ybversion.V2025_2_0_0)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(issues))
+	assert.True(t, cmp.Equal(NewXMLDatatypeIssue("TABLE", "test_xml_gate", stmt, "XML", "data"), issues[0]),
+		"expected offline xml datatype issue, got: %v", issues[0])
+
+	// From 2026.1: only the live-migration caveat.
+	issues, err = parser.GetDDLIssues(stmt, ybversion.V2026_1_0_0)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(issues))
+	assert.True(t, cmp.Equal(NewXMLLiveMigrationDatatypeIssue("TABLE", "test_xml_gate", stmt, "XML", "data"), issues[0]),
+		"expected live-migration xml caveat, got: %v", issues[0])
 }

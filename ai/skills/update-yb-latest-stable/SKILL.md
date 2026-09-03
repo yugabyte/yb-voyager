@@ -144,6 +144,29 @@ Run and fix as needed (do not ignore red CI):
 rg "2025\.2\.3|V2025_2_3|latest_stable" yb-voyager migtests
 ```
 
+## Step 3.5: Assessment / analyze-schema report expectations — check after every latest-stable bump
+
+`assess-migration` and `analyze-schema` default `--target-db-version` to `latest_stable`, so bumping it changes report **content**, and the expected files in migtests are compared near-verbatim (`compare_json_reports` in `migtests/scripts/functions.sh` ignores the `TargetDBVersion` field but NOT issue lists, descriptions, or counts).
+
+### What drifts and how to fix it
+
+1. **Issues newly GA in the new target disappear from reports.** Any issue whose GA map (`MinimumVersionsFixedIn` in `src/query/queryissue/issues_*.go`) gains an entry satisfied by the new latest stable — but was NOT satisfied by the old one — is dropped from assess-migration AND analyze-schema output (schema issues and query constructs alike). Find candidates by checking which issue types have a `MinimumVersionsFixedIn` entry for the new series without an equivalent already-GA entry for the old latest-stable series. For each such type, delete its entries from every expected file below.
+2. **Complexity counts change.** After adding/removing/re-leveling issues, recompute `MigrationComplexity` and `MigrationComplexityExplanation` per `cmd/migration_complexity.go`: per-level complexity (L1: LOW ≤20 else MEDIUM; L2: LOW ≤10, MEDIUM ≤100, else HIGH; L3: LOW =0, MEDIUM ≤4, else HIGH), final = worst level; rationale string format differs per final complexity.
+3. **Summary invalid counts change.** If an object (VIEW/FUNCTION/…) loses its *only* issue, decrement `InvalidCount` for that object type in `SchemaSummary.DatabaseObjects` (assessment) and `Summary.DatabaseObjects` (analysis report).
+4. **Tests that pin `TARGET_DB_VERSION` in `env.sh`** (e.g. `pg/assessment-report-test-with-tdb`) keep issues that are GA only in the new latest stable — do NOT drop them there.
+
+### Files to check (grep for the dropped issue types / changed strings)
+
+- `migtests/tests/pg/assessment-report-test*/expectedAssessmentReport.json`
+- `migtests/tests/pg/basic-assessment-report-test/expectedAssessmentReport.{json,html}`
+- `migtests/tests/pg/*/expected_files/expectedAssessmentReport.json` and `expected_schema_analysis_report.json` (sample schemas: sakila, stackexchange, osm, rna, mgi, omnibus, adventureworks, pgtbrus, …)
+- `migtests/tests/pg/*/expected_callhome_payloads/assess_migration_callhome.json` (anonymized issue list + complexity explanation)
+- `migtests/tests/analyze-schema/expected_issues.json` (+ `summary.json` if invalid counts change)
+
+Note: issue descriptions no longer embed the target version number (the "available as TP/EA in the target version — …" notes are version-independent since Sep 2026), so a bump alone should not churn description strings. If `grep -r "in the target version (" migtests/` matches anything, something reintroduced the version — fix the code, not the expected files.
+
+When editing these JSONs, preserve each file's existing indentation (some use 2 spaces, some 4, `expected_issues.json` uses an extra level) — the comparison normalizes via `jq`, but minimal diffs keep review sane.
+
 ## Step 4: Optional follow-up edits (product behavior)
 
 | Area | When to touch |
