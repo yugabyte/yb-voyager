@@ -1234,11 +1234,13 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		utils.ErrExit("Failed to clean MigrationStatusRecord for import data start clean: %s", err)
 	}
 
-	tableToUniqueIndexes, err := tdb.GetTableToUniqueIndexesMap(importTableList)
-	if err != nil {
-		utils.ErrExit("Failed to get table unique indexes map from target: %s", err)
+	var tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]
+	if changeStreamingIsEnabled(importType) {
+		tableToUniqueIndexes, err = tdb.GetTableToUniqueIndexesMap(importTableList)
+		if err != nil {
+			utils.ErrExit("Failed to get table unique indexes map from target: %s", err)
+		}
 	}
-
 	// Validate/resolve cdc-partition-key (+ overrides) and persist the per-table map
 	// before snapshot so bad configs fail fast (not at streamChanges).
 	// Runs after start-clean so a cleared map is recomputed for the new run.

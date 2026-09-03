@@ -852,6 +852,10 @@ WHERE t.relkind IN ('r', 'p')
 
 	rows, err := pg.Query(query)
 	if err != nil {
+		if strings.Contains(err.Error(), "attgenerated does not exist") {
+			log.Infof("attgenerated column not available (postgresql version < 12); assuming no generated stored columns")
+			return result, nil
+		}
 		return nil, fmt.Errorf("error querying source generated stored columns: %w", err)
 	}
 	defer rows.Close()
