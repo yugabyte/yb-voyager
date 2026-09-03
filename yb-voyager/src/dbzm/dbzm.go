@@ -287,7 +287,7 @@ func (d *Debezium) Stop() error {
 				}
 			}
 		}()
-		d.cmd.Wait()
+		_ = d.cmd.Wait() // reaping after a deliberate stop; a non-zero exit is expected here
 		d.done = true
 		log.Info("Stopped debezium.")
 	}

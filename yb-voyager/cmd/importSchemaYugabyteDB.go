@@ -173,7 +173,7 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 
 	defer func() {
 		if tgtConn != nil {
-			tgtConn.Close(context.Background())
+			_ = tgtConn.Close(context.Background()) // teardown; close error is not actionable
 		}
 	}()
 
@@ -324,7 +324,7 @@ func executeSqlStmtWithRetries(tgtConn **ImportSchemaTargetConn, sqlInfo sqlInfo
 		if bool(flagPostSnapshotImport) && strings.Contains(objType, "INDEX") {
 			err = beforeIndexCreation(sqlInfo, (*tgtConn).GetConn(), objType)
 			if err != nil {
-				(*tgtConn).Close(context.Background())
+				_ = (*tgtConn).Close(context.Background()) // conn is being discarded
 				(*tgtConn) = nil
 				return fmt.Errorf("before index creation: %w", err)
 			}
@@ -339,19 +339,19 @@ func executeSqlStmtWithRetries(tgtConn **ImportSchemaTargetConn, sqlInfo sqlInfo
 		log.Errorf("DDL Execution Failed for %q: %s", sqlInfo.formattedStmt, err)
 		if strings.Contains(strings.ToLower(err.Error()), "conflicts with higher priority transaction") {
 			// creating fresh connection
-			(*tgtConn).Close(context.Background())
+			_ = (*tgtConn).Close(context.Background()) // conn is being discarded
 			(*tgtConn) = newTargetConn()
 			continue
 		} else if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(SCHEMA_VERSION_MISMATCH_ERR)) &&
 			(objType == "INDEX" || objType == "PARTITION_INDEX") { // retriable error
 			// creating fresh connection
-			(*tgtConn).Close(context.Background())
+			_ = (*tgtConn).Close(context.Background()) // conn is being discarded
 			(*tgtConn) = newTargetConn()
 
 			// Extract the schema name and add to the index name
 			fullyQualifiedObjName, err := getIndexName(sqlInfo.stmt, sqlInfo.objName)
 			if err != nil {
-				(*tgtConn).Close(context.Background())
+				_ = (*tgtConn).Close(context.Background()) // conn is being discarded
 				(*tgtConn) = nil
 				return goerrors.Errorf("extract qualified index name from DDL [%v]: %v", sqlInfo.stmt, err)
 			}
@@ -360,7 +360,7 @@ func executeSqlStmtWithRetries(tgtConn **ImportSchemaTargetConn, sqlInfo sqlInfo
 			// `err` is already being used for retries, so using `err2`
 			err2 := dropIdx((*tgtConn).GetConn(), fullyQualifiedObjName)
 			if err2 != nil {
-				(*tgtConn).Close(context.Background())
+				_ = (*tgtConn).Close(context.Background()) // conn is being discarded
 				(*tgtConn) = nil
 				return fmt.Errorf("drop invalid index %q: %w", fullyQualifiedObjName, err2)
 			}
@@ -382,7 +382,7 @@ func executeSqlStmtWithRetries(tgtConn **ImportSchemaTargetConn, sqlInfo sqlInfo
 		break // no more iteration in case of non retriable error
 	}
 	if err != nil {
-		(*tgtConn).Close(context.Background())
+		_ = (*tgtConn).Close(context.Background()) // conn is being discarded
 		(*tgtConn) = nil
 		if missingRequiredSchemaObject(err) || isPercentTypeResolutionError(err) {
 			// Do nothing for deferred case

@@ -1002,7 +1002,7 @@ func waitForProcessToExit(pid int, forceShutdownAfterSeconds int) {
 		}
 		if forceShutdownAfterSeconds > 0 && secondsWaited > forceShutdownAfterSeconds {
 			log.Infof("force shutting down pid %d", pid)
-			process.Signal(syscall.SIGKILL)
+			_ = process.Signal(syscall.SIGKILL) // best-effort kill; the process may already be gone
 		}
 	}
 }

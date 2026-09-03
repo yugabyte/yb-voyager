@@ -313,7 +313,7 @@ func assessMigration() (err error) {
 	parserIssueDetector.PopulateObjectUsages(objectUsagesStats)
 
 	// Stage 2: Assessing migration
-	tracker.StartStage("Assessing migration", 0, nil)
+	_ = tracker.StartStage("Assessing migration", 0, nil) // console progress UX; nothing actionable on error
 	err = runAssessment()
 	if err != nil {
 		tracker.FailStage()
@@ -322,7 +322,7 @@ func assessMigration() (err error) {
 	tracker.CompleteStage()
 
 	// Stage 3: Generate report
-	tracker.StartStage("Generating report", 0, nil)
+	_ = tracker.StartStage("Generating report", 0, nil) // console progress UX; nothing actionable on error
 	err = generateAssessmentReport(replicaDiscoveryInfoForCallhome)
 	if err != nil {
 		tracker.FailStage()

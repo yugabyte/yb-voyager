@@ -111,7 +111,7 @@ func EnsureArtifact(b *testing.B, w Workload) (string, artifactManifest) {
 	}
 	manifest, err := generateArtifact(b, w, voyagerBin, dir, exportDir)
 	if err != nil {
-		os.RemoveAll(dir) // don't leave a half-built artifact behind
+		_ = os.RemoveAll(dir) // best-effort: don't leave a half-built artifact behind
 		b.Fatalf("cdcbench: generating artifact for workload %q: %v", w.Name, err)
 	}
 	return exportDir, manifest
