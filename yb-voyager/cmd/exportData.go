@@ -801,11 +801,9 @@ func exportData() bool {
 		err = startDebeziumAsPerExportTypeIfRequired(ctx, cancel, finalTableList, tablesColumnList, leafPartitions, partitionsToRootTableMap)
 		if err != nil {
 			log.Errorf("Failed to start debezium: %v", err)
-			// Capture the drifted end-state schema inline while the source connection is
-			// still open; exportData's deferred Disconnect closes it before the atexit hook.
-			// A signal-driven shutdown also lands here (it kills the in-flight child, so
-			// the export reports failure), hence exportDataExitReason rather than a
-			// hardcoded ReasonError -- see its doc.
+			// Capture inline while the connection is still open: the deferred Disconnect
+			// closes it before the atexit hook. Signals land here too, hence
+			// exportDataExitReason rather than a hardcoded ReasonError.
 			captureExportDataExitSnapshotFresh(exportDataExitReason())
 			return false
 		}
@@ -875,11 +873,9 @@ func exportData() bool {
 		err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, "")
 		if err != nil {
 			log.Errorf("Export Data failed: %v", err)
-			// Capture the drifted end-state schema inline while the source connection is
-			// still open; exportData's deferred Disconnect closes it before the atexit hook.
-			// A signal-driven shutdown also lands here (it kills the in-flight child, so
-			// the export reports failure), hence exportDataExitReason rather than a
-			// hardcoded ReasonError -- see its doc.
+			// Capture inline while the connection is still open: the deferred Disconnect
+			// closes it before the atexit hook. Signals land here too, hence
+			// exportDataExitReason rather than a hardcoded ReasonError.
 			captureExportDataExitSnapshotFresh(exportDataExitReason())
 			return false
 		}
@@ -1940,21 +1936,13 @@ func validateAndExtractTableNamesFromFile(filePath string, flagName string) (str
 	return strings.Join(tableList, ","), nil
 }
 
-// snapshotStartReasonFor classifies why export-data is capturing its start snapshot,
-// producing the reason recorded on the LabelExportDataFromSourceStart snapshot.
+// snapshotStartReasonFor classifies why export-data is capturing its start snapshot.
 //
-// The classification answers a single question — does export-data already have prior
-// output that is being (or would be) discarded? — decided from the actual
-// data-directory state FIRST, and only then the --start-clean flag:
-//   - empty dir:               no prior export-data output → genuine first run → initial
-//     (an empty dir is "initial" even under --start-clean; the flag then cleans nothing.
-//     This covers passing --start-clean on the very first run — it is not a "restart".)
-//   - start-clean + non-empty: prior output is being discarded → re-capturing  → clean_restart
-//   - non-empty (no clean):    a prior run's output is present → continuing it  → resume
-//
-// State-before-flag matters: clean_restart should mean prior output was actually
-// discarded, so a --start-clean run against a fresh export dir is "initial", not a
-// mislabeled "clean_restart".
+// The data-directory state is decided FIRST, and only then --start-clean, because
+// clean_restart should mean prior output was actually discarded:
+//   - empty dir:               initial (even under --start-clean, which cleans nothing)
+//   - start-clean + non-empty: clean_restart
+//   - non-empty, no clean:     resume
 //
 // Admissibility is a SEPARATE concern owned by clearMigrationStateIfRequired (the
 // guard): it ErrExits a non-empty, non-start-clean offline or mid-snapshot rerun

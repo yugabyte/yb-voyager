@@ -264,13 +264,10 @@ func registerExportDataFlags(cmd *cobra.Command) {
 
 // registerSchemaSnapshotIntervalFlag registers the periodic-capture interval.
 //
-// It is deliberately NOT part of registerExportDataFlags: that set is shared with
-// `export data from target`, but schema-snapshot capture is source-side only
-// (startPeriodicSourceSchemaSnapshotCapture returns early unless exporterRole is
-// SOURCE_DB_EXPORTER_ROLE). Registering it there would accept a flag on
-// export-data-from-target that silently does nothing. Its companion
-// --suppress-schema-snapshot-capture already avoids this by living in
-// registerCommonExportFlags, which export-data-from-target does not call.
+// Deliberately NOT in registerExportDataFlags, which `export data from target`
+// shares: capture is source-side only, so the flag would be accepted there and do
+// nothing. It also can't join --suppress-schema-snapshot-capture in
+// registerCommonExportFlags, which export schema calls — that has no interval.
 //
 // Config-file key: "export-data.schema-snapshot-capture-interval".
 func registerSchemaSnapshotIntervalFlag(cmd *cobra.Command) {

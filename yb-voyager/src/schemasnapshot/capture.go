@@ -34,11 +34,9 @@ type CaptureParams struct {
 	DatabaseType string     // selects the provider; recorded in SnapshotContent.DatabaseType
 	Side         string     // migration side; recorded in the header (defaults to SideSource if "")
 	DBMetadata   DBMetadata // display coordinates; recorded in SnapshotContent.DBMetadata
-	// Schemas are RAW, UNQUOTED identifier values, matched as data against catalog
-	// values (pg_namespace.nspname). Passing the SQL-quoted form breaks any schema
-	// that needs quoting: `"Odd Schema"` never equals nspname `Odd Schema`, so the
-	// capture silently records zero tables. Callers holding sqlname identifiers
-	// should use srcdb.Source.GetSchemaListUnquoted, not GetSchemaList.
+	// RAW, UNQUOTED values, matched as data against pg_namespace.nspname. The quoted
+	// form silently captures zero tables (`"Odd Schema"` never equals `Odd Schema`),
+	// so callers use srcdb.Source.GetSchemaListUnquoted, not GetSchemaList.
 	Schemas []string
 	Label   string
 	Reason  string
