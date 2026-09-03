@@ -34,10 +34,6 @@ import (
 // export goroutine is still writing it.
 var exportDataExitSnapshotCaptured atomic.Bool
 
-// The best-effort capture budget lives in one place — schemasnapshot.CaptureTimeout —
-// and is applied both here (the capture wrap and the source-side placeholder) and in the
-// schemasnapshot package (its fallback placeholder). See its doc for the rationale.
-
 // captureExportDataExitSnapshot captures the exit snapshot and marks it captured, so
 // no later site fires a second one. Source-exporter only. The caller chooses the
 // context; captureSourceSchemaSnapshot caps it at schemasnapshot.CaptureTimeout.
