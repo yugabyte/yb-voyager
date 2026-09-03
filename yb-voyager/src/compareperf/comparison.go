@@ -242,7 +242,7 @@ func (c *QueryPerformanceComparator) generateHTMLReport(exportDir string) error 
 	if err != nil {
 		return fmt.Errorf("failed to create HTML file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }() // backstop; the success path checks Close below
 
 	// Sort AllComparisons for HTML display: MATCHED -> TARGET_ONLY -> SOURCE_ONLY, then by call frequency
 	sortedReport := *c.Report // Create a copy
@@ -276,6 +276,10 @@ func (c *QueryPerformanceComparator) generateHTMLReport(exportDir string) error 
 	err = tmpl.Execute(file, &sortedReport)
 	if err != nil {
 		return fmt.Errorf("failed to execute HTML template: %w", err)
+	}
+	err = file.Close()
+	if err != nil {
+		return fmt.Errorf("close HTML report %q: %w", htmlPath, err)
 	}
 
 	utils.PrintAndLogf("HTML report generated at: %s", htmlPath)

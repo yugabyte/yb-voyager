@@ -77,7 +77,7 @@ func (reg *AttributeNameRegistry) QuoteAttributeName(tableNameTup sqlname.NameTu
 		reg.attrNames.Put(tableNameTup, targetColumns)
 	}
 	reg.mu.Unlock()
-	c, err := reg.findBestMatchingColumnName(columnName, targetColumns)
+	c, err := reg.FindBestMatchingColumnName(columnName, targetColumns)
 	if err != nil {
 		return "", goerrors.Errorf("find best matching column name for %q in table %s: %w", columnName, tableNameTup, err)
 	}
@@ -100,7 +100,7 @@ func (reg *AttributeNameRegistry) QuoteAttributeNames(tableNameTup sqlname.NameT
 	return result, nil
 }
 
-func (reg *AttributeNameRegistry) findBestMatchingColumnName(colName string, targetColumns []string) (string, error) {
+func (reg *AttributeNameRegistry) FindBestMatchingColumnName(colName string, targetColumns []string) (string, error) {
 	if colName[0] == '"' && colName[len(colName)-1] == '"' {
 		colName = colName[1 : len(colName)-1]
 	}
@@ -127,8 +127,25 @@ func (reg *AttributeNameRegistry) findBestMatchingColumnName(colName string, tar
 				return strings.ToUpper(colName), nil
 			}
 		}
-		return "", goerrors.Errorf("ambiguous column name %q in target table: found column names: %s",
-			colName, strings.Join(candidates, ", "))
+		return "", &ErrAmbiguousColumnName{colName: colName, candidates: candidates}
 	}
-	return "", goerrors.Errorf("column %q not found amongst table columns %v", colName, targetColumns)
+	return "", &ErrColumnNameNotFound{colName: colName, targetColumns: targetColumns}
+}
+
+type ErrAmbiguousColumnName struct {
+	colName    string
+	candidates []string
+}
+
+func (e *ErrAmbiguousColumnName) Error() string {
+	return fmt.Sprintf("ambiguous column name %q in target table: found column names: %s", e.colName, strings.Join(e.candidates, ", "))
+}
+
+type ErrColumnNameNotFound struct {
+	colName       string
+	targetColumns []string
+}
+
+func (e *ErrColumnNameNotFound) Error() string {
+	return fmt.Sprintf("column name %q not found amongst table columns %v", e.colName, e.targetColumns)
 }

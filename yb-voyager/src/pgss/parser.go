@@ -37,7 +37,7 @@ func ParseFromCSV(csvPath string) ([]*PgStatStatements, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open PGSS CSV file %s: %w", csvPath, err)
 	}
-	defer file.Close()
+	defer utils.CloseAndLogOnError(csvPath, file)
 
 	reader := csv.NewReader(file)
 	headers, err := reader.Read()

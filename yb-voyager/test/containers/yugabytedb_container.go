@@ -82,7 +82,7 @@ func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to create temp schema file: %w", err)
 	}
-	defer tmpFile.Close()
+	defer utils.CloseAndLogOnError(tmpFile.Name(), tmpFile)
 
 	if _, err := tmpFile.Write(yugabytedbInitSchemaFile); err != nil {
 		return fmt.Errorf("failed to write to temp schema file: %w", err)

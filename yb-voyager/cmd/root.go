@@ -436,7 +436,7 @@ var globalFlags = []string{}
 func registerCommonGlobalFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &perfProfile, "profile", false,
 		"profile yb-voyager for performance analysis")
-	cmd.Flags().MarkHidden("profile")
+	mustMarkFlagHidden(cmd, "profile")
 
 	registerExportDirFlag(cmd)
 	globalFlags = append(globalFlags, "export-dir")
@@ -522,6 +522,43 @@ func BoolVar(flagSet *pflag.FlagSet, p *utils.BoolStr, name string, value bool, 
 		Value:    p,
 		DefValue: fmt.Sprintf("%t", value),
 	})
+}
+
+// The mustMarkFlag* helpers panic instead of returning an error: the underlying
+// cobra/pflag Mark* calls fail only when the named flag does not exist (a typo,
+// or a flag that was renamed without updating the Mark* call). That is a
+// programmer error, and silently dropping it makes the flag quietly stop being
+// required/hidden/deprecated. These run at command-registration time, so a
+// panic surfaces the mistake on the very first invocation.
+
+func mustMarkFlagRequired(cmd *cobra.Command, name string) {
+	if err := cmd.MarkFlagRequired(name); err != nil {
+		panic(fmt.Sprintf("marking flag %q required on command %q: %v", name, cmd.Name(), err))
+	}
+}
+
+func mustMarkPersistentFlagRequired(cmd *cobra.Command, name string) {
+	if err := cmd.MarkPersistentFlagRequired(name); err != nil {
+		panic(fmt.Sprintf("marking persistent flag %q required on command %q: %v", name, cmd.Name(), err))
+	}
+}
+
+func mustMarkFlagHidden(cmd *cobra.Command, name string) {
+	if err := cmd.Flags().MarkHidden(name); err != nil {
+		panic(fmt.Sprintf("marking flag %q hidden on command %q: %v", name, cmd.Name(), err))
+	}
+}
+
+func mustMarkPersistentFlagHidden(cmd *cobra.Command, name string) {
+	if err := cmd.PersistentFlags().MarkHidden(name); err != nil {
+		panic(fmt.Sprintf("marking persistent flag %q hidden on command %q: %v", name, cmd.Name(), err))
+	}
+}
+
+func mustMarkFlagDeprecated(cmd *cobra.Command, name string, message string) {
+	if err := cmd.Flags().MarkDeprecated(name, message); err != nil {
+		panic(fmt.Sprintf("marking flag %q deprecated on command %q: %v", name, cmd.Name(), err))
+	}
 }
 
 func metaDBIsCreated(exportDir string) bool {

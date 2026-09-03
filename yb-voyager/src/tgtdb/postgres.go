@@ -726,7 +726,7 @@ func (pg *TargetPostgreSQL) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 	if err != nil {
 		return 0, fmt.Errorf("open file %s: %w", batch.GetFilePath(), err)
 	}
-	defer file.Close()
+	defer utils.CloseAndLogOnError(batch.GetFilePath(), file)
 
 	//setting the schema so that COPY command can acesss the table
 	pg.setTargetSchema(conn)
@@ -805,6 +805,10 @@ func (pg *TargetPostgreSQL) GetListOfTableAttributes(nt sqlname.NameTuple) ([]st
 		result = append(result, colName)
 	}
 	return result, nil
+}
+
+func (pg *TargetPostgreSQL) FindBestMatchingTargetColumnName(columnName string, targetTableColumns []string) (string, error) {
+	return pg.FindBestMatchingColumnName(columnName, targetTableColumns)
 }
 
 func (pg *TargetPostgreSQL) IsNonRetryableCopyError(err error) bool {

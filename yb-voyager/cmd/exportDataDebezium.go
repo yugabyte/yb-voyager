@@ -482,7 +482,8 @@ func reportStreamingProgress(ctx context.Context) {
 		fmt.Fprint(row3Writer, color.GreenString("| %-40s | %30s |\n", "Export Rate(Last 3 min)", strconv.FormatInt(throughputInLast3Min, 10)+"/sec"))
 		fmt.Fprint(row4Writer, color.GreenString("| %-40s | %30s |\n", "Export Rate(Last 10 min)", strconv.FormatInt(throughputInLast10Min, 10)+"/sec"))
 		fmt.Fprint(footerWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
-		tableWriter.Flush()
+		// console status table redraw; nothing actionable on a flush error
+		_ = tableWriter.Flush()
 		select {
 		case <-ctx.Done():
 			tableWriter.Stop()
