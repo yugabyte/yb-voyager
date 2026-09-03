@@ -6,6 +6,14 @@ on:
   push:
     branches: [ main, '*.*-dev', '*.*.*-dev' ]
 
+# Supersede in-progress runs for the same PR; main / *-dev pushes are never
+# cancelled so every merged commit keeps a full CI record. The group is a literal
+# slug, not ${{ github.workflow }}, because go.yml, integration-tests.yml and
+# issue-tests.yml are all named "Go" and would otherwise share a single group.
+concurrency:
+  group: failpoint-tests-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   prepare-versions:
     uses: ./.github/workflows/prepare-versions.yml
