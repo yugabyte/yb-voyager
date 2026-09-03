@@ -1,4 +1,4 @@
-name: Go
+name: Issue Tests (All YB Versions)
 
 on:
   push:
@@ -8,8 +8,8 @@ on:
 
 # Supersede in-progress runs for the same PR; main / *-dev pushes are never
 # cancelled so every merged commit keeps a full CI record. The group is a literal
-# slug, not ${{ github.workflow }}, because go.yml, integration-tests.yml and
-# issue-tests.yml are all named "Go" and would otherwise share a single group.
+# slug rather than ${{ github.workflow }} so that editing a workflow's display
+# name can never silently change how runs are grouped and cancelled.
 concurrency:
   group: issue-tests-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
