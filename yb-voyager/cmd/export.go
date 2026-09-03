@@ -260,7 +260,20 @@ func registerExportDataFlags(cmd *cobra.Command) {
 
 	cmd.Flags().IntVar(&metricsPort, "metrics-port", 0,
 		"Port to expose Prometheus metrics on (0 disables). Serves GET /metrics.")
-	// Config-file key: "export-data.schema-snapshot-capture-interval".
+}
+
+// registerSchemaSnapshotIntervalFlag registers the periodic-capture interval.
+//
+// It is deliberately NOT part of registerExportDataFlags: that set is shared with
+// `export data from target`, but schema-snapshot capture is source-side only
+// (startPeriodicSourceSchemaSnapshotCapture returns early unless exporterRole is
+// SOURCE_DB_EXPORTER_ROLE). Registering it there would accept a flag on
+// export-data-from-target that silently does nothing. Its companion
+// --suppress-schema-snapshot-capture already avoids this by living in
+// registerCommonExportFlags, which export-data-from-target does not call.
+//
+// Config-file key: "export-data.schema-snapshot-capture-interval".
+func registerSchemaSnapshotIntervalFlag(cmd *cobra.Command) {
 	cmd.Flags().IntVar(&schemaSnapshotCaptureInterval, "schema-snapshot-capture-interval", 60,
 		"interval (in minutes) at which voyager periodically captures a source schema snapshot throughout export data (both snapshot and streaming phases; offline and live). (only valid for PostgreSQL)")
 	// Hidden for now: capture is off by default and nothing consumes the snapshots until
