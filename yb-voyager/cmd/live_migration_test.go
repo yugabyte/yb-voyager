@@ -397,6 +397,14 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 	events := testCdcPartitionNameTuple("test_schema", "events")
 	audit := testCdcPartitionNameTuple("test_schema", "audit")
 	tables := []sqlname.NameTuple{orders, events, audit}
+	oldImporterRole := importerRole
+	oldSourceDBType := sourceDBType
+	defer func() {
+		importerRole = oldImporterRole
+		sourceDBType = oldSourceDBType
+	}()
+	importerRole = TARGET_DB_IMPORTER_ROLE
+	sourceDBType = POSTGRESQL
 
 	t.Run("global pk applies to all", func(t *testing.T) {
 		got, err := resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_PK, nil, nil, nil, YUGABYTEDB)

@@ -82,6 +82,14 @@ TODO: handle upgrade scenario for PG/Oracle pk->table change
 func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], error) {
 	tablePartitionKeyMap := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 
+	if shouldForceTablePartitioning(importerRole, sourceDBType, tconf.TargetDBType) {
+		//TODO: remove this and just handle this in auto resolveEffectiveCdcPartitionKeys
+		for _, t := range tableNames {
+			tablePartitionKeyMap.Put(t, cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE})
+		}
+		return tablePartitionKeyMap, nil
+	}
+
 	importDataStatus, err := metaDB.GetImportDataStatusRecord()
 	if err != nil {
 		return nil, fmt.Errorf("error getting cdc partitioning strategy: %w", err)
@@ -177,7 +185,6 @@ func resolveEffectiveCdcPartitionKeys(
 			result.Put(t, cdcPartitionKeyOverride{Strategy: globalKey})
 		}
 	}
-
 	err := overrides.IterKV(func(t sqlname.NameTuple, override cdcPartitionKeyOverride) (bool, error) {
 		result.Put(t, override)
 		return true, nil
