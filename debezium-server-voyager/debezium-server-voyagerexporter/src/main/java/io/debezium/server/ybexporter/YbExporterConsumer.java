@@ -9,6 +9,7 @@ import java.net.URISyntaxException;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -415,15 +416,19 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     }
 
     /**
-     * True if the throwable, or any cause in its chain, indicates the logical replication
-     * stream is already closed - e.g. after a YB tablet split closed the walsender COPY
-     * stream. Debezium surfaces this from V3PGReplicationStream.checkClose() as a
-     * ConnectException ("This replication stream has been closed") during an offset flush.
+     * True if any cause in the chain reports a closed replication stream, which debezium
+     * raises from V3PGReplicationStream.checkClose() during an offset flush. Matches on
+     * "replication stream" plus "closed" rather than debezium's exact sentence, so that
+     * rewording it in a future bump cannot silently re-break DB-20886.
      */
     private boolean isReplicationStreamClosed(Throwable e) {
         for (Throwable t = e; t != null; t = t.getCause()) {
             String msg = t.getMessage();
-            if (msg != null && msg.toLowerCase().contains("replication stream has been closed")) {
+            if (msg == null) {
+                continue;
+            }
+            String lower = msg.toLowerCase(Locale.ROOT);
+            if (lower.contains("replication stream") && lower.contains("closed")) {
                 return true;
             }
         }
