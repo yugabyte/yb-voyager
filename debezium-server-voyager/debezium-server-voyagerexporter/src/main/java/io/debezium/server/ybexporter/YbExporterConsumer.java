@@ -9,6 +9,7 @@ import java.net.URISyntaxException;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -369,13 +370,58 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         // update metaDB.
         // TODO: optimize by only marking the last event as processed.
         BytemanMarkers.cdc("before-offset-commit");
-        for (ChangeEvent<Object, Object> event : changeEvents) {
-            committer.markProcessed(event);
-        }
-        committer.markBatchFinished();
-        LOGGER.debug("Committed batch complete with {} records", changeEvents.size());
+        commitBatchOffsets(changeEvents, committer);
         handleSnapshotOnlyComplete();
         BytemanMarkers.cdc("after-batch");
+    }
+
+    /**
+     * Marks every event in the batch processed and flushes the offsets, tolerating a
+     * replication stream that a tablet split has already closed.
+     */
+    private void commitBatchOffsets(List<ChangeEvent<Object, Object>> changeEvents,
+            DebeziumEngine.RecordCommitter<ChangeEvent<Object, Object>> committer)
+            throws InterruptedException {
+        try {
+            for (ChangeEvent<Object, Object> event : changeEvents) {
+                committer.markProcessed(event);
+            }
+            committer.markBatchFinished();
+            LOGGER.debug("Committed batch complete with {} records", changeEvents.size());
+        } catch (RuntimeException e) {
+            // A tablet split closes the stream, so this offset flush throws (DB-20886).
+            // Nothing is lost: handleBatchComplete() already fsynced the batch, and debezium
+            // is restarting the connector for the same split - propagating here would exit
+            // the engine first, making a recoverable split fatal. Skipping the commit only
+            // re-reads the batch on restart; VSN dedupes downstream. Anything else rethrows.
+            if (isReplicationStreamClosed(e)) {
+                LOGGER.warn("Skipping offset commit for this batch: the replication stream is closed "
+                        + "(typically a YB tablet split). The batch is already durably written to the export "
+                        + "queue; the connector will restart and resume from the last committed offset.", e);
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    /**
+     * True if any cause in the chain reports a closed replication stream, which debezium
+     * raises from V3PGReplicationStream.checkClose() during an offset flush. Matches on
+     * "replication stream" plus "closed" rather than debezium's exact sentence, so that
+     * rewording it in a future bump cannot silently re-break DB-20886.
+     */
+    private boolean isReplicationStreamClosed(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            String msg = t.getMessage();
+            if (msg == null) {
+                continue;
+            }
+            String lower = msg.toLowerCase(Locale.ROOT);
+            if (lower.contains("replication stream") && lower.contains("closed")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean checkIfEventNeedsToBeWritten(Record r) {
