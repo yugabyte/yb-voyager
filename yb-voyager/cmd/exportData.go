@@ -796,7 +796,9 @@ func exportData() (ok bool) {
 	successReason := schemasnapshot.ReasonComplete
 
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
-		captureSourceSchemaSnapshotBestEffort(ctx, schemasnapshot.LabelExportDataFromSourceStart, snapshotStartReason, true)
+		if err := captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourceStart, snapshotStartReason, true); err != nil {
+			log.Warnf("schema-snapshot start capture failed, export unaffected: %v", err)
+		}
 		registerExportDataExitSnapshotHook()
 
 		// One exit capture for EVERY return below, rather than one per return site.
