@@ -635,7 +635,7 @@ func packAndSendExportDataPayload(status string, errorMsg error) {
 	}
 }
 
-func exportData() bool {
+func exportData() (ok bool) {
 	err := source.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source db: %w", err)
@@ -791,9 +791,29 @@ func exportData() bool {
 
 	//finalTableList is with leaf partitions and root tables after this in the whole export flow to make all the catalog queries work fine
 
+	// successReason distinguishes the two clean endings; the cutover branch below
+	// upgrades it. Only read when exportData returns true.
+	successReason := schemasnapshot.ReasonComplete
+
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 		captureSourceSchemaSnapshotBestEffort(ctx, schemasnapshot.LabelExportDataFromSourceStart, snapshotStartReason, true)
 		registerExportDataExitSnapshotHook()
+
+		// One exit capture for EVERY return below, rather than one per return site.
+		// Deferred here it runs before this function's `defer cancel()` and
+		// `defer source.DB().Disconnect()` (both registered earlier, so later under
+		// LIFO), which is what keeps the context live and the source connection open
+		// for the capture. Panics are covered too.
+		//
+		// utils.ErrExit and signals do not unwind, so they never reach this defer --
+		// registerExportDataExitSnapshotHook above covers them.
+		defer func() {
+			if ok {
+				captureExportDataExitSnapshot(ctx, successReason)
+				return
+			}
+			captureExportDataExitSnapshotFresh(exportDataExitReason())
+		}()
 	}
 
 	if changeStreamingIsEnabled(exportType) || useDebezium {
@@ -801,10 +821,6 @@ func exportData() bool {
 		err = startDebeziumAsPerExportTypeIfRequired(ctx, cancel, finalTableList, tablesColumnList, leafPartitions, partitionsToRootTableMap)
 		if err != nil {
 			log.Errorf("Failed to start debezium: %v", err)
-			// Capture inline while the connection is still open: the deferred Disconnect
-			// closes it before the atexit hook. Signals land here too, hence
-			// exportDataExitReason rather than a hardcoded ReasonError.
-			captureExportDataExitSnapshotFresh(exportDataExitReason())
 			return false
 		}
 		utils.PrintAndLogfInfo("Processing cutover initiate request...\n")
@@ -856,13 +872,10 @@ func exportData() bool {
 			utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
 
-			captureExportDataExitSnapshot(ctx, schemasnapshot.ReasonCutover)
-		} else {
-			// useDebezium && !changeStreamingIsEnabled(exportType): snapshot-only
-			// export via debezium. No change streaming happened, so no cutover
-			// was processed above; this is a plain completion, not a cutover.
-			captureExportDataExitSnapshot(ctx, schemasnapshot.ReasonComplete)
+			successReason = schemasnapshot.ReasonCutover
 		}
+		// The else branch (useDebezium && !changeStreamingIsEnabled) is a snapshot-only
+		// export via debezium: no cutover was processed, so successReason stays complete.
 		return true
 	} else {
 		exportPhase = dbzm.MODE_SNAPSHOT
@@ -873,13 +886,8 @@ func exportData() bool {
 		err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, "")
 		if err != nil {
 			log.Errorf("Export Data failed: %v", err)
-			// Capture inline while the connection is still open: the deferred Disconnect
-			// closes it before the atexit hook. Signals land here too, hence
-			// exportDataExitReason rather than a hardcoded ReasonError.
-			captureExportDataExitSnapshotFresh(exportDataExitReason())
 			return false
 		}
-		captureExportDataExitSnapshot(ctx, schemasnapshot.ReasonComplete)
 		return true
 	}
 }
