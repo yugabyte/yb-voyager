@@ -130,46 +130,51 @@ stages:
     action: grant_source_permissions
     is_live_migration_fall_back: 1
 
-  # Randomly select ONE (table, columns) pair to route by
-  # --cdc-partition-key-overrides this run -- mirroring how a real user opts a
-  # specific table into custom-key routing. Every candidate's conflict DML
-  # (source_dml.sql) is already immutability-safe for whichever one gets
-  # picked. Also injects the pick into the generator's
-  # exclude_columns_from_update so the random generator respects it too.
-  # single_unique_constraint's DML is a deliberate PK-recycle pattern (see
-  # source_dml.sql section 1), so when IT is picked, conflicts MUST still be
-  # detected (expect_conflicts: true) -- every other candidate must show none.
+  # Randomly select ONE table to route by --cdc-partition-key-overrides this
+  # run, then randomly sample WHICH of its columns (1-2, random order) form
+  # the custom key from that table's random_columns_pool -- so successive runs
+  # exercise a variety of key columns, column counts and datatypes, mirroring
+  # how a real user opts a specific table into custom-key routing. Pools hold
+  # only columns that are immutability-safe (never UPDATEd by source_dml.sql)
+  # and whose value is identical across each conflict pair's rows (DML-churned
+  # key columns, or columns the DML leaves at transaction-constant defaults);
+  # PK columns and uuid-default columns are excluded. The pick is also
+  # injected into the generator's exclude_columns_from_update so the random
+  # generator respects it. single_unique_constraint's DML is a deliberate
+  # PK-recycle pattern (see source_dml.sql section 1), so when IT is picked,
+  # conflicts MUST still be detected (expect_conflicts: true) -- every other
+  # candidate must show none.
   - name: pick_random_custom_key
     action: pick_random_custom_key
     generator_key: generator_source
     candidates:
+      # PK-recycle candidate: fixed key -- its expect_conflicts assertion
+      # depends on the key being the churned email column specifically.
       - table: public.single_unique_constraint
         columns: [email]
         expect_conflicts: true
       - table: public.multi_unique_constraint
-        columns: [first_name, last_name]
+        random_columns_pool: [first_name, last_name, status, retry_count, is_active, metadata, description, created_at, updated_at, is_verified, notes, deleted_at]
       - table: public.same_column_unique_constraint_and_index
-        columns: [email]
+        random_columns_pool: [email, status, currency, retry_count, attempt_count, tags, processed_at, deleted_at, created_at, updated_at, reference_code, org_unit]
       - table: public.single_unique_index
-        columns: ["Ssn"]
+        random_columns_pool: ["Ssn", due_date, status, description, is_active, currency, is_verified, deleted_at, created_at, updated_at, notes, seq_no]
       - table: public.multi_unique_index
-        columns: [first_name, last_name]
+        random_columns_pool: [first_name, last_name, description, status, currency, metadata, created_at, updated_at, notes, due_date, failure_reason, deleted_at]
       - table: public.different_columns_unique_constraint_and_index
-        columns: [email]
-      - table: public.different_columns_unique_constraint_and_index
-        columns: [phone_number]
+        random_columns_pool: [email, phone_number, status, retry_count, is_active, metadata, description, notes, failure_reason, created_at, updated_at, deleted_at]
       - table: public.subset_columns_unique_constraint_and_index
-        columns: [first_name, last_name]
+        random_columns_pool: [first_name, last_name, phone_number, status, currency, priority, processed_at, deleted_at, created_at, updated_at, is_active, retry_count, attempt_count]
       - table: public.test_partial_unique_index
-        columns: [check_id]
+        random_columns_pool: [check_id, status, metadata, retry_count, is_active, currency, reference_code, org_unit, created_at, updated_at, deleted_at]
       - table: public.partitioned_unique_conflict
-        columns: [region]
+        random_columns_pool: [region, description, status, retry_count, currency, reference_code, attempt_count, score, created_at, updated_at, due_date, deleted_at]
       - table: public.single_unique_index_nulls_not_distinct
-        columns: [email]
+        random_columns_pool: [email, status, currency, due_date, reference_code, org_unit, seq_no, amount, is_active, deleted_at, created_at, updated_at, channel]
       - table: public.multi_unique_index_nulls_not_distinct
-        columns: [first_name, last_name]
+        random_columns_pool: [first_name, last_name, description, notes, failure_reason, amount, status, created_at, updated_at, remarks, deleted_at, is_active, address_line]
       - table: public.single_unique_index_nulls_distinct
-        columns: [email]
+        random_columns_pool: [email, status, currency, processed_at, expires_at, description, reference_code, org_unit, deleted_at, created_at, updated_at]
 
   - name: export_schema_from_source
     action: voyager_export_schema

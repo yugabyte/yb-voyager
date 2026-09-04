@@ -387,15 +387,24 @@ def pick_random_custom_key_action(stage: Dict[str, Any], ctx: Any) -> None:
     orchestrator plumbing changes are needed for the pick to take effect.
 
     Required stage key:
-      - candidates: list of {table: "schema.table", columns: [col, ...],
-        expect_conflicts: bool (optional, default false)}. Every candidate's
-        conflict DML must already be safe to route by those columns (i.e.
-        never appears in an UPDATE for that table) -- this action only
-        performs the pick and the wiring, not that verification.
+      - candidates: list of {table: "schema.table", expect_conflicts: bool
+        (optional, default false)} with EITHER:
+          - columns: [col, ...] -- a fixed custom key, OR
+          - random_columns_pool: [col, ...] -- the key's columns are ALSO
+            randomized: 1..2 columns (or min_columns..max_columns) are sampled
+            from the pool, in random order, so successive runs route the same
+            table by different columns and column counts.
+        Every fixed column and every pool column must already be safe to route
+        by (never appears in an UPDATE for that table in the conflict DML, and
+        its value must be identical across the rows of each conflict pair --
+        e.g. a DML-churned key column, or a column the DML leaves at a
+        transaction-constant default) -- this action only performs the pick
+        and the wiring, not that verification.
         `expect_conflicts: true` marks a candidate whose DML deliberately
         creates conflicts that MUST still be detected when it is picked (e.g.
         a PK-recycle pattern); `validate_picked_custom_key_conflicts` uses it
-        to decide which assertion to run.
+        to decide which assertion to run. Such candidates should use fixed
+        `columns` -- their assertion depends on the specific key.
 
     Optional stage key:
       - generator_key: which generator config block to inject
@@ -419,12 +428,22 @@ def pick_random_custom_key_action(stage: Dict[str, Any], ctx: Any) -> None:
 
     choice = random.choice(candidates)
     table = choice["table"]
-    columns = choice["columns"]
+    pool = choice.get("random_columns_pool")
+    if pool:
+        if choice.get("columns"):
+            raise ValueError(f"pick_random_custom_key: candidate {table} must not set both 'columns' and 'random_columns_pool'")
+        min_cols = int(choice.get("min_columns", 1))
+        max_cols = min(int(choice.get("max_columns", 2)), len(pool))
+        num_cols = random.randint(min_cols, max_cols)
+        columns = random.sample(pool, num_cols)
+    else:
+        columns = choice["columns"]
     expect_conflicts = bool(choice.get("expect_conflicts", False))
     ctx.picked_custom_key = {"table": table, "columns": columns, "expect_conflicts": expect_conflicts}
     H.log(
         f"pick_random_custom_key: selected table={table} columns={columns} "
-        f"expect_conflicts={expect_conflicts} (out of {len(candidates)} candidates)"
+        f"expect_conflicts={expect_conflicts} "
+        f"({'sampled from pool of ' + str(len(pool)) if pool else 'fixed'}; out of {len(candidates)} candidates)"
     )
 
     override = f"{table}:({','.join(columns)})"
