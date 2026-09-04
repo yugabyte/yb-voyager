@@ -49,7 +49,9 @@ func captureExportDataExitSnapshot(ctx context.Context, reason string) {
 		log.Infof("schema-snapshot exit capture already recorded; skipping the %q capture", reason)
 		return
 	}
-	captureSourceSchemaSnapshotBestEffort(ctx, schemasnapshot.LabelExportDataFromSourceExit, reason, true)
+	if err := captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourceExit, reason, true); err != nil {
+		log.Warnf("schema-snapshot exit capture (%s) failed, migration unaffected: %v", reason, err)
+	}
 }
 
 // captureExportDataExitSnapshotFresh is captureExportDataExitSnapshot on a fresh
@@ -90,27 +92,15 @@ func registerExportDataExitSnapshotHook() {
 	})
 }
 
-// captureSourceSchemaSnapshotBestEffort is captureSourceSchemaSnapshot with the
-// policy the export hooks need: a failed snapshot is logged and swallowed, never
-// surfaced. Schema capture is off the data path, so an export must not fail or stall
-// because a snapshot could not be taken.
-//
-// Every export hook goes through here. Anything that genuinely wants to act on a
-// failure calls captureSourceSchemaSnapshot directly and handles the error.
-func captureSourceSchemaSnapshotBestEffort(ctx context.Context, label, reason string, placeholderOnFailure bool) {
-	if err := captureSourceSchemaSnapshot(ctx, label, reason, placeholderOnFailure); err != nil {
-		log.Warnf("schema-snapshot capture for label %q failed (continuing, migration unaffected): %v", label, err)
-	}
-}
-
 // captureSourceSchemaSnapshot captures the source schema and persists it as a snapshot
 // for the given label/reason, returning why it could not.
 //
 // A skip is not an error: a non-PostgreSQL source or --suppress-schema-snapshot-capture
-// returns nil, since nothing went wrong. Honors exporter-role gating in the caller.
+// returns nil, since nothing went wrong. Exporter-role gating is the caller's.
 //
-// Callers decide what a failure means. The export hooks want it swallowed, so they use
-// captureSourceSchemaSnapshotBestEffort.
+// The caller decides what a failure means. Today every caller is an export hook that
+// logs and carries on, because schema capture is off the data path and must never fail
+// or stall an export.
 func captureSourceSchemaSnapshot(ctx context.Context, label, reason string, placeholderOnFailure bool) error {
 	if source.DBType != POSTGRESQL {
 		log.Infof("schema-snapshot capture skipped for label %q: only PostgreSQL sources are supported", label)
@@ -184,7 +174,9 @@ func startPeriodicSourceSchemaSnapshotCapture(ctx context.Context, interval time
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				captureSourceSchemaSnapshotBestEffort(ctx, schemasnapshot.LabelExportDataFromSourcePeriodic, "", false)
+				if err := captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourcePeriodic, "", false); err != nil {
+					log.Warnf("periodic schema-snapshot capture failed, migration unaffected: %v", err)
+				}
 			}
 		}
 	}()
