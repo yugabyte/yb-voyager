@@ -82,16 +82,6 @@ TODO: handle upgrade scenario for PG/Oracle pk->table change
 func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], error) {
 	tablePartitionKeyMap := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 
-	if shouldForceTablePartitioning(importerRole, sourceDBType) {
-		//For PG/ORacle source/source-replica, using partitioning by table since there won't be any huge difference in
-		// performance between the two strategies for single node databases like PG/Oracle
-		//and Parititon by table is better from data correctness perspective
-		for _, t := range tableNames {
-			tablePartitionKeyMap.Put(t, cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE})
-		}
-		return tablePartitionKeyMap, nil
-	}
-
 	importDataStatus, err := metaDB.GetImportDataStatusRecord()
 	if err != nil {
 		return nil, fmt.Errorf("error getting cdc partitioning strategy: %w", err)
@@ -123,8 +113,28 @@ func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.
 	return tablePartitionKeyMap, nil
 }
 
-func shouldForceTablePartitioning(importerRole string, sourceDBType string) bool {
-	return importerRole != TARGET_DB_IMPORTER_ROLE || sourceDBType != POSTGRESQL
+func shouldForceTablePartitioning(importerRole string, sourceDBType string, targetDBType string) bool {
+	if importerRole != TARGET_DB_IMPORTER_ROLE {
+		//For PG/ORacle source/source-replica, using partitioning by table since there won't be any huge difference in
+		// performance between the two strategies for single node databases like PG/Oracle
+		//and Parititon by table is better from data correctness perspective
+		return true
+	}
+	if sourceDBType != POSTGRESQL {
+		//For Oracle source and target db impoorter, using partitioning by table since we don't have complete support for the conflict detection
+		//and Parititon by table is better from data correctness perspective
+		return true
+	}
+	if targetDBType == YUGABYTEDB_AMP {
+		// yb-amp is a single-node PostgreSQL-compatible compute (no YB
+		// tablets / colocation), so — exactly like the PG/Oracle
+		// source/source-replica case — PARTITION_BY_TABLE has no real
+		// throughput downside and is safer for correctness. It also sidesteps
+		// getExpressionUniqueIndexTables(), which is implemented only on the
+		// TargetYugabyteDB driver.
+		return true
+	}
+	return false
 }
 
 // resolveEffectiveCdcPartitionKeys applies global strategy, then per-table overlays,
@@ -149,23 +159,13 @@ func resolveEffectiveCdcPartitionKeys(
 
 	switch globalKey {
 	case "auto":
-		if targetDBType == YUGABYTEDB_AMP {
-			// yb-amp is a single-node PostgreSQL-compatible compute (no YB
-			// tablets / colocation), so — exactly like the PG/Oracle
-			// source/source-replica case — PARTITION_BY_TABLE has no real
-			// throughput downside and is safer for correctness. It also sidesteps
-			// getExpressionUniqueIndexTables(), which is implemented only on the
-			// TargetYugabyteDB driver.
+		if shouldForceTablePartitioning(importerRole, sourceDBType, targetDBType) {
 			for _, t := range tableNames {
 				result.Put(t, cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE})
 			}
 		} else {
 			for _, t := range tableNames {
-				if _, ok := exprUKSet.Get(t); ok {
-					result.Put(t, cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE})
-				} else if tableHasUniqueIndexOnGenerated(generatedStoredCols, t) {
-					// Generated UK values are absent from Debezium pgoutput events, so
-					// pk/custom routing and conflict detection cannot see them.
+				if ok, _, _ := shouldForceTablePartitioningForTable(t, exprUKSet, generatedStoredCols); ok {
 					result.Put(t, cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE})
 				} else {
 					result.Put(t, cdcPartitionKeyOverride{Strategy: PARTITION_BY_PK})
@@ -253,20 +253,31 @@ func resolveCdcPartitionKeyOverrides(rawOverrides map[string]cdcPartitionKeyOver
 func needsNonTablePartitionKeyChecks(cdcPartitionKey string, overrides *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride]) (bool, error) {
 	// Collect expression-UK / generated-stored-column tables whenever we need them for
 	// auto resolution or pk/custom validation.
-	needsNonTablePartitionKeysChecks := cdcPartitionKey == "auto" || cdcPartitionKey == PARTITION_BY_PK
-	if !needsNonTablePartitionKeysChecks {
-		err := overrides.IterKV(func(_ sqlname.NameTuple, override cdcPartitionKeyOverride) (bool, error) {
-			if override.Strategy != PARTITION_BY_TABLE {
-				needsNonTablePartitionKeysChecks = true
-				return false, nil
-			}
-			return true, nil
-		})
-		if err != nil {
-			return false, err
-		}
+	if cdcPartitionKey != PARTITION_BY_TABLE {
+		return true, nil
 	}
-	return needsNonTablePartitionKeysChecks, nil
+	var validationsNeeded bool
+	err := overrides.IterKV(func(_ sqlname.NameTuple, override cdcPartitionKeyOverride) (bool, error) {
+		if override.Strategy != PARTITION_BY_TABLE {
+			validationsNeeded = true
+			return false, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		return false, err
+	}
+	return validationsNeeded, nil
+}
+
+func shouldForceTablePartitioningForTable(table sqlname.NameTuple, exprUKSet *utils.StructMap[sqlname.NameTuple, bool], generatedStoredCols *utils.StructMap[sqlname.NameTuple, []GeneratedStoredColumn]) (bool, bool, bool) {
+	if _, ok := exprUKSet.Get(table); ok {
+		return true, true, false
+	}
+	if tableHasUniqueIndexOnGenerated(generatedStoredCols, table) {
+		return true, false, true
+	}
+	return false, false, false
 }
 
 // computeAndPersistCdcPartitioningStrategyPerTable resolves global + overrides +
@@ -597,8 +608,8 @@ type GeneratedStoredColumn struct {
 // (Primary-key existence for custom-key tables is validated separately in
 // validatePrimaryKeysForConflictDetection, which fetches the PK columns for the whole import
 // table list once in importData.)
-//rejects the PK/Custom strategy on the tables having expression-based unique index or a unique index on a stored generated column
-//custom key columns can't be a stored generated column
+// rejects the PK/Custom strategy on the tables having expression-based unique index or a unique index on a stored generated column
+// custom key columns can't be a stored generated column
 func validateAndFinalizeCDCPartitionKeysPerTable(tableToPartitionKeyOverrideMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], tableNames []sqlname.NameTuple, exprUKSet *utils.StructMap[sqlname.NameTuple, bool], generatedStoredCols *utils.StructMap[sqlname.NameTuple, []GeneratedStoredColumn]) error {
 	var customTables []sqlname.NameTuple
 	err := tableToPartitionKeyOverrideMap.IterKV(func(t sqlname.NameTuple, override cdcPartitionKeyOverride) (bool, error) {
@@ -673,14 +684,17 @@ func validateAndFinalizeCDCPartitionKeysPerTable(tableToPartitionKeyOverrideMap 
 		if override.Strategy == PARTITION_BY_TABLE {
 			continue
 		}
-		if _, isExprUK := exprUKSet.Get(t); isExprUK {
-			return goerrors.Errorf("cdc-partition-key %s is not allowed for table %s because it has an expression-based unique index; use table (via --cdc-partition-key or --cdc-partition-key-overrides)", override.Strategy, t.ForOutput())
-		}
 
-		//For PK and custom, we need to check if the table has a unique index on a stored generated column
-		//and if so, we need to reject the strategy
-		if tableHasUniqueIndexOnGenerated(generatedStoredCols, t) {
-			return goerrors.Errorf("cdc-partition-key %s is not allowed for table %s because it has a unique index on a stored generated column; use table (via --cdc-partition-key or --cdc-partition-key-overrides)", override.Strategy, t.ForOutput())
+		ok, isExprUK, isGeneratedStoredColumn := shouldForceTablePartitioningForTable(t, exprUKSet, generatedStoredCols)
+		if ok {
+			//For PK and custom, we need to check if the table has a unique index on a stored generated column
+			//and if so, we need to reject the strategy
+			if isExprUK {
+				return goerrors.Errorf("cdc-partition-key %s is not allowed for table %s because it has an expression-based unique index; use table (via --cdc-partition-key or --cdc-partition-key-overrides)", override.Strategy, t.ForOutput())
+			}
+			if isGeneratedStoredColumn {
+				return goerrors.Errorf("cdc-partition-key %s is not allowed for table %s because it has a unique index on a stored generated column; use table (via --cdc-partition-key or --cdc-partition-key-overrides)", override.Strategy, t.ForOutput())
+			}
 		}
 		if override.Strategy == PARTITION_BY_CUSTOM {
 			//For CUSTOM, we need to also check if the custom key column(s) are a stored generated column(s)
