@@ -67,6 +67,11 @@ func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector 
 	}
 
 	userFacingActionMsg := fmt.Sprintf("cutover to %s", dbRole)
+	if dbRole == "target" {
+		// Cutover to target is the last point at which the source schema is
+		// captured, so nudge the user to check for drift before they confirm.
+		printCutoverSchemaDriftRecommendation()
+	}
 	if !utils.AskPrompt(fmt.Sprintf("Are you sure you want to initiate %s? (y/n)", userFacingActionMsg)) {
 		utils.PrintAndLogf("Aborting %s", userFacingActionMsg)
 		return nil

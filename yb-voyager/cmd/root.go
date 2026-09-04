@@ -395,6 +395,13 @@ var noLockNeededList = []string{
 	"yb-voyager initiate",
 	"yb-voyager end",
 	"yb-voyager archive",
+	"yb-voyager schema",
+	// detect-drift is read-only w.r.t. migration state (it only writes report
+	// files under <export-dir>/reports), so it does not take the export-dir
+	// lock. This also means its non-zero exit codes (1 = drift found, 2 =
+	// operational error) can be raised via a direct os.Exit call without ever
+	// skipping a lockfile-unlock step, since no lock is ever acquired for it.
+	"yb-voyager schema detect-drift",
 }
 
 var noPersistentPreRunNeededList = []string{
@@ -411,6 +418,7 @@ var noPersistentPreRunNeededList = []string{
 	"yb-voyager cutover",
 	"yb-voyager archive",
 	"yb-voyager end",
+	"yb-voyager schema",
 }
 
 func shouldLock(cmd *cobra.Command) bool {
