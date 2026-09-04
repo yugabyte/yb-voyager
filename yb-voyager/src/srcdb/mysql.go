@@ -515,7 +515,7 @@ func (ms *MySQL) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.Struct
 // custom/pk partitioning that consumes this info are only supported for a PostgreSQL source
 // (MySQL live migration always uses PARTITION_BY_TABLE).
 func (ms *MySQL) GetGeneratedStoredColumns(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
-	return utils.NewStructMap[sqlname.NameTuple, []string](), nil
+	panic("not implemented")
 }
 
 func (ms *MySQL) GetNonPKTables() ([]string, error) {

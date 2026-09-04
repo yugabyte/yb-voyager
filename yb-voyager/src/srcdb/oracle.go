@@ -668,7 +668,7 @@ func (ora *Oracle) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.Stru
 // custom/pk partitioning that consumes this info are only supported for a PostgreSQL source
 // (Oracle live migration always uses PARTITION_BY_TABLE).
 func (ora *Oracle) GetGeneratedStoredColumns(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
-	return utils.NewStructMap[sqlname.NameTuple, []string](), nil
+	panic("not implemented")
 }
 
 func (ora *Oracle) GetNonPKTables() ([]string, error) {

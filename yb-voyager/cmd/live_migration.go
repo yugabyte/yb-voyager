@@ -246,7 +246,7 @@ func streamChangesFromSegment(
 			sourceDBTypeForConflictCache := lo.Ternary(isTargetDBExporter(event.ExporterRole), YUGABYTEDB, sourceDBType)
 			err = initializeConflictDetectionCache(evChans, sourceDBTypeForConflictCache, importTableList, tablePartitionKeyMap, tableToPKColumns, tableToUniqueIndexes)
 			if err != nil {
-				return goerrors.Errorf("error initializing conflict detection cache: %v", err)
+				return goerrors.Errorf("error initializing conflict detection cache: %w", err)
 			}
 			prevExporterRole = event.ExporterRole
 		}
