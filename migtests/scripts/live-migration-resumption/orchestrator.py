@@ -4,6 +4,7 @@ import os
 import sys
 import glob
 import argparse
+import copy
 import random
 import subprocess
 import time
@@ -289,6 +290,31 @@ def row_hash_validations_action(stage: Dict[str, Any], ctx: Any) -> None:
     H.run_segment_hash_validations(ctx, left_role, right_role)
 
 
+def _conflict_log_table_marker(table: str | None) -> str | None:
+    """Build the substring that identifies `table` in a "conflict detected" log
+    line, e.g. "public.orders" -> 'table "public"."orders"' (conflictDetectionCache.go
+    renders TableNameTup.ForKey() with each identifier quoted)."""
+    if table is None:
+        return None
+    schema, sep, name = table.partition(".")
+    if not sep:
+        raise ValueError(f"_conflict_log_table_marker: 'table' must be schema-qualified (e.g. 'public.orders'), got {table!r}")
+    return f'table "{schema}"."{name}"'
+
+
+def _count_conflict_log_lines(log_dir: str, name: str, table: str | None) -> int:
+    """Count "conflict detected" lines in `log_dir`/`name`* log files, optionally
+    scoped to one table (see `_conflict_log_table_marker`)."""
+    table_marker = _conflict_log_table_marker(table)
+    count = 0
+    for p in glob.glob(os.path.join(log_dir, name + "*")):
+        with open(p, errors="ignore") as f:
+            for line in f:
+                if "conflict detected" in line and (table_marker is None or table_marker in line):
+                    count += 1
+    return count
+
+
 @action("validate_conflicts_detected")
 def validate_conflicts_detected_action(stage: Dict[str, Any], ctx: Any) -> None:
     """Assert the import-data log recorded unique-key conflict detections.
@@ -298,20 +324,25 @@ def validate_conflicts_detected_action(stage: Dict[str, Any], ctx: Any) -> None:
     without ever exercising it. Meaningful on the forward leg
     (yb-voyager-import-data.log); the fallback leg's import-to-source forces
     PARTITION_BY_TABLE and logs 0 conflicts by design, so don't assert there.
+
+    Optional stage key:
+      - table: schema-qualified table name (e.g. "public.orders"); when set,
+        only counts lines also mentioning that table -- lets a run that mixes
+        custom-cdc-partition-key tables (expected to log 0 conflicts) with
+        normally-routed tables (expected to keep logging some) assert both
+        against the same log file.
     """
     log_dir = os.path.join(ctx.iteration_export_dir, "logs")
     name = stage.get("log", "yb-voyager-import-data.log")
     min_count = int(stage.get("min_count", 1))
-    count = 0
-    for p in glob.glob(os.path.join(log_dir, name + "*")):
-        with open(p, errors="ignore") as f:
-            count += sum(1 for line in f if "conflict detected" in line)
+    table = stage.get("table")
+    count = _count_conflict_log_lines(log_dir, name, table)
     if count < min_count:
         raise RuntimeError(
             f"validate_conflicts_detected: expected >= {min_count} 'conflict detected' "
-            f"in {name}, found {count} (dir={log_dir})"
+            f"in {name}{f' for table {table}' if table else ''}, found {count} (dir={log_dir})"
         )
-    H.log(f"validate_conflicts_detected: {count} conflicts detected in {name}")
+    H.log(f"validate_conflicts_detected: {count} conflicts detected in {name}" + (f" for table {table}" if table else ""))
 
 
 @action("validate_no_conflicts_detected")
@@ -321,19 +352,198 @@ def validate_no_conflicts_detected_action(stage: Dict[str, Any], ctx: Any) -> No
     Used on the fallback leg (yb-voyager-import-data-to-source.log): the
     source-importer forces PARTITION_BY_TABLE and skips conflict detection, so
     the log must have 0 'conflict detected' -- this guards that the skip holds.
+
+    Optional stage key:
+      - table: schema-qualified table name (e.g. "public.orders"); when set,
+        only counts lines also mentioning that table -- lets this assert 0
+        conflicts for one table (e.g. a custom-cdc-partition-key table)
+        within a log that also has real conflicts logged for other tables.
     """
     log_dir = os.path.join(ctx.iteration_export_dir, "logs")
     name = stage.get("log", "yb-voyager-import-data-to-source.log")
-    count = 0
-    for p in glob.glob(os.path.join(log_dir, name + "*")):
-        with open(p, errors="ignore") as f:
-            count += sum(1 for line in f if "conflict detected" in line)
+    table = stage.get("table")
+    count = _count_conflict_log_lines(log_dir, name, table)
     if count != 0:
         raise RuntimeError(
             f"validate_no_conflicts_detected: expected 0 'conflict detected' "
-            f"in {name}, found {count} (dir={log_dir})"
+            f"in {name}{f' for table {table}' if table else ''}, found {count} (dir={log_dir})"
         )
-    H.log(f"validate_no_conflicts_detected: 0 conflicts detected in {name} (as expected)")
+    H.log(f"validate_no_conflicts_detected: 0 conflicts detected in {name}" + (f" for table {table}" if table else "") + " (as expected)")
+
+
+@action("pick_random_custom_key")
+def pick_random_custom_key_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Randomly select ONE table/column(s) to route by `--cdc-partition-key-overrides`
+    this run -- mirroring how a real user opts specific tables into custom-key
+    routing -- and wire that pick through everywhere it needs to land:
+
+      - appends to `voyager.import_data.flags.cdc-partition-key-overrides`.
+      - adds the picked column(s) to the named generator's
+        `exclude_columns_from_update[table]`, so the random generator never
+        updates them (the importer requires custom key columns to be immutable).
+
+    Must run before `start_event_generator`/`start_importer` -- both read
+    `ctx.cfg` at start time, so mutating it here beforehand is sufficient; no
+    orchestrator plumbing changes are needed for the pick to take effect.
+
+    Required stage key:
+      - candidates: list of {table: "schema.table", expect_conflicts: bool
+        (optional, default false)} with EITHER:
+          - columns: [col, ...] -- a fixed custom key, OR
+          - random_columns_pool: [col, ...] -- the key's columns are ALSO
+            randomized: 1..2 columns (or min_columns..max_columns) are sampled
+            from the pool, in random order, so successive runs route the same
+            table by different columns and column counts.
+        Every fixed column and every pool column must already be safe to route
+        by (never appears in an UPDATE for that table in the conflict DML, and
+        its value must be identical across the rows of each conflict pair --
+        e.g. a DML-churned key column, or a column the DML leaves at a
+        transaction-constant default) -- this action only performs the pick
+        and the wiring, not that verification.
+        `expect_conflicts: true` marks a candidate whose DML deliberately
+        creates conflicts that MUST still be detected when it is picked (e.g.
+        a PK-recycle pattern); `validate_picked_custom_key_conflicts` uses it
+        to decide which assertion to run. Such candidates should use fixed
+        `columns` -- their assertion depends on the specific key.
+
+    Optional stage key:
+      - generator_key: which generator config block to inject
+        exclude_columns_from_update into (default: "generator").
+
+    The pick is stored on `ctx.picked_custom_key` for
+    `validate_picked_custom_key_conflicts` to consume later.
+    """
+    if ctx.picked_custom_key is not None:
+        raise RuntimeError(
+            "pick_random_custom_key: ctx.picked_custom_key is already set "
+            f"(previous pick: {ctx.picked_custom_key}) -- this action does not support "
+            "running more than once per scenario (e.g. inside a loop_start/loop_end block), "
+            "since a second pick would silently stack onto cdc-partition-key-overrides via "
+            "';' while ctx.picked_custom_key would only reflect the newest pick."
+        )
+
+    candidates = stage.get("candidates")
+    if not candidates:
+        raise ValueError("pick_random_custom_key: 'candidates' stage key is required and must be non-empty")
+
+    choice = random.choice(candidates)
+    table = choice["table"]
+    pool = choice.get("random_columns_pool")
+    if pool:
+        if choice.get("columns"):
+            raise ValueError(f"pick_random_custom_key: candidate {table} must not set both 'columns' and 'random_columns_pool'")
+        min_cols = int(choice.get("min_columns", 1))
+        max_cols = min(int(choice.get("max_columns", 2)), len(pool))
+        num_cols = random.randint(min_cols, max_cols)
+        columns = random.sample(pool, num_cols)
+    else:
+        columns = choice["columns"]
+    expect_conflicts = bool(choice.get("expect_conflicts", False))
+    ctx.picked_custom_key = {"table": table, "columns": columns, "expect_conflicts": expect_conflicts}
+    H.log(
+        f"pick_random_custom_key: selected table={table} columns={columns} "
+        f"expect_conflicts={expect_conflicts} "
+        f"({'sampled from pool of ' + str(len(pool)) if pool else 'fixed'}; out of {len(candidates)} candidates)"
+    )
+
+    override = f"{table}:({','.join(columns)})"
+    flags = ctx.cfg.setdefault("voyager", {}).setdefault("import_data", {}).setdefault("flags", {})
+    existing = flags.get("cdc-partition-key-overrides")
+    flags["cdc-partition-key-overrides"] = f"{existing};{override}" if existing else override
+
+    generator_key = stage.get("generator_key", "generator")
+    _, _, bare_table = table.partition(".")
+    gen_cfg_block = ctx.cfg[generator_key]
+    if "config_inline" not in gen_cfg_block:
+        raise ValueError(
+            f"pick_random_custom_key: generator block '{generator_key}' must use 'config_inline' "
+            "(not 'config_path') -- a config_path generator loads a static file this action cannot mutate at run time"
+        )
+    gen_section = gen_cfg_block["config_inline"]["generator"]
+    exclude_map = gen_section.setdefault("exclude_columns_from_update", {})
+    excluded_for_table = exclude_map.setdefault(bare_table, [])
+    for col in columns:
+        if col not in excluded_for_table:
+            excluded_for_table.append(col)
+
+
+@action("validate_picked_custom_key_conflicts")
+def validate_picked_custom_key_conflicts_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Run the right conflict assertion for whatever table `pick_random_custom_key`
+    selected earlier in this run:
+
+      - expect_conflicts false (the usual case): the picked table's conflicts all
+        share its custom key's value, so they land on one channel already and the
+        conflict-detection cache must never fire for it -- assert 0.
+      - expect_conflicts true (e.g. a PK-recycle candidate, where the SAME PK is
+        reused with a DIFFERENT custom-key value -- a real cross-channel race
+        custom-key routing does not eliminate): the synthetic-PK guard must still
+        catch it -- assert >= min_count (default 1).
+    """
+    picked = ctx.picked_custom_key
+    if not picked:
+        raise RuntimeError(
+            "validate_picked_custom_key_conflicts: ctx.picked_custom_key is unset "
+            "-- run 'pick_random_custom_key' earlier in this scenario"
+        )
+    scoped_stage = dict(stage)
+    scoped_stage["table"] = picked["table"]
+    if picked["expect_conflicts"]:
+        validate_conflicts_detected_action(scoped_stage, ctx)
+    else:
+        validate_no_conflicts_detected_action(scoped_stage, ctx)
+
+
+@action("voyager_import_start_expect_fail")
+def voyager_import_start_expect_fail_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Run `import data` in the foreground with the scenario's flags plus the
+    stage's `flags` on top, and require it to FAIL with `error_contains` in its
+    output -- used to verify resume guardrails at the real CLI level (e.g.
+    changing cdc-partition-key / cdc-partition-key-overrides between runs must
+    be rejected). The running importer must be stopped first
+    (voyager_stop_command), or this run fails on the export-dir lock instead.
+
+    Stage keys:
+      - flags (required): flag overrides merged over voyager.import_data.flags
+        for this one invocation only (ctx.cfg is not mutated). The placeholder
+        "{picked_table}" in a value is replaced with the table
+        pick_random_custom_key selected.
+      - error_contains (required): substring that must appear in the failed
+        run's stdout/stderr.
+      - timeout_sec (optional, default 120): how long the invocation may run
+        before being killed and the stage failed.
+    """
+    error_contains = stage.get("error_contains")
+    if not error_contains:
+        raise ValueError("voyager_import_start_expect_fail: 'error_contains' stage key is required")
+    extra_flags = dict(stage.get("flags") or {})
+    if not extra_flags:
+        raise ValueError("voyager_import_start_expect_fail: 'flags' stage key is required and must be non-empty")
+    for k, v in extra_flags.items():
+        if isinstance(v, str) and "{picked_table}" in v:
+            if not ctx.picked_custom_key:
+                raise RuntimeError(
+                    "voyager_import_start_expect_fail: '{picked_table}' used but no custom key was picked "
+                    "-- run 'pick_random_custom_key' earlier in this scenario"
+                )
+            extra_flags[k] = v.replace("{picked_table}", ctx.picked_custom_key["table"])
+
+    cfg = copy.deepcopy(ctx.cfg)
+    flags = cfg.setdefault("voyager", {}).setdefault("import_data", {}).setdefault("flags", {})
+    flags.update(extra_flags)
+    cmd = H.build_import_data_cmd(cfg)
+    timeout = int(stage.get("timeout_sec", 120))
+    H.log(f"voyager_import_start_expect_fail: running import data expecting failure with {extra_flags}")
+    proc = subprocess.run(cmd, env=ctx.env, capture_output=True, text=True, timeout=timeout)
+    output = (proc.stdout or "") + (proc.stderr or "")
+    if proc.returncode == 0:
+        raise RuntimeError(f"voyager_import_start_expect_fail: import unexpectedly SUCCEEDED with flags {extra_flags}")
+    if error_contains not in output:
+        raise RuntimeError(
+            f"voyager_import_start_expect_fail: import failed (exit {proc.returncode}) but the expected "
+            f"error text was not found.\nexpected substring: {error_contains}\noutput (tail):\n{output[-3000:]}"
+        )
+    H.log(f"voyager_import_start_expect_fail: import correctly rejected (exit {proc.returncode})")
 
 
 @action("start_resumptions")

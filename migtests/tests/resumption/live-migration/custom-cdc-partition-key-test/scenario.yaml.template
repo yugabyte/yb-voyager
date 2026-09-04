@@ -1,0 +1,454 @@
+name: custom-cdc-partition-key-test
+
+env:
+  LOG_LEVEL: info
+  QUEUE_SEGMENT_MAX_BYTES: 10485760
+
+export_dir: ./export-dir
+artifacts_dir: ./artifacts
+
+source:
+  type: postgresql
+  host: 127.0.0.1
+  port: 5432
+  database: test_db
+  user: ybvoyager
+  password: Test@123#$%^&*()!
+  schema: public
+  admin:
+    user: postgres
+    password: postgres
+
+target:
+  type: yugabytedb
+  host: ${TARGET_DB_HOST}
+  port: ${TARGET_DB_PORT}
+  database: test_db
+  user: ${TARGET_DB_USER}
+  password: ${TARGET_DB_PASSWORD}
+  admin:
+    user: ${TARGET_DB_ADMIN_USER}
+    password: ${TARGET_DB_ADMIN_PASSWORD}
+
+# Random event generator. Every table select_custom_keys routes by a custom
+# key below gets added to exclude_columns_from_update at run time, so the
+# generator never updates that custom key column (the importer requires it to
+# be immutable) while still touching that table's other columns normally.
+generator_source:
+  config_inline:
+    connection:
+      host: 127.0.0.1
+      port: 5432
+      database: test_db
+      user: postgres
+      password: postgres
+
+    generator:
+      schema_name: public
+      manual_table_list: []
+      exclude_table_list: [cutover_table]
+      num_iterations: -1
+      wait_after_operations: 1000
+      wait_duration_seconds: 1
+      table_weights: {}
+      operation_weights: {INSERT: 3, UPDATE: 2, DELETE: 1}
+      random_seed: 123
+      faker_seed: 123
+      insert_rows: 3
+      update_rows: 2
+      delete_rows: 1
+      insert_max_retries: 5
+      update_max_retries: 1
+
+# Deterministic unique-conflict DML (same file as fallback-unique-conflict-test),
+# re-applied on a loop throughout streaming in parallel with the random generator.
+conflict_generator_source:
+  config_inline:
+    conflict:
+      sql_path: ./source_dml.sql
+      interval_seconds: 10
+
+# Fallback (target) event generator: random traffic on target during fallback.
+generator_target:
+  config_inline:
+    connection:
+      host: ${TARGET_DB_HOST}
+      port: ${TARGET_DB_PORT}
+      database: test_db
+      user: ${TARGET_DB_USER}
+      password: ${TARGET_DB_PASSWORD}
+
+    generator:
+      schema_name: public
+      manual_table_list: []
+      exclude_table_list: [cutover_table]
+      num_iterations: -1
+      wait_after_operations: 1000
+      wait_duration_seconds: 1
+      table_weights: {}
+      operation_weights: {INSERT: 3, UPDATE: 2, DELETE: 1}
+      random_seed: 456
+      faker_seed: 456
+      insert_rows: 3
+      update_rows: 2
+      delete_rows: 1
+      insert_max_retries: 5
+      update_max_retries: 1
+
+# Fallback (target) conflict generator: re-applies the deterministic
+# unique-conflict DML on the target on a loop, in parallel with
+# generator_target. Custom keys do not apply on the fallback leg (import to
+# source forces table routing), so target_dml.sql keeps the full four
+# conflict types with no immutability restrictions.
+conflict_generator_target:
+  config_inline:
+    conflict:
+      sql_path: ./target_dml.sql
+      interval_seconds: 10
+
+
+voyager:
+  cutover_to_target:
+    flags:
+      prepare-for-fall-back: true
+
+stages:
+  - name: create_source_and_target_dbs
+    action: reset_databases
+    targets: [source, target]
+
+  - name: create_source_schema
+    action: run_sql
+    sql_path: ./init.sql
+    use_admin: true
+
+  - name: create_cutover_table
+    action: create_cutover_table
+    target: [source]
+
+  - name: grant_source_permissions
+    action: grant_source_permissions
+    is_live_migration_fall_back: 1
+
+  # Randomly select ONE table to route by --cdc-partition-key-overrides this
+  # run, then randomly sample WHICH of its columns (1-2, random order) form
+  # the custom key from that table's random_columns_pool -- so successive runs
+  # exercise a variety of key columns, column counts and datatypes, mirroring
+  # how a real user opts a specific table into custom-key routing. Pools hold
+  # only columns that are immutability-safe (never UPDATEd by source_dml.sql)
+  # and whose value is identical across each conflict pair's rows (DML-churned
+  # key columns, or columns the DML leaves at transaction-constant defaults);
+  # PK columns and uuid-default columns are excluded. The pick is also
+  # injected into the generator's exclude_columns_from_update so the random
+  # generator respects it. single_unique_constraint's DML is a deliberate
+  # PK-recycle pattern (see source_dml.sql section 1), so when IT is picked,
+  # conflicts MUST still be detected (expect_conflicts: true) -- every other
+  # candidate must show none.
+  - name: pick_random_custom_key
+    action: pick_random_custom_key
+    generator_key: generator_source
+    candidates:
+      # PK-recycle candidate: fixed key -- its expect_conflicts assertion
+      # depends on the key being the churned email column specifically.
+      - table: public.single_unique_constraint
+        columns: [email]
+        expect_conflicts: true
+      - table: public.multi_unique_constraint
+        random_columns_pool: [first_name, last_name, status, retry_count, is_active, metadata, description, created_at, updated_at, is_verified, notes, deleted_at]
+      - table: public.same_column_unique_constraint_and_index
+        random_columns_pool: [email, status, currency, retry_count, attempt_count, tags, processed_at, deleted_at, created_at, updated_at, reference_code, org_unit]
+      - table: public.single_unique_index
+        random_columns_pool: ["Ssn", due_date, status, description, is_active, currency, is_verified, deleted_at, created_at, updated_at, notes, seq_no]
+      - table: public.multi_unique_index
+        random_columns_pool: [first_name, last_name, description, status, currency, metadata, created_at, updated_at, notes, due_date, failure_reason, deleted_at]
+      - table: public.different_columns_unique_constraint_and_index
+        random_columns_pool: [email, phone_number, status, retry_count, is_active, metadata, description, notes, failure_reason, created_at, updated_at, deleted_at]
+      - table: public.subset_columns_unique_constraint_and_index
+        random_columns_pool: [first_name, last_name, phone_number, status, currency, priority, processed_at, deleted_at, created_at, updated_at, is_active, retry_count, attempt_count]
+      - table: public.test_partial_unique_index
+        random_columns_pool: [check_id, status, metadata, retry_count, is_active, currency, reference_code, org_unit, created_at, updated_at, deleted_at]
+      - table: public.partitioned_unique_conflict
+        random_columns_pool: [region, description, status, retry_count, currency, reference_code, attempt_count, score, created_at, updated_at, due_date, deleted_at]
+      - table: public.single_unique_index_nulls_not_distinct
+        random_columns_pool: [email, status, currency, due_date, reference_code, org_unit, seq_no, amount, is_active, deleted_at, created_at, updated_at, channel]
+      - table: public.multi_unique_index_nulls_not_distinct
+        random_columns_pool: [first_name, last_name, description, notes, failure_reason, amount, status, created_at, updated_at, remarks, deleted_at, is_active, address_line]
+      - table: public.single_unique_index_nulls_distinct
+        random_columns_pool: [email, status, currency, processed_at, expires_at, description, reference_code, org_unit, deleted_at, created_at, updated_at]
+
+  - name: export_schema_from_source
+    action: voyager_export_schema
+
+  - name: import_schema_on_target
+    action: voyager_import_schema
+
+  - name: start_event_generator
+    action: generator_start
+    generator_key: generator_source
+
+  - name: load_snapshot
+    action: sleep
+    seconds: 120
+
+  - name: start_exporter
+    action: voyager_export_start
+
+  - name: start_importer
+    action: voyager_import_start
+
+  # Deterministic unique-conflict DML applied once up-front for an immediate
+  # conflict burst as soon as streaming starts.
+  - name: run_source_dml
+    action: run_sql
+    target: source
+    sql_path: ./source_dml.sql
+    use_admin: true
+
+  # Conflict generator: then re-applies source_dml.sql continuously throughout
+  # streaming, in parallel with the random event generator.
+  - name: start_conflict_generator
+    action: conflict_generator_start
+    generator_key: conflict_generator_source
+
+  - name: start_import_resumptions
+    action: start_resumptions
+    resumption:
+      import_data:
+        max_restarts: 100
+        min_interrupt_seconds: 15
+        max_interrupt_seconds: 60
+        min_restart_wait_seconds: 5
+        max_restart_wait_seconds: 30
+
+  - name: wait_exporter_streaming
+    action: wait_for
+    condition: exporter_in_streaming_phase
+    timeout_sec: 600
+
+  - name: start_export_resumptions
+    action: start_resumptions
+    resumption:
+      export_data:
+        max_restarts: 100
+        min_interrupt_seconds: 15
+        max_interrupt_seconds: 60
+        min_restart_wait_seconds: 5
+        max_restart_wait_seconds: 30
+
+  - name: soak_with_resumptions
+    action: sleep
+    seconds: 3000
+
+  - name: stop_conflict_generator
+    action: conflict_generator_stop
+    generator_key: conflict_generator_source
+    graceful_timeout_sec: 60
+
+  - name: stop_event_generator
+    action: generator_stop
+    generator_key: generator_source
+    graceful_timeout_sec: 60
+
+  - name: insert_backlog_marker
+    action: run_sql
+    target: source
+    sql_path: ../common-sql/insert_marker.sql
+
+  - name: wait_backlog_zero
+    action: wait_for
+    condition: remaining_events_eq_0
+    timeout_sec: 1800
+
+  - name: stop_export_resumptions
+    action: voyager_stop_resumptions
+    command: export_data
+    timeout_sec: 60
+
+  - name: stop_import_resumptions
+    action: voyager_stop_resumptions
+    command: import_data
+    timeout_sec: 60
+
+  # For the picked table: if it's a normal candidate, its conflicts always
+  # share its custom key's value, so those events land on the same channel
+  # already and the conflict-detection cache must never fire for it (assert
+  # 0). If it's the PK-recycle candidate (expect_conflicts: true), the SAME PK
+  # is reused with a DIFFERENT custom-key value -- a real cross-channel race
+  # custom-key routing does NOT eliminate -- so the synthetic-PK guard added
+  # for custom-key tables (PR #3746) must still catch it (assert >= 1).
+  - name: validate_picked_custom_key_conflicts
+    action: validate_picked_custom_key_conflicts
+    log: yb-voyager-import-data.log
+
+  # The other tables are still PK-routed, so conflict detection must keep
+  # firing normally for them -- confirms custom-cdc-partition-key doesn't
+  # disable the cache wholesale.
+  - name: validate_conflicts_still_detected_elsewhere
+    action: validate_conflicts_detected
+    log: yb-voyager-import-data.log
+    min_count: 1
+
+  # Resume guardrail: changing cdc-partition-key / cdc-partition-key-overrides
+  # between runs must be rejected (diffCdcPartitioningStrategy). Stop the
+  # importer, try to resume twice with a changed config -- once changing the
+  # global default, once changing the picked table's override to pk -- assert
+  # both are refused, then resume with the original flags.
+  - name: stop_importer_for_guardrail_check
+    action: voyager_stop_command
+    command: import_data
+    timeout_sec: 60
+
+  - name: guardrail_reject_global_default_change
+    action: voyager_import_start_expect_fail
+    flags:
+      cdc-partition-key: table
+    error_contains: "not allowed after the import data has started"
+
+  - name: guardrail_reject_picked_override_change
+    action: voyager_import_start_expect_fail
+    flags:
+      cdc-partition-key-overrides: "{picked_table}:pk"
+    error_contains: "not allowed after the import data has started"
+
+  - name: restart_importer_after_guardrail_check
+    action: voyager_import_start
+
+  - name: cutover_to_target
+    action: cutover_to_target
+
+  - name: wait_cutover_completed
+    action: wait_for
+    condition: cutover_to_target_status_completed
+    timeout_sec: 900
+
+  # Honest (nextval) insert on the DB just cut over to: fails with a duplicate key
+  # if its sequence was not restored past the migrated rows. Runs after validations
+  # since it adds a row on one side only.
+  - name: verify_target_sequence_restored_after_cutover
+    action: run_sql
+    target: target
+    sql_path: ../common-sql/verify_sequence_restored_after_cutover.sql
+
+  - name: stop_forward_exporter
+    action: voyager_stop_command
+    command: export_data
+    graceful_timeout_sec: 60
+
+  - name: stop_forward_importer
+    action: voyager_stop_command
+    command: import_data
+    graceful_timeout_sec: 60
+
+  - name: start_fallback_exporter_from_target
+    action: voyager_export_from_target_start
+
+  - name: start_fallback_importer_to_source
+    action: voyager_import_to_source_start
+
+  # Deterministic unique-conflict DML applied once up-front on the target for
+  # an immediate burst as fallback streaming starts. Custom keys do not apply
+  # on this leg (import to source forces table routing), so the fallback
+  # importer must log ZERO conflicts even with conflict-prone DML flowing.
+  - name: run_target_dml
+    action: run_sql
+    target: target
+    sql_path: ./target_dml.sql
+    use_admin: true
+
+  - name: start_target_conflict_generator
+    action: conflict_generator_start
+    generator_key: conflict_generator_target
+
+  - name: start_target_event_generator
+    action: generator_start
+    generator_key: generator_target
+
+  - name: start_fallback_resumptions
+    action: start_resumptions
+    resumption:
+      export_from_target:
+        max_restarts: 100
+        min_interrupt_seconds: 15
+        max_interrupt_seconds: 60
+        min_restart_wait_seconds: 5
+        max_restart_wait_seconds: 30
+
+  - name: start_import_to_source_resumptions
+    action: start_resumptions
+    resumption:
+      import_to_source:
+        max_restarts: 100
+        min_interrupt_seconds: 15
+        max_interrupt_seconds: 60
+        min_restart_wait_seconds: 5
+        max_restart_wait_seconds: 30
+
+  - name: soak_fallback_with_resumptions
+    action: sleep
+    seconds: 3000
+
+  - name: stop_target_conflict_generator
+    action: conflict_generator_stop
+    generator_key: conflict_generator_target
+    graceful_timeout_sec: 60
+
+  - name: stop_target_event_generator
+    action: generator_stop
+    generator_key: generator_target
+    graceful_timeout_sec: 60
+
+  - name: insert_backlog_marker_on_target
+    action: run_sql
+    target: target
+    sql_path: ../common-sql/insert_marker.sql
+
+  - name: wait_backlog_zero_after_fallback
+    action: wait_for
+    condition: remaining_events_eq_0
+    timeout_sec: 6000
+
+  - name: stop_fallback_export_resumptions
+    action: voyager_stop_resumptions
+    command: export_from_target
+    timeout_sec: 60
+
+  - name: stop_fallback_import_resumptions
+    action: voyager_stop_resumptions
+    command: import_to_source
+    timeout_sec: 60
+
+  # The fallback importer forces PARTITION_BY_TABLE (custom keys are rejected
+  # outside import-data-to-target), so conflict detection must never fire on
+  # this leg -- also proves the forward leg's custom-key config doesn't leak
+  # into or break the fallback.
+  - name: validate_no_conflicts_on_fallback
+    action: validate_no_conflicts_detected
+    log: yb-voyager-import-data-to-source.log
+
+  - name: cutover_to_source
+    action: cutover_to_source
+
+  - name: wait_cutover_to_source_completed
+    action: wait_for
+    condition: cutover_to_source_status_completed
+    timeout_sec: 900
+
+  - name: row_count_validations
+    action: row_count_validations
+
+  - name: row_hash_validations
+    action: row_hash_validations
+
+  - name: verify_source_sequence_restored_after_cutover
+    action: run_sql
+    target: source
+    sql_path: ../common-sql/verify_sequence_restored_after_cutover.sql
+
+  - name: cleanup_source
+    action: run_sql
+    sql_path: ../common-sql/cleanup.sql
+
+  - name: cleanup_target
+    action: run_sql
+    target: target
+    sql_path: ../common-sql/cleanup.sql
