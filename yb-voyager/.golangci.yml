@@ -1,97 +1,89 @@
-# golangci-lint v2 configuration — the single lint entry point for this module.
-# The binary is pinned in versions/ci-config.json (`golangci_lint`).
+# golangci-lint v2 config — the single lint entry point for this module.
+# Binary pinned in versions/ci-config.json (`golangci_lint`).
 #
-# CI (.github/workflows/lint.yml) and scripts/lint.sh run it once per build-tag
-# group; the tag groups cannot be combined into one run because test files of
-# different tags redeclare symbols (e.g. TestMain) in the same package, so a
-# combined-tags build does not compile. The union of the groups covers every Go
-# file in the module.
-#
-# The errcheck exclude-functions list below is deliberate policy, not noise
-# suppression: an entry means "this method's error is safely ignorable at every
-# call site", with the rationale alongside. Anything not listed must handle its
-# error explicitly (check it, or `_ =` with a why-comment).
+# CI (.github/workflows/lint.yml) and scripts/lint.sh run this once per
+# build-tag group: tag groups cannot be combined (test files of different
+# tags redeclare symbols, e.g. TestMain), and the union of groups covers
+# every Go file in the module.
 
-# Config schema version for the golangci-lint v2.x binary (a v1 config is
-# rejected at startup).
+# Config schema for the v2.x binary (v1 configs are rejected).
 version: "2"
 
 linters:
-  # Deny-by-default: `none` plus an explicit enable list means upgrading
-  # golangci-lint can never silently add or remove linters from the gate.
-  # The gate is exactly the set below until someone edits this file.
+  # Deny-by-default: an upgrade of golangci-lint can never silently change
+  # the linter set; every addition/removal is an edit to this file.
   default: none
   enable:
-    # A bare call statement that drops an error return (the PR #3714 bug
-    # class) is caught by no other tool. Also makes void->error signature
-    # widenings unlandable without updating every call site.
+    # Bare dropped error returns (the PR #3714 bug class) — caught by no
+    # other tool.
     - errcheck
-    # Previously go.yml's standalone `go vet` step; runs inside the gate now.
+    # Was go.yml's standalone `go vet` step.
     - govet
-    # Ineffectual assignments; overlaps staticcheck's SA4006 but catches
-    # shapes it misses, and is essentially free.
+    # Ineffectual assignments; overlaps SA4006 but catches more shapes.
     - ineffassign
-    # The SA bug class (incl. SA4006 "err assigned, never read"). Replaces
-    # the standalone staticcheck CI step; check selection is under
-    # settings.staticcheck below.
+    # The SA bug class; replaces the standalone staticcheck CI step.
     - staticcheck
-    # Dead-code detection (U1000). Standalone staticcheck bundles this in its
-    # default run, but golangci splits it into a separate linter — enabling
-    # staticcheck alone would silently narrow the gate vs. the standalone tool.
+    # Dead code (U1000). Standalone staticcheck bundles this check; golangci
+    # splits it into its own linter, so it must be enabled for parity.
     - unused
-    # TODO(lint): enable the next-wave linters, one PR each, after sweeping
-    # that linter's remaining findings (measured Aug 2026: errorlint ~15,
-    # rowserrcheck ~40, sqlclosecheck ~8). Nothing prevents enabling them
-    # today except that the gate must be green the day a linter turns on.
+    # TODO(lint): next-wave linters, one enable-and-sweep PR each (findings
+    # measured Aug 2026: errorlint ~15, rowserrcheck ~40, sqlclosecheck ~8).
     # - errorlint
     # - rowserrcheck
     # - sqlclosecheck
   settings:
     staticcheck:
-      # Goal: parity with the standalone staticcheck gate this replaces —
-      # neither wider nor narrower. golangci's default check selection for
-      # staticcheck differs from the standalone tool's defaults, so the list
-      # is spelled out explicitly.
+      # Parity with the standalone staticcheck gate this replaces: golangci's
+      # default selection differs from the standalone tool's, so every
+      # deviation from `all` is listed explicitly. SA4023 is deliberately not
+      # excluded (default-on in the standalone tool).
       checks:
         - all
-        # ST1000/ST1003/ST1016/ST1020/ST1021/ST1022/ST1023 are default-OFF in
-        # standalone staticcheck 2025.1.1 (ST1023 verified empirically: a
-        # pre-existing violation sits on a staticcheck-green main). Excluded
-        # here to keep parity. Note SA4023 is deliberately NOT excluded — it
-        # is default-ON in the standalone tool.
+        # Missing/malformed package comment. Default-off in standalone
+        # staticcheck; the tree has no package-doc convention.
         - -ST1000
+        # Identifier naming style (initialisms, underscores). Default-off in
+        # standalone; enforcing it would rename exported legacy identifiers.
         - -ST1003
-        # ST1005 and S1008 (below) are the project's two pre-existing
-        # opt-outs, carried over from staticcheck.conf:
-        # -ST1005: user-facing CLI error strings are deliberately
-        #          capitalized/punctuated.
+        # Error-string capitalization/punctuation. Project opt-out (carried
+        # from staticcheck.conf): user-facing CLI errors are deliberately
+        # capitalized and punctuated.
         - -ST1005
+        # Inconsistent method-receiver names across a type. Default-off in
+        # standalone.
         - -ST1016
+        # Exported-function comment must start with the function name.
+        # Default-off in standalone.
         - -ST1020
+        # Exported-type comment must start with the type name. Default-off in
+        # standalone.
         - -ST1021
+        # Exported var/const comment must start with the identifier name.
+        # Default-off in standalone.
         - -ST1022
+        # Redundant type or default value in declarations. Default-off in
+        # standalone 2025.1.1 (verified: a violation sits on a green main).
         - -ST1023
-        # -S1008: explicit boolean returns are allowed for readability.
+        # "if cond { return true }; return false" simplification. Project
+        # opt-out (carried from staticcheck.conf): explicit boolean returns
+        # are allowed for readability.
         - -S1008
-        # QF* (quickfix) checks are not shipped by standalone staticcheck
-        # 2025.1.1 at all; excluded defensively so a future golangci-bundled
-        # staticcheck version cannot add checks the project never opted into.
+        # Editor quickfix suggestions; not shipped by standalone 2025.1.1 —
+        # excluded so a future golangci-bundled version cannot add checks the
+        # project never opted into.
         - -QF*
     errcheck:
-      # The bar for an entry here: the error must be safely ignorable at
-      # EVERY possible call site, not just the current ones. Deliberately NOT
-      # excluded (each call site handles these on its merits instead):
-      #   - (*os.File).Close — a write-path close error is a data-loss bug in
-      #     a migration tool; read-path defers use explicit `_ =`.
-      #   - cobra MarkFlagRequired/MarkHidden/MarkDeprecated — a typo'd flag
-      #     name must not silently no-op; see the mustMarkFlag* helpers.
-      #   - os.WriteFile / os.Remove / os.RemoveAll and similar — checked or
-      #     explicitly dismissed per site.
+      # Bar for an entry: the error must be safely ignorable at EVERY
+      # possible call site, with the reason alongside. Deliberately NOT
+      # excluded, handled per call site instead: (*os.File).Close (a
+      # write-path close error is a data-loss bug), cobra Mark* (a typo'd
+      # flag must not silently no-op — see the mustMarkFlag* helpers), and
+      # os.WriteFile/Remove/RemoveAll.
       exclude-functions:
-        # Read-path/teardown closes: real failures surface via rows.Err()/Scan,
-        # which are checked; nothing actionable on close. Exclusions match on
-        # the exact receiver type, which is why pgx v4, pgx v5, and pgconn are
-        # all listed — the codebase uses all three.
+        # sql/pgx teardown closes, matched by exact receiver type (pgx v4,
+        # v5, and pgconn are all in use). Close releases resources and never
+        # flushes user writes: SQL writes are durable at Exec/Commit (both
+        # checked), and read failures surface via rows.Err()/Scan.
         - (*database/sql.Rows).Close
         - (*database/sql.DB).Close
         - (*database/sql.Conn).Close
@@ -104,50 +96,43 @@ linters:
         - (*database/sql.Tx).Rollback
         # resp.Body and similar read-only bodies.
         - (io.ReadCloser).Close
-        # Console report/status rendering (verified: every production use
-        # writes to tabwriter/uilive buffers or stderr); buffered errors
-        # surface at Flush, which is handled at the call sites.
+        # Console report/status rendering to tabwriter/uilive buffers or
+        # stderr (verified for every production use); buffered errors surface
+        # at Flush, which is checked at the call sites.
         - fmt.Fprint
         - fmt.Fprintf
         - fmt.Fprintln
-        # Console UX color printers (fatih/color, incl. the ux package aliases).
+        # Console UX color printers (fatih/color, incl. the ux aliases).
         - (*github.com/fatih/color.Color).Print
         - (*github.com/fatih/color.Color).Printf
         - (*github.com/fatih/color.Color).Println
         - (*github.com/fatih/color.Color).Fprint
         - (*github.com/fatih/color.Color).Fprintf
         - (*github.com/fatih/color.Color).Fprintln
-        # Documented to never return an error.
-        - (hash.Hash).Write
-        - (hash.Hash32).Write
   exclusions:
-    # Each rule below is scoped as narrowly as possible: to specific paths,
-    # to a single linter, and (where supported) to a message text — so the
-    # excluded check stays enforced everywhere else.
+    # Each rule is scoped as narrowly as possible (path, single linter, and
+    # message text where supported) so the check stays enforced elsewhere.
     rules:
       # TEMPORARY (removed by the test-modernization PR): test files carry
-      # ~380 legacy errcheck findings, dominated by os.Setenv / os.RemoveAll
-      # patterns that will become t.Setenv / t.TempDir. Production code is
-      # fully enforced, and staticcheck/govet/ineffassign/unused still run on
-      # test files — only errcheck is deferred.
+      # ~380 legacy errcheck findings, mostly os.Setenv / os.RemoveAll that
+      # will become t.Setenv / t.TempDir. Only errcheck is deferred — the
+      # other linters still run on test files.
       - path: _test\.go
         linters:
           - errcheck
-      # Shared test helpers consumed by tests of DIFFERENT build tags; under
-      # any single tag some helpers legitimately look unused, so `unused`
-      # cannot evaluate these files meaningfully in a per-tag lint run. All
-      # other linters still apply to them.
+      # Test helpers shared across build-tag families: under any single tag
+      # some helpers legitimately look unused, so `unused` cannot evaluate
+      # these files in a per-tag run.
       - path: cmd/importData(Integration)?TestUtils\.go
         linters:
           - unused
       - path: src/testlivemigration/live_migration_test_helpers\.go
         linters:
           - unused
-      # golangci's staticcheck integration computes interprocedural facts
-      # differently from the standalone tool and flags these five defensive
-      # protoreflect nil-checks as SA4023 ("never true"); standalone
-      # staticcheck 2025.1.1 is clean on the identical code. Scoped to this
-      # file + check so SA4023 stays enforced everywhere else.
+      # golangci's staticcheck computes interprocedural facts differently
+      # from the standalone tool and flags these defensive protoreflect
+      # nil-checks as SA4023 ("never true"); standalone 2025.1.1 is clean on
+      # identical code.
       - path: src/query/queryparser/helpers_protomsg\.go
         text: "SA4023"
         linters:
