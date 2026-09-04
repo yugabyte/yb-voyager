@@ -379,7 +379,7 @@ func fetchObjectUsageStats() ([]*types.ObjectUsageStats, error) {
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching object usage stats %v", err)
+			log.Warnf("error closing rows while fetching object usage stats %v", closeErr)
 		}
 	}()
 
@@ -639,7 +639,7 @@ func fetchRedundantIndexInfoFromAssessmentDB() ([]utils.RedundantIndexesInfo, er
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching redundant indexes %v", err)
+			log.Warnf("error closing rows while fetching redundant indexes %v", closeErr)
 		}
 	}()
 
@@ -722,7 +722,7 @@ func fetchColumnStatisticsInfo() ([]utils.ColumnStatistics, error) {
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching column statistics %v", err)
+			log.Warnf("error closing rows while fetching column statistics %v", closeErr)
 		}
 	}()
 
@@ -1005,7 +1005,7 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching object type mapping metadata: %v", err)
+			log.Warnf("error closing rows while fetching object type mapping metadata: %v", closeErr)
 		}
 	}()
 
@@ -1141,7 +1141,7 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching database queries summary metadata: %v", err)
+			log.Warnf("error closing rows while fetching database queries summary metadata: %v", closeErr)
 		}
 	}()
 
@@ -1228,7 +1228,7 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching unsupported datatypes metadata: %v", err)
+			log.Warnf("error closing rows while fetching unsupported datatypes metadata: %v", closeErr)
 		}
 	}()
 

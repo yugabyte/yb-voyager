@@ -266,9 +266,9 @@ func (adb *AssessmentDB) BulkInsert(table string, records [][]string) error {
 	}
 
 	defer func() {
-		err = tx.Rollback()
-		if err != nil && errors.Is(err, sql.ErrTxDone) {
-			log.Warnf("error while rollback the BulkInsert txn: %v", err)
+		errRollBack := tx.Rollback()
+		if errRollBack != nil && !errors.Is(errRollBack, sql.ErrTxDone) {
+			log.Warnf("error while rollback the BulkInsert txn: %v", errRollBack)
 		}
 	}()
 

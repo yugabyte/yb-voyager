@@ -961,7 +961,7 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 	for {
 		line, _, readLinErr := df.NextLine()
 		if readLinErr != nil && !errors.Is(readLinErr, io.EOF) {
-			return 0, newImportBatchErrorPgYb(err, batch,
+			return 0, newImportBatchErrorPgYb(readLinErr, batch,
 				errs.IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER,
 				errs.IMPORT_BATCH_ERROR_STEP_READ_LINE_BATCH, nil)
 		}
@@ -1013,7 +1013,7 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 			log.Warnf("Unexpected: COPY command for line=%q in batch %s returned 0 rows affected which is not expected", line, batch.GetFilePath())
 		}
 
-		if readLinErr == io.EOF { // handles case 2
+		if errors.Is(readLinErr, io.EOF) { // handles case 2
 			log.Infof("reached end of file %s", batch.GetFilePath())
 			break
 		}
@@ -1198,7 +1198,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		defer func() {
 			errRollBack := tx.Rollback(ctx)
 			if errRollBack != nil && !errors.Is(errRollBack, pgx.ErrTxClosed) {
-				log.Errorf("error rolling back tx for batch id (%s): %v", batch.ID(), err)
+				log.Errorf("error rolling back tx for batch id (%s): %v", batch.ID(), errRollBack)
 			}
 		}()
 

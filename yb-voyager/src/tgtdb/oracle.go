@@ -535,7 +535,7 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 		defer func() {
 			errRollBack := tx.Rollback()
 			if errRollBack != nil && !errors.Is(errRollBack, sql.ErrTxDone) {
-				log.Errorf("error rolling back tx for batch id (%s): %v", batch.ID(), err)
+				log.Errorf("error rolling back tx for batch id (%s): %v", batch.ID(), errRollBack)
 			}
 		}()
 		var rowsAffectedInserts, rowsAffectedDeletes, rowsAffectedUpdates int64
