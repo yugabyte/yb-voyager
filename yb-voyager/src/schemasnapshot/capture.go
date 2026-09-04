@@ -34,9 +34,12 @@ type CaptureParams struct {
 	DatabaseType string     // selects the provider; recorded in SnapshotContent.DatabaseType
 	Side         string     // migration side; recorded in the header (defaults to SideSource if "")
 	DBMetadata   DBMetadata // display coordinates; recorded in SnapshotContent.DBMetadata
-	Schemas      []string
-	Label        string
-	Reason       string
+	// RAW, UNQUOTED values, matched as data against pg_namespace.nspname. The quoted
+	// form silently captures zero tables (`"Odd Schema"` never equals `Odd Schema`),
+	// so callers use srcdb.Source.GetSchemaListUnquoted, not GetSchemaList.
+	Schemas []string
+	Label   string
+	Reason  string
 }
 
 // Capture is the library entry point for taking a schema snapshot. It:
@@ -105,6 +108,16 @@ type CaptureRequest struct {
 	PlaceholderOnFailure bool // when true, a failed capture still records a metadata-only timeline marker.
 }
 
+// CaptureTimeout is the single best-effort budget for ALL schema-snapshot DB work: the
+// catalog read plus the metaDB write of a real snapshot, and equally the fallback
+// placeholder write. Schema capture is best-effort and off the data path, so this caps
+// how long a slow or wedged source DB — or a contended metaDB write lock — can delay the
+// migration. The work is small (a metadata-only read plus one insert; the placeholder is
+// metadata-only and does NOT scale with schema size), so it is generous headroom, not a
+// tight SLA. Both cmd (the capture wrap and the source-side placeholder) and this package
+// (the fallback placeholder in CaptureAndSaveSnapshot) use this one value.
+const CaptureTimeout = 10 * time.Second
+
 // CaptureAndSaveSnapshot captures the source schema and persists it. On capture failure,
 // if req.PlaceholderOnFailure is true it writes a metadata-only placeholder marker (so the
 // lifecycle moment still appears on the timeline) and returns the original capture error;
@@ -117,16 +130,20 @@ func CaptureAndSaveSnapshot(ctx context.Context, db *sql.DB, mdb *metadb.MetaDB,
 		if req.PlaceholderOnFailure {
 			// placeholder dbVersion is "" (the version probe was part of the failed capture).
 			h := newHeader(req.CaptureParams, time.Now().UTC(), "", true)
+			// Fresh context: the capture context may be the very thing that failed
+			// (deadline exceeded / cancelled), so the marker must not reuse it.
+			phCtx, cancel := context.WithTimeout(context.Background(), CaptureTimeout)
+			defer cancel()
 			// Best-effort timeline marker: we still return the original capture error,
 			// but a failed placeholder insert must not vanish silently (BUGBOT.md).
-			if _, perr := SavePlaceholder(mdb, h); perr != nil {
+			if _, perr := SavePlaceholder(phCtx, mdb, h); perr != nil {
 				log.Warnf("schemasnapshot: failed to write placeholder marker for label %q: %v", req.Label, perr)
 			}
 		}
 		return "", captureErr
 	}
 
-	return SaveSnapshot(mdb, snap)
+	return SaveSnapshot(ctx, mdb, snap)
 }
 
 // newHeader builds a SnapshotHeader from capture params + the capture-time facts.

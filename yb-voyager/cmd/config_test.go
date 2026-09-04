@@ -595,6 +595,7 @@ source:
   oracle-cdb-tns-alias: test_cdb_tns_alias
 export-schema:
   run-guardrails-checks: false
+  suppress-schema-snapshot-capture: false
   use-orafce: true
   comments-on-objects: true
   object-type-list: table,index,view
@@ -652,6 +653,7 @@ func TestExportSchemaConfigBinding_ConfigFileBinding(t *testing.T) {
 	// Dont test CDB fields as they are not available in export schema command
 	// Assertions on export-schema config
 	assert.Equal(t, utils.BoolStr(false), source.RunGuardrailsChecks, "Run guardrails checks should match the config")
+	assert.Equal(t, utils.BoolStr(false), suppressSchemaSnapshotCapture, "suppress-schema-snapshot-capture should match the config")
 	assert.Equal(t, utils.BoolStr(true), source.UseOrafce, "UseOrafce should match the config")
 	assert.Equal(t, utils.BoolStr(true), source.CommentsOnObjects, "CommentsOnObjects should match the config")
 	assert.Equal(t, "table,index,view", source.StrExportObjectTypeList, "Export object type list should match the config")
@@ -677,6 +679,7 @@ func TestExportSchemaConfigBinding_CLIOverridesConfig(t *testing.T) {
 		"--log-level", "debug",
 		"--send-diagnostics", "false",
 		"--run-guardrails-checks", "true",
+		"--suppress-schema-snapshot-capture", "true",
 		"--profile", "false",
 		"--use-orafce", "false",
 		"--comments-on-objects", "false",
@@ -735,6 +738,7 @@ func TestExportSchemaConfigBinding_CLIOverridesConfig(t *testing.T) {
 	// Dont test CDB fields as they are not available in export schema command
 	// Assertions on export-schema config
 	assert.Equal(t, utils.BoolStr(true), source.RunGuardrailsChecks, "Run guardrails checks should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(true), suppressSchemaSnapshotCapture, "CLI should override suppress-schema-snapshot-capture")
 	assert.Equal(t, utils.BoolStr(false), source.UseOrafce, "UseOrafce should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), source.CommentsOnObjects, "CommentsOnObjects should be overridden by CLI")
 	assert.Equal(t, "table,view", source.StrExportObjectTypeList, "Export object type list should be overridden by CLI")
@@ -1073,6 +1077,8 @@ source:
   oracle-cdb-tns-alias: test_cdb_tns_alias
 export-data-from-source:
   run-guardrails-checks: false
+  suppress-schema-snapshot-capture: false
+  schema-snapshot-capture-interval: 10
   disable-pb: true
   exclude-table-list: table1,table2
   table-list: table3,table4
@@ -1135,6 +1141,8 @@ func TestExportDataFromSourceConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, "test_cdb_tns_alias", source.CDBTNSAlias, "Source Oracle CDB TNS alias should match the config")
 	// Assertions on export-data config
 	assert.Equal(t, utils.BoolStr(false), source.RunGuardrailsChecks, "Run guardrails checks should match the config")
+	assert.Equal(t, utils.BoolStr(false), suppressSchemaSnapshotCapture, "suppress-schema-snapshot-capture should match the config")
+	assert.Equal(t, 10, schemaSnapshotCaptureInterval, "schema-snapshot-capture-interval should match the config")
 	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
 	assert.Equal(t, "table1,table2", source.ExcludeTableList, "Exclude table list should match the config")
 	assert.Equal(t, "table3,table4", source.TableList, "Table list should match the config")
@@ -1162,6 +1170,8 @@ func TestExportDataFromSourceConfigBinding_CLIOverridesConfig(t *testing.T) {
 		"--log-level", "debug",
 		"--send-diagnostics", "false",
 		"--run-guardrails-checks", "true",
+		"--suppress-schema-snapshot-capture", "true",
+		"--schema-snapshot-capture-interval", "20",
 		"--profile", "false",
 		"--disable-pb", "false",
 		"--exclude-table-list", "table5,table6",
@@ -1226,6 +1236,8 @@ func TestExportDataFromSourceConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, "test_cdb_tns_alias2", source.CDBTNSAlias, "Source Oracle CDB TNS alias should be overridden by CLI")
 	// Assertions on export-data config
 	assert.Equal(t, utils.BoolStr(true), source.RunGuardrailsChecks, "Run guardrails checks should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(true), suppressSchemaSnapshotCapture, "CLI should override suppress-schema-snapshot-capture")
+	assert.Equal(t, 20, schemaSnapshotCaptureInterval, "CLI should override schema-snapshot-capture-interval")
 	assert.Equal(t, utils.BoolStr(false), disablePb, "Disable PB should be overridden by CLI")
 	assert.Equal(t, "table5,table6", source.ExcludeTableList, "Exclude table list should be overridden by CLI")
 	assert.Equal(t, "table7,table8", source.TableList, "Table list should be overridden by CLI")
