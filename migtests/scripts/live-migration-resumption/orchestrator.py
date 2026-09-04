@@ -4,6 +4,7 @@ import os
 import sys
 import glob
 import argparse
+import copy
 import random
 import subprocess
 import time
@@ -472,6 +473,58 @@ def validate_picked_custom_key_conflicts_action(stage: Dict[str, Any], ctx: Any)
         validate_conflicts_detected_action(scoped_stage, ctx)
     else:
         validate_no_conflicts_detected_action(scoped_stage, ctx)
+
+
+@action("voyager_import_start_expect_fail")
+def voyager_import_start_expect_fail_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Run `import data` in the foreground with the scenario's flags plus the
+    stage's `flags` on top, and require it to FAIL with `error_contains` in its
+    output -- used to verify resume guardrails at the real CLI level (e.g.
+    changing cdc-partition-key / cdc-partition-key-overrides between runs must
+    be rejected). The running importer must be stopped first
+    (voyager_stop_command), or this run fails on the export-dir lock instead.
+
+    Stage keys:
+      - flags (required): flag overrides merged over voyager.import_data.flags
+        for this one invocation only (ctx.cfg is not mutated). The placeholder
+        "{picked_table}" in a value is replaced with the table
+        pick_random_custom_key selected.
+      - error_contains (required): substring that must appear in the failed
+        run's stdout/stderr.
+      - timeout_sec (optional, default 120): how long the invocation may run
+        before being killed and the stage failed.
+    """
+    error_contains = stage.get("error_contains")
+    if not error_contains:
+        raise ValueError("voyager_import_start_expect_fail: 'error_contains' stage key is required")
+    extra_flags = dict(stage.get("flags") or {})
+    if not extra_flags:
+        raise ValueError("voyager_import_start_expect_fail: 'flags' stage key is required and must be non-empty")
+    for k, v in extra_flags.items():
+        if isinstance(v, str) and "{picked_table}" in v:
+            if not ctx.picked_custom_key:
+                raise RuntimeError(
+                    "voyager_import_start_expect_fail: '{picked_table}' used but no custom key was picked "
+                    "-- run 'pick_random_custom_key' earlier in this scenario"
+                )
+            extra_flags[k] = v.replace("{picked_table}", ctx.picked_custom_key["table"])
+
+    cfg = copy.deepcopy(ctx.cfg)
+    flags = cfg.setdefault("voyager", {}).setdefault("import_data", {}).setdefault("flags", {})
+    flags.update(extra_flags)
+    cmd = H.build_import_data_cmd(cfg)
+    timeout = int(stage.get("timeout_sec", 120))
+    H.log(f"voyager_import_start_expect_fail: running import data expecting failure with {extra_flags}")
+    proc = subprocess.run(cmd, env=ctx.env, capture_output=True, text=True, timeout=timeout)
+    output = (proc.stdout or "") + (proc.stderr or "")
+    if proc.returncode == 0:
+        raise RuntimeError(f"voyager_import_start_expect_fail: import unexpectedly SUCCEEDED with flags {extra_flags}")
+    if error_contains not in output:
+        raise RuntimeError(
+            f"voyager_import_start_expect_fail: import failed (exit {proc.returncode}) but the expected "
+            f"error text was not found.\nexpected substring: {error_contains}\noutput (tail):\n{output[-3000:]}"
+        )
+    H.log(f"voyager_import_start_expect_fail: import correctly rejected (exit {proc.returncode})")
 
 
 @action("start_resumptions")
