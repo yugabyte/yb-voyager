@@ -1,10 +1,16 @@
-name: Go
+name: Integration Tests
 
 on:
   push:
     branches: ['main', '*.*-dev', '*.*.*-dev']
   pull_request:
     branches: [main]
+
+# Supersede in-progress runs for the same PR; main / *-dev pushes are never
+# cancelled so every merged commit keeps a full CI record.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   ORACLE_INSTANT_CLIENT_VERSION: "21.5.0.0.0-1"
