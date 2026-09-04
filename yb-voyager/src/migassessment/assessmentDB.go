@@ -266,9 +266,9 @@ func (adb *AssessmentDB) BulkInsert(table string, records [][]string) error {
 	}
 
 	defer func() {
-		err = tx.Rollback()
-		if err != nil && errors.Is(err, sql.ErrTxDone) {
-			log.Warnf("error while rollback the BulkInsert txn: %v", err)
+		errRollBack := tx.Rollback()
+		if errRollBack != nil && !errors.Is(errRollBack, sql.ErrTxDone) {
+			log.Warnf("error while rollback the BulkInsert txn: %v", errRollBack)
 		}
 	}()
 
@@ -280,6 +280,7 @@ func (adb *AssessmentDB) BulkInsert(table string, records [][]string) error {
 	if err != nil {
 		return fmt.Errorf("error preparing statement for bulk insert into %s: %w", table, err)
 	}
+	defer stmt.Close()
 
 	for rowNum := 1; rowNum < len(records); rowNum++ {
 		row := utils.ConvertStringSliceToInterface(records[rowNum])

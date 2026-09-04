@@ -61,22 +61,16 @@ func (i Identifier) CaseInSensitiveMatch(other Identifier) bool {
 }
 
 func (i Identifier) FindBestMatchingIdenitifier(schemaIdenitifiers []Identifier) (bool, Identifier) {
-	var matchedSchema bool
 	for _, schema := range schemaIdenitifiers {
 		if schema.CaseSensitiveMatch(i) {
-			matchedSchema = true
 			return true, schema
 		}
 	}
-	if !matchedSchema {
-		//If not matched with any case sensitive match, then check for in case sensitive match
-		for _, schemaOnDB := range schemaIdenitifiers {
-			if schemaOnDB.CaseInSensitiveMatch(i) {
-				matchedSchema = true
-				return true, schemaOnDB
-			}
+	//If not matched with any case sensitive match, then check for in case sensitive match
+	for _, schemaOnDB := range schemaIdenitifiers {
+		if schemaOnDB.CaseInSensitiveMatch(i) {
+			return true, schemaOnDB
 		}
-
 	}
 	return false, Identifier{}
 }

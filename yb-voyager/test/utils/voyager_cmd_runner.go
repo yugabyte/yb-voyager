@@ -197,7 +197,7 @@ func (v *VoyagerCommandRunner) Prepare() error {
 		// Appending to CmdArgs based on the command type.
 		host, port, err := v.container.GetHostPort()
 		if err != nil {
-			return fmt.Errorf("failed to get host port for container: %v", err)
+			return fmt.Errorf("failed to get host port for container: %w", err)
 		}
 
 		config := v.container.GetConfig()
@@ -360,7 +360,8 @@ func (v *VoyagerCommandRunner) Wait() error {
 		v.logWriter.Flush()
 	}
 	if err != nil {
-		if ee, ok := err.(*exec.ExitError); ok {
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
 			v.exitCode = ExitCode(ee.ExitCode())
 		} else {
 			v.exitCode = ExitCodeFailure

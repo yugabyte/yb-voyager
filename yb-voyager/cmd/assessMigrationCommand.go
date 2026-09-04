@@ -379,7 +379,7 @@ func fetchObjectUsageStats() ([]*types.ObjectUsageStats, error) {
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching object usage stats %v", err)
+			log.Warnf("error closing rows while fetching object usage stats %v", closeErr)
 		}
 	}()
 
@@ -391,6 +391,9 @@ func fetchObjectUsageStats() ([]*types.ObjectUsageStats, error) {
 			return nil, fmt.Errorf("error scanning object usage stat: %w", err)
 		}
 		objectUsagesStats = append(objectUsagesStats, &objectUsage)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating object usage stats: %w", err)
 	}
 	return objectUsagesStats, nil
 }
@@ -636,7 +639,7 @@ func fetchRedundantIndexInfoFromAssessmentDB() ([]utils.RedundantIndexesInfo, er
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching redundant indexes %v", err)
+			log.Warnf("error closing rows while fetching redundant indexes %v", closeErr)
 		}
 	}()
 
@@ -651,6 +654,9 @@ func fetchRedundantIndexInfoFromAssessmentDB() ([]utils.RedundantIndexesInfo, er
 		}
 		redundantIndex.DBType = source.DBType
 		redundantIndexesInfo = append(redundantIndexesInfo, redundantIndex)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating redundant indexes: %w", err)
 	}
 
 	resolvedRedundantIndexes := getResolvedRedundantIndexes(redundantIndexesInfo)
@@ -716,7 +722,7 @@ func fetchColumnStatisticsInfo() ([]utils.ColumnStatistics, error) {
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching column statistics %v", err)
+			log.Warnf("error closing rows while fetching column statistics %v", closeErr)
 		}
 	}()
 
@@ -729,6 +735,9 @@ func fetchColumnStatisticsInfo() ([]utils.ColumnStatistics, error) {
 		}
 		stat.DBType = source.DBType
 		columnStats = append(columnStats, stat)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating column statistics: %w", err)
 	}
 	return columnStats, nil
 }
@@ -996,7 +1005,7 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching object type mapping metadata: %v", err)
+			log.Warnf("error closing rows while fetching object type mapping metadata: %v", closeErr)
 		}
 	}()
 
@@ -1132,7 +1141,7 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching database queries summary metadata: %v", err)
+			log.Warnf("error closing rows while fetching database queries summary metadata: %v", closeErr)
 		}
 	}()
 
@@ -1219,7 +1228,7 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching unsupported datatypes metadata: %v", err)
+			log.Warnf("error closing rows while fetching unsupported datatypes metadata: %v", closeErr)
 		}
 	}()
 

@@ -58,7 +58,7 @@ func RunVoyagerCommand(container testcontainers.TestContainer,
 		// Gather DB connection info.
 		host, port, err = container.GetHostPort()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get host port for container: %v", err)
+			return nil, fmt.Errorf("failed to get host port for container: %w", err)
 		}
 
 		config = container.GetConfig()
