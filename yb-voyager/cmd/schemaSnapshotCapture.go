@@ -28,11 +28,13 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 )
 
-// exportDataExitSnapshotCaptured records whether the exit snapshot was already
-// captured inline, so the atexit handler doesn't fire a second, degraded one.
+// exportDataExitSnapshotCaptured claims the one exit capture a run is allowed.
 //
-// Atomic because the atexit handler can run on the signal goroutine while the
-// export goroutine is still writing it.
+// A signal makes both exit paths run at once: the handler fires on the signal
+// goroutine while the export goroutine unwinds through its exit defer. Claiming
+// has to be a single atomic compare-and-swap, so exactly one of them captures --
+// checking a flag and setting it after the capture lets both pass the check and
+// write two exit snapshots.
 var exportDataExitSnapshotCaptured atomic.Bool
 
 // captureExportDataExitSnapshot captures the exit snapshot and marks it captured, so
@@ -42,8 +44,12 @@ func captureExportDataExitSnapshot(ctx context.Context, reason string) {
 	if exporterRole != SOURCE_DB_EXPORTER_ROLE {
 		return
 	}
+	// Claim before capturing, not after: see exportDataExitSnapshotCaptured.
+	if !exportDataExitSnapshotCaptured.CompareAndSwap(false, true) {
+		log.Infof("schema-snapshot exit capture already recorded; skipping the %q capture", reason)
+		return
+	}
 	captureSourceSchemaSnapshotBestEffort(ctx, schemasnapshot.LabelExportDataFromSourceExit, reason, true)
-	exportDataExitSnapshotCaptured.Store(true)
 }
 
 // captureExportDataExitSnapshotFresh is captureExportDataExitSnapshot on a fresh
@@ -75,14 +81,11 @@ func exportDataExitReason() string {
 	return schemasnapshot.ReasonInterrupt
 }
 
-// registerExportDataExitSnapshotHook covers the exit paths that don't capture inline:
-// signals, and utils.ErrExit (whose os.Exit bypasses the deferred Disconnect, so the
-// connection is still open). No-ops when an inline capture already set the flag.
+// registerExportDataExitSnapshotHook covers the exit paths that never unwind, so
+// exportData's exit defer cannot run: signals, and utils.ErrExit (whose os.Exit skips
+// defers, leaving the connection open). Whichever path gets there first wins the claim.
 func registerExportDataExitSnapshotHook() {
 	atexit.Register(func() {
-		if exportDataExitSnapshotCaptured.Load() {
-			return // an inline capture (completion, cutover, or error path) already recorded the exit
-		}
 		captureExportDataExitSnapshotFresh(exportDataExitReason())
 	})
 }
