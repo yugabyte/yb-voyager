@@ -2503,11 +2503,11 @@ func TestLiveMigrationWithSubsetOFPartialUNiqueIndexColumnsBeingChangedInUpdate(
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
 			ForLive:      true,
-			DatabaseName: "test_false_negative",
+			DatabaseName: "test_subset_of_columns_being_changed",
 		},
 		TargetDB: ContainerConfig{
 			Type:         "yugabytedb",
-			DatabaseName: "test_false_negative",
+			DatabaseName: "test_subset_of_columns_being_changed",
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
@@ -3342,11 +3342,11 @@ func TestLiveMigrationCdcPartitionKeyRejectsCustomKeyOnGeneratedStoredColumnWith
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
 			ForLive:      true,
-			DatabaseName: "cdc_custom_gen_key",
+			DatabaseName: "cdc_custom_gen_key_with_unique_index",
 		},
 		TargetDB: ContainerConfig{
 			Type:         "yugabytedb",
-			DatabaseName: "cdc_custom_gen_key",
+			DatabaseName: "cdc_custom_gen_key_with_unique_index",
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
