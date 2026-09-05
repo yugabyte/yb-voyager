@@ -33,7 +33,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -104,8 +103,7 @@ func init() {
 		"assume answer as yes for all questions during migration (default false)")
 	BoolVar(assessMigrationBulkCmd.Flags(), &callhome.SendDiagnostics, "send-diagnostics", true,
 		"enable or disable the 'send-diagnostics' feature that sends analytics data to YugabyteDB.(default true)")
-	assessMigrationBulkCmd.PersistentFlags().StringVarP(&config.LogLevel, "log-level", "l", "info",
-		"log level for yb-voyager. Accepted values: (trace, debug, info, warn, error, fatal, panic)")
+	registerLogFlags(assessMigrationBulkCmd)
 
 	const fleetConfigFileHelp = `
 Path to the CSV file with connection parameters for schema(s) to be assessed.
@@ -226,8 +224,8 @@ func buildCommandArguments(dbConfig AssessMigrationDBConfig, exportDirPath strin
 		"--source-db-type", dbConfig.DbType,
 		"--source-db-schema", dbConfig.Schema,
 		"--export-dir", exportDirPath,
-		"--log-level", config.LogLevel,
 	}
+	args = append(args, logSettingsCLIArgs()...)
 
 	if dbConfig.User != "" {
 		args = append(args, "--source-db-user", dbConfig.User)

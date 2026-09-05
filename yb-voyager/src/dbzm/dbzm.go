@@ -34,6 +34,7 @@ import (
 	"github.com/tebeka/atexit"
 	"gopkg.in/natefinch/lumberjack.v2"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -234,8 +235,8 @@ func (d *Debezium) setupLogFile() error {
 
 	logRotator := &lumberjack.Logger{
 		Filename:   logFilePath,
-		MaxSize:    200, // 200 MB log size before rotation
-		MaxBackups: 10,  // Allow upto 10 logs at once before deleting oldest logs.
+		MaxSize:    d.LogMaxSizeMB, // log size in MB before rotation
+		MaxBackups: config.LumberjackMaxBackups(d.LogMaxBackups),
 	}
 	d.cmd.Stdout = logRotator
 	d.cmd.Stderr = logRotator
