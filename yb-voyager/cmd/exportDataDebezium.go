@@ -126,8 +126,12 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		// dbzm does not support fatal/panic log levels
 		dbzmLogLevel = config.ERROR
 	}
+	// Read before the local `config` variable below shadows the config package.
+	dbzmLogMaxSizeMB, dbzmLogMaxBackups := config.LogMaxSizeMB, config.LogMaxBackups
 	config := &dbzm.Config{
 		LogLevel:           dbzmLogLevel,
+		LogMaxSizeMB:       dbzmLogMaxSizeMB,
+		LogMaxBackups:      dbzmLogMaxBackups,
 		MigrationUUID:      migrationUUID,
 		RunId:              runId,
 		SourceDBType:       source.DBType,

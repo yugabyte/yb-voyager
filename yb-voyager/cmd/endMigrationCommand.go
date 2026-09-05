@@ -16,7 +16,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/lockfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -493,7 +492,8 @@ func saveDataMigrationReport(msr *metadb.MigrationStatusRecord, includeIteration
 		parentExportDir = msr.GetParentExportDir(exportDir)
 	}
 
-	strCmd := fmt.Sprintf("yb-voyager get data-migration-report --export-dir %s --log-level %s --output-format json", parentExportDir, config.LogLevel)
+	strCmd := fmt.Sprintf("yb-voyager get data-migration-report --export-dir %s %s --output-format json",
+		parentExportDir, strings.Join(logSettingsCLIArgs(), " "))
 	if includeIterations {
 		strCmd += " --include-detailed-iterations-stats true"
 	}

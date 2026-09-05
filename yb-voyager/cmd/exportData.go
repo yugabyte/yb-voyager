@@ -41,7 +41,6 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -342,7 +341,7 @@ func startNextIterationImportDataToTarget() {
 			cmd = append(cmd, "--disable-pb=true")
 		}
 		cmd = append(cmd, fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics))
-		cmd = append(cmd, "--log-level", config.LogLevel)
+		cmd = append(cmd, logSettingsCLIArgs()...)
 		//TODO: see if we can do better, but these params are required for import data to target cmd
 		cmd = append(cmd, "--target-db-name", currentMsr.TargetDBConf.DBName)
 		cmd = append(cmd, "--target-db-user", currentMsr.TargetDBConf.User)
@@ -2143,7 +2142,7 @@ func generateGlobalExportImportArguments() []string {
 		}
 	} else {
 		//else set some overrides for the command
-		arguments = append(arguments, "--log-level", config.LogLevel)
+		arguments = append(arguments, logSettingsCLIArgs()...)
 		arguments = append(arguments, "--export-dir", lo.Ternary(msr.IsParentMigration(), exportDir, msr.ParentExportDir))
 		if bool(disablePb) {
 			arguments = append(arguments, "--disable-pb=true")
