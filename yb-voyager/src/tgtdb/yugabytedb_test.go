@@ -501,7 +501,6 @@ func TestYugabyteGetTableToUniqueIndexesMap(t *testing.T) {
 			code TEXT,
 			UNIQUE (code) INCLUDE (email)
 		);`,
-
 	)
 	defer testYugabyteDBTarget.ExecuteSqls(
 		`DROP SCHEMA test_schema CASCADE;`,

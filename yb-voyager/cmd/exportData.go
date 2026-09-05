@@ -631,6 +631,49 @@ func packAndSendExportDataPayload(status string, errorMsg error) {
 	}
 }
 
+// captureSourceGeneratedStoredColumns records, for a PostgreSQL live-migration source, the
+// per-table STORED generated columns into the metaDB (keyed by ForKey). `import data to
+// target` reads this — without a source connection of its own — to decide the CDC
+// partitioning strategy: a table whose target unique index covers a source-generated column
+// must be PARTITION_BY_TABLE, because generated column values are absent from the change
+// events (so pk/custom routing and conflict detection cannot see them). No-op for non-PG
+// sources / non-streaming exports.
+//
+// CAVEAT — primary key on a generated column:
+// A STORED generated column that is part of the PRIMARY KEY is a broader, currently
+// UNSUPPORTED case for live migration and is deliberately NOT handled by the partitioning
+// logic that consumes this record. Debezium builds the event's routing/identity key from the
+// primary key, but a STORED generated column's value is absent from the logical-replication
+// stream, so the key itself is incomplete — no choice of CDC partitioning strategy (including
+// PARTITION_BY_TABLE) fixes that. This needs a separate solution (e.g. surfacing the
+// generated key value, or an explicit guardrail/error). Until then, the import side only
+// intersects these source-generated columns against the target's *unique indexes* (excluding
+// the primary key) when resolving the partitioning strategy.
+func captureSourceGeneratedStoredColumns(finalTableList []sqlname.NameTuple) error {
+	if source.DBType != POSTGRESQL || !changeStreamingIsEnabled(exportType) || exporterRole != SOURCE_DB_EXPORTER_ROLE {
+		return nil
+	}
+	genCols, err := source.DB().GetGeneratedStoredColumns(finalTableList)
+	if err != nil {
+		return goerrors.Errorf("get source generated stored columns for cdc partitioning: %v", err)
+	}
+	tableToGeneratedCols := make(map[string][]string)
+	_ = genCols.IterKV(func(t sqlname.NameTuple, cols []string) (bool, error) {
+		if len(cols) > 0 {
+			tableToGeneratedCols[t.ForKey()] = cols
+		}
+		return true, nil
+	})
+	err = metaDB.UpdateExportDataSourceDBExporterStatusRecord(func(r *metadb.ExportDataSourceDBExporterStatusRecord) {
+		r.TableToGeneratedStoredColumns = tableToGeneratedCols
+	})
+	if err != nil {
+		return goerrors.Errorf("persist source generated stored columns for cdc partitioning: %v", err)
+	}
+	log.Infof("captured source generated stored columns for cdc partitioning: %v", tableToGeneratedCols)
+	return nil
+}
+
 func exportData() bool {
 	err := source.DB().Connect()
 	if err != nil {
@@ -714,6 +757,13 @@ func exportData() bool {
 	// finalizing table list and column list to be exported based on the datatypes supported by the source DB
 	finalTableList, tablesColumnList := finalizeTableAndColumnList(finalTableList, partitionsToRootTableMap)
 	handleEmptyTableListForExport(finalTableList)
+
+	// Persist source STORED generated columns so import data to target can decide the CDC
+	// partitioning strategy from authoritative source facts without a source connection.
+	err = captureSourceGeneratedStoredColumns(finalTableList)
+	if err != nil {
+		utils.ErrExit("capture source generated stored columns: %s", err)
+	}
 
 	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		switch source.DBType {

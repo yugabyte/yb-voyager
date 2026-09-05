@@ -39,6 +39,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"github.com/yugabyte/yb-voyager/yb-voyager/test/cdcbench"
 )
@@ -46,8 +47,10 @@ import (
 func BenchmarkCDCIngest(b *testing.B) {
 	// state shared between Bootstrap and StreamAll within one run
 	var run struct {
-		state     *ImportDataState
-		tableList []sqlname.NameTuple
+		state                *ImportDataState
+		tableList            []sqlname.NameTuple
+		tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]
+		tableToPKColumns     *utils.StructMap[sqlname.NameTuple, []string]
 	}
 
 	cdcbench.Run(b, cdcbench.Hooks{
@@ -87,6 +90,17 @@ func BenchmarkCDCIngest(b *testing.B) {
 			run.state = NewImportDataState(exportDir)
 			tdb = mock
 
+			// make sure the mock has the same table list as the real target DB
+			run.tableToUniqueIndexes, err = tdb.GetTableToUniqueIndexesMap(run.tableList)
+			if err != nil {
+				utils.ErrExit("Failed to get table unique indexes map from target: %s", err)
+			}
+
+			run.tableToPKColumns, err = getPrimaryKeyColumnsForImportTables(run.tableList)
+			if err != nil {
+				utils.ErrExit("Failed to get primary key columns for import tables: %s", err)
+			}
+
 			err = metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
 				record.CdcPartitioningStrategyConfig = "auto"
 				record.TableToCDCPartitionKey = make(map[string]metadb.CDCPartitionKey)
@@ -114,7 +128,7 @@ func BenchmarkCDCIngest(b *testing.B) {
 		// metadata (answered by the mock's metadata store), conflict cache,
 		// stats reporter, and the segment loop
 		StreamAll: func() error {
-			return streamChanges(run.state, run.tableList)
+			return streamChanges(run.state, run.tableList, run.tableToPKColumns, run.tableToUniqueIndexes)
 		},
 
 		CacheDepth: func() int {

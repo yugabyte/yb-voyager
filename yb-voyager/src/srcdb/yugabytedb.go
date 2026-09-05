@@ -1014,6 +1014,13 @@ func (yb *YugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir str
 	return nil
 }
 
+// GetGeneratedStoredColumns is a no-op for a YugabyteDB source: it is only used for the CDC
+// custom/pk partitioning path, which is gated to a PostgreSQL source (YB-as-source, used for
+// fall-back/fall-forward, always uses PARTITION_BY_TABLE).
+func (yb *YugabyteDB) GetGeneratedStoredColumns(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	return utils.NewStructMap[sqlname.NameTuple, []string](), nil
+}
+
 func (yb *YugabyteDB) GetNonPKTables() ([]string, error) {
 	var nonPKTables []string
 	querySchemaList := "'" + sqlname.JoinIdentifiersMinQuoted(yb.source.Schemas, "','") + "'"
