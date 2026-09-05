@@ -24,6 +24,7 @@ import (
 	"regexp"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -266,6 +267,21 @@ func (d *Debezium) GetExportStatus() (*ExportStatus, error) {
 	return ReadExportStatus(statusFilePath)
 }
 
+// debeziumStopTimeoutSeconds returns the number of seconds Stop() waits after
+// sending SIGTERM before force-killing the Debezium process. Defaults to 100s
+// to preserve production behavior; overridable via the DEBEZIUM_STOP_TIMEOUT_SECONDS
+// env var. Tests set a low value so Debezium teardown does not race the test's
+// process-exit timeout (source of TestExportFromTargetStartupFailureAndCutoverResume flakes).
+func debeziumStopTimeoutSeconds() int {
+	const defaultTimeoutSeconds = 100
+	if v := os.Getenv("DEBEZIUM_STOP_TIMEOUT_SECONDS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return defaultTimeoutSeconds
+}
+
 // stops debezium process gracefully if it is running
 func (d *Debezium) Stop() error {
 	if d.IsRunning() {
@@ -276,7 +292,7 @@ func (d *Debezium) Stop() error {
 		}
 		go func() {
 			// wait for a certain time for debezium to shut down before force killing the process.
-			sigtermTimeout := 100
+			sigtermTimeout := debeziumStopTimeoutSeconds()
 			time.Sleep(time.Duration(sigtermTimeout) * time.Second)
 			if d.IsRunning() {
 				log.Warnf("Waited %d seconds for debezium process to stop. Force killing it now.", sigtermTimeout)
