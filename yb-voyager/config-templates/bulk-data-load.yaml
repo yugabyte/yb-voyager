@@ -185,6 +185,10 @@ import-data-file:
   ### Default - false
   disable-pb: false
 
+  ### Port to expose Prometheus metrics on (0 disables). Serves GET /metrics.
+  ### Default - 0
+  # metrics-port: 9102
+
 # ---------------------------------------------------------
 # End Migration Configuration
 # ---------------------------------------------------------

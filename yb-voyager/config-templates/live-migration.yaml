@@ -376,6 +376,10 @@ export-data-from-source:
   ### Default - info
   # log-level: info                                              
 
+  ### Port to expose Prometheus metrics on (0 disables). Serves GET /metrics.
+  ### Default - 0
+  # metrics-port: 9105
+
 # ---------------------------------------------------------
 # Import Data Configuration
 # ---------------------------------------------------------
@@ -504,6 +508,10 @@ import-data-to-target:
   ### (col1,col2): Partition CDC events by the given column values (immutable columns).
   ### Default - empty
   # cdc-partition-key-overrides: public.orders:table;sales.events:pk
+
+  ### Port to expose Prometheus metrics on (0 disables). Serves GET /metrics.
+  ### Default - 0
+  # metrics-port: 9101
 
 # ---------------------------------------------------------
 # Archive Changes
