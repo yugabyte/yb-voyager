@@ -48,6 +48,14 @@ Notes:
 - Set `num_iterations: -1` to run indefinitely.
 - Seeds make runs reproducible. Omit to make runs non-deterministic.
 
+### Forcing unique-key conflicts (CDC conflict detection testing)
+Set `force_conflicts.enabled: true` to add a `FORCE_CONFLICT` operation alongside INSERT/UPDATE/DELETE. On a table with a plain single-column `UNIQUE` index (not the primary key), it:
+1. Picks an existing row and its current value for that unique column.
+2. Frees that value on the source row via `DELETE` or `UPDATE` (per `free_via`).
+3. Immediately reuses the same value on a *different* row via `INSERT` or `UPDATE` (per `reuse_via`), regenerating the rest of that row deterministically from the value (`faker_for_key` in `utils.py`) so it's reproducible.
+
+Because the two rows have different primary keys, the resulting CDC events can land on different parallel apply channels during live migration and race - this is exactly what yb-voyager's `ConflictDetectionCache` (`yb-voyager/cmd/conflictDetectionCache.go`) is meant to detect and serialize. Each forced conflict is printed as `[FORCE_CONFLICT] table=... column=... value=... FREE_OP -> REUSE_OP`; correlate that with `"conflict detected for table ..."` log lines in the target import logs to confirm detection actually fired.
+
 ### Run
 From the folder:
 ```bash
