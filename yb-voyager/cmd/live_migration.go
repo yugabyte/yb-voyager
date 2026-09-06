@@ -108,7 +108,7 @@ func cutoverInitiatedAndCutoverEventProcessed() (bool, error) {
 	return false, nil
 }
 
-func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple, tableToPKColumns *utils.StructMap[sqlname.NameTuple, []string]) error {
+func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple, tableToPKColumns *utils.StructMap[sqlname.NameTuple, []string], tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]) error {
 	if err := waitForDebeziumStartIfRequired(); err != nil {
 		return fmt.Errorf("waiting for debezium to start: %w", err)
 	}
@@ -183,7 +183,7 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple, table
 		}
 		log.Infof("got next segment to stream: %v", segment)
 
-		err = streamChangesFromSegment(segment, evChans, processingDoneChans, eventChannelsMetaInfo, statsReporter, state, streamingPhaseValueConverter, tablePartitionKeyMap, tableToPKColumns, tableNames)
+		err = streamChangesFromSegment(segment, evChans, processingDoneChans, eventChannelsMetaInfo, statsReporter, state, streamingPhaseValueConverter, tablePartitionKeyMap, tableToPKColumns, tableNames, tableToUniqueIndexes)
 		if err != nil {
 			return goerrors.Errorf("error streaming changes for segment %s: %w", segment.FilePath, err)
 		}
@@ -204,7 +204,8 @@ func streamChangesFromSegment(
 	streamingPhaseValueConverter dbzm.StreamingPhaseValueConverter,
 	tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride],
 	tableToPKColumns *utils.StructMap[sqlname.NameTuple, []string],
-	importTableList []sqlname.NameTuple) error {
+	importTableList []sqlname.NameTuple,
+	tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]) error {
 
 	err := segment.Open()
 	if err != nil {
@@ -243,9 +244,9 @@ func streamChangesFromSegment(
 				we need to use the actual source db type at the moment.
 			*/
 			sourceDBTypeForConflictCache := lo.Ternary(isTargetDBExporter(event.ExporterRole), YUGABYTEDB, sourceDBType)
-			err = initializeConflictDetectionCache(evChans, sourceDBTypeForConflictCache, importTableList, tablePartitionKeyMap, tableToPKColumns)
+			err = initializeConflictDetectionCache(evChans, sourceDBTypeForConflictCache, importTableList, tablePartitionKeyMap, tableToPKColumns, tableToUniqueIndexes)
 			if err != nil {
-				return fmt.Errorf("error initializing conflict detection cache: %w", err)
+				return goerrors.Errorf("error initializing conflict detection cache: %w", err)
 			}
 			prevExporterRole = event.ExporterRole
 		}
@@ -635,14 +636,9 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 // Attribute name registry is not required here as for the PG->YB migrations the attribute name is same in both the places - event's fields coming from source and unique-index-column mapping coming from target and
 // And this path is only for PG->YB migrations as of now.
 // This path assumes that the column name remains same in PG->YB migrations.
-func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, sourceDBTypeForConflictCache string, importTableList []sqlname.NameTuple, tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], tableToPKColumns *utils.StructMap[sqlname.NameTuple, []string]) error {
-	log.Infof("fetching table to unique indexes map from import target (%s)", tconf.TargetDBType)
-	tableToUniqueIndexes, err := tdb.GetTableToUniqueIndexesMap(importTableList)
-	if err != nil {
-		return fmt.Errorf("get table unique indexes map from target: %w", err)
-	}
+func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, sourceDBTypeForConflictCache string, importTableList []sqlname.NameTuple, tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], tableToPKColumns *utils.StructMap[sqlname.NameTuple, []string], tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]) error {
 
-	// For custom-key tables the primary key must join the unique indexes to be able to detect PK-recycle races. 
+	// For custom-key tables the primary key must join the unique indexes to be able to detect PK-recycle races.
 	// GetTableToUniqueIndexesMap deliberately excludes the primary key (filters out contype='p'): under default pk routing,
 	// same-PK events always co-locate on one channel, so a recycled PK
 	// example - table(id pk, c1 unique) partition-key (c1)
