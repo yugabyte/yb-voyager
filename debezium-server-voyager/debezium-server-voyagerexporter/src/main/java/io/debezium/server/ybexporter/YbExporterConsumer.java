@@ -389,12 +389,17 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             committer.markBatchFinished();
             LOGGER.debug("Committed batch complete with {} records", changeEvents.size());
         } catch (RuntimeException e) {
-            // A tablet split closes the stream, so this offset flush throws (DB-20886).
-            // Nothing is lost: handleBatchComplete() already fsynced the batch, and debezium
-            // is restarting the connector for the same split - propagating here would exit
-            // the engine first, making a recoverable split fatal. Skipping the commit only
-            // re-reads the batch on restart; VSN dedupes downstream. Anything else rethrows.
-            if (isReplicationStreamClosed(e)) {
+            // A tablet split closes the replication stream, so markBatchFinished() throws
+            // (DB-20886). The durable work is already done by then:
+            //  - handleBatchComplete() fsynced the batch to the export queue
+            //  - commitOffsets() persisted the offset file before task.commit() -> flushLsn(),
+            //    the only call in this path that touches the stream
+            // So only the "WAL is safe to release up to X" hint to the source is lost; the next
+            // flush after the restart carries a newer LSN and debezium resumes past this batch.
+            // Debezium is already restarting the connector for this same split on this thread,
+            // so propagating would exit the engine first and make a recoverable split fatal.
+            // Only target-side exporters stream from YB; anywhere else this stays fatal.
+            if (isTargetDbExporter() && isReplicationStreamClosed(e)) {
                 LOGGER.warn("Skipping offset commit for this batch: the replication stream is closed "
                         + "(typically a YB tablet split). The batch is already durably written to the export "
                         + "queue; the connector will restart and resume from the last committed offset.", e);
@@ -402,6 +407,15 @@ public class YbExporterConsumer extends BaseChangeConsumer {
                 throw e;
             }
         }
+    }
+
+    /**
+     * True for the fall-back and fall-forward exporters, the only roles that stream from
+     * YugabyteDB and can therefore hit a tablet split.
+     */
+    private boolean isTargetDbExporter() {
+        return exporterRole.equals(TARGET_DB_EXPORTER_FB_ROLE)
+                || exporterRole.equals(TARGET_DB_EXPORTER_FF_ROLE);
     }
 
     /**
