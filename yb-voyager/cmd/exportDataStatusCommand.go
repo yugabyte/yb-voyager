@@ -59,11 +59,11 @@ var exportDataStatusCmd = &cobra.Command{
 		}
 		err = InitNameRegistry(exportDir, namereg.SOURCE_DB_EXPORTER_STATUS_ROLE, nil, nil, nil, nil, false)
 		if err != nil {
-			utils.ErrExit("initializing name registry: %v", err)
+			utils.ErrExit("initializing name registry: %w", err)
 		}
 		msr, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
-			utils.ErrExit("Failed to get migration status record: %s", err)
+			utils.ErrExit("Failed to get migration status record: %w", err)
 		}
 		if msr == nil {
 			color.Cyan(exportDataStatusMsg)
@@ -85,7 +85,7 @@ var exportDataStatusCmd = &cobra.Command{
 			rows, err = runExportDataStatusCmd(msr, leafPartitions)
 		}
 		if err != nil {
-			utils.ErrExit("error: %s\n", err)
+			utils.ErrExit("error: %w\n", err)
 		}
 		if reportOrStatusCmdOutputFormat == "json" {
 			// Print the report in json format.
@@ -93,7 +93,7 @@ var exportDataStatusCmd = &cobra.Command{
 			reportFile := jsonfile.NewJsonFile[[]*exportTableMigStatusOutputRow](reportFilePath)
 			err := reportFile.Create(&rows)
 			if err != nil {
-				utils.ErrExit("creating into json file: %s: %v", reportFilePath, err)
+				utils.ErrExit("creating into json file: %s: %w", reportFilePath, err)
 			}
 			fmt.Print(color.GreenString("Export data status report is written to %s\n", reportFilePath))
 			return
@@ -124,7 +124,7 @@ func runExportDataStatusCmdDbzm(streamChanges bool, leafPartitions map[string][]
 	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	status, err := dbzm.ReadExportStatus(exportStatusFilePath)
 	if err != nil {
-		utils.ErrExit("Failed to read export status file: %s: %v", exportStatusFilePath, err)
+		utils.ErrExit("Failed to read export status file: %s: %w", exportStatusFilePath, err)
 	}
 	if status == nil {
 		return nil, goerrors.Errorf("export data has not started yet. Try running after export has started")
@@ -145,7 +145,7 @@ func getSnapshotExportStatusRow(tableStatus *dbzm.TableExportStatus, leafPartiti
 	// if there is some table not present in target this should work
 	nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(fmt.Sprintf("%s.%s", tableStatus.SchemaName, tableStatus.TableName))
 	if err != nil {
-		utils.ErrExit("lookup in name registry: %s: %v", tableStatus.TableName, err)
+		utils.ErrExit("lookup in name registry: %s: %w", tableStatus.TableName, err)
 	}
 	//Using the ForOutput() as a key for leafPartitions map as we are populating the map in that way.
 	displayTableName := getDisplayName(nt, leafPartitions[nt.ForOutput()], msr.IsExportTableListSet)
@@ -156,7 +156,7 @@ func getSnapshotExportStatusRow(tableStatus *dbzm.TableExportStatus, leafPartiti
 	}
 	isSnapshot, err := dbzm.IsLiveMigrationInSnapshotMode(exportDir)
 	if err != nil {
-		utils.ErrExit("failed to read the status of live migration: %v", err)
+		utils.ErrExit("failed to read the status of live migration: %w", err)
 	}
 	if tableStatus.Sno == InProgressTableSno && isSnapshot {
 		row.Status = "EXPORTING"
@@ -186,12 +186,12 @@ func runExportDataStatusCmd(msr *metadb.MigrationStatusRecord, leafPartitions ma
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, goerrors.Errorf("export data has not started yet. Try running after export has started")
 		}
-		utils.ErrExit("Failed to read export status file: %s: %v", exportSnapshotStatusFilePath, err)
+		utils.ErrExit("Failed to read export status file: %s: %w", exportSnapshotStatusFilePath, err)
 	}
 
 	exportedSnapshotRow, exportedSnapshotStatus, err := getExportedSnapshotRowsMap(exportStatusSnapshot)
 	if err != nil {
-		return nil, goerrors.Errorf("error while getting exported snapshot rows map: %v", err)
+		return nil, goerrors.Errorf("error while getting exported snapshot rows map: %w", err)
 	}
 
 	for _, tableName := range tableList {
@@ -199,7 +199,7 @@ func runExportDataStatusCmd(msr *metadb.MigrationStatusRecord, leafPartitions ma
 		// if there is some table not present in target this should work
 		finalFullTableName, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tableName)
 		if err != nil {
-			return nil, goerrors.Errorf("lookup %s in name registry: %v", tableName, err)
+			return nil, goerrors.Errorf("lookup %s in name registry: %w", tableName, err)
 		}
 		//Using the ForOutput() as a key for leafPartitions map as we are populating the map in that way.
 		displayTableName := getDisplayName(finalFullTableName, leafPartitions[finalFullTableName.ForOutput()], msr.IsExportTableListSet)

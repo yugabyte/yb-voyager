@@ -253,7 +253,7 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 
 	tablesMap, err := getTablesMap(stmts)
 	if err != nil {
-		return nil, nil, nil, goerrors.Errorf("failed to get tables to column on range types: %v", err)
+		return nil, nil, nil, goerrors.Errorf("failed to get tables to column on range types: %w", err)
 	}
 
 	for _, stmt := range stmts {
@@ -263,7 +263,7 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 		}
 		ddlObject, err := queryparser.ProcessDDL(&pg_query.ParseResult{Stmts: []*pg_query.RawStmt{stmt}})
 		if err != nil {
-			return nil, nil, nil, goerrors.Errorf("failed to process ddl: %v", err)
+			return nil, nil, nil, goerrors.Errorf("failed to process ddl: %w", err)
 		}
 		switch ddlObject := ddlObject.(type) {
 		case *queryparser.Table:
@@ -277,7 +277,7 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 			}
 			isPKOnRangeDatatype, err := t.checkIfPrimaryKeyOnRangeDatatype(pkConstraint.Columns, table)
 			if err != nil {
-				return nil, nil, nil, goerrors.Errorf("failed to check if primary key on range datatype: %v", err)
+				return nil, nil, nil, goerrors.Errorf("failed to check if primary key on range datatype: %w", err)
 			}
 			if isPKOnRangeDatatype {
 				pkTablesOnTimestampOrDate = append(pkTablesOnTimestampOrDate, tableName)
@@ -296,7 +296,7 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 				}
 				isPKOnRangeDatatype, err := t.checkIfPrimaryKeyOnRangeDatatype(alterTable.ConstraintColumns, table)
 				if err != nil {
-					return nil, nil, nil, goerrors.Errorf("failed to check if primary key on range datatype: %v", err)
+					return nil, nil, nil, goerrors.Errorf("failed to check if primary key on range datatype: %w", err)
 				}
 				if isPKOnRangeDatatype {
 					pkTablesOnTimestampOrDate = append(pkTablesOnTimestampOrDate, alterTable.GetObjectName())
@@ -317,11 +317,11 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 
 	hashSplittingSessionVariableOnParseTree, err := queryparser.Parse(HASH_SPLITTING_SESSION_VARIABLE_ON)
 	if err != nil {
-		return nil, nil, nil, goerrors.Errorf("failed to parse hash splitting session variable on: %v", err)
+		return nil, nil, nil, goerrors.Errorf("failed to parse hash splitting session variable on: %w", err)
 	}
 	hashSplittingSessionVariableOffParseTree, err := queryparser.Parse(HASH_SPLITTING_SESSION_VARIABLE_OFF)
 	if err != nil {
-		return nil, nil, nil, goerrors.Errorf("failed to parse hash splitting session variable off: %v", err)
+		return nil, nil, nil, goerrors.Errorf("failed to parse hash splitting session variable off: %w", err)
 	}
 
 	//TODO: see how we can add comments in between statements to make the table.sql more readable
@@ -355,7 +355,7 @@ func getTablesMap(stmts []*pg_query.RawStmt) (map[string]*queryparser.Table, err
 	for _, stmt := range stmts {
 		ddlObject, err := queryparser.ProcessDDL(&pg_query.ParseResult{Stmts: []*pg_query.RawStmt{stmt}})
 		if err != nil {
-			return nil, goerrors.Errorf("failed to process ddl: %v", err)
+			return nil, goerrors.Errorf("failed to process ddl: %w", err)
 		}
 		switch ddlObject := ddlObject.(type) {
 		case *queryparser.Table:

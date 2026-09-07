@@ -156,7 +156,7 @@ func (ms *MysqlContainer) GetConfig() ContainerConfig {
 func (ms *MysqlContainer) GetConnectionString() string {
 	host, port, err := ms.GetHostPort()
 	if err != nil {
-		utils.ErrExit("failed to get host port for mysql connection string: %v", err)
+		utils.ErrExit("failed to get host port for mysql connection string: %w", err)
 	}
 
 	// DSN format: user:password@tcp(host:port)/dbname

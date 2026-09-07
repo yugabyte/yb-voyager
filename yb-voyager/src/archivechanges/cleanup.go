@@ -92,7 +92,7 @@ func (sc *SegmentCleaner) isFSUtilizationExceeded() bool {
 	}
 	fsUtil, err := utils.GetFSUtilizationPercentage(sc.config.ExportDir)
 	if err != nil {
-		utils.ErrExit("failed to get fs utilization: %v", err)
+		utils.ErrExit("failed to get fs utilization: %w", err)
 	}
 	return fsUtil > sc.config.FSUtilizationThreshold
 }
@@ -142,13 +142,13 @@ func (sc *SegmentCleaner) runDeletePolicy() error {
 func (sc *SegmentCleaner) DeleteProcessedSegments() (segments []utils.Segment, pendingSegments []utils.Segment, deletedSegments []utils.Segment, err error) {
 	segments, pendingSegments, err = sc.metaDB.GetProcessedAndPendingSegments()
 	if err != nil {
-		return nil, nil, nil, goerrors.Errorf("get processed and pending segments: %v", err)
+		return nil, nil, nil, goerrors.Errorf("get processed and pending segments: %w", err)
 	}
 	eligible := sc.segmentsEligibleForCleanup(segments)
 	deletedSegments = make([]utils.Segment, len(eligible))
 	for i, seg := range eligible {
 		if err := sc.deleteSegment(seg); err != nil {
-			return nil, nil, nil, goerrors.Errorf("delete segment %s: %v", seg.FilePath, err)
+			return nil, nil, nil, goerrors.Errorf("delete segment %s: %w", seg.FilePath, err)
 		}
 		deletedSegments[i] = seg
 	}
@@ -160,11 +160,11 @@ func (sc *SegmentCleaner) DeleteProcessedSegments() (segments []utils.Segment, p
 func (sc *SegmentCleaner) deleteSegment(seg utils.Segment) error {
 	if utils.FileOrFolderExists(seg.FilePath) {
 		if err := os.Remove(seg.FilePath); err != nil {
-			return goerrors.Errorf("remove segment file %s: %v", seg.FilePath, err)
+			return goerrors.Errorf("remove segment file %s: %w", seg.FilePath, err)
 		}
 	}
 	if err := sc.metaDB.MarkSegmentDeletedAndArchived(seg.Num); err != nil {
-		return goerrors.Errorf("mark segment %d as deleted and archived: %v", seg.Num, err)
+		return goerrors.Errorf("mark segment %d as deleted and archived: %w", seg.Num, err)
 	}
 	utils.PrintAndLogf("segment file %s deleted", seg.FilePath)
 	return nil
@@ -184,7 +184,7 @@ func (sc *SegmentCleaner) runRetainPolicy() error {
 		}
 		fsUtil, err := utils.GetFSUtilizationPercentage(sc.config.ExportDir)
 		if err != nil {
-			return goerrors.Errorf("get fs utilization: %v", err)
+			return goerrors.Errorf("get fs utilization: %w", err)
 		}
 		if fsUtil > sc.config.FSUtilizationThreshold {
 			utils.PrintAndLogf("WARNING: fs utilization at %d%% (threshold %d%%) — segments are being retained per policy\n",
@@ -224,7 +224,7 @@ func (sc *SegmentCleaner) runArchivePolicy() error {
 func (sc *SegmentCleaner) ArchiveProcessedSegments() (segments []utils.Segment, pendingSegments []utils.Segment, archivedSegments []utils.Segment, err error) {
 	segments, pendingSegments, err = sc.metaDB.GetProcessedAndPendingSegments()
 	if err != nil {
-		return nil, nil, nil, goerrors.Errorf("get processed and pending segments: %v", err)
+		return nil, nil, nil, goerrors.Errorf("get processed and pending segments: %w", err)
 	}
 	eligible := sc.segmentsEligibleForCleanup(segments)
 	if sc.stop && (len(segments) == 0 && len(pendingSegments) == 0) {
@@ -235,7 +235,7 @@ func (sc *SegmentCleaner) ArchiveProcessedSegments() (segments []utils.Segment, 
 	archivedSegments = make([]utils.Segment, len(eligible))
 	for i, seg := range eligible {
 		if err := sc.archiveAndDeleteSegment(seg); err != nil {
-			return nil, nil, nil, goerrors.Errorf("archive and delete segment %s: %v", seg.FilePath, err)
+			return nil, nil, nil, goerrors.Errorf("archive and delete segment %s: %w", seg.FilePath, err)
 		}
 		archivedSegments[i] = seg
 	}
@@ -250,15 +250,15 @@ func (sc *SegmentCleaner) archiveAndDeleteSegment(seg utils.Segment) error {
 	if utils.FileOrFolderExists(seg.FilePath) {
 		if utils.FileOrFolderExists(archivePath) {
 			if err := os.Remove(archivePath); err != nil {
-				return goerrors.Errorf("remove existing archive file %s: %v", archivePath, err)
+				return goerrors.Errorf("remove existing archive file %s: %w", archivePath, err)
 			}
 			log.Infof("removed existing archive file %s before re-archiving", archivePath)
 		}
 		if err := utils.CopyFile(seg.FilePath, archivePath); err != nil {
-			return goerrors.Errorf("copy segment to archive: %v", err)
+			return goerrors.Errorf("copy segment to archive: %w", err)
 		}
 		if err := os.Remove(seg.FilePath); err != nil {
-			return goerrors.Errorf("remove segment file %s after archiving: %v", seg.FilePath, err)
+			return goerrors.Errorf("remove segment file %s after archiving: %w", seg.FilePath, err)
 		}
 	} else if !utils.FileOrFolderExists(archivePath) {
 		// The segment file is missing from both the export dir and the archive dir.
@@ -269,7 +269,7 @@ func (sc *SegmentCleaner) archiveAndDeleteSegment(seg utils.Segment) error {
 	}
 
 	if err := sc.metaDB.ArchiveAndDeleteSegment(seg.Num, archivePath); err != nil {
-		return goerrors.Errorf("archive and delete segment %d: %v", seg.Num, err)
+		return goerrors.Errorf("archive and delete segment %d: %w", seg.Num, err)
 	}
 	utils.PrintAndLogf("segment file %s archived to %s and deleted", seg.FilePath, archivePath)
 	return nil

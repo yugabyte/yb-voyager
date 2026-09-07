@@ -155,7 +155,7 @@ func (d *Debezium) Start() error {
 	err := FindDebeziumDistribution(d.Config.SourceDBType, d.Config.UseYBgRPCConnector)
 	if err != nil {
 		// Addding suggestion to install debezium-server if it is not found
-		return goerrors.Errorf("%v. Either install debezium-server or provide its path in the DEBEZIUM_DIST_DIR env variable", err)
+		return goerrors.Errorf("%w. Either install debezium-server or provide its path in the DEBEZIUM_DIST_DIR env variable", err)
 	}
 	DEBEZIUM_CONF_FILEPATH = filepath.Join(d.ExportDir, "metainfo", "conf", "application.properties")
 	err = d.Config.WriteToFile(DEBEZIUM_CONF_FILEPATH)
@@ -166,7 +166,7 @@ func (d *Debezium) Start() error {
 	schemasPath := filepath.Join(d.ExportDir, "data", "schemas", d.ExporterRole)
 	err = os.MkdirAll(schemasPath, 0755)
 	if err != nil {
-		return goerrors.Errorf("Error creating schemas directory: %v", err)
+		return goerrors.Errorf("Error creating schemas directory: %w", err)
 	}
 
 	var YB_OR_PG_CONNECTOR_PATH string
@@ -204,14 +204,14 @@ func (d *Debezium) Start() error {
 	}
 	err = d.setupLogFile()
 	if err != nil {
-		return goerrors.Errorf("Error setting up logging for debezium: %v", err)
+		return goerrors.Errorf("Error setting up logging for debezium: %w", err)
 	}
 	d.registerExitHandlers()
 	log.Debugf("debezium command: %v", d.cmd)
 
 	err = d.cmd.Start()
 	if err != nil {
-		return goerrors.Errorf("Error starting debezium: %v", err)
+		return goerrors.Errorf("Error starting debezium: %w", err)
 	}
 	log.Infof("Debezium started successfully with pid = %d", d.cmd.Process.Pid)
 
@@ -229,7 +229,7 @@ func (d *Debezium) Start() error {
 func (d *Debezium) setupLogFile() error {
 	logFilePath, err := filepath.Abs(filepath.Join(d.ExportDir, "logs", fmt.Sprintf("debezium-%s.log", d.ExporterRole)))
 	if err != nil {
-		return goerrors.Errorf("failed to create absolute path:%v", err)
+		return goerrors.Errorf("failed to create absolute path:%w", err)
 	}
 
 	logRotator := &lumberjack.Logger{
@@ -272,7 +272,7 @@ func (d *Debezium) Stop() error {
 		log.Infof("Stopping debezium...")
 		err := d.cmd.Process.Signal(syscall.SIGTERM)
 		if err != nil {
-			return goerrors.Errorf("Error sending signal to SIGTERM: %v", err)
+			return goerrors.Errorf("Error sending signal to SIGTERM: %w", err)
 		}
 		go func() {
 			// wait for a certain time for debezium to shut down before force killing the process.
@@ -303,7 +303,7 @@ func GetPIDOfDebeziumOnExportDir(exportDir string, exporterRole string) (string,
 	//read the lock file to get the pid of the process
 	pid, err := os.ReadFile(dbzmLockFile)
 	if err != nil {
-		return "", goerrors.Errorf("read debezium lock file: %v", err)
+		return "", goerrors.Errorf("read debezium lock file: %w", err)
 	}
 	pidStr := strings.TrimSuffix(string(pid), "\n")
 	return pidStr, nil

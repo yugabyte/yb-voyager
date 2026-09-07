@@ -352,7 +352,7 @@ func getAndStoreSourceDBPasswordInSourceConf(cmd *cobra.Command) {
 	var err error
 	source.Password, err = getPassword(cmd, "source-db-password", "SOURCE_DB_PASSWORD")
 	if err != nil {
-		utils.ErrExit("error in getting source-db-password: %v", err)
+		utils.ErrExit("error in getting source-db-password: %w", err)
 	}
 }
 
@@ -360,7 +360,7 @@ func getAndStoreTargetDBPasswordInSourceConf(cmd *cobra.Command) {
 	var err error
 	source.Password, err = getPassword(cmd, "target-db-password", "TARGET_DB_PASSWORD")
 	if err != nil {
-		utils.ErrExit("error in getting target-db-password: %v", err)
+		utils.ErrExit("error in getting target-db-password: %w", err)
 	}
 }
 
@@ -411,6 +411,6 @@ func saveExportTypeInMSR() {
 		}
 	})
 	if err != nil {
-		utils.ErrExit("error while updating export type in meta db: %v", err)
+		utils.ErrExit("error while updating export type in meta db: %w", err)
 	}
 }

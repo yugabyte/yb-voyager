@@ -606,7 +606,7 @@ func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []str
 	formattedStmt := sqlInfo.formattedStmt
 	parseTree, err := pg_query.Parse(stmt)
 	if err != nil {
-		return formattedStmt, false, false, "", goerrors.Errorf("error parsing the stmt-%s: %v", stmt, err)
+		return formattedStmt, false, false, "", goerrors.Errorf("error parsing the stmt-%s: %w", stmt, err)
 	}
 
 	if len(parseTree.Stmts) == 0 {
