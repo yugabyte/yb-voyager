@@ -280,13 +280,6 @@ type ParserIssueDetector struct {
 
 	// Track if SAVEPOINT usage was detected across all queries
 	isSavepointUsed bool
-
-	// Target YugabyteDB version the issues are being detected for. Set by the
-	// public Get*Issues entry points before detection runs; DDL detectors read it
-	// to classify version-gated datatypes (e.g. xml: unsupported datatype below
-	// 2026.1, live-migration caveat from 2026.1). nil means "no target version":
-	// version-gated datatypes are treated as unsupported.
-	targetDbVersion *ybversion.YBVersion
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -301,10 +294,6 @@ func NewParserIssueDetector() *ParserIssueDetector {
 		jsonbColumns:                            make([]string, 0),
 		tablesMetadata:                          make(map[string]*TableMetadata),
 	}
-}
-
-func (p *ParserIssueDetector) SetTargetDbVersion(targetDbVersion *ybversion.YBVersion) {
-	p.targetDbVersion = targetDbVersion
 }
 
 // Helper methods for ParserIssueDetector to work with TableMetadata
@@ -383,7 +372,6 @@ func (p *ParserIssueDetector) GetEnumTypes() []string {
 }
 
 func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {
-	p.SetTargetDbVersion(targetDbVersion)
 	issues, err := p.getAllIssues(query)
 	if err != nil {
 		return issues, err
@@ -605,13 +593,19 @@ func CheckIssueSupportMaturityInTDBVersion(issueInstance QueryIssue, targetDbVer
 }
 
 func (p *ParserIssueDetector) GetAllPLPGSQLIssues(query string, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {
-	p.SetTargetDbVersion(targetDbVersion)
 	issues, err := p.getPLPGSQLIssues(query)
 	if err != nil {
 		return issues, nil
 	}
 
-	return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+	issues, err = p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+	if err != nil {
+		return issues, err
+	}
+
+	issues = finalizeIssues(issues)
+
+	return issues, nil
 }
 
 func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, error) {
@@ -1046,7 +1040,6 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 }
 
 func (p *ParserIssueDetector) GetDDLIssues(query string, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {
-	p.SetTargetDbVersion(targetDbVersion)
 	issues, err := p.getDDLIssues(query)
 	if err != nil {
 		return issues, nil
@@ -1253,13 +1246,19 @@ func finalizeIssues(issues []QueryIssue) []QueryIssue {
 }
 
 func (p *ParserIssueDetector) GetDMLIssues(query string, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {
-	p.SetTargetDbVersion(targetDbVersion)
 	issues, err := p.getDMLIssues(query)
 	if err != nil {
 		return issues, err
 	}
 
-	return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+	issues, err = p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+	if err != nil {
+		return issues, err
+	}
+
+	issues = finalizeIssues(issues)
+
+	return issues, nil
 }
 
 func (p *ParserIssueDetector) getDMLIssues(query string) ([]QueryIssue, error) {

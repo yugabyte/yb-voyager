@@ -756,9 +756,6 @@ func (f *ForeignTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 	))
 
 	for _, col := range foreignTable.Columns {
-		// Static list is fine here: version-gated datatypes (e.g. xml) get dropped by the
-		// fixed-in filter, and foreign tables don't get the live-migration caveat since
-		// they are not live-migrated.
 		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(srcdb.PostgresUnsupportedDataTypes, col.TypeName)
 		if isUnsupportedDatatype {
 			issues = append(issues, ReportUnsupportedDatatypes(col.TypeName, col.ColumnName, obj.GetObjectType(), foreignTable.GetObjectName()))

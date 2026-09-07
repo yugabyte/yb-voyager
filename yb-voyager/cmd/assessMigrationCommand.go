@@ -1239,8 +1239,6 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 
 	switch source.DBType {
 	case POSTGRESQL:
-		// Version-aware lists: a datatype fixed in the target version (e.g. xml from 2026.1)
-		// moves from the unsupported-datatypes list to the live-migration caveat list.
 		sourceUnsupportedDatatypes = srcdb.PostgresUnsupportedDataTypes
 		liveUnsupportedDatatypes = srcdb.GetPGLiveMigrationUnsupportedDatatypes()
 		liveWithFForFBUnsupportedDatatypes = srcdb.GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes()
