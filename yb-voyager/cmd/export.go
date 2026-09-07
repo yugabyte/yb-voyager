@@ -272,10 +272,27 @@ func registerExportDataFlags(cmd *cobra.Command) {
 // Config-file key: "export-data.schema-snapshot-capture-interval".
 func registerSchemaSnapshotIntervalFlag(cmd *cobra.Command) {
 	cmd.Flags().IntVar(&schemaSnapshotCaptureInterval, "schema-snapshot-capture-interval", 60,
-		"interval (in minutes) at which voyager periodically captures a source schema snapshot throughout export data (both snapshot and streaming phases; offline and live). (only valid for PostgreSQL)")
+		"interval (in minutes, must be at least 1) at which voyager periodically captures a source schema snapshot throughout export data (both snapshot and streaming phases; offline and live). (only valid for PostgreSQL)")
 	// Hidden for now: capture is off by default and nothing consumes the snapshots until
 	// the detect-drift command ships. Still settable via CLI/config for internal use.
 	mustMarkFlagHidden(cmd, "schema-snapshot-capture-interval")
+}
+
+// validateSchemaSnapshotCaptureInterval rejects an interval that would silently turn
+// periodic capture off, so a bad value fails at startup instead of looking accepted.
+//
+// Scoped by flag presence, not by role: `export data from target` runs export data's
+// PreRun without registering this flag, so its global is still the 0 zero value (the
+// IntVar default only applies where the flag is registered) and would fail this check.
+func validateSchemaSnapshotCaptureInterval(cmd *cobra.Command) error {
+	if cmd.Flags().Lookup("schema-snapshot-capture-interval") == nil {
+		return nil
+	}
+	if schemaSnapshotCaptureInterval <= 0 {
+		return goerrors.Errorf("--schema-snapshot-capture-interval must be at least 1 (minute), got %d",
+			schemaSnapshotCaptureInterval)
+	}
+	return nil
 }
 
 func validateSourceDBType() {

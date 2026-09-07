@@ -117,6 +117,9 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 		utils.ErrExit("failed to validate export flags: %w", err)
 	}
 	validateExportTypeFlag()
+	if err := validateSchemaSnapshotCaptureInterval(cmd); err != nil {
+		utils.ErrExit("failed to validate export flags: %w", err)
+	}
 	markFlagsRequired(cmd)
 	if changeStreamingIsEnabled(exportType) {
 		useDebezium = true
