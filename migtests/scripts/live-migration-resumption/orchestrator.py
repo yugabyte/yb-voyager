@@ -290,27 +290,33 @@ def row_hash_validations_action(stage: Dict[str, Any], ctx: Any) -> None:
     H.run_segment_hash_validations(ctx, left_role, right_role)
 
 
-def _conflict_log_table_marker(table: str | None) -> str | None:
-    """Build the substring that identifies `table` in a "conflict detected" log
-    line, e.g. "public.orders" -> 'table "public"."orders"' (conflictDetectionCache.go
-    renders TableNameTup.ForKey() with each identifier quoted)."""
+def _conflict_log_table_markers(table: str | None) -> list[str] | None:
+    """Build the substrings that identify `table` in a "conflict detected" log
+    line. conflictDetectionCache.go renders the table via TableNameTup.ForKey()
+    (each identifier quoted: 'table "public"."orders"') in some messages and
+    TableNameTup.ForOutput() (minimally quoted: 'table public.orders' for
+    lowercase identifiers) in others, so a line matches if it carries either
+    form."""
     if table is None:
         return None
     schema, sep, name = table.partition(".")
     if not sep:
-        raise ValueError(f"_conflict_log_table_marker: 'table' must be schema-qualified (e.g. 'public.orders'), got {table!r}")
-    return f'table "{schema}"."{name}"'
+        raise ValueError(f"_conflict_log_table_markers: 'table' must be schema-qualified (e.g. 'public.orders'), got {table!r}")
+    # every message renders a comma right after the table name; the trailing
+    # comma on the unquoted form keeps 'public.single_unique_index' from also
+    # matching 'public.single_unique_index_nulls_distinct'.
+    return [f'table "{schema}"."{name}"', f'table {schema}.{name},']
 
 
 def _count_conflict_log_lines(log_dir: str, name: str, table: str | None) -> int:
     """Count "conflict detected" lines in `log_dir`/`name`* log files, optionally
-    scoped to one table (see `_conflict_log_table_marker`)."""
-    table_marker = _conflict_log_table_marker(table)
+    scoped to one table (see `_conflict_log_table_markers`)."""
+    table_markers = _conflict_log_table_markers(table)
     count = 0
     for p in glob.glob(os.path.join(log_dir, name + "*")):
         with open(p, errors="ignore") as f:
             for line in f:
-                if "conflict detected" in line and (table_marker is None or table_marker in line):
+                if "conflict detected" in line and (table_markers is None or any(m in line for m in table_markers)):
                     count += 1
     return count
 
