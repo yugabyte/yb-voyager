@@ -5,27 +5,30 @@
 -- cache (yb-voyager/cmd/conflictDetectionCache.go) reasons about.
 --
 -- Each table carries 13-14 columns shaped like a production table: an audit
--- backbone (created_at/updated_at NOT NULL, nullable deleted_at) plus a
--- realistic mix of business columns -- varchar/text/timestamp-heavy, with
--- boolean, int, bigint, smallint, date, numeric(38,6), jsonb, uuid, arrays
--- and double precision spread across the tables. NOT NULL columns get a
--- DEFAULT so the deterministic conflict DML (source_dml.sql), which names
--- only the key columns, works unchanged. numeric stays bounded -- unbounded
--- numeric loses trailing zeros through live CDC and breaks row-hash
--- validation.
+-- backbone (created_at/updated_at NOT NULL, nullable deleted_at) plus the
+-- same core business spread on every table (status varchar, description
+-- text, amount numeric(38,6), due_date date, seq_no bigint, is_active
+-- boolean), with the rarer types (jsonb, smallint, double precision, uuid,
+-- varchar[], int, text) rotated across tables so each appears on several.
+-- NOT NULL columns get a DEFAULT so the deterministic conflict DML
+-- (source_dml.sql / target_dml.sql), which names only the key columns, works
+-- unchanged; uuid/array/jsonb columns are nullable so they are also valid
+-- random custom-key choices (their value is NULL, hence identical, on every
+-- DML row). numeric stays bounded -- unbounded numeric loses trailing zeros
+-- through live CDC and breaks row-hash validation.
 
 -- Table with Single Column Unique Constraint
 CREATE TABLE single_unique_constraint (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE,
+    status varchar NOT NULL DEFAULT '',
     description text NOT NULL DEFAULT '',
-    notes text NOT NULL DEFAULT '',
-    failure_reason text NOT NULL DEFAULT '',
-    remarks text NOT NULL DEFAULT '',
-    retry_count int NOT NULL DEFAULT 0,
     amount numeric(38,6) NOT NULL DEFAULT 0,
-    address_line text NOT NULL DEFAULT '',
     due_date date NOT NULL DEFAULT CURRENT_DATE,
+    seq_no bigint NOT NULL DEFAULT 0,
+    is_active boolean NOT NULL DEFAULT false,
+    metadata jsonb,
+    priority smallint NOT NULL DEFAULT 0,
     created_at timestamp NOT NULL DEFAULT now(),
     updated_at timestamp NOT NULL DEFAULT now(),
     deleted_at timestamp
@@ -37,14 +40,14 @@ CREATE TABLE multi_unique_constraint (
     first_name VARCHAR(100),
     last_name VARCHAR(100),
     status varchar NOT NULL DEFAULT '',
-    retry_count int NOT NULL DEFAULT 0,
+    metadata jsonb,
+    amount numeric(38,6) NOT NULL DEFAULT 0,
+    due_date date NOT NULL DEFAULT CURRENT_DATE,
+    seq_no bigint NOT NULL DEFAULT 0,
     is_active boolean NOT NULL DEFAULT false,
-    metadata jsonb NOT NULL DEFAULT '{}',
-    description text NOT NULL DEFAULT '',
+    priority smallint NOT NULL DEFAULT 0,
     created_at timestamp NOT NULL DEFAULT now(),
     updated_at timestamp NOT NULL DEFAULT now(),
-    is_verified boolean,
-    notes text,
     deleted_at timestamp,
     CONSTRAINT unique_name UNIQUE (first_name, last_name)
 );
@@ -53,17 +56,17 @@ CREATE TABLE multi_unique_constraint (
 CREATE TABLE single_unique_index (
     id SERIAL PRIMARY KEY,
     "Ssn" VARCHAR(100),
-    due_date date NOT NULL DEFAULT CURRENT_DATE,
     status varchar NOT NULL DEFAULT '',
     description text NOT NULL DEFAULT '',
+    amount numeric(38,6) NOT NULL DEFAULT 0,
+    due_date date NOT NULL DEFAULT CURRENT_DATE,
+    seq_no bigint NOT NULL DEFAULT 0,
     is_active boolean NOT NULL DEFAULT false,
-    currency varchar NOT NULL DEFAULT '',
-    is_verified boolean NOT NULL DEFAULT false,
-    deleted_at timestamp,
+    score double precision,
+    external_ref uuid,
     created_at timestamp NOT NULL DEFAULT now(),
     updated_at timestamp NOT NULL DEFAULT now(),
-    notes text,
-    seq_no bigint
+    deleted_at timestamp
 );
 CREATE UNIQUE INDEX idx_ssn_unique ON single_unique_index ("Ssn");
 
@@ -72,15 +75,15 @@ CREATE TABLE multi_unique_index (
     id SERIAL PRIMARY KEY,
     first_name VARCHAR(100),
     last_name VARCHAR(100),
-    description text,
     status varchar NOT NULL DEFAULT '',
-    currency varchar NOT NULL DEFAULT '',
-    metadata jsonb NOT NULL DEFAULT '{}',
-    created_at timestamp,
-    updated_at timestamp,
-    notes text,
+    description text NOT NULL DEFAULT '',
+    amount numeric(38,6) NOT NULL DEFAULT 0,
     due_date date NOT NULL DEFAULT CURRENT_DATE,
-    failure_reason text,
+    seq_no bigint NOT NULL DEFAULT 0,
+    is_active boolean NOT NULL DEFAULT false,
+    external_ref uuid,
+    created_at timestamp NOT NULL DEFAULT now(),
+    updated_at timestamp NOT NULL DEFAULT now(),
     deleted_at timestamp
 );
 CREATE UNIQUE INDEX idx_name_unique ON multi_unique_index (first_name, last_name);
@@ -90,17 +93,17 @@ CREATE TABLE same_column_unique_constraint_and_index (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE,
     status varchar NOT NULL DEFAULT '',
-    external_id uuid NOT NULL DEFAULT gen_random_uuid(),
-    currency varchar NOT NULL DEFAULT '',
+    description text NOT NULL DEFAULT '',
+    amount numeric(38,6) NOT NULL DEFAULT 0,
+    due_date date NOT NULL DEFAULT CURRENT_DATE,
+    seq_no bigint NOT NULL DEFAULT 0,
+    is_active boolean NOT NULL DEFAULT false,
+    tags varchar[],
     retry_count int NOT NULL DEFAULT 0,
-    attempt_count int NOT NULL DEFAULT 0,
-    tags varchar[] NOT NULL DEFAULT '{}',
-    processed_at timestamp,
-    deleted_at timestamp,
+    metadata jsonb,
     created_at timestamp NOT NULL DEFAULT now(),
     updated_at timestamp NOT NULL DEFAULT now(),
-    reference_code varchar NOT NULL DEFAULT '',
-    org_unit varchar NOT NULL DEFAULT ''
+    deleted_at timestamp
 );
 CREATE UNIQUE INDEX idx_email_unique ON same_column_unique_constraint_and_index (email);
 
@@ -110,12 +113,12 @@ CREATE TABLE different_columns_unique_constraint_and_index (
     email VARCHAR(255) UNIQUE,
     phone_number VARCHAR(20),
     status varchar NOT NULL DEFAULT '',
-    retry_count int NOT NULL DEFAULT 0,
+    metadata jsonb,
+    amount numeric(38,6) NOT NULL DEFAULT 0,
+    due_date date NOT NULL DEFAULT CURRENT_DATE,
+    seq_no bigint NOT NULL DEFAULT 0,
     is_active boolean NOT NULL DEFAULT false,
-    metadata jsonb NOT NULL DEFAULT '{}',
-    description text NOT NULL DEFAULT '',
-    notes text,
-    failure_reason text,
+    retry_count int NOT NULL DEFAULT 0,
     created_at timestamp NOT NULL DEFAULT now(),
     updated_at timestamp NOT NULL DEFAULT now(),
     deleted_at timestamp
@@ -129,15 +132,15 @@ CREATE TABLE subset_columns_unique_constraint_and_index (
     last_name VARCHAR(100),
     phone_number VARCHAR(20),
     status varchar NOT NULL DEFAULT '',
-    currency varchar NOT NULL DEFAULT '',
-    priority smallint NOT NULL DEFAULT 0,
-    processed_at timestamp,
-    deleted_at timestamp,
+    description text NOT NULL DEFAULT '',
+    amount numeric(38,6) NOT NULL DEFAULT 0,
+    due_date date NOT NULL DEFAULT CURRENT_DATE,
+    seq_no bigint NOT NULL DEFAULT 0,
+    is_active boolean NOT NULL DEFAULT false,
+    metadata jsonb,
     created_at timestamp NOT NULL DEFAULT now(),
     updated_at timestamp NOT NULL DEFAULT now(),
-    is_active boolean NOT NULL DEFAULT false,
-    retry_count int NOT NULL DEFAULT 0,
-    attempt_count int NOT NULL DEFAULT 0
+    deleted_at timestamp
 );
 
 -- Unique constraint on first_name and last_name
@@ -146,22 +149,21 @@ ALTER TABLE subset_columns_unique_constraint_and_index ADD CONSTRAINT unique_nam
 -- Unique index on first_name, last_name, and phone_number (superset of columns)
 CREATE UNIQUE INDEX idx_name_phone_unique ON subset_columns_unique_constraint_and_index (first_name, last_name, phone_number);
 
-
 CREATE TABLE expression_based_unique_index (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255),
+    status varchar NOT NULL DEFAULT '',
     description text NOT NULL DEFAULT '',
+    amount numeric(38,6) NOT NULL DEFAULT 0,
     due_date date NOT NULL DEFAULT CURRENT_DATE,
+    seq_no bigint NOT NULL DEFAULT 0,
+    is_active boolean NOT NULL DEFAULT false,
+    notes text,
+    metadata jsonb,
+    priority smallint NOT NULL DEFAULT 0,
     created_at timestamp NOT NULL DEFAULT now(),
     updated_at timestamp NOT NULL DEFAULT now(),
-    status varchar NOT NULL DEFAULT '',
-    is_active boolean NOT NULL DEFAULT false,
-    deleted_at timestamp,
-    amount numeric(38,6),
-    notes text,
-    failure_reason text,
-    remarks text,
-    address_line text
+    deleted_at timestamp
 );
 CREATE UNIQUE INDEX idx_email_unique_expression ON expression_based_unique_index (LOWER(email));
 
@@ -170,12 +172,12 @@ CREATE TABLE test_partial_unique_index (
     check_id int,
     most_recent boolean,
     status varchar NOT NULL DEFAULT '',
-    metadata jsonb,
-    retry_count int NOT NULL DEFAULT 0,
+    description text NOT NULL DEFAULT '',
+    amount numeric(38,6) NOT NULL DEFAULT 0,
+    due_date date NOT NULL DEFAULT CURRENT_DATE,
+    seq_no bigint NOT NULL DEFAULT 0,
     is_active boolean NOT NULL DEFAULT false,
-    currency varchar NOT NULL DEFAULT '',
-    reference_code varchar NOT NULL DEFAULT '',
-    org_unit varchar,
+    metadata jsonb,
     created_at timestamp NOT NULL DEFAULT now(),
     updated_at timestamp NOT NULL DEFAULT now(),
     deleted_at timestamp
@@ -189,17 +191,17 @@ CREATE TABLE single_unique_index_nulls_not_distinct (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255),
     status varchar NOT NULL DEFAULT '',
-    currency varchar NOT NULL DEFAULT '',
+    description text NOT NULL DEFAULT '',
+    amount numeric(38,6) NOT NULL DEFAULT 0,
     due_date date NOT NULL DEFAULT CURRENT_DATE,
-    reference_code varchar NOT NULL DEFAULT '',
-    org_unit varchar NOT NULL DEFAULT '',
     seq_no bigint NOT NULL DEFAULT 0,
-    amount numeric(38,6),
     is_active boolean NOT NULL DEFAULT false,
-    deleted_at timestamp,
+    priority smallint NOT NULL DEFAULT 0,
+    score double precision,
+    external_ref uuid,
     created_at timestamp NOT NULL DEFAULT now(),
     updated_at timestamp NOT NULL DEFAULT now(),
-    channel varchar
+    deleted_at timestamp
 );
 CREATE UNIQUE INDEX idx_email_nnd ON single_unique_index_nulls_not_distinct (email) NULLS NOT DISTINCT;
 
@@ -208,17 +210,17 @@ CREATE TABLE multi_unique_index_nulls_not_distinct (
     id SERIAL PRIMARY KEY,
     first_name VARCHAR(100),
     last_name VARCHAR(100),
-    description text NOT NULL DEFAULT '',
-    notes text NOT NULL DEFAULT '',
-    failure_reason text,
-    amount numeric(38,6) NOT NULL DEFAULT 0,
     status varchar NOT NULL DEFAULT '',
+    description text NOT NULL DEFAULT '',
+    amount numeric(38,6) NOT NULL DEFAULT 0,
+    due_date date NOT NULL DEFAULT CURRENT_DATE,
+    seq_no bigint NOT NULL DEFAULT 0,
+    is_active boolean NOT NULL DEFAULT false,
+    score double precision,
+    external_ref uuid,
     created_at timestamp NOT NULL DEFAULT now(),
     updated_at timestamp NOT NULL DEFAULT now(),
-    remarks text,
-    deleted_at timestamp,
-    is_active boolean,
-    address_line text
+    deleted_at timestamp
 );
 CREATE UNIQUE INDEX idx_name_nnd ON multi_unique_index_nulls_not_distinct (first_name, last_name) NULLS NOT DISTINCT;
 
@@ -230,16 +232,16 @@ CREATE TABLE single_unique_index_nulls_distinct (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255),
     status varchar NOT NULL DEFAULT '',
-    currency varchar NOT NULL DEFAULT '',
-    processed_at timestamp,
-    expires_at timestamp,
-    description text,
-    external_id uuid NOT NULL DEFAULT gen_random_uuid(),
-    reference_code varchar,
-    org_unit varchar NOT NULL DEFAULT '',
-    deleted_at timestamp,
+    description text NOT NULL DEFAULT '',
+    amount numeric(38,6) NOT NULL DEFAULT 0,
+    due_date date NOT NULL DEFAULT CURRENT_DATE,
+    seq_no bigint NOT NULL DEFAULT 0,
+    is_active boolean NOT NULL DEFAULT false,
+    external_ref uuid,
+    tags varchar[],
     created_at timestamp NOT NULL DEFAULT now(),
-    updated_at timestamp NOT NULL DEFAULT now()
+    updated_at timestamp NOT NULL DEFAULT now(),
+    deleted_at timestamp
 );
 CREATE UNIQUE INDEX idx_email_nd ON single_unique_index_nulls_distinct (email);
 
@@ -249,16 +251,16 @@ CREATE TABLE partitioned_unique_conflict (
     id INT,
     region VARCHAR(50),
     email VARCHAR(255),
-    description text NOT NULL DEFAULT '',
     status varchar NOT NULL DEFAULT '',
+    description text NOT NULL DEFAULT '',
+    amount numeric(38,6) NOT NULL DEFAULT 0,
+    due_date date NOT NULL DEFAULT CURRENT_DATE,
+    seq_no bigint NOT NULL DEFAULT 0,
+    is_active boolean NOT NULL DEFAULT false,
+    tags varchar[],
     retry_count int NOT NULL DEFAULT 0,
-    currency varchar,
-    reference_code varchar,
-    attempt_count int NOT NULL DEFAULT 0,
-    score double precision,
     created_at timestamp NOT NULL DEFAULT now(),
     updated_at timestamp NOT NULL DEFAULT now(),
-    due_date date,
     deleted_at timestamp,
     PRIMARY KEY (id, region)
 ) PARTITION BY LIST (region);
