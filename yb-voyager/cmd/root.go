@@ -22,6 +22,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/fatih/color"
@@ -53,13 +54,18 @@ var (
 	lockFile                           *lockfile.Lockfile
 	migrationUUID                      uuid.UUID
 	perfProfile                        utils.BoolStr
-	ProcessShutdownRequested           bool
-	EndMigrationStopRequested          bool
 	controlPlane                       cp.ControlPlane
 	currentCommand                     string
 	callHomeErrorOrCompletePayloadSent bool
 	controlPlaneConfig                 map[string]string // Holds control plane configuration from config file
 	suppressInfoMessages               bool              // set by commands that render their own banner (e.g. assess-migration)
+)
+
+// Set by main.go's signal goroutine and read from others -- the export exit-snapshot
+// classifier, the atexit hooks, main after Execute -- so both are atomic.
+var (
+	ProcessShutdownRequested  atomic.Bool
+	EndMigrationStopRequested atomic.Bool
 )
 
 var envVarValuesToObfuscateInLogs = []string{

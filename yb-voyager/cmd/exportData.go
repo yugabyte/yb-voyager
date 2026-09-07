@@ -232,7 +232,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		color.Green("Export of data complete")
 		log.Info("Export of data completed.")
 		startFurtherCommandsAfterCurrentExportData()
-	} else if ProcessShutdownRequested {
+	} else if ProcessShutdownRequested.Load() {
 		log.Info("Shutting down as SIGINT/SIGTERM received.")
 	} else {
 		color.Red("Export of data failed! Check %s/logs for more details.", exportDir)

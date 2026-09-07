@@ -182,7 +182,7 @@ func assessMigrationBulk() error {
 				dbConfig.GetSchemaIdentifier(), dbConfig.GetAssessmentLogFilePath())
 		}
 
-		if ProcessShutdownRequested {
+		if ProcessShutdownRequested.Load() {
 			log.Info("Exiting from assess-migration-bulk. Further assessments will not be executed due to a shutdown request.")
 			return nil
 		}

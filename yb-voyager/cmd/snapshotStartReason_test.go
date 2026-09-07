@@ -55,9 +55,10 @@ func TestSnapshotStartReasonFor(t *testing.T) {
 // the inline path first. Verified end-to-end against PostgreSQL — before this was
 // shared, SIGINT/SIGTERM/SIGUSR2 all recorded reason=error.
 func TestExportDataExitReason(t *testing.T) {
-	origShutdown, origEndMigration := ProcessShutdownRequested, EndMigrationStopRequested
+	origShutdown, origEndMigration := ProcessShutdownRequested.Load(), EndMigrationStopRequested.Load()
 	t.Cleanup(func() {
-		ProcessShutdownRequested, EndMigrationStopRequested = origShutdown, origEndMigration
+		ProcessShutdownRequested.Store(origShutdown)
+		EndMigrationStopRequested.Store(origEndMigration)
 	})
 
 	tests := []struct {
@@ -73,8 +74,8 @@ func TestExportDataExitReason(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ProcessShutdownRequested = tt.shutdownReq
-			EndMigrationStopRequested = tt.endMigrationStop
+			ProcessShutdownRequested.Store(tt.shutdownReq)
+			EndMigrationStopRequested.Store(tt.endMigrationStop)
 			assert.Equal(t, tt.want, exportDataExitReason())
 		})
 	}

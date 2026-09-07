@@ -70,14 +70,11 @@ func captureExportDataExitSnapshotFresh(reason string) {
 // the in-flight child, so the export reports failure and reaches `return false`
 // first, and the atexit hook then no-ops. Hardcoding ReasonError there recorded
 // every Ctrl-C as an error.
-//
-// Reading the flags races with main.go's signal goroutine, benignly: they are only
-// ever set, and the worst case is today's unconditional behaviour.
 func exportDataExitReason() string {
-	if !ProcessShutdownRequested {
+	if !ProcessShutdownRequested.Load() {
 		return schemasnapshot.ReasonError
 	}
-	if EndMigrationStopRequested {
+	if EndMigrationStopRequested.Load() {
 		return schemasnapshot.ReasonComplete
 	}
 	return schemasnapshot.ReasonInterrupt
