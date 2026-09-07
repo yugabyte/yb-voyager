@@ -851,6 +851,12 @@ func exportData() (ok bool) {
 		if err := captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourceStart, snapshotStartReason, true); err != nil {
 			log.Warnf("schema-snapshot start capture failed, export unaffected: %v", err)
 		}
+		// One ticker for the whole export -- snapshot AND streaming phases, offline and
+		// live. ctx is this function's, cancelled by its defer cancel() when the export
+		// ends. Started here, at the single owner of the export lifetime: starting it in
+		// both exportDataOffline and debeziumExportData ran two tickers at once for PG
+		// snapshot-and-changes, doubling the periodic snapshots.
+		startPeriodicSourceSchemaSnapshotCapture(ctx, time.Duration(schemaSnapshotCaptureInterval)*time.Minute)
 		registerExportDataExitSnapshotHook()
 
 		// One exit capture for EVERY return below, rather than one per return site.
@@ -1870,9 +1876,6 @@ func handleGetInitialTableListError(err error) {
 }
 
 func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string) error {
-	// Periodic capture runs until ctx is cancelled; the caller (exportData) owns ctx
-	// and cancels it via its defer cancel() when the export finishes.
-	startPeriodicSourceSchemaSnapshotCapture(ctx, time.Duration(schemaSnapshotCaptureInterval)*time.Minute)
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 		exportDataStartEvent := createSnapshotExportStartedEvent()
 		controlPlane.SnapshotExportStarted(&exportDataStartEvent)

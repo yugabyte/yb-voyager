@@ -19,6 +19,9 @@ package testlivemigration
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -132,4 +135,18 @@ func TestLiveExportDataCapturesPeriodicSchemaSnapshot(t *testing.T) {
 	assert.GreaterOrEqual(t, periodic, 1,
 		"expected at least one periodic schema snapshot (label %q) to be captured during a live snapshot-and-changes export within %s",
 		schemasnapshot.LabelExportDataFromSourcePeriodic, pollTimeout)
+
+	// The ticker must be started EXACTLY once for the whole export. It used to be
+	// started in both exportDataOffline and debeziumExportData, so PG
+	// snapshot-and-changes ran two tickers concurrently and recorded two periodic
+	// snapshots per interval. Asserted from the log rather than by counting rows: the
+	// two tickers are offset by however long the snapshot phase takes, so a row-rate
+	// check is timing-dependent, while the start count is exact.
+	logPath := filepath.Join(lm.GetCurrentExportDir(), "logs", "yb-voyager-export-data.log")
+	logBytes, err := os.ReadFile(logPath)
+	if assert.NoError(t, err, "failed to read export-data log at %s", logPath) {
+		starts := strings.Count(string(logBytes), "starting periodic schema-snapshot capture every")
+		assert.Equal(t, 1, starts,
+			"periodic schema-snapshot capture must be started exactly once per export; %d starts means concurrent tickers", starts)
+	}
 }

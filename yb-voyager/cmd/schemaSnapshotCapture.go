@@ -166,6 +166,9 @@ func startPeriodicSourceSchemaSnapshotCapture(ctx context.Context, interval time
 	if interval <= 0 {
 		return
 	}
+	// Logged once per started ticker, so a second start is visible in the log (and
+	// asserted by the live E2E): two tickers would double every periodic snapshot.
+	log.Infof("starting periodic schema-snapshot capture every %s", interval)
 	go func() {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
