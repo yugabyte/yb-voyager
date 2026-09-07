@@ -872,7 +872,10 @@ func exportData() (ok bool) {
 				captureExportDataExitSnapshot(ctx, successReason)
 				return
 			}
-			captureExportDataExitSnapshotFresh(exportDataExitReason())
+			// Background, not ctx: a failing path may already have cancelled ctx
+			// (exportDataOffline cancels on its quit path), which would abort the
+			// capture just when the drifted end-state matters most.
+			captureExportDataExitSnapshot(context.Background(), exportDataExitReason())
 		}()
 	}
 

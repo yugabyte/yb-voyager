@@ -38,8 +38,12 @@ import (
 var exportDataExitSnapshotCaptured atomic.Bool
 
 // captureExportDataExitSnapshot captures the exit snapshot and marks it captured, so
-// no later site fires a second one. Source-exporter only. The caller chooses the
-// context; captureSourceSchemaSnapshot caps it at schemasnapshot.CaptureTimeout.
+// no later site fires a second one. Source-exporter only.
+//
+// The caller picks the context (captureSourceSchemaSnapshot caps it at
+// schemasnapshot.CaptureTimeout either way): the run's own ctx on a clean exit, and
+// context.Background() wherever that ctx may already be cancelled -- the failing
+// export paths, and the atexit hook, which has no ctx at all.
 func captureExportDataExitSnapshot(ctx context.Context, reason string) {
 	if exporterRole != SOURCE_DB_EXPORTER_ROLE {
 		return
@@ -52,14 +56,6 @@ func captureExportDataExitSnapshot(ctx context.Context, reason string) {
 	if err := captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourceExit, reason, true); err != nil {
 		log.Warnf("schema-snapshot exit capture (%s) failed, migration unaffected: %v", reason, err)
 	}
-}
-
-// captureExportDataExitSnapshotFresh is captureExportDataExitSnapshot on a fresh
-// context, for exit sites where the run's own context may already be cancelled: the
-// error `return false` paths (which must capture inline, before exportData's deferred
-// Disconnect closes the connection) and the atexit fallback.
-func captureExportDataExitSnapshotFresh(reason string) {
-	captureExportDataExitSnapshot(context.Background(), reason)
 }
 
 // exportDataExitReason classifies an abnormal exit from the shutdown flags:
@@ -85,7 +81,7 @@ func exportDataExitReason() string {
 // defers, leaving the connection open). Whichever path gets there first wins the claim.
 func registerExportDataExitSnapshotHook() {
 	atexit.Register(func() {
-		captureExportDataExitSnapshotFresh(exportDataExitReason())
+		captureExportDataExitSnapshot(context.Background(), exportDataExitReason())
 	})
 }
 
