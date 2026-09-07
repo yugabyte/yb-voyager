@@ -22,7 +22,7 @@ import (
 
 const (
 	KB                              = 1024
-	MB                              = 1024 * 1024
+	MB                              = constants.MB
 	META_INFO_DIR_NAME              = "metainfo"
 	NEWLINE                         = '\n'
 	ORACLE_DEFAULT_PORT             = 1521
@@ -31,12 +31,12 @@ const (
 	YUGABYTEDB_YSQL_DEFAULT_PORT    = 5433
 	YUGABYTEDB_DEFAULT_DATABASE     = "yugabyte"
 	YUGABYTEDB_DEFAULT_SCHEMA       = "public"
-	ORACLE                          = "oracle"
-	MYSQL                           = "mysql"
-	POSTGRESQL                      = "postgresql"
-	YUGABYTEDB                      = "yugabytedb"
-	YUGABYTEDB_AMP                  = "yugabytedb-amp" // YugabyteDB AMP (yb-amp): PostgreSQL-compatible compute over YugabyteDB storage
-	LAST_SPLIT_NUM                  = 0
+	ORACLE                          = constants.ORACLE
+	MYSQL                           = constants.MYSQL
+	POSTGRESQL                      = constants.POSTGRESQL
+	YUGABYTEDB                      = constants.YUGABYTEDB
+	YUGABYTEDB_AMP                  = constants.YUGABYTEDB_AMP // YugabyteDB AMP (yb-amp): PostgreSQL-compatible compute over YugabyteDB storage
+	LAST_SPLIT_NUM                  = constants.LAST_SPLIT_NUM
 	SPLIT_INFO_PATTERN              = "[0-9]*.[0-9]*.[0-9]*.[0-9]*.[0-9]*"
 	LAST_SPLIT_PATTERN              = "0.[0-9]*.[0-9]*.[0-9]*.[0-9]*"
 	DEFAULT_BATCH_SIZE_ORACLE       = 10000000
@@ -45,21 +45,21 @@ const (
 	INDEX_RETRY_COUNT               = 5
 	DDL_MAX_RETRY_COUNT             = 5
 	SCHEMA_VERSION_MISMATCH_ERR     = "Query error: schema version mismatch for table"
-	SNAPSHOT_ONLY                   = "snapshot-only"
-	SNAPSHOT_AND_CHANGES            = "snapshot-and-changes"
-	CHANGES_ONLY                    = "changes-only"
+	SNAPSHOT_ONLY                   = utils.SNAPSHOT_ONLY
+	SNAPSHOT_AND_CHANGES            = utils.SNAPSHOT_AND_CHANGES
+	CHANGES_ONLY                    = utils.CHANGES_ONLY
 	TARGET_DB                       = "target"
 	FF_DB                           = "ff"
-	SOURCE_REPLICA_DB_IMPORTER_ROLE = "source_replica_db_importer"
-	SOURCE_DB_IMPORTER_ROLE         = "source_db_importer"
-	TARGET_DB_IMPORTER_ROLE         = "target_db_importer"
-	SOURCE_DB_EXPORTER_ROLE         = "source_db_exporter"
-	TARGET_DB_EXPORTER_FF_ROLE      = "target_db_exporter_ff"
-	TARGET_DB_EXPORTER_FB_ROLE      = "target_db_exporter_fb"
-	IMPORT_FILE_ROLE                = "import_file"
-	ROW_UPDATE_STATUS_NOT_STARTED   = 0
-	ROW_UPDATE_STATUS_IN_PROGRESS   = 1
-	ROW_UPDATE_STATUS_COMPLETED     = 3
+	SOURCE_REPLICA_DB_IMPORTER_ROLE = constants.SOURCE_REPLICA_DB_IMPORTER_ROLE
+	SOURCE_DB_IMPORTER_ROLE         = constants.SOURCE_DB_IMPORTER_ROLE
+	TARGET_DB_IMPORTER_ROLE         = constants.TARGET_DB_IMPORTER_ROLE
+	SOURCE_DB_EXPORTER_ROLE         = constants.SOURCE_DB_EXPORTER_ROLE
+	TARGET_DB_EXPORTER_FF_ROLE      = constants.TARGET_DB_EXPORTER_FF_ROLE
+	TARGET_DB_EXPORTER_FB_ROLE      = constants.TARGET_DB_EXPORTER_FB_ROLE
+	IMPORT_FILE_ROLE                = constants.IMPORT_FILE_ROLE
+	ROW_UPDATE_STATUS_NOT_STARTED   = constants.ROW_UPDATE_STATUS_NOT_STARTED
+	ROW_UPDATE_STATUS_IN_PROGRESS   = constants.ROW_UPDATE_STATUS_IN_PROGRESS
+	ROW_UPDATE_STATUS_COMPLETED     = constants.ROW_UPDATE_STATUS_COMPLETED
 	COLOCATION_CLAUSE               = "colocation"
 
 	//the default value as false, 0 etc.. is not added to the usage msg by cobra so can be used for flags that are mandatory and no default value is shown to user
@@ -96,9 +96,9 @@ const (
 	COMPLETE                  = "COMPLETE"
 	COMPLETE_WITH_ERRORS      = "COMPLETE-WITH-ERRORS"
 	INPROGRESS                = "IN-PROGRESS"
-	CUTOVER_TO_TARGET         = "cutover-to-target"
-	CUTOVER_TO_SOURCE         = "cutover-to-source"
-	CUTOVER_TO_SOURCE_REPLICA = "cutover-to-source-replica"
+	CUTOVER_TO_TARGET         = constants.CUTOVER_TO_TARGET
+	CUTOVER_TO_SOURCE         = constants.CUTOVER_TO_SOURCE
+	CUTOVER_TO_SOURCE_REPLICA = constants.CUTOVER_TO_SOURCE_REPLICA
 
 	CLIENT_MESSAGES_SESSION_VAR     = "SET CLIENT_MIN_MESSAGES"
 	TRANSACTION_TIMEOUT_SESSION_VAR = "SET TRANSACTION_TIMEOUT"

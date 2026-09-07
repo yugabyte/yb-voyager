@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
@@ -734,4 +735,37 @@ func setOrafceSearchPath(conn *pgx.Conn) {
 	if err != nil {
 		utils.ErrExit("unable to update search_path for orafce extension: %w", err)
 	}
+}
+
+func getIndexName(sqlQuery string, indexName string) (string, error) {
+	// Return the index name itself if it is aleady qualified with schema name
+	if len(strings.Split(indexName, ".")) == 2 {
+		return indexName, nil
+	}
+
+	parts := strings.FieldsFunc(sqlQuery, func(c rune) bool { return unicode.IsSpace(c) || c == '(' || c == ')' })
+	for index, part := range parts {
+		if strings.EqualFold(part, "ON") {
+			tableName := parts[index+1]
+			schemaName := getTargetSchemaName(tableName)
+			return fmt.Sprintf("%s.%s", schemaName, indexName), nil
+		}
+	}
+	return "", goerrors.Errorf("could not find `ON` keyword in the CREATE INDEX statement")
+}
+
+// TODO: This function is a duplicate of the one in tgtdb/yb.go. Consolidate the two.
+func getTargetSchemaName(tableName string) string {
+	parts := strings.Split(tableName, ".")
+	if len(parts) == 2 {
+		return parts[0]
+	}
+	if tconf.TargetDBType == POSTGRESQL || tconf.TargetDBType == YUGABYTEDB_AMP {
+		defaultSchema, noDefaultSchema := GetDefaultPGSchema(tconf.Schemas)
+		if noDefaultSchema {
+			utils.ErrExit("no default schema for table: %q ", tableName)
+		}
+		return defaultSchema
+	}
+	return YUGABYTEDB_DEFAULT_SCHEMA // default set to "public"
 }

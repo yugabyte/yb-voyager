@@ -60,6 +60,7 @@ import (
 
 var exporterRole string = SOURCE_DB_EXPORTER_ROLE
 var exportPhase string
+var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 
 var exportDataCmd = &cobra.Command{
 	Use: "data",
