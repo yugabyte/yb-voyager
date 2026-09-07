@@ -389,7 +389,14 @@ func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *ybvers
 		return issues, err
 	}
 
-	return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+	issues, err = p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+	if err != nil {
+		return issues, err
+	}
+
+	issues = finalizeIssues(issues)
+
+	return issues, nil
 }
 
 // This function is used to get the jsonb columns from the parser issue detector
