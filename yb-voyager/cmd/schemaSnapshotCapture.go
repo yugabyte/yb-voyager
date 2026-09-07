@@ -17,73 +17,14 @@ package cmd
 
 import (
 	"context"
-	"sync/atomic"
 	"time"
 
 	goerrors "github.com/go-errors/errors"
 	log "github.com/sirupsen/logrus"
-	"github.com/tebeka/atexit"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 )
-
-// exportDataExitSnapshotCaptured claims the one exit capture a run is allowed.
-//
-// A signal makes both exit paths run at once: the handler fires on the signal
-// goroutine while the export goroutine unwinds through its exit defer. Claiming
-// has to be a single atomic compare-and-swap, so exactly one of them captures --
-// checking a flag and setting it after the capture lets both pass the check and
-// write two exit snapshots.
-var exportDataExitSnapshotCaptured atomic.Bool
-
-// captureExportDataExitSnapshot captures the exit snapshot and marks it captured, so
-// no later site fires a second one. Source-exporter only.
-//
-// The caller picks the context (captureSourceSchemaSnapshot caps it at
-// schemasnapshot.CaptureTimeout either way): the run's own ctx on a clean exit, and
-// context.Background() wherever that ctx may already be cancelled -- the failing
-// export paths, and the atexit hook, which has no ctx at all.
-func captureExportDataExitSnapshot(ctx context.Context, reason string) {
-	if exporterRole != SOURCE_DB_EXPORTER_ROLE {
-		return
-	}
-	// Claim before capturing, not after: see exportDataExitSnapshotCaptured.
-	if !exportDataExitSnapshotCaptured.CompareAndSwap(false, true) {
-		log.Infof("schema-snapshot exit capture already recorded; skipping the %q capture", reason)
-		return
-	}
-	if err := captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourceExit, reason, true); err != nil {
-		log.Warnf("schema-snapshot exit capture (%s) failed, migration unaffected: %v", reason, err)
-	}
-}
-
-// exportDataExitReason classifies an abnormal exit from the shutdown flags:
-// SIGINT/SIGTERM is an interrupt, SIGUSR2 (end-migration teardown) a clean
-// completion, anything else a genuine error.
-//
-// The inline error paths must use this too, not assume ReasonError: a signal kills
-// the in-flight child, so the export reports failure and reaches `return false`
-// first, and the atexit hook then no-ops. Hardcoding ReasonError there recorded
-// every Ctrl-C as an error.
-func exportDataExitReason() string {
-	if !ProcessShutdownRequested.Load() {
-		return schemasnapshot.ReasonError
-	}
-	if EndMigrationStopRequested.Load() {
-		return schemasnapshot.ReasonComplete
-	}
-	return schemasnapshot.ReasonInterrupt
-}
-
-// registerExportDataExitSnapshotHook covers the exit paths that never unwind, so
-// exportData's exit defer cannot run: signals, and utils.ErrExit (whose os.Exit skips
-// defers, leaving the connection open). Whichever path gets there first wins the claim.
-func registerExportDataExitSnapshotHook() {
-	atexit.Register(func() {
-		captureExportDataExitSnapshot(context.Background(), exportDataExitReason())
-	})
-}
 
 // captureSourceSchemaSnapshot captures the source schema and persists it as a snapshot
 // for the given label/reason, returning why it could not.
