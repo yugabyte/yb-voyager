@@ -49,11 +49,9 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/anon"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
@@ -370,89 +368,6 @@ func renameDatafileDescriptor(exportDir string) {
 		}
 	}
 	datafileDescriptor.Save()
-}
-
-func displayImportedRowCountSnapshot(state *importdata.ImportDataState, tasks []*importdata.ImportFileTask, errorHandler importdata.ImportDataErrorHandler) {
-	if importerRole == IMPORT_FILE_ROLE {
-		fmt.Printf("import report\n")
-	} else {
-		fmt.Printf("snapshot import report\n")
-	}
-	tableList := importFileTasksToTableNameTuples(tasks)
-	err := retrieveMigrationUUID()
-	if err != nil {
-		utils.ErrExit("could not retrieve migration UUID: %w", err)
-	}
-	uitable := uitable.New()
-
-	// TODO: refactor this; we don't need to pass the dbType as a parameter,
-	// we can just pass the importerRole directly.
-	var dbType string
-	switch importerRole {
-	case IMPORT_FILE_ROLE:
-		dbType = "target-file"
-	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
-		dbType = "source-replica"
-	case TARGET_DB_IMPORTER_ROLE:
-		dbType = "target"
-	}
-
-	snapshotRowCount, err := getImportedSnapshotRowsMap(dbType, tableList, errorHandler)
-	if err != nil {
-		utils.ErrExit("failed to get imported snapshot rows map: %w", err)
-	}
-
-	keys := make([]sqlname.NameTuple, 0, len(snapshotRowCount.Keys()))
-	// the callback never returns an error
-	_ = snapshotRowCount.IterKV(func(k sqlname.NameTuple, v RowCountPair) (bool, error) {
-		keys = append(keys, k)
-		return true, nil
-	})
-
-	sort.Slice(keys, func(i, j int) bool {
-		val1, _ := snapshotRowCount.Get(keys[i])
-		val2, _ := snapshotRowCount.Get(keys[j])
-		return val1.Imported > val2.Imported
-	})
-
-	hasErrors := false
-	for _, tableName := range keys {
-		rowCountPair, _ := snapshotRowCount.Get(tableName)
-		if rowCountPair.Errored > 0 {
-			hasErrors = true
-			break
-		}
-	}
-
-	for i, tableName := range keys {
-		if i == 0 {
-			if hasErrors {
-				addHeader(uitable, "SCHEMA", "TABLE", "IMPORTED ROW COUNT", "ERRORED ROW COUNT")
-			} else {
-				addHeader(uitable, "SCHEMA", "TABLE", "IMPORTED ROW COUNT")
-			}
-		}
-		s, t := tableName.ForCatalogQuery()
-		rowCountPair, _ := snapshotRowCount.Get(tableName)
-		if hasErrors {
-			uitable.AddRow(s, t, rowCountPair.Imported, rowCountPair.Errored)
-		} else {
-			uitable.AddRow(s, t, rowCountPair.Imported)
-		}
-	}
-	if len(tableList) > 0 {
-		fmt.Printf("\n")
-		fmt.Println(uitable)
-		fmt.Printf("\n")
-	}
-	if hasErrors {
-		// in case there are errored rows, and we are in on-pk-conflict ignore mode,
-		// it is possible that the batches which errored out were partially ingested.
-		if tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE {
-			utils.PrintAndLog(color.YellowString("Note: It is possible that the table row count on the target DB may not match the IMPORTED ROW COUNT as some batches may have been partially ingested."))
-		}
-		utils.PrintAndLog(color.RedString("Errored snapshot rows are stashed in %q", errorHandler.GetErrorsLocation()))
-	}
 }
 
 // setup a project having subdirs for various database objects IF NOT EXISTS
@@ -1118,97 +1033,6 @@ func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*ut
 	return snapshotRowsMap, snapshotStatusMap, nil
 }
 
-func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple, errorHandler importdata.ImportDataErrorHandler) (*utils.StructMap[sqlname.NameTuple, RowCountPair], error) {
-
-	var err error
-	switch dbType {
-	case "target":
-		importerRole = TARGET_DB_IMPORTER_ROLE
-	case "target-file":
-		importerRole = IMPORT_FILE_ROLE
-	case "source-replica":
-		importerRole = SOURCE_REPLICA_DB_IMPORTER_ROLE
-	}
-	state := newImportDataStateFromGlobals()
-	var snapshotDataFileDescriptor *datafile.Descriptor
-
-	if dataFileDescriptor != nil {
-		// in case of import-data and import-data-file, import-data-to-source-replica,
-		// the data file descriptor is already loaded in memory
-		snapshotDataFileDescriptor = dataFileDescriptor
-	} else {
-		// get data-migration-report use-case where
-		// we need to read the data file descriptor from export-dir
-		dataFileDescriptorPath := filepath.Join(exportDir, datafile.DESCRIPTOR_PATH)
-		if utils.FileOrFolderExists(dataFileDescriptorPath) {
-			snapshotDataFileDescriptor = datafile.OpenDescriptor(exportDir)
-		}
-	}
-	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, RowCountPair]()
-	nameTupleTodataFileEntry := utils.NewStructMap[sqlname.NameTuple, []*datafile.FileEntry]()
-	nameTupleTodataFilesMap := utils.NewStructMap[sqlname.NameTuple, []string]()
-	if snapshotDataFileDescriptor != nil {
-		for _, fileEntry := range snapshotDataFileDescriptor.DataFileList {
-			//ignoring target as the dataFileDescriptor can contain tables that exported but not present in target
-			nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(fileEntry.TableName)
-			if err != nil {
-				return nil, goerrors.Errorf("lookup table name from data file descriptor %s : %w", fileEntry.TableName, err)
-			}
-			fileEntries, ok := nameTupleTodataFileEntry.Get(nt)
-			if !ok {
-				fileEntries = []*datafile.FileEntry{}
-			}
-			fileEntries = append(fileEntries, fileEntry)
-			nameTupleTodataFileEntry.Put(nt, fileEntries)
-		}
-		for _, table := range tableList {
-			fileEntries, ok := nameTupleTodataFileEntry.Get(table)
-			if !ok {
-				//We can't error out here as this is possible in case there are empty tables in live migraton scenario and
-				//In get data-migration-report, table list can consist that table name but it won't be present in dataFileDescriptor
-				log.Warnf("table %s not found in data file descriptor", table.ForKey())
-				continue
-			}
-			list := lo.Map(fileEntries, func(fileEntry *datafile.FileEntry, _ int) string {
-				return fileEntry.FilePath
-			})
-			nameTupleTodataFilesMap.Put(table, list)
-		}
-	}
-
-	err = nameTupleTodataFilesMap.IterKV(func(nt sqlname.NameTuple, dataFilePaths []string) (bool, error) {
-		for _, dataFilePath := range dataFilePaths {
-			importedRowCount, err := state.GetImportedRowCount(dataFilePath, nt)
-			if err != nil {
-				return false, fmt.Errorf("could not fetch imported row count for table %q: %w", nt, err)
-			}
-			erroredRowCount, err := state.GetErroredRowCount(dataFilePath, nt)
-			if err != nil {
-				return false, fmt.Errorf("could not fetch errored row count for table %q: %w", nt, err)
-			}
-			existingRowCountPair, _ := snapshotRowsMap.Get(nt)
-			existingRowCountPair.Imported += importedRowCount
-			existingRowCountPair.Errored += erroredRowCount
-
-			if isTargetDBImporter(importerRole) && errorHandler != nil {
-				// error handler will be nil if import-data/import-data-file was not run yet
-				processingErrorRowCount, _, err := errorHandler.GetProcessingErrorCountSize(nt, dataFilePath)
-				if err != nil {
-					return false, fmt.Errorf("get processing error count size: %w", err)
-				}
-				existingRowCountPair.Errored += processingErrorRowCount
-			}
-			snapshotRowsMap.Put(nt, existingRowCountPair)
-
-		}
-		return true, nil
-	})
-	if err != nil {
-		return nil, goerrors.Errorf("error getting row count of tables: %w", err)
-	}
-	return snapshotRowsMap, nil
-}
-
 func getImportedSizeMap() (*utils.StructMap[sqlname.NameTuple, int64], error) { //used for import data file case right now
 	importerRole = IMPORT_FILE_ROLE
 	state := newImportDataStateFromGlobals()
@@ -1611,12 +1435,6 @@ func parseObjectNamesToPayload(objectNames string, objectType string, dbType str
 		objects = append(objects, obj)
 	}
 	return objects
-}
-
-// RowCountPair holds imported and errored row counts for a table.
-type RowCountPair struct {
-	Imported int64
-	Errored  int64
 }
 
 /*

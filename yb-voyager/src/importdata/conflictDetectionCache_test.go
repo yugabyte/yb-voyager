@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -61,18 +62,18 @@ func newConflictCacheForTest(indexes [][]string) *ConflictDetectionCache {
 // (allowing per-index NULLS NOT DISTINCT configuration).
 func newConflictCacheForTestWithIndexes(indexes ...tgtdb.UniqueIndex) *ConflictDetectionCache {
 	tableToIndexes := utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]()
-	oname := sqlname.NewObjectName(YUGABYTEDB, "public", "public", "users")
+	oname := sqlname.NewObjectName(constants.YUGABYTEDB, "public", "public", "users")
 	table := sqlname.NameTuple{CurrentName: oname, TargetName: oname}
 	tableToIndexes.Put(table, indexes)
 	// Default the test table to PARTITION_BY_PK so the partition-key exclusion behaves
 	// like the previous same-PK exclusion (routing by primary key).
-	tablePartitionKeyMap := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
-	tablePartitionKeyMap.Put(table, cdcPartitionKeyOverride{Strategy: PARTITION_BY_PK})
-	return NewConflictDetectionCache(tableToIndexes, []chan *tgtdb.Event{make(chan *tgtdb.Event, 1)}, POSTGRESQL, tablePartitionKeyMap)
+	tablePartitionKeyMap := utils.NewStructMap[sqlname.NameTuple, CdcPartitionKeyOverride]()
+	tablePartitionKeyMap.Put(table, CdcPartitionKeyOverride{Strategy: PARTITION_BY_PK})
+	return NewConflictDetectionCache(tableToIndexes, []chan *tgtdb.Event{make(chan *tgtdb.Event, 1)}, constants.POSTGRESQL, tablePartitionKeyMap, "")
 }
 
 func testTableTuple() sqlname.NameTuple {
-	oname := sqlname.NewObjectName(YUGABYTEDB, "public", "public", "users")
+	oname := sqlname.NewObjectName(constants.YUGABYTEDB, "public", "public", "users")
 	return sqlname.NameTuple{CurrentName: oname, TargetName: oname}
 }
 
@@ -142,7 +143,7 @@ func TestEventsConfict_TwoCompositeIndexes(t *testing.T) {
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"a": strPtr("1"), "b": strPtr("2"), "c": strPtr("3"), "d": strPtr("4")},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+		ExporterRole: constants.SOURCE_DB_EXPORTER_ROLE,
 	})
 	err := cache.Put(cached)
 	require.NoError(t, err)
@@ -152,7 +153,7 @@ func TestEventsConfict_TwoCompositeIndexes(t *testing.T) {
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"a": strPtr("1"), "b": strPtr("9"), "c": strPtr("3"), "d": strPtr("4")},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+		ExporterRole: constants.SOURCE_DB_EXPORTER_ROLE,
 	})
 	conflicts := findConflictForTest(t, cache, incoming)
 	require.Len(t, conflicts, 1)
@@ -167,7 +168,7 @@ func TestEventsConfict_MissingColumnInEvent(t *testing.T) {
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"a": strPtr("1"), "b": strPtr("2")},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+		ExporterRole: constants.SOURCE_DB_EXPORTER_ROLE,
 	})
 	err := cache.Put(cached)
 	require.NoError(t, err)
@@ -177,7 +178,7 @@ func TestEventsConfict_MissingColumnInEvent(t *testing.T) {
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"a": strPtr("1")},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+		ExporterRole: constants.SOURCE_DB_EXPORTER_ROLE,
 	})
 	_, err = cache.findConflictLocked(incoming)
 	require.Error(t, err)
@@ -193,7 +194,7 @@ func TestEventsConfict_SamePKNoConflict(t *testing.T) {
 		TableNameTup: testTableTuple(),
 		Key:          key,
 		BeforeFields: map[string]*string{"email": strPtr("a@example.com")},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+		ExporterRole: constants.SOURCE_DB_EXPORTER_ROLE,
 	})
 	err := cache.Put(cached)
 	require.NoError(t, err)
@@ -203,7 +204,7 @@ func TestEventsConfict_SamePKNoConflict(t *testing.T) {
 		TableNameTup: testTableTuple(),
 		Key:          key,
 		Fields:       map[string]*string{"email": strPtr("a@example.com")},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+		ExporterRole: constants.SOURCE_DB_EXPORTER_ROLE,
 	})
 	conflicts := findConflictForTest(t, cache, incoming)
 	require.Len(t, conflicts, 0)
@@ -477,7 +478,7 @@ func TestEventsConfict_BeforeBeforeConflict(t *testing.T) {
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"check_id": strPtr("10")},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+		ExporterRole: constants.SOURCE_DB_EXPORTER_ROLE,
 	})
 	err := cache.Put(cached)
 	require.NoError(t, err)
@@ -488,7 +489,7 @@ func TestEventsConfict_BeforeBeforeConflict(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("2")},
 		BeforeFields: map[string]*string{"check_id": strPtr("10")},
 		Fields:       map[string]*string{"check_id": strPtr("20")},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+		ExporterRole: constants.SOURCE_DB_EXPORTER_ROLE,
 	})
 	foundConflicts := findConflictForTest(t, cache, incoming)
 	require.Len(t, foundConflicts, 1)
@@ -496,7 +497,7 @@ func TestEventsConfict_BeforeBeforeConflict(t *testing.T) {
 }
 
 func TestRecordUniqueKeyConflictCount_DedupesEventPair(t *testing.T) {
-	exportDir = t.TempDir()
+	exportDir := t.TempDir()
 	ukConflictStats = UniqueKeyConflictStats{}
 	ukConflictSeen = nil
 
@@ -504,9 +505,9 @@ func TestRecordUniqueKeyConflictCount_DedupesEventPair(t *testing.T) {
 	cached := withAfterFields(&tgtdb.Event{Vsn: 10, TableNameTup: table})
 	incoming := withAfterFields(&tgtdb.Event{Vsn: 20, TableNameTup: table})
 
-	recordUniqueKeyConflictCount(cached, incoming)
-	recordUniqueKeyConflictCount(cached, incoming)
-	recordUniqueKeyConflictCount(incoming, cached)
+	recordUniqueKeyConflictCount(exportDir, cached, incoming)
+	recordUniqueKeyConflictCount(exportDir, cached, incoming)
+	recordUniqueKeyConflictCount(exportDir, incoming, cached)
 
 	require.Equal(t, 1, ukConflictStats.Total)
 	require.Equal(t, 1, ukConflictStats.ByTable[table.ForKey()])
@@ -518,7 +519,7 @@ func TestRecordUniqueKeyConflictCount_DedupesEventPair(t *testing.T) {
 }
 
 func TestUniqueKeyConflictPairKey_OrdersVsns(t *testing.T) {
-	oname := sqlname.NewObjectName(YUGABYTEDB, "public", "public", "users")
+	oname := sqlname.NewObjectName(constants.YUGABYTEDB, "public", "public", "users")
 	table := sqlname.NameTuple{CurrentName: oname, TargetName: oname}.ForKey()
 	require.Equal(t, uniqueKeyConflictPairKey(table, 20, 10), uniqueKeyConflictPairKey(table, 10, 20))
 }
@@ -555,7 +556,7 @@ func TestConflictLookup_FindsBeforeAfterConflict(t *testing.T) {
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"email": strPtr("a@example.com")},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+		ExporterRole: constants.SOURCE_DB_EXPORTER_ROLE,
 	})
 	cache.Put(cached)
 
@@ -565,7 +566,7 @@ func TestConflictLookup_FindsBeforeAfterConflict(t *testing.T) {
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"email": strPtr("a@example.com")},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+		ExporterRole: constants.SOURCE_DB_EXPORTER_ROLE,
 	})
 	got := findConflictForTest(t, cache, incoming)
 	require.Len(t, got, 1)
@@ -581,7 +582,7 @@ func TestConflictLookup_FindsCompositeConflict(t *testing.T) {
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"a": strPtr("1"), "b": strPtr("2")},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+		ExporterRole: constants.SOURCE_DB_EXPORTER_ROLE,
 	})
 	cache.Put(cached)
 
@@ -591,7 +592,7 @@ func TestConflictLookup_FindsCompositeConflict(t *testing.T) {
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"a": strPtr("1"), "b": strPtr("2")},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+		ExporterRole: constants.SOURCE_DB_EXPORTER_ROLE,
 	})
 	got := findConflictForTest(t, cache, incoming)
 	require.Len(t, got, 1)
@@ -608,7 +609,7 @@ func TestConflictLookup_FindsBeforeBeforeConflict_NullsNotDistinct(t *testing.T)
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"check_id": nil},
 		Fields:       map[string]*string{"check_id": strPtr("10")},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+		ExporterRole: constants.SOURCE_DB_EXPORTER_ROLE,
 	})
 	cache.Put(cached)
 
@@ -619,7 +620,7 @@ func TestConflictLookup_FindsBeforeBeforeConflict_NullsNotDistinct(t *testing.T)
 		Key:          map[string]*string{"id": strPtr("2")},
 		BeforeFields: map[string]*string{"check_id": nil},
 		Fields:       map[string]*string{"check_id": strPtr("20")},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+		ExporterRole: constants.SOURCE_DB_EXPORTER_ROLE,
 	})
 	got := findConflictForTest(t, cache, incoming)
 	require.Len(t, got, 1)
@@ -635,7 +636,7 @@ func TestConflictLookup_NullsDistinctNotIndexed(t *testing.T) {
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"email": nil},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+		ExporterRole: constants.SOURCE_DB_EXPORTER_ROLE,
 	})
 	cache.Put(cached)
 	assert.Empty(t, cache.ukLookup, "NULL value under NULLS DISTINCT must not be indexed")
@@ -646,7 +647,7 @@ func TestConflictLookup_NullsDistinctNotIndexed(t *testing.T) {
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"email": nil},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+		ExporterRole: constants.SOURCE_DB_EXPORTER_ROLE,
 	})
 	assert.Empty(t, findConflictForTest(t, cache, incoming))
 }
@@ -661,7 +662,7 @@ func TestConflictLookup_SamePKNoConflict(t *testing.T) {
 		TableNameTup: testTableTuple(),
 		Key:          key,
 		BeforeFields: map[string]*string{"email": strPtr("a@example.com")},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+		ExporterRole: constants.SOURCE_DB_EXPORTER_ROLE,
 	})
 	cache.Put(cached)
 
@@ -671,7 +672,7 @@ func TestConflictLookup_SamePKNoConflict(t *testing.T) {
 		TableNameTup: testTableTuple(),
 		Key:          key,
 		Fields:       map[string]*string{"email": strPtr("a@example.com")},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+		ExporterRole: constants.SOURCE_DB_EXPORTER_ROLE,
 	})
 	assert.Empty(t, findConflictForTest(t, cache, incoming))
 }
@@ -685,7 +686,7 @@ func TestConflictLookup_NoConflictDoesNotBlock(t *testing.T) {
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"email": strPtr("a@example.com")},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+		ExporterRole: constants.SOURCE_DB_EXPORTER_ROLE,
 	})
 	cache.Put(cached)
 
@@ -695,7 +696,7 @@ func TestConflictLookup_NoConflictDoesNotBlock(t *testing.T) {
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"email": strPtr("b@example.com")},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+		ExporterRole: constants.SOURCE_DB_EXPORTER_ROLE,
 	})
 	assert.Empty(t, findConflictForTest(t, cache, incoming))
 
@@ -720,7 +721,7 @@ func TestConflictLookup_RemoveDeindexes(t *testing.T) {
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("1")},
 		BeforeFields: map[string]*string{"email": strPtr("a@example.com")},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+		ExporterRole: constants.SOURCE_DB_EXPORTER_ROLE,
 	})
 	cache.Put(cached)
 	require.NotEmpty(t, cache.ukLookup)
@@ -737,7 +738,7 @@ func TestConflictLookup_RemoveDeindexes(t *testing.T) {
 		TableNameTup: testTableTuple(),
 		Key:          map[string]*string{"id": strPtr("2")},
 		Fields:       map[string]*string{"email": strPtr("a@example.com")},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+		ExporterRole: constants.SOURCE_DB_EXPORTER_ROLE,
 	})
 	assert.Empty(t, findConflictForTest(t, cache, incoming))
 }
@@ -746,18 +747,18 @@ func TestConflictLookup_RemoveDeindexes(t *testing.T) {
 // split of characters between adjacent columns.
 func TestComputeConflictBucketKey_NoAmbiguity(t *testing.T) {
 	idx := uidx("a", "b")
-	k1, err := computeConflictBucketKey(testutils.CreateNameTupleWithTargetName("public.users", "", POSTGRESQL), map[string]*string{"a": strPtr("ab"), "b": strPtr("")}, idx)
+	k1, err := computeConflictBucketKey(testutils.CreateNameTupleWithTargetName("public.users", "", constants.POSTGRESQL), map[string]*string{"a": strPtr("ab"), "b": strPtr("")}, idx)
 	if err != nil {
 		t.Fatalf("error computing conflict bucket key: %v", err)
 	}
-	k2, err := computeConflictBucketKey(testutils.CreateNameTupleWithTargetName("public.users", "", POSTGRESQL), map[string]*string{"a": strPtr("a"), "b": strPtr("b")}, idx)
+	k2, err := computeConflictBucketKey(testutils.CreateNameTupleWithTargetName("public.users", "", constants.POSTGRESQL), map[string]*string{"a": strPtr("a"), "b": strPtr("b")}, idx)
 	if err != nil {
 		t.Fatalf("error computing conflict bucket key: %v", err)
 	}
 	assert.NotEqual(t, k1, k2)
 
 	// missing column is not indexable and is reported as an error
-	_, err = computeConflictBucketKey(testutils.CreateNameTupleWithTargetName("public.users", "", POSTGRESQL), map[string]*string{"a": strPtr("a")}, idx)
+	_, err = computeConflictBucketKey(testutils.CreateNameTupleWithTargetName("public.users", "", constants.POSTGRESQL), map[string]*string{"a": strPtr("a")}, idx)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "column b is missing from fields")
 }

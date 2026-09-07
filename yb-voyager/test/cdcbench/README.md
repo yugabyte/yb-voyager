@@ -19,15 +19,15 @@ debezium-server (generation only — cached artifacts replay with neither).
 cd yb-voyager
 
 # full suite, 5 runs each (benchstat-ready)
-go test -tags cdc_benchmark -run '^$' -bench CDCIngest -benchtime 1x -count 5 ./cmd/
+go test -tags cdc_benchmark -run '^$' -bench CDCIngest -benchtime 1x -count 5 ./src/importdata/
 
 # a single workload
-go test -tags cdc_benchmark -run '^$' -bench 'CDCIngest/edge-all-updates' -benchtime 1x ./cmd/
+go test -tags cdc_benchmark -run '^$' -bench 'CDCIngest/edge-all-updates' -benchtime 1x ./src/importdata/
 
 # compare two checkouts
-go test -tags cdc_benchmark -run '^$' -bench CDCIngest -benchtime 1x -count 5 ./cmd/ > before.txt
+go test -tags cdc_benchmark -run '^$' -bench CDCIngest -benchtime 1x -count 5 ./src/importdata/ > before.txt
 # ...switch branches / apply change...
-go test -tags cdc_benchmark -run '^$' -bench CDCIngest -benchtime 1x -count 5 ./cmd/ > after.txt
+go test -tags cdc_benchmark -run '^$' -bench CDCIngest -benchtime 1x -count 5 ./src/importdata/ > after.txt
 benchstat before.txt after.txt
 ```
 
@@ -91,8 +91,8 @@ before-image (see `conflict-update-pairs/dml.sql`).
 
 ## Architecture
 
-`test/cdcbench` knows nothing about the `cmd` package. The three pieces that need cmd
-internals are injected as closures (`Hooks`) by the shim `cmd/cdc_ingest_bench_test.go`
+`test/cdcbench` knows nothing about the `importdata` package. The three pieces that need
+importdata internals are injected as closures (`Hooks`) by the shim `src/importdata/cdc_ingest_bench_test.go`
 (build tag `cdc_benchmark`): `Bootstrap` (prepare metaDB/name registry/table list for
 an artifact copy and install the mock), `StreamAll` (calls the real `streamChanges` —
 the timed region), and `CacheDepth` (conflict-cache occupancy for the sampler).

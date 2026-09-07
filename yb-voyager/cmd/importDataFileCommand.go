@@ -112,7 +112,7 @@ var importDataFileCmd = &cobra.Command{
 				utils.ErrExit("Aborting import.")
 			}
 		}
-		importData(importFileTasks, errorPolicySnapshotFlag)
+		runImportDataEngine(importFileTasks)
 		packAndSendImportDataFilePayload(COMPLETE, nil)
 
 	},
@@ -160,7 +160,7 @@ func prepareForImportDataCmd(importFileTasks []*importdata.ImportFileTask) {
 
 	escapeFileOptsCharsIfRequired() // escaping for COPY command should be done after saving fileOpts in data file descriptor
 	setImportTableListFlag(importFileTasks)
-	importTableList = importFileTasksToTableNameTuples(importFileTasks)
+	importTableList = importdata.ImportFileTasksToTableNameTuples(importFileTasks)
 	setDataIsExported()
 }
 

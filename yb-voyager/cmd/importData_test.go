@@ -1198,7 +1198,7 @@ func TestExportAndImportDataSnapshotReport(t *testing.T) {
 		tblName,
 	}
 
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target", tableList, errorHandler)
+	snapshotRowsMap, err := importdata.GetImportedSnapshotRowsMap("target", tableList, errorHandler, importDataStateConfigFromGlobals())
 	if err != nil {
 		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
 	}
@@ -1322,7 +1322,7 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue_BatchInge
 		tblName,
 	}
 
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target", tableList, errorHandler)
+	snapshotRowsMap, err := importdata.GetImportedSnapshotRowsMap("target", tableList, errorHandler, importDataStateConfigFromGlobals())
 	if err != nil {
 		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
 	}
@@ -1935,7 +1935,7 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue_Processin
 	tableList := []sqlname.NameTuple{
 		tblName,
 	}
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target", tableList, errorHandler)
+	snapshotRowsMap, err := importdata.GetImportedSnapshotRowsMap("target", tableList, errorHandler, importDataStateConfigFromGlobals())
 	if err != nil {
 		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
 	}

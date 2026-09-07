@@ -129,9 +129,9 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg error) {
 	}
 
 	// Set live migration metrics if applicable
-	if importPhase != dbzm.MODE_SNAPSHOT && statsReporter != nil {
-		dataMetrics.MigrationCdcTotalImportedEvents = statsReporter.TotalEventsImported
-		dataMetrics.CdcEventsImportRate3min = statsReporter.EventsImportRateLast3Min
+	if currentImportPhase() != dbzm.MODE_SNAPSHOT && currentStatsReporter() != nil {
+		dataMetrics.MigrationCdcTotalImportedEvents = currentStatsReporter().TotalEventsImported
+		dataMetrics.CdcEventsImportRate3min = currentStatsReporter().EventsImportRateLast3Min
 	}
 
 	// Set table list count
@@ -152,7 +152,7 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg error) {
 		Error:                   callhome.SanitizeErrorMsg(errorMsg, anonymizer),
 		ControlPlaneType:        getControlPlaneType(),
 		DataMetrics:             dataMetrics,
-		Phase:                   importPhase,
+		Phase:                   currentImportPhase(),
 		IterativeCutoverEnabled: iterativeCutoverEnabled,
 	}
 	if iterativeCutoverEnabled {
