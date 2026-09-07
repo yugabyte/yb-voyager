@@ -434,15 +434,15 @@ func (p *ParserIssueDetector) GetColumnsWithHotspotRangeIndexesDatatypes() map[s
 func (p *ParserIssueDetector) getAllIssues(query string) ([]QueryIssue, error) {
 	plpgsqlIssues, err := p.getPLPGSQLIssues(query)
 	if err != nil {
-		return nil, goerrors.Errorf("error getting plpgsql issues: %v", err)
+		return nil, goerrors.Errorf("error getting plpgsql issues: %w", err)
 	}
 	dmlIssues, err := p.getDMLIssues(query)
 	if err != nil {
-		return nil, goerrors.Errorf("error getting generic issues: %v", err)
+		return nil, goerrors.Errorf("error getting generic issues: %w", err)
 	}
 	ddlIssues, err := p.getDDLIssues(query)
 	if err != nil {
-		return nil, goerrors.Errorf("error getting ddl issues: %v", err)
+		return nil, goerrors.Errorf("error getting ddl issues: %w", err)
 	}
 	return lo.Flatten([][]QueryIssue{plpgsqlIssues, dmlIssues, ddlIssues}), nil
 }
@@ -855,7 +855,7 @@ func (p *ParserIssueDetector) finalizeForeignKeyConstraints() {
 func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 	parseTree, err := queryparser.Parse(query)
 	if err != nil {
-		return goerrors.Errorf("error parsing a query: %v", err)
+		return goerrors.Errorf("error parsing a query: %w", err)
 	}
 	ddlObj, err := queryparser.ProcessDDL(parseTree)
 	if err != nil {
@@ -1038,7 +1038,7 @@ func (p *ParserIssueDetector) GetDDLIssues(query string, targetDbVersion *ybvers
 func (p *ParserIssueDetector) getDDLIssues(query string) ([]QueryIssue, error) {
 	parseTree, err := queryparser.Parse(query)
 	if err != nil {
-		return nil, goerrors.Errorf("error parsing a query: %v", err)
+		return nil, goerrors.Errorf("error parsing a query: %w", err)
 	}
 	isDDL, err := queryparser.IsDDL(parseTree)
 	if err != nil {
@@ -1140,7 +1140,7 @@ func (p *ParserIssueDetector) getDMLIssues(query string) ([]QueryIssue, error) {
 	}
 	isDDL, err := queryparser.IsDDL(parseTree)
 	if err != nil {
-		return nil, goerrors.Errorf("error checking if query is a DDL: %v", err)
+		return nil, goerrors.Errorf("error checking if query is a DDL: %w", err)
 	}
 	if isDDL {
 		//Skip all the DDLs coming to this function

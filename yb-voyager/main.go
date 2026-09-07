@@ -79,7 +79,7 @@ func captureTerminalState() {
 	// Capture the original terminal state
 	state, err := term.GetState(int(syscall.Stdin))
 	if err != nil {
-		utils.ErrExit("error capturing terminal state: %v\n", err)
+		utils.ErrExit("error capturing terminal state: %w\n", err)
 	}
 	originalTermState = state
 }

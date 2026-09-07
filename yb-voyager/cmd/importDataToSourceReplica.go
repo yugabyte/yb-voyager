@@ -46,7 +46,7 @@ var importDataToSourceReplicaCmd = &cobra.Command{
 func setTargetConfSpecifics(cmd *cobra.Command) {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("get migration status record: %v", err)
+		utils.ErrExit("get migration status record: %w", err)
 	}
 	sconf := msr.SourceDBConf
 	tconf.TargetDBType = sconf.DBType
@@ -73,7 +73,7 @@ func init() {
 
 	importDataToSourceReplicaCmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
 		"Port for Prometheus metrics server (default: 9103)")
-	importDataToSourceReplicaCmd.Flags().MarkHidden("prometheus-metrics-port")
+	mustMarkFlagHidden(importDataToSourceReplicaCmd, "prometheus-metrics-port")
 
 	importDataToSourceReplicaCmd.Flags().IntVar(&metricsPort, "metrics-port", 0,
 		"Port to expose Prometheus metrics on (0 disables). Serves GET /metrics.")
@@ -95,7 +95,7 @@ func updateFallForwardEnabledInMetaDB() {
 		record.FallForwardEnabled = true
 	})
 	if err != nil {
-		utils.ErrExit("error while updating fall forward db exists in meta db: %v", err)
+		utils.ErrExit("error while updating fall forward db exists in meta db: %w", err)
 	}
 }
 
@@ -128,7 +128,8 @@ func packAndSendImportDataToSrcReplicaPayload(status string, errorMsg error) {
 	if err != nil {
 		log.Infof("callhome: error in getting the import data: %v", err)
 	} else {
-		importRowsMap.IterKV(func(key sqlname.NameTuple, value RowCountPair) (bool, error) {
+		// callhome payload assembly; the callback never returns an error
+		_ = importRowsMap.IterKV(func(key sqlname.NameTuple, value RowCountPair) (bool, error) {
 			dataMetrics.MigrationSnapshotTotalRows += value.Imported
 			if value.Imported > dataMetrics.MigrationSnapshotLargestTableRows {
 				dataMetrics.MigrationSnapshotLargestTableRows = value.Imported

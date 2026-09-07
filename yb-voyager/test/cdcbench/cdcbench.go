@@ -150,7 +150,8 @@ func printSummary(results []workloadResult) {
 			comma(int64(r.depthAvg)), comma(int64(r.depthMax)),
 			r.timePerRun.Round(time.Millisecond))
 	}
-	tw.Flush()
+	// console results table; nothing actionable on a flush error
+	_ = tw.Flush()
 	fmt.Fprintln(os.Stdout)
 }
 
@@ -277,7 +278,7 @@ func runWorkload(b *testing.B, w Workload, hooks Hooks) workloadResult {
 			depthAvgSum += int64(sum / len(samples))
 		}
 
-		os.RemoveAll(runDir)
+		_ = os.RemoveAll(runDir) // best-effort bench-run cleanup
 	}
 
 	// benchstat-compatible metrics: totals normalized per iteration ("op" =
@@ -324,6 +325,6 @@ func runLogDest(b *testing.B, w Workload, run int) (io.Writer, func()) {
 		// point the global logger away from the file before closing it so
 		// later log writes never hit a closed descriptor
 		log.SetOutput(io.Discard)
-		f.Close()
+		_ = f.Close() // bench log capture; close error is not actionable
 	}
 }

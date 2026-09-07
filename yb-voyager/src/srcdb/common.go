@@ -69,13 +69,13 @@ func processImportDirectives(fileName string) error {
 	if err != nil {
 		return fmt.Errorf("create %q: %w", tmpFileName, err)
 	}
-	defer tmpFile.Close()
+	defer func() { _ = tmpFile.Close() }() // backstop; the success path checks Close before the rename below
 	// Open the original file for reading.
 	file, err := os.Open(fileName)
 	if err != nil {
 		return fmt.Errorf("open %q: %w", fileName, err)
 	}
-	defer file.Close()
+	defer utils.CloseAndLogOnError(fileName, file)
 	// Create a new scanner and read the file line by line.
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -93,7 +93,7 @@ func processImportDirectives(fileName string) error {
 			if err != nil {
 				return fmt.Errorf("open %q: %w", importFileName, err)
 			}
-			defer importFile.Close()
+			defer utils.CloseAndLogOnError(importFileName, importFile)
 			_, err = io.Copy(tmpFile, importFile)
 			if err != nil {
 				return fmt.Errorf("append %q to %q: %w", importFileName, tmpFileName, err)
@@ -109,6 +109,12 @@ func processImportDirectives(fileName string) error {
 	// Check if there were any errors during the scan.
 	if err = scanner.Err(); err != nil {
 		return fmt.Errorf("scan %q: %w", fileName, err)
+	}
+	// Close before the rename replaces the original: a failed close here could
+	// mean incompletely written content silently overwriting the source file.
+	err = tmpFile.Close()
+	if err != nil {
+		return fmt.Errorf("close %q: %w", tmpFileName, err)
 	}
 	// Rename tmpFile to fileName.
 	err = os.Rename(tmpFileName, fileName)

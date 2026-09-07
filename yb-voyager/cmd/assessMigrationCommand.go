@@ -105,10 +105,10 @@ var assessMigrationCmd = &cobra.Command{
 				}
 			}
 		} else {
-			cmd.MarkFlagRequired("source-db-user")
-			cmd.MarkFlagRequired("source-db-name")
+			mustMarkFlagRequired(cmd, "source-db-user")
+			mustMarkFlagRequired(cmd, "source-db-name")
 			//Update this later as per db-types TODO
-			cmd.MarkFlagRequired("source-db-schema")
+			mustMarkFlagRequired(cmd, "source-db-schema")
 		}
 	},
 
@@ -125,7 +125,7 @@ func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&source.DBType, "source-db-type", "",
 		fmt.Sprintf("source database type: (%s)\n", strings.Join(assessMigrationSupportedDBTypes, ", ")))
 
-	cmd.MarkFlagRequired("source-db-type")
+	mustMarkFlagRequired(cmd, "source-db-type")
 
 	cmd.Flags().StringVar(&source.Host, "source-db-host", "localhost",
 		"source database server host")
@@ -197,7 +197,7 @@ func init() {
 
 	BoolVar(assessMigrationCmd.Flags(), &invokedByExportSchema, "invoked-by-export-schema", false,
 		"Flag to indicate if the assessment is invoked by export schema command. ")
-	assessMigrationCmd.Flags().MarkHidden("invoked-by-export-schema") // mark hidden
+	mustMarkFlagHidden(assessMigrationCmd, "invoked-by-export-schema") // mark hidden
 
 	assessMigrationCmd.Flags().StringVar(&sourceReadReplicaEndpoints, "source-read-replica-endpoints", "",
 		"Comma-separated list of read replica endpoints. Each endpoint is host:port. Default port 5432. "+
@@ -313,7 +313,7 @@ func assessMigration() (err error) {
 	parserIssueDetector.PopulateObjectUsages(objectUsagesStats)
 
 	// Stage 2: Assessing migration
-	tracker.StartStage("Assessing migration", 0, nil)
+	_ = tracker.StartStage("Assessing migration", 0, nil) // console progress UX; nothing actionable on error
 	err = runAssessment()
 	if err != nil {
 		tracker.FailStage()
@@ -322,7 +322,7 @@ func assessMigration() (err error) {
 	tracker.CompleteStage()
 
 	// Stage 3: Generate report
-	tracker.StartStage("Generating report", 0, nil)
+	_ = tracker.StartStage("Generating report", 0, nil) // console progress UX; nothing actionable on error
 	err = generateAssessmentReport(replicaDiscoveryInfoForCallhome)
 	if err != nil {
 		tracker.FailStage()
@@ -379,7 +379,7 @@ func fetchObjectUsageStats() ([]*types.ObjectUsageStats, error) {
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching object usage stats %v", err)
+			log.Warnf("error closing rows while fetching object usage stats %v", closeErr)
 		}
 	}()
 
@@ -391,6 +391,9 @@ func fetchObjectUsageStats() ([]*types.ObjectUsageStats, error) {
 			return nil, fmt.Errorf("error scanning object usage stat: %w", err)
 		}
 		objectUsagesStats = append(objectUsagesStats, &objectUsage)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating object usage stats: %w", err)
 	}
 	return objectUsagesStats, nil
 }
@@ -636,7 +639,7 @@ func fetchRedundantIndexInfoFromAssessmentDB() ([]utils.RedundantIndexesInfo, er
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching redundant indexes %v", err)
+			log.Warnf("error closing rows while fetching redundant indexes %v", closeErr)
 		}
 	}()
 
@@ -651,6 +654,9 @@ func fetchRedundantIndexInfoFromAssessmentDB() ([]utils.RedundantIndexesInfo, er
 		}
 		redundantIndex.DBType = source.DBType
 		redundantIndexesInfo = append(redundantIndexesInfo, redundantIndex)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating redundant indexes: %w", err)
 	}
 
 	resolvedRedundantIndexes := getResolvedRedundantIndexes(redundantIndexesInfo)
@@ -716,7 +722,7 @@ func fetchColumnStatisticsInfo() ([]utils.ColumnStatistics, error) {
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching column statistics %v", err)
+			log.Warnf("error closing rows while fetching column statistics %v", closeErr)
 		}
 	}()
 
@@ -729,6 +735,9 @@ func fetchColumnStatisticsInfo() ([]utils.ColumnStatistics, error) {
 		}
 		stat.DBType = source.DBType
 		columnStats = append(columnStats, stat)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating column statistics: %w", err)
 	}
 	return columnStats, nil
 }
@@ -996,7 +1005,7 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching object type mapping metadata: %v", err)
+			log.Warnf("error closing rows while fetching object type mapping metadata: %v", closeErr)
 		}
 	}()
 
@@ -1132,7 +1141,7 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching database queries summary metadata: %v", err)
+			log.Warnf("error closing rows while fetching database queries summary metadata: %v", closeErr)
 		}
 	}()
 
@@ -1219,7 +1228,7 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching unsupported datatypes metadata: %v", err)
+			log.Warnf("error closing rows while fetching unsupported datatypes metadata: %v", closeErr)
 		}
 	}()
 

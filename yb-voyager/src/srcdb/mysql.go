@@ -511,6 +511,13 @@ func (ms *MySQL) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.Struct
 	panic("not implemented")
 }
 
+// GetGeneratedStoredColumns is a no-op for MySQL: STORED generated columns and the CDC
+// custom/pk partitioning that consumes this info are only supported for a PostgreSQL source
+// (MySQL live migration always uses PARTITION_BY_TABLE).
+func (ms *MySQL) GetGeneratedStoredColumns(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	panic("not implemented")
+}
+
 func (ms *MySQL) GetNonPKTables() ([]string, error) {
 	query := fmt.Sprintf(`SELECT 
 		IFNULL(pk_count.count, 0) AS pk_count, 

@@ -19,6 +19,7 @@ import (
 	"bufio"
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -341,7 +342,7 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 	if err != nil {
 		return 0, fmt.Errorf("open batch file %q: %w", batch.GetFilePath(), err)
 	}
-	defer file.Close()
+	defer utils.CloseAndLogOnError(batch.GetFilePath(), file)
 
 	//setting the schema so that the table is created in the correct schema
 	tdb.setTargetSchema(conn)
@@ -398,7 +399,7 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 	if err != nil {
 		return 0, err
 	}
-	defer sqlldrLogFile.Close()
+	defer utils.CloseAndLogOnError(sqlldrLogFilePath, sqlldrLogFile)
 
 	user := tdb.tconf.User
 	password := tdb.tconf.Password
@@ -518,6 +519,10 @@ func (tdb *TargetOracleDB) GetListOfTableAttributes(tableNameTup sqlname.NameTup
 	return columns, nil
 }
 
+func (tdb *TargetOracleDB) FindBestMatchingTargetColumnName(columnName string, targetTableColumns []string) (string, error) {
+	return tdb.FindBestMatchingColumnName(columnName, targetTableColumns)
+}
+
 // execute all events sequentially one by one in a single transaction
 func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error {
 	// TODO: figure out how to avoid round trips to Oracle DB
@@ -529,8 +534,8 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 		}
 		defer func() {
 			errRollBack := tx.Rollback()
-			if errRollBack != nil && errRollBack != sql.ErrTxDone {
-				log.Errorf("error rolling back tx for batch id (%s): %v", batch.ID(), err)
+			if errRollBack != nil && !errors.Is(errRollBack, sql.ErrTxDone) {
+				log.Errorf("error rolling back tx for batch id (%s): %v", batch.ID(), errRollBack)
 			}
 		}()
 		var rowsAffectedInserts, rowsAffectedDeletes, rowsAffectedUpdates int64

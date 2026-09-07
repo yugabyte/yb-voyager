@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/samber/lo"
+	"github.com/stretchr/testify/require"
 	"gotest.tools/assert"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -398,4 +399,82 @@ func TestPostgresGetPrimaryKeyColumns(t *testing.T) {
 		t.Errorf("Table %s has no PK and should be absent from result map; got %v",
 			noPKTable.ForOutput(), cols)
 	}
+}
+
+func TestGetGeneratedStoredColumns(t *testing.T) {
+	testPostgresSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA test_generated_stored;`,
+		`CREATE TABLE test_generated_stored.probe (
+			id INT,
+			val INT GENERATED ALWAYS AS (id + 1) STORED
+		);`,
+		`CREATE TABLE test_generated_stored.plain (id INT, data TEXT);`,
+		`CREATE TABLE test_generated_stored.identity_only (id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, data TEXT);`,
+		`CREATE TABLE test_generated_stored.with_generated (id INT, qty INT, price NUMERIC, amount NUMERIC GENERATED ALWAYS AS (qty * price) STORED);`,
+		`CREATE TABLE test_generated_stored."MixedCase" (id INT, "Length" INT, "Width" INT, "Area" INT GENERATED ALWAYS AS ("Length" * "Width") STORED);`,
+		`CREATE TABLE test_generated_stored.two_generated (id INT, a INT, b INT, sum_ab INT GENERATED ALWAYS AS (a + b) STORED, prod_ab INT GENERATED ALWAYS AS (a * b) STORED);`,
+		`CREATE TABLE test_generated_stored.uk_on_generated (id INT, amount INT GENERATED ALWAYS AS (id + 1) STORED, UNIQUE (amount));`,
+		`CREATE TABLE test_generated_stored.uk_index_on_generated (id INT, amount INT GENERATED ALWAYS AS (id + 1) STORED);`,
+		`CREATE UNIQUE INDEX idx_uk_index_on_generated ON test_generated_stored.uk_index_on_generated (amount);`,
+		`CREATE TABLE test_generated_stored.partitioned (
+			id INT,
+			data TEXT,
+			qty INT,
+			amount INT GENERATED ALWAYS AS (qty + 1) STORED
+		) PARTITION BY LIST (data);`,
+		`CREATE TABLE test_generated_stored.partitioned_l PARTITION OF test_generated_stored.partitioned FOR VALUES IN ('London');`,
+		`CREATE TABLE test_generated_stored.partitioned_s PARTITION OF test_generated_stored.partitioned FOR VALUES IN ('Sydney');`,
+	)
+	defer testPostgresSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_generated_stored CASCADE;`)
+
+	testPostgresSource.Schemas = []sqlname.Identifier{sqlname.NewIdentifier("postgresql", "test_generated_stored")}
+	_ = testPostgresSource.DB().Connect()
+
+	newTuple := func(name string) sqlname.NameTuple {
+		return testutils.CreateNameTupleWithSourceName(name, "test_generated_stored", "postgresql")
+	}
+	plain := newTuple("test_generated_stored.plain")
+	identityOnly := newTuple("test_generated_stored.identity_only")
+	withGenerated := newTuple("test_generated_stored.with_generated")
+	mixedCase := newTuple(`test_generated_stored."MixedCase"`)
+	twoGenerated := newTuple("test_generated_stored.two_generated")
+	probe := newTuple("test_generated_stored.probe")
+	ukOnGenerated := newTuple("test_generated_stored.uk_on_generated")
+	ukIndexOnGenerated := newTuple("test_generated_stored.uk_index_on_generated")
+	partitioned := newTuple("test_generated_stored.partitioned")
+
+	tableList := []sqlname.NameTuple{
+		plain, identityOnly, withGenerated, mixedCase, twoGenerated,
+		probe, ukOnGenerated, ukIndexOnGenerated, partitioned,
+	}
+
+	empty, err := testPostgresSource.DB().GetGeneratedStoredColumns(nil)
+	require.NoError(t, err)
+	require.Empty(t, empty.Keys())
+
+	got, err := testPostgresSource.DB().GetGeneratedStoredColumns(tableList)
+	require.NoError(t, err)
+
+	_, ok := got.Get(plain)
+	require.False(t, ok, "plain table should not appear")
+	_, ok = got.Get(identityOnly)
+	require.False(t, ok, "identity-only table should not appear (IDENTITY is not a STORED generated column)")
+
+	// The source-side API returns only the STORED generated column names per table. Whether a
+	// column is part of a unique index is resolved later in the cmd layer against the target,
+	// so it is not asserted here (uk_* tables just confirm generated columns are still detected).
+	assertGeneratedStoredColumns(t, got, probe, []string{"val"})
+	assertGeneratedStoredColumns(t, got, withGenerated, []string{"amount"})
+	assertGeneratedStoredColumns(t, got, mixedCase, []string{"Area"})
+	assertGeneratedStoredColumns(t, got, twoGenerated, []string{"sum_ab", "prod_ab"})
+	assertGeneratedStoredColumns(t, got, ukOnGenerated, []string{"amount"})
+	assertGeneratedStoredColumns(t, got, ukIndexOnGenerated, []string{"amount"})
+	assertGeneratedStoredColumns(t, got, partitioned, []string{"amount"})
+}
+
+func assertGeneratedStoredColumns(t *testing.T, got *utils.StructMap[sqlname.NameTuple, []string], table sqlname.NameTuple, expected []string) {
+	t.Helper()
+	cols, ok := got.Get(table)
+	require.True(t, ok, "expected generated columns for %s", table.ForOutput())
+	require.ElementsMatch(t, expected, cols)
 }

@@ -59,7 +59,10 @@ func (df *SqlDataFile) NextLine() (string, int64, error) {
 }
 
 func (df *SqlDataFile) Close() {
-	df.closer.Close()
+	err := df.closer.Close()
+	if err != nil {
+		log.Warnf("closing sql data file reader: %v", err)
+	}
 }
 
 func (df *SqlDataFile) GetBytesRead() int64 {

@@ -127,7 +127,7 @@ func (pg *TargetPostgreSQL) Init() error {
 		schemaList)
 	rows, err := pg.Query(checkSchemaExistsQuery)
 	if err != nil {
-		return goerrors.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, pg.tconf.Host, err)
+		return goerrors.Errorf("run query %q on target %q to check schema exists: %w", checkSchemaExistsQuery, pg.tconf.Host, err)
 	}
 	var returnedSchemas []string
 	defer rows.Close()
@@ -466,7 +466,7 @@ func (pg *TargetPostgreSQL) GetPrimaryKeyConstraintNames(table sqlname.NameTuple
 }
 
 func (pg *TargetPostgreSQL) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []UniqueIndex], error) {
-	log.Infof("getting unique indexes from target Postgres for tables: %v", tableList)
+	log.Infof("getting unique indexes from target Postgres for tables: %s", strings.Join(sqlname.NameTupleListToStrings(tableList), ", "))
 	// Unique indexes on a partitioned table are often defined on its leaf partitions
 	// rather than the root (e.g. CREATE UNIQUE INDEX ... ON <leaf> (...)). Since import
 	// events only reference the root table, we discover the unique indexes of every leaf
@@ -508,7 +508,7 @@ func (pg *TargetPostgreSQL) GetTableToUniqueIndexesMap(tableList []sqlname.NameT
 		result.Put(rootTuple, mergeUniqueIndexes(existing, indexes))
 	}
 
-	log.Infof("unique indexes from postgres for tables: %v", result)
+	log.Infof("unique indexes from postgres for tables: %s", formatTableToUniqueIndexesForLog(result))
 	return result, nil
 }
 
@@ -583,6 +583,26 @@ func dedupeUniqueIndexes(indexes []UniqueIndex) []UniqueIndex {
 		result = append(result, idx)
 	}
 	return result
+}
+
+// formatTableToUniqueIndexesForLog renders the unique indexes of each table as
+// "table: index(col1, col2) [nulls not distinct]; table2: ...", sorted by table name.
+func formatTableToUniqueIndexesForLog(tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []UniqueIndex]) string {
+	var tableEntries []string
+	// the callback never returns an error, so IterKVSorted cannot fail here.
+	_ = tableToUniqueIndexes.IterKVSorted(func(a, b sqlname.NameTuple) bool {
+		return a.ForOutput() < b.ForOutput()
+	}, func(table sqlname.NameTuple, indexes []UniqueIndex) (bool, error) {
+		indexEntries := lo.Map(indexes, func(index UniqueIndex, _ int) string {
+			return index.String()
+		})
+		tableEntries = append(tableEntries, fmt.Sprintf("%s: %s", table.ForOutput(), strings.Join(indexEntries, ", ")))
+		return true, nil
+	})
+	if len(tableEntries) == 0 {
+		return "none"
+	}
+	return strings.Join(tableEntries, "; ")
 }
 
 // mergeUniqueIndexes merges two index lists, deduplicating by column signature.
@@ -706,7 +726,7 @@ func (pg *TargetPostgreSQL) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 	if err != nil {
 		return 0, fmt.Errorf("open file %s: %w", batch.GetFilePath(), err)
 	}
-	defer file.Close()
+	defer utils.CloseAndLogOnError(batch.GetFilePath(), file)
 
 	//setting the schema so that COPY command can acesss the table
 	pg.setTargetSchema(conn)
@@ -787,6 +807,10 @@ func (pg *TargetPostgreSQL) GetListOfTableAttributes(nt sqlname.NameTuple) ([]st
 	return result, nil
 }
 
+func (pg *TargetPostgreSQL) FindBestMatchingTargetColumnName(columnName string, targetTableColumns []string) (string, error) {
+	return pg.FindBestMatchingColumnName(columnName, targetTableColumns)
+}
+
 func (pg *TargetPostgreSQL) IsNonRetryableCopyError(err error) bool {
 	if err == nil {
 		return false
@@ -807,7 +831,8 @@ func (pg *TargetPostgreSQL) RestoreSequences(sequencesLastVal *utils.StructMap[s
 	log.Infof("restoring sequences on target")
 	batch := pgx.Batch{}
 	restoreStmt := "SELECT pg_catalog.setval('%s', %d, true)"
-	sequencesLastVal.IterKV(func(sequenceTuple sqlname.NameTuple, lastValue int64) (bool, error) {
+	// batch assembly; the callback never returns an error
+	_ = sequencesLastVal.IterKV(func(sequenceTuple sqlname.NameTuple, lastValue int64) (bool, error) {
 		if lastValue == 0 {
 			// TODO: can be valid for cases like cyclic sequences
 			return true, nil
@@ -883,8 +908,8 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		}
 		defer func() {
 			errRollBack := tx.Rollback(ctx)
-			if errRollBack != nil && errRollBack != pgx.ErrTxClosed {
-				log.Errorf("error rolling back tx for batch id (%s): %v", batch.ID(), err)
+			if errRollBack != nil && !errors.Is(errRollBack, pgx.ErrTxClosed) {
+				log.Errorf("error rolling back tx for batch id (%s): %v", batch.ID(), errRollBack)
 			}
 		}()
 
@@ -924,7 +949,7 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 					errorMsg = fmt.Sprintf("error executing stmt for event with vsn(%d) in batch(%s)", batch.Events[i].Vsn, batch.ID())
 				}
 				log.Errorf("%s : %v", errorMsg, err)
-				closeBatch()
+				_ = closeBatch() // best-effort; the original error below takes precedence
 				return false, fmt.Errorf("%s: %w", errorMsg, err)
 			}
 			switch true {

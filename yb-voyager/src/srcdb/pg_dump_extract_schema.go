@@ -119,7 +119,7 @@ func readSchemaFile(path string) []string {
 	if err != nil {
 		utils.ErrExit("error in opening schema file: %s: %w", path, err)
 	}
-	defer file.Close()
+	defer utils.CloseAndLogOnError(path, file)
 	var lines []string
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -241,7 +241,10 @@ func parseSchemaFile(exportDir string, schemaDir string, exportObjectTypesList [
 		msg := fmt.Sprintf("\nIMPORTANT NOTE: Please, review and manually import the DDL statements from the %q\n", filePath)
 		color.Red(msg)
 		log.Info(msg)
-		os.WriteFile(filePath, []byte(setSessionVariables.String()+uncategorizedSqls.String()), 0644)
+		err := os.WriteFile(filePath, []byte(setSessionVariables.String()+uncategorizedSqls.String()), 0644)
+		if err != nil {
+			utils.ErrExit("failed to write %q: %w", filePath, err)
+		}
 		return 1
 	}
 

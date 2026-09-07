@@ -82,7 +82,7 @@ func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to create temp schema file: %w", err)
 	}
-	defer tmpFile.Close()
+	defer utils.CloseAndLogOnError(tmpFile.Name(), tmpFile)
 
 	if _, err := tmpFile.Write(yugabytedbInitSchemaFile); err != nil {
 		return fmt.Errorf("failed to write to temp schema file: %w", err)
@@ -219,7 +219,7 @@ func (yb *YugabyteDBContainer) GetConnectionString() string {
 	config := yb.GetConfig()
 	host, port, err := yb.GetHostPort()
 	if err != nil {
-		utils.ErrExit("failed to get host port for yugabytedb connection string: %v", err)
+		utils.ErrExit("failed to get host port for yugabytedb connection string: %w", err)
 	}
 
 	return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", config.User, config.Password, host, port, config.DBName)
@@ -385,7 +385,7 @@ func (yb *YugabyteDBContainer) GetConnectionWithDB(dbName string) (*sql.DB, erro
 	config := yb.GetConfig()
 	host, port, err := yb.GetHostPort()
 	if err != nil {
-		utils.ErrExit("failed to get host port for yugabytedb connection string: %v", err)
+		utils.ErrExit("failed to get host port for yugabytedb connection string: %w", err)
 	}
 
 	connStr := fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", config.User, config.Password, host, port, dbName)

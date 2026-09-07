@@ -111,7 +111,7 @@ func EnsureArtifact(b *testing.B, w Workload) (string, artifactManifest) {
 	}
 	manifest, err := generateArtifact(b, w, voyagerBin, dir, exportDir)
 	if err != nil {
-		os.RemoveAll(dir) // don't leave a half-built artifact behind
+		_ = os.RemoveAll(dir) // best-effort: don't leave a half-built artifact behind
 		b.Fatalf("cdcbench: generating artifact for workload %q: %v", w.Name, err)
 	}
 	return exportDir, manifest
@@ -176,7 +176,7 @@ func generateArtifact(b *testing.B, w Workload, voyagerBin, dir, exportDir strin
 	if err != nil {
 		return artifactManifest{}, err
 	}
-	defer logFile.Close()
+	defer func() { _ = logFile.Close() }() // bench log capture; close error is not actionable
 
 	connStr := func(db string) string {
 		return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?sslmode=disable", config.User, config.Password, host, port, db)
@@ -409,7 +409,11 @@ func pollUntil(timeout, interval time.Duration, procDone <-chan error, cond func
 		}
 		select {
 		case err := <-procDone:
-			return fmt.Errorf("export data exited early: %v", err)
+			if err == nil {
+				// exec.Wait returns nil on a clean exit-0, which is still "too early" here
+				return fmt.Errorf("export data exited early with status 0")
+			}
+			return fmt.Errorf("export data exited early: %w", err)
 		case <-ticker.C:
 		}
 	}

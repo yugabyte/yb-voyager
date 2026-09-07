@@ -255,7 +255,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord, donotPrint b
 		for i, ntup := range tableNameTups {
 			sourceReplicaTups[i], err = namereg.NameReg.LookupTableName(ntup.ForKey())
 			if err != nil {
-				utils.ErrExit("lookup table %s: %v", ntup.ForKey(), err)
+				utils.ErrExit("lookup table %s: %w", ntup.ForKey(), err)
 			}
 		}
 		replicaEventsImportedMap, err = getImportedEventsMap("source-replica", sourceReplicaTups, msr.SourceReplicaDBConf)
@@ -276,12 +276,15 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord, donotPrint b
 	for _, nameTup := range tableNameTups {
 
 		row := RowData{}
-		updateExportedSnapshotRowsInTheRow(msr, &row, nameTup, dbzmNameTupToRowCount, exportedPGSnapshotRowsMap)
+		err := updateExportedSnapshotRowsInTheRow(msr, &row, nameTup, dbzmNameTupToRowCount, exportedPGSnapshotRowsMap)
+		if err != nil {
+			utils.ErrExit("error while updating exported snapshot rows in the row for table %q: %w", nameTup.ForOutput(), err)
+		}
 		row.ImportedSnapshotRows = 0
 		row.ErroredImportedSnapshotRows = 0
 		row.TableName = nameTup.ForKey()
 		row.DBType = "source"
-		err := updateExportedEventsCountsInTheRow(&row, nameTup, sourceExportedEventsMap, targetExportedEventsMap) //source OUT counts
+		err = updateExportedEventsCountsInTheRow(&row, nameTup, sourceExportedEventsMap, targetExportedEventsMap) //source OUT counts
 		if err != nil {
 			utils.ErrExit("error while getting exported events counts for source DB: %w\n", err)
 		}

@@ -608,7 +608,7 @@ func (yb *TargetYugabyteDB) GetPrimaryKeyColumnsForTables(tables []sqlname.NameT
 }
 
 func (yb *TargetYugabyteDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []UniqueIndex], error) {
-	log.Infof("getting unique indexes from target for tables: %v", tableList)
+	log.Infof("getting unique indexes from target for tables: %s", strings.Join(sqlname.NameTupleListToStrings(tableList), ", "))
 
 	// Unique indexes on a partitioned table are often defined on its leaf partitions
 	// rather than the root (e.g. CREATE UNIQUE INDEX ... ON <leaf> (...)). Since import
@@ -651,7 +651,7 @@ func (yb *TargetYugabyteDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameT
 		result.Put(rootTuple, mergeUniqueIndexes(existing, indexes))
 	}
 
-	log.Infof("unique indexes from target for tables: %v", result)
+	log.Infof("unique indexes from target for tables: %s", formatTableToUniqueIndexesForLog(result))
 	return result, nil
 }
 
@@ -869,7 +869,7 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 			errs.IMPORT_BATCH_ERROR_STEP_OPEN_BATCH, nil)
 		return 0, err
 	}
-	defer file.Close()
+	defer utils.CloseAndLogOnError(batch.GetFilePath(), file)
 
 	// 2. setting the schema so that COPY command can acesss the table
 	// Q: If we set the schema for this batch on this conn, will it impact others using the same conn from pool later?
@@ -960,8 +960,8 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 	}
 	for {
 		line, _, readLinErr := df.NextLine()
-		if readLinErr != nil && readLinErr != io.EOF {
-			return 0, newImportBatchErrorPgYb(err, batch,
+		if readLinErr != nil && !errors.Is(readLinErr, io.EOF) {
+			return 0, newImportBatchErrorPgYb(readLinErr, batch,
 				errs.IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER,
 				errs.IMPORT_BATCH_ERROR_STEP_READ_LINE_BATCH, nil)
 		}
@@ -972,7 +972,7 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 			2. line!=""(last line) + EOF error
 		*/
 		if line == "" { // handles case 1
-			if readLinErr == io.EOF {
+			if errors.Is(readLinErr, io.EOF) {
 				break
 			} else {
 				// skipping if any empty line (not expected from batch file)
@@ -1013,7 +1013,7 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 			log.Warnf("Unexpected: COPY command for line=%q in batch %s returned 0 rows affected which is not expected", line, batch.GetFilePath())
 		}
 
-		if readLinErr == io.EOF { // handles case 2
+		if errors.Is(readLinErr, io.EOF) { // handles case 2
 			log.Infof("reached end of file %s", batch.GetFilePath())
 			break
 		}
@@ -1092,11 +1092,17 @@ func (yb *TargetYugabyteDB) GetListOfTableAttributes(nt sqlname.NameTuple) ([]st
 	return result, nil
 }
 
+func (yb *TargetYugabyteDB) FindBestMatchingTargetColumnName(columnName string, targetTableColumns []string) (string, error) {
+	return yb.FindBestMatchingColumnName(columnName, targetTableColumns)
+
+}
+
 func (yb *TargetYugabyteDB) RestoreSequences(sequencesLastVal *utils.StructMap[sqlname.NameTuple, int64]) error {
 	log.Infof("restoring sequences on target")
 	batch := pgx.Batch{}
 	restoreStmt := "SELECT pg_catalog.setval('%s', %d, true)"
-	sequencesLastVal.IterKV(func(sequenceTuple sqlname.NameTuple, lastValue int64) (bool, error) {
+	// batch assembly; the callback never returns an error
+	_ = sequencesLastVal.IterKV(func(sequenceTuple sqlname.NameTuple, lastValue int64) (bool, error) {
 		if lastValue == 0 {
 			// TODO: can be valid for cases like cyclic sequences
 			log.Infof("sequence %s has last value 0, skipping", sequenceTuple.ForKey())
@@ -1191,8 +1197,8 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		}
 		defer func() {
 			errRollBack := tx.Rollback(ctx)
-			if errRollBack != nil && errRollBack != pgx.ErrTxClosed {
-				log.Errorf("error rolling back tx for batch id (%s): %v", batch.ID(), err)
+			if errRollBack != nil && !errors.Is(errRollBack, pgx.ErrTxClosed) {
+				log.Errorf("error rolling back tx for batch id (%s): %v", batch.ID(), errRollBack)
 			}
 		}()
 
@@ -1247,7 +1253,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 					errorMsg = fmt.Sprintf("error executing stmt for event with vsn(%d) in batch(%s)", batch.Events[i].Vsn, batch.ID())
 				}
 				log.Errorf("%s : %v", errorMsg, err)
-				closeBatch()
+				_ = closeBatch() // best-effort; the original error below takes precedence
 				return false, fmt.Errorf("%s: %w", errorMsg, err)
 			}
 			switch true {
@@ -1425,7 +1431,7 @@ func (yb *TargetYugabyteDB) GetYBServers() (bool, []*TargetConf, error) {
 						msg = fmt.Sprintf("public ip is not available for host: %s but private ip are available. "+
 							"Either refer to help for how to enable public ip or remove --use-public-up flag and restart the import", host)
 					}
-					utils.ErrExit(msg)
+					utils.ErrExit("%s", msg)
 				}
 			} else {
 				clone.Host = host
@@ -1721,7 +1727,7 @@ func getYBSessionInitScript(tconf *TargetConf) []string {
 		log.Infof("YBSessionInitScript: %v\n", sessionVars)
 		return sessionVars
 	}
-	defer varsFile.Close()
+	defer utils.CloseAndLogOnError(sessionVarsPath, varsFile)
 	fileScanner := bufio.NewScanner(varsFile)
 
 	var curLine string

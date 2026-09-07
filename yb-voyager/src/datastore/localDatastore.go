@@ -31,7 +31,7 @@ type LocalDataStore struct {
 func NewLocalDataStore(dataDir string) *LocalDataStore {
 	dataDir, err := filepath.Abs(dataDir)
 	if err != nil {
-		utils.ErrExit("failed to get absolute path of directory: %q: %s", dataDir, err)
+		utils.ErrExit("failed to get absolute path of directory: %q: %w", dataDir, err)
 	}
 	dataDir = filepath.Clean(dataDir)
 	return &LocalDataStore{dataDir: dataDir}
@@ -65,7 +65,7 @@ func (ds *LocalDataStore) OpenAt(filePath string, offset int64) (io.ReadCloser, 
 	}
 	_, err = file.Seek(offset, io.SeekStart)
 	if err != nil {
-		file.Close()
+		_ = file.Close() // best-effort cleanup on the error path
 		return nil, err
 	}
 	return file, nil

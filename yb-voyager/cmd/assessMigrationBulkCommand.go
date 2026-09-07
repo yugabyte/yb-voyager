@@ -99,7 +99,7 @@ func init() {
 	// register common global flags
 	BoolVar(assessMigrationBulkCmd.Flags(), &perfProfile, "profile", false,
 		"profile yb-voyager for performance analysis")
-	assessMigrationBulkCmd.Flags().MarkHidden("profile")
+	mustMarkFlagHidden(assessMigrationBulkCmd, "profile")
 	assessMigrationBulkCmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,
 		"assume answer as yes for all questions during migration (default false)")
 	BoolVar(assessMigrationBulkCmd.Flags(), &callhome.SendDiagnostics, "send-diagnostics", true,
@@ -128,8 +128,8 @@ Sample fleet_config_file:
 	BoolVar(assessMigrationBulkCmd.Flags(), &startClean, "start-clean", false, "Cleans up all the export-dirs in bulk assessment directory to start everything from scratch")
 
 	// marking mandatory flags
-	assessMigrationBulkCmd.MarkFlagRequired("fleet-config-file")
-	assessMigrationBulkCmd.MarkFlagRequired("bulk-assessment-dir")
+	mustMarkFlagRequired(assessMigrationBulkCmd, "fleet-config-file")
+	mustMarkFlagRequired(assessMigrationBulkCmd, "bulk-assessment-dir")
 }
 
 func assessMigrationBulk() error {
@@ -272,7 +272,7 @@ func parseFleetConfigFile(filePath string) ([]AssessMigrationDBConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer utils.CloseAndLogOnError(filePath, file)
 
 	reader := csv.NewReader(file)
 	header, err := reader.Read()
@@ -428,11 +428,15 @@ func generateBulkAssessmentHtmlReport() error {
 	if err != nil {
 		return fmt.Errorf("create file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }() // backstop; the success path checks Close below
 
 	err = tmpl.Execute(file, bulkAssessmentReport)
 	if err != nil {
 		return fmt.Errorf("failed to execute parsed template file: %w", err)
+	}
+	err = file.Close()
+	if err != nil {
+		return fmt.Errorf("close bulk assessment report %q: %w", reportPath, err)
 	}
 	utils.PrintAndLogf("generated bulk assessment HTML report at: %s", reportPath)
 	return nil
@@ -494,7 +498,7 @@ func validateFleetConfigFile(filePath string) error {
 	if err != nil {
 		return fmt.Errorf("could not open fleet config file: %w", err)
 	}
-	defer file.Close()
+	defer utils.CloseAndLogOnError(filePath, file)
 
 	// Check if the file is empty
 	stat, err := file.Stat()

@@ -185,7 +185,7 @@ func IsFileEmpty(fpath string) bool {
 		log.Errorf("IsFileEmpty: file open: %v", err)
 		return false
 	}
-	defer file.Close()
+	defer CloseAndLogOnError(fpath, file)
 
 	fileInfo, err := file.Stat()
 	if err != nil {
@@ -202,7 +202,7 @@ func FileOrFolderExists(path string) bool {
 		if os.IsNotExist(err) {
 			return false
 		} else {
-			ErrExit("check if %q exists: %s", path, err)
+			ErrExit("check if %q exists: %w", path, err)
 		}
 	} else {
 		return true
@@ -213,7 +213,7 @@ func FileOrFolderExists(path string) bool {
 func FileOrFolderExistsWithGlobPattern(path string) bool {
 	files, err := filepath.Glob(path)
 	if err != nil {
-		ErrExit("Error while reading %q: %s", path, err)
+		ErrExit("Error while reading %q: %w", path, err)
 	}
 	return len(files) > 0
 }
@@ -236,7 +236,7 @@ func CleanDir(dir string) {
 		for _, file := range files {
 			err := os.RemoveAll(file)
 			if err != nil {
-				ErrExit("clean dir %q: %s", dir, err)
+				ErrExit("clean dir %q: %w", dir, err)
 			}
 		}
 	}
@@ -289,18 +289,32 @@ func CopyFile(src, dst string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open source file %q: %w", src, err)
 	}
-	defer srcFile.Close()
+	defer CloseAndLogOnError(src, srcFile)
 	dstFile, err := os.Create(dst)
 	if err != nil {
 		return fmt.Errorf("failed to create destination file %q: %w", dst, err)
 	}
-	defer dstFile.Close()
+	defer func() { _ = dstFile.Close() }() // backstop; the success path checks Close below
 	_, err = io.Copy(dstFile, srcFile)
 	if err != nil {
 		return fmt.Errorf("failed to copy from %q to %q: %w", src, dst, err)
 	}
 
+	err = dstFile.Close()
+	if err != nil {
+		return fmt.Errorf("failed to close destination file %q: %w", dst, err)
+	}
 	return nil
+}
+
+// CloseAndLogOnError closes c and logs a warning if closing fails. Use it for
+// read-path and teardown closes where the error is not actionable. Write-path
+// closes must be checked explicitly instead — a failed close there can mean
+// lost data.
+func CloseAndLogOnError(what string, c io.Closer) {
+	if err := c.Close(); err != nil {
+		log.Warnf("closing %s: %v", what, err)
+	}
 }
 
 func GetObjectFilePath(schemaDirPath string, objType string) string {
@@ -375,7 +389,7 @@ func GetLocalIP() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }() // udp probe teardown; close error is not actionable
 
 	localAddress := conn.LocalAddr().(*net.UDPAddr)
 	return localAddress.IP.String(), nil
@@ -431,10 +445,10 @@ func WaitForLineInLogFile(filePath string, message string, timeoutDuration time.
 
 	file, err := os.Open(filePath)
 	if err != nil {
-		return goerrors.Errorf("error opening file %s: %v", filePath, err)
+		return goerrors.Errorf("error opening file %s: %w", filePath, err)
 	}
 
-	defer file.Close()
+	defer CloseAndLogOnError(filePath, file)
 
 	for {
 		reader := bufio.NewReader(file)
@@ -442,7 +456,7 @@ func WaitForLineInLogFile(filePath string, message string, timeoutDuration time.
 			line, err := reader.ReadString('\n')
 
 			if err != nil && err != io.EOF {
-				return goerrors.Errorf("error reading line from file %s: %v", filePath, err)
+				return goerrors.Errorf("error reading line from file %s: %w", filePath, err)
 			}
 
 			if strings.Contains(string(line), message) {
@@ -553,9 +567,9 @@ func ForEachMatchingLineInFile(filePath string, re *regexp.Regexp, callback func
 func ForEachLineInFile(filePath string, callback func(line string) bool) error {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return goerrors.Errorf("error opening file %s: %v", filePath, err)
+		return goerrors.Errorf("error opening file %s: %w", filePath, err)
 	}
-	defer file.Close()
+	defer CloseAndLogOnError(filePath, file)
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -566,7 +580,7 @@ func ForEachLineInFile(filePath string, callback func(line string) bool) error {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return goerrors.Errorf("error reading file %s: %v", filePath, err)
+		return goerrors.Errorf("error reading file %s: %w", filePath, err)
 	}
 	return nil
 }
@@ -626,7 +640,7 @@ func GetFSUtilizationPercentage(path string) (int, error) {
 	var stats syscall.Statfs_t
 	err := syscall.Statfs(path, &stats)
 	if err != nil {
-		return -1, goerrors.Errorf("error while getting disk stats for %q: %v", path, err)
+		return -1, goerrors.Errorf("error while getting disk stats for %q: %w", path, err)
 	}
 
 	percUtilization := 100 - int((stats.Bavail*100)/stats.Blocks)
@@ -637,9 +651,9 @@ func GetFSUtilizationPercentage(path string) (int, error) {
 func ReadTableNameListFromFile(filePath string) ([]string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return nil, goerrors.Errorf("error opening file %s: %v", filePath, err)
+		return nil, goerrors.Errorf("error opening file %s: %w", filePath, err)
 	}
-	defer file.Close()
+	defer CloseAndLogOnError(filePath, file)
 	var list []string
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -649,7 +663,7 @@ func ReadTableNameListFromFile(filePath string) ([]string, error) {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, goerrors.Errorf("error reading file %s: %v", filePath, err)
+		return nil, goerrors.Errorf("error reading file %s: %w", filePath, err)
 	}
 	return list, nil
 }
@@ -743,9 +757,9 @@ func GetFreePort() (int, error) {
 	// Listen on port 0, which tells the OS to assign an available port
 	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
-		return 0, goerrors.Errorf("failed to listen on a port: %v", err)
+		return 0, goerrors.Errorf("failed to listen on a port: %w", err)
 	}
-	defer listener.Close()
+	defer CloseAndLogOnError("port-probe listener", listener)
 
 	// Retrieve the assigned port
 	addr := listener.Addr().(*net.TCPAddr)
@@ -835,7 +849,7 @@ func MatchesFormatString(format, final string) (bool, error) {
 
 	re, err := regexp.Compile(regexPattern)
 	if err != nil {
-		return false, goerrors.Errorf("failed to compile regex pattern: %v", err)
+		return false, goerrors.Errorf("failed to compile regex pattern: %w", err)
 	}
 
 	return re.MatchString(final), nil
@@ -898,7 +912,7 @@ func ObfuscateFormatDetails(format, final, obfuscateWith string) (string, error)
 
 	re, err := regexp.Compile(regexPattern)
 	if err != nil {
-		return "", goerrors.Errorf("failed to compile regex pattern: %v", err)
+		return "", goerrors.Errorf("failed to compile regex pattern: %w", err)
 	}
 
 	// Find the indexes of all capture groups using FindStringSubmatchIndex to get positions.

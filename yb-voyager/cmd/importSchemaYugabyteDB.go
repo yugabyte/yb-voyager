@@ -140,11 +140,11 @@ func generateAnalyzeReport(targetYBDBVersion string) (string, error) {
 func isNotValidConstraint(stmt string) (bool, error) {
 	parseTree, err := queryparser.Parse(stmt)
 	if err != nil {
-		return false, goerrors.Errorf("error parsing the ddl[%s]: %v", stmt, err)
+		return false, goerrors.Errorf("error parsing the ddl[%s]: %w", stmt, err)
 	}
 	ddlObj, err := queryparser.ProcessDDL(parseTree)
 	if err != nil {
-		return false, goerrors.Errorf("error in process DDL[%s]:%v", stmt, err)
+		return false, goerrors.Errorf("error in process DDL[%s]:%w", stmt, err)
 	}
 	alter, ok := ddlObj.(*queryparser.AlterTable)
 	if !ok {
@@ -173,7 +173,7 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 
 	defer func() {
 		if tgtConn != nil {
-			tgtConn.Close(context.Background())
+			_ = tgtConn.Close(context.Background()) // teardown; close error is not actionable
 		}
 	}()
 
@@ -197,7 +197,7 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 		// Check if the statement should be skipped
 		skip, err := shouldSkipDDL(sqlInfo.stmt, objType)
 		if err != nil {
-			return goerrors.Errorf("error checking whether to skip DDL for statement [%s]: %v", sqlInfo.stmt, err)
+			return goerrors.Errorf("error checking whether to skip DDL for statement [%s]: %w", sqlInfo.stmt, err)
 		}
 		if skip {
 			log.Infof("Skipping DDL: %s", sqlInfo.stmt)
@@ -206,7 +206,7 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 
 		ok, err := isSessionVariable(sqlInfo.stmt)
 		if err != nil {
-			return goerrors.Errorf("error checking whether statement is a session variable: %v", err)
+			return goerrors.Errorf("error checking whether statement is a session variable: %w", err)
 		}
 		if ok {
 			sessionVariables = append(sessionVariables, sqlInfo)
@@ -268,7 +268,7 @@ func shouldSkipDDL(stmt string, objType string) (bool, error) {
 	}
 	isNotValid, err := isNotValidConstraint(stmt)
 	if err != nil {
-		return false, goerrors.Errorf("error checking whether stmt is to add not valid constraint: %v", err)
+		return false, goerrors.Errorf("error checking whether stmt is to add not valid constraint: %w", err)
 	}
 	skipNotValidWithoutPostImport := isNotValid && !bool(flagPostSnapshotImport)
 	skipOtherDDLsWithPostImport := (bool(flagPostSnapshotImport) && !isNotValid)
@@ -288,20 +288,30 @@ func executeSqlStmtWithRetries(tgtConn **ImportSchemaTargetConn, sqlInfo sqlInfo
 
 	err = (*tgtConn).ApplySessionVariables(sessionVariables)
 	if err != nil {
-		return goerrors.Errorf("error applying session variable: %v", err)
+		return goerrors.Errorf("error applying session variable: %w", err)
 	}
 
-	defer func(conn *ImportSchemaTargetConn) error {
-		if conn != nil {
+	// NOTE (errcheck): the closure's error return has always been discarded — a
+	// deferred call's return value cannot be observed. Made explicit with `_ =`
+	// below. `(*tgtConn)` MUST stay a defer-time argument (evaluated eagerly,
+	// always non-nil here): reading it at exit time would arm the closure body
+	// on the error paths that set `(*tgtConn) = nil`, nil-dereferencing in
+	// ResetSessionVariables. Pre-existing oddity flagged for a follow-up: the
+	// `conn != nil` early-return means the reset body only ever runs when conn
+	// is nil, so the closure has always been a no-op.
+	defer func(conn *ImportSchemaTargetConn) {
+		_ = func() error {
+			if conn != nil {
+				return nil
+			}
+			// Reset all session variables on the connection for next stmt
+			log.Infof("Resetting all session variables on the connection for next stmt")
+			err = conn.ResetSessionVariables(sessionVariables)
+			if err != nil {
+				return goerrors.Errorf("error resetting all session variables on connection: %w", err)
+			}
 			return nil
-		}
-		// Reset all session variables on the connection for next stmt
-		log.Infof("Resetting all session variables on the connection for next stmt")
-		err = conn.ResetSessionVariables(sessionVariables)
-		if err != nil {
-			return goerrors.Errorf("error resetting all session variables on connection: %v", err)
-		}
-		return nil
+		}()
 	}((*tgtConn))
 
 	for retryCount := 0; retryCount <= DDL_MAX_RETRY_COUNT; retryCount++ {
@@ -314,7 +324,7 @@ func executeSqlStmtWithRetries(tgtConn **ImportSchemaTargetConn, sqlInfo sqlInfo
 		if bool(flagPostSnapshotImport) && strings.Contains(objType, "INDEX") {
 			err = beforeIndexCreation(sqlInfo, (*tgtConn).GetConn(), objType)
 			if err != nil {
-				(*tgtConn).Close(context.Background())
+				_ = (*tgtConn).Close(context.Background()) // conn is being discarded
 				(*tgtConn) = nil
 				return fmt.Errorf("before index creation: %w", err)
 			}
@@ -329,28 +339,28 @@ func executeSqlStmtWithRetries(tgtConn **ImportSchemaTargetConn, sqlInfo sqlInfo
 		log.Errorf("DDL Execution Failed for %q: %s", sqlInfo.formattedStmt, err)
 		if strings.Contains(strings.ToLower(err.Error()), "conflicts with higher priority transaction") {
 			// creating fresh connection
-			(*tgtConn).Close(context.Background())
+			_ = (*tgtConn).Close(context.Background()) // conn is being discarded
 			(*tgtConn) = newTargetConn()
 			continue
 		} else if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(SCHEMA_VERSION_MISMATCH_ERR)) &&
 			(objType == "INDEX" || objType == "PARTITION_INDEX") { // retriable error
 			// creating fresh connection
-			(*tgtConn).Close(context.Background())
+			_ = (*tgtConn).Close(context.Background()) // conn is being discarded
 			(*tgtConn) = newTargetConn()
 
 			// Extract the schema name and add to the index name
 			fullyQualifiedObjName, err := getIndexName(sqlInfo.stmt, sqlInfo.objName)
 			if err != nil {
-				(*tgtConn).Close(context.Background())
+				_ = (*tgtConn).Close(context.Background()) // conn is being discarded
 				(*tgtConn) = nil
-				return goerrors.Errorf("extract qualified index name from DDL [%v]: %v", sqlInfo.stmt, err)
+				return goerrors.Errorf("extract qualified index name from DDL [%v]: %w", sqlInfo.stmt, err)
 			}
 
 			// DROP INDEX in case INVALID index got created
 			// `err` is already being used for retries, so using `err2`
 			err2 := dropIdx((*tgtConn).GetConn(), fullyQualifiedObjName)
 			if err2 != nil {
-				(*tgtConn).Close(context.Background())
+				_ = (*tgtConn).Close(context.Background()) // conn is being discarded
 				(*tgtConn) = nil
 				return fmt.Errorf("drop invalid index %q: %w", fullyQualifiedObjName, err2)
 			}
@@ -372,7 +382,7 @@ func executeSqlStmtWithRetries(tgtConn **ImportSchemaTargetConn, sqlInfo sqlInfo
 		break // no more iteration in case of non retriable error
 	}
 	if err != nil {
-		(*tgtConn).Close(context.Background())
+		_ = (*tgtConn).Close(context.Background()) // conn is being discarded
 		(*tgtConn) = nil
 		if missingRequiredSchemaObject(err) || isPercentTypeResolutionError(err) {
 			// Do nothing for deferred case
@@ -594,7 +604,7 @@ func (tc *ImportSchemaTargetConn) ResetSessionVariables(sessionVariables []sqlIn
 	for _, sessionVariable := range sessionVariables {
 		sessionVarName, err := queryparser.GetSessionVariableName(sessionVariable.stmt)
 		if err != nil {
-			return goerrors.Errorf("error getting session variable name: %v", err)
+			return goerrors.Errorf("error getting session variable name: %w", err)
 		}
 		resetSessionVariable := fmt.Sprintf("RESET %s", sessionVarName)
 		_, err = (*tc.conn).Exec(context.Background(), resetSessionVariable)
@@ -604,7 +614,7 @@ func (tc *ImportSchemaTargetConn) ResetSessionVariables(sessionVariables []sqlIn
 				log.Warnf("Skipping resetting unrecognized configuration: %s", sessionVariable.stmt)
 				continue
 			}
-			return goerrors.Errorf("error resetting session variable: %v", err)
+			return goerrors.Errorf("error resetting session variable: %w", err)
 		}
 	}
 	return nil
@@ -618,7 +628,7 @@ func (tc *ImportSchemaTargetConn) ApplySessionVariables(sessionVariables []sqlIn
 				log.Warnf("Skipping unrecognized configuration: %s", sessionVariable.stmt)
 				return nil
 			}
-			return goerrors.Errorf("run query: %q on target %q: %s", sessionVariable.stmt, tconf.Host, err)
+			return goerrors.Errorf("run query: %q on target %q: %w", sessionVariable.stmt, tconf.Host, err)
 		}
 	}
 	return nil
@@ -665,7 +675,7 @@ func newTargetConn() *ImportSchemaTargetConn {
 		if err != nil {
 			utils.WaitChannel <- 1
 			<-utils.WaitChannel
-			utils.ErrExit("connect to target db: %s", err)
+			utils.ErrExit("connect to target db: %w", err)
 		}
 	}
 
@@ -704,7 +714,7 @@ func setTargetSchema(conn *pgx.Conn) {
 	var cntSchemaName int
 
 	if err := conn.QueryRow(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
-		utils.ErrExit("run query: %q on target %q to check schema exists: %s", checkSchemaExistsQuery, tconf.Host, err)
+		utils.ErrExit("run query: %q on target %q to check schema exists: %w", checkSchemaExistsQuery, tconf.Host, err)
 	} else if cntSchemaName < len(tconf.Schemas) {
 		utils.ErrExit("schemas do not exist in target: %q", schemas)
 	}
@@ -713,7 +723,7 @@ func setTargetSchema(conn *pgx.Conn) {
 	setSchemaQuery := fmt.Sprintf("SET SEARCH_PATH TO %s", setSchemas)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
-		utils.ErrExit("run query: %q on target %q: %s", setSchemaQuery, tconf.Host, err)
+		utils.ErrExit("run query: %q on target %q: %w", setSchemaQuery, tconf.Host, err)
 	}
 }
 
@@ -722,6 +732,6 @@ func setOrafceSearchPath(conn *pgx.Conn) {
 	updateSearchPath := `SELECT set_config('search_path', current_setting('search_path') || ', oracle', false)`
 	_, err := conn.Exec(context.Background(), updateSearchPath)
 	if err != nil {
-		utils.ErrExit("unable to update search_path for orafce extension: %v", err)
+		utils.ErrExit("unable to update search_path for orafce extension: %w", err)
 	}
 }

@@ -198,7 +198,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 	if err := startMetricsServer(exporterRole, migrationUUID); err != nil {
-		utils.ErrExit("start metrics server: %v", err)
+		utils.ErrExit("start metrics server: %w", err)
 	}
 	metrics.Get().SetExportParallelism(exporterRole, source.NumConnections)
 
@@ -631,6 +631,49 @@ func packAndSendExportDataPayload(status string, errorMsg error) {
 	}
 }
 
+// captureSourceGeneratedStoredColumns records, for a PostgreSQL live-migration source, the
+// per-table STORED generated columns into the metaDB (keyed by ForKey). `import data to
+// target` reads this — without a source connection of its own — to decide the CDC
+// partitioning strategy: a table whose target unique index covers a source-generated column
+// must be PARTITION_BY_TABLE, because generated column values are absent from the change
+// events (so pk/custom routing and conflict detection cannot see them). No-op for non-PG
+// sources / non-streaming exports.
+//
+// CAVEAT — primary key on a generated column:
+// A STORED generated column that is part of the PRIMARY KEY is a broader, currently
+// UNSUPPORTED case for live migration and is deliberately NOT handled by the partitioning
+// logic that consumes this record. Debezium builds the event's routing/identity key from the
+// primary key, but a STORED generated column's value is absent from the logical-replication
+// stream, so the key itself is incomplete — no choice of CDC partitioning strategy (including
+// PARTITION_BY_TABLE) fixes that. This needs a separate solution (e.g. surfacing the
+// generated key value, or an explicit guardrail/error). Until then, the import side only
+// intersects these source-generated columns against the target's *unique indexes* (excluding
+// the primary key) when resolving the partitioning strategy.
+func captureSourceGeneratedStoredColumns(finalTableList []sqlname.NameTuple) error {
+	if source.DBType != POSTGRESQL || !changeStreamingIsEnabled(exportType) || exporterRole != SOURCE_DB_EXPORTER_ROLE {
+		return nil
+	}
+	genCols, err := source.DB().GetGeneratedStoredColumns(finalTableList)
+	if err != nil {
+		return goerrors.Errorf("get source generated stored columns for cdc partitioning: %v", err)
+	}
+	tableToGeneratedCols := make(map[string][]string)
+	_ = genCols.IterKV(func(t sqlname.NameTuple, cols []string) (bool, error) {
+		if len(cols) > 0 {
+			tableToGeneratedCols[t.ForKey()] = cols
+		}
+		return true, nil
+	})
+	err = metaDB.UpdateExportDataSourceDBExporterStatusRecord(func(r *metadb.ExportDataSourceDBExporterStatusRecord) {
+		r.TableToGeneratedStoredColumns = tableToGeneratedCols
+	})
+	if err != nil {
+		return goerrors.Errorf("persist source generated stored columns for cdc partitioning: %v", err)
+	}
+	log.Infof("captured source generated stored columns for cdc partitioning: %v", tableToGeneratedCols)
+	return nil
+}
+
 func exportData() bool {
 	err := source.DB().Connect()
 	if err != nil {
@@ -689,7 +732,7 @@ func exportData() bool {
 
 	if source.RunGuardrailsChecks {
 		if err := srcdb.CheckSchemasHaveUsagePermissions(&source, export.ChangeStreamingIsEnabled(exportType)); err != nil {
-			utils.ErrExit("schema usage permission check failed: %s", err)
+			utils.ErrExit("schema usage permission check failed: %w", err)
 		}
 	}
 
@@ -715,7 +758,14 @@ func exportData() bool {
 	finalTableList, tablesColumnList := finalizeTableAndColumnList(finalTableList, partitionsToRootTableMap)
 	handleEmptyTableListForExport(finalTableList)
 
-	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+	// Persist source STORED generated columns so import data to target can decide the CDC
+	// partitioning strategy from authoritative source facts without a source connection.
+	err = captureSourceGeneratedStoredColumns(finalTableList)
+	if err != nil {
+		utils.ErrExit("capture source generated stored columns: %s", err)
+	}
+
+	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		switch source.DBType {
 		case POSTGRESQL:
 			record.SourceRenameTablesMap = partitionsToRootTableMap
@@ -728,6 +778,9 @@ func exportData() bool {
 			})
 		}
 	})
+	if err != nil {
+		utils.ErrExit("failed to update rename-tables map in migration status record: %w", err)
+	}
 
 	msr, err = metaDB.GetMigrationStatusRecord()
 	if err != nil {
@@ -916,7 +969,7 @@ func initPGLiveMigrationAndExportSnapshotIfRequired(ctx context.Context, cancel 
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("get migration status record: %v", err)
+		utils.ErrExit("get migration status record: %w", err)
 	}
 
 	isActive, err := checkIfReplicationSlotIsActive(msr.PGReplicationSlotName)
@@ -943,7 +996,8 @@ func initPGLiveMigrationAndExportSnapshotIfRequired(ctx context.Context, cancel 
 	}
 
 	var sequenceInitValues strings.Builder
-	sequenceValueMap.IterKV(func(seqName sqlname.NameTuple, seqValue int64) (bool, error) {
+	// the callback never returns an error
+	_ = sequenceValueMap.IterKV(func(seqName sqlname.NameTuple, seqValue int64) (bool, error) {
 		sequenceInitValues.WriteString(fmt.Sprintf("%s:%d,", seqName.ForKey(), seqValue))
 		return true, nil
 	})
@@ -1457,13 +1511,16 @@ func fetchTablesNamesFromSourceAndFilterTableList() (map[string]string, []sqlnam
 		isTableListModified = len(sqlname.SetDifferenceNameTuples(nameTupleTableListFromDB, tableListInFirstRun)) != 0
 	}
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
-		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			if isTableListModified {
 				record.IsExportTableListSet = true
 			} else {
 				record.IsExportTableListSet = false
 			}
 		})
+		if err != nil {
+			utils.ErrExit("failed to update IsExportTableListSet in migration status record: %w", err)
+		}
 	}
 
 	var partitionsToRootTableMap map[string]string
@@ -2317,7 +2374,8 @@ func reportLeafPartitionsWithMismatchedPrimaryKeys(
 		return a.AsQualifiedCatalogName() < b.AsQualifiedCatalogName()
 	}
 	utils.PrintAndLogfInfo("Partitioned tables with inconsistent primary keys across leaf partitions:")
-	mismatches.IterKVSorted(sortFn, func(root sqlname.NameTuple, pks []string) (bool, error) {
+	// display-only iteration right before ErrExit; the callback never returns an error
+	_ = mismatches.IterKVSorted(sortFn, func(root sqlname.NameTuple, pks []string) (bool, error) {
 		utils.PrintAndLogf("- %s: (%s)\n", root.ForOutput(), strings.Join(pks, "), ("))
 		return true, nil
 	})
@@ -2357,7 +2415,8 @@ func handleUnsupportedColumnsInExportData(unsupportedTableColumnsMap *utils.Stru
 
 	var unsupportedColsMsg strings.Builder
 	unsupportedColsMsg.WriteString("The following columns data export is unsupported:\n")
-	unsupportedTableColumnsMap.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
+	// message assembly; the callback never returns an error
+	_ = unsupportedTableColumnsMap.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
 		if len(v) != 0 {
 			unsupportedColsMsg.WriteString(fmt.Sprintf("%s: %s\n", k.ForOutput(), v))
 		}
@@ -2431,12 +2490,15 @@ func saveSourceDBConfInMSR() {
 	if exporterRole != SOURCE_DB_EXPORTER_ROLE {
 		return
 	}
-	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		// overriding the current value of SourceDBConf
 		record.SourceDBConf = source.Clone()
 		record.SourceDBConf.Password = ""
 		record.SourceDBConf.Uri = ""
 	})
+	if err != nil {
+		utils.ErrExit("failed to save source DB conf in migration status record: %w", err)
+	}
 }
 
 func createSnapshotExportStartedEvent() cp.SnapshotExportStartedEvent {

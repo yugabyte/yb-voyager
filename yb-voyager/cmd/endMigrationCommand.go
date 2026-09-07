@@ -87,7 +87,10 @@ var endMigrationCmd = &cobra.Command{
 
 		//if parent with iterations
 		//backup the data migration report with detailed report for all iterations
-		saveDataMigrationReportForAllIterationsFn(msr)
+		err = saveDataMigrationReportForAllIterationsFn(msr)
+		if err != nil {
+			utils.ErrExit("failed to save data migration report for all iterations: %w", err)
+		}
 		currMetaDB := metaDB
 		currBackupDir := backupDir
 		currExportDir := exportDir
@@ -982,11 +985,11 @@ func stopVoyagerCommands(msr *metadb.MigrationStatusRecord, lockFiles []*lockfil
 	if msr.IsIteration() {
 		parentMetaDB, err := metaDB.GetParentMetaDB()
 		if err != nil {
-			utils.ErrExit("error getting parent meta db: %v", err)
+			utils.ErrExit("error getting parent meta db: %w", err)
 		}
 		parentMSR, err = parentMetaDB.GetMigrationStatusRecord()
 		if err != nil {
-			utils.ErrExit("error getting parent migration status record: %v", err)
+			utils.ErrExit("error getting parent migration status record: %w", err)
 		}
 	}
 	//checking if archiver is running on parent iteration as it is only expected to run on the main export directory
@@ -1032,11 +1035,15 @@ func stopDataExportCommand(lockFile *lockfile.Lockfile) {
 		return
 	}
 
-	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		// dbzm plugin detects this MSR flag, and stops the data export gracefully
 		// so that the ongoing segment in closed and can be processed -> archived -> deleted
 		record.EndMigrationRequested = true
 	})
+	if err != nil {
+		// if this flag is not persisted, the export never learns it should stop
+		utils.ErrExit("failed to set EndMigrationRequested in migration status record: %w", err)
+	}
 
 	ongoingCmd := lockFile.GetCmdName()
 	ongoingCmdPID, err := lockFile.GetCmdPID()
@@ -1060,7 +1067,7 @@ func areOnDifferentFileSystems(path1 string, path2 string) bool {
 	err2 := syscall.Stat(path2, &stat2)
 
 	if err1 != nil || err2 != nil {
-		utils.ErrExit("getting file system info: for %s and %s: %v, %v", path1, path2, err1, err2)
+		utils.ErrExit("getting file system info: for %s and %s: %w, %w", path1, path2, err1, err2)
 	}
 
 	return stat1.Dev != stat2.Dev
@@ -1108,11 +1115,11 @@ func init() {
 	endMigrationCmd.Flags().StringVar(&backupDir, "backup-dir", "", "backup directory is where all the backup files of schema, data, logs and reports will be saved")
 
 	registerCommonGlobalFlags(endMigrationCmd)
-	endMigrationCmd.Flags().MarkHidden("send-diagnostics")
+	mustMarkFlagHidden(endMigrationCmd, "send-diagnostics")
 
-	endMigrationCmd.MarkFlagRequired("backup-schema-files")
-	endMigrationCmd.MarkFlagRequired("backup-data-files")
-	endMigrationCmd.MarkFlagRequired("save-migration-reports")
-	endMigrationCmd.MarkFlagRequired("backup-log-files")
-	endMigrationCmd.MarkFlagRequired("export-dir")
+	mustMarkFlagRequired(endMigrationCmd, "backup-schema-files")
+	mustMarkFlagRequired(endMigrationCmd, "backup-data-files")
+	mustMarkFlagRequired(endMigrationCmd, "save-migration-reports")
+	mustMarkFlagRequired(endMigrationCmd, "backup-log-files")
+	mustMarkPersistentFlagRequired(endMigrationCmd, "export-dir")
 }

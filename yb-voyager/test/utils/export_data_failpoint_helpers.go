@@ -69,7 +69,7 @@ func verifyNoEventIDDuplicatesInternal(t *testing.T, exportDir string, failOnErr
 			filePath := filepath.Join(queueDir, entry.Name())
 			file, err := os.Open(filePath)
 			require.NoError(t, err, "Failed to open queue segment file")
-			defer file.Close()
+			defer func() { _ = file.Close() }() // read path; close error is not actionable
 
 			scanner := bufio.NewScanner(file)
 			for scanner.Scan() {
@@ -182,10 +182,10 @@ func CollectEventIDsForOffsetCommitTest(exportDir string) (map[string]struct{}, 
 			eventIDs[eventID] = struct{}{}
 		}
 		if err := scanner.Err(); err != nil {
-			f.Close()
+			_ = f.Close() // best-effort cleanup on the error path
 			return nil, err
 		}
-		f.Close()
+		_ = f.Close() // read path; close error is not actionable
 	}
 	return eventIDs, nil
 }
@@ -222,7 +222,7 @@ func CountDedupSkipLogs(exportDir string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }() // read path; close error is not actionable
 
 	count := 0
 	scanner := bufio.NewScanner(f)
@@ -345,7 +345,7 @@ func IsQueueSegmentClosed(filePath string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }() // read path; close error is not actionable
 
 	scanner := bufio.NewScanner(file)
 	var lastNonEmpty string

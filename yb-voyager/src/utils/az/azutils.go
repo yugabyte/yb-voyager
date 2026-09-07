@@ -154,7 +154,7 @@ func GetHeadObject(objectURL string) (*blob.Attributes, error) {
 	if err != nil {
 		return nil, fmt.Errorf("opening bucket for %q: %w", url, err)
 	}
-	defer bucket.Close()
+	defer utils.CloseAndLogOnError("azure blob bucket", bucket)
 	blobAttributes, err := bucket.Attributes(ctx, key)
 	if err != nil {
 		return nil, fmt.Errorf("getting attributes of %q: %w", objectURL, err)

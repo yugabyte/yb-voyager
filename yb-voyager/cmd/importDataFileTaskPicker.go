@@ -317,10 +317,13 @@ func (c *ColocatedAwareRandomTaskPicker) initializeChooser() error {
 		return goerrors.Errorf("no pending tasks to initialize chooser")
 	}
 	tableNames := make([]sqlname.NameTuple, 0, len(c.tableWisePendingTasks.Keys()))
-	c.tableWisePendingTasks.IterKV(func(k sqlname.NameTuple, v []*ImportFileTask) (bool, error) {
+	err := c.tableWisePendingTasks.IterKV(func(k sqlname.NameTuple, v []*ImportFileTask) (bool, error) {
 		tableNames = append(tableNames, k)
 		return true, nil
 	})
+	if err != nil {
+		return fmt.Errorf("failed to iterate pending tasks: %w", err)
+	}
 
 	colocatedCount := 0
 	for _, tableName := range tableNames {
@@ -351,7 +354,6 @@ func (c *ColocatedAwareRandomTaskPicker) initializeChooser() error {
 		}
 
 	}
-	var err error
 	c.tableChooser, err = weightedrand.NewChooser(choices...)
 	if err != nil {
 		return fmt.Errorf("creating chooser: %w", err)
@@ -377,7 +379,8 @@ func (c *ColocatedAwareRandomTaskPicker) HasMoreTasks() bool {
 	}
 
 	pendingTasks := false
-	c.tableWisePendingTasks.IterKV(func(tableName sqlname.NameTuple, tasks []*ImportFileTask) (bool, error) {
+	// the callback never returns an error
+	_ = c.tableWisePendingTasks.IterKV(func(tableName sqlname.NameTuple, tasks []*ImportFileTask) (bool, error) {
 		if len(tasks) > 0 {
 			pendingTasks = true
 			return false, nil

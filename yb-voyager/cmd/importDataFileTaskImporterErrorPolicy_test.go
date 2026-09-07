@@ -25,6 +25,7 @@ import (
 
 	"github.com/sourcegraph/conc/pool"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
@@ -59,8 +60,8 @@ func assertTableRowCount(t *testing.T, tableName string, expectedCount int64) {
 func assertTableIds(t *testing.T, tableName string, expectedIds []int64) {
 	var ids []int64
 	rows, err := tdb.Query(fmt.Sprintf("SELECT id FROM %s", tableName))
+	require.NoError(t, err) // must halt here: a nil rows would panic in the defer below
 	defer rows.Close()
-	assert.NoError(t, err)
 
 	for rows.Next() {
 		var id int64

@@ -83,7 +83,8 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		}
 	}
 
-	tablesColumnList.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
+	// column-list assembly for the Debezium config; the callback never returns an error
+	_ = tablesColumnList.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
 		for _, column := range v {
 			columnName := fmt.Sprintf("%s.%s", k.AsQualifiedCatalogName(), column)
 			if column == "*" {
@@ -104,7 +105,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 	}
 	columnSequenceMapping, err := getColumnToSequenceMapping(colToSeqMap)
 	if err != nil {
-		return nil, nil, goerrors.Errorf("getting column to sequence mapping %s", err)
+		return nil, nil, goerrors.Errorf("getting column to sequence mapping %w", err)
 	}
 
 	err = prepareSSLParamsForDebezium(absExportDir)
@@ -401,7 +402,7 @@ func debeziumExportData(config *dbzm.Config, tableNameToApproxRowCountMap map[st
 			record.SnapshotMechanism = "debezium"
 		})
 		if err != nil {
-			return goerrors.Errorf("update SnapshotMechanism: update migration status record: %s", err)
+			return goerrors.Errorf("update SnapshotMechanism: update migration status record: %w", err)
 		}
 	}
 
@@ -482,7 +483,8 @@ func reportStreamingProgress(ctx context.Context) {
 		fmt.Fprint(row3Writer, color.GreenString("| %-40s | %30s |\n", "Export Rate(Last 3 min)", strconv.FormatInt(throughputInLast3Min, 10)+"/sec"))
 		fmt.Fprint(row4Writer, color.GreenString("| %-40s | %30s |\n", "Export Rate(Last 10 min)", strconv.FormatInt(throughputInLast10Min, 10)+"/sec"))
 		fmt.Fprint(footerWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
-		tableWriter.Flush()
+		// console status table redraw; nothing actionable on a flush error
+		_ = tableWriter.Flush()
 		select {
 		case <-ctx.Done():
 			tableWriter.Stop()
@@ -680,7 +682,7 @@ func createYBReplicationSlotAndPublication(tableList []sqlname.NameTuple, leafPa
 		record.YBPublicationName = publicationName
 	})
 	if err != nil {
-		return goerrors.Errorf("update YBReplicationSlotName: update migration status record: %s", err)
+		return goerrors.Errorf("update YBReplicationSlotName: update migration status record: %w", err)
 	}
 	return nil
 }

@@ -55,7 +55,7 @@ func init() {
 	cutoverCmd.AddCommand(cutoverToCmd)
 	cutoverToCmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,
 		"assume answer as yes for all questions during migration (default false)")
-	cutoverToCmd.PersistentFlags().MarkHidden("yes") //for non TTY shell e.g jenkins for docker case
+	mustMarkPersistentFlagHidden(cutoverToCmd, "yes") //for non TTY shell e.g jenkins for docker case
 }
 
 func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector bool) error {
@@ -271,7 +271,7 @@ func isCutoverAlreadyProcessed(importerOrExporterRole string) bool {
 
 	record, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("error getting migration status record to check cutover: %s", err)
+		utils.ErrExit("error getting migration status record to check cutover: %w", err)
 	}
 	switch importerOrExporterRole {
 	case SOURCE_DB_EXPORTER_ROLE:

@@ -136,7 +136,10 @@ func (reg *NameRegistry) registerNames() (bool, error) {
 			targetSchema = reg.params.TargetDBSchema[0]
 		}
 		defaultSchema := lo.Ternary(reg.SourceDBType == constants.POSTGRESQL, reg.DefaultSourceDBSchemaName, targetSchema)
-		reg.setDefaultSourceReplicaDBSchemaName(defaultSchema)
+		err := reg.setDefaultSourceReplicaDBSchemaName(defaultSchema)
+		if err != nil {
+			return false, fmt.Errorf("set default source-replica schema name: %w", err)
+		}
 		return true, nil
 	}
 	log.Infof("no name registry update required: mode %q", reg.params.Role)
@@ -148,8 +151,7 @@ func (reg *NameRegistry) UnRegisterYBNames() error {
 	reg.YBTableNames = nil
 	reg.YBSchemaNames = nil
 	reg.DefaultYBSchemaName = ""
-	reg.save()
-	return nil
+	return reg.save()
 }
 
 func (reg *NameRegistry) registerSourceNames() (bool, error) {
@@ -208,20 +210,20 @@ func (reg *NameRegistry) GetRegisteredTableList(ignoreOtherSideOfMappingIfNotFou
 				if ignoreIfTargetNotFound {
 					tuple, err := reg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tableName)
 					if err != nil {
-						return nil, goerrors.Errorf("error lookup for the table name [%v]: %v", tableName, err)
+						return nil, goerrors.Errorf("error lookup for the table name [%v]: %w", tableName, err)
 					}
 					res = append(res, tuple)
 				} else {
 					tuple, err := reg.LookupTableNameAndIgnoreIfSourceNotFound(tableName)
 					if err != nil {
-						return nil, goerrors.Errorf("error lookup for the table name [%v]: %v", tableName, err)
+						return nil, goerrors.Errorf("error lookup for the table name [%v]: %w", tableName, err)
 					}
 					res = append(res, tuple)
 				}
 			} else {
 				tuple, err := reg.LookupTableName(tableName)
 				if err != nil {
-					return nil, goerrors.Errorf("error lookup for the table name [%v]: %v", tableName, err)
+					return nil, goerrors.Errorf("error lookup for the table name [%v]: %w", tableName, err)
 				}
 				res = append(res, tuple)
 			}
@@ -350,7 +352,7 @@ func (reg *NameRegistry) LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tab
 		//not using this function TARGET_DB_EXPORTER ones as they are live migration specific and we shouldn't use it for them.
 		sourceName, targetName, err := reg.lookupSourceAndTargetTableNames(tableNameArg, true, false)
 		if err != nil {
-			return sqlname.NameTuple{}, goerrors.Errorf("error lookup source and target names for table [%v]: %v", tableNameArg, err)
+			return sqlname.NameTuple{}, goerrors.Errorf("error lookup source and target names for table [%v]: %w", tableNameArg, err)
 		}
 		ntup := NewNameTuple(reg.params.Role, sourceName, targetName)
 		return ntup, nil
@@ -369,7 +371,7 @@ In case both the source and target not present for the table this will return er
 func (reg *NameRegistry) LookupTableNameAndIgnoreIfSourceNotFound(tableNameArg string) (sqlname.NameTuple, error) {
 	sourceName, targetName, err := reg.lookupSourceAndTargetTableNames(tableNameArg, false, true)
 	if err != nil {
-		return sqlname.NameTuple{}, goerrors.Errorf("error lookup source and target names for table [%v]: %v", tableNameArg, err)
+		return sqlname.NameTuple{}, goerrors.Errorf("error lookup source and target names for table [%v]: %w", tableNameArg, err)
 	}
 	ntup := NewNameTuple(reg.params.Role, sourceName, targetName)
 	return ntup, nil

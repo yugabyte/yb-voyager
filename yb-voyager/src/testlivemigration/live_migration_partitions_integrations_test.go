@@ -1236,7 +1236,8 @@ func validatingPartitionConsistencyCheck(lm *LiveMigrationTest) {
 	})
 	testutils.FatalIfError(lm.t, err, "failed to drop table")
 
-	err = lm.StartImportDataWithPromptAnswerNo(false, map[string]string{
+	// the import is expected to abort at the prompt; asserted on stderr below
+	_ = lm.StartImportDataWithPromptAnswerNo(false, map[string]string{
 		"--use-partition-root": "false",
 	})
 

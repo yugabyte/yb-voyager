@@ -94,7 +94,7 @@ func init() {
 func cutoverInitiatedAndCutoverEventProcessed() (bool, error) {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return false, goerrors.Errorf("getting migration status record: %v", err)
+		return false, goerrors.Errorf("getting migration status record: %w", err)
 	}
 	switch importerRole {
 	case TARGET_DB_IMPORTER_ROLE:
@@ -108,13 +108,15 @@ func cutoverInitiatedAndCutoverEventProcessed() (bool, error) {
 	return false, nil
 }
 
-func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple, tableToPKColumns *utils.StructMap[sqlname.NameTuple, []string]) error {
-	waitForDebeziumStartIfRequired()
+func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple, tableToPKColumns *utils.StructMap[sqlname.NameTuple, []string], tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]) error {
+	if err := waitForDebeziumStartIfRequired(); err != nil {
+		return fmt.Errorf("waiting for debezium to start: %w", err)
+	}
 	importPhase = dbzm.MODE_STREAMING
 	utils.PrintAndLogfInfo("streaming changes to %s...", tconf.TargetDBType)
 	streamingPhaseValueConverter, err := dbzm.NewStreamingPhaseDebeziumValueConverter(tableNames, exportDir, tconf, importerRole, sourceDBType)
 	if err != nil {
-		return goerrors.Errorf("Failed to create streaming phase value converter: %s", err)
+		return goerrors.Errorf("Failed to create streaming phase value converter: %w", err)
 	}
 	ok, err := cutoverInitiatedAndCutoverEventProcessed()
 	if err != nil {
@@ -129,12 +131,12 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple, table
 	// re-initilizing name registry in case it hadn't picked up the names registered on source/target/source-replica
 	err = namereg.NameReg.Init()
 	if err != nil {
-		return goerrors.Errorf("init name registry again: %v", err)
+		return goerrors.Errorf("init name registry again: %w", err)
 	}
 	tdb.PrepareForStreaming()
 	err = state.InitLiveMigrationState(migrationUUID, NUM_EVENT_CHANNELS, bool(startClean), tableNames)
 	if err != nil {
-		utils.ErrExit("Failed to init event channels metadata table on target DB: %s", err)
+		utils.ErrExit("Failed to init event channels metadata table on target DB: %w", err)
 	}
 	eventChannelsMetaInfo, err := state.GetEventChannelsMetaInfo(migrationUUID)
 	if err != nil {
@@ -177,13 +179,13 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple, table
 				time.Sleep(2 * time.Second)
 				continue
 			}
-			return goerrors.Errorf("error getting next segment to stream: %v", err)
+			return goerrors.Errorf("error getting next segment to stream: %w", err)
 		}
 		log.Infof("got next segment to stream: %v", segment)
 
-		err = streamChangesFromSegment(segment, evChans, processingDoneChans, eventChannelsMetaInfo, statsReporter, state, streamingPhaseValueConverter, tablePartitionKeyMap, tableToPKColumns, tableNames)
+		err = streamChangesFromSegment(segment, evChans, processingDoneChans, eventChannelsMetaInfo, statsReporter, state, streamingPhaseValueConverter, tablePartitionKeyMap, tableToPKColumns, tableNames, tableToUniqueIndexes)
 		if err != nil {
-			return goerrors.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
+			return goerrors.Errorf("error streaming changes for segment %s: %w", segment.FilePath, err)
 		}
 	}
 	return nil
@@ -202,13 +204,14 @@ func streamChangesFromSegment(
 	streamingPhaseValueConverter dbzm.StreamingPhaseValueConverter,
 	tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride],
 	tableToPKColumns *utils.StructMap[sqlname.NameTuple, []string],
-	importTableList []sqlname.NameTuple) error {
+	importTableList []sqlname.NameTuple,
+	tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]) error {
 
 	err := segment.Open()
 	if err != nil {
 		return err
 	}
-	defer segment.Close()
+	defer utils.CloseAndLogOnError("event queue segment", segment)
 
 	// start target event channel processors
 	for i := 0; i < NUM_EVENT_CHANNELS; i++ {
@@ -241,9 +244,9 @@ func streamChangesFromSegment(
 				we need to use the actual source db type at the moment.
 			*/
 			sourceDBTypeForConflictCache := lo.Ternary(isTargetDBExporter(event.ExporterRole), YUGABYTEDB, sourceDBType)
-			err = initializeConflictDetectionCache(evChans, sourceDBTypeForConflictCache, importTableList, tablePartitionKeyMap, tableToPKColumns)
+			err = initializeConflictDetectionCache(evChans, sourceDBTypeForConflictCache, importTableList, tablePartitionKeyMap, tableToPKColumns, tableToUniqueIndexes)
 			if err != nil {
-				return fmt.Errorf("error initializing conflict detection cache: %w", err)
+				return goerrors.Errorf("error initializing conflict detection cache: %w", err)
 			}
 			prevExporterRole = event.ExporterRole
 		}
@@ -266,7 +269,7 @@ func streamChangesFromSegment(
 				}
 			})
 			if err != nil {
-				return goerrors.Errorf("error updating the migration status record for cutover detected case: %v", err)
+				return goerrors.Errorf("error updating the migration status record for cutover detected case: %w", err)
 			}
 			updateCallhomeImportPhase(event)
 
@@ -277,7 +280,7 @@ func streamChangesFromSegment(
 
 		err = handleEvent(event, evChans, streamingPhaseValueConverter, tablePartitionKeyMap)
 		if err != nil {
-			return goerrors.Errorf("error handling event: %v", err)
+			return goerrors.Errorf("error handling event: %w", err)
 		}
 	}
 
@@ -291,7 +294,7 @@ func streamChangesFromSegment(
 
 	err = metaDB.MarkEventQueueSegmentAsProcessed(segment.SegmentNum, importerRole)
 	if err != nil {
-		return goerrors.Errorf("error marking segment %s as processed: %v", segment.FilePath, err)
+		return goerrors.Errorf("error marking segment %s as processed: %w", segment.FilePath, err)
 	}
 	log.Infof("finished streaming changes from segment %s\n", filepath.Base(segment.FilePath))
 	return nil
@@ -360,7 +363,7 @@ func handleEvent(event *tgtdb.Event,
 	// which will affect hash value.
 	h, err := hashEvent(event, tablePartitionKeyMap)
 	if err != nil {
-		return goerrors.Errorf("error hashing event: %v", err)
+		return goerrors.Errorf("error hashing event: %w", err)
 	}
 
 	/*
@@ -369,18 +372,18 @@ func handleEvent(event *tgtdb.Event,
 	*/
 	ok, err := shouldHandleConflicts(event, conflictDetectionCache.tableToUniqueIndexes, tablePartitionKeyMap)
 	if err != nil {
-		return goerrors.Errorf("error checking if should handle conflicts: %v", err)
+		return goerrors.Errorf("error checking if should handle conflicts: %w", err)
 	}
 	if ok {
 		if event.Op == "d" {
 			err = conflictDetectionCache.Put(event)
 			if err != nil {
-				return goerrors.Errorf("error putting event into conflict detection cache: %v", err)
+				return goerrors.Errorf("error putting event into conflict detection cache: %w", err)
 			}
 		} else { // "i" or "u"
 			err = conflictDetectionCache.WaitUntilNoConflict(event)
 			if err != nil {
-				return goerrors.Errorf("error waiting for conflicts to clear for event vsn(%d): %v", event.Vsn, err)
+				return goerrors.Errorf("error waiting for conflicts to clear for event vsn(%d): %w", event.Vsn, err)
 			}
 			if event.Op == "u" {
 				// Adding all the update events to the conflict detection cache since we need to check detect the conflicts in cases where
@@ -388,7 +391,7 @@ func handleEvent(event *tgtdb.Event,
 				// since the unique key is removed the index even if the column is actually changed because of partial predicate
 				err = conflictDetectionCache.Put(event)
 				if err != nil {
-					return goerrors.Errorf("error putting event into conflict detection cache: %v", err)
+					return goerrors.Errorf("error putting event into conflict detection cache: %w", err)
 				}
 			}
 		}
@@ -397,7 +400,7 @@ func handleEvent(event *tgtdb.Event,
 	// preparing value converters for the streaming mode
 	err = streamingPhaseValueConverter.ConvertEvent(event, event.TableNameTup, shouldFormatValues(event))
 	if err != nil {
-		return goerrors.Errorf("error transforming event key fields: %v", err)
+		return goerrors.Errorf("error transforming event key fields: %w", err)
 	}
 
 	if err := injectImportCDCTransformFailure(); err != nil {
@@ -606,7 +609,7 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 			// Therefore, we check if batch has already been imported before retrying.
 			alreadyImported, aerr := checkifEventBatchAlreadyImported(state, eventBatch, migrationUUID)
 			if aerr != nil {
-				utils.ErrExit("error checking if event batch channel %d (last VSN: %d) already imported: %v", chanNo, eventBatch.GetLastVsn(), aerr)
+				utils.ErrExit("error checking if event batch channel %d (last VSN: %d) already imported: %w", chanNo, eventBatch.GetLastVsn(), aerr)
 			}
 			if alreadyImported {
 				log.Infof("batch on channel %d (last VSN: %d) already imported", chanNo, eventBatch.GetLastVsn())
@@ -615,7 +618,7 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 			}
 		}
 		if err != nil {
-			utils.ErrExit("error executing batch on channel %v: %v", chanNo, err)
+			utils.ErrExit("error executing batch on channel %v: %w", chanNo, err)
 		}
 		conflictDetectionCache.RemoveEvents(eventBatch.Events...)
 		statsReporter.BatchImported(eventBatch.EventCounts.NumInserts, eventBatch.EventCounts.NumUpdates, eventBatch.EventCounts.NumDeletes)
@@ -633,14 +636,9 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 // Attribute name registry is not required here as for the PG->YB migrations the attribute name is same in both the places - event's fields coming from source and unique-index-column mapping coming from target and
 // And this path is only for PG->YB migrations as of now.
 // This path assumes that the column name remains same in PG->YB migrations.
-func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, sourceDBTypeForConflictCache string, importTableList []sqlname.NameTuple, tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], tableToPKColumns *utils.StructMap[sqlname.NameTuple, []string]) error {
-	log.Infof("fetching table to unique indexes map from import target (%s)", tconf.TargetDBType)
-	tableToUniqueIndexes, err := tdb.GetTableToUniqueIndexesMap(importTableList)
-	if err != nil {
-		return fmt.Errorf("get table unique indexes map from target: %w", err)
-	}
+func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, sourceDBTypeForConflictCache string, importTableList []sqlname.NameTuple, tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], tableToPKColumns *utils.StructMap[sqlname.NameTuple, []string], tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]) error {
 
-	// For custom-key tables the primary key must join the unique indexes to be able to detect PK-recycle races. 
+	// For custom-key tables the primary key must join the unique indexes to be able to detect PK-recycle races.
 	// GetTableToUniqueIndexesMap deliberately excludes the primary key (filters out contype='p'): under default pk routing,
 	// same-PK events always co-locate on one channel, so a recycled PK
 	// example - table(id pk, c1 unique) partition-key (c1)

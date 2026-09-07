@@ -476,7 +476,7 @@ func (m *MetaDB) GetExportedEventsStatsForExporterRole(exporterRole string) (*ut
 
 	rows, err := m.db.Query(query)
 	if err != nil {
-		return nil, goerrors.Errorf("run query on meta db -%s :%v", query, err)
+		return nil, goerrors.Errorf("run query on meta db -%s :%w", query, err)
 	}
 	defer func() {
 		err := rows.Close()
@@ -493,7 +493,7 @@ func (m *MetaDB) GetExportedEventsStatsForExporterRole(exporterRole string) (*ut
 		var deletes int64
 		err := rows.Scan(&schemaName, &tableName, &totalCount, &inserts, &updates, &deletes)
 		if err != nil {
-			return nil, goerrors.Errorf("scan rows while fetching exported events stats from query %s : %v", query, err)
+			return nil, goerrors.Errorf("scan rows while fetching exported events stats from query %s : %w", query, err)
 		}
 		if tableName == "null" {
 			continue
@@ -504,7 +504,7 @@ func (m *MetaDB) GetExportedEventsStatsForExporterRole(exporterRole string) (*ut
 		}
 		nt, err := namereg.NameReg.LookupTableName(lookupName)
 		if err != nil {
-			return nil, goerrors.Errorf("lookup %s from name registry: %v", lookupName, err)
+			return nil, goerrors.Errorf("lookup %s from name registry: %w", lookupName, err)
 		}
 
 		var ec *tgtdb.EventCounter
@@ -529,7 +529,7 @@ func (m *MetaDB) GetSegmentsToBeArchived(importCount int) ([]utils.Segment, erro
 	AND archived = 0`, importCount)
 	segmentsToBeArchived, err := m.querySegmentsInAscOrder(predicate)
 	if err != nil {
-		return nil, goerrors.Errorf("fetch segments to be archived: %v", err)
+		return nil, goerrors.Errorf("fetch segments to be archived: %w", err)
 	}
 	return segmentsToBeArchived, nil
 }
@@ -539,7 +539,7 @@ func (m *MetaDB) GetSegmentsToBeDeleted() ([]utils.Segment, error) {
 	predicate := "archived = 1 AND deleted = 0"
 	segmentsToBeDeleted, err := m.querySegmentsInAscOrder(predicate)
 	if err != nil {
-		return nil, goerrors.Errorf("fetch segments to be deleted: %v", err)
+		return nil, goerrors.Errorf("fetch segments to be deleted: %w", err)
 	}
 	return segmentsToBeDeleted, nil
 }
@@ -551,7 +551,7 @@ func (m *MetaDB) GetSegmentsToBeDeleted() ([]utils.Segment, error) {
 func (m *MetaDB) GetProcessedAndPendingSegments() (processed []utils.Segment, pending []utils.Segment, err error) {
 	msr, err := m.GetMigrationStatusRecord()
 	if err != nil {
-		return nil, nil, goerrors.Errorf("get migration status record: %v", err)
+		return nil, nil, goerrors.Errorf("get migration status record: %w", err)
 	}
 	if msr == nil {
 		return nil, nil, goerrors.Errorf("migration status record not found")
@@ -564,7 +564,7 @@ func (m *MetaDB) GetProcessedAndPendingSegments() (processed []utils.Segment, pe
 
 	tx, err := m.db.Begin()
 	if err != nil {
-		return nil, nil, goerrors.Errorf("begin transaction: %v", err)
+		return nil, nil, goerrors.Errorf("begin transaction: %w", err)
 	}
 	defer func() {
 		_ = tx.Rollback()
@@ -575,18 +575,18 @@ func (m *MetaDB) GetProcessedAndPendingSegments() (processed []utils.Segment, pe
 	AND archived = 0 AND deleted = 0`, importCount)
 	processed, err = m.querySegmentIsInAscOrderWith(tx, processedPredicate)
 	if err != nil {
-		return nil, nil, goerrors.Errorf("fetch processed segments: %v", err)
+		return nil, nil, goerrors.Errorf("fetch processed segments: %w", err)
 	}
 
 	pendingPredicate := fmt.Sprintf(`(exporter_role == 'source_db_exporter' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer < %d)) OR
 		(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_source_replica_db_importer + imported_by_source_db_importer < 1))`, importCount)
 	pending, err = m.querySegmentIsInAscOrderWith(tx, pendingPredicate)
 	if err != nil {
-		return nil, nil, goerrors.Errorf("fetch pending segments: %v", err)
+		return nil, nil, goerrors.Errorf("fetch pending segments: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
-		return nil, nil, goerrors.Errorf("commit transaction: %v", err)
+		return nil, nil, goerrors.Errorf("commit transaction: %w", err)
 	}
 	return processed, pending, nil
 }
@@ -594,7 +594,7 @@ func (m *MetaDB) GetProcessedAndPendingSegments() (processed []utils.Segment, pe
 func (m *MetaDB) GetPendingSegments() ([]utils.Segment, error) {
 	msr, err := m.GetMigrationStatusRecord()
 	if err != nil {
-		return nil, goerrors.Errorf("get migration status record: %v", err)
+		return nil, goerrors.Errorf("get migration status record: %w", err)
 	}
 	if msr == nil {
 		return nil, goerrors.Errorf("migration status record not found")
@@ -608,7 +608,7 @@ func (m *MetaDB) GetPendingSegments() ([]utils.Segment, error) {
 		(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_source_replica_db_importer + imported_by_source_db_importer < 1))`, importCount)
 	segments, err := m.querySegmentsInAscOrder(predicate)
 	if err != nil {
-		return nil, goerrors.Errorf("fetch pending segments: %v", err)
+		return nil, goerrors.Errorf("fetch pending segments: %w", err)
 	}
 	return segments, nil
 }
@@ -626,7 +626,7 @@ func (m *MetaDB) querySegmentIsInAscOrderWith(q Queryable, predicate string) ([]
 	query := fmt.Sprintf(`SELECT segment_no, file_path FROM %s WHERE %s ORDER BY segment_no;`, QUEUE_SEGMENT_META_TABLE_NAME, predicate)
 	rows, err := q.Query(query)
 	if err != nil {
-		return nil, goerrors.Errorf("run query on meta db -%s :%v", query, err)
+		return nil, goerrors.Errorf("run query on meta db -%s :%w", query, err)
 	}
 	defer func() {
 		err := rows.Close()
@@ -639,7 +639,7 @@ func (m *MetaDB) querySegmentIsInAscOrderWith(q Queryable, predicate string) ([]
 		var filePath string
 		err := rows.Scan(&segmentNo, &filePath)
 		if err != nil {
-			return nil, goerrors.Errorf("scan rows while fetching segments from query %s : %v", query, err)
+			return nil, goerrors.Errorf("scan rows while fetching segments from query %s : %w", query, err)
 		}
 		segment := utils.Segment{
 			Num:      int(segmentNo),
@@ -654,12 +654,12 @@ func (m *MetaDB) updateSegment(segmentNum int, setterExprs string) error {
 	query := fmt.Sprintf(`UPDATE %s SET %s WHERE segment_no = ?;`, QUEUE_SEGMENT_META_TABLE_NAME, setterExprs)
 	result, err := m.db.Exec(query, segmentNum)
 	if err != nil {
-		return goerrors.Errorf("run query on meta db -%s :%v", query, err)
+		return goerrors.Errorf("run query on meta db -%s :%w", query, err)
 	}
 
 	err = checkRowsAffected(result, 1)
 	if err != nil {
-		return goerrors.Errorf("run query on meta db -%s :%v", query, err)
+		return goerrors.Errorf("run query on meta db -%s :%w", query, err)
 	}
 
 	log.Infof("Executed query on meta db - %s", query)
@@ -671,7 +671,7 @@ func (m *MetaDB) MarkSegmentDeleted(segmentNum int) error {
 	queryParams := "deleted = 1"
 	err := m.updateSegment(segmentNum, queryParams)
 	if err != nil {
-		return goerrors.Errorf("mark segment deleted in metaDB for segment %d: %v", segmentNum, err)
+		return goerrors.Errorf("mark segment deleted in metaDB for segment %d: %w", segmentNum, err)
 	}
 	return nil
 }
@@ -680,7 +680,7 @@ func (m *MetaDB) MarkSegmentDeletedAndArchived(segmentNum int) error {
 	queryParams := "archived = 1, deleted = 1"
 	err := m.updateSegment(segmentNum, queryParams)
 	if err != nil {
-		return goerrors.Errorf("mark segment deleted and archived in metaDB for segment %d: %v", segmentNum, err)
+		return goerrors.Errorf("mark segment deleted and archived in metaDB for segment %d: %w", segmentNum, err)
 	}
 	return nil
 }
@@ -690,7 +690,7 @@ func (m *MetaDB) UpdateSegmentArchiveLocation(segmentNum int, archiveLocation st
 	queryParams := fmt.Sprintf(`archived = 1, archive_location = '%s'`, archiveLocation)
 	err := m.updateSegment(segmentNum, queryParams)
 	if err != nil {
-		return goerrors.Errorf("mark segment archived in metaDB for segment %d: %v", segmentNum, err)
+		return goerrors.Errorf("mark segment archived in metaDB for segment %d: %w", segmentNum, err)
 	}
 	return nil
 }
@@ -699,7 +699,7 @@ func (m *MetaDB) ArchiveAndDeleteSegment(segmentNum int, archiveLocation string)
 	queryParams := fmt.Sprintf(`archived = 1, archive_location = '%s', deleted = 1`, archiveLocation)
 	err := m.updateSegment(segmentNum, queryParams)
 	if err != nil {
-		return goerrors.Errorf("archive and delete segment %d in metaDB: %v", segmentNum, err)
+		return goerrors.Errorf("archive and delete segment %d in metaDB: %w", segmentNum, err)
 	}
 	return nil
 }
@@ -707,7 +707,7 @@ func (m *MetaDB) ArchiveAndDeleteSegment(segmentNum int, archiveLocation string)
 func checkRowsAffected(result sql.Result, expectedRows int) error {
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return goerrors.Errorf("get rows updated: %v", err)
+		return goerrors.Errorf("get rows updated: %w", err)
 	}
 	if rowsAffected != int64(expectedRows) {
 		return goerrors.Errorf("expected %d rows to be updated, got %d", expectedRows, rowsAffected)
@@ -735,7 +735,7 @@ func (m *MetaDB) GetArchiveChangesStats() (ArchiveChangesStats, error) {
 		&stats.PendingSegments,
 	)
 	if err != nil {
-		return stats, goerrors.Errorf("get archive changes stats: %v", err)
+		return stats, goerrors.Errorf("get archive changes stats: %w", err)
 	}
 	return stats, nil
 }
