@@ -908,8 +908,8 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		}
 		defer func() {
 			errRollBack := tx.Rollback(ctx)
-			if errRollBack != nil && errRollBack != pgx.ErrTxClosed {
-				log.Errorf("error rolling back tx for batch id (%s): %v", batch.ID(), err)
+			if errRollBack != nil && !errors.Is(errRollBack, pgx.ErrTxClosed) {
+				log.Errorf("error rolling back tx for batch id (%s): %v", batch.ID(), errRollBack)
 			}
 		}()
 

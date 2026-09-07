@@ -951,8 +951,8 @@ FROM generate_series(1, 15);`,
 
 	err = lm.WithTargetConn(func(target *sql.DB) error {
 		//Check if always is restored back
-		query := fmt.Sprintf(`SELECT column_name FROM information_schema.columns where table_schema='test_schema' AND
-		table_name='test_live' AND is_identity='YES' AND identity_generation='ALWAYS'`)
+		query := `SELECT column_name FROM information_schema.columns where table_schema='test_schema' AND
+		table_name='test_live' AND is_identity='YES' AND identity_generation='ALWAYS'`
 
 		var col string
 		err = target.QueryRow(query).Scan(&col)
@@ -1031,7 +1031,8 @@ FROM generate_series(1, 10);`,
 	err = lm.StopImportData()
 	testutils.FatalIfError(t, err, "failed to stop import data")
 
-	err = lm.ResumeImportData(false, map[string]string{
+	// the resume is expected to fail; the guardrail message is asserted on stderr below
+	_ = lm.ResumeImportData(false, map[string]string{
 		"--cdc-partition-key": "pk",
 	})
 
@@ -1063,6 +1064,7 @@ FROM generate_series(1, 10);`,
 		}
 		return nil
 	})
+	testutils.FatalIfError(t, err, "failed to recreate table on target")
 
 	err = lm.ResumeImportData(true, map[string]string{
 		"--cdc-partition-key": "pk",
@@ -2746,6 +2748,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterationsWithFailureScenariosDuri
 			Deletes: 0,
 		},
 	}, 30, 1)
+	testutils.FatalIfError(t, err, "failed to wait for fallback streaming to complete")
 
 	// stopping export data from target
 	err = lm.StopExportDataFromTarget()
@@ -2811,6 +2814,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterationsWithFailureScenariosDuri
 	err = lm.InitiateCutoverToSource(map[string]string{
 		"--restart-data-migration-source-target": "true",
 	})
+	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
 	err = lm.StartImportDataToSource(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data to source")

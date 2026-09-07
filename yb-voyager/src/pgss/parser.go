@@ -18,6 +18,7 @@ package pgss
 import (
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -49,7 +50,7 @@ func ParseFromCSV(csvPath string) ([]*PgStatStatements, error) {
 	lineNumber := 1 // Header is line 0
 	for {
 		record, err := reader.Read()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return nil, fmt.Errorf("failed to read CSV row at line %d: %w", lineNumber, err)

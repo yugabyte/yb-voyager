@@ -629,12 +629,12 @@ func findInnermostGoError(err error) *goerrors.Error {
 			return
 		}
 
-		if goErr, ok := curr.(*goerrors.Error); ok && depth >= deepestDepth {
+		if goErr, ok := curr.(*goerrors.Error); ok && depth >= deepestDepth { //nolint:errorlint // deliberate per-node check inside a manual unwrap walk
 			deepest = goErr
 			deepestDepth = depth
 		}
 
-		switch unwrapped := curr.(type) {
+		switch unwrapped := curr.(type) { //nolint:errorlint // deliberate per-node traversal of the unwrap tree
 		case interface{ Unwrap() []error }:
 			for _, child := range unwrapped.Unwrap() {
 				walk(child, depth+1)

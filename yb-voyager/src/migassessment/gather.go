@@ -18,6 +18,7 @@ package migassessment
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -486,7 +487,8 @@ func runGatherAssessmentMetadataScript(
 
 	err = cmd.Wait()
 	if err != nil {
-		if exiterr, ok := err.(*exec.ExitError); ok {
+		var exiterr *exec.ExitError
+		if errors.As(err, &exiterr) {
 			if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
 				if status.ExitStatus() == 2 {
 					log.Infof("Exit without error as user opted not to continue in the script.")

@@ -226,7 +226,7 @@ func (ora *OracleContainer) Query(sql string, args ...interface{}) (*sql.Rows, e
 	}
 	defer conn.Close()
 
-	rows, err := conn.Query(sql, args...)
+	rows, err := conn.Query(sql, args...) //nolint:sqlclosecheck // rows are returned to and closed by the caller
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}

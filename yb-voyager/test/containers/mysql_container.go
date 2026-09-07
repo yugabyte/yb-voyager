@@ -227,7 +227,7 @@ func (ms *MysqlContainer) Query(sql string, args ...interface{}) (*sql.Rows, err
 	}
 	defer db.Close()
 
-	rows, err := db.Query(sql, args...)
+	rows, err := db.Query(sql, args...) //nolint:sqlclosecheck // rows are returned to and closed by the caller
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}

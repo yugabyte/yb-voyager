@@ -54,7 +54,7 @@ var exportDataStatusCmd = &cobra.Command{
 			utils.ErrExit("error while checking streaming mode: %w\n", err)
 		}
 		if streamChanges {
-			utils.ErrExit("\nNote: Run the following command to get the current report of live migration:\n" +
+			utils.ErrExit("%s", "\nNote: Run the following command to get the current report of live migration:\n"+
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
 		}
 		err = InitNameRegistry(exportDir, namereg.SOURCE_DB_EXPORTER_STATUS_ROLE, nil, nil, nil, nil, false)

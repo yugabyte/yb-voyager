@@ -982,7 +982,7 @@ func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_UniqueConstraintVi
 	w.Write([]string{
 		fmt.Sprintf("%d", 101),
 		"user101",
-		fmt.Sprintf("user100@gmail.com"), // duplicate email
+		"user100@gmail.com", // duplicate email
 	})
 
 	w.Flush() // flush the writer to ensure all data is written
@@ -1073,7 +1073,7 @@ func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_UniqueConstraintVi
 	w.Write([]string{
 		fmt.Sprintf("%d", 100), // duplicate id
 		"user101",
-		fmt.Sprintf("user101@gmail.com"),
+		"user101@gmail.com",
 	})
 
 	w.Flush() // flush the writer to ensure all data is written
