@@ -34,6 +34,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	reporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/stats"
@@ -108,7 +109,7 @@ func cutoverInitiatedAndCutoverEventProcessed() (bool, error) {
 	return false, nil
 }
 
-func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple, tableToPKColumns *utils.StructMap[sqlname.NameTuple, []string], tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]) error {
+func streamChanges(state *importdata.ImportDataState, tableNames []sqlname.NameTuple, tableToPKColumns *utils.StructMap[sqlname.NameTuple, []string], tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]) error {
 	if err := waitForDebeziumStartIfRequired(); err != nil {
 		return fmt.Errorf("waiting for debezium to start: %w", err)
 	}
@@ -198,9 +199,9 @@ func streamChangesFromSegment(
 	segment *EventQueueSegment,
 	evChans []chan *tgtdb.Event,
 	processingDoneChans []chan bool,
-	eventChannelsMetaInfo map[int]EventChannelMetaInfo,
+	eventChannelsMetaInfo map[int]importdata.EventChannelMetaInfo,
 	statsReporter *reporter.StreamImportStatsReporter,
-	state *ImportDataState,
+	state *importdata.ImportDataState,
 	streamingPhaseValueConverter dbzm.StreamingPhaseValueConverter,
 	tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride],
 	tableToPKColumns *utils.StructMap[sqlname.NameTuple, []string],
@@ -535,7 +536,7 @@ func customPartitionKeyColumnValue(e *tgtdb.Event, col string) (*string, bool, e
 	}
 	return nil, false, nil
 }
-func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, done chan bool, statsReporter *reporter.StreamImportStatsReporter, state *ImportDataState) {
+func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, done chan bool, statsReporter *reporter.StreamImportStatsReporter, state *importdata.ImportDataState) {
 	endOfProcessing := false
 	for !endOfProcessing {
 		batch := []*tgtdb.Event{}
@@ -594,8 +595,8 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 			}
 			log.Warnf("retriable error executing batch(%s) on channel %v (last VSN: %d): %v", eventBatch.ID(), chanNo, eventBatch.GetLastVsn(), err)
 			sleepIntervalSec += 10
-			if sleepIntervalSec > MAX_SLEEP_SECOND {
-				sleepIntervalSec = MAX_SLEEP_SECOND
+			if sleepIntervalSec > importdata.MAX_SLEEP_SECOND {
+				sleepIntervalSec = importdata.MAX_SLEEP_SECOND
 			}
 			log.Infof("sleep for %d seconds before retrying the batch on channel %v (attempt %d)",
 				sleepIntervalSec, chanNo, attempt)
@@ -737,7 +738,7 @@ func uniqueIndexWithSameColumnsExists(indexes []tgtdb.UniqueIndex, columns []str
 	return false
 }
 
-func checkifEventBatchAlreadyImported(state *ImportDataState, eventBatch *tgtdb.EventBatch, migrationUUID uuid.UUID) (bool, error) {
+func checkifEventBatchAlreadyImported(state *importdata.ImportDataState, eventBatch *tgtdb.EventBatch, migrationUUID uuid.UUID) (bool, error) {
 	var res bool
 	var err error
 	sleepIntervalSec := 0
@@ -749,8 +750,8 @@ func checkifEventBatchAlreadyImported(state *ImportDataState, eventBatch *tgtdb.
 			break
 		}
 		sleepIntervalSec += 10
-		if sleepIntervalSec > MAX_SLEEP_SECOND {
-			sleepIntervalSec = MAX_SLEEP_SECOND
+		if sleepIntervalSec > importdata.MAX_SLEEP_SECOND {
+			sleepIntervalSec = importdata.MAX_SLEEP_SECOND
 		}
 		log.Infof("sleep for %d seconds before retrying to check if event batch (last vsn: %d) already imported (attempt %d)",
 			sleepIntervalSec, eventBatch.GetLastVsn(), attempt)

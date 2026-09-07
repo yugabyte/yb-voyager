@@ -28,6 +28,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
@@ -182,7 +183,7 @@ func TestSequentialTaskPickerResumePicksInProgressTask(t *testing.T) {
 	}
 
 	// update the state of the first task to in progress
-	fbp, err := NewSequentialFileBatchProducer(task1, state, false, errorHandler, progressReporter)
+	fbp, err := NewSequentialFileBatchProducer(testProducerCfg, task1, state, false, errorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 	batch, err := fbp.NextBatch()
 	assert.NoError(t, err)
@@ -1190,7 +1191,7 @@ func TestColocatedAwareRandomTaskPickerResumable(t *testing.T) {
 	// pick 3 tasks and start the process.
 	task1, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp1, err := NewSequentialFileBatchProducer(task1, state, false, errorHandler, progressReporter)
+	fbp1, err := NewSequentialFileBatchProducer(testProducerCfg, task1, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 	batch1, err := fbp1.NextBatch()
 	assert.NoError(t, err)
@@ -1198,7 +1199,7 @@ func TestColocatedAwareRandomTaskPickerResumable(t *testing.T) {
 
 	task2, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp2, err := NewSequentialFileBatchProducer(task2, state, false, errorHandler, progressReporter)
+	fbp2, err := NewSequentialFileBatchProducer(testProducerCfg, task2, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 	batch2, err := fbp2.NextBatch()
 	assert.NoError(t, err)
@@ -1206,7 +1207,7 @@ func TestColocatedAwareRandomTaskPickerResumable(t *testing.T) {
 
 	task3, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp3, err := NewSequentialFileBatchProducer(task3, state, false, errorHandler, progressReporter)
+	fbp3, err := NewSequentialFileBatchProducer(testProducerCfg, task3, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 	batch3, err := fbp3.NextBatch()
 	assert.NoError(t, err)
@@ -1254,9 +1255,7 @@ func TestColocatedCappedRandomTaskPickerSingleTaskSharded(t *testing.T) {
 			shardedTask1.TableNameTup,
 		},
 	}
-	tdb = dummyYb
-	tconf.TargetDBType = YUGABYTEDB // colocation path is YugabyteDB-only
-	tableTypes, err := getTableTypes(tasks)
+	tableTypes, err := GetTableTypes(constants.TARGET_DB_IMPORTER_ROLE, constants.YUGABYTEDB, dummyYb, tasks)
 	testutils.FatalIfError(t, err)
 
 	// 1 task, 1 max tasks in progress
@@ -1315,9 +1314,7 @@ func TestColocatedCappedRandomTaskPickerSingleTaskColocated(t *testing.T) {
 			colocatedTask1.TableNameTup,
 		},
 	}
-	tdb = dummyYb
-	tconf.TargetDBType = YUGABYTEDB // colocation path is YugabyteDB-only
-	tableTypes, err := getTableTypes(tasks)
+	tableTypes, err := GetTableTypes(constants.TARGET_DB_IMPORTER_ROLE, constants.YUGABYTEDB, dummyYb, tasks)
 	testutils.FatalIfError(t, err)
 
 	// 1 task, 1 max tasks in progress
@@ -1384,9 +1381,7 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksSharded(t *testing.T) {
 			shardedTask3.TableNameTup,
 		},
 	}
-	tdb = dummyYb
-	tconf.TargetDBType = YUGABYTEDB // colocation path is YugabyteDB-only
-	tableTypes, err := getTableTypes(tasks)
+	tableTypes, err := GetTableTypes(constants.TARGET_DB_IMPORTER_ROLE, constants.YUGABYTEDB, dummyYb, tasks)
 	testutils.FatalIfError(t, err)
 
 	// 3 tasks, 10 max tasks in progress
@@ -1502,9 +1497,7 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksColocated(t *testing.T) {
 			colocatedTask3.TableNameTup,
 		},
 	}
-	tdb = dummyYb
-	tconf.TargetDBType = YUGABYTEDB // colocation path is YugabyteDB-only
-	tableTypes, err := getTableTypes(tasks)
+	tableTypes, err := GetTableTypes(constants.TARGET_DB_IMPORTER_ROLE, constants.YUGABYTEDB, dummyYb, tasks)
 	testutils.FatalIfError(t, err)
 
 	// 3 tasks, 10 max tasks in progress
@@ -1634,9 +1627,7 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksColocatedAndSharded(t *test
 			shardedTask3.TableNameTup,
 		},
 	}
-	tdb = dummyYb
-	tconf.TargetDBType = YUGABYTEDB // colocation path is YugabyteDB-only
-	tableTypes, err := getTableTypes(tasks)
+	tableTypes, err := GetTableTypes(constants.TARGET_DB_IMPORTER_ROLE, constants.YUGABYTEDB, dummyYb, tasks)
 	testutils.FatalIfError(t, err)
 
 	// 6 tasks, 10 max sharded tasks in progress, 10 max colocated tasks in progress
@@ -1798,9 +1789,7 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksSameTableColocated(t *testi
 			colocatedTask3.TableNameTup,
 		},
 	}
-	tdb = dummyYb
-	tconf.TargetDBType = YUGABYTEDB // colocation path is YugabyteDB-only
-	tableTypes, err := getTableTypes(tasks)
+	tableTypes, err := GetTableTypes(constants.TARGET_DB_IMPORTER_ROLE, constants.YUGABYTEDB, dummyYb, tasks)
 	testutils.FatalIfError(t, err)
 
 	// 3 tasks, 10 max tasks in progress
@@ -1916,9 +1905,7 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksSameTableSharded(t *testing
 			shardedTask3.TableNameTup,
 		},
 	}
-	tdb = dummyYb
-	tconf.TargetDBType = YUGABYTEDB // colocation path is YugabyteDB-only
-	tableTypes, err := getTableTypes(tasks)
+	tableTypes, err := GetTableTypes(constants.TARGET_DB_IMPORTER_ROLE, constants.YUGABYTEDB, dummyYb, tasks)
 	testutils.FatalIfError(t, err)
 
 	// 3 tasks, 10 max tasks in progress
@@ -2048,9 +2035,7 @@ func TestColocatedCappedRandomTaskPickeResumable(t *testing.T) {
 			shardedTask3.TableNameTup,
 		},
 	}
-	tdb = dummyYb
-	tconf.TargetDBType = YUGABYTEDB // colocation path is YugabyteDB-only
-	tableTypes, err := getTableTypes(tasks)
+	tableTypes, err := GetTableTypes(constants.TARGET_DB_IMPORTER_ROLE, constants.YUGABYTEDB, dummyYb, tasks)
 	testutils.FatalIfError(t, err)
 
 	// 5 tasks, 10 max tasks in progress
@@ -2061,7 +2046,7 @@ func TestColocatedCappedRandomTaskPickeResumable(t *testing.T) {
 	// pick 4 tasks and start the process.
 	task1, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp1, err := NewSequentialFileBatchProducer(task1, state, false, errorHandler, progressReporter)
+	fbp1, err := NewSequentialFileBatchProducer(testProducerCfg, task1, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 	batch1, err := fbp1.NextBatch()
 	assert.NoError(t, err)
@@ -2069,7 +2054,7 @@ func TestColocatedCappedRandomTaskPickeResumable(t *testing.T) {
 
 	task2, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp2, err := NewSequentialFileBatchProducer(task2, state, false, errorHandler, progressReporter)
+	fbp2, err := NewSequentialFileBatchProducer(testProducerCfg, task2, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 	batch2, err := fbp2.NextBatch()
 	assert.NoError(t, err)
@@ -2077,7 +2062,7 @@ func TestColocatedCappedRandomTaskPickeResumable(t *testing.T) {
 
 	task3, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp3, err := NewSequentialFileBatchProducer(task3, state, false, errorHandler, progressReporter)
+	fbp3, err := NewSequentialFileBatchProducer(testProducerCfg, task3, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 	batch3, err := fbp3.NextBatch()
 	assert.NoError(t, err)
@@ -2085,7 +2070,7 @@ func TestColocatedCappedRandomTaskPickeResumable(t *testing.T) {
 
 	task4, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp4, err := NewSequentialFileBatchProducer(task4, state, false, errorHandler, progressReporter)
+	fbp4, err := NewSequentialFileBatchProducer(testProducerCfg, task4, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 	batch4, err := fbp4.NextBatch()
 	assert.NoError(t, err)
@@ -2145,9 +2130,7 @@ func TestColocatedCappedRandomTaskPickerShardedTasksOrderedByRowCount(t *testing
 			shardedTask3.TableNameTup,
 		},
 	}
-	tdb = dummyYb
-	tconf.TargetDBType = YUGABYTEDB // colocation path is YugabyteDB-only
-	tableTypes, err := getTableTypes(tasks)
+	tableTypes, err := GetTableTypes(constants.TARGET_DB_IMPORTER_ROLE, constants.YUGABYTEDB, dummyYb, tasks)
 	testutils.FatalIfError(t, err)
 
 	// 3 tasks, 3 max tasks in progress
@@ -2208,9 +2191,7 @@ func TestColocatedCappedRandomTaskPickerShardedTasksOrderedByFileSize(t *testing
 			shardedTask3.TableNameTup,
 		},
 	}
-	tdb = dummyYb
-	tconf.TargetDBType = YUGABYTEDB // colocation path is YugabyteDB-only
-	tableTypes, err := getTableTypes(tasks)
+	tableTypes, err := GetTableTypes(constants.TARGET_DB_IMPORTER_ROLE, constants.YUGABYTEDB, dummyYb, tasks)
 	testutils.FatalIfError(t, err)
 
 	// 3 tasks, 3 max tasks in progress

@@ -1,4 +1,5 @@
 //go:build integration
+
 /*
 Copyright (c) YugabyteDB, Inc.
 
@@ -30,7 +31,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -62,11 +62,11 @@ func TestBasicTaskImport(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_basic", 1)
 	testutils.FatalIfError(t, err)
 
-	batchProducer, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	batchProducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
+	taskImporter, err := NewFileTaskImporter(testImporterCfg, task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	for !taskImporter.AllBatchesSubmitted() {
@@ -76,7 +76,7 @@ func TestBasicTaskImport(t *testing.T) {
 
 	workerPool.Wait()
 	var rowCount int64
-	err = tdb.QueryRow("SELECT count(*) FROM test_table_basic").Scan(&rowCount)
+	err = testYugabyteDBTarget.TargetDB.QueryRow("SELECT count(*) FROM test_table_basic").Scan(&rowCount)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(2), rowCount)
 }
@@ -105,11 +105,11 @@ func TestImportAllBatchesAndResume(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_all", 1)
 	testutils.FatalIfError(t, err)
 
-	batchProducer, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	batchProducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
+	taskImporter, err := NewFileTaskImporter(testImporterCfg, task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	for !taskImporter.AllBatchesSubmitted() {
@@ -119,17 +119,17 @@ func TestImportAllBatchesAndResume(t *testing.T) {
 
 	workerPool.Wait()
 	var rowCount int64
-	err = tdb.QueryRow("SELECT count(*) FROM test_table_all").Scan(&rowCount)
+	err = testYugabyteDBTarget.TargetDB.QueryRow("SELECT count(*) FROM test_table_all").Scan(&rowCount)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(2), rowCount)
 
 	// simulate restart
 	progressReporter = NewImportDataProgressReporter(true)
-	batchProducer, err = NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	batchProducer, err = NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 
 	workerPool = pool.New().WithMaxGoroutines(2)
-	taskImporter, err = NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
+	taskImporter, err = NewFileTaskImporter(testImporterCfg, task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	assert.Equal(t, true, taskImporter.AllBatchesSubmitted())
@@ -162,11 +162,11 @@ func TestTaskImportResumable(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_resume", 1)
 	testutils.FatalIfError(t, err)
 
-	batchProducer, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	batchProducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
+	taskImporter, err := NewFileTaskImporter(testImporterCfg, task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	// submit 1 batch
@@ -176,17 +176,17 @@ func TestTaskImportResumable(t *testing.T) {
 	// check that the first batch was imported
 	workerPool.Wait()
 	var rowCount int64
-	err = tdb.QueryRow("SELECT count(*) FROM test_table_resume").Scan(&rowCount)
+	err = testYugabyteDBTarget.TargetDB.QueryRow("SELECT count(*) FROM test_table_resume").Scan(&rowCount)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(2), rowCount)
 
 	// simulate restart
 	progressReporter = NewImportDataProgressReporter(true)
-	batchProducer, err = NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	batchProducer, err = NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 
 	workerPool = pool.New().WithMaxGoroutines(2)
-	taskImporter, err = NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
+	taskImporter, err = NewFileTaskImporter(testImporterCfg, task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	// submit second batch, not first batch again as it was already imported
@@ -195,7 +195,7 @@ func TestTaskImportResumable(t *testing.T) {
 
 	assert.Equal(t, true, taskImporter.AllBatchesSubmitted())
 	workerPool.Wait()
-	err = tdb.QueryRow("SELECT count(*) FROM test_table_resume").Scan(&rowCount)
+	err = testYugabyteDBTarget.TargetDB.QueryRow("SELECT count(*) FROM test_table_resume").Scan(&rowCount)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(4), rowCount)
 }
@@ -226,11 +226,11 @@ func TestTaskImportResumableNoPK(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_resume_no_pk", 1)
 	testutils.FatalIfError(t, err)
 
-	batchProducer, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	batchProducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
+	taskImporter, err := NewFileTaskImporter(testImporterCfg, task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	// submit 1 batch
@@ -240,17 +240,17 @@ func TestTaskImportResumableNoPK(t *testing.T) {
 	// check that the first batch was imported
 	workerPool.Wait()
 	var rowCount int64
-	err = tdb.QueryRow("SELECT count(*) FROM test_table_resume_no_pk").Scan(&rowCount)
+	err = testYugabyteDBTarget.TargetDB.QueryRow("SELECT count(*) FROM test_table_resume_no_pk").Scan(&rowCount)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(2), rowCount)
 
 	// simulate restart
 	progressReporter = NewImportDataProgressReporter(true)
-	batchProducer, err = NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	batchProducer, err = NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 
 	workerPool = pool.New().WithMaxGoroutines(2)
-	taskImporter, err = NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
+	taskImporter, err = NewFileTaskImporter(testImporterCfg, task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	// submit second batch, not first batch again as it was already imported
@@ -259,7 +259,7 @@ func TestTaskImportResumableNoPK(t *testing.T) {
 
 	assert.Equal(t, true, taskImporter.AllBatchesSubmitted())
 	workerPool.Wait()
-	err = tdb.QueryRow("SELECT count(*) FROM test_table_resume_no_pk").Scan(&rowCount)
+	err = testYugabyteDBTarget.TargetDB.QueryRow("SELECT count(*) FROM test_table_resume_no_pk").Scan(&rowCount)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(4), rowCount)
 }
@@ -292,11 +292,11 @@ func TestTaskImportErrorsOutWithAbortErrorPolicy(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_error", 1)
 	testutils.FatalIfError(t, err)
 
-	batchProducer, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	batchProducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
+	taskImporter, err := NewFileTaskImporter(testImporterCfg, task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	var capturedErr error
@@ -319,11 +319,11 @@ func TestTaskImportErrorsOutWithAbortErrorPolicy(t *testing.T) {
 	var ibErr errs.ImportBatchError
 	require.True(t, errors.As(capturedErr, &ibErr), "error should wrap an ImportBatchError")
 	assert.Equal(t, errs.ERROR_TYPE_PK_VIOLATION, ibErr.ErrorType())
-	assert.Contains(t, capturedErr.Error(), importdata.PK_VIOLATION_RECOMMENDATION_MESSAGE)
+	assert.Contains(t, capturedErr.Error(), PK_VIOLATION_RECOMMENDATION_MESSAGE)
 }
 
 func TestRecommendationForBatchError(t *testing.T) {
-	fti := &FileTaskImporter{}
+	fti := &FileTaskImporter{cfg: FileTaskImporterConfig{ImporterRole: testImporterRole}}
 	tableName := sqlname.NameTuple{CurrentName: sqlname.NewObjectName(tgtdb.YUGABYTEDB, "public", "public", "test_table")}
 
 	tests := []struct {
@@ -334,22 +334,22 @@ func TestRecommendationForBatchError(t *testing.T) {
 		{
 			name:            "pk_violation_returns_pk_message",
 			errorType:       errs.ERROR_TYPE_PK_VIOLATION,
-			expectedMessage: importdata.PK_VIOLATION_RECOMMENDATION_MESSAGE,
+			expectedMessage: PK_VIOLATION_RECOMMENDATION_MESSAGE,
 		},
 		{
 			name:            "fk_violation_returns_fk_message",
 			errorType:       errs.ERROR_TYPE_FOREIGN_KEY_VIOLATION,
-			expectedMessage: importdata.FK_VIOLATION_RECOMMENDATION_MESSAGE,
+			expectedMessage: FK_VIOLATION_RECOMMENDATION_MESSAGE,
 		},
 		{
 			name:            "unique_violation_returns_default_message",
 			errorType:       errs.ERROR_TYPE_UNIQUE_VIOLATION,
-			expectedMessage: importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE,
+			expectedMessage: STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE,
 		},
 		{
 			name:            "empty_error_type_returns_default_message",
 			errorType:       "",
-			expectedMessage: importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE,
+			expectedMessage: STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE,
 		},
 	}
 
@@ -560,16 +560,16 @@ func createBatchFromData(t *testing.T, data string, tableName sqlname.NameTuple)
 	require.NoError(t, err, "Failed to create batch file")
 
 	batch := &Batch{
-		Number:       1,
-		TableNameTup: tableName,
-		SchemaName:   tableName.CurrentName.SchemaName.Unquoted,
-		FilePath:     batchFilePath,
-		BaseFilePath: batchFilePath,
+		Number:          1,
+		TableNameTup:    tableName,
+		SchemaName:      tableName.CurrentName.SchemaName.Unquoted,
+		FilePath:        batchFilePath,
+		BaseFilePath:    batchFilePath,
 		LineOffsetStart: 0,
 		LineOffsetEnd:   int64(len(data)),
-		RecordCount:  1,
-		ByteCount:    int64(len(data)),
-		Interrupted:  false,
+		RecordCount:     1,
+		ByteCount:       int64(len(data)),
+		Interrupted:     false,
 	}
 
 	args := &tgtdb.ImportBatchArgs{

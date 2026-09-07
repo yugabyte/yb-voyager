@@ -673,7 +673,7 @@ func getImportedEventsMap(dbType string, tableNameTups []sqlname.NameTuple, targ
 		return nil, fmt.Errorf("failed to initialize the target DB: %w", err)
 	}
 	defer tdb.Finalize()
-	state := NewImportDataState(exportDir)
+	state := newImportDataStateFromGlobals()
 	tableNameTupToEventsCounter, err := state.GetImportedEventsStatsForTableList(tableNameTups, migrationUUID)
 	if err != nil {
 		return nil, fmt.Errorf("imported events stats for tableList: %w", err)

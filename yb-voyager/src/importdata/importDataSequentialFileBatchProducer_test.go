@@ -26,13 +26,13 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
@@ -95,7 +95,7 @@ func TestBasicFileBatchProducer(t *testing.T) {
 1, "hello"`
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
-	batchproducer, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	batchproducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	assert.False(t, batchproducer.Done())
@@ -127,7 +127,7 @@ func TestFileBatchProducerBasedOnRowsThreshold(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	batchproducer, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	batchproducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	assert.False(t, batchproducer.Done())
@@ -178,7 +178,7 @@ func TestFileBatchProducerBasedOnSizeThreshold(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	batchproducer, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	batchproducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	assert.False(t, batchproducer.Done())
@@ -245,7 +245,7 @@ func TestFileBatchProducerThrowsErrorWhenSingleRowGreaterThanMaxBatchSize(t *tes
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	batchproducer, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	batchproducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	assert.False(t, batchproducer.Done())
@@ -279,7 +279,7 @@ func TestFileBatchProducerResumable(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	batchproducer, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	batchproducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 	assert.False(t, batchproducer.Done())
 
@@ -293,13 +293,13 @@ func TestFileBatchProducerResumable(t *testing.T) {
 		"Batch 1 CumByteOffsetEnd should equal header + rows 0-1")
 
 	// simulate a crash and recover
-	batchproducer, err = NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	batchproducer, err = NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 	assert.False(t, batchproducer.Done())
 
 	// state should have recovered that one batch
 	assert.Equal(t, 1, len(batchproducer.pendingBatches))
-	assert.True(t, cmp.Equal(batch1, batchproducer.pendingBatches[0]))
+	assert.True(t, cmp.Equal(batch1, batchproducer.pendingBatches[0], cmpopts.IgnoreUnexported(Batch{})))
 	assert.Equal(t, batch1.CumByteOffsetEnd, batchproducer.lastBatchCumByteOffsetEnd)
 	assert.Equal(t, batch1.CumByteOffsetEnd, batchproducer.cumByteOffsetEnd)
 
@@ -308,7 +308,7 @@ func TestFileBatchProducerResumable(t *testing.T) {
 	batch1Recovered, err := batchproducer.NextBatch()
 	assert.NoError(t, err)
 	assert.NotNil(t, batch1Recovered)
-	assert.True(t, cmp.Equal(batch1, batch1Recovered))
+	assert.True(t, cmp.Equal(batch1, batch1Recovered, cmpopts.IgnoreUnexported(Batch{})))
 	assert.Equal(t, 0, len(batchproducer.pendingBatches))
 	assert.False(t, batchproducer.Done())
 
@@ -348,7 +348,7 @@ func TestFileBatchProducerResumeAfterAllBatchesProduced(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	batchproducer, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	batchproducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 	assert.False(t, batchproducer.Done())
 
@@ -362,7 +362,7 @@ func TestFileBatchProducerResumeAfterAllBatchesProduced(t *testing.T) {
 	}
 
 	// simulate a crash and recover
-	batchproducer, err = NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	batchproducer, err = NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 	assert.False(t, batchproducer.Done())
 
@@ -396,7 +396,7 @@ func TestFileBatchProducer_StashAndContinue_ConversionError(t *testing.T) {
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
+	scErrorHandler, err := GetImportDataErrorHandler(StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), testImporterRole)
 	testutils.FatalIfError(t, err)
 
 	fileContents := `id,val
@@ -405,12 +405,12 @@ func TestFileBatchProducer_StashAndContinue_ConversionError(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	// Swap in the mock valueConverter
-	origValueConverter := valueConverter
-	valueConverter = &mockValueConverterForTest{}
-	t.Cleanup(func() { valueConverter = origValueConverter })
+	// Swap in the mock testProducerCfg.ValueConverter
+	origValueConverter := testProducerCfg.ValueConverter
+	testProducerCfg.ValueConverter = &mockValueConverterForTest{}
+	t.Cleanup(func() { testProducerCfg.ValueConverter = origValueConverter })
 
-	batchproducer, err := NewSequentialFileBatchProducer(task, state, true, scErrorHandler, progressReporter)
+	batchproducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, true, scErrorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	batch, err := batchproducer.NextBatch()
@@ -441,7 +441,7 @@ func TestFileBatchProducer_AbortHandler_ConversionError(t *testing.T) {
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	abortErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.AbortErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
+	abortErrorHandler, err := GetImportDataErrorHandler(AbortErrorPolicy, getErrorsParentDir(lexportDir), testImporterRole)
 	testutils.FatalIfError(t, err)
 
 	fileContents := `id,val
@@ -450,12 +450,12 @@ func TestFileBatchProducer_AbortHandler_ConversionError(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	// Swap in the mock valueConverter
-	origValueConverter := valueConverter
-	valueConverter = &mockValueConverterForTest{}
-	t.Cleanup(func() { valueConverter = origValueConverter })
+	// Swap in the mock testProducerCfg.ValueConverter
+	origValueConverter := testProducerCfg.ValueConverter
+	testProducerCfg.ValueConverter = &mockValueConverterForTest{}
+	t.Cleanup(func() { testProducerCfg.ValueConverter = origValueConverter })
 
-	batchproducer, err := NewSequentialFileBatchProducer(task, state, true, abortErrorHandler, progressReporter)
+	batchproducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, true, abortErrorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	batch, err := batchproducer.NextBatch()
@@ -477,7 +477,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError(t *testing.T) {
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
+	scErrorHandler, err := GetImportDataErrorHandler(StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), testImporterRole)
 	testutils.FatalIfError(t, err)
 
 	// The second row will be too large for the batch size
@@ -487,7 +487,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	batchproducer, err := NewSequentialFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
+	batchproducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, scErrorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	batch, err := batchproducer.NextBatch()
@@ -518,7 +518,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError_FirstRow(t *testing
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
+	scErrorHandler, err := GetImportDataErrorHandler(StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), testImporterRole)
 	testutils.FatalIfError(t, err)
 
 	// The first row will be too large for the batch size
@@ -528,7 +528,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError_FirstRow(t *testing
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	batchproducer, err := NewSequentialFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
+	batchproducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, scErrorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	batch, err := batchproducer.NextBatch()
@@ -555,7 +555,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError_FirstFiveRows(t *te
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
+	scErrorHandler, err := GetImportDataErrorHandler(StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), testImporterRole)
 	testutils.FatalIfError(t, err)
 
 	// The first 5 rows will be too large for the batch size
@@ -569,7 +569,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError_FirstFiveRows(t *te
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	batchproducer, err := NewSequentialFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
+	batchproducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, scErrorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	batch, err := batchproducer.NextBatch()
@@ -600,7 +600,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError_LastBatch(t *testin
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
+	scErrorHandler, err := GetImportDataErrorHandler(StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), testImporterRole)
 	testutils.FatalIfError(t, err)
 
 	// First batch: small rows that fit within 20 bytes
@@ -617,7 +617,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError_LastBatch(t *testin
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	batchproducer, err := NewSequentialFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
+	batchproducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, scErrorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	// First batch should contain the first 3 small rows
@@ -655,7 +655,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError_processingErrorFile
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
+	scErrorHandler, err := GetImportDataErrorHandler(StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), testImporterRole)
 	testutils.FatalIfError(t, err)
 
 	// The second row will be too large for the batch size
@@ -665,7 +665,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError_processingErrorFile
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	batchproducer, err := NewSequentialFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
+	batchproducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, scErrorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	batch, err := batchproducer.NextBatch()
@@ -684,7 +684,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError_processingErrorFile
 	err = os.Remove(batch.GetFilePath())
 	assert.NoError(t, err)
 
-	batchproducer, err = NewSequentialFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
+	batchproducer, err = NewSequentialFileBatchProducer(testProducerCfg, task, state, false, scErrorHandler, progressReporter)
 	assert.NoError(t, err)
 	assert.False(t, batchproducer.Done())
 
@@ -713,7 +713,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeErrorDoesNotCountTowardsB
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
+	scErrorHandler, err := GetImportDataErrorHandler(StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), testImporterRole)
 	testutils.FatalIfError(t, err)
 
 	// The second row will be too large for the batch size, but the third row is small enough to fit if the second is skipped
@@ -724,7 +724,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeErrorDoesNotCountTowardsB
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	batchproducer, err := NewSequentialFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
+	batchproducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, scErrorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	// First batch: should contain row 1 and row 3 (row 2 is too large and skipped, its size does not count)
@@ -754,7 +754,7 @@ func TestFileBatchProducer_StashAndContinue_ConversionErrorDoesNotCountTowardsBa
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
+	scErrorHandler, err := GetImportDataErrorHandler(StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), testImporterRole)
 	testutils.FatalIfError(t, err)
 
 	// The second row will error (conversion error), but is large enough that if it counted, the third row would not fit
@@ -765,12 +765,12 @@ func TestFileBatchProducer_StashAndContinue_ConversionErrorDoesNotCountTowardsBa
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	// Use a mock valueConverter that errors on row 2
-	origValueConverter := valueConverter
-	valueConverter = &mockRowErrorValueConverter{rowToError: 2}
-	t.Cleanup(func() { valueConverter = origValueConverter })
+	// Use a mock testProducerCfg.ValueConverter that errors on row 2
+	origValueConverter := testProducerCfg.ValueConverter
+	testProducerCfg.ValueConverter = &mockRowErrorValueConverter{rowToError: 2}
+	t.Cleanup(func() { testProducerCfg.ValueConverter = origValueConverter })
 
-	batchproducer, err := NewSequentialFileBatchProducer(task, state, true, scErrorHandler, progressReporter)
+	batchproducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, true, scErrorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	// First batch: should contain row 1 and row 3 (row 2 is errored and skipped, its size does not count)
@@ -800,7 +800,7 @@ func TestFileBatchProducer_StashAndContinue_Resumption(t *testing.T) {
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
+	scErrorHandler, err := GetImportDataErrorHandler(StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), testImporterRole)
 	testutils.FatalIfError(t, err)
 
 	// The second row will be too large for the batch size
@@ -813,7 +813,7 @@ func TestFileBatchProducer_StashAndContinue_Resumption(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	batchproducer, err := NewSequentialFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
+	batchproducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, scErrorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	// first batch will contain the first row only
@@ -829,7 +829,7 @@ func TestFileBatchProducer_StashAndContinue_Resumption(t *testing.T) {
 		"ROW: 2, \"this row is too long and should trigger an error because it exceeds the max batch size\"")
 
 	// simulate a crash and recover
-	batchproducer, err = NewSequentialFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
+	batchproducer, err = NewSequentialFileBatchProducer(testProducerCfg, task, state, false, scErrorHandler, progressReporter)
 	assert.NoError(t, err)
 	assert.False(t, batchproducer.Done())
 	// get the batch1 again, because they would still be pending.
@@ -872,7 +872,7 @@ func TestFileBatchProducer_StashAndContinue_MultipleTasksSameTable(t *testing.T)
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
+	scErrorHandler, err := GetImportDataErrorHandler(StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), testImporterRole)
 	testutils.FatalIfError(t, err)
 
 	// The second row will error (conversion error), but is large enough that if it counted, the third row would not fit
@@ -890,12 +890,12 @@ func TestFileBatchProducer_StashAndContinue_MultipleTasksSameTable(t *testing.T)
 	_, task2, err := createFileAndTask(lexportDir, fileContents2, ldataDir, "test_table", 2)
 	assert.NoError(t, err)
 
-	// Use a mock valueConverter that errors on row 2
-	origValueConverter := valueConverter
-	valueConverter = &mockRowErrorValueConverter{rowToError: 2}
-	t.Cleanup(func() { valueConverter = origValueConverter })
+	// Use a mock testProducerCfg.ValueConverter that errors on row 2
+	origValueConverter := testProducerCfg.ValueConverter
+	testProducerCfg.ValueConverter = &mockRowErrorValueConverter{rowToError: 2}
+	t.Cleanup(func() { testProducerCfg.ValueConverter = origValueConverter })
 
-	batchproducer1, err := NewSequentialFileBatchProducer(task1, state, true, scErrorHandler, progressReporter)
+	batchproducer1, err := NewSequentialFileBatchProducer(testProducerCfg, task1, state, true, scErrorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	// First batch: should contain row 1 and row 3 (row 2 is errored and skipped, its size does not count)
@@ -904,7 +904,7 @@ func TestFileBatchProducer_StashAndContinue_MultipleTasksSameTable(t *testing.T)
 	assert.NotNil(t, batch1)
 	assert.Equal(t, int64(2), batch1.RecordCount)
 
-	batchproducer2, err := NewSequentialFileBatchProducer(task2, state, true, scErrorHandler, progressReporter)
+	batchproducer2, err := NewSequentialFileBatchProducer(testProducerCfg, task2, state, true, scErrorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	// First batch: should contain row 1 and row 3 (row 2 is errored and skipped, its size does not count)
@@ -933,7 +933,7 @@ func TestFileBatchProducer_StashAndContinue_MultipleTasksSameTable(t *testing.T)
 func assertProcessingErrorBatchFileContains(t *testing.T, lexportDir string, task *ImportFileTask,
 	batchNumber int64, expectedRowCount int64, expectedByteCount int64,
 	expectedSubstrings ...string) {
-	taskFolderPath := fmt.Sprintf("file::%s:%s", filepath.Base(task.FilePath), importdata.ComputePathHash(task.FilePath))
+	taskFolderPath := fmt.Sprintf("file::%s:%s", filepath.Base(task.FilePath), ComputePathHash(task.FilePath))
 	tableFolderPath := fmt.Sprintf("table::%s", task.TableNameTup.ForKey())
 	errorFileName := fmt.Sprintf("processing-errors.%d.%d.%d.log", batchNumber, expectedRowCount, expectedByteCount)
 	errorsFilePath := filepath.Join(getErrorsParentDir(lexportDir), "errors", tableFolderPath, taskFolderPath, errorFileName)
@@ -1011,7 +1011,7 @@ func TestBatchCumByteOffsetTracking(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	batchproducer, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	batchproducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	var batches []*Batch
@@ -1052,7 +1052,7 @@ func TestByteSeekResumption(t *testing.T) {
 	assert.NoError(t, err)
 
 	// First run: produce one batch (rows 1-2)
-	bp1, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	bp1, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 	batch1, err := bp1.NextBatch()
 	assert.NoError(t, err)
@@ -1062,7 +1062,7 @@ func TestByteSeekResumption(t *testing.T) {
 	bp1.Close()
 
 	// Resume: should use byte-seek
-	bp2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	bp2, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 	assert.Equal(t, batch1.CumByteOffsetEnd, bp2.lastBatchCumByteOffsetEnd,
 		"Recovered lastBatchCumByteOffsetEnd should match batch1's CumByteOffsetEnd")
@@ -1099,7 +1099,7 @@ func TestByteSeekResumption_NoHeader(t *testing.T) {
 	defer os.RemoveAll(lexportDir)
 
 	rows := []string{"1\thello", "2\tworld", "3\tfoo", "4\tbar"}
-	dataFileDescriptor = &datafile.Descriptor{
+	testProducerCfg.DataFileDescriptor = &datafile.Descriptor{
 		FileFormat: "text",
 		Delimiter:  "\t",
 		HasHeader:  false,
@@ -1119,7 +1119,7 @@ func TestByteSeekResumption_NoHeader(t *testing.T) {
 	}
 
 	// First run: produce one batch (rows 1-2)
-	bp1, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	bp1, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 	batch1, err := bp1.NextBatch()
 	assert.NoError(t, err)
@@ -1129,7 +1129,7 @@ func TestByteSeekResumption_NoHeader(t *testing.T) {
 	bp1.Close()
 
 	// Resume: should use byte-seek
-	bp2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	bp2, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	// Get pending batch 1
@@ -1173,7 +1173,7 @@ func TestCumByteOffset_CarriedForwardLine(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	bp, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	bp, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	batch1, err := bp.NextBatch()
@@ -1218,7 +1218,7 @@ func TestMultipleResumeCycles(t *testing.T) {
 	defer os.RemoveAll(lexportDir)
 
 	rows := []string{"a\tb", "c\td", "e\tf", "g\th", "i\tj", "k\tl"}
-	dataFileDescriptor = &datafile.Descriptor{
+	testProducerCfg.DataFileDescriptor = &datafile.Descriptor{
 		FileFormat: "text",
 		Delimiter:  "\t",
 		HasHeader:  false,
@@ -1238,7 +1238,7 @@ func TestMultipleResumeCycles(t *testing.T) {
 	}
 
 	// Cycle 1: produce 2 batches
-	bp1, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	bp1, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 	b1, err := bp1.NextBatch()
 	assert.NoError(t, err)
@@ -1248,7 +1248,7 @@ func TestMultipleResumeCycles(t *testing.T) {
 	bp1.Close()
 
 	// Cycle 2: resume, get 2 pending + produce 2 new
-	bp2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	bp2, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 	assert.Equal(t, b2.CumByteOffsetEnd, bp2.lastBatchCumByteOffsetEnd)
 
@@ -1267,7 +1267,7 @@ func TestMultipleResumeCycles(t *testing.T) {
 	bp2.Close()
 
 	// Cycle 3: resume again, get 4 pending + produce remaining 2
-	bp3, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	bp3, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 	assert.Equal(t, b4.CumByteOffsetEnd, bp3.lastBatchCumByteOffsetEnd)
 
@@ -1321,7 +1321,7 @@ func TestCumByteOffset_SingleRowFile(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	bp, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	bp, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	batch, err := bp.NextBatch()
@@ -1360,7 +1360,7 @@ func TestCumByteOffset_CsvNewlineInData(t *testing.T) {
 		_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 		assert.NoError(t, err)
 
-		bp, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+		bp, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 		assert.NoError(t, err)
 
 		var batches []*Batch
@@ -1396,7 +1396,7 @@ func TestCumByteOffset_CsvNewlineInData(t *testing.T) {
 		assert.NoError(t, err)
 
 		// First run: produce batch 1 (rows 0-1, where row 1 has embedded newline)
-		bp1, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+		bp1, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 		assert.NoError(t, err)
 		batch1, err := bp1.NextBatch()
 		assert.NoError(t, err)
@@ -1407,7 +1407,7 @@ func TestCumByteOffset_CsvNewlineInData(t *testing.T) {
 		bp1.Close()
 
 		// Resume via byte-seek past the multi-line row
-		bp2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+		bp2, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 		assert.NoError(t, err)
 		assert.Equal(t, batch1.CumByteOffsetEnd, bp2.lastBatchCumByteOffsetEnd)
 
@@ -1447,7 +1447,7 @@ func TestCumByteOffset_WithStashedErrors(t *testing.T) {
 	defer os.RemoveAll(ldataDir)
 	defer os.RemoveAll(lexportDir)
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
+	scErrorHandler, err := GetImportDataErrorHandler(StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), testImporterRole)
 	assert.NoError(t, err)
 
 	longVal := strings.Repeat("x", 220) // 220+ bytes, exceeds MaxBatchSizeInBytes of 200
@@ -1455,7 +1455,7 @@ func TestCumByteOffset_WithStashedErrors(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	bp, err := NewSequentialFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
+	bp, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, scErrorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	batch, err := bp.NextBatch()
@@ -1478,7 +1478,7 @@ func TestByteSeekResumption_ManyBatches(t *testing.T) {
 	defer os.RemoveAll(ldataDir)
 	defer os.RemoveAll(lexportDir)
 
-	dataFileDescriptor = &datafile.Descriptor{
+	testProducerCfg.DataFileDescriptor = &datafile.Descriptor{
 		FileFormat: "text",
 		Delimiter:  "\t",
 		HasHeader:  false,
@@ -1499,7 +1499,7 @@ func TestByteSeekResumption_ManyBatches(t *testing.T) {
 	}
 
 	// First run: produce 4 batches
-	bp1, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	bp1, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 	firstRunBatches := make([]*Batch, 0)
 	for i := 0; i < 4; i++ {
@@ -1510,7 +1510,7 @@ func TestByteSeekResumption_ManyBatches(t *testing.T) {
 	bp1.Close()
 
 	// Resume: byte-seek to midpoint
-	bp2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	bp2, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 	assert.Equal(t, firstRunBatches[3].CumByteOffsetEnd, bp2.lastBatchCumByteOffsetEnd)
 
@@ -1558,7 +1558,7 @@ func TestByteSeekResumption_SqlFormat(t *testing.T) {
 	dataRows := []string{"1\thello", "2\tworld", "3\tfoo", "4\tbar"}
 	sqlContent := preamble + "\n" + strings.Join(dataRows, "\n") + "\n\\.\n"
 
-	dataFileDescriptor = &datafile.Descriptor{
+	testProducerCfg.DataFileDescriptor = &datafile.Descriptor{
 		FileFormat: "sql",
 		HasHeader:  false,
 		ExportDir:  lexportDir,
@@ -1576,7 +1576,7 @@ func TestByteSeekResumption_SqlFormat(t *testing.T) {
 	}
 
 	// First run: produce one batch (rows 1-2)
-	bp1, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	bp1, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 	batch1, err := bp1.NextBatch()
 	assert.NoError(t, err)
@@ -1587,7 +1587,7 @@ func TestByteSeekResumption_SqlFormat(t *testing.T) {
 	bp1.Close()
 
 	// Resume: byte-seek past the COPY preamble + first 2 data rows
-	bp2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	bp2, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 	assert.Equal(t, batch1.CumByteOffsetEnd, bp2.lastBatchCumByteOffsetEnd)
 
@@ -1623,7 +1623,7 @@ func TestCumByteOffset_WithConversionErrors(t *testing.T) {
 	defer os.RemoveAll(ldataDir)
 	defer os.RemoveAll(lexportDir)
 
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
+	scErrorHandler, err := GetImportDataErrorHandler(StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), testImporterRole)
 	assert.NoError(t, err)
 
 	fileContents := `id,val
@@ -1633,11 +1633,11 @@ func TestCumByteOffset_WithConversionErrors(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	origValueConverter := valueConverter
-	valueConverter = &mockRowErrorValueConverter{rowToError: 2}
-	t.Cleanup(func() { valueConverter = origValueConverter })
+	origValueConverter := testProducerCfg.ValueConverter
+	testProducerCfg.ValueConverter = &mockRowErrorValueConverter{rowToError: 2}
+	t.Cleanup(func() { testProducerCfg.ValueConverter = origValueConverter })
 
-	bp, err := NewSequentialFileBatchProducer(task, state, true, scErrorHandler, progressReporter)
+	bp, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, true, scErrorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	batch, err := bp.NextBatch()
@@ -1653,7 +1653,7 @@ func TestCumByteOffset_WithConversionErrors(t *testing.T) {
 }
 
 func assertNoProcessingErrorBatchFileExists(t *testing.T, lexportDir string, task *ImportFileTask, batchNumber int64) {
-	taskFolderPath := fmt.Sprintf("file::%s:%s", filepath.Base(task.FilePath), importdata.ComputePathHash(task.FilePath))
+	taskFolderPath := fmt.Sprintf("file::%s:%s", filepath.Base(task.FilePath), ComputePathHash(task.FilePath))
 	tableFolderPath := fmt.Sprintf("table::%s", task.TableNameTup.ForKey())
 	errorsDir := filepath.Join(getErrorsParentDir(lexportDir), "errors", tableFolderPath, taskFolderPath)
 
@@ -1718,7 +1718,7 @@ func TestResumeFallsBackToSkipLinesWhenOpenAtUnsupported(t *testing.T) {
 
 	// First run (real local datastore): produce one batch (rows 1-2) so that a
 	// resumption point with a recovered byte offset exists.
-	bp1, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	bp1, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 	batch1, err := bp1.NextBatch()
 	assert.NoError(t, err)
@@ -1726,11 +1726,11 @@ func TestResumeFallsBackToSkipLinesWhenOpenAtUnsupported(t *testing.T) {
 	bp1.Close()
 
 	// Now wrap the datastore so OpenAt reports "not implemented", like GCS/Azure.
-	spy := &notImplementedOpenAtDataStore{DataStore: dataStore}
-	dataStore = spy
+	spy := &notImplementedOpenAtDataStore{DataStore: testProducerCfg.DataStore}
+	testProducerCfg.DataStore = spy
 
 	// Resume.
-	bp2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	bp2, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
 	assert.Greater(t, bp2.lastBatchCumByteOffsetEnd, int64(0),
 		"a byte offset should have been recovered, so the producer would attempt byte-offset seek")

@@ -25,9 +25,12 @@ import (
 	"github.com/mroth/weightedrand/v2"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"golang.org/x/exp/rand"
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -698,3 +701,44 @@ func (c *ColocatedCappedRandomTaskPicker) MarkTaskAsDone(task *ImportFileTask) e
 	return goerrors.Errorf("task [%v] not found in inProgressTasks: %v", task, c.InProgressTasks())
 }
 
+// GetTableTypes classifies the tasks' tables as colocated or sharded on a YugabyteDB
+// target (nil map for other roles/targets). Callers pass the importer role, target DB
+// type and target DB handle that used to be cmd package-level variables.
+func GetTableTypes(importerRole string, targetDBType string, tdb tgtdb.TargetDB, tasks []*ImportFileTask) (*utils.StructMap[sqlname.NameTuple, string], error) {
+	if !slices.Contains([]string{constants.TARGET_DB_IMPORTER_ROLE, constants.IMPORT_FILE_ROLE}, importerRole) {
+		return nil, nil
+	}
+	// Colocation is a YugabyteDB-only concept; table types are only meaningful
+	// for a real YugabyteDB target. Non-YB targets (yb-amp, etc.) use plain heap
+	// storage and the sequential task picker, which does not consult table types.
+	if targetDBType != constants.YUGABYTEDB {
+		return nil, nil
+	}
+
+	tableTypes := utils.NewStructMap[sqlname.NameTuple, string]()
+	yb, ok := tdb.(YbTargetDBColocatedChecker)
+	if !ok {
+		return nil, goerrors.Errorf("expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
+	}
+	isDBColocated, err := yb.IsDBColocated()
+	if err != nil {
+		return nil, fmt.Errorf("checking if db is colocated: %w", err)
+	}
+	for _, task := range tasks {
+		if _, ok := tableTypes.Get(task.TableNameTup); !ok {
+			var tableType string
+			if !isDBColocated {
+				tableType = SHARDED
+			} else {
+				isColocated, err := yb.IsTableColocated(task.TableNameTup)
+				if err != nil {
+					return nil, fmt.Errorf("checking if table is colocated: table: %v: %w", task.TableNameTup.ForOutput(), err)
+				}
+				tableType = lo.Ternary(isColocated, COLOCATED, SHARDED)
+			}
+			tableTypes.Put(task.TableNameTup, tableType)
+		}
+	}
+	return tableTypes, nil
+
+}

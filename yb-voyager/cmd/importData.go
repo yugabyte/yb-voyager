@@ -77,7 +77,7 @@ var targetDBDetails *callhome.TargetDBDetails
 var skipReplicationChecks utils.BoolStr
 var skipNodeHealthChecks utils.BoolStr
 var skipDiskUsageHealthChecks utils.BoolStr
-var progressReporter *ImportDataProgressReporter
+var progressReporter *importdata.ImportDataProgressReporter
 var callhomeMetricsCollector *callhome.ImportDataMetricsCollector
 
 // ShutdownImportProgressBars stops the mpb progress container so that its
@@ -255,7 +255,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("initialize name registry: %w", err)
 	}
 
-	var importFileTasks []*ImportFileTask
+	var importFileTasks []*importdata.ImportFileTask
 	if importSnapshotRequired() {
 
 		dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
@@ -750,18 +750,6 @@ func generateExportDataFromTargetCommand(msr *metadb.MigrationStatusRecord) []st
 	return cmd
 }
 
-type ImportFileTask struct {
-	ID           int
-	FilePath     string
-	TableNameTup sqlname.NameTuple
-	RowCount     int64
-	FileSize     int64
-}
-
-func (task *ImportFileTask) String() string {
-	return fmt.Sprintf("{ID: %d, FilePath: %s, TableName: %s, RowCount: %d, FileSize: %d}", task.ID, task.FilePath, task.TableNameTup.ForOutput(), task.RowCount, task.FileSize)
-}
-
 // func quoteTableNameIfRequired() {
 // 	if tconf.TargetDBType != ORACLE {
 // 		return
@@ -782,8 +770,8 @@ func (task *ImportFileTask) String() string {
 // 	}
 // }
 
-func discoverFilesToImport() []*ImportFileTask {
-	result := []*ImportFileTask{}
+func discoverFilesToImport() []*importdata.ImportFileTask {
+	result := []*importdata.ImportFileTask{}
 	if dataFileDescriptor.DataFileList == nil {
 		utils.ErrExit("It looks like the data is exported using older version of Voyager. Please use matching version to import the data.")
 	}
@@ -801,7 +789,7 @@ func discoverFilesToImport() []*ImportFileTask {
 		if err != nil {
 			utils.ErrExit("lookup table name from name registry: %w", err)
 		}
-		task := &ImportFileTask{
+		task := &importdata.ImportFileTask{
 			ID:           i,
 			FilePath:     fileEntry.FilePath,
 			TableNameTup: tableName,
@@ -813,8 +801,8 @@ func discoverFilesToImport() []*ImportFileTask {
 	return result
 }
 
-func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
-	result := []*ImportFileTask{}
+func applyTableListFilter(importFileTasks []*importdata.ImportFileTask) []*importdata.ImportFileTask {
+	result := []*importdata.ImportFileTask{}
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
@@ -823,7 +811,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	source = *msr.SourceDBConf
 	_, noDefaultSchema := getDefaultSourceSchemaName()
 
-	allTables := lo.Uniq(lo.Map(importFileTasks, func(task *ImportFileTask, _ int) sqlname.NameTuple {
+	allTables := lo.Uniq(lo.Map(importFileTasks, func(task *importdata.ImportFileTask, _ int) sqlname.NameTuple {
 		return task.TableNameTup
 	}))
 	slices.SortFunc(allTables, func(a, b sqlname.NameTuple) int {
@@ -1036,7 +1024,7 @@ func prepareTargetDBForImport() error {
 	return nil
 }
 
-func handleStartCleanForSnapshot(state *ImportDataState, importFileTasks []*ImportFileTask, errorHandler importdata.ImportDataErrorHandler) error {
+func handleStartCleanForSnapshot(state *importdata.ImportDataState, importFileTasks []*importdata.ImportFileTask, errorHandler importdata.ImportDataErrorHandler) error {
 	cleanImportState(state, importFileTasks)
 	err := cleanStoredErrors(errorHandler, importFileTasks)
 	if err != nil {
@@ -1045,7 +1033,7 @@ func handleStartCleanForSnapshot(state *ImportDataState, importFileTasks []*Impo
 	return nil
 }
 
-func initialiseImportTableList(importFileTasks []*ImportFileTask, msr *metadb.MigrationStatusRecord) ([]*ImportFileTask, []sqlname.NameTuple, error) {
+func initialiseImportTableList(importFileTasks []*importdata.ImportFileTask, msr *metadb.MigrationStatusRecord) ([]*importdata.ImportFileTask, []sqlname.NameTuple, error) {
 	var err error
 	if changeStreamingIsEnabled(importType) {
 		if tconf.TableList != "" || tconf.ExcludeTableList != "" {
@@ -1108,9 +1096,9 @@ func handleIdentityColumns(importTableList []sqlname.NameTuple) error {
 }
 
 func importSnapshotData(msr *metadb.MigrationStatusRecord, errorHandler importdata.ImportDataErrorHandler,
-	state *ImportDataState, importFileTasks []*ImportFileTask, importTableList []sqlname.NameTuple) error {
+	state *importdata.ImportDataState, importFileTasks []*importdata.ImportFileTask, importTableList []sqlname.NameTuple) error {
 	var err error
-	var pendingTasks, completedTasks []*ImportFileTask
+	var pendingTasks, completedTasks []*importdata.ImportFileTask
 
 	if startClean {
 		pendingTasks = importFileTasks
@@ -1175,12 +1163,12 @@ func importSnapshotData(msr *metadb.MigrationStatusRecord, errorHandler importda
 			batchImportPool = pool.New().WithMaxGoroutines(poolSize)
 			log.Infof("created batch import pool of size: %d", poolSize)
 
-			batchProducer, err := NewSequentialFileBatchProducer(task, state, msr.IsSnapshotExportedViaDebezium(), errorHandler, progressReporter)
+			batchProducer, err := importdata.NewSequentialFileBatchProducer(sequentialFileBatchProducerConfigFromGlobals(), task, state, msr.IsSnapshotExportedViaDebezium(), errorHandler, progressReporter)
 			if err != nil {
 				utils.ErrExit("Failed to create batch producer: %w", err)
 			}
 
-			taskImporter, err := NewFileTaskImporter(task, state, batchProducer, batchImportPool, progressReporter, nil, false, errorHandler, callhomeMetricsCollector)
+			taskImporter, err := importdata.NewFileTaskImporter(fileTaskImporterConfigFromGlobals(), task, state, batchProducer, batchImportPool, progressReporter, nil, false, errorHandler, callhomeMetricsCollector)
 			if err != nil {
 				utils.ErrExit("Failed to create file task importer: %w", err)
 			}
@@ -1201,7 +1189,7 @@ func importSnapshotData(msr *metadb.MigrationStatusRecord, errorHandler importda
 	return nil
 }
 
-func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorPolicy) {
+func importData(importFileTasks []*importdata.ImportFileTask, errorPolicy importdata.ErrorPolicy) {
 	errorHandler, err := initialiseErrorHandler(errorPolicy)
 	if err != nil {
 		utils.ErrExit("Failed to initialize error policy and error handler: %w", err)
@@ -1220,14 +1208,14 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		utils.ErrExit("Failed to get migration status record: %w", err)
 	}
 	//create progress reporter
-	progressReporter = NewImportDataProgressReporter(bool(disablePb))
+	progressReporter = importdata.NewImportDataProgressReporter(bool(disablePb))
 
 	err = prepareTargetDBForImport()
 	if err != nil {
 		utils.ErrExit("Failed to prepare target DB for import: %w", err)
 	}
 
-	state := NewImportDataState(exportDir)
+	state := newImportDataStateFromGlobals()
 
 	err = clearMigrationStateForImportDataStartClean(state, importFileTasks, errorHandler)
 	if err != nil {
@@ -1465,7 +1453,7 @@ func getPrimaryKeyColumnsForImportTables(tableNames []sqlname.NameTuple) (*utils
 }
 
 // For a fresh start but non empty tables in tableList && OnPrimaryKeyConflict is set to IGNORE -> notify user
-func runPKConflictModeGuardrails(state *ImportDataState, allTasks []*ImportFileTask) error {
+func runPKConflictModeGuardrails(state *importdata.ImportDataState, allTasks []*importdata.ImportFileTask) error {
 	// in case of ERROR mode, no need to check for non-empty tables
 	// but for IGNORE or UPDATE(in future), we need to prompt user
 	if tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR_POLICY {
@@ -1522,7 +1510,7 @@ func runPKConflictModeGuardrails(state *ImportDataState, allTasks []*ImportFileT
 }
 
 // A fresh start is when all tasks are pending(non-zero), no started or completed tasks.
-func isFreshStart(state *ImportDataState, allTasks []*ImportFileTask) bool {
+func isFreshStart(state *importdata.ImportDataState, allTasks []*importdata.ImportFileTask) bool {
 	inProgressTasks := getInProgressTasks(state, allTasks)
 	notStartedTasks := getNotStartedTasks(state, allTasks)
 	completedTasks := getCompletedTasks(state, allTasks)
@@ -1566,7 +1554,7 @@ func getMaxParallelConnections() (int, error) {
 	return maxParallelConns, nil
 }
 
-func waitIfNoBatchAvailableForAllTasks(taskPicker FileTaskPicker, taskImporters map[int]*FileTaskImporter) {
+func waitIfNoBatchAvailableForAllTasks(taskPicker importdata.FileTaskPicker, taskImporters map[int]*importdata.FileTaskImporter) {
 	inProgressTasks := taskPicker.InProgressTasks()
 	if len(inProgressTasks) == 0 {
 		return
@@ -1594,7 +1582,7 @@ func waitIfNoBatchAvailableForAllTasks(taskPicker FileTaskPicker, taskImporters 
 	}
 }
 
-func waitIfAllBatchesSubmittedForAllTasks(taskPicker FileTaskPicker, taskImporters map[int]*FileTaskImporter) {
+func waitIfAllBatchesSubmittedForAllTasks(taskPicker importdata.FileTaskPicker, taskImporters map[int]*importdata.FileTaskImporter) {
 	inProgressTasks := taskPicker.InProgressTasks()
 	if len(inProgressTasks) == 0 {
 		return
@@ -1630,15 +1618,15 @@ func waitIfAllBatchesSubmittedForAllTasks(taskPicker FileTaskPicker, taskImporte
   - For the task that is picked, produce the next batch and submit it to the worker pool. Worker will asynchronously import the batch.
   - If task is done, mark it as done in the task picker.
 */
-func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataState, progressReporter *ImportDataProgressReporter,
+func importTasksViaTaskPicker(pendingTasks []*importdata.ImportFileTask, state *importdata.ImportDataState, progressReporter *importdata.ImportDataProgressReporter,
 	maxParallelConns int, maxShardedTasksInProgress int, maxColocatedBatchesInProgress int,
 	isRowTransformationRequired bool, maxConcurrentBatchProductions int, enableRandomBatchProduction bool,
 	errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) error {
 
 	var err error
 	setupWorkerPoolAndQueue(maxParallelConns, maxColocatedBatchesInProgress)
-	taskImporters := map[int]*FileTaskImporter{}
-	tableTypes, err := getTableTypes(pendingTasks)
+	taskImporters := map[int]*importdata.FileTaskImporter{}
+	tableTypes, err := importdata.GetTableTypes(importerRole, tconf.TargetDBType, tdb, pendingTasks)
 	if err != nil {
 		return fmt.Errorf("get table types: %w", err)
 	}
@@ -1646,7 +1634,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 	// Initialize semaphore to limit concurrent batch productions
 	concurrentBatchProductionSem := semaphore.NewWeighted(int64(maxConcurrentBatchProductions))
 
-	var taskPicker FileTaskPicker
+	var taskPicker importdata.FileTaskPicker
 	// The colocation-aware task picker only applies to a real YugabyteDB
 	// target. yb-amp (PostgreSQL-compatible, no colocation/tablets) and the
 	// PG fall-forward/back roles use the sequential picker instead.
@@ -1655,12 +1643,12 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 		if !ok {
 			return goerrors.Errorf("expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
 		}
-		taskPicker, err = NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress, maxColocatedBatchesInProgress, pendingTasks, state, yb, colocatedBatchImportQueue, tableTypes)
+		taskPicker, err = importdata.NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress, maxColocatedBatchesInProgress, pendingTasks, state, yb, colocatedBatchImportQueue, tableTypes)
 		if err != nil {
 			return fmt.Errorf("create colocated aware randmo task picker: %w", err)
 		}
 	} else {
-		taskPicker, err = NewSequentialTaskPicker(pendingTasks, state)
+		taskPicker, err = importdata.NewSequentialTaskPicker(pendingTasks, state)
 		if err != nil {
 			return fmt.Errorf("create sequential task picker: %w", err)
 		}
@@ -1672,7 +1660,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 			return fmt.Errorf("get next task: %w", err)
 		}
 		log.Debugf("Picked task for import: %s", task)
-		var taskImporter *FileTaskImporter
+		var taskImporter *importdata.FileTaskImporter
 		var ok bool
 		taskImporter, ok = taskImporters[task.ID]
 		if !ok {
@@ -1749,43 +1737,52 @@ func setupWorkerPoolAndQueue(maxParallelConns int, maxColocatedBatchesInProgress
 }
 
 // getTableTypes returns a map of table name to table type (sharded/colocated) for all tables in the tasks.
-func getTableTypes(tasks []*ImportFileTask) (*utils.StructMap[sqlname.NameTuple, string], error) {
-	if !slices.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, importerRole) {
-		return nil, nil
+// The *FromGlobals helpers copy the cmd package-level variables the importdata
+// components used to read directly into their config structs. They are a bridge
+// until the import engine itself moves out of cmd (PR C), after which
+// importdata.Config supplies these values.
+func importDataStateConfigFromGlobals() importdata.ImportDataStateConfig {
+	return importdata.ImportDataStateConfig{
+		ExportDir:          exportDir,
+		ImporterRole:       importerRole,
+		Tdb:                tdb,
+		Tconf:              tconf,
+		MigrationUUID:      migrationUUID,
+		TruncateSplits:     truncateSplits,
+		DataFileDescriptor: dataFileDescriptor,
 	}
-	// Colocation is a YugabyteDB-only concept; table types are only meaningful
-	// for a real YugabyteDB target. Non-YB targets (yb-amp, etc.) use plain heap
-	// storage and the sequential task picker, which does not consult table types.
-	if tconf.TargetDBType != YUGABYTEDB {
-		return nil, nil
-	}
+}
 
-	tableTypes := utils.NewStructMap[sqlname.NameTuple, string]()
-	yb, ok := tdb.(YbTargetDBColocatedChecker)
-	if !ok {
-		return nil, goerrors.Errorf("expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
-	}
-	isDBColocated, err := yb.IsDBColocated()
-	if err != nil {
-		return nil, fmt.Errorf("checking if db is colocated: %w", err)
-	}
-	for _, task := range tasks {
-		if _, ok := tableTypes.Get(task.TableNameTup); !ok {
-			var tableType string
-			if !isDBColocated {
-				tableType = SHARDED
-			} else {
-				isColocated, err := yb.IsTableColocated(task.TableNameTup)
-				if err != nil {
-					return nil, fmt.Errorf("checking if table is colocated: table: %v: %w", task.TableNameTup.ForOutput(), err)
-				}
-				tableType = lo.Ternary(isColocated, COLOCATED, SHARDED)
-			}
-			tableTypes.Put(task.TableNameTup, tableType)
-		}
-	}
-	return tableTypes, nil
+func newImportDataStateFromGlobals() *importdata.ImportDataState {
+	return importdata.NewImportDataState(importDataStateConfigFromGlobals())
+}
 
+func sequentialFileBatchProducerConfigFromGlobals() importdata.SequentialFileBatchProducerConfig {
+	return importdata.SequentialFileBatchProducerConfig{
+		ImporterRole:       importerRole,
+		Tdb:                tdb,
+		Tconf:              tconf,
+		DataFileDescriptor: dataFileDescriptor,
+		DataStore:          dataStore,
+		BatchSizeInNumRows: batchSizeInNumRows,
+		ValueConverter:     valueConverter,
+		TableToColumnNames: TableToColumnNames,
+	}
+}
+
+func fileTaskImporterConfigFromGlobals() importdata.FileTaskImporterConfig {
+	return importdata.FileTaskImporterConfig{
+		ImporterRole:          importerRole,
+		Tdb:                   tdb,
+		Tconf:                 tconf,
+		ExportDir:             exportDir,
+		MigrationUUID:         migrationUUID,
+		DataFileDescriptor:    dataFileDescriptor,
+		ReportProgressInBytes: reportProgressInBytes,
+		ControlPlane:          controlPlane,
+		TableToColumnNames:    TableToColumnNames,
+		TableNameToSchema:     TableNameToSchema,
+	}
 }
 
 /*
@@ -1796,11 +1793,11 @@ and colocated table batches to the colocatedBatchImportQueue.
 
 Otherwise, we simply pass the batchImportPool to the FileTaskImporter.
 */
-func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchImportPool *pool.Pool, progressReporter *ImportDataProgressReporter, colocatedBatchImportQueue chan func(),
-	tableTypes *utils.StructMap[sqlname.NameTuple, string], isRowTransformationRequired bool, enableRandomBatchProduction bool, concurrentBatchProductionSem *semaphore.Weighted, errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (*FileTaskImporter, error) {
-	var taskImporter *FileTaskImporter
+func createFileTaskImporter(task *importdata.ImportFileTask, state *importdata.ImportDataState, batchImportPool *pool.Pool, progressReporter *importdata.ImportDataProgressReporter, colocatedBatchImportQueue chan func(),
+	tableTypes *utils.StructMap[sqlname.NameTuple, string], isRowTransformationRequired bool, enableRandomBatchProduction bool, concurrentBatchProductionSem *semaphore.Weighted, errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (*importdata.FileTaskImporter, error) {
+	var taskImporter *importdata.FileTaskImporter
 	var err error
-	var batchProducer FileBatchProducer
+	var batchProducer importdata.FileBatchProducer
 
 	// tableTypes (the colocation map) is only populated for a real YugabyteDB
 	// target. For yb-amp (PostgreSQL-compatible, no colocation) and the PG
@@ -1816,28 +1813,28 @@ func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchI
 		}
 
 		if enableRandomBatchProduction {
-			batchProducer, err = NewRandomFileBatchProducer(task, state, isRowTransformationRequired, errorHandler, progressReporter, concurrentBatchProductionSem)
+			batchProducer, err = importdata.NewRandomFileBatchProducer(sequentialFileBatchProducerConfigFromGlobals(), task, state, isRowTransformationRequired, errorHandler, progressReporter, concurrentBatchProductionSem)
 			if err != nil {
 				return nil, fmt.Errorf("creating random batch producer: %w", err)
 			}
 		} else {
-			batchProducer, err = NewSequentialFileBatchProducer(task, state, isRowTransformationRequired, errorHandler, progressReporter)
+			batchProducer, err = importdata.NewSequentialFileBatchProducer(sequentialFileBatchProducerConfigFromGlobals(), task, state, isRowTransformationRequired, errorHandler, progressReporter)
 			if err != nil {
 				return nil, fmt.Errorf("creating sequential batch producer: %w", err)
 			}
 		}
-		taskImporter, err = NewFileTaskImporter(task, state, batchProducer, batchImportPool, progressReporter, colocatedBatchImportQueue, tableType == COLOCATED, errorHandler, callhomeMetricsCollector)
+		taskImporter, err = importdata.NewFileTaskImporter(fileTaskImporterConfigFromGlobals(), task, state, batchProducer, batchImportPool, progressReporter, colocatedBatchImportQueue, tableType == importdata.COLOCATED, errorHandler, callhomeMetricsCollector)
 
 		if err != nil {
 			return nil, fmt.Errorf("create file task importer: %w", err)
 		}
 	} else {
-		batchProducer, err = NewSequentialFileBatchProducer(task, state, isRowTransformationRequired, errorHandler, progressReporter)
+		batchProducer, err = importdata.NewSequentialFileBatchProducer(sequentialFileBatchProducerConfigFromGlobals(), task, state, isRowTransformationRequired, errorHandler, progressReporter)
 		if err != nil {
 			return nil, fmt.Errorf("creating sequential batch producer: %w", err)
 		}
 
-		taskImporter, err = NewFileTaskImporter(task, state, batchProducer, batchImportPool, progressReporter, nil, false, errorHandler, callhomeMetricsCollector)
+		taskImporter, err = importdata.NewFileTaskImporter(fileTaskImporterConfigFromGlobals(), task, state, batchProducer, batchImportPool, progressReporter, nil, false, errorHandler, callhomeMetricsCollector)
 		if err != nil {
 			return nil, fmt.Errorf("create file task importer: %w", err)
 		}
@@ -2132,7 +2129,7 @@ func restoreGeneratedByDefaultAsIdentityColumns(tables []sqlname.NameTuple) erro
 	return nil
 }
 
-func importFileTasksToTableNames(tasks []*ImportFileTask) []string {
+func importFileTasksToTableNames(tasks []*importdata.ImportFileTask) []string {
 	tableNames := []string{}
 	for _, t := range tasks {
 		tableNames = append(tableNames, t.TableNameTup.ForKey())
@@ -2140,7 +2137,7 @@ func importFileTasksToTableNames(tasks []*ImportFileTask) []string {
 	return lo.Uniq(tableNames)
 }
 
-func importFileTasksToTableNameTuples(tasks []*ImportFileTask) []sqlname.NameTuple {
+func importFileTasksToTableNameTuples(tasks []*importdata.ImportFileTask) []sqlname.NameTuple {
 	tableNames := []sqlname.NameTuple{}
 	for _, t := range tasks {
 		tableNames = append(tableNames, t.TableNameTup)
@@ -2150,20 +2147,20 @@ func importFileTasksToTableNameTuples(tasks []*ImportFileTask) []sqlname.NameTup
 	})
 }
 
-func classifyTasksForImport(state *ImportDataState, tasks []*ImportFileTask) (pendingTasks, completedTasks []*ImportFileTask, err error) {
-	inProgressTasks := []*ImportFileTask{}
-	notStartedTasks := []*ImportFileTask{}
+func classifyTasksForImport(state *importdata.ImportDataState, tasks []*importdata.ImportFileTask) (pendingTasks, completedTasks []*importdata.ImportFileTask, err error) {
+	inProgressTasks := []*importdata.ImportFileTask{}
+	notStartedTasks := []*importdata.ImportFileTask{}
 	for _, task := range tasks {
 		fileImportState, err := state.GetFileImportState(task.FilePath, task.TableNameTup)
 		if err != nil {
 			return nil, nil, fmt.Errorf("get table import state: %w", err)
 		}
 		switch fileImportState {
-		case FILE_IMPORT_COMPLETED, FILE_IMPORT_COMPLETED_WITH_ERRORS:
+		case importdata.FILE_IMPORT_COMPLETED, importdata.FILE_IMPORT_COMPLETED_WITH_ERRORS:
 			completedTasks = append(completedTasks, task)
-		case FILE_IMPORT_IN_PROGRESS:
+		case importdata.FILE_IMPORT_IN_PROGRESS:
 			inProgressTasks = append(inProgressTasks, task)
-		case FILE_IMPORT_NOT_STARTED:
+		case importdata.FILE_IMPORT_NOT_STARTED:
 			notStartedTasks = append(notStartedTasks, task)
 		default:
 			return nil, nil, goerrors.Errorf("invalid table import state: %s", fileImportState)
@@ -2173,53 +2170,53 @@ func classifyTasksForImport(state *ImportDataState, tasks []*ImportFileTask) (pe
 	return append(inProgressTasks, notStartedTasks...), completedTasks, nil
 }
 
-func getNotStartedTasks(state *ImportDataState, tasks []*ImportFileTask) []*ImportFileTask {
-	notStartedTasks := []*ImportFileTask{}
+func getNotStartedTasks(state *importdata.ImportDataState, tasks []*importdata.ImportFileTask) []*importdata.ImportFileTask {
+	notStartedTasks := []*importdata.ImportFileTask{}
 	for _, task := range tasks {
 		fileImportState, err := state.GetFileImportState(task.FilePath, task.TableNameTup)
 		if err != nil {
 			utils.ErrExit("get table import state: %s: %w", task.TableNameTup, err)
 		}
-		if fileImportState == FILE_IMPORT_NOT_STARTED {
+		if fileImportState == importdata.FILE_IMPORT_NOT_STARTED {
 			notStartedTasks = append(notStartedTasks, task)
 		}
 	}
 	return notStartedTasks
 }
 
-func getInProgressTasks(state *ImportDataState, tasks []*ImportFileTask) []*ImportFileTask {
-	inProgressTasks := []*ImportFileTask{}
+func getInProgressTasks(state *importdata.ImportDataState, tasks []*importdata.ImportFileTask) []*importdata.ImportFileTask {
+	inProgressTasks := []*importdata.ImportFileTask{}
 	for _, task := range tasks {
 		fileImportState, err := state.GetFileImportState(task.FilePath, task.TableNameTup)
 		if err != nil {
 			utils.ErrExit("get table import state: %s: %w", task.TableNameTup, err)
 		}
-		if fileImportState == FILE_IMPORT_IN_PROGRESS {
+		if fileImportState == importdata.FILE_IMPORT_IN_PROGRESS {
 			inProgressTasks = append(inProgressTasks, task)
 		}
 	}
 	return inProgressTasks
 }
 
-func getPendingTasks(state *ImportDataState, tasks []*ImportFileTask) []*ImportFileTask {
+func getPendingTasks(state *importdata.ImportDataState, tasks []*importdata.ImportFileTask) []*importdata.ImportFileTask {
 	return append(getInProgressTasks(state, tasks), getNotStartedTasks(state, tasks)...)
 }
 
-func getCompletedTasks(state *ImportDataState, tasks []*ImportFileTask) []*ImportFileTask {
-	completedTasks := []*ImportFileTask{}
+func getCompletedTasks(state *importdata.ImportDataState, tasks []*importdata.ImportFileTask) []*importdata.ImportFileTask {
+	completedTasks := []*importdata.ImportFileTask{}
 	for _, task := range tasks {
 		fileImportState, err := state.GetFileImportState(task.FilePath, task.TableNameTup)
 		if err != nil {
 			utils.ErrExit("get table import state: %s: %w", task.TableNameTup, err)
 		}
-		if fileImportState == FILE_IMPORT_COMPLETED || fileImportState == FILE_IMPORT_COMPLETED_WITH_ERRORS {
+		if fileImportState == importdata.FILE_IMPORT_COMPLETED || fileImportState == importdata.FILE_IMPORT_COMPLETED_WITH_ERRORS {
 			completedTasks = append(completedTasks, task)
 		}
 	}
 	return completedTasks
 }
 
-func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
+func cleanImportState(state *importdata.ImportDataState, tasks []*importdata.ImportFileTask) {
 	tableNames := importFileTasksToTableNameTuples(tasks)
 	nonEmptyNts := tdb.GetNonEmptyTables(tableNames)
 	if len(nonEmptyNts) > 0 {
@@ -2262,7 +2259,7 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	}
 }
 
-func prepareTableToColumns(tasks []*ImportFileTask) error {
+func prepareTableToColumns(tasks []*importdata.ImportFileTask) error {
 	for _, task := range tasks {
 		var columns []string
 		dfdTableToExportedColumns, err := getDfdTableNameToExportedColumns(tasks, dataFileDescriptor)
@@ -2292,7 +2289,7 @@ func prepareTableToColumns(tasks []*ImportFileTask) error {
 	return nil
 }
 
-func getDfdTableNameToExportedColumns(tasks []*ImportFileTask, dataFileDescriptor *datafile.Descriptor) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+func getDfdTableNameToExportedColumns(tasks []*importdata.ImportFileTask, dataFileDescriptor *datafile.Descriptor) (*utils.StructMap[sqlname.NameTuple, []string], error) {
 	if dataFileDescriptor.TableNameToExportedColumns == nil {
 		return nil, nil
 	}
@@ -2395,7 +2392,7 @@ func createSnapshotImportCompletedEvent() cp.SnapshotImportCompletedEvent {
 // a prior run. The control-plane event list is still built from pendingTasks only
 // (unchanged behaviour: the control plane only expects updates for tables being
 // worked on in this run).
-func createInitialImportDataTableMetrics(allTasks, pendingTasks []*ImportFileTask) []*cp.UpdateImportedRowCountEvent {
+func createInitialImportDataTableMetrics(allTasks, pendingTasks []*importdata.ImportFileTask) []*cp.UpdateImportedRowCountEvent {
 	metrics.Get().SetImportSnapshotTablesTotal(importerRole, len(allTasks))
 	for _, task := range allTasks {
 		metrics.Get().SetImportSnapshotTableExpectedRows(importerRole, task.TableNameTup, task.RowCount)
@@ -2414,7 +2411,7 @@ func createInitialImportDataTableMetrics(allTasks, pendingTasks []*ImportFileTas
 				},
 				TableName:         tableName,
 				Status:            cp.EXPORT_OR_IMPORT_DATA_STATUS_INT_TO_STR[ROW_UPDATE_STATUS_NOT_STARTED],
-				TotalRowCount:     getTotalProgressAmount(task),
+				TotalRowCount:     importdata.GetTotalProgressAmount(task, reportProgressInBytes),
 				CompletedRowCount: 0,
 			},
 		}
@@ -2437,7 +2434,7 @@ func saveOnPrimaryKeyConflictActionInMSR() {
 	}
 }
 
-func clearMigrationStateForImportDataStartClean(state *ImportDataState, importFileTasks []*ImportFileTask, errorHandler importdata.ImportDataErrorHandler) error {
+func clearMigrationStateForImportDataStartClean(state *importdata.ImportDataState, importFileTasks []*importdata.ImportFileTask, errorHandler importdata.ImportDataErrorHandler) error {
 	if !startClean {
 		log.Infof("skipping cleaning migration status record for import data command start clean")
 		return nil
@@ -2507,7 +2504,7 @@ func isPrimaryKeyConflictModeValid() bool {
 	return importerRole == IMPORT_FILE_ROLE || importerRole == TARGET_DB_IMPORTER_ROLE
 }
 
-func cleanStoredErrors(errorHandler importdata.ImportDataErrorHandler, tasks []*ImportFileTask) error {
+func cleanStoredErrors(errorHandler importdata.ImportDataErrorHandler, tasks []*importdata.ImportFileTask) error {
 	// clean stored errors for all tasks
 	for _, task := range tasks {
 		err := errorHandler.CleanUpStoredErrors(task.TableNameTup, task.FilePath)
