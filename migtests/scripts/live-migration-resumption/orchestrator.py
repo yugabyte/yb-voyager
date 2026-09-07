@@ -393,24 +393,31 @@ def pick_random_custom_key_action(stage: Dict[str, Any], ctx: Any) -> None:
     orchestrator plumbing changes are needed for the pick to take effect.
 
     Required stage key:
-      - candidates: list of {table: "schema.table", expect_conflicts: bool
-        (optional, default false)} with EITHER:
-          - columns: [col, ...] -- a fixed custom key, OR
-          - random_columns_pool: [col, ...] -- the key's columns are ALSO
-            randomized: 1..2 columns (or min_columns..max_columns) are sampled
-            from the pool, in random order, so successive runs route the same
-            table by different columns and column counts.
-        Every fixed column and every pool column must already be safe to route
-        by (never appears in an UPDATE for that table in the conflict DML, and
-        its value must be identical across the rows of each conflict pair --
-        e.g. a DML-churned key column, or a column the DML leaves at a
-        transaction-constant default) -- this action only performs the pick
-        and the wiring, not that verification.
-        `expect_conflicts: true` marks a candidate whose DML deliberately
-        creates conflicts that MUST still be detected when it is picked (e.g.
-        a PK-recycle pattern); `validate_picked_custom_key_conflicts` uses it
-        to decide which assertion to run. Such candidates should use fixed
-        `columns` -- their assertion depends on the specific key.
+      - candidates: list of {table: "schema.table", columns: [col, ...]} plus
+        the optional keys below.
+          - columns (required): the table's natural custom key -- its
+            unique-index column(s). Used as-is when no pool is given, and as
+            the "natural" branch when one is.
+          - random_columns_pool: [col, ...] -- when given, the key's columns are
+            ALSO randomized: with probability 1 - natural_key_probability
+            (default 0.5) 1..2 columns (or min_columns..max_columns) are
+            sampled from the pool in random order, otherwise `columns` is
+            used -- so successive runs route the same table by different
+            columns, column counts and datatypes while still regularly
+            exercising the natural key.
+          - unique_index_columns: [[col, ...], ...] -- every unique index on
+            the table (default: [columns]). Zero conflicts is asserted for the
+            picked table only when the sampled key is a subset of EVERY listed
+            index (see the comment in the code for why that is the structural
+            condition); otherwise conflicts on it are legitimate and only
+            reported.
+          - expect_conflicts: bool (default false) -- marks a candidate whose
+            DML deliberately creates conflicts that MUST still be detected when
+            it is picked (e.g. a PK-recycle pattern); such candidates should
+            not set a pool -- their assertion depends on the specific key.
+        Every column in `columns` and in a pool must be immutability-safe:
+        never appears in an UPDATE for that table in the conflict DML -- this
+        action only performs the pick and the wiring, not that verification.
 
     Optional stage key:
       - generator_key: which generator config block to inject
@@ -434,22 +441,38 @@ def pick_random_custom_key_action(stage: Dict[str, Any], ctx: Any) -> None:
 
     choice = random.choice(candidates)
     table = choice["table"]
+    natural_columns = choice["columns"]
     pool = choice.get("random_columns_pool")
-    if pool:
-        if choice.get("columns"):
-            raise ValueError(f"pick_random_custom_key: candidate {table} must not set both 'columns' and 'random_columns_pool'")
+    unique_index_columns = choice.get("unique_index_columns") or [natural_columns]
+    if pool and random.random() >= float(choice.get("natural_key_probability", 0.5)):
         min_cols = int(choice.get("min_columns", 1))
         max_cols = min(int(choice.get("max_columns", 2)), len(pool))
-        num_cols = random.randint(min_cols, max_cols)
-        columns = random.sample(pool, num_cols)
+        columns = random.sample(pool, random.randint(min_cols, max_cols))
+        how = f"sampled from pool of {len(pool)}"
     else:
-        columns = choice["columns"]
+        columns = natural_columns
+        how = "natural unique-key columns"
     expect_conflicts = bool(choice.get("expect_conflicts", False))
-    ctx.picked_custom_key = {"table": table, "columns": columns, "expect_conflicts": expect_conflicts}
+    # Two rows that collide on a unique index are equal on every column of that
+    # index; if the custom key uses only such columns they are equal on the key
+    # too, so they share a channel and the conflict cache never has to serialize
+    # them -- structurally, for any traffic (deterministic DML or the random
+    # generator). Any other key can legitimately see cross-channel collisions
+    # (e.g. two rows with the same check_id but different status), which the
+    # cache MUST serialize -- so zero conflicts is only asserted in the first
+    # case. The synthetic PK index the importer adds for custom-key tables is
+    # deliberately not part of this check: nothing but the expect_conflicts
+    # PK-recycle candidate ever reuses a primary key.
+    zero_conflicts_guaranteed = all(set(columns) <= set(idx) for idx in unique_index_columns)
+    ctx.picked_custom_key = {
+        "table": table,
+        "columns": columns,
+        "expect_conflicts": expect_conflicts,
+        "zero_conflicts_guaranteed": zero_conflicts_guaranteed,
+    }
     H.log(
-        f"pick_random_custom_key: selected table={table} columns={columns} "
-        f"expect_conflicts={expect_conflicts} "
-        f"({'sampled from pool of ' + str(len(pool)) if pool else 'fixed'}; out of {len(candidates)} candidates)"
+        f"pick_random_custom_key: selected table={table} columns={columns} ({how}; out of {len(candidates)} candidates) "
+        f"expect_conflicts={expect_conflicts} zero_conflicts_guaranteed={zero_conflicts_guaranteed}"
     )
 
     override = f"{table}:({','.join(columns)})"
@@ -478,13 +501,19 @@ def validate_picked_custom_key_conflicts_action(stage: Dict[str, Any], ctx: Any)
     """Run the right conflict assertion for whatever table `pick_random_custom_key`
     selected earlier in this run:
 
-      - expect_conflicts false (the usual case): the picked table's conflicts all
-        share its custom key's value, so they land on one channel already and the
-        conflict-detection cache must never fire for it -- assert 0.
       - expect_conflicts true (e.g. a PK-recycle candidate, where the SAME PK is
         reused with a DIFFERENT custom-key value -- a real cross-channel race
         custom-key routing does not eliminate): the synthetic-PK guard must still
         catch it -- assert >= min_count (default 1).
+      - zero_conflicts_guaranteed (the key is a subset of every unique index on
+        the table): any two rows colliding on a unique index are equal on the
+        key, so they share a channel and the cache must never fire for the
+        table -- assert 0, for any traffic source.
+      - otherwise (an arbitrary sampled key): rows colliding on a unique index
+        can carry different key values and land on different channels, so the
+        cache serializing them is correct behavior, not a failure -- only report
+        the count. Such runs still verify routing, the immutability guard, and
+        end-to-end correctness via the row-hash validations.
     """
     picked = ctx.picked_custom_key
     if not picked:
@@ -496,8 +525,17 @@ def validate_picked_custom_key_conflicts_action(stage: Dict[str, Any], ctx: Any)
     scoped_stage["table"] = picked["table"]
     if picked["expect_conflicts"]:
         validate_conflicts_detected_action(scoped_stage, ctx)
-    else:
+    elif picked["zero_conflicts_guaranteed"]:
         validate_no_conflicts_detected_action(scoped_stage, ctx)
+    else:
+        log_dir = os.path.join(ctx.iteration_export_dir, "logs")
+        name = stage.get("log", "yb-voyager-import-data.log")
+        count = _count_conflict_log_lines(log_dir, name, picked["table"])
+        H.log(
+            f"validate_picked_custom_key_conflicts: key {picked['columns']} is not a subset of every "
+            f"unique index on {picked['table']}, so cross-channel collisions are legitimate -- "
+            f"{count} conflicts detected in {name} (informational, not asserted)"
+        )
 
 
 @action("voyager_import_start_expect_fail")

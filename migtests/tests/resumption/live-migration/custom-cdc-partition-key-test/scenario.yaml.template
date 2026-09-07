@@ -131,19 +131,20 @@ stages:
     is_live_migration_fall_back: 1
 
   # Randomly select ONE table to route by --cdc-partition-key-overrides this
-  # run, then randomly sample WHICH of its columns (1-2, random order) form
-  # the custom key from that table's random_columns_pool -- so successive runs
-  # exercise a variety of key columns, column counts and datatypes, mirroring
-  # how a real user opts a specific table into custom-key routing. Pools hold
-  # only columns that are immutability-safe (never UPDATEd by source_dml.sql)
-  # and whose value is identical across each conflict pair's rows (DML-churned
-  # key columns, or columns the DML leaves at transaction-constant defaults);
-  # PK columns and uuid-default columns are excluded. The pick is also
-  # injected into the generator's exclude_columns_from_update so the random
-  # generator respects it. single_unique_constraint's DML is a deliberate
-  # PK-recycle pattern (see source_dml.sql section 1), so when IT is picked,
-  # conflicts MUST still be detected (expect_conflicts: true) -- every other
-  # candidate must show none.
+  # run -- mirroring how a real user opts a specific table into custom-key
+  # routing -- then, 50/50, either use its natural unique-key columns or
+  # sample 1-2 arbitrary columns (random order) from its random_columns_pool,
+  # so successive runs exercise a variety of key columns, counts and datatypes.
+  # Pools hold only immutability-safe columns (never UPDATEd by
+  # source_dml.sql); PK columns and uuid-default columns are excluded. The pick
+  # is also injected into the generator's exclude_columns_from_update so the
+  # random generator respects it. Zero conflicts is asserted for the picked
+  # table only when the key is a subset of every unique index on it
+  # (unique_index_columns) -- then colliding rows provably share a channel;
+  # for any other key, cross-channel collisions are legitimate and the count
+  # is only reported. single_unique_constraint's DML is a deliberate PK-recycle
+  # pattern (see source_dml.sql section 1), so when IT is picked, conflicts
+  # MUST still be detected (expect_conflicts: true).
   - name: pick_random_custom_key
     action: pick_random_custom_key
     generator_key: generator_source
@@ -154,26 +155,48 @@ stages:
         columns: [email]
         expect_conflicts: true
       - table: public.multi_unique_constraint
+        columns: [first_name, last_name]
+        unique_index_columns: [[first_name, last_name]]
         random_columns_pool: [first_name, last_name, status, metadata, amount, due_date, seq_no, is_active, priority, created_at, updated_at, deleted_at]
       - table: public.same_column_unique_constraint_and_index
+        columns: [email]
+        unique_index_columns: [[email]]
         random_columns_pool: [email, status, description, amount, due_date, seq_no, is_active, tags, retry_count, metadata, created_at, updated_at, deleted_at]
       - table: public.single_unique_index
+        columns: ["Ssn"]
+        unique_index_columns: [["Ssn"]]
         random_columns_pool: ["Ssn", status, description, amount, due_date, seq_no, is_active, score, external_ref, created_at, updated_at, deleted_at]
       - table: public.multi_unique_index
+        columns: [first_name, last_name]
+        unique_index_columns: [[first_name, last_name]]
         random_columns_pool: [first_name, last_name, status, description, amount, due_date, seq_no, is_active, external_ref, created_at, updated_at, deleted_at]
       - table: public.different_columns_unique_constraint_and_index
+        columns: [email]
+        unique_index_columns: [[email], [phone_number]]
         random_columns_pool: [email, phone_number, status, metadata, amount, due_date, seq_no, is_active, retry_count, created_at, updated_at, deleted_at]
       - table: public.subset_columns_unique_constraint_and_index
+        columns: [first_name, last_name]
+        unique_index_columns: [[first_name, last_name], [first_name, last_name, phone_number]]
         random_columns_pool: [first_name, last_name, phone_number, status, description, amount, due_date, seq_no, is_active, metadata, created_at, updated_at, deleted_at]
       - table: public.test_partial_unique_index
+        columns: [check_id]
+        unique_index_columns: [[check_id]]
         random_columns_pool: [check_id, status, description, amount, due_date, seq_no, is_active, metadata, created_at, updated_at, deleted_at]
       - table: public.partitioned_unique_conflict
+        columns: [region]
+        unique_index_columns: [[email, region]]
         random_columns_pool: [region, status, description, amount, due_date, seq_no, is_active, tags, retry_count, created_at, updated_at, deleted_at]
       - table: public.single_unique_index_nulls_not_distinct
+        columns: [email]
+        unique_index_columns: [[email]]
         random_columns_pool: [email, status, description, amount, due_date, seq_no, is_active, priority, score, external_ref, created_at, updated_at, deleted_at]
       - table: public.multi_unique_index_nulls_not_distinct
+        columns: [first_name, last_name]
+        unique_index_columns: [[first_name, last_name]]
         random_columns_pool: [first_name, last_name, status, description, amount, due_date, seq_no, is_active, score, external_ref, created_at, updated_at, deleted_at]
       - table: public.single_unique_index_nulls_distinct
+        columns: [email]
+        unique_index_columns: [[email]]
         random_columns_pool: [email, status, description, amount, due_date, seq_no, is_active, external_ref, tags, created_at, updated_at, deleted_at]
 
   - name: export_schema_from_source
