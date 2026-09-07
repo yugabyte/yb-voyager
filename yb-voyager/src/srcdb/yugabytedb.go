@@ -1324,3 +1324,9 @@ func (yb *YugabyteDB) CheckIfReplicationSlotsAreAvailable() (isAvailable bool, u
 func (yb *YugabyteDB) GetSchemasMissingUsagePermissions() ([]string, error) {
 	return nil, nil
 }
+
+// YugabyteDB (export from target for fall-back/fall-forward) does not support
+// deferrable unique constraints, so there is nothing to report.
+func (yb *YugabyteDB) GetTablesHavingUniqueDeferrableConstraint(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
+	return nil, nil
+}
