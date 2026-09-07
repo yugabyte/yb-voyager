@@ -596,6 +596,7 @@ func generateAssessmentReport(replicaDiscoveryInfoForCallhome *migassessment.Rep
 	addAssessmentIssuesForUnsupportedDatatypes(unsupportedDataTypes)
 
 	addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB)
+
 	// calculating migration complexity after collecting all assessment issues
 	complexity, explanation := calculateMigrationComplexityAndExplanation(source.DBType, schemaDir, assessmentReport)
 	log.Infof("migration complexity: %q and explanation: %q", complexity, explanation)
@@ -1325,22 +1326,25 @@ func addAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 			// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication
 			// This converted AssessmentIssue is then appended to the assessmentIssues slice
 			queryissue := queryissue.ReportUnsupportedDatatypes(baseTypeName, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
-			checkIsFixedInAndAddIssueToAssessmentIssues(queryissue)
-
-		default:
-			panic(fmt.Sprintf("invalid source db type %q", source.DBType))
+			checkIsFixedInAndAddIssueToAssessmentIssues(queryissue, nil)
 		}
-
 	}
 }
 
-func checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue queryissue.QueryIssue) {
+func checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue queryissue.QueryIssue, issueTypeMap map[string]bool) {
+	if issueTypeMap == nil {
+		issueTypeMap = make(map[string]bool)
+	}
 	// Drop an issue only when the feature is GA in the target version. Issues that are
 	// only Tech Preview / Early Access in the target are retained and reported with
 	// their maturity annotation (added in convertIssueInstanceToAnalyzeIssue).
 	maturity, err := queryIssue.GetMaturityInTarget(targetDbVersion)
 	if err != nil {
 		log.Warnf("checking maturity of issue %v in target version: %v", queryIssue, err)
+	}
+
+	if queryissue.ShouldFilterOutIssue(queryIssue, issueTypeMap) {
+		return
 	}
 	if maturity != constants.MATURITY_GA {
 		convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryIssue, "", false, false)
@@ -1477,6 +1481,11 @@ func addNotesToAssessmentReport() {
 }
 
 func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration []utils.TableColumnsDataTypes, unsupportedDataTypesForLiveMigrationWithFForFB []utils.TableColumnsDataTypes) {
+
+	issueTypeMap := make(map[string]bool)
+	for _, issue := range assessmentReport.Issues {
+		issueTypeMap[issue.Type] = true
+	}
 	switch source.DBType {
 	case POSTGRESQL:
 		log.Infof("add migration caveats to assessment report")
@@ -1495,7 +1504,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				"",
 				"SAVEPOINT", // Hardcoded SQL statement
 			)
-			checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue)
+			checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue, issueTypeMap)
 		}
 
 		if len(unsupportedDataTypesForLiveMigration) > 0 {
@@ -1510,7 +1519,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication
 				// This converted AssessmentIssue is then appended to the assessmentIssues slice
 				queryIssue := queryissue.ReportUnsupportedDatatypesInLive(baseTypeName, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
-				checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue)
+				checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue, issueTypeMap)
 			}
 			if len(columns) > 0 {
 				migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_DESCRIPTION, nil})
@@ -1537,7 +1546,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				} else {
 					queryIssue = queryissue.ReportUnsupportedDatatypesInLiveWithFFOrFB(baseTypeName, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
 				}
-				checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue)
+				checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue, issueTypeMap)
 
 			}
 			if len(columns) > 0 {

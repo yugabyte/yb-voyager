@@ -1152,97 +1152,54 @@ func finalizeIssues(issues []QueryIssue) []QueryIssue {
 		issueTypeMap[i.Type] = true
 	}
 	for _, i := range issues {
-		switch i.Type {
-		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XML:
-			if issueTypeMap[UNSUPPORTED_DATATYPE_XML] {
-				continue
-			}
-			filteredIssues = append(filteredIssues, i)
-		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LARGE_OBJECT:
-			if issueTypeMap[UNSUPPORTED_DATATYPE_LARGE_OBJECT] {
-				continue
-			}
-			filteredIssues = append(filteredIssues, i)
-		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_INT4MULTIRANGE:
-			if issueTypeMap[UNSUPPORTED_DATATYPE_INT4MULTIRANGE] {
-				continue
-			}
-			filteredIssues = append(filteredIssues, i)
-		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_INT8MULTIRANGE:
-			if issueTypeMap[UNSUPPORTED_DATATYPE_INT8MULTIRANGE] {
-				continue
-			}
-			filteredIssues = append(filteredIssues, i)
-		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_NUMMULTIRANGE:
-			if issueTypeMap[UNSUPPORTED_DATATYPE_NUMMULTIRANGE] {
-				continue
-			}
-			filteredIssues = append(filteredIssues, i)
-		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TSMULTIRANGE:
-			if issueTypeMap[UNSUPPORTED_DATATYPE_TSMULTIRANGE] {
-				continue
-			}
-			filteredIssues = append(filteredIssues, i)
-		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TSTZMULTIRANGE:
-			if issueTypeMap[UNSUPPORTED_DATATYPE_TSTZMULTIRANGE] {
-				continue
-			}
-			filteredIssues = append(filteredIssues, i)
-		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DATEMULTIRANGE:
-			if issueTypeMap[UNSUPPORTED_DATATYPE_DATEMULTIRANGE] {
-				continue
-			}
-			filteredIssues = append(filteredIssues, i)
-		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_GEOMETRY:
-			if issueTypeMap[UNSUPPORTED_DATATYPE_GEOMETRY] {
-				continue
-			}
-			filteredIssues = append(filteredIssues, i)
-		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_GEOGRAPHY:
-			if issueTypeMap[UNSUPPORTED_DATATYPE_GEOGRAPHY] {
-				continue
-			}
-			filteredIssues = append(filteredIssues, i)
-		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX2D:
-			if issueTypeMap[UNSUPPORTED_DATATYPE_BOX2D] {
-				continue
-			}
-			filteredIssues = append(filteredIssues, i)
-		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX3D:
-			if issueTypeMap[UNSUPPORTED_DATATYPE_BOX3D] {
-				continue
-			}
-			filteredIssues = append(filteredIssues, i)
-		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TOPOGEOMETRY:
-			if issueTypeMap[UNSUPPORTED_DATATYPE_TOPOGEOMETRY] {
-				continue
-			}
-			filteredIssues = append(filteredIssues, i)
-		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RASTER:
-			if issueTypeMap[UNSUPPORTED_DATATYPE_RASTER] {
-				continue
-			}
-			filteredIssues = append(filteredIssues, i)
-		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_PG_LSN:
-			if issueTypeMap[UNSUPPORTED_DATATYPE_PG_LSN] {
-				continue
-			}
-			filteredIssues = append(filteredIssues, i)
-		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TXID_SNAPSHOT:
-			if issueTypeMap[UNSUPPORTED_DATATYPE_TXID_SNAPSHOT] {
-				continue
-			}
-			filteredIssues = append(filteredIssues, i)
-		default:
-			// Every other issue type passes through untouched. Live-migration datatype
-			// issues without an offline counterpart (point, vector, timetz, ...) also
-			// land here and are always kept.
-			filteredIssues = append(filteredIssues, i)
+		if ShouldFilterOutIssue(i, issueTypeMap) {
+			continue
 		}
+		filteredIssues = append(filteredIssues, i)
 	}
 
 	return filteredIssues
 
+}
+
+func ShouldFilterOutIssue(issue QueryIssue, issueTypeMap map[string]bool) bool {
+	switch issue.Type {
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XML:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_XML]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LARGE_OBJECT:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_LARGE_OBJECT]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_INT4MULTIRANGE:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_INT4MULTIRANGE]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_INT8MULTIRANGE:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_INT8MULTIRANGE]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_NUMMULTIRANGE:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_NUMMULTIRANGE]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TSMULTIRANGE:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_TSMULTIRANGE]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TSTZMULTIRANGE:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_TSTZMULTIRANGE]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DATEMULTIRANGE:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_DATEMULTIRANGE]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_GEOMETRY:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_GEOMETRY]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_GEOGRAPHY:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_GEOGRAPHY]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX2D:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_BOX2D]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX3D:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_BOX3D]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TOPOGEOMETRY:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_TOPOGEOMETRY]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RASTER:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_RASTER]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_PG_LSN:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_PG_LSN]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TXID_SNAPSHOT:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_TXID_SNAPSHOT]
+
+	default:
+		return false
+	}
 }
 
 func (p *ParserIssueDetector) GetDMLIssues(query string, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {
