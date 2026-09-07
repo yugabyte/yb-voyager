@@ -27,15 +27,15 @@ import (
 )
 
 // schemaSnapshotCaptureEnabled reports whether capture is live at all: PostgreSQL
-// source, not suppressed. It also returns why it is not, so a caller that wants to say
+// source, not disabled. It also returns why it is not, so a caller that wants to say
 // so logs the specific reason rather than a generic one. Role gating stays at the call
 // sites that know the role.
 func schemaSnapshotCaptureEnabled() (bool, string) {
 	if source.DBType != POSTGRESQL {
 		return false, "only PostgreSQL sources are supported"
 	}
-	if bool(suppressSchemaSnapshotCapture) {
-		return false, "suppressed via --suppress-schema-snapshot-capture"
+	if bool(disableSchemaSnapshotCapture) {
+		return false, "disabled via --disable-schema-snapshot-capture"
 	}
 	return true, ""
 }
@@ -43,7 +43,7 @@ func schemaSnapshotCaptureEnabled() (bool, string) {
 // captureSourceSchemaSnapshot captures the source schema and persists it as a snapshot
 // for the given label/reason, returning why it could not.
 //
-// A skip is not an error: a non-PostgreSQL source or --suppress-schema-snapshot-capture
+// A skip is not an error: a non-PostgreSQL source or --disable-schema-snapshot-capture
 // returns nil, since nothing went wrong. Exporter-role gating is the caller's.
 //
 // The caller decides what a failure means. Today every caller is an export hook that
@@ -102,7 +102,7 @@ func captureSourceSchemaSnapshot(ctx context.Context, label, reason string, plac
 // the global, so tests can use a small one. The goroutine stops when ctx is cancelled,
 // so no separate stop function is needed.
 //
-// Best-effort: a no-op when suppressed, when interval <= 0, or off the source exporter.
+// Best-effort: a no-op when disabled, when interval <= 0, or off the source exporter.
 func startPeriodicSourceSchemaSnapshotCapture(ctx context.Context, interval time.Duration) {
 	enabled, _ := schemaSnapshotCaptureEnabled()
 	if exporterRole != SOURCE_DB_EXPORTER_ROLE || !enabled {
@@ -131,7 +131,7 @@ func startPeriodicSourceSchemaSnapshotCapture(ctx context.Context, interval time
 }
 
 // saveSourceSchemaSnapshotPlaceholder records a metadata-only timeline marker for a
-// moment we can't fully capture. Best-effort; honors suppression.
+// moment we can't fully capture. Best-effort; honors the disable flag.
 //
 // It uses its OWN fresh, bounded context: the capture context may be exactly what
 // died, and reusing it would drop the marker just when it is needed.

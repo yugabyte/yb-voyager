@@ -68,7 +68,7 @@ func TestSchemaSnapshotCaptureHooksFireDuringRealCommands(t *testing.T) {
 		_, err := testutils.RunVoyagerCommand(postgresContainer, "export schema", []string{
 			"--source-db-schema", "public",
 			"--export-dir", exportDir,
-			"--suppress-schema-snapshot-capture", "false",
+			"--disable-schema-snapshot-capture", "false",
 			"--yes",
 		}, nil, false)
 		require.NoError(t, err, "export schema command failed")
@@ -99,7 +99,7 @@ func TestSchemaSnapshotCaptureHooksFireDuringRealCommands(t *testing.T) {
 			"--export-dir", exportDir,
 			"--export-type", "snapshot-only",
 			"--disable-pb", "true",
-			"--suppress-schema-snapshot-capture", "false",
+			"--disable-schema-snapshot-capture", "false",
 			"--yes",
 		}, nil, false)
 		require.NoError(t, err, "export data command failed")

@@ -40,7 +40,7 @@ var runId string
 var excludeTableListFilePath string
 var tableListFilePath string
 var schemaSnapshotCaptureInterval int
-var suppressSchemaSnapshotCapture utils.BoolStr
+var disableSchemaSnapshotCapture utils.BoolStr
 
 var exportCmd = &cobra.Command{
 	Use:   "export",
@@ -61,11 +61,11 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 
 	// Defaults to true (capture off) for now: nothing consumes the snapshots until the
 	// detect-drift command ships. Flip to false to enable capture by default once it does.
-	BoolVar(cmd.Flags(), &suppressSchemaSnapshotCapture, "suppress-schema-snapshot-capture", true,
+	BoolVar(cmd.Flags(), &disableSchemaSnapshotCapture, "disable-schema-snapshot-capture", true,
 		"disable best-effort schema-snapshot capture during export. (only valid for PostgreSQL)")
 	// Hidden for now: capture is off by default and nothing consumes the snapshots until
 	// the detect-drift command ships. Still settable via CLI/config for internal use.
-	mustMarkFlagHidden(cmd, "suppress-schema-snapshot-capture")
+	mustMarkFlagHidden(cmd, "disable-schema-snapshot-capture")
 }
 
 func registerCommonSourceDBConnFlags(cmd *cobra.Command) {
@@ -266,7 +266,7 @@ func registerExportDataFlags(cmd *cobra.Command) {
 //
 // Deliberately NOT in registerExportDataFlags, which `export data from target`
 // shares: capture is source-side only, so the flag would be accepted there and do
-// nothing. It also can't join --suppress-schema-snapshot-capture in
+// nothing. It also can't join --disable-schema-snapshot-capture in
 // registerCommonExportFlags, which export schema calls — that has no interval.
 //
 // Config-file key: "export-data.schema-snapshot-capture-interval".

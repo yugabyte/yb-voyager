@@ -90,7 +90,7 @@ func TestLiveExportDataCapturesPeriodicSchemaSnapshot(t *testing.T) {
 	// off until detect-drift ships, so it must be turned on for this test.
 	err = lm.StartExportData(true, map[string]string{
 		"--schema-snapshot-capture-interval": "1",
-		"--suppress-schema-snapshot-capture": "false",
+		"--disable-schema-snapshot-capture":  "false",
 	})
 	testutils.FatalIfError(t, err, "failed to start export data")
 

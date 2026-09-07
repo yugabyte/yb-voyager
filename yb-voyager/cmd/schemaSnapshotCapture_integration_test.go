@@ -84,19 +84,19 @@ func TestSchemaSnapshotCaptureIntegration(t *testing.T) {
 	source = *testPostgresSource.Source
 	metaDB = mdb
 	exporterRole = SOURCE_DB_EXPORTER_ROLE
-	suppressSchemaSnapshotCapture = utils.BoolStr(false)
+	disableSchemaSnapshotCapture = utils.BoolStr(false)
 
 	t.Cleanup(func() {
 		source = srcdb.Source{}
 		metaDB = nil
 		exporterRole = SOURCE_DB_EXPORTER_ROLE
-		suppressSchemaSnapshotCapture = utils.BoolStr(false)
+		disableSchemaSnapshotCapture = utils.BoolStr(false)
 	})
 
 	require.Equal(t, []string{"public"}, source.GetSchemaList(), "source must be scoped to the public schema")
 
 	t.Run("happy path captures and persists a real snapshot", func(t *testing.T) {
-		suppressSchemaSnapshotCapture = utils.BoolStr(false)
+		disableSchemaSnapshotCapture = utils.BoolStr(false)
 
 		require.NoError(t, captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportSchema, "", true))
 
@@ -124,8 +124,8 @@ func TestSchemaSnapshotCaptureIntegration(t *testing.T) {
 		before, err := schemasnapshot.ListSnapshots(metaDB)
 		require.NoError(t, err)
 
-		suppressSchemaSnapshotCapture = utils.BoolStr(true)
-		t.Cleanup(func() { suppressSchemaSnapshotCapture = utils.BoolStr(false) })
+		disableSchemaSnapshotCapture = utils.BoolStr(true)
+		t.Cleanup(func() { disableSchemaSnapshotCapture = utils.BoolStr(false) })
 
 		captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourcePeriodic, "", true)
 
@@ -135,7 +135,7 @@ func TestSchemaSnapshotCaptureIntegration(t *testing.T) {
 	})
 
 	t.Run("placeholder writes a metadata-only marker", func(t *testing.T) {
-		suppressSchemaSnapshotCapture = utils.BoolStr(false)
+		disableSchemaSnapshotCapture = utils.BoolStr(false)
 
 		before, err := schemasnapshot.ListSnapshots(metaDB)
 		require.NoError(t, err)
@@ -159,7 +159,7 @@ func TestSchemaSnapshotCaptureIntegration(t *testing.T) {
 	})
 
 	t.Run("periodic capture persists on every tick, even for an unchanged schema (no dedup)", func(t *testing.T) {
-		suppressSchemaSnapshotCapture = utils.BoolStr(false)
+		disableSchemaSnapshotCapture = utils.BoolStr(false)
 
 		countPeriodicSnapshots := func() int {
 			headers, err := schemasnapshot.ListSnapshots(metaDB)
@@ -196,7 +196,7 @@ func TestSchemaSnapshotCaptureIntegration(t *testing.T) {
 	})
 
 	t.Run("an expired context aborts the capture fast and falls back to a placeholder", func(t *testing.T) {
-		suppressSchemaSnapshotCapture = utils.BoolStr(false)
+		disableSchemaSnapshotCapture = utils.BoolStr(false)
 
 		countExitPlaceholders := func() int {
 			headers, err := schemasnapshot.ListSnapshots(metaDB)
@@ -274,12 +274,12 @@ END $$;`, numTables, schemaName)
 	source = *testPostgresSource.Source
 	metaDB = initMetaDB(testExportDir)
 	exporterRole = SOURCE_DB_EXPORTER_ROLE
-	suppressSchemaSnapshotCapture = utils.BoolStr(false)
+	disableSchemaSnapshotCapture = utils.BoolStr(false)
 	t.Cleanup(func() {
 		source = srcdb.Source{}
 		metaDB = nil
 		exporterRole = SOURCE_DB_EXPORTER_ROLE
-		suppressSchemaSnapshotCapture = utils.BoolStr(false)
+		disableSchemaSnapshotCapture = utils.BoolStr(false)
 	})
 
 	require.Equal(t, []string{schemaName}, source.GetSchemaList())
@@ -335,12 +335,12 @@ func TestStartPeriodicSourceSchemaSnapshotCapture(t *testing.T) {
 	source = *testPostgresSource.Source
 	metaDB = initMetaDB(testExportDir)
 	exporterRole = SOURCE_DB_EXPORTER_ROLE
-	suppressSchemaSnapshotCapture = utils.BoolStr(false)
+	disableSchemaSnapshotCapture = utils.BoolStr(false)
 	t.Cleanup(func() {
 		source = srcdb.Source{}
 		metaDB = nil
 		exporterRole = SOURCE_DB_EXPORTER_ROLE
-		suppressSchemaSnapshotCapture = utils.BoolStr(false)
+		disableSchemaSnapshotCapture = utils.BoolStr(false)
 	})
 
 	countPeriodic := func() int {
@@ -379,8 +379,8 @@ func TestStartPeriodicSourceSchemaSnapshotCapture(t *testing.T) {
 
 	t.Run("no-op when suppressed", func(t *testing.T) {
 		gatedOffCase(t, func() func() {
-			suppressSchemaSnapshotCapture = utils.BoolStr(true)
-			return func() { suppressSchemaSnapshotCapture = utils.BoolStr(false) }
+			disableSchemaSnapshotCapture = utils.BoolStr(true)
+			return func() { disableSchemaSnapshotCapture = utils.BoolStr(false) }
 		})
 	})
 
