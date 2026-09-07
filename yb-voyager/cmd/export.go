@@ -65,7 +65,7 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 		"disable best-effort schema-snapshot capture during export. (only valid for PostgreSQL)")
 	// Hidden for now: capture is off by default and nothing consumes the snapshots until
 	// the detect-drift command ships. Still settable via CLI/config for internal use.
-	cmd.Flags().MarkHidden("suppress-schema-snapshot-capture")
+	mustMarkFlagHidden(cmd, "suppress-schema-snapshot-capture")
 }
 
 func registerCommonSourceDBConnFlags(cmd *cobra.Command) {
@@ -275,7 +275,7 @@ func registerSchemaSnapshotIntervalFlag(cmd *cobra.Command) {
 		"interval (in minutes) at which voyager periodically captures a source schema snapshot throughout export data (both snapshot and streaming phases; offline and live). (only valid for PostgreSQL)")
 	// Hidden for now: capture is off by default and nothing consumes the snapshots until
 	// the detect-drift command ships. Still settable via CLI/config for internal use.
-	cmd.Flags().MarkHidden("schema-snapshot-capture-interval")
+	mustMarkFlagHidden(cmd, "schema-snapshot-capture-interval")
 }
 
 func validateSourceDBType() {
