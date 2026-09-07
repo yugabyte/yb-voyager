@@ -25,11 +25,9 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 // DDLIssueDetector interface defines methods for detecting issues in DDL objects
@@ -194,8 +192,8 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 
 		}
 	}
-	unsupportedDatatypes := GetPGUnsupportedDatatypes(d.targetDbVersion)
-	liveUnsupportedDatatypes := GetPGLiveMigrationUnsupportedDatatypes(d.targetDbVersion)
+	unsupportedDatatypes := srcdb.PostgresUnsupportedDataTypes
+	liveUnsupportedDatatypes := srcdb.PostgresUnsupportedDataTypesForDbzm
 	liveWithFfOrFbUnsupportedDatatypes := srcdb.GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes()
 	for _, col := range table.Columns {
 		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(unsupportedDatatypes, col.TypeName)
@@ -207,7 +205,8 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 
 		if isUnsupportedDatatype {
 			issues = append(issues, ReportUnsupportedDatatypes(col.TypeName, col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
-		} else if isUnsupportedDatatypeInLive {
+		}
+		if isUnsupportedDatatypeInLive {
 			issues = append(issues, ReportUnsupportedDatatypesInLive(col.TypeName, col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
 		} else if isUnsupportedDatatypeInLiveWithFFOrFB {
 			//reporting only for TABLE Type  as we don't deal with FOREIGN TABLE in live migration
@@ -353,42 +352,6 @@ func detectHotspotIssueOnConstraint(isPartitionedTable bool, constraintType stri
 		return nil, nil
 	}
 	return reportHotspotsOnTimestampTypes(hotspotTypeName, obj.GetObjectType(), obj.GetObjectName(), col, false, usageCategory)
-}
-
-// versionGatedOfflineDatatypeIssues maps a base type name from srcdb.PostgresUnsupportedDataTypes
-// to its offline unsupported-datatype issue, for the types whose support in YugabyteDB is
-// version-gated (has MinimumVersionsFixedIn). Types absent here are unsupported on all versions.
-// Keys must use the exact casing of the entries in srcdb.PostgresUnsupportedDataTypes.
-var versionGatedOfflineDatatypeIssues = map[string]issue.Issue{
-	"XML": xmlDatatypeIssue,
-}
-
-// GetPGUnsupportedDatatypes returns the datatypes unsupported on the target YugabyteDB version:
-// srcdb.PostgresUnsupportedDataTypes minus the types whose datatype issue is already fixed in
-// targetDbVersion. A nil targetDbVersion returns the full static list.
-func GetPGUnsupportedDatatypes(targetDbVersion *ybversion.YBVersion) []string {
-	return lo.Filter(srcdb.PostgresUnsupportedDataTypes, func(typeName string, _ int) bool {
-		gatedIssue, ok := versionGatedOfflineDatatypeIssues[typeName]
-		if !ok || targetDbVersion == nil {
-			return true
-		}
-		fixed, err := gatedIssue.IsFixedIn(targetDbVersion)
-		if err != nil {
-			log.Warnf("checking if datatype %s issue is fixed in %s: %v", typeName, targetDbVersion, err)
-			return true
-		}
-		return !fixed
-	})
-}
-
-// GetPGLiveMigrationUnsupportedDatatypes returns the datatypes that only block live migration
-// (the CDC connector cannot stream them) on the target YugabyteDB version: the debezium
-// unsupported list minus the offline-unsupported list. A type fixed in the target version
-// (e.g. xml from 2026.1) moves from the offline list to this one and is reported as a
-// migration caveat instead.
-func GetPGLiveMigrationUnsupportedDatatypes(targetDbVersion *ybversion.YBVersion) []string {
-	liveMigrationUnsupportedDataTypes, _ := lo.Difference(srcdb.PostgresUnsupportedDataTypesForDbzm, GetPGUnsupportedDatatypes(targetDbVersion))
-	return liveMigrationUnsupportedDataTypes
 }
 
 func ReportUnsupportedDatatypes(baseTypeName string, columnName string, objType string, objName string) QueryIssue {
@@ -622,6 +585,126 @@ func ReportUnsupportedDatatypesInLive(baseTypeName string, columnName string, ob
 			baseTypeName,
 			columnName,
 		)
+	case "geometry":
+		issue = NewGeometryLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "geography":
+		issue = NewGeographyLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "box2d":
+		issue = NewBox2DLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "box3d":
+		issue = NewBox3DLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "topogeometry":
+		issue = NewTopogeometryLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "raster":
+		issue = NewRasterLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "pg_lsn":
+		issue = NewPgLsnLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "txid_snapshot":
+		issue = NewTxidSnapshotLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "lo":
+		issue = NewLOLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			"LARGE OBJECT",
+			columnName,
+		)
+	case "int4multirange":
+		issue = NewInt4MultiRangeLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "int8multirange":
+		issue = NewInt8MultiRangeLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "nummultirange":
+		issue = NewNumMultiRangeLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "tsmultirange":
+		issue = NewTSMultiRangeLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "tstzmultirange":
+		issue = NewTSTZMultiRangeLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "datemultirange":
+		issue = NewDateMultiRangeLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
 	default:
 		// Unrecognized types
 		// Throwing error for now
@@ -676,7 +759,7 @@ func (f *ForeignTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 		// Static list is fine here: version-gated datatypes (e.g. xml) get dropped by the
 		// fixed-in filter, and foreign tables don't get the live-migration caveat since
 		// they are not live-migrated.
-		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(GetPGUnsupportedDatatypes(f.targetDbVersion), col.TypeName)
+		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(srcdb.PostgresUnsupportedDataTypes, col.TypeName)
 		if isUnsupportedDatatype {
 			issues = append(issues, ReportUnsupportedDatatypes(col.TypeName, col.ColumnName, obj.GetObjectType(), foreignTable.GetObjectName()))
 		}

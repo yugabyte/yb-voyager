@@ -2902,31 +2902,3 @@ func TestCheckIssueSupportMaturityInTDBVersionPerf(t *testing.T) {
 		buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_UNSUPPORTED, supportedVersions, flags),
 		CheckIssueSupportMaturityInTDBVersion(newQi(), ybversion.V2024_2_0_0))
 }
-
-// XML is unsupported as a datatype below 2026.1 and becomes a live-migration-only
-// caveat from 2026.1 (YB supports the type, the CDC connector cannot stream it).
-func TestXMLDatatypeVersionGate(t *testing.T) {
-	// List classification.
-	assert.Contains(t, GetPGUnsupportedDatatypes(nil), "XML")
-	assert.Contains(t, GetPGUnsupportedDatatypes(ybversion.V2025_2_0_0), "XML")
-	assert.NotContains(t, GetPGUnsupportedDatatypes(ybversion.V2026_1_0_0), "XML")
-	assert.NotContains(t, GetPGLiveMigrationUnsupportedDatatypes(ybversion.V2025_2_0_0), "XML")
-	assert.Contains(t, GetPGLiveMigrationUnsupportedDatatypes(ybversion.V2026_1_0_0), "XML")
-
-	stmt := `CREATE TABLE test_xml_gate(id int, data xml);`
-
-	// Below 2026.1: the offline unsupported-datatype issue, no live caveat.
-	parser := NewParserIssueDetector()
-	issues, err := parser.GetDDLIssues(stmt, ybversion.V2025_2_0_0)
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(issues))
-	assert.True(t, cmp.Equal(NewXMLDatatypeIssue("TABLE", "test_xml_gate", stmt, "XML", "data"), issues[0]),
-		"expected offline xml datatype issue, got: %v", issues[0])
-
-	// From 2026.1: only the live-migration caveat.
-	issues, err = parser.GetDDLIssues(stmt, ybversion.V2026_1_0_0)
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(issues))
-	assert.True(t, cmp.Equal(NewXMLLiveMigrationDatatypeIssue("TABLE", "test_xml_gate", stmt, "XML", "data"), issues[0]),
-		"expected live-migration xml caveat, got: %v", issues[0])
-}

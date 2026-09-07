@@ -1045,7 +1045,14 @@ func (p *ParserIssueDetector) GetDDLIssues(query string, targetDbVersion *ybvers
 		return issues, nil
 	}
 
-	return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+	issues, err = p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+	if err != nil {
+		return issues, err
+	}
+
+	issues = finalizeIssues(issues)
+
+	return issues, nil
 
 }
 
@@ -1136,6 +1143,106 @@ func (p *ParserIssueDetector) getDDLIssues(query string) ([]QueryIssue, error) {
 		issues = append(issues, i)
 	}
 	return issues, nil
+}
+
+func finalizeIssues(issues []QueryIssue) []QueryIssue {
+	filteredIssues := make([]QueryIssue, 0)
+	issueTypeMap := make(map[string]bool)
+	for _, i := range issues {
+		issueTypeMap[i.Type] = true
+	}
+	for _, i := range issues {
+		switch i.Type {
+		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XML:
+			if issueTypeMap[UNSUPPORTED_DATATYPE_XML] {
+				continue
+			}
+			filteredIssues = append(filteredIssues, i)
+		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LARGE_OBJECT:
+			if issueTypeMap[UNSUPPORTED_DATATYPE_LARGE_OBJECT] {
+				continue
+			}
+			filteredIssues = append(filteredIssues, i)
+		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_INT4MULTIRANGE:
+			if issueTypeMap[UNSUPPORTED_DATATYPE_INT4MULTIRANGE] {
+				continue
+			}
+			filteredIssues = append(filteredIssues, i)
+		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_INT8MULTIRANGE:
+			if issueTypeMap[UNSUPPORTED_DATATYPE_INT8MULTIRANGE] {
+				continue
+			}
+			filteredIssues = append(filteredIssues, i)
+		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_NUMMULTIRANGE:
+			if issueTypeMap[UNSUPPORTED_DATATYPE_NUMMULTIRANGE] {
+				continue
+			}
+			filteredIssues = append(filteredIssues, i)
+		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TSMULTIRANGE:
+			if issueTypeMap[UNSUPPORTED_DATATYPE_TSMULTIRANGE] {
+				continue
+			}
+			filteredIssues = append(filteredIssues, i)
+		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TSTZMULTIRANGE:
+			if issueTypeMap[UNSUPPORTED_DATATYPE_TSTZMULTIRANGE] {
+				continue
+			}
+			filteredIssues = append(filteredIssues, i)
+		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DATEMULTIRANGE:
+			if issueTypeMap[UNSUPPORTED_DATATYPE_DATEMULTIRANGE] {
+				continue
+			}
+			filteredIssues = append(filteredIssues, i)
+		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_GEOMETRY:
+			if issueTypeMap[UNSUPPORTED_DATATYPE_GEOMETRY] {
+				continue
+			}
+			filteredIssues = append(filteredIssues, i)
+		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_GEOGRAPHY:
+			if issueTypeMap[UNSUPPORTED_DATATYPE_GEOGRAPHY] {
+				continue
+			}
+			filteredIssues = append(filteredIssues, i)
+		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX2D:
+			if issueTypeMap[UNSUPPORTED_DATATYPE_BOX2D] {
+				continue
+			}
+			filteredIssues = append(filteredIssues, i)
+		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX3D:
+			if issueTypeMap[UNSUPPORTED_DATATYPE_BOX3D] {
+				continue
+			}
+			filteredIssues = append(filteredIssues, i)
+		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TOPOGEOMETRY:
+			if issueTypeMap[UNSUPPORTED_DATATYPE_TOPOGEOMETRY] {
+				continue
+			}
+			filteredIssues = append(filteredIssues, i)
+		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RASTER:
+			if issueTypeMap[UNSUPPORTED_DATATYPE_RASTER] {
+				continue
+			}
+			filteredIssues = append(filteredIssues, i)
+		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_PG_LSN:
+			if issueTypeMap[UNSUPPORTED_DATATYPE_PG_LSN] {
+				continue
+			}
+			filteredIssues = append(filteredIssues, i)
+		case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TXID_SNAPSHOT:
+			if issueTypeMap[UNSUPPORTED_DATATYPE_TXID_SNAPSHOT] {
+				continue
+			}
+			filteredIssues = append(filteredIssues, i)
+		default:
+			// Every other issue type passes through untouched. Live-migration datatype
+			// issues without an offline counterpart (point, vector, timetz, ...) also
+			// land here and are always kept.
+			filteredIssues = append(filteredIssues, i)
+		}
+	}
+
+	return filteredIssues
+
 }
 
 func (p *ParserIssueDetector) GetDMLIssues(query string, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {

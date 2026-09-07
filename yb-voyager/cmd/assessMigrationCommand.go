@@ -1241,8 +1241,8 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 	case POSTGRESQL:
 		// Version-aware lists: a datatype fixed in the target version (e.g. xml from 2026.1)
 		// moves from the unsupported-datatypes list to the live-migration caveat list.
-		sourceUnsupportedDatatypes = queryissue.GetPGUnsupportedDatatypes(targetDbVersion)
-		liveUnsupportedDatatypes = queryissue.GetPGLiveMigrationUnsupportedDatatypes(targetDbVersion)
+		sourceUnsupportedDatatypes = srcdb.PostgresUnsupportedDataTypes
+		liveUnsupportedDatatypes = srcdb.GetPGLiveMigrationUnsupportedDatatypes()
 		liveWithFForFBUnsupportedDatatypes = srcdb.GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes()
 	case ORACLE:
 		sourceUnsupportedDatatypes = srcdb.OracleUnsupportedDataTypes
@@ -1271,9 +1271,10 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 		// Array of enums are now supported with logical connector (default), so not including them as unsupported
 		isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype
 
-		switch true {
-		case isUnsupportedDatatype:
+		if isUnsupportedDatatype {
 			unsupportedDataTypes = append(unsupportedDataTypes, allColumnsDataTypes[i])
+		}
+		switch true {
 		case isUnsupportedDatatypeInLive:
 			unsupportedDataTypesForLiveMigration = append(unsupportedDataTypesForLiveMigration, allColumnsDataTypes[i])
 		case isUnsupportedDatatypeInLiveWithFFOrFB:
