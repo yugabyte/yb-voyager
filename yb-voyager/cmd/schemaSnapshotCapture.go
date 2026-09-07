@@ -26,6 +26,20 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 )
 
+// schemaSnapshotCaptureEnabled reports whether capture is live at all: PostgreSQL
+// source, not suppressed. It also returns why it is not, so a caller that wants to say
+// so logs the specific reason rather than a generic one. Role gating stays at the call
+// sites that know the role.
+func schemaSnapshotCaptureEnabled() (bool, string) {
+	if source.DBType != POSTGRESQL {
+		return false, "only PostgreSQL sources are supported"
+	}
+	if bool(suppressSchemaSnapshotCapture) {
+		return false, "suppressed via --suppress-schema-snapshot-capture"
+	}
+	return true, ""
+}
+
 // captureSourceSchemaSnapshot captures the source schema and persists it as a snapshot
 // for the given label/reason, returning why it could not.
 //
@@ -36,12 +50,8 @@ import (
 // logs and carries on, because schema capture is off the data path and must never fail
 // or stall an export.
 func captureSourceSchemaSnapshot(ctx context.Context, label, reason string, placeholderOnFailure bool) error {
-	if source.DBType != POSTGRESQL {
-		log.Infof("schema-snapshot capture skipped for label %q: only PostgreSQL sources are supported", label)
-		return nil
-	}
-	if bool(suppressSchemaSnapshotCapture) {
-		log.Infof("schema-snapshot capture suppressed (--suppress-schema-snapshot-capture); skipping %s", label)
+	if enabled, why := schemaSnapshotCaptureEnabled(); !enabled {
+		log.Infof("schema-snapshot capture skipped for label %q: %s", label, why)
 		return nil
 	}
 
@@ -94,7 +104,8 @@ func captureSourceSchemaSnapshot(ctx context.Context, label, reason string, plac
 //
 // Best-effort: a no-op when suppressed, when interval <= 0, or off the source exporter.
 func startPeriodicSourceSchemaSnapshotCapture(ctx context.Context, interval time.Duration) {
-	if exporterRole != SOURCE_DB_EXPORTER_ROLE || source.DBType != POSTGRESQL || bool(suppressSchemaSnapshotCapture) {
+	enabled, _ := schemaSnapshotCaptureEnabled()
+	if exporterRole != SOURCE_DB_EXPORTER_ROLE || !enabled {
 		return
 	}
 	if interval <= 0 {
@@ -125,10 +136,7 @@ func startPeriodicSourceSchemaSnapshotCapture(ctx context.Context, interval time
 // It uses its OWN fresh, bounded context: the capture context may be exactly what
 // died, and reusing it would drop the marker just when it is needed.
 func saveSourceSchemaSnapshotPlaceholder(label, reason string) {
-	if source.DBType != POSTGRESQL {
-		return
-	}
-	if bool(suppressSchemaSnapshotCapture) {
+	if enabled, _ := schemaSnapshotCaptureEnabled(); !enabled {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), schemasnapshot.CaptureTimeout)
