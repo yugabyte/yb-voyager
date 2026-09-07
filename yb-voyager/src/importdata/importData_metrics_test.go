@@ -1,6 +1,6 @@
 //go:build unit
 
-package cmd
+package importdata
 
 import (
 	"testing"

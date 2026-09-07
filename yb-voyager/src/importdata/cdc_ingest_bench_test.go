@@ -16,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cmd
+package importdata
 
 /*
 CDC ingest benchmark: replays real export-data queue segments through the
