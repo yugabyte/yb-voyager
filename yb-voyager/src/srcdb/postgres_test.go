@@ -420,8 +420,6 @@ func TestPostgresGetTablesHavingUniqueDeferrableConstraint(t *testing.T) {
 		testutils.CreateNameTupleWithSourceName("test_schema.part_leaf_only_p1", "test_schema", "postgresql"),
 		testutils.CreateNameTupleWithSourceName("TestSchemaCase.Orders", "TestSchemaCase", "postgresql"),
 	}
-	fmt.Println("expectedTables", expectedTables)
-	fmt.Println("actualTables", actualTables)
 	assert.Equal(t, len(expectedTables), len(actualTables))
 	for _, expectedTable := range expectedTables {
 		if !lo.ContainsBy(actualTables, func(actualTable sqlname.NameTuple) bool {
@@ -432,7 +430,7 @@ func TestPostgresGetTablesHavingUniqueDeferrableConstraint(t *testing.T) {
 	}
 
 	// Empty table list must not error (and must not run a malformed query).
-	emptyResult, err := testPostgresSource.DB().GetTablesHavingUniqueDeferrableConstraint(nil)
+	emptyResult, err := testPostgresSource.DB().GetTablesHavingUniqueAndPKDeferrableConstraint(nil)
 	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
 	assert.Equal(t, len(emptyResult), 0)
 }
