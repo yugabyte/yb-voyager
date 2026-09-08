@@ -197,7 +197,8 @@ Use the `babysit` skill to fix CI failures in a loop (do not weaken workflows to
 
 | Workflow | What it exercises |
 |----------|-------------------|
-| `Go` | Unit tests, staticcheck |
+| `Go` | Unit tests |
+| `Lint` | golangci-lint (errcheck, govet, staticcheck, ineffassign, unused) per build-tag group |
 | `Build Voyager` | Installer / build |
 | `Integration Tests` | Live migration @ `yb_latest_stable` |
 | `Failpoint Tests` | Failpoint flows @ `yb_latest_stable` |
