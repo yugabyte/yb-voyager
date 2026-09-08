@@ -1,5 +1,10 @@
 # cmd Package Review Rules
 
+## File Organization
+
+- Helper functions for a new feature area go into their own file (e.g. `<command>_<feature>.go`), not appended to an already-large command file.
+- Keep the top-level command functions thin: a new multi-step block inside one belongs in a named function.
+- A function called from another command's file probably lives in the wrong file — put it with its callers or in a shared location.
 
 ## Error Handling in Commands
 
