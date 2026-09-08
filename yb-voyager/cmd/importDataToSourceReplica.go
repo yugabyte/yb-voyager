@@ -21,6 +21,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -124,12 +125,12 @@ func packAndSendImportDataToSrcReplicaPayload(status string, errorMsg error) {
 	}
 
 	// Get phase-related metrics from existing logic
-	importRowsMap, err := getImportedSnapshotRowsMap("source-replica", importTableList, nil)
+	importRowsMap, err := importdata.GetImportedSnapshotRowsMap("source-replica", importTableList, nil, importDataStateConfigFromGlobals())
 	if err != nil {
 		log.Infof("callhome: error in getting the import data: %v", err)
 	} else {
 		// callhome payload assembly; the callback never returns an error
-		_ = importRowsMap.IterKV(func(key sqlname.NameTuple, value RowCountPair) (bool, error) {
+		_ = importRowsMap.IterKV(func(key sqlname.NameTuple, value importdata.RowCountPair) (bool, error) {
 			dataMetrics.MigrationSnapshotTotalRows += value.Imported
 			if value.Imported > dataMetrics.MigrationSnapshotLargestTableRows {
 				dataMetrics.MigrationSnapshotLargestTableRows = value.Imported
@@ -139,9 +140,9 @@ func packAndSendImportDataToSrcReplicaPayload(status string, errorMsg error) {
 	}
 
 	// Set live migration metrics if applicable
-	if importPhase != dbzm.MODE_SNAPSHOT && statsReporter != nil {
-		dataMetrics.MigrationCdcTotalImportedEvents = statsReporter.TotalEventsImported
-		dataMetrics.CdcEventsImportRate3min = statsReporter.EventsImportRateLast3Min
+	if currentImportPhase() != dbzm.MODE_SNAPSHOT && currentStatsReporter() != nil {
+		dataMetrics.MigrationCdcTotalImportedEvents = currentStatsReporter().TotalEventsImported
+		dataMetrics.CdcEventsImportRate3min = currentStatsReporter().EventsImportRateLast3Min
 	}
 
 	// Set table list count
@@ -155,7 +156,7 @@ func packAndSendImportDataToSrcReplicaPayload(status string, errorMsg error) {
 		Error:            callhome.SanitizeErrorMsg(errorMsg, anonymizer),
 		ControlPlaneType: getControlPlaneType(),
 		DataMetrics:      dataMetrics,
-		Phase:            importPhase,
+		Phase:            currentImportPhase(),
 	}
 
 	// Add cutover timings if applicable

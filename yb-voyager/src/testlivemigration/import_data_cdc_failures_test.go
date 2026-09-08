@@ -116,7 +116,7 @@ func TestImportCDCTransformFailureAndResume(t *testing.T) {
 		// Skip the first 250 transform calls (let them succeed), then trigger a
 		// transform failure on the 251st call. 250 is chosen to be large enough
 		// that meaningful CDC progress is observable before the crash.
-		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/importCDCTransformFailure=250*off->return()",
+		"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata/importCDCTransformFailure=250*off->return()",
 	)
 	err = lm.StartImportDataWithEnv(true, nil, []string{
 		failpointEnv,
@@ -252,7 +252,7 @@ func TestImportCDCDbErrorAndResume(t *testing.T) {
 		// Skip the first 100 batch-commit calls (let them succeed), then inject a
 		// DB error on the 101st. 100 is chosen so `last_applied_vsn > 0` is
 		// observable and we can prove resume work is meaningful.
-		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/importCDCNonRetryableBatchDBError=100*off->return(true)",
+		"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata/importCDCNonRetryableBatchDBError=100*off->return(true)",
 	)
 	err = lm.StartImportDataWithEnv(true, map[string]string{
 		"--max-retries-streaming": "1",
@@ -760,7 +760,7 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 		// Skip the first 100 batch-commit calls across all channels (let them
 		// succeed), then inject a DB error on the 101st. 100 is large enough that
 		// multiple channels make meaningful progress before the crash.
-		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/importCDCNonRetryableBatchDBError=100*off->return(true)",
+		"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata/importCDCNonRetryableBatchDBError=100*off->return(true)",
 	)
 	err = lm.StartImportDataWithEnv(true, map[string]string{
 		"--max-retries-streaming": "1",
@@ -912,7 +912,6 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
-
 
 // getReportCDCCounts extracts the total imported and exported CDC event counts for a
 // table from a DataMigrationReport. The tableName must be in the quoted format

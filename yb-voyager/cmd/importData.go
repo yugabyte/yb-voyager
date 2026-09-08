@@ -30,63 +30,71 @@ import (
 	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
-	"github.com/sourcegraph/conc/pool"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
-	"golang.org/x/sync/semaphore"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/adaptiveparallelism"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/monitor"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
+	reporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/stats"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var metaInfoDirName = META_INFO_DIR_NAME
 var batchSizeInNumRows = int64(0)
-var batchImportPool *pool.Pool
-var colocatedBatchImportPool *pool.Pool
-var colocatedBatchImportQueue chan func()
-
 var importerRole string
 var identityColumnsMetaDBKey string
+
+// importPhase is the phase reported before the import engine exists (see
+// currentImportPhase); after that the engine owns the phase.
 var importPhase string
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
-var truncateSplits utils.BoolStr                                             // to truncate *.D splits after import
-var TableToColumnNames = utils.NewStructMap[sqlname.NameTuple, []string]()   // map of table name to columnNames
-var TableToIdentityColumnNames *utils.StructMap[sqlname.NameTuple, []string] // map of table name to generated always as identity column's names
-var valueConverter dbzm.SnapshotPhaseValueConverter
-
-var TableNameToSchema *utils.StructMap[sqlname.NameTuple, map[string]map[string]string]
-var conflictDetectionCache *ConflictDetectionCache
+var truncateSplits utils.BoolStr // to truncate *.D splits after import
 var targetDBDetails *callhome.TargetDBDetails
 var skipReplicationChecks utils.BoolStr
 var skipNodeHealthChecks utils.BoolStr
 var skipDiskUsageHealthChecks utils.BoolStr
-var progressReporter *importdata.ImportDataProgressReporter
 var callhomeMetricsCollector *callhome.ImportDataMetricsCollector
 
 // ShutdownImportProgressBars stops the mpb progress container so that its
 // rendering goroutine no longer writes to stdout. Must be called before
 // printing any final messages on signal receipt to avoid the bars overwriting them.
 func ShutdownImportProgressBars() {
-	if progressReporter != nil {
-		progressReporter.Shutdown()
+	if importer != nil {
+		importer.ShutdownProgressBars()
 	}
+}
+
+// importer is the single handle cmd keeps on the running import engine
+// (src/importdata). The callhome payload builders read its phase and streaming
+// stats through currentImportPhase / currentStatsReporter.
+var importer *importdata.Importer
+
+// currentImportPhase returns the engine's phase once the engine exists, and the
+// command-level importPhase before that (set to snapshot at the start of the
+// import data command, empty during PreRun), exactly as the former global did.
+func currentImportPhase() string {
+	if importer == nil {
+		return importPhase
+	}
+	return importer.ImportPhase()
+}
+
+func currentStatsReporter() *reporter.StreamImportStatsReporter {
+	if importer == nil {
+		return nil
+	}
+	return importer.StatsReporter()
 }
 
 var importTableList []sqlname.NameTuple
@@ -256,7 +264,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 
 	var importFileTasks []*importdata.ImportFileTask
-	if importSnapshotRequired() {
+	if importdata.ImportSnapshotRequired(importerRole, importType) {
 
 		dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
 		dataFileDescriptor = datafile.OpenDescriptor(exportDir)
@@ -292,7 +300,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 
 	handleCutoverAlreadyProcessedForImportData()
 
-	importData(importFileTasks, errorPolicySnapshotFlag)
+	runImportDataEngine(importFileTasks)
 	tdb.Finalize()
 
 	if furtherCommandsRequired() {
@@ -453,20 +461,6 @@ func startExportDataFromSourceOnNextIteration() {
 
 }
 
-func importSnapshotRequired() bool {
-	switch importerRole {
-	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
-		return true
-	case IMPORT_FILE_ROLE:
-		return true
-	case SOURCE_DB_IMPORTER_ROLE:
-		return false
-	case TARGET_DB_IMPORTER_ROLE:
-		return importType == SNAPSHOT_ONLY || importType == SNAPSHOT_AND_CHANGES
-	default:
-		panic(fmt.Sprintf("invalid importer role: %s", importerRole))
-	}
-}
 func checkTablesPresentInTarget(tablesToImport []sqlname.NameTuple) {
 	if importerRole != TARGET_DB_IMPORTER_ROLE {
 		return
@@ -914,125 +908,6 @@ func setupImportDataObservability() error {
 	return nil
 }
 
-func updateImportDataStartedAndSomeConfigsInMetaDB() error {
-	switch importerRole {
-	case TARGET_DB_IMPORTER_ROLE:
-		log.Infof("updating import data started in meta db with cdc-partition-key: %s, overrides: %q", cdcPartitionKey, cdcPartitionKeyOverrides)
-		err := metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
-			record.ImportDataStarted = true
-			record.CdcPartitioningStrategyConfig = cdcPartitionKey
-			record.CdcPartitionKeyOverridesConfig = cdcPartitionKeyOverrides
-		})
-		if err != nil {
-			return goerrors.Errorf("Failed to update import data status record: %w", err)
-		}
-		err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-			record.ImportDataToTargetStarted = true
-		})
-		if err != nil {
-			return goerrors.Errorf("failed to update migration status record: %w", err)
-		}
-
-	case IMPORT_FILE_ROLE:
-		err := metaDB.UpdateImportDataFileStatusRecord(func(record *metadb.ImportDataFileStatusRecord) {
-			record.ImportDataStarted = true
-		})
-		if err != nil {
-			return goerrors.Errorf("Failed to update import data file status record: %w", err)
-		}
-	case SOURCE_DB_IMPORTER_ROLE:
-		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-			record.ImportDataToSourceStarted = true
-		})
-		if err != nil {
-			return goerrors.Errorf("failed to update migration status record: %w", err)
-		}
-	}
-	return nil
-}
-
-func initialiseErrorHandler(errorPolicy importdata.ErrorPolicy) (importdata.ImportDataErrorHandler, error) {
-	exportDirDataDir := filepath.Join(exportDir, "data")
-	errorHandler, err := importdata.GetImportDataErrorHandler(errorPolicy, exportDirDataDir, importerRole)
-	if err != nil {
-		return nil, goerrors.Errorf("Failed to initialize error handler: %w", err)
-	}
-	err = updateErrorPolicyInMetaDB(errorPolicy)
-	if err != nil {
-		return nil, goerrors.Errorf("Failed to update error policy in meta DB: %w", err)
-	}
-	return errorHandler, nil
-}
-
-func updateTargetConfInMigrationStatus() error {
-	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		switch importerRole {
-		case TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE:
-			record.TargetDBConf = tconf.Clone()
-			record.TargetDBConf.Password = ""
-			record.TargetDBConf.Uri = ""
-		case SOURCE_REPLICA_DB_IMPORTER_ROLE:
-			record.SourceReplicaDBConf = tconf.Clone()
-			record.SourceReplicaDBConf.Password = ""
-			record.SourceReplicaDBConf.Uri = ""
-		case SOURCE_DB_IMPORTER_ROLE:
-			record.SourceDBAsTargetConf = tconf.Clone()
-			record.SourceDBAsTargetConf.Password = ""
-			record.SourceDBAsTargetConf.Uri = ""
-		default:
-			panic(fmt.Sprintf("unsupported importer role: %s", importerRole))
-		}
-	})
-	if err != nil {
-		return goerrors.Errorf("Failed to update target conf in migration status record: %w", err)
-	}
-	return nil
-}
-
-func prepareTargetDBForImport() error {
-	//init target db connection pool
-	err := tdb.InitConnPool()
-	if err != nil {
-		return goerrors.Errorf("Failed to initialize the target DB connection pool: %w", err)
-	}
-
-	//start adaptive parallelism
-	var adaptiveParallelismStarted bool
-	adaptiveParallelismStarted, err = startAdaptiveParallelism(tconf.AdaptiveParallelismMode, callhomeMetricsCollector)
-	if err != nil {
-		return goerrors.Errorf("Failed to start adaptive parallelism: %w", err)
-	}
-	//start monitoring target YB health
-	err = startMonitoringTargetYBHealth()
-	if err != nil {
-		return goerrors.Errorf("Failed to start monitoring health: %w", err)
-	}
-	if adaptiveParallelismStarted {
-		utils.PrintAndLogf("Using 1-%d parallel jobs (adaptive)", tconf.MaxParallelism)
-	} else {
-		utils.PrintAndLogf("Using %d parallel jobs.", tconf.Parallelism)
-	}
-
-	targetDBVersion := tdb.GetVersion()
-	fmt.Printf("%s version: %s\n", tconf.TargetDBType, targetDBVersion)
-
-	//create voyager metadata schema
-	err = tdb.CreateVoyagerSchema()
-	if err != nil {
-		return goerrors.Errorf("Failed to create voyager metadata schema on target DB: %w", err)
-	}
-	return nil
-}
-
-func handleStartCleanForSnapshot(state *importdata.ImportDataState, importFileTasks []*importdata.ImportFileTask, errorHandler importdata.ImportDataErrorHandler) error {
-	cleanImportState(state, importFileTasks)
-	err := cleanStoredErrors(errorHandler, importFileTasks)
-	if err != nil {
-		return goerrors.Errorf("Failed to clean stored errors: %w", err)
-	}
-	return nil
-}
-
 func initialiseImportTableList(importFileTasks []*importdata.ImportFileTask, msr *metadb.MigrationStatusRecord) ([]*importdata.ImportFileTask, []sqlname.NameTuple, error) {
 	var err error
 	if changeStreamingIsEnabled(importType) {
@@ -1060,242 +935,82 @@ func initialiseImportTableList(importFileTasks []*importdata.ImportFileTask, msr
 	//we don't need empty tables in offline case, data migration doesn't matter for them
 	//Table list after applying table list filter
 	importFileTasks = applyTableListFilter(importFileTasks)
-	importTableList = importFileTasksToTableNameTuples(importFileTasks)
+	importTableList = importdata.ImportFileTasksToTableNameTuples(importFileTasks)
 
 	return importFileTasks, importTableList, nil
 }
 
-func initialiseValueConverter(importTableList []sqlname.NameTuple, msr *metadb.MigrationStatusRecord) error {
-	var err error
-	if msr.IsSnapshotExportedViaDebezium() {
-		valueConverter, err = dbzm.NewSnapshotPhaseValueConverter(exportDir, tdb, tconf, importerRole, msr.SourceDBConf.DBType, importTableList)
-	} else {
-		valueConverter, err = dbzm.NewSnapshotPhaseNoOpValueConverter()
-	}
-	if err != nil {
-		return goerrors.Errorf("Failed to create value converter: %w", err)
-	}
+// buildImportDataConfig copies the cmd package-level variables the import engine
+// used to read directly into importdata.Config. Values only; no callbacks.
+func buildImportDataConfig() importdata.Config {
+	cfg := importdata.Config{
+		ExportDir:                exportDir,
+		MetaDB:                   metaDB,
+		MigrationUUID:            migrationUUID,
+		ImporterRole:             importerRole,
+		ImportType:               importType,
+		IdentityColumnsMetaDBKey: identityColumnsMetaDBKey,
+		SourceDBType:             sourceDBType,
+		Source:                   source,
+		Tconf:                    tconf,
+		Tdb:                      tdb,
+		ControlPlane:             controlPlane,
 
-	TableNameToSchema, err = valueConverter.GetTableNameToSchema()
-	if err != nil {
-		return goerrors.Errorf("Failed to get table name to schema: %w", err)
-	}
-	return nil
-}
+		StartClean:                    startClean,
+		TruncateTables:                truncateTables,
+		TruncateSplits:                truncateSplits,
+		DisablePb:                     disablePb,
+		BatchSizeInNumRows:            batchSizeInNumRows,
+		ErrorPolicySnapshot:           errorPolicySnapshotFlag,
+		EnableRandomBatchProduction:   enableRandomBatchProduction,
+		MaxConcurrentBatchProductions: maxConcurrentBatchProductionsConfig,
+		SkipReplicationChecks:         skipReplicationChecks,
+		SkipNodeHealthChecks:          skipNodeHealthChecks,
+		SkipDiskUsageHealthChecks:     skipDiskUsageHealthChecks,
+		CdcPartitionKey:               cdcPartitionKey,
+		CdcPartitionKeyOverrides:      cdcPartitionKeyOverrides,
+		ImportUsePartitionRoot:        importUsePartitionRoot,
+		EventBatchMaxRetryCount:       EVENT_BATCH_MAX_RETRY_COUNT,
+		ReportProgressInBytes:         reportProgressInBytes,
 
-func handleIdentityColumns(importTableList []sqlname.NameTuple) error {
-	err := fetchAndStoreGeneratedAlwaysIdentityColumnsInMetadb(importTableList)
+		DataFileDescriptor:       dataFileDescriptor,
+		DataStore:                dataStore,
+		ImportTableList:          importTableList,
+		CallhomeMetricsCollector: callhomeMetricsCollector,
+	}
+	// validateCdcPartitionKeyFlags already parsed this string during flag validation;
+	// parse it again here so the engine never re-parses the raw flag at runtime.
+	parsed, err := parseCdcPartitionKeyOverrides(cdcPartitionKeyOverrides)
 	if err != nil {
-		return goerrors.Errorf("Failed to fetch and store generated always identity columns: %w", err)
+		utils.ErrExit("%w", err)
 	}
-	err = disableGeneratedAlwaysAsIdentityColumns()
-	if err != nil {
-		return goerrors.Errorf("Failed to disable generated always identity columns: %w", err)
-	}
-	return nil
-}
-
-func importSnapshotData(msr *metadb.MigrationStatusRecord, errorHandler importdata.ImportDataErrorHandler,
-	state *importdata.ImportDataState, importFileTasks []*importdata.ImportFileTask, importTableList []sqlname.NameTuple) error {
-	var err error
-	var pendingTasks, completedTasks []*importdata.ImportFileTask
-
-	if startClean {
-		pendingTasks = importFileTasks
-	} else {
-		pendingTasks, completedTasks, err = classifyTasksForImport(state, importFileTasks)
-		if err != nil {
-			utils.ErrExit("Failed to classify tasks: %w", err)
-		}
-	}
-	log.Infof("pending tasks: %v", pendingTasks)
-	log.Infof("completed tasks: %v", completedTasks)
-
-	err = runPKConflictModeGuardrails(state, importFileTasks)
-	if err != nil {
-		utils.ErrExit("Error checking PK conflict mode on fresh start: %w", err)
-	}
-
-	err = initialiseValueConverter(importTableList, msr)
-	if err != nil {
-		utils.ErrExit("Failed to initialize value converter: %w", err)
-	}
-
-	utils.PrintAndLogf("Already imported tables: %v", importFileTasksToTableNames(completedTasks))
-	if len(pendingTasks) == 0 {
-		utils.PrintAndLogf("All the tables are already imported, nothing left to import\n")
-		return nil
-	}
-	utils.PrintAndLogf("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
-	err = prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
-	if err != nil {
-		utils.ErrExit("failed to prepare table to columns: %w", err)
-	}
-	maxParallelConns, err := getMaxParallelConnections()
-	if err != nil {
-		utils.ErrExit("Failed to get max parallel connections: %w", err)
-	}
-	if !tconf.AdaptiveParallelismMode.IsEnabled() {
-		// Adaptive parallelism emits this gauge itself once it starts polling;
-		// for a fixed --parallel-jobs run there's no such poller, so emit once here.
-		metrics.Get().SetImportParallelism(importerRole, maxParallelConns)
-	}
-	importDataAllTableMetrics := createInitialImportDataTableMetrics(importFileTasks, pendingTasks)
+	cfg.CdcPartitionKeyOverridesParsed = parsed
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
-		controlPlane.UpdateImportedRowCount(importDataAllTableMetrics)
+		cfg.SnapshotImportStartedEvent = createSnapshotImportStartedEvent()
 	}
-
-	useTaskPicker := utils.GetEnvAsBool("YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT", true)
-	if useTaskPicker {
-		maxColocatedBatchesInProgress := utils.GetEnvAsInt("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS", 3)
-		err := importTasksViaTaskPicker(pendingTasks, state, progressReporter,
-			maxParallelConns, maxParallelConns, maxColocatedBatchesInProgress, msr.IsSnapshotExportedViaDebezium(),
-			maxConcurrentBatchProductionsConfig, bool(enableRandomBatchProduction),
-			errorHandler, callhomeMetricsCollector)
-		if err != nil {
-			utils.ErrExit("Failed to import tasks via task picker. %w", err)
-		}
-	} else {
-		poolSize := maxParallelConns * 2
-		for _, task := range pendingTasks {
-			// The code can produce `poolSize` number of batches at a time. But, it can consume only
-			// `parallelism` number of batches at a time.
-			batchImportPool = pool.New().WithMaxGoroutines(poolSize)
-			log.Infof("created batch import pool of size: %d", poolSize)
-
-			batchProducer, err := importdata.NewSequentialFileBatchProducer(sequentialFileBatchProducerConfigFromGlobals(), task, state, msr.IsSnapshotExportedViaDebezium(), errorHandler, progressReporter)
-			if err != nil {
-				utils.ErrExit("Failed to create batch producer: %w", err)
-			}
-
-			taskImporter, err := importdata.NewFileTaskImporter(fileTaskImporterConfigFromGlobals(), task, state, batchProducer, batchImportPool, progressReporter, nil, false, errorHandler, callhomeMetricsCollector)
-			if err != nil {
-				utils.ErrExit("Failed to create file task importer: %w", err)
-			}
-
-			for !taskImporter.AllBatchesSubmitted() {
-				err := taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
-				if err != nil {
-					utils.ErrExit("Failed to submit next batch: task:%v err: %w", task, err)
-				}
-			}
-
-			batchImportPool.Wait() // wait for file import to finish
-			taskImporter.PostProcess()
-		}
-		time.Sleep(time.Second * 2)
-	}
-
-	return nil
+	return cfg
 }
 
-func importData(importFileTasks []*importdata.ImportFileTask, errorPolicy importdata.ErrorPolicy) {
-	errorHandler, err := initialiseErrorHandler(errorPolicy)
-	if err != nil {
-		utils.ErrExit("Failed to initialize error policy and error handler: %w", err)
-	}
-
-	if importerRole == TARGET_DB_IMPORTER_ROLE {
-		importDataStartEvent := createSnapshotImportStartedEvent()
-		controlPlane.SnapshotImportStarted(&importDataStartEvent)
-	}
-	err = updateTargetConfInMigrationStatus()
-	if err != nil {
-		utils.ErrExit("Failed to update target conf in migration status record: %w", err)
-	}
+// runImportDataEngine runs the import engine for the given tasks and then the
+// post-processing that used to follow inside importData().
+func runImportDataEngine(importFileTasks []*importdata.ImportFileTask) {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("Failed to get migration status record: %w", err)
 	}
-	//create progress reporter
-	progressReporter = importdata.NewImportDataProgressReporter(bool(disablePb))
-
-	err = prepareTargetDBForImport()
-	if err != nil {
-		utils.ErrExit("Failed to prepare target DB for import: %w", err)
-	}
-
-	state := newImportDataStateFromGlobals()
-
-	err = clearMigrationStateForImportDataStartClean(state, importFileTasks, errorHandler)
-	if err != nil {
-		utils.ErrExit("Failed to clean MigrationStatusRecord for import data start clean: %w", err)
-	}
-
-	var tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]
-	if changeStreamingIsEnabled(importType) {
-		tableToUniqueIndexes, err = tdb.GetTableToUniqueIndexesMap(importTableList)
-		if err != nil {
-			utils.ErrExit("Failed to get table unique indexes map from target: %s", err)
-		}
-	}
-	// Validate/resolve cdc-partition-key (+ overrides) and persist the per-table map
-	// before snapshot so bad configs fail fast (not at streamChanges).
-	// Runs after start-clean so a cleared map is recomputed for the new run.
-	// Must run before updateImportDataStartedInMetaDB so a failed prepare does not
-	// lock change-guard / ImportDataStarted for a config that never took effect.
-	err = prepareCdcPartitionKey(importTableList, tableToUniqueIndexes)
-	if err != nil {
-		utils.ErrExit("Failed to prepare cdc-partition-key: %w", err)
-	}
-
-	// Fetch the primary-key columns of the import tables from the target (before snapshot) so
-	// they can be passed to streamChanges and the conflict-detection cache without re-querying
-	// during streaming. Also fails fast if a custom-partition-key table has no primary key.
-	importTableToPKColumns, err := getPrimaryKeyColumnsForImportTables(importTableList)
-	if err != nil {
-		utils.ErrExit("Failed to get primary key columns for import tables: %w", err)
-	}
-	//updating the metadb after the startclean clears any required metadb state
-	err = updateImportDataStartedAndSomeConfigsInMetaDB()
-	if err != nil {
-		utils.ErrExit("Failed to update import data started in meta DB: %w", err)
-	}
-
-	if state.HasExistingState() {
-		utils.PrintAndLogf("\nResuming import of data in %q database", tconf.DBName)
-	} else {
-		utils.PrintAndLogf("\nimport of data in %q database started", tconf.DBName)
-	}
-
 	if msr.SourceDBConf != nil {
 		source = *msr.SourceDBConf
 	}
+	importer = importdata.NewImporter(buildImportDataConfig())
+	importer.ImportData(importFileTasks)
+	importDataPostProcessing(msr, importFileTasks)
+}
 
-	// Handle identity columns before snapshot import for Oracle targets (source-replica/source)
-	// Oracle requires GENERATED ALWAYS columns to be converted to GENERATED BY DEFAULT for COPY to work
-	if identityColumnsNeedHandlingForSnapshotImport() {
-		err = handleIdentityColumns(importTableList)
-		if err != nil {
-			utils.ErrExit("Failed to handle identity columns: %w", err)
-		}
-	}
-
-	// Import snapshots
-	if importSnapshotRequired() {
-		err = importSnapshotData(msr, errorHandler, state, importFileTasks, importTableList)
-		if err != nil {
-			utils.ErrExit("failed to import snapshot data: %w", err)
-		}
-		utils.PrintAndLogf("snapshot data import complete\n\n")
-	}
-
+// importDataPostProcessing is the tail of the former importData(): sequence and
+// identity-column restoration, cutover processing and the snapshot import report.
+func importDataPostProcessing(msr *metadb.MigrationStatusRecord, importFileTasks []*importdata.ImportFileTask) {
+	var err error
 	if changeStreamingIsEnabled(importType) {
-		// For non-Oracle targets (YugabyteDB/PostgreSQL), handle identity columns before streaming phase
-		// For Oracle targets, this was already done before snapshot import
-		if !identityColumnsNeedHandlingForSnapshotImport() {
-			err = handleIdentityColumns(importTableList)
-			if err != nil {
-				utils.ErrExit("Failed to handle identity columns: %w", err)
-			}
-		}
-		if importSnapshotRequired() {
-			displayImportedRowCountSnapshot(state, importFileTasks, errorHandler)
-		}
-		err = streamChanges(state, importTableList, importTableToPKColumns, tableToUniqueIndexes)
-		if err != nil {
-			utils.ErrExit("Failed to stream changes to %s: %w", tconf.TargetDBType, err)
-		}
 		err = postCutoverProcessing(importTableList)
 		if err != nil {
 			utils.ErrExit("failed to post cutover processing: %w", err)
@@ -1307,7 +1022,7 @@ func importData(importFileTasks []*importdata.ImportFileTask, errorPolicy import
 		if err != nil {
 			utils.ErrExit("failed to post snapshot import processing: %w", err)
 		}
-		displayImportedRowCountSnapshot(state, importFileTasks, errorHandler)
+		importdata.DisplayImportedRowCountSnapshot(importDataStateConfigFromGlobals(), importer.State(), importFileTasks, importer.ErrorHandler())
 	}
 	fmt.Printf("\nImport data complete.\n")
 }
@@ -1333,7 +1048,7 @@ func postCutoverProcessing(importTableList []sqlname.NameTuple) error {
 		return goerrors.Errorf("failed to restore sequences: %w", err)
 	}
 
-	err = restoreGeneratedIdentityColumns(importTableList)
+	err = importer.RestoreGeneratedIdentityColumns(importTableList)
 	if err != nil {
 		return goerrors.Errorf("failed to restore generated columns: %w", err)
 	}
@@ -1409,333 +1124,6 @@ func waitUntilCutoverProcessedByCorrespondingExporterForImporter(importerRole st
 	}
 }
 
-/*
-getPrimaryKeyColumnsForImportTables fetches the primary-key columns of every import table
-from the target DB (in one batched query) so they can be threaded into the streaming
-conflict-detection cache.
-
-It is called once near the start of importData (for the target PG→YB live path only; other
-paths return an empty map since conflict detection does not run for them). Because importData
-runs in the same process before streamChanges on both the first run and resume, the map does
-not need to be persisted in metaDB.
-
-It also fails fast, before the snapshot import, if a table routed by a custom partition key
-has no primary key on the target: custom routing adds the PK as a synthetic unique index for
-conflict detection (a recycled PK across different custom keys must be serialized), so a
-custom-key table without a PK cannot be made correct. This is scoped to custom-key tables so
-that legitimately PK-less tables under pk/table routing (e.g. partitioned roots imported via
---use-partition-root) are not blocked.
-*/
-func getPrimaryKeyColumnsForImportTables(tableNames []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
-	tableToPKColumns := utils.NewStructMap[sqlname.NameTuple, []string]()
-
-	// Only the target PG→YB live streaming path runs conflict detection and needs primary keys.
-	if importerRole != TARGET_DB_IMPORTER_ROLE || !changeStreamingIsEnabled(importType) || sourceDBType != POSTGRESQL {
-		return tableToPKColumns, nil
-	}
-
-	tableToPKColumns, err := tdb.GetPrimaryKeyColumnsForTables(tableNames)
-	if err != nil {
-		return nil, fmt.Errorf("error getting primary key columns for import tables: %w", err)
-	}
-
-	var tablesWithoutPK []sqlname.NameTuple
-	for _, t := range tableNames {
-		if pkColumns, _ := tableToPKColumns.Get(t); len(pkColumns) == 0 {
-			tablesWithoutPK = append(tablesWithoutPK, t)
-		}
-	}
-	if len(tablesWithoutPK) > 0 {
-		return nil, goerrors.Errorf("table(s) %v have no primary key on the target; live migration is not allowed for these tables", tablesWithoutPK)
-	}
-
-	return tableToPKColumns, nil
-}
-
-// For a fresh start but non empty tables in tableList && OnPrimaryKeyConflict is set to IGNORE -> notify user
-func runPKConflictModeGuardrails(state *importdata.ImportDataState, allTasks []*importdata.ImportFileTask) error {
-	// in case of ERROR mode, no need to check for non-empty tables
-	// but for IGNORE or UPDATE(in future), we need to prompt user
-	if tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR_POLICY {
-		return nil
-	}
-
-	if !isTargetDBImporter(importerRole) {
-		return nil
-	}
-
-	if !isFreshStart(state, allTasks) {
-		log.Info("Not a fresh start, skipping primary key conflict mode check.")
-		return nil
-	}
-
-	pendingTasks := getPendingTasks(state, allTasks)
-	pendingTablesList := importFileTasksToTableNameTuples(pendingTasks)
-	nonEmptyTables := tdb.GetNonEmptyTables(pendingTablesList)
-	if len(nonEmptyTables) == 0 {
-		log.Info("No non-empty tables found in the target DB, skipping primary key conflict mode check.")
-		return nil
-	}
-
-	tableToPKColumns, err := tdb.GetPrimaryKeyColumnsForTables(nonEmptyTables)
-	if err != nil {
-		return fmt.Errorf("failed to get primary key columns for tables: %w", err)
-	}
-	var nonEmptyTablesWithPK []sqlname.NameTuple
-	for _, table := range nonEmptyTables {
-		colList, _ := tableToPKColumns.Get(table)
-		if len(colList) > 0 { // table has PK
-			nonEmptyTablesWithPK = append(nonEmptyTablesWithPK, table)
-		}
-	}
-
-	// all nonEmptyTables have no primary key columns
-	if len(nonEmptyTablesWithPK) == 0 {
-		log.Infof("No non-empty tables with primary key found in %v, skipping primary key conflict mode check.",
-			sqlname.NameTupleListToStrings(nonEmptyTables))
-		return nil
-	}
-
-	utils.PrintAndLogf(
-		"\nTarget tables with pre-existing data: %v\n"+
-			"Note that because of the config on-primary-key-conflict as 'IGNORE', rows that have a primary key conflict "+
-			"with an existing row in the above set of tables will be silently ignored.\n",
-		sqlname.NameTupleListToStrings(nonEmptyTablesWithPK),
-	)
-	if !utils.AskPrompt("Please confirm whether to proceed") {
-		utils.ErrExit("Aborting import.")
-	}
-
-	return nil
-}
-
-// A fresh start is when all tasks are pending(non-zero), no started or completed tasks.
-func isFreshStart(state *importdata.ImportDataState, allTasks []*importdata.ImportFileTask) bool {
-	inProgressTasks := getInProgressTasks(state, allTasks)
-	notStartedTasks := getNotStartedTasks(state, allTasks)
-	completedTasks := getCompletedTasks(state, allTasks)
-
-	return len(inProgressTasks) == 0 && len(completedTasks) == 0 && len(notStartedTasks) == len(allTasks)
-}
-
-// restoreGeneratedIdentityColumns enables & restores generated identity columns
-// 1. GENERATED ALWAYS: Re-enables(also restores the values) 'GENERATED ALWAYS' identity columns previously disabled before import data
-// 2. GENERATED BY DEFAULT: Remaining columns were always 'generated by default'; just restore their values.
-func restoreGeneratedIdentityColumns(importTableList []sqlname.NameTuple) error {
-	if importTableList == nil {
-		return nil
-	}
-
-	err := enableGeneratedAlwaysAsIdentityColumns()
-	if err != nil {
-		return err
-	}
-
-	// TODO: these sequences of all identity columns are also covered as part of the RestoreSequences as well so we don't need this ALTER
-	// see if we should remove it.
-	err = restoreGeneratedByDefaultAsIdentityColumns(importTableList)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func getMaxParallelConnections() (int, error) {
-	maxParallelConns := tconf.Parallelism
-	if tconf.AdaptiveParallelismMode.IsEnabled() {
-		// in case of adaptive parallelism, we need to use maxParalllelism * 2
-		yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
-		if !ok {
-			return 0, goerrors.Errorf("adaptive parallelism is only supported if target DB is YugabyteDB")
-		}
-		maxParallelConns = yb.GetNumMaxConnectionsInPool()
-	}
-	return maxParallelConns, nil
-}
-
-func waitIfNoBatchAvailableForAllTasks(taskPicker importdata.FileTaskPicker, taskImporters map[int]*importdata.FileTaskImporter) {
-	inProgressTasks := taskPicker.InProgressTasks()
-	if len(inProgressTasks) == 0 {
-		return
-	}
-
-	allTasksBatchNotAvailable := true
-
-	for _, task := range inProgressTasks {
-		importer, exists := taskImporters[task.ID]
-		if !exists {
-			// Importer not yet created for this task - the picker has picked a new task
-			// that the main loop hasn't processed yet. Don't wait, let the loop create it.
-			return
-		}
-
-		if importer.IsNextBatchAvailable() {
-			allTasksBatchNotAvailable = false
-			break
-		}
-	}
-
-	if allTasksBatchNotAvailable {
-		log.Infof("No batches available for all in-progress tasks. Waiting for batch production.")
-		time.Sleep(100 * time.Millisecond)
-	}
-}
-
-func waitIfAllBatchesSubmittedForAllTasks(taskPicker importdata.FileTaskPicker, taskImporters map[int]*importdata.FileTaskImporter) {
-	inProgressTasks := taskPicker.InProgressTasks()
-	if len(inProgressTasks) == 0 {
-		return
-	}
-
-	allTasksAllBatchesSubmitted := true
-
-	for _, task := range inProgressTasks {
-		importer, exists := taskImporters[task.ID]
-		if !exists {
-			// Importer not yet created for this task - the picker has picked a new task
-			// that the main loop hasn't processed yet. Don't wait, let the loop create it.
-			return
-		}
-		if !importer.AllBatchesSubmitted() {
-			allTasksAllBatchesSubmitted = false
-			break
-		}
-	}
-
-	if allTasksAllBatchesSubmitted {
-		log.Infof("All batches submitted for all in-progress tasks. Waiting for import completion.")
-		time.Sleep(100 * time.Millisecond)
-	}
-}
-
-/*
-1. Initialize a worker pool. In case of TARGET_DB_IMPORTER_ROLE  or IMPORT_FILE_ROLE, also create a colocated batch import pool and a corresponding queue.
-2. Create a task picker which helps the importer choose which task to process in each iteration.
-3. Loop until all tasks are done:
-  - Pick a task from the task picker.
-  - If the task is not already being processed, create a new FileTaskImporter for the task.
-  - For the task that is picked, produce the next batch and submit it to the worker pool. Worker will asynchronously import the batch.
-  - If task is done, mark it as done in the task picker.
-*/
-func importTasksViaTaskPicker(pendingTasks []*importdata.ImportFileTask, state *importdata.ImportDataState, progressReporter *importdata.ImportDataProgressReporter,
-	maxParallelConns int, maxShardedTasksInProgress int, maxColocatedBatchesInProgress int,
-	isRowTransformationRequired bool, maxConcurrentBatchProductions int, enableRandomBatchProduction bool,
-	errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) error {
-
-	var err error
-	setupWorkerPoolAndQueue(maxParallelConns, maxColocatedBatchesInProgress)
-	taskImporters := map[int]*importdata.FileTaskImporter{}
-	tableTypes, err := importdata.GetTableTypes(importerRole, tconf.TargetDBType, tdb, pendingTasks)
-	if err != nil {
-		return fmt.Errorf("get table types: %w", err)
-	}
-
-	// Initialize semaphore to limit concurrent batch productions
-	concurrentBatchProductionSem := semaphore.NewWeighted(int64(maxConcurrentBatchProductions))
-
-	var taskPicker importdata.FileTaskPicker
-	// The colocation-aware task picker only applies to a real YugabyteDB
-	// target. yb-amp (PostgreSQL-compatible, no colocation/tablets) and the
-	// PG fall-forward/back roles use the sequential picker instead.
-	if (importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE) && tconf.TargetDBType == YUGABYTEDB {
-		yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
-		if !ok {
-			return goerrors.Errorf("expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
-		}
-		taskPicker, err = importdata.NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress, maxColocatedBatchesInProgress, pendingTasks, state, yb, colocatedBatchImportQueue, tableTypes)
-		if err != nil {
-			return fmt.Errorf("create colocated aware randmo task picker: %w", err)
-		}
-	} else {
-		taskPicker, err = importdata.NewSequentialTaskPicker(pendingTasks, state)
-		if err != nil {
-			return fmt.Errorf("create sequential task picker: %w", err)
-		}
-	}
-
-	for taskPicker.HasMoreTasks() {
-		task, err := taskPicker.Pick()
-		if err != nil {
-			return fmt.Errorf("get next task: %w", err)
-		}
-		log.Debugf("Picked task for import: %s", task)
-		var taskImporter *importdata.FileTaskImporter
-		var ok bool
-		taskImporter, ok = taskImporters[task.ID]
-		if !ok {
-			taskImporter, err = createFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableTypes, isRowTransformationRequired, enableRandomBatchProduction, concurrentBatchProductionSem, errorHandler, callhomeMetricsCollector)
-			if err != nil {
-				return fmt.Errorf("create file task importer: %w", err)
-			}
-			log.Infof("created file task importer for table: %s, task: %v", task.TableNameTup.ForOutput(), task)
-			taskImporters[task.ID] = taskImporter
-		}
-
-		if taskImporter.AllBatchesSubmitted() {
-			// All batches for this task have been submitted.
-			// task could have been completed (all batches imported) OR still in progress
-			// in case task is done, we should inform task picker so that we stop picking that task.
-			log.Debugf("All batches submitted for task: %s", task)
-			taskDone, err := state.AllBatchesImported(task.FilePath, task.TableNameTup)
-			if err != nil {
-				return fmt.Errorf("check if all batches are imported: task: %v err :%w", task, err)
-			}
-			if taskDone {
-				taskImporter.PostProcess()
-				err = taskPicker.MarkTaskAsDone(task)
-				if err != nil {
-					return fmt.Errorf("mark task as done: task: %v, err: %w", task, err)
-				}
-				state.UnregisterFileTaskImporter(taskImporter)
-				log.Infof("Import of task done: %s", task)
-				continue
-			}
-			// Batches still being imported by workers; continue with some other task.
-			waitIfAllBatchesSubmittedForAllTasks(taskPicker, taskImporters)
-			continue
-		}
-
-		if !taskImporter.IsNextBatchAvailable() {
-			// Picked task has no batch ready. Small sleep to prevent tight spinning
-			// in case picker keeps returning tasks without batches.
-			log.Debugf("No next batch available for table: %s", task.TableNameTup.ForOutput())
-			waitIfNoBatchAvailableForAllTasks(taskPicker, taskImporters)
-			continue
-		}
-
-		log.Infof("Producing and submitting next batch for task: %s", task)
-
-		err = taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
-		if err != nil {
-			return goerrors.Errorf("submit next batch: task:%v err: %w", task, err)
-		}
-	}
-	return nil
-}
-
-func setupWorkerPoolAndQueue(maxParallelConns int, maxColocatedBatchesInProgress int) {
-	shardedPoolSize := maxParallelConns * 2
-	batchImportPool = pool.New().WithMaxGoroutines(shardedPoolSize)
-	log.Infof("created batch import pool of size: %d", shardedPoolSize)
-
-	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
-		colocatedBatchImportPool = pool.New().WithMaxGoroutines(maxColocatedBatchesInProgress)
-		log.Infof("created colocated batch import pool of size: %d", maxColocatedBatchesInProgress)
-
-		colocatedBatchImportQueue = make(chan func(), maxColocatedBatchesInProgress*2)
-
-		colocatedBatchImportQueueConsumer := func() {
-			// just read from channel and submit to the worker pool.
-			// worker pool has a max size of maxColocatedBatchesInProgress, so it will block if all workers are busy.
-			for f := range colocatedBatchImportQueue {
-				colocatedBatchImportPool.Go(f)
-			}
-		}
-		go colocatedBatchImportQueueConsumer()
-	}
-}
-
 // getTableTypes returns a map of table name to table type (sharded/colocated) for all tables in the tasks.
 // The *FromGlobals helpers copy the cmd package-level variables the importdata
 // components used to read directly into their config structs. They are a bridge
@@ -1755,203 +1143,6 @@ func importDataStateConfigFromGlobals() importdata.ImportDataStateConfig {
 
 func newImportDataStateFromGlobals() *importdata.ImportDataState {
 	return importdata.NewImportDataState(importDataStateConfigFromGlobals())
-}
-
-func sequentialFileBatchProducerConfigFromGlobals() importdata.SequentialFileBatchProducerConfig {
-	return importdata.SequentialFileBatchProducerConfig{
-		ImporterRole:       importerRole,
-		Tdb:                tdb,
-		Tconf:              tconf,
-		DataFileDescriptor: dataFileDescriptor,
-		DataStore:          dataStore,
-		BatchSizeInNumRows: batchSizeInNumRows,
-		ValueConverter:     valueConverter,
-		TableToColumnNames: TableToColumnNames,
-	}
-}
-
-func fileTaskImporterConfigFromGlobals() importdata.FileTaskImporterConfig {
-	return importdata.FileTaskImporterConfig{
-		ImporterRole:          importerRole,
-		Tdb:                   tdb,
-		Tconf:                 tconf,
-		ExportDir:             exportDir,
-		MigrationUUID:         migrationUUID,
-		DataFileDescriptor:    dataFileDescriptor,
-		ReportProgressInBytes: reportProgressInBytes,
-		ControlPlane:          controlPlane,
-		TableToColumnNames:    TableToColumnNames,
-		TableNameToSchema:     TableNameToSchema,
-	}
-}
-
-/*
-when TARGET_DB_IMPORTER_ROLE or IMPORT_FILE_ROLE, we pass on
-the batchImportPool and the colocatedBatchImportQueue to the FileTaskImporter
-so that it can submit sharded table batches to the batchImportPool,
-and colocated table batches to the colocatedBatchImportQueue.
-
-Otherwise, we simply pass the batchImportPool to the FileTaskImporter.
-*/
-func createFileTaskImporter(task *importdata.ImportFileTask, state *importdata.ImportDataState, batchImportPool *pool.Pool, progressReporter *importdata.ImportDataProgressReporter, colocatedBatchImportQueue chan func(),
-	tableTypes *utils.StructMap[sqlname.NameTuple, string], isRowTransformationRequired bool, enableRandomBatchProduction bool, concurrentBatchProductionSem *semaphore.Weighted, errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (*importdata.FileTaskImporter, error) {
-	var taskImporter *importdata.FileTaskImporter
-	var err error
-	var batchProducer importdata.FileBatchProducer
-
-	// tableTypes (the colocation map) is only populated for a real YugabyteDB
-	// target. For yb-amp (PostgreSQL-compatible, no colocation) and the PG
-	// fall-forward/back roles it is nil, so they take the plain sequential
-	// importer path below.
-	// The colocation-aware importer applies only to a real YugabyteDB target;
-	// tableTypes is populated (non-nil) exactly for that case (see getTableTypes).
-	// Non-YB targets (yb-amp, etc.) take the plain sequential importer below.
-	if (importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE) && tconf.TargetDBType == YUGABYTEDB {
-		tableType, ok := tableTypes.Get(task.TableNameTup)
-		if !ok {
-			return nil, goerrors.Errorf("table type not found for table: %s", task.TableNameTup.ForOutput())
-		}
-
-		if enableRandomBatchProduction {
-			batchProducer, err = importdata.NewRandomFileBatchProducer(sequentialFileBatchProducerConfigFromGlobals(), task, state, isRowTransformationRequired, errorHandler, progressReporter, concurrentBatchProductionSem)
-			if err != nil {
-				return nil, fmt.Errorf("creating random batch producer: %w", err)
-			}
-		} else {
-			batchProducer, err = importdata.NewSequentialFileBatchProducer(sequentialFileBatchProducerConfigFromGlobals(), task, state, isRowTransformationRequired, errorHandler, progressReporter)
-			if err != nil {
-				return nil, fmt.Errorf("creating sequential batch producer: %w", err)
-			}
-		}
-		taskImporter, err = importdata.NewFileTaskImporter(fileTaskImporterConfigFromGlobals(), task, state, batchProducer, batchImportPool, progressReporter, colocatedBatchImportQueue, tableType == importdata.COLOCATED, errorHandler, callhomeMetricsCollector)
-
-		if err != nil {
-			return nil, fmt.Errorf("create file task importer: %w", err)
-		}
-	} else {
-		batchProducer, err = importdata.NewSequentialFileBatchProducer(sequentialFileBatchProducerConfigFromGlobals(), task, state, isRowTransformationRequired, errorHandler, progressReporter)
-		if err != nil {
-			return nil, fmt.Errorf("creating sequential batch producer: %w", err)
-		}
-
-		taskImporter, err = importdata.NewFileTaskImporter(fileTaskImporterConfigFromGlobals(), task, state, batchProducer, batchImportPool, progressReporter, nil, false, errorHandler, callhomeMetricsCollector)
-		if err != nil {
-			return nil, fmt.Errorf("create file task importer: %w", err)
-		}
-	}
-	return taskImporter, nil
-}
-
-func startMonitoringTargetYBHealth() error {
-	if !slices.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, importerRole) {
-		return nil
-	}
-	// Target health monitoring (node / disk-usage / replication metrics) is a
-	// YugabyteDB-cluster concept. Non-YB targets (yb-amp's stateless PG17 compute,
-	// etc.) expose no such API, so it does not apply.
-	if tconf.TargetDBType != YUGABYTEDB {
-		return nil
-	}
-	if skipNodeHealthChecks && skipDiskUsageHealthChecks && skipReplicationChecks {
-		return nil
-	}
-	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
-	if !ok {
-		return goerrors.Errorf("monitoring health is only supported if target DB is YugabyteDB")
-	}
-
-	go func() {
-		//for now not sending any other parameters as not required for monitor usage
-		ybClient := dbzm.NewYugabyteDBCDCClient(exportDir, "", tconf.SSLRootCert, tconf.DBName, "", nil)
-		err := ybClient.Init()
-		if err != nil {
-			log.Errorf("error intialising the yb client : %v", err)
-		}
-		monitorTDBHealth := monitor.NewMonitorTargetYBHealth(yb, bool(skipDiskUsageHealthChecks), bool(skipReplicationChecks), bool(skipNodeHealthChecks), ybClient, func(info string) {
-			displayMonitoringInformationOnTheConsole(info)
-		})
-
-		err = monitorTDBHealth.StartMonitoring()
-		//lint:ignore SA4023 StartMonitoring currently only returns on error; keep the conventional check
-		if err != nil {
-			log.Errorf("error monitoring the target health: %v", err)
-		}
-	}()
-	return nil
-}
-
-func displayMonitoringInformationOnTheConsole(info string) {
-	if info == "" {
-		return
-	}
-	if disablePb {
-		utils.PrintAndLog(info)
-	} else {
-		log.Warnf("monitoring: %v", info)
-		if importPhase == dbzm.MODE_SNAPSHOT || importerRole == IMPORT_FILE_ROLE {
-			progressReporter.DisplayInformation(info)
-		} else {
-			statsReporter.DisplayInformation(info)
-
-		}
-	}
-}
-
-func startAdaptiveParallelism(mode types.AdaptiveParallelismMode, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (bool, error) {
-	if !mode.IsEnabled() {
-		return false, nil
-	}
-	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
-	if !ok {
-		return false, goerrors.Errorf("adaptive parallelism is only supported if target DB is YugabyteDB")
-	}
-
-	if !yb.IsAdaptiveParallelismSupported() {
-		utils.PrintAndLog(color.YellowString("Note: Continuing without adaptive parallelism as it is not supported in this version of YugabyteDB."))
-		return false, nil
-	}
-
-	go func() {
-		err := adaptiveparallelism.AdaptParallelism(yb, mode, callhomeMetricsCollector)
-		if err != nil {
-			log.Errorf("adaptive parallelism error: %v", err)
-		}
-	}()
-	return true, nil
-}
-
-func waitForDebeziumStartIfRequired() error {
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		return fmt.Errorf("failed to get migration status record: %w", err)
-	}
-	if msr.SnapshotMechanism == "debezium" {
-		// we already wait for snapshot to have completed by debezium
-		// so no need to wait again here.
-		return nil
-	}
-
-	// in case pg_dump was used to export snapshot data,
-	// we need to wait for export-data to have started debezium in cdc phase
-	// in order to avoid any race conditions.
-	fmt.Println("Initializing streaming phase...")
-	log.Infof("waiting for export-data to have started debezium in cdc phase")
-	for {
-		msr, err = metaDB.GetMigrationStatusRecord()
-		if err != nil {
-			return fmt.Errorf("failed to get migration status record: %w", err)
-		}
-		if lo.Contains([]string{TARGET_DB_IMPORTER_ROLE, SOURCE_REPLICA_DB_IMPORTER_ROLE}, importerRole) &&
-			msr.ExportDataSourceDebeziumStarted {
-			break
-		}
-		if importerRole == SOURCE_DB_IMPORTER_ROLE && msr.ExportDataTargetDebeziumStarted {
-			break
-		}
-		time.Sleep(2 * time.Second)
-	}
-
-	return nil
 }
 
 func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
@@ -1980,12 +1171,12 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 
 	// Get phase-related metrics from existing logic
 	// TODO: fix: pass proper error handler here.
-	importRowsMap, err := getImportedSnapshotRowsMap("target", importTableList, nil)
+	importRowsMap, err := importdata.GetImportedSnapshotRowsMap("target", importTableList, nil, importDataStateConfigFromGlobals())
 	if err != nil {
 		log.Infof("callhome: error in getting the import data: %v", err)
 	} else {
 		// callhome payload assembly; the callback never returns an error
-		_ = importRowsMap.IterKV(func(key sqlname.NameTuple, value RowCountPair) (bool, error) {
+		_ = importRowsMap.IterKV(func(key sqlname.NameTuple, value importdata.RowCountPair) (bool, error) {
 			dataMetrics.MigrationSnapshotTotalRows += value.Imported
 			if value.Imported > dataMetrics.MigrationSnapshotLargestTableRows {
 				dataMetrics.MigrationSnapshotLargestTableRows = value.Imported
@@ -1995,9 +1186,9 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 	}
 
 	// Set live migration metrics if applicable
-	if importPhase != dbzm.MODE_SNAPSHOT && statsReporter != nil {
-		dataMetrics.MigrationCdcTotalImportedEvents = statsReporter.TotalEventsImported
-		dataMetrics.CdcEventsImportRate3min = statsReporter.EventsImportRateLast3Min
+	if currentImportPhase() != dbzm.MODE_SNAPSHOT && currentStatsReporter() != nil {
+		dataMetrics.MigrationCdcTotalImportedEvents = currentStatsReporter().TotalEventsImported
+		dataMetrics.CdcEventsImportRate3min = currentStatsReporter().EventsImportRateLast3Min
 	}
 
 	// Set table list count
@@ -2017,7 +1208,7 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 		AdaptiveParallelismMax:      int64(tconf.MaxParallelism),
 		ErrorPolicySnapshot:         errorPolicySnapshotFlag.String(),
 		DataMetrics:                 dataMetrics,
-		Phase:                       importPhase,
+		Phase:                       currentImportPhase(),
 	}
 
 	var err2 error
@@ -2041,280 +1232,6 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 	if err == nil && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
 	}
-}
-
-// Handling identity columns for resumable import data
-// Background: A previous incomplete import run may have disabled "GENERATED ALWAYS AS IDENTITY" columns.
-// Two scenarios:
-//  1. Columns are disabled: Restore TableToIdentityColumnNames map from metaDB
-//  2. Columns are enabled: Fetch identity columns from database and persist to metaDB for import data resumability
-func fetchAndStoreGeneratedAlwaysIdentityColumnsInMetadb(tables []sqlname.NameTuple) error {
-	tableKeyToIdentityColumnNames := make(map[string][]string)
-
-	// Fetch the table to identity columns information from metadb if present
-	found, err := metaDB.GetJsonObject(nil, identityColumnsMetaDBKey, &tableKeyToIdentityColumnNames)
-	if err != nil {
-		return goerrors.Errorf("failed to get identity columns from meta db: %w", err)
-	}
-	if found {
-		// Using retrieved identity columns from metaDB to populate TableToIdentityColumns
-		TableToIdentityColumnNames = utils.NewStructMap[sqlname.NameTuple, []string]()
-		for key, columns := range tableKeyToIdentityColumnNames {
-			nameTuple, err := namereg.NameReg.LookupTableName(key)
-			if err != nil {
-				return goerrors.Errorf("lookup for table name in name reg: %v with: %w", key, err)
-			}
-			TableToIdentityColumnNames.Put(nameTuple, columns)
-		}
-		return nil
-	}
-
-	// If not found, fetch it from target db and populate TableToIdentityColumnNames and persist it to metaDB
-	TableToIdentityColumnNames, err = tdb.GetIdentityColumnNamesForTables(tables, constants.IDENTITY_GENERATION_ALWAYS)
-	if err != nil {
-		return fmt.Errorf("failed to get identity(%s) columns for tables: %w", constants.IDENTITY_GENERATION_ALWAYS, err)
-	}
-
-	err = TableToIdentityColumnNames.IterKV(func(key sqlname.NameTuple, value []string) (bool, error) {
-		tableKeyToIdentityColumnNames[key.ForKey()] = value
-		return true, nil
-	})
-	if err != nil {
-		return fmt.Errorf("failed to iterate identity column names: %w", err)
-	}
-	err = metaDB.InsertJsonObject(nil, identityColumnsMetaDBKey, tableKeyToIdentityColumnNames)
-	if err != nil {
-		return goerrors.Errorf("failed to insert into the key '%s': %w", identityColumnsMetaDBKey, err)
-	}
-	return nil
-}
-func disableGeneratedAlwaysAsIdentityColumns() error {
-	err := tdb.DisableGeneratedAlwaysAsIdentityColumns(TableToIdentityColumnNames)
-	if err != nil {
-		return goerrors.Errorf("failed to disable generated always as identity columns: %w", err)
-	}
-	return nil
-}
-
-// identityColumnsNeedHandlingForSnapshotImport checks if identity columns need to be handled
-// (disabled before snapshot import) for Oracle targets in live migration.
-// This is required because Oracle's SQL*Loader/COPY fails for GENERATED ALWAYS columns,
-// so we need to temporarily convert them to GENERATED BY DEFAULT for snapshot import.
-// The restoration is handled in postCutoverProcessing() for live migrations.
-// For PostgreSQL/YugabyteDB targets, COPY works with GENERATED ALWAYS columns, so no handling is needed.
-// Note: SOURCE_DB_IMPORTER_ROLE (fallback) doesn't import snapshots, so not included here.
-func identityColumnsNeedHandlingForSnapshotImport() bool {
-	// Only source-replica import has Oracle as target and requires snapshot import
-	return tconf.TargetDBType == ORACLE && importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE
-}
-
-func enableGeneratedAlwaysAsIdentityColumns() error {
-	err := tdb.EnableGeneratedAlwaysAsIdentityColumns(TableToIdentityColumnNames)
-	if err != nil {
-		return goerrors.Errorf("failed to enable generated always as identity columns: %w", err)
-	}
-	return nil
-}
-
-func restoreGeneratedByDefaultAsIdentityColumns(tables []sqlname.NameTuple) error {
-	log.Infof("restoring generated by default as identity columns for tables: %v", tables)
-	tablesToIdentityColumnNames, err := tdb.GetIdentityColumnNamesForTables(tables, constants.IDENTITY_GENERATION_BY_DEFAULT)
-	if err != nil {
-		return fmt.Errorf("failed to get identity(%s) columns for tables: %w", constants.IDENTITY_GENERATION_BY_DEFAULT, err)
-	}
-	err = tdb.EnableGeneratedByDefaultAsIdentityColumns(tablesToIdentityColumnNames)
-	if err != nil {
-		return fmt.Errorf("failed to enable generated by default as identity columns: %w", err)
-	}
-	return nil
-}
-
-func importFileTasksToTableNames(tasks []*importdata.ImportFileTask) []string {
-	tableNames := []string{}
-	for _, t := range tasks {
-		tableNames = append(tableNames, t.TableNameTup.ForKey())
-	}
-	return lo.Uniq(tableNames)
-}
-
-func importFileTasksToTableNameTuples(tasks []*importdata.ImportFileTask) []sqlname.NameTuple {
-	tableNames := []sqlname.NameTuple{}
-	for _, t := range tasks {
-		tableNames = append(tableNames, t.TableNameTup)
-	}
-	return lo.UniqBy(tableNames, func(t sqlname.NameTuple) string {
-		return t.ForKey()
-	})
-}
-
-func classifyTasksForImport(state *importdata.ImportDataState, tasks []*importdata.ImportFileTask) (pendingTasks, completedTasks []*importdata.ImportFileTask, err error) {
-	inProgressTasks := []*importdata.ImportFileTask{}
-	notStartedTasks := []*importdata.ImportFileTask{}
-	for _, task := range tasks {
-		fileImportState, err := state.GetFileImportState(task.FilePath, task.TableNameTup)
-		if err != nil {
-			return nil, nil, fmt.Errorf("get table import state: %w", err)
-		}
-		switch fileImportState {
-		case importdata.FILE_IMPORT_COMPLETED, importdata.FILE_IMPORT_COMPLETED_WITH_ERRORS:
-			completedTasks = append(completedTasks, task)
-		case importdata.FILE_IMPORT_IN_PROGRESS:
-			inProgressTasks = append(inProgressTasks, task)
-		case importdata.FILE_IMPORT_NOT_STARTED:
-			notStartedTasks = append(notStartedTasks, task)
-		default:
-			return nil, nil, goerrors.Errorf("invalid table import state: %s", fileImportState)
-		}
-	}
-	// Start with in-progress tasks, followed by not-started tasks.
-	return append(inProgressTasks, notStartedTasks...), completedTasks, nil
-}
-
-func getNotStartedTasks(state *importdata.ImportDataState, tasks []*importdata.ImportFileTask) []*importdata.ImportFileTask {
-	notStartedTasks := []*importdata.ImportFileTask{}
-	for _, task := range tasks {
-		fileImportState, err := state.GetFileImportState(task.FilePath, task.TableNameTup)
-		if err != nil {
-			utils.ErrExit("get table import state: %s: %w", task.TableNameTup, err)
-		}
-		if fileImportState == importdata.FILE_IMPORT_NOT_STARTED {
-			notStartedTasks = append(notStartedTasks, task)
-		}
-	}
-	return notStartedTasks
-}
-
-func getInProgressTasks(state *importdata.ImportDataState, tasks []*importdata.ImportFileTask) []*importdata.ImportFileTask {
-	inProgressTasks := []*importdata.ImportFileTask{}
-	for _, task := range tasks {
-		fileImportState, err := state.GetFileImportState(task.FilePath, task.TableNameTup)
-		if err != nil {
-			utils.ErrExit("get table import state: %s: %w", task.TableNameTup, err)
-		}
-		if fileImportState == importdata.FILE_IMPORT_IN_PROGRESS {
-			inProgressTasks = append(inProgressTasks, task)
-		}
-	}
-	return inProgressTasks
-}
-
-func getPendingTasks(state *importdata.ImportDataState, tasks []*importdata.ImportFileTask) []*importdata.ImportFileTask {
-	return append(getInProgressTasks(state, tasks), getNotStartedTasks(state, tasks)...)
-}
-
-func getCompletedTasks(state *importdata.ImportDataState, tasks []*importdata.ImportFileTask) []*importdata.ImportFileTask {
-	completedTasks := []*importdata.ImportFileTask{}
-	for _, task := range tasks {
-		fileImportState, err := state.GetFileImportState(task.FilePath, task.TableNameTup)
-		if err != nil {
-			utils.ErrExit("get table import state: %s: %w", task.TableNameTup, err)
-		}
-		if fileImportState == importdata.FILE_IMPORT_COMPLETED || fileImportState == importdata.FILE_IMPORT_COMPLETED_WITH_ERRORS {
-			completedTasks = append(completedTasks, task)
-		}
-	}
-	return completedTasks
-}
-
-func cleanImportState(state *importdata.ImportDataState, tasks []*importdata.ImportFileTask) {
-	tableNames := importFileTasksToTableNameTuples(tasks)
-	nonEmptyNts := tdb.GetNonEmptyTables(tableNames)
-	if len(nonEmptyNts) > 0 {
-		nonEmptyTableNames := lo.Map(nonEmptyNts, func(nt sqlname.NameTuple, _ int) string {
-			return nt.ForOutput()
-		})
-		if truncateTables {
-			// truncate tables only supported for import-data-to-target.
-			utils.PrintAndLogf("Non-empty tables on DB: %v", nonEmptyTableNames)
-			utils.PrintAndLogf("Truncating all tables in import scope on DB to keep FK-dependents consistent")
-			err := tdb.TruncateTables(tableNames)
-			if err != nil {
-				utils.ErrExit("failed to truncate tables: %w", err)
-			}
-		} else {
-			utils.PrintAndLogf("Non-Empty tables: [%s]", strings.Join(nonEmptyTableNames, ", "))
-			utils.PrintAndLogf("The above list of tables on DB are not empty.")
-			utils.PrintAndLogf("If you wish to truncate them, re-run the import command with --truncate-tables true")
-			yes := utils.AskPrompt("Do you want to start afresh without truncating tables")
-			if !yes {
-				utils.ErrExit("Aborting import.")
-			}
-		}
-
-	}
-
-	for _, task := range tasks {
-		err := state.Clean(task.FilePath, task.TableNameTup)
-		if err != nil {
-			utils.ErrExit("failed to clean import data state for table: %q: %w", task.TableNameTup, err)
-		}
-	}
-
-	sqlldrDir := filepath.Join(exportDir, "sqlldr")
-	if utils.FileOrFolderExists(sqlldrDir) {
-		err := os.RemoveAll(sqlldrDir)
-		if err != nil {
-			utils.ErrExit("failed to remove sqlldr directory: %q: %w", sqlldrDir, err)
-		}
-	}
-}
-
-func prepareTableToColumns(tasks []*importdata.ImportFileTask) error {
-	for _, task := range tasks {
-		var columns []string
-		dfdTableToExportedColumns, err := getDfdTableNameToExportedColumns(tasks, dataFileDescriptor)
-		if err != nil {
-			return goerrors.Errorf("failed to get dfd table to exported columns: %w", err)
-		}
-		if dfdTableToExportedColumns != nil {
-			columns, _ = dfdTableToExportedColumns.Get(task.TableNameTup)
-		} else if dataFileDescriptor.HasHeader {
-			// File is either exported from debezium OR this is `import data file` case.
-			reader, err := dataStore.Open(task.FilePath)
-			if err != nil {
-				return goerrors.Errorf("datastore.Open: %q: %w", task.FilePath, err)
-			}
-			df, err := datafile.NewDataFile(task.FilePath, reader, dataFileDescriptor, 0)
-			if err != nil {
-				return goerrors.Errorf("opening datafile: %q: %w", task.FilePath, err)
-			}
-			header := df.GetHeader()
-			columns = strings.Split(header, dataFileDescriptor.Delimiter)
-			log.Infof("read header from file %q: %s", task.FilePath, header)
-			log.Infof("header row split using delimiter %q: %v\n", dataFileDescriptor.Delimiter, columns)
-			df.Close()
-		}
-		TableToColumnNames.Put(task.TableNameTup, columns)
-	}
-	return nil
-}
-
-func getDfdTableNameToExportedColumns(tasks []*importdata.ImportFileTask, dataFileDescriptor *datafile.Descriptor) (*utils.StructMap[sqlname.NameTuple, []string], error) {
-	if dataFileDescriptor.TableNameToExportedColumns == nil {
-		return nil, nil
-	}
-	tableTupleToexportedColumns := utils.NewStructMap[sqlname.NameTuple, []string]()
-	for tableName, columnList := range dataFileDescriptor.TableNameToExportedColumns {
-		//Using lookup with ignoring if target not found as we are creating tuple for tables in datafile descriptor which are tables exported
-		tuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tableName)
-		if err != nil {
-			return nil, goerrors.Errorf("failed to lookup table name: %w", err)
-		}
-		tableTupleToexportedColumns.Put(tuple, columnList)
-	}
-
-	result := utils.NewStructMap[sqlname.NameTuple, []string]()
-	// checking columns for all tables in the datafile descriptor by using the file tasks
-	//as this is used only for import batch which is snapshot
-	for _, task := range tasks {
-		columnList, ok := tableTupleToexportedColumns.Get(task.TableNameTup)
-		if ok {
-			result.Put(task.TableNameTup, columnList)
-		} else {
-			return nil, goerrors.Errorf("table %q not found in data file descriptor", task.TableNameTup.ForKey())
-		}
-	}
-	return result, nil
 }
 
 func checkExportDataDoneOrStartedFlag() {
@@ -2386,41 +1303,6 @@ func createSnapshotImportCompletedEvent() cp.SnapshotImportCompletedEvent {
 	return result
 }
 
-// createInitialImportDataTableMetrics sets table-scope metrics (totals, expected
-// rows, pre-registered per-table series) from allTasks so they stay accurate on
-// resume, when pendingTasks alone would under-report tables already completed in
-// a prior run. The control-plane event list is still built from pendingTasks only
-// (unchanged behaviour: the control plane only expects updates for tables being
-// worked on in this run).
-func createInitialImportDataTableMetrics(allTasks, pendingTasks []*importdata.ImportFileTask) []*cp.UpdateImportedRowCountEvent {
-	metrics.Get().SetImportSnapshotTablesTotal(importerRole, len(allTasks))
-	for _, task := range allTasks {
-		metrics.Get().SetImportSnapshotTableExpectedRows(importerRole, task.TableNameTup, task.RowCount)
-		metrics.Get().InitImportSnapshotTable(importerRole, task.TableNameTup)
-	}
-
-	result := []*cp.UpdateImportedRowCountEvent{}
-	for _, task := range pendingTasks {
-		schemaName, tableName := task.TableNameTup.ForKeyTableSchema()
-		tableMetrics := cp.UpdateImportedRowCountEvent{
-			BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
-				BaseEvent: cp.BaseEvent{
-					EventType:     "IMPORT DATA",
-					MigrationUUID: migrationUUID,
-					SchemaNames:   []string{schemaName},
-				},
-				TableName:         tableName,
-				Status:            cp.EXPORT_OR_IMPORT_DATA_STATUS_INT_TO_STR[ROW_UPDATE_STATUS_NOT_STARTED],
-				TotalRowCount:     importdata.GetTotalProgressAmount(task, reportProgressInBytes),
-				CompletedRowCount: 0,
-			},
-		}
-		result = append(result, &tableMetrics)
-	}
-
-	return result
-}
-
 func saveOnPrimaryKeyConflictActionInMSR() {
 	if !isPrimaryKeyConflictModeValid() {
 		return
@@ -2434,111 +1316,8 @@ func saveOnPrimaryKeyConflictActionInMSR() {
 	}
 }
 
-func clearMigrationStateForImportDataStartClean(state *importdata.ImportDataState, importFileTasks []*importdata.ImportFileTask, errorHandler importdata.ImportDataErrorHandler) error {
-	if !startClean {
-		log.Infof("skipping cleaning migration status record for import data command start clean")
-		return nil
-	}
-
-	if importType == CHANGES_ONLY {
-		utils.ErrExit("start-clean flag is not supported for changes-only import type")
-	}
-
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		return goerrors.Errorf("failed to get migration status record: %w", err)
-	}
-
-	if msr == nil {
-		return goerrors.Errorf("migration status record not found.")
-	}
-
-	// Guardrail: for change-streaming imports, start-clean resets the per-importer
-	// imported_by flags and re-streams the queue from the earliest segment. If that
-	// segment has already been archived/deleted by `archive changes`, the queue can
-	// no longer be re-streamed from the beginning. Detect this and fail before
-	// mutating any metaDB state.
-	if changeStreamingIsEnabled(importType) {
-		resumeSegmentDeleted, err := metaDB.AnySegmentsDeletedOrArchived()
-		if err != nil {
-			return goerrors.Errorf("failed to check for archived/deleted queue segments: %w", err)
-		}
-		if resumeSegmentDeleted {
-			return goerrors.Errorf("cannot perform import data with --start-clean: some queue segments have already been archived/deleted by 'archive changes'. The change-event queue can no longer be re-streamed from the beginning, so a clean restart is not possible.")
-		}
-	}
-
-	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		record.OnPrimaryKeyConflictAction = ""
-	})
-	if err != nil {
-		return goerrors.Errorf("failed to update migration status record: %w", err)
-	}
-	err = metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
-		record.TableToCDCPartitionKey = nil
-	})
-	if err != nil {
-		return goerrors.Errorf("failed to update import data status record: %w", err)
-	}
-
-	err = handleStartCleanForSnapshot(state, importFileTasks, errorHandler)
-	if err != nil {
-		utils.ErrExit("Failed to handle fresh start: %w", err)
-	}
-
-	if changeStreamingIsEnabled(importType) {
-		// clearing state from metaDB based on importerRole
-		err := metaDB.ResetQueueSegmentMeta(importerRole)
-		if err != nil {
-			utils.ErrExit("failed to reset queue segment meta: %w", err)
-		}
-		err = metaDB.DeleteJsonObject(identityColumnsMetaDBKey)
-		if err != nil {
-			utils.ErrExit("failed to reset identity columns meta: %w", err)
-		}
-	}
-	return nil
-}
-
 func isPrimaryKeyConflictModeValid() bool {
 	return importerRole == IMPORT_FILE_ROLE || importerRole == TARGET_DB_IMPORTER_ROLE
-}
-
-func cleanStoredErrors(errorHandler importdata.ImportDataErrorHandler, tasks []*importdata.ImportFileTask) error {
-	// clean stored errors for all tasks
-	for _, task := range tasks {
-		err := errorHandler.CleanUpStoredErrors(task.TableNameTup, task.FilePath)
-		if err != nil {
-			return fmt.Errorf("failed to clean up stored errors for task %s: %w", task.TableNameTup.ForOutput(), err)
-		}
-	}
-	return nil
-}
-
-func isTargetDBImporter(importerRole string) bool {
-	return importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE
-}
-
-func updateErrorPolicyInMetaDB(errorPolicy importdata.ErrorPolicy) error {
-
-	switch importerRole {
-	case IMPORT_FILE_ROLE:
-		err := metaDB.UpdateImportDataFileStatusRecord(func(record *metadb.ImportDataFileStatusRecord) {
-			record.ErrorPolicy = errorPolicy.String()
-		})
-		if err != nil {
-			return fmt.Errorf("failed to update error policy in import data file status record: %w", err)
-		}
-	case TARGET_DB_IMPORTER_ROLE:
-		err := metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
-			record.ErrorPolicySnapshot = errorPolicy.String()
-		})
-		if err != nil {
-			return fmt.Errorf("failed to update error policy in import data status record: %w", err)
-		}
-		// Not applicable for other roles
-	}
-	return nil
 }
 
 func BuildCallhomeYBClusterMetrics() (callhome.YBClusterMetrics, error) {

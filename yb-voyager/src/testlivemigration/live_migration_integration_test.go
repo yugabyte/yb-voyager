@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/cmd"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
@@ -1080,10 +1080,10 @@ FROM generate_series(1, 10);`,
 	for i := 0; i < 5; i++ {
 		importDataStatus, err = testMetaDB.GetImportDataStatusRecord()
 		testutils.FatalIfError(t, err, "Failed to get import data status record")
-		if importDataStatus.CdcPartitioningStrategyConfig == cmd.PARTITION_BY_PK {
+		if importDataStatus.CdcPartitioningStrategyConfig == importdata.PARTITION_BY_PK {
 			break
 		} else if i == 4 {
-			t.Fatalf("failed to validate cdc partitioning strategy: got: %s, expected: %s", importDataStatus.CdcPartitioningStrategyConfig, cmd.PARTITION_BY_PK)
+			t.Fatalf("failed to validate cdc partitioning strategy: got: %s, expected: %s", importDataStatus.CdcPartitioningStrategyConfig, importdata.PARTITION_BY_PK)
 		}
 		time.Sleep(5 * time.Second)
 	}

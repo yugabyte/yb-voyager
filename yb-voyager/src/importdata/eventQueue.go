@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cmd
+package importdata
 
 import (
 	"bufio"
@@ -29,6 +29,7 @@ import (
 	"github.com/goccy/go-json"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -40,15 +41,25 @@ const (
 	QUEUE_SEGMENT_FILE_EXTENSION = "ndjson"
 )
 
+// EventQueueConfig holds the values the event queue reads. They used to be cmd
+// package-level variables; the importer copies them in.
+type EventQueueConfig struct {
+	ExportDir    string
+	ImporterRole string
+	MetaDB       *metadb.MetaDB
+}
+
 type EventQueue struct {
+	cfg                EventQueueConfig
 	QueueDirPath       string
 	SegmentNumToStream int64
 	EndOfQueue         bool
 }
 
-func NewEventQueue(exportDir string) *EventQueue {
+func NewEventQueue(cfg EventQueueConfig) *EventQueue {
 	return &EventQueue{
-		QueueDirPath:       filepath.Join(exportDir, "data", QUEUE_DIR_NAME),
+		cfg:                cfg,
+		QueueDirPath:       filepath.Join(cfg.ExportDir, "data", QUEUE_DIR_NAME),
 		SegmentNumToStream: -1,
 		EndOfQueue:         false,
 	}
@@ -73,7 +84,7 @@ func (eq *EventQueue) GetNextSegment() (*EventQueueSegment, error) {
 		return nil, fmt.Errorf("failed to get next segment file path: %w", err)
 	}
 
-	segment := NewEventQueueSegment(segmentFilePath, eq.SegmentNumToStream)
+	segment := NewEventQueueSegment(segmentFilePath, eq.SegmentNumToStream, eq.cfg.MetaDB)
 	eq.SegmentNumToStream++
 	return segment, nil
 }
@@ -81,14 +92,14 @@ func (eq *EventQueue) GetNextSegment() (*EventQueueSegment, error) {
 func (eq *EventQueue) resolveSegmentToResumeFrom() error {
 	var err error
 	segmentsExporterRole := ""
-	if importerRole == SOURCE_DB_IMPORTER_ROLE {
+	if eq.cfg.ImporterRole == constants.SOURCE_DB_IMPORTER_ROLE {
 		// in case of fall-back import, restrict to only segments exported from target db.
-		segmentsExporterRole = TARGET_DB_EXPORTER_FB_ROLE
+		segmentsExporterRole = constants.TARGET_DB_EXPORTER_FB_ROLE
 
 	}
 
 	for {
-		eq.SegmentNumToStream, err = metaDB.GetMinSegmentExportedByAndNotImportedBy(importerRole, segmentsExporterRole)
+		eq.SegmentNumToStream, err = eq.cfg.MetaDB.GetMinSegmentExportedByAndNotImportedBy(eq.cfg.ImporterRole, segmentsExporterRole)
 		if err == nil {
 			break
 		} else if errors.Is(err, metadb.ErrNoQueueSegmentsFound) {
@@ -107,6 +118,7 @@ func (eq *EventQueue) resolveSegmentToResumeFrom() error {
 }
 
 type EventQueueSegment struct {
+	metaDB     *metadb.MetaDB
 	FilePath   string
 	SegmentNum int64 // 0-based
 	processed  bool
@@ -116,8 +128,9 @@ type EventQueueSegment struct {
 
 var EOFMarker = []byte(`\.`)
 
-func NewEventQueueSegment(filePath string, segmentNum int64) *EventQueueSegment {
+func NewEventQueueSegment(filePath string, segmentNum int64, metaDB *metadb.MetaDB) *EventQueueSegment {
 	return &EventQueueSegment{
+		metaDB:     metaDB,
 		FilePath:   filePath,
 		SegmentNum: segmentNum,
 		processed:  false,
@@ -132,9 +145,9 @@ func (eqs *EventQueueSegment) Open() error {
 	eqs.file = file
 
 	fn := func() (int64, error) {
-		return metaDB.GetLastValidOffsetInSegmentFile(eqs.SegmentNum)
+		return eqs.metaDB.GetLastValidOffsetInSegmentFile(eqs.SegmentNum)
 	}
-	eqs.reader = bufio.NewReaderSize(utils.NewTailReader(file, fn), 100*MB)
+	eqs.reader = bufio.NewReaderSize(utils.NewTailReader(file, fn), 100*constants.MB)
 	return nil
 }
 

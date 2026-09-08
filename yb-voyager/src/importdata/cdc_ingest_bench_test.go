@@ -16,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cmd
+package importdata
 
 /*
 CDC ingest benchmark: replays real export-data queue segments through the
@@ -24,7 +24,7 @@ real import streaming path with only TargetDB.ExecuteBatch mocked.
 
 All orchestration (workloads, artifact generation/caching, metrics,
 assertions) lives in test/cdcbench; this file only injects the closures that
-need cmd-package internals. Workloads are sub-benchmarks:
+need importdata-package internals. Workloads are sub-benchmarks:
 
 	go test -tags cdc_benchmark -bench CDCIngest -benchtime 1x -count 5 ./cmd/
 	go test -tags cdc_benchmark -bench 'CDCIngest/updates-uk-no-conflict' -benchtime 1x ./cmd/
@@ -36,9 +36,12 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -48,7 +51,8 @@ import (
 func BenchmarkCDCIngest(b *testing.B) {
 	// state shared between Bootstrap and StreamAll within one run
 	var run struct {
-		state                *importdata.ImportDataState
+		imp                  *Importer
+		state                *ImportDataState
 		tableList            []sqlname.NameTuple
 		tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]
 		tableToPKColumns     *utils.StructMap[sqlname.NameTuple, []string]
@@ -61,43 +65,61 @@ func BenchmarkCDCIngest(b *testing.B) {
 			// metadata, stats reporter) is done by the real streamChanges call
 			// in StreamAll, with the mock answering the target-side metadata
 			// queries with fresh-migration values.
-			exportDir = artifactDir
-			metaDB = initMetaDB(exportDir)
-			if err := retrieveMigrationUUID(); err != nil {
-				return fmt.Errorf("retrieve migration uuid: %w", err)
-			}
-			sourceDBType = GetSourceDBTypeFromMSR()
-			sqlname.SourceDBType = sourceDBType
-			importerRole = TARGET_DB_IMPORTER_ROLE
-			callhome.SendDiagnostics = false
-			disablePb = true
-			// production default resolution for tables without expression-based
-			// unique indexes; avoids the target-DB query of the "auto" path
-			cdcPartitionKey = "pk"
-			tconf = tgtdb.TargetConf{TargetDBType: YUGABYTEDB, SchemaConfig: "public"}
-			tconf.Schemas = sqlname.ParseIdentifiersFromString(tconf.TargetDBType, tconf.SchemaConfig, ",")
-
-			if err := InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, nil, false); err != nil {
-				return fmt.Errorf("init name registry: %w", err)
+			// mirrors the cmd-level setup the import data command does before it hands
+			// over to the engine (metadb, migration uuid, name registry, table list)
+			exportDir := artifactDir
+			metaDB, err := initTestMetaDB(exportDir)
+			if err != nil {
+				return fmt.Errorf("init meta db: %w", err)
 			}
 			msr, err := metaDB.GetMigrationStatusRecord()
 			if err != nil {
 				return fmt.Errorf("get migration status record: %w", err)
 			}
-			run.tableList, err = getInitialImportTableListForLive(msr.TableListExportedFromSource)
-			if err != nil {
-				return fmt.Errorf("get import table list: %w", err)
+			sourceDBType := msr.SourceDBConf.DBType
+			sqlname.SourceDBType = sourceDBType
+			callhome.SendDiagnostics = false
+			tconf := tgtdb.TargetConf{TargetDBType: constants.YUGABYTEDB, SchemaConfig: "public"}
+			tconf.Schemas = sqlname.ParseIdentifiersFromString(tconf.TargetDBType, tconf.SchemaConfig, ",")
+
+			if err := namereg.InitNameRegistry(namereg.NameRegistryParams{
+				FilePath:       fmt.Sprintf("%s/metainfo/name_registry.json", exportDir),
+				Role:           constants.TARGET_DB_IMPORTER_ROLE,
+				TargetDBSchema: sqlname.ExtractIdentifiersUnquoted(tconf.Schemas),
+			}); err != nil {
+				return fmt.Errorf("init name registry: %w", err)
 			}
-			tdb = mock
-			run.state = newImportDataStateFromGlobals()
+			run.tableList = nil
+			for _, qualifiedTableName := range msr.TableListExportedFromSource {
+				table, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(qualifiedTableName)
+				if err != nil {
+					return fmt.Errorf("lookup table %s in name registry : %w", qualifiedTableName, err)
+				}
+				run.tableList = append(run.tableList, table)
+			}
+			run.imp = NewImporter(Config{
+				ExportDir:     exportDir,
+				MetaDB:        metaDB,
+				MigrationUUID: uuid.MustParse(msr.MigrationUUID),
+				ImporterRole:  constants.TARGET_DB_IMPORTER_ROLE,
+				SourceDBType:  sourceDBType,
+				Tconf:         tconf,
+				Tdb:           mock,
+				DisablePb:     true,
+				// production default resolution for tables without expression-based
+				// unique indexes; avoids the target-DB query of the "auto" path
+				CdcPartitionKey: "pk",
+				ImportTableList: run.tableList,
+			})
+			run.state = NewImportDataState(run.imp.importDataStateConfig())
 
 			// make sure the mock has the same table list as the real target DB
-			run.tableToUniqueIndexes, err = tdb.GetTableToUniqueIndexesMap(run.tableList)
+			run.tableToUniqueIndexes, err = mock.GetTableToUniqueIndexesMap(run.tableList)
 			if err != nil {
 				utils.ErrExit("Failed to get table unique indexes map from target: %s", err)
 			}
 
-			run.tableToPKColumns, err = getPrimaryKeyColumnsForImportTables(run.tableList)
+			run.tableToPKColumns, err = run.imp.getPrimaryKeyColumnsForImportTables(run.tableList)
 			if err != nil {
 				utils.ErrExit("Failed to get primary key columns for import tables: %s", err)
 			}
@@ -120,8 +142,8 @@ func BenchmarkCDCIngest(b *testing.B) {
 			// pair, accepted for the benchmark: artifacts carry a single
 			// exporter role, so the pointer is written exactly once and never
 			// changes mid-run.
-			conflictDetectionCache = nil
-			prevExporterRole = ""
+			run.imp.conflictDetectionCache = nil
+			run.imp.prevExporterRole = ""
 			return nil
 		},
 
@@ -129,11 +151,11 @@ func BenchmarkCDCIngest(b *testing.B) {
 		// metadata (answered by the mock's metadata store), conflict cache,
 		// stats reporter, and the segment loop
 		StreamAll: func() error {
-			return streamChanges(run.state, run.tableList, run.tableToPKColumns, run.tableToUniqueIndexes)
+			return run.imp.streamChanges(run.state, run.tableList, run.tableToPKColumns, run.tableToUniqueIndexes)
 		},
 
 		CacheDepth: func() int {
-			c := conflictDetectionCache
+			c := run.imp.conflictDetectionCache
 			if c == nil {
 				return 0
 			}

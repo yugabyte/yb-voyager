@@ -60,7 +60,7 @@ The Go module uses build tags to separate test tiers. From `yb-voyager/`:
 | `integration_live_migration` | Live migration end-to-end with Debezium. |
 | `failpoint_export` / `failpoint_import` / `failpoint_cutover` | Failpoint-injected tests. Requires `failpoint-ctl enable` (from `github.com/pingcap/failpoint`) to rewrite source before building. |
 | `yb_version_latest_stable` | Version-gated issue tests run against the latest stable YB. |
-| `cdc_benchmark` | CDC ingest benchmarks (`test/cdcbench/`, shim in `cmd/`): replay real export-data queue segments through the import streaming path with `ExecuteBatch` mocked. Artifact generation needs Docker + installed `yb-voyager`/Debezium; cached artifacts replay with neither. Run: `go test -tags cdc_benchmark -run '^$' -bench CDCIngest -benchtime 1x -count 5 ./cmd/`. See `test/cdcbench/README.md`. |
+| `cdc_benchmark` | CDC ingest benchmarks (`test/cdcbench/`, shim in `src/importdata/`): replay real export-data queue segments through the import streaming path with `ExecuteBatch` mocked. Artifact generation needs Docker + installed `yb-voyager`/Debezium; cached artifacts replay with neither. Run: `go test -tags cdc_benchmark -run '^$' -bench CDCIngest -benchtime 1x -count 5 ./src/importdata/`. See `test/cdcbench/README.md`. |
 | `manual` | Local-only experiments, not run in CI. |
 
 Single test: `go test -tags unit -run TestName ./yb-voyager/cmd/...`
@@ -90,7 +90,8 @@ End-to-end migtests are invoked outside Go: `bash migtests/scripts/run-test.sh <
 - `src/migassessment/` — `assess-migration` engine: collects DB stats, sizing, replicas, permissions, produces the assessment DB and report. `cmd/templates/` holds the HTML/text report templates.
 - `src/callhome/` — anonymous telemetry payloads. Disabled with `YB_VOYAGER_SEND_DIAGNOSTICS=0` or `--send-diagnostics=false`.
 - `src/cp/` — control-plane abstractions (`noopcp`, `yugabyted`, `ybaeon`).
-- `src/anon/`, `src/errs/`, `src/errorpolicy/`, `src/adaptiveparallelism/`, `src/importdata/`, `src/lockfile/`, `src/datafile/`, `src/datastore/`, `src/reporter/`, `src/monitor/`, `src/version/`, `src/ybversion/` — focused helpers; names are descriptive.
+- `src/importdata/` — the import-data engine: `Config` (values cmd copies in from its flags/setup) + `Importer` (snapshot import, CDC streaming, conflict detection, cdc-partition-key resolution), the batch/task components, and the import error handlers. cmd keeps the cobra commands, flag validation, process succession, cutover choreography and callhome payloads.
+- `src/anon/`, `src/errs/`, `src/errorpolicy/`, `src/adaptiveparallelism/`, `src/lockfile/`, `src/datafile/`, `src/datastore/`, `src/reporter/`, `src/monitor/`, `src/version/`, `src/ybversion/` — focused helpers; names are descriptive.
 
 Test infrastructure for Go integration tests lives in `yb-voyager/test/containers/` (testcontainers wrappers for PG/MySQL/Oracle/YB) and `yb-voyager/test/utils/` (failpoint helpers, command runners, schema helpers).
 

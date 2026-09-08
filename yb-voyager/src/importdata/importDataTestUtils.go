@@ -1,4 +1,4 @@
-//go:build unit || integration
+//go:build unit || integration || cdc_benchmark
 
 /*
 Copyright (c) YugabyteDB, Inc.
@@ -55,6 +55,20 @@ var (
 	testImporterCfg FileTaskImporterConfig
 )
 
+// testImporter stands in for the cmd package-level variables the streaming and
+// cdc-partition-key tests used to set directly (importerRole, tdb, cdcPartitionKey,
+// ...). Like those globals it lives for the whole test binary; tests set what they
+// need and restore it in cleanups, as before.
+var testImporter = NewImporter(Config{})
+
+// setTestCdcPartitionKeyOverrides sets the raw --cdc-partition-key-overrides value
+// together with its parsed form (in production cmd parses the flag once and passes
+// both in Config).
+func setTestCdcPartitionKeyOverrides(raw string, parsed map[string]CdcPartitionKeyOverride) {
+	testImporter.cfg.CdcPartitionKeyOverrides = raw
+	testImporter.cfg.CdcPartitionKeyOverridesParsed = parsed
+}
+
 func testDataFileDescriptor(lexportDir string) *datafile.Descriptor {
 	return &datafile.Descriptor{
 		FileFormat: "csv",
@@ -70,7 +84,7 @@ func testDataFileDescriptor(lexportDir string) *datafile.Descriptor {
 // initTestMetaDB creates the export-dir skeleton and metadata DB the way cmd's
 // CreateMigrationProjectIfNotExists + initMetaDB do for these tests (minus the
 // schema object dirs and the anonymizer, which no component here reads).
-func initTestMetaDB(exportDir string) error {
+func initTestMetaDB(exportDir string) (*metadb.MetaDB, error) {
 	for _, subdir := range []string{
 		"schema", "data", "reports",
 		"assessment", "assessment/metadata", "assessment/dbs", "assessment/metadata/schema", "assessment/reports",
@@ -78,26 +92,26 @@ func initTestMetaDB(exportDir string) error {
 		"temp", "temp/ora2pg_temp_dir", "temp/schema",
 	} {
 		if err := os.MkdirAll(filepath.Join(exportDir, subdir), 0755); err != nil {
-			return err
+			return nil, err
 		}
 	}
 	if err := metadb.CreateAndInitMetaDBIfRequired(exportDir); err != nil {
-		return err
+		return nil, err
 	}
 	m, err := metadb.NewMetaDB(exportDir)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if err := m.InitMigrationStatusRecord(""); err != nil {
-		return err
+		return nil, err
 	}
 	if err := m.InitImportDataStatusRecord(); err != nil {
-		return err
+		return nil, err
 	}
 	if err := m.InitImportDataFileStatusRecord(); err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return m, nil
 }
 
 func setupExportDirAndImportDependencies(batchSizeRows int64, batchSizeBytes int64) (string, string, *ImportDataState, ImportDataErrorHandler, *ImportDataProgressReporter, error) {
@@ -111,7 +125,7 @@ func setupExportDirAndImportDependencies(batchSizeRows int64, batchSizeBytes int
 		return "", "", nil, nil, nil, err
 	}
 
-	err = initTestMetaDB(lexportDir)
+	_, err = initTestMetaDB(lexportDir)
 	if err != nil {
 		return "", "", nil, nil, nil, err
 	}

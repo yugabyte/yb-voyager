@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/cmd"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -269,10 +269,10 @@ func TestLiveMigrationWithMultiColumnUniqueIndexConflictDetectionCases(t *testin
 	testutils.FatalIfError(t, err, "failed to start export data")
 
 	uniqueKeyConflictFailpointEnv := testutils.GetFailpointEnvVar(
-		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return(true)",
+		"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata/uniqueKeyConflictDetected=return(true)",
 	)
 	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
-		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+		`github.com/yugabyte/yb-voyager/yb-voyager/src/importdata/uniqueKeyConflictDetected=return("count")`,
 	)
 	uniqueKeyConflictFailpointMarker := filepath.Join(
 		liveMigrationTest.GetCurrentExportDir(), "failpoints", "failpoint-unique-key-conflict-detected.log")
@@ -512,7 +512,7 @@ func TestLiveMigrationWithUniqueKeyValuesWithPartialPredicateConflictDetectionCa
 	testutils.FatalIfError(t, err, "failed to start export data")
 
 	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
-		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+		`github.com/yugabyte/yb-voyager/yb-voyager/src/importdata/uniqueKeyConflictDetected=return("count")`,
 	)
 	uniqueKeyConflictStatsPath := filepath.Join(
 		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
@@ -572,7 +572,7 @@ func TestLiveMigrationWithUniqueKeyConflictWithTablePartitioning(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to start export data")
 
 	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
-		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+		`github.com/yugabyte/yb-voyager/yb-voyager/src/importdata/uniqueKeyConflictDetected=return("count")`,
 	)
 
 	uniqueKeyConflictStatsPath := filepath.Join(
@@ -727,7 +727,7 @@ FROM generate_series(1, 20) as i;`,
 	testutils.FatalIfError(t, err, "failed to start export data")
 
 	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
-		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+		`github.com/yugabyte/yb-voyager/yb-voyager/src/importdata/uniqueKeyConflictDetected=return("count")`,
 	)
 	uniqueKeyConflictStatsPath := filepath.Join(
 		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
@@ -886,7 +886,7 @@ FROM generate_series(1, 20) as i;`,
 	testutils.FatalIfError(t, err, "failed to start export data")
 
 	uniqueKeyConflictFailpointEnv := testutils.GetFailpointEnvVar(
-		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("true")`,
+		`github.com/yugabyte/yb-voyager/yb-voyager/src/importdata/uniqueKeyConflictDetected=return("true")`,
 	)
 
 	uniqueKeyConflictFailpointMarker := filepath.Join(
@@ -1045,7 +1045,7 @@ FROM generate_series(1, 20) as i;`,
 	testutils.FatalIfError(t, err, "failed to start export data")
 
 	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
-		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+		`github.com/yugabyte/yb-voyager/yb-voyager/src/importdata/uniqueKeyConflictDetected=return("count")`,
 	)
 	uniqueKeyConflictStatsPath := filepath.Join(
 		liveMigrationTest.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
@@ -1183,13 +1183,13 @@ func TestLiveMigrationWithUniqueKeyConflictsOnCaseSensitiveColumns(t *testing.T)
 	table := `"test_schema"."test_unique_key_on_case_sensitive_columns"`
 
 	uniqueKeyConflictFailpointEnv := testutils.GetFailpointEnvVar(
-		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return(true)",
+		"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata/uniqueKeyConflictDetected=return(true)",
 	)
 	uniqueKeyConflictFailpointMarker := filepath.Join(
 		liveMigrationTest.GetCurrentExportDir(), "failpoints", "failpoint-unique-key-conflict-detected.log")
 
 	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
-		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+		`github.com/yugabyte/yb-voyager/yb-voyager/src/importdata/uniqueKeyConflictDetected=return("count")`,
 	)
 	uniqueKeyConflictStatsPath := filepath.Join(
 		liveMigrationTest.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
@@ -1364,8 +1364,8 @@ func TestLiveMigrationCdcPartitionKeyConfigs(t *testing.T) {
 
 	assert.Equal(t, "pk", importDataStatus.CdcPartitioningStrategyConfig)
 	assert.Equal(t, "", importDataStatus.CdcPartitionKeyOverridesConfig)
-	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "orders", cmd.PARTITION_BY_PK)
-	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "events", cmd.PARTITION_BY_PK)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "orders", importdata.PARTITION_BY_PK)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "events", importdata.PARTITION_BY_PK)
 
 	err = lm.StopImportData()
 	testutils.FatalIfError(t, err, "failed to stop import data")
@@ -1405,8 +1405,8 @@ func TestLiveMigrationCdcPartitionKeyConfigs(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to get import data status record")
 	assert.Equal(t, "pk", importDataStatus.CdcPartitioningStrategyConfig)
 	assert.Equal(t, mixedOverrides, importDataStatus.CdcPartitionKeyOverridesConfig)
-	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "orders", cmd.PARTITION_BY_TABLE)
-	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "events", cmd.PARTITION_BY_PK)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "orders", importdata.PARTITION_BY_TABLE)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "events", importdata.PARTITION_BY_PK)
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."orders"`, `"test_schema"."events"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
@@ -1516,8 +1516,8 @@ func TestLiveMigrationCdcPartitionKeyOverridesEquivalentOnResume(t *testing.T) {
 	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
 	testutils.FatalIfError(t, err, "failed to get import data status record")
 	assert.Equal(t, "pk", importDataStatus.CdcPartitioningStrategyConfig)
-	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "orders", cmd.PARTITION_BY_TABLE)
-	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "events", cmd.PARTITION_BY_PK)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "orders", importdata.PARTITION_BY_TABLE)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "events", importdata.PARTITION_BY_PK)
 	// Expression-UK tables are captured on the first run (none here, but non-nil) so the
 	// resume comparison needs no target-DB re-query.
 	require.NotNil(t, importDataStatus.CdcExpressionUniqueIndexTables,
@@ -1561,8 +1561,8 @@ func TestLiveMigrationCdcPartitionKeyOverridesEquivalentOnResume(t *testing.T) {
 	importDataStatus, err = lm.GetMetaDB().GetImportDataStatusRecord()
 	testutils.FatalIfError(t, err, "failed to get import data status record after resume")
 	assert.Equal(t, "pk", importDataStatus.CdcPartitioningStrategyConfig)
-	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "orders", cmd.PARTITION_BY_TABLE)
-	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "events", cmd.PARTITION_BY_PK)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "orders", importdata.PARTITION_BY_TABLE)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "events", importdata.PARTITION_BY_PK)
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."orders"`, `"test_schema"."events"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency after resume")
@@ -1675,7 +1675,7 @@ func TestLiveMigrationCdcPartitionKeyRejectsPkOnExpressionUniqueIndex(t *testing
 	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
 	testutils.FatalIfError(t, err, "failed to get import data status record")
 	require.Equal(t, "auto", importDataStatus.CdcPartitioningStrategyConfig)
-	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "users", cmd.PARTITION_BY_TABLE)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "users", importdata.PARTITION_BY_TABLE)
 
 	// Resume WITHOUT start-clean trying to switch the expression-UK table from table to pk
 	// must be rejected: pk-partitioning cannot detect unique-key conflicts on an expression
@@ -1774,7 +1774,7 @@ func TestLiveMigrationWithCoveringUniqueKeyIndex(t *testing.T) {
 	defer lm.Cleanup()
 
 	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
-		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+		`github.com/yugabyte/yb-voyager/yb-voyager/src/importdata/uniqueKeyConflictDetected=return("count")`,
 	)
 	uniqueKeyConflictStatsPath := filepath.Join(
 		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
@@ -1938,9 +1938,9 @@ func TestLiveMigrationWithCustomCdcPartitionKey(t *testing.T) {
 	importDataStatus, err := testMetaDB.GetImportDataStatusRecord()
 	testutils.FatalIfError(t, err, "failed to get import data status record")
 
-	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."orders"`].Strategy,
+	assert.Equal(t, importdata.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."orders"`].Strategy,
 		"orders should use the custom partition strategy")
-	assert.Equal(t, cmd.PARTITION_BY_PK, importDataStatus.TableToCDCPartitionKey[`"test_schema"."events"`].Strategy,
+	assert.Equal(t, importdata.PARTITION_BY_PK, importDataStatus.TableToCDCPartitionKey[`"test_schema"."events"`].Strategy,
 		"events should resolve to pk under auto")
 	assert.Equal(t, []string{"customer_id"}, importDataStatus.TableToCDCPartitionKey[`"test_schema"."orders"`].Columns,
 		"orders custom key columns should be persisted")
@@ -2053,7 +2053,7 @@ func TestLiveMigrationCustomCdcPartitionKeyNoConflict(t *testing.T) {
 
 	// count-only failpoint: any detected UK conflict is recorded in the stats file.
 	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
-		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+		`github.com/yugabyte/yb-voyager/yb-voyager/src/importdata/uniqueKeyConflictDetected=return("count")`,
 	)
 	uniqueKeyConflictStatsPath := filepath.Join(
 		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
@@ -2074,7 +2074,7 @@ func TestLiveMigrationCustomCdcPartitionKeyNoConflict(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to initialize meta db")
 	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
 	testutils.FatalIfError(t, err, "failed to get import data status record")
-	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Strategy,
+	assert.Equal(t, importdata.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Strategy,
 		"test_live should use the custom partition strategy")
 	assert.Equal(t, []string{"custom_key"}, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Columns,
 		"test_live custom key columns should be persisted")
@@ -2236,7 +2236,7 @@ func TestLiveMigrationCustomCaseSensitiveCdcPartitionKeyNoConflict(t *testing.T)
 
 	// count-only failpoint: any detected UK conflict is recorded in the stats file.
 	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
-		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+		`github.com/yugabyte/yb-voyager/yb-voyager/src/importdata/uniqueKeyConflictDetected=return("count")`,
 	)
 	uniqueKeyConflictStatsPath := filepath.Join(
 		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
@@ -2260,11 +2260,11 @@ func TestLiveMigrationCustomCaseSensitiveCdcPartitionKeyNoConflict(t *testing.T)
 	testutils.FatalIfError(t, err, "failed to initialize meta db")
 	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
 	testutils.FatalIfError(t, err, "failed to get import data status record")
-	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Strategy,
+	assert.Equal(t, importdata.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Strategy,
 		"test_live should use the custom partition strategy")
 	assert.Equal(t, []string{"CustomKey"}, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Columns,
 		"test_live custom key columns should be persisted")
-	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live_multi_case"`].Strategy,
+	assert.Equal(t, importdata.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live_multi_case"`].Strategy,
 		"test_live_multi_case should use the custom partition strategy")
 	assert.Equal(t, []string{"customKey", "customKey1"}, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live_multi_case"`].Columns,
 		"test_live_multi_case custom key columns should be persisted")
@@ -2589,7 +2589,7 @@ func TestLiveMigrationWithSubsetOFPartialUNiqueIndexColumnsBeingChangedInUpdate(
 	testutils.FatalIfError(t, err, "failed to start export data")
 
 	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
-		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+		`github.com/yugabyte/yb-voyager/yb-voyager/src/importdata/uniqueKeyConflictDetected=return("count")`,
 	)
 	uniqueKeyConflictStatsPath := filepath.Join(
 		liveMigrationTest.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
@@ -2724,7 +2724,7 @@ func TestLiveMigrationCustomCdcPartitionKeyPKRecycleConflict(t *testing.T) {
 
 	// count-only failpoint: any detected UK conflict is recorded in the stats file.
 	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
-		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+		`github.com/yugabyte/yb-voyager/yb-voyager/src/importdata/uniqueKeyConflictDetected=return("count")`,
 	)
 	uniqueKeyConflictStatsPath := filepath.Join(
 		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
@@ -2745,7 +2745,7 @@ func TestLiveMigrationCustomCdcPartitionKeyPKRecycleConflict(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to initialize meta db")
 	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
 	testutils.FatalIfError(t, err, "failed to get import data status record")
-	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Strategy,
+	assert.Equal(t, importdata.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Strategy,
 		"test_live should use the custom partition strategy")
 	assert.Equal(t, []string{"region"}, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Columns,
 		"test_live custom key columns should be persisted")
@@ -2885,7 +2885,7 @@ func TestLiveMigrationPartitionedTableWithCustomCdcPartitionKeyNoConflict(t *tes
 
 	// count-only failpoint: any detected UK conflict is recorded in the stats file.
 	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
-		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+		`github.com/yugabyte/yb-voyager/yb-voyager/src/importdata/uniqueKeyConflictDetected=return("count")`,
 	)
 	uniqueKeyConflictStatsPath := filepath.Join(
 		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
@@ -2907,7 +2907,7 @@ func TestLiveMigrationPartitionedTableWithCustomCdcPartitionKeyNoConflict(t *tes
 	testutils.FatalIfError(t, err, "failed to initialize meta db")
 	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
 	testutils.FatalIfError(t, err, "failed to get import data status record")
-	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Strategy,
+	assert.Equal(t, importdata.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Strategy,
 		"test_live should use the custom partition strategy")
 	assert.Equal(t, []string{"custom_key"}, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Columns,
 		"test_live custom key columns should be persisted")
@@ -3032,7 +3032,7 @@ func TestLiveMigrationPartitionedTableWithCustomCdcPartitionKeyPKRecycleConflict
 
 	// count-only failpoint: any detected UK conflict is recorded in the stats file.
 	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
-		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+		`github.com/yugabyte/yb-voyager/yb-voyager/src/importdata/uniqueKeyConflictDetected=return("count")`,
 	)
 	uniqueKeyConflictStatsPath := filepath.Join(
 		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
@@ -3053,7 +3053,7 @@ func TestLiveMigrationPartitionedTableWithCustomCdcPartitionKeyPKRecycleConflict
 	testutils.FatalIfError(t, err, "failed to initialize meta db")
 	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
 	testutils.FatalIfError(t, err, "failed to get import data status record")
-	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Strategy,
+	assert.Equal(t, importdata.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Strategy,
 		"test_live should use the custom partition strategy")
 	assert.Equal(t, []string{"custom_key"}, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Columns,
 		"test_live custom key columns should be persisted")
@@ -3177,7 +3177,7 @@ func TestLiveMigrationPartitionedTableChildPKWithCustomCdcPartitionKeyPKRecycleC
 
 	// count-only failpoint: any detected UK conflict is recorded in the stats file.
 	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
-		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+		`github.com/yugabyte/yb-voyager/yb-voyager/src/importdata/uniqueKeyConflictDetected=return("count")`,
 	)
 	uniqueKeyConflictStatsPath := filepath.Join(
 		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
@@ -3205,7 +3205,7 @@ func TestLiveMigrationPartitionedTableChildPKWithCustomCdcPartitionKeyPKRecycleC
 	testutils.FatalIfError(t, err, "failed to initialize meta db")
 	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
 	testutils.FatalIfError(t, err, "failed to get import data status record")
-	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"public"."orders"`].Strategy,
+	assert.Equal(t, importdata.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"public"."orders"`].Strategy,
 		"orders should use the custom partition strategy")
 	assert.Equal(t, []string{"custom_key"}, importDataStatus.TableToCDCPartitionKey[`"public"."orders"`].Columns,
 		"orders custom key columns should be persisted")

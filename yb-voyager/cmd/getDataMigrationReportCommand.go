@@ -30,6 +30,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -222,14 +223,15 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord, donotPrint b
 		}
 	}
 
-	var targetImportedSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, RowCountPair]
+	var targetImportedSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, importdata.RowCountPair]
 	var targetEventsImportedMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter]
 	if msr.TargetDBConf != nil {
 		errorHandler, err := getImportDataErrorHandlerUsed()
 		if err != nil {
 			utils.ErrExit("error while getting import data error handler: %w\n", err)
 		}
-		targetImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("target", tableNameTups, errorHandler)
+		importerRole = TARGET_DB_IMPORTER_ROLE // getImportedSnapshotRowsMap used to set this as a side effect
+		targetImportedSnapshotRowsMap, err = importdata.GetImportedSnapshotRowsMap("target", tableNameTups, errorHandler, importDataStateConfigFromGlobals())
 		if err != nil {
 			utils.ErrExit("error while getting imported snapshot rows for target DB: %w\n", err)
 		}
@@ -239,14 +241,15 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord, donotPrint b
 		}
 	}
 
-	var replicaImportedSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, RowCountPair]
+	var replicaImportedSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, importdata.RowCountPair]
 	var replicaEventsImportedMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter]
 	if fFEnabled {
 		// In this case we need to lookup in a namereg where role is SOURCE_REPLICA_DB_IMPORTER_ROLE so that
 		// look up happens properly for source_replica names as here reg is the map of target->source-replica tablename
 		oldNameReg := namereg.NameReg
 		namereg.NameReg = *nameRegistryForSourceReplicaRole
-		replicaImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("source-replica", tableNameTups, nil)
+		importerRole = SOURCE_REPLICA_DB_IMPORTER_ROLE // getImportedSnapshotRowsMap used to set this as a side effect
+		replicaImportedSnapshotRowsMap, err = importdata.GetImportedSnapshotRowsMap("source-replica", tableNameTups, nil, importDataStateConfigFromGlobals())
 
 		if err != nil {
 			utils.ErrExit("error while getting imported snapshot rows for source-replica DB: %w\n", err)
@@ -681,7 +684,7 @@ func getImportedEventsMap(dbType string, tableNameTups []sqlname.NameTuple, targ
 	return tableNameTupToEventsCounter, nil
 }
 
-func updateImportedEventsCountsInTheRow(row *RowData, tableNameTup sqlname.NameTuple, snapshotImportedRowsMap *utils.StructMap[sqlname.NameTuple, RowCountPair],
+func updateImportedEventsCountsInTheRow(row *RowData, tableNameTup sqlname.NameTuple, snapshotImportedRowsMap *utils.StructMap[sqlname.NameTuple, importdata.RowCountPair],
 	eventsImportedMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter], msr *metadb.MigrationStatusRecord) error {
 	switch row.DBType {
 	case "target":

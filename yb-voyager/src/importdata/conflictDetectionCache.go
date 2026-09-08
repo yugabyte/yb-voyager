@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package cmd
+package importdata
 
 import (
 	"fmt"
@@ -137,7 +137,7 @@ type ConflictDetectionCache struct {
 	// event's partition key (see GetEventPartitionKey). Two events with the same partition
 	// key are routed to the same channel and applied in commit order, so they are excluded
 	// from conflict detection (they can never race).
-	tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride]
+	tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, CdcPartitionKeyOverride]
 
 	/*
 		ukLookup is a value-keyed secondary index over the cached events used to avoid
@@ -154,10 +154,15 @@ type ConflictDetectionCache struct {
 	// vsnToBuckets records, per cached event VSN, the bucket keys it was added to,
 	// so removal from ukLookup is O(#buckets-for-event) instead of a full scan.
 	vsnToBuckets map[int64][]string
+
+	// exportDir is only read by the unique-key-conflict failpoint, which writes its
+	// marker/stats files under <exportDir>/failpoints.
+	exportDir string
 }
 
-func NewConflictDetectionCache(tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex], evChans []chan *tgtdb.Event, sourceDBType string, tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride]) *ConflictDetectionCache {
+func NewConflictDetectionCache(tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex], evChans []chan *tgtdb.Event, sourceDBType string, tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, CdcPartitionKeyOverride], exportDir string) *ConflictDetectionCache {
 	c := &ConflictDetectionCache{}
+	c.exportDir = exportDir
 	c.m = make(map[int64]*tgtdb.Event)
 	c.cond = sync.NewCond(&c.Mutex)
 	c.tableToUniqueIndexes = tableToUniqueIndexes
@@ -285,7 +290,7 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 
 		for _, info := range conflictInfo {
 			for _, cachedEvent := range info.eventsConflicting {
-				injectUniqueKeyConflictDetectedFailpoint(cachedEvent, incomingEvent)
+				injectUniqueKeyConflictDetectedFailpoint(c.exportDir, cachedEvent, incomingEvent)
 			}
 			// Concise INFO once per blocked incoming event; the per-index/column-value
 			// detail is logged at DEBUG in findValueConflictLocked. The target-DB-exporter

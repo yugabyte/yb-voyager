@@ -112,7 +112,7 @@ func TestImportDataFileReport(t *testing.T) {
 	tableList := []sqlname.NameTuple{
 		tblName,
 	}
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", tableList, errorHandler)
+	snapshotRowsMap, err := importdata.GetImportedSnapshotRowsMap("target-file", tableList, errorHandler, importDataStateConfigFromGlobals())
 	if err != nil {
 		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
 	}
@@ -240,7 +240,7 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue_BatchIngestionError(t 
 	tableList := []sqlname.NameTuple{
 		tblName,
 	}
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", tableList, errorHandler)
+	snapshotRowsMap, err := importdata.GetImportedSnapshotRowsMap("target-file", tableList, errorHandler, importDataStateConfigFromGlobals())
 	if err != nil {
 		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
 	}
@@ -394,7 +394,7 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue_ProcessingError(t *tes
 	tableList := []sqlname.NameTuple{
 		tblName,
 	}
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", tableList, errorHandler)
+	snapshotRowsMap, err := importdata.GetImportedSnapshotRowsMap("target-file", tableList, errorHandler, importDataStateConfigFromGlobals())
 	if err != nil {
 		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
 	}
@@ -550,7 +550,7 @@ func TestImportDataFile_MultipleTasksForATable(t *testing.T) {
 	tableList := []sqlname.NameTuple{
 		tblName,
 	}
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", tableList, errorHandler)
+	snapshotRowsMap, err := importdata.GetImportedSnapshotRowsMap("target-file", tableList, errorHandler, importDataStateConfigFromGlobals())
 	if err != nil {
 		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
 	}
@@ -688,7 +688,7 @@ func TestImportDataFile_SameFileForMultipleTables(t *testing.T) {
 		tblName,
 		tblName1,
 	}
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", tableList, errorHandler)
+	snapshotRowsMap, err := importdata.GetImportedSnapshotRowsMap("target-file", tableList, errorHandler, importDataStateConfigFromGlobals())
 
 	if err != nil {
 		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
