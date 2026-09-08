@@ -1327,6 +1327,6 @@ func (yb *YugabyteDB) GetSchemasMissingUsagePermissions() ([]string, error) {
 
 // YugabyteDB (export from target for fall-back/fall-forward) does not support
 // deferrable unique constraints, so there is nothing to report.
-func (yb *YugabyteDB) GetTablesHavingUniqueDeferrableConstraint(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
+func (yb *YugabyteDB) GetTablesHavingUniqueAndPKDeferrableConstraint(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
 	return nil, nil
 }

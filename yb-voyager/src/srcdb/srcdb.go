@@ -62,7 +62,7 @@ type SourceDB interface {
 	GetMissingAssessMigrationPermissions() ([]string, error)
 	CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error)
 	GetSchemasMissingUsagePermissions() ([]string, error)
-	GetTablesHavingUniqueDeferrableConstraint(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error)
+	GetTablesHavingUniqueAndPKDeferrableConstraint(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error)
 	Query(query string) (*sql.Rows, error)
 	QueryRow(query string) *sql.Row
 }

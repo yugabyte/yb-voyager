@@ -2219,15 +2219,15 @@ func reportTablesWithUniqueDeferrableConstraintsForLiveMigration(finalTableList 
 	if !changeStreamingIsEnabled(exportType) {
 		return
 	}
-	tablesWithDeferrableUK, err := source.DB().GetTablesHavingUniqueDeferrableConstraint(finalTableList)
+	tablesWithDeferrableUKAndPK, err := source.DB().GetTablesHavingUniqueAndPKDeferrableConstraint(finalTableList)
 	if err != nil {
 		utils.ErrExit("get tables having unique deferrable constraint: %w", err)
 	}
-	if len(tablesWithDeferrableUK) == 0 {
+	if len(tablesWithDeferrableUKAndPK) == 0 {
 		return
 	}
 	var reportTables []string
-	for _, table := range tablesWithDeferrableUK {
+	for _, table := range tablesWithDeferrableUKAndPK {
 		reportTables = append(reportTables, table.AsQualifiedCatalogName())
 		if rootTable, isLeaf := partitionsToRootTableMap[table.AsQualifiedCatalogName()]; isLeaf {
 			reportTables = append(reportTables, rootTable)
@@ -2237,10 +2237,10 @@ func reportTablesWithUniqueDeferrableConstraintsForLiveMigration(finalTableList 
 	sort.Strings(reportTables)
 
 	utils.PrintAndLogfWarning("During live migration, voyager applies change events on the target with immediate constraint checking. " +
-		"Source transactions that rely on deferring unique constraint checks (for example, swapping unique values between rows) " +
-		"can fail with unique constraint violation errors on the target and block the migration.\n" +
+		"Source transactions that rely on deferring unique and primary key constraint checks (for example, swapping unique values between rows) " +
+		"can fail with constraint violation errors on the target and block the migration.\n" +
 		"Either alter these constraints to NOT DEFERRABLE on the source, or exclude these tables using --exclude-table-list.")
-	utils.ErrExit("The following tables have UNIQUE constraints that are DEFERRABLE: %v",
+	utils.ErrExit("The following tables have UNIQUE and PRIMARY KEY constraints that are DEFERRABLE: %v",
 		strings.Join(reportTables, ", "))
 }
 

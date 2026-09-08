@@ -584,6 +584,6 @@ func (ms *MySQL) GetSchemasMissingUsagePermissions() ([]string, error) {
 }
 
 // MySQL does not support deferrable constraints.
-func (ms *MySQL) GetTablesHavingUniqueDeferrableConstraint(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
+func (ms *MySQL) GetTablesHavingUniqueAndPKDeferrableConstraint(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
 	return nil, nil
 }

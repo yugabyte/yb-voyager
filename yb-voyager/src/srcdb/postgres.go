@@ -58,16 +58,13 @@ var PostgresUnsupportedDataTypes = []string{"GEOMETRY", "GEOGRAPHY", "BOX2D", "B
 var PostgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "LO", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE", "VECTOR", "TIMETZ"}
 
 func GetPGLiveMigrationUnsupportedDatatypes() []string {
-	liveMigrationUnsupportedDataTypes, _ := lo.Difference(PostgresUnsupportedDataTypesForDbzm, PostgresUnsupportedDataTypes)
-
-	return liveMigrationUnsupportedDataTypes
+	return PostgresUnsupportedDataTypesForDbzm
 }
 
 func GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes() []string {
 	// Using logical connector (false) as default for fall forward/fall back
 	// Logical connector supports hstore, tsvector, and array of enums
-	unsupportedDataTypesForDbzmYBOnly, _ := lo.Difference(GetYugabyteUnsupportedDatatypesDbzm(false), PostgresUnsupportedDataTypes)
-	liveMigrationWithFForFBUnsupportedDatatypes, _ := lo.Difference(unsupportedDataTypesForDbzmYBOnly, GetPGLiveMigrationUnsupportedDatatypes())
+	liveMigrationWithFForFBUnsupportedDatatypes, _ := lo.Difference(GetYugabyteUnsupportedDatatypesDbzm(false), GetPGLiveMigrationUnsupportedDatatypes())
 	return liveMigrationWithFForFBUnsupportedDatatypes
 }
 
@@ -1150,18 +1147,18 @@ func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
 	return nonPKTables, nil
 }
 
-var PG_QUERY_TO_GET_TABLES_HAVING_UNIQUE_DEFERRABLE_CONSTRAINT = `SELECT DISTINCT n.nspname AS schema_name, c.relname AS table_name
+var PG_QUERY_TO_GET_TABLES_HAVING_UNIQUE_AND_PK_DEFERRABLE_CONSTRAINT = `SELECT DISTINCT n.nspname AS schema_name, c.relname AS table_name
 FROM pg_constraint con
 JOIN pg_class      c ON c.oid = con.conrelid
 JOIN pg_namespace  n ON n.oid = c.relnamespace
-WHERE con.contype = 'u'
+WHERE con.contype IN ('u', 'p')
 AND con.condeferrable
 AND (n.nspname, c.relname) IN (%s);`
 
-// GetTablesHavingUniqueDeferrableConstraint returns the tables out of tableList that have a
+// GetTablesHavingUniqueAndPKDeferrableConstraint returns the tables out of tableList that have a
 // DEFERRABLE UNIQUE constraint. Returned names are unquoted qualified catalog names
 // (NameTuple.AsQualifiedCatalogName()), preserving the case of the identifiers.
-func (pg *PostgreSQL) GetTablesHavingUniqueDeferrableConstraint(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
+func (pg *PostgreSQL) GetTablesHavingUniqueAndPKDeferrableConstraint(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
 	if len(tableList) == 0 {
 		return nil, nil
 	}
@@ -1174,7 +1171,7 @@ func (pg *PostgreSQL) GetTablesHavingUniqueDeferrableConstraint(tableList []sqln
 		schema, tableName := table.ForCatalogQuery()
 		return fmt.Sprintf("('%s', '%s')", schema, tableName)
 	}), ", ")
-	query := fmt.Sprintf(PG_QUERY_TO_GET_TABLES_HAVING_UNIQUE_DEFERRABLE_CONSTRAINT, queryTablesString)
+	query := fmt.Sprintf(PG_QUERY_TO_GET_TABLES_HAVING_UNIQUE_AND_PK_DEFERRABLE_CONSTRAINT, queryTablesString)
 	rows, err := pg.db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error in querying(%q) source database for tables having unique deferrable constraint: %w", query, err)
