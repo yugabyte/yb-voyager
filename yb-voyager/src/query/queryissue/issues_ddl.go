@@ -682,7 +682,6 @@ func NewTSTZMultiRangeDatatypeIssue(objectType string, objectName string, sqlSta
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
-
 // ============================= PK and UK Constraints on Unsupported Datatypes Issues =================
 
 var primaryOrUniqueConstraintOnCitextDatatypeIssue = issue.Issue{

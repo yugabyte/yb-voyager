@@ -1486,6 +1486,114 @@
         "object_name": "",
         "object_type": "",
         "type": "SYSTEM_COLUMN_XMIN"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - int4multirange",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_INT4MULTIRANGE"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - int4multirange",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_INT4MULTIRANGE"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - int8multirange",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_INT8MULTIRANGE"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - int8multirange",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_INT8MULTIRANGE"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - nummultirange",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_NUMMULTIRANGE"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - nummultirange",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_NUMMULTIRANGE"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - tsmultirange",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TSMULTIRANGE"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - tsmultirange",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TSMULTIRANGE"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - tstzmultirange",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TSTZMULTIRANGE"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - tstzmultirange",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TSTZMULTIRANGE"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - datemultirange",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DATEMULTIRANGE"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - datemultirange",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DATEMULTIRANGE"
       }
     ],
     "control_plane_type": "",

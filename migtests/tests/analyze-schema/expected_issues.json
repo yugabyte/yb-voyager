@@ -1686,5 +1686,71 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "bigint_multirange_table",
+            "Reason": "INT8MULTIRANGE datatype not yet supported by voyager in live migration. Affected column: value_ranges. This column will be excluded when exporting and importing data in live migration workflows.",
+            "SqlStatement": "CREATE TABLE bigint_multirange_table (\n    id integer PRIMARY KEY,\n    value_ranges int8multirange\n);",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "date_multirange_table",
+            "Reason": "DATEMULTIRANGE datatype not yet supported by voyager in live migration. Affected column: project_dates. This column will be excluded when exporting and importing data in live migration workflows.",
+            "SqlStatement": "CREATE TABLE date_multirange_table (\n    id integer PRIMARY KEY,\n    project_dates datemultirange\n);",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "int_multirange_table",
+            "Reason": "INT4MULTIRANGE datatype not yet supported by voyager in live migration. Affected column: value_ranges. This column will be excluded when exporting and importing data in live migration workflows.",
+            "SqlStatement": "CREATE TABLE int_multirange_table (\n    id integer PRIMARY KEY,\n    value_ranges int4multirange\n);",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "numeric_multirange_table",
+            "Reason": "NUMMULTIRANGE datatype not yet supported by voyager in live migration. Affected column: price_ranges. This column will be excluded when exporting and importing data in live migration workflows.",
+            "SqlStatement": "CREATE TABLE numeric_multirange_table (\n    id integer PRIMARY KEY,\n    price_ranges nummultirange\n);",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "timestamp_multirange_table",
+            "Reason": "TSMULTIRANGE datatype not yet supported by voyager in live migration. Affected column: event_times. This column will be excluded when exporting and importing data in live migration workflows.",
+            "SqlStatement": "CREATE TABLE timestamp_multirange_table (\n    id integer PRIMARY KEY,\n    event_times tsmultirange\n);",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "timestamptz_multirange_table",
+            "Reason": "TSTZMULTIRANGE datatype not yet supported by voyager in live migration. Affected column: global_event_times. This column will be excluded when exporting and importing data in live migration workflows.",
+            "SqlStatement": "CREATE TABLE timestamptz_multirange_table (\n    id integer PRIMARY KEY,\n    global_event_times tstzmultirange\n);",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
         }
 ]
