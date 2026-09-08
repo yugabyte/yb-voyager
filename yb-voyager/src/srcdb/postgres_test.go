@@ -407,7 +407,7 @@ func TestPostgresGetTablesHavingUniqueDeferrableConstraint(t *testing.T) {
 	}
 
 	_ = testPostgresSource.DB().Connect()
-	actualTables, err := testPostgresSource.DB().GetTablesHavingUniqueDeferrableConstraint(tableList)
+	actualTables, err := testPostgresSource.DB().GetTablesHavingUniqueAndPKDeferrableConstraint(tableList)
 	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
 
 	// unquoted qualified catalog names, case preserved
