@@ -1327,6 +1327,9 @@ func addAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 			// This converted AssessmentIssue is then appended to the assessmentIssues slice
 			queryissue := queryissue.ReportUnsupportedDatatypes(baseTypeName, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
 			checkIsFixedInAndAddIssueToAssessmentIssues(queryissue, nil)
+
+		default:
+			panic(fmt.Sprintf("invalid source db type %q", source.DBType))
 		}
 	}
 }

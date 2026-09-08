@@ -56,9 +56,7 @@ func (p *ParserIssueDetector) GetDDLDetector(obj queryparser.DDLObject) (DDLIssu
 			ParserIssueDetector: *p,
 		}, nil
 	case *queryparser.ForeignTable:
-		return &ForeignTableIssueDetector{
-			ParserIssueDetector: *p,
-		}, nil
+		return &ForeignTableIssueDetector{}, nil
 	case *queryparser.View:
 		return &ViewIssueDetector{}, nil
 	case *queryparser.MView:
@@ -737,9 +735,7 @@ func ReportUnsupportedDatatypesInLiveWithFFOrFB(baseTypeName string, columnName 
 
 //ForeignTableIssueDetector handles detection Foreign table issues
 
-type ForeignTableIssueDetector struct {
-	ParserIssueDetector
-}
+type ForeignTableIssueDetector struct{}
 
 func (f *ForeignTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	foreignTable, ok := obj.(*queryparser.ForeignTable)
