@@ -66,7 +66,7 @@ var driftObjectTypesByName = map[string]schemadiff.ObjectType{
 var detectDriftCmd = &cobra.Command{
 	Use: "detect-drift",
 	Short: "Report source schema changes made during the migration, and what to do about each one " +
-		"(needs --suppress-schema-snapshot-capture=false on the export commands)",
+		"(needs --disable-schema-snapshot-capture=false on the export commands)",
 	Long: `Reports how the PostgreSQL source schema changed while the migration was running, and
 what to do about each change.
 
@@ -77,7 +77,7 @@ to <export-dir>/reports/. It is read-only: it never modifies migration state and
 applies anything on the target, it only writes report files.
 
 PREREQUISITE: those snapshots are only recorded when capture is enabled, which is currently
-off by default. Pass --suppress-schema-snapshot-capture=false to export schema and export
+off by default. Pass --disable-schema-snapshot-capture=false to export schema and export
 data. Without it this command has no history to compare against and reports no drift.
 
 The report groups each change by the interval between the two captures that bracket it, and
