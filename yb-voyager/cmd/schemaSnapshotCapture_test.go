@@ -18,6 +18,7 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -25,6 +26,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 // TestSnapshotStartReasonFor pins the export-data start-snapshot reason classification.
@@ -85,6 +88,53 @@ func TestExportDataExitReason(t *testing.T) {
 	}
 }
 
+// TestCaptureExportDataExitSnapshotRoleGate pins the exporter-role gate: only the source
+// exporter records source schema snapshots, so `export data from target` must not.
+//
+// The gate is asserted through the one-shot claim rather than through a captured
+// snapshot, which keeps it a unit test: a gated-off call must not even claim, since
+// claiming would consume the single exit capture a run is allowed and silently suppress
+// the real one. schemasnapshot.SourceCapture deliberately knows nothing about roles, so
+// this belongs here rather than with the capture policy.
+//
+// No database is involved. DBType is set so source.DB() can construct a handle
+// (newSourceDB panics on an empty type) and the capture is disabled so it short-circuits
+// on its own gate before reaching the nil metaDB.
+func TestCaptureExportDataExitSnapshotRoleGate(t *testing.T) {
+	origRole, origSource, origDisabled := exporterRole, source, disableSchemaSnapshotCapture
+	t.Cleanup(func() {
+		exporterRole, source, disableSchemaSnapshotCapture = origRole, origSource, origDisabled
+		exportDataExitSnapshotCaptured.Store(false)
+	})
+
+	source = srcdb.Source{DBType: POSTGRESQL}
+	disableSchemaSnapshotCapture = utils.BoolStr(true)
+
+	tests := []struct {
+		name       string
+		role       string
+		wantClaim  bool
+		wantReason string
+	}{
+		{"a target-side exporter must not capture", TARGET_DB_EXPORTER_FF_ROLE, false,
+			"a non-source exporter must not claim the exit capture"},
+		{"a fall-back exporter must not capture", TARGET_DB_EXPORTER_FB_ROLE, false,
+			"a non-source exporter must not claim the exit capture"},
+		{"the source exporter captures", SOURCE_DB_EXPORTER_ROLE, true,
+			"the source exporter must claim the exit capture"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			exportDataExitSnapshotCaptured.Store(false)
+			exporterRole = tt.role
+
+			captureExportDataExitSnapshot(context.Background(), schemasnapshot.ReasonInterrupt)
+
+			assert.Equal(t, tt.wantClaim, exportDataExitSnapshotCaptured.Load(), tt.wantReason)
+		})
+	}
+}
+
 // TestValidateSchemaSnapshotCaptureInterval pins the flag validation. An interval of 0
 // or less would silently disable periodic capture, so it must fail at startup instead.
 //
@@ -96,32 +146,24 @@ func TestValidateSchemaSnapshotCaptureInterval(t *testing.T) {
 	orig := schemaSnapshotCaptureInterval
 	t.Cleanup(func() { schemaSnapshotCaptureInterval = orig })
 
-	withFlag := func() *cobra.Command {
-		cmd := &cobra.Command{Use: "export-data-stub"}
-		registerSchemaSnapshotIntervalFlag(cmd)
-		return cmd
-	}
-
 	tests := []struct {
-		name     string
-		cmd      func() *cobra.Command
-		interval int
-		wantErr  bool
+		name       string
+		registered bool // whether the command under test exposes the flag at all
+		interval   int
+		wantErr    bool
 	}{
-		{"default interval passes", withFlag, 60, false},
-		{"the minimum interval passes", withFlag, 1, false},
-		{"zero is rejected", withFlag, 0, true},
-		{"negative is rejected", withFlag, -5, true},
-		{
-			"a command without the flag is not validated (export data from target)",
-			func() *cobra.Command { return &cobra.Command{Use: "export-data-from-target-stub"} },
-			0,
-			false,
-		},
+		{"default interval passes", true, 60, false},
+		{"the minimum interval passes", true, 1, false},
+		{"zero is rejected", true, 0, true},
+		{"negative is rejected", true, -5, true},
+		{"a command without the flag is not validated (export data from target)", false, 0, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cmd := tt.cmd()
+			cmd := &cobra.Command{Use: "export-stub"}
+			if tt.registered {
+				registerSchemaSnapshotIntervalFlag(cmd)
+			}
 			// registerSchemaSnapshotIntervalFlag binds the global and resets it to the
 			// flag default, so set the value under test after building the command.
 			schemaSnapshotCaptureInterval = tt.interval
