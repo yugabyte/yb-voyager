@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package schemasnapshot_test
+package schemacapture_test
 
 import (
 	"context"
@@ -28,15 +28,16 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemacapture"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 )
 
-// newSourceCapture builds a SourceCapture over the given handles. Every input is a
+// newSource builds a schemacapture.Source over the given handles. Every input is a
 // field, which is the point: the capture policy is exercised here without any command
 // state, so these tests live next to the code they test rather than in package cmd.
-func newSourceCapture(db *sql.DB, meta schemasnapshot.DBMetadata, mdb *metadb.MetaDB, schemas ...string) schemasnapshot.SourceCapture {
-	return schemasnapshot.SourceCapture{
+func newSource(db *sql.DB, meta schemasnapshot.DBMetadata, mdb *metadb.MetaDB, schemas ...string) schemacapture.Source {
+	return schemacapture.Source{
 		DB:     db,
 		MetaDB: mdb,
 		Params: schemasnapshot.CaptureParams{
@@ -97,7 +98,7 @@ func testSourceCaptureBehaviour(t *testing.T, db *sql.DB, meta schemasnapshot.DB
 	t.Cleanup(func() { execAll(t, db, `DROP SCHEMA IF EXISTS `+schemaName+` CASCADE`) })
 
 	mdb := newIntegrationTestMetaDB(t)
-	sc := newSourceCapture(db, meta, mdb, schemaName)
+	sc := newSource(db, meta, mdb, schemaName)
 
 	t.Run("happy path captures and persists a real snapshot", func(t *testing.T) {
 		require.NoError(t, sc.Capture(ctx, schemasnapshot.LabelExportSchema, "", true))
@@ -171,13 +172,16 @@ func testSourceCaptureBehaviour(t *testing.T, db *sql.DB, meta schemasnapshot.DB
 		assert.Equal(t, schemasnapshot.ReasonError, placeholder.Reason)
 	})
 
-	t.Run("periodic capture persists on every tick, even for an unchanged schema (no dedup)", func(t *testing.T) {
+	t.Run("repeated captures are never deduped, even for an unchanged schema", func(t *testing.T) {
 		before := countLabel(t, mdb, schemasnapshot.LabelExportDataFromSourcePeriodic)
 
-		// Every periodic capture is persisted unconditionally — no dedup — so the drift
-		// timeline records the source schema at each interval even when it hasn't changed.
-		// The schema is NOT altered between these captures, so under the old dedup logic the
+		// Captures are persisted unconditionally — no dedup — so the drift timeline
+		// records the source schema at every interval even when it hasn't changed. The
+		// schema is NOT altered between these captures, so under the old dedup logic the
 		// 2nd and 3rd would have been skipped; here all three must persist.
+		//
+		// Capture is called directly rather than through the ticker: this is about dedup,
+		// not scheduling. The ticker has its own group below.
 		//
 		// Snapshot names are second-granularity ({label}_{YYYYMMDDThhmmssZ}); this test fires
 		// captures back-to-back, so a >=1s wait between them avoids a UNIQUE-name collision.
@@ -273,7 +277,7 @@ END $$;`, numTables, schemaName)
 	t.Cleanup(func() { execAll(t, db, `DROP SCHEMA IF EXISTS `+schemaName+` CASCADE`) })
 
 	mdb := newIntegrationTestMetaDB(t)
-	sc := newSourceCapture(db, meta, mdb, schemaName)
+	sc := newSource(db, meta, mdb, schemaName)
 
 	start := time.Now()
 	require.NoError(t, sc.Capture(ctx, schemasnapshot.LabelExportSchema, "", true))
@@ -316,7 +320,7 @@ func testSourceCaptureStartPeriodic(t *testing.T, db *sql.DB, meta schemasnapsho
 	t.Cleanup(func() { execAll(t, db, `DROP SCHEMA IF EXISTS `+schemaName+` CASCADE`) })
 
 	mdb := newIntegrationTestMetaDB(t)
-	sc := newSourceCapture(db, meta, mdb, schemaName)
+	sc := newSource(db, meta, mdb, schemaName)
 
 	countPeriodic := func() int {
 		return countLabel(t, mdb, schemasnapshot.LabelExportDataFromSourcePeriodic)

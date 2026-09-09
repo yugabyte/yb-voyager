@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package schemasnapshot
+package schemacapture
 
 import (
 	"context"
@@ -25,16 +25,17 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 )
 
-// SourceCapture is the source-side capture policy over CaptureAndSaveSnapshot: is
-// capture live at all, bound every attempt by CaptureTimeout, fall back to a
+// Source is the source-side capture policy over schemasnapshot.CaptureAndSaveSnapshot: is
+// capture live at all, bound every attempt by schemasnapshot.CaptureTimeout, fall back to a
 // placeholder, and optionally tick on a schedule.
 //
 // Everything it needs is a field, so it carries no dependency on command state. The
 // caller resolves those once -- see cmd's sourceCapture() -- and owns the exporter-role
 // gate, which is a command concern rather than a capture one.
-type SourceCapture struct {
+type Source struct {
 	// DB is the live source connection. A nil DB is treated as "gone during
 	// teardown" rather than a programming error, since exit captures race the
 	// connection being closed.
@@ -43,8 +44,8 @@ type SourceCapture struct {
 
 	// Params describes what to capture. Label and Reason are per-call, so Capture
 	// sets them and callers leave them zero here. Held rather than mirrored field by
-	// field, so a new CaptureParams field needs no change to this struct.
-	Params CaptureParams
+	// field, so a new schemasnapshot.CaptureParams field needs no change to this struct.
+	Params schemasnapshot.CaptureParams
 
 	// Disabled mirrors --disable-schema-snapshot-capture.
 	Disabled bool
@@ -53,7 +54,7 @@ type SourceCapture struct {
 // Enabled reports whether capture is live at all: PostgreSQL source, not disabled. It
 // also returns why it is not, so a caller that wants to say so logs the specific reason
 // rather than a generic one.
-func (c SourceCapture) Enabled() (bool, string) {
+func (c Source) Enabled() (bool, string) {
 	if c.Params.DatabaseType != constants.POSTGRESQL {
 		return false, "only PostgreSQL sources are supported"
 	}
@@ -72,7 +73,7 @@ func (c SourceCapture) Enabled() (bool, string) {
 // The caller decides what a failure means. Today every caller is an export hook that
 // logs and carries on, because schema capture is off the data path and must never fail
 // or stall an export.
-func (c SourceCapture) Capture(ctx context.Context, label, reason string, placeholderOnFailure bool) error {
+func (c Source) Capture(ctx context.Context, label, reason string, placeholderOnFailure bool) error {
 	if enabled, why := c.Enabled(); !enabled {
 		log.Infof("schema-snapshot capture skipped for label %q: %s", label, why)
 		return nil
@@ -81,7 +82,7 @@ func (c SourceCapture) Capture(ctx context.Context, label, reason string, placeh
 	// Bound the catalog read and the metaDB write together, so a wedged source can
 	// never block the migration on best-effort work. A caller's tighter deadline
 	// still wins. (The placeholder path below deliberately uses a fresh context.)
-	ctx, cancel := context.WithTimeout(ctx, CaptureTimeout)
+	ctx, cancel := context.WithTimeout(ctx, schemasnapshot.CaptureTimeout)
 	defer cancel()
 
 	if c.DB == nil {
@@ -98,8 +99,8 @@ func (c SourceCapture) Capture(ctx context.Context, label, reason string, placeh
 	// appeared, even when consecutive snapshots are identical.
 	p := c.Params
 	p.Label, p.Reason = label, reason
-	req := CaptureRequest{CaptureParams: p, PlaceholderOnFailure: placeholderOnFailure}
-	name, err := CaptureAndSaveSnapshot(ctx, c.DB, c.MetaDB, req)
+	req := schemasnapshot.CaptureRequest{CaptureParams: p, PlaceholderOnFailure: placeholderOnFailure}
+	name, err := schemasnapshot.CaptureAndSaveSnapshot(ctx, c.DB, c.MetaDB, req)
 	if err != nil {
 		return err
 	}
@@ -112,7 +113,7 @@ func (c SourceCapture) Capture(ctx context.Context, label, reason string, placeh
 // there is no separate stop function.
 //
 // Best-effort: a no-op when capture is not enabled or interval <= 0.
-func (c SourceCapture) StartPeriodic(ctx context.Context, interval time.Duration) {
+func (c Source) StartPeriodic(ctx context.Context, interval time.Duration) {
 	if enabled, _ := c.Enabled(); !enabled {
 		return
 	}
@@ -130,7 +131,7 @@ func (c SourceCapture) StartPeriodic(ctx context.Context, interval time.Duration
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if err := c.Capture(ctx, LabelExportDataFromSourcePeriodic, "", false); err != nil {
+				if err := c.Capture(ctx, schemasnapshot.LabelExportDataFromSourcePeriodic, "", false); err != nil {
 					log.Warnf("periodic schema-snapshot capture failed, migration unaffected: %v", err)
 				}
 			}
@@ -143,21 +144,21 @@ func (c SourceCapture) StartPeriodic(ctx context.Context, interval time.Duration
 //
 // It uses its OWN fresh, bounded context: the capture context may be exactly what died,
 // and reusing it would drop the marker just when it is needed.
-func (c SourceCapture) RecordPlaceholder(label, reason string) {
+func (c Source) RecordPlaceholder(label, reason string) {
 	if enabled, _ := c.Enabled(); !enabled {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), CaptureTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), schemasnapshot.CaptureTimeout)
 	defer cancel()
-	h := SnapshotHeader{
+	h := schemasnapshot.SnapshotHeader{
 		Label:         label,
 		Reason:        reason,
-		Side:          SideSource,
+		Side:          schemasnapshot.SideSource,
 		CapturedAt:    time.Now().UTC(),
 		Schemas:       c.Params.Schemas,
 		IsPlaceholder: true,
 	}
-	if _, err := SavePlaceholder(ctx, c.MetaDB, h); err != nil {
+	if _, err := schemasnapshot.SavePlaceholder(ctx, c.MetaDB, h); err != nil {
 		log.Warnf("schema-snapshot placeholder for label %q failed: %v", label, err)
 	}
 }

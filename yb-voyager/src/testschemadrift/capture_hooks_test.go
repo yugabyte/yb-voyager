@@ -91,15 +91,14 @@ func TestSchemaSnapshotCaptureHooksFireDuringRealCommands(t *testing.T) {
 		assert.Equal(t, schemasnapshot.LabelExportSchema, header.Label)
 		assert.False(t, header.IsPlaceholder, "export schema snapshot should not be a placeholder")
 
+		// Content is deliberately not re-checked here. This test's job is that the
+		// command invoked the hook at all; what a capture contains is covered by the
+		// capture tests in src/schemasnapshot, far more cheaply than through the binary.
+		// Loading it is still worth it as a smoke check that a real snapshot was stored
+		// rather than an empty or placeholder row.
 		content, err := schemasnapshot.LoadSnapshotByName(mdb, header.Name())
 		require.NoError(t, err, "failed to load export schema snapshot content")
-
-		tableNames := make([]string, 0, len(content.Tables))
-		for _, tbl := range content.Tables {
-			tableNames = append(tableNames, tbl.Name)
-		}
-		assert.ElementsMatch(t, []string{"orders", "customers"}, tableNames,
-			"expected seeded tables to be present in the captured snapshot")
+		assert.NotEmpty(t, content.Tables, "a stored snapshot must carry captured tables")
 	})
 
 	t.Run("offline export data captures start and exit snapshots", func(t *testing.T) {
