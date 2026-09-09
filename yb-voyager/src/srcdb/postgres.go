@@ -58,16 +58,13 @@ var PostgresUnsupportedDataTypes = []string{"GEOMETRY", "GEOGRAPHY", "BOX2D", "B
 var PostgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "LO", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE", "VECTOR", "TIMETZ"}
 
 func GetPGLiveMigrationUnsupportedDatatypes() []string {
-	liveMigrationUnsupportedDataTypes, _ := lo.Difference(PostgresUnsupportedDataTypesForDbzm, PostgresUnsupportedDataTypes)
-
-	return liveMigrationUnsupportedDataTypes
+	return PostgresUnsupportedDataTypesForDbzm
 }
 
 func GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes() []string {
 	// Using logical connector (false) as default for fall forward/fall back
 	// Logical connector supports hstore, tsvector, and array of enums
-	unsupportedDataTypesForDbzmYBOnly, _ := lo.Difference(GetYugabyteUnsupportedDatatypesDbzm(false), PostgresUnsupportedDataTypes)
-	liveMigrationWithFForFBUnsupportedDatatypes, _ := lo.Difference(unsupportedDataTypesForDbzmYBOnly, GetPGLiveMigrationUnsupportedDatatypes())
+	liveMigrationWithFForFBUnsupportedDatatypes, _ := lo.Difference(GetYugabyteUnsupportedDatatypesDbzm(false), GetPGLiveMigrationUnsupportedDatatypes())
 	return liveMigrationWithFForFBUnsupportedDatatypes
 }
 

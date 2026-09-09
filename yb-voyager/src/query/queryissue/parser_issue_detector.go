@@ -377,7 +377,14 @@ func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *ybvers
 		return issues, err
 	}
 
-	return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+	issues, err = p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+	if err != nil {
+		return issues, err
+	}
+
+	issues = finalizeIssues(issues)
+
+	return issues, nil
 }
 
 // This function is used to get the jsonb columns from the parser issue detector
@@ -514,31 +521,31 @@ func maturityTierName(maturity string) (string, string) {
 // buildExperimentalMaturityAnnotation returns a sentence (for an unsupported feature) describing
 // that the feature is available only as Tech Preview / Early Access in the target version, with
 // the flags needed to enable it.
-func buildExperimentalMaturityAnnotation(maturity string, targetDbVersion *ybversion.YBVersion, enablingFlags []string) string {
+func buildExperimentalMaturityAnnotation(maturity string, enablingFlags []string) string {
 	tierName, caveat := maturityTierName(maturity)
 	if tierName == "" {
 		return ""
 	}
-	annotation := fmt.Sprintf("This feature is available as %s in the target version (%s) — %s, and is not enabled by default.",
-		tierName, targetDbVersion.String(), caveat)
+	annotation := fmt.Sprintf("This feature is available as %s in the target version — %s, and is not enabled by default.",
+		tierName, caveat)
 	if len(enablingFlags) > 0 {
 		annotation += fmt.Sprintf(" Enable with the flag(s): %s.", strings.Join(enablingFlags, ", "))
 	}
 	return annotation
 }
 
-// buildNativeResolutionRecommendation returns a version-aware recommendation for a performance
+// buildNativeResolutionRecommendation returns a recommendation for a performance
 // optimization (e.g. "bucket-based indexes"). If the resolution is Tech Preview / Early Access in
 // the target version it reads "available as <tier> in the target version"; otherwise it lists where
 // it becomes available (supportedVersions).
-func buildNativeResolutionRecommendation(resolution, maturity string, targetDbVersion *ybversion.YBVersion, supportedVersions string, enablingFlags []string) string {
+func buildNativeResolutionRecommendation(resolution, maturity string, supportedVersions string, enablingFlags []string) string {
 	if resolution == "" {
 		return ""
 	}
 	var availability string
 	if tierName, caveat := maturityTierName(maturity); tierName != "" {
-		availability = fmt.Sprintf("available as %s in the target version (%s) — %s, and is not enabled by default",
-			tierName, targetDbVersion.String(), caveat)
+		availability = fmt.Sprintf("available as %s in the target version — %s, and is not enabled by default",
+			tierName, caveat)
 	} else if supportedVersions != "" {
 		availability = fmt.Sprintf("available in %s", supportedVersions)
 	} else {
@@ -572,13 +579,13 @@ func CheckIssueSupportMaturityInTDBVersion(issueInstance QueryIssue, targetDbVer
 			return ""
 		}
 		supportedVersions := GetSupportedVersions(issueInstance.MinimumVersionsFixedIn, issueInstance.MinimumVersionsFixedInEA, issueInstance.MinimumVersionsFixedInTP)
-		return buildNativeResolutionRecommendation(resolution, maturity, targetDbVersion, supportedVersions, issueInstance.EnablingFlags)
+		return buildNativeResolutionRecommendation(resolution, maturity, supportedVersions, issueInstance.EnablingFlags)
 	}
 
 	// Unsupported features that are Tech Preview / Early Access in the target version:
 	// explain they are experimental and how to enable them.
 	if maturity == constants.MATURITY_TP || maturity == constants.MATURITY_EA {
-		return buildExperimentalMaturityAnnotation(maturity, targetDbVersion, issueInstance.EnablingFlags)
+		return buildExperimentalMaturityAnnotation(maturity, issueInstance.EnablingFlags)
 	}
 
 	// GA in the target (already reported as fixed) or unsupported with no maturity data: nothing to add.
@@ -591,7 +598,14 @@ func (p *ParserIssueDetector) GetAllPLPGSQLIssues(query string, targetDbVersion 
 		return issues, nil
 	}
 
-	return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+	issues, err = p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+	if err != nil {
+		return issues, err
+	}
+
+	issues = finalizeIssues(issues)
+
+	return issues, nil
 }
 
 func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, error) {
@@ -1031,7 +1045,14 @@ func (p *ParserIssueDetector) GetDDLIssues(query string, targetDbVersion *ybvers
 		return issues, nil
 	}
 
-	return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+	issues, err = p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+	if err != nil {
+		return issues, err
+	}
+
+	issues = finalizeIssues(issues)
+
+	return issues, nil
 
 }
 
@@ -1124,13 +1145,77 @@ func (p *ParserIssueDetector) getDDLIssues(query string) ([]QueryIssue, error) {
 	return issues, nil
 }
 
+func finalizeIssues(issues []QueryIssue) []QueryIssue {
+	filteredIssues := make([]QueryIssue, 0)
+	issueTypeMap := make(map[string]bool)
+	for _, i := range issues {
+		issueTypeMap[i.Type] = true
+	}
+	for _, i := range issues {
+		if ShouldFilterOutIssue(i, issueTypeMap) {
+			continue
+		}
+		filteredIssues = append(filteredIssues, i)
+	}
+
+	return filteredIssues
+
+}
+
+func ShouldFilterOutIssue(issue QueryIssue, issueTypeMap map[string]bool) bool {
+	switch issue.Type {
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XML:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_XML]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LARGE_OBJECT:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_LARGE_OBJECT]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_INT4MULTIRANGE:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_INT4MULTIRANGE]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_INT8MULTIRANGE:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_INT8MULTIRANGE]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_NUMMULTIRANGE:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_NUMMULTIRANGE]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TSMULTIRANGE:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_TSMULTIRANGE]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TSTZMULTIRANGE:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_TSTZMULTIRANGE]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DATEMULTIRANGE:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_DATEMULTIRANGE]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_GEOMETRY:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_GEOMETRY]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_GEOGRAPHY:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_GEOGRAPHY]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX2D:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_BOX2D]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX3D:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_BOX3D]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TOPOGEOMETRY:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_TOPOGEOMETRY]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RASTER:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_RASTER]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_PG_LSN:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_PG_LSN]
+	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TXID_SNAPSHOT:
+		return issueTypeMap[UNSUPPORTED_DATATYPE_TXID_SNAPSHOT]
+
+	default:
+		return false
+	}
+}
+
 func (p *ParserIssueDetector) GetDMLIssues(query string, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {
 	issues, err := p.getDMLIssues(query)
 	if err != nil {
 		return issues, err
 	}
 
-	return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+	issues, err = p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+	if err != nil {
+		return issues, err
+	}
+
+	issues = finalizeIssues(issues)
+
+	return issues, nil
 }
 
 func (p *ParserIssueDetector) getDMLIssues(query string) ([]QueryIssue, error) {

@@ -18,7 +18,42 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
+
+// concurrentDDLGFlags returns the gflags enabling transactional DDL, concurrent DDL and
+// object-level locking. Integration/failpoint test suites run DDLs from multiple tests
+// concurrently against a shared container; without these, concurrent DDLs can fail with
+// catalog version mismatch errors. These are preview flags introduced in YB 2026.1
+// (ysql_enable_concurrent_ddl must also be listed in allowed_preview_flags_csv; the {}
+// escape the value for yugabyted's comma-separated flag list). Must be set on both master
+// and tservers. Returns "" for versions below 2026.1 — passing an unknown gflag there
+// aborts master/tserver startup.
+func concurrentDDLGFlags(dbVersion string) string {
+	versionWithoutBuild := strings.Split(dbVersion, "-")[0]
+	v, err := ybversion.NewYBVersion(versionWithoutBuild)
+	if err != nil {
+		log.Warnf("parse yugabytedb container version %q to decide concurrent-DDL gflags: %v", dbVersion, err)
+		return ""
+	}
+	if !v.GreaterThanOrEqual(ybversion.V2026_1_0_0) {
+		return ""
+	}
+	return "allowed_preview_flags_csv={ysql_enable_concurrent_ddl}," +
+		"ysql_enable_concurrent_ddl=true," +
+		"ysql_yb_ddl_transaction_block_enabled=true," +
+		"enable_object_locking_for_table_locks=true"
+}
+
+// appendConcurrentDDLFlags adds the concurrent-DDL gflags (when applicable for the version)
+// to a `yugabyted start` command line, for both master and tserver processes.
+func appendConcurrentDDLFlags(cmd []string, dbVersion string) []string {
+	flags := concurrentDDLGFlags(dbVersion)
+	if flags == "" {
+		return cmd
+	}
+	return append(cmd, "--tserver_flags="+flags, "--master_flags="+flags)
+}
 
 type YugabyteDBContainer struct {
 	mutex sync.Mutex
@@ -88,20 +123,23 @@ func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 		return fmt.Errorf("failed to write to temp schema file: %w", err)
 	}
 
+	cmd := []string{
+		"bin/yugabyted",
+		"start",
+		"--daemon=false",
+		"--ui=false",
+		"--initial_scripts_dir=/home/yugabyte/initial-scripts",
+		// "--advertise_address=127.0.0.1",
+		// "--ysql_port=25433",
+	}
+	cmd = appendConcurrentDDLFlags(cmd, yb.DBVersion)
+
 	// this will create a 1 Node RF-1 cluster
 	// TODO: Ideally we should test with 3 Node RF-3 cluster
 	req := testcontainers.ContainerRequest{
 		Image:        fmt.Sprintf("yugabytedb/yugabyte:%s", yb.DBVersion),
 		ExposedPorts: []string{"5433/tcp", "15433/tcp", "7000/tcp", "9000/tcp", "9042/tcp"},
-		Cmd: []string{
-			"bin/yugabyted",
-			"start",
-			"--daemon=false",
-			"--ui=false",
-			"--initial_scripts_dir=/home/yugabyte/initial-scripts",
-			// "--advertise_address=127.0.0.1",
-			// "--ysql_port=25433",
-		},
+		Cmd:          cmd,
 		// Hostname:   "yb-cluster-test",
 		WaitingFor: yugabyteWait(),
 		Files: []testcontainers.ContainerFile{
