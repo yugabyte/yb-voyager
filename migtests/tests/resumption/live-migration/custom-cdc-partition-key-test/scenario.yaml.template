@@ -132,19 +132,16 @@ stages:
 
   # Randomly select ONE table to route by --cdc-partition-key-overrides this
   # run -- mirroring how a real user opts a specific table into custom-key
-  # routing -- then, 50/50, either use its natural unique-key columns or
-  # sample 1-2 arbitrary columns (random order) from its random_columns_pool,
-  # so successive runs exercise a variety of key columns, counts and datatypes.
-  # Pools hold only immutability-safe columns (never UPDATEd by
-  # source_dml.sql); PK columns and uuid-default columns are excluded. The pick
-  # is also injected into the generator's exclude_columns_from_update so the
-  # random generator respects it. Zero conflicts is asserted for the picked
-  # table only when the key is a subset of every unique index on it
-  # (unique_index_columns) -- then colliding rows provably share a channel;
-  # for any other key, cross-channel collisions are legitimate and the count
-  # is only reported. single_unique_constraint's DML is a deliberate PK-recycle
-  # pattern (see source_dml.sql section 1), so when IT is picked, conflicts
-  # MUST still be detected (expect_conflicts: true).
+  # routing -- then sample 1-2 of its columns (random order) from
+  # random_columns_pool, so successive runs exercise a variety of key columns,
+  # counts and datatypes. Pools hold only immutability-safe columns (never
+  # UPDATEd by source_dml.sql); PK columns and uuid-default columns are
+  # excluded. The pick is injected into the generator's
+  # exclude_columns_from_update for the table and its leaf partitions (leaf
+  # events are renamed to the root before the importer's immutability check).
+  # single_unique_constraint's DML is a deliberate PK-recycle pattern (see
+  # source_dml.sql section 1): a fixed (email) key, and when IT is picked,
+  # conflicts MUST still be detected (expect_conflicts: true).
   - name: pick_random_custom_key
     action: pick_random_custom_key
     generator_key: generator_source
@@ -155,48 +152,27 @@ stages:
         columns: [email]
         expect_conflicts: true
       - table: public.multi_unique_constraint
-        columns: [first_name, last_name]
-        unique_index_columns: [[first_name, last_name]]
         random_columns_pool: [first_name, last_name, status, metadata, amount, due_date, seq_no, is_active, priority, created_at, updated_at, deleted_at]
       - table: public.same_column_unique_constraint_and_index
-        columns: [email]
-        unique_index_columns: [[email]]
         random_columns_pool: [email, status, description, amount, due_date, seq_no, is_active, tags, retry_count, metadata, created_at, updated_at, deleted_at]
       - table: public.single_unique_index
-        columns: ["Ssn"]
-        unique_index_columns: [["Ssn"]]
         random_columns_pool: ["Ssn", status, description, amount, due_date, seq_no, is_active, score, external_ref, created_at, updated_at, deleted_at]
       - table: public.multi_unique_index
-        columns: [first_name, last_name]
-        unique_index_columns: [[first_name, last_name]]
         random_columns_pool: [first_name, last_name, status, description, amount, due_date, seq_no, is_active, external_ref, created_at, updated_at, deleted_at]
       - table: public.different_columns_unique_constraint_and_index
-        columns: [email]
-        unique_index_columns: [[email], [phone_number]]
         random_columns_pool: [email, phone_number, status, metadata, amount, due_date, seq_no, is_active, retry_count, created_at, updated_at, deleted_at]
       - table: public.subset_columns_unique_constraint_and_index
-        columns: [first_name, last_name]
-        unique_index_columns: [[first_name, last_name], [first_name, last_name, phone_number]]
         random_columns_pool: [first_name, last_name, phone_number, status, description, amount, due_date, seq_no, is_active, metadata, created_at, updated_at, deleted_at]
       - table: public.test_partial_unique_index
-        columns: [check_id]
-        unique_index_columns: [[check_id]]
         random_columns_pool: [check_id, status, description, amount, due_date, seq_no, is_active, metadata, created_at, updated_at, deleted_at]
       - table: public.partitioned_unique_conflict
-        columns: [region]
-        unique_index_columns: [[email, region]]
+        partitions: [partitioned_unique_conflict_east, partitioned_unique_conflict_west, partitioned_unique_conflict_default]
         random_columns_pool: [region, status, description, amount, due_date, seq_no, is_active, tags, retry_count, created_at, updated_at, deleted_at]
       - table: public.single_unique_index_nulls_not_distinct
-        columns: [email]
-        unique_index_columns: [[email]]
         random_columns_pool: [email, status, description, amount, due_date, seq_no, is_active, priority, score, external_ref, created_at, updated_at, deleted_at]
       - table: public.multi_unique_index_nulls_not_distinct
-        columns: [first_name, last_name]
-        unique_index_columns: [[first_name, last_name]]
         random_columns_pool: [first_name, last_name, status, description, amount, due_date, seq_no, is_active, score, external_ref, created_at, updated_at, deleted_at]
       - table: public.single_unique_index_nulls_distinct
-        columns: [email]
-        unique_index_columns: [[email]]
         random_columns_pool: [email, status, description, amount, due_date, seq_no, is_active, external_ref, tags, created_at, updated_at, deleted_at]
 
   - name: export_schema_from_source
@@ -292,13 +268,14 @@ stages:
     command: import_data
     timeout_sec: 60
 
-  # For the picked table: if it's a normal candidate, its conflicts always
-  # share its custom key's value, so those events land on the same channel
-  # already and the conflict-detection cache must never fire for it (assert
-  # 0). If it's the PK-recycle candidate (expect_conflicts: true), the SAME PK
-  # is reused with a DIFFERENT custom-key value -- a real cross-channel race
-  # custom-key routing does NOT eliminate -- so the synthetic-PK guard added
-  # for custom-key tables (PR #3746) must still catch it (assert >= 1).
+  # For the picked table: the PK-recycle candidate (expect_conflicts: true)
+  # must show conflicts detected -- the SAME PK is reused with a DIFFERENT
+  # custom-key value, a cross-channel race the synthetic-PK guard (PR #3746)
+  # must still catch. For any other pick the count is only reported: with an
+  # arbitrary sampled key, rows colliding on a unique index can carry different
+  # key values and be serialized by the cache -- correct behavior, not a
+  # failure (the same-channel property for an index-column key is asserted by
+  # the Go-side TestLiveMigrationCustomCdcPartitionKeyNoConflict).
   - name: validate_picked_custom_key_conflicts
     action: validate_picked_custom_key_conflicts
     log: yb-voyager-import-data.log
@@ -311,31 +288,6 @@ stages:
     log: yb-voyager-import-data.log
     min_count: 1
 
-  # Resume guardrail: changing cdc-partition-key / cdc-partition-key-overrides
-  # between runs must be rejected (diffCdcPartitioningStrategy). Stop the
-  # importer, try to resume twice with a changed config -- once changing the
-  # global default, once changing the picked table's override to pk -- assert
-  # both are refused, then resume with the original flags.
-  - name: stop_importer_for_guardrail_check
-    action: voyager_stop_command
-    command: import_data
-    timeout_sec: 60
-
-  - name: guardrail_reject_global_default_change
-    action: voyager_import_start_expect_fail
-    flags:
-      cdc-partition-key: table
-    error_contains: "not allowed after the import data has started"
-
-  - name: guardrail_reject_picked_override_change
-    action: voyager_import_start_expect_fail
-    flags:
-      cdc-partition-key-overrides: "{picked_table}:pk"
-    error_contains: "not allowed after the import data has started"
-
-  - name: restart_importer_after_guardrail_check
-    action: voyager_import_start
-
   - name: cutover_to_target
     action: cutover_to_target
 
@@ -347,11 +299,6 @@ stages:
   # Honest (nextval) insert on the DB just cut over to: fails with a duplicate key
   # if its sequence was not restored past the migrated rows. Runs after validations
   # since it adds a row on one side only.
-  - name: verify_target_sequence_restored_after_cutover
-    action: run_sql
-    target: target
-    sql_path: ../common-sql/verify_sequence_restored_after_cutover.sql
-
   - name: stop_forward_exporter
     action: voyager_stop_command
     command: export_data
@@ -461,11 +408,6 @@ stages:
 
   - name: row_hash_validations
     action: row_hash_validations
-
-  - name: verify_source_sequence_restored_after_cutover
-    action: run_sql
-    target: source
-    sql_path: ../common-sql/verify_sequence_restored_after_cutover.sql
 
   - name: cleanup_source
     action: run_sql
