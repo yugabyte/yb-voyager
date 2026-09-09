@@ -15,36 +15,45 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package cmd
+package testschemadrift
 
 import (
 	"context"
 	"testing"
 
+	// Registers the sqlite3 driver the metaDB opens with. Package cmd pulled this in
+	// transitively; a standalone test package has to ask for it.
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
+// openMetaDB opens the on-disk metaDB a voyager command just wrote.
+func openMetaDB(t *testing.T, exportDir string) *metadb.MetaDB {
+	t.Helper()
+	mdb, err := metadb.NewMetaDB(exportDir)
+	require.NoError(t, err, "open metaDB at %s", exportDir)
+	return mdb
+}
+
 // TestSchemaSnapshotCaptureHooksFireDuringRealCommands proves (against a real
-// PostgreSQL testcontainer and the real yb-voyager binary) that the
-// schema-snapshot capture hooks wired into `export schema` and `export data`
-// actually run and persist the expected rows to the on-disk metaDB.
+// PostgreSQL testcontainer and the real yb-voyager binary) that the schema-snapshot
+// capture hooks wired into `export schema` and `export data` actually run and persist
+// the expected rows to the on-disk metaDB.
 //
-// It runs export schema then offline (pg_dump-driven, non-BETA_FAST_DATA_EXPORT)
-// export data against the same export dir/container, checking metaDB state after
-// each step.
+// It runs export schema then offline (pg_dump-driven, non-BETA_FAST_DATA_EXPORT) export
+// data against the same export dir/container, checking metaDB state after each step.
+//
+// Black-box on purpose: it drives the binary and reads the metaDB through the exported
+// metadb/schemasnapshot API, so it needs nothing from package cmd.
 func TestSchemaSnapshotCaptureHooksFireDuringRealCommands(t *testing.T) {
-	exportDir = testutils.CreateTempExportDir()
+	exportDir := testutils.CreateTempExportDir()
 	defer testutils.RemoveTempExportDir(exportDir)
-	t.Cleanup(func() {
-		// reset package globals so this test doesn't bleed into others in the package
-		exportDir = ""
-		metaDB = nil
-	})
 
 	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
 	err := postgresContainer.Start(context.Background())
@@ -73,7 +82,7 @@ func TestSchemaSnapshotCaptureHooksFireDuringRealCommands(t *testing.T) {
 		}, nil, false)
 		require.NoError(t, err, "export schema command failed")
 
-		mdb := initMetaDB(exportDir)
+		mdb := openMetaDB(t, exportDir)
 		headers, err := schemasnapshot.ListSnapshots(mdb)
 		require.NoError(t, err, "failed to list snapshots after export schema")
 		require.Len(t, headers, 1, "expected exactly one snapshot header after export schema")
@@ -104,7 +113,7 @@ func TestSchemaSnapshotCaptureHooksFireDuringRealCommands(t *testing.T) {
 		}, nil, false)
 		require.NoError(t, err, "export data command failed")
 
-		mdb := initMetaDB(exportDir)
+		mdb := openMetaDB(t, exportDir)
 		headers, err := schemasnapshot.ListSnapshots(mdb)
 		require.NoError(t, err, "failed to list snapshots after export data")
 
