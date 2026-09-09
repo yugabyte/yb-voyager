@@ -856,11 +856,16 @@ func exportData() (ok bool) {
 			log.Warnf("schema-snapshot start capture failed, export unaffected: %v", err)
 		}
 		// One ticker for the whole export -- snapshot AND streaming phases, offline and
-		// live. ctx is this function's, cancelled by its defer cancel() when the export
-		// ends. Started here, at the single owner of the export lifetime: starting it in
+		// live. Started here, at the single owner of the export lifetime: starting it in
 		// both exportDataOffline and debeziumExportData ran two tickers at once for PG
 		// snapshot-and-changes, doubling the periodic snapshots.
-		startPeriodicSourceSchemaSnapshotCapture(ctx, time.Duration(schemaSnapshotCaptureInterval)*time.Minute)
+		//
+		// Its own child context so the exit defer below can stop it first. On ctx alone
+		// it would outlive the exit capture -- ctx is cancelled by `defer cancel()`,
+		// which is registered earlier and so runs later -- and could persist a periodic
+		// snapshot timestamped after the exit one.
+		periodicCtx, stopPeriodic := context.WithCancel(ctx)
+		startPeriodicSourceSchemaSnapshotCapture(periodicCtx, time.Duration(schemaSnapshotCaptureInterval)*time.Minute)
 		registerExportDataExitSnapshotHook()
 
 		// One exit capture for EVERY return below, rather than one per return site.
@@ -872,6 +877,7 @@ func exportData() (ok bool) {
 		// utils.ErrExit and signals do not unwind, so they never reach this defer --
 		// registerExportDataExitSnapshotHook above covers them.
 		defer func() {
+			stopPeriodic() // no periodic tick during the exit capture
 			if ok {
 				captureExportDataExitSnapshot(ctx, successReason)
 				return
