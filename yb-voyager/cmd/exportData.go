@@ -1917,22 +1917,22 @@ func captureExportDataExitSnapshot(ctx context.Context, reason string) {
 	}
 }
 
-// exportDataExitReason classifies an abnormal exit from the shutdown flags:
-// SIGINT/SIGTERM is an interrupt, SIGUSR2 (end-migration teardown) a clean
-// completion, anything else a genuine error.
+// exportDataExitReason classifies an abnormal exit from the shutdown flags, most
+// specific first: SIGUSR2 (end-migration teardown) is a clean completion,
+// SIGINT/SIGTERM an interrupt, anything else a genuine error.
 //
-// The inline error paths must use this too, not assume ReasonError: a signal kills
-// the in-flight child, so the export reports failure and reaches `return false`
-// first, and the atexit hook then no-ops. Hardcoding ReasonError there recorded
-// every Ctrl-C as an error.
+// The failing exit path must use this too rather than assuming ReasonError: a signal
+// kills the in-flight child, so the export reports failure and can reach that path
+// with a shutdown already requested. Hardcoding ReasonError there recorded every
+// Ctrl-C as an error.
 func exportDataExitReason() string {
-	if !ProcessShutdownRequested.Load() {
-		return schemasnapshot.ReasonError
-	}
 	if EndMigrationStopRequested.Load() {
 		return schemasnapshot.ReasonComplete
 	}
-	return schemasnapshot.ReasonInterrupt
+	if ProcessShutdownRequested.Load() {
+		return schemasnapshot.ReasonInterrupt
+	}
+	return schemasnapshot.ReasonError
 }
 
 // registerExportDataExitSnapshotHook covers the exit paths that never unwind, so

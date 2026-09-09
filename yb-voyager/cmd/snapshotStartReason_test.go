@@ -70,7 +70,10 @@ func TestExportDataExitReason(t *testing.T) {
 		{"no signal: a genuine failure is an error", false, false, schemasnapshot.ReasonError},
 		{"SIGINT/SIGTERM is a user interrupt", true, false, schemasnapshot.ReasonInterrupt},
 		{"SIGUSR2 (end migration teardown) is a clean completion", true, true, schemasnapshot.ReasonComplete},
-		{"end-migration flag without a shutdown request stays an error", false, true, schemasnapshot.ReasonError},
+		// Unreachable in production: main.go sets ProcessShutdownRequested before
+		// EndMigrationStopRequested, so the end-migration flag is never observed on its
+		// own. Pinned anyway so the classification is defined for every input.
+		{"end-migration flag alone is a completion", false, true, schemasnapshot.ReasonComplete},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
