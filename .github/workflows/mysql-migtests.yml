@@ -81,8 +81,6 @@ jobs:
         with:
           path: ~/.m2/repository
           key: ${{ steps.maven-cache-key.outputs.key }}
-          DEBEZIUM_VERSION: aneesh_ff-fb-remove
-          DEBEZIUM_RELEASE_TAG: voyager-debezium
 
       - name: Start MySQL
         run: |
