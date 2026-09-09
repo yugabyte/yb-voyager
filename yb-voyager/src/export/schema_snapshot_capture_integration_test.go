@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package schemacapture_test
+package export_test
 
 import (
 	"context"
@@ -27,17 +27,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/export"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemacapture"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 )
 
-// newSource builds a schemacapture.Source over the given handles. Every input is a
+// newSource builds a export.SchemaSnapshotCapture over the given handles. Every input is a
 // field, which is the point: the capture policy is exercised here without any command
 // state, so these tests live next to the code they test rather than in package cmd.
-func newSource(db *sql.DB, meta schemasnapshot.DBMetadata, mdb *metadb.MetaDB, schemas ...string) schemacapture.Source {
-	return schemacapture.Source{
+func newSchemaSnapshotCapture(db *sql.DB, meta schemasnapshot.DBMetadata, mdb *metadb.MetaDB, schemas ...string) export.SchemaSnapshotCapture {
+	return export.SchemaSnapshotCapture{
 		DB:     db,
 		MetaDB: mdb,
 		Params: schemasnapshot.CaptureParams{
@@ -70,10 +70,10 @@ func countLabel(t *testing.T, mdb *metadb.MetaDB, label string) int {
 	return n
 }
 
-// TestSourceCapture exercises SourceCapture end-to-end against a REAL PostgreSQL
+// TestSchemaSnapshotCapture exercises export.SchemaSnapshotCapture end-to-end against a REAL PostgreSQL
 // database and a REAL metaDB: the capture policy and its gates, the budget at scale,
 // and the periodic ticker.
-func TestSourceCapture(t *testing.T) {
+func TestSchemaSnapshotCapture(t *testing.T) {
 	// One container for every group below. Each group gets its own schema and its own
 	// metaDB, but they must share the container: startCaptureTestDB keys the container
 	// registry off the config, so two groups asking for the same key would have the
@@ -81,12 +81,12 @@ func TestSourceCapture(t *testing.T) {
 	db, meta, stop := startCaptureTestDB(t, &testcontainers.ContainerConfig{})
 	t.Cleanup(stop)
 
-	t.Run("capture", func(t *testing.T) { testSourceCaptureBehaviour(t, db, meta) })
-	t.Run("large schema", func(t *testing.T) { testSourceCaptureLargeSchema(t, db, meta) })
-	t.Run("periodic ticker", func(t *testing.T) { testSourceCaptureStartPeriodic(t, db, meta) })
+	t.Run("capture", func(t *testing.T) { testSchemaSnapshotCaptureBehaviour(t, db, meta) })
+	t.Run("large schema", func(t *testing.T) { testSchemaSnapshotCaptureLargeSchema(t, db, meta) })
+	t.Run("periodic ticker", func(t *testing.T) { testSchemaSnapshotCaptureStartPeriodic(t, db, meta) })
 }
 
-func testSourceCaptureBehaviour(t *testing.T, db *sql.DB, meta schemasnapshot.DBMetadata) {
+func testSchemaSnapshotCaptureBehaviour(t *testing.T, db *sql.DB, meta schemasnapshot.DBMetadata) {
 	ctx := context.Background()
 	const schemaName = "capture_test"
 
@@ -98,7 +98,7 @@ func testSourceCaptureBehaviour(t *testing.T, db *sql.DB, meta schemasnapshot.DB
 	t.Cleanup(func() { execAll(t, db, `DROP SCHEMA IF EXISTS `+schemaName+` CASCADE`) })
 
 	mdb := newIntegrationTestMetaDB(t)
-	sc := newSource(db, meta, mdb, schemaName)
+	sc := newSchemaSnapshotCapture(db, meta, mdb, schemaName)
 
 	t.Run("happy path captures and persists a real snapshot", func(t *testing.T) {
 		require.NoError(t, sc.Capture(ctx, schemasnapshot.LabelExportSchema, "", true))
@@ -246,7 +246,7 @@ func testSourceCaptureBehaviour(t *testing.T, db *sql.DB, meta schemasnapshot.DB
 	})
 }
 
-// TestSourceCaptureLargeSchema verifies that the capture budget
+// TestSchemaSnapshotCaptureLargeSchema verifies that the capture budget
 // (schemasnapshot.CaptureTimeout) is enough to capture AND persist a large schema — the
 // only case where capture size matters (the fallback placeholder is metadata-only and
 // does not scale). Because the capture is bounded by CaptureTimeout, a real snapshot is
@@ -257,7 +257,7 @@ func testSourceCaptureBehaviour(t *testing.T, db *sql.DB, meta schemasnapshot.DB
 // Note: on a healthy testcontainer this proves "the budget is ample for size", not "the
 // budget survives a slow/loaded/high-latency source" — that adverse case isn't
 // deterministically reproducible here.
-func testSourceCaptureLargeSchema(t *testing.T, db *sql.DB, meta schemasnapshot.DBMetadata) {
+func testSchemaSnapshotCaptureLargeSchema(t *testing.T, db *sql.DB, meta schemasnapshot.DBMetadata) {
 	ctx := context.Background()
 
 	const (
@@ -277,7 +277,7 @@ END $$;`, numTables, schemaName)
 	t.Cleanup(func() { execAll(t, db, `DROP SCHEMA IF EXISTS `+schemaName+` CASCADE`) })
 
 	mdb := newIntegrationTestMetaDB(t)
-	sc := newSource(db, meta, mdb, schemaName)
+	sc := newSchemaSnapshotCapture(db, meta, mdb, schemaName)
 
 	start := time.Now()
 	require.NoError(t, sc.Capture(ctx, schemasnapshot.LabelExportSchema, "", true))
@@ -300,7 +300,7 @@ END $$;`, numTables, schemaName)
 		"captured snapshot must include all %d seeded tables", numTables)
 }
 
-// TestSourceCaptureStartPeriodic exercises the periodic-capture ticker directly, with
+// TestSchemaSnapshotCaptureStartPeriodic exercises the periodic-capture ticker directly, with
 // the interval passed as a parameter (the reason the interval is an argument rather than
 // a global read): a sub-minute value is impossible via the real
 // --schema-snapshot-capture-interval flag, which is in minutes with a 1-minute floor.
@@ -310,7 +310,7 @@ END $$;`, numTables, schemaName)
 // The exporter-role gate is NOT covered here: it lives at cmd's call site, since the
 // role is a command concern. It is exercised by the command-level and live E2E tests,
 // both of which run as the source exporter.
-func testSourceCaptureStartPeriodic(t *testing.T, db *sql.DB, meta schemasnapshot.DBMetadata) {
+func testSchemaSnapshotCaptureStartPeriodic(t *testing.T, db *sql.DB, meta schemasnapshot.DBMetadata) {
 	const schemaName = "tickerschema"
 
 	execAll(t, db,
@@ -320,7 +320,7 @@ func testSourceCaptureStartPeriodic(t *testing.T, db *sql.DB, meta schemasnapsho
 	t.Cleanup(func() { execAll(t, db, `DROP SCHEMA IF EXISTS `+schemaName+` CASCADE`) })
 
 	mdb := newIntegrationTestMetaDB(t)
-	sc := newSource(db, meta, mdb, schemaName)
+	sc := newSchemaSnapshotCapture(db, meta, mdb, schemaName)
 
 	countPeriodic := func() int {
 		return countLabel(t, mdb, schemasnapshot.LabelExportDataFromSourcePeriodic)

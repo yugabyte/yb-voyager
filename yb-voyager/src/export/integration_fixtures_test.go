@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package schemacapture_test
+package export_test
 
 import (
 	"context"
@@ -34,10 +34,10 @@ import (
 // startCaptureTestDB starts a postgres container and returns a live connection, its
 // display coordinates, and a cleanup func.
 //
-// Deliberately seeds nothing: schemasnapshot's equivalent fixture builds a canonical
-// schema for testing catalog-read fidelity, which is that package's concern. The tests
-// here are about capture policy and create whatever schema they need, so this only needs
-// the container plumbing.
+// Deliberately seeds nothing, so it serves any integration test in this package.
+// schemasnapshot's equivalent fixture builds a canonical schema for testing catalog-read
+// fidelity, which is that package's concern; the tests here create whatever schema they
+// need, so this is container plumbing only.
 func startCaptureTestDB(t *testing.T, cfg *testcontainers.ContainerConfig) (*sql.DB, schemasnapshot.DBMetadata, func()) {
 	t.Helper()
 	ctx := context.Background()

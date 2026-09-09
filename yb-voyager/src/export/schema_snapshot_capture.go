@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package schemacapture
+package export
 
 import (
 	"context"
@@ -28,14 +28,14 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 )
 
-// Source is the source-side capture policy over schemasnapshot.CaptureAndSaveSnapshot: is
+// SchemaSnapshotCapture is the source-side schema-snapshot capture policy over schemasnapshot.CaptureAndSaveSnapshot: is
 // capture live at all, bound every attempt by schemasnapshot.CaptureTimeout, fall back to a
 // placeholder, and optionally tick on a schedule.
 //
 // Everything it needs is a field, so it carries no dependency on command state. The
 // caller resolves those once -- see cmd's sourceCapture() -- and owns the exporter-role
 // gate, which is a command concern rather than a capture one.
-type Source struct {
+type SchemaSnapshotCapture struct {
 	// DB is the live source connection. A nil DB is treated as "gone during
 	// teardown" rather than a programming error, since exit captures race the
 	// connection being closed.
@@ -54,7 +54,7 @@ type Source struct {
 // Enabled reports whether capture is live at all: PostgreSQL source, not disabled. It
 // also returns why it is not, so a caller that wants to say so logs the specific reason
 // rather than a generic one.
-func (c Source) Enabled() (bool, string) {
+func (c SchemaSnapshotCapture) Enabled() (bool, string) {
 	if c.Params.DatabaseType != constants.POSTGRESQL {
 		return false, "only PostgreSQL sources are supported"
 	}
@@ -73,7 +73,7 @@ func (c Source) Enabled() (bool, string) {
 // The caller decides what a failure means. Today every caller is an export hook that
 // logs and carries on, because schema capture is off the data path and must never fail
 // or stall an export.
-func (c Source) Capture(ctx context.Context, label, reason string, placeholderOnFailure bool) error {
+func (c SchemaSnapshotCapture) Capture(ctx context.Context, label, reason string, placeholderOnFailure bool) error {
 	if enabled, why := c.Enabled(); !enabled {
 		log.Infof("schema-snapshot capture skipped for label %q: %s", label, why)
 		return nil
@@ -113,7 +113,7 @@ func (c Source) Capture(ctx context.Context, label, reason string, placeholderOn
 // there is no separate stop function.
 //
 // Best-effort: a no-op when capture is not enabled or interval <= 0.
-func (c Source) StartPeriodic(ctx context.Context, interval time.Duration) {
+func (c SchemaSnapshotCapture) StartPeriodic(ctx context.Context, interval time.Duration) {
 	if enabled, _ := c.Enabled(); !enabled {
 		return
 	}
@@ -144,7 +144,7 @@ func (c Source) StartPeriodic(ctx context.Context, interval time.Duration) {
 //
 // It uses its OWN fresh, bounded context: the capture context may be exactly what died,
 // and reusing it would drop the marker just when it is needed.
-func (c Source) RecordPlaceholder(label, reason string) {
+func (c SchemaSnapshotCapture) RecordPlaceholder(label, reason string) {
 	if enabled, _ := c.Enabled(); !enabled {
 		return
 	}

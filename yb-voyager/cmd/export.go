@@ -25,8 +25,8 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/export"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemacapture"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -306,12 +306,12 @@ func validateSchemaSnapshotCaptureInterval(cmd *cobra.Command) error {
 //
 // A source that is not a *srcdb.PostgreSQL yields a nil DB rather than an error: the
 // capture's own gate rejects non-PostgreSQL sources first, so the handle is never used.
-func sourceCapture() schemacapture.Source {
+func sourceCapture() export.SchemaSnapshotCapture {
 	var db *sql.DB
 	if pg, ok := source.DB().(*srcdb.PostgreSQL); ok {
 		db = pg.GetDB()
 	}
-	return schemacapture.Source{
+	return export.SchemaSnapshotCapture{
 		DB:     db,
 		MetaDB: metaDB,
 		Params: schemasnapshot.CaptureParams{
