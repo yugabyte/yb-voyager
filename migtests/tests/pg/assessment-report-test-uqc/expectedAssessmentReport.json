@@ -158,7 +158,7 @@
             "CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
             "Type": "LISTEN_NOTIFY",
             "Name": "Events Listen / Notify",
-            "Description": "LISTEN / NOTIFY is not supported yet in YugabyteDB. This feature is available as Early Access (EA) in the target version (2025.2.3.0) — backwards-compatible and supported under SLA; validate with the Yugabyte team before production use, and is not enabled by default. Enable with the flag(s): ysql_yb_enable_listen_notify.",
+            "Description": "LISTEN / NOTIFY is not supported yet in YugabyteDB. This feature is available as Early Access (EA) in the target version (2025.2.4.0) — backwards-compatible and supported under SLA; validate with the Yugabyte team before production use, and is not enabled by default. Enable with the flag(s): ysql_yb_enable_listen_notify.",
             "Impact": "LEVEL_2",
             "ObjectType": "",
             "ObjectName": "",
