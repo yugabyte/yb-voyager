@@ -876,6 +876,11 @@ func exportData() (ok bool) {
 				captureExportDataExitSnapshot(ctx, successReason)
 				return
 			}
+			// The reason here is interrupt OR error, not always error. A signal does not
+			// unwind to this defer (see above), but it does kill the in-flight child, so
+			// the export reports failure and can still reach this path -- racing os.Exit
+			// -- with ProcessShutdownRequested set. exportDataExitReason tells them apart.
+			//
 			// Background, not ctx: a failing path may already have cancelled ctx
 			// (exportDataOffline cancels on its quit path), which would abort the
 			// capture just when the drifted end-state matters most.
