@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -295,6 +297,29 @@ func validateSchemaSnapshotCaptureInterval(cmd *cobra.Command) error {
 			schemaSnapshotCaptureInterval)
 	}
 	return nil
+}
+
+// sourceCapture resolves the command globals into a schemasnapshot.SourceCapture, which
+// holds the capture policy itself. This adapter is the only place that reads them, so
+// the policy stays testable without command state.
+//
+// A source that is not a *srcdb.PostgreSQL yields a nil DB rather than an error: the
+// capture's own gate rejects non-PostgreSQL sources first, so the handle is never used.
+func sourceCapture() schemasnapshot.SourceCapture {
+	var db *sql.DB
+	if pg, ok := source.DB().(*srcdb.PostgreSQL); ok {
+		db = pg.GetDB()
+	}
+	return schemasnapshot.SourceCapture{
+		DB:     db,
+		MetaDB: metaDB,
+		DBType: source.DBType,
+		Metadata: schemasnapshot.DBMetadata{
+			Host: source.Host, Port: source.Port, Database: source.DBName, User: source.User,
+		},
+		Schemas:  source.GetSchemaListUnquoted(),
+		Disabled: bool(disableSchemaSnapshotCapture),
+	}
 }
 
 func validateSourceDBType() {

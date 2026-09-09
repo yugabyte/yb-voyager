@@ -852,7 +852,7 @@ func exportData() (ok bool) {
 	successReason := schemasnapshot.ReasonComplete
 
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
-		if err := captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourceStart, snapshotStartReason, true); err != nil {
+		if err := sourceCapture().Capture(ctx, schemasnapshot.LabelExportDataFromSourceStart, snapshotStartReason, true); err != nil {
 			log.Warnf("schema-snapshot start capture failed, export unaffected: %v", err)
 		}
 		// One ticker for the whole export -- snapshot AND streaming phases, offline and
@@ -865,7 +865,7 @@ func exportData() (ok bool) {
 		// which is registered earlier and so runs later -- and could persist a periodic
 		// snapshot timestamped after the exit one.
 		periodicCtx, stopPeriodic := context.WithCancel(ctx)
-		startPeriodicSourceSchemaSnapshotCapture(periodicCtx, time.Duration(schemaSnapshotCaptureInterval)*time.Minute)
+		sourceCapture().StartPeriodic(periodicCtx, time.Duration(schemaSnapshotCaptureInterval)*time.Minute)
 		registerExportDataExitSnapshotHook()
 
 		// One exit capture for EVERY return below, rather than one per return site.
@@ -1905,7 +1905,7 @@ var exportDataExitSnapshotCaptured atomic.Bool
 // captureExportDataExitSnapshot captures the exit snapshot and marks it captured, so
 // no later site fires a second one. Source-exporter only.
 //
-// The caller picks the context (captureSourceSchemaSnapshot caps it at
+// The caller picks the context (SourceCapture.Capture caps it at
 // schemasnapshot.CaptureTimeout either way): the run's own ctx on a clean exit, and
 // context.Background() wherever that ctx may already be cancelled -- the failing
 // export paths, and the atexit hook, which has no ctx at all.
@@ -1918,7 +1918,7 @@ func captureExportDataExitSnapshot(ctx context.Context, reason string) {
 		log.Infof("schema-snapshot exit capture already recorded; skipping the %q capture", reason)
 		return
 	}
-	if err := captureSourceSchemaSnapshot(ctx, schemasnapshot.LabelExportDataFromSourceExit, reason, true); err != nil {
+	if err := sourceCapture().Capture(ctx, schemasnapshot.LabelExportDataFromSourceExit, reason, true); err != nil {
 		log.Warnf("schema-snapshot exit capture (%s) failed, migration unaffected: %v", reason, err)
 	}
 }
