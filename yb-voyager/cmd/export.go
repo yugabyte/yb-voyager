@@ -313,11 +313,13 @@ func sourceCapture() schemasnapshot.SourceCapture {
 	return schemasnapshot.SourceCapture{
 		DB:     db,
 		MetaDB: metaDB,
-		DBType: source.DBType,
-		Metadata: schemasnapshot.DBMetadata{
-			Host: source.Host, Port: source.Port, Database: source.DBName, User: source.User,
+		Params: schemasnapshot.CaptureParams{
+			DatabaseType: source.DBType,
+			DBMetadata: schemasnapshot.DBMetadata{
+				Host: source.Host, Port: source.Port, Database: source.DBName, User: source.User,
+			},
+			Schemas: source.GetSchemaListUnquoted(),
 		},
-		Schemas:  source.GetSchemaListUnquoted(),
 		Disabled: bool(disableSchemaSnapshotCapture),
 	}
 }

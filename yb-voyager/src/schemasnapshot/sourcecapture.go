@@ -32,8 +32,8 @@ import (
 // placeholder, and optionally tick on a schedule.
 //
 // Everything it needs is a field, so it carries no dependency on command state. The
-// caller resolves those once -- see cmd's captureSourceSchemaSnapshot -- and owns the
-// exporter-role gate, which is a command concern rather than a capture one.
+// caller resolves those once -- see cmd's sourceCapture() -- and owns the exporter-role
+// gate, which is a command concern rather than a capture one.
 type SourceCapture struct {
 	// DB is the live source connection. A nil DB is treated as "gone during
 	// teardown" rather than a programming error, since exit captures race the
@@ -41,9 +41,10 @@ type SourceCapture struct {
 	DB     *sql.DB
 	MetaDB *metadb.MetaDB
 
-	DBType   string
-	Metadata DBMetadata
-	Schemas  []string
+	// Params describes what to capture. Label and Reason are per-call, so Capture
+	// sets them and callers leave them zero here. Held rather than mirrored field by
+	// field, so a new CaptureParams field needs no change to this struct.
+	Params CaptureParams
 
 	// Disabled mirrors --disable-schema-snapshot-capture.
 	Disabled bool
@@ -53,7 +54,7 @@ type SourceCapture struct {
 // also returns why it is not, so a caller that wants to say so logs the specific reason
 // rather than a generic one.
 func (c SourceCapture) Enabled() (bool, string) {
-	if c.DBType != constants.POSTGRESQL {
+	if c.Params.DatabaseType != constants.POSTGRESQL {
 		return false, "only PostgreSQL sources are supported"
 	}
 	if c.Disabled {
@@ -95,16 +96,9 @@ func (c SourceCapture) Capture(ctx context.Context, label, reason string, placeh
 	// Every capture is persisted unconditionally — no dedup. Periodic snapshots record the
 	// source schema at each interval so the drift timeline shows exactly when a change
 	// appeared, even when consecutive snapshots are identical.
-	req := CaptureRequest{
-		CaptureParams: CaptureParams{
-			DatabaseType: c.DBType,
-			DBMetadata:   c.Metadata,
-			Schemas:      c.Schemas,
-			Label:        label,
-			Reason:       reason,
-		},
-		PlaceholderOnFailure: placeholderOnFailure,
-	}
+	p := c.Params
+	p.Label, p.Reason = label, reason
+	req := CaptureRequest{CaptureParams: p, PlaceholderOnFailure: placeholderOnFailure}
 	name, err := CaptureAndSaveSnapshot(ctx, c.DB, c.MetaDB, req)
 	if err != nil {
 		return err
@@ -160,7 +154,7 @@ func (c SourceCapture) RecordPlaceholder(label, reason string) {
 		Reason:        reason,
 		Side:          SideSource,
 		CapturedAt:    time.Now().UTC(),
-		Schemas:       c.Schemas,
+		Schemas:       c.Params.Schemas,
 		IsPlaceholder: true,
 	}
 	if _, err := SavePlaceholder(ctx, c.MetaDB, h); err != nil {

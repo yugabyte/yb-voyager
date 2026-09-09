@@ -37,11 +37,13 @@ import (
 // state, so these tests live next to the code they test rather than in package cmd.
 func newSourceCapture(db *sql.DB, meta schemasnapshot.DBMetadata, mdb *metadb.MetaDB, schemas ...string) schemasnapshot.SourceCapture {
 	return schemasnapshot.SourceCapture{
-		DB:       db,
-		MetaDB:   mdb,
-		DBType:   constants.POSTGRESQL,
-		Metadata: meta,
-		Schemas:  schemas,
+		DB:     db,
+		MetaDB: mdb,
+		Params: schemasnapshot.CaptureParams{
+			DatabaseType: constants.POSTGRESQL,
+			DBMetadata:   meta,
+			Schemas:      schemas,
+		},
 	}
 }
 
@@ -139,7 +141,7 @@ func testSourceCaptureBehaviour(t *testing.T, db *sql.DB, meta schemasnapshot.DB
 		require.NoError(t, err)
 
 		other := sc
-		other.DBType = constants.ORACLE
+		other.Params.DatabaseType = constants.ORACLE
 		require.NoError(t, other.Capture(ctx, schemasnapshot.LabelExportSchema, "", true),
 			"a skip is not an error")
 
