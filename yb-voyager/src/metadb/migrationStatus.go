@@ -17,6 +17,7 @@ package metadb
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -119,7 +120,6 @@ type MigrationStatusRecord struct {
 	//Iteration specific details
 	ExportDataFromSourceStarted bool `json:"ExportDataFromSourceStarted"`
 	ImportDataToTargetStarted   bool `json:"ImportDataToTargetStarted"`
-
 }
 
 type CutoverTimingRecord struct {
@@ -146,7 +146,10 @@ type CutoverTimingRecord struct {
 	ExportFromTargetFallBackStartedAt    time.Time `json:"ExportFromTargetFallBackStartedAt,omitempty"`
 }
 
-const MIGRATION_STATUS_KEY = "migration_status"
+const (
+	MIGRATION_STATUS_KEY    = "migration_status"
+	migrationUUIDEnvVarName = "YB_VOYAGER_MIGRATION_UUID"
+)
 
 func (m *MetaDB) UpdateMigrationStatusRecord(updateFn func(*MigrationStatusRecord)) error {
 	return UpdateJsonObjectInMetaDB(m, MIGRATION_STATUS_KEY, updateFn)
@@ -165,6 +168,19 @@ func (m *MetaDB) GetMigrationStatusRecord() (*MigrationStatusRecord, error) {
 }
 
 func (m *MetaDB) InitMigrationStatusRecord(cfgFile string) error {
+	record, err := m.GetMigrationStatusRecord()
+	if err != nil {
+		return err
+	}
+	if record != nil && record.MigrationUUID != "" {
+		return nil // already initialized
+	}
+
+	migrationUUID, err := externalOrNewMigrationUUID()
+	if err != nil {
+		return err
+	}
+
 	return m.UpdateMigrationStatusRecord(func(record *MigrationStatusRecord) {
 		if record != nil && record.MigrationUUID != "" {
 			return // already initialized
@@ -177,8 +193,25 @@ func (m *MetaDB) InitMigrationStatusRecord(cfgFile string) error {
 			record.ConfigFile = cfgFile
 		}
 
-		record.MigrationUUID = uuid.New().String()
+		record.MigrationUUID = migrationUUID
 	})
+}
+
+// externalOrNewMigrationUUID returns the migration UUID to use for a new migration.
+// If YB_VOYAGER_MIGRATION_UUID is unset, a fresh UUID is generated. If it is set but
+// not a valid UUID, an error is returned instead of silently falling back, so that an
+// external caller relying on this UUID for correlation is notified of the bad value.
+func externalOrNewMigrationUUID() (string, error) {
+	envVal := os.Getenv(migrationUUIDEnvVarName)
+	if envVal == "" {
+		return uuid.New().String(), nil
+	}
+
+	migrationUUID, err := uuid.Parse(envVal)
+	if err != nil {
+		return "", fmt.Errorf("invalid %s=%q: %w", migrationUUIDEnvVarName, envVal, err)
+	}
+	return migrationUUID.String(), nil
 }
 
 func (msr *MigrationStatusRecord) IsSnapshotExportedViaDebezium() bool {
