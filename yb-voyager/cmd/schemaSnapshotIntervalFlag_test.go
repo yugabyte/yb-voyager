@@ -28,10 +28,10 @@ import (
 // TestValidateSchemaSnapshotCaptureInterval pins the flag validation. An interval of 0
 // or less would silently disable periodic capture, so it must fail at startup instead.
 //
-// The last case is the one worth guarding: `export data from target` runs export data's
-// PreRun but never registers this flag, so the global sits at its 0 zero value there
-// (IntVar's default of 60 only applies where the flag is registered). Validating on the
-// value alone would break that command, hence the flag-presence check.
+// The last case pins the flag-presence scoping: with the flag absent from the command,
+// the guard no-ops whatever the global holds. It sets 0 explicitly to exercise that,
+// which a real `export data from target` run would not -- IntVar writes 60 into the
+// global at registration, so that scoping is defensive rather than load-bearing.
 func TestValidateSchemaSnapshotCaptureInterval(t *testing.T) {
 	orig := schemaSnapshotCaptureInterval
 	t.Cleanup(func() { schemaSnapshotCaptureInterval = orig })

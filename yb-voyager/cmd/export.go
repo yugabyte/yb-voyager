@@ -281,9 +281,11 @@ func registerSchemaSnapshotIntervalFlag(cmd *cobra.Command) {
 // validateSchemaSnapshotCaptureInterval rejects an interval that would silently turn
 // periodic capture off, so a bad value fails at startup instead of looking accepted.
 //
-// Scoped by flag presence, not by role: `export data from target` runs export data's
-// PreRun without registering this flag, so its global is still the 0 zero value (the
-// IntVar default only applies where the flag is registered) and would fail this check.
+// Scoped by flag presence on `cmd`: `export data from target` shares these package
+// globals but never registers this flag, so Lookup returns nil and the guard no-ops
+// there -- there is no value the user could have got wrong. The scoping is defensive
+// rather than load-bearing: IntVar writes its default into the global at registration,
+// which init() does on the source-side commands, so the global reads 60 process-wide.
 func validateSchemaSnapshotCaptureInterval(cmd *cobra.Command) error {
 	if cmd.Flags().Lookup("schema-snapshot-capture-interval") == nil {
 		return nil
