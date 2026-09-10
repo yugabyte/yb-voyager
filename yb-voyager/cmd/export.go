@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"database/sql"
 	"fmt"
 	"os"
 	"strings"
@@ -300,19 +299,22 @@ func validateSchemaSnapshotCaptureInterval(cmd *cobra.Command) error {
 	return nil
 }
 
-// sourceCapture resolves the command globals into a schemasnapshot.SourceCapture, which
+// sourceCapture resolves the command globals into an export.SchemaSnapshotCapture, which
 // holds the capture policy itself. This adapter is the only place that reads them, so
 // the policy stays testable without command state.
-//
-// A source that is not a *srcdb.PostgreSQL yields a nil DB rather than an error: the
-// capture's own gate rejects non-PostgreSQL sources first, so the handle is never used.
 func sourceCapture() export.SchemaSnapshotCapture {
-	var db *sql.DB
-	if pg, ok := source.DB().(*srcdb.PostgreSQL); ok {
-		db = pg.GetDB()
+	// Not a PostgreSQL source: nothing is capturable, so don't resolve the rest. The
+	// zero value's own gate reports "only PostgreSQL sources are supported".
+	//
+	// Only the type assertion short-circuits here, not a nil handle: a PostgreSQL source
+	// whose connection has already been closed must still reach the capture, which
+	// records a placeholder for the lifecycle moment.
+	pg, ok := source.DB().(*srcdb.PostgreSQL)
+	if !ok {
+		return export.SchemaSnapshotCapture{}
 	}
 	return export.SchemaSnapshotCapture{
-		DB:     db,
+		DB:     pg.GetDB(),
 		MetaDB: metaDB,
 		Params: schemasnapshot.CaptureParams{
 			DatabaseType: source.DBType,
