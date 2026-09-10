@@ -62,6 +62,7 @@ func TestYugabyteDTableSchema(t *testing.T) {
 	assert.NoError(t, err)
 	// Export the database connection string to env variable YUGABYTED_DB_CONN_STRING
 	err = os.Setenv("YUGABYTED_DB_CONN_STRING", dsn)
+	assert.NoError(t, err)
 
 	exportDir := filepath.Join(os.TempDir(), "yugabyted")
 

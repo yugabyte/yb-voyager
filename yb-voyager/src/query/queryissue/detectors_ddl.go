@@ -190,11 +190,11 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 
 		}
 	}
+	unsupportedDatatypes := srcdb.PostgresUnsupportedDataTypes
+	liveUnsupportedDatatypes := srcdb.PostgresUnsupportedDataTypesForDbzm
+	liveWithFfOrFbUnsupportedDatatypes := srcdb.GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes()
 	for _, col := range table.Columns {
-		liveUnsupportedDatatypes := srcdb.GetPGLiveMigrationUnsupportedDatatypes()
-		liveWithFfOrFbUnsupportedDatatypes := srcdb.GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes()
-
-		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(srcdb.PostgresUnsupportedDataTypes, col.TypeName)
+		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(unsupportedDatatypes, col.TypeName)
 		isUnsupportedDatatypeInLive := utils.ContainsAnyStringFromSlice(liveUnsupportedDatatypes, col.TypeName)
 
 		isUnsupportedDatatypeInLiveWithFFOrFBList := utils.ContainsAnyStringFromSlice(liveWithFfOrFbUnsupportedDatatypes, col.TypeName)
@@ -203,7 +203,8 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 
 		if isUnsupportedDatatype {
 			issues = append(issues, ReportUnsupportedDatatypes(col.TypeName, col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
-		} else if isUnsupportedDatatypeInLive {
+		}
+		if isUnsupportedDatatypeInLive {
 			issues = append(issues, ReportUnsupportedDatatypesInLive(col.TypeName, col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
 		} else if isUnsupportedDatatypeInLiveWithFFOrFB {
 			//reporting only for TABLE Type  as we don't deal with FOREIGN TABLE in live migration
@@ -568,6 +569,134 @@ func ReportUnsupportedDatatypesInLive(baseTypeName string, columnName string, ob
 		)
 	case "timetz":
 		issue = NewTimetzDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "xml":
+		issue = NewXMLLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "geometry":
+		issue = NewGeometryLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "geography":
+		issue = NewGeographyLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "box2d":
+		issue = NewBox2DLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "box3d":
+		issue = NewBox3DLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "topogeometry":
+		issue = NewTopogeometryLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "raster":
+		issue = NewRasterLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "pg_lsn":
+		issue = NewPgLsnLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "txid_snapshot":
+		issue = NewTxidSnapshotLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "lo":
+		issue = NewLOLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			"LARGE OBJECT",
+			columnName,
+		)
+	case "int4multirange":
+		issue = NewInt4MultiRangeLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "int8multirange":
+		issue = NewInt8MultiRangeLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "nummultirange":
+		issue = NewNumMultiRangeLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "tsmultirange":
+		issue = NewTSMultiRangeLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "tstzmultirange":
+		issue = NewTSTZMultiRangeLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "datemultirange":
+		issue = NewDateMultiRangeLiveMigrationDatatypeIssue(
 			objType,
 			objName,
 			"",

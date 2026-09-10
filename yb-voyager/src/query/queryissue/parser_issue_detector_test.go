@@ -2810,21 +2810,19 @@ func TestGetSupportedVersions(t *testing.T) {
 }
 
 func TestBuildExperimentalMaturityAnnotation(t *testing.T) {
-	v := ybversion.V2025_2_0_0
-
 	// TP, with flags.
 	assert.Equal(t,
-		fmt.Sprintf("This feature is available as Tech Preview (TP) in the target version (2025.2.0.0) — %s, and is not enabled by default. Enable with the flag(s): yb_enable_foo=true, yb_bar=64.", constants.TP_MATURITY_CAVEAT),
-		buildExperimentalMaturityAnnotation(constants.MATURITY_TP, v, []string{"yb_enable_foo=true", "yb_bar=64"}))
+		fmt.Sprintf("This feature is available as Tech Preview (TP) in the target version — %s, and is not enabled by default. Enable with the flag(s): yb_enable_foo=true, yb_bar=64.", constants.TP_MATURITY_CAVEAT),
+		buildExperimentalMaturityAnnotation(constants.MATURITY_TP, []string{"yb_enable_foo=true", "yb_bar=64"}))
 
 	// EA, no flags -> no "Enable with" sentence.
 	assert.Equal(t,
-		fmt.Sprintf("This feature is available as Early Access (EA) in the target version (2025.2.0.0) — %s, and is not enabled by default.", constants.EA_MATURITY_CAVEAT),
-		buildExperimentalMaturityAnnotation(constants.MATURITY_EA, v, nil))
+		fmt.Sprintf("This feature is available as Early Access (EA) in the target version — %s, and is not enabled by default.", constants.EA_MATURITY_CAVEAT),
+		buildExperimentalMaturityAnnotation(constants.MATURITY_EA, nil))
 
 	// Non-experimental maturities produce no annotation.
-	assert.Empty(t, buildExperimentalMaturityAnnotation(constants.MATURITY_GA, v, nil))
-	assert.Empty(t, buildExperimentalMaturityAnnotation(constants.MATURITY_UNSUPPORTED, v, nil))
+	assert.Empty(t, buildExperimentalMaturityAnnotation(constants.MATURITY_GA, nil))
+	assert.Empty(t, buildExperimentalMaturityAnnotation(constants.MATURITY_UNSUPPORTED, nil))
 }
 
 func TestBuildNativeResolutionRecommendation(t *testing.T) {
@@ -2832,17 +2830,17 @@ func TestBuildNativeResolutionRecommendation(t *testing.T) {
 
 	// Resolution is TP in the target version.
 	assert.Equal(t,
-		fmt.Sprintf("Consider using bucket-based indexes — available as Tech Preview (TP) in the target version (2025.2.1.0) — %s, and is not enabled by default. Enable with the flag(s): yb_enable_derived_saops=true, yb_max_saop_merge_streams=64.", constants.TP_MATURITY_CAVEAT),
-		buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_TP, ybversion.V2025_2_1_0, "", flags))
+		fmt.Sprintf("Consider using bucket-based indexes — available as Tech Preview (TP) in the target version — %s, and is not enabled by default. Enable with the flag(s): yb_enable_derived_saops=true, yb_max_saop_merge_streams=64.", constants.TP_MATURITY_CAVEAT),
+		buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_TP, "", flags))
 
 	// Resolution not in target yet, but available later (UNSUPPORTED maturity + supportedVersions).
 	assert.Equal(t,
 		"Consider using bucket-based indexes — available in >=2025.2.1.0 (2025.2 series) (TP). Enable with the flag(s): yb_enable_derived_saops=true, yb_max_saop_merge_streams=64.",
-		buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_UNSUPPORTED, ybversion.V2024_2_0_0, ">=2025.2.1.0 (2025.2 series) (TP)", flags))
+		buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_UNSUPPORTED, ">=2025.2.1.0 (2025.2 series) (TP)", flags))
 
 	// No resolution name, or unsupported with no later versions -> empty.
-	assert.Empty(t, buildNativeResolutionRecommendation("", constants.MATURITY_TP, ybversion.V2025_2_1_0, "", flags))
-	assert.Empty(t, buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_UNSUPPORTED, ybversion.V2024_2_0_0, "", flags))
+	assert.Empty(t, buildNativeResolutionRecommendation("", constants.MATURITY_TP, "", flags))
+	assert.Empty(t, buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_UNSUPPORTED, "", flags))
 }
 
 func TestCheckIssueSupportMaturityInTDBVersionFeature(t *testing.T) {
@@ -2864,7 +2862,7 @@ func TestCheckIssueSupportMaturityInTDBVersionFeature(t *testing.T) {
 
 	// TP-in-target -> experimental annotation (composed via the same helper).
 	assert.Equal(t,
-		buildExperimentalMaturityAnnotation(constants.MATURITY_TP, ybversion.V2025_2_0_0, []string{"yb_enable_some_tp_feature=true"}),
+		buildExperimentalMaturityAnnotation(constants.MATURITY_TP, []string{"yb_enable_some_tp_feature=true"}),
 		CheckIssueSupportMaturityInTDBVersion(qi, ybversion.V2025_2_0_0))
 
 	// No target version -> nothing to add.
@@ -2896,11 +2894,133 @@ func TestCheckIssueSupportMaturityInTDBVersionPerf(t *testing.T) {
 
 	// Resolution available (TP) in the target version: native-resolution recommendation.
 	assert.Equal(t,
-		buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_TP, ybversion.V2025_2_1_0, supportedVersions, flags),
+		buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_TP, supportedVersions, flags),
 		CheckIssueSupportMaturityInTDBVersion(newQi(), ybversion.V2025_2_1_0))
 
 	// Older target: resolution not in target yet, recommendation lists where it lands.
 	assert.Equal(t,
-		buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_UNSUPPORTED, ybversion.V2024_2_0_0, supportedVersions, flags),
+		buildNativeResolutionRecommendation("bucket-based indexes", constants.MATURITY_UNSUPPORTED, supportedVersions, flags),
 		CheckIssueSupportMaturityInTDBVersion(newQi(), ybversion.V2024_2_0_0))
+}
+
+// Every live-migration datatype issue that has an offline "unsupported datatype"
+// counterpart. ShouldFilterOutIssue must drop the live caveat exactly when the
+// offline issue survived target-version filtering (i.e. is present in the map).
+// Keep in sync with the switch in ShouldFilterOutIssue — a pair added there
+// without a case here (or vice versa) fails TestShouldFilterOutIssue.
+var liveToOfflineDatatypePairs = map[string]string{
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XML:            UNSUPPORTED_DATATYPE_XML,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LARGE_OBJECT:   UNSUPPORTED_DATATYPE_LARGE_OBJECT,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_INT4MULTIRANGE: UNSUPPORTED_DATATYPE_INT4MULTIRANGE,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_INT8MULTIRANGE: UNSUPPORTED_DATATYPE_INT8MULTIRANGE,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_NUMMULTIRANGE:  UNSUPPORTED_DATATYPE_NUMMULTIRANGE,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TSMULTIRANGE:   UNSUPPORTED_DATATYPE_TSMULTIRANGE,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TSTZMULTIRANGE: UNSUPPORTED_DATATYPE_TSTZMULTIRANGE,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DATEMULTIRANGE: UNSUPPORTED_DATATYPE_DATEMULTIRANGE,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_GEOMETRY:       UNSUPPORTED_DATATYPE_GEOMETRY,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_GEOGRAPHY:      UNSUPPORTED_DATATYPE_GEOGRAPHY,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX2D:          UNSUPPORTED_DATATYPE_BOX2D,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX3D:          UNSUPPORTED_DATATYPE_BOX3D,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TOPOGEOMETRY:   UNSUPPORTED_DATATYPE_TOPOGEOMETRY,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RASTER:         UNSUPPORTED_DATATYPE_RASTER,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_PG_LSN:         UNSUPPORTED_DATATYPE_PG_LSN,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TXID_SNAPSHOT:  UNSUPPORTED_DATATYPE_TXID_SNAPSHOT,
+}
+
+func issueOfType(issueType string) QueryIssue {
+	return QueryIssue{Issue: issue.Issue{Type: issueType}}
+}
+
+func TestShouldFilterOutIssue(t *testing.T) {
+	// Each pair: the live caveat is filtered iff its offline counterpart is present.
+	for liveType, offlineType := range liveToOfflineDatatypePairs {
+		t.Run(liveType, func(t *testing.T) {
+			withOffline := map[string]bool{offlineType: true}
+			assert.True(t, ShouldFilterOutIssue(issueOfType(liveType), withOffline),
+				"live issue must be filtered when its offline counterpart is reported")
+
+			assert.False(t, ShouldFilterOutIssue(issueOfType(liveType), map[string]bool{}),
+				"live issue must be kept when the offline counterpart was version-filtered")
+
+			// The offline issue itself must never be filtered.
+			assert.False(t, ShouldFilterOutIssue(issueOfType(offlineType), withOffline))
+		})
+	}
+
+	// A fully populated map of every offline type must not filter anything except
+	// the paired live caveats.
+	allOffline := make(map[string]bool)
+	for _, offlineType := range liveToOfflineDatatypePairs {
+		allOffline[offlineType] = true
+	}
+
+	// Live-migration-only datatypes (no offline counterpart) are never filtered.
+	liveOnlyTypes := []string{
+		UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POINT,
+		UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LINE,
+		UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LSEG,
+		UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX,
+		UNSUPPORTED_DATATYPE_LIVE_MIGRATION_PATH,
+		UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POLYGON,
+		UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CIRCLE,
+		UNSUPPORTED_DATATYPE_LIVE_MIGRATION_VECTOR,
+		UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ,
+	}
+	for _, liveOnlyType := range liveOnlyTypes {
+		assert.False(t, ShouldFilterOutIssue(issueOfType(liveOnlyType), allOffline),
+			"live-only datatype %s must never be filtered", liveOnlyType)
+	}
+
+	// Non-datatype issues are never filtered.
+	assert.False(t, ShouldFilterOutIssue(issueOfType(INHERITANCE), allOffline))
+
+	// Pairing is per-type: an unrelated offline type must not filter a live caveat.
+	assert.False(t, ShouldFilterOutIssue(issueOfType(UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XML),
+		map[string]bool{UNSUPPORTED_DATATYPE_GEOMETRY: true}))
+}
+
+func TestFinalizeIssues(t *testing.T) {
+	offlineXML := issueOfType(UNSUPPORTED_DATATYPE_XML)
+	liveXML := issueOfType(UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XML)
+	livePoint := issueOfType(UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POINT)
+	inheritance := issueOfType(INHERITANCE)
+
+	// Offline xml survived version filtering: its live caveat is dropped,
+	// everything else passes through in order.
+	assert.Equal(t,
+		[]QueryIssue{offlineXML, livePoint, inheritance},
+		finalizeIssues([]QueryIssue{offlineXML, liveXML, livePoint, inheritance}))
+
+	// Offline xml was version-filtered (target >= fixed-in): the live caveat stays.
+	assert.Equal(t,
+		[]QueryIssue{liveXML, livePoint},
+		finalizeIssues([]QueryIssue{liveXML, livePoint}))
+
+	// Dedupe is type-level: one surviving offline issue drops the live caveats of
+	// all columns of that type in the statement.
+	assert.Equal(t,
+		[]QueryIssue{offlineXML},
+		finalizeIssues([]QueryIssue{liveXML, offlineXML, liveXML}))
+
+	// Empty input stays empty.
+	assert.Empty(t, finalizeIssues(nil))
+}
+
+// End-to-end version gate through the public API: a version-gated datatype (xml,
+// fixed-in 2026.1) is reported as the offline unsupported-datatype issue below the
+// fixed-in version and only as the live-migration caveat from it.
+func TestXMLDatatypeVersionGateThroughGetDDLIssues(t *testing.T) {
+	stmt := `CREATE TABLE test_xml_gate(id int, data xml);`
+
+	issues, err := NewParserIssueDetector().GetDDLIssues(stmt, ybversion.V2025_2_0_0)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(issues))
+	assert.True(t, cmp.Equal(NewXMLDatatypeIssue("TABLE", "test_xml_gate", stmt, "XML", "data"), issues[0]),
+		"expected offline xml datatype issue below 2026.1, got: %v", issues[0])
+
+	issues, err = NewParserIssueDetector().GetDDLIssues(stmt, ybversion.V2026_1_0_0)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(issues))
+	assert.True(t, cmp.Equal(NewXMLLiveMigrationDatatypeIssue("TABLE", "test_xml_gate", stmt, "XML", "data"), issues[0]),
+		"expected live-migration xml caveat from 2026.1, got: %v", issues[0])
 }

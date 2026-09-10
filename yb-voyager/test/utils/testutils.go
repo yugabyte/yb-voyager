@@ -113,6 +113,9 @@ func CheckTableStructureSqlite(db *sql.DB, tableName string, expectedColumns map
 			Default:    cp.Default,
 		}
 	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterating table info for %s: %w", tableName, err)
+	}
 
 	// Compare actual columns with expected columns
 	for colName, expectedProps := range expectedColumns {
@@ -174,6 +177,9 @@ func CheckTableStructurePG(t *testing.T, db *sql.DB, schema, table string, expec
 			t.Fatalf("Failed to scan column metadata: %v", err)
 		}
 		actualColumns[colName] = col
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("Failed iterating column metadata: %v", err)
 	}
 
 	// Compare columns
@@ -239,6 +245,9 @@ func checkPrimaryKeyOfTablePG(t *testing.T, db *sql.DB, schema, table string, ex
 		for _, col := range columns {
 			primaryKeyColumns[col] = true
 		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("Failed iterating primary keys: %v", err)
 	}
 
 	// Check if the primary key columns match the expected primary key columns
@@ -420,7 +429,7 @@ func CreateTempFile(dir string, fileContents string, fileFormat string) (string,
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }() // backstop; the success path checks Close below
 
 	// Write some text to the file
 	_, err = file.WriteString(fileContents)

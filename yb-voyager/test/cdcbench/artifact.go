@@ -409,7 +409,11 @@ func pollUntil(timeout, interval time.Duration, procDone <-chan error, cond func
 		}
 		select {
 		case err := <-procDone:
-			return fmt.Errorf("export data exited early: %v", err)
+			if err == nil {
+				// exec.Wait returns nil on a clean exit-0, which is still "too early" here
+				return fmt.Errorf("export data exited early with status 0")
+			}
+			return fmt.Errorf("export data exited early: %w", err)
 		case <-ticker.C:
 		}
 	}

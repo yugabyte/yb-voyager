@@ -19,6 +19,11 @@
 - Always handle the missing-key case when looking up table name mappings. A missing entry should produce an error, not a nil-pointer panic.
 - Document whether a function returns only leaf partitions, only roots, or both, as a comment on the function.
 
+## CDC Event Semantics
+
+- Respect per-operation field semantics of change events (Debezium conventions): an insert has only an after-image, a delete has only a before-image, an update has both. Logic that derives or merges event fields must branch on the operation type — do not apply update-shaped handling to inserts/deletes.
+- Column-name lookups against event fields must handle case-sensitive (quoted) identifiers — resolve through the attribute/name registry rather than comparing raw strings.
+
 ## Failpoint Testing
 
 - Failpoint-related code adds noise to production logic. Keep failpoint blocks as small as possible.

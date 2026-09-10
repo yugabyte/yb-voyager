@@ -170,7 +170,7 @@ func (pg *PostgresContainer) GetConnectionString() string {
 	config := pg.GetConfig()
 	host, port, err := pg.GetHostPort()
 	if err != nil {
-		utils.ErrExit("failed to get host port for postgres connection string: %v", err)
+		utils.ErrExit("failed to get host port for postgres connection string: %w", err)
 	}
 
 	return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?sslmode=disable", config.User, config.Password, host, port, config.DBName)
@@ -311,7 +311,7 @@ func (pg *PostgresContainer) Query(sql string, args ...interface{}) (*sql.Rows, 
 		return nil, fmt.Errorf("failed to get connection for postgres query: %w", err)
 	}
 	defer conn.Close()
-	rows, err := conn.Query(sql, args...)
+	rows, err := conn.Query(sql, args...) //nolint:sqlclosecheck // rows are returned to and closed by the caller
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query '%s': %w", sql, err)
 	}

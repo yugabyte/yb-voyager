@@ -105,7 +105,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 	}
 	columnSequenceMapping, err := getColumnToSequenceMapping(colToSeqMap)
 	if err != nil {
-		return nil, nil, goerrors.Errorf("getting column to sequence mapping %s", err)
+		return nil, nil, goerrors.Errorf("getting column to sequence mapping %w", err)
 	}
 
 	err = prepareSSLParamsForDebezium(absExportDir)
@@ -402,7 +402,7 @@ func debeziumExportData(config *dbzm.Config, tableNameToApproxRowCountMap map[st
 			record.SnapshotMechanism = "debezium"
 		})
 		if err != nil {
-			return goerrors.Errorf("update SnapshotMechanism: update migration status record: %s", err)
+			return goerrors.Errorf("update SnapshotMechanism: update migration status record: %w", err)
 		}
 	}
 
@@ -682,7 +682,7 @@ func createYBReplicationSlotAndPublication(tableList []sqlname.NameTuple, leafPa
 		record.YBPublicationName = publicationName
 	})
 	if err != nil {
-		return goerrors.Errorf("update YBReplicationSlotName: update migration status record: %s", err)
+		return goerrors.Errorf("update YBReplicationSlotName: update migration status record: %w", err)
 	}
 	return nil
 }

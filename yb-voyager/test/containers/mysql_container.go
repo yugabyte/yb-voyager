@@ -156,7 +156,7 @@ func (ms *MysqlContainer) GetConfig() ContainerConfig {
 func (ms *MysqlContainer) GetConnectionString() string {
 	host, port, err := ms.GetHostPort()
 	if err != nil {
-		utils.ErrExit("failed to get host port for mysql connection string: %v", err)
+		utils.ErrExit("failed to get host port for mysql connection string: %w", err)
 	}
 
 	// DSN format: user:password@tcp(host:port)/dbname
@@ -227,7 +227,7 @@ func (ms *MysqlContainer) Query(sql string, args ...interface{}) (*sql.Rows, err
 	}
 	defer db.Close()
 
-	rows, err := db.Query(sql, args...)
+	rows, err := db.Query(sql, args...) //nolint:sqlclosecheck // rows are returned to and closed by the caller
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
