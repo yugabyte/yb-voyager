@@ -407,7 +407,9 @@ public class YbExporterConsumer extends BaseChangeConsumer {
      * the producer delivers the next batch, and that batch's offsets are committed normally
      * against the new stream, so nothing is left outstanding. We could have swallowed the
      * exception here ourselves instead; the retry is kept in case debezium ever changes that
-     * else branch into something that fails.
+     * else branch into something that fails. The cost is that retrying holds up the restart:
+     * the engine thread cannot recreate the connection until this method returns, either
+     * because debezium skipped the flush or because the attempts ran out.
      */
     private void commitBatchOffsets(List<ChangeEvent<Object, Object>> changeEvents,
             DebeziumEngine.RecordCommitter<ChangeEvent<Object, Object>> committer)
