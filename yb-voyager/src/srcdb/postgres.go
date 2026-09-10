@@ -1226,7 +1226,7 @@ AND con.condeferrable
 AND (n.nspname, c.relname) IN (%s);`
 
 // GetTablesHavingUniqueAndPKDeferrableConstraint returns the tables out of tableList that have a
-// DEFERRABLE UNIQUE constraint. Returned names are unquoted qualified catalog names
+// DEFERRABLE UNIQUE and PRIMARY KEY constraint. Returned names are unquoted qualified catalog names
 // (NameTuple.AsQualifiedCatalogName()), preserving the case of the identifiers.
 func (pg *PostgreSQL) GetTablesHavingUniqueAndPKDeferrableConstraint(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
 	if len(tableList) == 0 {
