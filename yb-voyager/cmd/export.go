@@ -303,12 +303,9 @@ func validateSchemaSnapshotCaptureInterval(cmd *cobra.Command) error {
 // holds the capture policy itself. This adapter is the only place that reads them, so
 // the policy stays testable without command state.
 func sourceCapture() export.SchemaSnapshotCapture {
-	// Not a PostgreSQL source: nothing is capturable, so don't resolve the rest. The
-	// zero value's own gate reports "only PostgreSQL sources are supported".
-	//
-	// Only the type assertion short-circuits here, not a nil handle: a PostgreSQL source
-	// whose connection has already been closed must still reach the capture, which
-	// records a placeholder for the lifecycle moment.
+	// Non-PostgreSQL source: the zero value's own gate makes every capture a no-op, so
+	// nothing else is worth resolving. Only the assertion short-circuits -- a
+	// PostgreSQL source with no open connection still has to go through the capture.
 	pg, ok := source.DB().(*srcdb.PostgreSQL)
 	if !ok {
 		return export.SchemaSnapshotCapture{}
