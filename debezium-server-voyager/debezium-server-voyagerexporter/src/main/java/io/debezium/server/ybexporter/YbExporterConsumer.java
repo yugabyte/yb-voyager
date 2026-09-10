@@ -41,7 +41,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     private static final String TARGET_DB_EXPORTER_FF_ROLE = "target_db_exporter_ff";
     private static final String TARGET_DB_EXPORTER_FB_ROLE = "target_db_exporter_fb";
     private static final int OFFSET_COMMIT_MAX_ATTEMPTS = 5;
-    private static final long OFFSET_COMMIT_INITIAL_RETRY_DELAY_MS = 250;
+    private static final long OFFSET_COMMIT_RETRY_DELAY_MS = 1000;
     final Config config = ConfigProvider.getConfig();
     boolean ybGRPCConnectorEnabled;
     String snapshotMode;
@@ -381,54 +381,18 @@ public class YbExporterConsumer extends BaseChangeConsumer {
      * Marks every event in the batch processed and flushes the offsets, retrying while a
      * tablet split still has the replication stream closed.
      *
-     * <p><b>How the debezium side fits together.</b> Two threads matter. The <i>producer</i>
-     * thread (named {@code ...change-event-source-coordinator}) reads WAL from the source
-     * through a single {@code ReplicationStream}. The <i>engine</i> thread (named
-     * {@code pool-N-thread-M}) loops {@code EmbeddedEngine.run() -> pollRecords() ->
-     * handleBatch()}, and so is the thread running this method. Both use the same stream
-     * object, held in one {@code AtomicReference} on {@code PostgresStreamingChangeEventSource}:
-     * the producer reads from it, and the offset commit below writes a flushed LSN back to it.
+     * <p>The batch itself is already fsynced to the export queue by handleBatchComplete(), so
+     * only the offsets are at stake here. markBatchFinished() does two things: it persists the
+     * resume position to {@code data/offsets.<exporter-role>.dat}, then flushes the LSN to the
+     * source over the replication stream. A tablet split closes that stream, so only the second
+     * step fails (DB-20886).
      *
-     * <p>By the time we get here, {@code handleBatch()} has written every event of this batch
-     * to the export queue and {@code handleBatchComplete()} has fsynced it, so the exported
-     * data is durable no matter what the offset commit does. The commit is two distinct steps
-     * inside {@code markBatchFinished()}:
-     * <ol>
-     * <li>{@code offsetWriter.doFlush()} persists the resume position to
-     * {@code data/offsets.<exporter-role>.dat}. This is what debezium reads on restart.</li>
-     * <li>{@code task.commit() -> commitOffset() -> stream.flushLsn()} tells the source that
-     * WAL up to this LSN may be released. This is the only step that touches the stream, and
-     * therefore the only one that can fail here.</li>
-     * </ol>
-     * {@code markProcessed()} itself only records positions in memory; it never does I/O.
-     *
-     * <p><b>What a tablet split does.</b> It closes that shared stream, which surfaces twice.
-     * The producer's read fails with "Could not find the two split children" - debezium treats
-     * that as retriable, {@code ErrorHandler} stores it, and the engine thread restarts the
-     * connector on its next {@code poll()}. Independently, step 2 above throws
-     * "This replication stream has been closed" (DB-20886). Letting that second exception
-     * propagate exits the embedded engine <i>before</i> the restart runs, which is what turns a
-     * recoverable split into a fatal exporter crash. That is the bug this method prevents.
-     *
-     * <p><b>What a retry sees.</b> Depending on how far the producer's teardown has progressed,
-     * the retried commit hits one of two states: the stream is still present but closed, so
-     * {@code flushLsn()} throws again; or the reference has been cleared, and debezium's
-     * {@code commitOffset()} logs "Streaming has already stopped, ignoring commit callback..."
-     * and returns without flushing. Either way the batch is safe, and the next successful flush
-     * after the restart carries a newer LSN, so at worst one WAL-release hint is lost.
-     *
-     * <p><b>Why retry instead of skipping.</b> Skipping would only be safe because step 1 runs
-     * before step 2, leaving the resume position already durable when the throw arrives. If a
-     * future debezium release reorders those steps, a skip would leave the position unpersisted
-     * and the batch would be re-delivered after the restart - and dedup does not cover this
-     * path, because {@code parseEventId()} only populates {@code eventId} for postgresql and
-     * oracle while the fall-back connector reports {@code sourceType} "yb". Retrying re-runs the
-     * whole commit and so carries no assumption about that ordering.
-     *
-     * <p><b>Why the retries are bounded.</b> The restart runs on this same engine thread and
-     * cannot begin until we return, so an unbounded loop would block the very recovery it is
-     * waiting for. Backoff is 250/500/1000/2000 ms, i.e. at most ~3.75s before the original
-     * exception is rethrown, which stays far inside the source's CDC retention barrier.
+     * <p>Debezium is already restarting the connector for the same split, but that restart runs
+     * on this same thread, so letting the failure propagate exits the engine before the restart
+     * can happen and turns a recoverable split into a fatal crash. Retrying is preferred over
+     * skipping because skipping assumes the resume position was persisted before the throw,
+     * which is debezium-internal ordering we should not depend on. Retries stay bounded for the
+     * same reason the exception cannot propagate: the restart cannot begin until we return.
      */
     private void commitBatchOffsets(List<ChangeEvent<Object, Object>> changeEvents,
             DebeziumEngine.RecordCommitter<ChangeEvent<Object, Object>> committer)
@@ -454,11 +418,10 @@ public class YbExporterConsumer extends BaseChangeConsumer {
                             + "but the offsets could not be committed.", OFFSET_COMMIT_MAX_ATTEMPTS, e);
                     throw e;
                 }
-                long delayMs = OFFSET_COMMIT_INITIAL_RETRY_DELAY_MS * (1L << (attempt - 1));
                 LOGGER.warn("Offset commit failed (attempt {}/{}): the replication stream is closed "
                         + "(typically a YB tablet split). Retrying in {} ms.",
-                        attempt, OFFSET_COMMIT_MAX_ATTEMPTS, delayMs, e);
-                Thread.sleep(delayMs);
+                        attempt, OFFSET_COMMIT_MAX_ATTEMPTS, OFFSET_COMMIT_RETRY_DELAY_MS, e);
+                Thread.sleep(OFFSET_COMMIT_RETRY_DELAY_MS);
             }
         }
     }
