@@ -321,9 +321,6 @@ stages:
     condition: cutover_to_target_status_completed
     timeout_sec: 900
 
-  # Honest (nextval) insert on the DB just cut over to: fails with a duplicate key
-  # if its sequence was not restored past the migrated rows. Runs after validations
-  # since it adds a row on one side only.
   - name: stop_forward_exporter
     action: voyager_stop_command
     command: export_data
@@ -333,6 +330,15 @@ stages:
     action: voyager_stop_command
     command: import_data
     graceful_timeout_sec: 60
+
+  # Forward-leg validation, before the fallback leg starts writing to either
+  # side. Source and target must already agree here, so a divergence is pinned
+  # to the forward leg instead of surfacing only in the final validations.
+  - name: row_count_validations_after_cutover_to_target
+    action: row_count_validations
+
+  - name: row_hash_validations_after_cutover_to_target
+    action: row_hash_validations
 
   - name: start_fallback_exporter_from_target
     action: voyager_export_from_target_start
