@@ -381,18 +381,33 @@ public class YbExporterConsumer extends BaseChangeConsumer {
      * Marks every event in the batch processed and flushes the offsets, retrying while a
      * tablet split still has the replication stream closed.
      *
-     * <p>The batch itself is already fsynced to the export queue by handleBatchComplete(), so
-     * only the offsets are at stake here. markBatchFinished() does two things: it persists the
-     * resume position to {@code data/offsets.<exporter-role>.dat}, then flushes the LSN to the
-     * source over the replication stream. A tablet split closes that stream, so only the second
-     * step fails (DB-20886).
+     * <p>Debezium runs two threads here. The producer reads WAL from the source over a single
+     * replication stream; the engine thread loops {@code pollRecords() -> handleBatch()} and so
+     * is the thread running this method. Both share that one stream object.
      *
-     * <p>Debezium is already restarting the connector for the same split, but that restart runs
-     * on this same thread, so letting the failure propagate exits the engine before the restart
-     * can happen and turns a recoverable split into a fatal crash. Retrying is preferred over
-     * skipping because skipping assumes the resume position was persisted before the throw,
-     * which is debezium-internal ordering we should not depend on. Retries stay bounded for the
-     * same reason the exception cannot propagate: the restart cannot begin until we return.
+     * <p>By this point {@code handleBatchComplete()} has written and fsynced the batch to the
+     * export queue, so only the offsets are left to deal with. {@code markProcessed()} records
+     * each event's position in memory. {@code markBatchFinished()} then persists the resume
+     * position to {@code data/offsets.<exporter-role>.dat}, which is what debezium reads on
+     * restart, and flushes the LSN to the source over the stream, telling it which WAL may be
+     * released.
+     *
+     * <p>A tablet split closes that shared stream. The producer's read fails with "Could not
+     * find the two split children", which debezium treats as retriable and recovers from by
+     * restarting the connector on the engine thread. The LSN flush above fails at the same
+     * moment with "This replication stream has been closed", and that is what this method
+     * retries.
+     *
+     * <p><b>NOTE on this implementation.</b> What a retry finds depends on how far the
+     * producer's teardown has got. While the stream reference is still set, {@code flushLsn()}
+     * throws again. Once it has been cleared, debezium's {@code commitOffset()} takes its other
+     * branch - logging "Streaming has already stopped, ignoring commit callback..." - and
+     * returns without flushing anything, so a retry that appears to succeed has usually just
+     * skipped the LSN. From there the engine thread restarts the connector with a fresh stream,
+     * the producer delivers the next batch, and that batch's offsets are committed normally
+     * against the new stream, so nothing is left outstanding. We could have swallowed the
+     * exception here ourselves instead; the retry is kept in case debezium ever changes that
+     * else branch into something that fails.
      */
     private void commitBatchOffsets(List<ChangeEvent<Object, Object>> changeEvents,
             DebeziumEngine.RecordCommitter<ChangeEvent<Object, Object>> committer)
