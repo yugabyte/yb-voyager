@@ -40,6 +40,8 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     private static final String SOURCE_DB_EXPORTER_ROLE = "source_db_exporter";
     private static final String TARGET_DB_EXPORTER_FF_ROLE = "target_db_exporter_ff";
     private static final String TARGET_DB_EXPORTER_FB_ROLE = "target_db_exporter_fb";
+    private static final int OFFSET_COMMIT_MAX_ATTEMPTS = 5;
+    private static final long OFFSET_COMMIT_RETRY_DELAY_MS = 200;
     final Config config = ConfigProvider.getConfig();
     boolean ybGRPCConnectorEnabled;
     String snapshotMode;
@@ -376,35 +378,43 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     }
 
     /**
-     * Marks every event in the batch processed and flushes the offsets, tolerating a
-     * replication stream that a tablet split has already closed.
+     * Marks every event in the batch processed and flushes the offsets, retrying while a
+     * tablet split still has the replication stream closed.
      */
     private void commitBatchOffsets(List<ChangeEvent<Object, Object>> changeEvents,
             DebeziumEngine.RecordCommitter<ChangeEvent<Object, Object>> committer)
             throws InterruptedException {
-        try {
-            for (ChangeEvent<Object, Object> event : changeEvents) {
-                committer.markProcessed(event);
+        for (int attempt = 1; attempt <= OFFSET_COMMIT_MAX_ATTEMPTS; attempt++) {
+            try {
+                for (ChangeEvent<Object, Object> event : changeEvents) {
+                    committer.markProcessed(event);
+                }
+                committer.markBatchFinished();
+                LOGGER.debug("Committed batch complete with {} records", changeEvents.size());
+                return;
             }
-            committer.markBatchFinished();
-            LOGGER.debug("Committed batch complete with {} records", changeEvents.size());
-        } catch (RuntimeException e) {
-            // A tablet split closes the replication stream, so markBatchFinished() throws
-            // (DB-20886). The durable work is already done by then:
-            //  - handleBatchComplete() fsynced the batch to the export queue
-            //  - commitOffsets() persisted the offset file before task.commit() -> flushLsn(),
-            //    the only call in this path that touches the stream
-            // So only the "WAL is safe to release up to X" hint to the source is lost; the next
-            // flush after the restart carries a newer LSN and debezium resumes past this batch.
-            // Debezium is already restarting the connector for this same split on this thread,
-            // so propagating would exit the engine first and make a recoverable split fatal.
-            // Only target-side exporters stream from YB; anywhere else this stays fatal.
-            if (isTargetDbExporter() && isReplicationStreamClosed(e)) {
-                LOGGER.warn("Skipping offset commit for this batch: the replication stream is closed "
-                        + "(typically a YB tablet split). The batch is already durably written to the export "
-                        + "queue; the connector will restart and resume from the last committed offset.", e);
-            } else {
-                throw e;
+            catch (RuntimeException e) {
+                // A tablet split closes the replication stream, so the flush that
+                // markBatchFinished() performs throws (DB-20886). The split itself is
+                // retriable and debezium is concurrently restarting the connector, so retry
+                // the commit rather than let this exception exit the embedded engine first
+                // and turn a recoverable split into a fatal exporter crash. Retries are
+                // bounded because the restart runs on this same thread and cannot begin
+                // until we return. Only target-side exporters stream from YB, so anywhere
+                // else - and for any other exception - this stays fatal.
+                if (!isTargetDbExporter() || !isReplicationStreamClosed(e)) {
+                    throw e;
+                }
+                if (attempt == OFFSET_COMMIT_MAX_ATTEMPTS) {
+                    LOGGER.error("Offset commit failed on all {} attempts; the replication stream "
+                            + "is still closed. The batch is durably written to the export queue, "
+                            + "but the offsets could not be committed.", OFFSET_COMMIT_MAX_ATTEMPTS, e);
+                    throw e;
+                }
+                LOGGER.warn("Offset commit failed (attempt {}/{}): the replication stream is closed "
+                        + "(typically a YB tablet split). Retrying in {} ms.",
+                        attempt, OFFSET_COMMIT_MAX_ATTEMPTS, OFFSET_COMMIT_RETRY_DELAY_MS, e);
+                Thread.sleep(OFFSET_COMMIT_RETRY_DELAY_MS);
             }
         }
     }
