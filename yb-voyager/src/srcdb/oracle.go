@@ -734,3 +734,7 @@ func (ora *Oracle) CheckIfReplicationSlotsAreAvailable() (isAvailable bool, used
 func (ora *Oracle) GetSchemasMissingUsagePermissions() ([]string, error) {
 	return nil, nil
 }
+
+func (ora *Oracle) GetTablesHavingUniqueAndPKDeferrableConstraint(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
+	return nil, nil
+}

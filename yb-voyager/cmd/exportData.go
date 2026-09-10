@@ -2210,6 +2210,7 @@ func generateGlobalExportImportArguments() []string {
 // before the rename map is persisted to MSR.
 func finalizeTableAndColumnList(finalTableList []sqlname.NameTuple, partitionsToRootTableMap map[string]string) ([]sqlname.NameTuple, *utils.StructMap[sqlname.NameTuple, []string]) {
 	reportUnsupportedTablesForLiveMigration(finalTableList, partitionsToRootTableMap)
+	reportTablesWithUniqueAndPKDeferrableConstraintsForLiveMigration(finalTableList, partitionsToRootTableMap)
 	log.Infof("initial all tables table list for data export: %v", lo.Map(finalTableList, func(t sqlname.NameTuple, _ int) string {
 		return t.ForOutput()
 	}))
@@ -2251,6 +2252,41 @@ func finalizeTableAndColumnList(finalTableList []sqlname.NameTuple, partitionsTo
 		return t.ForOutput()
 	}))
 	return finalTableList, tablesColumnList
+}
+
+// reportTablesWithUniqueAndPKDeferrableConstraintsForLiveMigration fails the export if any table
+// that will be replicated has a DEFERRABLE UNIQUE and PRIMARY KEY constraint. Voyager applies change events on
+// the target with immediate (non-deferred) constraint checking and its own transaction
+// boundaries, so source transactions that rely on deferring unique and primary key constraint checks (for
+// example, swapping unique values between two rows) can fail with unique and primary key constraint violations
+// on the target, blocking the streaming phase.
+func reportTablesWithUniqueAndPKDeferrableConstraintsForLiveMigration(finalTableList []sqlname.NameTuple, partitionsToRootTableMap map[string]string) {
+	if !changeStreamingIsEnabled(exportType) {
+		return
+	}
+	tablesWithDeferrableUKAndPK, err := source.DB().GetTablesHavingUniqueAndPKDeferrableConstraint(finalTableList)
+	if err != nil {
+		utils.ErrExit("get tables having unique deferrable constraint: %w", err)
+	}
+	if len(tablesWithDeferrableUKAndPK) == 0 {
+		return
+	}
+	var reportTables []string
+	for _, table := range tablesWithDeferrableUKAndPK {
+		reportTables = append(reportTables, table.AsQualifiedCatalogName())
+		if rootTable, isLeaf := partitionsToRootTableMap[table.AsQualifiedCatalogName()]; isLeaf {
+			reportTables = append(reportTables, rootTable)
+		}
+	}
+	reportTables = lo.Uniq(reportTables)
+	sort.Strings(reportTables)
+
+	utils.PrintAndLogfWarning("During live migration, voyager applies change events on the target with immediate constraint checking. " +
+		"Source transactions that rely on deferring unique and primary key constraint checks (for example, swapping unique values between rows) " +
+		"can fail with constraint violation errors on the target and block the migration.\n" +
+		"Either alter these constraints to NOT DEFERRABLE on the source, or exclude these tables using --exclude-table-list.")
+	utils.ErrExit("The following tables have UNIQUE and PRIMARY KEY constraints that are DEFERRABLE: %v",
+		strings.Join(reportTables, ", "))
 }
 
 // reportUnsupportedTablesForLiveMigration fails the export if any table that will be replicated

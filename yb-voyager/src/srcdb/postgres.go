@@ -1217,6 +1217,59 @@ func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
 	return nonPKTables, nil
 }
 
+var PG_QUERY_TO_GET_TABLES_HAVING_UNIQUE_AND_PK_DEFERRABLE_CONSTRAINT = `SELECT DISTINCT n.nspname AS schema_name, c.relname AS table_name
+FROM pg_constraint con
+JOIN pg_class      c ON c.oid = con.conrelid
+JOIN pg_namespace  n ON n.oid = c.relnamespace
+WHERE con.contype IN ('u', 'p')
+AND con.condeferrable
+AND (n.nspname, c.relname) IN (%s);`
+
+// GetTablesHavingUniqueAndPKDeferrableConstraint returns the tables out of tableList that have a
+// DEFERRABLE UNIQUE and PRIMARY KEY constraint. Returned names are unquoted qualified catalog names
+// (NameTuple.AsQualifiedCatalogName()), preserving the case of the identifiers.
+func (pg *PostgreSQL) GetTablesHavingUniqueAndPKDeferrableConstraint(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
+	if len(tableList) == 0 {
+		return nil, nil
+	}
+	tableToTuple := make(map[string]sqlname.NameTuple)
+	for _, table := range tableList {
+		tableToTuple[table.AsQualifiedCatalogName()] = table
+	}
+	var tables []sqlname.NameTuple
+	queryTablesString := strings.Join(lo.Map(tableList, func(table sqlname.NameTuple, _ int) string {
+		schema, tableName := table.ForCatalogQuery()
+		return fmt.Sprintf("('%s', '%s')", schema, tableName)
+	}), ", ")
+	query := fmt.Sprintf(PG_QUERY_TO_GET_TABLES_HAVING_UNIQUE_AND_PK_DEFERRABLE_CONSTRAINT, queryTablesString)
+	rows, err := pg.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying(%q) source database for tables having unique deferrable constraint: %w", query, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
+	for rows.Next() {
+		var schemaName, tableName string
+		err := rows.Scan(&schemaName, &tableName)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for tables having unique deferrable constraint: %w", err)
+		}
+		tableTuple, ok := tableToTuple[fmt.Sprintf("%s.%s", schemaName, tableName)]
+		if !ok {
+			return nil, goerrors.Errorf("table not found in catalog: %s.%s", schemaName, tableName)
+		}
+		tables = append(tables, tableTuple)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error in iterating query rows for tables having unique deferrable constraint: %w", err)
+	}
+	return tables, nil
+}
+
 // =============================== Guardrails ===============================
 
 func (pg *PostgreSQL) CheckSourceDBVersion(exportType string) error {

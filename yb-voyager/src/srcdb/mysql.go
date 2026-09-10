@@ -589,3 +589,8 @@ func (ms *MySQL) GetMissingAssessMigrationPermissions() ([]string, error) {
 func (ms *MySQL) GetSchemasMissingUsagePermissions() ([]string, error) {
 	return nil, nil
 }
+
+// MySQL does not support deferrable constraints.
+func (ms *MySQL) GetTablesHavingUniqueAndPKDeferrableConstraint(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
+	return nil, nil
+}

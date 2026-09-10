@@ -321,6 +321,158 @@ func TestPostgresGetNonPKTables(t *testing.T) {
 	testutils.AssertEqualStringSlices(t, expectedTables, actualTables)
 }
 
+func TestPostgresGetTablesHavingUniqueAndPKDeferrableConstraint(t *testing.T) {
+	testPostgresSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE SCHEMA "TestSchemaCase";`,
+		// Deferrable unique constraint (initially immediate).
+		`CREATE TABLE test_schema.def_unique (
+			id SERIAL PRIMARY KEY,
+			email VARCHAR(100),
+			CONSTRAINT email_unique UNIQUE (email) DEFERRABLE INITIALLY IMMEDIATE
+		);`,
+		// Deferrable unique constraint (initially deferred).
+		`CREATE TABLE test_schema.def_unique_deferred (
+			id SERIAL PRIMARY KEY,
+			code VARCHAR(100),
+			CONSTRAINT code_unique UNIQUE (code) DEFERRABLE INITIALLY DEFERRED
+		);`,
+		// Two deferrable unique constraints — table must be reported only once.
+		`CREATE TABLE test_schema.multi_def_unique (
+			id SERIAL PRIMARY KEY,
+			a INT CONSTRAINT a_unique UNIQUE DEFERRABLE,
+			b INT CONSTRAINT b_unique UNIQUE DEFERRABLE
+		);`,
+		// Partitioned table with the constraint on the root: it is cloned onto every
+		// leaf, so both the root and the leaf are reported.
+		`CREATE TABLE test_schema.part_def_unique (
+			id INT,
+			val TEXT,
+			CONSTRAINT id_val_unique UNIQUE (id, val) DEFERRABLE
+		) PARTITION BY RANGE (id);`,
+		`CREATE TABLE test_schema.part_def_unique_p1 PARTITION OF test_schema.part_def_unique FOR VALUES FROM (1) TO (100);`,
+		// Partitioned table with NO constraint on the root; the deferrable unique
+		// constraint is added directly on one leaf only — only that leaf is reported.
+		`CREATE TABLE test_schema.part_leaf_only (
+			id INT,
+			val TEXT
+		) PARTITION BY RANGE (id);`,
+		`CREATE TABLE test_schema.part_leaf_only_p1 PARTITION OF test_schema.part_leaf_only FOR VALUES FROM (1) TO (100);`,
+		`CREATE TABLE test_schema.part_leaf_only_p2 PARTITION OF test_schema.part_leaf_only FOR VALUES FROM (100) TO (200);`,
+		`ALTER TABLE test_schema.part_leaf_only_p1 ADD CONSTRAINT leaf_only_unique UNIQUE (id, val) DEFERRABLE;`,
+		// Case-sensitive schema and table names must be returned with case preserved.
+		`CREATE TABLE "TestSchemaCase"."Orders" (
+			order_id INT PRIMARY KEY,
+			code TEXT,
+			CONSTRAINT orders_code_unique UNIQUE (code) DEFERRABLE
+		);`,
+		// Deferrable primary key constraint (initially immediate).
+		`CREATE TABLE test_schema.def_pk (
+			id INT,
+			name VARCHAR(100),
+			CONSTRAINT def_pk_pkey PRIMARY KEY (id) DEFERRABLE INITIALLY IMMEDIATE
+		);`,
+		// Deferrable primary key constraint (initially deferred).
+		`CREATE TABLE test_schema.def_pk_deferred (
+			id INT,
+			name VARCHAR(100),
+			CONSTRAINT def_pk_deferred_pkey PRIMARY KEY (id) DEFERRABLE INITIALLY DEFERRED
+		);`,
+		// Both deferrable PK and deferrable unique — table must be reported only once.
+		`CREATE TABLE test_schema.def_pk_and_unique (
+			id INT,
+			email VARCHAR(100),
+			CONSTRAINT def_pk_and_unique_pkey PRIMARY KEY (id) DEFERRABLE,
+			CONSTRAINT def_pk_and_unique_email UNIQUE (email) DEFERRABLE
+		);`,
+		// Partitioned table with a deferrable PK on the root: it is cloned onto every
+		// leaf, so both the root and the leaf are reported.
+		`CREATE TABLE test_schema.part_def_pk (
+			id INT,
+			val TEXT,
+			CONSTRAINT part_def_pk_pkey PRIMARY KEY (id) DEFERRABLE
+		) PARTITION BY RANGE (id);`,
+		`CREATE TABLE test_schema.part_def_pk_p1 PARTITION OF test_schema.part_def_pk FOR VALUES FROM (1) TO (100);`,
+		// Non-deferrable unique constraint (and non-deferrable PK) — not reported.
+		`CREATE TABLE test_schema.plain_unique (
+			id SERIAL PRIMARY KEY,
+			name VARCHAR(100) UNIQUE
+		);`,
+		// Deferrable FK constraint — not reported (only unique/PK constraints matter).
+		`CREATE TABLE test_schema.def_fk (
+			id SERIAL PRIMARY KEY,
+			ref_id INT,
+			CONSTRAINT fk_ref FOREIGN KEY (ref_id) REFERENCES test_schema.plain_unique(id) DEFERRABLE INITIALLY DEFERRED
+		);`,
+		// Deferrable unique constraint on a table NOT in the table list — not reported.
+		`CREATE TABLE test_schema.not_in_list (
+			id SERIAL PRIMARY KEY,
+			email VARCHAR(100),
+			CONSTRAINT email_unique_not_in_list UNIQUE (email) DEFERRABLE
+		);`)
+	defer testPostgresSource.TestContainer.ExecuteSqls(
+		`DROP SCHEMA test_schema CASCADE;`,
+		`DROP SCHEMA "TestSchemaCase" CASCADE;`)
+	sqlname.SourceDBType = "postgresql"
+	testPostgresSource.Schemas = []sqlname.Identifier{
+		sqlname.NewIdentifier("postgresql", "test_schema"),
+		sqlname.NewIdentifier("postgresql", "TestSchemaCase"),
+	}
+
+	tableList := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithSourceName("test_schema.def_unique", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.def_unique_deferred", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.multi_def_unique", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.part_def_unique", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.part_def_unique_p1", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.part_leaf_only", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.part_leaf_only_p1", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.part_leaf_only_p2", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName(`"TestSchemaCase"."Orders"`, "TestSchemaCase", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.def_pk", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.def_pk_deferred", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.def_pk_and_unique", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.part_def_pk", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.part_def_pk_p1", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.plain_unique", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.def_fk", "test_schema", "postgresql"),
+		// test_schema.not_in_list is deliberately omitted.
+	}
+
+	_ = testPostgresSource.DB().Connect()
+	actualTables, err := testPostgresSource.DB().GetTablesHavingUniqueAndPKDeferrableConstraint(tableList)
+	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
+
+	// unquoted qualified catalog names, case preserved
+	expectedTables := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithSourceName("test_schema.def_unique", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.def_unique_deferred", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.multi_def_unique", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.part_def_unique", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.part_def_unique_p1", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.part_leaf_only_p1", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("TestSchemaCase.Orders", "TestSchemaCase", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.def_pk", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.def_pk_deferred", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.def_pk_and_unique", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.part_def_pk", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.part_def_pk_p1", "test_schema", "postgresql"),
+	}
+	assert.Equal(t, len(expectedTables), len(actualTables))
+	for _, expectedTable := range expectedTables {
+		if !lo.ContainsBy(actualTables, func(actualTable sqlname.NameTuple) bool {
+			return actualTable.AsQualifiedCatalogName() == expectedTable.AsQualifiedCatalogName()
+		}) {
+			t.Errorf("Expected table %s not found in actual tables", expectedTable.ForOutput())
+		}
+	}
+
+	// Empty table list must not error (and must not run a malformed query).
+	emptyResult, err := testPostgresSource.DB().GetTablesHavingUniqueAndPKDeferrableConstraint(nil)
+	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
+	assert.Equal(t, len(emptyResult), 0)
+}
+
 func TestPostgresGetPrimaryKeyColumns(t *testing.T) {
 	testPostgresSource.TestContainer.ExecuteSqls(
 		`CREATE SCHEMA test_schema;`,
