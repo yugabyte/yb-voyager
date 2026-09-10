@@ -109,9 +109,9 @@ func init() {
 	// PostgreSQL-only: registerOracleFlags=false, includeOracleCDBFlags=false so no
 	// Oracle-specific flags (SID/home/TNS/CDB) are registered on this command.
 	registerSourceDBConnFlags(detectDriftCmd, false, false)
-	detectDriftCmd.MarkFlagRequired("source-db-user")
-	detectDriftCmd.MarkFlagRequired("source-db-name")
-	detectDriftCmd.MarkFlagRequired("source-db-schema")
+	mustMarkFlagRequired(detectDriftCmd, "source-db-user")
+	mustMarkFlagRequired(detectDriftCmd, "source-db-name")
+	mustMarkFlagRequired(detectDriftCmd, "source-db-schema")
 	// registerSourceDBConnFlags's help text is shared with multi-engine commands;
 	// override it here since detect-drift is PostgreSQL-only.
 	if f := detectDriftCmd.Flags().Lookup("source-db-type"); f != nil {
