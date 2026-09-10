@@ -10,12 +10,12 @@
 -- text, amount numeric(38,6), due_date date, seq_no bigint, is_active
 -- boolean), with the rarer types (jsonb, smallint, double precision, uuid,
 -- varchar[], int, text) rotated across tables so each appears on several.
--- NOT NULL columns get a DEFAULT so the deterministic conflict DML
--- (source_dml.sql / target_dml.sql), which names only the key columns, works
--- unchanged; uuid/array/jsonb columns are nullable so they are also valid
--- random custom-key choices (their value is NULL, hence identical, on every
--- DML row). numeric stays bounded -- unbounded numeric loses trailing zeros
--- through live CDC and breaks row-hash validation.
+-- source_dml.sql names every column explicitly and gives the two rows of a
+-- free/reuse pair different values, so whichever column is sampled as this
+-- run's custom key still routes the pair to different channels. target_dml.sql
+-- names only the key columns and relies on the DEFAULTs, since custom keys do
+-- not apply on the fallback leg. numeric stays bounded -- unbounded numeric
+-- loses trailing zeros through live CDC and breaks row-hash validation.
 
 -- Table with Single Column Unique Constraint
 CREATE TABLE single_unique_constraint (

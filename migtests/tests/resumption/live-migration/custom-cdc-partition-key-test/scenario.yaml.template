@@ -59,6 +59,18 @@ generator_source:
       delete_rows: 1
       insert_max_retries: 5
       update_max_retries: 1
+      # region is the LIST partition key of partitioned_unique_conflict, and the
+      # generator treats the root and each leaf as an independent table, so
+      # every one of them needs values its own partition constraint accepts.
+      column_overrides:
+        partitioned_unique_conflict:
+          region: {type: choice, values: [east, west]}
+        partitioned_unique_conflict_east:
+          region: {type: choice, values: [east]}
+        partitioned_unique_conflict_west:
+          region: {type: choice, values: [west]}
+        partitioned_unique_conflict_default:
+          region: {type: choice, values: [north, south]}
 
 # Deterministic unique-conflict DML (same file as fallback-unique-conflict-test),
 # re-applied on a loop throughout streaming in parallel with the random generator.
@@ -94,6 +106,18 @@ generator_target:
       delete_rows: 1
       insert_max_retries: 5
       update_max_retries: 1
+      # region is the LIST partition key of partitioned_unique_conflict, and the
+      # generator treats the root and each leaf as an independent table, so
+      # every one of them needs values its own partition constraint accepts.
+      column_overrides:
+        partitioned_unique_conflict:
+          region: {type: choice, values: [east, west]}
+        partitioned_unique_conflict_east:
+          region: {type: choice, values: [east]}
+        partitioned_unique_conflict_west:
+          region: {type: choice, values: [west]}
+        partitioned_unique_conflict_default:
+          region: {type: choice, values: [north, south]}
 
 # Fallback (target) conflict generator: re-applies the deterministic
 # unique-conflict DML on the target on a loop, in parallel with
@@ -135,21 +159,22 @@ stages:
   # routing -- then sample 1-2 of its columns (random order) from
   # random_columns_pool, so successive runs exercise a variety of key columns,
   # counts and datatypes. Pools hold only immutability-safe columns (never
-  # UPDATEd by source_dml.sql); PK columns and uuid-default columns are
-  # excluded. The pick is injected into the generator's
+  # UPDATEd by source_dml.sql), and source_dml.sql gives each of them a
+  # different value on the two rows of a conflicting pair so the sampled key
+  # actually splits them across channels. The pick is injected into the generator's
   # exclude_columns_from_update for the table and its leaf partitions (leaf
   # events are renamed to the root before the importer's immutability check).
   # single_unique_constraint's DML is a deliberate PK-recycle pattern (see
-  # source_dml.sql section 1): a fixed (email) key, and when IT is picked,
+  # source_dml.sql section 1): its pool is just (email), and when IT is picked,
   # conflicts MUST still be detected (expect_conflicts: true).
   - name: pick_random_custom_key
     action: pick_random_custom_key
     generator_key: generator_source
     candidates:
-      # PK-recycle candidate: fixed key -- its expect_conflicts assertion
-      # depends on the key being the churned email column specifically.
+      # PK-recycle candidate: a single-column pool pins the key to the
+      # churned email column, which its expect_conflicts assertion depends on.
       - table: public.single_unique_constraint
-        columns: [email]
+        random_columns_pool: [email]
         expect_conflicts: true
       - table: public.multi_unique_constraint
         random_columns_pool: [first_name, last_name, status, metadata, amount, due_date, seq_no, is_active, priority, created_at, updated_at, deleted_at]

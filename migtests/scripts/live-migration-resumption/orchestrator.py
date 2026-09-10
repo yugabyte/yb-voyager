@@ -393,13 +393,12 @@ def pick_random_custom_key_action(stage: Dict[str, Any], ctx: Any) -> None:
     `ctx.cfg` at start time, so mutating it here beforehand is sufficient.
 
     Required stage key:
-      - candidates: list of {table: "schema.table", ...} with EITHER
-          - random_columns_pool: [col, ...] -- 1..2 columns (or
-            min_columns..max_columns) are sampled in random order, so successive
-            runs route the same table by different columns, counts and
-            datatypes; OR
-          - columns: [col, ...] -- a fixed key, for candidates whose assertion
-            depends on a specific key (see expect_conflicts).
+      - candidates: list of {table: "schema.table", random_columns_pool:
+        [col, ...]} -- 1..2 columns (or min_columns..max_columns) are sampled
+        from the pool in random order, so successive runs route the same table
+        by different columns, counts and datatypes. A single-column pool pins
+        the key for candidates whose assertion depends on it (see
+        expect_conflicts).
         Optional per candidate:
           - partitions: [bare_table, ...] -- leaf partitions of a partitioned
             table; the generator exclusion is applied to them too.
@@ -407,7 +406,7 @@ def pick_random_custom_key_action(stage: Dict[str, Any], ctx: Any) -> None:
             deliberately creates conflicts that MUST still be detected when it
             is picked (e.g. a PK-recycle pattern); used by
             `validate_picked_custom_key_conflicts`.
-        Every pool/fixed column must be immutability-safe (never appears in an
+        Every pool column must be immutability-safe (never appears in an
         UPDATE for that table in the conflict DML) -- this action only performs
         the pick and the wiring, not that verification.
 
@@ -432,21 +431,15 @@ def pick_random_custom_key_action(stage: Dict[str, Any], ctx: Any) -> None:
 
     choice = random.choice(candidates)
     table = choice["table"]
-    pool = choice.get("random_columns_pool")
-    if pool:
-        if choice.get("columns"):
-            raise ValueError(f"pick_random_custom_key: candidate {table} must not set both 'columns' and 'random_columns_pool'")
-        min_cols = int(choice.get("min_columns", 1))
-        max_cols = min(int(choice.get("max_columns", 2)), len(pool))
-        columns = random.sample(pool, random.randint(min_cols, max_cols))
-        how = f"sampled from pool of {len(pool)}"
-    else:
-        columns = choice["columns"]
-        how = "fixed"
+    pool = choice["random_columns_pool"]
+    min_cols = int(choice.get("min_columns", 1))
+    max_cols = min(int(choice.get("max_columns", 2)), len(pool))
+    columns = random.sample(pool, random.randint(min_cols, max_cols))
     expect_conflicts = bool(choice.get("expect_conflicts", False))
     ctx.picked_custom_key = {"table": table, "columns": columns, "expect_conflicts": expect_conflicts}
     H.log(
-        f"pick_random_custom_key: selected table={table} columns={columns} ({how}; out of {len(candidates)} candidates) "
+        f"pick_random_custom_key: selected table={table} columns={columns} "
+        f"(sampled from a pool of {len(pool)}; out of {len(candidates)} candidates) "
         f"expect_conflicts={expect_conflicts}"
     )
 
