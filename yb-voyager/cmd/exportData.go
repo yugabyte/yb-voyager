@@ -27,6 +27,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -50,6 +51,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
@@ -103,6 +105,9 @@ func init() {
 	registerSourceDBConnFlags(exportDataFromSrcCmd, true, true)
 	registerExportDataFlags(exportDataCmd)
 	registerExportDataFlags(exportDataFromSrcCmd)
+	// Source-side only; see registerSchemaSnapshotIntervalFlag.
+	registerSchemaSnapshotIntervalFlag(exportDataCmd)
+	registerSchemaSnapshotIntervalFlag(exportDataFromSrcCmd)
 }
 
 func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
@@ -112,6 +117,9 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 		utils.ErrExit("failed to validate export flags: %w", err)
 	}
 	validateExportTypeFlag()
+	if err := validateSchemaSnapshotCaptureInterval(cmd); err != nil {
+		utils.ErrExit("failed to validate export flags: %w", err)
+	}
 	markFlagsRequired(cmd)
 	if changeStreamingIsEnabled(exportType) {
 		useDebezium = true
@@ -228,7 +236,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		color.Green("Export of data complete")
 		log.Info("Export of data completed.")
 		startFurtherCommandsAfterCurrentExportData()
-	} else if ProcessShutdownRequested {
+	} else if ProcessShutdownRequested.Load() {
 		log.Info("Shutting down as SIGINT/SIGTERM received.")
 	} else {
 		color.Red("Export of data failed! Check %s/logs for more details.", exportDir)
@@ -673,7 +681,7 @@ func captureSourceGeneratedStoredColumns(finalTableList []sqlname.NameTuple) err
 	return nil
 }
 
-func exportData() bool {
+func exportData() (ok bool) {
 	err := source.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source db: %w", err)
@@ -717,6 +725,12 @@ func exportData() bool {
 	if err != nil {
 		utils.ErrExit("error getting migration status record: %w", err)
 	}
+
+	// Compute the schema-snapshot start reason BEFORE clearMigrationStateIfRequired()
+	// wipes the data directory (--start-clean empties it): the reason is derived from
+	// whether that directory already holds a prior run's output (see snapshotStartReasonFor).
+	exportDataDir := filepath.Join(exportDir, "data")
+	snapshotStartReason := snapshotStartReasonFor(bool(startClean), utils.IsDirectoryEmpty(exportDataDir))
 
 	if source.DBType == YUGABYTEDB {
 		source.IsYBGrpcConnector = msr.UseYBgRPCConnector
@@ -833,6 +847,53 @@ func exportData() bool {
 
 	//finalTableList is with leaf partitions and root tables after this in the whole export flow to make all the catalog queries work fine
 
+	// successReason distinguishes the two clean endings; the cutover branch below
+	// upgrades it. Only read when exportData returns true.
+	successReason := schemasnapshot.ReasonComplete
+
+	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+		if err := sourceCapture().Capture(ctx, schemasnapshot.LabelExportDataFromSourceStart, snapshotStartReason, true); err != nil {
+			log.Warnf("schema-snapshot start capture failed, export unaffected: %v", err)
+		}
+		// One ticker for the whole export -- snapshot AND streaming phases, offline and
+		// live. Started here, at the single owner of the export lifetime: starting it in
+		// both exportDataOffline and debeziumExportData ran two tickers at once for PG
+		// snapshot-and-changes, doubling the periodic snapshots.
+		//
+		// Its own child context so the exit defer below can stop it first. On ctx alone
+		// it would outlive the exit capture -- ctx is cancelled by `defer cancel()`,
+		// which is registered earlier and so runs later -- and could persist a periodic
+		// snapshot timestamped after the exit one.
+		periodicCtx, stopPeriodic := context.WithCancel(ctx)
+		sourceCapture().StartPeriodic(periodicCtx, time.Duration(schemaSnapshotCaptureInterval)*time.Minute)
+		registerExportDataExitSnapshotHook()
+
+		// One exit capture for EVERY return below, rather than one per return site.
+		// Deferred here it runs before this function's `defer cancel()` and
+		// `defer source.DB().Disconnect()` (both registered earlier, so later under
+		// LIFO), which is what keeps the context live and the source connection open
+		// for the capture. Panics are covered too.
+		//
+		// utils.ErrExit and signals do not unwind, so they never reach this defer --
+		// registerExportDataExitSnapshotHook above covers them.
+		defer func() {
+			stopPeriodic() // no periodic tick during the exit capture
+			if ok {
+				captureExportDataExitSnapshot(ctx, successReason)
+				return
+			}
+			// The reason here is interrupt OR error, not always error. A signal does not
+			// unwind to this defer (see above), but it does kill the in-flight child, so
+			// the export reports failure and can still reach this path -- racing os.Exit
+			// -- with ProcessShutdownRequested set. exportDataExitReason tells them apart.
+			//
+			// Background, not ctx: a failing path may already have cancelled ctx
+			// (exportDataOffline cancels on its quit path), which would abort the
+			// capture just when the drifted end-state matters most.
+			captureExportDataExitSnapshot(context.Background(), exportDataExitReason())
+		}()
+	}
+
 	if changeStreamingIsEnabled(exportType) || useDebezium {
 		exportPhase = dbzm.MODE_SNAPSHOT
 		err = startDebeziumAsPerExportTypeIfRequired(ctx, cancel, finalTableList, tablesColumnList, leafPartitions, partitionsToRootTableMap)
@@ -888,7 +949,11 @@ func exportData() bool {
 
 			utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
+
+			successReason = schemasnapshot.ReasonCutover
 		}
+		// The else branch (useDebezium && !changeStreamingIsEnabled) is a snapshot-only
+		// export via debezium: no cutover was processed, so successReason stays complete.
 		return true
 	} else {
 		exportPhase = dbzm.MODE_SNAPSHOT
@@ -1828,6 +1893,63 @@ func handleGetInitialTableListError(err error) {
 	utils.ErrExit("error in get initial table list: %w", err)
 }
 
+// exportDataExitSnapshotCaptured claims the one exit capture a run is allowed.
+//
+// A signal makes both exit paths run at once: the handler fires on the signal
+// goroutine while the export goroutine unwinds through its exit defer. Claiming
+// has to be a single atomic compare-and-swap, so exactly one of them captures --
+// checking a flag and setting it after the capture lets both pass the check and
+// write two exit snapshots.
+var exportDataExitSnapshotCaptured atomic.Bool
+
+// captureExportDataExitSnapshot captures the exit snapshot and marks it captured, so
+// no later site fires a second one. Source-exporter only.
+//
+// The caller picks the context (SourceCapture.Capture caps it at
+// schemasnapshot.CaptureTimeout either way): the run's own ctx on a clean exit, and
+// context.Background() wherever that ctx may already be cancelled -- the failing
+// export paths, and the atexit hook, which has no ctx at all.
+func captureExportDataExitSnapshot(ctx context.Context, reason string) {
+	if exporterRole != SOURCE_DB_EXPORTER_ROLE {
+		return
+	}
+	// Claim before capturing, not after: see exportDataExitSnapshotCaptured.
+	if !exportDataExitSnapshotCaptured.CompareAndSwap(false, true) {
+		log.Infof("schema-snapshot exit capture already recorded; skipping the %q capture", reason)
+		return
+	}
+	if err := sourceCapture().Capture(ctx, schemasnapshot.LabelExportDataFromSourceExit, reason, true); err != nil {
+		log.Warnf("schema-snapshot exit capture (%s) failed, migration unaffected: %v", reason, err)
+	}
+}
+
+// exportDataExitReason classifies an abnormal exit from the shutdown flags, most
+// specific first: SIGUSR2 (end-migration teardown) is a clean completion,
+// SIGINT/SIGTERM an interrupt, anything else a genuine error.
+//
+// The failing exit path must use this too rather than assuming ReasonError: a signal
+// kills the in-flight child, so the export reports failure and can reach that path
+// with a shutdown already requested. Hardcoding ReasonError there recorded every
+// Ctrl-C as an error.
+func exportDataExitReason() string {
+	if EndMigrationStopRequested.Load() {
+		return schemasnapshot.ReasonComplete
+	}
+	if ProcessShutdownRequested.Load() {
+		return schemasnapshot.ReasonInterrupt
+	}
+	return schemasnapshot.ReasonError
+}
+
+// registerExportDataExitSnapshotHook covers the exit paths that never unwind, so
+// exportData's exit defer cannot run: signals, and utils.ErrExit (whose os.Exit skips
+// defers, leaving the connection open). Whichever path gets there first wins the claim.
+func registerExportDataExitSnapshotHook() {
+	atexit.Register(func() {
+		captureExportDataExitSnapshot(context.Background(), exportDataExitReason())
+	})
+}
+
 func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string) error {
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 		exportDataStartEvent := createSnapshotExportStartedEvent()
@@ -1956,6 +2078,29 @@ func validateAndExtractTableNamesFromFile(filePath string, flagName string) (str
 		}
 	}
 	return strings.Join(tableList, ","), nil
+}
+
+// snapshotStartReasonFor classifies why export-data is capturing its start snapshot.
+//
+// The data-directory state is decided FIRST, and only then --start-clean, because
+// clean_restart should mean prior output was actually discarded:
+//   - empty dir:               initial (even under --start-clean, which cleans nothing)
+//   - start-clean + non-empty: clean_restart
+//   - non-empty, no clean:     resume
+//
+// Admissibility is a SEPARATE concern owned by clearMigrationStateIfRequired (the
+// guard): it ErrExits a non-empty, non-start-clean offline or mid-snapshot rerun
+// (pg_dump can't resume), so the only non-empty run that actually reaches "resume" here
+// is the streaming-continue resume — for which "resume" is the correct label.
+func snapshotStartReasonFor(startClean, dataDirEmpty bool) string {
+	switch {
+	case dataDirEmpty:
+		return schemasnapshot.ReasonInitial
+	case startClean:
+		return schemasnapshot.ReasonCleanRestart
+	default:
+		return schemasnapshot.ReasonResume
+	}
 }
 
 func clearMigrationStateIfRequired() {

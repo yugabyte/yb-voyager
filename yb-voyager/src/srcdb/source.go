@@ -130,6 +130,16 @@ func (s *Source) GetSchemaList() []string {
 	return sqlname.ExtractIdentifiersMinQuoted(s.Schemas)
 }
 
+// GetSchemaListUnquoted returns the schema names as RAW catalog values (no quoting).
+//
+// Use it whenever the names are compared against catalog data (an `nspname IN (...)`
+// predicate, a bind parameter). GetSchemaList returns the min-QUOTED form, correct
+// only when interpolating into SQL as an identifier — `"Odd Schema"` matches no
+// nspname.
+func (s *Source) GetSchemaListUnquoted() []string {
+	return sqlname.ExtractIdentifiersUnquoted(s.Schemas)
+}
+
 // FetchPGDBSystemIdentifier fetches and stores the database system identifier
 // Currently only implemented for PostgreSQL
 func (s *Source) FetchPGDBSystemIdentifier() {

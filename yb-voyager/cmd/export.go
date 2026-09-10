@@ -24,7 +24,9 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/export"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -39,6 +41,8 @@ var useDebezium bool
 var runId string
 var excludeTableListFilePath string
 var tableListFilePath string
+var schemaSnapshotCaptureInterval int
+var disableSchemaSnapshotCapture utils.BoolStr
 
 var exportCmd = &cobra.Command{
 	Use:   "export",
@@ -56,6 +60,14 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 		"cleans up the project directory for schema or data files depending on the export command (default false)")
 
 	BoolVar(cmd.Flags(), &source.RunGuardrailsChecks, "run-guardrails-checks", true, "run guardrails checks before export. (only valid for PostgreSQL) Setting this to false is unsafe: it skips critical pre-migration validations (such as source/target database permissions, binary dependencies, and version compatibility) and may lead to migration failures or data issues. Leave the default (true) unless you have a specific reason to disable checks.")
+
+	// Defaults to true (capture off) for now: nothing consumes the snapshots until the
+	// detect-drift command ships. Flip to false to enable capture by default once it does.
+	BoolVar(cmd.Flags(), &disableSchemaSnapshotCapture, "disable-schema-snapshot-capture", true,
+		"disable best-effort schema-snapshot capture during export. (only valid for PostgreSQL)")
+	// Hidden for now: capture is off by default and nothing consumes the snapshots until
+	// the detect-drift command ships. Still settable via CLI/config for internal use.
+	mustMarkFlagHidden(cmd, "disable-schema-snapshot-capture")
 }
 
 func registerCommonSourceDBConnFlags(cmd *cobra.Command) {
@@ -250,6 +262,66 @@ func registerExportDataFlags(cmd *cobra.Command) {
 
 	cmd.Flags().IntVar(&metricsPort, "metrics-port", 0,
 		"Port to expose Prometheus metrics on (0 disables). Serves GET /metrics.")
+}
+
+// registerSchemaSnapshotIntervalFlag registers the periodic-capture interval.
+//
+// Deliberately NOT in registerExportDataFlags, which `export data from target`
+// shares: capture is source-side only, so the flag would be accepted there and do
+// nothing. It also can't join --disable-schema-snapshot-capture in
+// registerCommonExportFlags, which export schema calls — that has no interval.
+//
+// Config-file key: "export-data.schema-snapshot-capture-interval".
+func registerSchemaSnapshotIntervalFlag(cmd *cobra.Command) {
+	cmd.Flags().IntVar(&schemaSnapshotCaptureInterval, "schema-snapshot-capture-interval", 60,
+		"interval (in minutes, must be at least 1) at which voyager periodically captures a source schema snapshot throughout export data (both snapshot and streaming phases; offline and live). (only valid for PostgreSQL)")
+	// Hidden for now: capture is off by default and nothing consumes the snapshots until
+	// the detect-drift command ships. Still settable via CLI/config for internal use.
+	mustMarkFlagHidden(cmd, "schema-snapshot-capture-interval")
+}
+
+// validateSchemaSnapshotCaptureInterval rejects an interval that would silently turn
+// periodic capture off, so a bad value fails at startup instead of looking accepted.
+//
+// Scoped by flag presence on `cmd`: `export data from target` shares these package
+// globals but never registers this flag, so Lookup returns nil and the guard no-ops
+// there -- there is no value the user could have got wrong. The scoping is defensive
+// rather than load-bearing: IntVar writes its default into the global at registration,
+// which init() does on the source-side commands, so the global reads 60 process-wide.
+func validateSchemaSnapshotCaptureInterval(cmd *cobra.Command) error {
+	if cmd.Flags().Lookup("schema-snapshot-capture-interval") == nil {
+		return nil
+	}
+	if schemaSnapshotCaptureInterval <= 0 {
+		return goerrors.Errorf("--schema-snapshot-capture-interval must be at least 1 (minute), got %d",
+			schemaSnapshotCaptureInterval)
+	}
+	return nil
+}
+
+// sourceCapture resolves the command globals into an export.SchemaSnapshotCapture, which
+// holds the capture policy itself. This adapter is the only place that reads them, so
+// the policy stays testable without command state.
+func sourceCapture() export.SchemaSnapshotCapture {
+	// Non-PostgreSQL source: the zero value's own gate makes every capture a no-op, so
+	// nothing else is worth resolving. Only the assertion short-circuits -- a
+	// PostgreSQL source with no open connection still has to go through the capture.
+	pg, ok := source.DB().(*srcdb.PostgreSQL)
+	if !ok {
+		return export.SchemaSnapshotCapture{}
+	}
+	return export.SchemaSnapshotCapture{
+		DB:     pg.GetDB(),
+		MetaDB: metaDB,
+		Params: schemasnapshot.CaptureParams{
+			DatabaseType: source.DBType,
+			DBMetadata: schemasnapshot.DBMetadata{
+				Host: source.Host, Port: source.Port, Database: source.DBName, User: source.User,
+			},
+			Schemas: source.GetSchemaListUnquoted(),
+		},
+		Disabled: bool(disableSchemaSnapshotCapture),
+	}
 }
 
 func validateSourceDBType() {
