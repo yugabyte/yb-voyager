@@ -1,6 +1,6 @@
-# INSTRUCTIONS.md
+# YugabyteDB Voyager — Engineering Standards
 
-Guidance for AI coding agents (Claude Code, Cursor, etc.) working with this repository.
+Repo-wide guidance for AI coding agents (Claude Code, Cursor, etc.) and the root of the standards hierarchy: how to build and test the project, the invariants every change is held to, and the standards that apply everywhere. Narrower `AGENTS.md` files add package-specific standards on top of this one.
 
 ## Project overview
 
