@@ -132,7 +132,7 @@ Because these are authoring standards, the author's agent may already have had t
 | **Tests** | New logic has tests that actually assert behavior; edge cases covered. **Test quality**: no fixed sleeps or timing-dependent assertions; count assertions on asynchronous work need justified bounds on *both* sides (a vacuous lower bound like `>= 0` asserts nothing; a missing upper bound misses over-triggering); no reads of state a concurrent process is still writing. **Coverage variants** the repo's `AGENTS.md` standards require (e.g. case-sensitive identifiers, partitioned tables, expression indexes) must be checked explicitly, not assumed. |
 | **Documentation** | Public APIs documented; non-obvious gating/branching logic commented with *why* and *when it applies*; genuinely unclear concepts (new fields, enums, labels) explained — if you can't tell what a field is for, ask. |
 
-Severity is not tied to lens: a hot-path regression or an inverted condition is Critical/Warning, not a nitpick. A concrete violation of a written BUGBOT rule defaults to **Warning**, not Suggestion. Design, scope, and clarity concerns that need author input but aren't defects go in the **Question** class (Step 5) — surface them, but don't invent a "bug" to justify them.
+Severity is not tied to lens: a hot-path regression or an inverted condition is Critical/Warning, not a nitpick. A concrete violation of a written `AGENTS.md` standard defaults to **Warning**, not Suggestion. Design, scope, and clarity concerns that need author input but aren't defects go in the **Question** class (Step 5) — surface them, but don't invent a "bug" to justify them.
 
 ### Step 5: Present findings
 
