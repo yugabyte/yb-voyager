@@ -28,6 +28,7 @@ import (
 )
 
 var originalErrExit func(formatString string, args ...interface{})
+var originalErrExitPreLog func(formatString string, args ...interface{})
 
 var ErrExitErr error
 
@@ -240,5 +241,29 @@ func MonkeyPatchUtilsErrExit(newErrExit func(formatString string, args ...interf
 func RestoreUtilsErrExit() {
 	if originalErrExit != nil {
 		ErrExit = originalErrExit
+	}
+}
+
+func MonkeyPatchUtilsErrExitPreLogWithPanic() {
+	MonkeyPatchUtilsErrExitPreLog(func(formatString string, args ...interface{}) {
+		panic("utils.ErrExitPreLog was called with: " + fmt.Sprintf(formatString, args...))
+	})
+}
+
+// MonkeyPatchUtilsErrExitPreLog allows monkey patching of the utils.ErrExitPreLog function
+// for testing purposes. It replaces the original function with a new one provided by the
+// caller. Only the first patch is remembered, so nested patches still restore the real
+// ErrExitPreLog rather than an intermediate one.
+func MonkeyPatchUtilsErrExitPreLog(newErrExitPreLog func(formatString string, args ...interface{})) {
+	if originalErrExitPreLog == nil {
+		originalErrExitPreLog = ErrExitPreLog
+	}
+	ErrExitPreLog = newErrExitPreLog
+}
+
+// RestoreUtilsErrExitPreLog restores the original utils.ErrExitPreLog function after monkey patching.
+func RestoreUtilsErrExitPreLog() {
+	if originalErrExitPreLog != nil {
+		ErrExitPreLog = originalErrExitPreLog
 	}
 }

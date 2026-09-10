@@ -38,7 +38,12 @@ const (
 )
 
 type Config struct {
-	LogLevel           string
+	LogLevel string
+	// LogMaxSizeMB and LogMaxBackups control rotation of debezium-<role>.log, mirroring
+	// the settings applied to yb-voyager's own log file. LogMaxBackups uses the
+	// config.LogMaxBackupsUnlimited sentinel for "retain all rotated files".
+	LogMaxSizeMB       int
+	LogMaxBackups      int
 	MigrationUUID      uuid.UUID
 	RunId              string
 	SourceDBType       string

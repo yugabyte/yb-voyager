@@ -30,10 +30,24 @@ const (
 	ERROR = "error"
 	FATAL = "fatal"
 	PANIC = "panic"
+
+	// DefaultLogMaxSizeMB and DefaultLogMaxBackups are the values yb-voyager used to
+	// hardcode when configuring lumberjack, kept as the defaults now that they are
+	// configurable, so unset behaviour is unchanged.
+	DefaultLogMaxSizeMB  = 200
+	DefaultLogMaxBackups = 10
+
+	// LogMaxBackupsUnlimited is the --log-max-backups sentinel meaning "never delete a
+	// rotated log file". A dedicated sentinel is used rather than accepting 0 because
+	// lumberjack itself treats MaxBackups == 0 as "retain all", which would silently
+	// invert the intent of a user passing 0 to cap disk usage.
+	LogMaxBackupsUnlimited = -1
 )
 
 var (
 	LogLevel       string
+	LogMaxSizeMB   int
+	LogMaxBackups  int
 	validLogLevels = []string{TRACE, DEBUG, INFO, WARN, ERROR, FATAL, PANIC}
 )
 
@@ -43,6 +57,29 @@ func ValidateLogLevel() error {
 		return goerrors.Errorf("invalid log level: %s. Valid log levels = %v", LogLevel, validLogLevels)
 	}
 	return nil
+}
+
+// ValidateLogSettings checks the log rotation settings resolved from the CLI flags and
+// config file. It must run before any code path initialises logging with them.
+func ValidateLogSettings() error {
+	if LogMaxSizeMB <= 0 {
+		return goerrors.Errorf("invalid log-max-size-mb: %d. Must be a positive integer", LogMaxSizeMB)
+	}
+	if LogMaxBackups <= 0 && LogMaxBackups != LogMaxBackupsUnlimited {
+		return goerrors.Errorf("invalid log-max-backups: %d. Must be a positive integer, or %d to retain all rotated log files", LogMaxBackups, LogMaxBackupsUnlimited)
+	}
+	return nil
+}
+
+// LumberjackMaxBackups translates the LogMaxBackupsUnlimited sentinel into the value
+// lumberjack.Logger expects for "retain all rotated files". lumberjack has no sentinel of
+// its own: with MaxBackups and MaxAge both 0 and compression off, it never deletes a
+// rotated file.
+func LumberjackMaxBackups(maxBackups int) int {
+	if maxBackups == LogMaxBackupsUnlimited {
+		return 0
+	}
+	return maxBackups
 }
 
 func IsLogLevelDebugOrBelow() bool {

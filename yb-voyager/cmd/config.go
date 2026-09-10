@@ -52,7 +52,7 @@ var commandsUsingTargetConfig = []string{
 }
 
 var allowedGlobalConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"export-dir", "log-level", "send-diagnostics",
+	"export-dir", "log-level", "log-max-size-mb", "log-max-backups", "send-diagnostics",
 	"profile",
 	// environment variables keys
 	"control-plane-type", "java-home",
@@ -88,7 +88,7 @@ var allowedYBAeonControlPlaneConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedAssessMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level", "run-guardrails-checks",
+	"log-level", "log-max-size-mb", "log-max-backups", "run-guardrails-checks",
 	"iops-capture-interval", "target-db-version", "assessment-metadata-dir",
 	"invoked-by-export-schema",
 	// environment variables keys
@@ -96,14 +96,14 @@ var allowedAssessMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedAnalyzeSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level",
+	"log-level", "log-max-size-mb", "log-max-backups",
 	"output-format", "target-db-version",
 	// environment variables keys
 	"report-unsupported-plpgsql-objects",
 )
 
 var allowedExportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level", "run-guardrails-checks",
+	"log-level", "log-max-size-mb", "log-max-backups", "run-guardrails-checks",
 	"use-orafce", "comments-on-objects", "object-type-list", "exclude-object-type-list",
 	"skip-colocation-recommendations", "assessment-report-path",
 	"skip-performance-recommendations",
@@ -113,7 +113,7 @@ var allowedExportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedExportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level", "run-guardrails-checks",
+	"log-level", "log-max-size-mb", "log-max-backups", "run-guardrails-checks",
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
 	"table-list-file-path", "parallel-jobs", "export-type",
 	"allow-oracle-clob-data-export", "metrics-port",
@@ -122,7 +122,7 @@ var allowedExportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedExportDataFromTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level",
+	"log-level", "log-max-size-mb", "log-max-backups",
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
 	"table-list-file-path", "transaction-ordering", "metrics-port",
 	// environment variables keys
@@ -130,18 +130,18 @@ var allowedExportDataFromTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedImportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level", "run-guardrails-checks",
+	"log-level", "log-max-size-mb", "log-max-backups", "run-guardrails-checks",
 	"continue-on-error", "object-type-list", "exclude-object-type-list", "straight-order",
 	"ignore-exist", "enable-orafce",
 )
 
 var allowedFinalizeSchemaPostDataImportConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level", "run-guardrails-checks",
+	"log-level", "log-max-size-mb", "log-max-backups", "run-guardrails-checks",
 	"continue-on-error", "ignore-exist", "refresh-mviews",
 )
 
 var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level", "run-guardrails-checks",
+	"log-level", "log-max-size-mb", "log-max-backups", "run-guardrails-checks",
 	"batch-size", "parallel-jobs", "adaptive-parallelism", "adaptive-parallelism-max",
 	"skip-replication-checks",
 	"disable-pb", "max-retries-streaming", "exclude-table-list", "table-list",
@@ -163,7 +163,7 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level", "run-guardrails-checks",
+	"log-level", "log-max-size-mb", "log-max-backups", "run-guardrails-checks",
 	"parallel-jobs", "disable-pb", "prometheus-metrics-port", "metrics-port", "use-partition-root",
 	// environment variables keys
 	"num-event-channels", "event-channel-size", "max-events-per-batch",
@@ -172,7 +172,7 @@ var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level", "run-guardrails-checks",
+	"log-level", "log-max-size-mb", "log-max-backups", "run-guardrails-checks",
 	"batch-size", "parallel-jobs", "truncate-tables", "disable-pb", "max-retries-streaming",
 	"prometheus-metrics-port", "metrics-port",
 	// environment variables keys
@@ -182,7 +182,7 @@ var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[strin
 )
 
 var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level",
+	"log-level", "log-max-size-mb", "log-max-backups",
 	"disable-pb", "max-retries-streaming", "enable-upsert", "use-public-ip", "target-endpoints",
 	"batch-size", "parallel-jobs", "adaptive-parallelism", "adaptive-parallelism-max",
 	"format", "delimiter", "data-dir", "file-table-map", "has-header", "escape-char",
@@ -205,12 +205,12 @@ var allowedInitCutoverToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"restart-data-migration-source-target",
 )
 var allowedArchiveChangesConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level",
+	"log-level", "log-max-size-mb", "log-max-backups",
 	"policy", "archive-dir", "fs-utilization-threshold",
 )
 
 var allowedEndMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level",
+	"log-level", "log-max-size-mb", "log-max-backups",
 	"backup-schema-files", "backup-data-files", "save-migration-reports", "backup-log-files",
 	"backup-dir",
 )

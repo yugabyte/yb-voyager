@@ -23,11 +23,13 @@ import (
 	"os"
 	"testing"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/natefinch/lumberjack.v2"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
@@ -4000,4 +4002,157 @@ func TestControlPlane_YBMConfigFileBinding(t *testing.T) {
 
 	// Verify control plane type via environment variable (set by initConfig)
 	assert.Equal(t, "ybm", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should be ybm")
+}
+
+////////////////////////////// Log Settings Tests //////////////////////////////
+
+// errLogSettingsHalt stands in for the process exit that ErrExitPreLog would perform.
+const errLogSettingsHalt = "log settings validation halted the command"
+
+// setupLogSettingsContext prepares an analyze-schema run with the given global log
+// settings block, and returns the config file to point the command at.
+func setupLogSettingsContext(t *testing.T, logSettingsYAML string) *testContext {
+	tmpExportDir := setupExportDir(t)
+	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
+
+	resetCmdAndEnvVars(analyzeSchemaCmd)
+	utils.MonkeyPatchUtilsErrExitToIgnore()
+	origOut, origLevel := log.StandardLogger().Out, log.GetLevel()
+	t.Cleanup(func() {
+		utils.RestoreUtilsErrExit()
+		resetFlags(analyzeSchemaCmd)
+		log.SetOutput(origOut)
+		log.SetLevel(origLevel)
+	})
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+log-level: info
+%s
+`, tmpExportDir, logSettingsYAML)
+	configFile, configDir := setupConfigFile(t, configContent)
+	t.Cleanup(func() { os.RemoveAll(configDir) })
+
+	return &testContext{tmpExportDir: tmpExportDir, configFile: configFile}
+}
+
+// activeLogRotator returns the lumberjack.Logger that logging was actually initialised
+// with, so tests assert on the real wiring rather than only on the flag variables.
+func activeLogRotator(t *testing.T) *lumberjack.Logger {
+	t.Helper()
+	rotator, ok := log.StandardLogger().Out.(*lumberjack.Logger)
+	require.True(t, ok, "expected logrus output to be a lumberjack.Logger")
+	return rotator
+}
+
+func TestLogSettings_ConfigFileBinding(t *testing.T) {
+	ctx := setupLogSettingsContext(t, "log-max-size-mb: 50\nlog-max-backups: -1")
+
+	rootCmd.SetArgs([]string{"analyze-schema", "--config-file", ctx.configFile})
+	require.NoError(t, rootCmd.Execute())
+
+	assert.Equal(t, 50, config.LogMaxSizeMB, "log-max-size-mb should come from the config file")
+	assert.Equal(t, config.LogMaxBackupsUnlimited, config.LogMaxBackups, "log-max-backups should come from the config file")
+
+	rotator := activeLogRotator(t)
+	assert.Equal(t, 50, rotator.MaxSize)
+	assert.Equal(t, 0, rotator.MaxBackups, "-1 should reach lumberjack as its retain-all value")
+}
+
+func TestLogSettings_CLIOverridesConfigFile(t *testing.T) {
+	ctx := setupLogSettingsContext(t, "log-max-size-mb: 50\nlog-max-backups: 5")
+
+	rootCmd.SetArgs([]string{
+		"analyze-schema",
+		"--config-file", ctx.configFile,
+		"--log-max-size-mb", "10",
+		"--log-max-backups", "-1",
+	})
+	require.NoError(t, rootCmd.Execute())
+
+	assert.Equal(t, 10, config.LogMaxSizeMB, "CLI flag should win over the config file")
+	assert.Equal(t, config.LogMaxBackupsUnlimited, config.LogMaxBackups, "CLI flag should win over the config file")
+
+	rotator := activeLogRotator(t)
+	assert.Equal(t, 10, rotator.MaxSize)
+	assert.Equal(t, 0, rotator.MaxBackups)
+}
+
+// Unset settings must reproduce the values yb-voyager hardcoded before they were
+// configurable, so existing users see no behaviour change.
+func TestLogSettings_DefaultsWhenUnset(t *testing.T) {
+	ctx := setupLogSettingsContext(t, "")
+
+	rootCmd.SetArgs([]string{"analyze-schema", "--config-file", ctx.configFile})
+	require.NoError(t, rootCmd.Execute())
+
+	assert.Equal(t, config.DefaultLogMaxSizeMB, config.LogMaxSizeMB)
+	assert.Equal(t, config.DefaultLogMaxBackups, config.LogMaxBackups)
+
+	rotator := activeLogRotator(t)
+	assert.Equal(t, 200, rotator.MaxSize, "default rotation size should be unchanged")
+	assert.Equal(t, 10, rotator.MaxBackups, "default retained backups should be unchanged")
+}
+
+// The settings are allowed in a command section too, matching log-level.
+func TestLogSettings_CommandSectionBinding(t *testing.T) {
+	ctx := setupLogSettingsContext(t, "analyze-schema:\n  log-max-size-mb: 30\n  log-max-backups: 7")
+
+	rootCmd.SetArgs([]string{"analyze-schema", "--config-file", ctx.configFile})
+	require.NoError(t, rootCmd.Execute())
+
+	assert.Equal(t, 30, config.LogMaxSizeMB)
+	assert.Equal(t, 7, config.LogMaxBackups)
+
+	rotator := activeLogRotator(t)
+	assert.Equal(t, 30, rotator.MaxSize)
+	assert.Equal(t, 7, rotator.MaxBackups)
+}
+
+// An invalid value must halt the command before logging is initialised, i.e. via
+// ErrExitPreLog rather than ErrExit, so the error is not swallowed into a log file.
+func TestLogSettings_InvalidValueHaltsBeforeLoggingInit(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{
+			name:    "zero max size",
+			args:    []string{"--log-max-size-mb", "0"},
+			wantErr: "invalid log-max-size-mb: 0",
+		},
+		{
+			// 0 is rejected rather than silently meaning "retain all".
+			name:    "zero max backups",
+			args:    []string{"--log-max-backups", "0"},
+			wantErr: "invalid log-max-backups: 0",
+		},
+		{
+			name:    "negative max backups other than the sentinel",
+			args:    []string{"--log-max-backups", "-2"},
+			wantErr: "invalid log-max-backups: -2",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := setupLogSettingsContext(t, "")
+
+			// Capture the message and abort the command the way ErrExitPreLog's
+			// os.Exit would, without killing the test process.
+			var gotMsg string
+			utils.MonkeyPatchUtilsErrExitPreLog(func(formatString string, args ...interface{}) {
+				gotMsg = fmt.Sprintf(formatString, args...)
+				panic(errLogSettingsHalt)
+			})
+			t.Cleanup(utils.RestoreUtilsErrExitPreLog)
+
+			rootCmd.SetArgs(append([]string{"analyze-schema", "--config-file", ctx.configFile}, tt.args...))
+
+			require.PanicsWithValue(t, errLogSettingsHalt, func() { rootCmd.Execute() },
+				"invalid log settings should halt via ErrExitPreLog")
+			assert.Contains(t, gotMsg, tt.wantErr)
+		})
+	}
 }
