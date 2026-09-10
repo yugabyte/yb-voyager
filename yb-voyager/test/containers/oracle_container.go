@@ -156,7 +156,7 @@ func (ora *OracleContainer) GetConnectionString() string {
 	config := ora.GetConfig()
 	host, port, err := ora.GetHostPort()
 	if err != nil {
-		utils.ErrExit("failed to get host port for oracle connection string: %v", err)
+		utils.ErrExit("failed to get host port for oracle connection string: %w", err)
 	}
 
 	connectString := fmt.Sprintf(`(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = %s)(PORT = %d))(CONNECT_DATA = (SERVICE_NAME = %s)))`,
@@ -226,7 +226,7 @@ func (ora *OracleContainer) Query(sql string, args ...interface{}) (*sql.Rows, e
 	}
 	defer conn.Close()
 
-	rows, err := conn.Query(sql, args...)
+	rows, err := conn.Query(sql, args...) //nolint:sqlclosecheck // rows are returned to and closed by the caller
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}

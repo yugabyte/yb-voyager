@@ -1,0 +1,89 @@
+name: Lint
+
+on:
+  push:
+    branches: ['main', '*.*-dev', '*.*.*-dev']
+  pull_request:
+    branches: [main]
+
+jobs:
+  prepare-versions:
+    uses: ./.github/workflows/prepare-versions.yml
+
+  # golangci-lint (config: yb-voyager/.golangci.yml) runs errcheck, govet,
+  # staticcheck, ineffassign, and unused in one invocation.
+  #
+  # One step per build-tag group: the groups cannot be combined into a single
+  # run because test files of different tags redeclare symbols (e.g. TestMain)
+  # within the same package, so a combined-tags build does not compile.
+  # `if: ${{ !cancelled() }}` lets every group report even when an earlier one
+  # fails (the job still fails). golangci-lint's per-package cache makes the
+  # later steps incremental.
+  lint:
+    name: golangci-lint
+    needs: prepare-versions
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: yb-voyager
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ needs.prepare-versions.outputs.go_version }}
+
+      - name: Install golangci-lint
+        run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b "$(go env GOPATH)/bin" ${{ needs.prepare-versions.outputs.golangci_lint_version }}
+
+      - name: Lint (no build tags)
+        run: golangci-lint run --max-issues-per-linter 0 --max-same-issues 0 ./...
+
+      - name: Lint (unit)
+        if: ${{ !cancelled() }}
+        run: golangci-lint run --max-issues-per-linter 0 --max-same-issues 0 --build-tags unit ./...
+
+      - name: Lint (integration)
+        if: ${{ !cancelled() }}
+        run: golangci-lint run --max-issues-per-linter 0 --max-same-issues 0 --build-tags integration ./...
+
+      - name: Lint (integration_voyager_command)
+        if: ${{ !cancelled() }}
+        run: golangci-lint run --max-issues-per-linter 0 --max-same-issues 0 --build-tags integration_voyager_command ./...
+
+      - name: Lint (integration_live_migration)
+        if: ${{ !cancelled() }}
+        run: golangci-lint run --max-issues-per-linter 0 --max-same-issues 0 --build-tags integration_live_migration ./...
+
+      - name: Lint (issues_integration)
+        if: ${{ !cancelled() }}
+        run: golangci-lint run --max-issues-per-linter 0 --max-same-issues 0 --build-tags issues_integration ./...
+
+      - name: Lint (failpoint_export)
+        if: ${{ !cancelled() }}
+        run: golangci-lint run --max-issues-per-linter 0 --max-same-issues 0 --build-tags failpoint_export ./...
+
+      - name: Lint (failpoint_import)
+        if: ${{ !cancelled() }}
+        run: golangci-lint run --max-issues-per-linter 0 --max-same-issues 0 --build-tags failpoint_import ./...
+
+      - name: Lint (failpoint_cutover)
+        if: ${{ !cancelled() }}
+        run: golangci-lint run --max-issues-per-linter 0 --max-same-issues 0 --build-tags failpoint_cutover ./...
+
+      - name: Lint (cdc_benchmark)
+        if: ${{ !cancelled() }}
+        run: golangci-lint run --max-issues-per-linter 0 --max-same-issues 0 --build-tags cdc_benchmark ./...
+
+      - name: Lint (manual)
+        if: ${{ !cancelled() }}
+        run: golangci-lint run --max-issues-per-linter 0 --max-same-issues 0 --build-tags manual ./...
+
+      - name: Lint (yb_version_latest_stable)
+        if: ${{ !cancelled() }}
+        run: golangci-lint run --max-issues-per-linter 0 --max-same-issues 0 --build-tags yb_version_latest_stable ./...
+
+      - name: Lint (connector_latest_stable)
+        if: ${{ !cancelled() }}
+        run: golangci-lint run --max-issues-per-linter 0 --max-same-issues 0 --build-tags connector_latest_stable ./...

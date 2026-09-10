@@ -78,6 +78,13 @@ Applies especially to new packages, interfaces, and abstractions:
 - **Name to avoid collisions and ambiguity.** A field named `Role` next to Postgres roles, or two fields that mean the same thing, will confuse readers. Prefer qualified, single-purpose names.
 - **One source of truth.** Do not persist the same fact two ways. 
 
+## Fail Loudly on Unexpected State
+
+- When code reaches a state that "shouldn't happen", return an error — do not log a warning and continue, and do not silently skip the work.
+- Do not silently fall back to a weaker mechanism (e.g. matching by name because an ID is missing, or using a default because a lookup failed). Either the fallback is a designed, documented behavior, or the missing input is an error.
+- Avoid in-band sentinel values: an empty string, zero, or nil must not carry two different meanings (e.g. "not set" vs "legitimately empty"). Use an explicit flag or a distinct representation.
+- For each new defensive branch, ask: when is this reachable, and is tolerating it correct? If the answer is "never", error out.
+
 ## Generic Coding Practices
 
 - Keep code simple. Use early returns to reduce nesting. Prefer flat `if err != nil { return err }` over deeply nested success paths.
@@ -86,3 +93,5 @@ Applies especially to new packages, interfaces, and abstractions:
 - Remove dead code, unused functions, and leftover debugging artifacts before merging.
 - Consolidate duplicate logic into shared helpers rather than copy-pasting across switch cases or source-type implementations.
 - Comments should explain *why*, not *what*. Non-obvious decisions, workarounds, and known limitations deserve comments.
+- When a refactor renames or restructures something, sweep the surrounding comments and error messages for the old names — stale comments actively mislead.
+- Anything fed into a hash, fingerprint, or serialized key must be built in a deterministic order (sort map keys and column lists first).

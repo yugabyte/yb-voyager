@@ -523,7 +523,7 @@ func readCallHomeServiceEnv() {
 	if port != "" {
 		portNum, err := strconv.Atoi(port)
 		if err != nil {
-			utils.ErrExit("call-home port is not in valid format %s: %s", port, err)
+			utils.ErrExit("call-home port is not in valid format %s: %w", port, err)
 		}
 		CALL_HOME_SERVICE_PORT = portNum
 	}
@@ -553,7 +553,7 @@ func SendPayload(payload *Payload) error {
 
 	postBody, err := json.Marshal(payload)
 	if err != nil {
-		return goerrors.Errorf("error while creating http request for diagnostics: %v", err)
+		return goerrors.Errorf("error while creating http request for diagnostics: %w", err)
 	}
 	requestBody := bytes.NewBuffer(postBody)
 
@@ -629,12 +629,12 @@ func findInnermostGoError(err error) *goerrors.Error {
 			return
 		}
 
-		if goErr, ok := curr.(*goerrors.Error); ok && depth >= deepestDepth {
+		if goErr, ok := curr.(*goerrors.Error); ok && depth >= deepestDepth { //nolint:errorlint // deliberate per-node check inside a manual unwrap walk
 			deepest = goErr
 			deepestDepth = depth
 		}
 
-		switch unwrapped := curr.(type) {
+		switch unwrapped := curr.(type) { //nolint:errorlint // deliberate per-node traversal of the unwrap tree
 		case interface{ Unwrap() []error }:
 			for _, child := range unwrapped.Unwrap() {
 				walk(child, depth+1)

@@ -1156,6 +1156,7 @@ func testPKandUKONComplexDataType(t *testing.T) {
 	}
 }
 
+//nolint:unused // kept for the disabled extension-support subtest (see the commented t.Run below)
 func testExtensionSupportList(t *testing.T) {
 	conn, err := getConn()
 	assert.NoError(t, err)

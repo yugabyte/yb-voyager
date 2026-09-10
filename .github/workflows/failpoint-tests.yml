@@ -68,11 +68,22 @@ jobs:
           echo "BYTEMAN_JAR=/tmp/${DIR_NAME}/lib/byteman.jar" >> $GITHUB_ENV
           echo "Byteman installed at /tmp/${DIR_NAME}"
 
-      - name: Cache local Maven repository
-        uses: actions/cache@v4
+      - name: Compute Maven cache key
+        id: maven-cache-key
+        # Computed once, before the build, so the restore and save steps agree on it.
+        # The Debezium build writes into debezium-server-voyager/target/, and
+        # hashFiles() is evaluated over the workspace, so re-evaluating it after the
+        # installer has run risks saving under a key no restore ever looks for.
+        run: echo "key=${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore local Maven repository
+        id: maven-cache
+        uses: actions/cache/restore@v4
         with:
           path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          key: ${{ steps.maven-cache-key.outputs.key }}
+          # Prefix fallback, so a PR that does change the cached inputs still
+          # restores most of the dependency tree and only fetches the delta.
           restore-keys: |
             ${{ runner.os }}-maven-
 
@@ -103,6 +114,28 @@ jobs:
           psql --version
         env:
           ON_INSTALLER_ERROR_OUTPUT_LOG: Y
+
+      # Save only from the default branch (or a PR labelled `cache-maven`).
+      # This gate is load-bearing: ~/.m2 is ~1.3 GiB against a 10 GiB repo budget,
+      # so when every PR saved its own copy, 8 duplicates of the same key filled the
+      # budget (measured 10.43 GiB), LRU eviction took out main's entry, ~95% of jobs
+      # then missed, and each miss wrote another copy that evicted the next one.
+      # A run falls back to the default branch's cache, so one entry on main serves
+      # every PR. Label a PR `cache-maven` if it legitimately changes the cached
+      # inputs (e.g. a Debezium ref bump) and needs to populate its own entry.
+      #
+      # success() is explicit because a custom `if:` drops the implicit success()
+      # check, and a ~/.m2 left behind by a failed build must never be cached.
+      - name: Save local Maven repository
+        if: >-
+          success() &&
+          steps.maven-cache.outputs.cache-hit != 'true' &&
+          (github.ref == 'refs/heads/main' ||
+          contains(github.event.pull_request.labels.*.name, 'cache-maven'))
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ steps.maven-cache-key.outputs.key }}
 
       - name: Free disk space
         run: |

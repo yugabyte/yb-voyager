@@ -66,7 +66,7 @@ The --policy flag is required. Accepted values: %s`, strings.Join(archivechanges
 func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("error getting migration status record: %v", err)
+		utils.ErrExit("error getting migration status record: %w", err)
 	}
 	if msr == nil {
 		utils.ErrExit("migration status record not found; ensure export has been initiated before running archive changes")
@@ -117,14 +117,14 @@ func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 
 	err = runArchiveChangesCleaner(cfg, metaDB, ctx)
 	if err != nil {
-		utils.ErrExit("archive changes failed: %v", err)
+		utils.ErrExit("archive changes failed: %w", err)
 	}
 
 	packAndSendArchiveChangesPayload(COMPLETE, nil, metaDB, migrationUUID)
 
 	msr, err = metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("error getting migration status record: %v", err)
+		utils.ErrExit("error getting migration status record: %w", err)
 	}
 	if msr.RestartDataMigrationSourceTargetNextIteration {
 		utils.PrintAndLogfSuccess("\nArchived all the changes for the iteration 0.")
@@ -137,7 +137,7 @@ func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 	for {
 		msr, err = currentDB.GetMigrationStatusRecord()
 		if err != nil {
-			utils.ErrExit("error getting migration status record: %v", err)
+			utils.ErrExit("error getting migration status record: %w", err)
 		}
 
 		if !msr.RestartDataMigrationSourceTargetNextIteration {
@@ -146,11 +146,11 @@ func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 
 		nextIterationMetaDB, nextIterationConfig, nextIterationNum, nextIterationMigrationUUID, err := setupArchiveChangesConfigForNextIteration(currentDB, msr.IterationNo)
 		if err != nil {
-			utils.ErrExit("error setting up segment config for next iteration: %v", err)
+			utils.ErrExit("error setting up segment config for next iteration: %w", err)
 		}
 		err = runArchiveChangesCleaner(nextIterationConfig, nextIterationMetaDB, ctx)
 		if err != nil {
-			utils.ErrExit("archive changes failed for iteration %d: %v", nextIterationNum, err)
+			utils.ErrExit("archive changes failed for iteration %d: %w", nextIterationNum, err)
 		}
 		packAndSendArchiveChangesPayload(COMPLETE, nil, nextIterationMetaDB, nextIterationMigrationUUID)
 		utils.PrintAndLogfSuccess("\nArchived all the changes for iteration %d.", nextIterationNum)
@@ -159,7 +159,7 @@ func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 
 		parentMSR, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
-			utils.ErrExit("error getting migration status record: %v", err)
+			utils.ErrExit("error getting migration status record: %w", err)
 		}
 
 		if StopArchiverSignal && parentMSR.LatestIterationNumber == nextIterationNum {
@@ -228,7 +228,7 @@ func workflowEndedForDB(db *metadb.MetaDB, dir string) bool {
 	}
 	msr, err := db.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("error getting migration status record: %v", err)
+		utils.ErrExit("error getting migration status record: %w", err)
 	}
 	if GetCutoverStatus(db) != COMPLETED {
 		return false

@@ -127,7 +127,7 @@ func (pg *TargetPostgreSQL) Init() error {
 		schemaList)
 	rows, err := pg.Query(checkSchemaExistsQuery)
 	if err != nil {
-		return goerrors.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, pg.tconf.Host, err)
+		return goerrors.Errorf("run query %q on target %q to check schema exists: %w", checkSchemaExistsQuery, pg.tconf.Host, err)
 	}
 	var returnedSchemas []string
 	defer rows.Close()
@@ -908,8 +908,8 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		}
 		defer func() {
 			errRollBack := tx.Rollback(ctx)
-			if errRollBack != nil && errRollBack != pgx.ErrTxClosed {
-				log.Errorf("error rolling back tx for batch id (%s): %v", batch.ID(), err)
+			if errRollBack != nil && !errors.Is(errRollBack, pgx.ErrTxClosed) {
+				log.Errorf("error rolling back tx for batch id (%s): %v", batch.ID(), errRollBack)
 			}
 		}()
 

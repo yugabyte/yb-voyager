@@ -1924,7 +1924,6 @@ func TestLiveMigrationWithCustomCdcPartitionKey(t *testing.T) {
 		"--cdc-partition-key-overrides": "test_schema.orders:(customer_id)",
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
-	defer lm.StopImportData()
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."orders"`: 10,
@@ -2064,7 +2063,6 @@ func TestLiveMigrationCustomCdcPartitionKeyNoConflict(t *testing.T) {
 		"--cdc-partition-key-overrides": "test_schema.test_live:(custom_key)",
 	}, []string{uniqueKeyConflictCountFailpointEnv})
 	testutils.FatalIfError(t, err, "failed to start import data")
-	defer lm.StopImportData()
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_live"`: 5,
@@ -2379,14 +2377,11 @@ func TestLiveMigrationCdcPartitionKeyRejectsCustomOnExpressionUniqueIndex(t *tes
 	})
 	require.Error(t, err, "import with custom partition-key on expression-UK table should fail")
 	output := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
-	assert.Contains(t, output, "cdc-partition-key custom is not allowed for table 'test_schema.users' because it has an expression-based unique index; use table (via --cdc-partition-key or --cdc-partition-key-overrides)",
+	require.Contains(t, output, "cdc-partition-key custom is not allowed for table test_schema.users because it has an expression-based unique index; use table (via --cdc-partition-key or --cdc-partition-key-overrides)",
 		"expected expression-UK rejection, got: %s", output)
 
-	err = lm.StartImportData(true, map[string]string{
-		"--cdc-partition-key": "table",
-	})
+	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
-	defer lm.StopImportData()
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."users"`: 10,
@@ -2478,7 +2473,6 @@ func TestLiveMigrationCdcPartitionKeyRejectsCustomKeyColumnNotOnTable(t *testing
 		"--cdc-partition-key": "table",
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
-	defer lm.StopImportData()
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."orders"`: 10,
@@ -2509,11 +2503,11 @@ func TestLiveMigrationWithSubsetOFPartialUNiqueIndexColumnsBeingChangedInUpdate(
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
 			ForLive:      true,
-			DatabaseName: "test_false_negative",
+			DatabaseName: "test_subset_of_columns_being_changed",
 		},
 		TargetDB: ContainerConfig{
 			Type:         "yugabytedb",
-			DatabaseName: "test_false_negative",
+			DatabaseName: "test_subset_of_columns_being_changed",
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
@@ -2740,7 +2734,6 @@ func TestLiveMigrationCustomCdcPartitionKeyPKRecycleConflict(t *testing.T) {
 		"--cdc-partition-key-overrides": "test_schema.test_live:(region)",
 	}, []string{uniqueKeyConflictCountFailpointEnv})
 	testutils.FatalIfError(t, err, "failed to start import data")
-	defer lm.StopImportData()
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_live"`: 5,
@@ -2902,7 +2895,6 @@ func TestLiveMigrationPartitionedTableWithCustomCdcPartitionKeyNoConflict(t *tes
 		"--cdc-partition-key-overrides": "test_schema.test_live:(custom_key)",
 	}, []string{uniqueKeyConflictCountFailpointEnv})
 	testutils.FatalIfError(t, err, "failed to start import data")
-	defer lm.StopImportData()
 
 	// Snapshot count is at the root level (10 rows across the two partitions).
 	err = lm.WaitForSnapshotComplete(map[string]int64{
@@ -3050,7 +3042,6 @@ func TestLiveMigrationPartitionedTableWithCustomCdcPartitionKeyPKRecycleConflict
 		"--cdc-partition-key-overrides": "test_schema.test_live:(custom_key)",
 	}, []string{uniqueKeyConflictCountFailpointEnv})
 	testutils.FatalIfError(t, err, "failed to start import data")
-	defer lm.StopImportData()
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_live"`: 5,
@@ -3203,7 +3194,6 @@ func TestLiveMigrationPartitionedTableChildPKWithCustomCdcPartitionKeyPKRecycleC
 		"--use-partition-root":          "false",
 	}, []string{uniqueKeyConflictCountFailpointEnv})
 	testutils.FatalIfError(t, err, "failed to start import data")
-	defer lm.StopImportData()
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"public"."orders"`: 5,
@@ -3240,6 +3230,196 @@ func TestLiveMigrationPartitionedTableChildPKWithCustomCdcPartitionKeyPKRecycleC
 
 	// Order by the full primary key: id alone repeats across partitions (US/EU).
 	err = lm.ValidateDataConsistency([]string{`"public"."orders"`}, "id, region")
+	testutils.FatalIfError(t, err, "target does not match source after streaming")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
+// TestLiveMigrationCdcPartitionKeyRejectsCustomKeyOnGeneratedStoredColumn verifies the
+// stored-generated-column guardrail for the custom key itself (Follow-up 1): a custom key
+// column that is a STORED generated column is rejected during prepare. Its value is computed
+// on write and is absent from Debezium events, so it cannot be used to route/hash events. Here
+// the table's unique index is on a normal column (customer_id) — so the "unique index on a
+// generated column" guard does NOT fire — and only the custom-key-is-generated guard applies.
+func TestLiveMigrationCdcPartitionKeyRejectsCustomKeyOnGeneratedStoredColumn(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "cdc_custom_gen_key",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "cdc_custom_gen_key",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.orders (
+				id int PRIMARY KEY,
+				customer_id int,
+				bucket int GENERATED ALWAYS AS (customer_id % 8) STORED
+			);
+			-- Unique index on a normal column; the generated column is NOT in any unique index.
+			CREATE UNIQUE INDEX orders_customer_uidx ON test_schema.orders (customer_id);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.orders REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.orders (id, customer_id)
+			 SELECT i, i FROM generate_series(1, 10) i;`,
+		},
+		SourceDeltaSQL: []string{
+			`INSERT INTO test_schema.orders (id, customer_id)
+			 SELECT i, i FROM generate_series(11, 20) i;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	// A custom key that is a stored generated column must fail during prepare.
+	err = lm.StartImportData(false, map[string]string{
+		"--cdc-partition-key":           "table",
+		"--cdc-partition-key-overrides": "test_schema.orders:(bucket)",
+	})
+	require.Error(t, err, "import with a generated-column custom key should fail")
+	output := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
+	require.Contains(t, output, `custom key column(s) - [bucket] are a stored generated column(s)`,
+		"expected generated-column custom-key rejection, got: %s", output)
+
+	err = lm.StartImportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."orders"`: 10,
+	}, 120)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."orders"`: {Inserts: 10, Updates: 0, Deletes: 0},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."orders"`}, "id")
+	testutils.FatalIfError(t, err, "target does not match source after streaming")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
+// TestLiveMigrationCdcPartitionKeyRejectsCustomKeyOnGeneratedStoredColumn verifies the
+// stored-generated-column guardrail for the custom key itself (Follow-up 1): a custom key
+// column that is a STORED generated column is rejected during prepare. Its value is computed
+// on write and is absent from Debezium events, so it cannot be used to route/hash events. Here
+// the table's unique index is on a normal column (customer_id) — so the "unique index on a
+// generated column" guard does NOT fire — and only the custom-key-is-generated guard applies.
+func TestLiveMigrationCdcPartitionKeyRejectsCustomKeyOnGeneratedStoredColumnWithUniqueIndex(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "cdc_custom_gen_key_with_unique_index",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "cdc_custom_gen_key_with_unique_index",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.orders (
+				id int PRIMARY KEY,
+				customer_id int,
+				bucket int GENERATED ALWAYS AS (customer_id + 1213214) STORED UNIQUE
+			);
+			-- Unique index on a normal column; the generated column is NOT in any unique index.
+			CREATE UNIQUE INDEX orders_customer_uidx ON test_schema.orders (customer_id);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.orders REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.orders (id, customer_id)
+			 SELECT i, i FROM generate_series(1, 10) i;`,
+		},
+		SourceDeltaSQL: []string{
+			`INSERT INTO test_schema.orders (id, customer_id)
+			 SELECT i, i FROM generate_series(11, 20) i;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	//custom key is a unique index on a stored generated column
+	err = lm.StartImportData(false, map[string]string{
+		"--cdc-partition-key-overrides": "test_schema.orders:(bucket)",
+	})
+	require.Error(t, err, "import with a generated-column custom key should fail")
+	output := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
+	require.Contains(t, output, `because it has a unique index on a stored generated column`,
+		"expected generated-column custom-key rejection, got: %s", output)
+
+	//overrides with pk strategy but table has a unique index on a stored generated column
+	err = lm.StartImportData(false, map[string]string{
+		"--cdc-partition-key-overrides": "test_schema.orders:pk",
+	})
+	require.Error(t, err, "import with a generated-column custom key should fail")
+	output = lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
+	require.Contains(t, output, `because it has a unique index on a stored generated column`,
+		"expected generated-column custom-key rejection, got: %s", output)
+
+	err = lm.StartImportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."orders"`: 10,
+	}, 120)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."orders"`: {Inserts: 10, Updates: 0, Deletes: 0},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."orders"`}, "id")
 	testutils.FatalIfError(t, err, "target does not match source after streaming")
 
 	err = lm.InitiateCutoverToTarget(false, nil)

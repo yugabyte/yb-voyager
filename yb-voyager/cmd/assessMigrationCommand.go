@@ -379,7 +379,7 @@ func fetchObjectUsageStats() ([]*types.ObjectUsageStats, error) {
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching object usage stats %v", err)
+			log.Warnf("error closing rows while fetching object usage stats %v", closeErr)
 		}
 	}()
 
@@ -391,6 +391,9 @@ func fetchObjectUsageStats() ([]*types.ObjectUsageStats, error) {
 			return nil, fmt.Errorf("error scanning object usage stat: %w", err)
 		}
 		objectUsagesStats = append(objectUsagesStats, &objectUsage)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating object usage stats: %w", err)
 	}
 	return objectUsagesStats, nil
 }
@@ -596,6 +599,7 @@ func generateAssessmentReport(replicaDiscoveryInfoForCallhome *migassessment.Rep
 	addAssessmentIssuesForUnsupportedDatatypes(unsupportedDataTypes)
 
 	addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB)
+
 	// calculating migration complexity after collecting all assessment issues
 	complexity, explanation := calculateMigrationComplexityAndExplanation(source.DBType, schemaDir, assessmentReport)
 	log.Infof("migration complexity: %q and explanation: %q", complexity, explanation)
@@ -636,7 +640,7 @@ func fetchRedundantIndexInfoFromAssessmentDB() ([]utils.RedundantIndexesInfo, er
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching redundant indexes %v", err)
+			log.Warnf("error closing rows while fetching redundant indexes %v", closeErr)
 		}
 	}()
 
@@ -651,6 +655,9 @@ func fetchRedundantIndexInfoFromAssessmentDB() ([]utils.RedundantIndexesInfo, er
 		}
 		redundantIndex.DBType = source.DBType
 		redundantIndexesInfo = append(redundantIndexesInfo, redundantIndex)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating redundant indexes: %w", err)
 	}
 
 	resolvedRedundantIndexes := getResolvedRedundantIndexes(redundantIndexesInfo)
@@ -716,7 +723,7 @@ func fetchColumnStatisticsInfo() ([]utils.ColumnStatistics, error) {
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching column statistics %v", err)
+			log.Warnf("error closing rows while fetching column statistics %v", closeErr)
 		}
 	}()
 
@@ -729,6 +736,9 @@ func fetchColumnStatisticsInfo() ([]utils.ColumnStatistics, error) {
 		}
 		stat.DBType = source.DBType
 		columnStats = append(columnStats, stat)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating column statistics: %w", err)
 	}
 	return columnStats, nil
 }
@@ -996,7 +1006,7 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching object type mapping metadata: %v", err)
+			log.Warnf("error closing rows while fetching object type mapping metadata: %v", closeErr)
 		}
 	}()
 
@@ -1132,7 +1142,7 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching database queries summary metadata: %v", err)
+			log.Warnf("error closing rows while fetching database queries summary metadata: %v", closeErr)
 		}
 	}()
 
@@ -1219,7 +1229,7 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching unsupported datatypes metadata: %v", err)
+			log.Warnf("error closing rows while fetching unsupported datatypes metadata: %v", closeErr)
 		}
 	}()
 
@@ -1269,9 +1279,10 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 		// Array of enums are now supported with logical connector (default), so not including them as unsupported
 		isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype
 
-		switch true {
-		case isUnsupportedDatatype:
+		if isUnsupportedDatatype {
 			unsupportedDataTypes = append(unsupportedDataTypes, allColumnsDataTypes[i])
+		}
+		switch true {
 		case isUnsupportedDatatypeInLive:
 			unsupportedDataTypesForLiveMigration = append(unsupportedDataTypesForLiveMigration, allColumnsDataTypes[i])
 		case isUnsupportedDatatypeInLiveWithFFOrFB:
@@ -1324,22 +1335,28 @@ func addAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 			// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication
 			// This converted AssessmentIssue is then appended to the assessmentIssues slice
 			queryissue := queryissue.ReportUnsupportedDatatypes(baseTypeName, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
-			checkIsFixedInAndAddIssueToAssessmentIssues(queryissue)
+			checkIsFixedInAndAddIssueToAssessmentIssues(queryissue, nil)
 
 		default:
 			panic(fmt.Sprintf("invalid source db type %q", source.DBType))
 		}
-
 	}
 }
 
-func checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue queryissue.QueryIssue) {
+func checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue queryissue.QueryIssue, issueTypeMap map[string]bool) {
+	if issueTypeMap == nil {
+		issueTypeMap = make(map[string]bool)
+	}
 	// Drop an issue only when the feature is GA in the target version. Issues that are
 	// only Tech Preview / Early Access in the target are retained and reported with
 	// their maturity annotation (added in convertIssueInstanceToAnalyzeIssue).
 	maturity, err := queryIssue.GetMaturityInTarget(targetDbVersion)
 	if err != nil {
 		log.Warnf("checking maturity of issue %v in target version: %v", queryIssue, err)
+	}
+
+	if queryissue.ShouldFilterOutIssue(queryIssue, issueTypeMap) {
+		return
 	}
 	if maturity != constants.MATURITY_GA {
 		convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryIssue, "", false, false)
@@ -1476,6 +1493,11 @@ func addNotesToAssessmentReport() {
 }
 
 func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration []utils.TableColumnsDataTypes, unsupportedDataTypesForLiveMigrationWithFForFB []utils.TableColumnsDataTypes) {
+
+	issueTypeMap := make(map[string]bool)
+	for _, issue := range assessmentReport.Issues {
+		issueTypeMap[issue.Type] = true
+	}
 	switch source.DBType {
 	case POSTGRESQL:
 		log.Infof("add migration caveats to assessment report")
@@ -1494,7 +1516,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				"",
 				"SAVEPOINT", // Hardcoded SQL statement
 			)
-			checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue)
+			checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue, issueTypeMap)
 		}
 
 		if len(unsupportedDataTypesForLiveMigration) > 0 {
@@ -1509,7 +1531,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication
 				// This converted AssessmentIssue is then appended to the assessmentIssues slice
 				queryIssue := queryissue.ReportUnsupportedDatatypesInLive(baseTypeName, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
-				checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue)
+				checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue, issueTypeMap)
 			}
 			if len(columns) > 0 {
 				migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_DESCRIPTION, nil})
@@ -1536,7 +1558,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				} else {
 					queryIssue = queryissue.ReportUnsupportedDatatypesInLiveWithFFOrFB(baseTypeName, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
 				}
-				checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue)
+				checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue, issueTypeMap)
 
 			}
 			if len(columns) > 0 {

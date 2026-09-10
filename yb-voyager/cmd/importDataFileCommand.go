@@ -82,19 +82,19 @@ var importDataFileCmd = &cobra.Command{
 			utils.ErrExit("failed to get migration UUID: %w", err)
 		}
 		if err := setupImportDataObservability(); err != nil {
-			utils.ErrExit("Failed to setup import data observability: %s", err)
+			utils.ErrExit("Failed to setup import data observability: %w", err)
 		}
 		//TODO: fix later for schemaNameMatcher
 		tconf.Schemas = sqlname.ParseIdentifiersFromString(tconf.TargetDBType, tconf.SchemaConfig, ",")
 		tdb = tgtdb.NewTargetDB(&tconf)
 		err = tdb.Init()
 		if err != nil {
-			utils.ErrExit("Failed to initialize the target DB: %s", err)
+			utils.ErrExit("Failed to initialize the target DB: %w", err)
 		}
 		targetDBDetails = tdb.GetCallhomeTargetDBInfo()
 		err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb, shouldReregisterYBNames())
 		if err != nil {
-			utils.ErrExit("initialize name registry: %v", err)
+			utils.ErrExit("initialize name registry: %w", err)
 		}
 
 	},
@@ -126,7 +126,7 @@ func storeFileTableMapAndDataDirInMSR() {
 		msr.ImportDataFileFlagDataDir = dataDir
 	})
 	if err != nil {
-		utils.ErrExit("failed updating migration status record for file-table-mapping and data-dir: %v", err)
+		utils.ErrExit("failed updating migration status record for file-table-mapping and data-dir: %w", err)
 	}
 }
 
@@ -136,7 +136,7 @@ func prepareForImportDataCmd(importFileTasks []*ImportFileTask) {
 		record.SourceDBConf = source.Clone()
 	})
 	if err != nil {
-		utils.ErrExit("failed to update migration status record: %v", err)
+		utils.ErrExit("failed to update migration status record: %w", err)
 	}
 
 	dataFileList := getFileSizeInfo(importFileTasks)
@@ -201,19 +201,19 @@ func getImportFileTasks(currFileTableMapping string) []*ImportFileTask {
 		globPattern, table := strings.Split(kv, ":")[0], strings.Split(kv, ":")[1]
 		filePaths, err := dataStore.Glob(globPattern)
 		if err != nil {
-			utils.ErrExit("failed to find files matching pattern: %q: %v", globPattern, err)
+			utils.ErrExit("failed to find files matching pattern: %q: %w", globPattern, err)
 		}
 		if len(filePaths) == 0 {
 			utils.ErrExit("no files found for matching pattern: %q", globPattern)
 		}
 		tableNameTuple, err := namereg.NameReg.LookupTableName(table)
 		if err != nil {
-			utils.ErrExit("lookup table name in name registry: %v", err)
+			utils.ErrExit("lookup table name in name registry: %w", err)
 		}
 		for _, filePath := range filePaths {
 			fileSize, err := dataStore.FileSize(filePath)
 			if err != nil {
-				utils.ErrExit("calculating file size in bytes: %q: %v", filePath, err)
+				utils.ErrExit("calculating file size in bytes: %q: %w", filePath, err)
 			}
 			task := &ImportFileTask{
 				ID:           idCounter,
@@ -268,17 +268,17 @@ func checkDataDirFlag() {
 	}
 	if strings.HasPrefix(dataDir, "s3://") {
 		if err := s3.ValidateObjectURL(dataDir); err != nil {
-			utils.ErrExit("invalid s3 data-dir %q: %v", dataDir, err)
+			utils.ErrExit("invalid s3 data-dir %q: %w", dataDir, err)
 		}
 		return
 	} else if strings.HasPrefix(dataDir, "gs://") {
 		if err := gcs.ValidateObjectURL(dataDir); err != nil {
-			utils.ErrExit("invalid gcs data-dir %q: %v", dataDir, err)
+			utils.ErrExit("invalid gcs data-dir %q: %w", dataDir, err)
 		}
 		return
 	} else if strings.HasPrefix(dataDir, "https://") {
 		if err := az.ValidateObjectURL(dataDir); err != nil {
-			utils.ErrExit("invalid azure data-dir %q: %v", dataDir, err)
+			utils.ErrExit("invalid azure data-dir %q: %w", dataDir, err)
 		}
 		return
 	}
@@ -287,12 +287,12 @@ func checkDataDirFlag() {
 	}
 	dataDirAbs, err := filepath.Abs(dataDir)
 	if err != nil {
-		utils.ErrExit("unable to resolve absolute path for data-dir: (%q): %v", dataDir, err)
+		utils.ErrExit("unable to resolve absolute path for data-dir: (%q): %w", dataDir, err)
 	}
 
 	exportDirAbs, err := filepath.Abs(exportDir)
 	if err != nil {
-		utils.ErrExit("unable to resolve absolute path for export-dir: (%q): %v", exportDir, err)
+		utils.ErrExit("unable to resolve absolute path for export-dir: (%q): %w", exportDir, err)
 	}
 
 	if strings.HasPrefix(dataDirAbs, exportDirAbs) {

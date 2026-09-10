@@ -1,4 +1,4 @@
-name: Go
+name: Issue Tests (All YB Versions)
 
 on:
   push:

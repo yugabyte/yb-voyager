@@ -146,21 +146,21 @@ func (lm *LiveMigrationTest) SetupContainers(ctx context.Context) error {
 		pg := lm.sourceContainer.(*testcontainers.PostgresContainer)
 		err := pg.CreateDatabase(lm.config.SourceDB.DatabaseName)
 		if err != nil {
-			return goerrors.Errorf("failed to create source database: %v", err)
+			return goerrors.Errorf("failed to create source database: %w", err)
 		}
 	}
 	if lm.config.TargetDB.Type != "" && lm.config.TargetDB.DatabaseName != "" {
 		yb := lm.targetContainer.(*testcontainers.YugabyteDBContainer)
 		err := yb.CreateDatabase(lm.config.TargetDB.DatabaseName)
 		if err != nil {
-			return goerrors.Errorf("failed to create target database: %v", err)
+			return goerrors.Errorf("failed to create target database: %w", err)
 		}
 	}
 	if lm.sourceReplicaContainer != nil && lm.config.SourceReplicaDB.DatabaseName != "" {
 		pg := lm.sourceReplicaContainer.(*testcontainers.PostgresContainer)
 		err := pg.CreateDatabase(lm.config.SourceReplicaDB.DatabaseName)
 		if err != nil {
-			return goerrors.Errorf("failed to create source-replica database: %v", err)
+			return goerrors.Errorf("failed to create source-replica database: %w", err)
 		}
 	}
 	lm.t.Logf("Containers setup completed")

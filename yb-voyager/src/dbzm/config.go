@@ -523,7 +523,7 @@ func (c *Config) WriteToFile(filePath string) error {
 	}
 	err := os.WriteFile(filePath, []byte(config), 0644)
 	if err != nil {
-		return goerrors.Errorf("failed to write config file %s: %v", filePath, err)
+		return goerrors.Errorf("failed to write config file %s: %w", filePath, err)
 	}
 	return nil
 }

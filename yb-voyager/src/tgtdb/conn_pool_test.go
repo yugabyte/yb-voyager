@@ -239,7 +239,7 @@ func TestRemoveConnectionsForHosts(t *testing.T) {
 
 	var conn *pgx.Conn
 	for i := 0; i < 4; i++ {
-		conn, _ = <-pool.conns
+		conn = <-pool.conns
 		if conn == nil {
 			conn, err = pool.createNewConnection()
 			testutils.FatalIfError(t, err)
@@ -250,7 +250,7 @@ func TestRemoveConnectionsForHosts(t *testing.T) {
 	}
 
 	for i := 0; i < 2; i++ {
-		conn, _ = <-pool.idleConns
+		conn = <-pool.idleConns
 		if conn == nil {
 			conn, err = pool.createNewConnection()
 			testutils.FatalIfError(t, err)
