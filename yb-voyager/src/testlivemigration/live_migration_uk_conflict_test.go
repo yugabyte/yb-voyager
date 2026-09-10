@@ -348,6 +348,19 @@ func TestLiveMigrationWithMultiColumnUniqueIndexConflictDetectionCases(t *testin
 	require.Greater(t, conflictStats.Total, 0, "true-positive delta should produce UK conflicts")
 	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index"`], 0, "test_multi_column_unique_index should produce UK conflicts")
 	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index_part"`], 0, "test_multi_column_unique_index_part should produce UK conflicts")
+	// Upper bound, counted from the true-positive delta. A conflict pair is recorded once per
+	// (cached delete/update, incoming) pair, and a cached event can pair with at most one
+	// incoming event (the reader blocks in WaitUntilNoConflict until the conflicting cached
+	// events are applied and evicted, so later incomings never see them). Per loop3 iteration
+	// only U1/D1/D2 (before-image (1022,1022)) can be caught by a different-PK incoming; the
+	// mid-loop update (before (i,i)) is only ever re-queried by the same-PK insert and is
+	// excluded by the partition-key check => 3 pairs x 500 iterations = 1500 per table. Loop4
+	// recycles (NULL,NULL) tuples that are never indexed under default NULLS DISTINCT => 0.
+	// False-positive-phase events (live or replayed) are structurally conflict-free (proven by
+	// the crash-failpoint phase) and use value ranges disjoint from the true-positive delta.
+	require.LessOrEqual(t, conflictStats.Total, 3000, "conflict pairs cannot exceed 1500 per table (3 catchable cached events per loop3 iteration x 500)")
+	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index"`], 1500, "test_multi_column_unique_index conflicts cannot exceed 3 per loop3 iteration x 500")
+	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index_part"`], 1500, "test_multi_column_unique_index_part conflicts cannot exceed 3 per loop3 iteration x 500")
 
 	err = liveMigrationTest.ValidateDataConsistency(multiColumnUKTables, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -545,6 +558,13 @@ func TestLiveMigrationWithUniqueKeyValuesWithPartialPredicateConflictDetectionCa
 
 	require.Greater(t, conflictStats.Total, 0, "true-positive delta should produce UK conflicts")
 	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live"`], 0, "test_live should produce UK conflicts")
+	// Upper bound, counted from the delta: all 5 updates + 2 deletes per iteration carry
+	// before-image check_id=20 (indexed, non-NULL) and each can be caught by a later
+	// different-PK incoming, and a cached event can pair with at most one incoming event
+	// (the reader blocks until conflicting cached events are evicted) => at most 7 pairs
+	// per iteration x 500 iterations = 3500.
+	require.LessOrEqual(t, conflictStats.Total, 3500, "conflict pairs cannot exceed 7 cached update+delete events per iteration x 500")
+	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live"`], 3500, "test_live conflict pairs cannot exceed 7 per iteration x 500")
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -763,6 +783,14 @@ FROM generate_series(1, 20) as i;`,
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
 	require.Greater(t, conflictStats.Total, 0, "null unique delta should produce UK conflicts")
 	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live_null_unique_values"`], 0, "test_live_null_unique_values should produce UK conflicts")
+
+	// Upper bound, counted from the delta: under NULLS NOT DISTINCT the index buckets include
+	// NULL values, so all 6 updates + 2 deletes per iteration have indexable before-images and
+	// in the worst case every one of them is caught by a later different-PK incoming (the
+	// trailing update of iteration i can pair with the first update of iteration i+1). A cached
+	// event pairs with at most one incoming event => at most 8 pairs per iteration x 500 = 4000.
+	require.LessOrEqual(t, conflictStats.Total, 4000, "conflict pairs cannot exceed 8 cached update+delete events per iteration x 500")
+	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live_null_unique_values"`], 4000, "test_live_null_unique_values conflict pairs cannot exceed 8 per iteration x 500")
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live_null_unique_values"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -1006,7 +1034,7 @@ FROM generate_series(1, 20) as i;`,
 			i INTEGER;
 		BEGIN
 			FOR i IN 21..520 LOOP
-				UPDATE test_schema.test_live_null_partial_unique_values SET most_recent = false AND check_id = NULL WHERE id = i - 1;
+				UPDATE test_schema.test_live_null_partial_unique_values SET most_recent = false WHERE id = i - 1;
 				INSERT INTO test_schema.test_live_null_partial_unique_values(id, name, check_id, most_recent) VALUES (i, md5(random()::text), 20, true);
 		
 				UPDATE test_schema.test_live_null_partial_unique_values SET check_id = NULL WHERE id = i;
@@ -1080,6 +1108,13 @@ FROM generate_series(1, 20) as i;`,
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
 	require.Greater(t, conflictStats.Total, 0, "partial unique delta should produce UK conflicts")
 	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live_null_partial_unique_values"`], 0, "test_live_null_partial_unique_values should produce UK conflicts")
+
+	// Upper bound, counted from the delta: of the 5 updates + 3 deletes per iteration, only 5
+	// carry a non-NULL before-image check_id (=20) and are therefore indexed under default
+	// NULLS DISTINCT; the NULL-before events are never cached for conflict checks. A cached
+	// event pairs with at most one incoming event => at most 5 pairs per iteration x 500 = 2500.
+	require.LessOrEqual(t, conflictStats.Total, 2500, "conflict pairs cannot exceed 5 indexable cached events per iteration x 500")
+	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live_null_partial_unique_values"`], 2500, "test_live_null_partial_unique_values conflict pairs cannot exceed 5 per iteration x 500")
 
 	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_live_null_partial_unique_values"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -1226,6 +1261,13 @@ func TestLiveMigrationWithUniqueKeyConflictsOnCaseSensitiveColumns(t *testing.T)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
 	require.Greater(t, conflictStats.Total, 0, "case-sensitive UK delta should produce unique-key conflicts")
 	require.Greater(t, conflictStats.ByTable[table], 0, "case-sensitive UK conflicts should be attributed to the table")
+	// Upper bound, counted from the delta: per iteration, the anchor-freeing update and the
+	// three deletes carry before-image ("Id2",id1,"ID3")=(2,2,2) and each can be caught by the
+	// next different-PK incoming that reclaims (2,2,2); the restoring update's before-image
+	// (i,i,i) is never re-queried by a different-PK event. A cached event pairs with at most
+	// one incoming event => at most 4 pairs per iteration x 500 = 2000.
+	require.LessOrEqual(t, conflictStats.Total, 2000, "conflict pairs cannot exceed 4 catchable cached events per iteration x 500")
+	require.LessOrEqual(t, conflictStats.ByTable[table], 2000, "case-sensitive UK conflict pairs cannot exceed 4 per iteration x 500")
 
 	err = liveMigrationTest.ValidateDataConsistency([]string{table}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency after forward streaming")
@@ -1811,6 +1853,12 @@ func TestLiveMigrationWithCoveringUniqueKeyIndex(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
 	require.Greater(t, conflictStats.Total, 0, "covering UK delta should produce unique-key conflicts")
 	require.Greater(t, conflictStats.ByTable[`"test_schema"."users"`], 0, "covering UK conflicts should be attributed to the table")
+	// Upper bound, counted from the delta: all 3 updates + 2 deletes per iteration carry an
+	// indexed before-image email ('user_10@' or 'user_i@') that the next different-PK incoming
+	// reclaims, and a cached event pairs with at most one incoming event => at most 5 pairs per
+	// iteration x 500 = 2500.
+	require.LessOrEqual(t, conflictStats.Total, 2500, "conflict pairs cannot exceed 5 cached update+delete events per iteration x 500")
+	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."users"`], 2500, "covering UK conflict pairs cannot exceed 5 per iteration x 500")
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."users"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
@@ -2628,6 +2676,12 @@ func TestLiveMigrationWithSubsetOFPartialUNiqueIndexColumnsBeingChangedInUpdate(
 
 	require.Greater(t, conflictStats.Total, 0, "subset-column partial-index delta should produce UK conflicts")
 	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_false_negative"`], 0, "test_false_negative should produce UK conflicts")
+	// Upper bound, counted from the delta: exactly one conflict pair is possible per iteration —
+	// the FREE update (before-image (c1,c2)=(100,1000)) caught by the TAKE update's merged
+	// after-image reclaiming (100,1000). The TAKE update's own before-image (100,i) is never
+	// re-queried, and inserts are never cached => at most 1 pair per iteration x 500 = 500.
+	require.LessOrEqual(t, conflictStats.Total, 500, "conflict pairs cannot exceed 1 per iteration x 500")
+	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_false_negative"`], 500, "test_false_negative conflict pairs cannot exceed 1 per iteration x 500")
 
 	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_false_negative"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -2766,6 +2820,10 @@ func TestLiveMigrationCustomCdcPartitionKeyPKRecycleConflict(t *testing.T) {
 	require.NotNil(t, conflicts, "PK-recycle across different custom keys must be detected")
 	assert.Greater(t, conflicts.Total, 0,
 		"expected at least one detected PK conflict, got stats: %+v", conflicts)
+	// Upper bound, counted from the delta: only the 5 deletes are ever cached, each on a
+	// distinct primary key, so each can pair with at most its own re-INSERT => at most 5.
+	assert.LessOrEqual(t, conflicts.Total, 5,
+		"conflict pairs cannot exceed the 5 cached deletes, got stats: %+v", conflicts)
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "target does not match source after streaming")
@@ -3074,6 +3132,10 @@ func TestLiveMigrationPartitionedTableWithCustomCdcPartitionKeyPKRecycleConflict
 	require.NotNil(t, conflicts, "PK-recycle across different custom keys must be detected")
 	assert.Greater(t, conflicts.Total, 0,
 		"expected at least one detected PK conflict, got stats: %+v", conflicts)
+	// Upper bound, counted from the delta: only the 5 deletes are ever cached, each on a
+	// distinct (id, region) primary key, so each can pair with at most its own re-INSERT => at most 5.
+	assert.LessOrEqual(t, conflicts.Total, 5,
+		"conflict pairs cannot exceed the 5 cached deletes, got stats: %+v", conflicts)
 
 	// Order by the full primary key: id alone repeats across partitions (r1/r2).
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id, region")
@@ -3227,6 +3289,10 @@ func TestLiveMigrationPartitionedTableChildPKWithCustomCdcPartitionKeyPKRecycleC
 	require.NotNil(t, conflicts, "PK-recycle across different custom keys must be detected")
 	assert.Greater(t, conflicts.Total, 0,
 		"expected at least one detected PK conflict, got stats: %+v", conflicts)
+	// Upper bound, counted from the delta: only the 3 deletes are ever cached, each on a
+	// distinct leaf primary key, so each can pair with at most its own re-INSERT => at most 3.
+	assert.LessOrEqual(t, conflicts.Total, 3,
+		"conflict pairs cannot exceed the 3 cached deletes, got stats: %+v", conflicts)
 
 	// Order by the full primary key: id alone repeats across partitions (US/EU).
 	err = lm.ValidateDataConsistency([]string{`"public"."orders"`}, "id, region")
