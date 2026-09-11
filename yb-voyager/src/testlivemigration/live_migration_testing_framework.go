@@ -743,7 +743,7 @@ func (lm *LiveMigrationTest) WaitForArchiveChangesComplete(archiveChangesTimeout
 		return lm.archiveChangesCmd.IsStopped()
 	})
 	if !ok {
-		return goerrors.Errorf("archive changes did not complete within %v", archiveChangesTimeout)
+		return goerrors.Errorf("archive changes did not complete within %ds", archiveChangesTimeout)
 	}
 	return nil
 }
@@ -1033,7 +1033,7 @@ func (lm *LiveMigrationTest) WaitForForwardStreamingComplete(expectedChanges map
 	})
 
 	if !ok {
-		return goerrors.Errorf("streaming phase did not complete within %v", streamingTimeout)
+		return goerrors.Errorf("streaming phase did not complete within %ds", streamingTimeout)
 	}
 	lm.t.Logf("Streaming complete")
 	return nil
@@ -1053,7 +1053,7 @@ func (lm *LiveMigrationTest) WaitForFallbackStreamingComplete(expectedChanges ma
 	})
 
 	if !ok {
-		return goerrors.Errorf("streaming phase did not complete within %v", streamingTimeout)
+		return goerrors.Errorf("streaming phase did not complete within %ds", streamingTimeout)
 	}
 	lm.t.Logf("Streaming complete")
 	return nil
@@ -1082,7 +1082,7 @@ func (lm *LiveMigrationTest) WaitForFallForwardStreamingComplete(tables []string
 	})
 
 	if !ok {
-		return goerrors.Errorf("fall-forward streaming did not complete within %v seconds", streamingTimeout)
+		return goerrors.Errorf("fall-forward streaming did not complete within %ds", streamingTimeout)
 	}
 	fmt.Printf("Fall-forward streaming complete\n")
 	return nil
@@ -1105,7 +1105,10 @@ func (lm *LiveMigrationTest) WaitForCutoverComplete(iterationNumber int, cutover
 	})
 
 	if !ok {
-		return goerrors.Errorf("cutover did not complete within %v", cutoverTimeout)
+		// SECONDS, not the Duration's own units: callers pass a bare count (30, 180) and
+		// RetryWorkWithTimeout multiplies it by time.Second. Printing it with %v gave
+		// "cutover did not complete within 300ns".
+		return goerrors.Errorf("cutover did not complete within %ds", cutoverTimeout)
 	}
 	lm.t.Logf("Cutover complete")
 	//update the export and import commands to the new export and import commands
@@ -1131,7 +1134,8 @@ func (lm *LiveMigrationTest) WaitForCutoverSourceComplete(iterationNumber int, c
 	})
 
 	if !ok {
-		return goerrors.Errorf("cutover to source did not complete within %v", cutoverTimeout)
+		// Seconds, for the same reason as WaitForCutoverComplete above.
+		return goerrors.Errorf("cutover to source did not complete within %ds", cutoverTimeout)
 	}
 	lm.t.Logf("Cutover to source complete")
 	lm.exportCmd = lm.importToSourceCmd
@@ -1156,7 +1160,7 @@ func (lm *LiveMigrationTest) WaitForFallForwardEnabled(iterationNo int, timeout 
 		return msr.FallForwardEnabled && msr.SourceReplicaDBConf != nil
 	})
 	if !ok {
-		return goerrors.Errorf("fall-forward was not enabled within %v seconds", timeout)
+		return goerrors.Errorf("fall-forward was not enabled within %ds", timeout)
 	}
 	fmt.Printf("Fall-forward enabled\n")
 	return nil
@@ -1175,7 +1179,7 @@ func (lm *LiveMigrationTest) WaitForExportFromTargetStarted(timeout time.Duratio
 		return msr.ExportFromTargetFallForwardStarted || msr.ExportFromTargetFallBackStarted
 	})
 	if !ok {
-		return goerrors.Errorf("export from target did not start within %v seconds", timeout)
+		return goerrors.Errorf("export from target did not start within %ds", timeout)
 	}
 	fmt.Printf("Export from target started\n")
 	return nil
@@ -1223,7 +1227,7 @@ func (lm *LiveMigrationTest) WaitForNextIterationInitialized(iterationNo int, wa
 		return msr.NextIterationInitialized
 	})
 	if !ok {
-		return goerrors.Errorf("next iteration did not initialize within %v", waitTimeout)
+		return goerrors.Errorf("next iteration did not initialize within %ds", waitTimeout)
 	}
 	return nil
 }
@@ -1276,6 +1280,13 @@ func (lm *LiveMigrationTest) ValidateRowCount(tables []string) error {
 
 // WithSourceConn provides source database connection to callback (test-specific DB)
 func (lm *LiveMigrationTest) WithSourceConn(fn func(*sql.DB) error) error {
+	// A container that never started is a nil interface here, and calling into it
+	// panics rather than failing the one caller that asked for a connection. Callers
+	// that run before or after SetupContainers (emitRunMeta's version probe, say) get
+	// an error they can degrade on.
+	if lm.sourceContainer == nil {
+		return goerrors.Errorf("source container not configured")
+	}
 	conn, err := lm.sourceContainer.GetConnectionWithDB(lm.config.SourceDB.DatabaseName)
 	if err != nil {
 		return goerrors.Errorf("failed to get source connection: %w", err)
@@ -1286,6 +1297,11 @@ func (lm *LiveMigrationTest) WithSourceConn(fn func(*sql.DB) error) error {
 
 // WithTargetConn provides target database connection to callback (test-specific DB)
 func (lm *LiveMigrationTest) WithTargetConn(fn func(*sql.DB) error) error {
+	// See WithSourceConn: a target that never started must fail this call, not the
+	// process.
+	if lm.targetContainer == nil {
+		return goerrors.Errorf("target container not configured")
+	}
 	conn, err := lm.targetContainer.GetConnectionWithDB(lm.config.TargetDB.DatabaseName)
 	if err != nil {
 		return goerrors.Errorf("failed to get target connection: %w", err)

@@ -345,9 +345,18 @@ func TestExportFailureAttribution(t *testing.T) {
 			want: "DOM-005",
 		},
 		{
+			// Only a DISTINCTIVE type name attributes: one carrying a digit, a space or
+			// punctuation. "domain(enum)" cannot appear in a log for any other reason.
 			name: "names one probe type",
+			text: `Connector completed: success = 'false' - io.debezium.DebeziumException: unsupported type domain(enum)`,
+			want: "DOM-005",
+		},
+		{
+			// A bare all-letter type name is a word the log may write for reasons of its
+			// own, so it never attributes; see usableTypeNameForAttribution. HSTORE-001
+			// is still attributable by its table name, p_hstore_001.
+			name: "a bare word type name is not distinctive enough",
 			text: `Connector completed: success = 'false' - io.debezium.DebeziumException: unsupported type hstore`,
-			want: "HSTORE-001",
 		},
 		{
 			name: "names two probes - ambiguous, no culprit",

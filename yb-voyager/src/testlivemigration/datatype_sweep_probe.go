@@ -53,12 +53,15 @@ import (
 	"hash/fnv"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
+	"unicode"
 
 	goerrors "github.com/go-errors/errors"
 
@@ -575,6 +578,14 @@ type probeObservation struct {
 	eventsForTable     int
 	columnSeenInEvents bool
 	queueScanNote      string
+	// columnSeenOps names the op classes whose events really carried the column, e.g.
+	// "insert/update/delete". It is prose for the detail only; columnSeenInEvents is the
+	// flag the classifier reads.
+	columnSeenOps string
+
+	// nullOnly mirrors datatypeProbe.NullOnly. The classifier only ever sees an
+	// observation, and a NULL-only probe must not claim the full op list it never ran.
+	nullOnly bool
 
 	// Evidence that the run actually measured this probe. Without these, an aborted
 	// run leaves every field zero and the classifier cannot tell "clean" from
@@ -588,6 +599,15 @@ type probeObservation struct {
 	// happened but produced no events" (SILENT_LOSS).
 	deltaOpsApplied int
 	deltaConfirmed  bool
+	// deltaError is the error the database returned when the change statements were
+	// applied. A delta that did not run means the ops under test never happened, so the
+	// comparison that follows proves nothing: it forces INCONCLUSIVE.
+	deltaError string
+	// deltaConfirmNote records why the confirmation could not be READ - the re-read of
+	// the side the delta was written to failed. It is not the same fact as "the delta is
+	// not there": one is an unmeasured probe, the other is a lost change, and a detail
+	// that cannot tell them apart sends the reader looking in the wrong place.
+	deltaConfirmNote string
 
 	warned      bool
 	promptShown bool
@@ -608,6 +628,21 @@ type probeObservation struct {
 	// different words: it either crash-looped the channel (the importer is alive and
 	// retrying) or killed the process outright. Empty means the crash-loop.
 	channelWedgedHow string
+
+	// importBrokeUnattributed holds the repeating importer error of a run whose failure
+	// names NO probe at all. The importer really did break, but nothing says which value
+	// broke it, so every probe in the batch is collateral: recording the batch-wide error
+	// as this probe's STUCK detail would make one poison value fail all its batch-mates.
+	// It is INCONCLUSIVE, with the error kept for context.
+	importBrokeUnattributed string
+
+	// importBrokeUnrelated is the SOLO counterpart of importBrokeUnattributed: this
+	// probe was the only one under test, so it is the only possible cause, but the error
+	// the importer broke on does not look like a statement about a value (a tserver
+	// restart, a refused connection, a lock timeout, a serialization failure). Blaming a
+	// type for the environment's behaviour publishes "Import stops" against a type that
+	// may be perfectly healthy, so this is INCONCLUSIVE with the error kept.
+	importBrokeUnrelated string
 
 	// commandExited records that a command the wait depended on was no longer running.
 	// It is an environment fact on its own - a process that has exited produces no more
@@ -687,6 +722,17 @@ type sweepRun struct {
 	// reports bounds the per-poll `get data-migration-report`, so one command stuck in
 	// pipe I/O can no longer take the whole wait loop down with it.
 	reports *boundedFetcher
+
+	// queueCutoff is the size, in bytes, of every queue segment at the moment of cutover.
+	// The queue is a single append-only stream: after cutover the reverse direction's
+	// events land in the SAME segments as the forward run's, so a scan from byte zero
+	// sums both directions and the fall-back evidence can never fail - every count comes
+	// out exactly twice the live one. Recording the cut point makes the fall-back scan
+	// read only what the REVERSE direction produced.
+	//
+	// Nil until cutover, and nil for the whole of LIVE and OFFLINE: those scan from the
+	// start of every segment, exactly as they always did.
+	queueCutoff map[string]int64
 }
 
 func newSweepRun(t *testing.T, mode sweepMode, batchName string, probes []datatypeProbe) *sweepRun {
@@ -726,7 +772,10 @@ func newSweepRun(t *testing.T, mode sweepMode, batchName string, probes []dataty
 		extAvail: map[string]bool{},
 	}
 	for _, p := range probes {
-		r.obs[p.ID] = &probeObservation{}
+		// nullOnly has to be carried here as well as in observe(): this map is
+		// pre-populated, so observe() never takes its constructing branch for a probe
+		// the run knows about, and the flag would stay false for every real run.
+		r.obs[p.ID] = &probeObservation{nullOnly: p.NullOnly}
 	}
 	// The offline flow starts its export and import SYNCHRONOUSLY, and a synchronous start
 	// blocks in exec.Cmd.Wait until the output pipes close as well as until the process
@@ -771,6 +820,7 @@ func sanitizeIdent(s string) string {
 // when the harness itself is suspect (a known-good control that did not come out WORKS)
 // or when a poison probe was handed to it in a batch.
 func runDatatypeSweep(t *testing.T, mode sweepMode, batch sweepBatch) {
+	started := time.Now()
 	probes := excludeBatchedPoison(t, mode, batch.Name, withControls(batch))
 
 	r := newSweepRun(t, mode, batch.Name, probes)
@@ -782,9 +832,19 @@ func runDatatypeSweep(t *testing.T, mode sweepMode, batch sweepBatch) {
 	defer r.lm.Cleanup()
 	defer r.emitAll()
 
-	if err := r.lm.SetupContainers(context.Background()); err != nil {
-		r.abortAll(fmt.Sprintf("container setup failed: %v", err))
-		t.Fatalf("failed to setup containers: %v", err)
+	setupErr := r.lm.SetupContainers(context.Background())
+	// Emitted whether or not setup worked: a run that never got a database still has a
+	// start time and a commit, and the collector needs a header for every log it reads.
+	// The versions are asked for ONLY when setup succeeded. Asking a container that
+	// never came up is not a failed query, it is a crash: a source that never started
+	// leaves a nil container to dereference, and a target that started but has no
+	// published port takes YugabyteDBContainer.GetConnectionWithDB into utils.ErrExit,
+	// which os.Exit(1)s the whole test binary - no PROBE-RESULT lines for this batch and
+	// none for any later batch in the same `go test` invocation.
+	r.emitRunMeta(started, setupErr == nil)
+	if setupErr != nil {
+		r.abortAll(fmt.Sprintf("container setup failed: %v", setupErr))
+		t.Fatalf("failed to setup containers: %v", setupErr)
 		return
 	}
 	if err := r.lm.SetupSchema(); err != nil {
@@ -1009,11 +1069,14 @@ func (r *sweepRun) applyDelta(side dbSide, reverse bool) {
 		if err := r.execOn(side, stmts...); err == nil {
 			r.observe(p).deltaOpsApplied += len(stmts)
 		} else {
-			// The delta failing on the DESTINATION of a previous phase is itself a
-			// finding (the migrated value cannot be updated), so record it as detail
-			// rather than skipping.
-			r.observe(p).waitNote = appendNote(r.observe(p).waitNote,
-				fmt.Sprintf("delta on %s failed: %v", side, err))
+			// The delta failing is never a pass. The ops under test did not run, so the
+			// comparison that follows can only show the state BEFORE them - identical on
+			// both sides, and indistinguishable from a clean round trip. Recorded as
+			// evidence (deltaError) rather than as a note, so the classifier is forced to
+			// INCONCLUSIVE instead of granting WORKS on an unexercised probe.
+			o := r.observe(p)
+			o.deltaError = fmt.Sprintf("delta on %s failed: %v", side, err)
+			o.waitNote = appendNote(o.waitNote, o.deltaError)
 			r.t.Logf("probe %s: delta on %s failed: %v", p.ID, side, err)
 		}
 	}
@@ -1030,8 +1093,17 @@ func (r *sweepRun) confirmDeltaApplied(side dbSide, reverse bool) {
 		newInsert, toDelete, otherCol = revNewInsert, revToDelete, revOtherCol
 	}
 	for _, p := range r.active {
+		// Cleared FIRST, before anything can return early. This runs once per
+		// direction, and in fall-back / fall-forward the second call is about the
+		// REVERSE delta: a read that fails there would otherwise leave the FORWARD
+		// direction's confirmation standing, and the classifier would take it as
+		// evidence that reverse-direction ops it never saw had happened.
+		o := r.observe(p)
+		o.deltaConfirmed = false
 		rows, err := r.fetchProbeValues(side, p)
 		if err != nil {
+			o.deltaConfirmNote = fmt.Sprintf("the delta on %s could not be re-read, so it "+
+				"could not be confirmed: %v", side, err)
 			r.t.Logf("probe %s: cannot confirm delta on %s: %v", p.ID, side, err)
 			continue
 		}
@@ -1059,8 +1131,11 @@ func (r *sweepRun) confirmDeltaApplied(side dbSide, reverse bool) {
 				confirmed = true
 			}
 		}
-		r.observe(p).deltaConfirmed = confirmed
-		if !confirmed {
+		o.deltaConfirmed = confirmed
+		if confirmed {
+			// A successful confirmation retires any note a previous direction left.
+			o.deltaConfirmNote = ""
+		} else {
 			r.t.Logf("probe %s: delta NOT visible on %s after applyDelta", p.ID, side)
 		}
 	}
@@ -1172,6 +1247,9 @@ func (r *sweepRun) runFallback() {
 		r.abortAll(fmt.Sprintf("cutover to target did not complete: %v", err))
 		return
 	}
+	// Everything in the queue up to here is the FORWARD run's. Only what comes after is
+	// evidence about the reverse direction.
+	r.markQueueCutover()
 
 	if err := r.lm.WaitForExportFromTargetStarted(sweepExportStartWait); err != nil {
 		r.markExportNeverStreamed(fmt.Sprintf(
@@ -1213,6 +1291,9 @@ func (r *sweepRun) runFallForward() {
 		r.abortAll(fmt.Sprintf("cutover to target did not complete: %v", err))
 		return
 	}
+	// Everything in the queue up to here is the FORWARD run's. Only what comes after is
+	// evidence about the reverse direction.
+	r.markQueueCutover()
 
 	if err := r.lm.WaitForExportFromTargetStarted(sweepExportStartWait); err != nil {
 		r.markExportNeverStreamed(fmt.Sprintf(
@@ -1761,6 +1842,18 @@ func (r *sweepRun) applyWaitResult(what string, res waitResult) {
 			}
 			return
 		}
+		// A DEAD IMPORTER OUTRANKS THE CLOCK. The wait can run out on the same poll the
+		// importer died on, and a wait budget can expire while a process that failed
+		// minutes earlier goes unnoticed - which is exactly the shape of the solo runs
+		// where a classified SQL error (column "nan" does not exist, DECIMAL does not
+		// support NaN yet) came out as SILENT_WRONG, because the only evidence left by
+		// then was a target frozen at its snapshot value. The process being gone is the
+		// same fact whichever poll notices it, so it is classified the same way.
+		if gone, goneErr := r.firstExitedCommand(); gone != "" {
+			res.goneCommand, res.goneErr = gone, goneErr
+			r.recordCommandExit(what, res)
+			return
+		}
 	}
 
 	// Read the importer's output once and reuse it for every probe; each probe needs a
@@ -1785,6 +1878,14 @@ func (r *sweepRun) applyWaitResult(what string, res waitResult) {
 			r.quarantine(id, res)
 		}
 	}
+	// The solo carve-out: an error that names no table, in a run with exactly ONE probe
+	// under test, can only have come from that probe - nothing else was being migrated.
+	// It is still gated on the error being ABOUT a value rather than about the
+	// environment; see soloErrorLooksTypeRelated.
+	soloUnrelated := ""
+	if culprit == "" {
+		culprit, soloUnrelated = soleCulpritFor(r.active, repeated)
+	}
 
 	for _, p := range r.active {
 		o := r.observe(p)
@@ -1796,11 +1897,153 @@ func (r *sweepRun) applyWaitResult(what string, res waitResult) {
 		}
 		// Prefer an error that names this probe's table: that attributes the stall.
 		if perTable, n := mostRepeatedError(logText, p.tableName()); n >= 2 {
-			o.stuckDetail = fmt.Sprintf("%s repeated x%d after %s", perTable, n, how)
-		} else if repeated != "" && count >= sweepCrashLoopRepeats {
-			o.stuckDetail = fmt.Sprintf("%s repeated x%d after %s", repeated, count, how)
+			o.stuckDetail = importFailureDetail(fmt.Sprintf("%s repeated x%d after %s", perTable, n, how))
+			continue
+		}
+		if repeated == "" || count < sweepCrashLoopRepeats {
+			continue
+		}
+		batchWide := fmt.Sprintf("%s repeated x%d after %s", repeated, count, how)
+		if p.ID == soloUnrelated {
+			o.importBrokeUnrelated = importFailureDetail(batchWide)
+			continue
+		}
+		if p.ID == culprit {
+			o.stuckDetail = importFailureDetail(batchWide)
+			continue
+		}
+		// The error names no probe's table and this batch had more than one probe under
+		// test. Pinning the batch-wide error on every probe makes one poison value fail
+		// all its batch-mates, so nobody is blamed and nobody is measured.
+		o.importBrokeUnattributed = importFailureDetail(batchWide)
+	}
+}
+
+// soleNonControl returns the id of the only non-control probe in a batch, when there is
+// exactly one.
+//
+// It is the harness half of the report collector's ATTRIBUTED carve-out: in a run with one
+// probe under test, an importer failure that names no table still has only one possible
+// cause. With two or more, it has no identifiable cause at all.
+func soleNonControl(probes []datatypeProbe) (string, bool) {
+	id := ""
+	for _, p := range probes {
+		if p.ExpectVerdict != "" {
+			continue // a known-good control is never the culprit
+		}
+		if id != "" {
+			return "", false
+		}
+		id = p.ID
+	}
+	return id, id != ""
+}
+
+// typeRelatedSQLStateClasses are the SQLSTATE classes in which an error is a statement
+// about the VALUE or the SQL, which is the only kind of failure a datatype verdict may be
+// built on:
+//
+//	0A feature not supported   21 cardinality violation   22 data exception
+//	23 integrity constraint    2B/2D/3D/3F dependent privilege / invalid transaction
+//	                              termination / invalid catalog / invalid schema
+//	42 syntax error or access rule violation   44 WITH CHECK OPTION violation
+//
+// Everything else - 08 connection exception, 53 insufficient resources, 55 object not in
+// prerequisite state (lock timeouts), 57 operator intervention (57P01 "terminating
+// connection due to administrator command", i.e. a tserver restart), 58 system error,
+// 40001 serialization failure, XX000 internal error - is the environment talking, and
+// says nothing whatsoever about the type under test.
+var typeRelatedSQLStateClasses = map[string]bool{
+	"0A": true, "21": true, "22": true, "23": true, "2B": true,
+	"2D": true, "3D": true, "3F": true, "42": true, "44": true,
+}
+
+// soloErrorLooksTypeRelated is the content gate on the solo carve-out.
+//
+// soleNonControl answers "who COULD this be?"; on its own it answers "the one probe under
+// test" for literally any error the importer managed to log, and the harness then
+// publishes that as STUCK - the harshest verdict in the vocabulary - for a type that may
+// be perfectly healthy. A tserver restart, a refused connection, a lock timeout or a
+// serialization failure during a solo run would all have been recorded as "Import stops"
+// against whichever type happened to be under test at the time.
+//
+// So an error is blamable on the sole probe only when it is ABOUT it:
+//
+//   - it names the probe's table (p_<id>) or its type name, on identifier boundaries, or
+//   - its SQLSTATE is in a datatype/SQL-level class (see typeRelatedSQLStateClasses),
+//
+// and in neither case when it is one of the harness's own metadata lines
+// (ybvoyager_metadata), which are bookkeeping on voyager's side and never a statement
+// about a user value.
+func soloErrorLooksTypeRelated(p datatypeProbe, errText string) bool {
+	lower := strings.ToLower(errText)
+	if strings.Contains(lower, "ybvoyager_metadata") {
+		return false
+	}
+	if containsIdentifier(lower, strings.ToLower(p.tableName())) {
+		return true
+	}
+	if usableTypeNameForAttribution(p.TypeName) {
+		n := strings.TrimSpace(strings.ToLower(p.TypeName))
+		// Single-character or trivially short names would match anything.
+		if len(n) >= 4 && containsIdentifier(lower, n) {
+			return true
 		}
 	}
+	m := sqlstateRe.FindStringSubmatch(errText)
+	if m == nil {
+		return false
+	}
+	return typeRelatedSQLStateClasses[strings.ToUpper(m[1][:2])]
+}
+
+// soleCulpritFor applies soleNonControl and then the content gate, returning the probe an
+// error may be blamed on plus the probe the carve-out WOULD have blamed had the error
+// looked type-related. The second return exists so the caller can say, on the row of the
+// probe that was under test, that the importer broke on something unrelated - rather than
+// silently falling through to the batch-mate wording ("another probe broke the importer")
+// in a batch that had no other probe.
+func soleCulpritFor(probes []datatypeProbe, errText string) (culprit string, soloUnrelated string) {
+	id, ok := soleNonControl(probes)
+	if !ok {
+		return "", ""
+	}
+	for _, p := range probes {
+		if p.ID != id {
+			continue
+		}
+		if soloErrorLooksTypeRelated(p, errText) {
+			return id, ""
+		}
+		return "", id
+	}
+	return "", ""
+}
+
+// importFailureDetail makes an importer error quotable as evidence: the text as logged,
+// plus the SQLSTATE in the one form the report collector is guaranteed to find.
+//
+// The collector lifts the SQLSTATE out of the detail with a regex matching either
+// "SQLSTATE 42703" or a parenthesised "(42703)" (sweepreport/results.go), so the token is
+// written as "(SQLSTATE 42703)" - the same shape the importer itself prints. It is
+// appended only when the text does not already carry that exact token, so a detail quoting
+// a raw importer line is left alone.
+func importFailureDetail(errText string) string {
+	token := sqlStateToken(errText)
+	if token == "" || strings.Contains(errText, token) {
+		return errText
+	}
+	return errText + " " + token
+}
+
+// sqlStateToken renders the SQLSTATE of an importer error as (SQLSTATE XXXXX), or "" when
+// the text carries none.
+func sqlStateToken(errText string) string {
+	m := sqlstateRe.FindStringSubmatch(errText)
+	if m == nil {
+		return ""
+	}
+	return "(SQLSTATE " + strings.ToUpper(m[1]) + ")"
 }
 
 // recordCommandExit turns "a command this wait depended on is gone" into per-probe
@@ -1855,6 +2098,13 @@ func (r *sweepRun) recordCommandExit(what string, res waitResult) {
 		culprit = id
 		r.quarantine(id, res)
 	}
+	// Same solo carve-out as applyWaitResult, and under the same content gate: one probe
+	// under test is one POSSIBLE cause, not a demonstrated one. An error that is not
+	// about a value or about this probe's table leaves the solo probe unattributed.
+	soloUnrelated := ""
+	if culprit == "" {
+		culprit, soloUnrelated = soleCulpritFor(r.active, quoted)
+	}
 	for _, p := range r.active {
 		o := r.observe(p)
 		o.waitTimedOut = true
@@ -1865,13 +2115,25 @@ func (r *sweepRun) recordCommandExit(what string, res waitResult) {
 			o.channelWedgedBy, o.channelWedgedHow = culprit, "killed "+res.goneCommand
 			continue
 		}
+		// Table-name attribution is unchanged and still wins: an error naming this
+		// probe's table is about this probe whatever the solo gate concluded about the
+		// batch-wide one.
 		if perTable, n := mostRepeatedError(logText, p.tableName()); n >= 1 {
-			o.stuckDetail = fmt.Sprintf("%s (x%d) - %s", perTable, n, how)
-		} else if culprit == "" {
-			// The error names no probe's table, so it is recorded against every probe
-			// rather than pinned on one that may have nothing to do with it.
-			o.stuckDetail = fmt.Sprintf("%s (x%d) - %s", quoted, count, how)
+			o.stuckDetail = importFailureDetail(fmt.Sprintf("%s (x%d) - %s", perTable, n, how))
+			continue
 		}
+		if p.ID == soloUnrelated {
+			o.importBrokeUnrelated = importFailureDetail(fmt.Sprintf("%s (x%d) - %s", quoted, count, how))
+			continue
+		}
+		batchWide := fmt.Sprintf("%s (x%d) - %s", quoted, count, how)
+		if p.ID == culprit {
+			o.stuckDetail = importFailureDetail(batchWide)
+			continue
+		}
+		// Names no probe's table, and more than one probe was under test: the importer
+		// really did die, but not demonstrably on THIS type.
+		o.importBrokeUnattributed = importFailureDetail(batchWide)
 	}
 }
 
@@ -2108,12 +2370,58 @@ func sampleValues(src, dst map[int]probeRow) string {
 	return "verbatim: " + strings.Join(parts, " ")
 }
 
+// compareSessionSettings are pinned on BOTH sides before every compare SELECT.
+//
+// The comparison is textual - `v::text` for almost every probe - so anything that changes
+// a type's output text changes the verdict. All six are ordinary PostgreSQL GUCs that
+// YugabyteDB's YSQL also accepts, and each one closes a way for two healthy servers to
+// disagree about a value that migrated perfectly:
+//
+//   - extra_float_digits = 3   float4/float8 round-trip exactly instead of being rounded
+//   - TimeZone = 'UTC'         timestamptz renders in one zone on both sides
+//   - DateStyle = 'ISO, MDY'   dates render ISO, and ambiguous input parses the same way
+//   - IntervalStyle = postgres interval text does not switch to the SQL or ISO-8601 form
+//   - bytea_output = 'hex'     bytea is hex on both sides, never escape format
+//   - search_path              unqualified type and function names in a probe's compare
+//     expression resolve to the probe schema, with pg_catalog behind it
+//
+// Applied best-effort, one statement at a time: a server that rejects one is logged and
+// the compare goes ahead with the rest, because a missing GUC is a far smaller distortion
+// than no comparison at all.
+func (r *sweepRun) compareSessionSettings() []string {
+	return []string{
+		"SET extra_float_digits = 3",
+		"SET TimeZone = 'UTC'",
+		"SET DateStyle = 'ISO, MDY'",
+		"SET IntervalStyle = 'postgres'",
+		"SET bytea_output = 'hex'",
+		fmt.Sprintf("SET search_path = %s, pg_catalog", r.schema),
+	}
+}
+
 func (r *sweepRun) fetchProbeValues(side dbSide, p datatypeProbe) (map[int]probeRow, error) {
 	out := map[int]probeRow{}
 	query := fmt.Sprintf("SELECT id, filler, (%s) FROM %s ORDER BY id",
 		p.expandTemplate(p.compareExpr(), r.schema), p.qualifiedTable(r.schema))
 	err := r.withConn(side)(func(db *sql.DB) error {
-		rows, err := db.Query(query)
+		ctx := context.Background()
+		// A *sql.DB is a POOL: a SET run on it lands on whichever connection the pool
+		// happened to hand out and may not be the one the SELECT then uses. The settings
+		// and the query have to share one connection to mean anything.
+		conn, err := db.Conn(ctx)
+		if err != nil {
+			return goerrors.Errorf("get connection: %w", err)
+		}
+		defer conn.Close()
+
+		for _, s := range r.compareSessionSettings() {
+			if _, err := conn.ExecContext(ctx, s); err != nil {
+				r.t.Logf("probe %s: %s not accepted on %s, comparing without it: %v",
+					p.ID, s, side, err)
+			}
+		}
+
+		rows, err := conn.QueryContext(ctx, query)
 		if err != nil {
 			return goerrors.Errorf("query %q: %w", truncate(query, 160), err)
 		}
@@ -2237,7 +2545,7 @@ func (r *sweepRun) recordQueueColumnPresence() {
 	if !r.mode.hasCDC() {
 		return
 	}
-	queueDir := filepath.Join(r.lm.GetCurrentExportDir(), "data", cmd.QUEUE_DIR_NAME)
+	queueDir := r.queueDir()
 	files, err := filepath.Glob(filepath.Join(queueDir, "segment.*.ndjson"))
 	if err != nil || len(files) == 0 {
 		note := fmt.Sprintf("no queue segments under %s", queueDir)
@@ -2245,35 +2553,190 @@ func (r *sweepRun) recordQueueColumnPresence() {
 			note = fmt.Sprintf("cannot list queue segments under %s: %v", queueDir, err)
 		}
 		for _, p := range r.active {
-			r.observe(p).queueScanNote = note
+			o := r.observe(p)
+			// The evidence fields are ZEROED, not just annotated. This function runs
+			// once per direction, and in fall-back / fall-forward the second call is
+			// the one that judges the REVERSE direction: leaving the forward run's
+			// counts in place would let a reverse direction that produced no queue at
+			// all be judged - and passed - on forward evidence. The non-empty path
+			// below zeroes them for exactly the same reason.
+			o.eventsForTable, o.columnSeenInEvents, o.columnSeenOps = 0, false, ""
+			o.queueScanNote = note
 		}
 		return
 	}
 	sort.Strings(files)
 
-	byTable := map[string]int{}
-	colSeen := map[string]bool{}
+	ev := map[string]*queueTableEvidence{}
 	for _, f := range files {
-		if err := scanQueueSegment(f, byTable, colSeen); err != nil {
+		// Everything before the cutover mark belongs to the FORWARD run and is not
+		// evidence about the reverse direction. queueCutoff is nil outside fall-back /
+		// fall-forward, which makes this a scan from byte zero.
+		if err := scanQueueSegment(f, r.queueCutoff[f], ev); err != nil {
 			r.t.Logf("queue segment %s: %v", f, err)
 		}
 	}
 
+	scope := ""
+	if r.queueCutoff != nil {
+		scope = "queue scanned from the cutover mark only, so these are reverse-direction events"
+	}
 	for _, p := range r.active {
 		o := r.observe(p)
-		key := normalizeTableName(p.tableName())
-		o.eventsForTable = byTable[key]
-		o.columnSeenInEvents = colSeen[key]
+		e := ev[normalizeTableName(p.tableName())]
+		if e == nil {
+			o.eventsForTable, o.columnSeenInEvents, o.columnSeenOps = 0, false, ""
+			o.queueScanNote = appendNote(o.queueScanNote, scope)
+			continue
+		}
+		o.eventsForTable = e.events
+		o.columnSeenInEvents = len(e.colOps) > 0
+		o.columnSeenOps = e.opSummary()
+		o.queueScanNote = appendNote(o.queueScanNote, scope)
 	}
 }
 
-// scanQueueSegment accumulates per-table event counts and whether column "v" appeared.
-func scanQueueSegment(path string, byTable map[string]int, colSeen map[string]bool) error {
+// queueDir is where the exporter writes its NDJSON segments. QUEUE_DIR_NAME is "queue"
+// (cmd/eventQueue.go).
+func (r *sweepRun) queueDir() string {
+	return filepath.Join(r.lm.GetCurrentExportDir(), "data", cmd.QUEUE_DIR_NAME)
+}
+
+// markQueueCutover records how many bytes of each queue segment had been written when
+// cutover completed. See sweepRun.queueCutoff for why the fall-back evidence is worthless
+// without it.
+//
+// Byte sizes rather than event counts, so the later scan can simply seek past what it must
+// not read. A segment that was mid-line at the mark yields one unparseable line, which the
+// scanner already skips.
+func (r *sweepRun) markQueueCutover() {
+	if !r.mode.hasCDC() {
+		return
+	}
+	cut := map[string]int64{}
+	files, err := filepath.Glob(filepath.Join(r.queueDir(), "segment.*.ndjson"))
+	if err != nil {
+		r.t.Logf("cannot list queue segments at cutover: %v", err)
+	}
+	for _, f := range files {
+		if st, err := os.Stat(f); err == nil {
+			cut[f] = st.Size()
+		}
+	}
+	r.queueCutoff = cut
+	r.t.Logf("queue cutover mark recorded across %d segment(s)", len(cut))
+}
+
+// queueTableEvidence is what the queue scan learned about one probe table.
+type queueTableEvidence struct {
+	events int
+	// colOps names the op classes in which the column under test was really carried. A
+	// set rather than a bool so the detail can say WHERE the column was seen, and so one
+	// stray event cannot stand in for the ops that matter.
+	colOps map[string]bool
+}
+
+func (e *queueTableEvidence) sawColumn(op string) {
+	if e.colOps == nil {
+		e.colOps = map[string]bool{}
+	}
+	e.colOps[op] = true
+}
+
+// opSummary renders the op classes in a fixed order, e.g. "insert/update/delete".
+func (e *queueTableEvidence) opSummary() string {
+	var out []string
+	for _, op := range []string{"insert", "update", "delete", "snapshot", "other"} {
+		if e.colOps[op] {
+			out = append(out, op)
+		}
+	}
+	return strings.Join(out, "/")
+}
+
+// debeziumUnavailableValue is what Debezium substitutes for a TOASTed column it did not
+// re-read. It means the column was NOT carried: treating it as present is the difference
+// between "the value travelled" and "a placeholder travelled".
+const debeziumUnavailableValue = "__debezium_unavailable_value"
+
+// opClassOf maps the on-disk op code to the word the detail uses.
+func opClassOf(op string) string {
+	switch strings.ToLower(strings.TrimSpace(op)) {
+	case "c", "i":
+		return "insert"
+	case "u":
+		return "update"
+	case "d":
+		return "delete"
+	case "r":
+		return "snapshot"
+	default:
+		return "other"
+	}
+}
+
+// nullTransitionRow reports whether an event's key id is one of the rows whose whole
+// point is to carry a NULL. For those, a nil value IS the payload.
+func nullTransitionRow(ev queueEvent) bool {
+	raw, ok := ev.Key["id"]
+	if !ok || raw == nil {
+		return false
+	}
+	id, err := strconv.Atoi(strings.Trim(strings.TrimSpace(*raw), `"`))
+	if err != nil {
+		return false
+	}
+	switch id {
+	case rowToNull, revToNull, rowNullSeed, revNullSeed:
+		return true
+	}
+	return false
+}
+
+// columnCarried reports whether one event really carried the column under test.
+//
+// The old test was `_, ok := ev.Fields["v"]`, which counts two things that are not the
+// column arriving: a JSON null (the key is present, the value is not) and Debezium's
+// unavailable-value placeholder (the connector explicitly saying it did not read the
+// column). Both are how a dropped column looks, so the check they were meant to make
+// could never fail.
+//
+// The one case where a nil value IS the payload is the probe's own NULL transitions
+// (value->NULL and NULL->value), whose rows are known by id.
+func columnCarried(ev queueEvent) bool {
+	for _, fields := range []map[string]*string{ev.Fields, ev.BeforeFields} {
+		v, ok := fields[sweepColumnUnderTest]
+		if !ok {
+			continue
+		}
+		if v == nil {
+			if nullTransitionRow(ev) {
+				return true
+			}
+			continue
+		}
+		if strings.Contains(*v, debeziumUnavailableValue) {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+// scanQueueSegment accumulates per-table event counts and the op classes in which column
+// "v" was really carried, reading only from byte offset `from` onwards.
+func scanQueueSegment(path string, from int64, out map[string]*queueTableEvidence) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
+
+	if from > 0 {
+		if _, err := f.Seek(from, io.SeekStart); err != nil {
+			return err
+		}
+	}
 
 	sc := bufio.NewScanner(f)
 	// Event payloads can be large (wide arrays, long numerics); bufio's 64KiB default
@@ -2286,18 +2749,20 @@ func scanQueueSegment(path string, byTable map[string]int, colSeen map[string]bo
 		}
 		var ev queueEvent
 		if err := json.Unmarshal([]byte(line), &ev); err != nil {
-			continue // not an event line (segment headers / markers)
+			continue // not an event line (segment headers / markers, or a seek mid-line)
 		}
 		key := normalizeTableName(ev.TableName)
 		if key == "" {
 			continue
 		}
-		byTable[key]++
-		if _, ok := ev.Fields[sweepColumnUnderTest]; ok {
-			colSeen[key] = true
+		e := out[key]
+		if e == nil {
+			e = &queueTableEvidence{}
+			out[key] = e
 		}
-		if _, ok := ev.BeforeFields[sweepColumnUnderTest]; ok {
-			colSeen[key] = true
+		e.events++
+		if columnCarried(ev) {
+			e.sawColumn(opClassOf(ev.Op))
 		}
 	}
 	return sc.Err()
@@ -2427,6 +2892,13 @@ func (r *sweepRun) importLogText() string {
 // post-hoc evidence does) is one thing; reading it 450 times during one is another, and a
 // torn read would corrupt the very error text the verdict is quoted from. The importer
 // writes the same batch errors to its own log file, so nothing is lost.
+//
+// IMPORTER logs only. The debezium log used to be swept up here too, and it is the
+// EXPORTER's: its lines feed crash-loop detection and stuckDetail, so a Debezium line
+// carrying a `SQLState:` token could be quoted as this probe's STUCK evidence - which
+// collapses STUCK ("the importer will not take this value") and EXPORTER_CRASHES ("the
+// exporter died on it") into one verdict, and the wrong one. The export side reads that
+// file for itself in exportLogFileText.
 func (r *sweepRun) importLogFileText() string {
 	var b strings.Builder
 	logDir := filepath.Join(r.lm.GetCurrentExportDir(), "logs")
@@ -2437,7 +2909,7 @@ func (r *sweepRun) importLogFileText() string {
 	sort.Strings(files)
 	for _, f := range files {
 		base := strings.ToLower(filepath.Base(f))
-		if !strings.Contains(base, "import") && !strings.Contains(base, "debezium") {
+		if !strings.Contains(base, "import") {
 			continue
 		}
 		data, err := os.ReadFile(f)
@@ -2752,14 +3224,17 @@ func attributeExportFailure(probes []datatypeProbe, evidence string) (string, bo
 		if p.ExpectVerdict != "" {
 			continue // never blame a known-good control
 		}
-		names := []string{p.tableName(), p.TypeName}
+		names := []string{p.tableName()}
+		if usableTypeNameForAttribution(p.TypeName) {
+			names = append(names, p.TypeName)
+		}
 		for _, n := range names {
 			n = strings.TrimSpace(strings.ToLower(n))
-			// Single-character or trivially short type names would match anything.
+			// Single-character or trivially short names would match anything.
 			if len(n) < 4 {
 				continue
 			}
-			if strings.Contains(lower, n) {
+			if containsIdentifier(lower, n) {
 				matched = append(matched, p.ID)
 				break
 			}
@@ -2769,6 +3244,73 @@ func attributeExportFailure(probes []datatypeProbe, evidence string) (string, bo
 		return "", false
 	}
 	return matched[0], true
+}
+
+// usableTypeNameForAttribution reports whether a type name is distinctive enough to blame
+// a probe by.
+//
+// The rule is structural, not a word list: a name is usable only if it contains a
+// NON-LETTER - a digit, a space, a bracket, a comma, punctuation. "numeric(130,60)",
+// "float8 (NaN)", "int4range[]", "timestamptz" ... no, "timestamptz" is all letters, and
+// that is the point: an all-letter name is a word these logs write for reasons of their
+// own, and matching it pins the harshest verdict in the vocabulary on whichever probe
+// happens to be named that.
+//
+// A denylist cannot do this job, and the one that used to live here is why this comment
+// exists. It rejected nine words - "name", "date", "time", "line", "text", "path",
+// "point", "money", "char" - and let through every other bare word a log contains,
+// including "interval", which is a probe type name AND a substring of the connector's own
+// `poll.interval.ms`: since `.` counts as an identifier boundary, a routine Debezium
+// config line "named" the interval probe and an export death was published against it.
+//
+// Such a probe is not un-attributable: it is attributed by its TABLE name, which is
+// unambiguous ("p_val_006") and cannot appear in a log for any other reason.
+func usableTypeNameForAttribution(typeName string) bool {
+	n := strings.TrimSpace(typeName)
+	if n == "" {
+		return false
+	}
+	for _, c := range n {
+		if !unicode.IsLetter(c) {
+			return true
+		}
+	}
+	return false
+}
+
+// containsIdentifier reports whether needle appears in text on identifier boundaries - not
+// as a fragment of a longer identifier. Both arguments must already be lower-case.
+//
+// "date" must not match "update", "time" must not match "timeout", "line" must not match
+// "inline". `.`, `"` and whitespace all count as boundaries, so "sweep_schema.p_dom_005.v"
+// still matches "p_dom_005".
+func containsIdentifier(text, needle string) bool {
+	if needle == "" {
+		return false
+	}
+	for i := 0; i+len(needle) <= len(text); {
+		j := strings.Index(text[i:], needle)
+		if j < 0 {
+			return false
+		}
+		start := i + j
+		end := start + len(needle)
+		if !identifierByte(text, start-1) && !identifierByte(text, end) {
+			return true
+		}
+		i = start + 1
+	}
+	return false
+}
+
+// identifierByte reports whether the byte at pos is part of an identifier. Out-of-range
+// positions (before the start, past the end) are boundaries.
+func identifierByte(s string, pos int) bool {
+	if pos < 0 || pos >= len(s) {
+		return false
+	}
+	c := s[pos]
+	return c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
 }
 
 // recordExportDeath is the export-side twin of quarantine + applyWaitResult's attribution
@@ -2909,7 +3451,7 @@ func decideVerdictCore(mode sweepMode, o probeObservation) (string, string) {
 	//    crash-looping on a quotable error, that error was produced BY this value
 	//    reaching the target, so the import side has already measured this type and its
 	//    verdict stands; the export process dying afterwards does not erase it.
-	importWedged := o.waitTimedOut && o.stuckDetail != ""
+	importWedged := o.stuckDetail != ""
 	if !importWedged {
 		if o.exporterDied {
 			return verdictExporterCrashes, withNote(o.exporterDetail, o.queueScanNote, o.waitNote)
@@ -2970,13 +3512,39 @@ func decideVerdictCore(mode sweepMode, o probeObservation) (string, string) {
 			o.queueScanNote, o.waitNote)
 	}
 
-	// 3. Wedged importer: a bounded wait expired AND the import log keeps repeating one
-	//    REAL error. STUCK is only ever emitted when the error text can be quoted -
-	//    "the wait expired" on its own is equally consistent with nothing having run.
-	if o.waitTimedOut && o.stuckDetail != "" {
-		return verdictStuck, o.stuckDetail
+	// 3. Wedged or dead importer: the import log keeps repeating one REAL error, or the
+	//    import process exited on one. STUCK is only ever emitted when the error text can
+	//    be quoted - "the wait expired" on its own is equally consistent with nothing
+	//    having run.
+	//
+	//    THIS OUTRANKS THE VALUE COMPARISON, and that ordering is the whole point. An
+	//    importer that died holding the value under test leaves the target frozen at its
+	//    snapshot state, so the compare below finds the baseline value sitting where the
+	//    updated one should be and reads it as SILENT_WRONG - a claim that voyager
+	//    silently altered a value, made about a run in which voyager loudly refused it.
+	//    The quoted SQL error is the finding; the stale target row is its consequence.
+	if o.stuckDetail != "" {
+		return verdictStuck, withNote(o.stuckDetail, o.queueScanNote, o.waitNote)
 	}
-	// 3a. A command the wait depended on is gone, and nothing quotable explains it (a
+	// 3a-i. Solo run, and the importer broke on something that is not a statement about a
+	//       value at all. One probe under test makes it the only POSSIBLE cause and that
+	//       is exactly why this branch exists: without it the harness would publish the
+	//       environment's behaviour - a tserver restart, a dropped connection - as this
+	//       type's product verdict. See importBrokeUnrelated.
+	if o.importBrokeUnrelated != "" {
+		return verdictInconclusive, withNote(
+			"the importer exited with an error that does not look type-related: "+
+				o.importBrokeUnrelated+"; this type was not measured",
+			o.queueScanNote, o.waitNote)
+	}
+	// 3a. The importer broke on an error that names NO probe, in a batch with more than
+	//     one probe under test. Real, but not this type's: see importBrokeUnattributed.
+	if o.importBrokeUnattributed != "" {
+		return verdictInconclusive, withNote(
+			"another probe in this batch broke the importer; this type was not measured: "+
+				o.importBrokeUnattributed, o.queueScanNote, o.waitNote)
+	}
+	// 3b. A command the wait depended on is gone, and nothing quotable explains it (a
 	//     clean exit, or an unclean one that left no import-failure signature). The wait
 	//     rightly stopped - no counts can arrive from a dead process - but a dead process
 	//     is not a datatype verdict, and everything measured after it stopped shows only
@@ -2985,13 +3553,23 @@ func decideVerdictCore(mode sweepMode, o probeObservation) (string, string) {
 	if o.commandExited {
 		return verdictInconclusive, withNote(o.commandExitDetail, o.queueScanNote, o.waitNote)
 	}
-	// 3b. Wait expired, no events at all, and no quotable importer error: nothing was
+	// 3c. Wait expired, no events at all, and no quotable importer error: nothing was
 	//     retrying a bad event, there simply were no events. Environment, not product.
 	if o.waitTimedOut && mode.hasCDC() && o.eventsForTable == 0 {
 		return verdictInconclusive, withNote(
 			"streaming wait expired with zero events for this table and no repeating importer "+
 				"error in the import log: no event ever flowed, so this is an environment flake "+
 				"rather than a product stall",
+			o.queueScanNote, o.waitNote)
+	}
+
+	// 3d. The change statements themselves were refused. The ops under test never ran, so
+	//     both sides still hold what the snapshot left there: identical, and a WORKS claim
+	//     about ops that did not happen. Say what failed instead.
+	if o.deltaError != "" {
+		return verdictInconclusive, withNote(
+			"the change statements for this probe were refused, so no change op was "+
+				"exercised and nothing can be claimed: "+o.deltaError,
 			o.queueScanNote, o.waitNote)
 	}
 
@@ -3026,32 +3604,95 @@ func decideVerdictCore(mode sweepMode, o probeObservation) (string, string) {
 		if o.eventsForTable == 0 {
 			if o.deltaOpsApplied > 0 && o.deltaConfirmed {
 				return verdictSilentLoss, withNote(fmt.Sprintf(
-					"%d change ops applied and confirmed on the source, but zero CDC events "+
-						"reached the queue for this table", o.deltaOpsApplied),
+					"%d change ops applied and confirmed on %s, but zero CDC events "+
+						"reached the queue for this table", o.deltaOpsApplied, deltaSideName(mode)),
 					o.queueScanNote, o.waitNote)
 			}
 			return verdictInconclusive, withNote(fmt.Sprintf(
-				"zero CDC events for this table and the source-side delta could not be "+
+				"zero CDC events for this table and the delta on %s could not be "+
 					"confirmed (%d change ops accepted), so no change op was actually exercised",
-				o.deltaOpsApplied), o.queueScanNote, o.waitNote)
+				deltaSideName(mode), o.deltaOpsApplied),
+				o.queueScanNote, o.waitNote, o.deltaConfirmNote)
+		}
+		// The delta is checked BEFORE any pass, not only when the event count is zero.
+		// A delta that was never confirmed on the side it was written to means the ops
+		// under test did not happen there, and two sides that agree about a change
+		// neither of them made is not a round trip.
+		if !o.deltaConfirmed {
+			return verdictInconclusive, withNote(fmt.Sprintf(
+				"the change ops were never confirmed on %s, the side they were applied to "+
+					"(%d change ops accepted, %d events for this table), so the identical "+
+					"values below are the state BEFORE the ops rather than after them",
+				deltaSideName(mode), o.deltaOpsApplied, o.eventsForTable),
+				o.queueScanNote, o.waitNote, o.deltaConfirmNote)
 		}
 	}
 
-	// 6. Data is identical but the report never reached the expected counts. Say so
-	//    rather than pretending a clean WORKS or inventing a STUCK without evidence.
+	// 6. The wait ran out of clock. Whether that matters depends on whether anything
+	//    else confirmed the change ops: the event stream is the independent witness, and
+	//    without it "the values match" only says the two sides were equally unchanged.
 	if o.waitTimedOut {
-		return verdictWorks, withNote("values identical; migration-report counts did not reach the expectation within the timeout",
+		if mode.hasCDC() {
+			// A backstop: 1 and 3c above already divert the two ways this can happen
+			// (events but no column, no events at all). It is kept because the rule
+			// itself is the point - a timed-out run may only pass on the strength of an
+			// event stream that confirms the column, never on "the values match", which
+			// is equally true of two sides that were both left unchanged.
+			if o.eventsForTable == 0 || !o.columnSeenInEvents {
+				return verdictInconclusive, withNote(
+					"the wait timed out and no change event for this table was ever seen, so "+
+						"nothing can be claimed: the migration-report counts never reached the "+
+						"expectation and the event stream confirmed no operation on this column",
+					o.queueScanNote, o.waitNote)
+			}
+			return verdictWorks, withNote(
+				"values identical and the event stream confirms the column"+columnSeenPhrase(o)+
+					"; migration-report counts did not reach the expectation within the timeout",
+				o.queueScanNote, o.waitNote)
+		}
+		return verdictWorks, withNote(
+			"values identical; migration-report counts did not reach the expectation within "+
+				"the timeout (snapshot-only mode: there is no event stream to confirm them)",
 			o.queueScanNote, o.waitNote)
 	}
 
 	// 7. Nothing to report.
 	detail := "snapshot identical (offline is snapshot-only: no change ops apply)"
-	if mode.hasCDC() {
+	switch {
+	case mode.hasCDC() && o.nullOnly:
+		// A NULL-only probe has no storable literal, so update(self) cannot change
+		// anything and the op list below was never run. Claiming it would be a lie
+		// about the only part of the round trip this probe can actually test.
+		detail = fmt.Sprintf(
+			"NULL-only probe: the type accepted no literal, so only NULL round-trip was checked; "+
+				"column present in the event stream (%d events for this table%s)",
+			o.eventsForTable, columnSeenSuffix(o))
+	case mode.hasCDC():
 		detail = fmt.Sprintf(
 			"snapshot + insert/update(self)/update(other)/delete + NULL transitions all identical; "+
-				"column present in the event stream (%d events for this table)", o.eventsForTable)
+				"column present in the event stream (%d events for this table%s)",
+			o.eventsForTable, columnSeenSuffix(o))
+	case o.nullOnly:
+		detail = "NULL-only probe: the type accepted no literal, so only NULL round-trip " +
+			"was checked (offline is snapshot-only: no change ops apply)"
 	}
 	return verdictWorks, withNote(detail, o.queueScanNote, o.waitNote)
+}
+
+// columnSeenPhrase renders the op classes the column was actually seen in, as a clause.
+func columnSeenPhrase(o probeObservation) string {
+	if o.columnSeenOps == "" {
+		return ""
+	}
+	return " in " + o.columnSeenOps + " events"
+}
+
+// columnSeenSuffix is the same evidence as a parenthetical tail.
+func columnSeenSuffix(o probeObservation) string {
+	if o.columnSeenOps == "" {
+		return ""
+	}
+	return ", column seen in " + o.columnSeenOps + " events"
 }
 
 // ============================================================
@@ -3061,7 +3702,7 @@ func decideVerdictCore(mode sweepMode, o probeObservation) (string, string) {
 func (r *sweepRun) observe(p datatypeProbe) *probeObservation {
 	o, ok := r.obs[p.ID]
 	if !ok {
-		o = &probeObservation{}
+		o = &probeObservation{nullOnly: p.NullOnly}
 		r.obs[p.ID] = o
 	}
 	return o
@@ -3165,6 +3806,64 @@ func (r *sweepRun) abortAll(reason string) {
 			o.runAbort = reason
 		}
 	}
+}
+
+// emitRunMeta prints the run header the report collector parses, exactly once per run:
+//
+//	RUN-META: started=<RFC3339 UTC> commit=<sha> pg=<version> yb=<version>
+//
+// Without it every field in the report had to be guessed from the log's file name or left
+// blank, so two runs of the same batch against different builds were indistinguishable.
+// Every value is space-free so the line stays parseable as key=value pairs, and every one
+// of them degrades to "unknown" rather than failing the run.
+//
+// dbsUp says whether the databases are actually up. When they are not, the versions are
+// NOT asked for: see runDatatypeSweep for why querying a container that failed to start
+// takes the whole test binary down rather than returning an error.
+func (r *sweepRun) emitRunMeta(started time.Time, dbsUp bool) {
+	pg, yb := "unknown", "unknown"
+	if dbsUp {
+		pg, yb = r.serverVersion(sideSource), r.serverVersion(sideTarget)
+	}
+	fmt.Printf("RUN-META: started=%s commit=%s pg=%s yb=%s\n",
+		started.UTC().Format(time.RFC3339), voyagerCommit(), pg, yb)
+}
+
+// serverVersion asks one side what it is. SHOW server_version rather than version():
+// YugabyteDB answers both, but version() is a sentence with spaces in it and this line is
+// parsed as space-separated fields.
+//
+// It answers "unknown" for a side that has no database to ask, rather than dereferencing
+// a container that was never created. The caller is expected to gate on setup having
+// succeeded as well; this guard is here so that a future caller who forgets gets an
+// "unknown" instead of a panic.
+func (r *sweepRun) serverVersion(side dbSide) string {
+	if r.lm == nil {
+		return "unknown"
+	}
+	version := "unknown"
+	err := r.withConn(side)(func(db *sql.DB) error {
+		return db.QueryRow("SHOW server_version").Scan(&version)
+	})
+	if err != nil {
+		r.t.Logf("cannot read server_version on %s: %v", side, err)
+		return "unknown"
+	}
+	return strings.Join(strings.Fields(version), "_")
+}
+
+// voyagerCommit is the git sha of the tree under test, or "unknown" outside a checkout.
+// Test binaries carry no VCS stamp of their own, so it is asked of git directly.
+func voyagerCommit() string {
+	out, err := exec.Command("git", "rev-parse", "--short", "HEAD").Output()
+	if err != nil {
+		return "unknown"
+	}
+	sha := strings.TrimSpace(string(out))
+	if sha == "" {
+		return "unknown"
+	}
+	return sha
 }
 
 // emitAll prints exactly one greppable PROBE-RESULT line per probe, then enforces the
@@ -3303,6 +4002,20 @@ func sanitizeDetail(s string) string {
 		return "-"
 	}
 	return truncate(s, 400)
+}
+
+// deltaSideName names the side the change ops under test were applied to, for the prose
+// of a detail. It is the SOURCE in the forward modes, but fall-back and fall-forward
+// judge the REVERSE direction, whose ops are applied on the target and are expected to
+// arrive back at the source (or at the source-replica). A detail that says "confirmed on
+// the source" for those sends whoever reads it to look at the wrong database.
+func deltaSideName(mode sweepMode) string {
+	switch mode {
+	case modeFallback, modeFallForward:
+		return "the target"
+	default:
+		return "the source"
+	}
 }
 
 func withNote(detail string, notes ...string) string {

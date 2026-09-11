@@ -86,6 +86,12 @@ type ModeResult struct {
 	SourceValue string `json:"source_value,omitempty"`
 	TargetValue string `json:"target_value,omitempty"`
 	RunStatus   string `json:"run_status,omitempty"`
+
+	// SQLState and ImportError carry the collector's own evidence columns through to the
+	// report cell so the page can put them in a tooltip without re-parsing Evidence. See
+	// Row.SQLState / Row.ImportError in results.go.
+	SQLState    string `json:"sqlstate,omitempty"`
+	ImportError string `json:"import_error,omitempty"`
 }
 
 // ReportRow is one published row: a type, its group, one verdict per mode, and the
@@ -190,6 +196,8 @@ func BuildReport(cat *Catalog, rows []Row, requiredModes []string) (*ReportDoc, 
 			SourceValue: r.SourceValue,
 			TargetValue: r.TargetValue,
 			RunStatus:   r.RunStatus,
+			SQLState:    r.SQLState,
+			ImportError: r.ImportError,
 		}
 	}
 
@@ -237,6 +245,8 @@ var reportCSVHeader = []string{
 	"reported_by_assess", "reported_by_analyze",
 	"guardrail_action", "guardrail_action_fallback", "reported_by_docs",
 	"note",
+	// Appended after the first release of this format; see bestCell below.
+	"sqlstate", "import_error",
 }
 
 // WriteReportCSV writes the same rows in the flat shape a spreadsheet or an HTML table
@@ -257,13 +267,15 @@ func WriteReportCSV(path string, doc *ReportDoc) error {
 		return err
 	}
 	for _, r := range doc.Rows {
+		best := bestCell(r)
 		rec := []string{
 			r.ProbeID, r.TypeName, r.Group, r.Kind, r.BaseTypeName,
 			r.Offline.Verdict, r.Live.Verdict, r.FallBack.Verdict, r.FallForward.Verdict,
-			bestEvidence(r),
+			best.Evidence,
 			r.ReportedByAssess, r.ReportedByAnalyze,
 			r.GuardrailAction, r.GuardrailActionFallback, r.ReportedByDocs,
 			r.Note,
+			best.SQLState, best.ImportError,
 		}
 		if err := w.Write(rec); err != nil {
 			return err
@@ -273,11 +285,13 @@ func WriteReportCSV(path string, doc *ReportDoc) error {
 	return w.Error()
 }
 
-// bestEvidence picks the evidence string worth publishing for a row: the one attached to
-// the worst product verdict, falling back to any non-empty evidence.
-func bestEvidence(r ReportRow) string {
+// bestCell picks the mode cell worth publishing for a row: the one attached to the worst
+// product verdict, falling back to any non-empty evidence. Its evidence, SQLSTATE and
+// import-error all come from that SAME cell, so the flat CSV's three columns never
+// describe three different modes.
+func bestCell(r ReportRow) ModeResult {
 	cells := []ModeResult{r.Offline, r.Live, r.FallBack, r.FallForward}
-	best := ""
+	var best ModeResult
 	bestRank := len(verdictRank) + 1
 	for _, c := range cells {
 		if strings.TrimSpace(c.Evidence) == "" || c.Evidence == "-" {
@@ -289,10 +303,16 @@ func bestEvidence(r ReportRow) string {
 		}
 		if rk < bestRank {
 			bestRank = rk
-			best = c.Evidence
+			best = c
 		}
 	}
 	return best
+}
+
+// bestEvidence picks the evidence string worth publishing for a row. Kept as a thin
+// wrapper around bestCell: TestBuildReportIsAViewOverTheSuite calls it directly.
+func bestEvidence(r ReportRow) string {
+	return bestCell(r).Evidence
 }
 
 func sortedKeys(m map[string]bool) []string {

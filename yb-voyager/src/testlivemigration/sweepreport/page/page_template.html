@@ -82,6 +82,7 @@ th{text-align:left;font-size:.62rem;font-weight:600;letter-spacing:.07em;text-tr
   white-space:nowrap;background:var(--card);position:sticky;top:0;z-index:2}
 td{padding:7px 12px;border-bottom:1px solid var(--rule);vertical-align:top}
 td.t{font-family:"IBM Plex Mono",monospace;font-size:.79rem;white-space:nowrap}
+.pid{font-family:"IBM Plex Mono",monospace;font-size:.68rem;color:var(--ink-3);margin-left:7px}
 td.g{font-size:.8rem;color:var(--ink-2)}
 td.e{font-size:.78rem;color:var(--ink-3);min-width:260px}
 tbody tr:hover td{background:var(--band)}
@@ -155,11 +156,11 @@ footer{border-top:1px solid var(--rule);padding-top:20px;font-size:.83rem;color:
   <h3 style="margin-top:0">What happened to the data</h3>
   <p class="note" style="margin:0 0 10px">Seven outcomes. Each one means we ran the migration and watched what this type did. Each names the process that fails, because “it broke” does not tell you who to page.</p>
   <div class="legend">
-    <div><span class="pill v-works">Works</span><span>Arrives correct — the first copy, then an insert, an update, a delete, and setting the value to NULL and back.</span></div>
+    <div><span class="pill v-works">Works</span><span>Arrives correct. What was checked depends on the mode: offline only checks the one-time snapshot copy; live and fall-back also check an insert, an update, a delete, and setting the value to NULL and back — all streamed to the other side and matched.</span></div>
     <div><span class="pill v-drop">Column dropped</span><span>The column is left out of every change event on purpose. You get one warning line and a question that <code>--yes</code> answers for you. The first copy still holds the old values, so the column looks populated while quietly going out of date.</span></div>
     <div><span class="pill v-wrong">Wrong value</span><span>A different value arrives. Nothing is logged.</span></div>
     <div><span class="pill v-wrong">Data lost</span><span>The value never arrives. Nothing is logged.</span></div>
-    <div><span class="pill v-imp">Import stops</span><span><code>import data</code> cannot apply the value, prints an error and exits. The migration halts and does not resume on its own.</span></div>
+    <div><span class="pill v-imp">Import stops</span><span>The importer hit a SQL error on this type and exited. The error and SQLSTATE are shown. The migration halts and does not resume on its own.</span></div>
     <div><span class="pill v-exp">Export crashes</span><span><code>export data</code> dies, usually before any row moves. It says only that export failed and to check the logs — no table, no column, no type.</span></div>
     <div><span class="pill v-reject">Target rejects type</span><span>YugabyteDB will not create a column of this type at all, so nothing can migrate. A finding, not a gap.</span></div>
     <div><span class="pill v-reject">Source rejects value</span><span>PostgreSQL accepts the column but refuses every literal we can write into it. Nothing exists to migrate.</span></div>
@@ -168,9 +169,9 @@ footer{border-top:1px solid var(--rule);padding-top:20px;font-size:.83rem;color:
   <h3>What we could not find out</h3>
   <p class="note" style="margin:0 0 10px">Four labels, and every one is about the <em>measurement</em>, never about the type. None of them is a verdict, and none should be read as one.</p>
   <div class="legend">
-    <div><span class="pill v-none">Not reachable</span><span><strong>Probed.</strong> This type stops the forward migration, so this mode never became available for it. Look at the live column for the actual failure — and note that this is itself the finding for fall-back: the safety net is missing exactly where you would need it.</span></div>
+    <div><span class="pill v-none">Not reachable</span><span><strong>Probed.</strong> This type stops the forward migration, so this mode never became available for it. Look at the live column for the actual failure. For fall-back specifically, this also covers the case where the live import for this type had already failed before cutover — fall-back can only run after a successful cutover, so it was never reached. Either way, this is itself the finding for fall-back: the safety net is missing exactly where you would need it.</span></div>
     <div><span class="pill v-disc">Not measured</span><span><strong>Probed.</strong> Another datatype sharing the same run broke the migration first, so nothing seen here can be pinned on this type. We know because the known-good control types in that run were cut short too. Needs a re-run on its own.</span></div>
-    <div><span class="pill v-incon">No result</span><span><strong>Probed.</strong> The run was healthy, but no change events arrived and no error was printed, so there was nothing to conclude.</span></div>
+    <div><span class="pill v-incon">No result</span><span><strong>Probed.</strong> The run timed out before any change for this type was seen. Nothing can be claimed either way.</span></div>
     <div><span class="pill v-none">Not run</span><span>The only label that means untested. This combination of type and mode has not been attempted.</span></div>
   </div>
 
@@ -245,13 +246,13 @@ footer{border-top:1px solid var(--rule);padding-top:20px;font-size:.83rem;color:
   </div>
 
   <h3>How much is actually measured</h3>
-  <p>194 types across three modes is 582 cells. 476 of them carry a measured outcome. The rest are listed here rather than quietly rounded up.</p>
+  <p>223 types across three modes is 669 cells. 506 of them carry a measured outcome. The rest are listed here rather than quietly rounded up.</p>
   <table class="cov">
     <thead><tr><th>Mode</th><th>Measured</th><th>What is missing</th></tr></thead>
     <tbody>
-      <tr><td>Offline</td><td><strong>194 of 194</strong></td><td>Nothing.</td></tr>
-      <tr><td>Live</td><td><strong>190 of 194</strong></td><td>2 never run (<code>box3d</code>, <code>topology.topogeometry</code>); 2 gave no result because the exporter crashed before reaching them (<code>hstore</code> holding a NULL, and a domain over an enum — both crashes are themselves findings, listed above).</td></tr>
-      <tr><td>Fall-back</td><td><strong>92 of 194</strong></td><td>37 not reachable because the type stops the forward migration; 49 spoiled by another type sharing the run and needing a solo re-run; 15 never run; 1 no result.</td></tr>
+      <tr><td>Offline</td><td><strong>223 of 223</strong></td><td>Nothing.</td></tr>
+      <tr><td>Live</td><td><strong>190 of 223</strong></td><td>29 wrapper probes (domains, arrays and composites over broken types) were added last and have offline results only; 2 never run (<code>box3d</code>, <code>topology.topogeometry</code>); 2 gave no result because the exporter crashed before reaching them (<code>hstore</code> holding a NULL, and a domain over an enum — both crashes are themselves findings, listed above).</td></tr>
+      <tr><td>Fall-back</td><td><strong>93 of 223</strong></td><td>37 not reachable because the type stops the forward migration; 48 spoiled by another type sharing the run and needing a solo re-run; 44 never run (29 of them the new wrapper probes); 1 no result.</td></tr>
     </tbody>
   </table>
   <p class="note">Fall-back is the weak column and the report does not pretend otherwise. It is the most expensive mode to run — every probe needs a full forward migration, a cutover and a reverse stream — and a single type that wedges the importer takes its whole batch down with it before cutover. That is why 49 cells say <em>Not measured</em>: those runs need re-running one type at a time.</p>
@@ -340,7 +341,8 @@ function render() {
       const col = COLS.find(c => c.k === k);
       if (textOf(r, col) !== state[k]) return;
     }
-    if (q && !COLS.map(c => textOf(r, c)).join(' ').toLowerCase().includes(q)) return;
+    const searchText = (COLS.map(c => textOf(r, c)).join(' ') + ' ' + (r.p || '')).toLowerCase();
+    if (q && !searchText.includes(q)) return;
     if (r.g !== lastGroup && !state.g) {
       const g = document.createElement('tr'); g.className = 'grp';
       const td = document.createElement('td'); td.colSpan = COLS.length; td.textContent = r.g;
@@ -358,7 +360,15 @@ function render() {
         const note = {o: r.eo, l: r.el, f: r.ef}[c.k];
         if (note) { s.title = note; td.title = note; }
         td.appendChild(s);
-      } else if (c.k === 't') { td.className = 't'; td.textContent = r.t; }
+      } else if (c.k === 't') {
+        td.className = 't';
+        td.textContent = r.t;
+        if (r.p) {
+          const pid = document.createElement('span');
+          pid.className = 'pid'; pid.textContent = r.p;
+          td.appendChild(pid);
+        }
+      }
       else if (c.type === 'ev') { td.className = 'e'; td.textContent = r.e || ''; }
       else { td.className = 'g'; td.textContent = textOf(r, c); }
       tr.appendChild(td);

@@ -32,6 +32,7 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
@@ -39,7 +40,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 )
 
 // stringSlice implements flag.Value so a flag can be repeated on the command line, each
@@ -107,22 +107,24 @@ func cmdCollect(args []string) error {
 	jsonOut := fs.String("json", "", "also write the rows as JSON to this path")
 	catalogPath := fs.String("catalog", "", "probe catalog JSON, used as the authoritative probe->group mapping")
 	commit := fs.String("commit", "", "voyager commit the run was built from")
-	pgVersion := fs.String("pg-version", "", "source PostgreSQL version under test")
-	ybVersion := fs.String("yb-version", "", "target YugabyteDB version under test")
-	stamp := fs.String("timestamp", "", "run timestamp (default: now, UTC, RFC3339)")
+	pgVersion := fs.String("pg-version", "", "source PostgreSQL version under test (default: derived per log, see -timestamp)")
+	ybVersion := fs.String("yb-version", "", "target YugabyteDB version under test (default: derived per log, see -timestamp)")
+	stamp := fs.String("timestamp", "", "run timestamp override, UTC RFC3339 (default: derived PER LOG FILE - a "+
+		"RUN-META line, else the first timestamp found in the log body, else the run-<stamp>.log filename, else "+
+		"the file's mtime, else the moment collect ran)")
 	failOnInvalid := fs.Bool("fail-on-invalid", false, "exit non-zero if any run failed its control gate")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
+	// meta holds only what the caller pinned explicitly via flags. Any field left empty
+	// here is derived PER LOG FILE below (deriveRunMeta) rather than defaulted once for
+	// every file - see the doc above deriveRunMeta in results.go for why that matters.
 	meta := RunMeta{
 		Timestamp:     *stamp,
 		VoyagerCommit: *commit,
 		PGVersion:     *pgVersion,
 		YBVersion:     *ybVersion,
-	}
-	if meta.Timestamp == "" {
-		meta.Timestamp = time.Now().UTC().Format(time.RFC3339)
 	}
 
 	var categoryFor func(string) string
@@ -172,8 +174,16 @@ func cmdCollect(args []string) error {
 		if err != nil {
 			return fmt.Errorf("opening %s: %w", p, err)
 		}
-		fileRows, err := ParseLog(rc, meta, categoryFor)
+		// Read the whole file rather than stream it: deriveRunMeta needs the full body to
+		// look for a timestamp/version, and ParseLog itself needs a second pass over the
+		// same bytes, so there is no streaming win to give up here.
+		content, err := io.ReadAll(rc)
 		rc.Close()
+		if err != nil {
+			return fmt.Errorf("reading %s: %w", p, err)
+		}
+		fileMeta := deriveRunMeta(p, content, meta)
+		fileRows, err := ParseLog(bytes.NewReader(content), fileMeta, categoryFor)
 		if err != nil {
 			return fmt.Errorf("parsing %s: %w", p, err)
 		}

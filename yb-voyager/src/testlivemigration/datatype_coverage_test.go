@@ -87,7 +87,7 @@ func coverageExtensions() []string {
 	// absence from the case table is precisely what this guard should catch.
 	for _, e := range []string{
 		"hstore", "citext", "ltree", "cube", "seg", "isn", "intarray",
-		"pg_trgm", "btree_gist", "btree_gin", "earthdistance", "tablefunc", "lo",
+		"pg_trgm", "btree_gist", "btree_gin", "earthdistance", "tablefunc", "lo", "dblink",
 		// postgis_raster and postgis_topology carry a large family of their own types
 		// (rastbandarg, topology.topoelement, ...). Installing them here rather than
 		// relying on the image having done it keeps the guard's scope explicit.

@@ -17,6 +17,11 @@ limitations under the License.
 */
 package testlivemigration
 
+import (
+	"fmt"
+	"strings"
+)
+
 /*
 Datatype sweep case tables. One probe here == one row of the final audit matrix.
 
@@ -156,6 +161,24 @@ func rangeProbes() []datatypeProbe {
 			Note: "contrast case alongside RANGE-011 (int4range[]): does the runtime typtype='r' " +
 				"catalogue filter also miss the array form of every OTHER built-in range?",
 		},
+		{
+			ID: "RANGE-015", Name: "array of built-in range (tsrange)", TypeName: "tsrange[]",
+			ColumnDDL: "tsrange[]",
+			InitialValue: "ARRAY['[2024-01-01 00:00:00,2024-02-01 12:34:56.789012)'::tsrange, " +
+				"'[1999-12-31 23:59:59,2000-01-01 00:00:00]'::tsrange]",
+			AltValue: "ARRAY['[2020-06-01 00:00:00,2020-07-01 00:00:00)'::tsrange]",
+			Note: "contrast case alongside RANGE-011 (int4range[]): does the runtime typtype='r' " +
+				"catalogue filter also miss the array form of every OTHER built-in range? (tsrange itself is RANGE-004)",
+		},
+		{
+			ID: "RANGE-016", Name: "array of built-in range (tstzrange)", TypeName: "tstzrange[]",
+			ColumnDDL: "tstzrange[]",
+			InitialValue: "ARRAY['[2024-01-01 00:00:00+00,2024-02-01 00:00:00+05:30)'::tstzrange, " +
+				"'[2024-06-01 00:00:00+00,)'::tstzrange]",
+			AltValue: "ARRAY['[2020-01-01 00:00:00+00,2020-02-01 00:00:00+00)'::tstzrange]",
+			Note: "contrast case alongside RANGE-011 (int4range[]): does the runtime typtype='r' " +
+				"catalogue filter also miss the array form of every OTHER built-in range? (tstzrange itself is RANGE-005)",
+		},
 	}
 }
 
@@ -215,6 +238,45 @@ func multirangeProbes() []datatypeProbe {
 			Note: "int4multirange is on srcdb.PostgresUnsupportedDataTypes (all modes) matched by " +
 				"the SCALAR type's own name; the array type's own name (_int4multirange) never equals " +
 				"that list entry, so the array form should bypass it",
+		},
+		{
+			ID: "MRANGE-009", Name: "array of built-in multirange (int8multirange)", TypeName: "int8multirange[]",
+			ColumnDDL: "int8multirange[]",
+			InitialValue: "ARRAY['{[10,20),[30,40)}'::int8multirange, " +
+				"'{[9223372036854775800,9223372036854775806)}'::int8multirange]",
+			AltValue: "ARRAY['{[100,200)}'::int8multirange]",
+			Note:     "contrast case alongside MRANGE-008 (int4multirange[]): does the same array-name-bypass hold for every multirange element type?",
+		},
+		{
+			ID: "MRANGE-010", Name: "array of built-in multirange (nummultirange)", TypeName: "nummultirange[]",
+			ColumnDDL: "nummultirange[]",
+			InitialValue: "ARRAY['{[1.5,2.5)}'::nummultirange, " +
+				"'{[0.001,0.002),[10.5,20.25)}'::nummultirange]",
+			AltValue: "ARRAY['{[7.25,8.75)}'::nummultirange]",
+			Note:     "contrast case alongside MRANGE-008 (int4multirange[]): does the same array-name-bypass hold for every multirange element type?",
+		},
+		{
+			ID: "MRANGE-011", Name: "array of built-in multirange (tsmultirange)", TypeName: "tsmultirange[]",
+			ColumnDDL: "tsmultirange[]",
+			InitialValue: `ARRAY['{["2024-01-01 00:00:00","2024-02-01 12:34:56.789012")}'::tsmultirange, ` +
+				`'{["1999-12-31 23:59:59","2000-01-01 00:00:00")}'::tsmultirange]`,
+			AltValue: `ARRAY['{["2020-06-01 00:00:00","2020-07-01 00:00:00")}'::tsmultirange]`,
+			Note:     "contrast case alongside MRANGE-008 (int4multirange[]): does the same array-name-bypass hold for every multirange element type?",
+		},
+		{
+			ID: "MRANGE-012", Name: "array of built-in multirange (tstzmultirange)", TypeName: "tstzmultirange[]",
+			ColumnDDL:    "tstzmultirange[]",
+			InitialValue: `ARRAY['{["2024-01-01 00:00:00+00","2024-02-01 00:00:00+00")}'::tstzmultirange]`,
+			AltValue:     `ARRAY['{["2024-06-01 00:00:00+00","2024-07-01 00:00:00+00")}'::tstzmultirange]`,
+			Note: "text form is TimeZone-dependent like MRANGE-007; a pure UTC-offset difference is a " +
+				"harness artifact, not a product finding",
+		},
+		{
+			ID: "MRANGE-013", Name: "array of built-in multirange (datemultirange)", TypeName: "datemultirange[]",
+			ColumnDDL:    "datemultirange[]",
+			InitialValue: "ARRAY['{[2024-01-01,2024-02-01),[2024-06-01,2024-07-01)}'::datemultirange]",
+			AltValue:     "ARRAY['{[2000-01-01,2000-02-01)}'::datemultirange]",
+			Note:         "contrast case alongside MRANGE-008 (int4multirange[]): does the same array-name-bypass hold for every multirange element type?",
 		},
 	}
 }
@@ -345,6 +407,7 @@ func domainProbes() []datatypeProbe {
 			PreDDL:       []string{"CREATE DOMAIN {{schema}}.{{p}}_d AS regclass"},
 			ColumnDDL:    "{{schema}}.{{p}}_d",
 			InitialValue: "'pg_class'::regclass", AltValue: "'pg_type'::regclass",
+			CompareExpr: "format('%s|%s', v::text, v::regclass::oid::text)",
 			Note: "bare regclass (SYS-004) is poison - the hex-encoded OID reference stops the " +
 				"import with SQLSTATE 42P01; does that same hex-encoding path still fire through a domain?",
 		},
@@ -377,6 +440,89 @@ func domainProbes() []datatypeProbe {
 			Note: "nested domain over xml (single-level domain(xml) is DOM-003, a deterministic " +
 				"poison): does resolving typbasetype only one level deep still miss xml, or does " +
 				"resolution recurse through both domain levels?",
+		},
+		{
+			ID: "DOM-019", Name: "domain over xml array", TypeName: "domain(xml[])",
+			PreDDL:       []string{"CREATE DOMAIN {{schema}}.{{p}}_d AS xml[]"},
+			ColumnDDL:    "{{schema}}.{{p}}_d",
+			InitialValue: "ARRAY['<a>1</a>'::xml, '<b/>'::xml]",
+			AltValue:     "ARRAY['<c/>'::xml]",
+			Note: "a domain over the ARRAY type itself (not array-of-domain, which is DOM-007's " +
+				"shape); xml is unsupported both bare (CORE-020) and as a plain domain (DOM-003, " +
+				"poison) - does wrapping the array in a domain change the outcome?",
+		},
+		{
+			ID: "DOM-020", Name: "domain over point array", TypeName: "domain(point[])",
+			PreDDL:       []string{"CREATE DOMAIN {{schema}}.{{p}}_d AS point[]"},
+			ColumnDDL:    "{{schema}}.{{p}}_d",
+			InitialValue: "ARRAY['(1.5,-2.5)'::point, '(0,0)'::point]",
+			AltValue:     "ARRAY['(3,4)'::point]",
+			Note: "a domain over the ARRAY type itself; point is unsupported bare (GEO2-001 " +
+				"contrast, ARR-002); does wrapping the array in a domain change the outcome?",
+		},
+		{
+			ID: "DOM-021", Name: "domain over a composite", TypeName: "domain(composite)",
+			PreDDL: []string{
+				"CREATE TYPE {{schema}}.{{p}}_c AS (x integer, y text)",
+				"CREATE DOMAIN {{schema}}.{{p}}_d AS {{schema}}.{{p}}_c",
+			},
+			ColumnDDL:    "{{schema}}.{{p}}_d",
+			InitialValue: "ROW(1,'a')::{{schema}}.{{p}}_c", AltValue: "ROW(-2,'zz')::{{schema}}.{{p}}_c",
+			Note: "a plain composite is unproblematic (COMP-001); does wrapping it in a domain " +
+				"(typbasetype -> typtype='c') change that?",
+		},
+		{
+			ID: "DOM-022", Name: "domain over line", TypeName: "domain(line)",
+			PreDDL:       []string{"CREATE DOMAIN {{schema}}.{{p}}_d AS line"},
+			ColumnDDL:    "{{schema}}.{{p}}_d",
+			InitialValue: "'{1,-1,0}'::line", AltValue: "'{0,1,-5}'::line",
+			Note: "bare line is GEO2-002; does the domain wrapper reach a different outcome than the bare scalar?",
+		},
+		{
+			ID: "DOM-023", Name: "domain over lseg", TypeName: "domain(lseg)",
+			PreDDL:       []string{"CREATE DOMAIN {{schema}}.{{p}}_d AS lseg"},
+			ColumnDDL:    "{{schema}}.{{p}}_d",
+			InitialValue: "'[(0,0),(1,1)]'::lseg", AltValue: "'[(2,2),(3,3)]'::lseg",
+			Note: "bare lseg is GEO2-003; does the domain wrapper reach a different outcome than the bare scalar?",
+		},
+		{
+			ID: "DOM-024", Name: "domain over box", TypeName: "domain(box)",
+			PreDDL:       []string{"CREATE DOMAIN {{schema}}.{{p}}_d AS box"},
+			ColumnDDL:    "{{schema}}.{{p}}_d",
+			InitialValue: "'((0,0),(1,1))'::box", AltValue: "'((2,2),(3,3))'::box",
+			Note: "bare box is GEO2-004; does the domain wrapper reach a different outcome than the bare scalar?",
+		},
+		{
+			ID: "DOM-025", Name: "domain over path", TypeName: "domain(path)",
+			PreDDL:       []string{"CREATE DOMAIN {{schema}}.{{p}}_d AS path"},
+			ColumnDDL:    "{{schema}}.{{p}}_d",
+			InitialValue: "'[(0,0),(1,1),(2,0)]'::path", AltValue: "'((5,5),(6,6),(7,5))'::path",
+			Note: "bare path is GEO2-005; does the domain wrapper reach a different outcome than the bare scalar?",
+		},
+		{
+			ID: "DOM-026", Name: "domain over polygon", TypeName: "domain(polygon)",
+			PreDDL:       []string{"CREATE DOMAIN {{schema}}.{{p}}_d AS polygon"},
+			ColumnDDL:    "{{schema}}.{{p}}_d",
+			InitialValue: "'((0,0),(1,1),(2,0))'::polygon", AltValue: "'((0,0),(5,5),(5,0))'::polygon",
+			Note: "bare polygon is GEO2-006; does the domain wrapper reach a different outcome than the bare scalar?",
+		},
+		{
+			ID: "DOM-027", Name: "domain over circle", TypeName: "domain(circle)",
+			PreDDL:       []string{"CREATE DOMAIN {{schema}}.{{p}}_d AS circle"},
+			ColumnDDL:    "{{schema}}.{{p}}_d",
+			InitialValue: "'<(1,1),5>'::circle", AltValue: "'<(0,0),2>'::circle",
+			Note: "bare circle is GEO2-007; does the domain wrapper reach a different outcome than the bare scalar?",
+		},
+		{
+			ID: "DOM-028", Name: "domain over geography", TypeName: "domain(geography)",
+			Extensions:      []string{"postgis"},
+			PreDDL:          []string{"CREATE DOMAIN {{schema}}.{{p}}_d AS geography"},
+			ColumnDDL:       "{{schema}}.{{p}}_d",
+			InitialValue:    "'SRID=4326;POINT(-71.060316 42.358431)'::geography",
+			AltValue:        "'SRID=4326;POINT(1 1)'::geography",
+			RecordDestValue: true,
+			Note: "bare geography is GEO-003 (ExpectExcluded); does the domain form bypass the " +
+				"name-equality guardrail the way GEO-005/GEO-006 showed it does for geometry?",
 		},
 	}
 }
@@ -445,6 +591,72 @@ func compositeProbes() []datatypeProbe {
 			Note: "bare int4range is dropped by the runtime typtype='r' catalogue filter; a " +
 				"composite's own typtype is 'c', so an int4range field should bypass that filter entirely",
 		},
+		{
+			ID: "COMP-008", Name: "composite with an xml field", TypeName: "composite(xml field)",
+			PreDDL:       []string{"CREATE TYPE {{schema}}.{{p}}_c AS (x integer, doc xml)"},
+			ColumnDDL:    "{{schema}}.{{p}}_c",
+			InitialValue: `ROW(1, '<a>1</a>'::xml)::{{schema}}.{{p}}_c`,
+			AltValue:     `ROW(2, '<b/>'::xml)::{{schema}}.{{p}}_c`,
+			Note: "xml is unsupported bare (CORE-020); the guardrail matches the composite's own " +
+				"typname, so an xml field should bypass it the same way COMP-005's point field did",
+		},
+		{
+			ID: "COMP-009", Name: "composite with a geometry field", TypeName: "composite(geometry field)",
+			Extensions:      []string{"postgis"},
+			PreDDL:          []string{"CREATE TYPE {{schema}}.{{p}}_c AS (x integer, g geometry)"},
+			ColumnDDL:       "{{schema}}.{{p}}_c",
+			InitialValue:    "ROW(1, 'POINT(1 1)'::geometry)::{{schema}}.{{p}}_c",
+			AltValue:        "ROW(2, 'POINT(2 2)'::geometry)::{{schema}}.{{p}}_c",
+			RecordDestValue: true,
+			Note: "geometry is unsupported bare (GEO-001); does a geometry FIELD inside a plain " +
+				"composite bypass the guardrail the way the array (GEO-004) and domain (GEO-005) forms did?",
+		},
+		{
+			ID: "COMP-010", Name: "composite with a vector(3) field", TypeName: "composite(vector(3) field)",
+			Extensions:      []string{"vector"},
+			PreDDL:          []string{"CREATE TYPE {{schema}}.{{p}}_c AS (x integer, v vector(3))"},
+			ColumnDDL:       "{{schema}}.{{p}}_c",
+			InitialValue:    "ROW(1, '[1,2,3]'::vector(3))::{{schema}}.{{p}}_c",
+			AltValue:        "ROW(2, '[4,5,6]'::vector(3))::{{schema}}.{{p}}_c",
+			RecordDestValue: true,
+			Note: "vector is unsupported bare (VEC-001); does a vector FIELD inside a plain " +
+				"composite bypass the guardrail the way the array (VEC-002) and domain (VEC-003) forms did?",
+		},
+		{
+			ID: "COMP-011", Name: "composite with a tsvector field", TypeName: "composite(tsvector field)",
+			PreDDL:       []string{"CREATE TYPE {{schema}}.{{p}}_c AS (x integer, tv tsvector)"},
+			ColumnDDL:    "{{schema}}.{{p}}_c",
+			InitialValue: "ROW(1, 'a b c'::tsvector)::{{schema}}.{{p}}_c",
+			AltValue:     "ROW(2, 'x:1 y:2'::tsvector)::{{schema}}.{{p}}_c",
+			Note: "tsvector is on the gRPC connector's name-matched exclusion list (MISC-002); " +
+				"does a tsvector field bypass it the way it does for other wrapper shapes?",
+		},
+		{
+			ID: "COMP-012", Name: "composite with a timetz field", TypeName: "composite(timetz field)",
+			PreDDL:       []string{"CREATE TYPE {{schema}}.{{p}}_c AS (x integer, t timetz)"},
+			ColumnDDL:    "{{schema}}.{{p}}_c",
+			InitialValue: "ROW(1, '12:34:56.789+05:30'::timetz)::{{schema}}.{{p}}_c",
+			AltValue:     "ROW(2, '23:59:59.999999-08:00'::timetz)::{{schema}}.{{p}}_c",
+			Note: "bare timetz is dropped (MISC-012, ExpectExcluded); does a timetz field inside a " +
+				"composite bypass that guardrail?",
+		},
+		{
+			ID: "COMP-013", Name: "composite with a pg_lsn field", TypeName: "composite(pg_lsn field)",
+			PreDDL:       []string{"CREATE TYPE {{schema}}.{{p}}_c AS (x integer, l pg_lsn)"},
+			ColumnDDL:    "{{schema}}.{{p}}_c",
+			InitialValue: "ROW(1, '16/B374D848'::pg_lsn)::{{schema}}.{{p}}_c",
+			AltValue:     "ROW(2, '0/0'::pg_lsn)::{{schema}}.{{p}}_c",
+			Note:         "bare pg_lsn is dropped (SYS-008); does a pg_lsn field inside a composite bypass that guardrail?",
+		},
+		{
+			ID: "COMP-014", Name: "composite with an int array field", TypeName: "composite(int[] field)",
+			PreDDL:       []string{"CREATE TYPE {{schema}}.{{p}}_c AS (x integer, nums int[])"},
+			ColumnDDL:    "{{schema}}.{{p}}_c",
+			InitialValue: "ROW(1, ARRAY[1,2,3])::{{schema}}.{{p}}_c",
+			AltValue:     "ROW(2, ARRAY[9,8])::{{schema}}.{{p}}_c",
+			Note: "an array FIELD nested inside a composite, the reverse nesting from COMP-003 " +
+				"(an array OF composites); does the nested array survive the composite's own text serialisation?",
+		},
 	}
 }
 
@@ -510,7 +722,7 @@ func arrayProbes() []datatypeProbe {
 			Note:           "xml is on the unsupported list; does the ARRAY form bypass the guardrail?",
 		},
 		{
-			ID: "ARR-004", Name: "multidimensional int array", TypeName: "int[][]",
+			ID: "ARR-004", Name: "multidimensional int array", TypeName: "int[] (2-D value)",
 			ColumnDDL:    "int[][]",
 			InitialValue: "ARRAY[[1,2,3],[4,5,6]]",
 			AltValue:     "ARRAY[[9,8],[7,6]]",
@@ -608,8 +820,10 @@ func arrayProbes() []datatypeProbe {
 			ColumnDDL:    "regclass[]",
 			InitialValue: "ARRAY['pg_class','pg_type']::regclass[]",
 			AltValue:     "ARRAY['pg_attribute']::regclass[]",
+			CompareExpr:  "v::text || '|' || v::oid[]::text",
 			Note: "bare regclass (SYS-004) is poison - it stops the import with SQLSTATE 42P01; " +
-				"does the ARRAY form still hit that hex-encoding path via typelem?",
+				"does the ARRAY form still hit that hex-encoding path via typelem? the appended OID " +
+				"array exposes a name that resolves on the target but points at a different object",
 		},
 		{
 			ID: "ARR-017", Name: "tid array", TypeName: "tid[]",
@@ -618,6 +832,76 @@ func arrayProbes() []datatypeProbe {
 			AltValue:     "ARRAY['(1,1)']::tid[]",
 			Note: "bare tid (SYS-003) is poison - the import rejects it with SQLSTATE 22P02; does " +
 				"the ARRAY form still hit that same rejection via typelem?",
+		},
+		{
+			ID: "ARR-018", Name: "text array with adversarial elements", TypeName: "text[] (adversarial)",
+			ColumnDDL:    "text[]",
+			InitialValue: `ARRAY['a,b','{"}','',NULL,'NULL','back\slash','sp ace']::text[]`,
+			AltValue:     `ARRAY['plain','simple']::text[]`,
+			Note: "elements chosen to break a naive comma-split or unescaped array-literal parser: " +
+				"an embedded comma, a brace+quote combo, an empty string, a real NULL element, the " +
+				"literal word NULL, an embedded backslash, and an embedded space",
+		},
+		{
+			ID: "ARR-019", Name: "varchar(5) array with adversarial elements", TypeName: "varchar(5)[] (adversarial)",
+			ColumnDDL:    "varchar(5)[]",
+			InitialValue: `ARRAY['a,b','{"}','',NULL,'NULL','a\b','a b']::varchar(5)[]`,
+			AltValue:     `ARRAY['xy','ab']::varchar(5)[]`,
+			Note: "same adversarial element set as ARR-018, shrunk to fit varchar's declared " +
+				"length; contrasts an unbounded text[] against a length-constrained element type",
+		},
+		{
+			ID: "ARR-020", Name: "line array", TypeName: "line[]",
+			ColumnDDL:    "line[]",
+			InitialValue: "ARRAY['{1,-1,0}'::line, '{0,1,-5}'::line]",
+			AltValue:     "ARRAY['{2,2,-4}'::line]",
+			Note:         "array form of line (GEO2-002); PostgreSQL's own geometric types are not on the unsupported list but had never been probed as arrays",
+		},
+		{
+			ID: "ARR-021", Name: "lseg array", TypeName: "lseg[]",
+			ColumnDDL:    "lseg[]",
+			InitialValue: "ARRAY['[(0,0),(1,1)]'::lseg, '[(2,2),(3,3)]'::lseg]",
+			AltValue:     "ARRAY['[(4,4),(5,5)]'::lseg]",
+			Note:         "array form of lseg (GEO2-003); never probed as an array before",
+		},
+		{
+			ID: "ARR-022", Name: "box array", TypeName: "box[]",
+			ColumnDDL:    "box[]",
+			InitialValue: "ARRAY['((0,0),(1,1))'::box, '((2,2),(3,3))'::box]",
+			AltValue:     "ARRAY['((4,4),(5,5))'::box]",
+			Note: "array form of box (GEO2-004); box's typdelim is ';' rather than ',' - the same " +
+				"non-comma-delimiter shape ARRAY-DELIM-001 measured for geometry",
+		},
+		{
+			ID: "ARR-023", Name: "path array", TypeName: "path[]",
+			ColumnDDL:    "path[]",
+			InitialValue: "ARRAY['[(0,0),(1,1),(2,0)]'::path, '((5,5),(6,6),(7,5))'::path]",
+			AltValue:     "ARRAY['((0,0),(1,0),(1,1))'::path]",
+			Note:         "array form of path (GEO2-005), mixing an open and a closed path in one array",
+		},
+		{
+			ID: "ARR-024", Name: "polygon array", TypeName: "polygon[]",
+			ColumnDDL:    "polygon[]",
+			InitialValue: "ARRAY['((0,0),(1,1),(2,0))'::polygon, '((0,0),(5,5),(5,0))'::polygon]",
+			AltValue:     "ARRAY['((1,1),(2,2),(3,1))'::polygon]",
+			Note:         "array form of polygon (GEO2-006); never probed as an array before",
+		},
+		{
+			ID: "ARR-025", Name: "circle array", TypeName: "circle[]",
+			ColumnDDL:    "circle[]",
+			InitialValue: "ARRAY['<(1,1),5>'::circle, '<(0,0),2>'::circle]",
+			AltValue:     "ARRAY['<(3,3),1>'::circle]",
+			Note:         "array form of circle (GEO2-007); never probed as an array before",
+		},
+		{
+			ID: "ARR-026", Name: "geography array", TypeName: "geography[]",
+			Extensions:      []string{"postgis"},
+			ColumnDDL:       "geography[]",
+			InitialValue:    "ARRAY['SRID=4326;POINT(-71.060316 42.358431)'::geography, 'SRID=4326;POINT(1 1)'::geography]",
+			AltValue:        "ARRAY['SRID=4326;POINT(9 9)'::geography]",
+			RecordDestValue: true,
+			Note: "geography is unsupported bare (GEO-003); paired with GEO-004 (geometry array), " +
+				"which is the KEY CASE that showed the array form bypasses the name-equality guardrail - does geography share that?",
 		},
 	}
 }
@@ -684,7 +968,8 @@ func systemTypeProbes() []datatypeProbe {
 			Poison:     true,
 			PoisonNote: "POISON: deterministic BLOCKS in LIVE (import: relation '\\x70675f74797065' does not exist, SQLSTATE 42P01)",
 			ColumnDDL:  "regclass", InitialValue: "'pg_class'::regclass", AltValue: "'pg_type'::regclass",
-			Note: "an OID reference whose text form is resolved against the local catalog",
+			CompareExpr: "format('%s|%s', v::text, v::oid::text)",
+			Note:        "an OID reference whose text form is resolved against the local catalog; the appended OID exposes a name that resolves on the target but points at a different object",
 		},
 		{
 			ID: "SYS-005", Name: "pg_snapshot", TypeName: "pg_snapshot",
@@ -789,6 +1074,13 @@ func miscTypeProbes() []datatypeProbe {
 // VALUE-LEVEL EDGE CASES
 // ============================================================
 
+// nestedJSONLiteral builds a JSON text value nested depth levels deep, e.g. depth=2,
+// leaf="0" gives {"a":{"a":0}}. Used to probe deeply nested json/jsonb without hand-typing
+// twenty pairs of braces.
+func nestedJSONLiteral(depth int, leaf string) string {
+	return strings.Repeat(`{"a":`, depth) + leaf + strings.Repeat(`}`, depth)
+}
+
 func valueEdgeProbes() []datatypeProbe {
 	return []datatypeProbe{
 		{
@@ -804,9 +1096,9 @@ func valueEdgeProbes() []datatypeProbe {
 			ColumnDDL: "numeric", InitialValue: "'-Infinity'::numeric", AltValue: "'Infinity'::numeric",
 		},
 		{
-			ID: "VAL-004", Name: "numeric trailing zeros", TypeName: "numeric (0.000)",
-			ColumnDDL: "numeric", InitialValue: "0.000", AltValue: "0.00000",
-			Note: "PG preserves the scale: 0.000 and 0.00000 are distinct text forms of zero",
+			ID: "VAL-004", Name: "numeric trailing zeros", TypeName: "numeric (1.500)",
+			ColumnDDL: "numeric", InitialValue: "1.500", AltValue: "1.50000",
+			Note: "PG preserves the scale: 1.500 and 1.50000 are distinct text forms of the same non-zero number, so scale loss and a lost update are each visible on their own (0.000 vs 0.00000 could not tell the two apart, since both are zero)",
 		},
 		{
 			ID: "VAL-005", Name: "numeric(130,60)", TypeName: "numeric(130,60)",
@@ -895,6 +1187,133 @@ func valueEdgeProbes() []datatypeProbe {
 			ID: "VAL-021", Name: "empty string vs NULL", TypeName: "text (empty string)",
 			ColumnDDL: "text", InitialValue: "''", AltValue: "'x'",
 			Note: "'' and NULL must stay distinct across the whole NULL-transition op set",
+		},
+		{
+			ID: "VAL-022", Name: "jsonb duplicate keys", TypeName: "jsonb (duplicate keys)",
+			ColumnDDL: "jsonb", InitialValue: `'{"a":1,"a":2}'::jsonb`, AltValue: `'{"b":3,"b":4}'::jsonb`,
+			Note: "jsonb normalises duplicate keys on input, keeping only the last value; the " +
+				"input text is not preserved, so this checks the NORMALISED value round-trips",
+		},
+		{
+			ID: "VAL-023", Name: "jsonb unicode escape", TypeName: "jsonb (\\u00e9 escape)",
+			ColumnDDL:    "jsonb",
+			InitialValue: "'{\"name\":\"caf\\u00e9\"}'::jsonb",
+			AltValue:     `'{"name":"plain"}'::jsonb`,
+			Note: "\\u00e9 is a JSON unicode escape for e-acute; jsonb decodes it to the actual " +
+				"character on input and re-renders it literally on output, so this checks the " +
+				"decode/re-encode path does not corrupt the multi-byte UTF-8 result",
+		},
+		{
+			ID: "VAL-024", Name: "jsonb number beyond float64 precision", TypeName: "jsonb (big number)",
+			ColumnDDL: "jsonb", InitialValue: `'{"n":12345678901234567890123}'::jsonb`, AltValue: `'{"n":1}'::jsonb`,
+			Note: "jsonb stores numbers as arbitrary-precision numeric, not float64; this number " +
+				"has more significant digits than a float64 can hold exactly, so a lossy path " +
+				"through float64 anywhere in the pipeline would corrupt it silently",
+		},
+		{
+			ID: "VAL-025", Name: "jsonb nesting depth 20", TypeName: "jsonb (depth 20)",
+			ColumnDDL:    "jsonb",
+			InitialValue: "'" + nestedJSONLiteral(20, "0") + "'::jsonb",
+			AltValue:     "'" + nestedJSONLiteral(20, "1") + "'::jsonb",
+			Note:         "20 levels of object nesting; checks the parser/serialiser round-trips deep structures rather than just shallow ones",
+		},
+		{
+			ID: "VAL-026", Name: "json duplicate keys", TypeName: "json (duplicate keys)",
+			ColumnDDL: "json", InitialValue: `'{"a":1,"a":2}'::json`, AltValue: `'{"b":3,"b":4}'::json`,
+			Note: "unlike jsonb (VAL-022), json preserves the input text verbatim including the " +
+				"duplicate key; this checks that verbatim text survives rather than being folded",
+		},
+		{
+			ID: "VAL-027", Name: "json unicode escape", TypeName: "json (\\u00e9 escape)",
+			ColumnDDL: "json", InitialValue: "'{\"name\":\"caf\\u00e9\"}'::json", AltValue: `'{"name":"plain"}'::json`,
+			Note: "unlike jsonb (VAL-023), json keeps the escape sequence itself in its stored " +
+				"text rather than decoding it; this checks the raw escape survives byte-for-byte",
+		},
+		{
+			ID: "VAL-028", Name: "json number beyond float64 precision", TypeName: "json (big number)",
+			ColumnDDL: "json", InitialValue: `'{"n":12345678901234567890123}'::json`, AltValue: `'{"n":1}'::json`,
+			Note: "json keeps the digit string verbatim rather than reparsing it as a number " +
+				"(contrast VAL-024); this checks the verbatim text survives",
+		},
+		{
+			ID: "VAL-029", Name: "json nesting depth 20", TypeName: "json (depth 20)",
+			ColumnDDL:    "json",
+			InitialValue: "'" + nestedJSONLiteral(20, "0") + "'::json",
+			AltValue:     "'" + nestedJSONLiteral(20, "1") + "'::json",
+			Note:         "json contrast to VAL-025: the same deep nesting, stored as verbatim text instead of a reparsed value",
+		},
+		{
+			ID: "VAL-030", Name: "float8 imprecise values", TypeName: "float8 (0.1 / 1e308)",
+			ColumnDDL: "float8", InitialValue: "0.1", AltValue: "1e308",
+			Note: "0.1 has no exact binary64 representation and 1e308 sits near the top of the " +
+				"double range; both need the full 17 significant decimal digits in the text form " +
+				"to come back byte-identical, unlike VAL-006/007/008's special values",
+		},
+		{
+			ID: "VAL-031", Name: "float4 imprecise values", TypeName: "float4 (0.1 / 3.4028235e38)",
+			ColumnDDL: "float4", InitialValue: "0.1::float4", AltValue: "3.4028235e38::float4",
+			Note: "0.1 is inexact in binary32 and 3.4028235e38 is near FLT_MAX; a transport that " +
+				"promotes to float8 and back can round differently than staying in float4",
+		},
+		{
+			ID: "VAL-032", Name: "float8 smallest denormal", TypeName: "float8 (5e-324 denormal)",
+			ColumnDDL: "float8", InitialValue: "5e-324", AltValue: "1.0",
+			Note: "5e-324 is the smallest positive denormalised (subnormal) double, one bit above " +
+				"zero; a transport that flushes subnormals to zero would silently turn this into 0",
+		},
+		{
+			ID: "VAL-033", Name: "interval infinity", TypeName: "interval (+/-infinity)",
+			ColumnDDL: "interval", InitialValue: "'infinity'::interval", AltValue: "'-infinity'::interval",
+			Note: "PostgreSQL 17 added infinite interval values; contrast with CORE-019's finite " +
+				"interval and VAL-013/014's timestamp infinities",
+		},
+		{
+			ID: "VAL-034", Name: "money extremes", TypeName: "money (min/max)",
+			ColumnDDL:    "money",
+			InitialValue: "'92233720368547758.07'::money", AltValue: "'-92233720368547758.08'::money",
+			CompareExpr: "(v::numeric)::text",
+			Note: "both endpoints of money's underlying signed 64-bit-cents range; compared as " +
+				"numeric for the same lc_monetary reason as MISC-005",
+		},
+		{
+			ID: "VAL-035", Name: "json 'null' literal vs a real value", TypeName: "json ('null')",
+			ColumnDDL: "json", InitialValue: "'null'::json", AltValue: `'{"a":1}'::json`,
+			Note: "'null'::json is a JSON null VALUE stored in a NOT-NULL json column, distinct " +
+				"from a SQL NULL; does that distinction survive, or collapse into an actual NULL somewhere in the pipeline?",
+		},
+		{
+			ID: "VAL-036", Name: "name longer than 63 bytes", TypeName: "name (>63 bytes)",
+			ColumnDDL:    "name",
+			InitialValue: "'" + strings.Repeat("a", 70) + "'::name",
+			AltValue:     "'" + strings.Repeat("b", 70) + "'::name",
+			Note: "PG's name type truncates any input longer than 63 bytes (NAMEDATALEN-1) at the " +
+				"SOURCE itself, before voyager ever sees the value; the truncation is a source " +
+				"behaviour, not something voyager could get wrong, so this establishes that baseline",
+		},
+		{
+			ID: "VAL-037", Name: "bytea with all 256 byte values", TypeName: "bytea (all byte values)",
+			ColumnDDL:    "bytea",
+			InitialValue: "(SELECT decode(string_agg(lpad(to_hex(i),2,'0'),'' ORDER BY i),'hex') FROM generate_series(0,255) i)",
+			AltValue:     "(SELECT decode(string_agg(lpad(to_hex(i),2,'0'),'' ORDER BY i DESC),'hex') FROM generate_series(0,255) i)",
+			Note: "all 256 possible byte values 0x00-0xFF, contrasted with the same 256 bytes in " +
+				"reverse order; extends VAL-020's single embedded NUL byte to every value including high-bit bytes",
+		},
+	}
+}
+
+// copyFramingProbes targets values whose bytes look like PostgreSQL's COPY text-format
+// framing (a lone `\.` line, raw control characters) - the shape that corrupts silently if
+// any part of the pipeline ever falls back to naive COPY-text parsing instead of the
+// binary/logical protocol.
+func copyFramingProbes() []datatypeProbe {
+	return []datatypeProbe{
+		{
+			ID: "COPY-001", Name: "text with embedded COPY-framing bytes", TypeName: "text (COPY framing bytes)",
+			ColumnDDL:    "text",
+			InitialValue: `E'line1\nline2\rtab:\tend\n\\\n\\.\nfinal'`,
+			AltValue:     "'plain replacement text'",
+			Note: "contains a real newline, a carriage return, a tab, a lone backslash, and a " +
+				"line that is exactly \\. - the end-of-data marker in COPY text format",
 		},
 	}
 }
@@ -1173,7 +1592,8 @@ func coreScalarProbes() []datatypeProbe {
 			ID: "CORE-010", Name: "char(10)", TypeName: "bpchar / char(10)",
 			ColumnDDL:    "char(10)",
 			InitialValue: "'abc'::char(10)", AltValue: "'xyz'::char(10)",
-			Note: "blank-padded: the stored value is 10 chars wide, and the padding must survive",
+			CompareExpr: "v::text || '|' || length(v::text)",
+			Note:        "blank-padded: the stored value is 10 chars wide, and the padding must survive; the appended length makes a stripped-padding target visible even if trailing spaces alone are easy to overlook",
 		},
 		{
 			ID: "CORE-011", Name: `"char"`, TypeName: `"char" (1-byte internal)`,
@@ -1282,8 +1702,9 @@ func geometricScalarProbes() []datatypeProbe {
 		{
 			ID: "GEO2-005", Name: "path", TypeName: "path",
 			ColumnDDL:    "path",
-			InitialValue: "'[(0,0),(1,1),(2,0)]'::path", AltValue: "'((0,0),(1,1),(2,0))'::path",
-			Note: "open path vs closed path: the bracket style is part of the value, not formatting",
+			InitialValue: "'[(0,0),(1,1),(2,0)]'::path", AltValue: "'((5,5),(6,7),(8,5))'::path",
+			Note: "open path vs closed path over DIFFERENT points: if the pipeline drops the " +
+				"open/closed bracket flag, the coordinate change alone still proves whether the update landed",
 		},
 		{
 			ID: "GEO2-006", Name: "polygon", TypeName: "polygon",
@@ -1311,19 +1732,33 @@ func geometricScalarProbes() []datatypeProbe {
 // PostgreSQL and in YugabyteDB's YSQL catalog, so a failure is about the transport
 // rather than about the object being absent on the target.
 func regTypeProbes() []datatypeProbe {
+	// regPoisonNote is shared by every REG-* probe: the reg* family travels as raw bytes
+	// and is re-resolved against the DESTINATION catalog. It was established by regproc
+	// (REG-002), whose crash reported ERROR: function 0x76657273696f6e does not exist
+	// (SQLSTATE 42883) - that hex string decodes to the word "version", the AltValue
+	// regproc was carrying. Same failure chain as regclass (SYS-004) and tid (SYS-003).
+	regPoisonNote := "POISON: the reg* family travels as raw bytes and is re-resolved against the DESTINATION catalog. Established by regproc (REG-002): the importer reported ERROR: function 0x76657273696f6e does not exist (SQLSTATE 42883), and 76657273696f6e is the hex of the word \"version\". Same chain as regclass (SYS-004) and tid (SYS-003). Must be run solo."
+	// regOIDCompare adds the underlying OID alongside the text form, so a value that
+	// resolves to a different object on the target (same name, different OID, or vice
+	// versa) is visible instead of hidden behind a matching name.
+	regOIDCompare := "format('%s|%s', v::text, v::oid::text)"
+
 	return []datatypeProbe{
 		{
 			ID: "REG-001", Name: "regtype", TypeName: "regtype",
 			ColumnDDL:    "regtype",
 			Poison:       true,
-			PoisonNote:   "POISON: the reg* family travels as raw bytes and is re-resolved against the DESTINATION catalog. Established in the LIVE regtypes batch, which came out PROBE-RUN-INVALID: the importer reported ERROR: function 0x76657273696f6e does not exist (SQLSTATE 42883), and 76657273696f6e is the hex of the regproc value version. Same chain as regclass (SYS-004) and tid (SYS-003). Must be run solo.",
+			PoisonNote:   regPoisonNote,
+			CompareExpr:  regOIDCompare,
 			InitialValue: "'pg_catalog.int4'::regtype", AltValue: "'pg_catalog.text'::regtype",
+			Note: "regtype names a data type by OID; a name that still resolves on the target may now point at a different type",
 		},
 		{
 			ID: "REG-002", Name: "regproc", TypeName: "regproc",
 			ColumnDDL:    "regproc",
 			Poison:       true,
-			PoisonNote:   "POISON: the reg* family travels as raw bytes and is re-resolved against the DESTINATION catalog. Established in the LIVE regtypes batch, which came out PROBE-RUN-INVALID: the importer reported ERROR: function 0x76657273696f6e does not exist (SQLSTATE 42883), and 76657273696f6e is the hex of the regproc value version. Same chain as regclass (SYS-004) and tid (SYS-003). Must be run solo.",
+			PoisonNote:   regPoisonNote,
+			CompareExpr:  regOIDCompare,
 			InitialValue: "'now'::regproc", AltValue: "'version'::regproc",
 			Note: "both names have exactly one function, so the bare-name form is unambiguous",
 		},
@@ -1331,7 +1766,8 @@ func regTypeProbes() []datatypeProbe {
 			ID: "REG-003", Name: "regprocedure", TypeName: "regprocedure",
 			ColumnDDL:    "regprocedure",
 			Poison:       true,
-			PoisonNote:   "POISON: the reg* family travels as raw bytes and is re-resolved against the DESTINATION catalog. Established in the LIVE regtypes batch, which came out PROBE-RUN-INVALID: the importer reported ERROR: function 0x76657273696f6e does not exist (SQLSTATE 42883), and 76657273696f6e is the hex of the regproc value version. Same chain as regclass (SYS-004) and tid (SYS-003). Must be run solo.",
+			PoisonNote:   regPoisonNote,
+			CompareExpr:  regOIDCompare,
 			InitialValue: "'pg_catalog.abs(int4)'::regprocedure",
 			AltValue:     "'pg_catalog.upper(text)'::regprocedure",
 			Note:         "argument-typed form; carries the signature, not just the name",
@@ -1340,7 +1776,8 @@ func regTypeProbes() []datatypeProbe {
 			ID: "REG-004", Name: "regoper", TypeName: "regoper",
 			ColumnDDL:    "regoper",
 			Poison:       true,
-			PoisonNote:   "POISON: the reg* family travels as raw bytes and is re-resolved against the DESTINATION catalog. Established in the LIVE regtypes batch, which came out PROBE-RUN-INVALID: the importer reported ERROR: function 0x76657273696f6e does not exist (SQLSTATE 42883), and 76657273696f6e is the hex of the regproc value version. Same chain as regclass (SYS-004) and tid (SYS-003). Must be run solo.",
+			PoisonNote:   regPoisonNote,
+			CompareExpr:  regOIDCompare,
 			InitialValue: "'pg_catalog.|/'::regoper", AltValue: "'pg_catalog.||/'::regoper",
 			Note: "prefix sqrt and cbrt: each has exactly one operator, so the bare form resolves",
 		},
@@ -1348,15 +1785,18 @@ func regTypeProbes() []datatypeProbe {
 			ID: "REG-005", Name: "regoperator", TypeName: "regoperator",
 			ColumnDDL:    "regoperator",
 			Poison:       true,
-			PoisonNote:   "POISON: the reg* family travels as raw bytes and is re-resolved against the DESTINATION catalog. Established in the LIVE regtypes batch, which came out PROBE-RUN-INVALID: the importer reported ERROR: function 0x76657273696f6e does not exist (SQLSTATE 42883), and 76657273696f6e is the hex of the regproc value version. Same chain as regclass (SYS-004) and tid (SYS-003). Must be run solo.",
+			PoisonNote:   regPoisonNote,
+			CompareExpr:  regOIDCompare,
 			InitialValue: "'pg_catalog.=(integer,integer)'::regoperator",
 			AltValue:     "'pg_catalog.+(integer,integer)'::regoperator",
+			Note:         "regoperator qualifies the operator by both operand types, not just its symbol",
 		},
 		{
 			ID: "REG-006", Name: "regconfig", TypeName: "regconfig",
 			ColumnDDL:    "regconfig",
 			Poison:       true,
-			PoisonNote:   "POISON: the reg* family travels as raw bytes and is re-resolved against the DESTINATION catalog. Established in the LIVE regtypes batch, which came out PROBE-RUN-INVALID: the importer reported ERROR: function 0x76657273696f6e does not exist (SQLSTATE 42883), and 76657273696f6e is the hex of the regproc value version. Same chain as regclass (SYS-004) and tid (SYS-003). Must be run solo.",
+			PoisonNote:   regPoisonNote,
+			CompareExpr:  regOIDCompare,
 			InitialValue: "'pg_catalog.english'::regconfig", AltValue: "'pg_catalog.simple'::regconfig",
 			Note: "text-search configuration reference",
 		},
@@ -1364,22 +1804,27 @@ func regTypeProbes() []datatypeProbe {
 			ID: "REG-007", Name: "regdictionary", TypeName: "regdictionary",
 			ColumnDDL:    "regdictionary",
 			Poison:       true,
-			PoisonNote:   "POISON: the reg* family travels as raw bytes and is re-resolved against the DESTINATION catalog. Established in the LIVE regtypes batch, which came out PROBE-RUN-INVALID: the importer reported ERROR: function 0x76657273696f6e does not exist (SQLSTATE 42883), and 76657273696f6e is the hex of the regproc value version. Same chain as regclass (SYS-004) and tid (SYS-003). Must be run solo.",
+			PoisonNote:   regPoisonNote,
+			CompareExpr:  regOIDCompare,
 			InitialValue: "'pg_catalog.english_stem'::regdictionary",
 			AltValue:     "'pg_catalog.simple'::regdictionary",
+			Note:         "regdictionary names a text-search dictionary, one level below regconfig",
 		},
 		{
 			ID: "REG-008", Name: "regnamespace", TypeName: "regnamespace",
 			ColumnDDL:    "regnamespace",
 			Poison:       true,
-			PoisonNote:   "POISON: the reg* family travels as raw bytes and is re-resolved against the DESTINATION catalog. Established in the LIVE regtypes batch, which came out PROBE-RUN-INVALID: the importer reported ERROR: function 0x76657273696f6e does not exist (SQLSTATE 42883), and 76657273696f6e is the hex of the regproc value version. Same chain as regclass (SYS-004) and tid (SYS-003). Must be run solo.",
+			PoisonNote:   regPoisonNote,
+			CompareExpr:  regOIDCompare,
 			InitialValue: "'pg_catalog'::regnamespace", AltValue: "'public'::regnamespace",
+			Note: "regnamespace names a schema by OID",
 		},
 		{
 			ID: "REG-009", Name: "regrole", TypeName: "regrole",
 			ColumnDDL:    "regrole",
 			Poison:       true,
-			PoisonNote:   "POISON: the reg* family travels as raw bytes and is re-resolved against the DESTINATION catalog. Established in the LIVE regtypes batch, which came out PROBE-RUN-INVALID: the importer reported ERROR: function 0x76657273696f6e does not exist (SQLSTATE 42883), and 76657273696f6e is the hex of the regproc value version. Same chain as regclass (SYS-004) and tid (SYS-003). Must be run solo.",
+			PoisonNote:   regPoisonNote,
+			CompareExpr:  regOIDCompare,
 			InitialValue: "'pg_read_all_stats'::regrole", AltValue: "'pg_monitor'::regrole",
 			Note: "built-in default roles, so the value resolves on source and target alike",
 		},
@@ -1387,8 +1832,10 @@ func regTypeProbes() []datatypeProbe {
 			ID: "REG-010", Name: "regcollation", TypeName: "regcollation",
 			ColumnDDL:    "regcollation",
 			Poison:       true,
-			PoisonNote:   "POISON: the reg* family travels as raw bytes and is re-resolved against the DESTINATION catalog. Established in the LIVE regtypes batch, which came out PROBE-RUN-INVALID: the importer reported ERROR: function 0x76657273696f6e does not exist (SQLSTATE 42883), and 76657273696f6e is the hex of the regproc value version. Same chain as regclass (SYS-004) and tid (SYS-003). Must be run solo.",
+			PoisonNote:   regPoisonNote,
+			CompareExpr:  regOIDCompare,
 			InitialValue: `'pg_catalog."C"'::regcollation`, AltValue: `'pg_catalog."POSIX"'::regcollation`,
+			Note: "regcollation names a collation by OID",
 		},
 	}
 }
@@ -1452,8 +1899,16 @@ func catalogStatsProbes() []datatypeProbe {
 	// `ERROR: duplicate key value violates unique constraint "p_catstat_003_s_pkey"
 	// (SQLSTATE 23505)` taking the controls down with it. An unexported schema keeps the
 	// helper out of voyager's table list entirely.
+	//
+	// It is dropped and recreated rather than created IF NOT EXISTS: the sweep harness
+	// only drops the SWEEP schema between runs (see setupSQL), so an aux schema left
+	// behind by an earlier run survives into the next one and the non-idempotent
+	// statements below then fail with `ERROR: relation "s" already exists`, taking the
+	// whole batch - controls included - down with it. Reproduced on PG 17 by running the
+	// catalogstats probes twice against the same database.
 	statsPreDDL := []string{
-		"CREATE SCHEMA IF NOT EXISTS {{p}}_aux",
+		"DROP SCHEMA IF EXISTS {{p}}_aux CASCADE",
+		"CREATE SCHEMA {{p}}_aux",
 		"CREATE TABLE {{p}}_aux.s (id int PRIMARY KEY, a int, b int, c int, d int, e int)",
 		"INSERT INTO {{p}}_aux.s SELECT i, i%5, (i%5)*2, i%9, i%3, (i%3)*4 FROM generate_series(1,1000) i",
 		"CREATE STATISTICS {{p}}_aux.x1 (ndistinct, dependencies, mcv) ON a, b FROM {{p}}_aux.s",
@@ -1472,6 +1927,15 @@ func catalogStatsProbes() []datatypeProbe {
 			"WHERE sn.nspname = '{{p}}_aux' AND se.stxname = '" + obj + "' " +
 			"AND sd." + col + " IS NOT NULL LIMIT 1)"
 	}
+	// assertStatNotNull turns a statExpr lookup into a PreDDL guard: if ANALYZE has not
+	// populated the stat yet, InitialValue/AltValue would both read back NULL and the
+	// probe would silently compare NULL to NULL and report WORKS. This fails setup
+	// loudly instead, so the probe is SKIPPED rather than a vacuous pass.
+	assertStatNotNull := func(expr string) string {
+		return "DO $$ BEGIN IF " + expr + " IS NULL THEN " +
+			"RAISE EXCEPTION 'catalog stats probe setup: ANALYZE did not populate this statistic, so the probe would compare NULL to NULL'; " +
+			"END IF; END $$"
+	}
 
 	return []datatypeProbe{
 		{
@@ -1485,7 +1949,10 @@ func catalogStatsProbes() []datatypeProbe {
 		{
 			ID: "CATSTAT-002", Name: "pg_node_tree", TypeName: "pg_node_tree",
 			PreDDL: []string{
-				"CREATE SCHEMA IF NOT EXISTS {{p}}_aux",
+				// Dropped first for the same reason as statsPreDDL above: the aux schema
+				// outlives the sweep schema, so CREATE TABLE must not meet a leftover.
+				"DROP SCHEMA IF EXISTS {{p}}_aux CASCADE",
+				"CREATE SCHEMA {{p}}_aux",
 				"CREATE TABLE {{p}}_aux.s (id int PRIMARY KEY, a int DEFAULT 42, b int DEFAULT 7)",
 			},
 			ColumnDDL: "pg_node_tree",
@@ -1501,7 +1968,9 @@ func catalogStatsProbes() []datatypeProbe {
 		},
 		{
 			ID: "CATSTAT-003", Name: "pg_ndistinct", TypeName: "pg_ndistinct",
-			PreDDL:          statsPreDDL,
+			PreDDL: append(append([]string{}, statsPreDDL...),
+				assertStatNotNull(statExpr("stxdndistinct", "x1")),
+				assertStatNotNull(statExpr("stxdndistinct", "x2"))),
 			ColumnDDL:       "pg_ndistinct",
 			InitialValue:    statExpr("stxdndistinct", "x1"),
 			AltValue:        statExpr("stxdndistinct", "x2"),
@@ -1511,7 +1980,9 @@ func catalogStatsProbes() []datatypeProbe {
 		},
 		{
 			ID: "CATSTAT-004", Name: "pg_dependencies", TypeName: "pg_dependencies",
-			PreDDL:          statsPreDDL,
+			PreDDL: append(append([]string{}, statsPreDDL...),
+				assertStatNotNull(statExpr("stxddependencies", "x1")),
+				assertStatNotNull(statExpr("stxddependencies", "x3"))),
 			ColumnDDL:       "pg_dependencies",
 			InitialValue:    statExpr("stxddependencies", "x1"),
 			AltValue:        statExpr("stxddependencies", "x3"),
@@ -1521,7 +1992,9 @@ func catalogStatsProbes() []datatypeProbe {
 		},
 		{
 			ID: "CATSTAT-005", Name: "pg_mcv_list", TypeName: "pg_mcv_list",
-			PreDDL:          statsPreDDL,
+			PreDDL: append(append([]string{}, statsPreDDL...),
+				assertStatNotNull(statExpr("stxdmcv", "x1")),
+				assertStatNotNull(statExpr("stxdmcv", "x2"))),
 			ColumnDDL:       "pg_mcv_list",
 			InitialValue:    statExpr("stxdmcv", "x1"),
 			AltValue:        statExpr("stxdmcv", "x2"),
@@ -1665,7 +2138,8 @@ func extensionTypeProbes() []datatypeProbe {
 			ID: "EXT-004", Name: "ean13", TypeName: "ean13",
 			Extensions:   []string{"isn"},
 			ColumnDDL:    "ean13",
-			InitialValue: "'978-0-393-04002-9'::ean13", AltValue: "'978-0-13-235088-4'::ean13",
+			InitialValue: "'4006381333931'::ean13", AltValue: "'5901234123457'::ean13",
+			Note: "a non-bookland EAN-13 (no 978/979 prefix); EXT-003's isbn13 probe used the same digits, which rendered byte-identical under both types",
 		},
 		{
 			ID: "EXT-005", Name: "isbn", TypeName: "isbn",
@@ -1738,6 +2212,75 @@ func extensionTypeProbes() []datatypeProbe {
 			Note: "named in voyager's own unsupported list and never probed; the column holds " +
 				"only the large-object OID, and the large object itself is not part of the value",
 		},
+		{
+			ID: "EXT-015", Name: "dblink_pkey_results", TypeName: "dblink_pkey_results",
+			Extensions:   []string{"dblink"},
+			ColumnDDL:    "dblink_pkey_results",
+			InitialValue: "ROW(1,'id')::dblink_pkey_results", AltValue: "ROW(2,'other_col')::dblink_pkey_results",
+			Note: "a composite type installed by the dblink extension itself (position, colname), " +
+				"not user-defined; never probed before",
+		},
+	}
+}
+
+// ============================================================
+// TOAST-SIZED VALUES
+// ============================================================
+
+// toastProbes cover values large enough that PostgreSQL stores them out of line (TOAST),
+// rather than inline in the row. TOAST interacts with CDC in a way ordinary-sized values
+// never exercise: an UPDATE that does not touch a TOASTed column makes Postgres logical
+// decoding omit that column's value entirely unless the table's replica identity is FULL,
+// and Debezium then has to send a placeholder rather than the real (unchanged) value.
+// toastPayloadSQL builds a scalar sub-SELECT yielding 32*chunks characters of md5 hex.
+//
+// It is deliberately NOT repeat('x',n). A repeated character compresses to nothing: PGLZ
+// squeezes repeat('x',100000) down to a 1156-byte inline datum, so the value never leaves
+// the main heap tuple and the probe measures ordinary inline storage while claiming to
+// measure TOAST. An md5 chain is incompressible enough that PostgreSQL stores it
+// uncompressed and out of line - verified against PG 17: pg_column_size(v) equals the raw
+// length and pg_class.reltoastrelid's relation is non-empty.
+//
+// `offset` shifts the hashed series so two payloads of the same shape are byte-different.
+func toastPayloadSQL(chunks, offset int) string {
+	return fmt.Sprintf(
+		"(SELECT string_agg(md5((i+%d)::text),'' ORDER BY i) FROM generate_series(1,%d) i)",
+		offset, chunks)
+}
+
+func toastProbes() []datatypeProbe {
+	toastNote := "Values this large are stored out of line (TOAST); Debezium sends a " +
+		"placeholder for an unchanged TOAST column on update unless replica identity is FULL. " +
+		"The payload is an incompressible md5 chain on purpose - a repeated character would " +
+		"compress back inline and the probe would silently stop testing TOAST at all."
+	return []datatypeProbe{
+		{
+			ID: "TOAST-001", Name: "TOAST-sized text", TypeName: "text (~128KB)",
+			ColumnDDL:    "text",
+			InitialValue: toastPayloadSQL(4000, 0), AltValue: toastPayloadSQL(4001, 1000000),
+			Note: toastNote,
+		},
+		{
+			ID: "TOAST-002", Name: "TOAST-sized bytea", TypeName: "bytea (~64KB)",
+			ColumnDDL:    "bytea",
+			InitialValue: "decode(" + toastPayloadSQL(4000, 0) + ",'hex')",
+			AltValue:     "decode(" + toastPayloadSQL(4001, 1000000) + ",'hex')",
+			Note:         toastNote,
+		},
+		{
+			ID: "TOAST-003", Name: "TOAST-sized jsonb", TypeName: "jsonb (~128KB)",
+			ColumnDDL:    "jsonb",
+			InitialValue: "jsonb_build_object('data', " + toastPayloadSQL(4000, 0) + ")",
+			AltValue:     "jsonb_build_object('data', " + toastPayloadSQL(4001, 1000000) + ")",
+			Note:         toastNote,
+		},
+		{
+			ID: "TOAST-004", Name: "TOAST-sized xml", TypeName: "xml (~128KB)",
+			ColumnDDL:    "xml",
+			InitialValue: "xmlelement(name root, " + toastPayloadSQL(4000, 0) + ")",
+			AltValue:     "xmlelement(name root, " + toastPayloadSQL(4001, 1000000) + ")",
+			Note:         toastNote,
+		},
 	}
 }
 
@@ -1776,6 +2319,8 @@ func sweepBatches() []sweepBatch {
 		{Name: "postgis-internal", Probes: postgisInternalProbes()},
 		{Name: "arraydelim", Probes: arrayDelimiterProbes()},
 		{Name: "pgvector", Probes: pgvectorProbes()},
+		{Name: "toast", Probes: toastProbes()},
+		{Name: "copyframing", Probes: copyFramingProbes()},
 	}
 }
 

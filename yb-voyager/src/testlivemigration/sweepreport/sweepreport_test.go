@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 const sampleLog = `
@@ -281,6 +282,150 @@ func TestSQLStateExtraction(t *testing.T) {
 		if got := sqlStateOf(detail); got != want {
 			t.Errorf("sqlStateOf(%q) = %q, want %q", detail, got, want)
 		}
+	}
+}
+
+// ============================================================
+// Defect 1 (item 1 of the collector audit): run_timestamp/pg_version/yb_version must be
+// derived PER LOG FILE, never stamped once for a whole batch. When every row in a merged
+// collect gets the same timestamp, preferRow's "later run wins" tie-break becomes inert
+// and ties are broken by parse order instead - which is how 5 real pgvector OFFLINE WORKS
+// rows were lost to a later SKIPPED run that simply happened to be parsed after them.
+// ============================================================
+
+func TestDeriveRunMetaPrefersRunMetaLine(t *testing.T) {
+	content := []byte("RUN-META: started=2026-08-21T10:00:00Z commit=abc1234 pg=17.8 yb=2026.1.0.0-b118\nsome log text\n")
+	meta := deriveRunMeta("run-20260821T100000Z.log", content, RunMeta{})
+	if meta.Timestamp != "2026-08-21T10:00:00Z" {
+		t.Errorf("Timestamp = %q, want the RUN-META started= value", meta.Timestamp)
+	}
+	if meta.TimestampSource != tsSourceRunMeta {
+		t.Errorf("TimestampSource = %q, want %q", meta.TimestampSource, tsSourceRunMeta)
+	}
+	if meta.VoyagerCommit != "abc1234" || meta.PGVersion != "17.8" || meta.YBVersion != "2026.1.0.0-b118" {
+		t.Errorf("RUN-META commit/pg/yb not picked up: %+v", meta)
+	}
+}
+
+// TestDeriveRunMetaFallsBackToLogBodyTimestampAndImageTags covers existing logs, which
+// predate RUN-META: the first timestamp anywhere in the log body (testcontainers' own
+// banner, in this case) and the postgres/yugabytedb image tags it also prints.
+//
+// The banner stamp is Go's log-package format, which prints the machine's LOCAL wall clock
+// with no zone, so it is read in time.Local and labelled log-body-local. Asserting a fixed
+// UTC string here would only pass in one zone.
+func TestDeriveRunMetaFallsBackToLogBodyTimestampAndImageTags(t *testing.T) {
+	content := []byte(`
+=== RUN   TestDatatypeSweepLive
+    live_migration_testing_framework.go:119: Setting up containers
+2026/08/25 09:15:30 Testcontainers for Go Version: v0.34.0
+2026/08/25 09:15:30 Creating container for image postgres:17.8
+2026/08/25 09:15:31 Creating container for image yugabytedb/yugabyte:2026.1.0.0-b118
+PROBE-RESULT: CTRL-001 | int | LIVE | WORKS | fine
+`)
+	meta := deriveRunMeta("whatever.log", content, RunMeta{})
+	if meta.TimestampSource != tsSourceLogBodyLocal {
+		t.Fatalf("TimestampSource = %q, want %q", meta.TimestampSource, tsSourceLogBodyLocal)
+	}
+	local, err := time.ParseInLocation("2006/01/02 15:04:05", "2026/08/25 09:15:30", time.Local)
+	if err != nil {
+		t.Fatalf("test setup: %v", err)
+	}
+	if want := local.UTC().Format(time.RFC3339); meta.Timestamp != want {
+		t.Errorf("Timestamp = %q, want %q (first timestamp in the log body, read as local time)",
+			meta.Timestamp, want)
+	}
+	if meta.PGVersion != "17.8" {
+		t.Errorf("PGVersion = %q, want 17.8 (from the testcontainers image tag)", meta.PGVersion)
+	}
+	if meta.YBVersion != "2026.1.0.0-b118" {
+		t.Errorf("YBVersion = %q, want 2026.1.0.0-b118 (from the testcontainers image tag)", meta.YBVersion)
+	}
+}
+
+// TestDeriveRunMetaFallsBackToFilename covers a log with no RUN-META and no recognizable
+// timestamp anywhere in its body: the run-<stamp>.log filename is next in priority, ahead
+// of the file's own mtime.
+func TestDeriveRunMetaFallsBackToFilename(t *testing.T) {
+	content := []byte("no timestamps here and no RUN-META either\nPROBE-RESULT: CTRL-001 | int | LIVE | WORKS | fine\n")
+	meta := deriveRunMeta("/does/not/exist/run-20260830T120000Z.log", content, RunMeta{})
+	if meta.TimestampSource != tsSourceFilename {
+		t.Fatalf("TimestampSource = %q, want %q", meta.TimestampSource, tsSourceFilename)
+	}
+	if want := "2026-08-30T12:00:00Z"; meta.Timestamp != want {
+		t.Errorf("Timestamp = %q, want %q (parsed from the filename)", meta.Timestamp, want)
+	}
+}
+
+// TestDeriveRunMetaExplicitTimestampWins: an explicit -timestamp (or -pg-version /
+// -yb-version) must never be overridden by anything derived from the log - that is what
+// lets a caller who wants one fixed value stamped on every row keep doing so.
+func TestDeriveRunMetaExplicitTimestampWins(t *testing.T) {
+	content := []byte("RUN-META: started=2026-01-01T00:00:00Z pg=9.9 yb=1.1\n")
+	meta := deriveRunMeta("run-20260830T120000Z.log", content,
+		RunMeta{Timestamp: "2026-09-01T00:00:00Z", PGVersion: "17.8"})
+	if meta.Timestamp != "2026-09-01T00:00:00Z" {
+		t.Errorf("an explicit -timestamp must never be overridden, got %q", meta.Timestamp)
+	}
+	if meta.TimestampSource != tsSourceExplicit {
+		t.Errorf("TimestampSource = %q, want %q", meta.TimestampSource, tsSourceExplicit)
+	}
+	if meta.PGVersion != "17.8" {
+		t.Errorf("an explicit -pg-version must never be overridden, got %q", meta.PGVersion)
+	}
+	if meta.YBVersion != "1.1" {
+		t.Errorf("YBVersion left empty by the caller should still be derived, got %q", meta.YBVersion)
+	}
+}
+
+// TestSweepMergePicksRealTimestampNotParseOrder is the regression this whole fix exists
+// for: two logs measuring the same probe, each with its OWN real timestamp embedded in
+// its body. Feeding the chronologically LATER one first and the earlier one second (the
+// reverse of "whichever was parsed last wins") must still keep the later run's verdict -
+// proving the merge is deciding on the derived timestamp, not on argument/parse order.
+// Before this fix both logs got the SAME synthetic "collect time" timestamp and this
+// tie-break was inert.
+func TestSweepMergePicksRealTimestampNotParseOrder(t *testing.T) {
+	older := `
+=== RUN   TestDatatypeSweepOffline/pgv
+2026/08/21 09:00:00 Creating container for image postgres:17.8
+PROBE-RESULT: CTRL-001 | int | OFFLINE | WORKS | fine
+PROBE-RESULT: VEC-001 | vector | OFFLINE | WORKS | snapshot identical
+`
+	newer := `
+=== RUN   TestDatatypeSweepOffline/pgv
+2026/09/04 09:00:00 Creating container for image postgres:17.8
+PROBE-RESULT: CTRL-001 | int | OFFLINE | WORKS | fine
+PROBE-RESULT: VEC-001 | vector | OFFLINE | SKIPPED | DDL rejected: target: "v vector(3)": ERROR: type not yet supported in Yugabyte (SQLSTATE 0A000)
+`
+	metaOlder := deriveRunMeta("older.log", []byte(older), RunMeta{})
+	rowsOlder, err := ParseLog(strings.NewReader(older), metaOlder, nil)
+	if err != nil {
+		t.Fatalf("ParseLog older: %v", err)
+	}
+	metaNewer := deriveRunMeta("newer.log", []byte(newer), RunMeta{})
+	rowsNewer, err := ParseLog(strings.NewReader(newer), metaNewer, nil)
+	if err != nil {
+		t.Fatalf("ParseLog newer: %v", err)
+	}
+	if !(metaOlder.Timestamp < metaNewer.Timestamp) {
+		t.Fatalf("test setup broken: older.Timestamp=%q must be < newer.Timestamp=%q", metaOlder.Timestamp, metaNewer.Timestamp)
+	}
+
+	// newer's rows appended FIRST, older's SECOND - opposite of parse order.
+	merged := dedupe(append(append([]Row{}, rowsNewer...), rowsOlder...))
+	var got Row
+	for _, r := range merged {
+		if r.Key() == "VEC-001|OFFLINE" {
+			got = r
+		}
+	}
+	// The later run's SKIPPED is a SERVER REJECTION, i.e. a real observation, so it keeps
+	// its normal rank and the timestamp tie-break decides. (A SKIPPED for a missing
+	// extension would not - see TestSweepSkippedForMissingExtensionLosesToRealVerdict.)
+	if got.Verdict != "SKIPPED" {
+		t.Errorf("merged VEC-001 verdict = %q, want SKIPPED: the chronologically later run "+
+			"must win regardless of which log was parsed/appended last", got.Verdict)
 	}
 }
 
@@ -575,6 +720,282 @@ PROBE-RESULT: WEDGE-001 | poisontype | LIVE | STUCK | importer wedges on this va
 	if ctrl := byKey["CTRL-001|LIVE"]; ctrl.RunStatus != statusInvalid {
 		t.Errorf("CTRL-001 run_status = %q, want %q: the control itself was never measured, "+
 			"so it is not promoted even when its probe is", ctrl.RunStatus, statusInvalid)
+	}
+}
+
+// TestFillAttributedSQLStateFromLogWhenRowsOwnDetailHasNone is item 3 of the collector
+// audit: 12 real LIVE rows (VAL-001/002/003/006/007/009/010/011/012/013, DOM-003/004) came
+// from solo runs whose log has a classified importer error with a quotable SQLSTATE, but
+// whose OWN PROBE-RESULT detail describes a comparison outcome ("row missing on
+// destination") rather than the import error that produced it, so sqlStateOf(detail) on
+// the row's own evidence finds nothing. When the row is solo and gated ATTRIBUTED, collect
+// must scan the rest of that (file, batch, mode) group for the first classified importer
+// error and fill sqlstate/import_error from it - without touching the row's own verdict or
+// evidence.
+func TestFillAttributedSQLStateFromLogWhenRowsOwnDetailHasNone(t *testing.T) {
+	log := `
+=== RUN   TestDatatypeSweepLive/solo
+    datatype_sweep_probe.go:900: import log tail: 2026-08-30 10:00:00 ERROR: column "v" does not exist (SQLSTATE 42703): dbcontext=sweep_schema.p_val_001
+PROBE-RESULT: CTRL-001 | int | LIVE | STUCK | importer wedged by the probe under test
+PROBE-RESULT: VAL-001 | text with embedded nul | LIVE | SILENT_LOSS | row missing on destination
+`
+	rows, err := ParseLog(strings.NewReader(log), RunMeta{}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog: %v", err)
+	}
+	byKey := map[string]Row{}
+	for _, r := range rows {
+		byKey[r.Key()] = r
+	}
+
+	got, ok := byKey["VAL-001|LIVE"]
+	if !ok {
+		t.Fatalf("no row for VAL-001|LIVE; got %v", byKey)
+	}
+	if got.RunStatus != statusAttributed {
+		t.Fatalf("VAL-001 run_status = %q, want %q", got.RunStatus, statusAttributed)
+	}
+	if got.SQLState != "42703" {
+		t.Errorf("SQLState = %q, want 42703 (lifted from the importer error elsewhere in the log)", got.SQLState)
+	}
+	if !strings.Contains(got.ImportError, "42703") || !strings.Contains(got.ImportError, `column "v" does not exist`) {
+		t.Errorf("ImportError = %q, want it to quote the classified importer error", got.ImportError)
+	}
+	// The row's own verdict/evidence must be untouched - only the two new evidence
+	// columns are filled in.
+	if got.Verdict != "SILENT_LOSS" || got.Evidence != "row missing on destination" {
+		t.Errorf("verdict/evidence must not change: %+v", got)
+	}
+
+	// A row whose OWN detail already carries a SQLSTATE must never be overwritten by this
+	// fallback, even if it is also solo/ATTRIBUTED.
+	ctrl := byKey["CTRL-001|LIVE"]
+	if ctrl.SQLState != "" {
+		t.Errorf("CTRL-001 (never promoted, no SQLSTATE of its own) SQLState = %q, want empty", ctrl.SQLState)
+	}
+}
+
+// TestFillAttributedSQLStateOnARealSoloLogShape is the regression for a lift that never
+// fired in production. A solo run logs a BARE top-level "=== RUN TestDatatypeSweepSuspect"
+// - no subtest, and a test-function suffix with no mode in it - so the batch and mode taken
+// from that line are both empty, while the row's mode comes from its own PROBE-RESULT line
+// ("LIVE"). Keying the run's importer errors by "<batch>|<mode>" therefore filed them under
+// "|" and looked them up under "|LIVE": every real solo log came out with an empty
+// sqlstate. Errors are now keyed by batch alone, which the row can always reproduce.
+//
+// This log is trimmed from results/v3_live_solo_VAL-001.log.
+func TestFillAttributedSQLStateOnARealSoloLogShape(t *testing.T) {
+	log := `=== RUN   TestDatatypeSweepSuspect
+    voyager_cmd_runner.go:43: [import data] error executing batch on channel 92: error executing batch: ERROR: DECIMAL does not support NaN yet (SQLSTATE 0A000)
+PROBE-RESULT: CTRL-001 | int | LIVE | SILENT_WRONG | streaming source->target: id=1 source="-7" destination="42" [known-good control]
+PROBE-RESULT: CTRL-002 | text | LIVE | SILENT_WRONG | streaming source->target: id=1 source="changed" destination="baseline" [known-good control]
+PROBE-RESULT: VAL-001 | numeric (NaN) | LIVE | SILENT_LOSS | snapshot source->target: row id=1 present on source, missing on destination
+PROBE-RUN-INVALID: solo_val_001 | LIVE | known-good control CTRL-001 came out SILENT_WRONG, not WORKS
+`
+	rows, err := ParseLog(strings.NewReader(log), RunMeta{}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog: %v", err)
+	}
+	var got Row
+	for _, r := range rows {
+		if r.Key() == "VAL-001|LIVE" {
+			got = r
+		}
+	}
+	if got.RunStatus != statusAttributed {
+		t.Fatalf("VAL-001 run_status = %q, want %q", got.RunStatus, statusAttributed)
+	}
+	if got.SQLState != "0A000" {
+		t.Errorf("SQLState = %q, want 0A000 lifted from the solo run's importer error", got.SQLState)
+	}
+	if !strings.Contains(got.ImportError, "DECIMAL does not support NaN yet") {
+		t.Errorf("ImportError = %q, want the importer error text", got.ImportError)
+	}
+}
+
+// TestImportErrorLiftSkipsHarnessNoiseAndPrefersTheProbesOwnError pins WHICH error is
+// lifted when a run logged more than one.
+//
+// The metadata error comes FIRST in the log and is voyager's own reporting query failing
+// because the import had already died - 42P01 on ybvoyager_metadata says nothing about the
+// datatype, so lifting it (which "first error wins" did) mislabelled the finding. Modelled
+// on results/live_solo_SYS-005.attempt1.log.
+func TestImportErrorLiftSkipsHarnessNoiseAndPrefersTheProbesOwnError(t *testing.T) {
+	log := `=== RUN   TestDatatypeSweepSuspect
+    voyager_cmd_runner.go:43: [get data-migration-report] error while getting imported events counts for target DB: ERROR: relation "ybvoyager_metadata.ybvoyager_imported_event_count_by_table" does not exist (SQLSTATE 42P01)
+    voyager_cmd_runner.go:43: [import data] error executing batch: ERROR: invalid input syntax for type pg_snapshot: "\x31303a32303a31342c3135" (SQLSTATE 22P02): table=sweep_schema.p_sys_005
+PROBE-RESULT: CTRL-001 | int | LIVE | STUCK | importer wedged by the probe under test [known-good control]
+PROBE-RESULT: SYS-005 | pg_snapshot | LIVE | SILENT_LOSS | row missing on destination
+`
+	rows, err := ParseLog(strings.NewReader(log), RunMeta{}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog: %v", err)
+	}
+	var got Row
+	for _, r := range rows {
+		if r.Key() == "SYS-005|LIVE" {
+			got = r
+		}
+	}
+	if got.SQLState != "22P02" {
+		t.Errorf("SQLState = %q, want 22P02: the ybvoyager_metadata 42P01 is harness bookkeeping "+
+			"and must never be lifted as the type's error", got.SQLState)
+	}
+	if strings.Contains(got.ImportError, "ybvoyager_metadata") {
+		t.Errorf("ImportError = %q, want the probe's own error, not the metadata one", got.ImportError)
+	}
+}
+
+// TestImportErrorLiftIsEmptyWhenOnlyNoiseWasLogged: dropping the noise must leave the
+// columns blank rather than fall back to the noise it just rejected.
+func TestImportErrorLiftIsEmptyWhenOnlyNoiseWasLogged(t *testing.T) {
+	log := `=== RUN   TestDatatypeSweepSuspect
+    voyager_cmd_runner.go:43: ERROR: relation "ybvoyager_metadata.ybvoyager_imported_event_count_by_table" does not exist (SQLSTATE 42P01)
+PROBE-RESULT: CTRL-001 | int | LIVE | STUCK | importer wedged [known-good control]
+PROBE-RESULT: VAL-009 | money | LIVE | SILENT_LOSS | row missing on destination
+`
+	rows, err := ParseLog(strings.NewReader(log), RunMeta{}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog: %v", err)
+	}
+	for _, r := range rows {
+		if r.Key() != "VAL-009|LIVE" {
+			continue
+		}
+		if r.SQLState != "" || r.ImportError != "" {
+			t.Errorf("sqlstate=%q import_error=%q, want both empty: the only error in the log was noise",
+				r.SQLState, r.ImportError)
+		}
+	}
+}
+
+// TestDeriveRunMetaFilenameBeatsZonelessBodyTimestamp is the timestamp fix.
+//
+// Go's log package - which testcontainers uses for the banner at the top of every sweep log
+// - prints the machine's LOCAL wall clock with no zone. Parsing that as UTC put every such
+// run hours away from when it ran: the real newrun/run-20260903T104753Z.log body says
+// "2026/09/03 16:18:13" on an Asia/Kolkata (+05:30) machine, i.e. 10:48:13Z, and reading it
+// as UTC reported 16:18:13Z. The filename stamp is written with `date -u`, so it is true
+// UTC and must win.
+func TestDeriveRunMetaFilenameBeatsZonelessBodyTimestamp(t *testing.T) {
+	content := []byte("=== RUN   TestDatatypeSweepOffline\n2026/09/03 16:18:13 Connected to docker\n")
+	meta := deriveRunMeta("/logs/run-20260903T104753Z.log", content, RunMeta{})
+	if meta.TimestampSource != tsSourceFilename {
+		t.Fatalf("TimestampSource = %q, want %q: a zoneless body stamp is a local-clock guess "+
+			"and must not outrank the filename's UTC stamp", meta.TimestampSource, tsSourceFilename)
+	}
+	if want := "2026-09-03T10:47:53Z"; meta.Timestamp != want {
+		t.Errorf("Timestamp = %q, want %q (from the filename)", meta.Timestamp, want)
+	}
+
+	// A ZONED body stamp is unambiguous, so it still outranks the filename.
+	zoned := []byte("=== RUN   TestDatatypeSweepOffline\ntime=2026-09-03T10:50:00+05:30 level=info\n")
+	meta = deriveRunMeta("/logs/run-20260903T104753Z.log", zoned, RunMeta{})
+	if meta.TimestampSource != tsSourceLogBody {
+		t.Fatalf("TimestampSource = %q, want %q for a zoned body stamp", meta.TimestampSource, tsSourceLogBody)
+	}
+	if want := "2026-09-03T05:20:00Z"; meta.Timestamp != want {
+		t.Errorf("Timestamp = %q, want %q (the zoned body stamp, converted to UTC)", meta.Timestamp, want)
+	}
+
+	// With no filename stamp to fall back on, the zoneless body stamp is still used - read
+	// in time.Local, and labelled so a reader can tell.
+	meta = deriveRunMeta("/logs/whatever.log", content, RunMeta{})
+	if meta.TimestampSource != tsSourceLogBodyLocal {
+		t.Errorf("TimestampSource = %q, want %q", meta.TimestampSource, tsSourceLogBodyLocal)
+	}
+	local, err := time.ParseInLocation("2006/01/02 15:04:05", "2026/09/03 16:18:13", time.Local)
+	if err != nil {
+		t.Fatalf("test setup: %v", err)
+	}
+	if want := local.UTC().Format(time.RFC3339); meta.Timestamp != want {
+		t.Errorf("Timestamp = %q, want %q (zoneless stamp read in the local zone)", meta.Timestamp, want)
+	}
+}
+
+// TestDeriveRunMetaTreatsUnknownVersionsAsMissing: RUN-META degrades a field the harness
+// could not read to the literal "unknown" rather than failing the run, so "unknown" must be
+// treated as absent and the testcontainers image tag used instead.
+func TestDeriveRunMetaTreatsUnknownVersionsAsMissing(t *testing.T) {
+	content := []byte("RUN-META: started=2026-09-03T10:47:53Z commit=unknown pg=unknown yb=unknown\n" +
+		"Creating container for image postgres:17.8\n" +
+		"Creating container for image yugabytedb/yugabyte:2026.1.0.0-b118\n")
+	meta := deriveRunMeta("run.log", content, RunMeta{})
+	if meta.PGVersion != "17.8" || meta.YBVersion != "2026.1.0.0-b118" || meta.VoyagerCommit != "" {
+		t.Errorf(`pg=%q yb=%q commit=%q, want the image tags and an empty commit: "unknown" is not a version`,
+			meta.PGVersion, meta.YBVersion, meta.VoyagerCommit)
+	}
+}
+
+// TestSweepSkippedForMissingExtensionLosesToRealVerdict is the third collector bug: a
+// SKIPPED whose reason is "the image had no pgvector" is a fact about the CONTAINER, not
+// about the datatype, but it used to win the merge purely for being newer. In production
+// that overwrote five measured VEC-001..005 OFFLINE WORKS rows with SKIPPED.
+//
+// A SKIPPED whose reason is the SERVER REJECTING the DDL is a real observation and keeps
+// its rank - covered by the last case here and by
+// TestSweepMergePicksRealTimestampNotParseOrder.
+func TestSweepSkippedForMissingExtensionLosesToRealVerdict(t *testing.T) {
+	works := Row{ProbeID: "VEC-001", Mode: "OFFLINE", Verdict: "WORKS", RunStatus: statusOK,
+		Evidence: "snapshot identical", RunTimestamp: "2026-08-31T00:00:00Z"}
+	skippedNoExt := Row{ProbeID: "VEC-001", Mode: "OFFLINE", Verdict: "SKIPPED", RunStatus: statusOK,
+		Evidence: "extension unavailable: vector on source", RunTimestamp: "2026-09-03T00:00:00Z"}
+	skippedDDL := Row{ProbeID: "VEC-001", Mode: "OFFLINE", Verdict: "SKIPPED", RunStatus: statusOK,
+		Evidence:     `DDL rejected: target: "v vector(3)": ERROR: type not yet supported in Yugabyte (SQLSTATE 0A000)`,
+		RunTimestamp: "2026-09-03T00:00:00Z"}
+
+	if preferRow(works, skippedNoExt) {
+		t.Error("a newer SKIPPED-for-missing-extension must not displace a measured WORKS")
+	}
+	if !preferRow(skippedNoExt, works) {
+		t.Error("a measured WORKS must displace a SKIPPED-for-missing-extension, even an older one")
+	}
+	if !preferRow(works, skippedDDL) {
+		t.Error("a newer SKIPPED whose reason is the server rejecting the DDL is a real " +
+			"observation and must keep its rank")
+	}
+
+	// End to end through the merge, in the order that actually bit: the extension-less run
+	// is the LATER one and is appended last.
+	merged := dedupe([]Row{works, skippedNoExt})
+	if len(merged) != 1 || merged[0].Verdict != "WORKS" {
+		t.Errorf("merged = %+v, want the single WORKS row", merged)
+	}
+}
+
+// TestContainerSetupFailureIsAlwaysInvalid is item 4 of the collector audit: a run that
+// never got past standing up its containers (disk exhaustion, a bad image tag, a missing
+// manifest) never actually exercised the probe. Such a row must read run_status=INVALID
+// even when it is the only non-control probe in its group - the shape that would otherwise
+// earn it the solo ATTRIBUTED carve-out. Modelled on the real canary log
+// (VAL-021 FALL-BACK, "container setup failed: ... insufficient disk space").
+func TestContainerSetupFailureIsAlwaysInvalid(t *testing.T) {
+	log := `
+=== RUN   TestDatatypeSweepSuspect/solo
+PROBE-RESULT: CTRL-001 | int | FALL-BACK | BLOCKS | container setup failed: failed to create target database: insufficient disk space (SQLSTATE XX000) [known-good control]
+PROBE-RESULT: CTRL-002 | text | FALL-BACK | BLOCKS | container setup failed: failed to create target database: insufficient disk space (SQLSTATE XX000) [known-good control]
+PROBE-RESULT: VAL-021 | text (empty string) | FALL-BACK | BLOCKS | container setup failed: failed to create target database: insufficient disk space (SQLSTATE XX000)
+`
+	rows, err := ParseLog(strings.NewReader(log), RunMeta{}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog: %v", err)
+	}
+	byKey := map[string]Row{}
+	for _, r := range rows {
+		byKey[r.Key()] = r
+	}
+
+	got, ok := byKey["VAL-021|FALL-BACK"]
+	if !ok {
+		t.Fatalf("no row for VAL-021|FALL-BACK; got %v", byKey)
+	}
+	// Without the fix, this is exactly the "solo, controls died" shape that earns
+	// ATTRIBUTED - which is precisely wrong here: the controls didn't die because of
+	// VAL-021, they died along with it because the environment itself never came up.
+	if got.RunStatus != statusInvalid {
+		t.Errorf("VAL-021 run_status = %q, want %q: a container-setup failure is a harness "+
+			"fact, never a datatype finding, and must never be published as ATTRIBUTED or OK",
+			got.RunStatus, statusInvalid)
 	}
 }
 

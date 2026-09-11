@@ -53,3 +53,6 @@ yb-voyager/src/testlivemigration/results/
 
 # `go build` in the sweepreport dir drops a 3.7 MB binary named after its package.
 yb-voyager/src/testlivemigration/sweepreport/sweepreport
+
+# stray binary from `go build ./src/testlivemigration/sweepreport` run at the module root
+yb-voyager/sweepreport

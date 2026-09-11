@@ -56,7 +56,7 @@ Every invocation ends by writing, under `datatype-sweep-results/` (override with
 | `datatype_sweep_probe.go` | the runner: DDL, deltas, comparison, verdict classifier |
 | `datatype_sweep_test.go` | entry points: one test per mode, plus the single-probe runner |
 | `datatype_coverage_test.go` | **the coverage guard** and the report round-trip assertion |
-| `datatype_sweep_cases_postgis_internal.go` | the `postgis-internal` batch: the 17 gaps the coverage guard found (pending registration) |
+| `datatype_sweep_cases_postgis_internal.go` | the `postgis-internal` batch: the 17 gaps the coverage guard found, registered in `sweepBatches()` |
 | `datatype_report_meta.go` | the probe catalog: per-type report columns, derived from voyager's own lists |
 | `datatype_report_test.go` | emits `probe-catalog.json`; unit-tests the derivations |
 | `sweepreport/` | standalone tool: `collect`, `report`, `diff` (no build tag, no Docker) |
@@ -373,8 +373,9 @@ people.
 | Situation | Page label |
 | --- | --- |
 | this type stops the forward migration, so the mode was unreachable | Not reachable |
+| fall-back specifically: cutover to target never completed, so the return trip never started for this type | Not reachable |
 | another type in the same run broke it first; not attributable | Not measured |
-| run was healthy but produced no events and no error | No result |
+| run timed out before any change for this type was seen | No result |
 | never attempted | Not run |
 
 **The order of the checks in `cell()` is load-bearing.** Gate first, *then* the type's own
@@ -382,6 +383,16 @@ result. Checking a verdict before the gate is what published 87 spoiled runs as 
 called "Cutover fails" — a label that asserted a cause the run had never established. A
 cutover timeout is now never a verdict about a type: either the type's own live failure
 explains it (**Not reachable**) or nothing does (**Not measured**).
+
+**A fall-back row whose detail says cutover never completed is always "Not reachable",
+never "Not measured".** Earlier this depended on whether the *live* cell had already
+failed: if it had, the row read "Not reachable"; otherwise it fell back to "Not measured",
+implying some other type in the batch was to blame. But a fall-back row that never saw
+cutover already carries its own explanation — its forward migration never got far enough
+for fall-back to exist — regardless of what the live cell happens to say. The tooltip is
+fixed text: "Fall-back was never reached: the live import for this type had already
+failed." 33 rows in the initial corpus carried this detail and were previously split
+across both labels depending on an unrelated column; they now all read "Not reachable".
 
 The control probes are **excluded from the type table** and rendered as a self-check line
 instead. They are instrumentation, not subjects; listing them as rows told readers that
@@ -421,8 +432,85 @@ newer differ.
 | `verdict` | the vocabulary above |
 | `evidence` | the classifier's reason: the diff, the repeated import error, the warning text |
 | `source_value`, `target_value` | verbatim value on each side, from the harness's own `PROBE-VALUES:` line (a structured field, not scraped out of the prose evidence). Pipes, newlines and tabs are escaped reversibly so a value containing one is recorded rather than rewritten |
-| `run_status` | `OK` / `ATTRIBUTED` / `POISON` are trustworthy; `INVALID` / `FLAKE` **must not be published**. `ATTRIBUTED` is a solo run whose controls died as collateral of the one probe under test (see the control-gate section). One row per run can also be trusted inside an `INVALID` run: an attributed export death, promoted by its `PROBE-PUBLISHABLE` line |
-| `sqlstate` | the SQLSTATE from the importer error, when there was one. `import data` failures carry the real database error (`importAbortReason`), so a diff can report "same verdict, different SQLSTATE" — the shape a fix that only *moved* the error takes |
+| `run_status` | `OK` / `ATTRIBUTED` / `POISON` are trustworthy; `INVALID` / `FLAKE` **must not be published**. `ATTRIBUTED` is a solo run whose controls died as collateral of the one probe under test (see the control-gate section). One row per run can also be trusted inside an `INVALID` run: an attributed export death, promoted by its `PROBE-PUBLISHABLE` line. A row whose evidence is a harness/environment failure (see `import_error`'s neighbour note below on container-setup failures) is always `INVALID`, even a solo run — the probe was never actually exercised, so it can never earn `ATTRIBUTED` |
+| `sqlstate` | the SQLSTATE from the importer error, when there was one. `import data` failures carry the real database error (`importAbortReason`), so a diff can report "same verdict, different SQLSTATE" — the shape a fix that only *moved* the error takes. For a solo `ATTRIBUTED` row whose own evidence describes a comparison outcome rather than the import error (e.g. "row missing on destination"), `collect` scans the rest of that log for the classified importer error that actually killed the control and fills the SQLSTATE from there instead of leaving it blank |
+| `import_error` | the classified importer error line (`ERROR: ... (SQLSTATE ...)`) that produced `sqlstate` above, when it was found elsewhere in the log rather than in this row's own evidence. Empty otherwise. Capped at 200 characters, pipes replaced with `/`. See "Which importer error gets lifted" below |
+| `timestamp_source` | how `run_timestamp` was obtained — see the priority order below |
+
+A container-setup failure (disk exhaustion on the target cluster, a bad image tag, a
+missing image manifest — anything whose detail begins `container setup failed`, or
+contains `insufficient disk space`, `manifest for ... not found` or `no space left on
+device`) means the probe was never actually exercised. That row's `run_status` is always
+`INVALID`, never `ATTRIBUTED` and never `OK`, regardless of how many probes shared the run
+— it is a harness/environment fact, not a measurement of the type.
+
+### Which importer error gets lifted
+
+A solo `ATTRIBUTED` row's own evidence usually describes a comparison outcome ("row missing
+on destination"), so `collect` scans the rest of that run's log for the importer error that
+actually killed it. When the log has several, it picks in this order:
+
+1. **Harness/metadata bookkeeping is dropped outright.** `ERROR: relation
+   "ybvoyager_metadata.ybvoyager_imported_event_count_by_table" does not exist (SQLSTATE
+   42P01)` is voyager's *own* reporting query failing because the import had already died.
+   It says nothing about the datatype, and it often appears **before** the real error — so a
+   plain "first error wins" rule mislabelled the finding. If a run logged nothing but noise,
+   `sqlstate` and `import_error` stay empty rather than quoting it.
+2. **An error naming the probe wins** — its table `p_<probe id>` (`VAL-006` → `p_val_006`)
+   or its type name — over a generic one from the same run.
+3. Otherwise the **first surviving error in file order**.
+
+Errors are keyed by **batch alone**, not by `(batch, mode)`. A solo run logs a bare
+`=== RUN   TestDatatypeSweepSuspect` — no subtest and no mode in the test name — so a
+`(batch, mode)` key built from that line is `|` while the rows from the same run look
+themselves up under `|LIVE` (a row's mode comes from its own `PROBE-RESULT` line). The keys
+never matched and the lift never fired on any real solo log. Within one log a batch is one
+go-test subtest of one mode, so the batch already implies the mode.
+
+### How `run_timestamp` is derived
+
+Per **log file**, never stamped uniformly across a batch of logs fed to one `collect`
+invocation. Highest priority first; `timestamp_source` records which one fired:
+
+| `timestamp_source` | source |
+| --- | --- |
+| `explicit` | an explicit `-timestamp` flag |
+| `run-meta` | a `RUN-META: started=<RFC3339>` line in the log |
+| `log-body` | the first **zoned** timestamp in the log's own text (voyager's logrus lines, or a `... UTC` server line) |
+| `filename` | the `run-<YYYYMMDDTHHMMSSZ>.log` name `run-datatype-sweep.sh` writes. Generated with `date -u`, so it is true UTC |
+| `log-body-local` | the first **zoneless** timestamp in the log's own text, read in the local zone |
+| `mtime` | the log file's own mtime |
+| `collect-time` | last resort: the moment `collect` ran |
+
+**Why the filename outranks a zoneless body stamp.** Go's log package — which
+testcontainers uses for the banner at the top of every sweep log — prints the machine's
+*local* wall clock with no zone (`2026/09/03 16:18:13`). Reading that as UTC put every such
+run hours away from when it ran: `run-20260903T104753Z.log` was reported as `16:18:13Z` on
+an Asia/Kolkata (+05:30) machine, while the filename right next to it correctly said
+`10:47:53Z`. A zoned body stamp is unambiguous and still outranks the filename.
+
+**Why `run_timestamp` matters for more than provenance.** `collect` keeps, for each
+`(probe, mode)` key, whichever of its several observed rows is most trustworthy; among
+equally-trustworthy rows it keeps the one with the **later** `run_timestamp`. If every row
+handed to one `collect` invocation carries the same timestamp — which is what happens if
+the timestamp is stamped once for the whole batch instead of derived per log — that
+tie-break becomes inert and ties are broken by parse order instead, i.e. by which log
+happened to be listed last. That silently lost real measurements to a later, unrelated run
+that simply came later in the file list. `timestamp_source` exists so a reader can tell a
+measured run time from a guess.
+
+**A row that measured nothing never wins that tie-break.** Before the timestamp comparison,
+a *non-observation* loses to any real verdict for the same cell, however much newer it is:
+
+- `INCONCLUSIVE` — the classifier could not tell.
+- `SKIPPED` because an **extension was unavailable** (`extension unavailable: vector on
+  source`) — a fact about the container image, not about the datatype. In production a
+  later run on an image without pgvector overwrote five measured `VEC-001..005` `OFFLINE`
+  `WORKS` rows with `SKIPPED`.
+
+A `SKIPPED` for any *other* reason keeps its normal rank: `DDL rejected: target: ... ERROR:
+type not yet supported in Yugabyte (SQLSTATE 0A000)` is the server refusing the type, which
+is a real observation about the product.
 
 ### Reading a diff
 
@@ -487,12 +575,22 @@ both sides before comparing, and the count of dropped rows is printed.
    - Want the exact bytes in the report even on a pass? Set `RecordDestValue`.
    - Known to wedge the channel? Set `Poison` **and** `PoisonNote` saying which mode
      established it and with what error.
-   - Type can only ever hold NULL (a GiST index support type such as `box2df`)? It needs
-     the `NullOnly` field, which is **not implemented yet** — see the header of
-     `datatype_sweep_cases_postgis_internal.go`. A NULL-only column has exactly one
-     possible value, so `assertUniqueProbeIDs`' "InitialValue must differ from AltValue"
-     rule is unsatisfiable for it and must exempt such probes. Do not work around it by
-     inventing a second spelling of NULL.
+   - Type can only ever hold NULL (a GiST index support type such as `box2df`)? Set
+     `NullOnly` — see the header of `datatype_sweep_cases_postgis_internal.go`. A
+     NULL-only column has exactly one possible value, so `assertUniqueProbeIDs`'
+     "InitialValue must differ from AltValue" rule is unsatisfiable for it and exempts
+     such probes. Do not work around it by inventing a second spelling of NULL, and only
+     claim `NullOnly` after the literal has actually been refused at run time — quote the
+     error in `Note`.
+   - Making the value large enough to TOAST? Do not use `repeat('x', n)`: PGLZ compresses
+     a repeated character back under the 2 KB threshold and the value stays inline, so the
+     probe quietly stops testing TOAST. Use an incompressible payload — `toastPayloadSQL`
+     in `datatype_sweep_cases.go` builds one, and PG 17 then reports
+     `pg_column_size(v)` equal to the raw length with a non-empty `reltoastrelid`.
+   - Creating helper objects OUTSIDE the sweep schema in `PreDDL` (as the `catalogstats`
+     probes do with their `{{p}}_aux` schema)? Make the `PreDDL` idempotent — the harness
+     only drops the SWEEP schema between runs, so anything elsewhere survives into the
+     next run and a bare `CREATE TABLE` then fails the whole batch.
 
 3. Run it alone:
 
@@ -831,6 +929,125 @@ without it — the manual bisect it replaces used to cost ~48 min *per poison pr
 The `Poison` field stays useful even with detection: a probe already *known* to wedge a
 channel should not be put in a batch at all, and `excludeBatchedPoison` still keeps it out
 before a container is even started.
+
+## What the classifier fixed after the verdict audit
+
+An audit of real sweep logs found the classifier reaching the *right-sounding* verdict
+from the *wrong* evidence. Every item below is a case where the harness made a claim its
+own run did not support. They are listed in plain language because the point of each one
+is a claim a reader should no longer trust when they do not see it.
+
+**A dead importer outranks a value mismatch.** In the solo runs the importer refused a
+value loudly — `ERROR: column "nan" does not exist (SQLSTATE 42703)`, `DECIMAL does not
+support NaN yet (SQLSTATE 0A000)`, `time zone displacement out of range (SQLSTATE 22009)`
+— printed the SQLSTATE, and exited. The target was then frozen at its snapshot value, and
+the value comparison, which used to run first, read that frozen row as `SILENT_WRONG`: a
+claim that voyager quietly changed a value, made about a run in which it refused the value
+at the top of its voice. The stale row is the *consequence* of the death, not a separate
+finding, so the quoted error now wins. The detail carries both the error text and the
+SQLSTATE as `(SQLSTATE XXXXX)` — the form the report collector extracts. The same
+evidence also reaches the classifier one poll later than it used to: a wait that ends on
+the clock now re-checks whether a command has exited, because a budget can expire long
+after the importer died.
+
+**A timed-out wait is not a pass.** A run whose migration-report counts never reached the
+expectation used to come out `WORKS` with "values identical; migration-report counts did
+not reach the expectation within the timeout". Two sides can be identical because nothing
+happened to either of them. A timed-out CDC run is now only `WORKS` when the event stream
+confirms the column was actually carried; otherwise it is `INCONCLUSIVE` and says so.
+
+**A NULL-only probe does not claim the full op list.** A `NullOnly` type accepts no
+storable literal, so `update(self)` changes nothing and most of the round trip was never
+run. The verdict stays `WORKS` — the report collector special-cases the strings `WORKS`,
+`SKIPPED` and `INCONCLUSIVE`, so a new label would be read as a failure by the control
+gate and demoted by the merge — but the detail now says "NULL-only probe: the type
+accepted no literal, so only NULL round-trip was checked".
+
+**Fall-back evidence no longer counts the forward run.** The queue is one append-only
+stream: after cutover the reverse direction's events land in the same segments as the
+forward run's, so a scan from byte zero summed both and every fall-back count came out
+exactly twice the live one — which meant the event-stream checks could never fail in
+`FALL-BACK`. Cutover now records each segment's size, and the fall-back scan reads only
+past that mark. `LIVE` and `OFFLINE` scan from byte zero exactly as before.
+
+**A failed change statement is not a pass.** `applyDelta` used to log the database's
+refusal as a note and carry on, and the confirmation that the ops were visible on the side
+they were written to was only consulted when the event count was zero. Both sides then
+held their pre-delta state, compared identical, and were reported as a clean round trip.
+A refused delta is now `INCONCLUSIVE` with the error quoted, and the confirmation is
+checked before any pass.
+
+**"The column was in the events" means the value was.** The check was `_, ok :=
+ev.Fields["v"]`, which counts a JSON null and Debezium's `__debezium_unavailable_value`
+placeholder as the column arriving — both of which are exactly how a dropped column looks,
+so the check could never fail. It now requires a real value, except on the probe's own
+NULL-transition rows where a NULL *is* the payload. The detail says which op classes
+carried it: "column seen in insert/update/delete events".
+
+**An unattributed breakage blames nobody.** When the importer broke on an error naming no
+probe's table, the batch-wide error was recorded as every active probe's `STUCK` detail —
+one poison value failed all of its batch-mates. Those probes now get `INCONCLUSIVE`:
+"another probe in this batch broke the importer; this type was not measured". A run with
+exactly *one* probe under test keeps its attribution, because there is only one possible
+cause.
+
+**A solo run blames its probe only for an error that is about a value.** "Exactly one
+probe was under test" answers who *could* have broken the importer, not who did, and the
+harness used to treat the two as the same thing: any quotable importer error at all, seen
+even once, became that probe's `STUCK` verdict. So a tserver restart (`terminating
+connection due to administrator command`, SQLSTATE `57P01`), a refused connection, a lock
+timeout (`55P03`), a serialization failure (`40001`) or one of voyager's own
+`ybvoyager_metadata` bookkeeping errors was published as "Import stops" against a type
+that may be perfectly healthy — and in a solo run, which is exactly the shape the audit
+trusts most (`ATTRIBUTED`). The solo carve-out is now gated on the error's content: it
+fires only when the error names the probe's table (`p_<id>`) or its type name on
+identifier boundaries, or carries a SQLSTATE in a datatype/SQL-level class — `0A` feature
+not supported, `21` cardinality, `22` data exception, `23` integrity, `2B`/`2D`/`3D`/`3F`
+dependent-privilege, transaction-termination, catalog and schema, `42` syntax or access,
+`44` WITH CHECK OPTION. Anything else is the environment talking, and the probe comes out
+`INCONCLUSIVE` with "the importer exited with an error that does not look type-related:
+*&lt;error&gt;*; this type was not measured". Attribution by table name is untouched, in
+solo runs and batched ones alike: an error naming `p_val_006` is about `p_val_006`
+whatever its SQLSTATE says.
+
+**Type names that are also English words no longer attribute a failure.** Export-failure
+attribution matched `TypeName` as a four-character substring, so `name`, `date`, `time`,
+`line`, `text` and `path` matched ordinary log prose and pinned the harshest verdict in
+the vocabulary on whichever probe happened to be called that. The first fix was a denylist
+of those nine words, which let through every *other* bare word a log contains — including
+`interval`, a probe type name and also a piece of Debezium's own `poll.interval.ms`, so a
+routine config line "named" the interval probe. The rule is now structural: a type name is
+usable for attribution only when it contains a non-letter (`numeric(130,60)`,
+`float8 (NaN)`, `int4range[]`). An all-letter name is only ever attributed by the probe's
+table name (`p_<id>`), which is unambiguous. Matching is on identifier boundaries in both
+cases.
+
+**Both compare connections are pinned to the same session settings.** The comparison is
+textual, so anything that changes a type's output text changes the verdict.
+`extra_float_digits`, `TimeZone`, `DateStyle`, `IntervalStyle`, `bytea_output` and
+`search_path` are now set on a *dedicated* connection (a `*sql.DB` is a pool: a `SET` run
+on it may land on a different connection than the `SELECT`) on both sides before every
+compare. All six are ordinary PostgreSQL GUCs that YugabyteDB accepts; any the server
+rejects is logged and the compare goes ahead without it.
+
+**Every run prints a header.** The first line of a run is now
+
+```
+RUN-META: started=<RFC3339 UTC> commit=<git sha> pg=<server_version> yb=<server_version>
+```
+
+so the report collector can stamp real metadata instead of guessing it from a log's file
+name. Every field degrades to `unknown` rather than failing the run — including the two
+server versions, which are asked for only when container setup actually succeeded.
+Querying a database that never came up is not a failed query but a crash: a source that
+never started leaves a nil container to dereference, and a target without a published port
+takes the connection helper into `utils.ErrExit`, an `os.Exit(1)` that kills the whole
+`go test` invocation and takes the `PROBE-RESULT` lines of every queued batch with it.
+
+**Timeouts print seconds.** The framework's wait helpers take a bare count of seconds in a
+`time.Duration` parameter and `RetryWorkWithTimeout` multiplies it by `time.Second`, so
+`%v` printed "cutover did not complete within 300ns" and "streaming phase did not complete
+within 240ns". They print `%ds` now, matching `WaitForSnapshotComplete`.
 
 ## Exit codes
 

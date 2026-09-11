@@ -86,18 +86,26 @@ def sqlstate_of(ev):
     return m.group(1).upper() if m else ""
 
 
-def explain(mode_key, verdict, ev, src, dst):
+def explain(mode_key, verdict, ev, src, dst, import_error=""):
     """One plain sentence saying what was observed. No log lines, no jargon."""
     e = strip_note(ev).lower()
     where = MODE_NAME.get(mode_key, mode_key)
 
     if verdict == "WORKS":
-        if "snapshot identical" in e:
-            return ("The copied rows matched the source exactly. Offline migration copies "
-                    "data once, so there are no later changes to check.")
-        if "snapshot +" in e:
-            return ("Everything matched: the first copy, then an insert, an update, a "
-                    "delete, and setting the value to NULL and back again.")
+        # What "checked" means is different in each mode, and a reader who did not run
+        # the sweep has no way to guess that from the word "Works" alone.
+        if mode_key == "offline":
+            return ("The row was copied once, during the snapshot, and matched the source "
+                    "exactly. Offline migration only copies data once, so there are no "
+                    "later changes to check.")
+        if mode_key == "live":
+            return ("Every change was checked and matched: an insert, an update, a delete, "
+                    "and setting the value to NULL and back again, all streamed to the "
+                    "target correctly.")
+        if mode_key == "fall_back":
+            return ("The same checks ran in reverse: an insert, an update, a delete, and a "
+                    "NULL change, streamed from YugabyteDB back to PostgreSQL, all matched "
+                    "correctly.")
         return "The value arrived unchanged."
 
     if verdict == "QUIET_DROP":
@@ -121,22 +129,25 @@ def explain(mode_key, verdict, ev, src, dst):
             return ("The export process died, usually before any row moved. Its only "
                     "message is that export failed and to check the logs — it does not "
                     "name the table, the column or the type.")
-        when = ("while it was applying streamed changes" if "streaming" in e
-                else "as it started")
-        base = f"The import process stopped {when} and the migration halted."
+        # "Import stops" always means the same thing: a SQL error on this specific
+        # value, and the importer exiting rather than retrying past it.
+        base = "The importer hit a SQL error on this type and exited."
         if why:
-            base += f" The target's complaint was that {why}"
-            base += f" (SQLSTATE {code})."
+            base += f" The target's complaint was that {why} (SQLSTATE {code})."
         elif code:
             base += f" The target reported SQLSTATE {code}."
+        else:
+            base += " The error and SQLSTATE are shown below."
+        if import_error:
+            base += f" Error: {import_error}"
         return base
 
     if verdict == "INCONCLUSIVE":
         if "exporter died" in e:
             return ("The export process crashed before this type was reached, so nothing "
                     "was ever produced for it and no claim can be made about it.")
-        return ("No change events arrived for this table at all, and the import log "
-                "showed no repeating error, so there was nothing to conclude.")
+        return ("The run timed out before any change for this type was seen. Nothing can "
+                "be claimed either way.")
 
     return strip_note(ev) or "No detail was recorded."
 
@@ -168,7 +179,9 @@ def cell(mode_key, mode, live_verdict, live_ok):
     Order is load-bearing and must not be rearranged:
       1. Nothing recorded            -> Not run.
       2. Column could not exist      -> a setup-time fact, true regardless of the gate.
-      3. Cutover never finished      -> NEVER a claim about the type.
+      3. Cutover never finished      -> NEVER a claim about the type, ALWAYS "Not
+                                         reachable" for fall-back (see below — it does
+                                         not matter what the live cell says).
       4. Run's controls died         -> not attributable to this type.
       5. Only now, the type's own measured result.
     Putting 3 or 5 before 4 is exactly the bug that published 87 spoiled runs
@@ -182,6 +195,7 @@ def cell(mode_key, mode, live_verdict, live_ok):
     ev = mode.get("evidence") or ""
     ok = (mode.get("run_status") or "OK").upper() in ("", "OK", "ATTRIBUTED", "POISON")
     src, dst = mode.get("source_value") or "", mode.get("target_value") or ""
+    import_error = mode.get("import_error") or ""
 
     if v == "NOT_TESTED":
         return ("Not run", "v-none",
@@ -190,22 +204,17 @@ def cell(mode_key, mode, live_verdict, live_ok):
     if v == "SKIPPED":
         return skipped_cell(ev)
 
-    # Fall-back only exists after a successful cutover. If cutover never finished,
-    # the return trip never started — and that says nothing about this type unless
-    # this type is what stopped the forward migration in the first place.
+    # Fall-back only exists after a successful cutover. If cutover never finished, the
+    # return trip never started for THIS type — full stop. Earlier this only said "Not
+    # reachable" when the live cell itself had already failed, and fell back to "Not
+    # measured" (implying some other type in the run was to blame) whenever the live
+    # cell looked fine. But a fall-back row carrying this detail already tells us why
+    # fall-back never ran for this type: its own forward migration never reached
+    # cutover. That is always "Not reachable", regardless of what the live column says.
     if is_cutover_abort(ev):
-        if live_ok and live_verdict in FAILED:
-            return ("Not reachable", "v-none",
-                    "Fall-back never became available: this type stops the forward "
-                    "migration (see the live column), so cutover could not complete and "
-                    "the return trip never existed. The safety net is missing precisely "
-                    "where you would need it.")
-        return ("Not measured", "v-disc",
-                "The migration run was aborted before cutover finished, so the return "
-                "trip never started. The known-good control types in the same run were "
-                "cut short too, so the cause was the run rather than this type — but "
-                "that also means nothing here can be pinned on this type either way. "
-                "Needs a re-run on its own.")
+        return ("Not reachable", "v-none",
+                "Fall-back was never reached: the live import for this type had already "
+                "failed.")
 
     if not ok:
         if live_ok and live_verdict in FAILED:
@@ -218,10 +227,10 @@ def cell(mode_key, mode, live_verdict, live_ok):
                 "in the same run failed too, which is how we know. Needs a re-run on its own.")
 
     if v == "INCONCLUSIVE":
-        return ("No result", "v-incon", explain(mode_key, v, ev, src, dst))
+        return ("No result", "v-incon", explain(mode_key, v, ev, src, dst, import_error))
 
     label, css = T1.get(v, (v.replace("_", " ").capitalize(), "v-none"))
-    return (label, css, explain(mode_key, v, ev, src, dst))
+    return (label, css, explain(mode_key, v, ev, src, dst, import_error))
 
 
 # How bad each label is, worst first. Used only to choose which of the three
@@ -267,6 +276,7 @@ def main(src, dst, tmpl):
 
         out.append({
             "t": r.get("type_name", r.get("probe_id", "?")),
+            "p": r.get("probe_id") or "",
             "g": r.get("group", "other"),
             "k": r.get("kind", ""),
             "o": [o[0], o[1]], "l": [l[0], l[1]], "f": [f[0], f[1]],
