@@ -202,6 +202,15 @@ stages:
     command: import_data
     graceful_timeout_sec: 60
 
+  # Forward-leg validation, before the fall-forward leg starts writing to either
+  # side. Source and target must already agree here, so a divergence is pinned
+  # to the forward leg instead of surfacing only in the final validations.
+  - name: row_count_validations_after_cutover_to_target
+    action: row_count_validations
+
+  - name: row_hash_validations_after_cutover_to_target
+    action: row_hash_validations
+
   # Phase 2: explicit fallback leg (target -> source replica) with resumptions
 
   - name: start_fallback_exporter_from_target
