@@ -950,6 +950,57 @@ evidence also reaches the classifier one poll later than it used to: a wait that
 the clock now re-checks whether a command has exited, because a budget can expire long
 after the importer died.
 
+**A dead importer also outranks the column-absent verdicts.** The same ordering had a
+second hole, found by running the sweep. Solo `LIVE` `VAL-002` (numeric `+Infinity`)
+killed `import data` during the snapshot with `ERROR: DECIMAL does not support Infinity
+yet (SQLSTATE 0A000)`; both controls were correctly `INCONCLUSIVE`, naming `VAL-002` as
+the killer — and `VAL-002` itself was published as `SILENT_LOSS`, because the "column
+absent from all N exported events" check ran *before* the dead-importer one. `VAL-001`, in
+exactly the same situation but with the column present in the events, got `STUCK`. A loud
+death always outranks a silent one, because "silent" would be a false description of a run
+that ended with voyager printing a SQLSTATE and exiting — so `stuckDetail` is checked
+first, and `EXCLUDED_TOLD` / `QUIET_DROP` / `SILENT_LOSS` come after it. The absence is not
+thrown away: for a value the importer rejects outright it is a second real signal (Debezium
+omitted the column as well), so it is appended to the `STUCK` detail as
+`; also: column "v" absent from all 3 exported events (no exclusion warning)`. A run with
+no importer death classifies exactly as before. Pinned by
+`TestSweepClassifierImportDeathBeatsColumnAbsent`.
+
+**A quoted error starts at the error.** The `STUCK` detail used to quote the importer log
+line from its first character, so the timestamp, the `ERROR logging.go:NN` caller and the
+temp-dir path ate the whole length budget and the message was cut off mid-path:
+
+```
+SQLSTATE 0A000: 2026-09-11 16:15:20.714093 ERROR logging.go:57 import batch:
+"/var/folders/78/.../table::\"sweep_s... (x1) - import data exited ...
+```
+
+The one fact the row exists to carry — which value the importer refused, and why — never
+reached the report. The quote now drops the log-line prefix and, when the line carries a
+PostgreSQL error, runs from the **last** `ERROR:` before the SQLSTATE through the
+`(SQLSTATE XXXXX)` token (last, because voyager wraps the server's error inside its own),
+then appends a short context tail naming the batch and the table if it still fits:
+
+```
+SQLSTATE 0A000: ERROR: DECIMAL does not support NaN yet (SQLSTATE 0A000)
+  [import batch ... into sweep_schema.p_val_001]
+```
+
+The `(SQLSTATE XXXXX)` form the report collector extracts is unchanged. Pinned by
+`TestQuotedImportErrorStartsAtTheError`, which uses the real line verbatim.
+
+**An attributed kill is not a flake.** A solo run whose one probe killed `import data`
+leaves both controls `INCONCLUSIVE` with `channelWedgedBy` pointing at it, and the run then
+printed `PROBE-RUN-FLAKE: solo_val_001 | LIVE | 2 inconclusive | probes came out
+INCONCLUSIVE` — which reads as an environment wobble, and is the opposite of what happened.
+The `FLAKE` line is now suppressed when *every* `INCONCLUSIVE` in the run is an attributed
+import failure (`channelWedgedBy`, `importBrokeUnrelated`, `importBrokeUnattributed`), and
+nothing is printed in its place: `PROBE-RUN-INVALID` already says the controls were not
+`WORKS`, `PROBE-RUN-QUARANTINE` already says which probe to re-run without, and the
+attributed probe's own `STUCK` line names the cause. Genuinely environmental inconclusives
+still print it — no events ever flowed, the exporter died unattributed, the Debezium-boot
+flake. Pinned by `TestAttributedKillIsNotAFlake`.
+
 **A timed-out wait is not a pass.** A run whose migration-report counts never reached the
 expectation used to come out `WORKS` with "values identical; migration-report counts did
 not reach the expectation within the timeout". Two sides can be identical because nothing

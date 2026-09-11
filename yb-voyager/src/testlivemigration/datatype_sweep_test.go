@@ -897,3 +897,183 @@ func TestQueueScanEarlyReturnZeroesEvidence(t *testing.T) {
 		t.Errorf("a reverse direction with no queue classified as %s: %s", got, detail)
 	}
 }
+
+// TestSweepClassifierImportDeathBeatsColumnAbsent pins the second half of the
+// death-outranks-everything rule, found by running the sweep.
+//
+// Solo LIVE VAL-002 (numeric +Infinity) killed `import data` during the snapshot with
+// `ERROR: DECIMAL does not support Infinity yet (SQLSTATE 0A000)`, and both controls were
+// correctly INCONCLUSIVE naming VAL-002 as the killer - while VAL-002 itself came out
+// SILENT_LOSS, because the column-absent branch ran before the dead-importer one. Calling
+// that run silent is a false description of it: voyager printed a SQLSTATE and exited.
+// VAL-001, whose column DID appear in the events, got STUCK from the same evidence.
+//
+// The missing column is still a real second signal (Debezium omitted it), so it is kept
+// as a note rather than dropped.
+func TestSweepClassifierImportDeathBeatsColumnAbsent(t *testing.T) {
+	obs := probeObservation{
+		snapshotCompared: true, streamCompared: true,
+		eventsForTable: 3, columnSeenInEvents: false,
+		waitTimedOut: true, commandExited: true,
+		commandExitDetail: "import data exited during the snapshot wait after 449s",
+		stuckDetail: importFailureDetail(
+			`SQLSTATE 0A000: ERROR: DECIMAL does not support Infinity yet (SQLSTATE 0A000)`),
+	}
+
+	got, detail := decideVerdict(modeLive, obs)
+	if got != verdictStuck {
+		t.Fatalf("decideVerdict = %s, want %s (detail: %s)", got, verdictStuck, detail)
+	}
+	if !strings.Contains(detail, "(SQLSTATE 0A000)") {
+		t.Errorf("the STUCK detail does not carry the SQLSTATE: %s", detail)
+	}
+	if !strings.Contains(detail, "DECIMAL does not support Infinity yet") {
+		t.Errorf("the STUCK detail does not quote the importer error: %s", detail)
+	}
+	// The column-absent fact survives as a secondary note.
+	if !strings.Contains(detail, "absent from all 3") {
+		t.Errorf("the STUCK detail dropped the column-absent fact: %s", detail)
+	}
+	if !strings.Contains(detail, "no exclusion warning") {
+		t.Errorf("the note does not say whether export warned: %s", detail)
+	}
+
+	// Without the death the column-absent verdict is unchanged: this ordering must not
+	// swallow a real SILENT_LOSS.
+	alive := obs
+	alive.stuckDetail, alive.commandExited, alive.waitTimedOut = "", false, false
+	if got, d := decideVerdict(modeLive, alive); got != verdictSilentLoss {
+		t.Errorf("without an importer death the column-absent verdict = %s, want %s (%s)",
+			got, verdictSilentLoss, d)
+	}
+	// And a printed-and-confirmed exclusion is still EXCLUDED_TOLD, not STUCK.
+	told := alive
+	told.warned, told.promptShown = true, true
+	if got, d := decideVerdict(modeLive, told); got != verdictExcludedTold {
+		t.Errorf("a confirmed exclusion = %s, want %s (%s)", got, verdictExcludedTold, d)
+	}
+}
+
+// TestQuotedImportErrorStartsAtTheError pins what a STUCK detail quotes.
+//
+// The line below is the real one from the solo LIVE run of VAL-001 (numeric NaN). Quoting
+// it from the left spent the whole budget on the timestamp, the caller and a temp-dir
+// path, and cut the message off mid-path:
+//
+//	SQLSTATE 0A000: 2026-09-11 16:15:20.714093 ERROR logging.go:57 import batch:
+//	"/var/folders/78/.../table::\"sweep_s... (x1) - import data exited ...
+//
+// so the one fact the row exists to carry - which value the importer refused, and why -
+// never reached the report.
+func TestQuotedImportErrorStartsAtTheError(t *testing.T) {
+	const realLine = `2026-09-11 16:15:20.714093 ERROR logging.go:57 import batch: ` +
+		`"/var/folders/78/wmy1tdts1hd4j_wnhqnk2ct40000gn/T/yb-voyager-export384200852/metainfo/` +
+		`import_data_state/target_db_importer/table::\"sweep_schema\".\"p_val_001\"/file::` +
+		`p_val_001_data.sql::b05fc82c/batch::0.10.10.169.169.P" into sweep_schema.p_val_001: ` +
+		`flow=copy_normal: step=copy: ERROR: DECIMAL does not support NaN yet (SQLSTATE 0A000): ` +
+		`dbcontext=[where=COPY p_val_001, line 1: "1	filler-1	NaN"]`
+
+	quoted, n := mostRepeatedError(realLine+"\n", "")
+	if quoted == "" || n != 1 {
+		t.Fatalf("the real importer line is not quotable: %q x%d", quoted, n)
+	}
+	if !strings.Contains(quoted, "DECIMAL does not support NaN yet (SQLSTATE 0A000)") {
+		t.Errorf("the quote lost the error and its SQLSTATE: %q", quoted)
+	}
+	// The noise that used to fill the budget.
+	if strings.Contains(quoted, "/var/folders") {
+		t.Errorf("the quote still carries the temp-dir path: %q", quoted)
+	}
+	if strings.Contains(quoted, "2026-09-11 16:15:20") || strings.Contains(quoted, "logging.go:57") {
+		t.Errorf("the quote still leads with the log-line prefix: %q", quoted)
+	}
+	// mostRepeatedError hoists the SQLSTATE itself, so the quote proper starts at the
+	// last ERROR: - the server's, not voyager's wrapper.
+	body := strings.TrimPrefix(quoted, "SQLSTATE 0A000: ")
+	if !strings.HasPrefix(body, "ERROR: DECIMAL") {
+		t.Errorf("the quote does not start at the error: %q", body)
+	}
+	// The context that makes the row actionable is kept, since it fits.
+	if !strings.Contains(quoted, "sweep_schema.p_val_001") {
+		t.Errorf("the quote dropped the table it happened on: %q", quoted)
+	}
+
+	// The form the report collector reads a SQLSTATE out of survives end to end.
+	detail := importFailureDetail(quoted + " (x1) - import data exited during the snapshot wait")
+	if !strings.Contains(detail, "(SQLSTATE 0A000)") {
+		t.Errorf("the detail lost the collector's SQLSTATE form: %q", detail)
+	}
+}
+
+// TestAttributedKillIsNotAFlake pins the run-level line a solo kill prints.
+//
+// In the solo runs the one probe under test killed `import data`, both controls came out
+// INCONCLUSIVE naming it, and the run then announced
+//
+//	PROBE-RUN-FLAKE: solo_val_001 | LIVE | 2 inconclusive | probes came out INCONCLUSIVE
+//
+// which reads as an environment wobble and is the opposite of what happened. An
+// attributed kill prints no FLAKE line at all; a genuinely environmental inconclusive
+// still does.
+//
+// The controls carry no ExpectVerdict here on purpose: emitAll fails the test on a control
+// that misses its expectation, and this fixture is about the FLAKE line rather than the
+// control gate.
+func TestAttributedKillIsNotAFlake(t *testing.T) {
+	probes := []datatypeProbe{
+		{ID: "CTRL-001", TypeName: "int"},
+		{ID: "CTRL-002", TypeName: "text"},
+		{ID: "VAL-001", TypeName: "numeric (NaN)"},
+	}
+	newRun := func(obs map[string]*probeObservation) *sweepRun {
+		return &sweepRun{t: t, mode: modeLive, batch: "solo_val_001", probes: probes, obs: obs}
+	}
+
+	// What the solo VAL-001 run really observed.
+	killed := newRun(map[string]*probeObservation{
+		"CTRL-001": {channelWedgedBy: "VAL-001", channelWedgedHow: "killed import data",
+			waitTimedOut: true, commandExited: true},
+		"CTRL-002": {channelWedgedBy: "VAL-001", channelWedgedHow: "killed import data",
+			waitTimedOut: true, commandExited: true},
+		"VAL-001": {snapshotCompared: true, streamCompared: true,
+			eventsForTable: 2, columnSeenInEvents: true, waitTimedOut: true, commandExited: true,
+			stuckDetail: importFailureDetail(
+				`SQLSTATE 0A000: ERROR: DECIMAL does not support NaN yet (SQLSTATE 0A000)`)},
+	})
+	out := captureStdout(t, killed.emitAll)
+	if strings.Contains(out, "PROBE-RUN-FLAKE") {
+		t.Errorf("an attributed kill still printed a FLAKE line:\n%s", out)
+	}
+	// The cause is still on the record, twice over.
+	if !strings.Contains(out, "PROBE-RESULT: VAL-001 | numeric (NaN) | LIVE | STUCK") {
+		t.Errorf("the killer's STUCK line is missing:\n%s", out)
+	}
+	if !strings.Contains(out, "probe VAL-001 killed import data") {
+		t.Errorf("the controls no longer name the killer:\n%s", out)
+	}
+
+	// An environmental inconclusive - no events ever flowed, nobody to blame - still
+	// prints the FLAKE line.
+	envFlake := newRun(map[string]*probeObservation{
+		"CTRL-001": {snapshotCompared: true, streamCompared: true, waitTimedOut: true},
+		"CTRL-002": {snapshotCompared: true, streamCompared: true, waitTimedOut: true},
+		"VAL-001":  {snapshotCompared: true, streamCompared: true, waitTimedOut: true},
+	})
+	out = captureStdout(t, envFlake.emitAll)
+	if !strings.Contains(out, "PROBE-RUN-FLAKE") {
+		t.Errorf("an environmental inconclusive lost its FLAKE line:\n%s", out)
+	}
+
+	// So does a run whose exporter died: every INCONCLUSIVE behind it is collateral of
+	// something the batch cannot be re-run past.
+	exportDied := newRun(map[string]*probeObservation{
+		"CTRL-001": {exporterDiedInRun: "NullPointerException", waitTimedOut: true},
+		"CTRL-002": {exporterDiedInRun: "NullPointerException", waitTimedOut: true},
+		"VAL-001":  {exporterDiedInRun: "NullPointerException", waitTimedOut: true},
+	})
+	exportDied.exportDeath = "NullPointerException in TypeRegistry"
+	out = captureStdout(t, exportDied.emitAll)
+	if !strings.Contains(out, "PROBE-RUN-FLAKE") {
+		t.Errorf("an export death lost its FLAKE line:\n%s", out)
+	}
+}

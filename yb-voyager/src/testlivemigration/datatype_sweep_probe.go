@@ -3005,9 +3005,80 @@ func mostRepeatedErrorDetail(text, mustContain string) (string, string, int) {
 	}
 	raw := sample[best]
 	if m := sqlstateRe.FindStringSubmatch(raw); m != nil {
-		return fmt.Sprintf("SQLSTATE %s: %s", m[1], truncate(raw, 200)), best, bestN
+		return fmt.Sprintf("SQLSTATE %s: %s", m[1], quotableErrorText(raw, 200)), best, bestN
 	}
-	return truncate(raw, 220), best, bestN
+	return quotableErrorText(raw, 220), best, bestN
+}
+
+var (
+	// The importer's log-file prefix: "2026-09-11 16:15:20.714093 ERROR logging.go:57 ".
+	// Quoting from the start of the line spent the whole budget on it plus the temp-dir
+	// path that follows, and cut the actual message off.
+	logLinePrefixRe = regexp.MustCompile(
+		`^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:\s*[+-]\d{2}:?\d{2})?\s*` +
+			`(?i:INFO|WARN|WARNING|ERROR|DEBUG|TRACE|FATAL)?\s*(?:[\w./-]+\.go:\d+)?\s*`)
+
+	// The SQLSTATE token as the importer prints it, parentheses included when present.
+	sqlStateSpanRe = regexp.MustCompile(`(?i)\(?SQLSTATE[ :=]*[0-9A-Za-z]{5}\)?`)
+
+	intoTableRe = regexp.MustCompile(`(?i)\binto\s+([A-Za-z0-9_."]+)`)
+	tableEqRe   = regexp.MustCompile(`(?i)\btable=([A-Za-z0-9_."]+)`)
+)
+
+// quotableErrorText turns a raw importer log line into the snippet that goes in a verdict
+// detail, within budget runes.
+//
+// Two things are dropped up front: the timestamp / level / caller prefix, and everything
+// before the message itself. A real line looks like
+//
+//	<ts> ERROR logging.go:57 import batch: "<a very long temp path>" into
+//	sweep_schema.p_val_001: flow=copy_normal: step=copy: ERROR: DECIMAL does not support
+//	NaN yet (SQLSTATE 0A000): dbcontext=[...]
+//
+// so quoting from the left filled the budget with the path and cut off the one part a
+// reader needs. The quote now runs from the LAST "ERROR:" before the SQLSTATE through the
+// SQLSTATE token - last, because voyager wraps the server's error inside its own - and a
+// short context tail naming the batch and the table is appended when it still fits.
+func quotableErrorText(line string, budget int) string {
+	msg := strings.TrimSpace(logLinePrefixRe.ReplaceAllString(strings.TrimSpace(line), ""))
+
+	span := sqlStateSpanRe.FindStringIndex(msg)
+	if span == nil {
+		return truncate(msg, budget)
+	}
+	start := strings.LastIndex(msg[:span[0]], "ERROR:")
+	if start < 0 {
+		return truncate(msg, budget)
+	}
+	core := strings.TrimSpace(msg[start:span[1]])
+	if tail := errorContextTail(msg[:start], msg[span[1]:]); tail != "" &&
+		len([]rune(core))+1+len([]rune(tail)) <= budget {
+		return core + " " + tail
+	}
+	return truncate(core, budget)
+}
+
+// errorContextTail names the batch and the table the quoted error came from, using only
+// breadcrumbs voyager itself wrote. head is the text before the quoted error, rest the
+// text after it.
+func errorContextTail(head, rest string) string {
+	var parts []string
+	// "import batch: "<path>"" -> "import batch ...": the path is noise, the verb is not.
+	if i := strings.Index(head, `"`); i > 0 {
+		if lead := strings.TrimSpace(strings.Trim(strings.TrimSpace(head[:i]), ":")); lead != "" {
+			parts = append(parts, truncate(lead, 40)+" ...")
+		}
+	}
+	if m := intoTableRe.FindStringSubmatch(head); m != nil {
+		parts = append(parts, "into "+m[1])
+	}
+	if m := tableEqRe.FindStringSubmatch(rest); m != nil {
+		parts = append(parts, "table="+m[1])
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "[" + strings.Join(parts, " ") + "]"
 }
 
 // ============================================================
@@ -3432,6 +3503,19 @@ func decideVerdict(mode sweepMode, o probeObservation) (string, string) {
 	return verdict, detail
 }
 
+// exclusionNoteFor says, in a few words, what the export side printed about dropping the
+// column. It is the secondary half of a STUCK detail that also saw the column go missing.
+func exclusionNoteFor(o probeObservation) string {
+	switch {
+	case o.warned && o.promptShown:
+		return "exclusion notice printed and confirmed"
+	case o.warned:
+		return "exclusion notice printed, auto-accepted by --yes"
+	default:
+		return "no exclusion warning"
+	}
+}
+
 func decideVerdictCore(mode sweepMode, o probeObservation) (string, string) {
 	if o.settledVerdict != "" {
 		return o.settledVerdict, o.settledDetail
@@ -3478,6 +3562,18 @@ func decideVerdictCore(mode sweepMode, o probeObservation) (string, string) {
 	if mode.hasCDC() && o.eventsForTable > 0 && !o.columnSeenInEvents {
 		base := fmt.Sprintf("column %q absent from all %d exported events for this table",
 			sweepColumnUnderTest, o.eventsForTable)
+		// A dead importer with a quotable SQL error outranks this, exactly as it already
+		// outranks the value comparison below. A run that ended with the importer
+		// printing a SQLSTATE and exiting is not a SILENT anything - calling it
+		// SILENT_LOSS describes the loudest failure the harness can observe as a quiet
+		// one. The absence is kept as a secondary note rather than dropped: for a value
+		// the importer rejects outright (numeric Infinity) it is a second real signal,
+		// because Debezium omitted the column as well.
+		if o.stuckDetail != "" {
+			return verdictStuck, withNote(fmt.Sprintf("%s; also: column %q absent from all %d exported events (%s)",
+				o.stuckDetail, sweepColumnUnderTest, o.eventsForTable, exclusionNoteFor(o)),
+				o.queueScanNote, o.waitNote)
+		}
 		switch {
 		case o.warned && o.promptShown:
 			return verdictExcludedTold, base + "; export printed the exclusion notice and asked before continuing"
@@ -3523,6 +3619,8 @@ func decideVerdictCore(mode sweepMode, o probeObservation) (string, string) {
 	//    updated one should be and reads it as SILENT_WRONG - a claim that voyager
 	//    silently altered a value, made about a run in which voyager loudly refused it.
 	//    The quoted SQL error is the finding; the stale target row is its consequence.
+	//    It outranks the column-absent verdicts at 1 for the same reason, and that branch
+	//    returns STUCK there so the missing column is still reported, as a note.
 	if o.stuckDetail != "" {
 		return verdictStuck, withNote(o.stuckDetail, o.queueScanNote, o.waitNote)
 	}
@@ -3866,6 +3964,18 @@ func voyagerCommit() string {
 	return sha
 }
 
+// inconclusiveIsAttributed reports whether an INCONCLUSIVE verdict came from an import
+// failure this run already pinned on a named probe, rather than from the environment.
+// Those three fields are the classifier's attributed reasons; the two guards in front of
+// them are the branches that outrank all three, so an observation carrying both is
+// classified by the earlier one and is not attributed.
+func inconclusiveIsAttributed(o probeObservation) bool {
+	if o.settledVerdict != "" || o.exporterDiedInRun != "" || o.exportNeverStreamed {
+		return false
+	}
+	return o.channelWedgedBy != "" || o.importBrokeUnrelated != "" || o.importBrokeUnattributed != ""
+}
+
 // emitAll prints exactly one greppable PROBE-RESULT line per probe, then enforces the
 // known-answer checks. It runs from a defer so a mid-run abort still produces a full
 // matrix instead of a hole.
@@ -3885,7 +3995,7 @@ func (r *sweepRun) emitAll() {
 		}
 	}
 
-	inconclusive := 0
+	inconclusive, attributed := 0, 0
 	for _, p := range r.probes {
 		o := r.observe(p)
 		verdict, detail := decideVerdict(r.mode, *o)
@@ -3914,6 +4024,9 @@ func (r *sweepRun) emitAll() {
 
 		if verdict == verdictInconclusive {
 			inconclusive++
+			if inconclusiveIsAttributed(*o) {
+				attributed++
+			}
 		}
 
 		if p.ExpectVerdict == "" || verdict == p.ExpectVerdict || verdict == verdictSkipped {
@@ -3955,7 +4068,16 @@ func (r *sweepRun) emitAll() {
 
 	// One greppable line the runner uses to decide whether to re-run. A flake must
 	// reproduce before it is recorded as anything at all.
-	if r.flaked || inconclusive > 0 {
+	//
+	// A run whose every INCONCLUSIVE is an ATTRIBUTED import failure is not a flake and
+	// does not print one. The solo runs are the clear case: the one probe under test
+	// killed `import data`, both controls came out INCONCLUSIVE naming it, and the run
+	// then announced "2 inconclusive | probes came out INCONCLUSIVE" - which reads as an
+	// environment wobble, and is the opposite of what happened. Nothing is lost by
+	// staying quiet: PROBE-RUN-INVALID already says the controls were not WORKS, and the
+	// attributed probe's own STUCK line names the cause. An export death, a Debezium-boot
+	// flake, and an inconclusive nobody could attribute all still print.
+	if r.flaked || (inconclusive > 0 && inconclusive > attributed) {
 		reason := "probes came out INCONCLUSIVE"
 		if r.flaked {
 			reason = "export never reached streaming mode"
