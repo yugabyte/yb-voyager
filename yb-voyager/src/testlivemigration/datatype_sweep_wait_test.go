@@ -548,4 +548,321 @@ func TestWaitOutcomesStayDistinguishable(t *testing.T) {
 	if !strings.Contains(quiet.summary(), "logged nothing") {
 		t.Errorf("the silent-stall summary does not say the stall logged nothing: %s", quiet.summary())
 	}
+
+	// The same rule for every other outcome a wait can end on. Each is a different
+	// finding - wedged, stalled, finished-and-short, gone - and a run log that cannot
+	// tell them apart cannot say what the budget bought.
+	settled := waitResult{
+		outcome: waitSettled, elapsed: sweepSettleGrace, budget: 900 * time.Second,
+		silence: sweepSettleGrace, shortTables: []string{`"sweep_schema"."p_misc_012"`},
+	}
+	gone := waitResult{
+		outcome: waitProcessGone, elapsed: 30 * time.Second, budget: 900 * time.Second,
+		goneCommand: "import data",
+	}
+	satisfied := waitResult{outcome: waitSatisfied, elapsed: 4 * time.Second, budget: 240 * time.Second, polls: 3}
+
+	seen := map[waitOutcome]bool{}
+	for _, res := range []waitResult{crash, quiet, settled, gone, satisfied} {
+		if seen[res.outcome] {
+			t.Fatalf("two different waits both reported %s", res.outcome)
+		}
+		seen[res.outcome] = true
+		if strings.TrimSpace(res.summary()) == "" {
+			t.Errorf("outcome %s has no summary", res.outcome)
+		}
+	}
+	// A settled wait must never be described as a timeout: nothing timed out.
+	if s := settled.summary(); strings.Contains(s, "budget exhausted") {
+		t.Errorf("the settled summary reads as a timeout: %s", s)
+	}
+	if s := settled.summary(); !strings.Contains(s, "p_misc_012") {
+		t.Errorf("the settled summary does not name the short table: %s", s)
+	}
+	if settled.saved() == 0 {
+		t.Errorf("a settled wait saved nothing; it concluded %s into a %s budget",
+			settled.elapsed, settled.budget)
+	}
+	if satisfied.saved() != 0 {
+		t.Errorf("counts-satisfied claims a saving of %s; it paid what the signal cost", satisfied.saved())
+	}
+}
+
+// ============================================================
+// THE EXPECTATION, AND THE SETTLE RULE
+// ============================================================
+
+/*
+The streaming wait used to expect 6 change events from every probe table. A table whose
+column voyager's guardrail excludes never sends 6: an update that touches only the excluded
+column changes nothing the exporter publishes, so no event is produced for it at all. Four
+batch runs (batch_live_misc, batch_live_ranges, batch_fb_misc, batch_fb_ranges) each paid
+the whole 900 s forward-streaming budget waiting for three events that were never coming,
+and every WORKS verdict in them then carried "migration-report counts did not reach the
+expectation within the timeout" - a sentence about a stall that had not happened.
+
+The tests below pin both halves of the fix: the expectation knows about exclusion, and the
+settle rule ends a wait whose only stragglers have produced nothing at all.
+*/
+
+// TestExpectedChangesDropWhenTheColumnIsExcluded: 6 events become 3, and WHICH 3 matters -
+// the ops that touch something other than the excluded column.
+func TestExpectedChangesDropWhenTheColumnIsExcluded(t *testing.T) {
+	full := datatypeProbe{ID: "MISC-012", TypeName: "timetz"} // no Ops: the default six
+
+	if got, want := full.expectedChanges(), (ChangesCount{Inserts: 1, Updates: 4, Deletes: 1}); got != want {
+		t.Fatalf("expectedChanges = %+v, want %+v", got, want)
+	}
+	if got, want := full.expectedChangesExcluded(), (ChangesCount{Inserts: 1, Updates: 1, Deletes: 1}); got != want {
+		t.Fatalf("expectedChangesExcluded = %+v, want %+v (insert, update of the OTHER "+
+			"column, delete - the three ops that still produce an event)", got, want)
+	}
+
+	// The op list is respected, not assumed: a probe that only ever touches the column
+	// under test expects nothing at all once that column is dropped.
+	selfOnly := datatypeProbe{ID: "X-001", Ops: []deltaOp{opUpdateSelf, opNullToValue, opValueToNull}}
+	if got := selfOnly.expectedChangesExcluded(); got != (ChangesCount{}) {
+		t.Errorf("expectedChangesExcluded = %+v, want all zero", got)
+	}
+}
+
+// TestExpectationsUseTheExcludedCountOnlyForWarnedTables: one dropped column in a batch
+// must not lower anybody else's expectation.
+func TestExpectationsUseTheExcludedCountOnlyForWarnedTables(t *testing.T) {
+	probes := []datatypeProbe{
+		{ID: "CTRL-001", TypeName: "int"},
+		{ID: "MISC-012", TypeName: "timetz"},
+	}
+	got := changeExpectationsFor(probes, "sweep_schema", map[string]bool{"MISC-012": true})
+
+	if want := (ChangesCount{Inserts: 1, Updates: 4, Deletes: 1}); got[`"sweep_schema"."p_ctrl_001"`] != want {
+		t.Errorf("the control's expectation = %+v, want %+v", got[`"sweep_schema"."p_ctrl_001"`], want)
+	}
+	if want := (ChangesCount{Inserts: 1, Updates: 1, Deletes: 1}); got[`"sweep_schema"."p_misc_012"`] != want {
+		t.Errorf("the excluded probe's expectation = %+v, want %+v", got[`"sweep_schema"."p_misc_012"`], want)
+	}
+}
+
+// TestExpectationsReadTheExclusionNoticePerDirection: the excluded set comes from ONE
+// exporter's output. The forward notice says nothing about what `export data from target`
+// does on the way back, and reading it as if it did would lower the reverse expectation on
+// no evidence - a wait that expects too few events stops watching before the real ones
+// arrive. In the rerunA fall-back runs the reverse direction really did send all six
+// events for the very tables the forward direction had dropped to three.
+func TestExpectationsReadTheExclusionNoticePerDirection(t *testing.T) {
+	probes := []datatypeProbe{
+		{ID: "CTRL-001", TypeName: "int"},
+		{ID: "MISC-012", TypeName: "timetz"},
+	}
+	forward := unsupportedColsHeader + "\nsweep_schema.p_misc_012: [v]\n" + unsupportedColsAccepted
+
+	excluded := excludedColumnProbes(forward, probes)
+	if !excluded["MISC-012"] || excluded["CTRL-001"] {
+		t.Fatalf("excluded = %v, want only MISC-012", excluded)
+	}
+	// The reverse exporter's buffer is empty until it prints a notice of its own.
+	if reverse := excludedColumnProbes("", probes); len(reverse) != 0 {
+		t.Errorf("an exporter that printed no notice excluded %v, want nothing", reverse)
+	}
+}
+
+// TestSettleRuleNamesOnlyTheSilentShortTables is the settle rule's whole contract: it may
+// fire only when the shortfall cannot still be in flight.
+func TestSettleRuleNamesOnlyTheSilentShortTables(t *testing.T) {
+	cases := []struct {
+		name   string
+		tables []tableStanding
+		want   []string
+		ok     bool
+	}{
+		{
+			name: "one silent straggler behind a finished batch",
+			tables: []tableStanding{
+				{table: "a", events: 6, reached: true},
+				{table: "b", events: 0},
+			},
+			want: []string{"b"}, ok: true,
+		},
+		{
+			name: "a short table that IS producing must be waited out",
+			tables: []tableStanding{
+				{table: "a", events: 6, reached: true},
+				{table: "b", events: 3},
+			},
+			ok: false,
+		},
+		{
+			name: "nothing produced anywhere is an ordinary stall, not a settle",
+			tables: []tableStanding{
+				{table: "a", events: 0},
+				{table: "b", events: 0},
+			},
+			ok: false,
+		},
+		{
+			name:   "nothing short at all is the positive signal's business",
+			tables: []tableStanding{{table: "a", events: 6, reached: true}},
+			ok:     false,
+		},
+		{
+			name:   "no per-table view, no settle",
+			tables: nil,
+			ok:     false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := settleShortTables(tc.tables)
+			if ok != tc.ok {
+				t.Fatalf("ok = %v, want %v (short: %v)", ok, tc.ok, got)
+			}
+			if ok && strings.Join(got, ",") != strings.Join(tc.want, ",") {
+				t.Errorf("short tables = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestSettleStandingsComeFromTheReport: the per-table view the settle rule reads is the
+// migration report, in one direction, against the same expectation the positive signal uses.
+func TestSettleStandingsComeFromTheReport(t *testing.T) {
+	report := &DataMigrationReport{RowData: []*cmd.RowData{
+		{TableName: "t_done", DBType: "source", ExportedInserts: 1, ExportedUpdates: 1, ExportedDeletes: 1},
+		{TableName: "t_done", DBType: "target", ImportedInserts: 1, ImportedUpdates: 1, ImportedDeletes: 1},
+		{TableName: "t_silent", DBType: "source"},
+		{TableName: "t_silent", DBType: "target"},
+		// Exported but not yet imported: events exist, so this table is not silent.
+		{TableName: "t_inflight", DBType: "source", ExportedInserts: 1},
+		{TableName: "t_inflight", DBType: "target"},
+	}}
+	expected := map[string]ChangesCount{
+		"t_done":     {Inserts: 1, Updates: 1, Deletes: 1},
+		"t_silent":   {Inserts: 1, Updates: 1, Deletes: 1},
+		"t_inflight": {Inserts: 1, Updates: 1, Deletes: 1},
+	}
+	got := tableStandings(report, expected, "source", "target")
+	want := []tableStanding{
+		{table: "t_done", events: 3, reached: true},
+		{table: "t_inflight", events: 1},
+		{table: "t_silent", events: 0},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("standings = %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("standing %d = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+	if _, ok := settleShortTables(got); ok {
+		t.Errorf("settled while t_inflight still had events in flight")
+	}
+	if standings := tableStandings(nil, expected, "source", "target"); standings != nil {
+		t.Errorf("an unreadable report produced standings %+v, want none", standings)
+	}
+}
+
+// TestSweepWaitSettlesWhenOnlySilentTablesAreShort: the end-to-end saving. A 900 s budget
+// is given up after the settle grace, not after 900 s - and the outcome says which.
+func TestSweepWaitSettlesWhenOnlySilentTablesAreShort(t *testing.T) {
+	clock := newFakeClock()
+	budget := seconds(sweepStreamingTimeout)
+	res := waitForSignalOrCrashLoop(budget, sweepWaitPoll, func() waitSample {
+		return waitSample{
+			progress: "frozen",
+			logText:  "import data: waiting for events\n",
+			tables: []tableStanding{
+				{table: `"sweep_schema"."p_ctrl_001"`, events: 6, reached: true},
+				{table: `"sweep_schema"."p_misc_012"`, events: 0},
+			},
+		}
+	}, clock.now, clock.sleep)
+
+	if res.outcome != waitSettled {
+		t.Fatalf("outcome = %s, want %s (summary: %s)", res.outcome, waitSettled, res.summary())
+	}
+	if res.elapsed != sweepSettleGrace {
+		t.Errorf("elapsed = %s, want the settle grace %s", res.elapsed, sweepSettleGrace)
+	}
+	if res.saved() != budget-sweepSettleGrace {
+		t.Errorf("saved = %s, want %s", res.saved(), budget-sweepSettleGrace)
+	}
+	if len(res.shortTables) != 1 || !strings.Contains(res.shortTables[0], "p_misc_012") {
+		t.Errorf("short tables = %v, want the one silent table", res.shortTables)
+	}
+	if s := res.summary(); !strings.Contains(s, "p_misc_012") || !strings.Contains(s, "nothing left to send") {
+		t.Errorf("summary does not name the short table and say why it stopped: %q", s)
+	}
+}
+
+// TestSweepWaitDoesNotSettleWhileAShortTableIsStillProducing guards the rule above: a table
+// that is short and HAS events is a real shortfall, and the budget is how the STUCK /
+// SILENT_LOSS evidence for it is gathered. It must still cost the whole budget.
+func TestSweepWaitDoesNotSettleWhileAShortTableIsStillProducing(t *testing.T) {
+	clock := newFakeClock()
+	budget := 200 * time.Second
+	poll := 0
+	res := waitForSignalOrCrashLoop(budget, sweepWaitPoll, func() waitSample {
+		poll++
+		return waitSample{
+			progress: "frozen",
+			// The pipeline keeps logging, so the silence rule never fires and only the
+			// settle rule is under test here.
+			logText: strings.Repeat("import data: polling\n", poll),
+			tables: []tableStanding{
+				{table: "a", events: 6, reached: true},
+				{table: "b", events: 3},
+			},
+		}
+	}, clock.now, clock.sleep)
+
+	if res.outcome != waitTimeout {
+		t.Fatalf("outcome = %s, want %s: a short table with events must be waited out",
+			res.outcome, waitTimeout)
+	}
+	if res.elapsed != budget {
+		t.Errorf("elapsed = %s, want the full budget %s", res.elapsed, budget)
+	}
+}
+
+// TestSettledWaitDoesNotClaimATimeout: the verdict text must describe the wait that
+// actually happened. Only a wait that ran out of clock may say the counts timed out.
+func TestSettledWaitDoesNotClaimATimeout(t *testing.T) {
+	const timeoutSentence = "did not reach the expectation within the timeout"
+
+	measured := probeObservation{
+		snapshotCompared: true, streamCompared: true,
+		deltaOpsApplied: 6, deltaConfirmed: true,
+		eventsForTable: 3, columnSeenInEvents: true,
+		waitTimedOut: true,
+	}
+	verdict, detail := decideVerdict(modeLive, measured)
+	if verdict != verdictWorks || !strings.Contains(detail, timeoutSentence) {
+		t.Fatalf("a real timeout classified %s / %q; it must still say the counts timed out",
+			verdict, detail)
+	}
+
+	settled := measured
+	settled.waitSettledShort = true
+	verdict, detail = decideVerdict(modeLive, settled)
+	if verdict != verdictWorks {
+		t.Fatalf("a settled wait classified %s, want %s (%s)", verdict, verdictWorks, detail)
+	}
+	if strings.Contains(detail, timeoutSentence) {
+		t.Errorf("a settled wait still claims a timeout: %q", detail)
+	}
+	if !strings.Contains(detail, "settled") {
+		t.Errorf("a settled wait does not say it settled: %q", detail)
+	}
+
+	// A wait that got its counts sets no waitTimedOut at all, so the sentence cannot
+	// reach the verdict from there either.
+	_, detail = decideVerdict(modeLive, probeObservation{
+		snapshotCompared: true, streamCompared: true,
+		deltaOpsApplied: 6, deltaConfirmed: true,
+		eventsForTable: 3, columnSeenInEvents: true,
+	})
+	if strings.Contains(detail, timeoutSentence) {
+		t.Errorf("a counts-satisfied wait claims a timeout: %q", detail)
+	}
 }

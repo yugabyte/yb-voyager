@@ -240,6 +240,20 @@ const (
 	// about a datatype can be concluded from a pipeline that wrote nothing down.
 	sweepSilenceGrace time.Duration = 5 * time.Minute
 
+	// sweepSettleGrace is the fourth negative signal, and the narrowest one: every table
+	// that produced ANY event has already reached its expectation, the only tables still
+	// short have produced nothing at all, and no event has arrived anywhere for this
+	// long. The pipeline is demonstrably alive and demonstrably finished with everything
+	// it was going to send, so the rest of the budget buys nothing.
+	//
+	// It is deliberately much shorter than sweepSilenceGrace because it is a much
+	// stronger observation: silence alone could be a slow pipeline, but silence with
+	// every other table already complete cannot be.
+	//
+	// It never shortens a wait for a table that is short WITH events - that is a real
+	// shortfall and the budget is what gathers the STUCK / SILENT_LOSS evidence for it.
+	sweepSettleGrace time.Duration = 60 * time.Second
+
 	// sweepReportFetchBudget bounds ONE poll's `get data-migration-report`.
 	//
 	// Every poll shells out to that command, and VoyagerCommandRunner gives the child an
@@ -529,6 +543,31 @@ func (p datatypeProbe) expectedChanges() ChangesCount {
 	return c
 }
 
+// expectedChangesExcluded is expectedChanges for a probe whose column under test voyager
+// dropped from the change stream.
+//
+// An op that touches ONLY the excluded column changes nothing the exporter is publishing,
+// so no event is produced for it at all - not an event with the column missing, no event.
+// Only the insert, the delete and the update of the OTHER column can still arrive. Batches
+// containing such a probe used to wait out the entire forward-streaming budget for the
+// three updates that were never coming: with the default op list this is 3 events, not 6.
+func (p datatypeProbe) expectedChangesExcluded() ChangesCount {
+	var c ChangesCount
+	for _, op := range p.ops() {
+		switch op {
+		case opInsertRow:
+			c.Inserts++
+		case opDeleteRow:
+			c.Deletes++
+		case opUpdateOther:
+			c.Updates++
+		case opUpdateSelf, opNullToValue, opValueToNull:
+			// touches only the excluded column: nothing is exported
+		}
+	}
+	return c
+}
+
 // ============================================================
 // BATCHES
 // ============================================================
@@ -613,8 +652,15 @@ type probeObservation struct {
 	promptShown bool
 
 	waitTimedOut bool
-	waitNote     string
-	stuckDetail  string
+	// waitSettledShort records that the wait ended as `settled` rather than running out
+	// of clock: every other table reached its expectation while this one produced no
+	// event at all. The distinction is about WORDING - a settled wait must never claim
+	// the counts "did not reach the expectation within the timeout", because there was
+	// no timeout. The evidence rules are unchanged: a table that produced nothing is
+	// still unmeasured, and still carries waitTimedOut.
+	waitSettledShort bool
+	waitNote         string
+	stuckDetail      string
 
 	// channelWedgedBy names the OTHER probe whose value crash-looped the import channel
 	// during this run. The channel is ordered, so once one value wedges it every later
@@ -1154,12 +1200,61 @@ func (r *sweepRun) snapshotExpectations() map[string]int64 {
 	return m
 }
 
-func (r *sweepRun) changeExpectations() map[string]ChangesCount {
+// changeExpectations builds the per-table counts ONE direction's streaming wait must reach.
+//
+// exportText is the output of the exporter feeding that direction, and it is read per
+// direction on purpose: the source-side `export data` prints the unsupported-columns block
+// for the types PostgresUnsupportedDataTypesForDbzm drops, and that says nothing about what
+// `export data from target` does on the way back. Reusing the forward notice for the
+// reverse wait would lower the reverse expectation on no evidence, and a wait that expects
+// too few events stops watching before the real ones arrive.
+func (r *sweepRun) changeExpectations(exportText string) map[string]ChangesCount {
+	return changeExpectationsFor(r.active, r.schema, excludedColumnProbes(exportText, r.active))
+}
+
+// changeExpectationsFor is the pure half: probes plus the set of probe ids whose column
+// the exporter said it was dropping, in, per-table ChangesCount out.
+func changeExpectationsFor(probes []datatypeProbe, schema string, excluded map[string]bool) map[string]ChangesCount {
 	m := map[string]ChangesCount{}
-	for _, p := range r.active {
-		m[p.reportKey(r.schema)] = p.expectedChanges()
+	for _, p := range probes {
+		if excluded[p.ID] {
+			m[p.reportKey(schema)] = p.expectedChangesExcluded()
+			continue
+		}
+		m[p.reportKey(schema)] = p.expectedChanges()
 	}
 	return m
+}
+
+// excludedColumnProbes reads one exporter's unsupported-columns block and returns the
+// probes whose column under test it named.
+func excludedColumnProbes(exportText string, probes []datatypeProbe) map[string]bool {
+	excluded := map[string]bool{}
+	for _, p := range probes {
+		if exportWarnedAboutColumn(exportText, p.tableName(), sweepColumnUnderTest) {
+			excluded[p.ID] = true
+		}
+	}
+	return excluded
+}
+
+// exportSideText is the source-side exporter's output: `export data`, i.e. the forward
+// direction. recordExportWarnings reads the same text.
+func (r *sweepRun) exportSideText() string {
+	return strings.Join([]string{
+		r.lm.GetExportCommandStdout(),
+		r.lm.GetExportCommandStderr(),
+	}, "\n")
+}
+
+// exportFromTargetSideText is the target-side exporter's output: `export data from target`,
+// i.e. the reverse direction of a fall-back or fall-forward run. It is a separate buffer
+// from exportSideText, which is what keeps the two directions' expectations independent.
+func (r *sweepRun) exportFromTargetSideText() string {
+	return strings.Join([]string{
+		r.lm.GetExportFromTargetCommandStdout(),
+		r.lm.GetExportFromTargetCommandStderr(),
+	}, "\n")
 }
 
 func (r *sweepRun) activeTableKeys() []string {
@@ -1258,10 +1353,14 @@ func (r *sweepRun) runFallback() {
 	}
 	r.applyDelta(sideTarget, true)
 	r.confirmDeltaApplied(sideTarget, true)
-	expected := r.changeExpectations()
-	r.waitBounded("fall-back streaming", seconds(r.streamingTimeout()), func(report *DataMigrationReport) bool {
-		return report != nil && streamingComplete(report, expected, "target", "source")
-	})
+	expected := r.changeExpectations(r.exportFromTargetSideText())
+	r.waitBoundedPerTable("fall-back streaming", seconds(r.streamingTimeout()),
+		func(report *DataMigrationReport) bool {
+			return report != nil && streamingComplete(report, expected, "target", "source")
+		},
+		func(report *DataMigrationReport) []tableStanding {
+			return tableStandings(report, expected, "target", "source")
+		})
 	r.recordExportWarnings()
 	r.recordQueueColumnPresence()
 	r.compareInto(sideTarget, sideSource, phaseStreaming)
@@ -1351,10 +1450,14 @@ func (r *sweepRun) forwardSnapshotAndStream() {
 
 	r.applyDelta(sideSource, false)
 	r.confirmDeltaApplied(sideSource, false)
-	expected := r.changeExpectations()
-	r.waitBounded("forward streaming", seconds(r.streamingTimeout()), func(report *DataMigrationReport) bool {
-		return report != nil && streamingComplete(report, expected, "source", "target")
-	})
+	expected := r.changeExpectations(r.exportSideText())
+	r.waitBoundedPerTable("forward streaming", seconds(r.streamingTimeout()),
+		func(report *DataMigrationReport) bool {
+			return report != nil && streamingComplete(report, expected, "source", "target")
+		},
+		func(report *DataMigrationReport) []tableStanding {
+			return tableStandings(report, expected, "source", "target")
+		})
 	r.recordExportWarnings()
 	r.recordQueueColumnPresence()
 	r.compareInto(sideSource, sideTarget, phaseStreaming)
@@ -1397,6 +1500,17 @@ const (
 	// It exists so that "produced no output for five minutes" is CONCLUDED rather than
 	// sat out, and so the run log says which of the two silences it was.
 	waitNoOutput waitOutcome = "no-output"
+	// waitSettled - the pipeline is alive, has finished, and is simply never going to
+	// send the rest. Every table that produced any event has reached its expectation, the
+	// only tables still short have produced nothing at all, and nothing has arrived
+	// anywhere for sweepSettleGrace.
+	//
+	// It is NOT waitTimeout: there was no timeout, so nothing may say the counts "did not
+	// reach the expectation within the timeout". It is NOT waitNoOutput either - the
+	// pipeline was writing plenty down, it just had nothing left to send. The short
+	// tables are named on the PROBE-WAIT line and carry the wait note; the tables that
+	// reached their counts were fully measured and carry nothing.
+	waitSettled waitOutcome = "settled"
 	// waitTimeout - neither signal arrived within the budget: a stall that logs nothing.
 	// A genuinely different case from waitRepeatingError, and it must stay distinguishable:
 	// it classifies INCONCLUSIVE, never STUCK.
@@ -1423,6 +1537,24 @@ type waitSample struct {
 	// with no threshold to tune and no signature to match.
 	goneCommand string
 	goneErr     error
+
+	// tables is this poll's per-table standing against the expectation: how many change
+	// events each expected table has produced, and whether its counts have arrived. It is
+	// what the settle rule reads. nil when the wait has no per-table view of its own
+	// signal - the snapshot wait and the fall-forward row-count wait - and the settle
+	// rule then never fires.
+	tables []tableStanding
+}
+
+// tableStanding is one table's standing in one direction, as of one poll.
+type tableStanding struct {
+	table string
+	// events is how many change events this table has produced so far - the larger of
+	// the exported and the imported side, so a table whose events are still in flight
+	// does not read as silent.
+	events int64
+	// reached is the per-table half of streamingComplete: this table's counts are in.
+	reached bool
 }
 
 type waitResult struct {
@@ -1432,9 +1564,13 @@ type waitResult struct {
 	polls       int
 	quotedError string // set for waitRepeatingError: the error, with its SQLSTATE
 	repeats     int
-	silence     time.Duration // set for waitNoOutput: how long nothing moved
+	silence     time.Duration // set for waitNoOutput and waitSettled: how long nothing moved
 	goneCommand string        // set for waitProcessGone: the command that is no longer running
 	goneErr     error         // its exit error, nil for a clean exit
+	// shortTables is set for waitSettled: the tables that never produced an event while
+	// every other table reached its expectation. They are the only ones the settled wait
+	// leaves unmeasured.
+	shortTables []string
 }
 
 // exitDescription renders a dead command's exit for the PROBE-WAIT line. A clean exit is
@@ -1469,7 +1605,7 @@ func hashText(s string) uint64 {
 // signals save it: a wedged importer and a dead exporter are equally pointless to sit out.
 func (w waitResult) saved() time.Duration {
 	switch w.outcome {
-	case waitRepeatingError, waitExportDied, waitNoOutput, waitProcessGone:
+	case waitRepeatingError, waitExportDied, waitNoOutput, waitProcessGone, waitSettled:
 	default:
 		return 0
 	}
@@ -1503,6 +1639,12 @@ func (w waitResult) summary() string {
 			"which is an environment fact and not a datatype verdict; concluded without "+
 			"waiting out the remaining %ds of the budget",
 			w.silence.Seconds(), int(w.saved().Seconds()))
+	case waitSettled:
+		return fmt.Sprintf("every table that produced an event reached its expectation and no "+
+			"event arrived anywhere for %.0fs; still short, with no event at all: %s; the "+
+			"pipeline has nothing left to send, so the remaining %ds of the budget was not "+
+			"waited out",
+			w.silence.Seconds(), strings.Join(w.shortTables, ", "), int(w.saved().Seconds()))
 	default:
 		return "budget exhausted with no repeating importer error in the log: a stall that " +
 			"logged nothing, which is an environment fact and not a datatype verdict"
@@ -1523,6 +1665,10 @@ func waitForSignalOrCrashLoop(
 	start := now()
 	var lastSignature, lastProgress, lastActivity string
 	quietSince := start
+	// The settle clock is separate from the silence clock: it measures time since the
+	// last EVENT anywhere, not time since the last byte of log output. A pipeline that
+	// has sent everything it has keeps logging happily.
+	lastEventAt, lastEvents := start, int64(-1)
 	signaturePolls := 0
 	firstSample := true
 	polls := 0
@@ -1537,6 +1683,9 @@ func waitForSignalOrCrashLoop(
 		// leaves a stale silence clock behind it.
 		if act := activitySignature(s); firstSample || act != lastActivity {
 			lastActivity, quietSince = act, now()
+		}
+		if total := totalTableEvents(s.tables); total != lastEvents {
+			lastEvents, lastEventAt = total, now()
 		}
 
 		if s.satisfied {
@@ -1602,6 +1751,19 @@ func waitForSignalOrCrashLoop(
 			lastSignature, signaturePolls = "", 0
 		}
 
+		// The pipeline has finished sending. Everything that produced anything is
+		// complete, the stragglers produced nothing at all, and no event has arrived
+		// anywhere for the settle grace. Checked before the silence rule because it is
+		// the more specific of the two and fires sooner.
+		if short, ok := settleShortTables(s.tables); ok {
+			if quiet := now().Sub(lastEventAt); quiet >= sweepSettleGrace {
+				return waitResult{
+					outcome: waitSettled, elapsed: elapsed, budget: budget,
+					polls: polls, silence: quiet, shortTables: short,
+				}
+			}
+		}
+
 		// Nothing anywhere has moved for the grace period. There is no point sitting out
 		// the rest of a budget for a pipeline that is writing nothing down.
 		if silence := now().Sub(quietSince); silence >= sweepSilenceGrace {
@@ -1616,6 +1778,84 @@ func waitForSignalOrCrashLoop(
 		}
 		sleep(poll)
 	}
+}
+
+// totalTableEvents is every change event the expected tables have produced so far. Any
+// change in it means an event arrived somewhere, which restarts the settle clock.
+func totalTableEvents(tables []tableStanding) int64 {
+	total := int64(0)
+	for _, t := range tables {
+		total += t.events
+	}
+	return total
+}
+
+// settleShortTables names the tables holding a wait up when everything else has finished,
+// and reports whether the wait is in that shape at all.
+//
+// ok is false - so the wait runs its full budget - whenever the shortfall could still be a
+// real one:
+//
+//   - no per-table view (the caller does not supply standings);
+//   - nothing has been produced anywhere, which is an ordinary stall;
+//   - a short table HAS produced events, so more may yet be coming and the budget is
+//     exactly what gathers the STUCK / SILENT_LOSS evidence;
+//   - nothing is short, which the positive signal handles.
+func settleShortTables(tables []tableStanding) ([]string, bool) {
+	var short []string
+	total := int64(0)
+	for _, t := range tables {
+		total += t.events
+		if t.reached {
+			continue
+		}
+		if t.events > 0 {
+			return nil, false
+		}
+		short = append(short, t.table)
+	}
+	if total == 0 || len(short) == 0 {
+		return nil, false
+	}
+	sort.Strings(short)
+	return short, true
+}
+
+// tableStandings reads one direction's per-table standing out of the migration report.
+//
+// `reached` is the same per-table condition streamingComplete applies, on the same rows;
+// it is restated here rather than called because streamingComplete only answers for the
+// whole batch, and the settle rule needs to know WHICH table is short.
+func tableStandings(report *DataMigrationReport, expected map[string]ChangesCount, exportFrom, importTo string) []tableStanding {
+	if report == nil {
+		return nil
+	}
+	standings := make([]tableStanding, 0, len(expected))
+	for table, want := range expected {
+		var exp, imp ChangesCount
+		for _, row := range report.RowData {
+			if row.TableName != table {
+				continue
+			}
+			switch row.DBType {
+			case exportFrom:
+				exp = ChangesCount{Inserts: row.ExportedInserts, Updates: row.ExportedUpdates, Deletes: row.ExportedDeletes}
+			case importTo:
+				imp = ChangesCount{Inserts: row.ImportedInserts, Updates: row.ImportedUpdates, Deletes: row.ImportedDeletes}
+			}
+		}
+		events := exp.Inserts + exp.Updates + exp.Deletes
+		if in := imp.Inserts + imp.Updates + imp.Deletes; in > events {
+			events = in
+		}
+		standings = append(standings, tableStanding{
+			table:   table,
+			events:  events,
+			reached: exp == want && imp == want,
+		})
+	}
+	sort.Slice(standings, func(i, j int) bool { return standings[i].table < standings[j].table })
+	return standings
 }
 
 // reportFingerprint renders every count the waits care about into one comparable string.
@@ -1746,6 +1986,17 @@ func (b *boundedFetcher) drain(budget time.Duration) bool {
 // satisfied is handed the data-migration report already fetched for this poll, or nil when
 // it could not be read; a predicate that needs the report must return false for nil.
 func (r *sweepRun) waitBounded(what string, budget time.Duration, satisfied func(*DataMigrationReport) bool) {
+	r.waitBoundedPerTable(what, budget, satisfied, nil)
+}
+
+// waitBoundedPerTable is waitBounded plus a per-table view of the signal, which is what
+// lets the settle rule tell "one table is short and silent" from "the pipeline is stalled".
+// standings may be nil: the wait then has only the all-or-nothing signal and never settles.
+func (r *sweepRun) waitBoundedPerTable(
+	what string, budget time.Duration,
+	satisfied func(*DataMigrationReport) bool,
+	standings func(*DataMigrationReport) []tableStanding,
+) {
 	sample := func() waitSample {
 		report, stalled, err := r.reports.get(sweepReportFetchBudget)
 		switch {
@@ -1762,6 +2013,10 @@ func (r *sweepRun) waitBounded(what string, budget time.Duration, satisfied func
 			report = nil
 		}
 		gone, goneErr := r.firstExitedCommand()
+		var tables []tableStanding
+		if standings != nil {
+			tables = standings(report)
+		}
 		return waitSample{
 			satisfied:   satisfied(report),
 			progress:    reportFingerprint(report),
@@ -1769,6 +2024,7 @@ func (r *sweepRun) waitBounded(what string, budget time.Duration, satisfied func
 			exportText:  r.exportLogFileText(),
 			goneCommand: gone,
 			goneErr:     goneErr,
+			tables:      tables,
 		}
 	}
 	r.applyWaitResult(what, waitForSignalOrCrashLoop(budget, sweepWaitPoll, sample, time.Now, time.Sleep))
@@ -1826,6 +2082,29 @@ func (r *sweepRun) applyWaitResult(what string, res waitResult) {
 	// side died, and a clean exit has no reason to look for at all.
 	if res.outcome == waitProcessGone {
 		r.recordCommandExit(what, res)
+		return
+	}
+
+	// The wait settled. Only the tables that produced nothing are unmeasured, so only
+	// those probes carry the note - the rest got the counts they were waiting for and
+	// must not be told a wait went wrong. There is no crash-loop attribution to do
+	// either: a batch in which every other table completed has no wedged channel.
+	if res.outcome == waitSettled {
+		short := map[string]bool{}
+		for _, table := range res.shortTables {
+			short[table] = true
+		}
+		for _, p := range r.active {
+			if !short[p.reportKey(r.schema)] {
+				continue
+			}
+			o := r.observe(p)
+			o.waitTimedOut = true
+			o.waitSettledShort = true
+			o.waitNote = appendNote(o.waitNote, fmt.Sprintf(
+				"%s wait settled after %.0fs: every other table reached its expectation and this "+
+					"one produced no event at all", what, res.elapsed.Seconds()))
+		}
 		return
 	}
 
@@ -2801,10 +3080,7 @@ const (
 // question itself does not - which is exactly the QUIET_DROP shape from PROBE_SPEC.md
 // ("the user was only warned in a prompt that --yes auto-accepts").
 func (r *sweepRun) recordExportWarnings() {
-	text := strings.Join([]string{
-		r.lm.GetExportCommandStdout(),
-		r.lm.GetExportCommandStderr(),
-	}, "\n")
+	text := r.exportSideText()
 	promptShown := strings.Contains(text, unsupportedColsPrompt)
 	for _, p := range r.active {
 		if exportWarnedAboutColumn(text, p.tableName(), sweepColumnUnderTest) {
@@ -3655,9 +3931,9 @@ func decideVerdictCore(mode sweepMode, o probeObservation) (string, string) {
 	//     retrying a bad event, there simply were no events. Environment, not product.
 	if o.waitTimedOut && mode.hasCDC() && o.eventsForTable == 0 {
 		return verdictInconclusive, withNote(
-			"streaming wait expired with zero events for this table and no repeating importer "+
-				"error in the import log: no event ever flowed, so this is an environment flake "+
-				"rather than a product stall",
+			"streaming wait "+waitEndPhrase(o)+" with zero events for this table and no repeating "+
+				"importer error in the import log: no event ever flowed, so this is an environment "+
+				"flake rather than a product stall",
 			o.queueScanNote, o.waitNote)
 	}
 
@@ -3738,19 +4014,19 @@ func decideVerdictCore(mode sweepMode, o probeObservation) (string, string) {
 			// is equally true of two sides that were both left unchanged.
 			if o.eventsForTable == 0 || !o.columnSeenInEvents {
 				return verdictInconclusive, withNote(
-					"the wait timed out and no change event for this table was ever seen, so "+
+					"the wait "+waitEndPhrase(o)+" and no change event for this table was ever seen, so "+
 						"nothing can be claimed: the migration-report counts never reached the "+
 						"expectation and the event stream confirmed no operation on this column",
 					o.queueScanNote, o.waitNote)
 			}
 			return verdictWorks, withNote(
 				"values identical and the event stream confirms the column"+columnSeenPhrase(o)+
-					"; migration-report counts did not reach the expectation within the timeout",
+					"; "+countsShortfallPhrase(o),
 				o.queueScanNote, o.waitNote)
 		}
 		return verdictWorks, withNote(
-			"values identical; migration-report counts did not reach the expectation within "+
-				"the timeout (snapshot-only mode: there is no event stream to confirm them)",
+			"values identical; "+countsShortfallPhrase(o)+
+				" (snapshot-only mode: there is no event stream to confirm them)",
 			o.queueScanNote, o.waitNote)
 	}
 
@@ -3775,6 +4051,29 @@ func decideVerdictCore(mode sweepMode, o probeObservation) (string, string) {
 			"was checked (offline is snapshot-only: no change ops apply)"
 	}
 	return verdictWorks, withNote(detail, o.queueScanNote, o.waitNote)
+}
+
+// countsShortfallPhrase says why the migration-report counts are short, in the words that
+// are actually true of this wait.
+//
+// "did not reach the expectation within the timeout" is reserved for a wait that really
+// ran out of clock. A wait that ended as `settled` did not: the rest of the batch finished
+// and this table simply produced nothing, which is a different fact and a much cheaper one.
+// A wait that ended as counts-satisfied never reaches here at all - it sets no waitTimedOut.
+func countsShortfallPhrase(o probeObservation) string {
+	if o.waitSettledShort {
+		return "migration-report counts for this table never arrived, though every other table " +
+			"in the batch reached its expectation and the wait settled rather than timing out"
+	}
+	return "migration-report counts did not reach the expectation within the timeout"
+}
+
+// waitEndPhrase is the same distinction in a verb: what the wait DID, not what it wanted.
+func waitEndPhrase(o probeObservation) string {
+	if o.waitSettledShort {
+		return "settled with every other table complete"
+	}
+	return "timed out"
 }
 
 // columnSeenPhrase renders the op classes the column was actually seen in, as a clause.

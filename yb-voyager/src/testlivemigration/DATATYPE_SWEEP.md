@@ -203,7 +203,7 @@ Related markers:
   export death. See [The one carve-out](#the-one-carve-out-an-attributed-export-death).
 - `PROBE-WAIT` — one line per bounded wait: how long it took, out of what budget, and why
   it ended (`counts-satisfied` / `repeating-error` / `process-exited` / `exporter-died` /
-  `no-output` / `timeout`).
+  `no-output` / `settled` / `timeout`).
 
 Every classifier bug found so far — the false `WORKS` on an unmeasured run, the empty-error
 `STUCK`, the config-field `STUCK` — showed up **first** as a control coming out wrong.
@@ -674,6 +674,7 @@ ways, and only the last one still costs the budget:
 | **Exited** — `import data` reports `cannot accept a value of type <t>` (SQLSTATE 0A000) ONCE and dies; `tid`, `regclass`, `pg_node_tree`, `pg_ndistinct`, `pg_dependencies`, `pg_mcv_list` all fail this way | `process-exited` | **the whole budget** — no repeat to count, so this was the case the crash-loop detector missed (a `catalogstats` live batch spent 781 s and emitted nothing) | **~4 s** (detect + one confirming poll) |
 | **Exporter died** — the connector threw and `export data` is gone | `exporter-died` | the whole budget | seconds, with the exception quoted |
 | **Alive, silent, producing nothing** — nothing writes anything anywhere | `no-output` | the whole budget | `sweepSilenceGrace` (5 min), then concluded |
+| **Finished and short** — every table that produced an event reached its expectation; the only short tables produced nothing at all | `settled` | the whole budget | `sweepSettleGrace` (60 s) after the last event anywhere, with the short tables named |
 | **Alive, still logging, still not finishing** | `timeout` | the full budget | the full budget — **deliberately unchanged** |
 | A batch poisoned by one wedged value | — | ~48 min, then **discarded entirely** | seconds, and the culprit is named |
 
@@ -861,6 +862,49 @@ real pipe the harness closes itself) or killing the whole process group — a ch
 shared framework code that every live test depends on, so it wants its own PR and a real
 run behind it.
 
+### The expectation has to match what voyager will actually send
+
+A streaming wait waits for a *number*, and the number used to assume every probe table
+emits six change events (insert, update-self, update-other, delete, null→value,
+value→null). A table whose column voyager's guardrail **excludes** never emits six: an
+update that touches only the excluded column changes nothing the exporter is publishing, so
+no event is produced for it *at all* — not an event with the column missing, no event. Such
+a table emits three (insert, update-other, delete).
+
+The consequence was a whole-budget wait for events that were never coming. In the `rerunA`
+runs, every batch containing an excluded probe — `batch_live_misc` (MISC-012 `timetz`),
+`batch_live_ranges` (RANGE-001…009), and both fall-back batches — spent `900.5s of 900s` on
+`forward streaming | timeout`, while the solo run of an unexcluded probe satisfied the same
+wait in `4.1s`. Every WORKS verdict in those batches then carried *"migration-report counts
+did not reach the expectation within the timeout"*, which described a stall that had not
+happened.
+
+Two rules fix it:
+
+1. **The expectation is per table, and knows about exclusion.** `changeExpectations` reads
+   the unsupported-columns block the exporter printed and uses
+   `expectedChangesExcluded()` — inserts, deletes, and updates of the *other* column — for
+   the tables named in it. The block is read **per direction**: the source-side
+   `export data` notice says nothing about what `export data from target` drops on the way
+   back, and in the `rerunA` fall-back runs the reverse direction really did send all six
+   events for the same tables. (This is why `fall-back streaming` was `counts-satisfied` in
+   `8.5s` in those runs while `forward streaming` timed out: the shortfall was one-directional.)
+2. **The settle rule**, for a shortfall the exclusion notice does not explain. If every
+   table that has produced any event has reached its expectation, and the remaining tables
+   have produced *nothing at all* for `sweepSettleGrace` (60 s) after the last event
+   anywhere, the wait ends as `settled` and names the short tables.
+
+The settle rule never shortens a wait for a genuine stall. A short table that **has**
+events is still waited out for the full budget — that is how the STUCK / SILENT_LOSS
+evidence is gathered — and a run in which nothing was produced anywhere is an ordinary
+stall, not a settle.
+
+A `settled` wait is not a timeout, and the verdict text says so: the sentence
+*"migration-report counts did not reach the expectation within the timeout"* is now
+reserved for `timeout`. The tables that reached their counts carry no wait note at all; the
+short ones carry `waitSettledShort`, keep `waitTimedOut` (they really were unmeasured), and
+classify exactly as a timed-out silent table does.
+
 ### Seeing the saving
 
 Every wait prints its own accounting line, so the next person can read the saving instead
@@ -871,6 +915,7 @@ PROBE-WAIT: ranges | LIVE | forward streaming | counts-satisfied | 31.9s of 900s
 PROBE-WAIT: json | LIVE | forward streaming | repeating-error | 2.0s of 900s | SQLSTATE 22P02: [import data] error executing batch on channel 3: ... repeated x5 with the observed counts frozen across 2 polls; concluded without waiting out the remaining 898s of the budget
 PROBE-WAIT: domains | LIVE | forward streaming | exporter-died | 0.0s of 900s | the export side is dead - Connector completed: success = 'false' - java.lang.NullPointerException: Cannot invoke "java.sql.Array.getArray()" ...; no event can arrive from a dead exporter, so the remaining 900s of the budget was not waited out
 PROBE-WAIT: catalogstats | LIVE | forward streaming | process-exited | 2.0s of 900s | import data is no longer running - it exited with: command failed: exit status 1; event counts cannot arrive from a process that has exited, so the remaining 898s of the budget was not waited out
+PROBE-WAIT: misc | LIVE | forward streaming | settled | 64.0s of 900s | every table that produced an event reached its expectation and no event arrived anywhere for 60s; still short, with no event at all: "sweep_schema"."p_misc_099"; the pipeline has nothing left to send, so the remaining 836s of the budget was not waited out
 PROBE-WAIT: geo | LIVE | forward streaming | timeout | 900.0s of 900s | budget exhausted with no repeating importer error in the log: a stall that logged nothing, which is an environment fact and not a datatype verdict
 ```
 
