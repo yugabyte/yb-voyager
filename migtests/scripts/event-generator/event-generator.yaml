@@ -60,3 +60,72 @@ generator:
 
   # Column min size in bytes (for text, json, jsonb, tsvector columns). Set to 0 to disable.
   min_col_size_bytes: 0
+
+  # ---------------------------------------------------------------------------
+  # Rate control (optional). Paces the aggregate events/sec the generator
+  # produces, where an event = one changed row (cursor.rowcount after each
+  # operation: an INSERT batch counts its rows, UPDATE/DELETE count whatever
+  # the sampling actually hit, a failed/rolled-back op counts 0).
+  #
+  # Nullability rules:
+  #   - rate_control omitted (default)      -> no pacing; the generator runs as
+  #     fast as the DB allows (today's behavior). wait_after_operations /
+  #     wait_duration_seconds above still apply.
+  #   - rate_control present, no schedule   -> steady rate at
+  #     default_events_per_second.
+  #   - rate_control present, with schedule -> baseline plus recurring spike
+  #     windows. When windows overlap, the max events_per_second wins.
+  #
+  # When this block is present, wait_after_operations / wait_duration_seconds
+  # above are IGNORED (a one-line warning is printed at startup), since they
+  # would fight the governor.
+  #
+  # Validation (fails fast at startup with a clear message):
+  #   - default_events_per_second must be > 0.
+  #   - Each schedule entry: events_per_second > 0, duration_seconds > 0,
+  #     every_seconds > 0, offset_seconds >= 0, 0 <= jitter_pct <= 50.
+  #   - offset_seconds + duration_seconds <= every_seconds, so a spike window
+  #     fits inside its period and does not bleed into the next.
+  #   - Unknown keys inside rate_control / schedule entries print a
+  #     non-fatal warning (typo guard).
+  #
+  # Anatomy of one period (every_seconds):
+  #
+  #   |<--------------------- every_seconds (30 min) --------------------->|
+  #   |<--- offset --->|<-- duration -->|<--------- recovery tail -------->|
+  #   |    (10 min)    |    (5 min)     |            (15 min)              |
+  #   +================+################+==================================+
+  #        baseline          SPIKE                   baseline
+  #   ^period start                                      ^next period start
+  #
+  # Repeating over the run   (░ = baseline, █ = spike):
+  #
+  #   t(min): 0        10   15            30   40   45            60
+  #           ░░░░░░░░░░█████░░░░░░░░░░░░░░░░░░░░█████░░░░░░░░░░░░░░░  ...
+  #           └─ period 1 (30m) ──────────────┘└─ period 2 (30m) ──┘
+  #
+  #   Gap between consecutive spikes = every_seconds − duration_seconds
+  #                                  = 1800 − 300 = 1500 s (25 min),
+  #   independent of offset (offset only sets the phase / first-spike delay).
+  #
+  # Sample below is the 24h fall-back (YB->PG) throughput-test config: a
+  # ~1.5k ev/s baseline with a 10k ev/s spike for 5 min every 30 min.
+  #
+  # rate_control:
+  #   # Baseline rate (events/sec) when no schedule entry is active.
+  #   # Required when this block is present. Must be > 0.
+  #   default_events_per_second: 1500
+  #   # Log achieved ev/s, current target, and cumulative event count every N
+  #   # seconds. Omit or set to 0 to disable reporting.
+  #   report_interval_seconds: 60
+  #   # Optional list of recurring spike windows layered on the baseline.
+  #   schedule:
+  #     - events_per_second: 10000  # spike target rate. Must be > 0.
+  #       duration_seconds: 300     # spike window length (s). Must be > 0.
+  #       every_seconds: 1800       # period between spikes (s). Must be > 0.
+  #       offset_seconds: 600       # delay before first spike each period (s);
+  #                                 # default 0. Sets the phase.
+  #       jitter_pct: 10            # +/-N% deterministic randomization (seeded
+  #                                 # by random_seed) of spike start time and
+  #                                 # rate; default 0, must be 0..50.
+  # ---------------------------------------------------------------------------

@@ -48,6 +48,105 @@ Notes:
 - Set `num_iterations: -1` to run indefinitely.
 - Seeds make runs reproducible. Omit to make runs non-deterministic.
 
+### Rate control
+An optional `rate_control` block under `generator:` (commented out by default in `event-generator.yaml`) paces the aggregate **events/second** the generator produces. An event is one changed row: `cursor.rowcount` read after each operation (an INSERT batch counts its rows; UPDATE/DELETE count whatever the sampling actually hit; a failed/rolled-back op counts 0).
+
+```yaml
+generator:
+  # ...
+  rate_control:
+    default_events_per_second: 1500   # baseline rate when no spike is active
+    report_interval_seconds: 60       # log achieved ev/s every N s (omit/0 = off)
+    schedule:                         # optional list of recurring spike windows
+      - events_per_second: 10000      # spike target rate
+        duration_seconds: 300         #   spike lasts 5 min
+        every_seconds: 1800           #   one spike per 30 min (the period)
+        offset_seconds: 600           #   first 10 min of each period stay at baseline
+        jitter_pct: 10                #   +/-10% randomization of spike start & rate (seeded)
+```
+
+Nullability:
+- Omitted (default): no pacing — the generator runs as fast as the DB allows, unchanged from today. `wait_after_operations`/`wait_duration_seconds` still apply.
+- Present, no `schedule`: steady rate at `default_events_per_second`.
+- Present, with `schedule`: baseline plus recurring spike windows; when windows overlap, the max rate wins.
+
+When `rate_control` is present, `wait_after_operations`/`wait_duration_seconds` are ignored (a one-line warning is printed at startup), since they would fight the governor.
+
+Validation runs at startup and fails fast with a clear message: `default_events_per_second > 0`; per schedule entry `events_per_second > 0`, `duration_seconds > 0`, `every_seconds > 0`, `offset_seconds >= 0`, `0 <= jitter_pct <= 50`; and `offset_seconds + duration_seconds <= every_seconds` so a spike window fits inside its period. Unknown keys print a non-fatal warning (typo guard) rather than failing.
+
+Example — the 24h fall-back (YB→PG) throughput test: a ~1.5k ev/s baseline with a 10k ev/s spike for 5 min every 30 min, a 10-min baseline lead-in each period, and ±10% jitter:
+```yaml
+rate_control:
+  default_events_per_second: 1500
+  report_interval_seconds: 60
+  schedule:
+    - events_per_second: 10000
+      duration_seconds: 300
+      every_seconds: 1800
+      offset_seconds: 600
+      jitter_pct: 10
+```
+Run with `num_iterations: -1` and e.g. `timeout 24h python3 generator.py -c event-generator.yaml`.
+
+### Parallel runs
+
+`generator.py` is single-process. For rates beyond what one process can push
+against the DB, `parallel_generator.py` wraps it: it launches N unmodified
+copies of `generator.py`, each pacing a slice of the total rate, and reports
+the combined throughput. `generator.py` itself is never changed.
+
+Add a top-level `parallel` block to a normal config (connection + generator,
+including a `rate_control` block whose rates are the **desired TOTAL across
+all workers**, not per-worker):
+```yaml
+parallel:
+  max_workers: 6              # hard cap on worker processes; if the peak target
+                              #   needs more, worker count is clamped here and the
+                              #   shortfall ("requested X, achievable ~Y") is logged
+  calibration_seconds: 30     # length of the one-shot uncapped probe that measures
+                              #   the per-worker throughput ceiling (bigger = steadier
+                              #   estimate, but delays the run start)
+  margin: 1.3                 # headroom factor: size workers for peak_target * margin
+                              #   so each worker sits below its ceiling and the governor
+                              #   throttles down rather than running flat-out
+  run_seconds: 1800           # total run duration after calibration; workers are
+                              #   stopped when this elapses (Ctrl+C also stops cleanly)
+  monitor_interval_seconds: 5 # how often the aggregate events/sec (summed across all
+                              #   workers via pg_stat_statements) is sampled and printed
+```
+
+How it derives the worker count:
+1. **Calibrate**: runs a single uncapped worker (no `rate_control`) for
+   `calibration_seconds`, measuring events/sec via `pg_stat_statements`
+   (`SUM(rows)` over insert/update/delete statements) to get a per-worker
+   throughput ceiling.
+2. **Derive**: takes the peak target -- the max of
+   `rate_control.default_events_per_second` and every `schedule` entry's
+   `events_per_second`, so a spike is servable -- and computes
+   `workers = ceil(peak * margin / per_worker_ceiling)`, clamped to
+   `max_workers`. If the clamp bites, it prints the requested vs. achievable
+   rate.
+3. **Spawn**: writes `workers` per-worker YAML configs (each with
+   `generator.random_seed`/`faker_seed` = base seed + worker index, and
+   `rate_control` rates divided by `workers`) to a temp directory and
+   launches one `generator.py -c <worker_i.yaml>` subprocess per config.
+4. **Monitor**: since `pg_stat_statements` counts DB-wide, the same
+   `SUM(rows)` query already aggregates every worker; it's sampled every
+   `monitor_interval_seconds` and printed as one combined events/sec figure.
+5. **Shutdown**: on `run_seconds` elapsed or Ctrl+C, all worker processes are
+   sent SIGTERM (then SIGKILL after a grace period), temp configs are
+   cleaned up, and a final summary (total events, mean aggregate ev/s,
+   workers used) is printed.
+
+Requires `pg_stat_statements` (`shared_preload_libraries = 'pg_stat_statements'`
+plus `CREATE EXTENSION pg_stat_statements;`) -- calibration and monitoring
+fail fast with a clear message if it's unavailable.
+
+Run with:
+```bash
+python3 parallel_generator.py -c event-generator.yaml
+```
+
 ### Run
 From the folder:
 ```bash
