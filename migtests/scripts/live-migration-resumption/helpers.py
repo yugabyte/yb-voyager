@@ -53,6 +53,9 @@ class Context:
         self.iteration_export_dir: str = self.export_dir_base
         self.archive_changes_policy: str | None = None
         self.prev_archive_file_count: int = 0
+        # Set by the `pick_random_custom_key` orchestrator action; consumed by
+        # `validate_picked_custom_key_conflicts`.
+        self.picked_custom_key: Dict[str, Any] | None = None
 
 
 def apply_effective_export_dir(ctx: Context) -> None:
