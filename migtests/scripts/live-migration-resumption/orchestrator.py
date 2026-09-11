@@ -254,17 +254,20 @@ def wait_for_action(stage: Dict[str, Any], ctx: Any) -> None:
 @action("cutover_to_target")
 def cutover_to_target_action(_stage, ctx: Any) -> None:
     H.initiate_cutover(ctx.cfg, ctx.env, "target")
+    ctx.pending_sequence_checks.add("target")
 
 
 @action("cutover_to_source")
 def cutover_to_source_action(_stage, ctx: Any) -> None:
     H.initiate_cutover(ctx.cfg, ctx.env, "source")
+    ctx.pending_sequence_checks.add("source")
 
 
 @action("cutover_to_source_replica")
 def cutover_to_source_replica_action(_stage, ctx: Any) -> None:
     """Initiate cutover back to the source-replica database."""
     H.initiate_cutover(ctx.cfg, ctx.env, "source-replica")
+    ctx.pending_sequence_checks.add("source_replica")
 
 
 @action("row_count_validations")
@@ -287,6 +290,13 @@ def row_hash_validations_action(stage: Dict[str, Any], ctx: Any) -> None:
         H.run_sql_file(ctx, sql_path, target=role, use_admin=False)
 
     H.run_segment_hash_validations(ctx, left_role, right_role)
+
+    # A cutover restores sequences; confirm an insert relying on a sequence default
+    # still works. Done here rather than in the cutover action because it adds a row
+    # on one side only, which would fail the hash above.
+    for role in sorted(ctx.pending_sequence_checks):
+        H.verify_sequence_restored(ctx, role)
+    ctx.pending_sequence_checks.clear()
 
 
 def _conflict_log_table_markers(table: str | None) -> list[str] | None:
