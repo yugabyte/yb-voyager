@@ -15,7 +15,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package cmd
+package importdata
 
 import (
 	"fmt"
@@ -28,7 +28,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -52,14 +51,14 @@ func getBatchErrorBaseFilePath(batchBaseFilePath string) string {
 
 func assertTableRowCount(t *testing.T, tableName string, expectedCount int64) {
 	var rowCount int64
-	err := tdb.QueryRow(fmt.Sprintf("SELECT count(*) FROM %s", tableName)).Scan(&rowCount)
+	err := testYugabyteDBTarget.TargetDB.QueryRow(fmt.Sprintf("SELECT count(*) FROM %s", tableName)).Scan(&rowCount)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedCount, rowCount, fmt.Sprintf("Expected row count for table %s to be %d", tableName, expectedCount))
 }
 
 func assertTableIds(t *testing.T, tableName string, expectedIds []int64) {
 	var ids []int64
-	rows, err := tdb.Query(fmt.Sprintf("SELECT id FROM %s", tableName))
+	rows, err := testYugabyteDBTarget.TargetDB.Query(fmt.Sprintf("SELECT id FROM %s", tableName))
 	require.NoError(t, err) // must halt here: a nil rows would panic in the defer below
 	defer rows.Close()
 
@@ -79,7 +78,7 @@ func assertBatchErrored(t *testing.T, batch *Batch, expectedRecordCount int64, e
 }
 
 func assertBatchErrorFileContents(t *testing.T, batch *Batch, lexportDir string, state *ImportDataState, task *ImportFileTask, rows string, expectedErrorSubstring string) {
-	taskFolderPath := fmt.Sprintf("file::%s:%s", filepath.Base(task.FilePath), importdata.ComputePathHash(task.FilePath))
+	taskFolderPath := fmt.Sprintf("file::%s:%s", filepath.Base(task.FilePath), ComputePathHash(task.FilePath))
 	tableFolderPath := fmt.Sprintf("table::%s", task.TableNameTup.ForKey())
 	batchErrorBaseFilePath := getBatchErrorBaseFilePath(filepath.Base(batch.GetFilePath()))
 	batchErrorFilePath := filepath.Join(getErrorsParentDir(lexportDir), "errors", tableFolderPath, taskFolderPath, batchErrorBaseFilePath)
@@ -94,7 +93,7 @@ func assertBatchErrorFileContents(t *testing.T, batch *Batch, lexportDir string,
 func TestBasicTaskImportStachAndContinueErrorPolicy(t *testing.T) {
 	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
+	scErrorHandler, err := GetImportDataErrorHandler(StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), testImporterRole)
 	testutils.FatalIfError(t, err)
 	// t.Cleanup(func() { cleanupExportDirDataDir(ldataDir, lexportDir) })
 
@@ -117,11 +116,11 @@ func TestBasicTaskImportStachAndContinueErrorPolicy(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_error", 1)
 	testutils.FatalIfError(t, err)
 
-	batchProducer, err := NewSequentialFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
+	batchProducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, scErrorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, scErrorHandler, nil)
+	taskImporter, err := NewFileTaskImporter(testImporterCfg, task, state, batchProducer, workerPool, progressReporter, nil, false, scErrorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	for !taskImporter.AllBatchesSubmitted() {
@@ -148,7 +147,7 @@ func TestBasicTaskImportStachAndContinueErrorPolicy(t *testing.T) {
 func TestTaskImportStachAndContinueErrorPolicy_NoErrors(t *testing.T) {
 	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
+	scErrorHandler, err := GetImportDataErrorHandler(StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), testImporterRole)
 	testutils.FatalIfError(t, err)
 	t.Cleanup(func() { cleanupExportDirDataDir(ldataDir, lexportDir) })
 
@@ -170,11 +169,11 @@ func TestTaskImportStachAndContinueErrorPolicy_NoErrors(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_error", 1)
 	testutils.FatalIfError(t, err)
 
-	batchProducer, err := NewSequentialFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
+	batchProducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, scErrorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, scErrorHandler, nil)
+	taskImporter, err := NewFileTaskImporter(testImporterCfg, task, state, batchProducer, workerPool, progressReporter, nil, false, scErrorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	for !taskImporter.AllBatchesSubmitted() {
@@ -194,7 +193,7 @@ func TestTaskImportStachAndContinueErrorPolicy_NoErrors(t *testing.T) {
 func TestTaskImportStachAndContinueErrorPolicy_SingleBatchWithError(t *testing.T) {
 	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
+	scErrorHandler, err := GetImportDataErrorHandler(StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), testImporterRole)
 	testutils.FatalIfError(t, err)
 	t.Cleanup(func() { cleanupExportDirDataDir(ldataDir, lexportDir) })
 
@@ -215,11 +214,11 @@ func TestTaskImportStachAndContinueErrorPolicy_SingleBatchWithError(t *testing.T
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_error", 1)
 	testutils.FatalIfError(t, err)
 
-	batchProducer, err := NewSequentialFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
+	batchProducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, scErrorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, scErrorHandler, nil)
+	taskImporter, err := NewFileTaskImporter(testImporterCfg, task, state, batchProducer, workerPool, progressReporter, nil, false, scErrorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	for !taskImporter.AllBatchesSubmitted() {
@@ -246,14 +245,14 @@ func TestTaskImportStachAndContinueErrorPolicy_SingleBatchWithError(t *testing.T
 func TestTaskImportStachAndContinueErrorPolicy_SingleBatch_OnPkConflictIgnore(t *testing.T) {
 	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
+	scErrorHandler, err := GetImportDataErrorHandler(StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), testImporterRole)
 	testutils.FatalIfError(t, err)
 	t.Cleanup(func() { cleanupExportDirDataDir(ldataDir, lexportDir) })
 
 	setupYugabyteTestDb(t)
-	tconf.OnPrimaryKeyConflictAction = constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE
+	testImporterCfg.Tconf.OnPrimaryKeyConflictAction = constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE
 	t.Cleanup(func() {
-		tconf.OnPrimaryKeyConflictAction = constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR_POLICY
+		testImporterCfg.Tconf.OnPrimaryKeyConflictAction = constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR_POLICY
 	})
 
 	defer testYugabyteDBTarget.Finalize()
@@ -272,11 +271,11 @@ func TestTaskImportStachAndContinueErrorPolicy_SingleBatch_OnPkConflictIgnore(t 
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_unique_error", 1)
 	testutils.FatalIfError(t, err)
 
-	batchProducer, err := NewSequentialFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
+	batchProducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, scErrorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, scErrorHandler, nil)
+	taskImporter, err := NewFileTaskImporter(testImporterCfg, task, state, batchProducer, workerPool, progressReporter, nil, false, scErrorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	for !taskImporter.AllBatchesSubmitted() {
@@ -308,7 +307,7 @@ func TestTaskImportStachAndContinueErrorPolicy_MultipleBatchesWithDifferentError
 	COPY_MAX_RETRY_COUNT = 1 // Disable retry for COPY command to test error handling
 	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
+	scErrorHandler, err := GetImportDataErrorHandler(StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), testImporterRole)
 	testutils.FatalIfError(t, err)
 	t.Cleanup(func() { cleanupExportDirDataDir(ldataDir, lexportDir) })
 
@@ -339,11 +338,11 @@ func TestTaskImportStachAndContinueErrorPolicy_MultipleBatchesWithDifferentError
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_error", 1)
 	testutils.FatalIfError(t, err)
 
-	batchProducer, err := NewSequentialFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
+	batchProducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, scErrorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, scErrorHandler, nil)
+	taskImporter, err := NewFileTaskImporter(testImporterCfg, task, state, batchProducer, workerPool, progressReporter, nil, false, scErrorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	for !taskImporter.AllBatchesSubmitted() {
@@ -394,7 +393,7 @@ func TestTaskImportStachAndContinueErrorPolicy_MultipleBatchesWithDifferentError
 func TestTaskImportStachAndContinueErrorPolicy_TaskResumptionAfterBatchError(t *testing.T) {
 	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
-	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), importerRole)
+	scErrorHandler, err := GetImportDataErrorHandler(StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir), testImporterRole)
 	testutils.FatalIfError(t, err)
 	t.Cleanup(func() { cleanupExportDirDataDir(ldataDir, lexportDir) })
 
@@ -418,11 +417,11 @@ func TestTaskImportStachAndContinueErrorPolicy_TaskResumptionAfterBatchError(t *
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_error", 1)
 	testutils.FatalIfError(t, err)
 
-	batchProducer, err := NewSequentialFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
+	batchProducer, err := NewSequentialFileBatchProducer(testProducerCfg, task, state, false, scErrorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, scErrorHandler, nil)
+	taskImporter, err := NewFileTaskImporter(testImporterCfg, task, state, batchProducer, workerPool, progressReporter, nil, false, scErrorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	// ingest first batch.
@@ -443,11 +442,11 @@ func TestTaskImportStachAndContinueErrorPolicy_TaskResumptionAfterBatchError(t *
 		`ERROR: duplicate key value violates unique constraint "test_table_error_pkey" (SQLSTATE 23505)`)
 
 	// simulate resumption
-	batchProducer, err = NewSequentialFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
+	batchProducer, err = NewSequentialFileBatchProducer(testProducerCfg, task, state, false, scErrorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 
 	workerPool = pool.New().WithMaxGoroutines(2)
-	taskImporter, err = NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, scErrorHandler, nil)
+	taskImporter, err = NewFileTaskImporter(testImporterCfg, task, state, batchProducer, workerPool, progressReporter, nil, false, scErrorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	// ingest second batch. This should not retry the first errored-out batch.
