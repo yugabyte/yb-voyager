@@ -9,6 +9,7 @@ import java.net.URISyntaxException;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -39,6 +40,8 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     private static final String SOURCE_DB_EXPORTER_ROLE = "source_db_exporter";
     private static final String TARGET_DB_EXPORTER_FF_ROLE = "target_db_exporter_ff";
     private static final String TARGET_DB_EXPORTER_FB_ROLE = "target_db_exporter_fb";
+    private static final int OFFSET_COMMIT_MAX_ATTEMPTS = 5;
+    private static final long OFFSET_COMMIT_RETRY_DELAY_MS = 1000;
     final Config config = ConfigProvider.getConfig();
     boolean ybGRPCConnectorEnabled;
     String snapshotMode;
@@ -369,13 +372,104 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         // update metaDB.
         // TODO: optimize by only marking the last event as processed.
         BytemanMarkers.cdc("before-offset-commit");
-        for (ChangeEvent<Object, Object> event : changeEvents) {
-            committer.markProcessed(event);
-        }
-        committer.markBatchFinished();
-        LOGGER.debug("Committed batch complete with {} records", changeEvents.size());
+        commitBatchOffsets(changeEvents, committer);
         handleSnapshotOnlyComplete();
         BytemanMarkers.cdc("after-batch");
+    }
+
+    /**
+     * Marks every event in the batch processed and flushes the offsets, retrying while a
+     * tablet split still has the replication stream closed.
+     *
+     * <p>Debezium runs two threads here. The producer reads WAL from the source over a single
+     * replication stream; the engine thread loops {@code pollRecords() -> handleBatch()} and so
+     * is the thread running this method. Both share that one stream object.
+     *
+     * <p>By this point {@code handleBatchComplete()} has written and fsynced the batch to the
+     * export queue, so only the offsets are left to deal with. {@code markProcessed()} records
+     * each event's position in memory. {@code markBatchFinished()} then persists the resume
+     * position to {@code data/offsets.<exporter-role>.dat}, which is what debezium reads on
+     * restart, and flushes the LSN to the source over the stream, telling it which WAL may be
+     * released.
+     *
+     * <p>A tablet split closes that shared stream. The producer's read fails with "Could not
+     * find the two split children", which debezium treats as retriable and recovers from by
+     * restarting the connector on the engine thread. The LSN flush above fails at the same
+     * moment with "This replication stream has been closed", and that is what this method
+     * retries.
+     *
+     * <p><b>NOTE on this implementation.</b> What a retry finds depends on how far the
+     * producer's teardown has got. While the stream reference is still set, {@code flushLsn()}
+     * throws again. Once it has been cleared, debezium's {@code commitOffset()} takes its other
+     * branch - logging "Streaming has already stopped, ignoring commit callback..." - and
+     * returns without flushing anything, so a retry that appears to succeed has usually just
+     * skipped the LSN. From there the engine thread restarts the connector with a fresh stream,
+     * the producer delivers the next batch, and that batch's offsets are committed normally
+     * against the new stream, so nothing is left outstanding. We could have swallowed the
+     * exception here ourselves instead; the retry is kept in case debezium ever changes that
+     * else branch into something that fails. The cost is that retrying holds up the restart:
+     * the engine thread cannot recreate the connection until this method returns, either
+     * because debezium skipped the flush or because the attempts ran out.
+     */
+    private void commitBatchOffsets(List<ChangeEvent<Object, Object>> changeEvents,
+            DebeziumEngine.RecordCommitter<ChangeEvent<Object, Object>> committer)
+            throws InterruptedException {
+        for (int attempt = 1; attempt <= OFFSET_COMMIT_MAX_ATTEMPTS; attempt++) {
+            try {
+                for (ChangeEvent<Object, Object> event : changeEvents) {
+                    committer.markProcessed(event);
+                }
+                committer.markBatchFinished();
+                LOGGER.debug("Committed batch complete with {} records", changeEvents.size());
+                return;
+            }
+            catch (RuntimeException e) {
+                // Only target-side exporters stream from YB, so only they can see a split;
+                // anywhere else, and for any other exception, this stays fatal.
+                if (!isTargetDbExporter() || !isReplicationStreamClosed(e)) {
+                    throw e;
+                }
+                if (attempt == OFFSET_COMMIT_MAX_ATTEMPTS) {
+                    LOGGER.error("Offset commit failed on all {} attempts; the replication stream "
+                            + "is still closed. The batch is durably written to the export queue, "
+                            + "but the offsets could not be committed.", OFFSET_COMMIT_MAX_ATTEMPTS, e);
+                    throw e;
+                }
+                LOGGER.warn("Offset commit failed (attempt {}/{}): the replication stream is closed "
+                        + "(typically a YB tablet split). Retrying in {} ms.",
+                        attempt, OFFSET_COMMIT_MAX_ATTEMPTS, OFFSET_COMMIT_RETRY_DELAY_MS, e);
+                Thread.sleep(OFFSET_COMMIT_RETRY_DELAY_MS);
+            }
+        }
+    }
+
+    /**
+     * True for the fall-back and fall-forward exporters, the only roles that stream from
+     * YugabyteDB and can therefore hit a tablet split.
+     */
+    private boolean isTargetDbExporter() {
+        return exporterRole.equals(TARGET_DB_EXPORTER_FB_ROLE)
+                || exporterRole.equals(TARGET_DB_EXPORTER_FF_ROLE);
+    }
+
+    /**
+     * True if any cause in the chain reports a closed replication stream, which debezium
+     * raises from V3PGReplicationStream.checkClose() during an offset flush. Matches on
+     * "replication stream" plus "closed" rather than debezium's exact sentence, so that
+     * rewording it in a future bump cannot silently re-break DB-20886.
+     */
+    private boolean isReplicationStreamClosed(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            String msg = t.getMessage();
+            if (msg == null) {
+                continue;
+            }
+            String lower = msg.toLowerCase(Locale.ROOT);
+            if (lower.contains("replication stream") && lower.contains("closed")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean checkIfEventNeedsToBeWritten(Record r) {
