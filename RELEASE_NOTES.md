@@ -2,6 +2,8 @@
 
 #### New features, key enhancements, and bug fixes
 
+For the latest release notes, refer to the [What's new in YugabyteDB Voyager](https://docs.yugabyte.com/preview/yugabyte-voyager/release-notes/) page in the official documentation.
+
 Included here are the release notes for the [YugabyteDB Voyager](https://docs.yugabyte.com/preview/migrate/) v1 release series. Content will be added as new notable features and changes are available in the patch releases of the YugabyteDB v1 series.
 
 ## v1.8.10 - January 28, 2025
