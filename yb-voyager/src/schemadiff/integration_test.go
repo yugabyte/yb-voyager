@@ -242,7 +242,7 @@ func TestDiff_EndToEnd(t *testing.T) {
 	// requiring exactly one retained finding (mirrors the skipped alias unit tests
 	// in filter_test.go / differ_test.go).
 	scopedByNew := schemadiff.FilterByScope(diffs, schemadiff.Scope{
-		IncludeTables: []schemasnapshot.ObjectRef{{Schema: driftSchema, Name: "purchases"}},
+		Tables: []schemasnapshot.ObjectRef{{Schema: driftSchema, Name: "purchases"}},
 	})
 	t.Logf("Scoped by new name 'purchases': %d findings", len(scopedByNew))
 
@@ -269,7 +269,7 @@ func TestDiff_EndToEnd(t *testing.T) {
 
 	// ── 12. Scope filtering: Tables=["diff_it.orders"] (old name) ──────────────
 	scopedByOld := schemadiff.FilterByScope(diffs, schemadiff.Scope{
-		IncludeTables: []schemasnapshot.ObjectRef{{Schema: driftSchema, Name: "orders"}},
+		Tables: []schemasnapshot.ObjectRef{{Schema: driftSchema, Name: "orders"}},
 	})
 	t.Logf("Scoped by old name 'orders': %d findings", len(scopedByOld))
 
