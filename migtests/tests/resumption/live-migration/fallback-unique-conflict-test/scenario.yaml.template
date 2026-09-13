@@ -218,6 +218,15 @@ stages:
   - name: cutover_to_target
     action: cutover_to_target
 
+  # wait_backlog_zero only proves the exporter wrote the cutover marker; the
+  # importer can still be far behind. Initiating cutover closes the final queue
+  # segment, so after it every segment (final included) gets marked imported --
+  # wait for that full drain here so the status check below stays fast.
+  - name: wait_importer_caught_up
+    action: wait_for
+    condition: forward_importer_caught_up
+    timeout_sec: 1800
+
   - name: wait_cutover_to_target_completed
     action: wait_for
     condition: cutover_to_target_status_completed
@@ -329,6 +338,12 @@ stages:
   # Phase 3: cutover back to source and validation
   - name: cutover_to_source
     action: cutover_to_source
+
+  # Same importer-drain wait as the forward leg, after cutover-to-source is initiated.
+  - name: wait_fallback_importer_caught_up
+    action: wait_for
+    condition: fallback_importer_caught_up
+    timeout_sec: 1800
 
   - name: wait_cutover_to_source_completed
     action: wait_for
