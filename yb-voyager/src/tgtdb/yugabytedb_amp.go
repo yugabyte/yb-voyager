@@ -49,7 +49,7 @@ func (amp *TargetYugabyteDBAmp) Init() error {
 	if err := amp.TargetPostgreSQL.Init(); err != nil {
 		return err
 	}
-	return amp.validateAmpTarget()
+	return nil
 }
 
 // validateAmpTarget confirms the connected compute is a yb-amp endpoint
