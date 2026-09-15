@@ -1501,7 +1501,7 @@ func (lm *LiveMigrationTest) GetDataMigrationReport() (*DataMigrationReport, err
 		if lm.sourceReplicaContainer != nil {
 			reportArgs = append(reportArgs, "--source-replica-db-password", lm.sourceReplicaContainer.GetConfig().Password)
 		}
-		err := testutils.NewVoyagerCommandRunner(nil, "get data-migration-report", reportArgs, nil, true).WithT(lm.t).Run()
+		err := testutils.NewVoyagerCommandRunner(nil, "get data-migration-report", reportArgs, nil, false).WithT(lm.t).Run()
 		if err != nil {
 			return nil, goerrors.Errorf("get data-migration-report command failed: %w", err)
 		}
