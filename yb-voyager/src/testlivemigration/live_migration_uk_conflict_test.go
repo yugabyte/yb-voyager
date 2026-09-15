@@ -3770,3 +3770,427 @@ func TestLiveMigrationCustomCdcPartitionKeyUniqueKeyConflictDetection(t *testing
 	err = lm.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
+
+// TestLiveMigrationWithCompositeNullsNotDistinctUniqueIndexConflictDetection pins that
+// conflict detection works for a MULTI-COLUMN UNIQUE ... NULLS NOT DISTINCT index at the
+// integration level (gap G5). The single-column NND path is covered by
+// TestLiveMigrationWithUniqueKeyConflictWithNullValuesDetectionCasesNULLSNOTDISTINCT; composite
+// NND tuples (mixed value/NULL, and the all-NULL sentinel bucket) previously existed only in
+// conflict-cache unit tests.
+//
+// The unique key is (part_a, part_b) NULLS NOT DISTINCT with part_b held NULL throughout, so
+// every indexed tuple is of the form (X, NULL) or (NULL, NULL) — exactly the mixed value/NULL
+// and all-NULL composite sentinel buckets. part_a is cycled value<->NULL across two PKs (i-1, i)
+// so the same composite tuple is freed on one row and reclaimed on another with a different PK;
+// under partition-by-PK those two events hash to different channels and must be serialized by
+// conflict detection. Because part_b is a constant NULL, uniqueness reduces to part_a under NND,
+// so this delta is valid on the source for the same reason the single-column NND delta is.
+func TestLiveMigrationWithCompositeNullsNotDistinctUniqueIndexConflictDetection(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_composite_nnd_conflict",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_composite_nnd_conflict",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.test_live_composite_nnd (
+				id int PRIMARY KEY,
+				name TEXT,
+				part_a int,
+				part_b int
+			);
+			-- composite NULLS NOT DISTINCT: (X, NULL) collides with (Y, NULL) iff X = Y,
+			-- and (NULL, NULL) collides with (NULL, NULL) -- the all-NULL sentinel bucket.
+			CREATE UNIQUE INDEX idx_composite_nnd ON test_schema.test_live_composite_nnd (part_a, part_b) NULLS NOT DISTINCT;`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.test_live_composite_nnd REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			// tuples (i, NULL) -- distinct because part_a differs even though part_b is NULL.
+			`INSERT INTO test_schema.test_live_composite_nnd (id, name, part_a, part_b)
+SELECT i, md5(random()::text), i, NULL FROM generate_series(1, 20) as i;`,
+		},
+		SourceDeltaSQL: []string{
+			// Per iteration (I=3, U=6, D=2): free and reclaim the composite tuple across PKs
+			// i-1 and i, cycling part_a through value<->NULL so both (X, NULL) and the
+			// (NULL, NULL) sentinel bucket are exercised on the before-before path.
+			`DO $$
+		DECLARE
+			i INTEGER;
+		BEGIN
+			FOR i IN 21..520 LOOP
+				UPDATE test_schema.test_live_composite_nnd SET part_a = NULL WHERE id = i - 1;
+				INSERT INTO test_schema.test_live_composite_nnd(id, name, part_a, part_b) VALUES (i, md5(random()::text), i-1, NULL);
+
+				UPDATE test_schema.test_live_composite_nnd SET part_a = i WHERE id = i - 1;
+				UPDATE test_schema.test_live_composite_nnd SET part_a = NULL WHERE id = i;
+
+				DELETE FROM test_schema.test_live_composite_nnd WHERE id = i-1;
+				UPDATE test_schema.test_live_composite_nnd SET part_a = i-1 WHERE id = i;
+
+				UPDATE test_schema.test_live_composite_nnd SET part_a = NULL WHERE id = i;
+
+				DELETE FROM test_schema.test_live_composite_nnd WHERE id = i;
+				INSERT INTO test_schema.test_live_composite_nnd(id, name, part_a, part_b) VALUES (i-1, md5(random()::text), NULL, NULL);
+
+				UPDATE test_schema.test_live_composite_nnd SET part_a = i-1 WHERE id = i - 1;
+				INSERT INTO test_schema.test_live_composite_nnd(id, name, part_a, part_b) VALUES (i, md5(random()::text), i, NULL);
+			END LOOP;
+		END $$;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+	)
+	uniqueKeyConflictStatsPath := filepath.Join(
+		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
+
+	err = lm.StartImportDataWithEnv(true, nil, []string{uniqueKeyConflictCountFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_live_composite_nnd"`: 20,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live_composite_nnd"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live_composite_nnd"`: {
+			Inserts: 1500,
+			Updates: 3000,
+			Deletes: 1000,
+		},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	require.False(t, lm.GetImportRunner().IsStopped(),
+		"import should keep running during count failpoint mode")
+
+	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
+	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
+	require.Greater(t, conflictStats.Total, 0, "composite NND delta should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live_composite_nnd"`], 0,
+		"test_live_composite_nnd should produce UK conflicts")
+	// Upper bound, counted from the delta: under NULLS NOT DISTINCT the composite index buckets
+	// include NULL components, so all 6 updates + 2 deletes per iteration have indexable
+	// before-images and in the worst case each is caught by a later different-PK incoming (the
+	// trailing update of iteration i can pair with the first update of iteration i+1). A cached
+	// event pairs with at most one incoming event => at most 8 pairs per iteration x 500 = 4000.
+	require.LessOrEqual(t, conflictStats.Total, 4000,
+		"conflict pairs cannot exceed 8 cached update+delete events per iteration x 500")
+	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live_composite_nnd"`], 4000,
+		"test_live_composite_nnd conflict pairs cannot exceed 8 per iteration x 500")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live_composite_nnd"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
+// TestLiveMigrationWithNullsNotDistinctPartialUniqueIndexConflictDetection pins that conflict
+// detection works for a UNIQUE ... NULLS NOT DISTINCT index that ALSO carries a partial
+// predicate (gap G5). The default NULLS DISTINCT partial-index path is covered by
+// TestLiveMigrationWithUniqueKeyConflictWithNullValueAndPartialPredicatesDetectionCases; the
+// NND + partial-predicate combination -- which exercises the NULL sentinel on the before-before
+// path while a WHERE predicate is applied -- had no test at any level.
+//
+// The index is (check_id) NULLS NOT DISTINCT WHERE most_recent. The churned rows are kept
+// most_recent = true so the partial predicate always admits them, and check_id is cycled
+// value<->NULL across two PKs so two most_recent=true rows momentarily share check_id=NULL --
+// a genuine NND NULL-sentinel collision on a partial index. The initial data also loads decoy
+// rows with most_recent = false and duplicate NULL check_id values: these are accepted only
+// because the partial predicate excludes them from the index (an NND index would otherwise
+// reject duplicate NULLs), which is the deterministic proof that the partial predicate is in
+// effect. The snapshot count (30) asserts those decoys loaded.
+func TestLiveMigrationWithNullsNotDistinctPartialUniqueIndexConflictDetection(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_nnd_partial_conflict",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_nnd_partial_conflict",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.test_live_nnd_partial (
+				id int PRIMARY KEY,
+				name TEXT,
+				check_id int,
+				most_recent boolean
+			);
+			-- NULLS NOT DISTINCT + partial predicate: only most_recent rows are indexed, and
+			-- among them two NULL check_id values collide (the NULL sentinel on a partial index).
+			CREATE UNIQUE INDEX idx_nnd_partial ON test_schema.test_live_nnd_partial (check_id) NULLS NOT DISTINCT WHERE most_recent;`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.test_live_nnd_partial REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			// Indexed rows: most_recent = true, distinct check_id.
+			`INSERT INTO test_schema.test_live_nnd_partial (id, name, check_id, most_recent)
+SELECT i, md5(random()::text), i, true FROM generate_series(1, 20) as i;`,
+			// Decoy rows: most_recent = false with duplicate NULL check_id. These load only
+			// because the partial predicate excludes them from the NND index -- proof the
+			// predicate is applied. They are never touched by the delta.
+			`INSERT INTO test_schema.test_live_nnd_partial (id, name, check_id, most_recent)
+SELECT i, md5(random()::text), NULL, false FROM generate_series(1001, 1010) as i;`,
+		},
+		SourceDeltaSQL: []string{
+			// Per iteration (I=3, U=6, D=2): churned rows i-1 and i are always most_recent=true
+			// (predicate satisfied), and check_id is cycled value<->NULL so the same key -- including
+			// the NULL sentinel -- is freed on one PK and reclaimed on another. Validity mirrors the
+			// single-column NND delta: uniqueness among most_recent rows reduces to check_id.
+			`DO $$
+		DECLARE
+			i INTEGER;
+		BEGIN
+			FOR i IN 21..520 LOOP
+				UPDATE test_schema.test_live_nnd_partial SET check_id = NULL WHERE id = i - 1;
+				INSERT INTO test_schema.test_live_nnd_partial(id, name, check_id, most_recent) VALUES (i, md5(random()::text), i-1, true);
+
+				UPDATE test_schema.test_live_nnd_partial SET check_id = i WHERE id = i - 1;
+				UPDATE test_schema.test_live_nnd_partial SET check_id = NULL WHERE id = i;
+
+				DELETE FROM test_schema.test_live_nnd_partial WHERE id = i-1;
+				UPDATE test_schema.test_live_nnd_partial SET check_id = i-1 WHERE id = i;
+
+				UPDATE test_schema.test_live_nnd_partial SET check_id = NULL WHERE id = i;
+
+				DELETE FROM test_schema.test_live_nnd_partial WHERE id = i;
+				INSERT INTO test_schema.test_live_nnd_partial(id, name, check_id, most_recent) VALUES (i-1, md5(random()::text), NULL, true);
+
+				UPDATE test_schema.test_live_nnd_partial SET check_id = i-1 WHERE id = i - 1;
+				INSERT INTO test_schema.test_live_nnd_partial(id, name, check_id, most_recent) VALUES (i, md5(random()::text), i, true);
+			END LOOP;
+		END $$;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+	)
+	uniqueKeyConflictStatsPath := filepath.Join(
+		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
+
+	err = lm.StartImportDataWithEnv(true, nil, []string{uniqueKeyConflictCountFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	// Snapshot count 30 = 20 indexed rows + 10 most_recent=false decoys with duplicate NULL
+	// check_id; the decoys loading proves the partial predicate excludes them from the NND index.
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_live_nnd_partial"`: 30,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live_nnd_partial"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live_nnd_partial"`: {
+			Inserts: 1500,
+			Updates: 3000,
+			Deletes: 1000,
+		},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	require.False(t, lm.GetImportRunner().IsStopped(),
+		"import should keep running during count failpoint mode")
+
+	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
+	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
+	require.Greater(t, conflictStats.Total, 0, "NND partial delta should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live_nnd_partial"`], 0,
+		"test_live_nnd_partial should produce UK conflicts")
+	// Upper bound, counted from the delta: the churned rows are always most_recent=true, so under
+	// NULLS NOT DISTINCT all 6 updates + 2 deletes per iteration have indexable before-images and
+	// in the worst case each is caught by a later different-PK incoming (the trailing update of
+	// iteration i can pair with the first update of iteration i+1). A cached event pairs with at
+	// most one incoming event => at most 8 pairs per iteration x 500 = 4000.
+	require.LessOrEqual(t, conflictStats.Total, 4000,
+		"conflict pairs cannot exceed 8 cached update+delete events per iteration x 500")
+	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live_nnd_partial"`], 4000,
+		"test_live_nnd_partial conflict pairs cannot exceed 8 per iteration x 500")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live_nnd_partial"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
+// TestLiveMigrationExpressionUniqueIndexCollisionWithTablePartitioning pins that an ACTUAL
+// expression-unique-index collision (free/reclaim of lower(email) across different PKs) is
+// applied correctly under table routing (gap G3). The guardrail tests
+// (RejectsPkOnExpressionUniqueIndex / RejectsCustomOnExpressionUniqueIndex) only prove the
+// remedy is enforced and that the table is accepted with non-colliding inserts; none drives a
+// real expression collision. Here the collision is genuine: under partition-by-PK the delete
+// and the reclaiming insert would hash to different channels and race, but with
+// --cdc-partition-key table every users event serializes on one channel, so the target applies
+// them in commit order. The invariant: table routing suppresses the race structurally, so ZERO
+// conflicts are detected and the data stays consistent.
+func TestLiveMigrationExpressionUniqueIndexCollisionWithTablePartitioning(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_expr_uk_table_partitioning",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_expr_uk_table_partitioning",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.users (
+				id int PRIMARY KEY,
+				email TEXT
+			);
+			CREATE UNIQUE INDEX users_lower_email_uidx ON test_schema.users (lower(email));`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.users REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.users (id, email)
+SELECT i, 'user_' || i || '@example.com' FROM generate_series(1, 20) as i;`,
+		},
+		SourceDeltaSQL: []string{
+			// Per iteration (I=1, D=1): delete the row currently holding lower(email)='shared@x.com'
+			// and insert a new row (different PK) that reclaims the same lowercased value, alternating
+			// the source-side casing so the collision is on the expression, not the raw string. Only
+			// one row ever holds the shared value at a time on the source, so the delta is valid.
+			`DO $$
+		DECLARE
+			i INTEGER;
+		BEGIN
+			FOR i IN 21..520 LOOP
+				DELETE FROM test_schema.users WHERE id = i - 1;
+				INSERT INTO test_schema.users(id, email)
+				VALUES (i, CASE WHEN i % 2 = 0 THEN 'shared@x.com' ELSE 'SHARED@X.COM' END);
+			END LOOP;
+		END $$;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+	)
+	uniqueKeyConflictStatsPath := filepath.Join(
+		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
+
+	// Global table routing: every users event goes to one channel, so no conflict detection runs.
+	err = lm.StartImportDataWithEnv(true, map[string]string{
+		"--cdc-partition-key": "table",
+	}, []string{uniqueKeyConflictCountFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."users"`: 20,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."users"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	// Per iteration: I=1, D=1 across 500 iterations => 500 inserts, 500 deletes, 0 updates.
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."users"`: {
+			Inserts: 500,
+			Updates: 0,
+			Deletes: 500,
+		},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	// Table routing serializes the whole table on one channel, so conflict detection never runs
+	// and the stats file is never written.
+	conflicts, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
+	if err != nil && !os.IsNotExist(err) {
+		testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
+	}
+	require.Nil(t, conflicts, "table routing must suppress the expression-UK race: no conflicts expected")
+
+	// The genuine collision still applies correctly because events are ordered on one channel.
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."users"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
