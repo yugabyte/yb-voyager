@@ -52,6 +52,7 @@ section.plain{border-top:none;padding-top:0}
 .pill{display:inline-block;font-size:.66rem;font-weight:600;padding:.18em .5em;border-radius:3px;white-space:nowrap}
 .v-works{background:var(--ok-bg);color:var(--ok)}
 .v-drop{background:var(--warn-bg);color:var(--warn)}
+.v-told{background:var(--accent-soft);color:var(--accent)}
 .v-imp,.v-exp,.v-wrong{background:var(--crit-bg);color:var(--crit)}
 .v-reject{background:var(--mute-bg);color:var(--mute);border:1px solid var(--rule-strong)}
 .v-disc{background:transparent;color:var(--warn);border:1px dashed var(--warn)}
@@ -83,6 +84,7 @@ th{text-align:left;font-size:.62rem;font-weight:600;letter-spacing:.07em;text-tr
 td{padding:7px 12px;border-bottom:1px solid var(--rule);vertical-align:top}
 td.t{font-family:"IBM Plex Mono",monospace;font-size:.79rem;white-space:nowrap}
 .pid{font-family:"IBM Plex Mono",monospace;font-size:.68rem;color:var(--ink-3);margin-left:7px}
+.xmark{font-size:.7rem;color:var(--warn);margin-left:6px;cursor:help;border-bottom:1px dotted var(--warn)}
 td.g{font-size:.8rem;color:var(--ink-2)}
 td.e{font-size:.78rem;color:var(--ink-3);min-width:260px}
 tbody tr:hover td{background:var(--band)}
@@ -110,9 +112,9 @@ footer{border-top:1px solid var(--rule);padding-top:20px;font-size:.83rem;color:
 
 <section class="plain">
   <dl class="runcard">
-    <div><dt>Voyager</dt><dd>main @ b41ffe81</dd></div>
-    <div><dt>Source</dt><dd>PostgreSQL 17.8</dd></div>
-    <div><dt>Target</dt><dd>YugabyteDB 2026.1</dd></div>
+    <div><dt>Voyager commit</dt><dd>__VOYAGER_COMMIT__</dd></div>
+    <div><dt>Source</dt><dd>PostgreSQL __PG_VERSION__</dd></div>
+    <div><dt>Target</dt><dd>YugabyteDB __YB_VERSION__</dd></div>
     <div><dt>Types covered</dt><dd>__NTYPES__</dd></div>
     <div><dt>Generated</dt><dd>__GENERATED__</dd></div>
   </dl>
@@ -154,22 +156,24 @@ footer{border-top:1px solid var(--rule);padding-top:20px;font-size:.83rem;color:
   <h2>Every type</h2>
 
   <h3 style="margin-top:0">What happened to the data</h3>
-  <p class="note" style="margin:0 0 10px">Seven outcomes. Each one means we ran the migration and watched what this type did. Each names the process that fails, because “it broke” does not tell you who to page.</p>
+  <p class="note" style="margin:0 0 10px">Nine outcomes. Each one means we ran the migration and watched what this type did. Each names the process that fails, because “it broke” does not tell you who to page.</p>
   <div class="legend">
     <div><span class="pill v-works">Works</span><span>Arrives correct. What was checked depends on the mode: offline only checks the one-time snapshot copy; live and fall-back also check an insert, an update, a delete, and setting the value to NULL and back — all streamed to the other side and matched.</span></div>
-    <div><span class="pill v-drop">Column dropped</span><span>The column is left out of every change event on purpose. You get one warning line and a question that <code>--yes</code> answers for you. The first copy still holds the old values, so the column looks populated while quietly going out of date.</span></div>
+    <div><span class="pill v-drop">Column dropped</span><span>The column is left out of every change event, and no warning is printed anywhere the user would see it. The first copy still holds the old values, so the column looks populated while quietly going out of date.</span></div>
+    <div><span class="pill v-told">Column dropped, you were asked</span><span>The column is left out of every change event, same as above — but this time voyager printed the exclusion notice and asked before continuing (or <code>--yes</code> answered for you). The documented, intended behaviour for a type on the exclusion list.</span></div>
     <div><span class="pill v-wrong">Wrong value</span><span>A different value arrives. Nothing is logged.</span></div>
     <div><span class="pill v-wrong">Data lost</span><span>The value never arrives. Nothing is logged.</span></div>
     <div><span class="pill v-imp">Import stops</span><span>The importer hit a SQL error on this type and exited. The error and SQLSTATE are shown. The migration halts and does not resume on its own.</span></div>
     <div><span class="pill v-exp">Export crashes</span><span><code>export data</code> dies, usually before any row moves. It says only that export failed and to check the logs — no table, no column, no type.</span></div>
     <div><span class="pill v-reject">Target rejects type</span><span>YugabyteDB will not create a column of this type at all, so nothing can migrate. A finding, not a gap.</span></div>
     <div><span class="pill v-reject">Source rejects value</span><span>PostgreSQL accepts the column but refuses every literal we can write into it. Nothing exists to migrate.</span></div>
+    <div><span class="pill v-reject">Column cannot exist</span><span>The probe could not be set up at all, for a reason that is neither of the two above. Rare; the detail names the reason.</span></div>
   </div>
 
   <h3>What we could not find out</h3>
   <p class="note" style="margin:0 0 10px">Four labels, and every one is about the <em>measurement</em>, never about the type. None of them is a verdict, and none should be read as one.</p>
   <div class="legend">
-    <div><span class="pill v-none">Not reachable</span><span><strong>Probed.</strong> This type stops the forward migration, so this mode never became available for it. Look at the live column for the actual failure. For fall-back specifically, this also covers the case where the live import for this type had already failed before cutover — fall-back can only run after a successful cutover, so it was never reached. Either way, this is itself the finding for fall-back: the safety net is missing exactly where you would need it.</span></div>
+    <div><span class="pill v-none">Not reachable</span><span><strong>Probed.</strong> This type stops an earlier mode, so this mode never became available for it. Look at the live column for the actual failure. For fall-back specifically, this always means the return trip never started for this type — fall-back only runs after a successful cutover, and either the live import for this type failed first, or the migration never got that type to cutover at all. Either way, this is itself the finding for fall-back: the safety net is missing exactly where you would need it.</span></div>
     <div><span class="pill v-disc">Not measured</span><span><strong>Probed.</strong> Another datatype sharing the same run broke the migration first, so nothing seen here can be pinned on this type. We know because the known-good control types in that run were cut short too. Needs a re-run on its own.</span></div>
     <div><span class="pill v-incon">No result</span><span><strong>Probed.</strong> The run timed out before any change for this type was seen. Nothing can be claimed either way.</span></div>
     <div><span class="pill v-none">Not run</span><span>The only label that means untested. This combination of type and mode has not been attempted.</span></div>
@@ -246,16 +250,9 @@ footer{border-top:1px solid var(--rule);padding-top:20px;font-size:.83rem;color:
   </div>
 
   <h3>How much is actually measured</h3>
-  <p>223 types across three modes is 669 cells. 506 of them carry a measured outcome. The rest are listed here rather than quietly rounded up.</p>
-  <table class="cov">
-    <thead><tr><th>Mode</th><th>Measured</th><th>What is missing</th></tr></thead>
-    <tbody>
-      <tr><td>Offline</td><td><strong>223 of 223</strong></td><td>Nothing.</td></tr>
-      <tr><td>Live</td><td><strong>190 of 223</strong></td><td>29 wrapper probes (domains, arrays and composites over broken types) were added last and have offline results only; 2 never run (<code>box3d</code>, <code>topology.topogeometry</code>); 2 gave no result because the exporter crashed before reaching them (<code>hstore</code> holding a NULL, and a domain over an enum — both crashes are themselves findings, listed above).</td></tr>
-      <tr><td>Fall-back</td><td><strong>93 of 223</strong></td><td>37 not reachable because the type stops the forward migration; 48 spoiled by another type sharing the run and needing a solo re-run; 44 never run (29 of them the new wrapper probes); 1 no result.</td></tr>
-    </tbody>
-  </table>
-  <p class="note">Fall-back is the weak column and the report does not pretend otherwise. It is the most expensive mode to run — every probe needs a full forward migration, a cutover and a reverse stream — and a single type that wedges the importer takes its whole batch down with it before cutover. That is why 49 cells say <em>Not measured</em>: those runs need re-running one type at a time.</p>
+  <p>Computed straight from this corpus — the same classification the table above uses, so this can never drift out of sync with it.</p>
+  __COVERAGE_TABLE__
+  <p class="note">Fall-back is the weak column and the report does not pretend otherwise. It is the most expensive mode to run — every probe needs a full forward migration, a cutover and a reverse stream — and a single type that jams the importer takes its whole batch down with it before cutover. That is why the "Not measured" column above is not zero: those runs need re-running one type at a time.</p>
 
   <h3>Not attempted at all, and why</h3>
   <ul>
@@ -269,7 +266,7 @@ footer{border-top:1px solid var(--rule);padding-top:20px;font-size:.83rem;color:
 </section>
 
 <footer>
-  <p>yb-voyager <code>main</code> @ <code>b41ffe81</code> · PostgreSQL 17.8 → YugabyteDB 2026.1.0.0-b118 · generated from the sweep's results CSV · suite on branch <code>shivansh/datatype-sweep-harness</code>.</p>
+  <p>__PROVENANCE_LINE__ · generated from the sweep's results CSV · suite on branch <code>shivansh/datatype-sweep-harness</code>.</p>
 </footer>
 
 </div>
@@ -367,6 +364,14 @@ function render() {
           const pid = document.createElement('span');
           pid.className = 'pid'; pid.textContent = r.p;
           td.appendChild(pid);
+        }
+        // Rule (7): a probe excluded from shared batch runs by design gets a
+        // small marker here, with the reason as its tooltip.
+        if (r.xr) {
+          const xm = document.createElement('span');
+          xm.className = 'xmark'; xm.textContent = '(excluded from batch runs)';
+          xm.title = r.xr;
+          td.appendChild(xm);
         }
       }
       else if (c.type === 'ev') { td.className = 'e'; td.textContent = r.e || ''; }

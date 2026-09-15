@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Build the published Datatype Survival Map from the sweep's own output.
 
-    python3 build_page.py report-rows.json out.html page_template.html
+    python3 build_page.py report-rows.json out.html page_template.html \
+        [all.csv] [excluded.csv] [fall-back-skip.txt]
 
 The page is a VIEW over report-rows.json. Two rules hold absolutely:
 
@@ -28,8 +29,26 @@ never established:
      says the whole thing.
 
 So: gate first, then the type's own result, and every note is a sentence.
+
+Three optional trailing arguments extend what the page can say, without
+changing the required three-argument call:
+
+  * `all.csv`       - the flat per-run results. Only its distinct
+                       `voyager_commit` values are used here, to say when the
+                       corpus was stitched together from more than one run.
+  * `excluded.csv`   - probes left out of shared batch runs by design
+                       (`probe_id,mode,reason`). Used to mark a type's name
+                       with why it never ran alongside the others.
+  * a SKIP file       - lines of the shape
+                       `SKIP <id> FALL-BACK :: not reachable, live import died
+                       (<verdict>, <sqlstate>)`, one per probe whose fall-back
+                       leg was never attempted because live already failed.
+                       Most such probes already say so in their own evidence
+                       (`cutover ... did not complete`); this file catches the
+                       remainder, which carry no evidence at all
+                       (`verdict: NOT_TESTED`).
 """
-import json, sys, html, datetime, re
+import json, sys, html, datetime, re, csv
 
 # ---------------------------------------------------------------------------
 # THE VOCABULARY
@@ -45,6 +64,7 @@ import json, sys, html, datetime, re
 T1 = {
     "WORKS":            ("Works",             "v-works"),
     "QUIET_DROP":       ("Column dropped",    "v-drop"),
+    "EXCLUDED_TOLD":    ("Column dropped, you were asked", "v-told"),
     "SILENT_WRONG":     ("Wrong value",       "v-wrong"),
     "SILENT_LOSS":      ("Data lost",         "v-wrong"),
     "BLOCKS":           ("Import stops",      "v-imp"),
@@ -69,6 +89,40 @@ SQLSTATE = {
 FAILED = {"BLOCKS", "STUCK", "IMPORTER_STOPS", "EXPORTER_CRASHES"}
 MODE_NAME = {"offline": "offline", "live": "live", "fall_back": "fall-back",
              "fall_forward": "fall-forward"}
+TIER2_LABELS = {"Not reachable", "Not measured", "No result", "Not run"}
+
+# The fixed tooltip for a fall-back cell that was never attempted because its
+# own live leg had already failed. Rule (1) in the page spec: this applies
+# whether we know that from a `SKIP ... FALL-BACK` line (no measurement at
+# all was ever recorded) or because the LIVE cell itself reads "Import stops"
+# / "Export crashes".
+NOT_REACHABLE_LIVE_NOTE = (
+    "Fall-back was not run: the live import for this type fails first, so "
+    "there is nothing to fall back from."
+)
+
+# The operation tags the harness writes inside `[...]` in a value-comparison
+# detail, turned into plain English. Anything not listed falls back to a
+# generic un-jargoned rendering (see humanize_op).
+OP_LABELS = {
+    "update-this-column":  "an update to this column",
+    "update-other-column": "an update to a different column in the same row",
+    "NULL->value":         "changing the value from NULL to a value",
+    "value->NULL":         "changing the value to NULL",
+    "insert":              "an insert",
+    "delete":              "a delete",
+}
+
+# `[op] id=N source="X" destination="Y"` - the one place a per-cell value pair
+# is recorded against a specific operation and row. This is the ONLY source
+# used for a Wrong value / Data lost tooltip's source/target pair; the flat
+# `source_value` / `target_value` fields (on this cell, or in all.csv) are
+# deliberately never read for this, because for a fall-back row they hold the
+# value AFTER the operation on the return trip, not the before/after pair the
+# reader needs to see.
+OPVAL_RE = re.compile(
+    r'\[([A-Za-z0-9_.>-]+)\]\s+id=(\d+)\s+source="([^"]*)"\s+destination="([^"]*)"'
+)
 
 
 def strip_note(ev):
@@ -76,9 +130,51 @@ def strip_note(ev):
     return re.sub(r"\s+", " ", re.sub(r"\[[^\]]*\]", "", ev or "")).strip()
 
 
-def is_cutover_abort(ev):
-    e = (ev or "").lower()
-    return "cutover" in e and "not complete" in e
+def humanize_op(op):
+    if op in OP_LABELS:
+        return OP_LABELS[op]
+    return op.replace("->", " to ").replace("_", " ").replace("-", " ")
+
+
+def fmt_value(v):
+    return f'"{v}"' if v != "" else "an empty string"
+
+
+# ---------------------------------------------------------------------------
+# Shortening long hex payloads and file paths in tooltip text. A short hex
+# span (a handful of bytes) IS the finding - e.g. a cursor name that arrived
+# as `\x6f746865725f637572736f72` - and stays untouched. A long one (a whole
+# serialized statistics object, hundreds of hex digits) is not itself
+# readable and only clutters the tooltip, so past a threshold it is
+# collapsed to its first few digits plus a byte count.
+# ---------------------------------------------------------------------------
+_HEX_RE = re.compile(r'(\\x|0x)([0-9a-fA-F]+)')
+_PATH_RE = re.compile(r'(?:/[\w.\-]+){3,}')
+
+
+def shorten_hex(text, threshold=32, keep=12):
+    def repl(m):
+        prefix, digits = m.groups()
+        if len(digits) <= threshold:
+            return m.group(0)
+        return f"{prefix}{digits[:keep]}…({len(digits)} hex digits)"
+    return _HEX_RE.sub(repl, text or "")
+
+
+def shorten_paths(text, threshold=40):
+    def repl(m):
+        s = m.group(0)
+        if len(s) <= threshold:
+            return s
+        parts = [p for p in s.split("/") if p]
+        return "/" + parts[0] + "/…/" + parts[-1]
+    return _PATH_RE.sub(repl, text or "")
+
+
+def shorten(text):
+    """Apply both shortenings. Safe to call on any tooltip text - a no-op
+    when there is nothing long enough to collapse."""
+    return shorten_paths(shorten_hex(text or ""))
 
 
 def sqlstate_of(ev):
@@ -86,7 +182,27 @@ def sqlstate_of(ev):
     return m.group(1).upper() if m else ""
 
 
-def explain(mode_key, verdict, ev, src, dst, import_error=""):
+def is_cutover_abort(ev):
+    e = (ev or "").lower()
+    return "cutover" in e and "not complete" in e
+
+
+def forward_leg_failure_detail(ev):
+    """Rule (3): a detail of the shape `fall-back not reached: forward leg
+    failed (...)` means fall-back is unreachable for a reason that is fully
+    explained by the forward leg's own failure - never a claim about the
+    return trip. Returns the parenthesised forward detail (possibly empty),
+    or None if the phrase is not present at all."""
+    e = strip_note(ev)
+    m = re.search(r"not reached:\s*forward leg failed\s*\((.*)\)\s*$", e, re.IGNORECASE)
+    if m:
+        return m.group(1).strip()
+    if re.search(r"not reached:\s*forward leg failed", e, re.IGNORECASE):
+        return ""
+    return None
+
+
+def explain(mode_key, verdict, ev, import_error=""):
     """One plain sentence saying what was observed. No log lines, no jargon."""
     e = strip_note(ev).lower()
     where = MODE_NAME.get(mode_key, mode_key)
@@ -108,7 +224,15 @@ def explain(mode_key, verdict, ev, src, dst, import_error=""):
                     "correctly.")
         return "The value arrived unchanged."
 
+    if verdict == "EXCLUDED_TOLD":
+        return ("The column was left out of the change stream and voyager asked before "
+                "continuing (or --yes answered for you).")
+
     if verdict == "QUIET_DROP":
+        if "no value can be lost" in e:
+            return ("This type accepts only NULL in PostgreSQL 17.8. The column never "
+                    "appears in the change stream, so nothing can be lost, but a real "
+                    "value could not be tested.")
         return ("The column is left out of every change event, so later updates to it "
                 "never reach the target. Nothing is logged as an error. The first copy "
                 "still carries the old values, so the column looks populated while "
@@ -117,10 +241,19 @@ def explain(mode_key, verdict, ev, src, dst, import_error=""):
     if verdict in ("SILENT_WRONG", "SILENT_LOSS"):
         lead = ("A different value arrived." if verdict == "SILENT_WRONG"
                 else "The value never arrived.")
-        pair = ""
-        if src or dst:
-            pair = f" The source held {src or 'a value'}; the target ended up with {dst or 'nothing'}."
-        return lead + pair + " No error was printed anywhere."
+        m = OPVAL_RE.search(ev or "")
+        if m:
+            op, rowid, src, dst = m.groups()
+            sentence = f" The operation was {humanize_op(op)} (row {rowid})"
+            if "target->source" in (ev or ""):
+                sentence += ", measured in the reverse direction (YugabyteDB back to PostgreSQL)"
+            sentence += f": source {fmt_value(src)}, target {fmt_value(dst)}."
+            return shorten(lead + sentence + " No error was printed anywhere.")
+        if "absent" in e and "column" in e:
+            return (lead + " The column never appeared in the change stream at all, so "
+                    "there was no value to compare side by side. No error was printed "
+                    "anywhere.")
+        return lead + " No error was printed anywhere."
 
     if verdict in FAILED:
         code = sqlstate_of(ev)
@@ -138,9 +271,18 @@ def explain(mode_key, verdict, ev, src, dst, import_error=""):
             base += f" The target reported SQLSTATE {code}."
         else:
             base += " The error and SQLSTATE are shown below."
-        if import_error:
-            base += f" Error: {import_error}"
-        return base
+        # The full `ERROR: ... (SQLSTATE xxxxx)` line, wherever it can be found -
+        # the classified import_error field first, falling back to the same span
+        # inside the evidence itself - with any long hex payload or file path
+        # collapsed so the tooltip stays readable.
+        line = import_error or ""
+        if not line:
+            m = re.search(r"ERROR:.*?\(SQLSTATE\s+[0-9A-Za-z]{5}\)", ev or "")
+            if m:
+                line = m.group(0)
+        if line:
+            base += f" Error: {line}"
+        return shorten(base)
 
     if verdict == "INCONCLUSIVE":
         if "exporter died" in e:
@@ -150,6 +292,20 @@ def explain(mode_key, verdict, ev, src, dst, import_error=""):
                 "be claimed either way.")
 
     return strip_note(ev) or "No detail was recorded."
+
+
+# The catalog's own batch names are written for the harness author, not a
+# reader of the page, and one of them ("poison") is exactly the jargon word
+# rule (9) bans. Group names are otherwise shown verbatim (as a filter value,
+# a group header and a table column), so this is the one place to relabel
+# them in plain language.
+GROUP_LABELS = {
+    "poison": "known crash cases",
+}
+
+
+def plain_group(g):
+    return GROUP_LABELS.get(g, g)
 
 
 def skipped_cell(ev):
@@ -170,39 +326,59 @@ def skipped_cell(ev):
         return ("Source rejects value", "v-reject",
                 "PostgreSQL itself refuses every literal we could write for this type, so "
                 "there is no value to migrate. The column can exist; it cannot be filled.")
-    return ("Column cannot exist", "v-reject", strip_note(ev))
+    return ("Column cannot exist", "v-reject",
+            "The probe could not be set up at all, for a reason that does not fit the "
+            "usual two shapes above. " + (strip_note(ev) or "No detail was recorded."))
 
 
-def cell(mode_key, mode, live_verdict, live_ok):
+def cell(mode_key, mode, live_verdict, live_ok, probe_id="", fallback_skip_ids=None):
     """One mode's cell: (label, css, note).
 
     Order is load-bearing and must not be rearranged:
-      1. Nothing recorded            -> Not run.
+      1. Nothing recorded            -> Not run, unless this is a FALL-BACK
+                                         cell that we independently know was
+                                         never reachable (a SKIP line, or the
+                                         LIVE cell already failed) -> Not
+                                         reachable instead.
       2. Column could not exist      -> a setup-time fact, true regardless of the gate.
-      3. Cutover never finished      -> NEVER a claim about the type, ALWAYS "Not
+      3. Forward leg failed so badly that fall-back/fall-forward never got a
+         return leg to measure          -> Not reachable, never a claim about
+                                            the type.
+      4. Cutover never finished      -> NEVER a claim about the type, ALWAYS "Not
                                          reachable" for fall-back (see below — it does
                                          not matter what the live cell says).
-      4. Run's controls died         -> not attributable to this type.
-      5. Only now, the type's own measured result.
-    Putting 3 or 5 before 4 is exactly the bug that published 87 spoiled runs
+      5. Run's controls died         -> not attributable to this type.
+      6. Only now, the type's own measured result.
+    Putting 4 or 6 before 5 is exactly the bug that published 87 spoiled runs
     as findings.
     """
-    if not isinstance(mode, dict) or not (mode.get("verdict") or "").strip():
+    fallback_skip_ids = fallback_skip_ids or set()
+    v = (mode.get("verdict") or "").upper() if isinstance(mode, dict) else ""
+
+    if not isinstance(mode, dict) or v in ("", "NOT_TESTED"):
+        if mode_key == "fall_back":
+            live_already_failed = live_verdict in FAILED  # STUCK/BLOCKS/IMPORTER_STOPS/EXPORTER_CRASHES
+            if probe_id in fallback_skip_ids or live_already_failed:
+                return ("Not reachable", "v-none", NOT_REACHABLE_LIVE_NOTE)
         return ("Not run", "v-none",
                 "This combination of type and migration mode has not been attempted yet.")
 
-    v = (mode.get("verdict") or "").upper()
     ev = mode.get("evidence") or ""
     ok = (mode.get("run_status") or "OK").upper() in ("", "OK", "ATTRIBUTED", "POISON")
-    src, dst = mode.get("source_value") or "", mode.get("target_value") or ""
     import_error = mode.get("import_error") or ""
-
-    if v == "NOT_TESTED":
-        return ("Not run", "v-none",
-                "This combination of type and migration mode has not been attempted yet.")
 
     if v == "SKIPPED":
         return skipped_cell(ev)
+
+    # A forward leg that failed badly enough that cutover, and therefore the
+    # return trip, never happened. The forward failure fully explains why
+    # this mode has nothing of its own to report.
+    fwd = forward_leg_failure_detail(ev)
+    if fwd is not None:
+        note = NOT_REACHABLE_LIVE_NOTE
+        if fwd:
+            note += f" The forward leg's own failure: {shorten(fwd)}."
+        return ("Not reachable", "v-none", note)
 
     # Fall-back only exists after a successful cutover. If cutover never finished, the
     # return trip never started for THIS type — full stop. Earlier this only said "Not
@@ -227,16 +403,17 @@ def cell(mode_key, mode, live_verdict, live_ok):
                 "in the same run failed too, which is how we know. Needs a re-run on its own.")
 
     if v == "INCONCLUSIVE":
-        return ("No result", "v-incon", explain(mode_key, v, ev, src, dst, import_error))
+        return ("No result", "v-incon", explain(mode_key, v, ev, import_error))
 
     label, css = T1.get(v, (v.replace("_", " ").capitalize(), "v-none"))
-    return (label, css, explain(mode_key, v, ev, src, dst, import_error))
+    return (label, css, explain(mode_key, v, ev, import_error))
 
 
 # How bad each label is, worst first. Used only to choose which of the three
 # modes the one-line summary column describes.
 SEVERITY = ["Data lost", "Wrong value", "Export crashes", "Import stops",
-            "Column dropped", "Target rejects type", "Source rejects value",
+            "Column dropped", "Column dropped, you were asked",
+            "Target rejects type", "Source rejects value",
             "Works", "Not reachable", "No result", "Not measured", "Not run"]
 
 
@@ -251,9 +428,160 @@ def summary_note(*cells):
     return ranked[0][2] if ranked else ""
 
 
-def main(src, dst, tmpl):
-    data = json.load(open(src))
+# ---------------------------------------------------------------------------
+# Optional inputs
+# ---------------------------------------------------------------------------
+
+_SKIP_RE = re.compile(r'^SKIP\s+(\S+)\s+FALL-BACK\s+::\s*not reachable', re.IGNORECASE)
+
+
+def load_fallback_skip_ids(path):
+    """Parse a `SKIP <id> FALL-BACK :: not reachable, ...` file into the set
+    of probe ids it names. Any line not matching that shape is ignored -
+    this file is a log, not a strict format."""
+    ids = set()
+    if not path:
+        return ids
+    with open(path) as f:
+        for line in f:
+            m = _SKIP_RE.match(line.strip())
+            if m:
+                ids.add(m.group(1))
+    return ids
+
+
+def humanize_exclusion_reason(reason):
+    """excluded.csv's reason column is written for the harness's own author,
+    not a reader of the page - it says "POISON" and assumes familiarity with
+    the batching model. Say the same thing in plain terms."""
+    r = re.sub(r"(?i)^\s*POISON:\s*", "", reason or "").strip()
+    r = re.sub(r"(?i)deterministic BLOCKS in LIVE",
+                "it reliably makes the importer stop during live migration", r)
+    r = re.sub(r"(?i)Must be run solo\.?",
+                "It is tested on its own, not in a shared batch.", r)
+    return shorten(r)
+
+
+def load_excluded_reasons(path):
+    """probe_id -> plain-language reason(s) it is excluded from shared batch
+    runs. A probe can appear once per mode in the file; reasons are usually
+    identical across modes, so duplicates are folded together."""
+    reasons = {}
+    if not path:
+        return reasons
+    with open(path, newline="") as f:
+        for row in csv.DictReader(f):
+            pid = row.get("probe_id") or ""
+            reason = humanize_exclusion_reason(row.get("reason") or "")
+            if not pid or not reason:
+                continue
+            seen = reasons.setdefault(pid, [])
+            if reason not in seen:
+                seen.append(reason)
+    return {pid: " / ".join(rs) for pid, rs in reasons.items()}
+
+
+def load_commits_from_csv(path):
+    commits = []
+    if not path:
+        return commits
+    with open(path, newline="") as f:
+        for row in csv.DictReader(f):
+            c = row.get("voyager_commit") or ""
+            if c and c not in commits:
+                commits.append(c)
+    return commits
+
+
+# ---------------------------------------------------------------------------
+# Coverage: how many cells, per mode, carry each kind of outcome. Replaces
+# any hand-typed count of measured/unreachable/untested cells - this is
+# computed straight from the same `cell()` classification the table uses, so
+# the two can never drift apart.
+# ---------------------------------------------------------------------------
+
+COVERAGE_MODES = [("offline", "Offline"), ("live", "Live"),
+                   ("fall_back", "Fall-back"), ("fall_forward", "Fall-forward")]
+
+
+def build_coverage(rows, fallback_skip_ids):
+    cov = {mk: {"trusted": 0, "not_reachable": 0, "not_run": 0,
+                "no_result": 0, "not_measured": 0, "total": 0}
+           for mk, _ in COVERAGE_MODES}
+    for r in rows:
+        if (r.get("group") or "") == "controls":
+            continue
+        lv = ((r.get("live") or {}).get("verdict") or "").upper()
+        lok = ((r.get("live") or {}).get("run_status") or "OK").upper() in ("", "OK", "ATTRIBUTED", "POISON")
+        pid = r.get("probe_id") or ""
+        for mk, _ in COVERAGE_MODES:
+            label, _, _ = cell(mk, r.get(mk), lv, lok, pid, fallback_skip_ids)
+            bucket = {"Not reachable": "not_reachable", "Not run": "not_run",
+                      "No result": "no_result", "Not measured": "not_measured"}.get(label, "trusted")
+            cov[mk][bucket] += 1
+            cov[mk]["total"] += 1
+    return cov
+
+
+def render_coverage_html(cov, ntypes):
+    rows_html = []
+    grand = {"trusted": 0, "not_reachable": 0, "not_run": 0, "no_result": 0,
+             "not_measured": 0, "total": 0}
+    for mk, label in COVERAGE_MODES:
+        c = cov[mk]
+        for k in grand:
+            grand[k] += c[k]
+        rows_html.append(
+            "<tr><td>{label}</td><td><strong>{trusted}</strong></td>"
+            "<td>{not_reachable}</td><td>{not_run}</td><td>{no_result}</td>"
+            "<td>{not_measured}</td><td>{total}</td></tr>".format(label=html.escape(label), **c)
+        )
+    table = (
+        '<table class="cov">'
+        "<thead><tr><th>Mode</th><th>Trusted verdict</th><th>Not reachable</th>"
+        "<th>Not run</th><th>No result</th><th>Not measured</th><th>Cells</th></tr></thead>"
+        "<tbody>" + "".join(rows_html) +
+        "<tr><td><strong>All modes</strong></td><td><strong>{trusted}</strong></td>"
+        "<td>{not_reachable}</td><td>{not_run}</td><td>{no_result}</td>"
+        "<td>{not_measured}</td><td><strong>{total}</strong></td></tr>"
+        "</tbody></table>".format(**grand)
+    )
+    prose = (
+        f"<p class=\"note\">{ntypes} types across {len(COVERAGE_MODES)} modes is "
+        f"{grand['total']} cells. {grand['trusted']} of them carry a trusted, "
+        f"measured verdict. {grand['not_reachable']} are marked not reachable "
+        f"(an earlier mode for that type already failed), {grand['not_run']} were "
+        f"never attempted, {grand['no_result']} timed out with nothing to report, and "
+        f"{grand['not_measured']} were spoiled by another type breaking the same run "
+        f"and still need a solo re-run.</p>"
+    )
+    return table + prose
+
+
+def format_provenance(header_commit, csv_commits, pg_version, yb_version):
+    commits = []
+    if header_commit:
+        commits.append(header_commit)
+    for c in csv_commits:
+        if c not in commits:
+            commits.append(c)
+    if not commits:
+        commit_str = "unknown"
+    elif len(commits) == 1:
+        commit_str = commits[0]
+    else:
+        commit_str = commits[0] + " (plus earlier runs at " + ", ".join(commits[1:]) + ")"
+    return commit_str, pg_version or "unknown", yb_version or "unknown"
+
+
+def main(src, dst, tmpl, all_csv=None, excluded_csv=None, fallback_skip_file=None):
+    with open(src) as f:
+        data = json.load(f)
     rows = data.get("rows", []) if isinstance(data, dict) else data
+
+    fallback_skip_ids = load_fallback_skip_ids(fallback_skip_file)
+    excluded_reasons = load_excluded_reasons(excluded_csv)
+    csv_commits = load_commits_from_csv(all_csv)
 
     out, counts, controls = [], {}, []
     for r in rows:
@@ -267,17 +595,18 @@ def main(src, dst, tmpl):
                                  "v": (m.get("verdict") or "").upper()})
             continue
 
+        pid = r.get("probe_id") or ""
         lv = ((r.get("live") or {}).get("verdict") or "").upper()
         lok = ((r.get("live") or {}).get("run_status") or "OK").upper() in ("", "OK", "ATTRIBUTED", "POISON")
 
-        o = cell("offline",   r.get("offline"),   lv, lok)
-        l = cell("live",      r.get("live"),      lv, lok)
-        f = cell("fall_back", r.get("fall_back"), lv, lok)
+        o = cell("offline",   r.get("offline"),   lv, lok, pid, fallback_skip_ids)
+        l = cell("live",      r.get("live"),      lv, lok, pid, fallback_skip_ids)
+        f = cell("fall_back", r.get("fall_back"), lv, lok, pid, fallback_skip_ids)
 
         out.append({
             "t": r.get("type_name", r.get("probe_id", "?")),
-            "p": r.get("probe_id") or "",
-            "g": r.get("group", "other"),
+            "p": pid,
+            "g": plain_group(r.get("group", "other")),
             "k": r.get("kind", ""),
             "o": [o[0], o[1]], "l": [l[0], l[1]], "f": [f[0], f[1]],
             "a":  r.get("reported_by_assess") or "No",
@@ -292,6 +621,9 @@ def main(src, dst, tmpl):
             # mode that exercises the most machinery rather than the snapshot-only one.
             "e":  summary_note(l, f, o),
             "eo": o[2], "el": l[2], "ef": f[2],
+            # Rule (7): a probe excluded from shared batch runs by design gets a
+            # marker next to its name, with the reason in the marker's tooltip.
+            "xr": excluded_reasons.get(pid, ""),
         })
         for lbl in (o[0], l[0], f[0]):
             counts[lbl] = counts.get(lbl, 0) + 1
@@ -303,13 +635,30 @@ def main(src, dst, tmpl):
                  f"one fails, that run is discarded rather than reported — which is why "
                  f"some cells below read <em>Not measured</em>.")
 
-    page = open(tmpl).read()
+    header_commit = data.get("voyager_commit") if isinstance(data, dict) else None
+    pg_version = data.get("pg_version") if isinstance(data, dict) else None
+    yb_version = data.get("yb_version") if isinstance(data, dict) else None
+    commit_str, pg_str, yb_str = format_provenance(header_commit, csv_commits, pg_version, yb_version)
+
+    cov = build_coverage(rows, fallback_skip_ids)
+    coverage_html = render_coverage_html(cov, len(out))
+
+    with open(tmpl) as f:
+        page = f.read()
     page = page.replace("/*__ROWS__*/[]", json.dumps(out, ensure_ascii=False))
     page = page.replace("__CONTROLCHECK__", ctrl_line)
     page = page.replace("__GENERATED__",
                         datetime.datetime.now(datetime.timezone.utc).strftime("%d %B %Y"))
     page = page.replace("__NTYPES__", str(len(out)))
-    open(dst, "w").write(page)
+    page = page.replace("__VOYAGER_COMMIT__", html.escape(commit_str))
+    page = page.replace("__PG_VERSION__", html.escape(pg_str))
+    page = page.replace("__YB_VERSION__", html.escape(yb_str))
+    page = page.replace("__COVERAGE_TABLE__", coverage_html)
+    page = page.replace("__PROVENANCE_LINE__",
+                        html.escape(f"yb-voyager {commit_str} · PostgreSQL {pg_str} "
+                                    f"→ YugabyteDB {yb_str}"))
+    with open(dst, "w") as f:
+        f.write(page)
 
     print(f"wrote {dst}: {len(out)} type rows ({len(controls)} control checks kept out of the table)")
     for k, v in sorted(counts.items(), key=lambda x: -x[1]):
@@ -317,4 +666,12 @@ def main(src, dst, tmpl):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2], sys.argv[3])
+    args = sys.argv[1:]
+    if len(args) < 3:
+        sys.exit("usage: build_page.py rows.json out.html page_template.html "
+                  "[all.csv] [excluded.csv] [fallback-skip.txt]")
+    src, dst, tmpl = args[0], args[1], args[2]
+    all_csv = args[3] if len(args) > 3 else None
+    excluded_csv = args[4] if len(args) > 4 else None
+    fallback_skip_file = args[5] if len(args) > 5 else None
+    main(src, dst, tmpl, all_csv, excluded_csv, fallback_skip_file)
