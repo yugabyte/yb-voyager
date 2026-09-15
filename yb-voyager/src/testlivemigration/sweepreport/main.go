@@ -113,6 +113,8 @@ func cmdCollect(args []string) error {
 		"RUN-META line, else the first timestamp found in the log body, else the run-<stamp>.log filename, else "+
 		"the file's mtime, else the moment collect ran)")
 	failOnInvalid := fs.Bool("fail-on-invalid", false, "exit non-zero if any run failed its control gate")
+	excludedOut := fs.String("excluded-out", "", "CSV to write the PROBE-RUN-EXCLUDED lines to "+
+		"(probe_id,mode,reason): probes the harness keeps out of batch runs by design and measures solo")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -169,6 +171,7 @@ func cmdCollect(args []string) error {
 	// below (dedupe, via its trust-ranked preference) lets a good run's row win over a bad
 	// run's row for the same probe.
 	var allRows []Row
+	var allExcluded []ExcludedProbe
 	for _, p := range paths {
 		rc, err := openLog(p)
 		if err != nil {
@@ -183,11 +186,12 @@ func cmdCollect(args []string) error {
 			return fmt.Errorf("reading %s: %w", p, err)
 		}
 		fileMeta := deriveRunMeta(p, content, meta)
-		fileRows, err := ParseLog(bytes.NewReader(content), fileMeta, categoryFor)
+		fileRows, fileExcluded, err := ParseLogEx(bytes.NewReader(content), fileMeta, categoryFor)
 		if err != nil {
 			return fmt.Errorf("parsing %s: %w", p, err)
 		}
 		allRows = append(allRows, fileRows...)
+		allExcluded = append(allExcluded, fileExcluded...)
 	}
 	rows := dedupe(allRows)
 	if len(rows) == 0 {
@@ -206,6 +210,13 @@ func cmdCollect(args []string) error {
 		if err := WriteJSON(*jsonOut, rows); err != nil {
 			return err
 		}
+	}
+	if *excludedOut != "" {
+		excluded := dedupeExcluded(allExcluded)
+		if err := WriteExcludedCSV(*excludedOut, excluded); err != nil {
+			return err
+		}
+		fmt.Printf("wrote %d excluded probe(s) to %s\n", len(excluded), *excludedOut)
 	}
 
 	bad := 0

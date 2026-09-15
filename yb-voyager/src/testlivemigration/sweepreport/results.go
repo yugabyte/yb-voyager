@@ -25,9 +25,16 @@ The sweep harness prints exactly one line per probe to stdout
 
 plus per-run gate lines
 
-	PROBE-RUN-INVALID: <batch> | <mode> | ...
-	PROBE-RUN-FLAKE:   <batch> | <mode> | ...
-	PROBE-RUN-POISON:  <batch> | <mode> | ...
+	PROBE-RUN-INVALID:     <batch> | <mode> | ...   a known-good control did not pass
+	PROBE-RUN-FLAKE:       <batch> | <mode> | ...   the run produced no measurement
+	PROBE-RUN-POISON:      <batch> | <mode> | ...   poison-isolation run, control gate N/A
+	PROBE-RUN-QUARANTINE:  <batch> | <mode> | <id> killed import data ...
+	PROBE-RUN-EXPORT-DIED: <batch> | <mode> | ...   the exporter died; nothing behind it ran
+	PROBE-RUN-EXCLUDED:    <batch> | <mode> | <id> excluded from this batch: ...
+
+A run's name on those lines is the harness's batch name ("values", or "solo_dom_005" for a
+PROBE_ID run), which is NOT printed on a solo run's "=== RUN" line - see the solo-run key
+repair in ParseLog.
 
 and, for the one verdict that survives its own run's gate failure,
 
@@ -230,8 +237,26 @@ type RunMeta struct {
 var (
 	// PROBE-RESULT: <id> | <type> | <mode> | <verdict> | <detail>
 	probeResultRe = regexp.MustCompile(`PROBE-RESULT:\s*(.*)$`)
-	// PROBE-RUN-INVALID / -FLAKE / -POISON: <batch> | <mode> | <reason>
-	probeRunRe = regexp.MustCompile(`PROBE-RUN-(INVALID|FLAKE|POISON):\s*([^|]*)\|([^|]*)\|`)
+	// PROBE-RUN-INVALID / -FLAKE / -POISON / -QUARANTINE / -EXCLUDED / -EXPORT-DIED:
+	//   <batch> | <mode> | <reason>
+	// All six kinds are parsed. The last three used to be ignored, which threw away the
+	// harness's strongest "this run is contaminated" signals:
+	//   QUARANTINE names the one probe that killed the run - everything else in it is
+	//              collateral,
+	//   EXPORT-DIED says the exporter died, so nothing behind it was measured at all,
+	//   EXCLUDED   is informational: a probe the harness deliberately kept out of this
+	//              batch (it is run solo instead). It marks no row - see excludedRe.
+	probeRunRe = regexp.MustCompile(`PROBE-RUN-(INVALID|FLAKE|POISON|QUARANTINE|EXCLUDED|EXPORT-DIED):\s*([^|]*)\|([^|]*)\|(.*)$`)
+	// PROBE-WAIT: <batch> | <mode> | <phase> | ... - only its batch field is used here,
+	// as one of the two places a SOLO run's batch name ("solo_dom_005") is printed. The
+	// "=== RUN" line of a solo run carries no batch at all, so without this the run's own
+	// gate markers, which are keyed by that name, can never be matched to its rows.
+	probeWaitRe = regexp.MustCompile(`PROBE-WAIT:\s*([^|]*)\|`)
+	// The leading "<PROBE-ID> (<type>)" of a QUARANTINE / EXCLUDED reason field.
+	markerProbeRe = regexp.MustCompile(`^([A-Z][A-Z0-9]*-[0-9]+)\b`)
+	// "<id> (<type>) excluded from this batch: <reason>; run it with PROBE_ID=..." - the
+	// reason worth reporting is the middle part.
+	excludedReasonRe = regexp.MustCompile(`excluded from this batch:\s*(.*?)(?:;\s*run it with\b.*)?$`)
 	// === RUN   TestDatatypeSweepLive/ranges  -- gives us the batch (category) of the
 	// probe lines that follow. The sweep never calls t.Parallel(), so subtests do not
 	// interleave and "most recent RUN line wins" is exact.
@@ -251,8 +276,16 @@ var (
 	// FALLBACK, kept so logs from before the PROBE-VALUES line still yield values.
 	verbatimRe = regexp.MustCompile(`id=\d+ source=(NULL|<row absent>|"(?:[^"]*)") destination=(NULL|<row absent>|"(?:[^"]*)")`)
 	// A PostgreSQL SQLSTATE as it appears in an importer error, e.g. "(0A000)" or
-	// "SQLSTATE 22P02". Five characters, digits and upper-case letters, first a digit.
-	sqlStateRe = regexp.MustCompile(`(?:SQLSTATE:?\s*|\()([0-9][0-9A-Z]{4})\b`)
+	// "SQLSTATE 22P02". Five characters of digits and upper-case letters.
+	//
+	// Two alternatives, because the first character is NOT always a digit: XX000
+	// (internal error), P0001 (raise), HV000 (FDW), F0000 (config file) are all real and
+	// all were invisible to the old digit-initial pattern - DOM-020 and IDXKEY-008 quote
+	// "SQLSTATE XX000" verbatim and still came out with an empty column. The full
+	// character set is only accepted after the word SQLSTATE; a BARE parenthesised token
+	// still has to start with a digit, or every "(FALSE)" in a detail string would be read
+	// as a SQLSTATE.
+	sqlStateRe = regexp.MustCompile(`SQLSTATE:?\s*\(?([0-9A-Z]{2}[0-9A-Z]{3})\b|\(([0-9][0-9A-Z]{4})\b`)
 
 	// importErrorLineRe pulls a classified importer error with a quotable SQLSTATE out of
 	// a plain log line, e.g.
@@ -261,7 +294,10 @@ var (
 	// PROBE-RESULT detail often describes a COMPARISON outcome ("row missing on
 	// destination"), not the import error that produced it, so the SQLSTATE has to be
 	// lifted from elsewhere in the log.
-	importErrorLineRe = regexp.MustCompile(`(ERROR:.*\(SQLSTATE\s*([0-9][0-9A-Z]{4})\))`)
+	// The SQLSTATE here has the same non-digit-initial problem as sqlStateRe: an
+	// "... (SQLSTATE XX000)" line was no candidate at all, so the lift had nothing to
+	// find even when the log quoted the error plainly.
+	importErrorLineRe = regexp.MustCompile(`(ERROR:.*\(SQLSTATE\s*([0-9A-Z]{2}[0-9A-Z]{3})\))`)
 
 	// importErrNoiseRe recognizes importer errors that are harness/metadata bookkeeping
 	// rather than a statement about the datatype under test. The common one is
@@ -285,18 +321,77 @@ var (
 		`(?i)container setup failed|insufficient disk space|manifest for .*? not found|no space left on device`)
 )
 
+// Marker kinds printed by the harness on its PROBE-RUN-* lines.
+const (
+	markInvalid    = "INVALID"
+	markFlake      = "FLAKE"
+	markPoison     = "POISON"
+	markQuarantine = "QUARANTINE"
+	markExcluded   = "EXCLUDED"
+	markExportDied = "EXPORT-DIED"
+)
+
+// ExcludedProbe is one PROBE-RUN-EXCLUDED line: a probe the harness deliberately kept out
+// of a batch run (it is measured solo instead). It marks no row and produces no result, so
+// it never reaches the results CSV; `collect -excluded-out` writes it separately so the
+// report page can say "excluded from batch runs by design" rather than leaving a silent
+// hole where a batch measurement would be.
+type ExcludedProbe struct {
+	ProbeID string `json:"probe_id"`
+	Mode    string `json:"mode"`
+	Reason  string `json:"reason"`
+}
+
+// runMarkers is what the harness's own PROBE-RUN-* lines said about ONE run.
+type runMarkers struct {
+	kinds   map[string]bool // INVALID / FLAKE / POISON / QUARANTINE / EXPORT-DIED
+	culprit string          // the probe a QUARANTINE line blamed for killing the run
+}
+
+func (m *runMarkers) add(kind string) {
+	if m.kinds == nil {
+		m.kinds = map[string]bool{}
+	}
+	m.kinds[kind] = true
+}
+
+// soloBatchName is the batch name the harness gives a solo run of one probe:
+// DOM-005 -> solo_dom_005. Used to reconstruct the key of a run whose "=== RUN" line does
+// not print it.
+func soloBatchName(probeID string) string {
+	return "solo_" + strings.ToLower(strings.ReplaceAll(probeID, "-", "_"))
+}
+
 // ParseLog turns a captured `go test` log into rows.
 //
 // categoryFor, when non-nil, is the authoritative probe-id -> group mapping from the
 // generated probe catalog. The `=== RUN` batch name is only a fallback for logs
 // collected without a catalog (e.g. a PROBE_ID solo run, whose subtest is "solo_...").
 func ParseLog(r io.Reader, meta RunMeta, categoryFor func(probeID string) string) ([]Row, error) {
+	rows, _, err := ParseLogEx(r, meta, categoryFor)
+	return rows, err
+}
+
+// ParseLogEx is ParseLog plus the PROBE-RUN-EXCLUDED lines, which describe probes the run
+// deliberately did NOT measure and so have no row of their own.
+func ParseLogEx(r io.Reader, meta RunMeta, categoryFor func(probeID string) string) ([]Row, []ExcludedProbe, error) {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 1<<20), 16<<20)
 
 	var rows []Row
-	// status per "<batch>|<mode>"; probes inherit the status of the run they came from.
-	runStatus := map[string]string{}
+	var excluded []ExcludedProbe
+	// what the harness's gate lines said, keyed by "<batch>|<mode>" ...
+	markerByKey := map[string]*runMarkers{}
+	// ... and by "<batch>" alone. A SOLO run is one run per log: its marker names one mode
+	// (the mode it was started in) while its rows can carry another (a LIVE run also
+	// measures the FALL-BACK leg), so for those rows the batch alone is the run identity.
+	markerByBatch := map[string]*runMarkers{}
+	// the batch name of the solo run in this log, learned from a PROBE-RUN-*/PROBE-WAIT
+	// line - see the key repair after the scan.
+	soloBatch := ""
+	// indexes of rows produced by a solo run (no "=== RUN .../<batch>" attribution).
+	var soloRows []int
+	isSoloRow := map[int]bool{}
 	// rows are attributed to a batch so a later gate line can retro-mark them.
 	rowBatch := map[int]string{}
 	// the bare batch name of each row (rowBatch without the mode half), used to find the
@@ -345,19 +440,47 @@ func ParseLog(r io.Reader, meta RunMeta, categoryFor func(probeID string) string
 		}
 
 		if m := probeRunRe.FindStringSubmatch(line); m != nil {
+			kind := m[1]
 			batch := strings.TrimSpace(m[2])
 			mode := strings.TrimSpace(m[3])
-			key := batch + "|" + mode
-			switch m[1] {
-			case "INVALID":
-				runStatus[key] = statusInvalid
-			case "POISON":
-				runStatus[key] = statusPoison
-			case "FLAKE":
-				// INVALID is the stronger signal; never downgrade it.
-				if runStatus[key] != statusInvalid {
-					runStatus[key] = statusFlake
+			reason := strings.TrimSpace(m[4])
+			// A solo run's "=== RUN" line carries no batch, but its marker lines do.
+			if curBatch == "" && soloBatch == "" && batch != "" {
+				soloBatch = batch
+			}
+			if kind == markExcluded {
+				// Informational: no row, no gate. Just recorded.
+				if id := markerProbeRe.FindStringSubmatch(reason); id != nil {
+					excluded = append(excluded, ExcludedProbe{
+						ProbeID: id[1], Mode: mode, Reason: excludedReason(reason),
+					})
 				}
+				continue
+			}
+			key := batch + "|" + mode
+			if markerByKey[key] == nil {
+				markerByKey[key] = &runMarkers{}
+			}
+			if markerByBatch[batch] == nil {
+				markerByBatch[batch] = &runMarkers{}
+			}
+			markerByKey[key].add(kind)
+			markerByBatch[batch].add(kind)
+			if kind == markQuarantine {
+				// "CATSTAT-002 (pg_node_tree) killed import data after 450s: ..." - the
+				// one probe the harness blames for the run; everything else in it is
+				// collateral damage.
+				if id := markerProbeRe.FindStringSubmatch(reason); id != nil {
+					markerByKey[key].culprit = id[1]
+					markerByBatch[batch].culprit = id[1]
+				}
+			}
+			continue
+		}
+
+		if m := probeWaitRe.FindStringSubmatch(line); m != nil {
+			if batch := strings.TrimSpace(m[1]); curBatch == "" && soloBatch == "" && batch != "" {
+				soloBatch = batch
 			}
 			continue
 		}
@@ -365,7 +488,7 @@ func ParseLog(r io.Reader, meta RunMeta, categoryFor func(probeID string) string
 		if m := probePublishableRe.FindStringSubmatch(line); m != nil {
 			f := splitPipes(m[1])
 			if len(f) < 3 {
-				return nil, fmt.Errorf("malformed PROBE-PUBLISHABLE line (want 4 pipe-separated fields): %q", line)
+				return nil, nil, fmt.Errorf("malformed PROBE-PUBLISHABLE line (want 4 pipe-separated fields): %q", line)
 			}
 			mode := f[1]
 			if mode == "" {
@@ -380,7 +503,7 @@ func ParseLog(r io.Reader, meta RunMeta, categoryFor func(probeID string) string
 		if m := probeValuesRe.FindStringSubmatch(line); m != nil {
 			f := splitPipes(m[1])
 			if len(f) < 4 {
-				return nil, fmt.Errorf("malformed PROBE-VALUES line (want 4 pipe-separated fields): %q", line)
+				return nil, nil, fmt.Errorf("malformed PROBE-VALUES line (want 4 pipe-separated fields): %q", line)
 			}
 			id, mode := f[0], f[1]
 			if mode == "" {
@@ -401,7 +524,7 @@ func ParseLog(r io.Reader, meta RunMeta, categoryFor func(probeID string) string
 		}
 		fields := splitPipes(m[1])
 		if len(fields) < 4 {
-			return nil, fmt.Errorf("malformed PROBE-RESULT line (want 5 pipe-separated fields): %q", line)
+			return nil, nil, fmt.Errorf("malformed PROBE-RESULT line (want 5 pipe-separated fields): %q", line)
 		}
 		detail := ""
 		if len(fields) >= 5 {
@@ -436,10 +559,51 @@ func ParseLog(r io.Reader, meta RunMeta, categoryFor func(probeID string) string
 		}
 		rowBatch[len(rows)] = curBatch + "|" + row.Mode
 		rowBatchName[len(rows)] = curBatch
+		if curBatch == "" {
+			soloRows = append(soloRows, len(rows))
+			isSoloRow[len(rows)] = true
+		}
 		rows = append(rows, row)
 	}
 	if err := sc.Err(); err != nil {
-		return nil, fmt.Errorf("reading test log: %w", err)
+		return nil, nil, fmt.Errorf("reading test log: %w", err)
+	}
+
+	// SOLO-RUN KEY REPAIR.
+	//
+	// A solo run logs a bare "=== RUN   TestDatatypeSweepSuspect": no subtest, so no batch
+	// name, so its rows were filed under the group key "|<mode>". The harness's own gate
+	// markers for the same run name it "solo_<probe>", so their key ("solo_dom_005|LIVE")
+	// could never match the rows' - measured on a 372-log corpus, 196 of 236 markers never
+	// fired. The run's real name IS printed, just on other lines: every PROBE-RUN-* and
+	// PROBE-WAIT line carries it. Take it from there, and failing that synthesise it from
+	// the sole probe the run measured, which is what the harness itself does.
+	if len(soloRows) > 0 {
+		batch := soloBatch
+		if batch == "" {
+			ids := map[string]bool{}
+			for _, i := range soloRows {
+				if !strings.HasPrefix(rows[i].ProbeID, "CTRL-") {
+					ids[rows[i].ProbeID] = true
+				}
+			}
+			if len(ids) == 1 {
+				for id := range ids {
+					batch = soloBatchName(id)
+				}
+			}
+		}
+		if batch != "" {
+			// The run's importer errors were filed under the empty batch name while it
+			// was being scanned; move them to the name the rows now carry.
+			if _, ok := importErrByBatch[batch]; !ok {
+				importErrByBatch[batch] = importErrByBatch[""]
+			}
+			for _, i := range soloRows {
+				rowBatchName[i] = batch
+				rowBatch[i] = batch + "|" + rows[i].Mode
+			}
+		}
 	}
 
 	// The marker line's key (<batch>|<mode>, copied by the harness into text) can
@@ -499,14 +663,66 @@ func ParseLog(r io.Reader, meta RunMeta, categoryFor func(probeID string) string
 		nonCtrlProbes[key][r.ProbeID] = true
 	}
 
-	for i := range rows {
-		if st, ok := runStatus[rowBatch[i]]; ok {
-			rows[i].RunStatus = st
+	// markersFor returns what the harness said about the run a row came from: its exact
+	// "<batch>|<mode>" key, or - for a solo run, which is one run per log - the batch alone.
+	markersFor := func(i int) *runMarkers {
+		if m, ok := markerByKey[rowBatch[i]]; ok {
+			return m
 		}
-		// The data-derived gate, applied after the marker so it can catch what the marker
-		// missed - but never applied to a POISON run: a poison-isolation run's control
-		// gate is N/A by design (see statusPoison), so a control coming out non-WORKS
-		// there is expected, not evidence the run is untrustworthy.
+		if isSoloRow[i] {
+			if m, ok := markerByBatch[rowBatchName[i]]; ok {
+				return m
+			}
+		}
+		return nil
+	}
+
+	for i := range rows {
+		mk := markersFor(i)
+		group := rowBatch[i]
+
+		// 1. The status the harness itself declared.
+		if mk != nil {
+			switch {
+			case mk.kinds[markInvalid]:
+				rows[i].RunStatus = statusInvalid
+			case mk.kinds[markPoison] && !isSoloRow[i]:
+				// A BATCH poison-isolation run's control gate is N/A by design, and that
+				// is the whole status. A SOLO poison run is resolved by the data-derived
+				// gate below instead - see the poison branch there.
+				rows[i].RunStatus = statusPoison
+			}
+		}
+		decided := false
+
+		// 2. QUARANTINE names the ONE probe that killed the run. Its row is attributable
+		// (the harness pinned the kill on it) as long as the row itself says something
+		// about that probe - a SQLSTATE, or its own table. Every other probe in the run
+		// was only ever collateral: INVALID, whatever verdict was printed for it.
+		if mk != nil && mk.culprit != "" {
+			if rows[i].ProbeID == mk.culprit && attributableToProbe(rows[i]) {
+				rows[i].RunStatus = statusAttributed
+				liftImportError(&rows[i], importErrByBatch[rowBatchName[i]])
+			} else {
+				rows[i].RunStatus = statusInvalid
+			}
+			decided = true
+		}
+
+		// 3. FLAKE / EXPORT-DIED mean nothing was measured in this run at all: the
+		// exporter died, or the probes came out inconclusive behind something that did.
+		// INVALID, not FLAKE, because "the run produced no measurement" is exactly what
+		// INVALID means downstream, and the one row that IS a measurement of the death is
+		// promoted by its PROBE-PUBLISHABLE line below.
+		if mk != nil && (mk.kinds[markFlake] || mk.kinds[markExportDied]) {
+			rows[i].RunStatus = statusInvalid
+			decided = true
+		}
+
+		// 4. The data-derived gate, applied after the markers so it can catch what they
+		// missed - but never applied to a BATCH POISON run: a poison-isolation run's
+		// control gate is N/A by design (see statusPoison), so a control coming out
+		// non-WORKS there is expected, not evidence the run is untrustworthy.
 		//
 		// Three-way, not binary: when this (batch, mode) group had exactly one non-control
 		// probe, that probe was the ONLY thing that could have caused its controls to die,
@@ -516,22 +732,25 @@ func ParseLog(r io.Reader, meta RunMeta, categoryFor func(probeID string) string
 		// INVALID, exactly as they would in a run with no carve-out at all. Two or more
 		// non-control probes means the failure cannot be pinned on any one of them, so
 		// nothing in that group is attributable: everything stays INVALID.
-		group := rowBatch[i]
-		if rows[i].RunStatus != statusPoison && ctrlBad[group] {
-			if !strings.HasPrefix(rows[i].ProbeID, "CTRL-") && len(nonCtrlProbes[group]) == 1 {
+		if !decided && rows[i].RunStatus != statusPoison && ctrlBad[group] {
+			soloProbe := !strings.HasPrefix(rows[i].ProbeID, "CTRL-") && len(nonCtrlProbes[group]) == 1
+			switch {
+			case soloProbe && mk != nil && mk.kinds[markPoison] && !attributableToProbe(rows[i]):
+				// A solo POISON run says "control gate not applicable", not "trust this
+				// row": the carve-out that makes a sole probe ATTRIBUTED still needs the
+				// row to name its own failure (a SQLSTATE, or its own table). Without
+				// that, nothing ties the dead controls to this probe and the run measured
+				// nothing.
+				rows[i].RunStatus = statusInvalid
+			case soloProbe:
 				rows[i].RunStatus = statusAttributed
 				// The row's own detail is a comparison outcome, not an import error, so it
 				// often carries no SQLSTATE even though the control died of a real,
 				// classified importer error right next to it in the same group. Surface
 				// that evidence rather than leaving the column blank - see ImportError's
 				// doc. Never overwrites a SQLSTATE the detail already carried.
-				if rows[i].SQLState == "" {
-					if ie, ok := pickImportError(importErrByBatch[rowBatchName[i]], rows[i]); ok {
-						rows[i].SQLState = ie.sqlstate
-						rows[i].ImportError = ie.text
-					}
-				}
-			} else {
+				liftImportError(&rows[i], importErrByBatch[rowBatchName[i]])
+			default:
 				rows[i].RunStatus = statusInvalid
 			}
 		}
@@ -554,8 +773,73 @@ func ParseLog(r io.Reader, meta RunMeta, categoryFor func(probeID string) string
 		if containerSetupFailureRe.MatchString(rows[i].Evidence) {
 			rows[i].RunStatus = statusInvalid
 		}
+
+		// import_error, last resort: a STUCK/BLOCKS row's OWN detail usually quotes the
+		// classified importer error already ("SQLSTATE 0A000: ERROR: ... (SQLSTATE
+		// 0A000)"). The lift above only fires for a row that has NO SQLSTATE of its own,
+		// so those rows kept an empty import_error even though the text was right there.
+		// Take the error span out of the detail when nothing else filled the column.
+		if rows[i].ImportError == "" && (rows[i].Verdict == "STUCK" || rows[i].Verdict == "BLOCKS") {
+			if m := importErrorLineRe.FindStringSubmatch(rows[i].Evidence); m != nil && !importErrNoiseRe.MatchString(m[1]) {
+				rows[i].ImportError = sanitizeImportError(m[1])
+			}
+		}
 	}
-	return dedupe(rows), nil
+	return dedupe(rows), dedupeExcluded(excluded), nil
+}
+
+// attributableToProbe reports whether a row says anything about its OWN probe's failure:
+// a SQLSTATE in its detail, or its own table named there. It is the test a row has to pass
+// before a run whose controls died is blamed on it - see statusAttributed.
+func attributableToProbe(r Row) bool {
+	if r.SQLState != "" {
+		return true
+	}
+	return strings.Contains(strings.ToLower(r.Evidence), probeTableName(r.ProbeID))
+}
+
+// liftImportError fills sqlstate/import_error from the run's classified importer errors,
+// for a row whose own detail carries neither.
+func liftImportError(r *Row, cands []importErrEvidence) {
+	if r.SQLState != "" {
+		return
+	}
+	if ie, ok := pickImportError(cands, *r); ok {
+		r.SQLState = ie.sqlstate
+		r.ImportError = ie.text
+	}
+}
+
+// excludedReason trims a PROBE-RUN-EXCLUDED reason field down to the why, dropping the
+// leading "<id> (<type>) excluded from this batch:" and the trailing "run it with ..."
+// instruction.
+func excludedReason(field string) string {
+	if m := excludedReasonRe.FindStringSubmatch(field); m != nil {
+		return strings.TrimSpace(m[1])
+	}
+	return field
+}
+
+// dedupeExcluded keeps one record per (probe, mode): the harness reprints the same
+// exclusion on every batch run of that group.
+func dedupeExcluded(in []ExcludedProbe) []ExcludedProbe {
+	seen := map[string]bool{}
+	var out []ExcludedProbe
+	for _, e := range in {
+		k := e.ProbeID + "|" + e.Mode
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		out = append(out, e)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].ProbeID != out[j].ProbeID {
+			return out[i].ProbeID < out[j].ProbeID
+		}
+		return out[i].Mode < out[j].Mode
+	})
+	return out
 }
 
 // modeFromTestName maps the test-function suffix to the mode string the harness prints.
@@ -646,7 +930,12 @@ func sqlStateOf(detail string) string {
 	if m == nil {
 		return ""
 	}
-	return m[1]
+	// Group 1 is the "SQLSTATE <code>" form, group 2 the bare "(<code>)" one; exactly one
+	// of them is set on any match.
+	if m[1] != "" {
+		return m[1]
+	}
+	return m[2]
 }
 
 // importErrEvidence is one classified importer error line seen while scanning a batch.
@@ -1042,6 +1331,33 @@ func WriteCSV(path string, rows []Row) error {
 	}
 	for _, r := range rows {
 		if err := w.Write(r.record()); err != nil {
+			return err
+		}
+	}
+	w.Flush()
+	return w.Error()
+}
+
+// WriteExcludedCSV writes the PROBE-RUN-EXCLUDED records. Deliberately a separate file
+// from the results CSV: an excluded probe has no measurement, so it has no row - the point
+// of the file is that the report can say "excluded from batch runs by design" instead of
+// showing a silent hole.
+func WriteExcludedCSV(path string, excluded []ExcludedProbe) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	w := csv.NewWriter(f)
+	if err := w.Write([]string{"probe_id", "mode", "reason"}); err != nil {
+		return err
+	}
+	for _, e := range excluded {
+		if err := w.Write([]string{e.ProbeID, e.Mode, e.Reason}); err != nil {
 			return err
 		}
 	}

@@ -247,6 +247,12 @@ var reportCSVHeader = []string{
 	"note",
 	// Appended after the first release of this format; see bestCell below.
 	"sqlstate", "import_error",
+	// The per-mode run_status, one column per verdict column. rows.json has carried it
+	// since the column existed (ModeResult.RunStatus) but the flat CSV did not, so an
+	// INVALID cell read there as an ordinary verdict - a SILENT_LOSS whose run measured
+	// nothing was indistinguishable from a trusted one. Appended, like the two above, so
+	// an older reader of this CSV keeps working.
+	"offline_status", "live_status", "fall_back_status", "fall_forward_status",
 }
 
 // WriteReportCSV writes the same rows in the flat shape a spreadsheet or an HTML table
@@ -276,6 +282,7 @@ func WriteReportCSV(path string, doc *ReportDoc) error {
 			r.GuardrailAction, r.GuardrailActionFallback, r.ReportedByDocs,
 			r.Note,
 			best.SQLState, best.ImportError,
+			r.Offline.RunStatus, r.Live.RunStatus, r.FallBack.RunStatus, r.FallForward.RunStatus,
 		}
 		if err := w.Write(rec); err != nil {
 			return err

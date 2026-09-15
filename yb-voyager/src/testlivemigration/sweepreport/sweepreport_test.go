@@ -22,6 +22,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/csv"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1411,5 +1412,307 @@ func TestWriteReportCSVHasOneRowPerProbe(t *testing.T) {
 	}
 	if len(got) != 2 {
 		t.Fatalf("report CSV has %d data rows, want 2", len(got))
+	}
+}
+
+// ============================================================
+// The five collector defects found by cross-checking collect against a 372-log corpus.
+// ============================================================
+
+// soloExportDeathLog is the real shape of rerunB/lsolo_DOM-005.log, trimmed: a PROBE_ID
+// solo run prints a BARE "=== RUN   TestDatatypeSweepSuspect" - no subtest - so the run has
+// no batch name on that line, while its own gate markers name it "solo_dom_005". The two
+// keys never matched, so none of these three markers fired and the rows came out
+// ATTRIBUTED (trusted) even though the exporter had died with an NPE and nothing about the
+// type was measured at all.
+const soloExportDeathLog = `=== RUN   TestDatatypeSweepSuspect
+PROBE-WAIT: solo_dom_005 | LIVE | forward streaming | exporter-died | 0.0s of 240s | the export side is dead
+PROBE-RESULT: CTRL-001 | int | LIVE | INCONCLUSIVE | the exporter died during this run
+PROBE-RESULT: CTRL-002 | text | LIVE | INCONCLUSIVE | the exporter died during this run
+PROBE-RESULT: DOM-005 | domain(enum) | LIVE | INCONCLUSIVE | the exporter died during this run
+PROBE-RESULT: DOM-005 | domain(enum) | FALL-BACK | INCONCLUSIVE | the exporter died during this run
+PROBE-RUN-EXPORT-DIED: solo_dom_005 | LIVE | the exporter died and the failure names no probe: java.lang.NullPointerException
+PROBE-RUN-POISON: solo_dom_005 | LIVE | poison probe in run, control gate not applicable
+PROBE-RUN-FLAKE: solo_dom_005 | LIVE | 3 inconclusive | the exporter died during this run
+`
+
+// TestSoloRunGateMarkersMatchTheHarnessBatchName is B1. The run's name is printed on its
+// PROBE-WAIT and PROBE-RUN-* lines; take it from there and the markers key the same way the
+// rows do. A FLAKE or EXPORT-DIED run measured nothing, so every row it produced is
+// INVALID - including the FALL-BACK leg of a run the marker calls LIVE, because a solo run
+// is one run per log.
+func TestSoloRunGateMarkersMatchTheHarnessBatchName(t *testing.T) {
+	rows, err := ParseLog(strings.NewReader(soloExportDeathLog), RunMeta{}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog: %v", err)
+	}
+	if len(rows) != 4 {
+		t.Fatalf("got %d rows, want 4: %+v", len(rows), rows)
+	}
+	for _, r := range rows {
+		if r.RunStatus != statusInvalid {
+			t.Errorf("%s run_status = %q, want %q: the exporter died, so this run measured nothing",
+				r.Key(), r.RunStatus, statusInvalid)
+		}
+		if isTrustedStatus(r.RunStatus) {
+			t.Errorf("%s run_status %q must not be trusted", r.Key(), r.RunStatus)
+		}
+	}
+}
+
+// TestSoloRunFlakeDoesNotOverridePublishable: the one row the harness explicitly published
+// still survives its run's death - that row IS the measurement of the death.
+func TestSoloRunFlakeDoesNotOverridePublishable(t *testing.T) {
+	log := soloExportDeathLog +
+		"PROBE-PUBLISHABLE: DOM-005 | LIVE | INCONCLUSIVE | the exporter died with a cause attributed to this probe\n"
+	rows, err := ParseLog(strings.NewReader(log), RunMeta{}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog: %v", err)
+	}
+	for _, r := range rows {
+		want := statusInvalid
+		if r.ProbeID == "DOM-005" && r.Mode == "LIVE" {
+			want = statusOK
+		}
+		if r.RunStatus != want {
+			t.Errorf("%s run_status = %q, want %q", r.Key(), r.RunStatus, want)
+		}
+	}
+}
+
+// TestSoloBatchNameSynthesisedFromTheSoleProbe pins the fallback used when a solo log has
+// no PROBE-WAIT and no marker to read the run's name off: the harness builds that name
+// from the probe id, so collect can too.
+func TestSoloBatchNameSynthesisedFromTheSoleProbe(t *testing.T) {
+	if got := soloBatchName("DOM-005"); got != "solo_dom_005" {
+		t.Errorf("soloBatchName(DOM-005) = %q, want solo_dom_005", got)
+	}
+}
+
+// TestSoloPoisonRunNeedsTheRowToNameItsOwnFailure is the POISON half of B1. "Control gate
+// not applicable" is not "trust this row": the solo carve-out that makes a sole probe
+// ATTRIBUTED still needs the row to say something about its own failure - a SQLSTATE, or
+// its own table. A poison run whose probe says neither measured nothing.
+func TestSoloPoisonRunNeedsTheRowToNameItsOwnFailure(t *testing.T) {
+	attributed := `=== RUN   TestDatatypeSweepSuspect
+PROBE-RESULT: CTRL-001 | int | LIVE | INCONCLUSIVE | wedged behind the probe under test
+PROBE-RESULT: REG-002 | regproc | LIVE | STUCK | SQLSTATE 42883: ERROR: function "\x6e6f77" does not exist (SQLSTATE 42883)
+PROBE-RUN-POISON: solo_reg_002 | LIVE | poison probe in run, control gate not applicable
+`
+	rows, err := ParseLog(strings.NewReader(attributed), RunMeta{}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog: %v", err)
+	}
+	for _, r := range rows {
+		if r.ProbeID == "REG-002" && r.RunStatus != statusAttributed {
+			t.Errorf("REG-002 run_status = %q, want %q: its own detail quotes the SQLSTATE that killed the run",
+				r.RunStatus, statusAttributed)
+		}
+	}
+
+	silent := `=== RUN   TestDatatypeSweepSuspect
+PROBE-RESULT: CTRL-001 | int | LIVE | INCONCLUSIVE | wedged behind the probe under test
+PROBE-RESULT: REG-002 | regproc | LIVE | INCONCLUSIVE | nothing arrived for this table
+PROBE-RUN-POISON: solo_reg_002 | LIVE | poison probe in run, control gate not applicable
+`
+	rows, err = ParseLog(strings.NewReader(silent), RunMeta{}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog: %v", err)
+	}
+	for _, r := range rows {
+		if r.RunStatus != statusInvalid {
+			t.Errorf("%s run_status = %q, want %q: nothing ties the dead controls to this probe",
+				r.Key(), r.RunStatus, statusInvalid)
+		}
+	}
+}
+
+// TestQuarantineAttributesTheCulpritAndInvalidatesTheRest is B2's QUARANTINE half. The
+// marker names the one probe that killed the run: its row is the finding, every other
+// probe in the same run was only ever collateral and must not be published - not even the
+// verdict the classifier printed for it.
+func TestQuarantineAttributesTheCulpritAndInvalidatesTheRest(t *testing.T) {
+	log := `=== RUN   TestDatatypeSweepLive/values
+PROBE-RESULT: CTRL-001 | int | LIVE | INCONCLUSIVE | stuck behind VAL-033
+PROBE-RESULT: VAL-018 | interval | LIVE | INCONCLUSIVE | stuck behind VAL-033
+PROBE-RESULT: VAL-033 | interval (+/-infinity) | LIVE | STUCK | SQLSTATE 22007: ERROR: invalid input syntax for type interval: "infinity" (SQLSTATE 22007)
+PROBE-RUN-QUARANTINE: values | LIVE | VAL-033 (interval (+/-infinity)) killed import data after 4s: SQLSTATE 22007; every other probe in this batch is collateral
+`
+	rows, err := ParseLog(strings.NewReader(log), RunMeta{}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog: %v", err)
+	}
+	byKey := map[string]Row{}
+	for _, r := range rows {
+		byKey[r.Key()] = r
+	}
+	culprit := byKey["VAL-033|LIVE"]
+	if culprit.RunStatus != statusAttributed {
+		t.Errorf("VAL-033 run_status = %q, want %q: the harness pinned the kill on it",
+			culprit.RunStatus, statusAttributed)
+	}
+	if culprit.SQLState != "22007" {
+		t.Errorf("VAL-033 sqlstate = %q, want 22007", culprit.SQLState)
+	}
+	for _, key := range []string{"CTRL-001|LIVE", "VAL-018|LIVE"} {
+		if got := byKey[key].RunStatus; got != statusInvalid {
+			t.Errorf("%s run_status = %q, want %q: it was collateral, not a measurement",
+				key, got, statusInvalid)
+		}
+	}
+}
+
+// TestQuarantineCulpritWithoutItsOwnEvidenceStaysInvalid: the culprit is attributed only
+// when its own row names the failure. A "cutover did not complete" detail says nothing
+// about the type, so it is not promoted past the gate - the real fb_catalogstats /
+// fb_values shape in the corpus.
+func TestQuarantineCulpritWithoutItsOwnEvidenceStaysInvalid(t *testing.T) {
+	log := `=== RUN   TestDatatypeSweepFallback/catalogstats
+PROBE-RESULT: CTRL-001 | int | FALL-BACK | INCONCLUSIVE | stuck behind CATSTAT-002
+PROBE-RESULT: CATSTAT-001 | aclitem | FALL-BACK | INCONCLUSIVE | stuck behind CATSTAT-002
+PROBE-RESULT: CATSTAT-002 | pg_node_tree | FALL-BACK | BLOCKS | cutover to target did not complete: cutover did not complete within 300s
+PROBE-RUN-QUARANTINE: catalogstats | FALL-BACK | CATSTAT-002 (pg_node_tree) killed import data after 450s
+`
+	rows, err := ParseLog(strings.NewReader(log), RunMeta{}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog: %v", err)
+	}
+	for _, r := range rows {
+		if r.RunStatus != statusInvalid {
+			t.Errorf("%s run_status = %q, want %q", r.Key(), r.RunStatus, statusInvalid)
+		}
+	}
+}
+
+// TestExcludedMarkerIsReportedWithoutARow is B2's EXCLUDED half. An excluded probe was
+// deliberately kept out of the batch and measured solo instead: it has no measurement, so
+// it must produce no row, but the reason is worth reporting rather than dropping.
+func TestExcludedMarkerIsReportedWithoutARow(t *testing.T) {
+	log := `=== RUN   TestDatatypeSweepFallback/domains
+PROBE-RESULT: CTRL-001 | int | FALL-BACK | WORKS | snapshot + delta identical
+PROBE-RUN-EXCLUDED: domains | FALL-BACK | DOM-003 (domain(xml)) excluded from this batch: POISON: deterministic BLOCKS in LIVE (import: syntax error at or near '<', SQLSTATE 42601); run it with PROBE_ID=DOM-003 PROBE_MODE=FALL-BACK -run TestDatatypeSweepSuspect
+PROBE-RUN-EXCLUDED: domains | FALL-BACK | DOM-003 (domain(xml)) excluded from this batch: POISON: deterministic BLOCKS in LIVE (import: syntax error at or near '<', SQLSTATE 42601); run it with PROBE_ID=DOM-003 PROBE_MODE=FALL-BACK -run TestDatatypeSweepSuspect
+`
+	rows, excluded, err := ParseLogEx(strings.NewReader(log), RunMeta{}, nil)
+	if err != nil {
+		t.Fatalf("ParseLogEx: %v", err)
+	}
+	for _, r := range rows {
+		if r.ProbeID == "DOM-003" {
+			t.Errorf("an excluded probe must not get a results row: %+v", r)
+		}
+	}
+	if len(excluded) != 1 {
+		t.Fatalf("got %d excluded records, want 1 (the repeat is the same probe/mode): %+v", len(excluded), excluded)
+	}
+	got := excluded[0]
+	if got.ProbeID != "DOM-003" || got.Mode != "FALL-BACK" {
+		t.Errorf("excluded record = %+v, want DOM-003/FALL-BACK", got)
+	}
+	if !strings.HasPrefix(got.Reason, "POISON: deterministic BLOCKS in LIVE") {
+		t.Errorf("reason = %q, want the why without the leading id or the trailing 'run it with'", got.Reason)
+	}
+	if strings.Contains(got.Reason, "run it with") {
+		t.Errorf("reason = %q, want the re-run instruction trimmed off", got.Reason)
+	}
+}
+
+// TestSQLStateAcceptsNonDigitInitialCodes is B3. XX000 (internal error), P0001 (raise) and
+// HV000 (FDW) are real SQLSTATEs that the old digit-initial pattern could not see: DOM-020
+// and IDXKEY-008 quote "SQLSTATE XX000" in their evidence and still came out with an empty
+// column.
+func TestSQLStateAcceptsNonDigitInitialCodes(t *testing.T) {
+	cases := []struct{ detail, want string }{
+		{`the importer exited: SQLSTATE XX000: ERROR: Timed out waiting kResponseSent (SQLSTATE XX000)`, "XX000"},
+		{`ERROR: raised by a trigger (SQLSTATE P0001)`, "P0001"},
+		{`ERROR: fdw is unhappy (SQLSTATE HV000)`, "HV000"},
+		{`ERROR: DECIMAL does not support NaN yet (SQLSTATE 0A000)`, "0A000"},
+		{`importer said (0A000) once`, "0A000"},
+		{`comparison says source=(FALSE) destination=(FALSE)`, ""},
+		{`no code here at all`, ""},
+	}
+	for _, c := range cases {
+		if got := sqlStateOf(c.detail); got != c.want {
+			t.Errorf("sqlStateOf(%q) = %q, want %q", c.detail, got, c.want)
+		}
+	}
+}
+
+// TestImportErrorFilledFromTheRowsOwnDetail is B5. The lift only ever fired for a row with
+// NO SQLSTATE of its own, so a STUCK row whose detail already quoted the importer error
+// kept an empty import_error - the column was empty on all 826 corpus rows. Take the
+// error span out of the detail when nothing else filled it.
+func TestImportErrorFilledFromTheRowsOwnDetail(t *testing.T) {
+	log := `=== RUN   TestDatatypeSweepSuspect
+PROBE-RESULT: CTRL-001 | int | LIVE | INCONCLUSIVE | wedged behind the probe under test
+PROBE-RESULT: CAT-002 | oid | LIVE | STUCK | SQLSTATE 22P02: ERROR: invalid input syntax for type oid: "[]" (SQLSTATE 22P02) (x1)
+PROBE-RUN-INVALID: solo_cat_002 | LIVE | known-good control CTRL-001 came out INCONCLUSIVE, not WORKS
+`
+	rows, err := ParseLog(strings.NewReader(log), RunMeta{}, nil)
+	if err != nil {
+		t.Fatalf("ParseLog: %v", err)
+	}
+	var got Row
+	for _, r := range rows {
+		if r.Key() == "CAT-002|LIVE" {
+			got = r
+		}
+	}
+	if got.RunStatus != statusAttributed {
+		t.Fatalf("CAT-002 run_status = %q, want %q", got.RunStatus, statusAttributed)
+	}
+	if got.SQLState != "22P02" {
+		t.Errorf("sqlstate = %q, want 22P02", got.SQLState)
+	}
+	if !strings.Contains(got.ImportError, `invalid input syntax for type oid`) {
+		t.Errorf("import_error = %q, want the ERROR span quoted from the row's own detail", got.ImportError)
+	}
+}
+
+// TestReportCSVCarriesPerModeRunStatus is B4. rows.json has always carried run_status per
+// mode; rows.csv did not, so an INVALID cell (IDXKEY-011 LIVE, SILENT_LOSS from a run that
+// measured nothing) was indistinguishable there from a trusted finding.
+func TestReportCSVCarriesPerModeRunStatus(t *testing.T) {
+	doc := &ReportDoc{Rows: []ReportRow{{
+		ProbeID:  "IDXKEY-011",
+		TypeName: "int",
+		Group:    "indexkeys",
+		Offline:  ModeResult{Verdict: "WORKS", RunStatus: statusOK},
+		Live:     ModeResult{Verdict: "SILENT_LOSS", RunStatus: statusInvalid},
+		FallBack: ModeResult{Verdict: "STUCK", RunStatus: statusAttributed},
+	}}}
+	path := filepath.Join(t.TempDir(), "rows.csv")
+	if err := WriteReportCSV(path, doc); err != nil {
+		t.Fatalf("WriteReportCSV: %v", err)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading %s: %v", path, err)
+	}
+	recs, err := csv.NewReader(bytes.NewReader(b)).ReadAll()
+	if err != nil {
+		t.Fatalf("parsing report CSV: %v", err)
+	}
+	if len(recs) != 2 {
+		t.Fatalf("got %d CSV records, want header + 1 row", len(recs))
+	}
+	col := map[string]int{}
+	for i, h := range recs[0] {
+		col[h] = i
+	}
+	for _, want := range []struct{ name, value string }{
+		{"offline_status", statusOK},
+		{"live_status", statusInvalid},
+		{"fall_back_status", statusAttributed},
+		{"fall_forward_status", ""},
+	} {
+		i, ok := col[want.name]
+		if !ok {
+			t.Errorf("report CSV has no %s column: %v", want.name, recs[0])
+			continue
+		}
+		if got := recs[1][i]; got != want.value {
+			t.Errorf("%s = %q, want %q", want.name, got, want.value)
+		}
 	}
 }
