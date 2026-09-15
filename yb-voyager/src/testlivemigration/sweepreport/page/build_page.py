@@ -565,12 +565,12 @@ def format_provenance(header_commit, csv_commits, pg_version, yb_version):
     for c in csv_commits:
         if c not in commits:
             commits.append(c)
+    # Every commit that stamped a run is a test-harness commit; the voyager code under
+    # test did not change between them, so none is "the" commit and none is ranked.
     if not commits:
         commit_str = "unknown"
-    elif len(commits) == 1:
-        commit_str = commits[0]
     else:
-        commit_str = commits[0] + " (plus earlier runs at " + ", ".join(commits[1:]) + ")"
+        commit_str = ", ".join(commits)
     return commit_str, pg_version or "unknown", yb_version or "unknown"
 
 

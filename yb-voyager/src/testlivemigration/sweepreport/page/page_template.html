@@ -112,7 +112,8 @@ footer{border-top:1px solid var(--rule);padding-top:20px;font-size:.83rem;color:
 
 <section class="plain">
   <dl class="runcard">
-    <div><dt>Voyager commit</dt><dd>__VOYAGER_COMMIT__</dd></div>
+    <div><dt>Voyager code under test</dt><dd>b41ffe81</dd></div>
+    <div><dt>Test harness commits</dt><dd>__VOYAGER_COMMIT__</dd></div>
     <div><dt>Source</dt><dd>PostgreSQL __PG_VERSION__</dd></div>
     <div><dt>Target</dt><dd>YugabyteDB __YB_VERSION__</dd></div>
     <div><dt>Types covered</dt><dd>__NTYPES__</dd></div>
@@ -122,34 +123,35 @@ footer{border-top:1px solid var(--rule);padding-top:20px;font-size:.83rem;color:
 
 <section>
   <h2>Does assess-migration warn you?</h2>
-  <p>This is the question the sweep was built to answer: before a migration starts, does the tool tell you which of your columns will not survive it? Comparing what <code>assess-migration</code> reports against what actually happened in live migration:</p>
+  <p>This is the question the sweep exists to answer: before a migration starts, does the tool tell you which columns will not survive it? We compared what <code>assess-migration</code> reports against what happened in live migration, type by type.</p>
   <div class="legend" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px 24px;margin:14px 0 10px">
-    <div style="display:block"><p style="margin:0 0 4px;font-size:1.9rem;line-height:1;font-family:Archivo,system-ui,sans-serif;font-weight:700;color:var(--crit)">64</p><p style="margin:0;font-size:.9rem;color:var(--ink-2)">types break in live migration that assess-migration says <strong>nothing</strong> about.</p></div>
-    <div style="display:block"><p style="margin:0 0 4px;font-size:1.9rem;line-height:1;font-family:Archivo,system-ui,sans-serif;font-weight:700;color:var(--warn)">9</p><p style="margin:0;font-size:.9rem;color:var(--ink-2)">types it flags as unsupported that <strong>migrate correctly</strong>.</p></div>
+    <div style="display:block"><p style="margin:0 0 4px;font-size:1.9rem;line-height:1;font-family:Archivo,system-ui,sans-serif;font-weight:700;color:var(--crit)">90</p><p style="margin:0;font-size:.9rem;color:var(--ink-2)">types misbehave in live migration and assess-migration says <strong>nothing</strong> about them.</p></div>
+    <div style="display:block"><p style="margin:0 0 4px;font-size:1.9rem;line-height:1;font-family:Archivo,system-ui,sans-serif;font-weight:700;color:var(--warn)">32</p><p style="margin:0;font-size:.9rem;color:var(--ink-2)">types it flags as unsupported that <strong>migrate correctly</strong> in every mode we measured.</p></div>
   </div>
-  <p>The 64 silent failures break down as:</p>
+  <p>The 90 unwarned types break down as:</p>
   <table class="cov">
-    <thead><tr><th>What happens</th><th>Count</th><th>Examples</th></tr></thead>
+    <thead><tr><th>What happens</th><th>Types</th><th>Examples</th></tr></thead>
     <tbody>
-      <tr><td>Import stops</td><td>37</td><td>the object-identifier family (<code>regclass</code>, <code>regproc</code>, <code>regnamespace</code>, …), <code>tid</code>, <code>aclitem</code>, <code>oidvector</code>, <code>jsonpath</code>, the ISBN/ISSN family, <code>cube</code>, <code>seg</code>, <code>halfvec</code>, <code>sparsevec</code></td></tr>
-      <tr><td>Wrong value</td><td>15</td><td><code>xid8</code>, <code>refcursor</code>, <code>cid</code>, <code>date 'infinity'</code>, <code>date</code> BC, <code>timestamp 'infinity'</code>, <code>float8 NaN</code>, <code>float8 -0.0</code>, <code>time '24:00:00'</code>, <code>numeric '0.000'</code>, domains over <code>xml</code> and <code>point</code></td></tr>
-      <tr><td>Column dropped</td><td>9</td><td>every built-in range — <code>int4range</code>, <code>int8range</code>, <code>numrange</code>, <code>daterange</code>, <code>tsrange</code>, <code>tstzrange</code> — plus user-defined ranges</td></tr>
-      <tr><td>Data lost</td><td>3</td><td><code>numeric 'NaN'</code>, <code>numeric '+Infinity'</code>, <code>numeric '-Infinity'</code></td></tr>
+      <tr><td>Import stops</td><td>60</td><td>the object-reference family (<code>regclass</code>, <code>regproc</code>, <code>regnamespace</code> and the rest), <code>tid</code>, <code>aclitem</code>, <code>oidvector</code>, <code>jsonpath</code>, the ISBN and ISSN family, <code>cube</code>, <code>seg</code>, <code>halfvec</code>, <code>sparsevec</code>, domains over the geometric types, <code>float8 NaN</code>, BC and infinite dates, <code>numeric NaN</code>, <code>interval infinity</code></td></tr>
+      <tr><td>Wrong value</td><td>8</td><td><code>xid8</code>, <code>cid</code>, <code>refcursor</code>, <code>domain(tsvector)</code>, <code>domain(xid8)</code>, <code>numeric 1.500</code>, <code>float8 -0.0</code>, <code>time 24:00:00</code></td></tr>
+      <tr><td>Column dropped</td><td>9</td><td>every built-in range, <code>int4range</code> to <code>tstzrange</code>, plus user-defined ranges</td></tr>
+      <tr><td>Column dropped, NULL-only type</td><td>13</td><td>the index-key types (<code>gtsvector</code>, <code>ghstore</code>, <code>gbtreekey*</code> and the rest) and the two BRIN summaries. Nothing can be lost because these types hold only NULL.</td></tr>
     </tbody>
   </table>
-  <p>And the nine false alarms, which matter because they cost the tool's credibility and push people into schema changes they do not need: <code>composite</code> and its variants, <code>point[]</code>, <code>timetz[]</code>, <code>vector[]</code>, <code>xml[]</code>, <code>tsquery</code>. Four of those are <em>arrays</em> — flagged by name, and then measured migrating perfectly.</p>
-  <p class="note">Scope: judged on live migration, which is what assess's live lists describe. Types YugabyteDB cannot store at all are excluded from both counts — no warning can help there.</p>
+  <p>The 32 false alarms are all wrappers: 13 arrays of unsupported scalars (<code>point[]</code>, <code>xml[]</code>, <code>timetz[]</code>, <code>vector[]</code> and the geometric arrays), 6 arrays of multiranges, and 13 composites, including composites holding an <code>xml</code>, <code>vector</code>, <code>tsvector</code>, <code>timetz</code> or <code>pg_lsn</code> field. Each is flagged by the name of the type inside it and then measured migrating correctly in offline, live and fall-back.</p>
+  <p class="note">Judged on live migration, which is what assess's live lists describe. Types YugabyteDB cannot store at all are left out of both counts; no warning can help there. The companion fix queue lists every type in each group with its probe id.</p>
 </section>
 
 <section>
-  <h2>Only three things go wrong</h2>
-  <p>The long list of broken types comes down to three causes, and each needs a different fix.</p>
+  <h2>Four things go wrong</h2>
+  <p>The long list of broken types comes down to four mechanisms, each needing a different fix.</p>
   <ol>
-    <li><strong>The type is on the exclusion list</strong> — the column is removed from the change stream. You get one warning line, and a question that <code>--yes</code> answers for you.</li>
-    <li><strong>The type is on no list and has no conversion rule</strong> — the value reaches the target in a form it cannot read, and the import or the export process dies.</li>
-    <li><strong>The type is on no list and converts wrongly</strong> — a different value lands, and nothing is logged at all.</li>
+    <li><strong>The column is excluded from the change stream.</strong> Voyager prints one notice at export time and <code>--yes</code> answers the question. The snapshot keeps the old values, so the column looks populated while going stale. Ranges get this treatment without any warning from assess-migration.</li>
+    <li><strong>A value is pasted unquoted into the UPDATE statement.</strong> INSERT and DELETE bind parameters; UPDATE builds SQL text. The word NaN becomes a column name, an XML tag becomes a syntax error.</li>
+    <li><strong>A value travels as raw bytes and lands as hex.</strong> When the change-stream connector has no name for a type, the importer turns the bytes into a <code>\x…</code> literal. A strict target type rejects it and the import stops. A text-like target type accepts it and stores the hex as the value, with no error at all: <code>refcursor</code> and <code>domain(tsvector)</code> are the two measured cases.</li>
+    <li><strong>A corner value is normalised away.</strong> Transaction ids come out as 0 or as a fresh id, <code>-0.0</code> loses its sign, <code>24:00:00</code> becomes midnight, <code>numeric 1.500</code> becomes <code>1.5</code>. No error, no warning.</li>
   </ol>
-  <p>A fourth case sits outside all three: an <strong>array</strong> of an excluded type is never matched by the guardrail, so it is never dropped — and then usually migrates perfectly, which shows the exclusion was not needed in the first place.</p>
+  <p>A fifth case sits with the target, not with voyager: YugabyteDB refuses <code>numeric NaN</code>, infinite intervals and the internal statistics types outright. Those eight are the only types that also fail offline.</p>
 </section>
 
 <section>
@@ -190,50 +192,39 @@ footer{border-top:1px solid var(--rule);padding-top:20px;font-size:.83rem;color:
 
 <section>
   <h2>What's actually broken</h2>
+  <p>Every item below was measured on a run whose control columns passed. The companion fix queue has the values, error codes and probe ids for each.</p>
   <ol>
-    <li><strong>Ranges and multiranges are dropped and barely announced.</strong> The snapshot keeps the old values, so the table looks full while going stale. An update touching only a range column produces no event at all — the log sequence jumped 748 → 750. Nothing in assess-migration, analyze-schema or the docs mentions ranges.</li>
-    <li><strong>Two unhandled null pointers kill the exporter, and say nothing.</strong> An hstore containing a NULL value crashes it while serializing the row; a domain over an enum crashes it while listing the database's types, before reading anything. Both print only <code>Export of data failed! Check logs for more details.</code> Neither names a column, a type or a reason — and because the exporter is gone, <code>initiate cutover</code> then hangs forever instead of failing.</li>
-    <li><strong>Domains are invisible until they stop the migration.</strong> Every layer matches the domain's own name and never looks at what it wraps, so a domain over <code>xml</code> is unmentioned everywhere while bare <code>xml</code> is flagged.</li>
-    <li><strong>Values are pasted into SQL instead of passed as parameters.</strong> Hence <code>column "nan" does not exist</code> — a float value read as a column name.</li>
-    <li><strong>Unknown types are sent as hex, and the target is left to guess.</strong> The value's text form is put on the wire as raw bytes and arrives as a hex string. Every one of these is the same bug wearing a different error:
-      <ul>
-        <li><code>tid</code> → <code>\x2831372c3529</code> = <code>(17,5)</code> — invalid input syntax</li>
-        <li><code>regclass</code> → <code>\x70675f74797065</code> = <code>pg_type</code> — relation does not exist</li>
-        <li><code>regproc</code> → <code>\x76657273696f6e</code> = <code>version</code> — function does not exist</li>
-        <li><code>regoper</code> → <code>\x7c2f</code> = <code>|/</code> — operator does not exist</li>
-        <li><code>regnamespace</code> → <code>\x7075626c6963</code> = <code>public</code> — schema does not exist</li>
-        <li><code>pg_snapshot</code>, <code>regconfig</code>, <code>regdictionary</code>, <code>regrole</code>, <code>regcollation</code> — same shape, each naming its own hex</li>
-      </ul>
-      These all stop the import only because their target types have strict parsers. <strong>Where the target type is text-like, the hex is accepted and stored.</strong> That is not a worry, it is measured: <code>refcursor</code> arrived as <code>\x6f746865725f637572736f72</code> — the string <code>other_cursor</code> — and was stored without complaint. Same defect, no error, permanent corruption.</li>
-    <li><strong>Dates travel as integers with no range check.</strong> <code>date 'infinity'</code> arrives as <code>-5877611-06-21</code>. <code>timestamptz</code> travels as a string and handles the same values correctly, so the right pattern already exists in the codebase.</li>
-    <li><strong>Cutover asks a question nobody can answer.</strong> With standard input from <code>/dev/null</code> it panicked in 5 seconds; with an unfed pipe it waited indefinitely. Only an operator at a terminal can answer it, and by then production is on YugabyteDB.</li>
-    <li><strong>A dead migration reports as healthy.</strong> After a bad value killed <code>import data</code>, <code>get data-migration-report</code> kept returning success with stale counts for 15 minutes.</li>
-    <li><strong>A newer target gets fewer warnings.</strong> The same schema produced 25 findings against YugabyteDB 2024.2 and 19 against 2025.2. The six that vanished were the multiranges — whose columns <code>export data</code> still drops.</li>
-    <li><strong>The offline list is stale in both directions.</strong> <code>pg_lsn</code> and <code>txid_snapshot</code> are flagged as unsupported but migrate fine offline; <code>xid8</code> is flagged nowhere and corrupts silently.</li>
+    <li><strong>Transaction and command ids are replaced.</strong> <code>xid</code> and <code>cid</code> arrive as 0. <code>xid8</code> arrives as a different 14-digit number on every run, offline and live. Only <code>xid</code> is on a list, and the export guardrail does not read that list.</li>
+    <li><strong>Two text types are stored as their own hex.</strong> <code>refcursor</code> holding <code>other_cursor</code> arrives as <code>\x6f746865725f637572736f72</code>. <code>domain(tsvector)</code> arrives as one lexeme containing the hex of the whole value, while bare <code>tsvector</code> works. Same in fall-back.</li>
+    <li><strong>Three corner values are normalised.</strong> <code>numeric 1.500</code> loses its trailing zeros in every mode including offline. <code>float8 -0.0</code> loses its sign and <code>time 24:00:00</code> becomes <code>00:00:00</code> in live and fall-back.</li>
+    <li><strong>Ranges are dropped with no assess warning.</strong> All nine range probes: offline works, live and fall-back column dropped. Arrays of ranges work everywhere, which shows the pipeline can carry the text form.</li>
+    <li><strong>Values are pasted into SQL instead of bound.</strong> <code>column "nan" does not exist</code> is a float value read as a column name. XML, <code>regtype</code> and <code>int2vector</code> fail the same way, and in fall-back bare <code>xml</code> stops the reverse import.</li>
+    <li><strong>Unknown types are sent as hex and the target is left to guess.</strong> 44 types stop the import this way: <code>tid</code> arrives as <code>\x2831372c3529</code>, which is <code>(17,5)</code>; <code>regclass</code> arrives as <code>\x70675f74797065</code>, which is <code>pg_type</code>, and is then looked up as a relation that does not exist. The ISBN family, <code>cube</code>, <code>seg</code>, the vector types and every domain over a geometric type fail the same way.</li>
+    <li><strong>Dates travel as integers with no range check.</strong> <code>date 'infinity'</code> arrives as <code>-5877611-06-21</code> and BC dates as negative years; the import stops with <code>time zone displacement out of range</code>. <code>timestamptz</code> travels as text and handles the same values correctly, so the right pattern already exists.</li>
+    <li><strong>YugabyteDB refuses eight values outright</strong>, offline as well as live: <code>numeric</code> NaN and infinities, <code>interval infinity</code>, and the four internal statistics types. Assess-migration mentions none of them.</li>
+    <li><strong>Two values kill the exporter before any row moves.</strong> A domain over an enum, and an <code>hstore</code> holding a SQL NULL (fixed on main by #3711, not in this build). The only message is that export failed.</li>
+    <li><strong>Every reg* type stops the live import</strong>, and offline <code>regconfig</code> and <code>regdictionary</code> arrive with a different object id behind the same name. Whether that offline difference matters depends on whether anything compares raw ids across the two databases.</li>
   </ol>
 </section>
 
 <section>
   <h2>What to fix</h2>
-  <h3>First — stop losing data quietly</h3>
+  <h3>First, stop losing data quietly</h3>
   <ul>
-    <li><strong>Carry ranges, or say so up front.</strong> The array form already migrates perfectly, which proves the text form survives the pipeline. Registering the range types for the same string passthrough is the small fix; adding them to assess-migration is the minimum.</li>
-    <li><strong><code>--yes</code> must stop meaning “agree to lose columns.”</strong> Dropping data should require its own flag.</li>
-    <li><strong>Make “excluded” mean one thing.</strong> Excluded columns are still copied by <code>pg_dump</code>, so you get correct old rows and frozen new ones — harder to notice than an empty column.</li>
-    <li><strong>Separate “YugabyteDB supports it” from “we can carry it.”</strong> Conflating those is what hides the multirange warning on new targets.</li>
-    <li><strong>Quote and cast every value.</strong> Nothing should be concatenated into a statement because its type has no rule.</li>
-    <li><strong>Guard the exporter against nulls</strong>, and make its failures name the table, column and type instead of pointing at a log directory.</li>
-    <li><strong>Warn when an update diffs to nothing</strong> on a <code>REPLICA IDENTITY FULL</code> table. That DEBUG line is why range-only updates vanish without trace.</li>
-    <li><strong>Say when the importer has died.</strong> The status report should not keep answering normally after the import has exited.</li>
+    <li><strong>Do not hex-encode a value bound for a text-like column.</strong> The importer's byte converter needs the source column type, which it does not receive today. One change closes the two silent hex cases and 44 loud ones.</li>
+    <li><strong>Bind UPDATE parameters the way INSERT already does.</strong> Nothing should be spliced into SQL because its type has no converter.</li>
+    <li><strong>Treat <code>xid8</code> and <code>cid</code> like <code>xid</code>, and make the export guardrail read the same list assess reads.</strong> These are system columns and excluding them with a warning is the right end state.</li>
+    <li><strong>Carry <code>date</code>, <code>timestamp</code>, <code>-0.0</code> and <code>24:00:00</code> as text</strong> through the change stream, the way <code>timestamptz</code> already travels.</li>
+    <li><strong>Check where numeric scale is lost.</strong> Insert <code>1.500</code> directly into an unconstrained <code>numeric</code> column on YugabyteDB; if it keeps the zeros, the loss is voyager's.</li>
+    <li><strong>Give column loss its own flag.</strong> <code>--yes</code> should not also mean "agree to drop these columns".</li>
+    <li><strong>Make exporter deaths name the table, column and type</strong> instead of pointing at a log directory.</li>
   </ul>
-  <h3>Then — close the reporting holes</h3>
+  <h3>Then, make the warnings match the behaviour</h3>
   <ul>
-    <li>Teach assess-migration the shapes it cannot see: ranges, domains resolved to their base type, and <code>xid8</code>.</li>
-    <li>One list, consumed by both assess and <code>export data</code>, resolved through <code>typelem</code> and <code>typbasetype</code>, so arrays and domains can never disagree again.</li>
-    <li>Make assess respect the connector actually in use; today it assumes the logical one and never mentions the gRPC-only exclusions.</li>
-    <li>Give <code>analyze-schema</code> a non-interactive path — it currently panics when there is no terminal.</li>
-    <li>Range-check the datetime converters, or move date and timestamp to the string path <code>timestamptz</code> already uses.</li>
-    <li>Define “skips” in the docs. It currently means three different things.</li>
+    <li>Report range columns in assess-migration, using the same catalogue query the guardrail already uses to drop them.</li>
+    <li>Report the eight values YugabyteDB refuses, so they are found before the import instead of by it.</li>
+    <li>Make assess and the guardrail agree on wrappers. Either resolve arrays and domains to their inner type in both, or stop flagging the 32 wrappers that are measured working. The measurements favour the second.</li>
+    <li>Decide what a <code>reg*</code> column should mean after migration. Its value is an object id that only makes sense on the source.</li>
   </ul>
 </section>
 
@@ -261,8 +252,8 @@ footer{border-top:1px solid var(--rule);padding-top:20px;font-size:.83rem;color:
     <li><strong>PostGIS end to end.</strong> A PostgreSQL image with PostGIS 3.6.4 was built for this and the source side works, but YugabyteDB 2026.1 cannot install the extension, so the column cannot exist on the target — which is why those rows read <em>Target rejects type</em> rather than untested. <code>vector</code> (pgvector) <em>is</em> available on YugabyteDB and was tested.</li>
   </ul>
 
-  <h3>Where this disagrees with the earlier audit</h3>
-  <p>That audit called built-in ranges the worst case: silently missing from every event, in no list, invisible everywhere. The data loss is real and reproduced here. The mechanism is not — ranges are matched deliberately by a catalogue query and excluded on purpose, and <code>export data</code> does print a warning naming the columns. It also claimed ranges and <code>tsquery</code> deadlock cutover, which did not reproduce. Its domain-over-point finding was correct, including the struct-JSON detail.</p>
+  <h3>Where this page changed after the audit</h3>
+  <p>The first version of this page called twelve live cells silent corruption: <code>numeric</code> and <code>float8</code> NaN and infinities, BC and infinite dates, and domains over <code>xml</code> and <code>point</code>. Re-running each one alone showed a loud importer error with a SQLSTATE in every case; the harness had compared values after the importer was already dead. They are now listed as import stops. The fall-back column was also repeating the live result, because the harness kept the first mismatch it saw and the forward leg ran first. It now records the reverse leg separately, and seven fall-back cells were re-run: five corrupt in the reverse direction too, <code>lo</code> works, and <code>tsquery</code> is excluded with a prompt rather than silently lost. The full account is in the audit page linked from the fix queue.</p>
 </section>
 
 <footer>
