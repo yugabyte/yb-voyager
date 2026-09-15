@@ -1503,7 +1503,12 @@ func (lm *LiveMigrationTest) GetDataMigrationReport() (*DataMigrationReport, err
 		}
 		err := testutils.NewVoyagerCommandRunner(nil, "get data-migration-report", reportArgs, nil, false).WithT(lm.t).Run()
 		if err != nil {
-			return nil, goerrors.Errorf("get data-migration-report command failed: %w", err)
+			maxRetry--
+			if maxRetry <= 0 {
+				return nil, goerrors.Errorf("failed to get data migration report: %w", err)
+			}
+			time.Sleep(2 * time.Second)
+			continue
 		}
 
 		reportFilePath := filepath.Join(lm.exportDir, "reports", "data-migration-report.json")
