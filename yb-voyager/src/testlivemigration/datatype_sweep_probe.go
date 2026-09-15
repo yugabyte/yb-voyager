@@ -121,6 +121,22 @@ const (
 // so there is no queue to inspect and the datatype filter does not run).
 func (m sweepMode) hasCDC() bool { return m != modeOffline }
 
+// judgesReverse reports whether the mode's published cell is a claim about the REVERSE
+// direction. Fall-back and fall-forward both run the full forward leg first, but the
+// forward leg is what the LIVE cell already reports; what these two modes add is the
+// return path (target -> source, target -> source-replica), and that is what their cell
+// has to be about.
+func (m sweepMode) judgesReverse() bool { return m == modeFallback || m == modeFallForward }
+
+// reverseLegName names the return path in the words the report uses, for details that
+// have to say which leg did not happen.
+func (m sweepMode) reverseLegName() string {
+	if m == modeFallForward {
+		return "fall-forward"
+	}
+	return "fall-back"
+}
+
 // slug is used to build per-batch database names.
 func (m sweepMode) slug() string {
 	return strings.ToLower(strings.ReplaceAll(string(m), "-", ""))
@@ -610,10 +626,38 @@ type probeObservation struct {
 	settledVerdict string // non-empty short-circuits classification (SKIPPED)
 	settledDetail  string
 
+	// snapshotVerdict/streamVerdict hold the FORWARD leg only (source -> target). Every
+	// mode runs that leg, and in LIVE and OFFLINE it is the whole measurement.
 	snapshotVerdict string
 	snapshotDetail  string
 	streamVerdict   string
 	streamDetail    string
+
+	// reverseVerdict/reverseDetail hold the REVERSE leg (target -> source in fall-back,
+	// target -> source-replica in fall-forward), kept apart from the forward fields on
+	// purpose. Both legs used to be funnelled into streamVerdict, where the first
+	// verdict per phase wins - so in a fall-back run the forward compare always got
+	// there first and the FALL-BACK cell simply repeated the LIVE one. Six of the seven
+	// silent FALL-BACK cells in the rerunB audit printed `source->target` with a forward
+	// row id for exactly that reason, and whatever the reverse compare found was
+	// discarded unread.
+	reverseVerdict string
+	reverseDetail  string
+	// reverseCompared is the reverse leg's counterpart of snapshotCompared/streamCompared:
+	// it separates "the reverse compare ran and found nothing" from "the reverse compare
+	// never ran". Only the first may be published as a reverse-direction pass.
+	reverseCompared bool
+
+	// reverseWarned/reversePromptShown are warned/promptShown for the REVERSE direction.
+	// They need their own fields because the two directions print their exclusion notice
+	// on different streams: in fall-back and fall-forward `export data from target` is
+	// not a command of its own - the running `import data` process exec's into it at
+	// cutover - so the reverse notice lands on the IMPORT data stream, which the forward
+	// scan never reads. reverseWarnScanned records that the reverse stream was looked at
+	// at all, so a run that never got to cutover still classifies on the forward flags.
+	reverseWarned      bool
+	reversePromptShown bool
+	reverseWarnScanned bool
 
 	eventsForTable     int
 	columnSeenInEvents bool
@@ -732,6 +776,13 @@ type probeObservation struct {
 	// overwrites an earlier one, so these are "what the target ended up holding".
 	srcValue string
 	dstValue string
+
+	// revSrcValue and revDstValue are the same pair for the REVERSE compare, read from
+	// the reverse row block. A FALL-BACK / FALL-FORWARD row's PROBE-VALUES line carries
+	// these: the forward pair describes the forward leg, which is what the LIVE cell
+	// already reports.
+	revSrcValue string
+	revDstValue string
 
 	runAbort string
 }
@@ -1363,6 +1414,7 @@ func (r *sweepRun) runFallback() {
 			return tableStandings(report, expected, "target", "source")
 		})
 	r.recordExportWarnings()
+	r.recordReverseExportWarnings()
 	r.recordQueueColumnPresence()
 	r.compareInto(sideTarget, sideSource, phaseStreaming)
 }
@@ -1410,6 +1462,7 @@ func (r *sweepRun) runFallForward() {
 		return r.fallForwardRowCountsMatch(tables)
 	})
 	r.recordExportWarnings()
+	r.recordReverseExportWarnings()
 	r.recordQueueColumnPresence()
 	r.compareInto(sideTarget, sideReplica, phaseStreaming)
 }
@@ -2736,10 +2789,27 @@ const (
 
 // compareInto reads (id, compareExpr) from both sides for every active probe and records
 // the first discrepancy per probe.
+//
+// The direction is load-bearing. `from == sideSource` is the FORWARD leg, which every
+// mode runs and which the LIVE/OFFLINE cells are about. Anything else is the REVERSE leg
+// of a fall-back or fall-forward run, and it is recorded in its own fields so the forward
+// leg can no longer overwrite it - see probeObservation.reverseVerdict.
+//
+// The reverse leg also compares only the reverse ROW BLOCK (ids 101..106). Rows 1..6 were
+// written by the forward delta and are never replayed on the way back, so a value the
+// forward leg mangled still sits mangled on the target: comparing it against the source's
+// untouched copy re-reports the forward finding with the direction label flipped, which is
+// a fall-back failure the fall-back never caused.
 func (r *sweepRun) compareInto(from, to dbSide, phase comparePhase) {
+	reverse := from != sideSource
 	for _, p := range r.active {
 		src, srcErr := r.fetchProbeValues(from, p)
 		dst, dstErr := r.fetchProbeValues(to, p)
+
+		cmpSrc, cmpDst := src, dst
+		if reverse {
+			cmpSrc, cmpDst = reverseRowBlock(src), reverseRowBlock(dst)
+		}
 
 		var verdict, detail string
 		switch {
@@ -2752,7 +2822,7 @@ func (r *sweepRun) compareInto(from, to dbSide, phase comparePhase) {
 			detail = fmt.Sprintf("%s: cannot read %s: %v", phase, to, dstErr)
 			verdict = verdictSilentLoss
 		default:
-			verdict, detail = compareProbeRows(src, dst)
+			verdict, detail = compareProbeRows(cmpSrc, cmpDst)
 			if verdict != "" {
 				detail = fmt.Sprintf("%s %s->%s: %s", phase, from, to, detail)
 			}
@@ -2767,16 +2837,32 @@ func (r *sweepRun) compareInto(from, to dbSide, phase comparePhase) {
 		} else {
 			o.streamCompared = true
 		}
+		if reverse {
+			o.reverseCompared = true
+		}
 		if p.RecordDestValue && dstErr == nil {
 			o.destSample = sampleValues(src, dst)
 		}
-		// Structured values for the PROBE-VALUES line. Forward direction only: in
-		// FALL-BACK/FALL-FORWARD compareInto is also called with from=target, and
-		// labelling the target's own value "source" would invert the report's columns.
-		if from == sideSource && srcErr == nil && dstErr == nil {
-			o.srcValue, o.dstValue = baselineValues(src, dst)
+		// Structured values for the PROBE-VALUES line, one pair per direction. The two
+		// are kept apart rather than overwritten because they answer different questions:
+		// the forward pair is what the TARGET ended up holding, the reverse pair is what
+		// came BACK. Labelling the reverse pair with the forward one's fields would invert
+		// the report's columns, which is why only the forward pair used to be recorded at
+		// all - and why the FALL-BACK rows carried no reverse values.
+		if srcErr == nil && dstErr == nil {
+			if reverse {
+				o.revSrcValue, o.revDstValue = baselineValues(cmpSrc, cmpDst)
+			} else {
+				o.srcValue, o.dstValue = baselineValues(src, dst)
+			}
 		}
 		if verdict == "" {
+			continue
+		}
+		if reverse {
+			if o.reverseVerdict == "" {
+				o.reverseVerdict, o.reverseDetail = verdict, detail
+			}
 			continue
 		}
 		if phase == phaseSnapshot {
@@ -2787,6 +2873,19 @@ func (r *sweepRun) compareInto(from, to dbSide, phase comparePhase) {
 			o.streamVerdict, o.streamDetail = verdict, detail
 		}
 	}
+}
+
+// reverseRowBlock keeps only the rows the REVERSE delta owns (ids 101..106). The two row
+// blocks are deliberately disjoint (see the row id layout), so this is the whole of what
+// the return path actually moved.
+func reverseRowBlock(m map[int]probeRow) map[int]probeRow {
+	out := make(map[int]probeRow, len(m))
+	for id, row := range m {
+		if id >= revBaseline {
+			out[id] = row
+		}
+	}
+	return out
 }
 
 // probeRow is one row of a probe table as seen from one side: the neighbour column
@@ -3317,6 +3416,47 @@ func (r *sweepRun) recordExportWarnings() {
 			o.promptShown = promptShown
 		}
 	}
+}
+
+// recordReverseExportWarnings is recordExportWarnings for the RETURN path, and it exists
+// because the return path's exporter has no output stream of its own.
+//
+// With --prepare-for-fall-back the running `import data` process exec's into
+// `export data from target` at cutover, so everything that exporter prints - including the
+// unsupported-columns notice - lands on the import-data stdout/stderr. The forward scan
+// reads the export command's buffer, which after cutover belongs to `import data to
+// source`, and can therefore never see it. That is why MISC-001 (tsquery) published
+// FALL-BACK SILENT_LOSS with "no exclusion warning in export stdout/stderr" over a run
+// whose import-data stream carried the notice naming that exact table.
+//
+// Same parser, same strings, different stream: the notice's format does not change with
+// the direction, only where it is printed.
+func (r *sweepRun) recordReverseExportWarnings() {
+	text := r.reverseExportSideText()
+	promptShown := strings.Contains(text, unsupportedColsPrompt)
+	for _, p := range r.active {
+		o := r.observe(p)
+		// Set for every active probe, not only the warned ones: this flag is what tells
+		// the classifier the reverse stream was read at all, and a probe that was NOT
+		// named has to be distinguishable from one nobody looked for.
+		o.reverseWarnScanned = true
+		if exportWarnedAboutColumn(text, p.tableName(), sweepColumnUnderTest) {
+			o.reverseWarned = true
+			o.reversePromptShown = promptShown
+		}
+	}
+}
+
+// reverseExportSideText is where `export data from target` actually prints: the import-data
+// command's buffers, which that process kept when it exec'd into the target-side exporter
+// at cutover. In fall-forward the same is true - the reverse exporter is still the
+// import-data process; `import data to source-replica` is the consumer of its queue, not
+// the producer of the notice.
+func (r *sweepRun) reverseExportSideText() string {
+	return strings.Join([]string{
+		r.lm.GetImportCommandStdout(),
+		r.lm.GetImportCommandStderr(),
+	}, "\n")
 }
 
 // exportWarnedAboutColumn looks for a line inside the unsupported-columns block that
@@ -4000,6 +4140,9 @@ func (r *sweepRun) exportAbortReason(what string, err error) string {
 // the informative answer even though the value comparison also shows a loss.
 func decideVerdict(mode sweepMode, o probeObservation) (string, string) {
 	verdict, detail := decideVerdictCore(mode, o)
+	if note := forwardMismatchNote(mode, o, verdict); note != "" {
+		detail = withNote(detail, note)
+	}
 	// destSample is only set for probes that asked for it (RecordDestValue).
 	if verdict != verdictSkipped && o.destSample != "" {
 		detail = withNote(detail, o.destSample)
@@ -4007,17 +4150,94 @@ func decideVerdict(mode sweepMode, o probeObservation) (string, string) {
 	return verdict, detail
 }
 
+// forwardValueVerdict is the forward leg's value finding, snapshot before streaming - the
+// pair that used to BE the answer for every mode.
+func forwardValueVerdict(o probeObservation) (string, string) {
+	if o.snapshotVerdict != "" {
+		return o.snapshotVerdict, o.snapshotDetail
+	}
+	if o.streamVerdict != "" {
+		return o.streamVerdict, o.streamDetail
+	}
+	return "", ""
+}
+
+// reverseValueVerdict is step 4 for the two modes whose cell is about the return path.
+//
+// When the reverse compare ran, its finding is the answer, mismatch or not: an empty
+// return means it found nothing, and the caller falls through to the positive-evidence
+// gates like any other clean run.
+//
+// When it did not run, the run never got that far, and a failing forward leg is why. That
+// is a real finding - a fall-back blocked before cutover is exactly what a user would hit -
+// but it is not a measurement of the return path, so the detail says which it is.
+func reverseValueVerdict(mode sweepMode, o probeObservation) (string, string) {
+	if o.reverseCompared {
+		return o.reverseVerdict, o.reverseDetail
+	}
+	fv, fd := forwardValueVerdict(o)
+	if fv == "" {
+		return "", ""
+	}
+	return fv, fmt.Sprintf("%s not reached: forward leg failed (%s)", mode.reverseLegName(), fd)
+}
+
+// forwardMismatchNote explains a fall-back cell that passes while the live cell next to it
+// does not. The return path really did carry its rows back intact; the value the forward
+// leg mangled is the LIVE finding, and reading the two cells side by side without this
+// note looks like the harness contradicting itself.
+func forwardMismatchNote(mode sweepMode, o probeObservation, verdict string) string {
+	if !mode.judgesReverse() || !o.reverseCompared || o.reverseVerdict != "" {
+		return ""
+	}
+	if verdict != verdictWorks {
+		return ""
+	}
+	if fv, _ := forwardValueVerdict(o); fv == "" {
+		return ""
+	}
+	return "forward-direction mismatch is reported in the LIVE cell"
+}
+
 // exclusionNoteFor says, in a few words, what the export side printed about dropping the
 // column. It is the secondary half of a STUCK detail that also saw the column go missing.
-func exclusionNoteFor(o probeObservation) string {
+func exclusionNoteFor(mode sweepMode, o probeObservation) string {
+	warned, promptShown := exclusionFlags(mode, o)
 	switch {
-	case o.warned && o.promptShown:
+	case warned && promptShown:
 		return "exclusion notice printed and confirmed"
-	case o.warned:
+	case warned:
 		return "exclusion notice printed, auto-accepted by --yes"
 	default:
 		return "no exclusion warning"
 	}
+}
+
+// exclusionFlags picks the exclusion notice that belongs to the DIRECTION the mode's cell
+// judges, because the column-absence evidence it is paired with is per-direction too: in
+// fall-back and fall-forward the queue is scanned from the cutover mark, so the events
+// counted are the return path's and the notice that explains them is the return path's.
+//
+// The reverse notice is only preferred once the reverse stream has actually been read
+// (reverseWarnScanned). A run that never reached cutover has no reverse stream to read, and
+// must keep classifying on the forward flags exactly as it always did.
+func exclusionFlags(mode sweepMode, o probeObservation) (bool, bool) {
+	if mode.judgesReverse() && o.reverseWarnScanned {
+		return o.reverseWarned, o.reversePromptShown
+	}
+	return o.warned, o.promptShown
+}
+
+// exclusionStreamName names the stream the exclusion notice was looked for on, so
+// "no exclusion warning in ..." can be checked by whoever reads the detail. The reverse
+// direction's exporter has no stdout of its own - it is the `import data` process after
+// cutover - and a detail that sends the reader to the export output would have them
+// grep a stream that could not have carried it.
+func exclusionStreamName(mode sweepMode, o probeObservation) string {
+	if mode.judgesReverse() && o.reverseWarnScanned {
+		return "the import-data stdout/stderr that carries `export data from target`"
+	}
+	return "export stdout/stderr"
 }
 
 func decideVerdictCore(mode sweepMode, o probeObservation) (string, string) {
@@ -4075,7 +4295,7 @@ func decideVerdictCore(mode sweepMode, o probeObservation) (string, string) {
 		// because Debezium omitted the column as well.
 		if o.stuckDetail != "" {
 			return verdictStuck, withNote(fmt.Sprintf("%s; also: column %q absent from all %d exported events (%s)",
-				o.stuckDetail, sweepColumnUnderTest, o.eventsForTable, exclusionNoteFor(o)),
+				o.stuckDetail, sweepColumnUnderTest, o.eventsForTable, exclusionNoteFor(mode, o)),
 				o.queueScanNote, o.waitNote)
 		}
 		// A run whose importer died leaves a TRUNCATED event stream, and "absent from all
@@ -4089,10 +4309,11 @@ func decideVerdictCore(mode sweepMode, o probeObservation) (string, string) {
 		// probes in it that produced evidence. Falling through hands them to 2b / 3a,
 		// which name the culprit and return INCONCLUSIVE.
 		if o.importBrokeUnattributed == "" && o.channelWedgedBy == "" {
+			warned, promptShown := exclusionFlags(mode, o)
 			switch {
-			case o.warned && o.promptShown:
+			case warned && promptShown:
 				return verdictExcludedTold, base + "; export printed the exclusion notice and asked before continuing"
-			case o.warned:
+			case warned:
 				return verdictQuietDrop, base + "; exclusion notice printed but the question was auto-accepted by --yes"
 			case o.nullOnly:
 				// Nothing can be LOST here. The type stores only NULL, so the column
@@ -4103,7 +4324,7 @@ func decideVerdictCore(mode sweepMode, o probeObservation) (string, string) {
 					"the type stores only NULL so no value can be lost, but a non-NULL value " +
 					"could not be tested"
 			default:
-				return verdictSilentLoss, base + "; no exclusion warning in export stdout/stderr"
+				return verdictSilentLoss, base + "; no exclusion warning in " + exclusionStreamName(mode, o)
 			}
 		}
 	}
@@ -4202,11 +4423,24 @@ func decideVerdictCore(mode sweepMode, o probeObservation) (string, string) {
 	}
 
 	// 4. Value fidelity, snapshot before streaming.
-	if o.snapshotVerdict != "" {
-		return o.snapshotVerdict, withNote(o.snapshotDetail, o.queueScanNote, o.waitNote)
-	}
-	if o.streamVerdict != "" {
-		return o.streamVerdict, withNote(o.streamDetail, o.queueScanNote, o.waitNote)
+	//
+	// FALL-BACK and FALL-FORWARD publish the REVERSE leg. Both run the full forward leg
+	// first, and the forward leg's findings belong to the LIVE cell - taking them here
+	// made the fall-back column a copy of the live one. The one case where the forward
+	// leg is still the answer is a run so broken that the reverse leg never ran at all:
+	// a forward failure really does block fall-back, and the detail now says so instead
+	// of implying the return path was measured.
+	if mode.judgesReverse() {
+		if v, d := reverseValueVerdict(mode, o); v != "" {
+			return v, withNote(d, o.queueScanNote, o.waitNote)
+		}
+	} else {
+		if o.snapshotVerdict != "" {
+			return o.snapshotVerdict, withNote(o.snapshotDetail, o.queueScanNote, o.waitNote)
+		}
+		if o.streamVerdict != "" {
+			return o.streamVerdict, withNote(o.streamDetail, o.queueScanNote, o.waitNote)
+		}
 	}
 
 	// 5. Positive evidence is required before any pass. Everything below returns
@@ -4589,6 +4823,20 @@ func voyagerCommit() string {
 // Those three fields are the classifier's attributed reasons; the two guards in front of
 // them are the branches that outrank all three, so an observation carrying both is
 // classified by the earlier one and is not attributed.
+// reportedValues picks the direction's value pair for the PROBE-VALUES line: a FALL-BACK
+// or FALL-FORWARD row is a claim about the return path, so the two values printed beside
+// it have to be the ones the return path moved. The forward pair stays on the LIVE and
+// OFFLINE rows, which is what it was always describing.
+//
+// A reverse leg that never ran leaves the reverse pair empty, and the forward pair is then
+// the only thing measured - printing nothing at all would lose the one reading the run got.
+func reportedValues(mode sweepMode, o probeObservation) (string, string) {
+	if mode.judgesReverse() && (o.revSrcValue != "" || o.revDstValue != "") {
+		return o.revSrcValue, o.revDstValue
+	}
+	return o.srcValue, o.dstValue
+}
+
 func inconclusiveIsAttributed(o probeObservation) bool {
 	if o.settledVerdict != "" || o.exporterDiedInRun != "" || o.exportNeverStreamed {
 		return false
@@ -4629,9 +4877,10 @@ func (r *sweepRun) emitAll() {
 		// parse them back out of the human-readable detail. Emitted only when the run
 		// actually read both sides; an absent line means "not measured", which is a
 		// different statement from "measured and empty".
-		if o.srcValue != "" || o.dstValue != "" {
+		srcVal, dstVal := reportedValues(r.mode, *o)
+		if srcVal != "" || dstVal != "" {
 			fmt.Printf("PROBE-VALUES: %s | %s | %s | %s\n",
-				p.ID, r.mode, sanitizeValue(o.srcValue), sanitizeValue(o.dstValue))
+				p.ID, r.mode, sanitizeValue(srcVal), sanitizeValue(dstVal))
 		}
 
 		// The one carve-out from the control gate: an attributed export death is the

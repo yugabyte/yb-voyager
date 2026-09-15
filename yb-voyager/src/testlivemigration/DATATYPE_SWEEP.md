@@ -415,6 +415,11 @@ disagreement is a finding about voyager, surfaced rather than smoothed over.
 If a result row has no catalog entry, or a catalog entry has no measurement in a required
 mode, `sweepreport report` says so; with `-strict` it exits non-zero.
 
+`report-rows.csv` carries the per-mode verdicts **and** the per-mode `run_status`
+(`offline_status`, `live_status`, `fall_back_status`, `fall_forward_status`, appended at the
+end of the row). `report-rows.json` always had it; without it in the flat CSV an `INVALID`
+cell — a `SILENT_LOSS` from a run that measured nothing — read there as an ordinary finding.
+
 ---
 
 ## The results CSV
@@ -432,9 +437,9 @@ newer differ.
 | `verdict` | the vocabulary above |
 | `evidence` | the classifier's reason: the diff, the repeated import error, the warning text |
 | `source_value`, `target_value` | verbatim value on each side, from the harness's own `PROBE-VALUES:` line (a structured field, not scraped out of the prose evidence). Pipes, newlines and tabs are escaped reversibly so a value containing one is recorded rather than rewritten |
-| `run_status` | `OK` / `ATTRIBUTED` / `POISON` are trustworthy; `INVALID` / `FLAKE` **must not be published**. `ATTRIBUTED` is a solo run whose controls died as collateral of the one probe under test (see the control-gate section). One row per run can also be trusted inside an `INVALID` run: an attributed export death, promoted by its `PROBE-PUBLISHABLE` line. A row whose evidence is a harness/environment failure (see `import_error`'s neighbour note below on container-setup failures) is always `INVALID`, even a solo run — the probe was never actually exercised, so it can never earn `ATTRIBUTED` |
-| `sqlstate` | the SQLSTATE from the importer error, when there was one. `import data` failures carry the real database error (`importAbortReason`), so a diff can report "same verdict, different SQLSTATE" — the shape a fix that only *moved* the error takes. For a solo `ATTRIBUTED` row whose own evidence describes a comparison outcome rather than the import error (e.g. "row missing on destination"), `collect` scans the rest of that log for the classified importer error that actually killed the control and fills the SQLSTATE from there instead of leaving it blank |
-| `import_error` | the classified importer error line (`ERROR: ... (SQLSTATE ...)`) that produced `sqlstate` above, when it was found elsewhere in the log rather than in this row's own evidence. Empty otherwise. Capped at 200 characters, pipes replaced with `/`. See "Which importer error gets lifted" below |
+| `run_status` | `OK` / `ATTRIBUTED` / `POISON` are trustworthy; `INVALID` / `FLAKE` **must not be published**. See "Per-run gate markers" below for which marker lands where. `ATTRIBUTED` is a solo run whose controls died as collateral of the one probe under test (see the control-gate section). One row per run can also be trusted inside an `INVALID` run: an attributed export death, promoted by its `PROBE-PUBLISHABLE` line. A row whose evidence is a harness/environment failure (see `import_error`'s neighbour note below on container-setup failures) is always `INVALID`, even a solo run — the probe was never actually exercised, so it can never earn `ATTRIBUTED` |
+| `sqlstate` | the SQLSTATE from the importer error, when there was one. `import data` failures carry the real database error (`importAbortReason`), so a diff can report "same verdict, different SQLSTATE" — the shape a fix that only *moved* the error takes. For a solo `ATTRIBUTED` row whose own evidence describes a comparison outcome rather than the import error (e.g. "row missing on destination"), `collect` scans the rest of that log for the classified importer error that actually killed the control and fills the SQLSTATE from there instead of leaving it blank. Not every SQLSTATE starts with a digit — `XX000` (internal error), `P0001` (raise), `HV000` (FDW) are all real and all quoted verbatim by the harness, so the full `[0-9A-Z]{5}` set is accepted after the word `SQLSTATE`; a bare parenthesised code still has to start with a digit so that `(FALSE)` is not read as one |
+| `import_error` | the classified importer error line (`ERROR: ... (SQLSTATE ...)`) behind this row: lifted from elsewhere in the log for a row whose own evidence carries no SQLSTATE, and otherwise quoted from the row's own evidence when the verdict is `STUCK` or `BLOCKS` (those details already contain the error, and the column used to be empty on every such row). Capped at 200 characters, pipes replaced with `/`. See "Which importer error gets lifted" below |
 | `timestamp_source` | how `run_timestamp` was obtained — see the priority order below |
 
 A container-setup failure (disk exhaustion on the target cluster, a bad image tag, a
@@ -443,6 +448,33 @@ contains `insufficient disk space`, `manifest for ... not found` or `no space le
 device`) means the probe was never actually exercised. That row's `run_status` is always
 `INVALID`, never `ATTRIBUTED` and never `OK`, regardless of how many probes shared the run
 — it is a harness/environment fact, not a measurement of the type.
+
+### Per-run gate markers
+
+The harness prints what it thought of each run. `collect` reads all six kinds:
+
+| Marker | Effect on that run's rows |
+| --- | --- |
+| `PROBE-RUN-INVALID` | `INVALID`, unless the solo carve-out promotes the sole probe to `ATTRIBUTED` (the control gate below re-decides it) |
+| `PROBE-RUN-FLAKE` | `INVALID`: the run produced no measurement |
+| `PROBE-RUN-EXPORT-DIED` | `INVALID`: the exporter died, so nothing behind it ran. The one row the harness names in a `PROBE-PUBLISHABLE` line still survives — that row *is* the measurement of the death |
+| `PROBE-RUN-QUARANTINE` | names the one probe that killed the run: its row is `ATTRIBUTED` when its own evidence names the failure (a SQLSTATE, or its own `p_<id>` table), `INVALID` otherwise. Every other probe in the run is collateral: `INVALID`, whatever verdict was printed for it |
+| `PROBE-RUN-POISON` | a batch run keeps `POISON` (control gate N/A by design). A **solo** poison run is not automatically trusted: the sole probe is `ATTRIBUTED` only when its own evidence names the failure, `INVALID` otherwise — "the gate does not apply" is not "this row was measured" |
+| `PROBE-RUN-EXCLUDED` | none. The probe was deliberately kept out of the batch and measured solo instead, so it has no row at all. `collect -excluded-out <file>` writes these as `probe_id,mode,reason` so the page can say "excluded from batch runs by design" instead of showing a hole |
+
+**Marker keys and solo runs.** A marker names its run by the harness's batch name
+(`values`, or `solo_dom_005` for a `PROBE_ID` run). A solo run's `=== RUN` line is bare —
+`=== RUN   TestDatatypeSweepSuspect`, no subtest — so its rows have no batch name from that
+line and the two keys never matched: on a 372-log corpus **196 of 236 markers never fired**,
+and four cells (`DOM-005` and `HSTORE-001`, LIVE and FALL-BACK) read as trusted although the
+exporter had died with an NPE and nothing about the type was measured. The run's name *is*
+printed, on its `PROBE-RUN-*` and `PROBE-WAIT` lines; `collect` takes it from there, and
+failing that synthesises `solo_<probe>` from the sole probe the run measured. A solo run is
+one run per log, so its markers apply to every row it produced, including the FALL-BACK leg
+of a run the marker calls LIVE.
+
+The data-derived control gate stays in place behind all of this — a marker that goes
+missing must never read as "the gate passed".
 
 ### Which importer error gets lifted
 
@@ -460,12 +492,10 @@ actually killed it. When the log has several, it picks in this order:
    or its type name — over a generic one from the same run.
 3. Otherwise the **first surviving error in file order**.
 
-Errors are keyed by **batch alone**, not by `(batch, mode)`. A solo run logs a bare
-`=== RUN   TestDatatypeSweepSuspect` — no subtest and no mode in the test name — so a
-`(batch, mode)` key built from that line is `|` while the rows from the same run look
-themselves up under `|LIVE` (a row's mode comes from its own `PROBE-RESULT` line). The keys
-never matched and the lift never fired on any real solo log. Within one log a batch is one
-go-test subtest of one mode, so the batch already implies the mode.
+Errors are keyed by **batch alone**, not by `(batch, mode)`: within one log a batch is one
+go-test subtest of one mode, so the batch already implies the mode and the row supplies the
+mode itself. For a solo run the batch is the repaired `solo_<probe>` name (see "Per-run gate
+markers"), which the rows and the markers now share.
 
 ### How `run_timestamp` is derived
 
@@ -1228,6 +1258,53 @@ tested". No new verdict label was added on purpose. The report collector special
 `WORKS` and `INCONCLUSIVE` by name and ranks everything else as a finding, so a label it
 has never heard of would be mis-ranked rather than merely unfamiliar; and the honest
 statement here really is the existing one, narrowed by its detail rather than replaced.
+
+**The `FALL-BACK` cell is the return path, not the forward leg again.** A fall-back run
+does the whole live migration first and only then cuts over and exercises the way back, and
+both legs used to write their value comparison into the same field — where the first verdict
+per phase wins. The forward compare always got there first, so whatever the reverse compare
+found was overwritten before anyone read it, and the published `FALL-BACK` cell was a copy
+of the `LIVE` one. The rerunB audit shows it plainly: six of the seven silent `FALL-BACK`
+cells printed `streaming source->target` with a forward row id (`1` or `2`), and not one of
+them printed `target->source` or named a row in `101..106`. The two legs are now recorded
+separately, and fall-back and fall-forward publish the reverse one. The reverse compare also
+looks only at the reverse row block (`101..106`): rows `1..6` belong to the forward delta
+and are never replayed on the way back, so a value the forward leg mangled still sits
+mangled on the target, and comparing it against the source's untouched copy would re-report
+the forward finding with its direction label flipped — a fall-back failure the fall-back
+never caused. Three shapes follow. A forward mismatch over a clean return path is `WORKS`,
+with the detail saying `forward-direction mismatch is reported in the LIVE cell`, because
+the two cells otherwise read as the harness contradicting itself. A reverse mismatch is the
+verdict, and its detail says `target->source` and names a reverse row. And a run whose
+forward leg failed so badly that cutover never happened keeps the forward verdict — a
+forward failure really does block fall-back — but its detail now opens with `fall-back not
+reached: forward leg failed (...)` rather than implying the return path was measured. The
+`PROBE-VALUES` line follows the same rule: a fall-back row carries the reverse compare's two
+values, which were simply not recorded before. `LIVE` and `OFFLINE` are untouched. Pinned by
+`TestFallbackPublishesTheReverseLeg`, `TestFallbackSplitLeavesLiveUntouched`,
+`TestReverseCompareReadsOnlyTheReverseRowBlock` and
+`TestFallbackValuesLineCarriesTheReverseCompare`.
+
+**The return path's exclusion notice is printed on the import-data stream.** `MISC-001`
+(`tsquery`) published `FALL-BACK` `SILENT_LOSS` with `no exclusion warning in export
+stdout/stderr`, over a run whose own log carried the notice for that exact table. With
+`--prepare-for-fall-back` the return path's exporter is not a command of its own: at cutover
+the running `import data` process exec's into `export data from target`, so everything that
+exporter prints — the `The following columns data export is unsupported:` block included —
+lands on the import-data stdout/stderr, while the export command's buffer has become
+`import data to source`. `fb_misc.log` shows both halves of that run: line 138 has the
+forward notice on `[export data]` naming only `p_misc_012`, and line 355 has the reverse
+notice on `[import data]` naming `p_misc_001` and `p_misc_012`. The harness scanned only the
+first. After cutover it now runs the same parser over the import-data stream and records
+what it finds in reverse-direction flags of its own, and fall-back and fall-forward classify
+the column-absence evidence against those — which is the matching pair, since that evidence
+is itself the post-cutover queue scan. So a column dropped on the way back with the notice
+printed reads `QUIET_DROP` (or `EXCLUDED_TOLD` when the question itself reached the stream)
+instead of `SILENT_LOSS`, and a drop that really was silent still says so, naming the stream
+it was looked for on. The forward scan is unchanged, and a run that never reached cutover
+has no reverse stream to read and keeps classifying exactly as it did. Pinned by
+`TestReverseExclusionNoticeIsReadFromTheImportStream` and
+`TestReverseExclusionNoticeIsNotSilent`.
 
 ## Exit codes
 

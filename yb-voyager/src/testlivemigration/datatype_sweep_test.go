@@ -47,6 +47,7 @@ sweeps running concurrently would race over which database they are pointed at.
 
 import (
 	"bytes"
+	"database/sql"
 	"io"
 	"os"
 	"path/filepath"
@@ -1560,5 +1561,344 @@ func TestNullOnlyColumnAbsentIsQuietDrop(t *testing.T) {
 	warned.warned, warned.promptShown = true, true
 	if got, d := decideVerdict(modeLive, warned); got != verdictExcludedTold {
 		t.Errorf("a confirmed exclusion read as %s, want %s (%s)", got, verdictExcludedTold, d)
+	}
+}
+
+/*
+FALL-BACK / FALL-FORWARD: the published cell is the REVERSE leg.
+
+Both modes run the whole forward leg first, and both used to funnel every compare into the
+same streamVerdict field, where the first verdict per phase wins. The forward compare always
+got there first, so a fall-back run whose forward leg found a mismatch published that
+mismatch again under FALL-BACK and discarded whatever the return path had done. In the
+rerunB audit six of the seven silent FALL-BACK cells printed `source->target` with a forward
+row id (1 or 2) for exactly that reason - see EVIDENCE.md, "Note on the FALL-BACK reverse
+direction check".
+
+The tests below pin the three shapes the split has to get right, plus the one thing it must
+not change: LIVE is forward-only and must behave exactly as it did.
+*/
+
+// fallbackCleanObservation is a fall-back run in which everything worked: both legs
+// compared, the column was seen, the reverse delta landed. Each test below breaks exactly
+// one thing, so the verdict it gets is attributable to that one thing.
+func fallbackCleanObservation() probeObservation {
+	return probeObservation{
+		snapshotCompared: true, streamCompared: true, reverseCompared: true,
+		eventsForTable: 6, columnSeenInEvents: true, columnSeenOps: "insert/update/delete",
+		deltaOpsApplied: 6, deltaConfirmed: true,
+		srcValue: "other_cursor", dstValue: `\x6f746865725f637572736f72`,
+	}
+}
+
+// TestFallbackPublishesTheReverseLeg is the whole of defect 1 in one table.
+func TestFallbackPublishesTheReverseLeg(t *testing.T) {
+	// (a) The forward leg mangled the value; the return path carried its own rows back
+	//     intact. The fall-back cell is the reverse result, and it has to say where the
+	//     forward finding went or the two cells read as the harness contradicting itself.
+	t.Run("forward mismatch with a clean reverse leg is WORKS", func(t *testing.T) {
+		o := fallbackCleanObservation()
+		o.streamVerdict = verdictSilentWrong
+		o.streamDetail = `streaming source->target: [update-this-column] id=1 ` +
+			`source="other_cursor" destination="\x6f746865725f637572736f72"`
+
+		got, detail := decideVerdict(modeFallback, o)
+		if got != verdictWorks {
+			t.Fatalf("decideVerdict = %s, want %s (detail: %s)", got, verdictWorks, detail)
+		}
+		if !strings.Contains(detail, "forward-direction mismatch is reported in the LIVE cell") {
+			t.Errorf("the detail does not point at the LIVE cell: %s", detail)
+		}
+		if strings.Contains(detail, "source->target") {
+			t.Errorf("the fall-back detail still repeats the forward compare: %s", detail)
+		}
+	})
+
+	// (b) The return path is what broke. This is the finding the old code could never
+	//     print, because the forward verdict was already sitting in the field.
+	t.Run("reverse mismatch is the fall-back verdict", func(t *testing.T) {
+		o := fallbackCleanObservation()
+		o.streamVerdict = verdictSilentWrong
+		o.streamDetail = `streaming source->target: [update-this-column] id=1 source="a" destination="b"`
+		o.reverseVerdict = verdictSilentWrong
+		o.reverseDetail = `streaming target->source: [update-this-column] id=101 ` +
+			`source="24:00:00" destination="00:00:00"`
+
+		got, detail := decideVerdict(modeFallback, o)
+		if got != verdictSilentWrong {
+			t.Fatalf("decideVerdict = %s, want %s (detail: %s)", got, verdictSilentWrong, detail)
+		}
+		if !strings.Contains(detail, "target->source") {
+			t.Errorf("the detail is not a reverse-direction compare: %s", detail)
+		}
+		if !strings.Contains(detail, "id=101") {
+			t.Errorf("the detail does not name a reverse row (101-106): %s", detail)
+		}
+		if strings.Contains(detail, "source->target") {
+			t.Errorf("the forward compare leaked into the fall-back detail: %s", detail)
+		}
+		if strings.Contains(detail, "forward-direction mismatch is reported in the LIVE cell") {
+			t.Errorf("a reverse FAILURE must not carry the clean-leg note: %s", detail)
+		}
+	})
+
+	// (c) The forward leg failed so badly that cutover never happened, so no reverse
+	//     compare ran. The forward failure IS what blocks fall-back and stays the verdict -
+	//     but the detail must not imply the return path was measured.
+	t.Run("a reverse leg that never ran says so", func(t *testing.T) {
+		o := fallbackCleanObservation()
+		o.reverseCompared = false
+		o.streamVerdict = verdictSilentLoss
+		o.streamDetail = `streaming source->target: [update-this-column] row id=1 present on source, missing on destination`
+
+		got, detail := decideVerdict(modeFallback, o)
+		if got != verdictSilentLoss {
+			t.Fatalf("decideVerdict = %s, want %s (detail: %s)", got, verdictSilentLoss, detail)
+		}
+		if !strings.Contains(detail, "fall-back not reached: forward leg failed") {
+			t.Errorf("the detail does not say the return path was never reached: %s", detail)
+		}
+		if !strings.Contains(detail, "missing on destination") {
+			t.Errorf("the forward failure itself was dropped from the detail: %s", detail)
+		}
+
+		// Fall-forward says fall-forward. The two modes must not borrow each other's words.
+		if _, ffDetail := decideVerdict(modeFallForward, o); !strings.Contains(
+			ffDetail, "fall-forward not reached: forward leg failed") {
+			t.Errorf("fall-forward detail = %s, want it to name its own leg", ffDetail)
+		}
+	})
+
+	// The snapshot half of the forward leg falls under the same rule: fall-back's snapshot
+	// IS the forward direction, so it belongs to the LIVE cell too.
+	t.Run("a forward snapshot mismatch does not become the fall-back verdict", func(t *testing.T) {
+		o := fallbackCleanObservation()
+		o.snapshotVerdict = verdictSilentWrong
+		o.snapshotDetail = `snapshot source->target: [update-this-column] id=1 source="1.500" destination="1.5"`
+
+		got, detail := decideVerdict(modeFallback, o)
+		if got != verdictWorks {
+			t.Fatalf("decideVerdict = %s, want %s (detail: %s)", got, verdictWorks, detail)
+		}
+		if strings.Contains(detail, "1.500") {
+			t.Errorf("the forward snapshot compare leaked into the fall-back detail: %s", detail)
+		}
+	})
+}
+
+// TestFallbackSplitLeavesLiveUntouched is the regression guard on the other side of the
+// split: LIVE and OFFLINE have no reverse leg, and every forward observation must classify
+// exactly as it did before the reverse fields existed - same verdict, same detail text.
+func TestFallbackSplitLeavesLiveUntouched(t *testing.T) {
+	forward := fallbackCleanObservation()
+	forward.reverseCompared = false
+	forward.streamVerdict = verdictSilentWrong
+	forward.streamDetail = `streaming source->target: [NULL->value] id=2 source="-0" destination="0"`
+
+	got, detail := decideVerdict(modeLive, forward)
+	if got != verdictSilentWrong {
+		t.Fatalf("LIVE decideVerdict = %s, want %s (%s)", got, verdictSilentWrong, detail)
+	}
+	if detail != forward.streamDetail {
+		t.Errorf("LIVE detail = %q, want the forward detail verbatim %q", detail, forward.streamDetail)
+	}
+
+	// A LIVE observation that somehow carries reverse fields still reports the forward
+	// leg: the MODE, not the presence of the fields, is what selects the leg.
+	polluted := forward
+	polluted.reverseCompared = true
+	polluted.reverseVerdict = verdictSilentLoss
+	polluted.reverseDetail = "streaming target->source: [delete] stale row id=103"
+	got, detail = decideVerdict(modeLive, polluted)
+	if got != verdictSilentWrong || detail != forward.streamDetail {
+		t.Errorf("LIVE read the reverse fields: got %s / %q", got, detail)
+	}
+
+	// Offline has no reverse leg at all, and its snapshot verdict is unchanged.
+	off := probeObservation{
+		snapshotCompared: true,
+		snapshotVerdict:  verdictSilentWrong,
+		snapshotDetail:   `snapshot source->target: [update-this-column] id=1 source="1.500" destination="1.5"`,
+	}
+	if got, d := decideVerdict(modeOffline, off); got != verdictSilentWrong || d != off.snapshotDetail {
+		t.Errorf("OFFLINE decideVerdict = %s / %q, want %s / the snapshot detail",
+			got, d, verdictSilentWrong)
+	}
+}
+
+// TestReverseCompareReadsOnlyTheReverseRowBlock: rows 1..6 are the forward delta's and are
+// never replayed on the way back, so a value the forward leg mangled still sits mangled on
+// the target. Comparing it against the source's untouched copy re-reports the forward
+// finding with the direction label flipped - a fall-back failure the fall-back never
+// caused, and the shape that would otherwise have survived defect 1's fix untouched.
+func TestReverseCompareReadsOnlyTheReverseRowBlock(t *testing.T) {
+	str := func(s string) sql.NullString { return sql.NullString{String: s, Valid: true} }
+	filler := str("f")
+
+	// Target side: row 1 holds what the forward leg left there (hex), row 101 holds what
+	// the reverse delta wrote. Source side: row 1 is the original, row 101 arrived clean.
+	target := map[int]probeRow{
+		rowBaseline: {filler: filler, value: str(`\x6f746865725f637572736f72`)},
+		revBaseline: {filler: filler, value: str("reverse_value")},
+	}
+	source := map[int]probeRow{
+		rowBaseline: {filler: filler, value: str("other_cursor")},
+		revBaseline: {filler: filler, value: str("reverse_value")},
+	}
+
+	// Unscoped, this is the bug: the forward damage reads as a reverse-direction mismatch.
+	if v, d := compareProbeRows(target, source); v == "" {
+		t.Fatalf("the unscoped compare found nothing, so this test proves nothing")
+	} else if !strings.Contains(d, "id=1 ") {
+		t.Fatalf("expected the unscoped compare to trip on the forward row, got %s: %s", v, d)
+	}
+
+	// Scoped to the reverse block, the return path comes out clean.
+	if v, d := compareProbeRows(reverseRowBlock(target), reverseRowBlock(source)); v != "" {
+		t.Errorf("the reverse block compared as %s, want clean: %s", v, d)
+	}
+
+	// And a real reverse-direction loss is still caught.
+	broken := map[int]probeRow{
+		rowBaseline: {filler: filler, value: str("other_cursor")},
+		revBaseline: {filler: filler, value: sql.NullString{}},
+	}
+	v, d := compareProbeRows(reverseRowBlock(target), reverseRowBlock(broken))
+	if v != verdictSilentLoss {
+		t.Errorf("a dropped reverse value compared as %s, want %s: %s", v, verdictSilentLoss, d)
+	}
+	if !strings.Contains(d, "id=101") {
+		t.Errorf("the reverse detail does not name the reverse row: %s", d)
+	}
+}
+
+// TestFallbackValuesLineCarriesTheReverseCompare: PROBE-VALUES on a FALL-BACK row has to be
+// the return path's two values. The forward pair is what the LIVE row already prints, and
+// printing it twice is how the fall-back cell repeated the live one even in the fields the
+// audit tooling was supposed to be able to trust.
+func TestFallbackValuesLineCarriesTheReverseCompare(t *testing.T) {
+	o := fallbackCleanObservation()
+	o.revSrcValue, o.revDstValue = "24:00:00", "00:00:00"
+
+	if src, dst := reportedValues(modeFallback, o); src != "24:00:00" || dst != "00:00:00" {
+		t.Errorf("FALL-BACK values = %q / %q, want the reverse compare's pair", src, dst)
+	}
+	if src, dst := reportedValues(modeFallForward, o); src != "24:00:00" || dst != "00:00:00" {
+		t.Errorf("FALL-FORWARD values = %q / %q, want the reverse compare's pair", src, dst)
+	}
+	// LIVE and OFFLINE keep the forward pair.
+	if src, dst := reportedValues(modeLive, o); src != o.srcValue || dst != o.dstValue {
+		t.Errorf("LIVE values = %q / %q, want the forward pair", src, dst)
+	}
+	// A reverse leg that never ran leaves the forward pair as the only reading there is.
+	none := fallbackCleanObservation()
+	if src, dst := reportedValues(modeFallback, none); src != none.srcValue || dst != none.dstValue {
+		t.Errorf("with no reverse values the line printed %q / %q, want the forward pair", src, dst)
+	}
+}
+
+/*
+Defect 2: the RETURN path's exclusion notice is printed on the import-data stream.
+
+With --prepare-for-fall-back the running `import data` process exec's into
+`export data from target` at cutover, so the unsupported-columns block that exporter prints
+lands on the import-data stdout/stderr. recordExportWarnings reads the EXPORT command's
+buffer, which after cutover belongs to `import data to source`, so it could never see it:
+MISC-001 (tsquery) published FALL-BACK SILENT_LOSS with "no exclusion warning in export
+stdout/stderr" over a run whose import-data stream named that exact table.
+*/
+
+// fbMiscImportStream is copied verbatim from fb_misc.log:355-359 - what voyager really
+// printed on the [import data] stream of that fall-back run, log prefix included, so the
+// parser is exercised on the shape it actually meets.
+const fbMiscImportStream = `  [import data] The following columns data export is unsupported:
+  [import data] sweep_schema.p_misc_001: [v]
+  [import data] sweep_schema.p_misc_012: [v]
+  [import data]
+  [import data] Do you want to continue with the export by ignoring just these columns' data? [Y/N]: Continuing with the export by ignoring just these columns' data.`
+
+// TestReverseExclusionNoticeIsReadFromTheImportStream pins the parse.
+func TestReverseExclusionNoticeIsReadFromTheImportStream(t *testing.T) {
+	if !exportWarnedAboutColumn(fbMiscImportStream, "sweep_schema.p_misc_001", sweepColumnUnderTest) {
+		t.Errorf("the notice naming p_misc_001 was not read off the import-data stream")
+	}
+	if !exportWarnedAboutColumn(fbMiscImportStream, "sweep_schema.p_misc_012", sweepColumnUnderTest) {
+		t.Errorf("the notice naming p_misc_012 was not read off the import-data stream")
+	}
+	// A table the notice did not name must not be swept up with the ones it did.
+	if exportWarnedAboutColumn(fbMiscImportStream, "sweep_schema.p_ctrl_001", sweepColumnUnderTest) {
+		t.Errorf("a table absent from the notice was reported as excluded")
+	}
+	// The forward stream of that same run named only p_misc_012 (fb_misc.log:138-140),
+	// which is exactly why the two directions need flags of their own.
+	const fbMiscExportStream = `  [export data] The following columns data export is unsupported:
+  [export data] sweep_schema.p_misc_012: [v]
+  [export data] Continuing with the export by ignoring just these columns' data.`
+	if exportWarnedAboutColumn(fbMiscExportStream, "sweep_schema.p_misc_001", sweepColumnUnderTest) {
+		t.Errorf("the forward notice was read as naming p_misc_001")
+	}
+}
+
+// TestReverseExclusionNoticeIsNotSilent is the verdict half: the column really is absent
+// from all 6 reverse-direction events, but the user WAS told. That is not SILENT_LOSS.
+func TestReverseExclusionNoticeIsNotSilent(t *testing.T) {
+	// MISC-001 as fb_misc.log recorded it: nothing on the forward export stream, the
+	// notice on the import-data stream, 6 reverse events without the column.
+	o := probeObservation{
+		snapshotCompared: true, streamCompared: true, reverseCompared: true,
+		eventsForTable: 6, columnSeenInEvents: false,
+		deltaOpsApplied: 6, deltaConfirmed: true,
+		queueScanNote: "queue scanned from the cutover mark only, so these are reverse-direction events",
+	}
+
+	// Before the reverse stream is scanned, this is the cell that was published.
+	if got, d := decideVerdict(modeFallback, o); got != verdictSilentLoss {
+		t.Fatalf("unscanned decideVerdict = %s, want %s (%s)", got, verdictSilentLoss, d)
+	}
+
+	// Scanned, with the notice auto-accepted by --yes and no question on the stream:
+	// QUIET_DROP, the shape the fall-back cell should have carried all along.
+	quiet := o
+	quiet.reverseWarnScanned, quiet.reverseWarned = true, true
+	got, detail := decideVerdict(modeFallback, quiet)
+	if got != verdictQuietDrop {
+		t.Fatalf("decideVerdict = %s, want %s (%s)", got, verdictQuietDrop, detail)
+	}
+
+	// The same run with the question actually printed is EXCLUDED_TOLD. fb_misc.log's
+	// import stream DID carry it, so this is not a hypothetical branch.
+	told := quiet
+	told.reversePromptShown = strings.Contains(fbMiscImportStream, unsupportedColsPrompt)
+	if !told.reversePromptShown {
+		t.Fatalf("the captured fb_misc lines no longer contain the prompt text")
+	}
+	if g, d := decideVerdict(modeFallback, told); g != verdictExcludedTold {
+		t.Errorf("a printed question read as %s, want %s (%s)", g, verdictExcludedTold, d)
+	}
+
+	// A reverse stream that WAS read and named nothing stays SILENT_LOSS, and names the
+	// stream it looked at so the reader does not grep the one that could not carry it.
+	scannedClean := o
+	scannedClean.reverseWarnScanned = true
+	g, d := decideVerdict(modeFallback, scannedClean)
+	if g != verdictSilentLoss {
+		t.Errorf("a genuinely silent reverse drop read as %s, want %s (%s)", g, verdictSilentLoss, d)
+	}
+	if !strings.Contains(d, "import-data stdout/stderr") {
+		t.Errorf("the detail does not name the stream that was scanned: %s", d)
+	}
+
+	// The forward direction is untouched: LIVE still classifies on the forward flags.
+	live := o
+	live.warned = true
+	if g, d := decideVerdict(modeLive, live); g != verdictQuietDrop {
+		t.Errorf("LIVE with a forward notice read as %s, want %s (%s)", g, verdictQuietDrop, d)
+	}
+	// ... and a fall-back run that never reached cutover has no reverse stream to read,
+	// so it keeps classifying on the forward flags exactly as it always did.
+	noCutover := o
+	noCutover.warned, noCutover.promptShown = true, true
+	if g, d := decideVerdict(modeFallback, noCutover); g != verdictExcludedTold {
+		t.Errorf("an unscanned fall-back read as %s, want %s (%s)", g, verdictExcludedTold, d)
 	}
 }
