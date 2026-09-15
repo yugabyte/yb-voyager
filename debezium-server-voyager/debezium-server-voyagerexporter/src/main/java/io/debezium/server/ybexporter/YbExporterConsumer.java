@@ -430,9 +430,9 @@ public class YbExporterConsumer extends BaseChangeConsumer {
                     throw e;
                 }
                 if (attempt == OFFSET_COMMIT_MAX_ATTEMPTS) {
-                    LOGGER.error("Offset commit failed on all {} attempts; the replication stream "
-                            + "is still closed. The batch is durably written to the export queue, "
-                            + "but the offsets could not be committed.", OFFSET_COMMIT_MAX_ATTEMPTS, e);
+                    LOGGER.error("Offset commit failed on all {} attempts: the replication stream "
+                            + "is still closed (typically a YB tablet split).",
+                            OFFSET_COMMIT_MAX_ATTEMPTS, e);
                     throw e;
                 }
                 LOGGER.warn("Offset commit failed (attempt {}/{}): the replication stream is closed "
