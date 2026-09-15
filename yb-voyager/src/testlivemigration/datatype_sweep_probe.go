@@ -48,6 +48,7 @@ import (
 	"bufio"
 	"context"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
@@ -1298,7 +1299,7 @@ func (r *sweepRun) runOffline() {
 		return
 	}
 	if err := r.lm.StartImportData(false, map[string]string{"--log-level": "debug"}); err != nil {
-		r.abortAll(r.importAbortReason("import data failed", err))
+		r.abortImport("import data failed", err)
 		return
 	}
 	// No snapshot wait here. `import data` was started with async=false, so the call
@@ -2152,7 +2153,7 @@ func (r *sweepRun) applyWaitResult(what string, res waitResult) {
 	// that probe is the poison and everyone else is collateral.
 	culprit := ""
 	if res.outcome == waitRepeatingError {
-		if id, ok := attributeCrashLoop(r.active, res.quotedError); ok {
+		if id, ok := attributeImportFailure(r.active, res.quotedError); ok {
 			culprit = id
 			r.quarantine(id, res)
 		}
@@ -2373,7 +2374,7 @@ func (r *sweepRun) recordCommandExit(what string, res waitResult) {
 	}
 
 	culprit := ""
-	if id, ok := attributeCrashLoop(r.active, quoted); ok {
+	if id, ok := attributeImportFailure(r.active, quoted); ok {
 		culprit = id
 		r.quarantine(id, res)
 	}
@@ -2461,6 +2462,223 @@ func attributeCrashLoop(probes []datatypeProbe, errText string) (string, bool) {
 	return matched[0], true
 }
 
+// ============================================================
+// ATTRIBUTION BY VALUE
+// ============================================================
+
+/*
+attributeByValue is the second attribution pass, and it exists because the first one only
+works when the importer happens to name a table.
+
+Half the real crash-loops in the sweep never do. The importer dies quoting the VALUE it
+could not bind and nothing else:
+
+	invalid input syntax for type pg_lsn: "\x302f30"
+	invalid input syntax for type vector: "\x5b302e312c302e322c302e335d"
+	invalid input syntax for ISSN number: "\x3937372d313433362d3435322d30302d38"
+	cannot accept a value of type pg_node_tree
+
+attributeCrashLoop finds no table in any of those, so nobody was blamed and every probe in
+the batch came out INCONCLUSIVE - one poison value silently cost the whole batch. But the
+error is not anonymous at all: the quoted literal IS one probe's InitialValue or AltValue,
+and the type it names IS one probe's column type. Both are facts the harness already holds.
+
+Two rules, and both demand UNIQUENESS for the same reason attributeCrashLoop does: a guess
+quarantines an innocent type, and a guess is recorded as a finding.
+
+  - the quoted literal equals exactly one active probe's value. Strongest signal: a value
+    is the probe's own, not something a type shares.
+  - failing that, the named type equals exactly one active probe's column type (or a
+    domain's base type). Weaker, because several probes can wrap the same type - and when
+    they do, this rule correctly declines.
+
+Literals arrive hex-encoded (\x302f30) when the value travelled as bytes, so they are
+decoded before comparison.
+*/
+
+var (
+	// `invalid input syntax for type <T>: "<lit>"` - the common shape.
+	invalidInputTypeRe = regexp.MustCompile(`(?i)invalid input syntax for type\s+([A-Za-z0-9_."]+)\s*:\s*"([^"]*)"`)
+	// `invalid input syntax for ISSN number: "<lit>"` - the isn extension's own wording,
+	// which names the type without the word "type".
+	invalidInputNamedRe = regexp.MustCompile(`(?i)invalid input syntax for\s+([A-Za-z0-9_.]+)\s+number\s*:\s*"([^"]*)"`)
+	// `cannot accept a value of type <T>` - names a type and quotes no literal at all.
+	cannotAcceptTypeRe = regexp.MustCompile(`(?i)cannot accept a value of type\s+([A-Za-z0-9_."]+)`)
+
+	// A SQL literal with an optional cast: 'abc'::vector(3), '0/0'::pg_lsn, 'x'.
+	quotedLiteralRe = regexp.MustCompile(`^'(.*)'(?:\s*::\s*[A-Za-z0-9_."]+(?:\s*\([^)]*\))?(?:\s*\[\s*\])?)?$`)
+	// An unquoted literal with a cast: 32767::int2, (-1.5)::float4.
+	castSuffixRe = regexp.MustCompile(`\s*::\s*[A-Za-z0-9_."]+(?:\s*\([^)]*\))?(?:\s*\[\s*\])?$`)
+	// CREATE DOMAIN <name> AS <base type> - the base type a domain probe really tests.
+	domainBaseRe = regexp.MustCompile(`(?i)\bCREATE\s+DOMAIN\s+\S+\s+AS\s+([A-Za-z0-9_."]+)`)
+)
+
+// pgTypeAliases maps PG's spelled-out type names onto the internal names the probe table
+// writes, so an error saying "smallint" can be compared with a column declared "int2".
+// Only pairs where the two spellings are the SAME type; nothing is inferred.
+var pgTypeAliases = map[string]string{
+	"smallint":          "int2",
+	"integer":           "int4",
+	"int":               "int4",
+	"bigint":            "int8",
+	"real":              "float4",
+	"double precision":  "float8",
+	"boolean":           "bool",
+	"character varying": "varchar",
+	"character":         "bpchar",
+	"decimal":           "numeric",
+}
+
+// importErrorClaim is what one importer error says about the value it refused.
+type importErrorClaim struct {
+	typeName string // the type the error named, normalised; "" when it named none
+	literal  string // the literal it quoted, hex-decoded; "" when it quoted none
+}
+
+// parseImportErrorClaim reads the type and the literal out of an importer error.
+func parseImportErrorClaim(errText string) (importErrorClaim, bool) {
+	if m := invalidInputTypeRe.FindStringSubmatch(errText); m != nil {
+		return importErrorClaim{typeName: normalizeTypeName(m[1]), literal: decodeHexLiteral(m[2])}, true
+	}
+	if m := invalidInputNamedRe.FindStringSubmatch(errText); m != nil {
+		return importErrorClaim{typeName: normalizeTypeName(m[1]), literal: decodeHexLiteral(m[2])}, true
+	}
+	if m := cannotAcceptTypeRe.FindStringSubmatch(errText); m != nil {
+		return importErrorClaim{typeName: normalizeTypeName(m[1])}, true
+	}
+	return importErrorClaim{}, false
+}
+
+// decodeHexLiteral turns a `\x...` bytea-style literal back into the text it encodes. A
+// literal that is not hex is returned unchanged - the importer quotes plain text too.
+func decodeHexLiteral(lit string) string {
+	if !strings.HasPrefix(lit, `\x`) && !strings.HasPrefix(lit, `\X`) {
+		return lit
+	}
+	b, err := hex.DecodeString(lit[2:])
+	if err != nil {
+		return lit
+	}
+	return string(b)
+}
+
+// normalizeTypeName reduces a type expression to the bare name the probe table and the
+// importer can be compared on:
+//
+//   - schema qualification and quoting dropped ("sweep_schema"."v" -> v)
+//   - modifiers dropped (vector(3) -> vector, numeric(10,2) -> numeric)
+//   - array brackets dropped (vector[] -> vector)
+//   - PG's spelled-out aliases folded onto the internal name (smallint -> int2)
+func normalizeTypeName(t string) string {
+	n := strings.ToLower(strings.TrimSpace(t))
+	if i := strings.Index(n, "("); i >= 0 {
+		n = n[:i]
+	}
+	n = strings.TrimSpace(n)
+	n = strings.TrimSuffix(n, "[]")
+	n = strings.TrimSpace(n)
+	if i := strings.LastIndex(n, "."); i >= 0 {
+		n = n[i+1:]
+	}
+	n = strings.Trim(n, `"`)
+	n = strings.TrimSpace(n)
+	if alias, ok := pgTypeAliases[n]; ok {
+		return alias
+	}
+	return n
+}
+
+// literalTextOf strips a SQL value expression down to the text PostgreSQL would have
+// stored, so it can be compared with the literal an importer error quotes:
+//
+//   - '0/0'::pg_lsn       -> 0/0
+//   - '[0.1,0.2]'::vector -> [0.1,0.2]
+//   - 32767::int2         -> 32767
+//
+// Anything that is not a plain literal (ARRAY[...], ROW(...), a function call) comes back
+// empty: it has no single stored text, and guessing one would match the wrong probe.
+func literalTextOf(expr string) string {
+	s := strings.TrimSpace(expr)
+	if s == "" {
+		return ""
+	}
+	if m := quotedLiteralRe.FindStringSubmatch(s); m != nil {
+		// '' is PG's escape for a single quote inside a literal.
+		return strings.ReplaceAll(m[1], "''", "'")
+	}
+	s = strings.TrimSpace(castSuffixRe.ReplaceAllString(s, ""))
+	if strings.ContainsAny(s, `'"([`) {
+		return ""
+	}
+	return s
+}
+
+// probeTypeNames lists every type name a probe can honestly be said to test: its column
+// type, and the base type of any domain it creates.
+func probeTypeNames(p datatypeProbe) []string {
+	var out []string
+	if n := normalizeTypeName(p.ColumnDDL); n != "" && !strings.Contains(n, "{{") {
+		out = append(out, n)
+	}
+	for _, ddl := range p.PreDDL {
+		if m := domainBaseRe.FindStringSubmatch(ddl); m != nil {
+			if n := normalizeTypeName(m[1]); n != "" {
+				out = append(out, n)
+			}
+		}
+	}
+	return out
+}
+
+// attributeByValue names the probe an importer error belongs to when the error quotes the
+// value or the type but no table. See the block comment above for the rules.
+func attributeByValue(probes []datatypeProbe, errText string) (string, bool) {
+	claim, ok := parseImportErrorClaim(errText)
+	if !ok {
+		return "", false
+	}
+
+	var byLiteral, byType []string
+	for _, p := range probes {
+		if p.ExpectVerdict != "" {
+			continue // never blame a known-good control
+		}
+		if claim.literal != "" {
+			for _, v := range []string{p.InitialValue, p.AltValue} {
+				if lit := literalTextOf(v); lit != "" && lit == claim.literal {
+					byLiteral = append(byLiteral, p.ID)
+					break
+				}
+			}
+		}
+		if claim.typeName != "" {
+			for _, n := range probeTypeNames(p) {
+				if n == claim.typeName {
+					byType = append(byType, p.ID)
+					break
+				}
+			}
+		}
+	}
+	if len(byLiteral) == 1 {
+		return byLiteral[0], true
+	}
+	if len(byType) == 1 {
+		return byType[0], true
+	}
+	return "", false
+}
+
+// attributeImportFailure runs both attribution passes in order: the table name the
+// importer printed, then the value or type it quoted. Callers that used attributeCrashLoop
+// alone blamed nobody for half the real crash-loops; see attributeByValue.
+func attributeImportFailure(probes []datatypeProbe, errText string) (string, bool) {
+	if id, ok := attributeCrashLoop(probes, errText); ok {
+		return id, true
+	}
+	return attributeByValue(probes, errText)
+}
+
 // quarantine records that one probe wedged the channel: greppable for the runner, and the
 // exact command that measures it in isolation.
 //
@@ -2469,13 +2687,6 @@ func attributeCrashLoop(probes []datatypeProbe, errText string) (string, bool) {
 // forever, so the remaining probes can only be measured by a FRESH migration - see
 // "Quarantine and continue" in DATATYPE_SWEEP.md for exactly what that would take.
 func (r *sweepRun) quarantine(probeID string, res waitResult) {
-	r.quarantined = append(r.quarantined, probeID)
-	typeName := probeID
-	for _, p := range r.active {
-		if p.ID == probeID {
-			typeName = p.TypeName
-		}
-	}
 	// What the culprit did, in the words that fit: a wedged channel is still being
 	// retried by a live importer, whereas a killed command is simply gone.
 	did, cause := "wedged the import channel", res.quotedError
@@ -2487,10 +2698,27 @@ func (r *sweepRun) quarantine(probeID string, res waitResult) {
 			cause = res.exitDescription()
 		}
 	}
-	fmt.Printf("PROBE-RUN-QUARANTINE: %s | %s | %s (%s) %s after %.0fs: %s; "+
+	r.recordQuarantine(probeID, did, cause, fmt.Sprintf(" after %.0fs", res.elapsed.Seconds()))
+}
+
+// recordQuarantine is the printing half of quarantine, split out so a caller that has no
+// wait to report - the offline import, which is one synchronous command - emits the same
+// greppable line without inventing a waitResult to carry it.
+//
+// `after` is a pre-rendered " after 51s" or empty: a command that was never waited on has
+// no elapsed time, and printing "after 0s" would claim it died instantly.
+func (r *sweepRun) recordQuarantine(probeID, did, cause, after string) {
+	r.quarantined = append(r.quarantined, probeID)
+	typeName := probeID
+	for _, p := range r.active {
+		if p.ID == probeID {
+			typeName = p.TypeName
+		}
+	}
+	fmt.Printf("PROBE-RUN-QUARANTINE: %s | %s | %s (%s) %s%s: %s; "+
 		"every other probe in this batch is collateral and must be re-run without it. "+
 		"Measure it on its own with PROBE_ID=%s PROBE_MODE=%s -run TestDatatypeSweepSuspect\n",
-		r.batch, r.mode, probeID, typeName, did, res.elapsed.Seconds(),
+		r.batch, r.mode, probeID, typeName, did, after,
 		sanitizeDetail(cause), probeID, r.mode)
 	r.t.Logf("quarantined probe %s: it %s", probeID, did)
 }
@@ -3850,13 +4078,33 @@ func decideVerdictCore(mode sweepMode, o probeObservation) (string, string) {
 				o.stuckDetail, sweepColumnUnderTest, o.eventsForTable, exclusionNoteFor(o)),
 				o.queueScanNote, o.waitNote)
 		}
-		switch {
-		case o.warned && o.promptShown:
-			return verdictExcludedTold, base + "; export printed the exclusion notice and asked before continuing"
-		case o.warned:
-			return verdictQuietDrop, base + "; exclusion notice printed but the question was auto-accepted by --yes"
-		default:
-			return verdictSilentLoss, base + "; no exclusion warning in export stdout/stderr"
+		// A run whose importer died leaves a TRUNCATED event stream, and "absent from all
+		// N events" is then a statement about how far the run got rather than about the
+		// column. This is the same fact 2b and 3a below already refuse to build a verdict
+		// on, arriving one branch earlier.
+		//
+		// It is not hypothetical: IDXKEY-001..011 and CATSTAT-006/007 printed SILENT_LOSS
+		// in runs whose own controls came out INCONCLUSIVE with "another probe in this
+		// batch broke the importer". The batch-mates of a dead run cannot be the only
+		// probes in it that produced evidence. Falling through hands them to 2b / 3a,
+		// which name the culprit and return INCONCLUSIVE.
+		if o.importBrokeUnattributed == "" && o.channelWedgedBy == "" {
+			switch {
+			case o.warned && o.promptShown:
+				return verdictExcludedTold, base + "; export printed the exclusion notice and asked before continuing"
+			case o.warned:
+				return verdictQuietDrop, base + "; exclusion notice printed but the question was auto-accepted by --yes"
+			case o.nullOnly:
+				// Nothing can be LOST here. The type stores only NULL, so the column
+				// carries no value to drop - but the column really is missing from the
+				// stream, which is exactly what QUIET_DROP names. See DATATYPE_SWEEP.md
+				// for why an existing label is used rather than a new one.
+				return verdictQuietDrop, base + "; column never appears in the change stream; " +
+					"the type stores only NULL so no value can be lost, but a non-NULL value " +
+					"could not be tested"
+			default:
+				return verdictSilentLoss, base + "; no exclusion warning in export stdout/stderr"
+			}
 		}
 	}
 
@@ -3877,10 +4125,16 @@ func decideVerdictCore(mode sweepMode, o probeObservation) (string, string) {
 		if how == "" {
 			how = "crash-looped the import channel"
 		}
+		// Offline has no event stream to be stuck in: the import is one command, and it
+		// died before this table's rows were loaded. Same fact, accurate words.
+		consequence := "so every event for this table was stuck behind it"
+		if !mode.hasCDC() {
+			consequence = "so the import that would have carried this table never finished"
+		}
 		return verdictInconclusive, withNote(fmt.Sprintf(
-			"probe %s %s during this run, so every event for this table was stuck behind it "+
+			"probe %s %s during this run, %s "+
 				"and this type was never actually exercised; re-run the batch without %s",
-			o.channelWedgedBy, how, o.channelWedgedBy),
+			o.channelWedgedBy, how, consequence, o.channelWedgedBy),
 			o.queueScanNote, o.waitNote)
 	}
 
@@ -4193,6 +4447,73 @@ func (r *sweepRun) abortExport(what string, err error) {
 		return
 	}
 	r.abortAll(r.exportAbortReason(what, err))
+}
+
+/*
+abortImport handles a failing `import data` in the OFFLINE flow, where the import is one
+synchronous command rather than a wait loop, and where a failure used to cost the whole
+batch.
+
+Offline had no attribution at all. Every probe - the known-good int and text controls
+included - was given the run-level abort reason and came out BLOCKS, so the controls
+disagreed with their known answer and the run was declared INVALID. One value's error took
+46 measured cells down with it, and no PROBE-RUN-QUARANTINE line named the value that did
+it, so the re-run had nothing to exclude:
+
+	PROBE-RESULT: CTRL-001 | int | OFFLINE | BLOCKS | import data failed: ...
+	  invalid input syntax for type interval: "infinity" [import batch ... into sweep_schema.p_val_033]
+
+The error names the table in as many words. So this applies the same ladder the live paths
+use, in the same order:
+
+ 1. the importer named exactly one active probe's table - that probe is the culprit
+ 2. it quoted a literal or a type that is exactly one active probe's - see attributeByValue
+ 3. exactly one probe was under test and the error is about a value - the solo carve-out
+
+A named culprit gets BLOCKS with the error and its SQLSTATE quoted, is quarantined so the
+runner can re-run the batch without it, and every other probe becomes INCONCLUSIVE: they
+were queued behind a dead import and were never measured. With nobody named, nothing is
+guessed - every probe is INCONCLUSIVE with the error kept for context.
+*/
+func (r *sweepRun) abortImport(what string, err error) {
+	r.applyImportAbort(r.importAbortReason(what, err))
+}
+
+// applyImportAbort is the pure half of abortImport: everything from the reason string
+// onwards, so the ladder can be tested on the real error text without a migration.
+func (r *sweepRun) applyImportAbort(reason string) {
+	detail := importFailureDetail(reason)
+
+	culprit, named := attributeImportFailure(r.active, reason)
+	soloUnrelated := ""
+	if !named {
+		culprit, soloUnrelated = soleCulpritFor(r.active, reason)
+	}
+
+	if culprit == "" {
+		// Nobody can be named. The import really did die, but not demonstrably on any
+		// one type, so the error is kept and no verdict is claimed for anybody.
+		r.t.Logf("import aborted, no probe attributable: %s", reason)
+		for _, p := range r.probes {
+			o := r.observe(p)
+			if p.ID == soloUnrelated {
+				o.importBrokeUnrelated = detail
+				continue
+			}
+			o.importBrokeUnattributed = detail
+		}
+		return
+	}
+
+	r.recordQuarantine(culprit, "killed import data", reason, "")
+	for _, p := range r.probes {
+		o := r.observe(p)
+		if p.ID == culprit {
+			o.runAbort = detail
+			continue
+		}
+		o.channelWedgedBy, o.channelWedgedHow = culprit, "killed import data"
+	}
 }
 
 func (r *sweepRun) abortAll(reason string) {

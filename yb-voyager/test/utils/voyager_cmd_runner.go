@@ -285,6 +285,7 @@ func (v *VoyagerCommandRunner) newCmd() {
 	v.StderrBuf = &bytes.Buffer{}
 
 	v.Cmd = exec.Command("yb-voyager", v.finalArgs...)
+	v.Cmd.SysProcAttr = ProcessGroupAttr()
 
 	if v.t != nil {
 		v.logWriter = &testLogWriter{t: v.t, prefix: v.CmdName}
@@ -434,6 +435,84 @@ func (v *VoyagerCommandRunner) Wait() (retErr error) {
 	return nil
 }
 
+// ProcessGroupAttr returns the SysProcAttr that starts a command in its own process
+// group (pgid == pid).
+//
+// voyager spawns the Debezium JVM as a grandchild of the test binary, and that
+// grandchild is never given a SysProcAttr of its own (see src/dbzm/dbzm.go), so by
+// default it sits in the SAME process group as its yb-voyager parent. Killing only the
+// direct child then leaves the JVM running, still holding the pipe that go test uses
+// for this process's stdout - and exec.Cmd.Wait does not return until that pipe is
+// closed, so the caller hangs forever waiting on a process it never touched. Putting
+// the whole tree in its own group lets KillProcessGroup take it all out at once.
+func ProcessGroupAttr() *syscall.SysProcAttr {
+	return &syscall.SysProcAttr{Setpgid: true}
+}
+
+// KillProcessGroup SIGKILLs the entire process group of cmd (the command itself and
+// anything it spawned, e.g. the Debezium JVM), falling back to killing just the single
+// process when the group cannot be determined.
+//
+// The group id is taken from ProcessGroupAttr's own guarantee - a command started with
+// Setpgid is the leader, so pgid == pid - and NOT from Getpgid. Getpgid is asked only
+// for a command that was not started that way. The difference is the whole fix: once the
+// leader itself has died, Getpgid(pid) answers ESRCH even though the rest of the group is
+// still running, so keying off it skipped the group kill exactly when it was needed and
+// left the grandchildren alive. That is the shape teardown hits every time - the parent
+// takes the SIGTERM, the Debezium JVM does not.
+func KillProcessGroup(cmd *exec.Cmd) error {
+	if cmd == nil || cmd.Process == nil {
+		return fmt.Errorf("cannot kill process group: command or process not available")
+	}
+
+	pgid, known := cmd.Process.Pid, false
+	if cmd.SysProcAttr != nil && cmd.SysProcAttr.Setpgid {
+		known = true
+	} else if g, err := syscall.Getpgid(cmd.Process.Pid); err == nil && g == cmd.Process.Pid {
+		pgid, known = g, true
+	}
+	if known {
+		err := syscall.Kill(-pgid, syscall.SIGKILL)
+		if err == nil || errors.Is(err, syscall.ESRCH) {
+			return nil // group is gone - nothing left to kill is not a failure
+		}
+	}
+
+	err := cmd.Process.Kill()
+	if err == nil || errors.Is(err, os.ErrProcessDone) {
+		return nil
+	}
+	return fmt.Errorf("failed to kill process: %w", err)
+}
+
+// waitForStop blocks until the command has exited or timeout elapses, reporting
+// whether it exited in time.
+//
+// It receives from stopChan when the command has one (an async start routes Wait()
+// through that channel), and polls HasExited otherwise. A command started
+// synchronously never gets a stopChan, and receiving from a nil channel blocks
+// forever, so that path must not be a plain <-v.stopChan.
+func (v *VoyagerCommandRunner) waitForStop(timeout time.Duration) bool {
+	if v.stopChan != nil {
+		select {
+		case <-v.stopChan:
+			return true
+		case <-time.After(timeout):
+			return false
+		}
+	}
+
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if exited, _ := v.HasExited(); exited {
+			return true
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	exited, _ := v.HasExited()
+	return exited
+}
+
 func (v *VoyagerCommandRunner) Kill() error {
 	if v.Cmd == nil {
 		return fmt.Errorf("command for %s not built yet", v.CmdName)
@@ -444,12 +523,26 @@ func (v *VoyagerCommandRunner) Kill() error {
 	}
 
 	log.Debugf("killing command: %s", v.Cmd.String())
-	err := v.Cmd.Process.Kill()
+	err := KillProcessGroup(v.Cmd)
 	if err != nil {
 		return fmt.Errorf("failed to kill command: %w", err)
 	}
 
 	v.exitCode = ExitCodeFailure // setting failure code for unsuccessful execution
+	return nil
+}
+
+// KillAndWait force-kills cmd's process group and waits up to timeout for it to be
+// reaped. Unlike Kill(), the caller gets to know whether the process is actually gone
+// before it moves on (e.g. to tear down the containers that process was talking to).
+func (v *VoyagerCommandRunner) KillAndWait(timeout time.Duration) error {
+	if err := KillProcessGroup(v.Cmd); err != nil {
+		return fmt.Errorf("failed to kill command %s: %w", v.CmdName, err)
+	}
+	if !v.waitForStop(timeout) {
+		return fmt.Errorf("command %s did not exit within %s after kill", v.CmdName, timeout)
+	}
+	v.exitCode = ExitCodeFailure
 	return nil
 }
 
@@ -470,17 +563,19 @@ func (v *VoyagerCommandRunner) GracefulStop(timeoutSeconds int) error {
 		return fmt.Errorf("failed to send SIGTERM to command: %w", err)
 	}
 
-	select {
-	case err := <-v.stopChan:
-		if err != nil {
-			log.Debugf("command %s exited with error (expected after SIGTERM): %v", v.CmdName, err)
-		}
-	case <-time.After(time.Duration(timeoutSeconds) * time.Second):
+	if !v.waitForStop(time.Duration(timeoutSeconds) * time.Second) {
 		log.Debugf("command %s did not exit within %ds after SIGTERM, sending SIGKILL", v.CmdName, timeoutSeconds)
-		if killErr := v.Cmd.Process.Kill(); killErr != nil && !errors.Is(killErr, os.ErrProcessDone) {
+		if killErr := KillProcessGroup(v.Cmd); killErr != nil {
 			return fmt.Errorf("failed to SIGKILL command after timeout: %w", killErr)
 		}
-		<-v.stopChan
+		// Bounded, not the old unbounded <-v.stopChan: a process stuck in
+		// uninterruptible I/O even after SIGKILL must not hang the caller forever.
+		const reapTimeout = 15 * time.Second
+		if !v.waitForStop(reapTimeout) {
+			err := fmt.Errorf("command %s did not get reaped within %s of SIGKILL", v.CmdName, reapTimeout)
+			log.Debugf("%v", err)
+			return err
+		}
 	}
 
 	v.exitCode = ExitCodeFailure

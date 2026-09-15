@@ -1145,6 +1145,90 @@ takes the connection helper into `utils.ErrExit`, an `os.Exit(1)` that kills the
 `%v` printed "cutover did not complete within 300ns" and "streaming phase did not complete
 within 240ns". They print `%ds` now, matching `WaitForSnapshotComplete`.
 
+**An offline import failure names its culprit instead of voiding the batch.** In `OFFLINE`
+the import is one synchronous command, and a non-zero exit used to be handed to every probe
+in the batch as a run-level abort. So `off_values.log` published 46 rows of `BLOCKS` —
+including both known-good controls — all quoting the same error, `invalid input syntax for
+type interval: "infinity"`. The controls disagreeing with their known answer correctly
+declared the run `INVALID`, so nothing was recorded; and because no `PROBE-RUN-QUARANTINE`
+line was printed, the re-run had no idea which value to exclude and would have failed the
+same way. `off_catalogstats.log` did the same thing with `cannot accept a value of type
+pg_node_tree`. The importer names the table in as many words — `[import batch ... into
+sweep_schema.p_val_033]` — so offline now runs the same attribution ladder the live paths
+run: the table named in the error, then the value or type it quoted, then the solo
+carve-out. The named culprit gets `BLOCKS` with the error and its SQLSTATE, everyone else
+gets `INCONCLUSIVE` naming the culprit, and the quarantine line tells the runner exactly
+what to drop. The run is still `INVALID` — a control that was never measured cannot vouch
+for anything — but it is now an invalid run with one identified poison value, which is a
+re-run away from 46 real verdicts rather than a dead end.
+
+**A dead run's truncated event stream is not evidence of a drop.** `live_indexkeys.log` and
+`live_catalogstats.log` both ended with the importer dead (`syntax error (SQLSTATE 42601)`,
+`cannot accept a value of type pg_node_tree (SQLSTATE 0A000)`). Their controls were
+correctly `INCONCLUSIVE` — "another probe in this batch broke the importer" — and yet
+`IDXKEY-001..011` and `CATSTAT-006/007`, batch-mates of that same dead importer, printed
+`SILENT_LOSS` on the strength of a column being absent from "all 3 exported events". Three
+events is how far the run got before it died, not how many the table was going to produce.
+The batch-mates of a dead run cannot be the only probes in it that produced evidence, so
+the column-absent branch now declines whenever `importBrokeUnattributed` or
+`channelWedgedBy` is set and falls through to the `INCONCLUSIVE` branches that name the
+culprit. This is the same rule as the dead-importer ordering above, applied to the
+collateral rather than to the killer.
+
+**Attribution reads the value the importer quoted, not just the table.** Half the real
+crash-loops never name a table at all. They name the value: `invalid input syntax for type
+pg_lsn: "\x302f30"` (domains), `invalid input syntax for type vector:
+"\x5b302e312c302e322c302e335d"` (pgvector), `invalid input syntax for ISSN number:
+"\x3937372d..."` (exttypes). Table-name attribution found nothing in any of them, so nobody
+was blamed and the entire batch went `INCONCLUSIVE` — one poison value costing every one of
+its batch-mates a measurement, over and over. But the error is not anonymous: the quoted
+literal *is* one probe's `InitialValue` or `AltValue`, and the type it names *is* one
+probe's column type. A second pass now extracts the literal (hex-decoding the `\x…` form —
+`\x302f30` is `0/0`, `DOM-013`'s alt value), strips quotes and `::casts` off each probe's
+values, and matches. Failing that it matches the named type against each probe's column
+type or, for a domain, its base type. Both rules demand a *unique* match for the same
+reason table matching does: a guess quarantines an innocent type and is recorded as a
+finding. So `pg_lsn "0/0"` names `DOM-013`, `vector "[0.1,0.2,0.3]"` names `VEC-003` (the
+type name alone matches three pgvector probes, only the literal resolves it), and `ISSN`
+names `EXT-008`. Two of the five observed lines still resolve to nobody, and correctly so:
+`invalid input syntax for type oid: "[]"` arose in a batch whose only related probe is
+`oidvector`, and `type smallint: "[]"` in one whose only related probe is `int2vector`.
+Those are *container* types whose element type the error names; blaming them would need a
+rule that reads a type's element, and a rule that loose would eventually blame the wrong
+probe. They stay unattributed.
+
+**Teardown kills the process group, not just the child.** After a solo run whose streaming
+wait timed out, `yb-voyager export data`, `yb-voyager import data` and the Debezium JVM were
+all still running after the test binary finished — alive alongside the *next* run's
+containers. The wall clock read 2226s for a 277s test, because `exec.Cmd.Wait` does not
+return until the output pipe is closed as well as the process reaped, and the surviving
+grandchild had inherited `go test`'s stdout. Every voyager command is now started in its own
+process group (`Setpgid`), teardown SIGKILLs the whole group, and `Cleanup` follows its
+SIGTERM escalation with a bounded force-stop of every command handle plus the Debezium JVM
+of every exporter role. The group id is taken from the `Setpgid` guarantee rather than from
+`Getpgid`, which is the part that actually mattered: once the parent has died, `Getpgid` on
+its pid answers `ESRCH` even while the rest of the group is still running, so keying off it
+skipped the group kill in precisely the case teardown exists for — the parent takes the
+signal, the JVM does not. Commands that have already been reaped are skipped rather than
+group-killed, because a reaped pid can be reused and `kill(-pgid)` on a recycled one would
+hit an unrelated process tree.
+
+**A NULL-only type has no value to lose.** `lsolo_IDXKEY-002.log` ran clean — both controls
+`WORKS` — and published `IDXKEY-002 | ghstore | LIVE | SILENT_LOSS | column "v" absent from
+all 3 exported events`. `SILENT_LOSS` is a claim that voyager lost a value. A `NullOnly`
+probe has no value to lose: PostgreSQL refuses every literal for the type (`ERROR: cannot
+accept a value of type ghstore`), so the column holds `NULL` in every row of every event,
+and nothing that reaches the stream could have been dropped on the way. What *is* true, and
+worth reporting, is that the column never appears in the change stream and nothing warned
+about it — which is exactly what `QUIET_DROP` already means: a column silently missing,
+with the export side saying nothing. So a `NullOnly` probe whose column is absent with no
+exclusion warning is now `QUIET_DROP`, with the detail spelling out the limit of the claim:
+"the type stores only NULL so no value can be lost, but a non-NULL value could not be
+tested". No new verdict label was added on purpose. The report collector special-cases
+`WORKS` and `INCONCLUSIVE` by name and ranks everything else as a finding, so a label it
+has never heard of would be mis-ranked rather than merely unfamiliar; and the honest
+statement here really is the existing one, narrowed by its detail rather than replaced.
+
 ## Exit codes
 
 `run-datatype-sweep.sh` exits non-zero if **any** `go test` invocation it ran failed, and

@@ -235,6 +235,11 @@ func (lm *LiveMigrationTest) Cleanup() {
 		}
 	}
 
+	// A command that ignored SIGTERM (GracefulStop already escalated to SIGKILL, but a
+	// stuck one can still be here), or a Debezium JVM that outlived its parent, holds go
+	// test's stdout pipe open and must not survive the test.
+	lm.ForceStopStragglers()
+
 	// Execute cleanup SQL on all containers
 	if lm.sourceContainer != nil {
 		lm.sourceContainer.ExecuteSqlsOnDB(lm.config.SourceDB.DatabaseName, lm.config.CleanupSQL...)
@@ -606,6 +611,45 @@ func (lm *LiveMigrationTest) KillDebezium(exporterRole string) {
 		return
 	}
 	lm.t.Logf("Killed Debezium process pid=%d", pid)
+}
+
+// ForceStopStragglers kills anything GracefulStop's SIGTERM/SIGKILL escalation did not
+// finish off: any migration command still running, and any Debezium JVM left behind.
+//
+// It walks the same command list Cleanup walks. After a cutover two handles can point
+// at the SAME runner (exportFromTargetCmd/importCmd, importToSourceCmd/exportCmd - see
+// WaitForCutoverComplete/WaitForCutoverSourceComplete), so kills are de-duplicated by
+// pointer; KillAndWait's process-group kill would otherwise be sent twice to a process
+// that is by then someone else's pid.
+func (lm *LiveMigrationTest) ForceStopStragglers() {
+	const killTimeout = 10 * time.Second
+	killed := map[*testutils.VoyagerCommandRunner]bool{}
+	for _, c := range []struct {
+		cmd  *testutils.VoyagerCommandRunner
+		name string
+	}{
+		{lm.exportCmd, "export data"},
+		{lm.importCmd, "import data"},
+		{lm.sourceReplicaImportCmd, "import data (source replica)"},
+		{lm.exportFromTargetCmd, "export data from target"},
+		{lm.importToSourceCmd, "import data to source"},
+		{lm.archiveChangesCmd, "archive changes"},
+	} {
+		if c.cmd == nil || c.cmd.IsStopped() || killed[c.cmd] {
+			continue
+		}
+		killed[c.cmd] = true
+		if err := c.cmd.KillAndWait(killTimeout); err != nil {
+			lm.t.Logf("WARNING: force stop of %s: %v", c.name, err)
+		}
+	}
+
+	// Kill the Debezium JVM for every exporter role this fixture could have started,
+	// regardless of which direction the migration ended up running - KillDebezium is a
+	// no-op when that role's pid file was never written.
+	for _, role := range []string{cmd.SOURCE_DB_EXPORTER_ROLE, cmd.TARGET_DB_EXPORTER_FF_ROLE, cmd.TARGET_DB_EXPORTER_FB_ROLE} {
+		lm.KillDebezium(role)
+	}
 }
 
 // StopImportData stops the running import data command

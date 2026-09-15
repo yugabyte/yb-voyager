@@ -1077,3 +1077,488 @@ func TestAttributedKillIsNotAFlake(t *testing.T) {
 		t.Errorf("an export death lost its FLAKE line:\n%s", out)
 	}
 }
+
+// ============================================================
+// DEFECT 1: an offline import failure names its culprit
+// ============================================================
+
+// offValuesRealError is verbatim from off_values.log of the 2026-09-11 re-run: the reason
+// string every single probe in the `values` batch was given, controls included.
+const offValuesRealError = `import data failed: failed to start import data: command failed: ` +
+	`exit status 1; importer error: SQLSTATE 22007: ERROR: invalid input syntax for type ` +
+	`interval: "infinity" (SQLSTATE 22007) [import batch ... into sweep_schema.p_val_033]`
+
+// offCatalogStatsRealError is the same shape from off_catalogstats.log.
+const offCatalogStatsRealError = `import data failed: failed to start import data: command failed: ` +
+	`exit status 1; importer error: SQLSTATE 0A000: ERROR: cannot accept a value of type ` +
+	`pg_node_tree (SQLSTATE 0A000) [import batch ... into sweep_schema.p_catstat_002]`
+
+/*
+TestOfflineImportAbortNamesTheCulprit is the offline half of the attribution rule.
+
+The OFFLINE flow used to hand the run-level abort reason to EVERY probe, so the whole batch
+came out BLOCKS - including the known-good int and text controls, which made the run
+INVALID and threw away 46 measured cells. Nothing named the value that did it, so the
+re-run had nothing to exclude.
+
+The importer names the table in as many words: `into sweep_schema.p_val_033`.
+*/
+func TestOfflineImportAbortNamesTheCulprit(t *testing.T) {
+	probes := []datatypeProbe{
+		{ID: "CTRL-001", TypeName: "int", ExpectVerdict: verdictWorks},
+		{ID: "CTRL-002", TypeName: "text", ExpectVerdict: verdictWorks},
+		{ID: "VAL-008", TypeName: "float8 (-0.0)"},
+		{ID: "VAL-033", TypeName: "interval (+/-infinity)"},
+	}
+	r := &sweepRun{t: t, mode: modeOffline, batch: "values",
+		probes: probes, active: probes, obs: map[string]*probeObservation{}}
+
+	out := captureStdout(t, func() { r.applyImportAbort(offValuesRealError) })
+
+	// The culprit, and only the culprit, BLOCKS - with the error and its SQLSTATE quoted.
+	got, detail := verdictOf(r, "VAL-033")
+	if got != verdictBlocks {
+		t.Errorf("VAL-033 = %s, want %s (%s)", got, verdictBlocks, detail)
+	}
+	if !strings.Contains(detail, `invalid input syntax for type interval: "infinity"`) {
+		t.Errorf("the BLOCKS detail does not quote the importer error: %s", detail)
+	}
+	if !strings.Contains(detail, "(SQLSTATE 22007)") {
+		t.Errorf("the BLOCKS detail does not carry the SQLSTATE: %s", detail)
+	}
+
+	// Everyone else is collateral, not a finding. The controls in particular must no
+	// longer be BLOCKS: a control that BLOCKS is what made the whole run invalid with
+	// nothing to exclude on the re-run.
+	for _, id := range []string{"CTRL-001", "CTRL-002", "VAL-008"} {
+		got, detail := verdictOf(r, id)
+		if got != verdictInconclusive {
+			t.Errorf("%s = %s, want %s (%s)", id, got, verdictInconclusive, detail)
+		}
+		if !strings.Contains(detail, "probe VAL-033 killed import data during this run") {
+			t.Errorf("%s does not name the culprit: %s", id, detail)
+		}
+		// Offline has no event stream, so the wording must not claim one.
+		if strings.Contains(detail, "every event for this table was stuck behind it") {
+			t.Errorf("%s uses CDC wording in an OFFLINE run: %s", id, detail)
+		}
+	}
+
+	// And the runner gets its greppable quarantine line, which is the thing the batch
+	// abort never produced: without it the re-run has nothing to exclude.
+	if !strings.Contains(out, "PROBE-RUN-QUARANTINE: values | OFFLINE | VAL-033 (interval (+/-infinity)) killed import data") {
+		t.Errorf("no PROBE-RUN-QUARANTINE line for the culprit:\n%s", out)
+	}
+	if !strings.Contains(out, "PROBE_ID=VAL-033 PROBE_MODE=OFFLINE") {
+		t.Errorf("the quarantine line does not say how to re-measure the culprit:\n%s", out)
+	}
+	if len(r.quarantined) != 1 || r.quarantined[0] != "VAL-033" {
+		t.Errorf("quarantined = %v, want [VAL-033]", r.quarantined)
+	}
+}
+
+// TestOfflineImportAbortAttributesCatalogStats: the same offline path on the other real
+// offline failure, whose error names a type rather than quoting a value.
+func TestOfflineImportAbortAttributesCatalogStats(t *testing.T) {
+	probes := []datatypeProbe{
+		{ID: "CTRL-001", TypeName: "int", ExpectVerdict: verdictWorks},
+		{ID: "CATSTAT-002", TypeName: "pg_node_tree", ColumnDDL: "pg_node_tree"},
+		{ID: "CATSTAT-006", TypeName: "pg_brin_bloom_summary", NullOnly: true},
+	}
+	r := &sweepRun{t: t, mode: modeOffline, batch: "catalogstats",
+		probes: probes, active: probes, obs: map[string]*probeObservation{}}
+
+	out := captureStdout(t, func() { r.applyImportAbort(offCatalogStatsRealError) })
+
+	if got, d := verdictOf(r, "CATSTAT-002"); got != verdictBlocks {
+		t.Errorf("CATSTAT-002 = %s, want %s (%s)", got, verdictBlocks, d)
+	}
+	for _, id := range []string{"CTRL-001", "CATSTAT-006"} {
+		if got, d := verdictOf(r, id); got != verdictInconclusive {
+			t.Errorf("%s = %s, want %s (%s)", id, got, verdictInconclusive, d)
+		}
+	}
+	if !strings.Contains(out, "PROBE-RUN-QUARANTINE: catalogstats | OFFLINE | CATSTAT-002") {
+		t.Errorf("no quarantine line:\n%s", out)
+	}
+}
+
+// TestOfflineImportAbortBlamesNobodyWhenNothingIsNamed: with no table, no matching value
+// and more than one probe under test, nothing is guessed.
+func TestOfflineImportAbortBlamesNobodyWhenNothingIsNamed(t *testing.T) {
+	probes := []datatypeProbe{
+		{ID: "CTRL-001", TypeName: "int", ExpectVerdict: verdictWorks},
+		{ID: "MISC-001", TypeName: "uuid", ColumnDDL: "uuid"},
+		{ID: "MISC-002", TypeName: "macaddr", ColumnDDL: "macaddr"},
+	}
+	r := &sweepRun{t: t, mode: modeOffline, batch: "misc",
+		probes: probes, active: probes, obs: map[string]*probeObservation{}}
+
+	const anonymous = "import data failed: failed to start import data: command failed: " +
+		"exit status 1; importer error: SQLSTATE 08006: ERROR: connection to server was lost " +
+		"(SQLSTATE 08006)"
+	out := captureStdout(t, func() { r.applyImportAbort(anonymous) })
+
+	for _, id := range []string{"CTRL-001", "MISC-001", "MISC-002"} {
+		got, detail := verdictOf(r, id)
+		if got != verdictInconclusive {
+			t.Errorf("%s = %s, want %s (%s)", id, got, verdictInconclusive, detail)
+		}
+		if !strings.Contains(detail, "connection to server was lost") {
+			t.Errorf("%s did not keep the error for context: %s", id, detail)
+		}
+	}
+	if strings.Contains(out, "PROBE-RUN-QUARANTINE") {
+		t.Errorf("an unattributable failure still quarantined somebody:\n%s", out)
+	}
+	if len(r.quarantined) != 0 {
+		t.Errorf("quarantined = %v, want none", r.quarantined)
+	}
+}
+
+// verdictOf classifies one probe of a run, by id.
+func verdictOf(r *sweepRun, probeID string) (string, string) {
+	for _, p := range r.probes {
+		if p.ID == probeID {
+			return decideVerdict(r.mode, *r.observe(p))
+		}
+	}
+	return "", "no such probe"
+}
+
+// ============================================================
+// DEFECT 2: a dead run's truncated stream is not evidence of a drop
+// ============================================================
+
+/*
+TestSweepClassifierDeadRunCannotReadSilentLoss.
+
+live_indexkeys.log and live_catalogstats.log both did this: the importer died
+(`syntax error (42601)`, `cannot accept a value of type pg_node_tree (0A000)`), the
+controls correctly came out INCONCLUSIVE with "another probe in this batch broke the
+importer" - and the NULL-only probes in the same batch printed SILENT_LOSS anyway, on the
+strength of a column being absent from an event stream that had been cut off mid-run.
+
+The batch-mates of a dead run cannot be the only probes in it that produced evidence.
+*/
+func TestSweepClassifierDeadRunCannotReadSilentLoss(t *testing.T) {
+	// IDXKEY-002 as live_indexkeys.log actually observed it.
+	unattributed := probeObservation{
+		nullOnly:       true,
+		eventsForTable: 3, columnSeenInEvents: false,
+		waitTimedOut: true, commandExited: true,
+		importBrokeUnattributed: importFailureDetail(
+			"SQLSTATE 42601: ERROR: syntax error (SQLSTATE 42601) (x1) - " +
+				"import data exited during the forward streaming wait after 6s"),
+	}
+	got, detail := decideVerdict(modeLive, unattributed)
+	if got != verdictInconclusive {
+		t.Errorf("an unattributed importer death read as %s, want %s (%s)",
+			got, verdictInconclusive, detail)
+	}
+	if !strings.Contains(detail, "another probe in this batch broke the importer") {
+		t.Errorf("the detail does not say the run was broken by someone else: %s", detail)
+	}
+	if strings.Contains(detail, "no exclusion warning in export stdout/stderr") {
+		t.Errorf("the detail still claims a silent drop: %s", detail)
+	}
+
+	// CATSTAT-006 as live_catalogstats.log observed it: a named culprit rather than an
+	// anonymous one. Same rule.
+	wedged := probeObservation{
+		nullOnly:       true,
+		eventsForTable: 3, columnSeenInEvents: false,
+		waitTimedOut: true, commandExited: true,
+		channelWedgedBy: "CATSTAT-002", channelWedgedHow: "killed import data",
+	}
+	got, detail = decideVerdict(modeLive, wedged)
+	if got != verdictInconclusive {
+		t.Errorf("a batch-mate of a wedging probe read as %s, want %s (%s)",
+			got, verdictInconclusive, detail)
+	}
+	if !strings.Contains(detail, "probe CATSTAT-002 killed import data") {
+		t.Errorf("the detail does not name the culprit: %s", detail)
+	}
+
+	// The guard must not swallow a real finding: with a healthy run the same shape is
+	// still reported.
+	healthy := unattributed
+	healthy.importBrokeUnattributed, healthy.commandExited, healthy.waitTimedOut = "", false, false
+	healthy.nullOnly = false
+	if got, d := decideVerdict(modeLive, healthy); got != verdictSilentLoss {
+		t.Errorf("a healthy run's column-absent verdict = %s, want %s (%s)",
+			got, verdictSilentLoss, d)
+	}
+}
+
+// ============================================================
+// DEFECT 3: attribution from the value the importer quoted
+// ============================================================
+
+/*
+TestValueAttributionNamesTheProbeFromTheQuotedValue.
+
+Every line below is verbatim from the 2026-09-11 live logs. None of them names a table, so
+attributeCrashLoop declined and the whole batch went INCONCLUSIVE - one poison value cost
+every batch-mate its measurement, repeatedly.
+
+The literals arrive hex-encoded because the value travelled as bytes:
+
+	\x302f30                             = "0/0"
+	\x5b302e312c302e322c302e335d         = "[0.1,0.2,0.3]"
+	\x3937372d313433362d3435322d30302d38 = "977-1436-452-00-8"
+*/
+func TestValueAttributionNamesTheProbeFromTheQuotedValue(t *testing.T) {
+	domains := []datatypeProbe{
+		{ID: "CTRL-001", TypeName: "int", ExpectVerdict: verdictWorks},
+		{ID: "DOM-012", TypeName: "domain(timetz)",
+			PreDDL:       []string{"CREATE DOMAIN {{schema}}.{{p}}_d AS timetz"},
+			ColumnDDL:    "{{schema}}.{{p}}_d",
+			InitialValue: "'12:34:56+05:30'::timetz", AltValue: "'00:00:00+00'::timetz"},
+		{ID: "DOM-013", TypeName: "domain(pg_lsn)",
+			PreDDL:       []string{"CREATE DOMAIN {{schema}}.{{p}}_d AS pg_lsn"},
+			ColumnDDL:    "{{schema}}.{{p}}_d",
+			InitialValue: "'16/B374D848'::pg_lsn", AltValue: "'0/0'::pg_lsn"},
+	}
+	pgvector := []datatypeProbe{
+		{ID: "VEC-001", TypeName: "vector(3)", ColumnDDL: "vector(3)",
+			InitialValue: "'[1,2,3]'::vector(3)", AltValue: "'[4,5,6]'::vector(3)"},
+		{ID: "VEC-002", TypeName: "vector[]", ColumnDDL: "vector[]",
+			InitialValue: "ARRAY['[1,2,3]'::vector, '[4,5,6]'::vector]",
+			AltValue:     "ARRAY['[7,8,9]'::vector]"},
+		{ID: "VEC-003", TypeName: "domain(vector(3))",
+			PreDDL:       []string{"CREATE DOMAIN {{schema}}.{{p}}_d AS vector(3)"},
+			ColumnDDL:    "{{schema}}.{{p}}_d",
+			InitialValue: "'[0.1,0.2,0.3]'::vector(3)", AltValue: "'[0.4,0.5,0.6]'::vector(3)"},
+	}
+	exttypes := []datatypeProbe{
+		{ID: "EXT-008", TypeName: "issn", ColumnDDL: "issn",
+			InitialValue: "'1436-4522'::issn", AltValue: "'0264-2875'::issn"},
+		{ID: "EXT-009", TypeName: "issn13", ColumnDDL: "issn13",
+			InitialValue: "'1436-4522'::issn13", AltValue: "'0264-2875'::issn13"},
+	}
+	catalogtypes := []datatypeProbe{
+		{ID: "CAT-001", TypeName: "cid", ColumnDDL: "cid"},
+		{ID: "CAT-002", TypeName: "oidvector", ColumnDDL: "oidvector"},
+		{ID: "CAT-003", TypeName: "refcursor", ColumnDDL: "refcursor"},
+	}
+	system := []datatypeProbe{
+		{ID: "SYS-006", TypeName: "int2vector", ColumnDDL: "int2vector"},
+		{ID: "SYS-010", TypeName: "oid", ColumnDDL: "oid",
+			InitialValue: "'4294967295'::oid", AltValue: "'1'::oid"},
+	}
+
+	tests := []struct {
+		name    string
+		probes  []datatypeProbe
+		errText string
+		want    string // "" means no attribution
+		why     string
+	}{
+		{
+			name: "pg_lsn literal names DOM-013", probes: domains,
+			errText: `SQLSTATE 22P02: ERROR: invalid input syntax for type pg_lsn: "\x302f30" (SQLSTATE 22P02)`,
+			want:    "DOM-013",
+			why:     `\x302f30 decodes to 0/0, which is DOM-013's AltValue`,
+		},
+		{
+			name: "vector literal names VEC-003", probes: pgvector,
+			errText: `SQLSTATE 22P02: ERROR: invalid input syntax for type vector: "\x5b302e312c302e322c302e335d" (SQLSTATE 22P02)`,
+			want:    "VEC-003",
+			why: `[0.1,0.2,0.3] is VEC-003's InitialValue; the type name "vector" alone ` +
+				`matches VEC-001, VEC-002 and VEC-003, so only the literal resolves it`,
+		},
+		{
+			name: "ISSN type name names EXT-008", probes: exttypes,
+			errText: `SQLSTATE 22P02: ERROR: invalid input syntax for ISSN number: "\x3937372d313433362d3435322d30302d38" (SQLSTATE 22P02)`,
+			want:    "EXT-008",
+			why: `the stored form 977-1436-452-00-8 is nobody's declared literal, but "issn" ` +
+				`is exactly one probe's column type (issn13 is a different type)`,
+		},
+		{
+			name: "oid in a batch that declares none", probes: catalogtypes,
+			errText: `SQLSTATE 22P02: ERROR: invalid input syntax for type oid: "[]" (SQLSTATE 22P02)`,
+			want:    "",
+			why: `no probe in the catalogtypes batch declares oid - oidvector is a different ` +
+				`type - and "[]" is nobody's value, so nothing is guessed`,
+		},
+		{
+			name: "smallint in a batch that declares none", probes: system,
+			errText: `SQLSTATE 22P02: ERROR: invalid input syntax for type smallint: "[]" (SQLSTATE 22P02)`,
+			want:    "",
+			why:     `int2vector is not int2, and "[]" is nobody's value`,
+		},
+		{
+			name: "oid names SYS-010 when the batch does declare it", probes: system,
+			errText: `SQLSTATE 22P02: ERROR: invalid input syntax for type oid: "99" (SQLSTATE 22P02)`,
+			want:    "SYS-010",
+			why:     `SYS-010 is the only oid column in the batch`,
+		},
+		{
+			name: "cannot-accept names the type with no literal at all",
+			probes: []datatypeProbe{
+				{ID: "CTRL-001", TypeName: "int", ExpectVerdict: verdictWorks},
+				{ID: "CATSTAT-002", TypeName: "pg_node_tree", ColumnDDL: "pg_node_tree"},
+				{ID: "CATSTAT-006", TypeName: "pg_brin_bloom_summary", ColumnDDL: "pg_brin_bloom_summary"},
+			},
+			errText: `SQLSTATE 0A000: ERROR: cannot accept a value of type pg_node_tree (SQLSTATE 0A000)`,
+			want:    "CATSTAT-002",
+			why:     `the error names a type and quotes no value; exactly one probe declares it`,
+		},
+		{
+			name: "a control is never blamed",
+			probes: []datatypeProbe{
+				{ID: "CTRL-001", TypeName: "int", ColumnDDL: "int4",
+					InitialValue: "1", AltValue: "2", ExpectVerdict: verdictWorks},
+			},
+			errText: `SQLSTATE 22P02: ERROR: invalid input syntax for type integer: "2" (SQLSTATE 22P02)`,
+			want:    "",
+			why:     `blaming a known-good control would say the harness found a product bug in int`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := attributeByValue(tc.probes, tc.errText)
+			if tc.want == "" {
+				if ok {
+					t.Fatalf("blamed %s for an error nobody can be blamed for (%s)\nerror: %s",
+						got, tc.why, tc.errText)
+				}
+				return
+			}
+			if !ok {
+				t.Fatalf("nobody was blamed; want %s (%s)\nerror: %s", tc.want, tc.why, tc.errText)
+			}
+			if got != tc.want {
+				t.Fatalf("blamed %s, want %s (%s)\nerror: %s", got, tc.want, tc.why, tc.errText)
+			}
+		})
+	}
+}
+
+// TestValueAttributionKeepsTableNamesFirst: a table name in the error still wins, because
+// it is the stronger fact. Only when there is none does the value pass run.
+func TestValueAttributionKeepsTableNamesFirst(t *testing.T) {
+	probes := []datatypeProbe{
+		{ID: "DOM-013", TypeName: "domain(pg_lsn)",
+			PreDDL:       []string{"CREATE DOMAIN {{schema}}.{{p}}_d AS pg_lsn"},
+			ColumnDDL:    "{{schema}}.{{p}}_d",
+			InitialValue: "'16/B374D848'::pg_lsn", AltValue: "'0/0'::pg_lsn"},
+		{ID: "SYS-008", TypeName: "pg_lsn", ColumnDDL: "pg_lsn",
+			InitialValue: "'16/B374D848'::pg_lsn", AltValue: "'0/0'::pg_lsn"},
+	}
+	// Both probes carry the same value AND the same type, so the value pass must decline.
+	if id, ok := attributeByValue(probes, `invalid input syntax for type pg_lsn: "\x302f30"`); ok {
+		t.Errorf("an ambiguous value blamed %s; it must blame nobody", id)
+	}
+	// The table name resolves it.
+	withTable := `import batch ... into sweep_schema.p_sys_008: ERROR: invalid input syntax ` +
+		`for type pg_lsn: "\x302f30"`
+	id, ok := attributeImportFailure(probes, withTable)
+	if !ok || id != "SYS-008" {
+		t.Errorf("attributeImportFailure = (%q, %v), want SYS-008", id, ok)
+	}
+}
+
+// TestValueAttributionHelpersAreExact pins the two normalisers the matching rests on.
+func TestValueAttributionHelpersAreExact(t *testing.T) {
+	literals := map[string]string{
+		"'0/0'::pg_lsn":                    "0/0",
+		"'[0.1,0.2,0.3]'::vector(3)":       "[0.1,0.2,0.3]",
+		"32767::int2":                      "32767",
+		"'it''s'::text":                    "it's",
+		"'1436-4522'::issn":                "1436-4522",
+		"ARRAY['[1,2,3]'::vector]":         "", // no single stored text
+		"ROW(1, '16/B374D848'::pg_lsn)::t": "", // ditto
+		"":                                 "",
+	}
+	for in, want := range literals {
+		if got := literalTextOf(in); got != want {
+			t.Errorf("literalTextOf(%q) = %q, want %q", in, got, want)
+		}
+	}
+
+	types := map[string]string{
+		"vector(3)":            "vector",
+		"vector[]":             "vector",
+		"numeric(10,2)":        "numeric",
+		`"sweep_schema"."p_d"`: "p_d",
+		"smallint":             "int2",
+		"double precision":     "float8",
+		"pg_lsn":               "pg_lsn",
+		"ISSN":                 "issn",
+	}
+	for in, want := range types {
+		if got := normalizeTypeName(in); got != want {
+			t.Errorf("normalizeTypeName(%q) = %q, want %q", in, got, want)
+		}
+	}
+
+	// A hex literal decodes; a plain one is left alone.
+	if got := decodeHexLiteral(`\x302f30`); got != "0/0" {
+		t.Errorf("decodeHexLiteral = %q, want 0/0", got)
+	}
+	if got := decodeHexLiteral("infinity"); got != "infinity" {
+		t.Errorf("decodeHexLiteral mangled a plain literal: %q", got)
+	}
+	if got := decodeHexLiteral(`\xZZ`); got != `\xZZ` {
+		t.Errorf("decodeHexLiteral on non-hex = %q, want it unchanged", got)
+	}
+}
+
+// ============================================================
+// DEFECT 5: a NULL-only type has no value to lose
+// ============================================================
+
+/*
+TestNullOnlyColumnAbsentIsNotASilentLoss.
+
+lsolo_IDXKEY-002.log, with both controls WORKS - so the run is sound and the column really
+is missing from the stream:
+
+	IDXKEY-002 | ghstore | LIVE | SILENT_LOSS | column "v" absent from all 3 exported
+	events for this table; no exclusion warning ... [NULL-only: ...]
+
+SILENT_LOSS is a claim that voyager lost a value. A NULL-only type has no value to lose:
+PG refuses every literal for it, so the column holds NULL in every row. What IS true is
+that the column never reaches the change stream and nothing warned about it - which is
+what QUIET_DROP already means.
+*/
+func TestNullOnlyColumnAbsentIsQuietDrop(t *testing.T) {
+	o := probeObservation{
+		nullOnly:       true,
+		eventsForTable: 3, columnSeenInEvents: false,
+		snapshotCompared: true, streamCompared: true,
+	}
+	got, detail := decideVerdict(modeLive, o)
+	if got != verdictQuietDrop {
+		t.Fatalf("a NULL-only probe with a clean run read as %s, want %s (%s)",
+			got, verdictQuietDrop, detail)
+	}
+	if !strings.Contains(detail, `column "v" absent from all 3 exported events`) {
+		t.Errorf("the detail dropped the observed fact: %s", detail)
+	}
+	if !strings.Contains(detail, "the type stores only NULL so no value can be lost") {
+		t.Errorf("the detail does not say why nothing was lost: %s", detail)
+	}
+	if !strings.Contains(detail, "a non-NULL value could not be tested") {
+		t.Errorf("the detail does not say what was left untested: %s", detail)
+	}
+
+	// The same observation on a type that CAN hold a value is still SILENT_LOSS - this
+	// carve-out must not launder a real loss.
+	valued := o
+	valued.nullOnly = false
+	if got, d := decideVerdict(modeLive, valued); got != verdictSilentLoss {
+		t.Errorf("a value-carrying type read as %s, want %s (%s)", got, verdictSilentLoss, d)
+	}
+
+	// A warned exclusion outranks it: the export side said what it did, and that is the
+	// more informative answer.
+	warned := o
+	warned.warned, warned.promptShown = true, true
+	if got, d := decideVerdict(modeLive, warned); got != verdictExcludedTold {
+		t.Errorf("a confirmed exclusion read as %s, want %s (%s)", got, verdictExcludedTold, d)
+	}
+}

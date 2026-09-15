@@ -31,12 +31,18 @@ None of these need Docker, a database or real time.
 */
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"os/exec"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/cmd"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 // A genuine wedged-importer line, verbatim from a fall-back run: the importer retries the
@@ -865,4 +871,134 @@ func TestSettledWaitDoesNotClaimATimeout(t *testing.T) {
 	if strings.Contains(detail, timeoutSentence) {
 		t.Errorf("a counts-satisfied wait claims a timeout: %q", detail)
 	}
+}
+
+// ============================================================
+// DEFECT 4: teardown must not leak the process tree
+// ============================================================
+
+/*
+TestTeardownKillsTheWholeProcessGroup.
+
+After a solo sweep run whose streaming wait timed out, `yb-voyager export data`,
+`yb-voyager import data` and the Debezium JVM were all still running when the test binary
+had finished - alive alongside the NEXT run's containers. The wall clock said 2226s for a
+277s test, because the survivors held go test's stdout pipe open and exec.Cmd.Wait does not
+return until the pipe is closed as well as the process reaped.
+
+`sh -c 'sleep 300 & wait'` is the same shape in miniature: the direct child is the shell,
+the grandchild is `sleep`, and the grandchild is the one holding the pipe. The test asserts
+both halves of the fix:
+
+  - killing only the direct child leaves the grandchild, and Wait stays blocked
+  - killing the process GROUP takes both out, and Wait returns
+*/
+func TestTeardownKillsTheWholeProcessGroup(t *testing.T) {
+	// Wired exactly as VoyagerCommandRunner.newCmd wires a real voyager command: its own
+	// process group, and an io.MultiWriter for stdout rather than an *os.File. The
+	// MultiWriter is what makes Wait depend on the pipe - with a plain file exec passes
+	// the fd straight through and there is no copying goroutine to block on.
+	var out, errOut bytes.Buffer
+	cmd := exec.Command("sh", "-c", "sleep 300 & wait")
+	cmd.SysProcAttr = testutils.ProcessGroupAttr()
+	cmd.Stdout = io.MultiWriter(&out, io.Discard)
+	cmd.Stderr = io.MultiWriter(&errOut, io.Discard)
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("failed to start the test command: %v", err)
+	}
+	pgid := cmd.Process.Pid
+	// Never leave a stray `sleep 300` behind, whichever assertion fails.
+	t.Cleanup(func() { _ = syscall.Kill(-pgid, syscall.SIGKILL) })
+
+	// Both the shell and the sleep have to exist before the kill proves anything.
+	waitForGroupSize(t, pgid, 2, 10*time.Second)
+
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+
+	// 1. The old behaviour: kill the direct child only. The grandchild survives holding
+	//    the pipe, so Wait cannot return - which is the leak, seen from the inside.
+	if err := cmd.Process.Signal(syscall.SIGKILL); err != nil {
+		t.Fatalf("failed to kill the direct child: %v", err)
+	}
+	select {
+	case err := <-done:
+		t.Fatalf("Wait returned after killing only the direct child (%v); the grandchild "+
+			"was expected to keep the output pipe open", err)
+	case <-time.After(2 * time.Second):
+	}
+	if n := groupSize(t, pgid); n == 0 {
+		t.Fatalf("the process group emptied after killing only the direct child; the test " +
+			"is not exercising a grandchild")
+	}
+
+	// 2. The fix: the whole group goes, and go test gets its output pipe back.
+	runner := &testutils.VoyagerCommandRunner{CmdName: "export data"}
+	runner.Cmd = cmd
+	if err := runner.Kill(); err != nil {
+		t.Fatalf("runner.Kill() = %v", err)
+	}
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("Wait did not return within 5s of the group kill: go test's output pipe " +
+			"is still held by a surviving child")
+	}
+	waitForGroupSize(t, pgid, 0, 5*time.Second)
+}
+
+// TestTeardownKillProcessGroupToleratesADeadCommand: teardown runs on every path out of a
+// run, including the ones where the command already exited. Nothing left to kill is not a
+// failure, and a teardown that errored there would bury the real reason the run ended.
+func TestTeardownKillProcessGroupToleratesADeadCommand(t *testing.T) {
+	cmd := exec.Command("sh", "-c", "exit 0")
+	cmd.SysProcAttr = testutils.ProcessGroupAttr()
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("failed to start: %v", err)
+	}
+	_ = cmd.Wait()
+	if err := testutils.KillProcessGroup(cmd); err != nil {
+		t.Errorf("KillProcessGroup on an already-dead command = %v, want nil", err)
+	}
+
+	// And a command that was never started is an error, not a panic.
+	if err := testutils.KillProcessGroup(exec.Command("sh", "-c", "true")); err == nil {
+		t.Errorf("KillProcessGroup on an unstarted command returned nil, want an error")
+	}
+	if err := testutils.KillProcessGroup(nil); err == nil {
+		t.Errorf("KillProcessGroup(nil) returned nil, want an error")
+	}
+}
+
+// groupSize counts the live processes in one process group.
+func groupSize(t *testing.T, pgid int) int {
+	t.Helper()
+	out, err := exec.Command("pgrep", "-g", strconv.Itoa(pgid)).Output()
+	if err != nil {
+		return 0 // pgrep exits 1 when nothing matches
+	}
+	n := 0
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if strings.TrimSpace(line) != "" {
+			n++
+		}
+	}
+	return n
+}
+
+// waitForGroupSize waits for a process group to reach at least (or, for 0, exactly) the
+// expected size. Process startup and reaping are both asynchronous, so neither can be
+// asserted on the first look.
+func waitForGroupSize(t *testing.T, pgid, want int, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	last := -1
+	for time.Now().Before(deadline) {
+		last = groupSize(t, pgid)
+		if (want == 0 && last == 0) || (want > 0 && last >= want) {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("process group %d held %d processes after %v, want %d", pgid, last, timeout, want)
 }
