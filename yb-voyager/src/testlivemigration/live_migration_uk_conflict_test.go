@@ -345,9 +345,9 @@ func TestLiveMigrationWithMultiColumnUniqueIndexConflictDetectionCases(t *testin
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
 
-	require.Greater(t, conflictStats.Total, 0, "true-positive delta should produce UK conflicts")
-	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index"`], 0, "test_multi_column_unique_index should produce UK conflicts")
-	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index_part"`], 0, "test_multi_column_unique_index_part should produce UK conflicts")
+	require.Greater(t, conflictStats.Total, 1000, "true-positive delta should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index"`], 500, "test_multi_column_unique_index should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index_part"`], 500, "test_multi_column_unique_index_part should produce UK conflicts")
 	// Upper bound, counted from the true-positive delta. A conflict pair is recorded once per
 	// (cached delete/update, incoming) pair, and a cached event can pair with at most one
 	// incoming event (the reader blocks in WaitUntilNoConflict until the conflicting cached
@@ -556,8 +556,8 @@ func TestLiveMigrationWithUniqueKeyValuesWithPartialPredicateConflictDetectionCa
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
 
-	require.Greater(t, conflictStats.Total, 0, "true-positive delta should produce UK conflicts")
-	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live"`], 0, "test_live should produce UK conflicts")
+	require.Greater(t, conflictStats.Total, 500, "true-positive delta should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live"`], 500, "test_live should produce UK conflicts")
 	// Upper bound, counted from the delta: all 5 updates + 2 deletes per iteration carry
 	// before-image check_id=20 (indexed, non-NULL) and each can be caught by a later
 	// different-PK incoming, and a cached event can pair with at most one incoming event
@@ -781,8 +781,8 @@ FROM generate_series(1, 20) as i;`,
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	fmt.Println("conflictStats", conflictStats)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
-	require.Greater(t, conflictStats.Total, 0, "null unique delta should produce UK conflicts")
-	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live_null_unique_values"`], 0, "test_live_null_unique_values should produce UK conflicts")
+	require.Greater(t, conflictStats.Total, 500, "null unique delta should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live_null_unique_values"`], 500, "test_live_null_unique_values should produce UK conflicts")
 
 	// Upper bound, counted from the delta: under NULLS NOT DISTINCT the index buckets include
 	// NULL values, so all 6 updates + 2 deletes per iteration have indexable before-images and
@@ -1106,8 +1106,8 @@ FROM generate_series(1, 20) as i;`,
 
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
-	require.Greater(t, conflictStats.Total, 0, "partial unique delta should produce UK conflicts")
-	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live_null_partial_unique_values"`], 0, "test_live_null_partial_unique_values should produce UK conflicts")
+	require.Greater(t, conflictStats.Total, 500, "partial unique delta should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live_null_partial_unique_values"`], 500, "test_live_null_partial_unique_values should produce UK conflicts")
 
 	// Upper bound, counted from the delta: of the 5 updates + 3 deletes per iteration, only 5
 	// carry a non-NULL before-image check_id (=20) and are therefore indexed under default
@@ -1259,8 +1259,8 @@ func TestLiveMigrationWithUniqueKeyConflictsOnCaseSensitiveColumns(t *testing.T)
 
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
-	require.Greater(t, conflictStats.Total, 0, "case-sensitive UK delta should produce unique-key conflicts")
-	require.Greater(t, conflictStats.ByTable[table], 0, "case-sensitive UK conflicts should be attributed to the table")
+	require.Greater(t, conflictStats.Total, 500, "case-sensitive UK delta should produce unique-key conflicts")
+	require.Greater(t, conflictStats.ByTable[table], 500, "case-sensitive UK conflicts should be attributed to the table")
 	// Upper bound, counted from the delta: per iteration, the anchor-freeing update and the
 	// three deletes carry before-image ("Id2",id1,"ID3")=(2,2,2) and each can be caught by the
 	// next different-PK incoming that reclaims (2,2,2); the restoring update's before-image
@@ -1851,8 +1851,8 @@ func TestLiveMigrationWithCoveringUniqueKeyIndex(t *testing.T) {
 
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
-	require.Greater(t, conflictStats.Total, 0, "covering UK delta should produce unique-key conflicts")
-	require.Greater(t, conflictStats.ByTable[`"test_schema"."users"`], 0, "covering UK conflicts should be attributed to the table")
+	require.Greater(t, conflictStats.Total, 500, "covering UK delta should produce unique-key conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."users"`], 500, "covering UK conflicts should be attributed to the table")
 	// Upper bound, counted from the delta: all 3 updates + 2 deletes per iteration carry an
 	// indexed before-image email ('user_10@' or 'user_i@') that the next different-PK incoming
 	// reclaims, and a cached event pairs with at most one incoming event => at most 5 pairs per
