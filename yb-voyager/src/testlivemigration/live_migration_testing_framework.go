@@ -899,7 +899,7 @@ func (lm *LiveMigrationTest) WaitForSnapshotComplete(expectedData map[string]int
 	ok := utils.RetryWorkWithTimeout(1, snapshotTimeout, func() bool {
 		ok, err := lm.snapshotPhaseCompleted(expectedData)
 		if err != nil {
-			testutils.FatalIfError(lm.t, err, "failed to get data migration report")
+			lm.t.Logf("failed to get snapshot data report: %v", err)
 			return false
 		}
 		return ok
@@ -919,7 +919,7 @@ func (lm *LiveMigrationTest) WaitForForwardStreamingComplete(expectedChanges map
 	ok := utils.RetryWorkWithTimeout(streamingSleep, streamingTimeout, func() bool {
 		ok, err := lm.streamingPhaseCompleted(expectedChanges, "source", "target")
 		if err != nil {
-			testutils.FatalIfError(lm.t, err, "failed to get data migration report")
+			lm.t.Logf("failed to get data migration report: %v", err)
 			return false
 		}
 		return ok
@@ -939,7 +939,7 @@ func (lm *LiveMigrationTest) WaitForFallbackStreamingComplete(expectedChanges ma
 	ok := utils.RetryWorkWithTimeout(streamingSleep, streamingTimeout, func() bool {
 		ok, err := lm.streamingPhaseCompleted(expectedChanges, "target", "source")
 		if err != nil {
-			testutils.FatalIfError(lm.t, err, "failed to get data migration report")
+			lm.t.Logf("failed to get streaming data report: %v", err)
 			return false
 		}
 		return ok
