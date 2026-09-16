@@ -1321,3 +1321,287 @@ func TestBuildGeneratedStoredColumns(t *testing.T) {
 		assert.Equal(t, []GeneratedStoredColumn{{Name: "Email", InUniqueIndex: false}}, got)
 	})
 }
+
+// TestCustomKeyResumeGuardChangeCases is a single consolidated exercise of the CDC
+// custom-partition-key resume guardrails. It drives the two real guard entry points and covers
+// the full matrix of ways the effective per-table strategy (or the import table list) can change
+// on a resume:
+//
+//   - validateCdcPartitionKeyFlags (import.go): the flag-level guard that raw-string compares the
+//     global --cdc-partition-key. It rejects a global change even when an override is present and
+//     even when the change is semantically a no-op (auto -> pk), and it does NOT string-compare
+//     the overrides.
+//   - validateCdcPartitioningStrategyUnchanged (live_migration_cdc_partition_strategy.go): the
+//     semantic guard that re-resolves the current flags into an effective per-table map and diffs
+//     it against the persisted map, catching override-driven strategy/column changes and import
+//     table list changes, while accepting equivalent spellings and no-op override changes.
+func TestCustomKeyResumeGuardChangeCases(t *testing.T) {
+	// Name registry: two plain tables plus a partitioned root and its leaf partition.
+	origNameReg := namereg.NameReg
+	origNameRegSourceDBType := sqlname.SourceDBType
+	t.Cleanup(func() {
+		namereg.NameReg = origNameReg
+		sqlname.SourceDBType = origNameRegSourceDBType
+	})
+	sqlname.SourceDBType = POSTGRESQL
+
+	regDir, err := os.MkdirTemp("", "cdcpk-guard-namereg-*")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(regDir) })
+	regFile := filepath.Join(regDir, "name_registry.json")
+	require.NoError(t, os.WriteFile(regFile, []byte(`{
+  "SourceDBType": "postgresql",
+  "SourceDBSchemaNames": ["test_schema"],
+  "DefaultSourceDBSchemaName": "test_schema",
+  "SourceDBTableNames": {"test_schema": ["orders", "events", "orders_part", "orders_part_r1"]},
+  "YBSchemaNames": ["test_schema"],
+  "DefaultYBSchemaName": "test_schema",
+  "YBTableNames": {"test_schema": ["orders", "events", "orders_part", "orders_part_r1"]}
+}`), 0644))
+	require.NoError(t, namereg.InitNameRegistry(namereg.NameRegistryParams{
+		FilePath: regFile,
+		Role:     namereg.TARGET_DB_IMPORTER_ROLE,
+	}))
+
+	lookup := func(name string) sqlname.NameTuple {
+		nt, err := namereg.NameReg.LookupTableName(name)
+		require.NoError(t, err)
+		return nt
+	}
+	orders := lookup("test_schema.orders")
+	events := lookup("test_schema.events")
+	ordersPart := lookup("test_schema.orders_part")
+	// Import table list is root tables only; the leaf partition is intentionally excluded.
+	tableNames := []sqlname.NameTuple{orders, events, ordersPart}
+
+	// metaDB with an empty source generated-stored-column capture, so the resume recompute
+	// resolves to no generated columns (a captured record, not the older-export fallback).
+	metaExportDir, err := os.MkdirTemp("", "cdcpk-guard-metadb-*")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(metaExportDir) })
+	origMetaDB := metaDB
+	metaDB = initMetaDB(metaExportDir)
+	t.Cleanup(func() { metaDB = origMetaDB })
+	require.NoError(t, metaDB.UpdateExportDataSourceDBExporterStatusRecord(func(r *metadb.ExportDataSourceDBExporterStatusRecord) {
+		r.TableToGeneratedStoredColumns = map[string][]string{}
+	}))
+
+	// Globals + a mock target DB that answers the custom-key column lookups.
+	origKey := cdcPartitionKey
+	origOverrides := cdcPartitionKeyOverrides
+	origTargetDBType := tconf.TargetDBType
+	origTdb := tdb
+	origImporterRole := importerRole
+	origSourceDBType := sourceDBType
+	origImportType := importType
+	origStartClean := startClean
+	t.Cleanup(func() {
+		cdcPartitionKey = origKey
+		cdcPartitionKeyOverrides = origOverrides
+		tconf.TargetDBType = origTargetDBType
+		tdb = origTdb
+		importerRole = origImporterRole
+		sourceDBType = origSourceDBType
+		importType = origImportType
+		startClean = origStartClean
+	})
+	tconf.TargetDBType = YUGABYTEDB
+	importerRole = TARGET_DB_IMPORTER_ROLE
+	sourceDBType = POSTGRESQL
+	importType = SNAPSHOT_AND_CHANGES
+	startClean = false
+	tdb = &mockYugabyteDB{tableAttrs: map[string][]string{
+		orders.ForKey():     {"id", "customer_id", "region"},
+		ordersPart.ForKey(): {"id", "region", "customer_id"},
+	}}
+
+	emptyUK := utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]()
+
+	// storedFor builds a persisted first-run record with the given orders strategy (events and
+	// orders_part stay on the global pk). For custom, pass the routing columns.
+	storedFor := func(ordersStrategy, ordersOverrideStr string, ordersCols ...string) *metadb.ImportDataStatusRecord {
+		return &metadb.ImportDataStatusRecord{
+			ImportDataStarted:              true,
+			CdcPartitioningStrategyConfig:  PARTITION_BY_PK,
+			CdcPartitionKeyOverridesConfig: ordersOverrideStr,
+			TableToCDCPartitionKey: map[string]metadb.CDCPartitionKey{
+				orders.ForKey():     {Strategy: ordersStrategy, Columns: ordersCols},
+				events.ForKey():     {Strategy: PARTITION_BY_PK},
+				ordersPart.ForKey(): {Strategy: PARTITION_BY_PK},
+			},
+			CdcExpressionUniqueIndexTables: []string{},
+		}
+	}
+	customStored := func(cols ...string) *metadb.ImportDataStatusRecord {
+		return storedFor(PARTITION_BY_CUSTOM, "test_schema.orders:("+strings.Join(cols, ",")+")", cols...)
+	}
+
+	// --- custom key column / strategy transitions (semantic guard) ---
+
+	t.Run("changed custom key column list is rejected", func(t *testing.T) {
+		cdcPartitionKey = PARTITION_BY_PK
+		cdcPartitionKeyOverrides = "test_schema.orders:(region)"
+		err := validateCdcPartitioningStrategyUnchanged(tableNames, customStored("customer_id"), emptyUK)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "changing cdc-partition-key")
+		assert.Contains(t, err.Error(), "custom key columns")
+		assert.Contains(t, err.Error(), "orders")
+	})
+
+	t.Run("custom to pk is rejected", func(t *testing.T) {
+		cdcPartitionKey = PARTITION_BY_PK
+		cdcPartitionKeyOverrides = "" // drop the override -> orders falls back to global pk
+		err := validateCdcPartitioningStrategyUnchanged(tableNames, customStored("customer_id"), emptyUK)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "changing cdc-partition-key")
+		assert.Contains(t, err.Error(), `persisted: "custom"`)
+		assert.Contains(t, err.Error(), `new: "pk"`)
+	})
+
+	t.Run("pk to custom is rejected", func(t *testing.T) {
+		cdcPartitionKey = PARTITION_BY_PK
+		cdcPartitionKeyOverrides = "test_schema.orders:(customer_id)"
+		err := validateCdcPartitioningStrategyUnchanged(tableNames, storedFor(PARTITION_BY_PK, ""), emptyUK)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "changing cdc-partition-key")
+		assert.Contains(t, err.Error(), `persisted: "pk"`)
+		assert.Contains(t, err.Error(), `new: "custom"`)
+	})
+
+	t.Run("table to custom is rejected", func(t *testing.T) {
+		cdcPartitionKey = PARTITION_BY_PK
+		cdcPartitionKeyOverrides = "test_schema.orders:(customer_id)"
+		err := validateCdcPartitioningStrategyUnchanged(tableNames, storedFor(PARTITION_BY_TABLE, "test_schema.orders:table"), emptyUK)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "changing cdc-partition-key")
+		assert.Contains(t, err.Error(), `persisted: "table"`)
+		assert.Contains(t, err.Error(), `new: "custom"`)
+	})
+
+	t.Run("custom to table is rejected", func(t *testing.T) {
+		cdcPartitionKey = PARTITION_BY_PK
+		cdcPartitionKeyOverrides = "test_schema.orders:table"
+		err := validateCdcPartitioningStrategyUnchanged(tableNames, customStored("customer_id"), emptyUK)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "changing cdc-partition-key")
+		assert.Contains(t, err.Error(), `persisted: "custom"`)
+		assert.Contains(t, err.Error(), `new: "table"`)
+	})
+
+	t.Run("override on a leaf partition name is rejected", func(t *testing.T) {
+		// The leaf partition is registered but not in the import table list (only the root is),
+		// so an override targeting it is rejected during resolution, before any diff.
+		cdcPartitionKey = PARTITION_BY_PK
+		cdcPartitionKeyOverrides = "test_schema.orders_part_r1:table"
+		err := validateCdcPartitioningStrategyUnchanged(tableNames, customStored("customer_id"), emptyUK)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "orders_part_r1")
+		assert.Contains(t, err.Error(), "not in the import table list")
+	})
+
+	// --- global key change (flag-level guard) ---
+
+	// validateCdcPartitionKeyFlags reads the persisted global strategy from metaDB, so seed it
+	// and drive the flag-level guard via a cobra command (StringVar resets the bound globals to
+	// their defaults, so set them after registering).
+	runFlagGuard := func(t *testing.T, storedGlobal, newGlobal, overrides string) error {
+		t.Helper()
+		require.NoError(t, metaDB.UpdateImportDataStatusRecord(func(r *metadb.ImportDataStatusRecord) {
+			r.ImportDataStarted = true
+			r.CdcPartitioningStrategyConfig = storedGlobal
+			r.CdcPartitionKeyOverridesConfig = overrides
+		}))
+		c := &cobra.Command{Use: "import-data-test"}
+		c.Flags().StringVar(&cdcPartitionKey, "cdc-partition-key", "auto", "")
+		c.Flags().StringVar(&cdcPartitionKeyOverrides, "cdc-partition-key-overrides", "", "")
+		require.NoError(t, c.Flags().Set("cdc-partition-key", newGlobal))
+		require.NoError(t, c.Flags().Set("cdc-partition-key-overrides", overrides))
+		cdcPartitionKey = newGlobal
+		cdcPartitionKeyOverrides = overrides
+		return validateCdcPartitionKeyFlags(c)
+	}
+
+	t.Run("global key change with an override present is rejected", func(t *testing.T) {
+		// The semantic guard short-circuits when the overrides string is unchanged, so the global
+		// pk->table change (override still present) is caught by the flag-level raw compare.
+		err := runFlagGuard(t, PARTITION_BY_PK, PARTITION_BY_TABLE, "test_schema.orders:table")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "changing cdc-partition-key is not allowed")
+	})
+
+	t.Run("global auto to pk is rejected even when effectively equivalent", func(t *testing.T) {
+		// Asymmetry pin: the global key is raw-string compared, so auto->pk is rejected even
+		// though, with no expression-UK tables, auto resolves to pk everywhere. (Overrides, by
+		// contrast, are compared semantically.) If this ever becomes accepted, update this test.
+		err := runFlagGuard(t, "auto", PARTITION_BY_PK, "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "changing cdc-partition-key is not allowed")
+	})
+
+	// --- accepted (no-op) changes ---
+
+	t.Run("equivalent spelling of the same custom key is accepted", func(t *testing.T) {
+		cdcPartitionKey = PARTITION_BY_PK
+		cdcPartitionKeyOverrides = `  "test_schema"."orders":(customer_id) ; `
+		require.NoError(t, validateCdcPartitioningStrategyUnchanged(tableNames, customStored("customer_id"), emptyUK))
+	})
+
+	t.Run("redundant override dropped with unchanged effective map is accepted", func(t *testing.T) {
+		// Stored has a redundant orders:pk override (orders would be pk under the global anyway).
+		// Dropping it changes the overrides string but not the effective per-table map, so the
+		// semantic guard must accept it (proving it is not a raw string compare).
+		cdcPartitionKey = PARTITION_BY_PK
+		cdcPartitionKeyOverrides = ""
+		require.NoError(t, validateCdcPartitioningStrategyUnchanged(tableNames, storedFor(PARTITION_BY_PK, "test_schema.orders:pk"), emptyUK))
+	})
+
+	// --- import table list changes (semantic guard: missingInStored / missingInResolved) ---
+
+	t.Run("import table list grown on resume is rejected", func(t *testing.T) {
+		// The original import had only orders + events; orders_part is new in the current list.
+		// The overrides string is changed (whitespace) so the guard recomputes rather than
+		// short-circuiting, and the newly-added table is then flagged.
+		storedTwoTables := &metadb.ImportDataStatusRecord{
+			ImportDataStarted:              true,
+			CdcPartitioningStrategyConfig:  PARTITION_BY_PK,
+			CdcPartitionKeyOverridesConfig: "test_schema.orders:(customer_id)",
+			TableToCDCPartitionKey: map[string]metadb.CDCPartitionKey{
+				orders.ForKey(): {Strategy: PARTITION_BY_CUSTOM, Columns: []string{"customer_id"}},
+				events.ForKey(): {Strategy: PARTITION_BY_PK},
+			},
+			CdcExpressionUniqueIndexTables: []string{},
+		}
+		cdcPartitionKey = PARTITION_BY_PK
+		cdcPartitionKeyOverrides = "test_schema.orders:(customer_id) " // whitespace-differ to force recompute
+		err := validateCdcPartitioningStrategyUnchanged(tableNames, storedTwoTables, emptyUK)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "orders_part")
+		assert.Contains(t, err.Error(), "was not part of the original import")
+	})
+
+	t.Run("import table list shrunk on resume is rejected", func(t *testing.T) {
+		// The original import had orders + events + orders_part; the current list drops orders_part.
+		cdcPartitionKey = PARTITION_BY_PK
+		cdcPartitionKeyOverrides = "test_schema.orders:(customer_id) " // whitespace-differ to force recompute
+		err := validateCdcPartitioningStrategyUnchanged([]sqlname.NameTuple{orders, events}, customStored("customer_id"), emptyUK)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "orders_part")
+		assert.Contains(t, err.Error(), "missing from the current import table list")
+	})
+
+	// --- custom key equal to the primary key columns is accepted ---
+
+	t.Run("custom key equal to the primary key columns is accepted", func(t *testing.T) {
+		// A custom key naming exactly the table's PK column(s) must be accepted and routed as
+		// custom: the columns exist and are not stored-generated, so nothing rejects it and it is
+		// not coerced to pk.
+		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
+		overrides.Put(orders, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"id"}})
+		resolved, err := resolveAndValidateCdcPartitionKeysForTest(t, tableNames, PARTITION_BY_PK, overrides, nil, nil)
+		require.NoError(t, err)
+		got, ok := resolved.Get(orders)
+		require.True(t, ok)
+		assert.Equal(t, PARTITION_BY_CUSTOM, got.Strategy)
+		assert.Equal(t, []string{"id"}, got.Columns)
+	})
+}
