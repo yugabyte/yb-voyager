@@ -195,10 +195,7 @@ func correctSequenceLastValuesAgainstTableMax(sequenceNameTupleToLastValueMap *u
 		if !ok {
 			return true, nil
 		}
-		tableMax, err := maxValueAcrossSequenceColumns(sequenceTuple, ownerColumns)
-		if err != nil {
-			return false, err
-		}
+		tableMax := maxValueAcrossSequenceColumns(sequenceTuple, ownerColumns)
 		if tableMax <= lastValue {
 			return true, nil
 		}
@@ -228,33 +225,60 @@ var sequenceColumnMaxQuerier = func(query string) (string, error) {
 	return value, err
 }
 
-func maxValueAcrossSequenceColumns(sequenceTuple sqlname.NameTuple, ownerColumns []sequenceOwnerColumn) (int64, error) {
+func maxValueAcrossSequenceColumns(sequenceTuple sqlname.NameTuple, ownerColumns []sequenceOwnerColumn) int64 {
 	var maxValue int64
 	for _, ownerColumn := range ownerColumns {
 		if !ownerColumn.table.TargetTableAvailable() {
 			continue
 		}
-		// Cast to text so that a column the sequence feeds which does not hold integers
-		// is reported by the parse below rather than by a scan failure, which would be
-		// indistinguishable from a missing column or a broken connection.
-		query := fmt.Sprintf(`SELECT COALESCE(MAX(%s)::text, '0') FROM %s`,
-			quoteIdentifierIfUnquoted(ownerColumn.column), ownerColumn.table.ForUserQuery())
+		columnMax, ok := maxValueOfSequenceColumn(sequenceTuple, ownerColumn)
+		if ok && columnMax > maxValue {
+			maxValue = columnMax
+		}
+	}
+	return maxValue
+}
+
+/*
+maxValueOfSequenceColumn reads the largest value in one column, reporting ok=false when
+it cannot be read.
+
+The mapping records the source-side spelling of the column and nothing maps it to the
+target, the way the name registry maps table names: a MySQL or Oracle source column
+arrives as ID or AlbumId while the target column is folded to lower case. Quoting keeps a
+genuinely case-sensitive name addressable, leaving it unquoted lets the target fold it,
+so both are attempted.
+
+A column whose maximum still cannot be read only costs the comparison for that column, so
+it is reported and skipped. Failing here would break migrations that work today, since
+the target spelling cannot be resolved for every source type.
+*/
+func maxValueOfSequenceColumn(sequenceTuple sqlname.NameTuple, ownerColumn sequenceOwnerColumn) (int64, bool) {
+	columnRefs := []string{quoteIdentifierIfUnquoted(ownerColumn.column)}
+	if ownerColumn.column != columnRefs[0] {
+		columnRefs = append(columnRefs, ownerColumn.column)
+	}
+
+	var lastErr error
+	for _, columnRef := range columnRefs {
+		query := fmt.Sprintf(`SELECT COALESCE(MAX(%s)::text, '0') FROM %s`, columnRef, ownerColumn.table.ForUserQuery())
 		raw, err := sequenceColumnMaxQuerier(query)
 		if err != nil {
-			return 0, fmt.Errorf("get max value of column %s of table %s for sequence %s: %w",
-				ownerColumn.column, ownerColumn.table.ForKey(), sequenceTuple.ForKey(), err)
+			lastErr = err
+			continue
 		}
 		columnMax, isInteger := parseSequenceColumnMax(raw)
 		if !isInteger {
 			log.Warnf("column %s of table %s feeding sequence %s does not hold integer values (max is %q); skipping it",
 				ownerColumn.column, ownerColumn.table.ForKey(), sequenceTuple.ForKey(), raw)
-			continue
+			return 0, false
 		}
-		if columnMax > maxValue {
-			maxValue = columnMax
-		}
+		return columnMax, true
 	}
-	return maxValue, nil
+
+	log.Warnf("could not read the maximum of column %s of table %s feeding sequence %s, so its exported value is used as is: %v",
+		ownerColumn.column, ownerColumn.table.ForKey(), sequenceTuple.ForKey(), lastErr)
+	return 0, false
 }
 
 func parseSequenceColumnMax(raw string) (int64, bool) {

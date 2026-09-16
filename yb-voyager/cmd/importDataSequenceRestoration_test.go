@@ -109,48 +109,66 @@ func TestMaxValueAcrossSequenceColumns(t *testing.T) {
 			return "", fmt.Errorf("unexpected query %q", query)
 		})
 
-		maxValue, err := maxValueAcrossSequenceColumns(sequence, []sequenceOwnerColumn{
+		maxValue := maxValueAcrossSequenceColumns(sequence, []sequenceOwnerColumn{
 			{table: testNameTuple(t, "public", "parent"), column: "id"},
 			{table: testNameTuple(t, "public", "child"), column: "id"},
 		})
 
-		require.NoError(t, err)
 		assert.Equal(t, int64(37), maxValue)
 	})
 
 	t.Run("skips a column that does not hold integers", func(t *testing.T) {
 		stubSequenceColumnMaxQuerier(t, func(string) (string, error) { return "abc", nil })
 
-		maxValue, err := maxValueAcrossSequenceColumns(sequence, []sequenceOwnerColumn{
+		maxValue := maxValueAcrossSequenceColumns(sequence, []sequenceOwnerColumn{
 			{table: testNameTuple(t, "public", "t"), column: "label"},
 		})
 
-		require.NoError(t, err)
 		assert.Equal(t, int64(0), maxValue)
 	})
 
-	t.Run("propagates a query failure instead of silently skipping", func(t *testing.T) {
+	// A MySQL or Oracle source records the column as ID while the target folded it to
+	// id, so the quoted spelling cannot match and the unquoted one must be tried.
+	t.Run("falls back to the unquoted spelling when the quoted one does not exist", func(t *testing.T) {
+		queries := stubSequenceColumnMaxQuerier(t, func(query string) (string, error) {
+			if strings.Contains(query, `MAX("ID")`) {
+				return "", fmt.Errorf(`ERROR: column "ID" does not exist (SQLSTATE 42703)`)
+			}
+			return "55", nil
+		})
+
+		maxValue := maxValueAcrossSequenceColumns(sequence, []sequenceOwnerColumn{
+			{table: testNameTuple(t, "public", "t"), column: "ID"},
+		})
+
+		assert.Equal(t, int64(55), maxValue)
+		require.Len(t, *queries, 2)
+		assert.Contains(t, (*queries)[0], `MAX("ID")`)
+		assert.Contains(t, (*queries)[1], `MAX(ID)`)
+	})
+
+	// Breaking the migration here would be worse than not comparing: the target spelling
+	// cannot be resolved for every source type.
+	t.Run("skips the column when no spelling can be read", func(t *testing.T) {
 		stubSequenceColumnMaxQuerier(t, func(string) (string, error) {
 			return "", fmt.Errorf(`ERROR: column "id" does not exist (SQLSTATE 42703)`)
 		})
 
-		_, err := maxValueAcrossSequenceColumns(sequence, []sequenceOwnerColumn{
+		maxValue := maxValueAcrossSequenceColumns(sequence, []sequenceOwnerColumn{
 			{table: testNameTuple(t, "public", "t"), column: "id"},
 		})
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), `column "id" does not exist`)
-		assert.Contains(t, err.Error(), "public")
+		assert.Equal(t, int64(0), maxValue)
 	})
 
-	t.Run("quotes a case sensitive column name", func(t *testing.T) {
+	t.Run("quotes a case sensitive column name first", func(t *testing.T) {
 		queries := stubSequenceColumnMaxQuerier(t, func(string) (string, error) { return "1", nil })
 
-		_, err := maxValueAcrossSequenceColumns(sequence, []sequenceOwnerColumn{
+		maxValue := maxValueAcrossSequenceColumns(sequence, []sequenceOwnerColumn{
 			{table: testNameTuple(t, "public", "t"), column: "Id"},
 		})
 
-		require.NoError(t, err)
+		assert.Equal(t, int64(1), maxValue)
 		require.Len(t, *queries, 1)
 		assert.Contains(t, (*queries)[0], `MAX("Id")`)
 	})
