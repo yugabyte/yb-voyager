@@ -202,6 +202,11 @@ func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, iterationNo int, current
 		return fmt.Errorf("failed to update migration status record: %w", err)
 	}
 
+	currentImportDataStatusRecord, err := parentMetaDB.GetImportDataStatusRecord()
+	if err != nil {
+		return fmt.Errorf("failed to get import data status record: %w", err)
+	}
+
 	injectDuringSetUpNextIterationMSR()
 
 	//Update next iteration's MSR
@@ -228,6 +233,14 @@ func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, iterationNo int, current
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update iteration migration status record: %w", err)
+	}
+
+	err = nextIterationMetaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
+		record.TableToCDCPartitionKey = currentImportDataStatusRecord.TableToCDCPartitionKey
+		record.CdcExpressionUniqueIndexTables = currentImportDataStatusRecord.CdcExpressionUniqueIndexTables
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update iteration import data status record: %w", err)
 	}
 	return nil
 }
