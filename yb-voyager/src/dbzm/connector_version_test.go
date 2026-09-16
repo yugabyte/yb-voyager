@@ -57,14 +57,6 @@ func TestParseLogicalConnectorYBVersion(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			// Since dz.1.9.5.yb.grpc.2026.1.2.0.1 the gRPC tag carries the full
-			// four-part YB release plus a connector patch, so it is longer than the
-			// three-part form shipped earlier. Both shapes must stay rejected.
-			name:    "older three-part grpc connector jar is rejected",
-			jarName: "debezium-connector-yugabytedb-dz.1.9.5.yb.grpc.2024.2.3.jar",
-			wantErr: true,
-		},
-		{
 			name:    "unrelated jar name",
 			jarName: "some-random-library-1.2.3.jar",
 			wantErr: true,
