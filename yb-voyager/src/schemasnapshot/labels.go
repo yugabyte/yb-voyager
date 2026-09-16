@@ -20,12 +20,19 @@ import (
 	goerrors "github.com/go-errors/errors"
 )
 
-// The four valid snapshot capture labels.
+// The valid snapshot capture labels.
 const (
 	LabelExportSchema                 = "export_schema"
 	LabelExportDataFromSourceStart    = "export_data_from_source_start"
 	LabelExportDataFromSourcePeriodic = "export_data_from_source_periodic"
 	LabelExportDataFromSourceExit     = "export_data_from_source_exit"
+	// LabelDetectDrift is used for the in-memory live read taken by
+	// `yb-voyager schema detect-drift`. It is never persisted (the live read is
+	// only ever held in memory and diffed, never saved via SaveSnapshot), but
+	// Capture requires a label from the known vocabulary regardless of whether
+	// the caller intends to persist the result, so this exists purely to satisfy
+	// ValidateLabelReason for that call site.
+	LabelDetectDrift = "detect_drift"
 )
 
 // The valid capture reasons, grouped by the label that carries them.
@@ -49,6 +56,7 @@ var labelReasons = map[string][]string{
 	LabelExportDataFromSourceStart:    {ReasonInitial, ReasonResume, ReasonCleanRestart},
 	LabelExportDataFromSourcePeriodic: nil,
 	LabelExportDataFromSourceExit:     {ReasonCutover, ReasonComplete, ReasonInterrupt, ReasonError},
+	LabelDetectDrift:                  nil,
 }
 
 // ValidateLabelReason checks that the (label, reason) pair is legal.
