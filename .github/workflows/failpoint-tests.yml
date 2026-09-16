@@ -157,7 +157,7 @@ jobs:
         run: |
           set -euo pipefail
           cd yb-voyager
-          go test -json -v -tags=${{ matrix.tag }} ./... --parallel 7 -timeout 50m 2>/tmp/gotest-stderr.log | tee /tmp/gotest.log | gotestfmt
+          go test -json -v -tags=${{ matrix.tag }} ./... --parallel 5 -timeout 50m 2>/tmp/gotest-stderr.log | tee /tmp/gotest.log | gotestfmt
           if [ -s /tmp/gotest-stderr.log ]; then
             echo "::group::stderr output (docker/testcontainer logs)"
             cat /tmp/gotest-stderr.log
