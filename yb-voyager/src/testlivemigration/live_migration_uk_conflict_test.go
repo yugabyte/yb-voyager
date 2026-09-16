@@ -3571,17 +3571,11 @@ func TestLiveMigrationCustomCdcPartitionKeyMutationFailsImport(t *testing.T) {
 
 	// The mutation event must kill the import: hashEvent -> customPartitionKeyColumnValue
 	// errors, streamChanges propagates it, and the process ErrExits.
-	require.Eventually(t, func() bool { return lm.GetImportRunner().IsStopped() },
-		3*time.Minute, 2*time.Second,
-		"import should exit after streaming an update that mutates a custom partition key column")
+	err = lm.WaitForImportdataToCrashWithError(3*time.Minute, 2*time.Second, "custom partition key column \"ck2\" is required to be immutable")
+	testutils.FatalIfError(t, err, "failed to wait for import data to crash with error")
 
-	output := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
-	require.Contains(t, output, "is required to be immutable",
-		"expected the custom-key immutability error, got: %s", output)
-	require.Contains(t, output, `"ck2"`,
-		"the immutability error should name the mutated key column, got: %s", output)
-
-	//overrides with pk strategy but table has a unique index on a stored generated column
+	//import data started with truncate and start-clean and default partition key strategy
+	//so that data can be applied properly
 	err = lm.StartImportData(true, map[string]string{
 		"--start-clean":     "true",
 		"--truncate-tables": "true",

@@ -533,6 +533,17 @@ func (lm *LiveMigrationTest) WaitForExportDataExitTimeout(timeout time.Duration)
 	}
 }
 
+func (lm *LiveMigrationTest) WaitForImportdataToCrashWithError(timeout time.Duration, pollInterval time.Duration, errorMessage string) error {
+	require.Eventually(lm.t, func() bool { return lm.GetImportRunner().IsStopped() },
+		timeout, pollInterval,
+		"import should exit after streaming an update that mutates a custom partition key column")
+	output := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
+	require.Contains(lm.t, output, errorMessage,
+		"expected the %s error, got: %s", errorMessage, output)
+	return nil
+
+}
+
 // WaitForImportDataExit waits for the import data process to exit.
 // This is useful when import has exec'd into export-data-from-target and
 // you need to detect the crash of the exec'd process.
