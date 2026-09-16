@@ -482,15 +482,19 @@ def load_excluded_reasons(path):
 
 
 def load_commits_from_csv(path):
-    commits = []
+    """Distinct harness commits that stamped a run, oldest run first."""
+    first_seen = {}
     if not path:
-        return commits
+        return []
     with open(path, newline="") as f:
         for row in csv.DictReader(f):
             c = row.get("voyager_commit") or ""
-            if c and c not in commits:
-                commits.append(c)
-    return commits
+            if not c:
+                continue
+            t = row.get("run_timestamp") or ""
+            if c not in first_seen or (t and t < first_seen[c]):
+                first_seen[c] = t
+    return sorted(first_seen, key=lambda c: first_seen[c])
 
 
 # ---------------------------------------------------------------------------
@@ -559,12 +563,10 @@ def render_coverage_html(cov, ntypes):
 
 
 def format_provenance(header_commit, csv_commits, pg_version, yb_version):
-    commits = []
-    if header_commit:
+    # Run commits first, in run order; the catalogue's own commit last if it never ran.
+    commits = list(csv_commits)
+    if header_commit and header_commit not in commits:
         commits.append(header_commit)
-    for c in csv_commits:
-        if c not in commits:
-            commits.append(c)
     # Every commit that stamped a run is a test-harness commit; the voyager code under
     # test did not change between them, so none is "the" commit and none is ranked.
     if not commits:
