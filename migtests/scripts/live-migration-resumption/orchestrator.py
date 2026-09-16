@@ -656,6 +656,16 @@ def main() -> None:
                 H.log_stage_end(stage_name, status=f"FAILED: {e}")
                 had_failure = True
                 raise
+
+        # Draining happens in row_hash_validations, which every scenario runs after a
+        # cutover. Anything left here means a scenario cut over without ever checking
+        # its sequences, which would pass while silently testing nothing.
+        if ctx.pending_sequence_checks:
+            raise RuntimeError(
+                "scenario cut over to %s but never ran row_hash_validations afterwards, "
+                "so the sequence restoration check was skipped"
+                % ", ".join(sorted(ctx.pending_sequence_checks))
+            )
     finally:
         # Always capture artifacts/logs at the end regardless of success or failure
         H.scan_logs_for_errors(cfg["export_dir"], cfg["artifacts_dir"])
