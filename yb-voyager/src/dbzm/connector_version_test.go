@@ -57,6 +57,11 @@ func TestParseLogicalConnectorYBVersion(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "grpc connector jar without a patch segment is also rejected",
+			jarName: "debezium-connector-yugabytedb-dz.1.9.5.yb.grpc.2024.2.3.jar",
+			wantErr: true,
+		},
+		{
 			name:    "unrelated jar name",
 			jarName: "some-random-library-1.2.3.jar",
 			wantErr: true,
