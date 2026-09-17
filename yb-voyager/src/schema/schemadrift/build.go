@@ -106,7 +106,7 @@ func BuildReport(p BuildParams) Report {
 		for _, d := range differ.Diff(prev.Content, next.Content) {
 			seq++
 			obj, subObj := splitIdentity(displayIdentity(d))
-			class := Classify(d.Type)
+			class := classify(d.Type)
 			diffs = append(diffs, DiffEntry{
 				Seq:        seq,
 				Type:       string(d.Type),
