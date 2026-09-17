@@ -2157,6 +2157,153 @@ func TestLiveMigrationCustomCdcPartitionKeyLeafLocalUniqueIndexAcrossLeaves(t *t
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
 
+// Test pins that a leaf-local unique index (defined independently on each partition, not on the root) is handled correctly
+// under custom-key routing a different column of the table - conflicts on the uk column should still be detected
+//
+// test_live is LIST-partitioned by region and routed by the custom key (region), so every leaf's
+// events carry a custom key. Each leaf has its
+// OWN unique index on uk_val. Two facts are exercised:
+//   - Coexistence: the SAME uk_val (777) lives in both r1 and r2 at once (snapshot rows) because
+//     the indexes are independent per leaf; the snapshot must import both.
+//   - Conflicts should be detected as the custom key is different so same uk val across leaves still be detected.
+//
+// The count failpoint must therefore record ZERO conflicts, and the target must stay consistent.
+func TestLiveMigrationCustomCdcPartitionKeyLeafLocalUniqueIndexAcrossLeavesWithDifferentCustomKey(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_custom_key_leaf_local_uk_2",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_custom_key_leaf_local_uk_2",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.test_live (
+				id int,
+				region text,
+				uk_val int,
+				PRIMARY KEY (id, region)
+			) PARTITION BY LIST (region);
+			CREATE TABLE test_schema.test_live_r1 PARTITION OF test_schema.test_live FOR VALUES IN ('r1');
+			CREATE TABLE test_schema.test_live_r2 PARTITION OF test_schema.test_live FOR VALUES IN ('r2');
+			-- Leaf-local unique indexes with distinct names: the same uk_val may exist once per leaf.
+			CREATE UNIQUE INDEX idx_test_live_r1_uk ON test_schema.test_live_r1 (uk_val);
+			CREATE UNIQUE INDEX idx_test_live_r2_uk ON test_schema.test_live_r2 (uk_val);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.test_live REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.test_live_r1 REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.test_live_r2 REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			// r1 and r2 each hold uk_val=777 simultaneously (leaf-local indexes) plus disjoint
+			// value ranges. 8 snapshot rows total.
+			`INSERT INTO test_schema.test_live (id, region, uk_val) VALUES
+				(100, 'r1', 1), (101, 'r1', 2), (150, 'r1', 777),
+				(200, 'r2', 10001), (201, 'r2', 10002), (202, 'r2', 10003), (250, 'r2', 777),
+				(102, 'r1', 3);`,
+		},
+		SourceDeltaSQL: []string{
+			// Single transaction. Within each leaf, free and reclaim one leaf-local uk_val across
+			// different primary keys; all events for a leaf share that leaf's region custom key, so
+			// they route to the same channel. The two leaves use disjoint uk_val ranges (r1: 1,
+			// r2: 10001) so no cross-leaf bucket can coincide. Root-level totals: 6 inserts, 6
+			// deletes, 0 updates.
+			`DO $$
+			BEGIN
+				-- r1 churn on uk_val=1 (custom key 'r1' -> one channel)
+				DELETE FROM test_schema.test_live WHERE id = 100 AND region = 'r1';
+				INSERT INTO test_schema.test_live (id, region, uk_val) VALUES (1, 'r2', 1);
+				DELETE FROM test_schema.test_live WHERE id = 1 AND region = 'r2';
+				INSERT INTO test_schema.test_live (id, region, uk_val) VALUES (2, 'r1', 1);
+				DELETE FROM test_schema.test_live WHERE id = 2 AND region = 'r1';
+				INSERT INTO test_schema.test_live (id, region, uk_val) VALUES (3, 'r2', 1);
+
+				-- r2 churn on uk_val=10001 (custom key 'r2' -> a different channel)
+				DELETE FROM test_schema.test_live WHERE id = 200 AND region = 'r2';
+				INSERT INTO test_schema.test_live (id, region, uk_val) VALUES (1, 'r1', 10001);
+				DELETE FROM test_schema.test_live WHERE id = 1 AND region = 'r1';
+				INSERT INTO test_schema.test_live (id, region, uk_val) VALUES (2, 'r2', 10001);
+				DELETE FROM test_schema.test_live WHERE id = 2 AND region = 'r2';
+				INSERT INTO test_schema.test_live (id, region, uk_val) VALUES (3, 'r1', 10001);
+			END $$;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+	)
+	uniqueKeyConflictStatsPath := filepath.Join(
+		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
+
+	err = lm.StartImportDataWithEnv(true, map[string]string{
+		"--cdc-partition-key-overrides": "test_schema.test_live:(id)",
+	}, []string{uniqueKeyConflictCountFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	// 8 snapshot rows, including uk_val=777 present in both leaves at once.
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_live"`: 8,
+	}, 120)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.InitMetaDB()
+	testutils.FatalIfError(t, err, "failed to initialize meta db")
+	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
+	testutils.FatalIfError(t, err, "failed to get import data status record")
+	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Strategy,
+		"test_live should use the custom partition strategy")
+	assert.Equal(t, []string{"id"}, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Columns,
+		"test_live custom key columns should be persisted")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	// Root-level counts: 6 inserts, 0 updates, 6 deletes.
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live"`: {Inserts: 6, Updates: 0, Deletes: 6},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	require.False(t, lm.GetImportRunner().IsStopped(),
+		"import should keep running during count failpoint mode")
+
+	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
+	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
+	require.Greater(t, conflictStats.Total, 0, "partial unique delta should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live"`], 0, "test_live should produce UK conflicts")
+
+	require.LessOrEqual(t, conflictStats.Total, 6, "partial unique delta should produce UK conflicts")
+	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live"`], 6, "test_live should produce UK conflicts")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id, region")
+	testutils.FatalIfError(t, err, "target does not match source after streaming")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
 // TestLiveMigrationCustomCdcPartitionKeyMultiLevelCrossSchemaPartitions pins that a custom
 // partition key works for a multi-level (LIST -> RANGE -> HASH) partitioned table whose leaf
 // partitions live in several different schemas.
@@ -2297,6 +2444,147 @@ func TestLiveMigrationCustomCdcPartitionKeyMultiLevelCrossSchemaPartitions(t *te
 	require.Nil(t, conflicts, "multi-level cross-schema custom-key migration must not produce conflicts")
 
 	err = lm.ValidateDataConsistency([]string{`"public"."customers"`}, "id")
+	testutils.FatalIfError(t, err, "target does not match source after streaming")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
+// TestLiveMigrationCustomCdcPartitionKeyWithNullValues pins that a NULLABLE custom partition key
+// works during streaming: rows whose custom-key value is NULL are routed via the NULL sentinel
+// (GetEventPartitionKey maps a NULL custom-key column to customKeyNullSentinel), so all NULL-keyed
+// rows hash to the same channel just like any other single key value.
+//
+// test_live is routed by the custom key (custom_key), which is left NULL for some rows. The delta
+// keeps custom_key immutable per row (NULL stays NULL, so the immutability guard never fires) and:
+//   - free/reclaims a unique index value (uk_val=1) across different primary keys where every
+//     involved row has custom_key=NULL. Because all NULL-keyed events share the sentinel partition
+//     key, they route to the same channel and apply in commit order, so this must produce NO
+//     cross-channel conflict.
+//   - streams an in-place non-key UPDATE on a NULL-keyed row (routing off the NULL before-image)
+//     and inserts of non-NULL-keyed rows, to prove mixed NULL/non-NULL flow stays consistent.
+func TestLiveMigrationCustomCdcPartitionKeyWithNullValues(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_custom_key_null_values",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_custom_key_null_values",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.test_live (
+				id int PRIMARY KEY,
+				custom_key int,   -- nullable custom partition key
+				uk_val int,
+				val int
+			);
+			CREATE UNIQUE INDEX idx_test_live_uk ON test_schema.test_live (uk_val);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			// REPLICA IDENTITY FULL so update/delete events carry the custom_key before-image
+			// (including NULL), which custom-key routing needs to place them on the sentinel channel.
+			`ALTER TABLE test_schema.test_live REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			// Mixed snapshot: ids 100..104 have NULL custom_key, ids 200..204 have a non-NULL one.
+			`INSERT INTO test_schema.test_live (id, custom_key, uk_val, val)
+			 SELECT i, NULL, i, i FROM generate_series(100, 104) i;`,
+			`INSERT INTO test_schema.test_live (id, custom_key, uk_val, val)
+			 SELECT i, i, i, i FROM generate_series(200, 204) i;`,
+		},
+		SourceDeltaSQL: []string{
+			// Single transaction. Root-level totals: 5 inserts, 1 update, 2 deletes.
+			`DO $$
+			BEGIN
+				-- Free/reclaim uk_val=1 across PKs, all with custom_key=NULL: every event hashes to
+				-- the NULL sentinel channel, so they serialize and never cross-channel conflict.
+				INSERT INTO test_schema.test_live (id, custom_key, uk_val, val) VALUES (1, NULL, 1, 1);
+				DELETE FROM test_schema.test_live WHERE id = 1;
+				INSERT INTO test_schema.test_live (id, custom_key, uk_val, val) VALUES (2, NULL, 1, 2);
+				DELETE FROM test_schema.test_live WHERE id = 2;
+				INSERT INTO test_schema.test_live (id, custom_key, uk_val, val) VALUES (3, NULL, 1, 3);
+
+				-- In-place non-key update on a NULL-keyed row (custom_key stays NULL => immutable).
+				UPDATE test_schema.test_live SET val = 999 WHERE id = 3;
+
+				-- Non-NULL-keyed inserts to prove mixed NULL/non-NULL flow.
+				INSERT INTO test_schema.test_live (id, custom_key, uk_val, val) VALUES (300, 50, 300, 300);
+				INSERT INTO test_schema.test_live (id, custom_key, uk_val, val) VALUES (301, 51, 301, 301);
+			END $$;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+	)
+	uniqueKeyConflictStatsPath := filepath.Join(
+		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
+
+	err = lm.StartImportDataWithEnv(true, map[string]string{
+		"--cdc-partition-key":           "auto",
+		"--cdc-partition-key-overrides": "test_schema.test_live:(custom_key)",
+	}, []string{uniqueKeyConflictCountFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_live"`: 10,
+	}, 120)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.InitMetaDB()
+	testutils.FatalIfError(t, err, "failed to initialize meta db")
+	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
+	testutils.FatalIfError(t, err, "failed to get import data status record")
+	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Strategy,
+		"test_live should use the custom partition strategy")
+	assert.Equal(t, []string{"custom_key"}, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live"`].Columns,
+		"test_live custom key columns should be persisted")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	// Root-level counts: 5 inserts, 1 update, 2 deletes.
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live"`: {Inserts: 5, Updates: 1, Deletes: 2},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	// A NULL custom key must not stop the import: NULL stays NULL, so the immutability guard never
+	// fires, and NULL-keyed rows simply route to the sentinel channel.
+	require.False(t, lm.GetImportRunner().IsStopped(),
+		"a nullable custom key with NULL values must not stop the import")
+
+	// No conflicts: the uk_val=1 free/reclaim is entirely among NULL-keyed rows, which all share the
+	// sentinel partition key (same channel) and are therefore applied in commit order.
+	conflicts, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
+	if err != nil && !os.IsNotExist(err) {
+		testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
+	}
+	require.Nil(t, conflicts, "NULL-keyed rows share the sentinel channel, so no cross-channel conflict should occur")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "target does not match source after streaming")
 
 	err = lm.InitiateCutoverToTarget(false, nil)
