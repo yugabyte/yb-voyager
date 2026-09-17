@@ -26,12 +26,12 @@ const (
 	StatusBreaksUnrecoverable Status = "breaks_migration_unrecoverable"
 )
 
-// Classification is everything the report says about a kind of change: how the
+// classification is everything the report says about a kind of change: how the
 // migration is affected, and the "Impact & action" note explaining it. Severity and
 // wording have to agree, so they are declared together rather than in parallel maps.
 //
 // `backticks` become inline code in HTML (see codeSpans) and stay literal in JSON.
-type Classification struct {
+type classification struct {
 	Status Status
 	Impact string
 	Action string
@@ -40,7 +40,7 @@ type Classification struct {
 // Severity says what the MIGRATION does about a change, not how alarming the DDL
 // sounds, so it reads backwards in places: an ADDED column is Recoverable because
 // import data can fail on it, while a DROPPED one is only Potential impact.
-var classificationByDiffType = map[schemadiff.DiffType]Classification{
+var classificationByDiffType = map[schemadiff.DiffType]classification{
 	// Unrecoverable: export data cannot be restarted; restart from scratch.
 	schemadiff.TableDropped: {
 		Status: StatusBreaksUnrecoverable,
@@ -125,12 +125,12 @@ var classificationByDiffType = map[schemadiff.DiffType]Classification{
 	},
 }
 
-// Classify falls back to StatusAdvisory for an unmapped DiffType, the zero value
+// classify falls back to StatusAdvisory for an unmapped DiffType, the zero value
 // included, rather than dropping the change. The zero Impact/Action that comes with
 // it is deliberate: the report omits the note when there is nothing useful to say.
-func Classify(t schemadiff.DiffType) Classification {
+func classify(t schemadiff.DiffType) classification {
 	if c, ok := classificationByDiffType[t]; ok {
 		return c
 	}
-	return Classification{Status: StatusAdvisory}
+	return classification{Status: StatusAdvisory}
 }

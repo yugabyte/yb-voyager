@@ -56,14 +56,14 @@ func TestClassify_MappedTypes(t *testing.T) {
 
 	for diffType, want := range cases {
 		t.Run(string(diffType), func(t *testing.T) {
-			assert.Equal(t, want, Classify(diffType).Status)
+			assert.Equal(t, want, classify(diffType).Status)
 		})
 	}
 }
 
 func TestClassify_UnknownDefaultsToAdvisory(t *testing.T) {
 	for _, unknown := range []schemadiff.DiffType{"", "SOME_FUTURE_DIFF_TYPE"} {
-		got := Classify(unknown)
+		got := classify(unknown)
 		assert.Equal(t, StatusAdvisory, got.Status)
 		assert.Empty(t, got.Impact, "an unmapped type has no note, so the report omits it")
 		assert.Empty(t, got.Action)
@@ -76,7 +76,7 @@ func TestClassify_UnknownDefaultsToAdvisory(t *testing.T) {
 func TestClassify_MappedTypesCarryGuidance(t *testing.T) {
 	for diffType := range classificationByDiffType {
 		t.Run(string(diffType), func(t *testing.T) {
-			c := Classify(diffType)
+			c := classify(diffType)
 			assert.NotEmpty(t, c.Status)
 			assert.NotEmpty(t, c.Impact, "every classified change explains its impact")
 			assert.NotEmpty(t, c.Action, "every classified change says what to do")

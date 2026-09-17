@@ -107,8 +107,8 @@ func TestBuildReport_ConsecutivePairsProduceDiffEntries(t *testing.T) {
 	assert.Equal(t, string(StatusPotentialImpact), d.Status)
 	assert.Equal(t, Window{From: t1(), To: t2()}, d.Window)
 	assert.Equal(t, "export data: pending", d.Phase)
-	assert.Equal(t, Classify(schemadiff.TableAdded).Impact, d.Impact)
-	assert.Equal(t, Classify(schemadiff.TableAdded).Action, d.Action)
+	assert.Equal(t, classify(schemadiff.TableAdded).Impact, d.Impact)
+	assert.Equal(t, classify(schemadiff.TableAdded).Action, d.Action)
 }
 
 func TestBuildReport_EmptyIntervalsProduceNoEntriesButKeepSequencing(t *testing.T) {
