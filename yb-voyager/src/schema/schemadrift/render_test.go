@@ -321,6 +321,42 @@ func TestRenderHTML_BridgedIntervalsRender(t *testing.T) {
 	})
 }
 
+// TestRenderHTML_SkippedAndRealIntervalShareACapture covers the capture that closes a
+// skipped interval and opens the next real one -- the normal shape after a scope
+// mismatch, since BuildReport makes the mismatching snapshot the new baseline. Both
+// blocks must render: buildTimeline's early continue is only safe because the two
+// lookups are keyed on Window.From, where a capture appears at most once. Keyed on
+// Window.To instead, the skipped block would swallow the findings that follow it.
+func TestRenderHTML_SkippedAndRealIntervalShareACapture(t *testing.T) {
+	a := fixtureContent(fixtureTable("1", "public", "orders"))
+	b := fixtureContent(fixtureTable("1", "sales", "orders"))
+	c := fixtureContent(
+		fixtureTable("1", "sales", "orders"),
+		fixtureTable("2", "sales", "customers"),
+	)
+
+	report := BuildReport(BuildParams{
+		Source: Source{DatabaseType: "postgresql"},
+		Snapshots: []SnapshotInput{
+			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a, Series: schemasnapshot.LabelExportSchema},
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "sales"), Content: b, Series: schemasnapshot.LabelExportDataFromSourceStart},
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourcePeriodic, t3(), "sales"), Content: c, Series: schemasnapshot.LabelExportDataFromSourcePeriodic},
+		},
+	})
+	require.Len(t, report.Skipped, 1, "the scope mismatch must be recorded")
+	require.Len(t, report.Diffs, 1, "the pair after the mismatch must still be diffed")
+	require.Equal(t, t2(), report.Skipped[0].Window.To, "the shared capture closes the skipped interval")
+	require.Equal(t, t2(), report.Diffs[0].Window.From, "...and opens the real one")
+
+	out, err := RenderHTML(report)
+	require.NoError(t, err)
+	html := string(out)
+
+	assert.Contains(t, html, `class="interval skipped"`, "the skipped interval must render")
+	assert.Contains(t, html, "table added", "the finding after it must render too")
+	assert.Contains(t, html, `<span class="s">customers</span>`)
+}
+
 func TestRenderHTML_EmptyReportDoesNotPanic(t *testing.T) {
 	require.NotPanics(t, func() {
 		out, err := RenderHTML(Report{Report: "schema_drift", Version: 1})
