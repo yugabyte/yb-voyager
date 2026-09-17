@@ -1,4 +1,4 @@
-//go:build failpoint_import
+//go:build integration_live_migration_with_failpoint
 
 /*
 Copyright (c) YugabyteDB, Inc.
@@ -4081,10 +4081,10 @@ SELECT i, md5(random()::text), NULL, false FROM generate_series(1001, 1010) as i
 // remedy is enforced and that the table is accepted with non-colliding inserts; none drives a
 // real expression collision. Here the collision is genuine: under partition-by-PK the delete
 // and the reclaiming insert would hash to different channels and race, but with
-// --cdc-partition-key table every users event serializes on one channel, so the target applies
+// auto default mode it should be table partitioned and every users event serializes on one channel, so the target applies
 // them in commit order. The invariant: table routing suppresses the race structurally, so ZERO
 // conflicts are detected and the data stays consistent.
-func TestLiveMigrationExpressionUniqueIndexCollisionWithTablePartitioning(t *testing.T) {
+func TestLiveMigrationExpressionUniqueIndexCollisionWithDefaultPartitioning(t *testing.T) {
 	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
@@ -4150,9 +4150,7 @@ SELECT i, 'user_' || i || '@example.com' FROM generate_series(1, 20) as i;`,
 		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
 
 	// Global table routing: every users event goes to one channel, so no conflict detection runs.
-	err = lm.StartImportDataWithEnv(true, map[string]string{
-		"--cdc-partition-key": "table",
-	}, []string{uniqueKeyConflictCountFailpointEnv})
+	err = lm.StartImportDataWithEnv(true, nil, []string{uniqueKeyConflictCountFailpointEnv})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{

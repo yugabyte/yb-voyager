@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: 
-        test-tags: [integration_voyager_command, integration, integration_live_migration]
+        test-tags: [integration_voyager_command, integration, integration_live_migration, integration_live_migration_with_failpoint] 
 
     runs-on: ubuntu-22.04
 
@@ -109,6 +109,12 @@ jobs:
     - name: Set up gotestfmt
       uses: GoTestTools/gotestfmt-action@v2
 
+    - name: Enable failpoint code generation
+      if: ${{ matrix.test-tags == 'integration_live_migration_with_failpoint' }}
+      run: |
+        cd yb-voyager
+        failpoint-ctl enable
+
     # Note: Some voyager_command related go tests use a voyager binary to call voyager commands
     # Hence its important to ensure the voyager binary built is using the changes in the PR branch - `./install-yb-voyager --install-from-local-source`
     - name: Run Integration Tests (${{ matrix.test-tags }})
@@ -126,6 +132,13 @@ jobs:
           cat /tmp/gotest-stderr.log
           echo "::endgroup::"
         fi
+
+    - name: Cleanup failpoint code
+      if: ${{ matrix.test-tags == 'integration_live_migration_with_failpoint' }}
+      run: |
+        cd yb-voyager
+        failpoint-ctl disable
+    
 
     - name: Upload test logs
       if: failure()

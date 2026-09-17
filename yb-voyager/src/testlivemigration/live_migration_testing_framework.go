@@ -1,4 +1,4 @@
-//go:build integration_live_migration || failpoint_export || failpoint_import || failpoint_cutover
+//go:build integration_live_migration || failpoint_export || failpoint_import || failpoint_cutover || integration_live_migration_with_failpoint
 
 /*
 Copyright (c) YugabyteDB, Inc.
