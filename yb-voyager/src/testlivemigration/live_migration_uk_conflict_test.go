@@ -3496,7 +3496,7 @@ func TestLiveMigrationCdcPartitionKeyRejectsCustomKeyOnGeneratedStoredColumnWith
 }
 
 // TestLiveMigrationCustomCdcPartitionKeyMutationFailsImport verifies the custom-key
-// immutability guard end-to-end (audit gap G2): custom partition key columns are required to
+// immutability guard end-to-end: custom partition key columns are required to
 // be immutable because routing reads the key from the update's before-image — an update that
 // changes the key would route by the old key while its after-image lands under the new one.
 // customPartitionKeyColumnValue therefore errors out for any update whose change set contains
@@ -3598,7 +3598,7 @@ func TestLiveMigrationCustomCdcPartitionKeyMutationFailsImport(t *testing.T) {
 }
 
 // TestLiveMigrationCustomCdcPartitionKeyUniqueKeyConflictDetection verifies basic unique-key
-// conflict detection on custom-routed tables (audit gap G2b): a genuine unique index (NOT on
+// conflict detection on custom-routed tables: a genuine unique index (NOT on
 // the custom key column) must still be protected when the conflicting events carry DIFFERENT
 // custom keys — they hash to (potentially) different channels, so the conflict must be
 // detected and serialized. This is the counterpart of the *NoConflict tests (same key =>
@@ -3773,7 +3773,7 @@ func TestLiveMigrationCustomCdcPartitionKeyUniqueKeyConflictDetection(t *testing
 
 // TestLiveMigrationWithCompositeNullsNotDistinctUniqueIndexConflictDetection pins that
 // conflict detection works for a MULTI-COLUMN UNIQUE ... NULLS NOT DISTINCT index at the
-// integration level (gap G5). The single-column NND path is covered by
+// integration level. The single-column NND path is covered by
 // TestLiveMigrationWithUniqueKeyConflictWithNullValuesDetectionCasesNULLSNOTDISTINCT; composite
 // NND tuples (mixed value/NULL, and the all-NULL sentinel bucket) previously existed only in
 // conflict-cache unit tests.
@@ -3895,8 +3895,8 @@ SELECT i, md5(random()::text), i, NULL FROM generate_series(1, 20) as i;`,
 
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
-	require.Greater(t, conflictStats.Total, 0, "composite NND delta should produce UK conflicts")
-	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live_composite_nnd"`], 0,
+	require.Greater(t, conflictStats.Total, 500, "composite NND delta should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live_composite_nnd"`], 500,
 		"test_live_composite_nnd should produce UK conflicts")
 	// Upper bound, counted from the delta: under NULLS NOT DISTINCT the composite index buckets
 	// include NULL components, so all 6 updates + 2 deletes per iteration have indexable
@@ -3920,7 +3920,7 @@ SELECT i, md5(random()::text), i, NULL FROM generate_series(1, 20) as i;`,
 
 // TestLiveMigrationWithNullsNotDistinctPartialUniqueIndexConflictDetection pins that conflict
 // detection works for a UNIQUE ... NULLS NOT DISTINCT index that ALSO carries a partial
-// predicate (gap G5). The default NULLS DISTINCT partial-index path is covered by
+// predicate. The default NULLS DISTINCT partial-index path is covered by
 // TestLiveMigrationWithUniqueKeyConflictWithNullValueAndPartialPredicatesDetectionCases; the
 // NND + partial-predicate combination -- which exercises the NULL sentinel on the before-before
 // path while a WHERE predicate is applied -- had no test at any level.
@@ -4051,8 +4051,8 @@ SELECT i, md5(random()::text), NULL, false FROM generate_series(1001, 1010) as i
 
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
-	require.Greater(t, conflictStats.Total, 0, "NND partial delta should produce UK conflicts")
-	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live_nnd_partial"`], 0,
+	require.Greater(t, conflictStats.Total, 500, "NND partial delta should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live_nnd_partial"`], 500,
 		"test_live_nnd_partial should produce UK conflicts")
 	// Upper bound, counted from the delta: the churned rows are always most_recent=true, so under
 	// NULLS NOT DISTINCT all 6 updates + 2 deletes per iteration have indexable before-images and
@@ -4076,7 +4076,7 @@ SELECT i, md5(random()::text), NULL, false FROM generate_series(1001, 1010) as i
 
 // TestLiveMigrationExpressionUniqueIndexCollisionWithTablePartitioning pins that an ACTUAL
 // expression-unique-index collision (free/reclaim of lower(email) across different PKs) is
-// applied correctly under table routing (gap G3). The guardrail tests
+// applied correctly under table routing. The guardrail tests
 // (RejectsPkOnExpressionUniqueIndex / RejectsCustomOnExpressionUniqueIndex) only prove the
 // remedy is enforced and that the table is accepted with non-colliding inserts; none drives a
 // real expression collision. Here the collision is genuine: under partition-by-PK the delete
