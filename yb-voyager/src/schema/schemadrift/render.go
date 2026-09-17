@@ -51,8 +51,7 @@ func RenderHTML(r Report) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// formatTime renders t in a readable, deterministic form for the HTML
-// template. The zero time.Time renders as "-" (e.g. an empty report window).
+// formatTime renders the zero time.Time as "-" (e.g. an empty report window).
 func formatTime(t time.Time) string {
 	if t.IsZero() {
 		return "-"
@@ -63,8 +62,7 @@ func formatTime(t time.Time) string {
 // ─── View model: grouping/formatting logic kept in Go, not in the template ──
 //
 // Everything below turns a Report into display-ready strings so that
-// templates/drift_report.html stays a thin iteration-and-field-access layer,
-// mirroring the hand-authored mockup at DRIFT_REPORT_MOCKUP.html.
+// templates/drift_report.html stays a thin iteration-and-field-access layer.
 
 // reportView is the unexported view model handed to the HTML template.
 type reportView struct {
@@ -88,9 +86,9 @@ type scopeRow struct {
 	Chips []string // the chip values; nil/empty renders as a single "all" chip
 }
 
-// timelineEntry is one item on the vertical timeline: exactly one of Event or
-// Interval is non-nil. Modeled as a struct-of-pointers (rather than an
-// interface) so the template can branch on it with a plain {{if}}.
+// timelineEntry is one item on the vertical timeline: exactly one of the three
+// fields is non-nil. Modeled as a struct-of-pointers (rather than an interface)
+// so the template can branch on it with a plain {{if}}.
 type timelineEntry struct {
 	Event    *eventView
 	Interval *intervalView
@@ -138,7 +136,7 @@ type findingView struct {
 	ValNew    string
 
 	ActionStatus string // emoji + severity label, e.g. "⚠️ Potential impact"
-	// Rendered as two paragraphs, per the mockup. Pre-escaped HTML; see codeSpans.
+	// Rendered as two paragraphs. Pre-escaped HTML; see codeSpans.
 	Impact template.HTML
 	Action template.HTML
 }
@@ -201,7 +199,7 @@ func sourceLine(s Source) string {
 // so the reader learns how much was actually compared.
 func comparingSummary(c Comparing) string {
 	return strings.Join([]string{
-		joinOrAll(c.Schemas),
+		schemaLabel(c.Schemas),
 		scopeCountLabel(len(c.Tables), c.TablesFiltered, "table"),
 		scopeCountLabel(len(c.ObjectTypes), c.ObjectTypesFiltered, "object type"),
 	}, " · ")
@@ -224,12 +222,18 @@ func scopeCountLabel(n int, filtered bool, noun string) string {
 	}
 }
 
-// joinOrAll joins items with ", ", or returns "all" when items is empty.
-func joinOrAll(items []string) string {
-	if len(items) == 0 {
-		return "all"
+// schemaLabel names the schemas compared, capped like every other list in the
+// report. An empty set reads "no schemas" rather than claiming "all": the schema
+// list is the migration's whole universe, so "all" would be a claim, not a default.
+func schemaLabel(schemas []string) string {
+	if len(schemas) == 0 {
+		return "no schemas"
 	}
-	return strings.Join(items, ", ")
+	noun := "schemas "
+	if len(schemas) == 1 {
+		noun = "schema "
+	}
+	return noun + strings.Join(cappedChips(schemas), ", ")
 }
 
 // maxScopeChips caps the names the dropdown enumerates; a 1000-table schema would
@@ -288,16 +292,11 @@ type intervalGroup struct {
 	Diffs  []DiffEntry
 }
 
-// buildTimeline interleaves point-event markers and interval blocks in
-// chronological order. It walks Captures once, emitting (a) the point-event
-// marker for a capture, if any, then (b) the interval that opens at it: the
-// findings it produced, or a "not compared" block if the assembler declined
-// the pair. A capture that opens neither contributes just its marker, which
-// is what makes a drift-free span read as an unbroken stretch of spine.
+// buildTimeline interleaves point-event markers and interval blocks chronologically.
 //
-// Intervals are matched on the capture that OPENS them, never on the
-// (i, i+1) pair: a failed capture is bridged (see BuildReport), so an
-// interval's window can span one and would match no consecutive pair at all.
+// Intervals are matched on the capture that OPENS them, never on the (i, i+1) pair:
+// a failed capture is bridged (see BuildReport), so an interval's window can span one
+// and would match no consecutive pair at all.
 func buildTimeline(captures []Capture, groups []intervalGroup, skipped []SkippedInterval, dbType string) []timelineEntry {
 	captureAt := make(map[time.Time]Capture, len(captures))
 	for _, c := range captures {
@@ -393,7 +392,6 @@ func newIntervalView(g intervalGroup, next Capture, dbType string) intervalView 
 	}
 }
 
-// changeCountLabel renders "1 change" or "N changes".
 func changeCountLabel(n int) string {
 	if n == 1 {
 		return "1 change"
@@ -401,7 +399,6 @@ func changeCountLabel(n int) string {
 	return fmt.Sprintf("%d changes", n)
 }
 
-// newFindingView builds the display view for a single DiffEntry.
 func newFindingView(d DiffEntry, dbType string) findingView {
 	objQ, objS := objectPath(d, dbType)
 
@@ -422,7 +419,7 @@ func newFindingView(d DiffEntry, dbType string) findingView {
 			fv.ValDef = def
 		}
 	case string(schemadiff.OpDropped):
-		// No value chip for drops, matching the mockup.
+		// Deliberately empty: a drop has no value worth showing.
 	default: // OpChanged
 		fv.HasChange = true
 		fv.ValOld = stringifyValue(d.Attribute, d.OldValue, dbType)
@@ -453,7 +450,7 @@ func kindLabel(diffType string) string {
 }
 
 // objectPath splits an object identity into the muted qualifier (q) and the
-// highlighted subject (s), per the mockup. A COLUMN finding qualifies down to the
+// highlighted subject (s). A COLUMN finding qualifies down to the
 // column, a table-level one to the table.
 //
 // Every part is minimally quoted, so a special identifier renders as valid SQL
@@ -477,7 +474,7 @@ func minQuoted(name, dbType string) string {
 // codeSpans turns `backticked` runs in guidance text into <code> elements.
 //
 // Everything is HTML-escaped FIRST and only the delimiters are then replaced, so
-// guidance text can never inject markup. Unpaired backticks are left escaped.
+// guidance text can never inject markup. An unpaired backtick stays literal text.
 func codeSpans(s string) template.HTML {
 	escaped := template.HTMLEscapeString(s)
 	parts := strings.Split(escaped, "`")
