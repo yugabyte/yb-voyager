@@ -317,6 +317,9 @@ func buildTimeline(captures []Capture, groups []intervalGroup, skipped []Skipped
 		if ev, ok := deriveEvent(c); ok {
 			timeline = append(timeline, timelineEntry{Event: &ev})
 		}
+		// Continuing here cannot hide findings: BuildReport moves its baseline to the
+		// later snapshot of a skipped pair, so a capture that opens a skipped interval
+		// never opens a real one too -- the next interval opens at the next capture.
 		if sk, ok := skippedFrom[c.CapturedAt]; ok {
 			sv := skippedView{
 				Window: formatTime(sk.Window.From) + " → " + formatTime(sk.Window.To),
