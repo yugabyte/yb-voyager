@@ -15,6 +15,7 @@
 package schemadrift
 
 import (
+	"bytes"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -30,6 +31,10 @@ import (
 //go:embed templates/drift_report.html
 var driftReportTemplateSource string
 
+// Parsed once at init: the source is embedded at build time, so a parse failure
+// is a broken build, not a runtime condition a caller could handle.
+var driftReportTemplate = template.Must(template.New("drift_report").Parse(driftReportTemplateSource))
+
 // RenderJSON marshals r as indented JSON, matching the contractual shape
 // documented on Report.
 func RenderJSON(r Report) ([]byte, error) {
@@ -39,16 +44,11 @@ func RenderJSON(r Report) ([]byte, error) {
 // RenderHTML renders r as a self-contained (inline CSS, no external assets,
 // no JS required) single-page HTML report.
 func RenderHTML(r Report) ([]byte, error) {
-	tmpl, err := template.New("drift_report").Parse(driftReportTemplateSource)
-	if err != nil {
+	var buf bytes.Buffer
+	if err := driftReportTemplate.Execute(&buf, newReportView(r)); err != nil {
 		return nil, err
 	}
-
-	var buf strings.Builder
-	if err := tmpl.Execute(&buf, newReportView(r)); err != nil {
-		return nil, err
-	}
-	return []byte(buf.String()), nil
+	return buf.Bytes(), nil
 }
 
 // formatTime renders t in a readable, deterministic form for the HTML
@@ -152,12 +152,6 @@ type snapshotRow struct {
 }
 
 func newReportView(r Report) reportView {
-	groups := groupByInterval(r.Diffs)
-	groupsByWindow := make(map[Window]intervalGroup, len(groups))
-	for _, g := range groups {
-		groupsByWindow[g.Window] = g
-	}
-
 	return reportView{
 		ChangeCount: r.Summary.ChangeCount,
 
@@ -167,7 +161,7 @@ func newReportView(r Report) reportView {
 		ComparingSummary: comparingSummary(r.Comparing),
 		ComparingScope:   comparingScope(r.Comparing),
 
-		Timeline: buildTimeline(r.Captures, groupsByWindow, skippedByWindow(r.Skipped), r.Source.DatabaseType),
+		Timeline: buildTimeline(r.Captures, groupByInterval(r.Diffs), r.Skipped, r.Source.DatabaseType),
 
 		Snapshots: snapshotRows(r.Captures),
 	}
@@ -222,7 +216,7 @@ func scopeCountLabel(n int, filtered bool, noun string) string {
 	}
 	switch {
 	case n == 0:
-		return "no " + noun + "s"
+		return "no " + plural
 	case filtered:
 		return fmt.Sprintf("%d %s (filtered)", n, plural)
 	default:
@@ -230,18 +224,12 @@ func scopeCountLabel(n int, filtered bool, noun string) string {
 	}
 }
 
-// listOrAllLabel joins items with ", ", or returns allLabel when items is
-// empty.
-func listOrAllLabel(items []string, allLabel string) string {
-	if len(items) == 0 {
-		return allLabel
-	}
-	return strings.Join(items, ", ")
-}
-
 // joinOrAll joins items with ", ", or returns "all" when items is empty.
 func joinOrAll(items []string) string {
-	return listOrAllLabel(items, "all")
+	if len(items) == 0 {
+		return "all"
+	}
+	return strings.Join(items, ", ")
 }
 
 // maxScopeChips caps the names the dropdown enumerates; a 1000-table schema would
@@ -301,46 +289,48 @@ type intervalGroup struct {
 }
 
 // buildTimeline interleaves point-event markers and interval blocks in
-// chronological order. It walks Captures pairwise: for capture i it emits
-// (a) the point-event marker for capture i, if any, then (b) the interval
-// group for the (i, i+1) pair, if that pair produced any diffs. This
-// reproduces the mockup's ordering exactly, since an interval's Window
-// always matches a consecutive capture pair and groupByInterval only
-// includes windows that actually have diffs (so a diff-less pair
-// contributes no interval, matching the mockup's skipped spans). A pair the
-// assembler declined to compare renders as a skippedView instead of an interval.
-func buildTimeline(captures []Capture, groupsByWindow map[Window]intervalGroup, skipped map[Window]SkippedInterval, dbType string) []timelineEntry {
+// chronological order. It walks Captures once, emitting (a) the point-event
+// marker for a capture, if any, then (b) the interval that opens at it: the
+// findings it produced, or a "not compared" block if the assembler declined
+// the pair. A capture that opens neither contributes just its marker, which
+// is what makes a drift-free span read as an unbroken stretch of spine.
+//
+// Intervals are matched on the capture that OPENS them, never on the
+// (i, i+1) pair: a failed capture is bridged (see BuildReport), so an
+// interval's window can span one and would match no consecutive pair at all.
+func buildTimeline(captures []Capture, groups []intervalGroup, skipped []SkippedInterval, dbType string) []timelineEntry {
+	captureAt := make(map[time.Time]Capture, len(captures))
+	for _, c := range captures {
+		captureAt[c.CapturedAt] = c
+	}
+	groupFrom := make(map[time.Time]intervalGroup, len(groups))
+	for _, g := range groups {
+		groupFrom[g.Window.From] = g
+	}
+	skippedFrom := make(map[time.Time]SkippedInterval, len(skipped))
+	for _, s := range skipped {
+		skippedFrom[s.Window.From] = s
+	}
+
 	var timeline []timelineEntry
-	for i, c := range captures {
+	for _, c := range captures {
 		if ev, ok := deriveEvent(c); ok {
 			timeline = append(timeline, timelineEntry{Event: &ev})
 		}
-		if i+1 >= len(captures) {
-			continue
-		}
-		next := captures[i+1]
-		w := Window{From: c.CapturedAt, To: next.CapturedAt}
-		if sk, ok := skipped[w]; ok {
-			sv := skippedView{Window: formatTime(w.From) + " → " + formatTime(w.To), Reason: sk.Reason}
+		if sk, ok := skippedFrom[c.CapturedAt]; ok {
+			sv := skippedView{
+				Window: formatTime(sk.Window.From) + " → " + formatTime(sk.Window.To),
+				Reason: sk.Reason,
+			}
 			timeline = append(timeline, timelineEntry{Skipped: &sv})
 			continue
 		}
-		if g, ok := groupsByWindow[w]; ok {
-			iv := newIntervalView(g, next, dbType)
+		if g, ok := groupFrom[c.CapturedAt]; ok {
+			iv := newIntervalView(g, captureAt[g.Window.To], dbType)
 			timeline = append(timeline, timelineEntry{Interval: &iv})
 		}
 	}
 	return timeline
-}
-
-// skippedByWindow indexes the report's skipped intervals so buildTimeline can
-// place each one at the capture pair it belongs to.
-func skippedByWindow(skipped []SkippedInterval) map[Window]SkippedInterval {
-	byWindow := make(map[Window]SkippedInterval, len(skipped))
-	for _, s := range skipped {
-		byWindow[s.Window] = s
-	}
-	return byWindow
 }
 
 // deriveEvent derives the point-event marker (if any) for a single capture,
@@ -535,9 +525,9 @@ func actionStatus(status string) string {
 //   - schemasnapshot.Column                    -> the column's definition
 //     (COLUMN_ADDED/DROPPED's whole added/dropped column), e.g.
 //     "integer NOT NULL DEFAULT 0"
-//   - []schemasnapshot.Column                  -> a concise column-count
-//     summary (TABLE_ADDED/DROPPED's whole added/dropped table's columns),
-//     e.g. "3 columns"
+//   - schemasnapshot.Table                     -> the table's full column list
+//     (TABLE_ADDED/DROPPED's whole added/dropped table), e.g.
+//     "id integer NOT NULL, email text"; "no columns" when it has none
 //   - anything else                          -> fmt.Sprintf("%v", value)
 func stringifyValue(attribute string, value any, dbType string) string {
 	switch v := value.(type) {
@@ -567,8 +557,6 @@ func stringifyValue(attribute string, value any, dbType string) string {
 	case schemasnapshot.Column:
 		return stringifyColumnDef(v)
 	case schemasnapshot.Table:
-		// TABLE_ADDED/DROPPED carry the whole Table; render its full column list
-		// ("id integer NOT NULL, email text, ...") rather than just a count.
 		if len(v.Columns) == 0 {
 			return "no columns"
 		}
