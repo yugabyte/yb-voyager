@@ -24,7 +24,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
 )
 
-// TestClassify_MappedTypes pins the severity policy against the design mockup.
+// TestClassify_MappedTypes pins the severity assigned to every mapped change type.
 // Severity answers "what does the migration do", not "how alarming is the DDL":
 // an ADDED column can fail import data (recoverable), a DROPPED column cannot
 // (it only leaves the target with an extra column), and dropping or renaming a
