@@ -58,6 +58,17 @@ jobs:
       with:
         go-version: ${{ needs.prepare-versions.outputs.go_version }}
 
+    - name: Install failpoint-ctl
+      if: ${{ matrix.test-tags == 'integration_live_migration_with_failpoint' }}
+      run: |
+        go install github.com/pingcap/failpoint/failpoint-ctl@latest
+
+    - name: Enable failpoint code generation
+      if: ${{ matrix.test-tags == 'integration_live_migration_with_failpoint' }}
+      run: |
+        cd yb-voyager
+        failpoint-ctl enable
+
     - name: Run installer script to setup voyager and dependencies for running integration tests
       run: |
         cd installer_scripts
@@ -108,17 +119,6 @@ jobs:
 
     - name: Set up gotestfmt
       uses: GoTestTools/gotestfmt-action@v2
-
-    - name: Install failpoint-ctl
-      if: ${{ matrix.test-tags == 'integration_live_migration_with_failpoint' }}
-      run: |
-        go install github.com/pingcap/failpoint/failpoint-ctl@latest
-
-    - name: Enable failpoint code generation
-      if: ${{ matrix.test-tags == 'integration_live_migration_with_failpoint' }}
-      run: |
-        cd yb-voyager
-        failpoint-ctl enable
 
     # Note: Some voyager_command related go tests use a voyager binary to call voyager commands
     # Hence its important to ensure the voyager binary built is using the changes in the PR branch - `./install-yb-voyager --install-from-local-source`
