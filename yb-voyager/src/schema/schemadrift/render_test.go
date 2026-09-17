@@ -116,6 +116,10 @@ func TestRenderJSON(t *testing.T) {
 	assert.Equal(t, float64(2), summary["capture_count"])
 	assert.Equal(t, true, summary["live_compared"])
 
+	// skipped is omitempty, so its absence has to be pinned too: otherwise a
+	// renderer that dropped the field entirely would still pass.
+	assert.NotContains(t, got, "skipped", "no skipped intervals means the key is omitted")
+
 	// Round-trip through the real struct too.
 	var roundTripped Report
 	require.NoError(t, json.Unmarshal(out, &roundTripped))
@@ -123,6 +127,27 @@ func TestRenderJSON(t *testing.T) {
 	assert.Equal(t, r.Version, roundTripped.Version)
 	require.Len(t, roundTripped.Diffs, 2)
 	assert.Equal(t, r.Diffs[0].Type, roundTripped.Diffs[0].Type)
+}
+
+// TestRenderJSON_SkippedIntervalsAreSerialized covers the other side of
+// skipped's omitempty: when the assembler declined a pair, the JSON consumer
+// must be able to tell that interval from one that genuinely had no changes.
+func TestRenderJSON_SkippedIntervalsAreSerialized(t *testing.T) {
+	r := fixtureReport()
+	r.Skipped = []SkippedInterval{{
+		From:   schemasnapshot.LabelExportSchema,
+		To:     schemasnapshot.LabelExportDataFromSourceStart,
+		Window: Window{From: r.Captures[0].CapturedAt, To: r.Captures[1].CapturedAt},
+		Reason: "the two captures cover different schemas, so they cannot be compared",
+	}}
+
+	out, err := RenderJSON(r)
+	require.NoError(t, err)
+
+	var roundTripped Report
+	require.NoError(t, json.Unmarshal(out, &roundTripped))
+	require.Len(t, roundTripped.Skipped, 1)
+	assert.Equal(t, r.Skipped[0], roundTripped.Skipped[0])
 }
 
 func TestRenderHTML(t *testing.T) {
@@ -205,12 +230,23 @@ func TestObjectPathMinQuotesIdentifiers(t *testing.T) {
 // TestRenderHTML_SkippedIntervalIsVisible is the point of Report.Skipped: a pair
 // the assembler declined to compare must appear on the timeline with its reason,
 // not vanish and read as a window that simply had no changes.
+//
+// The skipped pair is a THIRD capture appended after the two the fixture's diffs
+// span. A skipped window never carries diffs (BuildReport bails before diffing),
+// so overlaying it on the fixture's own window would both be an impossible report
+// and hide whether the findings still render.
 func TestRenderHTML_SkippedIntervalIsVisible(t *testing.T) {
 	r := fixtureReport()
+	skipFrom := r.Captures[1].CapturedAt
+	skipTo := skipFrom.Add(time.Hour)
+	r.Captures = append(r.Captures, Capture{
+		Series:     schemasnapshot.LabelExportDataFromSourcePeriodic,
+		CapturedAt: skipTo,
+	})
 	r.Skipped = []SkippedInterval{{
-		From:   schemasnapshot.LabelExportSchema,
-		To:     schemasnapshot.LabelExportDataFromSourceStart,
-		Window: Window{From: r.Captures[0].CapturedAt, To: r.Captures[1].CapturedAt},
+		From:   schemasnapshot.LabelExportDataFromSourcePeriodic,
+		To:     schemasnapshot.LabelExportDataFromSourcePeriodic,
+		Window: Window{From: skipFrom, To: skipTo},
 		Reason: "the two captures cover different schemas, so they cannot be compared",
 	}}
 
@@ -221,6 +257,68 @@ func TestRenderHTML_SkippedIntervalIsVisible(t *testing.T) {
 	assert.Contains(t, html, "not compared")
 	assert.Contains(t, html, "cover different schemas")
 	assert.Contains(t, html, `class="interval skipped"`)
+	// The unrelated interval's findings must survive alongside the skipped block.
+	assert.Contains(t, html, "table added")
+	assert.Contains(t, html, "column type changed")
+}
+
+// TestRenderHTML_BridgedIntervalsRender pins the renderer against BuildReport's
+// placeholder bridging: a failed capture is kept on the timeline but never
+// diffed, so the interval around it spans two capture steps. Matching intervals
+// on consecutive capture pairs drops such an interval entirely -- the banner
+// still counts the change while the timeline renders nothing, and the
+// "no changes" note does not fire either because the event markers are present.
+func TestRenderHTML_BridgedIntervalsRender(t *testing.T) {
+	before := time.Date(2026, 3, 14, 8, 0, 0, 0, time.UTC)
+	failed := before.Add(time.Hour)
+	after := failed.Add(time.Hour)
+
+	t.Run("bridged findings reach the HTML", func(t *testing.T) {
+		r := fixtureReport()
+		r.Captures = []Capture{
+			{Series: schemasnapshot.LabelExportSchema, CapturedAt: before},
+			{Series: schemasnapshot.LabelExportDataFromSourceStart, CapturedAt: failed},
+			{Series: schemasnapshot.LabelExportDataFromSourcePeriodic, CapturedAt: after},
+		}
+		// One finding, in the window that bridges the failed capture.
+		r.Diffs = r.Diffs[:1]
+		r.Diffs[0].Window = Window{From: before, To: after}
+		r.Summary.ChangeCount = 1
+
+		out, err := RenderHTML(r)
+		require.NoError(t, err)
+		html := string(out)
+
+		assert.Contains(t, html, "table added", "the bridged interval's finding must render")
+		assert.Contains(t, html, `<span class="s">invoices</span>`, "the bridged finding's object must render")
+		assert.Contains(t, html, formatTime(before)+" → "+formatTime(after),
+			"the interval must show the bridged window, spanning the failed capture")
+		assert.NotContains(t, html, "No changes detected", "a report with a finding must not read as drift-free")
+	})
+
+	t.Run("bridged skipped interval reaches the HTML", func(t *testing.T) {
+		r := fixtureReport()
+		r.Captures = []Capture{
+			{Series: schemasnapshot.LabelExportSchema, CapturedAt: before},
+			{Series: schemasnapshot.LabelExportDataFromSourceStart, CapturedAt: failed},
+			{Series: schemasnapshot.LabelExportDataFromSourcePeriodic, CapturedAt: after},
+		}
+		r.Diffs = nil
+		r.Summary.ChangeCount = 0
+		r.Skipped = []SkippedInterval{{
+			From:   schemasnapshot.LabelExportSchema,
+			To:     schemasnapshot.LabelExportDataFromSourcePeriodic,
+			Window: Window{From: before, To: after},
+			Reason: "the two captures cover different schemas, so they cannot be compared",
+		}}
+
+		out, err := RenderHTML(r)
+		require.NoError(t, err)
+		html := string(out)
+
+		assert.Contains(t, html, `class="interval skipped"`)
+		assert.Contains(t, html, "cover different schemas")
+	})
 }
 
 func TestRenderHTML_EmptyReportDoesNotPanic(t *testing.T) {
