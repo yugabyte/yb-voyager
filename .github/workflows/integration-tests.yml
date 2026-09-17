@@ -109,6 +109,11 @@ jobs:
     - name: Set up gotestfmt
       uses: GoTestTools/gotestfmt-action@v2
 
+    - name: Install failpoint-ctl
+      if: ${{ matrix.test-tags == 'integration_live_migration_with_failpoint' }}
+      run: |
+        go install github.com/pingcap/failpoint/failpoint-ctl@latest
+
     - name: Enable failpoint code generation
       if: ${{ matrix.test-tags == 'integration_live_migration_with_failpoint' }}
       run: |
