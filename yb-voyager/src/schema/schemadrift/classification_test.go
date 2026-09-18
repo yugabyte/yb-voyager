@@ -30,33 +30,33 @@ import (
 // (it only leaves the target with an extra column), and dropping or renaming a
 // captured table makes export data unrestartable.
 func TestClassify_MappedTypes(t *testing.T) {
-	cases := map[schemadiff.DiffType]Status{
+	cases := map[schemadiff.DiffType]Severity{
 		// export data cannot be restarted afterwards -> restart from scratch.
-		schemadiff.TableDropped:       StatusBreaksUnrecoverable,
-		schemadiff.TableNameChanged:   StatusBreaksUnrecoverable,
-		schemadiff.TableSchemaChanged: StatusBreaksUnrecoverable,
+		schemadiff.TableDropped:       SeverityBreaksUnrecoverable,
+		schemadiff.TableNameChanged:   SeverityBreaksUnrecoverable,
+		schemadiff.TableSchemaChanged: SeverityBreaksUnrecoverable,
 
 		// import data can fail until the DDL is applied on the target.
-		schemadiff.ColumnAdded:              StatusBreaksRecoverable,
-		schemadiff.ColumnNameChanged:        StatusBreaksRecoverable,
-		schemadiff.ColumnTypeChanged:        StatusBreaksRecoverable,
-		schemadiff.ColumnNullabilityChanged: StatusBreaksRecoverable,
+		schemadiff.ColumnAdded:              SeverityBreaksRecoverable,
+		schemadiff.ColumnNameChanged:        SeverityBreaksRecoverable,
+		schemadiff.ColumnTypeChanged:        SeverityBreaksRecoverable,
+		schemadiff.ColumnNullabilityChanged: SeverityBreaksRecoverable,
 
 		// Migration unaffected, but source and target diverge.
-		schemadiff.TableAdded:                    StatusPotentialImpact,
-		schemadiff.ColumnDropped:                 StatusPotentialImpact,
-		schemadiff.ColumnDefaultChanged:          StatusPotentialImpact,
-		schemadiff.TableKindChanged:              StatusPotentialImpact,
-		schemadiff.TablePartitionParentChanged:   StatusPotentialImpact,
-		schemadiff.TablePartitionChildrenChanged: StatusPotentialImpact,
+		schemadiff.TableAdded:                    SeverityPotentialImpact,
+		schemadiff.ColumnDropped:                 SeverityPotentialImpact,
+		schemadiff.ColumnDefaultChanged:          SeverityPotentialImpact,
+		schemadiff.TableKindChanged:              SeverityPotentialImpact,
+		schemadiff.TablePartitionParentChanged:   SeverityPotentialImpact,
+		schemadiff.TablePartitionChildrenChanged: SeverityPotentialImpact,
 
-		schemadiff.TableInheritsChanged:    StatusAdvisory,
-		schemadiff.TableInheritedByChanged: StatusAdvisory,
+		schemadiff.TableInheritsChanged:    SeverityAdvisory,
+		schemadiff.TableInheritedByChanged: SeverityAdvisory,
 	}
 
 	for diffType, want := range cases {
 		t.Run(string(diffType), func(t *testing.T) {
-			assert.Equal(t, want, classify(diffType).Status)
+			assert.Equal(t, want, classify(diffType).Severity)
 		})
 	}
 }
@@ -64,7 +64,7 @@ func TestClassify_MappedTypes(t *testing.T) {
 func TestClassify_UnknownDefaultsToAdvisory(t *testing.T) {
 	for _, unknown := range []schemadiff.DiffType{"", "SOME_FUTURE_DIFF_TYPE"} {
 		got := classify(unknown)
-		assert.Equal(t, StatusAdvisory, got.Status)
+		assert.Equal(t, SeverityAdvisory, got.Severity)
 		assert.Empty(t, got.Impact, "an unmapped type has no note, so the report omits it")
 		assert.Empty(t, got.Action)
 	}
@@ -74,10 +74,10 @@ func TestClassify_UnknownDefaultsToAdvisory(t *testing.T) {
 // an entry declared with a severity but no note would render a finding the report
 // cannot explain, and nothing else would catch it.
 func TestClassify_MappedTypesCarryGuidance(t *testing.T) {
-	for diffType := range classificationByDiffType {
+	for diffType := range infoByDiffType {
 		t.Run(string(diffType), func(t *testing.T) {
 			c := classify(diffType)
-			assert.NotEmpty(t, c.Status)
+			assert.NotEmpty(t, c.Severity)
 			assert.NotEmpty(t, c.Impact, "every classified change explains its impact")
 			assert.NotEmpty(t, c.Action, "every classified change says what to do")
 		})
