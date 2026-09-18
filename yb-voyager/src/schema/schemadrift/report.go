@@ -41,9 +41,6 @@ type Report struct {
 	Summary       Summary        `json:"summary"`
 	Drifts        []DriftEntry   `json:"drifts"`
 	CapturePoints []CapturePoint `json:"capture_points"`
-	// Intervals BuildReport declined to compare. Empty on a normal run; a
-	// non-empty list means the report covers less than its Window suggests.
-	Skipped []SkippedInterval `json:"skipped,omitempty"`
 }
 
 // Source identifies the source database the report was generated for.
@@ -112,15 +109,6 @@ type DriftEntry struct {
 	DriftInfo
 }
 
-// SkippedInterval is a capture pair that was not compared, so a reader can tell
-// "nothing changed here" from "this interval was never examined".
-type SkippedInterval struct {
-	From   string `json:"from"`
-	To     string `json:"to"`
-	Window Window `json:"window"`
-	Reason string `json:"reason"`
-}
-
 // CapturePoint is one point on the report's timeline: a moment at which the
 // source schema was captured, or capture was attempted. Three kinds appear -- a
 // stored capture, a stored placeholder (the capture failed, so no schema content
@@ -131,4 +119,8 @@ type CapturePoint struct {
 	Series     string    `json:"series"`
 	Reason     string    `json:"reason,omitempty"`
 	CapturedAt time.Time `json:"captured_at"`
+	// Why this point was bridged instead of compared -- a failed capture, or one
+	// that did not cover every requested schema. Empty on a point that was used.
+	// A reader needs it to tell "nothing changed here" from "nobody looked here".
+	Excluded string `json:"excluded,omitempty"`
 }

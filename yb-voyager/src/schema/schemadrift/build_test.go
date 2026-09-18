@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -94,6 +95,16 @@ func buildUnfiltered(p DetectionInput) Report {
 		}
 	}
 	p.Scope.ObjectTypes = []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn}
+	// Requested schemas default to the union of what the fixtures captured, so every
+	// snapshot covers the request and the coverage rule stays out of the way. Tests
+	// ABOUT coverage set Scope.Schemas themselves and call BuildReport directly.
+	for _, sn := range p.Snapshots {
+		for _, sch := range sn.Header.Schemas {
+			if !lo.Contains(p.Scope.Schemas, sch) {
+				p.Scope.Schemas = append(p.Scope.Schemas, sch)
+			}
+		}
+	}
 	if p.Source.DatabaseType == "" {
 		p.Source.DatabaseType = "postgresql"
 	}
@@ -215,31 +226,43 @@ func TestBuildReport_PlaceholderAtChainEndProducesNoExtraEntries(t *testing.T) {
 	require.Len(t, report.CapturePoints, 2)
 }
 
-func TestBuildReport_SchemaScopeMismatchSkippedEntirely(t *testing.T) {
-	a := fixtureContent(fixtureTable("1", "public", "orders"))
-	b := fixtureContent(
+func TestBuildReport_NonCoveringCaptureIsExcludedAndBridged(t *testing.T) {
+	// Drift in public straddles a capture that only covered "other". Requesting
+	// public, that middle capture cannot answer -- a public table missing from it
+	// would mean "nobody looked", not "dropped" -- so it is bridged, and the two
+	// captures either side of it are compared to each other.
+	before := fixtureContent(fixtureTable("1", "public", "orders"))
+	middle := fixtureContent(fixtureTable("9", "other", "unrelated"))
+	after := fixtureContent(
 		fixtureTable("1", "public", "orders"),
 		fixtureTable("2", "public", "customers"),
 	)
 
-	p := DetectionInput{
+	report := BuildReport(DetectionInput{
+		Source: Source{DatabaseType: "postgresql"},
 		Snapshots: []schemasnapshot.SchemaSnapshot{
-			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a},
-			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "other"), Content: b},
+			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: before},
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "other"), Content: middle},
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourcePeriodic, t3(), "public"), Content: after},
 		},
-	}
+		Scope: schemadiff.Scope{
+			Schemas:     []string{"public"},
+			Tables:      []schemasnapshot.ObjectRef{objRef("public", "orders"), objRef("public", "customers")},
+			ObjectTypes: []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn},
+		},
+	})
 
-	report := buildUnfiltered(p)
+	require.Len(t, report.Drifts, 1, "the drift must be found across the bridged capture")
+	assert.Equal(t, objRef("public", "customers"), report.Drifts[0].Object)
+	assert.Equal(t, Window{From: t1(), To: t3()}, report.Drifts[0].Window,
+		"the window spans the bridged capture, as it does for a failed one")
 
-	assert.Empty(t, report.Drifts)
-
-	// The pair is not compared, but the report has to say so: otherwise a reader
-	// cannot tell this interval from one that genuinely had no changes.
-	require.Len(t, report.Skipped, 1)
-	assert.Equal(t, schemasnapshot.LabelExportSchema, report.Skipped[0].From)
-	assert.Equal(t, schemasnapshot.LabelExportDataFromSourceStart, report.Skipped[0].To)
-	assert.Equal(t, Window{From: t1(), To: t2()}, report.Skipped[0].Window)
-	assert.NotEmpty(t, report.Skipped[0].Reason)
+	// The gap still has to be visible, or a reader cannot tell this from a clean run.
+	require.Len(t, report.CapturePoints, 3)
+	assert.Empty(t, report.CapturePoints[0].Excluded)
+	assert.NotEmpty(t, report.CapturePoints[1].Excluded, "the non-covering capture must say why it was skipped")
+	assert.Contains(t, report.CapturePoints[1].Excluded, "other")
+	assert.Empty(t, report.CapturePoints[2].Excluded)
 }
 
 func TestBuildReport_SchemaScopeOrderInsensitive(t *testing.T) {
@@ -312,6 +335,73 @@ func TestBuildReport_SummaryCounts(t *testing.T) {
 	assert.Equal(t, 2, report.Summary.StoredCaptureCount, "StoredCaptureCount counts the stored records only, not the live read")
 	assert.Equal(t, 2, report.Summary.ChangeCount, "one TABLE_ADDED per interval (customers, then invoices)")
 	assert.True(t, report.Summary.LiveCompared)
+}
+
+func TestBuildReport_SchemaFilterKeepsOnlyRequestedSchemas(t *testing.T) {
+	// Both captures cover both schemas, and both schemas drifted. Asking only about
+	// public must report only public -- before the schema dimension existed, a run
+	// narrowed with --source-db-schema still reported everything the snapshots held.
+	before := fixtureContent(
+		fixtureTable("1", "public", "orders"),
+		fixtureTable("10", "sales", "customers"),
+	)
+	after := fixtureContent(
+		fixtureTable("1", "public", "orders"),
+		fixtureTable("2", "public", "items"),
+		fixtureTable("10", "sales", "customers"),
+		fixtureTable("11", "sales", "invoices"),
+	)
+
+	report := BuildReport(DetectionInput{
+		Source: Source{DatabaseType: "postgresql"},
+		Snapshots: []schemasnapshot.SchemaSnapshot{
+			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public", "sales"), Content: before},
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public", "sales"), Content: after},
+		},
+		Scope: schemadiff.Scope{
+			Schemas: []string{"public"},
+			Tables: []schemasnapshot.ObjectRef{
+				objRef("public", "orders"), objRef("public", "items"),
+				objRef("sales", "customers"), objRef("sales", "invoices"),
+			},
+			ObjectTypes: []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn},
+		},
+	})
+
+	require.Len(t, report.Drifts, 1, "sales.invoices was added too, but sales was not requested")
+	assert.Equal(t, objRef("public", "items"), report.Drifts[0].Object)
+	assert.Equal(t, 1, report.Summary.ChangeCount,
+		"the count drives the exit code, so it must not include out-of-scope drift")
+	assert.Equal(t, []string{"public"}, report.Comparing.Schemas)
+}
+
+func TestBuildReport_LiveComparedMeansActuallyCompared(t *testing.T) {
+	content := fixtureContent(fixtureTable("1", "public", "orders"))
+
+	t.Run("compared against a covering stored capture", func(t *testing.T) {
+		report := buildUnfiltered(DetectionInput{
+			Snapshots: []schemasnapshot.SchemaSnapshot{
+				{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: content},
+				{Header: fixtureHeader(schemasnapshot.LabelSourceLive, t2(), "public"), Content: content},
+			},
+		})
+		assert.True(t, report.Summary.LiveCompared)
+	})
+
+	t.Run("live read had nothing to compare against", func(t *testing.T) {
+		// The only stored capture failed, so the live read becomes the baseline and
+		// is never diffed. Reporting LiveCompared here would tell the user their
+		// source was checked against history when it was not.
+		report := buildUnfiltered(DetectionInput{
+			Snapshots: []schemasnapshot.SchemaSnapshot{
+				{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: nil},
+				{Header: fixtureHeader(schemasnapshot.LabelSourceLive, t2(), "public"), Content: content},
+			},
+		})
+		assert.False(t, report.Summary.LiveCompared,
+			"a live read with no baseline was not compared, whatever the summary used to say")
+		assert.Equal(t, 1, report.Summary.StoredCaptureCount, "the failed capture is still a stored record")
+	})
 }
 
 func TestBuildReport_SummaryLiveComparedFalseWhenNoLive(t *testing.T) {
@@ -420,6 +510,7 @@ func TestBuildReport_ScopeFilteringKeepsOnlyListedTable(t *testing.T) {
 	// Both dimensions are stated: Scope holds the exact set to keep, so leaving
 	// ObjectTypes empty would keep nothing rather than every type.
 	scope := schemadiff.Scope{
+		Schemas:     []string{"public"},
 		Tables:      []schemasnapshot.ObjectRef{objRef("public", "invoices")},
 		ObjectTypes: []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn},
 	}
