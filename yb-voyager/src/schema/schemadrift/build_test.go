@@ -100,7 +100,6 @@ func TestBuildReport_ConsecutivePairsProduceDiffEntries(t *testing.T) {
 
 	require.Len(t, report.Drifts, 1)
 	d := report.Drifts[0]
-	assert.Equal(t, 1, d.Seq)
 	assert.Equal(t, schemadiff.TableAdded, d.Type)
 	assert.Equal(t, objRef("public", "customers"), d.Object)
 	assert.Equal(t, SeverityPotentialImpact, d.Severity)
@@ -122,7 +121,7 @@ func TestBuildReport_StampsGeneratedAt(t *testing.T) {
 	assert.Equal(t, time.UTC, report.GeneratedAt.Location())
 }
 
-func TestBuildReport_EmptyIntervalsProduceNoEntriesButKeepSequencing(t *testing.T) {
+func TestBuildReport_ZeroDiffIntervalProducesNoEntries(t *testing.T) {
 	base := fixtureContent(fixtureTable("1", "public", "orders"))
 	changed := fixtureContent(
 		fixtureTable("1", "public", "orders"),
@@ -142,7 +141,6 @@ func TestBuildReport_EmptyIntervalsProduceNoEntriesButKeepSequencing(t *testing.
 	report := BuildReport(p)
 
 	require.Len(t, report.Drifts, 1)
-	assert.Equal(t, 1, report.Drifts[0].Seq, "seq should start at 1 even though the first interval had zero diffs")
 	assert.Equal(t, Window{From: t2(), To: t3()}, report.Drifts[0].Window)
 	assert.Equal(t, "export data: running", report.Drifts[0].Phase)
 }
@@ -342,7 +340,7 @@ func TestBuildReport_EmptyInputsProduceZeroValueWindowNoPanic(t *testing.T) {
 	})
 }
 
-func TestBuildReport_GlobalSeqNumberingIsSequentialAcrossIntervals(t *testing.T) {
+func TestBuildReport_DriftsFromEveryIntervalAreReported(t *testing.T) {
 	// interval 1: two new tables added
 	s1 := fixtureContent(fixtureTable("1", "public", "orders"))
 	s2 := fixtureContent(
@@ -368,12 +366,18 @@ func TestBuildReport_GlobalSeqNumberingIsSequentialAcrossIntervals(t *testing.T)
 
 	report := BuildReport(p)
 
+	// Two findings from the first interval and one from the second, each attributed
+	// to the interval it was detected in.
 	require.Len(t, report.Drifts, 3)
-	var seqs []int
+	var windows []Window
 	for _, d := range report.Drifts {
-		seqs = append(seqs, d.Seq)
+		windows = append(windows, d.Window)
 	}
-	assert.Equal(t, []int{1, 2, 3}, seqs)
+	assert.Equal(t, []Window{
+		{From: t1(), To: t2()},
+		{From: t1(), To: t2()},
+		{From: t2(), To: t3()},
+	}, windows)
 }
 
 func TestBuildReport_ScopeFilteringKeepsOnlyListedTable(t *testing.T) {

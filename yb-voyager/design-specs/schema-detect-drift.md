@@ -240,7 +240,6 @@ type Summary struct {
 }
 
 type DriftEntry struct {
-	Seq        int                      `json:"seq"`                  // 1-based, continuous across intervals
 	Type       schemadiff.DiffType      `json:"type"`
 	Operation  schemadiff.Operation     `json:"operation"`            // ADDED | DROPPED | CHANGED
 	ObjectType schemadiff.ObjectType    `json:"object_type"`          // TABLE | COLUMN
@@ -332,8 +331,6 @@ The walk keeps a *baseline*: the most recent snapshot eligible to be the older s
 A failed capture is *bridged*, not a boundary. The drift that happened around it is still real; what is lost is only the ability to say which side of the failed capture it fell on, and the wider `Window` on the entry says so.
 
 A schema-set mismatch is *skipped*, not compared. Two snapshots covering different schemas would report every table in the extra schema as added or dropped. Set comparison ignores order and duplicates.
-
-`Seq` increments across the whole report, including across intervals that produced no entries, so a reader can refer to "finding 7" unambiguously.
 
 `Report.Window` spans the first to the last `CapturePoint`, placeholders and the live read included. `Summary.StoredCaptureCount` counts the stored captures, placeholders included -- a placeholder is a persisted row; only the live read is excluded, and it is reported through `LiveCompared`.
 
