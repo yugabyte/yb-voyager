@@ -194,7 +194,7 @@ yb-voyager schema detect-drift --export-dir <dir> \
 
 ### 4.1 Report
 
-The JSON report is an output file, not migration state, so upgrades never read an old report with a new binary. The compatibility concern is the other way: users and tooling parse the JSON. Field names and tags are contractual; changes are additive and any non-additive change bumps `version`.
+The JSON report is an output file, not migration state, so upgrades never read an old report with a new binary. The compatibility concern is the other way: users and tooling parse the JSON. Field names and tags are contractual from the first release that ships the command; until then the shape is still being settled and `version` stays 1. After that, changes are additive and any non-additive change bumps `version`.
 
 ```go
 type Report struct {
@@ -206,7 +206,7 @@ type Report struct {
 	Comparing   Comparing         `json:"comparing"`
 	Summary     Summary           `json:"summary"`
 	Diffs       []DiffEntry       `json:"diffs"`
-	Captures    []Capture         `json:"captures"` // every point on the timeline, placeholders included
+	Timeline    []Capture         `json:"timeline"` // every point on the timeline, placeholders included
 	Skipped     []SkippedInterval `json:"skipped,omitempty"`
 }
 
@@ -232,9 +232,9 @@ type Comparing struct {
 }
 
 type Summary struct {
-	ChangeCount  int  `json:"change_count"`
-	CaptureCount int  `json:"capture_count"` // stored snapshots only, live read excluded
-	LiveCompared bool `json:"live_compared"`
+	ChangeCount   int  `json:"change_count"`
+	SnapshotCount int  `json:"snapshot_count"` // stored snapshots only, live read excluded
+	LiveCompared  bool `json:"live_compared"`
 }
 
 type DiffEntry struct {
@@ -316,7 +316,7 @@ Everything above `BuildReport` is `cmd` assembling plain data; everything inside
 
 ### 5.2 Which pairs are compared
 
-**Where:** `schemadrift.BuildReport`, the walk over `DetectionInput.Snapshots`. **In:** `[]SnapshotInput`, oldest first. **Out:** the `(prev, next)` pairs handed to `Differ.Diff`, plus `Report.Skipped` and `Report.Captures`. **Decides:** which two snapshots form an interval, and what to do with inputs that cannot be an interval's side.
+**Where:** `schemadrift.BuildReport`, the walk over `DetectionInput.Snapshots`. **In:** `[]SnapshotInput`, oldest first. **Out:** the `(prev, next)` pairs handed to `Differ.Diff`, plus `Report.Skipped` and `Report.Timeline`. **Decides:** which two snapshots form an interval, and what to do with inputs that cannot be an interval's side.
 
 The walk keeps a *baseline*: the most recent snapshot eligible to be the older side of a comparison.
 
@@ -333,7 +333,7 @@ A schema-set mismatch is *skipped*, not compared. Two snapshots covering differe
 
 `Seq` increments across the whole report, including across intervals that produced no entries, so a reader can refer to "finding 7" unambiguously.
 
-`Report.Window` spans the first to the last `Capture`, placeholders and the live read included. `Summary.CaptureCount` counts stored snapshots only; the live read is reported through `LiveCompared`.
+`Report.Window` spans the first to the last `Capture`, placeholders and the live read included. `Summary.SnapshotCount` counts stored snapshots only; the live read is reported through `LiveCompared`.
 
 ### 5.3 Phase
 

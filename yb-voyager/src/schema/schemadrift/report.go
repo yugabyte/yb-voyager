@@ -44,7 +44,7 @@ type Report struct {
 	Comparing   Comparing   `json:"comparing"`
 	Summary     Summary     `json:"summary"`
 	Diffs       []DiffEntry `json:"diffs"`
-	Captures    []Capture   `json:"captures"`
+	Timeline    []Capture   `json:"timeline"`
 	// Intervals BuildReport declined to compare. Empty on a normal run; a
 	// non-empty list means the report covers less than its Window suggests.
 	Skipped []SkippedInterval `json:"skipped,omitempty"`
@@ -79,9 +79,9 @@ type Comparing struct {
 
 // Summary carries report-wide counters.
 type Summary struct {
-	ChangeCount  int  `json:"change_count"`
-	CaptureCount int  `json:"capture_count"`
-	LiveCompared bool `json:"live_compared"`
+	ChangeCount   int  `json:"change_count"`
+	SnapshotCount int  `json:"snapshot_count"`
+	LiveCompared  bool `json:"live_compared"`
 }
 
 // DiffEntry is a single schema change, enriched with severity classification,
