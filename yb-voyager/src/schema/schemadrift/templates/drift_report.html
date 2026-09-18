@@ -227,7 +227,7 @@
           {{if .HasDef}}<div class="val"><span class="v-lbl">definition</span><span class="chiplet v-def">{{.ValDef}}</span></div>{{end}}
           {{if .HasChange}}<div class="val"><span class="chiplet v-old">{{.ValOld}}</span><span class="arrow">→</span><span class="chiplet v-new">{{.ValNew}}</span></div>{{end}}
           <div class="action"><span class="action-h">Impact &amp; action</span>
-            <p class="action-status">{{.ActionStatus}}</p>
+            <p class="action-status">{{.SeverityLabel}}</p>
             {{if .Impact}}<p class="action-t">{{.Impact}}</p>{{end}}
             {{if .Action}}<p class="action-t">{{.Action}}</p>{{end}}</div>
         </details>

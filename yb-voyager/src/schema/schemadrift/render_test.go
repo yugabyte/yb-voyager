@@ -55,32 +55,28 @@ func fixtureReport() Report {
 		},
 		Diffs: []DiffEntry{
 			{
-				Seq:        1,
-				Type:       string(schemadiff.TableAdded),
-				Operation:  string(schemadiff.OpAdded),
-				ObjectType: string(schemadiff.ObjectTypeTable),
-				Object:     schemasnapshot.ObjectRef{Schema: "public", Name: "invoices"},
-				Status:     string(StatusPotentialImpact),
-				Window:     Window{From: from, To: to},
-				Phase:      "export data: running",
-				Impact:     classify(schemadiff.TableAdded).Impact,
-				Action:     classify(schemadiff.TableAdded).Action,
+				Seq:          1,
+				Type:         string(schemadiff.TableAdded),
+				Operation:    string(schemadiff.OpAdded),
+				ObjectType:   string(schemadiff.ObjectTypeTable),
+				Object:       schemasnapshot.ObjectRef{Schema: "public", Name: "invoices"},
+				Window:       Window{From: from, To: to},
+				Phase:        "export data: running",
+				DiffTypeInfo: classify(schemadiff.TableAdded),
 			},
 			{
-				Seq:        2,
-				Type:       string(schemadiff.ColumnTypeChanged),
-				Operation:  string(schemadiff.OpChanged),
-				ObjectType: string(schemadiff.ObjectTypeColumn),
-				Attribute:  string(schemadiff.AttrType),
-				Object:     schemasnapshot.ObjectRef{Schema: "public", Name: "orders"},
-				SubObject:  "amount",
-				Status:     string(StatusBreaksRecoverable),
-				OldValue:   "integer",
-				NewValue:   "numeric",
-				Window:     Window{From: from, To: to},
-				Phase:      "export data: running",
-				Impact:     classify(schemadiff.ColumnTypeChanged).Impact,
-				Action:     classify(schemadiff.ColumnTypeChanged).Action,
+				Seq:          2,
+				Type:         string(schemadiff.ColumnTypeChanged),
+				Operation:    string(schemadiff.OpChanged),
+				ObjectType:   string(schemadiff.ObjectTypeColumn),
+				Attribute:    string(schemadiff.AttrType),
+				Object:       schemasnapshot.ObjectRef{Schema: "public", Name: "orders"},
+				SubObject:    "amount",
+				OldValue:     "integer",
+				NewValue:     "numeric",
+				Window:       Window{From: from, To: to},
+				Phase:        "export data: running",
+				DiffTypeInfo: classify(schemadiff.ColumnTypeChanged),
 			},
 		},
 		CapturePoints: []CapturePoint{
@@ -115,6 +111,19 @@ func TestRenderJSON(t *testing.T) {
 	assert.Equal(t, float64(2), summary["change_count"])
 	assert.Equal(t, float64(2), summary["stored_capture_count"])
 	assert.Equal(t, true, summary["live_compared"])
+
+	// The DiffTypeInfo embed has to stay anonymous and untagged: a json tag on it
+	// would nest severity/impact/action under a sub-object, which no consumer of
+	// the flat shape would notice until it read a null.
+	diffs, ok := got["diffs"].([]any)
+	require.True(t, ok)
+	require.NotEmpty(t, diffs)
+	firstDiff, ok := diffs[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, string(SeverityPotentialImpact), firstDiff["severity"])
+	assert.Contains(t, firstDiff, "impact")
+	assert.Contains(t, firstDiff, "action")
+	assert.NotContains(t, firstDiff, "DiffTypeInfo")
 
 	// skipped is omitempty, so its absence has to be pinned too: otherwise a
 	// renderer that dropped the field entirely would still pass.
@@ -159,7 +168,7 @@ func TestRenderHTML(t *testing.T) {
 
 	html := string(out)
 	assert.Contains(t, html, "db.example.internal", "source host should appear")
-	assert.Contains(t, html, "⛔ Breaks the migration — recoverable", "status action label should appear")
+	assert.Contains(t, html, "⛔ Breaks the migration — recoverable", "severity label should appear")
 	assert.Contains(t, html, "table added", "a diff kind label should appear")
 	assert.Contains(t, html, "column type changed")
 	assert.Contains(t, html, "public.orders.", "object qualifier should appear")
