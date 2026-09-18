@@ -244,7 +244,7 @@ func resolveCdcPartitionKeyOverrides(rawOverrides map[string]cdcPartitionKeyOver
 			return nil, goerrors.Errorf("cdc-partition-key-overrides: table %q not found in name registry: %w", tableSpec, err)
 		}
 		if _, ok := importTableSet.Get(tuple); !ok {
-			return nil, goerrors.Errorf("cdc-partition-key-overrides: table %q is not in the import table list", tableSpec)
+			return nil, goerrors.Errorf("cdc-partition-key-overrides: table '%s' is not in the import table list", tableSpec)
 		}
 		// Detect duplicates on the resolved NameTuple so different spellings of the
 		// same table (casing/quoting/schema-qualification) don't silently overwrite.
@@ -486,11 +486,11 @@ func diffCdcPartitioningStrategy(
 	errorMsg := ""
 	if len(missingInStored) > 0 {
 		sort.Strings(missingInStored)
-		errorMsg += fmt.Sprintf("cdc-partition-key-overrides: table %q is in the current import table list but was not part of the original import; use --start-clean to start a fresh import with the new configuration\n", strings.Join(missingInStored, ", "))
+		errorMsg += fmt.Sprintf("cdc-partition-key-overrides: table %s is in the current import table list but was not part of the original import; use --start-clean to start a fresh import with the new configuration\n", strings.Join(missingInStored, ", "))
 	}
 	if len(missingInResolved) > 0 {
 		sort.Strings(missingInResolved)
-		errorMsg += fmt.Sprintf("cdc-partition-key-overrides: table %q was part of the original import but is missing from the current import table list; use --start-clean to start a fresh import with the new configuration\n", strings.Join(missingInResolved, ", "))
+		errorMsg += fmt.Sprintf("cdc-partition-key-overrides: table %s was part of the original import but is missing from the current import table list; use --start-clean to start a fresh import with the new configuration\n", strings.Join(missingInResolved, ", "))
 	}
 	if len(changed) > 0 {
 		sort.Strings(changed)
