@@ -89,7 +89,6 @@ type Summary struct {
 // guidance for what it means to the migration in flight, plus the capture-pair
 // window and phase it was detected in.
 type DriftEntry struct {
-	Seq        int                      `json:"seq"`
 	Type       schemadiff.DiffType      `json:"type"`
 	Operation  schemadiff.Operation     `json:"operation"`           // ADDED | DROPPED | CHANGED
 	ObjectType schemadiff.ObjectType    `json:"object_type"`         // TABLE | COLUMN

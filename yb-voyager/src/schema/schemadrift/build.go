@@ -76,7 +76,6 @@ func BuildReport(p DetectionInput) Report {
 
 	var drifts []DriftEntry
 	var skipped []SkippedInterval
-	seq := 0
 	prevIdx := -1
 	for i := range p.Snapshots {
 		if p.Snapshots[i].Content == nil {
@@ -103,10 +102,8 @@ func BuildReport(p DetectionInput) Report {
 		phase := phaseFor(capturePoints[prevIdx], capturePoints[i])
 
 		for _, d := range differ.Diff(prev.Content, next.Content) {
-			seq++
 			obj, subObj := splitIdentity(displayIdentity(d))
 			drifts = append(drifts, DriftEntry{
-				Seq:        seq,
 				Type:       d.Type,
 				Operation:  d.Operation,
 				ObjectType: d.ObjectType,
