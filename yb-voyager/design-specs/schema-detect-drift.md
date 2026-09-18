@@ -85,37 +85,23 @@ The schema filter is applied AFTER diffing, never by narrowing the snapshot cont
 
 **A finding with no anchor table passes the `Tables` filter.** A top-level object -- a view, a function, a sequence -- has no host table, so `--table-list` has nothing to say about it; `--object-type-list` is the dimension that selects object kinds. Dropping such findings because a table list was given would make drift disappear from the report silently, which is the worse failure for a tool whose job is to report it.
 
-### 3.2 `schemasnapshot.LabelDetectDrift` (added in \#3814)
+### 3.2 `schemasnapshot.LabelSourceLive` (added in \#3812)
 
 ```go
-const LabelDetectDrift = "detect_drift" // accepts no reason; never persisted
+const LabelSourceLive = "source_live" // accepts no reason; never persisted
 ```
 
-`Capture` validates its label against the known vocabulary. The live read taken by `detect-drift` needs a label to pass that validation, and must not collide with a persisted label.
+`Capture` validates its label against the known vocabulary, so the live read taken by `detect-drift` needs one. It is named for what the snapshot **is** -- a live read of the source -- rather than for the command that takes it, which is what makes it usable as the timeline identity directly: every point on the timeline is identified by its `Header.Label`, and nothing has to carry a second identity alongside it.
 
 ### 3.3 `schemadrift` inputs
 
-```go
-const SeriesSourceLive = "source_live"
-```
-
-The `Series` value of the live read. Stored snapshots use their capture label as Series.
-
-```go
-type SnapshotInput struct {
-	Header  schemasnapshot.SnapshotHeader
-	Content *schemasnapshot.SnapshotContent // nil for a failed capture
-	Series  string                          // Header.Label for stored snapshots, SeriesSourceLive for the live read
-}
-```
-
-One point in the chronological sequence handed to `BuildReport`.
+`BuildReport` takes `schemasnapshot.SchemaSnapshot` values directly -- a header plus content, where `Content` is nil for a failed capture. There is no wrapper type: the timeline identity of each point is its `Header.Label`, so nothing needs adding to what the snapshot already carries.
 
 ```go
 type DetectionInput struct {
 	Source              Source
 	Schemas             []string        // display only
-	Snapshots           []SnapshotInput // oldest first; the live read, if any, is last
+	Snapshots           []schemasnapshot.SchemaSnapshot // oldest first; the live read, if any, is last
 	Scope               schemadiff.Scope
 	Tables              []string        // what was compared, resolved; see Comparing
 	TablesFiltered      bool
@@ -299,11 +285,11 @@ cmd.detectDrift()
  │
  ├─ schemasnapshot.ListSnapshots(metaDB)                      → []SnapshotHeader         cmd → schemasnapshot
  ├─ per header: schemasnapshot.LoadSnapshotByName(metaDB, name) → *SnapshotContent | nil  cmd → schemasnapshot
- │      each becomes schemadrift.SnapshotInput{Header, Content, Series: Header.Label}
+ │      each becomes a schemasnapshot.SchemaSnapshot{Header, Content}
  │
- ├─ cmd.captureLiveSnapshotForDrift(schemas)                  → *SnapshotInput | nil                          §5.6
- │      └─ schemasnapshot.Capture(ctx, db, CaptureParams{Label: LabelDetectDrift})       cmd → schemasnapshot
- │         result carries Series: SeriesSourceLive; appended as the last input
+ ├─ cmd.captureLiveSnapshotForDrift(schemas)                  → *SchemaSnapshot | nil                         §5.6
+ │      └─ schemasnapshot.Capture(ctx, db, CaptureParams{Label: LabelSourceLive})        cmd → schemasnapshot
+ │         its Header.Label IS the timeline identity; appended as the last input
  │
  ├─ cmd.buildDriftTableCandidates(contents, live)             → table universe                                §5.5
  ├─ cmd.resolveDriftTableRefs / complementDriftTableRefs      → []ObjectRef, then schemadiff.Scope            §5.5
@@ -312,7 +298,7 @@ cmd.detectDrift()
  │      ├─ schemadiff.NewDiffer(Config{Scope})
  │      ├─ per comparable pair (§5.2): differ.Diff(prev, next) → []Difference            schemadrift → schemadiff
  │      ├─ phaseFor(prevCapture, nextCapture)                 → phase string                                   §5.3
- │      └─ per Difference: classify(d.Type)                   → DriftInfo, embedded in DriftEntry            §5.4
+ │      └─ per Difference: classify(d.Type)                   → DriftInfo, embedded in DriftEntry             §5.4
  │
  ├─ cmd.writeDriftReports(report, formats)
  │      ├─ schemadrift.RenderJSON(Report)                     → []byte                   cmd → schemadrift
@@ -326,7 +312,7 @@ Everything above `BuildReport` is `cmd` assembling plain data; everything inside
 
 ### 5.2 Which pairs are compared
 
-**Where:** `schemadrift.BuildReport`, the walk over `DetectionInput.Snapshots`. **In:** `[]SnapshotInput`, oldest first. **Out:** the `(prev, next)` pairs handed to `Differ.Diff`, plus `Report.Skipped` and `Report.CapturePoints`. **Decides:** which two snapshots form an interval, and what to do with inputs that cannot be an interval's side.
+**Where:** `schemadrift.BuildReport`, the walk over `DetectionInput.Snapshots`. **In:** `[]schemasnapshot.SchemaSnapshot`, oldest first. **Out:** the `(prev, next)` pairs handed to `Differ.Diff`, plus `Report.Skipped` and `Report.CapturePoints`. **Decides:** which two snapshots form an interval, and what to do with inputs that cannot be an interval's side.
 
 The walk keeps a *baseline*: the most recent snapshot eligible to be the older side of a comparison.
 
@@ -393,9 +379,9 @@ All four list flags are normalised before use: a value that is empty once trimme
 
 ### 5.6 Live read
 
-**Where:** `cmd.captureLiveSnapshotForDrift(schemas) *schemadrift.SnapshotInput`, after history is loaded and before the universe is built. **In:** the open source connection and the resolved schema list. **Out:** the last `SnapshotInput`, with Series `source_live`, or nil. **Decides:** whether the report ends at the last stored snapshot or at now.
+**Where:** `cmd.captureLiveSnapshotForDrift(schemas) *schemasnapshot.SchemaSnapshot`, after history is loaded and before the universe is built. **In:** the open source connection and the resolved schema list. **Out:** the last snapshot, labelled `source_live`, or nil. **Decides:** whether the report ends at the last stored snapshot or at now.
 
-The command captures the current source schema in memory under `LabelDetectDrift` and appends it as the last input. It uses the same schema list as the stored snapshots so the pair is comparable. If the live capture fails, the report is built from history alone and the summary says so.
+The command captures the current source schema in memory under `LabelSourceLive` and appends it as the last input. It uses the same schema list as the stored snapshots so the pair is comparable. If the live capture fails, the report is built from history alone and the summary says so.
 
 ## 6\. Migration-flow matrix
 
@@ -438,7 +424,7 @@ None. `detect-drift` runs once per invocation over a handful of snapshots. Captu
 | Schema-set mismatch | skip and record | compare anyway; error out | Comparing produces noise; erroring blocks the whole report for one bad pair. |
 | Severity and note | one struct in one map | parallel maps keyed by `DiffType` | Parallel maps drift silently. A test asserts every mapped type has a note. |
 | Severity semantics | what the migration does | how alarming the DDL is | The user's question is "is my migration broken", not "was this a big change". |
-| Live read identity | new `LabelDetectDrift`, never persisted; timeline identity is a separate `Series` | reuse an existing label; add a label that is also persisted | `Capture` validates labels and a persisted label would file the live read as history. |
+| Live read identity | new `LabelSourceLive`, never persisted; it IS the timeline identity | reuse an existing label; carry a second identity beside the label | `Capture` validates labels, and a persisted label would file the live read as history. Naming the label for what the snapshot is, not for the command that takes it, removes the need for a parallel identity field. |
 | Where the report lives | files under `reports/` | metaDB | It is output, not state. No upgrade concern, and users can share it. |
 | Table universe | union of live catalog, history, live read | live catalog only | A dropped table is the case the report exists for. |
 | HTML | embedded template, view model built in Go, no JavaScript | client-side rendering of the JSON | Opens anywhere, including air-gapped hosts. Grouping logic stays testable in Go. |
