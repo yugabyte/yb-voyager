@@ -85,21 +85,35 @@ type Summary struct {
 	LiveCompared       bool `json:"live_compared"`
 }
 
-// DriftEntry is a raw schemadiff.Difference enriched into drift: the severity and
-// guidance for what it means to the migration in flight, plus the capture-pair
-// window and phase it was detected in.
+// DriftEntry is a schemadiff.Difference enriched into drift: what the change means
+// for the migration in flight, and the capture-pair interval it was detected in.
+//
+// The Difference is flattened into these fields rather than embedded. Its
+// ObjectA/ObjectB are ObjectIdent interfaces -- they marshal but cannot be
+// unmarshalled, and they hold a different shape per finding, so one JSON key would
+// carry two schemas. Difference also has no JSON tags, so embedding would publish Go
+// field names into this contract and enlist every field later added to the diff
+// engine into it. Flattening additionally does once what each consumer would repeat:
+// choosing the display side, and splitting a column into its table and its own name.
 type DriftEntry struct {
-	Type       schemadiff.DiffType      `json:"type"`
-	Operation  schemadiff.Operation     `json:"operation"`           // ADDED | DROPPED | CHANGED
-	ObjectType schemadiff.ObjectType    `json:"object_type"`         // TABLE | COLUMN
-	Attribute  schemadiff.Attribute     `json:"attribute,omitempty"` // "" for ADDED/DROPPED
-	Object     schemasnapshot.ObjectRef `json:"object"`
-	SubObject  string                   `json:"sub_object,omitempty"`
-	OldValue   any                      `json:"old_value,omitempty"`
-	NewValue   any                      `json:"new_value,omitempty"`
-	Window     Window                   `json:"window"`
-	Phase      string                   `json:"phase,omitempty"`
-	// Severity, Impact and Action, flattened into this object by encoding/json.
+	// What changed, as the diff engine classified it.
+	Type       schemadiff.DiffType   `json:"type"`
+	Operation  schemadiff.Operation  `json:"operation"`           // ADDED | DROPPED | CHANGED
+	ObjectType schemadiff.ObjectType `json:"object_type"`         // TABLE | COLUMN
+	Attribute  schemadiff.Attribute  `json:"attribute,omitempty"` // "" for ADDED/DROPPED
+
+	// What it changed on, and to what. Object/SubObject are the display side: the
+	// new identity for a change, the old one for a drop.
+	Object    schemasnapshot.ObjectRef `json:"object"`
+	SubObject string                   `json:"sub_object,omitempty"`
+	OldValue  any                      `json:"old_value,omitempty"`
+	NewValue  any                      `json:"new_value,omitempty"`
+
+	// When it was detected, and what the migration was doing then.
+	Window Window `json:"window"`
+	Phase  string `json:"phase,omitempty"`
+
+	// What it means: Severity, Impact and Action, flattened by encoding/json.
 	DriftInfo
 }
 
