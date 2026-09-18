@@ -17,8 +17,13 @@ package schemadiff
 import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 
 // Scope is the caller-resolved filter applied by FilterByScope. Both lists are
-// positive allow-lists; empty means "all". Refs must already be resolved (globs and
-// the default schema expanded) — matching is exact struct equality.
+// positive allow-lists holding the EXACT set to keep. Refs must already be resolved
+// (globs and the default schema expanded) — matching is exact struct equality.
+//
+// Empty means empty, not "all": an unfiltered run passes the whole universe
+// explicitly. Reading empty as "keep everything" would make it carry two meanings —
+// "the caller did not filter" and "the caller excluded everything" — and invert the
+// second into its opposite.
 //
 // There is deliberately no exclude counterpart: only the command knows the universe
 // to subtract from, so it resolves --exclude-* into a keep-set before calling here.
@@ -26,8 +31,8 @@ import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 // Never errors; an entry matching nothing is a no-op. Flag-level policy (e.g.
 // --table-list vs --exclude-table-list) is the command's to enforce.
 type Scope struct {
-	Tables      []schemasnapshot.ObjectRef // empty = all; matched against the finding's derived anchor table
-	ObjectTypes []ObjectType               // empty = all; matched against the finding's ObjectType
+	Tables      []schemasnapshot.ObjectRef // the exact set to keep; matched against the finding's derived anchor table
+	ObjectTypes []ObjectType               // the exact set to keep; matched against the finding's ObjectType
 }
 
 // FilterByScope returns the subset of diffs within scope. It is pure: inputs are
@@ -36,17 +41,18 @@ type Scope struct {
 //
 // Filtering applies, in order:
 //  1. ObjectTypes
-//  2. Tables (a finding with no derived anchor never matches a non-empty list)
+//  2. Tables (a finding with no anchor table passes — see passesTableFilter)
 //
 // NOTE: table rename/move alias handling is temporarily disabled (see the body).
 // With it off, a finding anchored to a renamed table matches only its as-emitted
 // anchor, not its old/new counterpart. Pending the cross-window alias decision.
 //
 // KNOWN GAP: with the alias off, --table-list cannot return a renamed table's full
-// history — TABLE_NAME_CHANGED anchors to the old ref, later findings to the new one,
-// and neither name matches both. Unfiltered runs report both.
+// history. anchorTableOf prefers the side-A identity, so a finding about the table
+// under its old name anchors to the old ref while later findings anchor to the new
+// one, and neither name matches both. Unfiltered runs report both.
 //
-// Re-enabling the alias below only fixes this within one window, since driftreport
+// Re-enabling the alias below only fixes this within one window, since schemadrift
 // filters each snapshot pair separately. A real fix needs a cross-window alias map,
 // or anchors keyed by stable table OID.
 func FilterByScope(diffs []Difference, scope Scope) []Difference {
@@ -138,27 +144,23 @@ func buildTableRenameAliases(diffs []Difference) map[schemasnapshot.ObjectRef][]
 // passesObjectTypeFilter returns true if the finding's object-type bucket is
 // allowed by the include list. An empty includeTypes means "all".
 func passesObjectTypeFilter(d Difference, includeTypes map[ObjectType]struct{}) bool {
-	if len(includeTypes) == 0 {
-		return true
-	}
 	_, ok := includeTypes[d.ObjectType]
 	return ok
 }
 
 // passesTableFilter keeps a finding under the Tables filter:
-//   - empty list keeps all
-//   - no derived anchor never matches a non-empty list
-//   - otherwise keep if the anchor is listed
+//   - no anchor table keeps it, whatever the list holds
+//   - otherwise keep it if the anchor is listed
 //
 // Rename-alias either-side matching is temporarily disabled (see FilterByScope).
 // Re-enable by restoring the `aliases map[...]` parameter and the commented block.
 func passesTableFilter(d Difference, includeTables map[schemasnapshot.ObjectRef]struct{}) bool {
-	if len(includeTables) == 0 {
-		return true
-	}
 	anchor, ok := anchorTableOf(d)
 	if !ok {
-		return false
+		// A view, a function, a sequence: no host table, so a table list has nothing
+		// to say about it. Selecting object KINDS is --object-type-list's dimension,
+		// and conflating the two would make drift vanish from the report silently.
+		return true
 	}
 
 	// Check the anchor itself.
