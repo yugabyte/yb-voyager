@@ -98,10 +98,10 @@ func TestBuildReport_ConsecutivePairsProduceDiffEntries(t *testing.T) {
 
 	report := BuildReport(p)
 
-	require.Len(t, report.Diffs, 1)
-	d := report.Diffs[0]
+	require.Len(t, report.Drifts, 1)
+	d := report.Drifts[0]
 	assert.Equal(t, 1, d.Seq)
-	assert.Equal(t, string(schemadiff.TableAdded), d.Type)
+	assert.Equal(t, schemadiff.TableAdded, d.Type)
 	assert.Equal(t, objRef("public", "customers"), d.Object)
 	assert.Equal(t, SeverityPotentialImpact, d.Severity)
 	assert.Equal(t, Window{From: t1(), To: t2()}, d.Window)
@@ -141,10 +141,10 @@ func TestBuildReport_EmptyIntervalsProduceNoEntriesButKeepSequencing(t *testing.
 
 	report := BuildReport(p)
 
-	require.Len(t, report.Diffs, 1)
-	assert.Equal(t, 1, report.Diffs[0].Seq, "seq should start at 1 even though the first interval had zero diffs")
-	assert.Equal(t, Window{From: t2(), To: t3()}, report.Diffs[0].Window)
-	assert.Equal(t, "export data: running", report.Diffs[0].Phase)
+	require.Len(t, report.Drifts, 1)
+	assert.Equal(t, 1, report.Drifts[0].Seq, "seq should start at 1 even though the first interval had zero diffs")
+	assert.Equal(t, Window{From: t2(), To: t3()}, report.Drifts[0].Window)
+	assert.Equal(t, "export data: running", report.Drifts[0].Phase)
 }
 
 func TestBuildReport_PlaceholderBridgesToNextContentBearingSnapshot(t *testing.T) {
@@ -166,9 +166,9 @@ func TestBuildReport_PlaceholderBridgesToNextContentBearingSnapshot(t *testing.T
 
 	report := BuildReport(p)
 
-	require.Len(t, report.Diffs, 1, "drift between a and c must be reported, bridged across the placeholder")
-	d := report.Diffs[0]
-	assert.Equal(t, string(schemadiff.TableAdded), d.Type)
+	require.Len(t, report.Drifts, 1, "drift between a and c must be reported, bridged across the placeholder")
+	d := report.Drifts[0]
+	assert.Equal(t, schemadiff.TableAdded, d.Type)
 	assert.Equal(t, objRef("public", "customers"), d.Object)
 	assert.Equal(t, Window{From: t1(), To: t3()}, d.Window, "window must span from the pre-placeholder snapshot to the post-placeholder snapshot")
 	require.Len(t, report.CapturePoints, 3, "the placeholder itself still appears as a capture point")
@@ -188,7 +188,7 @@ func TestBuildReport_PlaceholderAtChainEndProducesNoExtraEntries(t *testing.T) {
 
 	report := BuildReport(p)
 
-	assert.Empty(t, report.Diffs, "a trailing placeholder with nothing after it contributes no diffs")
+	assert.Empty(t, report.Drifts, "a trailing placeholder with nothing after it contributes no diffs")
 	require.Len(t, report.CapturePoints, 2)
 }
 
@@ -208,7 +208,7 @@ func TestBuildReport_SchemaScopeMismatchSkippedEntirely(t *testing.T) {
 
 	report := BuildReport(p)
 
-	assert.Empty(t, report.Diffs)
+	assert.Empty(t, report.Drifts)
 
 	// The pair is not compared, but the report has to say so: otherwise a reader
 	// cannot tell this interval from one that genuinely had no changes.
@@ -235,7 +235,7 @@ func TestBuildReport_SchemaScopeOrderInsensitive(t *testing.T) {
 
 	report := BuildReport(p)
 
-	require.Len(t, report.Diffs, 1, "same schema set in a different order must still be diffed")
+	require.Len(t, report.Drifts, 1, "same schema set in a different order must still be diffed")
 }
 
 func TestBuildReport_LivePairPhaseIsSinceLastCapture(t *testing.T) {
@@ -258,8 +258,8 @@ func TestBuildReport_LivePairPhaseIsSinceLastCapture(t *testing.T) {
 
 	report := BuildReport(p)
 
-	require.Len(t, report.Diffs, 1)
-	assert.Equal(t, "since last capture", report.Diffs[0].Phase)
+	require.Len(t, report.Drifts, 1)
+	assert.Equal(t, "since last capture", report.Drifts[0].Phase)
 }
 
 func TestBuildReport_SummaryCounts(t *testing.T) {
@@ -334,7 +334,7 @@ func TestBuildReport_EmptyInputsProduceZeroValueWindowNoPanic(t *testing.T) {
 	require.NotPanics(t, func() {
 		report := BuildReport(DetectionInput{})
 		assert.Empty(t, report.CapturePoints)
-		assert.Empty(t, report.Diffs)
+		assert.Empty(t, report.Drifts)
 		assert.True(t, report.Window.From.IsZero())
 		assert.True(t, report.Window.To.IsZero())
 		assert.Equal(t, 0, report.Summary.StoredCaptureCount)
@@ -368,9 +368,9 @@ func TestBuildReport_GlobalSeqNumberingIsSequentialAcrossIntervals(t *testing.T)
 
 	report := BuildReport(p)
 
-	require.Len(t, report.Diffs, 3)
+	require.Len(t, report.Drifts, 3)
 	var seqs []int
-	for _, d := range report.Diffs {
+	for _, d := range report.Drifts {
 		seqs = append(seqs, d.Seq)
 	}
 	assert.Equal(t, []int{1, 2, 3}, seqs)
@@ -405,8 +405,8 @@ func TestBuildReport_ScopeFilteringKeepsOnlyListedTable(t *testing.T) {
 
 	report := BuildReport(p)
 
-	require.Len(t, report.Diffs, 1, "only the allow-listed table's finding must appear")
-	assert.Equal(t, objRef("public", "invoices"), report.Diffs[0].Object)
+	require.Len(t, report.Drifts, 1, "only the allow-listed table's finding must appear")
+	assert.Equal(t, objRef("public", "invoices"), report.Drifts[0].Object)
 }
 
 func TestPhaseFor(t *testing.T) {

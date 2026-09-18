@@ -74,7 +74,7 @@ func BuildReport(p DetectionInput) Report {
 
 	differ := schemadiff.NewDiffer(schemadiff.Config{Scope: p.Scope})
 
-	var diffs []DiffEntry
+	var drifts []DriftEntry
 	var skipped []SkippedInterval
 	seq := 0
 	prevIdx := -1
@@ -105,19 +105,19 @@ func BuildReport(p DetectionInput) Report {
 		for _, d := range differ.Diff(prev.Content, next.Content) {
 			seq++
 			obj, subObj := splitIdentity(displayIdentity(d))
-			diffs = append(diffs, DiffEntry{
-				Seq:          seq,
-				Type:         string(d.Type),
-				Operation:    string(d.Operation),
-				ObjectType:   string(d.ObjectType),
-				Attribute:    string(d.Attribute),
-				Object:       obj,
-				SubObject:    subObj,
-				OldValue:     d.SideAValue,
-				NewValue:     d.SideBValue,
-				Window:       intervalWindow,
-				Phase:        phase,
-				DiffTypeInfo: classify(d.Type),
+			drifts = append(drifts, DriftEntry{
+				Seq:        seq,
+				Type:       d.Type,
+				Operation:  d.Operation,
+				ObjectType: d.ObjectType,
+				Attribute:  d.Attribute,
+				Object:     obj,
+				SubObject:  subObj,
+				OldValue:   d.SideAValue,
+				NewValue:   d.SideBValue,
+				Window:     intervalWindow,
+				Phase:      phase,
+				DriftInfo:  classify(d.Type),
 			})
 		}
 		prevIdx = i
@@ -142,11 +142,11 @@ func BuildReport(p DetectionInput) Report {
 			ObjectTypesFiltered: p.ObjectTypesFiltered,
 		},
 		Summary: Summary{
-			ChangeCount:        len(diffs),
+			ChangeCount:        len(drifts),
 			StoredCaptureCount: lo.CountBy(p.Snapshots, func(s SnapshotInput) bool { return s.Series != SeriesSourceLive }),
 			LiveCompared:       lo.ContainsBy(p.Snapshots, func(s SnapshotInput) bool { return s.Series == SeriesSourceLive }),
 		},
-		Diffs:         diffs,
+		Drifts:        drifts,
 		CapturePoints: capturePoints,
 		Skipped:       skipped,
 	}
