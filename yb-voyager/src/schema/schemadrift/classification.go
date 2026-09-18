@@ -16,7 +16,7 @@ package schemadrift
 
 import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
 
-// Severity is the severity level assigned to a DiffEntry.
+// Severity is the severity level assigned to a DriftEntry.
 type Severity string
 
 const (
@@ -26,16 +26,18 @@ const (
 	SeverityBreaksUnrecoverable Severity = "breaks_migration_unrecoverable"
 )
 
-// DiffTypeInfo is everything the report says about a kind of change: how the
+// DriftInfo is what enriches a raw schemadiff.Difference into drift: how the
 // migration is affected, and the "Impact & action" note explaining it. Severity and
 // wording have to agree, so they are declared together rather than in parallel maps.
 //
-// It describes the DiffType, not the individual finding, so every entry of a given
-// type carries the same values. DiffEntry embeds it; encoding/json flattens an
-// anonymous embed, so the three fields stay top-level in the report.
+// classify keys on the DiffType alone today, so every entry of a given type carries
+// the same three values. Deriving them per finding -- COLUMN_NULLABILITY_CHANGED
+// reads very differently for an added vs a dropped NOT NULL -- would not change this
+// shape. DriftEntry embeds it; encoding/json flattens an anonymous embed, so the
+// three fields stay top-level in the report.
 //
 // `backticks` become inline code in HTML (see codeSpans) and stay literal in JSON.
-type DiffTypeInfo struct {
+type DriftInfo struct {
 	Severity Severity `json:"severity"`
 	Impact   string   `json:"impact,omitempty"`
 	Action   string   `json:"action,omitempty"`
@@ -44,7 +46,7 @@ type DiffTypeInfo struct {
 // Severity says what the MIGRATION does about a change, not how alarming the DDL
 // sounds, so it reads backwards in places: an ADDED column is Recoverable because
 // import data can fail on it, while a DROPPED one is only Potential impact.
-var infoByDiffType = map[schemadiff.DiffType]DiffTypeInfo{
+var infoByDiffType = map[schemadiff.DiffType]DriftInfo{
 	// Unrecoverable: export data cannot be restarted; restart from scratch.
 	schemadiff.TableDropped: {
 		Severity: SeverityBreaksUnrecoverable,
@@ -132,9 +134,9 @@ var infoByDiffType = map[schemadiff.DiffType]DiffTypeInfo{
 // classify falls back to SeverityAdvisory for an unmapped DiffType, the zero value
 // included, rather than dropping the change. The zero Impact/Action that comes with
 // it is deliberate: the report omits the note when there is nothing useful to say.
-func classify(t schemadiff.DiffType) DiffTypeInfo {
+func classify(t schemadiff.DiffType) DriftInfo {
 	if c, ok := infoByDiffType[t]; ok {
 		return c
 	}
-	return DiffTypeInfo{Severity: SeverityAdvisory}
+	return DriftInfo{Severity: SeverityAdvisory}
 }

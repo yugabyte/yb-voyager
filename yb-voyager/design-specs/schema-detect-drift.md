@@ -148,20 +148,20 @@ const (
 Severity answers "what does the migration do about this change", not "how alarming is the DDL". Vocabulary in §5.4.
 
 ```go
-type DiffTypeInfo struct {
+type DriftInfo struct {
 	Severity Severity `json:"severity"`
 	Impact   string   `json:"impact,omitempty"`
 	Action   string   `json:"action,omitempty"`
 }
 
-var infoByDiffType map[schemadiff.DiffType]DiffTypeInfo
+var infoByDiffType map[schemadiff.DiffType]DriftInfo
 
-func classify(t schemadiff.DiffType) DiffTypeInfo
+func classify(t schemadiff.DiffType) DriftInfo
 ```
 
 Severity and its explanatory note are one value in one map. Two parallel maps keyed by `DiffType` would let them disagree silently, and an entry with a severity but no note would render a finding the report cannot explain. `classify` returns `SeverityAdvisory` with empty Impact and Action for a `DiffType` the map does not know.
 
-`DiffTypeInfo` is exported and embedded in `DriftEntry` rather than copied field by field: the three values describe the DiffType, not the individual finding, so every entry of a given type carries the same ones.
+`DriftInfo` is what enriches a raw `schemadiff.Difference` into drift: what the change means for the migration in flight. It is exported and embedded in `DriftEntry` rather than copied field by field. Today `classify` keys on the DiffType alone, so every entry of a given type carries the same three values; deriving them per finding (from the old/new values) would not change the shape.
 
 ### 3.5 `schemadrift` renderers (\#3813)
 
@@ -207,7 +207,7 @@ type Report struct {
 	Window        Window            `json:"window"`   // first capture to last capture
 	Comparing     Comparing         `json:"comparing"`
 	Summary       Summary           `json:"summary"`
-	Diffs         []DiffEntry       `json:"diffs"`
+	Drifts        []DriftEntry      `json:"drifts"`
 	CapturePoints []CapturePoint    `json:"capture_points"` // every point on the timeline, placeholders included
 	Skipped       []SkippedInterval `json:"skipped,omitempty"`
 }
@@ -239,19 +239,19 @@ type Summary struct {
 	LiveCompared       bool `json:"live_compared"`
 }
 
-type DiffEntry struct {
-	Seq        int                      `json:"seq"`                 // 1-based, continuous across intervals
-	Type       string                   `json:"type"`                // schemadiff.DiffType
-	Operation  string                   `json:"operation"`           // ADDED | DROPPED | CHANGED
-	ObjectType string                   `json:"object_type"`         // TABLE | COLUMN
-	Attribute  string                   `json:"attribute,omitempty"` // "" for ADDED/DROPPED
-	Object     schemasnapshot.ObjectRef `json:"object"`              // the table
+type DriftEntry struct {
+	Seq        int                      `json:"seq"`                  // 1-based, continuous across intervals
+	Type       schemadiff.DiffType      `json:"type"`
+	Operation  schemadiff.Operation     `json:"operation"`            // ADDED | DROPPED | CHANGED
+	ObjectType schemadiff.ObjectType    `json:"object_type"`          // TABLE | COLUMN
+	Attribute  schemadiff.Attribute     `json:"attribute,omitempty"`  // "" for ADDED/DROPPED
+	Object     schemasnapshot.ObjectRef `json:"object"`               // the table
 	SubObject  string                   `json:"sub_object,omitempty"` // the column, when ObjectType is COLUMN
 	OldValue   any                      `json:"old_value,omitempty"`
 	NewValue   any                      `json:"new_value,omitempty"`
-	Window     Window                   `json:"window"`              // the interval it was detected in
-	Phase      string                   `json:"phase,omitempty"`     // §5.3
-	DiffTypeInfo                       // embedded: severity, impact, action -- flattened by encoding/json
+	Window     Window                   `json:"window"`               // the interval it was detected in
+	Phase      string                   `json:"phase,omitempty"`      // §5.3
+	DriftInfo                           // embedded: severity, impact, action -- flattened by encoding/json
 }
 
 type SkippedInterval struct {
@@ -304,7 +304,7 @@ cmd.detectDrift()
  │      ├─ schemadiff.NewDiffer(Config{Scope})
  │      ├─ per comparable pair (§5.2): differ.Diff(prev, next) → []Difference            schemadrift → schemadiff
  │      ├─ phaseFor(prevCapture, nextCapture)                 → phase string                                   §5.3
- │      └─ per Difference: classify(d.Type)                   → DiffTypeInfo, embedded in DiffEntry          §5.4
+ │      └─ per Difference: classify(d.Type)                   → DriftInfo, embedded in DriftEntry            §5.4
  │
  ├─ cmd.writeDriftReports(report, formats)
  │      ├─ schemadrift.RenderJSON(Report)                     → []byte                   cmd → schemadrift
@@ -327,7 +327,7 @@ The walk keeps a *baseline*: the most recent snapshot eligible to be the older s
 | `Content == nil` (failed capture) | any | Record as a `CapturePoint`. Leave the baseline alone, so the next real snapshot compares back across the gap. |
 | has content | none yet | Becomes the baseline. Nothing to compare. |
 | has content, `Header.Schemas` set differs from baseline's | set | Record a `SkippedInterval` with the reason. Current becomes the baseline. |
-| has content, same schema set | set | Diff baseline → current through `Differ` with `p.Scope`. Each `Difference` becomes a `DiffEntry` carrying the interval's `Window` and `Phase`. Current becomes the baseline. |
+| has content, same schema set | set | Diff baseline → current through `Differ` with `p.Scope`. Each `Difference` becomes a `DriftEntry` carrying the interval's `Window` and `Phase`. Current becomes the baseline. |
 
 A failed capture is *bridged*, not a boundary. The drift that happened around it is still real; what is lost is only the ability to say which side of the failed capture it fell on, and the wider `Window` on the entry says so.
 
@@ -339,7 +339,7 @@ A schema-set mismatch is *skipped*, not compared. Two snapshots covering differe
 
 ### 5.3 Phase
 
-**Where:** `schemadrift.phaseFor(prev, next CapturePoint) string`, called once per interval from `BuildReport`. **In:** the two `CapturePoint.Series` values bracketing an interval. **Out:** `DiffEntry.Phase`. **Decides:** what the migration was doing while the interval's drift appeared.
+**Where:** `schemadrift.phaseFor(prev, next CapturePoint) string`, called once per interval from `BuildReport`. **In:** the two `CapturePoint.Series` values bracketing an interval. **Out:** `DriftEntry.Phase`. **Decides:** what the migration was doing while the interval's drift appeared.
 
 Unlisted pairs get `""` and the renderer shows the window alone.
 
@@ -355,7 +355,7 @@ The exit capture's `Reason` (`cutover`, `complete`, `interrupt`, `error`) says h
 
 ### 5.4 Severity
 
-**Where:** `schemadrift.classify(t schemadiff.DiffType) DiffTypeInfo`, backed by `infoByDiffType`, called once per `Difference` from `BuildReport`. **In:** a `DiffType`. **Out:** the `DiffTypeInfo` embedded in each `DiffEntry` -- `Severity`, `Impact`, `Action`. **Decides:** what the migration does about a change, and the note that explains it.
+**Where:** `schemadrift.classify(t schemadiff.DiffType) DriftInfo`, backed by `infoByDiffType`, called once per `Difference` from `BuildReport`. **In:** a `DiffType`. **Out:** the `DriftInfo` embedded in each `DriftEntry` -- `Severity`, `Impact`, `Action`. **Decides:** what the migration does about a change, and the note that explains it.
 
 | Severity | Meaning | DiffTypes |
 | :---- | :---- | :---- |

@@ -23,6 +23,7 @@ package schemadrift
 import (
 	"time"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 )
 
@@ -43,7 +44,7 @@ type Report struct {
 	Window        Window         `json:"window"`
 	Comparing     Comparing      `json:"comparing"`
 	Summary       Summary        `json:"summary"`
-	Diffs         []DiffEntry    `json:"diffs"`
+	Drifts        []DriftEntry   `json:"drifts"`
 	CapturePoints []CapturePoint `json:"capture_points"`
 	// Intervals BuildReport declined to compare. Empty on a normal run; a
 	// non-empty list means the report covers less than its Window suggests.
@@ -84,14 +85,15 @@ type Summary struct {
 	LiveCompared       bool `json:"live_compared"`
 }
 
-// DiffEntry is a single schema change, enriched with severity classification,
-// human guidance, and the capture-pair window/phase it was detected in.
-type DiffEntry struct {
+// DriftEntry is a raw schemadiff.Difference enriched into drift: the severity and
+// guidance for what it means to the migration in flight, plus the capture-pair
+// window and phase it was detected in.
+type DriftEntry struct {
 	Seq        int                      `json:"seq"`
-	Type       string                   `json:"type"`                // string(schemadiff.DiffType)
-	Operation  string                   `json:"operation"`           // string(schemadiff.Operation): ADDED | DROPPED | CHANGED
-	ObjectType string                   `json:"object_type"`         // string(schemadiff.ObjectType): TABLE | COLUMN
-	Attribute  string                   `json:"attribute,omitempty"` // string(schemadiff.Attribute); "" for ADDED/DROPPED
+	Type       schemadiff.DiffType      `json:"type"`
+	Operation  schemadiff.Operation     `json:"operation"`           // ADDED | DROPPED | CHANGED
+	ObjectType schemadiff.ObjectType    `json:"object_type"`         // TABLE | COLUMN
+	Attribute  schemadiff.Attribute     `json:"attribute,omitempty"` // "" for ADDED/DROPPED
 	Object     schemasnapshot.ObjectRef `json:"object"`
 	SubObject  string                   `json:"sub_object,omitempty"`
 	OldValue   any                      `json:"old_value,omitempty"`
@@ -99,8 +101,7 @@ type DiffEntry struct {
 	Window     Window                   `json:"window"`
 	Phase      string                   `json:"phase,omitempty"`
 	// Severity, Impact and Action, flattened into this object by encoding/json.
-	// They describe the DiffType, so every entry of a kind carries the same ones.
-	DiffTypeInfo
+	DriftInfo
 }
 
 // SkippedInterval is a capture pair that was not compared, so a reader can tell
