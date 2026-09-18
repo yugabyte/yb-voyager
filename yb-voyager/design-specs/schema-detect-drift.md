@@ -240,17 +240,24 @@ type Summary struct {
 }
 
 type DriftEntry struct {
-	Type       schemadiff.DiffType      `json:"type"`
-	Operation  schemadiff.Operation     `json:"operation"`            // ADDED | DROPPED | CHANGED
-	ObjectType schemadiff.ObjectType    `json:"object_type"`          // TABLE | COLUMN
-	Attribute  schemadiff.Attribute     `json:"attribute,omitempty"`  // "" for ADDED/DROPPED
-	Object     schemasnapshot.ObjectRef `json:"object"`               // the table
-	SubObject  string                   `json:"sub_object,omitempty"` // the column, when ObjectType is COLUMN
-	OldValue   any                      `json:"old_value,omitempty"`
-	NewValue   any                      `json:"new_value,omitempty"`
-	Window     Window                   `json:"window"`               // the interval it was detected in
-	Phase      string                   `json:"phase,omitempty"`      // §5.3
-	DriftInfo                           // embedded: severity, impact, action -- flattened by encoding/json
+	// What changed, as the diff engine classified it.
+	Type       schemadiff.DiffType   `json:"type"`
+	Operation  schemadiff.Operation  `json:"operation"`           // ADDED | DROPPED | CHANGED
+	ObjectType schemadiff.ObjectType `json:"object_type"`         // TABLE | COLUMN
+	Attribute  schemadiff.Attribute  `json:"attribute,omitempty"` // "" for ADDED/DROPPED
+
+	// What it changed on, and to what.
+	Object    schemasnapshot.ObjectRef `json:"object"`               // the table
+	SubObject string                   `json:"sub_object,omitempty"` // the column, when ObjectType is COLUMN
+	OldValue  any                      `json:"old_value,omitempty"`
+	NewValue  any                      `json:"new_value,omitempty"`
+
+	// When it was detected, and what the migration was doing then.
+	Window Window `json:"window"`          // the interval it was detected in
+	Phase  string `json:"phase,omitempty"` // §5.3
+
+	// What it means: Severity, Impact, Action -- flattened by encoding/json.
+	DriftInfo
 }
 
 type SkippedInterval struct {
@@ -272,6 +279,8 @@ type CapturePoint struct {
 `CapturePoints` is every point on the timeline, not only the ones holding schema: a stored capture, a stored placeholder (the capture failed, so nothing is behind it), and the live read (never persisted). `StoredCaptureCount` counts the first two -- a placeholder is a persisted row -- so it is a count of stored records, not of usable snapshots.
 
 `Skipped` exists because an interval the assembler declined to compare is otherwise indistinguishable from one that had no changes. It is `omitempty` because a normal run has none.
+
+The `schemadiff.Difference` is flattened into these fields rather than embedded. Its `ObjectA`/`ObjectB` are `ObjectIdent` interface values, which marshal but cannot be unmarshalled, and they hold a different shape per finding (a column's identity nests its table; a table's does not), so one JSON key would carry two schemas. `Difference` also carries no JSON tags, so embedding would publish Go field names into this contract and make every field later added to the diff engine part of it. Flattening also does once what every consumer would otherwise repeat: choosing the display side, and splitting a column into its table and its own name.
 
 `Object` and `SubObject` always identify the display side. For a change, that is the new identity; for a drop, the old one. A renamed column therefore appears under its new name with the old name in `OldValue`.
 
