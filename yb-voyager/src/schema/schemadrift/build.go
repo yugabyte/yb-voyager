@@ -27,7 +27,7 @@ import (
 // into BuildReport: either a stored snapshot or the live read of the source.
 type SnapshotInput struct {
 	Header schemasnapshot.SnapshotHeader
-	// nil for a failed capture: still a Capture on the timeline, never diffed.
+	// nil for a failed capture: still a CapturePoint on the timeline, never diffed.
 	Content *schemasnapshot.SnapshotContent
 	// Series is the timeline identity phaseFor and the renderers key off, and
 	// is not always Header.Label: the live read borrows LabelDetectDrift only to
@@ -63,9 +63,9 @@ type DetectionInput struct {
 //     later snapshot becomes the new baseline -- snapshots covering different
 //     schemas cannot be meaningfully compared.
 func BuildReport(p DetectionInput) Report {
-	captures := make([]Capture, len(p.Snapshots))
+	points := make([]CapturePoint, len(p.Snapshots))
 	for i, s := range p.Snapshots {
-		captures[i] = Capture{
+		points[i] = CapturePoint{
 			Series:     s.Series,
 			Reason:     s.Header.Reason,
 			CapturedAt: s.Header.CapturedAt,
@@ -100,7 +100,7 @@ func BuildReport(p DetectionInput) Report {
 		}
 
 		intervalWindow := Window{From: prev.Header.CapturedAt, To: next.Header.CapturedAt}
-		phase := phaseFor(captures[prevIdx], captures[i])
+		phase := phaseFor(points[prevIdx], points[i])
 
 		for _, d := range differ.Diff(prev.Content, next.Content) {
 			seq++
@@ -127,8 +127,8 @@ func BuildReport(p DetectionInput) Report {
 	}
 
 	var reportWindow Window
-	if len(captures) > 0 {
-		reportWindow = Window{From: captures[0].CapturedAt, To: captures[len(captures)-1].CapturedAt}
+	if len(points) > 0 {
+		reportWindow = Window{From: points[0].CapturedAt, To: points[len(points)-1].CapturedAt}
 	}
 
 	return Report{
@@ -145,19 +145,19 @@ func BuildReport(p DetectionInput) Report {
 			ObjectTypesFiltered: p.ObjectTypesFiltered,
 		},
 		Summary: Summary{
-			ChangeCount:   len(diffs),
-			SnapshotCount: lo.CountBy(p.Snapshots, func(s SnapshotInput) bool { return s.Series != SeriesSourceLive }),
-			LiveCompared:  lo.ContainsBy(p.Snapshots, func(s SnapshotInput) bool { return s.Series == SeriesSourceLive }),
+			ChangeCount:        len(diffs),
+			StoredCaptureCount: lo.CountBy(p.Snapshots, func(s SnapshotInput) bool { return s.Series != SeriesSourceLive }),
+			LiveCompared:       lo.ContainsBy(p.Snapshots, func(s SnapshotInput) bool { return s.Series == SeriesSourceLive }),
 		},
-		Diffs:    diffs,
-		Timeline: captures,
-		Skipped:  skipped,
+		Diffs:         diffs,
+		CapturePoints: points,
+		Skipped:       skipped,
 	}
 }
 
 // phaseFor labels the migration phase an interval between two captures falls in.
 // Returns "" when no label applies, and the caller shows the time window alone.
-func phaseFor(prev, next Capture) string {
+func phaseFor(prev, next CapturePoint) string {
 	switch {
 	case prev.Series == schemasnapshot.LabelExportSchema && next.Series == schemasnapshot.LabelExportDataFromSourceStart:
 		return "export data: pending"

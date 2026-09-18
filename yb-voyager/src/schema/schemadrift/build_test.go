@@ -171,7 +171,9 @@ func TestBuildReport_PlaceholderBridgesToNextContentBearingSnapshot(t *testing.T
 	assert.Equal(t, string(schemadiff.TableAdded), d.Type)
 	assert.Equal(t, objRef("public", "customers"), d.Object)
 	assert.Equal(t, Window{From: t1(), To: t3()}, d.Window, "window must span from the pre-placeholder snapshot to the post-placeholder snapshot")
-	require.Len(t, report.Timeline, 3, "the placeholder itself still appears as a capture point")
+	require.Len(t, report.CapturePoints, 3, "the placeholder itself still appears as a capture point")
+	assert.Equal(t, 3, report.Summary.StoredCaptureCount,
+		"a placeholder is a persisted row, so it counts as a stored capture even though no snapshot is behind it")
 }
 
 func TestBuildReport_PlaceholderAtChainEndProducesNoExtraEntries(t *testing.T) {
@@ -187,7 +189,7 @@ func TestBuildReport_PlaceholderAtChainEndProducesNoExtraEntries(t *testing.T) {
 	report := BuildReport(p)
 
 	assert.Empty(t, report.Diffs, "a trailing placeholder with nothing after it contributes no diffs")
-	require.Len(t, report.Timeline, 2)
+	require.Len(t, report.CapturePoints, 2)
 }
 
 func TestBuildReport_SchemaScopeMismatchSkippedEntirely(t *testing.T) {
@@ -286,7 +288,7 @@ func TestBuildReport_SummaryCounts(t *testing.T) {
 
 	report := BuildReport(p)
 
-	assert.Equal(t, 2, report.Summary.SnapshotCount, "SnapshotCount counts stored snapshots only, not the live read")
+	assert.Equal(t, 2, report.Summary.StoredCaptureCount, "StoredCaptureCount counts the stored records only, not the live read")
 	assert.Equal(t, 2, report.Summary.ChangeCount, "one TABLE_ADDED per interval (customers, then invoices)")
 	assert.True(t, report.Summary.LiveCompared)
 }
@@ -302,7 +304,7 @@ func TestBuildReport_SummaryLiveComparedFalseWhenNoLive(t *testing.T) {
 	report := BuildReport(p)
 
 	assert.False(t, report.Summary.LiveCompared)
-	assert.Equal(t, 1, report.Summary.SnapshotCount)
+	assert.Equal(t, 1, report.Summary.StoredCaptureCount)
 }
 
 func TestBuildReport_WindowFromToReflectFirstAndLastCapture(t *testing.T) {
@@ -331,11 +333,11 @@ func TestBuildReport_WindowFromToReflectFirstAndLastCapture(t *testing.T) {
 func TestBuildReport_EmptyInputsProduceZeroValueWindowNoPanic(t *testing.T) {
 	require.NotPanics(t, func() {
 		report := BuildReport(DetectionInput{})
-		assert.Empty(t, report.Timeline)
+		assert.Empty(t, report.CapturePoints)
 		assert.Empty(t, report.Diffs)
 		assert.True(t, report.Window.From.IsZero())
 		assert.True(t, report.Window.To.IsZero())
-		assert.Equal(t, 0, report.Summary.SnapshotCount)
+		assert.Equal(t, 0, report.Summary.StoredCaptureCount)
 		assert.False(t, report.Summary.LiveCompared)
 	})
 }
@@ -477,8 +479,8 @@ func TestPhaseFor(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			prev := Capture{Series: tc.prev}
-			next := Capture{Series: tc.next}
+			prev := CapturePoint{Series: tc.prev}
+			next := CapturePoint{Series: tc.next}
 			assert.Equal(t, tc.want, phaseFor(prev, next))
 		})
 	}
