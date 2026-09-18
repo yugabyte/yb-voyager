@@ -75,6 +75,31 @@ func fixtureHeader(label string, capturedAt time.Time, schemas ...string) schema
 	}
 }
 
+// buildUnfiltered runs BuildReport the way the command does when no --*-list
+// narrows the run: with a Scope naming every table in the fixtures and every
+// object type v1 emits. Scope is an exact keep-set, so a zero value keeps nothing
+// -- tests about intervals and phases say "unfiltered" here rather than repeating
+// the universe. A database type is set because Comparing renders identifiers.
+func buildUnfiltered(p DetectionInput) Report {
+	seen := make(map[schemasnapshot.ObjectRef]bool)
+	for _, sn := range p.Snapshots {
+		if sn.Content == nil {
+			continue
+		}
+		for _, t := range sn.Content.Tables {
+			if !seen[t.ObjectRef] {
+				seen[t.ObjectRef] = true
+				p.Scope.Tables = append(p.Scope.Tables, t.ObjectRef)
+			}
+		}
+	}
+	p.Scope.ObjectTypes = []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn}
+	if p.Source.DatabaseType == "" {
+		p.Source.DatabaseType = "postgresql"
+	}
+	return BuildReport(p)
+}
+
 func t1() time.Time { return time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC) }
 func t2() time.Time { return time.Date(2026, 1, 1, 11, 0, 0, 0, time.UTC) }
 func t3() time.Time { return time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC) }
@@ -96,7 +121,7 @@ func TestBuildReport_ConsecutivePairsProduceDiffEntries(t *testing.T) {
 		},
 	}
 
-	report := BuildReport(p)
+	report := buildUnfiltered(p)
 
 	require.Len(t, report.Drifts, 1)
 	d := report.Drifts[0]
@@ -138,7 +163,7 @@ func TestBuildReport_ZeroDiffIntervalProducesNoEntries(t *testing.T) {
 		},
 	}
 
-	report := BuildReport(p)
+	report := buildUnfiltered(p)
 
 	require.Len(t, report.Drifts, 1)
 	assert.Equal(t, Window{From: t2(), To: t3()}, report.Drifts[0].Window)
@@ -162,7 +187,7 @@ func TestBuildReport_PlaceholderBridgesToNextContentBearingSnapshot(t *testing.T
 		},
 	}
 
-	report := BuildReport(p)
+	report := buildUnfiltered(p)
 
 	require.Len(t, report.Drifts, 1, "drift between a and c must be reported, bridged across the placeholder")
 	d := report.Drifts[0]
@@ -184,7 +209,7 @@ func TestBuildReport_PlaceholderAtChainEndProducesNoExtraEntries(t *testing.T) {
 		},
 	}
 
-	report := BuildReport(p)
+	report := buildUnfiltered(p)
 
 	assert.Empty(t, report.Drifts, "a trailing placeholder with nothing after it contributes no diffs")
 	require.Len(t, report.CapturePoints, 2)
@@ -204,7 +229,7 @@ func TestBuildReport_SchemaScopeMismatchSkippedEntirely(t *testing.T) {
 		},
 	}
 
-	report := BuildReport(p)
+	report := buildUnfiltered(p)
 
 	assert.Empty(t, report.Drifts)
 
@@ -231,7 +256,7 @@ func TestBuildReport_SchemaScopeOrderInsensitive(t *testing.T) {
 		},
 	}
 
-	report := BuildReport(p)
+	report := buildUnfiltered(p)
 
 	require.Len(t, report.Drifts, 1, "same schema set in a different order must still be diffed")
 }
@@ -253,7 +278,7 @@ func TestBuildReport_LivePairPhaseIsSinceLastCapture(t *testing.T) {
 		},
 	}
 
-	report := BuildReport(p)
+	report := buildUnfiltered(p)
 
 	require.Len(t, report.Drifts, 1)
 	assert.Equal(t, "since last capture", report.Drifts[0].Phase)
@@ -282,7 +307,7 @@ func TestBuildReport_SummaryCounts(t *testing.T) {
 		},
 	}
 
-	report := BuildReport(p)
+	report := buildUnfiltered(p)
 
 	assert.Equal(t, 2, report.Summary.StoredCaptureCount, "StoredCaptureCount counts the stored records only, not the live read")
 	assert.Equal(t, 2, report.Summary.ChangeCount, "one TABLE_ADDED per interval (customers, then invoices)")
@@ -297,7 +322,7 @@ func TestBuildReport_SummaryLiveComparedFalseWhenNoLive(t *testing.T) {
 		},
 	}
 
-	report := BuildReport(p)
+	report := buildUnfiltered(p)
 
 	assert.False(t, report.Summary.LiveCompared)
 	assert.Equal(t, 1, report.Summary.StoredCaptureCount)
@@ -319,7 +344,7 @@ func TestBuildReport_WindowFromToReflectFirstAndLastCapture(t *testing.T) {
 		},
 	}
 
-	report := BuildReport(p)
+	report := buildUnfiltered(p)
 
 	assert.Equal(t, t1(), report.Window.From)
 	assert.Equal(t, t4(), report.Window.To)
@@ -361,7 +386,7 @@ func TestBuildReport_DriftsFromEveryIntervalAreReported(t *testing.T) {
 		},
 	}
 
-	report := BuildReport(p)
+	report := buildUnfiltered(p)
 
 	// Two findings from the first interval and one from the second, each attributed
 	// to the interval it was detected in.
@@ -392,22 +417,33 @@ func TestBuildReport_ScopeFilteringKeepsOnlyListedTable(t *testing.T) {
 	// --exclude-* form into a positive allow-list first): listing only
 	// "invoices" keeps its TABLE_ADDED finding while filtering out customers'
 	// COLUMN_ADDED finding, even though customers also changed in this interval.
+	// Both dimensions are stated: Scope holds the exact set to keep, so leaving
+	// ObjectTypes empty would keep nothing rather than every type.
 	scope := schemadiff.Scope{
-		Tables: []schemasnapshot.ObjectRef{objRef("public", "invoices")},
+		Tables:      []schemasnapshot.ObjectRef{objRef("public", "invoices")},
+		ObjectTypes: []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn},
 	}
 
 	p := DetectionInput{
+		Source: Source{DatabaseType: "postgresql"},
 		Snapshots: []schemasnapshot.SchemaSnapshot{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: before},
 			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: after},
 		},
-		Scope: scope,
+		Scope:          scope,
+		TablesFiltered: true,
 	}
 
 	report := BuildReport(p)
 
 	require.Len(t, report.Drifts, 1, "only the allow-listed table's finding must appear")
 	assert.Equal(t, objRef("public", "invoices"), report.Drifts[0].Object)
+
+	// Comparing is rendered from Scope, so it cannot disagree with what was filtered.
+	assert.Equal(t, []string{"public.invoices"}, report.Comparing.Tables)
+	assert.Equal(t, []string{"TABLE", "COLUMN"}, report.Comparing.ObjectTypes)
+	assert.True(t, report.Comparing.TablesFiltered)
+	assert.False(t, report.Comparing.ObjectTypesFiltered, "object types were not narrowed, even though the set is stated")
 }
 
 func TestPhaseFor(t *testing.T) {

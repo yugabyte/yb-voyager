@@ -102,15 +102,15 @@ type DetectionInput struct {
 	Source              Source
 	Schemas             []string        // display only
 	Snapshots           []schemasnapshot.SchemaSnapshot // oldest first; the live read, if any, is last
-	Scope               schemadiff.Scope
-	Tables              []string        // what was compared, resolved; see Comparing
-	TablesFiltered      bool
-	ObjectTypes         []string
+	Scope               schemadiff.Scope // the exact sets compared; Comparing is rendered from it
+	TablesFiltered      bool             // whether the user narrowed each dimension
 	ObjectTypesFiltered bool
 }
 ```
 
 The complete input to `BuildReport`. Plain data, no connections or handles, so the assembler is testable with fixtures.
+
+`Comparing.Tables` and `Comparing.ObjectTypes` are rendered from `Scope`, which now holds the exact sets either way, so they are not passed separately. The two booleans are the one fact `Scope` cannot carry: "these 12 tables" and "these 12 tables, which happen to be all of them" are the same set, and a reader of the report -- often not the person who ran the command -- needs to know which it was before concluding that no drift means none anywhere.
 
 ```go
 func BuildReport(p DetectionInput) Report
