@@ -2157,17 +2157,19 @@ func TestLiveMigrationCustomCdcPartitionKeyLeafLocalUniqueIndexAcrossLeaves(t *t
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
 
-// Test pins that a leaf-local unique index (defined independently on each partition, not on the root) is handled correctly
+// TestLiveMigrationCustomCdcPartitionKeyLeafLocalUniqueIndexAcrossLeavesWithDifferentCustomKey pins that a leaf-local unique index (defined independently on each partition, not on the root) is handled correctly
 // under custom-key routing a different column of the table - conflicts on the uk column should still be detected
 //
-// test_live is LIST-partitioned by region and routed by the custom key (region), so every leaf's
+// test_live is LIST-partitioned by region and routed by the custom key (id), so every leaf's
 // events carry a custom key. Each leaf has its
 // OWN unique index on uk_val. Two facts are exercised:
 //   - Coexistence: the SAME uk_val (777) lives in both r1 and r2 at once (snapshot rows) because
 //     the indexes are independent per leaf; the snapshot must import both.
 //   - Conflicts should be detected as the custom key is different so same uk val across leaves still be detected.
 //
-// The count failpoint must therefore record ZERO conflicts, and the target must stay consistent.
+// The count failpoint must therefore record NON-ZERO conflicts (same uk_val on different
+// channels), and the target must stay consistent.
+
 func TestLiveMigrationCustomCdcPartitionKeyLeafLocalUniqueIndexAcrossLeavesWithDifferentCustomKey(t *testing.T) {
 	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
@@ -2288,11 +2290,10 @@ func TestLiveMigrationCustomCdcPartitionKeyLeafLocalUniqueIndexAcrossLeavesWithD
 
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
-	require.Greater(t, conflictStats.Total, 0, "partial unique delta should produce UK conflicts")
-	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live"`], 0, "test_live should produce UK conflicts")
-
-	require.LessOrEqual(t, conflictStats.Total, 6, "partial unique delta should produce UK conflicts")
-	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live"`], 6, "test_live should produce UK conflicts")
+	// The delta reclaims a freed uk_val 6 times across different id channels; each is at most
+	// one cross-channel conflict, so 0 < conflicts <= 6.
+	require.Greater(t, conflictStats.Total, 0, "cross-channel uk reclaim should produce UK conflicts")
+	require.LessOrEqual(t, conflictStats.Total, 6, "at most one conflict per cross-channel uk reclaim (6)")
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id, region")
 	testutils.FatalIfError(t, err, "target does not match source after streaming")
