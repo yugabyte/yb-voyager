@@ -27,11 +27,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 )
 
-// SeriesSourceLive is the Capture.Series / SnapshotInput.Series value used for
-// a live read of the source database (as opposed to a stored snapshot series
-// identified by its capture label).
-const SeriesSourceLive = "source_live"
-
 // Report is the top-level, JSON-serializable schema drift report. Its shape
 // is contractual: field names and JSON tags must not change without a
 // deliberate compatibility review, since downstream tooling (and users) may
@@ -129,9 +124,9 @@ type SkippedInterval struct {
 // CapturePoint is one point on the report's timeline: a moment at which the
 // source schema was captured, or capture was attempted. Three kinds appear -- a
 // stored capture, a stored placeholder (the capture failed, so no schema content
-// exists behind it), and the live read (Series == SeriesSourceLive, never
-// persisted). It is a projection: the snapshot content itself stays out of the
-// report.
+// exists behind it), and the live read (Series == schemasnapshot.LabelSourceLive,
+// never persisted). It is a projection: the snapshot content itself stays out of
+// the report.
 type CapturePoint struct {
 	Series     string    `json:"series"`
 	Reason     string    `json:"reason,omitempty"`

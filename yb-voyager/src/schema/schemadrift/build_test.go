@@ -90,9 +90,9 @@ func TestBuildReport_ConsecutivePairsProduceDiffEntries(t *testing.T) {
 	)
 
 	p := DetectionInput{
-		Snapshots: []SnapshotInput{
-			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: t1Content, Series: schemasnapshot.LabelExportSchema},
-			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: t2Content, Series: schemasnapshot.LabelExportDataFromSourceStart},
+		Snapshots: []schemasnapshot.SchemaSnapshot{
+			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: t1Content},
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: t2Content},
 		},
 	}
 
@@ -129,12 +129,12 @@ func TestBuildReport_ZeroDiffIntervalProducesNoEntries(t *testing.T) {
 	)
 
 	p := DetectionInput{
-		Snapshots: []SnapshotInput{
-			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: base, Series: schemasnapshot.LabelExportSchema},
+		Snapshots: []schemasnapshot.SchemaSnapshot{
+			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: base},
 			// identical content: zero-diff interval
-			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: base, Series: schemasnapshot.LabelExportDataFromSourceStart},
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: base},
 			// a real change in the second interval
-			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourcePeriodic, t3(), "public"), Content: changed, Series: schemasnapshot.LabelExportDataFromSourcePeriodic},
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourcePeriodic, t3(), "public"), Content: changed},
 		},
 	}
 
@@ -155,10 +155,10 @@ func TestBuildReport_PlaceholderBridgesToNextContentBearingSnapshot(t *testing.T
 	)
 
 	p := DetectionInput{
-		Snapshots: []SnapshotInput{
-			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a, Series: schemasnapshot.LabelExportSchema},
-			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: nil, Series: schemasnapshot.LabelExportDataFromSourceStart},
-			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourcePeriodic, t3(), "public"), Content: c, Series: schemasnapshot.LabelExportDataFromSourcePeriodic},
+		Snapshots: []schemasnapshot.SchemaSnapshot{
+			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a},
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: nil},
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourcePeriodic, t3(), "public"), Content: c},
 		},
 	}
 
@@ -178,9 +178,9 @@ func TestBuildReport_PlaceholderAtChainEndProducesNoExtraEntries(t *testing.T) {
 	a := fixtureContent(fixtureTable("1", "public", "orders"))
 
 	p := DetectionInput{
-		Snapshots: []SnapshotInput{
-			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a, Series: schemasnapshot.LabelExportSchema},
-			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: nil, Series: schemasnapshot.LabelExportDataFromSourceStart},
+		Snapshots: []schemasnapshot.SchemaSnapshot{
+			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a},
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: nil},
 		},
 	}
 
@@ -198,9 +198,9 @@ func TestBuildReport_SchemaScopeMismatchSkippedEntirely(t *testing.T) {
 	)
 
 	p := DetectionInput{
-		Snapshots: []SnapshotInput{
-			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a, Series: schemasnapshot.LabelExportSchema},
-			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "other"), Content: b, Series: schemasnapshot.LabelExportDataFromSourceStart},
+		Snapshots: []schemasnapshot.SchemaSnapshot{
+			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a},
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "other"), Content: b},
 		},
 	}
 
@@ -225,9 +225,9 @@ func TestBuildReport_SchemaScopeOrderInsensitive(t *testing.T) {
 	)
 
 	p := DetectionInput{
-		Snapshots: []SnapshotInput{
-			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public", "sales"), Content: a, Series: schemasnapshot.LabelExportSchema},
-			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "sales", "public"), Content: b, Series: schemasnapshot.LabelExportDataFromSourceStart},
+		Snapshots: []schemasnapshot.SchemaSnapshot{
+			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public", "sales"), Content: a},
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "sales", "public"), Content: b},
 		},
 	}
 
@@ -244,12 +244,11 @@ func TestBuildReport_LivePairPhaseIsSinceLastCapture(t *testing.T) {
 	)
 
 	p := DetectionInput{
-		Snapshots: []SnapshotInput{
-			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourcePeriodic, t1(), "public"), Content: a, Series: schemasnapshot.LabelExportDataFromSourcePeriodic},
+		Snapshots: []schemasnapshot.SchemaSnapshot{
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourcePeriodic, t1(), "public"), Content: a},
 			{
-				Header:  fixtureHeader("", t2(), "public"),
+				Header:  fixtureHeader(schemasnapshot.LabelSourceLive, t2(), "public"),
 				Content: live,
-				Series:  SeriesSourceLive,
 			},
 		},
 	}
@@ -273,13 +272,12 @@ func TestBuildReport_SummaryCounts(t *testing.T) {
 	)
 
 	p := DetectionInput{
-		Snapshots: []SnapshotInput{
-			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a, Series: schemasnapshot.LabelExportSchema},
-			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: b, Series: schemasnapshot.LabelExportDataFromSourceStart},
+		Snapshots: []schemasnapshot.SchemaSnapshot{
+			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a},
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: b},
 			{
-				Header:  fixtureHeader("", t3(), "public"),
+				Header:  fixtureHeader(schemasnapshot.LabelSourceLive, t3(), "public"),
 				Content: live,
-				Series:  SeriesSourceLive,
 			},
 		},
 	}
@@ -294,8 +292,8 @@ func TestBuildReport_SummaryCounts(t *testing.T) {
 func TestBuildReport_SummaryLiveComparedFalseWhenNoLive(t *testing.T) {
 	a := fixtureContent(fixtureTable("1", "public", "orders"))
 	p := DetectionInput{
-		Snapshots: []SnapshotInput{
-			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a, Series: schemasnapshot.LabelExportSchema},
+		Snapshots: []schemasnapshot.SchemaSnapshot{
+			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a},
 		},
 	}
 
@@ -311,13 +309,12 @@ func TestBuildReport_WindowFromToReflectFirstAndLastCapture(t *testing.T) {
 	live := fixtureContent(fixtureTable("1", "public", "orders"))
 
 	p := DetectionInput{
-		Snapshots: []SnapshotInput{
-			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a, Series: schemasnapshot.LabelExportSchema},
-			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: b, Series: schemasnapshot.LabelExportDataFromSourceStart},
+		Snapshots: []schemasnapshot.SchemaSnapshot{
+			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a},
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: b},
 			{
-				Header:  fixtureHeader("", t4(), "public"),
+				Header:  fixtureHeader(schemasnapshot.LabelSourceLive, t4(), "public"),
 				Content: live,
-				Series:  SeriesSourceLive,
 			},
 		},
 	}
@@ -357,10 +354,10 @@ func TestBuildReport_DriftsFromEveryIntervalAreReported(t *testing.T) {
 	)
 
 	p := DetectionInput{
-		Snapshots: []SnapshotInput{
-			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: s1, Series: schemasnapshot.LabelExportSchema},
-			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: s2, Series: schemasnapshot.LabelExportDataFromSourceStart},
-			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourcePeriodic, t3(), "public"), Content: s3, Series: schemasnapshot.LabelExportDataFromSourcePeriodic},
+		Snapshots: []schemasnapshot.SchemaSnapshot{
+			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: s1},
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: s2},
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourcePeriodic, t3(), "public"), Content: s3},
 		},
 	}
 
@@ -400,9 +397,9 @@ func TestBuildReport_ScopeFilteringKeepsOnlyListedTable(t *testing.T) {
 	}
 
 	p := DetectionInput{
-		Snapshots: []SnapshotInput{
-			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: before, Series: schemasnapshot.LabelExportSchema},
-			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: after, Series: schemasnapshot.LabelExportDataFromSourceStart},
+		Snapshots: []schemasnapshot.SchemaSnapshot{
+			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: before},
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: after},
 		},
 		Scope: scope,
 	}
@@ -458,13 +455,13 @@ func TestPhaseFor(t *testing.T) {
 		{
 			name: "anything -> live",
 			prev: schemasnapshot.LabelExportDataFromSourcePeriodic,
-			next: SeriesSourceLive,
+			next: schemasnapshot.LabelSourceLive,
 			want: "since last capture",
 		},
 		{
 			name: "export schema -> live",
 			prev: schemasnapshot.LabelExportSchema,
-			next: SeriesSourceLive,
+			next: schemasnapshot.LabelSourceLive,
 			want: "since last capture",
 		},
 		{

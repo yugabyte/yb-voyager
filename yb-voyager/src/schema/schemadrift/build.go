@@ -23,27 +23,16 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 )
 
-// SnapshotInput is one point in the chronological sequence of schemas fed
-// into BuildReport: either a stored snapshot or the live read of the source.
-type SnapshotInput struct {
-	Header schemasnapshot.SnapshotHeader
-	// nil for a failed capture: still a CapturePoint on the timeline, never diffed.
-	Content *schemasnapshot.SnapshotContent
-	// Series is the timeline identity phaseFor and the renderers key off, and
-	// is not always Header.Label: the live read borrows LabelDetectDrift only to
-	// satisfy label validation, so its Series is SeriesSourceLive instead.
-	Series string
-}
-
 // DetectionInput is the full, self-contained input to BuildReport. It carries no
 // live connections or file handles — every field is plain data.
 type DetectionInput struct {
 	Source Source
 	// Display only: diffing works on whatever the snapshots captured.
 	Schemas []string
-	// Oldest-first; BuildReport relies on the ordering. The live read, when the
-	// caller took one, is the last entry and carries Series SeriesSourceLive.
-	Snapshots []SnapshotInput
+	// Oldest-first; BuildReport relies on the ordering. A nil Content is a failed
+	// capture: still a point on the timeline, never diffed. The live read, when
+	// the caller took one, is the last entry and is labelled LabelSourceLive.
+	Snapshots []schemasnapshot.SchemaSnapshot
 	Scope     schemadiff.Scope
 	// Always populated, filtered or not; see Comparing.
 	Tables              []string
@@ -66,7 +55,7 @@ func BuildReport(p DetectionInput) Report {
 	capturePoints := make([]CapturePoint, len(p.Snapshots))
 	for i, s := range p.Snapshots {
 		capturePoints[i] = CapturePoint{
-			Series:     s.Series,
+			Series:     s.Header.Label,
 			Reason:     s.Header.Reason,
 			CapturedAt: s.Header.CapturedAt,
 		}
@@ -89,8 +78,8 @@ func BuildReport(p DetectionInput) Report {
 		prev, next := p.Snapshots[prevIdx], p.Snapshots[i]
 		if !sameSchemaScope(prev.Header.Schemas, next.Header.Schemas) {
 			skipped = append(skipped, SkippedInterval{
-				From:   prev.Series,
-				To:     next.Series,
+				From:   prev.Header.Label,
+				To:     next.Header.Label,
 				Window: Window{From: prev.Header.CapturedAt, To: next.Header.CapturedAt},
 				Reason: "the two captures cover different schemas, so they cannot be compared",
 			})
@@ -140,8 +129,8 @@ func BuildReport(p DetectionInput) Report {
 		},
 		Summary: Summary{
 			ChangeCount:        len(drifts),
-			StoredCaptureCount: lo.CountBy(p.Snapshots, func(s SnapshotInput) bool { return s.Series != SeriesSourceLive }),
-			LiveCompared:       lo.ContainsBy(p.Snapshots, func(s SnapshotInput) bool { return s.Series == SeriesSourceLive }),
+			StoredCaptureCount: lo.CountBy(p.Snapshots, func(s schemasnapshot.SchemaSnapshot) bool { return s.Header.Label != schemasnapshot.LabelSourceLive }),
+			LiveCompared:       lo.ContainsBy(p.Snapshots, func(s schemasnapshot.SchemaSnapshot) bool { return s.Header.Label == schemasnapshot.LabelSourceLive }),
 		},
 		Drifts:        drifts,
 		CapturePoints: capturePoints,
@@ -162,7 +151,7 @@ func phaseFor(prev, next CapturePoint) string {
 		return "export data: running"
 	case prev.Series == schemasnapshot.LabelExportDataFromSourceExit && next.Series == schemasnapshot.LabelExportDataFromSourceStart:
 		return "export data: paused"
-	case next.Series == SeriesSourceLive:
+	case next.Series == schemasnapshot.LabelSourceLive:
 		return "since last capture"
 	default:
 		return ""
