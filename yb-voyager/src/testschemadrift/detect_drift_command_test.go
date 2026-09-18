@@ -170,7 +170,7 @@ func TestDetectDriftEndToEnd(t *testing.T) {
 		// Exactly three also pins that the live read is not persisted -- the earlier
 		// detect-drift run in this test took one, and it must not have become a
 		// fourth snapshot.
-		assert.Equal(t, 3, report.Summary.SnapshotCount,
+		assert.Equal(t, 3, report.Summary.StoredCaptureCount,
 			"expected the three export captures and no persisted live read")
 
 		// Object is the parent table and SubObject the column, so a column change
