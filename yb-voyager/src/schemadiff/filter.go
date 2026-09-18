@@ -31,6 +31,7 @@ import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 // Never errors; an entry matching nothing is a no-op. Flag-level policy (e.g.
 // --table-list vs --exclude-table-list) is the command's to enforce.
 type Scope struct {
+	Schemas     []string                   // the exact set to keep; matched against EITHER side's schema
 	Tables      []schemasnapshot.ObjectRef // the exact set to keep; matched against the finding's derived anchor table
 	ObjectTypes []ObjectType               // the exact set to keep; matched against the finding's ObjectType
 }
@@ -41,7 +42,14 @@ type Scope struct {
 //
 // Filtering applies, in order:
 //  1. ObjectTypes
-//  2. Tables (a finding with no anchor table passes — see passesTableFilter)
+//  2. Schemas (either side's — see passesSchemaFilter)
+//  3. Tables (a finding with no anchor table passes — see passesTableFilter)
+//
+// The schema dimension is applied HERE, after diffing, and must not be replaced by
+// narrowing each snapshot's content first: projecting both sides down to the
+// requested schemas turns a table moving public → sales into a TABLE_DROPPED,
+// because side B no longer holds it at all. The engine has to see both schemas to
+// recognise the move; only then can the finding be judged in or out of scope.
 //
 // NOTE: table rename/move alias handling is temporarily disabled (see the body).
 // With it off, a finding anchored to a renamed table matches only its as-emitted
@@ -64,8 +72,9 @@ func FilterByScope(diffs []Difference, scope Scope) []Difference {
 	// tableRenameAliases to that call.
 	// tableRenameAliases := buildTableRenameAliases(diffs)
 
-	// Pre-build lookup sets for both lists to avoid O(n²) inner scans.
+	// Pre-build lookup sets for every list to avoid O(n²) inner scans.
 	includeTypes := toSet(scope.ObjectTypes)
+	includeSchemas := toSet(scope.Schemas)
 	includeTables := toSet(scope.Tables)
 
 	out := make([]Difference, 0, len(diffs))
@@ -73,10 +82,45 @@ func FilterByScope(diffs []Difference, scope Scope) []Difference {
 		if !passesObjectTypeFilter(d, includeTypes) {
 			continue
 		}
+		if !passesSchemaFilter(d, includeSchemas) {
+			continue
+		}
 		if !passesTableFilter(d, includeTables) {
 			continue
 		}
 		out = append(out, d)
+	}
+	return out
+}
+
+// passesSchemaFilter keeps a finding when EITHER side's schema is listed.
+//
+// Either side, because a table that moves between schemas has a different schema on
+// each: public.orders → sales.orders must still be reported to someone who asked
+// only about public, since their table left their scope. Matching side B alone would
+// hide it; matching side A alone would hide the reverse move into scope.
+func passesSchemaFilter(d Difference, includeSchemas map[string]struct{}) bool {
+	for _, s := range schemasOf(d) {
+		if _, ok := includeSchemas[s]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// schemasOf returns the schemas a finding touches, one per populated side. A
+// table-scoped object (a column) reports its parent table's schema. Unlike
+// anchorTableOf there is no "none" case: every identity carries a schema, including
+// a top-level object's.
+func schemasOf(d Difference) []string {
+	out := make([]string, 0, 2)
+	for _, id := range []ObjectIdent{d.ObjectA, d.ObjectB} {
+		switch v := id.(type) {
+		case schemasnapshot.ObjectRef:
+			out = append(out, v.Schema)
+		case schemasnapshot.TableScopedObjectRef:
+			out = append(out, v.Table.Schema)
+		}
 	}
 	return out
 }

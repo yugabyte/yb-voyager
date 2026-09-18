@@ -69,6 +69,7 @@ Each layer speaks its own vocabulary, and the boundary is where the reframing ha
 
 ```go
 type Scope struct {
+	Schemas     []string                   // the exact set to keep; matched against EITHER side's schema
 	Tables      []schemasnapshot.ObjectRef // the exact set to keep; matched against the finding's anchor table
 	ObjectTypes []ObjectType               // the exact set to keep; matched against the finding's ObjectType
 }
@@ -77,6 +78,10 @@ type Scope struct {
 One positive allow-list per dimension, each holding the **exact** set to keep. The previous shape carried an include and an exclude list per dimension; "empty" was ambiguous and callers could pass combinations with no defined meaning. Resolving a user's `--exclude-*` flag into a keep-set is the caller's job because only the caller knows the full universe.
 
 **Empty means empty, not "all".** An unfiltered run passes the whole universe explicitly. The alternative -- reading an empty list as "keep everything" -- makes empty carry two meanings, "the user did not filter" and "the user excluded everything", and the second is a legitimate request the caller would then have to intercept before the engine inverted it.
+
+**`Schemas` matches EITHER side of the finding.** A table that moves between schemas has a different schema on each side, so a move out of the requested set must still be reported once -- the user needs to know a table left their scope. Matching only one side would either hide that move or invent a drop.
+
+The schema filter is applied AFTER diffing, never by narrowing the snapshot content before it. Projecting each side down to the requested schemas first turns `public.orders` -> `sales.orders` into a `TABLE_DROPPED`, because side B no longer holds the table at all. The diff engine has to see both schemas to recognise the move; only then can the finding be judged in or out of scope.
 
 **A finding with no anchor table passes the `Tables` filter.** A top-level object -- a view, a function, a sequence -- has no host table, so `--table-list` has nothing to say about it; `--object-type-list` is the dimension that selects object kinds. Dropping such findings because a table list was given would make drift disappear from the report silently, which is the worse failure for a tool whose job is to report it.
 
