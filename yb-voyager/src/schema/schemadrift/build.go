@@ -50,7 +50,6 @@ type BuildParams struct {
 	TablesFiltered      bool
 	ObjectTypes         []string
 	ObjectTypesFiltered bool
-	GeneratedAt         time.Time
 }
 
 // BuildReport assembles a Report from p, comparing each content-bearing
@@ -135,7 +134,7 @@ func BuildReport(p BuildParams) Report {
 	return Report{
 		Report:      "schema_drift",
 		Version:     1,
-		GeneratedAt: p.GeneratedAt,
+		GeneratedAt: time.Now().UTC(),
 		Source:      p.Source,
 		Window:      reportWindow,
 		Comparing: Comparing{

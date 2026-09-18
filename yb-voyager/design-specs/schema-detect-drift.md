@@ -121,7 +121,6 @@ type BuildParams struct {
 	TablesFiltered      bool
 	ObjectTypes         []string
 	ObjectTypesFiltered bool
-	GeneratedAt         time.Time
 }
 ```
 
@@ -131,7 +130,7 @@ The complete input to `BuildReport`. Plain data, no connections or handles, so t
 func BuildReport(p BuildParams) Report
 ```
 
-Walks `p.Snapshots` oldest-first, diffs each comparable pair, and assembles the report. Rules in §5.2.
+Walks `p.Snapshots` oldest-first, diffs each comparable pair, and assembles the report. Rules in §5.2. `Report.GeneratedAt` is stamped here from the wall clock rather than passed in: it describes the act of building the report, not the data being reported on.
 
 ### 3.4 `schemadrift` classification
 

@@ -94,7 +94,6 @@ func TestBuildReport_ConsecutivePairsProduceDiffEntries(t *testing.T) {
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: t1Content, Series: schemasnapshot.LabelExportSchema},
 			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: t2Content, Series: schemasnapshot.LabelExportDataFromSourceStart},
 		},
-		GeneratedAt: t2(),
 	}
 
 	report := BuildReport(p)
@@ -109,6 +108,18 @@ func TestBuildReport_ConsecutivePairsProduceDiffEntries(t *testing.T) {
 	assert.Equal(t, "export data: pending", d.Phase)
 	assert.Equal(t, classify(schemadiff.TableAdded).Impact, d.Impact)
 	assert.Equal(t, classify(schemadiff.TableAdded).Action, d.Action)
+}
+
+func TestBuildReport_StampsGeneratedAt(t *testing.T) {
+	before := time.Now().UTC()
+	report := BuildReport(BuildParams{})
+	after := time.Now().UTC()
+
+	// Bounded both ways: the lower bound also fails the zero value a dropped
+	// stamp would leave behind.
+	assert.False(t, report.GeneratedAt.Before(before))
+	assert.False(t, report.GeneratedAt.After(after))
+	assert.Equal(t, time.UTC, report.GeneratedAt.Location())
 }
 
 func TestBuildReport_EmptyIntervalsProduceNoEntriesButKeepSequencing(t *testing.T) {
