@@ -1495,8 +1495,7 @@ func TestCustomKeyResumeGuardChangeCases(t *testing.T) {
 		cdcPartitionKeyOverrides = "test_schema.orders_part_r1:table"
 		err := validateCdcPartitioningStrategyUnchanged(tableNames, customStored("customer_id"), emptyUK)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "orders_part_r1")
-		assert.Contains(t, err.Error(), "not in the import table list")
+		assert.Contains(t, err.Error(), "table 'test_schema.orders_part_r1' is not in the import table list")
 	})
 
 	// --- global key change (flag-level guard) ---
@@ -1575,8 +1574,7 @@ func TestCustomKeyResumeGuardChangeCases(t *testing.T) {
 		cdcPartitionKeyOverrides = "test_schema.orders:(customer_id) " // whitespace-differ to force recompute
 		err := validateCdcPartitioningStrategyUnchanged(tableNames, storedTwoTables, emptyUK)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "orders_part")
-		assert.Contains(t, err.Error(), "was not part of the original import")
+		assert.Contains(t, err.Error(), "cdc-partition-key-overrides: table \"test_schema\".\"orders_part\" is in the current import table list but was not part of the original import;")
 	})
 
 	t.Run("import table list shrunk on resume is rejected", func(t *testing.T) {
@@ -1585,8 +1583,7 @@ func TestCustomKeyResumeGuardChangeCases(t *testing.T) {
 		cdcPartitionKeyOverrides = "test_schema.orders:(customer_id) " // whitespace-differ to force recompute
 		err := validateCdcPartitioningStrategyUnchanged([]sqlname.NameTuple{orders, events}, customStored("customer_id"), emptyUK)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "orders_part")
-		assert.Contains(t, err.Error(), "missing from the current import table list")
+		assert.Contains(t, err.Error(), "cdc-partition-key-overrides: table \"test_schema\".\"orders_part\" was part of the original import but is missing from the current import table list")
 	})
 
 	// --- custom key equal to the primary key columns is accepted ---
