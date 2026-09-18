@@ -349,6 +349,13 @@ func TestRenderHTML_SkippedAndRealIntervalShareACapture(t *testing.T) {
 			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "sales"), Content: b},
 			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourcePeriodic, t3(), "sales"), Content: c},
 		},
+		// Scope is an exact keep-set: an unfiltered run names the universe.
+		Scope: schemadiff.Scope{
+			Tables: []schemasnapshot.ObjectRef{
+				objRef("public", "orders"), objRef("sales", "orders"), objRef("sales", "customers"),
+			},
+			ObjectTypes: []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn},
+		},
 	})
 	require.Len(t, report.Skipped, 1, "the scope mismatch must be recorded")
 	require.Len(t, report.Drifts, 1, "the pair after the mismatch must still be diffed")
