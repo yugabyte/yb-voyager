@@ -35,9 +35,9 @@ type SnapshotInput struct {
 	Series string
 }
 
-// BuildParams is the full, self-contained input to BuildReport. It carries no
+// DetectionInput is the full, self-contained input to BuildReport. It carries no
 // live connections or file handles — every field is plain data.
-type BuildParams struct {
+type DetectionInput struct {
 	Source Source
 	// Display only: diffing works on whatever the snapshots captured.
 	Schemas []string
@@ -62,7 +62,7 @@ type BuildParams struct {
 //   - A pair whose Header.Schemas sets differ is skipped instead, and the
 //     later snapshot becomes the new baseline -- snapshots covering different
 //     schemas cannot be meaningfully compared.
-func BuildReport(p BuildParams) Report {
+func BuildReport(p DetectionInput) Report {
 	captures := make([]Capture, len(p.Snapshots))
 	for i, s := range p.Snapshots {
 		captures[i] = Capture{

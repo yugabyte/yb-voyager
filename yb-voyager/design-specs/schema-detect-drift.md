@@ -112,7 +112,7 @@ type SnapshotInput struct {
 One point in the chronological sequence handed to `BuildReport`.
 
 ```go
-type BuildParams struct {
+type DetectionInput struct {
 	Source              Source
 	Schemas             []string        // display only
 	Snapshots           []SnapshotInput // oldest first; the live read, if any, is last
@@ -127,7 +127,7 @@ type BuildParams struct {
 The complete input to `BuildReport`. Plain data, no connections or handles, so the assembler is testable with fixtures.
 
 ```go
-func BuildReport(p BuildParams) Report
+func BuildReport(p DetectionInput) Report
 ```
 
 Walks `p.Snapshots` oldest-first, diffs each comparable pair, and assembles the report. Rules in §5.2. `Report.GeneratedAt` is stamped here from the wall clock rather than passed in: it describes the act of building the report, not the data being reported on.
@@ -298,7 +298,7 @@ cmd.detectDrift()
  ├─ cmd.buildDriftTableCandidates(contents, live)             → table universe                                §5.5
  ├─ cmd.resolveDriftTableRefs / complementDriftTableRefs      → []ObjectRef, then schemadiff.Scope            §5.5
  │
- ├─ schemadrift.BuildReport(BuildParams)                      → Report                   cmd → schemadrift
+ ├─ schemadrift.BuildReport(DetectionInput)                   → Report                   cmd → schemadrift
  │      ├─ schemadiff.NewDiffer(Config{Scope})
  │      ├─ per comparable pair (§5.2): differ.Diff(prev, next) → []Difference            schemadrift → schemadiff
  │      ├─ phaseFor(prevCapture, nextCapture)                 → phase string                                   §5.3
@@ -316,7 +316,7 @@ Everything above `BuildReport` is `cmd` assembling plain data; everything inside
 
 ### 5.2 Which pairs are compared
 
-**Where:** `schemadrift.BuildReport`, the walk over `BuildParams.Snapshots`. **In:** `[]SnapshotInput`, oldest first. **Out:** the `(prev, next)` pairs handed to `Differ.Diff`, plus `Report.Skipped` and `Report.Captures`. **Decides:** which two snapshots form an interval, and what to do with inputs that cannot be an interval's side.
+**Where:** `schemadrift.BuildReport`, the walk over `DetectionInput.Snapshots`. **In:** `[]SnapshotInput`, oldest first. **Out:** the `(prev, next)` pairs handed to `Differ.Diff`, plus `Report.Skipped` and `Report.Captures`. **Decides:** which two snapshots form an interval, and what to do with inputs that cannot be an interval's side.
 
 The walk keeps a *baseline*: the most recent snapshot eligible to be the older side of a comparison.
 
@@ -368,7 +368,7 @@ Every entry in the map carries a non-empty Impact and Action. Backticks in the t
 
 ### 5.5 Table universe and scope resolution
 
-**Where:** `cmd.buildDriftTableCandidates`, `cmd.resolveDriftTableRefs`, `cmd.complementDriftTableRefs`, and the object-type equivalents, before `BuildReport`. **In:** the live catalog, every loaded `SnapshotContent`, the live read, and the four list flags. **Out:** `schemadiff.Scope` for `BuildParams.Scope`, and the resolved lists and flags for `Comparing`. **Decides:** what a `--table-list` pattern can name, and how an exclude list becomes the positive allow-list `Scope` expects.
+**Where:** `cmd.buildDriftTableCandidates`, `cmd.resolveDriftTableRefs`, `cmd.complementDriftTableRefs`, and the object-type equivalents, before `BuildReport`. **In:** the live catalog, every loaded `SnapshotContent`, the live read, and the four list flags. **Out:** `schemadiff.Scope` for `DetectionInput.Scope`, and the resolved lists and flags for `Comparing`. **Decides:** what a `--table-list` pattern can name, and how an exclude list becomes the positive allow-list `Scope` expects.
 
 The set of tables a pattern can match is the union of three sources: the live catalog, every loadable stored snapshot, and the live read. A table dropped from the source but present in history is therefore still addressable, which is the case where the user most needs the report.
 
