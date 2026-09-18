@@ -18,6 +18,7 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -118,6 +119,29 @@ func TestComplementDriftObjectTypes(t *testing.T) {
 }
 
 // ─── parseDriftObjectTypeList ────────────────────────────────────────────────
+
+func TestNormalizeDriftListFlag(t *testing.T) {
+	// The point of this helper is that a value which LOOKS set but names nothing
+	// is treated as unset -- otherwise the report reads as filtered while the
+	// resolved keep-set is empty, and Comparing claims a narrowing that never was.
+	tests := map[string]string{
+		"":                  "",
+		"   ":               "",
+		",":                 "",
+		" , , ":             "",
+		"orders":            "orders",
+		"  orders  ":        "orders",
+		"orders,customers":  "orders,customers",
+		"orders, customers": "orders,customers",
+		"orders,,customers": "orders,customers",
+		",orders,":          "orders",
+	}
+	for raw, want := range tests {
+		t.Run(fmt.Sprintf("%q", raw), func(t *testing.T) {
+			assert.Equal(t, want, normalizeDriftListFlag(raw))
+		})
+	}
+}
 
 func TestParseDriftObjectTypeList(t *testing.T) {
 	tests := []struct {
