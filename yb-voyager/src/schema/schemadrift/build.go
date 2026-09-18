@@ -15,6 +15,8 @@
 package schemadrift
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/samber/lo"
@@ -27,8 +29,6 @@ import (
 // live connections or file handles — every field is plain data.
 type DetectionInput struct {
 	Source Source
-	// Display only: diffing works on whatever the snapshots captured.
-	Schemas []string
 	// Oldest-first; BuildReport relies on the ordering. A nil Content is a failed
 	// capture: still a point on the timeline, never diffed. The live read, when
 	// the caller took one, is the last entry and is labelled LabelSourceLive.
@@ -43,16 +43,19 @@ type DetectionInput struct {
 	ObjectTypesFiltered bool
 }
 
-// BuildReport assembles a Report from p, comparing each content-bearing
-// snapshot to the nearest preceding one.
+// BuildReport assembles a Report from p, comparing each usable snapshot to the
+// nearest preceding one.
 //
-// Two cases are not obvious from the walk below:
+// Two kinds of snapshot are bridged rather than compared -- skipped without
+// disturbing the baseline, so the comparison reaches back past them:
 //
-//   - A failed capture is bridged, not a boundary: it is skipped and the
-//     comparison reaches back past it.
-//   - A pair whose Header.Schemas sets differ is skipped instead, and the
-//     later snapshot becomes the new baseline -- snapshots covering different
-//     schemas cannot be meaningfully compared.
+//   - a failed capture, which has no content at all;
+//   - a capture that did not cover every requested schema, where a table's absence
+//     is not evidence of a drop but evidence that nobody looked.
+//
+// Both are recorded on their CapturePoint so a reader sees the gap. Captures that
+// cover MORE than was requested are compared normally: the extra schemas' findings
+// are removed by Scope's schema dimension, not by declining the comparison.
 func BuildReport(p DetectionInput) Report {
 	capturePoints := make([]CapturePoint, len(p.Snapshots))
 	for i, s := range p.Snapshots {
@@ -66,31 +69,29 @@ func BuildReport(p DetectionInput) Report {
 	differ := schemadiff.NewDiffer(schemadiff.Config{Scope: p.Scope})
 
 	var drifts []DriftEntry
-	var skipped []SkippedInterval
+	liveCompared := false
 	prevIdx := -1
 	for i := range p.Snapshots {
-		if p.Snapshots[i].Content == nil {
-			continue // placeholder: skip without disturbing prevIdx, so the bridge spans it
+		switch {
+		case p.Snapshots[i].Content == nil:
+			capturePoints[i].Excluded = "the capture failed, so this point holds no schema"
+			continue
+		case !CoversSchemas(p.Snapshots[i].Header, p.Scope.Schemas):
+			capturePoints[i].Excluded = fmt.Sprintf("captured only %s, so it cannot answer for %s",
+				strings.Join(p.Snapshots[i].Header.Schemas, ", "), strings.Join(p.Scope.Schemas, ", "))
+			continue
 		}
 		if prevIdx == -1 {
 			prevIdx = i
-			continue // first content-bearing snapshot: nothing to compare against yet
+			continue // first usable snapshot: nothing to compare against yet
 		}
 
 		prev, next := p.Snapshots[prevIdx], p.Snapshots[i]
-		if !sameSchemaScope(prev.Header.Schemas, next.Header.Schemas) {
-			skipped = append(skipped, SkippedInterval{
-				From:   prev.Header.Label,
-				To:     next.Header.Label,
-				Window: Window{From: prev.Header.CapturedAt, To: next.Header.CapturedAt},
-				Reason: "the two captures cover different schemas, so they cannot be compared",
-			})
-			prevIdx = i // this snapshot becomes the new baseline
-			continue
-		}
-
 		intervalWindow := Window{From: prev.Header.CapturedAt, To: next.Header.CapturedAt}
 		phase := phaseFor(capturePoints[prevIdx], capturePoints[i])
+		if next.Header.Label == schemasnapshot.LabelSourceLive {
+			liveCompared = true
+		}
 
 		for _, d := range differ.Diff(prev.Content, next.Content) {
 			obj, subObj := splitIdentity(displayIdentity(d))
@@ -123,7 +124,7 @@ func BuildReport(p DetectionInput) Report {
 		Source:      p.Source,
 		Window:      reportWindow,
 		Comparing: Comparing{
-			Schemas: p.Schemas,
+			Schemas: p.Scope.Schemas,
 			Tables: lo.Map(p.Scope.Tables, func(r schemasnapshot.ObjectRef, _ int) string {
 				return r.ForDisplay(p.Source.DatabaseType)
 			}),
@@ -136,12 +137,23 @@ func BuildReport(p DetectionInput) Report {
 		Summary: Summary{
 			ChangeCount:        len(drifts),
 			StoredCaptureCount: lo.CountBy(p.Snapshots, func(s schemasnapshot.SchemaSnapshot) bool { return s.Header.Label != schemasnapshot.LabelSourceLive }),
-			LiveCompared:       lo.ContainsBy(p.Snapshots, func(s schemasnapshot.SchemaSnapshot) bool { return s.Header.Label == schemasnapshot.LabelSourceLive }),
+			LiveCompared:       liveCompared,
 		},
 		Drifts:        drifts,
 		CapturePoints: capturePoints,
-		Skipped:       skipped,
 	}
+}
+
+// CoversSchemas reports whether h was captured with every schema in requested, so
+// that a table missing from its content is genuinely absent rather than never
+// looked for. Capturing MORE than was requested still covers it.
+//
+// Exported because the command needs the same predicate to refuse a run where no
+// stored snapshot covers the requested schemas -- that would otherwise produce an
+// empty report, which reads as "no drift".
+func CoversSchemas(h schemasnapshot.SnapshotHeader, requested []string) bool {
+	missing, _ := lo.Difference(requested, h.Schemas)
+	return len(missing) == 0
 }
 
 // phaseFor labels the migration phase an interval between two captures falls in.
@@ -195,11 +207,4 @@ func splitIdentity(id schemadiff.ObjectIdent) (obj schemasnapshot.ObjectRef, sub
 	default:
 		return schemasnapshot.ObjectRef{}, ""
 	}
-}
-
-// sameSchemaScope reports whether a and b cover the same set of schemas,
-// ignoring order and duplicates.
-func sameSchemaScope(a, b []string) bool {
-	onlyA, onlyB := lo.Difference(a, b)
-	return len(onlyA) == 0 && len(onlyB) == 0
 }
