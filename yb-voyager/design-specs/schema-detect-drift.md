@@ -69,12 +69,16 @@ Each layer speaks its own vocabulary, and the boundary is where the reframing ha
 
 ```go
 type Scope struct {
-	Tables      []schemasnapshot.ObjectRef // empty = all; matched against the finding's anchor table
-	ObjectTypes []ObjectType               // empty = all; matched against the finding's ObjectType
+	Tables      []schemasnapshot.ObjectRef // the exact set to keep; matched against the finding's anchor table
+	ObjectTypes []ObjectType               // the exact set to keep; matched against the finding's ObjectType
 }
 ```
 
-One positive allow-list per dimension. The previous shape carried an include and an exclude list per dimension; "empty" was ambiguous and callers could pass combinations with no defined meaning. Resolving a user's `--exclude-*` flag into a keep-set is the caller's job because only the caller knows the full universe.
+One positive allow-list per dimension, each holding the **exact** set to keep. The previous shape carried an include and an exclude list per dimension; "empty" was ambiguous and callers could pass combinations with no defined meaning. Resolving a user's `--exclude-*` flag into a keep-set is the caller's job because only the caller knows the full universe.
+
+**Empty means empty, not "all".** An unfiltered run passes the whole universe explicitly. The alternative -- reading an empty list as "keep everything" -- makes empty carry two meanings, "the user did not filter" and "the user excluded everything", and the second is a legitimate request the caller would then have to intercept before the engine inverted it.
+
+**A finding with no anchor table passes the `Tables` filter.** A top-level object -- a view, a function, a sequence -- has no host table, so `--table-list` has nothing to say about it; `--object-type-list` is the dimension that selects object kinds. Dropping such findings because a table list was given would make drift disappear from the report silently, which is the worse failure for a tool whose job is to report it.
 
 ### 3.2 `schemasnapshot.LabelDetectDrift` (added in \#3814)
 
@@ -366,12 +370,14 @@ The set of tables a pattern can match is the union of three sources: the live ca
 
 | Flag | Resolution |
 | :---- | :---- |
-| neither list flag | `Scope.Tables` empty (all); `Comparing.Tables` \= the universe, `TablesFiltered=false` |
+| neither list flag | `Scope.Tables` \= the whole universe, passed explicitly; `Comparing.Tables` is that same set, `TablesFiltered=false` |
 | `--table-list` | patterns resolved against the universe with the same glob matcher as export; unknown pattern is an operational error |
-| `--exclude-table-list` | resolved the same way, then complemented against the universe; an empty result is an operational error |
+| `--exclude-table-list` | resolved the same way, then complemented against the universe; an empty result is an operational error (the report would be empty, so the command says so rather than emitting one) |
 | both | operational error |
 
 `--object-type-list` and `--exclude-object-type-list` follow the same shape over `{TABLE, COLUMN}`.
+
+All four list flags are normalised before use: a value that is empty once trimmed (`"  "`, `","`) counts as unset, so it cannot report itself as a filter that narrowed nothing.
 
 ### 5.6 Live read
 

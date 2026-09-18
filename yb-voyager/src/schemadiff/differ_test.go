@@ -39,11 +39,11 @@ func TestNewDiffer_ReturnsUsableDiffer(t *testing.T) {
 	}
 }
 
-// ─── TestDiffer_ZeroConfig_EqualsRawDiff ──────────────────────────────────────
-// A Differ with zero Config is a pure pass-through: its result deep-equals the
-// package-level Diff. The zero Scope keeps everything (FilterByScope contract).
+// ─── TestDiffer_FullScope_EqualsRawDiff ───────────────────────────────────────
+// A Differ whose Scope lists the whole universe matches the package-level Diff.
+// A ZERO Config does not: Scope holds the exact set to keep, so it keeps nothing.
 
-func TestDiffer_ZeroConfig_EqualsRawDiff(t *testing.T) {
+func TestDiffer_FullScope_EqualsRawDiff(t *testing.T) {
 	// Build two snapshots with a column type change and a wholly dropped table so
 	// there are multiple findings of different types.
 	ordersA := makeTable("101", "public", "orders", schemasnapshot.TableKindOrdinary)
@@ -60,10 +60,14 @@ func TestDiffer_ZeroConfig_EqualsRawDiff(t *testing.T) {
 	b := snapWithTables(ordersB)
 
 	want := Diff(a, b)
-	got := NewDiffer(Config{}).Diff(a, b)
+	got := NewDiffer(Config{Scope: allScope(want)}).Diff(a, b)
 
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("zero-Config Differ diverged from package Diff\ngot:  %v\nwant: %v", got, want)
+		t.Errorf("full-Scope Differ diverged from package Diff\ngot:  %v\nwant: %v", got, want)
+	}
+
+	if zero := NewDiffer(Config{}).Diff(a, b); len(zero) != 0 {
+		t.Errorf("a zero Config keeps the exact set named by Scope, which is none; got %v", zero)
 	}
 }
 
@@ -90,7 +94,7 @@ func TestDiffer_AppliesScope(t *testing.T) {
 	a := snapWithTables(ordersA, legacyA)
 	b := snapWithTables(ordersB, legacyB)
 
-	scope := Scope{Tables: []schemasnapshot.ObjectRef{ref("public", "orders")}}
+	scope := narrowTables(Diff(a, b), ref("public", "orders"))
 	got := NewDiffer(Config{Scope: scope}).Diff(a, b)
 
 	// Assert the concrete expected result, independently of FilterByScope's
