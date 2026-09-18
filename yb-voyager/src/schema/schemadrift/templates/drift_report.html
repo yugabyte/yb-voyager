@@ -201,11 +201,11 @@
 
   <!-- ===================== TIMELINE ===================== -->
   <div class="tl">
-    {{if not .Timeline}}
+    {{if not .TimelineRows}}
     <p class="note">No changes detected across the captured intervals.</p>
     {{end}}
 
-    {{range .Timeline}}
+    {{range .TimelineRows}}
       {{if .Event}}
       <div class="event{{if .Event.Err}} err{{end}}"><span class="lbl">{{.Event.Label}}</span><span class="t">{{.Event.Time}}</span></div>
       {{else if .Skipped}}
