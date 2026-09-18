@@ -175,17 +175,17 @@ func TestDetectDriftEndToEnd(t *testing.T) {
 
 		// Object is the parent table and SubObject the column, so a column change
 		// is addressed as (public.orders, note).
-		var added *schemadrift.DiffEntry
-		for i := range report.Diffs {
-			d := &report.Diffs[i]
-			if d.Type == string(schemadiff.ColumnAdded) && d.Object.Name == "orders" && d.SubObject == "note" {
+		var added *schemadrift.DriftEntry
+		for i := range report.Drifts {
+			d := &report.Drifts[i]
+			if d.Type == schemadiff.ColumnAdded && d.Object.Name == "orders" && d.SubObject == "note" {
 				added = d
 				break
 			}
 		}
 		require.NotNil(t, added,
 			"expected a %s entry for public.orders.note; got diffs: %+v",
-			schemadiff.ColumnAdded, report.Diffs)
+			schemadiff.ColumnAdded, report.Drifts)
 
 		assert.Equal(t, driftTestSchema, added.Object.Schema)
 		assert.NotEmpty(t, added.Severity, "every entry carries a severity")
