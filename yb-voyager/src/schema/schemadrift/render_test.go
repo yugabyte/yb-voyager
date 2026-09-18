@@ -55,7 +55,6 @@ func fixtureReport() Report {
 		},
 		Drifts: []DriftEntry{
 			{
-				Seq:        1,
 				Type:       schemadiff.TableAdded,
 				Operation:  schemadiff.OpAdded,
 				ObjectType: schemadiff.ObjectTypeTable,
@@ -65,7 +64,6 @@ func fixtureReport() Report {
 				DriftInfo:  classify(schemadiff.TableAdded),
 			},
 			{
-				Seq:        2,
 				Type:       schemadiff.ColumnTypeChanged,
 				Operation:  schemadiff.OpChanged,
 				ObjectType: schemadiff.ObjectTypeColumn,
