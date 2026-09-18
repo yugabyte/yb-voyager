@@ -188,7 +188,7 @@ func TestDetectDriftEndToEnd(t *testing.T) {
 			schemadiff.ColumnAdded, report.Diffs)
 
 		assert.Equal(t, driftTestSchema, added.Object.Schema)
-		assert.NotEmpty(t, added.Status, "every entry carries a severity")
+		assert.NotEmpty(t, added.Severity, "every entry carries a severity")
 		assert.NotEmpty(t, added.Phase, "every entry says which migration phase it happened in")
 	})
 }
