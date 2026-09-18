@@ -119,8 +119,6 @@
     background:var(--accent);border-radius:5px;padding:2px 7px;}
 
   /* point-event marker on the spine */
-  .interval.skipped::before{background:var(--bg);border:2px dashed var(--faint);box-shadow:none;}
-  .skip-why{font-size:12.5px;color:var(--faint);font-style:italic;}
   .event{position:relative;margin:0 0 20px;line-height:1.4;}
   .event::before{content:"";position:absolute;left:-24.5px;top:50%;width:10px;height:10px;
     background:var(--accent);transform:translateY(-50%) rotate(45deg);box-shadow:0 0 0 3px var(--bg);}
@@ -208,12 +206,6 @@
     {{range .TimelineRows}}
       {{if .Event}}
       <div class="event{{if .Event.Err}} err{{end}}"><span class="lbl">{{.Event.Label}}</span><span class="t">{{.Event.Time}}</span></div>
-      {{else if .Skipped}}
-      <div class="interval skipped">
-        <div class="ivl-h"><span class="ivl-win">{{.Skipped.Window}}</span>
-          <span class="phase">not compared</span></div>
-        <div class="skip-why">{{.Skipped.Reason}}</div>
-      </div>
       {{else if .Interval}}
       <div class="interval{{if .Interval.Live}} live{{end}}">
         <div class="ivl-h"><span class="ivl-win">{{.Interval.Window}}</span>

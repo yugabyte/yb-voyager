@@ -86,21 +86,12 @@ type scopeRow struct {
 	Chips []string // the chip values; nil/empty renders as a single "all" chip
 }
 
-// timelineEntry is one item on the vertical timeline: exactly one of the three
+// timelineEntry is one item on the vertical timeline: exactly one of the two
 // fields is non-nil. Modeled as a struct-of-pointers (rather than an interface)
 // so the template can branch on it with a plain {{if}}.
 type timelineEntry struct {
 	Event    *eventView
 	Interval *intervalView
-	Skipped  *skippedView
-}
-
-// skippedView is an interval that was not compared. It occupies the same spot on
-// the spine an intervalView would, so the reader sees the span was examined and
-// declined rather than finding an unexplained hole.
-type skippedView struct {
-	Window string
-	Reason string
 }
 
 // eventView is a single point-event marker on the timeline spine (e.g.
@@ -159,7 +150,7 @@ func newReportView(r Report) reportView {
 		ComparingSummary: comparingSummary(r.Comparing),
 		ComparingScope:   comparingScope(r.Comparing),
 
-		TimelineRows: buildTimeline(r.CapturePoints, groupByInterval(r.Drifts), r.Skipped, r.Source.DatabaseType),
+		TimelineRows: buildTimeline(r.CapturePoints, groupByInterval(r.Drifts), r.Source.DatabaseType),
 
 		Snapshots: snapshotRows(r.CapturePoints),
 	}
@@ -297,7 +288,7 @@ type intervalGroup struct {
 // Intervals are matched on the capture that OPENS them, never on the (i, i+1) pair:
 // a failed capture is bridged (see BuildReport), so an interval's window can span one
 // and would match no consecutive pair at all.
-func buildTimeline(capturePoints []CapturePoint, groups []intervalGroup, skipped []SkippedInterval, dbType string) []timelineEntry {
+func buildTimeline(capturePoints []CapturePoint, groups []intervalGroup, dbType string) []timelineEntry {
 	capturePointAt := make(map[time.Time]CapturePoint, len(capturePoints))
 	for _, c := range capturePoints {
 		capturePointAt[c.CapturedAt] = c
@@ -306,26 +297,10 @@ func buildTimeline(capturePoints []CapturePoint, groups []intervalGroup, skipped
 	for _, g := range groups {
 		groupFrom[g.Window.From] = g
 	}
-	skippedFrom := make(map[time.Time]SkippedInterval, len(skipped))
-	for _, s := range skipped {
-		skippedFrom[s.Window.From] = s
-	}
-
 	var timeline []timelineEntry
 	for _, c := range capturePoints {
 		if ev, ok := deriveEvent(c); ok {
 			timeline = append(timeline, timelineEntry{Event: &ev})
-		}
-		// Continuing here cannot hide findings: BuildReport moves its baseline to the
-		// later snapshot of a skipped pair, so a capture that opens a skipped interval
-		// never opens a real one too -- the next interval opens at the next capture.
-		if sk, ok := skippedFrom[c.CapturedAt]; ok {
-			sv := skippedView{
-				Window: formatTime(sk.Window.From) + " → " + formatTime(sk.Window.To),
-				Reason: sk.Reason,
-			}
-			timeline = append(timeline, timelineEntry{Skipped: &sv})
-			continue
 		}
 		if g, ok := groupFrom[c.CapturedAt]; ok {
 			iv := newIntervalView(g, capturePointAt[g.Window.To], dbType)
@@ -341,6 +316,12 @@ func buildTimeline(capturePoints []CapturePoint, groups []intervalGroup, skipped
 // combination not in the known vocabulary).
 func deriveEvent(c CapturePoint) (eventView, bool) {
 	t := formatTime(c.CapturedAt)
+	// A bridged point always gets a marker, whatever its label: without one the
+	// reader sees a stretch of timeline that silently contributed nothing. The
+	// footer's Snapshots table carries the reason.
+	if c.Excluded != "" {
+		return eventView{Label: "⚠ not compared", Time: t, Err: true}, true
+	}
 	switch c.Series {
 	case schemasnapshot.LabelExportSchema:
 		return eventView{Label: "export schema: completed", Time: t}, true
@@ -594,11 +575,17 @@ func snapshotRows(capturePoints []CapturePoint) []snapshotRow {
 	for i, c := range capturePoints {
 		seq := fmt.Sprintf("%d", i+1)
 		note := ""
-		if c.Series == schemasnapshot.LabelSourceLive {
+		switch {
+		case c.Excluded != "":
+			note = "not compared: " + c.Excluded
+		case c.Series == schemasnapshot.LabelSourceLive:
 			seq = "—"
 			note = "read fresh at report time · not stored"
-		} else if c.Reason != "" {
+		case c.Reason != "":
 			note = "reason: " + c.Reason
+		}
+		if c.Excluded != "" && c.Series == schemasnapshot.LabelSourceLive {
+			seq = "—"
 		}
 		rows[i] = snapshotRow{
 			Seq:        seq,
