@@ -335,7 +335,7 @@ func TestRenderHTML_SkippedAndRealIntervalShareACapture(t *testing.T) {
 		fixtureTable("2", "sales", "customers"),
 	)
 
-	report := BuildReport(BuildParams{
+	report := BuildReport(DetectionInput{
 		Source: Source{DatabaseType: "postgresql"},
 		Snapshots: []SnapshotInput{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a, Series: schemasnapshot.LabelExportSchema},
