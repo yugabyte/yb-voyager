@@ -77,8 +77,9 @@ func BuildReport(p DetectionInput) Report {
 			capturePoints[i].Excluded = "the capture failed, so this point holds no schema"
 			continue
 		case !CoversSchemas(p.Snapshots[i].Header, p.Scope.Schemas):
+			missing, _ := lo.Difference(p.Scope.Schemas, p.Snapshots[i].Header.Schemas)
 			capturePoints[i].Excluded = fmt.Sprintf("captured only %s, so it cannot answer for %s",
-				strings.Join(p.Snapshots[i].Header.Schemas, ", "), strings.Join(p.Scope.Schemas, ", "))
+				strings.Join(p.Snapshots[i].Header.Schemas, ", "), strings.Join(missing, ", "))
 			continue
 		}
 		if prevIdx == -1 {
