@@ -89,7 +89,7 @@ func TestBuildReport_ConsecutivePairsProduceDiffEntries(t *testing.T) {
 		fixtureTable("2", "public", "customers"),
 	)
 
-	p := BuildParams{
+	p := DetectionInput{
 		Snapshots: []SnapshotInput{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: t1Content, Series: schemasnapshot.LabelExportSchema},
 			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: t2Content, Series: schemasnapshot.LabelExportDataFromSourceStart},
@@ -112,7 +112,7 @@ func TestBuildReport_ConsecutivePairsProduceDiffEntries(t *testing.T) {
 
 func TestBuildReport_StampsGeneratedAt(t *testing.T) {
 	before := time.Now().UTC()
-	report := BuildReport(BuildParams{})
+	report := BuildReport(DetectionInput{})
 	after := time.Now().UTC()
 
 	// Bounded both ways: the lower bound also fails the zero value a dropped
@@ -129,7 +129,7 @@ func TestBuildReport_EmptyIntervalsProduceNoEntriesButKeepSequencing(t *testing.
 		fixtureTable("2", "public", "customers"),
 	)
 
-	p := BuildParams{
+	p := DetectionInput{
 		Snapshots: []SnapshotInput{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: base, Series: schemasnapshot.LabelExportSchema},
 			// identical content: zero-diff interval
@@ -156,7 +156,7 @@ func TestBuildReport_PlaceholderBridgesToNextContentBearingSnapshot(t *testing.T
 		fixtureTable("2", "public", "customers"),
 	)
 
-	p := BuildParams{
+	p := DetectionInput{
 		Snapshots: []SnapshotInput{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a, Series: schemasnapshot.LabelExportSchema},
 			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: nil, Series: schemasnapshot.LabelExportDataFromSourceStart},
@@ -177,7 +177,7 @@ func TestBuildReport_PlaceholderBridgesToNextContentBearingSnapshot(t *testing.T
 func TestBuildReport_PlaceholderAtChainEndProducesNoExtraEntries(t *testing.T) {
 	a := fixtureContent(fixtureTable("1", "public", "orders"))
 
-	p := BuildParams{
+	p := DetectionInput{
 		Snapshots: []SnapshotInput{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a, Series: schemasnapshot.LabelExportSchema},
 			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: nil, Series: schemasnapshot.LabelExportDataFromSourceStart},
@@ -197,7 +197,7 @@ func TestBuildReport_SchemaScopeMismatchSkippedEntirely(t *testing.T) {
 		fixtureTable("2", "public", "customers"),
 	)
 
-	p := BuildParams{
+	p := DetectionInput{
 		Snapshots: []SnapshotInput{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a, Series: schemasnapshot.LabelExportSchema},
 			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "other"), Content: b, Series: schemasnapshot.LabelExportDataFromSourceStart},
@@ -224,7 +224,7 @@ func TestBuildReport_SchemaScopeOrderInsensitive(t *testing.T) {
 		fixtureTable("2", "public", "customers"),
 	)
 
-	p := BuildParams{
+	p := DetectionInput{
 		Snapshots: []SnapshotInput{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public", "sales"), Content: a, Series: schemasnapshot.LabelExportSchema},
 			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "sales", "public"), Content: b, Series: schemasnapshot.LabelExportDataFromSourceStart},
@@ -243,7 +243,7 @@ func TestBuildReport_LivePairPhaseIsSinceLastCapture(t *testing.T) {
 		fixtureTable("2", "public", "customers"),
 	)
 
-	p := BuildParams{
+	p := DetectionInput{
 		Snapshots: []SnapshotInput{
 			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourcePeriodic, t1(), "public"), Content: a, Series: schemasnapshot.LabelExportDataFromSourcePeriodic},
 			{
@@ -272,7 +272,7 @@ func TestBuildReport_SummaryCounts(t *testing.T) {
 		fixtureTable("3", "public", "invoices"),
 	)
 
-	p := BuildParams{
+	p := DetectionInput{
 		Snapshots: []SnapshotInput{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a, Series: schemasnapshot.LabelExportSchema},
 			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: b, Series: schemasnapshot.LabelExportDataFromSourceStart},
@@ -293,7 +293,7 @@ func TestBuildReport_SummaryCounts(t *testing.T) {
 
 func TestBuildReport_SummaryLiveComparedFalseWhenNoLive(t *testing.T) {
 	a := fixtureContent(fixtureTable("1", "public", "orders"))
-	p := BuildParams{
+	p := DetectionInput{
 		Snapshots: []SnapshotInput{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a, Series: schemasnapshot.LabelExportSchema},
 		},
@@ -310,7 +310,7 @@ func TestBuildReport_WindowFromToReflectFirstAndLastCapture(t *testing.T) {
 	b := fixtureContent(fixtureTable("1", "public", "orders"))
 	live := fixtureContent(fixtureTable("1", "public", "orders"))
 
-	p := BuildParams{
+	p := DetectionInput{
 		Snapshots: []SnapshotInput{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a, Series: schemasnapshot.LabelExportSchema},
 			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: b, Series: schemasnapshot.LabelExportDataFromSourceStart},
@@ -330,7 +330,7 @@ func TestBuildReport_WindowFromToReflectFirstAndLastCapture(t *testing.T) {
 
 func TestBuildReport_EmptyInputsProduceZeroValueWindowNoPanic(t *testing.T) {
 	require.NotPanics(t, func() {
-		report := BuildReport(BuildParams{})
+		report := BuildReport(DetectionInput{})
 		assert.Empty(t, report.Captures)
 		assert.Empty(t, report.Diffs)
 		assert.True(t, report.Window.From.IsZero())
@@ -356,7 +356,7 @@ func TestBuildReport_GlobalSeqNumberingIsSequentialAcrossIntervals(t *testing.T)
 		fixtureTable("4", "public", "payments"),
 	)
 
-	p := BuildParams{
+	p := DetectionInput{
 		Snapshots: []SnapshotInput{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: s1, Series: schemasnapshot.LabelExportSchema},
 			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: s2, Series: schemasnapshot.LabelExportDataFromSourceStart},
@@ -393,7 +393,7 @@ func TestBuildReport_ScopeFilteringKeepsOnlyListedTable(t *testing.T) {
 		Tables: []schemasnapshot.ObjectRef{objRef("public", "invoices")},
 	}
 
-	p := BuildParams{
+	p := DetectionInput{
 		Snapshots: []SnapshotInput{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: before, Series: schemasnapshot.LabelExportSchema},
 			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: after, Series: schemasnapshot.LabelExportDataFromSourceStart},
