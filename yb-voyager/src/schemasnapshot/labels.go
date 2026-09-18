@@ -20,12 +20,19 @@ import (
 	goerrors "github.com/go-errors/errors"
 )
 
-// The four valid snapshot capture labels.
+// The valid snapshot capture labels.
 const (
 	LabelExportSchema                 = "export_schema"
 	LabelExportDataFromSourceStart    = "export_data_from_source_start"
 	LabelExportDataFromSourcePeriodic = "export_data_from_source_periodic"
 	LabelExportDataFromSourceExit     = "export_data_from_source_exit"
+
+	// LabelSourceLive marks a live, in-memory read of the source, as taken by
+	// `yb-voyager schema detect-drift`. Unlike the four above it is never
+	// persisted -- it exists because Capture validates every label, and because
+	// naming the snapshot for what it IS lets consumers use Header.Label as the
+	// snapshot's identity without carrying a second field beside it.
+	LabelSourceLive = "source_live"
 )
 
 // The valid capture reasons, grouped by the label that carries them.
@@ -49,6 +56,7 @@ var labelReasons = map[string][]string{
 	LabelExportDataFromSourceStart:    {ReasonInitial, ReasonResume, ReasonCleanRestart},
 	LabelExportDataFromSourcePeriodic: nil,
 	LabelExportDataFromSourceExit:     {ReasonCutover, ReasonComplete, ReasonInterrupt, ReasonError},
+	LabelSourceLive:                   nil,
 }
 
 // ValidateLabelReason checks that the (label, reason) pair is legal.
