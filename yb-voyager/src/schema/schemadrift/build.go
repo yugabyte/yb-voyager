@@ -145,12 +145,12 @@ func BuildReport(p DetectionInput) Report {
 			ObjectTypesFiltered: p.ObjectTypesFiltered,
 		},
 		Summary: Summary{
-			ChangeCount:  len(diffs),
-			CaptureCount: lo.CountBy(p.Snapshots, func(s SnapshotInput) bool { return s.Series != SeriesSourceLive }),
-			LiveCompared: lo.ContainsBy(p.Snapshots, func(s SnapshotInput) bool { return s.Series == SeriesSourceLive }),
+			ChangeCount:   len(diffs),
+			SnapshotCount: lo.CountBy(p.Snapshots, func(s SnapshotInput) bool { return s.Series != SeriesSourceLive }),
+			LiveCompared:  lo.ContainsBy(p.Snapshots, func(s SnapshotInput) bool { return s.Series == SeriesSourceLive }),
 		},
 		Diffs:    diffs,
-		Captures: captures,
+		Timeline: captures,
 		Skipped:  skipped,
 	}
 }
