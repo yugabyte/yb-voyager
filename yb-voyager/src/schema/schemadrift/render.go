@@ -297,10 +297,10 @@ type intervalGroup struct {
 // Intervals are matched on the capture that OPENS them, never on the (i, i+1) pair:
 // a failed capture is bridged (see BuildReport), so an interval's window can span one
 // and would match no consecutive pair at all.
-func buildTimeline(points []CapturePoint, groups []intervalGroup, skipped []SkippedInterval, dbType string) []timelineEntry {
-	pointAt := make(map[time.Time]CapturePoint, len(points))
-	for _, c := range points {
-		pointAt[c.CapturedAt] = c
+func buildTimeline(capturePoints []CapturePoint, groups []intervalGroup, skipped []SkippedInterval, dbType string) []timelineEntry {
+	capturePointAt := make(map[time.Time]CapturePoint, len(capturePoints))
+	for _, c := range capturePoints {
+		capturePointAt[c.CapturedAt] = c
 	}
 	groupFrom := make(map[time.Time]intervalGroup, len(groups))
 	for _, g := range groups {
@@ -312,7 +312,7 @@ func buildTimeline(points []CapturePoint, groups []intervalGroup, skipped []Skip
 	}
 
 	var timeline []timelineEntry
-	for _, c := range points {
+	for _, c := range capturePoints {
 		if ev, ok := deriveEvent(c); ok {
 			timeline = append(timeline, timelineEntry{Event: &ev})
 		}
@@ -328,7 +328,7 @@ func buildTimeline(points []CapturePoint, groups []intervalGroup, skipped []Skip
 			continue
 		}
 		if g, ok := groupFrom[c.CapturedAt]; ok {
-			iv := newIntervalView(g, pointAt[g.Window.To], dbType)
+			iv := newIntervalView(g, capturePointAt[g.Window.To], dbType)
 			timeline = append(timeline, timelineEntry{Interval: &iv})
 		}
 	}
@@ -589,9 +589,9 @@ func stringifyColumnDef(c schemasnapshot.Column) string {
 // Report.CapturePoints. The live read (Series == SeriesSourceLive) shows "—" for its
 // sequence number, since it is never persisted/numbered like a stored
 // snapshot.
-func snapshotRows(points []CapturePoint) []snapshotRow {
-	rows := make([]snapshotRow, len(points))
-	for i, c := range points {
+func snapshotRows(capturePoints []CapturePoint) []snapshotRow {
+	rows := make([]snapshotRow, len(capturePoints))
+	for i, c := range capturePoints {
 		seq := fmt.Sprintf("%d", i+1)
 		note := ""
 		if c.Series == SeriesSourceLive {
