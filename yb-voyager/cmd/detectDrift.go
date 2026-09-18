@@ -463,7 +463,7 @@ func detectDrift() {
 			"single interval between it and the live read (if available).\n")
 	}
 
-	snapshotInputs := make([]schemadrift.SnapshotInput, 0, len(headers))
+	snapshots := make([]schemasnapshot.SchemaSnapshot, 0, len(headers))
 	for _, h := range headers {
 		var content *schemasnapshot.SnapshotContent
 		if h.IsPlaceholder {
@@ -481,7 +481,7 @@ func detectDrift() {
 				utils.PrintAndLogfWarning("Note: error loading snapshot %q (%v); skipping it in the diff chain.\n", h.Name(), lerr)
 			}
 		}
-		snapshotInputs = append(snapshotInputs, schemadrift.SnapshotInput{Header: h, Content: content, Series: h.Label})
+		snapshots = append(snapshots, schemasnapshot.SchemaSnapshot{Header: h, Content: content})
 	}
 
 	// ─── Best-effort live read of the source ────────────────────────────────────
@@ -498,8 +498,8 @@ func detectDrift() {
 	// object types). Neither flag set => nil ("all"). ──────────────────────────
 	// Built unconditionally: besides being the set to subtract --exclude-table-list
 	// from, it IS the set of tables compared, which the report states. Costs no I/O.
-	snapshotContents := make([]*schemasnapshot.SnapshotContent, 0, len(snapshotInputs))
-	for _, si := range snapshotInputs {
+	snapshotContents := make([]*schemasnapshot.SnapshotContent, 0, len(snapshots))
+	for _, si := range snapshots {
 		snapshotContents = append(snapshotContents, si.Content)
 	}
 	var liveContent *schemasnapshot.SnapshotContent
@@ -572,7 +572,7 @@ func detectDrift() {
 	displayObjectTypes := lo.Map(effectiveObjectTypes, func(t schemadiff.ObjectType, _ int) string { return string(t) })
 
 	if live != nil {
-		snapshotInputs = append(snapshotInputs, *live)
+		snapshots = append(snapshots, *live)
 	}
 
 	report := schemadrift.BuildReport(schemadrift.DetectionInput{
@@ -584,7 +584,7 @@ func detectDrift() {
 			DatabaseVersion: source.DBVersion,
 		},
 		Schemas:             schemas,
-		Snapshots:           snapshotInputs,
+		Snapshots:           snapshots,
 		Scope:               scope,
 		Tables:              displayTables,
 		TablesFiltered:      tablesFiltered,
@@ -612,7 +612,7 @@ func detectDrift() {
 // result -- the source being briefly unreachable (or the capture racing DDL)
 // must never fail the whole command, since the snapshot-only comparison is
 // still useful on its own.
-func captureLiveSnapshotForDrift(schemas []string) *schemadrift.SnapshotInput {
+func captureLiveSnapshotForDrift(schemas []string) *schemasnapshot.SchemaSnapshot {
 	pg, ok := source.DB().(*srcdb.PostgreSQL)
 	if !ok {
 		utils.PrintAndLogfWarning("Note: live schema capture is only supported for PostgreSQL sources; skipping live comparison.\n")
@@ -627,13 +627,13 @@ func captureLiveSnapshotForDrift(schemas []string) *schemadrift.SnapshotInput {
 		DatabaseType: source.DBType,
 		DBMetadata:   schemasnapshot.DBMetadata{Host: source.Host, Port: source.Port, Database: source.DBName, User: source.User},
 		Schemas:      schemas,
-		Label:        schemasnapshot.LabelDetectDrift,
+		Label:        schemasnapshot.LabelSourceLive,
 	})
 	if err != nil {
 		utils.PrintAndLogfWarning("Note: could not capture live schema for comparison: %v; continuing with snapshot-only comparison.\n", err)
 		return nil
 	}
-	return &schemadrift.SnapshotInput{Header: snap.Header, Content: snap.Content, Series: schemadrift.SeriesSourceLive}
+	return snap
 }
 
 // writeDriftReports renders and writes report to <export-dir>/reports/ in each
