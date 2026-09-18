@@ -5,7 +5,8 @@ import (
 )
 
 func isSourceCmd(cmdName string) bool {
-	return cmdName == "assess-migration" || cmdName == "export schema" || cmdName == "export data"
+	return cmdName == "assess-migration" || cmdName == "export schema" || cmdName == "export data" ||
+		cmdName == "schema detect-drift"
 }
 
 func isTargetCmd(cmdName string) bool {
