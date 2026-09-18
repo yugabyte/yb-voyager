@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -234,6 +235,21 @@ func validateDriftOutputFormat(format string) error {
 		seen[f] = true
 	}
 	return nil
+}
+
+// capturedSchemasUnion lists every schema any of the snapshots was captured with,
+// so a no-coverage error can name what IS on record rather than only what is missing.
+func capturedSchemasUnion(snaps []schemasnapshot.SchemaSnapshot) []string {
+	var out []string
+	for _, s := range snaps {
+		for _, sch := range s.Header.Schemas {
+			if !lo.Contains(out, sch) {
+				out = append(out, sch)
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // normalizeDriftListFlag returns raw with its entries trimmed, or "" when nothing
@@ -499,6 +515,19 @@ func detectDrift() {
 		snapshots = append(snapshots, schemasnapshot.SchemaSnapshot{Header: h, Content: content})
 	}
 
+	// A stored capture taken with fewer schemas than were asked for cannot answer
+	// for the missing ones, so BuildReport bridges it. If NONE of them covers the
+	// request the report has nothing to compare, and an empty report reads as "no
+	// drift" -- so say what actually happened instead of emitting one.
+	if len(headers) > 0 && !lo.ContainsBy(snapshots, func(s schemasnapshot.SchemaSnapshot) bool {
+		return schemadrift.CoversSchemas(s.Header, schemas)
+	}) {
+		exitDriftOperationalError(
+			"no schema snapshot in this export directory covers %s; the captures on record cover only %s. "+
+				"Re-run with --source-db-schema matching what the export commands used, or capture a new snapshot",
+			strings.Join(schemas, ", "), strings.Join(capturedSchemasUnion(snapshots), ", "))
+	}
+
 	// ─── Best-effort live read of the source ────────────────────────────────────
 	// Also moved ahead of Scope resolution, for the same reason: its Content (if
 	// the capture succeeded) contributes to the candidate table universe too.
@@ -573,6 +602,7 @@ func detectDrift() {
 		objectTypes = allDriftObjectTypes
 	}
 	scope := schemadiff.Scope{
+		Schemas:     schemas,
 		Tables:      includeTables,
 		ObjectTypes: objectTypes,
 	}
@@ -589,7 +619,6 @@ func detectDrift() {
 			Database:        source.DBName,
 			DatabaseVersion: source.DBVersion,
 		},
-		Schemas:             schemas,
 		Snapshots:           snapshots,
 		Scope:               scope,
 		TablesFiltered:      tablesFiltered,
