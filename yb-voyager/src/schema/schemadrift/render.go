@@ -159,7 +159,7 @@ func newReportView(r Report) reportView {
 		ComparingSummary: comparingSummary(r.Comparing),
 		ComparingScope:   comparingScope(r.Comparing),
 
-		TimelineRows: buildTimeline(r.CapturePoints, groupByInterval(r.Diffs), r.Skipped, r.Source.DatabaseType),
+		TimelineRows: buildTimeline(r.CapturePoints, groupByInterval(r.Drifts), r.Skipped, r.Source.DatabaseType),
 
 		Snapshots: snapshotRows(r.CapturePoints),
 	}
@@ -267,29 +267,29 @@ func cappedChips(items []string) []string {
 	return append(out, fmt.Sprintf("+%d more", len(items)-maxScopeChips))
 }
 
-// groupByInterval groups diffs (already in a stable, seq-ascending order) by
+// groupByInterval groups drifts (already in a stable, seq-ascending order) by
 // their Window, preserving first-seen order of intervals.
-func groupByInterval(diffs []DiffEntry) []intervalGroup {
+func groupByInterval(drifts []DriftEntry) []intervalGroup {
 	var groups []intervalGroup
 	index := make(map[Window]int)
-	for _, d := range diffs {
+	for _, d := range drifts {
 		i, ok := index[d.Window]
 		if !ok {
 			i = len(groups)
 			index[d.Window] = i
 			groups = append(groups, intervalGroup{Window: d.Window, Phase: d.Phase})
 		}
-		groups[i].Diffs = append(groups[i].Diffs, d)
+		groups[i].Drifts = append(groups[i].Drifts, d)
 	}
 	return groups
 }
 
-// intervalGroup is all DiffEntries that share the same Window (and therefore
+// intervalGroup is all DriftEntries that share the same Window (and therefore
 // the same Phase), rendered together as one timeline section.
 type intervalGroup struct {
 	Window Window
 	Phase  string
-	Diffs  []DiffEntry
+	Drifts []DriftEntry
 }
 
 // buildTimeline interleaves point-event markers and interval blocks chronologically.
@@ -373,13 +373,13 @@ func deriveEvent(c CapturePoint) (eventView, bool) {
 // pair); the interval is "live" when next is the live read of the source.
 func newIntervalView(g intervalGroup, next CapturePoint, dbType string) intervalView {
 	live := next.Series == SeriesSourceLive
-	count := changeCountLabel(len(g.Diffs))
+	count := changeCountLabel(len(g.Drifts))
 	if live {
 		count = fmt.Sprintf("%s · live source @ %s", count, formatTime(next.CapturedAt))
 	}
 
-	findings := make([]findingView, len(g.Diffs))
-	for i, d := range g.Diffs {
+	findings := make([]findingView, len(g.Drifts))
+	for i, d := range g.Drifts {
 		findings[i] = newFindingView(d, dbType)
 	}
 
@@ -399,7 +399,7 @@ func changeCountLabel(n int) string {
 	return fmt.Sprintf("%d changes", n)
 }
 
-func newFindingView(d DiffEntry, dbType string) findingView {
+func newFindingView(d DriftEntry, dbType string) findingView {
 	objQ, objS := objectPath(d, dbType)
 
 	fv := findingView{
@@ -413,12 +413,12 @@ func newFindingView(d DiffEntry, dbType string) findingView {
 	}
 
 	switch d.Operation {
-	case string(schemadiff.OpAdded):
+	case schemadiff.OpAdded:
 		if def := stringifyValue(d.Attribute, d.NewValue, dbType); def != "" {
 			fv.HasDef = true
 			fv.ValDef = def
 		}
-	case string(schemadiff.OpDropped):
+	case schemadiff.OpDropped:
 		// Deliberately empty: a drop has no value worth showing.
 	default: // OpChanged
 		fv.HasChange = true
@@ -429,24 +429,24 @@ func newFindingView(d DiffEntry, dbType string) findingView {
 	return fv
 }
 
-// kindClass classifies a DiffEntry.Operation into the CSS kind bucket used
+// kindClass classifies a DriftEntry.Operation into the CSS kind bucket used
 // for colour: k-add for ADDED, k-rem for DROPPED, k-chg for everything else
 // (CHANGED findings).
-func kindClass(operation string) string {
+func kindClass(operation schemadiff.Operation) string {
 	switch operation {
-	case string(schemadiff.OpAdded):
+	case schemadiff.OpAdded:
 		return "k-add"
-	case string(schemadiff.OpDropped):
+	case schemadiff.OpDropped:
 		return "k-rem"
 	default:
 		return "k-chg"
 	}
 }
 
-// kindLabel renders a DiffEntry.Type string (e.g. "COLUMN_TYPE_CHANGED") as
-// its lowercase, space-separated display label ("column type changed").
-func kindLabel(diffType string) string {
-	return strings.ToLower(strings.ReplaceAll(diffType, "_", " "))
+// kindLabel renders a DriftEntry.Type (e.g. "COLUMN_TYPE_CHANGED") as its
+// lowercase, space-separated display label ("column type changed").
+func kindLabel(diffType schemadiff.DiffType) string {
+	return strings.ToLower(strings.ReplaceAll(string(diffType), "_", " "))
 }
 
 // objectPath splits an object identity into the muted qualifier (q) and the
@@ -455,8 +455,8 @@ func kindLabel(diffType string) string {
 //
 // Every part is minimally quoted, so a special identifier renders as valid SQL
 // (sales."MixedCase", not the ambiguous sales.MixedCase). q+s equals ForDisplay.
-func objectPath(d DiffEntry, dbType string) (q, s string) {
-	if d.ObjectType == string(schemadiff.ObjectTypeColumn) {
+func objectPath(d DriftEntry, dbType string) (q, s string) {
+	if d.ObjectType == schemadiff.ObjectTypeColumn {
 		return d.Object.ForDisplay(dbType) + ".", minQuoted(d.SubObject, dbType)
 	}
 	return minQuoted(d.Object.Schema, dbType) + ".", minQuoted(d.Object.Name, dbType)
@@ -513,7 +513,7 @@ func severityLabel(sev Severity) string {
 	return string(sev)
 }
 
-// stringifyValue renders a DiffEntry.OldValue/NewValue (an `any` whose
+// stringifyValue renders a DriftEntry.OldValue/NewValue (an `any` whose
 // dynamic type tracks attribute, per Difference's field docs) as display
 // text:
 //   - nil                                    -> ""
@@ -529,14 +529,14 @@ func severityLabel(sev Severity) string {
 //     (TABLE_ADDED/DROPPED's whole added/dropped table), e.g.
 //     "id integer NOT NULL, email text"; "no columns" when it has none
 //   - anything else                          -> fmt.Sprintf("%v", value)
-func stringifyValue(attribute string, value any, dbType string) string {
+func stringifyValue(attribute schemadiff.Attribute, value any, dbType string) string {
 	switch v := value.(type) {
 	case nil:
 		return ""
 	case string:
 		return v
 	case bool:
-		if attribute == string(schemadiff.AttrNullability) {
+		if attribute == schemadiff.AttrNullability {
 			if v {
 				return "NOT NULL"
 			}

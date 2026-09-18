@@ -95,7 +95,7 @@
   /* "Impact & action" note inside a finding */
   .action{margin-top:11px;padding-top:11px;border-top:1px dotted var(--line);}
   .action-h{display:block;font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;}
-  .action-status{margin:0 0 8px;font-weight:700;font-size:12.5px;color:var(--ink);letter-spacing:.2px;}
+  .severity-label{margin:0 0 8px;font-weight:700;font-size:12.5px;color:var(--ink);letter-spacing:.2px;}
   .action-t{margin:0;font-size:13px;color:var(--ink);line-height:1.55;}
   .action-t + .action-t{margin-top:10px;}
   .action-t code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;
@@ -227,7 +227,7 @@
           {{if .HasDef}}<div class="val"><span class="v-lbl">definition</span><span class="chiplet v-def">{{.ValDef}}</span></div>{{end}}
           {{if .HasChange}}<div class="val"><span class="chiplet v-old">{{.ValOld}}</span><span class="arrow">→</span><span class="chiplet v-new">{{.ValNew}}</span></div>{{end}}
           <div class="action"><span class="action-h">Impact &amp; action</span>
-            <p class="action-status">{{.SeverityLabel}}</p>
+            <p class="severity-label">{{.SeverityLabel}}</p>
             {{if .Impact}}<p class="action-t">{{.Impact}}</p>{{end}}
             {{if .Action}}<p class="action-t">{{.Action}}</p>{{end}}</div>
         </details>
