@@ -74,7 +74,7 @@ type reportView struct {
 	ComparingSummary string
 	ComparingScope   []scopeRow
 
-	Timeline []timelineEntry
+	TimelineRows []timelineEntry
 
 	Snapshots []snapshotRow
 }
@@ -159,9 +159,9 @@ func newReportView(r Report) reportView {
 		ComparingSummary: comparingSummary(r.Comparing),
 		ComparingScope:   comparingScope(r.Comparing),
 
-		Timeline: buildTimeline(r.Captures, groupByInterval(r.Diffs), r.Skipped, r.Source.DatabaseType),
+		TimelineRows: buildTimeline(r.Timeline, groupByInterval(r.Diffs), r.Skipped, r.Source.DatabaseType),
 
-		Snapshots: snapshotRows(r.Captures),
+		Snapshots: snapshotRows(r.Timeline),
 	}
 }
 
@@ -586,7 +586,7 @@ func stringifyColumnDef(c schemasnapshot.Column) string {
 }
 
 // snapshotRows builds the footer's "Snapshots used" table rows from
-// Captures. The live read (Series == SeriesSourceLive) shows "—" for its
+// Report.Timeline. The live read (Series == SeriesSourceLive) shows "—" for its
 // sequence number, since it is never persisted/numbered like a stored
 // snapshot.
 func snapshotRows(captures []Capture) []snapshotRow {
