@@ -372,7 +372,7 @@ func deriveEvent(c CapturePoint) (eventView, bool) {
 // the capture that closes the interval's window (the "to" side of the
 // pair); the interval is "live" when next is the live read of the source.
 func newIntervalView(g intervalGroup, next CapturePoint, dbType string) intervalView {
-	live := next.Series == SeriesSourceLive
+	live := next.Series == schemasnapshot.LabelSourceLive
 	count := changeCountLabel(len(g.Drifts))
 	if live {
 		count = fmt.Sprintf("%s · live source @ %s", count, formatTime(next.CapturedAt))
@@ -586,7 +586,7 @@ func stringifyColumnDef(c schemasnapshot.Column) string {
 }
 
 // snapshotRows builds the footer's "Snapshots used" table rows from
-// Report.CapturePoints. The live read (Series == SeriesSourceLive) shows "—" for its
+// Report.CapturePoints. The live read (Series == schemasnapshot.LabelSourceLive) shows "—" for its
 // sequence number, since it is never persisted/numbered like a stored
 // snapshot.
 func snapshotRows(capturePoints []CapturePoint) []snapshotRow {
@@ -594,7 +594,7 @@ func snapshotRows(capturePoints []CapturePoint) []snapshotRow {
 	for i, c := range capturePoints {
 		seq := fmt.Sprintf("%d", i+1)
 		note := ""
-		if c.Series == SeriesSourceLive {
+		if c.Series == schemasnapshot.LabelSourceLive {
 			seq = "—"
 			note = "read fresh at report time · not stored"
 		} else if c.Reason != "" {

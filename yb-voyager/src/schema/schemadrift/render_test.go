@@ -344,10 +344,10 @@ func TestRenderHTML_SkippedAndRealIntervalShareACapture(t *testing.T) {
 
 	report := BuildReport(DetectionInput{
 		Source: Source{DatabaseType: "postgresql"},
-		Snapshots: []SnapshotInput{
-			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a, Series: schemasnapshot.LabelExportSchema},
-			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "sales"), Content: b, Series: schemasnapshot.LabelExportDataFromSourceStart},
-			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourcePeriodic, t3(), "sales"), Content: c, Series: schemasnapshot.LabelExportDataFromSourcePeriodic},
+		Snapshots: []schemasnapshot.SchemaSnapshot{
+			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a},
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "sales"), Content: b},
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourcePeriodic, t3(), "sales"), Content: c},
 		},
 	})
 	require.Len(t, report.Skipped, 1, "the scope mismatch must be recorded")
