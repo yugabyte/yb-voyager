@@ -32,14 +32,21 @@ import (
 // Note: ref(schema, name) is already declared in diff_test.go (same package).
 
 // allScope returns the explicit Scope that keeps every finding in diffs: every
-// anchor table and every object type present. Scope holds the exact set to keep, so
+// schema, anchor table and object type present. Scope holds the exact set to keep, so
 // this is what a caller passes for an unfiltered run -- the test-side stand-in for
 // the universe the command resolves from the catalog and the snapshots.
 func allScope(diffs []Difference) Scope {
 	var s Scope
+	seenSchema := make(map[string]bool)
 	seenTable := make(map[schemasnapshot.ObjectRef]bool)
 	seenType := make(map[ObjectType]bool)
 	for _, d := range diffs {
+		for _, sch := range schemasOf(d) {
+			if !seenSchema[sch] {
+				seenSchema[sch] = true
+				s.Schemas = append(s.Schemas, sch)
+			}
+		}
 		if anchor, ok := anchorTableOf(d); ok && !seenTable[anchor] {
 			seenTable[anchor] = true
 			s.Tables = append(s.Tables, anchor)
@@ -49,6 +56,13 @@ func allScope(diffs []Difference) Scope {
 			s.ObjectTypes = append(s.ObjectTypes, d.ObjectType)
 		}
 	}
+	return s
+}
+
+// narrowSchemas is allScope with the Schemas dimension replaced.
+func narrowSchemas(diffs []Difference, schemas ...string) Scope {
+	s := allScope(diffs)
+	s.Schemas = schemas
 	return s
 }
 
@@ -160,6 +174,77 @@ func TestFilterByScopeEmptyScopeKeepsNothing(t *testing.T) {
 
 	// An unfiltered run passes the universe explicitly, and keeps everything.
 	assert.Equal(t, diffs, FilterByScope(diffs, allScope(diffs)))
+}
+
+// ─── Schemas filter ───────────────────────────────────────────────────────────
+
+// TestFilterByScopeSchemasKeepsOnlyRequested verifies the schema dimension: a
+// finding in a schema nobody asked about is dropped, whatever its table or type.
+// Without this, --source-db-schema public still reported drift in sales.
+func TestFilterByScopeSchemasKeepsOnlyRequested(t *testing.T) {
+	orders := ref("public", "orders")
+	customers := ref("sales", "customers")
+	diffs := []Difference{
+		tableDiff(TableAdded, "public", "orders"),
+		colDiff(ColumnAdded, orders, "note"),
+		tableDiff(TableDropped, "sales", "customers"),
+		colDiff(ColumnAdded, customers, "tier"),
+	}
+
+	got := FilterByScope(diffs, narrowSchemas(diffs, "public"))
+
+	require.Len(t, got, 2, "only the public findings survive")
+	for _, d := range got {
+		assert.Equal(t, []string{"public", "public"}, schemasOf(d),
+			"a column reports its parent table's schema, so both sides read public")
+	}
+}
+
+// TestFilterByScopeSchemasMatchesEitherSide pins why the rule is either-side and not
+// side-B: a table moving between schemas has a different one on each side, and a
+// move OUT of the requested set is exactly what its owner needs to be told about.
+func TestFilterByScopeSchemasMatchesEitherSide(t *testing.T) {
+	t.Run("moves out of scope: kept on side A", func(t *testing.T) {
+		d := schemaChangedDiff("public", "orders", "sales")
+		got := FilterByScope([]Difference{d}, narrowSchemas([]Difference{d}, "public"))
+		require.Len(t, got, 1, "the owner of public must learn their table left it")
+	})
+
+	t.Run("moves into scope: kept on side B", func(t *testing.T) {
+		d := schemaChangedDiff("sales", "orders", "public")
+		got := FilterByScope([]Difference{d}, narrowSchemas([]Difference{d}, "public"))
+		require.Len(t, got, 1, "a table arriving in public is in scope too")
+	})
+
+	t.Run("moves between two unrequested schemas: dropped", func(t *testing.T) {
+		d := schemaChangedDiff("sales", "legacy", "hr")
+		got := FilterByScope([]Difference{d}, narrowSchemas([]Difference{d}, "public"))
+		assert.Empty(t, got, "neither side is public, so it is not this report's business")
+	})
+}
+
+// TestFilterByScopeSchemasGovernAnchorlessFindings contrasts the two dimensions:
+// an anchorless finding escapes the Tables filter, but NOT the schema filter --
+// a view has no host table, yet it does live in a schema.
+func TestFilterByScopeSchemasGovernAnchorlessFindings(t *testing.T) {
+	diffs := []Difference{
+		noAnchorDiff(TableAdded, "public", "v_orders"),
+		noAnchorDiff(TableAdded, "sales", "v_customers"),
+	}
+
+	got := FilterByScope(diffs, narrowSchemas(diffs, "public"))
+
+	require.Len(t, got, 1, "the sales one is out of scope even though no table anchors it")
+	assert.Equal(t, []string{"public"}, schemasOf(got[0]))
+}
+
+// TestFilterByScopeEmptySchemasKeepsNothing is the schema dimension's half of the
+// empty-means-empty rule.
+func TestFilterByScopeEmptySchemasKeepsNothing(t *testing.T) {
+	diffs := []Difference{tableDiff(TableAdded, "public", "orders")}
+	s := allScope(diffs)
+	s.Schemas = nil
+	assert.Empty(t, FilterByScope(diffs, s), "an empty Schemas keeps nothing")
 }
 
 // ─── Purity ───────────────────────────────────────────────────────────────────
