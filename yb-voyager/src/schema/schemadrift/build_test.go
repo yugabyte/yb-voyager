@@ -103,7 +103,7 @@ func TestBuildReport_ConsecutivePairsProduceDiffEntries(t *testing.T) {
 	assert.Equal(t, 1, d.Seq)
 	assert.Equal(t, string(schemadiff.TableAdded), d.Type)
 	assert.Equal(t, objRef("public", "customers"), d.Object)
-	assert.Equal(t, string(StatusPotentialImpact), d.Status)
+	assert.Equal(t, SeverityPotentialImpact, d.Severity)
 	assert.Equal(t, Window{From: t1(), To: t2()}, d.Window)
 	assert.Equal(t, "export data: pending", d.Phase)
 	assert.Equal(t, classify(schemadiff.TableAdded).Impact, d.Impact)

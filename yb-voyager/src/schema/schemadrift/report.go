@@ -94,13 +94,13 @@ type DiffEntry struct {
 	Attribute  string                   `json:"attribute,omitempty"` // string(schemadiff.Attribute); "" for ADDED/DROPPED
 	Object     schemasnapshot.ObjectRef `json:"object"`
 	SubObject  string                   `json:"sub_object,omitempty"`
-	Status     string                   `json:"status"`
 	OldValue   any                      `json:"old_value,omitempty"`
 	NewValue   any                      `json:"new_value,omitempty"`
 	Window     Window                   `json:"window"`
 	Phase      string                   `json:"phase,omitempty"`
-	Impact     string                   `json:"impact,omitempty"`
-	Action     string                   `json:"action,omitempty"`
+	// Severity, Impact and Action, flattened into this object by encoding/json.
+	// They describe the DiffType, so every entry of a kind carries the same ones.
+	DiffTypeInfo
 }
 
 // SkippedInterval is a capture pair that was not compared, so a reader can tell

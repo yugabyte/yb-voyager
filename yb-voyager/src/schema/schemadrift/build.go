@@ -105,22 +105,19 @@ func BuildReport(p DetectionInput) Report {
 		for _, d := range differ.Diff(prev.Content, next.Content) {
 			seq++
 			obj, subObj := splitIdentity(displayIdentity(d))
-			class := classify(d.Type)
 			diffs = append(diffs, DiffEntry{
-				Seq:        seq,
-				Type:       string(d.Type),
-				Operation:  string(d.Operation),
-				ObjectType: string(d.ObjectType),
-				Attribute:  string(d.Attribute),
-				Object:     obj,
-				SubObject:  subObj,
-				Status:     string(class.Status),
-				OldValue:   d.SideAValue,
-				NewValue:   d.SideBValue,
-				Window:     intervalWindow,
-				Phase:      phase,
-				Impact:     class.Impact,
-				Action:     class.Action,
+				Seq:          seq,
+				Type:         string(d.Type),
+				Operation:    string(d.Operation),
+				ObjectType:   string(d.ObjectType),
+				Attribute:    string(d.Attribute),
+				Object:       obj,
+				SubObject:    subObj,
+				OldValue:     d.SideAValue,
+				NewValue:     d.SideBValue,
+				Window:       intervalWindow,
+				Phase:        phase,
+				DiffTypeInfo: classify(d.Type),
 			})
 		}
 		prevIdx = i

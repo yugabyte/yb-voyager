@@ -135,31 +135,33 @@ Walks `p.Snapshots` oldest-first, diffs each comparable pair, and assembles the 
 ### 3.4 `schemadrift` classification
 
 ```go
-type Status string
+type Severity string
 
 const (
-	StatusAdvisory            Status = "advisory"
-	StatusPotentialImpact     Status = "potential_impact"
-	StatusBreaksRecoverable   Status = "breaks_migration_recoverable"
-	StatusBreaksUnrecoverable Status = "breaks_migration_unrecoverable"
+	SeverityAdvisory            Severity = "advisory"
+	SeverityPotentialImpact     Severity = "potential_impact"
+	SeverityBreaksRecoverable   Severity = "breaks_migration_recoverable"
+	SeverityBreaksUnrecoverable Severity = "breaks_migration_unrecoverable"
 )
 ```
 
 Severity answers "what does the migration do about this change", not "how alarming is the DDL". Vocabulary in §5.4.
 
 ```go
-type classification struct {
-	Status Status
-	Impact string
-	Action string
+type DiffTypeInfo struct {
+	Severity Severity `json:"severity"`
+	Impact   string   `json:"impact,omitempty"`
+	Action   string   `json:"action,omitempty"`
 }
 
-var classificationByDiffType map[schemadiff.DiffType]classification
+var infoByDiffType map[schemadiff.DiffType]DiffTypeInfo
 
-func classify(t schemadiff.DiffType) classification
+func classify(t schemadiff.DiffType) DiffTypeInfo
 ```
 
-Severity and its explanatory note are one value in one map. Two parallel maps keyed by `DiffType` would let them disagree silently, and an entry with a severity but no note would render a finding the report cannot explain. `classify` returns `StatusAdvisory` with empty Impact and Action for a `DiffType` the map does not know.
+Severity and its explanatory note are one value in one map. Two parallel maps keyed by `DiffType` would let them disagree silently, and an entry with a severity but no note would render a finding the report cannot explain. `classify` returns `SeverityAdvisory` with empty Impact and Action for a `DiffType` the map does not know.
+
+`DiffTypeInfo` is exported and embedded in `DriftEntry` rather than copied field by field: the three values describe the DiffType, not the individual finding, so every entry of a given type carries the same ones.
 
 ### 3.5 `schemadrift` renderers (\#3813)
 
@@ -245,13 +247,11 @@ type DiffEntry struct {
 	Attribute  string                   `json:"attribute,omitempty"` // "" for ADDED/DROPPED
 	Object     schemasnapshot.ObjectRef `json:"object"`              // the table
 	SubObject  string                   `json:"sub_object,omitempty"` // the column, when ObjectType is COLUMN
-	Status     string                   `json:"status"`              // Status
 	OldValue   any                      `json:"old_value,omitempty"`
 	NewValue   any                      `json:"new_value,omitempty"`
 	Window     Window                   `json:"window"`              // the interval it was detected in
 	Phase      string                   `json:"phase,omitempty"`     // §5.3
-	Impact     string                   `json:"impact,omitempty"`
-	Action     string                   `json:"action,omitempty"`
+	DiffTypeInfo                       // embedded: severity, impact, action -- flattened by encoding/json
 }
 
 type SkippedInterval struct {
@@ -304,7 +304,7 @@ cmd.detectDrift()
  │      ├─ schemadiff.NewDiffer(Config{Scope})
  │      ├─ per comparable pair (§5.2): differ.Diff(prev, next) → []Difference            schemadrift → schemadiff
  │      ├─ phaseFor(prevCapture, nextCapture)                 → phase string                                   §5.3
- │      └─ per Difference: classify(d.Type)                   → classification, folded into DiffEntry        §5.4
+ │      └─ per Difference: classify(d.Type)                   → DiffTypeInfo, embedded in DiffEntry          §5.4
  │
  ├─ cmd.writeDriftReports(report, formats)
  │      ├─ schemadrift.RenderJSON(Report)                     → []byte                   cmd → schemadrift
@@ -355,9 +355,9 @@ The exit capture's `Reason` (`cutover`, `complete`, `interrupt`, `error`) says h
 
 ### 5.4 Severity
 
-**Where:** `schemadrift.classify(t schemadiff.DiffType) classification`, backed by `classificationByDiffType`, called once per `Difference` from `BuildReport`. **In:** a `DiffType`. **Out:** `DiffEntry.Status`, `Impact`, `Action`. **Decides:** what the migration does about a change, and the note that explains it.
+**Where:** `schemadrift.classify(t schemadiff.DiffType) DiffTypeInfo`, backed by `infoByDiffType`, called once per `Difference` from `BuildReport`. **In:** a `DiffType`. **Out:** the `DiffTypeInfo` embedded in each `DiffEntry` -- `Severity`, `Impact`, `Action`. **Decides:** what the migration does about a change, and the note that explains it.
 
-| Status | Meaning | DiffTypes |
+| Severity | Meaning | DiffTypes |
 | :---- | :---- | :---- |
 | `breaks_migration_unrecoverable` | `export data` keeps running but cannot be restarted; the migration must restart from scratch | `TABLE_DROPPED`, `TABLE_NAME_CHANGED`, `TABLE_SCHEMA_CHANGED` |
 | `breaks_migration_recoverable` | `import data` can fail until the same DDL is applied on the target, then resumes | `COLUMN_ADDED`, `COLUMN_NAME_CHANGED`, `COLUMN_TYPE_CHANGED`, `COLUMN_NULLABILITY_CHANGED` |
