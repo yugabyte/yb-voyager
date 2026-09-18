@@ -687,7 +687,7 @@ func printDriftSummary(report schemadrift.Report, writtenPaths []string) {
 	printDriftSummaryField("Comparison window", utils.PrintAndLogf,
 		"%s -> %s", formatDriftTimestamp(report.Window.From), formatDriftTimestamp(report.Window.To))
 	printDriftSummaryField("Snapshots compared", utils.PrintAndLogf,
-		"%d (live source comparison: %t)", report.Summary.SnapshotCount, report.Summary.LiveCompared)
+		"%d (live source comparison: %t)", report.Summary.StoredCaptureCount, report.Summary.LiveCompared)
 	printDriftSummaryField("Schemas", utils.PrintAndLogf, "%s", joinOrAllDrift(report.Comparing.Schemas))
 	printDriftSummaryField("Tables", utils.PrintAndLogf, "%s",
 		driftScopeLine(report.Comparing.Tables, report.Comparing.TablesFiltered))
