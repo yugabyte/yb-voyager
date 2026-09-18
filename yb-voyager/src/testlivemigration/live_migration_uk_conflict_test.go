@@ -2954,7 +2954,7 @@ func TestLiveMigrationWithSubsetOFPartialUNiqueIndexColumnsBeingChangedInUpdate(
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
 	// Import must not crash on a 23505: with the bug the conflict is missed, the two
-	// events race, and import errors out instead of serializing them.          
+	// events race, and import errors out instead of serializing them.
 	require.False(t, liveMigrationTest.GetImportRunner().IsStopped(),
 		"import should keep running (no unhandled unique-violation) during count failpoint mode")
 
@@ -4610,7 +4610,8 @@ func TestLiveMigrationCustomKeyResumeGuardChangeCases(t *testing.T) {
 	// expectResumeRejected resumes without --start-clean and asserts the attempt is rejected
 	// before snapshot with an output matching check. State is left intact for the next attempt.
 	expectResumeRejected := func(desc string, args map[string]string, check func(string) bool) {
-		_ = lm.ResumeImportData(false, args)
+		err = lm.ResumeImportData(false, args)
+		assert.Error(t, err, "%s: resume should have failed", desc)
 		out := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
 		assert.True(t, check(out), "%s; got output: %s", desc, out)
 	}
@@ -4668,11 +4669,8 @@ func TestLiveMigrationCustomKeyResumeGuardChangeCases(t *testing.T) {
 	})
 	testutils.FatalIfError(t, err, "resume with semantically-equivalent overrides should succeed")
 
-	// Let the resumed import run prepareCdcPartitionKey; it must not trip the change-guard.
-	time.Sleep(20 * time.Second)
-	resumeOutput := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
-	assert.NotContains(t, resumeOutput, "is not allowed",
-		"equivalent overrides must not trip the resume change-guard, got: %s", resumeOutput)
+	err = lm.WaitForStreamingMode(90*time.Second, 2*time.Second)
+	testutils.FatalIfError(t, err, "wait for streaming to be started")
 
 	// The persisted per-table map is preserved across the accepted resume.
 	importDataStatus, err = lm.GetMetaDB().GetImportDataStatusRecord()
