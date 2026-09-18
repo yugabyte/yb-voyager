@@ -53,30 +53,30 @@ func fixtureReport() Report {
 			StoredCaptureCount: 2,
 			LiveCompared:       true,
 		},
-		Diffs: []DiffEntry{
+		Drifts: []DriftEntry{
 			{
-				Seq:          1,
-				Type:         string(schemadiff.TableAdded),
-				Operation:    string(schemadiff.OpAdded),
-				ObjectType:   string(schemadiff.ObjectTypeTable),
-				Object:       schemasnapshot.ObjectRef{Schema: "public", Name: "invoices"},
-				Window:       Window{From: from, To: to},
-				Phase:        "export data: running",
-				DiffTypeInfo: classify(schemadiff.TableAdded),
+				Seq:        1,
+				Type:       schemadiff.TableAdded,
+				Operation:  schemadiff.OpAdded,
+				ObjectType: schemadiff.ObjectTypeTable,
+				Object:     schemasnapshot.ObjectRef{Schema: "public", Name: "invoices"},
+				Window:     Window{From: from, To: to},
+				Phase:      "export data: running",
+				DriftInfo:  classify(schemadiff.TableAdded),
 			},
 			{
-				Seq:          2,
-				Type:         string(schemadiff.ColumnTypeChanged),
-				Operation:    string(schemadiff.OpChanged),
-				ObjectType:   string(schemadiff.ObjectTypeColumn),
-				Attribute:    string(schemadiff.AttrType),
-				Object:       schemasnapshot.ObjectRef{Schema: "public", Name: "orders"},
-				SubObject:    "amount",
-				OldValue:     "integer",
-				NewValue:     "numeric",
-				Window:       Window{From: from, To: to},
-				Phase:        "export data: running",
-				DiffTypeInfo: classify(schemadiff.ColumnTypeChanged),
+				Seq:        2,
+				Type:       schemadiff.ColumnTypeChanged,
+				Operation:  schemadiff.OpChanged,
+				ObjectType: schemadiff.ObjectTypeColumn,
+				Attribute:  schemadiff.AttrType,
+				Object:     schemasnapshot.ObjectRef{Schema: "public", Name: "orders"},
+				SubObject:  "amount",
+				OldValue:   "integer",
+				NewValue:   "numeric",
+				Window:     Window{From: from, To: to},
+				Phase:      "export data: running",
+				DriftInfo:  classify(schemadiff.ColumnTypeChanged),
 			},
 		},
 		CapturePoints: []CapturePoint{
@@ -103,7 +103,7 @@ func TestRenderJSON(t *testing.T) {
 	assert.Contains(t, got, "window")
 	assert.Contains(t, got, "comparing")
 	assert.Contains(t, got, "summary")
-	assert.Contains(t, got, "diffs")
+	assert.Contains(t, got, "drifts")
 	assert.Contains(t, got, "capture_points")
 
 	summary, ok := got["summary"].(map[string]any)
@@ -112,18 +112,18 @@ func TestRenderJSON(t *testing.T) {
 	assert.Equal(t, float64(2), summary["stored_capture_count"])
 	assert.Equal(t, true, summary["live_compared"])
 
-	// The DiffTypeInfo embed has to stay anonymous and untagged: a json tag on it
+	// The DriftInfo embed has to stay anonymous and untagged: a json tag on it
 	// would nest severity/impact/action under a sub-object, which no consumer of
 	// the flat shape would notice until it read a null.
-	diffs, ok := got["diffs"].([]any)
+	drifts, ok := got["drifts"].([]any)
 	require.True(t, ok)
-	require.NotEmpty(t, diffs)
-	firstDiff, ok := diffs[0].(map[string]any)
+	require.NotEmpty(t, drifts)
+	firstDrift, ok := drifts[0].(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, string(SeverityPotentialImpact), firstDiff["severity"])
-	assert.Contains(t, firstDiff, "impact")
-	assert.Contains(t, firstDiff, "action")
-	assert.NotContains(t, firstDiff, "DiffTypeInfo")
+	assert.Equal(t, string(SeverityPotentialImpact), firstDrift["severity"])
+	assert.Contains(t, firstDrift, "impact")
+	assert.Contains(t, firstDrift, "action")
+	assert.NotContains(t, firstDrift, "DriftInfo")
 
 	// skipped is omitempty, so its absence has to be pinned too: otherwise a
 	// renderer that dropped the field entirely would still pass.
@@ -134,8 +134,8 @@ func TestRenderJSON(t *testing.T) {
 	require.NoError(t, json.Unmarshal(out, &roundTripped))
 	assert.Equal(t, r.Report, roundTripped.Report)
 	assert.Equal(t, r.Version, roundTripped.Version)
-	require.Len(t, roundTripped.Diffs, 2)
-	assert.Equal(t, r.Diffs[0].Type, roundTripped.Diffs[0].Type)
+	require.Len(t, roundTripped.Drifts, 2)
+	assert.Equal(t, r.Drifts[0].Type, roundTripped.Drifts[0].Type)
 }
 
 // TestRenderJSON_SkippedIntervalsAreSerialized covers the other side of
@@ -184,30 +184,30 @@ func TestRenderHTML(t *testing.T) {
 func TestObjectPathMinQuotesIdentifiers(t *testing.T) {
 	tests := []struct {
 		name  string
-		entry DiffEntry
+		entry DriftEntry
 		wantQ string
 		wantS string
 	}{
 		{
 			name: "lowercase table needs no quoting",
-			entry: DiffEntry{
-				ObjectType: string(schemadiff.ObjectTypeTable),
+			entry: DriftEntry{
+				ObjectType: schemadiff.ObjectTypeTable,
 				Object:     schemasnapshot.ObjectRef{Schema: "sales", Name: "orders"},
 			},
 			wantQ: "sales.", wantS: "orders",
 		},
 		{
 			name: "mixed-case table is quoted",
-			entry: DiffEntry{
-				ObjectType: string(schemadiff.ObjectTypeTable),
+			entry: DriftEntry{
+				ObjectType: schemadiff.ObjectTypeTable,
 				Object:     schemasnapshot.ObjectRef{Schema: "sales", Name: "MixedCase"},
 			},
 			wantQ: "sales.", wantS: `"MixedCase"`,
 		},
 		{
 			name: "column with a space, under a mixed-case table, quotes both parts",
-			entry: DiffEntry{
-				ObjectType: string(schemadiff.ObjectTypeColumn),
+			entry: DriftEntry{
+				ObjectType: schemadiff.ObjectTypeColumn,
 				Object:     schemasnapshot.ObjectRef{Schema: "sales", Name: "MixedCase"},
 				SubObject:  "Extra Col",
 			},
@@ -215,8 +215,8 @@ func TestObjectPathMinQuotesIdentifiers(t *testing.T) {
 		},
 		{
 			name: "lowercase column under a lowercase table stays unquoted",
-			entry: DiffEntry{
-				ObjectType: string(schemadiff.ObjectTypeColumn),
+			entry: DriftEntry{
+				ObjectType: schemadiff.ObjectTypeColumn,
 				Object:     schemasnapshot.ObjectRef{Schema: "sales", Name: "orders"},
 				SubObject:  "discount",
 			},
@@ -229,7 +229,7 @@ func TestObjectPathMinQuotesIdentifiers(t *testing.T) {
 			assert.Equal(t, tt.wantQ, q)
 			assert.Equal(t, tt.wantS, s)
 			// q+s must equal the ref's own ForDisplay rendering.
-			if tt.entry.ObjectType == string(schemadiff.ObjectTypeTable) {
+			if tt.entry.ObjectType == schemadiff.ObjectTypeTable {
 				assert.Equal(t, tt.entry.Object.ForDisplay("postgresql"), q+s)
 			}
 		})
@@ -240,8 +240,8 @@ func TestObjectPathMinQuotesIdentifiers(t *testing.T) {
 // the assembler declined to compare must appear on the timeline with its reason,
 // not vanish and read as a window that simply had no changes.
 //
-// The skipped pair is a THIRD capture appended after the two the fixture's diffs
-// span. A skipped window never carries diffs (BuildReport bails before diffing),
+// The skipped pair is a THIRD capture appended after the two the fixture's drifts
+// span. A skipped window never carries drifts (BuildReport bails before diffing),
 // so overlaying it on the fixture's own window would both be an impossible report
 // and hide whether the findings still render.
 func TestRenderHTML_SkippedIntervalIsVisible(t *testing.T) {
@@ -290,8 +290,8 @@ func TestRenderHTML_BridgedIntervalsRender(t *testing.T) {
 			{Series: schemasnapshot.LabelExportDataFromSourcePeriodic, CapturedAt: after},
 		}
 		// One finding, in the window that bridges the failed capture.
-		r.Diffs = r.Diffs[:1]
-		r.Diffs[0].Window = Window{From: before, To: after}
+		r.Drifts = r.Drifts[:1]
+		r.Drifts[0].Window = Window{From: before, To: after}
 		r.Summary.ChangeCount = 1
 
 		out, err := RenderHTML(r)
@@ -312,7 +312,7 @@ func TestRenderHTML_BridgedIntervalsRender(t *testing.T) {
 			{Series: schemasnapshot.LabelExportDataFromSourceStart, CapturedAt: failed},
 			{Series: schemasnapshot.LabelExportDataFromSourcePeriodic, CapturedAt: after},
 		}
-		r.Diffs = nil
+		r.Drifts = nil
 		r.Summary.ChangeCount = 0
 		r.Skipped = []SkippedInterval{{
 			From:   schemasnapshot.LabelExportSchema,
@@ -353,9 +353,9 @@ func TestRenderHTML_SkippedAndRealIntervalShareACapture(t *testing.T) {
 		},
 	})
 	require.Len(t, report.Skipped, 1, "the scope mismatch must be recorded")
-	require.Len(t, report.Diffs, 1, "the pair after the mismatch must still be diffed")
+	require.Len(t, report.Drifts, 1, "the pair after the mismatch must still be diffed")
 	require.Equal(t, t2(), report.Skipped[0].Window.To, "the shared capture closes the skipped interval")
-	require.Equal(t, t2(), report.Diffs[0].Window.From, "...and opens the real one")
+	require.Equal(t, t2(), report.Drifts[0].Window.From, "...and opens the real one")
 
 	out, err := RenderHTML(report)
 	require.NoError(t, err)
