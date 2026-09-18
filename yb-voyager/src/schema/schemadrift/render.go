@@ -135,7 +135,7 @@ type findingView struct {
 	ValOld    string
 	ValNew    string
 
-	ActionStatus string // emoji + severity label, e.g. "⚠️ Potential impact"
+	SeverityLabel string // emoji + severity label, e.g. "⚠️ Potential impact"
 	// Rendered as two paragraphs. Pre-escaped HTML; see codeSpans.
 	Impact template.HTML
 	Action template.HTML
@@ -403,13 +403,13 @@ func newFindingView(d DiffEntry, dbType string) findingView {
 	objQ, objS := objectPath(d, dbType)
 
 	fv := findingView{
-		KindClass:    kindClass(d.Operation),
-		KindLabel:    kindLabel(d.Type),
-		ObjQ:         objQ,
-		ObjS:         objS,
-		ActionStatus: actionStatus(d.Status),
-		Impact:       codeSpans(d.Impact),
-		Action:       codeSpans(d.Action),
+		KindClass:     kindClass(d.Operation),
+		KindLabel:     kindLabel(d.Type),
+		ObjQ:          objQ,
+		ObjS:          objS,
+		SeverityLabel: severityLabel(d.Severity),
+		Impact:        codeSpans(d.Impact),
+		Action:        codeSpans(d.Action),
 	}
 
 	switch d.Operation {
@@ -495,22 +495,22 @@ func codeSpans(s string) template.HTML {
 	return template.HTML(b.String())
 }
 
-// actionStatusText maps each Status to its emoji + severity label, as shown
-// in a finding's "Impact & action" block.
-var actionStatusText = map[Status]string{
-	StatusAdvisory:            "ℹ️ Advisory",
-	StatusPotentialImpact:     "⚠️ Potential impact",
-	StatusBreaksRecoverable:   "⛔ Breaks the migration — recoverable",
-	StatusBreaksUnrecoverable: "🚨 Breaks the migration — unrecoverable",
+// severityLabelText maps each Severity to its emoji + label, as shown in a
+// finding's "Impact & action" block.
+var severityLabelText = map[Severity]string{
+	SeverityAdvisory:            "ℹ️ Advisory",
+	SeverityPotentialImpact:     "⚠️ Potential impact",
+	SeverityBreaksRecoverable:   "⛔ Breaks the migration — recoverable",
+	SeverityBreaksUnrecoverable: "🚨 Breaks the migration — unrecoverable",
 }
 
-// actionStatus renders status's emoji + severity label, falling back to the
-// raw status string for any value outside the known vocabulary.
-func actionStatus(status string) string {
-	if s, ok := actionStatusText[Status(status)]; ok {
+// severityLabel renders sev's emoji + label, falling back to the raw value for
+// anything outside the known vocabulary.
+func severityLabel(sev Severity) string {
+	if s, ok := severityLabelText[sev]; ok {
 		return s
 	}
-	return status
+	return string(sev)
 }
 
 // stringifyValue renders a DiffEntry.OldValue/NewValue (an `any` whose
