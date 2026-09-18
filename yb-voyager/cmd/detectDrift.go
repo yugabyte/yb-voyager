@@ -190,6 +190,14 @@ func validateDetectDriftFlags(cmd *cobra.Command) {
 	setSourceDefaultPort()
 	setDefaultSSLMode()
 
+	// A list flag that is empty once trimmed ("  ", ",") is the user passing nothing.
+	// Left as-is it would read as "filtered" while resolving to no names at all, so
+	// the report would claim a narrowing that never happened.
+	driftTableList = normalizeDriftListFlag(driftTableList)
+	driftExcludeTableList = normalizeDriftListFlag(driftExcludeTableList)
+	driftObjectTypeList = normalizeDriftListFlag(driftObjectTypeList)
+	driftExcludeObjectTypeList = normalizeDriftListFlag(driftExcludeObjectTypeList)
+
 	if driftTableList != "" && driftExcludeTableList != "" {
 		exitDriftOperationalError("--table-list and --exclude-table-list are mutually exclusive. Use only one of them.")
 	}
@@ -226,6 +234,13 @@ func validateDriftOutputFormat(format string) error {
 		seen[f] = true
 	}
 	return nil
+}
+
+// normalizeDriftListFlag returns raw with its entries trimmed, or "" when nothing
+// is left -- so a whitespace-only or comma-only value is indistinguishable from an
+// unset flag everywhere downstream.
+func normalizeDriftListFlag(raw string) string {
+	return strings.Join(utils.CsvStringToSlice(raw), ",")
 }
 
 // parseDriftObjectTypeList parses a comma-separated --object-type-list /
@@ -545,31 +560,22 @@ func detectDrift() {
 		}
 	}
 
-	// Scope takes one positive allow-list per dimension (empty = all); resolving the
-	// --exclude-* forms into keep-sets is this layer's job. See schemadiff.Scope.
+	// Scope holds the EXACT set to keep per dimension -- empty keeps nothing -- so an
+	// unfiltered dimension is filled with the whole universe here rather than left
+	// empty for the engine to interpret. Resolving the --exclude-* forms into
+	// keep-sets is this layer's job either way. See schemadiff.Scope.
+	tablesFiltered := driftTableList != "" || driftExcludeTableList != ""
+	if !tablesFiltered {
+		includeTables = lo.Map(candidates, func(c driftTableCandidate, _ int) schemasnapshot.ObjectRef { return c.ref })
+	}
+	objectTypesFiltered := driftObjectTypeList != "" || driftExcludeObjectTypeList != ""
+	if !objectTypesFiltered {
+		objectTypes = allDriftObjectTypes
+	}
 	scope := schemadiff.Scope{
 		Tables:      includeTables,
 		ObjectTypes: objectTypes,
 	}
-
-	// Both lists are ALWAYS populated, so "Comparing" can state what was actually
-	// compared: the whole candidate universe when unfiltered, else the resolved
-	// keep-set the engine received (including an --exclude-* complement).
-	tablesFiltered := driftTableList != "" || driftExcludeTableList != ""
-	effectiveTables := includeTables
-	if !tablesFiltered {
-		effectiveTables = lo.Map(candidates, func(c driftTableCandidate, _ int) schemasnapshot.ObjectRef { return c.ref })
-	}
-	displayTables := lo.Map(effectiveTables, func(r schemasnapshot.ObjectRef, _ int) string {
-		return r.ForDisplay(source.DBType)
-	})
-
-	objectTypesFiltered := driftObjectTypeList != "" || driftExcludeObjectTypeList != ""
-	effectiveObjectTypes := objectTypes
-	if !objectTypesFiltered {
-		effectiveObjectTypes = allDriftObjectTypes
-	}
-	displayObjectTypes := lo.Map(effectiveObjectTypes, func(t schemadiff.ObjectType, _ int) string { return string(t) })
 
 	if live != nil {
 		snapshots = append(snapshots, *live)
@@ -586,9 +592,7 @@ func detectDrift() {
 		Schemas:             schemas,
 		Snapshots:           snapshots,
 		Scope:               scope,
-		Tables:              displayTables,
 		TablesFiltered:      tablesFiltered,
-		ObjectTypes:         displayObjectTypes,
 		ObjectTypesFiltered: objectTypesFiltered,
 	})
 
