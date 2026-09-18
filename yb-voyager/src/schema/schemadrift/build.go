@@ -63,9 +63,9 @@ type DetectionInput struct {
 //     later snapshot becomes the new baseline -- snapshots covering different
 //     schemas cannot be meaningfully compared.
 func BuildReport(p DetectionInput) Report {
-	points := make([]CapturePoint, len(p.Snapshots))
+	capturePoints := make([]CapturePoint, len(p.Snapshots))
 	for i, s := range p.Snapshots {
-		points[i] = CapturePoint{
+		capturePoints[i] = CapturePoint{
 			Series:     s.Series,
 			Reason:     s.Header.Reason,
 			CapturedAt: s.Header.CapturedAt,
@@ -100,7 +100,7 @@ func BuildReport(p DetectionInput) Report {
 		}
 
 		intervalWindow := Window{From: prev.Header.CapturedAt, To: next.Header.CapturedAt}
-		phase := phaseFor(points[prevIdx], points[i])
+		phase := phaseFor(capturePoints[prevIdx], capturePoints[i])
 
 		for _, d := range differ.Diff(prev.Content, next.Content) {
 			seq++
@@ -127,8 +127,8 @@ func BuildReport(p DetectionInput) Report {
 	}
 
 	var reportWindow Window
-	if len(points) > 0 {
-		reportWindow = Window{From: points[0].CapturedAt, To: points[len(points)-1].CapturedAt}
+	if len(capturePoints) > 0 {
+		reportWindow = Window{From: capturePoints[0].CapturedAt, To: capturePoints[len(capturePoints)-1].CapturedAt}
 	}
 
 	return Report{
@@ -150,7 +150,7 @@ func BuildReport(p DetectionInput) Report {
 			LiveCompared:       lo.ContainsBy(p.Snapshots, func(s SnapshotInput) bool { return s.Series == SeriesSourceLive }),
 		},
 		Diffs:         diffs,
-		CapturePoints: points,
+		CapturePoints: capturePoints,
 		Skipped:       skipped,
 	}
 }
