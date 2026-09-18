@@ -198,16 +198,16 @@ The JSON report is an output file, not migration state, so upgrades never read a
 
 ```go
 type Report struct {
-	Report      string            `json:"report"`   // always "schema_drift"
-	Version     int               `json:"version"`  // 1
-	GeneratedAt time.Time         `json:"generated_at"`
-	Source      Source            `json:"source"`
-	Window      Window            `json:"window"`   // first capture to last capture
-	Comparing   Comparing         `json:"comparing"`
-	Summary     Summary           `json:"summary"`
-	Diffs       []DiffEntry       `json:"diffs"`
-	Timeline    []Capture         `json:"timeline"` // every point on the timeline, placeholders included
-	Skipped     []SkippedInterval `json:"skipped,omitempty"`
+	Report        string            `json:"report"`   // always "schema_drift"
+	Version       int               `json:"version"`  // 1
+	GeneratedAt   time.Time         `json:"generated_at"`
+	Source        Source            `json:"source"`
+	Window        Window            `json:"window"`   // first capture to last capture
+	Comparing     Comparing         `json:"comparing"`
+	Summary       Summary           `json:"summary"`
+	Diffs         []DiffEntry       `json:"diffs"`
+	CapturePoints []CapturePoint    `json:"capture_points"` // every point on the timeline, placeholders included
+	Skipped       []SkippedInterval `json:"skipped,omitempty"`
 }
 
 type Source struct {
@@ -232,9 +232,9 @@ type Comparing struct {
 }
 
 type Summary struct {
-	ChangeCount   int  `json:"change_count"`
-	SnapshotCount int  `json:"snapshot_count"` // stored snapshots only, live read excluded
-	LiveCompared  bool `json:"live_compared"`
+	ChangeCount        int  `json:"change_count"`
+	StoredCaptureCount int  `json:"stored_capture_count"` // placeholders included; live read excluded
+	LiveCompared       bool `json:"live_compared"`
 }
 
 type DiffEntry struct {
@@ -261,7 +261,7 @@ type SkippedInterval struct {
 	Reason string `json:"reason"`
 }
 
-type Capture struct {
+type CapturePoint struct {
 	Series     string    `json:"series"`
 	Reason     string    `json:"reason,omitempty"`
 	CapturedAt time.Time `json:"captured_at"`
@@ -269,6 +269,8 @@ type Capture struct {
 ```
 
 `Comparing` states what was compared, not what the user typed. Unfiltered, `Tables` is the whole universe; filtered, it is the resolved keep-set. The `*Filtered` flags tell the two apart so an empty list never has to mean two things.
+
+`CapturePoints` is every point on the timeline, not only the ones holding schema: a stored capture, a stored placeholder (the capture failed, so nothing is behind it), and the live read (never persisted). `StoredCaptureCount` counts the first two -- a placeholder is a persisted row -- so it is a count of stored records, not of usable snapshots.
 
 `Skipped` exists because an interval the assembler declined to compare is otherwise indistinguishable from one that had no changes. It is `omitempty` because a normal run has none.
 
@@ -316,13 +318,13 @@ Everything above `BuildReport` is `cmd` assembling plain data; everything inside
 
 ### 5.2 Which pairs are compared
 
-**Where:** `schemadrift.BuildReport`, the walk over `DetectionInput.Snapshots`. **In:** `[]SnapshotInput`, oldest first. **Out:** the `(prev, next)` pairs handed to `Differ.Diff`, plus `Report.Skipped` and `Report.Timeline`. **Decides:** which two snapshots form an interval, and what to do with inputs that cannot be an interval's side.
+**Where:** `schemadrift.BuildReport`, the walk over `DetectionInput.Snapshots`. **In:** `[]SnapshotInput`, oldest first. **Out:** the `(prev, next)` pairs handed to `Differ.Diff`, plus `Report.Skipped` and `Report.CapturePoints`. **Decides:** which two snapshots form an interval, and what to do with inputs that cannot be an interval's side.
 
 The walk keeps a *baseline*: the most recent snapshot eligible to be the older side of a comparison.
 
 | Current input | Baseline | Action |
 | :---- | :---- | :---- |
-| `Content == nil` (failed capture) | any | Record as a `Capture`. Leave the baseline alone, so the next real snapshot compares back across the gap. |
+| `Content == nil` (failed capture) | any | Record as a `CapturePoint`. Leave the baseline alone, so the next real snapshot compares back across the gap. |
 | has content | none yet | Becomes the baseline. Nothing to compare. |
 | has content, `Header.Schemas` set differs from baseline's | set | Record a `SkippedInterval` with the reason. Current becomes the baseline. |
 | has content, same schema set | set | Diff baseline → current through `Differ` with `p.Scope`. Each `Difference` becomes a `DiffEntry` carrying the interval's `Window` and `Phase`. Current becomes the baseline. |
@@ -333,11 +335,11 @@ A schema-set mismatch is *skipped*, not compared. Two snapshots covering differe
 
 `Seq` increments across the whole report, including across intervals that produced no entries, so a reader can refer to "finding 7" unambiguously.
 
-`Report.Window` spans the first to the last `Capture`, placeholders and the live read included. `Summary.SnapshotCount` counts stored snapshots only; the live read is reported through `LiveCompared`.
+`Report.Window` spans the first to the last `CapturePoint`, placeholders and the live read included. `Summary.StoredCaptureCount` counts the stored captures, placeholders included -- a placeholder is a persisted row; only the live read is excluded, and it is reported through `LiveCompared`.
 
 ### 5.3 Phase
 
-**Where:** `schemadrift.phaseFor(prev, next Capture) string`, called once per interval from `BuildReport`. **In:** the two `Capture.Series` values bracketing an interval. **Out:** `DiffEntry.Phase`. **Decides:** what the migration was doing while the interval's drift appeared.
+**Where:** `schemadrift.phaseFor(prev, next CapturePoint) string`, called once per interval from `BuildReport`. **In:** the two `CapturePoint.Series` values bracketing an interval. **Out:** `DiffEntry.Phase`. **Decides:** what the migration was doing while the interval's drift appeared.
 
 Unlisted pairs get `""` and the renderer shows the window alone.
 

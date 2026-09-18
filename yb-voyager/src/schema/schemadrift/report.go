@@ -36,15 +36,15 @@ const SeriesSourceLive = "source_live"
 // deliberate compatibility review, since downstream tooling (and users) may
 // consume the JSON directly.
 type Report struct {
-	Report      string      `json:"report"` // always "schema_drift"
-	Version     int         `json:"version"`
-	GeneratedAt time.Time   `json:"generated_at"`
-	Source      Source      `json:"source"`
-	Window      Window      `json:"window"`
-	Comparing   Comparing   `json:"comparing"`
-	Summary     Summary     `json:"summary"`
-	Diffs       []DiffEntry `json:"diffs"`
-	Timeline    []Capture   `json:"timeline"`
+	Report        string         `json:"report"` // always "schema_drift"
+	Version       int            `json:"version"`
+	GeneratedAt   time.Time      `json:"generated_at"`
+	Source        Source         `json:"source"`
+	Window        Window         `json:"window"`
+	Comparing     Comparing      `json:"comparing"`
+	Summary       Summary        `json:"summary"`
+	Diffs         []DiffEntry    `json:"diffs"`
+	CapturePoints []CapturePoint `json:"capture_points"`
 	// Intervals BuildReport declined to compare. Empty on a normal run; a
 	// non-empty list means the report covers less than its Window suggests.
 	Skipped []SkippedInterval `json:"skipped,omitempty"`
@@ -79,9 +79,9 @@ type Comparing struct {
 
 // Summary carries report-wide counters.
 type Summary struct {
-	ChangeCount   int  `json:"change_count"`
-	SnapshotCount int  `json:"snapshot_count"`
-	LiveCompared  bool `json:"live_compared"`
+	ChangeCount        int  `json:"change_count"`
+	StoredCaptureCount int  `json:"stored_capture_count"`
+	LiveCompared       bool `json:"live_compared"`
 }
 
 // DiffEntry is a single schema change, enriched with severity classification,
@@ -112,10 +112,13 @@ type SkippedInterval struct {
 	Reason string `json:"reason"`
 }
 
-// Capture is a single point on the report's timeline: either a stored
-// snapshot (Series == its capture label) or the live read of the source
-// (Series == SeriesSourceLive).
-type Capture struct {
+// CapturePoint is one point on the report's timeline: a moment at which the
+// source schema was captured, or capture was attempted. Three kinds appear -- a
+// stored capture, a stored placeholder (the capture failed, so no schema content
+// exists behind it), and the live read (Series == SeriesSourceLive, never
+// persisted). It is a projection: the snapshot content itself stays out of the
+// report.
+type CapturePoint struct {
 	Series     string    `json:"series"`
 	Reason     string    `json:"reason,omitempty"`
 	CapturedAt time.Time `json:"captured_at"`
