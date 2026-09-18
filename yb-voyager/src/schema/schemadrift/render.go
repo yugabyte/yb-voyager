@@ -159,9 +159,9 @@ func newReportView(r Report) reportView {
 		ComparingSummary: comparingSummary(r.Comparing),
 		ComparingScope:   comparingScope(r.Comparing),
 
-		TimelineRows: buildTimeline(r.Timeline, groupByInterval(r.Diffs), r.Skipped, r.Source.DatabaseType),
+		TimelineRows: buildTimeline(r.CapturePoints, groupByInterval(r.Diffs), r.Skipped, r.Source.DatabaseType),
 
-		Snapshots: snapshotRows(r.Timeline),
+		Snapshots: snapshotRows(r.CapturePoints),
 	}
 }
 
@@ -297,10 +297,10 @@ type intervalGroup struct {
 // Intervals are matched on the capture that OPENS them, never on the (i, i+1) pair:
 // a failed capture is bridged (see BuildReport), so an interval's window can span one
 // and would match no consecutive pair at all.
-func buildTimeline(captures []Capture, groups []intervalGroup, skipped []SkippedInterval, dbType string) []timelineEntry {
-	captureAt := make(map[time.Time]Capture, len(captures))
-	for _, c := range captures {
-		captureAt[c.CapturedAt] = c
+func buildTimeline(points []CapturePoint, groups []intervalGroup, skipped []SkippedInterval, dbType string) []timelineEntry {
+	pointAt := make(map[time.Time]CapturePoint, len(points))
+	for _, c := range points {
+		pointAt[c.CapturedAt] = c
 	}
 	groupFrom := make(map[time.Time]intervalGroup, len(groups))
 	for _, g := range groups {
@@ -312,7 +312,7 @@ func buildTimeline(captures []Capture, groups []intervalGroup, skipped []Skipped
 	}
 
 	var timeline []timelineEntry
-	for _, c := range captures {
+	for _, c := range points {
 		if ev, ok := deriveEvent(c); ok {
 			timeline = append(timeline, timelineEntry{Event: &ev})
 		}
@@ -328,7 +328,7 @@ func buildTimeline(captures []Capture, groups []intervalGroup, skipped []Skipped
 			continue
 		}
 		if g, ok := groupFrom[c.CapturedAt]; ok {
-			iv := newIntervalView(g, captureAt[g.Window.To], dbType)
+			iv := newIntervalView(g, pointAt[g.Window.To], dbType)
 			timeline = append(timeline, timelineEntry{Interval: &iv})
 		}
 	}
@@ -339,7 +339,7 @@ func buildTimeline(captures []Capture, groups []intervalGroup, skipped []Skipped
 // from its Series and Reason. Periodic captures and the live read never
 // produce a marker; ok is false in that case (and for any Series/Reason
 // combination not in the known vocabulary).
-func deriveEvent(c Capture) (eventView, bool) {
+func deriveEvent(c CapturePoint) (eventView, bool) {
 	t := formatTime(c.CapturedAt)
 	switch c.Series {
 	case schemasnapshot.LabelExportSchema:
@@ -371,7 +371,7 @@ func deriveEvent(c Capture) (eventView, bool) {
 // newIntervalView builds the display view for one interval group. next is
 // the capture that closes the interval's window (the "to" side of the
 // pair); the interval is "live" when next is the live read of the source.
-func newIntervalView(g intervalGroup, next Capture, dbType string) intervalView {
+func newIntervalView(g intervalGroup, next CapturePoint, dbType string) intervalView {
 	live := next.Series == SeriesSourceLive
 	count := changeCountLabel(len(g.Diffs))
 	if live {
@@ -586,12 +586,12 @@ func stringifyColumnDef(c schemasnapshot.Column) string {
 }
 
 // snapshotRows builds the footer's "Snapshots used" table rows from
-// Report.Timeline. The live read (Series == SeriesSourceLive) shows "—" for its
+// Report.CapturePoints. The live read (Series == SeriesSourceLive) shows "—" for its
 // sequence number, since it is never persisted/numbered like a stored
 // snapshot.
-func snapshotRows(captures []Capture) []snapshotRow {
-	rows := make([]snapshotRow, len(captures))
-	for i, c := range captures {
+func snapshotRows(points []CapturePoint) []snapshotRow {
+	rows := make([]snapshotRow, len(points))
+	for i, c := range points {
 		seq := fmt.Sprintf("%d", i+1)
 		note := ""
 		if c.Series == SeriesSourceLive {

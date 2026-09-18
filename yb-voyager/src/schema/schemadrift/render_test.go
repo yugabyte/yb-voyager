@@ -49,9 +49,9 @@ func fixtureReport() Report {
 			Schemas: []string{"public"},
 		},
 		Summary: Summary{
-			ChangeCount:   2,
-			SnapshotCount: 2,
-			LiveCompared:  true,
+			ChangeCount:        2,
+			StoredCaptureCount: 2,
+			LiveCompared:       true,
 		},
 		Diffs: []DiffEntry{
 			{
@@ -83,7 +83,7 @@ func fixtureReport() Report {
 				Action:     classify(schemadiff.ColumnTypeChanged).Action,
 			},
 		},
-		Timeline: []Capture{
+		CapturePoints: []CapturePoint{
 			{Series: schemasnapshot.LabelExportDataFromSourceStart, CapturedAt: from},
 			{Series: schemasnapshot.LabelExportDataFromSourcePeriodic, CapturedAt: to},
 		},
@@ -108,12 +108,12 @@ func TestRenderJSON(t *testing.T) {
 	assert.Contains(t, got, "comparing")
 	assert.Contains(t, got, "summary")
 	assert.Contains(t, got, "diffs")
-	assert.Contains(t, got, "timeline")
+	assert.Contains(t, got, "capture_points")
 
 	summary, ok := got["summary"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, float64(2), summary["change_count"])
-	assert.Equal(t, float64(2), summary["snapshot_count"])
+	assert.Equal(t, float64(2), summary["stored_capture_count"])
 	assert.Equal(t, true, summary["live_compared"])
 
 	// skipped is omitempty, so its absence has to be pinned too: otherwise a
@@ -137,7 +137,7 @@ func TestRenderJSON_SkippedIntervalsAreSerialized(t *testing.T) {
 	r.Skipped = []SkippedInterval{{
 		From:   schemasnapshot.LabelExportSchema,
 		To:     schemasnapshot.LabelExportDataFromSourceStart,
-		Window: Window{From: r.Timeline[0].CapturedAt, To: r.Timeline[1].CapturedAt},
+		Window: Window{From: r.CapturePoints[0].CapturedAt, To: r.CapturePoints[1].CapturedAt},
 		Reason: "the two captures cover different schemas, so they cannot be compared",
 	}}
 
@@ -237,9 +237,9 @@ func TestObjectPathMinQuotesIdentifiers(t *testing.T) {
 // and hide whether the findings still render.
 func TestRenderHTML_SkippedIntervalIsVisible(t *testing.T) {
 	r := fixtureReport()
-	skipFrom := r.Timeline[1].CapturedAt
+	skipFrom := r.CapturePoints[1].CapturedAt
 	skipTo := skipFrom.Add(time.Hour)
-	r.Timeline = append(r.Timeline, Capture{
+	r.CapturePoints = append(r.CapturePoints, CapturePoint{
 		Series:     schemasnapshot.LabelExportDataFromSourcePeriodic,
 		CapturedAt: skipTo,
 	})
@@ -275,7 +275,7 @@ func TestRenderHTML_BridgedIntervalsRender(t *testing.T) {
 
 	t.Run("bridged findings reach the HTML", func(t *testing.T) {
 		r := fixtureReport()
-		r.Timeline = []Capture{
+		r.CapturePoints = []CapturePoint{
 			{Series: schemasnapshot.LabelExportSchema, CapturedAt: before},
 			{Series: schemasnapshot.LabelExportDataFromSourceStart, CapturedAt: failed},
 			{Series: schemasnapshot.LabelExportDataFromSourcePeriodic, CapturedAt: after},
@@ -298,7 +298,7 @@ func TestRenderHTML_BridgedIntervalsRender(t *testing.T) {
 
 	t.Run("bridged skipped interval reaches the HTML", func(t *testing.T) {
 		r := fixtureReport()
-		r.Timeline = []Capture{
+		r.CapturePoints = []CapturePoint{
 			{Series: schemasnapshot.LabelExportSchema, CapturedAt: before},
 			{Series: schemasnapshot.LabelExportDataFromSourceStart, CapturedAt: failed},
 			{Series: schemasnapshot.LabelExportDataFromSourcePeriodic, CapturedAt: after},
