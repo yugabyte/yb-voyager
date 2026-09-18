@@ -590,7 +590,6 @@ func detectDrift() {
 		TablesFiltered:      tablesFiltered,
 		ObjectTypes:         displayObjectTypes,
 		ObjectTypesFiltered: objectTypesFiltered,
-		GeneratedAt:         time.Now().UTC(),
 	})
 
 	writtenPaths, err := writeDriftReports(report, driftOutputFormat)
