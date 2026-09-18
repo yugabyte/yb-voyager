@@ -575,7 +575,7 @@ func detectDrift() {
 		snapshotInputs = append(snapshotInputs, *live)
 	}
 
-	report := schemadrift.BuildReport(schemadrift.BuildParams{
+	report := schemadrift.BuildReport(schemadrift.DetectionInput{
 		Source: schemadrift.Source{
 			DatabaseType:    source.DBType,
 			Host:            source.Host,
