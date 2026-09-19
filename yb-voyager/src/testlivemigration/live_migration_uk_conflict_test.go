@@ -4192,3 +4192,226 @@ SELECT i, 'user_' || i || '@example.com' FROM generate_series(1, 20) as i;`,
 	err = lm.WaitForCutoverComplete(0, 30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
+
+// TestLiveMigrationCustomKeyResumeGuardChangeCases is the end-to-end companion to the unit
+// test TestCustomKeyResumeGuardChangeCases. It runs a real custom-key live migration, stops it,
+// and then attempts every disallowed resume change (each must be rejected before snapshot),
+// finally resuming with a semantically-equivalent overrides string (which must be accepted) and
+// completing the migration through cutover.
+//
+// Baseline config (global pk + overrides): orders -> custom(customer_id), by_pk -> custom(id).
+// by_pk's custom key is exactly its primary key, so the first run also pins that a custom key
+// equal to the PK columns is accepted and persisted as custom (not rejected, not coerced to pk).
+// metrics is a LIST-partitioned table left on the global pk; its leaf metrics_r1 exists in the
+// name registry but not in the import table list, so an override targeting the leaf is rejected.
+//
+// Rejected resume cases (no --start-clean):
+//   - changed custom key column list (orders customer_id -> region)
+//   - custom -> pk (drop the orders override)
+//   - pk -> custom (add an override for the pk-routed metrics)
+//   - global key change with an override present (--cdc-partition-key pk -> table)
+//   - override on a leaf partition name (metrics_r1)
+//
+// Accepted resume case (no --start-clean):
+//   - equivalent overrides spelling (quoting + whitespace) resolving to the same per-table map
+func TestLiveMigrationCustomKeyResumeGuardChangeCases(t *testing.T) {
+	// Not parallel: this test stops and resumes a single migration many times in sequence.
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "cdc_custom_key_resume_guard",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "cdc_custom_key_resume_guard",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.orders (
+				id int PRIMARY KEY,
+				customer_id text NOT NULL,
+				region text
+			);
+			CREATE TABLE test_schema.by_pk (
+				id int PRIMARY KEY,
+				val text
+			);
+			CREATE TABLE test_schema.metrics (
+				id int,
+				region text NOT NULL,
+				val int,
+				PRIMARY KEY (id, region)
+			) PARTITION BY LIST (region);
+			CREATE TABLE test_schema.metrics_r1 PARTITION OF test_schema.metrics FOR VALUES IN ('r1');`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.orders REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.by_pk REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.metrics REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.metrics_r1 REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.orders (id, customer_id, region)
+			 SELECT i, 'C' || ((i % 5) + 1), 'r1' FROM generate_series(1, 10) i;`,
+			`INSERT INTO test_schema.by_pk (id, val)
+			 SELECT i, md5(random()::text) FROM generate_series(1, 10) i;`,
+			`INSERT INTO test_schema.metrics (id, region, val)
+			 SELECT i, 'r1', i * 10 FROM generate_series(1, 10) i;`,
+		},
+		SourceDeltaSQL: []string{
+			// customer_id (orders custom key) and id (by_pk custom key) are immutable: inserts only.
+			`INSERT INTO test_schema.orders (id, customer_id, region)
+			 SELECT i, 'C' || ((i % 5) + 1), 'r1' FROM generate_series(11, 15) i;`,
+			`INSERT INTO test_schema.by_pk (id, val)
+			 SELECT i, md5(random()::text) FROM generate_series(11, 15) i;`,
+			`INSERT INTO test_schema.metrics (id, region, val)
+			 SELECT i, 'r1', i * 10 FROM generate_series(11, 15) i;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	baselineOverrides := "test_schema.orders:(customer_id);test_schema.by_pk:(id)"
+
+	// First run: establish the baseline per-table strategy map.
+	err = lm.StartImportData(true, map[string]string{
+		"--cdc-partition-key":           "pk",
+		"--cdc-partition-key-overrides": baselineOverrides,
+	})
+	testutils.FatalIfError(t, err, "failed to start import data with baseline custom-key config")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."orders"`:  10,
+		`"test_schema"."by_pk"`:   10,
+		`"test_schema"."metrics"`: 10,
+	}, 60)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.InitMetaDB()
+	testutils.FatalIfError(t, err, "failed to initialize meta db")
+	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
+	testutils.FatalIfError(t, err, "failed to get import data status record")
+
+	// Baseline persisted map, including "custom key equal to the PK columns is accepted".
+	assert.Equal(t, "pk", importDataStatus.CdcPartitioningStrategyConfig)
+	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."orders"`].Strategy,
+		"orders should be custom")
+	assert.Equal(t, []string{"customer_id"}, importDataStatus.TableToCDCPartitionKey[`"test_schema"."orders"`].Columns,
+		"orders custom key columns should be persisted")
+	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."by_pk"`].Strategy,
+		"by_pk should be custom even though its custom key equals the primary key")
+	assert.Equal(t, []string{"id"}, importDataStatus.TableToCDCPartitionKey[`"test_schema"."by_pk"`].Columns,
+		"by_pk custom key equal to the PK columns should be accepted and persisted")
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "metrics", cmd.PARTITION_BY_PK)
+
+	err = lm.StopImportData()
+	testutils.FatalIfError(t, err, "failed to stop import data")
+
+	// expectResumeRejected resumes without --start-clean and asserts the attempt is rejected
+	// before snapshot with an output matching check. State is left intact for the next attempt.
+	expectResumeRejected := func(desc string, args map[string]string, check func(string) bool) {
+		err = lm.ResumeImportData(false, args)
+		assert.Error(t, err, "%s: resume should have failed", desc)
+		out := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
+		assert.True(t, check(out), "%s; got output: %s", desc, out)
+	}
+	changeGuardTripped := func(out string) bool {
+		return strings.Contains(out, "changing cdc-partition-key") && strings.Contains(out, "is not allowed")
+	}
+
+	// changed custom key column list: orders customer_id -> region.
+	expectResumeRejected("changed custom key column list must be rejected",
+		map[string]string{
+			"--cdc-partition-key":           "pk",
+			"--cdc-partition-key-overrides": "test_schema.orders:(region);test_schema.by_pk:(id)",
+		},
+		func(out string) bool { return changeGuardTripped(out) && strings.Contains(out, "custom key columns") })
+
+	// custom -> pk: drop the orders override so it falls back to the global pk.
+	expectResumeRejected("custom -> pk must be rejected",
+		map[string]string{
+			"--cdc-partition-key":           "pk",
+			"--cdc-partition-key-overrides": "test_schema.by_pk:(id)",
+		},
+		changeGuardTripped)
+
+	// pk -> custom: add a custom override for the pk-routed metrics table.
+	expectResumeRejected("pk -> custom must be rejected",
+		map[string]string{
+			"--cdc-partition-key":           "pk",
+			"--cdc-partition-key-overrides": "test_schema.orders:(customer_id);test_schema.by_pk:(id);test_schema.metrics:(val)",
+		},
+		changeGuardTripped)
+
+	// global key change with an override present: pk -> table (flag-level raw compare).
+	expectResumeRejected("global key change with an override present must be rejected",
+		map[string]string{
+			"--cdc-partition-key":           "table",
+			"--cdc-partition-key-overrides": baselineOverrides,
+		},
+		changeGuardTripped)
+
+	// override on a leaf partition name: metrics_r1 is registered but not in the import table list.
+	expectResumeRejected("override on a leaf partition name must be rejected",
+		map[string]string{
+			"--cdc-partition-key":           "pk",
+			"--cdc-partition-key-overrides": "test_schema.orders:(customer_id);test_schema.by_pk:(id);test_schema.metrics_r1:table",
+		},
+		func(out string) bool {
+			return strings.Contains(out, "not in the import table list") || strings.Contains(out, "not found in name registry")
+		})
+
+	// Accepted: equivalent overrides spelling (quoting + whitespace) -> same per-table map.
+	equivalentOverrides := `  "test_schema"."by_pk":(id) ; "test_schema"."orders":( customer_id ) `
+	err = lm.ResumeImportData(true, map[string]string{
+		"--cdc-partition-key":           "pk",
+		"--cdc-partition-key-overrides": equivalentOverrides,
+	})
+	testutils.FatalIfError(t, err, "resume with semantically-equivalent overrides should succeed")
+
+	err = lm.WaitForStreamingMode(90*time.Second, 2*time.Second)
+	testutils.FatalIfError(t, err, "wait for streaming to be started")
+
+	// The persisted per-table map is preserved across the accepted resume.
+	importDataStatus, err = lm.GetMetaDB().GetImportDataStatusRecord()
+	testutils.FatalIfError(t, err, "failed to get import data status record after resume")
+	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."orders"`].Strategy)
+	assert.Equal(t, []string{"customer_id"}, importDataStatus.TableToCDCPartitionKey[`"test_schema"."orders"`].Columns)
+	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."by_pk"`].Strategy)
+	assert.Equal(t, []string{"id"}, importDataStatus.TableToCDCPartitionKey[`"test_schema"."by_pk"`].Columns)
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."orders"`, `"test_schema"."by_pk"`, `"test_schema"."metrics"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency after resume")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."orders"`:  {Inserts: 5},
+		`"test_schema"."by_pk"`:   {Inserts: 5},
+		`"test_schema"."metrics"`: {Inserts: 5},
+	}, 90, 5)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."orders"`, `"test_schema"."by_pk"`, `"test_schema"."metrics"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
