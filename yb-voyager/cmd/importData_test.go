@@ -2071,7 +2071,7 @@ SELECT 'name_' || g FROM generate_series(1, 100) AS g;`
 	assert.NoError(t, err, "table data mismatch between source and target")
 
 	// Verify the identity column is still GENERATED ALWAYS on the target
-	assertIdentityColumnIsAlways(t, ybConn, "test_schema", "identity_test", "id")
+	testutils.AssertIdentityColumnIsAlways(t, ybConn, "test_schema", "identity_test", "id")
 }
 
 // Regression test: `import data --start-clean true --truncate-tables true` must
