@@ -92,7 +92,7 @@ func TestImportDataFileReport(t *testing.T) {
 	err = InitNameRegistry(exportDir, IMPORT_FILE_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, yb, false)
 	testutils.FatalIfError(t, err, "Failed to initialize name registry")
 	metaDB = initMetaDB(exportDir)
-	state := NewImportDataState(exportDir)
+	state := newImportDataStateFromGlobals()
 	dataFileDescriptor, err = prepareDummyDescriptor(state)
 	defer func() {
 		dataFileDescriptor = nil
@@ -219,7 +219,7 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue_BatchIngestionError(t 
 	err = InitNameRegistry(exportDir, IMPORT_FILE_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, yb, false)
 	testutils.FatalIfError(t, err, "Failed to initialize name registry")
 	metaDB = initMetaDB(exportDir)
-	state := NewImportDataState(exportDir)
+	state := newImportDataStateFromGlobals()
 	dataFileDescriptor, err = prepareDummyDescriptor(state)
 	defer func() {
 		dataFileDescriptor = nil
@@ -373,7 +373,7 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue_ProcessingError(t *tes
 	err = InitNameRegistry(exportDir, IMPORT_FILE_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, yb, false)
 	testutils.FatalIfError(t, err, "Failed to initialize name registry")
 	metaDB = initMetaDB(exportDir)
-	state := NewImportDataState(exportDir)
+	state := newImportDataStateFromGlobals()
 	dataFileDescriptor, err = prepareDummyDescriptor(state)
 	defer func() {
 		dataFileDescriptor = nil
@@ -530,7 +530,7 @@ func TestImportDataFile_MultipleTasksForATable(t *testing.T) {
 	err = InitNameRegistry(exportDir, IMPORT_FILE_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, yb, false)
 	testutils.FatalIfError(t, err, "Failed to initialize name registry")
 	metaDB = initMetaDB(exportDir)
-	state := NewImportDataState(exportDir)
+	state := newImportDataStateFromGlobals()
 	dataFileDescriptor, err = prepareDummyDescriptor(state)
 	defer func() {
 		dataFileDescriptor = nil
@@ -662,7 +662,7 @@ func TestImportDataFile_SameFileForMultipleTables(t *testing.T) {
 	err = InitNameRegistry(exportDir, IMPORT_FILE_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, yb, false)
 	testutils.FatalIfError(t, err, "Failed to initialize name registry")
 	metaDB = initMetaDB(exportDir)
-	state := NewImportDataState(exportDir)
+	state := newImportDataStateFromGlobals()
 	dataFileDescriptor, err = prepareDummyDescriptor(state)
 	defer func() {
 		dataFileDescriptor = nil
