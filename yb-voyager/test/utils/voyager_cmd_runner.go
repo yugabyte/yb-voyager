@@ -266,7 +266,10 @@ func (v *VoyagerCommandRunner) newCmd() {
 
 	v.Cmd.Env = append(os.Environ(),
 		"YB_VOYAGER_SEND_DIAGNOSTICS=false",
-		"DEBEZIUM_SOURCE_YB_LOAD_BALANCE_CONNECTIONS=false")
+		"DEBEZIUM_SOURCE_YB_LOAD_BALANCE_CONNECTIONS=false",
+		// Keep Debezium's SIGTERM->SIGKILL grace short in tests so process teardown
+		// stays well under test process-exit timeouts (de-flakes failpoint/live tests).
+		"DEBEZIUM_STOP_TIMEOUT_SECONDS=20")
 
 	if len(v.testEnvVars) > 0 {
 		v.Cmd.Env = append(v.Cmd.Env, v.testEnvVars...)
