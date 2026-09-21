@@ -558,3 +558,29 @@ func TestNothingComparedError(t *testing.T) {
 		})
 	}
 }
+
+// ─── countDriftsBy (the callhome histograms) ─────────────────────────────────
+
+func TestCountDriftsBy(t *testing.T) {
+	drifts := []schemadrift.DriftEntry{
+		{Type: schemadiff.ColumnAdded, DriftInfo: schemadrift.DriftInfo{Severity: schemadrift.SeverityAdvisory}},
+		{Type: schemadiff.ColumnAdded, DriftInfo: schemadrift.DriftInfo{Severity: schemadrift.SeverityAdvisory}},
+		{Type: schemadiff.TableDropped, DriftInfo: schemadrift.DriftInfo{Severity: schemadrift.SeverityBreaksUnrecoverable}},
+	}
+
+	byType := countDriftsBy(drifts, func(d schemadrift.DriftEntry) string { return string(d.Type) })
+	assert.Equal(t, map[string]int{
+		string(schemadiff.ColumnAdded):  2,
+		string(schemadiff.TableDropped): 1,
+	}, byType)
+
+	bySeverity := countDriftsBy(drifts, func(d schemadrift.DriftEntry) string { return string(d.Severity) })
+	assert.Equal(t, map[string]int{
+		string(schemadrift.SeverityAdvisory):            2,
+		string(schemadrift.SeverityBreaksUnrecoverable): 1,
+	}, bySeverity)
+
+	// nil rather than an empty map, so the field drops out of the payload JSON
+	// entirely instead of being sent as {}.
+	assert.Nil(t, countDriftsBy(nil, func(d schemadrift.DriftEntry) string { return string(d.Type) }))
+}
