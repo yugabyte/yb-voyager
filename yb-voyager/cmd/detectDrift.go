@@ -41,6 +41,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ux"
 )
 
+// ─── Command definition ──────────────────────────────────────────────────────
+
 // DRIFT_REPORT_FILE_NAME is the basename (without extension) of the report
 // files written under <export-dir>/reports/ by `schema detect-drift`.
 const DRIFT_REPORT_FILE_NAME = "drift_analysis_report"
@@ -69,6 +71,10 @@ var driftObjectTypesByName = map[string]schemadiff.ObjectType{
 	"TABLE":  schemadiff.ObjectTypeTable,
 	"COLUMN": schemadiff.ObjectTypeColumn,
 }
+
+// allDriftObjectTypes is the full v1 object-type universe, used to resolve
+// --exclude-object-type-list into its complement (see complementDriftObjectTypes).
+var allDriftObjectTypes = []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn}
 
 var detectDriftCmd = &cobra.Command{
 	Use: "detect-drift",
@@ -155,21 +161,7 @@ func init() {
 		"comma-separated list of object types to exclude from comparison: (TABLE, COLUMN). Only one of --object-type-list and --exclude-object-type-list can be specified.")
 }
 
-// exitDriftOperationalError prints the given error to stderr (and the log) and
-// exits with code 2, the contractual exit code for detect-drift operational
-// errors (bad flags, unreachable source, unsupported source type, etc.).
-//
-// It deliberately does not use utils.ErrExit, which exits with code 1 -- that
-// would collide with detect-drift's own "success, drift found" exit code. It
-// still leaves via atexit, so the handlers main.go registers (callhome, child
-// cleanup, terminal restore after a password prompt) run as they do for every
-// other command.
-func exitDriftOperationalError(format string, args ...interface{}) {
-	msg := fmt.Sprintf(format, args...)
-	fmt.Fprintf(os.Stderr, "Error: %s\n", msg)
-	log.Errorf("schema detect-drift: %s", msg)
-	atexit.Exit(2)
-}
+// ─── Flags: defaults, validation, parsing ────────────────────────────────────
 
 // resolveDetectDriftFlagDefaults fills in what the user did not pass and rewrites
 // the list flags into their canonical form. It is the only place that WRITES flag
@@ -242,39 +234,6 @@ func validateDriftOutputFormat(format string) error {
 	return nil
 }
 
-// nothingComparedError explains why the run examined no interval, reading the
-// case off the report rather than guessing at one. The three causes want
-// different things said, and none of them is fixable by re-running the export:
-// capture happens while the export commands run, so a migration that ran without
-// it cannot be given a history after the fact.
-func nothingComparedError(r schemadrift.Report) error {
-	var reasons []string
-	usable := 0
-	for _, c := range r.CapturePoints {
-		switch {
-		case c.Excluded == "":
-			usable++
-		case !lo.Contains(reasons, c.Excluded):
-			reasons = append(reasons, c.Excluded)
-		}
-	}
-
-	switch {
-	case len(r.CapturePoints) == 0:
-		return goerrors.Errorf("this export directory holds no schema snapshots, so there is nothing to compare. " +
-			"Snapshots are recorded only while `export schema` and `export data` run, and only when " +
-			"--disable-schema-snapshot-capture=false was passed to them")
-	case len(reasons) == 0:
-		return goerrors.Errorf("only %d of %d captures is usable, and a single capture forms no interval, "+
-			"so there was nothing to compare", usable, len(r.CapturePoints))
-	default:
-		return goerrors.Errorf("no two comparable schema snapshots in this export directory, so there was "+
-			"nothing to compare: %d of %d captures usable; the rest were skipped because: %s. "+
-			"If the schemas named there are not the ones you expected, check --source-db-schema",
-			usable, len(r.CapturePoints), strings.Join(reasons, "; "))
-	}
-}
-
 // normalizeDriftListFlag returns raw with its entries trimmed, or "" when nothing
 // is left -- so a whitespace-only or comma-only value is indistinguishable from an
 // unset flag everywhere downstream.
@@ -304,6 +263,8 @@ func parseDriftObjectTypeList(raw string) ([]schemadiff.ObjectType, error) {
 	}
 	return out, nil
 }
+
+// ─── Scope resolution ────────────────────────────────────────────────────────
 
 // driftTableCandidate pairs a table's identity (for building
 // schemasnapshot.ObjectRef / Scope entries) with the sqlname.ObjectName view of
@@ -419,6 +380,26 @@ func complementDriftTableRefs(candidates []driftTableCandidate, exclude []schema
 	return out
 }
 
+// complementDriftObjectTypes returns every type in allDriftObjectTypes NOT
+// present in exclude -- the resolution of --exclude-object-type-list into the
+// single positive allow-list the collapsed schemadiff.Scope expects.
+//
+// As with complementDriftTableRefs, an EMPTY result must be rejected by the
+// caller, not forwarded to Scope, which would then keep nothing.
+func complementDriftObjectTypes(exclude []schemadiff.ObjectType) []schemadiff.ObjectType {
+	excludeSet := make(map[schemadiff.ObjectType]bool, len(exclude))
+	for _, t := range exclude {
+		excludeSet[t] = true
+	}
+	var out []schemadiff.ObjectType
+	for _, t := range allDriftObjectTypes {
+		if !excludeSet[t] {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
 // driftScopeResolution is what the --table-list / --object-type-list family
 // resolves to: the Scope itself, plus whether the user actually narrowed each
 // dimension. The booleans cannot be recovered from the Scope, because "these 12
@@ -492,29 +473,7 @@ func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasn
 	return res, nil
 }
 
-// allDriftObjectTypes is the full v1 object-type universe, used to resolve
-// --exclude-object-type-list into its complement (see complementDriftObjectTypes).
-var allDriftObjectTypes = []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn}
-
-// complementDriftObjectTypes returns every type in allDriftObjectTypes NOT
-// present in exclude -- the resolution of --exclude-object-type-list into the
-// single positive allow-list the collapsed schemadiff.Scope expects.
-//
-// As with complementDriftTableRefs, an EMPTY result must be rejected by the
-// caller, not forwarded to Scope, which would then keep nothing.
-func complementDriftObjectTypes(exclude []schemadiff.ObjectType) []schemadiff.ObjectType {
-	excludeSet := make(map[schemadiff.ObjectType]bool, len(exclude))
-	for _, t := range exclude {
-		excludeSet[t] = true
-	}
-	var out []schemadiff.ObjectType
-	for _, t := range allDriftObjectTypes {
-		if !excludeSet[t] {
-			out = append(out, t)
-		}
-	}
-	return out
-}
+// ─── The run ─────────────────────────────────────────────────────────────────
 
 // detectDrift runs the command and reports whether drift was found. It never
 // exits: returning lets its defers unwind and leaves the exit code to the caller,
@@ -665,6 +624,57 @@ func captureLiveSnapshotForDrift(schemas []string) *schemasnapshot.SchemaSnapsho
 	}
 	return snap
 }
+
+// exitDriftOperationalError prints the given error to stderr (and the log) and
+// exits with code 2, the contractual exit code for detect-drift operational
+// errors (bad flags, unreachable source, unsupported source type, etc.).
+//
+// It deliberately does not use utils.ErrExit, which exits with code 1 -- that
+// would collide with detect-drift's own "success, drift found" exit code. It
+// still leaves via atexit, so the handlers main.go registers (callhome, child
+// cleanup, terminal restore after a password prompt) run as they do for every
+// other command.
+func exitDriftOperationalError(format string, args ...interface{}) {
+	msg := fmt.Sprintf(format, args...)
+	fmt.Fprintf(os.Stderr, "Error: %s\n", msg)
+	log.Errorf("schema detect-drift: %s", msg)
+	atexit.Exit(2)
+}
+
+// nothingComparedError explains why the run examined no interval, reading the
+// case off the report rather than guessing at one. The three causes want
+// different things said, and none of them is fixable by re-running the export:
+// capture happens while the export commands run, so a migration that ran without
+// it cannot be given a history after the fact.
+func nothingComparedError(r schemadrift.Report) error {
+	var reasons []string
+	usable := 0
+	for _, c := range r.CapturePoints {
+		switch {
+		case c.Excluded == "":
+			usable++
+		case !lo.Contains(reasons, c.Excluded):
+			reasons = append(reasons, c.Excluded)
+		}
+	}
+
+	switch {
+	case len(r.CapturePoints) == 0:
+		return goerrors.Errorf("this export directory holds no schema snapshots, so there is nothing to compare. " +
+			"Snapshots are recorded only while `export schema` and `export data` run, and only when " +
+			"--disable-schema-snapshot-capture=false was passed to them")
+	case len(reasons) == 0:
+		return goerrors.Errorf("only %d of %d captures is usable, and a single capture forms no interval, "+
+			"so there was nothing to compare", usable, len(r.CapturePoints))
+	default:
+		return goerrors.Errorf("no two comparable schema snapshots in this export directory, so there was "+
+			"nothing to compare: %d of %d captures usable; the rest were skipped because: %s. "+
+			"If the schemas named there are not the ones you expected, check --source-db-schema",
+			usable, len(r.CapturePoints), strings.Join(reasons, "; "))
+	}
+}
+
+// ─── Output: report files and terminal summary ───────────────────────────────
 
 // writeDriftReports renders and writes report to <export-dir>/reports/ in each
 // of the comma-separated formats in formatSpec, creating the reports directory
