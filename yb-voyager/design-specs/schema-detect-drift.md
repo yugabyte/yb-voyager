@@ -179,6 +179,16 @@ yb-voyager schema detect-drift --export-dir <dir> \
 | State | read-only; writes only under `reports/` |
 | Lock | takes its own per-command lock on the export dir, so two `detect-drift` runs cannot overwrite each other's report; export and import are not blocked |
 
+### 3.7 Guidance footers (\#3815)
+
+Three commands point the user at `schema detect-drift`. All three share one precondition: the export dir already holds at least one real (non-placeholder) schema snapshot. Capture is off by default, so without that check every footer would point at a command that exits 2 with "holds no schema snapshots". A command that dies before metaDB is opened prints nothing for the same reason.
+
+| Site | Prints when |
+| :---- | :---- |
+| `export data` failure | the command is `export data` or `export data from source`, the role is the source exporter, and the run failed — both the explicit failure branch and any `utils.ErrExit` path |
+| `import data` failure | the command is `import data` or `import data to target` and it failed via `utils.ErrExit`. `import data to source` and `to source-replica` are excluded: they only run after cutover to target, which §1 puts out of scope |
+| `initiate cutover to target` | before the confirmation prompt, only when the user is actually prompted (`--yes` unset) and cutover to target has not already been requested |
+
 ## 4\. Data model
 
 ### 4.1 Report

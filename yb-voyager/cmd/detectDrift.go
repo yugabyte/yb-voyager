@@ -825,31 +825,3 @@ func formatDriftTimestamp(t time.Time) string {
 	}
 	return t.Format(time.RFC3339)
 }
-
-// ─── Guidance footers printed by other commands ──────────────────────────────
-
-// driftDetectionHint returns the example invocation of `schema detect-drift`
-// printed as part of the guidance footers below.
-func driftDetectionHint() string {
-	return fmt.Sprintf("\t%s --export-dir %s (with your source connection flags)", detectDriftCmd.CommandPath(), exportDir)
-}
-
-// printSchemaDriftErrorFooter prints a guidance footer nudging the user
-// towards `schema detect-drift` after an export/import data command has
-// exited with an error. firstLine is the caller-specific lead-in sentence
-// (e.g. "export data exited with an error."); the rest of the message and
-// the example invocation are identical across call sites.
-func printSchemaDriftErrorFooter(firstLine string) {
-	utils.PrintAndLog(fmt.Sprintf("%s If the source schema may have changed since export began, review schema drift before retrying or cutting over:\n%s",
-		firstLine, driftDetectionHint()))
-}
-
-// printCutoverSchemaDriftRecommendation nudges the user to review source drift
-// before they confirm cutover to target. The source exporter's exit capture is the
-// last source-schema snapshot the migration records -- `export data from target`
-// takes none -- and it is not written until after this prompt, so detect-drift's
-// live source read is the only thing covering the window up to cutover.
-func printCutoverSchemaDriftRecommendation() {
-	utils.PrintAndLog(fmt.Sprintf("Recommendation: cutover to target ends schema capture on the source. Consider reviewing schema drift on the source before proceeding:\n%s",
-		driftDetectionHint()))
-}

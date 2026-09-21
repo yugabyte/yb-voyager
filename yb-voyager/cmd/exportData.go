@@ -242,8 +242,10 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		color.Red("Export of data failed! Check %s/logs for more details.", exportDir)
 		log.Error("Export of data failed.")
 		sendPayloadAsPerExporterRole(ERROR, nil)
+		// The exit handler cannot cover this one: it is reached with ErrExitErr unset,
+		// which reads there as a clean exit rather than a failure.
 		if exporterRole == SOURCE_DB_EXPORTER_ROLE {
-			printSchemaDriftErrorFooter("export data exited with an error.")
+			printSchemaDriftErrorFooter(exportDataDriftFooterLeadIn)
 		}
 		atexit.Exit(1)
 	}

@@ -1894,17 +1894,12 @@ func PackAndSendCallhomePayloadOnExit() {
 		status = EXIT
 	}
 
-	// import data has no single success/failure return value to branch on (unlike
-	// export data): it fails via scattered utils.ErrExit calls, which is why this
-	// is the only place that reliably distinguishes a genuine import data error
-	// (status == ERROR) from a clean exit or a user-requested interrupt (which
-	// also lands here with ErrExitErr unset, i.e. status == EXIT).
+	// export and import data both fail mostly via scattered utils.ErrExit calls, which
+	// unwind nothing, so this handler is the only place that sees them. It is also the
+	// only place that tells a genuine failure (status == ERROR) apart from a clean exit
+	// or a user interrupt, both of which land here with ErrExitErr unset.
 	if status == ERROR {
-		switch currentCommand {
-		case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath(),
-			importDataToSourceCmd.CommandPath(), importDataToSourceReplicaCmd.CommandPath():
-			printSchemaDriftErrorFooter("import data exited with an error.")
-		}
+		printSchemaDriftErrorFooterOnExit(currentCommand)
 	}
 
 	switch currentCommand {
