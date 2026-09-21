@@ -70,6 +70,7 @@ func BuildReport(p DetectionInput) Report {
 
 	var drifts []DriftEntry
 	liveCompared := false
+	comparedIntervals := 0
 	prevIdx := -1
 	for i := range p.Snapshots {
 		switch {
@@ -88,6 +89,7 @@ func BuildReport(p DetectionInput) Report {
 		}
 
 		prev, next := p.Snapshots[prevIdx], p.Snapshots[i]
+		comparedIntervals++
 		intervalWindow := Window{From: prev.Header.CapturedAt, To: next.Header.CapturedAt}
 		phase := phaseFor(capturePoints[prevIdx], capturePoints[i])
 		if next.Header.Label == schemasnapshot.LabelSourceLive {
@@ -136,9 +138,10 @@ func BuildReport(p DetectionInput) Report {
 			ObjectTypesFiltered: p.ObjectTypesFiltered,
 		},
 		Summary: Summary{
-			ChangeCount:        len(drifts),
-			StoredCaptureCount: lo.CountBy(p.Snapshots, func(s schemasnapshot.SchemaSnapshot) bool { return s.Header.Label != schemasnapshot.LabelSourceLive }),
-			LiveCompared:       liveCompared,
+			ChangeCount:           len(drifts),
+			ComparedIntervalCount: comparedIntervals,
+			StoredCaptureCount:    lo.CountBy(p.Snapshots, func(s schemasnapshot.SchemaSnapshot) bool { return s.Header.Label != schemasnapshot.LabelSourceLive }),
+			LiveCompared:          liveCompared,
 		},
 		Drifts:        drifts,
 		CapturePoints: capturePoints,

@@ -375,6 +375,67 @@ func TestBuildReport_SchemaFilterKeepsOnlyRequestedSchemas(t *testing.T) {
 	assert.Equal(t, []string{"public"}, report.Comparing.Schemas)
 }
 
+func TestBuildReport_ComparedIntervalCount(t *testing.T) {
+	content := fixtureContent(fixtureTable("1", "public", "orders"))
+	drifted := fixtureContent(
+		fixtureTable("1", "public", "orders"),
+		fixtureTable("2", "public", "items"),
+	)
+	scope := schemadiff.Scope{
+		Schemas:     []string{"public"},
+		Tables:      []schemasnapshot.ObjectRef{objRef("public", "orders"), objRef("public", "items")},
+		ObjectTypes: []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn},
+	}
+
+	t.Run("two usable snapshots is one interval", func(t *testing.T) {
+		report := BuildReport(DetectionInput{
+			Source: Source{DatabaseType: "postgresql"},
+			Snapshots: []schemasnapshot.SchemaSnapshot{
+				{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: content},
+				{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: drifted},
+			},
+			Scope: scope,
+		})
+		assert.Equal(t, 1, report.Summary.ComparedIntervalCount)
+		assert.Equal(t, 1, report.Summary.ChangeCount)
+	})
+
+	t.Run("every stored capture failed, so nothing was compared", func(t *testing.T) {
+		// The distinction this field exists for: ChangeCount is 0 here, but so is
+		// the number of intervals examined. StoredCaptureCount says 2, because a
+		// placeholder is a persisted row -- it cannot tell the reader that nothing
+		// was looked at.
+		report := BuildReport(DetectionInput{
+			Source: Source{DatabaseType: "postgresql"},
+			Snapshots: []schemasnapshot.SchemaSnapshot{
+				{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: nil},
+				{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: nil},
+				{Header: fixtureHeader(schemasnapshot.LabelSourceLive, t3(), "public"), Content: content},
+			},
+			Scope: scope,
+		})
+		assert.Equal(t, 0, report.Summary.ComparedIntervalCount, "one usable point cannot form an interval")
+		assert.Equal(t, 0, report.Summary.ChangeCount)
+		assert.Equal(t, 2, report.Summary.StoredCaptureCount, "placeholders still count as stored records")
+		assert.False(t, report.Summary.LiveCompared)
+	})
+
+	t.Run("a bridged capture does not add an interval", func(t *testing.T) {
+		report := BuildReport(DetectionInput{
+			Source: Source{DatabaseType: "postgresql"},
+			Snapshots: []schemasnapshot.SchemaSnapshot{
+				{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: content},
+				{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "sales"), Content: content},
+				{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourcePeriodic, t3(), "public"), Content: drifted},
+			},
+			Scope: scope,
+		})
+		assert.Equal(t, 1, report.Summary.ComparedIntervalCount,
+			"three points with one bridged is still a single interval, not two")
+		assert.Equal(t, 1, report.Summary.ChangeCount)
+	})
+}
+
 func TestBuildReport_LiveComparedMeansActuallyCompared(t *testing.T) {
 	content := fixtureContent(fixtureTable("1", "public", "orders"))
 

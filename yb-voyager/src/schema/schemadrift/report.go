@@ -72,9 +72,13 @@ type Comparing struct {
 
 // Summary carries report-wide counters.
 type Summary struct {
-	ChangeCount        int  `json:"change_count"`
-	StoredCaptureCount int  `json:"stored_capture_count"`
-	LiveCompared       bool `json:"live_compared"`
+	ChangeCount int `json:"change_count"`
+	// How many intervals were actually diffed. Zero changes over zero intervals is
+	// not a clean report, it is one that examined nothing -- and StoredCaptureCount
+	// cannot say so, because a failed capture still counts toward it.
+	ComparedIntervalCount int  `json:"compared_interval_count"`
+	StoredCaptureCount    int  `json:"stored_capture_count"`
+	LiveCompared          bool `json:"live_compared"`
 }
 
 // DriftEntry is a schemadiff.Difference enriched into drift: what the change means

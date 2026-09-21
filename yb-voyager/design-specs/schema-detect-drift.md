@@ -218,9 +218,10 @@ type Comparing struct {
 }
 
 type Summary struct {
-	ChangeCount        int  `json:"change_count"`
-	StoredCaptureCount int  `json:"stored_capture_count"` // placeholders included; live read excluded
-	LiveCompared       bool `json:"live_compared"`
+	ChangeCount           int  `json:"change_count"`
+	ComparedIntervalCount int  `json:"compared_interval_count"` // intervals actually diffed
+	StoredCaptureCount    int  `json:"stored_capture_count"`    // placeholders included; live read excluded
+	LiveCompared          bool `json:"live_compared"`
 }
 
 type DriftEntry struct {
@@ -322,6 +323,8 @@ A capture that does not COVER the requested schemas is bridged for the same reas
 This replaces an earlier rule that skipped any pair whose schema sets were not EQUAL. Equality rejected six comparable pairs to guard against one incomparable one: a run narrowed at detect-drift time, where the live read carries exactly `--source-db-schema` while history carries whatever export used, hit it on every interval and reported no drift at all.
 
 `Report.Window` spans the first to the last `CapturePoint`, placeholders and the live read included. `Summary.StoredCaptureCount` counts the stored captures, placeholders included -- a placeholder is a persisted row; only the live read is excluded, and it is reported through `LiveCompared`.
+
+`Summary.ComparedIntervalCount` is how many intervals were actually diffed. It is the honest counterpart to `ChangeCount`: zero changes over zero intervals is not a clean report, it is a report that examined nothing, and without this field a reader has to scan `capture_points[].excluded` to notice. `StoredCaptureCount` cannot stand in -- placeholders count toward it, so two failed captures read as two snapshots examined.
 
 `Summary.LiveCompared` means the live read was actually DIFFED against a baseline, not merely that one was taken. A live read that is bridged, or that is the first usable snapshot and so has nothing behind it, reports false -- otherwise the summary claims the source was checked against history when it was not.
 
