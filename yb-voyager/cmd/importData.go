@@ -1980,6 +1980,7 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 		dataMetrics.SnapshotTotalRows = callhomeMetricsCollector.GetSnapshotTotalRows()
 		dataMetrics.SnapshotTotalBytes = callhomeMetricsCollector.GetSnapshotTotalBytes()
 		dataMetrics.CurrentParallelConnections = callhomeMetricsCollector.GetCurrentParallelConnections()
+		dataMetrics.CdcConflictCountPerTable = callhomeMetricsCollector.GetCdcConflictCountPerTable()
 	}
 
 	// Get phase-related metrics from existing logic

@@ -26,6 +26,7 @@ type ImportDataMetricsCollector struct {
 	snapshotTotalRows          int64
 	snapshotTotalBytes         int64
 	currentParallelConnections int
+	cdcConflictCountPerTable   map[string]int64
 }
 
 func NewImportDataMetricsCollector() *ImportDataMetricsCollector {
@@ -33,6 +34,7 @@ func NewImportDataMetricsCollector() *ImportDataMetricsCollector {
 		snapshotTotalRows:          0,
 		snapshotTotalBytes:         0,
 		currentParallelConnections: 0,
+		cdcConflictCountPerTable: make(map[string]int64),
 	}
 }
 
@@ -41,6 +43,12 @@ func (c *ImportDataMetricsCollector) IncrementSnapshotProgress(rows int64, bytes
 	defer c.Unlock()
 	c.snapshotTotalRows += rows
 	c.snapshotTotalBytes += bytes
+}
+
+func (c *ImportDataMetricsCollector) IncrementConflictCountForTable(table string) {
+	c.Lock()
+	defer c.Unlock()
+	c.cdcConflictCountPerTable[table]++
 }
 
 func (c *ImportDataMetricsCollector) SetCurrentParallelConnections(connections int) {
@@ -65,4 +73,10 @@ func (c *ImportDataMetricsCollector) GetSnapshotTotalBytes() int64 {
 	c.RLock()
 	defer c.RUnlock()
 	return c.snapshotTotalBytes
+}
+
+func (c *ImportDataMetricsCollector) GetCdcConflictCountPerTable() map[string]int64 {
+	c.RLock()
+	defer c.RUnlock()
+	return c.cdcConflictCountPerTable
 }

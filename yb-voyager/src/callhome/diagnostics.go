@@ -373,6 +373,8 @@ type ImportDataMetrics struct {
 	SnapshotTotalBytes      int64 `json:"snapshot_total_bytes"`
 	CdcEventsImportRate3min int64 `json:"cdc_events_import_rate_3min"`
 
+	CdcConflictCountPerTable map[string]int64 `json:"cdc_conflict_count_per_table"`
+
 	// table list count - number of tables being imported
 	TableListCount int `json:"table_list_count"`
 }
