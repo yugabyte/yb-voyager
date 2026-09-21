@@ -185,8 +185,8 @@ func buildTableRenameAliases(diffs []Difference) map[schemasnapshot.ObjectRef][]
 }
 */
 
-// passesObjectTypeFilter returns true if the finding's object-type bucket is
-// allowed by the include list. An empty includeTypes means "all".
+// passesObjectTypeFilter keeps a finding whose object type is listed. An empty
+// includeTypes keeps nothing, per Scope's empty-means-empty rule.
 func passesObjectTypeFilter(d Difference, includeTypes map[ObjectType]struct{}) bool {
 	_, ok := includeTypes[d.ObjectType]
 	return ok
