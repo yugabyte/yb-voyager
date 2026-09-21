@@ -22,7 +22,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/schema/schemadrift"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 )
@@ -348,6 +350,108 @@ func TestUnionDriftTableCandidates(t *testing.T) {
 			for _, c := range got {
 				assert.NotNil(t, c.name, "candidate %v should have a non-nil ObjectName", c.ref)
 			}
+		})
+	}
+}
+
+// ─── resolveDriftTableRefs ───────────────────────────────────────────────────
+
+func TestResolveDriftTableRefs(t *testing.T) {
+	// A multi-schema run with no "public": GetDefaultPGSchema reports no default,
+	// so an unqualified pattern can match nothing at all.
+	candidates := unionDriftTableCandidates("postgresql", "", nil, []*schemasnapshot.SnapshotContent{
+		snapContent(
+			schemasnapshot.ObjectRef{Schema: "sales", Name: "orders"},
+			schemasnapshot.ObjectRef{Schema: "billing", Name: "invoices"},
+		),
+	}, nil)
+
+	t.Run("unqualified pattern without a default schema is rejected by name", func(t *testing.T) {
+		_, err := resolveDriftTableRefs(candidates, "orders", "table-list", false)
+		require.Error(t, err)
+		// The old behaviour reported "unknown table name", which sent the user
+		// looking for a table that does exist.
+		assert.Contains(t, err.Error(), "not schema-qualified")
+		assert.NotContains(t, err.Error(), "unknown table name")
+	})
+
+	t.Run("qualified patterns still resolve without a default schema", func(t *testing.T) {
+		refs, err := resolveDriftTableRefs(candidates, "sales.orders", "table-list", false)
+		require.NoError(t, err)
+		assert.Equal(t, []schemasnapshot.ObjectRef{{Schema: "sales", Name: "orders"}}, refs)
+	})
+
+	t.Run("a pattern matching nothing is still an unknown table", func(t *testing.T) {
+		_, err := resolveDriftTableRefs(candidates, "sales.nope", "table-list", false)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unknown table name")
+	})
+
+	t.Run("case-sensitive names match only under their own quoting", func(t *testing.T) {
+		mixed := unionDriftTableCandidates("postgresql", "public", nil, []*schemasnapshot.SnapshotContent{
+			snapContent(
+				schemasnapshot.ObjectRef{Schema: "public", Name: "Orders"},
+				schemasnapshot.ObjectRef{Schema: "public", Name: "orders"},
+			),
+		}, nil)
+
+		// An unquoted pattern folds case, so it reaches both spellings.
+		refs, err := resolveDriftTableRefs(mixed, "orders", "table-list", true)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []schemasnapshot.ObjectRef{
+			{Schema: "public", Name: "Orders"},
+			{Schema: "public", Name: "orders"},
+		}, refs)
+
+		// A quoted pattern is exact, so it reaches only the capitalised one.
+		refs, err = resolveDriftTableRefs(mixed, `public."Orders"`, "table-list", true)
+		require.NoError(t, err)
+		assert.Equal(t, []schemasnapshot.ObjectRef{{Schema: "public", Name: "Orders"}}, refs)
+	})
+}
+
+// ─── nothingComparedError ────────────────────────────────────────────────────
+
+func TestNothingComparedError(t *testing.T) {
+	tests := []struct {
+		name   string
+		points []schemadrift.CapturePoint
+		want   string
+		absent string
+	}{
+		{
+			name:   "no captures stored at all",
+			points: nil,
+			want:   "holds no schema snapshots",
+			// Capture cannot be enabled retroactively, so the message must not
+			// suggest re-running the export as a fix for this run.
+			absent: "Re-run",
+		},
+		{
+			name: "one usable capture forms no interval",
+			points: []schemadrift.CapturePoint{
+				{Series: schemasnapshot.LabelExportSchema},
+			},
+			want:   "a single capture forms no interval",
+			absent: "skipped because",
+		},
+		{
+			name: "every capture excluded, reasons named",
+			points: []schemadrift.CapturePoint{
+				{Series: schemasnapshot.LabelExportSchema, Excluded: "the capture failed, so this point holds no schema"},
+				{Series: schemasnapshot.LabelExportDataFromSourceStart, Excluded: "captured only sales, so it cannot answer for public"},
+			},
+			want:   "captured only sales, so it cannot answer for public",
+			absent: "single capture",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := nothingComparedError(schemadrift.Report{CapturePoints: tt.points})
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.want)
+			assert.NotContains(t, err.Error(), tt.absent)
 		})
 	}
 }

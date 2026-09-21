@@ -172,7 +172,8 @@ yb-voyager schema detect-drift --export-dir <dir> \
 | Source type | PostgreSQL only; any other value is an operational error |
 | Output | `<export-dir>/reports/drift_analysis_report.html` and `.json`, overwritten on each run |
 | Exit codes | `0` the report was written, whether or not it found drift · `1` error (flags, connection, unreadable snapshot). A script reads drift from `summary.change_count` in the JSON report. |
-| Config file | section `schema-detect-drift` with keys `log-level`, `output-format`, the four list flags |
+| Config file | section `schema-detect-drift` with keys `log-level`, `output-format`, the four list flags; commented-out in the four migration templates |
+| Table scope | an unqualified `--table-list` entry needs a default schema, so `--source-db-schema` without `public` must qualify every entry as `schema.table` |
 | State | read-only; writes only under `reports/` |
 
 ## 4\. Data model
@@ -406,8 +407,8 @@ Capture happens in `export schema` and, when the exporter role is the source exp
 | Snapshot header exists but blob cannot be loaded for any other reason | warning, treated like a placeholder | The moment is still on the timeline; the report bridges across it. |
 | A capture did not cover the requested schemas | bridged, and recorded on its `CapturePoint` (§5.2) | A requested table missing from it means nobody looked, not that it was dropped. Treating it as a boundary lost every interval around it. |
 | Live capture fails or the source is unreachable | connection failure is an error, exit 1; capture failure after connecting warns and continues history-only | The user asked for the live comparison, but history alone is still a useful report. |
-| No or one stored snapshot, but a comparable pair still forms | warning; report reflects only the live read or the single interval | Not an error: one stored capture plus the live read is a real interval. |
-| No comparable pair at all (`ComparedIntervalCount == 0`) | operational error, exit 2; the message is derived from what the assembler recorded, and names only the case that actually occurred | An empty report reads as "no drift". The three causes — no captures stored, none usable, only one usable — need different advice, so the message must not assert a cause it did not observe. Capture cannot be enabled retroactively, so "re-run the export" is never the remedy for the run in hand. |
+| One stored snapshot, and the live read makes it a pair | warning; report covers that single interval | Not an error: one stored capture plus the live read is a real interval. Zero stored snapshots gets no warning, because it can never form an interval and always lands on the row below. |
+| No comparable pair at all (`ComparedIntervalCount == 0`) | error, exit 1; the message is derived from what the assembler recorded, and names only the case that actually occurred | An empty report reads as "no drift". The three causes — no captures stored, none usable, only one usable — need different advice, so the message must not assert a cause it did not observe. Capture cannot be enabled retroactively, so "re-run the export" is never the remedy for the run in hand. |
 | `DiffType` not in the classification map | `advisory`, no Impact or Action, note omitted in the render | Dropping the change would hide it. |
 | The HTML renderer meets a state it cannot display (§3.5) | error, exit 1 | Rendering past it drops or misprints a finding in a report that still looks complete. |
 | Report file already exists | overwritten with a notice | Reports are regenerated, not versioned. |

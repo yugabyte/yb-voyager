@@ -53,13 +53,15 @@ var (
 	driftExcludeTableList      string
 	driftObjectTypeList        string
 	driftExcludeObjectTypeList string
-
-	// Parsed once by validateDetectDriftFlags from the two flags above, so the
-	// resolution step reads a value instead of re-parsing and throwing away an
-	// error on the strength of "validation already ran".
-	driftObjectTypes        []schemadiff.ObjectType
-	driftExcludeObjectTypes []schemadiff.ObjectType
 )
+
+// driftParsedFlags holds what validateDetectDriftFlags resolved from the raw flag
+// strings, so the scope step reads a value instead of re-parsing and discarding
+// the error on the strength of "validation already ran".
+var driftParsedFlags struct {
+	objectTypes        []schemadiff.ObjectType
+	excludeObjectTypes []schemadiff.ObjectType
+}
 
 var driftValidOutputFormats = []string{"html", "json"}
 
@@ -104,7 +106,7 @@ Exit codes: 0 = success, no drift found; 1 = success, drift found; 2 = operation
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		resolveDetectDriftFlagDefaults()
-		validateDetectDriftFlags(cmd)
+		validateDetectDriftFlags()
 		// Resolve the source password from the --source-db-password flag, the
 		// SOURCE_DB_PASSWORD env var, or an interactive prompt -- exactly as the
 		// export commands do. Without this, source.Password stays empty and the
@@ -189,7 +191,7 @@ func resolveDetectDriftFlagDefaults() {
 //
 // Table-list validation (whether a pattern actually matches a table) needs the
 // source's table list and so happens later, inside resolveDriftScope.
-func validateDetectDriftFlags(cmd *cobra.Command) {
+func validateDetectDriftFlags() {
 	if source.DBType != POSTGRESQL {
 		exitDriftOperationalError("schema detect-drift currently supports PostgreSQL sources only (got --source-db-type=%q)", source.DBType)
 	}
@@ -206,10 +208,10 @@ func validateDetectDriftFlags(cmd *cobra.Command) {
 	}
 
 	var err error
-	if driftObjectTypes, err = parseDriftObjectTypeList(driftObjectTypeList); err != nil {
+	if driftParsedFlags.objectTypes, err = parseDriftObjectTypeList(driftObjectTypeList); err != nil {
 		exitDriftOperationalError("invalid --object-type-list: %v", err)
 	}
-	if driftExcludeObjectTypes, err = parseDriftObjectTypeList(driftExcludeObjectTypeList); err != nil {
+	if driftParsedFlags.excludeObjectTypes, err = parseDriftObjectTypeList(driftExcludeObjectTypeList); err != nil {
 		exitDriftOperationalError("invalid --exclude-object-type-list: %v", err)
 	}
 }
@@ -277,8 +279,7 @@ type driftTableCandidate struct {
 // buildDriftTableCandidates reads the live catalog and hands the union off to
 // unionDriftTableCandidates. Must run after source.Schemas is resolved, which is
 // what decides the schemas GetAllTableNames() queries.
-func buildDriftTableCandidates(snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent) []driftTableCandidate {
-	defaultSchema, _ := GetDefaultPGSchema(source.Schemas)
+func buildDriftTableCandidates(defaultSchema string, snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent) []driftTableCandidate {
 	var liveRefs []schemasnapshot.ObjectRef
 	for _, n := range source.DB().GetAllTableNames() {
 		liveRefs = append(liveRefs, schemasnapshot.ObjectRef{Schema: n.SchemaName.Unquoted, Name: n.ObjectName.Unquoted})
@@ -331,13 +332,20 @@ func unionDriftTableCandidates(dbType, defaultSchema string, liveRefs []schemasn
 // pattern list against candidates. Returns (nil, nil) for an empty pattern
 // list (meaning "no filter"). A pattern matching no candidate is reported as an
 // unknown table name, mirroring export/import's --table-list validation.
-func resolveDriftTableRefs(candidates []driftTableCandidate, patternList string, flagName string) ([]schemasnapshot.ObjectRef, error) {
+func resolveDriftTableRefs(candidates []driftTableCandidate, patternList string, flagName string, hasDefaultSchema bool) ([]schemasnapshot.ObjectRef, error) {
 	if strings.TrimSpace(patternList) == "" {
 		return nil, nil
 	}
 	var refs []schemasnapshot.ObjectRef
 	var unknown []string
 	for _, pattern := range utils.CsvStringToSlice(patternList) {
+		// An unqualified pattern only ever matches a candidate in the default
+		// schema (see ObjectName.MatchesPattern). With no default there is nothing
+		// for it to match, and it would otherwise be reported as an unknown table.
+		if !hasDefaultSchema && !strings.Contains(pattern, ".") {
+			return nil, goerrors.Errorf("--%s entry %q is not schema-qualified, and --source-db-schema names no "+
+				"default schema (no \"public\"); write it as schema.table", flagName, pattern)
+		}
 		matched := false
 		for _, c := range candidates {
 			ok, err := c.name.MatchesPattern(pattern)
@@ -425,20 +433,26 @@ func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasn
 	if live != nil {
 		liveContent = live.Content
 	}
+	// noDefaultSchema is carried rather than discarded: without a default, an
+	// unqualified --table-list pattern can match nothing at all, and every other
+	// caller of GetDefaultPGSchema treats that as an error rather than a silent
+	// no-match.
+	defaultSchema, noDefaultSchema := GetDefaultPGSchema(source.Schemas)
+
 	// Built even when nothing is filtered: besides being the set --exclude-table-list
 	// subtracts from, it IS the set of tables compared, which the report states.
-	candidates := buildDriftTableCandidates(snapshotContents, liveContent)
+	candidates := buildDriftTableCandidates(defaultSchema, snapshotContents, liveContent)
 
 	var includeTables []schemasnapshot.ObjectRef
 	var err error
 	switch {
 	case driftTableList != "":
-		if includeTables, err = resolveDriftTableRefs(candidates, driftTableList, "table-list"); err != nil {
+		if includeTables, err = resolveDriftTableRefs(candidates, driftTableList, "table-list", !noDefaultSchema); err != nil {
 			return driftScopeResolution{}, err
 		}
 	case driftExcludeTableList != "":
 		var excludeTables []schemasnapshot.ObjectRef
-		if excludeTables, err = resolveDriftTableRefs(candidates, driftExcludeTableList, "exclude-table-list"); err != nil {
+		if excludeTables, err = resolveDriftTableRefs(candidates, driftExcludeTableList, "exclude-table-list", !noDefaultSchema); err != nil {
 			return driftScopeResolution{}, err
 		}
 		includeTables = complementDriftTableRefs(candidates, excludeTables)
@@ -448,9 +462,9 @@ func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasn
 		}
 	}
 
-	objectTypes := driftObjectTypes
+	objectTypes := driftParsedFlags.objectTypes
 	if driftExcludeObjectTypeList != "" {
-		objectTypes = complementDriftObjectTypes(driftExcludeObjectTypes)
+		objectTypes = complementDriftObjectTypes(driftParsedFlags.excludeObjectTypes)
 		if len(objectTypes) == 0 {
 			supported := lo.Map(allDriftObjectTypes, func(t schemadiff.ObjectType, _ int) string { return string(t) })
 			return driftScopeResolution{}, goerrors.Errorf(
@@ -521,11 +535,11 @@ func detectDrift() (driftFound bool, err error) {
 	if err != nil {
 		return false, fmt.Errorf("failed to list schema snapshots: %w", err)
 	}
-	switch len(headers) {
-	case 0:
-		utils.PrintAndLogfWarning("Note: no historical schema snapshots found in this export directory's metadata; " +
-			"the report will only reflect the live source read (if available), with no drift against history.\n")
-	case 1:
+	// Only the one-snapshot case gets a warning. With none at all the run cannot
+	// form an interval however the live read goes, so it always ends at
+	// nothingComparedError, which says so accurately; warning first that a report
+	// is coming would contradict it.
+	if len(headers) == 1 {
 		utils.PrintAndLogfWarning("Note: only one historical schema snapshot found; drift can only be reported for the " +
 			"single interval between it and the live read (if available).\n")
 	}
@@ -726,8 +740,12 @@ func printDriftSummary(report schemadrift.Report, writtenPaths []string) {
 
 	printDriftSummaryField("Comparison window", utils.PrintAndLogf,
 		"%s -> %s", formatDriftTimestamp(report.Window.From), formatDriftTimestamp(report.Window.To))
-	printDriftSummaryField("Snapshots compared", utils.PrintAndLogf,
-		"%d (live source comparison: %t)", report.Summary.StoredCaptureCount, report.Summary.LiveCompared)
+	// Two numbers, not one: a stored capture that failed or did not cover the
+	// requested schemas is bridged, so the count of captures on disk overstates
+	// what was actually examined.
+	printDriftSummaryField("Captures stored", utils.PrintAndLogf, "%d", report.Summary.StoredCaptureCount)
+	printDriftSummaryField("Intervals compared", utils.PrintAndLogf,
+		"%d (live source comparison: %t)", report.Summary.ComparedIntervalCount, report.Summary.LiveCompared)
 	printDriftSummaryField("Schemas", utils.PrintAndLogf, "%s", joinOrAllDrift(report.Comparing.Schemas))
 	printDriftSummaryField("Tables", utils.PrintAndLogf, "%s",
 		driftScopeLine(report.Comparing.Tables, report.Comparing.TablesFiltered))
@@ -751,7 +769,7 @@ func printDriftSummary(report schemadrift.Report, writtenPaths []string) {
 }
 
 // driftSummaryLabelWidth is the column the summary's values start in, wide enough
-// for the longest label ("Snapshots compared").
+// for the longest label ("Intervals compared").
 const driftSummaryLabelWidth = 18
 
 // printDriftSummaryField prints one "label : value" row, wrapping a long value with a
