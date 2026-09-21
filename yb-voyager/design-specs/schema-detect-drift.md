@@ -400,7 +400,7 @@ Capture happens in `export schema` and, when the exporter role is the source exp
 | Flow | Captures | detect-drift | Notes |
 | :---- | :---- | :---- | :---- |
 | Offline | export schema, export data start / periodic / exit(complete) | covered |  |
-| Live, snapshot \+ changes | as offline; periodic continues through streaming; exit reason `cutover` | covered | The cutover footer (\#3815) nudges the user to run it before confirming. |
+| Live, snapshot \+ changes | as offline; periodic continues through streaming; exit reason `cutover` | covered | The cutover footer (\#3815) nudges the user to run it before confirming. That exit capture does not exist yet at the prompt, so the live read is what covers the final window. |
 | Live with fall-back | source side as above; `export data from target` takes no captures | covered for the source, up to cutover | Source-side DDL after cutover-to-target is only visible through the live read. Target-side drift is a non-goal (§1). |
 | Live with fall-forward | same as fall-back | same |  |
 | Changes-only | export schema, export data start / periodic / exit; no `pg_dump`, but capture is gated on role, not on export type | covered |  |
