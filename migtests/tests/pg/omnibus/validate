@@ -14,6 +14,8 @@ EXPECTED_COLLATION_SET = {"bad_us", "german_phonebook", "us"}
 
 EXPECTED_AGGREGATE_SET = {"my_avg", "my_sum"}
 
+POSTGRES_FDW_ROUTINE_COUNT = 5
+
 EXPECTED_COUNTS = {
 	"agg_ex": {
 		"table_count": 1,
@@ -235,6 +237,12 @@ def migration_completed_checks(tgt):
 	for schema, changes in updates.items():
 	    for objects, new_value in changes.items():
 	        EXPECTED_COUNTS[schema][objects] = new_value
+
+	# Some YB cluster setups pre-install postgres_fdw into pg_catalog, which turns the
+	# migrated CREATE EXTENSION into a no-op and leaves its routines out of the target
+	# schema. This depends on cluster setup, not on the YB version.
+	if tgt.get_extension_schema("postgres_fdw") != "foreign_db_example":
+		EXPECTED_COUNTS["foreign_db_example"]["functions_procedures_count"] -= POSTGRES_FDW_ROUTINE_COUNT
 
 	check_validations_per_schema(tgt, "public")
 	check_validations_per_schema(tgt, "am_examples")

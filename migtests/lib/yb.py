@@ -338,6 +338,12 @@ class PostgresDB:
 		cur.execute(f"SELECT extname FROM pg_extension")
 		return set(cur.fetchall())
 
+	def get_extension_schema(self, extension_name) -> str:
+		cur = self.conn.cursor()
+		cur.execute("SELECT n.nspname FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace WHERE e.extname = %s", (extension_name,))
+		row = cur.fetchone()
+		return row[0] if row else None
+
 	def fetch_all_schemas(self) -> set[str]:
 		cur = self.conn.cursor()
 		cur.execute(f"SELECT schema_name FROM information_schema.schemata where schema_name !~ '^pg_' and schema_name <> 'information_schema' and schema_name NOT IN ({self.EXPECTED_ORAFCE_SCHEMAS})")		
