@@ -28,8 +28,10 @@ import (
 
 	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schema/schemadrift"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
@@ -606,15 +608,22 @@ func detectDrift() error {
 	// An empty report reads as "no drift", so refuse to emit one when nothing was
 	// examined.
 	if report.Summary.ComparedIntervalCount == 0 {
-		return nothingComparedError(report)
+		nothingCompared := nothingComparedError(report)
+		// Sent from here rather than left to the atexit handler because the report
+		// is the interesting part: how many captures existed and why none were
+		// usable is exactly what tells us whether the feature is reachable.
+		packAndSendSchemaDriftPayload(ERROR, nothingCompared, &report)
+		return nothingCompared
 	}
 
 	writtenPaths, err := writeDriftReports(report, driftReportFormats(driftOutputFormat))
 	if err != nil {
+		packAndSendSchemaDriftPayload(ERROR, err, &report)
 		return err
 	}
 
 	printDriftSummary(report, writtenPaths)
+	packAndSendSchemaDriftPayload(COMPLETE, nil, &report)
 
 	return nil
 }
@@ -674,6 +683,68 @@ func nothingComparedError(r schemadrift.Report) error {
 			"If the schemas named there are not the ones you expected, check --source-db-schema",
 			usable, len(r.CapturePoints), strings.Join(reasons, "; "))
 	}
+}
+
+// ─── Telemetry ───────────────────────────────────────────────────────────────
+
+// packAndSendSchemaDriftPayload reports the run to callhome. report is nil when
+// the run failed before one was built, which is itself worth recording: it is
+// the population that could not use the feature at all.
+//
+// Counts only. Schema, table and column names are identifiers and are not sent.
+func packAndSendSchemaDriftPayload(status string, errorMsg error, report *schemadrift.Report) {
+	if !shouldSendCallhome() {
+		return
+	}
+	if err := retrieveMigrationUUID(); err != nil {
+		log.Infof("callhome: could not retrieve migration UUID: %v", err)
+		return
+	}
+
+	payload := createCallhomePayload(migrationUUID)
+	payload.MigrationPhase = SCHEMA_DETECT_DRIFT_PHASE
+	payload.Status = status
+
+	// MigrationType is deliberately unset: detect-drift reads an export dir and
+	// nothing in it says whether the migration is offline or live.
+	driftPayload := callhome.SchemaDriftPhasePayload{
+		PayloadVersion:   callhome.SCHEMA_DRIFT_CALLHOME_PAYLOAD_VERSION,
+		OutputFormats:    utils.CsvStringToSlice(driftOutputFormat),
+		Error:            callhome.SanitizeErrorMsg(errorMsg, anonymizer),
+		ControlPlaneType: getControlPlaneType(),
+	}
+	if report != nil {
+		driftPayload.ChangeCount = report.Summary.ChangeCount
+		driftPayload.ComparedIntervalCount = report.Summary.ComparedIntervalCount
+		driftPayload.StoredCaptureCount = report.Summary.StoredCaptureCount
+		driftPayload.LiveCompared = report.Summary.LiveCompared
+		driftPayload.SchemaCount = len(report.Comparing.Schemas)
+		driftPayload.TablesFiltered = report.Comparing.TablesFiltered
+		driftPayload.ObjectTypesFiltered = report.Comparing.ObjectTypesFiltered
+		driftPayload.DriftsByType = countDriftsBy(report.Drifts, func(d schemadrift.DriftEntry) string {
+			return string(d.Type)
+		})
+		driftPayload.DriftsBySeverity = countDriftsBy(report.Drifts, func(d schemadrift.DriftEntry) string {
+			return string(d.Severity)
+		})
+	}
+
+	payload.PhasePayload = callhome.MarshalledJsonString(driftPayload)
+
+	if err := callhome.SendPayload(&payload); err == nil && (status == COMPLETE || status == ERROR) {
+		callHomeErrorOrCompletePayloadSent = true
+	}
+}
+
+func countDriftsBy(drifts []schemadrift.DriftEntry, key func(schemadrift.DriftEntry) string) map[string]int {
+	if len(drifts) == 0 {
+		return nil
+	}
+	counts := make(map[string]int)
+	for _, d := range drifts {
+		counts[key(d)]++
+	}
+	return counts
 }
 
 // ─── Output: report files and terminal summary ───────────────────────────────
