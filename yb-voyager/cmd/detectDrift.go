@@ -29,6 +29,7 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/tebeka/atexit"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schema/schemadrift"
@@ -50,9 +51,14 @@ var (
 	driftExcludeTableList      string
 	driftObjectTypeList        string
 	driftExcludeObjectTypeList string
+
+	// Parsed once by validateDetectDriftFlags from the two flags above, so the
+	// resolution step reads a value instead of re-parsing and throwing away an
+	// error on the strength of "validation already ran".
+	driftObjectTypes        []schemadiff.ObjectType
+	driftExcludeObjectTypes []schemadiff.ObjectType
 )
 
-// driftValidOutputFormats are the report formats detect-drift can render.
 var driftValidOutputFormats = []string{"html", "json"}
 
 // driftObjectTypesByName maps the --object-type-list vocabulary onto
@@ -79,7 +85,8 @@ applies anything on the target, it only writes report files.
 
 PREREQUISITE: those snapshots are only recorded when capture is enabled, which is currently
 off by default. Pass --disable-schema-snapshot-capture=false to export schema and export
-data. Without it this command has no history to compare against and reports no drift.
+data. Capture cannot be turned on after the fact: a migration that ran without it has no
+history, and this command exits 2 rather than reporting a misleading "no drift".
 
 The report groups each change by the interval between the two captures that bracket it, and
 labels the interval with what Voyager was doing at the time (for example "export data:
@@ -90,6 +97,7 @@ Exit codes: 0 = success, no drift found; 1 = success, drift found; 2 = operation
 (bad flags, unreachable source, unsupported source type, etc.).`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
+		resolveDetectDriftFlagDefaults()
 		validateDetectDriftFlags(cmd)
 		// Resolve the source password from the --source-db-password flag, the
 		// SOURCE_DB_PASSWORD env var, or an interactive prompt -- exactly as the
@@ -100,7 +108,15 @@ Exit codes: 0 = success, no drift found; 1 = success, drift found; 2 = operation
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		detectDrift()
+		driftFound, err := detectDrift()
+		if err != nil {
+			exitDriftOperationalError("%v", err)
+		}
+		if driftFound {
+			// Not a failure: the report is already on disk and says so. Exiting
+			// here rather than inside detectDrift lets its defers unwind first.
+			atexit.Exit(1)
+		}
 	},
 }
 
@@ -142,36 +158,49 @@ func init() {
 // exitDriftOperationalError prints the given error to stderr (and the log) and
 // exits with code 2, the contractual exit code for detect-drift operational
 // errors (bad flags, unreachable source, unsupported source type, etc.).
+//
 // It deliberately does not use utils.ErrExit, which exits with code 1 -- that
-// would collide with detect-drift's own "success, drift found" exit code.
+// would collide with detect-drift's own "success, drift found" exit code. It
+// still leaves via atexit, so the handlers main.go registers (callhome, child
+// cleanup, terminal restore after a password prompt) run as they do for every
+// other command.
 func exitDriftOperationalError(format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
 	fmt.Fprintf(os.Stderr, "Error: %s\n", msg)
 	log.Errorf("schema detect-drift: %s", msg)
-	os.Exit(2)
+	atexit.Exit(2)
 }
 
-// validateDetectDriftFlags runs all flag-only validation (no DB connection
-// required): source DB type, mutually-exclusive flag pairs, and output-format
-// values. Table-list validation (whether a pattern actually matches a table)
-// needs the source's table list and so happens later, inside detectDrift().
-func validateDetectDriftFlags(cmd *cobra.Command) {
+// resolveDetectDriftFlagDefaults fills in what the user did not pass and rewrites
+// the list flags into their canonical form. It is the only place that WRITES flag
+// state; validateDetectDriftFlags below only reads.
+//
+// A list flag that is empty once trimmed ("  ", ",") is the user passing nothing.
+// Left as-is it would read as "filtered" while resolving to no names at all, so
+// the report would claim a narrowing that never happened.
+func resolveDetectDriftFlagDefaults() {
 	if source.DBType == "" {
 		source.DBType = POSTGRESQL
-	}
-	if source.DBType != POSTGRESQL {
-		exitDriftOperationalError("schema detect-drift currently supports PostgreSQL sources only (got --source-db-type=%q)", source.DBType)
 	}
 	setSourceDefaultPort()
 	setDefaultSSLMode()
 
-	// A list flag that is empty once trimmed ("  ", ",") is the user passing nothing.
-	// Left as-is it would read as "filtered" while resolving to no names at all, so
-	// the report would claim a narrowing that never happened.
 	driftTableList = normalizeDriftListFlag(driftTableList)
 	driftExcludeTableList = normalizeDriftListFlag(driftExcludeTableList)
 	driftObjectTypeList = normalizeDriftListFlag(driftObjectTypeList)
 	driftExcludeObjectTypeList = normalizeDriftListFlag(driftExcludeObjectTypeList)
+}
+
+// validateDetectDriftFlags runs all flag-only validation (no DB connection
+// required) and stores the parsed object-type lists for detectDrift to use, so
+// the parse is not repeated later with its error discarded.
+//
+// Table-list validation (whether a pattern actually matches a table) needs the
+// source's table list and so happens later, inside resolveDriftScope.
+func validateDetectDriftFlags(cmd *cobra.Command) {
+	if source.DBType != POSTGRESQL {
+		exitDriftOperationalError("schema detect-drift currently supports PostgreSQL sources only (got --source-db-type=%q)", source.DBType)
+	}
 
 	if driftTableList != "" && driftExcludeTableList != "" {
 		exitDriftOperationalError("--table-list and --exclude-table-list are mutually exclusive. Use only one of them.")
@@ -183,10 +212,12 @@ func validateDetectDriftFlags(cmd *cobra.Command) {
 	if err := validateDriftOutputFormat(driftOutputFormat); err != nil {
 		exitDriftOperationalError("%v", err)
 	}
-	if _, err := parseDriftObjectTypeList(driftObjectTypeList); err != nil {
+
+	var err error
+	if driftObjectTypes, err = parseDriftObjectTypeList(driftObjectTypeList); err != nil {
 		exitDriftOperationalError("invalid --object-type-list: %v", err)
 	}
-	if _, err := parseDriftObjectTypeList(driftExcludeObjectTypeList); err != nil {
+	if driftExcludeObjectTypes, err = parseDriftObjectTypeList(driftExcludeObjectTypeList); err != nil {
 		exitDriftOperationalError("invalid --exclude-object-type-list: %v", err)
 	}
 }
@@ -211,10 +242,12 @@ func validateDriftOutputFormat(format string) error {
 	return nil
 }
 
-// exclusionDetail summarises why the report examined nothing, from the reasons the
-// assembler already recorded, so the error names the actual cause instead of listing
-// every way this can happen.
-func exclusionDetail(r schemadrift.Report) string {
+// nothingComparedError explains why the run examined no interval, reading the
+// case off the report rather than guessing at one. The three causes want
+// different things said, and none of them is fixable by re-running the export:
+// capture happens while the export commands run, so a migration that ran without
+// it cannot be given a history after the fact.
+func nothingComparedError(r schemadrift.Report) error {
 	var reasons []string
 	usable := 0
 	for _, c := range r.CapturePoints {
@@ -225,11 +258,21 @@ func exclusionDetail(r schemadrift.Report) string {
 			reasons = append(reasons, c.Excluded)
 		}
 	}
-	if len(reasons) == 0 {
-		return fmt.Sprintf(" (%d usable capture, and one on its own forms no interval)", usable)
+
+	switch {
+	case len(r.CapturePoints) == 0:
+		return goerrors.Errorf("this export directory holds no schema snapshots, so there is nothing to compare. " +
+			"Snapshots are recorded only while `export schema` and `export data` run, and only when " +
+			"--disable-schema-snapshot-capture=false was passed to them")
+	case len(reasons) == 0:
+		return goerrors.Errorf("only %d of %d captures is usable, and a single capture forms no interval, "+
+			"so there was nothing to compare", usable, len(r.CapturePoints))
+	default:
+		return goerrors.Errorf("no two comparable schema snapshots in this export directory, so there was "+
+			"nothing to compare: %d of %d captures usable; the rest were skipped because: %s. "+
+			"If the schemas named there are not the ones you expected, check --source-db-schema",
+			usable, len(r.CapturePoints), strings.Join(reasons, "; "))
 	}
-	return fmt.Sprintf(" (%d of %d captures usable; the rest were skipped because: %s)",
-		usable, len(r.CapturePoints), strings.Join(reasons, "; "))
 }
 
 // normalizeDriftListFlag returns raw with its entries trimmed, or "" when nothing
@@ -270,18 +313,9 @@ type driftTableCandidate struct {
 	name *sqlname.ObjectName
 }
 
-// buildDriftTableCandidates builds the --table-list / --exclude-table-list
-// matching universe as the UNION of: the live source catalog, every table
-// appearing in each successfully-loaded historical snapshot (snapshotContents),
-// and the best-effort live capture (liveContent, nil if it failed or was
-// skipped). This union -- not the live catalog alone -- matters because a table
-// that has since been DROPPED from the source is absent from the live catalog
-// but may still need to be named in --table-list (to see its drop reported) or
-// matched by --exclude-table-list; only the historical snapshots know about it.
-// Entries are de-duplicated by (schema, name). Must be called after
-// source.Schemas has been resolved (it drives which schemas GetAllTableNames()
-// queries). It reads the package globals (source) and delegates the actual
-// union/dedup to the pure unionDriftTableCandidates.
+// buildDriftTableCandidates reads the live catalog and hands the union off to
+// unionDriftTableCandidates. Must run after source.Schemas is resolved, which is
+// what decides the schemas GetAllTableNames() queries.
 func buildDriftTableCandidates(snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent) []driftTableCandidate {
 	defaultSchema, _ := GetDefaultPGSchema(source.Schemas)
 	var liveRefs []schemasnapshot.ObjectRef
@@ -291,16 +325,13 @@ func buildDriftTableCandidates(snapshotContents []*schemasnapshot.SnapshotConten
 	return unionDriftTableCandidates(source.DBType, defaultSchema, liveRefs, snapshotContents, liveContent)
 }
 
-// unionDriftTableCandidates builds the deduped --table-list / --exclude-table-list
-// matching universe as the UNION of: the live source catalog (liveRefs), every table
-// appearing in each successfully-loaded historical snapshot (snapshotContents), and the
-// best-effort live capture (liveContent, nil if it failed or was skipped). This union --
-// not the live catalog alone -- matters because a table that has since been DROPPED from
-// the source is absent from the live catalog but may still need to be named in
-// --table-list (to see its drop reported) or matched by --exclude-table-list; only the
-// historical snapshots know about it. Entries are de-duplicated by (schema, name), in the
-// order live catalog -> snapshots (in order) -> live capture. It is pure (reads no package
-// globals) so the universe-union behavior is unit-testable.
+// unionDriftTableCandidates builds the --table-list / --exclude-table-list matching
+// universe, deduped by (schema, name), in the order live catalog -> snapshots ->
+// live capture.
+//
+// It is the union rather than the live catalog alone because a table dropped from
+// the source is gone from the catalog but must still be nameable, to see its own
+// drop reported. Only the stored snapshots still know about it.
 func unionDriftTableCandidates(dbType, defaultSchema string, liveRefs []schemasnapshot.ObjectRef, snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent) []driftTableCandidate {
 	seen := make(map[schemasnapshot.ObjectRef]bool)
 	var candidates []driftTableCandidate
@@ -315,11 +346,9 @@ func unionDriftTableCandidates(dbType, defaultSchema string, liveRefs []schemasn
 		candidates = append(candidates, driftTableCandidate{ref: ref, name: objName})
 	}
 
-	// 1. The live source catalog.
 	for _, r := range liveRefs {
 		add(r.Schema, r.Name)
 	}
-	// 2. Every table in each successfully-loaded historical snapshot.
 	for _, c := range snapshotContents {
 		if c == nil {
 			continue // placeholder / failed-to-load snapshot; nothing to contribute.
@@ -328,7 +357,6 @@ func unionDriftTableCandidates(dbType, defaultSchema string, liveRefs []schemasn
 			add(t.Schema, t.Name)
 		}
 	}
-	// 3. The best-effort live capture, if it succeeded.
 	if liveContent != nil {
 		for _, t := range liveContent.Tables {
 			add(t.Schema, t.Name)
@@ -391,6 +419,79 @@ func complementDriftTableRefs(candidates []driftTableCandidate, exclude []schema
 	return out
 }
 
+// driftScopeResolution is what the --table-list / --object-type-list family
+// resolves to: the Scope itself, plus whether the user actually narrowed each
+// dimension. The booleans cannot be recovered from the Scope, because "these 12
+// tables" and "these 12 tables, which are all of them" are the same set.
+type driftScopeResolution struct {
+	scope               schemadiff.Scope
+	tablesFiltered      bool
+	objectTypesFiltered bool
+}
+
+// resolveDriftScope turns the flags into the single positive allow-list per
+// dimension that schemadiff.Scope takes. validateDetectDriftFlags has already
+// rejected passing both flags of a pair, so each dimension is either the
+// resolved include patterns, the complement of the resolved exclude patterns, or
+// -- when neither flag was passed -- the whole universe, spelled out rather than
+// left empty, because Scope keeps nothing for an empty dimension.
+func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasnapshot.SchemaSnapshot, schemas []string) (driftScopeResolution, error) {
+	snapshotContents := make([]*schemasnapshot.SnapshotContent, 0, len(snapshots))
+	for _, si := range snapshots {
+		snapshotContents = append(snapshotContents, si.Content)
+	}
+	var liveContent *schemasnapshot.SnapshotContent
+	if live != nil {
+		liveContent = live.Content
+	}
+	// Built even when nothing is filtered: besides being the set --exclude-table-list
+	// subtracts from, it IS the set of tables compared, which the report states.
+	candidates := buildDriftTableCandidates(snapshotContents, liveContent)
+
+	var includeTables []schemasnapshot.ObjectRef
+	var err error
+	switch {
+	case driftTableList != "":
+		if includeTables, err = resolveDriftTableRefs(candidates, driftTableList, "table-list"); err != nil {
+			return driftScopeResolution{}, err
+		}
+	case driftExcludeTableList != "":
+		var excludeTables []schemasnapshot.ObjectRef
+		if excludeTables, err = resolveDriftTableRefs(candidates, driftExcludeTableList, "exclude-table-list"); err != nil {
+			return driftScopeResolution{}, err
+		}
+		includeTables = complementDriftTableRefs(candidates, excludeTables)
+		if len(includeTables) == 0 {
+			return driftScopeResolution{}, goerrors.Errorf(
+				"--exclude-table-list %q excludes every table in the comparison; nothing left to compare", driftExcludeTableList)
+		}
+	}
+
+	objectTypes := driftObjectTypes
+	if driftExcludeObjectTypeList != "" {
+		objectTypes = complementDriftObjectTypes(driftExcludeObjectTypes)
+		if len(objectTypes) == 0 {
+			supported := lo.Map(allDriftObjectTypes, func(t schemadiff.ObjectType, _ int) string { return string(t) })
+			return driftScopeResolution{}, goerrors.Errorf(
+				"--exclude-object-type-list %q excludes every supported object type (%s); nothing left to compare",
+				driftExcludeObjectTypeList, strings.Join(supported, ", "))
+		}
+	}
+
+	res := driftScopeResolution{
+		tablesFiltered:      driftTableList != "" || driftExcludeTableList != "",
+		objectTypesFiltered: driftObjectTypeList != "" || driftExcludeObjectTypeList != "",
+	}
+	if !res.tablesFiltered {
+		includeTables = lo.Map(candidates, func(c driftTableCandidate, _ int) schemasnapshot.ObjectRef { return c.ref })
+	}
+	if !res.objectTypesFiltered {
+		objectTypes = allDriftObjectTypes
+	}
+	res.scope = schemadiff.Scope{Schemas: schemas, Tables: includeTables, ObjectTypes: objectTypes}
+	return res, nil
+}
+
 // allDriftObjectTypes is the full v1 object-type universe, used to resolve
 // --exclude-object-type-list into its complement (see complementDriftObjectTypes).
 var allDriftObjectTypes = []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn}
@@ -415,12 +516,12 @@ func complementDriftObjectTypes(exclude []schemadiff.ObjectType) []schemadiff.Ob
 	return out
 }
 
-// detectDrift is the full RunE body of `schema detect-drift`. Every operational
-// failure exits via exitDriftOperationalError (code 2). It returns normally
-// (exit 0) when the report was generated with zero diffs, and calls os.Exit(1)
-// itself when diffs were found -- both after the report has already been
-// written to disk.
-func detectDrift() {
+// detectDrift runs the command and reports whether drift was found. It never
+// exits: returning lets its defers unwind and leaves the exit code to the caller,
+// which is also what gives the atexit handlers (callhome among them) a chance to
+// run on every path. driftFound is only meaningful when err is nil, and by then
+// the report is already on disk.
+func detectDrift() (driftFound bool, err error) {
 	// CreateMigrationProjectIfNotExists is idempotent: it's a no-op (aside from
 	// mkdir -p) if this export-dir already has a migration project. detect-drift
 	// only ever writes to <export-dir>/reports/ afterwards; it never touches
@@ -435,35 +536,31 @@ func detectDrift() {
 	sqlname.SourceDBType = source.DBType
 
 	if err := source.DB().Connect(); err != nil {
-		exitDriftOperationalError("failed to connect to source database: %v", err)
+		return false, fmt.Errorf("failed to connect to source database: %w", err)
 	}
-	// Runs on the no-drift path only: every failure leaves via
-	// exitDriftOperationalError (os.Exit(2)) and a drift-detected run via
-	// os.Exit(1), neither of which unwinds defers. Harmless for a connection the
-	// exiting process drops anyway -- but do not add cleanup here that has to run.
 	defer source.DB().Disconnect()
 
 	source.FetchSourceInfo() // best-effort; populates source.DBVersion (used non-fatally elsewhere)
 
 	allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
 	if err != nil {
-		exitDriftOperationalError("failed to fetch schema names from source: %v", err)
+		return false, fmt.Errorf("failed to fetch schema names from source: %w", err)
 	}
 	source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
 	if err != nil {
-		exitDriftOperationalError("%v", err)
+		return false, err
 	}
 	// Raw (unquoted) names: compared against catalog values, never interpolated into
 	// SQL. The quoted form matches nothing -- see srcdb.Source.GetSchemaListUnquoted.
 	schemas := source.GetSchemaListUnquoted()
 
 	// ─── Load stored snapshots (oldest-first) ───────────────────────────────────
-	// Moved ahead of Scope resolution: the candidate table universe (below) needs
-	// each snapshot's Content to include tables since dropped from the live
-	// catalog.
+	// Must precede Scope resolution: the candidate table universe is built from
+	// each snapshot's Content, which is the only place a table already dropped
+	// from the live catalog still appears.
 	headers, err := schemasnapshot.ListSnapshots(metaDB)
 	if err != nil {
-		exitDriftOperationalError("failed to list schema snapshots: %v", err)
+		return false, fmt.Errorf("failed to list schema snapshots: %w", err)
 	}
 	switch len(headers) {
 	case 0:
@@ -485,7 +582,7 @@ func detectDrift() {
 			case lerr == nil:
 				content = c
 			case errors.Is(lerr, schemasnapshot.ErrSnapshotVersionUnsupported):
-				exitDriftOperationalError("cannot read snapshot %q: %v", h.Name(), lerr)
+				return false, fmt.Errorf("cannot read snapshot %q: %w", h.Name(), lerr)
 			case errors.Is(lerr, schemasnapshot.ErrPlaceholderSnapshot), errors.Is(lerr, schemasnapshot.ErrSnapshotNotFound):
 				utils.PrintAndLogfWarning("Note: could not load snapshot %q (%v); skipping it in the diff chain.\n", h.Name(), lerr)
 			default:
@@ -495,84 +592,13 @@ func detectDrift() {
 		snapshots = append(snapshots, schemasnapshot.SchemaSnapshot{Header: h, Content: content})
 	}
 
-	// ─── Best-effort live read of the source ────────────────────────────────────
-	// Also moved ahead of Scope resolution, for the same reason: its Content (if
-	// the capture succeeded) contributes to the candidate table universe too.
+	// Must also precede Scope resolution: a live capture that succeeded contributes
+	// its tables to the candidate universe.
 	live := captureLiveSnapshotForDrift(schemas)
 
-	// ─── Resolve the collapsed schemadiff.Scope from --table-list/
-	// --exclude-table-list and --object-type-list/--exclude-object-type-list.
-	// validateDetectDriftFlags already enforced that at most one flag per pair is
-	// set, so each dimension resolves to exactly one positive allow-list: either
-	// the directly-resolved include patterns, or the complement of the resolved
-	// exclude patterns against the full universe (all candidate tables / all v1
-	// object types). Neither flag set leaves it nil here; the whole universe is
-	// filled in below, because Scope keeps nothing for an empty dimension. ─────
-	// Built unconditionally: besides being the set to subtract --exclude-table-list
-	// from, it IS the set of tables compared, which the report states. Costs no I/O.
-	snapshotContents := make([]*schemasnapshot.SnapshotContent, 0, len(snapshots))
-	for _, si := range snapshots {
-		snapshotContents = append(snapshotContents, si.Content)
-	}
-	var liveContent *schemasnapshot.SnapshotContent
-	if live != nil {
-		liveContent = live.Content
-	}
-	candidates := buildDriftTableCandidates(snapshotContents, liveContent)
-
-	var includeTables []schemasnapshot.ObjectRef
-	switch {
-	case driftTableList != "":
-		includeTables, err = resolveDriftTableRefs(candidates, driftTableList, "table-list")
-		if err != nil {
-			exitDriftOperationalError("%v", err)
-		}
-	case driftExcludeTableList != "":
-		excludeTables, err := resolveDriftTableRefs(candidates, driftExcludeTableList, "exclude-table-list")
-		if err != nil {
-			exitDriftOperationalError("%v", err)
-		}
-		includeTables = complementDriftTableRefs(candidates, excludeTables)
-		// Scope keeps nothing for an empty dimension, so excluding every table would
-		// compare nothing and report it as clean. An operational error instead.
-		if len(includeTables) == 0 {
-			exitDriftOperationalError("--exclude-table-list %q excludes every table in the comparison; nothing left to compare", driftExcludeTableList)
-		}
-	}
-
-	var objectTypes []schemadiff.ObjectType
-	switch {
-	case driftObjectTypeList != "":
-		// Already flag-format-validated in validateDetectDriftFlags; error can't happen.
-		objectTypes, _ = parseDriftObjectTypeList(driftObjectTypeList)
-	case driftExcludeObjectTypeList != "":
-		// Already flag-format-validated in validateDetectDriftFlags; error can't happen.
-		excludeObjectTypes, _ := parseDriftObjectTypeList(driftExcludeObjectTypeList)
-		objectTypes = complementDriftObjectTypes(excludeObjectTypes)
-		// Same trap as --exclude-table-list above.
-		if len(objectTypes) == 0 {
-			supported := lo.Map(allDriftObjectTypes, func(t schemadiff.ObjectType, _ int) string { return string(t) })
-			exitDriftOperationalError("--exclude-object-type-list %q excludes every supported object type (%s); nothing left to compare",
-				driftExcludeObjectTypeList, strings.Join(supported, ", "))
-		}
-	}
-
-	// Scope holds the EXACT set to keep per dimension -- empty keeps nothing -- so an
-	// unfiltered dimension is filled with the whole universe here rather than left
-	// empty for the engine to interpret. Resolving the --exclude-* forms into
-	// keep-sets is this layer's job either way. See schemadiff.Scope.
-	tablesFiltered := driftTableList != "" || driftExcludeTableList != ""
-	if !tablesFiltered {
-		includeTables = lo.Map(candidates, func(c driftTableCandidate, _ int) schemasnapshot.ObjectRef { return c.ref })
-	}
-	objectTypesFiltered := driftObjectTypeList != "" || driftExcludeObjectTypeList != ""
-	if !objectTypesFiltered {
-		objectTypes = allDriftObjectTypes
-	}
-	scope := schemadiff.Scope{
-		Schemas:     schemas,
-		Tables:      includeTables,
-		ObjectTypes: objectTypes,
+	resolved, err := resolveDriftScope(snapshots, live, schemas)
+	if err != nil {
+		return false, err
 	}
 
 	if live != nil {
@@ -588,33 +614,25 @@ func detectDrift() {
 			DatabaseVersion: source.DBVersion,
 		},
 		Snapshots:           snapshots,
-		Scope:               scope,
-		TablesFiltered:      tablesFiltered,
-		ObjectTypesFiltered: objectTypesFiltered,
+		Scope:               resolved.scope,
+		TablesFiltered:      resolved.tablesFiltered,
+		ObjectTypesFiltered: resolved.objectTypesFiltered,
 	})
 
 	// An empty report reads as "no drift", so refuse to emit one when nothing was
-	// examined. Every way of getting here ends the same for the user -- all captures
-	// failed, none covered the requested schemas, or there is only one to compare --
-	// so the reasons the assembler recorded are what the message carries.
+	// examined.
 	if report.Summary.ComparedIntervalCount == 0 {
-		exitDriftOperationalError("no two comparable schema snapshots in this export directory, "+
-			"so there was nothing to compare%s. Re-run the export commands with "+
-			"--disable-schema-snapshot-capture=false, or check --source-db-schema matches what they used",
-			exclusionDetail(report))
+		return false, nothingComparedError(report)
 	}
 
 	writtenPaths, err := writeDriftReports(report, driftOutputFormat)
 	if err != nil {
-		exitDriftOperationalError("%v", err)
+		return false, err
 	}
 
 	printDriftSummary(report, writtenPaths)
 
-	if report.Summary.ChangeCount > 0 {
-		os.Exit(1)
-	}
-	// No drift found: return normally (exit code 0).
+	return report.Summary.ChangeCount > 0, nil
 }
 
 // captureLiveSnapshotForDrift attempts a best-effort, in-memory-only schema
@@ -797,7 +815,6 @@ func formatDriftTimestamp(t time.Time) string {
 	return t.Format(time.RFC3339)
 }
 
-// joinOrAllDrift joins items with ", ", or returns "all" when items is empty.
 func joinOrAllDrift(items []string) string {
 	if len(items) == 0 {
 		return "all"
