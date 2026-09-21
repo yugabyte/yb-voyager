@@ -18,7 +18,12 @@ def migration_completed_checks(tgt):
 
 	extension_list = tgt.fetch_all_pg_extension("public")
 	print(f"extension_list: {extension_list}\n EXPECTED_EXTENSION_SET: {EXPECTED_EXTENSION_SET}")
-	assert extension_list == EXPECTED_EXTENSION_SET
+	expected_extension_set = set(EXPECTED_EXTENSION_SET)
+	# Some YB cluster setups pre-install postgres_fdw into pg_catalog; it is not
+	# created by this migration and depends on cluster setup, not the YB version.
+	if tgt.get_extension_schema("postgres_fdw") == "pg_catalog":
+		expected_extension_set.add(("postgres_fdw",))
+	assert extension_list == expected_extension_set
 
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)

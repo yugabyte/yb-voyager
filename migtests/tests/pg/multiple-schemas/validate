@@ -181,11 +181,10 @@ def migration_completed_checks(tgt):
 		if "2024.1" in tgtVersion:
 			expectedExtensions.extend(["yb_ycql_utils"])
 
-		if "2025.2" in tgtVersion:
-			# pg_parquet ships in 2025.2.0–2025.2.2, is absent in 2025.2.3–2025.2.4,
-			# and is back from 2025.2.5
-			if threeDotVersion and (Version(threeDotVersion) < Version("2025.2.3") or Version(threeDotVersion) >= Version("2025.2.5")):
-				expectedExtensions.extend(["pg_parquet"])
+		# pg_parquet ships in 2025.2.0–2025.2.2, is absent in 2025.2.3–2025.2.4,
+		# and is back from 2025.2.5 onwards
+		if (Version("2025.2") <= Version(threeDotVersion) < Version("2025.2.3")) or Version(threeDotVersion) >= Version("2025.2.5"):
+			expectedExtensions.append("pg_parquet")
 
 		if Version(threeDotVersion) >= Version("2025.2.3"):
 			expectedExtensions.append("pg_dist_rag")

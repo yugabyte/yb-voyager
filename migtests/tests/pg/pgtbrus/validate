@@ -10,6 +10,8 @@ def main():
 
 EXPECTED_EXTENSION_SET = set([("postgres_fdw",), ("pg_stat_statements",), ("plpgsql",)])
 
+POSTGRES_FDW_ROUTINE_COUNT = 5
+
 EXPECTED_TRIGGER_LIST = [
 		"tgd","tgi","tgu","tgd","tgi","tgu"
 	]
@@ -49,10 +51,13 @@ def migration_completed_checks(tgt):
 	# 2.25+: 60 functions / procedures
 	# Thus the change in count.
 
-	if yb.has_pg15_merge(tgtVersion):
-		assert len(fetched_procedures_functions) == 9
-	else:
-		assert len(fetched_procedures_functions) == 6
+	expected_count = 9 if yb.has_pg15_merge(tgtVersion) else 6
+	# Some YB cluster configurations pre-install postgres_fdw into pg_catalog, which
+	# turns the migrated CREATE EXTENSION into a no-op and leaves its routines out of
+	# the target schema. This depends on cluster setup, not on the YB version.
+	if tgt.get_extension_schema("postgres_fdw") != "public":
+		expected_count -= POSTGRES_FDW_ROUTINE_COUNT
+	assert len(fetched_procedures_functions) == expected_count
 
 	num_sequences = tgt.count_sequences("public")
 	print(f"actual number_sequences: {num_sequences}, expected num_sequences: 4")
