@@ -844,11 +844,12 @@ func printSchemaDriftErrorFooter(firstLine string) {
 		firstLine, driftDetectionHint()))
 }
 
-// printCutoverSchemaDriftRecommendation prints a one-time, non-error
-// recommendation to review schema drift on the source before proceeding
-// with cutover -- cutover is the last point at which the source schema is
-// captured, so drift after that point won't be reflected in the migration.
+// printCutoverSchemaDriftRecommendation nudges the user to review source drift
+// before they confirm cutover to target. The source exporter's exit capture is the
+// last source-schema snapshot the migration records -- `export data from target`
+// takes none -- and it is not written until after this prompt, so detect-drift's
+// live source read is the only thing covering the window up to cutover.
 func printCutoverSchemaDriftRecommendation() {
-	utils.PrintAndLog(fmt.Sprintf("Recommendation: cutover is the last point at which the source schema is captured. Consider reviewing schema drift on the source before proceeding:\n%s",
+	utils.PrintAndLog(fmt.Sprintf("Recommendation: cutover to target ends schema capture on the source. Consider reviewing schema drift on the source before proceeding:\n%s",
 		driftDetectionHint()))
 }
