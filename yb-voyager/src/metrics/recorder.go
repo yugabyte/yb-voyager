@@ -39,6 +39,10 @@ type Recorder interface {
 	SetImportCDCEstimatedSecondsToCatchUp(importerRole string, seconds float64)
 	SetImportCDCLastEventApplied(importerRole string)
 
+	// import CDC conflicts (streaming unique-key conflict detection). The table name is
+	// passed already anonymized so no raw identifier reaches the metrics endpoint.
+	RecordImportCDCConflict(importerRole string, anonymizedTableName string)
+
 	// export snapshot
 	RecordExportSnapshotRowCount(exporterRole string, t sqlname.NameTuple, cumulative int64)
 	SetExportSnapshotTableExpectedRows(exporterRole string, t sqlname.NameTuple, rows int64)
