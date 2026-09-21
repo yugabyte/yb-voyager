@@ -77,7 +77,7 @@ func BuildReport(p DetectionInput) Report {
 		case p.Snapshots[i].Content == nil:
 			capturePoints[i].Excluded = "the capture failed, so this point holds no schema"
 			continue
-		case !CoversSchemas(p.Snapshots[i].Header, p.Scope.Schemas):
+		case !coversSchemas(p.Snapshots[i].Header, p.Scope.Schemas):
 			missing, _ := lo.Difference(p.Scope.Schemas, p.Snapshots[i].Header.Schemas)
 			capturePoints[i].Excluded = fmt.Sprintf("captured only %s, so it cannot answer for %s",
 				strings.Join(p.Snapshots[i].Header.Schemas, ", "), strings.Join(missing, ", "))
@@ -148,14 +148,10 @@ func BuildReport(p DetectionInput) Report {
 	}
 }
 
-// CoversSchemas reports whether h was captured with every schema in requested, so
+// coversSchemas reports whether h was captured with every schema in requested, so
 // that a table missing from its content is genuinely absent rather than never
 // looked for. Capturing MORE than was requested still covers it.
-//
-// Exported because the command needs the same predicate to refuse a run where no
-// stored snapshot covers the requested schemas -- that would otherwise produce an
-// empty report, which reads as "no drift".
-func CoversSchemas(h schemasnapshot.SnapshotHeader, requested []string) bool {
+func coversSchemas(h schemasnapshot.SnapshotHeader, requested []string) bool {
 	missing, _ := lo.Difference(requested, h.Schemas)
 	return len(missing) == 0
 }
