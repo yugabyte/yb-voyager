@@ -120,19 +120,6 @@ func TestComplementDriftObjectTypes(t *testing.T) {
 
 // ─── parseDriftObjectTypeList ────────────────────────────────────────────────
 
-func TestCapturedSchemasUnion(t *testing.T) {
-	snaps := []schemasnapshot.SchemaSnapshot{
-		{Header: schemasnapshot.SnapshotHeader{Schemas: []string{"public", "sales"}}},
-		{Header: schemasnapshot.SnapshotHeader{Schemas: []string{"sales", "hr"}}},
-		{Header: schemasnapshot.SnapshotHeader{Schemas: nil}}, // a failed capture records none
-	}
-
-	// Sorted and de-duplicated, because this feeds a user-facing error naming what
-	// IS on record when nothing covers the request.
-	assert.Equal(t, []string{"hr", "public", "sales"}, capturedSchemasUnion(snaps))
-	assert.Empty(t, capturedSchemasUnion(nil))
-}
-
 func TestNormalizeDriftListFlag(t *testing.T) {
 	// The point of this helper is that a value which LOOKS set but names nothing
 	// is treated as unset -- otherwise the report reads as filtered while the

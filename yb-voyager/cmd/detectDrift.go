@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -237,19 +236,25 @@ func validateDriftOutputFormat(format string) error {
 	return nil
 }
 
-// capturedSchemasUnion lists every schema any of the snapshots was captured with,
-// so a no-coverage error can name what IS on record rather than only what is missing.
-func capturedSchemasUnion(snaps []schemasnapshot.SchemaSnapshot) []string {
-	var out []string
-	for _, s := range snaps {
-		for _, sch := range s.Header.Schemas {
-			if !lo.Contains(out, sch) {
-				out = append(out, sch)
-			}
+// exclusionDetail summarises why the report examined nothing, from the reasons the
+// assembler already recorded, so the error names the actual cause instead of listing
+// every way this can happen.
+func exclusionDetail(r schemadrift.Report) string {
+	var reasons []string
+	usable := 0
+	for _, c := range r.CapturePoints {
+		switch {
+		case c.Excluded == "":
+			usable++
+		case !lo.Contains(reasons, c.Excluded):
+			reasons = append(reasons, c.Excluded)
 		}
 	}
-	sort.Strings(out)
-	return out
+	if len(reasons) == 0 {
+		return fmt.Sprintf(" (%d usable capture, and one on its own forms no interval)", usable)
+	}
+	return fmt.Sprintf(" (%d of %d captures usable; the rest were skipped because: %s)",
+		usable, len(r.CapturePoints), strings.Join(reasons, "; "))
 }
 
 // normalizeDriftListFlag returns raw with its entries trimmed, or "" when nothing
@@ -515,19 +520,6 @@ func detectDrift() {
 		snapshots = append(snapshots, schemasnapshot.SchemaSnapshot{Header: h, Content: content})
 	}
 
-	// A stored capture taken with fewer schemas than were asked for cannot answer
-	// for the missing ones, so BuildReport bridges it. If NONE of them covers the
-	// request the report has nothing to compare, and an empty report reads as "no
-	// drift" -- so say what actually happened instead of emitting one.
-	if len(headers) > 0 && !lo.ContainsBy(snapshots, func(s schemasnapshot.SchemaSnapshot) bool {
-		return schemadrift.CoversSchemas(s.Header, schemas)
-	}) {
-		exitDriftOperationalError(
-			"no schema snapshot in this export directory covers %s; the captures on record cover only %s. "+
-				"Re-run with --source-db-schema matching what the export commands used, or capture a new snapshot",
-			strings.Join(schemas, ", "), strings.Join(capturedSchemasUnion(snapshots), ", "))
-	}
-
 	// ─── Best-effort live read of the source ────────────────────────────────────
 	// Also moved ahead of Scope resolution, for the same reason: its Content (if
 	// the capture succeeded) contributes to the candidate table universe too.
@@ -624,6 +616,17 @@ func detectDrift() {
 		TablesFiltered:      tablesFiltered,
 		ObjectTypesFiltered: objectTypesFiltered,
 	})
+
+	// An empty report reads as "no drift", so refuse to emit one when nothing was
+	// examined. Every way of getting here ends the same for the user -- all captures
+	// failed, none covered the requested schemas, or there is only one to compare --
+	// so the reasons the assembler recorded are what the message carries.
+	if report.Summary.ComparedIntervalCount == 0 {
+		exitDriftOperationalError("no two comparable schema snapshots in this export directory, "+
+			"so there was nothing to compare%s. Re-run the export commands with "+
+			"--disable-schema-snapshot-capture=false, or check --source-db-schema matches what they used",
+			exclusionDetail(report))
+	}
 
 	writtenPaths, err := writeDriftReports(report, driftOutputFormat)
 	if err != nil {
