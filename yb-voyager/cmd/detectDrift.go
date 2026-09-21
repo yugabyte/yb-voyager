@@ -374,9 +374,9 @@ func resolveDriftTableRefs(candidates []driftTableCandidate, patternList string,
 // the resolution of --exclude-table-list into the single positive allow-list the
 // collapsed schemadiff.Scope expects.
 //
-// An EMPTY result means "select nothing" and callers MUST reject it rather than
-// forward it: schemadiff.Scope reads an empty list as "all", so passing it on
-// would invert the exclusion into comparing everything.
+// An EMPTY result means the user excluded the whole universe. Callers MUST
+// reject it rather than forward it: Scope keeps nothing for an empty dimension,
+// so the run would compare nothing and report a clean bill of health.
 func complementDriftTableRefs(candidates []driftTableCandidate, exclude []schemasnapshot.ObjectRef) []schemasnapshot.ObjectRef {
 	excludeSet := make(map[schemasnapshot.ObjectRef]bool, len(exclude))
 	for _, r := range exclude {
@@ -399,8 +399,8 @@ var allDriftObjectTypes = []schemadiff.ObjectType{schemadiff.ObjectTypeTable, sc
 // present in exclude -- the resolution of --exclude-object-type-list into the
 // single positive allow-list the collapsed schemadiff.Scope expects.
 //
-// As with complementDriftTableRefs, an EMPTY result means "select nothing" and
-// must be rejected by the caller, not forwarded to Scope (where empty = all).
+// As with complementDriftTableRefs, an EMPTY result must be rejected by the
+// caller, not forwarded to Scope, which would then keep nothing.
 func complementDriftObjectTypes(exclude []schemadiff.ObjectType) []schemadiff.ObjectType {
 	excludeSet := make(map[schemadiff.ObjectType]bool, len(exclude))
 	for _, t := range exclude {
@@ -506,7 +506,8 @@ func detectDrift() {
 	// set, so each dimension resolves to exactly one positive allow-list: either
 	// the directly-resolved include patterns, or the complement of the resolved
 	// exclude patterns against the full universe (all candidate tables / all v1
-	// object types). Neither flag set => nil ("all"). ──────────────────────────
+	// object types). Neither flag set leaves it nil here; the whole universe is
+	// filled in below, because Scope keeps nothing for an empty dimension. ─────
 	// Built unconditionally: besides being the set to subtract --exclude-table-list
 	// from, it IS the set of tables compared, which the report states. Costs no I/O.
 	snapshotContents := make([]*schemasnapshot.SnapshotContent, 0, len(snapshots))
@@ -532,8 +533,8 @@ func detectDrift() {
 			exitDriftOperationalError("%v", err)
 		}
 		includeTables = complementDriftTableRefs(candidates, excludeTables)
-		// Empty means "all" inside Scope, so excluding everything would invert into
-		// comparing everything. Selecting nothing is an operational error instead.
+		// Scope keeps nothing for an empty dimension, so excluding every table would
+		// compare nothing and report it as clean. An operational error instead.
 		if len(includeTables) == 0 {
 			exitDriftOperationalError("--exclude-table-list %q excludes every table in the comparison; nothing left to compare", driftExcludeTableList)
 		}
