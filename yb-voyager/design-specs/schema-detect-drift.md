@@ -178,6 +178,7 @@ yb-voyager schema detect-drift --export-dir <dir> \
 | Export dir | must already hold a migration project; the command never creates one |
 | State | read-only; writes only under `reports/` |
 | Lock | takes its own per-command lock on the export dir, so two `detect-drift` runs cannot overwrite each other's report; export and import are not blocked |
+| Telemetry | `schema-detect-drift` phase payload, `SchemaDriftPhasePayload` v1.0: counts, the drift-type and severity histograms, and whether each dimension was filtered. No schema, table or column names — identifiers do not go into this payload. Governed by `--send-diagnostics` as everywhere else. |
 
 ### 3.7 Guidance hints (\#3815)
 
