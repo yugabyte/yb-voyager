@@ -22,6 +22,7 @@ type RecordingRecorder struct {
 	ExportParallelism         map[string]int64
 	ImportSnapshotTablesTotal map[string]int64
 	ExportSnapshotTablesTotal map[string]int64
+	ImportCDCConflicts        map[string]int
 }
 
 func NewRecordingRecorder() *RecordingRecorder {
@@ -41,6 +42,7 @@ func NewRecordingRecorder() *RecordingRecorder {
 		ExportParallelism:         map[string]int64{},
 		ImportSnapshotTablesTotal: map[string]int64{},
 		ExportSnapshotTablesTotal: map[string]int64{},
+		ImportCDCConflicts:        map[string]int{},
 	}
 }
 
@@ -84,6 +86,9 @@ func (r *RecordingRecorder) SetImportCDCEstimatedSecondsToCatchUp(importerRole s
 }
 func (r *RecordingRecorder) SetImportCDCLastEventApplied(importerRole string) {
 	r.ImportCDCLastEventApplied[importerRole]++
+}
+func (r *RecordingRecorder) RecordImportCDCConflict(importerRole string, anonymizedTableName string) {
+	r.ImportCDCConflicts[anonymizedTableName]++
 }
 
 // export snapshot

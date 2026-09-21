@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -57,6 +58,11 @@ func newConflictCacheForTest(indexes [][]string) *ConflictDetectionCache {
 	return newConflictCacheForTestWithIndexes(uniqueIndexes...)
 }
 
+// testAnonymizedTableName is the fixed anonymized name the test cache maps the
+// test table to, so conflict-metric assertions can key on a known value without a
+// real anonymizer.
+const testAnonymizedTableName = "schema_test.table_test"
+
 // newConflictCacheForTestWithIndexes builds a cache with the given unique indexes
 // (allowing per-index NULLS NOT DISTINCT configuration).
 func newConflictCacheForTestWithIndexes(indexes ...tgtdb.UniqueIndex) *ConflictDetectionCache {
@@ -68,7 +74,15 @@ func newConflictCacheForTestWithIndexes(indexes ...tgtdb.UniqueIndex) *ConflictD
 	// like the previous same-PK exclusion (routing by primary key).
 	tablePartitionKeyMap := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 	tablePartitionKeyMap.Put(table, cdcPartitionKeyOverride{Strategy: PARTITION_BY_PK})
-	return NewConflictDetectionCache(tableToIndexes, []chan *tgtdb.Event{make(chan *tgtdb.Event, 1)}, POSTGRESQL, tablePartitionKeyMap)
+	anonymizedTableNames := utils.NewStructMap[sqlname.NameTuple, string]()
+	anonymizedTableNames.Put(table, testAnonymizedTableName)
+	// WaitUntilNoConflict flushes all NUM_EVENT_CHANNELS channels on a real conflict, so
+	// the cache must be built with that many channels (not just one).
+	evChans := make([]chan *tgtdb.Event, NUM_EVENT_CHANNELS)
+	for i := range evChans {
+		evChans[i] = make(chan *tgtdb.Event, 1)
+	}
+	return NewConflictDetectionCache(tableToIndexes, evChans, POSTGRESQL, tablePartitionKeyMap, TARGET_DB_IMPORTER_ROLE, anonymizedTableNames)
 }
 
 func testTableTuple() sqlname.NameTuple {
@@ -709,6 +723,71 @@ func TestConflictLookup_NoConflictDoesNotBlock(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("WaitUntilNoConflict blocked despite no conflict")
 	}
+}
+
+// A blocked event must be counted exactly once (under its anonymized table name),
+// no matter how many times it re-waits, and a non-conflicting event must not be counted.
+func TestConflictMetric_CountsBlockedEventOncePerAnonymizedTable(t *testing.T) {
+	rec := metrics.NewRecordingRecorder()
+	prev := metrics.Get()
+	defer metrics.SetRecorder(prev)
+	metrics.SetRecorder(rec)
+
+	cache := newConflictCacheForTest([][]string{{"email"}})
+	cached := withAfterFields(&tgtdb.Event{
+		Vsn:          1,
+		Op:           "d",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("1")},
+		BeforeFields: map[string]*string{"email": strPtr("a@example.com")},
+		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+	})
+	require.NoError(t, cache.Put(cached))
+
+	// before-after conflict: incoming insert reuses the cached delete's unique value.
+	incoming := withAfterFields(&tgtdb.Event{
+		Vsn:          2,
+		Op:           "c",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("2")},
+		Fields:       map[string]*string{"email": strPtr("a@example.com")},
+		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+	})
+
+	done := make(chan struct{})
+	go func() {
+		require.NoError(t, cache.WaitUntilNoConflict(incoming))
+		close(done)
+	}()
+
+	// The metric is recorded at first detection, before the blocking wait; poll for it,
+	// then clear the conflict so WaitUntilNoConflict can return.
+	require.Eventually(t, func() bool {
+		return rec.ImportCDCConflicts[testAnonymizedTableName] == 1
+	}, 2*time.Second, 5*time.Millisecond, "blocked event should be counted once under its anonymized table name")
+
+	cache.RemoveEvents(cached)
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("WaitUntilNoConflict did not return after the conflict cleared")
+	}
+
+	// Exactly one increment for the blocked event; the raw table name never appears.
+	assert.Equal(t, 1, rec.ImportCDCConflicts[testAnonymizedTableName])
+	assert.Len(t, rec.ImportCDCConflicts, 1)
+
+	// A non-conflicting event must not add to the count.
+	nonConflicting := withAfterFields(&tgtdb.Event{
+		Vsn:          3,
+		Op:           "c",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("3")},
+		Fields:       map[string]*string{"email": strPtr("b@example.com")},
+		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+	})
+	require.NoError(t, cache.WaitUntilNoConflict(nonConflicting))
+	assert.Equal(t, 1, rec.ImportCDCConflicts[testAnonymizedTableName])
 }
 
 // RemoveEvents must clear both the primary map and the lookup index.

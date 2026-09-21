@@ -17,7 +17,7 @@ func (noopRecorder) RecordImportError(importerRole string, t sqlname.NameTuple, 
 }
 func (noopRecorder) SetImportSnapshotTableExpectedRows(importerRole string, t sqlname.NameTuple, rows int64) {
 }
-func (noopRecorder) InitImportSnapshotTable(importerRole string, t sqlname.NameTuple) {}
+func (noopRecorder) InitImportSnapshotTable(importerRole string, t sqlname.NameTuple)         {}
 func (noopRecorder) SetImportSnapshotTableStarted(importerRole string, t sqlname.NameTuple)   {}
 func (noopRecorder) SetImportSnapshotTableCompleted(importerRole string, t sqlname.NameTuple) {}
 func (noopRecorder) SetImportSnapshotTablesTotal(importerRole string, count int)              {}
@@ -27,6 +27,7 @@ func (noopRecorder) RecordImportCDCEvents(importerRole string, inserts, updates,
 func (noopRecorder) SetImportCDCEventsPending(importerRole string, pending int64)               {}
 func (noopRecorder) SetImportCDCEstimatedSecondsToCatchUp(importerRole string, seconds float64) {}
 func (noopRecorder) SetImportCDCLastEventApplied(importerRole string)                           {}
+func (noopRecorder) RecordImportCDCConflict(importerRole string, anonymizedTableName string)    {}
 
 // export snapshot
 func (noopRecorder) RecordExportSnapshotRowCount(exporterRole string, t sqlname.NameTuple, cumulative int64) {
