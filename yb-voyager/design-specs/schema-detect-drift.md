@@ -178,7 +178,8 @@ yb-voyager schema detect-drift --export-dir <dir> \
 | Export dir | must already hold a migration project; the command never creates one |
 | State | read-only; writes only under `reports/` |
 | Lock | takes its own per-command lock on the export dir, so two `detect-drift` runs cannot overwrite each other's report; export and import are not blocked |
-| Telemetry | `schema-detect-drift` phase payload, `SchemaDriftPhasePayload` v1.0: counts, the drift-type and severity histograms, and whether each dimension was filtered. No schema, table or column names — identifiers do not go into this payload. Governed by `--send-diagnostics` as everywhere else. |
+| Telemetry | `schema-detect-drift` phase payload, `SchemaDriftPhasePayload` v1.0: counts, the drift-type and severity histograms, and whether each dimension was filtered. Carries the standard envelope too — the anonymized `SourceDBDetails`, and the migration type when the MSR knows it. The type is left unset rather than guessed for a run before `export data` has set it, or after a start-clean cleared it. No schema, table or column names — identifiers do not go into this payload. Governed by `--send-diagnostics` as everywhere else. |
+| Telemetry on failure | A run that fails before it builds a report still reports, as `ERROR` with the counts left zero: that is the population which could not use the feature at all. A failure before the export dir is opened sends nothing, because there is no migration UUID to key the row on. |
 
 ### 3.7 Guidance hints (\#3815)
 
