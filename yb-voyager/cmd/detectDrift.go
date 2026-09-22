@@ -708,31 +708,15 @@ func packAndSendSchemaDriftPayload(status string, errorMsg error, report *schema
 	payload := createCallhomePayload(migrationUUID)
 	payload.MigrationPhase = SCHEMA_DETECT_DRIFT_PHASE
 	payload.Status = status
-	if msr, err := metaDB.GetMigrationStatusRecord(); err != nil {
-		log.Infof("callhome: could not read migration status record: %v", err)
-	} else if msr != nil {
-		payload.MigrationType = driftMigrationType(msr.ExportTypeFromSource)
-	}
+	// MigrationType stays unset, as it does for the other read-only phases. Do not
+	// reach for checkStreamingMode here: it reads an unset ExportTypeFromSource as
+	// offline, and detect-drift runs before `export data` sets it and after a
+	// start-clean clears it.
 	payload.SourceDBDetails = callhome.MarshalledJsonString(anonymizeSourceDBDetails(&source))
 	payload.PhasePayload = callhome.MarshalledJsonString(buildSchemaDriftPayload(errorMsg, report))
 
 	if err := callhome.SendPayload(&payload); err == nil && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
-	}
-}
-
-// driftMigrationType returns "" when the export type is unknown, which is not the
-// same as offline: detect-drift may run before `export data` ever sets it (`export
-// schema` takes a snapshot too), and start-clean resets it to "". checkStreamingMode
-// is unusable here for exactly that reason -- it reads "" as offline.
-func driftMigrationType(exportTypeFromSource string) string {
-	switch {
-	case exportTypeFromSource == "":
-		return ""
-	case changeStreamingIsEnabled(exportTypeFromSource):
-		return LIVE_MIGRATION
-	default:
-		return OFFLINE
 	}
 }
 
