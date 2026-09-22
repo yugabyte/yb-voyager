@@ -238,10 +238,9 @@ def migration_completed_checks(tgt):
 	    for objects, new_value in changes.items():
 	        EXPECTED_COUNTS[schema][objects] = new_value
 
-	# Some YB cluster setups pre-install postgres_fdw into pg_catalog, which turns the
-	# migrated CREATE EXTENSION into a no-op and leaves its routines out of the target
-	# schema. This depends on cluster setup, not on the YB version.
-	if tgt.get_extension_schema("postgres_fdw") != "foreign_db_example":
+	# YB pre-installs postgres_fdw from 2026.1.2 (yugabyte-db#30591), which makes the
+	# migrated CREATE EXTENSION a no-op and leaves its routines out of this schema.
+	if tgt.get_extension_schema("postgres_fdw") == "pg_catalog":
 		EXPECTED_COUNTS["foreign_db_example"]["functions_procedures_count"] -= POSTGRES_FDW_ROUTINE_COUNT
 
 	check_validations_per_schema(tgt, "public")
