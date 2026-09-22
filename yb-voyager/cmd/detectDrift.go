@@ -609,9 +609,9 @@ func detectDrift() error {
 	// examined.
 	if report.Summary.ComparedIntervalCount == 0 {
 		nothingCompared := nothingComparedError(report)
-		// Sent from here rather than left to the atexit handler because the report
-		// is the interesting part: how many captures existed and why none were
-		// usable is exactly what tells us whether the feature is reachable.
+		// Sent from here rather than left to the atexit handler, which has no report
+		// to pass: how many captures existed and why none were usable is the whole
+		// signal on this path.
 		packAndSendSchemaDriftPayload(ERROR, nothingCompared, &report)
 		return nothingCompared
 	}
@@ -687,13 +687,17 @@ func nothingComparedError(r schemadrift.Report) error {
 
 // ─── Telemetry ───────────────────────────────────────────────────────────────
 
-// packAndSendSchemaDriftPayload reports the run to callhome. report is nil when
-// the run failed before one was built, which is itself worth recording: it is
-// the population that could not use the feature at all.
-//
-// Counts only. Schema, table and column names are identifiers and are not sent.
+// report is nil when the run failed before one was built, which is itself worth
+// recording: it is the population that could not use the feature at all.
 func packAndSendSchemaDriftPayload(status string, errorMsg error, report *schemadrift.Report) {
 	if !shouldSendCallhome() {
+		return
+	}
+	// Unlike the other commands that send from here, detect-drift is not on
+	// exportDirInitialisedCheckNeededList, so a flag that fails validation reaches
+	// the exit handler before detectDrift() opens metaDB. retrieveMigrationUUID
+	// dereferences metaDB, and the anonymizer is initialised alongside it.
+	if metaDB == nil {
 		return
 	}
 	if err := retrieveMigrationUUID(); err != nil {
@@ -704,36 +708,59 @@ func packAndSendSchemaDriftPayload(status string, errorMsg error, report *schema
 	payload := createCallhomePayload(migrationUUID)
 	payload.MigrationPhase = SCHEMA_DETECT_DRIFT_PHASE
 	payload.Status = status
+	if msr, err := metaDB.GetMigrationStatusRecord(); err != nil {
+		log.Infof("callhome: could not read migration status record: %v", err)
+	} else if msr != nil {
+		payload.MigrationType = driftMigrationType(msr.ExportTypeFromSource)
+	}
+	payload.SourceDBDetails = callhome.MarshalledJsonString(anonymizeSourceDBDetails(&source))
+	payload.PhasePayload = callhome.MarshalledJsonString(buildSchemaDriftPayload(errorMsg, report))
 
-	// MigrationType is deliberately unset: detect-drift reads an export dir and
-	// nothing in it says whether the migration is offline or live.
+	if err := callhome.SendPayload(&payload); err == nil && (status == COMPLETE || status == ERROR) {
+		callHomeErrorOrCompletePayloadSent = true
+	}
+}
+
+// driftMigrationType returns "" when the export type is unknown, which is not the
+// same as offline: detect-drift may run before `export data` ever sets it (`export
+// schema` takes a snapshot too), and start-clean resets it to "". checkStreamingMode
+// is unusable here for exactly that reason -- it reads "" as offline.
+func driftMigrationType(exportTypeFromSource string) string {
+	switch {
+	case exportTypeFromSource == "":
+		return ""
+	case changeStreamingIsEnabled(exportTypeFromSource):
+		return LIVE_MIGRATION
+	default:
+		return OFFLINE
+	}
+}
+
+func buildSchemaDriftPayload(errorMsg error, report *schemadrift.Report) callhome.SchemaDriftPhasePayload {
 	driftPayload := callhome.SchemaDriftPhasePayload{
 		PayloadVersion:   callhome.SCHEMA_DRIFT_CALLHOME_PAYLOAD_VERSION,
 		OutputFormats:    utils.CsvStringToSlice(driftOutputFormat),
 		Error:            callhome.SanitizeErrorMsg(errorMsg, anonymizer),
 		ControlPlaneType: getControlPlaneType(),
 	}
-	if report != nil {
-		driftPayload.ChangeCount = report.Summary.ChangeCount
-		driftPayload.ComparedIntervalCount = report.Summary.ComparedIntervalCount
-		driftPayload.StoredCaptureCount = report.Summary.StoredCaptureCount
-		driftPayload.LiveCompared = report.Summary.LiveCompared
-		driftPayload.SchemaCount = len(report.Comparing.Schemas)
-		driftPayload.TablesFiltered = report.Comparing.TablesFiltered
-		driftPayload.ObjectTypesFiltered = report.Comparing.ObjectTypesFiltered
-		driftPayload.DriftsByType = countDriftsBy(report.Drifts, func(d schemadrift.DriftEntry) string {
-			return string(d.Type)
-		})
-		driftPayload.DriftsBySeverity = countDriftsBy(report.Drifts, func(d schemadrift.DriftEntry) string {
-			return string(d.Severity)
-		})
+	if report == nil {
+		return driftPayload
 	}
 
-	payload.PhasePayload = callhome.MarshalledJsonString(driftPayload)
-
-	if err := callhome.SendPayload(&payload); err == nil && (status == COMPLETE || status == ERROR) {
-		callHomeErrorOrCompletePayloadSent = true
-	}
+	driftPayload.ChangeCount = report.Summary.ChangeCount
+	driftPayload.ComparedIntervalCount = report.Summary.ComparedIntervalCount
+	driftPayload.StoredCaptureCount = report.Summary.StoredCaptureCount
+	driftPayload.LiveCompared = report.Summary.LiveCompared
+	driftPayload.SchemaCount = len(report.Comparing.Schemas)
+	driftPayload.TablesFiltered = report.Comparing.TablesFiltered
+	driftPayload.ObjectTypesFiltered = report.Comparing.ObjectTypesFiltered
+	driftPayload.DriftsByType = countDriftsBy(report.Drifts, func(d schemadrift.DriftEntry) string {
+		return string(d.Type)
+	})
+	driftPayload.DriftsBySeverity = countDriftsBy(report.Drifts, func(d schemadrift.DriftEntry) string {
+		return string(d.Severity)
+	})
+	return driftPayload
 }
 
 func countDriftsBy(drifts []schemadrift.DriftEntry, key func(schemadrift.DriftEntry) string) map[string]int {
