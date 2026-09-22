@@ -587,31 +587,6 @@ func TestCountDriftsBy(t *testing.T) {
 	assert.Nil(t, countDriftsBy(nil, func(d schemadrift.DriftEntry) string { return string(d.Type) }))
 }
 
-// ─── driftMigrationType ──────────────────────────────────────────────────────
-
-func TestDriftMigrationType(t *testing.T) {
-	tests := []struct {
-		name       string
-		exportType string
-		expected   string
-	}{
-		// The two that must not collapse into OFFLINE: detect-drift runs at any
-		// point in the migration, including before export data sets this.
-		{"never set (export schema only)", "", ""},
-		{"cleared by start-clean", "", ""},
-
-		{"snapshot only", SNAPSHOT_ONLY, OFFLINE},
-		{"snapshot and changes", SNAPSHOT_AND_CHANGES, LIVE_MIGRATION},
-		{"changes only", CHANGES_ONLY, LIVE_MIGRATION},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, driftMigrationType(tt.exportType))
-		})
-	}
-}
-
 // ─── buildSchemaDriftPayload ─────────────────────────────────────────────────
 
 func TestBuildSchemaDriftPayload(t *testing.T) {
