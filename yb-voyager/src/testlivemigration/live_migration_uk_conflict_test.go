@@ -1,4 +1,4 @@
-//go:build failpoint_import
+//go:build integration_live_migration_with_failpoint
 
 /*
 Copyright (c) YugabyteDB, Inc.
@@ -346,9 +346,22 @@ func TestLiveMigrationWithMultiColumnUniqueIndexConflictDetectionCases(t *testin
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
 
-	require.Greater(t, conflictStats.Total, 0, "true-positive delta should produce UK conflicts")
-	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index"`], 0, "test_multi_column_unique_index should produce UK conflicts")
-	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index_part"`], 0, "test_multi_column_unique_index_part should produce UK conflicts")
+	require.Greater(t, conflictStats.Total, 1000, "true-positive delta should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index"`], 500, "test_multi_column_unique_index should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index_part"`], 500, "test_multi_column_unique_index_part should produce UK conflicts")
+	// Upper bound, counted from the true-positive delta. A conflict pair is recorded once per
+	// (cached delete/update, incoming) pair, and a cached event can pair with at most one
+	// incoming event (the reader blocks in WaitUntilNoConflict until the conflicting cached
+	// events are applied and evicted, so later incomings never see them). Per loop3 iteration
+	// only U1/D1/D2 (before-image (1022,1022)) can be caught by a different-PK incoming; the
+	// mid-loop update (before (i,i)) is only ever re-queried by the same-PK insert and is
+	// excluded by the partition-key check => 3 pairs x 500 iterations = 1500 per table. Loop4
+	// recycles (NULL,NULL) tuples that are never indexed under default NULLS DISTINCT => 0.
+	// False-positive-phase events (live or replayed) are structurally conflict-free (proven by
+	// the crash-failpoint phase) and use value ranges disjoint from the true-positive delta.
+	require.LessOrEqual(t, conflictStats.Total, 3000, "conflict pairs cannot exceed 1500 per table (3 catchable cached events per loop3 iteration x 500)")
+	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index"`], 1500, "test_multi_column_unique_index conflicts cannot exceed 3 per loop3 iteration x 500")
+	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_multi_column_unique_index_part"`], 1500, "test_multi_column_unique_index_part conflicts cannot exceed 3 per loop3 iteration x 500")
 
 	err = liveMigrationTest.ValidateDataConsistency(multiColumnUKTables, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -544,8 +557,15 @@ func TestLiveMigrationWithUniqueKeyValuesWithPartialPredicateConflictDetectionCa
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
 
-	require.Greater(t, conflictStats.Total, 0, "true-positive delta should produce UK conflicts")
-	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live"`], 0, "test_live should produce UK conflicts")
+	require.Greater(t, conflictStats.Total, 500, "true-positive delta should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live"`], 500, "test_live should produce UK conflicts")
+	// Upper bound, counted from the delta: all 5 updates + 2 deletes per iteration carry
+	// before-image check_id=20 (indexed, non-NULL) and each can be caught by a later
+	// different-PK incoming, and a cached event can pair with at most one incoming event
+	// (the reader blocks until conflicting cached events are evicted) => at most 7 pairs
+	// per iteration x 500 iterations = 3500.
+	require.LessOrEqual(t, conflictStats.Total, 3500, "conflict pairs cannot exceed 7 cached update+delete events per iteration x 500")
+	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live"`], 3500, "test_live conflict pairs cannot exceed 7 per iteration x 500")
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -762,8 +782,16 @@ FROM generate_series(1, 20) as i;`,
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	fmt.Println("conflictStats", conflictStats)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
-	require.Greater(t, conflictStats.Total, 0, "null unique delta should produce UK conflicts")
-	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live_null_unique_values"`], 0, "test_live_null_unique_values should produce UK conflicts")
+	require.Greater(t, conflictStats.Total, 500, "null unique delta should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live_null_unique_values"`], 500, "test_live_null_unique_values should produce UK conflicts")
+
+	// Upper bound, counted from the delta: under NULLS NOT DISTINCT the index buckets include
+	// NULL values, so all 6 updates + 2 deletes per iteration have indexable before-images and
+	// in the worst case every one of them is caught by a later different-PK incoming (the
+	// trailing update of iteration i can pair with the first update of iteration i+1). A cached
+	// event pairs with at most one incoming event => at most 8 pairs per iteration x 500 = 4000.
+	require.LessOrEqual(t, conflictStats.Total, 4000, "conflict pairs cannot exceed 8 cached update+delete events per iteration x 500")
+	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live_null_unique_values"`], 4000, "test_live_null_unique_values conflict pairs cannot exceed 8 per iteration x 500")
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live_null_unique_values"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -1007,7 +1035,7 @@ FROM generate_series(1, 20) as i;`,
 			i INTEGER;
 		BEGIN
 			FOR i IN 21..520 LOOP
-				UPDATE test_schema.test_live_null_partial_unique_values SET most_recent = false AND check_id = NULL WHERE id = i - 1;
+				UPDATE test_schema.test_live_null_partial_unique_values SET most_recent = false WHERE id = i - 1;
 				INSERT INTO test_schema.test_live_null_partial_unique_values(id, name, check_id, most_recent) VALUES (i, md5(random()::text), 20, true);
 		
 				UPDATE test_schema.test_live_null_partial_unique_values SET check_id = NULL WHERE id = i;
@@ -1079,8 +1107,15 @@ FROM generate_series(1, 20) as i;`,
 
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
-	require.Greater(t, conflictStats.Total, 0, "partial unique delta should produce UK conflicts")
-	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live_null_partial_unique_values"`], 0, "test_live_null_partial_unique_values should produce UK conflicts")
+	require.Greater(t, conflictStats.Total, 500, "partial unique delta should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live_null_partial_unique_values"`], 500, "test_live_null_partial_unique_values should produce UK conflicts")
+
+	// Upper bound, counted from the delta: of the 5 updates + 3 deletes per iteration, only 5
+	// carry a non-NULL before-image check_id (=20) and are therefore indexed under default
+	// NULLS DISTINCT; the NULL-before events are never cached for conflict checks. A cached
+	// event pairs with at most one incoming event => at most 5 pairs per iteration x 500 = 2500.
+	require.LessOrEqual(t, conflictStats.Total, 2500, "conflict pairs cannot exceed 5 indexable cached events per iteration x 500")
+	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live_null_partial_unique_values"`], 2500, "test_live_null_partial_unique_values conflict pairs cannot exceed 5 per iteration x 500")
 
 	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_live_null_partial_unique_values"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -1225,8 +1260,15 @@ func TestLiveMigrationWithUniqueKeyConflictsOnCaseSensitiveColumns(t *testing.T)
 
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
-	require.Greater(t, conflictStats.Total, 0, "case-sensitive UK delta should produce unique-key conflicts")
-	require.Greater(t, conflictStats.ByTable[table], 0, "case-sensitive UK conflicts should be attributed to the table")
+	require.Greater(t, conflictStats.Total, 500, "case-sensitive UK delta should produce unique-key conflicts")
+	require.Greater(t, conflictStats.ByTable[table], 500, "case-sensitive UK conflicts should be attributed to the table")
+	// Upper bound, counted from the delta: per iteration, the anchor-freeing update and the
+	// three deletes carry before-image ("Id2",id1,"ID3")=(2,2,2) and each can be caught by the
+	// next different-PK incoming that reclaims (2,2,2); the restoring update's before-image
+	// (i,i,i) is never re-queried by a different-PK event. A cached event pairs with at most
+	// one incoming event => at most 4 pairs per iteration x 500 = 2000.
+	require.LessOrEqual(t, conflictStats.Total, 2000, "conflict pairs cannot exceed 4 catchable cached events per iteration x 500")
+	require.LessOrEqual(t, conflictStats.ByTable[table], 2000, "case-sensitive UK conflict pairs cannot exceed 4 per iteration x 500")
 
 	err = liveMigrationTest.ValidateDataConsistency([]string{table}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency after forward streaming")
@@ -1810,8 +1852,14 @@ func TestLiveMigrationWithCoveringUniqueKeyIndex(t *testing.T) {
 
 	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
 	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
-	require.Greater(t, conflictStats.Total, 0, "covering UK delta should produce unique-key conflicts")
-	require.Greater(t, conflictStats.ByTable[`"test_schema"."users"`], 0, "covering UK conflicts should be attributed to the table")
+	require.Greater(t, conflictStats.Total, 500, "covering UK delta should produce unique-key conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."users"`], 500, "covering UK conflicts should be attributed to the table")
+	// Upper bound, counted from the delta: all 3 updates + 2 deletes per iteration carry an
+	// indexed before-image email ('user_10@' or 'user_i@') that the next different-PK incoming
+	// reclaims, and a cached event pairs with at most one incoming event => at most 5 pairs per
+	// iteration x 500 = 2500.
+	require.LessOrEqual(t, conflictStats.Total, 2500, "conflict pairs cannot exceed 5 cached update+delete events per iteration x 500")
+	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."users"`], 2500, "covering UK conflict pairs cannot exceed 5 per iteration x 500")
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."users"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
@@ -2834,6 +2882,12 @@ func TestLiveMigrationWithSubsetOFPartialUNiqueIndexColumnsBeingChangedInUpdate(
 
 	require.Greater(t, conflictStats.Total, 0, "subset-column partial-index delta should produce UK conflicts")
 	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_false_negative"`], 0, "test_false_negative should produce UK conflicts")
+	// Upper bound, counted from the delta: exactly one conflict pair is possible per iteration —
+	// the FREE update (before-image (c1,c2)=(100,1000)) caught by the TAKE update's merged
+	// after-image reclaiming (100,1000). The TAKE update's own before-image (100,i) is never
+	// re-queried, and inserts are never cached => at most 1 pair per iteration x 500 = 500.
+	require.LessOrEqual(t, conflictStats.Total, 500, "conflict pairs cannot exceed 1 per iteration x 500")
+	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_false_negative"`], 500, "test_false_negative conflict pairs cannot exceed 1 per iteration x 500")
 
 	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_false_negative"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
@@ -2972,6 +3026,10 @@ func TestLiveMigrationCustomCdcPartitionKeyPKRecycleConflict(t *testing.T) {
 	require.NotNil(t, conflicts, "PK-recycle across different custom keys must be detected")
 	assert.Greater(t, conflicts.Total, 0,
 		"expected at least one detected PK conflict, got stats: %+v", conflicts)
+	// Upper bound, counted from the delta: only the 5 deletes are ever cached, each on a
+	// distinct primary key, so each can pair with at most its own re-INSERT => at most 5.
+	assert.LessOrEqual(t, conflicts.Total, 5,
+		"conflict pairs cannot exceed the 5 cached deletes, got stats: %+v", conflicts)
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "target does not match source after streaming")
@@ -3280,6 +3338,10 @@ func TestLiveMigrationPartitionedTableWithCustomCdcPartitionKeyPKRecycleConflict
 	require.NotNil(t, conflicts, "PK-recycle across different custom keys must be detected")
 	assert.Greater(t, conflicts.Total, 0,
 		"expected at least one detected PK conflict, got stats: %+v", conflicts)
+	// Upper bound, counted from the delta: only the 5 deletes are ever cached, each on a
+	// distinct (id, region) primary key, so each can pair with at most its own re-INSERT => at most 5.
+	assert.LessOrEqual(t, conflicts.Total, 5,
+		"conflict pairs cannot exceed the 5 cached deletes, got stats: %+v", conflicts)
 
 	// Order by the full primary key: id alone repeats across partitions (r1/r2).
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id, region")
@@ -3433,6 +3495,10 @@ func TestLiveMigrationPartitionedTableChildPKWithCustomCdcPartitionKeyPKRecycleC
 	require.NotNil(t, conflicts, "PK-recycle across different custom keys must be detected")
 	assert.Greater(t, conflicts.Total, 0,
 		"expected at least one detected PK conflict, got stats: %+v", conflicts)
+	// Upper bound, counted from the delta: only the 3 deletes are ever cached, each on a
+	// distinct leaf primary key, so each can pair with at most its own re-INSERT => at most 3.
+	assert.LessOrEqual(t, conflicts.Total, 3,
+		"conflict pairs cannot exceed the 3 cached deletes, got stats: %+v", conflicts)
 
 	// Order by the full primary key: id alone repeats across partitions (US/EU).
 	err = lm.ValidateDataConsistency([]string{`"public"."orders"`}, "id, region")
@@ -3627,6 +3693,704 @@ func TestLiveMigrationCdcPartitionKeyRejectsCustomKeyOnGeneratedStoredColumnWith
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."orders"`}, "id")
 	testutils.FatalIfError(t, err, "target does not match source after streaming")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
+// TestLiveMigrationCustomCdcPartitionKeyMutationFailsImport verifies the custom-key
+// immutability guard end-to-end: custom partition key columns are required to
+// be immutable because routing reads the key from the update's before-image — an update that
+// changes the key would route by the old key while its after-image lands under the new one.
+// customPartitionKeyColumnValue therefore errors out for any update whose change set contains
+// a custom key column, and the import process must exit with that error.
+//
+// test_live is routed by the multi-column custom key (ck1, ck2) and the delta mutates only
+// ONE column of it (ck2) — the likelier real-world mistake — after a benign key-untouched
+// update that must stream fine. The import must stop on the mutation event with the
+// "required to be immutable" error naming the mutated column.
+func TestLiveMigrationCustomCdcPartitionKeyMutationFailsImport(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_custom_key_mutation",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_custom_key_mutation",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.test_live (
+				id int PRIMARY KEY,
+				ck1 int,
+				ck2 int,
+				val int
+			);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.test_live REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.test_live (id, ck1, ck2, val)
+			 SELECT i, i, i, i FROM generate_series(1, 5) i;`,
+		},
+		SourceDeltaSQL: []string{
+			// Key-untouched update: must stream fine (ck1/ck2 absent from the change set).
+			`UPDATE test_schema.test_live SET val = val + 10 WHERE id = 1;`,
+			// Mutates ONE column of the (ck1, ck2) custom key: the importer must error out.
+			`UPDATE test_schema.test_live SET ck2 = 999 WHERE id = 2;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = lm.StartImportData(true, map[string]string{
+		"--cdc-partition-key-overrides": "test_schema.test_live:(ck1,ck2)",
+	})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_live"`: 5,
+	}, 120)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	// The mutation event must kill the import: hashEvent -> customPartitionKeyColumnValue
+	// errors, streamChanges propagates it, and the process ErrExits.
+	err = lm.WaitForImportdataToCrashWithError(3*time.Minute, 2*time.Second, "custom partition key column \"ck2\" is required to be immutable")
+	testutils.FatalIfError(t, err, "failed to wait for import data to crash with error")
+
+	//import data started with truncate and start-clean and default partition key strategy
+	//so that data can be applied properly
+	err = lm.StartImportData(true, map[string]string{
+		"--start-clean":     "true",
+		"--truncate-tables": "true",
+	})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live"`: {Inserts: 0, Updates: 2, Deletes: 0},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "target does not match source after streaming")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
+// TestLiveMigrationCustomCdcPartitionKeyUniqueKeyConflictDetection verifies basic unique-key
+// conflict detection on custom-routed tables: a genuine unique index (NOT on
+// the custom key column) must still be protected when the conflicting events carry DIFFERENT
+// custom keys — they hash to (potentially) different channels, so the conflict must be
+// detected and serialized. This is the counterpart of the *NoConflict tests (same key =>
+// suppressed) and the PK-recycle tests (synthetic PK): here the conflict comes from a real
+// unique index. test_live_multi additionally routes by a MULTI-COLUMN custom key, which no
+// other conflict true-positive test exercises.
+//
+// Delta per iteration (both tables): the anchor row (id=1, custom key 1) frees val=1000, a
+// new row with custom key i reclaims it (UPDATE->INSERT conflict across different custom
+// keys), then the new row is deleted and the anchor takes val=1000 back (DELETE->UPDATE
+// conflict across different custom keys).
+func TestLiveMigrationCustomCdcPartitionKeyUniqueKeyConflictDetection(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_custom_key_uk_conflict",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_custom_key_uk_conflict",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.test_live_single (
+				id int PRIMARY KEY,
+				ck int,
+				val int
+			);
+			CREATE UNIQUE INDEX idx_test_live_single_val ON test_schema.test_live_single (val);
+			CREATE TABLE test_schema.test_live_multi (
+				id int PRIMARY KEY,
+				ck1 int,
+				ck2 int,
+				val int
+			);
+			CREATE UNIQUE INDEX idx_test_live_multi_val ON test_schema.test_live_multi (val);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.test_live_single REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.test_live_multi REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			// Anchor row (custom key 1) holding val=1000, plus filler rows whose vals/custom
+			// keys never collide with the delta.
+			`INSERT INTO test_schema.test_live_single (id, ck, val) VALUES (1, 1, 1000);`,
+			`INSERT INTO test_schema.test_live_single (id, ck, val)
+			 SELECT i, i, 100000 + i FROM generate_series(100, 103) i;`,
+			`INSERT INTO test_schema.test_live_multi (id, ck1, ck2, val) VALUES (1, 1, 1, 1000);`,
+			`INSERT INTO test_schema.test_live_multi (id, ck1, ck2, val)
+			 SELECT i, i, i, 100000 + i FROM generate_series(100, 103) i;`,
+		},
+		SourceDeltaSQL: []string{
+			// Custom keys are immutable throughout: updates only touch val. The conflicting
+			// events always carry different custom keys (anchor ck=1 vs new row ck=i), so the
+			// partition-key exclusion must NOT suppress detection.
+			`DO $$
+			DECLARE
+				i INTEGER;
+			BEGIN
+				FOR i IN 2002..2501 LOOP
+					UPDATE test_schema.test_live_single SET val = i WHERE id = 1;
+					INSERT INTO test_schema.test_live_single (id, ck, val) VALUES (i, i, 1000);
+					DELETE FROM test_schema.test_live_single WHERE id = i;
+					UPDATE test_schema.test_live_single SET val = 1000 WHERE id = 1;
+				END LOOP;
+			END $$;`,
+			`DO $$
+			DECLARE
+				i INTEGER;
+			BEGIN
+				FOR i IN 2002..2501 LOOP
+					UPDATE test_schema.test_live_multi SET val = i WHERE id = 1;
+					INSERT INTO test_schema.test_live_multi (id, ck1, ck2, val) VALUES (i, i, i, 1000);
+					DELETE FROM test_schema.test_live_multi WHERE id = i;
+					UPDATE test_schema.test_live_multi SET val = 1000 WHERE id = 1;
+				END LOOP;
+			END $$;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	// count-only failpoint: any detected UK conflict is recorded in the stats file.
+	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+	)
+	uniqueKeyConflictStatsPath := filepath.Join(
+		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
+
+	err = lm.StartImportDataWithEnv(true, map[string]string{
+		"--cdc-partition-key":           "auto",
+		"--cdc-partition-key-overrides": "test_schema.test_live_single:(ck);test_schema.test_live_multi:(ck1,ck2)",
+	}, []string{uniqueKeyConflictCountFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import data")
+	defer lm.StopImportData()
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_live_single"`: 5,
+		`"test_schema"."test_live_multi"`:  5,
+	}, 120)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	// Assert the persisted per-table custom strategy + columns.
+	err = lm.InitMetaDB()
+	testutils.FatalIfError(t, err, "failed to initialize meta db")
+	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
+	testutils.FatalIfError(t, err, "failed to get import data status record")
+	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live_single"`].Strategy,
+		"test_live_single should use the custom partition strategy")
+	assert.Equal(t, []string{"ck"}, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live_single"`].Columns,
+		"test_live_single custom key columns should be persisted")
+	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live_multi"`].Strategy,
+		"test_live_multi should use the custom partition strategy")
+	assert.Equal(t, []string{"ck1", "ck2"}, importDataStatus.TableToCDCPartitionKey[`"test_schema"."test_live_multi"`].Columns,
+		"test_live_multi custom key columns should be persisted")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	// 500 iterations x {2 updates, 1 insert, 1 delete} per table.
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live_single"`: {Inserts: 500, Updates: 1000, Deletes: 500},
+		`"test_schema"."test_live_multi"`:  {Inserts: 500, Updates: 1000, Deletes: 500},
+	}, 200, 5)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	require.False(t, lm.GetImportRunner().IsStopped(),
+		"import should keep running during count failpoint mode")
+
+	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
+	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
+	require.Greater(t, conflictStats.Total, 0, "custom-routed UK delta should produce conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live_single"`], 0,
+		"single-column custom key table should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live_multi"`], 0,
+		"multi-column custom key table should produce UK conflicts")
+	// Upper bound, counted from the delta: per iteration only the anchor-freeing update
+	// (before val=1000) and the delete (before val=1000) can be caught by a later
+	// different-custom-key incoming; the restoring update's before-image (val=i) is never
+	// re-queried, and same-custom-key matches (all anchor-row events share ck=1) are excluded.
+	// A cached event pairs with at most one incoming event => at most 2 pairs per iteration
+	// x 500 = 1000 per table.
+	require.LessOrEqual(t, conflictStats.Total, 2000, "conflict pairs cannot exceed 2 catchable cached events per iteration x 500 x 2 tables")
+	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live_single"`], 1000,
+		"test_live_single conflict pairs cannot exceed 2 per iteration x 500")
+	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live_multi"`], 1000,
+		"test_live_multi conflict pairs cannot exceed 2 per iteration x 500")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live_single"`, `"test_schema"."test_live_multi"`}, "id")
+	testutils.FatalIfError(t, err, "target does not match source after streaming")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
+// TestLiveMigrationWithCompositeNullsNotDistinctUniqueIndexConflictDetection pins that
+// conflict detection works for a MULTI-COLUMN UNIQUE ... NULLS NOT DISTINCT index at the
+// integration level. The single-column NND path is covered by
+// TestLiveMigrationWithUniqueKeyConflictWithNullValuesDetectionCasesNULLSNOTDISTINCT; composite
+// NND tuples (mixed value/NULL, and the all-NULL sentinel bucket) previously existed only in
+// conflict-cache unit tests.
+//
+// The unique key is (part_a, part_b) NULLS NOT DISTINCT with part_b held NULL throughout, so
+// every indexed tuple is of the form (X, NULL) or (NULL, NULL) — exactly the mixed value/NULL
+// and all-NULL composite sentinel buckets. part_a is cycled value<->NULL across two PKs (i-1, i)
+// so the same composite tuple is freed on one row and reclaimed on another with a different PK;
+// under partition-by-PK those two events hash to different channels and must be serialized by
+// conflict detection. Because part_b is a constant NULL, uniqueness reduces to part_a under NND,
+// so this delta is valid on the source for the same reason the single-column NND delta is.
+func TestLiveMigrationWithCompositeNullsNotDistinctUniqueIndexConflictDetection(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_composite_nnd_conflict",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_composite_nnd_conflict",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.test_live_composite_nnd (
+				id int PRIMARY KEY,
+				name TEXT,
+				part_a int,
+				part_b int
+			);
+			-- composite NULLS NOT DISTINCT: (X, NULL) collides with (Y, NULL) iff X = Y,
+			-- and (NULL, NULL) collides with (NULL, NULL) -- the all-NULL sentinel bucket.
+			CREATE UNIQUE INDEX idx_composite_nnd ON test_schema.test_live_composite_nnd (part_a, part_b) NULLS NOT DISTINCT;`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.test_live_composite_nnd REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			// tuples (i, NULL) -- distinct because part_a differs even though part_b is NULL.
+			`INSERT INTO test_schema.test_live_composite_nnd (id, name, part_a, part_b)
+SELECT i, md5(random()::text), i, NULL FROM generate_series(1, 20) as i;`,
+		},
+		SourceDeltaSQL: []string{
+			// Per iteration (I=3, U=6, D=2): free and reclaim the composite tuple across PKs
+			// i-1 and i, cycling part_a through value<->NULL so both (X, NULL) and the
+			// (NULL, NULL) sentinel bucket are exercised on the before-before path.
+			`DO $$
+		DECLARE
+			i INTEGER;
+		BEGIN
+			FOR i IN 21..520 LOOP
+				UPDATE test_schema.test_live_composite_nnd SET part_a = NULL WHERE id = i - 1;
+				INSERT INTO test_schema.test_live_composite_nnd(id, name, part_a, part_b) VALUES (i, md5(random()::text), i-1, NULL);
+
+				UPDATE test_schema.test_live_composite_nnd SET part_a = i WHERE id = i - 1;
+				UPDATE test_schema.test_live_composite_nnd SET part_a = NULL WHERE id = i;
+
+				DELETE FROM test_schema.test_live_composite_nnd WHERE id = i-1;
+				UPDATE test_schema.test_live_composite_nnd SET part_a = i-1 WHERE id = i;
+
+				UPDATE test_schema.test_live_composite_nnd SET part_a = NULL WHERE id = i;
+
+				DELETE FROM test_schema.test_live_composite_nnd WHERE id = i;
+				INSERT INTO test_schema.test_live_composite_nnd(id, name, part_a, part_b) VALUES (i-1, md5(random()::text), NULL, NULL);
+
+				UPDATE test_schema.test_live_composite_nnd SET part_a = i-1 WHERE id = i - 1;
+				INSERT INTO test_schema.test_live_composite_nnd(id, name, part_a, part_b) VALUES (i, md5(random()::text), i, NULL);
+			END LOOP;
+		END $$;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+	)
+	uniqueKeyConflictStatsPath := filepath.Join(
+		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
+
+	err = lm.StartImportDataWithEnv(true, nil, []string{uniqueKeyConflictCountFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_live_composite_nnd"`: 20,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live_composite_nnd"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live_composite_nnd"`: {
+			Inserts: 1500,
+			Updates: 3000,
+			Deletes: 1000,
+		},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	require.False(t, lm.GetImportRunner().IsStopped(),
+		"import should keep running during count failpoint mode")
+
+	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
+	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
+	require.Greater(t, conflictStats.Total, 500, "composite NND delta should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live_composite_nnd"`], 500,
+		"test_live_composite_nnd should produce UK conflicts")
+	// Upper bound, counted from the delta: under NULLS NOT DISTINCT the composite index buckets
+	// include NULL components, so all 6 updates + 2 deletes per iteration have indexable
+	// before-images and in the worst case each is caught by a later different-PK incoming (the
+	// trailing update of iteration i can pair with the first update of iteration i+1). A cached
+	// event pairs with at most one incoming event => at most 8 pairs per iteration x 500 = 4000.
+	require.LessOrEqual(t, conflictStats.Total, 4000,
+		"conflict pairs cannot exceed 8 cached update+delete events per iteration x 500")
+	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live_composite_nnd"`], 4000,
+		"test_live_composite_nnd conflict pairs cannot exceed 8 per iteration x 500")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live_composite_nnd"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
+// TestLiveMigrationWithNullsNotDistinctPartialUniqueIndexConflictDetection pins that conflict
+// detection works for a UNIQUE ... NULLS NOT DISTINCT index that ALSO carries a partial
+// predicate. The default NULLS DISTINCT partial-index path is covered by
+// TestLiveMigrationWithUniqueKeyConflictWithNullValueAndPartialPredicatesDetectionCases; the
+// NND + partial-predicate combination -- which exercises the NULL sentinel on the before-before
+// path while a WHERE predicate is applied -- had no test at any level.
+//
+// The index is (check_id) NULLS NOT DISTINCT WHERE most_recent. The churned rows are kept
+// most_recent = true so the partial predicate always admits them, and check_id is cycled
+// value<->NULL across two PKs so two most_recent=true rows momentarily share check_id=NULL --
+// a genuine NND NULL-sentinel collision on a partial index. The initial data also loads decoy
+// rows with most_recent = false and duplicate NULL check_id values: these are accepted only
+// because the partial predicate excludes them from the index (an NND index would otherwise
+// reject duplicate NULLs), which is the deterministic proof that the partial predicate is in
+// effect. The snapshot count (30) asserts those decoys loaded.
+func TestLiveMigrationWithNullsNotDistinctPartialUniqueIndexConflictDetection(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_nnd_partial_conflict",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_nnd_partial_conflict",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.test_live_nnd_partial (
+				id int PRIMARY KEY,
+				name TEXT,
+				check_id int,
+				most_recent boolean
+			);
+			-- NULLS NOT DISTINCT + partial predicate: only most_recent rows are indexed, and
+			-- among them two NULL check_id values collide (the NULL sentinel on a partial index).
+			CREATE UNIQUE INDEX idx_nnd_partial ON test_schema.test_live_nnd_partial (check_id) NULLS NOT DISTINCT WHERE most_recent;`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.test_live_nnd_partial REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			// Indexed rows: most_recent = true, distinct check_id.
+			`INSERT INTO test_schema.test_live_nnd_partial (id, name, check_id, most_recent)
+SELECT i, md5(random()::text), i, true FROM generate_series(1, 20) as i;`,
+			// Decoy rows: most_recent = false with duplicate NULL check_id. These load only
+			// because the partial predicate excludes them from the NND index -- proof the
+			// predicate is applied. They are never touched by the delta.
+			`INSERT INTO test_schema.test_live_nnd_partial (id, name, check_id, most_recent)
+SELECT i, md5(random()::text), NULL, false FROM generate_series(1001, 1010) as i;`,
+		},
+		SourceDeltaSQL: []string{
+			// Per iteration (I=3, U=6, D=2): churned rows i-1 and i are always most_recent=true
+			// (predicate satisfied), and check_id is cycled value<->NULL so the same key -- including
+			// the NULL sentinel -- is freed on one PK and reclaimed on another. Validity mirrors the
+			// single-column NND delta: uniqueness among most_recent rows reduces to check_id.
+			`DO $$
+		DECLARE
+			i INTEGER;
+		BEGIN
+			FOR i IN 21..520 LOOP
+				UPDATE test_schema.test_live_nnd_partial SET check_id = NULL WHERE id = i - 1;
+				INSERT INTO test_schema.test_live_nnd_partial(id, name, check_id, most_recent) VALUES (i, md5(random()::text), i-1, true);
+
+				UPDATE test_schema.test_live_nnd_partial SET check_id = i WHERE id = i - 1;
+				UPDATE test_schema.test_live_nnd_partial SET check_id = NULL WHERE id = i;
+
+				DELETE FROM test_schema.test_live_nnd_partial WHERE id = i-1;
+				UPDATE test_schema.test_live_nnd_partial SET check_id = i-1 WHERE id = i;
+
+				UPDATE test_schema.test_live_nnd_partial SET check_id = NULL WHERE id = i;
+
+				DELETE FROM test_schema.test_live_nnd_partial WHERE id = i;
+				INSERT INTO test_schema.test_live_nnd_partial(id, name, check_id, most_recent) VALUES (i-1, md5(random()::text), NULL, true);
+
+				UPDATE test_schema.test_live_nnd_partial SET check_id = i-1 WHERE id = i - 1;
+				INSERT INTO test_schema.test_live_nnd_partial(id, name, check_id, most_recent) VALUES (i, md5(random()::text), i, true);
+			END LOOP;
+		END $$;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+	)
+	uniqueKeyConflictStatsPath := filepath.Join(
+		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
+
+	err = lm.StartImportDataWithEnv(true, nil, []string{uniqueKeyConflictCountFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	// Snapshot count 30 = 20 indexed rows + 10 most_recent=false decoys with duplicate NULL
+	// check_id; the decoys loading proves the partial predicate excludes them from the NND index.
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_live_nnd_partial"`: 30,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live_nnd_partial"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live_nnd_partial"`: {
+			Inserts: 1500,
+			Updates: 3000,
+			Deletes: 1000,
+		},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	require.False(t, lm.GetImportRunner().IsStopped(),
+		"import should keep running during count failpoint mode")
+
+	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
+	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
+	require.Greater(t, conflictStats.Total, 500, "NND partial delta should produce UK conflicts")
+	require.Greater(t, conflictStats.ByTable[`"test_schema"."test_live_nnd_partial"`], 500,
+		"test_live_nnd_partial should produce UK conflicts")
+	// Upper bound, counted from the delta: the churned rows are always most_recent=true, so under
+	// NULLS NOT DISTINCT all 6 updates + 2 deletes per iteration have indexable before-images and
+	// in the worst case each is caught by a later different-PK incoming (the trailing update of
+	// iteration i can pair with the first update of iteration i+1). A cached event pairs with at
+	// most one incoming event => at most 8 pairs per iteration x 500 = 4000.
+	require.LessOrEqual(t, conflictStats.Total, 4000,
+		"conflict pairs cannot exceed 8 cached update+delete events per iteration x 500")
+	require.LessOrEqual(t, conflictStats.ByTable[`"test_schema"."test_live_nnd_partial"`], 4000,
+		"test_live_nnd_partial conflict pairs cannot exceed 8 per iteration x 500")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live_nnd_partial"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
+// TestLiveMigrationExpressionUniqueIndexCollisionWithTablePartitioning pins that an ACTUAL
+// expression-unique-index collision (free/reclaim of lower(email) across different PKs) is
+// applied correctly under table routing. The guardrail tests
+// (RejectsPkOnExpressionUniqueIndex / RejectsCustomOnExpressionUniqueIndex) only prove the
+// remedy is enforced and that the table is accepted with non-colliding inserts; none drives a
+// real expression collision. Here the collision is genuine: under partition-by-PK the delete
+// and the reclaiming insert would hash to different channels and race, but with
+// auto default mode it should be table partitioned and every users event serializes on one channel, so the target applies
+// them in commit order. The invariant: table routing suppresses the race structurally, so ZERO
+// conflicts are detected and the data stays consistent.
+func TestLiveMigrationExpressionUniqueIndexCollisionWithDefaultPartitioning(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_expr_uk_table_partitioning",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_expr_uk_table_partitioning",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.users (
+				id int PRIMARY KEY,
+				email TEXT
+			);
+			CREATE UNIQUE INDEX users_lower_email_uidx ON test_schema.users (lower(email));`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.users REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.users (id, email)
+SELECT i, 'user_' || i || '@example.com' FROM generate_series(1, 20) as i;`,
+		},
+		SourceDeltaSQL: []string{
+			// Per iteration (I=1, D=1): delete the row currently holding lower(email)='shared@x.com'
+			// and insert a new row (different PK) that reclaims the same lowercased value, alternating
+			// the source-side casing so the collision is on the expression, not the raw string. Only
+			// one row ever holds the shared value at a time on the source, so the delta is valid.
+			`DO $$
+		DECLARE
+			i INTEGER;
+		BEGIN
+			FOR i IN 21..520 LOOP
+				DELETE FROM test_schema.users WHERE id = i - 1;
+				INSERT INTO test_schema.users(id, email)
+				VALUES (i, CASE WHEN i % 2 = 0 THEN 'shared@x.com' ELSE 'SHARED@X.COM' END);
+			END LOOP;
+		END $$;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	uniqueKeyConflictCountFailpointEnv := testutils.GetFailpointEnvVar(
+		`github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return("count")`,
+	)
+	uniqueKeyConflictStatsPath := filepath.Join(
+		lm.GetCurrentExportDir(), "failpoints", "unique-key-conflict-stats.json")
+
+	// Global table routing: every users event goes to one channel, so no conflict detection runs.
+	err = lm.StartImportDataWithEnv(true, nil, []string{uniqueKeyConflictCountFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."users"`: 20,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."users"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	// Per iteration: I=1, D=1 across 500 iterations => 500 inserts, 500 deletes, 0 updates.
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."users"`: {
+			Inserts: 500,
+			Updates: 0,
+			Deletes: 500,
+		},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	// Table routing serializes the whole table on one channel, so conflict detection never runs
+	// and the stats file is never written.
+	conflicts, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
+	if err != nil && !os.IsNotExist(err) {
+		testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
+	}
+	require.Nil(t, conflicts, "table routing must suppress the expression-UK race: no conflicts expected")
+
+	// The genuine collision still applies correctly because events are ordered on one channel.
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."users"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")

@@ -1,4 +1,4 @@
-//go:build integration_live_migration || failpoint_export || failpoint_import || failpoint_cutover
+//go:build integration_live_migration || failpoint_export || failpoint_import || failpoint_cutover || integration_live_migration_with_failpoint
 
 /*
 Copyright (c) YugabyteDB, Inc.
@@ -533,6 +533,17 @@ func (lm *LiveMigrationTest) WaitForExportDataExitTimeout(timeout time.Duration)
 	}
 }
 
+func (lm *LiveMigrationTest) WaitForImportdataToCrashWithError(timeout time.Duration, pollInterval time.Duration, errorMessage string) error {
+	require.Eventually(lm.t, func() bool { return lm.GetImportRunner().IsStopped() },
+		timeout, pollInterval,
+		"import should exit after streaming an update that mutates a custom partition key column")
+	output := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
+	require.Contains(lm.t, output, errorMessage,
+		"expected the %s error, got: %s", errorMessage, output)
+	return nil
+
+}
+
 // WaitForImportDataExit waits for the import data process to exit.
 // This is useful when import has exec'd into export-data-from-target and
 // you need to detect the crash of the exec'd process.
@@ -899,7 +910,7 @@ func (lm *LiveMigrationTest) WaitForSnapshotComplete(expectedData map[string]int
 	ok := utils.RetryWorkWithTimeout(1, snapshotTimeout, func() bool {
 		ok, err := lm.snapshotPhaseCompleted(expectedData)
 		if err != nil {
-			testutils.FatalIfError(lm.t, err, "failed to get data migration report")
+			lm.t.Logf("failed to get snapshot data report: %v", err)
 			return false
 		}
 		return ok
@@ -919,7 +930,7 @@ func (lm *LiveMigrationTest) WaitForForwardStreamingComplete(expectedChanges map
 	ok := utils.RetryWorkWithTimeout(streamingSleep, streamingTimeout, func() bool {
 		ok, err := lm.streamingPhaseCompleted(expectedChanges, "source", "target")
 		if err != nil {
-			testutils.FatalIfError(lm.t, err, "failed to get data migration report")
+			lm.t.Logf("failed to get data migration report: %v", err)
 			return false
 		}
 		return ok
@@ -939,7 +950,7 @@ func (lm *LiveMigrationTest) WaitForFallbackStreamingComplete(expectedChanges ma
 	ok := utils.RetryWorkWithTimeout(streamingSleep, streamingTimeout, func() bool {
 		ok, err := lm.streamingPhaseCompleted(expectedChanges, "target", "source")
 		if err != nil {
-			testutils.FatalIfError(lm.t, err, "failed to get data migration report")
+			lm.t.Logf("failed to get streaming data report: %v", err)
 			return false
 		}
 		return ok
@@ -1480,6 +1491,8 @@ type DataMigrationReport struct {
 }
 
 // GetDataMigrationReport retrieves the migration report
+// This function retries 5 times with a 2 second delay between retries.
+// If the function fails to get the data migration report for any reason it just logs the error and retries until it succeeds or retries exhausted.
 func (lm *LiveMigrationTest) GetDataMigrationReport() (*DataMigrationReport, error) {
 	if lm.metaDB == nil {
 		err := lm.InitMetaDB()
@@ -1501,13 +1514,20 @@ func (lm *LiveMigrationTest) GetDataMigrationReport() (*DataMigrationReport, err
 		if lm.sourceReplicaContainer != nil {
 			reportArgs = append(reportArgs, "--source-replica-db-password", lm.sourceReplicaContainer.GetConfig().Password)
 		}
-		err := testutils.NewVoyagerCommandRunner(nil, "get data-migration-report", reportArgs, nil, true).WithT(lm.t).Run()
+		err := testutils.NewVoyagerCommandRunner(nil, "get data-migration-report", reportArgs, nil, false).WithT(lm.t).Run()
 		if err != nil {
-			return nil, goerrors.Errorf("get data-migration-report command failed: %w", err)
+			lm.t.Logf("failed to get data migration report: %v", err)
+			maxRetry--
+			if maxRetry <= 0 {
+				return nil, goerrors.Errorf("failed to get data migration report: %w", err)
+			}
+			time.Sleep(2 * time.Second)
+			continue
 		}
 
 		reportFilePath := filepath.Join(lm.exportDir, "reports", "data-migration-report.json")
 		if !utils.FileOrFolderExists(reportFilePath) {
+			lm.t.Logf("report file does not exist: %v", reportFilePath)
 			maxRetry--
 			if maxRetry <= 0 {
 				return nil, goerrors.Errorf("report file does not exist")

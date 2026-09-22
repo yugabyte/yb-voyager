@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: 
-        test-tags: [integration_voyager_command, integration, integration_live_migration]
+        test-tags: [integration_voyager_command, integration, integration_live_migration, integration_live_migration_with_failpoint] 
 
     runs-on: ubuntu-22.04
 
@@ -58,14 +58,25 @@ jobs:
       with:
         go-version: ${{ needs.prepare-versions.outputs.go_version }}
 
+    - name: Install failpoint-ctl
+      if: ${{ matrix.test-tags == 'integration_live_migration_with_failpoint' }}
+      run: |
+        go install github.com/pingcap/failpoint/failpoint-ctl@latest
+
+    - name: Enable failpoint code generation
+      if: ${{ matrix.test-tags == 'integration_live_migration_with_failpoint' }}
+      run: |
+        cd yb-voyager
+        failpoint-ctl enable
+
     - name: Run installer script to setup voyager and dependencies for running integration tests
       run: |
         cd installer_scripts
         yes | ./install-yb-voyager --install-from-local-source
         sudo rm /usr/bin/pg_dump
-        sudo ln -s /usr/lib/postgresql/17/bin/pg_dump /usr/bin/pg_dump
+        sudo ln -s /usr/lib/postgresql/18/bin/pg_dump /usr/bin/pg_dump
         sudo rm /usr/bin/pg_restore
-        sudo ln -s /usr/lib/postgresql/17/bin/pg_restore /usr/bin/pg_restore
+        sudo ln -s /usr/lib/postgresql/18/bin/pg_restore /usr/bin/pg_restore
         pg_dump --version
         pg_restore --version
         psql --version
@@ -126,6 +137,13 @@ jobs:
           cat /tmp/gotest-stderr.log
           echo "::endgroup::"
         fi
+
+    - name: Cleanup failpoint code
+      if: ${{ matrix.test-tags == 'integration_live_migration_with_failpoint' }}
+      run: |
+        cd yb-voyager
+        failpoint-ctl disable
+    
 
     - name: Upload test logs
       if: failure()
