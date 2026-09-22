@@ -193,11 +193,12 @@ func TestFilterByScopeSchemasKeepsOnlyRequested(t *testing.T) {
 
 	got := FilterByScope(diffs, narrowSchemas(diffs, "public"))
 
-	require.Len(t, got, 2, "only the public findings survive")
-	for _, d := range got {
-		assert.Equal(t, []string{"public", "public"}, schemasOf(d),
-			"a column reports its parent table's schema, so both sides read public")
-	}
+	// A column reports its parent table's schema, so the column finding survives
+	// on the strength of orders being in public.
+	assert.Equal(t, []Difference{
+		tableDiff(TableAdded, "public", "orders"),
+		colDiff(ColumnAdded, orders, "note"),
+	}, got, "only the public findings survive, in input order")
 }
 
 // TestFilterByScopeSchemasMatchesEitherSide pins why the rule is either-side and not
@@ -333,16 +334,17 @@ func TestFilterByScopeColumnObjectTypeIsFirstClass(t *testing.T) {
 
 	// ObjectTypes: [COLUMN] returns only the column finding.
 	gotColumn := FilterByScope(diffs, narrowTypes(diffs, ObjectTypeColumn))
-	require.Len(t, gotColumn, 1, "COLUMN include must keep only the column finding")
-	assert.Equal(t, ColumnAdded, gotColumn[0].Type)
-	assert.Equal(t, ObjectTypeColumn, gotColumn[0].ObjectType)
+	assert.Equal(t, []Difference{columnFinding}, gotColumn,
+		"COLUMN include must keep only the column finding")
 
-	// ObjectTypes: [TABLE] returns only the table finding — which is also exactly
-	// what the command passes for --exclude-object-type-list=COLUMN.
+	// ObjectTypes: [TABLE] returns only the table finding. Asserting the whole
+	// slice is what exercises the exclude direction: this keep-set is exactly what
+	// the command resolves --exclude-object-type-list=COLUMN into, so the column
+	// finding being absent is the claim under test, not just the table one being
+	// present.
 	gotTable := FilterByScope(diffs, narrowTypes(diffs, ObjectTypeTable))
-	require.Len(t, gotTable, 1, "TABLE include must keep only the table finding")
-	assert.Equal(t, TableAdded, gotTable[0].Type)
-	assert.Equal(t, ObjectTypeTable, gotTable[0].ObjectType)
+	assert.Equal(t, []Difference{tableFinding}, gotTable,
+		"TABLE include must keep only the table finding")
 }
 
 // TestFilterByScopeColumnAnchorsToHostTableForTableList verifies that the
