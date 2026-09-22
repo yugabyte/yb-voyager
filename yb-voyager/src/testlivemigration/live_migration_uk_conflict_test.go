@@ -2205,7 +2205,8 @@ func TestLiveMigrationCustomCdcPartitionKeyNoConflictIterativeCutover(t *testing
 			// Snapshot rows with distinct custom_keys (101..105) and most_recent=false so they
 			// don't occupy the partial unique index slot the delta reuses (custom_key=1).
 			`INSERT INTO test_schema.test_live (custom_key, most_recent)
-			 SELECT 100 + i, false FROM generate_series(1, 5) i;`,
+			 SELECT 100 + i, false FROM generate_series(1, 4) i;`,
+			`INSERT INTO test_schema.test_live (custom_key,most_recent) VALUES (1,'true')`,
 		},
 		SourceDeltaSQL: []string{
 			// Single transaction: every event shares custom_key=1. Each loop frees the
@@ -2274,7 +2275,7 @@ func TestLiveMigrationCustomCdcPartitionKeyNoConflictIterativeCutover(t *testing
 
 	// Delta: 7 inserts, 6 updates, 0 deletes.
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		testLiveTable: {Inserts: 7, Updates: 6, Deletes: 0},
+		testLiveTable: {Inserts: 7, Updates: 7, Deletes: 0},
 	}, 120, 5)
 	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
 
@@ -2348,7 +2349,12 @@ func TestLiveMigrationCustomCdcPartitionKeyNoConflictIterativeCutover(t *testing
 	err = lm.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta on the next iteration")
 
-	err = lm.InitiateCutoverToTarget(false, nil)
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		testLiveTable: {Inserts: 14, Updates:14},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "forward streaming did not complete")
+
+	err = lm.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate final cutover to target")
 
 	err = lm.WaitForCutoverComplete(1, 180)
@@ -2356,6 +2362,74 @@ func TestLiveMigrationCustomCdcPartitionKeyNoConflictIterativeCutover(t *testing
 
 	err = lm.ValidateDataConsistency([]string{testLiveTable}, "id")
 	testutils.FatalIfError(t, err, "target does not match source after next-iteration forward migration")
+
+	err = lm.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		testLiveTable: {Inserts: 6},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "fall-back streaming did not complete")
+
+	err = lm.ValidateDataConsistency([]string{testLiveTable}, "id")
+	testutils.FatalIfError(t, err, "target does not match source after fall-back streaming")
+
+	// ---- Iterative cutover: cutover to source and restart into the next iteration. ----
+	err = lm.InitiateCutoverToSource(map[string]string{
+		"--restart-data-migration-source-target": "true",
+	})
+	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+
+	err = lm.WaitForNextIterationInitialized(1, 120)
+	testutils.FatalIfError(t, err, "next iteration was not initialized")
+
+	err = lm.WaitForCutoverSourceComplete(1, 180)
+	testutils.FatalIfError(t, err, "cutover to source did not complete")
+
+	// The next iteration's import-data-to-target is spawned by the parent process with a fresh
+	// metaDB; the cdc-partition-key/overrides are NOT re-supplied on the CLI. Wait for that
+	// import to start (which persists its resolved config), then assert the overrides carried
+	// over and still resolve to the custom strategy.
+	ok = utils.RetryWorkWithTimeout(2, 180, func() bool {
+		_ = lm.WithMetaDB(1, func(m *metadb.MetaDB) error {
+			rec, err := m.GetImportDataStatusRecord()
+			if err == nil && rec != nil && rec.ImportDataStarted {
+				nextIterationImportStatus = rec
+			}
+			return nil
+		})
+		return nextIterationImportStatus != nil
+	})
+	require.True(t, ok, "next iteration's import data to target did not start and persist its cdc partition config within timeout")
+
+	assert.Equal(t, "auto", nextIterationImportStatus.CdcPartitioningStrategyConfig,
+		"global cdc-partition-key must be carried over to the next iteration")
+	assert.Equal(t, customKeyOverrides, nextIterationImportStatus.CdcPartitionKeyOverridesConfig,
+		"cdc-partition-key-overrides must be carried over to the next iteration")
+	assert.Equal(t, cmd.PARTITION_BY_CUSTOM, nextIterationImportStatus.TableToCDCPartitionKey[testLiveTable].Strategy,
+		"test_live must still route by the custom partition key on the next iteration")
+	assert.Equal(t, []string{"custom_key"}, nextIterationImportStatus.TableToCDCPartitionKey[testLiveTable].Columns,
+		"custom key columns must be preserved on the next iteration")
+
+	// Drive one more forward delta on the new iteration and finish with cutover-to-target to
+	// confirm the iteration migrates correctly under the carried-over custom partition key.
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta on the next iteration")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		testLiveTable: {Inserts: 21, Updates:21},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "fall-back streaming did not complete")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate final cutover to target")
+
+	err = lm.WaitForCutoverComplete(2, 180)
+	testutils.FatalIfError(t, err, "final cutover to target did not complete")
+
+	err = lm.ValidateDataConsistency([]string{testLiveTable}, "id")
+	testutils.FatalIfError(t, err, "target does not match source after next-iteration forward migration")
+
 }
 
 func TestLiveMigrationCustomCaseSensitiveCdcPartitionKeyNoConflict(t *testing.T) {
