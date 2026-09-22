@@ -1881,6 +1881,19 @@ func createCallhomePayload(migrationUUID uuid.UUID) callhome.Payload {
 }
 
 func PackAndSendCallhomePayloadOnExit() {
+	// Ahead of the payload-sent guard, because whether the user is told about schema
+	// drift must not depend on whether a callhome payload happened to go out first.
+	// That flag is only set once a payload is actually sent, so leaving this below it
+	// made the footer appear with --send-diagnostics off and vanish with it on.
+	//
+	// This handler is also the only place that sees the export and import data
+	// failures, which go through scattered utils.ErrExit calls and unwind nothing, and
+	// the only place that tells them apart from a clean exit or a user interrupt --
+	// both of those land here with ErrExitErr unset.
+	if utils.ErrExitErr != nil {
+		printSchemaDriftErrorFooterOnExit(currentCommand)
+	}
+
 	if callHomeErrorOrCompletePayloadSent {
 		return
 	}
@@ -1892,14 +1905,6 @@ func PackAndSendCallhomePayloadOnExit() {
 		status = ERROR
 	} else {
 		status = EXIT
-	}
-
-	// export and import data both fail mostly via scattered utils.ErrExit calls, which
-	// unwind nothing, so this handler is the only place that sees them. It is also the
-	// only place that tells a genuine failure (status == ERROR) apart from a clean exit
-	// or a user interrupt, both of which land here with ErrExitErr unset.
-	if status == ERROR {
-		printSchemaDriftErrorFooterOnExit(currentCommand)
 	}
 
 	switch currentCommand {
