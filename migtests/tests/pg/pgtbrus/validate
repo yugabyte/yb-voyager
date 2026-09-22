@@ -52,10 +52,9 @@ def migration_completed_checks(tgt):
 	# Thus the change in count.
 
 	expected_count = 9 if yb.has_pg15_merge(tgtVersion) else 6
-	# Some YB cluster configurations pre-install postgres_fdw into pg_catalog, which
-	# turns the migrated CREATE EXTENSION into a no-op and leaves its routines out of
-	# the target schema. This depends on cluster setup, not on the YB version.
-	if tgt.get_extension_schema("postgres_fdw") != "public":
+	# YB pre-installs postgres_fdw from 2026.1.2 (yugabyte-db#30591), which makes the
+	# migrated CREATE EXTENSION a no-op and leaves its routines out of this schema.
+	if tgt.get_extension_schema("postgres_fdw") == "pg_catalog":
 		expected_count -= POSTGRES_FDW_ROUTINE_COUNT
 	assert len(fetched_procedures_functions) == expected_count
 

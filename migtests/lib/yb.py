@@ -1,6 +1,6 @@
 import os
 import sys
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from collections import Counter
 from xmlrpc.client import boolean
 import psycopg2
@@ -338,11 +338,19 @@ class PostgresDB:
 		cur.execute(f"SELECT extname FROM pg_extension")
 		return set(cur.fetchall())
 
-	def get_extension_schema(self, extension_name) -> str:
+	def get_extension_schema(self, extension_name) -> Optional[str]:
 		cur = self.conn.cursor()
 		cur.execute("SELECT n.nspname FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace WHERE e.extname = %s", (extension_name,))
 		row = cur.fetchone()
 		return row[0] if row else None
+
+	def with_preinstalled_extensions(self, expected_extensions) -> set:
+		# YB pre-installs postgres_fdw from 2026.1.2 (yugabyte-db#30591), so a migration
+		# that never creates it still sees it reported.
+		result = set(expected_extensions)
+		if self.get_extension_schema("postgres_fdw") is not None:
+			result.add(("postgres_fdw",))
+		return result
 
 	def fetch_all_schemas(self) -> set[str]:
 		cur = self.conn.cursor()
