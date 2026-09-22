@@ -23,10 +23,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestSchemaDriftErrorFooterLeadIn pins which commands get a drift footer on failure.
+// TestSchemaDriftErrorHintLeadIn pins which commands get a drift hint on failure.
 // The post-cutover importers and the target exporter must stay out: they run past the
-// last source capture, so the footer would point at a report that cannot cover them.
-func TestSchemaDriftErrorFooterLeadIn(t *testing.T) {
+// last source capture, so the hint would point at a report that cannot cover them.
+func TestSchemaDriftErrorHintLeadIn(t *testing.T) {
 	origRole := exporterRole
 	t.Cleanup(func() { exporterRole = origRole })
 
@@ -100,7 +100,7 @@ func TestSchemaDriftErrorFooterLeadIn(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			exporterRole = tt.role
-			leadIn, ok := schemaDriftErrorFooterLeadIn(tt.commandPath)
+			leadIn, ok := schemaDriftErrorHintLeadIn(tt.commandPath)
 			assert.Equal(t, tt.wantOK, ok)
 			if !tt.wantOK {
 				// A caller that ignored ok must not get a printable sentence.
@@ -113,7 +113,7 @@ func TestSchemaDriftErrorFooterLeadIn(t *testing.T) {
 }
 
 // TestSchemaDriftGuidanceIsUsefulWithoutMetaDB covers the commands that die before the
-// export dir is opened. metaDB is nil there, and a footer would point at a report that
+// export dir is opened. metaDB is nil there, and a hint would point at a report that
 // no snapshot backs.
 func TestSchemaDriftGuidanceIsUsefulWithoutMetaDB(t *testing.T) {
 	orig := metaDB

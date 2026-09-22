@@ -179,11 +179,11 @@ yb-voyager schema detect-drift --export-dir <dir> \
 | State | read-only; writes only under `reports/` |
 | Lock | takes its own per-command lock on the export dir, so two `detect-drift` runs cannot overwrite each other's report; export and import are not blocked |
 
-### 3.7 Guidance footers (\#3815)
+### 3.7 Guidance hints (\#3815)
 
-Three commands point the user at `schema detect-drift`. All three share one precondition: the export dir already holds at least one real (non-placeholder) schema snapshot. Capture is off by default, so without that check every footer would point at a command that exits 2 with "holds no schema snapshots". A command that dies before metaDB is opened prints nothing for the same reason.
+Three commands point the user at `schema detect-drift`. All three share one precondition: the export dir already holds at least one real (non-placeholder) schema snapshot. Capture is off by default, so without that check every hint would point at a command that exits 2 with "holds no schema snapshots". A command that dies before metaDB is opened prints nothing for the same reason.
 
-The failure footers print from the process exit handler, ahead of everything callhome does there, so they are independent of `--send-diagnostics` and of whether a payload has already been sent.
+The failure hints print from the process exit handler, ahead of everything callhome does there, so they are independent of `--send-diagnostics` and of whether a payload has already been sent.
 
 | Site | Prints when |
 | :---- | :---- |
@@ -412,7 +412,7 @@ Capture happens in `export schema` and, when the exporter role is the source exp
 | Flow | Captures | detect-drift | Notes |
 | :---- | :---- | :---- | :---- |
 | Offline | export schema, export data start / periodic / exit(complete) | covered |  |
-| Live, snapshot \+ changes | as offline; periodic continues through streaming; exit reason `cutover` | covered | The cutover footer (\#3815) nudges the user to run it before confirming. That exit capture does not exist yet at the prompt, so the live read is what covers the final window. |
+| Live, snapshot \+ changes | as offline; periodic continues through streaming; exit reason `cutover` | covered | The cutover hint (\#3815) nudges the user to run it before confirming. That exit capture does not exist yet at the prompt, so the live read is what covers the final window. |
 | Live with fall-back | source side as above; `export data from target` takes no captures | covered for the source, up to cutover | Source-side DDL after cutover-to-target is only visible through the live read. Target-side drift is a non-goal (§1). |
 | Live with fall-forward | same as fall-back | same |  |
 | Changes-only | export schema, export data start / periodic / exit; no `pg_dump`, but capture is gated on role, not on export type | covered |  |
