@@ -67,9 +67,8 @@ func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector 
 	}
 
 	userFacingActionMsg := fmt.Sprintf("cutover to %s", dbRole)
-	// Only worth raising while the user can still act on it: --yes answers the prompt
-	// below without showing it, and a re-run lands on the already-initiated check
-	// further down, by which point the source exporter may already have shut down.
+	// Pointless once the answer is fixed or the decision already made: --yes answers the
+	// prompt below unseen, and the already-initiated check sits further down.
 	if dbRole == "target" && !utils.DoNotPrompt && GetCutoverStatus(metaDB) == NOT_INITIATED {
 		printCutoverSchemaDriftRecommendation()
 	}
