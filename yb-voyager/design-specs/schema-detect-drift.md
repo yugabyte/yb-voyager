@@ -183,6 +183,8 @@ yb-voyager schema detect-drift --export-dir <dir> \
 
 Three commands point the user at `schema detect-drift`. All three share one precondition: the export dir already holds at least one real (non-placeholder) schema snapshot. Capture is off by default, so without that check every footer would point at a command that exits 2 with "holds no schema snapshots". A command that dies before metaDB is opened prints nothing for the same reason.
 
+The failure footers print from the process exit handler, ahead of everything callhome does there, so they are independent of `--send-diagnostics` and of whether a payload has already been sent.
+
 | Site | Prints when |
 | :---- | :---- |
 | `export data` failure | the command is `export data` or `export data from source`, the role is the source exporter, and the run failed — both the explicit failure branch and any `utils.ErrExit` path |
