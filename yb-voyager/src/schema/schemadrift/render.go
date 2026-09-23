@@ -560,18 +560,17 @@ func snapshotRows(capturePoints []CapturePoint) []snapshotRow {
 	rows := make([]snapshotRow, len(capturePoints))
 	for i, c := range capturePoints {
 		seq := fmt.Sprintf("%d", i+1)
+		if c.Label == schemasnapshot.LabelSourceLive {
+			seq = "—"
+		}
 		note := ""
 		switch {
 		case c.Excluded != "":
 			note = "not compared: " + c.Excluded
 		case c.Label == schemasnapshot.LabelSourceLive:
-			seq = "—"
 			note = "read fresh at report time · not stored"
 		case c.Reason != "":
 			note = "reason: " + c.Reason
-		}
-		if c.Excluded != "" && c.Label == schemasnapshot.LabelSourceLive {
-			seq = "—"
 		}
 		rows[i] = snapshotRow{
 			Seq:        seq,
