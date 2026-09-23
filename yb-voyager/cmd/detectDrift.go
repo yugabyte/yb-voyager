@@ -736,8 +736,6 @@ func buildSchemaDriftPayload(errorMsg error, report *schemadrift.Report) callhom
 	driftPayload.StoredCaptureCount = report.Summary.StoredCaptureCount
 	driftPayload.LiveCompared = report.Summary.LiveCompared
 	driftPayload.SchemaCount = len(report.Comparing.Schemas)
-	driftPayload.TablesFiltered = report.Comparing.TablesFiltered
-	driftPayload.ObjectTypesFiltered = report.Comparing.ObjectTypesFiltered
 	driftPayload.DriftsByType = countDriftsBy(report.Drifts, func(d schemadrift.DriftEntry) string {
 		return string(d.Type)
 	})
