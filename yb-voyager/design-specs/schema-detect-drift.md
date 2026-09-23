@@ -153,7 +153,7 @@ func RenderJSON(r Report) ([]byte, error)
 func RenderHTML(r Report) ([]byte, error)
 ```
 
-JSON is the indented marshalling of `Report`. HTML is a single self-contained page from an embedded template with no external assets and no JavaScript. Identifiers render with minimal quoting so a printed object path is valid, copy-pasteable SQL: `sales."MixedCase"` when needed, `public.orders` otherwise.
+JSON is the indented marshalling of `Report`. HTML is a single self-contained page from an embedded template with no external assets and no JavaScript. Identifiers render with minimal quoting so a printed object path is valid, copy-pasteable SQL: `sales."MixedCase"` when needed, `public.orders` otherwise. `RenderHTML` returns an error rather than rendering a report it cannot display faithfully: an interval that no capture opens or closes, or an operation, severity, value type or object identity outside the vocabulary the renderer knows. An unknown capture label is the one exception: it only loses its timeline marker, as it only loses its phase in §5.3.
 
 ### 3.6 Command (\#3814)
 
@@ -408,6 +408,7 @@ Capture happens in `export schema` and, when the exporter role is the source exp
 | Live capture fails or the source is unreachable | connection failure is an error, exit 1; capture failure after connecting warns and continues history-only | The user asked for the live comparison, but history alone is still a useful report. |
 | No or one stored snapshot | warning; report reflects only the live read or the single interval | Not an error: the user may simply not have enabled capture. The `--help` text names the prerequisite. |
 | `DiffType` not in the classification map | `advisory`, no Impact or Action, note omitted in the render | Dropping the change would hide it. |
+| The HTML renderer meets a state it cannot display (§3.5) | operational error, exit 2 | Rendering past it drops or misprints a finding in a report that still looks complete. |
 | Report file already exists | overwritten with a notice | Reports are regenerated, not versioned. |
 
 ## 8\. Hot-path statement
