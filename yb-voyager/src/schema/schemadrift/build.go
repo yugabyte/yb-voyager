@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
@@ -208,6 +209,6 @@ func splitIdentity(id schemadiff.ObjectIdent) (obj schemasnapshot.ObjectRef, sub
 	case schemasnapshot.TableScopedObjectRef:
 		return it.Table, it.Name, nil
 	default:
-		return schemasnapshot.ObjectRef{}, "", fmt.Errorf("unexpected finding identity type %T", id)
+		return schemasnapshot.ObjectRef{}, "", goerrors.Errorf("unexpected finding identity type %T", id)
 	}
 }
