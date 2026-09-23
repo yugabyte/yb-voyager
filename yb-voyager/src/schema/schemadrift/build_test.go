@@ -704,6 +704,40 @@ func TestBuildReport_DropsAreIdentifiedFromTheOldSide(t *testing.T) {
 	}, got)
 }
 
+// Case-sensitive names go through coverage, the schema filter and the rendered
+// scope intact: matching uses the raw "Sales", display quotes it everywhere.
+func TestBuildReport_CaseSensitiveSchemaAndTable(t *testing.T) {
+	orders := fixtureTable("1", "Sales", "Orders")
+	first := fixtureContent(orders)
+	publicOnly := fixtureContent(fixtureTable("3", "public", "x"))
+	last := fixtureContent(orders, fixtureTable("2", "Sales", "invoices"), fixtureTable("3", "public", "x"))
+
+	report := mustBuildReport(t, DetectionConfig{
+		Source: Source{DatabaseType: "postgresql"},
+		Snapshots: []schemasnapshot.SchemaSnapshot{
+			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "Sales"), Content: first},
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: publicOnly},
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourcePeriodic, t3(), "Sales", "public"), Content: last},
+		},
+		Scope: schemadiff.Scope{
+			Schemas:     []string{"Sales"},
+			Tables:      []schemasnapshot.ObjectRef{objRef("Sales", "Orders"), objRef("Sales", "invoices"), objRef("public", "x")},
+			ObjectTypes: []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn},
+		},
+	})
+
+	assert.Equal(t, []string{`"Sales"`}, report.Comparing.Schemas)
+	assert.Equal(t, []string{`"Sales"."Orders"`, `"Sales".invoices`, "public.x"}, report.Comparing.Tables)
+	assert.Equal(t, `captured only public, so it cannot answer for "Sales"`, report.CapturePoints[1].Excluded)
+
+	// public.x is in Tables, so only the schema filter can have removed it; the
+	// public-only capture is bridged, so the one interval spans t1 to t3.
+	require.Len(t, report.Drifts, 1)
+	assert.Equal(t, schemadiff.TableAdded, report.Drifts[0].Type)
+	assert.Equal(t, objRef("Sales", "invoices"), report.Drifts[0].Object)
+	assert.Equal(t, Window{From: t1(), To: t3()}, report.Drifts[0].Window)
+}
+
 // unknownIdent stands in for an identity kind the engine could emit once it covers
 // more than tables and columns.
 type unknownIdent struct{}

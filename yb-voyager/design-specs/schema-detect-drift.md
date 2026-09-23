@@ -253,7 +253,7 @@ type CapturePoint struct {
 }
 ```
 
-`Comparing` states what was compared, not what the user typed. Unfiltered, `Tables` is the whole universe; filtered, it is the resolved keep-set.
+`Comparing` states what was compared, not what the user typed. Unfiltered, `Tables` is the whole universe; filtered, it is the resolved keep-set. Every identifier in the report -- `Comparing.Schemas`, `Comparing.Tables`, and the schema names in `CapturePoint.Excluded` -- is minimally quoted for the source engine, so a mixed-case schema reads `"Sales"` everywhere it appears. Matching itself uses the raw catalog names.
 
 `CapturePoints` is every point on the timeline, not only the ones holding schema: a stored capture, a stored placeholder (the capture failed, so nothing is behind it), and the live read (never persisted). `StoredCaptureCount` counts the first two -- a placeholder is a persisted row -- so it is a count of stored records, not of usable snapshots.
 

@@ -23,6 +23,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 // DetectionConfig is the full, self-contained input to BuildReport. It carries no
@@ -74,7 +75,8 @@ func BuildReport(p DetectionConfig) (Report, error) {
 		captured := p.Snapshots[i].Header.Schemas
 		if missing := missingSchemas(p.Scope.Schemas, captured); len(missing) > 0 {
 			capturePoints[i].Excluded = fmt.Sprintf("captured only %s, so it cannot answer for %s",
-				strings.Join(captured, ", "), strings.Join(missing, ", "))
+				strings.Join(displaySchemas(captured, p.Source.DatabaseType), ", "),
+				strings.Join(displaySchemas(missing, p.Source.DatabaseType), ", "))
 			continue
 		}
 		if prevIdx == -1 {
@@ -127,7 +129,7 @@ func BuildReport(p DetectionConfig) (Report, error) {
 		Source:      p.Source,
 		Window:      reportWindow,
 		Comparing: Comparing{
-			Schemas: p.Scope.Schemas,
+			Schemas: displaySchemas(p.Scope.Schemas, p.Source.DatabaseType),
 			Tables: lo.Map(p.Scope.Tables, func(r schemasnapshot.ObjectRef, _ int) string {
 				return r.ForDisplay(p.Source.DatabaseType)
 			}),
@@ -152,6 +154,12 @@ func BuildReport(p DetectionConfig) (Report, error) {
 func missingSchemas(requested, captured []string) []string {
 	missing, _ := lo.Difference(requested, captured)
 	return missing
+}
+
+// displaySchemas quotes each schema the way ObjectRef.ForDisplay quotes the schema
+// part of a table, so the two never disagree within one report.
+func displaySchemas(schemas []string, dbType string) []string {
+	return lo.Map(schemas, func(s string, _ int) string { return sqlname.NewIdentifier(dbType, s).MinQuoted })
 }
 
 // phaseFor labels the migration phase an interval between two captures falls in.
