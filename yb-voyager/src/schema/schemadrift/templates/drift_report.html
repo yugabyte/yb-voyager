@@ -185,7 +185,7 @@
           <div class="scope-body">
             {{range .ComparingScope}}
             <div class="scope-row"><span class="scope-k">{{.Label}}</span>
-              {{if .Chips}}{{range .Chips}}<span class="scope-chip">{{.}}</span>{{end}}{{else}}<span class="scope-chip">all</span>{{end}}</div>
+              {{range .Chips}}<span class="scope-chip">{{.}}</span>{{end}}</div>
             {{end}}
           </div>
         </details>

@@ -349,3 +349,18 @@ func TestComparingSummary(t *testing.T) {
 	}))
 	assert.Equal(t, "no schemas · no tables · no object types", comparingSummary(Comparing{}))
 }
+
+// An empty dimension compared nothing, so the dropdown must agree with the
+// summary's "no tables" instead of offering an "all" chip.
+func TestRenderHTML_EmptyScopeDimensionShowsNoChip(t *testing.T) {
+	r := fixtureReport()
+	r.Comparing = Comparing{Schemas: []string{"public"}, ObjectTypes: []string{"TABLE"}}
+
+	out, err := RenderHTML(r)
+	require.NoError(t, err)
+	html := string(out)
+
+	assert.Contains(t, html, "no tables")
+	assert.Contains(t, html, `<span class="scope-chip">TABLE</span>`, "a non-empty dimension still lists its chips")
+	assert.NotContains(t, html, `<span class="scope-chip">all</span>`)
+}

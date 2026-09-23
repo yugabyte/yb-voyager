@@ -82,8 +82,8 @@ type reportView struct {
 // scopeRow is one row of the banner's "Comparing" dropdown body (e.g. the
 // list of tables, or the list of object types, actually compared).
 type scopeRow struct {
-	Label string   // e.g. "Tables (12)" or "Object types (6)"
-	Chips []string // the chip values; nil/empty renders as a single "all" chip
+	Label string // e.g. "Tables (12)" or "Object types (6)"
+	Chips []string
 }
 
 // timelineEntry is one item on the vertical timeline: exactly one of the two
