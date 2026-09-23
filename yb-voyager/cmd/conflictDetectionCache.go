@@ -134,12 +134,9 @@ type ConflictDetectionCache struct {
 	evChans              []chan *tgtdb.Event
 	sourceDBType         string
 
-	// importerRole and anonymizedTableNames are used only for the conflict metric
-	// (yb_voyager_import_data_cdc_conflicts_total). anonymizedTableNames is precomputed
-	// per table at construction so the record path is a lookup and no raw table name
-	// reaches the metrics endpoint.
+	// importerRole is used only for the conflict metric
+	// (yb_voyager_import_data_cdc_conflicts_total).
 	importerRole         string
-	anonymizedTableNames *utils.StructMap[sqlname.NameTuple, string]
 
 	// Per-table CDC partition key (strategy + custom key columns), used to compute an
 	// event's partition key (see GetEventPartitionKey). Two events with the same partition
