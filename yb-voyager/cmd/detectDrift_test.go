@@ -596,9 +596,7 @@ func TestBuildSchemaDriftPayload(t *testing.T) {
 
 	report := schemadrift.Report{
 		Comparing: schemadrift.Comparing{
-			Schemas:             []string{"public", "sales"},
-			TablesFiltered:      true,
-			ObjectTypesFiltered: false,
+			Schemas: []string{"public", "sales"},
 		},
 		Summary: schemadrift.Summary{
 			ChangeCount:           3,
@@ -622,8 +620,6 @@ func TestBuildSchemaDriftPayload(t *testing.T) {
 		assert.Equal(t, 4, got.StoredCaptureCount)
 		assert.True(t, got.LiveCompared)
 		assert.Equal(t, 2, got.SchemaCount)
-		assert.True(t, got.TablesFiltered)
-		assert.False(t, got.ObjectTypesFiltered)
 		assert.Equal(t, map[string]int{
 			string(schemadiff.ColumnAdded):  1,
 			string(schemadiff.TableDropped): 1,

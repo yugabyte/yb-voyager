@@ -374,8 +374,6 @@ func TestCallhomeStructs(t *testing.T) {
 				DriftsByType          map[string]int `json:"drifts_by_type,omitempty"`
 				DriftsBySeverity      map[string]int `json:"drifts_by_severity,omitempty"`
 				SchemaCount           int            `json:"schema_count"`
-				TablesFiltered        bool           `json:"tables_filtered"`
-				ObjectTypesFiltered   bool           `json:"object_types_filtered"`
 				OutputFormats         []string       `json:"output_formats,omitempty"`
 				Error                 string         `json:"error"`
 				ControlPlaneType      string         `json:"control_plane_type"`
