@@ -122,11 +122,11 @@ type Diff struct {
 // CapturePoint is one point on the report's timeline: a moment at which the
 // source schema was captured, or capture was attempted. Three kinds appear -- a
 // stored capture, a stored placeholder (the capture failed, so no schema content
-// exists behind it), and the live read (Series == schemasnapshot.LabelSourceLive,
+// exists behind it), and the live read (Label == schemasnapshot.LabelSourceLive,
 // never persisted). It is a projection: the snapshot content itself stays out of
 // the report.
 type CapturePoint struct {
-	Series     string    `json:"series"`
+	Label      string    `json:"label"`
 	Reason     string    `json:"reason,omitempty"`
 	CapturedAt time.Time `json:"captured_at"`
 	// Why this point was bridged instead of compared -- a failed capture, or one

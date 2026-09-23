@@ -54,7 +54,7 @@ func BuildReport(p DetectionConfig) (Report, error) {
 	capturePoints := make([]CapturePoint, len(p.Snapshots))
 	for i, s := range p.Snapshots {
 		capturePoints[i] = CapturePoint{
-			Series:     s.Header.Label,
+			Label:      s.Header.Label,
 			Reason:     s.Header.Reason,
 			CapturedAt: s.Header.CapturedAt,
 		}
@@ -158,28 +158,28 @@ func missingSchemas(requested, captured []string) []string {
 // Returns "" when no label applies, and the caller shows the time window alone.
 func phaseFor(prev, next CapturePoint) string {
 	switch {
-	case prev.Series == schemasnapshot.LabelExportSchema && next.Series == schemasnapshot.LabelExportDataFromSourceStart:
+	case prev.Label == schemasnapshot.LabelExportSchema && next.Label == schemasnapshot.LabelExportDataFromSourceStart:
 		return "export data: pending"
 	// The export was running for this whole span, whether the span ends at
 	// another periodic capture or at the exit. The exit marker says how the run
 	// ended; this says what was happening while the drift appeared.
-	case isExportDataRunningStart(prev.Series) && isExportDataRunningEnd(next.Series):
+	case isExportDataRunningStart(prev.Label) && isExportDataRunningEnd(next.Label):
 		return "export data: running"
-	case prev.Series == schemasnapshot.LabelExportDataFromSourceExit && next.Series == schemasnapshot.LabelExportDataFromSourceStart:
+	case prev.Label == schemasnapshot.LabelExportDataFromSourceExit && next.Label == schemasnapshot.LabelExportDataFromSourceStart:
 		return "export data: paused"
-	case next.Series == schemasnapshot.LabelSourceLive:
+	case next.Label == schemasnapshot.LabelSourceLive:
 		return "since last capture"
 	default:
 		return ""
 	}
 }
 
-func isExportDataRunningEnd(series string) bool {
-	return series == schemasnapshot.LabelExportDataFromSourcePeriodic || series == schemasnapshot.LabelExportDataFromSourceExit
+func isExportDataRunningEnd(label string) bool {
+	return label == schemasnapshot.LabelExportDataFromSourcePeriodic || label == schemasnapshot.LabelExportDataFromSourceExit
 }
 
-func isExportDataRunningStart(series string) bool {
-	return series == schemasnapshot.LabelExportDataFromSourceStart || series == schemasnapshot.LabelExportDataFromSourcePeriodic
+func isExportDataRunningStart(label string) bool {
+	return label == schemasnapshot.LabelExportDataFromSourceStart || label == schemasnapshot.LabelExportDataFromSourcePeriodic
 }
 
 // displayIdentity prefers side-B (new) over side-A (old), the convention

@@ -672,8 +672,8 @@ func TestPhaseFor(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			prev := CapturePoint{Series: tc.prev}
-			next := CapturePoint{Series: tc.next}
+			prev := CapturePoint{Label: tc.prev}
+			next := CapturePoint{Label: tc.next}
 			assert.Equal(t, tc.want, phaseFor(prev, next))
 		})
 	}

@@ -246,7 +246,7 @@ type Diff struct {
 }
 
 type CapturePoint struct {
-	Series     string    `json:"series"`
+	Label      string    `json:"label"`
 	Reason     string    `json:"reason,omitempty"`
 	CapturedAt time.Time `json:"captured_at"`
 	Excluded   string    `json:"excluded,omitempty"` // why it was bridged; empty when used
@@ -330,11 +330,11 @@ The test is coverage, not equality. A run narrowed at detect-drift time has a li
 
 ### 5.3 Phase
 
-**Where:** `schemadrift.phaseFor(prev, next CapturePoint) string`, called once per interval from `BuildReport`. **In:** the two `CapturePoint.Series` values bracketing an interval. **Out:** `DriftEntry.Phase`. **Decides:** what the migration was doing while the interval's drift appeared.
+**Where:** `schemadrift.phaseFor(prev, next CapturePoint) string`, called once per interval from `BuildReport`. **In:** the two `CapturePoint.Label` values bracketing an interval. **Out:** `DriftEntry.Phase`. **Decides:** what the migration was doing while the interval's drift appeared.
 
 Unlisted pairs get `""` and the renderer shows the window alone.
 
-| Earlier Series | Later Series | Phase |
+| Earlier Label | Later Label | Phase |
 | :---- | :---- | :---- |
 | `export_schema` | `export_data_from_source_start` | `export data: pending` |
 | `…_start` or `…_periodic` | `…_periodic` or `…_exit` | `export data: running` |
