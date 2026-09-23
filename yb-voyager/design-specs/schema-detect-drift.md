@@ -110,10 +110,10 @@ The complete input to `BuildReport`. Plain data, no connections or handles, so t
 `Comparing.Tables` and `Comparing.ObjectTypes` are rendered from `Scope`, which holds the exact sets compared, so they are not passed separately. The report does not say whether a list flag narrowed those sets: `Scope` cannot carry that, and the listed sets already tell a reader what "no drift" covers.
 
 ```go
-func BuildReport(p DetectionConfig) Report
+func BuildReport(p DetectionConfig) (Report, error)
 ```
 
-Walks `p.Snapshots` oldest-first, diffs each comparable pair, and assembles the report. Rules in §5.2. `Report.GeneratedAt` is stamped here from the wall clock rather than passed in: it describes the act of building the report, not the data being reported on.
+Walks `p.Snapshots` oldest-first, diffs each comparable pair, and assembles the report. Rules in §5.2. `Report.GeneratedAt` is stamped here from the wall clock rather than passed in: it describes the act of building the report, not the data being reported on. It returns an error for a finding whose identity is neither a table nor a table-scoped object: that is a new engine object kind the report does not know how to place, and emitting it with an empty object would read as a real finding on nothing.
 
 ### 3.4 `schemadrift` classification
 
@@ -287,7 +287,7 @@ cmd.detectDrift()
  ├─ cmd.buildDriftTableCandidates(contents, live)             → table universe                                §5.5
  ├─ cmd.resolveDriftTableRefs / complementDriftTableRefs      → []ObjectRef, then schemadiff.Scope            §5.5
  │
- ├─ schemadrift.BuildReport(DetectionConfig)                  → Report                   cmd → schemadrift
+ ├─ schemadrift.BuildReport(DetectionConfig)                  → Report, error            cmd → schemadrift
  │      ├─ schemadiff.NewDiffer(Config{Scope})
  │      ├─ per comparable pair (§5.2): differ.Diff(prev, next) → []Difference            schemadrift → schemadiff
  │      ├─ phaseFor(prevCapture, nextCapture)                 → phase string                                   §5.3

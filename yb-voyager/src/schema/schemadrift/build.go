@@ -50,7 +50,7 @@ type DetectionConfig struct {
 // Both are recorded on their CapturePoint so a reader sees the gap. Captures that
 // cover MORE than was requested are compared normally: the extra schemas' findings
 // are removed by Scope's schema dimension, not by declining the comparison.
-func BuildReport(p DetectionConfig) Report {
+func BuildReport(p DetectionConfig) (Report, error) {
 	capturePoints := make([]CapturePoint, len(p.Snapshots))
 	for i, s := range p.Snapshots {
 		capturePoints[i] = CapturePoint{
@@ -91,7 +91,11 @@ func BuildReport(p DetectionConfig) Report {
 		}
 
 		for _, d := range differ.Diff(prev.Content, next.Content) {
-			obj, subObj := splitIdentity(displayIdentity(d))
+			obj, subObj, err := splitIdentity(displayIdentity(d))
+			if err != nil {
+				return Report{}, fmt.Errorf("%s finding in the interval %s to %s: %w", d.Type,
+					intervalWindow.From.Format(time.RFC3339), intervalWindow.To.Format(time.RFC3339), err)
+			}
 			drifts = append(drifts, DriftEntry{
 				Diff: Diff{
 					Type:       d.Type,
@@ -139,7 +143,7 @@ func BuildReport(p DetectionConfig) Report {
 		},
 		Drifts:        drifts,
 		CapturePoints: capturePoints,
-	}
+	}, nil
 }
 
 // missingSchemas returns the requested schemas a capture did not include. A
@@ -189,13 +193,13 @@ func displayIdentity(d schemadiff.Difference) schemadiff.ObjectIdent {
 
 // splitIdentity maps a table-scoped identity (a column) to its parent table as
 // Object and its own name as SubObject; a table maps to Object alone.
-func splitIdentity(id schemadiff.ObjectIdent) (obj schemasnapshot.ObjectRef, subObject string) {
+func splitIdentity(id schemadiff.ObjectIdent) (obj schemasnapshot.ObjectRef, subObject string, err error) {
 	switch it := id.(type) {
 	case schemasnapshot.ObjectRef:
-		return it, ""
+		return it, "", nil
 	case schemasnapshot.TableScopedObjectRef:
-		return it.Table, it.Name
+		return it.Table, it.Name, nil
 	default:
-		return schemasnapshot.ObjectRef{}, ""
+		return schemasnapshot.ObjectRef{}, "", fmt.Errorf("unexpected finding identity type %T", id)
 	}
 }
