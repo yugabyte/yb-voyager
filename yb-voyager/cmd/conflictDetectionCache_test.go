@@ -58,11 +58,6 @@ func newConflictCacheForTest(indexes [][]string) *ConflictDetectionCache {
 	return newConflictCacheForTestWithIndexes(uniqueIndexes...)
 }
 
-// testAnonymizedTableName is the fixed anonymized name the test cache maps the
-// test table to, so conflict-metric assertions can key on a known value without a
-// real anonymizer.
-const testAnonymizedTableName = "schema_test.table_test"
-
 // newConflictCacheForTestWithIndexes builds a cache with the given unique indexes
 // (allowing per-index NULLS NOT DISTINCT configuration).
 func newConflictCacheForTestWithIndexes(indexes ...tgtdb.UniqueIndex) *ConflictDetectionCache {
@@ -74,15 +69,13 @@ func newConflictCacheForTestWithIndexes(indexes ...tgtdb.UniqueIndex) *ConflictD
 	// like the previous same-PK exclusion (routing by primary key).
 	tablePartitionKeyMap := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 	tablePartitionKeyMap.Put(table, cdcPartitionKeyOverride{Strategy: PARTITION_BY_PK})
-	anonymizedTableNames := utils.NewStructMap[sqlname.NameTuple, string]()
-	anonymizedTableNames.Put(table, testAnonymizedTableName)
 	// WaitUntilNoConflict flushes all NUM_EVENT_CHANNELS channels on a real conflict, so
 	// the cache must be built with that many channels (not just one).
 	evChans := make([]chan *tgtdb.Event, NUM_EVENT_CHANNELS)
 	for i := range evChans {
 		evChans[i] = make(chan *tgtdb.Event, 1)
 	}
-	return NewConflictDetectionCache(tableToIndexes, evChans, POSTGRESQL, tablePartitionKeyMap, TARGET_DB_IMPORTER_ROLE, anonymizedTableNames)
+	return NewConflictDetectionCache(tableToIndexes, evChans, POSTGRESQL, tablePartitionKeyMap, TARGET_DB_IMPORTER_ROLE)
 }
 
 func testTableTuple() sqlname.NameTuple {
@@ -763,7 +756,7 @@ func TestConflictMetric_CountsBlockedEventOncePerAnonymizedTable(t *testing.T) {
 	// The metric is recorded at first detection, before the blocking wait; poll for it,
 	// then clear the conflict so WaitUntilNoConflict can return.
 	require.Eventually(t, func() bool {
-		return rec.ImportCDCConflicts[testAnonymizedTableName] == 1
+		return rec.ImportCDCConflicts[cached.TableNameTup.ForOutput()] == 1
 	}, 2*time.Second, 5*time.Millisecond, "blocked event should be counted once under its anonymized table name")
 
 	cache.RemoveEvents(cached)
@@ -774,7 +767,7 @@ func TestConflictMetric_CountsBlockedEventOncePerAnonymizedTable(t *testing.T) {
 	}
 
 	// Exactly one increment for the blocked event; the raw table name never appears.
-	assert.Equal(t, 1, rec.ImportCDCConflicts[testAnonymizedTableName])
+	assert.Equal(t, 1, rec.ImportCDCConflicts[cached.TableNameTup.ForOutput()])
 	assert.Len(t, rec.ImportCDCConflicts, 1)
 
 	// A non-conflicting event must not add to the count.
@@ -787,7 +780,7 @@ func TestConflictMetric_CountsBlockedEventOncePerAnonymizedTable(t *testing.T) {
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	})
 	require.NoError(t, cache.WaitUntilNoConflict(nonConflicting))
-	assert.Equal(t, 1, rec.ImportCDCConflicts[testAnonymizedTableName])
+	assert.Equal(t, 1, rec.ImportCDCConflicts[nonConflicting.TableNameTup.ForOutput()])
 }
 
 // RemoveEvents must clear both the primary map and the lookup index.
