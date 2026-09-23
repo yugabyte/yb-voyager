@@ -56,7 +56,7 @@ func formatTime(t time.Time) string {
 	if t.IsZero() {
 		return "-"
 	}
-	return t.Format("2006-01-02 15:04:05 UTC")
+	return t.UTC().Format("2006-01-02 15:04:05 UTC")
 }
 
 // ─── View model: grouping/formatting logic kept in Go, not in the template ──
