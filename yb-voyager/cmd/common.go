@@ -1946,7 +1946,7 @@ func driftDetectionHint() string {
 }
 
 // Capture is off by default, so without this gate every hint below would send users to
-// a command that exits 2 with "holds no schema snapshots". Placeholders are
+// a command that fails with "holds no schema snapshots". Placeholders are
 // failed-capture markers carrying no schema, so they do not count.
 //
 // A listing failure is only logged, not returned: these hints are advisory, and the
