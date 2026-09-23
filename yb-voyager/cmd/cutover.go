@@ -208,7 +208,7 @@ func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, iterationNo int, current
 	}
 
 	if parentImportDataStatusRecord == nil {
-		return fmt.Errorf("import data status record is not found")
+		return goerrors.Errorf("import data status record is not found")
 	}
 
 	injectDuringSetUpNextIterationMSR()
