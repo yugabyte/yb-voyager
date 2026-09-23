@@ -187,7 +187,7 @@ yb-voyager schema detect-drift --export-dir <dir> \
 | Parent | new `schema` command for standalone schema tooling outside the export/import workflow |
 | Source type | PostgreSQL only; any other value is an operational error |
 | Output | `<export-dir>/reports/drift_analysis_report.html` and `.json`, overwritten on each run |
-| Exit codes | `0` no drift · `1` drift found · `2` operational error (flags, connection, unreadable snapshot) |
+| Exit codes | `0` the report was written, whether or not it found drift · `1` error (flags, connection, unreadable snapshot). A script reads drift from `summary.change_count` in the JSON report. |
 | Config file | section `schema-detect-drift` with keys `log-level`, `output-format`, the four list flags |
 | State | read-only; writes only under `reports/` |
 
@@ -310,7 +310,7 @@ cmd.detectDrift()
  │      └─ schemadrift.RenderHTML(Report)                     → []byte                   cmd → schemadrift
  │         written to <export-dir>/reports/drift_analysis_report.{json,html}
  │
- └─ cmd.printDriftSummary(report, paths); exit 0 or 1 by Summary.ChangeCount
+ └─ cmd.printDriftSummary(report, paths); exit 0
 ```
 
 Everything above `BuildReport` is `cmd` assembling plain data; everything inside it is pure computation over that data; everything after it is serialisation. The four decision points that follow are the places where two implementations of this flow could diverge on the same input.
@@ -402,7 +402,7 @@ Capture happens in `export schema` and, when the exporter role is the source exp
 | Live with fall-forward | same as fall-back | same |  |
 | Changes-only | export schema, export data start / periodic / exit; no `pg_dump`, but capture is gated on role, not on export type | covered |  |
 | Iterative cutover | each iteration's source exporter captures into that iteration's own metaDB | per iteration only | `--export-dir` pointed at the main dir sees the main metaDB; pointed at an iteration dir sees only that iteration. No cross-iteration timeline. Open question §9. |
-| Non-PostgreSQL source | none (capture is a no-op) | exits 2 | Oracle and MySQL are non-goals (§1). |
+| Non-PostgreSQL source | none (capture is a no-op) | error, exit 1 | Oracle and MySQL are non-goals (§1). |
 
 ## 7\. Failure modes
 
@@ -410,10 +410,10 @@ Capture happens in `export schema` and, when the exporter role is the source exp
 | :---- | :---- | :---- |
 | A capture fails during export | placeholder header written, export unaffected, warning logged | Capture is best effort and off the data path. It must never fail a migration. |
 | Placeholder in history | bridged (§5.2); appears on the timeline as a failed marker | Dropping it would hide that a capture was attempted; making it a boundary would hide real drift. |
-| Snapshot blob has an unsupported `Version` | operational error, exit 2 | A newer voyager wrote it. Silently skipping would produce a report that looks complete. |
+| Snapshot blob has an unsupported `Version` | error, exit 1 | A newer voyager wrote it. Silently skipping would produce a report that looks complete. |
 | Snapshot header exists but blob cannot be loaded for any other reason | warning, treated like a placeholder | The moment is still on the timeline; the report bridges across it. |
 | Schema sets differ between consecutive snapshots | interval skipped and recorded (§5.2) | Comparing would report every table in the differing schema; dropping the interval silently would look like "no changes". |
-| Live capture fails or the source is unreachable | connection failure is exit 2; capture failure after connecting warns and continues history-only | The user asked for the live comparison, but history alone is still a useful report. |
+| Live capture fails or the source is unreachable | connection failure is an error, exit 1; capture failure after connecting warns and continues history-only | The user asked for the live comparison, but history alone is still a useful report. |
 | No or one stored snapshot | warning; report reflects only the live read or the single interval | Not an error: the user may simply not have enabled capture. The `--help` text names the prerequisite. |
 | `DiffType` not in the classification map | `advisory`, no Impact or Action, note omitted in the render | Dropping the change would hide it. |
 | Report file already exists | overwritten with a notice | Reports are regenerated, not versioned. |
@@ -435,7 +435,7 @@ None. `detect-drift` runs once per invocation over a handful of snapshots. Captu
 | Where the report lives | files under `reports/` | metaDB | It is output, not state. No upgrade concern, and users can share it. |
 | Table universe | union of live catalog, history, live read | live catalog only | A dropped table is the case the report exists for. |
 | HTML | embedded template, view model built in Go, no JavaScript | client-side rendering of the JSON | Opens anywhere, including air-gapped hosts. Grouping logic stays testable in Go. |
-| Exit codes | 0 / 1 / 2 | always 0; 0 / non-zero | Lets a script gate cutover on "no drift" without parsing the report. |
+| Exit codes | `0` report written · `1` error | `0` no drift · `1` drift found · `2` error | Every voyager command exits 1 on error, and so does every shared helper that fails through `utils.ErrExit`. Putting drift on 1 would make a failed run indistinguishable from a successful one that found drift. A script reads drift from `summary.change_count` in the JSON report. |
 | Command placement | new `schema` parent | top-level `detect-drift` | Leaves room for sibling schema tools without crowding the root. |
 
 ## 10\. Open questions
