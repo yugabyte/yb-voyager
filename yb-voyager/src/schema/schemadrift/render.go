@@ -135,7 +135,7 @@ type findingView struct {
 // snapshotRow is one row of the footer's "Snapshots used" table.
 type snapshotRow struct {
 	Seq        string
-	Series     string
+	Label      string
 	CapturedAt string
 	Note       string
 }
@@ -297,8 +297,8 @@ func buildTimeline(capturePoints []CapturePoint, groups []intervalGroup, dbType 
 }
 
 // deriveEvent derives the point-event marker (if any) for a single capture,
-// from its Series and Reason. Periodic captures and the live read never
-// produce a marker; ok is false in that case (and for any Series/Reason
+// from its Label and Reason. Periodic captures and the live read never
+// produce a marker; ok is false in that case (and for any Label/Reason
 // combination not in the known vocabulary).
 func deriveEvent(c CapturePoint) (eventView, bool) {
 	t := formatTime(c.CapturedAt)
@@ -308,7 +308,7 @@ func deriveEvent(c CapturePoint) (eventView, bool) {
 	if c.Excluded != "" {
 		return eventView{Label: "⚠ not compared", Time: t, Err: true}, true
 	}
-	switch c.Series {
+	switch c.Label {
 	case schemasnapshot.LabelExportSchema:
 		return eventView{Label: "export schema: completed", Time: t}, true
 	case schemasnapshot.LabelExportDataFromSourceStart:
@@ -339,7 +339,7 @@ func deriveEvent(c CapturePoint) (eventView, bool) {
 // the capture that closes the interval's window (the "to" side of the
 // pair); the interval is "live" when next is the live read of the source.
 func newIntervalView(g intervalGroup, next CapturePoint, dbType string) intervalView {
-	live := next.Series == schemasnapshot.LabelSourceLive
+	live := next.Label == schemasnapshot.LabelSourceLive
 	count := changeCountLabel(len(g.Drifts))
 	if live {
 		count = fmt.Sprintf("%s · live source @ %s", count, formatTime(next.CapturedAt))
@@ -553,7 +553,7 @@ func stringifyColumnDef(c schemasnapshot.Column) string {
 }
 
 // snapshotRows builds the footer's "Snapshots used" table rows from
-// Report.CapturePoints. The live read (Series == schemasnapshot.LabelSourceLive) shows "—" for its
+// Report.CapturePoints. The live read (Label == schemasnapshot.LabelSourceLive) shows "—" for its
 // sequence number, since it is never persisted/numbered like a stored
 // snapshot.
 func snapshotRows(capturePoints []CapturePoint) []snapshotRow {
@@ -564,18 +564,18 @@ func snapshotRows(capturePoints []CapturePoint) []snapshotRow {
 		switch {
 		case c.Excluded != "":
 			note = "not compared: " + c.Excluded
-		case c.Series == schemasnapshot.LabelSourceLive:
+		case c.Label == schemasnapshot.LabelSourceLive:
 			seq = "—"
 			note = "read fresh at report time · not stored"
 		case c.Reason != "":
 			note = "reason: " + c.Reason
 		}
-		if c.Excluded != "" && c.Series == schemasnapshot.LabelSourceLive {
+		if c.Excluded != "" && c.Label == schemasnapshot.LabelSourceLive {
 			seq = "—"
 		}
 		rows[i] = snapshotRow{
 			Seq:        seq,
-			Series:     c.Series,
+			Label:      c.Label,
 			CapturedAt: formatTime(c.CapturedAt),
 			Note:       note,
 		}

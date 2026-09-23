@@ -82,8 +82,8 @@ func fixtureReport() Report {
 			},
 		},
 		CapturePoints: []CapturePoint{
-			{Series: schemasnapshot.LabelExportDataFromSourceStart, CapturedAt: from},
-			{Series: schemasnapshot.LabelExportDataFromSourcePeriodic, CapturedAt: to},
+			{Label: schemasnapshot.LabelExportDataFromSourceStart, CapturedAt: from},
+			{Label: schemasnapshot.LabelExportDataFromSourcePeriodic, CapturedAt: to},
 		},
 	}
 }
@@ -255,7 +255,7 @@ func TestObjectPathMinQuotesIdentifiers(t *testing.T) {
 func TestRenderHTML_ExcludedCaptureIsVisible(t *testing.T) {
 	r := fixtureReport()
 	r.CapturePoints = append(r.CapturePoints, CapturePoint{
-		Series:     schemasnapshot.LabelExportDataFromSourcePeriodic,
+		Label:      schemasnapshot.LabelExportDataFromSourcePeriodic,
 		CapturedAt: r.CapturePoints[1].CapturedAt.Add(time.Hour),
 		Excluded:   "captured only sales, so it cannot answer for public",
 	})
@@ -285,9 +285,9 @@ func TestRenderHTML_BridgedIntervalsRender(t *testing.T) {
 	t.Run("bridged findings reach the HTML", func(t *testing.T) {
 		r := fixtureReport()
 		r.CapturePoints = []CapturePoint{
-			{Series: schemasnapshot.LabelExportSchema, CapturedAt: before},
-			{Series: schemasnapshot.LabelExportDataFromSourceStart, CapturedAt: failed},
-			{Series: schemasnapshot.LabelExportDataFromSourcePeriodic, CapturedAt: after},
+			{Label: schemasnapshot.LabelExportSchema, CapturedAt: before},
+			{Label: schemasnapshot.LabelExportDataFromSourceStart, CapturedAt: failed},
+			{Label: schemasnapshot.LabelExportDataFromSourcePeriodic, CapturedAt: after},
 		}
 		// One finding, in the window that bridges the failed capture.
 		r.Drifts = r.Drifts[:1]
@@ -308,13 +308,13 @@ func TestRenderHTML_BridgedIntervalsRender(t *testing.T) {
 	t.Run("an excluded middle capture is marked, and the bridged interval still renders", func(t *testing.T) {
 		r := fixtureReport()
 		r.CapturePoints = []CapturePoint{
-			{Series: schemasnapshot.LabelExportSchema, CapturedAt: before},
+			{Label: schemasnapshot.LabelExportSchema, CapturedAt: before},
 			{
-				Series:     schemasnapshot.LabelExportDataFromSourceStart,
+				Label:      schemasnapshot.LabelExportDataFromSourceStart,
 				CapturedAt: failed,
 				Excluded:   "captured only sales, so it cannot answer for public",
 			},
-			{Series: schemasnapshot.LabelExportDataFromSourcePeriodic, CapturedAt: after},
+			{Label: schemasnapshot.LabelExportDataFromSourcePeriodic, CapturedAt: after},
 		}
 		// The interval spans the excluded point, as it does a failed capture.
 		for i := range r.Drifts {
