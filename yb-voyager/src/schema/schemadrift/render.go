@@ -396,9 +396,6 @@ func newFindingView(d DriftEntry, dbType string) findingView {
 	return fv
 }
 
-// kindClass classifies a DriftEntry.Operation into the CSS kind bucket used
-// for colour: k-add for ADDED, k-rem for DROPPED, k-chg for everything else
-// (CHANGED findings).
 func kindClass(operation schemadiff.Operation) string {
 	switch operation {
 	case schemadiff.OpAdded:
@@ -410,8 +407,6 @@ func kindClass(operation schemadiff.Operation) string {
 	}
 }
 
-// kindLabel renders a DriftEntry.Type (e.g. "COLUMN_TYPE_CHANGED") as its
-// lowercase, space-separated display label ("column type changed").
 func kindLabel(diffType schemadiff.DiffType) string {
 	return strings.ToLower(strings.ReplaceAll(string(diffType), "_", " "))
 }
