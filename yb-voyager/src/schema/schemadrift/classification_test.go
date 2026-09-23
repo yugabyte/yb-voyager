@@ -24,12 +24,12 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
 )
 
-// TestClassify_MappedTypes pins the severity assigned to every mapped change type.
+// TestGetDriftInfo_MappedTypes pins the severity assigned to every mapped change type.
 // Severity answers "what does the migration do", not "how alarming is the DDL":
 // an ADDED column can fail import data (recoverable), a DROPPED column cannot
 // (it only leaves the target with an extra column), and dropping or renaming a
 // captured table makes export data unrestartable.
-func TestClassify_MappedTypes(t *testing.T) {
+func TestGetDriftInfo_MappedTypes(t *testing.T) {
 	cases := map[schemadiff.DiffType]Severity{
 		// export data cannot be restarted afterwards -> restart from scratch.
 		schemadiff.TableDropped:       SeverityBreaksUnrecoverable,
@@ -61,7 +61,7 @@ func TestClassify_MappedTypes(t *testing.T) {
 	}
 }
 
-func TestClassify_UnknownDefaultsToAdvisory(t *testing.T) {
+func TestGetDriftInfo_UnknownDefaultsToAdvisory(t *testing.T) {
 	for _, unknown := range []schemadiff.DiffType{"", "SOME_FUTURE_DIFF_TYPE"} {
 		got := getDriftInfo(unknown)
 		assert.Equal(t, SeverityAdvisory, got.Severity)
@@ -70,10 +70,10 @@ func TestClassify_UnknownDefaultsToAdvisory(t *testing.T) {
 	}
 }
 
-// TestClassify_MappedTypesCarryGuidance is why severity and wording share one map:
+// TestGetDriftInfo_MappedTypesCarryGuidance is why severity and wording share one map:
 // an entry declared with a severity but no note would render a finding the report
 // cannot explain, and nothing else would catch it.
-func TestClassify_MappedTypesCarryGuidance(t *testing.T) {
+func TestGetDriftInfo_MappedTypesCarryGuidance(t *testing.T) {
 	for diffType := range infoByDiffType {
 		t.Run(string(diffType), func(t *testing.T) {
 			c := getDriftInfo(diffType)
