@@ -2324,13 +2324,16 @@ func TestLiveMigrationCustomCdcPartitionKeyNoConflictIterativeCutover(t *testing
 	// over and still resolve to the custom strategy.
 	var nextIterationImportStatus *metadb.ImportDataStatusRecord
 	ok := utils.RetryWorkWithTimeout(2, 180, func() bool {
-		_ = lm.WithMetaDB(1, func(m *metadb.MetaDB) error {
+		err = lm.WithMetaDB(1, func(m *metadb.MetaDB) error {
 			rec, err := m.GetImportDataStatusRecord()
 			if err == nil && rec != nil && rec.ImportDataStarted {
 				nextIterationImportStatus = rec
 			}
 			return nil
 		})
+		if err != nil {
+			t.Logf("error getting import data status record: %v", err)
+		}
 		return nextIterationImportStatus != nil
 	})
 	require.True(t, ok, "next iteration's import data to target did not start and persist its cdc partition config within timeout")
@@ -2350,7 +2353,7 @@ func TestLiveMigrationCustomCdcPartitionKeyNoConflictIterativeCutover(t *testing
 	testutils.FatalIfError(t, err, "failed to execute source delta on the next iteration")
 
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		testLiveTable: {Inserts: 14, Updates:14},
+		testLiveTable: {Inserts: 14, Updates: 14},
 	}, 120, 5)
 	testutils.FatalIfError(t, err, "forward streaming did not complete")
 
@@ -2381,23 +2384,26 @@ func TestLiveMigrationCustomCdcPartitionKeyNoConflictIterativeCutover(t *testing
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
 	err = lm.WaitForNextIterationInitialized(1, 120)
-	testutils.FatalIfError(t, err, "next iteration was not initialized")
+	testutils.FatalIfError(t, err, "next iteration for iteration 1 was not initialized")
 
 	err = lm.WaitForCutoverSourceComplete(1, 180)
-	testutils.FatalIfError(t, err, "cutover to source did not complete")
+	testutils.FatalIfError(t, err, "cutover to source for iteration 1 did not complete")
 
 	// The next iteration's import-data-to-target is spawned by the parent process with a fresh
 	// metaDB; the cdc-partition-key/overrides are NOT re-supplied on the CLI. Wait for that
 	// import to start (which persists its resolved config), then assert the overrides carried
 	// over and still resolve to the custom strategy.
 	ok = utils.RetryWorkWithTimeout(2, 180, func() bool {
-		_ = lm.WithMetaDB(1, func(m *metadb.MetaDB) error {
+		err = lm.WithMetaDB(2, func(m *metadb.MetaDB) error {
 			rec, err := m.GetImportDataStatusRecord()
 			if err == nil && rec != nil && rec.ImportDataStarted {
 				nextIterationImportStatus = rec
 			}
 			return nil
 		})
+		if err != nil {
+			t.Logf("error getting import data status record: %v", err)
+		}
 		return nextIterationImportStatus != nil
 	})
 	require.True(t, ok, "next iteration's import data to target did not start and persist its cdc partition config within timeout")
@@ -2414,21 +2420,21 @@ func TestLiveMigrationCustomCdcPartitionKeyNoConflictIterativeCutover(t *testing
 	// Drive one more forward delta on the new iteration and finish with cutover-to-target to
 	// confirm the iteration migrates correctly under the carried-over custom partition key.
 	err = lm.ExecuteSourceDelta()
-	testutils.FatalIfError(t, err, "failed to execute source delta on the next iteration")
+	testutils.FatalIfError(t, err, "failed to execute source delta for iteration 2")
 
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		testLiveTable: {Inserts: 21, Updates:21},
+		testLiveTable: {Inserts: 21, Updates: 21},
 	}, 120, 5)
-	testutils.FatalIfError(t, err, "fall-back streaming did not complete")
+	testutils.FatalIfError(t, err, "forward streaming for iteration 2 did not complete")
 
 	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate final cutover to target")
 
 	err = lm.WaitForCutoverComplete(2, 180)
-	testutils.FatalIfError(t, err, "final cutover to target did not complete")
+	testutils.FatalIfError(t, err, "cutover to target for iteration 2 did not complete")
 
 	err = lm.ValidateDataConsistency([]string{testLiveTable}, "id")
-	testutils.FatalIfError(t, err, "target does not match source after next-iteration forward migration")
+	testutils.FatalIfError(t, err, "target does not match source after cutover to target for iteration 2")
 
 }
 
