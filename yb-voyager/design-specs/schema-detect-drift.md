@@ -257,7 +257,7 @@ type CapturePoint struct {
 
 `CapturePoints` is every point on the timeline, not only the ones holding schema: a stored capture, a stored placeholder (the capture failed, so nothing is behind it), and the live read (never persisted). `StoredCaptureCount` counts the first two -- a placeholder is a persisted row -- so it is a count of stored records, not of usable snapshots.
 
-`CapturePoint.Excluded` exists because a point the assembler bridged is otherwise indistinguishable from one that contributed nothing. It is `omitempty` because a normal run bridges nothing. It replaces an earlier `Report.Skipped` list of un-compared INTERVALS: once a non-covering capture is bridged rather than treated as a boundary, there is no such interval to record -- the exclusion is a property of the one point, not of a span.
+`CapturePoint.Excluded` exists because a point the assembler bridged is otherwise indistinguishable from one that contributed nothing. It is `omitempty` because a normal run bridges nothing. The exclusion is recorded on the point, not on an interval: a bridged capture does not end an interval, so there is no un-compared span to list.
 
 The `schemadiff.Difference` is flattened into these fields rather than embedded. Its `ObjectA`/`ObjectB` are `ObjectIdent` interface values, which marshal but cannot be unmarshalled, and they hold a different shape per finding (a column's identity nests its table; a table's does not), so one JSON key would carry two schemas. `Difference` also carries no JSON tags, so embedding would publish Go field names into this contract and make every field later added to the diff engine part of it. Flattening also does once what every consumer would otherwise repeat: choosing the display side, and splitting a column into its table and its own name.
 
@@ -320,7 +320,7 @@ A failed capture is *bridged*, not a boundary. The drift that happened around it
 
 A capture that does not COVER the requested schemas is bridged for the same reason a failed one is: a requested table missing from it is not evidence of a drop, only evidence that nobody looked. Covering MORE than was requested is not a mismatch -- those captures are compared normally, and the extra schemas' findings are removed by `Scope.Schemas` (§3.1) rather than by declining the comparison. Coverage ignores order and duplicates.
 
-This replaces an earlier rule that skipped any pair whose schema sets were not EQUAL. Equality rejected six comparable pairs to guard against one incomparable one: a run narrowed at detect-drift time, where the live read carries exactly `--source-db-schema` while history carries whatever export used, hit it on every interval and reported no drift at all.
+The test is coverage, not equality. A run narrowed at detect-drift time has a live read carrying exactly `--source-db-schema` while history carries whatever export used, so requiring equal schema sets would reject every interval and report no drift at all.
 
 `Report.Window` spans the first to the last `CapturePoint`, placeholders and the live read included. `Summary.StoredCaptureCount` counts the stored captures, placeholders included -- a placeholder is a persisted row; only the live read is excluded, and it is reported through `LiveCompared`.
 
