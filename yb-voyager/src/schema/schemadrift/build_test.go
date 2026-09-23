@@ -679,6 +679,31 @@ func TestPhaseFor(t *testing.T) {
 	}
 }
 
+// A drop has no side-B identity, so the entry must name the object from side A:
+// the dropped table itself, or the dropped column under its parent table.
+func TestBuildReport_DropsAreIdentifiedFromTheOldSide(t *testing.T) {
+	idCol := fixtureColumn("public", "orders", "1", "id", "integer")
+	noteCol := fixtureColumn("public", "orders", "2", "note", "text")
+	legacy := fixtureTable("2", "public", "legacy")
+	before := fixtureContent(fixtureTable("1", "public", "orders", idCol, noteCol), legacy)
+	after := fixtureContent(fixtureTable("1", "public", "orders", idCol))
+
+	report := buildUnfiltered(t, DetectionConfig{
+		Snapshots: []schemasnapshot.SchemaSnapshot{
+			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: before},
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: after},
+		},
+	})
+
+	got := lo.Map(report.Drifts, func(d DriftEntry, _ int) Diff { return d.Diff })
+	assert.ElementsMatch(t, []Diff{
+		{Type: schemadiff.TableDropped, Operation: schemadiff.OpDropped, ObjectType: schemadiff.ObjectTypeTable,
+			Object: objRef("public", "legacy"), OldValue: legacy},
+		{Type: schemadiff.ColumnDropped, Operation: schemadiff.OpDropped, ObjectType: schemadiff.ObjectTypeColumn,
+			Object: objRef("public", "orders"), SubObject: "note", OldValue: noteCol},
+	}, got)
+}
+
 // unknownIdent stands in for an identity kind the engine could emit once it covers
 // more than tables and columns.
 type unknownIdent struct{}
