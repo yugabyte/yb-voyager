@@ -60,10 +60,11 @@ def migration_completed_checks(tgt):
 	assert tgt.get_functions_count("hdb_catalog") == 1
  
 	# fetch and check all pg_extensions from given schema
-	extension_list = tgt.fetch_all_pg_extension("public")
-	expected_extension_set = tgt.with_preinstalled_extensions(EXPECTED_EXTENSION_SET)
-	print(f"extension_list: {extension_list}\n EXPECTED_EXTENSION_SET: {expected_extension_set}")
-	assert extension_list == expected_extension_set
+	# YB pre-installs postgres_fdw from 2026.1.2 (yugabyte-db#30591); this migration
+	# does not create it, so it is not part of what this check validates.
+	extension_list = tgt.fetch_all_pg_extension("public") - {("postgres_fdw",)}
+	print(f"extension_list: {extension_list}\n EXPECTED_EXTENSION_SET: {EXPECTED_EXTENSION_SET}")
+	assert extension_list == EXPECTED_EXTENSION_SET
  
 	# fetch and check all schemas in the databases
 	schema_list = tgt.fetch_all_schemas()

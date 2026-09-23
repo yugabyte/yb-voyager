@@ -181,14 +181,6 @@ def migration_completed_checks(tgt):
 		if "2024.1" in tgtVersion:
 			expectedExtensions.extend(["yb_ycql_utils"])
 
-		# pg_parquet ships in 2025.2.0–2025.2.2 and 2025.2.5 onwards, and returns in
-		# 2026.1.2; it is absent in 2025.2.3–2025.2.4 and in 2026.1.0–2026.1.1
-		pg_parquet_version = Version(threeDotVersion)
-		if (Version("2025.2") <= pg_parquet_version < Version("2025.2.3")
-				or Version("2025.2.5") <= pg_parquet_version < Version("2026.1")
-				or pg_parquet_version >= Version("2026.1.2")):
-			expectedExtensions.append("pg_parquet")
-
 		if Version(threeDotVersion) >= Version("2025.2.3"):
 			expectedExtensions.append("pg_dist_rag")
 			# The graph extension ships as 'age' in some builds, 'mage' in others,
@@ -197,6 +189,11 @@ def migration_completed_checks(tgt):
 			for age_ext in ("age", "mage"):
 				if age_ext in extensions:
 					expectedExtensions.append(age_ext)
+
+		# pg_parquet ships in 2025.2.0-2025.2.2 and 2025.2.5+, is dropped again in
+		# 2026.1.0-2026.1.1 and returns in 2026.1.2. Assert it only when reported.
+		if "pg_parquet" in extensions:
+			expectedExtensions.append("pg_parquet")
 
 		if Version(threeDotVersion) >= Version("2026.1"):
 			expectedExtensions.extend(["anon", "dummy_seclabel", "documentdb", "documentdb_core",

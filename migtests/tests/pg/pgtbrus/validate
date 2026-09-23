@@ -10,8 +10,6 @@ def main():
 
 EXPECTED_EXTENSION_SET = set([("postgres_fdw",), ("pg_stat_statements",), ("plpgsql",)])
 
-POSTGRES_FDW_ROUTINE_COUNT = 5
-
 EXPECTED_TRIGGER_LIST = [
 		"tgd","tgi","tgu","tgd","tgi","tgu"
 	]
@@ -40,23 +38,12 @@ def migration_completed_checks(tgt):
 	print(f"count returned - {cnt_type_domain}")
 	assert cnt_type_domain == 2
 
-	fetched_procedures_functions = tgt.fetch_all_procedures("public")
+	# postgres_fdw's own routines vary by PG version and, from YB 2026.1.2, land in
+	# pg_catalog because the extension is pre-installed (yugabyte-db#30591). Count
+	# only what this migration creates.
+	fetched_procedures_functions = [p for p in tgt.fetch_all_procedures("public") if not p.startswith("postgres_fdw")]
 	print(f"count of fecthed procedures/functions - {len(fetched_procedures_functions)}")
-	tgtVersion = tgt.get_target_version()
-	print(f"target version: {tgtVersion}")
-	
-	# for PG15 merged versions (preview >= 2.25 or stable >= 2025.1), some extensions create more functions/procedures than in earlier versions.
-	# Example hstore
-	# 2024.2: 57 functions / procedures
-	# 2.25+: 60 functions / procedures
-	# Thus the change in count.
-
-	expected_count = 9 if yb.has_pg15_merge(tgtVersion) else 6
-	# YB pre-installs postgres_fdw from 2026.1.2 (yugabyte-db#30591), which makes the
-	# migrated CREATE EXTENSION a no-op and leaves its routines out of this schema.
-	if tgt.get_extension_schema("postgres_fdw") == "pg_catalog":
-		expected_count -= POSTGRES_FDW_ROUTINE_COUNT
-	assert len(fetched_procedures_functions) == expected_count
+	assert len(fetched_procedures_functions) == 4
 
 	num_sequences = tgt.count_sequences("public")
 	print(f"actual number_sequences: {num_sequences}, expected num_sequences: 4")
