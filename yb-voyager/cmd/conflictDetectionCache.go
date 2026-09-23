@@ -134,9 +134,12 @@ type ConflictDetectionCache struct {
 	evChans              []chan *tgtdb.Event
 	sourceDBType         string
 
-	// importerRole is used only for the conflict metric
-	// (yb_voyager_import_data_cdc_conflicts_total).
-	importerRole string
+	// importerRole and anonymizedTableNames are used only for the conflict metric
+	// (yb_voyager_import_data_cdc_conflicts_total). anonymizedTableNames is precomputed
+	// per table at construction so the record path is a lookup and no raw table name
+	// reaches the metrics endpoint.
+	importerRole         string
+	anonymizedTableNames *utils.StructMap[sqlname.NameTuple, string]
 
 	// Per-table CDC partition key (strategy + custom key columns), used to compute an
 	// event's partition key (see GetEventPartitionKey). Two events with the same partition
@@ -335,8 +338,8 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 func (c *ConflictDetectionCache) recordConflictMetricLocked(incomingEvent *tgtdb.Event) {
 	anonymizedTableName, ok := c.anonymizedTableNames.Get(incomingEvent.TableNameTup)
 	if !ok {
-		log.Warnf("no anonymized table name precomputed for %s; skipping conflict metric", incomingEvent.TableNameTup.ForOutput())
-		return
+		log.Warnf("no anonymized table name precomputed for %s; putting all such tables in the conflict metric as XXX", incomingEvent.TableNameTup.ForOutput())
+		anonymizedTableName = "XXX"
 	}
 
 	metrics.Get().RecordImportCDCConflict(c.importerRole, incomingEvent.TableNameTup.ForOutput())
