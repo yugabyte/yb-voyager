@@ -430,7 +430,7 @@ func TestNothingComparedError(t *testing.T) {
 		{
 			name: "one usable capture forms no interval",
 			points: []schemadrift.CapturePoint{
-				{Series: schemasnapshot.LabelExportSchema},
+				{Label: schemasnapshot.LabelExportSchema},
 			},
 			want:   "a single capture forms no interval",
 			absent: "skipped because",
@@ -438,8 +438,8 @@ func TestNothingComparedError(t *testing.T) {
 		{
 			name: "every capture excluded, reasons named",
 			points: []schemadrift.CapturePoint{
-				{Series: schemasnapshot.LabelExportSchema, Excluded: "the capture failed, so this point holds no schema"},
-				{Series: schemasnapshot.LabelExportDataFromSourceStart, Excluded: "captured only sales, so it cannot answer for public"},
+				{Label: schemasnapshot.LabelExportSchema, Excluded: "the capture failed, so this point holds no schema"},
+				{Label: schemasnapshot.LabelExportDataFromSourceStart, Excluded: "captured only sales, so it cannot answer for public"},
 			},
 			want:   "captured only sales, so it cannot answer for public",
 			absent: "single capture",

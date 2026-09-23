@@ -563,7 +563,7 @@ func detectDrift() (driftFound bool, err error) {
 		snapshots = append(snapshots, *live)
 	}
 
-	report := schemadrift.BuildReport(schemadrift.DetectionConfig{
+	report, err := schemadrift.BuildReport(schemadrift.DetectionConfig{
 		Source: schemadrift.Source{
 			DatabaseType:    source.DBType,
 			Host:            source.Host,
@@ -574,6 +574,9 @@ func detectDrift() (driftFound bool, err error) {
 		Snapshots: snapshots,
 		Scope:     scope,
 	})
+	if err != nil {
+		return false, fmt.Errorf("build the drift report: %w", err)
+	}
 
 	// An empty report reads as "no drift", so refuse to emit one when nothing was
 	// examined.
