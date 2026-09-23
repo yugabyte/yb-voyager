@@ -652,9 +652,40 @@ func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, sourceDBTypeF
 		return err
 	}
 
+	anonymizedTableNames := buildAnonymizedTableNames(importTableList)
+
 	log.Infof("initializing conflict detection cache")
-	conflictDetectionCache = NewConflictDetectionCache(tableToUniqueIndexes, evChans, sourceDBTypeForConflictCache, tablePartitionKeyMap, importerRole)
+	conflictDetectionCache = NewConflictDetectionCache(tableToUniqueIndexes, evChans, sourceDBTypeForConflictCache, tablePartitionKeyMap, importerRole, anonymizedTableNames)
 	return nil
+}
+
+// buildAnonymizedTableNames precomputes the anonymized "schema.table" name for every
+// import table, used only as the table_name label of the conflict metric so no raw
+// identifier reaches the metrics endpoint. Anonymization is best-effort: if the shared
+// anonymizer is unavailable or a name fails to anonymize, that table is omitted (its
+// conflicts go uncounted) rather than failing streaming for an observability label.
+func buildAnonymizedTableNames(importTableList []sqlname.NameTuple) *utils.StructMap[sqlname.NameTuple, string] {
+	anonymizedTableNames := utils.NewStructMap[sqlname.NameTuple, string]()
+
+	if anonymizer == nil {
+		log.Warn("anonymizer not initialized; conflict metric will omit table names")
+		return anonymizedTableNames
+	}
+	for _, table := range importTableList {
+		schema, name := table.ForKeyTableSchema()
+		anonSchema, err := anonymizer.AnonymizeSchemaName(schema)
+		if err != nil {
+			log.Warnf("could not anonymize schema %q for conflict metric: %v", schema, err)
+			continue
+		}
+		anonName, err := anonymizer.AnonymizeTableName(name)
+		if err != nil {
+			log.Warnf("could not anonymize table %q for conflict metric: %v", name, err)
+			continue
+		}
+		anonymizedTableNames.Put(table, anonSchema+"."+anonName)
+	}
+	return anonymizedTableNames
 }
 
 // addPrimaryKeyToConflictSetForCustomTables appends the primary key as a synthetic unique

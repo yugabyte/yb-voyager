@@ -69,13 +69,14 @@ func newConflictCacheForTestWithIndexes(indexes ...tgtdb.UniqueIndex) *ConflictD
 	// like the previous same-PK exclusion (routing by primary key).
 	tablePartitionKeyMap := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 	tablePartitionKeyMap.Put(table, cdcPartitionKeyOverride{Strategy: PARTITION_BY_PK})
+	anonymizedTableNames := utils.NewStructMap[sqlname.NameTuple, string]()
 	// WaitUntilNoConflict flushes all NUM_EVENT_CHANNELS channels on a real conflict, so
 	// the cache must be built with that many channels (not just one).
 	evChans := make([]chan *tgtdb.Event, NUM_EVENT_CHANNELS)
 	for i := range evChans {
 		evChans[i] = make(chan *tgtdb.Event, 1)
 	}
-	return NewConflictDetectionCache(tableToIndexes, evChans, POSTGRESQL, tablePartitionKeyMap, TARGET_DB_IMPORTER_ROLE)
+	return NewConflictDetectionCache(tableToIndexes, evChans, POSTGRESQL, tablePartitionKeyMap, TARGET_DB_IMPORTER_ROLE, anonymizedTableNames)
 }
 
 func testTableTuple() sqlname.NameTuple {
