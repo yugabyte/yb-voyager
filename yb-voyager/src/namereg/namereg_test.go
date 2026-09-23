@@ -855,6 +855,7 @@ func TestNewInMemorySourceNameRegistryGetRegisteredTableList(t *testing.T) {
 		"sales":   {"orders", "customers"},
 		"Billing": {"Invoices"},
 	})
+	require.NoError(t, err)
 	tuples, err := reg.GetRegisteredTableList(false)
 	require.NoError(t, err)
 	require.Len(t, tuples, 3)

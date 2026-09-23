@@ -173,6 +173,7 @@ func resolveDetectDriftFlagDefaults() {
 	setSourceDefaultPort()
 	setDefaultSSLMode()
 
+	source.SchemaConfig = normalizeDriftListFlag(source.SchemaConfig)
 	driftTableList = normalizeDriftListFlag(driftTableList)
 	driftExcludeTableList = normalizeDriftListFlag(driftExcludeTableList)
 	driftObjectTypeList = normalizeDriftListFlag(driftObjectTypeList)
@@ -520,12 +521,6 @@ func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasn
 // detectDrift runs the command. It returns rather than exits, so its defers
 // unwind before the caller exits.
 func detectDrift() error {
-	// CreateMigrationProjectIfNotExists is idempotent: it's a no-op (aside from
-	// mkdir -p) if this export-dir already has a migration project. detect-drift
-	// only ever writes to <export-dir>/reports/ afterwards; it never touches
-	// migration state (MigrationStatusRecord, table lists, etc.).
-	metaDB = CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-
 	// sqlname.SourceDBType is a package global that sqlname's quoting helpers read.
 	// Unlike export/import, detect-drift has no shared setup path that sets it, so
 	// set it here before any sqlname use.

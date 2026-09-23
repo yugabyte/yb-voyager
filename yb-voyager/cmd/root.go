@@ -379,6 +379,7 @@ var exportDirInitialisedCheckNeededList = []string{
 	"yb-voyager initiate cutover to source",
 	"yb-voyager initiate cutover to source-replica",
 	"yb-voyager initiate cutover to target",
+	"yb-voyager schema detect-drift",
 }
 
 var noLockNeededList = []string{
@@ -398,10 +399,6 @@ var noLockNeededList = []string{
 	"yb-voyager end",
 	"yb-voyager archive",
 	"yb-voyager schema",
-	// detect-drift is read-only w.r.t. migration state (it only writes report
-	// files under <export-dir>/reports), so it does not take the export-dir
-	// lock.
-	"yb-voyager schema detect-drift",
 }
 
 var noPersistentPreRunNeededList = []string{

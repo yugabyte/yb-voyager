@@ -143,6 +143,21 @@ func TestNormalizeDriftListFlag(t *testing.T) {
 	}
 }
 
+func TestResolveDetectDriftFlagDefaultsTrimsSourceSchemas(t *testing.T) {
+	saved := source
+	t.Cleanup(func() { source = saved })
+
+	source.SchemaConfig = "public, sales ,"
+	resolveDetectDriftFlagDefaults()
+	assert.Equal(t, "public,sales", source.SchemaConfig)
+}
+
+func TestDetectDriftNeedsInitialisedExportDirAndTakesLock(t *testing.T) {
+	require.Equal(t, "yb-voyager schema detect-drift", detectDriftCmd.CommandPath())
+	assert.True(t, shouldRunExportDirInitialisedCheck(detectDriftCmd))
+	assert.True(t, shouldLock(detectDriftCmd))
+}
+
 func TestParseDriftObjectTypeList(t *testing.T) {
 	tests := []struct {
 		name    string
