@@ -277,14 +277,22 @@ type driftTableCandidate struct {
 }
 
 // buildDriftTableCandidates reads the live catalog and hands the union off to
-// unionDriftTableCandidates. Must run after source.Schemas is resolved, which is
-// what decides the schemas GetAllTableNames() queries.
-func buildDriftTableCandidates(defaultSchema string, snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent) []driftTableCandidate {
+// unionDriftTableCandidates. It lists tables through an error-returning call
+// rather than GetAllTableNames, which exits 1 on a query failure -- the code this
+// command reserves for "drift found".
+func buildDriftTableCandidates(listTables func(schema string) ([]string, error), schemas []string, defaultSchema string,
+	snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent) ([]driftTableCandidate, error) {
 	var liveRefs []schemasnapshot.ObjectRef
-	for _, n := range source.DB().GetAllTableNames() {
-		liveRefs = append(liveRefs, schemasnapshot.ObjectRef{Schema: n.SchemaName.Unquoted, Name: n.ObjectName.Unquoted})
+	for _, schema := range schemas {
+		names, err := listTables(schema)
+		if err != nil {
+			return nil, fmt.Errorf("list the tables in schema %q: %w", schema, err)
+		}
+		for _, name := range names {
+			liveRefs = append(liveRefs, schemasnapshot.ObjectRef{Schema: schema, Name: name})
+		}
 	}
-	return unionDriftTableCandidates(source.DBType, defaultSchema, liveRefs, snapshotContents, liveContent)
+	return unionDriftTableCandidates(source.DBType, defaultSchema, liveRefs, snapshotContents, liveContent), nil
 }
 
 // unionDriftTableCandidates builds the --table-list / --exclude-table-list matching
@@ -431,10 +439,12 @@ func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasn
 
 	// Built even when nothing is filtered: besides being the set --exclude-table-list
 	// subtracts from, it IS the set of tables compared, which the report states.
-	candidates := buildDriftTableCandidates(defaultSchema, snapshotContents, liveContent)
+	candidates, err := buildDriftTableCandidates(source.DB().GetAllTableNamesRaw, schemas, defaultSchema, snapshotContents, liveContent)
+	if err != nil {
+		return schemadiff.Scope{}, err
+	}
 
 	var includeTables []schemasnapshot.ObjectRef
-	var err error
 	switch {
 	case driftTableList != "":
 		if includeTables, err = resolveDriftTableRefs(candidates, driftTableList, "table-list", !noDefaultSchema); err != nil {
@@ -486,11 +496,9 @@ func detectDrift() (driftFound bool, err error) {
 	// migration state (MigrationStatusRecord, table lists, etc.).
 	metaDB = CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
-	// sqlname.SourceDBType is a package global that sqlname's quoting/matching
-	// helpers read (e.g. via source.DB().GetAllTableNames() -> NewSourceName).
-	// Unlike export/import, detect-drift has no shared setup path that sets it,
-	// so set it here before any sqlname use; otherwise GetAllTableNames panics
-	// with "invalid source db type" on the --table-list/--exclude-table-list path.
+	// sqlname.SourceDBType is a package global that sqlname's quoting helpers read.
+	// Unlike export/import, detect-drift has no shared setup path that sets it, so
+	// set it here before any sqlname use.
 	sqlname.SourceDBType = source.DBType
 
 	if err := source.DB().Connect(); err != nil {

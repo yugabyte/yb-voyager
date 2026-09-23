@@ -287,6 +287,32 @@ func candidateRefs(candidates []driftTableCandidate) []schemasnapshot.ObjectRef 
 	return refs
 }
 
+// A catalog read that fails must come back as an error: the caller turns it into
+// exit 2, where the old GetAllTableNames path exited 1, which means "drift found".
+func TestBuildDriftTableCandidates(t *testing.T) {
+	origDBType := source.DBType
+	t.Cleanup(func() { source.DBType = origDBType })
+	source.DBType = POSTGRESQL
+
+	t.Run("listing error is returned", func(t *testing.T) {
+		failing := func(string) ([]string, error) { return nil, fmt.Errorf("connection reset") }
+		got, err := buildDriftTableCandidates(failing, []string{"public"}, "public", nil, nil)
+		require.EqualError(t, err, `list the tables in schema "public": connection reset`)
+		assert.Nil(t, got)
+	})
+
+	t.Run("each schema's tables become candidates", func(t *testing.T) {
+		tablesBySchema := map[string][]string{"public": {"orders"}, "Sales": {"Invoices"}}
+		listing := func(schema string) ([]string, error) { return tablesBySchema[schema], nil }
+		got, err := buildDriftTableCandidates(listing, []string{"public", "Sales"}, "public", nil, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []schemasnapshot.ObjectRef{
+			{Schema: "public", Name: "orders"},
+			{Schema: "Sales", Name: "Invoices"},
+		}, candidateRefs(got))
+	})
+}
+
 func TestUnionDriftTableCandidates(t *testing.T) {
 	orders := schemasnapshot.ObjectRef{Schema: "public", Name: "orders"}
 	customers := schemasnapshot.ObjectRef{Schema: "public", Name: "customers"}
