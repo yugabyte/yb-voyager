@@ -161,7 +161,7 @@ JSON is the indented marshalling of `Report`. HTML is a single self-contained pa
 yb-voyager schema detect-drift --export-dir <dir> \
     --source-db-user <u> --source-db-name <db> --source-db-schema <s>[,...] \
     [--source-db-host --source-db-port --source-db-password ...] \
-    [--output-format html,json] \
+    [--output-format html|json] \
     [--table-list <globs> | --exclude-table-list <globs>] \
     [--object-type-list TABLE,COLUMN | --exclude-object-type-list ...]
 ```
@@ -169,8 +169,8 @@ yb-voyager schema detect-drift --export-dir <dir> \
 |  |  |
 | :---- | :---- |
 | Parent | new `schema` command for standalone schema tooling outside the export/import workflow |
-| Source type | PostgreSQL only; any other value is an operational error |
-| Output | `<export-dir>/reports/drift_analysis_report.html` and `.json`, overwritten on each run |
+| Source type | PostgreSQL only; any other value is an error, exit 1 |
+| Output | `<export-dir>/reports/drift_analysis_report.html` and `.json`, overwritten on each run. `--output-format html` or `json` writes only that one; unset writes both |
 | Exit codes | `0` the report was written, whether or not it found drift · `1` error (flags, connection, unreadable snapshot). A script reads drift from `summary.change_count` in the JSON report. |
 | Config file | section `schema-detect-drift` with keys `log-level`, `output-format`, the four list flags; commented-out in the four migration templates |
 | Table scope | an unqualified `--table-list` entry needs a default schema, so `--source-db-schema` without `public` must qualify every entry as `schema.table` |
@@ -298,6 +298,8 @@ cmd.detectDrift()
  │      ├─ phaseFor(prevCapture, nextCapture)                 → phase string                                   §5.3
  │      └─ per Difference: getDriftInfo(d.Type)               → DriftInfo, embedded in DriftEntry             §5.4
  │
+ ├─ if Summary.ComparedIntervalCount == 0: cmd.nothingComparedError(report) → error, exit 1; no file is written   §7
+ │
  ├─ cmd.writeDriftReports(report, formats)
  │      ├─ schemadrift.RenderJSON(Report)                     → []byte                   cmd → schemadrift
  │      └─ schemadrift.RenderHTML(Report)                     → []byte                   cmd → schemadrift
@@ -377,9 +379,9 @@ A partitioned table matched by either list brings every partition beneath it, at
 | Flag | Resolution |
 | :---- | :---- |
 | neither list flag | `Scope.Tables` \= the whole universe, passed explicitly; `Comparing.Tables` is that same set |
-| `--table-list` | patterns resolved against the universe by export data's matcher, then each matched partitioned table expanded to its partitions; unknown pattern is an operational error |
-| `--exclude-table-list` | resolved and expanded the same way, then complemented against the universe; an empty result is an operational error (the report would be empty, so the command says so rather than emitting one) |
-| both | operational error |
+| `--table-list` | patterns resolved against the universe by export data's matcher, then each matched partitioned table expanded to its partitions; unknown pattern is an error, exit 1 |
+| `--exclude-table-list` | resolved and expanded the same way, then complemented against the universe; an empty result is an error, exit 1 (the report would be empty, so the command says so rather than emitting one) |
+| both | error, exit 1 |
 
 `--object-type-list` and `--exclude-object-type-list` follow the same shape over `{TABLE, COLUMN}`.
 
@@ -437,6 +439,7 @@ None. `detect-drift` runs once per invocation over a handful of snapshots. Captu
 | Severity and note | one struct in one map | parallel maps keyed by `DiffType` | Parallel maps drift silently. A test asserts every mapped type has a note. |
 | Severity semantics | what the migration does | how alarming the DDL is | The user's question is "is my migration broken", not "was this a big change". |
 | Live read identity | new `LabelSourceLive`, never persisted; it IS the timeline identity | reuse an existing label; carry a second identity beside the label | `Capture` validates labels, and a persisted label would file the live read as history. Naming the label for what the snapshot is, not for the command that takes it, removes the need for a parallel identity field. |
+| Report formats | `--output-format` takes one value; unset writes both | a comma-separated list | Matches `analyze-schema`. With both as the default, a list only lets a user spell out the default. |
 | Where the report lives | files under `reports/` | metaDB | It is output, not state. No upgrade concern, and users can share it. |
 | Table universe | union of live catalog, history, live read | live catalog only | A dropped table is the case the report exists for. |
 | Table-name resolution | in-memory name registry over the universe, then export data's matcher | the migration's `name_registry.json`; a matcher of its own | The stored registry cannot name a table created after export data's first run. A matcher of its own could drift from what the same flag means in export. |
