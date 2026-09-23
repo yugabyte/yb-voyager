@@ -67,14 +67,14 @@ func BuildReport(p DetectionConfig) Report {
 	comparedIntervals := 0
 	prevIdx := -1
 	for i := range p.Snapshots {
-		switch {
-		case p.Snapshots[i].Content == nil:
+		if p.Snapshots[i].Content == nil {
 			capturePoints[i].Excluded = "the capture failed, so this point holds no schema"
 			continue
-		case !coversSchemas(p.Snapshots[i].Header, p.Scope.Schemas):
-			missing, _ := lo.Difference(p.Scope.Schemas, p.Snapshots[i].Header.Schemas)
+		}
+		captured := p.Snapshots[i].Header.Schemas
+		if missing := missingSchemas(p.Scope.Schemas, captured); len(missing) > 0 {
 			capturePoints[i].Excluded = fmt.Sprintf("captured only %s, so it cannot answer for %s",
-				strings.Join(p.Snapshots[i].Header.Schemas, ", "), strings.Join(missing, ", "))
+				strings.Join(captured, ", "), strings.Join(missing, ", "))
 			continue
 		}
 		if prevIdx == -1 {
@@ -142,12 +142,12 @@ func BuildReport(p DetectionConfig) Report {
 	}
 }
 
-// coversSchemas reports whether h was captured with every schema in requested, so
-// that a table missing from its content is genuinely absent rather than never
-// looked for. Capturing MORE than was requested still covers it.
-func coversSchemas(h schemasnapshot.SnapshotHeader, requested []string) bool {
-	missing, _ := lo.Difference(requested, h.Schemas)
-	return len(missing) == 0
+// missingSchemas returns the requested schemas a capture did not include. A
+// capture missing any cannot be compared: a table absent from it was never looked
+// for, not dropped. Capturing MORE than was requested leaves nothing missing.
+func missingSchemas(requested, captured []string) []string {
+	missing, _ := lo.Difference(requested, captured)
+	return missing
 }
 
 // phaseFor labels the migration phase an interval between two captures falls in.
