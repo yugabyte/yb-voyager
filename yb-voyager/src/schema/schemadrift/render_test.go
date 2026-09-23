@@ -55,26 +55,30 @@ func fixtureReport() Report {
 		},
 		Drifts: []DriftEntry{
 			{
-				Type:       schemadiff.TableAdded,
-				Operation:  schemadiff.OpAdded,
-				ObjectType: schemadiff.ObjectTypeTable,
-				Object:     schemasnapshot.ObjectRef{Schema: "public", Name: "invoices"},
-				Window:     Window{From: from, To: to},
-				Phase:      "export data: running",
-				DriftInfo:  classify(schemadiff.TableAdded),
+				Diff: Diff{
+					Type:       schemadiff.TableAdded,
+					Operation:  schemadiff.OpAdded,
+					ObjectType: schemadiff.ObjectTypeTable,
+					Object:     schemasnapshot.ObjectRef{Schema: "public", Name: "invoices"},
+				},
+				Window:    Window{From: from, To: to},
+				Phase:     "export data: running",
+				DriftInfo: getDriftInfo(schemadiff.TableAdded),
 			},
 			{
-				Type:       schemadiff.ColumnTypeChanged,
-				Operation:  schemadiff.OpChanged,
-				ObjectType: schemadiff.ObjectTypeColumn,
-				Attribute:  schemadiff.AttrType,
-				Object:     schemasnapshot.ObjectRef{Schema: "public", Name: "orders"},
-				SubObject:  "amount",
-				OldValue:   "integer",
-				NewValue:   "numeric",
-				Window:     Window{From: from, To: to},
-				Phase:      "export data: running",
-				DriftInfo:  classify(schemadiff.ColumnTypeChanged),
+				Diff: Diff{
+					Type:       schemadiff.ColumnTypeChanged,
+					Operation:  schemadiff.OpChanged,
+					ObjectType: schemadiff.ObjectTypeColumn,
+					Attribute:  schemadiff.AttrType,
+					Object:     schemasnapshot.ObjectRef{Schema: "public", Name: "orders"},
+					SubObject:  "amount",
+					OldValue:   "integer",
+					NewValue:   "numeric",
+				},
+				Window:    Window{From: from, To: to},
+				Phase:     "export data: running",
+				DriftInfo: getDriftInfo(schemadiff.ColumnTypeChanged),
 			},
 		},
 		CapturePoints: []CapturePoint{
@@ -189,34 +193,42 @@ func TestObjectPathMinQuotesIdentifiers(t *testing.T) {
 		{
 			name: "lowercase table needs no quoting",
 			entry: DriftEntry{
-				ObjectType: schemadiff.ObjectTypeTable,
-				Object:     schemasnapshot.ObjectRef{Schema: "sales", Name: "orders"},
+				Diff: Diff{
+					ObjectType: schemadiff.ObjectTypeTable,
+					Object:     schemasnapshot.ObjectRef{Schema: "sales", Name: "orders"},
+				},
 			},
 			wantQ: "sales.", wantS: "orders",
 		},
 		{
 			name: "mixed-case table is quoted",
 			entry: DriftEntry{
-				ObjectType: schemadiff.ObjectTypeTable,
-				Object:     schemasnapshot.ObjectRef{Schema: "sales", Name: "MixedCase"},
+				Diff: Diff{
+					ObjectType: schemadiff.ObjectTypeTable,
+					Object:     schemasnapshot.ObjectRef{Schema: "sales", Name: "MixedCase"},
+				},
 			},
 			wantQ: "sales.", wantS: `"MixedCase"`,
 		},
 		{
 			name: "column with a space, under a mixed-case table, quotes both parts",
 			entry: DriftEntry{
-				ObjectType: schemadiff.ObjectTypeColumn,
-				Object:     schemasnapshot.ObjectRef{Schema: "sales", Name: "MixedCase"},
-				SubObject:  "Extra Col",
+				Diff: Diff{
+					ObjectType: schemadiff.ObjectTypeColumn,
+					Object:     schemasnapshot.ObjectRef{Schema: "sales", Name: "MixedCase"},
+					SubObject:  "Extra Col",
+				},
 			},
 			wantQ: `sales."MixedCase".`, wantS: `"Extra Col"`,
 		},
 		{
 			name: "lowercase column under a lowercase table stays unquoted",
 			entry: DriftEntry{
-				ObjectType: schemadiff.ObjectTypeColumn,
-				Object:     schemasnapshot.ObjectRef{Schema: "sales", Name: "orders"},
-				SubObject:  "discount",
+				Diff: Diff{
+					ObjectType: schemadiff.ObjectTypeColumn,
+					Object:     schemasnapshot.ObjectRef{Schema: "sales", Name: "orders"},
+					SubObject:  "discount",
+				},
 			},
 			wantQ: "sales.orders.", wantS: "discount",
 		},
